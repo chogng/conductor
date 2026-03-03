@@ -135,24 +135,8 @@ body {
     }
   }
 
-  .card_head_warp,
-  .activity_card_head_warp {
+  .card_head_warp {
     @apply p-4 flex items-center justify-between gap-4;
-  }
-
-  .activity_card_headleft {
-    @apply grid gap-2 lg:gap-4 min-w-0 items-center w-fit max-w-full;
-    grid-template-columns: repeat(3, auto);
-    justify-content: start;
-    justify-items: start;
-  }
-
-  .activity_card_headright {
-    @apply flex flex-col items-end gap-1;
-  }
-
-  .message_card_head_warp {
-    @apply h-[70px] pt-3 pr-4 pb-3 pl-4 flex items-center justify-between gap-4;
   }
 
   /* Device Analysis: Import card header row (Card already has padding) */
@@ -162,20 +146,6 @@ body {
 
   .import_card_head_group {
     @apply flex items-center gap-4 flex-wrap;
-  }
-
-  /* Layout: Control wrap (inputs / dropdown triggers / compact toolbars) */
-  .control_warp {
-    @apply flex items-center p-1 bg-bg-page border border-border-subtle rounded-xl shadow-sm focus-within:ring-1 focus-within:ring-accent-focus/30 transition-all;
-  }
-
-  /* Layout: Section */
-  .section_head {
-    @apply flex items-center justify-between mb-4;
-  }
-
-  .section_head--gap {
-    @apply gap-3;
   }
 
   .section_title {
@@ -193,40 +163,6 @@ body {
 
   .page_head {
     @apply mb-6;
-  }
-
-  .page_content {
-    @apply flex flex-col gap-12;
-  }
-
-  /* Dashboard: fallback for small viewport heights (e.g. browser zoom). */
-  #dashboard-activity-notifications-card,
-  #dashboard-message-notifications-card {
-    min-height: 360px;
-  }
-
-  @media (max-height: 720px) {
-    .dashboard_page {
-      height: auto;
-      min-height: 100%;
-    }
-
-    .dashboard_fill_grid {
-      flex: 0 0 auto;
-      min-height: auto;
-    }
-
-    #dashboard-activity-notifications-card,
-    #dashboard-message-notifications-card {
-      flex: 0 0 auto;
-      height: clamp(340px, 56vh, 520px);
-    }
-  }
-
-  /* Layout: Grids */
-  .grid_auto_cards {
-    @apply grid gap-6;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
   }
 
   /* Tabs */
@@ -283,25 +219,6 @@ body {
     @apply text-sm text-text-tertiary;
   }
 
-  .toolbar_group {
-    @apply mb-4 flex items-center justify-between gap-4 flex-wrap;
-  }
-
-  .toolbar_group--scroll {
-    @apply w-full flex items-center gap-4 flex-wrap overflow-visible;
-    scrollbar-width: none;
-    /* Firefox */
-  }
-
-  .toolbar_group--scroll::-webkit-scrollbar {
-    display: none;
-    /* Chrome/Safari */
-  }
-
-  .ui-button_row {
-    @apply flex items-center gap-2;
-  }
-
   .avatar {
     @apply relative inline-flex items-center justify-center rounded-full shrink-0 overflow-hidden bg-bg-subtle text-text-primary font-medium transition-colors group-hover:bg-accent/10 group-hover:text-accent;
   }
@@ -329,177 +246,6 @@ body {
   /* Image-mode: keep container neutral (icon/text share the default `.avatar` styling). */
   .avatar--image {
     @apply bg-transparent;
-  }
-
-  /* List row base: shared hover/padding/radius for list items (paired with `.list_item` grid layout on Dashboard). */
-  .list-row {
-    @apply p-3 mx-2 my-1 rounded-lg flex items-center justify-between hover:bg-bg-100 transition-all duration-200 border border-transparent;
-  }
-
-  /* Dashboard: Activity list layout */
-  .activity_list :is(.activity_left, .activity_middle, .activity_right) {
-    @apply min-w-0;
-  }
-
-  .activity_list .activity_middle {
-    @apply text-center;
-  }
-
-  .activity_list .activity_right {
-    @apply text-right;
-  }
-
-  .activity_list .list_item {
-    @apply grid grid-cols-3 gap-x-6 items-center;
-  }
-
-  .activity_list .list_item .activity_left {
-    @apply flex items-center gap-3;
-  }
-
-  .activity_list .list_item .activity_right {
-    @apply justify-self-end;
-  }
-
-  /* Activity list (Dashboard) */
-  .activity_list .user_name {
-    @apply text-sm font-medium text-text-primary truncate;
-  }
-
-  .activity_list .user_behavior {
-    @apply text-xs text-text-secondary truncate;
-  }
-
-  .activity_list .activity_detail {
-    @apply min-w-0 text-sm text-text-secondary text-center truncate;
-  }
-
-  .activity_list .device_name {
-    @apply text-text-secondary;
-  }
-
-  .activity_list .activity_date {
-    @apply text-sm font-medium text-text-primary;
-  }
-
-  /* Dashboard: Messages list layout */
-  .msg_list .msg_header {
-    @apply h-[38px] w-full grid grid-cols-3 gap-x-6 items-center text-sm font-medium text-text-tertiary;
-  }
-
-  .msg_list :is(.msg_left, .msg_middle, .msg_right) {
-    @apply min-w-0;
-  }
-
-  .msg_list .msg_middle {
-    @apply text-center;
-  }
-
-  .msg_list .msg_right {
-    @apply text-right;
-  }
-
-  .msg_list .list_item {
-    @apply grid grid-cols-3 gap-x-6 items-center;
-  }
-
-  .msg_list .list_item .msg_left {
-    @apply flex items-center gap-3;
-  }
-
-  .msg_list .list_item .msg_right {
-    @apply justify-self-end;
-  }
-
-  .msg_list .user_name {
-    @apply text-sm font-medium text-text-primary transition-colors truncate;
-  }
-
-  .msg_list .list_item:hover .user_name {
-    @apply text-accent;
-  }
-
-  .msg_list .user_behavior {
-    @apply text-xs text-text-secondary truncate;
-  }
-
-  .msg_list .msg_detail {
-    @apply min-w-0 text-sm text-text-secondary text-center;
-  }
-
-  .msg_list .msg_date {
-    @apply text-sm font-medium text-text-primary;
-  }
-
-  .msg_list .msg_pill {
-    @apply flex items-center gap-2 w-fit max-w-full mx-auto;
-  }
-
-  .msg_list .msg_pill_name {
-    @apply font-medium text-text-primary truncate;
-  }
-
-  .msg_list .msg_pill_qty {
-    @apply text-xs px-1.5 py-0.5 rounded bg-accent/10 text-accent font-medium;
-  }
-
-  .date_btn_label {
-    @apply text-sm font-medium text-text-secondary whitespace-nowrap hidden sm:block;
-  }
-
-  .date_btn_warp {
-    @apply flex items-center gap-2 min-w-0 flex-1;
-  }
-
-  .date_btn {
-    @apply relative flex items-center gap-2 px-3 py-2 rounded-lg border transition-all cursor-pointer bg-bg-page select-none h-[38px] shrink min-w-0;
-  }
-
-  /* Keyboard focus ring (component-level outer ring).
-     Mirrors the Input/Button focus halo and is gated to keyboard navigation only. */
-  .date_btn::after {
-    content: "";
-    position: absolute;
-    inset: -6px;
-    border-radius: calc(0.5rem + 6px); /* rounded-lg + offset */
-    @apply border-2 border-transparent;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 120ms ease, border-color 120ms ease;
-  }
-
-  html[data-nav="keyboard"] .date_btn:focus-visible::after {
-    @apply border-accent-terracotta;
-    opacity: 0.5;
-  }
-
-  .date_btn:focus,
-  .date_btn:focus-visible {
-    outline: none;
-  }
-
-  .date_btn--open {
-    @apply border-accent ring-1 ring-accent/10;
-  }
-
-  .date_btn--closed {
-    @apply border-border-200;
-  }
-
-  .date_btn_text {
-    @apply flex-1 text-sm truncate;
-  }
-
-  .date_btn_text--value {
-    @apply text-text-primary;
-  }
-
-  .date_btn_text--placeholder {
-    @apply text-text-tertiary;
-  }
-
-  .date_btn_icon {
-    @apply text-text-tertiary inline-flex;
   }
 
   /* Button / action-btn* */
@@ -609,13 +355,6 @@ body {
     --btn-ring-outer-hover: rgb(var(--border-200));
   }
 
-  /* Context override: ghost inside toolbars */
-  .toolbar_group .action-btn--ghost {
-    --btn-ring-inner: rgb(var(--bg-0));
-    --btn-ring-outer: rgb(var(--border-200));
-    --btn-ring-outer-hover: rgb(var(--border-200));
-  }
-
   .action-btn--danger {
     @apply text-text-tertiary bg-bg-0 hover:text-text-danger;
   }
@@ -627,29 +366,6 @@ body {
   /* Small secondary meta text (labels like "Loaded 3 files") */
   .meta_text {
     @apply text-sm text-text-secondary font-medium;
-  }
-
-  .msg_list .user_request_email {
-    @apply text-sm text-text-primary truncate block;
-  }
-
-  /* Common toolbar row layout: primary action + meta + trailing actions */
-  .toolbar_row {
-    @apply flex items-center gap-4 mb-4 flex-wrap;
-  }
-
-  /* Push trailing items to the far right within `.toolbar_row` */
-  .toolbar_spacer {
-    @apply ml-auto;
-  }
-
-  /* Checkbox */
-  .ui-seed-url-check {
-    @apply transition-all duration-300 opacity-0 scale-0;
-  }
-
-  button[aria-pressed="true"] .ui-seed-url-check {
-    @apply opacity-100 scale-100;
   }
 
   .clickable-ckb {
