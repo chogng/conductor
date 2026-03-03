@@ -105,7 +105,7 @@ const Modal = ({
                 }
             }
         };
-    }, [isOpen, onClose]);
+    }, [initialFocus, isOpen, onClose]);
 
     if (!isOpen) return null;
 

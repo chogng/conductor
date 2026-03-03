@@ -25,6 +25,8 @@ server/.tmp/
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/css_custom_data.json
 .idea
 .DS_Store
 *.suo
@@ -35,9 +37,6 @@ server/.tmp/
 
 # .Kiro
 .kiro/
-
-# .vscode
-.vscode/
 
 # .claude artifacts
 .claude/

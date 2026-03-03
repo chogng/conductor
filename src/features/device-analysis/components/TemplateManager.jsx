@@ -766,7 +766,21 @@ const TemplateManager = ({
 
     const found = templates.find((t) => t?.id === lastId);
     if (!found) return;
-    loadTemplate(found, { persist: false });
+
+    let cancelled = false;
+    const scheduleMicrotask =
+      typeof queueMicrotask === "function"
+        ? queueMicrotask
+        : (callback) => Promise.resolve().then(callback);
+
+    scheduleMicrotask(() => {
+      if (cancelled) return;
+      loadTemplate(found, { persist: false });
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [
     deviceAnalysisSettings?.lastTemplateId,
     isSelectMode,
@@ -1301,14 +1315,27 @@ const TemplateManager = ({
       a.width === b.width &&
       a.height === b.height;
 
-    setSelectionRects((prev) => {
-      if (!Array.isArray(prev) || prev.length !== next.length) return next;
-      for (let i = 0; i < next.length; i++) {
-        if (prev[i]?.id !== next[i]?.id) return next;
-        if (!sameRect(prev[i]?.rect, next[i]?.rect)) return next;
-      }
-      return prev;
+    let cancelled = false;
+    const scheduleMicrotask =
+      typeof queueMicrotask === "function"
+        ? queueMicrotask
+        : (callback) => Promise.resolve().then(callback);
+
+    scheduleMicrotask(() => {
+      if (cancelled) return;
+      setSelectionRects((prev) => {
+        if (!Array.isArray(prev) || prev.length !== next.length) return next;
+        for (let i = 0; i < next.length; i++) {
+          if (prev[i]?.id !== next[i]?.id) return next;
+          if (!sameRect(prev[i]?.rect, next[i]?.rect)) return next;
+        }
+        return prev;
+      });
     });
+
+    return () => {
+      cancelled = true;
+    };
   }, [
     getRectFromRange,
     previewColWindow.endCol,

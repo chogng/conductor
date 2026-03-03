@@ -1,0 +1,33 @@
+{
+  "version": 1.1,
+  "atDirectives": [
+    {
+      "name": "@apply",
+      "description": "Tailwind CSS utility composition directive."
+    },
+    {
+      "name": "@tailwind",
+      "description": "Tailwind CSS base/components/utilities injection directive."
+    },
+    {
+      "name": "@layer",
+      "description": "Tailwind CSS layer declaration directive."
+    },
+    {
+      "name": "@config",
+      "description": "Tailwind CSS config override directive."
+    },
+    {
+      "name": "@screen",
+      "description": "Tailwind CSS breakpoint helper directive."
+    },
+    {
+      "name": "@responsive",
+      "description": "Legacy Tailwind CSS responsive variant directive."
+    },
+    {
+      "name": "@variants",
+      "description": "Legacy Tailwind CSS variant directive."
+    }
+  ]
+}

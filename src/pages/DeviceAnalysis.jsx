@@ -1005,7 +1005,7 @@ const DeviceAnalysis = () => {
     };
   }, [_processingStatus.state, getPreviewRow, previewFile, processedData, rawData, startExtractionJob, t]);
 
-  const handleExport = async () => {
+  const handleExport = useCallback(async () => {
     if (processedData.length === 0) return;
 
     const sanitizeFilename = (name) =>
@@ -1282,9 +1282,9 @@ const DeviceAnalysis = () => {
     });
 
     triggerDownloadBlob("device_analysis_export.zip", zipBlob);
-  };
+  }, [processedData, ssIdWindow, ssManualRanges, ssMethod]);
 
-  const handleExportOrigin = async () => {
+  const handleExportOrigin = useCallback(async () => {
     if (processedData.length === 0) return;
 
     const sanitizeFilename = (name) =>
@@ -1464,7 +1464,7 @@ Note:
     });
 
     triggerDownloadBlob("device_analysis_origin.zip", zipBlob);
-  };
+  }, [processedData]);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return undefined;
