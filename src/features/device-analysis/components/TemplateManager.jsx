@@ -1645,9 +1645,9 @@ const TemplateManager = ({
                 onChange={(next) => {
                   setConfigFromSave((prev) => ({ ...prev, xDataStart: next }));
                   markFieldSource("xDataStart", "manual");
-	                }}
-	                placeholder="Start"
-	              />
+                }}
+                placeholder="Start"
+              />
             </div>
             <div>
               <Input
@@ -1672,9 +1672,9 @@ const TemplateManager = ({
                   if (value.toLowerCase() === "end" && value !== "End") {
                     setConfigFromSave((prev) => ({ ...prev, xDataEnd: "End" }));
                   }
-	                }}
-	                placeholder="End"
-	              />
+                }}
+                placeholder="End"
+              />
             </div>
             <div>
               <Input
@@ -1685,10 +1685,10 @@ const TemplateManager = ({
                 onChange={(next) => {
                   setConfigFromSave((prev) => ({ ...prev, xPoints: next }));
                   markFieldSource("xPoints", "manual");
-	                }}
-	                placeholder="Points"
-	                inputClassName="no-spinner"
-	              />
+                }}
+                placeholder="Points"
+                inputClassName="no-spinner"
+              />
             </div>
           </div>
         </div>
@@ -1702,12 +1702,12 @@ const TemplateManager = ({
                     ? "device-analysis-template-var1-bottom-title"
                     : undefined
                 }
-	                label="Var1"
-	                value={config.bottomTitle || ""}
-	                name="bottomTitle"
-	                disabled={disableVarInputs}
-	                onChange={(next) => {
-	                  setConfigFromSave((prev) => ({ ...prev, bottomTitle: next }));
+                label="Var1"
+                value={config.bottomTitle || ""}
+                name="bottomTitle"
+                disabled={disableVarInputs}
+                onChange={(next) => {
+                  setConfigFromSave((prev) => ({ ...prev, bottomTitle: next }));
                   markFieldSource("bottomTitle", "manual");
                 }}
                 onBlur={toastVarPairIfInvalid}
@@ -1721,12 +1721,12 @@ const TemplateManager = ({
                     ? "device-analysis-template-var2-legend-prefix"
                     : undefined
                 }
-	                label="Var2"
-	                value={config.legendPrefix || ""}
-	                name="legendPrefix"
-	                disabled={disableVarInputs}
-	                onChange={(next) => {
-	                  setConfigFromSave((prev) => ({ ...prev, legendPrefix: next }));
+                label="Var2"
+                value={config.legendPrefix || ""}
+                name="legendPrefix"
+                disabled={disableVarInputs}
+                onChange={(next) => {
+                  setConfigFromSave((prev) => ({ ...prev, legendPrefix: next }));
                   markFieldSource("legendPrefix", "manual");
                 }}
                 onBlur={toastVarPairIfInvalid}
@@ -1740,12 +1740,12 @@ const TemplateManager = ({
                     ? "device-analysis-template-var3-left-title"
                     : undefined
                 }
-	                label="Var3"
-	                value={config.leftTitle || ""}
-	                name="leftTitle"
-	                onChange={(next) => {
-	                  setConfigFromSave((prev) => ({ ...prev, leftTitle: next }));
-	                  markFieldSource("leftTitle", "manual");
+                label="Var3"
+                value={config.leftTitle || ""}
+                name="leftTitle"
+                onChange={(next) => {
+                  setConfigFromSave((prev) => ({ ...prev, leftTitle: next }));
+                  markFieldSource("leftTitle", "manual");
                 }}
                 placeholder="Left Title"
               />
@@ -1763,12 +1763,12 @@ const TemplateManager = ({
                     includeIds
                       ? "device-analysis-template-file-name-vg-keywords"
                       : undefined
-	                  }
-	                  value={config.fileNameVgKeywords || ""}
-	                  name="fileNameVgKeywords"
-	                  disabled={disableFileNameInputs}
-	                  onChange={(next) => {
-	                    setConfigFromSave((prev) => ({
+                  }
+                  value={config.fileNameVgKeywords || ""}
+                  name="fileNameVgKeywords"
+                  disabled={disableFileNameInputs}
+                  onChange={(next) => {
+                    setConfigFromSave((prev) => ({
                       ...prev,
                       fileNameVgKeywords: next,
                     }));
@@ -1783,12 +1783,12 @@ const TemplateManager = ({
                     includeIds
                       ? "device-analysis-template-file-name-vd-keywords"
                       : undefined
-	                  }
-	                  value={config.fileNameVdKeywords || ""}
-	                  name="fileNameVdKeywords"
-	                  disabled={disableFileNameInputs}
-	                  onChange={(next) => {
-	                    setConfigFromSave((prev) => ({
+                  }
+                  value={config.fileNameVdKeywords || ""}
+                  name="fileNameVdKeywords"
+                  disabled={disableFileNameInputs}
+                  onChange={(next) => {
+                    setConfigFromSave((prev) => ({
                       ...prev,
                       fileNameVdKeywords: next,
                     }));
@@ -1836,12 +1836,12 @@ const TemplateManager = ({
               </div>
               <div className="min-w-0">
                 <Input
-	                  id={includeIds ? "device-analysis-template-y-points" : undefined}
-	                  value={config.xPoints || config.yPoints}
-	                  name="yPoints"
-	                  disabled={saveIsSelectMode || !!config.xPoints}
-	                  onChange={(next) => {
-	                    setConfigFromSave((prev) => ({
+                  id={includeIds ? "device-analysis-template-y-points" : undefined}
+                  value={config.xPoints || config.yPoints}
+                  name="yPoints"
+                  disabled={saveIsSelectMode || !!config.xPoints}
+                  onChange={(next) => {
+                    setConfigFromSave((prev) => ({
                       ...prev,
                       yPoints: next,
                     }));
@@ -1860,12 +1860,12 @@ const TemplateManager = ({
                     includeIds
                       ? "device-analysis-template-y-data-start"
                       : undefined
-	                  }
-	                  value={config.yDataStart}
-	                  name="yDataStart"
-	                  disabled={saveIsSelectMode}
-	                  onChange={(next) => {
-	                    setConfigFromSave((prev) => ({
+                  }
+                  value={config.yDataStart}
+                  name="yDataStart"
+                  disabled={saveIsSelectMode}
+                  onChange={(next) => {
+                    setConfigFromSave((prev) => ({
                       ...prev,
                       yDataStart: next,
                     }));
@@ -1876,12 +1876,12 @@ const TemplateManager = ({
               </div>
               <div className="min-w-0">
                 <Input
-	                  id={includeIds ? "device-analysis-template-y-count" : undefined}
-	                  value={config.yCount}
-	                  name="yCount"
-	                  disabled={saveIsSelectMode}
-	                  onChange={(next) => {
-	                    setConfigFromSave((prev) => ({ ...prev, yCount: next }));
+                  id={includeIds ? "device-analysis-template-y-count" : undefined}
+                  value={config.yCount}
+                  name="yCount"
+                  disabled={saveIsSelectMode}
+                  onChange={(next) => {
+                    setConfigFromSave((prev) => ({ ...prev, yCount: next }));
                     markFieldSource("yCount", "manual");
                   }}
                   placeholder="Count"
@@ -1890,12 +1890,12 @@ const TemplateManager = ({
               </div>
               <div className="min-w-0">
                 <Input
-	                  id={includeIds ? "device-analysis-template-y-step" : undefined}
-	                  value={config.yStep}
-	                  name="yStep"
-	                  disabled={saveIsSelectMode}
-	                  onChange={(next) => {
-	                    setConfigFromSave((prev) => ({ ...prev, yStep: next }));
+                  id={includeIds ? "device-analysis-template-y-step" : undefined}
+                  value={config.yStep}
+                  name="yStep"
+                  disabled={saveIsSelectMode}
+                  onChange={(next) => {
+                    setConfigFromSave((prev) => ({ ...prev, yStep: next }));
                     markFieldSource("yStep", "manual");
                   }}
                   placeholder="Step"
@@ -1985,10 +1985,10 @@ const TemplateManager = ({
               data-state="enable"
               {...(includeIds
                 ? {
-                    "data-cta": "Device Analysis",
-                    "data-cta-position": "template-dropdown",
-                    "data-cta-copy": "template name",
-                  }
+                  "data-cta": "Device Analysis",
+                  "data-cta-position": "template-dropdown",
+                  "data-cta-copy": "template name",
+                }
                 : {})}
             >
               <button
@@ -2004,8 +2004,8 @@ const TemplateManager = ({
                   measureOnly
                     ? undefined
                     : (e) => {
-                        if (e.detail > 1) e.preventDefault();
-                      }
+                      if (e.detail > 1) e.preventDefault();
+                    }
                 }
                 onDoubleClick={measureOnly ? undefined : (e) => e.preventDefault()}
                 onClick={
@@ -2017,20 +2017,20 @@ const TemplateManager = ({
                   measureOnly
                     ? undefined
                     : (e) => {
-                        if (e.key === "Escape") {
-                          setIsDropdownOpen(false);
-                          return;
-                        }
-
-                        if (
-                          e.key === "Enter" ||
-                          e.key === " " ||
-                          e.key === "ArrowDown"
-                        ) {
-                          e.preventDefault();
-                          setIsDropdownOpen(true);
-                        }
+                      if (e.key === "Escape") {
+                        setIsDropdownOpen(false);
+                        return;
                       }
+
+                      if (
+                        e.key === "Enter" ||
+                        e.key === " " ||
+                        e.key === "ArrowDown"
+                      ) {
+                        e.preventDefault();
+                        setIsDropdownOpen(true);
+                      }
+                    }
                 }
                 className="input_native no-focus-outline p-0 pr-8 text-left cursor-pointer select-none"
               >
@@ -2167,18 +2167,18 @@ const TemplateManager = ({
             measureOnly
               ? undefined
               : () =>
-                  setConfig((prev) => {
-                    const nextStopOnError = !prev.stopOnError;
-                    if (typeof onUpdateDeviceAnalysisSettings === "function") {
-                      void onUpdateDeviceAnalysisSettings({
-                        stopOnErrorDefault: nextStopOnError,
-                      });
-                    }
-                    return {
-                      ...prev,
-                      stopOnError: nextStopOnError,
-                    };
-                  })
+                setConfig((prev) => {
+                  const nextStopOnError = !prev.stopOnError;
+                  if (typeof onUpdateDeviceAnalysisSettings === "function") {
+                    void onUpdateDeviceAnalysisSettings({
+                      stopOnErrorDefault: nextStopOnError,
+                    });
+                  }
+                  return {
+                    ...prev,
+                    stopOnError: nextStopOnError,
+                  };
+                })
           }
           className="flex items-center gap-2 text-sm text-text-secondary select-none cursor-pointer group w-fit"
         >
@@ -2207,20 +2207,20 @@ const TemplateManager = ({
   );
 
   return (
-    <section aria-label={t("da_data_extraction_template")}>
-      <h2 className="section_title">{t("da_data_extraction_template")}</h2>
+    <section aria-label={t("da_data_extraction_template")} className="flex flex-col flex-1 w-full h-full min-h-0">
+      <h2 className="section_title shrink-0">{t("da_data_extraction_template")}</h2>
 
       <Card
         ref={containerRef}
         id="device-analysis-template-manager"
-        className="p-4"
+        className="p-4 flex flex-col flex-1 min-h-0"
         style={{
           "--da-template-panel-min-h": panelMinHeightPx
             ? `${panelMinHeightPx}px`
             : "0px",
         }}
       >
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 flex-1 min-h-0">
           {/* Configuration Panel */}
           <div
             ref={leftPanelRef}

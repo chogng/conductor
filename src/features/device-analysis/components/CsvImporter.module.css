@@ -1,6 +1,6 @@
 .dropzone {
-  @apply border-2 border-dashed rounded-xl p-0 transition-all duration-300 relative overflow-y-auto;
-  height: 300px;
+  @apply border-2 border-dashed rounded-xl p-0 transition-all duration-300 relative overflow-y-auto flex-1;
+  min-height: 300px;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
 }

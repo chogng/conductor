@@ -10,7 +10,6 @@ import React, {
 import {
   AlertCircle,
   BarChart2,
-  Trash2,
   Upload,
   RefreshCw,
 } from "lucide-react";
@@ -20,6 +19,7 @@ import CsvImporter from "../features/device-analysis/components/CsvImporter";
 import TemplateManager from "../features/device-analysis/components/TemplateManager";
 import AnalysisCharts from "../features/device-analysis/components/AnalysisCharts";
 import Card from "../components/ui/Card";
+import Button from "../components/ui/Button";
 import {
   classifySsFit,
   computeSubthresholdSwing,
@@ -100,6 +100,7 @@ const DeviceAnalysis = () => {
     processed: 0,
     total: 0,
   });
+  const [activePage, setActivePage] = useState("data");
 
   const previewRowsVersionRef = useRef(0);
   const previewRowsSubscribersRef = useRef(new Set());
@@ -1482,133 +1483,191 @@ Note:
     };
   }, [handleExport, handleExportOrigin]);
 
+  const isDataPageActive = activePage === "data";
+  const isAnalysisPageActive = activePage === "analysis";
+
+  const handlePageTabSelect = useCallback((nextPage) => {
+    if (nextPage !== "data" && nextPage !== "analysis") return;
+    setActivePage(nextPage);
+  }, []);
+
+  const handlePageTabsKeyDown = useCallback((event) => {
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+
+    if (event.key === "ArrowLeft" || event.key === "ArrowUp" || event.key === "Home") {
+      event.preventDefault();
+      setActivePage("data");
+      return;
+    }
+
+    if (
+      event.key === "ArrowRight" ||
+      event.key === "ArrowDown" ||
+      event.key === "End"
+    ) {
+      event.preventDefault();
+      setActivePage("analysis");
+    }
+  }, []);
+
   return (
-    <div id="device-analysis-page" className="w-full h-full min-h-0 flex flex-col">
-      <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)] gap-6 overflow-y-auto xl:overflow-hidden">
-        <aside className="space-y-6 xl:min-h-0 xl:overflow-y-auto xl:custom-scrollbar xl:pr-2">
-          <section aria-label={t("da_import_section")}>
-            <h2 className="section_title">{t("da_import")}</h2>
-            <Card
-              id="device-analysis-import-card"
-              cta="Device analysis"
-              ctaPosition="data-import"
-              ctaCopy="csv importer"
-              className="p-4"
-            >
-              <div className="import_card_head_warp">
-                <div className="import_card_head_group">
-                  <button
-                    type="button"
-                    id="device-analysis-import-csv-btn"
-                    data-icon="with"
-                    data-cta="Device analysis"
-                    data-cta-position="data-import"
-                    data-cta-copy="import csv"
-                    className="action-btn action-btn--md action-btn--primary"
-                    aria-label={t("da_import_csv")}
-                    onClick={() => importerRef.current?.openFileDialog()}
+    <div
+      id="device-analysis-page"
+      className="relative w-full h-full min-h-0 overflow-hidden"
+    >
+      <div className="relative h-full min-h-0">
+        <section
+          id="device-analysis-tabpanel-data"
+          role="tabpanel"
+          aria-labelledby="device-analysis-tab-data"
+          aria-hidden={!isDataPageActive}
+          inert={!isDataPageActive ? "" : undefined}
+          className={`absolute inset-0 min-h-0 transition-opacity duration-150 ${isDataPageActive
+            ? "pointer-events-auto opacity-100"
+            : "pointer-events-none opacity-0"
+            }`}
+        >
+          <div className="da_page_scroll h-full min-h-0 overflow-y-auto xl:overflow-hidden">
+            <div className="min-h-full grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)] gap-6 xl:h-full">
+              <aside className="space-y-6 xl:min-h-0 xl:overflow-y-auto xl:custom-scrollbar xl:pr-2 flex flex-col h-full">
+                <section aria-label={t("da_import_section")} className="flex-1 flex flex-col min-h-0">
+                  <h2 className="section_title shrink-0">{t("da_import")}</h2>
+                  <Card
+                    id="device-analysis-import-card"
+                    cta="Device analysis"
+                    ctaPosition="data-import"
+                    ctaCopy="csv importer"
+                    className="p-4 flex flex-col flex-1 min-h-0"
                   >
-                    <span className="action-btn__content">
-                      <Upload size={16} />
-                      {t("da_import_csv")}
-                    </span>
-                  </button>
-                  <span className="meta_text whitespace-nowrap">
-                    {t("da_loaded_csv_files", { count: rawData.length })}
-                  </span>
-                </div>
+                    <div className="import_card_head_warp">
+                      <div className="import_card_head_group">
+                        <button
+                          type="button"
+                          id="device-analysis-import-csv-btn"
+                          data-icon="with"
+                          data-cta="Device analysis"
+                          data-cta-position="data-import"
+                          data-cta-copy="import csv"
+                          className="action-btn action-btn--md action-btn--primary"
+                          aria-label={t("da_import_csv")}
+                          onClick={() => importerRef.current?.openFileDialog()}
+                        >
+                          <span className="action-btn__content">
+                            <Upload size={16} />
+                            {t("da_import_csv")}
+                          </span>
+                        </button>
+                        <span className="meta_text whitespace-nowrap">
+                          {t("da_loaded_csv_files", { count: rawData.length })}
+                        </span>
+                      </div>
 
-                <button
-                  type="button"
-                  id="device-analysis-clear-session-btn"
-                  data-icon="with"
-                  data-cta="Device analysis"
-                  data-cta-position="data-import"
-                  data-cta-copy="reset session"
-                  className={`action-btn action-btn--control ${
-                    hasSessionData ? "action-btn--danger" : "action-btn--disabled"
-                  }`}
-                  aria-label={t("da_reset_session")}
-                  title={t("da_reset_session")}
-                  onClick={handleClearSession}
-                  disabled={!hasSessionData}
-                >
-                  <span className="action-btn__content">
-                    <RefreshCw
-                      size={16}
-                      className="transition-transform duration-500 hover:rotate-180"
+                      <button
+                        type="button"
+                        id="device-analysis-clear-session-btn"
+                        data-icon="with"
+                        data-cta="Device analysis"
+                        data-cta-position="data-import"
+                        data-cta-copy="reset session"
+                        className={`action-btn action-btn--control ${hasSessionData ? "action-btn--danger" : "action-btn--disabled"
+                          }`}
+                        aria-label={t("da_reset_session")}
+                        title={t("da_reset_session")}
+                        onClick={handleClearSession}
+                        disabled={!hasSessionData}
+                      >
+                        <span className="action-btn__content">
+                          <RefreshCw
+                            size={16}
+                            className="transition-transform duration-500 hover:rotate-180"
+                          />
+                        </span>
+                      </button>
+                    </div>
+                    <CsvImporter
+                      ref={importerRef}
+                      files={rawData}
+                      onDataImported={handleDataImported}
+                      onDataRemoved={handleDataRemoved}
+                      onFileSelected={handlePreviewFileSelected}
+                      selectedFileId={selectedPreviewFileId}
                     />
-                  </span>
-                </button>
-              </div>
-              <CsvImporter
-                ref={importerRef}
-                files={rawData}
-                onDataImported={handleDataImported}
-                onDataRemoved={handleDataRemoved}
-                onFileSelected={handlePreviewFileSelected}
-                selectedFileId={selectedPreviewFileId}
-              />
-            </Card>
-          </section>
+                  </Card>
+                </section>
 
-          {extractionErrors.length > 0 && (
-            <section aria-label={t("da_extraction_errors")}>
-              <div
-                id="device-analysis-extraction-errors"
-                className="bg-red-500/10 border border-red-500/20 rounded-xl p-4"
+                {extractionErrors.length > 0 && (
+                  <section aria-label={t("da_extraction_errors")}>
+                    <div
+                      id="device-analysis-extraction-errors"
+                      className="bg-red-500/10 border border-red-500/20 rounded-xl p-4"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-2 text-red-500">
+                          <AlertCircle size={18} />
+                          <h3 className="text-sm font-semibold">
+                            {t("da_extraction_errors")} ({extractionErrors.length})
+                          </h3>
+                        </div>
+                        <button
+                          id="device-analysis-extraction-errors-clear-btn"
+                          type="button"
+                          onClick={() => setExtractionErrors([])}
+                          className="text-xs px-2 py-1 rounded border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-colors"
+                        >
+                          {t("common_clear")}
+                        </button>
+                      </div>
+
+                      <div className="mt-3 max-h-40 overflow-y-auto custom-scrollbar pr-2">
+                        <ul className="space-y-2 text-sm text-text-secondary">
+                          {extractionErrors.map((err, idx) => (
+                            <li key={`${err.fileName}-${idx}`}>
+                              <span className="font-semibold text-text-primary">
+                                {err.fileName}:
+                              </span>{" "}
+                              <span className="whitespace-pre-wrap">{err.message}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  </section>
+                )}
+              </aside>
+
+              <section
+                aria-label={t("da_data_extraction_template")}
+                className="xl:min-h-0 xl:overflow-y-auto xl:custom-scrollbar xl:pr-2 flex flex-col h-full"
               >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 text-red-500">
-                    <AlertCircle size={18} />
-                    <h3 className="text-sm font-semibold">
-                      {t("da_extraction_errors")} ({extractionErrors.length})
-                    </h3>
-                  </div>
-                  <button
-                    id="device-analysis-extraction-errors-clear-btn"
-                    type="button"
-                    onClick={() => setExtractionErrors([])}
-                    className="text-xs px-2 py-1 rounded border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-colors"
-                  >
-                    {t("common_clear")}
-                  </button>
-                </div>
-
-                <div className="mt-3 max-h-40 overflow-y-auto custom-scrollbar pr-2">
-                  <ul className="space-y-2 text-sm text-text-secondary">
-                    {extractionErrors.map((err, idx) => (
-                      <li key={`${err.fileName}-${idx}`}>
-                        <span className="font-semibold text-text-primary">
-                          {err.fileName}:
-                        </span>{" "}
-                        <span className="whitespace-pre-wrap">{err.message}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </section>
-          )}
-        </aside>
-
-        <section className="space-y-6 xl:min-h-0 xl:grid xl:grid-rows-[minmax(340px,1fr)_minmax(320px,1fr)] xl:gap-6 xl:overflow-hidden">
-          <div className="xl:min-h-0 xl:overflow-y-auto xl:custom-scrollbar xl:pr-2">
-            <TemplateManager
-              previewFile={previewFile}
-              previewStatus={previewStatus}
-              getPreviewRow={getPreviewRow}
-              ensurePreviewRows={ensurePreviewRows}
-              onTemplateApplied={handleTemplateApplied}
-              onTemplateAppliedIncremental={handleTemplateAppliedIncremental}
-              subscribePreviewRowsVersion={subscribePreviewRowsVersion}
-              getPreviewRowsVersion={getPreviewRowsVersion}
-              deviceAnalysisSettings={deviceAnalysisSettings}
-              onUpdateDeviceAnalysisSettings={handleUpdateDeviceAnalysisSettings}
-            />
+                <TemplateManager
+                  previewFile={previewFile}
+                  previewStatus={previewStatus}
+                  getPreviewRow={getPreviewRow}
+                  ensurePreviewRows={ensurePreviewRows}
+                  onTemplateApplied={handleTemplateApplied}
+                  onTemplateAppliedIncremental={handleTemplateAppliedIncremental}
+                  subscribePreviewRowsVersion={subscribePreviewRowsVersion}
+                  getPreviewRowsVersion={getPreviewRowsVersion}
+                  deviceAnalysisSettings={deviceAnalysisSettings}
+                  onUpdateDeviceAnalysisSettings={handleUpdateDeviceAnalysisSettings}
+                />
+              </section>
+            </div>
           </div>
+        </section>
 
-          <div className="xl:min-h-0 xl:overflow-y-auto xl:custom-scrollbar xl:pr-2">
+        <section
+          id="device-analysis-tabpanel-analysis"
+          role="tabpanel"
+          aria-labelledby="device-analysis-tab-analysis"
+          aria-hidden={!isAnalysisPageActive}
+          inert={!isAnalysisPageActive ? "" : undefined}
+          className={`absolute inset-0 min-h-0 transition-opacity duration-150 ${isAnalysisPageActive
+            ? "pointer-events-auto opacity-100"
+            : "pointer-events-none opacity-0"
+            }`}
+        >
+          <div className="da_page_scroll h-full min-h-0 overflow-y-auto custom-scrollbar xl:pr-2">
             <section aria-label={t("da_analysis_visualization")}>
               <h2 className="section_title">{t("da_analysis_visualization")}</h2>
 
@@ -1645,6 +1704,52 @@ Note:
           </div>
         </section>
       </div>
+
+      <nav
+        className="da_bottom_tabs"
+        role="tablist"
+        aria-label={t("da_tab_switcher_label")}
+        onKeyDown={handlePageTabsKeyDown}
+      >
+        <Button
+          id="device-analysis-tab-data"
+          role="tab"
+          aria-controls="device-analysis-tabpanel-data"
+          aria-selected={isDataPageActive}
+          tabIndex={isDataPageActive ? 0 : -1}
+          variant={isDataPageActive ? "primary" : "ghost"}
+          size="control"
+          dataIcon="with"
+          cta="Device analysis"
+          ctaPosition="bottom-tab"
+          ctaCopy="data page"
+          className={`da_bottom_tab_btn ${isDataPageActive ? "da_bottom_tab_btn--active" : ""
+            }`}
+          onClick={() => handlePageTabSelect("data")}
+        >
+          <Upload size={14} />
+          {t("da_tab_data")}
+        </Button>
+        <Button
+          id="device-analysis-tab-analysis"
+          role="tab"
+          aria-controls="device-analysis-tabpanel-analysis"
+          aria-selected={isAnalysisPageActive}
+          tabIndex={isAnalysisPageActive ? 0 : -1}
+          variant={isAnalysisPageActive ? "primary" : "ghost"}
+          size="control"
+          dataIcon="with"
+          cta="Device analysis"
+          ctaPosition="bottom-tab"
+          ctaCopy="analysis page"
+          className={`da_bottom_tab_btn ${isAnalysisPageActive ? "da_bottom_tab_btn--active" : ""
+            }`}
+          onClick={() => handlePageTabSelect("analysis")}
+        >
+          <BarChart2 size={14} />
+          {t("da_tab_analysis")}
+        </Button>
+      </nav>
     </div>
   );
 };

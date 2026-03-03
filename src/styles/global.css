@@ -130,6 +130,7 @@ body {
     from {
       opacity: 0;
     }
+
     to {
       opacity: 1;
     }
@@ -188,6 +189,42 @@ body {
 
   .tab_btn_text {
     @apply inline-flex;
+  }
+
+  .da_bottom_tabs {
+    @apply fixed left-1/2 -translate-x-1/2 z-40 flex items-center gap-2 rounded-full border border-border bg-bg-surface/90 px-2 py-2 shadow-lg backdrop-blur-md;
+    bottom: max(0.75rem, env(safe-area-inset-bottom));
+  }
+
+  .da_page_scroll {
+    /* removed forced padding to allow cards to organically fill height */
+  }
+
+  .da_bottom_tab_btn {
+    @apply min-w-[138px] rounded-full;
+  }
+
+  .da_bottom_tab_btn .action-btn__content {
+    @apply gap-2;
+  }
+
+  .da_bottom_tab_btn--active {
+    @apply shadow-sm;
+  }
+
+  @media (max-width: 640px) {
+    .da_bottom_tabs {
+      @apply w-[calc(100%-1rem)] justify-between;
+    }
+
+    .da_bottom_tab_btn {
+      @apply min-w-0 flex-1;
+    }
+
+    .da_page_scroll {
+      padding-bottom: calc(6rem + env(safe-area-inset-bottom));
+      scroll-padding-bottom: calc(6rem + env(safe-area-inset-bottom));
+    }
   }
 
   /* Empty state */
@@ -268,7 +305,8 @@ body {
     content: "";
     position: absolute;
     inset: -6px;
-    border-radius: calc(0.5rem + 6px); /* rounded-lg + offset */
+    border-radius: calc(0.5rem + 6px);
+    /* rounded-lg + offset */
     @apply border-2 border-transparent;
     opacity: 0;
     pointer-events: none;
@@ -413,7 +451,8 @@ body {
     content: "";
     position: absolute;
     inset: -6px;
-    border-radius: calc(0.5rem + 6px); /* rounded-lg + offset */
+    border-radius: calc(0.5rem + 6px);
+    /* rounded-lg + offset */
     @apply border-2 border-transparent;
     opacity: 0;
     pointer-events: none;
