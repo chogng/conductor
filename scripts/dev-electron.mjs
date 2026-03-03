@@ -9,9 +9,13 @@ const port = Number(process.env.DEV_PORT || 5174);
 const devUrl = `http://${host}:${port}/`;
 
 const isWin = process.platform === "win32";
-const npmCmd = isWin ? "npm.cmd" : "npm";
+const npmCmd = "npm";
+const viteCmd = isWin ? "cmd.exe" : npmCmd;
+const viteArgs = isWin
+  ? ["/d", "/s", "/c", npmCmd, "run", "dev", "--", "--host", host, "--port", String(port)]
+  : ["run", "dev", "--", "--host", host, "--port", String(port)];
 const electronBin = isWin
-  ? path.join(process.cwd(), "node_modules", ".bin", "electron.cmd")
+  ? path.join(process.cwd(), "node_modules", "electron", "dist", "electron.exe")
   : path.join(process.cwd(), "node_modules", ".bin", "electron");
 
 const watchedExtensions = new Set([".cjs", ".js", ".mjs", ".json"]);
@@ -25,8 +29,8 @@ let electronProc = null;
 const watcherClosers = [];
 
 const viteProc = spawn(
-  npmCmd,
-  ["run", "dev", "--", "--host", host, "--port", String(port)],
+  viteCmd,
+  viteArgs,
   {
     stdio: "inherit",
     env: process.env,
