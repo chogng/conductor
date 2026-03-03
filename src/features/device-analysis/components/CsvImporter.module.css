@@ -1,0 +1,65 @@
+.dropzone {
+  @apply border-2 border-dashed rounded-xl p-0 transition-all duration-300 relative overflow-y-auto;
+  height: 300px;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.dropzoneDragging {
+  @apply border-accent bg-accent/5;
+}
+
+.dropzoneIdle {
+  @apply border-text-secondary/40 hover:border-text-secondary;
+}
+
+.empty {
+  @apply flex flex-col items-center justify-center h-full gap-3 py-6 px-6 text-center cursor-pointer;
+}
+
+.emptyTitle {
+  @apply text-sm font-medium text-text-secondary;
+}
+
+.emptySubtitle {
+  @apply text-sm text-text-tertiary;
+}
+
+.emptyBrowse {
+  @apply text-accent hover:underline;
+}
+
+.fileItem {
+  @apply flex items-center justify-between p-3 bg-bg-surface border border-border rounded-lg transition-colors cursor-pointer relative;
+  /* Limit layout/paint scope during scroll to improve perceived smoothness. */
+  contain: content;
+}
+
+.fileItemSelected {
+  @apply border-accent;
+}
+
+.fileContent {
+  @apply flex items-center gap-3 overflow-hidden;
+}
+
+.fileIcon {
+  @apply w-8 h-8 rounded bg-green-500/10 flex items-center justify-center text-green-500 shrink-0;
+}
+
+.fileName {
+  @apply text-sm text-text-primary truncate;
+}
+
+.fileRemove {
+  @apply text-text-secondary hover:text-red-500 transition-colors opacity-100 hover:bg-bg-page p-1 rounded;
+}
+
+.fileGrid {
+  @apply grid gap-3 text-left;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
+.virtualStage {
+  position: relative;
+}

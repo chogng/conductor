@@ -1,0 +1,85 @@
+{
+  "name": "device-analysis-standalone",
+  "private": true,
+  "version": "0.5.0",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "make:icons": "bash scripts/make-icons-macos.sh",
+    "dev": "vite",
+    "dev:desktop": "node scripts/dev-electron.mjs",
+    "build:web": "vite build",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "pack:desktop": "npm run build:web && electron-builder --dir",
+    "dist:desktop": "npm run build:web && electron-builder"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.90.16",
+    "date-fns": "^4.1.0",
+    "docx": "^9.5.1",
+    "jszip": "^3.10.1",
+    "lucide-react": "^0.554.0",
+    "papaparse": "^5.5.3",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.9.6",
+    "recharts": "^3.6.0",
+    "socket.io-client": "^4.7.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/react": "^19.2.5",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "autoprefixer": "^10.4.22",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12",
+    "globals": "^16.5.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.17",
+    "vite": "^7.2.4"
+  },
+  "build": {
+    "appId": "com.appointer.deviceanalysis",
+    "productName": "Device Analysis Studio",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "directories": {
+      "buildResources": "build",
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "mac": {
+      "icon": "build/icons/icon.icns",
+      "category": "public.app-category.utilities",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "icon": "build/icons/icon.ico",
+      "target": [
+        "nsis",
+        "zip"
+      ]
+    },
+    "linux": {
+      "icon": "build/icons/icon.png",
+      "category": "Utility",
+      "target": [
+        "AppImage",
+        "deb"
+      ]
+    }
+  }
+}
