@@ -1528,7 +1528,7 @@ Note:
             }`}
         >
           <div className="da_page_scroll h-full min-h-0 overflow-y-auto xl:overflow-hidden">
-            <div className="min-h-full grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)] gap-6 xl:h-full">
+            <div className="min-h-full grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)] gap-4 xl:h-full">
               <aside className="space-y-6 xl:min-h-0 xl:overflow-y-auto xl:custom-scrollbar xl:pr-2 flex flex-col h-full">
                 <section aria-label={t("da_import_section")} className="flex-1 flex flex-col min-h-0">
                   <h2 className="section_title shrink-0">{t("da_import")}</h2>
@@ -1711,20 +1711,23 @@ Note:
         aria-label={t("da_tab_switcher_label")}
         onKeyDown={handlePageTabsKeyDown}
       >
+        <div
+          className="da_bottom_tabs_indicator"
+          style={{ transform: `translateX(${isDataPageActive ? '0%' : '100%'})` }}
+        />
         <Button
           id="device-analysis-tab-data"
           role="tab"
           aria-controls="device-analysis-tabpanel-data"
           aria-selected={isDataPageActive}
           tabIndex={isDataPageActive ? 0 : -1}
-          variant={isDataPageActive ? "primary" : "ghost"}
+          variant="ghost"
           size="control"
           dataIcon="with"
           cta="Device analysis"
           ctaPosition="bottom-tab"
           ctaCopy="data page"
-          className={`da_bottom_tab_btn ${isDataPageActive ? "da_bottom_tab_btn--active" : ""
-            }`}
+          className={`da_bottom_tab_btn ${isDataPageActive ? "da_bottom_tab_btn--active" : ""}`}
           onClick={() => handlePageTabSelect("data")}
         >
           <Upload size={14} />
@@ -1736,14 +1739,13 @@ Note:
           aria-controls="device-analysis-tabpanel-analysis"
           aria-selected={isAnalysisPageActive}
           tabIndex={isAnalysisPageActive ? 0 : -1}
-          variant={isAnalysisPageActive ? "primary" : "ghost"}
+          variant="ghost"
           size="control"
           dataIcon="with"
           cta="Device analysis"
           ctaPosition="bottom-tab"
           ctaCopy="analysis page"
-          className={`da_bottom_tab_btn ${isAnalysisPageActive ? "da_bottom_tab_btn--active" : ""
-            }`}
+          className={`da_bottom_tab_btn ${isAnalysisPageActive ? "da_bottom_tab_btn--active" : ""}`}
           onClick={() => handlePageTabSelect("analysis")}
         >
           <BarChart2 size={14} />
