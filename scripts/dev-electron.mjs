@@ -60,20 +60,50 @@ const waitForServer = async (url, timeoutMs = 60_000) => {
   throw new Error(`Timeout waiting for dev server: ${url}`);
 };
 
-const stopProcess = (proc, signal = "SIGTERM") =>
+const stopProcess = (proc, signal = "SIGTERM", timeoutMs = 5_000) =>
   new Promise((resolve) => {
     if (!proc || proc.killed || proc.exitCode !== null) {
       resolve();
       return;
     }
 
-    const onExit = () => resolve();
+    let forceKillTimer = null;
+    const cleanup = () => {
+      if (forceKillTimer) {
+        clearTimeout(forceKillTimer);
+        forceKillTimer = null;
+      }
+      proc.off("exit", onExit);
+    };
+
+    const onExit = () => {
+      cleanup();
+      resolve();
+    };
     proc.once("exit", onExit);
 
     try {
+      // Resume suspended processes before terminating, otherwise they can keep ports occupied.
+      if (signal !== "SIGKILL") {
+        try {
+          proc.kill("SIGCONT");
+        } catch {
+          // Ignore unsupported or already-exited cases.
+        }
+
+        forceKillTimer = setTimeout(() => {
+          try {
+            proc.kill("SIGKILL");
+          } catch {
+            cleanup();
+            resolve();
+          }
+        }, timeoutMs);
+      }
+
       proc.kill(signal);
     } catch {
-      proc.off("exit", onExit);
+      cleanup();
       resolve();
     }
   });
@@ -210,12 +240,19 @@ const shutdown = async (exitCode = 0) => {
   process.exit(exitCode);
 };
 
-process.on("SIGINT", () => {
-  void shutdown(0);
-});
-process.on("SIGTERM", () => {
-  void shutdown(0);
-});
+const shutdownSignals = ["SIGINT", "SIGTERM", "SIGHUP"];
+if (!isWin) shutdownSignals.push("SIGTSTP");
+
+for (const signal of shutdownSignals) {
+  process.on(signal, () => {
+    if (signal === "SIGTSTP") {
+      console.warn(
+        "[desktop] Caught SIGTSTP, shutting down to avoid stale dev ports.",
+      );
+    }
+    void shutdown(0);
+  });
+}
 
 try {
   await waitForServer(devUrl);
