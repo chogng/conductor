@@ -77,8 +77,6 @@ const translations = {
     da_varPairBothOrNeither: 'Var1 and Var2 must both be empty or both filled.',
     da_varPairCellOrText: 'Var1 and Var2 must both be cell refs (e.g. A1) or both be text (e.g. Vg). Do not mix.',
     da_yColumnsRequired: 'Please select Y data from the preview header columns.',
-    device_analysis: 'Device Analysis',
-    device_analysis_subtitle: 'Import, extract, and visualize device data',
     unknownError: 'Unknown error',
   },
   zh: {
@@ -156,8 +154,6 @@ const translations = {
     da_varPairBothOrNeither: 'Var1 和 Var2 必须同时留空或同时填写。',
     da_varPairCellOrText: 'Var1 和 Var2 只能同时使用单元格（如 A1）或同时使用文本（如 Vg），不允许混用。',
     da_yColumnsRequired: '请从预览表头中选择 Y 数据列。',
-    device_analysis: '器件分析',
-    device_analysis_subtitle: '导入、提取并可视化器件数据',
     unknownError: '未知错误',
   },
 };

@@ -153,18 +153,6 @@ body {
   }
 
   /* Layout: Page */
-  .page_title {
-    @apply text-3xl font-serif font-medium text-text-primary mb-2;
-  }
-
-  .page_subtitle {
-    @apply text-text-secondary;
-  }
-
-  .page_head {
-    @apply mb-6;
-  }
-
   /* Tabs */
   .tab_menu {
     @apply bg-bg-page rounded-lg p-1 flex items-center border border-transparent;

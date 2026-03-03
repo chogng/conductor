@@ -1484,13 +1484,6 @@ Note:
 
   return (
     <div id="device-analysis-page" className="w-full h-full min-h-0 flex flex-col">
-      <header className="page_head shrink-0 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="page_title">{t("device_analysis")}</h1>
-          <p className="page_subtitle">{t("device_analysis_subtitle")}</p>
-        </div>
-      </header>
-
       <div className="flex-1 min-h-0 grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)] gap-6 overflow-y-auto xl:overflow-hidden">
         <aside className="space-y-6 xl:min-h-0 xl:overflow-y-auto xl:custom-scrollbar xl:pr-2">
           <section aria-label={t("da_import_section")}>
