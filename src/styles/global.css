@@ -193,6 +193,107 @@ body {
     @apply inline-flex;
   }
 
+  .da_top_menu_bar {
+    @apply flex items-center justify-between bg-bg-page pl-3 pr-0;
+    height: 38px;
+    -webkit-app-region: drag;
+  }
+
+  .dark .da_top_menu_bar {
+    @apply bg-bg-page;
+  }
+
+  .da_top_menu_brand {
+    @apply text-sm font-semibold text-text-primary whitespace-nowrap;
+    letter-spacing: 0.01em;
+  }
+
+  .da_top_menu_group {
+    @apply flex items-center gap-2;
+    -webkit-app-region: no-drag;
+  }
+
+  .da_top_menu_trigger {
+    @apply min-w-[86px] justify-between text-text-secondary border border-transparent;
+    --btn-ring-inner: rgb(var(--bg-surface) / 0.7);
+    --btn-ring-outer: rgb(var(--border-subtle));
+    --btn-ring-outer-hover: rgb(var(--border-200));
+  }
+
+  .da_top_menu_trigger[data-state="open"] {
+    @apply text-text-primary bg-bg-surface-hover;
+    --btn-ring-inner: rgb(var(--bg-surface-hover));
+  }
+
+  .da_top_menu_popup {
+    width: min(21rem, calc(100vw - 1.5rem));
+    -webkit-app-region: no-drag;
+  }
+
+  .da_top_menu_list {
+    @apply flex flex-col gap-1;
+  }
+
+  .da_top_menu_item {
+    @apply w-full justify-start rounded-lg px-3 !h-9 text-text-secondary;
+    --btn-ring-inner: rgb(var(--bg-surface));
+    --btn-ring-outer: transparent;
+    --btn-ring-outer-hover: transparent;
+  }
+
+  .da_top_menu_item .action-btn__content {
+    @apply w-full justify-between gap-3;
+  }
+
+  .da_top_menu_item_left {
+    @apply inline-flex items-center gap-2 text-sm text-left;
+  }
+
+  .da_top_menu_hint {
+    @apply text-xs text-text-tertiary;
+    letter-spacing: 0.01em;
+  }
+
+  .da_top_menu_item--active {
+    @apply text-text-primary bg-bg-surface-hover;
+  }
+
+  .da_top_menu_separator {
+    @apply my-1 border-t border-border-subtle/70;
+  }
+
+  .da_window_controls {
+    @apply flex items-center h-[37px];
+    -webkit-app-region: no-drag;
+  }
+
+  .da_window_icon_btn {
+    @apply flex items-center justify-center h-full w-[38px] rounded-md text-text-secondary transition-colors;
+    background: transparent;
+    border: none;
+    outline: none;
+  }
+
+  .da_window_icon_btn:hover {
+    @apply bg-bg-surface-hover/70 text-text-primary;
+  }
+
+  .da_window_control_btn {
+    @apply flex items-center justify-center h-full w-12 text-text-secondary transition-colors;
+    background: transparent;
+    border: none;
+    outline: none;
+  }
+
+  .da_window_control_btn:hover {
+    @apply bg-bg-200/50 text-text-primary;
+  }
+
+  .da_window_control_btn--close:hover {
+    @apply text-white;
+    background-color: #e81123 !important;
+  }
+
   .da_bottom_tabs {
     position: fixed !important;
     left: 50% !important;
@@ -269,6 +370,34 @@ body {
   }
 
   @media (max-width: 640px) {
+    .da_top_menu_bar {
+      @apply px-2 py-1.5;
+    }
+
+    .da_top_menu_brand {
+      @apply hidden;
+    }
+
+    .da_top_menu_group {
+      @apply w-full;
+    }
+
+    .da_top_menu_group>div {
+      @apply flex-1;
+    }
+
+    .da_window_controls {
+      @apply gap-0.5;
+    }
+
+    .da_top_menu_trigger {
+      @apply w-full min-w-0;
+    }
+
+    .da_top_menu_popup {
+      width: min(22rem, calc(100vw - 1rem));
+    }
+
     .da_bottom_tabs {
       width: calc(100% - 1.5rem) !important;
       left: 0.75rem !important;

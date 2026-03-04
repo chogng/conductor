@@ -27,7 +27,7 @@ function App() {
           <LanguageProvider>
             <UiPrefsProvider>
               <div className="h-screen bg-bg-page overflow-hidden">
-                <main className="h-full w-full px-4 py-6 md:px-6 lg:px-8 overflow-hidden">
+                <main className="h-full w-full overflow-hidden">
                   <DeviceAnalysisSessionProvider>
                     <DeviceAnalysis />
                   </DeviceAnalysisSessionProvider>

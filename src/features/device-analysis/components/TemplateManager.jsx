@@ -2235,7 +2235,6 @@ const TemplateManager = ({
 
   return (
     <section aria-label={t("da_data_extraction_template")} className="flex flex-col flex-1 w-full h-full min-h-0">
-      <h2 className="section_title shrink-0">{t("da_data_extraction_template")}</h2>
 
       <Card
         ref={containerRef}

@@ -1,6 +1,7 @@
 import React, {
   startTransition,
   useCallback,
+  useContext,
   useMemo,
   useDeferredValue,
   useEffect,
@@ -18,6 +19,7 @@ import JSZip from "jszip";
 import CsvImporter from "../features/device-analysis/components/CsvImporter";
 import TemplateManager from "../features/device-analysis/components/TemplateManager";
 import AnalysisCharts from "../features/device-analysis/components/AnalysisCharts";
+import DesktopCommandBar from "../features/device-analysis/components/DesktopCommandBar";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import {
@@ -30,6 +32,7 @@ import {
 import { prepareDeviceAnalysisExtraction } from "../features/device-analysis/deviceAnalysisExtractionValidation";
 import { useLanguage } from "../hooks/useLanguage";
 import { useDeviceAnalysisSession } from "../hooks/useDeviceAnalysisSession";
+import { ThemeContext } from "../context/theme-context";
 import { apiService } from "../services/apiService";
 import {
   DA_PREVIEW_MAX_CACHED_FILES,
@@ -58,7 +61,14 @@ const stableStringify = (value) => {
 };
 
 const DeviceAnalysis = () => {
-  const { t } = useLanguage();
+  const { t, language, setLanguage } = useLanguage();
+  const themeContext = useContext(ThemeContext);
+  const theme = themeContext?.theme ?? "system";
+  const setTheme = themeContext?.setTheme ?? (() => undefined);
+  const desktopMeta =
+    typeof window !== "undefined" ? window.desktopMeta ?? null : null;
+  const isWindowsDesktopShell =
+    desktopMeta?.isDesktop === true && desktopMeta?.platform === "win32";
   const session = useDeviceAnalysisSession();
   const {
     rawData = [],
@@ -1485,9 +1495,10 @@ Note:
 
   const isDataPageActive = activePage === "data";
   const isAnalysisPageActive = activePage === "analysis";
+  const isSettingsPageActive = activePage === "settings";
 
   const handlePageTabSelect = useCallback((nextPage) => {
-    if (nextPage !== "data" && nextPage !== "analysis") return;
+    if (nextPage !== "data" && nextPage !== "analysis" && nextPage !== "settings") return;
     setActivePage(nextPage);
   }, []);
 
@@ -1510,12 +1521,104 @@ Note:
     }
   }, []);
 
+  const sendDesktopCommand = useCallback((command) => {
+    if (typeof window === "undefined") return false;
+
+    const desktopApp = window.desktopApp;
+    if (
+      !desktopApp ||
+      typeof desktopApp.sendCommand !== "function" ||
+      typeof command !== "string"
+    ) {
+      return false;
+    }
+
+    desktopApp.sendCommand(command);
+    return true;
+  }, []);
+
+  const handleToggleDevTools = useCallback(() => {
+    sendDesktopCommand("toggle-devtools");
+  }, [sendDesktopCommand]);
+
+  const handleReloadWindow = useCallback(() => {
+    if (sendDesktopCommand("reload-window")) return;
+    if (typeof window !== "undefined") {
+      window.location.reload();
+    }
+  }, [sendDesktopCommand]);
+
+  const handleMinimizeWindow = useCallback(() => {
+    sendDesktopCommand("minimize-window");
+  }, [sendDesktopCommand]);
+
+  const handleToggleMaximizeWindow = useCallback(() => {
+    sendDesktopCommand("toggle-maximize-window");
+  }, [sendDesktopCommand]);
+
+  const handleCloseWindow = useCallback(() => {
+    sendDesktopCommand("close-window");
+  }, [sendDesktopCommand]);
+
+  useEffect(() => {
+    if (!isWindowsDesktopShell) return undefined;
+
+    const handleDesktopShortcuts = (event) => {
+      if (event.defaultPrevented || event.metaKey || event.altKey) return;
+
+      const key = String(event.key || "").toLowerCase();
+
+      if (event.ctrlKey && !event.shiftKey && key === "o") {
+        event.preventDefault();
+        importerRef.current?.openFileDialog();
+        return;
+      }
+
+      if (event.ctrlKey && event.shiftKey && key === "e") {
+        event.preventDefault();
+        void handleExport();
+        return;
+      }
+
+      if (key === "f5") {
+        event.preventDefault();
+        handleReloadWindow();
+        return;
+      }
+
+      if (key === "f12") {
+        event.preventDefault();
+        handleToggleDevTools();
+      }
+    };
+
+    window.addEventListener("keydown", handleDesktopShortcuts);
+    return () => {
+      window.removeEventListener("keydown", handleDesktopShortcuts);
+    };
+  }, [
+    handleExport,
+    handleReloadWindow,
+    handleToggleDevTools,
+    isWindowsDesktopShell,
+  ]);
+
   return (
     <div
       id="device-analysis-page"
-      className="relative w-full h-full min-h-0 overflow-hidden"
+      className="relative w-full h-full min-h-0 overflow-hidden flex flex-col"
     >
-      <div className="relative h-full min-h-0">
+      {isWindowsDesktopShell ? (
+        <DesktopCommandBar
+          t={t}
+          onOpenSettings={() => handlePageTabSelect("settings")}
+          onMinimizeWindow={handleMinimizeWindow}
+          onToggleMaximizeWindow={handleToggleMaximizeWindow}
+          onCloseWindow={handleCloseWindow}
+        />
+      ) : null}
+
+      <div className="relative flex-1 min-h-0 px-4 py-4 md:px-6 md:py-6 lg:px-8">
         <section
           id="device-analysis-tabpanel-data"
           role="tabpanel"
@@ -1531,7 +1634,6 @@ Note:
             <div className="min-h-full grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)] gap-4 xl:h-full">
               <aside className="space-y-6 xl:min-h-0 xl:overflow-y-auto xl:custom-scrollbar xl:pr-2 flex flex-col h-full">
                 <section aria-label={t("da_import_section")} className="flex-1 flex flex-col min-h-0">
-                  <h2 className="section_title shrink-0">{t("da_import")}</h2>
                   <Card
                     id="device-analysis-import-card"
                     cta="Device analysis"
@@ -1700,6 +1802,32 @@ Note:
                   <p className="text-sm">{t("da_no_processed_data_hint")}</p>
                 </Card>
               )}
+            </section>
+          </div>
+        </section>
+
+        <section
+          id="device-analysis-tabpanel-settings"
+          role="tabpanel"
+          aria-labelledby="device-analysis-window-settings-btn"
+          aria-hidden={!isSettingsPageActive}
+          inert={!isSettingsPageActive ? "" : undefined}
+          className={`absolute inset-0 min-h-0 transition-opacity duration-150 ${isSettingsPageActive
+            ? "pointer-events-auto opacity-100"
+            : "pointer-events-none opacity-0"
+            }`}
+        >
+          <div className="da_page_scroll h-full min-h-0 overflow-y-auto custom-scrollbar xl:pr-2">
+            <section aria-label="Settings">
+              <h2 className="section_title">Settings</h2>
+              <Card
+                id="device-analysis-settings-placeholder-card"
+                variant="panel"
+                className="flex flex-col items-center justify-center h-[300px] border-2 border-dashed border-border bg-bg-surface/50 text-text-secondary"
+              >
+                <p className="text-lg font-medium">Settings Placeholder</p>
+                <p className="text-sm">Future settings options will be displayed here.</p>
+              </Card>
             </section>
           </div>
         </section>
