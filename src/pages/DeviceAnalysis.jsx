@@ -2026,7 +2026,7 @@ Note:
           role="tabpanel"
           aria-labelledby="device-analysis-tab-analysis"
           aria-hidden={!isAnalysisPageActive}
-          inert={!isAnalysisPageActive ? "" : undefined}
+          inert={!isAnalysisPageActive ? true : undefined}
           className={`absolute inset-0 min-h-0 transition-opacity duration-150 ${isAnalysisPageActive
             ? "pointer-events-auto opacity-100"
             : "pointer-events-none opacity-0"
@@ -2034,7 +2034,7 @@ Note:
         >
           <div className="da_page_scroll h-full min-h-0 overflow-y-auto custom-scrollbar p-1 pt-0">
             <section aria-label={t("da_analysis_visualization")} className="h-full flex flex-col">
-              {processedData.length > 0 ? (
+              {isAnalysisPageActive && processedData.length > 0 ? (
                 <AnalysisCharts
                   processedData={processedData}
                   processingStatus={_processingStatus}
@@ -2072,7 +2072,7 @@ Note:
           role="tabpanel"
           aria-labelledby="device-analysis-window-settings-btn"
           aria-hidden={!isSettingsPageActive}
-          inert={!isSettingsPageActive ? "" : undefined}
+          inert={!isSettingsPageActive ? true : undefined}
           className={`absolute inset-0 min-h-0 transition-opacity duration-150 ${isSettingsPageActive
             ? "pointer-events-auto opacity-100"
             : "pointer-events-none opacity-0"
