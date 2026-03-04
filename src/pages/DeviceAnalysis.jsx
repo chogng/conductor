@@ -108,6 +108,47 @@ const DeviceAnalysis = () => {
   });
   const [activePage, setActivePage] = useState("data");
 
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("da-sidebar-width");
+      if (saved) return parseInt(saved, 10);
+    }
+    return 280;
+  });
+  const [isResizing, setIsResizing] = useState(false);
+
+  const startResizing = useCallback(() => {
+    setIsResizing(true);
+  }, []);
+
+  const stopResizing = useCallback(() => {
+    setIsResizing(false);
+    localStorage.setItem("da-sidebar-width", sidebarWidth.toString());
+  }, [sidebarWidth]);
+
+  const resize = useCallback(
+    (e) => {
+      if (isResizing) {
+        const newWidth = e.clientX;
+        if (newWidth >= 200 && newWidth <= 600) {
+          setSidebarWidth(newWidth);
+        }
+      }
+    },
+    [isResizing],
+  );
+
+  useEffect(() => {
+    if (isResizing) {
+      window.addEventListener("mousemove", resize);
+      window.addEventListener("mouseup", stopResizing);
+    }
+    return () => {
+      window.removeEventListener("mousemove", resize);
+      window.removeEventListener("mouseup", stopResizing);
+    };
+  }, [isResizing, resize, stopResizing]);
+
   const previewRowsVersionRef = useRef(0);
   const previewRowsSubscribersRef = useRef(new Set());
   const previewRowsNotifyRafRef = useRef(0);
@@ -1684,7 +1725,9 @@ Note:
   return (
     <div
       id="device-analysis-page"
-      className="relative w-full h-full min-h-0 overflow-hidden flex flex-col"
+      className={`relative w-full h-full min-h-0 overflow-hidden flex flex-col ${isResizing ? "cursor-col-resize select-none" : ""
+        }`}
+      style={{ "--sidebar-width": `${sidebarWidth}px` }}
     >
       {isWindowsDesktopShell ? (
         <DesktopCommandBar
@@ -1702,15 +1745,15 @@ Note:
           role="tabpanel"
           aria-labelledby="device-analysis-tab-data"
           aria-hidden={!isDataPageActive}
-          inert={!isDataPageActive ? "" : undefined}
+          inert={!isDataPageActive ? true : undefined}
           className={`absolute inset-0 min-h-0 transition-opacity duration-150 ${isDataPageActive
             ? "pointer-events-auto opacity-100"
             : "pointer-events-none opacity-0"
             }`}
         >
           <div className="da_page_scroll h-full min-h-0 overflow-y-auto xl:overflow-hidden p-1 pt-0">
-            <div className="min-h-full grid grid-cols-1 xl:grid-cols-[280px_minmax(0,1fr)] gap-1 xl:gap-1 xl:h-full">
-              <aside className="xl:min-h-0 flex flex-col h-full">
+            <div className="min-h-full grid grid-cols-1 xl:grid-cols-[var(--sidebar-width)_minmax(0,1fr)] gap-1 xl:gap-1 xl:h-full">
+              <aside className="xl:min-h-0 flex flex-col h-full relative group/sidebar">
                 <section aria-label={t("da_import_section")} className="flex-1 flex flex-col min-h-0">
                   <Card
                     id="device-analysis-import-card"
@@ -1816,6 +1859,15 @@ Note:
                     </div>
                   </section>
                 )}
+
+                {/* Resizable Sash */}
+                <div
+                  className="hidden xl:block absolute -right-[7px] top-0 bottom-0 w-[10px] cursor-col-resize z-50 group/sash"
+                  onMouseDown={startResizing}
+                >
+                  <div className={`absolute left-1/2 top-0 bottom-0 w-[2px] -translate-x-1/2 bg-accent/0 transition-colors duration-400 group-hover/sash:bg-accent/40 group-hover/sash:delay-300 ${isResizing ? "bg-accent/60" : ""
+                    }`} />
+                </div>
               </aside>
 
               <section
