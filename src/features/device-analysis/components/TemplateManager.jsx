@@ -84,6 +84,7 @@ const normalizeXDataEndValue = (value) => {
   if (raw.toLowerCase() === "end" || raw === "结束") return "End";
   return raw;
 };
+const toTemplateNameKey = (name) => String(name ?? "").trim().toLowerCase();
 
 const PREVIEW_PICK_FIELD_TO_CONFIG_FIELD = {
   templateName: "name",
@@ -659,23 +660,23 @@ const TemplateManager = ({
     try {
       saveDraftTouchedRef.current = false;
       saveDraftBaseConfigRef.current = null;
-      const created = await apiService.createDeviceAnalysisTemplate({
+      const saved = await apiService.createDeviceAnalysisTemplate({
         ...validation.normalized,
         name,
       });
 
       setTemplates((prev) => {
-        const normalized = String(created?.name || "").trim();
+        const savedNameKey = toTemplateNameKey(saved?.name);
         return [
-          created,
+          saved,
           ...prev.filter(
             (t) =>
-              t?.id !== created?.id &&
-              String(t?.name || "").trim() !== normalized,
+              t?.id !== saved?.id &&
+              toTemplateNameKey(t?.name) !== savedNameKey,
           ),
         ];
       });
-      setConfig((prev) => ({ ...prev, name: "" }));
+      loadTemplate(saved);
       showToast(t("da_template_saved"), "success");
       setTemplateMode("select");
     } catch (err) {

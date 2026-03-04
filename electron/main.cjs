@@ -113,6 +113,10 @@ function normalizeDeviceAnalysisTemplates(templates) {
     }));
 }
 
+function toTemplateNameKey(name) {
+  return String(name || "").trim().toLowerCase();
+}
+
 function getDeviceAnalysisHomeDir() {
   return path.join(app.getPath("home"), ".device");
 }
@@ -227,15 +231,36 @@ function handleDeviceAnalysisTemplatesGet() {
 function handleDeviceAnalysisTemplatesCreate(_event, payload) {
   const input = normalizeDeviceAnalysisTemplate(payload);
   if (!input) throw new Error("Invalid template payload.");
+  const inputNameKey = toTemplateNameKey(input.name);
+  if (!inputNameKey) throw new Error("Template name is required.");
 
   const store = readDeviceAnalysisStore();
-  const created = {
-    id: input.id || `tpl_${Date.now()}`,
+  const existingTemplates = Array.isArray(store.templates) ? store.templates : [];
+  let existingMatch = null;
+  for (let i = existingTemplates.length - 1; i >= 0; i -= 1) {
+    const tpl = existingTemplates[i];
+    if (toTemplateNameKey(tpl?.name) === inputNameKey) {
+      existingMatch = tpl;
+      break;
+    }
+  }
+
+  const saved = {
+    ...existingMatch,
     ...input,
+    id: existingMatch?.id || input.id || `tpl_${Date.now()}`,
   };
-  store.templates = normalizeDeviceAnalysisTemplates([...store.templates, created]);
+  const savedId = String(saved.id || "");
+  store.templates = normalizeDeviceAnalysisTemplates([
+    saved,
+    ...existingTemplates.filter((tpl) => {
+      const nameKey = toTemplateNameKey(tpl?.name);
+      const tplId = String(tpl?.id || "");
+      return nameKey !== inputNameKey && tplId !== savedId;
+    }),
+  ]);
   writeDeviceAnalysisStore(store);
-  return created;
+  return saved;
 }
 
 function handleDeviceAnalysisTemplatesDelete(_event, id) {
