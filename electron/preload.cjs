@@ -9,6 +9,10 @@ const ipcChannels = {
   persistencePathGet: "device-analysis-store:persistence-path:get",
   persistencePathSet: "device-analysis-store:persistence-path:set",
   persistencePathChoose: "device-analysis-store:persistence-path:choose",
+  originExeGet: "device-analysis-origin:exe:get",
+  originExeSet: "device-analysis-origin:exe:set",
+  originExePick: "device-analysis-origin:exe:pick",
+  originRunZip: "device-analysis-origin:run-zip",
 };
 
 contextBridge.exposeInMainWorld("desktopMeta", {
@@ -47,5 +51,20 @@ contextBridge.exposeInMainWorld("desktopStore", {
   },
   async chooseDeviceAnalysisPersistencePath() {
     return ipcRenderer.invoke(ipcChannels.persistencePathChoose);
+  },
+});
+
+contextBridge.exposeInMainWorld("desktopOrigin", {
+  async getOriginExePath() {
+    return ipcRenderer.invoke(ipcChannels.originExeGet);
+  },
+  async setOriginExePath(path) {
+    return ipcRenderer.invoke(ipcChannels.originExeSet, { path });
+  },
+  async pickOriginExePath() {
+    return ipcRenderer.invoke(ipcChannels.originExePick);
+  },
+  async runOriginZip(payload) {
+    return ipcRenderer.invoke(ipcChannels.originRunZip, payload);
   },
 });

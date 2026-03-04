@@ -56,9 +56,13 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
+      "origin/**/*",
       "package.json"
     ],
     "asar": true,
+    "asarUnpack": [
+      "origin/**"
+    ],
     "mac": {
       "icon": "build/icons/icon.icns",
       "category": "public.app-category.utilities",

@@ -36,6 +36,7 @@ import Button from "../../../components/ui/Button";
 import Tabs from "../../../components/ui/Tabs";
 import Card from "../../../components/ui/Card";
 import Toast from "../../../components/ui/Toast";
+import { useLanguage } from "../../../hooks/useLanguage";
 import { COLORS } from "./chartColors";
 
 const useInViewOnce = (options = {}) => {
@@ -580,13 +581,6 @@ const OverviewGrid = React.memo(function OverviewGrid({
   return (
     <Card variant="panel">
       <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-        <div>
-          <h2 className="text-lg font-bold text-text-primary">
-            Overview ({sortedData.length})
-          </h2>
-        </div>
-
-
         <div className="flex items-center gap-3">
           <Tabs
             groupLabel="Curve filter"
@@ -1050,6 +1044,7 @@ const AnalysisCharts = ({
   ssManualRanges = {},
   setSsManualRanges = () => { },
 }) => {
+  const { t } = useLanguage();
   const [activeFileId, setActiveFileId] = useState(
     processedData?.[0]?.fileId ?? null,
   );
@@ -1087,6 +1082,17 @@ const AnalysisCharts = ({
     type: "success",
   });
   const toastContainerRef = useRef(null);
+  const desktopMeta =
+    typeof window !== "undefined" ? window.desktopMeta ?? null : null;
+  const isWindowsDesktopShell =
+    desktopMeta?.isDesktop === true && desktopMeta?.platform === "win32";
+
+  const getDesktopOriginBridge = React.useCallback(() => {
+    if (typeof window === "undefined") return null;
+    const bridge = window.desktopOrigin;
+    if (!bridge || typeof bridge.runOriginZip !== "function") return null;
+    return bridge;
+  }, []);
 
   // Cache expensive per-file computations (points, gm, SS fits, metrics) so switching
   // files / modes doesn't re-run heavy math on every render.
@@ -1375,13 +1381,16 @@ type -b "Plotted %(csv$)";
   };
 
   const buildOriginPackageForFocusedSeries = async () => {
-    if (!activeFile?.fileId || !focusedSeries) {
-      throw new Error("No curve selected");
+    const targetSeries =
+      focusedSeries ??
+      (Array.isArray(activeFile?.series) ? activeFile.series[0] : null);
+    if (!activeFile?.fileId || !targetSeries) {
+      throw new Error(t("da_origin_select_curve"));
     }
 
-    const groupIndex = Number(focusedSeries?.groupIndex);
+    const groupIndex = Number(targetSeries?.groupIndex);
     const xArr = activeFile?.xGroups?.[groupIndex];
-    const yArr = focusedSeries?.y;
+    const yArr = targetSeries?.y;
 
     if (!xArr || !yArr) {
       throw new Error("Missing curve data");
@@ -1401,7 +1410,7 @@ type -b "Plotted %(csv$)";
     const csvText = Papa.unparse({ fields: headers, data: rows });
 
     const base = sanitizeFilename(activeFile?.fileName ?? "device_analysis").replace(/\.csv$/i, "");
-    const seriesName = sanitizeFilename(focusedSeries?.name ?? "curve").replace(/\.csv$/i, "");
+    const seriesName = sanitizeFilename(targetSeries?.name ?? "curve").replace(/\.csv$/i, "");
     const csvName = `${base}__${seriesName}.csv`;
     const ogsName = `${base}__${seriesName}.ogs`;
     const zipName = `${base}__${seriesName}__origin.zip`;
@@ -1433,10 +1442,12 @@ How to use (manual fallback):
           kind: "single_curve",
           fileId: activeFile.fileId,
           fileName: activeFile.fileName ?? null,
-          seriesId: focusedSeries.id,
-          seriesName: focusedSeries.name ?? null,
+          seriesId: targetSeries.id,
+          seriesName: targetSeries.name ?? null,
           groupIndex,
-          yCol: Number.isFinite(Number(focusedSeries?.yCol)) ? Number(focusedSeries.yCol) : null,
+          yCol: Number.isFinite(Number(targetSeries?.yCol))
+            ? Number(targetSeries.yCol)
+            : null,
           csvName,
           ogsName,
         },
@@ -1461,14 +1472,64 @@ How to use (manual fallback):
       setOriginBusy(true);
       const pkg = await buildOriginPackageForFocusedSeries();
       triggerDownloadBlob(pkg.zipName, pkg.zipBlob);
-      showToast("Origin ZIP downloaded. Open it in OriginBridge (Local ZIP mode).", "success");
+      showToast(t("da_origin_zip_downloaded"), "success");
     } catch (err) {
-      const msg = err?.message ? String(err.message) : "Failed to build Origin package";
-      showToast(msg, "error");
+      const msg = err?.message ? String(err.message) : t("unknownError");
+      showToast(t("da_origin_zip_build_failed", { error: msg }), "error");
     } finally {
       setOriginBusy(false);
     }
   };
+
+  const handleOpenInOrigin = async () => {
+    if (originBusy) return;
+
+    try {
+      setOriginBusy(true);
+      const originBridge = getDesktopOriginBridge();
+      if (!originBridge) {
+        throw new Error(t("da_origin_pick_exe_required"));
+      }
+
+      const pkg = await buildOriginPackageForFocusedSeries();
+      const zipArrayBuffer = await pkg.zipBlob.arrayBuffer();
+      await originBridge.runOriginZip({
+        zipName: pkg.zipName,
+        bytes: zipArrayBuffer,
+      });
+
+      showToast(t("da_open_in_origin_success"), "success");
+    } catch (err) {
+      const msg = err?.message ? String(err.message) : t("unknownError");
+      if (msg === "__ORIGIN_EXE_REQUIRED__") {
+        showToast(t("da_origin_pick_exe_required"), "error");
+      } else {
+        showToast(t("da_open_in_origin_failed", { error: msg }), "error");
+      }
+    } finally {
+      setOriginBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    if (!isWindowsDesktopShell) return undefined;
+
+    const handleOpenOriginRequest = () => {
+      void handleOpenInOrigin();
+    };
+
+    window.addEventListener(
+      "device-analysis:open-origin",
+      handleOpenOriginRequest,
+    );
+    return () => {
+      window.removeEventListener(
+        "device-analysis:open-origin",
+        handleOpenOriginRequest,
+      );
+    };
+  }, [handleOpenInOrigin, isWindowsDesktopShell]);
 
   const ssApplicable = useMemo(() => {
     const curveType = String(activeFile?.curveType || "").toLowerCase();
@@ -2932,7 +2993,7 @@ How to use (manual fallback):
             onClick={handleDownloadOriginPackage}
             type="button"
           >
-            Download Origin ZIP
+            {t("da_menu_export_origin_zip")}
           </Button>
         </div>
         <Card variant="panel">

@@ -4,6 +4,7 @@ import {
   Square,
   X,
 } from "lucide-react";
+import originIcon from "../../../assets/icons/origin.svg";
 
 const DesktopCommandBar = ({
   t,
@@ -11,6 +12,7 @@ const DesktopCommandBar = ({
   onToggleMaximizeWindow,
   onCloseWindow,
   onOpenSettings,
+  onOpenOrigin,
 }) => {
   return (
     <header id="device-analysis-desktop-command-bar" className="da_top_menu_bar">
@@ -20,6 +22,21 @@ const DesktopCommandBar = ({
       <div className="flex-1" style={{ WebkitAppRegion: "drag" }}></div>
 
       <div className="da_window_controls">
+        <button
+          id="device-analysis-window-origin-btn"
+          type="button"
+          aria-label={t("da_open_in_origin")}
+          title={t("da_open_in_origin")}
+          className="da_window_icon_btn mr-[2px]"
+          onClick={onOpenOrigin}
+        >
+          <img
+            src={originIcon}
+            alt=""
+            aria-hidden="true"
+            className="h-[14px] w-[14px] opacity-80 dark:invert"
+          />
+        </button>
         <button
           id="device-analysis-window-settings-btn"
           type="button"

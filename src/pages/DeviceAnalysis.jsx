@@ -287,6 +287,13 @@ const DeviceAnalysis = () => {
     type: "idle",
     message: "",
   });
+  const [originExePath, setOriginExePath] = useState("");
+  const [originPathLoading, setOriginPathLoading] = useState(true);
+  const [originPathSaving, setOriginPathSaving] = useState(false);
+  const [originPathFeedback, setOriginPathFeedback] = useState({
+    type: "idle",
+    message: "",
+  });
 
   const deferredSelectedPreviewFileId = useDeferredValue(selectedPreviewFileId);
   const rawDataById = useMemo(() => {
@@ -642,6 +649,15 @@ const DeviceAnalysis = () => {
     [handleUpdateDeviceAnalysisSettings, language, setLanguage],
   );
 
+  const getDesktopOriginBridge = useCallback(() => {
+    if (typeof window === "undefined") return null;
+    const bridge = window.desktopOrigin;
+    if (!bridge || typeof bridge !== "object") return null;
+    if (typeof bridge.getOriginExePath !== "function") return null;
+    if (typeof bridge.pickOriginExePath !== "function") return null;
+    return bridge;
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -689,6 +705,71 @@ const DeviceAnalysis = () => {
       setPersistencePathSaving(false);
     }
   }, [t]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      setOriginPathLoading(true);
+
+      const bridge = getDesktopOriginBridge();
+      if (!isWindowsDesktopShell || !bridge) {
+        if (cancelled) return;
+        setOriginExePath("");
+        setOriginPathLoading(false);
+        return;
+      }
+
+      try {
+        const configured = await bridge.getOriginExePath();
+        if (cancelled) return;
+        setOriginExePath(
+          typeof configured === "string" && configured.trim()
+            ? configured.trim()
+            : "",
+        );
+      } catch {
+        if (cancelled) return;
+        setOriginExePath("");
+      } finally {
+        if (!cancelled) {
+          setOriginPathLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [getDesktopOriginBridge, isWindowsDesktopShell]);
+
+  const handleChooseOriginExePath = useCallback(async () => {
+    const bridge = getDesktopOriginBridge();
+    if (!bridge) return;
+
+    setOriginPathSaving(true);
+    setOriginPathFeedback({ type: "idle", message: "" });
+
+    try {
+      const picked = await bridge.pickOriginExePath();
+      if (typeof picked === "string" && picked.trim()) {
+        setOriginExePath(picked.trim());
+        setOriginPathFeedback({
+          type: "success",
+          message: t("da_settings_origin_choose_saved"),
+        });
+      }
+    } catch (error) {
+      setOriginPathFeedback({
+        type: "error",
+        message: t("da_settings_origin_choose_failed", {
+          error: error?.message || t("unknownError"),
+        }),
+      });
+    } finally {
+      setOriginPathSaving(false);
+    }
+  }, [getDesktopOriginBridge, t]);
 
 
 
@@ -1768,6 +1849,17 @@ Note:
     return true;
   }, []);
 
+  const handleOpenOriginFromTitleBar = useCallback(() => {
+    setActivePage("analysis");
+
+    if (typeof window === "undefined") return;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.dispatchEvent(new Event("device-analysis:open-origin"));
+      });
+    });
+  }, []);
+
   const handleToggleDevTools = useCallback(() => {
     sendDesktopCommand("toggle-devtools");
   }, [sendDesktopCommand]);
@@ -1837,6 +1929,9 @@ Note:
   const persistencePathCurrent = String(persistencePathInfo?.currentPath ?? "");
   const persistencePathConfigurable =
     Boolean(persistencePathInfo) && persistencePathInfo?.isConfigurable !== false;
+  const originPathCurrent = String(originExePath ?? "");
+  const originPathConfigurable =
+    isWindowsDesktopShell && Boolean(getDesktopOriginBridge());
 
   return (
     <div
@@ -1848,6 +1943,7 @@ Note:
       {isWindowsDesktopShell ? (
         <DesktopCommandBar
           t={t}
+          onOpenOrigin={handleOpenOriginFromTitleBar}
           onOpenSettings={() => handlePageTabSelect("settings")}
           onMinimizeWindow={handleMinimizeWindow}
           onToggleMaximizeWindow={handleToggleMaximizeWindow}
@@ -2152,6 +2248,61 @@ Note:
                       }`}
                   >
                     {persistencePathFeedback.message}
+                  </p>
+                ) : null}
+              </Card>
+              <Card
+                id="device-analysis-settings-origin-path-card"
+                variant="panel"
+                className="p-4 space-y-4 mt-4"
+              >
+                <div>
+                  <h3 className="text-base font-semibold text-text-primary">
+                    {t("da_settings_origin_title")}
+                  </h3>
+                  <p className="text-sm text-text-secondary mt-1">
+                    {t("da_settings_origin_desc")}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 min-w-0 rounded-lg border border-border bg-bg-page px-3 py-2 flex items-center h-[38px]">
+                    <p className="font-mono text-xs text-text-primary truncate">
+                      {originPathCurrent ||
+                        (originPathLoading
+                          ? t("da_settings_origin_loading")
+                          : t("da_settings_origin_not_configurable_hint"))}
+                    </p>
+                  </div>
+                  <Button
+                    id="device-analysis-settings-origin-path-choose-btn"
+                    type="button"
+                    variant="primary"
+                    size="sm"
+                    className="h-[38px] whitespace-nowrap"
+                    onClick={() => {
+                      void handleChooseOriginExePath();
+                    }}
+                    disabled={!originPathConfigurable || originPathSaving}
+                  >
+                    {t("da_settings_origin_choose_path_btn")}
+                  </Button>
+                </div>
+
+                {!originPathConfigurable ? (
+                  <p className="text-sm text-text-secondary">
+                    {t("da_settings_origin_not_configurable_hint")}
+                  </p>
+                ) : null}
+
+                {originPathFeedback.message ? (
+                  <p
+                    className={`text-sm ${originPathFeedback.type === "error"
+                      ? "text-red-500"
+                      : "text-emerald-600"
+                      }`}
+                  >
+                    {originPathFeedback.message}
                   </p>
                 ) : null}
               </Card>

@@ -1,6 +1,13 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { app, BrowserWindow, dialog, ipcMain, Menu, shell } = require("electron");
+const {
+  assertOriginExePath,
+  detectOriginExecutablePath,
+  normalizeOriginExePath,
+  pickOriginExecutable,
+  runOriginZipJob,
+} = require("./origin-runner.cjs");
 
 const isDev = !app.isPackaged;
 const isWindows = process.platform === "win32";
@@ -20,7 +27,32 @@ const DEVICE_ANALYSIS_DEFAULT_SETTINGS = {
   ssShowFitLine: true,
   ssIdLow: 1e-11,
   ssIdHigh: 1e-9,
+  originExePath: null,
 };
+function resolveOriginWorkerScriptPath() {
+  if (!app.isPackaged) {
+    return path.join(__dirname, "..", "origin", "run_origin_job.ps1");
+  }
+
+  const unpackedPath = path.join(
+    process.resourcesPath,
+    "app.asar.unpacked",
+    "origin",
+    "run_origin_job.ps1",
+  );
+  if (fs.existsSync(unpackedPath)) {
+    return unpackedPath;
+  }
+
+  return path.join(
+    process.resourcesPath,
+    "app.asar",
+    "origin",
+    "run_origin_job.ps1",
+  );
+}
+
+const ORIGIN_WORKER_SCRIPT_PATH = resolveOriginWorkerScriptPath();
 
 const ipcChannels = {
   templatesGet: "device-analysis-store:templates:get",
@@ -31,6 +63,10 @@ const ipcChannels = {
   persistencePathGet: "device-analysis-store:persistence-path:get",
   persistencePathSet: "device-analysis-store:persistence-path:set",
   persistencePathChoose: "device-analysis-store:persistence-path:choose",
+  originExeGet: "device-analysis-origin:exe:get",
+  originExeSet: "device-analysis-origin:exe:set",
+  originExePick: "device-analysis-origin:exe:pick",
+  originRunZip: "device-analysis-origin:run-zip",
 };
 
 function normalizePositiveNumber(value, fallback) {
@@ -74,6 +110,7 @@ function normalizeDeviceAnalysisSettings(raw) {
     next.ssIdHigh ?? next.ssIdWindowHigh,
     DEVICE_ANALYSIS_DEFAULT_SETTINGS.ssIdHigh,
   );
+  const originExePath = normalizeOriginExePath(next.originExePath);
 
   return {
     ...DEVICE_ANALYSIS_DEFAULT_SETTINGS,
@@ -87,6 +124,7 @@ function normalizeDeviceAnalysisSettings(raw) {
     ssShowFitLine,
     ssIdLow,
     ssIdHigh,
+    originExePath,
   };
 }
 
@@ -354,6 +392,110 @@ async function handleDeviceAnalysisPersistencePathChoose(event) {
   return { ...updated, cancelled: false };
 }
 
+function getOriginExePathFromSettings() {
+  const settings = readDeviceAnalysisStore().settings;
+  return normalizeOriginExePath(settings?.originExePath);
+}
+
+function saveOriginExePathToSettings(originExePath) {
+  const normalizedPath = normalizeOriginExePath(originExePath);
+  const store = readDeviceAnalysisStore();
+  store.settings = normalizeDeviceAnalysisSettings({
+    ...store.settings,
+    originExePath: normalizedPath,
+  });
+  writeDeviceAnalysisStore(store);
+  return store.settings.originExePath ?? null;
+}
+
+async function handleOriginExeGet() {
+  const configured = getOriginExePathFromSettings();
+  if (configured) {
+    try {
+      return assertOriginExePath(configured);
+    } catch {
+      // Fall through to auto detection.
+    }
+  }
+
+  const detected = await detectOriginExecutablePath();
+  if (detected) {
+    return saveOriginExePathToSettings(detected);
+  }
+
+  return null;
+}
+
+function handleOriginExeSet(_event, payload) {
+  const rawPath =
+    payload && typeof payload === "object" ? payload.path : payload;
+  const validated = assertOriginExePath(rawPath);
+  return saveOriginExePathToSettings(validated);
+}
+
+async function handleOriginExePick(event) {
+  if (!isWindows) return null;
+
+  const win = BrowserWindow.fromWebContents(event.sender) ?? null;
+  const pickedPath = await pickOriginExecutable({
+    dialog,
+    ownerWindow: win,
+    defaultPath: getOriginExePathFromSettings(),
+  });
+
+  if (!pickedPath) return null;
+  return saveOriginExePathToSettings(pickedPath);
+}
+
+async function resolveOriginExePath(event) {
+  const configured = getOriginExePathFromSettings();
+  if (configured) {
+    try {
+      return assertOriginExePath(configured);
+    } catch {
+      // Fall through to auto detection + picker.
+    }
+  }
+
+  const detected = await detectOriginExecutablePath();
+  if (detected) {
+    return saveOriginExePathToSettings(detected);
+  }
+
+  return handleOriginExePick(event);
+}
+
+async function handleOriginRunZip(event, payload) {
+  if (!isWindows) {
+    throw new Error("Origin integration is only available on Windows desktop.");
+  }
+
+  const zipName =
+    payload && typeof payload.zipName === "string"
+      ? payload.zipName
+      : "device_analysis_origin.zip";
+  const bytes =
+    payload && Object.prototype.hasOwnProperty.call(payload, "bytes")
+      ? payload.bytes
+      : null;
+
+  if (!bytes) {
+    throw new Error("ZIP payload is missing.");
+  }
+
+  const originExePath = await resolveOriginExePath(event);
+  if (!originExePath) {
+    throw new Error("__ORIGIN_EXE_REQUIRED__");
+  }
+
+  return runOriginZipJob({
+    zipName,
+    bytes,
+    originExePath,
+    workerScriptPath: ORIGIN_WORKER_SCRIPT_PATH,
+  });
+}
+
 function createMainWindow() {
   const win = new BrowserWindow({
     width: 1440,
@@ -444,6 +586,10 @@ app.whenReady().then(() => {
   ipcMain.handle(ipcChannels.persistencePathGet, handleDeviceAnalysisPersistencePathGet);
   ipcMain.handle(ipcChannels.persistencePathSet, handleDeviceAnalysisPersistencePathSet);
   ipcMain.handle(ipcChannels.persistencePathChoose, handleDeviceAnalysisPersistencePathChoose);
+  ipcMain.handle(ipcChannels.originExeGet, handleOriginExeGet);
+  ipcMain.handle(ipcChannels.originExeSet, handleOriginExeSet);
+  ipcMain.handle(ipcChannels.originExePick, handleOriginExePick);
+  ipcMain.handle(ipcChannels.originRunZip, handleOriginRunZip);
   createMainWindow();
 
   app.on("activate", () => {
@@ -465,4 +611,8 @@ app.on("will-quit", () => {
   ipcMain.removeHandler(ipcChannels.persistencePathGet);
   ipcMain.removeHandler(ipcChannels.persistencePathSet);
   ipcMain.removeHandler(ipcChannels.persistencePathChoose);
+  ipcMain.removeHandler(ipcChannels.originExeGet);
+  ipcMain.removeHandler(ipcChannels.originExeSet);
+  ipcMain.removeHandler(ipcChannels.originExePick);
+  ipcMain.removeHandler(ipcChannels.originRunZip);
 });
