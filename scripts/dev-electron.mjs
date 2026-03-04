@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
 import { readdirSync, watch } from "node:fs";
+import net from "node:net";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 
@@ -28,6 +29,44 @@ let isRestarting = false;
 let electronProc = null;
 const watcherClosers = [];
 
+const checkPortAvailability = (targetHost, targetPort) =>
+  new Promise((resolve, reject) => {
+    const probe = net.createServer();
+    probe.unref();
+
+    probe.once("error", (error) => {
+      if (error?.code === "EADDRINUSE") {
+        resolve(false);
+        return;
+      }
+      reject(error);
+    });
+
+    probe.listen({ host: targetHost, port: targetPort, exclusive: true }, () => {
+      probe.close((closeError) => {
+        if (closeError) {
+          reject(closeError);
+          return;
+        }
+        resolve(true);
+      });
+    });
+  });
+
+try {
+  const isPortAvailable = await checkPortAvailability(host, port);
+  if (!isPortAvailable) {
+    console.error(`[desktop] Dev port already in use: ${host}:${port}`);
+    console.error("[desktop] Stop the existing process or set DEV_PORT to use another port.");
+    process.exit(1);
+  }
+} catch (error) {
+  console.error(`[desktop] Failed to check dev port ${host}:${port}: ${error.message}`);
+  process.exit(1);
+}
+
+console.log(`[desktop] Starting Vite dev server at ${devUrl}`);
+
 const viteProc = spawn(
   viteCmd,
   viteArgs,
@@ -36,6 +75,12 @@ const viteProc = spawn(
     env: process.env,
   },
 );
+
+viteProc.on("error", (error) => {
+  if (isShuttingDown) return;
+  console.error(`[desktop] Failed to start Vite: ${error.message}`);
+  void shutdown(1);
+});
 
 viteProc.on("exit", (code) => {
   viteExited = true;
@@ -64,10 +109,70 @@ const waitForServer = async (url, timeoutMs = 60_000) => {
   throw new Error(`Timeout waiting for dev server: ${url}`);
 };
 
+const stopProcessTreeOnWindows = (proc, timeoutMs = 5_000) =>
+  new Promise((resolve) => {
+    if (!proc || !proc.pid || proc.killed || proc.exitCode !== null) {
+      resolve();
+      return;
+    }
+
+    let settled = false;
+    let waitTimer = null;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      if (waitTimer) {
+        clearTimeout(waitTimer);
+        waitTimer = null;
+      }
+      proc.off("exit", onExit);
+      resolve();
+    };
+
+    const onExit = () => {
+      finish();
+    };
+    proc.once("exit", onExit);
+
+    waitTimer = setTimeout(() => {
+      try {
+        proc.kill("SIGKILL");
+      } catch {
+        // Ignore if already gone.
+      }
+      finish();
+    }, timeoutMs);
+
+    const killer = spawn("taskkill", ["/PID", String(proc.pid), "/T", "/F"], {
+      stdio: "ignore",
+      windowsHide: true,
+    });
+
+    killer.once("error", () => {
+      try {
+        proc.kill("SIGKILL");
+      } catch {
+        // Ignore if already gone.
+      }
+      finish();
+    });
+
+    killer.once("exit", () => {
+      if (proc.exitCode !== null || proc.killed) {
+        finish();
+      }
+    });
+  });
+
 const stopProcess = (proc, signal = "SIGTERM", timeoutMs = 5_000) =>
   new Promise((resolve) => {
     if (!proc || proc.killed || proc.exitCode !== null) {
       resolve();
+      return;
+    }
+
+    if (isWin) {
+      void stopProcessTreeOnWindows(proc, timeoutMs).then(resolve);
       return;
     }
 
@@ -113,12 +218,19 @@ const stopProcess = (proc, signal = "SIGTERM", timeoutMs = 5_000) =>
   });
 
 const startElectron = () => {
+  console.log(`[desktop] Launching Electron with ${devUrl}`);
   const proc = spawn(electronBin, ["."], {
     stdio: "inherit",
     env: {
       ...process.env,
       ELECTRON_START_URL: devUrl,
     },
+  });
+
+  proc.on("error", (error) => {
+    if (isShuttingDown) return;
+    console.error(`[desktop] Failed to start Electron: ${error.message}`);
+    void shutdown(1);
   });
 
   proc.on("exit", (code) => {
@@ -258,6 +370,8 @@ for (const signal of shutdownSignals) {
   });
 }
 
+console.log(`[desktop] Waiting for dev server: ${devUrl}`);
+
 try {
   await waitForServer(devUrl);
 } catch (error) {
@@ -265,6 +379,7 @@ try {
   await shutdown(1);
 }
 
+console.log("[desktop] Dev server is ready.");
 startElectron();
 
 try {
