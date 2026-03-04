@@ -59,6 +59,69 @@ const stableStringify = (value) => {
   return JSON.stringify(normalize(value));
 };
 
+const parseLegacyExtractionError = (rawMessage) => {
+  const message = String(rawMessage ?? "").trim();
+  if (!message) return null;
+
+  const patterns = [
+    {
+      regex:
+        /^(?:(.+?):\s*)?X range has (\d+) points, which is not divisible by points=(\d+) \(from ([A-Z]+[0-9]+)\)\.$/i,
+      map: (m) => ({
+        fileName: m[1] || null,
+        messageKey: "da_extractXNotDivisibleByPointsFromCell",
+        messageParams: {
+          total: Number(m[2]),
+          points: Number(m[3]),
+          cell: String(m[4]).toUpperCase(),
+        },
+      }),
+    },
+    {
+      regex:
+        /^(?:(.+?):\s*)?X range has (\d+) points, which is not divisible by points=(\d+)\.$/i,
+      map: (m) => ({
+        fileName: m[1] || null,
+        messageKey: "da_extractXNotDivisibleByPoints",
+        messageParams: {
+          total: Number(m[2]),
+          points: Number(m[3]),
+        },
+      }),
+    },
+    {
+      regex:
+        /^(?:(.+?):\s*)?Points cell ([A-Z]+[0-9]+) must contain a positive integer\.$/i,
+      map: (m) => ({
+        fileName: m[1] || null,
+        messageKey: "da_extractPointsCellPositiveInt",
+        messageParams: { cell: String(m[2]).toUpperCase() },
+      }),
+    },
+    {
+      regex:
+        /^(?:(.+?):\s*)?Points from ([A-Z]+[0-9]+) \((\d+)\) cannot be larger than the X range length \((\d+)\)\.$/i,
+      map: (m) => ({
+        fileName: m[1] || null,
+        messageKey: "da_extractPointsCellTooLarge",
+        messageParams: {
+          cell: String(m[2]).toUpperCase(),
+          points: Number(m[3]),
+          total: Number(m[4]),
+        },
+      }),
+    },
+  ];
+
+  for (const pattern of patterns) {
+    const matched = message.match(pattern.regex);
+    if (!matched) continue;
+    return pattern.map(matched);
+  }
+
+  return null;
+};
+
 const DeviceAnalysis = () => {
   const { t, language, setLanguage } = useLanguage();
   const desktopMeta =
@@ -187,6 +250,35 @@ const DeviceAnalysis = () => {
   const processingQueueRef = useRef([]);
   const processingStopOnErrorRef = useRef(false);
   const lastAppliedTemplateConfigFingerprintRef = useRef(null);
+
+  const getExtractionErrorMessage = useCallback(
+    (err) => {
+      const messageKey =
+        err && typeof err === "object" && typeof err.messageKey === "string"
+          ? err.messageKey
+          : "";
+      const messageParams =
+        err &&
+        typeof err === "object" &&
+        err.messageParams &&
+        typeof err.messageParams === "object"
+          ? err.messageParams
+          : {};
+
+      if (messageKey) {
+        const translated = t(messageKey, messageParams);
+        if (typeof translated === "string" && translated !== messageKey) {
+          return translated;
+        }
+      }
+
+      const fallback = err?.message;
+      return typeof fallback === "string" && fallback.trim()
+        ? fallback
+        : t("unknownError");
+    },
+    [t],
+  );
 
   const [deviceAnalysisSettings, setDeviceAnalysisSettings] = useState(null);
   const [persistencePathInfo, setPersistencePathInfo] = useState(null);
@@ -935,11 +1027,30 @@ const DeviceAnalysis = () => {
 
         if (type === "workerError") {
           if (payload?.jobId !== jobId) return;
-          const errFileName = payload?.fileName ?? "Unknown file";
-          const errMessage = payload?.message ?? "Unknown error";
+          const rawMessage =
+            typeof payload?.message === "string" && payload.message.trim()
+              ? payload.message
+              : "Unknown error";
+          const legacyParsed = parseLegacyExtractionError(rawMessage);
+          const errFileName =
+            payload?.fileName ?? legacyParsed?.fileName ?? "Unknown file";
+          const errMessageKey =
+            typeof payload?.messageKey === "string" && payload.messageKey
+              ? payload.messageKey
+              : legacyParsed?.messageKey ?? null;
+          const errMessageParams =
+            payload?.messageParams && typeof payload.messageParams === "object"
+              ? payload.messageParams
+              : legacyParsed?.messageParams ?? null;
+
           setExtractionErrors((prev) => [
             ...prev,
-            { fileName: errFileName, message: errMessage },
+            {
+              fileName: errFileName,
+              message: rawMessage,
+              messageKey: errMessageKey,
+              messageParams: errMessageParams,
+            },
           ]);
           setProcessingStatus((prev) => ({
             ...prev,
@@ -1855,7 +1966,9 @@ Note:
                                 {err.fileName}
                               </span>{" "}
                               <div className="bg-red-500/5 rounded-lg p-2 border border-red-500/10">
-                                <span className="whitespace-pre-wrap leading-relaxed opacity-90">{err.message}</span>
+                                <span className="whitespace-pre-wrap leading-relaxed opacity-90">
+                                  {getExtractionErrorMessage(err)}
+                                </span>
                               </div>
                             </li>
                           ))}

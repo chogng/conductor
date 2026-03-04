@@ -39,6 +39,14 @@ const parseNumberStrict = (raw) => {
   return null;
 };
 
+const createLocalizedError = (messageKey, messageParams, fallbackMessage) => {
+  const err = new Error(fallbackMessage || String(messageKey || "Unknown error"));
+  err.messageKey = typeof messageKey === "string" ? messageKey : null;
+  err.messageParams =
+    messageParams && typeof messageParams === "object" ? messageParams : null;
+  return err;
+};
+
 const padDomain = (min, max) => {
   if (!Number.isFinite(min) || !Number.isFinite(max)) return [0, 1];
   const lo = Math.min(min, max);
@@ -688,17 +696,23 @@ const processFile = async (file, fileId, fileName, config, { maxPoints }) => {
       rawPoints !== null && Number.isInteger(rawPoints) ? rawPoints : null;
 
     if (points === null || points <= 0) {
-      throw new Error(
+      throw createLocalizedError(
+        "da_extractPointsCellPositiveInt",
+        { cell: cellRef },
         `${fileName}: Points cell ${cellRef} must contain a positive integer.`,
       );
     }
     if (points > expectedTotal) {
-      throw new Error(
+      throw createLocalizedError(
+        "da_extractPointsCellTooLarge",
+        { cell: cellRef, points, total: expectedTotal },
         `${fileName}: Points from ${cellRef} (${points}) cannot be larger than the X range length (${expectedTotal}).`,
       );
     }
     if (expectedTotal % points !== 0) {
-      throw new Error(
+      throw createLocalizedError(
+        "da_extractXNotDivisibleByPointsFromCell",
+        { total: expectedTotal, points, cell: cellRef },
         `${fileName}: X range has ${expectedTotal} points, which is not divisible by points=${points} (from ${cellRef}).`,
       );
     }
@@ -1470,6 +1484,17 @@ self.onmessage = async (event) => {
         fileId: payload?.fileId ?? null,
         fileName: payload?.fileName ?? payload?.file?.name ?? null,
         message: err instanceof Error ? err.message : String(err),
+        messageKey:
+          err && typeof err === "object" && typeof err.messageKey === "string"
+            ? err.messageKey
+            : null,
+        messageParams:
+          err &&
+          typeof err === "object" &&
+          err.messageParams &&
+          typeof err.messageParams === "object"
+            ? err.messageParams
+            : null,
       },
     });
   }
