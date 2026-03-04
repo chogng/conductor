@@ -1865,7 +1865,14 @@ Note:
                   className="hidden xl:block absolute -right-[7px] top-0 bottom-0 w-[10px] cursor-col-resize z-50 group/sash"
                   onMouseDown={startResizing}
                 >
-                  <div className={`absolute left-1/2 top-0 bottom-0 w-[2px] -translate-x-1/2 bg-accent/0 transition-colors duration-400 group-hover/sash:bg-accent/40 group-hover/sash:delay-300 ${isResizing ? "bg-accent/60" : ""
+                  {/* Subtle Background Glow Line */}
+                  <div className={`absolute left-1/2 top-4 bottom-4 w-[2px] -translate-x-1/2 rounded-full transition-all duration-500 bg-accent/0 
+                    group-hover/sash:bg-accent/30 group-hover/sash:delay-300 group-hover/sash:shadow-[0_0_12px_rgba(var(--color-accent-rgb),0.5)] ${isResizing ? "bg-accent/60 shadow-[0_0_16px_rgba(var(--color-accent-rgb),0.6)]" : ""
+                    }`} />
+
+                  {/* Minimalistic Handle Indicator */}
+                  <div className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[4px] h-[24px] rounded-full bg-accent opacity-0 transition-all duration-300 scale-y-50
+                    group-hover/sash:opacity-100 group-hover/sash:scale-y-100 group-hover/sash:delay-500 ${isResizing ? "opacity-100 scale-y-125" : ""
                     }`} />
                 </div>
               </aside>

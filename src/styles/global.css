@@ -39,7 +39,7 @@ body {
 
   /* Card */
   .card {
-    @apply bg-bg-surface border border-border rounded-2xl p-4 shadow-sm;
+    @apply bg-bg-surface border border-border rounded-xl p-4 shadow-sm;
   }
 
   .card--panel {
@@ -68,7 +68,7 @@ body {
   }
 
   .modal {
-    @apply relative w-full rounded-2xl flex flex-col;
+    @apply relative w-full rounded-xl flex flex-col;
     animation: modal-fade-in 160ms ease-out;
   }
 
@@ -310,9 +310,7 @@ body {
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), inset 0 1px 2px rgba(255, 255, 255, 0.05);
   }
 
-  .da_page_scroll {
-    /* removed forced padding to allow cards to organically fill height */
-  }
+
 
   /* The sliding indicator pill */
   .da_bottom_tabs_indicator {
