@@ -949,6 +949,7 @@ const DeviceAnalysis = () => {
     }) => {
       if (!Array.isArray(queue) || queue.length === 0) return;
       const workQueue = [...queue];
+      let hasAnyProcessedResult = false;
 
       if (resetProcessedData) setProcessedData([]);
       if (resetExtractionErrors) setExtractionErrors([]);
@@ -979,6 +980,9 @@ const DeviceAnalysis = () => {
         const next = processingQueueRef.current.shift();
         if (!next) {
           setProcessingStatus((prev) => ({ ...prev, state: "done" }));
+          if (hasAnyProcessedResult) {
+            setActivePage("analysis");
+          }
           worker.terminate();
           if (processingWorkerRef.current === worker) {
             processingWorkerRef.current = null;
@@ -1016,6 +1020,7 @@ const DeviceAnalysis = () => {
             return;
           }
 
+          hasAnyProcessedResult = true;
           setProcessedData((prev) => [...prev, nextProcessed]);
           setProcessingStatus((prev) => ({
             ...prev,
@@ -1072,7 +1077,7 @@ const DeviceAnalysis = () => {
 
       processNext();
     },
-    [setExtractionErrors, setProcessedData, setProcessingStatus],
+    [setExtractionErrors, setProcessedData, setProcessingStatus, setActivePage],
   );
 
   const handleTemplateApplied = useCallback((config) => {
