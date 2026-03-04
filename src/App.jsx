@@ -1,5 +1,4 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { AuthProvider } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
 import { LanguageProvider } from "./context/LanguageContext";
 import { UiPrefsProvider } from "./context/UiPrefsContext";
@@ -22,21 +21,19 @@ const queryClient = new QueryClient({
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <ThemeProvider>
-          <LanguageProvider>
-            <UiPrefsProvider>
-              <div className="h-screen bg-bg-page overflow-hidden">
-                <main className="h-full w-full overflow-hidden">
-                  <DeviceAnalysisSessionProvider>
-                    <DeviceAnalysis />
-                  </DeviceAnalysisSessionProvider>
-                </main>
-              </div>
-            </UiPrefsProvider>
-          </LanguageProvider>
-        </ThemeProvider>
-      </AuthProvider>
+      <ThemeProvider>
+        <LanguageProvider>
+          <UiPrefsProvider>
+            <div className="h-screen bg-bg-page overflow-hidden">
+              <main className="h-full w-full overflow-hidden">
+                <DeviceAnalysisSessionProvider>
+                  <DeviceAnalysis />
+                </DeviceAnalysisSessionProvider>
+              </main>
+            </div>
+          </UiPrefsProvider>
+        </LanguageProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

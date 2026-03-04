@@ -20,7 +20,6 @@ import {
   Check,
 } from "lucide-react";
 import { apiService } from "../../../services/apiService";
-import { useAuth } from "../../../hooks/useAuth";
 import { useLanguage } from "../../../hooks/useLanguage";
 import { useDeviceAnalysisSession } from "../../../hooks/useDeviceAnalysisSession";
 import Toast from "../../../components/ui/Toast";
@@ -225,7 +224,6 @@ const TemplateManager = ({
   deviceAnalysisSettings,
   onUpdateDeviceAnalysisSettings,
 }) => {
-  const { user } = useAuth();
   const { t } = useLanguage();
   const deviceSession = useDeviceAnalysisSession();
   const [templates, setTemplates] = useState([]);
@@ -414,11 +412,6 @@ const TemplateManager = ({
     let cancelled = false;
 
     const loadTemplates = async () => {
-      if (!user?.id) {
-        setTemplates([]);
-        return;
-      }
-
       try {
         const remote = await apiService.getDeviceAnalysisTemplates();
         if (cancelled) return;
@@ -440,7 +433,7 @@ const TemplateManager = ({
     return () => {
       cancelled = true;
     };
-  }, [showToast, t, user?.id]);
+  }, [showToast, t]);
 
   const [selections, setSelections] = useState([]);
   const gridRef = useRef(null);

@@ -1,5 +1,3 @@
-import { getMockUser } from "../utils/mockAuthStore";
-
 // Production-like default: same-origin API (works with backend-served dist and with Vite proxy in dev)
 const DEFAULT_API_BASE_URL = "/api";
 const API_BASE_URL = (
@@ -17,25 +15,6 @@ let didWarnLocalFallback = false;
 
 const DEVICE_ANALYSIS_LOCAL_STORAGE_KEY = "device-analysis:local-data:v1";
 const DEVICE_ANALYSIS_BROWSER_PERSISTENCE_LABEL = `localStorage key: ${DEVICE_ANALYSIS_LOCAL_STORAGE_KEY}`;
-
-const DEFAULT_MOCK_USERS = [
-  {
-    id: "user_mock_admin",
-    username: "admin",
-    name: "Admin",
-    email: "admin@example.com",
-    role: "SUPER_ADMIN",
-    status: "ACTIVE",
-  },
-  {
-    id: "user_mock_user",
-    username: "user",
-    name: "User",
-    email: "user@example.com",
-    role: "USER",
-    status: "ACTIVE",
-  },
-];
 
 const SS_METHODS = new Set(["auto", "manual", "idWindow", "legacy"]);
 const Y_UNITS = new Set(["A", "uA", "nA"]);
@@ -79,8 +58,6 @@ const getDesktopStore = () => {
 
   return store;
 };
-
-const cloneMockUsers = () => DEFAULT_MOCK_USERS.map((user) => ({ ...user }));
 
 const normalizePositiveNumber = (value, fallback) => {
   const num = Number(value);
@@ -201,7 +178,6 @@ const buildInitialMockData = () => {
   const stored = readDeviceAnalysisLocalData();
 
   return {
-    users: cloneMockUsers(),
     templates: normalizeTemplates(stored?.templates),
     settings: normalizeSettings(stored?.settings),
   };
@@ -233,12 +209,6 @@ const parseJsonBody = (body) => {
 };
 
 class ApiService {
-  unauthorizedCallback = null;
-
-  bindUnauthorizedCallback(callback) {
-    this.unauthorizedCallback = callback;
-  }
-
   async request(endpoint, options = {}) {
     if (DEV_MOCK_API) {
       if (!didWarnMockApi) {
@@ -272,10 +242,6 @@ class ApiService {
     });
 
     if (!response.ok) {
-      if (response.status === 401 && this.unauthorizedCallback) {
-        this.unauthorizedCallback();
-      }
-
       const fallbackMessage = `Request failed (${response.status} ${response.statusText})`;
       let message = fallbackMessage;
       const contentType = response.headers.get("content-type") || "";
@@ -315,28 +281,6 @@ class ApiService {
       return response.json();
     }
     return response.text();
-  }
-
-  // Auth / user profile
-  async login(username, password) {
-    return this.request("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ username, password }),
-    });
-  }
-
-  async createUser(userData) {
-    return this.request("/users", {
-      method: "POST",
-      body: JSON.stringify(userData),
-    });
-  }
-
-  async updateUser(id, updates) {
-    return this.request(`/users/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify(updates),
-    });
   }
 
   // Device Analysis templates
@@ -409,6 +353,8 @@ class ApiService {
 
     const status = Number(error?.status);
     if (Number.isInteger(status)) {
+      // Device Analysis endpoints should work without authentication; fall back to local storage/desktop store.
+      if (status === 401 || status === 403) return true;
       if (status === 404 || status === 405) return true;
       if (status >= 500) return true;
       return false;
@@ -513,51 +459,6 @@ class ApiService {
 
   _mockRequest(endpoint, options = {}) {
     const method = options.method || "GET";
-
-    if (endpoint === "/auth/me") {
-      const saved = getMockUser();
-      if (saved) return saved;
-      throw new Error("Not authenticated");
-    }
-
-    if (endpoint === "/auth/login" && method === "POST") {
-      const payload = parseJsonBody(options.body) || {};
-      const username = String(payload.username || "").toLowerCase();
-      return (
-        MOCK_DATA.users.find((u) => String(u.username).toLowerCase() === username) ||
-        MOCK_DATA.users[0]
-      );
-    }
-
-    if (endpoint === "/auth/logout") return { success: true };
-
-    if (endpoint === "/users" && method === "POST") {
-      const payload = parseJsonBody(options.body) || {};
-      const created = {
-        id: `user_${Date.now()}`,
-        username: payload.username || `user_${MOCK_DATA.users.length + 1}`,
-        name: payload.name || payload.username || "User",
-        email: payload.email || "",
-        role: payload.role || "USER",
-        status: payload.status || "ACTIVE",
-      };
-      MOCK_DATA.users.push(created);
-      return created;
-    }
-
-    if (endpoint.startsWith("/users/") && method === "PATCH") {
-      const id = endpoint.split("/")[2];
-      const updates = parseJsonBody(options.body) || {};
-      const index = MOCK_DATA.users.findIndex((u) => u.id === id);
-      if (index === -1) {
-        const created = { id, ...updates };
-        MOCK_DATA.users.push(created);
-        return created;
-      }
-      const next = { ...MOCK_DATA.users[index], ...updates };
-      MOCK_DATA.users[index] = next;
-      return next;
-    }
 
     if (endpoint === "/device-analysis/templates" && method === "GET") {
       return normalizeTemplates(MOCK_DATA.templates);
