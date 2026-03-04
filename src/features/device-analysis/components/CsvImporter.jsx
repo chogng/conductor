@@ -536,14 +536,8 @@ const CsvImporter = forwardRef(
         };
       }
 
-      const cols = Math.max(
-        1,
-        Math.floor(
-          (contentWidth - GRID_PADDING_X + GRID_GAP) /
-          (GRID_MIN_COL_WIDTH + GRID_GAP),
-        ),
-      );
-      const rowCount = Math.max(0, Math.ceil(files.length / cols));
+      const cols = 1;
+      const rowCount = files.length;
       const rowStep = GRID_ROW_HEIGHT + GRID_GAP;
 
       const scrollY = scrollRowIndex * rowStep;
@@ -567,7 +561,7 @@ const CsvImporter = forwardRef(
         gridStyle: {
           transform: `translateY(${startRow * rowStep}px)`,
           willChange: "transform",
-          gridTemplateColumns: `repeat(${cols}, minmax(${GRID_MIN_COL_WIDTH}px, 1fr))`,
+          gridTemplateColumns: `1fr`,
           gridAutoRows: `${GRID_ROW_HEIGHT}px`,
         },
         baseIndex: startIndex,
@@ -576,7 +570,6 @@ const CsvImporter = forwardRef(
     }, [
       VIRTUALIZE_MIN_COUNT,
       GRID_GAP,
-      GRID_MIN_COL_WIDTH,
       GRID_ROW_HEIGHT,
       GRID_OVERSCAN_ROWS,
       contentWidth,
@@ -617,18 +610,18 @@ const CsvImporter = forwardRef(
           />
 
           {files.length === 0 ? (
-              <div
-                id="device-analysis-csv-empty"
-                data-slot="empty"
-                className={styles.empty}
-              >
-                <Avatar icon={Upload} size="lg" variant="empty" />
-                <p className={styles.emptySubtitle}>
-                  {t("da_csv_empty_subtitle_prefix")}{" "}
-                  <span className={styles.emptyBrowse}>
-                    {t("da_csv_empty_browse")}
-                  </span>
-                </p>
+            <div
+              id="device-analysis-csv-empty"
+              data-slot="empty"
+              className={styles.empty}
+            >
+              <Avatar icon={Upload} size="lg" variant="empty" />
+              <p className={styles.emptySubtitle}>
+                {t("da_csv_empty_subtitle_prefix")}{" "}
+                <span className={styles.emptyBrowse}>
+                  {t("da_csv_empty_browse")}
+                </span>
+              </p>
             </div>
           ) : (
             <div

@@ -1709,7 +1709,7 @@ Note:
             }`}
         >
           <div className="da_page_scroll h-full min-h-0 overflow-y-auto xl:overflow-hidden p-1 pt-0">
-            <div className="min-h-full grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)] gap-1 xl:gap-1 xl:h-full">
+            <div className="min-h-full grid grid-cols-1 xl:grid-cols-[280px_minmax(0,1fr)] gap-1 xl:gap-1 xl:h-full">
               <aside className="xl:min-h-0 flex flex-col h-full">
                 <section aria-label={t("da_import_section")} className="flex-1 flex flex-col min-h-0">
                   <Card
@@ -1719,8 +1719,8 @@ Note:
                     ctaCopy="csv importer"
                     className="p-4 flex flex-col flex-1 min-h-0"
                   >
-                    <div className="import_card_head_warp">
-                      <div className="import_card_head_group">
+                    <div className="flex flex-col gap-2 mb-4">
+                      <div className="flex items-center justify-between gap-1 w-full">
                         <button
                           type="button"
                           id="device-analysis-import-csv-btn"
@@ -1737,32 +1737,35 @@ Note:
                             {t("da_import_csv")}
                           </span>
                         </button>
+
+                        <button
+                          type="button"
+                          id="device-analysis-clear-session-btn"
+                          data-icon="with"
+                          data-cta="Device analysis"
+                          data-cta-position="data-import"
+                          data-cta-copy="reset session"
+                          className={`action-btn action-btn--control ${hasSessionData ? "action-btn--danger" : "action-btn--disabled"
+                            }`}
+                          aria-label={t("da_reset_session")}
+                          title={t("da_reset_session")}
+                          onClick={handleClearSession}
+                          disabled={!hasSessionData}
+                        >
+                          <span className="action-btn__content">
+                            <RefreshCw
+                              size={16}
+                              className="transition-transform duration-500 hover:rotate-180"
+                            />
+                          </span>
+                        </button>
+                      </div>
+
+                      <div className="px-1">
                         <span className="meta_text whitespace-nowrap">
                           {t("da_loaded_csv_files", { count: rawData.length })}
                         </span>
                       </div>
-
-                      <button
-                        type="button"
-                        id="device-analysis-clear-session-btn"
-                        data-icon="with"
-                        data-cta="Device analysis"
-                        data-cta-position="data-import"
-                        data-cta-copy="reset session"
-                        className={`action-btn action-btn--control ${hasSessionData ? "action-btn--danger" : "action-btn--disabled"
-                          }`}
-                        aria-label={t("da_reset_session")}
-                        title={t("da_reset_session")}
-                        onClick={handleClearSession}
-                        disabled={!hasSessionData}
-                      >
-                        <span className="action-btn__content">
-                          <RefreshCw
-                            size={16}
-                            className="transition-transform duration-500 hover:rotate-180"
-                          />
-                        </span>
-                      </button>
                     </div>
                     <CsvImporter
                       ref={importerRef}

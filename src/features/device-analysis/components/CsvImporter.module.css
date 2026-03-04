@@ -2,7 +2,6 @@
   @apply border-2 border-dashed rounded-xl p-0 transition-all duration-300 relative overflow-y-auto flex-1;
   min-height: 300px;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
 }
 
 .dropzoneDragging {
@@ -30,9 +29,10 @@
 }
 
 .fileItem {
-  @apply flex items-center justify-between p-3 bg-bg-surface border border-border rounded-lg transition-colors cursor-pointer relative;
+  @apply flex items-center justify-between p-3 bg-bg-surface border border-border rounded-lg transition-colors cursor-pointer relative w-full min-w-0;
   /* Limit layout/paint scope during scroll to improve perceived smoothness. */
   contain: content;
+  box-sizing: border-box;
 }
 
 .fileItemSelected {
@@ -40,7 +40,7 @@
 }
 
 .fileContent {
-  @apply flex items-center gap-3 overflow-hidden;
+  @apply flex items-center gap-3 overflow-hidden min-w-0 flex-1;
 }
 
 .fileIcon {
@@ -48,16 +48,17 @@
 }
 
 .fileName {
-  @apply text-sm text-text-primary truncate;
+  @apply text-sm text-text-primary truncate flex-1 min-w-0;
 }
 
 .fileRemove {
-  @apply text-text-secondary hover:text-red-500 transition-colors opacity-100 hover:bg-bg-page p-1 rounded;
+  @apply text-text-secondary hover:text-red-500 transition-colors opacity-100 hover:bg-bg-page p-1 rounded shrink-0;
 }
 
 .fileGrid {
-  @apply grid gap-3 text-left;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  @apply grid gap-3 text-left w-full min-w-0;
+  grid-template-columns: 1fr;
+  box-sizing: border-box;
 }
 
 .virtualStage {
