@@ -48,7 +48,7 @@ const Popup = ({
         <div
             ref={popupRef}
             className={`
-                absolute top-full pt-[0.5rem]
+                absolute top-full pt-[0.5rem] min-w-full
                 ${align === 'right' ? 'right-0' : align === 'center' ? 'left-1/2 -translate-x-1/2' : 'left-0'}
                 ${isOpen ? 'pointer-events-auto' : 'pointer-events-none'}
             `}
@@ -61,18 +61,18 @@ const Popup = ({
                 aria-labelledby={triggerId}
                 aria-hidden={isOpen ? undefined : true}
                 data-style="popup"
-                data-state={isOpen ? 'open' : 'closed'}
+                data-state={isOpen ? "open" : "closed"}
                 data-side="bottom"
                 data-align={align}
                 tabIndex={-1}
                 className={`
-                    rounded-[1rem] shadow-premium py-[0.5rem] pl-[0.5rem] pr-[0.125rem]
-                    bg-bg-surface/70 backdrop-blur-md
-                    transition-all duration-300 ease-[cubic-bezier(0.23,1,0.32,1)]
-                    ${align === 'right' ? 'origin-top-right' : align === 'center' ? 'origin-top' : 'origin-top-left'}
-                    ${isOpen ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 -translate-y-[10px] scale-95'}
-                    ${className}
-                `}
+                        rounded-xl shadow-premium p-1 border border-border-subtle
+                        bg-bg-surface/80 backdrop-blur-xl
+                        transition-all duration-200 ease-out
+                        ${align === "right" ? "origin-top-right" : align === "center" ? "origin-top" : "origin-top-left"}
+                        ${isOpen ? "opacity-100 translate-y-0 scale-100" : "opacity-0 -translate-y-2 scale-95"}
+                        ${className}
+                    `}
             >
                 {resolvedChildren}
             </div>

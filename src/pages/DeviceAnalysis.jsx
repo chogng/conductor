@@ -1910,7 +1910,7 @@ Note:
                       {t("da_settings_language_desc")}
                     </p>
                   </div>
-                  <div className="w-full sm:w-[220px]">
+                  <div className="w-full sm:w-[94px]">
                     <Select
                       id="device-analysis-settings-language-dropdown"
                       menuId="device-analysis-settings-language-dropdown-menu"
@@ -1922,7 +1922,6 @@ Note:
                         { value: "zh", label: t("da_settings_language_zh") },
                         { value: "en", label: t("da_settings_language_en") },
                       ]}
-                      size="sm"
                     />
                   </div>
                 </div>
