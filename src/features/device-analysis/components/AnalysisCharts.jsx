@@ -3186,7 +3186,13 @@ How to use (manual fallback):
                     <Button
                       variant={ssShowFitLine ? "secondary" : "text"}
                       size="sm"
-                      onClick={() => setSsShowFitLine((v) => !v)}
+                      onClick={() => {
+                        const next = !ssShowFitLine;
+                        setSsShowFitLine(next);
+                        apiService
+                          .updateDeviceAnalysisSettings({ ssShowFitLine: next })
+                          .catch(() => { });
+                      }}
                       className="h-[38px] px-2 text-xs"
                       title="Toggle fit line overlay (focused curve only)"
                     >

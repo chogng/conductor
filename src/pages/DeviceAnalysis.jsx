@@ -1,7 +1,6 @@
 import React, {
   startTransition,
   useCallback,
-  useContext,
   useMemo,
   useDeferredValue,
   useEffect,
@@ -32,7 +31,6 @@ import {
 import { prepareDeviceAnalysisExtraction } from "../features/device-analysis/deviceAnalysisExtractionValidation";
 import { useLanguage } from "../hooks/useLanguage";
 import { useDeviceAnalysisSession } from "../hooks/useDeviceAnalysisSession";
-import { ThemeContext } from "../context/theme-context";
 import { apiService } from "../services/apiService";
 import {
   DA_PREVIEW_MAX_CACHED_FILES,
@@ -61,10 +59,7 @@ const stableStringify = (value) => {
 };
 
 const DeviceAnalysis = () => {
-  const { t, language, setLanguage } = useLanguage();
-  const themeContext = useContext(ThemeContext);
-  const theme = themeContext?.theme ?? "system";
-  const setTheme = themeContext?.setTheme ?? (() => undefined);
+  const { t } = useLanguage();
   const desktopMeta =
     typeof window !== "undefined" ? window.desktopMeta ?? null : null;
   const isWindowsDesktopShell =
@@ -152,6 +147,12 @@ const DeviceAnalysis = () => {
   const lastAppliedTemplateConfigFingerprintRef = useRef(null);
 
   const [deviceAnalysisSettings, setDeviceAnalysisSettings] = useState(null);
+  const [persistencePathInfo, setPersistencePathInfo] = useState(null);
+  const [persistencePathSaving, setPersistencePathSaving] = useState(false);
+  const [persistencePathFeedback, setPersistencePathFeedback] = useState({
+    type: "idle",
+    message: "",
+  });
 
   const deferredSelectedPreviewFileId = useDeferredValue(selectedPreviewFileId);
   const rawDataById = useMemo(() => {
@@ -456,6 +457,10 @@ const DeviceAnalysis = () => {
           setSsDiagnosticsEnabled(settings.ssDiagnosticsEnabled);
         }
 
+        if (typeof settings?.ssShowFitLine === "boolean") {
+          setSsShowFitLine(settings.ssShowFitLine);
+        }
+
         const low = Number(settings?.ssIdLow);
         const high = Number(settings?.ssIdHigh);
         if (Number.isFinite(low) && Number.isFinite(high) && low > 0 && high > 0) {
@@ -469,7 +474,7 @@ const DeviceAnalysis = () => {
     return () => {
       cancelled = true;
     };
-  }, [setSsDiagnosticsEnabled, setSsIdWindow, setSsMethod]);
+  }, [setSsDiagnosticsEnabled, setSsIdWindow, setSsMethod, setSsShowFitLine]);
 
   const handleUpdateDeviceAnalysisSettings = useCallback(
     async (updates) => {
@@ -482,6 +487,54 @@ const DeviceAnalysis = () => {
     },
     [setDeviceAnalysisSettings],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const info = await apiService.getDeviceAnalysisPersistencePath();
+        if (cancelled) return;
+
+        const normalized = info && typeof info === "object" ? info : null;
+        setPersistencePathInfo(normalized);
+      } catch {
+        if (cancelled) return;
+        setPersistencePathInfo(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleChoosePersistencePath = useCallback(async () => {
+    setPersistencePathSaving(true);
+    setPersistencePathFeedback({ type: "idle", message: "" });
+
+    try {
+      const updated = await apiService.chooseDeviceAnalysisPersistencePath();
+      const normalized = updated && typeof updated === "object" ? updated : null;
+      setPersistencePathInfo(normalized);
+      if (normalized?.cancelled) {
+        return;
+      }
+      setPersistencePathFeedback({
+        type: "success",
+        message: t("da_settings_storage_choose_saved"),
+      });
+    } catch (error) {
+      setPersistencePathFeedback({
+        type: "error",
+        message: t("da_settings_storage_choose_failed", {
+          error: error?.message || t("unknownError"),
+        }),
+      });
+    } finally {
+      setPersistencePathSaving(false);
+    }
+  }, [t]);
 
 
 
@@ -1603,6 +1656,11 @@ Note:
     isWindowsDesktopShell,
   ]);
 
+  const persistencePathCurrent = String(persistencePathInfo?.currentPath ?? "");
+  const persistencePathDefault = String(persistencePathInfo?.defaultPath ?? "");
+  const persistencePathConfigurable =
+    Boolean(persistencePathInfo) && persistencePathInfo?.isConfigurable !== false;
+
   return (
     <div
       id="device-analysis-page"
@@ -1818,15 +1876,68 @@ Note:
             }`}
         >
           <div className="da_page_scroll h-full min-h-0 overflow-y-auto custom-scrollbar p-1 pt-0">
-            <section aria-label="Settings">
-              <h2 className="section_title">Settings</h2>
+            <section aria-label={t("da_settings_section_aria_label")}>
+              <h2 className="section_title">{t("da_settings_title")}</h2>
               <Card
-                id="device-analysis-settings-placeholder-card"
+                id="device-analysis-settings-storage-card"
                 variant="panel"
-                className="flex flex-col items-center justify-center h-[300px] border-2 border-dashed border-border bg-bg-surface/50 text-text-secondary"
+                className="p-4 space-y-4"
               >
-                <p className="text-lg font-medium">Settings Placeholder</p>
-                <p className="text-sm">Future settings options will be displayed here.</p>
+                <div>
+                  <h3 className="text-base font-semibold text-text-primary">
+                    {t("da_settings_storage_title")}
+                  </h3>
+                  <p className="text-sm text-text-secondary mt-1">
+                    {t("da_settings_storage_desc")}
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-border bg-bg-page px-3 py-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-text-secondary">
+                    {t("da_settings_storage_path_label")}
+                  </p>
+                  <p className="mt-1 font-mono text-xs text-text-primary break-all">
+                    {persistencePathCurrent || t("da_settings_storage_loading")}
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-border bg-bg-page px-3 py-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-text-secondary">
+                    {t("da_settings_storage_default_path_label")}
+                  </p>
+                  <p className="mt-1 font-mono text-xs text-text-primary break-all">
+                    {persistencePathDefault || t("da_settings_storage_loading")}
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    id="device-analysis-settings-persistence-path-choose-btn"
+                    type="button"
+                    variant="primary"
+                    size="md"
+                    onClick={handleChoosePersistencePath}
+                    disabled={!persistencePathConfigurable || persistencePathSaving}
+                  >
+                    {t("da_settings_storage_choose_path_btn")}
+                  </Button>
+                </div>
+
+                {persistencePathFeedback.message ? (
+                  <p
+                    className={`text-sm ${
+                      persistencePathFeedback.type === "error"
+                        ? "text-red-500"
+                        : "text-emerald-600"
+                    }`}
+                  >
+                    {persistencePathFeedback.message}
+                  </p>
+                ) : null}
+
+                <p className="text-xs text-text-secondary">
+                  {t("da_settings_storage_note")}
+                </p>
               </Card>
             </section>
           </div>
