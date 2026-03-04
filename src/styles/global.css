@@ -295,30 +295,19 @@ body {
   }
 
   .da_bottom_tabs {
-    position: fixed !important;
-    left: 50% !important;
-    bottom: max(1.5rem, env(safe-area-inset-bottom)) !important;
-    transform: translateX(-50%) !important;
     width: max-content !important;
     max-width: calc(100vw - 2rem);
-    z-index: 9999 !important;
     display: flex !important;
     align-items: center;
     padding: 4px !important;
     border-radius: 9999px !important;
     @apply border border-border-subtle/50 bg-bg-surface/80 backdrop-blur-2xl;
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15), inset 0 1px 1px rgba(255, 255, 255, 0.2);
-    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
   }
 
   .dark .da_bottom_tabs {
     @apply bg-bg-surface/60;
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5), inset 0 1px 2px rgba(255, 255, 255, 0.05);
-  }
-
-  .da_bottom_tabs:hover {
-    transform: translateX(-50%) translateY(-2px) !important;
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.3);
   }
 
   .da_page_scroll {
@@ -392,21 +381,6 @@ body {
 
     .da_top_menu_trigger {
       @apply w-full min-w-0;
-    }
-
-    .da_top_menu_popup {
-      width: min(22rem, calc(100vw - 1rem));
-    }
-
-    .da_bottom_tabs {
-      width: calc(100% - 1.5rem) !important;
-      left: 0.75rem !important;
-      transform: none !important;
-      bottom: max(1rem, env(safe-area-inset-bottom)) !important;
-    }
-
-    .da_bottom_tabs:hover {
-      transform: translateY(-2px) !important;
     }
 
     .da_bottom_tab_btn {

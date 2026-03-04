@@ -1975,53 +1975,58 @@ Note:
         </section>
       </div>
 
-      <nav
-        className="da_bottom_tabs"
-        role="tablist"
-        aria-label={t("da_tab_switcher_label")}
-        onKeyDown={handlePageTabsKeyDown}
-      >
-        <div
-          className="da_bottom_tabs_indicator"
-          style={{ transform: `translateX(${isDataPageActive ? '0%' : '100%'})` }}
-        />
-        <Button
-          id="device-analysis-tab-data"
-          role="tab"
-          aria-controls="device-analysis-tabpanel-data"
-          aria-selected={isDataPageActive}
-          tabIndex={isDataPageActive ? 0 : -1}
-          variant="ghost"
-          size="control"
-          dataIcon="with"
-          cta="Device analysis"
-          ctaPosition="bottom-tab"
-          ctaCopy="data page"
-          className={`da_bottom_tab_btn ${isDataPageActive ? "da_bottom_tab_btn--active" : ""}`}
-          onClick={() => handlePageTabSelect("data")}
+      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-[100px] h-[16px] z-[9999] group flex flex-col items-center justify-end pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        {/* The small dash that shows when NOT hovered */}
+        <div className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] w-12 h-1.5 rounded-full bg-text-tertiary/40 backdrop-blur-md transition-all duration-300 group-hover:opacity-0 group-hover:scale-50 group-hover:translate-y-2 pointer-events-none" />
+
+        <nav
+          className="da_bottom_tabs opacity-0 translate-y-4 scale-95 pointer-events-none transition-all duration-300 ease-out group-hover:opacity-100 group-hover:translate-y-0 group-hover:scale-100 group-hover:pointer-events-auto"
+          role="tablist"
+          aria-label={t("da_tab_switcher_label")}
+          onKeyDown={handlePageTabsKeyDown}
         >
-          <Upload size={14} />
-          {t("da_tab_data")}
-        </Button>
-        <Button
-          id="device-analysis-tab-analysis"
-          role="tab"
-          aria-controls="device-analysis-tabpanel-analysis"
-          aria-selected={isAnalysisPageActive}
-          tabIndex={isAnalysisPageActive ? 0 : -1}
-          variant="ghost"
-          size="control"
-          dataIcon="with"
-          cta="Device analysis"
-          ctaPosition="bottom-tab"
-          ctaCopy="analysis page"
-          className={`da_bottom_tab_btn ${isAnalysisPageActive ? "da_bottom_tab_btn--active" : ""}`}
-          onClick={() => handlePageTabSelect("analysis")}
-        >
-          <BarChart2 size={14} />
-          {t("da_tab_analysis")}
-        </Button>
-      </nav>
+          <div
+            className="da_bottom_tabs_indicator"
+            style={{ transform: `translateX(${isDataPageActive ? '0%' : '100%'})` }}
+          />
+          <Button
+            id="device-analysis-tab-data"
+            role="tab"
+            aria-controls="device-analysis-tabpanel-data"
+            aria-selected={isDataPageActive}
+            tabIndex={isDataPageActive ? 0 : -1}
+            variant="ghost"
+            size="control"
+            dataIcon="with"
+            cta="Device analysis"
+            ctaPosition="bottom-tab"
+            ctaCopy="data page"
+            className={`da_bottom_tab_btn ${isDataPageActive ? "da_bottom_tab_btn--active" : ""}`}
+            onClick={() => handlePageTabSelect("data")}
+          >
+            <Upload size={14} />
+            {t("da_tab_data")}
+          </Button>
+          <Button
+            id="device-analysis-tab-analysis"
+            role="tab"
+            aria-controls="device-analysis-tabpanel-analysis"
+            aria-selected={isAnalysisPageActive}
+            tabIndex={isAnalysisPageActive ? 0 : -1}
+            variant="ghost"
+            size="control"
+            dataIcon="with"
+            cta="Device analysis"
+            ctaPosition="bottom-tab"
+            ctaCopy="analysis page"
+            className={`da_bottom_tab_btn ${isAnalysisPageActive ? "da_bottom_tab_btn--active" : ""}`}
+            onClick={() => handlePageTabSelect("analysis")}
+          >
+            <BarChart2 size={14} />
+            {t("da_tab_analysis")}
+          </Button>
+        </nav>
+      </div>
     </div>
   );
 };
