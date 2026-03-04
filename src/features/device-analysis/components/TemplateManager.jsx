@@ -78,6 +78,12 @@ const lowerBound = (arr, value) => {
 const noopSubscribe = () => () => { };
 const getZero = () => 0;
 const EMPTY_ARRAY = [];
+const normalizeXDataEndValue = (value) => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  if (raw.toLowerCase() === "end" || raw === "结束") return "End";
+  return raw;
+};
 
 const PreviewRow = React.memo(
   ({
@@ -646,7 +652,7 @@ const TemplateManager = ({
 
   useEffect(() => {
     const startCell = String(config.xDataStart ?? "").trim();
-    const endValue = String(config.xDataEnd ?? "").trim();
+    const endValue = normalizeXDataEndValue(config.xDataEnd);
 
     if (startCell) {
       if (!endValue) {
@@ -655,7 +661,7 @@ const TemplateManager = ({
       return;
     }
 
-    if (endValue && endValue.toLowerCase() === "end") {
+    if (endValue === "End") {
       setConfig((prev) => ({ ...prev, xDataEnd: "" }));
     }
   }, [config.xDataEnd, config.xDataStart, setConfig]);
@@ -688,14 +694,12 @@ const TemplateManager = ({
       };
 
       const startCell = String(rest.xDataStart ?? "").trim();
-      const xDataEndRaw = String(rest.xDataEnd ?? "").trim();
+      const xDataEndRaw = normalizeXDataEndValue(rest.xDataEnd);
       const xDataEnd = !xDataEndRaw
         ? startCell
           ? "End"
           : ""
-        : xDataEndRaw.toLowerCase() === "end"
-          ? "End"
-          : rest.xDataEnd;
+        : xDataEndRaw;
       setConfig((prev) => ({
         ...prev,
         ...rest,
@@ -1651,7 +1655,7 @@ const TemplateManager = ({
       <div className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-text-secondary mb-2">
-            X data
+            {t("da_save_x_data_label")}
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
             <div>
@@ -1666,7 +1670,7 @@ const TemplateManager = ({
                   setConfigFromSave((prev) => ({ ...prev, xDataStart: next }));
                   markFieldSource("xDataStart", "manual");
                 }}
-                placeholder="Start"
+                placeholder={t("da_save_start")}
               />
             </div>
             <div>
@@ -1681,6 +1685,7 @@ const TemplateManager = ({
                 }}
                 onBlur={(e) => {
                   const value = String(e?.target?.value ?? "").trim();
+                  const normalizedEnd = normalizeXDataEndValue(value);
                   if (!value) {
                     const startCell = String(config.xDataStart ?? "").trim();
                     setConfigFromSave((prev) => ({
@@ -1689,11 +1694,11 @@ const TemplateManager = ({
                     }));
                     return;
                   }
-                  if (value.toLowerCase() === "end" && value !== "End") {
+                  if (normalizedEnd === "End" && value !== "End") {
                     setConfigFromSave((prev) => ({ ...prev, xDataEnd: "End" }));
                   }
                 }}
-                placeholder="End"
+                placeholder={t("da_save_end")}
               />
             </div>
             <div>
@@ -1706,7 +1711,7 @@ const TemplateManager = ({
                   setConfigFromSave((prev) => ({ ...prev, xPoints: next }));
                   markFieldSource("xPoints", "manual");
                 }}
-                placeholder="Points"
+                placeholder={t("da_save_points")}
                 inputClassName="no-spinner"
               />
             </div>
@@ -1731,7 +1736,7 @@ const TemplateManager = ({
                   markFieldSource("bottomTitle", "manual");
                 }}
                 onBlur={toastVarPairIfInvalid}
-                placeholder="Curve type"
+                placeholder={t("da_save_curve_type")}
               />
             </div>
             <div>
@@ -1750,7 +1755,7 @@ const TemplateManager = ({
                   markFieldSource("legendPrefix", "manual");
                 }}
                 onBlur={toastVarPairIfInvalid}
-                placeholder="Legend"
+                placeholder={t("da_save_legend")}
               />
             </div>
             <div>
@@ -1767,7 +1772,7 @@ const TemplateManager = ({
                   setConfigFromSave((prev) => ({ ...prev, leftTitle: next }));
                   markFieldSource("leftTitle", "manual");
                 }}
-                placeholder="Left Title"
+                placeholder={t("da_save_left_title")}
               />
             </div>
           </div>
@@ -1794,7 +1799,7 @@ const TemplateManager = ({
                     }));
                     markFieldSource("fileNameVgKeywords", "manual");
                   }}
-                  placeholder="Transfer"
+                  placeholder={t("da_save_transfer")}
                 />
               </div>
               <div className="min-w-0">
@@ -1814,14 +1819,13 @@ const TemplateManager = ({
                     }));
                     markFieldSource("fileNameVdKeywords", "manual");
                   }}
-                  placeholder="Output"
+                  placeholder={t("da_save_output")}
                 />
               </div>
             </div>
             {curveTaggingConflict && (
               <p className="text-xs text-red-600 mt-1">
-                Var1/Var2 and file-name keywords cannot be used together. Please
-                clear one.
+                {t("da_save_curve_tagging_conflict")}
               </p>
             )}
           </div>
@@ -1829,7 +1833,7 @@ const TemplateManager = ({
 
         <div>
           <label className="block text-sm font-medium text-text-secondary mb-2">
-            Y data
+            {t("da_save_y_data_label")}
           </label>
           <div className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4">
@@ -1849,7 +1853,7 @@ const TemplateManager = ({
                         .join(", ")
                       : ""
                   }
-                  placeholder="Check columns"
+                  placeholder={t("da_save_check_columns")}
                   disabled
                   readOnly
                 />
@@ -1867,7 +1871,7 @@ const TemplateManager = ({
                     }));
                     markFieldSource("yPoints", "manual");
                   }}
-                  placeholder="Points"
+                  placeholder={t("da_save_points")}
                   inputClassName="no-spinner"
                 />
               </div>
@@ -1891,7 +1895,7 @@ const TemplateManager = ({
                     }));
                     markFieldSource("yDataStart", "manual");
                   }}
-                  placeholder="Start"
+                  placeholder={t("da_save_start")}
                 />
               </div>
               <div className="min-w-0">
@@ -1904,7 +1908,7 @@ const TemplateManager = ({
                     setConfigFromSave((prev) => ({ ...prev, yCount: next }));
                     markFieldSource("yCount", "manual");
                   }}
-                  placeholder="Count"
+                  placeholder={t("da_save_count")}
                   inputClassName="no-spinner"
                 />
               </div>
@@ -1918,7 +1922,7 @@ const TemplateManager = ({
                     setConfigFromSave((prev) => ({ ...prev, yStep: next }));
                     markFieldSource("yStep", "manual");
                   }}
-                  placeholder="Step"
+                  placeholder={t("da_save_step")}
                   inputClassName="no-spinner"
                 />
               </div>

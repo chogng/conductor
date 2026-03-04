@@ -21,6 +21,7 @@ import AnalysisCharts from "../features/device-analysis/components/AnalysisChart
 import DesktopCommandBar from "../features/device-analysis/components/DesktopCommandBar";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
+import Select from "../components/ui/Select";
 import {
   classifySsFit,
   computeSubthresholdSwing,
@@ -59,7 +60,7 @@ const stableStringify = (value) => {
 };
 
 const DeviceAnalysis = () => {
-  const { t } = useLanguage();
+  const { t, language, setLanguage } = useLanguage();
   const desktopMeta =
     typeof window !== "undefined" ? window.desktopMeta ?? null : null;
   const isWindowsDesktopShell =
@@ -443,6 +444,11 @@ const DeviceAnalysis = () => {
 
         setDeviceAnalysisSettings(settings ?? null);
 
+        const nextLanguage = settings?.language;
+        if (nextLanguage === "zh" || nextLanguage === "en") {
+          setLanguage(nextLanguage);
+        }
+
         const method = settings?.ssMethodDefault;
         if (
           method === "auto" ||
@@ -474,7 +480,7 @@ const DeviceAnalysis = () => {
     return () => {
       cancelled = true;
     };
-  }, [setSsDiagnosticsEnabled, setSsIdWindow, setSsMethod, setSsShowFitLine]);
+  }, [setLanguage, setSsDiagnosticsEnabled, setSsIdWindow, setSsMethod, setSsShowFitLine]);
 
   const handleUpdateDeviceAnalysisSettings = useCallback(
     async (updates) => {
@@ -486,6 +492,21 @@ const DeviceAnalysis = () => {
       return updated;
     },
     [setDeviceAnalysisSettings],
+  );
+
+  const handleLanguageChange = useCallback(
+    async (nextLanguage) => {
+      if (nextLanguage !== "zh" && nextLanguage !== "en") return;
+      if (language === nextLanguage) return;
+
+      setLanguage(nextLanguage);
+      try {
+        await handleUpdateDeviceAnalysisSettings({ language: nextLanguage });
+      } catch {
+        // keep UI responsive even if persistence fails
+      }
+    },
+    [handleUpdateDeviceAnalysisSettings, language, setLanguage],
   );
 
   useEffect(() => {
@@ -1657,7 +1678,6 @@ Note:
   ]);
 
   const persistencePathCurrent = String(persistencePathInfo?.currentPath ?? "");
-  const persistencePathDefault = String(persistencePathInfo?.defaultPath ?? "");
   const persistencePathConfigurable =
     Boolean(persistencePathInfo) && persistencePathInfo?.isConfigurable !== false;
 
@@ -1689,7 +1709,7 @@ Note:
             }`}
         >
           <div className="da_page_scroll h-full min-h-0 overflow-y-auto xl:overflow-hidden p-1 pt-0">
-            <div className="min-h-full grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)] gap-4 xl:gap-4 xl:h-full">
+            <div className="min-h-full grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)] gap-1 xl:gap-1 xl:h-full">
               <aside className="xl:min-h-0 flex flex-col h-full">
                 <section aria-label={t("da_import_section")} className="flex-1 flex flex-col min-h-0">
                   <Card
@@ -1827,10 +1847,8 @@ Note:
             : "pointer-events-none opacity-0"
             }`}
         >
-          <div className="da_page_scroll h-full min-h-0 overflow-y-auto custom-scrollbar">
-            <section aria-label={t("da_analysis_visualization")}>
-              <h2 className="section_title">{t("da_analysis_visualization")}</h2>
-
+          <div className="da_page_scroll h-full min-h-0 overflow-y-auto custom-scrollbar p-1 pt-0">
+            <section aria-label={t("da_analysis_visualization")} className="h-full flex flex-col">
               {processedData.length > 0 ? (
                 <AnalysisCharts
                   processedData={processedData}
@@ -1849,11 +1867,11 @@ Note:
               ) : (
                 <Card
                   id="device-analysis-empty-processed-data-card"
-                  variant="panel"
+                  variant="fill"
                   cta="Device analysis"
                   ctaPosition="analysis"
                   ctaCopy="empty processed data"
-                  className="flex flex-col items-center justify-center h-[300px] border-2 border-dashed border-border bg-bg-surface/50 text-text-secondary"
+                  className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-border bg-bg-surface/50 text-text-secondary"
                 >
                   <BarChart2 size={48} className="mb-4 opacity-20" />
                   <p className="text-lg font-medium">{t("da_no_processed_data")}</p>
@@ -1879,6 +1897,37 @@ Note:
             <section aria-label={t("da_settings_section_aria_label")}>
               <h2 className="section_title">{t("da_settings_title")}</h2>
               <Card
+                id="device-analysis-settings-language-card"
+                variant="panel"
+                className="p-4 space-y-4 mb-4"
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <h3 className="text-base font-semibold text-text-primary">
+                      {t("da_settings_language_title")}
+                    </h3>
+                    <p className="text-sm text-text-secondary mt-1">
+                      {t("da_settings_language_desc")}
+                    </p>
+                  </div>
+                  <div className="w-full sm:w-[220px]">
+                    <Select
+                      id="device-analysis-settings-language-dropdown"
+                      menuId="device-analysis-settings-language-dropdown-menu"
+                      value={language}
+                      onChange={(val) => {
+                        void handleLanguageChange(val);
+                      }}
+                      options={[
+                        { value: "zh", label: t("da_settings_language_zh") },
+                        { value: "en", label: t("da_settings_language_en") },
+                      ]}
+                      size="sm"
+                    />
+                  </div>
+                </div>
+              </Card>
+              <Card
                 id="device-analysis-settings-storage-card"
                 variant="panel"
                 className="p-4 space-y-4"
@@ -1892,30 +1941,18 @@ Note:
                   </p>
                 </div>
 
-                <div className="rounded-lg border border-border bg-bg-page px-3 py-2">
-                  <p className="text-xs font-medium uppercase tracking-wide text-text-secondary">
-                    {t("da_settings_storage_path_label")}
-                  </p>
-                  <p className="mt-1 font-mono text-xs text-text-primary break-all">
-                    {persistencePathCurrent || t("da_settings_storage_loading")}
-                  </p>
-                </div>
-
-                <div className="rounded-lg border border-border bg-bg-page px-3 py-2">
-                  <p className="text-xs font-medium uppercase tracking-wide text-text-secondary">
-                    {t("da_settings_storage_default_path_label")}
-                  </p>
-                  <p className="mt-1 font-mono text-xs text-text-primary break-all">
-                    {persistencePathDefault || t("da_settings_storage_loading")}
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 min-w-0 rounded-lg border border-border bg-bg-page px-3 py-2 flex items-center h-[38px]">
+                    <p className="font-mono text-xs text-text-primary truncate">
+                      {persistencePathCurrent || t("da_settings_storage_loading")}
+                    </p>
+                  </div>
                   <Button
                     id="device-analysis-settings-persistence-path-choose-btn"
                     type="button"
                     variant="primary"
-                    size="md"
+                    size="sm"
+                    className="h-[38px] whitespace-nowrap"
                     onClick={handleChoosePersistencePath}
                     disabled={!persistencePathConfigurable || persistencePathSaving}
                   >
@@ -1925,19 +1962,14 @@ Note:
 
                 {persistencePathFeedback.message ? (
                   <p
-                    className={`text-sm ${
-                      persistencePathFeedback.type === "error"
-                        ? "text-red-500"
-                        : "text-emerald-600"
-                    }`}
+                    className={`text-sm ${persistencePathFeedback.type === "error"
+                      ? "text-red-500"
+                      : "text-emerald-600"
+                      }`}
                   >
                     {persistencePathFeedback.message}
                   </p>
                 ) : null}
-
-                <p className="text-xs text-text-secondary">
-                  {t("da_settings_storage_note")}
-                </p>
               </Card>
             </section>
           </div>
