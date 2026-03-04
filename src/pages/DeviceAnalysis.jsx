@@ -1618,7 +1618,7 @@ Note:
         />
       ) : null}
 
-      <div className="relative flex-1 min-h-0 px-4 py-4 md:px-6 md:py-6 lg:px-8">
+      <div className="relative flex-1 min-h-0">
         <section
           id="device-analysis-tabpanel-data"
           role="tabpanel"
@@ -1630,9 +1630,9 @@ Note:
             : "pointer-events-none opacity-0"
             }`}
         >
-          <div className="da_page_scroll h-full min-h-0 overflow-y-auto xl:overflow-hidden">
-            <div className="min-h-full grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)] gap-4 xl:h-full">
-              <aside className="space-y-6 xl:min-h-0 xl:overflow-y-auto xl:custom-scrollbar xl:pr-2 flex flex-col h-full">
+          <div className="da_page_scroll h-full min-h-0 overflow-y-auto xl:overflow-hidden p-1 pt-0">
+            <div className="min-h-full grid grid-cols-1 xl:grid-cols-[360px_minmax(0,1fr)] gap-4 xl:gap-4 xl:h-full">
+              <aside className="xl:min-h-0 flex flex-col h-full">
                 <section aria-label={t("da_import_section")} className="flex-1 flex flex-col min-h-0">
                   <Card
                     id="device-analysis-import-card"
@@ -1739,7 +1739,7 @@ Note:
 
               <section
                 aria-label={t("da_data_extraction_template")}
-                className="xl:min-h-0 xl:overflow-y-auto xl:custom-scrollbar xl:pr-2 flex flex-col h-full"
+                className="xl:min-h-0 flex flex-col h-full"
               >
                 <TemplateManager
                   previewFile={previewFile}
@@ -1769,7 +1769,7 @@ Note:
             : "pointer-events-none opacity-0"
             }`}
         >
-          <div className="da_page_scroll h-full min-h-0 overflow-y-auto custom-scrollbar xl:pr-2">
+          <div className="da_page_scroll h-full min-h-0 overflow-y-auto custom-scrollbar">
             <section aria-label={t("da_analysis_visualization")}>
               <h2 className="section_title">{t("da_analysis_visualization")}</h2>
 
@@ -1817,7 +1817,7 @@ Note:
             : "pointer-events-none opacity-0"
             }`}
         >
-          <div className="da_page_scroll h-full min-h-0 overflow-y-auto custom-scrollbar xl:pr-2">
+          <div className="da_page_scroll h-full min-h-0 overflow-y-auto custom-scrollbar p-1 pt-0">
             <section aria-label="Settings">
               <h2 className="section_title">Settings</h2>
               <Card
