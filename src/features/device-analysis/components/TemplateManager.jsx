@@ -85,6 +85,26 @@ const normalizeXDataEndValue = (value) => {
   return raw;
 };
 
+const PREVIEW_PICK_FIELD_TO_CONFIG_FIELD = {
+  templateName: "name",
+  xDataStart: "xDataStart",
+  xDataEnd: "xDataEnd",
+  xPoints: "xPoints",
+  yDataStart: "yDataStart",
+  yDataEnd: "yDataEnd",
+  yPoints: "yPoints",
+  yCount: "yCount",
+  yStep: "yStep",
+  bottomTitle: "bottomTitle",
+  leftTitle: "leftTitle",
+  legendPrefix: "legendPrefix",
+};
+const PREVIEW_PICKABLE_FIELD_NAMES = new Set(
+  Object.keys(PREVIEW_PICK_FIELD_TO_CONFIG_FIELD),
+);
+const isPreviewPickableField = (name) =>
+  typeof name === "string" && PREVIEW_PICKABLE_FIELD_NAMES.has(name);
+
 const PreviewRow = React.memo(
   ({
     rowIndex,
@@ -233,7 +253,7 @@ const TemplateManager = ({
   const { t } = useLanguage();
   const deviceSession = useDeviceAnalysisSession();
   const [templates, setTemplates] = useState([]);
-  const [, setInputSources] = useState({}); // { [fieldName]: 'manual' | 'picked' }
+  const [inputSources, setInputSources] = useState({}); // { [fieldName]: 'manual' | 'picked' }
   const didInitConfigFromSettingsRef = useRef(false);
 
   const [localSelectedTemplateId, setLocalSelectedTemplateId] = useState(null);
@@ -458,6 +478,7 @@ const TemplateManager = ({
   const rafRef = useRef(0);
   const pendingPointRef = useRef(null);
   const containerRef = useRef(null);
+  const focusedInputNameRef = useRef("");
   // Intentionally no persistent "last template" storage; session is memory-only.
 
   const PREVIEW_ROW_HEIGHT_PX = 28; // tailwind h-7 ~= 28px
@@ -491,6 +512,33 @@ const TemplateManager = ({
     widths: [],
     tableWidth: 0,
   });
+
+  useEffect(() => {
+    const root = containerRef.current;
+    if (!root) return undefined;
+
+    const handleFocusIn = (event) => {
+      const name = event?.target?.name;
+      if (isPreviewPickableField(name)) {
+        focusedInputNameRef.current = name;
+      }
+    };
+
+    const handleFocusOut = (event) => {
+      const name = event?.target?.name;
+      if (!isPreviewPickableField(name)) return;
+      if (focusedInputNameRef.current === name) {
+        focusedInputNameRef.current = "";
+      }
+    };
+
+    root.addEventListener("focusin", handleFocusIn);
+    root.addEventListener("focusout", handleFocusOut);
+    return () => {
+      root.removeEventListener("focusin", handleFocusIn);
+      root.removeEventListener("focusout", handleFocusOut);
+    };
+  }, []);
 
   const handlePreviewScroll = useCallback(
     (scrollTop, scrollLeft) => {
@@ -653,18 +701,19 @@ const TemplateManager = ({
   useEffect(() => {
     const startCell = String(config.xDataStart ?? "").trim();
     const endValue = normalizeXDataEndValue(config.xDataEnd);
+    const endSource = inputSources?.xDataEnd;
 
     if (startCell) {
-      if (!endValue) {
+      if (!endValue && endSource !== "picked") {
         setConfig((prev) => ({ ...prev, xDataEnd: "End" }));
       }
       return;
     }
 
-    if (endValue === "End") {
+    if (endValue === "End" && endSource !== "picked") {
       setConfig((prev) => ({ ...prev, xDataEnd: "" }));
     }
-  }, [config.xDataEnd, config.xDataStart, setConfig]);
+  }, [config.xDataEnd, config.xDataStart, inputSources?.xDataEnd, setConfig]);
 
   const loadTemplate = useCallback(
     (template, { persist } = {}) => {
@@ -1376,6 +1425,16 @@ const TemplateManager = ({
     hideDragOverlay();
   }, [hideDragOverlay]);
 
+  const resolvePreviewPickFieldName = useCallback(() => {
+    const activeName = document.activeElement?.name;
+    if (isPreviewPickableField(activeName)) return activeName;
+
+    const fallbackName = focusedInputNameRef.current;
+    if (isPreviewPickableField(fallbackName)) return fallbackName;
+
+    return "";
+  }, []);
+
   const handleCellMouseDown = useCallback(
     (event) => {
       if (event.button !== 0) return; // left mouse only
@@ -1386,76 +1445,13 @@ const TemplateManager = ({
       const colIndex = Number(cellEl?.dataset?.col);
       if (Number.isNaN(rowIndex) || Number.isNaN(colIndex)) return;
 
-      const activeElement = document.activeElement;
-      if (
-        activeElement &&
-        activeElement &&
-        [
-          "templateName",
-          "xDataStart",
-          "xDataEnd",
-          "xPoints",
-          "yDataStart",
-          "yDataEnd",
-          "yPoints",
-          "yCount",
-          "yStep",
-          "yStep",
-          "bottomTitle",
-          "leftTitle",
-          "legendPrefix",
-        ].includes(activeElement.name)
-      ) {
+      const fieldName = resolvePreviewPickFieldName();
+      const configField = PREVIEW_PICK_FIELD_TO_CONFIG_FIELD[fieldName];
+      if (configField) {
         event.preventDefault(); // Prevent input blur
-        if (activeElement.name === "templateName") {
-          const colLabel = getExcelColumnLabel(colIndex);
-          const rowLabel = rowIndex + 1;
-          writeFieldFromPreview("name", `${colLabel}${rowLabel}`);
-        } else if (activeElement.name === "xDataStart") {
-          const colLabel = getExcelColumnLabel(colIndex);
-          const rowLabel = rowIndex + 1;
-          writeFieldFromPreview("xDataStart", `${colLabel}${rowLabel}`);
-        } else if (activeElement.name === "xDataEnd") {
-          const colLabel = getExcelColumnLabel(colIndex);
-          const rowLabel = rowIndex + 1;
-          writeFieldFromPreview("xDataEnd", `${colLabel}${rowLabel}`);
-        } else if (activeElement.name === "xPoints") {
-          const colLabel = getExcelColumnLabel(colIndex);
-          const rowLabel = rowIndex + 1;
-          writeFieldFromPreview("xPoints", `${colLabel}${rowLabel}`);
-        } else if (activeElement.name === "yDataStart") {
-          const colLabel = getExcelColumnLabel(colIndex);
-          const rowLabel = rowIndex + 1;
-          writeFieldFromPreview("yDataStart", `${colLabel}${rowLabel}`);
-        } else if (activeElement.name === "yDataEnd") {
-          const colLabel = getExcelColumnLabel(colIndex);
-          const rowLabel = rowIndex + 1;
-          writeFieldFromPreview("yDataEnd", `${colLabel}${rowLabel}`);
-        } else if (activeElement.name === "yPoints") {
-          const colLabel = getExcelColumnLabel(colIndex);
-          const rowLabel = rowIndex + 1;
-          writeFieldFromPreview("yPoints", `${colLabel}${rowLabel}`);
-        } else if (activeElement.name === "yCount") {
-          const colLabel = getExcelColumnLabel(colIndex);
-          const rowLabel = rowIndex + 1;
-          writeFieldFromPreview("yCount", `${colLabel}${rowLabel}`);
-        } else if (activeElement.name === "yStep") {
-          const colLabel = getExcelColumnLabel(colIndex);
-          const rowLabel = rowIndex + 1;
-          writeFieldFromPreview("yStep", `${colLabel}${rowLabel}`);
-        } else if (activeElement.name === "bottomTitle") {
-          const colLabel = getExcelColumnLabel(colIndex);
-          const rowLabel = rowIndex + 1;
-          writeFieldFromPreview("bottomTitle", `${colLabel}${rowLabel}`);
-        } else if (activeElement.name === "leftTitle") {
-          const colLabel = getExcelColumnLabel(colIndex);
-          const rowLabel = rowIndex + 1;
-          writeFieldFromPreview("leftTitle", `${colLabel}${rowLabel}`);
-        } else if (activeElement.name === "legendPrefix") {
-          const colLabel = getExcelColumnLabel(colIndex);
-          const rowLabel = rowIndex + 1;
-          writeFieldFromPreview("legendPrefix", `${colLabel}${rowLabel}`);
-        }
+        const colLabel = getExcelColumnLabel(colIndex);
+        const rowLabel = rowIndex + 1;
+        writeFieldFromPreview(configField, `${colLabel}${rowLabel}`);
         return;
       }
 
@@ -1476,7 +1472,12 @@ const TemplateManager = ({
 
       renderDragOverlay(cellEl, cellEl);
     },
-    [getExcelColumnLabel, renderDragOverlay, writeFieldFromPreview],
+    [
+      getExcelColumnLabel,
+      renderDragOverlay,
+      resolvePreviewPickFieldName,
+      writeFieldFromPreview,
+    ],
   );
 
   useEffect(() => {

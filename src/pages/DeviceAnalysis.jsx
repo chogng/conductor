@@ -1822,10 +1822,13 @@ Note:
                 </section>
 
                 {extractionErrors.length > 0 && (
-                  <section aria-label={t("da_extraction_errors")}>
+                  <section
+                    aria-label={t("da_extraction_errors")}
+                    className="absolute bottom-4 left-4 right-4 z-50 pointer-events-none"
+                  >
                     <div
                       id="device-analysis-extraction-errors"
-                      className="bg-red-500/10 border border-red-500/20 rounded-xl p-4"
+                      className="pointer-events-auto bg-bg-surface/80 backdrop-blur-xl border border-red-500/30 rounded-2xl p-4 shadow-[0_8px_32px_rgba(0,0,0,0.12)] animate-in fade-in slide-in-from-bottom-4 duration-300"
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-2 text-red-500">
@@ -1838,20 +1841,22 @@ Note:
                           id="device-analysis-extraction-errors-clear-btn"
                           type="button"
                           onClick={() => setExtractionErrors([])}
-                          className="text-xs px-2 py-1 rounded border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-colors"
+                          className="text-xs px-2 py-1 rounded-lg border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-colors"
                         >
                           {t("common_clear")}
                         </button>
                       </div>
 
-                      <div className="mt-3 max-h-40 overflow-y-auto custom-scrollbar pr-2">
+                      <div className="mt-3 max-h-48 overflow-y-auto custom-scrollbar pr-2">
                         <ul className="space-y-2 text-sm text-text-secondary">
                           {extractionErrors.map((err, idx) => (
-                            <li key={`${err.fileName}-${idx}`}>
-                              <span className="font-semibold text-text-primary">
-                                {err.fileName}:
+                            <li key={`${err.fileName}-${idx}`} className="flex flex-col gap-1">
+                              <span className="font-semibold text-text-primary text-xs">
+                                {err.fileName}
                               </span>{" "}
-                              <span className="whitespace-pre-wrap">{err.message}</span>
+                              <div className="bg-red-500/5 rounded-lg p-2 border border-red-500/10">
+                                <span className="whitespace-pre-wrap leading-relaxed opacity-90">{err.message}</span>
+                              </div>
                             </li>
                           ))}
                         </ul>
