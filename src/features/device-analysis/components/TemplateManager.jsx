@@ -1655,11 +1655,12 @@ const TemplateManager = ({
 
     return (
       <div className="space-y-4">
+        {/* 1. X Data */}
         <div>
           <label className="block text-sm font-medium text-text-secondary mb-2">
             {t("da_save_x_data_label")}
           </label>
-          <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3 gap-4">
             <div>
               <Input
                 id={
@@ -1720,119 +1721,7 @@ const TemplateManager = ({
           </div>
         </div>
 
-        <div className="mt-2">
-          <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
-            <div>
-              <Input
-                id={
-                  includeIds
-                    ? "device-analysis-template-var1-bottom-title"
-                    : undefined
-                }
-                label="Var1"
-                value={config.bottomTitle || ""}
-                name="bottomTitle"
-                disabled={disableVarInputs}
-                onChange={(next) => {
-                  setConfigFromSave((prev) => ({ ...prev, bottomTitle: next }));
-                  markFieldSource("bottomTitle", "manual");
-                }}
-                onBlur={toastVarPairIfInvalid}
-                placeholder={t("da_save_curve_type")}
-              />
-            </div>
-            <div>
-              <Input
-                id={
-                  includeIds
-                    ? "device-analysis-template-var2-legend-prefix"
-                    : undefined
-                }
-                label="Var2"
-                value={config.legendPrefix || ""}
-                name="legendPrefix"
-                disabled={disableVarInputs}
-                onChange={(next) => {
-                  setConfigFromSave((prev) => ({ ...prev, legendPrefix: next }));
-                  markFieldSource("legendPrefix", "manual");
-                }}
-                onBlur={toastVarPairIfInvalid}
-                placeholder={t("da_save_legend")}
-              />
-            </div>
-            <div>
-              <Input
-                id={
-                  includeIds
-                    ? "device-analysis-template-var3-left-title"
-                    : undefined
-                }
-                label="Var3"
-                value={config.leftTitle || ""}
-                name="leftTitle"
-                onChange={(next) => {
-                  setConfigFromSave((prev) => ({ ...prev, leftTitle: next }));
-                  markFieldSource("leftTitle", "manual");
-                }}
-                placeholder={t("da_save_left_title")}
-              />
-            </div>
-          </div>
-
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-text-secondary mb-1">
-              {t("da_match_by_file_name")}
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4">
-              <div className="min-w-0">
-                <Input
-                  id={
-                    includeIds
-                      ? "device-analysis-template-file-name-vg-keywords"
-                      : undefined
-                  }
-                  value={config.fileNameVgKeywords || ""}
-                  name="fileNameVgKeywords"
-                  disabled={disableFileNameInputs}
-                  onChange={(next) => {
-                    setConfigFromSave((prev) => ({
-                      ...prev,
-                      fileNameVgKeywords: next,
-                    }));
-                    markFieldSource("fileNameVgKeywords", "manual");
-                  }}
-                  placeholder={t("da_save_transfer")}
-                />
-              </div>
-              <div className="min-w-0">
-                <Input
-                  id={
-                    includeIds
-                      ? "device-analysis-template-file-name-vd-keywords"
-                      : undefined
-                  }
-                  value={config.fileNameVdKeywords || ""}
-                  name="fileNameVdKeywords"
-                  disabled={disableFileNameInputs}
-                  onChange={(next) => {
-                    setConfigFromSave((prev) => ({
-                      ...prev,
-                      fileNameVdKeywords: next,
-                    }));
-                    markFieldSource("fileNameVdKeywords", "manual");
-                  }}
-                  placeholder={t("da_save_output")}
-                />
-              </div>
-            </div>
-            {curveTaggingConflict && (
-              <p className="text-xs text-red-600 mt-1">
-                {t("da_save_curve_tagging_conflict")}
-              </p>
-            )}
-          </div>
-        </div>
-
+        {/* 2. Y Data */}
         <div>
           <label className="block text-sm font-medium text-text-secondary mb-2">
             {t("da_save_y_data_label")}
@@ -1930,6 +1819,121 @@ const TemplateManager = ({
               </div>
             </div>
           </div>
+        </div>
+
+        {/* 3. Var1 */}
+        <div>
+          <Input
+            id={
+              includeIds
+                ? "device-analysis-template-var1-bottom-title"
+                : undefined
+            }
+            label="Var1"
+            value={config.bottomTitle || ""}
+            name="bottomTitle"
+            disabled={disableVarInputs}
+            onChange={(next) => {
+              setConfigFromSave((prev) => ({ ...prev, bottomTitle: next }));
+              markFieldSource("bottomTitle", "manual");
+            }}
+            onBlur={toastVarPairIfInvalid}
+            placeholder={t("da_save_curve_type")}
+          />
+        </div>
+
+        {/* 4. Match by File Name */}
+        <div>
+          <label className="block text-sm font-medium text-text-secondary mb-2">
+            {t("da_match_by_file_name")}
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4">
+            <div className="min-w-0">
+              <Input
+                id={
+                  includeIds
+                    ? "device-analysis-template-file-name-vg-keywords"
+                    : undefined
+                }
+                value={config.fileNameVgKeywords || ""}
+                name="fileNameVgKeywords"
+                disabled={disableFileNameInputs}
+                onChange={(next) => {
+                  setConfigFromSave((prev) => ({
+                    ...prev,
+                    fileNameVgKeywords: next,
+                  }));
+                  markFieldSource("fileNameVgKeywords", "manual");
+                }}
+                placeholder={t("da_save_transfer")}
+              />
+            </div>
+            <div className="min-w-0">
+              <Input
+                id={
+                  includeIds
+                    ? "device-analysis-template-file-name-vd-keywords"
+                    : undefined
+                }
+                value={config.fileNameVdKeywords || ""}
+                name="fileNameVdKeywords"
+                disabled={disableFileNameInputs}
+                onChange={(next) => {
+                  setConfigFromSave((prev) => ({
+                    ...prev,
+                    fileNameVdKeywords: next,
+                  }));
+                  markFieldSource("fileNameVdKeywords", "manual");
+                }}
+                placeholder={t("da_save_output")}
+              />
+            </div>
+          </div>
+          {curveTaggingConflict && (
+            <p className="text-xs text-red-600 mt-1">
+              {t("da_save_curve_tagging_conflict")}
+            </p>
+          )}
+        </div>
+
+        {/* 5. Var2 */}
+        <div>
+          <Input
+            id={
+              includeIds
+                ? "device-analysis-template-var2-legend-prefix"
+                : undefined
+            }
+            label="Var2"
+            value={config.legendPrefix || ""}
+            name="legendPrefix"
+            disabled={disableVarInputs}
+            onChange={(next) => {
+              setConfigFromSave((prev) => ({ ...prev, legendPrefix: next }));
+              markFieldSource("legendPrefix", "manual");
+            }}
+            onBlur={toastVarPairIfInvalid}
+            placeholder={t("da_save_legend")}
+          />
+        </div>
+
+        {/* 6. Var3 */}
+        <div>
+          <Input
+            id={
+              includeIds
+                ? "device-analysis-template-var3-left-title"
+                : undefined
+            }
+            label="Var3"
+            value={config.leftTitle || ""}
+            name="leftTitle"
+            onChange={(next) => {
+              setConfigFromSave((prev) => ({ ...prev, leftTitle: next }));
+              markFieldSource("leftTitle", "manual");
+            }}
+            placeholder={t("da_save_left_title")}
+          />
         </div>
       </div>
     );
