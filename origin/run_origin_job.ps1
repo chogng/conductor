@@ -1,7 +1,8 @@
 param(
   [Parameter(Mandatory = $true)][string]$WorkDir,
-  [Parameter(Mandatory = $true)][string]$ExtractDir,
-  [Parameter(Mandatory = $true)][string]$OriginExe
+  [string]$ExtractDir = '',
+  [Parameter(Mandatory = $true)][string]$OriginExe,
+  [switch]$HealthCheckOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -20,6 +21,17 @@ function Escape-LabTalkPath {
   return ($PathValue -replace '\\', '\\\\' -replace '"', '\"')
 }
 
+function Get-HResultHex {
+  param([System.Exception]$ExceptionObject)
+  if ($null -eq $ExceptionObject) { return $null }
+  try {
+    $value = [uint32]$ExceptionObject.HResult
+    return ('0x{0:X8}' -f $value)
+  } catch {
+    return $null
+  }
+}
+
 Ensure-Dir -PathValue $WorkDir
 $logPath = Join-Path $WorkDir 'originbridge.log'
 $errorPath = Join-Path $WorkDir 'error.txt'
@@ -31,95 +43,208 @@ function Write-OriginLog {
 }
 
 function Fail-Worker {
-  param([string]$Message)
-  Set-Content -LiteralPath $errorPath -Value $Message -Encoding UTF8
-  Write-OriginLog ("ERROR: " + $Message)
+  param(
+    [string]$Code,
+    [string]$Stage,
+    [string]$Message,
+    [System.Exception]$ExceptionObject
+  )
+
+  $hresult = Get-HResultHex -ExceptionObject $ExceptionObject
+  $payload = [ordered]@{
+    code = if ($Code) { $Code } else { 'ORIGIN_WORKER_FAILED' }
+    stage = if ($Stage) { $Stage } else { 'UNKNOWN' }
+    message = if ($Message) { $Message } else { 'Origin worker failed.' }
+    hresult = $hresult
+    originExe = $OriginExe
+    logPath = $logPath
+    timestamp = (Get-Date).ToString('o')
+  }
+
+  $json = $payload | ConvertTo-Json -Compress -Depth 5
+  Set-Content -LiteralPath $errorPath -Value $json -Encoding UTF8
+  Write-OriginLog ('ERROR [' + $payload.stage + '] ' + $payload.code + ': ' + $payload.message)
+  if ($hresult) {
+    Write-OriginLog ('HRESULT: ' + $hresult)
+  }
   exit 1
 }
 
 Set-Content -LiteralPath $errorPath -Value '' -Encoding UTF8
 
 try {
-  Write-OriginLog "WorkDir: $WorkDir"
-  Write-OriginLog "ExtractDir: $ExtractDir"
-  Write-OriginLog "OriginExe: $OriginExe"
+  Write-OriginLog ('WorkDir: ' + $WorkDir)
+  Write-OriginLog ('ExtractDir: ' + $ExtractDir)
+  Write-OriginLog ('OriginExe: ' + $OriginExe)
+  Write-OriginLog ('HealthCheckOnly: ' + [bool]$HealthCheckOnly)
 
-  if (-not (Test-Path -LiteralPath $ExtractDir)) {
-    Fail-Worker "Extract directory not found: $ExtractDir"
-  }
   if (-not (Test-Path -LiteralPath $OriginExe)) {
-    Fail-Worker "Origin executable not found: $OriginExe"
+    Fail-Worker -Code 'ORIGIN_EXE_NOT_FOUND' -Stage 'PRECHECK' -Message ('Origin executable not found: ' + $OriginExe)
   }
 
-  $ogs = Get-ChildItem -LiteralPath $ExtractDir -Recurse -File -Filter *.ogs | Select-Object -First 1
-  $csv = Get-ChildItem -LiteralPath $ExtractDir -Recurse -File -Filter *.csv | Select-Object -First 1
+  $ogs = $null
+  $csv = $null
+  if (-not $HealthCheckOnly) {
+    if (-not $ExtractDir) {
+      Fail-Worker -Code 'ORIGIN_EXTRACT_DIR_REQUIRED' -Stage 'PRECHECK' -Message 'Extract directory path is required.'
+    }
+    if (-not (Test-Path -LiteralPath $ExtractDir)) {
+      Fail-Worker -Code 'ORIGIN_EXTRACT_DIR_NOT_FOUND' -Stage 'PRECHECK' -Message ('Extract directory not found: ' + $ExtractDir)
+    }
 
-  if (-not $ogs -and -not $csv) {
-    Fail-Worker "No .ogs or .csv found in extracted package."
+    $ogs = Get-ChildItem -LiteralPath $ExtractDir -Recurse -File -Filter *.ogs | Select-Object -First 1
+    $csv = Get-ChildItem -LiteralPath $ExtractDir -Recurse -File -Filter *.csv | Select-Object -First 1
+
+    if (-not $ogs -and -not $csv) {
+      Fail-Worker -Code 'ORIGIN_PACKAGE_EMPTY' -Stage 'PACKAGE_DISCOVERY' -Message 'No .ogs or .csv found in extracted package.'
+    }
+  }
+
+  $launchError = $null
+  try {
+    Write-OriginLog ('Launching Origin from configured executable: ' + $OriginExe)
+    $proc = Start-Process -FilePath $OriginExe -PassThru -ErrorAction Stop
+    if ($null -ne $proc) {
+      Write-OriginLog ('Origin process started. PID=' + $proc.Id)
+    } else {
+      Write-OriginLog 'Origin start requested (process handle unavailable).'
+    }
+    Start-Sleep -Milliseconds 1400
+  } catch {
+    $launchError = $_.Exception
+    Write-OriginLog ('Configured Origin launch failed; falling back to COM activation. ' + $launchError.Message)
+    $launchHResult = Get-HResultHex -ExceptionObject $launchError
+    if ($launchHResult) {
+      Write-OriginLog ('Launch HRESULT: ' + $launchHResult)
+    }
   }
 
   $origin = $null
-  $ranOgs = $false
-
-  try {
-    $origin = New-Object -ComObject 'Origin.ApplicationSI'
-    Write-OriginLog 'Connected to Origin COM (Origin.ApplicationSI).'
-  } catch {
-    Fail-Worker ("Failed to create Origin COM object: " + $_.Exception.Message)
+  $comException = $null
+  $maxComAttempts = 4
+  for ($attempt = 1; $attempt -le $maxComAttempts; $attempt++) {
+    try {
+      $origin = New-Object -ComObject 'Origin.ApplicationSI'
+      Write-OriginLog ('Connected to Origin COM (Origin.ApplicationSI) on attempt ' + $attempt + '.')
+      break
+    } catch {
+      $comException = $_.Exception
+      $comMessage = if ($comException) { $comException.Message } else { 'Unknown COM creation failure.' }
+      Write-OriginLog ('COM connection attempt ' + $attempt + ' failed: ' + $comMessage)
+      if ($attempt -lt $maxComAttempts) {
+        Start-Sleep -Milliseconds (600 * $attempt)
+      }
+    }
   }
 
+  if ($null -eq $origin) {
+    $extra = if ($null -ne $launchError) { ' (configured executable launch also failed)' } else { '' }
+    $msg = 'Failed to create Origin COM object' + $extra + '.'
+    if ($null -ne $comException -and $comException.Message) {
+      $msg = $msg + ' ' + $comException.Message
+    }
+    Fail-Worker -Code 'ORIGIN_COM_CREATE_FAILED' -Stage 'COM_CREATE' -Message $msg -ExceptionObject $comException
+  }
+
+  $sessionStarted = $false
+  $ranOgs = $false
+  $ogsException = $null
+  $mainException = $null
+
   try {
-    try { $origin.Visible = 2 } catch {}
-    try { $origin.BeginSession() | Out-Null } catch {}
+    try {
+      $origin.Visible = 2
+    } catch {
+      Write-OriginLog ('Visible=2 failed: ' + $_.Exception.Message)
+    }
 
-    if ($ogs) {
-      $ogsLt = Escape-LabTalkPath $ogs.FullName
-      $cmd = ''
+    try {
+      $origin.BeginSession() | Out-Null
+      $sessionStarted = $true
+      Write-OriginLog 'Origin BeginSession succeeded.'
+    } catch {
+      $mainException = $_.Exception
+      $message = 'Origin BeginSession failed: ' + $mainException.Message
+      Fail-Worker -Code 'ORIGIN_SESSION_BEGIN_FAILED' -Stage 'SESSION_BEGIN' -Message $message -ExceptionObject $mainException
+    }
 
-      if ($csv) {
-        $csvLt = Escape-LabTalkPath $csv.FullName
-        $cmd = 'run.section("' + $ogsLt + '", Main, "' + $csvLt + '");'
-      } else {
-        $cmd = 'run.section("' + $ogsLt + '", Main);'
-      }
-
-      Write-OriginLog ("Executing OGS: " + $ogs.FullName)
+    if ($HealthCheckOnly) {
+      Write-OriginLog 'Running Origin health-check smoke command.'
       try {
-        $execResult = $origin.Execute($cmd)
-        if ($execResult -eq $true -or $execResult -eq 1) {
-          $ranOgs = $true
-          Write-OriginLog 'OGS executed successfully.'
-        } else {
-          Write-OriginLog ("OGS Execute() returned: " + $execResult)
-        }
+        $healthResult = $origin.Execute('sec -p 0;')
+        Write-OriginLog ('Health check Execute() returned: ' + $healthResult)
       } catch {
-        Write-OriginLog ("OGS execution failed: " + $_.Exception.Message)
+        $mainException = $_.Exception
+        $message = 'Origin health-check execute failed: ' + $mainException.Message
+        Fail-Worker -Code 'ORIGIN_HEALTH_EXEC_FAILED' -Stage 'HEALTH_CHECK' -Message $message -ExceptionObject $mainException
+      }
+    } else {
+      if ($ogs) {
+        $ogsLt = Escape-LabTalkPath $ogs.FullName
+        $cmd = ''
+
+        if ($csv) {
+          $csvLt = Escape-LabTalkPath $csv.FullName
+          $cmd = 'run.section("' + $ogsLt + '", Main, "' + $csvLt + '");'
+        } else {
+          $cmd = 'run.section("' + $ogsLt + '", Main);'
+        }
+
+        Write-OriginLog ('Executing OGS: ' + $ogs.FullName)
+        try {
+          $execResult = $origin.Execute($cmd)
+          if ($execResult -eq $true -or $execResult -eq 1) {
+            $ranOgs = $true
+            Write-OriginLog 'OGS executed successfully.'
+          } else {
+            Write-OriginLog ('OGS Execute() returned: ' + $execResult)
+          }
+        } catch {
+          $ogsException = $_.Exception
+          Write-OriginLog ('OGS execution failed: ' + $ogsException.Message)
+        }
+      }
+
+      if (-not $ranOgs) {
+        if (-not $csv) {
+          $message = 'OGS execution failed and no CSV file is available for fallback plot.'
+          Fail-Worker -Code 'ORIGIN_OGS_FALLBACK_UNAVAILABLE' -Stage 'CSV_FALLBACK' -Message $message -ExceptionObject $ogsException
+        }
+
+        $csvLt = Escape-LabTalkPath $csv.FullName
+        Write-OriginLog ('Running CSV fallback plot: ' + $csv.FullName)
+        try {
+          $null = $origin.Execute('newbook;')
+          $null = $origin.Execute('impCSV fname:="' + $csvLt + '";')
+          $null = $origin.Execute('plotxy iy:=((1,2)) plot:=202;')
+          Write-OriginLog 'CSV fallback plot succeeded.'
+        } catch {
+          $mainException = $_.Exception
+          $message = 'CSV fallback plot failed: ' + $mainException.Message
+          Fail-Worker -Code 'ORIGIN_CSV_FALLBACK_FAILED' -Stage 'CSV_FALLBACK' -Message $message -ExceptionObject $mainException
+        }
       }
     }
 
-    if (-not $ranOgs) {
-      if (-not $csv) {
-        Fail-Worker 'OGS execution failed and no CSV file is available for fallback plot.'
-      }
-
-      $csvLt = Escape-LabTalkPath $csv.FullName
-      Write-OriginLog ("Running CSV fallback plot: " + $csv.FullName)
-
-      $null = $origin.Execute('newbook;')
-      $null = $origin.Execute('impCSV fname:="' + $csvLt + '";')
-      $null = $origin.Execute('plotxy iy:=((1,2)) plot:=202;')
-    }
-
-    try { $origin.Visible = 3 } catch {}
-    try { $origin.Execute('win -a;') | Out-Null } catch {}
-    try { $origin.EndSession() | Out-Null } catch {}
-    try { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($origin) } catch {}
-
-    Write-OriginLog 'Origin plotting completed.'
+    Write-OriginLog 'Origin job completed successfully.'
+    Set-Content -LiteralPath $errorPath -Value '' -Encoding UTF8
     exit 0
   } catch {
-    Fail-Worker ($_.Exception.Message)
+    $mainException = $_.Exception
+    $message = if ($mainException) { $mainException.Message } else { 'Unknown Origin worker failure.' }
+    Fail-Worker -Code 'ORIGIN_WORKER_RUNTIME_FAILED' -Stage 'RUNTIME' -Message $message -ExceptionObject $mainException
+  } finally {
+    if ($null -ne $origin) {
+      try { $origin.Visible = 3 } catch {}
+      try { $origin.Execute('win -a;') | Out-Null } catch {}
+      if ($sessionStarted) {
+        try { $origin.EndSession() | Out-Null } catch {}
+      }
+      try { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($origin) } catch {}
+    }
   }
 } catch {
-  Fail-Worker ($_.Exception.Message)
+  $fatal = $_.Exception
+  $message = if ($fatal) { $fatal.Message } else { 'Unknown fatal Origin worker failure.' }
+  Fail-Worker -Code 'ORIGIN_WORKER_FATAL' -Stage 'FATAL' -Message $message -ExceptionObject $fatal
 }

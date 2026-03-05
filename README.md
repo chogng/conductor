@@ -64,3 +64,62 @@ npm run make:icons
 - `VITE_MOCK_USER=admin`
 
 配置文件：`.env.local`
+
+## Origin Offline Workers
+
+This project supports offline-native Origin workers built via `uv + pyinstaller`:
+
+- `origin-zip-worker.exe` for single ZIP import/plot (`Open in Origin`)
+- `origin-batch-worker.exe` for folder batch processing
+
+The worker build toolchain uses a project-local Python virtual environment by default:
+
+- `.venv-origin-workers/` (gitignored)
+
+### Build worker executables
+
+Build both workers:
+
+```powershell
+npm run build:origin-worker
+```
+
+Desktop packaging now runs this automatically via `npm run build:desktop`.
+
+Build one worker only:
+
+```powershell
+npm run build:origin-zip-worker
+npm run build:origin-batch-worker
+```
+
+Direct script example (custom venv path/version):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-origin-workers.ps1 -PythonVersion 3.11 -VenvDir .venv-origin-workers
+```
+
+Output:
+
+```text
+origin/bin/origin-zip-worker.exe
+origin/bin/origin-batch-worker.exe
+```
+
+### Runtime runner selection (desktop app)
+
+ZIP job (`device-analysis-origin:run-zip`):
+
+1. `ORIGIN_ZIP_WORKER_PATH` (if set and file exists)
+2. `origin/bin/origin-zip-worker.exe` (dev)
+3. `origin/dist/origin-zip-worker.exe` (dev)
+4. PowerShell fallback: `origin/run_origin_job.ps1`
+
+Batch job (`device-analysis-origin:run-batch`):
+
+1. `ORIGIN_BATCH_WORKER_PATH` (if set and file exists)
+2. `origin/bin/origin-batch-worker.exe` (dev)
+3. `origin/dist/origin-batch-worker.exe` (dev)
+4. Python fallback: `origin/run_origin_batch.py`
+
+More details: `origin/BATCH_WORKER.md`.

@@ -12,6 +12,8 @@ const ipcChannels = {
   originExeGet: "device-analysis-origin:exe:get",
   originExeSet: "device-analysis-origin:exe:set",
   originExePick: "device-analysis-origin:exe:pick",
+  originHealthCheck: "device-analysis-origin:health-check",
+  originRunBatch: "device-analysis-origin:run-batch",
   originRunZip: "device-analysis-origin:run-zip",
 };
 
@@ -63,6 +65,12 @@ contextBridge.exposeInMainWorld("desktopOrigin", {
   },
   async pickOriginExePath() {
     return ipcRenderer.invoke(ipcChannels.originExePick);
+  },
+  async checkOriginHealth(payload) {
+    return ipcRenderer.invoke(ipcChannels.originHealthCheck, payload);
+  },
+  async runOriginBatch(payload) {
+    return ipcRenderer.invoke(ipcChannels.originRunBatch, payload);
   },
   async runOriginZip(payload) {
     return ipcRenderer.invoke(ipcChannels.originRunZip, payload);

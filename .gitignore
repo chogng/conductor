@@ -52,3 +52,11 @@ server/.tmp/
 mcp-claude-hover-snippet.js
 
 .claude
+
+# Origin batch worker local build artifacts
+origin/bin/
+origin/.pyi_build/
+origin/.pyi_spec/
+origin/.pyi_zip_build/
+origin/.pyi_zip_spec/
+.venv-origin-workers/

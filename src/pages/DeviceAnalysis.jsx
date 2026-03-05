@@ -33,6 +33,7 @@ import { prepareDeviceAnalysisExtraction } from "../features/device-analysis/dev
 import { useLanguage } from "../hooks/useLanguage";
 import { useDeviceAnalysisSession } from "../hooks/useDeviceAnalysisSession";
 import { apiService } from "../services/apiService";
+import { formatOriginBridgeError } from "../features/device-analysis/originBridgeError";
 import {
   DA_PREVIEW_MAX_CACHED_FILES,
   DA_PREVIEW_MAX_CACHED_UI_ROWS_PER_FILE,
@@ -290,6 +291,8 @@ const DeviceAnalysis = () => {
   const [originExePath, setOriginExePath] = useState("");
   const [originPathLoading, setOriginPathLoading] = useState(true);
   const [originPathSaving, setOriginPathSaving] = useState(false);
+  const [originHealthChecking, setOriginHealthChecking] = useState(false);
+  const [originBatchRunning, setOriginBatchRunning] = useState(false);
   const [originPathFeedback, setOriginPathFeedback] = useState({
     type: "idle",
     message: "",
@@ -768,6 +771,118 @@ const DeviceAnalysis = () => {
       });
     } finally {
       setOriginPathSaving(false);
+    }
+  }, [getDesktopOriginBridge, t]);
+
+  const handleCheckOriginHealth = useCallback(async () => {
+    const bridge = getDesktopOriginBridge();
+    if (!bridge || typeof bridge.checkOriginHealth !== "function") return;
+
+    setOriginHealthChecking(true);
+    setOriginPathFeedback({ type: "idle", message: "" });
+
+    try {
+      const health = await bridge.checkOriginHealth({
+        path: originExePath || undefined,
+      });
+
+      const nextPath =
+        health && typeof health.originExePath === "string"
+          ? health.originExePath.trim()
+          : "";
+      if (nextPath) {
+        setOriginExePath(nextPath);
+      }
+
+      const withLog = health?.logPath
+        ? `${t("da_settings_origin_check_success")} ${t("da_origin_error_log_path", {
+          path: health.logPath,
+        })}`
+        : t("da_settings_origin_check_success");
+
+      setOriginPathFeedback({
+        type: "success",
+        message: withLog,
+      });
+    } catch (error) {
+      const detail = formatOriginBridgeError(t, error);
+      if (detail.code === "ORIGIN_EXE_REQUIRED") {
+        setOriginPathFeedback({
+          type: "error",
+          message: t("da_origin_pick_exe_required"),
+        });
+      } else {
+        setOriginPathFeedback({
+          type: "error",
+          message: t("da_settings_origin_check_failed", {
+            error: detail.messageText,
+          }),
+        });
+      }
+    } finally {
+      setOriginHealthChecking(false);
+    }
+  }, [getDesktopOriginBridge, originExePath, t]);
+
+  const handleRunOriginBatch = useCallback(async () => {
+    const bridge = getDesktopOriginBridge();
+    if (!bridge || typeof bridge.runOriginBatch !== "function") return;
+
+    setOriginBatchRunning(true);
+    setOriginPathFeedback({ type: "idle", message: "" });
+
+    try {
+      const result = await bridge.runOriginBatch({ allowPickInputDir: true });
+      const summary = result?.summary && typeof result.summary === "object"
+        ? result.summary
+        : null;
+      const total = Number(summary?.total);
+      const succeeded = Number(summary?.succeeded);
+      const failed = Number(summary?.failed);
+
+      const totalSafe = Number.isFinite(total) && total >= 0 ? total : 0;
+      const succeededSafe =
+        Number.isFinite(succeeded) && succeeded >= 0 ? succeeded : 0;
+      const failedSafe =
+        Number.isFinite(failed) && failed >= 0
+          ? failed
+          : Math.max(0, totalSafe - succeededSafe);
+
+      const baseMessage = t("da_settings_origin_batch_success", {
+        success: succeededSafe,
+        total: totalSafe,
+        failed: failedSafe,
+      });
+      const withLog = result?.logPath
+        ? `${baseMessage} ${t("da_origin_error_log_path", { path: result.logPath })}`
+        : baseMessage;
+
+      setOriginPathFeedback({
+        type: failedSafe > 0 ? "error" : "success",
+        message: withLog,
+      });
+    } catch (error) {
+      const detail = formatOriginBridgeError(t, error);
+      if (detail.code === "ORIGIN_BATCH_INPUT_DIR_REQUIRED") {
+        setOriginPathFeedback({
+          type: "error",
+          message: t("da_origin_batch_pick_dir_required"),
+        });
+      } else if (detail.code === "ORIGIN_EXE_REQUIRED") {
+        setOriginPathFeedback({
+          type: "error",
+          message: t("da_origin_pick_exe_required"),
+        });
+      } else {
+        setOriginPathFeedback({
+          type: "error",
+          message: t("da_settings_origin_batch_failed", {
+            error: detail.messageText,
+          }),
+        });
+      }
+    } finally {
+      setOriginBatchRunning(false);
     }
   }, [getDesktopOriginBridge, t]);
 
@@ -1749,7 +1864,6 @@ impCSV fname:=csv$;
 
 // Plot XY XY pairs: (1,2) (3,4) ...
 plotxy iy:=${pairsExpr} plot:=202;
-type -b "Plotted %(csv$)";
 `;
     };
 
@@ -1932,6 +2046,12 @@ Note:
   const originPathCurrent = String(originExePath ?? "");
   const originPathConfigurable =
     isWindowsDesktopShell && Boolean(getDesktopOriginBridge());
+  const originHealthCheckAvailable =
+    originPathConfigurable &&
+    typeof getDesktopOriginBridge()?.checkOriginHealth === "function";
+  const originBatchAvailable =
+    originPathConfigurable &&
+    typeof getDesktopOriginBridge()?.runOriginBatch === "function";
 
   return (
     <div
@@ -2286,6 +2406,53 @@ Note:
                     disabled={!originPathConfigurable || originPathSaving}
                   >
                     {t("da_settings_origin_choose_path_btn")}
+                  </Button>
+                  <Button
+                    id="device-analysis-settings-origin-health-check-btn"
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="h-[38px] whitespace-nowrap"
+                    onClick={() => {
+                      void handleCheckOriginHealth();
+                    }}
+                    disabled={
+                      !originHealthCheckAvailable ||
+                      originPathLoading ||
+                      originPathSaving ||
+                      originHealthChecking
+                    }
+                  >
+                    {originHealthChecking
+                      ? t("da_settings_origin_checking")
+                      : t("da_settings_origin_check_btn")}
+                  </Button>
+                </div>
+
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-text-secondary">
+                    {t("da_settings_origin_batch_desc")}
+                  </p>
+                  <Button
+                    id="device-analysis-settings-origin-batch-run-btn"
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    className="h-[38px] whitespace-nowrap"
+                    onClick={() => {
+                      void handleRunOriginBatch();
+                    }}
+                    disabled={
+                      !originBatchAvailable ||
+                      originPathLoading ||
+                      originPathSaving ||
+                      originHealthChecking ||
+                      originBatchRunning
+                    }
+                  >
+                    {originBatchRunning
+                      ? t("da_settings_origin_batch_running")
+                      : t("da_settings_origin_batch_btn")}
                   </Button>
                 </div>
 

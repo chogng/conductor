@@ -38,6 +38,7 @@ import Card from "../../../components/ui/Card";
 import Toast from "../../../components/ui/Toast";
 import { useLanguage } from "../../../hooks/useLanguage";
 import { COLORS } from "./chartColors";
+import { formatOriginBridgeError } from "../originBridgeError";
 
 const useInViewOnce = (options = {}) => {
   const ref = useRef(null);
@@ -1337,16 +1338,16 @@ const AnalysisCharts = ({
     URL.revokeObjectURL(url);
   };
 
-  const makePairsExpr = (xyPairCount) => {
+  const makePairsExpr = React.useCallback((xyPairCount) => {
     const pairs = [];
     const count = Math.max(1, Number(xyPairCount) || 1);
     for (let i = 0; i < count; i++) {
       pairs.push(`(${i * 2 + 1},${i * 2 + 2})`);
     }
     return `(${pairs.join(",")})`; // e.g. ((1,2),(3,4))
-  };
+  }, []);
 
-  const buildOgsScript = (csvFileName, xyPairCount) => {
+  const buildOgsScript = React.useCallback((csvFileName, xyPairCount) => {
     const pairsExpr = makePairsExpr(xyPairCount);
     const safeCsv = String(csvFileName || "data.csv").replace(/"/g, "");
 
@@ -1376,11 +1377,10 @@ impCSV fname:=csv$;
 
 // Plot XY XY pairs: (1,2) (3,4) ...
 plotxy iy:=${pairsExpr} plot:=202;
-type -b "Plotted %(csv$)";
 `;
-  };
+  }, [makePairsExpr]);
 
-  const buildOriginPackageForFocusedSeries = async () => {
+  const buildOriginPackageForFocusedSeries = React.useCallback(async () => {
     const targetSeries =
       focusedSeries ??
       (Array.isArray(activeFile?.series) ? activeFile.series[0] : null);
@@ -1463,7 +1463,7 @@ How to use (manual fallback):
     });
 
     return { zipBlob, zipName, csvName, ogsName };
-  };
+  }, [activeFile, focusedSeries, t, buildOgsScript]);
 
   const handleDownloadOriginPackage = async () => {
     if (originBusy) return;
@@ -1481,7 +1481,7 @@ How to use (manual fallback):
     }
   };
 
-  const handleOpenInOrigin = async () => {
+  const handleOpenInOrigin = React.useCallback(async () => {
     if (originBusy) return;
 
     try {
@@ -1500,16 +1500,25 @@ How to use (manual fallback):
 
       showToast(t("da_open_in_origin_success"), "success");
     } catch (err) {
-      const msg = err?.message ? String(err.message) : t("unknownError");
-      if (msg === "__ORIGIN_EXE_REQUIRED__") {
+      const detail = formatOriginBridgeError(t, err);
+      if (detail.code === "ORIGIN_EXE_REQUIRED") {
         showToast(t("da_origin_pick_exe_required"), "error");
       } else {
-        showToast(t("da_open_in_origin_failed", { error: msg }), "error");
+        showToast(
+          t("da_open_in_origin_failed", { error: detail.messageText }),
+          "error",
+        );
       }
     } finally {
       setOriginBusy(false);
     }
-  };
+  }, [
+    buildOriginPackageForFocusedSeries,
+    getDesktopOriginBridge,
+    originBusy,
+    showToast,
+    t,
+  ]);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
