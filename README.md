@@ -125,3 +125,39 @@ Batch job (`device-analysis-origin:run-batch`):
 4. Python fallback: `origin/run_origin_batch.py`
 
 More details: `origin/BATCH_WORKER.md`.
+
+## Desktop persistence layout
+
+Desktop builds persist Device Analysis data in two sibling JSON files:
+
+- Template store: `config.json`
+- Settings store: `config.settings.json`
+- Path override config: `store-path.json`
+
+Default location:
+
+```text
+~/.device/config.json
+~/.device/config.settings.json
+~/.device/store-path.json
+```
+
+If a custom persistence path is configured, for example:
+
+```text
+D:\DeviceAnalysis\my-store.json
+```
+
+then the desktop app uses:
+
+```text
+D:\DeviceAnalysis\my-store.json
+D:\DeviceAnalysis\my-store.settings.json
+```
+
+Current file responsibilities:
+
+- `config.json` stores templates only
+- `config.settings.json` stores settings only, including language, SS defaults, and `originExePath`
+
+Legacy combined stores are no longer migrated automatically. If you still have a historical `config.json` that contains both `templates` and `settings`, move the `settings` object into the sibling `config.settings.json` file before running the latest desktop build.

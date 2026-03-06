@@ -253,6 +253,9 @@ const TemplateManager = ({
   const { t } = useLanguage();
   const deviceSession = useDeviceAnalysisSession();
   const [templates, setTemplates] = useState([]);
+  const [templatesLoaded, setTemplatesLoaded] = useState(false);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const templatesRequestRef = useRef(null);
   const [inputSources, setInputSources] = useState({}); // { [fieldName]: 'manual' | 'picked' }
   const didInitConfigFromSettingsRef = useRef(false);
 
@@ -434,32 +437,66 @@ const TemplateManager = ({
     [markFieldSource, setConfig]
   );
 
-  useEffect(() => {
-    let cancelled = false;
+  const ensureTemplatesLoaded = useCallback(async () => {
+    if (templatesLoaded) return templates;
+    if (templatesRequestRef.current) {
+      return templatesRequestRef.current;
+    }
 
-    const loadTemplates = async () => {
+    const request = (async () => {
+      setTemplatesLoading(true);
       try {
         const remote = await apiService.getDeviceAnalysisTemplates();
-        if (cancelled) return;
-
         const remoteTemplates = Array.isArray(remote) ? remote : [];
         setTemplates(remoteTemplates);
+        setTemplatesLoaded(true);
+        return remoteTemplates;
       } catch (err) {
-        if (!cancelled) {
-          showToast(
-            t("da_loadTemplatesFailed", {
-              error: err?.message || t("unknownError"),
-            })
-          );
-        }
+        showToast(
+          t("da_loadTemplatesFailed", {
+            error: err?.message || t("unknownError"),
+          })
+        );
+        throw err;
+      } finally {
+        templatesRequestRef.current = null;
+        setTemplatesLoading(false);
       }
-    };
+    })();
 
-    loadTemplates();
-    return () => {
-      cancelled = true;
-    };
-  }, [showToast, t]);
+    templatesRequestRef.current = request;
+    return request;
+  }, [showToast, t, templates, templatesLoaded]);
+
+  useEffect(() => {
+    if (!isSelectMode) return;
+    if (!deviceAnalysisSettings?.lastTemplateId) return;
+    if (templatesLoaded) return;
+
+    void ensureTemplatesLoaded().catch(() => {});
+  }, [
+    deviceAnalysisSettings?.lastTemplateId,
+    ensureTemplatesLoaded,
+    isSelectMode,
+    templatesLoaded,
+  ]);
+
+  const openTemplateDropdown = useCallback(() => {
+    if (!isDropdownOpen) {
+      void ensureTemplatesLoaded().catch(() => {});
+    }
+    setIsDropdownOpen(true);
+  }, [ensureTemplatesLoaded, isDropdownOpen]);
+
+  const toggleTemplateDropdown = useCallback(() => {
+    if (isDropdownOpen) {
+      setIsDropdownOpen(false);
+      return;
+    }
+
+    void ensureTemplatesLoaded().catch(() => {});
+    setIsDropdownOpen(true);
+  }, [ensureTemplatesLoaded, isDropdownOpen]);
 
   const [selections, setSelections] = useState([]);
   const gridRef = useRef(null);
@@ -551,6 +588,7 @@ const TemplateManager = ({
           ),
         ];
       });
+      setTemplatesLoaded(true);
       loadTemplate(saved);
       showToast(t("da_template_saved"), "success");
       setTemplateMode("select");
@@ -563,6 +601,7 @@ const TemplateManager = ({
     try {
       await apiService.deleteDeviceAnalysisTemplate(id);
       setTemplates((prev) => prev.filter((t) => t.id !== id));
+      setTemplatesLoaded(true);
       if (selectedTemplateId === id) {
         setSelectedTemplateId(null);
         if (typeof onUpdateDeviceAnalysisSettings === "function") {
@@ -1391,7 +1430,7 @@ const TemplateManager = ({
                 onClick={
                   measureOnly
                     ? undefined
-                    : () => setIsDropdownOpen((prev) => !prev)
+                    : toggleTemplateDropdown
                 }
                 onKeyDown={
                   measureOnly
@@ -1408,7 +1447,7 @@ const TemplateManager = ({
                           e.key === "ArrowDown"
                         ) {
                           e.preventDefault();
-                          setIsDropdownOpen(true);
+                          openTemplateDropdown();
                         }
                       }
                 }
@@ -1482,7 +1521,11 @@ const TemplateManager = ({
                     <Plus size={14} />
                   </span>
                 </button>
-                {templates.length > 0 ? (
+                {templatesLoading ? (
+                  <div className="px-3 py-2 text-sm text-text-secondary italic text-center">
+                    {t("da_settings_storage_loading")}
+                  </div>
+                ) : templates.length > 0 ? (
                   templates.map((template) => (
                     <div
                       key={template.id}

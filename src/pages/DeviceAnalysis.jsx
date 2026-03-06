@@ -278,12 +278,14 @@ const DeviceAnalysis = () => {
 
   const [deviceAnalysisSettings, setDeviceAnalysisSettings] = useState(null);
   const [persistencePathInfo, setPersistencePathInfo] = useState(null);
+  const [persistencePathRequested, setPersistencePathRequested] = useState(false);
   const [persistencePathSaving, setPersistencePathSaving] = useState(false);
   const [persistencePathFeedback, setPersistencePathFeedback] = useState({
     type: "idle",
     message: "",
   });
   const [originExePath, setOriginExePath] = useState("");
+  const [originPathRequested, setOriginPathRequested] = useState(false);
   const [originPathLoading, setOriginPathLoading] = useState(true);
   const [originPathSaving, setOriginPathSaving] = useState(false);
   const [originHealthChecking, setOriginHealthChecking] = useState(false);
@@ -676,6 +678,9 @@ const DeviceAnalysis = () => {
   }, []);
 
   useEffect(() => {
+    if (activePage !== "settings" || persistencePathRequested) return;
+
+    setPersistencePathRequested(true);
     let cancelled = false;
 
     (async () => {
@@ -694,7 +699,7 @@ const DeviceAnalysis = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [activePage, persistencePathRequested]);
 
   const handleChoosePersistencePath = useCallback(async () => {
     setPersistencePathSaving(true);
@@ -725,6 +730,9 @@ const DeviceAnalysis = () => {
   }, [t]);
 
   useEffect(() => {
+    if (activePage !== "settings" || originPathRequested) return;
+
+    setOriginPathRequested(true);
     let cancelled = false;
 
     (async () => {
@@ -759,7 +767,12 @@ const DeviceAnalysis = () => {
     return () => {
       cancelled = true;
     };
-  }, [getDesktopOriginBridge, isWindowsDesktopShell]);
+  }, [
+    activePage,
+    getDesktopOriginBridge,
+    isWindowsDesktopShell,
+    originPathRequested,
+  ]);
 
   const handleChooseOriginExePath = useCallback(async () => {
     const bridge = getDesktopOriginBridge();

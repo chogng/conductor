@@ -16,6 +16,7 @@ const isWindows = process.platform === "win32";
 const devUrl = process.env.ELECTRON_START_URL || "http://127.0.0.1:5174/";
 const DEVICE_ANALYSIS_STORE_FILENAME = "config.json";
 const DEVICE_ANALYSIS_STORE_CONFIG_FILENAME = "store-path.json";
+const DEVICE_ANALYSIS_SETTINGS_FILENAME_SUFFIX = ".settings.json";
 const DEVICE_ANALYSIS_SS_METHODS = new Set(["auto", "manual", "idWindow", "legacy"]);
 const DEVICE_ANALYSIS_Y_UNITS = new Set(["A", "uA", "nA"]);
 
@@ -31,6 +32,56 @@ const DEVICE_ANALYSIS_DEFAULT_SETTINGS = {
   ssIdHigh: 1e-9,
   originExePath: null,
 };
+
+let deviceAnalysisStoreConfigCache = null;
+let deviceAnalysisStoreCache = null;
+let deviceAnalysisStoreCachePath = null;
+let deviceAnalysisSettingsCache = null;
+let deviceAnalysisSettingsCachePath = null;
+
+function cloneStoreConfig(config) {
+  return normalizeStoreConfig(config);
+}
+
+function cloneStoreData(store) {
+  return normalizeStoreData(store);
+}
+
+function cloneDeviceAnalysisSettings(settings) {
+  return normalizeDeviceAnalysisSettings(settings);
+}
+
+function clearDeviceAnalysisStoreCache() {
+  deviceAnalysisStoreCache = null;
+  deviceAnalysisStoreCachePath = null;
+}
+
+function clearDeviceAnalysisSettingsCache() {
+  deviceAnalysisSettingsCache = null;
+  deviceAnalysisSettingsCachePath = null;
+}
+
+function migratePersistenceFile(previousPath, currentPath, label) {
+  if (currentPath === previousPath) return;
+  if (!fs.existsSync(previousPath) || fs.existsSync(currentPath)) return;
+
+  const currentDir = path.dirname(currentPath);
+  if (!fs.existsSync(currentDir)) {
+    fs.mkdirSync(currentDir, { recursive: true });
+  }
+
+  try {
+    fs.renameSync(previousPath, currentPath);
+  } catch (error) {
+    fs.copyFileSync(previousPath, currentPath);
+    fs.unlinkSync(previousPath);
+    if (error?.code !== "EXDEV") {
+      console.warn(
+        `[${label}] rename failed (${error?.code || "unknown"}), migrated by copy+delete.`,
+      );
+    }
+  }
+}
 function resolveOriginWorkerScriptPath() {
   if (!app.isPackaged) {
     return path.join(__dirname, "..", "origin", "run_origin_job.ps1");
@@ -254,6 +305,12 @@ function getDeviceAnalysisStoreConfigPath() {
   return path.join(getDeviceAnalysisHomeDir(), DEVICE_ANALYSIS_STORE_CONFIG_FILENAME);
 }
 
+function getDeviceAnalysisSettingsPath() {
+  const storePath = getDeviceAnalysisStorePath();
+  const parsed = path.parse(storePath);
+  return path.join(parsed.dir, `${parsed.name}${DEVICE_ANALYSIS_SETTINGS_FILENAME_SUFFIX}`);
+}
+
 function normalizeStoreConfig(raw) {
   const next = raw && typeof raw === "object" ? raw : {};
   const customStorePath =
@@ -265,16 +322,28 @@ function normalizeStoreConfig(raw) {
 }
 
 function readStoreConfig() {
+  if (deviceAnalysisStoreConfigCache) {
+    return cloneStoreConfig(deviceAnalysisStoreConfigCache);
+  }
+
   const configPath = getDeviceAnalysisStoreConfigPath();
-  if (!fs.existsSync(configPath)) return { customStorePath: null };
+  if (!fs.existsSync(configPath)) {
+    deviceAnalysisStoreConfigCache = { customStorePath: null };
+    return cloneStoreConfig(deviceAnalysisStoreConfigCache);
+  }
 
   try {
     const raw = fs.readFileSync(configPath, "utf8");
-    if (!raw) return { customStorePath: null };
-    return normalizeStoreConfig(JSON.parse(raw));
+    if (!raw) {
+      deviceAnalysisStoreConfigCache = { customStorePath: null };
+      return cloneStoreConfig(deviceAnalysisStoreConfigCache);
+    }
+    deviceAnalysisStoreConfigCache = normalizeStoreConfig(JSON.parse(raw));
   } catch {
-    return { customStorePath: null };
+    deviceAnalysisStoreConfigCache = { customStorePath: null };
   }
+
+  return cloneStoreConfig(deviceAnalysisStoreConfigCache);
 }
 
 function writeStoreConfig(nextConfig) {
@@ -285,7 +354,10 @@ function writeStoreConfig(nextConfig) {
     fs.mkdirSync(configDir, { recursive: true });
   }
   fs.writeFileSync(configPath, JSON.stringify(normalized, null, 2), "utf8");
-  return normalized;
+  deviceAnalysisStoreConfigCache = normalized;
+  clearDeviceAnalysisStoreCache();
+  clearDeviceAnalysisSettingsCache();
+  return cloneStoreConfig(normalized);
 }
 
 function getStorePersistenceInfo() {
@@ -308,7 +380,6 @@ function getDeviceAnalysisStorePath() {
 function buildDefaultStoreData() {
   return {
     templates: [],
-    settings: { ...DEVICE_ANALYSIS_DEFAULT_SETTINGS },
   };
 }
 
@@ -316,26 +387,84 @@ function normalizeStoreData(raw) {
   const next = raw && typeof raw === "object" ? raw : {};
   return {
     templates: normalizeDeviceAnalysisTemplates(next.templates),
-    settings: normalizeDeviceAnalysisSettings(next.settings),
   };
+}
+
+function tryReadDeviceAnalysisSettingsFile() {
+  const settingsPath = getDeviceAnalysisSettingsPath();
+  if (
+    deviceAnalysisSettingsCache &&
+    deviceAnalysisSettingsCachePath === settingsPath
+  ) {
+    return cloneDeviceAnalysisSettings(deviceAnalysisSettingsCache);
+  }
+
+  if (!fs.existsSync(settingsPath)) {
+    return null;
+  }
+
+  try {
+    const raw = fs.readFileSync(settingsPath, "utf8");
+    const parsed = raw ? JSON.parse(raw) : {};
+    deviceAnalysisSettingsCache = normalizeDeviceAnalysisSettings(parsed);
+    deviceAnalysisSettingsCachePath = settingsPath;
+    return cloneDeviceAnalysisSettings(deviceAnalysisSettingsCache);
+  } catch {
+    return null;
+  }
+}
+
+function writeDeviceAnalysisSettings(nextSettings) {
+  const settingsPath = getDeviceAnalysisSettingsPath();
+  const settingsDir = path.dirname(settingsPath);
+  if (!fs.existsSync(settingsDir)) {
+    fs.mkdirSync(settingsDir, { recursive: true });
+  }
+
+  const normalized = normalizeDeviceAnalysisSettings(nextSettings);
+  fs.writeFileSync(settingsPath, JSON.stringify(normalized, null, 2), "utf8");
+  deviceAnalysisSettingsCache = normalized;
+  deviceAnalysisSettingsCachePath = settingsPath;
+  return cloneDeviceAnalysisSettings(normalized);
+}
+
+function readDeviceAnalysisSettings() {
+  const direct = tryReadDeviceAnalysisSettingsFile();
+  if (direct) return direct;
+
+  const defaults = normalizeDeviceAnalysisSettings(DEVICE_ANALYSIS_DEFAULT_SETTINGS);
+  deviceAnalysisSettingsCache = defaults;
+  deviceAnalysisSettingsCachePath = getDeviceAnalysisSettingsPath();
+  return cloneDeviceAnalysisSettings(defaults);
 }
 
 function readDeviceAnalysisStore() {
   const storePath = getDeviceAnalysisStorePath();
+  if (deviceAnalysisStoreCache && deviceAnalysisStoreCachePath === storePath) {
+    return cloneStoreData(deviceAnalysisStoreCache);
+  }
+
   if (!fs.existsSync(storePath)) {
     const defaults = buildDefaultStoreData();
     writeDeviceAnalysisStore(defaults);
-    return defaults;
+    return cloneStoreData(defaults);
   }
 
   try {
     const raw = fs.readFileSync(storePath, "utf8");
-    if (!raw) return buildDefaultStoreData();
+    if (!raw) {
+      deviceAnalysisStoreCache = buildDefaultStoreData();
+      deviceAnalysisStoreCachePath = storePath;
+      return cloneStoreData(deviceAnalysisStoreCache);
+    }
     const parsed = JSON.parse(raw);
-    return normalizeStoreData(parsed);
+    deviceAnalysisStoreCache = normalizeStoreData(parsed);
   } catch {
-    return buildDefaultStoreData();
+    deviceAnalysisStoreCache = buildDefaultStoreData();
   }
+
+  deviceAnalysisStoreCachePath = storePath;
+  return cloneStoreData(deviceAnalysisStoreCache);
 }
 
 function writeDeviceAnalysisStore(nextStore) {
@@ -346,7 +475,9 @@ function writeDeviceAnalysisStore(nextStore) {
   }
   const normalized = normalizeStoreData(nextStore);
   fs.writeFileSync(storePath, JSON.stringify(normalized, null, 2), "utf8");
-  return normalized;
+  deviceAnalysisStoreCache = normalized;
+  deviceAnalysisStoreCachePath = storePath;
+  return cloneStoreData(normalized);
 }
 
 function handleDeviceAnalysisTemplatesGet() {
@@ -399,19 +530,18 @@ function handleDeviceAnalysisTemplatesDelete(_event, id) {
 }
 
 function handleDeviceAnalysisSettingsGet() {
-  return readDeviceAnalysisStore().settings;
+  return readDeviceAnalysisSettings();
 }
 
 function handleDeviceAnalysisSettingsPatch(_event, updates) {
   const patch = updates && typeof updates === "object" ? updates : {};
 
-  const store = readDeviceAnalysisStore();
-  store.settings = normalizeDeviceAnalysisSettings({
-    ...store.settings,
+  const nextSettings = normalizeDeviceAnalysisSettings({
+    ...readDeviceAnalysisSettings(),
     ...patch,
   });
-  writeDeviceAnalysisStore(store);
-  return store.settings;
+  writeDeviceAnalysisSettings(nextSettings);
+  return nextSettings;
 }
 
 function handleDeviceAnalysisPersistencePathGet() {
@@ -425,6 +555,7 @@ function handleDeviceAnalysisPersistencePathSet(_event, payload) {
     typeof rawPath === "string" && rawPath.trim() ? rawPath.trim() : null;
 
   const previousPath = getDeviceAnalysisStorePath();
+  const previousSettingsPath = getDeviceAnalysisSettingsPath();
   if (!nextPath) {
     writeStoreConfig({ customStorePath: null });
   } else {
@@ -435,23 +566,13 @@ function handleDeviceAnalysisPersistencePathSet(_event, payload) {
   }
 
   const currentPath = getDeviceAnalysisStorePath();
-  if (currentPath !== previousPath && fs.existsSync(previousPath) && !fs.existsSync(currentPath)) {
-    const currentDir = path.dirname(currentPath);
-    if (!fs.existsSync(currentDir)) {
-      fs.mkdirSync(currentDir, { recursive: true });
-    }
-    try {
-      fs.renameSync(previousPath, currentPath);
-    } catch (error) {
-      fs.copyFileSync(previousPath, currentPath);
-      fs.unlinkSync(previousPath);
-      if (error?.code !== "EXDEV") {
-        console.warn(
-          `[device-analysis-store] rename failed (${error?.code || "unknown"}), migrated by copy+delete.`,
-        );
-      }
-    }
-  }
+  const currentSettingsPath = getDeviceAnalysisSettingsPath();
+  migratePersistenceFile(previousPath, currentPath, "device-analysis-store");
+  migratePersistenceFile(
+    previousSettingsPath,
+    currentSettingsPath,
+    "device-analysis-settings",
+  );
 
   return getStorePersistenceInfo();
 }
@@ -480,19 +601,18 @@ async function handleDeviceAnalysisPersistencePathChoose(event) {
 }
 
 function getOriginExePathFromSettings() {
-  const settings = readDeviceAnalysisStore().settings;
+  const settings = readDeviceAnalysisSettings();
   return normalizeOriginExePath(settings?.originExePath);
 }
 
 function saveOriginExePathToSettings(originExePath) {
   const normalizedPath = normalizeOriginExePath(originExePath);
-  const store = readDeviceAnalysisStore();
-  store.settings = normalizeDeviceAnalysisSettings({
-    ...store.settings,
+  const settings = normalizeDeviceAnalysisSettings({
+    ...readDeviceAnalysisSettings(),
     originExePath: normalizedPath,
   });
-  writeDeviceAnalysisStore(store);
-  return store.settings.originExePath ?? null;
+  writeDeviceAnalysisSettings(settings);
+  return settings.originExePath ?? null;
 }
 
 async function handleOriginExeGet() {
