@@ -263,19 +263,27 @@ body {
   }
 
   .da_window_controls {
-    @apply flex items-center h-[37px];
+    @apply flex items-center h-full;
     -webkit-app-region: no-drag;
   }
 
   .da_window_icon_btn {
-    @apply flex items-center justify-center h-full w-[38px] rounded-md text-text-secondary transition-colors;
+    @apply flex items-center justify-center h-full w-[38px] text-text-secondary transition-colors;
     background: transparent;
     border: none;
     outline: none;
   }
 
   .da_window_icon_btn:hover {
-    @apply bg-bg-surface-hover/70 text-text-primary;
+    @apply bg-bg-200/50 text-text-primary;
+  }
+
+  .da_top_nav_btn--active {
+    @apply bg-bg-200/50 text-accent !important;
+  }
+
+  .dark .da_top_nav_btn--active {
+    @apply bg-bg-200/50 text-accent !important;
   }
 
   .da_window_control_btn {
@@ -381,13 +389,9 @@ body {
       @apply w-full min-w-0;
     }
 
-    .da_bottom_tab_btn {
-      @apply flex-1 min-w-0 !important;
-    }
-
     .da_page_scroll {
-      padding-bottom: calc(6.5rem + env(safe-area-inset-bottom));
-      scroll-padding-bottom: calc(6.5rem + env(safe-area-inset-bottom));
+      padding-bottom: env(safe-area-inset-bottom);
+      scroll-padding-bottom: env(safe-area-inset-bottom);
     }
   }
 

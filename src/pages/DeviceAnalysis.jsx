@@ -7,12 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import {
-  AlertCircle,
-  BarChart2,
-  Upload,
-  RefreshCw,
-} from "lucide-react";
+import { AlertCircle, BarChart2, Upload, RefreshCw } from "lucide-react";
 import Papa from "papaparse";
 import JSZip from "jszip";
 import CsvImporter from "../features/device-analysis/components/CsvImporter";
@@ -132,27 +127,27 @@ const DeviceAnalysis = () => {
   const session = useDeviceAnalysisSession();
   const {
     rawData = [],
-    setRawData = () => { },
+    setRawData = () => {},
     selectedPreviewFileId = null,
-    setSelectedPreviewFileId = () => { },
+    setSelectedPreviewFileId = () => {},
     processedData = [],
-    setProcessedData = () => { },
+    setProcessedData = () => {},
     extractionErrors = [],
-    setExtractionErrors = () => { },
+    setExtractionErrors = () => {},
     ssMethod = "auto",
-    setSsMethod = () => { },
+    setSsMethod = () => {},
     ssDiagnosticsEnabled = true,
-    setSsDiagnosticsEnabled = () => { },
+    setSsDiagnosticsEnabled = () => {},
     ssShowFitLine = true,
-    setSsShowFitLine = () => { },
+    setSsShowFitLine = () => {},
     ssIdWindow = { low: "1e-11", high: "1e-9" },
-    setSsIdWindow = () => { },
+    setSsIdWindow = () => {},
     ssManualRanges = {},
-    setSsManualRanges = () => { },
+    setSsManualRanges = () => {},
     previewFile = null,
-    setPreviewFile = () => { },
+    setPreviewFile = () => {},
     previewStatus = { state: "idle", message: "" },
-    setPreviewStatus = () => { },
+    setPreviewStatus = () => {},
     previewWorkerRef = { current: null },
     previewRequestIdRef = { current: 0 },
     previewRowsRequestIdRef = { current: 0 },
@@ -199,7 +194,7 @@ const DeviceAnalysis = () => {
         }
       }
     },
-    [isResizing],
+    [isResizing]
   );
 
   useEffect(() => {
@@ -219,7 +214,7 @@ const DeviceAnalysis = () => {
 
   const getPreviewRowsVersion = useCallback(
     () => previewRowsVersionRef.current,
-    [],
+    []
   );
 
   const subscribePreviewRowsVersion = useCallback((callback) => {
@@ -278,7 +273,7 @@ const DeviceAnalysis = () => {
         ? fallback
         : t("unknownError");
     },
-    [t],
+    [t]
   );
 
   const [deviceAnalysisSettings, setDeviceAnalysisSettings] = useState(null);
@@ -335,148 +330,153 @@ const DeviceAnalysis = () => {
     pending.clear();
   }, [previewRowsRequestsRef]);
 
-  const handlePreviewWorkerMessage = useCallback((event) => {
-    const { type, payload } = event.data ?? {};
-    if (type === "previewResult") {
-      if (payload?.requestId !== previewRequestIdRef.current) return;
+  const handlePreviewWorkerMessage = useCallback(
+    (event) => {
+      const { type, payload } = event.data ?? {};
+      if (type === "previewResult") {
+        if (payload?.requestId !== previewRequestIdRef.current) return;
 
-      const fileId = payload.fileId ?? null;
-      previewCacheFileIdRef.current = fileId;
+        const fileId = payload.fileId ?? null;
+        previewCacheFileIdRef.current = fileId;
 
-      if (!fileId) {
-        previewRowsCacheRef.current = new Map();
-        previewLoadedChunksRef.current = new Set();
-        previewCacheFileLruRef.current = new Set();
-      } else {
-        const cacheByFileId = previewRowsCacheByFileIdRef.current;
-        const chunksByFileId = previewLoadedChunksByFileIdRef.current;
+        if (!fileId) {
+          previewRowsCacheRef.current = new Map();
+          previewLoadedChunksRef.current = new Set();
+          previewCacheFileLruRef.current = new Set();
+        } else {
+          const cacheByFileId = previewRowsCacheByFileIdRef.current;
+          const chunksByFileId = previewLoadedChunksByFileIdRef.current;
 
-        let rowCache = cacheByFileId.get(fileId);
-        if (!rowCache) {
-          rowCache = new Map();
-          cacheByFileId.set(fileId, rowCache);
-        }
+          let rowCache = cacheByFileId.get(fileId);
+          if (!rowCache) {
+            rowCache = new Map();
+            cacheByFileId.set(fileId, rowCache);
+          }
 
-        let loadedChunks = chunksByFileId.get(fileId);
-        if (!loadedChunks) {
-          loadedChunks = new Set();
-          chunksByFileId.set(fileId, loadedChunks);
-        }
+          let loadedChunks = chunksByFileId.get(fileId);
+          if (!loadedChunks) {
+            loadedChunks = new Set();
+            chunksByFileId.set(fileId, loadedChunks);
+          }
 
-        previewRowsCacheRef.current = rowCache;
-        previewLoadedChunksRef.current = loadedChunks;
+          previewRowsCacheRef.current = rowCache;
+          previewLoadedChunksRef.current = loadedChunks;
 
-        const fileLru = previewCacheFileLruRef.current;
-        fileLru.delete(fileId);
-        fileLru.add(fileId);
+          const fileLru = previewCacheFileLruRef.current;
+          fileLru.delete(fileId);
+          fileLru.add(fileId);
 
-        while (fileLru.size > DA_PREVIEW_MAX_CACHED_FILES) {
-          const oldest = fileLru.values().next().value;
-          if (!oldest) break;
-          if (oldest === fileId) break;
+          while (fileLru.size > DA_PREVIEW_MAX_CACHED_FILES) {
+            const oldest = fileLru.values().next().value;
+            if (!oldest) break;
+            if (oldest === fileId) break;
 
-          fileLru.delete(oldest);
-          cacheByFileId.delete(oldest);
-          chunksByFileId.delete(oldest);
+            fileLru.delete(oldest);
+            cacheByFileId.delete(oldest);
+            chunksByFileId.delete(oldest);
 
-          const worker = previewWorkerRef.current;
-          if (worker) {
-            worker.postMessage({
-              type: "previewDispose",
-              payload: { fileId: oldest },
-            });
+            const worker = previewWorkerRef.current;
+            if (worker) {
+              worker.postMessage({
+                type: "previewDispose",
+                payload: { fileId: oldest },
+              });
+            }
           }
         }
+
+        startTransition(() => {
+          setPreviewFile({
+            fileId,
+            fileName: payload.fileName,
+            rowCount: payload.rowCount,
+            columnCount: payload.columnCount,
+            maxCellLengths: payload.maxCellLengths,
+          });
+          setPreviewStatus({ state: "ready", message: "" });
+        });
+        return;
       }
 
-      startTransition(() => {
-        setPreviewFile({
-          fileId,
-          fileName: payload.fileName,
-          rowCount: payload.rowCount,
-          columnCount: payload.columnCount,
-          maxCellLengths: payload.maxCellLengths,
-        });
-        setPreviewStatus({ state: "ready", message: "" });
-      });
-      return;
-    }
+      if (type === "previewRowsResult") {
+        const requestId = payload?.requestId ?? null;
+        const pending = previewRowsRequestsRef.current.get(requestId);
+        if (!pending) return;
+        previewRowsRequestsRef.current.delete(requestId);
 
-    if (type === "previewRowsResult") {
-      const requestId = payload?.requestId ?? null;
-      const pending = previewRowsRequestsRef.current.get(requestId);
-      if (!pending) return;
-      previewRowsRequestsRef.current.delete(requestId);
+        const { resolve, reject } = pending;
+        try {
+          const fileId = payload?.fileId ?? null;
+          const startRow = Number(payload?.startRow) || 0;
+          const rows = Array.isArray(payload?.rows) ? payload.rows : [];
 
-      const { resolve, reject } = pending;
-      try {
-        const fileId = payload?.fileId ?? null;
-        const startRow = Number(payload?.startRow) || 0;
-        const rows = Array.isArray(payload?.rows) ? payload.rows : [];
+          if (fileId && previewCacheFileIdRef.current !== fileId) {
+            // Ignore stale rows for an old preview file.
+            resolve([]);
+            return;
+          }
 
-        if (fileId && previewCacheFileIdRef.current !== fileId) {
-          // Ignore stale rows for an old preview file.
-          resolve([]);
+          const cache = previewRowsCacheRef.current;
+          for (let i = 0; i < rows.length; i++) {
+            cache.set(startRow + i, rows[i]);
+          }
+
+          notifyPreviewRowsVersion();
+          resolve(rows);
+        } catch (err) {
+          reject(err);
+        }
+        return;
+      }
+
+      if (type === "workerError") {
+        if (
+          payload?.requestId !== previewRequestIdRef.current &&
+          !previewRowsRequestsRef.current.has(payload?.requestId)
+        ) {
           return;
         }
 
-        const cache = previewRowsCacheRef.current;
-        for (let i = 0; i < rows.length; i++) {
-          cache.set(startRow + i, rows[i]);
+        if (previewRowsRequestsRef.current.has(payload?.requestId)) {
+          const pending = previewRowsRequestsRef.current.get(
+            payload?.requestId
+          );
+          previewRowsRequestsRef.current.delete(payload?.requestId);
+          pending?.reject?.(
+            new Error(payload?.message || "Unknown worker error")
+          );
+          return;
         }
 
-        notifyPreviewRowsVersion();
-        resolve(rows);
-      } catch (err) {
-        reject(err);
-      }
-      return;
-    }
-
-    if (type === "workerError") {
-      if (
-        payload?.requestId !== previewRequestIdRef.current &&
-        !previewRowsRequestsRef.current.has(payload?.requestId)
-      ) {
-        return;
-      }
-
-      if (previewRowsRequestsRef.current.has(payload?.requestId)) {
-        const pending = previewRowsRequestsRef.current.get(payload?.requestId);
-        previewRowsRequestsRef.current.delete(payload?.requestId);
-        pending?.reject?.(
-          new Error(payload?.message || "Unknown worker error"),
-        );
-        return;
-      }
-
-      console.error("Preview worker error:", payload?.message);
-      startTransition(() => {
-        setPreviewStatus({
-          state: "error",
-          message: payload?.message ?? "Preview worker error",
+        console.error("Preview worker error:", payload?.message);
+        startTransition(() => {
+          setPreviewStatus({
+            state: "error",
+            message: payload?.message ?? "Preview worker error",
+          });
         });
-      });
-    }
-  }, [
-    notifyPreviewRowsVersion,
-    previewCacheFileIdRef,
-    previewCacheFileLruRef,
-    previewRowsRequestsRef,
-    previewLoadedChunksByFileIdRef,
-    previewLoadedChunksRef,
-    previewRequestIdRef,
-    previewRowsCacheByFileIdRef,
-    previewRowsCacheRef,
-    previewWorkerRef,
-    setPreviewFile,
-    setPreviewStatus,
-  ]);
+      }
+    },
+    [
+      notifyPreviewRowsVersion,
+      previewCacheFileIdRef,
+      previewCacheFileLruRef,
+      previewRowsRequestsRef,
+      previewLoadedChunksByFileIdRef,
+      previewLoadedChunksRef,
+      previewRequestIdRef,
+      previewRowsCacheByFileIdRef,
+      previewRowsCacheRef,
+      previewWorkerRef,
+      setPreviewFile,
+      setPreviewStatus,
+    ]
+  );
 
   const createPreviewWorker = useCallback(() => {
     const worker = new Worker(
       new URL("../workers/deviceAnalysis.worker.js", import.meta.url),
-      { type: "module" },
+      { type: "module" }
     );
 
     worker.onmessage = handlePreviewWorkerMessage;
@@ -612,7 +612,12 @@ const DeviceAnalysis = () => {
 
         const low = Number(settings?.ssIdLow);
         const high = Number(settings?.ssIdHigh);
-        if (Number.isFinite(low) && Number.isFinite(high) && low > 0 && high > 0) {
+        if (
+          Number.isFinite(low) &&
+          Number.isFinite(high) &&
+          low > 0 &&
+          high > 0
+        ) {
           setSsIdWindow({ low: String(low), high: String(high) });
         }
       } catch {
@@ -623,7 +628,13 @@ const DeviceAnalysis = () => {
     return () => {
       cancelled = true;
     };
-  }, [setLanguage, setSsDiagnosticsEnabled, setSsIdWindow, setSsMethod, setSsShowFitLine]);
+  }, [
+    setLanguage,
+    setSsDiagnosticsEnabled,
+    setSsIdWindow,
+    setSsMethod,
+    setSsShowFitLine,
+  ]);
 
   const handleUpdateDeviceAnalysisSettings = useCallback(
     async (updates) => {
@@ -631,10 +642,13 @@ const DeviceAnalysis = () => {
       if (!patch) return null;
 
       const updated = await apiService.updateDeviceAnalysisSettings(patch);
-      setDeviceAnalysisSettings((prev) => ({ ...(prev || {}), ...(updated || {}) }));
+      setDeviceAnalysisSettings((prev) => ({
+        ...(prev || {}),
+        ...(updated || {}),
+      }));
       return updated;
     },
-    [setDeviceAnalysisSettings],
+    [setDeviceAnalysisSettings]
   );
 
   const handleLanguageChange = useCallback(
@@ -649,7 +663,7 @@ const DeviceAnalysis = () => {
         // keep UI responsive even if persistence fails
       }
     },
-    [handleUpdateDeviceAnalysisSettings, language, setLanguage],
+    [handleUpdateDeviceAnalysisSettings, language, setLanguage]
   );
 
   const getDesktopOriginBridge = useCallback(() => {
@@ -688,7 +702,8 @@ const DeviceAnalysis = () => {
 
     try {
       const updated = await apiService.chooseDeviceAnalysisPersistencePath();
-      const normalized = updated && typeof updated === "object" ? updated : null;
+      const normalized =
+        updated && typeof updated === "object" ? updated : null;
       setPersistencePathInfo(normalized);
       if (normalized?.cancelled) {
         return;
@@ -729,7 +744,7 @@ const DeviceAnalysis = () => {
         setOriginExePath(
           typeof configured === "string" && configured.trim()
             ? configured.trim()
-            : "",
+            : ""
         );
       } catch {
         if (cancelled) return;
@@ -795,9 +810,12 @@ const DeviceAnalysis = () => {
       }
 
       const withLog = health?.logPath
-        ? `${t("da_settings_origin_check_success")} ${t("da_origin_error_log_path", {
-          path: health.logPath,
-        })}`
+        ? `${t("da_settings_origin_check_success")} ${t(
+            "da_origin_error_log_path",
+            {
+              path: health.logPath,
+            }
+          )}`
         : t("da_settings_origin_check_success");
 
       setOriginPathFeedback({
@@ -833,9 +851,10 @@ const DeviceAnalysis = () => {
 
     try {
       const result = await bridge.runOriginBatch({ allowPickInputDir: true });
-      const summary = result?.summary && typeof result.summary === "object"
-        ? result.summary
-        : null;
+      const summary =
+        result?.summary && typeof result.summary === "object"
+          ? result.summary
+          : null;
       const total = Number(summary?.total);
       const succeeded = Number(summary?.succeeded);
       const failed = Number(summary?.failed);
@@ -854,7 +873,9 @@ const DeviceAnalysis = () => {
         failed: failedSafe,
       });
       const withLog = result?.logPath
-        ? `${baseMessage} ${t("da_origin_error_log_path", { path: result.logPath })}`
+        ? `${baseMessage} ${t("da_origin_error_log_path", {
+            path: result.logPath,
+          })}`
         : baseMessage;
 
       setOriginPathFeedback({
@@ -885,8 +906,6 @@ const DeviceAnalysis = () => {
       setOriginBatchRunning(false);
     }
   }, [getDesktopOriginBridge, t]);
-
-
 
   useEffect(() => {
     return () => {
@@ -920,9 +939,9 @@ const DeviceAnalysis = () => {
 
     const effectiveFileId =
       deferredSelectedPreviewFileId &&
-        rawDataById.has(deferredSelectedPreviewFileId)
+      rawDataById.has(deferredSelectedPreviewFileId)
         ? deferredSelectedPreviewFileId
-        : (rawData[0]?.fileId ?? null);
+        : rawData[0]?.fileId ?? null;
 
     const target = rawDataById.get(effectiveFileId) ?? null;
     if (!target?.file || !target?.fileId) return;
@@ -968,35 +987,41 @@ const DeviceAnalysis = () => {
     previewCacheFileLruRef,
   ]);
 
-  const getPreviewRow = useCallback((rowIndex) => {
-    const idx = Number(rowIndex);
-    if (!Number.isInteger(idx) || idx < 0) return null;
-    return previewRowsCacheRef.current.get(idx) ?? null;
-  }, [previewRowsCacheRef]);
+  const getPreviewRow = useCallback(
+    (rowIndex) => {
+      const idx = Number(rowIndex);
+      if (!Number.isInteger(idx) || idx < 0) return null;
+      return previewRowsCacheRef.current.get(idx) ?? null;
+    },
+    [previewRowsCacheRef]
+  );
 
-  const requestPreviewRowsRange = useCallback((fileId, startRow, endRow) => {
-    const worker = previewWorkerRef.current;
-    if (!worker || !fileId) return Promise.resolve([]);
+  const requestPreviewRowsRange = useCallback(
+    (fileId, startRow, endRow) => {
+      const worker = previewWorkerRef.current;
+      if (!worker || !fileId) return Promise.resolve([]);
 
-    const requestId = previewRowsRequestIdRef.current + 1;
-    previewRowsRequestIdRef.current = requestId;
+      const requestId = previewRowsRequestIdRef.current + 1;
+      previewRowsRequestIdRef.current = requestId;
 
-    const start = Math.max(0, Math.floor(Number(startRow) || 0));
-    const end = Math.max(start, Math.floor(Number(endRow) || start));
+      const start = Math.max(0, Math.floor(Number(startRow) || 0));
+      const end = Math.max(start, Math.floor(Number(endRow) || start));
 
-    return new Promise((resolve, reject) => {
-      previewRowsRequestsRef.current.set(requestId, { resolve, reject });
-      worker.postMessage({
-        type: "previewRows",
-        payload: {
-          requestId,
-          fileId,
-          startRow: start,
-          endRow: end,
-        },
+      return new Promise((resolve, reject) => {
+        previewRowsRequestsRef.current.set(requestId, { resolve, reject });
+        worker.postMessage({
+          type: "previewRows",
+          payload: {
+            requestId,
+            fileId,
+            startRow: start,
+            endRow: end,
+          },
+        });
       });
-    });
-  }, [previewRowsRequestIdRef, previewRowsRequestsRef, previewWorkerRef]);
+    },
+    [previewRowsRequestIdRef, previewRowsRequestsRef, previewWorkerRef]
+  );
 
   const ensurePreviewRows = useCallback(
     async (fileId, startRow, endRow) => {
@@ -1026,25 +1051,33 @@ const DeviceAnalysis = () => {
 
         const maxChunks = Math.max(
           1,
-          Math.ceil(DA_PREVIEW_MAX_CACHED_UI_ROWS_PER_FILE / PREVIEW_ROW_CHUNK_SIZE),
+          Math.ceil(
+            DA_PREVIEW_MAX_CACHED_UI_ROWS_PER_FILE / PREVIEW_ROW_CHUNK_SIZE
+          )
         );
         while (previewLoadedChunksRef.current.size > maxChunks) {
-          const evictChunkStart = previewLoadedChunksRef.current.values().next().value;
+          const evictChunkStart = previewLoadedChunksRef.current
+            .values()
+            .next().value;
           if (evictChunkStart === undefined) break;
           previewLoadedChunksRef.current.delete(evictChunkStart);
-          for (let r = evictChunkStart; r < evictChunkStart + PREVIEW_ROW_CHUNK_SIZE; r++) {
+          for (
+            let r = evictChunkStart;
+            r < evictChunkStart + PREVIEW_ROW_CHUNK_SIZE;
+            r++
+          ) {
             previewRowsCacheRef.current.delete(r);
           }
         }
 
         const chunkEnd = Math.min(
           totalRows,
-          chunkStart + PREVIEW_ROW_CHUNK_SIZE,
+          chunkStart + PREVIEW_ROW_CHUNK_SIZE
         );
         const promise = requestPreviewRowsRange(
           fileId,
           chunkStart,
-          chunkEnd,
+          chunkEnd
         ).catch((err) => {
           previewLoadedChunksRef.current.delete(chunkStart);
           throw err;
@@ -1055,7 +1088,13 @@ const DeviceAnalysis = () => {
       if (!promises.length) return;
       await Promise.all(promises);
     },
-    [PREVIEW_ROW_CHUNK_SIZE, previewFile, previewLoadedChunksRef, previewRowsCacheRef, requestPreviewRowsRange],
+    [
+      PREVIEW_ROW_CHUNK_SIZE,
+      previewFile,
+      previewLoadedChunksRef,
+      previewRowsCacheRef,
+      requestPreviewRowsRange,
+    ]
   );
 
   // Handler when CSV is imported
@@ -1075,18 +1114,18 @@ const DeviceAnalysis = () => {
 
     setRawData((prev) => prev.filter((f) => f.fileId !== fileId));
     setProcessedData((prev) =>
-      (Array.isArray(prev) ? prev : []).filter((f) => f?.fileId !== fileId),
+      (Array.isArray(prev) ? prev : []).filter((f) => f?.fileId !== fileId)
     );
     if (removedFileName) {
       setExtractionErrors((prev) =>
-        prev.filter((e) => e.fileName !== removedFileName),
+        prev.filter((e) => e.fileName !== removedFileName)
       );
     }
 
     if (_processingStatus.state === "processing") {
       const before = processingQueueRef.current.length;
       processingQueueRef.current = processingQueueRef.current.filter(
-        (entry) => entry?.fileId !== fileId,
+        (entry) => entry?.fileId !== fileId
       );
       const removedCount = before - processingQueueRef.current.length;
       if (removedCount > 0) {
@@ -1131,7 +1170,7 @@ const DeviceAnalysis = () => {
       if (!rawDataById.has(next)) return;
       setSelectedPreviewFileId(next);
     },
-    [rawDataById, setSelectedPreviewFileId],
+    [rawDataById, setSelectedPreviewFileId]
   );
 
   // Handler when template is applied
@@ -1161,7 +1200,7 @@ const DeviceAnalysis = () => {
 
       const worker = new Worker(
         new URL("../workers/deviceAnalysis.worker.js", import.meta.url),
-        { type: "module" },
+        { type: "module" }
       );
       processingWorkerRef.current = worker;
 
@@ -1273,174 +1312,192 @@ const DeviceAnalysis = () => {
 
       processNext();
     },
-    [setExtractionErrors, setProcessedData, setProcessingStatus, setActivePage],
+    [setExtractionErrors, setProcessedData, setProcessingStatus, setActivePage]
   );
 
-  const handleTemplateApplied = useCallback((config) => {
-    const prepared = prepareDeviceAnalysisExtraction({
-      rawData,
-      config,
-      previewFile,
-      getPreviewRow,
-      t,
-    });
+  const handleTemplateApplied = useCallback(
+    (config) => {
+      const prepared = prepareDeviceAnalysisExtraction({
+        rawData,
+        config,
+        previewFile,
+        getPreviewRow,
+        t,
+      });
 
-    if (!prepared.ok) return prepared;
+      if (!prepared.ok) return prepared;
 
-    const warnings = Array.isArray(prepared.warnings) ? prepared.warnings : [];
-    const extractionConfig = prepared.extractionConfig;
-    const meta = prepared.meta ?? {};
-    const stopOnError = Boolean(config?.stopOnError);
+      const warnings = Array.isArray(prepared.warnings)
+        ? prepared.warnings
+        : [];
+      const extractionConfig = prepared.extractionConfig;
+      const meta = prepared.meta ?? {};
+      const stopOnError = Boolean(config?.stopOnError);
 
-    const queue = rawData
-      .filter((f) => f?.file)
-      .map((f) => ({ fileId: f.fileId, fileName: f.fileName, file: f.file }));
+      const queue = rawData
+        .filter((f) => f?.file)
+        .map((f) => ({ fileId: f.fileId, fileName: f.fileName, file: f.file }));
 
-    lastAppliedTemplateConfigFingerprintRef.current = stableStringify(config);
-    startExtractionJob({
-      queue,
-      extractionConfig,
-      stopOnError,
-      resetProcessedData: true,
-      resetExtractionErrors: true,
-    });
+      lastAppliedTemplateConfigFingerprintRef.current = stableStringify(config);
+      startExtractionJob({
+        queue,
+        extractionConfig,
+        stopOnError,
+        resetProcessedData: true,
+        resetExtractionErrors: true,
+      });
 
-    const groupSizeText = meta.groupSizeCell
-      ? t("da_extract_points_from_cell", { cell: meta.pointsRawUpper || "" })
-      : t("da_extract_points_fixed", { points: meta.groupSize });
+      const groupSizeText = meta.groupSizeCell
+        ? t("da_extract_points_from_cell", { cell: meta.pointsRawUpper || "" })
+        : t("da_extract_points_fixed", { points: meta.groupSize });
 
-    const groupsText =
-      meta.groupSizeCell &&
+      const groupsText =
+        meta.groupSizeCell &&
         Number.isInteger(meta.groupSizePreview) &&
         meta.groupSizePreview > 0
-        ? t("da_extract_groups_suffix", {
-          groups: Math.max(0, meta.total / meta.groupSizePreview),
-        })
-        : !meta.groupSizeCell
+          ? t("da_extract_groups_suffix", {
+              groups: Math.max(0, meta.total / meta.groupSizePreview),
+            })
+          : !meta.groupSizeCell
           ? t("da_extract_groups_suffix", { groups: meta.groups })
           : "";
 
-    const warningText = warnings.length
-      ? t("da_extract_warnings_block", { warnings: warnings.join("\n- ") })
-      : "";
+      const warningText = warnings.length
+        ? t("da_extract_warnings_block", { warnings: warnings.join("\n- ") })
+        : "";
 
-    return {
-      ok: true,
-      type: warnings.length ? "warning" : "success",
-      message: t("da_extract_started", {
-        count: queue.length,
-        detail: groupSizeText,
-        groups: groupsText,
-        warnings: warningText,
-      }),
-    };
-  }, [getPreviewRow, previewFile, rawData, startExtractionJob, t]);
-
-  const handleTemplateAppliedIncremental = useCallback((config) => {
-    if (_processingStatus.state === "processing") {
-      return {
-        ok: false,
-        type: "warning",
-        message: t("da_apply_to_new_files_busy"),
-      };
-    }
-
-    const lastFingerprint = lastAppliedTemplateConfigFingerprintRef.current;
-    if (!lastFingerprint) {
-      return {
-        ok: false,
-        type: "warning",
-        message: t("da_apply_to_new_files_requires_full_apply"),
-      };
-    }
-
-    if (stableStringify(config) !== lastFingerprint) {
-      return {
-        ok: false,
-        type: "warning",
-        message: t("da_apply_to_new_files_requires_same_config"),
-      };
-    }
-
-    const processedIds = new Set(
-      (Array.isArray(processedData) ? processedData : [])
-        .map((f) => f?.fileId)
-        .filter(Boolean),
-    );
-
-    const queue = [];
-    const queuedIds = new Set();
-    for (const entry of Array.isArray(rawData) ? rawData : []) {
-      const fileId = entry?.fileId;
-      if (typeof fileId !== "string" || !fileId) continue;
-      if (!entry?.file) continue;
-      if (processedIds.has(fileId)) continue;
-      if (queuedIds.has(fileId)) continue;
-      queuedIds.add(fileId);
-      queue.push({ fileId, fileName: entry.fileName, file: entry.file });
-    }
-
-    if (queue.length === 0) {
       return {
         ok: true,
-        type: "info",
-        message: t("da_apply_to_new_files_no_new"),
+        type: warnings.length ? "warning" : "success",
+        message: t("da_extract_started", {
+          count: queue.length,
+          detail: groupSizeText,
+          groups: groupsText,
+          warnings: warningText,
+        }),
       };
-    }
+    },
+    [getPreviewRow, previewFile, rawData, startExtractionJob, t]
+  );
 
-    const prepared = prepareDeviceAnalysisExtraction({
-      rawData,
-      config,
-      previewFile,
-      getPreviewRow,
-      t,
-    });
+  const handleTemplateAppliedIncremental = useCallback(
+    (config) => {
+      if (_processingStatus.state === "processing") {
+        return {
+          ok: false,
+          type: "warning",
+          message: t("da_apply_to_new_files_busy"),
+        };
+      }
 
-    if (!prepared.ok) return prepared;
+      const lastFingerprint = lastAppliedTemplateConfigFingerprintRef.current;
+      if (!lastFingerprint) {
+        return {
+          ok: false,
+          type: "warning",
+          message: t("da_apply_to_new_files_requires_full_apply"),
+        };
+      }
 
-    const warnings = Array.isArray(prepared.warnings) ? prepared.warnings : [];
-    const extractionConfig = prepared.extractionConfig;
-    const meta = prepared.meta ?? {};
-    const stopOnError = Boolean(config?.stopOnError);
+      if (stableStringify(config) !== lastFingerprint) {
+        return {
+          ok: false,
+          type: "warning",
+          message: t("da_apply_to_new_files_requires_same_config"),
+        };
+      }
 
-    startExtractionJob({
-      queue,
-      extractionConfig,
-      stopOnError,
-      resetProcessedData: false,
-      resetExtractionErrors: false,
-    });
+      const processedIds = new Set(
+        (Array.isArray(processedData) ? processedData : [])
+          .map((f) => f?.fileId)
+          .filter(Boolean)
+      );
 
-    const groupSizeText = meta.groupSizeCell
-      ? t("da_extract_points_from_cell", { cell: meta.pointsRawUpper || "" })
-      : t("da_extract_points_fixed", { points: meta.groupSize });
+      const queue = [];
+      const queuedIds = new Set();
+      for (const entry of Array.isArray(rawData) ? rawData : []) {
+        const fileId = entry?.fileId;
+        if (typeof fileId !== "string" || !fileId) continue;
+        if (!entry?.file) continue;
+        if (processedIds.has(fileId)) continue;
+        if (queuedIds.has(fileId)) continue;
+        queuedIds.add(fileId);
+        queue.push({ fileId, fileName: entry.fileName, file: entry.file });
+      }
 
-    const groupsText =
-      meta.groupSizeCell &&
+      if (queue.length === 0) {
+        return {
+          ok: true,
+          type: "info",
+          message: t("da_apply_to_new_files_no_new"),
+        };
+      }
+
+      const prepared = prepareDeviceAnalysisExtraction({
+        rawData,
+        config,
+        previewFile,
+        getPreviewRow,
+        t,
+      });
+
+      if (!prepared.ok) return prepared;
+
+      const warnings = Array.isArray(prepared.warnings)
+        ? prepared.warnings
+        : [];
+      const extractionConfig = prepared.extractionConfig;
+      const meta = prepared.meta ?? {};
+      const stopOnError = Boolean(config?.stopOnError);
+
+      startExtractionJob({
+        queue,
+        extractionConfig,
+        stopOnError,
+        resetProcessedData: false,
+        resetExtractionErrors: false,
+      });
+
+      const groupSizeText = meta.groupSizeCell
+        ? t("da_extract_points_from_cell", { cell: meta.pointsRawUpper || "" })
+        : t("da_extract_points_fixed", { points: meta.groupSize });
+
+      const groupsText =
+        meta.groupSizeCell &&
         Number.isInteger(meta.groupSizePreview) &&
         meta.groupSizePreview > 0
-        ? t("da_extract_groups_suffix", {
-          groups: Math.max(0, meta.total / meta.groupSizePreview),
-        })
-        : !meta.groupSizeCell
+          ? t("da_extract_groups_suffix", {
+              groups: Math.max(0, meta.total / meta.groupSizePreview),
+            })
+          : !meta.groupSizeCell
           ? t("da_extract_groups_suffix", { groups: meta.groups })
           : "";
 
-    const warningText = warnings.length
-      ? t("da_extract_warnings_block", { warnings: warnings.join("\n- ") })
-      : "";
+      const warningText = warnings.length
+        ? t("da_extract_warnings_block", { warnings: warnings.join("\n- ") })
+        : "";
 
-    return {
-      ok: true,
-      type: warnings.length ? "warning" : "success",
-      message: t("da_extract_started_incremental", {
-        count: queue.length,
-        detail: groupSizeText,
-        groups: groupsText,
-        warnings: warningText,
-      }),
-    };
-  }, [_processingStatus.state, getPreviewRow, previewFile, processedData, rawData, startExtractionJob, t]);
+      return {
+        ok: true,
+        type: warnings.length ? "warning" : "success",
+        message: t("da_extract_started_incremental", {
+          count: queue.length,
+          detail: groupSizeText,
+          groups: groupsText,
+          warnings: warningText,
+        }),
+      };
+    },
+    [
+      _processingStatus.state,
+      getPreviewRow,
+      previewFile,
+      processedData,
+      rawData,
+      startExtractionJob,
+      t,
+    ]
+  );
 
   const handleExport = useCallback(async () => {
     if (processedData.length === 0) return;
@@ -1517,8 +1574,8 @@ const DeviceAnalysis = () => {
 
           const rowCount = Math.max(
             ...groups.map((g) =>
-              Math.min(g.xArr.length ?? 0, g.yArr.length ?? 0),
-            ),
+              Math.min(g.xArr.length ?? 0, g.yArr.length ?? 0)
+            )
           );
           const rows = new Array(rowCount);
 
@@ -1532,7 +1589,10 @@ const DeviceAnalysis = () => {
 
           const csvText = Papa.unparse({ fields: headers, data: rows });
 
-          const base = sanitizeFilename(originalFileName).replace(/\.csv$/i, "");
+          const base = sanitizeFilename(originalFileName).replace(
+            /\.csv$/i,
+            ""
+          );
           const yLabel = _getExcelColumnLabel(yCol);
           const filename =
             seriesByYCol.size > 1 ? `${base}_${yLabel}.csv` : `${base}.csv`;
@@ -1591,9 +1651,9 @@ const DeviceAnalysis = () => {
       const idHigh = Number(ssIdWindow?.high);
       const idWindowRatio =
         Number.isFinite(idLow) &&
-          Number.isFinite(idHigh) &&
-          idLow > 0 &&
-          idHigh > 0
+        Number.isFinite(idHigh) &&
+        idLow > 0 &&
+        idHigh > 0
           ? Math.max(idLow, idHigh) / Math.min(idLow, idHigh)
           : null;
 
@@ -1614,9 +1674,9 @@ const DeviceAnalysis = () => {
 
           const method =
             methodDefault === "auto" ||
-              methodDefault === "manual" ||
-              methodDefault === "idWindow" ||
-              methodDefault === "legacy"
+            methodDefault === "manual" ||
+            methodDefault === "idWindow" ||
+            methodDefault === "legacy"
               ? methodDefault
               : "auto";
 
@@ -1630,7 +1690,10 @@ const DeviceAnalysis = () => {
 
           if (method === "auto") {
             const auto = computeSubthresholdSwingFitAuto(points);
-            fit = auto?.strict ?? { ok: false, reason: "common.invalid_points" };
+            fit = auto?.strict ?? {
+              ok: false,
+              reason: "common.invalid_points",
+            };
             cls = classifySsFit("auto", fit);
           } else if (method === "manual") {
             const auto = computeSubthresholdSwingFitAuto(points);
@@ -1639,18 +1702,22 @@ const DeviceAnalysis = () => {
             const initRange = stored
               ? { x1: stored.x1, x2: stored.x2, source: "manual" }
               : auto?.strict?.ok
-                ? { x1: auto.strict.x1, x2: auto.strict.x2, source: "strict" }
-                : auto?.suggested?.ok
-                  ? {
-                    x1: auto.suggested.x1,
-                    x2: auto.suggested.x2,
-                    source: "suggested",
-                  }
-                  : null;
+              ? { x1: auto.strict.x1, x2: auto.strict.x2, source: "strict" }
+              : auto?.suggested?.ok
+              ? {
+                  x1: auto.suggested.x1,
+                  x2: auto.suggested.x2,
+                  source: "suggested",
+                }
+              : null;
 
             rangeSource = initRange?.source ?? "";
             fit = initRange
-              ? computeSubthresholdSwingFitInRange(points, initRange.x1, initRange.x2)
+              ? computeSubthresholdSwingFitInRange(
+                  points,
+                  initRange.x1,
+                  initRange.x2
+                )
               : { ok: false, reason: "manual.range_outside_domain" };
             cls = classifySsFit("manual", fit);
           } else if (method === "idWindow") {
@@ -1689,10 +1756,13 @@ const DeviceAnalysis = () => {
             ss_x1: ssOk && Number.isFinite(fit?.x1) ? fit.x1 : "",
             ss_x2: ssOk && Number.isFinite(fit?.x2) ? fit.x2 : "",
             ss_r2: ssOk && Number.isFinite(fit?.r2) ? fit.r2 : "",
-            ss_span_dec: ssOk && Number.isFinite(fit?.decadeSpan) ? fit.decadeSpan : "",
+            ss_span_dec:
+              ssOk && Number.isFinite(fit?.decadeSpan) ? fit.decadeSpan : "",
             ss_n: ssOk && Number.isFinite(fit?.n) ? fit.n : "",
-            ss_iLow: method === "idWindow" && Number.isFinite(idLow) ? idLow : "",
-            ss_iHigh: method === "idWindow" && Number.isFinite(idHigh) ? idHigh : "",
+            ss_iLow:
+              method === "idWindow" && Number.isFinite(idLow) ? idLow : "",
+            ss_iHigh:
+              method === "idWindow" && Number.isFinite(idHigh) ? idHigh : "",
             ss_range_source: rangeSource,
           });
         }
@@ -1794,9 +1864,7 @@ const DeviceAnalysis = () => {
         }
 
         const rowCount = Math.max(
-          ...groups.map((g) =>
-            Math.min(g.xArr.length ?? 0, g.yArr.length ?? 0),
-          ),
+          ...groups.map((g) => Math.min(g.xArr.length ?? 0, g.yArr.length ?? 0))
         );
         const rows = new Array(rowCount);
 
@@ -1844,7 +1912,10 @@ const DeviceAnalysis = () => {
 //   1) Put CSV and this OGS in the same folder, set Origin current folder to it, then run:
 //        run.section("${safeCsv.replace(/\\.csv$/i, ".ogs")}", Main)
 //   2) Or pass CSV full path as %1:
-//        run.section("${safeCsv.replace(/\\.csv$/i, ".ogs")}", Main, "C:\\\\path\\\\${safeCsv}")
+//        run.section("${safeCsv.replace(
+        /\\.csv$/i,
+        ".ogs"
+      )}", Main, "C:\\\\path\\\\${safeCsv}")
 
 string csv$ = "%1";
 if(csv$ == "")
@@ -1924,14 +1995,23 @@ Note:
   const isSettingsPageActive = activePage === "settings";
 
   const handlePageTabSelect = useCallback((nextPage) => {
-    if (nextPage !== "data" && nextPage !== "analysis" && nextPage !== "settings") return;
+    if (
+      nextPage !== "data" &&
+      nextPage !== "analysis" &&
+      nextPage !== "settings"
+    )
+      return;
     setActivePage(nextPage);
   }, []);
 
   const handlePageTabsKeyDown = useCallback((event) => {
     if (event.altKey || event.ctrlKey || event.metaKey) return;
 
-    if (event.key === "ArrowLeft" || event.key === "ArrowUp" || event.key === "Home") {
+    if (
+      event.key === "ArrowLeft" ||
+      event.key === "ArrowUp" ||
+      event.key === "Home"
+    ) {
       event.preventDefault();
       setActivePage("data");
       return;
@@ -2042,7 +2122,8 @@ Note:
 
   const persistencePathCurrent = String(persistencePathInfo?.currentPath ?? "");
   const persistencePathConfigurable =
-    Boolean(persistencePathInfo) && persistencePathInfo?.isConfigurable !== false;
+    Boolean(persistencePathInfo) &&
+    persistencePathInfo?.isConfigurable !== false;
   const originPathCurrent = String(originExePath ?? "");
   const originPathConfigurable =
     isWindowsDesktopShell && Boolean(getDesktopOriginBridge());
@@ -2056,13 +2137,16 @@ Note:
   return (
     <div
       id="device-analysis-page"
-      className={`relative w-full h-full min-h-0 overflow-hidden flex flex-col ${isResizing ? "cursor-col-resize select-none" : ""
-        }`}
+      className={`relative w-full h-full min-h-0 overflow-hidden flex flex-col ${
+        isResizing ? "cursor-col-resize select-none" : ""
+      }`}
       style={{ "--sidebar-width": `${sidebarWidth}px` }}
     >
       {isWindowsDesktopShell ? (
         <DesktopCommandBar
           t={t}
+          activePage={activePage}
+          onPageChange={handlePageTabSelect}
           onOpenOrigin={handleOpenOriginFromTitleBar}
           onOpenSettings={() => handlePageTabSelect("settings")}
           onMinimizeWindow={handleMinimizeWindow}
@@ -2078,15 +2162,19 @@ Note:
           aria-labelledby="device-analysis-tab-data"
           aria-hidden={!isDataPageActive}
           inert={!isDataPageActive ? true : undefined}
-          className={`absolute inset-0 min-h-0 transition-opacity duration-150 ${isDataPageActive
-            ? "pointer-events-auto opacity-100"
-            : "pointer-events-none opacity-0"
-            }`}
+          className={`absolute inset-0 min-h-0 transition-opacity duration-150 ${
+            isDataPageActive
+              ? "pointer-events-auto opacity-100"
+              : "pointer-events-none opacity-0"
+          }`}
         >
           <div className="da_page_scroll h-full min-h-0 overflow-y-auto xl:overflow-hidden p-1 pt-0">
             <div className="min-h-full grid grid-cols-1 xl:grid-cols-[var(--sidebar-width)_minmax(0,1fr)] gap-1 xl:gap-1 xl:h-full">
               <aside className="xl:min-h-0 flex flex-col h-full relative group/sidebar">
-                <section aria-label={t("da_import_section")} className="flex-1 flex flex-col min-h-0">
+                <section
+                  aria-label={t("da_import_section")}
+                  className="flex-1 flex flex-col min-h-0"
+                >
                   <Card
                     id="device-analysis-import-card"
                     cta="Device analysis"
@@ -2120,8 +2208,11 @@ Note:
                           data-cta="Device analysis"
                           data-cta-position="data-import"
                           data-cta-copy="reset session"
-                          className={`action-btn action-btn--control ${hasSessionData ? "action-btn--danger" : "action-btn--disabled"
-                            }`}
+                          className={`action-btn action-btn--control ${
+                            hasSessionData
+                              ? "action-btn--danger"
+                              : "action-btn--disabled"
+                          }`}
                           aria-label={t("da_reset_session")}
                           title={t("da_reset_session")}
                           onClick={handleClearSession}
@@ -2166,7 +2257,8 @@ Note:
                         <div className="flex items-center gap-2 text-red-500">
                           <AlertCircle size={18} />
                           <h3 className="text-sm font-semibold">
-                            {t("da_extraction_errors")} ({extractionErrors.length})
+                            {t("da_extraction_errors")} (
+                            {extractionErrors.length})
                           </h3>
                         </div>
                         <button
@@ -2182,7 +2274,10 @@ Note:
                       <div className="mt-3 max-h-48 overflow-y-auto custom-scrollbar pr-2">
                         <ul className="space-y-2 text-sm text-text-secondary">
                           {extractionErrors.map((err, idx) => (
-                            <li key={`${err.fileName}-${idx}`} className="flex flex-col gap-1">
+                            <li
+                              key={`${err.fileName}-${idx}`}
+                              className="flex flex-col gap-1"
+                            >
                               <span className="font-semibold text-text-primary text-xs">
                                 {err.fileName}
                               </span>{" "}
@@ -2205,14 +2300,22 @@ Note:
                   onMouseDown={startResizing}
                 >
                   {/* Subtle Background Glow Line */}
-                  <div className={`absolute left-1/2 top-4 bottom-4 w-[2px] -translate-x-1/2 rounded-full transition-all duration-500 bg-accent/0 
-                    group-hover/sash:bg-accent/30 group-hover/sash:delay-300 group-hover/sash:shadow-[0_0_12px_rgba(var(--color-accent-rgb),0.5)] ${isResizing ? "bg-accent/60 shadow-[0_0_16px_rgba(var(--color-accent-rgb),0.6)]" : ""
-                    }`} />
+                  <div
+                    className={`absolute left-1/2 top-4 bottom-4 w-[2px] -translate-x-1/2 rounded-full transition-all duration-500 bg-accent/0 
+                    group-hover/sash:bg-accent/30 group-hover/sash:delay-300 group-hover/sash:shadow-[0_0_12px_rgba(var(--color-accent-rgb),0.5)] ${
+                      isResizing
+                        ? "bg-accent/60 shadow-[0_0_16px_rgba(var(--color-accent-rgb),0.6)]"
+                        : ""
+                    }`}
+                  />
 
                   {/* Minimalistic Handle Indicator */}
-                  <div className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[4px] h-[24px] rounded-full bg-accent opacity-0 transition-all duration-300 scale-y-50
-                    group-hover/sash:opacity-100 group-hover/sash:scale-y-100 group-hover/sash:delay-500 ${isResizing ? "opacity-100 scale-y-125" : ""
-                    }`} />
+                  <div
+                    className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[4px] h-[24px] rounded-full bg-accent opacity-0 transition-all duration-300 scale-y-50
+                    group-hover/sash:opacity-100 group-hover/sash:scale-y-100 group-hover/sash:delay-500 ${
+                      isResizing ? "opacity-100 scale-y-125" : ""
+                    }`}
+                  />
                 </div>
               </aside>
 
@@ -2226,11 +2329,15 @@ Note:
                   getPreviewRow={getPreviewRow}
                   ensurePreviewRows={ensurePreviewRows}
                   onTemplateApplied={handleTemplateApplied}
-                  onTemplateAppliedIncremental={handleTemplateAppliedIncremental}
+                  onTemplateAppliedIncremental={
+                    handleTemplateAppliedIncremental
+                  }
                   subscribePreviewRowsVersion={subscribePreviewRowsVersion}
                   getPreviewRowsVersion={getPreviewRowsVersion}
                   deviceAnalysisSettings={deviceAnalysisSettings}
-                  onUpdateDeviceAnalysisSettings={handleUpdateDeviceAnalysisSettings}
+                  onUpdateDeviceAnalysisSettings={
+                    handleUpdateDeviceAnalysisSettings
+                  }
                 />
               </section>
             </div>
@@ -2243,14 +2350,18 @@ Note:
           aria-labelledby="device-analysis-tab-analysis"
           aria-hidden={!isAnalysisPageActive}
           inert={!isAnalysisPageActive ? true : undefined}
-          className={`absolute inset-0 min-h-0 transition-opacity duration-150 ${isAnalysisPageActive
-            ? "pointer-events-auto opacity-100"
-            : "pointer-events-none opacity-0"
-            }`}
+          className={`absolute inset-0 min-h-0 transition-opacity duration-150 ${
+            isAnalysisPageActive
+              ? "pointer-events-auto opacity-100"
+              : "pointer-events-none opacity-0"
+          }`}
         >
           <div className="da_page_scroll h-full min-h-0 overflow-y-auto custom-scrollbar p-1 pt-0">
-            <section aria-label={t("da_analysis_visualization")} className="h-full flex flex-col">
-              {isAnalysisPageActive && processedData.length > 0 ? (
+            <section
+              aria-label={t("da_analysis_visualization")}
+              className="h-full flex flex-col"
+            >
+              {processedData.length > 0 ? (
                 <AnalysisCharts
                   processedData={processedData}
                   processingStatus={_processingStatus}
@@ -2275,7 +2386,9 @@ Note:
                   className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-border bg-bg-surface/50 text-text-secondary"
                 >
                   <BarChart2 size={48} className="mb-4 opacity-20" />
-                  <p className="text-lg font-medium">{t("da_no_processed_data")}</p>
+                  <p className="text-lg font-medium">
+                    {t("da_no_processed_data")}
+                  </p>
                   <p className="text-sm">{t("da_no_processed_data_hint")}</p>
                 </Card>
               )}
@@ -2289,10 +2402,11 @@ Note:
           aria-labelledby="device-analysis-window-settings-btn"
           aria-hidden={!isSettingsPageActive}
           inert={!isSettingsPageActive ? true : undefined}
-          className={`absolute inset-0 min-h-0 transition-opacity duration-150 ${isSettingsPageActive
-            ? "pointer-events-auto opacity-100"
-            : "pointer-events-none opacity-0"
-            }`}
+          className={`absolute inset-0 min-h-0 transition-opacity duration-150 ${
+            isSettingsPageActive
+              ? "pointer-events-auto opacity-100"
+              : "pointer-events-none opacity-0"
+          }`}
         >
           <div className="da_page_scroll h-full min-h-0 overflow-y-auto custom-scrollbar p-1 pt-0">
             <section aria-label={t("da_settings_section_aria_label")}>
@@ -2344,7 +2458,8 @@ Note:
                 <div className="flex items-center gap-2">
                   <div className="flex-1 min-w-0 rounded-lg border border-border bg-bg-page px-3 py-2 flex items-center h-[38px]">
                     <p className="font-mono text-xs text-text-primary truncate">
-                      {persistencePathCurrent || t("da_settings_storage_loading")}
+                      {persistencePathCurrent ||
+                        t("da_settings_storage_loading")}
                     </p>
                   </div>
                   <Button
@@ -2354,7 +2469,9 @@ Note:
                     size="sm"
                     className="h-[38px] whitespace-nowrap"
                     onClick={handleChoosePersistencePath}
-                    disabled={!persistencePathConfigurable || persistencePathSaving}
+                    disabled={
+                      !persistencePathConfigurable || persistencePathSaving
+                    }
                   >
                     {t("da_settings_storage_choose_path_btn")}
                   </Button>
@@ -2362,10 +2479,11 @@ Note:
 
                 {persistencePathFeedback.message ? (
                   <p
-                    className={`text-sm ${persistencePathFeedback.type === "error"
-                      ? "text-red-500"
-                      : "text-emerald-600"
-                      }`}
+                    className={`text-sm ${
+                      persistencePathFeedback.type === "error"
+                        ? "text-red-500"
+                        : "text-emerald-600"
+                    }`}
                   >
                     {persistencePathFeedback.message}
                   </p>
@@ -2464,10 +2582,11 @@ Note:
 
                 {originPathFeedback.message ? (
                   <p
-                    className={`text-sm ${originPathFeedback.type === "error"
-                      ? "text-red-500"
-                      : "text-emerald-600"
-                      }`}
+                    className={`text-sm ${
+                      originPathFeedback.type === "error"
+                        ? "text-red-500"
+                        : "text-emerald-600"
+                    }`}
                   >
                     {originPathFeedback.message}
                   </p>
@@ -2478,58 +2597,7 @@ Note:
         </section>
       </div>
 
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-[100px] h-[16px] z-[9999] group flex flex-col items-center justify-end pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-        {/* The small dash that shows when NOT hovered */}
-        <div className="absolute bottom-[max(0.75rem,env(safe-area-inset-bottom))] w-12 h-1.5 rounded-full bg-text-tertiary/40 backdrop-blur-md transition-all duration-300 group-hover:opacity-0 group-hover:scale-50 group-hover:translate-y-2 pointer-events-none" />
 
-        <nav
-          className="da_bottom_tabs opacity-0 translate-y-4 scale-95 pointer-events-none transition-all duration-300 ease-out group-hover:opacity-100 group-hover:translate-y-0 group-hover:scale-100 group-hover:pointer-events-auto"
-          role="tablist"
-          aria-label={t("da_tab_switcher_label")}
-          onKeyDown={handlePageTabsKeyDown}
-        >
-          <div
-            className="da_bottom_tabs_indicator"
-            style={{ transform: `translateX(${isDataPageActive ? '0%' : '100%'})` }}
-          />
-          <Button
-            id="device-analysis-tab-data"
-            role="tab"
-            aria-controls="device-analysis-tabpanel-data"
-            aria-selected={isDataPageActive}
-            tabIndex={isDataPageActive ? 0 : -1}
-            variant="ghost"
-            size="control"
-            dataIcon="with"
-            cta="Device analysis"
-            ctaPosition="bottom-tab"
-            ctaCopy="data page"
-            className={`da_bottom_tab_btn ${isDataPageActive ? "da_bottom_tab_btn--active" : ""}`}
-            onClick={() => handlePageTabSelect("data")}
-          >
-            <Upload size={14} />
-            {t("da_tab_data")}
-          </Button>
-          <Button
-            id="device-analysis-tab-analysis"
-            role="tab"
-            aria-controls="device-analysis-tabpanel-analysis"
-            aria-selected={isAnalysisPageActive}
-            tabIndex={isAnalysisPageActive ? 0 : -1}
-            variant="ghost"
-            size="control"
-            dataIcon="with"
-            cta="Device analysis"
-            ctaPosition="bottom-tab"
-            ctaCopy="analysis page"
-            className={`da_bottom_tab_btn ${isAnalysisPageActive ? "da_bottom_tab_btn--active" : ""}`}
-            onClick={() => handlePageTabSelect("analysis")}
-          >
-            <BarChart2 size={14} />
-            {t("da_tab_analysis")}
-          </Button>
-        </nav>
-      </div>
     </div>
   );
 };

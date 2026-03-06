@@ -3,11 +3,15 @@ import {
   Settings,
   Square,
   X,
+  Upload,
+  BarChart2,
 } from "lucide-react";
 import originIcon from "../../../assets/icons/origin.svg";
 
 const DesktopCommandBar = ({
   t,
+  activePage,
+  onPageChange,
   onMinimizeWindow,
   onToggleMaximizeWindow,
   onCloseWindow,
@@ -23,11 +27,30 @@ const DesktopCommandBar = ({
 
       <div className="da_window_controls">
         <button
+          type="button"
+          aria-label={t("da_tab_data")}
+          title={t("da_tab_data")}
+          className={`da_window_icon_btn ${activePage === 'data' ? 'da_top_nav_btn--active' : ''}`}
+          onClick={() => onPageChange('data')}
+        >
+          <Upload size={14} className="opacity-80" />
+        </button>
+        <button
+          type="button"
+          aria-label={t("da_tab_analysis")}
+          title={t("da_tab_analysis")}
+          className={`da_window_icon_btn ${activePage === 'analysis' ? 'da_top_nav_btn--active' : ''}`}
+          onClick={() => onPageChange('analysis')}
+        >
+          <BarChart2 size={14} className="opacity-80" />
+        </button>
+
+        <button
           id="device-analysis-window-origin-btn"
           type="button"
           aria-label={t("da_open_in_origin")}
           title={t("da_open_in_origin")}
-          className="da_window_icon_btn mr-[2px]"
+          className="da_window_icon_btn"
           onClick={onOpenOrigin}
         >
           <img
@@ -42,10 +65,10 @@ const DesktopCommandBar = ({
           type="button"
           aria-label="Settings"
           title="Settings"
-          className="da_window_icon_btn mr-[2px]"
+          className={`da_window_icon_btn ${activePage === 'settings' ? 'da_top_nav_btn--active' : ''}`}
           onClick={onOpenSettings}
         >
-          <Settings size={14} />
+          <Settings size={14} className="opacity-80" />
         </button>
         <button
           id="device-analysis-window-minimize-btn"
