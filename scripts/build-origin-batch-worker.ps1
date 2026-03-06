@@ -19,6 +19,37 @@ function Resolve-PathOrDefault {
   return $Value
 }
 
+function Get-MajorMinorVersion {
+  param([string]$VersionValue)
+  if ([string]::IsNullOrWhiteSpace($VersionValue)) {
+    return $null
+  }
+
+  $parts = $VersionValue.Trim().Split(".")
+  if ($parts.Length -ge 2) {
+    return ("{0}.{1}" -f $parts[0], $parts[1])
+  }
+
+  return $VersionValue.Trim()
+}
+
+function Get-PythonMajorMinorFromExe {
+  param([string]$PythonExe)
+  if ([string]::IsNullOrWhiteSpace($PythonExe)) {
+    return $null
+  }
+
+  try {
+    $out = & $PythonExe -c "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}')"
+    if ($LASTEXITCODE -ne 0) {
+      return $null
+    }
+    return ($out | Select-Object -First 1).Trim()
+  } catch {
+    return $null
+  }
+}
+
 if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
   $ProjectRoot = Split-Path -Parent $PSScriptRoot
 }
@@ -44,8 +75,11 @@ New-Item -ItemType Directory -Path $BuildWorkDir -Force | Out-Null
 New-Item -ItemType Directory -Path $SpecDir -Force | Out-Null
 
 $uvCmd = Get-Command uv -ErrorAction SilentlyContinue
-if ($null -eq $uvCmd) {
-  throw "uv is not available in PATH. Install uv first."
+$pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+$requiredPy = Get-MajorMinorVersion -VersionValue $PythonVersion
+
+if ($null -eq $uvCmd -and $null -eq $pythonCmd) {
+  throw "Neither uv nor python is available in PATH. Install Python $requiredPy (python in PATH), or install uv first."
 }
 
 $packages = if ($UsePinnedVersions) {
@@ -64,11 +98,26 @@ $packages = if ($UsePinnedVersions) {
 
 $venvPython = Join-Path $VenvDir "Scripts\python.exe"
 if (-not (Test-Path -LiteralPath $venvPython)) {
-  $venvArgs = @("venv", "--python", $PythonVersion, $VenvDir)
-  Write-Host "[build-origin-batch-worker] Running: uv $($venvArgs -join ' ')"
-  & $uvCmd.Source @venvArgs
-  if ($LASTEXITCODE -ne 0) {
-    throw "uv venv failed with exit code $LASTEXITCODE"
+  if ($null -ne $uvCmd) {
+    $venvArgs = @("venv", "--python", $PythonVersion, $VenvDir)
+    Write-Host "[build-origin-batch-worker] Running: uv $($venvArgs -join ' ')"
+    & $uvCmd.Source @venvArgs
+    if ($LASTEXITCODE -ne 0) {
+      throw "uv venv failed with exit code $LASTEXITCODE"
+    }
+  } else {
+    $pythonExe = $pythonCmd.Source
+    $actualPy = Get-PythonMajorMinorFromExe -PythonExe $pythonExe
+    if ($requiredPy -and $actualPy -and $actualPy -ne $requiredPy) {
+      throw "python in PATH is $actualPy but $requiredPy is required. Activate a Python $requiredPy environment (e.g. conda -p .\.tooling\env) or install uv to manage Python selection."
+    }
+
+    $venvArgs = @("-m", "venv", $VenvDir)
+    Write-Host "[build-origin-batch-worker] Running: $pythonExe $($venvArgs -join ' ')"
+    & $pythonExe @venvArgs
+    if ($LASTEXITCODE -ne 0) {
+      throw "python -m venv failed with exit code $LASTEXITCODE"
+    }
   }
 }
 
@@ -76,11 +125,20 @@ if (-not (Test-Path -LiteralPath $venvPython)) {
   throw "Venv python executable not found: $venvPython"
 }
 
-$installArgs = @("pip", "install", "--python", $venvPython) + $packages
-Write-Host "[build-origin-batch-worker] Running: uv $($installArgs -join ' ')"
-& $uvCmd.Source @installArgs
-if ($LASTEXITCODE -ne 0) {
-  throw "uv pip install failed with exit code $LASTEXITCODE"
+if ($null -ne $uvCmd) {
+  $installArgs = @("pip", "install", "--python", $venvPython) + $packages
+  Write-Host "[build-origin-batch-worker] Running: uv $($installArgs -join ' ')"
+  & $uvCmd.Source @installArgs
+  if ($LASTEXITCODE -ne 0) {
+    throw "uv pip install failed with exit code $LASTEXITCODE"
+  }
+} else {
+  $installArgs = @("-m", "pip", "install") + $packages
+  Write-Host "[build-origin-batch-worker] Running: $venvPython $($installArgs -join ' ')"
+  & $venvPython @installArgs
+  if ($LASTEXITCODE -ne 0) {
+    throw "pip install failed with exit code $LASTEXITCODE"
+  }
 }
 
 $pyinstallerArgs = @(

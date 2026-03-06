@@ -60,3 +60,6 @@ origin/.pyi_spec/
 origin/.pyi_zip_build/
 origin/.pyi_zip_spec/
 .venv-origin-workers/
+
+# Project-local tooling env (conda/node caches)
+.tooling/

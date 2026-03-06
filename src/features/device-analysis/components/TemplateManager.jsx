@@ -75,7 +75,7 @@ const lowerBound = (arr, value) => {
   return lo;
 };
 
-const noopSubscribe = () => () => { };
+const noopSubscribe = () => () => {};
 const getZero = () => 0;
 const EMPTY_ARRAY = [];
 const normalizeXDataEndValue = (value) => {
@@ -84,7 +84,10 @@ const normalizeXDataEndValue = (value) => {
   if (raw.toLowerCase() === "end" || raw === "结束") return "End";
   return raw;
 };
-const toTemplateNameKey = (name) => String(name ?? "").trim().toLowerCase();
+const toTemplateNameKey = (name) =>
+  String(name ?? "")
+    .trim()
+    .toLowerCase();
 
 const PREVIEW_PICK_FIELD_TO_CONFIG_FIELD = {
   templateName: "name",
@@ -100,25 +103,141 @@ const PREVIEW_PICK_FIELD_TO_CONFIG_FIELD = {
   leftTitle: "leftTitle",
   legendPrefix: "legendPrefix",
 };
-const PREVIEW_PICKABLE_FIELD_NAMES = new Set(
-  Object.keys(PREVIEW_PICK_FIELD_TO_CONFIG_FIELD),
-);
 const isPreviewPickableField = (name) =>
   typeof name === "string" && PREVIEW_PICKABLE_FIELD_NAMES.has(name);
+
+const buildPreviewColumnWindow = ({
+  columnCount,
+  scrollLeft,
+  viewportWidth,
+  rowIndexWidthPx,
+  overscanPx,
+}) => {
+  const safeColumnCount = Math.max(0, Math.floor(Number(columnCount) || 0));
+  const normalizedScrollLeft = Math.max(0, Number(scrollLeft) || 0);
+  const normalizedViewportWidth = Math.max(0, Number(viewportWidth) || 0);
+  const normalizedRowIndexWidth = Math.max(0, Number(rowIndexWidthPx) || 0);
+  const dataViewportWidth = Math.max(
+    0,
+    normalizedViewportWidth - normalizedRowIndexWidth
+  );
+
+  if (!safeColumnCount) {
+    return {
+      startCol: 0,
+      endCol: 0,
+      leftSpacerPx: 0,
+      rightSpacerPx: 0,
+      scrollLeft: normalizedScrollLeft,
+      viewportWidth: normalizedViewportWidth,
+      dataViewportWidth,
+      overscanPx: Math.max(0, Number(overscanPx) || 0),
+    };
+  }
+
+  // Horizontal virtualization remains intentionally disabled. This helper now
+  // owns the window contract so any future re-enable must happen here together
+  // with spacer, scroll-threshold, and overlay/header/body alignment changes.
+  return {
+    startCol: 0,
+    endCol: safeColumnCount,
+    leftSpacerPx: 0,
+    rightSpacerPx: 0,
+    scrollLeft: normalizedScrollLeft,
+    viewportWidth: normalizedViewportWidth,
+    dataViewportWidth,
+    overscanPx: Math.max(0, Number(overscanPx) || 0),
+  };
+};
+
+const buildPreviewColumnGeometry = ({
+  columnCount,
+  columnWidthsPx,
+  rowIndexWidthPx,
+  scrollLeft,
+  viewportWidth,
+  overscanPx,
+  minColumnWidthPx,
+}) => {
+  const safeColumnCount = Math.max(0, Math.floor(Number(columnCount) || 0));
+  const widthsPx = new Array(safeColumnCount);
+  const startOffsetsPx = new Array(safeColumnCount + 1);
+  let totalDataWidthPx = 0;
+  startOffsetsPx[0] = 0;
+
+  for (let i = 0; i < safeColumnCount; i++) {
+    const width = Number(columnWidthsPx?.[i]);
+    const resolvedWidth =
+      Number.isFinite(width) && width > 0 ? width : minColumnWidthPx;
+    widthsPx[i] = resolvedWidth;
+    totalDataWidthPx += resolvedWidth;
+    startOffsetsPx[i + 1] = totalDataWidthPx;
+  }
+
+  const window = buildPreviewColumnWindow({
+    columnCount: safeColumnCount,
+    scrollLeft,
+    viewportWidth,
+    rowIndexWidthPx,
+    overscanPx,
+  });
+
+  const startCol = Math.max(
+    0,
+    Math.min(safeColumnCount, Math.floor(Number(window.startCol) || 0))
+  );
+  const endCol = Math.max(
+    startCol,
+    Math.min(safeColumnCount, Math.floor(Number(window.endCol) || 0))
+  );
+  const visibleColumnIndices = Array.from(
+    { length: Math.max(0, endCol - startCol) },
+    (_, i) => startCol + i
+  );
+  const hasLeftSpacer = window.leftSpacerPx > 0;
+  const hasRightSpacer = window.rightSpacerPx > 0;
+
+  return {
+    columnCount: safeColumnCount,
+    widthsPx,
+    startOffsetsPx,
+    totalDataWidthPx,
+    tableWidthPx: rowIndexWidthPx + totalDataWidthPx,
+    scrollLeft: window.scrollLeft,
+    viewportWidth: window.viewportWidth,
+    dataViewportWidth: window.dataViewportWidth,
+    overscanPx: window.overscanPx,
+    window: {
+      ...window,
+      startCol,
+      endCol,
+    },
+    visibleColumnIndices,
+    hasLeftSpacer,
+    hasRightSpacer,
+    renderColCount:
+      1 +
+      (hasLeftSpacer ? 1 : 0) +
+      visibleColumnIndices.length +
+      (hasRightSpacer ? 1 : 0),
+  };
+};
 
 const PreviewRow = React.memo(
   ({
     rowIndex,
     rowCellsRaw,
-    hasLeftColSpacer,
-    hasRightColSpacer,
-    visibleColumnIndices,
+    columnGeometry,
     selectedColumnsSet,
     handleCellMouseDown,
   }) => {
     const rowLabel = rowIndex + 1;
     const rowCells = Array.isArray(rowCellsRaw) ? rowCellsRaw : EMPTY_ARRAY;
     const isRowLoaded = Array.isArray(rowCellsRaw);
+    const visibleColumnIndices =
+      columnGeometry?.visibleColumnIndices ?? EMPTY_ARRAY;
+    const hasLeftColSpacer = Boolean(columnGeometry?.hasLeftSpacer);
+    const hasRightColSpacer = Boolean(columnGeometry?.hasRightSpacer);
 
     return (
       <tr>
@@ -142,7 +261,11 @@ const PreviewRow = React.memo(
               data-col={idx}
               className={`
                             px-2 py-1 h-7 border-b border-r border-border last:border-r-0 whitespace-nowrap text-xs transition-colors cursor-default overflow-hidden text-ellipsis
-                            ${selectedColumnsSet.has(idx) ? "bg-accent/5 border-accent/20 text-text-primary" : "text-text-secondary"}
+                            ${
+                              selectedColumnsSet.has(idx)
+                                ? "bg-accent/5 border-accent/20 text-text-primary"
+                                : "text-text-secondary"
+                            }
 
                           `}
               onMouseDown={handleCellMouseDown}
@@ -160,82 +283,82 @@ const PreviewRow = React.memo(
         )}
       </tr>
     );
-  },
+  }
 );
 
 PreviewRow.displayName = "PreviewRow";
 
-const PreviewTbody = React.memo(({
-  subscribePreviewRowsVersion,
-  getPreviewRowsVersion,
-  previewWindow,
-  previewRenderColCount,
-  hasLeftColSpacer,
-  hasRightColSpacer,
-  visibleColumnIndices,
-  selectedColumnsSet,
-  getPreviewRow,
-  handleCellMouseDown,
-}) => {
-  const previewRowsSubscribe =
-    typeof subscribePreviewRowsVersion === "function"
-      ? subscribePreviewRowsVersion
-      : noopSubscribe;
-  const previewRowsGetSnapshot =
-    typeof getPreviewRowsVersion === "function" ? getPreviewRowsVersion : getZero;
+const PreviewTbody = React.memo(
+  ({
+    subscribePreviewRowsVersion,
+    getPreviewRowsVersion,
+    previewWindow,
+    columnGeometry,
+    selectedColumnsSet,
+    getPreviewRow,
+    handleCellMouseDown,
+  }) => {
+    const previewRowsSubscribe =
+      typeof subscribePreviewRowsVersion === "function"
+        ? subscribePreviewRowsVersion
+        : noopSubscribe;
+    const previewRowsGetSnapshot =
+      typeof getPreviewRowsVersion === "function"
+        ? getPreviewRowsVersion
+        : getZero;
+    const previewRenderColCount = columnGeometry?.renderColCount ?? 1;
 
-  useSyncExternalStore(
-    previewRowsSubscribe,
-    previewRowsGetSnapshot,
-    previewRowsGetSnapshot,
-  );
+    useSyncExternalStore(
+      previewRowsSubscribe,
+      previewRowsGetSnapshot,
+      previewRowsGetSnapshot
+    );
 
-  const rows = [];
-  for (
-    let rowIndex = previewWindow.startRow;
-    rowIndex < previewWindow.endRow;
-    rowIndex++
-  ) {
-    const rowCellsRaw =
-      typeof getPreviewRow === "function" ? getPreviewRow(rowIndex) : null;
-    rows.push(
-      <PreviewRow
-        key={rowIndex}
-        rowIndex={rowIndex}
-        rowCellsRaw={rowCellsRaw}
-        hasLeftColSpacer={hasLeftColSpacer}
-        hasRightColSpacer={hasRightColSpacer}
-        visibleColumnIndices={visibleColumnIndices}
-        selectedColumnsSet={selectedColumnsSet}
-        handleCellMouseDown={handleCellMouseDown}
-      />,
+    const rows = [];
+    for (
+      let rowIndex = previewWindow.startRow;
+      rowIndex < previewWindow.endRow;
+      rowIndex++
+    ) {
+      const rowCellsRaw =
+        typeof getPreviewRow === "function" ? getPreviewRow(rowIndex) : null;
+      rows.push(
+        <PreviewRow
+          key={rowIndex}
+          rowIndex={rowIndex}
+          rowCellsRaw={rowCellsRaw}
+          columnGeometry={columnGeometry}
+          selectedColumnsSet={selectedColumnsSet}
+          handleCellMouseDown={handleCellMouseDown}
+        />
+      );
+    }
+
+    return (
+      <tbody>
+        {previewWindow.topSpacerHeight > 0 && (
+          <tr aria-hidden="true">
+            <td
+              colSpan={previewRenderColCount}
+              className="p-0 border-0"
+              style={{ height: previewWindow.topSpacerHeight }}
+            />
+          </tr>
+        )}
+        {rows}
+        {previewWindow.bottomSpacerHeight > 0 && (
+          <tr aria-hidden="true">
+            <td
+              colSpan={previewRenderColCount}
+              className="p-0 border-0"
+              style={{ height: previewWindow.bottomSpacerHeight }}
+            />
+          </tr>
+        )}
+      </tbody>
     );
   }
-
-  return (
-    <tbody>
-      {previewWindow.topSpacerHeight > 0 && (
-        <tr aria-hidden="true">
-          <td
-            colSpan={previewRenderColCount}
-            className="p-0 border-0"
-            style={{ height: previewWindow.topSpacerHeight }}
-          />
-        </tr>
-      )}
-      {rows}
-      {previewWindow.bottomSpacerHeight > 0 && (
-        <tr aria-hidden="true">
-          <td
-            colSpan={previewRenderColCount}
-            className="p-0 border-0"
-            style={{ height: previewWindow.bottomSpacerHeight }}
-          />
-        </tr>
-      )}
-    </tbody>
-  );
-});
+);
 
 PreviewTbody.displayName = "PreviewTbody";
 
@@ -293,7 +416,8 @@ const TemplateManager = ({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [localTemplateMode, setLocalTemplateMode] = useState("select"); // "select" | "save"
   const templateMode = deviceSession?.templateMode ?? localTemplateMode;
-  const setTemplateMode = deviceSession?.setTemplateMode ?? setLocalTemplateMode;
+  const setTemplateMode =
+    deviceSession?.setTemplateMode ?? setLocalTemplateMode;
   const saveDraftTouchedRef = useRef(false);
   const saveDraftBaseConfigRef = useRef(null);
   const [isDiscardConfirmOpen, setIsDiscardConfirmOpen] = useState(false);
@@ -336,7 +460,7 @@ const TemplateManager = ({
       const saveHeight = saveEl.getBoundingClientRect().height;
       const paneHeight = Math.max(selectHeight, saveHeight);
       const next = Math.ceil(
-        panelPaddingY + baseHeight + SAVE_PANEL_GAP_PX + paneHeight,
+        panelPaddingY + baseHeight + SAVE_PANEL_GAP_PX + paneHeight
       );
       setPanelMinHeightPx((prev) => (prev === next ? prev : next));
     };
@@ -396,7 +520,7 @@ const TemplateManager = ({
   const varPairValidation = validateVarPair(
     config?.bottomTitle,
     config?.legendPrefix,
-    t,
+    t
   );
   const hasVarInputs =
     Boolean(String(config?.bottomTitle ?? "").trim()) ||
@@ -415,8 +539,7 @@ const TemplateManager = ({
       return;
     }
 
-    const message =
-      varPairValidation.message || t("da_invalidVarPair");
+    const message = varPairValidation.message || t("da_invalidVarPair");
     if (lastVarPairToastRef.current === message) return;
     lastVarPairToastRef.current = message;
     showToast(message, "warning");
@@ -432,7 +555,7 @@ const TemplateManager = ({
       setConfig((prev) => ({ ...prev, [field]: value }));
       markFieldSource(field, "picked");
     },
-    [markFieldSource, setConfig],
+    [markFieldSource, setConfig]
   );
 
   useEffect(() => {
@@ -450,7 +573,7 @@ const TemplateManager = ({
           showToast(
             t("da_loadTemplatesFailed", {
               error: err?.message || t("unknownError"),
-            }),
+            })
           );
         }
       }
@@ -504,7 +627,7 @@ const TemplateManager = ({
   const [selectionRects, setSelectionRects] = useState([]);
 
   const [columnWidthOverridesByFile, setColumnWidthOverridesByFile] = useState(
-    {},
+    {}
   );
   const columnResizeRafRef = useRef(0);
   const pendingColumnResizeRef = useRef(null);
@@ -512,6 +635,7 @@ const TemplateManager = ({
     fileId: null,
     widths: [],
     tableWidth: 0,
+    appliedWidthVarCount: 0,
   });
 
   useEffect(() => {
@@ -549,7 +673,7 @@ const TemplateManager = ({
       previewScrollRafRef.current = requestAnimationFrame(() => {
         previewScrollRafRef.current = 0;
         const scrollRow = Math.floor(
-          previewScrollTopRef.current / PREVIEW_ROW_HEIGHT_PX,
+          previewScrollTopRef.current / PREVIEW_ROW_HEIGHT_PX
         );
         const nextStart = Math.max(0, scrollRow - PREVIEW_OVERSCAN_ROWS);
         setPreviewStartRow((prev) => (prev === nextStart ? prev : nextStart));
@@ -558,15 +682,18 @@ const TemplateManager = ({
         setPreviewScrollLeft((prev) => (prev === nextLeft ? prev : nextLeft));
       });
     },
-    [PREVIEW_OVERSCAN_ROWS, PREVIEW_ROW_HEIGHT_PX],
+    [PREVIEW_OVERSCAN_ROWS, PREVIEW_ROW_HEIGHT_PX]
   );
 
   useEffect(() => {
     const el = previewScrollRef.current;
-    if (!el) return;
+    if (!el) return undefined;
 
     let rafId = 0;
-    let initRafId = 0;
+    let retryMeasureRafId = 0;
+    let retryMeasureCount = 0;
+    const MAX_MEASURE_RETRIES = 12;
+
     const commitSize = (height, width) => {
       setPreviewViewportHeight((prev) => (prev === height ? prev : height));
       setPreviewViewportWidth((prev) => (prev === width ? prev : width));
@@ -580,39 +707,63 @@ const TemplateManager = ({
       });
     };
 
-    const measure = () => {
+    const readViewportSize = () => {
       const rect = el.getBoundingClientRect();
-      scheduleCommit(Math.round(rect.height), Math.round(rect.width));
+      const height = Math.round(el.clientHeight || rect.height || 0);
+      const width = Math.round(el.clientWidth || rect.width || 0);
+      return { height, width };
     };
 
-    // Always do an eager measurement (and one more on the next frame). In some
-    // flex/conditional-render paths, ResizeObserver may not fire immediately,
-    // leaving viewport sizes stuck at 0 and causing the virtualized preview to
-    // render only a tiny window (e.g. ~42 rows / ~2 cols).
+    const queueRetryMeasure = () => {
+      if (retryMeasureRafId || retryMeasureCount >= MAX_MEASURE_RETRIES) return;
+      retryMeasureCount += 1;
+      retryMeasureRafId = requestAnimationFrame(() => {
+        retryMeasureRafId = 0;
+        measure();
+      });
+    };
+
+    const measure = () => {
+      const { height, width } = readViewportSize();
+      scheduleCommit(height, width);
+
+      // In some flex/conditional-render paths the scroll container mounts at
+      // 0x0 for a few frames. Keep probing briefly so virtualization does not
+      // lock into a tiny visible window and leave the rest of the panel blank.
+      if (height <= 0 || width <= 0) {
+        queueRetryMeasure();
+        return;
+      }
+
+      retryMeasureCount = 0;
+    };
+
     measure();
-    initRafId = requestAnimationFrame(measure);
+
+    const handleWindowResize = () => {
+      retryMeasureCount = 0;
+      measure();
+    };
 
     // Keep a window-resize fallback even when ResizeObserver exists.
-    window.addEventListener("resize", measure);
+    window.addEventListener("resize", handleWindowResize);
 
     let ro = null;
     if (typeof ResizeObserver !== "undefined") {
-      ro = new ResizeObserver((entries) => {
-        const entry = Array.isArray(entries) ? entries[0] : null;
-        const rect = entry?.contentRect;
-        if (!rect) return;
-        scheduleCommit(Math.round(rect.height), Math.round(rect.width));
+      ro = new ResizeObserver(() => {
+        retryMeasureCount = 0;
+        measure();
       });
       ro.observe(el);
     }
 
     return () => {
-      window.removeEventListener("resize", measure);
+      window.removeEventListener("resize", handleWindowResize);
       if (ro) ro.disconnect();
       if (rafId) cancelAnimationFrame(rafId);
-      if (initRafId) cancelAnimationFrame(initRafId);
+      if (retryMeasureRafId) cancelAnimationFrame(retryMeasureRafId);
     };
-  }, [previewFile?.fileId]);
+  }, [previewFile?.fileId, previewStatus?.state]);
 
   useEffect(() => {
     return () => {
@@ -627,18 +778,28 @@ const TemplateManager = ({
 
   useEffect(() => {
     // Preserve scroll position across file switches for easier cross-file comparison.
-    // Sync internal state to the DOM's current scrollTop (browser may clamp it).
+    // Sync internal state to the DOM's current scrollTop/Left (browser may clamp them).
     const el = previewScrollRef.current;
-    if (!el) return;
+    if (!el) return undefined;
 
-    requestAnimationFrame(() => {
+    let rafId = requestAnimationFrame(() => {
+      rafId = 0;
       const top = el.scrollTop || 0;
       const left = el.scrollLeft || 0;
       previewScrollTopRef.current = top;
       previewScrollLeftRef.current = left;
       handlePreviewScroll(top, left);
     });
-  }, [getPreviewRow, handlePreviewScroll, writeFieldFromPreview, previewFile?.columnCount]);
+
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, [
+    handlePreviewScroll,
+    previewFile?.columnCount,
+    previewFile?.fileId,
+    previewFile?.rowCount,
+  ]);
 
   const handleSaveTemplate = async () => {
     const name = config.name.trim();
@@ -671,8 +832,7 @@ const TemplateManager = ({
           saved,
           ...prev.filter(
             (t) =>
-              t?.id !== saved?.id &&
-              toTemplateNameKey(t?.name) !== savedNameKey,
+              t?.id !== saved?.id && toTemplateNameKey(t?.name) !== savedNameKey
           ),
         ];
       });
@@ -745,11 +905,7 @@ const TemplateManager = ({
 
       const startCell = String(rest.xDataStart ?? "").trim();
       const xDataEndRaw = normalizeXDataEndValue(rest.xDataEnd);
-      const xDataEnd = !xDataEndRaw
-        ? startCell
-          ? "End"
-          : ""
-        : xDataEndRaw;
+      const xDataEnd = !xDataEndRaw ? (startCell ? "End" : "") : xDataEndRaw;
       setConfig((prev) => ({
         ...prev,
         ...rest,
@@ -761,14 +917,17 @@ const TemplateManager = ({
       setSelectedTemplateId(template?.id ?? null);
       setIsDropdownOpen(false);
 
-      if (persist !== false && typeof onUpdateDeviceAnalysisSettings === "function") {
+      if (
+        persist !== false &&
+        typeof onUpdateDeviceAnalysisSettings === "function"
+      ) {
         void onUpdateDeviceAnalysisSettings({
           lastTemplateId: template?.id ?? null,
           stopOnErrorDefault: Boolean(template?.stopOnError),
         });
       }
     },
-    [onUpdateDeviceAnalysisSettings, setConfig, setSelectedTemplateId],
+    [onUpdateDeviceAnalysisSettings, setConfig, setSelectedTemplateId]
   );
 
   const discardUnsavedSaveEdits = useCallback(() => {
@@ -904,7 +1063,7 @@ const TemplateManager = ({
 
   const selectedColumnsSet = useMemo(
     () => new Set(config.selectedColumns),
-    [config.selectedColumns],
+    [config.selectedColumns]
   );
 
   const clampNumber = (value, min, max) => {
@@ -944,7 +1103,7 @@ const TemplateManager = ({
         widths[i] = clampNumber(
           override,
           PREVIEW_COL_RESIZE_MIN_PX,
-          PREVIEW_COL_RESIZE_MAX_PX,
+          PREVIEW_COL_RESIZE_MAX_PX
         );
         continue;
       }
@@ -953,23 +1112,75 @@ const TemplateManager = ({
     return widths;
   }, [autoColumnWidthsPx, columnCount, columnWidthOverrides]);
 
-  const columnStartOffsetsPx = useMemo(() => {
-    const offsets = new Array(columnCount + 1);
-    let total = 0;
-    offsets[0] = 0;
-    for (let i = 0; i < columnCount; i++) {
-      const w = Number(columnWidthsPx[i]) || PREVIEW_COL_MIN_PX;
-      total += w;
-      offsets[i + 1] = total;
-    }
-    return offsets;
-  }, [columnCount, columnWidthsPx]);
+  const previewColumnGeometry = useMemo(
+    () =>
+      buildPreviewColumnGeometry({
+        columnCount,
+        columnWidthsPx,
+        rowIndexWidthPx: PREVIEW_ROW_INDEX_COL_PX,
+        scrollLeft: previewScrollLeft,
+        viewportWidth: previewViewportWidth,
+        overscanPx: PREVIEW_COL_OVERSCAN_PX,
+        minColumnWidthPx: PREVIEW_COL_MIN_PX,
+      }),
+    [
+      PREVIEW_COL_MIN_PX,
+      PREVIEW_COL_OVERSCAN_PX,
+      PREVIEW_ROW_INDEX_COL_PX,
+      columnCount,
+      columnWidthsPx,
+      previewScrollLeft,
+      previewViewportWidth,
+    ]
+  );
 
-  const totalDataWidthPx = columnStartOffsetsPx[columnCount] ?? 0;
-  const previewTableWidthPx = PREVIEW_ROW_INDEX_COL_PX + totalDataWidthPx;
+  useLayoutEffect(() => {
+    const previousAppliedWidthVarCount =
+      Number(liveColumnLayoutRef.current?.appliedWidthVarCount) || 0;
+    const nextWidths = previewColumnGeometry.widthsPx.slice(0, columnCount);
+    const nextTableWidth = previewColumnGeometry.tableWidthPx;
+    const tableEl = previewTableRef.current;
+
+    if (tableEl) {
+      const maxVarCount = Math.max(
+        previousAppliedWidthVarCount,
+        nextWidths.length
+      );
+      for (let i = 0; i < maxVarCount; i++) {
+        if (i < nextWidths.length) {
+          const width = nextWidths[i] ?? PREVIEW_COL_MIN_PX;
+          tableEl.style.setProperty(`--da-preview-col-${i}-w`, `${width}px`);
+        } else {
+          tableEl.style.removeProperty(`--da-preview-col-${i}-w`);
+        }
+      }
+
+      if (Number.isFinite(nextTableWidth) && nextTableWidth > 0) {
+        tableEl.style.setProperty(
+          "--da-preview-table-width",
+          `${nextTableWidth}px`
+        );
+      } else {
+        tableEl.style.removeProperty("--da-preview-table-width");
+      }
+    }
+
+    liveColumnLayoutRef.current = {
+      fileId: previewFile?.fileId ?? null,
+      widths: nextWidths,
+      tableWidth: nextTableWidth,
+      appliedWidthVarCount: nextWidths.length,
+    };
+  }, [
+    PREVIEW_COL_MIN_PX,
+    columnCount,
+    previewColumnGeometry.tableWidthPx,
+    previewColumnGeometry.widthsPx,
+    previewFile?.fileId,
+  ]);
 
   const getColumnWidthPx = (colIndex) => {
-    return columnWidthsPx[colIndex] ?? PREVIEW_COL_MIN_PX;
+    return previewColumnGeometry.widthsPx[colIndex] ?? PREVIEW_COL_MIN_PX;
   };
 
   const initLiveColumnLayout = (fileId) => {
@@ -978,61 +1189,13 @@ const TemplateManager = ({
       return liveColumnLayoutRef.current;
     }
 
-    const widths = columnWidthsPx.slice(0, columnCount);
-    const tableWidth = previewTableWidthPx;
+    const widths = previewColumnGeometry.widthsPx.slice(0, columnCount);
+    const tableWidth = previewColumnGeometry.tableWidthPx;
 
     const next = { fileId, widths, tableWidth };
     liveColumnLayoutRef.current = next;
     return next;
   };
-
-  const previewColWindow = useMemo(() => {
-    if (!columnCount) {
-      return { startCol: 0, endCol: 0, leftSpacerPx: 0, rightSpacerPx: 0 };
-    }
-
-    const viewportWidth = previewViewportWidth || 0;
-    const dataViewportWidth = Math.max(0, viewportWidth - PREVIEW_ROW_INDEX_COL_PX);
-    const scrollLeft = Math.max(0, previewScrollLeft || 0);
-
-    const left = Math.max(0, scrollLeft - PREVIEW_COL_OVERSCAN_PX);
-    const right = Math.min(
-      totalDataWidthPx,
-      scrollLeft + dataViewportWidth + PREVIEW_COL_OVERSCAN_PX,
-    );
-
-    let startCol = lowerBound(columnStartOffsetsPx, left);
-    if (startCol > 0) startCol -= 1;
-    startCol = Math.max(0, Math.min(columnCount - 1, startCol));
-
-    let endCol = lowerBound(columnStartOffsetsPx, right);
-    endCol = Math.max(startCol + 1, Math.min(columnCount, endCol));
-
-    return {
-      startCol,
-      endCol,
-      leftSpacerPx: Math.max(0, Number(columnStartOffsetsPx[startCol]) || 0),
-      rightSpacerPx: Math.max(
-        0,
-        totalDataWidthPx - (Number(columnStartOffsetsPx[endCol]) || 0),
-      ),
-    };
-  }, [
-    PREVIEW_COL_OVERSCAN_PX,
-    PREVIEW_ROW_INDEX_COL_PX,
-    columnCount,
-    columnStartOffsetsPx,
-    previewScrollLeft,
-    previewViewportWidth,
-    totalDataWidthPx,
-  ]);
-
-  const visibleColumnIndices = useMemo(() => {
-    const start = Math.max(0, Math.floor(Number(previewColWindow.startCol) || 0));
-    const end = Math.max(start, Math.floor(Number(previewColWindow.endCol) || 0));
-    const len = Math.max(0, end - start);
-    return Array.from({ length: len }, (_, i) => start + i);
-  }, [previewColWindow.endCol, previewColWindow.startCol]);
 
   const applyColumnWidthToDom = (fileId, colIndex, width) => {
     if (!fileId) return;
@@ -1047,7 +1210,7 @@ const TemplateManager = ({
     const clamped = clampNumber(
       width,
       PREVIEW_COL_RESIZE_MIN_PX,
-      PREVIEW_COL_RESIZE_MAX_PX,
+      PREVIEW_COL_RESIZE_MAX_PX
     );
 
     if (!Number.isFinite(prevWidth) || prevWidth <= 0) {
@@ -1065,7 +1228,7 @@ const TemplateManager = ({
     if (Number.isFinite(current.tableWidth) && current.tableWidth > 0) {
       tableEl.style.setProperty(
         "--da-preview-table-width",
-        `${current.tableWidth}px`,
+        `${current.tableWidth}px`
       );
     }
   };
@@ -1126,7 +1289,7 @@ const TemplateManager = ({
 
     const startX = event.clientX;
     const startWidthRaw = Number(
-      liveColumnLayoutRef.current?.widths?.[colIndex],
+      liveColumnLayoutRef.current?.widths?.[colIndex]
     );
     const startWidth = Number.isFinite(startWidthRaw)
       ? startWidthRaw
@@ -1199,12 +1362,12 @@ const TemplateManager = ({
     const viewportHeight = previewViewportHeight || 500;
     const visibleCount = Math.max(
       1,
-      Math.ceil(viewportHeight / PREVIEW_ROW_HEIGHT_PX),
+      Math.ceil(viewportHeight / PREVIEW_ROW_HEIGHT_PX)
     );
     const startRow = Math.max(0, Math.min(totalRows - 1, previewStartRow));
     const endRow = Math.max(
       startRow + 1,
-      Math.min(totalRows, startRow + visibleCount + PREVIEW_OVERSCAN_ROWS * 2),
+      Math.min(totalRows, startRow + visibleCount + PREVIEW_OVERSCAN_ROWS * 2)
     );
 
     return {
@@ -1216,14 +1379,6 @@ const TemplateManager = ({
     };
   })();
 
-  const hasLeftColSpacer = previewColWindow.leftSpacerPx > 0;
-  const hasRightColSpacer = previewColWindow.rightSpacerPx > 0;
-  const previewRenderColCount =
-    1 +
-    (hasLeftColSpacer ? 1 : 0) +
-    visibleColumnIndices.length +
-    (hasRightColSpacer ? 1 : 0);
-
   useEffect(() => {
     if (!previewFile?.fileId) return;
     if (typeof ensurePreviewRows !== "function") return;
@@ -1232,7 +1387,7 @@ const TemplateManager = ({
     void ensurePreviewRows(
       previewFile.fileId,
       previewWindow.startRow,
-      previewWindow.endRow,
+      previewWindow.endRow
     );
   }, [
     ensurePreviewRows,
@@ -1304,18 +1459,19 @@ const TemplateManager = ({
       const gridEl = gridRef.current;
       if (gridEl) {
         const startCellEl = gridEl.querySelector(
-          `td[data-row="${startRow}"][data-col="${startCol}"]`,
+          `td[data-row="${startRow}"][data-col="${startCol}"]`
         );
         const endCellEl = gridEl.querySelector(
-          `td[data-row="${endRow}"][data-col="${endCol}"]`,
+          `td[data-row="${endRow}"][data-col="${endCol}"]`
         );
         if (startCellEl && endCellEl) {
           return getRectFromCells(startCellEl, endCellEl);
         }
       }
 
-      const colStart = columnStartOffsetsPx[startCol] ?? 0;
-      const colEnd = columnStartOffsetsPx[endCol + 1] ?? colStart;
+      const startOffsetsPx = previewColumnGeometry.startOffsetsPx;
+      const colStart = startOffsetsPx[startCol] ?? 0;
+      const colEnd = startOffsetsPx[endCol + 1] ?? colStart;
 
       const headerHeight = (() => {
         const thead = previewTableRef.current?.tHead;
@@ -1323,7 +1479,8 @@ const TemplateManager = ({
         const h = row?.getBoundingClientRect?.().height;
         return Number.isFinite(h) && h > 0 ? h : PREVIEW_ROW_HEIGHT_PX;
       })();
-      const rowTop = headerHeight + Math.max(0, startRow) * PREVIEW_ROW_HEIGHT_PX;
+      const rowTop =
+        headerHeight + Math.max(0, startRow) * PREVIEW_ROW_HEIGHT_PX;
       const rowBottom =
         headerHeight + (Math.max(0, endRow) + 1) * PREVIEW_ROW_HEIGHT_PX;
 
@@ -1340,9 +1497,9 @@ const TemplateManager = ({
     [
       PREVIEW_ROW_HEIGHT_PX,
       PREVIEW_ROW_INDEX_COL_PX,
-      columnStartOffsetsPx,
       getRectFromCells,
-    ],
+      previewColumnGeometry.startOffsetsPx,
+    ]
   );
 
   useLayoutEffect(() => {
@@ -1385,8 +1542,8 @@ const TemplateManager = ({
     };
   }, [
     getRectFromRange,
-    previewColWindow.endCol,
-    previewColWindow.startCol,
+    previewColumnGeometry.window.endCol,
+    previewColumnGeometry.window.startCol,
     previewFile?.fileId,
     previewWindow.endRow,
     previewWindow.startRow,
@@ -1404,7 +1561,7 @@ const TemplateManager = ({
       overlay.style.width = `${rect.width}px`;
       overlay.style.height = `${rect.height}px`;
     },
-    [getRectFromCells],
+    [getRectFromCells]
   );
 
   const clearSelection = useCallback(() => {
@@ -1478,7 +1635,7 @@ const TemplateManager = ({
       renderDragOverlay,
       resolvePreviewPickFieldName,
       writeFieldFromPreview,
-    ],
+    ]
   );
 
   useEffect(() => {
@@ -1619,9 +1776,9 @@ const TemplateManager = ({
           ensurePreviewRows(
             previewFile.fileId,
             range.startRow,
-            range.endRow + 1,
-          ),
-        ),
+            range.endRow + 1
+          )
+        )
       );
     }
 
@@ -1664,7 +1821,9 @@ const TemplateManager = ({
             <div>
               <Input
                 id={
-                  includeIds ? "device-analysis-template-x-data-start" : undefined
+                  includeIds
+                    ? "device-analysis-template-x-data-start"
+                    : undefined
                 }
                 name="xDataStart"
                 value={config.xDataStart}
@@ -1678,7 +1837,9 @@ const TemplateManager = ({
             </div>
             <div>
               <Input
-                id={includeIds ? "device-analysis-template-x-data-end" : undefined}
+                id={
+                  includeIds ? "device-analysis-template-x-data-end" : undefined
+                }
                 name="xDataEnd"
                 value={config.xDataEnd}
                 disabled={saveIsSelectMode}
@@ -1706,7 +1867,9 @@ const TemplateManager = ({
             </div>
             <div>
               <Input
-                id={includeIds ? "device-analysis-template-x-points" : undefined}
+                id={
+                  includeIds ? "device-analysis-template-x-points" : undefined
+                }
                 name="xPoints"
                 value={config.xPoints}
                 disabled={saveIsSelectMode}
@@ -1738,10 +1901,10 @@ const TemplateManager = ({
                   value={
                     config.selectedColumns.length > 0
                       ? config.selectedColumns
-                        .slice()
-                        .sort((a, b) => a - b)
-                        .map((col) => getExcelColumnLabel(col))
-                        .join(", ")
+                          .slice()
+                          .sort((a, b) => a - b)
+                          .map((col) => getExcelColumnLabel(col))
+                          .join(", ")
                       : ""
                   }
                   placeholder={t("da_save_check_columns")}
@@ -1751,7 +1914,9 @@ const TemplateManager = ({
               </div>
               <div className="min-w-0">
                 <Input
-                  id={includeIds ? "device-analysis-template-y-points" : undefined}
+                  id={
+                    includeIds ? "device-analysis-template-y-points" : undefined
+                  }
                   value={config.xPoints || config.yPoints}
                   name="yPoints"
                   disabled={saveIsSelectMode || !!config.xPoints}
@@ -1791,7 +1956,9 @@ const TemplateManager = ({
               </div>
               <div className="min-w-0">
                 <Input
-                  id={includeIds ? "device-analysis-template-y-count" : undefined}
+                  id={
+                    includeIds ? "device-analysis-template-y-count" : undefined
+                  }
                   value={config.yCount}
                   name="yCount"
                   disabled={saveIsSelectMode}
@@ -1805,7 +1972,9 @@ const TemplateManager = ({
               </div>
               <div className="min-w-0">
                 <Input
-                  id={includeIds ? "device-analysis-template-y-step" : undefined}
+                  id={
+                    includeIds ? "device-analysis-template-y-step" : undefined
+                  }
                   value={config.yStep}
                   name="yStep"
                   disabled={saveIsSelectMode}
@@ -1970,7 +2139,9 @@ const TemplateManager = ({
                 className="input_native no-focus-outline"
               />
               <Button
-                id={includeIds ? "device-analysis-template-save-btn" : undefined}
+                id={
+                  includeIds ? "device-analysis-template-save-btn" : undefined
+                }
                 type="button"
                 onClick={handleSaveTemplate}
                 disabled={!config.name.trim()}
@@ -1990,7 +2161,10 @@ const TemplateManager = ({
     </div>
   );
 
-  const renderSelectPane = ({ includeIds = true, measureOnly = false } = {}) => {
+  const renderSelectPane = ({
+    includeIds = true,
+    measureOnly = false,
+  } = {}) => {
     const shouldAttachDropdownRef = includeIds && !measureOnly;
     const shouldRenderDropdownMenu = includeIds && !measureOnly;
     const resolvedInputId = includeIds
@@ -2010,15 +2184,17 @@ const TemplateManager = ({
             ref={shouldAttachDropdownRef ? dropdownRef : null}
           >
             <div
-              id={includeIds ? "device-analysis-template-input-field" : undefined}
+              id={
+                includeIds ? "device-analysis-template-input-field" : undefined
+              }
               className="input_field input_field--xl relative flex-1 min-w-0 pr-1"
               data-state="enable"
               {...(includeIds
                 ? {
-                  "data-cta": "Device Analysis",
-                  "data-cta-position": "template-dropdown",
-                  "data-cta-copy": "template name",
-                }
+                    "data-cta": "Device Analysis",
+                    "data-cta-position": "template-dropdown",
+                    "data-cta-copy": "template name",
+                  }
                 : {})}
             >
               <button
@@ -2027,17 +2203,21 @@ const TemplateManager = ({
                 aria-haspopup={includeIds ? "menu" : undefined}
                 aria-expanded={includeIds ? isDropdownOpen : undefined}
                 aria-controls={
-                  includeIds ? "device-analysis-template-dropdown-menu" : undefined
+                  includeIds
+                    ? "device-analysis-template-dropdown-menu"
+                    : undefined
                 }
                 aria-label={includeIds ? t("da_template_name") : undefined}
                 onMouseDown={
                   measureOnly
                     ? undefined
                     : (e) => {
-                      if (e.detail > 1) e.preventDefault();
-                    }
+                        if (e.detail > 1) e.preventDefault();
+                      }
                 }
-                onDoubleClick={measureOnly ? undefined : (e) => e.preventDefault()}
+                onDoubleClick={
+                  measureOnly ? undefined : (e) => e.preventDefault()
+                }
                 onClick={
                   measureOnly
                     ? undefined
@@ -2047,25 +2227,27 @@ const TemplateManager = ({
                   measureOnly
                     ? undefined
                     : (e) => {
-                      if (e.key === "Escape") {
-                        setIsDropdownOpen(false);
-                        return;
-                      }
+                        if (e.key === "Escape") {
+                          setIsDropdownOpen(false);
+                          return;
+                        }
 
-                      if (
-                        e.key === "Enter" ||
-                        e.key === " " ||
-                        e.key === "ArrowDown"
-                      ) {
-                        e.preventDefault();
-                        setIsDropdownOpen(true);
+                        if (
+                          e.key === "Enter" ||
+                          e.key === " " ||
+                          e.key === "ArrowDown"
+                        ) {
+                          e.preventDefault();
+                          setIsDropdownOpen(true);
+                        }
                       }
-                    }
                 }
                 className="input_native no-focus-outline p-0 pr-8 text-left cursor-pointer select-none"
               >
                 <span
-                  className={`block truncate ${hasDisplayName ? "text-text-primary" : "text-text-tertiary"}`}
+                  className={`block truncate ${
+                    hasDisplayName ? "text-text-primary" : "text-text-tertiary"
+                  }`}
                 >
                   {hasDisplayName ? displayName : t("da_template_name")}
                 </span>
@@ -2074,7 +2256,9 @@ const TemplateManager = ({
               <span className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-secondary pointer-events-none">
                 <ChevronDown
                   size={16}
-                  className={`transition-transform duration-200 ${isDropdownOpen ? "rotate-180" : ""}`}
+                  className={`transition-transform duration-200 ${
+                    isDropdownOpen ? "rotate-180" : ""
+                  }`}
                 />
               </span>
             </div>
@@ -2096,7 +2280,9 @@ const TemplateManager = ({
                     setIsDropdownOpen(false);
                     setSelectedTemplateId(null);
                     if (typeof onUpdateDeviceAnalysisSettings === "function") {
-                      void onUpdateDeviceAnalysisSettings({ lastTemplateId: null });
+                      void onUpdateDeviceAnalysisSettings({
+                        lastTemplateId: null,
+                      });
                     }
                     setInputSources({});
                     setConfig({
@@ -2109,7 +2295,9 @@ const TemplateManager = ({
                       yPoints: "",
                       yCount: "",
                       yStep: "",
-                      stopOnError: Boolean(deviceAnalysisSettings?.stopOnErrorDefault),
+                      stopOnError: Boolean(
+                        deviceAnalysisSettings?.stopOnErrorDefault
+                      ),
                       bottomTitle: "",
                       leftTitle: "",
                       legendPrefix: "",
@@ -2169,7 +2357,9 @@ const TemplateManager = ({
 
         <div className="flex items-center gap-3">
           <Button
-            id={includeIds ? "device-analysis-template-apply-to-all" : undefined}
+            id={
+              includeIds ? "device-analysis-template-apply-to-all" : undefined
+            }
             variant="primary"
             size="md"
             className="flex-1"
@@ -2178,7 +2368,9 @@ const TemplateManager = ({
             {t("da_apply_to_all_files")}
           </Button>
           <Button
-            id={includeIds ? "device-analysis-template-apply-to-new" : undefined}
+            id={
+              includeIds ? "device-analysis-template-apply-to-new" : undefined
+            }
             variant="secondary"
             size="md"
             className="flex-1"
@@ -2191,24 +2383,26 @@ const TemplateManager = ({
 
         <div
           id={
-            includeIds ? "device-analysis-stop-on-first-invalid-toggle" : undefined
+            includeIds
+              ? "device-analysis-stop-on-first-invalid-toggle"
+              : undefined
           }
           onClick={
             measureOnly
               ? undefined
               : () =>
-                setConfig((prev) => {
-                  const nextStopOnError = !prev.stopOnError;
-                  if (typeof onUpdateDeviceAnalysisSettings === "function") {
-                    void onUpdateDeviceAnalysisSettings({
-                      stopOnErrorDefault: nextStopOnError,
-                    });
-                  }
-                  return {
-                    ...prev,
-                    stopOnError: nextStopOnError,
-                  };
-                })
+                  setConfig((prev) => {
+                    const nextStopOnError = !prev.stopOnError;
+                    if (typeof onUpdateDeviceAnalysisSettings === "function") {
+                      void onUpdateDeviceAnalysisSettings({
+                        stopOnErrorDefault: nextStopOnError,
+                      });
+                    }
+                    return {
+                      ...prev,
+                      stopOnError: nextStopOnError,
+                    };
+                  })
           }
           className="flex items-center gap-2 text-sm text-text-secondary select-none cursor-pointer group w-fit"
         >
@@ -2237,8 +2431,10 @@ const TemplateManager = ({
   );
 
   return (
-    <section aria-label={t("da_data_extraction_template")} className="flex flex-col flex-1 w-full h-full min-h-0">
-
+    <section
+      aria-label={t("da_data_extraction_template")}
+      className="flex flex-col flex-1 w-full h-full min-h-0"
+    >
       <Card
         ref={containerRef}
         id="device-analysis-template-manager"
@@ -2279,7 +2475,8 @@ const TemplateManager = ({
 
                       if (val === "save") {
                         saveDraftTouchedRef.current = false;
-                        saveDraftBaseConfigRef.current = cloneTemplateConfig(config);
+                        saveDraftBaseConfigRef.current =
+                          cloneTemplateConfig(config);
                         setIsDropdownOpen(false);
                       }
 
@@ -2325,7 +2522,10 @@ const TemplateManager = ({
                 aria-labelledby="device-analysis-template-mode-tab-save"
                 hidden={templateMode !== "save"}
               >
-                {renderSavePane({ includeIds: true, selectModeForDisabled: isSelectMode })}
+                {renderSavePane({
+                  includeIds: true,
+                  selectModeForDisabled: isSelectMode,
+                })}
               </div>
 
               <div
@@ -2343,7 +2543,6 @@ const TemplateManager = ({
               >
                 {renderSavePane({ includeIds: false })}
               </div>
-
             </div>
           </div>
 
@@ -2395,10 +2594,12 @@ const TemplateManager = ({
                 onScroll={(e) =>
                   handlePreviewScroll(
                     e.currentTarget.scrollTop,
-                    e.currentTarget.scrollLeft,
+                    e.currentTarget.scrollLeft
                   )
                 }
-                className={`flex-1 min-h-0 overflow-auto border border-border rounded custom-scrollbar ${isColumnResizing ? "cursor-col-resize select-none" : ""}`}
+                className={`flex-1 min-h-0 overflow-auto border border-border rounded custom-scrollbar ${
+                  isColumnResizing ? "cursor-col-resize select-none" : ""
+                }`}
               >
                 <div
                   ref={gridRef}
@@ -2431,87 +2632,104 @@ const TemplateManager = ({
                     ref={previewTableRef}
                     className="text-sm text-left relative border-separate border-spacing-0 z-10 table-fixed"
                     style={{
-                      width: `var(--da-preview-table-width, ${previewTableWidthPx}px)`,
+                      width: `var(--da-preview-table-width, ${previewColumnGeometry.tableWidthPx}px)`,
                       tableLayout: "fixed",
                     }}
                   >
                     <colgroup>
                       <col style={{ width: PREVIEW_ROW_INDEX_COL_PX }} />
-                      {hasLeftColSpacer && (
-                        <col style={{ width: previewColWindow.leftSpacerPx }} />
+                      {previewColumnGeometry.hasLeftSpacer && (
+                        <col
+                          style={{
+                            width: previewColumnGeometry.window.leftSpacerPx,
+                          }}
+                        />
                       )}
-                      {visibleColumnIndices.map((idx) => (
+                      {previewColumnGeometry.visibleColumnIndices.map((idx) => (
                         <col
                           key={idx}
                           style={{
-                            width: `var(--da-preview-col-${idx}-w, ${columnWidthsPx[idx] ?? PREVIEW_COL_MIN_PX}px)`,
+                            width: `var(--da-preview-col-${idx}-w, ${
+                              previewColumnGeometry.widthsPx[idx] ??
+                              PREVIEW_COL_MIN_PX
+                            }px)`,
                           }}
                         />
                       ))}
-                      {hasRightColSpacer && (
-                        <col style={{ width: previewColWindow.rightSpacerPx }} />
+                      {previewColumnGeometry.hasRightSpacer && (
+                        <col
+                          style={{
+                            width: previewColumnGeometry.window.rightSpacerPx,
+                          }}
+                        />
                       )}
                     </colgroup>
                     <thead className="bg-bg-surface sticky top-0 z-30 shadow-sm">
                       <tr>
                         <th className="p-1 border-b border-r border-border bg-bg-surface w-12 text-center font-bold text-xs text-text-secondary select-none sticky left-0 top-0 z-40"></th>
-                        {hasLeftColSpacer && (
+                        {previewColumnGeometry.hasLeftSpacer && (
                           <th
                             aria-hidden="true"
                             className="p-0 border-b border-r border-border bg-bg-surface"
                           />
                         )}
-                        {visibleColumnIndices.map((idx) => {
-                          const isSelected = selectedColumnsSet.has(idx);
-                          return (
-                            <th
-                              key={idx}
-                              onClick={() => toggleColumn(idx)}
-                              className={`px-2 py-1 border-b border-border border-r last:border-r-0 font-mono text-xs whitespace-nowrap bg-bg-surface font-semibold text-center select-none cursor-pointer relative pr-3 overflow-hidden ${isSelected ? "text-accent bg-accent/10 border-accent/30" : "text-text-secondary hover:bg-bg-page/60"}`}
-                              title="Click to toggle Y column"
-                            >
-                              <div
-                                className="flex items-center justify-center gap-2 cursor-pointer group"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleColumn(idx);
-                                }}
+                        {previewColumnGeometry.visibleColumnIndices.map(
+                          (idx) => {
+                            const isSelected = selectedColumnsSet.has(idx);
+                            return (
+                              <th
+                                key={idx}
+                                onClick={() => toggleColumn(idx)}
+                                className={`px-2 py-1 border-b border-border border-r last:border-r-0 font-mono text-xs whitespace-nowrap bg-bg-surface font-semibold text-center select-none cursor-pointer relative pr-3 overflow-hidden ${
+                                  isSelected
+                                    ? "text-accent bg-accent/10 border-accent/30"
+                                    : "text-text-secondary hover:bg-bg-page/60"
+                                }`}
+                                title="Click to toggle Y column"
                               >
-                                <div className="relative flex items-center justify-center w-4 h-4">
-                                  {isSelected ? (
-                                    <div className="w-3.5 h-3.5 rounded bg-accent-terracotta border border-accent-terracotta flex items-center justify-center transition-all">
-                                      <Check
-                                        size={10}
-                                        className="text-white"
-                                        strokeWidth={4}
-                                      />
-                                    </div>
-                                  ) : (
-                                    <div className="w-3.5 h-3.5 rounded border border-border-200 group-hover:border-accent-terracotta/50 transition-colors bg-bg-surface" />
-                                  )}
+                                <div
+                                  className="flex items-center justify-center gap-2 cursor-pointer group"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleColumn(idx);
+                                  }}
+                                >
+                                  <div className="relative flex items-center justify-center w-4 h-4">
+                                    {isSelected ? (
+                                      <div className="w-3.5 h-3.5 rounded bg-accent-terracotta border border-accent-terracotta flex items-center justify-center transition-all">
+                                        <Check
+                                          size={10}
+                                          className="text-white"
+                                          strokeWidth={4}
+                                        />
+                                      </div>
+                                    ) : (
+                                      <div className="w-3.5 h-3.5 rounded border border-border-200 group-hover:border-accent-terracotta/50 transition-colors bg-bg-surface" />
+                                    )}
+                                  </div>
+                                  <span>{getExcelColumnLabel(idx)}</span>
                                 </div>
-                                <span>{getExcelColumnLabel(idx)}</span>
-                              </div>
-                              <div
-                                role="separator"
-                                aria-orientation="vertical"
-                                title="Drag to resize • Double-click to reset"
-                                onPointerDown={(e) =>
-                                  handleColumnResizeStart(e, idx)
-                                }
-                                onClick={(e) => e.stopPropagation()}
-                                onDoubleClick={(e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  if (!previewFile?.fileId) return;
-                                  resetColumnWidth(previewFile.fileId, idx);
-                                }}
-                                className="absolute top-0 right-0 h-full w-3 cursor-col-resize select-none hover:bg-accent/20 touch-none"
-                              />
-                            </th>
-                          );
-                        })}
-                        {hasRightColSpacer && (
+                                <div
+                                  role="separator"
+                                  aria-orientation="vertical"
+                                  title="Drag to resize • Double-click to reset"
+                                  onPointerDown={(e) =>
+                                    handleColumnResizeStart(e, idx)
+                                  }
+                                  onClick={(e) => e.stopPropagation()}
+                                  onDoubleClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    if (!previewFile?.fileId) return;
+                                    resetColumnWidth(previewFile.fileId, idx);
+                                  }}
+                                  className="absolute top-0 right-0 h-full w-3 cursor-col-resize select-none hover:bg-accent/20 touch-none"
+                                />
+                              </th>
+                            );
+                          }
+                        )}
+                        {previewColumnGeometry.hasRightSpacer && (
                           <th
                             aria-hidden="true"
                             className="p-0 border-b border-border bg-bg-surface"
@@ -2523,10 +2741,7 @@ const TemplateManager = ({
                       subscribePreviewRowsVersion={subscribePreviewRowsVersion}
                       getPreviewRowsVersion={getPreviewRowsVersion}
                       previewWindow={previewWindow}
-                      previewRenderColCount={previewRenderColCount}
-                      hasLeftColSpacer={hasLeftColSpacer}
-                      hasRightColSpacer={hasRightColSpacer}
-                      visibleColumnIndices={visibleColumnIndices}
+                      columnGeometry={previewColumnGeometry}
                       selectedColumnsSet={selectedColumnsSet}
                       getPreviewRow={getPreviewRow}
                       handleCellMouseDown={handleCellMouseDown}

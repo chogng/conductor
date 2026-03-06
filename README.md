@@ -67,12 +67,14 @@ npm run make:icons
 
 ## Origin Offline Workers
 
-This project supports offline-native Origin workers built via `uv + pyinstaller`:
+This project supports offline-native Origin workers built via `pyinstaller`:
 
 - `origin-zip-worker.exe` for single ZIP import/plot (`Open in Origin`)
 - `origin-batch-worker.exe` for folder batch processing
 
 The worker build toolchain uses a project-local Python virtual environment by default:
+
+Build scripts prefer `uv` if available, otherwise fall back to `python -m venv` + `pip`.
 
 - `.venv-origin-workers/` (gitignored)
 
