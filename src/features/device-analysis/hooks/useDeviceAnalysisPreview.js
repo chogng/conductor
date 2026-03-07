@@ -324,6 +324,12 @@ export const useDeviceAnalysisPreview = ({
     return worker;
   }, [handlePreviewWorkerMessage, previewWorkerRef]);
 
+  // Avoid paying worker startup cost on app cold start before preview is needed.
+  const getOrCreatePreviewWorker = useCallback(() => {
+    if (previewWorkerRef.current) return previewWorkerRef.current;
+    return createPreviewWorker();
+  }, [createPreviewWorker, previewWorkerRef]);
+
   const resetPreviewWorker = useCallback(() => {
     cancelPendingPreviewRowRequests();
 
@@ -331,17 +337,7 @@ export const useDeviceAnalysisPreview = ({
       previewWorkerRef.current.terminate();
       previewWorkerRef.current = null;
     }
-
-    createPreviewWorker();
-  }, [cancelPendingPreviewRowRequests, createPreviewWorker, previewWorkerRef]);
-
-  useEffect(() => {
-    if (previewWorkerRef.current) return undefined;
-
-    createPreviewWorker();
-
-    return undefined;
-  }, [createPreviewWorker, previewWorkerRef]);
+  }, [cancelPendingPreviewRowRequests, previewWorkerRef]);
 
   useEffect(() => {
     if (!rawData.length) {
@@ -359,7 +355,7 @@ export const useDeviceAnalysisPreview = ({
     if (!targetFile?.file || !targetFile?.fileId) return;
     if (previewFile?.fileId === targetFile.fileId) return;
 
-    const worker = previewWorkerRef.current;
+    const worker = getOrCreatePreviewWorker();
     if (!worker) return;
 
     const requestId = previewRequestIdRef.current + 1;
@@ -389,6 +385,7 @@ export const useDeviceAnalysisPreview = ({
     rawDataById,
     setPreviewStatus,
     t,
+    getOrCreatePreviewWorker,
   ]);
 
   const getPreviewRow = useCallback(
@@ -402,7 +399,7 @@ export const useDeviceAnalysisPreview = ({
 
   const requestPreviewRowsRange = useCallback(
     (fileId, startRow, endRow) => {
-      const worker = previewWorkerRef.current;
+      const worker = getOrCreatePreviewWorker();
       if (!worker || !fileId) return Promise.resolve([]);
 
       const requestId = previewRowsRequestIdRef.current + 1;
@@ -424,7 +421,11 @@ export const useDeviceAnalysisPreview = ({
         });
       });
     },
-    [previewRowsRequestIdRef, previewRowsRequestsRef, previewWorkerRef],
+    [
+      getOrCreatePreviewWorker,
+      previewRowsRequestIdRef,
+      previewRowsRequestsRef,
+    ],
   );
 
   const ensurePreviewRows = useCallback(

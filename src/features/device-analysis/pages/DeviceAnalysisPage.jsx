@@ -66,11 +66,15 @@ const DeviceAnalysisPage = () => {
   const importerRef = useRef(null);
   const [activePage, setActivePage] = useState("data");
   const [hasVisitedAnalysisPage, setHasVisitedAnalysisPage] = useState(false);
+  const [hasVisitedSettingsPage, setHasVisitedSettingsPage] = useState(false);
   const { isResizing, sidebarWidth, startResizing } = useResizableSidebar();
 
   const navigateToPage = useCallback((nextPage) => {
     if (nextPage === "analysis") {
       setHasVisitedAnalysisPage(true);
+    }
+    if (nextPage === "settings") {
+      setHasVisitedSettingsPage(true);
     }
 
     setActivePage(nextPage);
@@ -210,6 +214,10 @@ const DeviceAnalysisPage = () => {
   const isDataPageActive = activePage === "data";
   const isAnalysisPageActive = activePage === "analysis";
   const isSettingsPageActive = activePage === "settings";
+  // Defer non-data tab trees until first visit to reduce cold-start mount work.
+  const shouldMountAnalysisPanel = isAnalysisPageActive || hasVisitedAnalysisPage;
+  const shouldMountSettingsPanel =
+    isSettingsPageActive || hasVisitedSettingsPage;
 
   const handlePageTabSelect = useCallback((nextPage) => {
     if (
@@ -313,22 +321,26 @@ const DeviceAnalysisPage = () => {
           }`}
         >
           <div className="da_page_scroll h-full min-h-0 overflow-hidden p-1 pt-0">
-            <DeviceAnalysisAnalysisPanel
-              processedData={processedData}
-              processingStatus={processingStatus}
-              shouldMountCharts={isAnalysisPageActive || hasVisitedAnalysisPage}
-              setSsDiagnosticsEnabled={setSsDiagnosticsEnabled}
-              setSsIdWindow={setSsIdWindow}
-              setSsManualRanges={setSsManualRanges}
-              setSsMethod={setSsMethod}
-              setSsShowFitLine={setSsShowFitLine}
-              ssDiagnosticsEnabled={ssDiagnosticsEnabled}
-              ssIdWindow={ssIdWindow}
-              ssManualRanges={ssManualRanges}
-              ssMethod={ssMethod}
-              ssShowFitLine={ssShowFitLine}
-              t={t}
-            />
+            {shouldMountAnalysisPanel ? (
+              <DeviceAnalysisAnalysisPanel
+                processedData={processedData}
+                processingStatus={processingStatus}
+                shouldMountCharts={
+                  isAnalysisPageActive || hasVisitedAnalysisPage
+                }
+                setSsDiagnosticsEnabled={setSsDiagnosticsEnabled}
+                setSsIdWindow={setSsIdWindow}
+                setSsManualRanges={setSsManualRanges}
+                setSsMethod={setSsMethod}
+                setSsShowFitLine={setSsShowFitLine}
+                ssDiagnosticsEnabled={ssDiagnosticsEnabled}
+                ssIdWindow={ssIdWindow}
+                ssManualRanges={ssManualRanges}
+                ssMethod={ssMethod}
+                ssShowFitLine={ssShowFitLine}
+                t={t}
+              />
+            ) : null}
           </div>
         </section>
 
@@ -344,19 +356,21 @@ const DeviceAnalysisPage = () => {
               : "pointer-events-none opacity-0"
           }`}
         >
-          <ScrollArea
-            className="da_page_scroll h-full min-h-0"
-            viewportClassName="p-1 pt-0"
-            axis="y"
-          >
-            <DeviceAnalysisSettingsPanel
-              language={language}
-              onLanguageChange={handleLanguageChange}
-              originSettings={originSettings}
-              storageSettings={storageSettings}
-              t={t}
-            />
-          </ScrollArea>
+          {shouldMountSettingsPanel ? (
+            <ScrollArea
+              className="da_page_scroll h-full min-h-0"
+              viewportClassName="p-1 pt-0"
+              axis="y"
+            >
+              <DeviceAnalysisSettingsPanel
+                language={language}
+                onLanguageChange={handleLanguageChange}
+                originSettings={originSettings}
+                storageSettings={storageSettings}
+                t={t}
+              />
+            </ScrollArea>
+          ) : null}
         </section>
       </div>
     </div>
