@@ -62,6 +62,70 @@ import {
 
 import MainPlotChart from "./analysis-charts/MainPlotChart";
 
+const useContainerSizeReady = (containerRef, enabled = true) => {
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let rafId = 0;
+
+    const scheduleReset = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        rafId = 0;
+        setReady((prev) => (prev ? false : prev));
+      });
+    };
+
+    if (!enabled) {
+      scheduleReset();
+      return () => {
+        if (rafId) cancelAnimationFrame(rafId);
+      };
+    }
+
+    const element = containerRef.current;
+    if (!element) {
+      scheduleReset();
+      return () => {
+        if (rafId) cancelAnimationFrame(rafId);
+      };
+    }
+
+    const commit = () => {
+      const rect = element.getBoundingClientRect();
+      const width = Math.round(element.clientWidth || rect.width || 0);
+      const height = Math.round(element.clientHeight || rect.height || 0);
+      const nextReady = width > 0 && height > 0;
+      setReady((prev) => (prev === nextReady ? prev : nextReady));
+    };
+
+    const scheduleCommit = () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        rafId = 0;
+        commit();
+      });
+    };
+
+    scheduleCommit();
+
+    let ro = null;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(() => scheduleCommit());
+      ro.observe(element);
+    }
+
+    window.addEventListener("resize", scheduleCommit);
+    return () => {
+      window.removeEventListener("resize", scheduleCommit);
+      if (ro) ro.disconnect();
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, [containerRef, enabled]);
+
+  return enabled && ready;
+};
+
 const AnalysisCharts = ({
   processedData,
   processingStatus,
@@ -114,6 +178,8 @@ const AnalysisCharts = ({
     type: "success",
   });
   const toastContainerRef = useRef(null);
+  const mainChartContainerRef = useRef(null);
+  const diagnosticsChartContainerRef = useRef(null);
   const desktopMeta =
     typeof window !== "undefined" ? window.desktopMeta ?? null : null;
   const isWindowsDesktopShell =
@@ -1631,6 +1697,17 @@ How to use (manual fallback):
     return Array.isArray(data) ? data : null;
   }, [effectivePlotType, focusedAnalysis?.ssDiagnostics, ssDiagnosticsEnabled]);
 
+  const diagnosticsChartVisible =
+    effectivePlotType === "ss" && Boolean(focusedSsDiagnostics);
+  const isMainChartSizeReady = useContainerSizeReady(
+    mainChartContainerRef,
+    Boolean(activeFile?.series?.length),
+  );
+  const isDiagnosticsChartSizeReady = useContainerSizeReady(
+    diagnosticsChartContainerRef,
+    diagnosticsChartVisible,
+  );
+
   const ssDiagnosticsMinMax = useMemo(() => {
     if (!focusedSsDiagnostics) return { minX: null, maxX: null, minY: null, maxY: null };
     return computeMinMax([{ data: focusedSsDiagnostics }]);
@@ -2737,12 +2814,18 @@ How to use (manual fallback):
                 </div>
               ) : null}
 
-              <div className="h-[500px] min-h-[500px] flex-shrink-0">
-                <ResponsiveContainer
-                  width="100%"
-                  height="100%"
-                  className="!outline-none"
-                >
+              <div
+                ref={mainChartContainerRef}
+                className="h-[500px] min-h-[500px] flex-shrink-0"
+              >
+                {isMainChartSizeReady ? (
+                  <ResponsiveContainer
+                    width="100%"
+                    height="100%"
+                    minWidth={1}
+                    minHeight={1}
+                    className="!outline-none"
+                  >
                   <LineChart
                     data={[]}
                     margin={{ top: 5, right: 15, left: 45, bottom: 28 }}
@@ -2934,7 +3017,10 @@ How to use (manual fallback):
                       />
                     ))}
                   </LineChart>
-                </ResponsiveContainer>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="h-full w-full" />
+                )}
               </div>
 
               {effectivePlotType === "ss" && focusedSsDiagnostics ? (
@@ -2942,8 +3028,18 @@ How to use (manual fallback):
                   <div className="text-xs text-text-secondary mb-2">
                     Diagnostics: SS(x)
                   </div>
-                  <div className="h-[260px] min-h-[260px] flex-shrink-0">
-                    <ResponsiveContainer width="100%" height="100%" className="!outline-none">
+                  <div
+                    ref={diagnosticsChartContainerRef}
+                    className="h-[260px] min-h-[260px] flex-shrink-0"
+                  >
+                    {isDiagnosticsChartSizeReady ? (
+                      <ResponsiveContainer
+                        width="100%"
+                        height="100%"
+                        minWidth={1}
+                        minHeight={1}
+                        className="!outline-none"
+                      >
                       <LineChart data={[]} margin={{ top: 5, right: 135, left: 45, bottom: 20 }}>
                         <CartesianGrid
                           strokeDasharray="3 3"
@@ -3044,7 +3140,10 @@ How to use (manual fallback):
                           strokeWidth={2}
                         />
                       </LineChart>
-                    </ResponsiveContainer>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full w-full" />
+                    )}
                   </div>
                 </div>
               ) : null}

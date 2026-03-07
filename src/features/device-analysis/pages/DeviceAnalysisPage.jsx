@@ -77,6 +77,17 @@ const DeviceAnalysisPage = () => {
       setHasVisitedSettingsPage(true);
     }
 
+    if (typeof document !== "undefined") {
+      const activeElement = document.activeElement;
+      if (
+        activeElement &&
+        activeElement instanceof HTMLElement &&
+        typeof activeElement.blur === "function"
+      ) {
+        activeElement.blur();
+      }
+    }
+
     setActivePage(nextPage);
   }, []);
 

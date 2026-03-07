@@ -164,7 +164,13 @@ const MainPlotChart = React.memo(function MainPlotChart({
   const isSsPlot = plotType === "ss";
 
   return (
-    <ResponsiveContainer width="100%" height="100%" className="!outline-none">
+    <ResponsiveContainer
+      width="100%"
+      height="100%"
+      minWidth={1}
+      minHeight={1}
+      className="!outline-none"
+    >
       <LineChart
         data={[]}
         margin={{ top: 5, right: 15, left: 45, bottom: 28 }}
