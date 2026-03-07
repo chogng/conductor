@@ -39,6 +39,7 @@ const DeviceAnalysisAnalysisPanel = ({
   t,
 }) => {
   const hasProcessedData = processedData.length > 0;
+  const isProcessing = processingStatus?.state === "processing";
   const shouldRenderCharts = hasProcessedData && shouldMountCharts;
 
   return (
@@ -62,6 +63,55 @@ const DeviceAnalysisAnalysisPanel = ({
             />
           </Suspense>
         ) : null
+      ) : isProcessing ? (
+        <Card
+          id="device-analysis-processing-card"
+          variant="fill"
+          cta="Device analysis"
+          ctaPosition="analysis"
+          ctaCopy="processing analysis data"
+          className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-border bg-bg-surface/50 text-text-secondary"
+        >
+          <BarChart2 size={48} className="mb-4 opacity-20 animate-pulse" />
+          <p className="text-lg font-medium">{t("da_analysis_processing")}</p>
+          <p className="text-sm">{t("da_analysis_processing_hint")}</p>
+          <div className="mt-4 w-full max-w-sm">
+            <div className="mb-2 flex items-center justify-between text-xs text-text-secondary">
+              <span>
+                {t("da_analysis_processing_progress", {
+                  processed: processingStatus?.processed ?? 0,
+                  total: processingStatus?.total ?? 0,
+                })}
+              </span>
+              <span>
+                {Math.min(
+                  100,
+                  Math.round(
+                    ((processingStatus?.processed ?? 0) /
+                      Math.max(1, processingStatus?.total ?? 0)) *
+                      100,
+                  ),
+                )}
+                %
+              </span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-bg-page">
+              <div
+                className="h-full rounded-full bg-accent transition-[width] duration-200"
+                style={{
+                  width: `${Math.min(
+                    100,
+                    Math.round(
+                      ((processingStatus?.processed ?? 0) /
+                        Math.max(1, processingStatus?.total ?? 0)) *
+                        100,
+                    ),
+                  )}%`,
+                }}
+              />
+            </div>
+          </div>
+        </Card>
       ) : (
         <Card
           id="device-analysis-empty-processed-data-card"

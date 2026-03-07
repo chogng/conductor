@@ -68,8 +68,8 @@ const DesktopCommandBar = ({
         <button
           id="device-analysis-window-settings-btn"
           type="button"
-          aria-label="Settings"
-          title="Settings"
+          aria-label={t("da_settings_title")}
+          title={t("da_settings_title")}
           className={`da_window_icon_btn ${activePage === 'settings' ? 'da_top_nav_btn--active' : ''}`}
           onClick={onOpenSettings}
         >
