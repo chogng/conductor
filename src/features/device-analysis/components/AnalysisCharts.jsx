@@ -357,17 +357,6 @@ const AnalysisCharts = ({
     return raw.length > max ? raw.slice(0, max) : raw;
   };
 
-  const triggerDownloadBlob = (filename, blob) => {
-    const url = URL.createObjectURL(blob);
-    const downloadAnchorNode = document.createElement("a");
-    downloadAnchorNode.setAttribute("href", url);
-    downloadAnchorNode.setAttribute("download", filename);
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
-    URL.revokeObjectURL(url);
-  };
-
   const makePairsExpr = React.useCallback((xyPairCount) => {
     const pairs = [];
     const count = Math.max(1, Number(xyPairCount) || 1);
@@ -494,22 +483,6 @@ How to use (manual fallback):
 
     return { zipBlob, zipName, csvName, ogsName };
   }, [activeFile, focusedSeries, t, buildOgsScript]);
-
-  const handleDownloadOriginPackage = async () => {
-    if (originBusy) return;
-
-    try {
-      setOriginBusy(true);
-      const pkg = await buildOriginPackageForFocusedSeries();
-      triggerDownloadBlob(pkg.zipName, pkg.zipBlob);
-      showToast(t("da_origin_zip_downloaded"), "success");
-    } catch (err) {
-      const msg = err?.message ? String(err.message) : t("unknownError");
-      showToast(t("da_origin_zip_build_failed", { error: msg }), "error");
-    } finally {
-      setOriginBusy(false);
-    }
-  };
 
   const handleOpenInOrigin = React.useCallback(async () => {
     if (originBusy) return;
@@ -2022,19 +1995,6 @@ How to use (manual fallback):
       />
 
       <section aria-label="Device Analysis chart">
-        <div className="flex items-center justify-end gap-2 mb-2">
-          <Button
-            id="device-analysis-origin-download-zip-btn"
-            variant="ghost"
-            size="control"
-            fx
-            disabled={originBusy || !focusedSeries}
-            onClick={handleDownloadOriginPackage}
-            type="button"
-          >
-            {t("da_menu_export_origin_zip")}
-          </Button>
-        </div>
         <Card variant="panel">
 
           <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
