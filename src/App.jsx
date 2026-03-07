@@ -2,8 +2,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "./context/ThemeContext";
 import { LanguageProvider } from "./context/LanguageContext";
 import { UiPrefsProvider } from "./context/UiPrefsContext";
-import { DeviceAnalysisSessionProvider } from "./context/DeviceAnalysisSessionContext";
-import DeviceAnalysis from "./pages/DeviceAnalysis";
+import {
+  DeviceAnalysisPage,
+  DeviceAnalysisSessionProvider,
+} from "./features/device-analysis";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -27,7 +29,7 @@ function App() {
             <div className="h-screen bg-bg-page overflow-hidden">
               <main className="h-full w-full overflow-hidden">
                 <DeviceAnalysisSessionProvider>
-                  <DeviceAnalysis />
+                  <DeviceAnalysisPage />
                 </DeviceAnalysisSessionProvider>
               </main>
             </div>

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { formatNumber } from "./analysisMath";
-import { COLORS } from "./chartColors";
+import { formatNumber } from "../lib/analysisMath";
+import { COLORS } from "../lib/chartColors";
 
 const DEFAULT_PADDING = { top: 10, right: 10, bottom: 10, left: 10 };
 

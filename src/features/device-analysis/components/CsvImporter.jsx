@@ -243,7 +243,6 @@ const CsvImporter = forwardRef(
     // scroll crosses a row boundary, which is enough for row-based virtualization.
     const [scrollRowIndex, setScrollRowIndex] = useState(0);
     const [viewportHeight, setViewportHeight] = useState(0);
-    const [contentWidth, setContentWidth] = useState(0);
     const scrollRafRef = useRef(0);
 
     useImperativeHandle(
@@ -286,13 +285,7 @@ const CsvImporter = forwardRef(
       const measure = () => {
         const target = containerRef.current;
         if (!target) return;
-        const cs = window.getComputedStyle(target);
-        const paddingLeft = parseFloat(cs.paddingLeft) || 0;
-        const paddingRight = parseFloat(cs.paddingRight) || 0;
         setViewportHeight(target.clientHeight);
-        setContentWidth(
-          Math.max(0, target.clientWidth - paddingLeft - paddingRight),
-        );
       };
 
       measure();
@@ -572,7 +565,6 @@ const CsvImporter = forwardRef(
       GRID_GAP,
       GRID_ROW_HEIGHT,
       GRID_OVERSCAN_ROWS,
-      contentWidth,
       files,
       scrollRowIndex,
       viewportHeight,
