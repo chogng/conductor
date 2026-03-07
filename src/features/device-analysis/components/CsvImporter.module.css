@@ -1,6 +1,11 @@
 .dropzone {
-  @apply border-2 border-dashed rounded-xl p-0 transition-all duration-300 relative overflow-hidden flex-1;
+  @apply border-2 border-dashed rounded-xl p-0 transition-all duration-300 relative overflow-visible flex-1;
   min-height: 300px;
+}
+
+/* Offset the custom Y scrollbar track to align flush with the outer card's border */
+.dropzone :global(.scroll-area__track--y) {
+  right: -14px !important;
 }
 
 .dropzoneViewport {

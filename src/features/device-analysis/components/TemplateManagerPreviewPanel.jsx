@@ -6,7 +6,7 @@ import { formatNumber } from "../lib/analysisMath";
 import { getExcelColumnLabel } from "../lib/templateManagerPreview";
 
 const EMPTY_ARRAY = [];
-const noopSubscribe = () => () => {};
+const noopSubscribe = () => () => { };
 const getZero = () => 0;
 
 const formatPreviewCell = (value) => {
@@ -62,11 +62,10 @@ const PreviewRow = React.memo(
               key={index}
               data-row={rowIndex}
               data-col={index}
-              className={`px-2 py-1 h-7 border-b border-r border-border last:border-r-0 whitespace-nowrap text-xs transition-colors cursor-default overflow-hidden text-ellipsis ${
-                selectedColumnsSet.has(index)
+              className={`px-2 py-1 h-7 border-b border-r border-border last:border-r-0 whitespace-nowrap text-xs transition-colors cursor-default overflow-hidden text-ellipsis ${selectedColumnsSet.has(index)
                   ? "bg-accent/5 border-accent/20 text-text-primary"
                   : "text-text-secondary"
-              }`}
+                }`}
               onMouseDown={handleCellMouseDown}
               title={raw}
             >
@@ -245,9 +244,8 @@ const TemplateManagerPreviewPanel = ({
         <ScrollArea
           ref={previewScrollRef}
           axis="both"
-          className={`flex-1 min-h-0 border border-border rounded ${
-            isColumnResizing ? "cursor-col-resize select-none" : ""
-          }`}
+          className={`flex-1 min-h-0 border border-border rounded ${isColumnResizing ? "cursor-col-resize select-none" : ""
+            }`}
           viewportProps={{
             onScroll: (event) =>
               handlePreviewScroll(
@@ -299,9 +297,8 @@ const TemplateManagerPreviewPanel = ({
                   <col
                     key={index}
                     style={{
-                      width: `var(--da-preview-col-${index}-w, ${
-                        previewColumnGeometry.widthsPx[index] ?? previewColumnMinWidthPx
-                      }px)`,
+                      width: `var(--da-preview-col-${index}-w, ${previewColumnGeometry.widthsPx[index] ?? previewColumnMinWidthPx
+                        }px)`,
                     }}
                   />
                 ))}
@@ -327,11 +324,10 @@ const TemplateManagerPreviewPanel = ({
                       <th
                         key={index}
                         onClick={() => toggleColumn(index)}
-                        className={`px-2 py-1 border-b border-border border-r last:border-r-0 font-mono text-xs whitespace-nowrap bg-bg-surface font-semibold text-center select-none cursor-pointer relative pr-3 overflow-hidden ${
-                          isSelected
+                        className={`px-2 py-1 border-b border-border border-r last:border-r-0 font-mono text-xs whitespace-nowrap bg-bg-surface font-semibold text-center select-none cursor-pointer relative pr-3 overflow-hidden ${isSelected
                             ? "text-accent bg-accent/10 border-accent/30"
                             : "text-text-secondary hover:bg-bg-page/60"
-                        }`}
+                          }`}
                         title="Click to toggle Y column"
                       >
                         <div
