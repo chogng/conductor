@@ -138,49 +138,54 @@ const toDomIdToken = (value) =>
     .slice(0, 120);
 
 const CsvFileItem = React.memo(
-  ({ fileEntry, isSelected, isInvisible, onSelect, onRemove }) => (
-    <div
-      aria-label="csv-file-item"
-      id={
-        fileEntry?.itemKey
-          ? `csv-file-item-${toDomIdToken(fileEntry.itemKey)}`
-          : undefined
-      }
-      data-item-key={fileEntry?.itemKey || undefined}
-      data-selected={isSelected ? "true" : undefined}
-      onClick={() => onSelect?.(fileEntry?.fileId ?? null)}
-      className={cx(
-        styles.fileItem,
-        "group",
-        isSelected && styles.fileItemSelected,
-        isInvisible && "invisible",
-      )}
-    >
-      <div className={styles.fileContent}>
-        <div className={styles.fileIcon}>
-          <FileText size={16} />
-        </div>
-        <span className={styles.fileName}>{fileEntry?.file?.name}</span>
-      </div>
-      <button
-        type="button"
-        aria-label="Remove CSV file"
+  ({ fileEntry, isSelected, isInvisible, onSelect, onRemove }) => {
+    const fileName = fileEntry?.file?.name || "";
+
+    return (
+      <div
+        aria-label="csv-file-item"
         id={
           fileEntry?.itemKey
-            ? `csv-file-remove-${toDomIdToken(fileEntry.itemKey)}`
+            ? `csv-file-item-${toDomIdToken(fileEntry.itemKey)}`
             : undefined
         }
         data-item-key={fileEntry?.itemKey || undefined}
-        onClick={(e) => {
-          e.stopPropagation();
-          onRemove?.(fileEntry?.fileId ?? null);
-        }}
-        className={styles.fileRemove}
+        data-selected={isSelected ? "true" : undefined}
+        title={fileName}
+        onClick={() => onSelect?.(fileEntry?.fileId ?? null)}
+        className={cx(
+          styles.fileItem,
+          "group",
+          isSelected && styles.fileItemSelected,
+          isInvisible && "invisible",
+        )}
       >
-        <X size={16} />
-      </button>
-    </div>
-  ),
+        <div className={styles.fileContent}>
+          <div className={styles.fileIcon}>
+            <FileText size={16} />
+          </div>
+          <span className={styles.fileName}>{fileName}</span>
+        </div>
+        <button
+          type="button"
+          aria-label="Remove CSV file"
+          id={
+            fileEntry?.itemKey
+              ? `csv-file-remove-${toDomIdToken(fileEntry.itemKey)}`
+              : undefined
+          }
+          data-item-key={fileEntry?.itemKey || undefined}
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove?.(fileEntry?.fileId ?? null);
+          }}
+          className={styles.fileRemove}
+        >
+          <X size={16} />
+        </button>
+      </div>
+    );
+  },
 );
 
 CsvFileItem.displayName = "CsvFileItem";
