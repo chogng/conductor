@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { ArrowDownWideNarrow, ArrowUpWideNarrow } from "lucide-react";
+import Button from "../../../../components/ui/Button";
 import Card from "../../../../components/ui/Card";
 import Tabs from "../../../../components/ui/Tabs";
 import FileCard from "./FileCard";
@@ -78,8 +79,13 @@ const OverviewGrid = React.memo(function OverviewGrid({
             size="md"
           />
 
-          <button
-            type="button"
+          <Button
+            id="device-analysis-overview-sort-ymax-btn"
+            cta="Device Analysis"
+            ctaPosition="overview-grid"
+            ctaCopy="sort by ymax"
+            variant={sortOrder !== "none" ? "secondary" : "ghost"}
+            size="control"
             onClick={() => {
               setSortOrder((prev) => {
                 if (prev === "none") return "desc";
@@ -87,18 +93,15 @@ const OverviewGrid = React.memo(function OverviewGrid({
                 return "none";
               });
             }}
-            className={`h-[48px] w-[48px] flex items-center justify-center rounded-md border text-text-secondary transition-colors ${sortOrder !== "none"
-              ? "bg-accent/10 border-accent/20 text-accent"
-              : "border-border bg-bg-surface hover:bg-bg-page hover:text-text-primary"
-              }`}
             title={`Sort by yMax: ${sortOrder === "none" ? "None" : sortOrder === "desc" ? "Descending" : "Ascending"}`}
+            aria-label={`Sort by yMax: ${sortOrder === "none" ? "None" : sortOrder === "desc" ? "Descending" : "Ascending"}`}
           >
             {sortOrder === "asc" ? (
               <ArrowUpWideNarrow size={18} />
             ) : (
               <ArrowDownWideNarrow size={18} />
             )}
-          </button>
+          </Button>
 
           {processingStatus?.state === "processing" && (
             <div className="text-xs text-text-secondary">
