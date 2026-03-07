@@ -4,6 +4,38 @@ import { apiService } from "../services/apiService";
 
 const IDLE_FEEDBACK = { type: "idle", message: "" };
 
+const normalizeTrimmedString = (value) =>
+  typeof value === "string" && value.trim() ? value.trim() : "";
+
+const buildOriginLogMessage = (baseMessage, logPath, t) => {
+  const normalizedLogPath = normalizeTrimmedString(logPath);
+  return normalizedLogPath
+    ? `${baseMessage} ${t("da_origin_error_log_path", {
+        path: normalizedLogPath,
+      })}`
+    : baseMessage;
+};
+
+const normalizeOriginBatchSummary = (summary) => {
+  const total = Number(summary?.total);
+  const succeeded = Number(summary?.succeeded);
+  const failed = Number(summary?.failed);
+
+  const totalSafe = Number.isFinite(total) && total >= 0 ? total : 0;
+  const succeededSafe =
+    Number.isFinite(succeeded) && succeeded >= 0 ? succeeded : 0;
+  const failedSafe =
+    Number.isFinite(failed) && failed >= 0
+      ? failed
+      : Math.max(0, totalSafe - succeededSafe);
+
+  return {
+    failed: failedSafe,
+    succeeded: succeededSafe,
+    total: totalSafe,
+  };
+};
+
 export const useDeviceAnalysisSettings = ({
   activePage,
   isWindowsDesktopShell,
@@ -205,11 +237,7 @@ export const useDeviceAnalysisSettings = ({
         const configuredPath = await bridge.getOriginExePath();
         if (cancelled) return;
 
-        setOriginExePath(
-          typeof configuredPath === "string" && configuredPath.trim()
-            ? configuredPath.trim()
-            : "",
-        );
+        setOriginExePath(normalizeTrimmedString(configuredPath));
       } catch {
         if (cancelled) return;
         setOriginExePath("");
@@ -239,8 +267,9 @@ export const useDeviceAnalysisSettings = ({
 
     try {
       const pickedPath = await bridge.pickOriginExePath();
-      if (typeof pickedPath === "string" && pickedPath.trim()) {
-        setOriginExePath(pickedPath.trim());
+      const nextPath = normalizeTrimmedString(pickedPath);
+      if (nextPath) {
+        setOriginExePath(nextPath);
         setOriginPathFeedback({
           type: "success",
           message: t("da_settings_origin_choose_saved"),
@@ -270,20 +299,16 @@ export const useDeviceAnalysisSettings = ({
         path: originExePath || undefined,
       });
 
-      const nextPath =
-        health && typeof health.originExePath === "string"
-          ? health.originExePath.trim()
-          : "";
+      const nextPath = normalizeTrimmedString(health?.originExePath);
       if (nextPath) {
         setOriginExePath(nextPath);
       }
 
-      const successMessage = health?.logPath
-        ? `${t("da_settings_origin_check_success")} ${t(
-            "da_origin_error_log_path",
-            { path: health.logPath },
-          )}`
-        : t("da_settings_origin_check_success");
+      const successMessage = buildOriginLogMessage(
+        t("da_settings_origin_check_success"),
+        health?.logPath,
+        t,
+      );
 
       setOriginPathFeedback({
         type: "success",
@@ -319,36 +344,17 @@ export const useDeviceAnalysisSettings = ({
 
     try {
       const result = await bridge.runOriginBatch({ allowPickInputDir: true });
-      const summary =
-        result?.summary && typeof result.summary === "object"
-          ? result.summary
-          : null;
-
-      const total = Number(summary?.total);
-      const succeeded = Number(summary?.succeeded);
-      const failed = Number(summary?.failed);
-
-      const totalSafe = Number.isFinite(total) && total >= 0 ? total : 0;
-      const succeededSafe =
-        Number.isFinite(succeeded) && succeeded >= 0 ? succeeded : 0;
-      const failedSafe =
-        Number.isFinite(failed) && failed >= 0
-          ? failed
-          : Math.max(0, totalSafe - succeededSafe);
+      const summary = normalizeOriginBatchSummary(result?.summary);
 
       const baseMessage = t("da_settings_origin_batch_success", {
-        failed: failedSafe,
-        success: succeededSafe,
-        total: totalSafe,
+        failed: summary.failed,
+        success: summary.succeeded,
+        total: summary.total,
       });
-      const resultMessage = result?.logPath
-        ? `${baseMessage} ${t("da_origin_error_log_path", {
-            path: result.logPath,
-          })}`
-        : baseMessage;
+      const resultMessage = buildOriginLogMessage(baseMessage, result?.logPath, t);
 
       setOriginPathFeedback({
-        type: failedSafe > 0 ? "error" : "success",
+        type: summary.failed > 0 ? "error" : "success",
         message: resultMessage,
       });
     } catch (error) {

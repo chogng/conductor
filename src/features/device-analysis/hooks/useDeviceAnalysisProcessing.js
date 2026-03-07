@@ -5,6 +5,69 @@ import {
   stableStringify,
 } from "../lib/deviceAnalysisUtils";
 
+const buildProcessingQueue = (rawData, processedIds = null) => {
+  const queue = [];
+  const queuedIds = new Set();
+
+  for (const entry of Array.isArray(rawData) ? rawData : []) {
+    const fileId = entry?.fileId;
+    if (!entry?.file || !fileId) continue;
+    if (processedIds?.has(fileId) || queuedIds.has(fileId)) continue;
+
+    queue.push({
+      file: entry.file,
+      fileId,
+      fileName: entry.fileName,
+    });
+    queuedIds.add(fileId);
+  }
+
+  return queue;
+};
+
+const buildProcessedFileIds = (processedData) =>
+  new Set(
+    (Array.isArray(processedData) ? processedData : [])
+      .map((entry) => entry?.fileId)
+      .filter(Boolean),
+  );
+
+const buildExtractionStartFeedback = ({
+  count,
+  messageKey,
+  meta = {},
+  t,
+  warnings = [],
+}) => {
+  const groupSizeText = meta.groupSizeCell
+    ? t("da_extract_points_from_cell", { cell: meta.pointsRawUpper || "" })
+    : t("da_extract_points_fixed", { points: meta.groupSize });
+  const groupsText =
+    meta.groupSizeCell &&
+    Number.isInteger(meta.groupSizePreview) &&
+    meta.groupSizePreview > 0
+      ? t("da_extract_groups_suffix", {
+          groups: Math.max(0, meta.total / meta.groupSizePreview),
+        })
+      : !meta.groupSizeCell
+        ? t("da_extract_groups_suffix", { groups: meta.groups })
+        : "";
+  const warningText = warnings.length
+    ? t("da_extract_warnings_block", { warnings: warnings.join("\n- ") })
+    : "";
+
+  return {
+    message: t(messageKey, {
+      count,
+      detail: groupSizeText,
+      groups: groupsText,
+      warnings: warningText,
+    }),
+    ok: true,
+    type: warnings.length ? "warning" : "success",
+  };
+};
+
 export const useDeviceAnalysisProcessing = ({
   getPreviewRow,
   previewFile,
@@ -73,6 +136,29 @@ export const useDeviceAnalysisProcessing = ({
       }
     };
   }, []);
+
+  const prepareExtractionRun = useCallback(
+    (config) => {
+      const prepared = prepareDeviceAnalysisExtraction({
+        config,
+        getPreviewRow,
+        previewFile,
+        rawData,
+        t,
+      });
+
+      if (!prepared.ok) return prepared;
+
+      return {
+        extractionConfig: prepared.extractionConfig,
+        meta: prepared.meta ?? {},
+        ok: true,
+        stopOnError: Boolean(config?.stopOnError),
+        warnings: Array.isArray(prepared.warnings) ? prepared.warnings : [],
+      };
+    },
+    [getPreviewRow, previewFile, rawData, t],
+  );
 
   const startExtractionJob = useCallback(
     ({
@@ -227,66 +313,29 @@ export const useDeviceAnalysisProcessing = ({
 
   const handleTemplateApplied = useCallback(
     (config) => {
-      const prepared = prepareDeviceAnalysisExtraction({
-        config,
-        getPreviewRow,
-        previewFile,
-        rawData,
-        t,
-      });
-
+      const prepared = prepareExtractionRun(config);
       if (!prepared.ok) return prepared;
 
-      const warnings = Array.isArray(prepared.warnings) ? prepared.warnings : [];
-      const extractionConfig = prepared.extractionConfig;
-      const meta = prepared.meta ?? {};
-      const stopOnError = Boolean(config?.stopOnError);
-      const queue = rawData
-        .filter((entry) => entry?.file)
-        .map((entry) => ({
-          file: entry.file,
-          fileId: entry.fileId,
-          fileName: entry.fileName,
-        }));
+      const queue = buildProcessingQueue(rawData);
 
       lastAppliedTemplateConfigFingerprintRef.current = stableStringify(config);
       startExtractionJob({
-        extractionConfig,
+        extractionConfig: prepared.extractionConfig,
         queue,
         resetExtractionErrors: true,
         resetProcessedData: true,
-        stopOnError,
+        stopOnError: prepared.stopOnError,
       });
 
-      const groupSizeText = meta.groupSizeCell
-        ? t("da_extract_points_from_cell", { cell: meta.pointsRawUpper || "" })
-        : t("da_extract_points_fixed", { points: meta.groupSize });
-      const groupsText =
-        meta.groupSizeCell &&
-        Number.isInteger(meta.groupSizePreview) &&
-        meta.groupSizePreview > 0
-          ? t("da_extract_groups_suffix", {
-              groups: Math.max(0, meta.total / meta.groupSizePreview),
-            })
-          : !meta.groupSizeCell
-            ? t("da_extract_groups_suffix", { groups: meta.groups })
-            : "";
-      const warningText = warnings.length
-        ? t("da_extract_warnings_block", { warnings: warnings.join("\n- ") })
-        : "";
-
-      return {
-        message: t("da_extract_started", {
-          count: queue.length,
-          detail: groupSizeText,
-          groups: groupsText,
-          warnings: warningText,
-        }),
-        ok: true,
-        type: warnings.length ? "warning" : "success",
-      };
+      return buildExtractionStartFeedback({
+        count: queue.length,
+        messageKey: "da_extract_started",
+        meta: prepared.meta,
+        t,
+        warnings: prepared.warnings,
+      });
     },
-    [getPreviewRow, previewFile, rawData, startExtractionJob, t],
+    [prepareExtractionRun, rawData, startExtractionJob, t],
   );
 
   const handleTemplateAppliedIncremental = useCallback(
@@ -316,22 +365,8 @@ export const useDeviceAnalysisProcessing = ({
         };
       }
 
-      const processedIds = new Set(
-        (Array.isArray(processedData) ? processedData : [])
-          .map((entry) => entry?.fileId)
-          .filter(Boolean),
-      );
-
-      const queue = [];
-      const queuedIds = new Set();
-      for (const entry of rawData) {
-        const fileId = entry?.fileId;
-        if (!fileId || !entry?.file) continue;
-        if (processedIds.has(fileId) || queuedIds.has(fileId)) continue;
-
-        queue.push({ file: entry.file, fileId, fileName: entry.fileName });
-        queuedIds.add(fileId);
-      }
+      const processedIds = buildProcessedFileIds(processedData);
+      const queue = buildProcessingQueue(rawData, processedIds);
 
       if (!queue.length) {
         return {
@@ -341,59 +376,27 @@ export const useDeviceAnalysisProcessing = ({
         };
       }
 
-      const prepared = prepareDeviceAnalysisExtraction({
-        config,
-        getPreviewRow,
-        previewFile,
-        rawData,
-        t,
-      });
+      const prepared = prepareExtractionRun(config);
       if (!prepared.ok) return prepared;
 
-      const warnings = Array.isArray(prepared.warnings) ? prepared.warnings : [];
-      const extractionConfig = prepared.extractionConfig;
-      const meta = prepared.meta ?? {};
-      const stopOnError = Boolean(config?.stopOnError);
-
       startExtractionJob({
-        extractionConfig,
+        extractionConfig: prepared.extractionConfig,
         queue,
         resetExtractionErrors: false,
         resetProcessedData: false,
-        stopOnError,
+        stopOnError: prepared.stopOnError,
       });
 
-      const groupSizeText = meta.groupSizeCell
-        ? t("da_extract_points_from_cell", { cell: meta.pointsRawUpper || "" })
-        : t("da_extract_points_fixed", { points: meta.groupSize });
-      const groupsText =
-        meta.groupSizeCell &&
-        Number.isInteger(meta.groupSizePreview) &&
-        meta.groupSizePreview > 0
-          ? t("da_extract_groups_suffix", {
-              groups: Math.max(0, meta.total / meta.groupSizePreview),
-            })
-          : !meta.groupSizeCell
-            ? t("da_extract_groups_suffix", { groups: meta.groups })
-            : "";
-      const warningText = warnings.length
-        ? t("da_extract_warnings_block", { warnings: warnings.join("\n- ") })
-        : "";
-
-      return {
-        message: t("da_apply_to_new_files_started", {
-          count: queue.length,
-          detail: groupSizeText,
-          groups: groupsText,
-          warnings: warningText,
-        }),
-        ok: true,
-        type: warnings.length ? "warning" : "success",
-      };
+      return buildExtractionStartFeedback({
+        count: queue.length,
+        messageKey: "da_apply_to_new_files_started",
+        meta: prepared.meta,
+        t,
+        warnings: prepared.warnings,
+      });
     },
     [
-      getPreviewRow,
-      previewFile,
+      prepareExtractionRun,
       processedData,
       processingStatus.state,
       rawData,
