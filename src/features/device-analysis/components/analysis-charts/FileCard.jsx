@@ -64,7 +64,7 @@ const FileCard = React.memo(function FileCard({
         e.preventDefault();
       }}
       onClick={() => onSelectFile?.(file?.fileId)}
-      className={`text-left rounded-xl border transition-colors overflow-hidden ${isActive
+      className={`flex flex-col w-full text-left rounded-xl border transition-colors overflow-hidden ${isActive
         ? "border-accent/40 bg-accent/5"
         : "border-border bg-bg-surface hover:bg-bg-surface-hover"
         }`}
@@ -92,7 +92,7 @@ const FileCard = React.memo(function FileCard({
       </div>
 
       <div
-        className="relative w-full bg-bg-page"
+        className="relative w-full min-h-[120px] bg-bg-page"
         style={{ aspectRatio: "16 / 9" }}
       >
         {inView ? (

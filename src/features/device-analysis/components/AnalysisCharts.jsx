@@ -1983,18 +1983,27 @@ How to use (manual fallback):
   if (!processedData || processedData.length === 0) return null;
 
   return (
-    <div className="space-y-4" ref={toastContainerRef}>
-      <OverviewGrid
-        processedData={processedData}
-        processingStatus={processingStatus}
-        activeFileId={effectiveActiveFileId}
-        onSelectFile={handleSelectFile}
-        yUnitFactor={currentUnitMeta.factor}
-        yUnitLabel={currentUnitMeta.label}
-        yScale={overviewYScaleType}
-      />
+    <div
+      className="h-full min-h-0 grid grid-cols-1 xl:grid-rows-1 xl:grid-cols-[var(--analysis-sidebar-width)_minmax(0,1fr)] gap-1 xl:gap-1"
+      ref={toastContainerRef}
+      style={{
+        "--analysis-sidebar-width": "clamp(240px, var(--sidebar-width), 420px)",
+      }}
+    >
+      <aside className="xl:min-h-0 flex flex-col h-full">
+        <OverviewGrid
+          processedData={processedData}
+          processingStatus={processingStatus}
+          activeFileId={effectiveActiveFileId}
+          onSelectFile={handleSelectFile}
+          yUnitFactor={currentUnitMeta.factor}
+          yUnitLabel={currentUnitMeta.label}
+          yScale={overviewYScaleType}
+        />
+      </aside>
 
-      <section aria-label="Device Analysis chart">
+      <section className="xl:min-h-0 flex flex-col gap-4 overflow-y-auto custom-scrollbar">
+        <section aria-label="Device Analysis chart">
         <Card variant="panel">
 
           <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
@@ -2723,7 +2732,7 @@ How to use (manual fallback):
                 </div>
               ) : null}
 
-              <div className="h-[500px]">
+              <div className="h-[500px] min-h-[500px] flex-shrink-0">
                 <ResponsiveContainer
                   width="100%"
                   height="100%"
@@ -2928,7 +2937,7 @@ How to use (manual fallback):
                   <div className="text-xs text-text-secondary mb-2">
                     Diagnostics: SS(x)
                   </div>
-                  <div className="h-[260px]">
+                  <div className="h-[260px] min-h-[260px] flex-shrink-0">
                     <ResponsiveContainer width="100%" height="100%" className="!outline-none">
                       <LineChart data={[]} margin={{ top: 5, right: 135, left: 45, bottom: 20 }}>
                         <CartesianGrid
@@ -3043,8 +3052,7 @@ How to use (manual fallback):
         </Card>
       </section>
 
-      {
-        activeFile?.series?.length ? (
+      {activeFile?.series?.length ? (
           <Card variant="panel" className="overflow-x-auto">
             <div className="flex items-center justify-between gap-3 mb-3">
               <h3 className="text-sm font-semibold text-text-primary">
@@ -3105,8 +3113,9 @@ How to use (manual fallback):
               </tbody>
             </table>
           </Card>
-        ) : null
-      }
+        ) : null}
+      </section>
+
       <Toast
         message={toast.message}
         isVisible={toast.isVisible}

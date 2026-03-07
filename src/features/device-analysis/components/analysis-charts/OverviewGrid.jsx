@@ -46,8 +46,8 @@ const OverviewGrid = React.memo(function OverviewGrid({
   if (!processedData?.length) return null;
 
   return (
-    <Card variant="panel">
-      <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+    <Card variant="panel" className="h-full min-h-0 flex flex-col !pr-0">
+      <div className="flex items-center justify-between gap-3 mb-3 flex-wrap pr-4">
         <div className="flex items-center gap-3">
           <Tabs
             groupLabel="Curve filter"
@@ -111,7 +111,7 @@ const OverviewGrid = React.memo(function OverviewGrid({
         </div>
       </div>
 
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-2.5 max-h-[460px] overflow-y-auto pr-1 custom-scrollbar">
+      <div className="flex-1 min-h-0 grid grid-cols-1 auto-rows-max gap-2.5 overflow-y-auto pr-4 custom-scrollbar content-start">
         {filteredData.map((file) => (
           <FileCard
             key={file.fileId}
