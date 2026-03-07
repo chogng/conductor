@@ -1,6 +1,10 @@
 .dropzone {
-  @apply border-2 border-dashed rounded-xl p-0 transition-all duration-300 relative overflow-y-auto flex-1;
+  @apply border-2 border-dashed rounded-xl p-0 transition-all duration-300 relative overflow-hidden flex-1;
   min-height: 300px;
+}
+
+.dropzoneViewport {
+  min-height: 100%;
   overscroll-behavior: contain;
 }
 

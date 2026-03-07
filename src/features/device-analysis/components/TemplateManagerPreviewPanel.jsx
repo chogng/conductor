@@ -1,6 +1,7 @@
 import React, { useSyncExternalStore } from "react";
 import { Check, Copy, FileSpreadsheet } from "lucide-react";
 import Avatar from "../../../components/ui/Avatar";
+import ScrollArea from "../../../components/ui/ScrollArea";
 import { formatNumber } from "../lib/analysisMath";
 import { getExcelColumnLabel } from "../lib/templateManagerPreview";
 
@@ -241,17 +242,19 @@ const TemplateManagerPreviewPanel = ({
           hint={t("da_preview_error_hint")}
         />
       ) : previewFile ? (
-        <div
+        <ScrollArea
           ref={previewScrollRef}
-          onScroll={(event) =>
-            handlePreviewScroll(
-              event.currentTarget.scrollTop,
-              event.currentTarget.scrollLeft,
-            )
-          }
-          className={`flex-1 min-h-0 overflow-auto border border-border rounded custom-scrollbar ${
+          axis="both"
+          className={`flex-1 min-h-0 border border-border rounded ${
             isColumnResizing ? "cursor-col-resize select-none" : ""
           }`}
+          viewportProps={{
+            onScroll: (event) =>
+              handlePreviewScroll(
+                event.currentTarget.scrollTop,
+                event.currentTarget.scrollLeft,
+              ),
+          }}
         >
           <div ref={gridRef} className="relative min-w-full align-top select-none">
             <div className="absolute inset-0 pointer-events-none z-20">
@@ -393,7 +396,7 @@ const TemplateManagerPreviewPanel = ({
               />
             </table>
           </div>
-        </div>
+        </ScrollArea>
       ) : (
         <PreviewPlaceholder hint={t("da_preview_select_file_hint")} />
       )}

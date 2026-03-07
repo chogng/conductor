@@ -16,6 +16,7 @@ import { cx } from "../../../utils/cx";
 import { stableItemKey } from "../../../utils/stableKey";
 import { useLanguage } from "../../../hooks/useLanguage";
 import Avatar from "../../../components/ui/Avatar";
+import ScrollArea from "../../../components/ui/ScrollArea";
 import styles from "./CsvImporter.module.css";
 
 /*
@@ -577,19 +578,22 @@ const CsvImporter = forwardRef(
 
     return (
       <>
-        <div
+        <ScrollArea
           ref={containerRef}
+          axis="y"
           id="device-analysis-csv-dropzone"
           aria-label={t("da_import_section")}
           data-state={files.length === 0 ? "empty" : "filled"}
           className={cx(
             styles.dropzone,
-            "custom-scrollbar",
             isDragging ? styles.dropzoneDragging : styles.dropzoneIdle,
           )}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
+          viewportClassName={styles.dropzoneViewport}
+          viewportProps={{
+            onDragOver: handleDragOver,
+            onDragLeave: handleDragLeave,
+            onDrop: handleDrop,
+          }}
           onClick={
             files.length === 0 ? () => fileInputRef.current.click() : undefined
           }
@@ -666,7 +670,7 @@ const CsvImporter = forwardRef(
               )}
             </div>
           )}
-        </div>
+        </ScrollArea>
 
         {error && (
           <div className="flex items-center gap-2 p-3 text-sm text-red-500 bg-red-500/10 rounded-lg mt-4 whitespace-pre-wrap">

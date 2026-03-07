@@ -1,6 +1,7 @@
 import { AlertCircle, RefreshCw, Upload } from "lucide-react";
 import Card from "../../../components/ui/Card";
 import Button from "../../../components/ui/Button";
+import ScrollArea from "../../../components/ui/ScrollArea";
 import CsvImporter from "./CsvImporter";
 import TemplateManager from "./TemplateManager";
 
@@ -127,7 +128,11 @@ const DeviceAnalysisDataPanel = ({
                 </button>
               </div>
 
-              <div className="mt-3 max-h-48 overflow-y-auto custom-scrollbar pr-2">
+              <ScrollArea
+                className="mt-3 max-h-48"
+                viewportClassName="pr-2"
+                axis="y"
+              >
                 <ul className="space-y-2 text-sm text-text-secondary">
                   {extractionErrors.map((errorItem, index) => (
                     <li
@@ -145,7 +150,7 @@ const DeviceAnalysisDataPanel = ({
                     </li>
                   ))}
                 </ul>
-              </div>
+              </ScrollArea>
             </div>
           </section>
         ) : null}

@@ -34,6 +34,7 @@ import Select from "../../../components/ui/Select";
 import Button from "../../../components/ui/Button";
 import Tabs from "../../../components/ui/Tabs";
 import Card from "../../../components/ui/Card";
+import ScrollArea from "../../../components/ui/ScrollArea";
 import Toast from "../../../components/ui/Toast";
 import { useLanguage } from "../../../hooks/useLanguage";
 import { COLORS } from "../lib/chartColors";
@@ -2002,8 +2003,12 @@ How to use (manual fallback):
         />
       </aside>
 
-      <section className="xl:min-h-0 flex flex-col gap-4 overflow-y-auto custom-scrollbar">
-        <section aria-label="Device Analysis chart">
+      <ScrollArea className="xl:min-h-0" axis="y">
+        <section
+          className="flex flex-col gap-4 pr-1"
+          aria-label="Device Analysis results"
+        >
+          <section aria-label="Device Analysis chart">
         <Card variant="panel">
 
           <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
@@ -3052,7 +3057,7 @@ How to use (manual fallback):
         </Card>
       </section>
 
-      {activeFile?.series?.length ? (
+          {activeFile?.series?.length ? (
           <Card variant="panel" className="overflow-x-auto">
             <div className="flex items-center justify-between gap-3 mb-3">
               <h3 className="text-sm font-semibold text-text-primary">
@@ -3113,8 +3118,9 @@ How to use (manual fallback):
               </tbody>
             </table>
           </Card>
-        ) : null}
-      </section>
+          ) : null}
+        </section>
+      </ScrollArea>
 
       <Toast
         message={toast.message}

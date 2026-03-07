@@ -5,6 +5,7 @@ import {
   DeviceAnalysisDataPanel,
   DeviceAnalysisSettingsPanel,
 } from "../components";
+import ScrollArea from "../../../components/ui/ScrollArea";
 import { loadAnalysisCharts } from "../components/loadAnalysisCharts";
 import { getDeviceAnalysisExtractionErrorMessage } from "../lib/deviceAnalysisUtils";
 import {
@@ -343,7 +344,11 @@ const DeviceAnalysisPage = () => {
               : "pointer-events-none opacity-0"
           }`}
         >
-          <div className="da_page_scroll h-full min-h-0 overflow-y-auto custom-scrollbar p-1 pt-0">
+          <ScrollArea
+            className="da_page_scroll h-full min-h-0"
+            viewportClassName="p-1 pt-0"
+            axis="y"
+          >
             <DeviceAnalysisSettingsPanel
               language={language}
               onLanguageChange={handleLanguageChange}
@@ -351,7 +356,7 @@ const DeviceAnalysisPage = () => {
               storageSettings={storageSettings}
               t={t}
             />
-          </div>
+          </ScrollArea>
         </section>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import Popup from "./Popup";
+import ScrollArea from "./ScrollArea";
 
 const cx = (...parts) => parts.filter(Boolean).join(" ");
 
@@ -266,64 +267,66 @@ const Select = ({
           <>
             {title ? <div className="ui-select_title">{title}</div> : null}
 
-            <div className="ui-select_list">
-              {indexedGroups.map(({ group, options }, groupIdx) => (
-                <div key={group || "default"} role={group ? "group" : undefined}>
-                  {group ? (
-                    <>
-                      {groupIdx > 0 ? (
-                        <div
-                          role="separator"
-                          aria-orientation="horizontal"
-                          className="ui-select_separator"
-                        />
-                      ) : null}
-                      <div className="ui-select_group">{group}</div>
-                    </>
-                  ) : null}
-
-                  {options.map(({ option, index: currentIndex }) => {
-                    const isHighlighted = highlightedIndex === currentIndex;
-                    const isSelected = value === option.value;
-                    const Icon = option.icon;
-
-                    return (
-                      <button
-                        key={String(option.value)}
-                        type="button"
-                        role="menuitem"
-                        tabIndex={-1}
-                        data-highlighted={isHighlighted || undefined}
-                        data-selected={isSelected || undefined}
-                        data-value={String(option.value)}
-                        onClick={() => selectOption(option)}
-                        onMouseEnter={() => setHighlightedIndex(currentIndex)}
-                        className="ui-select_item"
-                      >
-                        <span className="ui-select_item-left">
-                          {Icon ? (
-                            <Icon style={{ width: "0.9rem", height: "0.9rem" }} />
-                          ) : null}
-                          <span className="truncate">
-                            {option.label ?? String(option.value)}
-                          </span>
-                        </span>
-                        {isSelected ? (
-                          <Check
-                            style={{ width: "0.9rem", height: "0.9rem" }}
-                            className="text-accent"
+            <ScrollArea className="max-h-60" axis="y">
+              <div className="ui-select_list">
+                {indexedGroups.map(({ group, options }, groupIdx) => (
+                  <div key={group || "default"} role={group ? "group" : undefined}>
+                    {group ? (
+                      <>
+                        {groupIdx > 0 ? (
+                          <div
+                            role="separator"
+                            aria-orientation="horizontal"
+                            className="ui-select_separator"
                           />
                         ) : null}
-                      </button>
-                    );
-                  })}
-                </div>
-              ))}
+                        <div className="ui-select_group">{group}</div>
+                      </>
+                    ) : null}
 
-              {flatOptions.length === 0 ? (
-                <div className="ui-select_empty">No options</div>
-              ) : null}
-            </div>
+                    {options.map(({ option, index: currentIndex }) => {
+                      const isHighlighted = highlightedIndex === currentIndex;
+                      const isSelected = value === option.value;
+                      const Icon = option.icon;
+
+                      return (
+                        <button
+                          key={String(option.value)}
+                          type="button"
+                          role="menuitem"
+                          tabIndex={-1}
+                          data-highlighted={isHighlighted || undefined}
+                          data-selected={isSelected || undefined}
+                          data-value={String(option.value)}
+                          onClick={() => selectOption(option)}
+                          onMouseEnter={() => setHighlightedIndex(currentIndex)}
+                          className="ui-select_item"
+                        >
+                          <span className="ui-select_item-left">
+                            {Icon ? (
+                              <Icon style={{ width: "0.9rem", height: "0.9rem" }} />
+                            ) : null}
+                            <span className="truncate">
+                              {option.label ?? String(option.value)}
+                            </span>
+                          </span>
+                          {isSelected ? (
+                            <Check
+                              style={{ width: "0.9rem", height: "0.9rem" }}
+                              className="text-accent"
+                            />
+                          ) : null}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))}
+
+                {flatOptions.length === 0 ? (
+                  <div className="ui-select_empty">No options</div>
+                ) : null}
+              </div>
+            </ScrollArea>
           </>
         )}
       </Popup>

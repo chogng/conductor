@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { ArrowDownWideNarrow, ArrowUpWideNarrow } from "lucide-react";
 import Button from "../../../../components/ui/Button";
 import Card from "../../../../components/ui/Card";
+import ScrollArea from "../../../../components/ui/ScrollArea";
 import Tabs from "../../../../components/ui/Tabs";
 import FileCard from "./FileCard";
 
@@ -111,19 +112,21 @@ const OverviewGrid = React.memo(function OverviewGrid({
         </div>
       </div>
 
-      <div className="flex-1 min-h-0 grid grid-cols-1 auto-rows-max gap-2.5 overflow-y-auto pr-4 custom-scrollbar content-start">
-        {filteredData.map((file) => (
-          <FileCard
-            key={file.fileId}
-            file={file}
-            isActive={file.fileId === activeFileId}
-            onSelectFile={onSelectFile}
-            yUnitFactor={yUnitFactor}
-            yUnitLabel={yUnitLabel}
-            yScale={yScale}
-          />
-        ))}
-      </div>
+      <ScrollArea className="flex-1 min-h-0" viewportClassName="pr-4" axis="y">
+        <div className="grid grid-cols-1 auto-rows-max gap-2.5 content-start">
+          {filteredData.map((file) => (
+            <FileCard
+              key={file.fileId}
+              file={file}
+              isActive={file.fileId === activeFileId}
+              onSelectFile={onSelectFile}
+              yUnitFactor={yUnitFactor}
+              yUnitLabel={yUnitLabel}
+              yScale={yScale}
+            />
+          ))}
+        </div>
+      </ScrollArea>
     </Card>
   );
 });

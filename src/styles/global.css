@@ -695,7 +695,7 @@ body {
   }
 
   .ui-select_list {
-    @apply flex flex-col gap-[2px] max-h-[15rem] overflow-y-auto custom-scrollbar;
+    @apply flex flex-col gap-[2px];
   }
 
   .ui-select_separator {
@@ -828,6 +828,93 @@ textarea {
   position: relative;
 }
 
+/* ScrollArea (custom scrollbar component) */
+.scroll-area {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.scroll-area__viewport {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scroll-area__viewport[data-axis="y"] {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.scroll-area__viewport[data-axis="x"] {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.scroll-area__viewport[data-axis="both"] {
+  overflow: auto;
+}
+
+.scroll-area__viewport::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
+
+.scroll-area__track {
+  position: absolute;
+  border-radius: 9999px;
+  background: transparent;
+  opacity: 0.6;
+  transition: opacity 0.15s ease;
+  user-select: none;
+}
+
+.scroll-area:hover .scroll-area__track {
+  opacity: 1;
+}
+
+.scroll-area__track--y {
+  top: 4px;
+  bottom: 4px;
+  right: 2px;
+  width: 8px;
+}
+
+.scroll-area__track--x {
+  left: 4px;
+  right: 4px;
+  bottom: 2px;
+  height: 8px;
+}
+
+.scroll-area__thumb {
+  position: absolute;
+  border-radius: 9999px;
+  background-color: rgba(148, 163, 184, 0.42);
+  cursor: default;
+  pointer-events: auto;
+}
+
+.scroll-area__thumb--y {
+  top: 0;
+  left: 1px;
+  right: 1px;
+}
+
+.scroll-area__thumb--x {
+  left: 0;
+  top: 1px;
+  bottom: 1px;
+}
+
+.dark .scroll-area__thumb {
+  background-color: rgba(255, 255, 255, 0.28);
+}
+
 /* Global Scrollbar Styling */
 ::-webkit-scrollbar {
   width: 6px;
@@ -836,6 +923,60 @@ textarea {
 
 ::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* Hide Win/WebKit scrollbar arrow buttons (triangle controls) */
+::-webkit-scrollbar-button {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  max-width: 0 !important;
+  max-height: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  color: transparent !important;
+  -webkit-appearance: none !important;
+}
+
+/* Chromium on Windows may expose arrows via single-button states */
+::-webkit-scrollbar-button:single-button,
+::-webkit-scrollbar-button:double-button,
+::-webkit-scrollbar-button:single-button:vertical:decrement,
+::-webkit-scrollbar-button:single-button:vertical:increment,
+::-webkit-scrollbar-button:single-button:horizontal:decrement,
+::-webkit-scrollbar-button:single-button:horizontal:increment,
+::-webkit-scrollbar-button:vertical:start:decrement,
+::-webkit-scrollbar-button:vertical:end:increment,
+::-webkit-scrollbar-button:horizontal:start:decrement,
+::-webkit-scrollbar-button:horizontal:end:increment,
+.custom-scrollbar::-webkit-scrollbar-button,
+.custom-scrollbar::-webkit-scrollbar-button:single-button,
+.custom-scrollbar::-webkit-scrollbar-button:double-button,
+.custom-scrollbar::-webkit-scrollbar-button:single-button:vertical:decrement,
+.custom-scrollbar::-webkit-scrollbar-button:single-button:vertical:increment,
+.custom-scrollbar::-webkit-scrollbar-button:single-button:horizontal:decrement,
+.custom-scrollbar::-webkit-scrollbar-button:single-button:horizontal:increment,
+.custom-scrollbar::-webkit-scrollbar-button:vertical:start:decrement,
+.custom-scrollbar::-webkit-scrollbar-button:vertical:end:increment,
+.custom-scrollbar::-webkit-scrollbar-button:horizontal:start:decrement,
+.custom-scrollbar::-webkit-scrollbar-button:horizontal:end:increment {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: 0 !important;
+  max-height: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  color: transparent !important;
+  -webkit-appearance: none !important;
 }
 
 ::-webkit-scrollbar-thumb {
