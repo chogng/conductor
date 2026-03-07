@@ -2471,16 +2471,6 @@ How to use (manual fallback):
                 placeholder="e.g. 1e-4"
                 className="bg-bg-page border border-border rounded-lg h-[38px] px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40 w-[100px]"
               />
-              <Button
-                id="device-analysis-area-clear-btn"
-                variant="text"
-                size="sm"
-                onClick={() => setAreaInput("")}
-                className="h-[38px] px-2 text-xs border border-border/50 hover:bg-bg-subtle"
-                title="Clear Area"
-              >
-                Clear
-              </Button>
             </div>
           </div>
 
