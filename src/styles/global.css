@@ -279,11 +279,11 @@ body {
   }
 
   .da_top_nav_btn--active {
-    @apply bg-bg-200/50 text-accent !important;
+    @apply text-accent !important;
   }
 
   .dark .da_top_nav_btn--active {
-    @apply bg-bg-200/50 text-accent !important;
+    @apply text-accent !important;
   }
 
   .da_window_control_btn {

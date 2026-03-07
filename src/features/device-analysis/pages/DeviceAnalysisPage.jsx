@@ -311,7 +311,7 @@ const DeviceAnalysisPage = () => {
               : "pointer-events-none opacity-0"
           }`}
         >
-          <div className="da_page_scroll h-full min-h-0 overflow-y-auto custom-scrollbar p-1 pt-0">
+          <div className="da_page_scroll h-full min-h-0 overflow-hidden p-1 pt-0">
             <DeviceAnalysisAnalysisPanel
               processedData={processedData}
               processingStatus={processingStatus}
