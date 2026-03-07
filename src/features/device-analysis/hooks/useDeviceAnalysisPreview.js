@@ -451,9 +451,13 @@ export const useDeviceAnalysisPreview = ({
         chunkStart <= lastChunkStart;
         chunkStart += DA_PREVIEW_UI_CHUNK_SIZE_ROWS
       ) {
-        if (previewLoadedChunksRef.current.has(chunkStart)) continue;
+        if (previewLoadedChunksRef.current.has(chunkStart)) {
+          // Touch existing chunk so LRU eviction keeps recently revisited windows.
+          previewLoadedChunksRef.current.delete(chunkStart);
+          previewLoadedChunksRef.current.add(chunkStart);
+          continue;
+        }
 
-        previewLoadedChunksRef.current.delete(chunkStart);
         previewLoadedChunksRef.current.add(chunkStart);
 
         while (

@@ -26,6 +26,8 @@ const ScrollArea = forwardRef(
   ) => {
     const viewportRef = useRef(null);
     const dragRef = useRef(null);
+    const metricsRafRef = useRef(0);
+    const viewportScrollHandlerRef = useRef(null);
 
     const [metrics, setMetrics] = useState({
       showY: false,
@@ -66,59 +68,82 @@ const ScrollArea = forwardRef(
       const yScrollMax = Math.max(1, scrollHeight - clientHeight);
       const xScrollMax = Math.max(1, scrollWidth - clientWidth);
 
-      setMetrics({
+      const nextMetrics = {
         showY: canScrollY,
         showX: canScrollX,
         yThumbSize,
         xThumbSize,
         yThumbOffset: canScrollY ? (scrollTop / yScrollMax) * yMaxOffset : 0,
         xThumbOffset: canScrollX ? (scrollLeft / xScrollMax) * xMaxOffset : 0,
+      };
+
+      setMetrics((prev) => {
+        const nearlyEqual =
+          prev.showY === nextMetrics.showY &&
+          prev.showX === nextMetrics.showX &&
+          Math.abs(prev.yThumbSize - nextMetrics.yThumbSize) < 0.5 &&
+          Math.abs(prev.xThumbSize - nextMetrics.xThumbSize) < 0.5 &&
+          Math.abs(prev.yThumbOffset - nextMetrics.yThumbOffset) < 0.5 &&
+          Math.abs(prev.xThumbOffset - nextMetrics.xThumbOffset) < 0.5;
+        return nearlyEqual ? prev : nextMetrics;
       });
     }, [allowX, allowY]);
+
+    const scheduleMetricsUpdate = useCallback(() => {
+      if (metricsRafRef.current) return;
+      metricsRafRef.current = requestAnimationFrame(() => {
+        metricsRafRef.current = 0;
+        updateMetrics();
+      });
+    }, [updateMetrics]);
 
     useImperativeHandle(ref, () => viewportRef.current);
 
     useLayoutEffect(() => {
-      const rafId = requestAnimationFrame(() => updateMetrics());
-      return () => cancelAnimationFrame(rafId);
-    }, [children, updateMetrics]);
+      scheduleMetricsUpdate();
+      return () => {
+        if (metricsRafRef.current) {
+          cancelAnimationFrame(metricsRafRef.current);
+          metricsRafRef.current = 0;
+        }
+      };
+    }, [children, scheduleMetricsUpdate]);
+
+    useEffect(() => {
+      viewportScrollHandlerRef.current =
+        typeof onViewportScroll === "function" ? onViewportScroll : null;
+    }, [onViewportScroll]);
 
     useEffect(() => {
       const viewport = viewportRef.current;
       if (!viewport) return;
 
       const onScroll = (event) => {
-        updateMetrics();
-        if (typeof onViewportScroll === "function") {
-          onViewportScroll(event);
+        scheduleMetricsUpdate();
+        if (viewportScrollHandlerRef.current) {
+          viewportScrollHandlerRef.current(event);
         }
       };
       viewport.addEventListener("scroll", onScroll, { passive: true });
 
-      const ro = new ResizeObserver(() => updateMetrics());
+      const ro = new ResizeObserver(() => scheduleMetricsUpdate());
       ro.observe(viewport);
 
       const contentEl = viewport.firstElementChild;
       if (contentEl) ro.observe(contentEl);
 
-      const mo = new MutationObserver(() => updateMetrics());
-      mo.observe(viewport, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        characterData: true,
-      });
-
-      const rafId = requestAnimationFrame(() => updateMetrics());
-      window.addEventListener("resize", updateMetrics);
+      scheduleMetricsUpdate();
+      window.addEventListener("resize", scheduleMetricsUpdate);
       return () => {
         viewport.removeEventListener("scroll", onScroll);
         ro.disconnect();
-        mo.disconnect();
-        cancelAnimationFrame(rafId);
-        window.removeEventListener("resize", updateMetrics);
+        window.removeEventListener("resize", scheduleMetricsUpdate);
+        if (metricsRafRef.current) {
+          cancelAnimationFrame(metricsRafRef.current);
+          metricsRafRef.current = 0;
+        }
       };
-    }, [onViewportScroll, updateMetrics]);
+    }, [scheduleMetricsUpdate]);
 
     useEffect(() => {
       const onMouseMove = (event) => {

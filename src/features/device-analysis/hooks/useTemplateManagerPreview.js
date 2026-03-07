@@ -88,8 +88,10 @@ export const useTemplateManagerPreview = ({
     return 0;
   }, [previewFile]);
 
-  const selectedColumnsSet = new Set(
-    Array.isArray(config?.selectedColumns) ? config.selectedColumns : [],
+  const selectedColumnsSet = useMemo(
+    () =>
+      new Set(Array.isArray(config?.selectedColumns) ? config.selectedColumns : []),
+    [config],
   );
 
   const autoColumnWidthsPx = useMemo(() => {

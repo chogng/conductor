@@ -915,6 +915,21 @@ textarea {
   background-color: rgba(255, 255, 255, 0.28);
 }
 
+/* Template preview panel: keep both custom scrollbars visually aligned with outer card edges */
+.da-preview-scroll-area {
+  overflow: visible;
+}
+
+.da-preview-scroll-area .scroll-area__track--y {
+  right: -14px;
+}
+
+.da-preview-scroll-area .scroll-area__track--x {
+  left: -12px;
+  right: -12px;
+  bottom: -14px;
+}
+
 /* Global Scrollbar Styling */
 ::-webkit-scrollbar {
   width: 6px;
