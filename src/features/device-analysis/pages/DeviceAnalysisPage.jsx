@@ -1,10 +1,11 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   DesktopCommandBar,
   DeviceAnalysisAnalysisPanel,
   DeviceAnalysisDataPanel,
   DeviceAnalysisSettingsPanel,
 } from "../components";
+import { loadAnalysisCharts } from "../components/loadAnalysisCharts";
 import { getDeviceAnalysisExtractionErrorMessage } from "../lib/deviceAnalysisUtils";
 import {
   useDeviceAnalysisDesktopShell,
@@ -73,6 +74,33 @@ const DeviceAnalysisPage = () => {
 
     setActivePage(nextPage);
   }, []);
+
+  const handleAnalysisIntent = useCallback(() => {
+    void loadAnalysisCharts();
+  }, []);
+
+  useEffect(() => {
+    if (hasVisitedAnalysisPage || processedData.length === 0) return undefined;
+
+    const prefetch = () => {
+      void loadAnalysisCharts();
+    };
+
+    if (
+      typeof window !== "undefined" &&
+      typeof window.requestIdleCallback === "function"
+    ) {
+      const idleId = window.requestIdleCallback(prefetch, { timeout: 1200 });
+      return () => {
+        if (typeof window.cancelIdleCallback === "function") {
+          window.cancelIdleCallback(idleId);
+        }
+      };
+    }
+
+    const timeoutId = window.setTimeout(prefetch, 300);
+    return () => window.clearTimeout(timeoutId);
+  }, [hasVisitedAnalysisPage, processedData.length]);
 
   const getExtractionErrorMessage = useCallback(
     (error) => getDeviceAnalysisExtractionErrorMessage(t, error),
@@ -218,6 +246,7 @@ const DeviceAnalysisPage = () => {
         <DesktopCommandBar
           t={t}
           activePage={activePage}
+          onAnalysisIntent={handleAnalysisIntent}
           onPageChange={handlePageTabSelect}
           onOpenOrigin={handleOpenOriginFromTitleBar}
           onOpenSettings={() => handlePageTabSelect("settings")}

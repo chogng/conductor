@@ -11,6 +11,7 @@ import originIcon from "../../../assets/icons/origin.svg";
 const DesktopCommandBar = ({
   t,
   activePage,
+  onAnalysisIntent,
   onPageChange,
   onMinimizeWindow,
   onToggleMaximizeWindow,
@@ -40,6 +41,8 @@ const DesktopCommandBar = ({
           aria-label={t("da_tab_analysis")}
           title={t("da_tab_analysis")}
           className={`da_window_icon_btn ${activePage === 'analysis' ? 'da_top_nav_btn--active' : ''}`}
+          onMouseEnter={onAnalysisIntent}
+          onFocus={onAnalysisIntent}
           onClick={() => onPageChange('analysis')}
         >
           <BarChart2 size={14} className="opacity-80" />
@@ -51,6 +54,8 @@ const DesktopCommandBar = ({
           aria-label={t("da_open_in_origin")}
           title={t("da_open_in_origin")}
           className="da_window_icon_btn"
+          onMouseEnter={onAnalysisIntent}
+          onFocus={onAnalysisIntent}
           onClick={onOpenOrigin}
         >
           <img

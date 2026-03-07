@@ -1,8 +1,9 @@
 import { lazy, Suspense } from "react";
 import { BarChart2 } from "lucide-react";
 import Card from "../../../components/ui/Card";
+import { loadAnalysisCharts } from "./loadAnalysisCharts";
 
-const AnalysisCharts = lazy(() => import("./AnalysisCharts"));
+const AnalysisCharts = lazy(loadAnalysisCharts);
 
 const AnalysisChartsLoadingFallback = ({ t }) => {
   return (
