@@ -1,35 +1,56 @@
-// @ts-nocheck
-import { forwardRef } from "react";
+import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { normalizeCtaName, normalizeCtaToken } from "../../utils/cta";
 
-const cx = (...parts) => parts.filter(Boolean).join(" ");
+const cx = (...parts: Array<string | false | null | undefined>): string =>
+  parts.filter(Boolean).join(" ");
+
+type ButtonVariant =
+  | "primary"
+  | "secondary"
+  | "ghost"
+  | "text"
+  | "danger";
+type ButtonSize = "sm" | "md" | "lg" | "control";
+
+type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+  children?: ReactNode;
+  variant?: ButtonVariant;
+  size?: ButtonSize;
+  fx?: boolean;
+  fullWidth?: boolean;
+  testId?: string;
+  dataIcon?: string;
+  cta?: string;
+  ctaPosition?: string;
+  ctaCopy?: string;
+};
 
 /**
  * Button (UI)
  * - Matches `docs/button_component_spec.md` (`action-btn*` classes in `src/styles/global.css`)
  * - Defaults `type="button"` to avoid accidental submits
  */
-const Button = forwardRef(
+const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   (
-      {
-        children,
-        type = "button",
-        variant = "primary", // primary | secondary | ghost | text | danger
-        size = "md", // sm | md | lg | control
-        fx = false,
-        fullWidth = false,
-        className = "",
-        disabled = false,
-        testId,
-        dataIcon,
-        cta,
-        ctaPosition,
-        ctaCopy,
-        ...props
-      },
-      ref,
-    ) => {
-      const isDisabled = !!disabled;
+    {
+      children,
+      type = "button",
+      variant = "primary",
+      size = "md",
+      fx = false,
+      fullWidth = false,
+      className = "",
+      disabled = false,
+      testId,
+      dataIcon,
+      cta,
+      ctaPosition,
+      ctaCopy,
+      ...props
+    },
+    ref,
+  ) => {
+    const isDisabled = Boolean(disabled);
     const devTestId = import.meta.env.DEV && testId ? testId : undefined;
 
     const resolvedVariant = (() => {
@@ -47,12 +68,12 @@ const Button = forwardRef(
       return "action-btn--primary";
     })();
 
-       const sizeClass = (() => {
-         if (size === "sm") return "action-btn--sm";
-         if (size === "lg") return "action-btn--lg";
-         if (size === "control") return "action-btn--control";
-         return "action-btn--md";
-       })();
+    const sizeClass = (() => {
+      if (size === "sm") return "action-btn--sm";
+      if (size === "lg") return "action-btn--lg";
+      if (size === "control") return "action-btn--control";
+      return "action-btn--md";
+    })();
 
     return (
       <button
@@ -65,7 +86,7 @@ const Button = forwardRef(
         data-cta={normalizeCtaName(cta)}
         data-cta-position={normalizeCtaToken(ctaPosition)}
         data-cta-copy={normalizeCtaToken(ctaCopy)}
-          className={cx(
+        className={cx(
           "action-btn",
           sizeClass,
           variantClass,

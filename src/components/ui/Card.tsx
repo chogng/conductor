@@ -1,10 +1,26 @@
-// @ts-nocheck
-import { createElement, forwardRef } from "react";
+import {
+  createElement,
+  forwardRef,
+  type ElementType,
+  type HTMLAttributes,
+} from "react";
 import { normalizeCtaName, normalizeCtaToken } from "../../utils/cta";
 
-const cx = (...parts) => parts.filter(Boolean).join(" ");
+const cx = (...parts: Array<string | false | null | undefined>): string =>
+  parts.filter(Boolean).join(" ");
 
-const Card = forwardRef(
+type CardVariant = "default" | "panel" | "glass" | "flat" | "fill";
+
+type CardProps = HTMLAttributes<HTMLElement> & {
+  as?: ElementType;
+  variant?: CardVariant;
+  cta?: string;
+  ctaPosition?: string;
+  ctaCopy?: string;
+  dataUi?: unknown;
+};
+
+const Card = forwardRef<HTMLElement, CardProps>(
   (
     {
       as: Component = "div",
@@ -16,7 +32,7 @@ const Card = forwardRef(
       ctaCopy,
       ...props
     },
-    ref
+    ref,
   ) => {
     const { dataUi, ...restProps } = props;
     if (import.meta.env.DEV && dataUi != null) {
@@ -25,7 +41,7 @@ const Card = forwardRef(
       );
     }
 
-    const variants = {
+    const variants: Record<CardVariant, string> = {
       default: "card",
       panel: "card card--panel",
       glass: "card card--glass",
@@ -33,25 +49,19 @@ const Card = forwardRef(
       fill: "card card--fill",
     };
 
-    const ctaMarker = normalizeCtaName(cta);
-    const ctaPositionMarker = normalizeCtaToken(ctaPosition);
-    const ctaCopyMarker = normalizeCtaToken(ctaCopy);
-
-    const cardClasses = cx(variants[variant] || variants.default, className);
-
     return createElement(
       Component,
       {
         ref,
-        className: cardClasses,
-        "data-cta": ctaMarker,
-        "data-cta-position": ctaPositionMarker,
-        "data-cta-copy": ctaCopyMarker,
+        className: cx(variants[variant] ?? variants.default, className),
+        "data-cta": normalizeCtaName(cta),
+        "data-cta-position": normalizeCtaToken(ctaPosition),
+        "data-cta-copy": normalizeCtaToken(ctaCopy),
         ...restProps,
       },
       children,
     );
-  }
+  },
 );
 
 Card.displayName = "Card";

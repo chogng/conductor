@@ -1,43 +1,105 @@
-// @ts-nocheck
-import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+  type HTMLAttributes,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+} from "react";
 import { normalizeCtaName, normalizeCtaToken } from "../../utils/cta";
 
-const cx = (...parts) => parts.filter(Boolean).join(" ");
+const cx = (...parts: Array<string | false | null | undefined>): string =>
+  parts.filter(Boolean).join(" ");
 
-const slugify = (input) =>
+const slugify = (input: unknown): string =>
   String(input ?? "")
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9_-]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
+type TabValue = string | number;
+type TabSize = "sm" | "md";
+type KeyboardActivation = "auto" | "manual";
+type PanelIdMode = "scoped" | "short";
+
+type TabIconComponent = ComponentType<{ size?: number }>;
+
+type TabOption = {
+  value?: TabValue;
+  label: ReactNode;
+  icon?: TabIconComponent;
+  ariaLabel?: string;
+  disabled?: boolean;
+  testId?: string;
+  id?: string;
+  panelId?: string;
+  cta?: string;
+  ctaPosition?: string;
+  ctaCopy?: string;
+};
+
+type NormalizedTabOption = TabOption & {
+  __index: number;
+  __key: string;
+  __tabId: string;
+  __panelId?: string;
+  __token: string;
+  __disabled: boolean;
+};
+
+type TabsProps = Omit<HTMLAttributes<HTMLDivElement>, "onChange"> & {
+  options?: TabOption[];
+  value?: TabValue;
+  onChange?: (nextValue: TabValue) => void;
+  itemClassName?: string;
+  keyboardActivation?: KeyboardActivation;
+  hoverPreview?: boolean;
+  controlsPanels?: boolean;
+  groupLabel?: string;
+  dataUi?: string;
+  testId?: string;
+  idBase?: string;
+  panelIdBase?: string;
+  panelIdMode?: PanelIdMode;
+  renderPanel?: (
+    option: NormalizedTabOption,
+    context: { index: number; isSelected: boolean },
+  ) => ReactNode;
+  keepMounted?: boolean;
+  size?: TabSize;
+};
+
 const Tabs = ({
-  options = [], // [{ value, label, icon?, ariaLabel?, disabled?, testId?, id?, panelId? }]
+  options = [],
   value,
   onChange,
   className = "",
   itemClassName = "",
-  keyboardActivation = "auto", // "auto" | "manual"
-  hoverPreview = true, // visual only: highlight on hover without changing selection
-  controlsPanels = false, // when true, Tabs links to external tabpanels via aria-controls
+  keyboardActivation = "auto",
+  hoverPreview = true,
+  controlsPanels = false,
   groupLabel,
   dataUi,
   testId,
   idBase,
   panelIdBase,
-  panelIdMode = "scoped", // "scoped" | "short"
-  renderPanel, // (option, { index, isSelected }) => ReactNode
-  keepMounted = false, // keep inactive panels mounted (hidden) after first visit
-  size = "md", // "sm" | "md"
+  panelIdMode = "scoped",
+  renderPanel,
+  keepMounted = false,
+  size = "md",
   ...restProps
-}) => {
+}: TabsProps) => {
   const safeOptions = useMemo(
     () => (Array.isArray(options) ? options : []),
     [options],
   );
   const reactId = useId();
-  const buttonRefs = useRef([]);
-  const [hoveredValue, setHoveredValue] = useState(null);
+  const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const [hoveredValue, setHoveredValue] = useState<TabValue | null>(null);
 
   const uiMarker =
     typeof dataUi === "string" && dataUi.trim() ? dataUi.trim() : undefined;
@@ -62,20 +124,20 @@ const Tabs = ({
       : "";
 
   const sizeClass = size === "sm" ? "tab_btn--sm" : "tab_btn--md";
-  const resolvedHoverPreview = !!hoverPreview;
+  const resolvedHoverPreview = Boolean(hoverPreview);
   const shouldLinkPanels =
     typeof renderPanel === "function" || Boolean(controlsPanels);
 
-  const normalizedOptions = useMemo(() => {
-    const seenValues = new Set();
-    const usedTokens = new Set();
+  const normalizedOptions = useMemo<NormalizedTabOption[]>(() => {
+    const seenValues = new Set<TabValue>();
+    const usedTokens = new Set<string>();
 
     return safeOptions.map((option, index) => {
-      const optionValue = option?.value;
+      const optionValue = option.value;
       const baseTokenRaw =
         optionValue !== undefined
           ? optionValue
-          : option?.label != null
+          : option.label != null
             ? option.label
             : `item-${index}`;
 
@@ -84,12 +146,12 @@ const Tabs = ({
       if (usedTokens.has(token)) token = `${token}-${index}`;
       usedTokens.add(token);
 
-      const tabId = option?.id ?? `${instanceId}-tab-${token}`;
+      const tabId = option.id ?? `${instanceId}-tab-${token}`;
       const panelId = shouldLinkPanels
         ? panelIdMode === "short"
-          ? option?.panelId ??
+          ? option.panelId ??
             (shortPanelPrefix ? `${shortPanelPrefix}-${token}` : token)
-          : option?.panelId ?? `${panelPrefix}-${token}`
+          : option.panelId ?? `${panelPrefix}-${token}`
         : undefined;
 
       if (import.meta.env.DEV) {
@@ -106,7 +168,7 @@ const Tabs = ({
           );
         }
 
-        if (shouldLinkPanels && hasExplicitIdBase && option?.panelId) {
+        if (shouldLinkPanels && hasExplicitIdBase && option.panelId) {
           console.warn(
             "[Tabs] option.panelId overrides the derived panel id; prefer panelIdBase/panelIdMode for consistency.",
             { idBase, option },
@@ -123,7 +185,7 @@ const Tabs = ({
         __tabId: tabId,
         __panelId: panelId,
         __token: token,
-        __disabled: !!option?.disabled,
+        __disabled: Boolean(option.disabled),
       };
     });
   }, [
@@ -138,13 +200,13 @@ const Tabs = ({
   ]);
 
   const selectedIndex = useMemo(
-    () => normalizedOptions.findIndex((o) => o?.value === value),
+    () => normalizedOptions.findIndex((option) => option.value === value),
     [normalizedOptions, value],
   );
   const hasSelectedValue = selectedIndex >= 0;
 
   const firstEnabledIndex = useMemo(
-    () => normalizedOptions.findIndex((o) => !o?.__disabled),
+    () => normalizedOptions.findIndex((option) => !option.__disabled),
     [normalizedOptions],
   );
 
@@ -159,10 +221,13 @@ const Tabs = ({
     return firstEnabledIndex;
   }, [firstEnabledIndex, hasSelectedValue, normalizedOptions, selectedIndex]);
 
-  const [mountedValues, setMountedValues] = useState(() => new Set());
+  const [mountedValues, setMountedValues] = useState<Set<TabValue>>(
+    () => new Set(),
+  );
 
   useEffect(() => {
     if (!keepMounted || typeof renderPanel !== "function") return;
+    if (value === undefined) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMountedValues((prev) => {
       if (prev.has(value)) return prev;
@@ -172,7 +237,7 @@ const Tabs = ({
     });
   }, [keepMounted, renderPanel, value]);
 
-  const noteMounted = (nextValue) => {
+  const noteMounted = (nextValue?: TabValue) => {
     if (!keepMounted || typeof renderPanel !== "function") return;
     setMountedValues((prev) => {
       const next = new Set(prev);
@@ -182,12 +247,12 @@ const Tabs = ({
     });
   };
 
-  const focusAtIndex = (idx) => {
-    const el = buttonRefs.current?.[idx];
+  const focusAtIndex = (idx: number) => {
+    const el = buttonRefs.current[idx];
     if (el && typeof el.focus === "function") el.focus();
   };
 
-  const findNextEnabledIndex = (fromIndex, dir) => {
+  const findNextEnabledIndex = (fromIndex: number, dir: -1 | 1): number => {
     const len = normalizedOptions.length;
     if (len <= 0) return -1;
 
@@ -198,7 +263,7 @@ const Tabs = ({
     return -1;
   };
 
-  const moveSelection = (currentIndex, dir) => {
+  const moveSelection = (currentIndex: number, dir: -1 | 1) => {
     const nextIndex = findNextEnabledIndex(currentIndex, dir);
     if (nextIndex < 0) return;
 
@@ -215,7 +280,7 @@ const Tabs = ({
     }
   };
 
-  const activateAtIndex = (idx) => {
+  const activateAtIndex = (idx: number) => {
     const option = normalizedOptions[idx];
     if (!option || option.__disabled) return;
     if (option.value === undefined) return;
@@ -248,17 +313,16 @@ const Tabs = ({
         const Icon = option.icon;
         const isSelected = value === option.value;
         const resolvedVisualValue =
-          resolvedHoverPreview && hoveredValue != null ? hoveredValue : value;
-        const isVisuallyActive = resolvedVisualValue === option.value;
+          resolvedHoverPreview && hoveredValue !== null ? hoveredValue : value;
+        const isVisuallyActive =
+          option.value !== undefined && resolvedVisualValue === option.value;
 
-        const ariaLabel = option?.ariaLabel;
         const optionTestId =
-          import.meta.env.DEV && option?.testId ? option.testId : undefined;
+          import.meta.env.DEV && option.testId ? option.testId : undefined;
         const tabId = option.__tabId;
         const panelId = option.__panelId;
         const token = option.__token;
         const isDisabled = option.__disabled;
-
         const tabIndex = index === focusIndex ? 0 : -1;
 
         return (
@@ -267,7 +331,7 @@ const Tabs = ({
             type="button"
             role="tab"
             id={tabId}
-            aria-label={ariaLabel}
+            aria-label={option.ariaLabel}
             aria-selected={isSelected}
             aria-controls={panelId}
             tabIndex={tabIndex}
@@ -275,9 +339,9 @@ const Tabs = ({
             data-icon={Icon ? "with" : "without"}
             data-tabs="tab"
             data-ui={uiMarker ? `${uiMarker}-tab-${token}` : undefined}
-            data-cta={normalizeCtaName(option?.cta)}
-            data-cta-position={normalizeCtaToken(option?.ctaPosition)}
-            data-cta-copy={normalizeCtaToken(option?.ctaCopy)}
+            data-cta={normalizeCtaName(option.cta)}
+            data-cta-position={normalizeCtaToken(option.ctaPosition)}
+            data-cta-copy={normalizeCtaToken(option.ctaCopy)}
             data-testid={optionTestId}
             className={cx(
               "tab_btn",
@@ -297,43 +361,45 @@ const Tabs = ({
             }}
             onMouseEnter={() => {
               if (isDisabled) return;
-              if (resolvedHoverPreview) setHoveredValue(option.value);
+              if (resolvedHoverPreview) {
+                setHoveredValue(option.value ?? null);
+              }
             }}
             onMouseLeave={() => {
               if (resolvedHoverPreview) setHoveredValue(null);
             }}
-            onKeyDown={(e) => {
-              if (e.key === "ArrowLeft") {
-                e.preventDefault();
+            onKeyDown={(event: ReactKeyboardEvent<HTMLButtonElement>) => {
+              if (event.key === "ArrowLeft") {
+                event.preventDefault();
                 moveSelection(index, -1);
-              } else if (e.key === "ArrowRight") {
-                e.preventDefault();
+              } else if (event.key === "ArrowRight") {
+                event.preventDefault();
                 moveSelection(index, 1);
-              } else if (e.key === "Home") {
-                e.preventDefault();
+              } else if (event.key === "Home") {
+                event.preventDefault();
                 const idx = firstEnabled();
                 if (idx < 0) return;
                 focusAtIndex(idx);
                 if (keyboardActivation !== "manual") activateAtIndex(idx);
-              } else if (e.key === "End") {
-                e.preventDefault();
+              } else if (event.key === "End") {
+                event.preventDefault();
                 const idx = lastEnabled();
                 if (idx < 0) return;
                 focusAtIndex(idx);
                 if (keyboardActivation !== "manual") activateAtIndex(idx);
               } else if (keyboardActivation === "manual") {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
                   activateAtIndex(index);
                 }
               }
             }}
           >
-            {Icon && (
+            {Icon ? (
               <span className="tab_btn_icon">
                 <Icon size={16} />
               </span>
-            )}
+            ) : null}
             <span className="tab_btn_text">{option.label}</span>
           </button>
         );
@@ -353,9 +419,9 @@ const Tabs = ({
           const token = option.__token;
 
           const isSelected = value === option.value;
-          const shouldRender = keepMounted
-            ? isSelected || mountedValues.has(option.value)
-            : isSelected;
+          const isMountedValue =
+            option.value !== undefined && mountedValues.has(option.value);
+          const shouldRender = keepMounted ? isSelected || isMountedValue : isSelected;
           if (!shouldRender) return null;
 
           return (

@@ -1,15 +1,74 @@
-// @ts-nocheck
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+  type CSSProperties,
+  type ComponentType,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { Check, ChevronDown } from "lucide-react";
 import Popup from "./Popup";
 import ScrollArea from "./ScrollArea";
 
-const cx = (...parts) => parts.filter(Boolean).join(" ");
+const cx = (...parts: Array<string | false | null | undefined>): string =>
+  parts.filter(Boolean).join(" ");
 
-const isSelectableOption = (opt) =>
-  opt && Object.prototype.hasOwnProperty.call(opt, "value");
+type SelectValue = string | number;
+type SelectSize = "sm" | "md" | "xl";
+type PopupAlign = "left" | "center" | "right";
 
-const slugify = (input) =>
+type SelectIconComponent = ComponentType<{
+  style?: CSSProperties;
+  className?: string;
+}>;
+
+type SelectOption = {
+  label?: ReactNode;
+  value: SelectValue;
+  icon?: SelectIconComponent;
+  group?: string;
+};
+
+type IndexedGroup = {
+  group: string;
+  options: Array<{ option: SelectOption; index: number }>;
+};
+
+type SelectProps = Omit<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  "onChange" | "value" | "size"
+> & {
+  options?: SelectOption[];
+  value?: SelectValue;
+  onChange?: (nextValue: SelectValue) => void;
+  placeholder?: ReactNode;
+  title?: ReactNode;
+  disabled?: boolean;
+  size?: SelectSize;
+  className?: string;
+  formatDisplay?: (selected: SelectOption | null) => ReactNode;
+  align?: PopupAlign;
+  zIndex?: number;
+  id?: string;
+  menuId?: string;
+  popupClassName?: string;
+  triggerClassName?: string;
+  testId?: string;
+};
+
+const isSelectableOption = (opt: unknown): opt is SelectOption => {
+  if (!opt || typeof opt !== "object") return false;
+  if (!Object.prototype.hasOwnProperty.call(opt, "value")) return false;
+  const value = (opt as { value: unknown }).value;
+  return typeof value === "string" || typeof value === "number";
+};
+
+const slugify = (input: unknown): string =>
   String(input ?? "")
     .toLowerCase()
     .trim()
@@ -17,13 +76,13 @@ const slugify = (input) =>
     .replace(/^-+|-+$/g, "");
 
 const Select = ({
-  options = [], // [{ label, value, icon?, group? }]
+  options = [],
   value,
   onChange,
   placeholder,
   title,
   disabled = false,
-  size = "md", // "sm" | "md" | "xl"
+  size = "md",
   className = "",
   formatDisplay,
   align = "left",
@@ -34,10 +93,10 @@ const Select = ({
   triggerClassName = "",
   testId,
   ...props
-}) => {
+}: SelectProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const containerRef = useRef(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   const internalTriggerId = useId();
   const internalMenuId = useId();
@@ -75,18 +134,17 @@ const Select = ({
   }, [formatDisplay, selected, value]);
 
   const grouped = useMemo(() => {
-    const map = new Map();
+    const map = new Map<string, SelectOption[]>();
     for (const opt of selectableOptions) {
-      const group = opt?.group ? String(opt.group) : "";
+      const group = opt.group ? String(opt.group) : "";
       if (!map.has(group)) map.set(group, []);
-      map.get(group).push(opt);
+      map.get(group)?.push(opt);
     }
-    const groups = Array.from(map.keys());
-    return { map, groups };
+    return { map, groups: Array.from(map.keys()) };
   }, [selectableOptions]);
 
   const flatOptions = useMemo(() => {
-    const flat = [];
+    const flat: SelectOption[] = [];
     for (const group of grouped.groups) {
       for (const opt of grouped.map.get(group) ?? []) {
         flat.push(opt);
@@ -95,7 +153,7 @@ const Select = ({
     return flat;
   }, [grouped]);
 
-  const indexedGroups = useMemo(() => {
+  const indexedGroups = useMemo<IndexedGroup[]>(() => {
     let nextIndex = 0;
     return grouped.groups.map((group) => ({
       group,
@@ -120,7 +178,7 @@ const Select = ({
     setHighlightedIndex(-1);
   };
 
-  const selectOption = (opt) => {
+  const selectOption = (opt: SelectOption | undefined) => {
     if (!opt) return;
     onChange?.(opt.value);
     closeMenu();
@@ -142,25 +200,29 @@ const Select = ({
     });
   };
 
-  const handleKeyDown = (e) => {
+  const handleKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
     if (disabled) return;
 
     if (!isOpen) {
-      if (e.key === "ArrowDown" || e.key === "ArrowUp" || e.key === "Enter") {
-        e.preventDefault();
+      if (
+        event.key === "ArrowDown" ||
+        event.key === "ArrowUp" ||
+        event.key === "Enter"
+      ) {
+        event.preventDefault();
         openMenu();
       }
       return;
     }
 
-    if (e.key === "Escape") {
-      e.preventDefault();
+    if (event.key === "Escape") {
+      event.preventDefault();
       closeMenu();
       return;
     }
 
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
       setHighlightedIndex((prev) =>
         flatOptions.length
           ? (prev + 1 + flatOptions.length) % flatOptions.length
@@ -169,8 +231,8 @@ const Select = ({
       return;
     }
 
-    if (e.key === "ArrowUp") {
-      e.preventDefault();
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
       setHighlightedIndex((prev) =>
         flatOptions.length
           ? (prev - 1 + flatOptions.length) % flatOptions.length
@@ -179,8 +241,8 @@ const Select = ({
       return;
     }
 
-    if (e.key === "Enter") {
-      e.preventDefault();
+    if (event.key === "Enter") {
+      event.preventDefault();
       const opt = flatOptions[highlightedIndex];
       if (opt) selectOption(opt);
     }
@@ -261,7 +323,7 @@ const Select = ({
         zIndex={zIndex}
         triggerId={triggerId}
         menuId={resolvedMenuId}
-        containerRef={containerRef}
+        containerRef={containerRef as RefObject<HTMLElement | null>}
         className={popupClassName}
       >
         {() => (
@@ -270,7 +332,7 @@ const Select = ({
 
             <ScrollArea className="max-h-60" axis="y">
               <div className="ui-select_list">
-                {indexedGroups.map(({ group, options }, groupIdx) => (
+                {indexedGroups.map(({ group, options: groupOptions }, groupIdx) => (
                   <div key={group || "default"} role={group ? "group" : undefined}>
                     {group ? (
                       <>
@@ -285,7 +347,7 @@ const Select = ({
                       </>
                     ) : null}
 
-                    {options.map(({ option, index: currentIndex }) => {
+                    {groupOptions.map(({ option, index: currentIndex }) => {
                       const isHighlighted = highlightedIndex === currentIndex;
                       const isSelected = value === option.value;
                       const Icon = option.icon;

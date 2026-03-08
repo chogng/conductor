@@ -1,6 +1,29 @@
-// @ts-nocheck
-import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { CheckCircle2, AlertCircle, Info, X } from "lucide-react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+} from "react";
+import { AlertCircle, CheckCircle2, Info, X } from "lucide-react";
+
+type ToastType = "success" | "error" | "warning" | "info";
+type ToastPosition = "absolute" | "fixed";
+
+type ToastProps = {
+  message: ReactNode;
+  type?: ToastType;
+  actionText?: string;
+  onAction?: () => void;
+  onClose?: () => void;
+  isVisible: boolean;
+  containerRef?: RefObject<HTMLElement | null>;
+  position?: ToastPosition;
+  duration?: number;
+  dataUi?: string;
+};
 
 const Toast = ({
   message,
@@ -13,18 +36,20 @@ const Toast = ({
   position = "absolute",
   duration = 5000,
   dataUi,
-}) => {
-  const [positionStyle, setPositionStyle] = useState({});
+}: ToastProps) => {
+  const [positionStyle, setPositionStyle] = useState<CSSProperties>({});
   const [shouldRender, setShouldRender] = useState(isVisible);
   const [isClosing, setIsClosing] = useState(false);
 
-  const closeFnRef = useRef(onClose);
+  const closeFnRef = useRef<(() => void) | undefined>(onClose);
   useEffect(() => {
     closeFnRef.current = onClose;
   }, [onClose]);
 
-  const autoCloseTimeoutIdRef = useRef(null);
-  const autoCloseStartedAtRef = useRef(null);
+  const autoCloseTimeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const autoCloseStartedAtRef = useRef<number | null>(null);
   const autoCloseRemainingMsRef = useRef(duration);
   const isAutoClosePausedRef = useRef(false);
 
@@ -37,7 +62,7 @@ const Toast = ({
 
   const startAutoCloseTimeout = () => {
     if (!isVisible) return;
-    if (duration == null || duration === Infinity) return;
+    if (duration == null || duration === Number.POSITIVE_INFINITY) return;
     if (isAutoClosePausedRef.current) return;
     if (autoCloseRemainingMsRef.current <= 0) return;
 
@@ -51,7 +76,7 @@ const Toast = ({
 
   const pauseAutoClose = () => {
     if (!isVisible) return;
-    if (duration == null || duration === Infinity) return;
+    if (duration == null || duration === Number.POSITIVE_INFINITY) return;
     if (isAutoClosePausedRef.current) return;
 
     isAutoClosePausedRef.current = true;
@@ -67,7 +92,7 @@ const Toast = ({
 
   const resumeAutoClose = () => {
     if (!isVisible) return;
-    if (duration == null || duration === Infinity) return;
+    if (duration == null || duration === Number.POSITIVE_INFINITY) return;
     if (!isAutoClosePausedRef.current) return;
 
     isAutoClosePausedRef.current = false;
@@ -93,16 +118,16 @@ const Toast = ({
       clearAutoCloseTimeout();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isVisible, message, type, actionText, onAction, duration]);
+  }, [actionText, duration, isVisible, message, onAction, type]);
 
-  // Calculate position if containerRef is provided
+  // Calculate position if containerRef is provided.
   useLayoutEffect(() => {
     const updatePosition = () => {
       if (containerRef?.current && position === "absolute") {
         const rect = containerRef.current.getBoundingClientRect();
         const center = rect.left + rect.width / 2;
         setPositionStyle({
-          position: "fixed", // relative to viewport but calculated based on container
+          position: "fixed",
           bottom: "32px",
           left: `${center}px`,
         });
@@ -121,13 +146,12 @@ const Toast = ({
       window.addEventListener("resize", updatePosition);
       return () => window.removeEventListener("resize", updatePosition);
     }
-  }, [isVisible, containerRef, position]);
+  }, [containerRef, isVisible, position]);
 
-  // Render logic
   useEffect(() => {
-    let openTimer;
-    let closeTimer;
-    let hideTimer;
+    let openTimer: ReturnType<typeof setTimeout> | null = null;
+    let closeTimer: ReturnType<typeof setTimeout> | null = null;
+    let hideTimer: ReturnType<typeof setTimeout> | null = null;
 
     if (isVisible) {
       openTimer = setTimeout(() => {
@@ -140,7 +164,7 @@ const Toast = ({
         hideTimer = setTimeout(() => {
           setShouldRender(false);
           setIsClosing(false);
-        }, 300); // Match animation duration
+        }, 300);
       }, 0);
     }
 
@@ -186,7 +210,13 @@ const Toast = ({
       onMouseLeave={resumeAutoClose}
       onFocusCapture={pauseAutoClose}
       onBlurCapture={(event) => {
-        if (event.currentTarget.contains(event.relatedTarget)) return;
+        const relatedTarget = event.relatedTarget;
+        if (
+          relatedTarget instanceof Node &&
+          event.currentTarget.contains(relatedTarget)
+        ) {
+          return;
+        }
         resumeAutoClose();
       }}
       role={a11yRole}
@@ -197,14 +227,14 @@ const Toast = ({
       data-state={state}
       data-ui={uiMarker}
       className={`
-                transform -translate-x-1/2 z-[60]
-                flex items-center gap-3
-                bg-bg-surface/90 backdrop-blur-xl
-                border border-border-subtle/60 shadow-[0_8px_30px_rgb(0,0,0,0.12)]
-                pl-4 pr-3 py-3 rounded-2xl min-w-[340px] max-w-[420px]
-                ${isClosing ? "animate-slide-down" : "animate-slide-up"}
-                ${Object.keys(positionStyle).length === 0 ? (position === "fixed" ? "fixed bottom-8 left-1/2" : "absolute bottom-0 left-1/2") : ""}
-            `}
+        transform -translate-x-1/2 z-[60]
+        flex items-center gap-3
+        bg-bg-surface/90 backdrop-blur-xl
+        border border-border-subtle/60 shadow-[0_8px_30px_rgb(0,0,0,0.12)]
+        pl-4 pr-3 py-3 rounded-2xl min-w-[340px] max-w-[420px]
+        ${isClosing ? "animate-slide-down" : "animate-slide-up"}
+        ${Object.keys(positionStyle).length === 0 ? (position === "fixed" ? "fixed bottom-8 left-1/2" : "absolute bottom-0 left-1/2") : ""}
+      `}
       style={positionStyle}
     >
       <div className="shrink-0">{getIcon()}</div>
@@ -214,7 +244,7 @@ const Toast = ({
       </span>
 
       <div className="flex items-center gap-3 pl-3 border-l border-border-subtle/60">
-        {actionText && onAction && (
+        {actionText && onAction ? (
           <button
             type="button"
             onClick={onAction}
@@ -223,7 +253,8 @@ const Toast = ({
           >
             {actionText}
           </button>
-        )}
+        ) : null}
+
         <button
           type="button"
           onClick={onClose}

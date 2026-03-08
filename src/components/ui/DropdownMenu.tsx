@@ -1,11 +1,17 @@
-// @ts-nocheck
-import React, { useEffect, useRef } from "react";
+import { useEffect, useRef, type HTMLAttributes, type RefObject } from "react";
 import ScrollArea from "./ScrollArea";
 
-const cx = (...parts) => parts.filter(Boolean).join(" ");
+const cx = (...parts: Array<string | false | null | undefined>): string =>
+  parts.filter(Boolean).join(" ");
 
 const DEFAULT_MENU_CLASSNAME =
   "absolute top-full left-0 right-0 mt-2 bg-bg-surface text-text-primary border border-border-subtle rounded-xl shadow-xl z-50 p-1.5";
+
+type DropdownMenuProps = HTMLAttributes<HTMLDivElement> & {
+  isOpen: boolean;
+  onClose?: () => void;
+  anchorRef?: RefObject<HTMLElement | null>;
+};
 
 const DropdownMenu = ({
   isOpen,
@@ -16,18 +22,18 @@ const DropdownMenu = ({
   className = "",
   children,
   ...props
-}) => {
-  const menuRef = useRef(null);
+}: DropdownMenuProps) => {
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
 
-    const handleKeyDown = (e) => {
-      if (e.key === "Escape") onClose?.();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose?.();
     };
 
-    const handleMouseDown = (e) => {
-      const target = e.target;
+    const handleMouseDown = (event: MouseEvent) => {
+      const target = event.target;
       if (!(target instanceof Node)) return;
 
       const anchorEl = anchorRef?.current;

@@ -1,18 +1,26 @@
-// @ts-nocheck
-import { forwardRef, useId } from "react";
+import {
+  forwardRef,
+  useId,
+  type ComponentType,
+  type InputHTMLAttributes,
+  type ReactNode,
+} from "react";
 import { normalizeCtaName, normalizeCtaToken } from "../../utils/cta";
 
-const cx = (...parts) => parts.filter(Boolean).join(" ");
+const cx = (...parts: Array<string | false | null | undefined>): string =>
+  parts.filter(Boolean).join(" ");
 
-const slugify = (input) =>
+const slugify = (input: unknown): string =>
   String(input ?? "")
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9_-]+/g, "-")
     .replace(/^-+|-+$/g, "");
 
-const mergeSpaceSeparatedIds = (...parts) => {
-  const ids = [];
+const mergeSpaceSeparatedIds = (
+  ...parts: Array<string | undefined>
+): string | undefined => {
+  const ids: string[] = [];
   for (const part of parts) {
     if (typeof part !== "string") continue;
     for (const token of part.split(/\s+/g)) {
@@ -24,16 +32,41 @@ const mergeSpaceSeparatedIds = (...parts) => {
   return ids.length ? ids.join(" ") : undefined;
 };
 
+type InputSize = "sm" | "md" | "lg" | "xl";
+type LabelPlacement = "stack" | "inline";
+
+type InputProps = Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  "size" | "value" | "onChange"
+> & {
+  label?: ReactNode;
+  labelPlacement?: LabelPlacement;
+  idBase?: string;
+  value?: string | number;
+  onChange?: (nextValue: string) => void;
+  allowAutoComplete?: boolean;
+  size?: InputSize;
+  leftIcon?: ComponentType<{ size?: number }>;
+  rightSlot?: ReactNode;
+  error?: ReactNode;
+  hint?: ReactNode;
+  fieldClassName?: string;
+  inputClassName?: string;
+  cta?: string;
+  ctaPosition?: string;
+  ctaCopy?: string;
+};
+
 /**
  * Input (UI)
  * - Controlled: value + onChange(nextValue)
  * - Stable markers: data-style/data-state
  */
-const Input = forwardRef(
+const Input = forwardRef<HTMLInputElement, InputProps>(
   (
     {
       label,
-      labelPlacement = "stack", // "stack" | "inline"
+      labelPlacement = "stack",
       id,
       idBase,
       name,
@@ -44,7 +77,7 @@ const Input = forwardRef(
       placeholder,
       autoComplete,
       allowAutoComplete = false,
-      size = "md", // "sm" | "md" | "lg" | "xl"
+      size = "md",
       leftIcon: LeftIcon,
       rightSlot,
       error,
@@ -57,9 +90,10 @@ const Input = forwardRef(
       ctaCopy,
       ...props
     },
-    ref
+    ref,
   ) => {
-    const { "aria-describedby": describedByFromProps, ...inputProps } = props;
+    const { ["aria-describedby"]: describedByFromProps, ...inputProps } = props;
+
     const reactId = useId();
     const idBasePrefix =
       typeof idBase === "string" && idBase.trim() ? slugify(idBase) : "input";
@@ -70,21 +104,20 @@ const Input = forwardRef(
     const describedByFromStatus = error ? errorId : hint ? hintId : undefined;
     const ariaDescribedBy = mergeSpaceSeparatedIds(
       describedByFromProps,
-      describedByFromStatus
+      describedByFromStatus,
     );
+
     const state = disabled ? "disabled" : error ? "error" : "enable";
     const resolvedAutoComplete = allowAutoComplete ? autoComplete : "off";
     const sizeClass =
       size === "sm"
         ? "input_field--sm"
-      : size === "lg"
+        : size === "lg"
           ? "input_field--lg"
           : size === "xl"
             ? "input_field--xl"
             : "input_field--md";
-    const resolvedLabelPlacement =
-      labelPlacement === "inline" ? "inline" : "stack";
-    const shouldInlineLabel = !!label && resolvedLabelPlacement === "inline";
+    const shouldInlineLabel = Boolean(label) && labelPlacement === "inline";
 
     const labelNode = label ? (
       <label
@@ -117,11 +150,11 @@ const Input = forwardRef(
           name={name}
           type={type}
           value={value ?? ""}
-          onChange={(e) => onChange?.(e.target.value)}
+          onChange={(event) => onChange?.(event.target.value)}
           disabled={disabled}
           placeholder={placeholder}
           autoComplete={resolvedAutoComplete}
-          aria-invalid={!!error}
+          aria-invalid={Boolean(error)}
           aria-describedby={ariaDescribedBy}
           className={cx("input_native", inputClassName)}
         />
@@ -131,10 +164,7 @@ const Input = forwardRef(
     );
 
     return (
-      <div
-        className={cx("input_warp", className)}
-        data-style="input"
-      >
+      <div className={cx("input_warp", className)} data-style="input">
         {shouldInlineLabel ? (
           <div className="flex items-center gap-2">
             {labelNode}
@@ -152,6 +182,7 @@ const Input = forwardRef(
             {error}
           </div>
         ) : null}
+
         {!error && hint ? (
           <div id={hintId} className="input_hint">
             {hint}
@@ -159,7 +190,7 @@ const Input = forwardRef(
         ) : null}
       </div>
     );
-  }
+  },
 );
 
 Input.displayName = "Input";

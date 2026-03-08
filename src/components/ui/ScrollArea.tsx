@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {
   forwardRef,
   useCallback,
@@ -7,30 +6,65 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type HTMLAttributes,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
 } from "react";
 
-const cx = (...parts) => parts.filter(Boolean).join(" ");
+const cx = (...parts: Array<string | false | null | undefined>): string =>
+  parts.filter(Boolean).join(" ");
 
 const MIN_THUMB_SIZE = 24;
 
-const ScrollArea = forwardRef(
+type ScrollAxis = "x" | "y" | "both";
+
+type ViewportProps = Omit<HTMLAttributes<HTMLDivElement>, "onScroll"> & {
+  onScroll?: (event: Event) => void;
+};
+
+type ScrollAreaProps = HTMLAttributes<HTMLDivElement> & {
+  children?: ReactNode;
+  viewportClassName?: string;
+  axis?: ScrollAxis;
+  viewportProps?: ViewportProps;
+};
+
+type ScrollMetrics = {
+  showY: boolean;
+  showX: boolean;
+  yThumbSize: number;
+  xThumbSize: number;
+  yThumbOffset: number;
+  xThumbOffset: number;
+};
+
+type DragState = {
+  axis: "x" | "y";
+  startPointer: number;
+  startScroll: number;
+  thumbSize: number;
+};
+
+const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(
   (
     {
       children,
       className = "",
       viewportClassName = "",
-      axis = "y", // y | x | both
+      axis = "y",
       viewportProps = {},
       ...props
     },
     ref,
   ) => {
-    const viewportRef = useRef(null);
-    const dragRef = useRef(null);
-    const metricsRafRef = useRef(0);
-    const viewportScrollHandlerRef = useRef(null);
+    const viewportRef = useRef<HTMLDivElement | null>(null);
+    const dragRef = useRef<DragState | null>(null);
+    const metricsRafRef = useRef<number | null>(null);
+    const viewportScrollHandlerRef = useRef<((event: Event) => void) | null>(
+      null,
+    );
 
-    const [metrics, setMetrics] = useState({
+    const [metrics, setMetrics] = useState<ScrollMetrics>({
       showY: false,
       showX: false,
       yThumbSize: 0,
@@ -46,13 +80,20 @@ const ScrollArea = forwardRef(
       onScroll: onViewportScroll,
       className: viewportPropsClassName,
       ...restViewportProps
-    } = viewportProps || {};
+    } = viewportProps;
 
     const updateMetrics = useCallback(() => {
       const viewport = viewportRef.current;
       if (!viewport) return;
 
-      const { scrollHeight, clientHeight, scrollTop, scrollWidth, clientWidth, scrollLeft } = viewport;
+      const {
+        scrollHeight,
+        clientHeight,
+        scrollTop,
+        scrollWidth,
+        clientWidth,
+        scrollLeft,
+      } = viewport;
 
       const canScrollY = allowY && scrollHeight > clientHeight + 1;
       const canScrollX = allowX && scrollWidth > clientWidth + 1;
@@ -69,7 +110,7 @@ const ScrollArea = forwardRef(
       const yScrollMax = Math.max(1, scrollHeight - clientHeight);
       const xScrollMax = Math.max(1, scrollWidth - clientWidth);
 
-      const nextMetrics = {
+      const nextMetrics: ScrollMetrics = {
         showY: canScrollY,
         showX: canScrollX,
         yThumbSize,
@@ -91,21 +132,21 @@ const ScrollArea = forwardRef(
     }, [allowX, allowY]);
 
     const scheduleMetricsUpdate = useCallback(() => {
-      if (metricsRafRef.current) return;
+      if (metricsRafRef.current != null) return;
       metricsRafRef.current = requestAnimationFrame(() => {
-        metricsRafRef.current = 0;
+        metricsRafRef.current = null;
         updateMetrics();
       });
     }, [updateMetrics]);
 
-    useImperativeHandle(ref, () => viewportRef.current);
+    useImperativeHandle(ref, () => viewportRef.current as HTMLDivElement, []);
 
     useLayoutEffect(() => {
       scheduleMetricsUpdate();
       return () => {
-        if (metricsRafRef.current) {
+        if (metricsRafRef.current != null) {
           cancelAnimationFrame(metricsRafRef.current);
-          metricsRafRef.current = 0;
+          metricsRafRef.current = null;
         }
       };
     }, [children, scheduleMetricsUpdate]);
@@ -119,11 +160,9 @@ const ScrollArea = forwardRef(
       const viewport = viewportRef.current;
       if (!viewport) return;
 
-      const onScroll = (event) => {
+      const onScroll = (event: Event) => {
         scheduleMetricsUpdate();
-        if (viewportScrollHandlerRef.current) {
-          viewportScrollHandlerRef.current(event);
-        }
+        viewportScrollHandlerRef.current?.(event);
       };
       viewport.addEventListener("scroll", onScroll, { passive: true });
 
@@ -139,15 +178,15 @@ const ScrollArea = forwardRef(
         viewport.removeEventListener("scroll", onScroll);
         ro.disconnect();
         window.removeEventListener("resize", scheduleMetricsUpdate);
-        if (metricsRafRef.current) {
+        if (metricsRafRef.current != null) {
           cancelAnimationFrame(metricsRafRef.current);
-          metricsRafRef.current = 0;
+          metricsRafRef.current = null;
         }
       };
     }, [scheduleMetricsUpdate]);
 
     useEffect(() => {
-      const onMouseMove = (event) => {
+      const onMouseMove = (event: MouseEvent) => {
         const drag = dragRef.current;
         const viewport = viewportRef.current;
         if (!drag || !viewport) return;
@@ -155,13 +194,20 @@ const ScrollArea = forwardRef(
         if (drag.axis === "y") {
           const delta = event.clientY - drag.startPointer;
           const trackRange = Math.max(1, viewport.clientHeight - drag.thumbSize);
-          const scrollRange = Math.max(1, viewport.scrollHeight - viewport.clientHeight);
+          const scrollRange = Math.max(
+            1,
+            viewport.scrollHeight - viewport.clientHeight,
+          );
           viewport.scrollTop = drag.startScroll + (delta * scrollRange) / trackRange;
         } else {
           const delta = event.clientX - drag.startPointer;
           const trackRange = Math.max(1, viewport.clientWidth - drag.thumbSize);
-          const scrollRange = Math.max(1, viewport.scrollWidth - viewport.clientWidth);
-          viewport.scrollLeft = drag.startScroll + (delta * scrollRange) / trackRange;
+          const scrollRange = Math.max(
+            1,
+            viewport.scrollWidth - viewport.clientWidth,
+          );
+          viewport.scrollLeft =
+            drag.startScroll + (delta * scrollRange) / trackRange;
         }
       };
 
@@ -177,7 +223,10 @@ const ScrollArea = forwardRef(
       };
     }, []);
 
-    const startDrag = (dragAxis, event) => {
+    const startDrag = (
+      dragAxis: "x" | "y",
+      event: ReactMouseEvent<HTMLDivElement>,
+    ) => {
       const viewport = viewportRef.current;
       if (!viewport) return;
       event.preventDefault();
@@ -198,7 +247,10 @@ const ScrollArea = forwardRef(
             };
     };
 
-    const jumpToTrackPosition = (trackAxis, event) => {
+    const jumpToTrackPosition = (
+      trackAxis: "x" | "y",
+      event: ReactMouseEvent<HTMLDivElement>,
+    ) => {
       if (event.target !== event.currentTarget) return;
       const viewport = viewportRef.current;
       if (!viewport) return;
@@ -207,13 +259,21 @@ const ScrollArea = forwardRef(
       if (trackAxis === "y") {
         const clickOffset = event.clientY - rect.top;
         const maxThumbTravel = Math.max(1, viewport.clientHeight - metrics.yThumbSize);
-        const ratio = Math.max(0, Math.min(1, (clickOffset - metrics.yThumbSize / 2) / maxThumbTravel));
-        viewport.scrollTop = ratio * Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+        const ratio = Math.max(
+          0,
+          Math.min(1, (clickOffset - metrics.yThumbSize / 2) / maxThumbTravel),
+        );
+        viewport.scrollTop =
+          ratio * Math.max(0, viewport.scrollHeight - viewport.clientHeight);
       } else {
         const clickOffset = event.clientX - rect.left;
         const maxThumbTravel = Math.max(1, viewport.clientWidth - metrics.xThumbSize);
-        const ratio = Math.max(0, Math.min(1, (clickOffset - metrics.xThumbSize / 2) / maxThumbTravel));
-        viewport.scrollLeft = ratio * Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+        const ratio = Math.max(
+          0,
+          Math.min(1, (clickOffset - metrics.xThumbSize / 2) / maxThumbTravel),
+        );
+        viewport.scrollLeft =
+          ratio * Math.max(0, viewport.scrollWidth - viewport.clientWidth);
       }
     };
 
