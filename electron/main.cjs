@@ -12,10 +12,19 @@ const {
   runOriginZipJob,
   runOriginCsvJob,
 } = require("./origin-runner.cjs");
+let autoUpdater = null;
+try {
+  ({ autoUpdater } = require("electron-updater"));
+} catch (error) {
+  console.warn("[auto-update] electron-updater is unavailable:", error?.message || error);
+}
 
 const isDev = !app.isPackaged;
 const isWindows = process.platform === "win32";
 const devUrl = process.env.ELECTRON_START_URL || "http://127.0.0.1:5174/";
+const AUTO_UPDATE_INITIAL_DELAY_MS = 15 * 1000;
+const AUTO_UPDATE_INTERVAL_MS = 4 * 60 * 60 * 1000;
+const AUTO_UPDATE_SUPPORTED_PLATFORMS = new Set(["win32"]);
 const DEVICE_ANALYSIS_STORE_FILENAME = "config.json";
 const DEVICE_ANALYSIS_STORE_CONFIG_FILENAME = "store-path.json";
 const DEVICE_ANALYSIS_SETTINGS_FILENAME_SUFFIX = ".settings.json";
@@ -33,6 +42,10 @@ const DEVICE_ANALYSIS_DEFAULT_SETTINGS = {
   ssIdLow: 1e-11,
   ssIdHigh: 1e-9,
   originExePath: null,
+  originPlotTypeDefault: 202,
+  originPlotXyPairsDefault: "((1,2))",
+  originPlotCommandDefault: "",
+  originPlotPostCommandsDefault: [],
   originRuntimeCleanupEnabled: true,
   originRuntimeKeepSuccessJobs: 1,
   originRuntimeFailedRetentionDays: 7,
@@ -43,6 +56,11 @@ let deviceAnalysisStoreCache = null;
 let deviceAnalysisStoreCachePath = null;
 let deviceAnalysisSettingsCache = null;
 let deviceAnalysisSettingsCachePath = null;
+let mainWindow = null;
+let autoUpdateTimer = null;
+let autoUpdateConfiguredFeedUrl = null;
+let isAutoUpdateConfigured = false;
+let isUpdateDownloadedPromptVisible = false;
 
 function cloneStoreConfig(config) {
   return normalizeStoreConfig(config);
@@ -262,9 +280,111 @@ const ipcChannels = {
   originRuntimeCleanupRun: "device-analysis-origin:runtime-cleanup:run",
 };
 
+const DEFAULT_ORIGIN_PLOT_OPTIONS = Object.freeze({
+  plotType: 202,
+  xyPairs: "((1,2))",
+  plotCommand: "",
+  postPlotCommands: [],
+});
+
 function normalizePositiveNumber(value, fallback) {
   const num = Number(value);
   return Number.isFinite(num) && num > 0 ? num : fallback;
+}
+
+function normalizeNonEmptyString(value, fallback = "") {
+  if (typeof value !== "string") return fallback;
+  const trimmed = value.trim();
+  return trimmed || fallback;
+}
+
+function normalizeOriginPostPlotCommands(value) {
+  if (Array.isArray(value)) {
+    const normalized = [];
+    for (const item of value) {
+      if (typeof item !== "string") continue;
+      const trimmed = item.trim();
+      if (!trimmed) continue;
+      normalized.push(trimmed);
+    }
+    return normalized;
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(/\r?\n/g)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+function normalizeOriginPlotOptions(rawOptions, fallbackOptions = DEFAULT_ORIGIN_PLOT_OPTIONS) {
+  const raw = rawOptions && typeof rawOptions === "object" ? rawOptions : {};
+  const fallback =
+    fallbackOptions && typeof fallbackOptions === "object"
+      ? {
+          ...DEFAULT_ORIGIN_PLOT_OPTIONS,
+          ...fallbackOptions,
+        }
+      : DEFAULT_ORIGIN_PLOT_OPTIONS;
+
+  const plotType = normalizeBoundedInt(raw.plotType ?? raw.type, fallback.plotType, 0, 9999);
+  const xyPairs = normalizeNonEmptyString(raw.xyPairs, fallback.xyPairs);
+  const plotCommand = normalizeNonEmptyString(
+    raw.plotCommand ?? raw.command,
+    fallback.plotCommand,
+  );
+  const postPlotCommands = normalizeOriginPostPlotCommands(
+    Object.prototype.hasOwnProperty.call(raw, "postPlotCommands")
+      ? raw.postPlotCommands
+      : Object.prototype.hasOwnProperty.call(raw, "postCommands")
+        ? raw.postCommands
+        : fallback.postPlotCommands,
+  );
+
+  return {
+    plotType,
+    xyPairs,
+    plotCommand,
+    postPlotCommands,
+  };
+}
+
+function normalizeOriginCsvPayload(payload, plotDefaults = DEFAULT_ORIGIN_PLOT_OPTIONS) {
+  const raw = payload && typeof payload === "object" ? payload : {};
+  const csv = raw.csv && typeof raw.csv === "object" ? raw.csv : {};
+  const sheet = raw.sheet && typeof raw.sheet === "object" ? raw.sheet : {};
+  const plot = raw.plot && typeof raw.plot === "object" ? raw.plot : {};
+
+  const csvName = normalizeNonEmptyString(
+    raw.csvName ?? csv.name,
+    "device_analysis_origin.csv",
+  );
+  const csvText =
+    typeof raw.csvText === "string"
+      ? raw.csvText
+      : typeof csv.text === "string"
+        ? csv.text
+        : "";
+  const seriesName = normalizeNonEmptyString(raw.seriesName ?? sheet.longName, "");
+  const normalizedPlot = normalizeOriginPlotOptions(
+    {
+      plotCommand: plot.command ?? plot.plotCommand ?? raw.plotCommand,
+      plotType: plot.type ?? plot.plotType ?? raw.plotType,
+      postPlotCommands: plot.postCommands ?? plot.postPlotCommands ?? raw.postPlotCommands,
+      xyPairs: plot.xyPairs ?? raw.xyPairs,
+    },
+    plotDefaults,
+  );
+
+  return {
+    csvName,
+    csvText,
+    seriesName,
+    ...normalizedPlot,
+  };
 }
 
 function normalizeBoundedInt(value, fallback, min, max) {
@@ -310,6 +430,21 @@ function normalizeDeviceAnalysisSettings(raw) {
     DEVICE_ANALYSIS_DEFAULT_SETTINGS.ssIdHigh,
   );
   const originExePath = normalizeOriginExePath(next.originExePath);
+  const originPlotDefaults = normalizeOriginPlotOptions({
+    plotCommand: DEVICE_ANALYSIS_DEFAULT_SETTINGS.originPlotCommandDefault,
+    plotType: DEVICE_ANALYSIS_DEFAULT_SETTINGS.originPlotTypeDefault,
+    postPlotCommands: DEVICE_ANALYSIS_DEFAULT_SETTINGS.originPlotPostCommandsDefault,
+    xyPairs: DEVICE_ANALYSIS_DEFAULT_SETTINGS.originPlotXyPairsDefault,
+  });
+  const originPlotSettings = normalizeOriginPlotOptions(
+    {
+      plotCommand: next.originPlotCommandDefault,
+      plotType: next.originPlotTypeDefault,
+      postPlotCommands: next.originPlotPostCommandsDefault,
+      xyPairs: next.originPlotXyPairsDefault,
+    },
+    originPlotDefaults,
+  );
   const originRuntimeCleanupEnabled =
     typeof next.originRuntimeCleanupEnabled === "boolean"
       ? next.originRuntimeCleanupEnabled
@@ -340,6 +475,10 @@ function normalizeDeviceAnalysisSettings(raw) {
     ssIdLow,
     ssIdHigh,
     originExePath,
+    originPlotTypeDefault: originPlotSettings.plotType,
+    originPlotXyPairsDefault: originPlotSettings.xyPairs,
+    originPlotCommandDefault: originPlotSettings.plotCommand,
+    originPlotPostCommandsDefault: originPlotSettings.postPlotCommands,
     originRuntimeCleanupEnabled,
     originRuntimeKeepSuccessJobs,
     originRuntimeFailedRetentionDays,
@@ -375,6 +514,19 @@ function toTemplateNameKey(name) {
 
 function getDeviceAnalysisHomeDir() {
   return path.join(app.getPath("home"), ".device");
+}
+
+function configureRuntimeCachePath() {
+  const cacheDir = path.join(getDeviceAnalysisHomeDir(), "cache");
+  if (!fs.existsSync(cacheDir)) {
+    fs.mkdirSync(cacheDir, { recursive: true });
+  }
+
+  try {
+    app.setPath("cache", cacheDir);
+  } catch (error) {
+    console.warn("[runtime] Failed to set cache path:", error?.message || error);
+  }
 }
 
 function getDefaultDeviceAnalysisStorePath() {
@@ -704,6 +856,16 @@ function getOriginRuntimeCleanupPolicyFromSettings() {
   };
 }
 
+function getOriginPlotOptionsFromSettings() {
+  const settings = readDeviceAnalysisSettings();
+  return normalizeOriginPlotOptions({
+    plotCommand: settings?.originPlotCommandDefault,
+    plotType: settings?.originPlotTypeDefault,
+    postPlotCommands: settings?.originPlotPostCommandsDefault,
+    xyPairs: settings?.originPlotXyPairsDefault,
+  });
+}
+
 async function tryRunOriginRuntimeCleanup({ force = false } = {}) {
   return runOriginRuntimeCleanup({
     runtimeRootDir: getDeviceAnalysisHomeDir(),
@@ -861,6 +1023,10 @@ async function handleOriginRunBatch(event, payload) {
   }
 
   const inputDir = await resolveOriginBatchInputDir(event, payload);
+  const plotOptions = normalizeOriginPlotOptions(
+    payload && typeof payload === "object" ? payload.plot : null,
+    getOriginPlotOptionsFromSettings(),
+  );
   const originExePath = await resolveOriginExePath(event);
   if (!originExePath) {
     throw new Error("__ORIGIN_EXE_REQUIRED__");
@@ -872,6 +1038,10 @@ async function handleOriginRunBatch(event, payload) {
       originExePath,
       batchScriptPath: ORIGIN_BATCH_SCRIPT_PATH,
       batchWorkerPath: ORIGIN_BATCH_WORKER_PATH,
+      plotType: plotOptions.plotType,
+      xyPairs: plotOptions.xyPairs,
+      plotCommand: plotOptions.plotCommand,
+      postPlotCommands: plotOptions.postPlotCommands,
       runtimeRootDir: getDeviceAnalysisHomeDir(),
     });
   } finally {
@@ -896,6 +1066,10 @@ async function handleOriginRunZip(event, payload) {
     payload && Object.prototype.hasOwnProperty.call(payload, "bytes")
       ? payload.bytes
       : null;
+  const plotOptions = normalizeOriginPlotOptions(
+    payload && typeof payload === "object" ? payload.plot : null,
+    getOriginPlotOptionsFromSettings(),
+  );
 
   if (!bytes) {
     throw new Error("ZIP payload is missing.");
@@ -913,6 +1087,10 @@ async function handleOriginRunZip(event, payload) {
       originExePath,
       workerScriptPath: ORIGIN_ZIP_SCRIPT_PATH,
       workerExecutablePath: ORIGIN_ZIP_WORKER_PATH,
+      plotType: plotOptions.plotType,
+      xyPairs: plotOptions.xyPairs,
+      plotCommand: plotOptions.plotCommand,
+      postPlotCommands: plotOptions.postPlotCommands,
       runtimeRootDir: getDeviceAnalysisHomeDir(),
     });
   } finally {
@@ -929,14 +1107,12 @@ async function handleOriginRunCsv(event, payload) {
     throw new Error("Origin integration is only available on Windows desktop.");
   }
 
-  const csvName =
-    payload && typeof payload.csvName === "string"
-      ? payload.csvName
-      : "device_analysis_origin.csv";
-  const csvText =
-    payload && typeof payload.csvText === "string" ? payload.csvText : "";
-  const seriesName =
-    payload && typeof payload.seriesName === "string" ? payload.seriesName : "";
+  const normalizedPayload = normalizeOriginCsvPayload(
+    payload,
+    getOriginPlotOptionsFromSettings(),
+  );
+  const { csvName, csvText, seriesName, plotType, xyPairs, plotCommand, postPlotCommands } =
+    normalizedPayload;
 
   if (!csvText.trim()) {
     throw new Error("CSV payload is missing.");
@@ -952,6 +1128,10 @@ async function handleOriginRunCsv(event, payload) {
       csvName,
       csvText,
       seriesName,
+      plotType,
+      xyPairs,
+      plotCommand,
+      postPlotCommands,
       originExePath,
       workerScriptPath: ORIGIN_CSV_SCRIPT_PATH,
       runtimeRootDir: getDeviceAnalysisHomeDir(),
@@ -971,6 +1151,197 @@ async function handleOriginRuntimeCleanupRun() {
   }
 
   return tryRunOriginRuntimeCleanup({ force: true });
+}
+
+function normalizeAutoUpdateUrl(value) {
+  if (typeof value !== "string") return null;
+
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      return null;
+    }
+    return parsed.toString().replace(/\/+$/, "");
+  } catch {
+    return null;
+  }
+}
+
+function resolveAutoUpdateFeedUrl() {
+  return normalizeAutoUpdateUrl(
+    process.env.DEVICE_ANALYSIS_UPDATE_URL || process.env.APP_UPDATE_URL || null,
+  );
+}
+
+function getAutoUpdateDialogWindow() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    return mainWindow;
+  }
+
+  const windows = BrowserWindow.getAllWindows();
+  for (const win of windows) {
+    if (!win.isDestroyed()) return win;
+  }
+
+  return null;
+}
+
+function stopAutoUpdatePolling() {
+  if (autoUpdateTimer) {
+    clearInterval(autoUpdateTimer);
+    autoUpdateTimer = null;
+  }
+}
+
+async function promptInstallDownloadedUpdate(updateInfo) {
+  if (!autoUpdater) return;
+  if (isUpdateDownloadedPromptVisible) return;
+
+  isUpdateDownloadedPromptVisible = true;
+  try {
+    const windowForDialog = getAutoUpdateDialogWindow();
+    const result = await dialog.showMessageBox(windowForDialog || undefined, {
+      type: "info",
+      title: "Device Analysis Studio",
+      message: "An update has been downloaded.",
+      detail: `Version ${updateInfo?.version || "unknown"} is ready to install.`,
+      buttons: ["Restart and Install", "Later"],
+      defaultId: 0,
+      cancelId: 1,
+      noLink: true,
+    });
+
+    if (result.response === 0) {
+      autoUpdater.quitAndInstall();
+    }
+  } finally {
+    isUpdateDownloadedPromptVisible = false;
+  }
+}
+
+async function checkForAutoUpdates({ manual = false } = {}) {
+  if (!autoUpdater) return null;
+
+  if (!isAutoUpdateConfigured) {
+    if (manual) {
+      const windowForDialog = getAutoUpdateDialogWindow();
+      await dialog.showMessageBox(windowForDialog || undefined, {
+        type: "info",
+        title: "Device Analysis Studio",
+        message: "Auto update is not enabled in this build.",
+        buttons: ["OK"],
+        defaultId: 0,
+        noLink: true,
+      });
+    }
+    return null;
+  }
+
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    if (manual && result && result.isUpdateAvailable === false) {
+      const windowForDialog = getAutoUpdateDialogWindow();
+      await dialog.showMessageBox(windowForDialog || undefined, {
+        type: "info",
+        title: "Device Analysis Studio",
+        message: "You are already using the latest version.",
+        buttons: ["OK"],
+        defaultId: 0,
+        noLink: true,
+      });
+    }
+    return result;
+  } catch (error) {
+    const message = error?.message || String(error);
+    console.warn("[auto-update] Check failed:", message);
+
+    if (manual) {
+      const windowForDialog = getAutoUpdateDialogWindow();
+      await dialog.showMessageBox(windowForDialog || undefined, {
+        type: "error",
+        title: "Device Analysis Studio",
+        message: "Update check failed.",
+        detail: message,
+        buttons: ["OK"],
+        defaultId: 0,
+        noLink: true,
+      });
+    }
+    return null;
+  }
+}
+
+function setupAutoUpdates() {
+  if (!app.isPackaged) return;
+  if (!AUTO_UPDATE_SUPPORTED_PLATFORMS.has(process.platform)) {
+    console.info("[auto-update] Skipped for unsupported platform:", process.platform);
+    return;
+  }
+  if (!autoUpdater) {
+    console.warn("[auto-update] electron-updater dependency is missing.");
+    return;
+  }
+
+  const feedUrl = resolveAutoUpdateFeedUrl();
+  isAutoUpdateConfigured = true;
+  autoUpdateConfiguredFeedUrl = feedUrl || "github-release";
+
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  if (feedUrl) {
+    try {
+      autoUpdater.setFeedURL({
+        provider: "generic",
+        url: feedUrl,
+      });
+      console.info(`[auto-update] Using custom generic feed URL: ${feedUrl}`);
+    } catch (error) {
+      isAutoUpdateConfigured = false;
+      autoUpdateConfiguredFeedUrl = null;
+      console.warn("[auto-update] Invalid custom feed URL:", error?.message || error);
+      return;
+    }
+  } else {
+    console.info("[auto-update] Using packaged updater provider configuration.");
+  }
+
+  autoUpdater.on("checking-for-update", () => {
+    console.info("[auto-update] Checking for updates...");
+  });
+
+  autoUpdater.on("update-available", (info) => {
+    console.info(`[auto-update] Update ${info?.version || "unknown"} is available.`);
+  });
+
+  autoUpdater.on("update-not-available", (info) => {
+    console.info(
+      `[auto-update] No update available. Current=${app.getVersion()}, latest=${info?.version || "unknown"}.`,
+    );
+  });
+
+  autoUpdater.on("error", (error) => {
+    console.warn("[auto-update] Error:", error?.message || error);
+  });
+
+  autoUpdater.on("update-downloaded", (info) => {
+    console.info(
+      `[auto-update] Update ${info?.version || "unknown"} downloaded from ${autoUpdateConfiguredFeedUrl}.`,
+    );
+    void promptInstallDownloadedUpdate(info);
+  });
+
+  setTimeout(() => {
+    void checkForAutoUpdates();
+  }, AUTO_UPDATE_INITIAL_DELAY_MS);
+
+  stopAutoUpdatePolling();
+  autoUpdateTimer = setInterval(() => {
+    void checkForAutoUpdates();
+  }, AUTO_UPDATE_INTERVAL_MS);
 }
 
 function createMainWindow() {
@@ -1000,12 +1371,20 @@ function createMainWindow() {
     return { action: "deny" };
   });
 
+  mainWindow = win;
+  win.on("closed", () => {
+    if (mainWindow === win) {
+      mainWindow = null;
+    }
+  });
+
   if (isDev) {
     void win.loadURL(devUrl);
-    return;
+    return win;
   }
 
   void win.loadFile(path.join(__dirname, "../dist/index.html"));
+  return win;
 }
 
 function handleDesktopCommand(event, payload) {
@@ -1044,6 +1423,11 @@ function handleDesktopCommand(event, payload) {
     return;
   }
 
+  if (command === "check-for-updates") {
+    void checkForAutoUpdates({ manual: true });
+    return;
+  }
+
   if (command === "close-window") {
     win.close();
   }
@@ -1053,6 +1437,7 @@ app.whenReady().then(() => {
   if (process.platform !== "darwin") {
     Menu.setApplicationMenu(null);
   }
+  configureRuntimeCachePath();
 
   ipcMain.on("desktop-command", handleDesktopCommand);
   ipcMain.handle(ipcChannels.templatesGet, handleDeviceAnalysisTemplatesGet);
@@ -1075,9 +1460,12 @@ app.whenReady().then(() => {
     handleOriginRuntimeCleanupRun,
   );
   createMainWindow();
+  setupAutoUpdates();
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createMainWindow();
+    }
   });
 });
 
@@ -1086,6 +1474,9 @@ app.on("window-all-closed", () => {
 });
 
 app.on("will-quit", () => {
+  stopAutoUpdatePolling();
+  isAutoUpdateConfigured = false;
+  autoUpdateConfiguredFeedUrl = null;
   ipcMain.removeListener("desktop-command", handleDesktopCommand);
   ipcMain.removeHandler(ipcChannels.templatesGet);
   ipcMain.removeHandler(ipcChannels.templatesCreate);

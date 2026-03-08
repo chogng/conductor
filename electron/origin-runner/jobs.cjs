@@ -23,6 +23,7 @@ const {
 const {
   buildOriginBatchWorkerArgs,
   buildOriginZipWorkerArgs,
+  appendOriginPlotWorkerArgs,
   buildOriginCsvWorkerArgs,
   runNativeBatchWorker,
   runNativeZipWorker,
@@ -59,6 +60,10 @@ async function runOriginZipJob({
   originExePath,
   workerScriptPath,
   workerExecutablePath,
+  plotType,
+  xyPairs,
+  plotCommand,
+  postPlotCommands,
   runtimeRootDir,
 }) {
   const normalizedOriginExePath = assertOriginExePath(originExePath);
@@ -115,6 +120,12 @@ async function runOriginZipJob({
     logPath,
     errorPath,
   });
+  const zipPythonWorkerArgs = appendOriginPlotWorkerArgs(zipWorkerArgs, {
+    plotType,
+    xyPairs,
+    plotCommand,
+    postPlotCommands,
+  });
 
   let workerResult = null;
   let runnerKind = null;
@@ -125,7 +136,7 @@ async function runOriginZipJob({
     try {
       const scriptResult = await runPythonScriptForBatch(
         workerScriptPath,
-        zipWorkerArgs,
+        zipPythonWorkerArgs,
         { windowsHide: true, requiredModule: "originpro" },
       );
       workerResult = scriptResult;
@@ -237,6 +248,10 @@ async function runOriginCsvJob({
   workerScriptPath,
   runtimeRootDir,
   seriesName = "",
+  plotType,
+  xyPairs,
+  plotCommand,
+  postPlotCommands,
 }) {
   const normalizedOriginExePath = assertOriginExePath(originExePath);
   const scriptWorkerAvailable = Boolean(workerScriptPath && fs.existsSync(workerScriptPath));
@@ -272,6 +287,10 @@ async function runOriginCsvJob({
     logPath,
     errorPath,
     seriesName,
+    plotType,
+    xyPairs,
+    plotCommand,
+    postPlotCommands,
   });
 
   let workerResult = null;
@@ -414,6 +433,10 @@ async function runOriginBatchJob({
   originExePath,
   batchScriptPath,
   batchWorkerPath,
+  plotType,
+  xyPairs,
+  plotCommand,
+  postPlotCommands,
   runtimeRootDir,
 }) {
   let normalizedOriginExePath = null;
@@ -455,6 +478,12 @@ async function runOriginBatchJob({
     summaryPath,
     logPath,
     errorPath,
+  });
+  const pythonWorkerArgs = appendOriginPlotWorkerArgs(workerArgs, {
+    plotType,
+    xyPairs,
+    plotCommand,
+    postPlotCommands,
   });
 
   const normalizedBatchWorkerPath = normalizeOriginExePath(batchWorkerPath);
@@ -508,7 +537,7 @@ async function runOriginBatchJob({
     try {
       workerResult = await runPythonScriptForBatch(
         batchScriptPath,
-        workerArgs,
+        pythonWorkerArgs,
         { windowsHide: true },
       );
       runnerKind = "python";

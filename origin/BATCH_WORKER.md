@@ -76,6 +76,10 @@ ZIP worker CLI (`origin-zip-worker.exe` / `run_origin_zip.py`):
 --origin-exe <path>
 --log-path <file>
 --error-path <file>
+--plot-type <int>                 # script only, default 202
+--xy-pairs <string>               # script only, default ((1,2))
+--plot-command <string>           # script only; overrides plot-type/xy-pairs
+--post-plot-command <string>      # script only; repeatable
 ```
 
 Batch worker CLI (`origin-batch-worker.exe` / `run_origin_batch.py`):
@@ -87,6 +91,25 @@ Batch worker CLI (`origin-batch-worker.exe` / `run_origin_batch.py`):
 --summary-path <file>
 --log-path <file>
 --error-path <file>
+--plot-type <int>                 # script only, default 202
+--xy-pairs <string>               # script only, default ((1,2))
+--plot-command <string>           # script only; overrides plot-type/xy-pairs
+--post-plot-command <string>      # script only; repeatable
+```
+
+CSV worker CLI (`run_origin_csv.py`):
+
+```text
+--work-dir <dir>
+--csv-path <file>
+--origin-exe <path>
+--log-path <file>
+--error-path <file>
+--series-name <string>
+--plot-type <int>                 # default 202
+--xy-pairs <string>               # default ((1,2))
+--plot-command <string>           # full LabTalk command; overrides plot-type/xy-pairs
+--post-plot-command <string>      # repeatable; executed after main plot
 ```
 
 Expected outputs:

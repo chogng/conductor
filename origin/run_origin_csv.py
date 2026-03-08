@@ -77,6 +77,10 @@ def parse_args():
     parser.add_argument("--log-path", default="")
     parser.add_argument("--error-path", default="")
     parser.add_argument("--series-name", default="")
+    parser.add_argument("--plot-type", type=int, default=202)
+    parser.add_argument("--xy-pairs", default="((1,2))")
+    parser.add_argument("--plot-command", default="")
+    parser.add_argument("--post-plot-command", action="append", default=[])
     parser.add_argument("--max-com-attempts", type=int, default=8)
     return parser.parse_args()
 
@@ -148,6 +152,26 @@ def run_labtalk_or_raise(op_module, command: str, message_prefix: str):
     if not is_lt_success(result):
         raise RuntimeError(f"{message_prefix} (LabTalk returned {result})")
     return result
+
+
+def ensure_lt_terminated(command: str) -> str:
+    text = str(command or "").strip()
+    if not text:
+        return ""
+    return text if text.endswith(";") else f"{text};"
+
+
+def build_plot_command(args) -> str:
+    custom_command = ensure_lt_terminated(args.plot_command)
+    if custom_command:
+        return custom_command
+
+    xy_pairs = str(args.xy_pairs or "").strip() or "((1,2))"
+    try:
+        plot_type = max(0, int(args.plot_type))
+    except Exception:
+        plot_type = 202
+    return f"plotxy iy:={xy_pairs} plot:={plot_type};"
 
 
 def connect_originpro(ctx: CsvContext, op_module, max_attempts: int, origin_exe: str):
@@ -242,6 +266,8 @@ def main():
 
     try:
         csv_lt = escape_labtalk_path(str(csv_path))
+        plot_command = build_plot_command(args)
+        ctx.log(f"Plot command: {plot_command}")
         ctx.log(f"Running CSV import via originpro: {csv_path}")
         run_labtalk_or_raise(op_module, "newbook;", "CSV import failed at newbook")
         run_labtalk_or_raise(
@@ -258,9 +284,18 @@ def main():
             )
         run_labtalk_or_raise(
             op_module,
-            "plotxy iy:=((1,2)) plot:=202;",
+            plot_command,
             "CSV plot failed at plotxy",
         )
+        if args.post_plot_command:
+            for idx, command in enumerate(args.post_plot_command, start=1):
+                if not str(command or "").strip():
+                    continue
+                run_labtalk_or_raise(
+                    op_module,
+                    ensure_lt_terminated(command),
+                    f"CSV post-plot command #{idx} failed",
+                )
         ctx.log("CSV plot completed.")
     except Exception as exc:
         ctx.write_error(

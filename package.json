@@ -18,10 +18,12 @@
     "preview": "vite preview",
     "build:desktop": "npm run build:origin-worker && npm run build:web",
     "pack:desktop": "npm run build:desktop && electron-builder --dir",
-    "dist:desktop": "npm run build:desktop && electron-builder"
+    "dist:desktop": "npm run build:desktop && electron-builder",
+    "dist:desktop:publish": "npm run build:desktop && electron-builder --publish always"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.16",
+    "electron-updater": "^6.8.3",
     "jszip": "^3.10.1",
     "lucide-react": "^0.554.0",
     "papaparse": "^5.5.3",
@@ -64,6 +66,14 @@
     "asar": true,
     "asarUnpack": [
       "origin/**"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "YOUR_GITHUB_OWNER",
+        "repo": "YOUR_GITHUB_REPO",
+        "releaseType": "release"
+      }
     ],
     "mac": {
       "icon": "build/icons/icon.icns",

@@ -92,6 +92,10 @@ def parse_args():
     parser.add_argument("--summary-path", default="")
     parser.add_argument("--log-path", default="")
     parser.add_argument("--error-path", default="")
+    parser.add_argument("--plot-type", type=int, default=202)
+    parser.add_argument("--xy-pairs", default="((1,2))")
+    parser.add_argument("--plot-command", default="")
+    parser.add_argument("--post-plot-command", action="append", default=[])
     parser.add_argument("--max-com-attempts", type=int, default=4)
     return parser.parse_args()
 
@@ -152,7 +156,33 @@ def connect_origin_com(ctx: BatchContext, max_attempts: int):
     return None
 
 
-def process_csv_file(ctx: BatchContext, origin, csv_path: Path):
+def ensure_lt_terminated(command: str) -> str:
+    text = str(command or "").strip()
+    if not text:
+        return ""
+    return text if text.endswith(";") else f"{text};"
+
+
+def build_plot_command(args) -> str:
+    custom_command = ensure_lt_terminated(args.plot_command)
+    if custom_command:
+        return custom_command
+
+    xy_pairs = str(args.xy_pairs or "").strip() or "((1,2))"
+    try:
+        plot_type = max(0, int(args.plot_type))
+    except Exception:
+        plot_type = 202
+    return f"plotxy iy:={xy_pairs} plot:={plot_type};"
+
+
+def process_csv_file(
+    ctx: BatchContext,
+    origin,
+    csv_path: Path,
+    plot_command: str,
+    post_plot_commands,
+):
     file_result = {
         "file": str(csv_path),
         "status": "success",
@@ -163,7 +193,12 @@ def process_csv_file(ctx: BatchContext, origin, csv_path: Path):
     try:
         origin.Execute("newbook;")
         origin.Execute(f'impCSV fname:="{csv_lt}";')
-        origin.Execute("plotxy iy:=((1,2)) plot:=202;")
+        origin.Execute(plot_command)
+        for command in post_plot_commands or []:
+            next_command = ensure_lt_terminated(command)
+            if not next_command:
+                continue
+            origin.Execute(next_command)
         return file_result
     except Exception as exc:
         file_result["status"] = "failed"
@@ -228,6 +263,11 @@ def main():
 
     _proc = try_launch_origin(ctx, origin_exe)
     origin = connect_origin_com(ctx, max(1, int(args.max_com_attempts)))
+    plot_command = build_plot_command(args)
+    post_plot_commands = args.post_plot_command if isinstance(args.post_plot_command, list) else []
+    ctx.log(f"Plot command: {plot_command}")
+    if post_plot_commands:
+        ctx.log(f"Post-plot commands: {len(post_plot_commands)}")
 
     session_started = False
     started_at = to_iso_now()
@@ -244,7 +284,13 @@ def main():
 
         for idx, csv_path in enumerate(csv_files, start=1):
             ctx.log(f"[{idx}/{len(csv_files)}] Processing {csv_path}")
-            result = process_csv_file(ctx, origin, csv_path)
+            result = process_csv_file(
+                ctx,
+                origin,
+                csv_path,
+                plot_command,
+                post_plot_commands,
+            )
             results.append(result)
             if result["status"] == "failed":
                 ctx.log(f"[{idx}/{len(csv_files)}] FAILED {csv_path}: {result['message']}")

@@ -76,6 +76,10 @@ def parse_args():
     parser.add_argument("--origin-exe", required=True)
     parser.add_argument("--log-path", default="")
     parser.add_argument("--error-path", default="")
+    parser.add_argument("--plot-type", type=int, default=202)
+    parser.add_argument("--xy-pairs", default="((1,2))")
+    parser.add_argument("--plot-command", default="")
+    parser.add_argument("--post-plot-command", action="append", default=[])
     parser.add_argument("--max-com-attempts", type=int, default=8)
     return parser.parse_args()
 
@@ -194,6 +198,26 @@ def run_labtalk_or_raise(op_module, command: str, message_prefix: str):
     return result
 
 
+def ensure_lt_terminated(command: str) -> str:
+    text = str(command or "").strip()
+    if not text:
+        return ""
+    return text if text.endswith(";") else f"{text};"
+
+
+def build_plot_command(args) -> str:
+    custom_command = ensure_lt_terminated(args.plot_command)
+    if custom_command:
+        return custom_command
+
+    xy_pairs = str(args.xy_pairs or "").strip() or "((1,2))"
+    try:
+        plot_type = max(0, int(args.plot_type))
+    except Exception:
+        plot_type = 202
+    return f"plotxy iy:={xy_pairs} plot:={plot_type};"
+
+
 def main():
     args = parse_args()
 
@@ -259,6 +283,11 @@ def main():
         max(1, int(args.max_com_attempts)),
         str(origin_exe_path),
     )
+    plot_command = build_plot_command(args)
+    post_plot_commands = args.post_plot_command if isinstance(args.post_plot_command, list) else []
+    ctx.log(f"Plot command: {plot_command}")
+    if post_plot_commands:
+        ctx.log(f"Post-plot commands: {len(post_plot_commands)}")
 
     ran_ogs = False
     ogs_error = None
@@ -298,9 +327,19 @@ def main():
             )
             run_labtalk_or_raise(
                 op_module,
-                "plotxy iy:=((1,2)) plot:=202;",
+                plot_command,
                 "CSV fallback failed at plotxy",
             )
+            if post_plot_commands:
+                for idx, command in enumerate(post_plot_commands, start=1):
+                    next_command = ensure_lt_terminated(command)
+                    if not next_command:
+                        continue
+                    run_labtalk_or_raise(
+                        op_module,
+                        next_command,
+                        f"CSV fallback post-plot command #{idx} failed",
+                    )
             ctx.log("CSV fallback plot succeeded.")
         except Exception as exc:
             ctx.write_error(

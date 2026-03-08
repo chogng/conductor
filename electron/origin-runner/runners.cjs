@@ -50,6 +50,37 @@ function buildOriginZipWorkerArgs({
   ];
 }
 
+function appendOriginPlotWorkerArgs(baseArgs, {
+  plotType,
+  xyPairs,
+  plotCommand,
+  postPlotCommands,
+} = {}) {
+  const args = Array.isArray(baseArgs) ? [...baseArgs] : [];
+
+  const normalizedPlotType = Number(plotType);
+  if (Number.isFinite(normalizedPlotType)) {
+    args.push("--plot-type", String(Math.trunc(normalizedPlotType)));
+  }
+
+  if (typeof xyPairs === "string" && xyPairs.trim()) {
+    args.push("--xy-pairs", xyPairs.trim());
+  }
+
+  if (typeof plotCommand === "string" && plotCommand.trim()) {
+    args.push("--plot-command", plotCommand.trim());
+  }
+
+  if (Array.isArray(postPlotCommands)) {
+    for (const rawCommand of postPlotCommands) {
+      if (typeof rawCommand !== "string" || !rawCommand.trim()) continue;
+      args.push("--post-plot-command", rawCommand.trim());
+    }
+  }
+
+  return args;
+}
+
 function buildOriginCsvWorkerArgs({
   workDir,
   csvPath,
@@ -57,6 +88,10 @@ function buildOriginCsvWorkerArgs({
   logPath,
   errorPath,
   seriesName,
+  plotType,
+  xyPairs,
+  plotCommand,
+  postPlotCommands,
 }) {
   const args = [
     "--work-dir",
@@ -75,7 +110,12 @@ function buildOriginCsvWorkerArgs({
     args.push("--series-name", seriesName.trim());
   }
 
-  return args;
+  return appendOriginPlotWorkerArgs(args, {
+    plotType,
+    xyPairs,
+    plotCommand,
+    postPlotCommands,
+  });
 }
 
 async function runNativeBatchWorker(workerExecutablePath, workerArgs, options = {}) {
@@ -220,6 +260,7 @@ function readWorkerErrorFiles(workDir, parseWorkerErrorPayload) {
 module.exports = {
   buildOriginBatchWorkerArgs,
   buildOriginZipWorkerArgs,
+  appendOriginPlotWorkerArgs,
   buildOriginCsvWorkerArgs,
   runNativeBatchWorker,
   runNativeZipWorker,
