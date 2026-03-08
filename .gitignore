@@ -36,22 +36,11 @@ server/.tmp/
 *.sln
 *.sw?
 
-# .Kiro
-.kiro/
 
-# .claude artifacts
-.claude/
-
-# .snow artifacts
-.snow/
-
-# Vercel local project settings
-.vercel/
 
 # Local debug snippets
 mcp-claude-hover-snippet.js
 
-.claude
 
 # Origin batch worker local build artifacts
 origin/bin/

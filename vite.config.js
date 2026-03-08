@@ -18,10 +18,7 @@ export default defineConfig({
             return "react-vendor";
           }
 
-          if (
-            id.includes("react-router-dom") ||
-            id.includes("@tanstack/react-query")
-          ) {
+          if (id.includes("@tanstack/react-query")) {
             return "app-vendor";
           }
 
@@ -33,11 +30,7 @@ export default defineConfig({
             return "charts-vendor";
           }
 
-          if (
-            id.includes("papaparse") ||
-            id.includes("jszip") ||
-            id.includes("docx")
-          ) {
+          if (id.includes("papaparse") || id.includes("jszip")) {
             return "data-vendor";
           }
 
