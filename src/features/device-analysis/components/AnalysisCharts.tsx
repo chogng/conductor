@@ -2010,7 +2010,7 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
                 <Select id="device-analysis-file-select" size="md" value={effectiveActiveFileId ?? ""} onChange={(val: any) => handleSelectFile(val)} options={processedData.map((f: any) => ({
             value: f.fileId,
             label: f.fileName,
-        }))} className="w-[240px]" placeholder="Select File"/>
+        }))} className="w-[240px] da-neutral-select" placeholder="Select File" data-cta="Device Analysis" data-cta-position="file-select" data-cta-copy="file select"/>
                 <Button id="device-analysis-axis-toggle-btn" variant="secondary" size="sm" onClick={() => setShowAxisControls((v: any) => !v)} className="h-[38px] px-3 text-xs border-border bg-bg-page hover:bg-bg-surface-hover" title="Axis settings">
                   Axis
                 </Button>
