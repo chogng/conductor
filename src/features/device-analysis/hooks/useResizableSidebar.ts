@@ -6,7 +6,7 @@ const MAX_WIDTH = 600;
 const STORAGE_KEY = "da-sidebar-width";
 
 export const useResizableSidebar = () => {
-  const [sidebarWidth, setSidebarWidth] = useState(() => {
+  const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
     if (typeof window !== "undefined") {
       const savedWidth = localStorage.getItem(STORAGE_KEY);
       if (savedWidth) {
@@ -33,7 +33,7 @@ export const useResizableSidebar = () => {
   }, [sidebarWidth]);
 
   const resize = useCallback(
-    (event) => {
+    (event: MouseEvent) => {
       if (!isResizing) return;
 
       const nextWidth = event.clientX;

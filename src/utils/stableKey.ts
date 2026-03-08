@@ -1,4 +1,4 @@
-export const fnv1a32 = (input) => {
+export const fnv1a32 = (input: unknown): string => {
   const str = String(input ?? "");
   let hash = 0x811c9dc5;
   for (let i = 0; i < str.length; i++) {
@@ -8,7 +8,7 @@ export const fnv1a32 = (input) => {
   return (hash >>> 0).toString(16).padStart(8, "0");
 };
 
-export const stableItemKey = (prefix, raw) => {
+export const stableItemKey = (prefix: unknown, raw: unknown): string => {
   const normalizedPrefix = String(prefix ?? "").trim();
   const normalizedRaw = String(raw ?? "");
   if (!normalizedPrefix || !normalizedRaw) return "";

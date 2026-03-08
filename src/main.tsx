@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import './styles/global.css';
 import './styles/variables.css';
 import App from './App';
-import { initCtaTracking } from './utils/ctaTracking.js';
+import { initCtaTracking } from './utils/ctaTracking';
 
 declare global {
   interface Window {

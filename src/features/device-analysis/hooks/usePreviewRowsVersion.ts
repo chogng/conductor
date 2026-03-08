@@ -2,7 +2,7 @@ import { useCallback, useRef } from "react";
 
 export const usePreviewRowsVersion = () => {
   const previewRowsVersionRef = useRef(0);
-  const previewRowsSubscribersRef = useRef(new Set());
+  const previewRowsSubscribersRef = useRef<Set<() => void>>(new Set());
   const previewRowsNotifyRafRef = useRef(0);
 
   const getPreviewRowsVersion = useCallback(
@@ -10,7 +10,7 @@ export const usePreviewRowsVersion = () => {
     [],
   );
 
-  const subscribePreviewRowsVersion = useCallback((callback) => {
+  const subscribePreviewRowsVersion = useCallback((callback: () => void) => {
     const subscribers = previewRowsSubscribersRef.current;
     subscribers.add(callback);
     return () => subscribers.delete(callback);

@@ -7,22 +7,47 @@ const REQUIRED_DEVICE_ANALYSIS_STORE_METHODS = [
   "getDeviceAnalysisPersistencePath",
   "updateDeviceAnalysisPersistencePath",
   "chooseDeviceAnalysisPersistencePath",
-];
+] as const;
+
+type DeviceAnalysisStoreMethod =
+  (typeof REQUIRED_DEVICE_ANALYSIS_STORE_METHODS)[number];
+
+type DeviceAnalysisDesktopStore = {
+  [K in DeviceAnalysisStoreMethod]: (...args: unknown[]) => unknown;
+};
+
+type JsonRecord = Record<string, unknown>;
+type PersistencePathInfo = JsonRecord & { isConfigurable?: boolean };
+
+declare global {
+  interface Window {
+    desktopStore?: DeviceAnalysisDesktopStore;
+  }
+}
 
 export const DEVICE_ANALYSIS_DESKTOP_STORE_UNAVAILABLE =
   "Desktop store bridge unavailable.";
 
-const parseJsonBody = (body) => {
+const parseJsonBody = (body: unknown): JsonRecord | null => {
   if (!body) return null;
 
   try {
-    return typeof body === "string" ? JSON.parse(body) : body;
+    if (typeof body === "string") {
+      const parsed = JSON.parse(body) as unknown;
+      return parsed && typeof parsed === "object" ? (parsed as JsonRecord) : null;
+    }
+
+    if (typeof body === "object") {
+      return body as JsonRecord;
+    }
+
+    return null;
   } catch {
     return null;
   }
 };
 
-const getDesktopStore = () => {
+const getDesktopStore = (): DeviceAnalysisDesktopStore | null => {
   if (typeof window === "undefined") return null;
 
   const store = window.desktopStore;
@@ -35,15 +60,15 @@ const getDesktopStore = () => {
   return store;
 };
 
-const normalizePersistencePathInfo = (info) => ({
+const normalizePersistencePathInfo = (info: unknown): PersistencePathInfo => ({
   ...(info || {}),
   isConfigurable: true,
 });
 
 export const requestDeviceAnalysisDesktopStore = async (
-  endpoint,
-  options = {},
-) => {
+  endpoint: string,
+  options: RequestInit = {},
+): Promise<unknown> => {
   const store = getDesktopStore();
   if (!store) {
     throw new Error(DEVICE_ANALYSIS_DESKTOP_STORE_UNAVAILABLE);
@@ -82,8 +107,9 @@ export const requestDeviceAnalysisDesktopStore = async (
 
   if (endpoint === "/device-analysis/persistence-path" && method === "PATCH") {
     const payload = parseJsonBody(options.body) || {};
+    const path = typeof payload.path === "string" ? payload.path : "";
     const info = await store.updateDeviceAnalysisPersistencePath(
-      payload?.path ?? "",
+      path,
     );
     return normalizePersistencePathInfo(info);
   }

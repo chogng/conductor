@@ -1,11 +1,11 @@
 import { useLayoutEffect, useRef, useState } from "react";
 
 export const useTemplateManagerPanelHeight = () => {
-  const leftPanelRef = useRef(null);
-  const basePanelRef = useRef(null);
-  const selectPanelMeasureRef = useRef(null);
-  const savePanelMeasureRef = useRef(null);
-  const [panelMinHeightPx, setPanelMinHeightPx] = useState(null);
+  const leftPanelRef = useRef<HTMLDivElement | null>(null);
+  const basePanelRef = useRef<HTMLDivElement | null>(null);
+  const selectPanelMeasureRef = useRef<HTMLDivElement | null>(null);
+  const savePanelMeasureRef = useRef<HTMLDivElement | null>(null);
+  const [panelMinHeightPx, setPanelMinHeightPx] = useState<number | null>(null);
   const minHeightRafRef = useRef(0);
   const basePanelMaxHeightRef = useRef(0);
   const lastPanelWidthRef = useRef(0);

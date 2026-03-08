@@ -8,16 +8,35 @@ import {
   triggerDeviceAnalysisBlobDownload,
 } from "../lib/deviceAnalysisExport";
 
+type UseDeviceAnalysisExportsOptions = {
+  processedData?: unknown[];
+  ssIdWindow?: unknown;
+  ssManualRanges?: unknown;
+  ssMethod?: unknown;
+};
+
+declare global {
+  interface Window {
+    __appointerDebug?: {
+      [key: string]: unknown;
+      deviceAnalysis?: {
+        exportOriginZip: () => Promise<void>;
+        exportZip: () => Promise<void>;
+      };
+    };
+  }
+}
+
 export const useDeviceAnalysisExports = ({
   processedData = [],
   ssIdWindow,
   ssManualRanges,
   ssMethod,
-}) => {
+}: UseDeviceAnalysisExportsOptions) => {
   const handleExport = useCallback(async () => {
     if (processedData.length === 0) return;
 
-    const exports = buildDeviceAnalysisCsvExports(processedData);
+    const exports = buildDeviceAnalysisCsvExports(processedData as never[]);
     if (exports.length === 0) return;
 
     const zip = new JSZip();
@@ -29,7 +48,7 @@ export const useDeviceAnalysisExports = ({
       "device_analysis_metrics.csv",
       "\uFEFF" +
         buildDeviceAnalysisSsMetricsCsv({
-          processedData,
+          processedData: processedData as never[],
           ssIdWindow,
           ssManualRanges,
           ssMethod,
@@ -48,7 +67,7 @@ export const useDeviceAnalysisExports = ({
   const handleExportOrigin = useCallback(async () => {
     if (processedData.length === 0) return;
 
-    const exports = buildDeviceAnalysisCsvExports(processedData);
+    const exports = buildDeviceAnalysisCsvExports(processedData as never[]);
     if (exports.length === 0) return;
 
     const zip = new JSZip();

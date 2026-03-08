@@ -1,8 +1,26 @@
 import { normalizeCtaName, normalizeCtaToken } from "./cta";
 
-const resolveEventTargetElement = (event) => {
-  const t = event?.target;
-  if (t && t.nodeType === 1) return t;
+type CtaEventPayload = {
+  ts: number;
+  cta: string;
+  position?: string;
+  copy?: string;
+  tag: string;
+  id?: string;
+  path: string;
+  href?: string;
+};
+
+declare global {
+  interface Window {
+    __APPOINTER_CTA_TRACKING_INIT__?: boolean;
+    __APPOINTER_CTA_EVENTS__?: CtaEventPayload[];
+  }
+}
+
+const resolveEventTargetElement = (event: Event): Element | null => {
+  const target = event.target;
+  if (target instanceof Element) return target;
   return null;
 };
 
@@ -10,10 +28,10 @@ export const initCtaTracking = () => {
   if (window.__APPOINTER_CTA_TRACKING_INIT__) return;
   window.__APPOINTER_CTA_TRACKING_INIT__ = true;
 
-  const events = [];
+  const events: CtaEventPayload[] = [];
   window.__APPOINTER_CTA_EVENTS__ = events;
 
-  const handler = (event) => {
+  const handler = (event: Event) => {
     const target = resolveEventTargetElement(event);
     if (!target) return;
 
@@ -23,7 +41,7 @@ export const initCtaTracking = () => {
     const cta = normalizeCtaName(el.getAttribute("data-cta"));
     if (!cta) return;
 
-    const payload = {
+    const payload: CtaEventPayload = {
       ts: Date.now(),
       cta,
       position: normalizeCtaToken(el.getAttribute("data-cta-position")),

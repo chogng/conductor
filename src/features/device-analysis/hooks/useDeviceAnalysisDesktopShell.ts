@@ -1,12 +1,35 @@
 import { useCallback, useEffect } from "react";
 
+type DesktopAppBridge = {
+  sendCommand: (command: string) => void;
+};
+
+type ImporterRefLike = {
+  current: {
+    openFileDialog?: () => void;
+  } | null;
+};
+
+type UseDeviceAnalysisDesktopShellOptions = {
+  handleExport: () => Promise<unknown> | unknown;
+  importerRef: ImporterRefLike;
+  isWindowsDesktopShell?: boolean;
+  setActivePage: (nextPage: string) => void;
+};
+
+declare global {
+  interface Window {
+    desktopApp?: DesktopAppBridge;
+  }
+}
+
 export const useDeviceAnalysisDesktopShell = ({
   handleExport,
   importerRef,
   isWindowsDesktopShell = false,
   setActivePage,
-}) => {
-  const sendDesktopCommand = useCallback((command) => {
+}: UseDeviceAnalysisDesktopShellOptions) => {
+  const sendDesktopCommand = useCallback((command: string): boolean => {
     if (typeof window === "undefined") return false;
 
     const desktopApp = window.desktopApp;
@@ -59,14 +82,14 @@ export const useDeviceAnalysisDesktopShell = ({
   useEffect(() => {
     if (!isWindowsDesktopShell) return undefined;
 
-    const handleDesktopShortcuts = (event) => {
+    const handleDesktopShortcuts = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.metaKey || event.altKey) return;
 
       const key = String(event.key || "").toLowerCase();
 
       if (event.ctrlKey && !event.shiftKey && key === "o") {
         event.preventDefault();
-        importerRef.current?.openFileDialog();
+        importerRef.current?.openFileDialog?.();
         return;
       }
 

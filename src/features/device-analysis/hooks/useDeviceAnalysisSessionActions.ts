@@ -1,4 +1,50 @@
-import { useCallback, useMemo } from "react";
+import {
+  useCallback,
+  useMemo,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
+
+type RawDataEntry = {
+  fileId?: string;
+  fileName?: string;
+  [key: string]: unknown;
+};
+
+type ProcessedEntry = {
+  fileId?: string;
+  [key: string]: unknown;
+};
+
+type ExtractionErrorEntry = {
+  fileName?: string;
+  [key: string]: unknown;
+};
+
+type ProcessingStatus = {
+  state: string;
+  [key: string]: unknown;
+};
+
+type UseDeviceAnalysisSessionActionsOptions = {
+  clearPreviewState: (options?: { clearSelection?: boolean }) => void;
+  disposePreviewFileCache: (fileId: string) => void;
+  extractionErrors?: ExtractionErrorEntry[];
+  invalidatePreviewRequests: () => void;
+  previewFile?: { fileId?: string } | null;
+  processedData?: ProcessedEntry[];
+  processingStatus?: ProcessingStatus;
+  rawData?: RawDataEntry[];
+  removeQueuedProcessingFile: (fileId: string) => void;
+  resetPreviewWorker: () => void;
+  resetProcessingWorker: () => void;
+  selectedPreviewFileId?: string | null;
+  setExtractionErrors: Dispatch<SetStateAction<ExtractionErrorEntry[]>>;
+  setProcessedData: Dispatch<SetStateAction<ProcessedEntry[]>>;
+  setRawData: Dispatch<SetStateAction<RawDataEntry[]>>;
+  setSelectedPreviewFileId: Dispatch<SetStateAction<string | null>>;
+  setSsManualRanges: Dispatch<SetStateAction<Record<string, unknown>>>;
+};
 
 export const useDeviceAnalysisSessionActions = ({
   clearPreviewState,
@@ -18,7 +64,7 @@ export const useDeviceAnalysisSessionActions = ({
   setRawData,
   setSelectedPreviewFileId,
   setSsManualRanges,
-}) => {
+}: UseDeviceAnalysisSessionActionsOptions) => {
   const hasSessionData = useMemo(
     () =>
       rawData.length > 0 ||
@@ -53,7 +99,7 @@ export const useDeviceAnalysisSessionActions = ({
   ]);
 
   const handleDataImported = useCallback(
-    (fileInfo) => {
+    (fileInfo: RawDataEntry) => {
       setRawData((prev) => [...prev, fileInfo]);
       if (fileInfo?.fileId) {
         setSelectedPreviewFileId(fileInfo.fileId);
@@ -63,7 +109,7 @@ export const useDeviceAnalysisSessionActions = ({
   );
 
   const handleDataRemoved = useCallback(
-    (fileId) => {
+    (fileId: string) => {
       const removedFileName =
         rawData.find((entry) => entry.fileId === fileId)?.fileName ?? null;
 

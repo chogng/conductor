@@ -1,16 +1,31 @@
-import { useMemo, useRef, useState } from "react";
-import { DeviceAnalysisSessionContext } from "./device-analysis-session-context";
+import { useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  DeviceAnalysisSessionContext,
+  type DeviceAnalysisSessionContextValue,
+  type DeviceAnalysisTemplateConfig,
+  type PreviewStatus,
+  type SsIdWindow,
+  type SsManualRanges,
+  type SsMethod,
+  type TemplateMode,
+} from "./device-analysis-session-context";
 
-export const DeviceAnalysisSessionProvider = ({ children }) => {
-  const [rawData, setRawData] = useState([]);
-  const [selectedPreviewFileId, setSelectedPreviewFileId] = useState(null);
-  const [processedData, setProcessedData] = useState([]);
-  const [extractionErrors, setExtractionErrors] = useState([]);
+type DeviceAnalysisSessionProviderProps = {
+  children: ReactNode;
+};
+
+export const DeviceAnalysisSessionProvider = ({
+  children,
+}: DeviceAnalysisSessionProviderProps) => {
+  const [rawData, setRawData] = useState<unknown[]>([]);
+  const [selectedPreviewFileId, setSelectedPreviewFileId] = useState<string | null>(null);
+  const [processedData, setProcessedData] = useState<unknown[]>([]);
+  const [extractionErrors, setExtractionErrors] = useState<unknown[]>([]);
 
   // Device Analysis: template manager session state (persist across route switches)
-  const [templateMode, setTemplateMode] = useState("select"); // "select" | "save"
-  const [selectedTemplateId, setSelectedTemplateId] = useState(null);
-  const [templateConfig, setTemplateConfig] = useState({
+  const [templateMode, setTemplateMode] = useState<TemplateMode>("select");
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [templateConfig, setTemplateConfig] = useState<DeviceAnalysisTemplateConfig>({
     name: "",
     xDataStart: "",
     xDataEnd: "",
@@ -26,39 +41,38 @@ export const DeviceAnalysisSessionProvider = ({ children }) => {
     legendPrefix: "",
     fileNameVgKeywords: "",
     fileNameVdKeywords: "",
-    selectedColumns: [], // Array of indices
+    selectedColumns: [],
   });
 
-  const [previewFile, setPreviewFile] = useState(null);
-  const [previewStatus, setPreviewStatus] = useState({
-    state: "idle", // 'idle' | 'loading' | 'ready' | 'error'
+  const [previewFile, setPreviewFile] = useState<unknown | null>(null);
+  const [previewStatus, setPreviewStatus] = useState<PreviewStatus>({
+    state: "idle",
     message: "",
   });
 
-  const previewWorkerRef = useRef(null);
+  const previewWorkerRef = useRef<Worker | null>(null);
   const previewRequestIdRef = useRef(0);
   const previewRowsRequestIdRef = useRef(0);
-  const previewRowsRequestsRef = useRef(new Map());
+  const previewRowsRequestsRef = useRef<Map<number, unknown>>(new Map());
 
-  const previewRowsCacheByFileIdRef = useRef(new Map());
-  const previewLoadedChunksByFileIdRef = useRef(new Map());
-  const previewRowsCacheRef = useRef(new Map());
-  const previewLoadedChunksRef = useRef(new Set());
-  const previewCacheFileIdRef = useRef(null);
-  const previewCacheFileLruRef = useRef(new Set());
+  const previewRowsCacheByFileIdRef = useRef<Map<string, unknown>>(new Map());
+  const previewLoadedChunksByFileIdRef = useRef<Map<string, Set<number>>>(new Map());
+  const previewRowsCacheRef = useRef<Map<number, unknown>>(new Map());
+  const previewLoadedChunksRef = useRef<Set<number>>(new Set());
+  const previewCacheFileIdRef = useRef<string | null>(null);
+  const previewCacheFileLruRef = useRef<Set<string>>(new Set());
 
   // Device analysis SS (session state; defaults overridden by user settings if loaded).
-  const [ssMethod, setSsMethod] = useState("auto"); // auto | manual | idWindow | legacy
+  const [ssMethod, setSsMethod] = useState<SsMethod>("auto");
   const [ssDiagnosticsEnabled, setSsDiagnosticsEnabled] = useState(true);
   const [ssShowFitLine, setSsShowFitLine] = useState(true);
-  const [ssIdWindow, setSsIdWindow] = useState({
+  const [ssIdWindow, setSsIdWindow] = useState<SsIdWindow>({
     low: "1e-11",
     high: "1e-9",
   });
-  // { [fileId]: { [seriesId]: { x1, x2 } } }
-  const [ssManualRanges, setSsManualRanges] = useState({});
+  const [ssManualRanges, setSsManualRanges] = useState<SsManualRanges>({});
 
-  const value = useMemo(
+  const value = useMemo<DeviceAnalysisSessionContextValue>(
     () => ({
       rawData,
       setRawData,
