@@ -53,6 +53,12 @@ type CanvasMultiLineChartProps = {
 const ChartComponent =
   CanvasMultiLineChart as unknown as ComponentType<CanvasMultiLineChartProps>;
 
+const toSafeIdSuffix = (value: string | undefined) => {
+  const normalized = (value ?? "").trim();
+  if (!normalized) return "unknown";
+  return normalized.replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+};
+
 const useInViewOnce = (options: UseInViewOnceOptions = {}) => {
   const ref = useRef<HTMLButtonElement | null>(null);
   const [inView, setInView] = useState(false);
@@ -92,6 +98,7 @@ const FileCard = memo(function FileCard({
   yScale = "linear",
 }: FileCardProps) {
   const { ref, inView } = useInViewOnce();
+  const fileIdSuffix = toSafeIdSuffix(file?.fileId ?? file?.fileName);
   const seriesCount = Array.isArray(file?.series) ? file.series.length : 0;
   const sampledPoints = file?.x?.sampledPoints ?? null;
   const yAxisMin = Number(file?.domain?.y?.[0]);
@@ -124,15 +131,20 @@ const FileCard = memo(function FileCard({
       <div className="px-2 pt-1.5 pb-1">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className="text-[11px] font-semibold text-text-primary truncate">
+            <div className="text-[11px] font-semibold text-text-primary whitespace-normal break-words">
               {file.fileName}
             </div>
-            <div className="text-[10px] text-text-secondary mt-0.5 space-y-0.5">
-              <div>
+            <div className="text-[10px] text-text-secondary mt-0.5">
+              <div id={`file-card-series-${fileIdSuffix}`} className="break-words">
                 series: {seriesCount}
                 {sampledPoints ? ` points: ${sampledPoints}` : ""}
+                {file.curveType ? (
+                  <>
+                    {" | "}
+                    <span id={`file-card-type-${fileIdSuffix}`}>Type: {file.curveType}</span>
+                  </>
+                ) : null}
               </div>
-              {file.curveType ? <div>Type: {file.curveType}</div> : null}
             </div>
           </div>
         </div>
