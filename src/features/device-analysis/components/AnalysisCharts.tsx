@@ -1801,7 +1801,10 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
     return (<div className="h-full min-h-0 grid grid-cols-1 xl:grid-rows-1 xl:grid-cols-[var(--analysis-sidebar-width)_minmax(0,1fr)] gap-1 xl:gap-1" ref={toastContainerRef} style={{
             "--analysis-sidebar-width": "clamp(240px, var(--sidebar-width), 420px)",
         } as CSSProperties}>
-      <aside className="xl:min-h-0 flex flex-col h-full">
+      <aside
+        id="device-analysis-overview-sidebar"
+        className="xl:min-h-0 flex flex-col h-full"
+      >
         <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} yUnitFactor={currentUnitMeta.factor} yUnitLabel={currentUnitMeta.label} yScale={overviewYScaleType}/>
       </aside>
 

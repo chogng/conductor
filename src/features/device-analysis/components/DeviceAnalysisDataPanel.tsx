@@ -260,6 +260,7 @@ const DeviceAnalysisDataPanel = ({
       </aside>
 
       <section
+        id="device-analysis-template-panel"
         aria-label={t("da_data_extraction_template")}
         className="xl:min-h-0 flex flex-col h-full"
       >

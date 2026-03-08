@@ -135,11 +135,6 @@ const FileCard = memo(function FileCard({
               {file.curveType ? <div>Type: {file.curveType}</div> : null}
             </div>
           </div>
-          {isActive ? (
-            <div className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent/15 text-accent border border-accent/20">
-              Active
-            </div>
-          ) : null}
         </div>
       </div>
 

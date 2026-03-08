@@ -349,6 +349,7 @@ const TemplateManagerPreviewPanel = ({
         />
       ) : previewFile ? (
         <ScrollArea
+          id="device-analysis-preview-scroll-area"
           ref={previewScrollRef}
           axis="both"
           className={`da-preview-scroll-area flex-1 min-h-0 border border-border rounded ${isColumnResizing ? "cursor-col-resize select-none" : ""
