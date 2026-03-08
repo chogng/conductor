@@ -1,13 +1,72 @@
-// @ts-nocheck
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { formatNumber } from "../lib/analysisMath";
 import { COLORS } from "../lib/chartColors";
 
-const DEFAULT_PADDING = { top: 10, right: 10, bottom: 10, left: 10 };
+type Padding = {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+};
 
-const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+type ChartDomain = {
+  x?: [number, number] | number[];
+  y?: [number, number] | number[];
+};
 
-const setupCanvas = (canvas, width, height) => {
+type ChartSeries = {
+  name?: string;
+  groupIndex?: number;
+  y?: ArrayLike<unknown> | null;
+  [key: string]: unknown;
+};
+
+type PreparedSeries = ChartSeries & {
+  _color: string;
+  _hoverColor: string;
+};
+
+type TooltipState = {
+  visible: boolean;
+  x: number;
+  y: number;
+  seriesName: string;
+  xVal: number;
+  yVal: number;
+};
+
+type ActiveHoverState = {
+  active: true;
+  series: PreparedSeries;
+  cursorX: number;
+  pointX: number;
+  pointY: number;
+};
+
+type HoverState = { active: false } | ActiveHoverState;
+
+type CanvasMultiLineChartProps = {
+  xGroups?: number[][];
+  series?: ChartSeries[];
+  domain?: ChartDomain | null;
+  yScaleFactor?: number;
+  yScaleType?: "linear" | "log";
+  yUnitLabel?: string;
+  padding?: Padding;
+  title?: string;
+  className?: string;
+};
+
+const DEFAULT_PADDING: Padding = { top: 10, right: 10, bottom: 10, left: 10 };
+
+const clamp = (value: number, min: number, max: number): number =>
+  Math.max(min, Math.min(max, value));
+
+const setupCanvas = (
+  canvas: HTMLCanvasElement,
+  width: number,
+  height: number,
+): CanvasRenderingContext2D | null => {
   const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
   canvas.width = Math.max(1, Math.floor(width * dpr));
   canvas.height = Math.max(1, Math.floor(height * dpr));
@@ -19,7 +78,7 @@ const setupCanvas = (canvas, width, height) => {
   return ctx;
 };
 
-const binarySearchNearest = (arr, value) => {
+const binarySearchNearest = (arr: number[], value: number): number => {
   const n = arr.length;
   if (n === 0) return -1;
   if (n === 1) return 0;
@@ -41,13 +100,13 @@ const binarySearchNearest = (arr, value) => {
   return d0 <= d1 ? i0 : i1;
 };
 
-const clampAlpha = (alpha) => {
+const clampAlpha = (alpha: unknown): number => {
   const a = Number(alpha);
   if (!Number.isFinite(a)) return 1;
   return Math.min(1, Math.max(0, a));
 };
 
-const hexToRgb = (hex) => {
+const hexToRgb = (hex: unknown): { r: number; g: number; b: number } | null => {
   const normalized = String(hex || "").trim();
   const m = /^#?([0-9a-fA-F]{6})$/.exec(normalized);
   if (!m) return null;
@@ -59,15 +118,15 @@ const hexToRgb = (hex) => {
   };
 };
 
-const applyAlphaToHex = (hex, alpha) => {
+const applyAlphaToHex = (hex: unknown, alpha: unknown): string => {
   const rgb = hexToRgb(hex);
-  if (!rgb) return hex;
+  if (!rgb) return String(hex ?? "");
   const a = clampAlpha(alpha);
   if (a >= 1) return `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
   return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${a})`;
 };
 
-const colorForSeriesIndex = (seriesIndex, alpha = 0.28) => {
+const colorForSeriesIndex = (seriesIndex: unknown, alpha = 0.28): string => {
   const idx = Math.floor(Number(seriesIndex) || 0);
   const paletteSize = Array.isArray(COLORS) ? COLORS.length : 0;
   const paletteIdx = paletteSize ? ((idx % paletteSize) + paletteSize) % paletteSize : 0;
@@ -85,17 +144,17 @@ const CanvasMultiLineChart = ({
   padding = DEFAULT_PADDING,
   title,
   className,
-}) => {
-  const wrapperRef = useRef(null);
-  const baseCanvasRef = useRef(null);
-  const overlayCanvasRef = useRef(null);
-  const baseCtxRef = useRef(null);
-  const overlayCtxRef = useRef(null);
+}: CanvasMultiLineChartProps): React.JSX.Element => {
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const baseCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const baseCtxRef = useRef<CanvasRenderingContext2D | null>(null);
+  const overlayCtxRef = useRef<CanvasRenderingContext2D | null>(null);
   const rafRef = useRef(0);
-  const hoverRef = useRef({ active: false });
+  const hoverRef = useRef<HoverState>({ active: false });
 
   const [size, setSize] = useState({ width: 0, height: 0 });
-  const [tooltip, setTooltip] = useState({
+  const [tooltip, setTooltip] = useState<TooltipState>({
     visible: false,
     x: 0,
     y: 0,
@@ -106,19 +165,20 @@ const CanvasMultiLineChart = ({
 
   const prepared = useMemo(() => {
     const safeXGroups = Array.isArray(xGroups) ? xGroups : [];
-    const safeSeries = Array.isArray(series) ? series : [];
+    const safeSeries: ChartSeries[] = Array.isArray(series) ? series : [];
 
-    const seriesWithColor = safeSeries.map((s, idx) => ({
+    const seriesWithColor: PreparedSeries[] = safeSeries.map((s, idx) => ({
       ...s,
       _color: colorForSeriesIndex(idx, 0.28),
       _hoverColor: colorForSeriesIndex(idx, 0.92),
     }));
 
-    const seriesByGroup = new Map();
+    const seriesByGroup = new Map<number, PreparedSeries[]>();
     for (const s of seriesWithColor) {
       const gi = Number(s?.groupIndex ?? 0);
       if (!seriesByGroup.has(gi)) seriesByGroup.set(gi, []);
-      seriesByGroup.get(gi).push(s);
+      const existing = seriesByGroup.get(gi);
+      if (existing) existing.push(s);
     }
 
     return { xGroups: safeXGroups, series: seriesWithColor, seriesByGroup };
@@ -182,9 +242,9 @@ const CanvasMultiLineChart = ({
     const innerW = Math.max(1, width - padding.left - padding.right);
     const innerH = Math.max(1, height - padding.top - padding.bottom);
 
-    const xToPx = (x) => padding.left + ((x - xMin) / xSpan) * innerW;
+    const xToPx = (x: number) => padding.left + ((x - xMin) / xSpan) * innerW;
 
-    const yToPx = (y) => {
+    const yToPx = (y: number) => {
       if (yScaleType === "log") {
         if (y <= 0) return size.height - padding.bottom; // Clamp bottom
         const logY = Math.log10(y);
@@ -195,7 +255,7 @@ const CanvasMultiLineChart = ({
       return padding.top + (1 - (y - yMin) / ySpan) * innerH;
     };
 
-    const pxToX = (px) => xMin + ((px - padding.left) / innerW) * xSpan;
+    const pxToX = (px: number) => xMin + ((px - padding.left) / innerW) * xSpan;
 
     return {
       width,
@@ -253,8 +313,8 @@ const CanvasMultiLineChart = ({
         const xVal = xArr[i];
         const yVal = yArr[i];
         if (!Number.isFinite(xVal) || !Number.isFinite(yVal)) continue;
-        const px = xToPx(xVal);
-        const py = yToPx(yVal);
+        const px = xToPx(Number(xVal));
+        const py = yToPx(Number(yVal));
         if (!started) {
           ctx.moveTo(px, py);
           started = true;
@@ -313,8 +373,8 @@ const CanvasMultiLineChart = ({
       const xVal = xArr[i];
       const yVal = yArr[i];
       if (!Number.isFinite(xVal) || !Number.isFinite(yVal)) continue;
-      const px = xToPx(xVal);
-      const py = yToPx(yVal);
+      const px = xToPx(Number(xVal));
+      const py = yToPx(Number(yVal));
       if (!started) {
         ctx.moveTo(px, py);
         started = true;
@@ -351,7 +411,7 @@ const CanvasMultiLineChart = ({
     });
   };
 
-  const handleMouseMove = (e) => {
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!wrapperRef.current) return;
     if (!prepared.series.length) return;
     if (!prepared.xGroups.length) return;
@@ -402,12 +462,13 @@ const CanvasMultiLineChart = ({
       if (!yArr || idx >= yArr.length) continue;
       const yVal = yArr[idx];
       if (!Number.isFinite(yVal)) continue;
-      const py = yToPx(yVal);
+      const yValue = Number(yVal);
+      const py = yToPx(yValue);
       const dy = Math.abs(py - my);
       if (dy < bestDy) {
         bestDy = dy;
         bestSeries = s;
-        bestY = yVal;
+        bestY = yValue;
       }
     }
 

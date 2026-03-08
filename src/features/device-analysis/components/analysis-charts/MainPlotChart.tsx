@@ -1,5 +1,4 @@
-// @ts-nocheck
-import React, { useMemo } from "react";
+import { memo, useMemo } from "react";
 import {
   CartesianGrid,
   Legend,
@@ -27,7 +26,72 @@ import {
   parseOptionalNumber,
 } from "../../lib/analysisChartsUtils";
 
-const MainPlotChart = React.memo(function MainPlotChart({
+type AxisConfig = Partial<{
+  yMin: number | string;
+  yMax: number | string;
+  yDecadeStep: number | string;
+  yStep: number | string;
+  yTickCount: number | string;
+}>;
+
+type PlotPoint = {
+  x?: number;
+  y?: number;
+  yPositive?: number;
+  yAbsPositive?: number;
+  [key: string]: number | string | null | undefined;
+};
+
+type PlotSeries = {
+  id: string;
+  name: string;
+  data: PlotPoint[];
+};
+
+type SsOverlay = {
+  x1: number;
+  x2: number;
+};
+
+type SsOverlayStyle = {
+  fill: string;
+  fillOpacity: number;
+  stroke: string;
+  strokeOpacity: number;
+};
+
+type MainPlotChartProps = {
+  plotType?: string;
+  activeFile?: Partial<{
+    xLabel: string;
+    yLabel: string;
+  }> | null;
+  seriesList: PlotSeries[];
+  axis?: AxisConfig;
+  xDomain: [number, number];
+  xTicks?: number[] | null;
+  xTickDigits: number;
+  xLabelInterval: number;
+  yScaleMode: "linear" | "log" | "logAbs";
+  yTicksMode?: string;
+  plotYFactor: number;
+  plotYUnitLabel: string;
+  focusedSeriesId?: string | null;
+  focusedFitLine?: PlotPoint[] | null;
+  focusedSeriesColor?: string;
+  focusedSsOverlay?: SsOverlay | null;
+  ssOverlayStyle: SsOverlayStyle;
+  onMouseDown?: (...args: unknown[]) => void;
+  onMouseMove?: (...args: unknown[]) => void;
+  onMouseUp?: (...args: unknown[]) => void;
+};
+
+const toDomainTuple = (domain: number[]): [number, number] => [
+  Number(domain?.[0] ?? 0),
+  Number(domain?.[1] ?? 1),
+];
+
+const MainPlotChart = memo(function MainPlotChart({
   plotType,
   activeFile,
   seriesList,
@@ -42,14 +106,14 @@ const MainPlotChart = React.memo(function MainPlotChart({
   plotYUnitLabel,
   focusedSeriesId,
   focusedFitLine,
-  focusedSeriesColor,
+  focusedSeriesColor = "#8884d8",
   focusedSsOverlay,
   ssOverlayStyle,
   onMouseDown,
   onMouseMove,
   onMouseUp,
-}) {
-  const plotYKey = useMemo(() => {
+}: MainPlotChartProps) {
+  const plotYKey = useMemo<"y" | "yPositive" | "yAbsPositive">(() => {
     if (yScaleMode === "logAbs") return "yAbsPositive";
     if (yScaleMode === "log") return "yPositive";
     return "y";
@@ -58,7 +122,7 @@ const MainPlotChart = React.memo(function MainPlotChart({
   const autoMinMax = useMemo(
     () => computeMinMax(seriesList, { yKey: plotYKey }),
     [plotYKey, seriesList],
-  );
+  ) as { minY: number | null; maxY: number | null } | null;
 
   const autoMinY = autoMinMax?.minY ?? null;
   const autoMaxY = autoMinMax?.maxY ?? null;
@@ -67,18 +131,20 @@ const MainPlotChart = React.memo(function MainPlotChart({
     if (yScaleMode === "linear") return "linear";
     if (autoMinY === null || autoMaxY === null) return "linear";
     if (autoMaxY <= 0) return "linear";
-    return yScaleMode; // 'log' | 'logAbs'
+    return yScaleMode;
   }, [autoMaxY, autoMinY, yScaleMode]);
 
-  const yDomain = useMemo(() => {
-    const auto =
-      autoMinMax.minY === null || autoMinMax.maxY === null
+  const yDomain = useMemo<[number, number]>(() => {
+    const minY = autoMinMax?.minY ?? null;
+    const maxY = autoMinMax?.maxY ?? null;
+    const auto: [number, number] =
+      minY === null || maxY === null
         ? effectiveYScale === "linear"
           ? [0, 1]
           : [1e-3, 1]
         : effectiveYScale === "linear"
-          ? padLinearDomain(autoMinMax.minY, autoMinMax.maxY)
-          : padLogDomain(autoMinMax.minY, autoMinMax.maxY);
+          ? toDomainTuple(padLinearDomain(minY, maxY))
+          : toDomainTuple(padLogDomain(minY, maxY));
 
     const minUserRaw = parseOptionalNumber(axis?.yMin);
     const maxUserRaw = parseOptionalNumber(axis?.yMax);
@@ -92,20 +158,20 @@ const MainPlotChart = React.memo(function MainPlotChart({
       if (min <= 0) min = auto[0];
       if (max <= 0) max = auto[1];
       if (min <= 0 || max <= 0) return auto;
-      return padLogDomain(min, max);
+      return toDomainTuple(padLogDomain(min, max));
     }
 
-    return padLinearDomain(min, max);
+    return toDomainTuple(padLinearDomain(min, max));
   }, [
-    autoMinMax.maxY,
-    autoMinMax.minY,
+    autoMinMax?.maxY,
+    autoMinMax?.minY,
     axis?.yMax,
     axis?.yMin,
     effectiveYScale,
     plotYFactor,
   ]);
 
-  const yTicks = useMemo(() => {
+  const yTicks = useMemo<number[] | null>(() => {
     const mode = String(yTicksMode ?? "nice");
     if (mode === "auto") {
       if (effectiveYScale !== "linear") {
@@ -127,7 +193,11 @@ const MainPlotChart = React.memo(function MainPlotChart({
 
     if (effectiveYScale !== "linear") {
       if (mode !== "decades") return null;
-      return buildLogTicks(yDomain[0], yDomain[1], axis?.yDecadeStep);
+      return buildLogTicks(
+        yDomain[0],
+        yDomain[1],
+        parseOptionalNumber(axis?.yDecadeStep) ?? undefined,
+      );
     }
 
     if (mode === "step") {
@@ -190,14 +260,14 @@ const MainPlotChart = React.memo(function MainPlotChart({
           label={
             activeFile?.xLabel
               ? {
-                value: activeFile.xLabel,
-                position: "insideBottom",
-                offset: -15,
-                fill: "currentColor",
-                opacity: 0.9,
-                fontSize: 16,
-                fontWeight: 500,
-              }
+                  value: activeFile.xLabel,
+                  position: "insideBottom",
+                  offset: -15,
+                  fill: "currentColor",
+                  opacity: 0.9,
+                  fontSize: 16,
+                  fontWeight: 500,
+                }
               : undefined
           }
           tickFormatter={(v) => formatNumber(v, { digits: xTickDigits })}
@@ -210,16 +280,16 @@ const MainPlotChart = React.memo(function MainPlotChart({
           label={
             activeFile?.yLabel
               ? {
-                value: activeFile.yLabel,
-                angle: -90,
-                position: "insideLeft",
-                offset: -15,
-                style: { textAnchor: "middle" },
-                fill: "currentColor",
-                opacity: 0.9,
-                fontSize: 16,
-                fontWeight: 500,
-              }
+                  value: activeFile.yLabel,
+                  angle: -90,
+                  position: "insideLeft",
+                  offset: -15,
+                  style: { textAnchor: "middle" },
+                  fill: "currentColor",
+                  opacity: 0.9,
+                  fontSize: 16,
+                  fontWeight: 500,
+                }
               : undefined
           }
           type="number"
@@ -228,7 +298,7 @@ const MainPlotChart = React.memo(function MainPlotChart({
           ticks={yTicks ?? undefined}
           interval={yLabelInterval}
           tickFormatter={(v) => {
-            const scaled = v * plotYFactor;
+            const scaled = Number(v) * plotYFactor;
             if (effectiveYScale !== "linear") {
               if (!Number.isFinite(scaled) || scaled === 0) return "0";
               const exp = Math.floor(Math.log10(Math.abs(scaled)));
@@ -256,7 +326,7 @@ const MainPlotChart = React.memo(function MainPlotChart({
               typeof value === "number"
                 ? value
                 : value === null || value === undefined
-                  ? NaN
+                  ? Number.NaN
                   : Number(value);
             return [
               `${formatNumber(num * plotYFactor, { digits: yTickDigits })} ${plotYUnitLabel}`,
@@ -323,14 +393,10 @@ const MainPlotChart = React.memo(function MainPlotChart({
             dot={false}
             isAnimationActive={false}
             strokeWidth={
-              isSsPlot && focusedSeriesId && series.id === focusedSeriesId
-                ? 2.5
-                : 2
+              isSsPlot && focusedSeriesId && series.id === focusedSeriesId ? 2.5 : 2
             }
             strokeOpacity={
-              isSsPlot && focusedSeriesId && series.id !== focusedSeriesId
-                ? 0.35
-                : 1
+              isSsPlot && focusedSeriesId && series.id !== focusedSeriesId ? 0.35 : 1
             }
           />
         ))}

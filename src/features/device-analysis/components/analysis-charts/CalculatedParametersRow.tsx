@@ -1,11 +1,32 @@
-// @ts-nocheck
-import React from "react";
+import { memo } from "react";
 import { formatNumber } from "../../lib/analysisMath";
 
-const CalculatedParametersRow = React.memo(function CalculatedParametersRow({
+type SsConfidence = "high" | "low" | "fail" | string;
+
+type CalculatedParameterRowData = {
+  name: string;
+  ion: number | null;
+  xAtIon: number | null;
+  ioff: number | null;
+  xAtIoff: number | null;
+  ionIoff: number | null;
+  gmMaxAbs: number | null;
+  xAtGmMaxAbs: number | null;
+  ss: number | null;
+  ssConfidence: SsConfidence;
+  xAtSs: number | null;
+  jon: number | null;
+};
+
+type CalculatedParametersRowProps = {
+  row?: CalculatedParameterRowData | null;
+  buildSsTooltip?: (row: CalculatedParameterRowData) => string;
+};
+
+const CalculatedParametersRow = memo(function CalculatedParametersRow({
   row,
   buildSsTooltip,
-}) {
+}: CalculatedParametersRowProps) {
   if (!row) return null;
 
   return (
@@ -36,14 +57,15 @@ const CalculatedParametersRow = React.memo(function CalculatedParametersRow({
       </td>
       <td className="p-2 font-mono text-xs text-text-primary whitespace-nowrap">
         <span
-          className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${row.ssConfidence === "high"
-            ? "bg-green-500/10 text-green-500 border-green-500/20"
-            : row.ssConfidence === "low"
-              ? "bg-yellow-500/10 text-yellow-500 border-yellow-500/20"
-              : row.ssConfidence === "fail"
-                ? "bg-red-500/10 text-red-500 border-red-500/20"
-                : "bg-bg-page text-text-primary border-border"
-            }`}
+          className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${
+            row.ssConfidence === "high"
+              ? "bg-green-500/10 text-green-500 border-green-500/20"
+              : row.ssConfidence === "low"
+                ? "bg-yellow-500/10 text-yellow-500 border-yellow-500/20"
+                : row.ssConfidence === "fail"
+                  ? "bg-red-500/10 text-red-500 border-red-500/20"
+                  : "bg-bg-page text-text-primary border-border"
+          }`}
           title={buildSsTooltip ? buildSsTooltip(row) : ""}
         >
           {row.ss !== null

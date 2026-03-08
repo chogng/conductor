@@ -1,12 +1,40 @@
-// @ts-nocheck
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, type ComponentType } from "react";
 import { BarChart2 } from "lucide-react";
 import Card from "../../../components/ui/Card";
+import type { TranslateFn } from "../../../context/language-context";
+import type {
+  SsIdWindow,
+  SsManualRanges,
+  SsMethod,
+} from "../context/device-analysis-session-context";
+import type { OriginPlotOptions } from "../lib/originPlotOptions";
 import { loadAnalysisCharts } from "./loadAnalysisCharts";
 
-const AnalysisCharts = lazy(loadAnalysisCharts);
+type ProcessingStatus = {
+  state?: string;
+  processed?: number;
+  total?: number;
+};
 
-const AnalysisChartsLoadingFallback = ({ t }) => {
+type AnalysisChartsLazyProps = {
+  processedData: unknown[];
+  processingStatus?: ProcessingStatus;
+  ssMethod?: SsMethod;
+  setSsMethod?: (next: SsMethod) => void;
+  ssDiagnosticsEnabled?: boolean;
+  setSsDiagnosticsEnabled?: (next: boolean) => void;
+  ssShowFitLine?: boolean;
+  setSsShowFitLine?: (next: boolean) => void;
+  ssIdWindow?: SsIdWindow;
+  setSsIdWindow?: (next: SsIdWindow) => void;
+  ssManualRanges?: SsManualRanges;
+  setSsManualRanges?: (next: SsManualRanges) => void;
+  originOpenPlotOptions?: OriginPlotOptions;
+};
+
+const AnalysisCharts = lazy(loadAnalysisCharts) as ComponentType<AnalysisChartsLazyProps>;
+
+const AnalysisChartsLoadingFallback = ({ t }: { t: TranslateFn }) => {
   return (
     <Card
       id="device-analysis-analysis-loading-card"
@@ -23,6 +51,11 @@ const AnalysisChartsLoadingFallback = ({ t }) => {
   );
 };
 
+type DeviceAnalysisAnalysisPanelProps = AnalysisChartsLazyProps & {
+  shouldMountCharts?: boolean;
+  t: TranslateFn;
+};
+
 const DeviceAnalysisAnalysisPanel = ({
   processedData = [],
   processingStatus,
@@ -37,8 +70,9 @@ const DeviceAnalysisAnalysisPanel = ({
   ssManualRanges,
   ssMethod,
   ssShowFitLine,
+  originOpenPlotOptions,
   t,
-}) => {
+}: DeviceAnalysisAnalysisPanelProps) => {
   const hasProcessedData = processedData.length > 0;
   const isProcessing = processingStatus?.state === "processing";
   const shouldRenderCharts = hasProcessedData && shouldMountCharts;
@@ -61,6 +95,7 @@ const DeviceAnalysisAnalysisPanel = ({
               setSsIdWindow={setSsIdWindow}
               ssManualRanges={ssManualRanges}
               setSsManualRanges={setSsManualRanges}
+              originOpenPlotOptions={originOpenPlotOptions}
             />
           </Suspense>
         ) : null

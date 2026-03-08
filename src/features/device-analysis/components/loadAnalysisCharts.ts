@@ -1,10 +1,11 @@
-// @ts-nocheck
-let analysisChartsModulePromise = null;
+type AnalysisChartsModule = typeof import("./AnalysisCharts");
 
-export const loadAnalysisCharts = () => {
+let analysisChartsModulePromise: Promise<AnalysisChartsModule> | null = null;
+
+export const loadAnalysisCharts = (): Promise<AnalysisChartsModule> => {
   if (!analysisChartsModulePromise) {
     analysisChartsModulePromise = import("./AnalysisCharts");
   }
 
-  return analysisChartsModulePromise;
+  return analysisChartsModulePromise!;
 };

@@ -1,5 +1,12 @@
-// @ts-nocheck
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
+import type { TranslateFn } from "../../../context/language-context";
 import { apiService } from "../services/apiService";
 import { useDeviceAnalysisSession } from "./useDeviceAnalysisSession";
 import {
@@ -7,11 +14,62 @@ import {
   createEmptyTemplateConfig,
   normalizeXDataEndValue,
   toTemplateNameKey,
+  type TemplateConfig,
 } from "../lib/templateManagerUtils";
 import {
   validateTemplateForApply,
   validateTemplateForSave,
 } from "../lib/templateValidation";
+
+type TemplateMode = "select" | "save";
+type InputSource = "manual" | "picked";
+type ToastType = "warning" | "success" | "error" | "idle" | string;
+
+type TemplateRecord = Partial<TemplateConfig> &
+  Partial<{
+    id: string | null;
+    vdFileKeywords: string;
+    vdKeyword: string;
+    vgFileKeywords: string;
+    vgKeyword: string;
+  }> & {
+    [key: string]: unknown;
+  };
+
+type DeviceAnalysisSettings = Partial<{
+  lastTemplateId: string | null;
+  stopOnErrorDefault: boolean;
+}> &
+  Record<string, unknown>;
+
+type PreviewFileLike = Partial<{
+  fileId: string;
+}> &
+  Record<string, unknown>;
+
+type PreviewStatus = Partial<{
+  message: string;
+  state: string;
+}>;
+
+type ApplyResult = Partial<{
+  message: string;
+  ok: boolean;
+  type: ToastType;
+}>;
+
+type UseTemplateManagerStateOptions = {
+  deviceAnalysisSettings?: DeviceAnalysisSettings | null;
+  onTemplateApplied?: (config: TemplateConfig) => unknown;
+  onTemplateAppliedIncremental?: (config: TemplateConfig) => unknown;
+  onUpdateDeviceAnalysisSettings?: (
+    updates: Record<string, unknown>,
+  ) => Promise<unknown> | unknown;
+  previewFile?: PreviewFileLike | null;
+  previewStatus?: PreviewStatus;
+  showToast: (message: string, type?: ToastType) => void;
+  t: TranslateFn;
+};
 
 export const useTemplateManagerState = ({
   deviceAnalysisSettings,
@@ -22,34 +80,52 @@ export const useTemplateManagerState = ({
   previewStatus,
   showToast,
   t,
-}) => {
+}: UseTemplateManagerStateOptions) => {
   const deviceSession = useDeviceAnalysisSession();
 
-  const [templates, setTemplates] = useState([]);
+  const [templates, setTemplates] = useState<TemplateRecord[]>([]);
   const [templatesLoaded, setTemplatesLoaded] = useState(false);
   const [templatesLoading, setTemplatesLoading] = useState(false);
-  const templatesRequestRef = useRef(null);
-  const [inputSources, setInputSources] = useState({});
+  const templatesRequestRef = useRef<Promise<TemplateRecord[]> | null>(null);
+  const [inputSources, setInputSources] = useState<Record<string, InputSource>>(
+    {},
+  );
   const didInitConfigFromSettingsRef = useRef(false);
 
-  const [localSelectedTemplateId, setLocalSelectedTemplateId] = useState(null);
+  const [localSelectedTemplateId, setLocalSelectedTemplateId] = useState<
+    string | null
+  >(null);
   const selectedTemplateId =
-    deviceSession?.selectedTemplateId ?? localSelectedTemplateId;
+    (deviceSession?.selectedTemplateId as string | null | undefined) ??
+    localSelectedTemplateId;
   const setSelectedTemplateId =
-    deviceSession?.setSelectedTemplateId ?? setLocalSelectedTemplateId;
+    (deviceSession?.setSelectedTemplateId as
+      | Dispatch<SetStateAction<string | null>>
+      | undefined) ?? setLocalSelectedTemplateId;
 
-  const [localConfig, setLocalConfig] = useState(() => createEmptyTemplateConfig());
-  const config = deviceSession?.templateConfig ?? localConfig;
-  const setConfig = deviceSession?.setTemplateConfig ?? setLocalConfig;
+  const [localConfig, setLocalConfig] = useState<TemplateConfig>(() =>
+    createEmptyTemplateConfig(),
+  );
+  const config =
+    (deviceSession?.templateConfig as TemplateConfig | undefined) ?? localConfig;
+  const setConfig =
+    (deviceSession?.setTemplateConfig as
+      | Dispatch<SetStateAction<TemplateConfig>>
+      | undefined) ?? setLocalConfig;
 
-  const [localTemplateMode, setLocalTemplateMode] = useState("select");
-  const templateMode = deviceSession?.templateMode ?? localTemplateMode;
+  const [localTemplateMode, setLocalTemplateMode] =
+    useState<TemplateMode>("select");
+  const templateMode =
+    (deviceSession?.templateMode as TemplateMode | undefined) ?? localTemplateMode;
   const setTemplateMode =
-    deviceSession?.setTemplateMode ?? setLocalTemplateMode;
+    (deviceSession?.setTemplateMode as
+      | Dispatch<SetStateAction<TemplateMode>>
+      | undefined) ?? setLocalTemplateMode;
   const saveDraftTouchedRef = useRef(false);
-  const saveDraftBaseConfigRef = useRef(null);
+  const saveDraftBaseConfigRef = useRef<TemplateConfig | null>(null);
   const [isDiscardConfirmOpen, setIsDiscardConfirmOpen] = useState(false);
-  const [pendingTemplateMode, setPendingTemplateMode] = useState(null);
+  const [pendingTemplateMode, setPendingTemplateMode] =
+    useState<TemplateMode | null>(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const isSelectMode = templateMode === "select";
 
@@ -62,9 +138,13 @@ export const useTemplateManagerState = ({
     setConfig((prev) => ({ ...prev, stopOnError: nextStopOnError }));
   }, [deviceAnalysisSettings, setConfig]);
 
-  const markFieldSource = useCallback((field, source) => {
-    if (!field || (source !== "manual" && source !== "picked")) return;
-    setInputSources((prev) => ({ ...(prev || {}), [field]: source }));
+  const markFieldSource = useCallback((field: unknown, source: unknown) => {
+    if (typeof field !== "string" || !field.trim()) return;
+    if (source !== "manual" && source !== "picked") return;
+    setInputSources((prev) => ({
+      ...(prev || {}),
+      [field]: source,
+    }));
   }, []);
 
   const markSaveDraftTouched = useCallback(() => {
@@ -72,32 +152,34 @@ export const useTemplateManagerState = ({
   }, []);
 
   const writeFieldFromPreview = useCallback(
-    (field, value) => {
-      setConfig((prev) => ({ ...prev, [field]: value }));
+    (field: string, value: string) => {
+      setConfig((prev) => ({ ...prev, [field]: value } as TemplateConfig));
       markFieldSource(field, "picked");
     },
     [markFieldSource, setConfig],
   );
 
-  const ensureTemplatesLoaded = useCallback(async () => {
+  const ensureTemplatesLoaded = useCallback(async (): Promise<TemplateRecord[]> => {
     if (templatesLoaded) return templates;
     if (templatesRequestRef.current) {
       return templatesRequestRef.current;
     }
 
-    const request = (async () => {
+    const request = (async (): Promise<TemplateRecord[]> => {
       setTemplatesLoading(true);
 
       try {
         const remote = await apiService.getDeviceAnalysisTemplates();
-        const remoteTemplates = Array.isArray(remote) ? remote : [];
+        const remoteTemplates = Array.isArray(remote)
+          ? (remote as TemplateRecord[])
+          : [];
         setTemplates(remoteTemplates);
         setTemplatesLoaded(true);
         return remoteTemplates;
       } catch (error) {
         showToast(
           t("da_loadTemplatesFailed", {
-            error: error?.message || t("unknownError"),
+            error: error instanceof Error ? error.message : t("unknownError"),
           }),
         );
         throw error;
@@ -146,29 +228,34 @@ export const useTemplateManagerState = ({
   }, [ensureTemplatesLoaded, isDropdownOpen]);
 
   const loadTemplate = useCallback(
-    (template, { persist } = {}) => {
+    (template: TemplateRecord, options: { persist?: boolean } = {}) => {
+      const { persist } = options;
       setInputSources({});
 
-      const rest = {
-        name: template?.name ?? "",
-        xDataStart: template?.xDataStart ?? "",
-        xDataEnd: template?.xDataEnd ?? "",
-        xPoints: template?.xPoints ?? "",
-        yDataStart: template?.yDataStart ?? "",
-        yDataEnd: template?.yDataEnd ?? "",
-        yPoints: template?.yPoints ?? "",
-        yCount: template?.yCount ?? "",
-        yStep: template?.yStep ?? "",
+      const rest: Omit<TemplateConfig, "selectedColumns"> & {
+        selectedColumns: number[] | null;
+      } = {
+        name: String(template?.name ?? ""),
+        xDataStart: String(template?.xDataStart ?? ""),
+        xDataEnd: String(template?.xDataEnd ?? ""),
+        xPoints: String(template?.xPoints ?? ""),
+        yDataStart: String(template?.yDataStart ?? ""),
+        yDataEnd: String(template?.yDataEnd ?? ""),
+        yPoints: String(template?.yPoints ?? ""),
+        yCount: String(template?.yCount ?? ""),
+        yStep: String(template?.yStep ?? ""),
         stopOnError: Boolean(template?.stopOnError),
-        bottomTitle: template?.bottomTitle ?? template?.vgKeyword ?? "",
-        leftTitle: template?.leftTitle ?? "",
-        legendPrefix: template?.legendPrefix ?? template?.vdKeyword ?? "",
-        fileNameVgKeywords:
+        bottomTitle: String(template?.bottomTitle ?? template?.vgKeyword ?? ""),
+        leftTitle: String(template?.leftTitle ?? ""),
+        legendPrefix: String(template?.legendPrefix ?? template?.vdKeyword ?? ""),
+        fileNameVgKeywords: String(
           template?.fileNameVgKeywords ?? template?.vgFileKeywords ?? "",
-        fileNameVdKeywords:
+        ),
+        fileNameVdKeywords: String(
           template?.fileNameVdKeywords ?? template?.vdFileKeywords ?? "",
+        ),
         selectedColumns: Array.isArray(template?.selectedColumns)
-          ? template.selectedColumns
+          ? (template.selectedColumns as number[])
           : null,
       };
 
@@ -184,15 +271,12 @@ export const useTemplateManagerState = ({
           ? rest.selectedColumns
           : prev.selectedColumns,
       }));
-      setSelectedTemplateId(template?.id ?? null);
+      setSelectedTemplateId((template?.id as string | null | undefined) ?? null);
       setIsDropdownOpen(false);
 
-      if (
-        persist !== false &&
-        typeof onUpdateDeviceAnalysisSettings === "function"
-      ) {
+      if (persist !== false && typeof onUpdateDeviceAnalysisSettings === "function") {
         void onUpdateDeviceAnalysisSettings({
-          lastTemplateId: template?.id ?? null,
+          lastTemplateId: (template?.id as string | null | undefined) ?? null,
           stopOnErrorDefault: Boolean(template?.stopOnError),
         });
       }
@@ -211,8 +295,11 @@ export const useTemplateManagerState = ({
       return;
     }
 
-    const validation = validateTemplateForSave(config, t);
-    if (!validation.ok) {
+    const validation = validateTemplateForSave(
+      config,
+      t as (key: string, params?: Record<string, unknown>) => string,
+    );
+    if (!validation.ok || !validation.normalized) {
       showToast(validation.message || "Invalid configuration", "warning");
       return;
     }
@@ -221,10 +308,14 @@ export const useTemplateManagerState = ({
       saveDraftTouchedRef.current = false;
       saveDraftBaseConfigRef.current = null;
 
-      const saved = await apiService.createDeviceAnalysisTemplate({
+      const savedRaw = await apiService.createDeviceAnalysisTemplate({
         ...validation.normalized,
         name,
       });
+      const saved: TemplateRecord =
+        savedRaw && typeof savedRaw === "object"
+          ? (savedRaw as TemplateRecord)
+          : { ...validation.normalized, name };
 
       setTemplates((prev) => {
         const savedNameKey = toTemplateNameKey(saved?.name);
@@ -242,7 +333,10 @@ export const useTemplateManagerState = ({
       showToast(t("da_template_saved"), "success");
       setTemplateMode("select");
     } catch (error) {
-      showToast(error.message || "Failed to save template", "warning");
+      showToast(
+        error instanceof Error ? error.message : "Failed to save template",
+        "warning",
+      );
     }
   }, [
     config,
@@ -255,10 +349,10 @@ export const useTemplateManagerState = ({
   ]);
 
   const handleDeleteTemplate = useCallback(
-    async (id) => {
+    async (id: string) => {
       try {
         await apiService.deleteDeviceAnalysisTemplate(id);
-        setTemplates((prev) => prev.filter((template) => template.id !== id));
+        setTemplates((prev) => prev.filter((template) => template?.id !== id));
         setTemplatesLoaded(true);
 
         if (selectedTemplateId === id) {
@@ -268,10 +362,18 @@ export const useTemplateManagerState = ({
           }
         }
       } catch (error) {
-        showToast(error.message || "Failed to delete template", "warning");
+        showToast(
+          error instanceof Error ? error.message : "Failed to delete template",
+          "warning",
+        );
       }
     },
-    [onUpdateDeviceAnalysisSettings, selectedTemplateId, setSelectedTemplateId, showToast],
+    [
+      onUpdateDeviceAnalysisSettings,
+      selectedTemplateId,
+      setSelectedTemplateId,
+      showToast,
+    ],
   );
 
   useEffect(() => {
@@ -335,12 +437,14 @@ export const useTemplateManagerState = ({
     if (!found) return;
 
     let cancelled = false;
-    const scheduleMicrotask =
+    const scheduleMicrotaskFn: (callback: () => void) => void =
       typeof queueMicrotask === "function"
         ? queueMicrotask
-        : (callback) => Promise.resolve().then(callback);
+        : (callback) => {
+            void Promise.resolve().then(callback);
+          };
 
-    scheduleMicrotask(() => {
+    scheduleMicrotaskFn(() => {
       if (cancelled) return;
       loadTemplate(found, { persist: false });
     });
@@ -357,32 +461,41 @@ export const useTemplateManagerState = ({
   ]);
 
   const applyWithHandler = useCallback(
-    (handler) => {
+    (handler: ((nextConfig: TemplateConfig) => unknown) | undefined) => {
       if (typeof handler !== "function") return;
 
-      const validation = validateTemplateForApply(config, t);
-      if (!validation.ok) {
+      const validation = validateTemplateForApply(
+        config,
+        t as (key: string, params?: Record<string, unknown>) => string,
+      );
+      if (!validation.ok || !validation.normalized) {
         showToast(validation.message || "Invalid configuration", "warning");
         return;
       }
 
+      const normalized = validation.normalized as TemplateConfig;
+
       if (
-        validation.normalized.bottomTitle !== config.bottomTitle ||
-        validation.normalized.legendPrefix !== config.legendPrefix ||
-        validation.normalized.fileNameVgKeywords !== config.fileNameVgKeywords ||
-        validation.normalized.fileNameVdKeywords !== config.fileNameVdKeywords
+        normalized.bottomTitle !== config.bottomTitle ||
+        normalized.legendPrefix !== config.legendPrefix ||
+        normalized.fileNameVgKeywords !== config.fileNameVgKeywords ||
+        normalized.fileNameVdKeywords !== config.fileNameVdKeywords
       ) {
-        setConfig(validation.normalized);
+        setConfig(normalized);
       }
 
-      const result = handler(validation.normalized);
+      const result = handler(normalized);
       if (result && typeof result === "object") {
-        if (result.ok === false) {
-          showToast(result.message || "Invalid configuration", result.type);
+        const safeResult = result as ApplyResult;
+        if (safeResult.ok === false) {
+          showToast(
+            safeResult.message || "Invalid configuration",
+            safeResult.type || "warning",
+          );
           return;
         }
-        if (result.ok === true && result.message) {
-          showToast(result.message, result.type || "success");
+        if (safeResult.ok === true && safeResult.message) {
+          showToast(safeResult.message, safeResult.type || "success");
         }
       }
     },
@@ -398,11 +511,8 @@ export const useTemplateManagerState = ({
   }, [applyWithHandler, onTemplateAppliedIncremental]);
 
   const handleTemplateModeChange = useCallback(
-    (nextMode) => {
-      if (
-        nextMode !== "select" &&
-        nextMode !== "save"
-      ) {
+    (nextMode: unknown) => {
+      if (nextMode !== "select" && nextMode !== "save") {
         return;
       }
 

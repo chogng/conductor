@@ -1,4 +1,3 @@
-// @ts-nocheck
 import Papa from "papaparse";
 import {
   classifySsFit,
@@ -9,13 +8,60 @@ import {
 } from "./analysisMath";
 import { getExcelColumnLabel } from "./deviceAnalysisUtils";
 
-export const sanitizeDeviceAnalysisFilename = (name) =>
+type ProcessedSeries = {
+  id?: string;
+  name?: string;
+  groupIndex?: number;
+  yCol?: number;
+  y?: number[];
+};
+
+type ProcessedFile = {
+  fileId?: string;
+  fileName?: string;
+  xGroups?: number[][];
+  series?: ProcessedSeries[];
+};
+
+type SsIdWindow = {
+  low?: number | string;
+  high?: number | string;
+};
+
+type SsManualRangeEntry = {
+  x1?: number;
+  x2?: number;
+};
+
+type SsManualRanges = Record<string, Record<string, SsManualRangeEntry>>;
+
+type SsFit = Partial<{
+  ok: boolean;
+  reason: string;
+  ss: number;
+  n: number;
+  r2: number;
+  decadeSpan: number;
+  x1: number;
+  x2: number;
+}>;
+
+type SsClassification = Partial<{
+  ss_confidence: string;
+  ss_ok: boolean;
+  ss_reason: string;
+}>;
+
+export const sanitizeDeviceAnalysisFilename = (name: unknown): string =>
   String(name || "export")
     .replace(/[/\\?%*:|"<>]/g, "_")
     .replace(/\s+/g, " ")
     .trim();
 
-export const triggerDeviceAnalysisBlobDownload = (filename, blob) => {
+export const triggerDeviceAnalysisBlobDownload = (
+  filename: string,
+  blob: Blob,
+): void => {
   const url = URL.createObjectURL(blob);
   const downloadAnchorNode = document.createElement("a");
 
@@ -29,10 +75,12 @@ export const triggerDeviceAnalysisBlobDownload = (filename, blob) => {
   URL.revokeObjectURL(url);
 };
 
-export const createUniqueDeviceAnalysisFileNameResolver = () => {
-  const usedNames = new Map();
+export const createUniqueDeviceAnalysisFileNameResolver = (): ((
+  rawName: unknown,
+) => string) => {
+  const usedNames = new Map<string, number>();
 
-  return (rawName) => {
+  return (rawName: unknown) => {
     const name = String(rawName || "export.csv");
     const count = usedNames.get(name) ?? 0;
     usedNames.set(name, count + 1);
@@ -47,16 +95,23 @@ export const createUniqueDeviceAnalysisFileNameResolver = () => {
   };
 };
 
-export const buildDeviceAnalysisCsvExports = (processedData = []) => {
+export const buildDeviceAnalysisCsvExports = (
+  processedData: ProcessedFile[] = [],
+): Array<{
+  csvText: string;
+  filename: string;
+  xyPairCount: number;
+}> => {
   const makeUniqueName = createUniqueDeviceAnalysisFileNameResolver();
-  const exports = [];
+  const exports: Array<{ csvText: string; filename: string; xyPairCount: number }> =
+    [];
 
   for (const file of processedData) {
     const originalFileName = file?.fileName ?? "device_analysis";
     const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
     const seriesList = Array.isArray(file?.series) ? file.series : [];
 
-    const seriesByYCol = new Map();
+    const seriesByYCol = new Map<number, ProcessedSeries[]>();
     for (const series of seriesList) {
       const yCol = Number(series?.yCol);
       if (!Number.isInteger(yCol)) continue;
@@ -72,7 +127,9 @@ export const buildDeviceAnalysisCsvExports = (processedData = []) => {
     for (const [yCol, groupedSeries] of seriesByYCol.entries()) {
       const groups = groupedSeries
         .slice()
-        .sort((left, right) => Number(left?.groupIndex) - Number(right?.groupIndex))
+        .sort(
+          (left, right) => Number(left?.groupIndex) - Number(right?.groupIndex),
+        )
         .map((series) => {
           const groupIndex = Number(series?.groupIndex);
           const xArr = xGroups[groupIndex];
@@ -81,11 +138,16 @@ export const buildDeviceAnalysisCsvExports = (processedData = []) => {
           if (!xArr || !yArr) return null;
           return { groupIndex, xArr, yArr };
         })
-        .filter(Boolean);
+        .filter(
+          (
+            group,
+          ): group is { groupIndex: number; xArr: number[]; yArr: number[] } =>
+            Boolean(group),
+        );
 
       if (!groups.length) continue;
 
-      const headers = [];
+      const headers: string[] = [];
       for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
         headers.push(`x${groupIndex + 1}`, `y${groupIndex + 1}`);
       }
@@ -95,10 +157,10 @@ export const buildDeviceAnalysisCsvExports = (processedData = []) => {
           Math.min(group.xArr.length ?? 0, group.yArr.length ?? 0),
         ),
       );
-      const rows = new Array(rowCount);
+      const rows: Array<Array<number | string>> = new Array(rowCount);
 
       for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
-        const row = [];
+        const row: Array<number | string> = [];
         for (const group of groups) {
           row.push(group.xArr[rowIndex] ?? "", group.yArr[rowIndex] ?? "");
         }
@@ -125,13 +187,13 @@ export const buildDeviceAnalysisCsvExports = (processedData = []) => {
   return exports;
 };
 
-const buildPoints = (xArr, yArr) => {
+const buildPoints = (xArr?: number[], yArr?: number[]): Array<{ x: number; y: number }> => {
   if (!xArr || !yArr) return [];
 
   const count = Math.min(xArr.length ?? 0, yArr.length ?? 0);
   if (count <= 0) return [];
 
-  const points = new Array(count);
+  const points = new Array<{ x: number; y: number }>(count);
   for (let index = 0; index < count; index += 1) {
     points[index] = { x: xArr[index], y: yArr[index] };
   }
@@ -144,7 +206,12 @@ export const buildDeviceAnalysisSsMetricsCsv = ({
   ssIdWindow,
   ssManualRanges,
   ssMethod,
-}) => {
+}: {
+  processedData?: ProcessedFile[];
+  ssIdWindow?: unknown;
+  ssManualRanges?: unknown;
+  ssMethod?: unknown;
+}): string => {
   const fields = [
     "ss_conf_version",
     "file_id",
@@ -168,11 +235,19 @@ export const buildDeviceAnalysisSsMetricsCsv = ({
     "ss_range_source",
   ];
 
-  const rows = [];
+  const rows: Array<Record<string, string | number>> = [];
   const confVersion = "ssfit_v1";
+  const idWindow =
+    ssIdWindow && typeof ssIdWindow === "object"
+      ? (ssIdWindow as SsIdWindow)
+      : {};
+  const manualRanges =
+    ssManualRanges && typeof ssManualRanges === "object"
+      ? (ssManualRanges as SsManualRanges)
+      : {};
   const methodDefault = String(ssMethod || "auto");
-  const idLow = Number(ssIdWindow?.low);
-  const idHigh = Number(ssIdWindow?.high);
+  const idLow = Number(idWindow?.low);
+  const idHigh = Number(idWindow?.high);
   const idWindowRatio =
     Number.isFinite(idLow) &&
     Number.isFinite(idHigh) &&
@@ -204,8 +279,8 @@ export const buildDeviceAnalysisSsMetricsCsv = ({
           ? methodDefault
           : "auto";
 
-      let fit = { ok: false, reason: "common.invalid_points" };
-      let cls = {
+      let fit: SsFit = { ok: false, reason: "common.invalid_points" };
+      let cls: SsClassification = {
         ss_confidence: "fail",
         ss_ok: false,
         ss_reason: "common.invalid_points",
@@ -213,24 +288,30 @@ export const buildDeviceAnalysisSsMetricsCsv = ({
       let rangeSource = "";
 
       if (method === "auto") {
-        const autoFit = computeSubthresholdSwingFitAuto(points);
+        const autoFit = computeSubthresholdSwingFitAuto(points) as
+          | Partial<{ strict: SsFit }>
+          | null
+          | undefined;
         fit = autoFit?.strict ?? { ok: false, reason: "common.invalid_points" };
-        cls = classifySsFit("auto", fit);
+        cls = classifySsFit("auto", fit) as SsClassification;
       } else if (method === "manual") {
-        const autoFit = computeSubthresholdSwingFitAuto(points);
+        const autoFit = computeSubthresholdSwingFitAuto(points) as
+          | Partial<{ strict: SsFit; suggested: SsFit }>
+          | null
+          | undefined;
         const storedRange =
-          fileId && seriesId ? ssManualRanges?.[fileId]?.[seriesId] : null;
+          fileId && seriesId ? manualRanges?.[fileId]?.[seriesId] : null;
         const initialRange = storedRange
-          ? { x1: storedRange.x1, x2: storedRange.x2, source: "manual" }
+          ? { x1: storedRange.x1, x2: storedRange.x2, source: "manual" as const }
           : autoFit?.strict?.ok
             ? {
-                source: "strict",
+                source: "strict" as const,
                 x1: autoFit.strict.x1,
                 x2: autoFit.strict.x2,
               }
             : autoFit?.suggested?.ok
               ? {
-                  source: "suggested",
+                  source: "suggested" as const,
                   x1: autoFit.suggested.x1,
                   x2: autoFit.suggested.x2,
                 }
@@ -238,19 +319,24 @@ export const buildDeviceAnalysisSsMetricsCsv = ({
 
         rangeSource = initialRange?.source ?? "";
         fit = initialRange
-          ? computeSubthresholdSwingFitInRange(
+          ? (computeSubthresholdSwingFitInRange(
               points,
               initialRange.x1,
               initialRange.x2,
-            )
+            ) as SsFit)
           : { ok: false, reason: "manual.range_outside_domain" };
-        cls = classifySsFit("manual", fit);
+        cls = classifySsFit("manual", fit) as SsClassification;
       } else if (method === "idWindow") {
-        fit = computeSubthresholdSwingFitInIdWindow(points, idLow, idHigh);
-        cls = classifySsFit("idWindow", fit, { idWindowRatio });
+        fit = computeSubthresholdSwingFitInIdWindow(points, idLow, idHigh) as SsFit;
+        cls = classifySsFit("idWindow", fit, {
+          idWindowRatio,
+        } as Record<string, unknown>) as SsClassification;
       } else if (method === "legacy") {
-        const diagnostics = computeSubthresholdSwing(points);
-        let minValue = Infinity;
+        const diagnostics = computeSubthresholdSwing(points) as
+          | Array<{ y?: number }>
+          | null
+          | undefined;
+        let minValue = Number.POSITIVE_INFINITY;
 
         for (const point of diagnostics ?? []) {
           const nextValue = Number(point?.y);
@@ -261,11 +347,11 @@ export const buildDeviceAnalysisSsMetricsCsv = ({
         fit = Number.isFinite(minValue)
           ? { ok: true, reason: "ok", ss: minValue }
           : { ok: false, reason: "common.not_enough_points" };
-        cls = classifySsFit("legacy", fit);
+        cls = classifySsFit("legacy", fit) as SsClassification;
       }
 
       const ssOk = Boolean(cls?.ss_ok);
-      const ssValue = ssOk && Number.isFinite(fit?.ss) ? fit.ss : "";
+      const ssValue = ssOk && Number.isFinite(fit?.ss) ? (fit.ss as number) : "";
 
       rows.push({
         file_id: fileId,
@@ -281,15 +367,15 @@ export const buildDeviceAnalysisSsMetricsCsv = ({
         ss_iLow:
           method === "idWindow" && Number.isFinite(idLow) ? idLow : "",
         ss_method: method,
-        ss_n: ssOk && Number.isFinite(fit?.n) ? fit.n : "",
+        ss_n: ssOk && Number.isFinite(fit?.n) ? (fit.n as number) : "",
         ss_ok: ssOk ? "true" : "false",
-        ss_r2: ssOk && Number.isFinite(fit?.r2) ? fit.r2 : "",
+        ss_r2: ssOk && Number.isFinite(fit?.r2) ? (fit.r2 as number) : "",
         ss_range_source: rangeSource,
         ss_reason: cls?.ss_reason ?? fit?.reason ?? "common.invalid_points",
         ss_span_dec:
-          ssOk && Number.isFinite(fit?.decadeSpan) ? fit.decadeSpan : "",
-        ss_x1: ssOk && Number.isFinite(fit?.x1) ? fit.x1 : "",
-        ss_x2: ssOk && Number.isFinite(fit?.x2) ? fit.x2 : "",
+          ssOk && Number.isFinite(fit?.decadeSpan) ? (fit.decadeSpan as number) : "",
+        ss_x1: ssOk && Number.isFinite(fit?.x1) ? (fit.x1 as number) : "",
+        ss_x2: ssOk && Number.isFinite(fit?.x2) ? (fit.x2 as number) : "",
         y_col: Number.isFinite(yCol) ? yCol : "",
       });
     }
@@ -299,8 +385,8 @@ export const buildDeviceAnalysisSsMetricsCsv = ({
   return Papa.unparse({ fields, data });
 };
 
-export const buildDeviceAnalysisOriginPairsExpr = (xyPairCount) => {
-  const pairs = [];
+export const buildDeviceAnalysisOriginPairsExpr = (xyPairCount: unknown): string => {
+  const pairs: string[] = [];
   const count = Math.max(1, Number(xyPairCount) || 1);
 
   for (let index = 0; index < count; index += 1) {
@@ -310,7 +396,10 @@ export const buildDeviceAnalysisOriginPairsExpr = (xyPairCount) => {
   return `(${pairs.join(",")})`;
 };
 
-export const buildDeviceAnalysisOriginOgsScript = (csvFileName, xyPairCount) => {
+export const buildDeviceAnalysisOriginOgsScript = (
+  csvFileName: unknown,
+  xyPairCount: unknown,
+): string => {
   const pairsExpr = buildDeviceAnalysisOriginPairsExpr(xyPairCount);
   const safeCsv = String(csvFileName || "data.csv").replace(/"/g, "");
   const ogsFileName = safeCsv.replace(/\.csv$/i, ".ogs");

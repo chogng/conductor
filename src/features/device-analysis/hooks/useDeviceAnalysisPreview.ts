@@ -1,4 +1,3 @@
-// @ts-nocheck
 import {
   startTransition,
   useCallback,
@@ -6,7 +5,11 @@ import {
   useEffect,
   useMemo,
   useRef,
+  type Dispatch,
+  type MutableRefObject,
+  type SetStateAction,
 } from "react";
+import type { TranslateFn } from "../../../context/language-context";
 import {
   DA_PREVIEW_MAX_CACHED_FILES,
   DA_PREVIEW_MAX_CACHED_UI_ROWS_PER_FILE,
@@ -14,7 +17,81 @@ import {
 } from "../lib/deviceAnalysisPreviewLimits";
 import { usePreviewRowsVersion } from "./usePreviewRowsVersion";
 
-const PREVIEW_STATUS_IDLE = { state: "idle", message: "" };
+type PreviewStatusState = "idle" | "loading" | "ready" | "error";
+
+type PreviewStatus = {
+  state: PreviewStatusState;
+  message: string;
+};
+
+type PreviewFile = {
+  fileId: string;
+  fileName: string;
+  rowCount: number;
+  columnCount: number;
+  maxCellLengths: number[];
+};
+
+type RawDataEntry = {
+  file?: unknown;
+  fileId?: string;
+  fileName?: string;
+  [key: string]: unknown;
+};
+
+type PreviewRowsRequest = {
+  reject: (error: unknown) => void;
+  resolve: (rows: unknown[][]) => void;
+};
+
+type PreviewResultPayload = {
+  requestId: number;
+  fileId: string;
+  fileName: string;
+  rowCount: number;
+  columnCount: number;
+  maxCellLengths: number[];
+};
+
+type PreviewRowsResultPayload = {
+  requestId: number;
+  fileId: string;
+  startRow: number;
+  rows: unknown[][];
+};
+
+type WorkerErrorPayload = {
+  requestId: number;
+  message: string;
+};
+
+type WorkerMessage =
+  | { type: "previewResult"; payload: PreviewResultPayload }
+  | { type: "previewRowsResult"; payload: PreviewRowsResultPayload }
+  | { type: "workerError"; payload: WorkerErrorPayload }
+  | { type?: string; payload?: Record<string, unknown> | null };
+
+type UseDeviceAnalysisPreviewOptions = {
+  rawData?: RawDataEntry[];
+  selectedPreviewFileId?: string | null;
+  setSelectedPreviewFileId?: Dispatch<SetStateAction<string | null>>;
+  previewFile?: PreviewFile | null;
+  setPreviewFile?: Dispatch<SetStateAction<PreviewFile | null>>;
+  setPreviewStatus?: Dispatch<SetStateAction<PreviewStatus>>;
+  previewWorkerRef?: MutableRefObject<Worker | null>;
+  previewRequestIdRef?: MutableRefObject<number>;
+  previewRowsRequestIdRef?: MutableRefObject<number>;
+  previewRowsRequestsRef?: MutableRefObject<Map<number, PreviewRowsRequest>>;
+  previewRowsCacheByFileIdRef?: MutableRefObject<Map<string, Map<number, unknown[]>>>;
+  previewLoadedChunksByFileIdRef?: MutableRefObject<Map<string, Set<number>>>;
+  previewRowsCacheRef?: MutableRefObject<Map<number, unknown[]>>;
+  previewLoadedChunksRef?: MutableRefObject<Set<number>>;
+  previewCacheFileIdRef?: MutableRefObject<string | null>;
+  previewCacheFileLruRef?: MutableRefObject<Set<string>>;
+  t: TranslateFn;
+};
+
+const PREVIEW_STATUS_IDLE: PreviewStatus = { state: "idle", message: "" };
 const DA_PREVIEW_MAX_CACHED_UI_CHUNKS_PER_FILE = Math.max(
   1,
   Math.ceil(
@@ -40,7 +117,7 @@ export const useDeviceAnalysisPreview = ({
   previewCacheFileIdRef = { current: null },
   previewCacheFileLruRef = { current: new Set() },
   t,
-}) => {
+}: UseDeviceAnalysisPreviewOptions) => {
   const {
     cancelPreviewRowsVersionNotification,
     getPreviewRowsVersion,
@@ -51,7 +128,7 @@ export const useDeviceAnalysisPreview = ({
   const deferredSelectedPreviewFileId = useDeferredValue(selectedPreviewFileId);
 
   const rawDataById = useMemo(() => {
-    const map = new Map();
+    const map = new Map<string, RawDataEntry>();
 
     for (const entry of Array.isArray(rawData) ? rawData : []) {
       const fileId = entry?.fileId;
@@ -62,7 +139,7 @@ export const useDeviceAnalysisPreview = ({
     return map;
   }, [rawData]);
 
-  const rawDataByIdRef = useRef(new Map());
+  const rawDataByIdRef = useRef(new Map<string, RawDataEntry>());
 
   useEffect(() => {
     rawDataByIdRef.current = rawDataById;
@@ -87,7 +164,15 @@ export const useDeviceAnalysisPreview = ({
   }, [cancelPreviewRowsVersionNotification, notifyPreviewRowsVersion]);
 
   const assignCurrentPreviewCache = useCallback(
-    ({ fileId = null, loadedChunks = new Set(), rowCache = new Map() } = {}) => {
+    ({
+      fileId = null,
+      loadedChunks = new Set<number>(),
+      rowCache = new Map<number, unknown[]>(),
+    }: {
+      fileId?: string | null;
+      loadedChunks?: Set<number>;
+      rowCache?: Map<number, unknown[]>;
+    } = {}) => {
       previewCacheFileIdRef.current = fileId;
       previewRowsCacheRef.current = rowCache;
       previewLoadedChunksRef.current = loadedChunks;
@@ -96,7 +181,7 @@ export const useDeviceAnalysisPreview = ({
   );
 
   const postPreviewDispose = useCallback(
-    (fileId) => {
+    (fileId: string) => {
       if (typeof fileId !== "string" || !fileId) return;
 
       previewWorkerRef.current?.postMessage({
@@ -132,7 +217,7 @@ export const useDeviceAnalysisPreview = ({
   }, [cancelPendingPreviewRowRequests, previewRequestIdRef]);
 
   const clearPreviewState = useCallback(
-    ({ clearSelection = false } = {}) => {
+    ({ clearSelection = false }: { clearSelection?: boolean } = {}) => {
       setPreviewFile(null);
       setPreviewStatus(PREVIEW_STATUS_IDLE);
 
@@ -151,7 +236,7 @@ export const useDeviceAnalysisPreview = ({
   );
 
   const disposePreviewFileCache = useCallback(
-    (fileId) => {
+    (fileId: string) => {
       if (typeof fileId !== "string" || !fileId) return;
 
       previewRowsCacheByFileIdRef.current.delete(fileId);
@@ -175,7 +260,7 @@ export const useDeviceAnalysisPreview = ({
   );
 
   const activatePreviewFileCache = useCallback(
-    (fileId) => {
+    (fileId: string | null) => {
       if (!fileId) {
         previewCacheFileLruRef.current = new Set();
         assignCurrentPreviewCache();
@@ -204,7 +289,7 @@ export const useDeviceAnalysisPreview = ({
       fileLru.add(fileId);
 
       while (fileLru.size > DA_PREVIEW_MAX_CACHED_FILES) {
-        const oldestFileId = fileLru.values().next().value;
+        const oldestFileId = fileLru.values().next().value as string | undefined;
         if (!oldestFileId || oldestFileId === fileId) break;
 
         disposePreviewFileCache(oldestFileId);
@@ -220,30 +305,37 @@ export const useDeviceAnalysisPreview = ({
   );
 
   const handlePreviewWorkerMessage = useCallback(
-    (event) => {
+    (event: MessageEvent<WorkerMessage>) => {
       const { type, payload } = event.data ?? {};
 
-      if (type === "previewResult") {
-        if (payload?.requestId !== previewRequestIdRef.current) return;
+      if (type === "previewResult" && payload) {
+        const previewPayload = payload as PreviewResultPayload;
+        if (previewPayload.requestId !== previewRequestIdRef.current) return;
 
-        const fileId = payload.fileId ?? null;
+        const fileId =
+          typeof previewPayload.fileId === "string" ? previewPayload.fileId : null;
         activatePreviewFileCache(fileId);
 
         startTransition(() => {
           setPreviewFile({
-            fileId,
-            fileName: payload.fileName,
-            rowCount: payload.rowCount,
-            columnCount: payload.columnCount,
-            maxCellLengths: payload.maxCellLengths,
+            fileId: String(fileId || ""),
+            fileName: String(previewPayload.fileName || ""),
+            rowCount: Number(previewPayload.rowCount) || 0,
+            columnCount: Number(previewPayload.columnCount) || 0,
+            maxCellLengths: Array.isArray(previewPayload.maxCellLengths)
+              ? previewPayload.maxCellLengths.map((n) => Number(n) || 0)
+              : [],
           });
           setPreviewStatus({ state: "ready", message: "" });
         });
         return;
       }
 
-      if (type === "previewRowsResult") {
-        const requestId = payload?.requestId ?? null;
+      if (type === "previewRowsResult" && payload) {
+        const rowsPayload = payload as PreviewRowsResultPayload;
+        const requestId = Number(rowsPayload.requestId);
+        if (!Number.isFinite(requestId)) return;
+
         const pendingRequest = previewRowsRequestsRef.current.get(requestId);
         if (!pendingRequest) return;
 
@@ -252,9 +344,10 @@ export const useDeviceAnalysisPreview = ({
         const { reject, resolve } = pendingRequest;
 
         try {
-          const fileId = payload?.fileId ?? null;
-          const startRow = Number(payload?.startRow) || 0;
-          const rows = Array.isArray(payload?.rows) ? payload.rows : [];
+          const fileId =
+            typeof rowsPayload.fileId === "string" ? rowsPayload.fileId : null;
+          const startRow = Number(rowsPayload.startRow) || 0;
+          const rows = Array.isArray(rowsPayload.rows) ? rowsPayload.rows : [];
 
           if (fileId && previewCacheFileIdRef.current !== fileId) {
             resolve([]);
@@ -262,11 +355,12 @@ export const useDeviceAnalysisPreview = ({
           }
 
           for (let index = 0; index < rows.length; index += 1) {
-            previewRowsCacheRef.current.set(startRow + index, rows[index]);
+            const row = Array.isArray(rows[index]) ? rows[index] : [];
+            previewRowsCacheRef.current.set(startRow + index, row);
           }
 
           notifyPreviewRowsVersion();
-          resolve(rows);
+          resolve(rows.map((row) => (Array.isArray(row) ? row : [])));
         } catch (error) {
           reject(error);
         }
@@ -274,8 +368,14 @@ export const useDeviceAnalysisPreview = ({
         return;
       }
 
-      if (type === "workerError") {
-        const requestId = payload?.requestId;
+      if (type === "workerError" && payload) {
+        const errorPayload = payload as WorkerErrorPayload;
+        const requestId = Number(errorPayload.requestId);
+        if (!Number.isFinite(requestId)) return;
+        const errorMessage =
+          typeof errorPayload.message === "string" && errorPayload.message
+            ? errorPayload.message
+            : "Unknown worker error";
 
         if (
           requestId !== previewRequestIdRef.current &&
@@ -287,17 +387,15 @@ export const useDeviceAnalysisPreview = ({
         if (previewRowsRequestsRef.current.has(requestId)) {
           const pendingRequest = previewRowsRequestsRef.current.get(requestId);
           previewRowsRequestsRef.current.delete(requestId);
-          pendingRequest?.reject?.(
-            new Error(payload?.message || "Unknown worker error"),
-          );
+          pendingRequest?.reject?.(new Error(errorMessage));
           return;
         }
 
-        console.error("Preview worker error:", payload?.message);
+        console.error("Preview worker error:", errorMessage);
         startTransition(() => {
           setPreviewStatus({
             state: "error",
-            message: payload?.message ?? "Preview worker error",
+            message: errorMessage,
           });
         });
       }
@@ -352,7 +450,7 @@ export const useDeviceAnalysisPreview = ({
         ? deferredSelectedPreviewFileId
         : rawData[0]?.fileId ?? null;
 
-    const targetFile = rawDataById.get(effectiveFileId) ?? null;
+    const targetFile = rawDataById.get(String(effectiveFileId ?? "")) ?? null;
     if (!targetFile?.file || !targetFile?.fileId) return;
     if (previewFile?.fileId === targetFile.fileId) return;
 
@@ -378,19 +476,18 @@ export const useDeviceAnalysisPreview = ({
   }, [
     clearPreviewState,
     deferredSelectedPreviewFileId,
+    getOrCreatePreviewWorker,
     invalidatePreviewRequests,
     previewFile?.fileId,
     previewRequestIdRef,
-    previewWorkerRef,
     rawData,
     rawDataById,
     setPreviewStatus,
     t,
-    getOrCreatePreviewWorker,
   ]);
 
   const getPreviewRow = useCallback(
-    (rowIndex) => {
+    (rowIndex: number): unknown[] | null => {
       const normalizedIndex = Number(rowIndex);
       if (!Number.isInteger(normalizedIndex) || normalizedIndex < 0) return null;
       return previewRowsCacheRef.current.get(normalizedIndex) ?? null;
@@ -399,7 +496,7 @@ export const useDeviceAnalysisPreview = ({
   );
 
   const requestPreviewRowsRange = useCallback(
-    (fileId, startRow, endRow) => {
+    (fileId: string, startRow: number, endRow: number): Promise<unknown[][]> => {
       const worker = getOrCreatePreviewWorker();
       if (!worker || !fileId) return Promise.resolve([]);
 
@@ -409,7 +506,7 @@ export const useDeviceAnalysisPreview = ({
       const start = Math.max(0, Math.floor(Number(startRow) || 0));
       const end = Math.max(start, Math.floor(Number(endRow) || start));
 
-      return new Promise((resolve, reject) => {
+      return new Promise<unknown[][]>((resolve, reject) => {
         previewRowsRequestsRef.current.set(requestId, { resolve, reject });
         worker.postMessage({
           type: "previewRows",
@@ -430,7 +527,7 @@ export const useDeviceAnalysisPreview = ({
   );
 
   const ensurePreviewRows = useCallback(
-    async (fileId, startRow, endRow) => {
+    async (fileId: string, startRow: number, endRow: number) => {
       if (!previewFile?.rowCount || !Number.isFinite(previewFile.rowCount)) return;
       if (!fileId) return;
 
@@ -446,7 +543,7 @@ export const useDeviceAnalysisPreview = ({
         Math.floor((end - 1) / DA_PREVIEW_UI_CHUNK_SIZE_ROWS) *
         DA_PREVIEW_UI_CHUNK_SIZE_ROWS;
 
-      const requests = [];
+      const requests: Array<Promise<unknown[][]>> = [];
 
       for (
         let chunkStart = firstChunkStart;
@@ -467,7 +564,7 @@ export const useDeviceAnalysisPreview = ({
           DA_PREVIEW_MAX_CACHED_UI_CHUNKS_PER_FILE
         ) {
           const evictChunkStart = previewLoadedChunksRef.current.values().next()
-            .value;
+            .value as number | undefined;
           if (evictChunkStart === undefined) break;
 
           previewLoadedChunksRef.current.delete(evictChunkStart);
@@ -485,12 +582,14 @@ export const useDeviceAnalysisPreview = ({
           chunkStart + DA_PREVIEW_UI_CHUNK_SIZE_ROWS,
         );
 
-        const nextRequest = requestPreviewRowsRange(fileId, chunkStart, chunkEnd).catch(
-          (error) => {
-            previewLoadedChunksRef.current.delete(chunkStart);
-            throw error;
-          },
-        );
+        const nextRequest = requestPreviewRowsRange(
+          fileId,
+          chunkStart,
+          chunkEnd,
+        ).catch((error) => {
+          previewLoadedChunksRef.current.delete(chunkStart);
+          throw error;
+        });
 
         requests.push(nextRequest);
       }
@@ -507,7 +606,7 @@ export const useDeviceAnalysisPreview = ({
   );
 
   const handlePreviewFileSelected = useCallback(
-    (fileId) => {
+    (fileId: unknown) => {
       const nextFileId = typeof fileId === "string" ? fileId : null;
       if (!nextFileId || !rawDataById.has(nextFileId)) return;
       setSelectedPreviewFileId(nextFileId);

@@ -1,14 +1,51 @@
-// @ts-nocheck
+import type { TemplateConfig } from "./templateManagerUtils";
+
 const CELL_REF_RE = /^([A-Z]+)([1-9][0-9]*)$/;
 
 export const Y_COLUMNS_REQUIRED_MESSAGE =
   "Y Data must be selected from the columns in the preview header.";
 
-export function isA1CellRef(value) {
+type TranslateFn = (
+  key: string,
+  params?: Record<string, unknown>,
+) => string;
+
+type ValidationConfig = Partial<TemplateConfig> &
+  Partial<{
+    vgKeyword: string;
+    vdKeyword: string;
+    vgFileKeywords: string;
+    vdFileKeywords: string;
+  }>;
+
+type VarMode = "cell" | "text" | "empty" | "invalid";
+
+type VarPairValidation = {
+  ok: boolean;
+  mode: VarMode;
+  vg: string;
+  vd: string;
+  message: string;
+};
+
+type CurveTaggingValidation =
+  | {
+      ok: false;
+      message: string;
+    }
+  | {
+      ok: true;
+      varPair: VarPairValidation;
+      fileNameVgKeywords: string;
+      fileNameVdKeywords: string;
+      mode: "filename" | "var" | "auto";
+    };
+
+export function isA1CellRef(value: unknown): boolean {
   return CELL_REF_RE.test(String(value || "").trim().toUpperCase());
 }
 
-export function normalizeVarKeyword(raw) {
+export function normalizeVarKeyword(raw: unknown): string {
   const trimmed = String(raw ?? "").trim();
   if (!trimmed) return "";
 
@@ -17,23 +54,27 @@ export function normalizeVarKeyword(raw) {
   return trimmed;
 }
 
-export function splitKeywordList(raw) {
+export function splitKeywordList(raw: unknown): string[] {
   return String(raw ?? "")
     .split(/[,;\n]+/)
     .map((token) => token.trim())
     .filter(Boolean);
 }
 
-export function normalizeKeywordList(raw) {
+export function normalizeKeywordList(raw: unknown): string {
   return splitKeywordList(raw).join(", ");
 }
 
-export function validateVarPair(bottomTitleRaw, legendPrefixRaw, t) {
+export function validateVarPair(
+  bottomTitleRaw: unknown,
+  legendPrefixRaw: unknown,
+  t?: TranslateFn,
+): VarPairValidation {
   const vg = normalizeVarKeyword(bottomTitleRaw);
   const vd = normalizeVarKeyword(legendPrefixRaw);
 
-  const vgMode = vg ? (isA1CellRef(vg) ? "cell" : "text") : "empty";
-  const vdMode = vd ? (isA1CellRef(vd) ? "cell" : "text") : "empty";
+  const vgMode: VarMode = vg ? (isA1CellRef(vg) ? "cell" : "text") : "empty";
+  const vdMode: VarMode = vd ? (isA1CellRef(vd) ? "cell" : "text") : "empty";
 
   if (vgMode === "empty" && vdMode === "empty") {
     return { ok: true, mode: "empty", vg, vd, message: "" };
@@ -68,7 +109,10 @@ export function validateVarPair(bottomTitleRaw, legendPrefixRaw, t) {
   return { ok: true, mode: vgMode, vg, vd, message: "" };
 }
 
-export function validateCurveTaggingMode(config, t) {
+export function validateCurveTaggingMode(
+  config: ValidationConfig,
+  t?: TranslateFn,
+): CurveTaggingValidation {
   const varPair = validateVarPair(
     config?.bottomTitle ?? config?.vgKeyword,
     config?.legendPrefix ?? config?.vdKeyword,
@@ -95,16 +139,14 @@ export function validateCurveTaggingMode(config, t) {
     };
   }
 
-  if (hasFileNameRules) {
-    if (!fileNameVgKeywords || !fileNameVdKeywords) {
-      return {
-        ok: false,
-        message:
-          typeof t === "function"
-            ? t("da_curveTaggingFileNameBothRequired")
-            : "When using file-name tagging, please provide keywords for both Vg and Vd.",
-      };
-    }
+  if (hasFileNameRules && (!fileNameVgKeywords || !fileNameVdKeywords)) {
+    return {
+      ok: false,
+      message:
+        typeof t === "function"
+          ? t("da_curveTaggingFileNameBothRequired")
+          : "When using file-name tagging, please provide keywords for both Vg and Vd.",
+    };
   }
 
   return {
@@ -116,7 +158,11 @@ export function validateCurveTaggingMode(config, t) {
   };
 }
 
-export function validateTemplateForSave(config, t) {
+export function validateTemplateForSave(config: ValidationConfig, t?: TranslateFn): {
+  ok: boolean;
+  message?: string;
+  normalized?: ValidationConfig;
+} {
   const selectedColumns = Array.isArray(config?.selectedColumns)
     ? config.selectedColumns
     : [];
@@ -150,7 +196,11 @@ export function validateTemplateForSave(config, t) {
   };
 }
 
-export function validateTemplateForApply(config, t) {
+export function validateTemplateForApply(config: ValidationConfig, t?: TranslateFn): {
+  ok: boolean;
+  message?: string;
+  normalized?: ValidationConfig;
+} {
   const curveTagging = validateCurveTaggingMode(config, t);
   if (!curveTagging.ok) return { ok: false, message: curveTagging.message };
 

@@ -1,10 +1,60 @@
-// @ts-nocheck
-import React, { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState, type ComponentType } from "react";
 import CanvasMultiLineChart from "../CanvasMultiLineChart";
 import { formatNumber } from "../../lib/analysisMath";
 
-const useInViewOnce = (options = {}) => {
-  const ref = useRef(null);
+type UseInViewOnceOptions = {
+  root?: Element | Document | null;
+  rootMargin?: string;
+  threshold?: number;
+};
+
+type FileSeries = {
+  id?: string;
+  name?: string;
+  groupIndex?: number;
+  y?: number[];
+};
+
+export type ProcessedFileLike = {
+  fileId?: string;
+  fileName: string;
+  curveType?: string;
+  x?: {
+    sampledPoints?: number | null;
+  };
+  xGroups?: number[][];
+  series?: FileSeries[];
+  domain?: {
+    x?: [number, number];
+    y?: [number, number];
+  };
+};
+
+type FileCardProps = {
+  file: ProcessedFileLike;
+  isActive: boolean;
+  onSelectFile?: (fileId: string | undefined) => void;
+  yUnitFactor?: number;
+  yUnitLabel?: string;
+  yScale?: string;
+};
+
+type CanvasMultiLineChartProps = {
+  xGroups?: number[][];
+  series?: FileSeries[];
+  domain?: ProcessedFileLike["domain"];
+  yScaleFactor?: number;
+  yScaleType?: string;
+  yUnitLabel?: string;
+  title?: string;
+  className?: string;
+};
+
+const ChartComponent =
+  CanvasMultiLineChart as unknown as ComponentType<CanvasMultiLineChartProps>;
+
+const useInViewOnce = (options: UseInViewOnceOptions = {}) => {
+  const ref = useRef<HTMLButtonElement | null>(null);
   const [inView, setInView] = useState(false);
 
   useEffect(() => {
@@ -33,14 +83,14 @@ const useInViewOnce = (options = {}) => {
   return { ref, inView };
 };
 
-const FileCard = React.memo(function FileCard({
+const FileCard = memo(function FileCard({
   file,
   isActive,
   onSelectFile,
   yUnitFactor = 1,
   yUnitLabel = "A",
   yScale = "linear",
-}) {
+}: FileCardProps) {
   const { ref, inView } = useInViewOnce();
   const seriesCount = Array.isArray(file?.series) ? file.series.length : 0;
   const sampledPoints = file?.x?.sampledPoints ?? null;
@@ -59,16 +109,17 @@ const FileCard = React.memo(function FileCard({
     <button
       type="button"
       ref={ref}
-      onMouseDown={(e) => {
+      onMouseDown={(event) => {
         // Prevent the browser from scrolling the page to "fully reveal" the focused card.
         // (This happens before onClick in some browsers.)
-        e.preventDefault();
+        event.preventDefault();
       }}
       onClick={() => onSelectFile?.(file?.fileId)}
-      className={`flex flex-col w-full text-left rounded-xl border transition-colors overflow-hidden ${isActive
-        ? "border-accent/40 bg-accent/5"
-        : "border-border bg-bg-surface hover:bg-bg-surface-hover"
-        }`}
+      className={`flex flex-col w-full text-left rounded-xl border transition-colors overflow-hidden ${
+        isActive
+          ? "border-accent/40 bg-accent/5"
+          : "border-border bg-bg-surface hover:bg-bg-surface-hover"
+      }`}
     >
       <div className="px-2 pt-1.5 pb-1">
         <div className="flex items-start justify-between gap-2">
@@ -79,16 +130,16 @@ const FileCard = React.memo(function FileCard({
             <div className="text-[10px] text-text-secondary mt-0.5 space-y-0.5">
               <div>
                 series: {seriesCount}
-                {sampledPoints ? ` · points: ${sampledPoints}` : ""}
+                {sampledPoints ? ` points: ${sampledPoints}` : ""}
               </div>
-              {file.curveType && <div>Type: {file.curveType}</div>}
+              {file.curveType ? <div>Type: {file.curveType}</div> : null}
             </div>
           </div>
-          {isActive && (
+          {isActive ? (
             <div className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent/15 text-accent border border-accent/20">
               Active
             </div>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -97,7 +148,7 @@ const FileCard = React.memo(function FileCard({
         style={{ aspectRatio: "16 / 9" }}
       >
         {inView ? (
-          <CanvasMultiLineChart
+          <ChartComponent
             xGroups={file.xGroups}
             series={file.series}
             domain={file.domain}
@@ -112,18 +163,18 @@ const FileCard = React.memo(function FileCard({
         )}
         {(yAxisMinLabel || yAxisMaxLabel) && (
           <div className="absolute bottom-1 right-1 text-[10px] px-1.5 py-0.5 rounded-md bg-black/50 text-white space-y-0.5">
-            {yAxisMinLabel && (
+            {yAxisMinLabel ? (
               <div>
                 ymin: {yAxisMinLabel}
                 {ySuffix}
               </div>
-            )}
-            {yAxisMaxLabel && (
+            ) : null}
+            {yAxisMaxLabel ? (
               <div>
                 ymax: {yAxisMaxLabel}
                 {ySuffix}
               </div>
-            )}
+            ) : null}
           </div>
         )}
       </div>

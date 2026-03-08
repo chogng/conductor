@@ -1,10 +1,61 @@
-// @ts-nocheck
 export const ORIGIN_BRIDGE_ERROR_PREFIX = "__ORIGIN_ERROR__:";
 
-const toTrimmedString = (value) =>
+type OriginBridgeErrorCode =
+  | "ORIGIN_EXE_REQUIRED"
+  | "ORIGIN_BATCH_INPUT_DIR_REQUIRED"
+  | "ORIGIN_BATCH_RUNNER_NOT_FOUND"
+  | "ORIGIN_ZIP_RUNNER_NOT_FOUND"
+  | "ORIGIN_CSV_RUNNER_NOT_FOUND"
+  | "ORIGIN_BATCH_RUNNER_FAILED"
+  | "ORIGIN_ZIP_RUNNER_FAILED"
+  | "ORIGIN_CSV_RUNNER_FAILED"
+  | "ORIGIN_CSV_FAILED"
+  | "ORIGIN_CSV_IMPORT_FAILED"
+  | "ORIGIN_ORIGINPRO_ATTACH_FAILED"
+  | "ORIGIN_ORIGINPRO_IMPORT_FAILED"
+  | "ORIGIN_BATCH_INPUT_DIR_INVALID"
+  | "ORIGIN_BATCH_INPUT_DIR_NOT_FOUND"
+  | "ORIGIN_EXE_NOT_FOUND"
+  | "ORIGIN_BATCH_NO_CSV_FILES"
+  | "ORIGIN_PYTHON_NOT_FOUND"
+  | "ORIGIN_PYWIN32_MISSING"
+  | "ORIGIN_COM_CREATE_FAILED"
+  | "ORIGIN_SESSION_BEGIN_FAILED"
+  | null;
+
+export type ParsedOriginBridgeError = {
+  code: OriginBridgeErrorCode;
+  stage: string | null;
+  hresult: string | null;
+  logPath: string | null;
+  message: string;
+  rawMessage: string;
+};
+
+type ParsedOriginBridgeErrorWithMessage = ParsedOriginBridgeError & {
+  suggestionKey: string | null;
+  messageText: string;
+};
+
+type OriginBridgeErrorPayload = Partial<{
+  code: string;
+  stage: string;
+  hresult: string;
+  logPath: string;
+  message: string;
+}>;
+
+type TranslateFn = (
+  key: string,
+  params?: Record<string, unknown>,
+) => string;
+
+const toTrimmedString = (value: unknown): string =>
   typeof value === "string" && value.trim() ? value.trim() : "";
 
-const parseStructuredOriginErrorMessage = (message) => {
+const parseStructuredOriginErrorMessage = (
+  message: unknown,
+): OriginBridgeErrorPayload | null => {
   const raw = toTrimmedString(message);
   if (!raw.startsWith(ORIGIN_BRIDGE_ERROR_PREFIX)) return null;
 
@@ -21,9 +72,14 @@ const parseStructuredOriginErrorMessage = (message) => {
   return null;
 };
 
-export const parseOriginBridgeError = (errorLike) => {
+export const parseOriginBridgeError = (
+  errorLike: unknown,
+): ParsedOriginBridgeError => {
   const messageFromError =
-    errorLike && typeof errorLike === "object" && typeof errorLike.message === "string"
+    errorLike &&
+    typeof errorLike === "object" &&
+    "message" in errorLike &&
+    typeof errorLike.message === "string"
       ? errorLike.message
       : "";
   const messageText = toTrimmedString(messageFromError || String(errorLike ?? ""));
@@ -63,7 +119,7 @@ export const parseOriginBridgeError = (errorLike) => {
   }
 
   return {
-    code: toTrimmedString(payload.code) || null,
+    code: (toTrimmedString(payload.code) || null) as OriginBridgeErrorCode,
     stage: toTrimmedString(payload.stage) || null,
     hresult: toTrimmedString(payload.hresult) || null,
     logPath: toTrimmedString(payload.logPath) || null,
@@ -72,10 +128,18 @@ export const parseOriginBridgeError = (errorLike) => {
   };
 };
 
-export const inferOriginSuggestionKey = (detail) => {
-  const code = String(detail?.code || "").trim().toUpperCase();
-  const stage = String(detail?.stage || "").trim().toUpperCase();
-  const hresult = String(detail?.hresult || "").trim().toUpperCase();
+export const inferOriginSuggestionKey = (
+  detail: Partial<ParsedOriginBridgeError> | null | undefined,
+): string | null => {
+  const code = String(detail?.code || "")
+    .trim()
+    .toUpperCase();
+  const stage = String(detail?.stage || "")
+    .trim()
+    .toUpperCase();
+  const hresult = String(detail?.hresult || "")
+    .trim()
+    .toUpperCase();
 
   if (code === "ORIGIN_EXE_REQUIRED") return "da_origin_pick_exe_required";
   if (code === "ORIGIN_BATCH_INPUT_DIR_REQUIRED") return null;
@@ -120,7 +184,10 @@ export const inferOriginSuggestionKey = (detail) => {
   return "da_origin_error_tip_manual_zip";
 };
 
-export const formatOriginBridgeError = (t, errorLike) => {
+export const formatOriginBridgeError = (
+  t: TranslateFn,
+  errorLike: unknown,
+): ParsedOriginBridgeErrorWithMessage => {
   const detail = parseOriginBridgeError(errorLike);
   const suggestionKey = inferOriginSuggestionKey(detail);
   const suggestionText = suggestionKey ? t(suggestionKey) : "";

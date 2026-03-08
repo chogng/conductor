@@ -1,16 +1,117 @@
-// @ts-nocheck
 import React, { useSyncExternalStore } from "react";
 import { Check, Copy, FileSpreadsheet } from "lucide-react";
 import Avatar from "../../../components/ui/Avatar";
 import ScrollArea from "../../../components/ui/ScrollArea";
+import type { TranslateFn } from "../../../context/language-context";
 import { formatNumber } from "../lib/analysisMath";
 import { getExcelColumnLabel } from "../lib/templateManagerPreview";
 
-const EMPTY_ARRAY = [];
-const noopSubscribe = () => () => { };
+type PreviewStatus = {
+  state?: string;
+  message?: string;
+};
+
+type PreviewFileLike = {
+  fileId?: string;
+  fileName?: string;
+  [key: string]: unknown;
+};
+
+type PreviewWindow = {
+  startRow: number;
+  endRow: number;
+  topSpacerHeight: number;
+  bottomSpacerHeight: number;
+};
+
+type PreviewColumnGeometry = {
+  tableWidthPx: number;
+  widthsPx: number[];
+  visibleColumnIndices: number[];
+  hasLeftSpacer: boolean;
+  hasRightSpacer: boolean;
+  renderColCount: number;
+  window: {
+    leftSpacerPx: number;
+    rightSpacerPx: number;
+    startCol: number;
+    endCol: number;
+  };
+};
+
+type SelectionRect = {
+  id: string;
+  rect: DOMRect | Record<string, number>;
+};
+
+type SelectionItem = {
+  id: string;
+  range: {
+    startRow: number;
+    endRow: number;
+    startCol: number;
+    endCol: number;
+  };
+};
+
+type PreviewRowProps = {
+  rowIndex: number;
+  rowCellsRaw: unknown;
+  columnGeometry: PreviewColumnGeometry;
+  selectedColumnsSet: Set<number>;
+  handleCellMouseDown?: (event: React.MouseEvent<HTMLTableCellElement>) => void;
+};
+
+type PreviewTbodyProps = {
+  subscribePreviewRowsVersion?: (onStoreChange: () => void) => () => void;
+  getPreviewRowsVersion?: () => number;
+  previewWindow: PreviewWindow;
+  columnGeometry: PreviewColumnGeometry;
+  selectedColumnsSet: Set<number>;
+  getPreviewRow?: (rowIndex: number) => unknown;
+  handleCellMouseDown?: (event: React.MouseEvent<HTMLTableCellElement>) => void;
+};
+
+type PreviewPlaceholderProps = {
+  title?: string;
+  hint?: string;
+};
+
+type TemplateManagerPreviewPanelProps = {
+  copySelection?: () => Promise<void> | void;
+  dragOverlayRef: React.MutableRefObject<HTMLDivElement | null>;
+  getPreviewRow?: (rowIndex: number) => unknown;
+  getPreviewRowsVersion?: () => number;
+  gridRef: React.MutableRefObject<HTMLDivElement | null>;
+  handleCellMouseDown?: (event: React.MouseEvent<HTMLTableCellElement>) => void;
+  handleColumnResizeStart: (
+    event: React.PointerEvent<HTMLDivElement>,
+    colIndex: number,
+  ) => void;
+  handlePreviewScroll: (scrollTop: number, scrollLeft: number) => void;
+  isColumnResizing: boolean;
+  previewColumnGeometry: PreviewColumnGeometry;
+  previewColumnMinWidthPx: number;
+  previewFile?: PreviewFileLike | null;
+  previewRowIndexWidthPx: number;
+  previewScrollRef: React.MutableRefObject<HTMLDivElement | null>;
+  previewStatus?: PreviewStatus | null;
+  previewTableRef: React.MutableRefObject<HTMLTableElement | null>;
+  previewWindow: PreviewWindow;
+  resetColumnWidth: (fileId: string, colIndex: number) => void;
+  selectedColumnsSet: Set<number>;
+  selectionRects: SelectionRect[];
+  selections: SelectionItem[];
+  subscribePreviewRowsVersion?: (onStoreChange: () => void) => () => void;
+  t: TranslateFn;
+  toggleColumn: (index: number) => void;
+};
+
+const EMPTY_ARRAY: unknown[] = [];
+const noopSubscribe = (_onStoreChange: () => void) => () => {};
 const getZero = () => 0;
 
-const formatPreviewCell = (value) => {
+const formatPreviewCell = (value: unknown): string => {
   if (value === null || value === undefined) return "";
   if (typeof value === "number") return formatNumber(value, { digits: 4 });
   if (typeof value !== "string") return String(value);
@@ -33,12 +134,17 @@ const PreviewRow = React.memo(
     columnGeometry,
     selectedColumnsSet,
     handleCellMouseDown,
-  }) => {
+  }: PreviewRowProps) => {
     const rowLabel = rowIndex + 1;
-    const rowCells = Array.isArray(rowCellsRaw) ? rowCellsRaw : EMPTY_ARRAY;
+    const rowCells = Array.isArray(rowCellsRaw)
+      ? (rowCellsRaw as unknown[])
+      : EMPTY_ARRAY;
     const isRowLoaded = Array.isArray(rowCellsRaw);
-    const visibleColumnIndices =
-      columnGeometry?.visibleColumnIndices ?? EMPTY_ARRAY;
+    const visibleColumnIndices = Array.isArray(
+      columnGeometry?.visibleColumnIndices,
+    )
+      ? columnGeometry.visibleColumnIndices
+      : [];
     const hasLeftColSpacer = Boolean(columnGeometry?.hasLeftSpacer);
     const hasRightColSpacer = Boolean(columnGeometry?.hasRightSpacer);
 
@@ -53,7 +159,7 @@ const PreviewRow = React.memo(
             className="p-0 h-7 border-b border-r border-border bg-transparent"
           />
         ) : null}
-        {visibleColumnIndices.map((index) => {
+        {visibleColumnIndices.map((index: number) => {
           const cell = rowCells[index] ?? "";
           const raw = isRowLoaded ? String(cell) : "";
           const display = isRowLoaded ? formatPreviewCell(cell) : "";
@@ -96,7 +202,7 @@ const PreviewTbody = React.memo(
     selectedColumnsSet,
     getPreviewRow,
     handleCellMouseDown,
-  }) => {
+  }: PreviewTbodyProps) => {
     const previewRowsSubscribe =
       typeof subscribePreviewRowsVersion === "function"
         ? subscribePreviewRowsVersion
@@ -113,7 +219,7 @@ const PreviewTbody = React.memo(
       previewRowsGetSnapshot,
     );
 
-    const rows = [];
+    const rows: React.JSX.Element[] = [];
     for (
       let rowIndex = previewWindow.startRow;
       rowIndex < previewWindow.endRow;
@@ -162,7 +268,7 @@ const PreviewTbody = React.memo(
 
 PreviewTbody.displayName = "PreviewTbody";
 
-const PreviewPlaceholder = ({ title, hint }) => (
+const PreviewPlaceholder = ({ title, hint }: PreviewPlaceholderProps) => (
   <div
     id="device-analysis-preview-placeholder"
     className="empty_state_panel flex-1 min-h-0"
@@ -198,7 +304,7 @@ const TemplateManagerPreviewPanel = ({
   subscribePreviewRowsVersion,
   t,
   toggleColumn,
-}) => {
+}: TemplateManagerPreviewPanelProps) => {
   return (
     <div className="lg:col-span-3 bg-bg-page rounded-lg p-4 overflow-hidden flex flex-col min-h-0 lg:min-h-[var(--da-template-panel-min-h)]">
       <div className="flex items-center justify-between mb-2">
@@ -248,11 +354,11 @@ const TemplateManagerPreviewPanel = ({
           className={`da-preview-scroll-area flex-1 min-h-0 border border-border rounded ${isColumnResizing ? "cursor-col-resize select-none" : ""
             }`}
           viewportProps={{
-            onScroll: (event) =>
-              handlePreviewScroll(
-                event.currentTarget.scrollTop,
-                event.currentTarget.scrollLeft,
-              ),
+            onScroll: (event: Event) => {
+              const target = event.currentTarget as HTMLDivElement | null;
+              if (!target) return;
+              handlePreviewScroll(target.scrollTop, target.scrollLeft);
+            },
           }}
         >
           <div ref={gridRef} className="relative min-w-full align-top select-none">
@@ -357,7 +463,7 @@ const TemplateManagerPreviewPanel = ({
                         <div
                           role="separator"
                           aria-orientation="vertical"
-                          title="Drag to resize éˆ?Double-click to reset"
+                          title="Drag to resize | Double-click to reset"
                           onPointerDown={(event) =>
                             handleColumnResizeStart(event, index)
                           }
@@ -402,3 +508,4 @@ const TemplateManagerPreviewPanel = ({
 };
 
 export default React.memo(TemplateManagerPreviewPanel);
+

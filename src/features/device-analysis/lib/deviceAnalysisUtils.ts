@@ -1,17 +1,42 @@
-// @ts-nocheck
-export const stableStringify = (value) => {
-  const seen = new WeakSet();
+type JsonLike =
+  | string
+  | number
+  | boolean
+  | null
+  | JsonLike[]
+  | { [key: string]: JsonLike };
 
-  const normalize = (input) => {
-    if (!input || typeof input !== "object") return input;
+type LegacyExtractionError = {
+  fileName: string | null;
+  messageKey: string;
+  messageParams: Record<string, number | string>;
+};
+
+type TranslateFn = (
+  key: string,
+  params?: Record<string, unknown>,
+) => string;
+
+type ExtractionErrorLike = Partial<{
+  messageKey: string;
+  messageParams: Record<string, unknown>;
+  message: string;
+}>;
+
+export const stableStringify = (value: unknown): string => {
+  const seen = new WeakSet<object>();
+
+  const normalize = (input: unknown): JsonLike => {
+    if (!input || typeof input !== "object") return input as JsonLike;
     if (seen.has(input)) return null;
     seen.add(input);
 
-    if (Array.isArray(input)) return input.map(normalize);
+    if (Array.isArray(input)) return input.map((item) => normalize(item));
 
-    const out = {};
+    const out: Record<string, JsonLike> = {};
     for (const key of Object.keys(input).sort()) {
-      out[key] = normalize(input[key]);
+      const record = input as Record<string, unknown>;
+      out[key] = normalize(record[key]);
     }
     return out;
   };
@@ -19,11 +44,16 @@ export const stableStringify = (value) => {
   return JSON.stringify(normalize(value));
 };
 
-export const parseLegacyExtractionError = (rawMessage) => {
+export const parseLegacyExtractionError = (
+  rawMessage: unknown,
+): LegacyExtractionError | null => {
   const message = String(rawMessage ?? "").trim();
   if (!message) return null;
 
-  const patterns = [
+  const patterns: Array<{
+    regex: RegExp;
+    map: (matched: RegExpMatchArray) => LegacyExtractionError;
+  }> = [
     {
       regex:
         /^(?:(.+?):\s*)?X range has (\d+) points, which is not divisible by points=(\d+) \(from ([A-Z]+[0-9]+)\)\.$/i,
@@ -82,7 +112,7 @@ export const parseLegacyExtractionError = (rawMessage) => {
   return null;
 };
 
-export const getExcelColumnLabel = (index) => {
+export const getExcelColumnLabel = (index: number): string => {
   let label = "";
   let nextIndex = index;
 
@@ -94,7 +124,10 @@ export const getExcelColumnLabel = (index) => {
   return label;
 };
 
-export const getDeviceAnalysisExtractionErrorMessage = (t, err) => {
+export const getDeviceAnalysisExtractionErrorMessage = (
+  t: TranslateFn,
+  err: ExtractionErrorLike | null | undefined,
+): string => {
   const messageKey =
     err && typeof err === "object" && typeof err.messageKey === "string"
       ? err.messageKey

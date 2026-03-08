@@ -1,5 +1,4 @@
-// @ts-nocheck
-import React, { useMemo, useRef, useState } from "react";
+import { memo, useMemo, useRef, useState } from "react";
 import {
   ArrowDownWideNarrow,
   ArrowUpWideNarrow,
@@ -11,31 +10,50 @@ import Card from "../../../../components/ui/Card";
 import DropdownMenu from "../../../../components/ui/DropdownMenu";
 import ScrollArea from "../../../../components/ui/ScrollArea";
 import { useLanguage } from "../../../../hooks/useLanguage";
-import FileCard from "./FileCard";
+import FileCard, { type ProcessedFileLike } from "./FileCard";
 
-const OverviewGrid = React.memo(function OverviewGrid({
-  processedData,
+type ProcessingStatus = {
+  state?: string;
+  processed?: number;
+  total?: number;
+};
+
+type OverviewGridProps = {
+  processedData?: ProcessedFileLike[];
+  processingStatus?: ProcessingStatus;
+  activeFileId?: string | null;
+  onSelectFile?: (fileId: string | undefined) => void;
+  yUnitFactor?: number;
+  yUnitLabel?: string;
+  yScale?: string;
+};
+
+type SortOrder = "none" | "desc" | "asc";
+type CurveFilter = "all" | "transfer" | "output";
+
+const OverviewGrid = memo(function OverviewGrid({
+  processedData = [],
   processingStatus,
   activeFileId,
   onSelectFile,
   yUnitFactor,
   yUnitLabel,
   yScale,
-}) {
+}: OverviewGridProps) {
   const { t } = useLanguage();
-  const curveFilterDropdownRef = useRef(null);
-  const [sortOrder, setSortOrder] = useState("none"); // "none" | "desc" | "asc"
-  const [curveFilter, setCurveFilter] = useState("all");
+  const curveFilterDropdownRef = useRef<HTMLDivElement | null>(null);
+  const [sortOrder, setSortOrder] = useState<SortOrder>("none");
+  const [curveFilter, setCurveFilter] = useState<CurveFilter>("all");
   const [isCurveFilterMenuOpen, setIsCurveFilterMenuOpen] = useState(false);
 
   const curveFilterOptions = useMemo(
     () => [
-      { label: t("da_overview_curve_filter_all"), value: "all" },
+      { label: t("da_overview_curve_filter_all"), value: "all" as const },
       {
         label: t("da_overview_curve_filter_transfer"),
-        value: "transfer",
+        value: "transfer" as const,
       },
-      { label: t("da_overview_curve_filter_output"), value: "output" },
+      { label: t("da_overview_curve_filter_output"), value: "output" as const },
     ],
     [t],
   );
@@ -53,12 +71,12 @@ const OverviewGrid = React.memo(function OverviewGrid({
         : t("da_overview_sort_ymax_asc");
 
   const sortedData = useMemo(() => {
-    if (!processedData) return [];
+    if (!processedData.length) return [];
     if (sortOrder === "none") return processedData;
     return [...processedData].sort((a, b) => {
-      // Sort by yMax
-      const aY = a?.domain?.y?.[1] ?? -Infinity;
-      const bY = b?.domain?.y?.[1] ?? -Infinity;
+      // Sort by yMax.
+      const aY = a?.domain?.y?.[1] ?? Number.NEGATIVE_INFINITY;
+      const bY = b?.domain?.y?.[1] ?? Number.NEGATIVE_INFINITY;
       return sortOrder === "desc" ? bY - aY : aY - bY;
     });
   }, [processedData, sortOrder]);
@@ -66,19 +84,21 @@ const OverviewGrid = React.memo(function OverviewGrid({
   const filteredData = useMemo(() => {
     if (curveFilter === "all") return sortedData;
     const target = curveFilter === "transfer" ? "vg" : "vd";
-    return sortedData.filter((f) => {
-      // Check curveType field first (if available)
-      if (f?.curveType) {
-        const curveType = String(f.curveType).toLowerCase();
+    return sortedData.filter((file) => {
+      // Check curveType field first (if available).
+      if (file?.curveType) {
+        const curveType = String(file.curveType).toLowerCase();
         return curveType.includes(target);
       }
-      // Fallback to xLabel
-      const label = String(f?.xLabel || "").toLowerCase();
+      // Fallback to xLabel (may exist in broader processed shape).
+      const label = String(
+        (file as ProcessedFileLike & { xLabel?: string })?.xLabel || "",
+      ).toLowerCase();
       return label.includes(target);
     });
   }, [sortedData, curveFilter]);
 
-  if (!processedData?.length) return null;
+  if (!processedData.length) return null;
 
   return (
     <Card variant="panel" className="h-full min-h-0 flex flex-col !pr-0">
@@ -91,10 +111,7 @@ const OverviewGrid = React.memo(function OverviewGrid({
             >
               {t("da_overview_curve_filter_label")}
             </label>
-            <div
-              ref={curveFilterDropdownRef}
-              className="relative"
-            >
+            <div ref={curveFilterDropdownRef} className="relative">
               <div
                 className="input_field input_field--md relative pr-1"
                 data-state="enable"
@@ -111,18 +128,18 @@ const OverviewGrid = React.memo(function OverviewGrid({
                   aria-label={t("da_overview_curve_filter_label")}
                   title={t("da_overview_curve_filter_label")}
                   onClick={() => setIsCurveFilterMenuOpen((prev) => !prev)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Escape") {
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") {
                       setIsCurveFilterMenuOpen(false);
                       return;
                     }
 
                     if (
-                      e.key === "Enter" ||
-                      e.key === " " ||
-                      e.key === "ArrowDown"
+                      event.key === "Enter" ||
+                      event.key === " " ||
+                      event.key === "ArrowDown"
                     ) {
-                      e.preventDefault();
+                      event.preventDefault();
                       setIsCurveFilterMenuOpen(true);
                     }
                   }}
@@ -210,14 +227,14 @@ const OverviewGrid = React.memo(function OverviewGrid({
             )}
           </Button>
 
-          {processingStatus?.state === "processing" && (
+          {processingStatus?.state === "processing" ? (
             <div className="text-xs text-text-secondary">
               {t("da_overview_processing", {
                 processed: processingStatus.processed,
                 total: processingStatus.total,
               })}
             </div>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -243,4 +260,3 @@ const OverviewGrid = React.memo(function OverviewGrid({
 OverviewGrid.displayName = "OverviewGrid";
 
 export default OverviewGrid;
-

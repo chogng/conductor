@@ -1,9 +1,74 @@
-// @ts-nocheck
+import { useEffect, useState } from "react";
 import Card from "../../../components/ui/Card";
 import Button from "../../../components/ui/Button";
+import Input from "../../../components/ui/Input";
 import Select from "../../../components/ui/Select";
+import type { TranslateFn } from "../../../context/language-context";
 
-const feedbackClassName = (type) =>
+type Feedback = {
+  type: "idle" | "success" | "error";
+  message: string;
+};
+
+type LanguageCode = "zh" | "en";
+
+type OriginSettings = {
+  currentPath: string;
+  cleanupEnabled: boolean;
+  cleanupFailedRetentionDays: number;
+  cleanupFeedback?: Feedback;
+  cleanupKeepSuccessJobs: number;
+  cleanupRunning: boolean;
+  cleanupSaving: boolean;
+  feedback: Feedback;
+  isBatchAvailable: boolean;
+  isBatchRunning: boolean;
+  isConfigurable: boolean;
+  isHealthCheckAvailable: boolean;
+  isCleanupAvailable: boolean;
+  isHealthChecking: boolean;
+  isLoading: boolean;
+  plotCommand: string;
+  plotFeedback?: Feedback;
+  plotPostCommandsText: string;
+  plotSaving: boolean;
+  plotType: number;
+  plotXyPairs: string;
+  isSaving: boolean;
+  onCheckHealth: () => Promise<void> | void;
+  onChoosePath: () => Promise<void> | void;
+  onCleanupEnabledChange: (enabled: boolean) => Promise<void> | void;
+  onCleanupFailedRetentionDaysChange: (
+    value: string | number,
+  ) => Promise<void> | void;
+  onCleanupKeepSuccessJobsChange: (
+    value: string | number,
+  ) => Promise<void> | void;
+  onPlotCommandChange: (value: string) => Promise<void> | void;
+  onPlotPostCommandsChange: (value: string) => Promise<void> | void;
+  onPlotTypeChange: (value: string | number) => Promise<void> | void;
+  onPlotXyPairsChange: (value: string) => Promise<void> | void;
+  onRunCleanupNow: () => Promise<void> | void;
+  onRunBatch: () => Promise<void> | void;
+};
+
+type StorageSettings = {
+  currentPath: string;
+  feedback: Feedback;
+  isConfigurable: boolean;
+  isSaving: boolean;
+  onChoosePath: () => Promise<void> | void;
+};
+
+type DeviceAnalysisSettingsPanelProps = {
+  language: LanguageCode;
+  onLanguageChange: (language: LanguageCode) => Promise<void> | void;
+  originSettings: OriginSettings;
+  storageSettings: StorageSettings;
+  t: TranslateFn;
+};
+
+const feedbackClassName = (type: Feedback["type"]): string =>
   `text-sm ${type === "error" ? "text-red-500" : "text-emerald-600"}`;
 
 const DeviceAnalysisSettingsPanel = ({
@@ -12,7 +77,7 @@ const DeviceAnalysisSettingsPanel = ({
   originSettings,
   storageSettings,
   t,
-}) => {
+}: DeviceAnalysisSettingsPanelProps) => {
   const cleanupEnabledOptions = [
     { value: "true", label: t("da_settings_origin_cleanup_enable_on") },
     { value: "false", label: t("da_settings_origin_cleanup_enable_off") },
@@ -31,6 +96,31 @@ const DeviceAnalysisSettingsPanel = ({
     { value: "14", label: "14" },
     { value: "30", label: "30" },
   ];
+  const originPlotTypeOptions = [
+    { value: "200", label: t("da_settings_origin_plot_type_200") },
+    { value: "201", label: t("da_settings_origin_plot_type_201") },
+    { value: "202", label: t("da_settings_origin_plot_type_202") },
+  ];
+
+  const [xyPairsDraft, setXyPairsDraft] = useState(originSettings.plotXyPairs ?? "");
+  const [plotCommandDraft, setPlotCommandDraft] = useState(
+    originSettings.plotCommand ?? "",
+  );
+  const [postCommandsDraft, setPostCommandsDraft] = useState(
+    originSettings.plotPostCommandsText ?? "",
+  );
+
+  useEffect(() => {
+    setXyPairsDraft(originSettings.plotXyPairs ?? "");
+  }, [originSettings.plotXyPairs]);
+
+  useEffect(() => {
+    setPlotCommandDraft(originSettings.plotCommand ?? "");
+  }, [originSettings.plotCommand]);
+
+  useEffect(() => {
+    setPostCommandsDraft(originSettings.plotPostCommandsText ?? "");
+  }, [originSettings.plotPostCommandsText]);
 
   return (
     <section aria-label={t("da_settings_section_aria_label")}>
@@ -57,7 +147,9 @@ const DeviceAnalysisSettingsPanel = ({
               menuId="device-analysis-settings-language-dropdown-menu"
               value={language}
               onChange={(value) => {
-                void onLanguageChange(value);
+                if (value === "zh" || value === "en") {
+                  void onLanguageChange(value);
+                }
               }}
               options={[
                 { value: "zh", label: t("da_settings_language_zh") },
@@ -195,6 +287,93 @@ const DeviceAnalysisSettingsPanel = ({
               ? t("da_settings_origin_batch_running")
               : t("da_settings_origin_batch_btn")}
           </Button>
+        </div>
+
+        <div className="rounded-lg border border-border bg-bg-page p-3 space-y-3">
+          <div>
+            <p className="text-sm font-medium text-text-primary">
+              {t("da_settings_origin_plot_title")}
+            </p>
+            <p className="text-xs text-text-secondary mt-1">
+              {t("da_settings_origin_plot_desc")}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <p className="text-xs text-text-secondary">
+                {t("da_settings_origin_plot_type_label")}
+              </p>
+              <Select
+                id="device-analysis-settings-origin-plot-type-select"
+                menuId="device-analysis-settings-origin-plot-type-menu"
+                value={String(originSettings.plotType ?? 202)}
+                onChange={(value) => {
+                  void originSettings.onPlotTypeChange(value);
+                }}
+                options={originPlotTypeOptions}
+                disabled={originSettings.plotSaving || !originSettings.isConfigurable}
+              />
+            </div>
+
+            <Input
+              id="device-analysis-settings-origin-plot-xy-pairs-input"
+              label={t("da_settings_origin_plot_xy_pairs_label")}
+              value={xyPairsDraft}
+              onChange={setXyPairsDraft}
+              onBlur={() => {
+                const nextValue = xyPairsDraft.trim();
+                if (nextValue === (originSettings.plotXyPairs ?? "")) return;
+                void originSettings.onPlotXyPairsChange(nextValue);
+              }}
+              hint={t("da_settings_origin_plot_xy_pairs_hint")}
+              disabled={originSettings.plotSaving || !originSettings.isConfigurable}
+            />
+          </div>
+
+          <Input
+            id="device-analysis-settings-origin-plot-command-input"
+            label={t("da_settings_origin_plot_command_label")}
+            value={plotCommandDraft}
+            onChange={setPlotCommandDraft}
+            onBlur={() => {
+              const nextValue = plotCommandDraft.trim();
+              if (nextValue === (originSettings.plotCommand ?? "")) return;
+              void originSettings.onPlotCommandChange(nextValue);
+            }}
+            hint={t("da_settings_origin_plot_command_hint")}
+            disabled={originSettings.plotSaving || !originSettings.isConfigurable}
+          />
+
+          <div className="space-y-1">
+            <p className="text-xs text-text-secondary">
+              {t("da_settings_origin_plot_post_commands_label")}
+            </p>
+            <textarea
+              id="device-analysis-settings-origin-plot-post-commands-input"
+              className="w-full min-h-[96px] rounded-lg border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary font-mono resize-y"
+              value={postCommandsDraft}
+              onChange={(event) => {
+                setPostCommandsDraft(event.target.value);
+              }}
+              onBlur={() => {
+                const nextValue = postCommandsDraft.trim();
+                const currentValue = (originSettings.plotPostCommandsText ?? "").trim();
+                if (nextValue === currentValue) return;
+                void originSettings.onPlotPostCommandsChange(nextValue);
+              }}
+              disabled={originSettings.plotSaving || !originSettings.isConfigurable}
+            />
+            <p className="text-xs text-text-secondary">
+              {t("da_settings_origin_plot_post_commands_hint")}
+            </p>
+          </div>
+
+          {originSettings.plotFeedback?.message ? (
+            <p className={feedbackClassName(originSettings.plotFeedback.type)}>
+              {originSettings.plotFeedback.message}
+            </p>
+          ) : null}
         </div>
 
         <div className="rounded-lg border border-border bg-bg-page p-3 space-y-3">

@@ -1,7 +1,13 @@
-// @ts-nocheck
-import React, { useCallback, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useRef,
+  useState,
+  type CSSProperties,
+  type SetStateAction,
+} from "react";
 import { Trash2, ArrowUp, ChevronDown, List, Save, Plus, Square, Check } from "lucide-react";
 import { useLanguage } from "../../../hooks/useLanguage";
+import type { TranslationVars } from "../../../context/language-context";
 import Toast from "../../../components/ui/Toast";
 import Input from "../../../components/ui/Input";
 import Tabs from "../../../components/ui/Tabs";
@@ -15,7 +21,38 @@ import TemplateManagerPreviewPanel from "./TemplateManagerPreviewPanel";
 import { useTemplateManagerPanelHeight } from "../hooks/useTemplateManagerPanelHeight";
 import { useTemplateManagerPreview } from "../hooks/useTemplateManagerPreview";
 import { useTemplateManagerState } from "../hooks/useTemplateManagerState";
-import { normalizeXDataEndValue } from "../lib/templateManagerUtils";
+import {
+  normalizeXDataEndValue,
+  type TemplateConfig,
+} from "../lib/templateManagerUtils";
+
+type ToastKind = "success" | "error" | "warning" | "info";
+
+type TemplateManagerProps = {
+  previewFile?: (Partial<{
+    fileId: string;
+    fileName: string;
+    rowCount: number;
+    columnCount: number;
+    maxCellLengths: number[];
+  }> &
+    Record<string, unknown>) | null;
+  previewStatus?: Partial<{ state: string; message: string }> | null;
+  getPreviewRow?: (rowIndex: number) => unknown;
+  ensurePreviewRows?: (
+    fileId: string,
+    startRow: number,
+    endRow: number,
+  ) => Promise<unknown> | unknown;
+  onTemplateApplied?: (config: TemplateConfig) => unknown;
+  onTemplateAppliedIncremental?: (config: TemplateConfig) => unknown;
+  subscribePreviewRowsVersion?: (onStoreChange: () => void) => () => void;
+  getPreviewRowsVersion?: () => number;
+  deviceAnalysisSettings?: Record<string, unknown> | null;
+  onUpdateDeviceAnalysisSettings?: (
+    updates: Record<string, unknown>,
+  ) => Promise<unknown> | unknown;
+};
 
 const TemplateManager = ({
   previewFile,
@@ -28,13 +65,18 @@ const TemplateManager = ({
   getPreviewRowsVersion,
   deviceAnalysisSettings,
   onUpdateDeviceAnalysisSettings,
-}) => {
+}: TemplateManagerProps) => {
   const { t } = useLanguage();
+  const tLoose = useCallback(
+    (key: string, params?: Record<string, unknown>) =>
+      t(key, params as TranslationVars | undefined),
+    [t],
+  );
   const dropdownRef = useRef(null);
   const [toast, setToast] = useState({
     isVisible: false,
     message: "",
-    type: "success",
+    type: "success" as ToastKind,
   });
   const {
     basePanelRef,
@@ -44,8 +86,12 @@ const TemplateManager = ({
     selectPanelMeasureRef,
   } = useTemplateManagerPanelHeight();
 
-  const showToast = useCallback((message, type = "warning") => {
-    setToast({ isVisible: true, message, type });
+  const showToast = useCallback((message: string, type = "warning") => {
+    const safeType: ToastKind =
+      type === "success" || type === "error" || type === "warning" || type === "info"
+        ? type
+        : "warning";
+    setToast({ isVisible: true, message, type: safeType });
   }, []);
 
   const closeToast = useCallback(() => {
@@ -82,15 +128,15 @@ const TemplateManager = ({
     onTemplateAppliedIncremental,
     onUpdateDeviceAnalysisSettings,
     previewFile,
-    previewStatus,
+    previewStatus: previewStatus ?? undefined,
     showToast,
-    t,
+    t: tLoose,
   });
 
   const varPairValidation = validateVarPair(
     config?.bottomTitle,
     config?.legendPrefix,
-    t
+    tLoose,
   );
   const hasVarInputs =
     Boolean(String(config?.bottomTitle ?? "").trim()) ||
@@ -150,7 +196,7 @@ const TemplateManager = ({
     selectModeForDisabled = false,
   } = {}) => {
     const saveIsSelectMode = Boolean(selectModeForDisabled);
-    const setConfigFromSave = (updater) => {
+    const setConfigFromSave = (updater: SetStateAction<TemplateConfig>) => {
       markSaveDraftTouched();
       setConfig(updater);
     };
@@ -658,7 +704,9 @@ const TemplateManager = ({
                         data-template-id={template.id}
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDeleteTemplate(template.id);
+                          if (typeof template.id === "string") {
+                            handleDeleteTemplate(template.id);
+                          }
                         }}
                         className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-primary hover:text-red-500 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity"
                         title={t("da_delete_template")}
@@ -750,11 +798,13 @@ const TemplateManager = ({
         ref={containerRef}
         id="device-analysis-template-manager"
         className="p-4 flex flex-col flex-1 min-h-0"
-        style={{
-          "--da-template-panel-min-h": panelMinHeightPx
-            ? `${panelMinHeightPx}px`
-            : "0px",
-        }}
+        style={
+          {
+            "--da-template-panel-min-h": panelMinHeightPx
+              ? `${panelMinHeightPx}px`
+              : "0px",
+          } as CSSProperties
+        }
       >
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 flex-1 min-h-0">
           {/* Configuration Panel */}

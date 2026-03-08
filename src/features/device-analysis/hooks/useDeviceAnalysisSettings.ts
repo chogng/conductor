@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatOriginBridgeError } from "../lib/originBridgeError";
 import { apiService } from "../services/apiService";
+import {
+  DEFAULT_ORIGIN_PLOT_OPTIONS,
+  normalizeOriginPlotOptions,
+  normalizeOriginPostCommands,
+  originPostCommandsToMultiline,
+  type OriginPlotOptions,
+} from "../lib/originPlotOptions";
 
 type TranslateFn = (key: string, vars?: Record<string, unknown>) => string;
 
@@ -9,6 +16,10 @@ type SsMethod = "auto" | "manual" | "idWindow" | "legacy";
 
 type DeviceAnalysisSettings = {
   language?: LanguageCode;
+  originPlotCommandDefault?: string;
+  originPlotPostCommandsDefault?: string[];
+  originPlotTypeDefault?: number;
+  originPlotXyPairsDefault?: string;
   originRuntimeCleanupEnabled?: boolean;
   originRuntimeFailedRetentionDays?: number;
   originRuntimeKeepSuccessJobs?: number;
@@ -58,7 +69,10 @@ type OriginBridge = {
   checkOriginHealth?: (options: { path?: string }) => Promise<OriginHealthResult>;
   getOriginExePath: () => Promise<string>;
   pickOriginExePath: () => Promise<string>;
-  runOriginBatch?: (options: { allowPickInputDir: boolean }) => Promise<OriginBatchResult>;
+  runOriginBatch?: (options: {
+    allowPickInputDir: boolean;
+    plot?: Partial<OriginPlotOptions>;
+  }) => Promise<OriginBatchResult>;
   runOriginRuntimeCleanup?: () => Promise<OriginCleanupResult>;
 };
 
@@ -177,6 +191,8 @@ export const useDeviceAnalysisSettings = ({
   const [originCleanupRunning, setOriginCleanupRunning] = useState(false);
   const [originCleanupFeedback, setOriginCleanupFeedback] =
     useState<Feedback>(IDLE_FEEDBACK);
+  const [originPlotSaving, setOriginPlotSaving] = useState(false);
+  const [originPlotFeedback, setOriginPlotFeedback] = useState<Feedback>(IDLE_FEEDBACK);
 
   const handleUpdateDeviceAnalysisSettings = useCallback(
     async (updates: unknown) => {
@@ -249,6 +265,19 @@ export const useDeviceAnalysisSettings = ({
       keepSuccessJobs,
       failedRetentionDays,
     };
+  }, [deviceAnalysisSettings]);
+
+  const originPlotConfig = useMemo(() => {
+    const settings = deviceAnalysisSettings || {};
+    return normalizeOriginPlotOptions(
+      {
+        command: settings.originPlotCommandDefault,
+        postCommands: settings.originPlotPostCommandsDefault,
+        type: settings.originPlotTypeDefault,
+        xyPairs: settings.originPlotXyPairsDefault,
+      },
+      DEFAULT_ORIGIN_PLOT_OPTIONS,
+    );
   }, [deviceAnalysisSettings]);
 
   useEffect(() => {
@@ -499,7 +528,10 @@ export const useDeviceAnalysisSettings = ({
     setOriginPathFeedback(IDLE_FEEDBACK);
 
     try {
-      const result = await bridge.runOriginBatch({ allowPickInputDir: true });
+      const result = await bridge.runOriginBatch({
+        allowPickInputDir: true,
+        plot: originPlotConfig,
+      });
       const summary = normalizeOriginBatchSummary(result?.summary);
 
       const baseMessage = t("da_settings_origin_batch_success", {
@@ -537,7 +569,7 @@ export const useDeviceAnalysisSettings = ({
     } finally {
       setOriginBatchRunning(false);
     }
-  }, [getDesktopOriginBridge, t]);
+  }, [getDesktopOriginBridge, originPlotConfig, t]);
 
   const updateOriginCleanupSetting = useCallback(
     async (updates: unknown) => {
@@ -605,6 +637,81 @@ export const useDeviceAnalysisSettings = ({
     [updateOriginCleanupSetting],
   );
 
+  const updateOriginPlotSetting = useCallback(
+    async (updates: unknown) => {
+      const patch = updates && typeof updates === "object" ? updates : null;
+      if (!patch) return;
+
+      setOriginPlotSaving(true);
+      setOriginPlotFeedback(IDLE_FEEDBACK);
+      try {
+        await handleUpdateDeviceAnalysisSettings(patch);
+        setOriginPlotFeedback({
+          type: "success",
+          message: t("da_settings_origin_plot_saved"),
+        });
+      } catch (error) {
+        setOriginPlotFeedback({
+          type: "error",
+          message: t("da_settings_origin_plot_save_failed", {
+            error: getErrorMessage(error) || t("unknownError"),
+          }),
+        });
+      } finally {
+        setOriginPlotSaving(false);
+      }
+    },
+    [handleUpdateDeviceAnalysisSettings, t],
+  );
+
+  const handleSetOriginPlotType = useCallback(
+    async (nextValue: unknown) => {
+      const normalized = normalizeOriginPlotOptions(
+        { type: nextValue },
+        DEFAULT_ORIGIN_PLOT_OPTIONS,
+      );
+      await updateOriginPlotSetting({
+        originPlotTypeDefault: normalized.type,
+      });
+    },
+    [updateOriginPlotSetting],
+  );
+
+  const handleSetOriginPlotXyPairs = useCallback(
+    async (nextValue: unknown) => {
+      const normalized = normalizeOriginPlotOptions(
+        { xyPairs: nextValue },
+        DEFAULT_ORIGIN_PLOT_OPTIONS,
+      );
+      await updateOriginPlotSetting({
+        originPlotXyPairsDefault: normalized.xyPairs,
+      });
+    },
+    [updateOriginPlotSetting],
+  );
+
+  const handleSetOriginPlotCommand = useCallback(
+    async (nextValue: unknown) => {
+      const normalized = normalizeOriginPlotOptions({
+        command: typeof nextValue === "string" ? nextValue.trim() : "",
+      });
+      await updateOriginPlotSetting({
+        originPlotCommandDefault: normalized.command,
+      });
+    },
+    [updateOriginPlotSetting],
+  );
+
+  const handleSetOriginPostPlotCommands = useCallback(
+    async (nextValue: unknown) => {
+      const commands = normalizeOriginPostCommands(nextValue);
+      await updateOriginPlotSetting({
+        originPlotPostCommandsDefault: commands,
+      });
+    },
+    [updateOriginPlotSetting],
+  );
+
   const handleRunOriginCleanupNow = useCallback(async () => {
     const bridge = getDesktopOriginBridge();
     if (!bridge || typeof bridge.runOriginRuntimeCleanup !== "function") return;
@@ -666,6 +773,15 @@ export const useDeviceAnalysisSettings = ({
       cleanupRunning: originCleanupRunning,
       cleanupSaving: originCleanupSaving,
       feedback: originPathFeedback,
+      openPlotOptions: originPlotConfig,
+      plotCommand: originPlotConfig.command,
+      plotFeedback: originPlotFeedback,
+      plotPostCommandsText: originPostCommandsToMultiline(
+        originPlotConfig.postCommands,
+      ),
+      plotSaving: originPlotSaving,
+      plotType: originPlotConfig.type,
+      plotXyPairs: originPlotConfig.xyPairs,
       isBatchAvailable:
         isWindowsDesktopShell &&
         Boolean(originBridge) &&
@@ -688,6 +804,10 @@ export const useDeviceAnalysisSettings = ({
       onCleanupEnabledChange: handleSetOriginCleanupEnabled,
       onCleanupFailedRetentionDaysChange: handleSetOriginFailedRetentionDays,
       onCleanupKeepSuccessJobsChange: handleSetOriginKeepSuccessJobs,
+      onPlotCommandChange: handleSetOriginPlotCommand,
+      onPlotPostCommandsChange: handleSetOriginPostPlotCommands,
+      onPlotTypeChange: handleSetOriginPlotType,
+      onPlotXyPairsChange: handleSetOriginPlotXyPairs,
       onRunCleanupNow: handleRunOriginCleanupNow,
       onRunBatch: handleRunOriginBatch,
     }),
@@ -698,6 +818,10 @@ export const useDeviceAnalysisSettings = ({
       handleSetOriginCleanupEnabled,
       handleSetOriginFailedRetentionDays,
       handleSetOriginKeepSuccessJobs,
+      handleSetOriginPlotCommand,
+      handleSetOriginPostPlotCommands,
+      handleSetOriginPlotType,
+      handleSetOriginPlotXyPairs,
       handleRunOriginBatch,
       isWindowsDesktopShell,
       originCleanupConfig.enabled,
@@ -709,6 +833,9 @@ export const useDeviceAnalysisSettings = ({
       originBatchRunning,
       originBridge,
       originExePath,
+      originPlotConfig,
+      originPlotFeedback,
+      originPlotSaving,
       originHealthChecking,
       originPathFeedback,
       originPathLoading,
@@ -720,6 +847,7 @@ export const useDeviceAnalysisSettings = ({
     deviceAnalysisSettings,
     handleLanguageChange,
     handleUpdateDeviceAnalysisSettings,
+    originOpenPlotOptions: originPlotConfig,
     originSettings,
     storageSettings,
   };

@@ -1,5 +1,13 @@
-// @ts-nocheck
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
+import type { TemplateConfig } from "../lib/templateManagerUtils";
 import {
   createEmptyLiveColumnLayout,
   usePreviewColumnLayout,
@@ -21,8 +29,94 @@ const PREVIEW_COL_RESIZE_MIN_PX = 80;
 const PREVIEW_COL_RESIZE_MAX_PX = 800;
 const PREVIEW_COL_OVERSCAN_PX = 240;
 
-const clampNumber = (value, min, max) => {
+const clampNumber = (value: number, min: number, max: number): number => {
   return Math.min(max, Math.max(min, value));
+};
+
+type PreviewFileLike = Partial<{
+  fileId: string;
+  columnCount: number;
+  rowCount: number;
+  maxCellLengths: number[];
+}>;
+
+type PreviewStatus = Partial<{
+  state: string;
+}>;
+
+type SelectionRange = {
+  startRow: number;
+  endRow: number;
+  startCol: number;
+  endCol: number;
+};
+
+type SelectionItem = {
+  id: string;
+  range: SelectionRange;
+};
+
+type ColumnWidthOverridesByFile = Record<string, Record<number, number>>;
+
+type LiveColumnLayout = {
+  fileId: string | null;
+  widths: number[];
+  tableWidth: number;
+  appliedWidthVarCount: number;
+};
+
+type PreviewColumnGeometry = {
+  tableWidthPx: number;
+  widthsPx: number[];
+  visibleColumnIndices: number[];
+  hasLeftSpacer: boolean;
+  hasRightSpacer: boolean;
+  renderColCount: number;
+  window: {
+    leftSpacerPx: number;
+    rightSpacerPx: number;
+    startCol: number;
+    endCol: number;
+  };
+  startOffsetsPx: number[];
+};
+
+type PreviewWindow = {
+  startRow: number;
+  endRow: number;
+  topSpacerHeight: number;
+  bottomSpacerHeight: number;
+};
+
+type PendingColumnResize = {
+  fileId: string;
+  colIndex: number;
+  width: number;
+};
+
+type UseTemplateManagerPreviewOptions = {
+  config: TemplateConfig;
+  ensurePreviewRows?: (
+    fileId: string,
+    startRow: number,
+    endRow: number,
+  ) => Promise<unknown> | unknown;
+  getPreviewRow?: (rowIndex: number) => unknown;
+  previewFile?: PreviewFileLike | null;
+  previewStatus?: PreviewStatus | null;
+  setConfig: Dispatch<SetStateAction<TemplateConfig>>;
+  writeFieldFromPreview: (field: string, value: string) => void;
+};
+
+type ResizeStartEvent = {
+  preventDefault: () => void;
+  stopPropagation: () => void;
+  clientX: number;
+  currentTarget: {
+    setPointerCapture?: (pointerId: number) => void;
+    releasePointerCapture?: (pointerId: number) => void;
+  };
+  pointerId: number;
 };
 
 export const useTemplateManagerPreview = ({
@@ -33,21 +127,22 @@ export const useTemplateManagerPreview = ({
   previewStatus,
   setConfig,
   writeFieldFromPreview,
-}) => {
-  const [selections, setSelections] = useState([]);
-  const gridRef = useRef(null);
-  const previewScrollRef = useRef(null);
-  const previewTableRef = useRef(null);
-  const dragOverlayRef = useRef(null);
-  const containerRef = useRef(null);
+}: UseTemplateManagerPreviewOptions) => {
+  const [selections, setSelections] = useState<SelectionItem[]>([]);
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const previewScrollRef = useRef<HTMLDivElement | null>(null);
+  const previewTableRef = useRef<HTMLTableElement | null>(null);
+  const dragOverlayRef = useRef<HTMLDivElement | null>(null);
+  const containerRef = useRef<HTMLElement | null>(null);
 
   const [isColumnResizing, setIsColumnResizing] = useState(false);
-  const [columnWidthOverridesByFile, setColumnWidthOverridesByFile] = useState(
-    {},
-  );
+  const [columnWidthOverridesByFile, setColumnWidthOverridesByFile] =
+    useState<ColumnWidthOverridesByFile>({});
   const columnResizeRafRef = useRef(0);
-  const pendingColumnResizeRef = useRef(null);
-  const liveColumnLayoutRef = useRef(createEmptyLiveColumnLayout());
+  const pendingColumnResizeRef = useRef<PendingColumnResize | null>(null);
+  const liveColumnLayoutRef = useRef<LiveColumnLayout>(
+    createEmptyLiveColumnLayout() as LiveColumnLayout,
+  );
 
   const {
     handlePreviewScroll,
@@ -61,12 +156,23 @@ export const useTemplateManagerPreview = ({
     previewFileRowCount: previewFile?.rowCount,
     previewScrollRef,
     previewStatusState: previewStatus?.state,
-  });
+  }) as {
+    handlePreviewScroll: (scrollTop: number, scrollLeft: number) => void;
+    previewScrollLeft: number;
+    previewScrollTop: number;
+    previewViewportHeight: number;
+    previewViewportWidth: number;
+  };
 
   const handlePreviewPick = usePreviewPickHandler({
     containerRef,
     writeFieldFromPreview,
-  });
+  }) as (payload: {
+    event: Event;
+    rowIndex: number;
+    colIndex: number;
+    cellEl: Element;
+  }) => boolean;
 
   useEffect(() => {
     return () => {
@@ -78,7 +184,7 @@ export const useTemplateManagerPreview = ({
 
   const columnCount = useMemo(() => {
     if (Number.isFinite(previewFile?.columnCount)) {
-      return previewFile.columnCount;
+      return Number(previewFile?.columnCount);
     }
 
     const maxLens = Array.isArray(previewFile?.maxCellLengths)
@@ -91,7 +197,9 @@ export const useTemplateManagerPreview = ({
 
   const selectedColumnsSet = useMemo(
     () =>
-      new Set(Array.isArray(config?.selectedColumns) ? config.selectedColumns : []),
+      new Set(
+        Array.isArray(config?.selectedColumns) ? config.selectedColumns : [],
+      ),
     [config],
   );
 
@@ -101,10 +209,10 @@ export const useTemplateManagerPreview = ({
       : [];
 
     const count = Number.isFinite(previewFile?.columnCount)
-      ? previewFile.columnCount
+      ? Number(previewFile?.columnCount)
       : maxLens.length;
 
-    const widths = new Array(count);
+    const widths = new Array<number>(count);
     for (let index = 0; index < count; index += 1) {
       const maxLen = Number(maxLens[index]) || 0;
       const estimated = maxLen * PREVIEW_COL_CHAR_PX + PREVIEW_COL_PADDING_PX;
@@ -134,7 +242,12 @@ export const useTemplateManagerPreview = ({
     resizeMaxWidthPx: PREVIEW_COL_RESIZE_MAX_PX,
     resizeMinWidthPx: PREVIEW_COL_RESIZE_MIN_PX,
     rowIndexWidthPx: PREVIEW_ROW_INDEX_COL_PX,
-  });
+  }) as {
+    previewColumnGeometry: PreviewColumnGeometry;
+    getColumnWidthPx: (colIndex: number) => number;
+    initLiveColumnLayout: (fileId: string) => unknown;
+    applyColumnWidthToDom: (fileId: string, colIndex: number, width: number) => void;
+  };
 
   const flushPendingColumnResize = useCallback(() => {
     const pending = pendingColumnResizeRef.current;
@@ -146,7 +259,7 @@ export const useTemplateManagerPreview = ({
   }, [applyColumnWidthToDom]);
 
   const scheduleColumnResizeDomUpdate = useCallback(
-    (fileId, colIndex, width) => {
+    (fileId: string, colIndex: number, width: number) => {
       pendingColumnResizeRef.current = { fileId, colIndex, width };
       if (columnResizeRafRef.current) return;
 
@@ -159,7 +272,7 @@ export const useTemplateManagerPreview = ({
   );
 
   const resetColumnWidth = useCallback(
-    (fileId, colIndex) => {
+    (fileId: string, colIndex: number) => {
       const auto = autoColumnWidthsPx[colIndex] ?? PREVIEW_COL_MIN_PX;
       applyColumnWidthToDom(fileId, colIndex, auto);
 
@@ -176,7 +289,7 @@ export const useTemplateManagerPreview = ({
   );
 
   const handleColumnResizeStart = useCallback(
-    (event, colIndex) => {
+    (event: ResizeStartEvent, colIndex: number) => {
       const fileId = previewFile?.fileId;
       if (!fileId) return;
 
@@ -203,7 +316,7 @@ export const useTemplateManagerPreview = ({
         ? startWidthRaw
         : getColumnWidthPx(colIndex);
 
-      const handleMove = (moveEvent) => {
+      const handleMove = (moveEvent: PointerEvent) => {
         if (Number.isFinite(pointerId) && moveEvent.pointerId !== pointerId) {
           return;
         }
@@ -218,11 +331,12 @@ export const useTemplateManagerPreview = ({
         const live = liveColumnLayoutRef.current;
         const finalWidth =
           live?.fileId === fileId ? Number(live?.widths?.[colIndex]) : null;
+        const resolvedFinalWidth = Number(finalWidth);
 
-        if (Number.isFinite(finalWidth) && finalWidth > 0) {
+        if (Number.isFinite(resolvedFinalWidth) && resolvedFinalWidth > 0) {
           setColumnWidthOverridesByFile((prev) => {
             const existing = prev[fileId] ?? {};
-            const nextForFile = { ...existing, [colIndex]: finalWidth };
+            const nextForFile = { ...existing, [colIndex]: resolvedFinalWidth };
             return { ...prev, [fileId]: nextForFile };
           });
         }
@@ -271,10 +385,10 @@ export const useTemplateManagerPreview = ({
     previewScrollTop,
     previewViewportHeight,
     rowHeightPx: PREVIEW_ROW_HEIGHT_PX,
-  });
+  }) as PreviewWindow;
 
   const toggleColumn = useCallback(
-    (index) => {
+    (index: number) => {
       setConfig((prev) => {
         const selectedColumns = Array.isArray(prev?.selectedColumns)
           ? prev.selectedColumns
@@ -308,7 +422,11 @@ export const useTemplateManagerPreview = ({
       rowHeightPx: PREVIEW_ROW_HEIGHT_PX,
       rowIndexWidthPx: PREVIEW_ROW_INDEX_COL_PX,
       selections,
-    });
+    }) as {
+      selectionRects: Array<{ id: string; rect: DOMRect | Record<string, number> }>;
+      hideDragOverlay: () => void;
+      renderDragOverlay: (startCellEl: Element, endCellEl: Element) => void;
+    };
 
   const { copySelection, handleCellMouseDown } =
     usePreviewSelectionInteractions({
@@ -321,7 +439,10 @@ export const useTemplateManagerPreview = ({
       renderDragOverlay,
       selections,
       setSelections,
-    });
+    }) as {
+      copySelection: () => Promise<void>;
+      handleCellMouseDown: (event: unknown) => void;
+    };
 
   return {
     containerRef,

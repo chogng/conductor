@@ -1,15 +1,98 @@
-// @ts-nocheck
 import { AlertCircle, RefreshCw, Upload } from "lucide-react";
+import {
+  type ComponentType,
+  type MouseEvent as ReactMouseEvent,
+  type MutableRefObject,
+} from "react";
 import Card from "../../../components/ui/Card";
 import Button from "../../../components/ui/Button";
 import ScrollArea from "../../../components/ui/ScrollArea";
+import type { TranslateFn } from "../../../context/language-context";
 import CsvImporter from "./CsvImporter";
 import TemplateManager from "./TemplateManager";
+
+type CsvImporterRef = {
+  openFileDialog?: () => void;
+};
+
+type RawDataEntry = {
+  fileId?: string;
+  fileName?: string;
+  [key: string]: unknown;
+};
+
+type PreviewStatus = {
+  state?: string;
+  message?: string;
+};
+
+type ExtractionErrorItem = {
+  fileName?: string;
+  message?: string;
+  [key: string]: unknown;
+};
+
+type DataPanelProps = {
+  deviceAnalysisSettings?: Record<string, unknown> | null;
+  ensurePreviewRows?: (...args: unknown[]) => Promise<unknown> | void;
+  extractionErrors?: ExtractionErrorItem[];
+  getExtractionErrorMessage: (item: ExtractionErrorItem) => string;
+  getPreviewRow?: (rowIndex: number) => unknown;
+  getPreviewRowsVersion?: () => number;
+  hasSessionData: boolean;
+  importerRef: MutableRefObject<CsvImporterRef | null>;
+  isResizing: boolean;
+  onClearExtractionErrors?: () => void;
+  onClearSession?: () => void;
+  onDataImported?: (fileInfo: unknown) => void;
+  onDataRemoved?: (fileId: string) => void;
+  onFileSelected?: (fileId: string) => void;
+  onStartResizing?: (event: ReactMouseEvent<HTMLDivElement>) => void;
+  onTemplateApplied?: (...args: unknown[]) => unknown;
+  onTemplateAppliedIncremental?: (...args: unknown[]) => unknown;
+  onUpdateDeviceAnalysisSettings?: (
+    updates: unknown,
+  ) => Promise<unknown> | unknown;
+  previewFile?: unknown | null;
+  previewStatus?: PreviewStatus;
+  rawData?: RawDataEntry[];
+  selectedPreviewFileId?: string | null;
+  subscribePreviewRowsVersion?: (onStoreChange: () => void) => () => void;
+  t: TranslateFn;
+};
+
+type CsvImporterProps = {
+  files?: RawDataEntry[];
+  onDataImported?: (fileInfo: unknown) => void;
+  onDataRemoved?: (fileId: string) => void;
+  onFileSelected?: (fileId: string) => void;
+  selectedFileId?: string | null;
+};
+
+type TemplateManagerProps = {
+  previewFile?: unknown | null;
+  previewStatus?: PreviewStatus;
+  getPreviewRow?: (rowIndex: number) => unknown;
+  ensurePreviewRows?: (...args: unknown[]) => Promise<unknown> | void;
+  onTemplateApplied?: (...args: unknown[]) => unknown;
+  onTemplateAppliedIncremental?: (...args: unknown[]) => unknown;
+  subscribePreviewRowsVersion?: (onStoreChange: () => void) => () => void;
+  getPreviewRowsVersion?: () => number;
+  deviceAnalysisSettings?: Record<string, unknown> | null;
+  onUpdateDeviceAnalysisSettings?: (
+    updates: unknown,
+  ) => Promise<unknown> | unknown;
+};
+
+const CsvImporterComponent =
+  CsvImporter as unknown as ComponentType<CsvImporterProps & { ref?: unknown }>;
+const TemplateManagerComponent =
+  TemplateManager as unknown as ComponentType<TemplateManagerProps>;
 
 const DeviceAnalysisDataPanel = ({
   deviceAnalysisSettings,
   ensurePreviewRows,
-  extractionErrors,
+  extractionErrors = [],
   getExtractionErrorMessage,
   getPreviewRow,
   getPreviewRowsVersion,
@@ -27,11 +110,11 @@ const DeviceAnalysisDataPanel = ({
   onUpdateDeviceAnalysisSettings,
   previewFile,
   previewStatus,
-  rawData,
+  rawData = [],
   selectedPreviewFileId,
   subscribePreviewRowsVersion,
   t,
-}) => {
+}: DataPanelProps) => {
   return (
     <div className="min-h-full grid grid-cols-1 xl:grid-cols-[var(--sidebar-width)_minmax(0,1fr)] gap-1 xl:gap-1 xl:h-full">
       <aside className="xl:min-h-0 flex flex-col h-full relative group/sidebar">
@@ -58,7 +141,7 @@ const DeviceAnalysisDataPanel = ({
                   ctaPosition="data-import"
                   ctaCopy="import csv"
                   aria-label={t("da_import_csv")}
-                  onClick={() => importerRef.current?.openFileDialog()}
+                  onClick={() => importerRef.current?.openFileDialog?.()}
                 >
                   <Upload size={16} />
                   {t("da_import_csv")}
@@ -92,7 +175,7 @@ const DeviceAnalysisDataPanel = ({
               </div>
             </div>
 
-            <CsvImporter
+            <CsvImporterComponent
               ref={importerRef}
               files={rawData}
               onDataImported={onDataImported}
@@ -137,7 +220,7 @@ const DeviceAnalysisDataPanel = ({
                 <ul className="space-y-2 text-sm text-text-secondary">
                   {extractionErrors.map((errorItem, index) => (
                     <li
-                      key={`${errorItem.fileName}-${index}`}
+                      key={`${errorItem.fileName ?? "unknown"}-${index}`}
                       className="flex flex-col gap-1"
                     >
                       <span className="font-semibold text-text-primary text-xs">
@@ -180,7 +263,7 @@ const DeviceAnalysisDataPanel = ({
         aria-label={t("da_data_extraction_template")}
         className="xl:min-h-0 flex flex-col h-full"
       >
-        <TemplateManager
+        <TemplateManagerComponent
           previewFile={previewFile}
           previewStatus={previewStatus}
           getPreviewRow={getPreviewRow}

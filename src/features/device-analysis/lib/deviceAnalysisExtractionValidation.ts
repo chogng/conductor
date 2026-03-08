@@ -1,9 +1,90 @@
-// @ts-nocheck
 import { validateTemplateForApply } from "./templateValidation";
 
 const CELL_REF_RE = /^([A-Z]+)(\d+)$/;
 
-function parseCellRef(value) {
+type TranslateFn = (
+  key: string,
+  vars?: Record<string, unknown>,
+) => string;
+
+type CellRef = {
+  rowIndex: number;
+  colIndex: number;
+};
+
+type TemplateConfigLike = Partial<{
+  xDataStart: string;
+  xDataEnd: string;
+  xPoints: string;
+  yDataStart: string;
+  yDataEnd: string;
+  yCount: string;
+  yStep: string;
+  selectedColumns: number[];
+  autoDetectCurveType: boolean;
+  bottomTitle: string;
+  legendPrefix: string;
+  leftTitle: string;
+  fileNameVgKeywords: string;
+  fileNameVdKeywords: string;
+  vgKeyword: string;
+  vdKeyword: string;
+  vgFileKeywords: string;
+  vdFileKeywords: string;
+}>;
+
+type PreviewFileLike = Partial<{
+  fileId: string;
+  rowCount: number;
+}>;
+
+type ExtractionConfig = {
+  xCol: number;
+  startRow: number;
+  endRow: number | "end";
+  yCols: number[];
+  autoDetectCurveType: boolean;
+  bottomTitle: string;
+  legendPrefix: string;
+  leftTitle: string;
+  fileNameVgKeywords: string;
+  fileNameVdKeywords: string;
+  yLegendStartCell?: CellRef;
+  yLegendStartValue?: string;
+  yLegendCountCell?: CellRef;
+  yLegendCount?: number;
+  yLegendStepCell?: CellRef;
+  yLegendStep?: number;
+  groupSizeCell?: CellRef;
+  groupSize?: number | null;
+  groups?: number | null;
+};
+
+type ExtractionMeta = {
+  pointsRawUpper: string;
+  groupSizeCell: boolean;
+  groupSize: number | null;
+  groups: number | null;
+  total: number;
+  groupSizePreview: number | null;
+};
+
+type PrepareExtractionResult =
+  | {
+      ok: false;
+      type: "warning";
+      message: string;
+    }
+  | {
+      ok: true;
+      type: "success";
+      warnings: string[];
+      normalizedConfig: TemplateConfigLike;
+      extractionConfig: ExtractionConfig;
+      meta: ExtractionMeta;
+    };
+
+function parseCellRef(value: unknown): CellRef | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim().toUpperCase();
   if (!trimmed) return null;
@@ -24,7 +105,7 @@ function parseCellRef(value) {
   return { rowIndex: rowNumber - 1, colIndex };
 }
 
-function parseNumberStrict(raw) {
+function parseNumberStrict(raw: unknown): number | null {
   if (raw === null || raw === undefined) return null;
   if (typeof raw === "number") return Number.isFinite(raw) ? raw : null;
   if (typeof raw === "string") {
@@ -42,10 +123,16 @@ export function prepareDeviceAnalysisExtraction({
   previewFile,
   getPreviewRow,
   t,
-}) {
-  const msg = (key, vars, fallback) => {
+}: {
+  rawData: unknown[];
+  config: TemplateConfigLike;
+  previewFile: unknown;
+  getPreviewRow: ((rowIndex: number) => unknown) | undefined;
+  t?: TranslateFn;
+}): PrepareExtractionResult {
+  const msg = (key: string, vars: Record<string, unknown> | null, fallback: string) => {
     if (typeof t !== "function") return fallback;
-    return t(key, vars);
+    return t(key, vars ?? undefined);
   };
 
   if (!rawData || rawData.length === 0) {
@@ -61,7 +148,7 @@ export function prepareDeviceAnalysisExtraction({
   }
 
   const templateValidation = validateTemplateForApply(config, t);
-  if (!templateValidation.ok) {
+  if (!templateValidation.ok || !templateValidation.normalized) {
     return {
       ok: false,
       type: "warning",
@@ -71,8 +158,8 @@ export function prepareDeviceAnalysisExtraction({
     };
   }
 
-  const normalizedConfig = templateValidation.normalized;
-  const warnings = [];
+  const normalizedConfig = templateValidation.normalized as TemplateConfigLike;
+  const warnings: string[] = [];
 
   const xStart = parseCellRef(normalizedConfig?.xDataStart || "");
   if (!xStart) {
@@ -90,7 +177,12 @@ export function prepareDeviceAnalysisExtraction({
   const xEndRaw = String(normalizedConfig?.xDataEnd ?? "").trim();
   const useEndKeyword = !xEndRaw || xEndRaw.toLowerCase() === "end";
 
-  if (!previewFile || !Number.isFinite(previewFile.rowCount)) {
+  const previewFileRecord =
+    previewFile && typeof previewFile === "object"
+      ? (previewFile as PreviewFileLike)
+      : {};
+
+  if (!Number.isFinite(previewFileRecord.rowCount)) {
     return {
       ok: false,
       type: "warning",
@@ -102,7 +194,10 @@ export function prepareDeviceAnalysisExtraction({
     };
   }
 
-  const previewRowCount = Math.max(0, Math.floor(previewFile.rowCount));
+  const previewRowCount = Math.max(
+    0,
+    Math.floor(Number(previewFileRecord.rowCount)),
+  );
 
   const xEnd = useEndKeyword ? null : parseCellRef(xEndRaw);
   if (!useEndKeyword && !xEnd) {
@@ -117,7 +212,7 @@ export function prepareDeviceAnalysisExtraction({
     };
   }
 
-  if (!useEndKeyword && xStart.colIndex !== xEnd.colIndex) {
+  if (!useEndKeyword && xStart.colIndex !== (xEnd as CellRef).colIndex) {
     return {
       ok: false,
       type: "warning",
@@ -130,14 +225,16 @@ export function prepareDeviceAnalysisExtraction({
   }
 
   const xCol = xStart.colIndex;
-  const endRow = useEndKeyword ? "end" : Math.max(xStart.rowIndex, xEnd.rowIndex);
+  const endRow = useEndKeyword
+    ? "end"
+    : Math.max(xStart.rowIndex, (xEnd as CellRef).rowIndex);
   const startRow = useEndKeyword
     ? xStart.rowIndex
-    : Math.min(xStart.rowIndex, xEnd.rowIndex);
+    : Math.min(xStart.rowIndex, (xEnd as CellRef).rowIndex);
 
   const total = useEndKeyword
     ? Math.max(0, previewRowCount - startRow)
-    : endRow - startRow + 1;
+    : (endRow as number) - startRow + 1;
   if (total <= 0) {
     return {
       ok: false,
@@ -148,10 +245,10 @@ export function prepareDeviceAnalysisExtraction({
 
   const pointsRaw = String(normalizedConfig?.xPoints ?? "").trim();
 
-  let groupSize = null;
-  let groups = null;
-  let groupSizeCell = null;
-  let groupSizePreview = null;
+  let groupSize: number | null = null;
+  let groups: number | null = null;
+  let groupSizeCell: CellRef | null = null;
+  let groupSizePreview: number | null = null;
 
   if (pointsRaw) {
     const pointsCell = parseCellRef(pointsRaw);
@@ -159,11 +256,11 @@ export function prepareDeviceAnalysisExtraction({
       groupSizeCell = pointsCell;
 
       // Best-effort validation using the currently previewed file (may vary per file).
-      const previewRow = typeof getPreviewRow === "function"
-        ? getPreviewRow(pointsCell.rowIndex)
-        : null;
+      const previewRow =
+        typeof getPreviewRow === "function" ? getPreviewRow(pointsCell.rowIndex) : null;
       if (previewRow) {
-        const raw = previewRow?.[pointsCell.colIndex];
+        const previewCells = Array.isArray(previewRow) ? previewRow : [];
+        const raw = previewCells[pointsCell.colIndex];
         const parsed = parseNumberStrict(raw);
         const asInt = parsed !== null && Number.isInteger(parsed) ? parsed : null;
 
@@ -255,7 +352,10 @@ export function prepareDeviceAnalysisExtraction({
     : [];
   let yCols = yColsFromToggle;
 
-  if (yCols.length === 0 && (normalizedConfig?.yDataStart || normalizedConfig?.yDataEnd)) {
+  if (
+    yCols.length === 0 &&
+    (normalizedConfig?.yDataStart || normalizedConfig?.yDataEnd)
+  ) {
     const yStart = parseCellRef(normalizedConfig?.yDataStart || "");
     const yEnd = parseCellRef(normalizedConfig?.yDataEnd || "");
     if (!yStart || !yEnd) {
@@ -299,7 +399,7 @@ export function prepareDeviceAnalysisExtraction({
     };
   }
 
-  const extractionConfig = {
+  const extractionConfig: ExtractionConfig = {
     xCol,
     startRow,
     endRow,
@@ -326,7 +426,11 @@ export function prepareDeviceAnalysisExtraction({
       extractionConfig.yLegendStartValue = yLegendStartRaw;
     }
 
-    const parsePositiveIntOrCell = (raw, warningKey, warningFallback) => {
+    const parsePositiveIntOrCell = (
+      raw: string,
+      warningKey: string,
+      warningFallback: string,
+    ): { type: "cell"; value: CellRef } | { type: "number"; value: number } | null => {
       if (!raw) return null;
       const asCell = parseCellRef(raw);
       if (asCell) return { type: "cell", value: asCell };
@@ -339,7 +443,11 @@ export function prepareDeviceAnalysisExtraction({
       return { type: "number", value: asNumber };
     };
 
-    const parsePositiveNumberOrCell = (raw, warningKey, warningFallback) => {
+    const parsePositiveNumberOrCell = (
+      raw: string,
+      warningKey: string,
+      warningFallback: string,
+    ): { type: "cell"; value: CellRef } | { type: "number"; value: number } | null => {
       if (!raw) return null;
       const asCell = parseCellRef(raw);
       if (asCell) return { type: "cell", value: asCell };
@@ -376,11 +484,13 @@ export function prepareDeviceAnalysisExtraction({
 
     // Best-effort validation using the currently previewed file (may vary per file).
     if (extractionConfig.yLegendCountCell) {
-      const previewRow = typeof getPreviewRow === "function"
-        ? getPreviewRow(extractionConfig.yLegendCountCell.rowIndex)
-        : null;
+      const previewRow =
+        typeof getPreviewRow === "function"
+          ? getPreviewRow(extractionConfig.yLegendCountCell.rowIndex)
+          : null;
       if (previewRow) {
-        const raw = previewRow?.[extractionConfig.yLegendCountCell.colIndex];
+        const previewCells = Array.isArray(previewRow) ? previewRow : [];
+        const raw = previewCells[extractionConfig.yLegendCountCell.colIndex];
         const parsed = parseNumberStrict(raw);
         const asInt = parsed !== null && Number.isInteger(parsed) ? parsed : null;
         if (asInt === null || asInt <= 0) {
@@ -396,11 +506,13 @@ export function prepareDeviceAnalysisExtraction({
     }
 
     if (extractionConfig.yLegendStepCell) {
-      const previewRow = typeof getPreviewRow === "function"
-        ? getPreviewRow(extractionConfig.yLegendStepCell.rowIndex)
-        : null;
+      const previewRow =
+        typeof getPreviewRow === "function"
+          ? getPreviewRow(extractionConfig.yLegendStepCell.rowIndex)
+          : null;
       if (previewRow) {
-        const raw = previewRow?.[extractionConfig.yLegendStepCell.colIndex];
+        const previewCells = Array.isArray(previewRow) ? previewRow : [];
+        const raw = previewCells[extractionConfig.yLegendStepCell.colIndex];
         const parsed = parseNumberStrict(raw);
         if (parsed === null || parsed <= 0) {
           warnings.push(

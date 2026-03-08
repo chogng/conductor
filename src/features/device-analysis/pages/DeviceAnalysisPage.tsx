@@ -1,5 +1,13 @@
-// @ts-nocheck
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type Dispatch,
+  type MutableRefObject,
+  type SetStateAction,
+} from "react";
 import {
   DesktopCommandBar,
   DeviceAnalysisAnalysisPanel,
@@ -7,6 +15,7 @@ import {
   DeviceAnalysisSettingsPanel,
 } from "../components";
 import ScrollArea from "../../../components/ui/ScrollArea";
+import type { TranslationVars } from "../../../context/language-context";
 import { loadAnalysisCharts } from "../components/loadAnalysisCharts";
 import { getDeviceAnalysisExtractionErrorMessage } from "../lib/deviceAnalysisUtils";
 import {
@@ -20,57 +29,156 @@ import {
   useResizableSidebar,
 } from "../hooks";
 import { useLanguage } from "../../../hooks/useLanguage";
+import type {
+  SsIdWindow,
+  SsManualRanges,
+  SsMethod,
+} from "../context/device-analysis-session-context";
+
+type PageTab = "data" | "analysis" | "settings";
+
+type RawDataEntry = {
+  file?: unknown;
+  fileId?: string;
+  fileName?: string;
+  [key: string]: unknown;
+};
+
+type ProcessedEntry = {
+  fileId?: string;
+  [key: string]: unknown;
+};
+
+type ExtractionErrorEntry = {
+  fileName?: string;
+  message?: string;
+  messageKey?: string | null;
+  messageParams?: Record<string, unknown> | null;
+  [key: string]: unknown;
+};
+
+type ProcessingExtractionError = ExtractionErrorEntry & {
+  message: string;
+};
+
+type PreviewFile = {
+  fileId: string;
+  fileName: string;
+  rowCount: number;
+  columnCount: number;
+  maxCellLengths: number[];
+};
+
+type PreviewStatus = {
+  state: "idle" | "loading" | "ready" | "error";
+  message: string;
+};
+
+type PreviewRowsRequest = {
+  reject: (error: unknown) => void;
+  resolve: (rows: unknown[][]) => void;
+};
+
+type SessionCompat = {
+  rawData: RawDataEntry[];
+  setRawData: Dispatch<SetStateAction<RawDataEntry[]>>;
+  selectedPreviewFileId: string | null;
+  setSelectedPreviewFileId: Dispatch<SetStateAction<string | null>>;
+  processedData: ProcessedEntry[];
+  setProcessedData: Dispatch<SetStateAction<ProcessedEntry[]>>;
+  extractionErrors: ExtractionErrorEntry[];
+  setExtractionErrors: Dispatch<SetStateAction<ExtractionErrorEntry[]>>;
+  ssMethod: SsMethod;
+  setSsMethod: Dispatch<SetStateAction<SsMethod>>;
+  ssDiagnosticsEnabled: boolean;
+  setSsDiagnosticsEnabled: Dispatch<SetStateAction<boolean>>;
+  ssShowFitLine: boolean;
+  setSsShowFitLine: Dispatch<SetStateAction<boolean>>;
+  ssIdWindow: SsIdWindow;
+  setSsIdWindow: Dispatch<SetStateAction<SsIdWindow>>;
+  ssManualRanges: SsManualRanges;
+  setSsManualRanges: Dispatch<SetStateAction<SsManualRanges>>;
+  previewFile: PreviewFile | null;
+  setPreviewFile: Dispatch<SetStateAction<PreviewFile | null>>;
+  previewStatus: PreviewStatus;
+  setPreviewStatus: Dispatch<SetStateAction<PreviewStatus>>;
+  previewWorkerRef: MutableRefObject<Worker | null>;
+  previewRequestIdRef: MutableRefObject<number>;
+  previewRowsRequestIdRef: MutableRefObject<number>;
+  previewRowsRequestsRef: MutableRefObject<Map<number, PreviewRowsRequest>>;
+  previewRowsCacheByFileIdRef: MutableRefObject<Map<string, Map<number, unknown[]>>>;
+  previewLoadedChunksByFileIdRef: MutableRefObject<Map<string, Set<number>>>;
+  previewRowsCacheRef: MutableRefObject<Map<number, unknown[]>>;
+  previewLoadedChunksRef: MutableRefObject<Set<number>>;
+  previewCacheFileIdRef: MutableRefObject<string | null>;
+  previewCacheFileLruRef: MutableRefObject<Set<string>>;
+};
+
+declare global {
+  interface Window {
+    desktopMeta?: {
+      isDesktop?: boolean;
+      platform?: string;
+      [key: string]: unknown;
+    };
+  }
+}
 
 const DeviceAnalysisPage = () => {
   const { t, language, setLanguage } = useLanguage();
+  const tLoose = useCallback(
+    (key: string, vars?: Record<string, unknown>) =>
+      t(key, vars as TranslationVars | undefined),
+    [t],
+  );
   const desktopMeta =
     typeof window !== "undefined" ? window.desktopMeta ?? null : null;
   const isWindowsDesktopShell =
     desktopMeta?.isDesktop === true && desktopMeta?.platform === "win32";
 
-  const session = useDeviceAnalysisSession();
+  const session = useDeviceAnalysisSession() as unknown as SessionCompat;
   const {
-    rawData = [],
-    setRawData = () => {},
-    selectedPreviewFileId = null,
-    setSelectedPreviewFileId = () => {},
-    processedData = [],
-    setProcessedData = () => {},
-    extractionErrors = [],
-    setExtractionErrors = () => {},
-    ssMethod = "auto",
-    setSsMethod = () => {},
-    ssDiagnosticsEnabled = true,
-    setSsDiagnosticsEnabled = () => {},
-    ssShowFitLine = true,
-    setSsShowFitLine = () => {},
-    ssIdWindow = { low: "1e-11", high: "1e-9" },
-    setSsIdWindow = () => {},
-    ssManualRanges = {},
-    setSsManualRanges = () => {},
-    previewFile = null,
-    setPreviewFile = () => {},
-    previewStatus = { state: "idle", message: "" },
-    setPreviewStatus = () => {},
-    previewWorkerRef = { current: null },
-    previewRequestIdRef = { current: 0 },
-    previewRowsRequestIdRef = { current: 0 },
-    previewRowsRequestsRef = { current: new Map() },
-    previewRowsCacheByFileIdRef = { current: new Map() },
-    previewLoadedChunksByFileIdRef = { current: new Map() },
-    previewRowsCacheRef = { current: new Map() },
-    previewLoadedChunksRef = { current: new Set() },
-    previewCacheFileIdRef = { current: null },
-    previewCacheFileLruRef = { current: new Set() },
-  } = session || {};
+    rawData,
+    setRawData,
+    selectedPreviewFileId,
+    setSelectedPreviewFileId,
+    processedData,
+    setProcessedData,
+    extractionErrors,
+    setExtractionErrors,
+    ssMethod,
+    setSsMethod,
+    ssDiagnosticsEnabled,
+    setSsDiagnosticsEnabled,
+    ssShowFitLine,
+    setSsShowFitLine,
+    ssIdWindow,
+    setSsIdWindow,
+    ssManualRanges,
+    setSsManualRanges,
+    previewFile,
+    setPreviewFile,
+    previewStatus,
+    setPreviewStatus,
+    previewWorkerRef,
+    previewRequestIdRef,
+    previewRowsRequestIdRef,
+    previewRowsRequestsRef,
+    previewRowsCacheByFileIdRef,
+    previewLoadedChunksByFileIdRef,
+    previewRowsCacheRef,
+    previewLoadedChunksRef,
+    previewCacheFileIdRef,
+    previewCacheFileLruRef,
+  } = session;
 
-  const importerRef = useRef(null);
-  const [activePage, setActivePage] = useState("data");
+  const importerRef = useRef<{ openFileDialog?: () => void } | null>(null);
+  const [activePage, setActivePage] = useState<PageTab>("data");
   const [hasVisitedAnalysisPage, setHasVisitedAnalysisPage] = useState(false);
   const [hasVisitedSettingsPage, setHasVisitedSettingsPage] = useState(false);
   const { isResizing, sidebarWidth, startResizing } = useResizableSidebar();
 
-  const navigateToPage = useCallback((nextPage) => {
+  const navigateToPage = useCallback((nextPage: PageTab) => {
     if (nextPage === "analysis") {
       setHasVisitedAnalysisPage(true);
     }
@@ -120,8 +228,17 @@ const DeviceAnalysisPage = () => {
   }, [hasVisitedAnalysisPage, processedData.length]);
 
   const getExtractionErrorMessage = useCallback(
-    (error) => getDeviceAnalysisExtractionErrorMessage(t, error),
-    [t],
+    (error: ExtractionErrorEntry) =>
+      getDeviceAnalysisExtractionErrorMessage(tLoose, {
+        message: typeof error?.message === "string" ? error.message : undefined,
+        messageKey:
+          typeof error?.messageKey === "string" ? error.messageKey : undefined,
+        messageParams:
+          error?.messageParams && typeof error.messageParams === "object"
+            ? error.messageParams
+            : undefined,
+      }),
+    [tLoose],
   );
 
   const {
@@ -152,13 +269,14 @@ const DeviceAnalysisPage = () => {
     setPreviewFile,
     setPreviewStatus,
     setSelectedPreviewFileId,
-    t,
+    t: tLoose,
   });
 
   const {
     deviceAnalysisSettings,
     handleLanguageChange,
     handleUpdateDeviceAnalysisSettings,
+    originOpenPlotOptions,
     originSettings,
     storageSettings,
   } = useDeviceAnalysisSettings({
@@ -170,7 +288,7 @@ const DeviceAnalysisPage = () => {
     setSsIdWindow,
     setSsMethod,
     setSsShowFitLine,
-    t,
+    t: tLoose,
   });
 
   const {
@@ -185,10 +303,17 @@ const DeviceAnalysisPage = () => {
     processedData,
     rawData,
     rawDataByIdRef,
-    setActivePage: navigateToPage,
-    setExtractionErrors,
+    setActivePage: (page: string) => {
+      if (page === "data" || page === "analysis" || page === "settings") {
+        navigateToPage(page);
+      }
+    },
+    setExtractionErrors:
+      setExtractionErrors as Dispatch<
+        SetStateAction<ProcessingExtractionError[]>
+      >,
     setProcessedData,
-    t,
+    t: tLoose,
   });
 
   const { handleExport } = useDeviceAnalysisExports({
@@ -220,8 +345,50 @@ const DeviceAnalysisPage = () => {
     setProcessedData,
     setRawData,
     setSelectedPreviewFileId,
-    setSsManualRanges,
+    setSsManualRanges:
+      setSsManualRanges as Dispatch<SetStateAction<Record<string, unknown>>>,
   });
+
+  const ensurePreviewRowsAny = useCallback(
+    (...args: unknown[]): Promise<void> | undefined => {
+      const fileId = args[0];
+      const startRow = Number(args[1]);
+      const endRow = Number(args[2]);
+      if (typeof fileId !== "string") return undefined;
+      return ensurePreviewRows(
+        fileId,
+        Number.isFinite(startRow) ? startRow : 0,
+        Number.isFinite(endRow) ? endRow : 0,
+      );
+    },
+    [ensurePreviewRows],
+  );
+
+  const handleDataImportedAny = useCallback(
+    (fileInfo: unknown) => {
+      if (!fileInfo || typeof fileInfo !== "object") return;
+      handleDataImported(fileInfo as RawDataEntry);
+    },
+    [handleDataImported],
+  );
+
+  const handleTemplateAppliedAny = useCallback(
+    (...args: unknown[]) => {
+      const config = args[0];
+      if (!config || typeof config !== "object") return null;
+      return handleTemplateApplied(config as Record<string, unknown>);
+    },
+    [handleTemplateApplied],
+  );
+
+  const handleTemplateAppliedIncrementalAny = useCallback(
+    (...args: unknown[]) => {
+      const config = args[0];
+      if (!config || typeof config !== "object") return null;
+      return handleTemplateAppliedIncremental(config as Record<string, unknown>);
+    },
+    [handleTemplateAppliedIncremental],
+  );
 
   const isDataPageActive = activePage === "data";
   const isAnalysisPageActive = activePage === "analysis";
@@ -231,7 +398,7 @@ const DeviceAnalysisPage = () => {
   const shouldMountSettingsPanel =
     isSettingsPageActive || hasVisitedSettingsPage;
 
-  const handlePageTabSelect = useCallback((nextPage) => {
+  const handlePageTabSelect = useCallback((nextPage: string) => {
     if (
       nextPage !== "data" &&
       nextPage !== "analysis" &&
@@ -252,7 +419,15 @@ const DeviceAnalysisPage = () => {
     handleExport,
     importerRef,
     isWindowsDesktopShell,
-    setActivePage: navigateToPage,
+    setActivePage: (nextPage: string) => {
+      if (
+        nextPage === "data" ||
+        nextPage === "analysis" ||
+        nextPage === "settings"
+      ) {
+        navigateToPage(nextPage);
+      }
+    },
   });
 
   return (
@@ -261,7 +436,7 @@ const DeviceAnalysisPage = () => {
       className={`relative w-full h-full min-h-0 overflow-hidden flex flex-col ${
         isResizing ? "cursor-col-resize select-none" : ""
       }`}
-      style={{ "--sidebar-width": `${sidebarWidth}px` }}
+      style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}
     >
       {isWindowsDesktopShell ? (
         <DesktopCommandBar
@@ -293,7 +468,7 @@ const DeviceAnalysisPage = () => {
           <div className="da_page_scroll h-full min-h-0 overflow-y-auto xl:overflow-hidden p-1 pt-0">
             <DeviceAnalysisDataPanel
               deviceAnalysisSettings={deviceAnalysisSettings}
-              ensurePreviewRows={ensurePreviewRows}
+              ensurePreviewRows={ensurePreviewRowsAny}
               extractionErrors={extractionErrors}
               getExtractionErrorMessage={getExtractionErrorMessage}
               getPreviewRow={getPreviewRow}
@@ -303,12 +478,14 @@ const DeviceAnalysisPage = () => {
               isResizing={isResizing}
               onClearExtractionErrors={() => setExtractionErrors([])}
               onClearSession={handleClearSession}
-              onDataImported={handleDataImported}
+              onDataImported={handleDataImportedAny}
               onDataRemoved={handleDataRemoved}
               onFileSelected={handlePreviewFileSelected}
               onStartResizing={startResizing}
-              onTemplateApplied={handleTemplateApplied}
-              onTemplateAppliedIncremental={handleTemplateAppliedIncremental}
+              onTemplateApplied={handleTemplateAppliedAny}
+              onTemplateAppliedIncremental={
+                handleTemplateAppliedIncrementalAny
+              }
               onUpdateDeviceAnalysisSettings={handleUpdateDeviceAnalysisSettings}
               previewFile={previewFile}
               previewStatus={previewStatus}
@@ -350,6 +527,7 @@ const DeviceAnalysisPage = () => {
                 ssManualRanges={ssManualRanges}
                 ssMethod={ssMethod}
                 ssShowFitLine={ssShowFitLine}
+                originOpenPlotOptions={originOpenPlotOptions}
                 t={t}
               />
             ) : null}

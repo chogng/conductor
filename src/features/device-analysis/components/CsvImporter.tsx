@@ -1,5 +1,3 @@
-// @ts-nocheck
-// ... existing imports
 import React, {
   startTransition,
   useCallback,
@@ -20,6 +18,71 @@ import Avatar from "../../../components/ui/Avatar";
 import ScrollArea from "../../../components/ui/ScrollArea";
 import styles from "./CsvImporter.module.css";
 
+type CsvFileEntry = {
+  fileId: string;
+  file: File;
+  itemKey: string;
+};
+
+type CsvImporterRef = {
+  openFileDialog: () => void;
+  hasFiles: boolean;
+};
+
+type ImportedFileInfo = {
+  fileId: string;
+  fileName: string;
+  file: File;
+  size: number;
+  lastModified: number;
+};
+
+type CsvImporterProps = {
+  files?: CsvFileEntry[];
+  onDataImported?: (fileInfo: ImportedFileInfo) => void;
+  onDataRemoved?: (fileId: string) => void;
+  onFileSelected?: (fileId: string | null) => void;
+  selectedFileId?: string | null;
+};
+
+type ExpandedCardProps = {
+  fileEntry: CsvFileEntry | null;
+  originRect: DOMRect | null;
+  containerBounds: DOMRect | null;
+  onClose: () => void;
+  onRemove: () => void;
+};
+
+type CsvFileItemProps = {
+  fileEntry: CsvFileEntry;
+  isSelected: boolean;
+  isInvisible: boolean;
+  onSelect?: (fileId: string | null) => void;
+  onRemove?: (fileId: string | null) => void;
+};
+
+type FileSystemEntryLike = {
+  isFile: boolean;
+  isDirectory: boolean;
+  name: string;
+};
+
+type FileSystemFileEntryLike = FileSystemEntryLike & {
+  isFile: true;
+  file: (successCallback: (file: File) => void) => void;
+};
+
+type FileSystemDirectoryEntryLike = FileSystemEntryLike & {
+  isDirectory: true;
+  createReader: () => {
+    readEntries: (successCallback: (entries: FileSystemEntryLike[]) => void) => void;
+  };
+};
+
+type DataTransferItemWithWebkit = DataTransferItem & {
+  webkitGetAsEntry?: () => FileSystemEntryLike | null;
+};
+
 /*
  * Separate component for the expanded card animation.
  * Using a portal to break out of the scrollable container.
@@ -30,7 +93,7 @@ const ExpandedCard = ({
   containerBounds,
   onClose,
   onRemove,
-}) => {
+}: ExpandedCardProps) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
@@ -124,23 +187,29 @@ const ExpandedCard = ({
   );
 };
 
-const buildFileKeyRaw = (file) =>
-  file && typeof file === "object" ? `${file.name}::${file.size}` : "";
+const buildFileKeyRaw = (file: File | null | undefined): string =>
+  file ? `${file.name}::${file.size}` : "";
 
-const buildItemKey = (file) => {
+const buildItemKey = (file: File | null | undefined): string => {
   const raw = buildFileKeyRaw(file);
   if (!raw) return "";
   return stableItemKey("csv", raw);
 };
 
-const toDomIdToken = (value) =>
+const toDomIdToken = (value: unknown): string =>
   String(value || "")
     .trim()
     .replace(/[^a-zA-Z0-9_-]/g, "_")
     .slice(0, 120);
 
 const CsvFileItem = React.memo(
-  ({ fileEntry, isSelected, isInvisible, onSelect, onRemove }) => {
+  ({
+    fileEntry,
+    isSelected,
+    isInvisible,
+    onSelect,
+    onRemove,
+  }: CsvFileItemProps) => {
     const fileName = fileEntry?.file?.name || "";
 
     return (
@@ -179,7 +248,7 @@ const CsvFileItem = React.memo(
           data-item-key={fileEntry?.itemKey || undefined}
           onClick={(e) => {
             e.stopPropagation();
-            onRemove?.(fileEntry?.fileId ?? null);
+            onRemove?.(fileEntry.fileId ?? null);
           }}
           className={styles.fileRemove}
         >
@@ -192,7 +261,7 @@ const CsvFileItem = React.memo(
 
 CsvFileItem.displayName = "CsvFileItem";
 
-const CsvImporter = forwardRef(
+const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
   (
     {
       files: externalFiles,
@@ -215,27 +284,27 @@ const CsvImporter = forwardRef(
     // Keep modest to avoid rendering too many items per frame.
     const GRID_OVERSCAN_ROWS = 6;
 
-    const fileInputRef = useRef(null);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
     const [isDragging, setIsDragging] = useState(false);
     const isControlled = Array.isArray(externalFiles);
-    const [internalFiles, setInternalFiles] = useState([]);
-    const files = isControlled ? externalFiles : internalFiles;
+    const [internalFiles, setInternalFiles] = useState<CsvFileEntry[]>([]);
+    const files = (isControlled ? externalFiles : internalFiles) ?? [];
     const setFiles = isControlled ? null : setInternalFiles;
-    const [error, setError] = useState(null);
+    const [error, setError] = useState<string | null>(null);
 
     // State for the expanded card animation
-    const [activeFile, setActiveFile] = useState(null);
-    const [originRect, setOriginRect] = useState(null);
-    const [containerBounds, setContainerBounds] = useState(null);
-    const containerRef = useRef(null);
+    const [activeFile, setActiveFile] = useState<CsvFileEntry | null>(null);
+    const [originRect, setOriginRect] = useState<DOMRect | null>(null);
+    const [containerBounds, setContainerBounds] = useState<DOMRect | null>(null);
+    const containerRef = useRef<HTMLDivElement | null>(null);
 
     const [optimisticSelectedFileId, setOptimisticSelectedFileId] =
-      useOptimistic(selectedFileId ?? null, (_prev, next) => next);
+      useOptimistic<string | null>(selectedFileId ?? null);
 
     const effectiveSelectedFileId = optimisticSelectedFileId ?? selectedFileId;
 
     const setEffectiveSelectedFileId = useCallback(
-      (next) => {
+      (next: string | null) => {
         setOptimisticSelectedFileId(next);
         if (!onFileSelected) return;
         startTransition(() => {
@@ -338,8 +407,8 @@ const CsvImporter = forwardRef(
       return () => el.removeEventListener("scroll", onScroll);
     }, [handleScroll]);
 
-    const handleFileChange = (event) => {
-      const selectedFiles = Array.from(event.target.files);
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+      const selectedFiles = Array.from(event.target.files ?? []);
       processFiles(selectedFiles);
       // Reset input value to allow selecting same files again if needed
       event.target.value = "";
@@ -355,18 +424,18 @@ const CsvImporter = forwardRef(
       return `file_${Math.random().toString(36).slice(2)}_${Date.now().toString(36)}`;
     };
 
-    const processFiles = (newFiles) => {
+    const processFiles = (newFiles: File[]) => {
       setError(null);
 
-      const buildFileKey = (file) =>
-        file && typeof file === "object" ? `${file.name}::${file.size}` : "";
+      const buildFileKey = (file: File | null | undefined): string =>
+        file ? `${file.name}::${file.size}` : "";
 
       // Filter out duplicates (based on already loaded files + within this batch).
       const seenKeys = new Set(
         files.map((entry) => buildFileKey(entry?.file)).filter(Boolean),
       );
 
-      const uniqueFiles = [];
+      const uniqueFiles: File[] = [];
       for (const newFile of newFiles) {
         const key = buildFileKey(newFile);
         if (!key) continue;
@@ -417,7 +486,7 @@ const CsvImporter = forwardRef(
     };
 
     const handleSelectFile = useCallback(
-      (fileId) => {
+      (fileId: string | null) => {
         const next = typeof fileId === "string" ? fileId : null;
         if (!next) return;
         setEffectiveSelectedFileId(next);
@@ -425,7 +494,7 @@ const CsvImporter = forwardRef(
       [setEffectiveSelectedFileId],
     );
 
-    const handleDragOver = (e) => {
+    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault();
       setIsDragging(true);
     };
@@ -434,26 +503,31 @@ const CsvImporter = forwardRef(
       setIsDragging(false);
     };
 
-    const handleDrop = async (e) => {
+    const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault();
       setIsDragging(false);
 
-      const items = Array.from(e.dataTransfer.items);
-      const csvFiles = [];
+      const items = Array.from(
+        e.dataTransfer.items,
+      ) as DataTransferItemWithWebkit[];
+      const csvFiles: File[] = [];
 
       // Helper to traverse directories
-      const traverse = async (entry) => {
+      const traverse = async (entry: FileSystemEntryLike | null | undefined) => {
+        if (!entry) return;
         if (entry.isFile) {
           if (entry.name.toLowerCase().endsWith(".csv")) {
             // Get File object from FileEntry
-            const file = await new Promise((resolve) => entry.file(resolve));
+            const file = await new Promise<File>((resolve) =>
+              (entry as FileSystemFileEntryLike).file(resolve),
+            );
             csvFiles.push(file);
           }
         } else if (entry.isDirectory) {
-          const reader = entry.createReader();
+          const reader = (entry as FileSystemDirectoryEntryLike).createReader();
           // createReader().readEntries() might not return all entries in one call
           // usually need to loop until empty, but for simple implementation:
-          const entries = await new Promise((resolve) => {
+          const entries = await new Promise<FileSystemEntryLike[]>((resolve) => {
             reader.readEntries(resolve);
           });
           for (const child of entries) {
@@ -490,7 +564,7 @@ const CsvImporter = forwardRef(
       setOriginRect(null);
     }, []);
 
-    const removeFile = useCallback((fileId) => {
+    const removeFile = useCallback((fileId: string | null) => {
       if (typeof fileId !== "string") return;
       if (optimisticSelectedFileId === fileId) {
         setEffectiveSelectedFileId(null);
@@ -514,7 +588,10 @@ const CsvImporter = forwardRef(
       setFiles,
     ]);
 
-    const _handleShowFullName = (fileEntry, e) => {
+    const _handleShowFullName = (
+      fileEntry: CsvFileEntry,
+      e: React.MouseEvent<HTMLDivElement>,
+    ) => {
       e.stopPropagation();
       const rect = e.currentTarget.getBoundingClientRect();
       setOriginRect(rect);
@@ -596,7 +673,7 @@ const CsvImporter = forwardRef(
             onDrop: handleDrop,
           }}
           onClick={
-            files.length === 0 ? () => fileInputRef.current.click() : undefined
+            files.length === 0 ? () => fileInputRef.current?.click() : undefined
           }
         >
           <input
