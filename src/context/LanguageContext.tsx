@@ -1,7 +1,12 @@
-import { useState } from 'react';
-import { LanguageContext } from './language-context';
+import { useState, type ReactNode } from 'react';
+import {
+  LanguageContext,
+  type LanguageCode,
+  type TranslateFn,
+  type TranslationVars,
+} from './language-context';
 
-const translations = {
+const translations: Record<LanguageCode, Record<string, string>> = {
   en: {
     common_clear: 'Clear',
     da_analysis_visualization: 'Analysis & Visualization',
@@ -408,12 +413,15 @@ const translations = {
   },
 };
 
-export const LanguageProvider = ({ children }) => {
-  const [language, setLanguage] = useState('zh');
+type LanguageProviderProps = {
+  children: ReactNode;
+};
 
-  const t = (key, vars) => {
-    const template = translations[language]?.[key] ?? translations.en?.[key] ?? key;
-    if (!vars || typeof template !== 'string') return template;
+export const LanguageProvider = ({ children }: LanguageProviderProps) => {
+  const [language, setLanguage] = useState<LanguageCode>('zh');
+
+  const t: TranslateFn = (key, vars: TranslationVars = {}) => {
+    const template = translations[language]?.[key] ?? translations.en[key] ?? key;
 
     return Object.entries(vars).reduce((acc, [varKey, value]) => {
       return acc.replaceAll('{' + varKey + '}', String(value));
