@@ -33,4 +33,16 @@ export default defineConfig([
       globals: globals.node,
     },
   },
+  {
+    files: ['electron/**/*.cts'],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'commonjs',
+      globals: globals.node,
+    },
+    rules: {
+      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+    },
+  },
 ])

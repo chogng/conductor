@@ -12,6 +12,7 @@ const {
   runOriginZipJob,
   runOriginCsvJob,
 } = require("./origin-runner.cjs");
+
 let autoUpdater = null;
 try {
   ({ autoUpdater } = require("electron-updater"));
@@ -62,6 +63,11 @@ let autoUpdateConfiguredFeedUrl = null;
 let isAutoUpdateConfigured = false;
 let isUpdateDownloadedPromptVisible = false;
 
+function getResourcesPath() {
+  const resourcesPath = Reflect.get(process, "resourcesPath");
+  return typeof resourcesPath === "string" ? resourcesPath : process.cwd();
+}
+
 function cloneStoreConfig(config) {
   return normalizeStoreConfig(config);
 }
@@ -111,7 +117,7 @@ function resolveOriginWorkerScriptPath() {
   }
 
   const unpackedPath = path.join(
-    process.resourcesPath,
+    getResourcesPath(),
     "app.asar.unpacked",
     "origin",
     "run_origin_job.ps1",
@@ -121,7 +127,7 @@ function resolveOriginWorkerScriptPath() {
   }
 
   return path.join(
-    process.resourcesPath,
+    getResourcesPath(),
     "app.asar",
     "origin",
     "run_origin_job.ps1",
@@ -134,7 +140,7 @@ function resolveOriginBatchScriptPath() {
   }
 
   const unpackedPath = path.join(
-    process.resourcesPath,
+    getResourcesPath(),
     "app.asar.unpacked",
     "origin",
     "run_origin_batch.py",
@@ -144,7 +150,7 @@ function resolveOriginBatchScriptPath() {
   }
 
   return path.join(
-    process.resourcesPath,
+    getResourcesPath(),
     "app.asar",
     "origin",
     "run_origin_batch.py",
@@ -157,7 +163,7 @@ function resolveOriginZipScriptPath() {
   }
 
   const unpackedPath = path.join(
-    process.resourcesPath,
+    getResourcesPath(),
     "app.asar.unpacked",
     "origin",
     "run_origin_zip.py",
@@ -167,7 +173,7 @@ function resolveOriginZipScriptPath() {
   }
 
   return path.join(
-    process.resourcesPath,
+    getResourcesPath(),
     "app.asar",
     "origin",
     "run_origin_zip.py",
@@ -180,7 +186,7 @@ function resolveOriginCsvScriptPath() {
   }
 
   const unpackedPath = path.join(
-    process.resourcesPath,
+    getResourcesPath(),
     "app.asar.unpacked",
     "origin",
     "run_origin_csv.py",
@@ -190,7 +196,7 @@ function resolveOriginCsvScriptPath() {
   }
 
   return path.join(
-    process.resourcesPath,
+    getResourcesPath(),
     "app.asar",
     "origin",
     "run_origin_csv.py",
@@ -220,9 +226,9 @@ function resolveOriginBatchWorkerPath() {
 
   return resolveFirstExistingPath([
     envPath,
-    path.join(process.resourcesPath, "origin", "bin", "origin-batch-worker.exe"),
+    path.join(getResourcesPath(), "origin", "bin", "origin-batch-worker.exe"),
     path.join(
-      process.resourcesPath,
+      getResourcesPath(),
       "app.asar.unpacked",
       "origin",
       "bin",
@@ -243,9 +249,9 @@ function resolveOriginZipWorkerPath() {
 
   return resolveFirstExistingPath([
     envPath,
-    path.join(process.resourcesPath, "origin", "bin", "origin-zip-worker.exe"),
+    path.join(getResourcesPath(), "origin", "bin", "origin-zip-worker.exe"),
     path.join(
-      process.resourcesPath,
+      getResourcesPath(),
       "app.asar.unpacked",
       "origin",
       "bin",
@@ -280,12 +286,15 @@ const ipcChannels = {
   originRuntimeCleanupRun: "device-analysis-origin:runtime-cleanup:run",
 };
 
-const DEFAULT_ORIGIN_PLOT_OPTIONS = Object.freeze({
-  plotType: 202,
-  xyPairs: "((1,2))",
-  plotCommand: "",
-  postPlotCommands: [],
-});
+/** @typedef {{plotType: number, xyPairs: string, plotCommand: string, postPlotCommands: string[]}} OriginPlotOptions */
+const DEFAULT_ORIGIN_PLOT_OPTIONS = Object.freeze(
+  /** @type {OriginPlotOptions} */ ({
+    plotType: 202,
+    xyPairs: "((1,2))",
+    plotCommand: "",
+    postPlotCommands: [],
+  }),
+);
 
 function normalizePositiveNumber(value, fallback) {
   const num = Number(value);
@@ -320,13 +329,19 @@ function normalizeOriginPostPlotCommands(value) {
   return [];
 }
 
-function normalizeOriginPlotOptions(rawOptions, fallbackOptions = DEFAULT_ORIGIN_PLOT_OPTIONS) {
+/**
+ * @param {unknown} rawOptions
+ * @param {OriginPlotOptions} [fallbackOptions]
+ * @returns {OriginPlotOptions}
+ */
+function normalizeOriginPlotOptions(rawOptions, fallbackOptions = undefined) {
   const raw = rawOptions && typeof rawOptions === "object" ? rawOptions : {};
+  const fallbackBase = fallbackOptions ?? DEFAULT_ORIGIN_PLOT_OPTIONS;
   const fallback =
-    fallbackOptions && typeof fallbackOptions === "object"
+    fallbackBase && typeof fallbackBase === "object"
       ? {
           ...DEFAULT_ORIGIN_PLOT_OPTIONS,
-          ...fallbackOptions,
+          ...fallbackBase,
         }
       : DEFAULT_ORIGIN_PLOT_OPTIONS;
 
@@ -352,11 +367,16 @@ function normalizeOriginPlotOptions(rawOptions, fallbackOptions = DEFAULT_ORIGIN
   };
 }
 
-function normalizeOriginCsvPayload(payload, plotDefaults = DEFAULT_ORIGIN_PLOT_OPTIONS) {
+/**
+ * @param {unknown} payload
+ * @param {OriginPlotOptions} [plotDefaults]
+ */
+function normalizeOriginCsvPayload(payload, plotDefaults = undefined) {
   const raw = payload && typeof payload === "object" ? payload : {};
   const csv = raw.csv && typeof raw.csv === "object" ? raw.csv : {};
   const sheet = raw.sheet && typeof raw.sheet === "object" ? raw.sheet : {};
   const plot = raw.plot && typeof raw.plot === "object" ? raw.plot : {};
+  const resolvedPlotDefaults = plotDefaults ?? DEFAULT_ORIGIN_PLOT_OPTIONS;
 
   const csvName = normalizeNonEmptyString(
     raw.csvName ?? csv.name,
@@ -376,7 +396,7 @@ function normalizeOriginCsvPayload(payload, plotDefaults = DEFAULT_ORIGIN_PLOT_O
       postPlotCommands: plot.postCommands ?? plot.postPlotCommands ?? raw.postPlotCommands,
       xyPairs: plot.xyPairs ?? raw.xyPairs,
     },
-    plotDefaults,
+    resolvedPlotDefaults,
   );
 
   return {
@@ -1495,3 +1515,5 @@ app.on("will-quit", () => {
   ipcMain.removeHandler(ipcChannels.originRunCsv);
   ipcMain.removeHandler(ipcChannels.originRuntimeCleanupRun);
 });
+
+

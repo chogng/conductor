@@ -36,9 +36,13 @@ function getPowerShellExePath() {
 
 function runProcess(exePath, args, options = {}) {
   return new Promise((resolve, reject) => {
+    const runOptions = options && typeof options === "object" ? options : {};
+    const cwd = Reflect.get(runOptions, "cwd");
+    const windowsHide = Reflect.get(runOptions, "windowsHide");
+
     const child = spawn(exePath, args, {
-      cwd: options.cwd,
-      windowsHide: options.windowsHide !== false,
+      cwd: typeof cwd === "string" && cwd ? cwd : undefined,
+      windowsHide: windowsHide !== false,
       stdio: ["ignore", "pipe", "pipe"],
     });
 
@@ -76,11 +80,15 @@ async function expandArchive(zipPath, destinationPath) {
     ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", psCommand],
     { windowsHide: true },
   );
+  const resultObj = result && typeof result === "object" ? result : {};
+  const code = Number(Reflect.get(resultObj, "code"));
+  const stderr = String(Reflect.get(resultObj, "stderr") || "");
+  const stdout = String(Reflect.get(resultObj, "stdout") || "");
 
-  if (result.code !== 0) {
+  if (code !== 0) {
     throw new Error(
-      `Failed to extract ZIP (${result.code}): ${
-        result.stderr || result.stdout || "unknown error"
+      `Failed to extract ZIP (${code}): ${
+        stderr || stdout || "unknown error"
       }`,
     );
   }
@@ -162,3 +170,6 @@ module.exports = {
   assertDirectoryPath,
   parseJsonFile,
 };
+
+
+

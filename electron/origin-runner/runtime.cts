@@ -133,11 +133,12 @@ function cleanupOneJobBase(baseDir, policy) {
   };
 }
 
-function runOriginRuntimeCleanup({
-  runtimeRootDir,
-  policy,
-  force = false,
-} = {}) {
+function runOriginRuntimeCleanup(options = {}) {
+  const source = options && typeof options === "object" ? options : {};
+  const runtimeRootDir = Reflect.get(source, "runtimeRootDir");
+  const policy = Reflect.get(source, "policy");
+  const force = Reflect.get(source, "force") === true;
+
   const normalizedPolicy = normalizeCleanupPolicy(policy);
   const resolvedRuntimeRoot = resolveRuntimeRootDir(runtimeRootDir);
   const originRootDir = path.join(resolvedRuntimeRoot, "origin");
@@ -180,7 +181,10 @@ function runOriginRuntimeCleanup({
   };
 }
 
-function createJobPaths(zipName, { runtimeRootDir } = {}) {
+function createJobPaths(zipName, options = {}) {
+  const source = options && typeof options === "object" ? options : {};
+  const runtimeRootDir = Reflect.get(source, "runtimeRootDir");
+
   const rootDir = path.join(
     resolveRuntimeRootDir(runtimeRootDir),
     "origin",
@@ -208,7 +212,10 @@ function createJobPaths(zipName, { runtimeRootDir } = {}) {
   };
 }
 
-function createBatchJobPaths({ runtimeRootDir } = {}) {
+function createBatchJobPaths(options = {}) {
+  const source = options && typeof options === "object" ? options : {};
+  const runtimeRootDir = Reflect.get(source, "runtimeRootDir");
+
   const rootDir = path.join(
     resolveRuntimeRootDir(runtimeRootDir),
     "origin",
@@ -232,7 +239,10 @@ function createBatchJobPaths({ runtimeRootDir } = {}) {
   };
 }
 
-function createCsvJobPaths(csvName, { runtimeRootDir } = {}) {
+function createCsvJobPaths(csvName, options = {}) {
+  const source = options && typeof options === "object" ? options : {};
+  const runtimeRootDir = Reflect.get(source, "runtimeRootDir");
+
   const rootDir = path.join(
     resolveRuntimeRootDir(runtimeRootDir),
     "origin",
@@ -265,3 +275,6 @@ module.exports = {
   createBatchJobPaths,
   createCsvJobPaths,
 };
+
+
+

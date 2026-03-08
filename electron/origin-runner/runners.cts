@@ -50,13 +50,13 @@ function buildOriginZipWorkerArgs({
   ];
 }
 
-function appendOriginPlotWorkerArgs(baseArgs, {
-  plotType,
-  xyPairs,
-  plotCommand,
-  postPlotCommands,
-} = {}) {
+function appendOriginPlotWorkerArgs(baseArgs, plotOptions = {}) {
   const args = Array.isArray(baseArgs) ? [...baseArgs] : [];
+  const source = plotOptions && typeof plotOptions === "object" ? plotOptions : {};
+  const plotType = Reflect.get(source, "plotType");
+  const xyPairs = Reflect.get(source, "xyPairs");
+  const plotCommand = Reflect.get(source, "plotCommand");
+  const postPlotCommands = Reflect.get(source, "postPlotCommands");
 
   const normalizedPlotType = Number(plotType);
   if (Number.isFinite(normalizedPlotType)) {
@@ -123,7 +123,7 @@ async function runNativeBatchWorker(workerExecutablePath, workerArgs, options = 
     const error = new Error(
       `Origin batch worker executable not found: ${workerExecutablePath}`,
     );
-    error.code = "ENOENT";
+    Reflect.set(error, "code", "ENOENT");
     throw error;
   }
 
@@ -139,7 +139,7 @@ async function runNativeZipWorker(workerExecutablePath, workerArgs, options = {}
     const error = new Error(
       `Origin ZIP worker executable not found: ${workerExecutablePath}`,
     );
-    error.code = "ENOENT";
+    Reflect.set(error, "code", "ENOENT");
     throw error;
   }
 
@@ -172,9 +172,11 @@ function collectPreferredPythonExecutables() {
 }
 
 async function runPythonScriptForBatch(pythonScriptPath, scriptArgs, options = {}) {
+  const source = options && typeof options === "object" ? options : {};
+  const requiredModuleRaw = Reflect.get(source, "requiredModule");
   const requiredModule =
-    typeof options?.requiredModule === "string" && options.requiredModule.trim()
-      ? options.requiredModule.trim()
+    typeof requiredModuleRaw === "string" && requiredModuleRaw.trim()
+      ? requiredModuleRaw.trim()
       : null;
 
   const attempts = [];
@@ -220,7 +222,11 @@ async function runPythonScriptForBatch(pythonScriptPath, scriptArgs, options = {
       };
     } catch (error) {
       lastError = error;
-      if (error?.code === "ENOENT") {
+      const errorCode = Reflect.get(
+        error && typeof error === "object" ? error : {},
+        "code",
+      );
+      if (errorCode === "ENOENT") {
         continue;
       }
       throw error;
@@ -231,13 +237,13 @@ async function runPythonScriptForBatch(pythonScriptPath, scriptArgs, options = {
     const moduleError = new Error(
       `Python executable found but required module '${requiredModule}' is unavailable.`,
     );
-    moduleError.code = "PY_MODULE_MISSING";
+    Reflect.set(moduleError, "code", "PY_MODULE_MISSING");
     throw moduleError;
   }
 
   const notFoundError = new Error("Python executable not found.");
-  notFoundError.code = "ENOENT";
-  notFoundError.cause = lastError || null;
+  Reflect.set(notFoundError, "code", "ENOENT");
+  Reflect.set(notFoundError, "cause", lastError || null);
   throw notFoundError;
 }
 
@@ -267,3 +273,6 @@ module.exports = {
   runPythonScriptForBatch,
   readWorkerErrorFiles,
 };
+
+
+

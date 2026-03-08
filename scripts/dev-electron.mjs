@@ -15,9 +15,14 @@ const viteCmd = isWin ? "cmd.exe" : npmCmd;
 const viteArgs = isWin
   ? ["/d", "/s", "/c", npmCmd, "run", "dev", "--", "--host", host, "--port", String(port)]
   : ["run", "dev", "--", "--host", host, "--port", String(port)];
+const electronBuildWatchCmd = isWin ? "cmd.exe" : npmCmd;
+const electronBuildWatchArgs = isWin
+  ? ["/d", "/s", "/c", npmCmd, "run", "build:electron", "--", "--watch", "--preserveWatchOutput"]
+  : ["run", "build:electron", "--", "--watch", "--preserveWatchOutput"];
 const electronBin = isWin
   ? path.join(process.cwd(), "node_modules", "electron", "dist", "electron.exe")
   : path.join(process.cwd(), "node_modules", ".bin", "electron");
+const electronDistDir = path.join(process.cwd(), "electron-dist");
 
 const watchedExtensions = new Set([".cjs", ".js", ".mjs", ".json"]);
 
@@ -27,6 +32,7 @@ let isShuttingDown = false;
 let restartTimer = null;
 let isRestarting = false;
 let electronProc = null;
+let electronBuildWatchProc = null;
 const watcherClosers = [];
 
 const checkPortAvailability = (targetHost, targetPort) =>
@@ -91,6 +97,28 @@ viteProc.on("exit", (code) => {
     void shutdown(viteExitCode || 1);
   }
 });
+
+const startElectronBuildWatcher = () => {
+  console.log("[desktop] Starting Electron TypeScript watcher.");
+  const proc = spawn(electronBuildWatchCmd, electronBuildWatchArgs, {
+    stdio: "inherit",
+    env: process.env,
+  });
+
+  proc.on("error", (error) => {
+    if (isShuttingDown) return;
+    console.error(`[desktop] Failed to start Electron TS watcher: ${error.message}`);
+    void shutdown(1);
+  });
+
+  proc.on("exit", (code) => {
+    if (isShuttingDown) return;
+    console.error(`[desktop] Electron TS watcher exited unexpectedly (code: ${code ?? 0}).`);
+    void shutdown((code ?? 1) || 1);
+  });
+
+  electronBuildWatchProc = proc;
+};
 
 const waitForServer = async (url, timeoutMs = 60_000) => {
   const started = Date.now();
@@ -297,7 +325,7 @@ const trackWatcher = (watcher) => {
 };
 
 const startElectronWatchers = () => {
-  const rootDir = path.join(process.cwd(), "electron");
+  const rootDir = electronDistDir;
 
   try {
     const recursiveWatcher = watch(
@@ -351,6 +379,7 @@ const shutdown = async (exitCode = 0) => {
   for (const closeWatcher of watcherClosers) closeWatcher();
 
   await stopProcess(electronProc);
+  await stopProcess(electronBuildWatchProc);
   await stopProcess(viteProc);
 
   process.exit(exitCode);
@@ -380,6 +409,7 @@ try {
 }
 
 console.log("[desktop] Dev server is ready.");
+startElectronBuildWatcher();
 startElectron();
 
 try {
