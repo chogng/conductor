@@ -12,6 +12,25 @@ const DeviceAnalysisSettingsPanel = ({
   storageSettings,
   t,
 }) => {
+  const cleanupEnabledOptions = [
+    { value: "true", label: t("da_settings_origin_cleanup_enable_on") },
+    { value: "false", label: t("da_settings_origin_cleanup_enable_off") },
+  ];
+  const cleanupKeepSuccessOptions = [
+    { value: "0", label: `0 (${t("common_clear")})` },
+    { value: "1", label: "1" },
+    { value: "3", label: "3" },
+    { value: "5", label: "5" },
+    { value: "10", label: "10" },
+  ];
+  const cleanupFailedDaysOptions = [
+    { value: "1", label: "1" },
+    { value: "3", label: "3" },
+    { value: "7", label: "7" },
+    { value: "14", label: "14" },
+    { value: "30", label: "30" },
+  ];
+
   return (
     <section aria-label={t("da_settings_section_aria_label")}>
       <h2 className="section_title">{t("da_settings_title")}</h2>
@@ -175,6 +194,95 @@ const DeviceAnalysisSettingsPanel = ({
               ? t("da_settings_origin_batch_running")
               : t("da_settings_origin_batch_btn")}
           </Button>
+        </div>
+
+        <div className="rounded-lg border border-border bg-bg-page p-3 space-y-3">
+          <div>
+            <p className="text-sm font-medium text-text-primary">
+              {t("da_settings_origin_cleanup_title")}
+            </p>
+            <p className="text-xs text-text-secondary mt-1">
+              {t("da_settings_origin_cleanup_desc")}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <p className="text-xs text-text-secondary">
+                {t("da_settings_origin_cleanup_enable_label")}
+              </p>
+              <Select
+                id="device-analysis-settings-origin-cleanup-enabled-select"
+                menuId="device-analysis-settings-origin-cleanup-enabled-menu"
+                value={String(Boolean(originSettings.cleanupEnabled))}
+                onChange={(value) => {
+                  void originSettings.onCleanupEnabledChange(value === "true");
+                }}
+                options={cleanupEnabledOptions}
+                disabled={originSettings.cleanupSaving}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-xs text-text-secondary">
+                {t("da_settings_origin_cleanup_keep_success_label")}
+              </p>
+              <Select
+                id="device-analysis-settings-origin-cleanup-keep-success-select"
+                menuId="device-analysis-settings-origin-cleanup-keep-success-menu"
+                value={String(originSettings.cleanupKeepSuccessJobs ?? 0)}
+                onChange={(value) => {
+                  void originSettings.onCleanupKeepSuccessJobsChange(value);
+                }}
+                options={cleanupKeepSuccessOptions}
+                disabled={originSettings.cleanupSaving}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-xs text-text-secondary">
+                {t("da_settings_origin_cleanup_failed_days_label")}
+              </p>
+              <Select
+                id="device-analysis-settings-origin-cleanup-failed-days-select"
+                menuId="device-analysis-settings-origin-cleanup-failed-days-menu"
+                value={String(originSettings.cleanupFailedRetentionDays ?? 7)}
+                onChange={(value) => {
+                  void originSettings.onCleanupFailedRetentionDaysChange(value);
+                }}
+                options={cleanupFailedDaysOptions}
+                disabled={originSettings.cleanupSaving}
+              />
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Button
+              id="device-analysis-settings-origin-cleanup-run-btn"
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="h-[38px] whitespace-nowrap"
+              onClick={() => {
+                void originSettings.onRunCleanupNow();
+              }}
+              disabled={
+                !originSettings.isCleanupAvailable ||
+                originSettings.cleanupRunning ||
+                originSettings.cleanupSaving
+              }
+            >
+              {originSettings.cleanupRunning
+                ? t("da_settings_origin_cleanup_running")
+                : t("da_settings_origin_cleanup_run_btn")}
+            </Button>
+          </div>
+
+          {originSettings.cleanupFeedback?.message ? (
+            <p className={feedbackClassName(originSettings.cleanupFeedback.type)}>
+              {originSettings.cleanupFeedback.message}
+            </p>
+          ) : null}
         </div>
 
         {!originSettings.isConfigurable ? (

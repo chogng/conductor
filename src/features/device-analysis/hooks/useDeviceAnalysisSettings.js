@@ -7,6 +7,21 @@ const IDLE_FEEDBACK = { type: "idle", message: "" };
 const normalizeTrimmedString = (value) =>
   typeof value === "string" && value.trim() ? value.trim() : "";
 
+const normalizeBoundedInt = (value, fallback, min, max) => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  const rounded = Math.floor(num);
+  if (rounded < min) return min;
+  if (rounded > max) return max;
+  return rounded;
+};
+
+const ORIGIN_CLEANUP_DEFAULTS = {
+  enabled: true,
+  keepSuccessJobs: 1,
+  failedRetentionDays: 7,
+};
+
 const buildOriginLogMessage = (baseMessage, logPath, t) => {
   const normalizedLogPath = normalizeTrimmedString(logPath);
   return normalizedLogPath
@@ -61,6 +76,10 @@ export const useDeviceAnalysisSettings = ({
   const [originHealthChecking, setOriginHealthChecking] = useState(false);
   const [originBatchRunning, setOriginBatchRunning] = useState(false);
   const [originPathFeedback, setOriginPathFeedback] = useState(IDLE_FEEDBACK);
+  const [originCleanupSaving, setOriginCleanupSaving] = useState(false);
+  const [originCleanupRunning, setOriginCleanupRunning] = useState(false);
+  const [originCleanupFeedback, setOriginCleanupFeedback] =
+    useState(IDLE_FEEDBACK);
 
   const handleUpdateDeviceAnalysisSettings = useCallback(
     async (updates) => {
@@ -104,6 +123,34 @@ export const useDeviceAnalysisSettings = ({
 
     return bridge;
   }, []);
+
+  const originCleanupConfig = useMemo(() => {
+    const settings = deviceAnalysisSettings || {};
+    const enabled =
+      typeof settings.originRuntimeCleanupEnabled === "boolean"
+        ? settings.originRuntimeCleanupEnabled
+        : ORIGIN_CLEANUP_DEFAULTS.enabled;
+
+    const keepSuccessJobs = normalizeBoundedInt(
+      settings.originRuntimeKeepSuccessJobs,
+      ORIGIN_CLEANUP_DEFAULTS.keepSuccessJobs,
+      0,
+      100,
+    );
+
+    const failedRetentionDays = normalizeBoundedInt(
+      settings.originRuntimeFailedRetentionDays,
+      ORIGIN_CLEANUP_DEFAULTS.failedRetentionDays,
+      1,
+      365,
+    );
+
+    return {
+      enabled,
+      keepSuccessJobs,
+      failedRetentionDays,
+    };
+  }, [deviceAnalysisSettings]);
 
   useEffect(() => {
     let cancelled = false;
@@ -383,6 +430,103 @@ export const useDeviceAnalysisSettings = ({
     }
   }, [getDesktopOriginBridge, t]);
 
+  const updateOriginCleanupSetting = useCallback(
+    async (updates) => {
+      const patch = updates && typeof updates === "object" ? updates : null;
+      if (!patch) return;
+
+      setOriginCleanupSaving(true);
+      setOriginCleanupFeedback(IDLE_FEEDBACK);
+      try {
+        await handleUpdateDeviceAnalysisSettings(patch);
+        setOriginCleanupFeedback({
+          type: "success",
+          message: t("da_settings_origin_cleanup_saved"),
+        });
+      } catch (error) {
+        setOriginCleanupFeedback({
+          type: "error",
+          message: t("da_settings_origin_cleanup_save_failed", {
+            error: error?.message || t("unknownError"),
+          }),
+        });
+      } finally {
+        setOriginCleanupSaving(false);
+      }
+    },
+    [handleUpdateDeviceAnalysisSettings, t],
+  );
+
+  const handleSetOriginCleanupEnabled = useCallback(
+    async (nextEnabled) => {
+      await updateOriginCleanupSetting({
+        originRuntimeCleanupEnabled: Boolean(nextEnabled),
+      });
+    },
+    [updateOriginCleanupSetting],
+  );
+
+  const handleSetOriginKeepSuccessJobs = useCallback(
+    async (nextValue) => {
+      const normalized = normalizeBoundedInt(
+        nextValue,
+        ORIGIN_CLEANUP_DEFAULTS.keepSuccessJobs,
+        0,
+        100,
+      );
+      await updateOriginCleanupSetting({
+        originRuntimeKeepSuccessJobs: normalized,
+      });
+    },
+    [updateOriginCleanupSetting],
+  );
+
+  const handleSetOriginFailedRetentionDays = useCallback(
+    async (nextValue) => {
+      const normalized = normalizeBoundedInt(
+        nextValue,
+        ORIGIN_CLEANUP_DEFAULTS.failedRetentionDays,
+        1,
+        365,
+      );
+      await updateOriginCleanupSetting({
+        originRuntimeFailedRetentionDays: normalized,
+      });
+    },
+    [updateOriginCleanupSetting],
+  );
+
+  const handleRunOriginCleanupNow = useCallback(async () => {
+    const bridge = getDesktopOriginBridge();
+    if (!bridge || typeof bridge.runOriginRuntimeCleanup !== "function") return;
+
+    setOriginCleanupRunning(true);
+    setOriginCleanupFeedback(IDLE_FEEDBACK);
+
+    try {
+      const result = await bridge.runOriginRuntimeCleanup();
+      const removedTotal = Number(result?.removedTotal);
+      const removedSafe =
+        Number.isFinite(removedTotal) && removedTotal >= 0 ? removedTotal : 0;
+
+      setOriginCleanupFeedback({
+        type: "success",
+        message: t("da_settings_origin_cleanup_run_success", {
+          count: removedSafe,
+        }),
+      });
+    } catch (error) {
+      setOriginCleanupFeedback({
+        type: "error",
+        message: t("da_settings_origin_cleanup_run_failed", {
+          error: error?.message || t("unknownError"),
+        }),
+      });
+    } finally {
+      setOriginCleanupRunning(false);
+    }
+  }, [getDesktopOriginBridge, t]);
+
   const storageSettings = useMemo(
     () => ({
       currentPath: String(persistencePathInfo?.currentPath ?? ""),
@@ -406,6 +550,12 @@ export const useDeviceAnalysisSettings = ({
   const originSettings = useMemo(
     () => ({
       currentPath: String(originExePath ?? ""),
+      cleanupEnabled: originCleanupConfig.enabled,
+      cleanupFailedRetentionDays: originCleanupConfig.failedRetentionDays,
+      cleanupFeedback: originCleanupFeedback,
+      cleanupKeepSuccessJobs: originCleanupConfig.keepSuccessJobs,
+      cleanupRunning: originCleanupRunning,
+      cleanupSaving: originCleanupSaving,
       feedback: originPathFeedback,
       isBatchAvailable:
         isWindowsDesktopShell &&
@@ -417,18 +567,36 @@ export const useDeviceAnalysisSettings = ({
         isWindowsDesktopShell &&
         Boolean(originBridge) &&
         typeof originBridge?.checkOriginHealth === "function",
+      isCleanupAvailable:
+        isWindowsDesktopShell &&
+        Boolean(originBridge) &&
+        typeof originBridge?.runOriginRuntimeCleanup === "function",
       isHealthChecking: originHealthChecking,
       isLoading: originPathLoading,
       isSaving: originPathSaving,
       onCheckHealth: handleCheckOriginHealth,
       onChoosePath: handleChooseOriginExePath,
+      onCleanupEnabledChange: handleSetOriginCleanupEnabled,
+      onCleanupFailedRetentionDaysChange: handleSetOriginFailedRetentionDays,
+      onCleanupKeepSuccessJobsChange: handleSetOriginKeepSuccessJobs,
+      onRunCleanupNow: handleRunOriginCleanupNow,
       onRunBatch: handleRunOriginBatch,
     }),
     [
+      handleRunOriginCleanupNow,
       handleCheckOriginHealth,
       handleChooseOriginExePath,
+      handleSetOriginCleanupEnabled,
+      handleSetOriginFailedRetentionDays,
+      handleSetOriginKeepSuccessJobs,
       handleRunOriginBatch,
       isWindowsDesktopShell,
+      originCleanupConfig.enabled,
+      originCleanupConfig.failedRetentionDays,
+      originCleanupConfig.keepSuccessJobs,
+      originCleanupFeedback,
+      originCleanupRunning,
+      originCleanupSaving,
       originBatchRunning,
       originBridge,
       originExePath,

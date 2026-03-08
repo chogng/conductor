@@ -15,6 +15,8 @@ const ipcChannels = {
   originHealthCheck: "device-analysis-origin:health-check",
   originRunBatch: "device-analysis-origin:run-batch",
   originRunZip: "device-analysis-origin:run-zip",
+  originRunCsv: "device-analysis-origin:run-csv",
+  originRuntimeCleanupRun: "device-analysis-origin:runtime-cleanup:run",
 };
 
 contextBridge.exposeInMainWorld("desktopMeta", {
@@ -74,5 +76,11 @@ contextBridge.exposeInMainWorld("desktopOrigin", {
   },
   async runOriginZip(payload) {
     return ipcRenderer.invoke(ipcChannels.originRunZip, payload);
+  },
+  async runOriginCsv(payload) {
+    return ipcRenderer.invoke(ipcChannels.originRunCsv, payload);
+  },
+  async runOriginRuntimeCleanup(payload) {
+    return ipcRenderer.invoke(ipcChannels.originRuntimeCleanupRun, payload);
   },
 });

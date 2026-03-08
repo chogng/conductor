@@ -7,8 +7,10 @@ const {
   normalizeOriginExePath,
   pickOriginExecutable,
   runOriginBatchJob,
+  runOriginRuntimeCleanup,
   runOriginHealthCheck,
   runOriginZipJob,
+  runOriginCsvJob,
 } = require("./origin-runner.cjs");
 
 const isDev = !app.isPackaged;
@@ -31,6 +33,9 @@ const DEVICE_ANALYSIS_DEFAULT_SETTINGS = {
   ssIdLow: 1e-11,
   ssIdHigh: 1e-9,
   originExePath: null,
+  originRuntimeCleanupEnabled: true,
+  originRuntimeKeepSuccessJobs: 1,
+  originRuntimeFailedRetentionDays: 7,
 };
 
 let deviceAnalysisStoreConfigCache = null;
@@ -128,6 +133,52 @@ function resolveOriginBatchScriptPath() {
   );
 }
 
+function resolveOriginZipScriptPath() {
+  if (!app.isPackaged) {
+    return path.join(__dirname, "..", "origin", "run_origin_zip.py");
+  }
+
+  const unpackedPath = path.join(
+    process.resourcesPath,
+    "app.asar.unpacked",
+    "origin",
+    "run_origin_zip.py",
+  );
+  if (fs.existsSync(unpackedPath)) {
+    return unpackedPath;
+  }
+
+  return path.join(
+    process.resourcesPath,
+    "app.asar",
+    "origin",
+    "run_origin_zip.py",
+  );
+}
+
+function resolveOriginCsvScriptPath() {
+  if (!app.isPackaged) {
+    return path.join(__dirname, "..", "origin", "run_origin_csv.py");
+  }
+
+  const unpackedPath = path.join(
+    process.resourcesPath,
+    "app.asar.unpacked",
+    "origin",
+    "run_origin_csv.py",
+  );
+  if (fs.existsSync(unpackedPath)) {
+    return unpackedPath;
+  }
+
+  return path.join(
+    process.resourcesPath,
+    "app.asar",
+    "origin",
+    "run_origin_csv.py",
+  );
+}
+
 function resolveFirstExistingPath(candidates) {
   const list = Array.isArray(candidates) ? candidates : [];
   for (const item of list) {
@@ -187,6 +238,8 @@ function resolveOriginZipWorkerPath() {
 
 const ORIGIN_WORKER_SCRIPT_PATH = resolveOriginWorkerScriptPath();
 const ORIGIN_BATCH_SCRIPT_PATH = resolveOriginBatchScriptPath();
+const ORIGIN_ZIP_SCRIPT_PATH = resolveOriginZipScriptPath();
+const ORIGIN_CSV_SCRIPT_PATH = resolveOriginCsvScriptPath();
 const ORIGIN_BATCH_WORKER_PATH = resolveOriginBatchWorkerPath();
 const ORIGIN_ZIP_WORKER_PATH = resolveOriginZipWorkerPath();
 
@@ -205,11 +258,19 @@ const ipcChannels = {
   originHealthCheck: "device-analysis-origin:health-check",
   originRunBatch: "device-analysis-origin:run-batch",
   originRunZip: "device-analysis-origin:run-zip",
+  originRunCsv: "device-analysis-origin:run-csv",
+  originRuntimeCleanupRun: "device-analysis-origin:runtime-cleanup:run",
 };
 
 function normalizePositiveNumber(value, fallback) {
   const num = Number(value);
   return Number.isFinite(num) && num > 0 ? num : fallback;
+}
+
+function normalizeBoundedInt(value, fallback, min, max) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.min(max, Math.max(min, Math.floor(num)));
 }
 
 function normalizeDeviceAnalysisSettings(raw) {
@@ -249,6 +310,22 @@ function normalizeDeviceAnalysisSettings(raw) {
     DEVICE_ANALYSIS_DEFAULT_SETTINGS.ssIdHigh,
   );
   const originExePath = normalizeOriginExePath(next.originExePath);
+  const originRuntimeCleanupEnabled =
+    typeof next.originRuntimeCleanupEnabled === "boolean"
+      ? next.originRuntimeCleanupEnabled
+      : DEVICE_ANALYSIS_DEFAULT_SETTINGS.originRuntimeCleanupEnabled;
+  const originRuntimeKeepSuccessJobs = normalizeBoundedInt(
+    next.originRuntimeKeepSuccessJobs,
+    DEVICE_ANALYSIS_DEFAULT_SETTINGS.originRuntimeKeepSuccessJobs,
+    0,
+    100,
+  );
+  const originRuntimeFailedRetentionDays = normalizeBoundedInt(
+    next.originRuntimeFailedRetentionDays,
+    DEVICE_ANALYSIS_DEFAULT_SETTINGS.originRuntimeFailedRetentionDays,
+    1,
+    365,
+  );
 
   return {
     ...DEVICE_ANALYSIS_DEFAULT_SETTINGS,
@@ -263,6 +340,9 @@ function normalizeDeviceAnalysisSettings(raw) {
     ssIdLow,
     ssIdHigh,
     originExePath,
+    originRuntimeCleanupEnabled,
+    originRuntimeKeepSuccessJobs,
+    originRuntimeFailedRetentionDays,
   };
 }
 
@@ -615,6 +695,23 @@ function saveOriginExePathToSettings(originExePath) {
   return settings.originExePath ?? null;
 }
 
+function getOriginRuntimeCleanupPolicyFromSettings() {
+  const settings = readDeviceAnalysisSettings();
+  return {
+    enabled: Boolean(settings?.originRuntimeCleanupEnabled),
+    keepSuccessJobs: Number(settings?.originRuntimeKeepSuccessJobs),
+    failedRetentionDays: Number(settings?.originRuntimeFailedRetentionDays),
+  };
+}
+
+async function tryRunOriginRuntimeCleanup({ force = false } = {}) {
+  return runOriginRuntimeCleanup({
+    runtimeRootDir: getDeviceAnalysisHomeDir(),
+    policy: getOriginRuntimeCleanupPolicyFromSettings(),
+    force,
+  });
+}
+
 async function handleOriginExeGet() {
   const configured = getOriginExePathFromSettings();
   if (configured) {
@@ -701,10 +798,19 @@ async function handleOriginHealthCheck(event, payload) {
 
   const originExePath = await resolveOriginExePathForHealthCheck(event, payload);
 
-  return runOriginHealthCheck({
-    originExePath,
-    workerScriptPath: ORIGIN_WORKER_SCRIPT_PATH,
-  });
+  try {
+    return await runOriginHealthCheck({
+      originExePath,
+      workerScriptPath: ORIGIN_WORKER_SCRIPT_PATH,
+      runtimeRootDir: getDeviceAnalysisHomeDir(),
+    });
+  } finally {
+    try {
+      await tryRunOriginRuntimeCleanup();
+    } catch (cleanupError) {
+      console.warn("[origin-cleanup] Health check cleanup failed:", cleanupError);
+    }
+  }
 }
 
 async function pickOriginBatchInputDir(event, defaultPath) {
@@ -760,12 +866,21 @@ async function handleOriginRunBatch(event, payload) {
     throw new Error("__ORIGIN_EXE_REQUIRED__");
   }
 
-  return runOriginBatchJob({
-    inputDir,
-    originExePath,
-    batchScriptPath: ORIGIN_BATCH_SCRIPT_PATH,
-    batchWorkerPath: ORIGIN_BATCH_WORKER_PATH,
-  });
+  try {
+    return await runOriginBatchJob({
+      inputDir,
+      originExePath,
+      batchScriptPath: ORIGIN_BATCH_SCRIPT_PATH,
+      batchWorkerPath: ORIGIN_BATCH_WORKER_PATH,
+      runtimeRootDir: getDeviceAnalysisHomeDir(),
+    });
+  } finally {
+    try {
+      await tryRunOriginRuntimeCleanup();
+    } catch (cleanupError) {
+      console.warn("[origin-cleanup] Batch cleanup failed:", cleanupError);
+    }
+  }
 }
 
 async function handleOriginRunZip(event, payload) {
@@ -791,13 +906,71 @@ async function handleOriginRunZip(event, payload) {
     throw new Error("__ORIGIN_EXE_REQUIRED__");
   }
 
-  return runOriginZipJob({
-    zipName,
-    bytes,
-    originExePath,
-    workerScriptPath: ORIGIN_WORKER_SCRIPT_PATH,
-    workerExecutablePath: ORIGIN_ZIP_WORKER_PATH,
-  });
+  try {
+    return await runOriginZipJob({
+      zipName,
+      bytes,
+      originExePath,
+      workerScriptPath: ORIGIN_ZIP_SCRIPT_PATH,
+      workerExecutablePath: ORIGIN_ZIP_WORKER_PATH,
+      runtimeRootDir: getDeviceAnalysisHomeDir(),
+    });
+  } finally {
+    try {
+      await tryRunOriginRuntimeCleanup();
+    } catch (cleanupError) {
+      console.warn("[origin-cleanup] ZIP cleanup failed:", cleanupError);
+    }
+  }
+}
+
+async function handleOriginRunCsv(event, payload) {
+  if (!isWindows) {
+    throw new Error("Origin integration is only available on Windows desktop.");
+  }
+
+  const csvName =
+    payload && typeof payload.csvName === "string"
+      ? payload.csvName
+      : "device_analysis_origin.csv";
+  const csvText =
+    payload && typeof payload.csvText === "string" ? payload.csvText : "";
+  const seriesName =
+    payload && typeof payload.seriesName === "string" ? payload.seriesName : "";
+
+  if (!csvText.trim()) {
+    throw new Error("CSV payload is missing.");
+  }
+
+  const originExePath = await resolveOriginExePath(event);
+  if (!originExePath) {
+    throw new Error("__ORIGIN_EXE_REQUIRED__");
+  }
+
+  try {
+    return await runOriginCsvJob({
+      csvName,
+      csvText,
+      seriesName,
+      originExePath,
+      workerScriptPath: ORIGIN_CSV_SCRIPT_PATH,
+      runtimeRootDir: getDeviceAnalysisHomeDir(),
+    });
+  } finally {
+    try {
+      await tryRunOriginRuntimeCleanup();
+    } catch (cleanupError) {
+      console.warn("[origin-cleanup] CSV cleanup failed:", cleanupError);
+    }
+  }
+}
+
+async function handleOriginRuntimeCleanupRun() {
+  if (!isWindows) {
+    throw new Error("Origin integration is only available on Windows desktop.");
+  }
+
+  return tryRunOriginRuntimeCleanup({ force: true });
 }
 
 function createMainWindow() {
@@ -896,6 +1069,11 @@ app.whenReady().then(() => {
   ipcMain.handle(ipcChannels.originHealthCheck, handleOriginHealthCheck);
   ipcMain.handle(ipcChannels.originRunBatch, handleOriginRunBatch);
   ipcMain.handle(ipcChannels.originRunZip, handleOriginRunZip);
+  ipcMain.handle(ipcChannels.originRunCsv, handleOriginRunCsv);
+  ipcMain.handle(
+    ipcChannels.originRuntimeCleanupRun,
+    handleOriginRuntimeCleanupRun,
+  );
   createMainWindow();
 
   app.on("activate", () => {
@@ -923,4 +1101,6 @@ app.on("will-quit", () => {
   ipcMain.removeHandler(ipcChannels.originHealthCheck);
   ipcMain.removeHandler(ipcChannels.originRunBatch);
   ipcMain.removeHandler(ipcChannels.originRunZip);
+  ipcMain.removeHandler(ipcChannels.originRunCsv);
+  ipcMain.removeHandler(ipcChannels.originRuntimeCleanupRun);
 });

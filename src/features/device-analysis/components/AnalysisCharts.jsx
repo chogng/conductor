@@ -18,7 +18,6 @@ import {
   YAxis,
 } from "recharts";
 import Papa from "papaparse";
-import JSZip from "jszip";
 import {
   computeCentralDerivative,
   computeSubthresholdSwing,
@@ -170,7 +169,7 @@ const AnalysisCharts = ({
     yDecadeStep: 1,
   });
 
-  const [originBusy, setOriginBusy] = useState(false);
+  const originBusyRef = useRef(false);
 
   const [toast, setToast] = useState({
     isVisible: false,
@@ -188,7 +187,7 @@ const AnalysisCharts = ({
   const getDesktopOriginBridge = React.useCallback(() => {
     if (typeof window === "undefined") return null;
     const bridge = window.desktopOrigin;
-    if (!bridge || typeof bridge.runOriginZip !== "function") return null;
+    if (!bridge || typeof bridge.runOriginCsv !== "function") return null;
     return bridge;
   }, []);
 
@@ -424,49 +423,7 @@ const AnalysisCharts = ({
     return raw.length > max ? raw.slice(0, max) : raw;
   };
 
-  const makePairsExpr = React.useCallback((xyPairCount) => {
-    const pairs = [];
-    const count = Math.max(1, Number(xyPairCount) || 1);
-    for (let i = 0; i < count; i++) {
-      pairs.push(`(${i * 2 + 1},${i * 2 + 2})`);
-    }
-    return `(${pairs.join(",")})`; // e.g. ((1,2),(3,4))
-  }, []);
-
-  const buildOgsScript = React.useCallback((csvFileName, xyPairCount) => {
-    const pairsExpr = makePairsExpr(xyPairCount);
-    const safeCsv = String(csvFileName || "data.csv").replace(/"/g, "");
-
-    return `[Main]
-// Auto plot exported Device Analysis CSV in Origin
-// Usage:
-//   1) Put CSV and this OGS in the same folder, set Origin current folder to it, then run:
-//        run.section("${safeCsv.replace(/\\.csv$/i, ".ogs")}", Main)
-//   2) Or pass CSV full path as %1:
-//        run.section("${safeCsv.replace(/\\.csv$/i, ".ogs")}", Main, "C:\\\\path\\\\${safeCsv}")
-
-string csv$ = "%1";
-if(csv$ == "")
-{
-    csv$ = "${safeCsv}";
-}
-
-// If CSV not found (exist returns -1), prompt user to select a CSV file.
-if(exist(csv$) < 0)
-{
-    dlgfile group:=*.csv;
-    csv$ = fname$;
-}
-
-newbook;
-impCSV fname:=csv$;
-
-// Plot XY XY pairs: (1,2) (3,4) ...
-plotxy iy:=${pairsExpr} plot:=202;
-`;
-  }, [makePairsExpr]);
-
-  const buildOriginPackageForFocusedSeries = React.useCallback(async () => {
+  const buildOriginCsvPayloadForFocusedSeries = React.useCallback(() => {
     const targetSeries =
       focusedSeries ??
       (Array.isArray(activeFile?.series) ? activeFile.series[0] : null);
@@ -498,74 +455,28 @@ plotxy iy:=${pairsExpr} plot:=202;
     const base = sanitizeFilename(activeFile?.fileName ?? "device_analysis").replace(/\.csv$/i, "");
     const seriesName = sanitizeFilename(targetSeries?.name ?? "curve").replace(/\.csv$/i, "");
     const csvName = `${base}__${seriesName}.csv`;
-    const ogsName = `${base}__${seriesName}.ogs`;
-    const zipName = `${base}__${seriesName}__origin.zip`;
-
-    const readme = `Device Analysis -> Origin package (single curve)
-
-Files:
-- *.csv: exported data (x1,y1)
-- *.ogs: Origin LabTalk script to import CSV and plot automatically
-
-How to use (manual fallback):
-1) Unzip this package to a folder.
-2) Open Origin.
-3) (Optional) Set Origin current folder to the unzip folder (Command Window: cd "path")
-4) Run the script (Script Window):
-   run.section("${ogsName}", Main)
-   - If the CSV file is not found, Origin will prompt you to select it.
-`;
-
-    const zip = new JSZip();
-    zip.file("README_ORIGIN.txt", readme);
-    zip.file(csvName, "\uFEFF" + csvText);
-    zip.file(ogsName, buildOgsScript(csvName, 1));
-    zip.file(
-      "manifest.json",
-      JSON.stringify(
-        {
-          version: "origin_package_v1",
-          kind: "single_curve",
-          fileId: activeFile.fileId,
-          fileName: activeFile.fileName ?? null,
-          seriesId: targetSeries.id,
-          seriesName: targetSeries.name ?? null,
-          groupIndex,
-          yCol: Number.isFinite(Number(targetSeries?.yCol))
-            ? Number(targetSeries.yCol)
-            : null,
-          csvName,
-          ogsName,
-        },
-        null,
-        2,
-      ),
-    );
-
-    const zipBlob = await zip.generateAsync({
-      type: "blob",
-      compression: "DEFLATE",
-      compressionOptions: { level: 6 },
-    });
-
-    return { zipBlob, zipName, csvName, ogsName };
-  }, [activeFile, focusedSeries, t, buildOgsScript]);
+    return {
+      csvName,
+      csvText: "\uFEFF" + csvText,
+      seriesName: targetSeries?.name ?? seriesName,
+    };
+  }, [activeFile, focusedSeries, t]);
 
   const handleOpenInOrigin = React.useCallback(async () => {
-    if (originBusy) return;
+    if (originBusyRef.current) return;
 
     try {
-      setOriginBusy(true);
+      originBusyRef.current = true;
       const originBridge = getDesktopOriginBridge();
       if (!originBridge) {
         throw new Error(t("da_origin_pick_exe_required"));
       }
 
-      const pkg = await buildOriginPackageForFocusedSeries();
-      const zipArrayBuffer = await pkg.zipBlob.arrayBuffer();
-      await originBridge.runOriginZip({
-        zipName: pkg.zipName,
-        bytes: zipArrayBuffer,
+      const pkg = buildOriginCsvPayloadForFocusedSeries();
+      await originBridge.runOriginCsv({
+        csvName: pkg.csvName,
+        csvText: pkg.csvText,
+        seriesName: pkg.seriesName,
       });
 
       showToast(t("da_open_in_origin_success"), "success");
@@ -580,12 +491,11 @@ How to use (manual fallback):
         );
       }
     } finally {
-      setOriginBusy(false);
+      originBusyRef.current = false;
     }
   }, [
-    buildOriginPackageForFocusedSeries,
+    buildOriginCsvPayloadForFocusedSeries,
     getDesktopOriginBridge,
-    originBusy,
     showToast,
     t,
   ]);

@@ -1,0 +1,267 @@
+const crypto = require("node:crypto");
+const fs = require("node:fs");
+const path = require("node:path");
+const {
+  ensureDir,
+  normalizeOriginExePath,
+  sanitizeFileName,
+} = require("./core.cjs");
+
+function resolveRuntimeRootDir(runtimeRootDir) {
+  const normalized = normalizeOriginExePath(runtimeRootDir);
+  const fallback = path.join(process.cwd(), ".device");
+  const candidate = normalized
+    ? path.isAbsolute(normalized)
+      ? normalized
+      : path.resolve(process.cwd(), normalized)
+    : fallback;
+  ensureDir(candidate);
+  return candidate;
+}
+
+function normalizeCleanupPolicy(policy) {
+  const source = policy && typeof policy === "object" ? policy : {};
+
+  const enabled =
+    typeof source.enabled === "boolean" ? source.enabled : true;
+
+  const keepSuccessJobsRaw = Number(source.keepSuccessJobs);
+  const keepSuccessJobs = Number.isFinite(keepSuccessJobsRaw)
+    ? Math.min(100, Math.max(0, Math.floor(keepSuccessJobsRaw)))
+    : 1;
+
+  const failedRetentionDaysRaw = Number(source.failedRetentionDays);
+  const failedRetentionDays = Number.isFinite(failedRetentionDaysRaw)
+    ? Math.min(365, Math.max(1, Math.floor(failedRetentionDaysRaw)))
+    : 7;
+
+  return {
+    enabled,
+    keepSuccessJobs,
+    failedRetentionDays,
+  };
+}
+
+function listJobDirectories(baseDir) {
+  if (!baseDir || !fs.existsSync(baseDir)) return [];
+
+  let entries = [];
+  try {
+    entries = fs.readdirSync(baseDir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  return entries
+    .filter((entry) => entry?.isDirectory?.())
+    .map((entry) => path.join(baseDir, entry.name));
+}
+
+function readJobErrorText(jobDir) {
+  const errorPath = path.join(jobDir, ".ob", "error.txt");
+  if (!fs.existsSync(errorPath)) return "";
+  try {
+    return String(fs.readFileSync(errorPath, "utf8") || "").trim();
+  } catch {
+    return "";
+  }
+}
+
+function getJobMtimeMs(jobDir) {
+  try {
+    const stat = fs.statSync(jobDir);
+    return Number.isFinite(stat?.mtimeMs) ? stat.mtimeMs : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function deleteJobDirectory(jobDir) {
+  try {
+    fs.rmSync(jobDir, { recursive: true, force: true });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function cleanupOneJobBase(baseDir, policy) {
+  const jobs = listJobDirectories(baseDir).map((jobDir) => {
+    const errorText = readJobErrorText(jobDir);
+    return {
+      jobDir,
+      isFailed: errorText.length > 0,
+      mtimeMs: getJobMtimeMs(jobDir),
+    };
+  });
+
+  const successJobs = jobs
+    .filter((item) => !item.isFailed)
+    .sort((a, b) => b.mtimeMs - a.mtimeMs);
+  const failedJobs = jobs.filter((item) => item.isFailed);
+
+  const keepSet = new Set(
+    successJobs.slice(0, policy.keepSuccessJobs).map((item) => item.jobDir),
+  );
+
+  const cutoffMs =
+    Date.now() - policy.failedRetentionDays * 24 * 60 * 60 * 1000;
+
+  const toDelete = [];
+  for (const job of successJobs) {
+    if (!keepSet.has(job.jobDir)) {
+      toDelete.push({ ...job, reason: "SUCCESS_OVER_LIMIT" });
+    }
+  }
+  for (const job of failedJobs) {
+    if (job.mtimeMs < cutoffMs) {
+      toDelete.push({ ...job, reason: "FAILED_EXPIRED" });
+    }
+  }
+
+  let removed = 0;
+  for (const item of toDelete) {
+    if (deleteJobDirectory(item.jobDir)) removed += 1;
+  }
+
+  return {
+    baseDir,
+    totalJobs: jobs.length,
+    failedJobs: failedJobs.length,
+    successJobs: successJobs.length,
+    removedJobs: removed,
+  };
+}
+
+function runOriginRuntimeCleanup({
+  runtimeRootDir,
+  policy,
+  force = false,
+} = {}) {
+  const normalizedPolicy = normalizeCleanupPolicy(policy);
+  const resolvedRuntimeRoot = resolveRuntimeRootDir(runtimeRootDir);
+  const originRootDir = path.join(resolvedRuntimeRoot, "origin");
+  ensureDir(originRootDir);
+
+  if (!force && !normalizedPolicy.enabled) {
+    return {
+      ok: true,
+      skipped: true,
+      reason: "ORIGIN_RUNTIME_CLEANUP_DISABLED",
+      runtimeRootDir: originRootDir,
+      policy: normalizedPolicy,
+      removedTotal: 0,
+    };
+  }
+
+  const zipSummary = cleanupOneJobBase(
+    path.join(originRootDir, "jobs"),
+    normalizedPolicy,
+  );
+  const batchSummary = cleanupOneJobBase(
+    path.join(originRootDir, "batch-jobs"),
+    normalizedPolicy,
+  );
+  const csvSummary = cleanupOneJobBase(
+    path.join(originRootDir, "csv-jobs"),
+    normalizedPolicy,
+  );
+
+  return {
+    ok: true,
+    skipped: false,
+    runtimeRootDir: originRootDir,
+    policy: normalizedPolicy,
+    zip: zipSummary,
+    batch: batchSummary,
+    csv: csvSummary,
+    removedTotal:
+      zipSummary.removedJobs + batchSummary.removedJobs + csvSummary.removedJobs,
+  };
+}
+
+function createJobPaths(zipName, { runtimeRootDir } = {}) {
+  const rootDir = path.join(
+    resolveRuntimeRootDir(runtimeRootDir),
+    "origin",
+    "jobs",
+  );
+  ensureDir(rootDir);
+
+  const jobId = `${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+  const jobDir = path.join(rootDir, jobId);
+  const extractDir = path.join(jobDir, "extract");
+  const workDir = path.join(jobDir, ".ob");
+
+  ensureDir(jobDir);
+  ensureDir(extractDir);
+  ensureDir(workDir);
+
+  const safeZipName = sanitizeFileName(zipName);
+  const inputZipPath = path.join(jobDir, safeZipName);
+
+  return {
+    jobDir,
+    extractDir,
+    workDir,
+    inputZipPath,
+  };
+}
+
+function createBatchJobPaths({ runtimeRootDir } = {}) {
+  const rootDir = path.join(
+    resolveRuntimeRootDir(runtimeRootDir),
+    "origin",
+    "batch-jobs",
+  );
+  ensureDir(rootDir);
+
+  const jobId = `${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+  const jobDir = path.join(rootDir, jobId);
+  const workDir = path.join(jobDir, ".ob");
+
+  ensureDir(jobDir);
+  ensureDir(workDir);
+
+  return {
+    jobDir,
+    workDir,
+    logPath: path.join(workDir, "originbridge.log"),
+    errorPath: path.join(workDir, "error.txt"),
+    summaryPath: path.join(workDir, "summary.json"),
+  };
+}
+
+function createCsvJobPaths(csvName, { runtimeRootDir } = {}) {
+  const rootDir = path.join(
+    resolveRuntimeRootDir(runtimeRootDir),
+    "origin",
+    "csv-jobs",
+  );
+  ensureDir(rootDir);
+
+  const jobId = `${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+  const jobDir = path.join(rootDir, jobId);
+  const workDir = path.join(jobDir, ".ob");
+
+  ensureDir(jobDir);
+  ensureDir(workDir);
+
+  const safeCsvName = sanitizeFileName(csvName || "device_analysis_origin.csv");
+  const csvPath = path.join(jobDir, safeCsvName);
+
+  return {
+    jobDir,
+    workDir,
+    csvPath,
+    logPath: path.join(workDir, "originbridge.log"),
+    errorPath: path.join(workDir, "error.txt"),
+  };
+}
+
+module.exports = {
+  runOriginRuntimeCleanup,
+  createJobPaths,
+  createBatchJobPaths,
+  createCsvJobPaths,
+};

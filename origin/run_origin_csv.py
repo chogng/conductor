@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 import argparse
 import json
 import subprocess
@@ -26,7 +26,7 @@ def extract_hresult(exc: Exception):
     return None
 
 
-class ZipContext:
+class CsvContext:
     def __init__(self, work_dir: Path, log_path: Path, error_path: Path, origin_exe: str):
         self.work_dir = work_dir
         self.log_path = log_path
@@ -35,8 +35,8 @@ class ZipContext:
 
     def log(self, message: str) -> None:
         line = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} {message}"
-        with self.log_path.open("a", encoding="utf-8") as f:
-            f.write(line + "\n")
+        with self.log_path.open("a", encoding="utf-8") as file_obj:
+            file_obj.write(line + "\n")
 
     def write_error(
         self,
@@ -69,13 +69,14 @@ class ZipContext:
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Run Device Analysis ZIP import job in Origin via originpro.",
+        description="Run Device Analysis CSV import job in Origin via originpro.",
     )
     parser.add_argument("--work-dir", required=True)
-    parser.add_argument("--extract-dir", required=True)
+    parser.add_argument("--csv-path", required=True)
     parser.add_argument("--origin-exe", required=True)
     parser.add_argument("--log-path", default="")
     parser.add_argument("--error-path", default="")
+    parser.add_argument("--series-name", default="")
     parser.add_argument("--max-com-attempts", type=int, default=8)
     return parser.parse_args()
 
@@ -84,22 +85,11 @@ def escape_labtalk_path(path_value: str) -> str:
     return str(path_value).replace("\\", "\\\\").replace('"', '\\"')
 
 
-def discover_primary_files(extract_dir: Path):
-    ogs_files = sorted(
-        (item for item in extract_dir.rglob("*") if item.is_file() and item.suffix.lower() == ".ogs"),
-        key=lambda item: str(item).lower(),
-    )
-    csv_files = sorted(
-        (item for item in extract_dir.rglob("*") if item.is_file() and item.suffix.lower() == ".csv"),
-        key=lambda item: str(item).lower(),
-    )
-    return (
-        ogs_files[0] if ogs_files else None,
-        csv_files[0] if csv_files else None,
-    )
+def escape_labtalk_text(text_value: str) -> str:
+    return str(text_value).replace("\\", "\\\\").replace('"', '\\"')
 
 
-def try_launch_origin(ctx: ZipContext, origin_exe: str):
+def try_launch_origin(ctx: CsvContext, origin_exe: str):
     try:
         proc = subprocess.Popen(
             [origin_exe],
@@ -117,16 +107,14 @@ def try_launch_origin(ctx: ZipContext, origin_exe: str):
         return None
 
 
-def get_originpro_module(ctx: ZipContext):
+def get_originpro_module(ctx: CsvContext):
     try:
         import originpro as op  # type: ignore
     except Exception as exc:
         ctx.write_error(
             code="ORIGIN_ORIGINPRO_IMPORT_FAILED",
             stage="ORIGINPRO_INIT",
-            message=(
-                "Failed to import originpro. Ensure originpro is installed in the ZIP runner environment."
-            ),
+            message="Failed to import originpro. Ensure originpro is installed in the worker environment.",
             exc=exc,
         )
     return op
@@ -155,7 +143,14 @@ def is_lt_success(result) -> bool:
     return True
 
 
-def connect_originpro(ctx: ZipContext, op_module, max_attempts: int, origin_exe: str):
+def run_labtalk_or_raise(op_module, command: str, message_prefix: str):
+    result = lt_exec(op_module, command)
+    if not is_lt_success(result):
+        raise RuntimeError(f"{message_prefix} (LabTalk returned {result})")
+    return result
+
+
+def connect_originpro(ctx: CsvContext, op_module, max_attempts: int, origin_exe: str):
     set_show = getattr(op_module, "set_show", None)
     launch_triggered = False
     last_exc = None
@@ -187,18 +182,11 @@ def connect_originpro(ctx: ZipContext, op_module, max_attempts: int, origin_exe:
             )
 
 
-def run_labtalk_or_raise(op_module, command: str, message_prefix: str):
-    result = lt_exec(op_module, command)
-    if not is_lt_success(result):
-        raise RuntimeError(f"{message_prefix} (LabTalk returned {result})")
-    return result
-
-
 def main():
     args = parse_args()
 
     work_dir = Path(args.work_dir).resolve()
-    extract_dir = Path(args.extract_dir).resolve()
+    csv_path = Path(args.csv_path).resolve()
     origin_exe_path = Path(args.origin_exe).resolve()
     log_path = Path(args.log_path).resolve() if args.log_path else work_dir / "originbridge.log"
     error_path = Path(args.error_path).resolve() if args.error_path else work_dir / "error.txt"
@@ -208,7 +196,7 @@ def main():
     ensure_dir(error_path.parent)
     error_path.write_text("", encoding="utf-8")
 
-    ctx = ZipContext(
+    ctx = CsvContext(
         work_dir=work_dir,
         log_path=log_path,
         error_path=error_path,
@@ -216,7 +204,7 @@ def main():
     )
 
     ctx.log(f"WorkDir: {work_dir}")
-    ctx.log(f"ExtractDir: {extract_dir}")
+    ctx.log(f"CsvPath: {csv_path}")
     ctx.log(f"OriginExe: {origin_exe_path}")
 
     if not origin_exe_path.exists():
@@ -231,25 +219,17 @@ def main():
             stage="PRECHECK",
             message=f"Origin executable path is not a file: {origin_exe_path}",
         )
-    if not extract_dir.exists():
+    if not csv_path.exists():
         ctx.write_error(
-            code="ORIGIN_EXTRACT_DIR_NOT_FOUND",
+            code="ORIGIN_CSV_NOT_FOUND",
             stage="PRECHECK",
-            message=f"Extract directory not found: {extract_dir}",
+            message=f"CSV file not found: {csv_path}",
         )
-    if not extract_dir.is_dir():
+    if not csv_path.is_file():
         ctx.write_error(
-            code="ORIGIN_EXTRACT_DIR_NOT_FOUND",
+            code="ORIGIN_CSV_NOT_FOUND",
             stage="PRECHECK",
-            message=f"Extract path is not a directory: {extract_dir}",
-        )
-
-    ogs_file, csv_file = discover_primary_files(extract_dir)
-    if not ogs_file and not csv_file:
-        ctx.write_error(
-            code="ORIGIN_PACKAGE_EMPTY",
-            stage="PACKAGE_DISCOVERY",
-            message="No .ogs or .csv found in extracted package.",
+            message=f"CSV path is not a file: {csv_path}",
         )
 
     op_module = get_originpro_module(ctx)
@@ -260,55 +240,35 @@ def main():
         str(origin_exe_path),
     )
 
-    ran_ogs = False
-    ogs_error = None
-    if ogs_file:
-        try:
-            ogs_lt = escape_labtalk_path(str(ogs_file))
-            if csv_file:
-                csv_lt = escape_labtalk_path(str(csv_file))
-                ogs_cmd = f'run.section("{ogs_lt}", Main, "{csv_lt}");'
-            else:
-                ogs_cmd = f'run.section("{ogs_lt}", Main);'
-            ctx.log(f"Executing OGS via originpro: {ogs_file}")
-            run_labtalk_or_raise(op_module, ogs_cmd, "OGS execution failed")
-            ran_ogs = True
-            ctx.log("OGS executed successfully.")
-        except Exception as exc:
-            ogs_error = exc
-            ctx.log(f"OGS execution failed: {exc}")
-
-    if not ran_ogs:
-        if not csv_file:
-            ctx.write_error(
-                code="ORIGIN_OGS_FALLBACK_UNAVAILABLE",
-                stage="CSV_FALLBACK",
-                message="OGS execution failed and no CSV file is available for fallback plot.",
-                exc=ogs_error if isinstance(ogs_error, Exception) else None,
-            )
-
-        try:
-            csv_lt = escape_labtalk_path(str(csv_file))
-            ctx.log(f"Running CSV fallback plot via originpro: {csv_file}")
-            run_labtalk_or_raise(op_module, "newbook;", "CSV fallback failed at newbook")
+    try:
+        csv_lt = escape_labtalk_path(str(csv_path))
+        ctx.log(f"Running CSV import via originpro: {csv_path}")
+        run_labtalk_or_raise(op_module, "newbook;", "CSV import failed at newbook")
+        run_labtalk_or_raise(
+            op_module,
+            f'impCSV fname:="{csv_lt}";',
+            "CSV import failed at impCSV",
+        )
+        if args.series_name and args.series_name.strip():
+            title = escape_labtalk_text(args.series_name.strip())
             run_labtalk_or_raise(
                 op_module,
-                f'impCSV fname:="{csv_lt}";',
-                "CSV fallback failed at impCSV",
+                f'page.longname$="{title}";',
+                "CSV import failed at setting workbook title",
             )
-            run_labtalk_or_raise(
-                op_module,
-                "plotxy iy:=((1,2)) plot:=202;",
-                "CSV fallback failed at plotxy",
-            )
-            ctx.log("CSV fallback plot succeeded.")
-        except Exception as exc:
-            ctx.write_error(
-                code="ORIGIN_CSV_FALLBACK_FAILED",
-                stage="CSV_FALLBACK",
-                message=f"CSV fallback plot failed: {exc}",
-                exc=exc,
-            )
+        run_labtalk_or_raise(
+            op_module,
+            "plotxy iy:=((1,2)) plot:=202;",
+            "CSV plot failed at plotxy",
+        )
+        ctx.log("CSV plot completed.")
+    except Exception as exc:
+        ctx.write_error(
+            code="ORIGIN_CSV_IMPORT_FAILED",
+            stage="CSV_IMPORT",
+            message=f"CSV import/plot failed: {exc}",
+            exc=exc,
+        )
 
     try:
         run_labtalk_or_raise(op_module, "win -a;", "Failed to activate Origin window")
@@ -322,7 +282,7 @@ def main():
         except Exception as exc:
             ctx.log(f"originpro detach warning: {exc}")
 
-    ctx.log("Origin ZIP job completed successfully.")
+    ctx.log("Origin CSV job completed successfully.")
     error_path.write_text("", encoding="utf-8")
     print(json.dumps({"ok": True, "logPath": str(log_path)}, ensure_ascii=False))
     return 0

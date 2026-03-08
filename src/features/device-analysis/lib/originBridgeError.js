@@ -81,7 +81,7 @@ export const inferOriginSuggestionKey = (detail) => {
   if (code === "ORIGIN_BATCH_RUNNER_NOT_FOUND") {
     return "da_origin_error_tip_batch_runner_missing";
   }
-  if (code === "ORIGIN_ZIP_RUNNER_NOT_FOUND") {
+  if (code === "ORIGIN_ZIP_RUNNER_NOT_FOUND" || code === "ORIGIN_CSV_RUNNER_NOT_FOUND") {
     return "da_origin_error_tip_zip_runner_missing";
   }
   if (stage === "NATIVE_RUNNER" || code === "ORIGIN_BATCH_RUNNER_FAILED") {
@@ -89,11 +89,17 @@ export const inferOriginSuggestionKey = (detail) => {
   }
   if (
     code === "ORIGIN_ZIP_RUNNER_FAILED" ||
+    code === "ORIGIN_CSV_RUNNER_FAILED" ||
+    code === "ORIGIN_CSV_FAILED" ||
+    code === "ORIGIN_CSV_IMPORT_FAILED" ||
     stage === "ZIP_NATIVE_RUNNER" ||
-    code === "ORIGIN_ORIGINPRO_IMPORT_FAILED" ||
+    stage === "CSV_PYTHON_RUNNER" ||
     code === "ORIGIN_ORIGINPRO_ATTACH_FAILED"
   ) {
     return "da_origin_error_tip_zip_runner_check";
+  }
+  if (code === "ORIGIN_ORIGINPRO_IMPORT_FAILED") {
+    return "da_origin_error_tip_install_python";
   }
   if (code === "ORIGIN_BATCH_INPUT_DIR_INVALID" || code === "ORIGIN_BATCH_INPUT_DIR_NOT_FOUND") {
     return "da_origin_error_tip_choose_csv_folder";

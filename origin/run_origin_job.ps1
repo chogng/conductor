@@ -70,6 +70,14 @@ function Fail-Worker {
   exit 1
 }
 
+function Try-GetActiveOriginCom {
+  try {
+    return [Runtime.InteropServices.Marshal]::GetActiveObject('Origin.ApplicationSI')
+  } catch {
+    return $null
+  }
+}
+
 Set-Content -LiteralPath $errorPath -Value '' -Encoding UTF8
 
 try {
@@ -100,46 +108,60 @@ try {
     }
   }
 
+  $origin = Try-GetActiveOriginCom
+  if ($null -ne $origin) {
+    Write-OriginLog 'Attached to existing Origin COM object before launch.'
+  } else {
+    Write-OriginLog 'No active Origin COM object before launch.'
+  }
+
   $launchError = $null
-  try {
-    Write-OriginLog ('Launching Origin from configured executable: ' + $OriginExe)
-    $proc = Start-Process -FilePath $OriginExe -PassThru -ErrorAction Stop
-    if ($null -ne $proc) {
-      Write-OriginLog ('Origin process started. PID=' + $proc.Id)
-    } else {
-      Write-OriginLog 'Origin start requested (process handle unavailable).'
-    }
-    Start-Sleep -Milliseconds 1400
-  } catch {
-    $launchError = $_.Exception
-    Write-OriginLog ('Configured Origin launch failed; falling back to COM activation. ' + $launchError.Message)
-    $launchHResult = Get-HResultHex -ExceptionObject $launchError
-    if ($launchHResult) {
-      Write-OriginLog ('Launch HRESULT: ' + $launchHResult)
+  if ($null -eq $origin) {
+    try {
+      Write-OriginLog ('Launching Origin from configured executable: ' + $OriginExe)
+      $proc = Start-Process -FilePath $OriginExe -PassThru -ErrorAction Stop
+      if ($null -ne $proc) {
+        Write-OriginLog ('Origin process started. PID=' + $proc.Id)
+      } else {
+        Write-OriginLog 'Origin start requested (process handle unavailable).'
+      }
+      Start-Sleep -Milliseconds 1400
+    } catch {
+      $launchError = $_.Exception
+      Write-OriginLog ('Configured Origin launch failed; falling back to COM activation. ' + $launchError.Message)
+      $launchHResult = Get-HResultHex -ExceptionObject $launchError
+      if ($launchHResult) {
+        Write-OriginLog ('Launch HRESULT: ' + $launchHResult)
+      }
     }
   }
 
-  $origin = $null
   $comException = $null
-  $maxComAttempts = 4
-  for ($attempt = 1; $attempt -le $maxComAttempts; $attempt++) {
-    try {
-      $origin = New-Object -ComObject 'Origin.ApplicationSI'
-      Write-OriginLog ('Connected to Origin COM (Origin.ApplicationSI) on attempt ' + $attempt + '.')
-      break
-    } catch {
-      $comException = $_.Exception
-      $comMessage = if ($comException) { $comException.Message } else { 'Unknown COM creation failure.' }
-      Write-OriginLog ('COM connection attempt ' + $attempt + ' failed: ' + $comMessage)
-      if ($attempt -lt $maxComAttempts) {
-        Start-Sleep -Milliseconds (600 * $attempt)
+  if ($null -eq $origin) {
+    # Origin COM registration can lag behind process launch on some machines.
+    # Use a longer attach window to avoid false negatives that trigger runner fallback.
+    $maxComAttempts = 12
+    $comAttachDelayMs = 1200
+    for ($attempt = 1; $attempt -le $maxComAttempts; $attempt++) {
+      try {
+        # Attach to an already running COM server only to avoid creating a second Origin instance/window.
+        $origin = [Runtime.InteropServices.Marshal]::GetActiveObject('Origin.ApplicationSI')
+        Write-OriginLog ('Attached to running Origin COM (Origin.ApplicationSI) on attempt ' + $attempt + '.')
+        break
+      } catch {
+        $comException = $_.Exception
+        $comMessage = if ($comException) { $comException.Message } else { 'Unknown COM creation failure.' }
+        Write-OriginLog ('COM attach attempt ' + $attempt + ' failed: ' + $comMessage)
+        if ($attempt -lt $maxComAttempts) {
+          Start-Sleep -Milliseconds $comAttachDelayMs
+        }
       }
     }
   }
 
   if ($null -eq $origin) {
     $extra = if ($null -ne $launchError) { ' (configured executable launch also failed)' } else { '' }
-    $msg = 'Failed to create Origin COM object' + $extra + '.'
+    $msg = 'Failed to attach running Origin COM object' + $extra + '.'
     if ($null -ne $comException -and $comException.Message) {
       $msg = $msg + ' ' + $comException.Message
     }

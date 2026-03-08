@@ -63,3 +63,6 @@ origin/.pyi_zip_spec/
 
 # Project-local tooling env (conda/node caches)
 .tooling/
+
+# Device Analysis runtime cache/log directory
+.device/
