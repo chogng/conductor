@@ -7,13 +7,21 @@ import {
   DeviceAnalysisSessionProvider,
 } from "./features/device-analysis";
 
+const isUnauthorizedError = (error: unknown) => {
+  if (typeof error !== "object" || error === null || !("status" in error)) {
+    return false;
+  }
+
+  return (error as { status?: unknown }).status === 401;
+};
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30_000,
       refetchOnWindowFocus: false,
       retry: (failureCount, error) => {
-        if (error?.status === 401) return false;
+        if (isUnauthorizedError(error)) return false;
         return failureCount < 2;
       },
     },
