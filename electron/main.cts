@@ -287,6 +287,16 @@ const ipcChannels = {
 };
 
 /** @typedef {{plotType: number, xyPairs: string, plotCommand: string, postPlotCommands: string[]}} OriginPlotOptions */
+/**
+ * @typedef {{
+ *   import?: {workbookLongName?: string, preCommands?: string[], postCommands?: string[]},
+ *   plot?: {command?: string, preCommands?: string[], postCommands?: string[]},
+ *   graph?: {preCommands?: string[], postCommands?: string[]},
+ *   style?: {commands?: string[]},
+ *   axis?: {commands?: string[]},
+ *   commands?: {preCommands?: string[], postCommands?: string[]},
+ * }} OriginCapabilitiesOptions
+ */
 const DEFAULT_ORIGIN_PLOT_OPTIONS = Object.freeze(
   /** @type {OriginPlotOptions} */ ({
     plotType: 202,
@@ -327,6 +337,241 @@ function normalizeOriginPostPlotCommands(value) {
   }
 
   return [];
+}
+
+function normalizeOriginCommandList(value) {
+  return normalizeOriginPostPlotCommands(value);
+}
+
+function assertOriginCapabilitiesObject(value, fieldPath) {
+  if (value == null) return {};
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`Invalid Origin capabilities at '${fieldPath}': expected object.`);
+  }
+  return value;
+}
+
+function assertOriginCapabilitiesAllowedKeys(section, allowedKeys, fieldPath) {
+  const sectionObj = assertOriginCapabilitiesObject(section, fieldPath);
+  const allowed = new Set(allowedKeys);
+  for (const key of Object.keys(sectionObj)) {
+    if (!allowed.has(key)) {
+      throw new Error(`Invalid Origin capabilities field '${fieldPath}.${key}'.`);
+    }
+  }
+  return sectionObj;
+}
+
+function assertOriginCapabilitiesString(value, fieldPath) {
+  if (value == null) return;
+  if (typeof value !== "string") {
+    throw new Error(`Invalid Origin capabilities at '${fieldPath}': expected string.`);
+  }
+}
+
+function assertOriginCapabilitiesCommandList(value, fieldPath) {
+  if (value == null) return;
+  if (typeof value === "string") return;
+  if (!Array.isArray(value)) {
+    throw new Error(`Invalid Origin capabilities at '${fieldPath}': expected string or string array.`);
+  }
+  for (let i = 0; i < value.length; i += 1) {
+    if (typeof value[i] !== "string") {
+      throw new Error(
+        `Invalid Origin capabilities at '${fieldPath}[${i}]': expected string.`,
+      );
+    }
+  }
+}
+
+function validateOriginCapabilitiesPayload(rawCapabilities) {
+  if (rawCapabilities == null) return;
+
+  const root = assertOriginCapabilitiesAllowedKeys(
+    rawCapabilities,
+    [
+      "import",
+      "plot",
+      "graph",
+      "style",
+      "axis",
+      "commands",
+      "preCommands",
+      "postCommands",
+    ],
+    "capabilities",
+  );
+
+  const importSection = assertOriginCapabilitiesAllowedKeys(
+    root.import,
+    ["workbookLongName", "longName", "preCommands", "beforeCommands", "postCommands", "afterCommands"],
+    "capabilities.import",
+  );
+  const plotSection = assertOriginCapabilitiesAllowedKeys(
+    root.plot,
+    ["command", "plotCommand", "preCommands", "beforeCommands", "postCommands", "afterCommands", "postPlotCommands"],
+    "capabilities.plot",
+  );
+  const graphSection = assertOriginCapabilitiesAllowedKeys(
+    root.graph,
+    ["preCommands", "beforeCommands", "postCommands", "afterCommands"],
+    "capabilities.graph",
+  );
+  const styleSection = assertOriginCapabilitiesAllowedKeys(
+    root.style,
+    ["commands", "postCommands"],
+    "capabilities.style",
+  );
+  const axisSection = assertOriginCapabilitiesAllowedKeys(
+    root.axis,
+    ["commands", "postCommands"],
+    "capabilities.axis",
+  );
+  const commandsSection = assertOriginCapabilitiesAllowedKeys(
+    root.commands,
+    ["preCommands", "beforeCommands", "postCommands", "afterCommands"],
+    "capabilities.commands",
+  );
+
+  assertOriginCapabilitiesString(importSection.workbookLongName, "capabilities.import.workbookLongName");
+  assertOriginCapabilitiesString(importSection.longName, "capabilities.import.longName");
+  assertOriginCapabilitiesString(plotSection.command, "capabilities.plot.command");
+  assertOriginCapabilitiesString(plotSection.plotCommand, "capabilities.plot.plotCommand");
+
+  assertOriginCapabilitiesCommandList(root.preCommands, "capabilities.preCommands");
+  assertOriginCapabilitiesCommandList(root.postCommands, "capabilities.postCommands");
+  assertOriginCapabilitiesCommandList(importSection.preCommands, "capabilities.import.preCommands");
+  assertOriginCapabilitiesCommandList(importSection.beforeCommands, "capabilities.import.beforeCommands");
+  assertOriginCapabilitiesCommandList(importSection.postCommands, "capabilities.import.postCommands");
+  assertOriginCapabilitiesCommandList(importSection.afterCommands, "capabilities.import.afterCommands");
+  assertOriginCapabilitiesCommandList(plotSection.preCommands, "capabilities.plot.preCommands");
+  assertOriginCapabilitiesCommandList(plotSection.beforeCommands, "capabilities.plot.beforeCommands");
+  assertOriginCapabilitiesCommandList(plotSection.postCommands, "capabilities.plot.postCommands");
+  assertOriginCapabilitiesCommandList(plotSection.afterCommands, "capabilities.plot.afterCommands");
+  assertOriginCapabilitiesCommandList(plotSection.postPlotCommands, "capabilities.plot.postPlotCommands");
+  assertOriginCapabilitiesCommandList(graphSection.preCommands, "capabilities.graph.preCommands");
+  assertOriginCapabilitiesCommandList(graphSection.beforeCommands, "capabilities.graph.beforeCommands");
+  assertOriginCapabilitiesCommandList(graphSection.postCommands, "capabilities.graph.postCommands");
+  assertOriginCapabilitiesCommandList(graphSection.afterCommands, "capabilities.graph.afterCommands");
+  assertOriginCapabilitiesCommandList(styleSection.commands, "capabilities.style.commands");
+  assertOriginCapabilitiesCommandList(styleSection.postCommands, "capabilities.style.postCommands");
+  assertOriginCapabilitiesCommandList(axisSection.commands, "capabilities.axis.commands");
+  assertOriginCapabilitiesCommandList(axisSection.postCommands, "capabilities.axis.postCommands");
+  assertOriginCapabilitiesCommandList(commandsSection.preCommands, "capabilities.commands.preCommands");
+  assertOriginCapabilitiesCommandList(commandsSection.beforeCommands, "capabilities.commands.beforeCommands");
+  assertOriginCapabilitiesCommandList(commandsSection.postCommands, "capabilities.commands.postCommands");
+  assertOriginCapabilitiesCommandList(commandsSection.afterCommands, "capabilities.commands.afterCommands");
+}
+
+/**
+ * @param {unknown} rawCapabilities
+ * @returns {OriginCapabilitiesOptions | null}
+ */
+function normalizeOriginCapabilitiesPayload(rawCapabilities) {
+  if (rawCapabilities != null) {
+    validateOriginCapabilitiesPayload(rawCapabilities);
+  }
+
+  const raw =
+    rawCapabilities && typeof rawCapabilities === "object" && !Array.isArray(rawCapabilities)
+      ? rawCapabilities
+      : null;
+  if (!raw) return null;
+
+  const pickSection = (sectionValue) =>
+    sectionValue && typeof sectionValue === "object" ? sectionValue : {};
+
+  const importSection = pickSection(raw.import);
+  const plotSection = pickSection(raw.plot);
+  const graphSection = pickSection(raw.graph);
+  const styleSection = pickSection(raw.style);
+  const axisSection = pickSection(raw.axis);
+  const commandsSection = pickSection(raw.commands);
+
+  const importWorkbookLongName = normalizeNonEmptyString(
+    importSection.workbookLongName ?? importSection.longName,
+    "",
+  );
+  const importPreCommands = normalizeOriginCommandList(
+    importSection.preCommands ?? importSection.beforeCommands,
+  );
+  const importPostCommands = normalizeOriginCommandList(
+    importSection.postCommands ?? importSection.afterCommands,
+  );
+
+  const plotCommand = normalizeNonEmptyString(
+    plotSection.command ?? plotSection.plotCommand,
+    "",
+  );
+  const plotPreCommands = normalizeOriginCommandList(
+    plotSection.preCommands ?? plotSection.beforeCommands,
+  );
+  const plotPostCommands = normalizeOriginCommandList(
+    plotSection.postCommands ?? plotSection.afterCommands ?? plotSection.postPlotCommands,
+  );
+
+  const graphPreCommands = normalizeOriginCommandList(
+    graphSection.preCommands ?? graphSection.beforeCommands,
+  );
+  const graphPostCommands = normalizeOriginCommandList(
+    graphSection.postCommands ?? graphSection.afterCommands,
+  );
+
+  const styleCommands = normalizeOriginCommandList(
+    styleSection.commands ?? styleSection.postCommands,
+  );
+  const axisCommands = normalizeOriginCommandList(
+    axisSection.commands ?? axisSection.postCommands,
+  );
+
+  const globalPreCommands = normalizeOriginCommandList(
+    raw.preCommands ??
+      commandsSection.preCommands ??
+      commandsSection.beforeCommands,
+  );
+  const globalPostCommands = normalizeOriginCommandList(
+    raw.postCommands ??
+      commandsSection.postCommands ??
+      commandsSection.afterCommands,
+  );
+
+  const normalized: any = {};
+
+  if (importWorkbookLongName || importPreCommands.length || importPostCommands.length) {
+    normalized.import = {};
+    if (importWorkbookLongName) normalized.import.workbookLongName = importWorkbookLongName;
+    if (importPreCommands.length) normalized.import.preCommands = importPreCommands;
+    if (importPostCommands.length) normalized.import.postCommands = importPostCommands;
+  }
+
+  if (plotCommand || plotPreCommands.length || plotPostCommands.length) {
+    normalized.plot = {};
+    if (plotCommand) normalized.plot.command = plotCommand;
+    if (plotPreCommands.length) normalized.plot.preCommands = plotPreCommands;
+    if (plotPostCommands.length) normalized.plot.postCommands = plotPostCommands;
+  }
+
+  if (graphPreCommands.length || graphPostCommands.length) {
+    normalized.graph = {};
+    if (graphPreCommands.length) normalized.graph.preCommands = graphPreCommands;
+    if (graphPostCommands.length) normalized.graph.postCommands = graphPostCommands;
+  }
+
+  if (styleCommands.length) {
+    normalized.style = { commands: styleCommands };
+  }
+
+  if (axisCommands.length) {
+    normalized.axis = { commands: axisCommands };
+  }
+
+  if (globalPreCommands.length || globalPostCommands.length) {
+    normalized.commands = {};
+    if (globalPreCommands.length) normalized.commands.preCommands = globalPreCommands;
+    if (globalPostCommands.length) normalized.commands.postCommands = globalPostCommands;
+  }
+
+  return Object.keys(normalized).length ? normalized : null;
 }
 
 /**
@@ -377,6 +622,9 @@ function normalizeOriginCsvPayload(payload, plotDefaults = undefined) {
   const sheet = raw.sheet && typeof raw.sheet === "object" ? raw.sheet : {};
   const plot = raw.plot && typeof raw.plot === "object" ? raw.plot : {};
   const resolvedPlotDefaults = plotDefaults ?? DEFAULT_ORIGIN_PLOT_OPTIONS;
+  const capabilities = normalizeOriginCapabilitiesPayload(
+    raw.capabilities ?? raw.originCapabilities,
+  );
 
   const csvName = normalizeNonEmptyString(
     raw.csvName ?? csv.name,
@@ -403,6 +651,7 @@ function normalizeOriginCsvPayload(payload, plotDefaults = undefined) {
     csvName,
     csvText,
     seriesName,
+    capabilities,
     ...normalizedPlot,
   };
 }
@@ -1090,6 +1339,11 @@ async function handleOriginRunZip(event, payload) {
     payload && typeof payload === "object" ? payload.plot : null,
     getOriginPlotOptionsFromSettings(),
   );
+  const capabilities = normalizeOriginCapabilitiesPayload(
+    payload && typeof payload === "object"
+      ? payload.capabilities ?? payload.originCapabilities
+      : null,
+  );
 
   if (!bytes) {
     throw new Error("ZIP payload is missing.");
@@ -1111,6 +1365,7 @@ async function handleOriginRunZip(event, payload) {
       xyPairs: plotOptions.xyPairs,
       plotCommand: plotOptions.plotCommand,
       postPlotCommands: plotOptions.postPlotCommands,
+      capabilities,
       runtimeRootDir: getDeviceAnalysisHomeDir(),
     });
   } finally {
@@ -1131,7 +1386,16 @@ async function handleOriginRunCsv(event, payload) {
     payload,
     getOriginPlotOptionsFromSettings(),
   );
-  const { csvName, csvText, seriesName, plotType, xyPairs, plotCommand, postPlotCommands } =
+  const {
+    csvName,
+    csvText,
+    seriesName,
+    plotType,
+    xyPairs,
+    plotCommand,
+    postPlotCommands,
+    capabilities,
+  } =
     normalizedPayload;
 
   if (!csvText.trim()) {
@@ -1152,6 +1416,7 @@ async function handleOriginRunCsv(event, payload) {
       xyPairs,
       plotCommand,
       postPlotCommands,
+      capabilities,
       originExePath,
       workerScriptPath: ORIGIN_CSV_SCRIPT_PATH,
       runtimeRootDir: getDeviceAnalysisHomeDir(),

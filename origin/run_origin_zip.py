@@ -1,10 +1,24 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 import argparse
 import json
-import subprocess
-import time
 from datetime import datetime
 from pathlib import Path
+
+from origin_ops.axis_ops import apply_axis_commands
+from origin_ops.capability_dispatcher import (
+    parse_capabilities_json,
+    resolve_capability_plan,
+)
+from origin_ops.import_ops import escape_labtalk_path, run_csv_import
+from origin_ops.origin_session import (
+    connect_originpro,
+    extract_hresult,
+    get_originpro_module,
+    run_command_list,
+    run_labtalk_or_raise,
+)
+from origin_ops.plot_ops import build_plot_command, run_plot_pipeline
+from origin_ops.style_ops import apply_style_commands
 
 
 def ensure_dir(path_value: Path) -> None:
@@ -13,17 +27,6 @@ def ensure_dir(path_value: Path) -> None:
 
 def to_iso_now() -> str:
     return datetime.now().astimezone().isoformat()
-
-
-def extract_hresult(exc: Exception):
-    value = getattr(exc, "hresult", None)
-    if isinstance(value, int):
-        return f"0x{value & 0xFFFFFFFF:08X}"
-
-    args = getattr(exc, "args", ())
-    if args and isinstance(args[0], int):
-        return f"0x{args[0] & 0xFFFFFFFF:08X}"
-    return None
 
 
 class ZipContext:
@@ -35,8 +38,8 @@ class ZipContext:
 
     def log(self, message: str) -> None:
         line = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} {message}"
-        with self.log_path.open("a", encoding="utf-8") as f:
-            f.write(line + "\n")
+        with self.log_path.open("a", encoding="utf-8") as file_obj:
+            file_obj.write(line + "\n")
 
     def write_error(
         self,
@@ -80,12 +83,9 @@ def parse_args():
     parser.add_argument("--xy-pairs", default="((1,2))")
     parser.add_argument("--plot-command", default="")
     parser.add_argument("--post-plot-command", action="append", default=[])
+    parser.add_argument("--capabilities-json", default="")
     parser.add_argument("--max-com-attempts", type=int, default=8)
     return parser.parse_args()
-
-
-def escape_labtalk_path(path_value: str) -> str:
-    return str(path_value).replace("\\", "\\\\").replace('"', '\\"')
 
 
 def discover_primary_files(extract_dir: Path):
@@ -101,121 +101,6 @@ def discover_primary_files(extract_dir: Path):
         ogs_files[0] if ogs_files else None,
         csv_files[0] if csv_files else None,
     )
-
-
-def try_launch_origin(ctx: ZipContext, origin_exe: str):
-    try:
-        proc = subprocess.Popen(
-            [origin_exe],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        ctx.log(f"Origin process started. PID={proc.pid}")
-        time.sleep(1.4)
-        return proc
-    except Exception as exc:
-        ctx.log(f"Origin launch failed; continue with originpro attach: {exc}")
-        hresult = extract_hresult(exc)
-        if hresult:
-            ctx.log(f"Launch HRESULT: {hresult}")
-        return None
-
-
-def get_originpro_module(ctx: ZipContext):
-    try:
-        import originpro as op  # type: ignore
-    except Exception as exc:
-        ctx.write_error(
-            code="ORIGIN_ORIGINPRO_IMPORT_FAILED",
-            stage="ORIGINPRO_INIT",
-            message=(
-                "Failed to import originpro. Ensure originpro is installed in the ZIP runner environment."
-            ),
-            exc=exc,
-        )
-    return op
-
-
-def lt_exec(op_module, command: str):
-    direct = getattr(op_module, "lt_exec", None)
-    if callable(direct):
-        return direct(command)
-
-    origin_ext = getattr(op_module, "oext", None)
-    execute_method = getattr(origin_ext, "LT_execute", None) if origin_ext is not None else None
-    if callable(execute_method):
-        return execute_method(command)
-
-    raise RuntimeError("originpro.lt_exec/LT_execute is not available.")
-
-
-def is_lt_success(result) -> bool:
-    if result is None:
-        return True
-    if isinstance(result, bool):
-        return result
-    if isinstance(result, int):
-        return result in (0, 1)
-    return True
-
-
-def connect_originpro(ctx: ZipContext, op_module, max_attempts: int, origin_exe: str):
-    set_show = getattr(op_module, "set_show", None)
-    launch_triggered = False
-    last_exc = None
-
-    for attempt in range(1, max_attempts + 1):
-        try:
-            if callable(set_show):
-                set_show(True)
-            health = lt_exec(op_module, "sec -p 0;")
-            ctx.log(f"originpro attach succeeded on attempt {attempt}. Health={health}")
-            return
-        except Exception as exc:
-            last_exc = exc
-            ctx.log(f"originpro attach attempt {attempt} failed: {exc}")
-
-            if not launch_triggered:
-                try_launch_origin(ctx, origin_exe)
-                launch_triggered = True
-
-            if attempt < max_attempts:
-                time.sleep(min(2.0, 0.5 * attempt))
-                continue
-
-            ctx.write_error(
-                code="ORIGIN_ORIGINPRO_ATTACH_FAILED",
-                stage="ORIGINPRO_ATTACH",
-                message=f"Failed to attach Origin via originpro: {last_exc}",
-                exc=last_exc if isinstance(last_exc, Exception) else None,
-            )
-
-
-def run_labtalk_or_raise(op_module, command: str, message_prefix: str):
-    result = lt_exec(op_module, command)
-    if not is_lt_success(result):
-        raise RuntimeError(f"{message_prefix} (LabTalk returned {result})")
-    return result
-
-
-def ensure_lt_terminated(command: str) -> str:
-    text = str(command or "").strip()
-    if not text:
-        return ""
-    return text if text.endswith(";") else f"{text};"
-
-
-def build_plot_command(args) -> str:
-    custom_command = ensure_lt_terminated(args.plot_command)
-    if custom_command:
-        return custom_command
-
-    xy_pairs = str(args.xy_pairs or "").strip() or "((1,2))"
-    try:
-        plot_type = max(0, int(args.plot_type))
-    except Exception:
-        plot_type = 202
-    return f"plotxy iy:={xy_pairs} plot:={plot_type};"
 
 
 def main():
@@ -276,23 +161,61 @@ def main():
             message="No .ogs or .csv found in extracted package.",
         )
 
-    op_module = get_originpro_module(ctx)
+    op_module = get_originpro_module(
+        ctx,
+        "Failed to import originpro. Ensure originpro is installed in the ZIP runner environment.",
+    )
     connect_originpro(
         ctx,
         op_module,
         max(1, int(args.max_com_attempts)),
         str(origin_exe_path),
     )
-    plot_command = build_plot_command(args)
-    post_plot_commands = args.post_plot_command if isinstance(args.post_plot_command, list) else []
+
+    try:
+        capabilities = parse_capabilities_json(args.capabilities_json)
+        capability_plan = resolve_capability_plan(capabilities)
+    except Exception as exc:
+        ctx.write_error(
+            code="ORIGIN_WORKER_FAILED",
+            stage="CAPABILITIES_PARSE",
+            message=f"Failed to parse capabilities JSON: {exc}",
+            exc=exc if isinstance(exc, Exception) else None,
+        )
+
+    plot_command = build_plot_command(
+        capability_plan.plot_command_override or args.plot_command,
+        args.xy_pairs,
+        args.plot_type,
+    )
+    legacy_post_plot_commands = [
+        item.strip()
+        for item in (args.post_plot_command if isinstance(args.post_plot_command, list) else [])
+        if isinstance(item, str) and item.strip()
+    ]
+    all_post_plot_commands = legacy_post_plot_commands + capability_plan.plot_post_commands
+
     ctx.log(f"Plot command: {plot_command}")
-    if post_plot_commands:
-        ctx.log(f"Post-plot commands: {len(post_plot_commands)}")
+    if capabilities:
+        ctx.log("Capabilities v1 detected.")
+    if all_post_plot_commands:
+        ctx.log(f"Post-plot commands: {len(all_post_plot_commands)}")
+
+    try:
+        run_command_list(op_module, capability_plan.global_pre_commands, "Global pre-command")
+    except Exception as exc:
+        ctx.write_error(
+            code="ORIGIN_WORKER_FAILED",
+            stage="GLOBAL_PRE",
+            message=f"Global pre-commands failed: {exc}",
+            exc=exc,
+        )
 
     ran_ogs = False
     ogs_error = None
     if ogs_file:
         try:
+            run_command_list(op_module, capability_plan.import_pre_commands, "Import pre-command")
             ogs_lt = escape_labtalk_path(str(ogs_file))
             if csv_file:
                 csv_lt = escape_labtalk_path(str(csv_file))
@@ -301,6 +224,7 @@ def main():
                 ogs_cmd = f'run.section("{ogs_lt}", Main);'
             ctx.log(f"Executing OGS via originpro: {ogs_file}")
             run_labtalk_or_raise(op_module, ogs_cmd, "OGS execution failed")
+            run_command_list(op_module, capability_plan.import_post_commands, "Import post-command")
             ran_ogs = True
             ctx.log("OGS executed successfully.")
         except Exception as exc:
@@ -317,29 +241,23 @@ def main():
             )
 
         try:
-            csv_lt = escape_labtalk_path(str(csv_file))
             ctx.log(f"Running CSV fallback plot via originpro: {csv_file}")
-            run_labtalk_or_raise(op_module, "newbook;", "CSV fallback failed at newbook")
-            run_labtalk_or_raise(
+            run_csv_import(
                 op_module,
-                f'impCSV fname:="{csv_lt}";',
-                "CSV fallback failed at impCSV",
+                csv_file,
+                workbook_long_name=capability_plan.workbook_long_name,
+                import_pre_commands=capability_plan.import_pre_commands,
+                import_post_commands=capability_plan.import_post_commands,
+                label_prefix="CSV fallback",
             )
-            run_labtalk_or_raise(
+            run_plot_pipeline(
                 op_module,
                 plot_command,
-                "CSV fallback failed at plotxy",
+                graph_pre_commands=capability_plan.graph_pre_commands,
+                plot_pre_commands=capability_plan.plot_pre_commands,
+                post_plot_commands=all_post_plot_commands,
+                plot_error_message="CSV fallback failed at plotxy",
             )
-            if post_plot_commands:
-                for idx, command in enumerate(post_plot_commands, start=1):
-                    next_command = ensure_lt_terminated(command)
-                    if not next_command:
-                        continue
-                    run_labtalk_or_raise(
-                        op_module,
-                        next_command,
-                        f"CSV fallback post-plot command #{idx} failed",
-                    )
             ctx.log("CSV fallback plot succeeded.")
         except Exception as exc:
             ctx.write_error(
@@ -348,6 +266,31 @@ def main():
                 message=f"CSV fallback plot failed: {exc}",
                 exc=exc,
             )
+    else:
+        try:
+            run_command_list(op_module, capability_plan.graph_pre_commands, "Graph pre-command")
+            run_command_list(op_module, capability_plan.plot_pre_commands, "Plot pre-command")
+            run_command_list(op_module, all_post_plot_commands, "Post-plot command")
+        except Exception as exc:
+            ctx.write_error(
+                code="ORIGIN_WORKER_FAILED",
+                stage="OGS_POST_PROCESS",
+                message=f"Post-OGS commands failed: {exc}",
+                exc=exc,
+            )
+
+    try:
+        apply_style_commands(op_module, capability_plan.style_commands)
+        apply_axis_commands(op_module, capability_plan.axis_commands)
+        run_command_list(op_module, capability_plan.graph_post_commands, "Graph post-command")
+        run_command_list(op_module, capability_plan.global_post_commands, "Global post-command")
+    except Exception as exc:
+        ctx.write_error(
+            code="ORIGIN_WORKER_FAILED",
+            stage="POST_PROCESS",
+            message=f"Post-processing commands failed: {exc}",
+            exc=exc,
+        )
 
     try:
         run_labtalk_or_raise(op_module, "win -a;", "Failed to activate Origin window")
@@ -369,3 +312,4 @@ def main():
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

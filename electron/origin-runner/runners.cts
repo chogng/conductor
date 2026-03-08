@@ -81,6 +81,24 @@ function appendOriginPlotWorkerArgs(baseArgs, plotOptions = {}) {
   return args;
 }
 
+function appendOriginCapabilitiesWorkerArgs(baseArgs, capabilities) {
+  const args = Array.isArray(baseArgs) ? [...baseArgs] : [];
+  if (!capabilities || typeof capabilities !== "object") {
+    return args;
+  }
+
+  try {
+    const capabilitiesJson = JSON.stringify(capabilities);
+    if (capabilitiesJson && capabilitiesJson !== "{}") {
+      args.push("--capabilities-json", capabilitiesJson);
+    }
+  } catch {
+    // Ignore invalid/unserializable capability payloads and keep compatibility.
+  }
+
+  return args;
+}
+
 function buildOriginCsvWorkerArgs({
   workDir,
   csvPath,
@@ -92,6 +110,7 @@ function buildOriginCsvWorkerArgs({
   xyPairs,
   plotCommand,
   postPlotCommands,
+  capabilities,
 }) {
   const args = [
     "--work-dir",
@@ -110,12 +129,13 @@ function buildOriginCsvWorkerArgs({
     args.push("--series-name", seriesName.trim());
   }
 
-  return appendOriginPlotWorkerArgs(args, {
+  const withPlotArgs = appendOriginPlotWorkerArgs(args, {
     plotType,
     xyPairs,
     plotCommand,
     postPlotCommands,
   });
+  return appendOriginCapabilitiesWorkerArgs(withPlotArgs, capabilities);
 }
 
 async function runNativeBatchWorker(workerExecutablePath, workerArgs, options = {}) {
@@ -267,6 +287,7 @@ module.exports = {
   buildOriginBatchWorkerArgs,
   buildOriginZipWorkerArgs,
   appendOriginPlotWorkerArgs,
+  appendOriginCapabilitiesWorkerArgs,
   buildOriginCsvWorkerArgs,
   runNativeBatchWorker,
   runNativeZipWorker,

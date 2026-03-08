@@ -24,6 +24,7 @@ const {
   buildOriginBatchWorkerArgs,
   buildOriginZipWorkerArgs,
   appendOriginPlotWorkerArgs,
+  appendOriginCapabilitiesWorkerArgs,
   buildOriginCsvWorkerArgs,
   runNativeBatchWorker,
   runNativeZipWorker,
@@ -64,6 +65,7 @@ async function runOriginZipJob({
   xyPairs,
   plotCommand,
   postPlotCommands,
+  capabilities,
   runtimeRootDir,
 }) {
   const normalizedOriginExePath = assertOriginExePath(originExePath);
@@ -120,12 +122,16 @@ async function runOriginZipJob({
     logPath,
     errorPath,
   });
-  const zipPythonWorkerArgs = appendOriginPlotWorkerArgs(zipWorkerArgs, {
+  const zipPlotWorkerArgs = appendOriginPlotWorkerArgs(zipWorkerArgs, {
     plotType,
     xyPairs,
     plotCommand,
     postPlotCommands,
   });
+  const zipPythonWorkerArgs = appendOriginCapabilitiesWorkerArgs(
+    zipPlotWorkerArgs,
+    capabilities,
+  );
 
   let workerResult = null;
   let runnerKind = null;
@@ -252,6 +258,7 @@ async function runOriginCsvJob({
   xyPairs,
   plotCommand,
   postPlotCommands,
+  capabilities,
 }) {
   const normalizedOriginExePath = assertOriginExePath(originExePath);
   const scriptWorkerAvailable = Boolean(workerScriptPath && fs.existsSync(workerScriptPath));
@@ -291,6 +298,7 @@ async function runOriginCsvJob({
     xyPairs,
     plotCommand,
     postPlotCommands,
+    capabilities,
   });
 
   let workerResult = null;

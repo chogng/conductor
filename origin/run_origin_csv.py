@@ -1,10 +1,24 @@
 #!/usr/bin/env python3
 import argparse
 import json
-import subprocess
-import time
 from datetime import datetime
 from pathlib import Path
+
+from origin_ops.axis_ops import apply_axis_commands
+from origin_ops.capability_dispatcher import (
+    parse_capabilities_json,
+    resolve_capability_plan,
+)
+from origin_ops.import_ops import run_csv_import
+from origin_ops.origin_session import (
+    connect_originpro,
+    extract_hresult,
+    get_originpro_module,
+    run_command_list,
+    run_labtalk_or_raise,
+)
+from origin_ops.plot_ops import build_plot_command, run_plot_pipeline
+from origin_ops.style_ops import apply_style_commands
 
 
 def ensure_dir(path_value: Path) -> None:
@@ -13,17 +27,6 @@ def ensure_dir(path_value: Path) -> None:
 
 def to_iso_now() -> str:
     return datetime.now().astimezone().isoformat()
-
-
-def extract_hresult(exc: Exception):
-    value = getattr(exc, "hresult", None)
-    if isinstance(value, int):
-        return f"0x{value & 0xFFFFFFFF:08X}"
-
-    args = getattr(exc, "args", ())
-    if args and isinstance(args[0], int):
-        return f"0x{args[0] & 0xFFFFFFFF:08X}"
-    return None
 
 
 class CsvContext:
@@ -81,129 +84,9 @@ def parse_args():
     parser.add_argument("--xy-pairs", default="((1,2))")
     parser.add_argument("--plot-command", default="")
     parser.add_argument("--post-plot-command", action="append", default=[])
+    parser.add_argument("--capabilities-json", default="")
     parser.add_argument("--max-com-attempts", type=int, default=8)
     return parser.parse_args()
-
-
-def escape_labtalk_path(path_value: str) -> str:
-    return str(path_value).replace("\\", "\\\\").replace('"', '\\"')
-
-
-def escape_labtalk_text(text_value: str) -> str:
-    return str(text_value).replace("\\", "\\\\").replace('"', '\\"')
-
-
-def try_launch_origin(ctx: CsvContext, origin_exe: str):
-    try:
-        proc = subprocess.Popen(
-            [origin_exe],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        ctx.log(f"Origin process started. PID={proc.pid}")
-        time.sleep(1.4)
-        return proc
-    except Exception as exc:
-        ctx.log(f"Origin launch failed; continue with originpro attach: {exc}")
-        hresult = extract_hresult(exc)
-        if hresult:
-            ctx.log(f"Launch HRESULT: {hresult}")
-        return None
-
-
-def get_originpro_module(ctx: CsvContext):
-    try:
-        import originpro as op  # type: ignore
-    except Exception as exc:
-        ctx.write_error(
-            code="ORIGIN_ORIGINPRO_IMPORT_FAILED",
-            stage="ORIGINPRO_INIT",
-            message="Failed to import originpro. Ensure originpro is installed in the worker environment.",
-            exc=exc,
-        )
-    return op
-
-
-def lt_exec(op_module, command: str):
-    direct = getattr(op_module, "lt_exec", None)
-    if callable(direct):
-        return direct(command)
-
-    origin_ext = getattr(op_module, "oext", None)
-    execute_method = getattr(origin_ext, "LT_execute", None) if origin_ext is not None else None
-    if callable(execute_method):
-        return execute_method(command)
-
-    raise RuntimeError("originpro.lt_exec/LT_execute is not available.")
-
-
-def is_lt_success(result) -> bool:
-    if result is None:
-        return True
-    if isinstance(result, bool):
-        return result
-    if isinstance(result, int):
-        return result in (0, 1)
-    return True
-
-
-def run_labtalk_or_raise(op_module, command: str, message_prefix: str):
-    result = lt_exec(op_module, command)
-    if not is_lt_success(result):
-        raise RuntimeError(f"{message_prefix} (LabTalk returned {result})")
-    return result
-
-
-def ensure_lt_terminated(command: str) -> str:
-    text = str(command or "").strip()
-    if not text:
-        return ""
-    return text if text.endswith(";") else f"{text};"
-
-
-def build_plot_command(args) -> str:
-    custom_command = ensure_lt_terminated(args.plot_command)
-    if custom_command:
-        return custom_command
-
-    xy_pairs = str(args.xy_pairs or "").strip() or "((1,2))"
-    try:
-        plot_type = max(0, int(args.plot_type))
-    except Exception:
-        plot_type = 202
-    return f"plotxy iy:={xy_pairs} plot:={plot_type};"
-
-
-def connect_originpro(ctx: CsvContext, op_module, max_attempts: int, origin_exe: str):
-    set_show = getattr(op_module, "set_show", None)
-    launch_triggered = False
-    last_exc = None
-
-    for attempt in range(1, max_attempts + 1):
-        try:
-            if callable(set_show):
-                set_show(True)
-            health = lt_exec(op_module, "sec -p 0;")
-            ctx.log(f"originpro attach succeeded on attempt {attempt}. Health={health}")
-            return
-        except Exception as exc:
-            last_exc = exc
-            ctx.log(f"originpro attach attempt {attempt} failed: {exc}")
-
-            if not launch_triggered:
-                try_launch_origin(ctx, origin_exe)
-                launch_triggered = True
-
-            if attempt < max_attempts:
-                time.sleep(min(2.0, 0.5 * attempt))
-                continue
-
-            ctx.write_error(
-                code="ORIGIN_ORIGINPRO_ATTACH_FAILED",
-                stage="ORIGINPRO_ATTACH",
-                message=f"Failed to attach Origin via originpro: {last_exc}",
-                exc=last_exc if isinstance(last_exc, Exception) else None,
-            )
 
 
 def main():
@@ -256,7 +139,10 @@ def main():
             message=f"CSV path is not a file: {csv_path}",
         )
 
-    op_module = get_originpro_module(ctx)
+    op_module = get_originpro_module(
+        ctx,
+        "Failed to import originpro. Ensure originpro is installed in the worker environment.",
+    )
     connect_originpro(
         ctx,
         op_module,
@@ -265,37 +151,57 @@ def main():
     )
 
     try:
-        csv_lt = escape_labtalk_path(str(csv_path))
-        plot_command = build_plot_command(args)
-        ctx.log(f"Plot command: {plot_command}")
-        ctx.log(f"Running CSV import via originpro: {csv_path}")
-        run_labtalk_or_raise(op_module, "newbook;", "CSV import failed at newbook")
-        run_labtalk_or_raise(
-            op_module,
-            f'impCSV fname:="{csv_lt}";',
-            "CSV import failed at impCSV",
+        capabilities = parse_capabilities_json(args.capabilities_json)
+        capability_plan = resolve_capability_plan(capabilities)
+    except Exception as exc:
+        ctx.write_error(
+            code="ORIGIN_CSV_IMPORT_FAILED",
+            stage="CAPABILITIES_PARSE",
+            message=f"Failed to parse capabilities JSON: {exc}",
+            exc=exc if isinstance(exc, Exception) else None,
         )
-        if args.series_name and args.series_name.strip():
-            title = escape_labtalk_text(args.series_name.strip())
-            run_labtalk_or_raise(
-                op_module,
-                f'page.longname$="{title}";',
-                "CSV import failed at setting workbook title",
-            )
-        run_labtalk_or_raise(
+
+    requested_series_name = args.series_name.strip() if isinstance(args.series_name, str) else ""
+    effective_series_name = capability_plan.workbook_long_name or requested_series_name
+    plot_command = build_plot_command(
+        capability_plan.plot_command_override or args.plot_command,
+        args.xy_pairs,
+        args.plot_type,
+    )
+    legacy_post_plot_commands = [
+        item.strip()
+        for item in (args.post_plot_command if isinstance(args.post_plot_command, list) else [])
+        if isinstance(item, str) and item.strip()
+    ]
+    all_post_plot_commands = legacy_post_plot_commands + capability_plan.plot_post_commands
+
+    try:
+        ctx.log(f"Plot command: {plot_command}")
+        if capabilities:
+            ctx.log("Capabilities v1 detected.")
+        ctx.log(f"Running CSV import via originpro: {csv_path}")
+
+        run_command_list(op_module, capability_plan.global_pre_commands, "Global pre-command")
+        run_csv_import(
+            op_module,
+            csv_path,
+            workbook_long_name=effective_series_name,
+            import_pre_commands=capability_plan.import_pre_commands,
+            import_post_commands=capability_plan.import_post_commands,
+            label_prefix="CSV import",
+        )
+        run_plot_pipeline(
             op_module,
             plot_command,
-            "CSV plot failed at plotxy",
+            graph_pre_commands=capability_plan.graph_pre_commands,
+            plot_pre_commands=capability_plan.plot_pre_commands,
+            post_plot_commands=all_post_plot_commands,
+            plot_error_message="CSV plot failed at plotxy",
         )
-        if args.post_plot_command:
-            for idx, command in enumerate(args.post_plot_command, start=1):
-                if not str(command or "").strip():
-                    continue
-                run_labtalk_or_raise(
-                    op_module,
-                    ensure_lt_terminated(command),
-                    f"CSV post-plot command #{idx} failed",
-                )
+        apply_style_commands(op_module, capability_plan.style_commands)
+        apply_axis_commands(op_module, capability_plan.axis_commands)
+        run_command_list(op_module, capability_plan.graph_post_commands, "Graph post-command")
+        run_command_list(op_module, capability_plan.global_post_commands, "Global post-command")
         ctx.log("CSV plot completed.")
     except Exception as exc:
         ctx.write_error(
@@ -325,3 +231,4 @@ def main():
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
