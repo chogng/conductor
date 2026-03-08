@@ -1,0 +1,61 @@
+export type TemplateConfig = {
+  bottomTitle: string;
+  fileNameVdKeywords: string;
+  fileNameVgKeywords: string;
+  leftTitle: string;
+  legendPrefix: string;
+  name: string;
+  selectedColumns: number[];
+  stopOnError: boolean;
+  xDataEnd: string;
+  xDataStart: string;
+  xPoints: string;
+  yCount: string;
+  yDataEnd: string;
+  yDataStart: string;
+  yPoints: string;
+  yStep: string;
+};
+
+export const createEmptyTemplateConfig = (
+  overrides: Partial<TemplateConfig> = {},
+): TemplateConfig => ({
+  name: "",
+  xDataStart: "",
+  xDataEnd: "",
+  xPoints: "",
+  yDataStart: "",
+  yDataEnd: "",
+  yPoints: "",
+  yCount: "",
+  yStep: "",
+  stopOnError: false,
+  bottomTitle: "",
+  leftTitle: "",
+  legendPrefix: "",
+  fileNameVgKeywords: "",
+  fileNameVdKeywords: "",
+  selectedColumns: [],
+  ...overrides,
+});
+
+export const cloneTemplateConfig = (
+  config: Partial<TemplateConfig>,
+): TemplateConfig => ({
+  ...createEmptyTemplateConfig(config),
+  selectedColumns: Array.isArray(config?.selectedColumns)
+    ? [...config.selectedColumns]
+    : [],
+});
+
+export const normalizeXDataEndValue = (value: unknown): string => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  if (raw.toLowerCase() === "end" || raw === "缁撴潫") return "End";
+  return raw;
+};
+
+export const toTemplateNameKey = (name: unknown): string =>
+  String(name ?? "")
+    .trim()
+    .toLowerCase();

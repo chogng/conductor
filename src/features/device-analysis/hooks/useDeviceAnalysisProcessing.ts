@@ -1,12 +1,102 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type MutableRefObject,
+  type SetStateAction,
+} from "react";
 import { prepareDeviceAnalysisExtraction } from "../lib/deviceAnalysisExtractionValidation";
 import {
   parseLegacyExtractionError,
   stableStringify,
 } from "../lib/deviceAnalysisUtils";
 
-const buildProcessingQueue = (rawData, processedIds = null) => {
-  const queue = [];
+type TranslateFn = (key: string, vars?: Record<string, unknown>) => string;
+
+type RawDataEntry = {
+  file?: unknown;
+  fileId?: string;
+  fileName?: string;
+  [key: string]: unknown;
+};
+
+type ProcessedEntry = {
+  fileId?: string;
+  [key: string]: unknown;
+};
+
+type ExtractionErrorEntry = {
+  fileName?: string;
+  message: string;
+  messageKey?: string | null;
+  messageParams?: Record<string, unknown> | null;
+  [key: string]: unknown;
+};
+
+type ProcessingQueueItem = {
+  file: unknown;
+  fileId: string;
+  fileName?: string;
+};
+
+type ProcessingStatus = {
+  state: "idle" | "processing" | "done" | "error";
+  processed: number;
+  total: number;
+};
+
+type ExtractionMeta = {
+  groupSize?: number;
+  groupSizeCell?: boolean;
+  groupSizePreview?: number;
+  groups?: number;
+  pointsRawUpper?: string;
+  total?: number;
+};
+
+type ExtractionFeedback = {
+  message: string;
+  ok: boolean;
+  type: "warning" | "success";
+};
+
+type PreparedExtractionResult = {
+  extractionConfig?: unknown;
+  meta?: ExtractionMeta;
+  message?: string;
+  ok: boolean;
+  stopOnError?: boolean;
+  type?: string;
+  warnings?: string[];
+};
+
+type StartExtractionJobOptions = {
+  extractionConfig: unknown;
+  queue: ProcessingQueueItem[];
+  resetExtractionErrors: boolean;
+  resetProcessedData: boolean;
+  stopOnError: boolean;
+};
+
+type UseDeviceAnalysisProcessingOptions = {
+  getPreviewRow: (rowIndex: number) => unknown;
+  previewFile: unknown;
+  processedData?: ProcessedEntry[];
+  rawData?: RawDataEntry[];
+  rawDataByIdRef: MutableRefObject<Map<string, unknown>>;
+  setActivePage: (page: string) => void;
+  setExtractionErrors: Dispatch<SetStateAction<ExtractionErrorEntry[]>>;
+  setProcessedData: Dispatch<SetStateAction<ProcessedEntry[]>>;
+  t: TranslateFn;
+};
+
+const buildProcessingQueue = (
+  rawData: RawDataEntry[],
+  processedIds: Set<string> | null = null,
+): ProcessingQueueItem[] => {
+  const queue: ProcessingQueueItem[] = [];
   const queuedIds = new Set();
 
   for (const entry of Array.isArray(rawData) ? rawData : []) {
@@ -25,11 +115,11 @@ const buildProcessingQueue = (rawData, processedIds = null) => {
   return queue;
 };
 
-const buildProcessedFileIds = (processedData) =>
+const buildProcessedFileIds = (processedData: ProcessedEntry[]): Set<string> =>
   new Set(
     (Array.isArray(processedData) ? processedData : [])
       .map((entry) => entry?.fileId)
-      .filter(Boolean),
+      .filter((fileId): fileId is string => Boolean(fileId)),
   );
 
 const buildExtractionStartFeedback = ({
@@ -38,16 +128,23 @@ const buildExtractionStartFeedback = ({
   meta = {},
   t,
   warnings = [],
-}) => {
+}: {
+  count: number;
+  messageKey: string;
+  meta?: ExtractionMeta;
+  t: TranslateFn;
+  warnings?: string[];
+}): ExtractionFeedback => {
+  const groupSizePreview = Number(meta.groupSizePreview);
   const groupSizeText = meta.groupSizeCell
     ? t("da_extract_points_from_cell", { cell: meta.pointsRawUpper || "" })
     : t("da_extract_points_fixed", { points: meta.groupSize });
   const groupsText =
     meta.groupSizeCell &&
-    Number.isInteger(meta.groupSizePreview) &&
-    meta.groupSizePreview > 0
+    Number.isInteger(groupSizePreview) &&
+    groupSizePreview > 0
       ? t("da_extract_groups_suffix", {
-          groups: Math.max(0, meta.total / meta.groupSizePreview),
+          groups: Math.max(0, Number(meta.total || 0) / groupSizePreview),
         })
       : !meta.groupSizeCell
         ? t("da_extract_groups_suffix", { groups: meta.groups })
@@ -78,18 +175,18 @@ export const useDeviceAnalysisProcessing = ({
   setExtractionErrors,
   setProcessedData,
   t,
-}) => {
-  const [processingStatus, setProcessingStatus] = useState({
+}: UseDeviceAnalysisProcessingOptions) => {
+  const [processingStatus, setProcessingStatus] = useState<ProcessingStatus>({
     state: "idle",
     processed: 0,
     total: 0,
   });
 
-  const processingWorkerRef = useRef(null);
+  const processingWorkerRef = useRef<Worker | null>(null);
   const processingJobIdRef = useRef(0);
-  const processingQueueRef = useRef([]);
+  const processingQueueRef = useRef<ProcessingQueueItem[]>([]);
   const processingStopOnErrorRef = useRef(false);
-  const lastAppliedTemplateConfigFingerprintRef = useRef(null);
+  const lastAppliedTemplateConfigFingerprintRef = useRef<string | null>(null);
 
   const resetProcessingWorker = useCallback(() => {
     processingJobIdRef.current += 1;
@@ -109,7 +206,7 @@ export const useDeviceAnalysisProcessing = ({
   }, []);
 
   const removeQueuedProcessingFile = useCallback(
-    (fileId) => {
+    (fileId: string) => {
       if (processingStatus.state !== "processing") return;
 
       const before = processingQueueRef.current.length;
@@ -138,14 +235,18 @@ export const useDeviceAnalysisProcessing = ({
   }, []);
 
   const prepareExtractionRun = useCallback(
-    (config) => {
+    (config: Record<string, unknown>): PreparedExtractionResult => {
       const prepared = prepareDeviceAnalysisExtraction({
         config,
         getPreviewRow,
         previewFile,
         rawData,
         t,
-      });
+      }) as PreparedExtractionResult & {
+        extractionConfig?: unknown;
+        meta?: ExtractionMeta;
+        warnings?: unknown;
+      };
 
       if (!prepared.ok) return prepared;
 
@@ -167,7 +268,7 @@ export const useDeviceAnalysisProcessing = ({
       resetExtractionErrors,
       resetProcessedData,
       stopOnError,
-    }) => {
+    }: StartExtractionJobOptions) => {
       if (!Array.isArray(queue) || queue.length === 0) return;
 
       const workQueue = [...queue];
@@ -227,7 +328,7 @@ export const useDeviceAnalysisProcessing = ({
         });
       };
 
-      worker.onmessage = (event) => {
+      worker.onmessage = (event: MessageEvent<{ payload?: any; type?: string }>) => {
         const { type, payload } = event.data ?? {};
 
         if (type === "processResult") {
@@ -246,7 +347,7 @@ export const useDeviceAnalysisProcessing = ({
           }
 
           hasAnyProcessedResult = true;
-          setProcessedData((prev) => [...prev, nextProcessed]);
+          setProcessedData((prev) => [...prev, nextProcessed as ProcessedEntry]);
           setProcessingStatus((prev) => ({
             ...prev,
             processed: prev.processed + 1,
@@ -262,7 +363,11 @@ export const useDeviceAnalysisProcessing = ({
             typeof payload?.message === "string" && payload.message.trim()
               ? payload.message
               : "Unknown error";
-          const legacyParsed = parseLegacyExtractionError(rawMessage);
+          const legacyParsed = parseLegacyExtractionError(rawMessage) as {
+            fileName?: string;
+            messageKey?: string | null;
+            messageParams?: Record<string, unknown> | null;
+          } | null;
           const errFileName =
             payload?.fileName ?? legacyParsed?.fileName ?? "Unknown file";
           const errMessageKey =
@@ -271,7 +376,7 @@ export const useDeviceAnalysisProcessing = ({
               : legacyParsed?.messageKey ?? null;
           const errMessageParams =
             payload?.messageParams && typeof payload.messageParams === "object"
-              ? payload.messageParams
+              ? (payload.messageParams as Record<string, unknown>)
               : legacyParsed?.messageParams ?? null;
 
           setExtractionErrors((prev) => [
@@ -312,7 +417,7 @@ export const useDeviceAnalysisProcessing = ({
   );
 
   const handleTemplateApplied = useCallback(
-    (config) => {
+    (config: Record<string, unknown>) => {
       const prepared = prepareExtractionRun(config);
       if (!prepared.ok) return prepared;
 
@@ -324,7 +429,7 @@ export const useDeviceAnalysisProcessing = ({
         queue,
         resetExtractionErrors: true,
         resetProcessedData: true,
-        stopOnError: prepared.stopOnError,
+        stopOnError: Boolean(prepared.stopOnError),
       });
 
       return buildExtractionStartFeedback({
@@ -339,7 +444,7 @@ export const useDeviceAnalysisProcessing = ({
   );
 
   const handleTemplateAppliedIncremental = useCallback(
-    (config) => {
+    (config: Record<string, unknown>) => {
       if (processingStatus.state === "processing") {
         return {
           message: t("da_apply_to_new_files_busy"),
@@ -384,7 +489,7 @@ export const useDeviceAnalysisProcessing = ({
         queue,
         resetExtractionErrors: false,
         resetProcessedData: false,
-        stopOnError: prepared.stopOnError,
+        stopOnError: Boolean(prepared.stopOnError),
       });
 
       return buildExtractionStartFeedback({

@@ -2,12 +2,98 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { formatOriginBridgeError } from "../lib/originBridgeError";
 import { apiService } from "../services/apiService";
 
-const IDLE_FEEDBACK = { type: "idle", message: "" };
+type TranslateFn = (key: string, vars?: Record<string, unknown>) => string;
 
-const normalizeTrimmedString = (value) =>
+type LanguageCode = "zh" | "en";
+type SsMethod = "auto" | "manual" | "idWindow" | "legacy";
+
+type DeviceAnalysisSettings = {
+  language?: LanguageCode;
+  originRuntimeCleanupEnabled?: boolean;
+  originRuntimeFailedRetentionDays?: number;
+  originRuntimeKeepSuccessJobs?: number;
+  ssDiagnosticsEnabled?: boolean;
+  ssIdHigh?: number | string;
+  ssIdLow?: number | string;
+  ssMethodDefault?: SsMethod;
+  ssShowFitLine?: boolean;
+  stopOnErrorDefault?: boolean;
+  [key: string]: unknown;
+};
+
+type Feedback = {
+  message: string;
+  type: "idle" | "success" | "error";
+};
+
+type PersistencePathInfo = {
+  cancelled?: boolean;
+  currentPath?: string;
+  isConfigurable?: boolean;
+  [key: string]: unknown;
+};
+
+type OriginHealthResult = {
+  logPath?: string;
+  originExePath?: string;
+  [key: string]: unknown;
+};
+
+type OriginBatchResult = {
+  logPath?: string;
+  summary?: {
+    failed?: number;
+    succeeded?: number;
+    total?: number;
+  };
+  [key: string]: unknown;
+};
+
+type OriginCleanupResult = {
+  removedTotal?: number;
+  [key: string]: unknown;
+};
+
+type OriginBridge = {
+  checkOriginHealth?: (options: { path?: string }) => Promise<OriginHealthResult>;
+  getOriginExePath: () => Promise<string>;
+  pickOriginExePath: () => Promise<string>;
+  runOriginBatch?: (options: { allowPickInputDir: boolean }) => Promise<OriginBatchResult>;
+  runOriginRuntimeCleanup?: () => Promise<OriginCleanupResult>;
+};
+
+type UseDeviceAnalysisSettingsOptions = {
+  activePage: string;
+  isWindowsDesktopShell: boolean;
+  language: LanguageCode;
+  setLanguage: (language: LanguageCode) => void;
+  setSsDiagnosticsEnabled: (enabled: boolean) => void;
+  setSsIdWindow: (window: { high: string; low: string }) => void;
+  setSsMethod: (method: SsMethod) => void;
+  setSsShowFitLine: (enabled: boolean) => void;
+  t: TranslateFn;
+};
+
+declare global {
+  interface Window {
+    desktopOrigin?: OriginBridge;
+  }
+}
+
+const IDLE_FEEDBACK: Feedback = { type: "idle", message: "" };
+
+const getErrorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : "";
+
+const normalizeTrimmedString = (value: unknown): string =>
   typeof value === "string" && value.trim() ? value.trim() : "";
 
-const normalizeBoundedInt = (value, fallback, min, max) => {
+const normalizeBoundedInt = (
+  value: unknown,
+  fallback: number,
+  min: number,
+  max: number,
+): number => {
   const num = Number(value);
   if (!Number.isFinite(num)) return fallback;
   const rounded = Math.floor(num);
@@ -22,7 +108,11 @@ const ORIGIN_CLEANUP_DEFAULTS = {
   failedRetentionDays: 7,
 };
 
-const buildOriginLogMessage = (baseMessage, logPath, t) => {
+const buildOriginLogMessage = (
+  baseMessage: string,
+  logPath: unknown,
+  t: TranslateFn,
+): string => {
   const normalizedLogPath = normalizeTrimmedString(logPath);
   return normalizedLogPath
     ? `${baseMessage} ${t("da_origin_error_log_path", {
@@ -31,10 +121,15 @@ const buildOriginLogMessage = (baseMessage, logPath, t) => {
     : baseMessage;
 };
 
-const normalizeOriginBatchSummary = (summary) => {
-  const total = Number(summary?.total);
-  const succeeded = Number(summary?.succeeded);
-  const failed = Number(summary?.failed);
+const normalizeOriginBatchSummary = (summary: unknown) => {
+  const safeSummary =
+    summary && typeof summary === "object"
+      ? (summary as { failed?: unknown; succeeded?: unknown; total?: unknown })
+      : {};
+
+  const total = Number(safeSummary.total);
+  const succeeded = Number(safeSummary.succeeded);
+  const failed = Number(safeSummary.failed);
 
   const totalSafe = Number.isFinite(total) && total >= 0 ? total : 0;
   const succeededSafe =
@@ -61,13 +156,15 @@ export const useDeviceAnalysisSettings = ({
   setSsMethod,
   setSsShowFitLine,
   t,
-}) => {
-  const [deviceAnalysisSettings, setDeviceAnalysisSettings] = useState(null);
-  const [persistencePathInfo, setPersistencePathInfo] = useState(null);
+}: UseDeviceAnalysisSettingsOptions) => {
+  const [deviceAnalysisSettings, setDeviceAnalysisSettings] =
+    useState<DeviceAnalysisSettings | null>(null);
+  const [persistencePathInfo, setPersistencePathInfo] =
+    useState<PersistencePathInfo | null>(null);
   const [persistencePathRequested, setPersistencePathRequested] = useState(false);
   const [persistencePathSaving, setPersistencePathSaving] = useState(false);
   const [persistencePathFeedback, setPersistencePathFeedback] =
-    useState(IDLE_FEEDBACK);
+    useState<Feedback>(IDLE_FEEDBACK);
 
   const [originExePath, setOriginExePath] = useState("");
   const [originPathRequested, setOriginPathRequested] = useState(false);
@@ -75,18 +172,20 @@ export const useDeviceAnalysisSettings = ({
   const [originPathSaving, setOriginPathSaving] = useState(false);
   const [originHealthChecking, setOriginHealthChecking] = useState(false);
   const [originBatchRunning, setOriginBatchRunning] = useState(false);
-  const [originPathFeedback, setOriginPathFeedback] = useState(IDLE_FEEDBACK);
+  const [originPathFeedback, setOriginPathFeedback] = useState<Feedback>(IDLE_FEEDBACK);
   const [originCleanupSaving, setOriginCleanupSaving] = useState(false);
   const [originCleanupRunning, setOriginCleanupRunning] = useState(false);
   const [originCleanupFeedback, setOriginCleanupFeedback] =
-    useState(IDLE_FEEDBACK);
+    useState<Feedback>(IDLE_FEEDBACK);
 
   const handleUpdateDeviceAnalysisSettings = useCallback(
-    async (updates) => {
+    async (updates: unknown) => {
       const patch = updates && typeof updates === "object" ? updates : null;
       if (!patch) return null;
 
-      const updated = await apiService.updateDeviceAnalysisSettings(patch);
+      const updated = (await apiService.updateDeviceAnalysisSettings(
+        patch,
+      )) as DeviceAnalysisSettings | null;
       setDeviceAnalysisSettings((prev) => ({
         ...(prev || {}),
         ...(updated || {}),
@@ -98,7 +197,7 @@ export const useDeviceAnalysisSettings = ({
   );
 
   const handleLanguageChange = useCallback(
-    async (nextLanguage) => {
+    async (nextLanguage: LanguageCode) => {
       if (nextLanguage !== "zh" && nextLanguage !== "en") return;
       if (language === nextLanguage) return;
 
@@ -113,7 +212,7 @@ export const useDeviceAnalysisSettings = ({
     [handleUpdateDeviceAnalysisSettings, language, setLanguage],
   );
 
-  const getDesktopOriginBridge = useCallback(() => {
+  const getDesktopOriginBridge = useCallback((): OriginBridge | null => {
     if (typeof window === "undefined") return null;
 
     const bridge = window.desktopOrigin;
@@ -157,7 +256,9 @@ export const useDeviceAnalysisSettings = ({
 
     (async () => {
       try {
-        const settings = await apiService.getDeviceAnalysisSettings();
+        const settings = (await apiService.getDeviceAnalysisSettings()) as
+          | DeviceAnalysisSettings
+          | null;
         if (cancelled) return;
 
         setDeviceAnalysisSettings(settings ?? null);
@@ -222,7 +323,10 @@ export const useDeviceAnalysisSettings = ({
         const info = await apiService.getDeviceAnalysisPersistencePath();
         if (cancelled) return;
 
-        const normalizedInfo = info && typeof info === "object" ? info : null;
+        const normalizedInfo =
+          info && typeof info === "object"
+            ? (info as PersistencePathInfo)
+            : null;
         setPersistencePathInfo(normalizedInfo);
       } catch {
         if (cancelled) return;
@@ -240,9 +344,14 @@ export const useDeviceAnalysisSettings = ({
     setPersistencePathFeedback(IDLE_FEEDBACK);
 
     try {
-      const updatedInfo = await apiService.chooseDeviceAnalysisPersistencePath();
+      const updatedInfo =
+        (await apiService.chooseDeviceAnalysisPersistencePath()) as
+          | PersistencePathInfo
+          | null;
       const normalizedInfo =
-        updatedInfo && typeof updatedInfo === "object" ? updatedInfo : null;
+        updatedInfo && typeof updatedInfo === "object"
+          ? (updatedInfo as PersistencePathInfo)
+          : null;
 
       setPersistencePathInfo(normalizedInfo);
       if (normalizedInfo?.cancelled) return;
@@ -255,7 +364,7 @@ export const useDeviceAnalysisSettings = ({
       setPersistencePathFeedback({
         type: "error",
         message: t("da_settings_storage_choose_failed", {
-          error: error?.message || t("unknownError"),
+          error: getErrorMessage(error) || t("unknownError"),
         }),
       });
     } finally {
@@ -326,7 +435,7 @@ export const useDeviceAnalysisSettings = ({
       setOriginPathFeedback({
         type: "error",
         message: t("da_settings_origin_choose_failed", {
-          error: error?.message || t("unknownError"),
+          error: getErrorMessage(error) || t("unknownError"),
         }),
       });
     } finally {
@@ -431,7 +540,7 @@ export const useDeviceAnalysisSettings = ({
   }, [getDesktopOriginBridge, t]);
 
   const updateOriginCleanupSetting = useCallback(
-    async (updates) => {
+    async (updates: unknown) => {
       const patch = updates && typeof updates === "object" ? updates : null;
       if (!patch) return;
 
@@ -447,7 +556,7 @@ export const useDeviceAnalysisSettings = ({
         setOriginCleanupFeedback({
           type: "error",
           message: t("da_settings_origin_cleanup_save_failed", {
-            error: error?.message || t("unknownError"),
+            error: getErrorMessage(error) || t("unknownError"),
           }),
         });
       } finally {
@@ -458,7 +567,7 @@ export const useDeviceAnalysisSettings = ({
   );
 
   const handleSetOriginCleanupEnabled = useCallback(
-    async (nextEnabled) => {
+    async (nextEnabled: unknown) => {
       await updateOriginCleanupSetting({
         originRuntimeCleanupEnabled: Boolean(nextEnabled),
       });
@@ -467,7 +576,7 @@ export const useDeviceAnalysisSettings = ({
   );
 
   const handleSetOriginKeepSuccessJobs = useCallback(
-    async (nextValue) => {
+    async (nextValue: unknown) => {
       const normalized = normalizeBoundedInt(
         nextValue,
         ORIGIN_CLEANUP_DEFAULTS.keepSuccessJobs,
@@ -482,7 +591,7 @@ export const useDeviceAnalysisSettings = ({
   );
 
   const handleSetOriginFailedRetentionDays = useCallback(
-    async (nextValue) => {
+    async (nextValue: unknown) => {
       const normalized = normalizeBoundedInt(
         nextValue,
         ORIGIN_CLEANUP_DEFAULTS.failedRetentionDays,
@@ -519,7 +628,7 @@ export const useDeviceAnalysisSettings = ({
       setOriginCleanupFeedback({
         type: "error",
         message: t("da_settings_origin_cleanup_run_failed", {
-          error: error?.message || t("unknownError"),
+          error: getErrorMessage(error) || t("unknownError"),
         }),
       });
     } finally {
