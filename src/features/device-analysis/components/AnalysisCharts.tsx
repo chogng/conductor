@@ -1798,17 +1798,17 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
     }, []);
     if (!processedData || processedData.length === 0)
         return null;
-    return (<div className="h-full min-h-0 grid grid-cols-1 xl:grid-rows-1 xl:grid-cols-[var(--analysis-sidebar-width)_minmax(0,1fr)] gap-1 xl:gap-1" ref={toastContainerRef} style={{
+    return (<div className="h-full min-h-0 grid grid-cols-1 md:grid-rows-1 md:grid-cols-[var(--analysis-sidebar-width)_minmax(0,1fr)] gap-1 md:gap-1" ref={toastContainerRef} style={{
             "--analysis-sidebar-width": "clamp(240px, var(--sidebar-width), 420px)",
         } as CSSProperties}>
       <aside
         id="device-analysis-overview-sidebar"
-        className="xl:min-h-0 flex flex-col h-full"
+        className="md:min-h-0 flex flex-col h-full"
       >
         <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} yUnitFactor={currentUnitMeta.factor} yUnitLabel={currentUnitMeta.label} yScale={overviewYScaleType}/>
       </aside>
 
-      <ScrollArea className="xl:min-h-0" axis="y">
+      <ScrollArea className="md:min-h-0" axis="y">
         <section className="flex flex-col gap-4 pr-1" aria-label="Device Analysis results">
           <section aria-label="Device Analysis chart">
         <Card variant="panel">
@@ -1844,10 +1844,7 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
 
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1">
-                  <span className="text-xs text-text-secondary whitespace-nowrap">
-                    Y unit:
-                  </span>
-                  <Tabs groupLabel="Y unit" value={yUnit} onChange={(next: any) => {
+                  <Select id="device-analysis-y-unit-select" size="md" value={yUnit} onChange={(next: any) => {
             const nextUnit = next === "A" || next === "uA" || next === "nA"
                 ? next
                 : "A";
@@ -1860,49 +1857,22 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
             {
                 value: "A",
                 label: "A",
-                cta: "Device Analysis",
-                ctaPosition: "y-unit",
-                ctaCopy: "A",
             },
             {
                 value: "uA",
                 label: "µA",
-                cta: "Device Analysis",
-                ctaPosition: "y-unit",
-                ctaCopy: "uA",
             },
             {
                 value: "nA",
                 label: "nA",
-                cta: "Device Analysis",
-                ctaPosition: "y-unit",
-                ctaCopy: "nA",
             },
-        ]} size="md" itemClassName="px-2"/>
+        ]} aria-label="Y unit" className="w-fit da-neutral-select" stableWidth data-cta="Device Analysis" data-cta-position="y-unit" data-cta-copy="y unit"/>
                 </div>
 
                 <div className="flex items-center gap-1">
-                  <span className="text-xs text-text-secondary whitespace-nowrap">
-                    Y scale:
-                  </span>
                   {effectivePlotType === "ss" ? (<span className="text-xs text-text-primary font-mono whitespace-nowrap">
                       log(|I|)
-                    </span>) : (<Tabs groupLabel="Y scale" options={[
-                {
-                    value: "linear",
-                    label: "Linear",
-                    cta: "Device Analysis",
-                    ctaPosition: "y-scale",
-                    ctaCopy: "linear",
-                },
-                {
-                    value: "log",
-                    label: "Log",
-                    cta: "Device Analysis",
-                    ctaPosition: "y-scale",
-                    ctaCopy: "log",
-                },
-            ]} value={axis.yScale === "logAbs" ? "log" : axis.yScale} onChange={(next: any) => {
+                    </span>) : (<Select id="device-analysis-y-scale-select" size="md" value={axis.yScale === "logAbs" ? "log" : axis.yScale} onChange={(next: any) => {
                 setAxis((prev: any) => {
                     const nextScale = next === "log" ? "log" : "linear";
                     const nextTicks = nextScale === "linear" ? "nice" : "decades";
@@ -1912,17 +1882,23 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
                         yTicks: nextTicks,
                     };
                 });
-            }} size="md" itemClassName="px-2 py-1"/>)}
+            }} options={[
+                {
+                    value: "linear",
+                    label: "Linear",
+                },
+                {
+                    value: "log",
+                    label: "Log",
+                },
+            ]} aria-label="Y scale" className="w-fit da-neutral-select" stableWidth data-cta="Device Analysis" data-cta-position="y-scale" data-cta-copy="y scale"/>)}
                 </div>
 
                 {activeFile?.series?.length ? (<div className="flex items-center gap-1">
-                    <span className="text-xs text-text-secondary whitespace-nowrap">
-                      Curve:
-                    </span>
                     <Select id="device-analysis-curve-select" size="md" value={focusedSeriesId ?? ""} onChange={(next: any) => setFocusedSeriesId(next)} options={(activeFile?.series ?? []).map((s: any) => ({
                 value: s.id,
                 label: s.name,
-            }))} className="w-[200px]" placeholder="Select curve"/>
+            }))} className="w-fit max-w-[180px] da-neutral-select" placeholder="Select curve"/>
                   </div>) : null}
 
                 {effectivePlotType === "gm" ? (<div className="flex items-center gap-1">

@@ -1,6 +1,8 @@
 import {
+  isValidElement,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -59,6 +61,7 @@ type SelectProps = Omit<
   popupClassName?: string;
   triggerClassName?: string;
   testId?: string;
+  stableWidth?: boolean;
 };
 
 const isSelectableOption = (opt: unknown): opt is SelectOption => {
@@ -74,6 +77,22 @@ const slugify = (input: unknown): string =>
     .trim()
     .replace(/[^a-z0-9_-]+/g, "-")
     .replace(/^-+|-+$/g, "");
+
+const getNodePlainText = (node: ReactNode): string => {
+  if (node === null || node === undefined || typeof node === "boolean")
+    return "";
+  if (typeof node === "string" || typeof node === "number") {
+    return String(node);
+  }
+  if (Array.isArray(node)) {
+    return node.map((item) => getNodePlainText(item)).join("");
+  }
+  if (isValidElement(node)) {
+    const children = (node.props as { children?: ReactNode } | null)?.children;
+    return getNodePlainText(children);
+  }
+  return "";
+};
 
 const Select = ({
   options = [],
@@ -92,11 +111,16 @@ const Select = ({
   popupClassName = "min-w-full",
   triggerClassName = "",
   testId,
+  stableWidth = false,
   ...props
 }: SelectProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const [stableWidthPx, setStableWidthPx] = useState<number | undefined>(
+    undefined,
+  );
 
   const internalTriggerId = useId();
   const internalMenuId = useId();
@@ -266,10 +290,112 @@ const Select = ({
     return true;
   })();
 
+  const stableWidthTextCandidates = useMemo(() => {
+    if (!stableWidth) return [];
+
+    const optionTexts = selectableOptions
+      .map((opt) => getNodePlainText(opt.label ?? String(opt.value)).trim())
+      .filter((text) => text.length > 0);
+
+    const displayText = getNodePlainText(displayNode).trim();
+    if (displayText.length > 0) optionTexts.push(displayText);
+
+    const placeholderText = getNodePlainText(placeholder).trim();
+    if (placeholderText.length > 0) optionTexts.push(placeholderText);
+
+    return optionTexts;
+  }, [stableWidth, selectableOptions, displayNode, placeholder]);
+
+  useLayoutEffect(() => {
+    if (!stableWidth) {
+      setStableWidthPx(undefined);
+      return;
+    }
+
+    const triggerEl = triggerRef.current;
+    const fieldEl = triggerEl?.parentElement;
+    if (!triggerEl || !fieldEl) return;
+
+    const measure = () => {
+      const triggerStyles = window.getComputedStyle(triggerEl);
+      const fieldStyles = window.getComputedStyle(fieldEl);
+
+      const triggerPaddingRight =
+        Number.parseFloat(triggerStyles.paddingRight) || 0;
+      const fieldPaddingLeft = Number.parseFloat(fieldStyles.paddingLeft) || 0;
+      const fieldPaddingRight = Number.parseFloat(fieldStyles.paddingRight) || 0;
+      const fieldBorderLeft = Number.parseFloat(fieldStyles.borderLeftWidth) || 0;
+      const fieldBorderRight =
+        Number.parseFloat(fieldStyles.borderRightWidth) || 0;
+
+      const font =
+        triggerStyles.font ||
+        `${triggerStyles.fontStyle} ${triggerStyles.fontVariant} ${triggerStyles.fontWeight} ${triggerStyles.fontSize}/${triggerStyles.lineHeight} ${triggerStyles.fontFamily}`;
+
+      const letterSpacingRaw = triggerStyles.letterSpacing;
+      const letterSpacing =
+        letterSpacingRaw && letterSpacingRaw !== "normal"
+          ? Number.parseFloat(letterSpacingRaw)
+          : 0;
+
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      ctx.font = font;
+
+      const texts = stableWidthTextCandidates.length
+        ? stableWidthTextCandidates
+        : [" "];
+
+      let maxTextWidth = 0;
+      for (const text of texts) {
+        const safeText = text.length > 0 ? text : " ";
+        let nextWidth = ctx.measureText(safeText).width;
+        if (letterSpacing && Number.isFinite(letterSpacing) && safeText.length > 1) {
+          nextWidth += letterSpacing * (safeText.length - 1);
+        }
+        maxTextWidth = Math.max(maxTextWidth, nextWidth);
+      }
+
+      const nextWidthPx = Math.ceil(
+        maxTextWidth +
+          triggerPaddingRight +
+          fieldPaddingLeft +
+          fieldPaddingRight +
+          fieldBorderLeft +
+          fieldBorderRight,
+      );
+
+      setStableWidthPx((prev) => (prev === nextWidthPx ? prev : nextWidthPx));
+    };
+
+    measure();
+
+    let cancelled = false;
+    document.fonts?.ready
+      .then(() => {
+        if (!cancelled) measure();
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [stableWidth, stableWidthTextCandidates, sizeClass, triggerClassName]);
+
   return (
     <div
       ref={containerRef}
       className={cx("ui-select_warp", className)}
+      style={
+        stableWidthPx !== undefined
+          ? ({
+              width: `${stableWidthPx}px`,
+              minWidth: `${stableWidthPx}px`,
+            } as CSSProperties)
+          : undefined
+      }
       data-style="select"
       data-disabled={disabled || undefined}
     >
@@ -279,6 +405,7 @@ const Select = ({
       >
         <button
           {...props}
+          ref={triggerRef}
           id={triggerId}
           type="button"
           aria-haspopup="menu"
@@ -291,7 +418,7 @@ const Select = ({
           onClick={handleTriggerClick}
           onKeyDown={handleKeyDown}
           className={cx(
-            "input_native no-focus-outline p-0 pr-8 text-left cursor-pointer select-none",
+            "input_native no-focus-outline p-0 pr-12 text-left cursor-pointer select-none",
             triggerClassName,
           )}
         >
@@ -328,9 +455,16 @@ const Select = ({
       >
         {() => (
           <>
-            {title ? <div className="ui-select_title">{title}</div> : null}
+            {title ? <div>{title}</div> : null}
 
-            <ScrollArea className="max-h-60" axis="y">
+            <ScrollArea
+              className="ui-select_scroll-area max-h-60 -mr-1 pr-1"
+              axis="y"
+              viewportClassName="max-h-60"
+              viewportProps={{
+                style: { height: "auto", maxHeight: "15rem" },
+              }}
+            >
               <div className="ui-select_list">
                 {indexedGroups.map(({ group, options: groupOptions }, groupIdx) => (
                   <div key={group || "default"} role={group ? "group" : undefined}>
