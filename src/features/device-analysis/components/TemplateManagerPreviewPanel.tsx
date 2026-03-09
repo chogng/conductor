@@ -156,6 +156,15 @@ const PREVIEW_ROW_HEIGHT_PX = 28;
 const ENABLE_EXPERIMENTAL_CANVAS_PREVIEW =
   String(import.meta?.env?.VITE_DA_PREVIEW_CANVAS || "").trim() === "1";
 
+const isEditableElement = (target: EventTarget | null): boolean => {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  if (target.isContentEditable) return true;
+  if (target.closest("[contenteditable='true']")) return true;
+  return false;
+};
+
 const formatPreviewCell = (value: unknown): string => {
   if (value === null || value === undefined) return "";
   if (typeof value === "number") return formatNumber(value, { digits: 4 });
@@ -829,6 +838,51 @@ const TemplateManagerPreviewPanel = ({
   toggleColumn,
 }: TemplateManagerPreviewPanelProps) => {
   const useCanvasPreview = ENABLE_EXPERIMENTAL_CANVAS_PREVIEW;
+  const hasSelection = selections.length > 0;
+
+  const handlePreviewKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (event.defaultPrevented) return;
+      if (isEditableElement(event.target)) return;
+
+      const key = String(event.key || "").toLowerCase();
+      const isCopyShortcut =
+        (event.ctrlKey || event.metaKey) &&
+        !event.shiftKey &&
+        !event.altKey &&
+        key === "c";
+
+      if (isCopyShortcut) {
+        if (!hasSelection || typeof copySelection !== "function") return;
+        event.preventDefault();
+        void copySelection();
+        return;
+      }
+
+      if (key === "escape" && hasSelection) {
+        event.preventDefault();
+        if (typeof setSelectionRange === "function") {
+          setSelectionRange(null);
+        }
+      }
+    },
+    [copySelection, hasSelection, setSelectionRange],
+  );
+
+  const handlePreviewPointerDown = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (isEditableElement(event.target)) return;
+      const viewport = event.currentTarget;
+      if (!(viewport instanceof HTMLDivElement)) return;
+      if (document.activeElement === viewport) return;
+      try {
+        viewport.focus({ preventScroll: true });
+      } catch {
+        viewport.focus();
+      }
+    },
+    [],
+  );
 
   return (
     <div className="lg:col-span-3 bg-bg-page rounded-lg p-4 overflow-hidden flex flex-col min-h-0 lg:min-h-[var(--da-template-panel-min-h)]">
@@ -853,7 +907,7 @@ const TemplateManagerPreviewPanel = ({
             id="device-analysis-preview-copy-selection"
             type="button"
             onClick={copySelection}
-            disabled={selections.length === 0}
+            disabled={!hasSelection}
             className="p-1.5 rounded-md border border-border bg-bg-surface hover:bg-bg-page text-text-secondary hover:text-text-primary disabled:opacity-50 transition-colors"
             title="Copy selection as TSV"
           >
@@ -885,6 +939,9 @@ const TemplateManagerPreviewPanel = ({
               if (!target) return;
               handlePreviewScroll(target.scrollTop, target.scrollLeft);
             },
+            onKeyDown: handlePreviewKeyDown,
+            onPointerDown: handlePreviewPointerDown,
+            tabIndex: 0,
           }}
         >
           <div ref={gridRef} className="relative min-w-full align-top select-none">
