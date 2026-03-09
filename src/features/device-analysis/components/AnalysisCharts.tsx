@@ -287,10 +287,21 @@ const useContainerSizeReady = (containerRef: any, enabled: any = true) => {
     }, [containerRef, enabled]);
     return enabled && ready;
 };
-const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", setSsMethod = () => { }, ssDiagnosticsEnabled = true, setSsDiagnosticsEnabled = () => { }, ssShowFitLine = true, setSsShowFitLine = () => { }, ssIdWindow = { low: "1e-11", high: "1e-9" }, setSsIdWindow = () => { }, ssManualRanges = {}, setSsManualRanges = () => { }, originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS, }: any) => {
+const AnalysisCharts = ({ processedData, processingStatus, activeFileId: controlledActiveFileId = undefined, onActiveFileIdChange = undefined, showFileSelect = true, ssMethod = "auto", setSsMethod = () => { }, ssDiagnosticsEnabled = true, setSsDiagnosticsEnabled = () => { }, ssShowFitLine = true, setSsShowFitLine = () => { }, ssIdWindow = { low: "1e-11", high: "1e-9" }, setSsIdWindow = () => { }, ssManualRanges = {}, setSsManualRanges = () => { }, originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS, }: any) => {
     const { t } = useLanguage();
     const tLoose = React.useCallback<FormatOriginTranslateFn>((key, params) => t(key, params as any), [t]);
-    const [activeFileId, setActiveFileId] = useState(processedData?.[0]?.fileId ?? null);
+    const [internalActiveFileId, setInternalActiveFileId] = useState(processedData?.[0]?.fileId ?? null);
+    const isActiveFileControlled = controlledActiveFileId !== undefined;
+    const activeFileId = isActiveFileControlled ? controlledActiveFileId : internalActiveFileId;
+    const setActiveFileId = React.useCallback((nextFileId: any) => {
+        if (isActiveFileControlled) {
+            if (typeof onActiveFileIdChange === "function") {
+                onActiveFileIdChange(nextFileId ?? null);
+            }
+            return;
+        }
+        setInternalActiveFileId(nextFileId ?? null);
+    }, [isActiveFileControlled, onActiveFileIdChange]);
     const [plotType, setPlotType] = useState("iv"); // 'iv' | 'gm' | 'ss' | 'j'
     const [focusedSeriesId, setFocusedSeriesId] = useState(null);
     const [originSelectedSeriesIdsByFile, setOriginSelectedSeriesIdsByFile] = useState<Record<string, string[]>>({});
@@ -518,7 +529,7 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
         const next = processedData[0]?.fileId ?? null;
         if (next !== activeFileId)
             setActiveFileId(next);
-    }, [activeFileId, processedData]);
+    }, [activeFileId, processedData, setActiveFileId]);
     const activeFile = useMemo(() => processedData?.find((f: any) => f.fileId === effectiveActiveFileId) ?? null, [effectiveActiveFileId, processedData]);
     const originCanvasOptions = useMemo(() => {
         const list = Array.isArray(processedData) ? processedData : [];
@@ -2642,10 +2653,10 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
                       </div>) : null}
                   </div>) : null}
 
-                <Select id="device-analysis-file-select" size="md" value={effectiveActiveFileId ?? ""} onChange={(val: any) => handleSelectFile(val)} options={processedData.map((f: any) => ({
+                {showFileSelect ? (<Select id="device-analysis-file-select" size="md" value={effectiveActiveFileId ?? ""} onChange={(val: any) => handleSelectFile(val)} options={processedData.map((f: any) => ({
             value: f.fileId,
             label: f.fileName,
-        }))} className="w-[240px] da-neutral-select" placeholder="Select File" data-cta="Device Analysis" data-cta-position="file-select" data-cta-copy="file select"/>
+        }))} className="w-[240px] da-neutral-select" placeholder="Select File" data-cta="Device Analysis" data-cta-position="file-select" data-cta-copy="file select"/>) : null}
                 <Button id="device-analysis-axis-toggle-btn" variant="secondary" size="sm" onClick={() => setShowAxisControls((v: any) => !v)} className="h-[38px] px-3 text-xs border-border bg-bg-page hover:bg-bg-surface-hover" title="Axis settings">
                   Axis
                 </Button>
@@ -3016,57 +3027,57 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
                     >
                       {t("da_calc_group_series")}
                     </th>
-                    <th colSpan={2} className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center">
+                    <th colSpan={2} className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-emerald-500/5">
                       {t("da_calc_group_on_state")}
                     </th>
-                    <th colSpan={2} className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center">
+                    <th colSpan={2} className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-cyan-500/5">
                       {t("da_calc_group_off_state")}
                     </th>
-                    <th className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center">
+                    <th className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center border-l border-border">
                       {t("da_calc_group_ratio")}
                     </th>
-                    <th colSpan={2} className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center">
+                    <th colSpan={2} className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center border-l border-border">
                       {t("da_calc_group_derivative")}
                     </th>
-                    <th colSpan={2} className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center">
+                    <th colSpan={2} className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center border-l border-border">
                       {t("da_calc_group_ss")}
                     </th>
                     <th
-                      className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center"
+                      className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center border-l border-border"
                       title={t("da_calc_group_jon_hint")}
                     >
                       {t("da_calc_group_jon")}
                     </th>
                   </tr>
                   <tr className="border-b border-border">
-                    <th className="p-2 text-xs font-semibold text-text-secondary text-right whitespace-nowrap">
+                    <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-emerald-500/5">
                       |I|on
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary text-right whitespace-nowrap">
+                    <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-emerald-500/5">
                       x@Ion
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary text-right whitespace-nowrap">
+                    <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-cyan-500/5">
                       |I|off
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary text-right whitespace-nowrap">
+                    <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-cyan-500/5">
                       x@Ioff
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary text-right whitespace-nowrap">
+                    <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border">
                       Ion/Ioff
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary text-right whitespace-nowrap">
+                    <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border">
                       {gmUi.metricHeader}
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary text-right whitespace-nowrap">
+                    <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border">
                       {gmUi.metricXHeader}
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary text-right whitespace-nowrap">
+                    <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border">
                       SS
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary text-right whitespace-nowrap">
+                    <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border">
                       x@SS
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary text-right whitespace-nowrap" title={t("da_calc_group_jon_hint")}>
+                    <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border" title={t("da_calc_group_jon_hint")}>
                       Jon
                     </th>
                   </tr>

@@ -34,28 +34,28 @@ const CalculatedParametersRow = memo(function CalculatedParametersRow({
       <td className="p-2 text-text-primary font-medium whitespace-nowrap">
         {row.name}
       </td>
-      <td className="p-2 font-mono text-xs text-text-primary whitespace-nowrap">
+      <td className="p-2 font-mono text-xs text-text-primary whitespace-nowrap text-center border-l border-border bg-emerald-500/5">
         {formatNumber(row.ion)}
       </td>
-      <td className="p-2 font-mono text-xs text-text-secondary whitespace-nowrap">
+      <td className="p-2 font-mono text-xs text-text-secondary whitespace-nowrap text-center border-l border-border bg-emerald-500/5">
         {formatNumber(row.xAtIon)}
       </td>
-      <td className="p-2 font-mono text-xs text-text-primary whitespace-nowrap">
+      <td className="p-2 font-mono text-xs text-text-primary whitespace-nowrap text-center border-l border-border bg-cyan-500/5">
         {formatNumber(row.ioff)}
       </td>
-      <td className="p-2 font-mono text-xs text-text-secondary whitespace-nowrap">
+      <td className="p-2 font-mono text-xs text-text-secondary whitespace-nowrap text-center border-l border-border bg-cyan-500/5">
         {formatNumber(row.xAtIoff)}
       </td>
-      <td className="p-2 font-mono text-xs text-text-primary whitespace-nowrap">
+      <td className="p-2 font-mono text-xs text-text-primary whitespace-nowrap text-center border-l border-border">
         {formatNumber(row.ionIoff, { digits: 3 })}
       </td>
-      <td className="p-2 font-mono text-xs text-text-primary whitespace-nowrap">
+      <td className="p-2 font-mono text-xs text-text-primary whitespace-nowrap text-center border-l border-border">
         {formatNumber(row.gmMaxAbs)}
       </td>
-      <td className="p-2 font-mono text-xs text-text-secondary whitespace-nowrap">
+      <td className="p-2 font-mono text-xs text-text-secondary whitespace-nowrap text-center border-l border-border">
         {formatNumber(row.xAtGmMaxAbs)}
       </td>
-      <td className="p-2 font-mono text-xs text-text-primary whitespace-nowrap">
+      <td className="p-2 font-mono text-xs text-text-primary whitespace-nowrap text-center border-l border-border">
         <span
           className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${
             row.ssConfidence === "high"
@@ -75,10 +75,10 @@ const CalculatedParametersRow = memo(function CalculatedParametersRow({
               : "-"}
         </span>
       </td>
-      <td className="p-2 font-mono text-xs text-text-secondary whitespace-nowrap">
+      <td className="p-2 font-mono text-xs text-text-secondary whitespace-nowrap text-center border-l border-border">
         {formatNumber(row.xAtSs)}
       </td>
-      <td className="p-2 font-mono text-xs text-text-primary whitespace-nowrap">
+      <td className="p-2 font-mono text-xs text-text-primary whitespace-nowrap text-center border-l border-border">
         {formatNumber(row.jon)}
       </td>
     </tr>
