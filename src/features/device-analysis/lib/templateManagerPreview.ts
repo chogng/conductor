@@ -101,12 +101,41 @@ export const createEmptyLiveColumnLayout = () => ({
     tableWidth: 0,
     appliedWidthVarCount: 0,
 });
-export const buildPreviewColumnWindow = ({ columnCount, scrollLeft, viewportWidth, rowIndexWidthPx, overscanPx, }: any) => {
+const lowerBound = (values: any, target: any) => {
+    let low = 0;
+    let high = values.length;
+    while (low < high) {
+        const mid = Math.floor((low + high) / 2);
+        if ((values[mid] ?? 0) < target) {
+            low = mid + 1;
+        }
+        else {
+            high = mid;
+        }
+    }
+    return low;
+};
+const upperBound = (values: any, target: any) => {
+    let low = 0;
+    let high = values.length;
+    while (low < high) {
+        const mid = Math.floor((low + high) / 2);
+        if ((values[mid] ?? 0) <= target) {
+            low = mid + 1;
+        }
+        else {
+            high = mid;
+        }
+    }
+    return low;
+};
+export const buildPreviewColumnWindow = ({ columnCount, scrollLeft, viewportWidth, rowIndexWidthPx, overscanPx, startOffsetsPx, totalDataWidthPx, }: any) => {
     const safeColumnCount = Math.max(0, Math.floor(Number(columnCount) || 0));
     const normalizedScrollLeft = Math.max(0, Number(scrollLeft) || 0);
     const normalizedViewportWidth = Math.max(0, Number(viewportWidth) || 0);
     const normalizedRowIndexWidth = Math.max(0, Number(rowIndexWidthPx) || 0);
     const dataViewportWidth = Math.max(0, normalizedViewportWidth - normalizedRowIndexWidth);
+    const normalizedOverscanPx = Math.max(0, Number(overscanPx) || 0);
     if (!safeColumnCount) {
         return {
             startCol: 0,
@@ -116,21 +145,42 @@ export const buildPreviewColumnWindow = ({ columnCount, scrollLeft, viewportWidt
             scrollLeft: normalizedScrollLeft,
             viewportWidth: normalizedViewportWidth,
             dataViewportWidth,
-            overscanPx: Math.max(0, Number(overscanPx) || 0),
+            overscanPx: normalizedOverscanPx,
         };
     }
-    // Horizontal virtualization remains intentionally disabled. This helper now
-    // owns the window contract so any future re-enable must happen here together
-    // with spacer, scroll-threshold, and overlay/header/body alignment changes.
+    const hasUsableOffsets = Array.isArray(startOffsetsPx) &&
+        startOffsetsPx.length >= safeColumnCount + 1 &&
+        Number.isFinite(totalDataWidthPx) &&
+        totalDataWidthPx > 0;
+    if (!hasUsableOffsets) {
+        return {
+            startCol: 0,
+            endCol: safeColumnCount,
+            leftSpacerPx: 0,
+            rightSpacerPx: 0,
+            scrollLeft: normalizedScrollLeft,
+            viewportWidth: normalizedViewportWidth,
+            dataViewportWidth,
+            overscanPx: normalizedOverscanPx,
+        };
+    }
+    const safeTotalDataWidthPx = Math.max(0, Number(totalDataWidthPx) || 0);
+    const viewportStartPx = Math.max(0, normalizedScrollLeft - normalizedOverscanPx);
+    const viewportEndPx = Math.min(safeTotalDataWidthPx, normalizedScrollLeft + Math.max(1, dataViewportWidth) + normalizedOverscanPx);
+    const startCol = Math.max(0, Math.min(safeColumnCount - 1, upperBound(startOffsetsPx, viewportStartPx) - 1));
+    const endCol = Math.max(startCol + 1, Math.min(safeColumnCount, lowerBound(startOffsetsPx, Math.max(viewportStartPx + 1, viewportEndPx))));
+    const leftSpacerPx = Math.max(0, Number(startOffsetsPx[startCol]) || 0);
+    const endOffset = Math.max(leftSpacerPx, Number(startOffsetsPx[endCol]) || 0);
+    const rightSpacerPx = Math.max(0, safeTotalDataWidthPx - endOffset);
     return {
-        startCol: 0,
-        endCol: safeColumnCount,
-        leftSpacerPx: 0,
-        rightSpacerPx: 0,
+        startCol,
+        endCol,
+        leftSpacerPx,
+        rightSpacerPx,
         scrollLeft: normalizedScrollLeft,
         viewportWidth: normalizedViewportWidth,
         dataViewportWidth,
-        overscanPx: Math.max(0, Number(overscanPx) || 0),
+        overscanPx: normalizedOverscanPx,
     };
 };
 export const buildPreviewColumnGeometry = ({ columnCount, columnWidthsPx, rowIndexWidthPx, scrollLeft, viewportWidth, overscanPx, minColumnWidthPx, }: any) => {
@@ -152,6 +202,8 @@ export const buildPreviewColumnGeometry = ({ columnCount, columnWidthsPx, rowInd
         viewportWidth,
         rowIndexWidthPx,
         overscanPx,
+        startOffsetsPx,
+        totalDataWidthPx,
     });
     const startCol = Math.max(0, Math.min(safeColumnCount, Math.floor(Number(window.startCol) || 0)));
     const endCol = Math.max(startCol, Math.min(safeColumnCount, Math.floor(Number(window.endCol) || 0)));
@@ -326,15 +378,48 @@ export const usePreviewColumnLayout = ({ autoColumnWidthsPx, columnCount, column
         applyColumnWidthToDom,
     };
 };
-export const usePreviewViewportSync = ({ previewFileColumnCount, previewFileId, previewFileRowCount, previewScrollRef, previewStatusState, }: any) => {
+export const usePreviewViewportSync = ({ previewFileColumnCount, previewFileId, previewFileRowCount, previewRowHeightPx = 1, previewScrollRef, previewStatusState, }: any) => {
     const previewScrollTopRef = useRef(0);
     const previewScrollLeftRef = useRef(0);
     const previousPreviewFileIdRef = useRef<string | null>(null);
     const previewScrollRafRef = useRef(0);
+    const previewScrollVelocityResetTimerRef = useRef(0);
+    const previewScrollVelocitySampleRef = useRef({
+        left: 0,
+        time: 0,
+        top: 0,
+    });
     const [previewScrollTop, setPreviewScrollTop] = useState(0);
     const [previewScrollLeft, setPreviewScrollLeft] = useState(0);
     const [previewViewportHeight, setPreviewViewportHeight] = useState(0);
     const [previewViewportWidth, setPreviewViewportWidth] = useState(0);
+    const [previewHorizontalScrollVelocityTier, setPreviewHorizontalScrollVelocityTier] = useState(0);
+    const [previewVerticalScrollVelocityTier, setPreviewVerticalScrollVelocityTier] = useState(0);
+    const normalizedPreviewRowHeight = Math.max(1, Math.floor(Number(previewRowHeightPx) || 0));
+    const quantizeScrollTop = useCallback((scrollTop: any) => {
+        const normalized = Math.max(0, Number(scrollTop) || 0);
+        return Math.floor(normalized / normalizedPreviewRowHeight) * normalizedPreviewRowHeight;
+    }, [normalizedPreviewRowHeight]);
+    const resolveScrollVelocityTier = useCallback((deltaPxPerSecond: any) => {
+        const speed = Math.max(0, Number(deltaPxPerSecond) || 0);
+        if (speed >= 1600)
+            return 2;
+        if (speed >= 600)
+            return 1;
+        return 0;
+    }, []);
+    const scheduleScrollVelocityIdleReset = useCallback(() => {
+        if (typeof window === "undefined")
+            return;
+        if (previewScrollVelocityResetTimerRef.current) {
+            window.clearTimeout(previewScrollVelocityResetTimerRef.current);
+        }
+        previewScrollVelocityResetTimerRef.current = window.setTimeout(() => {
+            previewScrollVelocityResetTimerRef.current = 0;
+            setPreviewHorizontalScrollVelocityTier((prev: any) => (prev === 0 ? prev : 0));
+            setPreviewVerticalScrollVelocityTier((prev: any) => (prev === 0 ? prev : 0));
+        }, 140);
+    }, []);
     const handlePreviewScroll = useCallback((scrollTop: any, scrollLeft: any) => {
         previewScrollTopRef.current = scrollTop;
         previewScrollLeftRef.current = scrollLeft;
@@ -342,12 +427,35 @@ export const usePreviewViewportSync = ({ previewFileColumnCount, previewFileId, 
             return;
         previewScrollRafRef.current = requestAnimationFrame(() => {
             previewScrollRafRef.current = 0;
-            const nextTop = Math.max(0, previewScrollTopRef.current || 0);
+            const nextTop = quantizeScrollTop(previewScrollTopRef.current);
             const nextLeft = Math.max(0, previewScrollLeftRef.current || 0);
+            const now = typeof performance !== "undefined" && typeof performance.now === "function"
+                ? performance.now()
+                : Date.now();
+            const sample = previewScrollVelocitySampleRef.current;
+            const dt = Math.max(0, now - (Number(sample.time) || 0));
+            const dx = Math.abs(nextLeft - (Number(sample.left) || 0));
+            const dy = Math.abs(nextTop - (Number(sample.top) || 0));
+            const speedX = dt > 0 ? (dx * 1000) / dt : 0;
+            const speedY = dt > 0 ? (dy * 1000) / dt : 0;
+            const nextHorizontalTier = resolveScrollVelocityTier(speedX);
+            const nextVerticalTier = resolveScrollVelocityTier(speedY);
+            setPreviewHorizontalScrollVelocityTier((prev: any) => (prev === nextHorizontalTier ? prev : nextHorizontalTier));
+            setPreviewVerticalScrollVelocityTier((prev: any) => (prev === nextVerticalTier ? prev : nextVerticalTier));
+            previewScrollVelocitySampleRef.current = {
+                left: nextLeft,
+                time: now,
+                top: nextTop,
+            };
+            scheduleScrollVelocityIdleReset();
             setPreviewScrollTop((prev: any) => (prev === nextTop ? prev : nextTop));
             setPreviewScrollLeft((prev: any) => (prev === nextLeft ? prev : nextLeft));
         });
-    }, []);
+    }, [
+        quantizeScrollTop,
+        resolveScrollVelocityTier,
+        scheduleScrollVelocityIdleReset,
+    ]);
     useEffect(() => {
         const el = previewScrollRef.current;
         if (!el)
@@ -425,6 +533,11 @@ export const usePreviewViewportSync = ({ previewFileColumnCount, previewFileId, 
             if (previewScrollRafRef.current) {
                 cancelAnimationFrame(previewScrollRafRef.current);
             }
+            if (typeof window !== "undefined" &&
+                previewScrollVelocityResetTimerRef.current) {
+                window.clearTimeout(previewScrollVelocityResetTimerRef.current);
+                previewScrollVelocityResetTimerRef.current = 0;
+            }
         };
     }, []);
     useEffect(() => {
@@ -443,6 +556,17 @@ export const usePreviewViewportSync = ({ previewFileColumnCount, previewFileId, 
                 el.scrollLeft = 0;
                 previewScrollTopRef.current = 0;
                 previewScrollLeftRef.current = 0;
+                const now = typeof performance !== "undefined" &&
+                    typeof performance.now === "function"
+                    ? performance.now()
+                    : Date.now();
+                previewScrollVelocitySampleRef.current = {
+                    left: 0,
+                    time: now,
+                    top: 0,
+                };
+                setPreviewHorizontalScrollVelocityTier((prev: any) => (prev === 0 ? prev : 0));
+                setPreviewVerticalScrollVelocityTier((prev: any) => (prev === 0 ? prev : 0));
             }
             handlePreviewScroll(el.scrollTop || 0, el.scrollLeft || 0);
         });
@@ -453,13 +577,15 @@ export const usePreviewViewportSync = ({ previewFileColumnCount, previewFileId, 
     }, [handlePreviewScroll, previewFileId, previewScrollRef]);
     return {
         handlePreviewScroll,
+        previewHorizontalScrollVelocityTier,
         previewScrollLeft,
         previewScrollTop,
+        previewVerticalScrollVelocityTier,
         previewViewportHeight,
         previewViewportWidth,
     };
 };
-export const buildPreviewRowWindow = ({ overscanRows, rowCount, rowHeightPx, scrollTop, viewportHeight, }: any) => {
+export const buildPreviewRowWindow = ({ overscanRows, rowCount, rowHeightPx, scrollTop, viewportHeight, windowShiftStrideRows, }: any) => {
     const totalRows = Number.isFinite(rowCount) ? rowCount : 0;
     if (!totalRows) {
         return {
@@ -475,9 +601,15 @@ export const buildPreviewRowWindow = ({ overscanRows, rowCount, rowHeightPx, scr
     const resolvedViewportHeight = Math.max(0, Number(viewportHeight) || 0) || 500;
     const normalizedScrollTop = Math.max(0, Number(scrollTop) || 0);
     const visibleCount = Math.max(1, Math.ceil(resolvedViewportHeight / normalizedRowHeight));
-    const scrollRow = Math.floor(normalizedScrollTop / normalizedRowHeight);
-    const startRow = Math.max(0, Math.min(totalRows - 1, scrollRow - normalizedOverscanRows));
-    const endRow = Math.max(startRow + 1, Math.min(totalRows, startRow + visibleCount + normalizedOverscanRows * 2));
+    const visibleStartRow = Math.floor(normalizedScrollTop / normalizedRowHeight);
+    const normalizedWindowShiftStrideRows = Math.max(1, Math.floor(Number(windowShiftStrideRows) ||
+        normalizedOverscanRows ||
+        1));
+    // Hysteresis window: keep a stable row window while scrolling inside the
+    // current overscan band, and shift in larger steps to reduce rerenders.
+    const anchoredVisibleStartRow = Math.floor(visibleStartRow / normalizedWindowShiftStrideRows) * normalizedWindowShiftStrideRows;
+    const startRow = Math.max(0, Math.min(totalRows - 1, anchoredVisibleStartRow - normalizedOverscanRows));
+    const endRow = Math.max(startRow + 1, Math.min(totalRows, anchoredVisibleStartRow + visibleCount + normalizedOverscanRows * 2));
     return {
         totalRows,
         startRow,
@@ -486,13 +618,14 @@ export const buildPreviewRowWindow = ({ overscanRows, rowCount, rowHeightPx, scr
         bottomSpacerHeight: (totalRows - endRow) * normalizedRowHeight,
     };
 };
-export const usePreviewRowWindow = ({ ensurePreviewRows, overscanRows, previewFileId, previewRowCount, previewScrollTop, previewViewportHeight, rowHeightPx, }: any) => {
+export const usePreviewRowWindow = ({ ensurePreviewRows, overscanRows, prefetchRows, previewFileId, previewRowCount, previewScrollTop, previewViewportHeight, rowHeightPx, }: any) => {
     const previewWindow = useMemo(() => buildPreviewRowWindow({
         overscanRows,
         rowCount: previewRowCount,
         rowHeightPx,
         scrollTop: previewScrollTop,
         viewportHeight: previewViewportHeight,
+        windowShiftStrideRows: overscanRows,
     }), [
         overscanRows,
         previewRowCount,
@@ -500,18 +633,30 @@ export const usePreviewRowWindow = ({ ensurePreviewRows, overscanRows, previewFi
         previewViewportHeight,
         rowHeightPx,
     ]);
+    const previewPrefetchRange = useMemo(() => {
+        const normalizedPrefetchRows = Math.max(0, Math.floor(Number(prefetchRows) || Number(overscanRows) || 0));
+        return {
+            endRow: Math.max(previewWindow.endRow, previewWindow.endRow + normalizedPrefetchRows),
+            startRow: Math.max(0, previewWindow.startRow - normalizedPrefetchRows),
+        };
+    }, [
+        overscanRows,
+        prefetchRows,
+        previewWindow.endRow,
+        previewWindow.startRow,
+    ]);
     useEffect(() => {
         if (!previewFileId)
             return;
         if (typeof ensurePreviewRows !== "function")
             return;
         // Keep the visible (plus overscan) window warm in cache.
-        void ensurePreviewRows(previewFileId, previewWindow.startRow, previewWindow.endRow);
+        void ensurePreviewRows(previewFileId, previewPrefetchRange.startRow, previewPrefetchRange.endRow);
     }, [
         ensurePreviewRows,
         previewFileId,
-        previewWindow.endRow,
-        previewWindow.startRow,
+        previewPrefetchRange.endRow,
+        previewPrefetchRange.startRow,
     ]);
     return previewWindow;
 };

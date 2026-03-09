@@ -1,4 +1,4 @@
-import React, { useSyncExternalStore } from "react";
+import React, { useMemo, useSyncExternalStore } from "react";
 import { Check, Copy, FileSpreadsheet } from "lucide-react";
 import Avatar from "../../../components/ui/Avatar";
 import ScrollArea from "../../../components/ui/ScrollArea";
@@ -213,32 +213,43 @@ const PreviewTbody = React.memo(
         : getZero;
     const previewRenderColCount = columnGeometry?.renderColCount ?? 1;
 
-    useSyncExternalStore(
+    const previewRowsVersion = useSyncExternalStore(
       previewRowsSubscribe,
       previewRowsGetSnapshot,
       previewRowsGetSnapshot,
     );
 
-    const rows: React.JSX.Element[] = [];
-    for (
-      let rowIndex = previewWindow.startRow;
-      rowIndex < previewWindow.endRow;
-      rowIndex += 1
-    ) {
-      const rowCellsRaw =
-        typeof getPreviewRow === "function" ? getPreviewRow(rowIndex) : null;
+    const rows = useMemo(() => {
+      const nextRows: React.JSX.Element[] = [];
+      for (
+        let rowIndex = previewWindow.startRow;
+        rowIndex < previewWindow.endRow;
+        rowIndex += 1
+      ) {
+        const rowCellsRaw =
+          typeof getPreviewRow === "function" ? getPreviewRow(rowIndex) : null;
 
-      rows.push(
-        <PreviewRow
-          key={rowIndex}
-          rowIndex={rowIndex}
-          rowCellsRaw={rowCellsRaw}
-          columnGeometry={columnGeometry}
-          selectedColumnsSet={selectedColumnsSet}
-          handleCellMouseDown={handleCellMouseDown}
-        />,
-      );
-    }
+        nextRows.push(
+          <PreviewRow
+            key={rowIndex}
+            rowIndex={rowIndex}
+            rowCellsRaw={rowCellsRaw}
+            columnGeometry={columnGeometry}
+            selectedColumnsSet={selectedColumnsSet}
+            handleCellMouseDown={handleCellMouseDown}
+          />,
+        );
+      }
+      return nextRows;
+    }, [
+      columnGeometry,
+      getPreviewRow,
+      handleCellMouseDown,
+      previewRowsVersion,
+      previewWindow.endRow,
+      previewWindow.startRow,
+      selectedColumnsSet,
+    ]);
 
     return (
       <tbody>

@@ -28,6 +28,8 @@ const PREVIEW_COL_PADDING_PX = 44;
 const PREVIEW_COL_RESIZE_MIN_PX = 80;
 const PREVIEW_COL_RESIZE_MAX_PX = 800;
 const PREVIEW_COL_OVERSCAN_PX = 240;
+const PREVIEW_COL_OVERSCAN_PX_MIN = 96;
+const PREVIEW_COL_OVERSCAN_PX_MAX = 720;
 
 const clampNumber = (value: number, min: number, max: number): number => {
   return Math.min(max, Math.max(min, value));
@@ -146,23 +148,48 @@ export const useTemplateManagerPreview = ({
 
   const {
     handlePreviewScroll,
+    previewHorizontalScrollVelocityTier,
     previewScrollLeft,
     previewScrollTop,
+    previewVerticalScrollVelocityTier,
     previewViewportHeight,
     previewViewportWidth,
   } = usePreviewViewportSync({
     previewFileColumnCount: previewFile?.columnCount,
     previewFileId: previewFile?.fileId,
     previewFileRowCount: previewFile?.rowCount,
+    previewRowHeightPx: PREVIEW_ROW_HEIGHT_PX,
     previewScrollRef,
     previewStatusState: previewStatus?.state,
   }) as {
     handlePreviewScroll: (scrollTop: number, scrollLeft: number) => void;
+    previewHorizontalScrollVelocityTier: number;
     previewScrollLeft: number;
     previewScrollTop: number;
+    previewVerticalScrollVelocityTier: number;
     previewViewportHeight: number;
     previewViewportWidth: number;
   };
+
+  const previewColumnOverscanPx = useMemo(() => {
+    const viewportBased = Math.max(
+      PREVIEW_COL_OVERSCAN_PX,
+      Math.round((Number(previewViewportWidth) || 0) * 0.55),
+    );
+
+    const base =
+      previewHorizontalScrollVelocityTier >= 2
+        ? viewportBased * 0.4
+        : previewHorizontalScrollVelocityTier >= 1
+          ? viewportBased * 0.75
+          : viewportBased * 1.2;
+
+    return clampNumber(
+      Math.round(base),
+      PREVIEW_COL_OVERSCAN_PX_MIN,
+      PREVIEW_COL_OVERSCAN_PX_MAX,
+    );
+  }, [previewHorizontalScrollVelocityTier, previewViewportWidth]);
 
   const handlePreviewPick = usePreviewPickHandler({
     containerRef,
@@ -234,7 +261,7 @@ export const useTemplateManagerPreview = ({
     columnWidthOverridesByFile,
     liveColumnLayoutRef,
     minColumnWidthPx: PREVIEW_COL_MIN_PX,
-    overscanPx: PREVIEW_COL_OVERSCAN_PX,
+    overscanPx: previewColumnOverscanPx,
     previewFileId: previewFile?.fileId,
     previewScrollLeft,
     previewTableRef,
@@ -379,7 +406,13 @@ export const useTemplateManagerPreview = ({
 
   const previewWindow = usePreviewRowWindow({
     ensurePreviewRows,
-    overscanRows: PREVIEW_OVERSCAN_ROWS,
+    overscanRows:
+      previewVerticalScrollVelocityTier >= 2
+        ? Math.max(6, PREVIEW_OVERSCAN_ROWS - 4)
+        : previewVerticalScrollVelocityTier >= 1
+          ? PREVIEW_OVERSCAN_ROWS
+          : PREVIEW_OVERSCAN_ROWS + 4,
+    prefetchRows: PREVIEW_OVERSCAN_ROWS + 4,
     previewFileId: previewFile?.fileId,
     previewRowCount: previewFile?.rowCount,
     previewScrollTop,

@@ -80,6 +80,9 @@ type PreviewStatus = {
 };
 
 type PreviewRowsRequest = {
+  fileId: string;
+  startRow: number;
+  endRow: number;
   reject: (error: unknown) => void;
   resolve: (rows: unknown[][]) => void;
 };

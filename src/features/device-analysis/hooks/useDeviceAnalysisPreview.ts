@@ -40,6 +40,9 @@ type RawDataEntry = {
 };
 
 type PreviewRowsRequest = {
+  fileId: string;
+  startRow: number;
+  endRow: number;
   reject: (error: unknown) => void;
   resolve: (rows: unknown[][]) => void;
 };
@@ -98,6 +101,7 @@ const DA_PREVIEW_MAX_CACHED_UI_CHUNKS_PER_FILE = Math.max(
     DA_PREVIEW_MAX_CACHED_UI_ROWS_PER_FILE / DA_PREVIEW_UI_CHUNK_SIZE_ROWS,
   ),
 );
+const PREVIEW_ROWS_FETCH_MAX_ATTEMPTS = 2;
 
 export const useDeviceAnalysisPreview = ({
   rawData = [],
@@ -126,6 +130,9 @@ export const useDeviceAnalysisPreview = ({
   } = usePreviewRowsVersion();
 
   const deferredSelectedPreviewFileId = useDeferredValue(selectedPreviewFileId);
+  const previewPendingChunksByFileIdRef = useRef<Map<string, Set<number>>>(
+    new Map(),
+  );
 
   const rawDataById = useMemo(() => {
     const map = new Map<string, RawDataEntry>();
@@ -145,6 +152,38 @@ export const useDeviceAnalysisPreview = ({
     rawDataByIdRef.current = rawDataById;
   }, [rawDataById]);
 
+  const getOrCreatePreviewFileCaches = useCallback(
+    (fileId: string) => {
+      const cacheByFileId = previewRowsCacheByFileIdRef.current;
+      const chunksByFileId = previewLoadedChunksByFileIdRef.current;
+
+      let rowCache = cacheByFileId.get(fileId);
+      if (!rowCache) {
+        rowCache = new Map<number, unknown[]>();
+        cacheByFileId.set(fileId, rowCache);
+      }
+
+      let loadedChunks = chunksByFileId.get(fileId);
+      if (!loadedChunks) {
+        loadedChunks = new Set<number>();
+        chunksByFileId.set(fileId, loadedChunks);
+      }
+
+      return { loadedChunks, rowCache };
+    },
+    [previewLoadedChunksByFileIdRef, previewRowsCacheByFileIdRef],
+  );
+
+  const getOrCreatePendingChunks = useCallback((fileId: string) => {
+    const pendingByFileId = previewPendingChunksByFileIdRef.current;
+    let pendingChunks = pendingByFileId.get(fileId);
+    if (!pendingChunks) {
+      pendingChunks = new Set<number>();
+      pendingByFileId.set(fileId, pendingChunks);
+    }
+    return pendingChunks;
+  }, []);
+
   const cancelPendingPreviewRowRequests = useCallback(() => {
     const pendingRequests = previewRowsRequestsRef.current;
     for (const request of pendingRequests.values()) {
@@ -156,6 +195,7 @@ export const useDeviceAnalysisPreview = ({
     }
 
     pendingRequests.clear();
+    previewPendingChunksByFileIdRef.current = new Map();
   }, [previewRowsRequestsRef]);
 
   const notifyPreviewRowsCacheChanged = useCallback(() => {
@@ -201,6 +241,7 @@ export const useDeviceAnalysisPreview = ({
     previewRowsCacheByFileIdRef.current = new Map();
     previewLoadedChunksByFileIdRef.current = new Map();
     previewCacheFileLruRef.current = new Set();
+    previewPendingChunksByFileIdRef.current = new Map();
     assignCurrentPreviewCache();
     notifyPreviewRowsCacheChanged();
   }, [
@@ -214,6 +255,7 @@ export const useDeviceAnalysisPreview = ({
   const invalidatePreviewRequests = useCallback(() => {
     previewRequestIdRef.current += 1;
     cancelPendingPreviewRowRequests();
+    previewPendingChunksByFileIdRef.current = new Map();
   }, [cancelPendingPreviewRowRequests, previewRequestIdRef]);
 
   const clearPreviewState = useCallback(
@@ -242,6 +284,7 @@ export const useDeviceAnalysisPreview = ({
       previewRowsCacheByFileIdRef.current.delete(fileId);
       previewLoadedChunksByFileIdRef.current.delete(fileId);
       previewCacheFileLruRef.current.delete(fileId);
+      previewPendingChunksByFileIdRef.current.delete(fileId);
 
       if (previewCacheFileIdRef.current === fileId) {
         resetCurrentPreviewCache();
@@ -267,20 +310,7 @@ export const useDeviceAnalysisPreview = ({
         return;
       }
 
-      const cacheByFileId = previewRowsCacheByFileIdRef.current;
-      const chunksByFileId = previewLoadedChunksByFileIdRef.current;
-
-      let rowCache = cacheByFileId.get(fileId);
-      if (!rowCache) {
-        rowCache = new Map();
-        cacheByFileId.set(fileId, rowCache);
-      }
-
-      let loadedChunks = chunksByFileId.get(fileId);
-      if (!loadedChunks) {
-        loadedChunks = new Set();
-        chunksByFileId.set(fileId, loadedChunks);
-      }
+      const { loadedChunks, rowCache } = getOrCreatePreviewFileCaches(fileId);
 
       assignCurrentPreviewCache({ fileId, loadedChunks, rowCache });
 
@@ -298,9 +328,8 @@ export const useDeviceAnalysisPreview = ({
     [
       assignCurrentPreviewCache,
       disposePreviewFileCache,
+      getOrCreatePreviewFileCaches,
       previewCacheFileLruRef,
-      previewLoadedChunksByFileIdRef,
-      previewRowsCacheByFileIdRef,
     ],
   );
 
@@ -345,22 +374,24 @@ export const useDeviceAnalysisPreview = ({
 
         try {
           const fileId =
-            typeof rowsPayload.fileId === "string" ? rowsPayload.fileId : null;
-          const startRow = Number(rowsPayload.startRow) || 0;
-          const rows = Array.isArray(rowsPayload.rows) ? rowsPayload.rows : [];
+            typeof rowsPayload.fileId === "string" ? rowsPayload.fileId : "";
+          const startRow = Math.max(
+            0,
+            Math.floor(Number(rowsPayload.startRow) || 0),
+          );
+          const rows = Array.isArray(rowsPayload.rows)
+            ? rowsPayload.rows.map((row) => (Array.isArray(row) ? row : []))
+            : [];
 
-          if (fileId && previewCacheFileIdRef.current !== fileId) {
+          if (
+            fileId !== pendingRequest.fileId ||
+            startRow !== pendingRequest.startRow
+          ) {
             resolve([]);
             return;
           }
 
-          for (let index = 0; index < rows.length; index += 1) {
-            const row = Array.isArray(rows[index]) ? rows[index] : [];
-            previewRowsCacheRef.current.set(startRow + index, row);
-          }
-
-          notifyPreviewRowsVersion();
-          resolve(rows.map((row) => (Array.isArray(row) ? row : [])));
+          resolve(rows);
         } catch (error) {
           reject(error);
         }
@@ -402,11 +433,8 @@ export const useDeviceAnalysisPreview = ({
     },
     [
       activatePreviewFileCache,
-      notifyPreviewRowsVersion,
-      previewCacheFileIdRef,
       previewRowsRequestsRef,
       previewRequestIdRef,
-      previewRowsCacheRef,
       setPreviewFile,
       setPreviewStatus,
     ],
@@ -507,7 +535,13 @@ export const useDeviceAnalysisPreview = ({
       const end = Math.max(start, Math.floor(Number(endRow) || start));
 
       return new Promise<unknown[][]>((resolve, reject) => {
-        previewRowsRequestsRef.current.set(requestId, { resolve, reject });
+        previewRowsRequestsRef.current.set(requestId, {
+          endRow: end,
+          fileId,
+          reject,
+          resolve,
+          startRow: start,
+        });
         worker.postMessage({
           type: "previewRows",
           payload: {
@@ -531,6 +565,8 @@ export const useDeviceAnalysisPreview = ({
       if (!previewFile?.rowCount || !Number.isFinite(previewFile.rowCount)) return;
       if (!fileId) return;
 
+      const { loadedChunks, rowCache } = getOrCreatePreviewFileCaches(fileId);
+      const pendingChunks = getOrCreatePendingChunks(fileId);
       const totalRows = Math.max(0, Math.floor(previewFile.rowCount));
       const start = Math.max(0, Math.min(totalRows, Math.floor(startRow || 0)));
       const end = Math.max(start, Math.min(totalRows, Math.floor(endRow || 0)));
@@ -543,64 +579,112 @@ export const useDeviceAnalysisPreview = ({
         Math.floor((end - 1) / DA_PREVIEW_UI_CHUNK_SIZE_ROWS) *
         DA_PREVIEW_UI_CHUNK_SIZE_ROWS;
 
-      const requests: Array<Promise<unknown[][]>> = [];
+      let shouldNotifyPreviewRows = false;
+      const requests: Array<Promise<void>> = [];
 
       for (
         let chunkStart = firstChunkStart;
         chunkStart <= lastChunkStart;
         chunkStart += DA_PREVIEW_UI_CHUNK_SIZE_ROWS
       ) {
-        if (previewLoadedChunksRef.current.has(chunkStart)) {
-          // Touch existing chunk so LRU eviction keeps recently revisited windows.
-          previewLoadedChunksRef.current.delete(chunkStart);
-          previewLoadedChunksRef.current.add(chunkStart);
-          continue;
-        }
-
-        previewLoadedChunksRef.current.add(chunkStart);
-
-        while (
-          previewLoadedChunksRef.current.size >
-          DA_PREVIEW_MAX_CACHED_UI_CHUNKS_PER_FILE
-        ) {
-          const evictChunkStart = previewLoadedChunksRef.current.values().next()
-            .value as number | undefined;
-          if (evictChunkStart === undefined) break;
-
-          previewLoadedChunksRef.current.delete(evictChunkStart);
-          for (
-            let rowIndex = evictChunkStart;
-            rowIndex < evictChunkStart + DA_PREVIEW_UI_CHUNK_SIZE_ROWS;
-            rowIndex += 1
-          ) {
-            previewRowsCacheRef.current.delete(rowIndex);
-          }
-        }
-
         const chunkEnd = Math.min(
           totalRows,
           chunkStart + DA_PREVIEW_UI_CHUNK_SIZE_ROWS,
         );
 
-        const nextRequest = requestPreviewRowsRange(
-          fileId,
-          chunkStart,
-          chunkEnd,
-        ).catch((error) => {
-          previewLoadedChunksRef.current.delete(chunkStart);
-          throw error;
-        });
+        let hasChunkRowsInCache = true;
+        for (let rowIndex = chunkStart; rowIndex < chunkEnd; rowIndex += 1) {
+          if (!rowCache.has(rowIndex)) {
+            hasChunkRowsInCache = false;
+            break;
+          }
+        }
+
+        if (hasChunkRowsInCache) {
+          // Treat row-presence as source of truth; loadedChunks is only an LRU index.
+          loadedChunks.delete(chunkStart);
+          loadedChunks.add(chunkStart);
+          continue;
+        }
+
+        loadedChunks.delete(chunkStart);
+        if (pendingChunks.has(chunkStart)) continue;
+        pendingChunks.add(chunkStart);
+
+        const nextRequest = (async () => {
+          const expectedRows = Math.max(0, chunkEnd - chunkStart);
+          let rows: unknown[][] = [];
+
+          for (
+            let attempt = 1;
+            attempt <= PREVIEW_ROWS_FETCH_MAX_ATTEMPTS;
+            attempt += 1
+          ) {
+            rows = await requestPreviewRowsRange(fileId, chunkStart, chunkEnd);
+            if (rows.length === expectedRows) break;
+          }
+
+          if (rows.length !== expectedRows) {
+            for (let rowIndex = chunkStart; rowIndex < chunkEnd; rowIndex += 1) {
+              rowCache.delete(rowIndex);
+            }
+            loadedChunks.delete(chunkStart);
+            return;
+          }
+
+          for (let index = 0; index < rows.length; index += 1) {
+            const row = Array.isArray(rows[index]) ? rows[index] : [];
+            rowCache.set(chunkStart + index, row);
+          }
+
+          loadedChunks.delete(chunkStart);
+          loadedChunks.add(chunkStart);
+
+          while (loadedChunks.size > DA_PREVIEW_MAX_CACHED_UI_CHUNKS_PER_FILE) {
+            const evictChunkStart = loadedChunks.values().next()
+              .value as number | undefined;
+            if (evictChunkStart === undefined) break;
+
+            loadedChunks.delete(evictChunkStart);
+            for (
+              let rowIndex = evictChunkStart;
+              rowIndex < evictChunkStart + DA_PREVIEW_UI_CHUNK_SIZE_ROWS;
+              rowIndex += 1
+            ) {
+              rowCache.delete(rowIndex);
+            }
+          }
+
+          if (previewCacheFileIdRef.current === fileId) {
+            shouldNotifyPreviewRows = true;
+          }
+        })()
+          .catch(() => {
+            for (let rowIndex = chunkStart; rowIndex < chunkEnd; rowIndex += 1) {
+              rowCache.delete(rowIndex);
+            }
+            loadedChunks.delete(chunkStart);
+          })
+          .finally(() => {
+            pendingChunks.delete(chunkStart);
+          });
 
         requests.push(nextRequest);
       }
 
       if (!requests.length) return;
       await Promise.all(requests);
+
+      if (shouldNotifyPreviewRows) {
+        notifyPreviewRowsVersion();
+      }
     },
     [
+      getOrCreatePendingChunks,
+      getOrCreatePreviewFileCaches,
+      notifyPreviewRowsVersion,
+      previewCacheFileIdRef,
       previewFile,
-      previewLoadedChunksRef,
-      previewRowsCacheRef,
       requestPreviewRowsRange,
     ],
   );
