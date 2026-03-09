@@ -1,6 +1,7 @@
 import React, { startTransition, useEffect, useMemo, useRef, useState, type CSSProperties, } from "react";
 import { CartesianGrid, Legend, Line, LineChart, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis, } from "recharts";
 import Papa from "papaparse";
+import JSZip from "jszip";
 import { computeCentralDerivative, computeSubthresholdSwing, computeSubthresholdSwingFitAuto, computeSubthresholdSwingFitInIdWindow, computeSubthresholdSwingFitInRange, classifySsFit, computeLegendDerivativeSeries, formatNumber, } from "../lib/analysisMath";
 import { apiService } from "../services/apiService";
 import Select from "../../../components/ui/Select";
@@ -15,7 +16,8 @@ import { formatOriginBridgeError } from "../lib/originBridgeError";
 import { DEFAULT_ORIGIN_PLOT_OPTIONS, normalizeOriginPlotOptions, } from "../lib/originPlotOptions";
 import OverviewGrid from "./analysis-charts/OverviewGrid";
 import CalculatedParametersRow from "./analysis-charts/CalculatedParametersRow";
-import { buildLogTicks, buildNiceTicks, buildOriginAutoTicks, buildPoints, buildStepTicks, computeLabelInterval, computeMinMax, inferTickDigitsFromTicks, normalizeFloat, normalizeVarToken, padLinearDomain, padLogDomain, parseOptionalNumber, preserveScrollPosition, varTokenToSymbol, } from "../lib/analysisChartsUtils";
+import { buildLogTicks, buildNiceTicks, buildOriginAutoTicks, buildPoints, buildStepTicks, computeLabelInterval, computeMinMax, downsamplePointsForDisplay, inferTickDigitsFromTicks, normalizeFloat, normalizeVarToken, padLinearDomain, padLogDomain, parseOptionalNumber, preserveScrollPosition, varTokenToSymbol, } from "../lib/analysisChartsUtils";
+import { buildDeviceAnalysisOriginOgsScript, DEVICE_ANALYSIS_ORIGIN_README, triggerDeviceAnalysisBlobDownload, } from "../lib/deviceAnalysisExport";
 import MainPlotChart from "./analysis-charts/MainPlotChart";
 type SsManualDraft = {
     fileId: any;
@@ -50,6 +52,15 @@ type ToastState = {
     message: string;
     type: ToastType;
 };
+const MAX_RENDER_SERIES_POINTS = 600;
+const ORIGIN_CSV_AUTO_ZIP_FALLBACK_CODES = new Set([
+    "ORIGIN_ORIGINPRO_IMPORT_FAILED",
+    "ORIGIN_PYTHON_NOT_FOUND",
+    "ORIGIN_CSV_RUNNER_NOT_FOUND",
+    "ORIGIN_CSV_RUNNER_FAILED",
+    "ORIGIN_CSV_FAILED",
+    "ORIGIN_CSV_IMPORT_FAILED",
+]);
 type FormatOriginTranslateFn = (key: string, params?: Record<string, unknown>) => string;
 type OriginCsvBridge = {
     runOriginCsv: (payload: {
@@ -133,6 +144,11 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
     const [activeFileId, setActiveFileId] = useState(processedData?.[0]?.fileId ?? null);
     const [plotType, setPlotType] = useState("iv"); // 'iv' | 'gm' | 'ss' | 'j'
     const [focusedSeriesId, setFocusedSeriesId] = useState(null);
+    const [originSelectedSeriesIdsByFile, setOriginSelectedSeriesIdsByFile] = useState<Record<string, string[]>>({});
+    const [originSelectedCanvasIds, setOriginSelectedCanvasIds] = useState<string[]>(() => {
+        const firstFileId = String(processedData?.[0]?.fileId ?? "");
+        return firstFileId ? [firstFileId] : [];
+    });
     const [yUnit, setYUnit] = useState("A"); // 'A' | 'uA' | 'nA'
     const userChangedYUnitRef = useRef(false);
     const [gmMode, setGmMode] = useState("x"); // 'x' | 'legend'
@@ -339,6 +355,44 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
             setActiveFileId(next);
     }, [activeFileId, processedData]);
     const activeFile = useMemo(() => processedData?.find((f: any) => f.fileId === effectiveActiveFileId) ?? null, [effectiveActiveFileId, processedData]);
+    const originCanvasOptions = useMemo(() => {
+        const list = Array.isArray(processedData) ? processedData : [];
+        return list
+            .map((file: any) => {
+            const key = String(file?.fileId ?? "");
+            if (!key)
+                return null;
+            return {
+                key,
+                file,
+                label: String(file?.fileName ?? key),
+            };
+        })
+            .filter(Boolean);
+    }, [processedData]);
+    useEffect(() => {
+        setOriginSelectedCanvasIds((prev) => {
+            const liveKeys = originCanvasOptions.map((item: any) => String(item?.key ?? "")).filter(Boolean);
+            if (!liveKeys.length) {
+                return prev.length ? [] : prev;
+            }
+            const liveKeySet = new Set(liveKeys);
+            const prevList = Array.isArray(prev) ? prev : [];
+            const filtered = prevList
+                .map((item) => String(item ?? ""))
+                .filter((item, idx, arr) => Boolean(item) && liveKeySet.has(item) && arr.indexOf(item) === idx);
+            if (filtered.length) {
+                const unchanged = filtered.length === prevList.length &&
+                    filtered.every((value, idx) => value === prevList[idx]);
+                return unchanged ? prev : filtered;
+            }
+            const fallbackKey = String(effectiveActiveFileId ?? "");
+            const next = fallbackKey && liveKeySet.has(fallbackKey) ? [fallbackKey] : [liveKeys[0]];
+            const unchanged = next.length === prevList.length &&
+                next.every((value, idx) => value === prevList[idx]);
+            return unchanged ? prev : next;
+        });
+    }, [effectiveActiveFileId, originCanvasOptions]);
     useEffect(() => {
         const store = fileAnalysisCacheRef.current;
         if (!processedData?.length) {
@@ -353,6 +407,123 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
                 store.delete(key);
         }
     }, [processedData]);
+    useEffect(() => {
+        setOriginSelectedSeriesIdsByFile((prev) => {
+            const next: Record<string, string[]> = {};
+            const keep = new Set((Array.isArray(processedData) ? processedData : [])
+                .map((file: any) => String(file?.fileId ?? ""))
+                .filter(Boolean));
+            for (const [key, list] of Object.entries(prev || {})) {
+                if (!keep.has(key))
+                    continue;
+                if (!Array.isArray(list))
+                    continue;
+                next[key] = list.map((item) => String(item ?? "")).filter(Boolean);
+            }
+            const prevKeys = Object.keys(prev || {});
+            const nextKeys = Object.keys(next);
+            const unchanged = prevKeys.length === nextKeys.length &&
+                prevKeys.every((key) => {
+                    const prevList = Array.isArray(prev?.[key]) ? prev[key] : [];
+                    const nextList = Array.isArray(next?.[key]) ? next[key] : [];
+                    return prevList.length === nextList.length &&
+                        prevList.every((value, idx) => value === nextList[idx]);
+                });
+            return unchanged ? prev : next;
+        });
+    }, [processedData]);
+    const activeOriginSeries = useMemo(() => {
+        const list = Array.isArray(activeFile?.series) ? activeFile.series : [];
+        return list
+            .map((series: any) => {
+            const key = String(series?.id ?? "");
+            if (!key)
+                return null;
+            return {
+                id: series.id,
+                key,
+                name: String(series?.name ?? key),
+            };
+        })
+            .filter(Boolean);
+    }, [activeFile?.series]);
+    const getSelectedOriginSeriesKeySetForFile = React.useCallback((file: any) => {
+        const allSeries = Array.isArray(file?.series) ? file.series : [];
+        const allKeys = allSeries
+            .map((series: any) => String(series?.id ?? ""))
+            .filter(Boolean);
+        if (!allKeys.length)
+            return new Set<string>();
+        const fileKey = String(file?.fileId ?? "");
+        if (!fileKey)
+            return new Set(allKeys);
+        const stored = originSelectedSeriesIdsByFile?.[fileKey];
+        if (!Array.isArray(stored))
+            return new Set(allKeys);
+        const live = new Set(allKeys);
+        const filtered = stored
+            .map((item) => String(item ?? ""))
+            .filter((item) => live.has(item));
+        if (!filtered.length && stored.length > 0)
+            return new Set(allKeys);
+        return new Set(filtered);
+    }, [originSelectedSeriesIdsByFile]);
+    const selectedOriginSeriesKeySet = useMemo(() => getSelectedOriginSeriesKeySetForFile(activeFile), [activeFile, getSelectedOriginSeriesKeySetForFile]);
+    const selectedOriginCanvasKeySet = useMemo(() => {
+        return new Set(originSelectedCanvasIds
+            .map((item) => String(item ?? ""))
+            .filter(Boolean));
+    }, [originSelectedCanvasIds]);
+    const selectedOriginCanvases = useMemo(() => {
+        return originCanvasOptions
+            .filter((item: any) => selectedOriginCanvasKeySet.has(item.key))
+            .map((item: any) => item.file);
+    }, [originCanvasOptions, selectedOriginCanvasKeySet]);
+    const toggleOriginCanvasSelection = React.useCallback((fileId: any) => {
+        const targetKey = String(fileId ?? "");
+        if (!targetKey)
+            return;
+        setOriginSelectedCanvasIds((prev) => {
+            const current = Array.isArray(prev)
+                ? prev.map((item) => String(item ?? "")).filter(Boolean)
+                : [];
+            if (current.includes(targetKey)) {
+                return current.filter((item) => item !== targetKey);
+            }
+            return [...current, targetKey];
+        });
+    }, []);
+    const selectAllOriginCanvases = React.useCallback(() => {
+        const allKeys = originCanvasOptions
+            .map((item: any) => String(item?.key ?? ""))
+            .filter(Boolean);
+        setOriginSelectedCanvasIds(allKeys);
+    }, [originCanvasOptions]);
+    const clearOriginCanvasSelection = React.useCallback(() => {
+        setOriginSelectedCanvasIds([]);
+    }, []);
+    const toggleOriginSeriesSelection = React.useCallback((seriesId: any) => {
+        const fileKey = String(activeFile?.fileId ?? "");
+        const targetKey = String(seriesId ?? "");
+        if (!fileKey || !targetKey)
+            return;
+        setOriginSelectedSeriesIdsByFile((prev) => {
+            const allKeys = activeOriginSeries.map((series: any) => series.key);
+            const live = new Set(allKeys);
+            const stored = prev?.[fileKey];
+            const current = Array.isArray(stored)
+                ? stored.map((item) => String(item ?? "")).filter((item) => live.has(item))
+                : [...allKeys];
+            const hasTarget = current.includes(targetKey);
+            const nextSelected = hasTarget
+                ? current.filter((item) => item !== targetKey)
+                : [...current, targetKey];
+            return {
+                ...(prev || {}),
+                [fileKey]: nextSelected,
+            };
+        });
+    }, [activeFile?.fileId, activeOriginSeries]);
     const focusedSeries = useMemo(() => {
         if (!activeFile?.series?.length || !focusedSeriesId)
             return null;
@@ -389,37 +560,115 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
             return "export";
         return raw.length > max ? raw.slice(0, max) : raw;
     };
-    const buildOriginCsvPayloadForFocusedSeries = React.useCallback(() => {
-        const targetSeries = focusedSeries ??
-            (Array.isArray(activeFile?.series) ? activeFile.series[0] : null);
-        if (!activeFile?.fileId || !targetSeries) {
-            throw new Error(t("da_origin_select_curve"));
+    const buildOriginXyPairs = (pairCount: number) => {
+        const safePairCount = Number.isFinite(pairCount) ? Math.max(1, Math.floor(pairCount)) : 1;
+        const chunks = new Array(safePairCount);
+        for (let i = 0; i < safePairCount; i++) {
+            const xCol = i * 2 + 1;
+            const yCol = i * 2 + 2;
+            chunks[i] = `(${xCol},${yCol})`;
         }
-        const groupIndex = Number(targetSeries?.groupIndex);
-        const xArr = activeFile?.xGroups?.[groupIndex];
-        const yArr = targetSeries?.y;
-        if (!xArr || !yArr) {
-            throw new Error("Missing curve data");
+        return `(${chunks.join(",")})`;
+    };
+    const buildOriginCsvPayloadForCanvas = React.useCallback((canvasFile: any) => {
+        const allSeries = Array.isArray(canvasFile?.series) ? canvasFile.series : [];
+        if (!canvasFile?.fileId || !allSeries.length) {
+            return null;
         }
-        const rowCount = Math.min(xArr.length ?? 0, yArr.length ?? 0);
-        if (rowCount <= 0) {
-            throw new Error("Empty curve data");
+        const selectedSeriesKeySet = getSelectedOriginSeriesKeySetForFile(canvasFile);
+        const selectedSeries = allSeries.filter((series: any) => selectedSeriesKeySet.has(String(series?.id ?? "")));
+        if (!selectedSeries.length) {
+            return null;
         }
-        const headers = ["x1", "y1"];
-        const rows = new Array(rowCount);
-        for (let i = 0; i < rowCount; i++) {
-            rows[i] = [xArr[i] ?? "", yArr[i] ?? ""];
+        const curveEntries = selectedSeries
+            .map((series: any, idx: number) => {
+            const groupIndex = Number(series?.groupIndex);
+            const xArr = canvasFile?.xGroups?.[groupIndex];
+            const yArr = series?.y;
+            const rowCount = Math.min(xArr?.length ?? 0, yArr?.length ?? 0);
+            if (!xArr || !yArr || rowCount <= 0)
+                return null;
+            return { id: idx + 1, xArr, yArr, rowCount };
+        })
+            .filter(Boolean);
+        if (!curveEntries.length) {
+            return null;
+        }
+        const maxRowCount = curveEntries.reduce((max: number, entry: any) => Math.max(max, entry.rowCount), 0);
+        const headers = curveEntries.flatMap((entry: any) => [`x${entry.id}`, `y${entry.id}`]);
+        const rows = new Array(maxRowCount);
+        for (let i = 0; i < maxRowCount; i++) {
+            const row: any[] = [];
+            for (const entry of curveEntries as any[]) {
+                row.push(i < entry.rowCount ? entry.xArr[i] ?? "" : "");
+                row.push(i < entry.rowCount ? entry.yArr[i] ?? "" : "");
+            }
+            rows[i] = row;
         }
         const csvText = Papa.unparse({ fields: headers, data: rows });
-        const base = sanitizeFilename(activeFile?.fileName ?? "device_analysis").replace(/\.csv$/i, "");
-        const seriesName = sanitizeFilename(targetSeries?.name ?? "curve").replace(/\.csv$/i, "");
-        const csvName = `${base}__${seriesName}.csv`;
+        const base = sanitizeFilename(canvasFile?.fileName ?? "device_analysis").replace(/\.csv$/i, "");
+        const csvName = `${base}__all_curves.csv`;
+        const seriesName = base || "device_analysis";
         return {
             csvName,
             csvText: "\uFEFF" + csvText,
-            seriesName: targetSeries?.name ?? seriesName,
+            seriesName,
+            xyPairCount: curveEntries.length,
+            xyPairs: buildOriginXyPairs(curveEntries.length),
         };
-    }, [activeFile, focusedSeries, t]);
+    }, [getSelectedOriginSeriesKeySetForFile]);
+    const buildOriginCsvPayloadsForSelectedCanvases = React.useCallback(() => {
+        if (!selectedOriginCanvases.length) {
+            throw new Error(t("da_origin_select_canvas"));
+        }
+        const payloads = selectedOriginCanvases
+            .map((canvasFile: any) => buildOriginCsvPayloadForCanvas(canvasFile))
+            .filter(Boolean);
+        if (!payloads.length) {
+            throw new Error(t("da_origin_select_curve"));
+        }
+        return payloads as any[];
+    }, [buildOriginCsvPayloadForCanvas, selectedOriginCanvases, t]);
+    const exportOriginZipFallbackForSelectedCanvases = React.useCallback(async () => {
+        const payloads = buildOriginCsvPayloadsForSelectedCanvases();
+        const zip = new JSZip();
+        zip.file("README_ORIGIN.txt", DEVICE_ANALYSIS_ORIGIN_README);
+        const usedCsvNames = new Set<string>();
+        const toUniqueCsvName = (rawName: any, idx: number) => {
+            const safe = sanitizeFilename(rawName || `canvas_${idx + 1}__all_curves.csv`);
+            const normalized = /\.csv$/i.test(safe) ? safe : `${safe}.csv`;
+            if (!usedCsvNames.has(normalized)) {
+                usedCsvNames.add(normalized);
+                return normalized;
+            }
+            const stem = normalized.replace(/\.csv$/i, "");
+            let suffix = 2;
+            let candidate = `${stem}__${suffix}.csv`;
+            while (usedCsvNames.has(candidate)) {
+                suffix += 1;
+                candidate = `${stem}__${suffix}.csv`;
+            }
+            usedCsvNames.add(candidate);
+            return candidate;
+        };
+        payloads.forEach((pkg: any, idx: number) => {
+            const csvName = toUniqueCsvName(pkg?.csvName, idx);
+            zip.file(csvName, pkg.csvText);
+            const ogsName = csvName.replace(/\.csv$/i, ".ogs");
+            zip.file(ogsName, buildDeviceAnalysisOriginOgsScript(csvName, pkg.xyPairCount));
+        });
+        const zipBlob = await zip.generateAsync({
+            type: "blob",
+            compression: "DEFLATE",
+            compressionOptions: { level: 6 },
+        });
+        const zipBase = payloads.length === 1
+            ? sanitizeFilename(payloads[0]?.seriesName || "device_analysis")
+            : sanitizeFilename(`device_analysis_batch_${payloads.length}_canvases`);
+        const zipName = `${String(zipBase || "device_analysis").replace(/\.zip$/i, "")}__origin.zip`;
+        triggerDeviceAnalysisBlobDownload(zipName, zipBlob);
+        return { zipName, count: payloads.length };
+    }, [buildOriginCsvPayloadsForSelectedCanvases]);
     const handleOpenInOrigin = React.useCallback(async () => {
         if (originBusyRef.current)
             return;
@@ -429,29 +678,58 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
             if (!originBridge) {
                 throw new Error(t("da_origin_pick_exe_required"));
             }
-            const pkg = buildOriginCsvPayloadForFocusedSeries();
+            const payloads = buildOriginCsvPayloadsForSelectedCanvases();
             const normalizedPlotOptions = normalizeOriginPlotOptions(originOpenPlotOptions, DEFAULT_ORIGIN_PLOT_OPTIONS);
-            await originBridge.runOriginCsv({
-                csv: {
-                    name: pkg.csvName,
-                    text: pkg.csvText,
-                },
-                sheet: {
-                    longName: pkg.seriesName,
-                },
-                plot: {
-                    command: normalizedPlotOptions.command,
-                    postCommands: normalizedPlotOptions.postCommands,
-                    type: normalizedPlotOptions.type,
-                    xyPairs: normalizedPlotOptions.xyPairs,
-                },
-            });
-            showToast(t("da_open_in_origin_success"), "success");
+            const hasCustomPlotCommand = typeof normalizedPlotOptions.command === "string" &&
+                normalizedPlotOptions.command.trim().length > 0;
+            const hasCustomXyPairs = String(normalizedPlotOptions.xyPairs || "").trim() !==
+                DEFAULT_ORIGIN_PLOT_OPTIONS.xyPairs;
+            for (const pkg of payloads) {
+                const effectiveXyPairs = !hasCustomPlotCommand && !hasCustomXyPairs
+                    ? pkg.xyPairs
+                    : normalizedPlotOptions.xyPairs;
+                await originBridge.runOriginCsv({
+                    csv: {
+                        name: pkg.csvName,
+                        text: pkg.csvText,
+                    },
+                    sheet: {
+                        longName: pkg.seriesName,
+                    },
+                    plot: {
+                        command: normalizedPlotOptions.command,
+                        postCommands: normalizedPlotOptions.postCommands,
+                        type: normalizedPlotOptions.type,
+                        xyPairs: effectiveXyPairs,
+                    },
+                });
+            }
+            if (payloads.length > 1) {
+                showToast(t("da_open_in_origin_batch_success", { count: payloads.length }), "success");
+            }
+            else {
+                showToast(t("da_open_in_origin_success"), "success");
+            }
         }
         catch (err) {
             const detail = formatOriginBridgeError(tLoose, err);
             if (detail.code === "ORIGIN_EXE_REQUIRED") {
                 showToast(t("da_origin_pick_exe_required"), "error");
+            }
+            else if (ORIGIN_CSV_AUTO_ZIP_FALLBACK_CODES.has(String(detail.code || "").trim().toUpperCase())) {
+                try {
+                    const fallback = await exportOriginZipFallbackForSelectedCanvases();
+                    if (fallback.count > 1) {
+                        showToast(t("da_open_in_origin_fallback_zip_batch_success", { count: fallback.count }), "warning");
+                    }
+                    else {
+                        showToast(t("da_open_in_origin_fallback_zip_success"), "warning");
+                    }
+                }
+                catch (fallbackErr) {
+                    const fallbackMessage = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr ?? t("unknownError"));
+                    showToast(t("da_open_in_origin_fallback_zip_failed", { error: fallbackMessage }), "error");
+                }
             }
             else {
                 showToast(t("da_open_in_origin_failed", { error: detail.messageText }), "error");
@@ -461,7 +739,8 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
             originBusyRef.current = false;
         }
     }, [
-        buildOriginCsvPayloadForFocusedSeries,
+        buildOriginCsvPayloadsForSelectedCanvases,
+        exportOriginZipFallbackForSelectedCanvases,
         getDesktopOriginBridge,
         originOpenPlotOptions,
         showToast,
@@ -1302,6 +1581,11 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
         focusedSeriesId,
         ssShowFitLine,
     ]);
+    const focusedFitLineForRender = useMemo(() => {
+        if (!Array.isArray(focusedFitLine))
+            return null;
+        return downsamplePointsForDisplay(focusedFitLine, MAX_RENDER_SERIES_POINTS);
+    }, [focusedFitLine]);
     const ssOverlayStyle = useMemo(() => {
         const kind = focusedSsOverlay?.kind ?? "";
         if (kind === "autoStrict") {
@@ -1386,6 +1670,47 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
             return byType.ss ?? byType.iv ?? [];
         return byType.iv ?? [];
     }, [effectivePlotType, plotSeriesByType]);
+    const renderPlotSeries = useMemo(() => {
+        if (!displayPlotSeries.length)
+            return displayPlotSeries;
+        return displayPlotSeries.map((series: any) => {
+            const fullData = Array.isArray(series?.data) ? series.data : [];
+            const nextData = downsamplePointsForDisplay(fullData, MAX_RENDER_SERIES_POINTS);
+            if (nextData === fullData)
+                return series;
+            return {
+                ...series,
+                data: nextData,
+            };
+        });
+    }, [displayPlotSeries]);
+    const renderOriginSelectionLegend = React.useCallback((legendProps: any) => {
+        const payload = Array.isArray(legendProps?.payload) ? legendProps.payload : [];
+        if (!payload.length)
+            return null;
+        return (<ul className="m-0 p-0 list-none">
+        {payload.map((entry: any, idx: number) => {
+                const fallbackSeries = renderPlotSeries?.[idx];
+                const seriesId = String(fallbackSeries?.id ?? "");
+                const checked = seriesId ? selectedOriginSeriesKeySet.has(seriesId) : false;
+                const label = String(entry?.value ?? fallbackSeries?.name ?? "");
+                const color = String(entry?.color || fallbackSeries?.color || "#8884d8");
+                const disabled = !seriesId;
+                return (<li key={seriesId || `${label}-${idx}`} className="mb-1 last:mb-0">
+              <label className={`flex items-center gap-2 text-[11px] leading-4 ${disabled ? "opacity-60 cursor-default" : "cursor-pointer"}`}>
+                <span className="inline-block h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: color }}/>
+                <input type="checkbox" checked={checked} disabled={disabled} onChange={() => {
+                        if (!disabled)
+                            toggleOriginSeriesSelection(seriesId);
+                    }} className="h-3 w-3 accent-accent-terracotta shrink-0"/>
+                <span className="truncate max-w-[130px] text-text-secondary" title={label}>
+                  {label}
+                </span>
+              </label>
+            </li>);
+            })}
+      </ul>);
+    }, [renderPlotSeries, selectedOriginSeriesKeySet, toggleOriginSeriesSelection]);
     const autoMinMax = useMemo(() => {
         const fileId = activeFile?.fileId ?? null;
         const cache = fileId ? getFileCache(fileId) : null;
@@ -1476,6 +1801,11 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
         const data = focusedAnalysis?.ssDiagnostics ?? null;
         return Array.isArray(data) ? data : null;
     }, [effectivePlotType, focusedAnalysis?.ssDiagnostics, ssDiagnosticsEnabled]);
+    const focusedSsDiagnosticsForRender = useMemo(() => {
+        if (!Array.isArray(focusedSsDiagnostics))
+            return null;
+        return downsamplePointsForDisplay(focusedSsDiagnostics, MAX_RENDER_SERIES_POINTS);
+    }, [focusedSsDiagnostics]);
     const diagnosticsChartVisible = effectivePlotType === "ss" && Boolean(focusedSsDiagnostics);
     const isMainChartSizeReady = useContainerSizeReady(mainChartContainerRef, Boolean(activeFile?.series?.length));
     const isDiagnosticsChartSizeReady = useContainerSizeReady(diagnosticsChartContainerRef, diagnosticsChartVisible);
@@ -1805,7 +2135,7 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
         id="device-analysis-overview-sidebar"
         className="md:min-h-0 flex flex-col h-full"
       >
-        <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} yUnitFactor={currentUnitMeta.factor} yUnitLabel={currentUnitMeta.label} yScale={overviewYScaleType}/>
+        <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} onSelectAllOriginCanvases={selectAllOriginCanvases} onClearOriginCanvasSelection={clearOriginCanvasSelection} yUnitFactor={currentUnitMeta.factor} yUnitLabel={currentUnitMeta.label} yScale={overviewYScaleType}/>
       </aside>
 
       <ScrollArea className="md:min-h-0" axis="y">
@@ -2023,6 +2353,7 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
               </span>
               <input id="device-analysis-area-input" value={areaInput} onChange={(e: any) => setAreaInput(e.target.value)} placeholder="e.g. 1e-4" className="bg-bg-page border border-border rounded-lg h-[38px] px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40 w-[100px]"/>
             </div>
+
           </div>
 
           {effectivePlotType === "ss" && ssSummary ? (<div className="bg-bg-page border border-border rounded-lg px-3 py-2 flex flex-wrap items-center gap-2 text-xs">
@@ -2281,11 +2612,11 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
                         <ReferenceLine x={Math.max(focusedSsOverlay.x1, focusedSsOverlay.x2)} stroke={ssOverlayStyle.stroke} strokeOpacity={ssOverlayStyle.strokeOpacity} strokeWidth={2} ifOverflow="hidden"/>
                       </>) : null}
 
-                    <Legend layout="vertical" verticalAlign="middle" align="right" width={120} wrapperStyle={{ right: 0, top: 0 }}/>
+                    <Legend layout="vertical" verticalAlign="middle" align="right" width={220} wrapperStyle={{ right: 0, top: 0 }} content={renderOriginSelectionLegend}/>
 
-                    {effectivePlotType === "ss" && focusedFitLine ? (<Line data={focusedFitLine} dataKey="y" name="Fit" stroke={focusedSeriesColor} dot={false} isAnimationActive={false} strokeWidth={2} strokeDasharray="6 4" strokeOpacity={0.7}/>) : null}
+                    {effectivePlotType === "ss" && focusedFitLineForRender ? (<Line data={focusedFitLineForRender} dataKey="y" name="Fit" legendType="none" stroke={focusedSeriesColor} dot={false} isAnimationActive={false} strokeWidth={2} strokeDasharray="6 4" strokeOpacity={0.7}/>) : null}
 
-                    {displayPlotSeries.map((series: any, idx: any) => (<Line key={series.id} data={series.data} dataKey={plotYKey} name={series.name} stroke={COLORS[idx % COLORS.length]} dot={false} isAnimationActive={false} strokeWidth={effectivePlotType === "ss" &&
+                    {renderPlotSeries.map((series: any, idx: any) => (<Line key={series.id} data={series.data} dataKey={plotYKey} name={series.name} stroke={COLORS[idx % COLORS.length]} dot={false} isAnimationActive={false} strokeWidth={effectivePlotType === "ss" &&
                         focusedSeriesId &&
                         series.id === focusedSeriesId
                         ? 2.5
@@ -2298,7 +2629,7 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
                   </ResponsiveContainer>) : (<div className="h-full w-full"/>)}
               </div>
 
-              {effectivePlotType === "ss" && focusedSsDiagnostics ? (<div className="mt-4">
+              {effectivePlotType === "ss" && focusedSsDiagnosticsForRender ? (<div className="mt-4">
                   <div className="text-xs text-text-secondary mb-2">
                     Diagnostics: SS(x)
                   </div>
@@ -2334,7 +2665,7 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
 
                         {ssSummary && ssSummary.ss !== null && Number.isFinite(ssSummary.ss) ? (<ReferenceLine y={ssSummary.ss} stroke={focusedSeriesColor} strokeOpacity={0.35} strokeDasharray="4 4" ifOverflow="hidden"/>) : null}
 
-                        <Line data={focusedSsDiagnostics} dataKey="y" name="SS(x)" stroke={focusedSeriesColor} dot={false} isAnimationActive={false} strokeWidth={2}/>
+                        <Line data={focusedSsDiagnosticsForRender} dataKey="y" name="SS(x)" stroke={focusedSeriesColor} dot={false} isAnimationActive={false} strokeWidth={2}/>
                       </LineChart>
                       </ResponsiveContainer>) : (<div className="h-full w-full"/>)}
                   </div>

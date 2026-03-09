@@ -34,6 +34,10 @@ type FileCardProps = {
   file: ProcessedFileLike;
   isActive: boolean;
   onSelectFile?: (fileId: string | undefined) => void;
+  isSelectionMode?: boolean;
+  isOriginSelected?: boolean;
+  onToggleOriginSelected?: (fileId: string | undefined) => void;
+  originSelectedBadgeLabel?: string;
   yUnitFactor?: number;
   yUnitLabel?: string;
   yScale?: string;
@@ -93,6 +97,10 @@ const FileCard = memo(function FileCard({
   file,
   isActive,
   onSelectFile,
+  isSelectionMode = false,
+  isOriginSelected = false,
+  onToggleOriginSelected,
+  originSelectedBadgeLabel = "SELECT",
   yUnitFactor = 1,
   yUnitLabel = "A",
   yScale = "linear",
@@ -121,7 +129,13 @@ const FileCard = memo(function FileCard({
         // (This happens before onClick in some browsers.)
         event.preventDefault();
       }}
-      onClick={() => onSelectFile?.(file?.fileId)}
+      onClick={() => {
+        if (isSelectionMode) {
+          onToggleOriginSelected?.(file?.fileId);
+          return;
+        }
+        onSelectFile?.(file?.fileId);
+      }}
       className={`flex flex-col w-full text-left rounded-xl border transition-colors overflow-hidden ${
         isActive
           ? "border-accent/40 bg-accent/5"
@@ -168,6 +182,11 @@ const FileCard = memo(function FileCard({
         ) : (
           <div className="absolute inset-0 animate-pulse bg-bg-page/40" />
         )}
+        {isSelectionMode && isOriginSelected ? (
+          <div className="absolute bottom-1 left-1 text-[10px] px-1.5 py-0.5 rounded-md bg-accent-terracotta/90 text-white font-semibold tracking-wide">
+            {originSelectedBadgeLabel}
+          </div>
+        ) : null}
         {(yAxisMinLabel || yAxisMaxLabel) && (
           <div className="absolute bottom-1 right-1 text-[10px] px-1.5 py-0.5 rounded-md bg-black/50 text-white space-y-0.5">
             {yAxisMinLabel ? (

@@ -3,6 +3,7 @@ import {
   ArrowDownWideNarrow,
   ArrowUpWideNarrow,
   Check,
+  CheckCheck,
   ChevronDown,
 } from "lucide-react";
 import Button from "../../../../components/ui/Button";
@@ -23,6 +24,10 @@ type OverviewGridProps = {
   processingStatus?: ProcessingStatus;
   activeFileId?: string | null;
   onSelectFile?: (fileId: string | undefined) => void;
+  selectedOriginCanvasKeySet?: Set<string>;
+  onToggleOriginCanvasSelection?: (fileId: string | undefined) => void;
+  onSelectAllOriginCanvases?: () => void;
+  onClearOriginCanvasSelection?: () => void;
   yUnitFactor?: number;
   yUnitLabel?: string;
   yScale?: string;
@@ -36,6 +41,10 @@ const OverviewGrid = memo(function OverviewGrid({
   processingStatus,
   activeFileId,
   onSelectFile,
+  selectedOriginCanvasKeySet,
+  onToggleOriginCanvasSelection,
+  onSelectAllOriginCanvases,
+  onClearOriginCanvasSelection,
   yUnitFactor,
   yUnitLabel,
   yScale,
@@ -45,6 +54,7 @@ const OverviewGrid = memo(function OverviewGrid({
   const [sortOrder, setSortOrder] = useState<SortOrder>("none");
   const [curveFilter, setCurveFilter] = useState<CurveFilter>("all");
   const [isCurveFilterMenuOpen, setIsCurveFilterMenuOpen] = useState(false);
+  const [isSelectMode, setIsSelectMode] = useState(false);
 
   const curveFilterOptions = useMemo(
     () => [
@@ -98,12 +108,20 @@ const OverviewGrid = memo(function OverviewGrid({
     });
   }, [sortedData, curveFilter]);
 
+  const selectedCanvasCount = selectedOriginCanvasKeySet?.size ?? 0;
+  const isAllCanvasSelected =
+    processedData.length > 0 && selectedCanvasCount >= processedData.length;
+  const selectModeStateLabel = isSelectMode
+    ? t("da_overview_select_mode_on")
+    : t("da_overview_select_mode_off");
+
   if (!processedData.length) return null;
 
   return (
     <Card variant="panel" className="h-full min-h-0 flex flex-col !pr-0">
-      <div className="flex items-center justify-between gap-3 mb-3 flex-wrap pr-4">
-        <div className="flex items-center gap-3">
+      <div className="mb-3 pr-4 space-y-2">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap">
           <div className="relative flex items-center gap-2">
             <label
               htmlFor="device-analysis-overview-curve-filter-btn"
@@ -227,6 +245,58 @@ const OverviewGrid = memo(function OverviewGrid({
             )}
           </Button>
 
+          <Button
+            id="device-analysis-overview-select-mode-btn"
+            cta="Device Analysis"
+            ctaPosition="overview-grid"
+            ctaCopy="canvas select mode"
+            variant={isSelectMode ? "secondary" : "ghost"}
+            size="control"
+            onClick={() => setIsSelectMode((prev) => !prev)}
+            title={t("da_overview_select_mode_title", {
+              state: selectModeStateLabel,
+            })}
+            aria-label={t("da_overview_select_mode_title", {
+              state: selectModeStateLabel,
+            })}
+          >
+            {t("da_overview_select_mode_toggle")}
+          </Button>
+
+          <Button
+            id="device-analysis-overview-canvas-toggle-all-btn"
+            cta="Device Analysis"
+            ctaPosition="overview-grid"
+            ctaCopy="canvas toggle all"
+            variant="ghost"
+            size="control"
+            onClick={() => {
+              if (isAllCanvasSelected) {
+                onClearOriginCanvasSelection?.();
+                return;
+              }
+              onSelectAllOriginCanvases?.();
+            }}
+            disabled={
+              !isSelectMode ||
+              !onSelectAllOriginCanvases ||
+              !onClearOriginCanvasSelection ||
+              processedData.length === 0
+            }
+            title={t(
+              isAllCanvasSelected
+                ? "da_origin_canvas_clear"
+                : "da_origin_canvas_select_all",
+            )}
+            aria-label={t(
+              isAllCanvasSelected
+                ? "da_origin_canvas_clear"
+                : "da_origin_canvas_select_all",
+            )}
+          >
+            <CheckCheck size={16} />
+          </Button>
+
           {processingStatus?.state === "processing" ? (
             <div className="text-xs text-text-secondary">
               {t("da_overview_processing", {
@@ -235,7 +305,17 @@ const OverviewGrid = memo(function OverviewGrid({
               })}
             </div>
           ) : null}
+
+          </div>
         </div>
+
+        {isSelectMode ? (
+          <div className="meta_text whitespace-nowrap">
+            {t("da_overview_selected_num_figures", {
+              count: selectedCanvasCount,
+            })}
+          </div>
+        ) : null}
       </div>
 
       <ScrollArea className="flex-1 min-h-0" viewportClassName="pr-4" axis="y">
@@ -246,6 +326,12 @@ const OverviewGrid = memo(function OverviewGrid({
               file={file}
               isActive={file.fileId === activeFileId}
               onSelectFile={onSelectFile}
+              isSelectionMode={isSelectMode}
+              isOriginSelected={selectedOriginCanvasKeySet?.has(
+                String(file?.fileId ?? ""),
+              )}
+              onToggleOriginSelected={onToggleOriginCanvasSelection}
+              originSelectedBadgeLabel={t("da_overview_select_badge")}
               yUnitFactor={yUnitFactor}
               yUnitLabel={yUnitLabel}
               yScale={yScale}
