@@ -31,7 +31,7 @@ const CalculatedParametersRow = memo(function CalculatedParametersRow({
 
   return (
     <tr className="hover:bg-bg-page/30">
-      <td className="p-2 text-text-primary font-medium whitespace-nowrap">
+      <td className="p-2 text-text-primary font-medium whitespace-nowrap text-center">
         {row.name}
       </td>
       <td className="p-2 font-mono text-xs text-text-primary whitespace-nowrap text-center border-l border-border bg-emerald-500/5">

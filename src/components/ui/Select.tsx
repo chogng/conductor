@@ -91,6 +91,7 @@ type SelectProps = Omit<
   triggerClassName?: string;
   testId?: string;
   stableWidth?: boolean;
+  hideChevron?: boolean;
 };
 
 const isSelectableOption = (opt: unknown): opt is SelectOption => {
@@ -141,6 +142,7 @@ const Select = ({
   triggerClassName = "",
   testId,
   stableWidth,
+  hideChevron = false,
   ...props
 }: SelectProps) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -355,6 +357,8 @@ const Select = ({
 
       const triggerPaddingRight =
         Number.parseFloat(triggerStyles.paddingRight) || 0;
+      const triggerPaddingLeft =
+        Number.parseFloat(triggerStyles.paddingLeft) || 0;
       const fieldPaddingLeft = Number.parseFloat(fieldStyles.paddingLeft) || 0;
       const fieldPaddingRight = Number.parseFloat(fieldStyles.paddingRight) || 0;
       const fieldBorderLeft = Number.parseFloat(fieldStyles.borderLeftWidth) || 0;
@@ -393,6 +397,7 @@ const Select = ({
 
       const nextWidthPx = Math.ceil(
         maxTextWidth +
+          triggerPaddingLeft +
           triggerPaddingRight +
           fieldPaddingLeft +
           fieldPaddingRight +
@@ -437,7 +442,7 @@ const Select = ({
       data-disabled={disabled || undefined}
     >
       <div
-        className={cx("input_field", sizeClass, "pr-1")}
+        className={cx("input_field", sizeClass, !hideChevron && "pr-1")}
         data-state={disabled ? "disabled" : "enable"}
       >
         <button
@@ -455,7 +460,8 @@ const Select = ({
           onClick={handleTriggerClick}
           onKeyDown={handleKeyDown}
           className={cx(
-            "input_native no-focus-outline p-0 pr-12 text-left cursor-pointer select-none",
+            "input_native no-focus-outline p-0 text-left cursor-pointer select-none",
+            hideChevron ? "pr-0" : "pr-12",
             triggerClassName,
           )}
         >
@@ -469,15 +475,17 @@ const Select = ({
           </span>
         </button>
 
-        <span className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-secondary pointer-events-none">
-          <ChevronDown
-            size={16}
-            className={cx(
-              "transition-transform duration-200",
-              isOpen ? "rotate-180" : "",
-            )}
-          />
-        </span>
+        {!hideChevron && (
+          <span className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-secondary pointer-events-none">
+            <ChevronDown
+              size={16}
+              className={cx(
+                "transition-transform duration-200",
+                isOpen ? "rotate-180" : "",
+              )}
+            />
+          </span>
+        )}
       </div>
 
       <Popup
@@ -544,12 +552,14 @@ const Select = ({
                               {option.label ?? String(option.value)}
                             </span>
                           </span>
-                          {isSelected ? (
-                            <Check
-                              style={{ width: "0.9rem", height: "0.9rem" }}
-                              className="text-accent"
-                            />
-                          ) : null}
+                          <span className="ui-select_item-right" aria-hidden="true">
+                            {isSelected ? (
+                              <Check
+                                style={{ width: "0.9rem", height: "0.9rem" }}
+                                className="text-accent"
+                              />
+                            ) : null}
+                          </span>
                         </button>
                       );
                     })}

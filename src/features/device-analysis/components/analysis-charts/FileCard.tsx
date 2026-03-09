@@ -1,5 +1,5 @@
-import { memo, useEffect, useRef, useState, type ComponentType } from "react";
-import CanvasMultiLineChart from "../CanvasMultiLineChart";
+import { memo, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
+import CanvasMultiLineChart, { resolvePreviewChartDomain } from "../CanvasMultiLineChart";
 import { formatNumber } from "../../lib/analysisMath";
 
 type UseInViewOnceOptions = {
@@ -109,8 +109,18 @@ const FileCard = memo(function FileCard({
   const fileIdSuffix = toSafeIdSuffix(file?.fileId ?? file?.fileName);
   const seriesCount = Array.isArray(file?.series) ? file.series.length : 0;
   const sampledPoints = file?.x?.sampledPoints ?? null;
-  const yAxisMin = Number(file?.domain?.y?.[0]);
-  const yAxisMax = Number(file?.domain?.y?.[1]);
+  const previewDomain = useMemo(
+    () =>
+      resolvePreviewChartDomain({
+        xGroups: file?.xGroups,
+        series: file?.series,
+        domain: file?.domain,
+        yScaleType: yScale === "log" ? "log" : "linear",
+      }),
+    [file?.domain, file?.series, file?.xGroups, yScale],
+  );
+  const yAxisMin = Number(previewDomain.y[0]);
+  const yAxisMax = Number(previewDomain.y[1]);
   const yAxisMinLabel = Number.isFinite(yAxisMin)
     ? formatNumber(yAxisMin * yUnitFactor, { digits: 3 })
     : null;

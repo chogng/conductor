@@ -3017,13 +3017,13 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
               </div>
             </div>
 
-            <ScrollArea axis="x" className="w-full">
+            <ScrollArea axis="both" className="w-full max-h-[60vh]">
               <table className="min-w-[1080px] w-full text-sm border-collapse">
-                <thead className="sticky top-0 bg-bg-surface z-10">
+                <thead className="sticky top-0 bg-bg-surface z-20 shadow-sm">
                   <tr className="border-b border-border">
                     <th
                       rowSpan={2}
-                      className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-left whitespace-nowrap align-bottom"
+                      className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center whitespace-nowrap align-middle"
                     >
                       {t("da_calc_group_series")}
                     </th>

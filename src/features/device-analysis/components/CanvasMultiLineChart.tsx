@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { formatNumber } from "../lib/analysisMath";
+import { padLinearDomain, padLogDomain } from "../lib/analysisChartsUtils";
 import { COLORS } from "../lib/chartColors";
 
 type Padding = {
@@ -59,8 +60,98 @@ type CanvasMultiLineChartProps = {
 
 const DEFAULT_PADDING: Padding = { top: 20, right: 10, bottom: 10, left: 10 };
 
+type ResolvedPreviewDomain = {
+  x: [number, number];
+  y: [number, number];
+  effectiveYScaleType: "linear" | "log";
+};
+
 const clamp = (value: number, min: number, max: number): number =>
   Math.max(min, Math.min(max, value));
+
+const normalizeDomainTuple = (
+  raw: ChartDomain[keyof ChartDomain] | null | undefined,
+): [number, number] | null => {
+  const start = Number(raw?.[0]);
+  const end = Number(raw?.[1]);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
+  const lo = Math.min(start, end);
+  const hi = Math.max(start, end);
+  if (lo === hi) return padLinearDomain(lo, hi);
+  return [lo, hi];
+};
+
+export const resolvePreviewChartDomain = ({
+  xGroups,
+  series,
+  domain,
+  yScaleType,
+}: Pick<CanvasMultiLineChartProps, "xGroups" | "series" | "domain" | "yScaleType">): ResolvedPreviewDomain => {
+  const explicitXDomain = normalizeDomainTuple(domain?.x);
+  const explicitYDomain = normalizeDomainTuple(domain?.y);
+
+  let minX = Infinity;
+  let maxX = -Infinity;
+  for (const xArr of xGroups ?? []) {
+    const pointCount = xArr?.length ?? 0;
+    for (let i = 0; i < pointCount; i++) {
+      const xVal = Number(xArr[i]);
+      if (!Number.isFinite(xVal)) continue;
+      if (xVal < minX) minX = xVal;
+      if (xVal > maxX) maxX = xVal;
+    }
+  }
+
+  let minY = Infinity;
+  let maxY = -Infinity;
+  let minPositiveY = Infinity;
+  let maxPositiveY = -Infinity;
+  for (const chartSeries of series ?? []) {
+    const yArr = chartSeries?.y;
+    if (!yArr) continue;
+    const pointCount = yArr?.length ?? 0;
+    for (let i = 0; i < pointCount; i++) {
+      const yVal = Number(yArr[i]);
+      if (!Number.isFinite(yVal)) continue;
+      if (yVal < minY) minY = yVal;
+      if (yVal > maxY) maxY = yVal;
+      if (yVal > 0) {
+        if (yVal < minPositiveY) minPositiveY = yVal;
+        if (yVal > maxPositiveY) maxPositiveY = yVal;
+      }
+    }
+  }
+
+  const resolvedXDomain =
+    explicitXDomain ??
+    (Number.isFinite(minX) && Number.isFinite(maxX)
+      ? padLinearDomain(minX, maxX)
+      : [0, 1]);
+
+  const wantsLogScale = String(yScaleType ?? "linear") === "log";
+  if (
+    wantsLogScale &&
+    Number.isFinite(minPositiveY) &&
+    Number.isFinite(maxPositiveY) &&
+    maxPositiveY > 0
+  ) {
+    return {
+      x: resolvedXDomain,
+      y: padLogDomain(minPositiveY, maxPositiveY),
+      effectiveYScaleType: "log",
+    };
+  }
+
+  return {
+    x: resolvedXDomain,
+    y:
+      explicitYDomain ??
+      (Number.isFinite(minY) && Number.isFinite(maxY)
+        ? padLinearDomain(minY, maxY)
+        : [0, 1]),
+    effectiveYScaleType: "linear",
+  };
+};
 
 const setupCanvas = (
   canvas: HTMLCanvasElement,
@@ -184,6 +275,11 @@ const CanvasMultiLineChart = ({
     return { xGroups: safeXGroups, series: seriesWithColor, seriesByGroup };
   }, [series, xGroups]);
 
+  const resolvedDomain = useMemo(
+    () => resolvePreviewChartDomain({ xGroups, series, domain, yScaleType }),
+    [domain, series, xGroups, yScaleType],
+  );
+
   useEffect(() => {
     if (!wrapperRef.current) return;
 
@@ -217,13 +313,14 @@ const CanvasMultiLineChart = ({
   const getScale = () => {
     const width = size.width;
     const height = size.height;
-    const xMin = domain?.x?.[0] ?? 0;
-    const xMax = domain?.x?.[1] ?? 1;
-    let yMin = domain?.y?.[0] ?? 0;
-    let yMax = domain?.y?.[1] ?? 1;
+    const xMin = resolvedDomain.x[0];
+    const xMax = resolvedDomain.x[1];
+    let yMin = resolvedDomain.y[0];
+    let yMax = resolvedDomain.y[1];
+    const effectiveYScaleType = resolvedDomain.effectiveYScaleType;
 
     // For log scale, ensure strictly positive range
-    if (yScaleType === "log") {
+    if (effectiveYScaleType === "log") {
       if (yMin <= 0) yMin = 1e-12; // Fallback for typically small currents
       if (yMax <= yMin) yMax = yMin * 10;
     }
@@ -231,11 +328,11 @@ const CanvasMultiLineChart = ({
     const xSpan = xMax - xMin || 1;
     // For linear: span = max - min
     // For log: span = log10(max) - log10(min)
-    const ySpan = yScaleType === "log"
+    const ySpan = effectiveYScaleType === "log"
       ? Math.log10(yMax) - Math.log10(yMin)
       : yMax - yMin;
 
-    if (yScaleType === "log" && ySpan <= 0) {
+    if (effectiveYScaleType === "log" && ySpan <= 0) {
       // Degenerate log span?
     }
 
@@ -245,7 +342,7 @@ const CanvasMultiLineChart = ({
     const xToPx = (x: number) => padding.left + ((x - xMin) / xSpan) * innerW;
 
     const yToPx = (y: number) => {
-      if (yScaleType === "log") {
+      if (effectiveYScaleType === "log") {
         if (y <= 0) return size.height - padding.bottom; // Clamp bottom
         const logY = Math.log10(y);
         const logMin = Math.log10(yMin);
@@ -264,6 +361,7 @@ const CanvasMultiLineChart = ({
       xMax,
       yMin,
       yMax,
+      effectiveYScaleType,
       innerW,
       innerH,
       xToPx,
@@ -401,7 +499,7 @@ const CanvasMultiLineChart = ({
     drawBase();
     clearOverlay();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prepared, domain, size.width, size.height]);
+  }, [prepared, resolvedDomain, size.width, size.height]);
 
   const scheduleOverlay = () => {
     if (rafRef.current) return;

@@ -19,6 +19,9 @@ type ProcessingStatus = {
 type AnalysisChartsLazyProps = {
   processedData: unknown[];
   processingStatus?: ProcessingStatus;
+  activeFileId?: string | null;
+  onActiveFileIdChange?: (nextFileId: string | null) => void;
+  showFileSelect?: boolean;
   ssMethod?: SsMethod;
   setSsMethod?: (next: SsMethod) => void;
   ssDiagnosticsEnabled?: boolean;
@@ -59,6 +62,9 @@ type DeviceAnalysisAnalysisPanelProps = AnalysisChartsLazyProps & {
 const DeviceAnalysisAnalysisPanel = ({
   processedData = [],
   processingStatus,
+  activeFileId,
+  onActiveFileIdChange,
+  showFileSelect = true,
   shouldMountCharts = false,
   setSsDiagnosticsEnabled,
   setSsIdWindow,
@@ -85,6 +91,9 @@ const DeviceAnalysisAnalysisPanel = ({
             <AnalysisCharts
               processedData={processedData}
               processingStatus={processingStatus}
+              activeFileId={activeFileId}
+              onActiveFileIdChange={onActiveFileIdChange}
+              showFileSelect={showFileSelect}
               ssMethod={ssMethod}
               setSsMethod={setSsMethod}
               ssDiagnosticsEnabled={ssDiagnosticsEnabled}

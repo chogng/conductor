@@ -208,6 +208,30 @@ body {
     letter-spacing: 0.01em;
   }
 
+  .da_top_menu_center {
+    @apply flex-1 min-w-0 h-full flex items-center justify-center;
+  }
+
+  .da_top_menu_center_file_select {
+    @apply max-w-full px-2;
+    width: fit-content;
+    -webkit-app-region: no-drag;
+  }
+
+  .da_top_menu_center_file_select .ui-select_warp {
+    max-width: 100%;
+    width: fit-content;
+  }
+
+  .da_top_menu_center_file_select .input_field {
+    @apply bg-transparent border-transparent;
+  }
+
+  .da_top_menu_center_file_select .input_field[data-state="enable"]:hover,
+  .da_top_menu_center_file_select .input_field[data-state="enable"]:focus-within {
+    @apply bg-bg-200/50 text-text-primary;
+  }
+
   .da_top_menu_trigger {
     @apply min-w-[86px] justify-between text-text-secondary border border-transparent;
     --btn-ring-inner: rgb(var(--bg-surface) / 0.7);
@@ -380,6 +404,10 @@ body {
 
     .da_window_controls {
       @apply gap-0.5;
+    }
+
+    .da_top_menu_center_file_select {
+      @apply px-1;
     }
 
     .da_top_menu_trigger {
@@ -700,7 +728,7 @@ body {
   }
 
   .ui-select_item {
-    @apply w-full px-3 py-2 text-sm text-left rounded-md transition-colors flex items-center justify-between;
+    @apply w-full px-3 py-2 text-sm text-left rounded-md transition-colors flex items-center justify-between gap-3;
   }
 
   .ui-select_item[data-selected] {
@@ -734,7 +762,11 @@ body {
   }
 
   .ui-select_item-left {
-    @apply flex items-center gap-2 min-w-0;
+    @apply flex items-center gap-2 min-w-0 flex-1;
+  }
+
+  .ui-select_item-right {
+    @apply inline-flex items-center justify-center w-5 shrink-0 ml-3;
   }
 
   .ui-select_empty {

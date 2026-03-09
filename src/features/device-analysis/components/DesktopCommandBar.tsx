@@ -10,9 +10,11 @@ import {
 } from "lucide-react";
 import type { CSSProperties } from "react";
 import originIcon from "../../../assets/icons/origin.svg";
+import Select from "../../../components/ui/Select";
 import type { TranslateFn } from "../../../context/language-context";
 
 type ActivePage = "data" | "analysis" | "settings" | string;
+type AnalysisFileOption = { value: string; label: string };
 
 type DesktopCommandBarProps = {
   t: TranslateFn;
@@ -28,6 +30,10 @@ type DesktopCommandBarProps = {
   onCloseWindow?: () => void;
   onOpenSettings?: () => void;
   onOpenOrigin?: () => void;
+  showAnalysisFileSelector?: boolean;
+  analysisFileOptions?: AnalysisFileOption[];
+  analysisActiveFileId?: string | null;
+  onAnalysisFileChange?: (fileId: string) => void;
 };
 
 const DesktopCommandBar = ({
@@ -44,8 +50,19 @@ const DesktopCommandBar = ({
   onCloseWindow,
   onOpenSettings,
   onOpenOrigin,
+  showAnalysisFileSelector = false,
+  analysisFileOptions = [],
+  analysisActiveFileId = null,
+  onAnalysisFileChange,
 }: DesktopCommandBarProps) => {
   const dragRegionStyle = { WebkitAppRegion: "drag" } as CSSProperties;
+  const normalizedAnalysisFileOptions = Array.isArray(analysisFileOptions)
+    ? analysisFileOptions.filter(
+        (option) => !!option && typeof option.value === "string",
+      )
+    : [];
+  const shouldShowAnalysisFileSelector =
+    showAnalysisFileSelector && normalizedAnalysisFileOptions.length > 0;
 
   return (
     <header
@@ -80,7 +97,26 @@ const DesktopCommandBar = ({
         </button>
       </div>
 
-      <div className="flex-1" style={dragRegionStyle} />
+      <div className="da_top_menu_center" style={dragRegionStyle}>
+        {shouldShowAnalysisFileSelector ? (
+          <div className="da_top_menu_center_file_select">
+            <Select
+              id="device-analysis-window-file-select"
+              size="md"
+              value={analysisActiveFileId ?? ""}
+              onChange={(next) => onAnalysisFileChange?.(String(next))}
+              options={normalizedAnalysisFileOptions}
+              className="da-neutral-select"
+              align="center"
+              stableWidth
+              data-cta="Device Analysis"
+              data-cta-position="titlebar-file-select"
+              data-cta-copy="titlebar file select"
+              hideChevron
+            />
+          </div>
+        ) : null}
+      </div>
 
       <div className="da_window_controls">
         <button

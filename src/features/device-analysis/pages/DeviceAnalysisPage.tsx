@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -64,6 +65,13 @@ type ExtractionErrorEntry = {
 
 type ProcessingExtractionError = ExtractionErrorEntry & {
   message: string;
+};
+
+const stripCsvExtension = (fileName: string): string => {
+  const normalized = String(fileName ?? "").trim();
+  if (!normalized) return normalized;
+  const withoutCsv = normalized.replace(/\.csv$/i, "");
+  return withoutCsv.length > 0 ? withoutCsv : normalized;
 };
 
 type PreviewFile = {
@@ -188,6 +196,9 @@ const DeviceAnalysisPage = () => {
   });
   const [hasVisitedAnalysisPage, setHasVisitedAnalysisPage] = useState(false);
   const [hasVisitedSettingsPage, setHasVisitedSettingsPage] = useState(false);
+  const [analysisActiveFileId, setAnalysisActiveFileId] = useState<
+    string | null
+  >(null);
   const { isResizing, sidebarWidth, startResizing } = useResizableSidebar();
   const activePage = pageNavigation.activePage;
 
@@ -461,6 +472,43 @@ const DeviceAnalysisPage = () => {
   const canNavigateBack = pageNavigation.historyIndex > 0;
   const canNavigateForward =
     pageNavigation.historyIndex < pageNavigation.history.length - 1;
+  const analysisFileOptions = useMemo(
+    () =>
+      (Array.isArray(processedData) ? processedData : [])
+        .map((entry) => {
+          const fileId =
+            typeof entry?.fileId === "string" ? entry.fileId : String(entry?.fileId ?? "");
+          const fileNameRaw = (entry as { fileName?: unknown })?.fileName;
+          const fileName =
+            typeof fileNameRaw === "string" && fileNameRaw.trim().length > 0
+              ? fileNameRaw
+              : fileId;
+          const displayName = stripCsvExtension(fileName);
+          if (!fileId) return null;
+          return { value: fileId, label: displayName };
+        })
+        .filter((entry): entry is { value: string; label: string } => !!entry),
+    [processedData],
+  );
+
+  useEffect(() => {
+    setAnalysisActiveFileId((prev) => {
+      if (!analysisFileOptions.length) {
+        return prev === null ? prev : null;
+      }
+      if (
+        prev &&
+        analysisFileOptions.some((option) => option.value === prev)
+      ) {
+        return prev;
+      }
+      return analysisFileOptions[0].value;
+    });
+  }, [analysisFileOptions]);
+
+  const handleAnalysisFileChange = useCallback((nextFileId: string | null) => {
+    setAnalysisActiveFileId(nextFileId ?? null);
+  }, []);
 
   const handlePageTabSelect = useCallback((nextPage: string) => {
     if (
@@ -518,6 +566,12 @@ const DeviceAnalysisPage = () => {
           onMinimizeWindow={handleMinimizeWindow}
           onToggleMaximizeWindow={handleToggleMaximizeWindow}
           onCloseWindow={handleCloseWindow}
+          showAnalysisFileSelector={
+            isAnalysisPageActive && analysisFileOptions.length > 0
+          }
+          analysisFileOptions={analysisFileOptions}
+          analysisActiveFileId={analysisActiveFileId}
+          onAnalysisFileChange={handleAnalysisFileChange}
         />
       ) : null}
 
@@ -587,6 +641,9 @@ const DeviceAnalysisPage = () => {
               <DeviceAnalysisAnalysisPanel
                 processedData={processedData}
                 processingStatus={processingStatus}
+                activeFileId={analysisActiveFileId}
+                onActiveFileIdChange={handleAnalysisFileChange}
+                showFileSelect={!isWindowsDesktopShell}
                 shouldMountCharts={
                   isAnalysisPageActive || hasVisitedAnalysisPage
                 }
