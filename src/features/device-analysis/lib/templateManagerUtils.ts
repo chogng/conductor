@@ -10,11 +10,13 @@ export type TemplateConfig = {
   xDataEnd: string;
   xDataStart: string;
   xPoints: string;
+  xUnit: string;
   yCount: string;
   yDataEnd: string;
   yDataStart: string;
   yPoints: string;
   yStep: string;
+  yUnit: string;
 };
 
 export const createEmptyTemplateConfig = (
@@ -24,11 +26,13 @@ export const createEmptyTemplateConfig = (
   xDataStart: "",
   xDataEnd: "",
   xPoints: "",
+  xUnit: "",
   yDataStart: "",
   yDataEnd: "",
   yPoints: "",
   yCount: "",
   yStep: "",
+  yUnit: "",
   stopOnError: false,
   bottomTitle: "",
   leftTitle: "",

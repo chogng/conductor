@@ -210,7 +210,7 @@ const TemplateManager = ({
           <label className="block text-sm font-medium text-text-secondary mb-2">
             {t("da_save_x_data_label")}
           </label>
-          <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Input
                 id={
@@ -274,6 +274,21 @@ const TemplateManager = ({
                 inputClassName="no-spinner"
               />
             </div>
+            <div>
+              <Input
+                id={
+                  includeIds ? "device-analysis-template-x-unit" : undefined
+                }
+                name="xUnit"
+                value={config.xUnit}
+                disabled={saveIsSelectMode}
+                onChange={(next) => {
+                  setConfigFromSave((prev) => ({ ...prev, xUnit: next }));
+                  markFieldSource("xUnit", "manual");
+                }}
+                placeholder={t("da_save_x_unit")}
+              />
+            </div>
           </div>
         </div>
 
@@ -326,7 +341,7 @@ const TemplateManager = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="min-w-0">
                 <Input
                   id={
@@ -377,6 +392,21 @@ const TemplateManager = ({
                   }}
                   placeholder={t("da_save_step")}
                   inputClassName="no-spinner"
+                />
+              </div>
+              <div className="min-w-0">
+                <Input
+                  id={
+                    includeIds ? "device-analysis-template-y-unit" : undefined
+                  }
+                  value={config.yUnit}
+                  name="yUnit"
+                  disabled={saveIsSelectMode}
+                  onChange={(next) => {
+                    setConfigFromSave((prev) => ({ ...prev, yUnit: next }));
+                    markFieldSource("yUnit", "manual");
+                  }}
+                  placeholder={t("da_save_y_unit")}
                 />
               </div>
             </div>

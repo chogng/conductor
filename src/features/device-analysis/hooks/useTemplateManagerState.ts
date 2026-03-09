@@ -239,11 +239,13 @@ export const useTemplateManagerState = ({
         xDataStart: String(template?.xDataStart ?? ""),
         xDataEnd: String(template?.xDataEnd ?? ""),
         xPoints: String(template?.xPoints ?? ""),
+        xUnit: String(template?.xUnit ?? ""),
         yDataStart: String(template?.yDataStart ?? ""),
         yDataEnd: String(template?.yDataEnd ?? ""),
         yPoints: String(template?.yPoints ?? ""),
         yCount: String(template?.yCount ?? ""),
         yStep: String(template?.yStep ?? ""),
+        yUnit: String(template?.yUnit ?? ""),
         stopOnError: Boolean(template?.stopOnError),
         bottomTitle: String(template?.bottomTitle ?? template?.vgKeyword ?? ""),
         leftTitle: String(template?.leftTitle ?? ""),
@@ -478,6 +480,8 @@ export const useTemplateManagerState = ({
       if (
         normalized.bottomTitle !== config.bottomTitle ||
         normalized.legendPrefix !== config.legendPrefix ||
+        normalized.xUnit !== config.xUnit ||
+        normalized.yUnit !== config.yUnit ||
         normalized.fileNameVgKeywords !== config.fileNameVgKeywords ||
         normalized.fileNameVdKeywords !== config.fileNameVdKeywords
       ) {

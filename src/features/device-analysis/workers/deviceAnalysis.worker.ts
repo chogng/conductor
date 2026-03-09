@@ -509,8 +509,21 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
     const bottomTitleRaw = config?.bottomTitle;
     const leftTitleRaw = config?.leftTitle;
     const legendPrefixRaw = config?.legendPrefix;
+    const xUnitRaw = config?.xUnit;
+    const yUnitRaw = config?.yUnit;
     const fileNameVgKeywordsRaw = config?.fileNameVgKeywords;
     const fileNameVdKeywordsRaw = config?.fileNameVdKeywords;
+    const appendAxisUnit = (labelRaw: any, unitRaw: any) => {
+        const label = String(labelRaw ?? "").trim();
+        const unit = String(unitRaw ?? "").trim();
+        if (!unit)
+            return label;
+        if (!label)
+            return unit;
+        if (label.includes(unit))
+            return label;
+        return `${label} (${unit})`;
+    };
     const splitKeywordList = (raw: any) => String(raw ?? "")
         .split(/[,;\n]+/)
         .map((token: any) => token.trim())
@@ -1186,8 +1199,8 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
     const domain = { x: [x0, x1], y: [y0, y1] };
     // Use Var1 as X Label, fallback to column label
     // Use bottomTitle directly (resolved string from Var1)
-    const xLabel = effectiveBottomTitle || getExcelColumnLabel(xCol);
-    const yLabel = leftTitle || "";
+    const xLabel = appendAxisUnit(effectiveBottomTitle || getExcelColumnLabel(xCol), xUnitRaw);
+    const yLabel = appendAxisUnit(leftTitle || "", yUnitRaw);
     return {
         fileId,
         fileName,

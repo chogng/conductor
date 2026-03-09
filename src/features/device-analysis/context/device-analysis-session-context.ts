@@ -14,11 +14,13 @@ export type DeviceAnalysisTemplateConfig = {
   xDataStart: string;
   xDataEnd: string;
   xPoints: string;
+  xUnit: string;
   yDataStart: string;
   yDataEnd: string;
   yPoints: string;
   yCount: string;
   yStep: string;
+  yUnit: string;
   stopOnError: boolean;
   bottomTitle: string;
   leftTitle: string;

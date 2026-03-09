@@ -65,6 +65,10 @@ export function normalizeKeywordList(raw: unknown): string {
   return splitKeywordList(raw).join(", ");
 }
 
+export function normalizeAxisUnit(raw: unknown): string {
+  return String(raw ?? "").trim();
+}
+
 export function validateVarPair(
   bottomTitleRaw: unknown,
   legendPrefixRaw: unknown,
@@ -175,6 +179,8 @@ export function validateTemplateForSave(config: ValidationConfig, t?: TranslateF
       selectedColumns,
       bottomTitle: varPair.vg,
       legendPrefix: varPair.vd,
+      xUnit: normalizeAxisUnit(config?.xUnit),
+      yUnit: normalizeAxisUnit(config?.yUnit),
       fileNameVgKeywords: curveTagging.fileNameVgKeywords,
       fileNameVdKeywords: curveTagging.fileNameVdKeywords,
       // Back-compat with older backend/template field names.
@@ -201,6 +207,8 @@ export function validateTemplateForApply(config: ValidationConfig, t?: Translate
       bottomTitle: varPair.vg,
       leftTitle: config?.leftTitle ?? "",
       legendPrefix: varPair.vd,
+      xUnit: normalizeAxisUnit(config?.xUnit),
+      yUnit: normalizeAxisUnit(config?.yUnit),
       fileNameVgKeywords: curveTagging.fileNameVgKeywords,
       fileNameVdKeywords: curveTagging.fileNameVdKeywords,
       // Back-compat with older backend/template field names.

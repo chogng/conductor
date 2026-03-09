@@ -16,10 +16,12 @@ type TemplateConfigLike = Partial<{
   xDataStart: string;
   xDataEnd: string;
   xPoints: string;
+  xUnit: string;
   yDataStart: string;
   yDataEnd: string;
   yCount: string;
   yStep: string;
+  yUnit: string;
   selectedColumns: number[];
   autoDetectCurveType: boolean;
   bottomTitle: string;
@@ -42,6 +44,8 @@ type ExtractionConfig = {
   bottomTitle: string;
   legendPrefix: string;
   leftTitle: string;
+  xUnit: string;
+  yUnit: string;
   fileNameVgKeywords: string;
   fileNameVdKeywords: string;
   yLegendStartCell?: CellRef;
@@ -392,6 +396,8 @@ export function prepareDeviceAnalysisExtraction({
     bottomTitle: normalizedConfig?.bottomTitle ?? "",
     legendPrefix: normalizedConfig?.legendPrefix ?? "",
     leftTitle: normalizedConfig?.leftTitle ?? "",
+    xUnit: String(normalizedConfig?.xUnit ?? "").trim(),
+    yUnit: String(normalizedConfig?.yUnit ?? "").trim(),
     fileNameVgKeywords: normalizedConfig?.fileNameVgKeywords ?? "",
     fileNameVdKeywords: normalizedConfig?.fileNameVdKeywords ?? "",
   };
