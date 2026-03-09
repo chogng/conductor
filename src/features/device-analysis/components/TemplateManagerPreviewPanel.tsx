@@ -159,14 +159,14 @@ const PreviewRow = React.memo(
             className="p-0 h-7 border-b border-r border-border bg-transparent"
           />
         ) : null}
-        {visibleColumnIndices.map((index: number) => {
+        {visibleColumnIndices.map((index: number, visibleSlot: number) => {
           const cell = rowCells[index] ?? "";
           const raw = isRowLoaded ? String(cell) : "";
           const display = isRowLoaded ? formatPreviewCell(cell) : "";
 
           return (
             <td
-              key={index}
+              key={visibleSlot}
               data-row={rowIndex}
               data-col={index}
               className={`px-2 py-1 h-7 border-b border-r border-border last:border-r-0 whitespace-nowrap text-xs transition-colors cursor-default overflow-hidden text-ellipsis ${selectedColumnsSet.has(index)
@@ -221,17 +221,19 @@ const PreviewTbody = React.memo(
 
     const rows = useMemo(() => {
       const nextRows: React.JSX.Element[] = [];
-      for (
-        let rowIndex = previewWindow.startRow;
-        rowIndex < previewWindow.endRow;
-        rowIndex += 1
-      ) {
+      const visibleRowCount = Math.max(
+        0,
+        previewWindow.endRow - previewWindow.startRow,
+      );
+
+      for (let slot = 0; slot < visibleRowCount; slot += 1) {
+        const rowIndex = previewWindow.startRow + slot;
         const rowCellsRaw =
           typeof getPreviewRow === "function" ? getPreviewRow(rowIndex) : null;
 
         nextRows.push(
           <PreviewRow
-            key={rowIndex}
+            key={slot}
             rowIndex={rowIndex}
             rowCellsRaw={rowCellsRaw}
             columnGeometry={columnGeometry}
