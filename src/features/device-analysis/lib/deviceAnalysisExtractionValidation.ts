@@ -33,11 +33,6 @@ type TemplateConfigLike = Partial<{
   vdFileKeywords: string;
 }>;
 
-type PreviewFileLike = Partial<{
-  fileId: string;
-  rowCount: number;
-}>;
-
 type ExtractionConfig = {
   xCol: number;
   startRow: number;
@@ -65,7 +60,7 @@ type ExtractionMeta = {
   groupSizeCell: boolean;
   groupSize: number | null;
   groups: number | null;
-  total: number;
+  total: number | null;
   groupSizePreview: number | null;
 };
 
@@ -134,6 +129,8 @@ export function prepareDeviceAnalysisExtraction({
     if (typeof t !== "function") return fallback;
     return t(key, vars ?? undefined);
   };
+  // Kept for API compatibility; preview readiness is no longer a hard blocker.
+  void previewFile;
 
   if (!rawData || rawData.length === 0) {
     return {
@@ -177,28 +174,6 @@ export function prepareDeviceAnalysisExtraction({
   const xEndRaw = String(normalizedConfig?.xDataEnd ?? "").trim();
   const useEndKeyword = !xEndRaw || xEndRaw.toLowerCase() === "end";
 
-  const previewFileRecord =
-    previewFile && typeof previewFile === "object"
-      ? (previewFile as PreviewFileLike)
-      : {};
-
-  if (!Number.isFinite(previewFileRecord.rowCount)) {
-    return {
-      ok: false,
-      type: "warning",
-      message: msg(
-        "da_extractPreviewLoading",
-        null,
-        "Preview is still loading. Please wait a moment and try again.",
-      ),
-    };
-  }
-
-  const previewRowCount = Math.max(
-    0,
-    Math.floor(Number(previewFileRecord.rowCount)),
-  );
-
   const xEnd = useEndKeyword ? null : parseCellRef(xEndRaw);
   if (!useEndKeyword && !xEnd) {
     return {
@@ -232,10 +207,8 @@ export function prepareDeviceAnalysisExtraction({
     ? xStart.rowIndex
     : Math.min(xStart.rowIndex, (xEnd as CellRef).rowIndex);
 
-  const total = useEndKeyword
-    ? Math.max(0, previewRowCount - startRow)
-    : (endRow as number) - startRow + 1;
-  if (total <= 0) {
+  const total = useEndKeyword ? null : (endRow as number) - startRow + 1;
+  if (total !== null && total <= 0) {
     return {
       ok: false,
       type: "warning",
@@ -275,31 +248,33 @@ export function prepareDeviceAnalysisExtraction({
             ),
           };
         }
-        if (asInt > total) {
-          return {
-            ok: false,
-            type: "warning",
-            message: msg(
-              "da_extractPointsCellTooLarge",
-              { cell: String(pointsRaw).toUpperCase(), points: asInt, total },
-              `Points from ${String(pointsRaw).toUpperCase()} (${asInt}) cannot be larger than the X range length (${total}).`,
-            ),
-          };
-        }
-        if (total % asInt !== 0) {
-          return {
-            ok: false,
-            type: "warning",
-            message: msg(
-              "da_extractXNotDivisibleByPointsFromCell",
-              {
-                total,
-                points: asInt,
-                cell: String(pointsRaw).toUpperCase(),
-              },
-              `X range has ${total} points, which is not divisible by points=${asInt} (from ${String(pointsRaw).toUpperCase()}).`,
-            ),
-          };
+        if (total !== null) {
+          if (asInt > total) {
+            return {
+              ok: false,
+              type: "warning",
+              message: msg(
+                "da_extractPointsCellTooLarge",
+                { cell: String(pointsRaw).toUpperCase(), points: asInt, total },
+                `Points from ${String(pointsRaw).toUpperCase()} (${asInt}) cannot be larger than the X range length (${total}).`,
+              ),
+            };
+          }
+          if (total % asInt !== 0) {
+            return {
+              ok: false,
+              type: "warning",
+              message: msg(
+                "da_extractXNotDivisibleByPointsFromCell",
+                {
+                  total,
+                  points: asInt,
+                  cell: String(pointsRaw).toUpperCase(),
+                },
+                `X range has ${total} points, which is not divisible by points=${asInt} (from ${String(pointsRaw).toUpperCase()}).`,
+              ),
+            };
+          }
         }
         groupSizePreview = asInt;
       }
@@ -316,7 +291,7 @@ export function prepareDeviceAnalysisExtraction({
           ),
         };
       }
-      if (points > total) {
+      if (total !== null && points > total) {
         return {
           ok: false,
           type: "warning",
@@ -332,19 +307,28 @@ export function prepareDeviceAnalysisExtraction({
   }
 
   if (!groupSizeCell) {
-    groupSize = groupSize ?? total;
-    if (total % groupSize !== 0) {
-      return {
-        ok: false,
-        type: "warning",
-        message: msg(
-          "da_extractXNotDivisibleByPoints",
-          { total, points: groupSize },
-          `X range has ${total} points, which is not divisible by points=${groupSize}.`,
-        ),
-      };
+    if (total !== null) {
+      groupSize = groupSize ?? total;
+      if (total % groupSize !== 0) {
+        return {
+          ok: false,
+          type: "warning",
+          message: msg(
+            "da_extractXNotDivisibleByPoints",
+            { total, points: groupSize },
+            `X range has ${total} points, which is not divisible by points=${groupSize}.`,
+          ),
+        };
+      }
+      groups = total / groupSize;
+    } else if (
+      !Number.isInteger(groupSize) ||
+      (groupSize as number) <= 0
+    ) {
+      // End-row mode with no fixed points: resolve to single full-range group in worker.
+      groupSize = null;
+      groups = null;
     }
-    groups = total / groupSize;
   }
 
   const yColsFromToggle = Array.isArray(normalizedConfig?.selectedColumns)

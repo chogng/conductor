@@ -622,15 +622,26 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
         groups = expectedTotal / points;
     }
     else {
+        // Allow deferred grouping for End-row mode: resolve once file row count is known.
         if (!Number.isInteger(groupSize) || groupSize <= 0) {
-            throw new Error("Invalid config: groupSize");
+            groupSize = expectedTotal;
+            groups = 1;
         }
-        if (!Number.isInteger(groups) || groups <= 0) {
-            throw new Error("Invalid config: groups");
+        else if (!Number.isInteger(groups) || groups <= 0) {
+            if (expectedTotal % groupSize !== 0) {
+                throw createLocalizedError("da_extractXNotDivisibleByPoints", { total: expectedTotal, points: groupSize }, `${fileName}: X range has ${expectedTotal} points, which is not divisible by points=${groupSize}.`);
+            }
+            groups = expectedTotal / groupSize;
         }
-        if (expectedTotal !== groups * groupSize) {
+        else if (expectedTotal !== groups * groupSize) {
             throw new Error(`Invalid config: X range (${expectedTotal}) != groups(${groups}) * points(${groupSize})`);
         }
+    }
+    if (!Number.isInteger(groupSize) || groupSize <= 0) {
+        throw new Error("Invalid config: groupSize");
+    }
+    if (!Number.isInteger(groups) || groups <= 0) {
+        throw new Error("Invalid config: groups");
     }
     const formatLegendValue = (raw: any) => {
         if (raw === null || raw === undefined)

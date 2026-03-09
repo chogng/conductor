@@ -53,7 +53,7 @@ type ExtractionMeta = {
   groupSizePreview?: number;
   groups?: number;
   pointsRawUpper?: string;
-  total?: number;
+  total?: number | null;
 };
 
 type ExtractionFeedback = {
@@ -136,9 +136,13 @@ const buildExtractionStartFeedback = ({
   warnings?: string[];
 }): ExtractionFeedback => {
   const groupSizePreview = Number(meta.groupSizePreview);
+  const fixedGroupSize = Number(meta.groupSize);
+  const fixedGroupCount = Number(meta.groups);
   const groupSizeText = meta.groupSizeCell
     ? t("da_extract_points_from_cell", { cell: meta.pointsRawUpper || "" })
-    : t("da_extract_points_fixed", { points: meta.groupSize });
+    : Number.isInteger(fixedGroupSize) && fixedGroupSize > 0
+      ? t("da_extract_points_fixed", { points: fixedGroupSize })
+      : t("da_extract_points_fixed", { points: "-" });
   const groupsText =
     meta.groupSizeCell &&
     Number.isInteger(groupSizePreview) &&
@@ -146,8 +150,10 @@ const buildExtractionStartFeedback = ({
       ? t("da_extract_groups_suffix", {
           groups: Math.max(0, Number(meta.total || 0) / groupSizePreview),
         })
-      : !meta.groupSizeCell
-        ? t("da_extract_groups_suffix", { groups: meta.groups })
+      : !meta.groupSizeCell &&
+          Number.isInteger(fixedGroupCount) &&
+          fixedGroupCount > 0
+        ? t("da_extract_groups_suffix", { groups: fixedGroupCount })
         : "";
   const warningText = warnings.length
     ? t("da_extract_warnings_block", { warnings: warnings.join("\n- ") })
