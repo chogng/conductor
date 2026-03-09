@@ -11,6 +11,13 @@ import ScrollArea from "../../../components/ui/ScrollArea";
 import type { TranslateFn } from "../../../context/language-context";
 import { formatNumber } from "../lib/analysisMath";
 import { getExcelColumnLabel } from "../lib/templateManagerPreview";
+import {
+  computeNextPreviewCell,
+  computePreviewPageRows,
+  getSelectionModeFromPointerEvent,
+  isPreviewNavigationKey,
+  resolveSelectionDragStart,
+} from "../lib/previewSelectionNavigation";
 
 type PreviewStatus = {
   state?: string;
@@ -652,13 +659,14 @@ const CanvasPreviewGrid = React.memo(
         if (!canvasEl) return;
         const pointerCell = resolveCellFromClientPoint(event.clientX, event.clientY);
         if (!pointerCell) return;
-        const isAppendMode = Boolean(event.ctrlKey || event.metaKey);
-        const wantsExtend = Boolean(event.shiftKey);
-        const anchor = selectionAnchorRef.current;
-        const startCell =
-          wantsExtend && anchor
-            ? anchor
-            : { rowIndex: pointerCell.rowIndex, colIndex: pointerCell.colIndex };
+        const mode = getSelectionModeFromPointerEvent(event.nativeEvent);
+        const selectionStart = resolveSelectionDragStart({
+          rowIndex: pointerCell.rowIndex,
+          colIndex: pointerCell.colIndex,
+          anchor: selectionAnchorRef.current,
+          shiftKey: event.shiftKey,
+        });
+        const startCell = selectionStart.startCell;
 
         if (
           typeof handlePreviewPick === "function" &&
@@ -671,12 +679,7 @@ const CanvasPreviewGrid = React.memo(
         ) {
           return;
         }
-        if (!wantsExtend || !anchor) {
-          selectionAnchorRef.current = {
-            rowIndex: pointerCell.rowIndex,
-            colIndex: pointerCell.colIndex,
-          };
-        }
+        selectionAnchorRef.current = selectionStart.nextAnchor;
 
         event.preventDefault();
         if (canvasEl.setPointerCapture && Number.isFinite(event.pointerId)) {
@@ -706,7 +709,7 @@ const CanvasPreviewGrid = React.memo(
             endRow: pointerCell.rowIndex,
             startCol: startCell.colIndex,
             endCol: pointerCell.colIndex,
-          }, { mode: isAppendMode ? "append" : "replace" });
+          }, { mode });
         }
       },
       [
@@ -1024,6 +1027,8 @@ type PreviewHeaderProps = {
   previewFileId?: string;
   resetColumnWidth: (fileId: string, colIndex: number) => void;
   selectedColumnsSet: Set<number>;
+  resizeHintTitle: string;
+  toggleColumnTitle: string;
   toggleColumn: (index: number) => void;
 };
 
@@ -1034,6 +1039,8 @@ const PreviewHeader = React.memo(
     previewFileId,
     resetColumnWidth,
     selectedColumnsSet,
+    resizeHintTitle,
+    toggleColumnTitle,
     toggleColumn,
   }: PreviewHeaderProps) => (
     <thead className="bg-bg-surface sticky top-0 z-30 shadow-sm">
@@ -1056,7 +1063,7 @@ const PreviewHeader = React.memo(
                   ? "text-accent bg-accent/10 border-accent/30"
                   : "text-text-secondary hover:bg-bg-page/60"
               }`}
-              title="Click to toggle Y column"
+              title={toggleColumnTitle}
             >
               <div
                 className="flex items-center justify-center gap-2 cursor-pointer group"
@@ -1080,7 +1087,7 @@ const PreviewHeader = React.memo(
               <div
                 role="separator"
                 aria-orientation="vertical"
-                title="Drag to resize | Double-click to reset"
+                title={resizeHintTitle}
                 onPointerDown={(event) => handleColumnResizeStart(event, index)}
                 onClick={(event) => event.stopPropagation()}
                 onDoubleClick={(event) => {
@@ -1292,48 +1299,25 @@ const TemplateManagerPreviewPanel = ({
         return;
       }
 
-      const isNavigationKey =
-        key === "arrowup" ||
-        key === "arrowdown" ||
-        key === "arrowleft" ||
-        key === "arrowright" ||
-        key === "home" ||
-        key === "end" ||
-        key === "pageup" ||
-        key === "pagedown";
-      if (!isNavigationKey) return;
+      if (!isPreviewNavigationKey(key)) return;
 
       const currentCell = getCurrentSelectionCell();
       if (!currentCell) return;
 
-      const clampRow = (value: number) =>
-        Math.max(0, Math.min(totalRows - 1, Math.floor(value || 0)));
-      const clampCol = (value: number) =>
-        Math.max(0, Math.min(totalCols - 1, Math.floor(value || 0)));
       const viewport = previewScrollRef.current;
-      const headerHeight = getPreviewHeaderHeight();
-      const pageRows = Math.max(
-        1,
-        Math.floor(
-          Math.max(1, Number(viewport?.clientHeight || 0) - headerHeight) /
-            PREVIEW_ROW_HEIGHT_PX,
-        ),
-      );
-      const nextCell = {
-        rowIndex: currentCell.rowIndex,
-        colIndex: currentCell.colIndex,
-      };
-
-      if (key === "arrowup") nextCell.rowIndex = clampRow(nextCell.rowIndex - 1);
-      if (key === "arrowdown") nextCell.rowIndex = clampRow(nextCell.rowIndex + 1);
-      if (key === "arrowleft") nextCell.colIndex = clampCol(nextCell.colIndex - 1);
-      if (key === "arrowright") nextCell.colIndex = clampCol(nextCell.colIndex + 1);
-      if (key === "home") nextCell.colIndex = 0;
-      if (key === "end") nextCell.colIndex = totalCols - 1;
-      if (key === "pageup")
-        nextCell.rowIndex = clampRow(nextCell.rowIndex - pageRows);
-      if (key === "pagedown")
-        nextCell.rowIndex = clampRow(nextCell.rowIndex + pageRows);
+      const pageRows = computePreviewPageRows({
+        headerHeight: getPreviewHeaderHeight(),
+        rowHeight: PREVIEW_ROW_HEIGHT_PX,
+        viewportHeight: Number(viewport?.clientHeight || 0),
+      });
+      const nextCell = computeNextPreviewCell({
+        currentCell,
+        key,
+        pageRows,
+        totalRows,
+        totalCols,
+      });
+      if (!nextCell) return;
 
       if (
         nextCell.rowIndex === currentCell.rowIndex &&
@@ -1397,6 +1381,10 @@ const TemplateManagerPreviewPanel = ({
     [],
   );
 
+  const copySelectionTitle = t("da_preview_copy_selection_tsv");
+  const toggleYColumnTitle = t("da_preview_toggle_y_column_title");
+  const resizeColumnTitle = t("da_preview_resize_column_title");
+
   return (
     <div className="lg:col-span-3 bg-bg-page rounded-lg p-4 overflow-hidden flex flex-col min-h-0 lg:min-h-[var(--da-template-panel-min-h)]">
       <div className="flex items-center justify-between mb-2">
@@ -1408,11 +1396,11 @@ const TemplateManagerPreviewPanel = ({
         </span>
         {previewStatus?.state === "loading" ? (
           <span className="text-xs text-text-secondary">
-            {previewStatus.message || "Loading preview..."}
+            {previewStatus.message || t("da_preview_loading")}
           </span>
         ) : previewStatus?.state === "error" ? (
           <span className="text-xs text-red-500">
-            {previewStatus.message || "Preview failed to load"}
+            {previewStatus.message || t("da_preview_error")}
           </span>
         ) : null}
         <div className="flex items-center gap-2">
@@ -1422,7 +1410,7 @@ const TemplateManagerPreviewPanel = ({
             onClick={copySelection}
             disabled={!hasSelection}
             className="p-1.5 rounded-md border border-border bg-bg-surface hover:bg-bg-page text-text-secondary hover:text-text-primary disabled:opacity-50 transition-colors"
-            title="Copy selection as TSV"
+            title={copySelectionTitle}
           >
             <Copy size={14} />
           </button>
@@ -1502,7 +1490,9 @@ const TemplateManagerPreviewPanel = ({
                     previewColumnGeometry={previewColumnGeometry}
                     previewFileId={previewFile?.fileId}
                     resetColumnWidth={resetColumnWidth}
+                    resizeHintTitle={resizeColumnTitle}
                     selectedColumnsSet={selectedColumnsSet}
+                    toggleColumnTitle={toggleYColumnTitle}
                     toggleColumn={toggleColumn}
                   />
                 </table>
@@ -1544,7 +1534,9 @@ const TemplateManagerPreviewPanel = ({
                     previewColumnGeometry={previewColumnGeometry}
                     previewFileId={previewFile?.fileId}
                     resetColumnWidth={resetColumnWidth}
+                    resizeHintTitle={resizeColumnTitle}
                     selectedColumnsSet={selectedColumnsSet}
+                    toggleColumnTitle={toggleYColumnTitle}
                     toggleColumn={toggleColumn}
                   />
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, } from "react";
+import { getSelectionModeFromPointerEvent, resolveSelectionDragStart, } from "./previewSelectionNavigation";
 const clampNumber = (value: any, min: any, max: any) => Math.min(max, Math.max(min, value));
 const sameRect = (a: any, b: any) => a &&
     b &&
@@ -736,14 +737,16 @@ export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewR
             handlePreviewPick({ event, rowIndex, colIndex, cellEl }) === true) {
             return;
         }
-        const isAppendMode = Boolean(event.ctrlKey || event.metaKey);
-        const wantsExtend = Boolean(event.shiftKey);
-        const anchor = selectionAnchorRef.current;
-        const startRow = wantsExtend && anchor ? Number(anchor.rowIndex) : rowIndex;
-        const startCol = wantsExtend && anchor ? Number(anchor.colIndex) : colIndex;
-        if (!wantsExtend || !anchor) {
-            selectionAnchorRef.current = { rowIndex, colIndex };
-        }
+        const mode = getSelectionModeFromPointerEvent(event);
+        const selectionStart = resolveSelectionDragStart({
+            rowIndex,
+            colIndex,
+            anchor: selectionAnchorRef.current,
+            shiftKey: event.shiftKey,
+        });
+        const startRow = selectionStart.startCell.rowIndex;
+        const startCol = selectionStart.startCell.colIndex;
+        selectionAnchorRef.current = selectionStart.nextAnchor;
         event.preventDefault();
         if (typeof setSelectionRange === "function") {
             setSelectionRange({
@@ -751,7 +754,7 @@ export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewR
                 endRow: rowIndex,
                 startCol,
                 endCol: colIndex,
-            }, { mode: isAppendMode ? "append" : "replace" });
+            }, { mode });
         }
         else {
             setSelections([
