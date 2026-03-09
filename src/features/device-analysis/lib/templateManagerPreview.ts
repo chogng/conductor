@@ -9,6 +9,8 @@ const sameRect = (a: any, b: any) => a &&
 const scheduleMicrotask = typeof queueMicrotask === "function"
     ? queueMicrotask
     : (callback: any) => Promise.resolve().then(callback);
+const PREVIEW_DRAG_EDGE_SCROLL_ZONE_PX = 28;
+const PREVIEW_DRAG_EDGE_SCROLL_STEP_PX = 26;
 const PREVIEW_PICK_FIELD_TO_CONFIG_FIELD = {
     templateName: "name",
     xDataStart: "xDataStart",
@@ -660,7 +662,7 @@ export const usePreviewRowWindow = ({ ensurePreviewRows, overscanRows, prefetchR
     ]);
     return previewWindow;
 };
-export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewRow, gridRef, handlePreviewPick, hideDragOverlay, previewFileId, renderDragOverlay, selections, setSelections, }: any) => {
+export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewRow, gridRef, handlePreviewPick, hideDragOverlay, previewFileId, previewScrollRef, renderDragOverlay, selections, setSelections, }: any) => {
     const dragRef = useRef<any>({
         startRow: null,
         startCol: null,
@@ -671,7 +673,23 @@ export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewR
     });
     const isDraggingRef = useRef(false);
     const rafRef = useRef(0);
+    const autoScrollRafRef = useRef(0);
     const pendingPointRef = useRef<any>(null);
+    const lastPointerRef = useRef<any>(null);
+    const computeEdgeScrollDelta = useCallback((pointer: any, edgeStart: any, edgeEnd: any) => {
+        if (!Number.isFinite(pointer))
+            return 0;
+        const zone = PREVIEW_DRAG_EDGE_SCROLL_ZONE_PX;
+        if (pointer < edgeStart + zone) {
+            const ratio = Math.min(1, (edgeStart + zone - pointer) / zone);
+            return -Math.max(1, Math.round(ratio * PREVIEW_DRAG_EDGE_SCROLL_STEP_PX));
+        }
+        if (pointer > edgeEnd - zone) {
+            const ratio = Math.min(1, (pointer - (edgeEnd - zone)) / zone);
+            return Math.max(1, Math.round(ratio * PREVIEW_DRAG_EDGE_SCROLL_STEP_PX));
+        }
+        return 0;
+    }, []);
     const clearSelection = useCallback(() => {
         setSelections([]);
         isDraggingRef.current = false;
@@ -687,7 +705,12 @@ export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewR
             cancelAnimationFrame(rafRef.current);
             rafRef.current = 0;
         }
+        if (autoScrollRafRef.current) {
+            cancelAnimationFrame(autoScrollRafRef.current);
+            autoScrollRafRef.current = 0;
+        }
         pendingPointRef.current = null;
+        lastPointerRef.current = null;
         hideDragOverlay();
     }, [hideDragOverlay, setSelections]);
     const handleCellMouseDown = useCallback((event: any) => {
@@ -715,6 +738,7 @@ export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewR
             startCellEl: cellEl,
             endCellEl: cellEl,
         };
+        lastPointerRef.current = { x: event.clientX, y: event.clientY };
         renderDragOverlay(cellEl, cellEl);
     }, [handlePreviewPick, renderDragOverlay, setSelections]);
     useEffect(() => {
@@ -745,10 +769,53 @@ export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewR
             };
             renderDragOverlay(current.startCellEl, cellEl);
         };
+        const applyDragAutoScroll = (clientX: any, clientY: any) => {
+            const viewport = previewScrollRef?.current;
+            if (!viewport)
+                return false;
+            const rect = viewport.getBoundingClientRect();
+            const deltaY = computeEdgeScrollDelta(clientY, rect.top, rect.bottom);
+            const deltaX = computeEdgeScrollDelta(clientX, rect.left, rect.right);
+            if (!deltaX && !deltaY)
+                return false;
+            const nextTop = Math.max(0, Math.min(viewport.scrollHeight - viewport.clientHeight, viewport.scrollTop + deltaY));
+            const nextLeft = Math.max(0, Math.min(viewport.scrollWidth - viewport.clientWidth, viewport.scrollLeft + deltaX));
+            const changed = Math.abs(nextTop - viewport.scrollTop) > 0.5 ||
+                Math.abs(nextLeft - viewport.scrollLeft) > 0.5;
+            if (!changed)
+                return false;
+            viewport.scrollTop = nextTop;
+            viewport.scrollLeft = nextLeft;
+            return true;
+        };
+        const processPointerPoint = (point: any) => {
+            if (!point)
+                return false;
+            const scrolled = applyDragAutoScroll(point.x, point.y);
+            updateDragFromPoint(point.x, point.y);
+            return scrolled;
+        };
+        const runAutoScrollLoop = () => {
+            autoScrollRafRef.current = 0;
+            if (!isDraggingRef.current)
+                return;
+            const point = lastPointerRef.current;
+            const scrolled = processPointerPoint(point);
+            if (scrolled) {
+                autoScrollRafRef.current = requestAnimationFrame(runAutoScrollLoop);
+            }
+        };
+        const scheduleAutoScrollLoop = () => {
+            if (autoScrollRafRef.current || !isDraggingRef.current)
+                return;
+            autoScrollRafRef.current = requestAnimationFrame(runAutoScrollLoop);
+        };
         const handleMouseMove = (event: any) => {
             if (!isDraggingRef.current)
                 return;
-            pendingPointRef.current = { x: event.clientX, y: event.clientY };
+            const point = { x: event.clientX, y: event.clientY };
+            lastPointerRef.current = point;
+            pendingPointRef.current = point;
             if (rafRef.current)
                 return;
             rafRef.current = requestAnimationFrame(() => {
@@ -757,7 +824,8 @@ export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewR
                 pendingPointRef.current = null;
                 if (!point)
                     return;
-                updateDragFromPoint(point.x, point.y);
+                processPointerPoint(point);
+                scheduleAutoScrollLoop();
             });
         };
         const finalizeDragSelection = () => {
@@ -768,6 +836,10 @@ export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewR
             if (rafRef.current) {
                 cancelAnimationFrame(rafRef.current);
                 rafRef.current = 0;
+            }
+            if (autoScrollRafRef.current) {
+                cancelAnimationFrame(autoScrollRafRef.current);
+                autoScrollRafRef.current = 0;
             }
             const current = dragRef.current;
             const normalized = normalizePreviewRange({
@@ -784,6 +856,7 @@ export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewR
                 startCellEl: null,
                 endCellEl: null,
             };
+            lastPointerRef.current = null;
             hideDragOverlay();
             if (!normalized)
                 return;
@@ -806,8 +879,12 @@ export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewR
                 cancelAnimationFrame(rafRef.current);
                 rafRef.current = 0;
             }
+            if (autoScrollRafRef.current) {
+                cancelAnimationFrame(autoScrollRafRef.current);
+                autoScrollRafRef.current = 0;
+            }
         };
-    }, [gridRef, hideDragOverlay, renderDragOverlay, setSelections]);
+    }, [computeEdgeScrollDelta, gridRef, hideDragOverlay, previewScrollRef, renderDragOverlay, setSelections]);
     useEffect(() => {
         const timeout = window.setTimeout(() => {
             clearSelection();

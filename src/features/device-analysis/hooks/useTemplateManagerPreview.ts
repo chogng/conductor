@@ -525,6 +525,7 @@ export const useTemplateManagerPreview = ({
       handlePreviewPick,
       hideDragOverlay,
       previewFileId: previewFile?.fileId,
+      previewScrollRef,
       renderDragOverlay,
       selections,
       setSelections,

@@ -15,6 +15,13 @@ import {
   DA_PREVIEW_MAX_CACHED_UI_ROWS_PER_FILE,
   DA_PREVIEW_UI_CHUNK_SIZE_ROWS,
 } from "../lib/deviceAnalysisPreviewLimits";
+import {
+  clearChunkRows,
+  hasChunkRowsInCache,
+  isPreviewRowsResultForRequest,
+  mergeChunkRows,
+  sanitizePreviewRows,
+} from "../lib/previewRowChunk";
 import { usePreviewRowsVersion } from "./usePreviewRowsVersion";
 
 type PreviewStatusState = "idle" | "loading" | "ready" | "error";
@@ -379,14 +386,15 @@ export const useDeviceAnalysisPreview = ({
             0,
             Math.floor(Number(rowsPayload.startRow) || 0),
           );
-          const rows = Array.isArray(rowsPayload.rows)
-            ? rowsPayload.rows.map((row) => (Array.isArray(row) ? row : []))
-            : [];
+          const rows = sanitizePreviewRows(rowsPayload.rows);
 
-          if (
-            fileId !== pendingRequest.fileId ||
-            startRow !== pendingRequest.startRow
-          ) {
+          const isMatched = isPreviewRowsResultForRequest({
+            requestFileId: pendingRequest.fileId,
+            requestStartRow: pendingRequest.startRow,
+            payloadFileId: fileId,
+            payloadStartRow: startRow,
+          });
+          if (!isMatched) {
             resolve([]);
             return;
           }
@@ -592,15 +600,7 @@ export const useDeviceAnalysisPreview = ({
           chunkStart + DA_PREVIEW_UI_CHUNK_SIZE_ROWS,
         );
 
-        let hasChunkRowsInCache = true;
-        for (let rowIndex = chunkStart; rowIndex < chunkEnd; rowIndex += 1) {
-          if (!rowCache.has(rowIndex)) {
-            hasChunkRowsInCache = false;
-            break;
-          }
-        }
-
-        if (hasChunkRowsInCache) {
+        if (hasChunkRowsInCache(rowCache, chunkStart, chunkEnd)) {
           // Treat row-presence as source of truth; loadedChunks is only an LRU index.
           loadedChunks.delete(chunkStart);
           loadedChunks.add(chunkStart);
@@ -624,45 +624,23 @@ export const useDeviceAnalysisPreview = ({
             if (rows.length === expectedRows) break;
           }
 
-          if (rows.length !== expectedRows) {
-            for (let rowIndex = chunkStart; rowIndex < chunkEnd; rowIndex += 1) {
-              rowCache.delete(rowIndex);
-            }
-            loadedChunks.delete(chunkStart);
-            return;
-          }
-
-          for (let index = 0; index < rows.length; index += 1) {
-            const row = Array.isArray(rows[index]) ? rows[index] : [];
-            rowCache.set(chunkStart + index, row);
-          }
-
-          loadedChunks.delete(chunkStart);
-          loadedChunks.add(chunkStart);
-
-          while (loadedChunks.size > DA_PREVIEW_MAX_CACHED_UI_CHUNKS_PER_FILE) {
-            const evictChunkStart = loadedChunks.values().next()
-              .value as number | undefined;
-            if (evictChunkStart === undefined) break;
-
-            loadedChunks.delete(evictChunkStart);
-            for (
-              let rowIndex = evictChunkStart;
-              rowIndex < evictChunkStart + DA_PREVIEW_UI_CHUNK_SIZE_ROWS;
-              rowIndex += 1
-            ) {
-              rowCache.delete(rowIndex);
-            }
-          }
+          const merged = mergeChunkRows({
+            rowCache,
+            loadedChunks,
+            chunkStart,
+            chunkEnd,
+            rows,
+            chunkSize: DA_PREVIEW_UI_CHUNK_SIZE_ROWS,
+            maxChunks: DA_PREVIEW_MAX_CACHED_UI_CHUNKS_PER_FILE,
+          });
+          if (!merged) return;
 
           if (previewCacheFileIdRef.current === fileId) {
             shouldNotifyPreviewRows = true;
           }
         })()
           .catch(() => {
-            for (let rowIndex = chunkStart; rowIndex < chunkEnd; rowIndex += 1) {
-              rowCache.delete(rowIndex);
-            }
+            clearChunkRows(rowCache, chunkStart, chunkEnd);
             loadedChunks.delete(chunkStart);
           })
           .finally(() => {

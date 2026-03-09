@@ -15,6 +15,7 @@
     "build:web": "vite build",
     "build": "vite build",
     "lint": "eslint .",
+    "test:preview": "node --test --test-isolation=none src/features/device-analysis/lib/previewRowChunk.test.mjs",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.electron.json --noEmit",
     "preview": "vite preview",
     "build:desktop": "npm run build:origin-worker && npm run build:electron && npm run build:web",

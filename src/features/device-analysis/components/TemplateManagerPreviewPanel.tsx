@@ -92,6 +92,7 @@ type CanvasPreviewGridProps = {
   previewWindow: PreviewWindow;
   columnGeometry: PreviewColumnGeometry;
   previewColumnMinWidthPx: number;
+  previewScrollRef?: React.MutableRefObject<HTMLDivElement | null>;
   previewRowIndexWidthPx: number;
   rowHeightPx: number;
   selectedColumnsSet: Set<number>;
@@ -155,6 +156,8 @@ const getZero = () => 0;
 const PREVIEW_ROW_HEIGHT_PX = 28;
 const ENABLE_EXPERIMENTAL_CANVAS_PREVIEW =
   String(import.meta?.env?.VITE_DA_PREVIEW_CANVAS || "").trim() === "1";
+const PREVIEW_DRAG_EDGE_SCROLL_ZONE_PX = 28;
+const PREVIEW_DRAG_EDGE_SCROLL_STEP_PX = 26;
 
 const isEditableElement = (target: EventTarget | null): boolean => {
   if (!(target instanceof HTMLElement)) return false;
@@ -341,6 +344,7 @@ const CanvasPreviewGrid = React.memo(
     previewWindow,
     columnGeometry,
     previewColumnMinWidthPx,
+    previewScrollRef,
     previewRowIndexWidthPx,
     rowHeightPx,
     selectedColumnsSet,
@@ -393,6 +397,27 @@ const CanvasPreviewGrid = React.memo(
       endRow: number;
       endCol: number;
     } | null>(null);
+    const latestPointerRef = useRef<{ clientX: number; clientY: number } | null>(
+      null,
+    );
+    const autoScrollRafRef = useRef(0);
+
+    const computeEdgeScrollDelta = useCallback(
+      (pointer: number, edgeStart: number, edgeEnd: number) => {
+        if (!Number.isFinite(pointer)) return 0;
+        const zone = PREVIEW_DRAG_EDGE_SCROLL_ZONE_PX;
+        if (pointer < edgeStart + zone) {
+          const ratio = Math.min(1, (edgeStart + zone - pointer) / zone);
+          return -Math.max(1, Math.round(ratio * PREVIEW_DRAG_EDGE_SCROLL_STEP_PX));
+        }
+        if (pointer > edgeEnd - zone) {
+          const ratio = Math.min(1, (pointer - (edgeEnd - zone)) / zone);
+          return Math.max(1, Math.round(ratio * PREVIEW_DRAG_EDGE_SCROLL_STEP_PX));
+        }
+        return 0;
+      },
+      [],
+    );
 
     const resolveCellFromClientPoint = useCallback(
       (
@@ -505,6 +530,75 @@ const CanvasPreviewGrid = React.memo(
       [resolveCellFromClientPoint, setSelectionRange],
     );
 
+    const applyDragAutoScroll = useCallback(
+      (clientX: number, clientY: number) => {
+        const viewport = previewScrollRef?.current;
+        if (!viewport) return false;
+        const viewportRect = viewport.getBoundingClientRect();
+        const deltaY = computeEdgeScrollDelta(
+          clientY,
+          viewportRect.top,
+          viewportRect.bottom,
+        );
+        const deltaX = computeEdgeScrollDelta(
+          clientX,
+          viewportRect.left,
+          viewportRect.right,
+        );
+        if (!deltaX && !deltaY) return false;
+
+        const nextTop = Math.max(
+          0,
+          Math.min(
+            viewport.scrollHeight - viewport.clientHeight,
+            viewport.scrollTop + deltaY,
+          ),
+        );
+        const nextLeft = Math.max(
+          0,
+          Math.min(
+            viewport.scrollWidth - viewport.clientWidth,
+            viewport.scrollLeft + deltaX,
+          ),
+        );
+        const changed =
+          Math.abs(nextTop - viewport.scrollTop) > 0.5 ||
+          Math.abs(nextLeft - viewport.scrollLeft) > 0.5;
+        if (!changed) return false;
+
+        viewport.scrollTop = nextTop;
+        viewport.scrollLeft = nextLeft;
+        return true;
+      },
+      [computeEdgeScrollDelta, previewScrollRef],
+    );
+
+    const stopAutoScrollLoop = useCallback(() => {
+      if (autoScrollRafRef.current) {
+        cancelAnimationFrame(autoScrollRafRef.current);
+        autoScrollRafRef.current = 0;
+      }
+      latestPointerRef.current = null;
+    }, []);
+
+    const runAutoScrollLoop = useCallback(() => {
+      autoScrollRafRef.current = 0;
+      const dragState = dragStateRef.current;
+      if (!dragState || !dragState.isDragging) return;
+      const point = latestPointerRef.current;
+      if (!point) return;
+      const scrolled = applyDragAutoScroll(point.clientX, point.clientY);
+      if (scrolled) {
+        updateDragSelection(point.clientX, point.clientY);
+        autoScrollRafRef.current = requestAnimationFrame(runAutoScrollLoop);
+      }
+    }, [applyDragAutoScroll, updateDragSelection]);
+
+    const scheduleAutoScrollLoop = useCallback(() => {
+      if (autoScrollRafRef.current) return;
+      autoScrollRafRef.current = requestAnimationFrame(runAutoScrollLoop);
+    }, [runAutoScrollLoop]);
+
     const stopDrag = useCallback((pointerId?: number) => {
       const dragState = dragStateRef.current;
       if (!dragState || !dragState.isDragging) return;
@@ -527,7 +621,8 @@ const CanvasPreviewGrid = React.memo(
         }
       }
       dragStateRef.current = null;
-    }, []);
+      stopAutoScrollLoop();
+    }, [stopAutoScrollLoop]);
 
     const handleCanvasPointerDown = useCallback(
       (event: React.PointerEvent<HTMLCanvasElement>) => {
@@ -565,6 +660,11 @@ const CanvasPreviewGrid = React.memo(
           endRow: startCell.rowIndex,
           endCol: startCell.colIndex,
         };
+        latestPointerRef.current = {
+          clientX: event.clientX,
+          clientY: event.clientY,
+        };
+        scheduleAutoScrollLoop();
         if (typeof setSelectionRange === "function") {
           setSelectionRange({
             startRow: startCell.rowIndex,
@@ -577,6 +677,7 @@ const CanvasPreviewGrid = React.memo(
       [
         handlePreviewPick,
         resolveCellFromClientPoint,
+        scheduleAutoScrollLoop,
         setSelectionRange,
       ],
     );
@@ -591,9 +692,14 @@ const CanvasPreviewGrid = React.memo(
         ) {
           return;
         }
+        latestPointerRef.current = {
+          clientX: event.clientX,
+          clientY: event.clientY,
+        };
         updateDragSelection(event.clientX, event.clientY);
+        scheduleAutoScrollLoop();
       },
-      [updateDragSelection],
+      [scheduleAutoScrollLoop, updateDragSelection],
     );
 
     const handleCanvasPointerUp = useCallback(
@@ -606,6 +712,10 @@ const CanvasPreviewGrid = React.memo(
         ) {
           return;
         }
+        latestPointerRef.current = {
+          clientX: event.clientX,
+          clientY: event.clientY,
+        };
         updateDragSelection(event.clientX, event.clientY);
         stopDrag(event.pointerId);
       },
@@ -626,6 +736,12 @@ const CanvasPreviewGrid = React.memo(
         window.removeEventListener("blur", handleWindowBlur);
       };
     }, [stopDrag]);
+
+    useEffect(() => {
+      return () => {
+        stopAutoScrollLoop();
+      };
+    }, [stopAutoScrollLoop]);
 
     useEffect(() => {
       const canvas = canvasRef.current;
@@ -1127,6 +1243,7 @@ const TemplateManagerPreviewPanel = ({
                   previewWindow={previewWindow}
                   columnGeometry={previewColumnGeometry}
                   previewColumnMinWidthPx={previewColumnMinWidthPx}
+                  previewScrollRef={previewScrollRef}
                   previewRowIndexWidthPx={previewRowIndexWidthPx}
                   rowHeightPx={PREVIEW_ROW_HEIGHT_PX}
                   selectedColumnsSet={selectedColumnsSet}
