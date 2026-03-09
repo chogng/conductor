@@ -175,7 +175,7 @@ export const useDeviceAnalysisSettings = ({
     useState<DeviceAnalysisSettings | null>(null);
   const [persistencePathInfo, setPersistencePathInfo] =
     useState<PersistencePathInfo | null>(null);
-  const [persistencePathRequested, setPersistencePathRequested] = useState(false);
+  const [persistencePathLoading, setPersistencePathLoading] = useState(false);
   const [persistencePathSaving, setPersistencePathSaving] = useState(false);
   const [persistencePathFeedback, setPersistencePathFeedback] =
     useState<Feedback>(IDLE_FEEDBACK);
@@ -342,12 +342,12 @@ export const useDeviceAnalysisSettings = ({
   ]);
 
   useEffect(() => {
-    if (activePage !== "settings" || persistencePathRequested) return;
+    if (activePage !== "settings") return;
 
-    setPersistencePathRequested(true);
     let cancelled = false;
 
     (async () => {
+      setPersistencePathLoading(true);
       try {
         const info = await apiService.getDeviceAnalysisPersistencePath();
         if (cancelled) return;
@@ -357,16 +357,27 @@ export const useDeviceAnalysisSettings = ({
             ? (info as PersistencePathInfo)
             : null;
         setPersistencePathInfo(normalizedInfo);
-      } catch {
+        setPersistencePathFeedback(IDLE_FEEDBACK);
+      } catch (error) {
         if (cancelled) return;
         setPersistencePathInfo(null);
+        setPersistencePathFeedback({
+          type: "error",
+          message: t("da_settings_storage_load_failed", {
+            error: getErrorMessage(error) || t("unknownError"),
+          }),
+        });
+      } finally {
+        if (!cancelled) {
+          setPersistencePathLoading(false);
+        }
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [activePage, persistencePathRequested]);
+  }, [activePage, t]);
 
   const handleChoosePersistencePath = useCallback(async () => {
     setPersistencePathSaving(true);
@@ -747,6 +758,7 @@ export const useDeviceAnalysisSettings = ({
     () => ({
       currentPath: String(persistencePathInfo?.currentPath ?? ""),
       feedback: persistencePathFeedback,
+      isLoading: persistencePathLoading,
       isConfigurable:
         Boolean(persistencePathInfo) &&
         persistencePathInfo?.isConfigurable !== false,
@@ -757,6 +769,7 @@ export const useDeviceAnalysisSettings = ({
       handleChoosePersistencePath,
       persistencePathFeedback,
       persistencePathInfo,
+      persistencePathLoading,
       persistencePathSaving,
     ],
   );

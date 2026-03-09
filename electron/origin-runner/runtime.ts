@@ -1,11 +1,11 @@
-const crypto = require("node:crypto");
-const fs = require("node:fs");
-const path = require("node:path");
-const {
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import {
   ensureDir,
   normalizeOriginExePath,
   sanitizeFileName,
-} = require("./core.cjs");
+} from "./core.js";
 
 function resolveRuntimeRootDir(runtimeRootDir) {
   const normalized = normalizeOriginExePath(runtimeRootDir);
@@ -133,7 +133,7 @@ function cleanupOneJobBase(baseDir, policy) {
   };
 }
 
-function runOriginRuntimeCleanup(options = {}) {
+export function runOriginRuntimeCleanup(options = {}) {
   const source = options && typeof options === "object" ? options : {};
   const runtimeRootDir = Reflect.get(source, "runtimeRootDir");
   const policy = Reflect.get(source, "policy");
@@ -181,7 +181,7 @@ function runOriginRuntimeCleanup(options = {}) {
   };
 }
 
-function createJobPaths(zipName, options = {}) {
+export function createJobPaths(zipName, options = {}) {
   const source = options && typeof options === "object" ? options : {};
   const runtimeRootDir = Reflect.get(source, "runtimeRootDir");
 
@@ -212,7 +212,7 @@ function createJobPaths(zipName, options = {}) {
   };
 }
 
-function createBatchJobPaths(options = {}) {
+export function createBatchJobPaths(options = {}) {
   const source = options && typeof options === "object" ? options : {};
   const runtimeRootDir = Reflect.get(source, "runtimeRootDir");
 
@@ -239,7 +239,7 @@ function createBatchJobPaths(options = {}) {
   };
 }
 
-function createCsvJobPaths(csvName, options = {}) {
+export function createCsvJobPaths(csvName, options = {}) {
   const source = options && typeof options === "object" ? options : {};
   const runtimeRootDir = Reflect.get(source, "runtimeRootDir");
 
@@ -268,13 +268,5 @@ function createCsvJobPaths(csvName, options = {}) {
     errorPath: path.join(workDir, "error.txt"),
   };
 }
-
-module.exports = {
-  runOriginRuntimeCleanup,
-  createJobPaths,
-  createBatchJobPaths,
-  createCsvJobPaths,
-};
-
 
 

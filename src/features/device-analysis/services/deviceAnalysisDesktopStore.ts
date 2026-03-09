@@ -13,7 +13,7 @@ type DeviceAnalysisStoreMethod =
   (typeof REQUIRED_DEVICE_ANALYSIS_STORE_METHODS)[number];
 
 type DeviceAnalysisDesktopStore = {
-  [K in DeviceAnalysisStoreMethod]: (...args: unknown[]) => unknown;
+  [K in DeviceAnalysisStoreMethod]?: (...args: unknown[]) => unknown;
 };
 
 type JsonRecord = Record<string, unknown>;
@@ -53,11 +53,18 @@ const getDesktopStore = (): DeviceAnalysisDesktopStore | null => {
   const store = window.desktopStore;
   if (!store || typeof store !== "object") return null;
 
-  for (const method of REQUIRED_DEVICE_ANALYSIS_STORE_METHODS) {
-    if (typeof store[method] !== "function") return null;
-  }
-
   return store;
+};
+
+const getDesktopStoreMethod = (
+  store: DeviceAnalysisDesktopStore,
+  method: DeviceAnalysisStoreMethod,
+): ((...args: unknown[]) => unknown) => {
+  const fn = store?.[method];
+  if (typeof fn !== "function") {
+    throw new Error(DEVICE_ANALYSIS_DESKTOP_STORE_UNAVAILABLE);
+  }
+  return fn;
 };
 
 const normalizePersistencePathInfo = (info: unknown): PersistencePathInfo => ({
@@ -77,11 +84,13 @@ export const requestDeviceAnalysisDesktopStore = async (
   const method = String(options.method || "GET").toUpperCase();
 
   if (endpoint === "/device-analysis/templates" && method === "GET") {
-    return store.getDeviceAnalysisTemplates();
+    return getDesktopStoreMethod(store, "getDeviceAnalysisTemplates")();
   }
 
   if (endpoint === "/device-analysis/templates" && method === "POST") {
-    return store.createDeviceAnalysisTemplate(parseJsonBody(options.body) || {});
+    return getDesktopStoreMethod(store, "createDeviceAnalysisTemplate")(
+      parseJsonBody(options.body) || {},
+    );
   }
 
   if (
@@ -89,26 +98,28 @@ export const requestDeviceAnalysisDesktopStore = async (
     method === "DELETE"
   ) {
     const id = endpoint.split("/")[3];
-    return store.deleteDeviceAnalysisTemplate(id);
+    return getDesktopStoreMethod(store, "deleteDeviceAnalysisTemplate")(id);
   }
 
   if (endpoint === "/device-analysis/settings" && method === "GET") {
-    return store.getDeviceAnalysisSettings();
+    return getDesktopStoreMethod(store, "getDeviceAnalysisSettings")();
   }
 
   if (endpoint === "/device-analysis/settings" && method === "PATCH") {
-    return store.updateDeviceAnalysisSettings(parseJsonBody(options.body) || {});
+    return getDesktopStoreMethod(store, "updateDeviceAnalysisSettings")(
+      parseJsonBody(options.body) || {},
+    );
   }
 
   if (endpoint === "/device-analysis/persistence-path" && method === "GET") {
-    const info = await store.getDeviceAnalysisPersistencePath();
+    const info = await getDesktopStoreMethod(store, "getDeviceAnalysisPersistencePath")();
     return normalizePersistencePathInfo(info);
   }
 
   if (endpoint === "/device-analysis/persistence-path" && method === "PATCH") {
     const payload = parseJsonBody(options.body) || {};
     const path = typeof payload.path === "string" ? payload.path : "";
-    const info = await store.updateDeviceAnalysisPersistencePath(
+    const info = await getDesktopStoreMethod(store, "updateDeviceAnalysisPersistencePath")(
       path,
     );
     return normalizePersistencePathInfo(info);
@@ -118,7 +129,7 @@ export const requestDeviceAnalysisDesktopStore = async (
     endpoint === "/device-analysis/persistence-path/choose" &&
     method === "POST"
   ) {
-    const info = await store.chooseDeviceAnalysisPersistencePath();
+    const info = await getDesktopStoreMethod(store, "chooseDeviceAnalysisPersistencePath")();
     return normalizePersistencePathInfo(info);
   }
 

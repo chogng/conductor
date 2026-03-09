@@ -1,10 +1,10 @@
-const fs = require("node:fs");
-const path = require("node:path");
-const {
+import fs from "node:fs";
+import path from "node:path";
+import {
   normalizeOriginExePath,
   assertOriginExePath,
   runProcess,
-} = require("./core.cjs");
+} from "./core.js";
 
 function expandWindowsEnvVars(input) {
   const raw = String(input || "");
@@ -154,7 +154,7 @@ function pickFirstValidOriginExePath(candidates) {
   return null;
 }
 
-async function detectOriginExecutablePath() {
+export async function detectOriginExecutablePath() {
   if (process.platform !== "win32") return null;
 
   const candidates = [];
@@ -164,10 +164,5 @@ async function detectOriginExecutablePath() {
 
   return pickFirstValidOriginExePath(candidates);
 }
-
-module.exports = {
-  detectOriginExecutablePath,
-};
-
 
 

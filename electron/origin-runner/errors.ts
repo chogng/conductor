@@ -1,4 +1,4 @@
-const ORIGIN_ERROR_PREFIX = "__ORIGIN_ERROR__:";
+export const ORIGIN_ERROR_PREFIX = "__ORIGIN_ERROR__:";
 
 function readTrimmedString(source, key) {
   if (!source || typeof source !== "object") return null;
@@ -8,7 +8,7 @@ function readTrimmedString(source, key) {
   return trimmed || null;
 }
 
-function normalizeOriginErrorPayload(rawPayload, fallback = {}) {
+export function normalizeOriginErrorPayload(rawPayload, fallback = {}) {
   const normalizedMessage =
     readTrimmedString(rawPayload, "message") ||
     readTrimmedString(fallback, "message") ||
@@ -46,7 +46,7 @@ function normalizeOriginErrorPayload(rawPayload, fallback = {}) {
   };
 }
 
-function toStructuredOriginError(rawPayload, fallback = {}) {
+export function toStructuredOriginError(rawPayload, fallback = {}) {
   const normalized = normalizeOriginErrorPayload(rawPayload, fallback);
   const error = new Error(`${ORIGIN_ERROR_PREFIX}${JSON.stringify(normalized)}`);
   error.name = "OriginBridgeError";
@@ -54,7 +54,7 @@ function toStructuredOriginError(rawPayload, fallback = {}) {
   return error;
 }
 
-function parseWorkerErrorPayload(rawText) {
+export function parseWorkerErrorPayload(rawText) {
   const raw = String(rawText || "").trim();
   if (!raw) return null;
   try {
@@ -65,13 +65,5 @@ function parseWorkerErrorPayload(rawText) {
   }
   return { message: raw };
 }
-
-module.exports = {
-  ORIGIN_ERROR_PREFIX,
-  normalizeOriginErrorPayload,
-  toStructuredOriginError,
-  parseWorkerErrorPayload,
-};
-
 
 

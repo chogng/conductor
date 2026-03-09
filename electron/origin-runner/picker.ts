@@ -1,6 +1,6 @@
-const { assertOriginExePath } = require("./core.cjs");
+import { assertOriginExePath } from "./core.js";
 
-async function pickOriginExecutable({
+export async function pickOriginExecutable({
   dialog,
   ownerWindow,
   defaultPath,
@@ -21,10 +21,4 @@ async function pickOriginExecutable({
 
   return assertOriginExePath(result.filePaths[0]);
 }
-
-module.exports = {
-  pickOriginExecutable,
-};
-
-
 

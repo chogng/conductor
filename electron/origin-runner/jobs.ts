@@ -1,6 +1,6 @@
-const fs = require("node:fs");
-const path = require("node:path");
-const {
+import fs from "node:fs";
+import path from "node:path";
+import {
   getPowerShellExePath,
   runProcess,
   expandArchive,
@@ -9,18 +9,18 @@ const {
   assertOriginExePath,
   assertDirectoryPath,
   parseJsonFile,
-} = require("./core.cjs");
-const {
+} from "./core.js";
+import {
   normalizeOriginErrorPayload,
   toStructuredOriginError,
   parseWorkerErrorPayload,
-} = require("./errors.cjs");
-const {
+} from "./errors.js";
+import {
   createJobPaths,
   createBatchJobPaths,
   createCsvJobPaths,
-} = require("./runtime.cjs");
-const {
+} from "./runtime.js";
+import {
   buildOriginBatchWorkerArgs,
   buildOriginZipWorkerArgs,
   appendOriginPlotWorkerArgs,
@@ -30,7 +30,7 @@ const {
   runNativeZipWorker,
   runPythonScriptForBatch,
   readWorkerErrorFiles,
-} = require("./runners.cjs");
+} from "./runners.js";
 
 function buildWorkerFailureError({
   workerResult,
@@ -55,7 +55,7 @@ function buildWorkerFailureError({
   return toStructuredOriginError(payload);
 }
 
-async function runOriginZipJob({
+export async function runOriginZipJob({
   zipName,
   bytes,
   originExePath,
@@ -247,7 +247,7 @@ async function runOriginZipJob({
   };
 }
 
-async function runOriginCsvJob({
+export async function runOriginCsvJob({
   csvName,
   csvText,
   originExePath,
@@ -367,7 +367,7 @@ async function runOriginCsvJob({
   };
 }
 
-async function runOriginHealthCheck({
+export async function runOriginHealthCheck({
   originExePath,
   workerScriptPath,
   runtimeRootDir,
@@ -436,7 +436,7 @@ async function runOriginHealthCheck({
   };
 }
 
-async function runOriginBatchJob({
+export async function runOriginBatchJob({
   inputDir,
   originExePath,
   batchScriptPath,
@@ -617,13 +617,5 @@ async function runOriginBatchJob({
     pythonExecutable: runnerKind === "python" ? runnerExecutable : null,
   };
 }
-
-module.exports = {
-  runOriginZipJob,
-  runOriginCsvJob,
-  runOriginHealthCheck,
-  runOriginBatchJob,
-};
-
 
 

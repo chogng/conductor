@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require("electron");
+import { contextBridge, ipcRenderer } from "electron";
 
 const ipcChannels = {
   templatesGet: "device-analysis-store:templates:get",

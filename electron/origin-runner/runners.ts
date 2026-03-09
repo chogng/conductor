@@ -1,11 +1,15 @@
-const fs = require("node:fs");
-const path = require("node:path");
-const {
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import {
   normalizeOriginExePath,
   runProcess,
-} = require("./core.cjs");
+} from "./core.js";
 
-function buildOriginBatchWorkerArgs({
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+export function buildOriginBatchWorkerArgs({
   workDir,
   inputDir,
   originExePath,
@@ -29,7 +33,7 @@ function buildOriginBatchWorkerArgs({
   ];
 }
 
-function buildOriginZipWorkerArgs({
+export function buildOriginZipWorkerArgs({
   workDir,
   extractDir,
   originExePath,
@@ -50,7 +54,7 @@ function buildOriginZipWorkerArgs({
   ];
 }
 
-function appendOriginPlotWorkerArgs(baseArgs, plotOptions = {}) {
+export function appendOriginPlotWorkerArgs(baseArgs, plotOptions = {}) {
   const args = Array.isArray(baseArgs) ? [...baseArgs] : [];
   const source = plotOptions && typeof plotOptions === "object" ? plotOptions : {};
   const plotType = Reflect.get(source, "plotType");
@@ -81,7 +85,7 @@ function appendOriginPlotWorkerArgs(baseArgs, plotOptions = {}) {
   return args;
 }
 
-function appendOriginCapabilitiesWorkerArgs(baseArgs, capabilities) {
+export function appendOriginCapabilitiesWorkerArgs(baseArgs, capabilities) {
   const args = Array.isArray(baseArgs) ? [...baseArgs] : [];
   if (!capabilities || typeof capabilities !== "object") {
     return args;
@@ -99,7 +103,7 @@ function appendOriginCapabilitiesWorkerArgs(baseArgs, capabilities) {
   return args;
 }
 
-function buildOriginCsvWorkerArgs({
+export function buildOriginCsvWorkerArgs({
   workDir,
   csvPath,
   originExePath,
@@ -138,7 +142,7 @@ function buildOriginCsvWorkerArgs({
   return appendOriginCapabilitiesWorkerArgs(withPlotArgs, capabilities);
 }
 
-async function runNativeBatchWorker(workerExecutablePath, workerArgs, options = {}) {
+export async function runNativeBatchWorker(workerExecutablePath, workerArgs, options = {}) {
   if (!workerExecutablePath || !fs.existsSync(workerExecutablePath)) {
     const error = new Error(
       `Origin batch worker executable not found: ${workerExecutablePath}`,
@@ -154,7 +158,7 @@ async function runNativeBatchWorker(workerExecutablePath, workerArgs, options = 
   };
 }
 
-async function runNativeZipWorker(workerExecutablePath, workerArgs, options = {}) {
+export async function runNativeZipWorker(workerExecutablePath, workerArgs, options = {}) {
   if (!workerExecutablePath || !fs.existsSync(workerExecutablePath)) {
     const error = new Error(
       `Origin ZIP worker executable not found: ${workerExecutablePath}`,
@@ -191,7 +195,7 @@ function collectPreferredPythonExecutables() {
   return existing;
 }
 
-async function runPythonScriptForBatch(pythonScriptPath, scriptArgs, options = {}) {
+export async function runPythonScriptForBatch(pythonScriptPath, scriptArgs, options = {}) {
   const source = options && typeof options === "object" ? options : {};
   const requiredModuleRaw = Reflect.get(source, "requiredModule");
   const requiredModule =
@@ -267,7 +271,7 @@ async function runPythonScriptForBatch(pythonScriptPath, scriptArgs, options = {
   throw notFoundError;
 }
 
-function readWorkerErrorFiles(workDir, parseWorkerErrorPayload) {
+export function readWorkerErrorFiles(workDir, parseWorkerErrorPayload) {
   const logPath = path.join(workDir, "originbridge.log");
   const errorPath = path.join(workDir, "error.txt");
 
@@ -282,18 +286,5 @@ function readWorkerErrorFiles(workDir, parseWorkerErrorPayload) {
     workerErrorPayload: parseWorkerErrorPayload(workerErrorRaw),
   };
 }
-
-module.exports = {
-  buildOriginBatchWorkerArgs,
-  buildOriginZipWorkerArgs,
-  appendOriginPlotWorkerArgs,
-  appendOriginCapabilitiesWorkerArgs,
-  buildOriginCsvWorkerArgs,
-  runNativeBatchWorker,
-  runNativeZipWorker,
-  runPythonScriptForBatch,
-  readWorkerErrorFiles,
-};
-
 
 

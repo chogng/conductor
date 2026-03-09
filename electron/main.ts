@@ -1,7 +1,10 @@
-const fs = require("node:fs");
-const path = require("node:path");
-const { app, BrowserWindow, dialog, ipcMain, Menu, shell } = require("electron");
-const {
+import fs from "node:fs";
+import path from "node:path";
+import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
+import { createDeviceAnalysisStore } from "./device-analysis-store.js";
+import {
   assertOriginExePath,
   detectOriginExecutablePath,
   normalizeOriginExePath,
@@ -11,7 +14,11 @@ const {
   runOriginHealthCheck,
   runOriginZipJob,
   runOriginCsvJob,
-} = require("./origin-runner.cjs");
+} from "./origin-runner.js";
+
+const require = createRequire(import.meta.url);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 let autoUpdater = null;
 try {
@@ -26,37 +33,6 @@ const devUrl = process.env.ELECTRON_START_URL || "http://127.0.0.1:5174/";
 const AUTO_UPDATE_INITIAL_DELAY_MS = 15 * 1000;
 const AUTO_UPDATE_INTERVAL_MS = 4 * 60 * 60 * 1000;
 const AUTO_UPDATE_SUPPORTED_PLATFORMS = new Set(["win32"]);
-const DEVICE_ANALYSIS_STORE_FILENAME = "config.json";
-const DEVICE_ANALYSIS_STORE_CONFIG_FILENAME = "store-path.json";
-const DEVICE_ANALYSIS_SETTINGS_FILENAME_SUFFIX = ".settings.json";
-const DEVICE_ANALYSIS_SS_METHODS = new Set(["auto", "manual", "idWindow", "legacy"]);
-const DEVICE_ANALYSIS_Y_UNITS = new Set(["A", "uA", "nA"]);
-
-const DEVICE_ANALYSIS_DEFAULT_SETTINGS = {
-  defaultTemplate: null,
-  lastTemplateId: null,
-  stopOnErrorDefault: false,
-  yUnit: "A",
-  ssMethodDefault: "auto",
-  ssDiagnosticsEnabled: true,
-  ssShowFitLine: true,
-  ssIdLow: 1e-11,
-  ssIdHigh: 1e-9,
-  originExePath: null,
-  originPlotTypeDefault: 202,
-  originPlotXyPairsDefault: "((1,2))",
-  originPlotCommandDefault: "",
-  originPlotPostCommandsDefault: [],
-  originRuntimeCleanupEnabled: true,
-  originRuntimeKeepSuccessJobs: 1,
-  originRuntimeFailedRetentionDays: 7,
-};
-
-let deviceAnalysisStoreConfigCache = null;
-let deviceAnalysisStoreCache = null;
-let deviceAnalysisStoreCachePath = null;
-let deviceAnalysisSettingsCache = null;
-let deviceAnalysisSettingsCachePath = null;
 let mainWindow = null;
 let autoUpdateTimer = null;
 let autoUpdateConfiguredFeedUrl = null;
@@ -66,50 +42,6 @@ let isUpdateDownloadedPromptVisible = false;
 function getResourcesPath() {
   const resourcesPath = Reflect.get(process, "resourcesPath");
   return typeof resourcesPath === "string" ? resourcesPath : process.cwd();
-}
-
-function cloneStoreConfig(config) {
-  return normalizeStoreConfig(config);
-}
-
-function cloneStoreData(store) {
-  return normalizeStoreData(store);
-}
-
-function cloneDeviceAnalysisSettings(settings) {
-  return normalizeDeviceAnalysisSettings(settings);
-}
-
-function clearDeviceAnalysisStoreCache() {
-  deviceAnalysisStoreCache = null;
-  deviceAnalysisStoreCachePath = null;
-}
-
-function clearDeviceAnalysisSettingsCache() {
-  deviceAnalysisSettingsCache = null;
-  deviceAnalysisSettingsCachePath = null;
-}
-
-function migratePersistenceFile(previousPath, currentPath, label) {
-  if (currentPath === previousPath) return;
-  if (!fs.existsSync(previousPath) || fs.existsSync(currentPath)) return;
-
-  const currentDir = path.dirname(currentPath);
-  if (!fs.existsSync(currentDir)) {
-    fs.mkdirSync(currentDir, { recursive: true });
-  }
-
-  try {
-    fs.renameSync(previousPath, currentPath);
-  } catch (error) {
-    fs.copyFileSync(previousPath, currentPath);
-    fs.unlinkSync(previousPath);
-    if (error?.code !== "EXDEV") {
-      console.warn(
-        `[${label}] rename failed (${error?.code || "unknown"}), migrated by copy+delete.`,
-      );
-    }
-  }
 }
 function resolveOriginWorkerScriptPath() {
   if (!app.isPackaged) {
@@ -306,15 +238,16 @@ const DEFAULT_ORIGIN_PLOT_OPTIONS = Object.freeze(
   }),
 );
 
-function normalizePositiveNumber(value, fallback) {
-  const num = Number(value);
-  return Number.isFinite(num) && num > 0 ? num : fallback;
-}
-
 function normalizeNonEmptyString(value, fallback = "") {
   if (typeof value !== "string") return fallback;
   const trimmed = value.trim();
   return trimmed || fallback;
+}
+
+function normalizeBoundedInt(value, fallback, min, max) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.min(max, Math.max(min, Math.floor(num)));
 }
 
 function normalizeOriginPostPlotCommands(value) {
@@ -656,134 +589,15 @@ function normalizeOriginCsvPayload(payload, plotDefaults = undefined) {
   };
 }
 
-function normalizeBoundedInt(value, fallback, min, max) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) return fallback;
-  return Math.min(max, Math.max(min, Math.floor(num)));
-}
-
-function normalizeDeviceAnalysisSettings(raw) {
-  const next = raw && typeof raw === "object" ? { ...raw } : {};
-
-  const ssMethodDefault = DEVICE_ANALYSIS_SS_METHODS.has(next.ssMethodDefault)
-    ? next.ssMethodDefault
-    : DEVICE_ANALYSIS_SS_METHODS.has(next.ssMethod)
-      ? next.ssMethod
-      : DEVICE_ANALYSIS_DEFAULT_SETTINGS.ssMethodDefault;
-
-  const yUnit = DEVICE_ANALYSIS_Y_UNITS.has(next.yUnit)
-    ? next.yUnit
-    : DEVICE_ANALYSIS_DEFAULT_SETTINGS.yUnit;
-
-  const ssDiagnosticsEnabled =
-    typeof next.ssDiagnosticsEnabled === "boolean"
-      ? next.ssDiagnosticsEnabled
-      : DEVICE_ANALYSIS_DEFAULT_SETTINGS.ssDiagnosticsEnabled;
-
-  const ssShowFitLine =
-    typeof next.ssShowFitLine === "boolean"
-      ? next.ssShowFitLine
-      : DEVICE_ANALYSIS_DEFAULT_SETTINGS.ssShowFitLine;
-
-  const stopOnErrorDefault =
-    typeof next.stopOnErrorDefault === "boolean"
-      ? next.stopOnErrorDefault
-      : DEVICE_ANALYSIS_DEFAULT_SETTINGS.stopOnErrorDefault;
-
-  const ssIdLow = normalizePositiveNumber(
-    next.ssIdLow ?? next.ssIdWindowLow,
-    DEVICE_ANALYSIS_DEFAULT_SETTINGS.ssIdLow,
-  );
-  const ssIdHigh = normalizePositiveNumber(
-    next.ssIdHigh ?? next.ssIdWindowHigh,
-    DEVICE_ANALYSIS_DEFAULT_SETTINGS.ssIdHigh,
-  );
-  const originExePath = normalizeOriginExePath(next.originExePath);
-  const originPlotDefaults = normalizeOriginPlotOptions({
-    plotCommand: DEVICE_ANALYSIS_DEFAULT_SETTINGS.originPlotCommandDefault,
-    plotType: DEVICE_ANALYSIS_DEFAULT_SETTINGS.originPlotTypeDefault,
-    postPlotCommands: DEVICE_ANALYSIS_DEFAULT_SETTINGS.originPlotPostCommandsDefault,
-    xyPairs: DEVICE_ANALYSIS_DEFAULT_SETTINGS.originPlotXyPairsDefault,
-  });
-  const originPlotSettings = normalizeOriginPlotOptions(
-    {
-      plotCommand: next.originPlotCommandDefault,
-      plotType: next.originPlotTypeDefault,
-      postPlotCommands: next.originPlotPostCommandsDefault,
-      xyPairs: next.originPlotXyPairsDefault,
-    },
-    originPlotDefaults,
-  );
-  const originRuntimeCleanupEnabled =
-    typeof next.originRuntimeCleanupEnabled === "boolean"
-      ? next.originRuntimeCleanupEnabled
-      : DEVICE_ANALYSIS_DEFAULT_SETTINGS.originRuntimeCleanupEnabled;
-  const originRuntimeKeepSuccessJobs = normalizeBoundedInt(
-    next.originRuntimeKeepSuccessJobs,
-    DEVICE_ANALYSIS_DEFAULT_SETTINGS.originRuntimeKeepSuccessJobs,
-    0,
-    100,
-  );
-  const originRuntimeFailedRetentionDays = normalizeBoundedInt(
-    next.originRuntimeFailedRetentionDays,
-    DEVICE_ANALYSIS_DEFAULT_SETTINGS.originRuntimeFailedRetentionDays,
-    1,
-    365,
-  );
-
-  return {
-    ...DEVICE_ANALYSIS_DEFAULT_SETTINGS,
-    ...next,
-    defaultTemplate: next.defaultTemplate ?? null,
-    lastTemplateId: next.lastTemplateId ?? null,
-    stopOnErrorDefault,
-    yUnit,
-    ssMethodDefault,
-    ssDiagnosticsEnabled,
-    ssShowFitLine,
-    ssIdLow,
-    ssIdHigh,
-    originExePath,
-    originPlotTypeDefault: originPlotSettings.plotType,
-    originPlotXyPairsDefault: originPlotSettings.xyPairs,
-    originPlotCommandDefault: originPlotSettings.plotCommand,
-    originPlotPostCommandsDefault: originPlotSettings.postPlotCommands,
-    originRuntimeCleanupEnabled,
-    originRuntimeKeepSuccessJobs,
-    originRuntimeFailedRetentionDays,
-  };
-}
-
-function normalizeDeviceAnalysisTemplate(template) {
-  if (!template || typeof template !== "object") return null;
-
-  return {
-    ...template,
-    selectedColumns: Array.isArray(template.selectedColumns)
-      ? template.selectedColumns.map((n) => Number(n)).filter(Number.isFinite)
-      : [],
-  };
-}
-
-function normalizeDeviceAnalysisTemplates(templates) {
-  if (!Array.isArray(templates)) return [];
-
-  return templates
-    .map((template) => normalizeDeviceAnalysisTemplate(template))
-    .filter(Boolean)
-    .map((template, index) => ({
-      ...template,
-      id: template.id || `tpl_local_${index}_${Date.now()}`,
-    }));
-}
-
-function toTemplateNameKey(name) {
-  return String(name || "").trim().toLowerCase();
-}
-
 function getDeviceAnalysisHomeDir() {
   return path.join(app.getPath("home"), ".device");
 }
+
+const deviceAnalysisStore = createDeviceAnalysisStore({
+  getHomeDir: getDeviceAnalysisHomeDir,
+  normalizeOriginExePath,
+  normalizeOriginPlotOptions,
+});
 
 function configureRuntimeCachePath() {
   const cacheDir = path.join(getDeviceAnalysisHomeDir(), "cache");
@@ -798,288 +612,38 @@ function configureRuntimeCachePath() {
   }
 }
 
-function getDefaultDeviceAnalysisStorePath() {
-  return path.join(getDeviceAnalysisHomeDir(), DEVICE_ANALYSIS_STORE_FILENAME);
-}
-
-function getDeviceAnalysisStoreConfigPath() {
-  return path.join(getDeviceAnalysisHomeDir(), DEVICE_ANALYSIS_STORE_CONFIG_FILENAME);
-}
-
-function getDeviceAnalysisSettingsPath() {
-  const storePath = getDeviceAnalysisStorePath();
-  const parsed = path.parse(storePath);
-  return path.join(parsed.dir, `${parsed.name}${DEVICE_ANALYSIS_SETTINGS_FILENAME_SUFFIX}`);
-}
-
-function normalizeStoreConfig(raw) {
-  const next = raw && typeof raw === "object" ? raw : {};
-  const customStorePath =
-    typeof next.customStorePath === "string" && next.customStorePath.trim()
-      ? next.customStorePath.trim()
-      : null;
-
-  return { customStorePath };
-}
-
-function readStoreConfig() {
-  if (deviceAnalysisStoreConfigCache) {
-    return cloneStoreConfig(deviceAnalysisStoreConfigCache);
-  }
-
-  const configPath = getDeviceAnalysisStoreConfigPath();
-  if (!fs.existsSync(configPath)) {
-    deviceAnalysisStoreConfigCache = { customStorePath: null };
-    return cloneStoreConfig(deviceAnalysisStoreConfigCache);
-  }
-
-  try {
-    const raw = fs.readFileSync(configPath, "utf8");
-    if (!raw) {
-      deviceAnalysisStoreConfigCache = { customStorePath: null };
-      return cloneStoreConfig(deviceAnalysisStoreConfigCache);
-    }
-    deviceAnalysisStoreConfigCache = normalizeStoreConfig(JSON.parse(raw));
-  } catch {
-    deviceAnalysisStoreConfigCache = { customStorePath: null };
-  }
-
-  return cloneStoreConfig(deviceAnalysisStoreConfigCache);
-}
-
-function writeStoreConfig(nextConfig) {
-  const normalized = normalizeStoreConfig(nextConfig);
-  const configPath = getDeviceAnalysisStoreConfigPath();
-  const configDir = path.dirname(configPath);
-  if (!fs.existsSync(configDir)) {
-    fs.mkdirSync(configDir, { recursive: true });
-  }
-  fs.writeFileSync(configPath, JSON.stringify(normalized, null, 2), "utf8");
-  deviceAnalysisStoreConfigCache = normalized;
-  clearDeviceAnalysisStoreCache();
-  clearDeviceAnalysisSettingsCache();
-  return cloneStoreConfig(normalized);
-}
-
-function getStorePersistenceInfo() {
-  const { customStorePath } = readStoreConfig();
-  const defaultPath = getDefaultDeviceAnalysisStorePath();
-  const currentPath = customStorePath || defaultPath;
-
-  return {
-    currentPath,
-    defaultPath,
-    isCustom: Boolean(customStorePath),
-    isConfigurable: true,
-  };
-}
-
-function getDeviceAnalysisStorePath() {
-  return getStorePersistenceInfo().currentPath;
-}
-
-function buildDefaultStoreData() {
-  return {
-    templates: [],
-  };
-}
-
-function normalizeStoreData(raw) {
-  const next = raw && typeof raw === "object" ? raw : {};
-  return {
-    templates: normalizeDeviceAnalysisTemplates(next.templates),
-  };
-}
-
-function tryReadDeviceAnalysisSettingsFile() {
-  const settingsPath = getDeviceAnalysisSettingsPath();
-  if (
-    deviceAnalysisSettingsCache &&
-    deviceAnalysisSettingsCachePath === settingsPath
-  ) {
-    return cloneDeviceAnalysisSettings(deviceAnalysisSettingsCache);
-  }
-
-  if (!fs.existsSync(settingsPath)) {
-    return null;
-  }
-
-  try {
-    const raw = fs.readFileSync(settingsPath, "utf8");
-    const parsed = raw ? JSON.parse(raw) : {};
-    deviceAnalysisSettingsCache = normalizeDeviceAnalysisSettings(parsed);
-    deviceAnalysisSettingsCachePath = settingsPath;
-    return cloneDeviceAnalysisSettings(deviceAnalysisSettingsCache);
-  } catch {
-    return null;
-  }
-}
-
-function writeDeviceAnalysisSettings(nextSettings) {
-  const settingsPath = getDeviceAnalysisSettingsPath();
-  const settingsDir = path.dirname(settingsPath);
-  if (!fs.existsSync(settingsDir)) {
-    fs.mkdirSync(settingsDir, { recursive: true });
-  }
-
-  const normalized = normalizeDeviceAnalysisSettings(nextSettings);
-  fs.writeFileSync(settingsPath, JSON.stringify(normalized, null, 2), "utf8");
-  deviceAnalysisSettingsCache = normalized;
-  deviceAnalysisSettingsCachePath = settingsPath;
-  return cloneDeviceAnalysisSettings(normalized);
-}
-
-function readDeviceAnalysisSettings() {
-  const direct = tryReadDeviceAnalysisSettingsFile();
-  if (direct) return direct;
-
-  const defaults = normalizeDeviceAnalysisSettings(DEVICE_ANALYSIS_DEFAULT_SETTINGS);
-  deviceAnalysisSettingsCache = defaults;
-  deviceAnalysisSettingsCachePath = getDeviceAnalysisSettingsPath();
-  return cloneDeviceAnalysisSettings(defaults);
-}
-
-function readDeviceAnalysisStore() {
-  const storePath = getDeviceAnalysisStorePath();
-  if (deviceAnalysisStoreCache && deviceAnalysisStoreCachePath === storePath) {
-    return cloneStoreData(deviceAnalysisStoreCache);
-  }
-
-  if (!fs.existsSync(storePath)) {
-    const defaults = buildDefaultStoreData();
-    writeDeviceAnalysisStore(defaults);
-    return cloneStoreData(defaults);
-  }
-
-  try {
-    const raw = fs.readFileSync(storePath, "utf8");
-    if (!raw) {
-      deviceAnalysisStoreCache = buildDefaultStoreData();
-      deviceAnalysisStoreCachePath = storePath;
-      return cloneStoreData(deviceAnalysisStoreCache);
-    }
-    const parsed = JSON.parse(raw);
-    deviceAnalysisStoreCache = normalizeStoreData(parsed);
-  } catch {
-    deviceAnalysisStoreCache = buildDefaultStoreData();
-  }
-
-  deviceAnalysisStoreCachePath = storePath;
-  return cloneStoreData(deviceAnalysisStoreCache);
-}
-
-function writeDeviceAnalysisStore(nextStore) {
-  const storePath = getDeviceAnalysisStorePath();
-  const storeDir = path.dirname(storePath);
-  if (!fs.existsSync(storeDir)) {
-    fs.mkdirSync(storeDir, { recursive: true });
-  }
-  const normalized = normalizeStoreData(nextStore);
-  fs.writeFileSync(storePath, JSON.stringify(normalized, null, 2), "utf8");
-  deviceAnalysisStoreCache = normalized;
-  deviceAnalysisStoreCachePath = storePath;
-  return cloneStoreData(normalized);
-}
-
 function handleDeviceAnalysisTemplatesGet() {
-  return readDeviceAnalysisStore().templates;
+  return deviceAnalysisStore.getDeviceAnalysisTemplates();
 }
 
 function handleDeviceAnalysisTemplatesCreate(_event, payload) {
-  const input = normalizeDeviceAnalysisTemplate(payload);
-  if (!input) throw new Error("Invalid template payload.");
-  const inputNameKey = toTemplateNameKey(input.name);
-  if (!inputNameKey) throw new Error("Template name is required.");
-
-  const store = readDeviceAnalysisStore();
-  const existingTemplates = Array.isArray(store.templates) ? store.templates : [];
-  let existingMatch = null;
-  for (let i = existingTemplates.length - 1; i >= 0; i -= 1) {
-    const tpl = existingTemplates[i];
-    if (toTemplateNameKey(tpl?.name) === inputNameKey) {
-      existingMatch = tpl;
-      break;
-    }
-  }
-
-  const saved = {
-    ...existingMatch,
-    ...input,
-    id: existingMatch?.id || input.id || `tpl_${Date.now()}`,
-  };
-  const savedId = String(saved.id || "");
-  store.templates = normalizeDeviceAnalysisTemplates([
-    saved,
-    ...existingTemplates.filter((tpl) => {
-      const nameKey = toTemplateNameKey(tpl?.name);
-      const tplId = String(tpl?.id || "");
-      return nameKey !== inputNameKey && tplId !== savedId;
-    }),
-  ]);
-  writeDeviceAnalysisStore(store);
-  return saved;
+  return deviceAnalysisStore.upsertDeviceAnalysisTemplate(payload);
 }
 
 function handleDeviceAnalysisTemplatesDelete(_event, id) {
-  const templateId = String(id || "").trim();
-  if (!templateId) throw new Error("Invalid template id.");
-
-  const store = readDeviceAnalysisStore();
-  store.templates = store.templates.filter((tpl) => String(tpl?.id || "") !== templateId);
-  writeDeviceAnalysisStore(store);
-  return { success: true };
+  return deviceAnalysisStore.deleteDeviceAnalysisTemplate(id);
 }
 
 function handleDeviceAnalysisSettingsGet() {
-  return readDeviceAnalysisSettings();
+  return deviceAnalysisStore.getDeviceAnalysisSettings();
 }
 
 function handleDeviceAnalysisSettingsPatch(_event, updates) {
-  const patch = updates && typeof updates === "object" ? updates : {};
-
-  const nextSettings = normalizeDeviceAnalysisSettings({
-    ...readDeviceAnalysisSettings(),
-    ...patch,
-  });
-  writeDeviceAnalysisSettings(nextSettings);
-  return nextSettings;
+  return deviceAnalysisStore.patchDeviceAnalysisSettings(updates);
 }
 
 function handleDeviceAnalysisPersistencePathGet() {
-  return getStorePersistenceInfo();
+  return deviceAnalysisStore.getStorePersistenceInfo();
 }
 
 function handleDeviceAnalysisPersistencePathSet(_event, payload) {
   const rawPath =
     payload && typeof payload === "object" ? payload.path : payload;
-  const nextPath =
-    typeof rawPath === "string" && rawPath.trim() ? rawPath.trim() : null;
-
-  const previousPath = getDeviceAnalysisStorePath();
-  const previousSettingsPath = getDeviceAnalysisSettingsPath();
-  if (!nextPath) {
-    writeStoreConfig({ customStorePath: null });
-  } else {
-    if (!path.isAbsolute(nextPath)) {
-      throw new Error("Persistence path must be an absolute file path.");
-    }
-    writeStoreConfig({ customStorePath: nextPath });
-  }
-
-  const currentPath = getDeviceAnalysisStorePath();
-  const currentSettingsPath = getDeviceAnalysisSettingsPath();
-  migratePersistenceFile(previousPath, currentPath, "device-analysis-store");
-  migratePersistenceFile(
-    previousSettingsPath,
-    currentSettingsPath,
-    "device-analysis-settings",
-  );
-
-  return getStorePersistenceInfo();
+  return deviceAnalysisStore.setPersistencePath(rawPath);
 }
 
 async function handleDeviceAnalysisPersistencePathChoose(event) {
-  const currentInfo = getStorePersistenceInfo();
+  const currentInfo = deviceAnalysisStore.getStorePersistenceInfo();
   const win = BrowserWindow.fromWebContents(event.sender) ?? null;
 
   const result = await dialog.showSaveDialog(win || undefined, {
@@ -1097,27 +661,25 @@ async function handleDeviceAnalysisPersistencePathChoose(event) {
     return { ...currentInfo, cancelled: true };
   }
 
-  const updated = handleDeviceAnalysisPersistencePathSet(null, { path: result.filePath });
+  const updated = deviceAnalysisStore.setPersistencePath(result.filePath);
   return { ...updated, cancelled: false };
 }
 
 function getOriginExePathFromSettings() {
-  const settings = readDeviceAnalysisSettings();
+  const settings = deviceAnalysisStore.getDeviceAnalysisSettings();
   return normalizeOriginExePath(settings?.originExePath);
 }
 
 function saveOriginExePathToSettings(originExePath) {
   const normalizedPath = normalizeOriginExePath(originExePath);
-  const settings = normalizeDeviceAnalysisSettings({
-    ...readDeviceAnalysisSettings(),
+  const settings = deviceAnalysisStore.patchDeviceAnalysisSettings({
     originExePath: normalizedPath,
   });
-  writeDeviceAnalysisSettings(settings);
   return settings.originExePath ?? null;
 }
 
 function getOriginRuntimeCleanupPolicyFromSettings() {
-  const settings = readDeviceAnalysisSettings();
+  const settings = deviceAnalysisStore.getDeviceAnalysisSettings();
   return {
     enabled: Boolean(settings?.originRuntimeCleanupEnabled),
     keepSuccessJobs: Number(settings?.originRuntimeKeepSuccessJobs),
@@ -1126,7 +688,7 @@ function getOriginRuntimeCleanupPolicyFromSettings() {
 }
 
 function getOriginPlotOptionsFromSettings() {
-  const settings = readDeviceAnalysisSettings();
+  const settings = deviceAnalysisStore.getDeviceAnalysisSettings();
   return normalizeOriginPlotOptions({
     plotCommand: settings?.originPlotCommandDefault,
     plotType: settings?.originPlotTypeDefault,
@@ -1638,7 +1200,7 @@ function createMainWindow() {
     autoHideMenuBar: true,
     frame: !isWindows,
     webPreferences: {
-      preload: path.join(__dirname, "preload.cjs"),
+      preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,

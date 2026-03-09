@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.5.0",
   "type": "module",
-  "main": "electron-dist/main.cjs",
+  "main": "electron-dist/main.js",
   "scripts": {
     "make:icons": "bash scripts/make-icons-macos.sh",
     "dev": "vite",

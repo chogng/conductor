@@ -55,6 +55,7 @@ type OriginSettings = {
 type StorageSettings = {
   currentPath: string;
   feedback: Feedback;
+  isLoading: boolean;
   isConfigurable: boolean;
   isSaving: boolean;
   onChoosePath: () => Promise<void> | void;
@@ -179,7 +180,12 @@ const DeviceAnalysisSettingsPanel = ({
         <div className="flex items-center gap-2">
           <div className="flex-1 min-w-0 rounded-lg border border-border bg-bg-page px-3 py-2 flex items-center h-[38px]">
             <p className="font-mono text-xs text-text-primary truncate">
-              {storageSettings.currentPath || t("da_settings_storage_loading")}
+              {storageSettings.currentPath ||
+                (storageSettings.isLoading
+                  ? t("da_settings_storage_loading")
+                  : storageSettings.isConfigurable
+                    ? t("da_settings_storage_unavailable")
+                    : t("da_settings_storage_not_configurable_hint"))}
             </p>
           </div>
 
@@ -263,210 +269,6 @@ const DeviceAnalysisSettingsPanel = ({
           </Button>
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-text-secondary">
-            {t("da_settings_origin_batch_desc")}
-          </p>
-
-          <Button
-            id="device-analysis-settings-origin-batch-run-btn"
-            type="button"
-            variant="secondary"
-            size="sm"
-            className="h-[38px] whitespace-nowrap"
-            onClick={() => {
-              void originSettings.onRunBatch();
-            }}
-            disabled={
-              !originSettings.isBatchAvailable ||
-              originSettings.isLoading ||
-              originSettings.isSaving ||
-              originSettings.isHealthChecking ||
-              originSettings.isBatchRunning
-            }
-          >
-            {originSettings.isBatchRunning
-              ? t("da_settings_origin_batch_running")
-              : t("da_settings_origin_batch_btn")}
-          </Button>
-        </div>
-
-        <div className="rounded-lg border border-border bg-bg-page p-3 space-y-3">
-          <div>
-            <p className="text-sm font-medium text-text-primary">
-              {t("da_settings_origin_plot_title")}
-            </p>
-            <p className="text-xs text-text-secondary mt-1">
-              {t("da_settings_origin_plot_desc")}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <p className="text-xs text-text-secondary">
-                {t("da_settings_origin_plot_type_label")}
-              </p>
-              <Select
-                id="device-analysis-settings-origin-plot-type-select"
-                menuId="device-analysis-settings-origin-plot-type-menu"
-                value={String(originSettings.plotType ?? 202)}
-                onChange={(value) => {
-                  void originSettings.onPlotTypeChange(value);
-                }}
-                options={originPlotTypeOptions}
-                disabled={originSettings.plotSaving || !originSettings.isConfigurable}
-              />
-            </div>
-
-            <Input
-              id="device-analysis-settings-origin-plot-xy-pairs-input"
-              label={t("da_settings_origin_plot_xy_pairs_label")}
-              value={xyPairsDraft}
-              onChange={setXyPairsDraft}
-              onBlur={() => {
-                const nextValue = xyPairsDraft.trim();
-                if (nextValue === (originSettings.plotXyPairs ?? "")) return;
-                void originSettings.onPlotXyPairsChange(nextValue);
-              }}
-              hint={t("da_settings_origin_plot_xy_pairs_hint")}
-              disabled={originSettings.plotSaving || !originSettings.isConfigurable}
-            />
-          </div>
-
-          <Input
-            id="device-analysis-settings-origin-plot-command-input"
-            label={t("da_settings_origin_plot_command_label")}
-            value={plotCommandDraft}
-            onChange={setPlotCommandDraft}
-            onBlur={() => {
-              const nextValue = plotCommandDraft.trim();
-              if (nextValue === (originSettings.plotCommand ?? "")) return;
-              void originSettings.onPlotCommandChange(nextValue);
-            }}
-            hint={t("da_settings_origin_plot_command_hint")}
-            disabled={originSettings.plotSaving || !originSettings.isConfigurable}
-          />
-
-          <div className="space-y-1">
-            <p className="text-xs text-text-secondary">
-              {t("da_settings_origin_plot_post_commands_label")}
-            </p>
-            <textarea
-              id="device-analysis-settings-origin-plot-post-commands-input"
-              className="w-full min-h-[96px] rounded-lg border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary font-mono resize-y"
-              value={postCommandsDraft}
-              onChange={(event) => {
-                setPostCommandsDraft(event.target.value);
-              }}
-              onBlur={() => {
-                const nextValue = postCommandsDraft.trim();
-                const currentValue = (originSettings.plotPostCommandsText ?? "").trim();
-                if (nextValue === currentValue) return;
-                void originSettings.onPlotPostCommandsChange(nextValue);
-              }}
-              disabled={originSettings.plotSaving || !originSettings.isConfigurable}
-            />
-            <p className="text-xs text-text-secondary">
-              {t("da_settings_origin_plot_post_commands_hint")}
-            </p>
-          </div>
-
-          {originSettings.plotFeedback?.message ? (
-            <p className={feedbackClassName(originSettings.plotFeedback.type)}>
-              {originSettings.plotFeedback.message}
-            </p>
-          ) : null}
-        </div>
-
-        <div className="rounded-lg border border-border bg-bg-page p-3 space-y-3">
-          <div>
-            <p className="text-sm font-medium text-text-primary">
-              {t("da_settings_origin_cleanup_title")}
-            </p>
-            <p className="text-xs text-text-secondary mt-1">
-              {t("da_settings_origin_cleanup_desc")}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="space-y-1">
-              <p className="text-xs text-text-secondary">
-                {t("da_settings_origin_cleanup_enable_label")}
-              </p>
-              <Select
-                id="device-analysis-settings-origin-cleanup-enabled-select"
-                menuId="device-analysis-settings-origin-cleanup-enabled-menu"
-                value={String(Boolean(originSettings.cleanupEnabled))}
-                onChange={(value) => {
-                  void originSettings.onCleanupEnabledChange(value === "true");
-                }}
-                options={cleanupEnabledOptions}
-                disabled={originSettings.cleanupSaving}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-xs text-text-secondary">
-                {t("da_settings_origin_cleanup_keep_success_label")}
-              </p>
-              <Select
-                id="device-analysis-settings-origin-cleanup-keep-success-select"
-                menuId="device-analysis-settings-origin-cleanup-keep-success-menu"
-                value={String(originSettings.cleanupKeepSuccessJobs ?? 0)}
-                onChange={(value) => {
-                  void originSettings.onCleanupKeepSuccessJobsChange(value);
-                }}
-                options={cleanupKeepSuccessOptions}
-                disabled={originSettings.cleanupSaving}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <p className="text-xs text-text-secondary">
-                {t("da_settings_origin_cleanup_failed_days_label")}
-              </p>
-              <Select
-                id="device-analysis-settings-origin-cleanup-failed-days-select"
-                menuId="device-analysis-settings-origin-cleanup-failed-days-menu"
-                value={String(originSettings.cleanupFailedRetentionDays ?? 7)}
-                onChange={(value) => {
-                  void originSettings.onCleanupFailedRetentionDaysChange(value);
-                }}
-                options={cleanupFailedDaysOptions}
-                disabled={originSettings.cleanupSaving}
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end">
-            <Button
-              id="device-analysis-settings-origin-cleanup-run-btn"
-              type="button"
-              variant="secondary"
-              size="sm"
-              className="h-[38px] whitespace-nowrap"
-              onClick={() => {
-                void originSettings.onRunCleanupNow();
-              }}
-              disabled={
-                !originSettings.isCleanupAvailable ||
-                originSettings.cleanupRunning ||
-                originSettings.cleanupSaving
-              }
-            >
-              {originSettings.cleanupRunning
-                ? t("da_settings_origin_cleanup_running")
-                : t("da_settings_origin_cleanup_run_btn")}
-            </Button>
-          </div>
-
-          {originSettings.cleanupFeedback?.message ? (
-            <p className={feedbackClassName(originSettings.cleanupFeedback.type)}>
-              {originSettings.cleanupFeedback.message}
-            </p>
-          ) : null}
-        </div>
-
         {!originSettings.isConfigurable ? (
           <p className="text-sm text-text-secondary">
             {t("da_settings_origin_not_configurable_hint")}
@@ -479,9 +281,205 @@ const DeviceAnalysisSettingsPanel = ({
           </p>
         ) : null}
       </Card>
+
+      <Card
+        id="device-analysis-settings-origin-cleanup-card"
+        variant="panel"
+        className="p-4 space-y-4 mt-4"
+      >
+        <div>
+          <h3 className="text-base font-semibold text-text-primary">
+            {t("da_settings_origin_cleanup_title")}
+          </h3>
+          <p className="text-sm text-text-secondary mt-1">
+            {t("da_settings_origin_cleanup_desc")}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="space-y-1">
+            <p className="text-xs text-text-secondary">
+              {t("da_settings_origin_cleanup_enable_label")}
+            </p>
+            <Select
+              id="device-analysis-settings-origin-cleanup-enabled-select"
+              menuId="device-analysis-settings-origin-cleanup-enabled-menu"
+              value={String(Boolean(originSettings.cleanupEnabled))}
+              onChange={(value) => {
+                void originSettings.onCleanupEnabledChange(value === "true");
+              }}
+              options={cleanupEnabledOptions}
+              disabled={originSettings.cleanupSaving}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <p className="text-xs text-text-secondary">
+              {t("da_settings_origin_cleanup_keep_success_label")}
+            </p>
+            <Select
+              id="device-analysis-settings-origin-cleanup-keep-success-select"
+              menuId="device-analysis-settings-origin-cleanup-keep-success-menu"
+              value={String(originSettings.cleanupKeepSuccessJobs ?? 0)}
+              onChange={(value) => {
+                void originSettings.onCleanupKeepSuccessJobsChange(value);
+              }}
+              options={cleanupKeepSuccessOptions}
+              disabled={originSettings.cleanupSaving}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <p className="text-xs text-text-secondary">
+              {t("da_settings_origin_cleanup_failed_days_label")}
+            </p>
+            <Select
+              id="device-analysis-settings-origin-cleanup-failed-days-select"
+              menuId="device-analysis-settings-origin-cleanup-failed-days-menu"
+              value={String(originSettings.cleanupFailedRetentionDays ?? 7)}
+              onChange={(value) => {
+                void originSettings.onCleanupFailedRetentionDaysChange(value);
+              }}
+              options={cleanupFailedDaysOptions}
+              disabled={originSettings.cleanupSaving}
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <Button
+            id="device-analysis-settings-origin-cleanup-run-btn"
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="h-[38px] whitespace-nowrap"
+            onClick={() => {
+              void originSettings.onRunCleanupNow();
+            }}
+            disabled={
+              !originSettings.isCleanupAvailable ||
+              originSettings.cleanupRunning ||
+              originSettings.cleanupSaving
+            }
+          >
+            {originSettings.cleanupRunning
+              ? t("da_settings_origin_cleanup_running")
+              : t("da_settings_origin_cleanup_run_btn")}
+          </Button>
+        </div>
+
+        {originSettings.cleanupFeedback?.message ? (
+          <p className={feedbackClassName(originSettings.cleanupFeedback.type)}>
+            {originSettings.cleanupFeedback.message}
+          </p>
+        ) : null}
+      </Card>
+
+      <Card
+        id="device-analysis-settings-origin-plot-card"
+        variant="panel"
+        className="p-4 space-y-4 mt-4"
+      >
+        <div>
+          <h3 className="text-base font-semibold text-text-primary">
+            {t("da_settings_origin_plot_title")}
+          </h3>
+          <p className="text-sm text-text-secondary mt-1">
+            {t("da_settings_origin_plot_desc")}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="space-y-1 min-w-0">
+            <p className="text-xs text-text-secondary">
+              {t("da_settings_origin_plot_type_label")}
+            </p>
+            <Select
+              id="device-analysis-settings-origin-plot-type-select"
+              menuId="device-analysis-settings-origin-plot-type-menu"
+              className="w-full"
+              value={String(originSettings.plotType ?? 202)}
+              onChange={(value) => {
+                void originSettings.onPlotTypeChange(value);
+              }}
+              options={originPlotTypeOptions}
+              disabled={originSettings.plotSaving || !originSettings.isConfigurable}
+            />
+          </div>
+
+          <div className="space-y-1 min-w-0">
+            <p className="text-xs text-text-secondary">
+              {t("da_settings_origin_plot_xy_pairs_label")}
+            </p>
+            <Input
+              id="device-analysis-settings-origin-plot-xy-pairs-input"
+              value={xyPairsDraft}
+              onChange={setXyPairsDraft}
+              onBlur={() => {
+                const nextValue = xyPairsDraft.trim();
+                if (nextValue === (originSettings.plotXyPairs ?? "")) return;
+                void originSettings.onPlotXyPairsChange(nextValue);
+              }}
+              disabled={originSettings.plotSaving || !originSettings.isConfigurable}
+            />
+            <p className="text-xs text-text-secondary">
+              {t("da_settings_origin_plot_xy_pairs_hint")}
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <p className="text-xs text-text-secondary">
+            {t("da_settings_origin_plot_command_label")}
+          </p>
+          <Input
+            id="device-analysis-settings-origin-plot-command-input"
+            value={plotCommandDraft}
+            onChange={setPlotCommandDraft}
+            onBlur={() => {
+              const nextValue = plotCommandDraft.trim();
+              if (nextValue === (originSettings.plotCommand ?? "")) return;
+              void originSettings.onPlotCommandChange(nextValue);
+            }}
+            disabled={originSettings.plotSaving || !originSettings.isConfigurable}
+          />
+          <p className="text-xs text-text-secondary">
+            {t("da_settings_origin_plot_command_hint")}
+          </p>
+        </div>
+
+        <div className="space-y-1">
+          <p className="text-xs text-text-secondary">
+            {t("da_settings_origin_plot_post_commands_label")}
+          </p>
+          <textarea
+            id="device-analysis-settings-origin-plot-post-commands-input"
+            className="w-full min-h-[96px] rounded-lg border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary font-mono resize-y"
+            value={postCommandsDraft}
+            onChange={(event) => {
+              setPostCommandsDraft(event.target.value);
+            }}
+            onBlur={() => {
+              const nextValue = postCommandsDraft.trim();
+              const currentValue = (originSettings.plotPostCommandsText ?? "").trim();
+              if (nextValue === currentValue) return;
+              void originSettings.onPlotPostCommandsChange(nextValue);
+            }}
+            disabled={originSettings.plotSaving || !originSettings.isConfigurable}
+          />
+          <p className="text-xs text-text-secondary">
+            {t("da_settings_origin_plot_post_commands_hint")}
+          </p>
+        </div>
+
+        {originSettings.plotFeedback?.message ? (
+          <p className={feedbackClassName(originSettings.plotFeedback.type)}>
+            {originSettings.plotFeedback.message}
+          </p>
+        ) : null}
+      </Card>
     </section>
   );
 };
 
 export default DeviceAnalysisSettingsPanel;
-

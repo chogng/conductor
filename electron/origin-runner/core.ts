@@ -1,15 +1,27 @@
-const fs = require("node:fs");
-const path = require("node:path");
-const { spawn } = require("node:child_process");
+import fs from "node:fs";
+import path from "node:path";
+import { spawn } from "node:child_process";
 
-function ensureDir(dirPath) {
+export type RunProcessResult = {
+  code: number;
+  stdout: string;
+  stderr: string;
+};
+
+export type RunProcessOptions = {
+  cwd?: string;
+  windowsHide?: boolean;
+  [key: string]: unknown;
+};
+
+export function ensureDir(dirPath) {
   if (!dirPath || typeof dirPath !== "string") {
     throw new Error("Invalid directory path.");
   }
   fs.mkdirSync(dirPath, { recursive: true });
 }
 
-function sanitizeFileName(name) {
+export function sanitizeFileName(name) {
   const raw = String(name || "device_analysis_origin.zip");
   const cleaned = raw
     .replace(/[/\\?%*:|"<>]/g, "_")
@@ -22,7 +34,7 @@ function escapePsSingleQuoted(input) {
   return String(input || "").replace(/'/g, "''");
 }
 
-function getPowerShellExePath() {
+export function getPowerShellExePath() {
   const systemRoot = process.env.SystemRoot || "C:\\Windows";
   const candidate = path.join(
     systemRoot,
@@ -34,8 +46,12 @@ function getPowerShellExePath() {
   return fs.existsSync(candidate) ? candidate : "powershell.exe";
 }
 
-function runProcess(exePath, args, options = {}) {
-  return new Promise((resolve, reject) => {
+export function runProcess(
+  exePath: string,
+  args: string[],
+  options: RunProcessOptions = {},
+): Promise<RunProcessResult> {
+  return new Promise<RunProcessResult>((resolve, reject) => {
     const runOptions = options && typeof options === "object" ? options : {};
     const cwd = Reflect.get(runOptions, "cwd");
     const windowsHide = Reflect.get(runOptions, "windowsHide");
@@ -70,7 +86,7 @@ function runProcess(exePath, args, options = {}) {
   });
 }
 
-async function expandArchive(zipPath, destinationPath) {
+export async function expandArchive(zipPath, destinationPath) {
   const psCommand = `Expand-Archive -LiteralPath '${escapePsSingleQuoted(
     zipPath,
   )}' -DestinationPath '${escapePsSingleQuoted(destinationPath)}' -Force`;
@@ -94,7 +110,7 @@ async function expandArchive(zipPath, destinationPath) {
   }
 }
 
-function normalizeZipBuffer(bytes) {
+export function normalizeZipBuffer(bytes) {
   if (Buffer.isBuffer(bytes)) return bytes;
   if (bytes instanceof ArrayBuffer) return Buffer.from(bytes);
   if (ArrayBuffer.isView(bytes)) {
@@ -104,13 +120,13 @@ function normalizeZipBuffer(bytes) {
   throw new Error("Invalid ZIP payload bytes.");
 }
 
-function normalizeOriginExePath(inputPath) {
+export function normalizeOriginExePath(inputPath) {
   if (typeof inputPath !== "string") return null;
   const normalized = inputPath.trim();
   return normalized || null;
 }
 
-function assertOriginExePath(originExePath) {
+export function assertOriginExePath(originExePath) {
   const normalized = normalizeOriginExePath(originExePath);
   if (!normalized) {
     throw new Error("Origin executable path is empty.");
@@ -128,7 +144,7 @@ function assertOriginExePath(originExePath) {
   return normalized;
 }
 
-function assertDirectoryPath(dirPath, label = "Directory path") {
+export function assertDirectoryPath(dirPath, label = "Directory path") {
   const normalized = normalizeOriginExePath(dirPath);
   if (!normalized) {
     throw new Error(`${label} is empty.`);
@@ -146,7 +162,7 @@ function assertDirectoryPath(dirPath, label = "Directory path") {
   return normalized;
 }
 
-function parseJsonFile(filePath) {
+export function parseJsonFile(filePath) {
   if (!filePath || !fs.existsSync(filePath)) return null;
   try {
     const raw = String(fs.readFileSync(filePath, "utf8") || "").trim();
@@ -157,19 +173,5 @@ function parseJsonFile(filePath) {
     return null;
   }
 }
-
-module.exports = {
-  ensureDir,
-  sanitizeFileName,
-  getPowerShellExePath,
-  runProcess,
-  expandArchive,
-  normalizeZipBuffer,
-  normalizeOriginExePath,
-  assertOriginExePath,
-  assertDirectoryPath,
-  parseJsonFile,
-};
-
 
 
