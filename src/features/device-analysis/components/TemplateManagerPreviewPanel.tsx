@@ -809,6 +809,134 @@ const PreviewPlaceholder = ({ title, hint }: PreviewPlaceholderProps) => (
   </div>
 );
 
+type PreviewColGroupProps = {
+  previewColumnGeometry: PreviewColumnGeometry;
+  previewColumnMinWidthPx: number;
+  previewRowIndexWidthPx: number;
+};
+
+const PreviewColGroup = React.memo(
+  ({
+    previewColumnGeometry,
+    previewColumnMinWidthPx,
+    previewRowIndexWidthPx,
+  }: PreviewColGroupProps) => (
+    <colgroup>
+      <col style={{ width: previewRowIndexWidthPx }} />
+      {previewColumnGeometry.hasLeftSpacer ? (
+        <col style={{ width: previewColumnGeometry.window.leftSpacerPx }} />
+      ) : null}
+      {previewColumnGeometry.visibleColumnIndices.map((index) => (
+        <col
+          key={index}
+          style={{
+            width: `var(--da-preview-col-${index}-w, ${
+              previewColumnGeometry.widthsPx[index] ?? previewColumnMinWidthPx
+            }px)`,
+          }}
+        />
+      ))}
+      {previewColumnGeometry.hasRightSpacer ? (
+        <col style={{ width: previewColumnGeometry.window.rightSpacerPx }} />
+      ) : null}
+    </colgroup>
+  ),
+);
+
+PreviewColGroup.displayName = "PreviewColGroup";
+
+type PreviewHeaderProps = {
+  handleColumnResizeStart: (
+    event: React.PointerEvent<HTMLDivElement>,
+    colIndex: number,
+  ) => void;
+  previewColumnGeometry: PreviewColumnGeometry;
+  previewFileId?: string;
+  resetColumnWidth: (fileId: string, colIndex: number) => void;
+  selectedColumnsSet: Set<number>;
+  toggleColumn: (index: number) => void;
+};
+
+const PreviewHeader = React.memo(
+  ({
+    handleColumnResizeStart,
+    previewColumnGeometry,
+    previewFileId,
+    resetColumnWidth,
+    selectedColumnsSet,
+    toggleColumn,
+  }: PreviewHeaderProps) => (
+    <thead className="bg-bg-surface sticky top-0 z-30 shadow-sm">
+      <tr>
+        <th className="p-1 border-b border-r border-border bg-bg-surface w-12 text-center font-bold text-xs text-text-secondary select-none sticky left-0 top-0 z-40"></th>
+        {previewColumnGeometry.hasLeftSpacer ? (
+          <th
+            aria-hidden="true"
+            className="p-0 border-b border-r border-border bg-bg-surface"
+          />
+        ) : null}
+        {previewColumnGeometry.visibleColumnIndices.map((index) => {
+          const isSelected = selectedColumnsSet.has(index);
+          return (
+            <th
+              key={index}
+              onClick={() => toggleColumn(index)}
+              className={`px-2 py-1 border-b border-border border-r last:border-r-0 font-mono text-xs whitespace-nowrap bg-bg-surface font-semibold text-center select-none cursor-pointer relative pr-3 overflow-hidden ${
+                isSelected
+                  ? "text-accent bg-accent/10 border-accent/30"
+                  : "text-text-secondary hover:bg-bg-page/60"
+              }`}
+              title="Click to toggle Y column"
+            >
+              <div
+                className="flex items-center justify-center gap-2 cursor-pointer group"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  toggleColumn(index);
+                }}
+              >
+                <div className="relative flex items-center justify-center w-4 h-4">
+                  {isSelected ? (
+                    <div className="w-3.5 h-3.5 rounded bg-accent-terracotta border border-accent-terracotta flex items-center justify-center transition-all">
+                      <Check size={10} className="text-white" strokeWidth={4} />
+                    </div>
+                  ) : (
+                    <div className="w-3.5 h-3.5 rounded border border-border-200 group-hover:border-accent-terracotta/50 transition-colors bg-bg-surface" />
+                  )}
+                </div>
+                <span>{getExcelColumnLabel(index)}</span>
+              </div>
+
+              <div
+                role="separator"
+                aria-orientation="vertical"
+                title="Drag to resize | Double-click to reset"
+                onPointerDown={(event) => handleColumnResizeStart(event, index)}
+                onClick={(event) => event.stopPropagation()}
+                onDoubleClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  if (!previewFileId) return;
+                  resetColumnWidth(previewFileId, index);
+                }}
+                className="absolute top-0 right-0 h-full w-3 cursor-col-resize select-none hover:bg-accent/20 touch-none"
+              />
+            </th>
+          );
+        })}
+        {previewColumnGeometry.hasRightSpacer ? (
+          <th
+            aria-hidden="true"
+            className="p-0 border-b border-border bg-bg-surface"
+          />
+        ) : null}
+      </tr>
+    </thead>
+  ),
+);
+
+PreviewHeader.displayName = "PreviewHeader";
+
 const TemplateManagerPreviewPanel = ({
   copySelection,
   dragOverlayRef,
@@ -979,100 +1107,19 @@ const TemplateManagerPreviewPanel = ({
                     tableLayout: "fixed",
                   }}
                 >
-                  <colgroup>
-                    <col style={{ width: previewRowIndexWidthPx }} />
-                    {previewColumnGeometry.hasLeftSpacer ? (
-                      <col
-                        style={{ width: previewColumnGeometry.window.leftSpacerPx }}
-                      />
-                    ) : null}
-                    {previewColumnGeometry.visibleColumnIndices.map((index) => (
-                      <col
-                        key={index}
-                        style={{
-                          width: `var(--da-preview-col-${index}-w, ${previewColumnGeometry.widthsPx[index] ?? previewColumnMinWidthPx
-                            }px)`,
-                        }}
-                      />
-                    ))}
-                    {previewColumnGeometry.hasRightSpacer ? (
-                      <col
-                        style={{ width: previewColumnGeometry.window.rightSpacerPx }}
-                      />
-                    ) : null}
-                  </colgroup>
-
-                  <thead className="bg-bg-surface sticky top-0 z-30 shadow-sm">
-                    <tr>
-                      <th className="p-1 border-b border-r border-border bg-bg-surface w-12 text-center font-bold text-xs text-text-secondary select-none sticky left-0 top-0 z-40"></th>
-                      {previewColumnGeometry.hasLeftSpacer ? (
-                        <th
-                          aria-hidden="true"
-                          className="p-0 border-b border-r border-border bg-bg-surface"
-                        />
-                      ) : null}
-                      {previewColumnGeometry.visibleColumnIndices.map((index) => {
-                        const isSelected = selectedColumnsSet.has(index);
-                        return (
-                          <th
-                            key={index}
-                            onClick={() => toggleColumn(index)}
-                            className={`px-2 py-1 border-b border-border border-r last:border-r-0 font-mono text-xs whitespace-nowrap bg-bg-surface font-semibold text-center select-none cursor-pointer relative pr-3 overflow-hidden ${isSelected
-                                ? "text-accent bg-accent/10 border-accent/30"
-                                : "text-text-secondary hover:bg-bg-page/60"
-                              }`}
-                            title="Click to toggle Y column"
-                          >
-                            <div
-                              className="flex items-center justify-center gap-2 cursor-pointer group"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                toggleColumn(index);
-                              }}
-                            >
-                              <div className="relative flex items-center justify-center w-4 h-4">
-                                {isSelected ? (
-                                  <div className="w-3.5 h-3.5 rounded bg-accent-terracotta border border-accent-terracotta flex items-center justify-center transition-all">
-                                    <Check
-                                      size={10}
-                                      className="text-white"
-                                      strokeWidth={4}
-                                    />
-                                  </div>
-                                ) : (
-                                  <div className="w-3.5 h-3.5 rounded border border-border-200 group-hover:border-accent-terracotta/50 transition-colors bg-bg-surface" />
-                                )}
-                              </div>
-                              <span>{getExcelColumnLabel(index)}</span>
-                            </div>
-
-                            <div
-                              role="separator"
-                              aria-orientation="vertical"
-                              title="Drag to resize | Double-click to reset"
-                              onPointerDown={(event) =>
-                                handleColumnResizeStart(event, index)
-                              }
-                              onClick={(event) => event.stopPropagation()}
-                              onDoubleClick={(event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                if (!previewFile?.fileId) return;
-                                resetColumnWidth(previewFile.fileId, index);
-                              }}
-                              className="absolute top-0 right-0 h-full w-3 cursor-col-resize select-none hover:bg-accent/20 touch-none"
-                            />
-                          </th>
-                        );
-                      })}
-                      {previewColumnGeometry.hasRightSpacer ? (
-                        <th
-                          aria-hidden="true"
-                          className="p-0 border-b border-border bg-bg-surface"
-                        />
-                      ) : null}
-                    </tr>
-                  </thead>
+                  <PreviewColGroup
+                    previewColumnGeometry={previewColumnGeometry}
+                    previewColumnMinWidthPx={previewColumnMinWidthPx}
+                    previewRowIndexWidthPx={previewRowIndexWidthPx}
+                  />
+                  <PreviewHeader
+                    handleColumnResizeStart={handleColumnResizeStart}
+                    previewColumnGeometry={previewColumnGeometry}
+                    previewFileId={previewFile?.fileId}
+                    resetColumnWidth={resetColumnWidth}
+                    selectedColumnsSet={selectedColumnsSet}
+                    toggleColumn={toggleColumn}
+                  />
                 </table>
 
                 <CanvasPreviewGrid
@@ -1100,100 +1147,19 @@ const TemplateManagerPreviewPanel = ({
                     tableLayout: "fixed",
                   }}
                 >
-                  <colgroup>
-                    <col style={{ width: previewRowIndexWidthPx }} />
-                    {previewColumnGeometry.hasLeftSpacer ? (
-                      <col
-                        style={{ width: previewColumnGeometry.window.leftSpacerPx }}
-                      />
-                    ) : null}
-                    {previewColumnGeometry.visibleColumnIndices.map((index) => (
-                      <col
-                        key={index}
-                        style={{
-                          width: `var(--da-preview-col-${index}-w, ${previewColumnGeometry.widthsPx[index] ?? previewColumnMinWidthPx
-                            }px)`,
-                        }}
-                      />
-                    ))}
-                    {previewColumnGeometry.hasRightSpacer ? (
-                      <col
-                        style={{ width: previewColumnGeometry.window.rightSpacerPx }}
-                      />
-                    ) : null}
-                  </colgroup>
-
-                  <thead className="bg-bg-surface sticky top-0 z-30 shadow-sm">
-                    <tr>
-                      <th className="p-1 border-b border-r border-border bg-bg-surface w-12 text-center font-bold text-xs text-text-secondary select-none sticky left-0 top-0 z-40"></th>
-                      {previewColumnGeometry.hasLeftSpacer ? (
-                        <th
-                          aria-hidden="true"
-                          className="p-0 border-b border-r border-border bg-bg-surface"
-                        />
-                      ) : null}
-                      {previewColumnGeometry.visibleColumnIndices.map((index) => {
-                        const isSelected = selectedColumnsSet.has(index);
-                        return (
-                          <th
-                            key={index}
-                            onClick={() => toggleColumn(index)}
-                            className={`px-2 py-1 border-b border-border border-r last:border-r-0 font-mono text-xs whitespace-nowrap bg-bg-surface font-semibold text-center select-none cursor-pointer relative pr-3 overflow-hidden ${isSelected
-                                ? "text-accent bg-accent/10 border-accent/30"
-                                : "text-text-secondary hover:bg-bg-page/60"
-                              }`}
-                            title="Click to toggle Y column"
-                          >
-                            <div
-                              className="flex items-center justify-center gap-2 cursor-pointer group"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                toggleColumn(index);
-                              }}
-                            >
-                              <div className="relative flex items-center justify-center w-4 h-4">
-                                {isSelected ? (
-                                  <div className="w-3.5 h-3.5 rounded bg-accent-terracotta border border-accent-terracotta flex items-center justify-center transition-all">
-                                    <Check
-                                      size={10}
-                                      className="text-white"
-                                      strokeWidth={4}
-                                    />
-                                  </div>
-                                ) : (
-                                  <div className="w-3.5 h-3.5 rounded border border-border-200 group-hover:border-accent-terracotta/50 transition-colors bg-bg-surface" />
-                                )}
-                              </div>
-                              <span>{getExcelColumnLabel(index)}</span>
-                            </div>
-
-                            <div
-                              role="separator"
-                              aria-orientation="vertical"
-                              title="Drag to resize | Double-click to reset"
-                              onPointerDown={(event) =>
-                                handleColumnResizeStart(event, index)
-                              }
-                              onClick={(event) => event.stopPropagation()}
-                              onDoubleClick={(event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                if (!previewFile?.fileId) return;
-                                resetColumnWidth(previewFile.fileId, index);
-                              }}
-                              className="absolute top-0 right-0 h-full w-3 cursor-col-resize select-none hover:bg-accent/20 touch-none"
-                            />
-                          </th>
-                        );
-                      })}
-                      {previewColumnGeometry.hasRightSpacer ? (
-                        <th
-                          aria-hidden="true"
-                          className="p-0 border-b border-border bg-bg-surface"
-                        />
-                      ) : null}
-                    </tr>
-                  </thead>
+                  <PreviewColGroup
+                    previewColumnGeometry={previewColumnGeometry}
+                    previewColumnMinWidthPx={previewColumnMinWidthPx}
+                    previewRowIndexWidthPx={previewRowIndexWidthPx}
+                  />
+                  <PreviewHeader
+                    handleColumnResizeStart={handleColumnResizeStart}
+                    previewColumnGeometry={previewColumnGeometry}
+                    previewFileId={previewFile?.fileId}
+                    resetColumnWidth={resetColumnWidth}
+                    selectedColumnsSet={selectedColumnsSet}
+                    toggleColumn={toggleColumn}
+                  />
 
                   <PreviewTbody
                     subscribePreviewRowsVersion={subscribePreviewRowsVersion}
