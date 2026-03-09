@@ -394,8 +394,11 @@ export const buildDeviceAnalysisOriginPairsExpr = (xyPairCount: unknown): string
 export const buildDeviceAnalysisOriginOgsScript = (
   csvFileName: unknown,
   xyPairCount: unknown,
+  xyPairsExprOverride?: unknown,
 ): string => {
-  const pairsExpr = buildDeviceAnalysisOriginPairsExpr(xyPairCount);
+  const normalizedPairsExpr =
+    typeof xyPairsExprOverride === "string" ? xyPairsExprOverride.trim() : "";
+  const pairsExpr = normalizedPairsExpr || buildDeviceAnalysisOriginPairsExpr(xyPairCount);
   const safeCsv = String(csvFileName || "data.csv").replace(/"/g, "");
   const ogsFileName = safeCsv.replace(/\.csv$/i, ".ogs");
 
@@ -431,7 +434,7 @@ plotxy iy:=${pairsExpr} plot:=202;
 export const DEVICE_ANALYSIS_ORIGIN_README = `Device Analysis -> Origin package
 
 Files:
-- *.csv: exported data columns in x1,y1,x2,y2,... order (no header row)
+- *.csv: exported data columns (no header row). Layout can be x1,y1,x2,y2,... or x,y1,y2,...
 - *.ogs: Origin LabTalk script to import CSV and plot automatically
 
 How to use (recommended):

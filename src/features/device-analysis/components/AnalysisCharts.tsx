@@ -570,13 +570,12 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
             return "device analysis";
         return raw.length > max ? raw.slice(0, max).trim() : raw;
     };
-    const buildOriginXyPairs = (pairCount: number) => {
-        const safePairCount = Number.isFinite(pairCount) ? Math.max(1, Math.floor(pairCount)) : 1;
-        const chunks = new Array(safePairCount);
-        for (let i = 0; i < safePairCount; i++) {
-            const xCol = i * 2 + 1;
-            const yCol = i * 2 + 2;
-            chunks[i] = `(${xCol},${yCol})`;
+    const buildOriginSharedXyPairs = (yCount: number) => {
+        const safeYCount = Number.isFinite(yCount) ? Math.max(1, Math.floor(yCount)) : 1;
+        const chunks = new Array(safeYCount);
+        for (let i = 0; i < safeYCount; i++) {
+            const yCol = i + 2;
+            chunks[i] = `(1,${yCol})`;
         }
         return `(${chunks.join(",")})`;
     };
@@ -606,10 +605,11 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
         }
         const maxRowCount = curveEntries.reduce((max: number, entry: any) => Math.max(max, entry.rowCount), 0);
         const rows = new Array(maxRowCount);
+        const sharedX = curveEntries[0]?.xArr;
         for (let i = 0; i < maxRowCount; i++) {
             const row: any[] = [];
+            row.push(i < (sharedX?.length ?? 0) ? sharedX[i] ?? "" : "");
             for (const entry of curveEntries as any[]) {
-                row.push(i < entry.rowCount ? entry.xArr[i] ?? "" : "");
                 row.push(i < entry.rowCount ? entry.yArr[i] ?? "" : "");
             }
             rows[i] = row;
@@ -623,7 +623,7 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
             csvText: "\uFEFF" + csvText,
             seriesName,
             xyPairCount: curveEntries.length,
-            xyPairs: buildOriginXyPairs(curveEntries.length),
+            xyPairs: buildOriginSharedXyPairs(curveEntries.length),
         };
     }, [getSelectedOriginSeriesKeySetForFile]);
     const buildOriginCsvPayloadsForSelectedCanvases = React.useCallback(() => {
@@ -664,7 +664,7 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
             const csvName = toUniqueCsvName(pkg?.csvName, idx);
             zip.file(csvName, pkg.csvText);
             const ogsName = csvName.replace(/\.csv$/i, ".ogs");
-            zip.file(ogsName, buildDeviceAnalysisOriginOgsScript(csvName, pkg.xyPairCount));
+            zip.file(ogsName, buildDeviceAnalysisOriginOgsScript(csvName, pkg.xyPairCount, pkg.xyPairs));
         });
         const zipBlob = await zip.generateAsync({
             type: "blob",
