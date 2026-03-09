@@ -48,7 +48,11 @@ const DesktopCommandBar = ({
   const dragRegionStyle = { WebkitAppRegion: "drag" } as CSSProperties;
 
   return (
-    <header id="device-analysis-desktop-command-bar" className="da_top_menu_bar">
+    <header
+      id="device-analysis-desktop-command-bar"
+      className="da_top_menu_bar"
+      onContextMenu={(event) => event.preventDefault()}
+    >
       <div className="da_top_menu_brand">{t("da_menu_app")}</div>
 
       <div className="da_window_controls ml-4">

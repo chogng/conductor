@@ -1213,6 +1213,10 @@ function createMainWindow() {
     win.setMenuBarVisibility(false);
   }
 
+  win.on("system-context-menu", (event) => {
+    event.preventDefault();
+  });
+
   win.webContents.setWindowOpenHandler(({ url }) => {
     void shell.openExternal(url);
     return { action: "deny" };
