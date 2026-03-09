@@ -389,7 +389,7 @@ const TemplateManager = ({
                 ? "device-analysis-template-var1-bottom-title"
                 : undefined
             }
-            label="Var1"
+            label={t("da_save_curve_type")}
             value={config.bottomTitle || ""}
             name="bottomTitle"
             disabled={disableVarInputs}
@@ -398,7 +398,7 @@ const TemplateManager = ({
               markFieldSource("bottomTitle", "manual");
             }}
             onBlur={toastVarPairIfInvalid}
-            placeholder={t("da_save_curve_type")}
+            placeholder={t("da_save_var1")}
           />
         </div>
 
@@ -464,7 +464,7 @@ const TemplateManager = ({
                 ? "device-analysis-template-var2-legend-prefix"
                 : undefined
             }
-            label="Var2"
+            label={t("da_save_legend")}
             value={config.legendPrefix || ""}
             name="legendPrefix"
             disabled={disableVarInputs}
@@ -473,7 +473,7 @@ const TemplateManager = ({
               markFieldSource("legendPrefix", "manual");
             }}
             onBlur={toastVarPairIfInvalid}
-            placeholder={t("da_save_legend")}
+            placeholder={t("da_save_var2")}
           />
         </div>
 
@@ -485,14 +485,14 @@ const TemplateManager = ({
                 ? "device-analysis-template-var3-left-title"
                 : undefined
             }
-            label="Var3"
+            label={t("da_save_left_title")}
             value={config.leftTitle || ""}
             name="leftTitle"
             onChange={(next) => {
               setConfigFromSave((prev) => ({ ...prev, leftTitle: next }));
               markFieldSource("leftTitle", "manual");
             }}
-            placeholder={t("da_save_left_title")}
+            placeholder={t("da_save_var3")}
           />
         </div>
       </div>
