@@ -1,6 +1,5 @@
 import React, { startTransition, useEffect, useMemo, useRef, useState, type CSSProperties, } from "react";
 import { Check } from "lucide-react";
-import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis, } from "recharts";
 import Papa from "papaparse";
 import JSZip from "jszip";
 import { computeCentralDerivative, computeSubthresholdSwing, computeSubthresholdSwingFitAuto, computeSubthresholdSwingFitInIdWindow, computeSubthresholdSwingFitInRange, classifySsFit, computeLegendDerivativeSeries, formatNumber, } from "../lib/analysisMath";
@@ -20,6 +19,8 @@ import CalculatedParametersRow from "./analysis-charts/CalculatedParametersRow";
 import { buildLogTicks, buildNiceTicks, buildOriginAutoTicks, buildPoints, buildStepTicks, computeLabelInterval, computeMinMax, downsamplePointsForDisplay, inferTickDigitsFromTicks, normalizeFloat, normalizeVarToken, padLinearDomain, padLogDomain, parseOptionalNumber, preserveScrollPosition, varTokenToSymbol, } from "../lib/analysisChartsUtils";
 import { buildDeviceAnalysisOriginOgsScript, DEVICE_ANALYSIS_ORIGIN_README, triggerDeviceAnalysisBlobDownload, } from "../lib/deviceAnalysisExport";
 import MainPlotChart from "./analysis-charts/MainPlotChart";
+import SsDiagnosticsChart from "./analysis-charts/SsDiagnosticsChart";
+import SsSummaryStrip from "./analysis-charts/SsSummaryStrip";
 type SsManualDraft = {
     fileId: any;
     seriesId: any;
@@ -2685,68 +2686,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
 
           </div>
 
-          {effectivePlotType === "ss" && ssSummary ? (<div className="bg-bg-page border border-border rounded-lg px-3 py-2 flex flex-wrap items-center gap-2 text-xs">
-              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border ${ssSummary.confidence === "high"
-                ? "bg-green-500/10 text-green-500 border-green-500/20"
-                : ssSummary.confidence === "low"
-                    ? "bg-yellow-500/10 text-yellow-500 border-yellow-500/20"
-                    : "bg-red-500/10 text-red-500 border-red-500/20"}`} title={`method=${ssSummary.method} reason=${ssSummary.reason}`}>
-                {String(ssSummary.confidence).toUpperCase()}
-              </span>
-
-              <span className="text-text-secondary">
-                method: <span className="text-text-primary font-mono">{ssSummary.method}</span>
-              </span>
-
-              <span className="text-text-secondary">
-                SS:{" "}
-                <span className="text-text-primary font-mono">
-                  {ssSummary.ss !== null ? `${formatNumber(ssSummary.ss, { digits: 2 })} mV/dec` : "-"}
-                </span>
-              </span>
-
-              <span className="text-text-secondary">
-                R²:{" "}
-                <span className="text-text-primary font-mono">
-                  {ssSummary.r2 !== null ? formatNumber(ssSummary.r2, { digits: 4 }) : "-"}
-                </span>
-              </span>
-
-              <span className="text-text-secondary">
-                span:{" "}
-                <span className="text-text-primary font-mono">
-                  {ssSummary.span !== null ? formatNumber(ssSummary.span, { digits: 2 }) : "-"} dec
-                </span>
-              </span>
-
-              <span className="text-text-secondary">
-                N:{" "}
-                <span className="text-text-primary font-mono">
-                  {ssSummary.n !== null ? String(ssSummary.n) : "-"}
-                </span>
-              </span>
-
-              <span className="text-text-secondary">
-                range:{" "}
-                <span className="text-text-primary font-mono">
-                  {ssSummary.x1 !== null && ssSummary.x2 !== null
-                ? `[${formatNumber(ssSummary.x1, { digits: 4 })}, ${formatNumber(ssSummary.x2, { digits: 4 })}]`
-                : "-"}
-                </span>
-              </span>
-
-              {ssSummary.confidence === "fail" ? (<span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-red-500/10 text-red-500 border border-red-500/20" title={ssSummary.reason}>
-                  reason: <span className="font-mono">{ssSummary.reason}</span>
-                </span>) : null}
-
-              {ssSummary.suggestedRange ? (<span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-yellow-500/10 text-yellow-500 border border-yellow-500/20">
-                  suggested:{" "}
-                  <span className="font-mono">
-                    [{formatNumber(ssSummary.suggestedRange.x1, { digits: 4 })},{" "}
-                    {formatNumber(ssSummary.suggestedRange.x2, { digits: 4 })}]
-                  </span>
-                </span>) : null}
-            </div>) : null}
+          {effectivePlotType === "ss" && ssSummary ? (<SsSummaryStrip summary={ssSummary}/>) : null}
 
           {showAxisControls && (<div className="bg-bg-page border border-border rounded-lg p-3">
               <div className="flex items-center justify-between gap-2 mb-2">
@@ -2914,40 +2854,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     Diagnostics: SS(x)
                   </div>
                   <div ref={diagnosticsChartContainerRef} className="h-[260px] min-h-[260px] flex-shrink-0">
-                    {isDiagnosticsChartSizeReady ? (<ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1} className="!outline-none">
-                      <LineChart data={[]} margin={{ top: 20, right: 135, left: 45, bottom: 20 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#333" opacity={0.2}/>
-                        <XAxis dataKey="x" type="number" domain={xTicks ? [xTicks[0], xTicks[xTicks.length - 1]] : xDomain} ticks={xTicks ?? undefined} interval={xLabelInterval} tickFormatter={(v: any) => formatNumber(v, { digits: xTickDigits })} stroke="currentColor" className="text-text-secondary text-xs" tick={{ fill: "currentColor", opacity: 0.6 }} allowDataOverflow/>
-                        <YAxis label={{
-                        value: "SS (mV/dec)",
-                        angle: -90,
-                        position: "insideLeft",
-                        offset: -15,
-                        style: { textAnchor: "middle" },
-                        fill: "currentColor",
-                        opacity: 0.9,
-                        fontSize: 14,
-                        fontWeight: 500,
-                    }} type="number" scale="linear" domain={ssDiagnosticsYDomain} ticks={ssDiagnosticsYTicks ?? undefined} interval={0} tickFormatter={(v: any) => formatNumber(v, { digits: 2 })} stroke="currentColor" className="text-text-secondary text-xs" tick={{ fill: "currentColor", opacity: 0.6 }} allowDataOverflow/>
-                        <Tooltip contentStyle={{
-                        backgroundColor: "#1e1e1e",
-                        borderColor: "#333",
-                        color: "#fff",
-                    }} itemStyle={{ color: "#ccc" }} labelFormatter={(label: any) => `x=${formatNumber(label, { digits: xTooltipDigits })}`} formatter={(value: any, name: any) => [
-                        `${formatNumber(Number(value), { digits: 2 })} mV/dec`,
-                        name,
-                    ]}/>
-
-                        {focusedSsOverlay ? (<>
-                            <ReferenceLine x={Math.min(focusedSsOverlay.x1, focusedSsOverlay.x2)} stroke={ssOverlayStyle.stroke} strokeOpacity={ssOverlayStyle.strokeOpacity} strokeWidth={2} ifOverflow="hidden"/>
-                            <ReferenceLine x={Math.max(focusedSsOverlay.x1, focusedSsOverlay.x2)} stroke={ssOverlayStyle.stroke} strokeOpacity={ssOverlayStyle.strokeOpacity} strokeWidth={2} ifOverflow="hidden"/>
-                          </>) : null}
-
-                        {ssSummary && ssSummary.ss !== null && Number.isFinite(ssSummary.ss) ? (<ReferenceLine y={ssSummary.ss} stroke={focusedSeriesColor} strokeOpacity={0.35} strokeDasharray="4 4" ifOverflow="hidden"/>) : null}
-
-                        <Line data={focusedSsDiagnosticsForRender} dataKey="y" name="SS(x)" stroke={focusedSeriesColor} dot={false} isAnimationActive={false} strokeWidth={2}/>
-                      </LineChart>
-                      </ResponsiveContainer>) : (<div className="h-full w-full"/>)}
+                    {isDiagnosticsChartSizeReady ? (<SsDiagnosticsChart data={focusedSsDiagnosticsForRender} xDomain={xDomain} xTicks={xTicks} xLabelInterval={xLabelInterval} xTickDigits={xTickDigits} xTooltipDigits={xTooltipDigits} yDomain={ssDiagnosticsYDomain} yTicks={ssDiagnosticsYTicks} overlay={focusedSsOverlay} overlayStyle={ssOverlayStyle} ssReferenceValue={ssSummary?.ss} seriesColor={focusedSeriesColor}/>) : (<div className="h-full w-full"/>)}
                   </div>
                 </div>) : null}
             </div>) : (<div className="flex items-center justify-center h-[300px] text-text-secondary">
