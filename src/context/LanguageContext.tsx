@@ -475,7 +475,7 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     da_overview_select_mode_off: '\u5173\u95ed',
     da_overview_select_mode_toggle: '\u9009\u62e9',
     da_overview_select_badge: '\u5df2\u9009',
-    da_overview_selected_num_figures: 'Selected {count} figures',
+    da_overview_selected_num_figures: '已选择 {count} 个图表',
     da_tab_analysis: '分析与可视化',
     da_tab_data: '导入与提取',
     da_tab_switcher_label: '设备分析页面切换',

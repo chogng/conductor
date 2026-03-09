@@ -16,6 +16,7 @@ type SsMethod = "auto" | "manual" | "idWindow" | "legacy";
 
 type DeviceAnalysisSettings = {
   language?: LanguageCode;
+  originExePath?: string;
   originPlotCommandDefault?: string;
   originPlotPostCommandsDefault?: string[];
   originPlotTypeDefault?: number;
@@ -160,6 +161,26 @@ const normalizeOriginBatchSummary = (summary: unknown) => {
   };
 };
 
+const ORIGIN_EXE_PATH_LOAD_TIMEOUT_MS = 10000;
+
+const getOriginExePathWithTimeout = async (
+  bridge: OriginBridge,
+): Promise<string> => {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race<string>([
+      bridge.getOriginExePath(),
+      new Promise<string>((_resolve, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(new Error("Origin executable path load timed out."));
+        }, ORIGIN_EXE_PATH_LOAD_TIMEOUT_MS);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+};
+
 export const useDeviceAnalysisSettings = ({
   activePage,
   isWindowsDesktopShell,
@@ -173,6 +194,8 @@ export const useDeviceAnalysisSettings = ({
 }: UseDeviceAnalysisSettingsOptions) => {
   const [deviceAnalysisSettings, setDeviceAnalysisSettings] =
     useState<DeviceAnalysisSettings | null>(null);
+  const [deviceAnalysisSettingsLoaded, setDeviceAnalysisSettingsLoaded] =
+    useState(false);
   const [persistencePathInfo, setPersistencePathInfo] =
     useState<PersistencePathInfo | null>(null);
   const [persistencePathLoading, setPersistencePathLoading] = useState(false);
@@ -280,8 +303,13 @@ export const useDeviceAnalysisSettings = ({
     );
   }, [deviceAnalysisSettings]);
 
+  const settingsOriginExePath = normalizeTrimmedString(
+    deviceAnalysisSettings?.originExePath,
+  );
+
   useEffect(() => {
     let cancelled = false;
+    setDeviceAnalysisSettingsLoaded(false);
 
     (async () => {
       try {
@@ -327,6 +355,10 @@ export const useDeviceAnalysisSettings = ({
         }
       } catch {
         // ignore settings load failures
+      } finally {
+        if (!cancelled) {
+          setDeviceAnalysisSettingsLoaded(true);
+        }
       }
     })();
 
@@ -413,14 +445,22 @@ export const useDeviceAnalysisSettings = ({
   }, [t]);
 
   useEffect(() => {
-    if (activePage !== "settings" || originPathRequested) return;
+    if (activePage !== "settings") return;
 
-    setOriginPathRequested(true);
+    if (!deviceAnalysisSettingsLoaded) {
+      setOriginPathLoading(true);
+      return;
+    }
+
+    if (settingsOriginExePath) {
+      setOriginExePath(settingsOriginExePath);
+      setOriginPathLoading(false);
+      return;
+    }
+
     let cancelled = false;
 
     (async () => {
-      setOriginPathLoading(true);
-
       const bridge = getDesktopOriginBridge();
       if (!isWindowsDesktopShell || !bridge) {
         if (cancelled) return;
@@ -429,11 +469,26 @@ export const useDeviceAnalysisSettings = ({
         return;
       }
 
+      if (originPathRequested) {
+        setOriginPathLoading(false);
+        return;
+      }
+
+      setOriginPathRequested(true);
+      setOriginPathLoading(true);
+
       try {
-        const configuredPath = await bridge.getOriginExePath();
+        const configuredPath = await getOriginExePathWithTimeout(bridge);
         if (cancelled) return;
 
-        setOriginExePath(normalizeTrimmedString(configuredPath));
+        const normalizedPath = normalizeTrimmedString(configuredPath);
+        setOriginExePath(normalizedPath);
+        if (normalizedPath) {
+          setDeviceAnalysisSettings((prev) => ({
+            ...(prev || {}),
+            originExePath: normalizedPath,
+          }));
+        }
       } catch {
         if (cancelled) return;
         setOriginExePath("");
@@ -449,9 +504,11 @@ export const useDeviceAnalysisSettings = ({
     };
   }, [
     activePage,
+    deviceAnalysisSettingsLoaded,
     getDesktopOriginBridge,
     isWindowsDesktopShell,
     originPathRequested,
+    settingsOriginExePath,
   ]);
 
   const handleChooseOriginExePath = useCallback(async () => {
@@ -466,6 +523,10 @@ export const useDeviceAnalysisSettings = ({
       const nextPath = normalizeTrimmedString(pickedPath);
       if (nextPath) {
         setOriginExePath(nextPath);
+        setDeviceAnalysisSettings((prev) => ({
+          ...(prev || {}),
+          originExePath: nextPath,
+        }));
         setOriginPathFeedback({
           type: "success",
           message: t("da_settings_origin_choose_saved"),
@@ -498,6 +559,10 @@ export const useDeviceAnalysisSettings = ({
       const nextPath = normalizeTrimmedString(health?.originExePath);
       if (nextPath) {
         setOriginExePath(nextPath);
+        setDeviceAnalysisSettings((prev) => ({
+          ...(prev || {}),
+          originExePath: nextPath,
+        }));
       }
 
       const successMessage = buildOriginLogMessage(

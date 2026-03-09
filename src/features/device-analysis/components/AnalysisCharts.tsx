@@ -1716,10 +1716,10 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
                 <button type="button" aria-pressed={checked} aria-label={label} disabled={disabled} onClick={() => {
                         if (!disabled)
                             toggleOriginSeriesSelection(seriesId);
-                    }} className={`relative flex items-center justify-center h-4 w-4 shrink-0 ${disabled ? "cursor-default" : "cursor-pointer"}`}>
-                  {checked ? (<span className="w-3.5 h-3.5 rounded bg-accent-terracotta border border-accent-terracotta flex items-center justify-center transition-all">
-                      <Check size={10} className="text-white" strokeWidth={4}/>
-                    </span>) : (<span className={`w-3.5 h-3.5 rounded border border-border-200 transition-colors bg-bg-surface ${disabled ? "" : "group-hover:border-accent-terracotta/50"}`}/>)}
+                    }} className={`shrink-0 ${disabled ? "cursor-default" : "cursor-pointer"}`}>
+                  <span className="clickable-ckb" data-state={checked ? "checked" : "unchecked"}>
+                    {checked ? <Check size={10} className="text-white" strokeWidth={4}/> : null}
+                  </span>
                 </button>
                 <span className="truncate max-w-[130px] text-text-secondary" title={label}>
                   {label}

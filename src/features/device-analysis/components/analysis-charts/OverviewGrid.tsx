@@ -5,6 +5,7 @@ import {
   Check,
   CheckCheck,
   ChevronDown,
+  MousePointer2,
 } from "lucide-react";
 import Button from "../../../../components/ui/Button";
 import Card from "../../../../components/ui/Card";
@@ -260,7 +261,7 @@ const OverviewGrid = memo(function OverviewGrid({
               state: selectModeStateLabel,
             })}
           >
-            {t("da_overview_select_mode_toggle")}
+            <MousePointer2 size={16} className={isSelectMode ? "text-accent" : ""} />
           </Button>
 
           <Button

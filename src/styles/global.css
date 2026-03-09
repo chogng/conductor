@@ -560,7 +560,7 @@ body {
   }
 
   .clickable-ckb {
-    @apply w-[18px] h-[18px] rounded border-2 flex items-center justify-center transition-all;
+    @apply w-[16px] h-[16px] rounded border-2 flex items-center justify-center transition-all;
   }
 
   .clickable-ckb[data-state="checked"] {
@@ -748,38 +748,6 @@ body {
   .ui-select_scroll-area .scroll-area__track--y {
     right: 0px;
     width: 6px;
-  }
-  /* Checkbox (icon-only, 38×38 by default) */
-  .ui-check_warp {
-    @apply relative inline-flex items-center justify-center h-[38px] w-[38px] rounded-lg bg-transparent transition-colors hover:bg-bg-surface-hover/60;
-  }
-
-  .ui-check_native {
-    @apply absolute inset-0 h-full w-full opacity-0 cursor-pointer;
-  }
-
-  .ui-check_box {
-    @apply absolute inset-0 inline-flex items-center justify-center rounded-lg text-text-tertiary;
-  }
-
-  .ui-check_icon {
-    opacity: 0;
-    transform: scale(0.5);
-    transition: opacity 0.15s ease-out, transform 0.15s ease-out;
-  }
-
-  .ui-check_native:checked+.ui-check_box {
-    @apply text-text-primary bg-bg-surface-hover/70;
-  }
-
-  .ui-check_native:checked+.ui-check_box .ui-check_icon {
-    opacity: 1;
-    transform: scale(1);
-    transition: opacity 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-  }
-
-  html[data-nav="keyboard"] .ui-check_warp:focus-within {
-    outline: auto;
   }
 }
 
