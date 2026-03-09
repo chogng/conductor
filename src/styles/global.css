@@ -208,11 +208,6 @@ body {
     letter-spacing: 0.01em;
   }
 
-  .da_top_menu_group {
-    @apply flex items-center gap-2;
-    -webkit-app-region: no-drag;
-  }
-
   .da_top_menu_trigger {
     @apply min-w-[86px] justify-between text-text-secondary border border-transparent;
     --btn-ring-inner: rgb(var(--bg-surface) / 0.7);
@@ -276,6 +271,16 @@ body {
 
   .da_window_icon_btn:hover {
     @apply bg-bg-200/50 text-text-primary;
+  }
+
+  .da_window_icon_btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  .da_window_icon_btn:disabled:hover {
+    background: transparent;
+    color: inherit;
   }
 
   .da_top_nav_btn--active {
@@ -371,14 +376,6 @@ body {
 
     .da_top_menu_brand {
       @apply hidden;
-    }
-
-    .da_top_menu_group {
-      @apply w-full;
-    }
-
-    .da_top_menu_group>div {
-      @apply flex-1;
     }
 
     .da_window_controls {

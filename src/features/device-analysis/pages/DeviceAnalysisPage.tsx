@@ -36,6 +36,11 @@ import type {
 } from "../context/device-analysis-session-context";
 
 type PageTab = "data" | "analysis" | "settings";
+type PageNavigationState = {
+  activePage: PageTab;
+  history: PageTab[];
+  historyIndex: number;
+};
 
 type RawDataEntry = {
   file?: unknown;
@@ -173,16 +178,21 @@ const DeviceAnalysisPage = () => {
   } = session;
 
   const importerRef = useRef<{ openFileDialog?: () => void } | null>(null);
-  const [activePage, setActivePage] = useState<PageTab>("data");
+  const [pageNavigation, setPageNavigation] = useState<PageNavigationState>({
+    activePage: "data",
+    history: ["data"],
+    historyIndex: 0,
+  });
   const [hasVisitedAnalysisPage, setHasVisitedAnalysisPage] = useState(false);
   const [hasVisitedSettingsPage, setHasVisitedSettingsPage] = useState(false);
   const { isResizing, sidebarWidth, startResizing } = useResizableSidebar();
+  const activePage = pageNavigation.activePage;
 
-  const navigateToPage = useCallback((nextPage: PageTab) => {
-    if (nextPage === "analysis") {
+  useEffect(() => {
+    if (activePage === "analysis") {
       setHasVisitedAnalysisPage(true);
     }
-    if (nextPage === "settings") {
+    if (activePage === "settings") {
       setHasVisitedSettingsPage(true);
     }
 
@@ -196,8 +206,56 @@ const DeviceAnalysisPage = () => {
         activeElement.blur();
       }
     }
+  }, [activePage]);
 
-    setActivePage(nextPage);
+  const navigateToPage = useCallback((nextPage: PageTab) => {
+    setPageNavigation((prevState) => {
+      if (prevState.activePage === nextPage) {
+        return prevState;
+      }
+
+      const truncatedHistory = prevState.history.slice(
+        0,
+        prevState.historyIndex + 1,
+      );
+      const nextHistory = [...truncatedHistory, nextPage];
+
+      return {
+        activePage: nextPage,
+        history: nextHistory,
+        historyIndex: nextHistory.length - 1,
+      };
+    });
+  }, []);
+
+  const handleNavigateBack = useCallback(() => {
+    setPageNavigation((prevState) => {
+      if (prevState.historyIndex <= 0) {
+        return prevState;
+      }
+
+      const nextIndex = prevState.historyIndex - 1;
+      return {
+        ...prevState,
+        activePage: prevState.history[nextIndex],
+        historyIndex: nextIndex,
+      };
+    });
+  }, []);
+
+  const handleNavigateForward = useCallback(() => {
+    setPageNavigation((prevState) => {
+      if (prevState.historyIndex >= prevState.history.length - 1) {
+        return prevState;
+      }
+
+      const nextIndex = prevState.historyIndex + 1;
+      return {
+        ...prevState,
+        activePage: prevState.history[nextIndex],
+        historyIndex: nextIndex,
+      };
+    });
   }, []);
 
   const handleAnalysisIntent = useCallback(() => {
@@ -397,6 +455,9 @@ const DeviceAnalysisPage = () => {
   const shouldMountAnalysisPanel = isAnalysisPageActive || hasVisitedAnalysisPage;
   const shouldMountSettingsPanel =
     isSettingsPageActive || hasVisitedSettingsPage;
+  const canNavigateBack = pageNavigation.historyIndex > 0;
+  const canNavigateForward =
+    pageNavigation.historyIndex < pageNavigation.history.length - 1;
 
   const handlePageTabSelect = useCallback((nextPage: string) => {
     if (
@@ -442,7 +503,11 @@ const DeviceAnalysisPage = () => {
         <DesktopCommandBar
           t={t}
           activePage={activePage}
+          canNavigateBack={canNavigateBack}
+          canNavigateForward={canNavigateForward}
           onAnalysisIntent={handleAnalysisIntent}
+          onNavigateBack={handleNavigateBack}
+          onNavigateForward={handleNavigateForward}
           onPageChange={handlePageTabSelect}
           onOpenOrigin={handleOpenOriginFromTitleBar}
           onOpenSettings={() => handlePageTabSelect("settings")}

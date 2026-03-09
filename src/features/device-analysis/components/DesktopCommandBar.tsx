@@ -1,4 +1,6 @@
 import {
+  ArrowLeft,
+  ArrowRight,
   BarChart2,
   Minus,
   Settings,
@@ -15,7 +17,11 @@ type ActivePage = "data" | "analysis" | "settings" | string;
 type DesktopCommandBarProps = {
   t: TranslateFn;
   activePage: ActivePage;
+  canNavigateBack?: boolean;
+  canNavigateForward?: boolean;
   onAnalysisIntent?: () => void;
+  onNavigateBack?: () => void;
+  onNavigateForward?: () => void;
   onPageChange?: (page: "data" | "analysis") => void;
   onMinimizeWindow?: () => void;
   onToggleMaximizeWindow?: () => void;
@@ -27,7 +33,11 @@ type DesktopCommandBarProps = {
 const DesktopCommandBar = ({
   t,
   activePage,
+  canNavigateBack = false,
+  canNavigateForward = false,
   onAnalysisIntent,
+  onNavigateBack,
+  onNavigateForward,
   onPageChange,
   onMinimizeWindow,
   onToggleMaximizeWindow,
@@ -40,6 +50,31 @@ const DesktopCommandBar = ({
   return (
     <header id="device-analysis-desktop-command-bar" className="da_top_menu_bar">
       <div className="da_top_menu_brand">{t("da_menu_app")}</div>
+
+      <div className="da_window_controls ml-4">
+        <button
+          id="device-analysis-window-nav-back-btn"
+          type="button"
+          aria-label={t("da_menu_page_back")}
+          title={t("da_menu_page_back")}
+          className="da_window_icon_btn"
+          onClick={onNavigateBack}
+          disabled={!canNavigateBack}
+        >
+          <ArrowLeft size={14} className="opacity-80" />
+        </button>
+        <button
+          id="device-analysis-window-nav-forward-btn"
+          type="button"
+          aria-label={t("da_menu_page_forward")}
+          title={t("da_menu_page_forward")}
+          className="da_window_icon_btn"
+          onClick={onNavigateForward}
+          disabled={!canNavigateForward}
+        >
+          <ArrowRight size={14} className="opacity-80" />
+        </button>
+      </div>
 
       <div className="flex-1" style={dragRegionStyle} />
 
