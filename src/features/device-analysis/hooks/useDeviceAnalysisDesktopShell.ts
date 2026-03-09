@@ -79,6 +79,10 @@ export const useDeviceAnalysisDesktopShell = ({
     sendDesktopCommand("close-window");
   }, [sendDesktopCommand]);
 
+  const handleCheckForUpdates = useCallback((): boolean => {
+    return sendDesktopCommand("check-for-updates");
+  }, [sendDesktopCommand]);
+
   useEffect(() => {
     if (!isWindowsDesktopShell) return undefined;
 
@@ -124,6 +128,7 @@ export const useDeviceAnalysisDesktopShell = ({
   ]);
 
   return {
+    handleCheckForUpdates,
     handleCloseWindow,
     handleMinimizeWindow,
     handleOpenOriginFromTitleBar,

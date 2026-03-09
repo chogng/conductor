@@ -161,3 +161,30 @@ Current file responsibilities:
 - `config.settings.json` stores settings only, including language, SS defaults, and `originExePath`
 
 Legacy combined stores are no longer migrated automatically. If you still have a historical `config.json` that contains both `templates` and `settings`, move the `settings` object into the sibling `config.settings.json` file before running the latest desktop build.
+
+## Desktop Auto-Update Release Checklist
+
+Use this checklist when publishing a new desktop version that clients should auto-update to.
+
+1. Bump version in `package.json` (for example `0.5.0` -> `0.5.1`).
+2. Commit and push code, then create/push the corresponding git tag.
+3. Ensure `GH_TOKEN` is set in your shell/session (must have release upload permission for `chogng/Device-Analysis-Studio`).
+4. Run:
+   ```powershell
+   npm run dist:desktop:publish
+   ```
+5. In GitHub Release assets, confirm updater files exist:
+   - `latest.yml`
+   - Windows installer (for example `.exe`)
+   - related `.blockmap` file(s)
+6. On a client machine with an older installed desktop build:
+   - Wait for auto-check (startup + interval), or
+   - Open Settings -> App Updates -> `Check for Updates`.
+7. Verify expected behavior:
+   - update is detected
+   - package downloads
+   - restart/install prompt appears
+
+Notes:
+- Auto-update is enabled for packaged Windows desktop builds.
+- Dev mode (`npm run dev:desktop`) does not represent real updater behavior.

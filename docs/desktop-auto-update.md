@@ -32,13 +32,15 @@ Update `package.json` build publish config:
 
 1. Bump `package.json` version.
 2. Ensure `GH_TOKEN` is set (token with repo release upload permission).
-3. Run:
+3. Ensure `build.publish[0].owner` and `build.publish[0].repo` are real values (not placeholders).
+4. Run:
 
 ```powershell
 npm run dist:desktop:publish
 ```
 
-This builds desktop artifacts and uploads release assets for updater metadata (`latest.yml`, installer, blockmap).
+This command now runs a pre-check (`verify:auto-update-config`) before publishing.
+It then builds desktop artifacts and uploads release assets for updater metadata (`latest.yml`, installer, blockmap).
 
 ## 3. Client behavior
 

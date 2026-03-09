@@ -61,7 +61,13 @@ type StorageSettings = {
   onChoosePath: () => Promise<void> | void;
 };
 
+type AppUpdateSettings = {
+  isAvailable: boolean;
+  onCheckForUpdates: () => boolean | Promise<boolean>;
+};
+
 type DeviceAnalysisSettingsPanelProps = {
+  appUpdateSettings: AppUpdateSettings;
   language: LanguageCode;
   onLanguageChange: (language: LanguageCode) => Promise<void> | void;
   originSettings: OriginSettings;
@@ -71,8 +77,10 @@ type DeviceAnalysisSettingsPanelProps = {
 
 const feedbackClassName = (type: Feedback["type"]): string =>
   `text-sm ${type === "error" ? "text-red-500" : "text-emerald-600"}`;
+const IDLE_FEEDBACK: Feedback = { type: "idle", message: "" };
 
 const DeviceAnalysisSettingsPanel = ({
+  appUpdateSettings,
   language,
   onLanguageChange,
   originSettings,
@@ -110,6 +118,8 @@ const DeviceAnalysisSettingsPanel = ({
   const [postCommandsDraft, setPostCommandsDraft] = useState(
     originSettings.plotPostCommandsText ?? "",
   );
+  const [appUpdateChecking, setAppUpdateChecking] = useState(false);
+  const [appUpdateFeedback, setAppUpdateFeedback] = useState<Feedback>(IDLE_FEEDBACK);
 
   useEffect(() => {
     setXyPairsDraft(originSettings.plotXyPairs ?? "");
@@ -161,6 +171,75 @@ const DeviceAnalysisSettingsPanel = ({
             />
           </div>
         </div>
+      </Card>
+
+      <Card
+        id="device-analysis-settings-app-update-card"
+        variant="panel"
+        className="p-4 space-y-4 mb-4"
+      >
+        <div>
+          <h3 className="text-base font-semibold text-text-primary">
+            {t("da_settings_app_update_title")}
+          </h3>
+          <p className="text-sm text-text-secondary mt-1">
+            {t("da_settings_app_update_desc")}
+          </p>
+        </div>
+
+        <div className="flex items-center justify-end">
+          <Button
+            id="device-analysis-settings-app-update-check-btn"
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="h-[38px] whitespace-nowrap"
+            onClick={() => {
+              void (async () => {
+                setAppUpdateFeedback(IDLE_FEEDBACK);
+                setAppUpdateChecking(true);
+                try {
+                  const started = await appUpdateSettings.onCheckForUpdates();
+                  if (started) {
+                    setAppUpdateFeedback({
+                      type: "success",
+                      message: t("da_settings_app_update_check_started"),
+                    });
+                  } else {
+                    setAppUpdateFeedback({
+                      type: "error",
+                      message: t("da_settings_app_update_check_failed"),
+                    });
+                  }
+                } catch {
+                  setAppUpdateFeedback({
+                    type: "error",
+                    message: t("da_settings_app_update_check_failed"),
+                  });
+                } finally {
+                  setAppUpdateChecking(false);
+                }
+              })();
+            }}
+            disabled={!appUpdateSettings.isAvailable || appUpdateChecking}
+          >
+            {appUpdateChecking
+              ? t("da_settings_app_update_checking")
+              : t("da_settings_app_update_check_btn")}
+          </Button>
+        </div>
+
+        {!appUpdateSettings.isAvailable ? (
+          <p className="text-sm text-text-secondary">
+            {t("da_settings_app_update_unavailable")}
+          </p>
+        ) : null}
+
+        {appUpdateFeedback.message ? (
+          <p className={feedbackClassName(appUpdateFeedback.type)}>
+            {appUpdateFeedback.message}
+          </p>
+        ) : null}
       </Card>
 
       <Card

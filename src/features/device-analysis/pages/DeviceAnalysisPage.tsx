@@ -472,6 +472,7 @@ const DeviceAnalysisPage = () => {
   }, [navigateToPage]);
 
   const {
+    handleCheckForUpdates,
     handleCloseWindow,
     handleMinimizeWindow,
     handleOpenOriginFromTitleBar,
@@ -622,6 +623,10 @@ const DeviceAnalysisPage = () => {
               axis="y"
             >
               <DeviceAnalysisSettingsPanel
+                appUpdateSettings={{
+                  isAvailable: isWindowsDesktopShell,
+                  onCheckForUpdates: handleCheckForUpdates,
+                }}
                 language={language}
                 onLanguageChange={handleLanguageChange}
                 originSettings={originSettings}

@@ -20,7 +20,8 @@
     "build:desktop": "npm run build:origin-worker && npm run build:electron && npm run build:web",
     "pack:desktop": "npm run build:desktop && electron-builder --dir",
     "dist:desktop": "npm run build:desktop && electron-builder",
-    "dist:desktop:publish": "npm run build:desktop && electron-builder --publish always"
+    "verify:auto-update-config": "node scripts/verify-auto-update-config.mjs",
+    "dist:desktop:publish": "npm run verify:auto-update-config && npm run build:desktop && electron-builder --publish always"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.16",
@@ -71,8 +72,8 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "YOUR_GITHUB_OWNER",
-        "repo": "YOUR_GITHUB_REPO",
+        "owner": "chogng",
+        "repo": "Device-Analysis-Studio",
         "releaseType": "release"
       }
     ],
