@@ -57,7 +57,7 @@ type CanvasMultiLineChartProps = {
   className?: string;
 };
 
-const DEFAULT_PADDING: Padding = { top: 10, right: 10, bottom: 10, left: 10 };
+const DEFAULT_PADDING: Padding = { top: 20, right: 10, bottom: 10, left: 10 };
 
 const clamp = (value: number, min: number, max: number): number =>
   Math.max(min, Math.min(max, value));

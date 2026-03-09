@@ -5,8 +5,16 @@ def escape_labtalk_path(path_value: str) -> str:
     return str(path_value).replace("\\", "\\\\").replace('"', '\\"')
 
 
+def normalize_origin_display_text(text_value: str) -> str:
+    text = str(text_value or "")
+    # Origin text objects may interpret "\" and "_" as rich-text markers.
+    text = text.replace("\\", " ").replace("_", " ")
+    return " ".join(text.split())
+
+
 def escape_labtalk_text(text_value: str) -> str:
-    return str(text_value).replace("\\", "\\\\").replace('"', '\\"')
+    normalized = normalize_origin_display_text(text_value)
+    return normalized.replace("\\", "\\\\").replace('"', '\\"')
 
 
 def run_csv_import(
@@ -37,4 +45,3 @@ def run_csv_import(
             f"{label_prefix} failed at setting workbook title",
         )
     run_command_list(op_module, import_post_commands or [], "Import post-command")
-

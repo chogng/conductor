@@ -1,5 +1,46 @@
 import subprocess
 import time
+import os
+
+
+def parse_bool_env(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+
+    normalized = str(raw).strip().lower()
+    if not normalized:
+        return default
+    if normalized in ("1", "true", "yes", "on"):
+        return True
+    if normalized in ("0", "false", "no", "off"):
+        return False
+    return default
+
+
+def count_origin_processes() -> int:
+    names = ("Origin64.exe", "Origin.exe")
+    total = 0
+    for name in names:
+        try:
+            result = subprocess.run(
+                ["tasklist", "/fi", f"imagename eq {name}", "/fo", "csv", "/nh"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except Exception:
+            continue
+
+        if result.returncode != 0:
+            continue
+
+        lines = [line.strip() for line in str(result.stdout or "").splitlines() if line.strip()]
+        for line in lines:
+            if line.lower().startswith("info:"):
+                continue
+            total += 1
+    return total
 
 
 def extract_hresult(exc: Exception):
@@ -98,16 +139,59 @@ def get_originpro_module(ctx, import_error_message: str):
 
 
 def connect_originpro(ctx, op_module, max_attempts: int, origin_exe: str):
+    origin_process_count = None
+    try:
+        origin_process_count = count_origin_processes()
+        ctx.log(f"Origin process count before attach: {origin_process_count}")
+    except Exception:
+        # Diagnostic only; never fail attach flow because of process counting.
+        pass
+
+    if isinstance(origin_process_count, int) and origin_process_count > 1:
+        strict_single_process = parse_bool_env(
+            "ORIGIN_STRICT_SINGLE_PROCESS",
+            default=False,
+        )
+        message = (
+            f"Detected {origin_process_count} Origin processes. "
+            "This may attach to a different instance with different runtime UI state."
+        )
+        if strict_single_process:
+            ctx.write_error(
+                code="ORIGIN_MULTI_PROCESS_DETECTED",
+                stage="PRECHECK",
+                message=(
+                    "Multiple Origin processes are running. "
+                    "Please close extra Origin windows/processes and retry."
+                ),
+                extra={"originProcessCount": origin_process_count},
+            )
+        else:
+            ctx.log(f"WARNING: {message} Continue with originpro attach.")
+
+    attach = getattr(op_module, "attach", None)
     set_show = getattr(op_module, "set_show", None)
     launch_triggered = False
     last_exc = None
 
     for attempt in range(1, max_attempts + 1):
         try:
+            attached = False
+            if callable(attach):
+                try:
+                    attach()
+                    attached = True
+                    ctx.log(f"originpro attach() succeeded on attempt {attempt}.")
+                except Exception as attach_exc:
+                    ctx.log(f"originpro attach() failed on attempt {attempt}: {attach_exc}")
+
             if callable(set_show):
                 set_show(True)
             health = lt_exec(op_module, "sec -p 0;")
-            ctx.log(f"originpro attach succeeded on attempt {attempt}. Health={health}")
+            ctx.log(
+                f"originpro session ready on attempt {attempt}. "
+                f"attachUsed={attached} Health={health}"
+            )
             return
         except Exception as exc:
             last_exc = exc
@@ -127,4 +211,3 @@ def connect_originpro(ctx, op_module, max_attempts: int, origin_exe: str):
                 message=f"Failed to attach Origin via originpro: {last_exc}",
                 exc=last_exc if isinstance(last_exc, Exception) else None,
             )
-

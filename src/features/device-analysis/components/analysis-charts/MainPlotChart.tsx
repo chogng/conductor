@@ -244,7 +244,7 @@ const MainPlotChart = memo(function MainPlotChart({
     >
       <LineChart
         data={[]}
-        margin={{ top: 5, right: 15, left: 45, bottom: 28 }}
+        margin={{ top: 25, right: 15, left: 45, bottom: 28 }}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
         onMouseUp={onMouseUp}

@@ -17,6 +17,7 @@ type OriginBridgeErrorCode =
   | "ORIGIN_BATCH_INPUT_DIR_NOT_FOUND"
   | "ORIGIN_EXE_NOT_FOUND"
   | "ORIGIN_BATCH_NO_CSV_FILES"
+  | "ORIGIN_MULTI_PROCESS_DETECTED"
   | "ORIGIN_PYTHON_NOT_FOUND"
   | "ORIGIN_PYWIN32_MISSING"
   | "ORIGIN_COM_CREATE_FAILED"
@@ -242,6 +243,9 @@ export const inferOriginSuggestionKey = (
   }
   if (code === "ORIGIN_EXE_NOT_FOUND") return "da_origin_error_tip_reselect_exe";
   if (code === "ORIGIN_BATCH_NO_CSV_FILES") return "da_origin_error_tip_choose_csv_folder";
+  if (code === "ORIGIN_MULTI_PROCESS_DETECTED") {
+    return "da_origin_error_tip_close_extra_origin";
+  }
   if (code === "ORIGIN_PYTHON_NOT_FOUND" || code === "ORIGIN_PYWIN32_MISSING") {
     return "da_origin_error_tip_install_python";
   }

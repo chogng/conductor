@@ -32,6 +32,20 @@ function Get-HResultHex {
   }
 }
 
+function Build-ErrorMessage {
+  param(
+    [string]$Prefix,
+    [System.Exception]$ExceptionObject
+  )
+
+  $base = if ($Prefix) { $Prefix.Trim() } else { 'Origin worker failed.' }
+  $hresult = Get-HResultHex -ExceptionObject $ExceptionObject
+  if ($hresult) {
+    return ($base + ' HRESULT=' + $hresult + '.')
+  }
+  return $base
+}
+
 Ensure-Dir -PathValue $WorkDir
 $logPath = Join-Path $WorkDir 'originbridge.log'
 $errorPath = Join-Path $WorkDir 'error.txt'
@@ -161,10 +175,7 @@ try {
 
   if ($null -eq $origin) {
     $extra = if ($null -ne $launchError) { ' (configured executable launch also failed)' } else { '' }
-    $msg = 'Failed to attach running Origin COM object' + $extra + '.'
-    if ($null -ne $comException -and $comException.Message) {
-      $msg = $msg + ' ' + $comException.Message
-    }
+    $msg = Build-ErrorMessage -Prefix ('Failed to attach running Origin COM object' + $extra + '.') -ExceptionObject $comException
     Fail-Worker -Code 'ORIGIN_COM_CREATE_FAILED' -Stage 'COM_CREATE' -Message $msg -ExceptionObject $comException
   }
 
@@ -186,7 +197,7 @@ try {
       Write-OriginLog 'Origin BeginSession succeeded.'
     } catch {
       $mainException = $_.Exception
-      $message = 'Origin BeginSession failed: ' + $mainException.Message
+      $message = Build-ErrorMessage -Prefix 'Origin BeginSession failed.' -ExceptionObject $mainException
       Fail-Worker -Code 'ORIGIN_SESSION_BEGIN_FAILED' -Stage 'SESSION_BEGIN' -Message $message -ExceptionObject $mainException
     }
 
@@ -197,7 +208,7 @@ try {
         Write-OriginLog ('Health check Execute() returned: ' + $healthResult)
       } catch {
         $mainException = $_.Exception
-        $message = 'Origin health-check execute failed: ' + $mainException.Message
+        $message = Build-ErrorMessage -Prefix 'Origin health-check execute failed.' -ExceptionObject $mainException
         Fail-Worker -Code 'ORIGIN_HEALTH_EXEC_FAILED' -Stage 'HEALTH_CHECK' -Message $message -ExceptionObject $mainException
       }
     } else {
@@ -242,7 +253,7 @@ try {
           Write-OriginLog 'CSV fallback plot succeeded.'
         } catch {
           $mainException = $_.Exception
-          $message = 'CSV fallback plot failed: ' + $mainException.Message
+          $message = Build-ErrorMessage -Prefix 'CSV fallback plot failed.' -ExceptionObject $mainException
           Fail-Worker -Code 'ORIGIN_CSV_FALLBACK_FAILED' -Stage 'CSV_FALLBACK' -Message $message -ExceptionObject $mainException
         }
       }
@@ -253,7 +264,7 @@ try {
     exit 0
   } catch {
     $mainException = $_.Exception
-    $message = if ($mainException) { $mainException.Message } else { 'Unknown Origin worker failure.' }
+    $message = Build-ErrorMessage -Prefix 'Unknown Origin worker failure.' -ExceptionObject $mainException
     Fail-Worker -Code 'ORIGIN_WORKER_RUNTIME_FAILED' -Stage 'RUNTIME' -Message $message -ExceptionObject $mainException
   } finally {
     if ($null -ne $origin) {
@@ -267,6 +278,6 @@ try {
   }
 } catch {
   $fatal = $_.Exception
-  $message = if ($fatal) { $fatal.Message } else { 'Unknown fatal Origin worker failure.' }
+  $message = Build-ErrorMessage -Prefix 'Unknown fatal Origin worker failure.' -ExceptionObject $fatal
   Fail-Worker -Code 'ORIGIN_WORKER_FATAL' -Stage 'FATAL' -Message $message -ExceptionObject $fatal
 }

@@ -2588,7 +2588,7 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
 
               <div ref={mainChartContainerRef} className="h-[500px] min-h-[500px] flex-shrink-0">
                 {isMainChartSizeReady ? (<ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1} className="!outline-none">
-                  <LineChart data={[]} margin={{ top: 5, right: 15, left: 45, bottom: 28 }} onMouseDown={handleSsMouseDown} onMouseMove={handleSsMouseMove} onMouseUp={handleSsMouseUp} onMouseLeave={handleSsMouseUp}>
+                  <LineChart data={[]} margin={{ top: 25, right: 15, left: 45, bottom: 28 }} onMouseDown={handleSsMouseDown} onMouseMove={handleSsMouseMove} onMouseUp={handleSsMouseUp} onMouseLeave={handleSsMouseUp}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#333" opacity={0.2}/>
                     <XAxis dataKey="x" type="number" domain={xTicks ? [xTicks[0], xTicks[xTicks.length - 1]] : xDomain} ticks={xTicks ?? undefined} interval={xLabelInterval} 
             // ========== X轴标�?(底部标题) 位置设置 ==========
@@ -2684,7 +2684,7 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
                   </div>
                   <div ref={diagnosticsChartContainerRef} className="h-[260px] min-h-[260px] flex-shrink-0">
                     {isDiagnosticsChartSizeReady ? (<ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1} className="!outline-none">
-                      <LineChart data={[]} margin={{ top: 5, right: 135, left: 45, bottom: 20 }}>
+                      <LineChart data={[]} margin={{ top: 20, right: 135, left: 45, bottom: 20 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#333" opacity={0.2}/>
                         <XAxis dataKey="x" type="number" domain={xTicks ? [xTicks[0], xTicks[xTicks.length - 1]] : xDomain} ticks={xTicks ?? undefined} interval={xLabelInterval} tickFormatter={(v: any) => formatNumber(v, { digits: xTickDigits })} stroke="currentColor" className="text-text-secondary text-xs" tick={{ fill: "currentColor", opacity: 0.6 }} allowDataOverflow/>
                         <YAxis label={{
