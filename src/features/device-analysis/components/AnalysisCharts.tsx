@@ -78,6 +78,11 @@ type OriginCsvBridge = {
             type?: number;
             xyPairs?: string;
         };
+        capabilities?: {
+            axis?: {
+                commands?: string[];
+            };
+        };
     }) => Promise<unknown>;
 };
 const useContainerSizeReady = (containerRef: any, enabled: any = true) => {
@@ -706,6 +711,9 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
                 normalizedPlotOptions.command.trim().length > 0;
             const hasCustomXyPairs = String(normalizedPlotOptions.xyPairs || "").trim() !==
                 DEFAULT_ORIGIN_PLOT_OPTIONS.xyPairs;
+            const originYAxisTypeCommand = String(axis?.yScale ?? "linear") === "log"
+                ? "layer.y.type=2"
+                : "layer.y.type=1";
             for (const pkg of payloads) {
                 const effectiveXyPairs = !hasCustomPlotCommand && !hasCustomXyPairs
                     ? pkg.xyPairs
@@ -723,6 +731,11 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
                         postCommands: normalizedPlotOptions.postCommands,
                         type: normalizedPlotOptions.type,
                         xyPairs: effectiveXyPairs,
+                    },
+                    capabilities: {
+                        axis: {
+                            commands: [originYAxisTypeCommand],
+                        },
                     },
                 });
             }
@@ -776,6 +789,7 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
     }, [
         buildOriginCsvPayloadsForSelectedCanvases,
         exportOriginZipFallbackForSelectedCanvases,
+        axis?.yScale,
         getDesktopOriginBridge,
         originOpenPlotOptions,
         showToast,
@@ -2177,10 +2191,10 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
         <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} onSelectAllOriginCanvases={selectAllOriginCanvases} onClearOriginCanvasSelection={clearOriginCanvasSelection} yUnitFactor={currentUnitMeta.factor} yUnitLabel={currentUnitMeta.label} yScale={overviewYScaleType}/>
       </aside>
 
-      <ScrollArea className="md:min-h-0" axis="y">
-        <section className="flex flex-col gap-4 pr-1" aria-label="Device Analysis results">
+      <ScrollArea className="md:min-h-0" axis="y" viewportClassName="flex flex-col min-h-full">
+        <section className="flex flex-col flex-1 gap-1 pr-1" aria-label="Device Analysis results">
           <section aria-label="Device Analysis chart">
-        <Card variant="panel">
+        <Card variant="panel" className="flex flex-col">
 
           <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
             <div className="flex items-center gap-4 flex-wrap">
@@ -2267,7 +2281,7 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
             ]} aria-label="Y scale" className="w-fit da-neutral-select" stableWidth data-cta="Device Analysis" data-cta-position="y-scale" data-cta-copy="y scale"/>)}
                 </div>
 
-                {activeFile?.series?.length ? (<div className="flex items-center gap-1">
+                {effectivePlotType !== "iv" && activeFile?.series?.length ? (<div className="flex items-center gap-1">
                     <Select id="device-analysis-curve-select" size="md" value={focusedSeriesId ?? ""} onChange={(next: any) => setFocusedSeriesId(next)} options={(activeFile?.series ?? []).map((s: any) => ({
                 value: s.id,
                 label: s.name,
@@ -2725,7 +2739,7 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
         </Card>
       </section>
 
-          {activeFile?.series?.length ? (<Card variant="panel">
+          {activeFile?.series?.length ? (<Card variant="panel" className="flex flex-col flex-1">
             <div className="flex items-center justify-between gap-3 mb-3">
               <h3 className="text-sm font-semibold text-text-primary">
                 Calculated Parameters
