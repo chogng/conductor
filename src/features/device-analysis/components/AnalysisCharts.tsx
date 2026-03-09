@@ -561,6 +561,15 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
             return "export";
         return raw.length > max ? raw.slice(0, max) : raw;
     };
+    const sanitizeOriginDisplayName = (name: any, { max = 180 }: any = {}) => {
+        const raw = String(name || "")
+            .replace(/[\\_]+/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+        if (!raw)
+            return "device analysis";
+        return raw.length > max ? raw.slice(0, max).trim() : raw;
+    };
     const buildOriginXyPairs = (pairCount: number) => {
         const safePairCount = Number.isFinite(pairCount) ? Math.max(1, Math.floor(pairCount)) : 1;
         const chunks = new Array(safePairCount);
@@ -582,21 +591,20 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
             return null;
         }
         const curveEntries = selectedSeries
-            .map((series: any, idx: number) => {
+            .map((series: any) => {
             const groupIndex = Number(series?.groupIndex);
             const xArr = canvasFile?.xGroups?.[groupIndex];
             const yArr = series?.y;
             const rowCount = Math.min(xArr?.length ?? 0, yArr?.length ?? 0);
             if (!xArr || !yArr || rowCount <= 0)
                 return null;
-            return { id: idx + 1, xArr, yArr, rowCount };
+            return { xArr, yArr, rowCount };
         })
             .filter(Boolean);
         if (!curveEntries.length) {
             return null;
         }
         const maxRowCount = curveEntries.reduce((max: number, entry: any) => Math.max(max, entry.rowCount), 0);
-        const headers = curveEntries.flatMap((entry: any) => [`x${entry.id}`, `y${entry.id}`]);
         const rows = new Array(maxRowCount);
         for (let i = 0; i < maxRowCount; i++) {
             const row: any[] = [];
@@ -606,10 +614,10 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
             }
             rows[i] = row;
         }
-        const csvText = Papa.unparse({ fields: headers, data: rows });
+        const csvText = Papa.unparse(rows);
         const base = sanitizeFilename(canvasFile?.fileName ?? "device_analysis").replace(/\.csv$/i, "");
         const csvName = `${base}__all_curves.csv`;
-        const seriesName = base || "device_analysis";
+        const seriesName = sanitizeOriginDisplayName(base);
         return {
             csvName,
             csvText: "\uFEFF" + csvText,

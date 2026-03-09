@@ -147,11 +147,6 @@ export const buildDeviceAnalysisCsvExports = (
 
       if (!groups.length) continue;
 
-      const headers: string[] = [];
-      for (let groupIndex = 0; groupIndex < groups.length; groupIndex += 1) {
-        headers.push(`x${groupIndex + 1}`, `y${groupIndex + 1}`);
-      }
-
       const rowCount = Math.max(
         ...groups.map((group) =>
           Math.min(group.xArr.length ?? 0, group.yArr.length ?? 0),
@@ -167,7 +162,7 @@ export const buildDeviceAnalysisCsvExports = (
         rows[rowIndex] = row;
       }
 
-      const csvText = Papa.unparse({ fields: headers, data: rows });
+      const csvText = Papa.unparse(rows);
       const base = sanitizeDeviceAnalysisFilename(originalFileName).replace(
         /\.csv$/i,
         "",
@@ -436,7 +431,7 @@ plotxy iy:=${pairsExpr} plot:=202;
 export const DEVICE_ANALYSIS_ORIGIN_README = `Device Analysis -> Origin package
 
 Files:
-- *.csv: exported data (x1,y1,x2,y2,...)
+- *.csv: exported data columns in x1,y1,x2,y2,... order (no header row)
 - *.ogs: Origin LabTalk script to import CSV and plot automatically
 
 How to use (recommended):
