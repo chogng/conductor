@@ -887,13 +887,21 @@ textarea {
   position: absolute;
   border-radius: 9999px;
   background: transparent;
-  opacity: 0.6;
+  opacity: 0;
+  pointer-events: none;
   transition: opacity 0.15s ease;
   user-select: none;
 }
 
 .scroll-area:hover .scroll-area__track {
   opacity: 1;
+  pointer-events: auto;
+}
+
+.scroll-area__track:active,
+.scroll-area__track:focus-within {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .scroll-area__track--y {

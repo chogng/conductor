@@ -530,7 +530,11 @@ const DeviceAnalysisPage = () => {
               : "pointer-events-none opacity-0"
           }`}
         >
-          <div className="da_page_scroll h-full min-h-0 overflow-y-auto xl:overflow-hidden p-1 pt-0">
+          <ScrollArea
+            className="da_page_scroll h-full min-h-0"
+            viewportClassName="p-1 pt-0 xl:!overflow-hidden"
+            axis="y"
+          >
             <DeviceAnalysisDataPanel
               deviceAnalysisSettings={deviceAnalysisSettings}
               ensurePreviewRows={ensurePreviewRowsAny}
@@ -559,7 +563,7 @@ const DeviceAnalysisPage = () => {
               subscribePreviewRowsVersion={subscribePreviewRowsVersion}
               t={t}
             />
-          </div>
+          </ScrollArea>
         </section>
 
         <section

@@ -101,6 +101,15 @@ export const parseLegacyExtractionError = (
         },
       }),
     },
+    {
+      regex:
+        /^(?:(.+?):\s*)?Unable to determine curve type from Var1\/Var2 or nearby headers\. Please check the template, or use file-name keywords\.$/i,
+      map: (matched) => ({
+        fileName: matched[1] || null,
+        messageKey: "da_extractCurveTypeUndeterminedFromVarHints",
+        messageParams: {},
+      }),
+    },
   ];
 
   for (const pattern of patterns) {

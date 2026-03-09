@@ -1056,7 +1056,7 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
             }
         }
         if (!curveType && hasVarConfig) {
-            throw new Error(`${fileName}: Unable to determine curve type from Var1/Var2 or nearby headers. Please check the template, or use file-name keywords.`);
+            throw createLocalizedError("da_extractCurveTypeUndeterminedFromVarHints", null, `${fileName}: Unable to determine curve type from Var1/Var2 or nearby headers. Please check the template, or use file-name keywords.`);
         }
     }
     const legendVarToken = curveType && var1Token && var2Token && var1Token !== var2Token

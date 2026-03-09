@@ -2676,7 +2676,7 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
         </Card>
       </section>
 
-          {activeFile?.series?.length ? (<Card variant="panel" className="overflow-x-auto">
+          {activeFile?.series?.length ? (<Card variant="panel">
             <div className="flex items-center justify-between gap-3 mb-3">
               <h3 className="text-sm font-semibold text-text-primary">
                 Calculated Parameters
@@ -2687,48 +2687,50 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
               </div>
             </div>
 
-            <table className="min-w-[980px] w-full text-sm text-left border-collapse">
-              <thead className="sticky top-0 bg-bg-surface z-10">
-                <tr className="border-b border-border">
-                  <th className="p-2 text-xs font-semibold text-text-secondary">
-                    Series
-                  </th>
-                  <th className="p-2 text-xs font-semibold text-text-secondary">
-                    |I|on
-                  </th>
-                  <th className="p-2 text-xs font-semibold text-text-secondary">
-                    x@Ion
-                  </th>
-                  <th className="p-2 text-xs font-semibold text-text-secondary">
-                    |I|off
-                  </th>
-                  <th className="p-2 text-xs font-semibold text-text-secondary">
-                    x@Ioff
-                  </th>
-                  <th className="p-2 text-xs font-semibold text-text-secondary">
-                    Ion/Ioff
-                  </th>
-                  <th className="p-2 text-xs font-semibold text-text-secondary">
-                    {gmUi.metricHeader}
-                  </th>
-                  <th className="p-2 text-xs font-semibold text-text-secondary">
-                    {gmUi.metricXHeader}
-                  </th>
-                  <th className="p-2 text-xs font-semibold text-text-secondary">
-                    SS
-                  </th>
-                  <th className="p-2 text-xs font-semibold text-text-secondary">
-                    x@SS
-                  </th>
-                  <th className="p-2 text-xs font-semibold text-text-secondary">
-                    Jon (if Area)
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {metricsRows.map((row: any) => (<CalculatedParametersRow key={row.id} row={row} buildSsTooltip={buildSsTooltip}/>))}
-              </tbody>
-            </table>
+            <ScrollArea axis="x" className="w-full">
+              <table className="min-w-[980px] w-full text-sm text-left border-collapse">
+                <thead className="sticky top-0 bg-bg-surface z-10">
+                  <tr className="border-b border-border">
+                    <th className="p-2 text-xs font-semibold text-text-secondary">
+                      Series
+                    </th>
+                    <th className="p-2 text-xs font-semibold text-text-secondary">
+                      |I|on
+                    </th>
+                    <th className="p-2 text-xs font-semibold text-text-secondary">
+                      x@Ion
+                    </th>
+                    <th className="p-2 text-xs font-semibold text-text-secondary">
+                      |I|off
+                    </th>
+                    <th className="p-2 text-xs font-semibold text-text-secondary">
+                      x@Ioff
+                    </th>
+                    <th className="p-2 text-xs font-semibold text-text-secondary">
+                      Ion/Ioff
+                    </th>
+                    <th className="p-2 text-xs font-semibold text-text-secondary">
+                      {gmUi.metricHeader}
+                    </th>
+                    <th className="p-2 text-xs font-semibold text-text-secondary">
+                      {gmUi.metricXHeader}
+                    </th>
+                    <th className="p-2 text-xs font-semibold text-text-secondary">
+                      SS
+                    </th>
+                    <th className="p-2 text-xs font-semibold text-text-secondary">
+                      x@SS
+                    </th>
+                    <th className="p-2 text-xs font-semibold text-text-secondary">
+                      Jon (if Area)
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {metricsRows.map((row: any) => (<CalculatedParametersRow key={row.id} row={row} buildSsTooltip={buildSsTooltip}/>))}
+                </tbody>
+              </table>
+            </ScrollArea>
           </Card>) : null}
         </section>
       </ScrollArea>

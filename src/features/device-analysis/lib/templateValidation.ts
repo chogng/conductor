@@ -80,20 +80,7 @@ export function validateVarPair(
     return { ok: true, mode: "empty", vg, vd, message: "" };
   }
 
-  if (vgMode === "empty" || vdMode === "empty") {
-    return {
-      ok: false,
-      mode: "invalid",
-      vg,
-      vd,
-      message:
-        typeof t === "function"
-          ? t("da_varPairBothOrNeither")
-          : "Var1 and Var2 must both be empty or both filled.",
-    };
-  }
-
-  if (vgMode !== vdMode) {
+  if (vgMode !== "empty" && vdMode !== "empty" && vgMode !== vdMode) {
     return {
       ok: false,
       mode: "invalid",
@@ -106,7 +93,8 @@ export function validateVarPair(
     };
   }
 
-  return { ok: true, mode: vgMode, vg, vd, message: "" };
+  const mode = vgMode !== "empty" ? vgMode : vdMode;
+  return { ok: true, mode, vg, vd, message: "" };
 }
 
 export function validateCurveTaggingMode(

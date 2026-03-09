@@ -25,6 +25,13 @@ type SeriesItem = {
   data?: SeriesPoint[];
 };
 
+type DisplayPoint = {
+  x?: unknown;
+  [key: string]: unknown;
+};
+
+const displayDownsampleCache = new WeakMap<object, Map<number, unknown[]>>();
+
 export const buildPoints = (
   xArr: ArrayLike<unknown> | null | undefined,
   yArr: ArrayLike<unknown> | null | undefined,
@@ -46,6 +53,37 @@ export const buildPoints = (
       yAbsPositive: yAbs !== null && yAbs > 0 ? yAbs : null,
     };
   }
+  return out;
+};
+
+export const downsamplePointsForDisplay = <T extends DisplayPoint>(
+  points: T[] | null | undefined,
+  maxPointsRaw = 600,
+): T[] => {
+  if (!Array.isArray(points)) return [];
+  const n = points.length;
+  const maxPoints = Math.floor(Number(maxPointsRaw));
+  if (!Number.isFinite(maxPoints) || maxPoints < 2 || n <= maxPoints) return points;
+
+  const cacheBucketKey = points as unknown as object;
+  let cacheBucket = displayDownsampleCache.get(cacheBucketKey);
+  if (!cacheBucket) {
+    cacheBucket = new Map<number, unknown[]>();
+    displayDownsampleCache.set(cacheBucketKey, cacheBucket);
+  }
+  const cached = cacheBucket.get(maxPoints);
+  if (cached) return cached as T[];
+
+  const out = new Array<T>(maxPoints);
+  const last = n - 1;
+  for (let i = 0; i < maxPoints; i++) {
+    const idx = Math.round((i * last) / (maxPoints - 1));
+    out[i] = points[idx];
+  }
+  out[0] = points[0];
+  out[maxPoints - 1] = points[last];
+
+  cacheBucket.set(maxPoints, out);
   return out;
 };
 
@@ -424,4 +462,3 @@ export const preserveScrollPosition = <T>(action: () => T): T => {
   });
   return result;
 };
-

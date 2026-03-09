@@ -53,23 +53,86 @@ type TranslateFn = (
 const toTrimmedString = (value: unknown): string =>
   typeof value === "string" && value.trim() ? value.trim() : "";
 
+const tryParseObject = (text: string): OriginBridgeErrorPayload | null => {
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as OriginBridgeErrorPayload;
+    }
+  } catch {
+    // Keep fallback behavior below.
+  }
+  return null;
+};
+
+const extractFirstJsonObject = (text: string): string | null => {
+  const start = text.indexOf("{");
+  if (start < 0) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = start; i < text.length; i += 1) {
+    const ch = text[i];
+
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (ch === "\"") {
+        inString = false;
+      }
+      continue;
+    }
+
+    if (ch === "\"") {
+      inString = true;
+      continue;
+    }
+
+    if (ch === "{") {
+      depth += 1;
+      continue;
+    }
+
+    if (ch === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return text.slice(start, i + 1);
+      }
+    }
+  }
+
+  return null;
+};
+
 const parseStructuredOriginErrorMessage = (
   message: unknown,
 ): OriginBridgeErrorPayload | null => {
   const raw = toTrimmedString(message);
-  if (!raw.startsWith(ORIGIN_BRIDGE_ERROR_PREFIX)) return null;
+  if (!raw) return null;
 
-  const jsonText = raw.slice(ORIGIN_BRIDGE_ERROR_PREFIX.length).trim();
-  if (!jsonText) return null;
+  const prefixIdx = raw.indexOf(ORIGIN_BRIDGE_ERROR_PREFIX);
+  if (prefixIdx < 0) return null;
 
-  try {
-    const parsed = JSON.parse(jsonText);
-    if (parsed && typeof parsed === "object") return parsed;
-  } catch {
-    // Keep fallback behavior below.
-  }
+  const textAfterPrefix = raw
+    .slice(prefixIdx + ORIGIN_BRIDGE_ERROR_PREFIX.length)
+    .trim();
+  if (!textAfterPrefix) return null;
 
-  return null;
+  const direct = tryParseObject(textAfterPrefix);
+  if (direct) return direct;
+
+  const jsonFragment = extractFirstJsonObject(textAfterPrefix);
+  if (!jsonFragment) return null;
+
+  return tryParseObject(jsonFragment);
 };
 
 export const parseOriginBridgeError = (
@@ -83,8 +146,10 @@ export const parseOriginBridgeError = (
       ? errorLike.message
       : "";
   const messageText = toTrimmedString(messageFromError || String(errorLike ?? ""));
+  const hasMessageToken = (token: string) =>
+    messageText === token || messageText.includes(token);
 
-  if (messageText === "__ORIGIN_EXE_REQUIRED__") {
+  if (hasMessageToken("__ORIGIN_EXE_REQUIRED__")) {
     return {
       code: "ORIGIN_EXE_REQUIRED",
       stage: null,
@@ -95,7 +160,7 @@ export const parseOriginBridgeError = (
     };
   }
 
-  if (messageText === "__ORIGIN_BATCH_INPUT_DIR_REQUIRED__") {
+  if (hasMessageToken("__ORIGIN_BATCH_INPUT_DIR_REQUIRED__")) {
     return {
       code: "ORIGIN_BATCH_INPUT_DIR_REQUIRED",
       stage: null,

@@ -329,6 +329,7 @@ export const usePreviewColumnLayout = ({ autoColumnWidthsPx, columnCount, column
 export const usePreviewViewportSync = ({ previewFileColumnCount, previewFileId, previewFileRowCount, previewScrollRef, previewStatusState, }: any) => {
     const previewScrollTopRef = useRef(0);
     const previewScrollLeftRef = useRef(0);
+    const previousPreviewFileIdRef = useRef<string | null>(null);
     const previewScrollRafRef = useRef(0);
     const [previewScrollTop, setPreviewScrollTop] = useState(0);
     const [previewScrollLeft, setPreviewScrollLeft] = useState(0);
@@ -427,26 +428,29 @@ export const usePreviewViewportSync = ({ previewFileColumnCount, previewFileId, 
         };
     }, []);
     useEffect(() => {
-        // Preserve scroll position across file switches for easier cross-file comparison.
-        // Sync internal state to the DOM's current scrollTop/Left (browser may clamp them).
+        // File switch must reset viewport to top-left; otherwise virtualization
+        // starts from previous file's scroll offset and appears to "drop" top rows.
         const el = previewScrollRef.current;
         if (!el)
             return undefined;
+        const normalizedFileId = typeof previewFileId === "string" && previewFileId ? previewFileId : null;
+        const shouldResetViewport = previousPreviewFileIdRef.current !== normalizedFileId;
+        previousPreviewFileIdRef.current = normalizedFileId;
         let rafId = requestAnimationFrame(() => {
             rafId = 0;
+            if (shouldResetViewport) {
+                el.scrollTop = 0;
+                el.scrollLeft = 0;
+                previewScrollTopRef.current = 0;
+                previewScrollLeftRef.current = 0;
+            }
             handlePreviewScroll(el.scrollTop || 0, el.scrollLeft || 0);
         });
         return () => {
             if (rafId)
                 cancelAnimationFrame(rafId);
         };
-    }, [
-        handlePreviewScroll,
-        previewFileColumnCount,
-        previewFileId,
-        previewFileRowCount,
-        previewScrollRef,
-    ]);
+    }, [handlePreviewScroll, previewFileId, previewScrollRef]);
     return {
         handlePreviewScroll,
         previewScrollLeft,
