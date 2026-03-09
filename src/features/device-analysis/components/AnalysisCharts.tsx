@@ -3036,10 +3036,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     <th className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center border-l border-border">
                       {t("da_calc_group_ratio")}
                     </th>
-                    <th colSpan={2} className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center border-l border-border">
+                    <th colSpan={2} className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-amber-500/5">
                       {t("da_calc_group_derivative")}
                     </th>
-                    <th colSpan={2} className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center border-l border-border">
+                    <th colSpan={2} className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-rose-500/5">
                       {t("da_calc_group_ss")}
                     </th>
                     <th
@@ -3065,16 +3065,16 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border">
                       Ion/Ioff
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border">
+                    <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-amber-500/5">
                       {gmUi.metricHeader}
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border">
+                    <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-amber-500/5">
                       {gmUi.metricXHeader}
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border">
+                    <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-rose-500/5">
                       SS
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border">
+                    <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-rose-500/5">
                       x@SS
                     </th>
                     <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border" title={t("da_calc_group_jon_hint")}>
