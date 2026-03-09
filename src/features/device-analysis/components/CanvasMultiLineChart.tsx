@@ -535,16 +535,16 @@ const CanvasMultiLineChart = ({
             top: clamp(tooltip.y + 12, 8, Math.max(8, size.height - 90)),
           }}
         >
-          <div className="bg-[#111] border border-border rounded-lg px-2 py-1.5 shadow-xl">
+          <div className="bg-[#1e1e1e] border border-[#333] rounded-lg px-2 py-1.5 shadow-xl text-white">
             {title && (
-              <div className="text-[11px] text-text-secondary mb-1 truncate max-w-[200px]">
+              <div className="text-[11px] text-[#ccc] mb-1 truncate max-w-[200px]">
                 {title}
               </div>
             )}
-            <div className="text-xs text-text-primary font-medium truncate max-w-[200px]">
+            <div className="text-xs text-white font-medium truncate max-w-[200px]">
               {tooltip.seriesName}
             </div>
-            <div className="text-[11px] text-text-secondary font-mono mt-1">
+            <div className="text-[11px] text-[#ccc] font-mono mt-1">
               x={formatNumber(tooltip.xVal)} &nbsp; y=
               {formatNumber(tooltip.yVal * yFactor)}
               {ySuffix}
