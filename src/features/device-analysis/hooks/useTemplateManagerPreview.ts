@@ -83,6 +83,12 @@ type SelectionItem = {
   range: SelectionRange;
 };
 
+type SelectionSetMode = "replace" | "append" | "updateLast";
+
+type SetSelectionRangeOptions = {
+  mode?: SelectionSetMode;
+};
+
 type ColumnWidthOverridesByFile = Record<string, Record<number, number>>;
 
 type LiveColumnLayout = {
@@ -256,31 +262,47 @@ export const useTemplateManagerPreview = ({
   );
 
   const setSelectionRange = useCallback(
-    (range?: SelectionRange | null) => {
+    (range?: SelectionRange | null, options?: SetSelectionRangeOptions) => {
+      const mode: SelectionSetMode = options?.mode || "replace";
       const normalized = normalizeSelectionRange(range);
       if (!normalized) {
-        setSelections([]);
+        if (mode === "replace") {
+          setSelections([]);
+        }
         return;
       }
+
       setSelections((prev) => {
-        const existing = Array.isArray(prev) ? prev[0] : null;
-        const nextId = existing?.id || `${Date.now()}_${Math.random()}`;
-        const prevRange = existing?.range;
-        if (
-          prevRange &&
-          prevRange.startRow === normalized.startRow &&
-          prevRange.endRow === normalized.endRow &&
-          prevRange.startCol === normalized.startCol &&
-          prevRange.endCol === normalized.endCol
-        ) {
-          return prev;
+        const list = Array.isArray(prev) ? prev : [];
+        const sameRange = (candidate?: SelectionRange | null) =>
+          Boolean(
+            candidate &&
+              candidate.startRow === normalized.startRow &&
+              candidate.endRow === normalized.endRow &&
+              candidate.startCol === normalized.startCol &&
+              candidate.endCol === normalized.endCol,
+          );
+
+        if (mode === "replace") {
+          const existing = list[0] ?? null;
+          const nextId = existing?.id || `${Date.now()}_${Math.random()}`;
+          if (sameRange(existing?.range)) return prev;
+          return [{ id: nextId, range: normalized }];
         }
-        return [
-          {
-            id: nextId,
-            range: normalized,
-          },
-        ];
+
+        if (mode === "append") {
+          if (list.some((item) => sameRange(item?.range))) return prev;
+          return [...list, { id: `${Date.now()}_${Math.random()}`, range: normalized }];
+        }
+
+        const existingLast = list[list.length - 1] ?? null;
+        if (!existingLast) {
+          return [{ id: `${Date.now()}_${Math.random()}`, range: normalized }];
+        }
+        if (sameRange(existingLast.range)) return prev;
+        const next = list.slice();
+        next[next.length - 1] = { ...existingLast, range: normalized };
+        return next;
       });
     },
     [setSelections],
@@ -527,6 +549,7 @@ export const useTemplateManagerPreview = ({
       previewFileId: previewFile?.fileId,
       previewScrollRef,
       renderDragOverlay,
+      setSelectionRange,
       selections,
       setSelections,
     }) as {

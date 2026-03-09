@@ -662,7 +662,7 @@ export const usePreviewRowWindow = ({ ensurePreviewRows, overscanRows, prefetchR
     ]);
     return previewWindow;
 };
-export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewRow, gridRef, handlePreviewPick, hideDragOverlay, previewFileId, previewScrollRef, renderDragOverlay, selections, setSelections, }: any) => {
+export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewRow, gridRef, handlePreviewPick, hideDragOverlay, previewFileId, previewScrollRef, renderDragOverlay, selections, setSelectionRange, setSelections, }: any) => {
     const dragRef = useRef<any>({
         startRow: null,
         startCol: null,
@@ -670,7 +670,9 @@ export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewR
         endCol: null,
         startCellEl: null,
         endCellEl: null,
+        updateMode: "replace",
     });
+    const selectionAnchorRef = useRef<any>(null);
     const isDraggingRef = useRef(false);
     const rafRef = useRef(0);
     const autoScrollRafRef = useRef(0);
@@ -691,7 +693,12 @@ export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewR
         return 0;
     }, []);
     const clearSelection = useCallback(() => {
-        setSelections([]);
+        if (typeof setSelectionRange === "function") {
+            setSelectionRange(null, { mode: "replace" });
+        }
+        else {
+            setSelections([]);
+        }
         isDraggingRef.current = false;
         dragRef.current = {
             startRow: null,
@@ -700,7 +707,9 @@ export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewR
             endCol: null,
             startCellEl: null,
             endCellEl: null,
+            updateMode: "replace",
         };
+        selectionAnchorRef.current = null;
         if (rafRef.current) {
             cancelAnimationFrame(rafRef.current);
             rafRef.current = 0;
@@ -712,7 +721,7 @@ export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewR
         pendingPointRef.current = null;
         lastPointerRef.current = null;
         hideDragOverlay();
-    }, [hideDragOverlay, setSelections]);
+    }, [hideDragOverlay, setSelectionRange, setSelections]);
     const handleCellMouseDown = useCallback((event: any) => {
         if (event.button !== 0)
             return;
@@ -727,20 +736,61 @@ export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewR
             handlePreviewPick({ event, rowIndex, colIndex, cellEl }) === true) {
             return;
         }
+        const isAppendMode = Boolean(event.ctrlKey || event.metaKey);
+        const wantsExtend = Boolean(event.shiftKey);
+        const anchor = selectionAnchorRef.current;
+        const startRow = wantsExtend && anchor ? Number(anchor.rowIndex) : rowIndex;
+        const startCol = wantsExtend && anchor ? Number(anchor.colIndex) : colIndex;
+        if (!wantsExtend || !anchor) {
+            selectionAnchorRef.current = { rowIndex, colIndex };
+        }
         event.preventDefault();
-        setSelections([]);
+        if (typeof setSelectionRange === "function") {
+            setSelectionRange({
+                startRow,
+                endRow: rowIndex,
+                startCol,
+                endCol: colIndex,
+            }, { mode: isAppendMode ? "append" : "replace" });
+        }
+        else {
+            setSelections([
+                {
+                    id: `${Date.now()}_${Math.random()}`,
+                    range: normalizePreviewRange({
+                        startRow,
+                        endRow: rowIndex,
+                        startCol,
+                        endCol: colIndex,
+                    }),
+                },
+            ].filter((item: any) => item.range));
+        }
         isDraggingRef.current = true;
         dragRef.current = {
-            startRow: rowIndex,
-            startCol: colIndex,
+            startRow,
+            startCol,
             endRow: rowIndex,
             endCol: colIndex,
             startCellEl: cellEl,
             endCellEl: cellEl,
+            updateMode: typeof setSelectionRange === "function" ? "updateLast" : "replace",
         };
         lastPointerRef.current = { x: event.clientX, y: event.clientY };
         renderDragOverlay(cellEl, cellEl);
-    }, [handlePreviewPick, renderDragOverlay, setSelections]);
+    }, [handlePreviewPick, renderDragOverlay, setSelectionRange, setSelections]);
+    useEffect(() => {
+        const last = Array.isArray(selections) ? selections[selections.length - 1] : null;
+        const range = last?.range;
+        if (!range) {
+            selectionAnchorRef.current = null;
+            return;
+        }
+        selectionAnchorRef.current = {
+            rowIndex: Math.max(0, Math.floor(Number(range.startRow) || 0)),
+            colIndex: Math.max(0, Math.floor(Number(range.startCol) || 0)),
+        };
+    }, [previewFileId, selections]);
     useEffect(() => {
         const updateDragFromPoint = (clientX: any, clientY: any) => {
             if (!isDraggingRef.current)
@@ -767,6 +817,14 @@ export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewR
                 endCol: colIndex,
                 endCellEl: cellEl,
             };
+            if (typeof setSelectionRange === "function") {
+                setSelectionRange({
+                    startRow: current.startRow,
+                    endRow: rowIndex,
+                    startCol: current.startCol,
+                    endCol: colIndex,
+                }, { mode: current.updateMode || "updateLast" });
+            }
             renderDragOverlay(current.startCellEl, cellEl);
         };
         const applyDragAutoScroll = (clientX: any, clientY: any) => {
@@ -842,6 +900,7 @@ export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewR
                 autoScrollRafRef.current = 0;
             }
             const current = dragRef.current;
+            const updateMode = current?.updateMode || "updateLast";
             const normalized = normalizePreviewRange({
                 startRow: current.startRow,
                 startCol: current.startCol,
@@ -855,17 +914,23 @@ export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewR
                 endCol: null,
                 startCellEl: null,
                 endCellEl: null,
+                updateMode: "replace",
             };
             lastPointerRef.current = null;
             hideDragOverlay();
             if (!normalized)
                 return;
-            setSelections([
-                {
-                    id: `${Date.now()}_${Math.random()}`,
-                    range: normalized,
-                },
-            ]);
+            if (typeof setSelectionRange === "function") {
+                setSelectionRange(normalized, { mode: updateMode });
+            }
+            else {
+                setSelections([
+                    {
+                        id: `${Date.now()}_${Math.random()}`,
+                        range: normalized,
+                    },
+                ]);
+            }
         };
         const handleMouseUp = () => finalizeDragSelection();
         window.addEventListener("mousemove", handleMouseMove, { passive: true });
@@ -884,7 +949,7 @@ export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewR
                 autoScrollRafRef.current = 0;
             }
         };
-    }, [computeEdgeScrollDelta, gridRef, hideDragOverlay, previewScrollRef, renderDragOverlay, setSelections]);
+    }, [computeEdgeScrollDelta, gridRef, hideDragOverlay, previewScrollRef, renderDragOverlay, setSelectionRange, setSelections]);
     useEffect(() => {
         const timeout = window.setTimeout(() => {
             clearSelection();

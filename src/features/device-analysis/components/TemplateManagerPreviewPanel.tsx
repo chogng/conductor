@@ -21,6 +21,7 @@ type PreviewFileLike = {
   fileId?: string;
   fileName?: string;
   rowCount?: number;
+  columnCount?: number;
   [key: string]: unknown;
 };
 
@@ -69,6 +70,22 @@ type SelectionRange = {
   endCol: number;
 };
 
+type SelectionSetMode = "replace" | "append" | "updateLast";
+
+type SetSelectionRangeOptions = {
+  mode?: SelectionSetMode;
+};
+
+type SetSelectionRangeFn = (
+  range?: SelectionRange | null,
+  options?: SetSelectionRangeOptions,
+) => void;
+
+type PreviewCellPosition = {
+  rowIndex: number;
+  colIndex: number;
+};
+
 type PreviewRowProps = {
   rowIndex: number;
   rowCellsRaw: unknown;
@@ -97,6 +114,7 @@ type CanvasPreviewGridProps = {
   rowHeightPx: number;
   selectedColumnsSet: Set<number>;
   getPreviewRow?: (rowIndex: number) => unknown;
+  selections?: SelectionItem[];
   subscribePreviewRowsVersion?: (onStoreChange: () => void) => () => void;
   getPreviewRowsVersion?: () => number;
   handlePreviewPick?: (payload: {
@@ -105,7 +123,7 @@ type CanvasPreviewGridProps = {
     colIndex: number;
     cellEl: Element;
   }) => boolean;
-  setSelectionRange?: (range?: SelectionRange | null) => void;
+  setSelectionRange?: SetSelectionRangeFn;
 };
 
 type PreviewPlaceholderProps = {
@@ -142,7 +160,7 @@ type TemplateManagerPreviewPanelProps = {
   previewWindow: PreviewWindow;
   resetColumnWidth: (fileId: string, colIndex: number) => void;
   selectedColumnsSet: Set<number>;
-  setSelectionRange?: (range?: SelectionRange | null) => void;
+  setSelectionRange?: SetSelectionRangeFn;
   selectionRects: SelectionRect[];
   selections: SelectionItem[];
   subscribePreviewRowsVersion?: (onStoreChange: () => void) => () => void;
@@ -349,6 +367,7 @@ const CanvasPreviewGrid = React.memo(
     rowHeightPx,
     selectedColumnsSet,
     getPreviewRow,
+    selections,
     subscribePreviewRowsVersion,
     getPreviewRowsVersion,
     handlePreviewPick,
@@ -396,7 +415,9 @@ const CanvasPreviewGrid = React.memo(
       startCol: number;
       endRow: number;
       endCol: number;
+      updateMode: SelectionSetMode;
     } | null>(null);
+    const selectionAnchorRef = useRef<PreviewCellPosition | null>(null);
     const latestPointerRef = useRef<{ clientX: number; clientY: number } | null>(
       null,
     );
@@ -524,7 +545,7 @@ const CanvasPreviewGrid = React.memo(
             endRow: cell.rowIndex,
             startCol: dragState.startCol,
             endCol: cell.colIndex,
-          });
+          }, { mode: dragState.updateMode || "updateLast" });
         }
       },
       [resolveCellFromClientPoint, setSelectionRange],
@@ -629,19 +650,32 @@ const CanvasPreviewGrid = React.memo(
         if (event.button !== 0) return;
         const canvasEl = canvasRef.current;
         if (!canvasEl) return;
-        const startCell = resolveCellFromClientPoint(event.clientX, event.clientY);
-        if (!startCell) return;
+        const pointerCell = resolveCellFromClientPoint(event.clientX, event.clientY);
+        if (!pointerCell) return;
+        const isAppendMode = Boolean(event.ctrlKey || event.metaKey);
+        const wantsExtend = Boolean(event.shiftKey);
+        const anchor = selectionAnchorRef.current;
+        const startCell =
+          wantsExtend && anchor
+            ? anchor
+            : { rowIndex: pointerCell.rowIndex, colIndex: pointerCell.colIndex };
 
         if (
           typeof handlePreviewPick === "function" &&
           handlePreviewPick({
             event: event.nativeEvent,
-            rowIndex: startCell.rowIndex,
-            colIndex: startCell.colIndex,
+            rowIndex: pointerCell.rowIndex,
+            colIndex: pointerCell.colIndex,
             cellEl: canvasEl,
           }) === true
         ) {
           return;
+        }
+        if (!wantsExtend || !anchor) {
+          selectionAnchorRef.current = {
+            rowIndex: pointerCell.rowIndex,
+            colIndex: pointerCell.colIndex,
+          };
         }
 
         event.preventDefault();
@@ -657,8 +691,9 @@ const CanvasPreviewGrid = React.memo(
           pointerId: event.pointerId,
           startRow: startCell.rowIndex,
           startCol: startCell.colIndex,
-          endRow: startCell.rowIndex,
-          endCol: startCell.colIndex,
+          endRow: pointerCell.rowIndex,
+          endCol: pointerCell.colIndex,
+          updateMode: "updateLast",
         };
         latestPointerRef.current = {
           clientX: event.clientX,
@@ -668,10 +703,10 @@ const CanvasPreviewGrid = React.memo(
         if (typeof setSelectionRange === "function") {
           setSelectionRange({
             startRow: startCell.rowIndex,
-            endRow: startCell.rowIndex,
+            endRow: pointerCell.rowIndex,
             startCol: startCell.colIndex,
-            endCol: startCell.colIndex,
-          });
+            endCol: pointerCell.colIndex,
+          }, { mode: isAppendMode ? "append" : "replace" });
         }
       },
       [
@@ -742,6 +777,25 @@ const CanvasPreviewGrid = React.memo(
         stopAutoScrollLoop();
       };
     }, [stopAutoScrollLoop]);
+
+    useEffect(() => {
+      selectionAnchorRef.current = null;
+      dragStateRef.current = null;
+      stopAutoScrollLoop();
+    }, [previewFile?.fileId, stopAutoScrollLoop]);
+
+    useEffect(() => {
+      const last = Array.isArray(selections) ? selections[selections.length - 1] : null;
+      const range = last?.range;
+      if (!range) {
+        selectionAnchorRef.current = null;
+        return;
+      }
+      selectionAnchorRef.current = {
+        rowIndex: Math.max(0, Math.floor(Number(range.startRow) || 0)),
+        colIndex: Math.max(0, Math.floor(Number(range.startCol) || 0)),
+      };
+    }, [selections]);
 
     useEffect(() => {
       const canvas = canvasRef.current;
@@ -1083,6 +1137,121 @@ const TemplateManagerPreviewPanel = ({
 }: TemplateManagerPreviewPanelProps) => {
   const useCanvasPreview = ENABLE_EXPERIMENTAL_CANVAS_PREVIEW;
   const hasSelection = selections.length > 0;
+  const keyboardAnchorRef = useRef<PreviewCellPosition | null>(null);
+  const totalRows = Math.max(0, Math.floor(Number(previewFile?.rowCount) || 0));
+  const totalCols = Math.max(
+    0,
+    Math.floor(
+      Number(previewFile?.columnCount) ||
+        Number(previewColumnGeometry?.widthsPx?.length) ||
+        0,
+    ),
+  );
+
+  const getPreviewHeaderHeight = useCallback(() => {
+    const thead = previewTableRef.current?.tHead;
+    const row = thead?.rows?.[0];
+    const height = Number(row?.getBoundingClientRect?.().height || 0);
+    return height > 0 ? height : PREVIEW_ROW_HEIGHT_PX;
+  }, [previewTableRef]);
+
+  const getCurrentSelectionCell = useCallback((): PreviewCellPosition | null => {
+    const last = Array.isArray(selections) ? selections[selections.length - 1] : null;
+    const range = last?.range;
+    if (
+      range &&
+      Number.isFinite(range.endRow) &&
+      Number.isFinite(range.endCol)
+    ) {
+      return {
+        rowIndex: Math.max(0, Math.floor(Number(range.endRow) || 0)),
+        colIndex: Math.max(0, Math.floor(Number(range.endCol) || 0)),
+      };
+    }
+    if (totalRows <= 0 || totalCols <= 0) return null;
+    const firstVisibleCol = previewColumnGeometry.visibleColumnIndices[0] ?? 0;
+    return {
+      rowIndex: Math.max(0, Math.min(totalRows - 1, previewWindow.startRow)),
+      colIndex: Math.max(0, Math.min(totalCols - 1, Number(firstVisibleCol) || 0)),
+    };
+  }, [
+    previewColumnGeometry.visibleColumnIndices,
+    previewWindow.startRow,
+    selections,
+    totalCols,
+    totalRows,
+  ]);
+
+  const ensureCellVisible = useCallback(
+    (rowIndex: number, colIndex: number) => {
+      const viewport = previewScrollRef.current;
+      if (!viewport) return;
+
+      const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+      const maxScrollLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+      const headerHeight = getPreviewHeaderHeight();
+      const safeRow = Math.max(0, rowIndex);
+      const safeCol = Math.max(0, colIndex);
+      const rowTop = headerHeight + safeRow * PREVIEW_ROW_HEIGHT_PX;
+      const rowBottom = rowTop + PREVIEW_ROW_HEIGHT_PX;
+
+      let nextTop = viewport.scrollTop;
+      if (rowTop < nextTop) {
+        nextTop = rowTop;
+      } else if (rowBottom > nextTop + viewport.clientHeight) {
+        nextTop = rowBottom - viewport.clientHeight;
+      }
+      nextTop = Math.max(0, Math.min(maxScrollTop, nextTop));
+
+      const startOffset =
+        Number(previewColumnGeometry.startOffsetsPx?.[safeCol]) || 0;
+      const colWidth = Math.max(
+        1,
+        Number(previewColumnGeometry.widthsPx?.[safeCol]) || previewColumnMinWidthPx,
+      );
+      const colLeft = previewRowIndexWidthPx + startOffset;
+      const colRight = colLeft + colWidth;
+      let nextLeft = viewport.scrollLeft;
+      if (colLeft < nextLeft) {
+        nextLeft = colLeft;
+      } else if (colRight > nextLeft + viewport.clientWidth) {
+        nextLeft = colRight - viewport.clientWidth;
+      }
+      nextLeft = Math.max(0, Math.min(maxScrollLeft, nextLeft));
+
+      if (Math.abs(nextTop - viewport.scrollTop) > 0.5) {
+        viewport.scrollTop = nextTop;
+      }
+      if (Math.abs(nextLeft - viewport.scrollLeft) > 0.5) {
+        viewport.scrollLeft = nextLeft;
+      }
+    },
+    [
+      getPreviewHeaderHeight,
+      previewColumnGeometry.startOffsetsPx,
+      previewColumnGeometry.widthsPx,
+      previewColumnMinWidthPx,
+      previewRowIndexWidthPx,
+      previewScrollRef,
+    ],
+  );
+
+  useEffect(() => {
+    const last = Array.isArray(selections) ? selections[selections.length - 1] : null;
+    const range = last?.range;
+    if (!range) {
+      keyboardAnchorRef.current = null;
+      return;
+    }
+    keyboardAnchorRef.current = {
+      rowIndex: Math.max(0, Math.floor(Number(range.startRow) || 0)),
+      colIndex: Math.max(0, Math.floor(Number(range.startCol) || 0)),
+    };
+  }, [selections]);
+
+  useEffect(() => {
+    keyboardAnchorRef.current = null;
+  }, [previewFile?.fileId]);
 
   const handlePreviewKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -1108,9 +1277,109 @@ const TemplateManagerPreviewPanel = ({
         if (typeof setSelectionRange === "function") {
           setSelectionRange(null);
         }
+        keyboardAnchorRef.current = null;
+        return;
       }
+
+      if (
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        typeof setSelectionRange !== "function" ||
+        totalRows <= 0 ||
+        totalCols <= 0
+      ) {
+        return;
+      }
+
+      const isNavigationKey =
+        key === "arrowup" ||
+        key === "arrowdown" ||
+        key === "arrowleft" ||
+        key === "arrowright" ||
+        key === "home" ||
+        key === "end" ||
+        key === "pageup" ||
+        key === "pagedown";
+      if (!isNavigationKey) return;
+
+      const currentCell = getCurrentSelectionCell();
+      if (!currentCell) return;
+
+      const clampRow = (value: number) =>
+        Math.max(0, Math.min(totalRows - 1, Math.floor(value || 0)));
+      const clampCol = (value: number) =>
+        Math.max(0, Math.min(totalCols - 1, Math.floor(value || 0)));
+      const viewport = previewScrollRef.current;
+      const headerHeight = getPreviewHeaderHeight();
+      const pageRows = Math.max(
+        1,
+        Math.floor(
+          Math.max(1, Number(viewport?.clientHeight || 0) - headerHeight) /
+            PREVIEW_ROW_HEIGHT_PX,
+        ),
+      );
+      const nextCell = {
+        rowIndex: currentCell.rowIndex,
+        colIndex: currentCell.colIndex,
+      };
+
+      if (key === "arrowup") nextCell.rowIndex = clampRow(nextCell.rowIndex - 1);
+      if (key === "arrowdown") nextCell.rowIndex = clampRow(nextCell.rowIndex + 1);
+      if (key === "arrowleft") nextCell.colIndex = clampCol(nextCell.colIndex - 1);
+      if (key === "arrowright") nextCell.colIndex = clampCol(nextCell.colIndex + 1);
+      if (key === "home") nextCell.colIndex = 0;
+      if (key === "end") nextCell.colIndex = totalCols - 1;
+      if (key === "pageup")
+        nextCell.rowIndex = clampRow(nextCell.rowIndex - pageRows);
+      if (key === "pagedown")
+        nextCell.rowIndex = clampRow(nextCell.rowIndex + pageRows);
+
+      if (
+        nextCell.rowIndex === currentCell.rowIndex &&
+        nextCell.colIndex === currentCell.colIndex
+      ) {
+        return;
+      }
+
+      event.preventDefault();
+      if (event.shiftKey) {
+        const anchor = keyboardAnchorRef.current || currentCell;
+        keyboardAnchorRef.current = anchor;
+        setSelectionRange(
+          {
+            startRow: anchor.rowIndex,
+            endRow: nextCell.rowIndex,
+            startCol: anchor.colIndex,
+            endCol: nextCell.colIndex,
+          },
+          { mode: "replace" },
+        );
+      } else {
+        keyboardAnchorRef.current = nextCell;
+        setSelectionRange(
+          {
+            startRow: nextCell.rowIndex,
+            endRow: nextCell.rowIndex,
+            startCol: nextCell.colIndex,
+            endCol: nextCell.colIndex,
+          },
+          { mode: "replace" },
+        );
+      }
+      ensureCellVisible(nextCell.rowIndex, nextCell.colIndex);
     },
-    [copySelection, hasSelection, setSelectionRange],
+    [
+      copySelection,
+      ensureCellVisible,
+      getCurrentSelectionCell,
+      getPreviewHeaderHeight,
+      hasSelection,
+      previewScrollRef,
+      setSelectionRange,
+      totalCols,
+      totalRows,
+    ],
   );
 
   const handlePreviewPointerDown = useCallback(
@@ -1248,6 +1517,7 @@ const TemplateManagerPreviewPanel = ({
                   rowHeightPx={PREVIEW_ROW_HEIGHT_PX}
                   selectedColumnsSet={selectedColumnsSet}
                   getPreviewRow={getPreviewRow}
+                  selections={selections}
                   subscribePreviewRowsVersion={subscribePreviewRowsVersion}
                   getPreviewRowsVersion={getPreviewRowsVersion}
                   handlePreviewPick={handlePreviewPick}
