@@ -309,13 +309,11 @@ const OverviewGrid = memo(function OverviewGrid({
           </div>
         </div>
 
-        {isSelectMode ? (
-          <div className="meta_text whitespace-nowrap">
-            {t("da_overview_selected_num_figures", {
-              count: selectedCanvasCount,
-            })}
-          </div>
-        ) : null}
+        <div className="meta_text whitespace-nowrap">
+          {t("da_overview_selected_num_figures", {
+            count: selectedCanvasCount,
+          })}
+        </div>
       </div>
 
       <ScrollArea className="flex-1 min-h-0" viewportClassName="pr-4" axis="y">
