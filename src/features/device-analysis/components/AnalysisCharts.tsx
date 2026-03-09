@@ -152,6 +152,7 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
     });
     const [yUnit, setYUnit] = useState("A"); // 'A' | 'uA' | 'nA'
     const userChangedYUnitRef = useRef(false);
+    const userChangedYScaleRef = useRef(false);
     const [gmMode, setGmMode] = useState("x"); // 'x' | 'legend'
     const [areaInput, setAreaInput] = useState("");
     const [showAxisControls, setShowAxisControls] = useState(false);
@@ -243,13 +244,25 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
         (async () => {
             try {
                 const settings = await apiService.getDeviceAnalysisSettings();
-                const unit = (settings as { yUnit?: string } | null | undefined)?.yUnit;
+                const normalizedSettings = settings as { yScale?: string; yUnit?: string } | null | undefined;
+                const unit = normalizedSettings?.yUnit;
+                const yScale = normalizedSettings?.yScale;
                 if (cancelled)
                     return;
-                if (userChangedYUnitRef.current)
-                    return;
-                if (unit === "A" || unit === "uA" || unit === "nA") {
+                if (!userChangedYUnitRef.current && (unit === "A" || unit === "uA" || unit === "nA")) {
                     setYUnit(unit);
+                }
+                if (!userChangedYScaleRef.current && (yScale === "linear" || yScale === "log")) {
+                    setAxis((prev: any) => {
+                        const nextTicks = yScale === "linear" ? "nice" : "decades";
+                        if (prev?.yScale === yScale && prev?.yTicks === nextTicks)
+                            return prev;
+                        return {
+                            ...prev,
+                            yScale,
+                            yTicks: nextTicks,
+                        };
+                    });
                 }
             }
             catch {
@@ -2229,8 +2242,9 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
                   {effectivePlotType === "ss" ? (<span className="text-xs text-text-primary font-mono whitespace-nowrap">
                       log(|I|)
                     </span>) : (<Select id="device-analysis-y-scale-select" size="md" value={axis.yScale === "logAbs" ? "log" : axis.yScale} onChange={(next: any) => {
+                const nextScale = next === "log" ? "log" : "linear";
+                userChangedYScaleRef.current = true;
                 setAxis((prev: any) => {
-                    const nextScale = next === "log" ? "log" : "linear";
                     const nextTicks = nextScale === "linear" ? "nice" : "decades";
                     return {
                         ...prev,
@@ -2238,6 +2252,9 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
                         yTicks: nextTicks,
                     };
                 });
+                apiService
+                    .updateDeviceAnalysisSettings({ yScale: nextScale })
+                    .catch(() => { });
             }} options={[
                 {
                     value: "linear",
@@ -2503,15 +2520,21 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
                   </div>
 
                   <div className="grid grid-cols-3 gap-2 items-center">
-                    <select value={axis.yScale} onChange={(e: any) => setAxis((prev: any) => {
+                    <select value={axis.yScale} onChange={(e: any) => {
                 const nextScale = e.target.value;
                 const nextTicks = nextScale === "linear" ? "nice" : "decades";
-                return {
+                userChangedYScaleRef.current = true;
+                setAxis((prev: any) => ({
                     ...prev,
                     yScale: nextScale,
                     yTicks: nextTicks,
-                };
-            })} className="bg-bg-surface border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40" title="Scale">
+                }));
+                if (nextScale === "linear" || nextScale === "log") {
+                    apiService
+                        .updateDeviceAnalysisSettings({ yScale: nextScale })
+                        .catch(() => { });
+                }
+            }} className="bg-bg-surface border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40" title="Scale">
                       <option value="linear">scale: linear</option>
                       <option value="log">scale: log</option>
                       <option value="logAbs">scale: log(|y|)</option>
