@@ -280,6 +280,8 @@ def main():
             )
 
     try:
+        if capability_plan.axis_commands:
+            ctx.log(f"Axis commands: {capability_plan.axis_commands}")
         apply_style_commands(op_module, capability_plan.style_commands)
         apply_axis_commands(op_module, capability_plan.axis_commands)
         run_command_list(op_module, capability_plan.graph_post_commands, "Graph post-command")
@@ -312,4 +314,3 @@ def main():
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

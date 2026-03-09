@@ -62,6 +62,149 @@ const ORIGIN_CSV_AUTO_ZIP_FALLBACK_CODES = new Set([
     "ORIGIN_CSV_FAILED",
     "ORIGIN_CSV_IMPORT_FAILED",
 ]);
+const ORIGIN_LINEAR_Y_PADDING_RATIO = 0.05;
+const ORIGIN_LINEAR_SINGLE_VALUE_PADDING_RATIO = 0.1;
+const ORIGIN_LOG_Y_PADDING_RATIO = 0.05;
+const ORIGIN_LOG_Y_PADDING_DECADES_MIN = 0.2;
+const ORIGIN_LOG_SINGLE_VALUE_PADDING_DECADES = 0.3;
+const ORIGIN_LOG_ROBUST_MIN_SAMPLE_COUNT = 50;
+const ORIGIN_LOG_ROBUST_LOW_QUANTILE = 0.05;
+const ORIGIN_LOG_EXP_MIN = -300;
+const ORIGIN_LOG_EXP_MAX = 300;
+const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
+const toOriginCommandNumber = (value: unknown): string => {
+    const num = Number(value);
+    if (!Number.isFinite(num))
+        return "";
+    const normalized = Object.is(num, -0) ? 0 : num;
+    return String(normalized);
+};
+const toOriginLogCommandNumber = (value: unknown): string => {
+    const num = Number(value);
+    if (!Number.isFinite(num) || !(num > 0))
+        return "";
+    const normalized = Object.is(num, -0) ? 0 : num;
+    return normalized.toExponential().replace("E", "e");
+};
+const toOriginAxisCommandNumber = (yScaleMode: "linear" | "log", value: unknown): string => yScaleMode === "log"
+    ? toOriginLogCommandNumber(value)
+    : toOriginCommandNumber(value);
+const computeSortedQuantile = (sortedValues: number[], qRaw: number): number | null => {
+    if (!Array.isArray(sortedValues) || sortedValues.length === 0)
+        return null;
+    const q = Number.isFinite(qRaw) ? Math.min(1, Math.max(0, qRaw)) : 0;
+    const idx = Math.floor((sortedValues.length - 1) * q);
+    const safeIdx = Math.min(sortedValues.length - 1, Math.max(0, idx));
+    const value = Number(sortedValues[safeIdx]);
+    return Number.isFinite(value) ? value : null;
+};
+const resolveOriginLogPositiveMinForRange = (positiveValues: number[], rawMin: number): number => {
+    if (!Array.isArray(positiveValues) || positiveValues.length < ORIGIN_LOG_ROBUST_MIN_SAMPLE_COUNT) {
+        return rawMin;
+    }
+    const sorted = positiveValues
+        .filter((v) => Number.isFinite(v) && v > 0)
+        .slice()
+        .sort((a, b) => a - b);
+    if (!sorted.length)
+        return rawMin;
+    const quantileValue = computeSortedQuantile(sorted, ORIGIN_LOG_ROBUST_LOW_QUANTILE);
+    if (quantileValue === null || !Number.isFinite(quantileValue) || !(quantileValue > 0))
+        return rawMin;
+    return Math.max(rawMin, quantileValue);
+};
+const buildPaddedLinearRange = (minRaw: unknown, maxRaw: unknown): { min: number; max: number; } | null => {
+    const min = Number(minRaw);
+    const max = Number(maxRaw);
+    if (!Number.isFinite(min) || !Number.isFinite(max))
+        return null;
+    let lo = Math.min(min, max);
+    let hi = Math.max(min, max);
+    if (lo === hi) {
+        const magnitude = Math.max(Math.abs(lo), 1);
+        const pad = magnitude * ORIGIN_LINEAR_SINGLE_VALUE_PADDING_RATIO;
+        lo -= pad;
+        hi += pad;
+    }
+    else {
+        const span = hi - lo;
+        const pad = Math.max(span * ORIGIN_LINEAR_Y_PADDING_RATIO, 1e-12 * Math.max(Math.abs(lo), Math.abs(hi), 1));
+        lo -= pad;
+        hi += pad;
+    }
+    if (!(hi > lo))
+        return null;
+    return { min: lo, max: hi };
+};
+const buildPaddedLogRange = (minPositiveRaw: unknown, maxPositiveRaw: unknown): { min: number; max: number; } | null => {
+    const minPositive = Number(minPositiveRaw);
+    const maxPositive = Number(maxPositiveRaw);
+    if (!Number.isFinite(minPositive) || !Number.isFinite(maxPositive))
+        return null;
+    if (!(minPositive > 0) || !(maxPositive > 0))
+        return null;
+    const lo = Math.min(minPositive, maxPositive);
+    const hi = Math.max(minPositive, maxPositive);
+    const logLo = Math.log10(lo);
+    const logHi = Math.log10(hi);
+    if (!Number.isFinite(logLo) || !Number.isFinite(logHi))
+        return null;
+    const isSingleValue = !(logHi > logLo);
+    const padDecades = isSingleValue
+        ? ORIGIN_LOG_SINGLE_VALUE_PADDING_DECADES
+        : Math.max(ORIGIN_LOG_Y_PADDING_DECADES_MIN, (logHi - logLo) * ORIGIN_LOG_Y_PADDING_RATIO);
+    const outMin = Math.pow(10, clamp(logLo - padDecades, ORIGIN_LOG_EXP_MIN, ORIGIN_LOG_EXP_MAX));
+    const outMax = Math.pow(10, clamp(logHi + padDecades, ORIGIN_LOG_EXP_MIN, ORIGIN_LOG_EXP_MAX));
+    if (!Number.isFinite(outMin) || !Number.isFinite(outMax))
+        return null;
+    if (!(outMin > 0) || !(outMax > outMin))
+        return null;
+    return { min: outMin, max: outMax };
+};
+const buildOriginYAxisRangeCommands = (yScaleMode: "linear" | "log", payload: any): string[] => {
+    const range = yScaleMode === "log"
+        ? buildPaddedLogRange(payload?.yPositiveMin, payload?.yPositiveMax)
+        : buildPaddedLinearRange(payload?.yLinearMin, payload?.yLinearMax);
+    if (!range)
+        return [];
+    const fromText = toOriginAxisCommandNumber(yScaleMode, range.min);
+    const toText = toOriginAxisCommandNumber(yScaleMode, range.max);
+    if (!fromText || !toText)
+        return [];
+    return [`layer.y.from=${fromText}`, `layer.y.to=${toText}`, "layer.y.rescale=1"];
+};
+const buildOriginYAxisRangeCommandsFromDisplayRange = (yScaleMode: "linear" | "log", rangeRaw: any): string[] => {
+    const minRaw = Number(rangeRaw?.min);
+    const maxRaw = Number(rangeRaw?.max);
+    if (!Number.isFinite(minRaw) || !Number.isFinite(maxRaw))
+        return [];
+    const min = Math.min(minRaw, maxRaw);
+    const max = Math.max(minRaw, maxRaw);
+    if (!(max > min))
+        return [];
+    if (yScaleMode === "log" && (!(min > 0) || !(max > 0)))
+        return [];
+    const fromText = toOriginAxisCommandNumber(yScaleMode, min);
+    const toText = toOriginAxisCommandNumber(yScaleMode, max);
+    if (!fromText || !toText)
+        return [];
+    return [`layer.y.from=${fromText}`, `layer.y.to=${toText}`, "layer.y.rescale=1"];
+};
+const buildOriginXAxisRangeCommandsFromDisplayRange = (rangeRaw: any): string[] => {
+    const minRaw = Number(rangeRaw?.min);
+    const maxRaw = Number(rangeRaw?.max);
+    if (!Number.isFinite(minRaw) || !Number.isFinite(maxRaw))
+        return [];
+    const min = Math.min(minRaw, maxRaw);
+    const max = Math.max(minRaw, maxRaw);
+    if (!(max > min))
+        return [];
+    const fromText = toOriginCommandNumber(min);
+    const toText = toOriginCommandNumber(max);
+    if (!fromText || !toText)
+        return [];
+    return [`layer.x.from=${fromText}`, `layer.x.to=${toText}`, "layer.x.rescale=1"];
+};
 type FormatOriginTranslateFn = (key: string, params?: Record<string, unknown>) => string;
 type OriginCsvBridge = {
     runOriginCsv: (payload: {
@@ -165,12 +308,15 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
     const ssDragStateRef = useRef<SsDragState | null>(null);
     const ssDragCommitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const ssKeyStateRef = useRef({ shift: false, alt: false });
+    const originChartXRangeRef = useRef<{ min: number; max: number; } | null>(null);
+    const originChartYRangeRef = useRef<{ mode: "linear" | "log"; min: number; max: number; } | null>(null);
     const [axis, setAxis] = useState({
         xMin: "",
         xMax: "",
         xTicks: "auto", // 'auto' | 'nice' | 'step'
         xTickCount: 6,
         xStep: "",
+        xTooltipDigits: "",
         yMin: "",
         yMax: "",
         yScale: "linear", // 'linear' | 'log' | 'logAbs'
@@ -621,6 +767,40 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
         if (!curveEntries.length) {
             return null;
         }
+        let yLinearMin = Number.POSITIVE_INFINITY;
+        let yLinearMax = Number.NEGATIVE_INFINITY;
+        let yPositiveMin = Number.POSITIVE_INFINITY;
+        let yPositiveMax = Number.NEGATIVE_INFINITY;
+        const yPositiveValues: number[] = [];
+        for (const entry of curveEntries as any[]) {
+            const rowCount = Number(entry?.rowCount);
+            const yArr = entry?.yArr;
+            const hasArrayLikeY = yArr != null && Number.isFinite(Number((yArr as any).length));
+            if (!hasArrayLikeY || !Number.isFinite(rowCount) || rowCount <= 0) {
+                continue;
+            }
+            for (let idx = 0; idx < rowCount; idx++) {
+                const yRaw = yArr[idx];
+                const y = Number(yRaw);
+                if (!Number.isFinite(y)) {
+                    continue;
+                }
+                if (y < yLinearMin)
+                    yLinearMin = y;
+                if (y > yLinearMax)
+                    yLinearMax = y;
+                if (y > 0) {
+                    if (y < yPositiveMin)
+                        yPositiveMin = y;
+                    if (y > yPositiveMax)
+                        yPositiveMax = y;
+                    yPositiveValues.push(y);
+                }
+            }
+        }
+        const yPositiveMinResolved = Number.isFinite(yPositiveMin)
+            ? resolveOriginLogPositiveMinForRange(yPositiveValues, yPositiveMin)
+            : null;
         const maxRowCount = curveEntries.reduce((max: number, entry: any) => Math.max(max, entry.rowCount), 0);
         const rows = new Array(maxRowCount);
         const sharedX = curveEntries[0]?.xArr;
@@ -642,6 +822,10 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
             seriesName,
             xyPairCount: curveEntries.length,
             xyPairs: buildOriginSharedXyPairs(curveEntries.length),
+            yLinearMin: Number.isFinite(yLinearMin) ? yLinearMin : null,
+            yLinearMax: Number.isFinite(yLinearMax) ? yLinearMax : null,
+            yPositiveMin: yPositiveMinResolved,
+            yPositiveMax: Number.isFinite(yPositiveMax) ? yPositiveMax : null,
         };
     }, [getSelectedOriginSeriesKeySetForFile]);
     const buildOriginCsvPayloadsForSelectedCanvases = React.useCallback(() => {
@@ -711,13 +895,33 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
                 normalizedPlotOptions.command.trim().length > 0;
             const hasCustomXyPairs = String(normalizedPlotOptions.xyPairs || "").trim() !==
                 DEFAULT_ORIGIN_PLOT_OPTIONS.xyPairs;
-            const originYAxisTypeCommand = String(axis?.yScale ?? "linear") === "log"
+            const chartXRange = originChartXRangeRef.current;
+            const chartYRange = originChartYRangeRef.current;
+            const originYScaleMode = chartYRange?.mode
+                ? chartYRange.mode
+                : (String(axis?.yScale ?? "linear") === "log" ? "log" : "linear");
+            const originYAxisTypeCommand = originYScaleMode === "log"
                 ? "layer.y.type=2"
                 : "layer.y.type=1";
+            const shouldApplySmartYAxisRange = !hasCustomPlotCommand;
             for (const pkg of payloads) {
                 const effectiveXyPairs = !hasCustomPlotCommand && !hasCustomXyPairs
                     ? pkg.xyPairs
                     : normalizedPlotOptions.xyPairs;
+                const displayXRangeCommands = buildOriginXAxisRangeCommandsFromDisplayRange(chartXRange);
+                const displayRangeCommands = buildOriginYAxisRangeCommandsFromDisplayRange(originYScaleMode, chartYRange);
+                const smartYRangeCommands = shouldApplySmartYAxisRange
+                    ? (displayRangeCommands.length
+                        ? displayRangeCommands
+                        : buildOriginYAxisRangeCommands(originYScaleMode, pkg))
+                    : [];
+                const originAxisCommands = [
+                    originYAxisTypeCommand,
+                    "layer.x.opposite=1",
+                    "layer.y.opposite=1",
+                    ...displayXRangeCommands,
+                    ...smartYRangeCommands,
+                ];
                 await originBridge.runOriginCsv({
                     csv: {
                         name: pkg.csvName,
@@ -734,7 +938,7 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
                     },
                     capabilities: {
                         axis: {
-                            commands: [originYAxisTypeCommand],
+                            commands: originAxisCommands,
                         },
                     },
                 });
@@ -1880,7 +2084,10 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
     const xTicks = useMemo(() => {
         const mode = String(axis?.xTicks ?? "auto");
         if (mode === "auto") {
-            return buildOriginAutoTicks(xDomain[0], xDomain[1], 6);
+            const tightTicks = buildNiceTicks(xDomain[0], xDomain[1], 6, {
+                preferTightRange: true,
+            });
+            return tightTicks ?? buildOriginAutoTicks(xDomain[0], xDomain[1], 6);
         }
         if (mode === "step") {
             const step = parseOptionalNumber(axis?.xStep);
@@ -1891,6 +2098,21 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
             preferTightRange: false,
         });
     }, [axis?.xStep, axis?.xTickCount, axis?.xTicks, xDomain]);
+    const originChartXRange = useMemo(() => {
+        const ticks = Array.isArray(xTicks) && xTicks.length >= 2 ? xTicks : null;
+        const minCandidate = ticks ? Number(ticks[0]) : Number(xDomain?.[0]);
+        const maxCandidate = ticks ? Number(ticks[ticks.length - 1]) : Number(xDomain?.[1]);
+        if (!Number.isFinite(minCandidate) || !Number.isFinite(maxCandidate))
+            return null;
+        const min = Math.min(minCandidate, maxCandidate);
+        const max = Math.max(minCandidate, maxCandidate);
+        if (!(max > min))
+            return null;
+        return { min, max };
+    }, [xDomain, xTicks]);
+    useEffect(() => {
+        originChartXRangeRef.current = originChartXRange;
+    }, [originChartXRange]);
     const yTicks = useMemo(() => {
         const mode = String(axis?.yTicks ?? "nice");
         if (mode === "auto") {
@@ -1935,7 +2157,33 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
         plotYFactor,
         yDomain,
     ]);
+    const originChartYRange = useMemo(() => {
+        const ticks = Array.isArray(yTicks) && yTicks.length >= 2 ? yTicks : null;
+        const minCandidate = ticks ? Number(ticks[0]) : Number(yDomain?.[0]);
+        const maxCandidate = ticks ? Number(ticks[ticks.length - 1]) : Number(yDomain?.[1]);
+        if (!Number.isFinite(minCandidate) || !Number.isFinite(maxCandidate))
+            return null;
+        const min = Math.min(minCandidate, maxCandidate);
+        const max = Math.max(minCandidate, maxCandidate);
+        if (!(max > min))
+            return null;
+        const mode: "linear" | "log" = effectiveYScale === "linear" ? "linear" : "log";
+        if (mode === "log" && (!(min > 0) || !(max > 0)))
+            return null;
+        return { mode, min, max };
+    }, [effectiveYScale, yDomain, yTicks]);
+    useEffect(() => {
+        originChartYRangeRef.current = originChartYRange;
+    }, [originChartYRange]);
     const xTickDigits = useMemo(() => inferTickDigitsFromTicks(xTicks), [xTicks]);
+    // Keep tooltip x precision higher than axis labels by default; allow manual override in settings.
+    const xTooltipDigitsAuto = useMemo(() => Math.min(8, Math.max(2, xTickDigits + 2)), [xTickDigits]);
+    const xTooltipDigits = useMemo(() => {
+        const manualDigits = parseOptionalNumber(axis?.xTooltipDigits);
+        if (manualDigits === null)
+            return xTooltipDigitsAuto;
+        return Math.max(0, Math.min(20, Math.round(manualDigits)));
+    }, [axis?.xTooltipDigits, xTooltipDigitsAuto]);
     const yTickDigits = useMemo(() => {
         if (effectiveYScale !== "linear")
             return 4;
@@ -2488,6 +2736,7 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
                 xTicks: "auto",
                 xTickCount: 6,
                 xStep: "",
+                xTooltipDigits: "",
                 yMin: "",
                 yMax: "",
                 yScale: "linear",
@@ -2521,6 +2770,13 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
                 xTickCount: e.target.value,
             }))} disabled={axis.xTicks !== "nice"} placeholder="count" className="bg-bg-surface border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40 disabled:opacity-50" title="Nice tick count"/>
                     <input id="device-analysis-axis-x-step" value={axis.xStep} onChange={(e: any) => setAxis((prev: any) => ({ ...prev, xStep: e.target.value }))} disabled={axis.xTicks !== "step"} placeholder="step" className="bg-bg-surface border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40 disabled:opacity-50" title="Step tick increment"/>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 items-center">
+                    <div className="text-[11px] text-text-secondary">
+                      {t("da_chart_axis_x_tooltip_digits")}
+                    </div>
+                    <input id="device-analysis-axis-x-tooltip-digits" value={axis.xTooltipDigits} onChange={(e: any) => setAxis((prev: any) => ({ ...prev, xTooltipDigits: e.target.value }))} inputMode="numeric" placeholder={t("da_chart_axis_x_tooltip_digits_placeholder", { auto: xTooltipDigitsAuto })} className="col-span-2 bg-bg-surface border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40" title={t("da_chart_axis_x_tooltip_digits_title")}/>
                   </div>
                 </div>
 
@@ -2653,7 +2909,7 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
                     backgroundColor: "#1e1e1e",
                     borderColor: "#333",
                     color: "#fff",
-                }} itemStyle={{ color: "#ccc" }} labelFormatter={(label: any) => `x=${formatNumber(label, { digits: xTickDigits })}`} formatter={(value: any, name: any) => {
+                }} itemStyle={{ color: "#ccc" }} labelFormatter={(label: any) => `x=${formatNumber(label, { digits: xTooltipDigits })}`} formatter={(value: any, name: any) => {
                     const num = typeof value === "number"
                         ? value
                         : value === null || value === undefined
@@ -2716,7 +2972,7 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
                         backgroundColor: "#1e1e1e",
                         borderColor: "#333",
                         color: "#fff",
-                    }} itemStyle={{ color: "#ccc" }} labelFormatter={(label: any) => `x=${formatNumber(label, { digits: xTickDigits })}`} formatter={(value: any, name: any) => [
+                    }} itemStyle={{ color: "#ccc" }} labelFormatter={(label: any) => `x=${formatNumber(label, { digits: xTooltipDigits })}`} formatter={(value: any, name: any) => [
                         `${formatNumber(Number(value), { digits: 2 })} mV/dec`,
                         name,
                     ]}/>
@@ -2751,41 +3007,67 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
             </div>
 
             <ScrollArea axis="x" className="w-full">
-              <table className="min-w-[980px] w-full text-sm text-left border-collapse">
+              <table className="min-w-[1080px] w-full text-sm border-collapse">
                 <thead className="sticky top-0 bg-bg-surface z-10">
                   <tr className="border-b border-border">
-                    <th className="p-2 text-xs font-semibold text-text-secondary">
-                      Series
+                    <th
+                      rowSpan={2}
+                      className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-left whitespace-nowrap align-bottom"
+                    >
+                      {t("da_calc_group_series")}
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary">
+                    <th colSpan={2} className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center">
+                      {t("da_calc_group_on_state")}
+                    </th>
+                    <th colSpan={2} className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center">
+                      {t("da_calc_group_off_state")}
+                    </th>
+                    <th className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center">
+                      {t("da_calc_group_ratio")}
+                    </th>
+                    <th colSpan={2} className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center">
+                      {t("da_calc_group_derivative")}
+                    </th>
+                    <th colSpan={2} className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center">
+                      {t("da_calc_group_ss")}
+                    </th>
+                    <th
+                      className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center"
+                      title={t("da_calc_group_jon_hint")}
+                    >
+                      {t("da_calc_group_jon")}
+                    </th>
+                  </tr>
+                  <tr className="border-b border-border">
+                    <th className="p-2 text-xs font-semibold text-text-secondary text-right whitespace-nowrap">
                       |I|on
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary">
+                    <th className="p-2 text-xs font-semibold text-text-secondary text-right whitespace-nowrap">
                       x@Ion
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary">
+                    <th className="p-2 text-xs font-semibold text-text-secondary text-right whitespace-nowrap">
                       |I|off
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary">
+                    <th className="p-2 text-xs font-semibold text-text-secondary text-right whitespace-nowrap">
                       x@Ioff
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary">
+                    <th className="p-2 text-xs font-semibold text-text-secondary text-right whitespace-nowrap">
                       Ion/Ioff
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary">
+                    <th className="p-2 text-xs font-semibold text-text-secondary text-right whitespace-nowrap">
                       {gmUi.metricHeader}
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary">
+                    <th className="p-2 text-xs font-semibold text-text-secondary text-right whitespace-nowrap">
                       {gmUi.metricXHeader}
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary">
+                    <th className="p-2 text-xs font-semibold text-text-secondary text-right whitespace-nowrap">
                       SS
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary">
+                    <th className="p-2 text-xs font-semibold text-text-secondary text-right whitespace-nowrap">
                       x@SS
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary">
-                      Jon (if Area)
+                    <th className="p-2 text-xs font-semibold text-text-secondary text-right whitespace-nowrap" title={t("da_calc_group_jon_hint")}>
+                      Jon
                     </th>
                   </tr>
                 </thead>

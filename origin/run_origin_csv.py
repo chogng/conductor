@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import argparse
+import csv
 import json
+import math
 from datetime import datetime
 from pathlib import Path
 
@@ -19,6 +21,181 @@ from origin_ops.origin_session import (
 )
 from origin_ops.plot_ops import build_plot_command, run_plot_pipeline
 from origin_ops.style_ops import apply_style_commands
+
+
+LOG_RANGE_ROBUST_MIN_SAMPLE_COUNT = 50
+LOG_RANGE_ROBUST_LOW_QUANTILE = 0.05
+LOG_RANGE_PADDING_RATIO = 0.05
+LOG_RANGE_PADDING_DECADES_MIN = 0.2
+LOG_RANGE_SINGLE_VALUE_PADDING_DECADES = 0.3
+
+
+def _normalize_axis_command(command: str) -> str:
+    text = str(command or "").strip().lower()
+    if text.endswith(";"):
+        text = text[:-1].strip()
+    return text
+
+
+def _parse_axis_assignment_value(command_text: str, prefix: str):
+    if not command_text.startswith(prefix):
+        return None
+    _, value = command_text.split("=", 1)
+    return value.strip()
+
+
+def _is_log_y_axis_enabled(commands) -> bool:
+    if not isinstance(commands, list):
+        return False
+    for command in commands:
+        if not isinstance(command, str):
+            continue
+        text = _normalize_axis_command(command)
+        value = _parse_axis_assignment_value(text, "layer.y.type=")
+        if value is None:
+            continue
+        if value == "2":
+            return True
+    return False
+
+
+def _scan_y_axis_command_flags(commands) -> tuple[bool, bool, bool]:
+    has_from = False
+    has_to = False
+    has_rescale = False
+    if not isinstance(commands, list):
+        return (has_from, has_to, has_rescale)
+    for command in commands:
+        if not isinstance(command, str):
+            continue
+        text = _normalize_axis_command(command)
+        if text.startswith("layer.y.from="):
+            has_from = True
+        elif text.startswith("layer.y.to="):
+            has_to = True
+        elif text.startswith("layer.y.rescale="):
+            has_rescale = True
+    return (has_from, has_to, has_rescale)
+
+
+def _compute_csv_positive_y_bounds(csv_path: Path):
+    positive_values = []
+    with csv_path.open("r", encoding="utf-8-sig", newline="") as file_obj:
+        reader = csv.reader(file_obj)
+        for row in reader:
+            if not isinstance(row, list) or len(row) <= 1:
+                continue
+            for item in row[1:]:
+                text = str(item or "").strip()
+                if not text:
+                    continue
+                try:
+                    value = float(text)
+                except Exception:
+                    continue
+                if not (value > 0):
+                    continue
+                positive_values.append(value)
+    if not positive_values:
+        return None
+    positive_values.sort()
+    min_positive = positive_values[0]
+    max_positive = positive_values[-1]
+    robust_min = min_positive
+    if len(positive_values) >= LOG_RANGE_ROBUST_MIN_SAMPLE_COUNT:
+        idx = int((len(positive_values) - 1) * LOG_RANGE_ROBUST_LOW_QUANTILE)
+        idx = max(0, min(len(positive_values) - 1, idx))
+        candidate = positive_values[idx]
+        if candidate > 0:
+            robust_min = max(min_positive, candidate)
+    return (robust_min, max_positive, min_positive, len(positive_values))
+
+
+def _build_padded_log_bounds(min_positive: float, max_positive: float):
+    lo = min(min_positive, max_positive)
+    hi = max(min_positive, max_positive)
+    if not (lo > 0) or not (hi > 0):
+        return None
+    log_lo = math.log10(lo)
+    log_hi = math.log10(hi)
+    if not math.isfinite(log_lo) or not math.isfinite(log_hi):
+        return None
+    is_single_value = not (log_hi > log_lo)
+    pad_decades = (
+        LOG_RANGE_SINGLE_VALUE_PADDING_DECADES
+        if is_single_value
+        else max(LOG_RANGE_PADDING_DECADES_MIN, (log_hi - log_lo) * LOG_RANGE_PADDING_RATIO)
+    )
+    out_min = math.pow(10.0, log_lo - pad_decades)
+    out_max = math.pow(10.0, log_hi + pad_decades)
+    if not (out_min > 0) or not (out_max > out_min):
+        return None
+    return (out_min, out_max)
+
+
+def _format_lt_number(value: float) -> str:
+    if value == 0:
+        return "0"
+    return format(value, ".16g")
+
+
+def _format_lt_log_number(value: float) -> str:
+    if not (value > 0):
+        return _format_lt_number(value)
+    mantissa, exponent = f"{value:.16e}".split("e")
+    mantissa = mantissa.rstrip("0").rstrip(".")
+    if not mantissa:
+        mantissa = "0"
+    return f"{mantissa}e{int(exponent)}"
+
+
+def ensure_log_y_axis_range_commands(commands, csv_path: Path, ctx) -> list[str]:
+    normalized = []
+    if isinstance(commands, list):
+        for item in commands:
+            if not isinstance(item, str):
+                continue
+            text = item.strip()
+            if text:
+                normalized.append(text)
+
+    if not _is_log_y_axis_enabled(normalized):
+        return normalized
+
+    has_from, has_to, has_rescale = _scan_y_axis_command_flags(normalized)
+    if has_from and has_to:
+        if not has_rescale:
+            normalized.append("layer.y.rescale=1")
+            ctx.log("Axis fallback: appended layer.y.rescale=1.")
+        return normalized
+
+    bounds = _compute_csv_positive_y_bounds(csv_path)
+    if bounds is None:
+        ctx.log("Axis fallback skipped: no positive Y values found for log axis.")
+        return normalized
+
+    robust_min_positive, max_positive, raw_min_positive, positive_count = bounds
+    padded = _build_padded_log_bounds(robust_min_positive, max_positive)
+    if padded is None:
+        ctx.log("Axis fallback skipped: invalid positive Y bounds for log axis.")
+        return normalized
+
+    y_from = _format_lt_log_number(padded[0])
+    y_to = _format_lt_log_number(padded[1])
+    normalized.append(f"layer.y.from={y_from}")
+    normalized.append(f"layer.y.to={y_to}")
+    if not has_rescale:
+        normalized.append("layer.y.rescale=1")
+    raw_min_text = _format_lt_number(raw_min_positive)
+    robust_min_text = _format_lt_number(robust_min_positive)
+    max_text = _format_lt_number(max_positive)
+    ctx.log(
+        "Axis fallback source: "
+        f"positiveCount={positive_count}, "
+        f"rawMin={raw_min_text}, robustMin={robust_min_text}, max={max_text}."
+    )
+    ctx.log(f"Axis fallback applied: layer.y.from={y_from}, layer.y.to={y_to}.")
+    return normalized
 
 
 def ensure_dir(path_value: Path) -> None:
@@ -198,8 +375,15 @@ def main():
             post_plot_commands=all_post_plot_commands,
             plot_error_message="CSV plot failed at plotxy",
         )
+        axis_commands = ensure_log_y_axis_range_commands(
+            capability_plan.axis_commands,
+            csv_path,
+            ctx,
+        )
+        if axis_commands:
+            ctx.log(f"Axis commands: {axis_commands}")
         apply_style_commands(op_module, capability_plan.style_commands)
-        apply_axis_commands(op_module, capability_plan.axis_commands)
+        apply_axis_commands(op_module, axis_commands)
         run_command_list(op_module, capability_plan.graph_post_commands, "Graph post-command")
         run_command_list(op_module, capability_plan.global_post_commands, "Global post-command")
         ctx.log("CSV plot completed.")
@@ -231,4 +415,3 @@ def main():
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
