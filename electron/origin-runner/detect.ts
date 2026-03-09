@@ -6,7 +6,22 @@ import {
   runProcess,
 } from "./core.js";
 
-function expandWindowsEnvVars(input) {
+type OriginDetectSource = "env" | "registry" | "directory";
+
+export type OriginDetectionProbe = {
+  source: OriginDetectSource;
+  candidates: number;
+  uniqueCandidates: number;
+  matched: boolean;
+};
+
+export type OriginDetectionResult = {
+  path: string | null;
+  source: OriginDetectSource | null;
+  probes: OriginDetectionProbe[];
+};
+
+function expandWindowsEnvVars(input: unknown): string {
   const raw = String(input || "");
   return raw.replace(/%([^%]+)%/g, (_match, name) => {
     const key = String(name || "").trim();
@@ -14,11 +29,11 @@ function expandWindowsEnvVars(input) {
   });
 }
 
-function collectCandidatePathsFromString(input) {
+function collectCandidatePathsFromString(input: unknown): string[] {
   const raw = String(input || "").trim();
   if (!raw) return [];
 
-  const candidates = [];
+  const candidates: string[] = [];
   const exeMatches = raw.match(/[A-Za-z]:\\[^"\r\n]*?\.exe/gi) || [];
   for (const match of exeMatches) {
     const expanded = expandWindowsEnvVars(match).trim();
@@ -31,18 +46,27 @@ function collectCandidatePathsFromString(input) {
   } else if (path.win32.isAbsolute(normalized)) {
     candidates.push(path.join(normalized, "Origin.exe"));
     candidates.push(path.join(normalized, "Origin64.exe"));
+    candidates.push(path.join(normalized, "Origin_32.exe"));
   }
 
   return candidates;
 }
 
-async function collectRegistryOriginCandidates() {
-  const regQueries = [
-    ["query", "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\Origin.exe", "/ve"],
-    ["query", "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\Origin.exe", "/ve"],
-    ["query", "HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\App Paths\\Origin.exe", "/ve"],
+async function collectRegistryOriginCandidates(): Promise<string[]> {
+  const appPathExecutables = ["Origin.exe", "Origin64.exe", "Origin_32.exe"];
+  const appPathRoots = [
+    "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths",
+    "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths",
+    "HKLM\\SOFTWARE\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\App Paths",
+  ];
+
+  const regQueries: string[][] = [
+    ...appPathRoots.flatMap((root) =>
+      appPathExecutables.map((name) => ["query", `${root}\\${name}`, "/ve"]),
+    ),
     ["query", "HKCU\\SOFTWARE\\OriginLab", "/s"],
     ["query", "HKLM\\SOFTWARE\\OriginLab", "/s"],
+    ["query", "HKCU\\SOFTWARE\\WOW6432Node\\OriginLab", "/s"],
     ["query", "HKLM\\SOFTWARE\\WOW6432Node\\OriginLab", "/s"],
     [
       "query",
@@ -70,7 +94,7 @@ async function collectRegistryOriginCandidates() {
     ],
   ];
 
-  const candidates = [];
+  const candidates: string[] = [];
   for (const args of regQueries) {
     try {
       const result = await runProcess("reg.exe", args, { windowsHide: true });
@@ -91,7 +115,7 @@ async function collectRegistryOriginCandidates() {
   return candidates;
 }
 
-function collectDirectoryOriginCandidates() {
+function collectDirectoryOriginCandidates(): string[] {
   const roots = [
     process.env.ProgramFiles,
     process.env["ProgramFiles(x86)"],
@@ -100,19 +124,21 @@ function collectDirectoryOriginCandidates() {
     .filter((p) => typeof p === "string" && p.trim())
     .map((p) => String(p).trim());
 
-  const candidates = [];
-  const seenDirs = new Set();
+  const candidates: string[] = [];
+  const seenDirs = new Set<string>();
   for (const root of roots) {
     const baseDir = path.join(root, "OriginLab");
     if (!fs.existsSync(baseDir) || seenDirs.has(baseDir.toLowerCase())) continue;
     seenDirs.add(baseDir.toLowerCase());
 
-    const queue = [{ dir: baseDir, depth: 0 }];
+    const queue: Array<{ dir: string; depth: number }> = [{ dir: baseDir, depth: 0 }];
     while (queue.length) {
-      const { dir, depth } = queue.shift();
+      const current = queue.shift();
+      if (!current) continue;
+      const { dir, depth } = current;
       if (depth > 2) continue;
 
-      let entries = [];
+      let entries: fs.Dirent[] = [];
       try {
         entries = fs.readdirSync(dir, { withFileTypes: true });
       } catch {
@@ -122,7 +148,7 @@ function collectDirectoryOriginCandidates() {
       for (const entry of entries) {
         const fullPath = path.join(dir, entry.name);
         if (entry.isFile()) {
-          if (/^origin(64)?\.exe$/i.test(entry.name)) {
+          if (/^origin(?:64|_32)?\.exe$/i.test(entry.name)) {
             candidates.push(fullPath);
           }
           continue;
@@ -137,8 +163,8 @@ function collectDirectoryOriginCandidates() {
   return candidates;
 }
 
-function pickFirstValidOriginExePath(candidates) {
-  const seen = new Set();
+function pickFirstValidOriginExePath(candidates: string[]): string | null {
+  const seen = new Set<string>();
   for (const raw of candidates) {
     const candidate = normalizeOriginExePath(raw);
     if (!candidate) continue;
@@ -154,15 +180,85 @@ function pickFirstValidOriginExePath(candidates) {
   return null;
 }
 
-export async function detectOriginExecutablePath() {
-  if (process.platform !== "win32") return null;
+function countUniqueCandidates(candidates: string[]): number {
+  const seen = new Set<string>();
+  for (const raw of candidates) {
+    const normalized = normalizeOriginExePath(raw);
+    if (!normalized) continue;
+    seen.add(normalized.toLowerCase());
+  }
+  return seen.size;
+}
 
-  const candidates = [];
-  candidates.push(...collectCandidatePathsFromString(process.env.ORIGIN_EXE_PATH));
-  candidates.push(...(await collectRegistryOriginCandidates()));
-  candidates.push(...collectDirectoryOriginCandidates());
+function hasMatchedCandidate(candidates: string[], matchedPath: string): boolean {
+  const matchedKey = matchedPath.toLowerCase();
+  return candidates.some((candidate) => {
+    const normalized = normalizeOriginExePath(candidate);
+    return Boolean(normalized && normalized.toLowerCase() === matchedKey);
+  });
+}
 
-  return pickFirstValidOriginExePath(candidates);
+export async function detectOriginExecutablePathDetailed(): Promise<OriginDetectionResult> {
+  if (process.platform !== "win32") {
+    return {
+      path: null,
+      source: null,
+      probes: [],
+    };
+  }
+
+  const envCandidates = collectCandidatePathsFromString(process.env.ORIGIN_EXE_PATH);
+  const registryCandidates = await collectRegistryOriginCandidates();
+  const directoryCandidates = collectDirectoryOriginCandidates();
+
+  const allCandidates: string[] = [
+    ...envCandidates,
+    ...registryCandidates,
+    ...directoryCandidates,
+  ];
+  const path = pickFirstValidOriginExePath(allCandidates);
+
+  const source: OriginDetectSource | null = path
+    ? hasMatchedCandidate(envCandidates, path)
+      ? "env"
+      : hasMatchedCandidate(registryCandidates, path)
+        ? "registry"
+        : hasMatchedCandidate(directoryCandidates, path)
+          ? "directory"
+          : null
+    : null;
+
+  const probes: OriginDetectionProbe[] = [
+    {
+      source: "env",
+      candidates: envCandidates.length,
+      uniqueCandidates: countUniqueCandidates(envCandidates),
+      matched: Boolean(path && hasMatchedCandidate(envCandidates, path)),
+    },
+    {
+      source: "registry",
+      candidates: registryCandidates.length,
+      uniqueCandidates: countUniqueCandidates(registryCandidates),
+      matched: Boolean(path && hasMatchedCandidate(registryCandidates, path)),
+    },
+    {
+      source: "directory",
+      candidates: directoryCandidates.length,
+      uniqueCandidates: countUniqueCandidates(directoryCandidates),
+      matched: Boolean(path && hasMatchedCandidate(directoryCandidates, path)),
+    },
+  ];
+
+  return {
+    path,
+    source,
+    probes,
+  };
+}
+
+export async function detectOriginExecutablePath(): Promise<string | null> {
+  const result = await detectOriginExecutablePathDetailed();
+  return result.path;
 }
 
 

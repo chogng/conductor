@@ -1,4 +1,5 @@
 import React, { startTransition, useEffect, useMemo, useRef, useState, type CSSProperties, } from "react";
+import { Check } from "lucide-react";
 import { CartesianGrid, Legend, Line, LineChart, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis, } from "recharts";
 import Papa from "papaparse";
 import JSZip from "jszip";
@@ -717,13 +718,26 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
                 showToast(t("da_origin_pick_exe_required"), "error");
             }
             else if (ORIGIN_CSV_AUTO_ZIP_FALLBACK_CODES.has(String(detail.code || "").trim().toUpperCase())) {
+                const fallbackReasonParts = [
+                    String(detail.code || "").trim().toUpperCase(),
+                    String(detail.stage || "").trim().toUpperCase(),
+                    String(detail.originExe || "").trim()
+                        ? `EXE=${String(detail.originExe || "").trim()}`
+                        : "",
+                ].filter((item) => item.length > 0);
+                const fallbackReason = fallbackReasonParts.length > 0
+                    ? fallbackReasonParts.join(" @ ")
+                    : (detail.message || t("unknownError"));
                 try {
                     const fallback = await exportOriginZipFallbackForSelectedCanvases();
                     if (fallback.count > 1) {
-                        showToast(t("da_open_in_origin_fallback_zip_batch_success", { count: fallback.count }), "warning");
+                        showToast(t("da_open_in_origin_fallback_zip_batch_success_with_reason", {
+                            count: fallback.count,
+                            reason: fallbackReason,
+                        }), "warning");
                     }
                     else {
-                        showToast(t("da_open_in_origin_fallback_zip_success"), "warning");
+                        showToast(t("da_open_in_origin_fallback_zip_success_with_reason", { reason: fallbackReason }), "warning");
                     }
                 }
                 catch (fallbackErr) {
@@ -1697,16 +1711,20 @@ const AnalysisCharts = ({ processedData, processingStatus, ssMethod = "auto", se
                 const color = String(entry?.color || fallbackSeries?.color || "#8884d8");
                 const disabled = !seriesId;
                 return (<li key={seriesId || `${label}-${idx}`} className="mb-1 last:mb-0">
-              <label className={`flex items-center gap-2 text-[11px] leading-4 ${disabled ? "opacity-60 cursor-default" : "cursor-pointer"}`}>
+              <div className={`group flex items-center gap-2 text-[11px] leading-4 ${disabled ? "opacity-60 cursor-default" : "cursor-pointer"}`}>
                 <span className="inline-block h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: color }}/>
-                <input type="checkbox" checked={checked} disabled={disabled} onChange={() => {
+                <button type="button" aria-pressed={checked} aria-label={label} disabled={disabled} onClick={() => {
                         if (!disabled)
                             toggleOriginSeriesSelection(seriesId);
-                    }} className="h-3 w-3 accent-accent-terracotta shrink-0"/>
+                    }} className={`relative flex items-center justify-center h-4 w-4 shrink-0 ${disabled ? "cursor-default" : "cursor-pointer"}`}>
+                  {checked ? (<span className="w-3.5 h-3.5 rounded bg-accent-terracotta border border-accent-terracotta flex items-center justify-center transition-all">
+                      <Check size={10} className="text-white" strokeWidth={4}/>
+                    </span>) : (<span className={`w-3.5 h-3.5 rounded border border-border-200 transition-colors bg-bg-surface ${disabled ? "" : "group-hover:border-accent-terracotta/50"}`}/>)}
+                </button>
                 <span className="truncate max-w-[130px] text-text-secondary" title={label}>
                   {label}
                 </span>
-              </label>
+              </div>
             </li>);
             })}
       </ul>);

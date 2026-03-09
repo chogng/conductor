@@ -6,7 +6,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import { createDeviceAnalysisStore } from "./device-analysis-store.js";
 import {
   assertOriginExePath,
-  detectOriginExecutablePath,
+  detectOriginExecutablePathDetailed,
   normalizeOriginExePath,
   pickOriginExecutable,
   runOriginBatchJob,
@@ -697,6 +697,37 @@ function getOriginPlotOptionsFromSettings() {
   });
 }
 
+function logOriginDetectionResult(context, result) {
+  const probes = Array.isArray(result?.probes) ? result.probes : [];
+  const probeSummary = probes
+    .map((probe) => {
+      const source = String(probe?.source || "unknown");
+      const count = Number.isFinite(Number(probe?.candidates))
+        ? Number(probe.candidates)
+        : 0;
+      const uniqueCount = Number.isFinite(Number(probe?.uniqueCandidates))
+        ? Number(probe.uniqueCandidates)
+        : 0;
+      const matched = probe?.matched === true ? "matched" : "miss";
+      return `${source}:raw=${count},unique=${uniqueCount},${matched}`;
+    })
+    .join(" | ");
+
+  if (result?.path) {
+    console.info(
+      `[origin-detect] ${context}: detected '${result.path}'` +
+        `${result.source ? ` via ${result.source}` : ""}` +
+        `${probeSummary ? ` (${probeSummary})` : ""}`,
+    );
+    return;
+  }
+
+  console.warn(
+    `[origin-detect] ${context}: no Origin executable detected` +
+      `${probeSummary ? ` (${probeSummary})` : ""}`,
+  );
+}
+
 async function tryRunOriginRuntimeCleanup({ force = false } = {}) {
   return runOriginRuntimeCleanup({
     runtimeRootDir: getDeviceAnalysisHomeDir(),
@@ -715,9 +746,10 @@ async function handleOriginExeGet() {
     }
   }
 
-  const detected = await detectOriginExecutablePath();
-  if (detected) {
-    return saveOriginExePathToSettings(detected);
+  const detectResult = await detectOriginExecutablePathDetailed();
+  logOriginDetectionResult("originExeGet", detectResult);
+  if (detectResult.path) {
+    return saveOriginExePathToSettings(detectResult.path);
   }
 
   return null;
@@ -754,9 +786,10 @@ async function resolveOriginExePath(event) {
     }
   }
 
-  const detected = await detectOriginExecutablePath();
-  if (detected) {
-    return saveOriginExePathToSettings(detected);
+  const detectResult = await detectOriginExecutablePathDetailed();
+  logOriginDetectionResult("resolveOriginExePath", detectResult);
+  if (detectResult.path) {
+    return saveOriginExePathToSettings(detectResult.path);
   }
 
   return handleOriginExePick(event);
