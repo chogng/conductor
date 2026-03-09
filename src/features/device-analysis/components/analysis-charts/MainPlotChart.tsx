@@ -71,6 +71,7 @@ type MainPlotChartProps = {
   xDomain: [number, number];
   xTicks?: number[] | null;
   xTickDigits: number;
+  xTooltipDigits?: number;
   xLabelInterval: number;
   yScaleMode: "linear" | "log" | "logAbs";
   yTicksMode?: string;
@@ -81,6 +82,8 @@ type MainPlotChartProps = {
   focusedSeriesColor?: string;
   focusedSsOverlay?: SsOverlay | null;
   ssOverlayStyle: SsOverlayStyle;
+  legendWidth?: number;
+  legendContent?: any;
   onMouseDown?: (...args: unknown[]) => void;
   onMouseMove?: (...args: unknown[]) => void;
   onMouseUp?: (...args: unknown[]) => void;
@@ -99,6 +102,7 @@ const MainPlotChart = memo(function MainPlotChart({
   xDomain,
   xTicks,
   xTickDigits,
+  xTooltipDigits,
   xLabelInterval,
   yScaleMode,
   yTicksMode,
@@ -109,6 +113,8 @@ const MainPlotChart = memo(function MainPlotChart({
   focusedSeriesColor = "#8884d8",
   focusedSsOverlay,
   ssOverlayStyle,
+  legendWidth = 120,
+  legendContent = undefined,
   onMouseDown,
   onMouseMove,
   onMouseUp,
@@ -227,6 +233,17 @@ const MainPlotChart = memo(function MainPlotChart({
     return inferTickDigitsFromTicks(scaledTicks);
   }, [effectiveYScale, plotYFactor, yTicks]);
 
+  const yAxisNearZeroEpsilon = useMemo(() => {
+    if (effectiveYScale !== "linear") return 0;
+    const scaledTickStep =
+      Array.isArray(yTicks) && yTicks.length >= 2
+        ? Math.abs((Number(yTicks[1]) - Number(yTicks[0])) * plotYFactor)
+        : 0;
+    if (!Number.isFinite(scaledTickStep) || scaledTickStep <= 0) return 1e-18;
+    // Keep only tiny floating-point residue around axis zero; do not alter meaningful small ticks.
+    return Math.max(1e-18, scaledTickStep * 1e-9);
+  }, [effectiveYScale, plotYFactor, yTicks]);
+
   const yLabelInterval = useMemo(
     () => (effectiveYScale === "linear" ? computeLabelInterval(yTicks, 7) : 0),
     [effectiveYScale, yTicks],
@@ -304,7 +321,9 @@ const MainPlotChart = memo(function MainPlotChart({
               const exp = Math.floor(Math.log10(Math.abs(scaled)));
               return `1e${exp}`;
             }
-            return formatNumber(scaled, { digits: yTickDigits });
+            const normalized =
+              Math.abs(scaled) <= yAxisNearZeroEpsilon ? 0 : scaled;
+            return formatNumber(normalized, { digits: yTickDigits });
           }}
           stroke="currentColor"
           className="text-text-secondary text-xs"
@@ -319,7 +338,7 @@ const MainPlotChart = memo(function MainPlotChart({
           }}
           itemStyle={{ color: "#ccc" }}
           labelFormatter={(label) =>
-            `x=${formatNumber(label, { digits: xTickDigits })}`
+            `x=${formatNumber(label, { digits: xTooltipDigits ?? xTickDigits })}`
           }
           formatter={(value, name) => {
             const num =
@@ -365,8 +384,9 @@ const MainPlotChart = memo(function MainPlotChart({
           layout="vertical"
           verticalAlign="middle"
           align="right"
-          width={120}
+          width={legendWidth}
           wrapperStyle={{ right: 0, top: 0 }}
+          content={legendContent}
         />
 
         {isSsPlot && focusedFitLine ? (
