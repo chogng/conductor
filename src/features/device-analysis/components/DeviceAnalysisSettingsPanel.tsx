@@ -141,7 +141,7 @@ const DeviceAnalysisSettingsPanel = ({
             </p>
           </div>
 
-          <div className="w-full sm:w-[94px]">
+          <div className="w-full sm:w-fit">
             <Select
               id="device-analysis-settings-language-dropdown"
               menuId="device-analysis-settings-language-dropdown-menu"
@@ -155,6 +155,8 @@ const DeviceAnalysisSettingsPanel = ({
                 { value: "zh", label: t("da_settings_language_zh") },
                 { value: "en", label: t("da_settings_language_en") },
               ]}
+              className="w-full sm:w-fit da-neutral-select"
+              stableWidth
             />
           </div>
         </div>
@@ -482,3 +484,4 @@ const DeviceAnalysisSettingsPanel = ({
 };
 
 export default DeviceAnalysisSettingsPanel;
+

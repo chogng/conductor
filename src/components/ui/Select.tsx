@@ -20,6 +20,35 @@ import ScrollArea from "./ScrollArea";
 const cx = (...parts: Array<string | false | null | undefined>): string =>
   parts.filter(Boolean).join(" ");
 
+const hasWidthConstraintClass = (className: string): boolean => {
+  if (!className.trim()) return false;
+
+  return className
+    .split(/\s+/)
+    .map((token) => token.split(":").pop() ?? token)
+    .some((baseToken) => {
+      if (
+        baseToken.startsWith("min-w-") ||
+        baseToken.startsWith("max-w-") ||
+        baseToken.startsWith("basis-")
+      ) {
+        return true;
+      }
+
+      if (!baseToken.startsWith("w-")) return false;
+      if (
+        baseToken === "w-fit" ||
+        baseToken === "w-auto" ||
+        baseToken === "w-min" ||
+        baseToken === "w-max"
+      ) {
+        return false;
+      }
+
+      return true;
+    });
+};
+
 type SelectValue = string | number;
 type SelectSize = "sm" | "md" | "xl";
 type PopupAlign = "left" | "center" | "right";
@@ -111,7 +140,7 @@ const Select = ({
   popupClassName = "min-w-full",
   triggerClassName = "",
   testId,
-  stableWidth = false,
+  stableWidth,
   ...props
 }: SelectProps) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -143,6 +172,10 @@ const Select = ({
   const selected = useMemo(
     () => selectableOptions.find((opt) => opt.value === value) ?? null,
     [selectableOptions, value],
+  );
+  const shouldStabilizeWidth = useMemo(
+    () => stableWidth ?? !hasWidthConstraintClass(className),
+    [stableWidth, className],
   );
 
   const displayNode = useMemo(() => {
@@ -291,7 +324,7 @@ const Select = ({
   })();
 
   const stableWidthTextCandidates = useMemo(() => {
-    if (!stableWidth) return [];
+    if (!shouldStabilizeWidth) return [];
 
     const optionTexts = selectableOptions
       .map((opt) => getNodePlainText(opt.label ?? String(opt.value)).trim())
@@ -304,10 +337,10 @@ const Select = ({
     if (placeholderText.length > 0) optionTexts.push(placeholderText);
 
     return optionTexts;
-  }, [stableWidth, selectableOptions, displayNode, placeholder]);
+  }, [shouldStabilizeWidth, selectableOptions, displayNode, placeholder]);
 
   useLayoutEffect(() => {
-    if (!stableWidth) {
+    if (!shouldStabilizeWidth) {
       setStableWidthPx(undefined);
       return;
     }
@@ -382,7 +415,12 @@ const Select = ({
     return () => {
       cancelled = true;
     };
-  }, [stableWidth, stableWidthTextCandidates, sizeClass, triggerClassName]);
+  }, [
+    shouldStabilizeWidth,
+    stableWidthTextCandidates,
+    sizeClass,
+    triggerClassName,
+  ]);
 
   return (
     <div
@@ -391,7 +429,6 @@ const Select = ({
       style={
         stableWidthPx !== undefined
           ? ({
-              width: `${stableWidthPx}px`,
               minWidth: `${stableWidthPx}px`,
             } as CSSProperties)
           : undefined

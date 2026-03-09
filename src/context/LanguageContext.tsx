@@ -384,7 +384,7 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     da_settings_language_title: '\u8bed\u8a00',
     da_settings_language_desc: '\u5728\u4e2d\u6587\u4e0e English \u4e4b\u95f4\u5207\u6362\u754c\u9762\u8bed\u8a00\u3002',
     da_settings_language_zh: '\u4e2d\u6587',
-    da_settings_language_en: '\u82f1\u6587',
+    da_settings_language_en: 'English',
     da_settings_storage_title: '数据持久化路径',
     da_settings_storage_desc: '配置 Device Analysis 模板和设置在本地磁盘的存储位置。',
     da_settings_storage_path_label: '持久化路径',
