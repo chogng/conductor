@@ -35,6 +35,31 @@ const clampNumber = (value: number, min: number, max: number): number => {
   return Math.min(max, Math.max(min, value));
 };
 
+const normalizeSelectionRange = (
+  range?: SelectionRange | null,
+): SelectionRange | null => {
+  if (!range) return null;
+  const startRow = Number(range.startRow);
+  const endRow = Number(range.endRow);
+  const startCol = Number(range.startCol);
+  const endCol = Number(range.endCol);
+  if (
+    !Number.isFinite(startRow) ||
+    !Number.isFinite(endRow) ||
+    !Number.isFinite(startCol) ||
+    !Number.isFinite(endCol)
+  ) {
+    return null;
+  }
+
+  return {
+    startRow: Math.min(startRow, endRow),
+    endRow: Math.max(startRow, endRow),
+    startCol: Math.min(startCol, endCol),
+    endCol: Math.max(startCol, endCol),
+  };
+};
+
 type PreviewFileLike = Partial<{
   fileId: string;
   columnCount: number;
@@ -228,6 +253,37 @@ export const useTemplateManagerPreview = ({
         Array.isArray(config?.selectedColumns) ? config.selectedColumns : [],
       ),
     [config],
+  );
+
+  const setSelectionRange = useCallback(
+    (range?: SelectionRange | null) => {
+      const normalized = normalizeSelectionRange(range);
+      if (!normalized) {
+        setSelections([]);
+        return;
+      }
+      setSelections((prev) => {
+        const existing = Array.isArray(prev) ? prev[0] : null;
+        const nextId = existing?.id || `${Date.now()}_${Math.random()}`;
+        const prevRange = existing?.range;
+        if (
+          prevRange &&
+          prevRange.startRow === normalized.startRow &&
+          prevRange.endRow === normalized.endRow &&
+          prevRange.startCol === normalized.startCol &&
+          prevRange.endCol === normalized.endCol
+        ) {
+          return prev;
+        }
+        return [
+          {
+            id: nextId,
+            range: normalized,
+          },
+        ];
+      });
+    },
+    [setSelections],
   );
 
   const autoColumnWidthsPx = useMemo(() => {
@@ -484,6 +540,7 @@ export const useTemplateManagerPreview = ({
     gridRef,
     handleCellMouseDown,
     handleColumnResizeStart,
+    handlePreviewPick,
     handlePreviewScroll,
     isColumnResizing,
     previewColumnGeometry,
@@ -494,6 +551,7 @@ export const useTemplateManagerPreview = ({
     previewWindow,
     resetColumnWidth,
     selectedColumnsSet,
+    setSelectionRange,
     selectionRects,
     selections,
     toggleColumn,

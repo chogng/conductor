@@ -1,4 +1,10 @@
-import React, { useMemo, useSyncExternalStore } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from "react";
 import { Check, Copy, FileSpreadsheet } from "lucide-react";
 import Avatar from "../../../components/ui/Avatar";
 import ScrollArea from "../../../components/ui/ScrollArea";
@@ -14,6 +20,7 @@ type PreviewStatus = {
 type PreviewFileLike = {
   fileId?: string;
   fileName?: string;
+  rowCount?: number;
   [key: string]: unknown;
 };
 
@@ -27,6 +34,7 @@ type PreviewWindow = {
 type PreviewColumnGeometry = {
   tableWidthPx: number;
   widthsPx: number[];
+  startOffsetsPx: number[];
   visibleColumnIndices: number[];
   hasLeftSpacer: boolean;
   hasRightSpacer: boolean;
@@ -54,6 +62,13 @@ type SelectionItem = {
   };
 };
 
+type SelectionRange = {
+  startRow: number;
+  endRow: number;
+  startCol: number;
+  endCol: number;
+};
+
 type PreviewRowProps = {
   rowIndex: number;
   rowCellsRaw: unknown;
@@ -72,6 +87,26 @@ type PreviewTbodyProps = {
   handleCellMouseDown?: (event: React.MouseEvent<HTMLTableCellElement>) => void;
 };
 
+type CanvasPreviewGridProps = {
+  previewFile?: PreviewFileLike | null;
+  previewWindow: PreviewWindow;
+  columnGeometry: PreviewColumnGeometry;
+  previewColumnMinWidthPx: number;
+  previewRowIndexWidthPx: number;
+  rowHeightPx: number;
+  selectedColumnsSet: Set<number>;
+  getPreviewRow?: (rowIndex: number) => unknown;
+  subscribePreviewRowsVersion?: (onStoreChange: () => void) => () => void;
+  getPreviewRowsVersion?: () => number;
+  handlePreviewPick?: (payload: {
+    event: Event;
+    rowIndex: number;
+    colIndex: number;
+    cellEl: Element;
+  }) => boolean;
+  setSelectionRange?: (range?: SelectionRange | null) => void;
+};
+
 type PreviewPlaceholderProps = {
   title?: string;
   hint?: string;
@@ -88,6 +123,12 @@ type TemplateManagerPreviewPanelProps = {
     event: React.PointerEvent<HTMLDivElement>,
     colIndex: number,
   ) => void;
+  handlePreviewPick?: (payload: {
+    event: Event;
+    rowIndex: number;
+    colIndex: number;
+    cellEl: Element;
+  }) => boolean;
   handlePreviewScroll: (scrollTop: number, scrollLeft: number) => void;
   isColumnResizing: boolean;
   previewColumnGeometry: PreviewColumnGeometry;
@@ -100,6 +141,7 @@ type TemplateManagerPreviewPanelProps = {
   previewWindow: PreviewWindow;
   resetColumnWidth: (fileId: string, colIndex: number) => void;
   selectedColumnsSet: Set<number>;
+  setSelectionRange?: (range?: SelectionRange | null) => void;
   selectionRects: SelectionRect[];
   selections: SelectionItem[];
   subscribePreviewRowsVersion?: (onStoreChange: () => void) => () => void;
@@ -110,6 +152,9 @@ type TemplateManagerPreviewPanelProps = {
 const EMPTY_ARRAY: unknown[] = [];
 const noopSubscribe = (_onStoreChange: () => void) => () => {};
 const getZero = () => 0;
+const PREVIEW_ROW_HEIGHT_PX = 28;
+const ENABLE_EXPERIMENTAL_CANVAS_PREVIEW =
+  String(import.meta?.env?.VITE_DA_PREVIEW_CANVAS || "").trim() === "1";
 
 const formatPreviewCell = (value: unknown): string => {
   if (value === null || value === undefined) return "";
@@ -281,6 +326,469 @@ const PreviewTbody = React.memo(
 
 PreviewTbody.displayName = "PreviewTbody";
 
+const CanvasPreviewGrid = React.memo(
+  ({
+    previewFile,
+    previewWindow,
+    columnGeometry,
+    previewColumnMinWidthPx,
+    previewRowIndexWidthPx,
+    rowHeightPx,
+    selectedColumnsSet,
+    getPreviewRow,
+    subscribePreviewRowsVersion,
+    getPreviewRowsVersion,
+    handlePreviewPick,
+    setSelectionRange,
+  }: CanvasPreviewGridProps) => {
+    const previewRowsSubscribe =
+      typeof subscribePreviewRowsVersion === "function"
+        ? subscribePreviewRowsVersion
+        : noopSubscribe;
+    const previewRowsGetSnapshot =
+      typeof getPreviewRowsVersion === "function"
+        ? getPreviewRowsVersion
+        : getZero;
+    const previewRowsVersion = useSyncExternalStore(
+      previewRowsSubscribe,
+      previewRowsGetSnapshot,
+      previewRowsGetSnapshot,
+    );
+    const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    const totalRows = Math.max(0, Math.floor(Number(previewFile?.rowCount) || 0));
+    const visibleRowCount = Math.max(
+      0,
+      previewWindow.endRow - previewWindow.startRow,
+    );
+    const canvasWidthPx = Math.max(
+      1,
+      Math.ceil(Number(columnGeometry?.tableWidthPx) || 1),
+    );
+    const canvasHeightPx = Math.max(1, visibleRowCount * rowHeightPx);
+    const canvasTopPx = Math.max(0, previewWindow.startRow * rowHeightPx);
+    const stageHeightPx = Math.max(rowHeightPx, totalRows * rowHeightPx);
+    const visibleColumns = Array.isArray(columnGeometry?.visibleColumnIndices)
+      ? columnGeometry.visibleColumnIndices
+      : [];
+    const startOffsets = Array.isArray(columnGeometry?.startOffsetsPx)
+      ? columnGeometry.startOffsetsPx
+      : [];
+    const widths = Array.isArray(columnGeometry?.widthsPx)
+      ? columnGeometry.widthsPx
+      : [];
+    const dragStateRef = useRef<{
+      isDragging: boolean;
+      pointerId: number;
+      startRow: number;
+      startCol: number;
+      endRow: number;
+      endCol: number;
+    } | null>(null);
+
+    const resolveCellFromClientPoint = useCallback(
+      (
+        clientX: number,
+        clientY: number,
+        options?: {
+          allowOutOfBounds?: boolean;
+          clampRowHeaderToFirstCol?: boolean;
+        },
+      ): { rowIndex: number; colIndex: number } | null => {
+        const canvasEl = canvasRef.current;
+        if (!canvasEl) return null;
+        if (visibleRowCount <= 0 || visibleColumns.length === 0) return null;
+
+        const rect = canvasEl.getBoundingClientRect();
+        let x = clientX - rect.left;
+        let y = clientY - rect.top;
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+
+        const allowOutOfBounds = Boolean(options?.allowOutOfBounds);
+        if (!allowOutOfBounds) {
+          if (x < 0 || y < 0 || x >= canvasWidthPx || y >= canvasHeightPx) {
+            return null;
+          }
+        }
+
+        x = Math.min(canvasWidthPx - 0.001, Math.max(0, x));
+        y = Math.min(canvasHeightPx - 0.001, Math.max(0, y));
+
+        const clampRowHeaderToFirstCol = Boolean(
+          options?.clampRowHeaderToFirstCol,
+        );
+        if (x < previewRowIndexWidthPx && !clampRowHeaderToFirstCol) {
+          return null;
+        }
+
+        const rowSlot = Math.max(
+          0,
+          Math.min(visibleRowCount - 1, Math.floor(y / rowHeightPx)),
+        );
+        const rowIndex = previewWindow.startRow + rowSlot;
+        const firstVisibleCol = visibleColumns[0];
+        const lastVisibleCol = visibleColumns[visibleColumns.length - 1];
+
+        let colIndex = -1;
+        if (x < previewRowIndexWidthPx) {
+          colIndex = firstVisibleCol;
+        } else {
+          for (const visibleColIndex of visibleColumns) {
+            const startOffset = Number(startOffsets[visibleColIndex]) || 0;
+            const colWidth = Math.max(
+              1,
+              Number(widths[visibleColIndex]) || previewColumnMinWidthPx,
+            );
+            const colLeft = previewRowIndexWidthPx + startOffset;
+            const colRight = colLeft + colWidth;
+            if (x >= colLeft && x < colRight) {
+              colIndex = visibleColIndex;
+              break;
+            }
+          }
+        }
+
+        if (colIndex < 0) {
+          colIndex = x < previewRowIndexWidthPx ? firstVisibleCol : lastVisibleCol;
+        }
+        if (!Number.isFinite(colIndex) || colIndex < 0) return null;
+        return { rowIndex, colIndex };
+      },
+      [
+        canvasHeightPx,
+        canvasWidthPx,
+        previewColumnMinWidthPx,
+        previewRowIndexWidthPx,
+        previewWindow.startRow,
+        rowHeightPx,
+        startOffsets,
+        visibleColumns,
+        visibleRowCount,
+        widths,
+      ],
+    );
+
+    const updateDragSelection = useCallback(
+      (clientX: number, clientY: number) => {
+        const dragState = dragStateRef.current;
+        if (!dragState || !dragState.isDragging) return;
+        const cell = resolveCellFromClientPoint(clientX, clientY, {
+          allowOutOfBounds: true,
+          clampRowHeaderToFirstCol: true,
+        });
+        if (!cell) return;
+        if (dragState.endRow === cell.rowIndex && dragState.endCol === cell.colIndex) {
+          return;
+        }
+        dragStateRef.current = {
+          ...dragState,
+          endRow: cell.rowIndex,
+          endCol: cell.colIndex,
+        };
+        if (typeof setSelectionRange === "function") {
+          setSelectionRange({
+            startRow: dragState.startRow,
+            endRow: cell.rowIndex,
+            startCol: dragState.startCol,
+            endCol: cell.colIndex,
+          });
+        }
+      },
+      [resolveCellFromClientPoint, setSelectionRange],
+    );
+
+    const stopDrag = useCallback((pointerId?: number) => {
+      const dragState = dragStateRef.current;
+      if (!dragState || !dragState.isDragging) return;
+      if (
+        Number.isFinite(pointerId) &&
+        Number.isFinite(dragState.pointerId) &&
+        pointerId !== dragState.pointerId
+      ) {
+        return;
+      }
+      const canvasEl = canvasRef.current;
+      if (
+        canvasEl?.releasePointerCapture &&
+        Number.isFinite(dragState.pointerId)
+      ) {
+        try {
+          canvasEl.releasePointerCapture(dragState.pointerId);
+        } catch {
+          // ignore
+        }
+      }
+      dragStateRef.current = null;
+    }, []);
+
+    const handleCanvasPointerDown = useCallback(
+      (event: React.PointerEvent<HTMLCanvasElement>) => {
+        if (event.button !== 0) return;
+        const canvasEl = canvasRef.current;
+        if (!canvasEl) return;
+        const startCell = resolveCellFromClientPoint(event.clientX, event.clientY);
+        if (!startCell) return;
+
+        if (
+          typeof handlePreviewPick === "function" &&
+          handlePreviewPick({
+            event: event.nativeEvent,
+            rowIndex: startCell.rowIndex,
+            colIndex: startCell.colIndex,
+            cellEl: canvasEl,
+          }) === true
+        ) {
+          return;
+        }
+
+        event.preventDefault();
+        if (canvasEl.setPointerCapture && Number.isFinite(event.pointerId)) {
+          try {
+            canvasEl.setPointerCapture(event.pointerId);
+          } catch {
+            // ignore
+          }
+        }
+        dragStateRef.current = {
+          isDragging: true,
+          pointerId: event.pointerId,
+          startRow: startCell.rowIndex,
+          startCol: startCell.colIndex,
+          endRow: startCell.rowIndex,
+          endCol: startCell.colIndex,
+        };
+        if (typeof setSelectionRange === "function") {
+          setSelectionRange({
+            startRow: startCell.rowIndex,
+            endRow: startCell.rowIndex,
+            startCol: startCell.colIndex,
+            endCol: startCell.colIndex,
+          });
+        }
+      },
+      [
+        handlePreviewPick,
+        resolveCellFromClientPoint,
+        setSelectionRange,
+      ],
+    );
+
+    const handleCanvasPointerMove = useCallback(
+      (event: React.PointerEvent<HTMLCanvasElement>) => {
+        const dragState = dragStateRef.current;
+        if (!dragState || !dragState.isDragging) return;
+        if (
+          Number.isFinite(dragState.pointerId) &&
+          event.pointerId !== dragState.pointerId
+        ) {
+          return;
+        }
+        updateDragSelection(event.clientX, event.clientY);
+      },
+      [updateDragSelection],
+    );
+
+    const handleCanvasPointerUp = useCallback(
+      (event: React.PointerEvent<HTMLCanvasElement>) => {
+        const dragState = dragStateRef.current;
+        if (!dragState || !dragState.isDragging) return;
+        if (
+          Number.isFinite(dragState.pointerId) &&
+          event.pointerId !== dragState.pointerId
+        ) {
+          return;
+        }
+        updateDragSelection(event.clientX, event.clientY);
+        stopDrag(event.pointerId);
+      },
+      [stopDrag, updateDragSelection],
+    );
+
+    const handleCanvasPointerCancel = useCallback(
+      (event: React.PointerEvent<HTMLCanvasElement>) => {
+        stopDrag(event.pointerId);
+      },
+      [stopDrag],
+    );
+
+    useEffect(() => {
+      const handleWindowBlur = () => stopDrag();
+      window.addEventListener("blur", handleWindowBlur);
+      return () => {
+        window.removeEventListener("blur", handleWindowBlur);
+      };
+    }, [stopDrag]);
+
+    useEffect(() => {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const context = canvas.getContext("2d");
+      if (!context) return;
+
+      const dpr =
+        typeof window !== "undefined" && Number(window.devicePixelRatio) > 0
+          ? Number(window.devicePixelRatio)
+          : 1;
+      const targetPixelWidth = Math.max(1, Math.floor(canvasWidthPx * dpr));
+      const targetPixelHeight = Math.max(1, Math.floor(canvasHeightPx * dpr));
+      if (canvas.width !== targetPixelWidth) {
+        canvas.width = targetPixelWidth;
+      }
+      if (canvas.height !== targetPixelHeight) {
+        canvas.height = targetPixelHeight;
+      }
+      if (canvas.style.width !== `${canvasWidthPx}px`) {
+        canvas.style.width = `${canvasWidthPx}px`;
+      }
+      if (canvas.style.height !== `${canvasHeightPx}px`) {
+        canvas.style.height = `${canvasHeightPx}px`;
+      }
+
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const computed =
+        typeof window !== "undefined" ? window.getComputedStyle(canvas) : null;
+      const background = computed?.getPropertyValue("--color-bg-surface")?.trim() || "#ffffff";
+      const border = computed?.getPropertyValue("--color-border")?.trim() || "rgba(148, 163, 184, 0.45)";
+      const textPrimary = computed?.getPropertyValue("--color-text-primary")?.trim() || "#111827";
+      const textSecondary = computed?.getPropertyValue("--color-text-secondary")?.trim() || "#64748b";
+      const accentCellBackground = "rgba(217, 119, 6, 0.1)";
+
+      context.clearRect(0, 0, canvasWidthPx, canvasHeightPx);
+      context.fillStyle = background;
+      context.fillRect(0, 0, canvasWidthPx, canvasHeightPx);
+      context.font =
+        "12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace";
+      context.textBaseline = "middle";
+
+      for (let rowSlot = 0; rowSlot < visibleRowCount; rowSlot += 1) {
+        const rowIndex = previewWindow.startRow + rowSlot;
+        const rowTop = rowSlot * rowHeightPx;
+        const rowBottom = rowTop + rowHeightPx;
+        const rowCellsRaw =
+          typeof getPreviewRow === "function" ? getPreviewRow(rowIndex) : null;
+        const rowCells = Array.isArray(rowCellsRaw)
+          ? (rowCellsRaw as unknown[])
+          : EMPTY_ARRAY;
+        const isRowLoaded = Array.isArray(rowCellsRaw);
+
+        context.fillStyle = background;
+        context.fillRect(0, rowTop, previewRowIndexWidthPx, rowHeightPx);
+        context.fillStyle = textSecondary;
+        context.textAlign = "center";
+        context.fillText(
+          String(rowIndex + 1),
+          previewRowIndexWidthPx / 2,
+          rowTop + rowHeightPx / 2,
+        );
+
+        for (const colIndex of visibleColumns) {
+          const startOffset = Number(startOffsets[colIndex]) || 0;
+          const colWidth = Math.max(
+            1,
+            Number(widths[colIndex]) || previewColumnMinWidthPx,
+          );
+          const colLeft = previewRowIndexWidthPx + startOffset;
+          if (selectedColumnsSet.has(colIndex)) {
+            context.fillStyle = accentCellBackground;
+            context.fillRect(colLeft, rowTop, colWidth, rowHeightPx);
+          }
+
+          const raw = rowCells[colIndex] ?? "";
+          const display = isRowLoaded ? formatPreviewCell(raw) : "";
+          context.save();
+          context.beginPath();
+          context.rect(
+            colLeft + 1,
+            rowTop + 1,
+            Math.max(0, colWidth - 2),
+            Math.max(0, rowHeightPx - 2),
+          );
+          context.clip();
+          context.fillStyle = isRowLoaded ? textPrimary : textSecondary;
+          context.textAlign = "left";
+          context.fillText(
+            String(display || ""),
+            colLeft + 6,
+            rowTop + rowHeightPx / 2,
+            Math.max(0, colWidth - 12),
+          );
+          context.restore();
+        }
+
+        context.strokeStyle = border;
+        context.lineWidth = 1;
+        context.beginPath();
+        context.moveTo(0, rowBottom - 0.5);
+        context.lineTo(canvasWidthPx, rowBottom - 0.5);
+        context.stroke();
+      }
+
+      context.strokeStyle = border;
+      context.lineWidth = 1;
+      context.beginPath();
+      for (const colIndex of visibleColumns) {
+        const startOffset = Number(startOffsets[colIndex]) || 0;
+        const colLeft = previewRowIndexWidthPx + startOffset;
+        context.moveTo(colLeft - 0.5, 0);
+        context.lineTo(colLeft - 0.5, canvasHeightPx);
+
+        const colWidth = Math.max(
+          1,
+          Number(widths[colIndex]) || previewColumnMinWidthPx,
+        );
+        const colRight = colLeft + colWidth;
+        context.moveTo(colRight - 0.5, 0);
+        context.lineTo(colRight - 0.5, canvasHeightPx);
+      }
+      context.stroke();
+
+      context.strokeStyle = border;
+      context.lineWidth = 1;
+      context.beginPath();
+      context.moveTo(previewRowIndexWidthPx - 0.5, 0);
+      context.lineTo(previewRowIndexWidthPx - 0.5, canvasHeightPx);
+      context.stroke();
+    }, [
+      canvasHeightPx,
+      canvasWidthPx,
+      columnGeometry.startOffsetsPx,
+      columnGeometry.visibleColumnIndices,
+      columnGeometry.widthsPx,
+      getPreviewRow,
+      previewColumnMinWidthPx,
+      previewRowIndexWidthPx,
+      previewRowsVersion,
+      previewWindow.endRow,
+      previewWindow.startRow,
+      rowHeightPx,
+      startOffsets,
+      selectedColumnsSet,
+      visibleColumns,
+      visibleRowCount,
+      widths,
+    ]);
+
+    return (
+      <div
+        className="relative min-w-full align-top select-none"
+        style={{ height: stageHeightPx, width: canvasWidthPx }}
+      >
+        <canvas
+          id="device-analysis-preview-canvas-grid"
+          ref={canvasRef}
+          className="absolute left-0"
+          style={{ top: canvasTopPx }}
+          onPointerDown={handleCanvasPointerDown}
+          onPointerMove={handleCanvasPointerMove}
+          onPointerUp={handleCanvasPointerUp}
+          onPointerCancel={handleCanvasPointerCancel}
+        />
+      </div>
+    );
+  },
+);
+
+CanvasPreviewGrid.displayName = "CanvasPreviewGrid";
+
 const PreviewPlaceholder = ({ title, hint }: PreviewPlaceholderProps) => (
   <div
     id="device-analysis-preview-placeholder"
@@ -300,6 +808,7 @@ const TemplateManagerPreviewPanel = ({
   gridRef,
   handleCellMouseDown,
   handleColumnResizeStart,
+  handlePreviewPick,
   handlePreviewScroll,
   isColumnResizing,
   previewColumnGeometry,
@@ -312,12 +821,15 @@ const TemplateManagerPreviewPanel = ({
   previewWindow,
   resetColumnWidth,
   selectedColumnsSet,
+  setSelectionRange,
   selectionRects,
   selections,
   subscribePreviewRowsVersion,
   t,
   toggleColumn,
 }: TemplateManagerPreviewPanelProps) => {
+  const useCanvasPreview = ENABLE_EXPERIMENTAL_CANVAS_PREVIEW;
+
   return (
     <div className="lg:col-span-3 bg-bg-page rounded-lg p-4 overflow-hidden flex flex-col min-h-0 lg:min-h-[var(--da-template-panel-min-h)]">
       <div className="flex items-center justify-between mb-2">
@@ -392,126 +904,252 @@ const TemplateManagerPreviewPanel = ({
                   />
                 );
               })}
-              <div
-                ref={dragOverlayRef}
-                className="absolute border border-accent bg-accent/5 z-20"
-                style={{ display: "none" }}
-              />
+              {!useCanvasPreview ? (
+                <div
+                  ref={dragOverlayRef}
+                  className="absolute border border-accent bg-accent/5 z-20"
+                  style={{ display: "none" }}
+                />
+              ) : null}
             </div>
-
-            <table
-              ref={previewTableRef}
-              className="text-sm text-left relative border-separate border-spacing-0 z-10 table-fixed"
-              style={{
-                width: `var(--da-preview-table-width, ${previewColumnGeometry.tableWidthPx}px)`,
-                tableLayout: "fixed",
-              }}
-            >
-              <colgroup>
-                <col style={{ width: previewRowIndexWidthPx }} />
-                {previewColumnGeometry.hasLeftSpacer ? (
-                  <col
-                    style={{ width: previewColumnGeometry.window.leftSpacerPx }}
-                  />
-                ) : null}
-                {previewColumnGeometry.visibleColumnIndices.map((index) => (
-                  <col
-                    key={index}
-                    style={{
-                      width: `var(--da-preview-col-${index}-w, ${previewColumnGeometry.widthsPx[index] ?? previewColumnMinWidthPx
-                        }px)`,
-                    }}
-                  />
-                ))}
-                {previewColumnGeometry.hasRightSpacer ? (
-                  <col
-                    style={{ width: previewColumnGeometry.window.rightSpacerPx }}
-                  />
-                ) : null}
-              </colgroup>
-
-              <thead className="bg-bg-surface sticky top-0 z-30 shadow-sm">
-                <tr>
-                  <th className="p-1 border-b border-r border-border bg-bg-surface w-12 text-center font-bold text-xs text-text-secondary select-none sticky left-0 top-0 z-40"></th>
-                  {previewColumnGeometry.hasLeftSpacer ? (
-                    <th
-                      aria-hidden="true"
-                      className="p-0 border-b border-r border-border bg-bg-surface"
-                    />
-                  ) : null}
-                  {previewColumnGeometry.visibleColumnIndices.map((index) => {
-                    const isSelected = selectedColumnsSet.has(index);
-                    return (
-                      <th
+            {useCanvasPreview ? (
+              <>
+                <table
+                  ref={previewTableRef}
+                  className="text-sm text-left relative border-separate border-spacing-0 z-10 table-fixed"
+                  style={{
+                    width: `var(--da-preview-table-width, ${previewColumnGeometry.tableWidthPx}px)`,
+                    tableLayout: "fixed",
+                  }}
+                >
+                  <colgroup>
+                    <col style={{ width: previewRowIndexWidthPx }} />
+                    {previewColumnGeometry.hasLeftSpacer ? (
+                      <col
+                        style={{ width: previewColumnGeometry.window.leftSpacerPx }}
+                      />
+                    ) : null}
+                    {previewColumnGeometry.visibleColumnIndices.map((index) => (
+                      <col
                         key={index}
-                        onClick={() => toggleColumn(index)}
-                        className={`px-2 py-1 border-b border-border border-r last:border-r-0 font-mono text-xs whitespace-nowrap bg-bg-surface font-semibold text-center select-none cursor-pointer relative pr-3 overflow-hidden ${isSelected
-                            ? "text-accent bg-accent/10 border-accent/30"
-                            : "text-text-secondary hover:bg-bg-page/60"
-                          }`}
-                        title="Click to toggle Y column"
-                      >
-                        <div
-                          className="flex items-center justify-center gap-2 cursor-pointer group"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            toggleColumn(index);
-                          }}
-                        >
-                          <div className="relative flex items-center justify-center w-4 h-4">
-                            {isSelected ? (
-                              <div className="w-3.5 h-3.5 rounded bg-accent-terracotta border border-accent-terracotta flex items-center justify-center transition-all">
-                                <Check
-                                  size={10}
-                                  className="text-white"
-                                  strokeWidth={4}
-                                />
-                              </div>
-                            ) : (
-                              <div className="w-3.5 h-3.5 rounded border border-border-200 group-hover:border-accent-terracotta/50 transition-colors bg-bg-surface" />
-                            )}
-                          </div>
-                          <span>{getExcelColumnLabel(index)}</span>
-                        </div>
+                        style={{
+                          width: `var(--da-preview-col-${index}-w, ${previewColumnGeometry.widthsPx[index] ?? previewColumnMinWidthPx
+                            }px)`,
+                        }}
+                      />
+                    ))}
+                    {previewColumnGeometry.hasRightSpacer ? (
+                      <col
+                        style={{ width: previewColumnGeometry.window.rightSpacerPx }}
+                      />
+                    ) : null}
+                  </colgroup>
 
-                        <div
-                          role="separator"
-                          aria-orientation="vertical"
-                          title="Drag to resize | Double-click to reset"
-                          onPointerDown={(event) =>
-                            handleColumnResizeStart(event, index)
-                          }
-                          onClick={(event) => event.stopPropagation()}
-                          onDoubleClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            if (!previewFile?.fileId) return;
-                            resetColumnWidth(previewFile.fileId, index);
-                          }}
-                          className="absolute top-0 right-0 h-full w-3 cursor-col-resize select-none hover:bg-accent/20 touch-none"
+                  <thead className="bg-bg-surface sticky top-0 z-30 shadow-sm">
+                    <tr>
+                      <th className="p-1 border-b border-r border-border bg-bg-surface w-12 text-center font-bold text-xs text-text-secondary select-none sticky left-0 top-0 z-40"></th>
+                      {previewColumnGeometry.hasLeftSpacer ? (
+                        <th
+                          aria-hidden="true"
+                          className="p-0 border-b border-r border-border bg-bg-surface"
                         />
-                      </th>
-                    );
-                  })}
-                  {previewColumnGeometry.hasRightSpacer ? (
-                    <th
-                      aria-hidden="true"
-                      className="p-0 border-b border-border bg-bg-surface"
-                    />
-                  ) : null}
-                </tr>
-              </thead>
+                      ) : null}
+                      {previewColumnGeometry.visibleColumnIndices.map((index) => {
+                        const isSelected = selectedColumnsSet.has(index);
+                        return (
+                          <th
+                            key={index}
+                            onClick={() => toggleColumn(index)}
+                            className={`px-2 py-1 border-b border-border border-r last:border-r-0 font-mono text-xs whitespace-nowrap bg-bg-surface font-semibold text-center select-none cursor-pointer relative pr-3 overflow-hidden ${isSelected
+                                ? "text-accent bg-accent/10 border-accent/30"
+                                : "text-text-secondary hover:bg-bg-page/60"
+                              }`}
+                            title="Click to toggle Y column"
+                          >
+                            <div
+                              className="flex items-center justify-center gap-2 cursor-pointer group"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                toggleColumn(index);
+                              }}
+                            >
+                              <div className="relative flex items-center justify-center w-4 h-4">
+                                {isSelected ? (
+                                  <div className="w-3.5 h-3.5 rounded bg-accent-terracotta border border-accent-terracotta flex items-center justify-center transition-all">
+                                    <Check
+                                      size={10}
+                                      className="text-white"
+                                      strokeWidth={4}
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="w-3.5 h-3.5 rounded border border-border-200 group-hover:border-accent-terracotta/50 transition-colors bg-bg-surface" />
+                                )}
+                              </div>
+                              <span>{getExcelColumnLabel(index)}</span>
+                            </div>
 
-              <PreviewTbody
-                subscribePreviewRowsVersion={subscribePreviewRowsVersion}
-                getPreviewRowsVersion={getPreviewRowsVersion}
-                previewWindow={previewWindow}
-                columnGeometry={previewColumnGeometry}
-                selectedColumnsSet={selectedColumnsSet}
-                getPreviewRow={getPreviewRow}
-                handleCellMouseDown={handleCellMouseDown}
-              />
-            </table>
+                            <div
+                              role="separator"
+                              aria-orientation="vertical"
+                              title="Drag to resize | Double-click to reset"
+                              onPointerDown={(event) =>
+                                handleColumnResizeStart(event, index)
+                              }
+                              onClick={(event) => event.stopPropagation()}
+                              onDoubleClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                if (!previewFile?.fileId) return;
+                                resetColumnWidth(previewFile.fileId, index);
+                              }}
+                              className="absolute top-0 right-0 h-full w-3 cursor-col-resize select-none hover:bg-accent/20 touch-none"
+                            />
+                          </th>
+                        );
+                      })}
+                      {previewColumnGeometry.hasRightSpacer ? (
+                        <th
+                          aria-hidden="true"
+                          className="p-0 border-b border-border bg-bg-surface"
+                        />
+                      ) : null}
+                    </tr>
+                  </thead>
+                </table>
+
+                <CanvasPreviewGrid
+                  previewFile={previewFile}
+                  previewWindow={previewWindow}
+                  columnGeometry={previewColumnGeometry}
+                  previewColumnMinWidthPx={previewColumnMinWidthPx}
+                  previewRowIndexWidthPx={previewRowIndexWidthPx}
+                  rowHeightPx={PREVIEW_ROW_HEIGHT_PX}
+                  selectedColumnsSet={selectedColumnsSet}
+                  getPreviewRow={getPreviewRow}
+                  subscribePreviewRowsVersion={subscribePreviewRowsVersion}
+                  getPreviewRowsVersion={getPreviewRowsVersion}
+                  handlePreviewPick={handlePreviewPick}
+                  setSelectionRange={setSelectionRange}
+                />
+              </>
+            ) : (
+              <>
+                <table
+                  ref={previewTableRef}
+                  className="text-sm text-left relative border-separate border-spacing-0 z-10 table-fixed"
+                  style={{
+                    width: `var(--da-preview-table-width, ${previewColumnGeometry.tableWidthPx}px)`,
+                    tableLayout: "fixed",
+                  }}
+                >
+                  <colgroup>
+                    <col style={{ width: previewRowIndexWidthPx }} />
+                    {previewColumnGeometry.hasLeftSpacer ? (
+                      <col
+                        style={{ width: previewColumnGeometry.window.leftSpacerPx }}
+                      />
+                    ) : null}
+                    {previewColumnGeometry.visibleColumnIndices.map((index) => (
+                      <col
+                        key={index}
+                        style={{
+                          width: `var(--da-preview-col-${index}-w, ${previewColumnGeometry.widthsPx[index] ?? previewColumnMinWidthPx
+                            }px)`,
+                        }}
+                      />
+                    ))}
+                    {previewColumnGeometry.hasRightSpacer ? (
+                      <col
+                        style={{ width: previewColumnGeometry.window.rightSpacerPx }}
+                      />
+                    ) : null}
+                  </colgroup>
+
+                  <thead className="bg-bg-surface sticky top-0 z-30 shadow-sm">
+                    <tr>
+                      <th className="p-1 border-b border-r border-border bg-bg-surface w-12 text-center font-bold text-xs text-text-secondary select-none sticky left-0 top-0 z-40"></th>
+                      {previewColumnGeometry.hasLeftSpacer ? (
+                        <th
+                          aria-hidden="true"
+                          className="p-0 border-b border-r border-border bg-bg-surface"
+                        />
+                      ) : null}
+                      {previewColumnGeometry.visibleColumnIndices.map((index) => {
+                        const isSelected = selectedColumnsSet.has(index);
+                        return (
+                          <th
+                            key={index}
+                            onClick={() => toggleColumn(index)}
+                            className={`px-2 py-1 border-b border-border border-r last:border-r-0 font-mono text-xs whitespace-nowrap bg-bg-surface font-semibold text-center select-none cursor-pointer relative pr-3 overflow-hidden ${isSelected
+                                ? "text-accent bg-accent/10 border-accent/30"
+                                : "text-text-secondary hover:bg-bg-page/60"
+                              }`}
+                            title="Click to toggle Y column"
+                          >
+                            <div
+                              className="flex items-center justify-center gap-2 cursor-pointer group"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                toggleColumn(index);
+                              }}
+                            >
+                              <div className="relative flex items-center justify-center w-4 h-4">
+                                {isSelected ? (
+                                  <div className="w-3.5 h-3.5 rounded bg-accent-terracotta border border-accent-terracotta flex items-center justify-center transition-all">
+                                    <Check
+                                      size={10}
+                                      className="text-white"
+                                      strokeWidth={4}
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="w-3.5 h-3.5 rounded border border-border-200 group-hover:border-accent-terracotta/50 transition-colors bg-bg-surface" />
+                                )}
+                              </div>
+                              <span>{getExcelColumnLabel(index)}</span>
+                            </div>
+
+                            <div
+                              role="separator"
+                              aria-orientation="vertical"
+                              title="Drag to resize | Double-click to reset"
+                              onPointerDown={(event) =>
+                                handleColumnResizeStart(event, index)
+                              }
+                              onClick={(event) => event.stopPropagation()}
+                              onDoubleClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                if (!previewFile?.fileId) return;
+                                resetColumnWidth(previewFile.fileId, index);
+                              }}
+                              className="absolute top-0 right-0 h-full w-3 cursor-col-resize select-none hover:bg-accent/20 touch-none"
+                            />
+                          </th>
+                        );
+                      })}
+                      {previewColumnGeometry.hasRightSpacer ? (
+                        <th
+                          aria-hidden="true"
+                          className="p-0 border-b border-border bg-bg-surface"
+                        />
+                      ) : null}
+                    </tr>
+                  </thead>
+
+                  <PreviewTbody
+                    subscribePreviewRowsVersion={subscribePreviewRowsVersion}
+                    getPreviewRowsVersion={getPreviewRowsVersion}
+                    previewWindow={previewWindow}
+                    columnGeometry={previewColumnGeometry}
+                    selectedColumnsSet={selectedColumnsSet}
+                    getPreviewRow={getPreviewRow}
+                    handleCellMouseDown={handleCellMouseDown}
+                  />
+                </table>
+              </>
+            )}
           </div>
         </ScrollArea>
       ) : (

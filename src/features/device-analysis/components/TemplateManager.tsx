@@ -168,6 +168,7 @@ const TemplateManager = ({
     gridRef,
     handleCellMouseDown,
     handleColumnResizeStart,
+    handlePreviewPick,
     handlePreviewScroll,
     isColumnResizing,
     previewColumnGeometry,
@@ -178,6 +179,7 @@ const TemplateManager = ({
     previewWindow,
     resetColumnWidth,
     selectedColumnsSet,
+    setSelectionRange,
     selectionRects,
     selections,
     toggleColumn,
@@ -894,6 +896,7 @@ const TemplateManager = ({
             gridRef={gridRef}
             handleCellMouseDown={handleCellMouseDown}
             handleColumnResizeStart={handleColumnResizeStart}
+            handlePreviewPick={handlePreviewPick}
             handlePreviewScroll={handlePreviewScroll}
             isColumnResizing={isColumnResizing}
             previewColumnGeometry={previewColumnGeometry}
@@ -906,6 +909,7 @@ const TemplateManager = ({
             previewWindow={previewWindow}
             resetColumnWidth={resetColumnWidth}
             selectedColumnsSet={selectedColumnsSet}
+            setSelectionRange={setSelectionRange}
             selectionRects={selectionRects}
             selections={selections}
             subscribePreviewRowsVersion={subscribePreviewRowsVersion}
