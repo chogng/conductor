@@ -7,8 +7,6 @@ export const useTemplateManagerPanelHeight = () => {
   const savePanelMeasureRef = useRef<HTMLDivElement | null>(null);
   const [panelMinHeightPx, setPanelMinHeightPx] = useState<number | null>(null);
   const minHeightRafRef = useRef(0);
-  const basePanelMaxHeightRef = useRef(0);
-  const lastPanelWidthRef = useRef(0);
 
   useLayoutEffect(() => {
     const panelEl = leftPanelRef.current;
@@ -20,25 +18,19 @@ export const useTemplateManagerPanelHeight = () => {
     const SAVE_PANEL_GAP_PX = 16;
 
     const measureNow = () => {
-      const panelWidth = panelEl.getBoundingClientRect().width;
-      if (Math.abs(panelWidth - lastPanelWidthRef.current) > 1) {
-        lastPanelWidthRef.current = panelWidth;
-        basePanelMaxHeightRef.current = 0;
-      }
-
       const panelStyles = window.getComputedStyle(panelEl);
       const panelPaddingY =
         (Number.parseFloat(panelStyles.paddingTop) || 0) +
         (Number.parseFloat(panelStyles.paddingBottom) || 0);
-      const baseHeightRaw = baseEl.getBoundingClientRect().height;
-      const baseHeight = Math.max(basePanelMaxHeightRef.current, baseHeightRaw);
-      basePanelMaxHeightRef.current = baseHeight;
+      const baseHeight = baseEl.getBoundingClientRect().height;
       const selectHeight = selectEl.getBoundingClientRect().height;
       const saveHeight = saveEl.getBoundingClientRect().height;
       const paneHeight = Math.max(selectHeight, saveHeight);
-      const next = Math.ceil(
+      const next = Math.max(
+        0,
+        Math.ceil(
         panelPaddingY + baseHeight + SAVE_PANEL_GAP_PX + paneHeight,
-      );
+      ));
 
       setPanelMinHeightPx((prev) => (prev === next ? prev : next));
     };

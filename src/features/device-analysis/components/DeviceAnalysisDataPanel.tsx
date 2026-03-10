@@ -103,8 +103,8 @@ const DeviceAnalysisDataPanel = ({
   t,
 }: DataPanelProps) => {
   return (
-    <div className="min-h-full grid grid-cols-1 xl:grid-cols-[var(--sidebar-width)_minmax(0,1fr)] gap-1 xl:gap-1 xl:h-full">
-      <aside className="xl:min-h-0 flex flex-col h-full relative group/sidebar">
+    <div className="min-h-full grid grid-cols-1 min-[1200px]:grid-cols-[var(--sidebar-width)_minmax(0,1fr)] gap-1 min-[1200px]:gap-1 min-[1200px]:h-full">
+      <aside className="min-[1200px]:min-h-0 flex flex-col h-full relative group/sidebar">
         <section
           aria-label={t("da_import_section")}
           className="flex-1 flex flex-col min-h-0"
@@ -174,7 +174,7 @@ const DeviceAnalysisDataPanel = ({
         </section>
 
         <div
-          className="hidden xl:block absolute -right-[7px] top-0 bottom-0 w-[10px] cursor-col-resize z-50 group/sash"
+          className="hidden min-[1200px]:block absolute -right-[7px] top-0 bottom-0 w-[10px] cursor-col-resize z-50 group/sash"
           onMouseDown={onStartResizing}
         >
           <div
@@ -196,7 +196,7 @@ const DeviceAnalysisDataPanel = ({
       <section
         id="device-analysis-template-panel"
         aria-label={t("da_data_extraction_template")}
-        className="xl:min-h-0 flex flex-col h-full"
+        className="min-[1200px]:min-h-0 flex flex-col h-full"
       >
         <TemplateManagerComponent
           previewFile={previewFile}

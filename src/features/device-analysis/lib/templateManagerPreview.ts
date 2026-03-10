@@ -12,6 +12,7 @@ const scheduleMicrotask = typeof queueMicrotask === "function"
     : (callback: any) => Promise.resolve().then(callback);
 const PREVIEW_DRAG_EDGE_SCROLL_ZONE_PX = 28;
 const PREVIEW_DRAG_EDGE_SCROLL_STEP_PX = 26;
+const PREVIEW_WINDOW_MAX_VISIBLE_ROWS = 160;
 const PREVIEW_PICK_FIELD_TO_CONFIG_FIELD = {
     templateName: "name",
     xDataStart: "xDataStart",
@@ -603,7 +604,8 @@ export const buildPreviewRowWindow = ({ overscanRows, rowCount, rowHeightPx, scr
     const normalizedOverscanRows = Math.max(0, Math.floor(Number(overscanRows) || 0));
     const resolvedViewportHeight = Math.max(0, Number(viewportHeight) || 0) || 500;
     const normalizedScrollTop = Math.max(0, Number(scrollTop) || 0);
-    const visibleCount = Math.max(1, Math.ceil(resolvedViewportHeight / normalizedRowHeight));
+    const rawVisibleCount = Math.max(1, Math.ceil(resolvedViewportHeight / normalizedRowHeight));
+    const visibleCount = Math.min(PREVIEW_WINDOW_MAX_VISIBLE_ROWS, rawVisibleCount);
     const visibleStartRow = Math.floor(normalizedScrollTop / normalizedRowHeight);
     const normalizedWindowShiftStrideRows = Math.max(1, Math.floor(Number(windowShiftStrideRows) ||
         normalizedOverscanRows ||

@@ -505,7 +505,7 @@ const DeviceAnalysisSettingsPanel = ({
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="space-y-1 min-w-0">
             <p className="text-xs text-text-secondary">
               {t("da_settings_origin_plot_type_label")}

@@ -835,14 +835,17 @@ const TemplateManager = ({
             "--da-template-panel-min-h": panelMinHeightPx
               ? `${panelMinHeightPx}px`
               : "0px",
+            "--da-template-preview-stack-h": panelMinHeightPx
+              ? `${panelMinHeightPx}px`
+              : "32rem",
           } as CSSProperties
         }
       >
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 flex-1 min-h-0">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 flex-1 min-h-0 items-start">
           {/* Configuration Panel */}
           <div
             ref={leftPanelRef}
-            className="lg:col-span-1 rounded-lg flex flex-col min-h-[var(--da-template-panel-min-h)]"
+            className="lg:col-span-1 self-start rounded-lg flex flex-col min-h-[var(--da-template-panel-min-h)]"
           >
             <div
               className="relative flex flex-col gap-4 flex-1 min-h-0"

@@ -606,7 +606,7 @@ const DeviceAnalysisPage = () => {
         >
           <ScrollArea
             className="da_page_scroll h-full min-h-0"
-            viewportClassName="p-1 pt-0 xl:!overflow-hidden"
+            viewportClassName="p-1 pt-0 min-[1200px]:!overflow-hidden"
             axis="y"
           >
             <DeviceAnalysisDataPanel
