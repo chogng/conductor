@@ -16,6 +16,7 @@ import {
   DeviceAnalysisSettingsPanel,
 } from "../components";
 import ScrollArea from "../../../components/ui/ScrollArea";
+import Toast from "../../../components/ui/Toast";
 import type { TranslationVars } from "../../../context/language-context";
 import { loadAnalysisCharts } from "../components/loadAnalysisCharts";
 import { getDeviceAnalysisExtractionErrorMessage } from "../lib/deviceAnalysisUtils";
@@ -55,17 +56,14 @@ type ProcessedEntry = {
   [key: string]: unknown;
 };
 
-type ExtractionErrorEntry = {
+type ProcessingExtractionError = {
   fileName?: string;
-  message?: string;
+  message: string;
   messageKey?: string | null;
   messageParams?: Record<string, unknown> | null;
   [key: string]: unknown;
 };
-
-type ProcessingExtractionError = ExtractionErrorEntry & {
-  message: string;
-};
+type ToastType = "success" | "error" | "warning" | "info";
 
 const stripCsvExtension = (fileName: string): string => {
   const normalized = String(fileName ?? "").trim();
@@ -102,8 +100,6 @@ type SessionCompat = {
   setSelectedPreviewFileId: Dispatch<SetStateAction<string | null>>;
   processedData: ProcessedEntry[];
   setProcessedData: Dispatch<SetStateAction<ProcessedEntry[]>>;
-  extractionErrors: ExtractionErrorEntry[];
-  setExtractionErrors: Dispatch<SetStateAction<ExtractionErrorEntry[]>>;
   ssMethod: SsMethod;
   setSsMethod: Dispatch<SetStateAction<SsMethod>>;
   ssDiagnosticsEnabled: boolean;
@@ -160,8 +156,6 @@ const DeviceAnalysisPage = () => {
     setSelectedPreviewFileId,
     processedData,
     setProcessedData,
-    extractionErrors,
-    setExtractionErrors,
     ssMethod,
     setSsMethod,
     ssDiagnosticsEnabled,
@@ -199,6 +193,15 @@ const DeviceAnalysisPage = () => {
   const [analysisActiveFileId, setAnalysisActiveFileId] = useState<
     string | null
   >(null);
+  const [extractionErrorToast, setExtractionErrorToast] = useState<{
+    isVisible: boolean;
+    message: string;
+    type: ToastType;
+  }>({
+    isVisible: false,
+    message: "",
+    type: "error",
+  });
   const { isResizing, sidebarWidth, startResizing } = useResizableSidebar();
   const activePage = pageNavigation.activePage;
 
@@ -299,10 +302,10 @@ const DeviceAnalysisPage = () => {
     return () => window.clearTimeout(timeoutId);
   }, [hasVisitedAnalysisPage, processedData.length]);
 
-  const getExtractionErrorMessage = useCallback(
-    (error: ExtractionErrorEntry) =>
+  const getProcessingExtractionErrorMessage = useCallback(
+    (error: ProcessingExtractionError) =>
       getDeviceAnalysisExtractionErrorMessage(tLoose, {
-        message: typeof error?.message === "string" ? error.message : undefined,
+        message: error?.message,
         messageKey:
           typeof error?.messageKey === "string" ? error.messageKey : undefined,
         messageParams:
@@ -311,6 +314,24 @@ const DeviceAnalysisPage = () => {
             : undefined,
       }),
     [tLoose],
+  );
+
+  const handleProcessingExtractionError = useCallback(
+    (error: ProcessingExtractionError) => {
+      const fileName =
+        typeof error?.fileName === "string" && error.fileName.trim()
+          ? `${error.fileName}: `
+          : "";
+      const message = getProcessingExtractionErrorMessage(error);
+      if (!message) return;
+
+      setExtractionErrorToast({
+        isVisible: true,
+        message: `${fileName}${message}`,
+        type: "error",
+      });
+    },
+    [getProcessingExtractionErrorMessage],
   );
 
   const {
@@ -375,15 +396,12 @@ const DeviceAnalysisPage = () => {
     processedData,
     rawData,
     rawDataByIdRef,
+    onExtractionError: handleProcessingExtractionError,
     setActivePage: (page: string) => {
       if (page === "data" || page === "analysis" || page === "settings") {
         navigateToPage(page);
       }
     },
-    setExtractionErrors:
-      setExtractionErrors as Dispatch<
-        SetStateAction<ProcessingExtractionError[]>
-      >,
     setProcessedData,
     t: tLoose,
   });
@@ -403,7 +421,6 @@ const DeviceAnalysisPage = () => {
   } = useDeviceAnalysisSessionActions({
     clearPreviewState,
     disposePreviewFileCache,
-    extractionErrors,
     invalidatePreviewRequests,
     previewFile,
     processedData,
@@ -413,7 +430,6 @@ const DeviceAnalysisPage = () => {
     resetPreviewWorker,
     resetProcessingWorker,
     selectedPreviewFileId,
-    setExtractionErrors,
     setProcessedData,
     setRawData,
     setSelectedPreviewFileId,
@@ -596,14 +612,11 @@ const DeviceAnalysisPage = () => {
             <DeviceAnalysisDataPanel
               deviceAnalysisSettings={deviceAnalysisSettings}
               ensurePreviewRows={ensurePreviewRowsAny}
-              extractionErrors={extractionErrors}
-              getExtractionErrorMessage={getExtractionErrorMessage}
               getPreviewRow={getPreviewRow}
               getPreviewRowsVersion={getPreviewRowsVersion}
               hasSessionData={hasSessionData}
               importerRef={importerRef}
               isResizing={isResizing}
-              onClearExtractionErrors={() => setExtractionErrors([])}
               onClearSession={handleClearSession}
               onDataImported={handleDataImportedAny}
               onDataRemoved={handleDataRemoved}
@@ -697,6 +710,17 @@ const DeviceAnalysisPage = () => {
           ) : null}
         </section>
       </div>
+
+      <Toast
+        message={extractionErrorToast.message}
+        isVisible={extractionErrorToast.isVisible}
+        onClose={() =>
+          setExtractionErrorToast((prev) => ({ ...prev, isVisible: false }))
+        }
+        type={extractionErrorToast.type}
+        position="fixed"
+        dataUi="device-analysis-extraction-error-toast"
+      />
     </div>
   );
 };

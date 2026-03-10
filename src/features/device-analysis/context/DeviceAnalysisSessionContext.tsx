@@ -20,7 +20,6 @@ export const DeviceAnalysisSessionProvider = ({
   const [rawData, setRawData] = useState<unknown[]>([]);
   const [selectedPreviewFileId, setSelectedPreviewFileId] = useState<string | null>(null);
   const [processedData, setProcessedData] = useState<unknown[]>([]);
-  const [extractionErrors, setExtractionErrors] = useState<unknown[]>([]);
 
   // Device Analysis: template manager session state (persist across route switches)
   const [templateMode, setTemplateMode] = useState<TemplateMode>("select");
@@ -82,8 +81,6 @@ export const DeviceAnalysisSessionProvider = ({
       setSelectedPreviewFileId,
       processedData,
       setProcessedData,
-      extractionErrors,
-      setExtractionErrors,
       templateMode,
       setTemplateMode,
       selectedTemplateId,
@@ -116,7 +113,6 @@ export const DeviceAnalysisSessionProvider = ({
       setSsManualRanges,
     }),
     [
-      extractionErrors,
       selectedTemplateId,
       templateConfig,
       templateMode,

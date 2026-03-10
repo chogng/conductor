@@ -16,11 +16,6 @@ type ProcessedEntry = {
   [key: string]: unknown;
 };
 
-type ExtractionErrorEntry = {
-  fileName?: string;
-  [key: string]: unknown;
-};
-
 type ProcessingStatus = {
   state: string;
   [key: string]: unknown;
@@ -29,7 +24,6 @@ type ProcessingStatus = {
 type UseDeviceAnalysisSessionActionsOptions = {
   clearPreviewState: (options?: { clearSelection?: boolean }) => void;
   disposePreviewFileCache: (fileId: string) => void;
-  extractionErrors?: ExtractionErrorEntry[];
   invalidatePreviewRequests: () => void;
   previewFile?: { fileId?: string } | null;
   processedData?: ProcessedEntry[];
@@ -39,7 +33,6 @@ type UseDeviceAnalysisSessionActionsOptions = {
   resetPreviewWorker: () => void;
   resetProcessingWorker: () => void;
   selectedPreviewFileId?: string | null;
-  setExtractionErrors: Dispatch<SetStateAction<ExtractionErrorEntry[]>>;
   setProcessedData: Dispatch<SetStateAction<ProcessedEntry[]>>;
   setRawData: Dispatch<SetStateAction<RawDataEntry[]>>;
   setSelectedPreviewFileId: Dispatch<SetStateAction<string | null>>;
@@ -49,7 +42,6 @@ type UseDeviceAnalysisSessionActionsOptions = {
 export const useDeviceAnalysisSessionActions = ({
   clearPreviewState,
   disposePreviewFileCache,
-  extractionErrors = [],
   invalidatePreviewRequests,
   previewFile = null,
   processedData = [],
@@ -59,7 +51,6 @@ export const useDeviceAnalysisSessionActions = ({
   resetPreviewWorker,
   resetProcessingWorker,
   selectedPreviewFileId = null,
-  setExtractionErrors,
   setProcessedData,
   setRawData,
   setSelectedPreviewFileId,
@@ -69,9 +60,8 @@ export const useDeviceAnalysisSessionActions = ({
     () =>
       rawData.length > 0 ||
       processedData.length > 0 ||
-      extractionErrors.length > 0 ||
       previewFile !== null,
-    [extractionErrors.length, previewFile, processedData.length, rawData.length],
+    [previewFile, processedData.length, rawData.length],
   );
 
   const handleClearSession = useCallback(() => {
@@ -82,7 +72,6 @@ export const useDeviceAnalysisSessionActions = ({
     clearPreviewState({ clearSelection: true });
 
     setProcessedData([]);
-    setExtractionErrors([]);
     setRawData([]);
     setSsManualRanges({});
     resetPreviewWorker();
@@ -92,7 +81,6 @@ export const useDeviceAnalysisSessionActions = ({
     invalidatePreviewRequests,
     resetPreviewWorker,
     resetProcessingWorker,
-    setExtractionErrors,
     setProcessedData,
     setRawData,
     setSsManualRanges,
@@ -110,9 +98,6 @@ export const useDeviceAnalysisSessionActions = ({
 
   const handleDataRemoved = useCallback(
     (fileId: string) => {
-      const removedFileName =
-        rawData.find((entry) => entry.fileId === fileId)?.fileName ?? null;
-
       if (selectedPreviewFileId === fileId) {
         const remainingFiles = rawData.filter((entry) => entry.fileId !== fileId);
         setSelectedPreviewFileId(remainingFiles[0]?.fileId ?? null);
@@ -122,12 +107,6 @@ export const useDeviceAnalysisSessionActions = ({
       setProcessedData((prev) =>
         (Array.isArray(prev) ? prev : []).filter((entry) => entry?.fileId !== fileId),
       );
-
-      if (removedFileName) {
-        setExtractionErrors((prev) =>
-          prev.filter((entry) => entry.fileName !== removedFileName),
-        );
-      }
 
       if (processingStatus.state === "processing") {
         removeQueuedProcessingFile(fileId);
@@ -147,7 +126,6 @@ export const useDeviceAnalysisSessionActions = ({
       rawData,
       removeQueuedProcessingFile,
       selectedPreviewFileId,
-      setExtractionErrors,
       setProcessedData,
       setRawData,
       setSelectedPreviewFileId,

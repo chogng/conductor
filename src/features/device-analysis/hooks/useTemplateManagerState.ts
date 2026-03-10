@@ -498,7 +498,12 @@ export const useTemplateManagerState = ({
           );
           return;
         }
-        if (safeResult.ok === true && safeResult.message) {
+        if (
+          safeResult.ok === true &&
+          safeResult.message &&
+          safeResult.type &&
+          safeResult.type !== "success"
+        ) {
           showToast(safeResult.message, safeResult.type || "success");
         }
       }

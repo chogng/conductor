@@ -75,7 +75,6 @@ type PreparedExtractionResult = {
 type StartExtractionJobOptions = {
   extractionConfig: unknown;
   queue: ProcessingQueueItem[];
-  resetExtractionErrors: boolean;
   resetProcessedData: boolean;
   stopOnError: boolean;
 };
@@ -86,8 +85,8 @@ type UseDeviceAnalysisProcessingOptions = {
   processedData?: ProcessedEntry[];
   rawData?: RawDataEntry[];
   rawDataByIdRef: MutableRefObject<Map<string, unknown>>;
+  onExtractionError?: (error: ExtractionErrorEntry) => void;
   setActivePage: (page: string) => void;
-  setExtractionErrors: Dispatch<SetStateAction<ExtractionErrorEntry[]>>;
   setProcessedData: Dispatch<SetStateAction<ProcessedEntry[]>>;
   t: TranslateFn;
 };
@@ -177,8 +176,8 @@ export const useDeviceAnalysisProcessing = ({
   processedData = [],
   rawData = [],
   rawDataByIdRef,
+  onExtractionError,
   setActivePage,
-  setExtractionErrors,
   setProcessedData,
   t,
 }: UseDeviceAnalysisProcessingOptions) => {
@@ -271,7 +270,6 @@ export const useDeviceAnalysisProcessing = ({
     ({
       extractionConfig,
       queue,
-      resetExtractionErrors,
       resetProcessedData,
       stopOnError,
     }: StartExtractionJobOptions) => {
@@ -281,7 +279,6 @@ export const useDeviceAnalysisProcessing = ({
       let hasAnyProcessedResult = false;
 
       if (resetProcessedData) setProcessedData([]);
-      if (resetExtractionErrors) setExtractionErrors([]);
 
       processingStopOnErrorRef.current = Boolean(stopOnError);
       processingJobIdRef.current += 1;
@@ -385,15 +382,12 @@ export const useDeviceAnalysisProcessing = ({
               ? (payload.messageParams as Record<string, unknown>)
               : legacyParsed?.messageParams ?? null;
 
-          setExtractionErrors((prev) => [
-            ...prev,
-            {
-              fileName: errFileName,
-              message: rawMessage,
-              messageKey: errMessageKey,
-              messageParams: errMessageParams,
-            },
-          ]);
+          onExtractionError?.({
+            fileName: errFileName,
+            message: rawMessage,
+            messageKey: errMessageKey,
+            messageParams: errMessageParams,
+          });
           setProcessingStatus((prev) => ({
             ...prev,
             processed: prev.processed + 1,
@@ -415,9 +409,9 @@ export const useDeviceAnalysisProcessing = ({
       processNext();
     },
     [
+      onExtractionError,
       rawDataByIdRef,
       setActivePage,
-      setExtractionErrors,
       setProcessedData,
     ],
   );
@@ -433,7 +427,6 @@ export const useDeviceAnalysisProcessing = ({
       startExtractionJob({
         extractionConfig: prepared.extractionConfig,
         queue,
-        resetExtractionErrors: true,
         resetProcessedData: true,
         stopOnError: Boolean(prepared.stopOnError),
       });
@@ -493,7 +486,6 @@ export const useDeviceAnalysisProcessing = ({
       startExtractionJob({
         extractionConfig: prepared.extractionConfig,
         queue,
-        resetExtractionErrors: false,
         resetProcessedData: false,
         stopOnError: Boolean(prepared.stopOnError),
       });

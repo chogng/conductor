@@ -54,8 +54,6 @@ export type DeviceAnalysisSessionContextValue = {
   setSelectedPreviewFileId: Dispatch<SetStateAction<string | null>>;
   processedData: unknown[];
   setProcessedData: Dispatch<SetStateAction<unknown[]>>;
-  extractionErrors: unknown[];
-  setExtractionErrors: Dispatch<SetStateAction<unknown[]>>;
   templateMode: TemplateMode;
   setTemplateMode: Dispatch<SetStateAction<TemplateMode>>;
   selectedTemplateId: string | null;

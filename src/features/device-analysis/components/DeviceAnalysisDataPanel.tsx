@@ -1,4 +1,4 @@
-import { AlertCircle, RefreshCw, Upload } from "lucide-react";
+import { RefreshCw, Upload } from "lucide-react";
 import {
   type ComponentType,
   type MouseEvent as ReactMouseEvent,
@@ -6,7 +6,6 @@ import {
 } from "react";
 import Card from "../../../components/ui/Card";
 import Button from "../../../components/ui/Button";
-import ScrollArea from "../../../components/ui/ScrollArea";
 import type { TranslateFn } from "../../../context/language-context";
 import CsvImporter from "./CsvImporter";
 import TemplateManager from "./TemplateManager";
@@ -26,23 +25,14 @@ type PreviewStatus = {
   message?: string;
 };
 
-type ExtractionErrorItem = {
-  fileName?: string;
-  message?: string;
-  [key: string]: unknown;
-};
-
 type DataPanelProps = {
   deviceAnalysisSettings?: Record<string, unknown> | null;
   ensurePreviewRows?: (...args: unknown[]) => Promise<unknown> | void;
-  extractionErrors?: ExtractionErrorItem[];
-  getExtractionErrorMessage: (item: ExtractionErrorItem) => string;
   getPreviewRow?: (rowIndex: number) => unknown;
   getPreviewRowsVersion?: () => number;
   hasSessionData: boolean;
   importerRef: MutableRefObject<CsvImporterRef | null>;
   isResizing: boolean;
-  onClearExtractionErrors?: () => void;
   onClearSession?: () => void;
   onDataImported?: (fileInfo: unknown) => void;
   onDataRemoved?: (fileId: string) => void;
@@ -92,14 +82,11 @@ const TemplateManagerComponent =
 const DeviceAnalysisDataPanel = ({
   deviceAnalysisSettings,
   ensurePreviewRows,
-  extractionErrors = [],
-  getExtractionErrorMessage,
   getPreviewRow,
   getPreviewRowsVersion,
   hasSessionData,
   importerRef,
   isResizing,
-  onClearExtractionErrors,
   onClearSession,
   onDataImported,
   onDataRemoved,
@@ -185,59 +172,6 @@ const DeviceAnalysisDataPanel = ({
             />
           </Card>
         </section>
-
-        {extractionErrors.length > 0 ? (
-          <section
-            aria-label={t("da_extraction_errors")}
-            className="absolute bottom-4 left-4 right-4 z-50 pointer-events-none"
-          >
-            <div
-              id="device-analysis-extraction-errors"
-              className="pointer-events-auto bg-bg-surface/80 backdrop-blur-xl border border-red-500/30 rounded-2xl p-4 shadow-[0_8px_32px_rgba(0,0,0,0.12)] animate-in fade-in slide-in-from-bottom-4 duration-300"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-red-500">
-                  <AlertCircle size={18} />
-                  <h3 className="text-sm font-semibold">
-                    {t("da_extraction_errors")} ({extractionErrors.length})
-                  </h3>
-                </div>
-                <button
-                  id="device-analysis-extraction-errors-clear-btn"
-                  type="button"
-                  onClick={onClearExtractionErrors}
-                  className="text-xs px-2 py-1 rounded-lg border border-red-500/20 text-red-500 hover:bg-red-500/10 transition-colors"
-                >
-                  {t("common_clear")}
-                </button>
-              </div>
-
-              <ScrollArea
-                className="mt-3 max-h-48"
-                viewportClassName="pr-2"
-                axis="y"
-              >
-                <ul className="space-y-2 text-sm text-text-secondary">
-                  {extractionErrors.map((errorItem, index) => (
-                    <li
-                      key={`${errorItem.fileName ?? "unknown"}-${index}`}
-                      className="flex flex-col gap-1"
-                    >
-                      <span className="font-semibold text-text-primary text-xs">
-                        {errorItem.fileName}
-                      </span>{" "}
-                      <div className="bg-red-500/5 rounded-lg p-2 border border-red-500/10">
-                        <span className="whitespace-pre-wrap leading-relaxed opacity-90">
-                          {getExtractionErrorMessage(errorItem)}
-                        </span>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </ScrollArea>
-            </div>
-          </section>
-        ) : null}
 
         <div
           className="hidden xl:block absolute -right-[7px] top-0 bottom-0 w-[10px] cursor-col-resize z-50 group/sash"
