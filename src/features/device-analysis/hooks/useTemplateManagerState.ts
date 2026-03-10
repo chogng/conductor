@@ -7,6 +7,8 @@ import {
   type SetStateAction,
 } from "react";
 import type { TranslateFn } from "../../../context/language-context";
+import type { PreviewStatus as SessionPreviewStatus } from "../context/device-analysis-session-context";
+import type { PreviewFileLike } from "../lib/sharedTypes";
 import { apiService } from "../services/apiService";
 import { useDeviceAnalysisSession } from "./useDeviceAnalysisSession";
 import {
@@ -42,15 +44,7 @@ type DeviceAnalysisSettings = Partial<{
 }> &
   Record<string, unknown>;
 
-type PreviewFileLike = Partial<{
-  fileId: string;
-}> &
-  Record<string, unknown>;
-
-type PreviewStatus = Partial<{
-  message: string;
-  state: string;
-}>;
+type PreviewStatus = Partial<SessionPreviewStatus>;
 
 type ApplyResult = Partial<{
   message: string;

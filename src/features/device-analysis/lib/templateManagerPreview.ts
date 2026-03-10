@@ -382,7 +382,7 @@ export const usePreviewColumnLayout = ({ autoColumnWidthsPx, columnCount, column
         applyColumnWidthToDom,
     };
 };
-export const usePreviewViewportSync = ({ previewFileColumnCount, previewFileId, previewFileRowCount, previewRowHeightPx = 1, previewScrollRef, previewStatusState, }: any) => {
+export const usePreviewViewportSync = ({ previewFileId, previewRowHeightPx = 1, previewScrollRef, previewStatusState, }: any) => {
     const previewScrollTopRef = useRef(0);
     const previewScrollLeftRef = useRef(0);
     const previousPreviewFileIdRef = useRef<string | null>(null);

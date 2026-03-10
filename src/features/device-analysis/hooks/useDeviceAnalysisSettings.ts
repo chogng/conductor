@@ -1,18 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { LanguageCode } from "../../../context/language-context";
 import { formatOriginBridgeError } from "../lib/originBridgeError";
+import type { SsMethod } from "../context/device-analysis-session-context";
 import { apiService } from "../services/apiService";
 import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
   normalizeOriginPlotOptions,
   normalizeOriginPostCommands,
   originPostCommandsToMultiline,
-  type OriginPlotOptions,
 } from "../lib/originPlotOptions";
-
-type TranslateFn = (key: string, vars?: Record<string, unknown>) => string;
-
-type LanguageCode = "zh" | "en";
-type SsMethod = "auto" | "manual" | "idWindow" | "legacy";
+import type { Feedback } from "../lib/sharedTypes";
+import type { LooseTranslateFn as TranslateFn } from "../lib/translateTypes";
 
 type DeviceAnalysisSettings = {
   language?: LanguageCode;
@@ -32,11 +30,6 @@ type DeviceAnalysisSettings = {
   ssShowFitLine?: boolean;
   stopOnErrorDefault?: boolean;
   [key: string]: unknown;
-};
-
-type Feedback = {
-  message: string;
-  type: "idle" | "success" | "error";
 };
 
 type PersistencePathInfo = {

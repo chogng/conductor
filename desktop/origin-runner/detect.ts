@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   normalizeOriginExePath,
+  normalizeOriginPathKey,
   assertOriginExePath,
   runProcess,
 } from "./core.js";
@@ -167,8 +168,8 @@ function pickFirstValidOriginExePath(candidates: string[]): string | null {
   const seen = new Set<string>();
   for (const raw of candidates) {
     const candidate = normalizeOriginExePath(raw);
-    if (!candidate) continue;
-    const key = candidate.toLowerCase();
+    const key = normalizeOriginPathKey(raw);
+    if (!candidate || !key) continue;
     if (seen.has(key)) continue;
     seen.add(key);
     try {
@@ -183,18 +184,19 @@ function pickFirstValidOriginExePath(candidates: string[]): string | null {
 function countUniqueCandidates(candidates: string[]): number {
   const seen = new Set<string>();
   for (const raw of candidates) {
-    const normalized = normalizeOriginExePath(raw);
-    if (!normalized) continue;
-    seen.add(normalized.toLowerCase());
+    const key = normalizeOriginPathKey(raw);
+    if (!key) continue;
+    seen.add(key);
   }
   return seen.size;
 }
 
 function hasMatchedCandidate(candidates: string[], matchedPath: string): boolean {
-  const matchedKey = matchedPath.toLowerCase();
+  const matchedKey = normalizeOriginPathKey(matchedPath);
+  if (!matchedKey) return false;
   return candidates.some((candidate) => {
-    const normalized = normalizeOriginExePath(candidate);
-    return Boolean(normalized && normalized.toLowerCase() === matchedKey);
+    const key = normalizeOriginPathKey(candidate);
+    return key === matchedKey;
   });
 }
 

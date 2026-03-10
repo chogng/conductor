@@ -25,19 +25,12 @@ import {
   normalizeXDataEndValue,
   type TemplateConfig,
 } from "../lib/templateManagerUtils";
-
-type ToastKind = "success" | "error" | "warning" | "info";
+import type { PreviewStatus as SessionPreviewStatus } from "../context/device-analysis-session-context";
+import type { PreviewFileLike, ToastType } from "../lib/sharedTypes";
 
 type TemplateManagerProps = {
-  previewFile?: (Partial<{
-    fileId: string;
-    fileName: string;
-    rowCount: number;
-    columnCount: number;
-    maxCellLengths: number[];
-  }> &
-    Record<string, unknown>) | null;
-  previewStatus?: Partial<{ state: string; message: string }> | null;
+  previewFile?: PreviewFileLike | null;
+  previewStatus?: Partial<SessionPreviewStatus> | null;
   getPreviewRow?: (rowIndex: number) => unknown;
   ensurePreviewRows?: (
     fileId: string,
@@ -76,11 +69,11 @@ const TemplateManager = ({
   const [toast, setToast] = useState({
     isVisible: false,
     message: "",
-    type: "success" as ToastKind,
+    type: "success" as ToastType,
   });
 
   const showToast = useCallback((message: string, type = "warning") => {
-    const safeType: ToastKind =
+    const safeType: ToastType =
       type === "success" || type === "error" || type === "warning" || type === "info"
         ? type
         : "warning";

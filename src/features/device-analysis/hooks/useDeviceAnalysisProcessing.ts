@@ -12,20 +12,12 @@ import {
   parseLegacyExtractionError,
   stableStringify,
 } from "../lib/deviceAnalysisUtils";
-
-type TranslateFn = (key: string, vars?: Record<string, unknown>) => string;
-
-type RawDataEntry = {
-  file?: unknown;
-  fileId?: string;
-  fileName?: string;
-  [key: string]: unknown;
-};
-
-type ProcessedEntry = {
-  fileId?: string;
-  [key: string]: unknown;
-};
+import type {
+  ProcessedEntry,
+  ProcessingStatus,
+  RawDataEntry,
+} from "../lib/sharedTypes";
+import type { LooseTranslateFn as TranslateFn } from "../lib/translateTypes";
 
 type ExtractionErrorEntry = {
   fileName?: string;
@@ -39,12 +31,6 @@ type ProcessingQueueItem = {
   file: unknown;
   fileId: string;
   fileName?: string;
-};
-
-type ProcessingStatus = {
-  state: "idle" | "processing" | "done" | "error";
-  processed: number;
-  total: number;
 };
 
 type ExtractionMeta = {

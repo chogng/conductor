@@ -1,14 +1,10 @@
 import type { TemplateConfig } from "./templateManagerUtils";
+import type { LooseTranslateFn as TranslateFn } from "./translateTypes";
 
 const CELL_REF_RE = /^([A-Z]+)([1-9][0-9]*)$/;
 
 export const Y_COLUMNS_REQUIRED_MESSAGE =
   "Y Data must be selected from the columns in the preview header.";
-
-type TranslateFn = (
-  key: string,
-  params?: Record<string, unknown>,
-) => string;
 
 type ValidationConfig = Partial<TemplateConfig> &
   Partial<{

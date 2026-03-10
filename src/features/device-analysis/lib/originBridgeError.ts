@@ -1,3 +1,5 @@
+import type { LooseTranslateFn as TranslateFn } from "./translateTypes";
+
 export const ORIGIN_BRIDGE_ERROR_PREFIX = "__ORIGIN_ERROR__:";
 
 type OriginBridgeErrorCode =
@@ -47,11 +49,6 @@ type OriginBridgeErrorPayload = Partial<{
   originExe: string;
   message: string;
 }>;
-
-type TranslateFn = (
-  key: string,
-  params?: Record<string, unknown>,
-) => string;
 
 const toTrimmedString = (value: unknown): string =>
   typeof value === "string" && value.trim() ? value.trim() : "";

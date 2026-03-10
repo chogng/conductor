@@ -1,0 +1,16 @@
+export const ipcChannels = {
+  templatesGet: "device-analysis-store:templates:get",
+  templatesCreate: "device-analysis-store:templates:create",
+  templatesDelete: "device-analysis-store:templates:delete",
+  settingsGet: "device-analysis-store:settings:get",
+  settingsPatch: "device-analysis-store:settings:patch",
+  persistencePathGet: "device-analysis-store:persistence-path:get",
+  persistencePathSet: "device-analysis-store:persistence-path:set",
+  persistencePathChoose: "device-analysis-store:persistence-path:choose",
+  originExeGet: "device-analysis-origin:exe:get",
+  originExeSet: "device-analysis-origin:exe:set",
+  originExePick: "device-analysis-origin:exe:pick",
+  originHealthCheck: "device-analysis-origin:health-check",
+  originRunCsv: "device-analysis-origin:run-csv",
+  originRuntimeCleanupRun: "device-analysis-origin:runtime-cleanup:run",
+} as const;

@@ -12,17 +12,12 @@ import Card from "../../../../components/ui/Card";
 import DropdownMenu from "../../../../components/ui/DropdownMenu";
 import ScrollArea from "../../../../components/ui/ScrollArea";
 import { useLanguage } from "../../../../hooks/useLanguage";
+import type { ProcessingStatus } from "../../lib/sharedTypes";
 import FileCard, { type ProcessedFileLike } from "./FileCard";
-
-type ProcessingStatus = {
-  state?: string;
-  processed?: number;
-  total?: number;
-};
 
 type OverviewGridProps = {
   processedData?: ProcessedFileLike[];
-  processingStatus?: ProcessingStatus;
+  processingStatus?: Partial<ProcessingStatus>;
   activeFileId?: string | null;
   onSelectFile?: (fileId: string | undefined) => void;
   selectedOriginCanvasKeySet?: Set<string>;

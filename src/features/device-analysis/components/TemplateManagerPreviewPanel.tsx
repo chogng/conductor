@@ -9,6 +9,8 @@ import { Check, Copy, FileSpreadsheet } from "lucide-react";
 import Avatar from "../../../components/ui/Avatar";
 import ScrollArea from "../../../components/ui/ScrollArea";
 import type { TranslateFn } from "../../../context/language-context";
+import type { PreviewStatus as SessionPreviewStatus } from "../context/device-analysis-session-context";
+import type { PreviewFileLike } from "../lib/sharedTypes";
 import { formatNumber } from "../lib/analysisMath";
 import { getExcelColumnLabel } from "../lib/templateManagerPreview";
 import {
@@ -19,18 +21,7 @@ import {
   resolveSelectionDragStart,
 } from "../lib/previewSelectionNavigation";
 
-type PreviewStatus = {
-  state?: string;
-  message?: string;
-};
-
-type PreviewFileLike = {
-  fileId?: string;
-  fileName?: string;
-  rowCount?: number;
-  columnCount?: number;
-  [key: string]: unknown;
-};
+type PreviewStatus = Partial<SessionPreviewStatus>;
 
 type PreviewWindow = {
   startRow: number;

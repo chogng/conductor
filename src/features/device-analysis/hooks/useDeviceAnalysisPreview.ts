@@ -10,11 +10,17 @@ import {
   type SetStateAction,
 } from "react";
 import type { TranslateFn } from "../../../context/language-context";
+import type { PreviewStatus } from "../context/device-analysis-session-context";
 import {
   DA_PREVIEW_MAX_CACHED_FILES,
   DA_PREVIEW_MAX_CACHED_UI_ROWS_PER_FILE,
   DA_PREVIEW_UI_CHUNK_SIZE_ROWS,
 } from "../lib/deviceAnalysisPreviewLimits";
+import type {
+  PreviewFile,
+  PreviewRowsRequest,
+  RawDataEntry,
+} from "../lib/sharedTypes";
 import {
   clearChunkRows,
   hasChunkRowsInCache,
@@ -23,36 +29,6 @@ import {
   sanitizePreviewRows,
 } from "../lib/previewRowChunk";
 import { usePreviewRowsVersion } from "./usePreviewRowsVersion";
-
-type PreviewStatusState = "idle" | "loading" | "ready" | "error";
-
-type PreviewStatus = {
-  state: PreviewStatusState;
-  message: string;
-};
-
-type PreviewFile = {
-  fileId: string;
-  fileName: string;
-  rowCount: number;
-  columnCount: number;
-  maxCellLengths: number[];
-};
-
-type RawDataEntry = {
-  file?: unknown;
-  fileId?: string;
-  fileName?: string;
-  [key: string]: unknown;
-};
-
-type PreviewRowsRequest = {
-  fileId: string;
-  startRow: number;
-  endRow: number;
-  reject: (error: unknown) => void;
-  resolve: (rows: unknown[][]) => void;
-};
 
 type PreviewResultPayload = {
   requestId: number;

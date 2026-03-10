@@ -1,5 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
+import { normalizeOriginPlotOptions } from "./origin-plot-options.js";
+import { normalizeOriginExePath } from "./origin-runner/core.js";
 
 const DEVICE_ANALYSIS_STORE_FILENAME = "config.json";
 const DEVICE_ANALYSIS_STORE_CONFIG_FILENAME = "store-path.json";
@@ -95,23 +97,9 @@ export function createDeviceAnalysisStore(options) {
   const input = options && typeof options === "object" ? options : {};
   const getHomeDir =
     typeof input.getHomeDir === "function" ? input.getHomeDir : null;
-  const normalizeOriginExePath =
-    typeof input.normalizeOriginExePath === "function"
-      ? input.normalizeOriginExePath
-      : null;
-  const normalizeOriginPlotOptions =
-    typeof input.normalizeOriginPlotOptions === "function"
-      ? input.normalizeOriginPlotOptions
-      : null;
 
   if (!getHomeDir) {
     throw new Error("Device analysis store requires getHomeDir().");
-  }
-  if (!normalizeOriginExePath) {
-    throw new Error("Device analysis store requires normalizeOriginExePath().");
-  }
-  if (!normalizeOriginPlotOptions) {
-    throw new Error("Device analysis store requires normalizeOriginPlotOptions().");
   }
 
   let storeConfigCache = null;

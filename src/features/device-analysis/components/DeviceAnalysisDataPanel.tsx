@@ -9,21 +9,14 @@ import Button from "../../../components/ui/Button";
 import type { TranslateFn } from "../../../context/language-context";
 import CsvImporter from "./CsvImporter";
 import TemplateManager from "./TemplateManager";
+import type { PreviewStatus as SessionPreviewStatus } from "../context/device-analysis-session-context";
+import type { RawDataEntry } from "../lib/sharedTypes";
 
 type CsvImporterRef = {
   openFileDialog?: () => void;
 };
 
-type RawDataEntry = {
-  fileId?: string;
-  fileName?: string;
-  [key: string]: unknown;
-};
-
-type PreviewStatus = {
-  state?: string;
-  message?: string;
-};
+type PreviewStatus = Partial<SessionPreviewStatus>;
 
 type DataPanelProps = {
   deviceAnalysisSettings?: Record<string, unknown> | null;

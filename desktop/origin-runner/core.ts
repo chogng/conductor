@@ -30,6 +30,17 @@ export function sanitizeFileName(name) {
   return cleaned || "device_analysis_origin.zip";
 }
 
+export function getOriginBridgeWorkDir(jobDir) {
+  return path.join(jobDir, ".ob");
+}
+
+export function getOriginBridgeFilePaths(workDir) {
+  return {
+    logPath: path.join(workDir, "originbridge.log"),
+    errorPath: path.join(workDir, "error.txt"),
+  };
+}
+
 export function getPowerShellExePath() {
   const systemRoot = process.env.SystemRoot || "C:\\Windows";
   const candidate = path.join(
@@ -86,6 +97,11 @@ export function normalizeOriginExePath(inputPath) {
   if (typeof inputPath !== "string") return null;
   const normalized = inputPath.trim();
   return normalized || null;
+}
+
+export function normalizeOriginPathKey(inputPath) {
+  const normalized = normalizeOriginExePath(inputPath);
+  return normalized ? normalized.toLowerCase() : null;
 }
 
 export function assertOriginExePath(originExePath) {

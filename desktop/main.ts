@@ -13,6 +13,14 @@ import {
   runOriginHealthCheck,
   runOriginCsvJob,
 } from "./origin-runner.js";
+import { ipcChannels } from "./ipc-channels.js";
+import {
+  DEFAULT_ORIGIN_PLOT_OPTIONS,
+  normalizeNonEmptyString,
+  normalizeOriginCommandList,
+  normalizeOriginPlotOptions,
+} from "./origin-plot-options.js";
+import type { OriginPlotOptions } from "./origin-plot-options.js";
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
@@ -125,24 +133,6 @@ const ORIGIN_WORKER_SCRIPT_PATH = resolveOriginWorkerScriptPath();
 const ORIGIN_CSV_SCRIPT_PATH = isDev ? resolveOriginCsvScriptPath() : null;
 const ORIGIN_CSV_WORKER_PATH = resolveOriginCsvWorkerPath();
 
-const ipcChannels = {
-  templatesGet: "device-analysis-store:templates:get",
-  templatesCreate: "device-analysis-store:templates:create",
-  templatesDelete: "device-analysis-store:templates:delete",
-  settingsGet: "device-analysis-store:settings:get",
-  settingsPatch: "device-analysis-store:settings:patch",
-  persistencePathGet: "device-analysis-store:persistence-path:get",
-  persistencePathSet: "device-analysis-store:persistence-path:set",
-  persistencePathChoose: "device-analysis-store:persistence-path:choose",
-  originExeGet: "device-analysis-origin:exe:get",
-  originExeSet: "device-analysis-origin:exe:set",
-  originExePick: "device-analysis-origin:exe:pick",
-  originHealthCheck: "device-analysis-origin:health-check",
-  originRunCsv: "device-analysis-origin:run-csv",
-  originRuntimeCleanupRun: "device-analysis-origin:runtime-cleanup:run",
-};
-
-/** @typedef {{plotType: number, xyPairs: string, plotCommand: string, postPlotCommands: string[], lineWidth: number}} OriginPlotOptions */
 /**
  * @typedef {{
  *   import?: {workbookLongName?: string, preCommands?: string[], postCommands?: string[]},
@@ -153,60 +143,6 @@ const ipcChannels = {
  *   commands?: {preCommands?: string[], postCommands?: string[]},
  * }} OriginCapabilitiesOptions
  */
-const DEFAULT_ORIGIN_PLOT_OPTIONS = Object.freeze(
-  /** @type {OriginPlotOptions} */ ({
-    plotType: 202,
-    xyPairs: "((1,2))",
-    plotCommand: "",
-    postPlotCommands: [],
-    lineWidth: 2,
-  }),
-);
-
-function normalizeNonEmptyString(value, fallback = "") {
-  if (typeof value !== "string") return fallback;
-  const trimmed = value.trim();
-  return trimmed || fallback;
-}
-
-function normalizeBoundedInt(value, fallback, min, max) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) return fallback;
-  return Math.min(max, Math.max(min, Math.floor(num)));
-}
-
-function normalizeBoundedFloat(value, fallback, min, max) {
-  const num = Number(value);
-  if (!Number.isFinite(num)) return fallback;
-  return Math.min(max, Math.max(min, Math.round(num * 100) / 100));
-}
-
-function normalizeOriginPostPlotCommands(value) {
-  if (Array.isArray(value)) {
-    const normalized = [];
-    for (const item of value) {
-      if (typeof item !== "string") continue;
-      const trimmed = item.trim();
-      if (!trimmed) continue;
-      normalized.push(trimmed);
-    }
-    return normalized;
-  }
-
-  if (typeof value === "string") {
-    return value
-      .split(/\r?\n/g)
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-
-  return [];
-}
-
-function normalizeOriginCommandList(value) {
-  return normalizeOriginPostPlotCommands(value);
-}
-
 function assertOriginCapabilitiesObject(value, fieldPath) {
   if (value == null) return {};
   if (typeof value !== "object" || Array.isArray(value)) {
@@ -439,57 +375,6 @@ function normalizeOriginCapabilitiesPayload(rawCapabilities) {
 }
 
 /**
- * @param {unknown} rawOptions
- * @param {OriginPlotOptions} [fallbackOptions]
- * @returns {OriginPlotOptions}
- */
-function normalizeOriginPlotOptions(rawOptions, fallbackOptions = undefined) {
-  const raw = rawOptions && typeof rawOptions === "object" ? rawOptions : {};
-  const fallbackBase = fallbackOptions ?? DEFAULT_ORIGIN_PLOT_OPTIONS;
-  const fallback =
-    fallbackBase && typeof fallbackBase === "object"
-      ? {
-          ...DEFAULT_ORIGIN_PLOT_OPTIONS,
-          ...fallbackBase,
-        }
-      : DEFAULT_ORIGIN_PLOT_OPTIONS;
-
-  const plotType = normalizeBoundedInt(raw.plotType ?? raw.type, fallback.plotType, 0, 9999);
-  const xyPairs = normalizeNonEmptyString(raw.xyPairs, fallback.xyPairs);
-  const plotCommand = normalizeNonEmptyString(
-    raw.plotCommand ?? raw.command,
-    fallback.plotCommand,
-  );
-  const postPlotCommands = normalizeOriginPostPlotCommands(
-    Object.prototype.hasOwnProperty.call(raw, "postPlotCommands")
-      ? raw.postPlotCommands
-      : Object.prototype.hasOwnProperty.call(raw, "postCommands")
-        ? raw.postCommands
-        : fallback.postPlotCommands,
-  );
-  const fallbackLineWidth = normalizeBoundedFloat(
-    fallback.lineWidth,
-    DEFAULT_ORIGIN_PLOT_OPTIONS.lineWidth,
-    0.5,
-    20,
-  );
-  const lineWidth = normalizeBoundedFloat(
-    raw.lineWidth ?? raw.linewidth ?? raw.line_width,
-    fallbackLineWidth,
-    0.5,
-    20,
-  );
-
-  return {
-    plotType,
-    xyPairs,
-    plotCommand,
-    postPlotCommands,
-    lineWidth,
-  };
-}
-
-/**
  * @param {unknown} payload
  * @param {OriginPlotOptions} [plotDefaults]
  */
@@ -540,8 +425,6 @@ function getDeviceAnalysisHomeDir() {
 
 const deviceAnalysisStore = createDeviceAnalysisStore({
   getHomeDir: getDeviceAnalysisHomeDir,
-  normalizeOriginExePath,
-  normalizeOriginPlotOptions,
 });
 
 function configureRuntimeCachePath() {

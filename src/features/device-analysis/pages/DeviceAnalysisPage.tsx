@@ -32,28 +32,24 @@ import {
 } from "../hooks";
 import { useLanguage } from "../../../hooks/useLanguage";
 import type {
+  PreviewStatus,
   SsIdWindow,
   SsManualRanges,
   SsMethod,
 } from "../context/device-analysis-session-context";
+import type {
+  PreviewFile,
+  PreviewRowsRequest,
+  ProcessedEntry,
+  RawDataEntry,
+  ToastType,
+} from "../lib/sharedTypes";
 
 type PageTab = "data" | "analysis" | "settings";
 type PageNavigationState = {
   activePage: PageTab;
   history: PageTab[];
   historyIndex: number;
-};
-
-type RawDataEntry = {
-  file?: unknown;
-  fileId?: string;
-  fileName?: string;
-  [key: string]: unknown;
-};
-
-type ProcessedEntry = {
-  fileId?: string;
-  [key: string]: unknown;
 };
 
 type ProcessingExtractionError = {
@@ -63,34 +59,12 @@ type ProcessingExtractionError = {
   messageParams?: Record<string, unknown> | null;
   [key: string]: unknown;
 };
-type ToastType = "success" | "error" | "warning" | "info";
 
 const stripCsvExtension = (fileName: string): string => {
   const normalized = String(fileName ?? "").trim();
   if (!normalized) return normalized;
   const withoutCsv = normalized.replace(/\.csv$/i, "");
   return withoutCsv.length > 0 ? withoutCsv : normalized;
-};
-
-type PreviewFile = {
-  fileId: string;
-  fileName: string;
-  rowCount: number;
-  columnCount: number;
-  maxCellLengths: number[];
-};
-
-type PreviewStatus = {
-  state: "idle" | "loading" | "ready" | "error";
-  message: string;
-};
-
-type PreviewRowsRequest = {
-  fileId: string;
-  startRow: number;
-  endRow: number;
-  reject: (error: unknown) => void;
-  resolve: (rows: unknown[][]) => void;
 };
 
 type SessionCompat = {

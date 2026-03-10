@@ -1,3 +1,5 @@
+import type { LooseTranslateFn as TranslateFn } from "./translateTypes";
+
 type JsonLike =
   | string
   | number
@@ -11,11 +13,6 @@ type LegacyExtractionError = {
   messageKey: string;
   messageParams: Record<string, number | string>;
 };
-
-type TranslateFn = (
-  key: string,
-  params?: Record<string, unknown>,
-) => string;
 
 type ExtractionErrorLike = Partial<{
   messageKey: string;

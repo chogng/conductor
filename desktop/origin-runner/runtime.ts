@@ -3,6 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   ensureDir,
+  getOriginBridgeFilePaths,
+  getOriginBridgeWorkDir,
   normalizeOriginExePath,
   sanitizeFileName,
 } from "./core.js";
@@ -58,7 +60,7 @@ function listJobDirectories(baseDir) {
 }
 
 function readJobErrorText(jobDir) {
-  const errorPath = path.join(jobDir, ".ob", "error.txt");
+  const { errorPath } = getOriginBridgeFilePaths(getOriginBridgeWorkDir(jobDir));
   if (!fs.existsSync(errorPath)) return "";
   try {
     return String(fs.readFileSync(errorPath, "utf8") || "").trim();
@@ -239,7 +241,7 @@ export function createCsvJobPaths(csvName, options = {}) {
 
   const jobId = `${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
   const jobDir = path.join(rootDir, jobId);
-  const workDir = path.join(jobDir, ".ob");
+  const workDir = getOriginBridgeWorkDir(jobDir);
 
   ensureDir(jobDir);
   ensureDir(workDir);
@@ -251,8 +253,7 @@ export function createCsvJobPaths(csvName, options = {}) {
     jobDir,
     workDir,
     csvPath,
-    logPath: path.join(workDir, "originbridge.log"),
-    errorPath: path.join(workDir, "error.txt"),
+    ...getOriginBridgeFilePaths(workDir),
   };
 }
 

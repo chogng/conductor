@@ -2,7 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  getOriginBridgeFilePaths,
   normalizeOriginExePath,
+  normalizeOriginPathKey,
   runProcess,
 } from "./core.js";
 
@@ -131,8 +133,8 @@ function collectPreferredPythonExecutables() {
   const existing = [];
   for (const item of candidates) {
     const normalized = normalizeOriginExePath(item);
-    if (!normalized) continue;
-    const key = normalized.toLowerCase();
+    const key = normalizeOriginPathKey(item);
+    if (!normalized || !key) continue;
     if (seen.has(key)) continue;
     seen.add(key);
     if (fs.existsSync(normalized)) {
@@ -219,8 +221,7 @@ export async function runPythonScriptForBatch(pythonScriptPath, scriptArgs, opti
 }
 
 export function readWorkerErrorFiles(workDir, parseWorkerErrorPayload) {
-  const logPath = path.join(workDir, "originbridge.log");
-  const errorPath = path.join(workDir, "error.txt");
+  const { logPath, errorPath } = getOriginBridgeFilePaths(workDir);
 
   const workerErrorRaw = fs.existsSync(errorPath)
     ? String(fs.readFileSync(errorPath, "utf8") || "").trim()

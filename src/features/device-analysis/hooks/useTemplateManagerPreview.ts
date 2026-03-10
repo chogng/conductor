@@ -7,6 +7,8 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
+import type { PreviewStatus as SessionPreviewStatus } from "../context/device-analysis-session-context";
+import type { PreviewFileLike } from "../lib/sharedTypes";
 import type { TemplateConfig } from "../lib/templateManagerUtils";
 import {
   createEmptyLiveColumnLayout,
@@ -60,16 +62,7 @@ const normalizeSelectionRange = (
   };
 };
 
-type PreviewFileLike = Partial<{
-  fileId: string;
-  columnCount: number;
-  rowCount: number;
-  maxCellLengths: number[];
-}>;
-
-type PreviewStatus = Partial<{
-  state: string;
-}>;
+type PreviewStatus = Partial<SessionPreviewStatus>;
 
 type SelectionRange = {
   startRow: number;

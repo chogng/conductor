@@ -10,7 +10,6 @@ import React, {
   useEffect,
 } from "react";
 import { Upload, FileText, X, AlertCircle } from "lucide-react";
-import { createPortal } from "react-dom";
 import { cx } from "../../../utils/cx";
 import { stableItemKey } from "../../../utils/stableKey";
 import { useLanguage } from "../../../hooks/useLanguage";
@@ -45,18 +44,9 @@ type CsvImporterProps = {
   selectedFileId?: string | null;
 };
 
-type ExpandedCardProps = {
-  fileEntry: CsvFileEntry | null;
-  originRect: DOMRect | null;
-  containerBounds: DOMRect | null;
-  onClose: () => void;
-  onRemove: () => void;
-};
-
 type CsvFileItemProps = {
   fileEntry: CsvFileEntry;
   isSelected: boolean;
-  isInvisible: boolean;
   onSelect?: (fileId: string | null) => void;
   onRemove?: (fileId: string | null) => void;
 };
@@ -83,110 +73,6 @@ type DataTransferItemWithWebkit = DataTransferItem & {
   webkitGetAsEntry?: () => FileSystemEntryLike | null;
 };
 
-/*
- * Separate component for the expanded card animation.
- * Using a portal to break out of the scrollable container.
- */
-const ExpandedCard = ({
-  fileEntry,
-  originRect,
-  containerBounds,
-  onClose,
-  onRemove,
-}: ExpandedCardProps) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-
-  useEffect(() => {
-    // Trigger expansion after mount
-    requestAnimationFrame(() => {
-      setIsExpanded(true);
-    });
-  }, []);
-
-  // Safety check
-  if (!originRect) return null;
-  if (!fileEntry?.file) return null;
-
-  // Calculate dimensions and position
-  // Estimate text width: ~8px per char + moderate padding
-  // Min width 300 to avoid too much whitespace on short names
-  const textWidthEstimate = fileEntry.file.name.length * 8 + 70;
-  const expandedWidth = Math.max(
-    originRect.width,
-    Math.max(300, textWidthEstimate),
-  );
-
-  // Determine boundaries, default to window if no container bounds passed
-  const windowWidth = typeof window !== "undefined" ? window.innerWidth : 1000;
-  // If containerBounds are provided, use them as constraints (plus padding), otherwise fallback to viewport 24px
-  const minLeft = containerBounds ? containerBounds.left : 24;
-  const maxRight = containerBounds ? containerBounds.right : windowWidth - 24;
-
-  // Center expansion: grow from center
-  let targetLeft = originRect.left + originRect.width / 2 - expandedWidth / 2;
-
-  // Clamp to bounds
-  // 1. Right edge check
-  if (targetLeft + expandedWidth > maxRight) {
-    targetLeft = maxRight - expandedWidth;
-  }
-  // 2. Left edge check (priority over right if conflict, or min width dictates)
-  if (targetLeft < minLeft) {
-    targetLeft = minLeft;
-  }
-
-  return createPortal(
-    <>
-      {/* Backdrop */}
-      <div
-        className={`fixed inset-0 z-40 transition-opacity duration-300 ${isExpanded ? "bg-black/5" : "opacity-0"}`}
-        onClick={onClose}
-      />
-      {/* Card */}
-      <div
-        className="fixed z-50 bg-bg-surface border border-border rounded-lg shadow-xl overflow-hidden flex items-center justify-between"
-        style={{
-          top: originRect.top,
-          left: isExpanded ? targetLeft : originRect.left,
-          height: originRect.height,
-          // Animate width and transform
-          width: isExpanded ? expandedWidth : originRect.width,
-          transform: isExpanded ? `translate(0, -4px)` : "none", // Slight pop up
-          // Use transition for smooth animation
-          transition: "all 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
-        }}
-      >
-        <div className="flex items-center gap-3 px-3 w-full overflow-hidden">
-          <div className="w-8 h-8 rounded bg-green-500/10 flex items-center justify-center text-green-500 shrink-0">
-            <FileText size={16} />
-          </div>
-          {/* Full filename display */}
-          <span
-            className="text-sm text-text-primary whitespace-nowrap overflow-hidden text-ellipsis"
-            style={{
-              maxWidth: "100%",
-            }}
-          >
-            {fileEntry.file.name}
-          </span>
-        </div>
-
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove();
-          }}
-          className="mr-3 text-text-secondary hover:text-red-500 transition-colors hover:bg-bg-page p-1 rounded shrink-0"
-        >
-          <X size={16} />
-        </button>
-      </div>
-    </>,
-    document.body,
-  );
-};
-
 const buildFileKeyRaw = (file: File | null | undefined): string =>
   file ? `${file.name}::${file.size}` : "";
 
@@ -206,7 +92,6 @@ const CsvFileItem = React.memo(
   ({
     fileEntry,
     isSelected,
-    isInvisible,
     onSelect,
     onRemove,
   }: CsvFileItemProps) => {
@@ -228,7 +113,6 @@ const CsvFileItem = React.memo(
           styles.fileItem,
           "group",
           isSelected && styles.fileItemSelected,
-          isInvisible && "invisible",
         )}
       >
         <div className={styles.fileContent}>
@@ -275,11 +159,9 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
     const { t } = useLanguage();
 
     const VIRTUALIZE_MIN_COUNT = 200;
-    const GRID_MIN_COL_WIDTH = 280; // px
     const GRID_GAP = 12; // gap-3 => 0.75rem
     const GRID_ROW_HEIGHT = 56; // p-3 + 32px icon => stable row height
     const GRID_PADDING_Y = 12; // p-3 => 0.75rem
-    const GRID_PADDING_X = 24; // p-3 * 2 => 1.5rem
     // Higher overscan reduces the chance of seeing "blank" or content popping at row boundaries.
     // Keep modest to avoid rendering too many items per frame.
     const GRID_OVERSCAN_ROWS = 6;
@@ -292,10 +174,6 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
     const setFiles = isControlled ? null : setInternalFiles;
     const [error, setError] = useState<string | null>(null);
 
-    // State for the expanded card animation
-    const [activeFile, setActiveFile] = useState<CsvFileEntry | null>(null);
-    const [originRect, setOriginRect] = useState<DOMRect | null>(null);
-    const [containerBounds, setContainerBounds] = useState<DOMRect | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
 
     const [optimisticSelectedFileId, setOptimisticSelectedFileId] =
@@ -559,11 +437,6 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
       }
     };
 
-    const handleCloseExpanded = useCallback(() => {
-      setActiveFile(null);
-      setOriginRect(null);
-    }, []);
-
     const removeFile = useCallback((fileId: string | null) => {
       if (typeof fileId !== "string") return;
       if (optimisticSelectedFileId === fileId) {
@@ -572,34 +445,16 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
       if (setFiles) {
         setFiles((prev) => prev.filter((entry) => entry.fileId !== fileId));
       }
-      if (activeFile?.fileId === fileId) {
-        handleCloseExpanded();
-      }
       // Notify parent to remove data
       if (onDataRemoved) {
         onDataRemoved(fileId);
       }
     }, [
-      activeFile?.fileId,
-      handleCloseExpanded,
       onDataRemoved,
       optimisticSelectedFileId,
       setEffectiveSelectedFileId,
       setFiles,
     ]);
-
-    const _handleShowFullName = (
-      fileEntry: CsvFileEntry,
-      e: React.MouseEvent<HTMLDivElement>,
-    ) => {
-      e.stopPropagation();
-      const rect = e.currentTarget.getBoundingClientRect();
-      setOriginRect(rect);
-      setActiveFile(fileEntry);
-      if (containerRef.current) {
-        setContainerBounds(containerRef.current.getBoundingClientRect());
-      }
-    };
 
     const virtual = useMemo(() => {
       const shouldVirtualize = files.length >= VIRTUALIZE_MIN_COUNT;
@@ -725,7 +580,6 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
                         key={fileEntry.fileId}
                         fileEntry={fileEntry}
                         isSelected={effectiveSelectedFileId === fileEntry.fileId}
-                        isInvisible={activeFile?.fileId === fileEntry.fileId}
                         onSelect={handleSelectFile}
                         onRemove={removeFile}
                       />
@@ -739,7 +593,6 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
                       key={fileEntry.fileId}
                       fileEntry={fileEntry}
                       isSelected={effectiveSelectedFileId === fileEntry.fileId}
-                      isInvisible={activeFile?.fileId === fileEntry.fileId}
                       onSelect={handleSelectFile}
                       onRemove={removeFile}
                     />
@@ -755,17 +608,6 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
             <AlertCircle size={16} />
             {error}
           </div>
-        )}
-
-        {/* Expanded Card Portal */}
-        {activeFile && originRect && (
-          <ExpandedCard
-            fileEntry={activeFile}
-            originRect={originRect}
-            containerBounds={containerBounds}
-            onClose={handleCloseExpanded}
-            onRemove={() => removeFile(activeFile.fileId)}
-          />
         )}
       </>
     );

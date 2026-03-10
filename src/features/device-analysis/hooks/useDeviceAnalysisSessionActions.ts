@@ -4,22 +4,11 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-
-type RawDataEntry = {
-  fileId?: string;
-  fileName?: string;
-  [key: string]: unknown;
-};
-
-type ProcessedEntry = {
-  fileId?: string;
-  [key: string]: unknown;
-};
-
-type ProcessingStatus = {
-  state: string;
-  [key: string]: unknown;
-};
+import type {
+  ProcessedEntry,
+  ProcessingStatus,
+  RawDataEntry,
+} from "../lib/sharedTypes";
 
 type UseDeviceAnalysisSessionActionsOptions = {
   clearPreviewState: (options?: { clearSelection?: boolean }) => void;
@@ -27,7 +16,7 @@ type UseDeviceAnalysisSessionActionsOptions = {
   invalidatePreviewRequests: () => void;
   previewFile?: { fileId?: string } | null;
   processedData?: ProcessedEntry[];
-  processingStatus?: ProcessingStatus;
+  processingStatus?: Partial<ProcessingStatus>;
   rawData?: RawDataEntry[];
   removeQueuedProcessingFile: (fileId: string) => void;
   resetPreviewWorker: () => void;

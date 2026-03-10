@@ -1,11 +1,7 @@
 import { validateTemplateForApply } from "./templateValidation";
+import type { LooseTranslateFn as TranslateFn } from "./translateTypes";
 
 const CELL_REF_RE = /^([A-Z]+)(\d+)$/;
-
-type TranslateFn = (
-  key: string,
-  vars?: Record<string, unknown>,
-) => string;
 
 type CellRef = {
   rowIndex: number;

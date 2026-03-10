@@ -6,7 +6,6 @@ import { computeCentralDerivative, computeSubthresholdSwing, computeSubthreshold
 import { apiService } from "../services/apiService";
 import Select from "../../../components/ui/Select";
 import Button from "../../../components/ui/Button";
-import Tabs from "../../../components/ui/Tabs";
 import Card from "../../../components/ui/Card";
 import ScrollArea from "../../../components/ui/ScrollArea";
 import Toast from "../../../components/ui/Toast";
@@ -14,6 +13,7 @@ import { useLanguage } from "../../../hooks/useLanguage";
 import { COLORS } from "../lib/chartColors";
 import { formatOriginBridgeError } from "../lib/originBridgeError";
 import { DEFAULT_ORIGIN_PLOT_OPTIONS, normalizeOriginPlotOptions, } from "../lib/originPlotOptions";
+import type { ToastState, ToastType } from "../lib/sharedTypes";
 import OverviewGrid from "./analysis-charts/OverviewGrid";
 import CalculatedParametersRow from "./analysis-charts/CalculatedParametersRow";
 import { buildLogTicks, buildNiceTicks, buildOriginAutoTicks, buildPoints, buildStepTicks, computeLabelInterval, computeMinMax, downsamplePointsForDisplay, inferTickDigitsFromTicks, normalizeFloat, normalizeVarToken, padLinearDomain, padLogDomain, parseOptionalNumber, preserveScrollPosition, varTokenToSymbol, } from "../lib/analysisChartsUtils";
@@ -49,12 +49,6 @@ type CachePrefetchHandle = {
     id: ReturnType<typeof setTimeout>;
 };
 type IvGmPlotType = "iv" | "gm";
-type ToastType = "success" | "error" | "warning" | "info";
-type ToastState = {
-    isVisible: boolean;
-    message: string;
-    type: ToastType;
-};
 const MAX_RENDER_SERIES_POINTS = 600;
 const MIN_RENDER_SERIES_POINTS = 120;
 const DEFAULT_RENDER_POINT_BUDGET = 12000;
@@ -716,11 +710,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             };
         });
     }, [activeFile?.fileId, activeOriginSeries]);
-    const focusedSeries = useMemo(() => {
-        if (!activeFile?.series?.length || !focusedSeriesId)
-            return null;
-        return activeFile.series.find((s: any) => s.id === focusedSeriesId) ?? null;
-    }, [activeFile, focusedSeriesId]);
     useEffect(() => {
         const list = activeFile?.series ?? [];
         if (!list.length) {
@@ -3183,4 +3172,3 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     </div>);
 };
 export default React.memo(AnalysisCharts);
-

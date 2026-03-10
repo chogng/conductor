@@ -4,22 +4,8 @@ import Button from "../../../components/ui/Button";
 import Input from "../../../components/ui/Input";
 import Select from "../../../components/ui/Select";
 import Toast from "../../../components/ui/Toast";
-import type { TranslateFn } from "../../../context/language-context";
-
-type Feedback = {
-  type: "idle" | "success" | "error";
-  message: string;
-};
-
-type ToastType = "success" | "error" | "warning" | "info";
-
-type ToastState = {
-  isVisible: boolean;
-  message: string;
-  type: ToastType;
-};
-
-type LanguageCode = "zh" | "en";
+import type { LanguageCode, TranslateFn } from "../../../context/language-context";
+import type { Feedback, ToastState } from "../lib/sharedTypes";
 
 type OriginSettings = {
   currentPath: string;
