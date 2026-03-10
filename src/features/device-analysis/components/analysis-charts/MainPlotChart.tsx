@@ -94,6 +94,20 @@ const toDomainTuple = (domain: number[]): [number, number] => [
   Number(domain?.[1] ?? 1),
 ];
 
+const withYAxisUnit = (
+  labelRaw: string | null | undefined,
+  unitRaw: string | null | undefined,
+): string => {
+  const label = String(labelRaw ?? "").trim();
+  const unit = String(unitRaw ?? "").trim();
+  if (!unit) return label;
+  if (!label) return unit;
+  if (/\([^()]+\)\s*$/.test(label)) {
+    return label.replace(/\([^()]+\)\s*$/, `(${unit})`);
+  }
+  return `${label} (${unit})`;
+};
+
 const MainPlotChart = memo(function MainPlotChart({
   plotType,
   activeFile,
@@ -251,6 +265,11 @@ const MainPlotChart = memo(function MainPlotChart({
 
   const isSsPlot = plotType === "ss";
 
+  const yAxisLabel = useMemo(
+    () => withYAxisUnit(activeFile?.yLabel, plotYUnitLabel),
+    [activeFile?.yLabel, plotYUnitLabel],
+  );
+
   return (
     <ResponsiveContainer
       width="100%"
@@ -295,9 +314,9 @@ const MainPlotChart = memo(function MainPlotChart({
         />
         <YAxis
           label={
-            activeFile?.yLabel
+            yAxisLabel
               ? {
-                  value: activeFile.yLabel,
+                  value: yAxisLabel,
                   angle: -90,
                   position: "insideLeft",
                   offset: -15,
