@@ -28,6 +28,7 @@ import {
   buildOriginCsvWorkerArgs,
   runNativeBatchWorker,
   runNativeZipWorker,
+  runNativeCsvWorker,
   runPythonScriptForBatch,
   readWorkerErrorFiles,
 } from "./runners.js";
@@ -123,28 +124,53 @@ export async function runOriginZipJob({
     logPath,
     errorPath,
   });
-  const zipPlotWorkerArgs = appendOriginPlotWorkerArgs(zipWorkerArgs, {
+  const zipWorkerArgsWithPlot = appendOriginPlotWorkerArgs(zipWorkerArgs, {
     plotType,
     xyPairs,
     plotCommand,
     postPlotCommands,
     lineWidth,
   });
-  const zipPythonWorkerArgs = appendOriginCapabilitiesWorkerArgs(
-    zipPlotWorkerArgs,
+  const zipWorkerArgsWithCapabilities = appendOriginCapabilitiesWorkerArgs(
+    zipWorkerArgsWithPlot,
     capabilities,
   );
 
   let workerResult = null;
   let runnerKind = null;
   let runnerExecutable = null;
-  // ZIP path: prefer Python script (originpro pip), fallback to native worker only
-  // when Python is unavailable. This avoids mixed-runner duplicate window launches.
-  if (scriptWorkerAvailable) {
+  // Native worker is preferred to guarantee runtime self-containment.
+  if (nativeWorkerAvailable) {
+    try {
+      const nativeResult = await runNativeZipWorker(
+        normalizedWorkerExecutablePath,
+        zipWorkerArgsWithCapabilities,
+        { windowsHide: true },
+      );
+      workerResult = nativeResult;
+      runnerKind = "native";
+      runnerExecutable = nativeResult.executable;
+    } catch (error) {
+      const canFallbackToPython = scriptWorkerAvailable && error?.code === "ENOENT";
+      if (!canFallbackToPython) {
+        throw toStructuredOriginError({
+          code: "ORIGIN_ZIP_RUNNER_FAILED",
+          stage: "NATIVE_RUNNER",
+          message:
+            error?.message ||
+            "Failed to run Origin ZIP native worker executable.",
+          logPath,
+          originExe: normalizedOriginExePath,
+        });
+      }
+    }
+  }
+
+  if (!workerResult && scriptWorkerAvailable) {
     try {
       const scriptResult = await runPythonScriptForBatch(
         workerScriptPath,
-        zipPythonWorkerArgs,
+        zipWorkerArgsWithCapabilities,
         { windowsHide: true, requiredModule: "originpro" },
       );
       workerResult = scriptResult;
@@ -153,49 +179,23 @@ export async function runOriginZipJob({
     } catch (error) {
       const pythonMissing = error?.code === "ENOENT";
       const moduleMissing = error?.code === "PY_MODULE_MISSING";
-      const canFallbackToNative = nativeWorkerAvailable && (pythonMissing || moduleMissing);
-      if (!canFallbackToNative) {
-        throw toStructuredOriginError({
-          code: pythonMissing
-            ? "ORIGIN_PYTHON_NOT_FOUND"
-            : moduleMissing
-              ? "ORIGIN_ORIGINPRO_IMPORT_FAILED"
-              : "ORIGIN_ZIP_RUNNER_FAILED",
-          stage: pythonMissing
-            ? "PYTHON_RUNNER"
-            : moduleMissing
-              ? "ORIGINPRO_INIT"
-              : "RUN_WORKER",
-          message:
-            pythonMissing
-              ? "Python executable not found. Install Python and ensure python/py is available in PATH."
-              : moduleMissing
-                ? "Failed to import originpro in available Python environments."
-              : error?.message || "Failed to run Origin ZIP python script.",
-          logPath,
-          originExe: normalizedOriginExePath,
-        });
-      }
-    }
-  }
-
-  if (!workerResult && nativeWorkerAvailable) {
-    try {
-      const nativeResult = await runNativeZipWorker(
-        normalizedWorkerExecutablePath,
-        zipWorkerArgs,
-        { windowsHide: true },
-      );
-      workerResult = nativeResult;
-      runnerKind = "native";
-      runnerExecutable = nativeResult.executable;
-    } catch (error) {
       throw toStructuredOriginError({
-        code: "ORIGIN_ZIP_RUNNER_FAILED",
-        stage: "NATIVE_RUNNER",
+        code: pythonMissing
+          ? "ORIGIN_PYTHON_NOT_FOUND"
+          : moduleMissing
+            ? "ORIGIN_ORIGINPRO_IMPORT_FAILED"
+            : "ORIGIN_ZIP_RUNNER_FAILED",
+        stage: pythonMissing
+          ? "PYTHON_RUNNER"
+          : moduleMissing
+            ? "ORIGINPRO_INIT"
+            : "RUN_WORKER",
         message:
-          error?.message ||
-          "Failed to run Origin ZIP native worker executable.",
+          pythonMissing
+            ? "Python executable not found. Install Python and ensure python/py is available in PATH."
+            : moduleMissing
+              ? "Failed to import originpro in available Python environments."
+              : error?.message || "Failed to run Origin ZIP python script.",
         logPath,
         originExe: normalizedOriginExePath,
       });
@@ -254,6 +254,7 @@ export async function runOriginCsvJob({
   csvText,
   originExePath,
   workerScriptPath,
+  workerExecutablePath,
   runtimeRootDir,
   seriesName = "",
   plotType,
@@ -264,13 +265,19 @@ export async function runOriginCsvJob({
   capabilities,
 }) {
   const normalizedOriginExePath = assertOriginExePath(originExePath);
+  const normalizedWorkerExecutablePath = normalizeOriginExePath(workerExecutablePath);
+  const nativeWorkerAvailable = Boolean(
+    normalizedWorkerExecutablePath && fs.existsSync(normalizedWorkerExecutablePath),
+  );
   const scriptWorkerAvailable = Boolean(workerScriptPath && fs.existsSync(workerScriptPath));
 
-  if (!scriptWorkerAvailable) {
+  if (!nativeWorkerAvailable && !scriptWorkerAvailable) {
     throw toStructuredOriginError({
       code: "ORIGIN_CSV_RUNNER_NOT_FOUND",
       stage: "PRECHECK",
-      message: `No CSV runner script is available: ${workerScriptPath || "(none)"}`,
+      message:
+        `No CSV runner is available. Worker: ${normalizedWorkerExecutablePath || "(none)"}; ` +
+        `Script: ${workerScriptPath || "(none)"}`,
       originExe: normalizedOriginExePath,
     });
   }
@@ -307,33 +314,73 @@ export async function runOriginCsvJob({
 
   let workerResult = null;
   let runnerExecutable = null;
-  try {
-    workerResult = await runPythonScriptForBatch(
-      workerScriptPath,
-      workerArgs,
-      { windowsHide: true, requiredModule: "originpro" },
-    );
-    runnerExecutable = workerResult.executable;
-  } catch (error) {
-    const pythonMissing = error?.code === "ENOENT";
-    const moduleMissing = error?.code === "PY_MODULE_MISSING";
-    throw toStructuredOriginError({
-      code: pythonMissing
-        ? "ORIGIN_PYTHON_NOT_FOUND"
-        : moduleMissing
-          ? "ORIGIN_ORIGINPRO_IMPORT_FAILED"
-          : "ORIGIN_CSV_RUNNER_FAILED",
-      stage: pythonMissing
-        ? "PYTHON_RUNNER"
-        : moduleMissing
-          ? "ORIGINPRO_INIT"
-          : "CSV_PYTHON_RUNNER",
-      message:
-        pythonMissing
-          ? "Python executable not found. Install Python and ensure python/py is available in PATH."
+  let runnerKind = null;
+
+  if (nativeWorkerAvailable) {
+    try {
+      workerResult = await runNativeCsvWorker(
+        normalizedWorkerExecutablePath,
+        workerArgs,
+        { windowsHide: true },
+      );
+      runnerKind = "native";
+      runnerExecutable = workerResult.executable;
+    } catch (error) {
+      const canFallbackToPython = scriptWorkerAvailable && error?.code === "ENOENT";
+      if (!canFallbackToPython) {
+        throw toStructuredOriginError({
+          code: "ORIGIN_CSV_RUNNER_FAILED",
+          stage: "NATIVE_RUNNER",
+          message:
+            error?.message ||
+            "Failed to run Origin CSV native worker executable.",
+          logPath,
+          originExe: normalizedOriginExePath,
+        });
+      }
+    }
+  }
+
+  if (!workerResult && scriptWorkerAvailable) {
+    try {
+      workerResult = await runPythonScriptForBatch(
+        workerScriptPath,
+        workerArgs,
+        { windowsHide: true, requiredModule: "originpro" },
+      );
+      runnerKind = "python";
+      runnerExecutable = workerResult.executable;
+    } catch (error) {
+      const pythonMissing = error?.code === "ENOENT";
+      const moduleMissing = error?.code === "PY_MODULE_MISSING";
+      throw toStructuredOriginError({
+        code: pythonMissing
+          ? "ORIGIN_PYTHON_NOT_FOUND"
           : moduleMissing
-            ? "Failed to import originpro in available Python environments."
-          : error?.message || "Failed to run Origin CSV python script.",
+            ? "ORIGIN_ORIGINPRO_IMPORT_FAILED"
+            : "ORIGIN_CSV_RUNNER_FAILED",
+        stage: pythonMissing
+          ? "PYTHON_RUNNER"
+          : moduleMissing
+            ? "ORIGINPRO_INIT"
+            : "CSV_PYTHON_RUNNER",
+        message:
+          pythonMissing
+            ? "Python executable not found. Install Python and ensure python/py is available in PATH."
+            : moduleMissing
+              ? "Failed to import originpro in available Python environments."
+              : error?.message || "Failed to run Origin CSV python script.",
+        logPath,
+        originExe: normalizedOriginExePath,
+      });
+    }
+  }
+
+  if (!workerResult) {
+    throw toStructuredOriginError({
+      code: "ORIGIN_CSV_RUNNER_NOT_FOUND",
+      stage: "PRECHECK",
+      message: "No available runner could be started for Origin CSV job.",
       logPath,
       originExe: normalizedOriginExePath,
     });
@@ -347,7 +394,7 @@ export async function runOriginCsvJob({
       workerResult,
       logPath,
       workerErrorPayload,
-      fallbackStage: "CSV_PYTHON_RUNNER",
+      fallbackStage: runnerKind === "native" ? "CSV_NATIVE_RUNNER" : "CSV_PYTHON_RUNNER",
       fallbackCode: "ORIGIN_CSV_FAILED",
       fallbackMessage:
         workerErrorRaw ||
@@ -365,9 +412,9 @@ export async function runOriginCsvJob({
     logPath,
     errorPath,
     csvPath,
-    runner: "python",
+    runner: runnerKind,
     runnerExecutable,
-    pythonExecutable: runnerExecutable,
+    pythonExecutable: runnerKind === "python" ? runnerExecutable : null,
   };
 }
 
@@ -492,7 +539,7 @@ export async function runOriginBatchJob({
     logPath,
     errorPath,
   });
-  const pythonWorkerArgs = appendOriginPlotWorkerArgs(workerArgs, {
+  const workerArgsWithPlot = appendOriginPlotWorkerArgs(workerArgs, {
     plotType,
     xyPairs,
     plotCommand,
@@ -526,7 +573,7 @@ export async function runOriginBatchJob({
     try {
       workerResult = await runNativeBatchWorker(
         normalizedBatchWorkerPath,
-        workerArgs,
+        workerArgsWithPlot,
         { windowsHide: true },
       );
       runnerKind = "native";
@@ -551,7 +598,7 @@ export async function runOriginBatchJob({
     try {
       workerResult = await runPythonScriptForBatch(
         batchScriptPath,
-        pythonWorkerArgs,
+        workerArgsWithPlot,
         { windowsHide: true },
       );
       runnerKind = "python";

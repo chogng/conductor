@@ -182,6 +182,22 @@ export async function runNativeZipWorker(workerExecutablePath, workerArgs, optio
   };
 }
 
+export async function runNativeCsvWorker(workerExecutablePath, workerArgs, options = {}) {
+  if (!workerExecutablePath || !fs.existsSync(workerExecutablePath)) {
+    const error = new Error(
+      `Origin CSV worker executable not found: ${workerExecutablePath}`,
+    );
+    Reflect.set(error, "code", "ENOENT");
+    throw error;
+  }
+
+  const result = await runProcess(workerExecutablePath, workerArgs, options);
+  return {
+    ...result,
+    executable: workerExecutablePath,
+  };
+}
+
 function collectPreferredPythonExecutables() {
   const candidates = [
     path.join(process.cwd(), ".venv-origin-workers", "Scripts", "python.exe"),

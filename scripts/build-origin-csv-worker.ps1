@@ -74,7 +74,7 @@ New-Item -ItemType Directory -Force -Path `
   $tempDir | Out-Null
 
 $OriginDir = Join-Path $ProjectRoot "origin"
-$EntryScript = Join-Path $OriginDir "run_origin_zip.py"
+$EntryScript = Join-Path $OriginDir "run_origin_csv.py"
 
 if (-not (Test-Path -LiteralPath $EntryScript)) {
   throw "Entry script not found: $EntryScript"
@@ -89,8 +89,8 @@ $VenvDir = Resolve-PathOrDefault -Value $VenvDir -Fallback (Join-Path $ProjectRo
 if (-not [System.IO.Path]::IsPathRooted($VenvDir)) {
   $VenvDir = Join-Path $ProjectRoot $VenvDir
 }
-$BuildWorkDir = Join-Path $DeviceDir "origin-workers\\pyinstaller\\zip\\work"
-$SpecDir = Join-Path $DeviceDir "origin-workers\\pyinstaller\\zip\\spec"
+$BuildWorkDir = Join-Path $DeviceDir "origin-workers\\pyinstaller\\csv\\work"
+$SpecDir = Join-Path $DeviceDir "origin-workers\\pyinstaller\\csv\\spec"
 
 New-Item -ItemType Directory -Path $DistDir -Force | Out-Null
 New-Item -ItemType Directory -Path $BuildWorkDir -Force | Out-Null
@@ -124,7 +124,7 @@ $venvPython = Join-Path $VenvDir "Scripts\python.exe"
 if (-not (Test-Path -LiteralPath $venvPython)) {
   if ($null -ne $uvCmd) {
     $venvArgs = @("venv", "--python", $PythonVersion, $VenvDir)
-    Write-Host "[build-origin-zip-worker] Running: uv $($venvArgs -join ' ')"
+    Write-Host "[build-origin-csv-worker] Running: uv $($venvArgs -join ' ')"
     & $uvCmd.Source @venvArgs
     if ($LASTEXITCODE -ne 0) {
       throw "uv venv failed with exit code $LASTEXITCODE"
@@ -137,7 +137,7 @@ if (-not (Test-Path -LiteralPath $venvPython)) {
     }
 
     $venvArgs = @("-m", "venv", $VenvDir)
-    Write-Host "[build-origin-zip-worker] Running: $pythonExe $($venvArgs -join ' ')"
+    Write-Host "[build-origin-csv-worker] Running: $pythonExe $($venvArgs -join ' ')"
     & $pythonExe @venvArgs
     if ($LASTEXITCODE -ne 0) {
       throw "python -m venv failed with exit code $LASTEXITCODE"
@@ -151,14 +151,14 @@ if (-not (Test-Path -LiteralPath $venvPython)) {
 
 if ($null -ne $uvCmd) {
   $installArgs = @("pip", "install", "--python", $venvPython) + $packages
-  Write-Host "[build-origin-zip-worker] Running: uv $($installArgs -join ' ')"
+  Write-Host "[build-origin-csv-worker] Running: uv $($installArgs -join ' ')"
   & $uvCmd.Source @installArgs
   if ($LASTEXITCODE -ne 0) {
     throw "uv pip install failed with exit code $LASTEXITCODE"
   }
 } else {
   $installArgs = @("-m", "pip", "install") + $packages
-  Write-Host "[build-origin-zip-worker] Running: $venvPython $($installArgs -join ' ')"
+  Write-Host "[build-origin-csv-worker] Running: $venvPython $($installArgs -join ' ')"
   & $venvPython @installArgs
   if ($LASTEXITCODE -ne 0) {
     throw "pip install failed with exit code $LASTEXITCODE"
@@ -170,7 +170,7 @@ $pyinstallerArgs = @(
   "--noconfirm",
   "--clean",
   "--onefile",
-  "--name", "origin-zip-worker",
+  "--name", "origin-csv-worker",
   "--distpath", $DistDir,
   "--workpath", $BuildWorkDir,
   "--specpath", $SpecDir,
@@ -182,20 +182,20 @@ $pyinstallerArgs = @(
   $EntryScript
 )
 
-Write-Host "[build-origin-zip-worker] Running: $venvPython $($pyinstallerArgs -join ' ')"
+Write-Host "[build-origin-csv-worker] Running: $venvPython $($pyinstallerArgs -join ' ')"
 & $venvPython @pyinstallerArgs
 
 if ($LASTEXITCODE -ne 0) {
   throw "PyInstaller failed with exit code $LASTEXITCODE"
 }
 
-$exePath = Join-Path $DistDir "origin-zip-worker.exe"
+$exePath = Join-Path $DistDir "origin-csv-worker.exe"
 if (-not (Test-Path -LiteralPath $exePath)) {
   throw "Build finished but executable was not found: $exePath"
 }
 
-Write-Host "[build-origin-zip-worker] OK: $exePath"
-Write-Host "[build-origin-zip-worker] Smoke test: $exePath --help"
+Write-Host "[build-origin-csv-worker] OK: $exePath"
+Write-Host "[build-origin-csv-worker] Smoke test: $exePath --help"
 $smokeExitCode = 0
 try {
   & $exePath --help
@@ -204,6 +204,6 @@ try {
   $smokeExitCode = -1
 }
 if ($smokeExitCode -ne 0) {
-  Write-Warning "[build-origin-zip-worker] Smoke test failed with exit code $smokeExitCode (continuing)."
+  Write-Warning "[build-origin-csv-worker] Smoke test failed with exit code $smokeExitCode (continuing)."
   $global:LASTEXITCODE = 0
 }

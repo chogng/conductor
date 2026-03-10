@@ -192,12 +192,36 @@ function resolveOriginZipWorkerPath() {
   ]);
 }
 
+function resolveOriginCsvWorkerPath() {
+  const envPath = normalizeOriginExePath(process.env.ORIGIN_CSV_WORKER_PATH);
+  if (!app.isPackaged) {
+    return resolveFirstExistingPath([
+      envPath,
+      path.join(__dirname, "..", "origin", "bin", "origin-csv-worker.exe"),
+      path.join(__dirname, "..", "origin", "dist", "origin-csv-worker.exe"),
+    ]);
+  }
+
+  return resolveFirstExistingPath([
+    envPath,
+    path.join(getResourcesPath(), "origin", "bin", "origin-csv-worker.exe"),
+    path.join(
+      getResourcesPath(),
+      "app.asar.unpacked",
+      "origin",
+      "bin",
+      "origin-csv-worker.exe",
+    ),
+  ]);
+}
+
 const ORIGIN_WORKER_SCRIPT_PATH = resolveOriginWorkerScriptPath();
-const ORIGIN_BATCH_SCRIPT_PATH = resolveOriginBatchScriptPath();
-const ORIGIN_ZIP_SCRIPT_PATH = resolveOriginZipScriptPath();
-const ORIGIN_CSV_SCRIPT_PATH = resolveOriginCsvScriptPath();
+const ORIGIN_BATCH_SCRIPT_PATH = isDev ? resolveOriginBatchScriptPath() : null;
+const ORIGIN_ZIP_SCRIPT_PATH = isDev ? resolveOriginZipScriptPath() : null;
+const ORIGIN_CSV_SCRIPT_PATH = isDev ? resolveOriginCsvScriptPath() : null;
 const ORIGIN_BATCH_WORKER_PATH = resolveOriginBatchWorkerPath();
 const ORIGIN_ZIP_WORKER_PATH = resolveOriginZipWorkerPath();
+const ORIGIN_CSV_WORKER_PATH = resolveOriginCsvWorkerPath();
 
 const ipcChannels = {
   templatesGet: "device-analysis-store:templates:get",
@@ -1041,6 +1065,7 @@ async function handleOriginRunCsv(event, payload) {
       capabilities,
       originExePath,
       workerScriptPath: ORIGIN_CSV_SCRIPT_PATH,
+      workerExecutablePath: ORIGIN_CSV_WORKER_PATH,
       runtimeRootDir: getDeviceAnalysisHomeDir(),
     });
   } finally {

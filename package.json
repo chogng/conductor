@@ -1,7 +1,7 @@
 {
   "name": "device-analysis-standalone",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.5.1",
   "type": "module",
   "main": "desktop-dist/main.js",
   "scripts": {
@@ -11,6 +11,7 @@
     "build:origin-worker": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-origin-workers.ps1",
     "build:origin-batch-worker": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-origin-batch-worker.ps1",
     "build:origin-zip-worker": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-origin-zip-worker.ps1",
+    "build:origin-csv-worker": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-origin-csv-worker.ps1",
     "build:desktop:core": "tsc -p tsconfig.desktop.json",
     "build:web": "vite build",
     "build:web:desktop": "vite build --base ./",

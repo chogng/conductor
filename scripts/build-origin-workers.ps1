@@ -15,12 +15,16 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 $scriptBatch = Join-Path $PSScriptRoot "build-origin-batch-worker.ps1"
 $scriptZip = Join-Path $PSScriptRoot "build-origin-zip-worker.ps1"
+$scriptCsv = Join-Path $PSScriptRoot "build-origin-csv-worker.ps1"
 
 if (-not (Test-Path -LiteralPath $scriptBatch)) {
   throw "Batch worker build script not found: $scriptBatch"
 }
 if (-not (Test-Path -LiteralPath $scriptZip)) {
   throw "ZIP worker build script not found: $scriptZip"
+}
+if (-not (Test-Path -LiteralPath $scriptCsv)) {
+  throw "CSV worker build script not found: $scriptCsv"
 }
 
 $commonArgs = @{
@@ -41,14 +45,11 @@ if ($UsePinnedVersions) {
 
 Write-Host "[build-origin-workers] Building origin-batch-worker.exe ..."
 & $scriptBatch @commonArgs
-if ($LASTEXITCODE -ne 0) {
-  throw "Batch worker build failed with exit code $LASTEXITCODE"
-}
 
 Write-Host "[build-origin-workers] Building origin-zip-worker.exe ..."
 & $scriptZip @commonArgs
-if ($LASTEXITCODE -ne 0) {
-  throw "ZIP worker build failed with exit code $LASTEXITCODE"
-}
+
+Write-Host "[build-origin-workers] Building origin-csv-worker.exe ..."
+& $scriptCsv @commonArgs
 
 Write-Host "[build-origin-workers] All Origin workers built successfully."
