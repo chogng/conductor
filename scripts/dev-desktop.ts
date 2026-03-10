@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import { readdirSync, watch } from "node:fs";
+import type { FSWatcher } from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -25,23 +27,34 @@ const electronBin = isWin
 const desktopDistDir = path.join(process.cwd(), "desktop-dist");
 
 const watchedExtensions = new Set([".cjs", ".js", ".mjs", ".json"]);
+const electronWatchReadyMarker = "Watching for file changes.";
+const electronWatchReadyTimeoutMs = 20_000;
 
 let viteExited = false;
 let viteExitCode = 0;
 let isShuttingDown = false;
-let restartTimer = null;
+let restartTimer: NodeJS.Timeout | null = null;
 let isRestarting = false;
-let electronProc = null;
-let electronBuildWatchProc = null;
-const watcherClosers = [];
+let electronProc: ChildProcess | null = null;
+let electronBuildWatchProc: ChildProcess | null = null;
+const watcherClosers: Array<() => void> = [];
 
-const checkPortAvailability = (targetHost, targetPort) =>
-  new Promise((resolve, reject) => {
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : String(error);
+
+const getErrorCode = (error: unknown) => {
+  if (!error || typeof error !== "object" || !("code" in error)) return "";
+  const code = (error as { code?: unknown }).code;
+  return typeof code === "string" ? code : "";
+};
+
+const checkPortAvailability = (targetHost: string, targetPort: number) =>
+  new Promise<boolean>((resolve, reject) => {
     const probe = net.createServer();
     probe.unref();
 
-    probe.once("error", (error) => {
-      if (error?.code === "EADDRINUSE") {
+    probe.once("error", (error: NodeJS.ErrnoException) => {
+      if (error.code === "EADDRINUSE") {
         resolve(false);
         return;
       }
@@ -67,7 +80,7 @@ try {
     process.exit(1);
   }
 } catch (error) {
-  console.error(`[desktop] Failed to check dev port ${host}:${port}: ${error.message}`);
+  console.error(`[desktop] Failed to check dev port ${host}:${port}: ${getErrorMessage(error)}`);
   process.exit(1);
 }
 
@@ -100,27 +113,80 @@ viteProc.on("exit", (code) => {
 
 const startElectronBuildWatcher = () => {
   console.log("[desktop] Starting Electron TypeScript watcher.");
+  let readyTimeout: NodeJS.Timeout | null = null;
+  let resolveReady: () => void = () => {};
+  let isReady = false;
+  const readyPromise = new Promise<void>((resolve) => {
+    resolveReady = resolve;
+  });
+
+  const markReady = (warning = "") => {
+    if (isReady) return;
+    isReady = true;
+    if (readyTimeout) {
+      clearTimeout(readyTimeout);
+      readyTimeout = null;
+    }
+    if (warning) {
+      console.warn(`[desktop] ${warning}`);
+    }
+    resolveReady();
+  };
+
   const proc = spawn(electronBuildWatchCmd, electronBuildWatchArgs, {
-    stdio: "inherit",
+    stdio: ["inherit", "pipe", "pipe"],
     env: process.env,
   });
 
+  const relayOutput = (stream: NodeJS.ReadableStream | null, outputTarget: NodeJS.WriteStream) => {
+    if (!stream) return;
+    stream.setEncoding("utf8");
+    let pending = "";
+    stream.on("data", (chunk: string | Buffer) => {
+      const text = String(chunk);
+      outputTarget.write(text);
+      if (isReady) return;
+
+      pending += text;
+      if (pending.includes(electronWatchReadyMarker)) {
+        markReady();
+        return;
+      }
+
+      if (pending.length > electronWatchReadyMarker.length * 2) {
+        pending = pending.slice(-electronWatchReadyMarker.length * 2);
+      }
+    });
+  };
+
+  relayOutput(proc.stdout, process.stdout);
+  relayOutput(proc.stderr, process.stderr);
+
+  readyTimeout = setTimeout(() => {
+    markReady(
+      `Electron TS watcher startup exceeded ${electronWatchReadyTimeoutMs}ms; enabling desktop restart watchers anyway.`,
+    );
+  }, electronWatchReadyTimeoutMs);
+
   proc.on("error", (error) => {
     if (isShuttingDown) return;
+    markReady();
     console.error(`[desktop] Failed to start Electron TS watcher: ${error.message}`);
     void shutdown(1);
   });
 
   proc.on("exit", (code) => {
     if (isShuttingDown) return;
+    markReady();
     console.error(`[desktop] Electron TS watcher exited unexpectedly (code: ${code ?? 0}).`);
     void shutdown((code ?? 1) || 1);
   });
 
   electronBuildWatchProc = proc;
+  return readyPromise;
 };
 
-const waitForServer = async (url, timeoutMs = 60_000) => {
+const waitForServer = async (url: string, timeoutMs = 60_000) => {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
     if (viteExited) {
@@ -137,15 +203,15 @@ const waitForServer = async (url, timeoutMs = 60_000) => {
   throw new Error(`Timeout waiting for dev server: ${url}`);
 };
 
-const stopProcessTreeOnWindows = (proc, timeoutMs = 5_000) =>
-  new Promise((resolve) => {
+const stopProcessTreeOnWindows = (proc: ChildProcess | null, timeoutMs = 5_000) =>
+  new Promise<void>((resolve) => {
     if (!proc || !proc.pid || proc.killed || proc.exitCode !== null) {
       resolve();
       return;
     }
 
     let settled = false;
-    let waitTimer = null;
+    let waitTimer: NodeJS.Timeout | null = null;
     const finish = () => {
       if (settled) return;
       settled = true;
@@ -192,8 +258,8 @@ const stopProcessTreeOnWindows = (proc, timeoutMs = 5_000) =>
     });
   });
 
-const stopProcess = (proc, signal = "SIGTERM", timeoutMs = 5_000) =>
-  new Promise((resolve) => {
+const stopProcess = (proc: ChildProcess | null, signal: NodeJS.Signals = "SIGTERM", timeoutMs = 5_000) =>
+  new Promise<void>((resolve) => {
     if (!proc || proc.killed || proc.exitCode !== null) {
       resolve();
       return;
@@ -204,7 +270,7 @@ const stopProcess = (proc, signal = "SIGTERM", timeoutMs = 5_000) =>
       return;
     }
 
-    let forceKillTimer = null;
+    let forceKillTimer: NodeJS.Timeout | null = null;
     const cleanup = () => {
       if (forceKillTimer) {
         clearTimeout(forceKillTimer);
@@ -291,7 +357,7 @@ const scheduleElectronRestart = (reason = "files changed") => {
   }, 120);
 };
 
-const shouldRestartForPath = (filePath) => {
+const shouldRestartForPath = (filePath: string) => {
   if (!filePath) return false;
 
   const normalized = filePath.replaceAll("\\", "/");
@@ -302,13 +368,13 @@ const shouldRestartForPath = (filePath) => {
   return watchedExtensions.has(ext);
 };
 
-const handleElectronFileEvent = (eventType, changedPath) => {
+const handleElectronFileEvent = (eventType: string, changedPath: string) => {
   if (!shouldRestartForPath(changedPath)) return;
   scheduleElectronRestart(`${eventType}: ${changedPath}`);
 };
 
-const trackWatcher = (watcher) => {
-  watcher.on("error", (error) => {
+const trackWatcher = (watcher: FSWatcher) => {
+  watcher.on("error", (error: Error) => {
     if (isShuttingDown) return;
 
     console.error(`[desktop] Watcher error: ${error.message}`);
@@ -339,14 +405,14 @@ const startElectronWatchers = () => {
     trackWatcher(recursiveWatcher);
     return;
   } catch (error) {
-    if (error?.code !== "ERR_FEATURE_UNAVAILABLE_ON_PLATFORM") throw error;
+    if (getErrorCode(error) !== "ERR_FEATURE_UNAVAILABLE_ON_PLATFORM") throw error;
 
     console.warn(
       "[desktop] Recursive watch unsupported on this platform, using directory-level watchers.",
     );
 
-    const watchDirectory = (dirPath) => {
-      const watcher = watch(dirPath, (eventType, filename) => {
+    const watchDirectory = (dirPath: string) => {
+      const watcher = watch(dirPath, (eventType: string, filename: string | null) => {
         if (!filename) return;
 
         const changedAbsPath = path.join(dirPath, String(filename));
@@ -404,17 +470,18 @@ console.log(`[desktop] Waiting for dev server: ${devUrl}`);
 try {
   await waitForServer(devUrl);
 } catch (error) {
-  console.error(`[desktop] ${error.message}`);
+  console.error(`[desktop] ${getErrorMessage(error)}`);
   await shutdown(1);
 }
 
 console.log("[desktop] Dev server is ready.");
-startElectronBuildWatcher();
+const electronBuildWatcherReady = startElectronBuildWatcher();
 startElectron();
 
 try {
+  await electronBuildWatcherReady;
   startElectronWatchers();
 } catch (error) {
-  console.error(`[desktop] Failed to start file watchers: ${error.message}`);
+  console.error(`[desktop] Failed to start file watchers: ${getErrorMessage(error)}`);
   await shutdown(1);
 }
