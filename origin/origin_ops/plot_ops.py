@@ -59,7 +59,9 @@ def apply_plot_line_width(op_module, line_width):
     except Exception:
         return
 
-    width_cmd = f"-w {normalized_line_width:g}"
+    # LabTalk `set -w` uses units of pt*500. Use `-wp` so UI pt values map directly.
+    width_cmd_pt = f"-wp {normalized_line_width:g}"
+    width_cmd_scaled = f"-w {int(round(normalized_line_width * 500))}"
     for layer in _iter_graph_layers(graph_page):
         plot_list_fn = getattr(layer, "plot_list", None)
         if not callable(plot_list_fn):
@@ -74,10 +76,14 @@ def apply_plot_line_width(op_module, line_width):
             set_cmd = getattr(plot, "set_cmd", None)
             if callable(set_cmd):
                 try:
-                    set_cmd(width_cmd)
+                    set_cmd(width_cmd_pt)
                     continue
                 except Exception:
-                    pass
+                    try:
+                        set_cmd(width_cmd_scaled)
+                        continue
+                    except Exception:
+                        pass
 
             set_float = getattr(plot, "set_float", None)
             if callable(set_float):
