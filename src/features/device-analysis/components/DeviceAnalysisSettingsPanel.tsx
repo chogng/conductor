@@ -1,13 +1,22 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Card from "../../../components/ui/Card";
 import Button from "../../../components/ui/Button";
 import Input from "../../../components/ui/Input";
 import Select from "../../../components/ui/Select";
+import Toast from "../../../components/ui/Toast";
 import type { TranslateFn } from "../../../context/language-context";
 
 type Feedback = {
   type: "idle" | "success" | "error";
   message: string;
+};
+
+type ToastType = "success" | "error" | "warning" | "info";
+
+type ToastState = {
+  isVisible: boolean;
+  message: string;
+  type: ToastType;
 };
 
 type LanguageCode = "zh" | "en";
@@ -89,6 +98,7 @@ const DeviceAnalysisSettingsPanel = ({
   storageSettings,
   t,
 }: DeviceAnalysisSettingsPanelProps) => {
+  const settingsSectionRef = useRef<HTMLElement | null>(null);
   const cleanupEnabledOptions = [
     { value: "true", label: t("da_settings_origin_cleanup_enable_on") },
     { value: "false", label: t("da_settings_origin_cleanup_enable_off") },
@@ -124,6 +134,15 @@ const DeviceAnalysisSettingsPanel = ({
   );
   const [appUpdateChecking, setAppUpdateChecking] = useState(false);
   const [appUpdateFeedback, setAppUpdateFeedback] = useState<Feedback>(IDLE_FEEDBACK);
+  const [cleanupToast, setCleanupToast] = useState<ToastState>({
+    isVisible: false,
+    message: "",
+    type: "success",
+  });
+
+  const closeCleanupToast = useCallback(() => {
+    setCleanupToast((prev) => ({ ...prev, isVisible: false }));
+  }, []);
 
   useEffect(() => {
     setLineWidthDraft(String(originSettings.plotLineWidth ?? 2));
@@ -141,8 +160,26 @@ const DeviceAnalysisSettingsPanel = ({
     setPostCommandsDraft(originSettings.plotPostCommandsText ?? "");
   }, [originSettings.plotPostCommandsText]);
 
+  useEffect(() => {
+    const feedback = originSettings.cleanupFeedback;
+    if (!feedback?.message || feedback.type === "idle") return;
+
+    setCleanupToast({
+      isVisible: true,
+      message: feedback.message,
+      type: feedback.type === "error" ? "error" : "success",
+    });
+  }, [
+    originSettings.cleanupFeedback?.message,
+    originSettings.cleanupFeedback?.type,
+  ]);
+
   return (
-    <section aria-label={t("da_settings_section_aria_label")}>
+    <section
+      ref={settingsSectionRef}
+      aria-label={t("da_settings_section_aria_label")}
+      className="relative"
+    >
       <h2 className="section_title">{t("da_settings_title")}</h2>
 
       <Card
@@ -455,11 +492,6 @@ const DeviceAnalysisSettingsPanel = ({
           </Button>
         </div>
 
-        {originSettings.cleanupFeedback?.message ? (
-          <p className={feedbackClassName(originSettings.cleanupFeedback.type)}>
-            {originSettings.cleanupFeedback.message}
-          </p>
-        ) : null}
       </Card>
 
       <Card
@@ -585,6 +617,16 @@ const DeviceAnalysisSettingsPanel = ({
           </p>
         ) : null}
       </Card>
+
+      <Toast
+        message={cleanupToast.message}
+        isVisible={cleanupToast.isVisible}
+        onClose={closeCleanupToast}
+        type={cleanupToast.type}
+        containerRef={settingsSectionRef}
+        position="absolute"
+        dataUi="device-analysis-settings-origin-cleanup-toast"
+      />
     </section>
   );
 };

@@ -85,7 +85,10 @@ function deleteJobDirectory(jobDir) {
   }
 }
 
-function cleanupOneJobBase(baseDir, policy) {
+function cleanupOneJobBase(baseDir, policy, options = {}) {
+  const source = options && typeof options === "object" ? options : {};
+  const clearAll = Reflect.get(source, "clearAll") === true;
+
   const jobs = listJobDirectories(baseDir).map((jobDir) => {
     const errorText = readJobErrorText(jobDir);
     return {
@@ -108,14 +111,20 @@ function cleanupOneJobBase(baseDir, policy) {
     Date.now() - policy.failedRetentionDays * 24 * 60 * 60 * 1000;
 
   const toDelete = [];
-  for (const job of successJobs) {
-    if (!keepSet.has(job.jobDir)) {
-      toDelete.push({ ...job, reason: "SUCCESS_OVER_LIMIT" });
+  if (clearAll) {
+    for (const job of jobs) {
+      toDelete.push({ ...job, reason: "MANUAL_CLEAR_ALL" });
     }
-  }
-  for (const job of failedJobs) {
-    if (job.mtimeMs < cutoffMs) {
-      toDelete.push({ ...job, reason: "FAILED_EXPIRED" });
+  } else {
+    for (const job of successJobs) {
+      if (!keepSet.has(job.jobDir)) {
+        toDelete.push({ ...job, reason: "SUCCESS_OVER_LIMIT" });
+      }
+    }
+    for (const job of failedJobs) {
+      if (job.mtimeMs < cutoffMs) {
+        toDelete.push({ ...job, reason: "FAILED_EXPIRED" });
+      }
     }
   }
 
@@ -138,6 +147,7 @@ export function runOriginRuntimeCleanup(options = {}) {
   const runtimeRootDir = Reflect.get(source, "runtimeRootDir");
   const policy = Reflect.get(source, "policy");
   const force = Reflect.get(source, "force") === true;
+  const clearAll = Reflect.get(source, "clearAll") === true;
 
   const normalizedPolicy = normalizeCleanupPolicy(policy);
   const resolvedRuntimeRoot = resolveRuntimeRootDir(runtimeRootDir);
@@ -158,20 +168,24 @@ export function runOriginRuntimeCleanup(options = {}) {
   const zipSummary = cleanupOneJobBase(
     path.join(originRootDir, "jobs"),
     normalizedPolicy,
+    { clearAll },
   );
   const batchSummary = cleanupOneJobBase(
     path.join(originRootDir, "batch-jobs"),
     normalizedPolicy,
+    { clearAll },
   );
   const csvSummary = cleanupOneJobBase(
     path.join(originRootDir, "csv-jobs"),
     normalizedPolicy,
+    { clearAll },
   );
 
   return {
     ok: true,
     skipped: false,
     runtimeRootDir: originRootDir,
+    clearAll,
     policy: normalizedPolicy,
     zip: zipSummary,
     batch: batchSummary,

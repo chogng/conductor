@@ -750,11 +750,12 @@ function logOriginDetectionResult(context, result) {
   );
 }
 
-async function tryRunOriginRuntimeCleanup({ force = false } = {}) {
+async function tryRunOriginRuntimeCleanup({ force = false, clearAll = false } = {}) {
   return runOriginRuntimeCleanup({
     runtimeRootDir: getDeviceAnalysisHomeDir(),
     policy: getOriginRuntimeCleanupPolicyFromSettings(),
     force,
+    clearAll,
   });
 }
 
@@ -1056,7 +1057,7 @@ async function handleOriginRuntimeCleanupRun() {
     throw new Error("Origin integration is only available on Windows desktop.");
   }
 
-  return tryRunOriginRuntimeCleanup({ force: true });
+  return tryRunOriginRuntimeCleanup({ force: true, clearAll: true });
 }
 
 function normalizeAutoUpdateUrl(value) {
