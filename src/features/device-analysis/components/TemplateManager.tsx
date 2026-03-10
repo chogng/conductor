@@ -5,7 +5,7 @@ import React, {
   type CSSProperties,
   type SetStateAction,
 } from "react";
-import { Trash2, ArrowUp, ChevronDown, List, Save, Plus, Square, Check } from "lucide-react";
+import { Trash2, ArrowUp, ChevronDown, List, Save, Plus, Check } from "lucide-react";
 import { useLanguage } from "../../../hooks/useLanguage";
 import type { TranslationVars } from "../../../context/language-context";
 import Toast from "../../../components/ui/Toast";
@@ -15,10 +15,10 @@ import Card from "../../../components/ui/Card";
 import Button from "../../../components/ui/Button";
 import Modal from "../../../components/ui/Modal";
 import DropdownMenu from "../../../components/ui/DropdownMenu";
+import ScrollArea from "../../../components/ui/ScrollArea";
 import { validateVarPair } from "../lib/templateValidation";
 import { getExcelColumnLabel } from "../lib/templateManagerPreview";
 import TemplateManagerPreviewPanel from "./TemplateManagerPreviewPanel";
-import { useTemplateManagerPanelHeight } from "../hooks/useTemplateManagerPanelHeight";
 import { useTemplateManagerPreview } from "../hooks/useTemplateManagerPreview";
 import { useTemplateManagerState } from "../hooks/useTemplateManagerState";
 import {
@@ -78,13 +78,6 @@ const TemplateManager = ({
     message: "",
     type: "success" as ToastKind,
   });
-  const {
-    basePanelRef,
-    leftPanelRef,
-    panelMinHeightPx,
-    savePanelMeasureRef,
-    selectPanelMeasureRef,
-  } = useTemplateManagerPanelHeight();
 
   const showToast = useCallback((message: string, type = "warning") => {
     const safeType: ToastKind =
@@ -829,29 +822,23 @@ const TemplateManager = ({
       <Card
         ref={containerRef}
         id="device-analysis-template-manager"
-        className="p-4 flex flex-col flex-1 min-h-0"
+        className="p-4 flex flex-col flex-1 min-h-0 min-[1200px]:h-full"
         style={
           {
-            "--da-template-panel-min-h": panelMinHeightPx
-              ? `${panelMinHeightPx}px`
-              : "0px",
-            "--da-template-preview-stack-h": panelMinHeightPx
-              ? `${panelMinHeightPx}px`
-              : "32rem",
+            "--da-template-stack-panel-h": "clamp(24rem, 52dvh, 40rem)",
           } as CSSProperties
         }
       >
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 flex-1 min-h-0 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 flex-1 min-h-0 items-start min-[1200px]:items-stretch">
           {/* Configuration Panel */}
           <div
-            ref={leftPanelRef}
-            className="lg:col-span-1 self-start rounded-lg flex flex-col min-h-[var(--da-template-panel-min-h)]"
+            className="lg:col-span-1 self-start min-[1200px]:self-stretch flex flex-col min-h-0 h-[var(--da-template-stack-panel-h)] min-[1200px]:h-full overflow-hidden"
           >
             <div
-              className="relative flex flex-col gap-4 flex-1 min-h-0"
+              className="flex flex-col gap-4 flex-1 min-h-0"
               id="device-analysis-template-config-panel-content"
             >
-              <div ref={basePanelRef} className="pb-2">
+              <div className="pb-2 shrink-0">
                 <div className="flex items-center justify-start gap-3">
                   <Tabs
                     value={templateMode}
@@ -886,8 +873,15 @@ const TemplateManager = ({
                 role="tabpanel"
                 aria-labelledby="device-analysis-template-mode-tab-select"
                 hidden={templateMode !== "select"}
+                className="flex-1 min-h-0"
               >
-                {renderSelectPane({ includeIds: true, measureOnly: false })}
+                <ScrollArea
+                  className="h-full min-h-0"
+                  axis="y"
+                  viewportClassName="pr-1"
+                >
+                  {renderSelectPane({ includeIds: true, measureOnly: false })}
+                </ScrollArea>
               </div>
 
               <div
@@ -895,27 +889,18 @@ const TemplateManager = ({
                 role="tabpanel"
                 aria-labelledby="device-analysis-template-mode-tab-save"
                 hidden={templateMode !== "save"}
+                className="flex-1 min-h-0"
               >
-                {renderSavePane({
-                  includeIds: true,
-                  selectModeForDisabled: isSelectMode,
-                })}
-              </div>
-
-              <div
-                ref={selectPanelMeasureRef}
-                aria-hidden="true"
-                className="absolute left-0 top-0 w-full invisible pointer-events-none"
-              >
-                {renderSelectPane({ includeIds: false, measureOnly: true })}
-              </div>
-
-              <div
-                ref={savePanelMeasureRef}
-                aria-hidden="true"
-                className="absolute left-0 top-0 w-full invisible pointer-events-none"
-              >
-                {renderSavePane({ includeIds: false })}
+                <ScrollArea
+                  className="h-full min-h-0"
+                  axis="y"
+                  viewportClassName="pr-1"
+                >
+                  {renderSavePane({
+                    includeIds: true,
+                    selectModeForDisabled: isSelectMode,
+                  })}
+                </ScrollArea>
               </div>
             </div>
           </div>

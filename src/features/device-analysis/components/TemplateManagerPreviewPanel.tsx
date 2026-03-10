@@ -1386,7 +1386,7 @@ const TemplateManagerPreviewPanel = ({
   const resizeColumnTitle = t("da_preview_resize_column_title");
 
   return (
-    <div className="lg:col-span-3 self-start bg-bg-page rounded-lg p-4 overflow-hidden flex flex-col min-h-0 h-[var(--da-template-preview-stack-h)]">
+    <div className="lg:col-span-3 self-start min-[1200px]:self-stretch bg-bg-page rounded-lg p-4 overflow-hidden flex flex-col min-h-0 h-[var(--da-template-stack-panel-h)] min-[1200px]:h-full">
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium text-text-secondary">
           {t("da_preview_filename_label")}:{" "}

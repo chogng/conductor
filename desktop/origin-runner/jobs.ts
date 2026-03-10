@@ -1,11 +1,9 @@
 import fs from "node:fs";
-import path from "node:path";
 import {
   getPowerShellExePath,
   runProcess,
   normalizeOriginExePath,
   assertOriginExePath,
-  parseJsonFile,
 } from "./core.js";
 import {
   normalizeOriginErrorPayload,
