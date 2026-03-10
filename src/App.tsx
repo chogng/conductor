@@ -1,11 +1,12 @@
+import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "./context/ThemeContext";
 import { LanguageProvider } from "./context/LanguageContext";
 import { UiPrefsProvider } from "./context/UiPrefsContext";
-import {
-  DeviceAnalysisPage,
-  DeviceAnalysisSessionProvider,
-} from "./features/device-analysis";
+
+const DeviceAnalysisApp = lazy(
+  () => import("./features/device-analysis/DeviceAnalysisApp"),
+);
 
 const isUnauthorizedError = (error: unknown) => {
   if (typeof error !== "object" || error === null || !("status" in error)) {
@@ -36,9 +37,18 @@ function App() {
           <UiPrefsProvider>
             <div className="h-screen bg-bg-page overflow-hidden">
               <main className="h-full w-full overflow-hidden">
-                <DeviceAnalysisSessionProvider>
-                  <DeviceAnalysisPage />
-                </DeviceAnalysisSessionProvider>
+                <Suspense
+                  fallback={
+                    <div className="flex h-full w-full items-center justify-center bg-bg-page text-text-secondary">
+                      <div className="flex flex-col items-center gap-3">
+                        <div className="h-10 w-10 animate-spin rounded-full border-2 border-border border-t-primary" />
+                        <p className="text-sm">Loading Device Analysis Studio…</p>
+                      </div>
+                    </div>
+                  }
+                >
+                  <DeviceAnalysisApp />
+                </Suspense>
               </main>
             </div>
           </UiPrefsProvider>

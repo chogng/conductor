@@ -42,6 +42,16 @@ if (!window.__APPOINTER_NAV_MODE_INIT__) {
 
 initCtaTracking();
 
+const dismissBootSplash = () => {
+  const splash = document.getElementById('boot-splash');
+  if (!splash) return;
+
+  splash.classList.add('is-hidden');
+  window.setTimeout(() => {
+    splash.remove();
+  }, 220);
+};
+
 const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error('Root element with id "root" was not found.');
@@ -52,3 +62,9 @@ createRoot(rootElement).render(
     <App />
   </StrictMode>,
 );
+
+window.requestAnimationFrame(() => {
+  window.requestAnimationFrame(() => {
+    dismissBootSplash();
+  });
+});

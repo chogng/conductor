@@ -1,12 +1,7 @@
 import { useCallback, useEffect } from "react";
-import JSZip from "jszip";
-import {
-  buildDeviceAnalysisCsvExports,
-  buildDeviceAnalysisOriginOgsScript,
-  buildDeviceAnalysisSsMetricsCsv,
-  DEVICE_ANALYSIS_ORIGIN_README,
-  triggerDeviceAnalysisBlobDownload,
-} from "../lib/deviceAnalysisExport";
+import type JSZip from "jszip";
+
+type DeviceAnalysisExportModule = typeof import("../lib/deviceAnalysisExport");
 
 type UseDeviceAnalysisExportsOptions = {
   processedData?: unknown[];
@@ -33,8 +28,36 @@ export const useDeviceAnalysisExports = ({
   ssManualRanges,
   ssMethod,
 }: UseDeviceAnalysisExportsOptions) => {
+  const loadExportDependencies = useCallback(async () => {
+    const [jsZipModule, exportModule] = await Promise.all([
+      import("jszip") as Promise<{ default: typeof JSZip }>,
+      import("../lib/deviceAnalysisExport"),
+    ]);
+
+    return {
+      JSZip: jsZipModule.default,
+      buildDeviceAnalysisCsvExports:
+        exportModule.buildDeviceAnalysisCsvExports as DeviceAnalysisExportModule["buildDeviceAnalysisCsvExports"],
+      buildDeviceAnalysisOriginOgsScript:
+        exportModule.buildDeviceAnalysisOriginOgsScript as DeviceAnalysisExportModule["buildDeviceAnalysisOriginOgsScript"],
+      buildDeviceAnalysisSsMetricsCsv:
+        exportModule.buildDeviceAnalysisSsMetricsCsv as DeviceAnalysisExportModule["buildDeviceAnalysisSsMetricsCsv"],
+      DEVICE_ANALYSIS_ORIGIN_README:
+        exportModule.DEVICE_ANALYSIS_ORIGIN_README as DeviceAnalysisExportModule["DEVICE_ANALYSIS_ORIGIN_README"],
+      triggerDeviceAnalysisBlobDownload:
+        exportModule.triggerDeviceAnalysisBlobDownload as DeviceAnalysisExportModule["triggerDeviceAnalysisBlobDownload"],
+    };
+  }, []);
+
   const handleExport = useCallback(async () => {
     if (processedData.length === 0) return;
+
+    const {
+      JSZip,
+      buildDeviceAnalysisCsvExports,
+      buildDeviceAnalysisSsMetricsCsv,
+      triggerDeviceAnalysisBlobDownload,
+    } = await loadExportDependencies();
 
     const exports = buildDeviceAnalysisCsvExports(processedData as never[]);
     if (exports.length === 0) return;
@@ -62,10 +85,18 @@ export const useDeviceAnalysisExports = ({
     });
 
     triggerDeviceAnalysisBlobDownload("device_analysis_export.zip", zipBlob);
-  }, [processedData, ssIdWindow, ssManualRanges, ssMethod]);
+  }, [loadExportDependencies, processedData, ssIdWindow, ssManualRanges, ssMethod]);
 
   const handleExportOrigin = useCallback(async () => {
     if (processedData.length === 0) return;
+
+    const {
+      JSZip,
+      buildDeviceAnalysisCsvExports,
+      buildDeviceAnalysisOriginOgsScript,
+      DEVICE_ANALYSIS_ORIGIN_README,
+      triggerDeviceAnalysisBlobDownload,
+    } = await loadExportDependencies();
 
     const exports = buildDeviceAnalysisCsvExports(processedData as never[]);
     if (exports.length === 0) return;
@@ -87,7 +118,7 @@ export const useDeviceAnalysisExports = ({
     });
 
     triggerDeviceAnalysisBlobDownload("device_analysis_origin.zip", zipBlob);
-  }, [processedData]);
+  }, [loadExportDependencies, processedData]);
 
   useEffect(() => {
     if (!import.meta.env.DEV) return undefined;

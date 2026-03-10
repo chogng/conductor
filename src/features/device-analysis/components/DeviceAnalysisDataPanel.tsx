@@ -1,5 +1,9 @@
 import { RefreshCw, Upload } from "lucide-react";
 import {
+  lazy,
+  Suspense,
+  useEffect,
+  useState,
   type ComponentType,
   type MouseEvent as ReactMouseEvent,
   type MutableRefObject,
@@ -8,7 +12,6 @@ import Card from "../../../components/ui/Card";
 import Button from "../../../components/ui/Button";
 import type { TranslateFn } from "../../../context/language-context";
 import CsvImporter from "./CsvImporter";
-import TemplateManager from "./TemplateManager";
 import type { PreviewStatus as SessionPreviewStatus } from "../context/device-analysis-session-context";
 import type { RawDataEntry } from "../lib/sharedTypes";
 
@@ -69,8 +72,18 @@ type TemplateManagerProps = {
 
 const CsvImporterComponent =
   CsvImporter as unknown as ComponentType<CsvImporterProps & { ref?: unknown }>;
+const TemplateManager = lazy(() => import("./TemplateManager"));
 const TemplateManagerComponent =
   TemplateManager as unknown as ComponentType<TemplateManagerProps>;
+
+const TemplateManagerFallback = ({ t }: { t: TranslateFn }) => (
+  <Card
+    id="device-analysis-template-panel-loading-card"
+    className="p-4 flex min-h-[420px] flex-1 items-center justify-center text-sm text-text-secondary"
+  >
+    {t("da_data_extraction_template")}
+  </Card>
+);
 
 const DeviceAnalysisDataPanel = ({
   deviceAnalysisSettings,
@@ -95,6 +108,35 @@ const DeviceAnalysisDataPanel = ({
   subscribePreviewRowsVersion,
   t,
 }: DataPanelProps) => {
+  const [shouldMountTemplateManager, setShouldMountTemplateManager] =
+    useState(false);
+
+  useEffect(() => {
+    const mountTemplateManager = () => {
+      setShouldMountTemplateManager(true);
+    };
+
+    if (typeof window === "undefined") {
+      mountTemplateManager();
+      return undefined;
+    }
+
+    if (typeof window.requestIdleCallback === "function") {
+      const idleId = window.requestIdleCallback(mountTemplateManager, {
+        timeout: 300,
+      });
+
+      return () => {
+        if (typeof window.cancelIdleCallback === "function") {
+          window.cancelIdleCallback(idleId);
+        }
+      };
+    }
+
+    const timeoutId = window.setTimeout(mountTemplateManager, 120);
+    return () => window.clearTimeout(timeoutId);
+  }, []);
+
   return (
     <div className="min-h-full grid grid-cols-1 min-[1200px]:grid-cols-[var(--sidebar-width)_minmax(0,1fr)] gap-1 min-[1200px]:gap-1 min-[1200px]:h-full">
       <aside className="min-[1200px]:min-h-0 flex flex-col h-full relative group/sidebar">
@@ -191,18 +233,24 @@ const DeviceAnalysisDataPanel = ({
         aria-label={t("da_data_extraction_template")}
         className="min-[1200px]:min-h-0 flex flex-col h-full"
       >
-        <TemplateManagerComponent
-          previewFile={previewFile}
-          previewStatus={previewStatus}
-          getPreviewRow={getPreviewRow}
-          ensurePreviewRows={ensurePreviewRows}
-          onTemplateApplied={onTemplateApplied}
-          onTemplateAppliedIncremental={onTemplateAppliedIncremental}
-          subscribePreviewRowsVersion={subscribePreviewRowsVersion}
-          getPreviewRowsVersion={getPreviewRowsVersion}
-          deviceAnalysisSettings={deviceAnalysisSettings}
-          onUpdateDeviceAnalysisSettings={onUpdateDeviceAnalysisSettings}
-        />
+        {shouldMountTemplateManager ? (
+          <Suspense fallback={<TemplateManagerFallback t={t} />}>
+            <TemplateManagerComponent
+              previewFile={previewFile}
+              previewStatus={previewStatus}
+              getPreviewRow={getPreviewRow}
+              ensurePreviewRows={ensurePreviewRows}
+              onTemplateApplied={onTemplateApplied}
+              onTemplateAppliedIncremental={onTemplateAppliedIncremental}
+              subscribePreviewRowsVersion={subscribePreviewRowsVersion}
+              getPreviewRowsVersion={getPreviewRowsVersion}
+              deviceAnalysisSettings={deviceAnalysisSettings}
+              onUpdateDeviceAnalysisSettings={onUpdateDeviceAnalysisSettings}
+            />
+          </Suspense>
+        ) : (
+          <TemplateManagerFallback t={t} />
+        )}
       </section>
     </div>
   );

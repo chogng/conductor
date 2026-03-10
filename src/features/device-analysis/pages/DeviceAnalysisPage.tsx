@@ -1,20 +1,17 @@
 import {
   useCallback,
   useEffect,
+  lazy,
   useMemo,
   useRef,
   useState,
+  Suspense,
   type CSSProperties,
   type Dispatch,
   type MutableRefObject,
   type SetStateAction,
 } from "react";
-import {
-  DesktopCommandBar,
-  DeviceAnalysisAnalysisPanel,
-  DeviceAnalysisDataPanel,
-  DeviceAnalysisSettingsPanel,
-} from "../components";
+import DeviceAnalysisDataPanel from "../components/DeviceAnalysisDataPanel";
 import ScrollArea from "../../../components/ui/ScrollArea";
 import Toast from "../../../components/ui/Toast";
 import type { TranslationVars } from "../../../context/language-context";
@@ -109,6 +106,24 @@ declare global {
     };
   }
 }
+
+const DesktopCommandBar = lazy(() => import("../components/DesktopCommandBar"));
+const DeviceAnalysisAnalysisPanel = lazy(
+  () => import("../components/DeviceAnalysisAnalysisPanel"),
+);
+const DeviceAnalysisSettingsPanel = lazy(
+  () => import("../components/DeviceAnalysisSettingsPanel"),
+);
+
+const DesktopCommandBarFallback = () => (
+  <div className="h-[38px] shrink-0 bg-bg-page" aria-hidden="true" />
+);
+
+const DeferredPanelFallback = ({ label }: { label: string }) => (
+  <div className="flex h-full w-full items-center justify-center rounded-[20px] border border-border bg-bg-surface/60 text-sm text-text-secondary">
+    {label}
+  </div>
+);
 
 const DeviceAnalysisPage = () => {
   const { t, language, setLanguage } = useLanguage();
@@ -542,27 +557,29 @@ const DeviceAnalysisPage = () => {
       style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}
     >
       {isWindowsDesktopShell ? (
-        <DesktopCommandBar
-          t={t}
-          activePage={activePage}
-          canNavigateBack={canNavigateBack}
-          canNavigateForward={canNavigateForward}
-          onAnalysisIntent={handleAnalysisIntent}
-          onNavigateBack={handleNavigateBack}
-          onNavigateForward={handleNavigateForward}
-          onPageChange={handlePageTabSelect}
-          onOpenOrigin={handleOpenOriginFromTitleBar}
-          onOpenSettings={() => handlePageTabSelect("settings")}
-          onMinimizeWindow={handleMinimizeWindow}
-          onToggleMaximizeWindow={handleToggleMaximizeWindow}
-          onCloseWindow={handleCloseWindow}
-          showAnalysisFileSelector={
-            isAnalysisPageActive && analysisFileOptions.length > 0
-          }
-          analysisFileOptions={analysisFileOptions}
-          analysisActiveFileId={analysisActiveFileId}
-          onAnalysisFileChange={handleAnalysisFileChange}
-        />
+        <Suspense fallback={<DesktopCommandBarFallback />}>
+          <DesktopCommandBar
+            t={t}
+            activePage={activePage}
+            canNavigateBack={canNavigateBack}
+            canNavigateForward={canNavigateForward}
+            onAnalysisIntent={handleAnalysisIntent}
+            onNavigateBack={handleNavigateBack}
+            onNavigateForward={handleNavigateForward}
+            onPageChange={handlePageTabSelect}
+            onOpenOrigin={handleOpenOriginFromTitleBar}
+            onOpenSettings={() => handlePageTabSelect("settings")}
+            onMinimizeWindow={handleMinimizeWindow}
+            onToggleMaximizeWindow={handleToggleMaximizeWindow}
+            onCloseWindow={handleCloseWindow}
+            showAnalysisFileSelector={
+              isAnalysisPageActive && analysisFileOptions.length > 0
+            }
+            analysisFileOptions={analysisFileOptions}
+            analysisActiveFileId={analysisActiveFileId}
+            onAnalysisFileChange={handleAnalysisFileChange}
+          />
+        </Suspense>
       ) : null}
 
       <div className="relative flex-1 min-h-0">
@@ -625,28 +642,32 @@ const DeviceAnalysisPage = () => {
         >
           <div className="da_page_scroll h-full min-h-0 overflow-hidden p-1 pt-0">
             {shouldMountAnalysisPanel ? (
-              <DeviceAnalysisAnalysisPanel
-                processedData={processedData}
-                processingStatus={processingStatus}
-                activeFileId={analysisActiveFileId}
-                onActiveFileIdChange={handleAnalysisFileChange}
-                showFileSelect={!isWindowsDesktopShell}
-                shouldMountCharts={
-                  isAnalysisPageActive || hasVisitedAnalysisPage
-                }
-                setSsDiagnosticsEnabled={setSsDiagnosticsEnabled}
-                setSsIdWindow={setSsIdWindow}
-                setSsManualRanges={setSsManualRanges}
-                setSsMethod={setSsMethod}
-                setSsShowFitLine={setSsShowFitLine}
-                ssDiagnosticsEnabled={ssDiagnosticsEnabled}
-                ssIdWindow={ssIdWindow}
-                ssManualRanges={ssManualRanges}
-                ssMethod={ssMethod}
-                ssShowFitLine={ssShowFitLine}
-                originOpenPlotOptions={originOpenPlotOptions}
-                t={t}
-              />
+              <Suspense
+                fallback={<DeferredPanelFallback label={t("da_analysis_loading")} />}
+              >
+                <DeviceAnalysisAnalysisPanel
+                  processedData={processedData}
+                  processingStatus={processingStatus}
+                  activeFileId={analysisActiveFileId}
+                  onActiveFileIdChange={handleAnalysisFileChange}
+                  showFileSelect={!isWindowsDesktopShell}
+                  shouldMountCharts={
+                    isAnalysisPageActive || hasVisitedAnalysisPage
+                  }
+                  setSsDiagnosticsEnabled={setSsDiagnosticsEnabled}
+                  setSsIdWindow={setSsIdWindow}
+                  setSsManualRanges={setSsManualRanges}
+                  setSsMethod={setSsMethod}
+                  setSsShowFitLine={setSsShowFitLine}
+                  ssDiagnosticsEnabled={ssDiagnosticsEnabled}
+                  ssIdWindow={ssIdWindow}
+                  ssManualRanges={ssManualRanges}
+                  ssMethod={ssMethod}
+                  ssShowFitLine={ssShowFitLine}
+                  originOpenPlotOptions={originOpenPlotOptions}
+                  t={t}
+                />
+              </Suspense>
             ) : null}
           </div>
         </section>
@@ -669,17 +690,21 @@ const DeviceAnalysisPage = () => {
               viewportClassName="p-1 pt-0"
               axis="y"
             >
-              <DeviceAnalysisSettingsPanel
-                appUpdateSettings={{
-                  isAvailable: isWindowsDesktopShell,
-                  onCheckForUpdates: handleCheckForUpdates,
-                }}
-                language={language}
-                onLanguageChange={handleLanguageChange}
-                originSettings={originSettings}
-                storageSettings={storageSettings}
-                t={t}
-              />
+              <Suspense
+                fallback={<DeferredPanelFallback label={t("da_settings_title")} />}
+              >
+                <DeviceAnalysisSettingsPanel
+                  appUpdateSettings={{
+                    isAvailable: isWindowsDesktopShell,
+                    onCheckForUpdates: handleCheckForUpdates,
+                  }}
+                  language={language}
+                  onLanguageChange={handleLanguageChange}
+                  originSettings={originSettings}
+                  storageSettings={storageSettings}
+                  t={t}
+                />
+              </Suspense>
             </ScrollArea>
           ) : null}
         </section>

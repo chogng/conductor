@@ -6,13 +6,8 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import { createDeviceAnalysisStore } from "./device-analysis-store.js";
 import {
   assertOriginExePath,
-  detectOriginExecutablePathDetailed,
   normalizeOriginExePath,
-  pickOriginExecutable,
-  runOriginRuntimeCleanup,
-  runOriginHealthCheck,
-  runOriginCsvJob,
-} from "./origin-runner.js";
+} from "./origin-runner/core.js";
 import { ipcChannels } from "./ipc-channels.js";
 import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
@@ -27,11 +22,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 let autoUpdater = null;
-try {
-  ({ autoUpdater } = require("electron-updater"));
-} catch (error) {
-  console.warn("[auto-update] electron-updater is unavailable:", error?.message || error);
-}
+let originRunnerModulePromise = null;
 
 const isDev = !app.isPackaged;
 const isWindows = process.platform === "win32";
@@ -44,6 +35,27 @@ let autoUpdateTimer = null;
 let autoUpdateConfiguredFeedUrl = null;
 let isAutoUpdateConfigured = false;
 let isUpdateDownloadedPromptVisible = false;
+
+const loadOriginRunnerModule = async () => {
+  if (!originRunnerModulePromise) {
+    originRunnerModulePromise = import("./origin-runner.js");
+  }
+
+  return originRunnerModulePromise;
+};
+
+const ensureAutoUpdater = async () => {
+  if (autoUpdater) return autoUpdater;
+
+  try {
+    ({ autoUpdater } = require("electron-updater"));
+  } catch (error) {
+    console.warn("[auto-update] electron-updater is unavailable:", error?.message || error);
+    autoUpdater = null;
+  }
+
+  return autoUpdater;
+};
 
 function getResourcesPath() {
   const resourcesPath = Reflect.get(process, "resourcesPath");
@@ -558,6 +570,7 @@ function logOriginDetectionResult(context, result) {
 }
 
 async function tryRunOriginRuntimeCleanup({ force = false, clearAll = false } = {}) {
+  const { runOriginRuntimeCleanup } = await loadOriginRunnerModule();
   return runOriginRuntimeCleanup({
     runtimeRootDir: getDeviceAnalysisHomeDir(),
     policy: getOriginRuntimeCleanupPolicyFromSettings(),
@@ -576,6 +589,7 @@ async function handleOriginExeGet() {
     }
   }
 
+  const { detectOriginExecutablePathDetailed } = await loadOriginRunnerModule();
   const detectResult = await detectOriginExecutablePathDetailed();
   logOriginDetectionResult("originExeGet", detectResult);
   if (detectResult.path) {
@@ -596,6 +610,7 @@ async function handleOriginExePick(event) {
   if (!isWindows) return null;
 
   const win = BrowserWindow.fromWebContents(event.sender) ?? null;
+  const { pickOriginExecutable } = await loadOriginRunnerModule();
   const pickedPath = await pickOriginExecutable({
     dialog,
     ownerWindow: win,
@@ -616,6 +631,7 @@ async function resolveOriginExePath(event) {
     }
   }
 
+  const { detectOriginExecutablePathDetailed } = await loadOriginRunnerModule();
   const detectResult = await detectOriginExecutablePathDetailed();
   logOriginDetectionResult("resolveOriginExePath", detectResult);
   if (detectResult.path) {
@@ -653,6 +669,7 @@ async function handleOriginHealthCheck(event, payload) {
   }
 
   const originExePath = await resolveOriginExePathForHealthCheck(event, payload);
+  const { runOriginHealthCheck } = await loadOriginRunnerModule();
 
   try {
     return await runOriginHealthCheck({
@@ -699,6 +716,8 @@ async function handleOriginRunCsv(event, payload) {
   if (!originExePath) {
     throw new Error("__ORIGIN_EXE_REQUIRED__");
   }
+
+  const { runOriginCsvJob } = await loadOriginRunnerModule();
 
   try {
     return await runOriginCsvJob({
@@ -777,6 +796,8 @@ function stopAutoUpdatePolling() {
 }
 
 async function promptInstallDownloadedUpdate(updateInfo) {
+  const updater = await ensureAutoUpdater();
+  if (!updater) return;
   if (!autoUpdater) return;
   if (isUpdateDownloadedPromptVisible) return;
 
@@ -803,6 +824,8 @@ async function promptInstallDownloadedUpdate(updateInfo) {
 }
 
 async function checkForAutoUpdates({ manual = false } = {}) {
+  const updater = await ensureAutoUpdater();
+  if (!updater) return null;
   if (!autoUpdater) return null;
 
   if (!isAutoUpdateConfigured) {
@@ -854,10 +877,15 @@ async function checkForAutoUpdates({ manual = false } = {}) {
   }
 }
 
-function setupAutoUpdates() {
+async function setupAutoUpdates() {
   if (!app.isPackaged) return;
   if (!AUTO_UPDATE_SUPPORTED_PLATFORMS.has(process.platform)) {
     console.info("[auto-update] Skipped for unsupported platform:", process.platform);
+    return;
+  }
+  const updater = await ensureAutoUpdater();
+  if (!updater) {
+    console.warn("[auto-update] electron-updater dependency is missing.");
     return;
   }
   if (!autoUpdater) {
@@ -930,6 +958,7 @@ function createMainWindow() {
     height: 920,
     minWidth: 1080,
     minHeight: 700,
+    backgroundColor: "#f5f4ef",
     autoHideMenuBar: true,
     frame: !isWindows,
     webPreferences: {
@@ -937,6 +966,9 @@ function createMainWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      ...(isDev
+        ? null
+        : { v8CacheOptions: "bypassHeatCheckAndEagerCompile" }),
     },
   });
 
@@ -1041,8 +1073,10 @@ app.whenReady().then(() => {
     ipcChannels.originRuntimeCleanupRun,
     handleOriginRuntimeCleanupRun,
   );
-  createMainWindow();
-  setupAutoUpdates();
+  const window = createMainWindow();
+  window.webContents.once("did-finish-load", () => {
+    void setupAutoUpdates();
+  });
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
