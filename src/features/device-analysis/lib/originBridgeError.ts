@@ -164,18 +164,6 @@ export const parseOriginBridgeError = (
     };
   }
 
-  if (hasMessageToken("__ORIGIN_BATCH_INPUT_DIR_REQUIRED__")) {
-    return {
-      code: "ORIGIN_BATCH_INPUT_DIR_REQUIRED",
-      stage: null,
-      hresult: null,
-      logPath: null,
-      originExe: null,
-      message: "__ORIGIN_BATCH_INPUT_DIR_REQUIRED__",
-      rawMessage: messageText,
-    };
-  }
-
   const payload = parseStructuredOriginErrorMessage(messageText);
   if (!payload) {
     return {
@@ -214,35 +202,21 @@ export const inferOriginSuggestionKey = (
     .toUpperCase();
 
   if (code === "ORIGIN_EXE_REQUIRED") return "da_origin_pick_exe_required";
-  if (code === "ORIGIN_BATCH_INPUT_DIR_REQUIRED") return null;
-  if (code === "ORIGIN_BATCH_RUNNER_NOT_FOUND") {
-    return "da_origin_error_tip_batch_runner_missing";
-  }
-  if (code === "ORIGIN_ZIP_RUNNER_NOT_FOUND" || code === "ORIGIN_CSV_RUNNER_NOT_FOUND") {
-    return "da_origin_error_tip_zip_runner_missing";
-  }
-  if (stage === "NATIVE_RUNNER" || code === "ORIGIN_BATCH_RUNNER_FAILED") {
-    return "da_origin_error_tip_batch_runner_check";
-  }
+  if (code === "ORIGIN_CSV_RUNNER_NOT_FOUND") return "da_origin_error_tip_csv_runner_missing";
   if (
-    code === "ORIGIN_ZIP_RUNNER_FAILED" ||
     code === "ORIGIN_CSV_RUNNER_FAILED" ||
     code === "ORIGIN_CSV_FAILED" ||
     code === "ORIGIN_CSV_IMPORT_FAILED" ||
-    stage === "ZIP_NATIVE_RUNNER" ||
+    stage === "CSV_NATIVE_RUNNER" ||
     stage === "CSV_PYTHON_RUNNER" ||
     code === "ORIGIN_ORIGINPRO_ATTACH_FAILED"
   ) {
-    return "da_origin_error_tip_zip_runner_check";
+    return "da_origin_error_tip_csv_runner_check";
   }
   if (code === "ORIGIN_ORIGINPRO_IMPORT_FAILED") {
     return "da_origin_error_tip_install_python";
   }
-  if (code === "ORIGIN_BATCH_INPUT_DIR_INVALID" || code === "ORIGIN_BATCH_INPUT_DIR_NOT_FOUND") {
-    return "da_origin_error_tip_choose_csv_folder";
-  }
   if (code === "ORIGIN_EXE_NOT_FOUND") return "da_origin_error_tip_reselect_exe";
-  if (code === "ORIGIN_BATCH_NO_CSV_FILES") return "da_origin_error_tip_choose_csv_folder";
   if (code === "ORIGIN_MULTI_PROCESS_DETECTED") {
     return "da_origin_error_tip_close_extra_origin";
   }
@@ -270,9 +244,7 @@ export const formatOriginBridgeError = (
   const message =
     detail.code === "ORIGIN_EXE_REQUIRED"
       ? t("da_origin_pick_exe_required")
-      : detail.code === "ORIGIN_BATCH_INPUT_DIR_REQUIRED"
-        ? t("da_origin_batch_pick_dir_required")
-        : detail.message || t("unknownError");
+      : detail.message || t("unknownError");
 
   const chunks = [message];
   if (detail.stage) {

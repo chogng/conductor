@@ -42,7 +42,17 @@ npm run dist:desktop:publish
 This command now runs a pre-check (`verify:auto-update-config`) before publishing.
 It then builds desktop artifacts and uploads release assets for updater metadata (`latest.yml`, installer, blockmap).
 
-## 2.1 One-command local release (without Actions)
+## 2.1 Publish via GitHub Actions (recommended)
+
+This repo includes a Windows-only workflow: `.github/workflows/release-windows.yml`.
+
+Recommended flow:
+
+1. Bump `package.json` version and push commits.
+2. Create and push a tag that matches the version: `v<package.json version>`.
+3. The workflow runs on that tag and publishes assets to GitHub Releases using `GITHUB_TOKEN`.
+
+## 2.2 One-command local release (without Actions)
 
 If you prefer publishing from your local machine with `gh` CLI (instead of `electron-builder --publish`), run:
 

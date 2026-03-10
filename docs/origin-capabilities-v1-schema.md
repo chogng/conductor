@@ -1,6 +1,6 @@
 # Origin Capabilities v1 Schema
 
-This document describes the strict payload schema accepted by `device-analysis-origin:run-csv` and `device-analysis-origin:run-zip` for `capabilities`.
+This document describes the strict payload schema accepted by `device-analysis-origin:run-csv` for `capabilities`.
 
 ## Root
 
@@ -109,4 +109,3 @@ Allowed keys:
 - Any non-string command item in an array is rejected.
 - Any wrong section type (e.g. array instead of object) is rejected.
 - Validation runs in both Electron main process and Python worker.
-

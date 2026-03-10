@@ -9,51 +9,6 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export function buildOriginBatchWorkerArgs({
-  workDir,
-  inputDir,
-  originExePath,
-  summaryPath,
-  logPath,
-  errorPath,
-}) {
-  return [
-    "--work-dir",
-    workDir,
-    "--input-dir",
-    inputDir,
-    "--origin-exe",
-    originExePath,
-    "--summary-path",
-    summaryPath,
-    "--log-path",
-    logPath,
-    "--error-path",
-    errorPath,
-  ];
-}
-
-export function buildOriginZipWorkerArgs({
-  workDir,
-  extractDir,
-  originExePath,
-  logPath,
-  errorPath,
-}) {
-  return [
-    "--work-dir",
-    workDir,
-    "--extract-dir",
-    extractDir,
-    "--origin-exe",
-    originExePath,
-    "--log-path",
-    logPath,
-    "--error-path",
-    errorPath,
-  ];
-}
-
 export function appendOriginPlotWorkerArgs(baseArgs, plotOptions = {}) {
   const args = Array.isArray(baseArgs) ? [...baseArgs] : [];
   const source = plotOptions && typeof plotOptions === "object" ? plotOptions : {};
@@ -148,38 +103,6 @@ export function buildOriginCsvWorkerArgs({
     lineWidth,
   });
   return appendOriginCapabilitiesWorkerArgs(withPlotArgs, capabilities);
-}
-
-export async function runNativeBatchWorker(workerExecutablePath, workerArgs, options = {}) {
-  if (!workerExecutablePath || !fs.existsSync(workerExecutablePath)) {
-    const error = new Error(
-      `Origin batch worker executable not found: ${workerExecutablePath}`,
-    );
-    Reflect.set(error, "code", "ENOENT");
-    throw error;
-  }
-
-  const result = await runProcess(workerExecutablePath, workerArgs, options);
-  return {
-    ...result,
-    executable: workerExecutablePath,
-  };
-}
-
-export async function runNativeZipWorker(workerExecutablePath, workerArgs, options = {}) {
-  if (!workerExecutablePath || !fs.existsSync(workerExecutablePath)) {
-    const error = new Error(
-      `Origin ZIP worker executable not found: ${workerExecutablePath}`,
-    );
-    Reflect.set(error, "code", "ENOENT");
-    throw error;
-  }
-
-  const result = await runProcess(workerExecutablePath, workerArgs, options);
-  return {
-    ...result,
-    executable: workerExecutablePath,
-  };
 }
 
 export async function runNativeCsvWorker(workerExecutablePath, workerArgs, options = {}) {
@@ -310,5 +233,4 @@ export function readWorkerErrorFiles(workDir, parseWorkerErrorPayload) {
     workerErrorPayload: parseWorkerErrorPayload(workerErrorRaw),
   };
 }
-
 

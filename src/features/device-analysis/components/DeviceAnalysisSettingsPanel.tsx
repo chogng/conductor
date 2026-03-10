@@ -30,8 +30,6 @@ type OriginSettings = {
   cleanupRunning: boolean;
   cleanupSaving: boolean;
   feedback: Feedback;
-  isBatchAvailable: boolean;
-  isBatchRunning: boolean;
   isConfigurable: boolean;
   isHealthCheckAvailable: boolean;
   isCleanupAvailable: boolean;
@@ -60,7 +58,6 @@ type OriginSettings = {
   onPlotLineWidthChange: (value: string | number) => Promise<void> | void;
   onPlotXyPairsChange: (value: string) => Promise<void> | void;
   onRunCleanupNow: () => Promise<void> | void;
-  onRunBatch: () => Promise<void> | void;
 };
 
 type StorageSettings = {

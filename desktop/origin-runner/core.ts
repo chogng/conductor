@@ -30,10 +30,6 @@ export function sanitizeFileName(name) {
   return cleaned || "device_analysis_origin.zip";
 }
 
-function escapePsSingleQuoted(input) {
-  return String(input || "").replace(/'/g, "''");
-}
-
 export function getPowerShellExePath() {
   const systemRoot = process.env.SystemRoot || "C:\\Windows";
   const candidate = path.join(
@@ -86,40 +82,6 @@ export function runProcess(
   });
 }
 
-export async function expandArchive(zipPath, destinationPath) {
-  const psCommand = `Expand-Archive -LiteralPath '${escapePsSingleQuoted(
-    zipPath,
-  )}' -DestinationPath '${escapePsSingleQuoted(destinationPath)}' -Force`;
-
-  const result = await runProcess(
-    getPowerShellExePath(),
-    ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", psCommand],
-    { windowsHide: true },
-  );
-  const resultObj = result && typeof result === "object" ? result : {};
-  const code = Number(Reflect.get(resultObj, "code"));
-  const stderr = String(Reflect.get(resultObj, "stderr") || "");
-  const stdout = String(Reflect.get(resultObj, "stdout") || "");
-
-  if (code !== 0) {
-    throw new Error(
-      `Failed to extract ZIP (${code}): ${
-        stderr || stdout || "unknown error"
-      }`,
-    );
-  }
-}
-
-export function normalizeZipBuffer(bytes) {
-  if (Buffer.isBuffer(bytes)) return bytes;
-  if (bytes instanceof ArrayBuffer) return Buffer.from(bytes);
-  if (ArrayBuffer.isView(bytes)) {
-    return Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-  }
-  if (Array.isArray(bytes)) return Buffer.from(bytes);
-  throw new Error("Invalid ZIP payload bytes.");
-}
-
 export function normalizeOriginExePath(inputPath) {
   if (typeof inputPath !== "string") return null;
   const normalized = inputPath.trim();
@@ -144,24 +106,6 @@ export function assertOriginExePath(originExePath) {
   return normalized;
 }
 
-export function assertDirectoryPath(dirPath, label = "Directory path") {
-  const normalized = normalizeOriginExePath(dirPath);
-  if (!normalized) {
-    throw new Error(`${label} is empty.`);
-  }
-  if (!path.isAbsolute(normalized)) {
-    throw new Error(`${label} must be absolute.`);
-  }
-  if (!fs.existsSync(normalized)) {
-    throw new Error(`${label} not found: ${normalized}`);
-  }
-  const stat = fs.statSync(normalized);
-  if (!stat.isDirectory()) {
-    throw new Error(`${label} is not a directory: ${normalized}`);
-  }
-  return normalized;
-}
-
 export function parseJsonFile(filePath) {
   if (!filePath || !fs.existsSync(filePath)) return null;
   try {
@@ -173,5 +117,4 @@ export function parseJsonFile(filePath) {
     return null;
   }
 }
-
 

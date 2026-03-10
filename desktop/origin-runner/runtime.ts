@@ -226,33 +226,6 @@ export function createJobPaths(zipName, options = {}) {
   };
 }
 
-export function createBatchJobPaths(options = {}) {
-  const source = options && typeof options === "object" ? options : {};
-  const runtimeRootDir = Reflect.get(source, "runtimeRootDir");
-
-  const rootDir = path.join(
-    resolveRuntimeRootDir(runtimeRootDir),
-    "origin",
-    "batch-jobs",
-  );
-  ensureDir(rootDir);
-
-  const jobId = `${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
-  const jobDir = path.join(rootDir, jobId);
-  const workDir = path.join(jobDir, ".ob");
-
-  ensureDir(jobDir);
-  ensureDir(workDir);
-
-  return {
-    jobDir,
-    workDir,
-    logPath: path.join(workDir, "originbridge.log"),
-    errorPath: path.join(workDir, "error.txt"),
-    summaryPath: path.join(workDir, "summary.json"),
-  };
-}
-
 export function createCsvJobPaths(csvName, options = {}) {
   const source = options && typeof options === "object" ? options : {};
   const runtimeRootDir = Reflect.get(source, "runtimeRootDir");
@@ -282,5 +255,4 @@ export function createCsvJobPaths(csvName, options = {}) {
     errorPath: path.join(workDir, "error.txt"),
   };
 }
-
 

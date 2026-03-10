@@ -1,0 +1,74 @@
+name: Release Windows Desktop
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v0.5.2)"
+        required: true
+        type: string
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      UV_CACHE_DIR: ${{ github.workspace }}\\.device\\uv-cache
+      UV_PYTHON_INSTALL_DIR: ${{ github.workspace }}\\.device\\uv-python
+      PIP_CACHE_DIR: ${{ github.workspace }}\\.device\\pip-cache
+      PYINSTALLER_CONFIG_DIR: ${{ github.workspace }}\\.device\\pyinstaller-cache
+      ELECTRON_CACHE: ${{ github.workspace }}\\.device\\electron-cache
+      ELECTRON_BUILDER_CACHE: ${{ github.workspace }}\\.device\\electron-builder-cache
+      npm_config_cache: ${{ github.workspace }}\\.device\\npm-cache
+    steps:
+      - name: Checkout (tag push)
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout (manual)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag }}
+
+      - name: Ensure .device cache dir
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path ".device" | Out-Null
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Verify tag matches package.json version
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          fi
+
+          node --input-type=module -e "import fs from 'node:fs'; const pkg=JSON.parse(fs.readFileSync('package.json','utf8')); const expected='v'+String(pkg.version||'').trim(); const tag=String(process.env.TAG||'').trim(); if (!tag) { console.error('Missing tag'); process.exit(1); } if (tag!==expected) { console.error('Tag/version mismatch: tag='+tag+' expected='+expected); process.exit(1); } console.log('OK: '+tag+' matches package.json version '+pkg.version);"
+        env:
+          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and publish (GitHub Release)
+        run: npm run dist:desktop:publish

@@ -52,16 +52,6 @@ type OriginHealthResult = {
   [key: string]: unknown;
 };
 
-type OriginBatchResult = {
-  logPath?: string;
-  summary?: {
-    failed?: number;
-    succeeded?: number;
-    total?: number;
-  };
-  [key: string]: unknown;
-};
-
 type OriginCleanupResult = {
   removedTotal?: number;
   [key: string]: unknown;
@@ -71,10 +61,6 @@ type OriginBridge = {
   checkOriginHealth?: (options: { path?: string }) => Promise<OriginHealthResult>;
   getOriginExePath: () => Promise<string>;
   pickOriginExePath: () => Promise<string>;
-  runOriginBatch?: (options: {
-    allowPickInputDir: boolean;
-    plot?: Partial<OriginPlotOptions>;
-  }) => Promise<OriginBatchResult>;
   runOriginRuntimeCleanup?: () => Promise<OriginCleanupResult>;
 };
 
@@ -137,31 +123,6 @@ const buildOriginLogMessage = (
     : baseMessage;
 };
 
-const normalizeOriginBatchSummary = (summary: unknown) => {
-  const safeSummary =
-    summary && typeof summary === "object"
-      ? (summary as { failed?: unknown; succeeded?: unknown; total?: unknown })
-      : {};
-
-  const total = Number(safeSummary.total);
-  const succeeded = Number(safeSummary.succeeded);
-  const failed = Number(safeSummary.failed);
-
-  const totalSafe = Number.isFinite(total) && total >= 0 ? total : 0;
-  const succeededSafe =
-    Number.isFinite(succeeded) && succeeded >= 0 ? succeeded : 0;
-  const failedSafe =
-    Number.isFinite(failed) && failed >= 0
-      ? failed
-      : Math.max(0, totalSafe - succeededSafe);
-
-  return {
-    failed: failedSafe,
-    succeeded: succeededSafe,
-    total: totalSafe,
-  };
-};
-
 const ORIGIN_EXE_PATH_LOAD_TIMEOUT_MS = 10000;
 
 const getOriginExePathWithTimeout = async (
@@ -209,7 +170,6 @@ export const useDeviceAnalysisSettings = ({
   const [originPathLoading, setOriginPathLoading] = useState(true);
   const [originPathSaving, setOriginPathSaving] = useState(false);
   const [originHealthChecking, setOriginHealthChecking] = useState(false);
-  const [originBatchRunning, setOriginBatchRunning] = useState(false);
   const [originPathFeedback, setOriginPathFeedback] = useState<Feedback>(IDLE_FEEDBACK);
   const [originCleanupSaving, setOriginCleanupSaving] = useState(false);
   const [originCleanupRunning, setOriginCleanupRunning] = useState(false);
@@ -598,57 +558,6 @@ export const useDeviceAnalysisSettings = ({
     }
   }, [getDesktopOriginBridge, originExePath, t]);
 
-  const handleRunOriginBatch = useCallback(async () => {
-    const bridge = getDesktopOriginBridge();
-    if (!bridge || typeof bridge.runOriginBatch !== "function") return;
-
-    setOriginBatchRunning(true);
-    setOriginPathFeedback(IDLE_FEEDBACK);
-
-    try {
-      const result = await bridge.runOriginBatch({
-        allowPickInputDir: true,
-        plot: originPlotConfig,
-      });
-      const summary = normalizeOriginBatchSummary(result?.summary);
-
-      const baseMessage = t("da_settings_origin_batch_success", {
-        failed: summary.failed,
-        success: summary.succeeded,
-        total: summary.total,
-      });
-      const resultMessage = buildOriginLogMessage(baseMessage, result?.logPath, t);
-
-      setOriginPathFeedback({
-        type: summary.failed > 0 ? "error" : "success",
-        message: resultMessage,
-      });
-    } catch (error) {
-      const detail = formatOriginBridgeError(t, error);
-
-      if (detail.code === "ORIGIN_BATCH_INPUT_DIR_REQUIRED") {
-        setOriginPathFeedback({
-          type: "error",
-          message: t("da_origin_batch_pick_dir_required"),
-        });
-      } else if (detail.code === "ORIGIN_EXE_REQUIRED") {
-        setOriginPathFeedback({
-          type: "error",
-          message: t("da_origin_pick_exe_required"),
-        });
-      } else {
-        setOriginPathFeedback({
-          type: "error",
-          message: t("da_settings_origin_batch_failed", {
-            error: detail.messageText,
-          }),
-        });
-      }
-    } finally {
-      setOriginBatchRunning(false);
-    }
-  }, [getDesktopOriginBridge, originPlotConfig, t]);
-
   const updateOriginCleanupSetting = useCallback(
     async (updates: unknown) => {
       const patch = updates && typeof updates === "object" ? updates : null;
@@ -876,11 +785,6 @@ export const useDeviceAnalysisSettings = ({
       plotType: originPlotConfig.type,
       plotLineWidth: originPlotConfig.lineWidth,
       plotXyPairs: originPlotConfig.xyPairs,
-      isBatchAvailable:
-        isWindowsDesktopShell &&
-        Boolean(originBridge) &&
-        typeof originBridge?.runOriginBatch === "function",
-      isBatchRunning: originBatchRunning,
       isConfigurable: isWindowsDesktopShell && Boolean(originBridge),
       isHealthCheckAvailable:
         isWindowsDesktopShell &&
@@ -904,7 +808,6 @@ export const useDeviceAnalysisSettings = ({
       onPlotLineWidthChange: handleSetOriginPlotLineWidth,
       onPlotXyPairsChange: handleSetOriginPlotXyPairs,
       onRunCleanupNow: handleRunOriginCleanupNow,
-      onRunBatch: handleRunOriginBatch,
     }),
     [
       handleRunOriginCleanupNow,
@@ -918,7 +821,6 @@ export const useDeviceAnalysisSettings = ({
       handleSetOriginPlotType,
       handleSetOriginPlotLineWidth,
       handleSetOriginPlotXyPairs,
-      handleRunOriginBatch,
       isWindowsDesktopShell,
       originCleanupConfig.enabled,
       originCleanupConfig.failedRetentionDays,
@@ -926,7 +828,6 @@ export const useDeviceAnalysisSettings = ({
       originCleanupFeedback,
       originCleanupRunning,
       originCleanupSaving,
-      originBatchRunning,
       originBridge,
       originExePath,
       originPlotConfig,

@@ -113,10 +113,10 @@ $packages = if ($UsePinnedVersions) {
   )
 } else {
   @(
-    "pyinstaller==6.16.0",
-    "pyinstaller-hooks-contrib==2025.8",
-    "pywin32==311",
-    "originpro==1.1.15"
+    "pyinstaller",
+    "pyinstaller-hooks-contrib",
+    "pywin32",
+    "originpro"
   )
 }
 

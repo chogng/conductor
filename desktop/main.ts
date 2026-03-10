@@ -9,10 +9,8 @@ import {
   detectOriginExecutablePathDetailed,
   normalizeOriginExePath,
   pickOriginExecutable,
-  runOriginBatchJob,
   runOriginRuntimeCleanup,
   runOriginHealthCheck,
-  runOriginZipJob,
   runOriginCsvJob,
 } from "./origin-runner.js";
 
@@ -66,52 +64,6 @@ function resolveOriginWorkerScriptPath() {
   );
 }
 
-function resolveOriginBatchScriptPath() {
-  if (!app.isPackaged) {
-    return path.join(__dirname, "..", "origin", "run_origin_batch.py");
-  }
-
-  const unpackedPath = path.join(
-    getResourcesPath(),
-    "app.asar.unpacked",
-    "origin",
-    "run_origin_batch.py",
-  );
-  if (fs.existsSync(unpackedPath)) {
-    return unpackedPath;
-  }
-
-  return path.join(
-    getResourcesPath(),
-    "app.asar",
-    "origin",
-    "run_origin_batch.py",
-  );
-}
-
-function resolveOriginZipScriptPath() {
-  if (!app.isPackaged) {
-    return path.join(__dirname, "..", "origin", "run_origin_zip.py");
-  }
-
-  const unpackedPath = path.join(
-    getResourcesPath(),
-    "app.asar.unpacked",
-    "origin",
-    "run_origin_zip.py",
-  );
-  if (fs.existsSync(unpackedPath)) {
-    return unpackedPath;
-  }
-
-  return path.join(
-    getResourcesPath(),
-    "app.asar",
-    "origin",
-    "run_origin_zip.py",
-  );
-}
-
 function resolveOriginCsvScriptPath() {
   if (!app.isPackaged) {
     return path.join(__dirname, "..", "origin", "run_origin_csv.py");
@@ -146,52 +98,6 @@ function resolveFirstExistingPath(candidates) {
   return null;
 }
 
-function resolveOriginBatchWorkerPath() {
-  const envPath = normalizeOriginExePath(process.env.ORIGIN_BATCH_WORKER_PATH);
-  if (!app.isPackaged) {
-    return resolveFirstExistingPath([
-      envPath,
-      path.join(__dirname, "..", "origin", "bin", "origin-batch-worker.exe"),
-      path.join(__dirname, "..", "origin", "dist", "origin-batch-worker.exe"),
-    ]);
-  }
-
-  return resolveFirstExistingPath([
-    envPath,
-    path.join(getResourcesPath(), "origin", "bin", "origin-batch-worker.exe"),
-    path.join(
-      getResourcesPath(),
-      "app.asar.unpacked",
-      "origin",
-      "bin",
-      "origin-batch-worker.exe",
-    ),
-  ]);
-}
-
-function resolveOriginZipWorkerPath() {
-  const envPath = normalizeOriginExePath(process.env.ORIGIN_ZIP_WORKER_PATH);
-  if (!app.isPackaged) {
-    return resolveFirstExistingPath([
-      envPath,
-      path.join(__dirname, "..", "origin", "bin", "origin-zip-worker.exe"),
-      path.join(__dirname, "..", "origin", "dist", "origin-zip-worker.exe"),
-    ]);
-  }
-
-  return resolveFirstExistingPath([
-    envPath,
-    path.join(getResourcesPath(), "origin", "bin", "origin-zip-worker.exe"),
-    path.join(
-      getResourcesPath(),
-      "app.asar.unpacked",
-      "origin",
-      "bin",
-      "origin-zip-worker.exe",
-    ),
-  ]);
-}
-
 function resolveOriginCsvWorkerPath() {
   const envPath = normalizeOriginExePath(process.env.ORIGIN_CSV_WORKER_PATH);
   if (!app.isPackaged) {
@@ -216,11 +122,7 @@ function resolveOriginCsvWorkerPath() {
 }
 
 const ORIGIN_WORKER_SCRIPT_PATH = resolveOriginWorkerScriptPath();
-const ORIGIN_BATCH_SCRIPT_PATH = isDev ? resolveOriginBatchScriptPath() : null;
-const ORIGIN_ZIP_SCRIPT_PATH = isDev ? resolveOriginZipScriptPath() : null;
 const ORIGIN_CSV_SCRIPT_PATH = isDev ? resolveOriginCsvScriptPath() : null;
-const ORIGIN_BATCH_WORKER_PATH = resolveOriginBatchWorkerPath();
-const ORIGIN_ZIP_WORKER_PATH = resolveOriginZipWorkerPath();
 const ORIGIN_CSV_WORKER_PATH = resolveOriginCsvWorkerPath();
 
 const ipcChannels = {
@@ -236,8 +138,6 @@ const ipcChannels = {
   originExeSet: "device-analysis-origin:exe:set",
   originExePick: "device-analysis-origin:exe:pick",
   originHealthCheck: "device-analysis-origin:health-check",
-  originRunBatch: "device-analysis-origin:run-batch",
-  originRunZip: "device-analysis-origin:run-zip",
   originRunCsv: "device-analysis-origin:run-csv",
   originRuntimeCleanupRun: "device-analysis-origin:runtime-cleanup:run",
 };
@@ -886,141 +786,6 @@ async function handleOriginHealthCheck(event, payload) {
   }
 }
 
-async function pickOriginBatchInputDir(event, defaultPath) {
-  const win = BrowserWindow.fromWebContents(event.sender) ?? null;
-  const result = await dialog.showOpenDialog(win || undefined, {
-    title: "Select CSV folder for Origin batch",
-    defaultPath: defaultPath || undefined,
-    properties: ["openDirectory"],
-  });
-
-  if (result.canceled || !Array.isArray(result.filePaths) || result.filePaths.length === 0) {
-    return null;
-  }
-
-  return result.filePaths[0];
-}
-
-async function resolveOriginBatchInputDir(event, payload) {
-  const rawInputDir =
-    payload &&
-    typeof payload === "object" &&
-    typeof payload.inputDir === "string" &&
-    payload.inputDir.trim()
-      ? payload.inputDir.trim()
-      : null;
-
-  if (rawInputDir) {
-    return rawInputDir;
-  }
-
-  const allowPickInputDir = Boolean(
-    payload && typeof payload === "object" && payload.allowPickInputDir,
-  );
-  if (!allowPickInputDir) {
-    throw new Error("__ORIGIN_BATCH_INPUT_DIR_REQUIRED__");
-  }
-
-  const picked = await pickOriginBatchInputDir(event, app.getPath("documents"));
-  if (!picked) {
-    throw new Error("__ORIGIN_BATCH_INPUT_DIR_REQUIRED__");
-  }
-  return picked;
-}
-
-async function handleOriginRunBatch(event, payload) {
-  if (!isWindows) {
-    throw new Error("Origin integration is only available on Windows desktop.");
-  }
-
-  const inputDir = await resolveOriginBatchInputDir(event, payload);
-  const plotOptions = normalizeOriginPlotOptions(
-    payload && typeof payload === "object" ? payload.plot : null,
-    getOriginPlotOptionsFromSettings(),
-  );
-  const originExePath = await resolveOriginExePath(event);
-  if (!originExePath) {
-    throw new Error("__ORIGIN_EXE_REQUIRED__");
-  }
-
-  try {
-    return await runOriginBatchJob({
-      inputDir,
-      originExePath,
-      batchScriptPath: ORIGIN_BATCH_SCRIPT_PATH,
-      batchWorkerPath: ORIGIN_BATCH_WORKER_PATH,
-      plotType: plotOptions.plotType,
-      xyPairs: plotOptions.xyPairs,
-      plotCommand: plotOptions.plotCommand,
-      postPlotCommands: plotOptions.postPlotCommands,
-      lineWidth: plotOptions.lineWidth,
-      runtimeRootDir: getDeviceAnalysisHomeDir(),
-    });
-  } finally {
-    try {
-      await tryRunOriginRuntimeCleanup();
-    } catch (cleanupError) {
-      console.warn("[origin-cleanup] Batch cleanup failed:", cleanupError);
-    }
-  }
-}
-
-async function handleOriginRunZip(event, payload) {
-  if (!isWindows) {
-    throw new Error("Origin integration is only available on Windows desktop.");
-  }
-
-  const zipName =
-    payload && typeof payload.zipName === "string"
-      ? payload.zipName
-      : "device_analysis_origin.zip";
-  const bytes =
-    payload && Object.prototype.hasOwnProperty.call(payload, "bytes")
-      ? payload.bytes
-      : null;
-  const plotOptions = normalizeOriginPlotOptions(
-    payload && typeof payload === "object" ? payload.plot : null,
-    getOriginPlotOptionsFromSettings(),
-  );
-  const capabilities = normalizeOriginCapabilitiesPayload(
-    payload && typeof payload === "object"
-      ? payload.capabilities ?? payload.originCapabilities
-      : null,
-  );
-
-  if (!bytes) {
-    throw new Error("ZIP payload is missing.");
-  }
-
-  const originExePath = await resolveOriginExePath(event);
-  if (!originExePath) {
-    throw new Error("__ORIGIN_EXE_REQUIRED__");
-  }
-
-  try {
-    return await runOriginZipJob({
-      zipName,
-      bytes,
-      originExePath,
-      workerScriptPath: ORIGIN_ZIP_SCRIPT_PATH,
-      workerExecutablePath: ORIGIN_ZIP_WORKER_PATH,
-      plotType: plotOptions.plotType,
-      xyPairs: plotOptions.xyPairs,
-      plotCommand: plotOptions.plotCommand,
-      postPlotCommands: plotOptions.postPlotCommands,
-      lineWidth: plotOptions.lineWidth,
-      capabilities,
-      runtimeRootDir: getDeviceAnalysisHomeDir(),
-    });
-  } finally {
-    try {
-      await tryRunOriginRuntimeCleanup();
-    } catch (cleanupError) {
-      console.warn("[origin-cleanup] ZIP cleanup failed:", cleanupError);
-    }
-  }
-}
-
 async function handleOriginRunCsv(event, payload) {
   if (!isWindows) {
     throw new Error("Origin integration is only available on Windows desktop.");
@@ -1388,8 +1153,6 @@ app.whenReady().then(() => {
   ipcMain.handle(ipcChannels.originExeSet, handleOriginExeSet);
   ipcMain.handle(ipcChannels.originExePick, handleOriginExePick);
   ipcMain.handle(ipcChannels.originHealthCheck, handleOriginHealthCheck);
-  ipcMain.handle(ipcChannels.originRunBatch, handleOriginRunBatch);
-  ipcMain.handle(ipcChannels.originRunZip, handleOriginRunZip);
   ipcMain.handle(ipcChannels.originRunCsv, handleOriginRunCsv);
   ipcMain.handle(
     ipcChannels.originRuntimeCleanupRun,
@@ -1426,10 +1189,6 @@ app.on("will-quit", () => {
   ipcMain.removeHandler(ipcChannels.originExeSet);
   ipcMain.removeHandler(ipcChannels.originExePick);
   ipcMain.removeHandler(ipcChannels.originHealthCheck);
-  ipcMain.removeHandler(ipcChannels.originRunBatch);
-  ipcMain.removeHandler(ipcChannels.originRunZip);
   ipcMain.removeHandler(ipcChannels.originRunCsv);
   ipcMain.removeHandler(ipcChannels.originRuntimeCleanupRun);
 });
-
-

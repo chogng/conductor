@@ -13,8 +13,6 @@ const ipcChannels = {
   originExeSet: "device-analysis-origin:exe:set",
   originExePick: "device-analysis-origin:exe:pick",
   originHealthCheck: "device-analysis-origin:health-check",
-  originRunBatch: "device-analysis-origin:run-batch",
-  originRunZip: "device-analysis-origin:run-zip",
   originRunCsv: "device-analysis-origin:run-csv",
   originRuntimeCleanupRun: "device-analysis-origin:runtime-cleanup:run",
 };
@@ -70,12 +68,6 @@ contextBridge.exposeInMainWorld("desktopOrigin", {
   },
   async checkOriginHealth(payload) {
     return ipcRenderer.invoke(ipcChannels.originHealthCheck, payload);
-  },
-  async runOriginBatch(payload) {
-    return ipcRenderer.invoke(ipcChannels.originRunBatch, payload);
-  },
-  async runOriginZip(payload) {
-    return ipcRenderer.invoke(ipcChannels.originRunZip, payload);
   },
   async runOriginCsv(payload) {
     return ipcRenderer.invoke(ipcChannels.originRunCsv, payload);
