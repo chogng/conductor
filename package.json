@@ -60,6 +60,11 @@
     "appId": "com.appointer.deviceanalysis",
     "productName": "Device Analysis Studio",
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "compression": "maximum",
+    "electronLanguages": [
+      "en-US",
+      "zh-CN"
+    ],
     "directories": {
       "buildResources": "build",
       "output": "release"
@@ -67,12 +72,14 @@
     "files": [
       "dist/**/*",
       "desktop-dist/**/*",
-      "origin/**/*",
+      "origin/run_origin_job.ps1",
+      "origin/bin/origin-csv-worker.exe",
       "package.json"
     ],
     "asar": true,
     "asarUnpack": [
-      "origin/**"
+      "origin/run_origin_job.ps1",
+      "origin/bin/origin-csv-worker.exe"
     ],
     "publish": [
       {
@@ -94,7 +101,7 @@
       "icon": "build/icons/icon.ico",
       "target": [
         "nsis",
-        "zip"
+        "7z"
       ]
     },
     "linux": {
