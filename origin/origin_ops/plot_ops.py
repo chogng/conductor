@@ -14,6 +14,79 @@ def build_plot_command(custom_command: str, xy_pairs: str, plot_type_value) -> s
     return f"plotxy iy:={normalized_xy_pairs} plot:={normalized_plot_type};"
 
 
+def normalize_plot_line_width(value, min_width: float = 0.5, max_width: float = 20.0):
+    try:
+        width = float(value)
+    except Exception:
+        return None
+    if width <= 0:
+        return None
+    return max(min_width, min(max_width, width))
+
+
+def _iter_graph_layers(graph_page):
+    if graph_page is None:
+        return []
+
+    layers = []
+    try:
+        for layer in graph_page:
+            layers.append(layer)
+    except Exception:
+        pass
+
+    if layers:
+        return layers
+
+    try:
+        first_layer = graph_page[0]
+    except Exception:
+        first_layer = None
+    return [first_layer] if first_layer is not None else []
+
+
+def apply_plot_line_width(op_module, line_width):
+    normalized_line_width = normalize_plot_line_width(line_width)
+    if normalized_line_width is None:
+        return
+
+    find_graph = getattr(op_module, "find_graph", None)
+    if not callable(find_graph):
+        return
+
+    try:
+        graph_page = find_graph()
+    except Exception:
+        return
+
+    width_cmd = f"-w {normalized_line_width:g}"
+    for layer in _iter_graph_layers(graph_page):
+        plot_list_fn = getattr(layer, "plot_list", None)
+        if not callable(plot_list_fn):
+            continue
+
+        try:
+            plots = plot_list_fn()
+        except Exception:
+            continue
+
+        for plot in plots or []:
+            set_cmd = getattr(plot, "set_cmd", None)
+            if callable(set_cmd):
+                try:
+                    set_cmd(width_cmd)
+                    continue
+                except Exception:
+                    pass
+
+            set_float = getattr(plot, "set_float", None)
+            if callable(set_float):
+                try:
+                    set_float("line.width", normalized_line_width)
+                except Exception:
+                    continue
+
+
 def run_plot_pipeline(
     op_module,
     plot_command: str,
@@ -21,9 +94,10 @@ def run_plot_pipeline(
     plot_pre_commands=None,
     post_plot_commands=None,
     plot_error_message: str = "Plot failed at plotxy",
+    line_width=None,
 ):
     run_command_list(op_module, graph_pre_commands or [], "Graph pre-command")
     run_command_list(op_module, plot_pre_commands or [], "Plot pre-command")
     run_labtalk_or_raise(op_module, plot_command, plot_error_message)
+    apply_plot_line_width(op_module, line_width)
     run_command_list(op_module, post_plot_commands or [], "Post-plot command")
-

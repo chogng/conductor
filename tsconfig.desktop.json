@@ -4,11 +4,11 @@
     "lib": ["ES2022"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "rootDir": "electron",
-    "outDir": "electron-dist",
+    "rootDir": "desktop",
+    "outDir": "desktop-dist",
     "types": ["node"],
     "strict": false,
     "skipLibCheck": true
   },
-  "include": ["electron/**/*.ts"]
+  "include": ["desktop/**/*.ts"]
 }

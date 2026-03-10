@@ -261,6 +261,7 @@ def parse_args():
     parser.add_argument("--xy-pairs", default="((1,2))")
     parser.add_argument("--plot-command", default="")
     parser.add_argument("--post-plot-command", action="append", default=[])
+    parser.add_argument("--line-width", type=float, default=2.0)
     parser.add_argument("--capabilities-json", default="")
     parser.add_argument("--max-com-attempts", type=int, default=8)
     return parser.parse_args()
@@ -374,6 +375,7 @@ def main():
             plot_pre_commands=capability_plan.plot_pre_commands,
             post_plot_commands=all_post_plot_commands,
             plot_error_message="CSV plot failed at plotxy",
+            line_width=args.line_width,
         )
         axis_commands = ensure_log_y_axis_range_commands(
             capability_plan.axis_commands,

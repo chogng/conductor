@@ -65,6 +65,7 @@ export async function runOriginZipJob({
   xyPairs,
   plotCommand,
   postPlotCommands,
+  lineWidth,
   capabilities,
   runtimeRootDir,
 }) {
@@ -127,6 +128,7 @@ export async function runOriginZipJob({
     xyPairs,
     plotCommand,
     postPlotCommands,
+    lineWidth,
   });
   const zipPythonWorkerArgs = appendOriginCapabilitiesWorkerArgs(
     zipPlotWorkerArgs,
@@ -258,6 +260,7 @@ export async function runOriginCsvJob({
   xyPairs,
   plotCommand,
   postPlotCommands,
+  lineWidth,
   capabilities,
 }) {
   const normalizedOriginExePath = assertOriginExePath(originExePath);
@@ -298,6 +301,7 @@ export async function runOriginCsvJob({
     xyPairs,
     plotCommand,
     postPlotCommands,
+    lineWidth,
     capabilities,
   });
 
@@ -445,6 +449,7 @@ export async function runOriginBatchJob({
   xyPairs,
   plotCommand,
   postPlotCommands,
+  lineWidth,
   runtimeRootDir,
 }) {
   let normalizedOriginExePath = null;
@@ -492,6 +497,7 @@ export async function runOriginBatchJob({
     xyPairs,
     plotCommand,
     postPlotCommands,
+    lineWidth,
   });
 
   const normalizedBatchWorkerPath = normalizeOriginExePath(batchWorkerPath);

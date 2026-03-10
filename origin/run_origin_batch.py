@@ -96,6 +96,7 @@ def parse_args():
     parser.add_argument("--xy-pairs", default="((1,2))")
     parser.add_argument("--plot-command", default="")
     parser.add_argument("--post-plot-command", action="append", default=[])
+    parser.add_argument("--line-width", type=float, default=2.0)
     parser.add_argument("--max-com-attempts", type=int, default=4)
     return parser.parse_args()
 
@@ -163,6 +164,16 @@ def ensure_lt_terminated(command: str) -> str:
     return text if text.endswith(";") else f"{text};"
 
 
+def normalize_plot_line_width(value):
+    try:
+        width = float(value)
+    except Exception:
+        return None
+    if width <= 0:
+        return None
+    return max(0.5, min(20.0, width))
+
+
 def build_plot_command(args) -> str:
     custom_command = ensure_lt_terminated(args.plot_command)
     if custom_command:
@@ -182,6 +193,7 @@ def process_csv_file(
     csv_path: Path,
     plot_command: str,
     post_plot_commands,
+    line_width=None,
 ):
     file_result = {
         "file": str(csv_path),
@@ -199,6 +211,11 @@ def process_csv_file(
             if not next_command:
                 continue
             origin.Execute(next_command)
+
+        normalized_line_width = normalize_plot_line_width(line_width)
+        if normalized_line_width is not None:
+            origin.Execute(f"set %C -w {normalized_line_width:g};")
+
         return file_result
     except Exception as exc:
         file_result["status"] = "failed"
@@ -290,6 +307,7 @@ def main():
                 csv_path,
                 plot_command,
                 post_plot_commands,
+                line_width=args.line_width,
             )
             results.append(result)
             if result["status"] == "failed":

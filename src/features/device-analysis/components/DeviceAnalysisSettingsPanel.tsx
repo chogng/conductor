@@ -33,6 +33,7 @@ type OriginSettings = {
   plotPostCommandsText: string;
   plotSaving: boolean;
   plotType: number;
+  plotLineWidth: number;
   plotXyPairs: string;
   isSaving: boolean;
   onCheckHealth: () => Promise<void> | void;
@@ -47,6 +48,7 @@ type OriginSettings = {
   onPlotCommandChange: (value: string) => Promise<void> | void;
   onPlotPostCommandsChange: (value: string) => Promise<void> | void;
   onPlotTypeChange: (value: string | number) => Promise<void> | void;
+  onPlotLineWidthChange: (value: string | number) => Promise<void> | void;
   onPlotXyPairsChange: (value: string) => Promise<void> | void;
   onRunCleanupNow: () => Promise<void> | void;
   onRunBatch: () => Promise<void> | void;
@@ -110,7 +112,9 @@ const DeviceAnalysisSettingsPanel = ({
     { value: "201", label: t("da_settings_origin_plot_type_201") },
     { value: "202", label: t("da_settings_origin_plot_type_202") },
   ];
-
+  const [lineWidthDraft, setLineWidthDraft] = useState(
+    String(originSettings.plotLineWidth ?? 2),
+  );
   const [xyPairsDraft, setXyPairsDraft] = useState(originSettings.plotXyPairs ?? "");
   const [plotCommandDraft, setPlotCommandDraft] = useState(
     originSettings.plotCommand ?? "",
@@ -120,6 +124,10 @@ const DeviceAnalysisSettingsPanel = ({
   );
   const [appUpdateChecking, setAppUpdateChecking] = useState(false);
   const [appUpdateFeedback, setAppUpdateFeedback] = useState<Feedback>(IDLE_FEEDBACK);
+
+  useEffect(() => {
+    setLineWidthDraft(String(originSettings.plotLineWidth ?? 2));
+  }, [originSettings.plotLineWidth]);
 
   useEffect(() => {
     setXyPairsDraft(originSettings.plotXyPairs ?? "");
@@ -484,6 +492,26 @@ const DeviceAnalysisSettingsPanel = ({
               options={originPlotTypeOptions}
               disabled={originSettings.plotSaving || !originSettings.isConfigurable}
             />
+          </div>
+
+          <div className="space-y-1 min-w-0">
+            <p className="text-xs text-text-secondary">
+              {t("da_settings_origin_plot_line_width_label")}
+            </p>
+            <Input
+              id="device-analysis-settings-origin-plot-line-width-input"
+              value={lineWidthDraft}
+              onChange={setLineWidthDraft}
+              onBlur={() => {
+                const nextValue = lineWidthDraft.trim();
+                if (nextValue === String(originSettings.plotLineWidth ?? 2)) return;
+                void originSettings.onPlotLineWidthChange(nextValue);
+              }}
+              disabled={originSettings.plotSaving || !originSettings.isConfigurable}
+            />
+            <p className="text-xs text-text-secondary">
+              {t("da_settings_origin_plot_line_width_hint")}
+            </p>
           </div>
 
           <div className="space-y-1 min-w-0">

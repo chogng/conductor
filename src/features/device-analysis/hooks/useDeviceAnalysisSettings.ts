@@ -21,6 +21,7 @@ type DeviceAnalysisSettings = {
   originPlotPostCommandsDefault?: string[];
   originPlotTypeDefault?: number;
   originPlotXyPairsDefault?: string;
+  originPlotLineWidthDefault?: number;
   originRuntimeCleanupEnabled?: boolean;
   originRuntimeFailedRetentionDays?: number;
   originRuntimeKeepSuccessJobs?: number;
@@ -297,6 +298,7 @@ export const useDeviceAnalysisSettings = ({
         command: settings.originPlotCommandDefault,
         postCommands: settings.originPlotPostCommandsDefault,
         type: settings.originPlotTypeDefault,
+        lineWidth: settings.originPlotLineWidthDefault,
         xyPairs: settings.originPlotXyPairsDefault,
       },
       DEFAULT_ORIGIN_PLOT_OPTIONS,
@@ -766,6 +768,19 @@ export const useDeviceAnalysisSettings = ({
     [updateOriginPlotSetting],
   );
 
+  const handleSetOriginPlotLineWidth = useCallback(
+    async (nextValue: unknown) => {
+      const normalized = normalizeOriginPlotOptions(
+        { lineWidth: nextValue },
+        DEFAULT_ORIGIN_PLOT_OPTIONS,
+      );
+      await updateOriginPlotSetting({
+        originPlotLineWidthDefault: normalized.lineWidth,
+      });
+    },
+    [updateOriginPlotSetting],
+  );
+
   const handleSetOriginPlotCommand = useCallback(
     async (nextValue: unknown) => {
       const normalized = normalizeOriginPlotOptions({
@@ -859,6 +874,7 @@ export const useDeviceAnalysisSettings = ({
       ),
       plotSaving: originPlotSaving,
       plotType: originPlotConfig.type,
+      plotLineWidth: originPlotConfig.lineWidth,
       plotXyPairs: originPlotConfig.xyPairs,
       isBatchAvailable:
         isWindowsDesktopShell &&
@@ -885,6 +901,7 @@ export const useDeviceAnalysisSettings = ({
       onPlotCommandChange: handleSetOriginPlotCommand,
       onPlotPostCommandsChange: handleSetOriginPostPlotCommands,
       onPlotTypeChange: handleSetOriginPlotType,
+      onPlotLineWidthChange: handleSetOriginPlotLineWidth,
       onPlotXyPairsChange: handleSetOriginPlotXyPairs,
       onRunCleanupNow: handleRunOriginCleanupNow,
       onRunBatch: handleRunOriginBatch,
@@ -899,6 +916,7 @@ export const useDeviceAnalysisSettings = ({
       handleSetOriginPlotCommand,
       handleSetOriginPostPlotCommands,
       handleSetOriginPlotType,
+      handleSetOriginPlotLineWidth,
       handleSetOriginPlotXyPairs,
       handleRunOriginBatch,
       isWindowsDesktopShell,

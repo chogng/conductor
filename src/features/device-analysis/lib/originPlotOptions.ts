@@ -3,6 +3,7 @@ export type OriginPlotOptions = {
   xyPairs: string;
   command: string;
   postCommands: string[];
+  lineWidth: number;
 };
 
 export const DEFAULT_ORIGIN_PLOT_OPTIONS: OriginPlotOptions = Object.freeze({
@@ -10,6 +11,7 @@ export const DEFAULT_ORIGIN_PLOT_OPTIONS: OriginPlotOptions = Object.freeze({
   xyPairs: "((1,2))",
   command: "",
   postCommands: [],
+  lineWidth: 2,
 }) as OriginPlotOptions;
 
 const clampInt = (
@@ -24,6 +26,18 @@ const clampInt = (
   if (rounded < min) return min;
   if (rounded > max) return max;
   return rounded;
+};
+
+const clampPositiveFloat = (
+  value: unknown,
+  fallback: number,
+  min: number,
+  max: number,
+): number => {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) return fallback;
+  const clamped = Math.min(max, Math.max(min, num));
+  return Math.round(clamped * 100) / 100;
 };
 
 export const normalizeOriginPostCommands = (value: unknown): string[] => {
@@ -60,12 +74,25 @@ export const normalizeOriginPlotOptions = (
     ? raw.postCommands
     : fallbackValue.postCommands;
   const postCommands = normalizeOriginPostCommands(postCommandsRaw);
+  const fallbackLineWidth = clampPositiveFloat(
+    fallbackValue.lineWidth,
+    DEFAULT_ORIGIN_PLOT_OPTIONS.lineWidth,
+    0.5,
+    20,
+  );
+  const lineWidth = clampPositiveFloat(
+    raw.lineWidth ?? raw.linewidth ?? raw.line_width,
+    fallbackLineWidth,
+    0.5,
+    20,
+  );
 
   return {
     type,
     xyPairs,
     command,
     postCommands,
+    lineWidth,
   };
 };
 

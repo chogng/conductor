@@ -218,7 +218,7 @@ const ipcChannels = {
   originRuntimeCleanupRun: "device-analysis-origin:runtime-cleanup:run",
 };
 
-/** @typedef {{plotType: number, xyPairs: string, plotCommand: string, postPlotCommands: string[]}} OriginPlotOptions */
+/** @typedef {{plotType: number, xyPairs: string, plotCommand: string, postPlotCommands: string[], lineWidth: number}} OriginPlotOptions */
 /**
  * @typedef {{
  *   import?: {workbookLongName?: string, preCommands?: string[], postCommands?: string[]},
@@ -235,6 +235,7 @@ const DEFAULT_ORIGIN_PLOT_OPTIONS = Object.freeze(
     xyPairs: "((1,2))",
     plotCommand: "",
     postPlotCommands: [],
+    lineWidth: 2,
   }),
 );
 
@@ -248,6 +249,12 @@ function normalizeBoundedInt(value, fallback, min, max) {
   const num = Number(value);
   if (!Number.isFinite(num)) return fallback;
   return Math.min(max, Math.max(min, Math.floor(num)));
+}
+
+function normalizeBoundedFloat(value, fallback, min, max) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(num * 100) / 100));
 }
 
 function normalizeOriginPostPlotCommands(value) {
@@ -536,12 +543,25 @@ function normalizeOriginPlotOptions(rawOptions, fallbackOptions = undefined) {
         ? raw.postCommands
         : fallback.postPlotCommands,
   );
+  const fallbackLineWidth = normalizeBoundedFloat(
+    fallback.lineWidth,
+    DEFAULT_ORIGIN_PLOT_OPTIONS.lineWidth,
+    0.5,
+    20,
+  );
+  const lineWidth = normalizeBoundedFloat(
+    raw.lineWidth ?? raw.linewidth ?? raw.line_width,
+    fallbackLineWidth,
+    0.5,
+    20,
+  );
 
   return {
     plotType,
     xyPairs,
     plotCommand,
     postPlotCommands,
+    lineWidth,
   };
 }
 
@@ -575,6 +595,7 @@ function normalizeOriginCsvPayload(payload, plotDefaults = undefined) {
       plotCommand: plot.command ?? plot.plotCommand ?? raw.plotCommand,
       plotType: plot.type ?? plot.plotType ?? raw.plotType,
       postPlotCommands: plot.postCommands ?? plot.postPlotCommands ?? raw.postPlotCommands,
+      lineWidth: plot.lineWidth ?? plot.linewidth ?? plot.line_width ?? raw.lineWidth ?? raw.linewidth ?? raw.line_width,
       xyPairs: plot.xyPairs ?? raw.xyPairs,
     },
     resolvedPlotDefaults,
@@ -693,6 +714,7 @@ function getOriginPlotOptionsFromSettings() {
     plotCommand: settings?.originPlotCommandDefault,
     plotType: settings?.originPlotTypeDefault,
     postPlotCommands: settings?.originPlotPostCommandsDefault,
+    lineWidth: settings?.originPlotLineWidthDefault,
     xyPairs: settings?.originPlotXyPairsDefault,
   });
 }
@@ -906,6 +928,7 @@ async function handleOriginRunBatch(event, payload) {
       xyPairs: plotOptions.xyPairs,
       plotCommand: plotOptions.plotCommand,
       postPlotCommands: plotOptions.postPlotCommands,
+      lineWidth: plotOptions.lineWidth,
       runtimeRootDir: getDeviceAnalysisHomeDir(),
     });
   } finally {
@@ -960,6 +983,7 @@ async function handleOriginRunZip(event, payload) {
       xyPairs: plotOptions.xyPairs,
       plotCommand: plotOptions.plotCommand,
       postPlotCommands: plotOptions.postPlotCommands,
+      lineWidth: plotOptions.lineWidth,
       capabilities,
       runtimeRootDir: getDeviceAnalysisHomeDir(),
     });
@@ -989,6 +1013,7 @@ async function handleOriginRunCsv(event, payload) {
     xyPairs,
     plotCommand,
     postPlotCommands,
+    lineWidth,
     capabilities,
   } =
     normalizedPayload;
@@ -1011,6 +1036,7 @@ async function handleOriginRunCsv(event, payload) {
       xyPairs,
       plotCommand,
       postPlotCommands,
+      lineWidth,
       capabilities,
       originExePath,
       workerScriptPath: ORIGIN_CSV_SCRIPT_PATH,

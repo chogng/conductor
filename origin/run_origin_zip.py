@@ -17,7 +17,7 @@ from origin_ops.origin_session import (
     run_command_list,
     run_labtalk_or_raise,
 )
-from origin_ops.plot_ops import build_plot_command, run_plot_pipeline
+from origin_ops.plot_ops import apply_plot_line_width, build_plot_command, run_plot_pipeline
 from origin_ops.style_ops import apply_style_commands
 
 
@@ -83,6 +83,7 @@ def parse_args():
     parser.add_argument("--xy-pairs", default="((1,2))")
     parser.add_argument("--plot-command", default="")
     parser.add_argument("--post-plot-command", action="append", default=[])
+    parser.add_argument("--line-width", type=float, default=2.0)
     parser.add_argument("--capabilities-json", default="")
     parser.add_argument("--max-com-attempts", type=int, default=8)
     return parser.parse_args()
@@ -257,6 +258,7 @@ def main():
                 plot_pre_commands=capability_plan.plot_pre_commands,
                 post_plot_commands=all_post_plot_commands,
                 plot_error_message="CSV fallback failed at plotxy",
+                line_width=args.line_width,
             )
             ctx.log("CSV fallback plot succeeded.")
         except Exception as exc:
@@ -270,6 +272,7 @@ def main():
         try:
             run_command_list(op_module, capability_plan.graph_pre_commands, "Graph pre-command")
             run_command_list(op_module, capability_plan.plot_pre_commands, "Plot pre-command")
+            apply_plot_line_width(op_module, args.line_width)
             run_command_list(op_module, all_post_plot_commands, "Post-plot command")
         except Exception as exc:
             ctx.write_error(

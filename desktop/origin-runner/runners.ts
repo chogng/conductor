@@ -61,6 +61,7 @@ export function appendOriginPlotWorkerArgs(baseArgs, plotOptions = {}) {
   const xyPairs = Reflect.get(source, "xyPairs");
   const plotCommand = Reflect.get(source, "plotCommand");
   const postPlotCommands = Reflect.get(source, "postPlotCommands");
+  const lineWidth = Reflect.get(source, "lineWidth");
 
   const normalizedPlotType = Number(plotType);
   if (Number.isFinite(normalizedPlotType)) {
@@ -80,6 +81,11 @@ export function appendOriginPlotWorkerArgs(baseArgs, plotOptions = {}) {
       if (typeof rawCommand !== "string" || !rawCommand.trim()) continue;
       args.push("--post-plot-command", rawCommand.trim());
     }
+  }
+
+  const normalizedLineWidth = Number(lineWidth);
+  if (Number.isFinite(normalizedLineWidth) && normalizedLineWidth > 0) {
+    args.push("--line-width", String(normalizedLineWidth));
   }
 
   return args;
@@ -114,6 +120,7 @@ export function buildOriginCsvWorkerArgs({
   xyPairs,
   plotCommand,
   postPlotCommands,
+  lineWidth,
   capabilities,
 }) {
   const args = [
@@ -138,6 +145,7 @@ export function buildOriginCsvWorkerArgs({
     xyPairs,
     plotCommand,
     postPlotCommands,
+    lineWidth,
   });
   return appendOriginCapabilitiesWorkerArgs(withPlotArgs, capabilities);
 }

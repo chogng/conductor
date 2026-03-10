@@ -1,6 +1,6 @@
 # Desktop Auto Update (GitHub Releases)
 
-This project uses `electron-updater` in `electron/main.ts`.
+This project uses `electron-updater` in `desktop/main.ts`.
 
 Default behavior:
 

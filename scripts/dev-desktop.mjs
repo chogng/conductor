@@ -17,12 +17,12 @@ const viteArgs = isWin
   : ["run", "dev", "--", "--host", host, "--port", String(port)];
 const electronBuildWatchCmd = isWin ? "cmd.exe" : npmCmd;
 const electronBuildWatchArgs = isWin
-  ? ["/d", "/s", "/c", npmCmd, "run", "build:electron", "--", "--watch", "--preserveWatchOutput"]
-  : ["run", "build:electron", "--", "--watch", "--preserveWatchOutput"];
+  ? ["/d", "/s", "/c", npmCmd, "run", "build:desktop:core", "--", "--watch", "--preserveWatchOutput"]
+  : ["run", "build:desktop:core", "--", "--watch", "--preserveWatchOutput"];
 const electronBin = isWin
   ? path.join(process.cwd(), "node_modules", "electron", "dist", "electron.exe")
   : path.join(process.cwd(), "node_modules", ".bin", "electron");
-const electronDistDir = path.join(process.cwd(), "electron-dist");
+const desktopDistDir = path.join(process.cwd(), "desktop-dist");
 
 const watchedExtensions = new Set([".cjs", ".js", ".mjs", ".json"]);
 
@@ -325,7 +325,7 @@ const trackWatcher = (watcher) => {
 };
 
 const startElectronWatchers = () => {
-  const rootDir = electronDistDir;
+  const rootDir = desktopDistDir;
 
   try {
     const recursiveWatcher = watch(

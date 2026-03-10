@@ -10,7 +10,7 @@ export default defineConfig([
   // Ignore generated artifacts and local tooling outputs.
   globalIgnores([
     'dist',
-    'electron-dist',
+    'desktop-dist',
     'release',
     'originbridge',
     'origin/bin',
@@ -41,9 +41,9 @@ export default defineConfig([
     },
   },
   {
-    // Electron main-process/source is TypeScript. Lint it, but do not lint TS/TSX
+    // Desktop main-process/source is TypeScript. Lint it, but do not lint TS/TSX
     // under src/ yet (the project historically linted JS only).
-    files: ['electron/**/*.{ts,tsx}'],
+    files: ['desktop/**/*.{ts,tsx}'],
     languageOptions: {
       parser: tsParser,
       ecmaVersion: 'latest',

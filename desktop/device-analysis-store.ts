@@ -24,6 +24,7 @@ const DEVICE_ANALYSIS_DEFAULT_SETTINGS = {
   originPlotXyPairsDefault: "((1,2))",
   originPlotCommandDefault: "",
   originPlotPostCommandsDefault: [],
+  originPlotLineWidthDefault: 2,
   originRuntimeCleanupEnabled: true,
   originRuntimeKeepSuccessJobs: 1,
   originRuntimeFailedRetentionDays: 7,
@@ -171,6 +172,7 @@ export function createDeviceAnalysisStore(options) {
       plotCommand: DEVICE_ANALYSIS_DEFAULT_SETTINGS.originPlotCommandDefault,
       plotType: DEVICE_ANALYSIS_DEFAULT_SETTINGS.originPlotTypeDefault,
       postPlotCommands: DEVICE_ANALYSIS_DEFAULT_SETTINGS.originPlotPostCommandsDefault,
+      lineWidth: DEVICE_ANALYSIS_DEFAULT_SETTINGS.originPlotLineWidthDefault,
       xyPairs: DEVICE_ANALYSIS_DEFAULT_SETTINGS.originPlotXyPairsDefault,
     });
     const originPlotSettings = normalizeOriginPlotOptions(
@@ -178,6 +180,7 @@ export function createDeviceAnalysisStore(options) {
         plotCommand: next.originPlotCommandDefault,
         plotType: next.originPlotTypeDefault,
         postPlotCommands: next.originPlotPostCommandsDefault,
+        lineWidth: next.originPlotLineWidthDefault,
         xyPairs: next.originPlotXyPairsDefault,
       },
       originPlotDefaults,
@@ -217,6 +220,7 @@ export function createDeviceAnalysisStore(options) {
       originPlotXyPairsDefault: originPlotSettings.xyPairs,
       originPlotCommandDefault: originPlotSettings.plotCommand,
       originPlotPostCommandsDefault: originPlotSettings.postPlotCommands,
+      originPlotLineWidthDefault: originPlotSettings.lineWidth,
       originRuntimeCleanupEnabled,
       originRuntimeKeepSuccessJobs,
       originRuntimeFailedRetentionDays,

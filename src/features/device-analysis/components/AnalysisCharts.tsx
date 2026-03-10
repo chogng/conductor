@@ -226,6 +226,7 @@ type OriginCsvBridge = {
             command?: string;
             postCommands?: string[];
             type?: number;
+            lineWidth?: number;
             xyPairs?: string;
         };
         capabilities?: {
@@ -960,6 +961,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         command: normalizedPlotOptions.command,
                         postCommands: normalizedPlotOptions.postCommands,
                         type: normalizedPlotOptions.type,
+                        lineWidth: normalizedPlotOptions.lineWidth,
                         xyPairs: effectiveXyPairs,
                     },
                     capabilities: {
@@ -1164,12 +1166,12 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 : `dI/d${xDisplay}`;
         const formula = (() => {
             if (derivSymbol && fixedSymbol) {
-                const base = `âˆ‚I/ï¿?{derivSymbol} |${fixedSymbol}`;
+                const base = `\u2202I/\u2202${derivSymbol} |${fixedSymbol}`;
                 return kindSymbol ? `${kindSymbol} = ${base}` : base;
             }
             if (derivSymbol) {
                 const fixedFallback = gmMode === "legend" ? xDisplay : legendDisplay;
-                const base = `âˆ‚I/ï¿?{derivSymbol} |${fixedFallback}`;
+                const base = `\u2202I/\u2202${derivSymbol} |${fixedFallback}`;
                 return kindSymbol ? `${kindSymbol} = ${base}` : base;
             }
             return gmMode === "legend"
