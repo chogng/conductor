@@ -48,6 +48,7 @@ type CachePrefetchHandle = {
     type: "timeout";
     id: ReturnType<typeof setTimeout>;
 };
+type IvGmPlotType = "iv" | "gm";
 type ToastType = "success" | "error" | "warning" | "info";
 type ToastState = {
     isVisible: boolean;
@@ -58,6 +59,8 @@ const MAX_RENDER_SERIES_POINTS = 600;
 const MIN_RENDER_SERIES_POINTS = 120;
 const DEFAULT_RENDER_POINT_BUDGET = 12000;
 const GM_RENDER_POINT_BUDGET = 9000;
+const IV_GM_STANDBY_PREWARM_DELAY_MS = 240;
+const IV_GM_STANDBY_RESIDENT_TTL_MS = 20000;
 const ORIGIN_CSV_AUTO_ZIP_FALLBACK_CODES = new Set([
     "ORIGIN_ORIGINPRO_IMPORT_FAILED",
     "ORIGIN_PYTHON_NOT_FOUND",
@@ -307,6 +310,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         setInternalActiveFileId(nextFileId ?? null);
     }, [isActiveFileControlled, onActiveFileIdChange]);
     const [plotType, setPlotType] = useState("iv"); // 'iv' | 'gm' | 'ss' | 'j'
+    const [residentMainPlotTypes, setResidentMainPlotTypes] = useState<IvGmPlotType[]>(["iv"]);
     const [focusedSeriesId, setFocusedSeriesId] = useState(null);
     const [originSelectedSeriesIdsByFile, setOriginSelectedSeriesIdsByFile] = useState<Record<string, string[]>>({});
     const [originSelectedCanvasIds, setOriginSelectedCanvasIds] = useState<string[]>(() => {
@@ -365,6 +369,12 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const renderSeriesCacheRef = useRef(new WeakMap<object, Map<number, any[]>>());
     const cachePrefetchJobIdRef = useRef(0);
     const cachePrefetchHandleRef = useRef<CachePrefetchHandle | null>(null);
+    const mainPlotPrewarmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const mainPlotEvictTimerRefs = useRef<Record<IvGmPlotType, ReturnType<typeof setTimeout> | null>>({
+        iv: null,
+        gm: null,
+    });
+    const effectivePlotTypeRef = useRef<string>("iv");
     useEffect(() => {
         const store = fileAnalysisCacheRef.current;
         if (!store || store.size === 0)
@@ -1043,6 +1053,69 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return "iv";
         return plotType;
     }, [area, plotType, ssApplicable]);
+    useEffect(() => {
+        effectivePlotTypeRef.current = effectivePlotType;
+    }, [effectivePlotType]);
+    const removeResidentMainPlotType = React.useCallback((targetType: IvGmPlotType) => {
+        setResidentMainPlotTypes((prev) => {
+            if (effectivePlotTypeRef.current === targetType)
+                return prev;
+            if (!prev.includes(targetType))
+                return prev;
+            return prev.filter((item) => item !== targetType);
+        });
+    }, []);
+    const scheduleResidentMainPlotEvict = React.useCallback((targetType: IvGmPlotType, delayMs = IV_GM_STANDBY_RESIDENT_TTL_MS) => {
+        const timers = mainPlotEvictTimerRefs.current;
+        const current = timers[targetType];
+        if (current)
+            clearTimeout(current);
+        timers[targetType] = setTimeout(() => {
+            timers[targetType] = null;
+            removeResidentMainPlotType(targetType);
+        }, Math.max(0, delayMs));
+    }, [removeResidentMainPlotType]);
+    useEffect(() => {
+        if (mainPlotPrewarmTimerRef.current) {
+            clearTimeout(mainPlotPrewarmTimerRef.current);
+            mainPlotPrewarmTimerRef.current = null;
+        }
+        if (effectivePlotType !== "iv" && effectivePlotType !== "gm") {
+            scheduleResidentMainPlotEvict("iv", 0);
+            scheduleResidentMainPlotEvict("gm", 0);
+            return;
+        }
+        const activeType = effectivePlotType as IvGmPlotType;
+        const standbyType: IvGmPlotType = activeType === "iv" ? "gm" : "iv";
+        setResidentMainPlotTypes((prev) => (prev.includes(activeType) ? prev : [...prev, activeType]));
+        const activeTimer = mainPlotEvictTimerRefs.current[activeType];
+        if (activeTimer) {
+            clearTimeout(activeTimer);
+            mainPlotEvictTimerRefs.current[activeType] = null;
+        }
+        scheduleResidentMainPlotEvict(standbyType);
+        mainPlotPrewarmTimerRef.current = setTimeout(() => {
+            if (effectivePlotTypeRef.current !== activeType)
+                return;
+            setResidentMainPlotTypes((prev) => (prev.includes(standbyType) ? prev : [...prev, standbyType]));
+            scheduleResidentMainPlotEvict(standbyType);
+        }, IV_GM_STANDBY_PREWARM_DELAY_MS);
+    }, [effectivePlotType, scheduleResidentMainPlotEvict]);
+    useEffect(() => {
+        return () => {
+            if (mainPlotPrewarmTimerRef.current) {
+                clearTimeout(mainPlotPrewarmTimerRef.current);
+                mainPlotPrewarmTimerRef.current = null;
+            }
+            const timers = mainPlotEvictTimerRefs.current;
+            for (const key of Object.keys(timers) as IvGmPlotType[]) {
+                const timer = timers[key];
+                if (timer)
+                    clearTimeout(timer);
+                timers[key] = null;
+            }
+        };
+    }, []);
     useEffect(() => {
         const shouldEnableDrag = effectivePlotType === "ss" && ssMethod === "manual";
         const activeFileIdNow = activeFile?.fileId ?? null;
@@ -2218,6 +2291,114 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         return Math.max(0, Math.min(20, Math.round(manualDigits)));
     }, [axis?.xTooltipDigits, xTooltipDigitsAuto]);
     const xLabelInterval = useMemo(() => computeLabelInterval(xTicks, 7), [xTicks]);
+    const ivGmActivePlotType = effectivePlotType === "iv" || effectivePlotType === "gm"
+        ? (effectivePlotType as IvGmPlotType)
+        : null;
+    const ivGmStandbyPlotType = useMemo(() => {
+        if (!ivGmActivePlotType)
+            return null;
+        const standby: IvGmPlotType = ivGmActivePlotType === "iv" ? "gm" : "iv";
+        return residentMainPlotTypes.includes(standby) ? standby : null;
+    }, [ivGmActivePlotType, residentMainPlotTypes]);
+    const standbyMainChartProps = useMemo(() => {
+        if (!ivGmStandbyPlotType)
+            return null;
+        if (!activeFile?.series?.length)
+            return null;
+        const byType = plotSeriesByType ?? { iv: [], gm: [], ss: [], j: [] };
+        const standbyDisplaySeries = ivGmStandbyPlotType === "gm" ? byType.gm ?? [] : byType.iv ?? [];
+        const renderPointBudget = ivGmStandbyPlotType === "gm"
+            ? GM_RENDER_POINT_BUDGET
+            : DEFAULT_RENDER_POINT_BUDGET;
+        const seriesCount = Math.max(1, standbyDisplaySeries.length);
+        const renderMaxPointsPerSeries = Math.max(MIN_RENDER_SERIES_POINTS, Math.min(MAX_RENDER_SERIES_POINTS, Math.floor(renderPointBudget / seriesCount)));
+        const cacheKey = standbyDisplaySeries as unknown as object;
+        let cacheBucket = renderSeriesCacheRef.current.get(cacheKey);
+        if (!cacheBucket) {
+            cacheBucket = new Map<number, any[]>();
+            renderSeriesCacheRef.current.set(cacheKey, cacheBucket);
+        }
+        let standbyRenderSeries = cacheBucket.get(renderMaxPointsPerSeries);
+        if (!standbyRenderSeries) {
+            standbyRenderSeries = standbyDisplaySeries.map((series: any) => {
+                const fullData = Array.isArray(series?.data) ? series.data : [];
+                const nextData = downsamplePointsForDisplay(fullData, renderMaxPointsPerSeries);
+                if (nextData === fullData)
+                    return series;
+                return {
+                    ...series,
+                    data: nextData,
+                };
+            });
+            cacheBucket.set(renderMaxPointsPerSeries, standbyRenderSeries ?? []);
+        }
+        const fileId = activeFile?.fileId ?? null;
+        const cache = fileId ? getFileCache(fileId) : null;
+        const areaKeyForMinMax = area && Number.isFinite(area) && area > 0 ? String(normalizeFloat(area)) : "";
+        const minMaxKey = `${ivGmStandbyPlotType}::${gmMode}::${plotYKey}::${areaKeyForMinMax}`;
+        let standbyMinMax = cache?.minMaxByKey?.has(minMaxKey)
+            ? cache.minMaxByKey.get(minMaxKey)
+            : null;
+        if (!standbyMinMax) {
+            standbyMinMax = computeMinMax(standbyDisplaySeries, { yKey: plotYKey });
+            if (cache?.minMaxByKey)
+                cache.minMaxByKey.set(minMaxKey, standbyMinMax);
+        }
+        const autoX = !standbyMinMax || standbyMinMax.minX === null || standbyMinMax.maxX === null
+            ? [0, 1]
+            : padLinearDomain(standbyMinMax.minX, standbyMinMax.maxX);
+        const minUser = parseOptionalNumber(axis?.xMin);
+        const maxUser = parseOptionalNumber(axis?.xMax);
+        const standbyXDomain = padLinearDomain(minUser ?? autoX[0], maxUser ?? autoX[1]);
+        const tickMode = String(axis?.xTicks ?? "auto");
+        const standbyXTicks = tickMode === "auto"
+            ? buildNiceTicks(standbyXDomain[0], standbyXDomain[1], 6, {
+                preferTightRange: true,
+            }) ?? buildOriginAutoTicks(standbyXDomain[0], standbyXDomain[1], 6)
+            : tickMode === "step"
+                ? (() => {
+                    const step = parseOptionalNumber(axis?.xStep);
+                    return step ? buildStepTicks(standbyXDomain[0], standbyXDomain[1], step) : null;
+                })()
+                : buildNiceTicks(standbyXDomain[0], standbyXDomain[1], Math.max(2, Math.floor(Number(axis?.xTickCount) || 6)), {
+                    preferTightRange: false,
+                });
+        const standbyXTickDigits = inferTickDigitsFromTicks(standbyXTicks);
+        const standbyXTooltipDigitsAuto = Math.min(8, Math.max(2, standbyXTickDigits + 2));
+        const manualDigits = parseOptionalNumber(axis?.xTooltipDigits);
+        const standbyXTooltipDigits = manualDigits === null
+            ? standbyXTooltipDigitsAuto
+            : Math.max(0, Math.min(20, Math.round(manualDigits)));
+        return {
+            plotType: ivGmStandbyPlotType,
+            seriesList: standbyRenderSeries ?? [],
+            xDomain: standbyXDomain,
+            xTicks: standbyXTicks,
+            xTickDigits: standbyXTickDigits,
+            xTooltipDigits: standbyXTooltipDigits,
+            xLabelInterval: computeLabelInterval(standbyXTicks, 7),
+            plotYUnitLabel: ivGmStandbyPlotType === "gm"
+                ? `${currentUnitMeta.label}/${gmUi.denomUnit}`
+                : currentUnitMeta.label,
+        };
+    }, [
+        activeFile?.fileId,
+        activeFile?.series?.length,
+        area,
+        axis?.xMax,
+        axis?.xMin,
+        axis?.xStep,
+        axis?.xTickCount,
+        axis?.xTicks,
+        axis?.xTooltipDigits,
+        currentUnitMeta.label,
+        getFileCache,
+        gmMode,
+        gmUi.denomUnit,
+        ivGmStandbyPlotType,
+        plotSeriesByType,
+        plotYKey,
+    ]);
     const metricsRows = useMemo(() => {
         if (!activeFile?.series?.length)
             return [];
@@ -2818,8 +2999,59 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 </div>) : null}
 
               <div ref={mainChartContainerRef} className="h-[500px] min-h-[500px] flex-shrink-0">
-                {isMainChartSizeReady ? (
-                  <MainPlotChart
+                {isMainChartSizeReady ? (ivGmActivePlotType ? (<div className="relative h-full w-full">
+                    {standbyMainChartProps ? (<div className="absolute inset-0 opacity-0 pointer-events-none" aria-hidden="true">
+                        <MainPlotChart
+                          plotType={standbyMainChartProps.plotType}
+                          activeFile={activeFile}
+                          seriesList={standbyMainChartProps.seriesList}
+                          axis={axis}
+                          xDomain={standbyMainChartProps.xDomain}
+                          xTicks={standbyMainChartProps.xTicks}
+                          xTickDigits={standbyMainChartProps.xTickDigits}
+                          xTooltipDigits={standbyMainChartProps.xTooltipDigits}
+                          xLabelInterval={standbyMainChartProps.xLabelInterval}
+                          yScaleMode={yScaleMode}
+                          yTicksMode={axis?.yTicks}
+                          plotYFactor={plotYFactor}
+                          plotYUnitLabel={standbyMainChartProps.plotYUnitLabel}
+                          focusedSeriesId={null}
+                          focusedFitLine={null}
+                          focusedSeriesColor={focusedSeriesColor}
+                          focusedSsOverlay={null}
+                          ssOverlayStyle={ssOverlayStyle}
+                          legendWidth={0}
+                          legendContent={undefined}
+                        />
+                      </div>) : null}
+                    <div className="absolute inset-0">
+                      <MainPlotChart
+                        plotType={effectivePlotType}
+                        activeFile={activeFile}
+                        seriesList={renderPlotSeries}
+                        axis={axis}
+                        xDomain={xDomain}
+                        xTicks={xTicks}
+                        xTickDigits={xTickDigits}
+                        xTooltipDigits={xTooltipDigits}
+                        xLabelInterval={xLabelInterval}
+                        yScaleMode={yScaleMode}
+                        yTicksMode={axis?.yTicks}
+                        plotYFactor={plotYFactor}
+                        plotYUnitLabel={plotYUnitLabel}
+                        focusedSeriesId={focusedSeriesId}
+                        focusedFitLine={focusedFitLineForRender}
+                        focusedSeriesColor={focusedSeriesColor}
+                        focusedSsOverlay={focusedSsOverlay}
+                        ssOverlayStyle={ssOverlayStyle}
+                        legendWidth={220}
+                        legendContent={renderOriginSelectionLegend}
+                        onMouseDown={handleSsMouseDown}
+                        onMouseMove={handleSsMouseMove}
+                        onMouseUp={handleSsMouseUp}
+                      />
+                    </div>
+                  </div>) : (<MainPlotChart
                     plotType={effectivePlotType}
                     activeFile={activeFile}
                     seriesList={renderPlotSeries}
@@ -2843,10 +3075,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     onMouseDown={handleSsMouseDown}
                     onMouseMove={handleSsMouseMove}
                     onMouseUp={handleSsMouseUp}
-                  />
-                ) : (
-                  <div className="h-full w-full"/>
-                )}
+                  />)) : (<div className="h-full w-full"/>) }
               </div>
 
               {effectivePlotType === "ss" && focusedSsDiagnosticsForRender ? (<div className="mt-4">

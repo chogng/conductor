@@ -42,6 +42,27 @@ npm run dist:desktop:publish
 This command now runs a pre-check (`verify:auto-update-config`) before publishing.
 It then builds desktop artifacts and uploads release assets for updater metadata (`latest.yml`, installer, blockmap).
 
+## 2.1 One-command local release (without Actions)
+
+If you prefer publishing from your local machine with `gh` CLI (instead of `electron-builder --publish`), run:
+
+```powershell
+npm run release:desktop:local
+```
+
+What it does:
+
+- validates updater publish config in `package.json`
+- builds desktop artifacts into `release/`
+- creates or updates GitHub Release `v<package.json version>`
+- uploads all files under `release/` (with overwrite on existing assets)
+
+Requirements:
+
+- `gh` installed and authenticated (`gh auth login`)
+- repository access permission for creating/editing Releases
+- `package.json` version bumped before running
+
 ## 3. Client behavior
 
 Installed clients will detect the new GitHub Release automatically and update.

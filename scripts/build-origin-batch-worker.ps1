@@ -55,6 +55,15 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 }
 
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
+$DeviceDir = Join-Path $ProjectRoot ".device"
+New-Item -ItemType Directory -Path $DeviceDir -Force | Out-Null
+
+# Keep tool caches under .device/ (avoids user profile caches).
+$env:UV_CACHE_DIR = Join-Path $DeviceDir "uv-cache"
+$env:UV_PYTHON_INSTALL_DIR = Join-Path $DeviceDir "uv-python"
+$env:PIP_CACHE_DIR = Join-Path $DeviceDir "pip-cache"
+New-Item -ItemType Directory -Force -Path $env:UV_CACHE_DIR, $env:UV_PYTHON_INSTALL_DIR, $env:PIP_CACHE_DIR | Out-Null
+
 $OriginDir = Join-Path $ProjectRoot "origin"
 $EntryScript = Join-Path $OriginDir "run_origin_batch.py"
 
@@ -63,12 +72,16 @@ if (-not (Test-Path -LiteralPath $EntryScript)) {
 }
 
 $DistDir = Resolve-PathOrDefault -Value $DistDir -Fallback (Join-Path $OriginDir "bin")
+$DistDir = $DistDir.Trim()
+if (-not [System.IO.Path]::IsPathRooted($DistDir)) {
+  $DistDir = Join-Path $ProjectRoot $DistDir
+}
 $VenvDir = Resolve-PathOrDefault -Value $VenvDir -Fallback (Join-Path $ProjectRoot ".venv-origin-workers")
 if (-not [System.IO.Path]::IsPathRooted($VenvDir)) {
   $VenvDir = Join-Path $ProjectRoot $VenvDir
 }
-$BuildWorkDir = Join-Path $OriginDir ".pyi_build"
-$SpecDir = Join-Path $OriginDir ".pyi_spec"
+$BuildWorkDir = Join-Path $DeviceDir "origin-workers\\pyinstaller\\batch\\work"
+$SpecDir = Join-Path $DeviceDir "origin-workers\\pyinstaller\\batch\\spec"
 
 New-Item -ItemType Directory -Path $DistDir -Force | Out-Null
 New-Item -ItemType Directory -Path $BuildWorkDir -Force | Out-Null
