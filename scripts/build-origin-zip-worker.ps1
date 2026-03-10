@@ -62,7 +62,16 @@ New-Item -ItemType Directory -Path $DeviceDir -Force | Out-Null
 $env:UV_CACHE_DIR = Join-Path $DeviceDir "uv-cache"
 $env:UV_PYTHON_INSTALL_DIR = Join-Path $DeviceDir "uv-python"
 $env:PIP_CACHE_DIR = Join-Path $DeviceDir "pip-cache"
-New-Item -ItemType Directory -Force -Path $env:UV_CACHE_DIR, $env:UV_PYTHON_INSTALL_DIR, $env:PIP_CACHE_DIR | Out-Null
+$env:PYINSTALLER_CONFIG_DIR = Join-Path $DeviceDir "pyinstaller-cache"
+$tempDir = Join-Path $DeviceDir "tmp"
+$env:TEMP = $tempDir
+$env:TMP = $tempDir
+New-Item -ItemType Directory -Force -Path `
+  $env:UV_CACHE_DIR, `
+  $env:UV_PYTHON_INSTALL_DIR, `
+  $env:PIP_CACHE_DIR, `
+  $env:PYINSTALLER_CONFIG_DIR, `
+  $tempDir | Out-Null
 
 $OriginDir = Join-Path $ProjectRoot "origin"
 $EntryScript = Join-Path $OriginDir "run_origin_zip.py"
