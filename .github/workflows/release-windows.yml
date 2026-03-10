@@ -55,6 +55,17 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Resolve release tag
+        id: release_meta
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          fi
+
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
       - name: Verify tag matches package.json version
         shell: bash
         run: |
@@ -72,3 +83,56 @@ jobs:
 
       - name: Build and publish (GitHub Release)
         run: npm run dist:desktop:publish
+
+      - name: Generate Windows release checksums
+        shell: pwsh
+        run: |
+          $artifacts = Get-ChildItem -Path "release" -File |
+            Where-Object { $_.Extension -in '.exe', '.zip', '.7z' } |
+            Sort-Object Name
+
+          if (-not $artifacts) {
+            throw "No Windows release artifacts found in release/."
+          }
+
+          $checksumLines = foreach ($artifact in $artifacts) {
+            $hash = (Get-FileHash -Path $artifact.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "{0}  {1}" -f $hash, $artifact.Name
+          }
+
+          Set-Content -Path "release/SHA256SUMS.txt" -Value $checksumLines -Encoding ascii
+
+          $infoLines = @(
+            "Device Analysis Studio Windows downloads"
+            ""
+            "These Windows binaries are unsigned. Microsoft Defender SmartScreen may show an 'Unknown publisher' warning the first time they are opened."
+            ""
+            "Recommended package:"
+            "- Prefer the *-setup.exe installer for normal installs."
+            "- Use the *-portable.zip archive for the broadest compatibility."
+            "- Use the *-portable.7z archive if you prefer a smaller download and already use 7-Zip."
+            ""
+            "How to verify a download in PowerShell:"
+            "1. Download the app file and SHA256SUMS.txt from this release."
+            "2. Run: Get-FileHash .\\<filename> -Algorithm SHA256"
+            "3. Compare the SHA256 value with the matching line in SHA256SUMS.txt."
+            ""
+            "Files in this release:"
+          )
+
+          $infoLines += $artifacts | ForEach-Object { "- $($_.Name)" }
+          Set-Content -Path "release/WINDOWS-DOWNLOADS.txt" -Value $infoLines -Encoding utf8
+
+      - name: Upload checksum and guidance assets
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ steps.release_meta.outputs.tag }}
+        run: |
+          gh release upload $env:RELEASE_TAG release/SHA256SUMS.txt release/WINDOWS-DOWNLOADS.txt --clobber
+
+      - name: Summarize release assets
+        shell: pwsh
+        run: |
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '## Windows release extras'
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '- Uploaded `SHA256SUMS.txt` for `.exe`, `.zip`, and `.7z` assets.'
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '- Uploaded `WINDOWS-DOWNLOADS.txt` with SmartScreen and verification guidance.'

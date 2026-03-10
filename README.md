@@ -47,7 +47,10 @@ npm run pack:desktop
 ```bash
 npm run make:icons
 ```
-- 安装包命名规则：`${productName}-${version}-${os}-${arch}.${ext}`
+- Windows installer：`Device-Analysis-Studio-${version}-windows-${arch}-setup.exe`
+- Windows portable：`Device-Analysis-Studio-${version}-windows-${arch}-portable.zip`
+- Windows portable (7z)：`Device-Analysis-Studio-${version}-windows-${arch}-portable.7z`
+- 其他平台产物：`${productName}-${version}-${os}-${arch}.${ext}`
 
 ## 可选签名
 本项目已兼容 `electron-builder` 的环境变量签名流程。

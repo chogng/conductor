@@ -1,7 +1,7 @@
 {
   "name": "device-analysis-standalone",
   "private": true,
-  "version": "0.5.2",
+  "version": "0.5.3",
   "type": "module",
   "main": "desktop-dist/main.js",
   "scripts": {
@@ -99,10 +99,15 @@
     },
     "win": {
       "icon": "build/icons/icon.ico",
+      "artifactName": "Device-Analysis-Studio-${version}-windows-${arch}-portable.${ext}",
       "target": [
         "nsis",
+        "zip",
         "7z"
       ]
+    },
+    "nsis": {
+      "artifactName": "Device-Analysis-Studio-${version}-windows-${arch}-setup.${ext}"
     },
     "linux": {
       "icon": "build/icons/icon.png",
