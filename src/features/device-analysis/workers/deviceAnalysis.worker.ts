@@ -547,34 +547,12 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
             return "vd";
         return null;
     };
-    const formatVarToken = (token: any) => {
-        if (token === "vg")
-            return "Vg";
-        if (token === "vd")
-            return "Vd";
-        return "";
-    };
-    const isA1CellRef = (value: any) => typeof value === "string" && /^([A-Z]+)([1-9][0-9]*)$/.test(value.trim().toUpperCase());
-    const isSimpleVarToken = (value: any) => typeof value === "string" && /^v[_-]?[gd]s?$/i.test(value.trim());
-    // Var1/Var2 are often stored in fixed cells, but some CSV exports swap their positions.
-    // So: treat Var1/Var2 as *hints*, and prefer inferring the X variable (curveType) from the region
-    // right above the X data start (startRow/xCol) when possible.
+    // Deterministic curve tagging:
+    // - file-name mode: use file-name keywords only
+    // - var mode: use Var1 token only (Var2 is display-only)
     const var1Token = detectVarToken(bottomTitle);
     const var2Token = detectVarToken(legendPrefix);
     let curveType = null;
-    let inferredXToken = null;
-    let inferredXTokenScore = Infinity;
-    const scanXToken = (rowIndex: any, colIndex: any, token: any, startRowIndex: any, xColIndex: any) => {
-        if (!token)
-            return;
-        const targetRow = Math.max(0, startRowIndex - 1);
-        const rowWeight = 100;
-        const score = Math.abs(rowIndex - targetRow) * rowWeight + Math.abs(colIndex - xColIndex);
-        if (score < inferredXTokenScore) {
-            inferredXTokenScore = score;
-            inferredXToken = token;
-        }
-    };
     const endRowIsEnd = typeof endRowRaw === "string" && endRowRaw.trim().toLowerCase() === "end";
     let endRow: number | null = endRowIsEnd ? null : Number(endRowRaw);
     if (!Number.isInteger(xCol) || xCol < 0) {
@@ -872,50 +850,6 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
     }
     let seenRowsInRange = 0;
     let currentRowIndex = -1;
-    const scanRowsBeforeStart = 40;
-    const scanStartRow = Math.max(0, startRow - scanRowsBeforeStart);
-    const scanColRadius = 40;
-    const scanColAnchors = [xCol];
-    const scanAnchorCols = [];
-    if (isA1CellRef(bottomTitleRaw)) {
-        const match = String(bottomTitleRaw).trim().toUpperCase().match(/^([A-Z]+)([1-9][0-9]*)$/);
-        if (match) {
-            const colStr = match[1];
-            let colIndex = 0;
-            for (let i = 0; i < colStr.length; i++) {
-                colIndex = colIndex * 26 + (colStr.charCodeAt(i) - 64);
-            }
-            scanColAnchors.push(colIndex - 1);
-        }
-    }
-    if (isA1CellRef(legendPrefixRaw)) {
-        const match = String(legendPrefixRaw).trim().toUpperCase().match(/^([A-Z]+)([1-9][0-9]*)$/);
-        if (match) {
-            const colStr = match[1];
-            let colIndex = 0;
-            for (let i = 0; i < colStr.length; i++) {
-                colIndex = colIndex * 26 + (colStr.charCodeAt(i) - 64);
-            }
-            scanColAnchors.push(colIndex - 1);
-        }
-    }
-    for (const anchor of scanColAnchors) {
-        const col = Math.max(0, Math.floor(Number(anchor) || 0));
-        scanAnchorCols.push(col);
-    }
-    scanAnchorCols.sort((a: any, b: any) => a - b);
-    const scanRanges: Array<{ start: number; end: number; }> = [];
-    for (const col of scanAnchorCols) {
-        const start = Math.max(0, col - scanColRadius);
-        const end = col + scanColRadius;
-        const prev = scanRanges[scanRanges.length - 1];
-        if (prev && start <= prev.end + 1) {
-            prev.end = Math.max(prev.end, end);
-        }
-        else {
-            scanRanges.push({ start, end });
-        }
-    }
     await new Promise((resolve: any, reject: any) => {
         Papa.parse(file, {
             header: false,
@@ -982,24 +916,6 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
                         }
                     }
                 }
-                // Best-effort: infer X variable token (Vg/Vd) near the X data start.
-                if (!useFileNameMapping &&
-                    currentRowIndex < startRow &&
-                    currentRowIndex >= scanStartRow) {
-                    const maxCol = row.length - 1;
-                    if (maxCol >= 0 && scanRanges.length > 0) {
-                        for (const range of scanRanges) {
-                            const start = Math.max(0, range.start);
-                            const end = Math.min(maxCol, range.end);
-                            for (let c = start; c <= end; c++) {
-                                const token = detectVarToken(row[c]);
-                                if (!token)
-                                    continue;
-                                scanXToken(currentRowIndex, c, token, startRow, xCol);
-                            }
-                        }
-                    }
-                }
                 if (currentRowIndex < startRow)
                     return;
                 if (currentRowIndex > endRow) {
@@ -1042,9 +958,7 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
     // Finalize curveType and labels.
     // Modes:
     // - file-name mapping: ONLY use user-provided keywords (exclusive)
-    // - otherwise: infer from file content/Var hints (exclusive; no filename fallback)
-    const hasVarConfig = Boolean(String(bottomTitleRaw ?? "").trim()) ||
-        Boolean(String(legendPrefixRaw ?? "").trim());
+    // - var mode: use Var1 only (Var2 does not affect curveType)
     if (useFileNameMapping) {
         if (fileNameVgKeywords.length === 0 || fileNameVdKeywords.length === 0) {
             throw new Error(`${fileName}: Invalid template config: file-name keywords must be provided for both Vg and Vd.`);
@@ -1066,48 +980,11 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
         }
     }
     else {
-        // Priority:
-        // 1) inferred token from the X region (handles Var1/Var2 swaps)
-        // 2) Var1 token (back-compat)
-        // 3) Var2 token inverted (last resort)
-        curveType = inferredXToken ?? null;
-        if (!curveType) {
-            if (var1Token) {
-                curveType = var1Token;
-            }
-            else if (var2Token) {
-                curveType = var2Token === "vd" ? "vg" : "vd";
-            }
-        }
-        if (!curveType && hasVarConfig) {
-            throw createLocalizedError("da_extractCurveTypeUndeterminedFromVarHints", null, `${fileName}: Unable to determine curve type from Var1/Var2 or nearby headers. Please check the template, or use file-name keywords.`);
-        }
+        curveType = var1Token ?? null;
     }
-    const legendVarToken = curveType && var1Token && var2Token && var1Token !== var2Token
-        ? curveType === var1Token
-            ? var2Token
-            : var1Token
-        : null;
+    const legendVarToken = var2Token;
     let effectiveBottomTitle = bottomTitle;
-    if (!effectiveBottomTitle && curveType) {
-        effectiveBottomTitle = formatVarToken(curveType);
-    }
-    if (curveType &&
-        (isA1CellRef(bottomTitleRaw) || isSimpleVarToken(bottomTitle)) &&
-        detectVarToken(bottomTitle) !== curveType) {
-        effectiveBottomTitle = formatVarToken(curveType);
-    }
     let effectiveLegendPrefix = legendPrefix;
-    if (!effectiveLegendPrefix && useFileNameMapping && curveType) {
-        const other = curveType === "vg" ? "vd" : curveType === "vd" ? "vg" : null;
-        if (other)
-            effectiveLegendPrefix = formatVarToken(other);
-    }
-    if (legendVarToken &&
-        (isA1CellRef(legendPrefixRaw) || isSimpleVarToken(legendPrefix)) &&
-        detectVarToken(legendPrefix) !== legendVarToken) {
-        effectiveLegendPrefix = formatVarToken(legendVarToken);
-    }
     const targetPoints = Math.min(groupSize, Math.max(2, Number.isFinite(maxPoints) ? maxPoints : DEFAULT_MAX_POINTS));
     const sampleIdx = buildUniformSampleIndices(groupSize, targetPoints);
     let minX = Infinity;
