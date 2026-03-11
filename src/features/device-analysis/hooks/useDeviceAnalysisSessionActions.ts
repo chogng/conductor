@@ -4,6 +4,7 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
+import type { SsManualRanges } from "../context/device-analysis-session-context";
 import type {
   ProcessedEntry,
   ProcessingStatus,
@@ -25,7 +26,7 @@ type UseDeviceAnalysisSessionActionsOptions = {
   setProcessedData: Dispatch<SetStateAction<ProcessedEntry[]>>;
   setRawData: Dispatch<SetStateAction<RawDataEntry[]>>;
   setSelectedPreviewFileId: Dispatch<SetStateAction<string | null>>;
-  setSsManualRanges: Dispatch<SetStateAction<Record<string, unknown>>>;
+  setSsManualRanges: Dispatch<SetStateAction<SsManualRanges>>;
 };
 
 export const useDeviceAnalysisSessionActions = ({

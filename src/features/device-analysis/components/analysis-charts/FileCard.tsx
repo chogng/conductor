@@ -1,18 +1,14 @@
-import { memo, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
-import CanvasMultiLineChart, { resolvePreviewChartDomain } from "../CanvasMultiLineChart";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
+import CanvasMultiLineChart, {
+  resolvePreviewChartDomain,
+  type CanvasMultiLineChartProps,
+} from "../CanvasMultiLineChart";
 import { formatNumber } from "../../lib/analysisMath";
 
 type UseInViewOnceOptions = {
   root?: Element | Document | null;
   rootMargin?: string;
   threshold?: number;
-};
-
-type FileSeries = {
-  id?: string;
-  name?: string;
-  groupIndex?: number;
-  y?: number[];
 };
 
 export type ProcessedFileLike = {
@@ -23,7 +19,7 @@ export type ProcessedFileLike = {
     sampledPoints?: number | null;
   };
   xGroups?: number[][];
-  series?: FileSeries[];
+  series?: CanvasMultiLineChartProps["series"];
   domain?: {
     x?: [number, number];
     y?: [number, number];
@@ -42,20 +38,6 @@ type FileCardProps = {
   yUnitLabel?: string;
   yScale?: string;
 };
-
-type CanvasMultiLineChartProps = {
-  xGroups?: number[][];
-  series?: FileSeries[];
-  domain?: ProcessedFileLike["domain"];
-  yScaleFactor?: number;
-  yScaleType?: string;
-  yUnitLabel?: string;
-  title?: string;
-  className?: string;
-};
-
-const ChartComponent =
-  CanvasMultiLineChart as unknown as ComponentType<CanvasMultiLineChartProps>;
 
 const toSafeIdSuffix = (value: string | undefined) => {
   const normalized = (value ?? "").trim();
@@ -106,6 +88,7 @@ const FileCard = memo(function FileCard({
   yScale = "linear",
 }: FileCardProps) {
   const { ref, inView } = useInViewOnce();
+  const resolvedYScale = yScale === "log" ? "log" : "linear";
   const fileIdSuffix = toSafeIdSuffix(file?.fileId ?? file?.fileName);
   const seriesCount = Array.isArray(file?.series) ? file.series.length : 0;
   const sampledPoints = file?.x?.sampledPoints ?? null;
@@ -179,12 +162,12 @@ const FileCard = memo(function FileCard({
         style={{ aspectRatio: "16 / 9" }}
       >
         {inView ? (
-          <ChartComponent
+          <CanvasMultiLineChart
             xGroups={file.xGroups}
             series={file.series}
             domain={file.domain}
             yScaleFactor={yUnitFactor}
-            yScaleType={yScale}
+            yScaleType={resolvedYScale}
             yUnitLabel={yUnitLabel}
             title={file.fileName}
             className="absolute inset-0"

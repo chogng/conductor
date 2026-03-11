@@ -5,8 +5,31 @@ export type RawDataEntry = {
   [key: string]: unknown;
 };
 
+export type ProcessedSeries = {
+  id?: string;
+  name?: string;
+  groupIndex?: number;
+  yCol?: number;
+  y?: number[];
+  [key: string]: unknown;
+};
+
+export type ProcessedDomain = {
+  x?: [number, number];
+  y?: [number, number];
+};
+
 export type ProcessedEntry = {
   fileId?: string;
+  fileName?: string;
+  curveType?: string;
+  x?: {
+    sampledPoints?: number | null;
+    [key: string]: unknown;
+  };
+  xGroups?: number[][];
+  series?: ProcessedSeries[];
+  domain?: ProcessedDomain;
   [key: string]: unknown;
 };
 

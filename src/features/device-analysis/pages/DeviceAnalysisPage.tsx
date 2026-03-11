@@ -7,10 +7,8 @@ import {
   useState,
   Suspense,
   type CSSProperties,
-  type Dispatch,
-  type MutableRefObject,
-  type SetStateAction,
 } from "react";
+import type { CsvImporterRef } from "../components/CsvImporter";
 import DeviceAnalysisDataPanel from "../components/DeviceAnalysisDataPanel";
 import ScrollArea from "../../../components/ui/ScrollArea";
 import Toast from "../../../components/ui/Toast";
@@ -28,19 +26,7 @@ import {
   useResizableSidebar,
 } from "../hooks";
 import { useLanguage } from "../../../hooks/useLanguage";
-import type {
-  PreviewStatus,
-  SsIdWindow,
-  SsManualRanges,
-  SsMethod,
-} from "../context/device-analysis-session-context";
-import type {
-  PreviewFile,
-  PreviewRowsRequest,
-  ProcessedEntry,
-  RawDataEntry,
-  ToastType,
-} from "../lib/sharedTypes";
+import type { ToastType } from "../lib/sharedTypes";
 
 type PageTab = "data" | "analysis" | "settings";
 type PageNavigationState = {
@@ -62,39 +48,6 @@ const stripCsvExtension = (fileName: string): string => {
   if (!normalized) return normalized;
   const withoutCsv = normalized.replace(/\.csv$/i, "");
   return withoutCsv.length > 0 ? withoutCsv : normalized;
-};
-
-type SessionCompat = {
-  rawData: RawDataEntry[];
-  setRawData: Dispatch<SetStateAction<RawDataEntry[]>>;
-  selectedPreviewFileId: string | null;
-  setSelectedPreviewFileId: Dispatch<SetStateAction<string | null>>;
-  processedData: ProcessedEntry[];
-  setProcessedData: Dispatch<SetStateAction<ProcessedEntry[]>>;
-  ssMethod: SsMethod;
-  setSsMethod: Dispatch<SetStateAction<SsMethod>>;
-  ssDiagnosticsEnabled: boolean;
-  setSsDiagnosticsEnabled: Dispatch<SetStateAction<boolean>>;
-  ssShowFitLine: boolean;
-  setSsShowFitLine: Dispatch<SetStateAction<boolean>>;
-  ssIdWindow: SsIdWindow;
-  setSsIdWindow: Dispatch<SetStateAction<SsIdWindow>>;
-  ssManualRanges: SsManualRanges;
-  setSsManualRanges: Dispatch<SetStateAction<SsManualRanges>>;
-  previewFile: PreviewFile | null;
-  setPreviewFile: Dispatch<SetStateAction<PreviewFile | null>>;
-  previewStatus: PreviewStatus;
-  setPreviewStatus: Dispatch<SetStateAction<PreviewStatus>>;
-  previewWorkerRef: MutableRefObject<Worker | null>;
-  previewRequestIdRef: MutableRefObject<number>;
-  previewRowsRequestIdRef: MutableRefObject<number>;
-  previewRowsRequestsRef: MutableRefObject<Map<number, PreviewRowsRequest>>;
-  previewRowsCacheByFileIdRef: MutableRefObject<Map<string, Map<number, unknown[]>>>;
-  previewLoadedChunksByFileIdRef: MutableRefObject<Map<string, Set<number>>>;
-  previewRowsCacheRef: MutableRefObject<Map<number, unknown[]>>;
-  previewLoadedChunksRef: MutableRefObject<Set<number>>;
-  previewCacheFileIdRef: MutableRefObject<string | null>;
-  previewCacheFileLruRef: MutableRefObject<Set<string>>;
 };
 
 declare global {
@@ -137,7 +90,7 @@ const DeviceAnalysisPage = () => {
   const isWindowsDesktopShell =
     desktopMeta?.isDesktop === true && desktopMeta?.platform === "win32";
 
-  const session = useDeviceAnalysisSession() as unknown as SessionCompat;
+  const session = useDeviceAnalysisSession();
   const {
     rawData,
     setRawData,
@@ -171,7 +124,7 @@ const DeviceAnalysisPage = () => {
     previewCacheFileLruRef,
   } = session;
 
-  const importerRef = useRef<{ openFileDialog?: () => void } | null>(null);
+  const importerRef = useRef<CsvImporterRef | null>(null);
   const [pageNavigation, setPageNavigation] = useState<PageNavigationState>({
     activePage: "data",
     history: ["data"],
@@ -422,50 +375,8 @@ const DeviceAnalysisPage = () => {
     setProcessedData,
     setRawData,
     setSelectedPreviewFileId,
-    setSsManualRanges:
-      setSsManualRanges as Dispatch<SetStateAction<Record<string, unknown>>>,
+    setSsManualRanges,
   });
-
-  const ensurePreviewRowsAny = useCallback(
-    (...args: unknown[]): Promise<void> | undefined => {
-      const fileId = args[0];
-      const startRow = Number(args[1]);
-      const endRow = Number(args[2]);
-      if (typeof fileId !== "string") return undefined;
-      return ensurePreviewRows(
-        fileId,
-        Number.isFinite(startRow) ? startRow : 0,
-        Number.isFinite(endRow) ? endRow : 0,
-      );
-    },
-    [ensurePreviewRows],
-  );
-
-  const handleDataImportedAny = useCallback(
-    (fileInfo: unknown) => {
-      if (!fileInfo || typeof fileInfo !== "object") return;
-      handleDataImported(fileInfo as RawDataEntry);
-    },
-    [handleDataImported],
-  );
-
-  const handleTemplateAppliedAny = useCallback(
-    (...args: unknown[]) => {
-      const config = args[0];
-      if (!config || typeof config !== "object") return null;
-      return handleTemplateApplied(config as Record<string, unknown>);
-    },
-    [handleTemplateApplied],
-  );
-
-  const handleTemplateAppliedIncrementalAny = useCallback(
-    (...args: unknown[]) => {
-      const config = args[0];
-      if (!config || typeof config !== "object") return null;
-      return handleTemplateAppliedIncremental(config as Record<string, unknown>);
-    },
-    [handleTemplateAppliedIncremental],
-  );
 
   const isDataPageActive = activePage === "data";
   const isAnalysisPageActive = activePage === "analysis";
@@ -483,7 +394,7 @@ const DeviceAnalysisPage = () => {
         .map((entry) => {
           const fileId =
             typeof entry?.fileId === "string" ? entry.fileId : String(entry?.fileId ?? "");
-          const fileNameRaw = (entry as { fileName?: unknown })?.fileName;
+          const fileNameRaw = entry?.fileName;
           const fileName =
             typeof fileNameRaw === "string" && fileNameRaw.trim().length > 0
               ? fileNameRaw
@@ -602,21 +513,19 @@ const DeviceAnalysisPage = () => {
           >
             <DeviceAnalysisDataPanel
               deviceAnalysisSettings={deviceAnalysisSettings}
-              ensurePreviewRows={ensurePreviewRowsAny}
+              ensurePreviewRows={ensurePreviewRows}
               getPreviewRow={getPreviewRow}
               getPreviewRowsVersion={getPreviewRowsVersion}
               hasSessionData={hasSessionData}
               importerRef={importerRef}
               isResizing={isResizing}
               onClearSession={handleClearSession}
-              onDataImported={handleDataImportedAny}
+              onDataImported={handleDataImported}
               onDataRemoved={handleDataRemoved}
               onFileSelected={handlePreviewFileSelected}
               onStartResizing={startResizing}
-              onTemplateApplied={handleTemplateAppliedAny}
-              onTemplateAppliedIncremental={
-                handleTemplateAppliedIncrementalAny
-              }
+              onTemplateApplied={handleTemplateApplied}
+              onTemplateAppliedIncremental={handleTemplateAppliedIncremental}
               onUpdateDeviceAnalysisSettings={handleUpdateDeviceAnalysisSettings}
               previewFile={previewFile}
               previewStatus={previewStatus}

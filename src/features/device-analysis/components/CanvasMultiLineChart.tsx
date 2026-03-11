@@ -46,7 +46,7 @@ type ActiveHoverState = {
 
 type HoverState = { active: false } | ActiveHoverState;
 
-type CanvasMultiLineChartProps = {
+export type CanvasMultiLineChartProps = {
   xGroups?: number[][];
   series?: ChartSeries[];
   domain?: ChartDomain | null;

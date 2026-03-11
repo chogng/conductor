@@ -17,13 +17,20 @@ import Avatar from "../../../components/ui/Avatar";
 import ScrollArea from "../../../components/ui/ScrollArea";
 import styles from "./CsvImporter.module.css";
 
-type CsvFileEntry = {
+export type CsvImporterFileEntry = {
+  file?: unknown;
+  fileId?: string;
+  fileName?: string;
+  itemKey?: string;
+};
+
+type CsvFileEntry = CsvImporterFileEntry & {
   fileId: string;
   file: File;
   itemKey: string;
 };
 
-type CsvImporterRef = {
+export type CsvImporterRef = {
   openFileDialog: () => void;
   hasFiles: boolean;
 };
@@ -36,8 +43,8 @@ type ImportedFileInfo = {
   lastModified: number;
 };
 
-type CsvImporterProps = {
-  files?: CsvFileEntry[];
+export type CsvImporterProps = {
+  files?: CsvImporterFileEntry[];
   onDataImported?: (fileInfo: ImportedFileInfo) => void;
   onDataRemoved?: (fileId: string) => void;
   onFileSelected?: (fileId: string | null) => void;
@@ -45,7 +52,7 @@ type CsvImporterProps = {
 };
 
 type CsvFileItemProps = {
-  fileEntry: CsvFileEntry;
+  fileEntry: CsvImporterFileEntry;
   isSelected: boolean;
   onSelect?: (fileId: string | null) => void;
   onRemove?: (fileId: string | null) => void;
@@ -95,7 +102,10 @@ const CsvFileItem = React.memo(
     onSelect,
     onRemove,
   }: CsvFileItemProps) => {
-    const fileName = fileEntry?.file?.name || "";
+    const fileName =
+      fileEntry?.file && typeof fileEntry.file === "object" && "name" in fileEntry.file
+        ? String(fileEntry.file.name ?? "")
+        : String(fileEntry?.fileName ?? "");
 
     return (
       <div
@@ -307,10 +317,15 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
 
       const buildFileKey = (file: File | null | undefined): string =>
         file ? `${file.name}::${file.size}` : "";
+      const buildUnknownFileKey = (fileLike: unknown): string => {
+        if (!fileLike || typeof fileLike !== "object") return "";
+        if (!("name" in fileLike) || !("size" in fileLike)) return "";
+        return `${String(fileLike.name ?? "")}::${String(fileLike.size ?? "")}`;
+      };
 
       // Filter out duplicates (based on already loaded files + within this batch).
       const seenKeys = new Set(
-        files.map((entry) => buildFileKey(entry?.file)).filter(Boolean),
+        files.map((entry) => buildUnknownFileKey(entry?.file)).filter(Boolean),
       );
 
       const uniqueFiles: File[] = [];

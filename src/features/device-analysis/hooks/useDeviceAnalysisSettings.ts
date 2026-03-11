@@ -80,6 +80,16 @@ const IDLE_FEEDBACK: Feedback = { type: "idle", message: "" };
 const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : "";
 
+const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object";
+
+const toDeviceAnalysisSettings = (
+  value: unknown,
+): DeviceAnalysisSettings | null => (isObjectRecord(value) ? value : null);
+
+const toPersistencePathInfo = (value: unknown): PersistencePathInfo | null =>
+  isObjectRecord(value) ? value : null;
+
 const normalizeTrimmedString = (value: unknown): string =>
   typeof value === "string" && value.trim() ? value.trim() : "";
 
@@ -176,9 +186,9 @@ export const useDeviceAnalysisSettings = ({
       const patch = updates && typeof updates === "object" ? updates : null;
       if (!patch) return null;
 
-      const updated = (await apiService.updateDeviceAnalysisSettings(
-        patch,
-      )) as DeviceAnalysisSettings | null;
+      const updated = toDeviceAnalysisSettings(
+        await apiService.updateDeviceAnalysisSettings(patch),
+      );
       setDeviceAnalysisSettings((prev) => ({
         ...(prev || {}),
         ...(updated || {}),
@@ -268,9 +278,9 @@ export const useDeviceAnalysisSettings = ({
 
     (async () => {
       try {
-        const settings = (await apiService.getDeviceAnalysisSettings()) as
-          | DeviceAnalysisSettings
-          | null;
+        const settings = toDeviceAnalysisSettings(
+          await apiService.getDeviceAnalysisSettings(),
+        );
         if (cancelled) return;
 
         setDeviceAnalysisSettings(settings ?? null);
@@ -339,10 +349,7 @@ export const useDeviceAnalysisSettings = ({
         const info = await apiService.getDeviceAnalysisPersistencePath();
         if (cancelled) return;
 
-        const normalizedInfo =
-          info && typeof info === "object"
-            ? (info as PersistencePathInfo)
-            : null;
+        const normalizedInfo = toPersistencePathInfo(info);
         setPersistencePathInfo(normalizedInfo);
         setPersistencePathFeedback(IDLE_FEEDBACK);
       } catch (error) {
@@ -371,14 +378,9 @@ export const useDeviceAnalysisSettings = ({
     setPersistencePathFeedback(IDLE_FEEDBACK);
 
     try {
-      const updatedInfo =
-        (await apiService.chooseDeviceAnalysisPersistencePath()) as
-          | PersistencePathInfo
-          | null;
-      const normalizedInfo =
-        updatedInfo && typeof updatedInfo === "object"
-          ? (updatedInfo as PersistencePathInfo)
-          : null;
+      const normalizedInfo = toPersistencePathInfo(
+        await apiService.chooseDeviceAnalysisPersistencePath(),
+      );
 
       setPersistencePathInfo(normalizedInfo);
       if (normalizedInfo?.cancelled) return;

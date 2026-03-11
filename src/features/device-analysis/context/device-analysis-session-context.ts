@@ -4,6 +4,12 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from "react";
+import type {
+  PreviewFile,
+  PreviewRowsRequest,
+  ProcessedEntry,
+  RawDataEntry,
+} from "../lib/sharedTypes";
 
 export type TemplateMode = "select" | "save";
 export type PreviewStatusState = "idle" | "loading" | "ready" | "error";
@@ -48,29 +54,31 @@ export type SsManualRange = {
 export type SsManualRanges = Record<string, Record<string, SsManualRange>>;
 
 export type DeviceAnalysisSessionContextValue = {
-  rawData: unknown[];
-  setRawData: Dispatch<SetStateAction<unknown[]>>;
+  rawData: RawDataEntry[];
+  setRawData: Dispatch<SetStateAction<RawDataEntry[]>>;
   selectedPreviewFileId: string | null;
   setSelectedPreviewFileId: Dispatch<SetStateAction<string | null>>;
-  processedData: unknown[];
-  setProcessedData: Dispatch<SetStateAction<unknown[]>>;
+  processedData: ProcessedEntry[];
+  setProcessedData: Dispatch<SetStateAction<ProcessedEntry[]>>;
   templateMode: TemplateMode;
   setTemplateMode: Dispatch<SetStateAction<TemplateMode>>;
   selectedTemplateId: string | null;
   setSelectedTemplateId: Dispatch<SetStateAction<string | null>>;
   templateConfig: DeviceAnalysisTemplateConfig;
   setTemplateConfig: Dispatch<SetStateAction<DeviceAnalysisTemplateConfig>>;
-  previewFile: unknown | null;
-  setPreviewFile: Dispatch<SetStateAction<unknown | null>>;
+  previewFile: PreviewFile | null;
+  setPreviewFile: Dispatch<SetStateAction<PreviewFile | null>>;
   previewStatus: PreviewStatus;
   setPreviewStatus: Dispatch<SetStateAction<PreviewStatus>>;
   previewWorkerRef: MutableRefObject<Worker | null>;
   previewRequestIdRef: MutableRefObject<number>;
   previewRowsRequestIdRef: MutableRefObject<number>;
-  previewRowsRequestsRef: MutableRefObject<Map<number, unknown>>;
-  previewRowsCacheByFileIdRef: MutableRefObject<Map<string, unknown>>;
+  previewRowsRequestsRef: MutableRefObject<Map<number, PreviewRowsRequest>>;
+  previewRowsCacheByFileIdRef: MutableRefObject<
+    Map<string, Map<number, unknown[]>>
+  >;
   previewLoadedChunksByFileIdRef: MutableRefObject<Map<string, Set<number>>>;
-  previewRowsCacheRef: MutableRefObject<Map<number, unknown>>;
+  previewRowsCacheRef: MutableRefObject<Map<number, unknown[]>>;
   previewLoadedChunksRef: MutableRefObject<Set<number>>;
   previewCacheFileIdRef: MutableRefObject<string | null>;
   previewCacheFileLruRef: MutableRefObject<Set<string>>;

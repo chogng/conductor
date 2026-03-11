@@ -3,12 +3,10 @@ import {
   useEffect,
   useRef,
   useState,
-  type Dispatch,
-  type SetStateAction,
 } from "react";
-import type { TranslateFn } from "../../../context/language-context";
 import type { PreviewStatus as SessionPreviewStatus } from "../context/device-analysis-session-context";
 import type { PreviewFileLike } from "../lib/sharedTypes";
+import type { LooseTranslateFn as TranslateFn } from "../lib/translateTypes";
 import { apiService } from "../services/apiService";
 import { useDeviceAnalysisSession } from "./useDeviceAnalysisSession";
 import {
@@ -47,11 +45,22 @@ type DeviceAnalysisSettings = Partial<{
 
 type PreviewStatus = Partial<SessionPreviewStatus>;
 
-type ApplyResult = Partial<{
-  message: string;
-  ok: boolean;
-  type: ToastType;
-}>;
+const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object";
+
+const isTemplateRecord = (value: unknown): value is TemplateRecord =>
+  isObjectRecord(value);
+
+const normalizeSelectedColumns = (value: unknown): number[] | null => {
+  if (!Array.isArray(value)) return null;
+  const next = value
+    .map((entry) => Number(entry))
+    .filter((entry) => Number.isInteger(entry) && entry >= 0);
+  return next.length > 0 ? next : null;
+};
+
+const normalizeTemplateId = (value: unknown): string | null =>
+  typeof value === "string" ? value : null;
 
 type UseTemplateManagerStateOptions = {
   deviceAnalysisSettings?: DeviceAnalysisSettings | null;
@@ -76,7 +85,14 @@ export const useTemplateManagerState = ({
   showToast,
   t,
 }: UseTemplateManagerStateOptions) => {
-  const deviceSession = useDeviceAnalysisSession();
+  const {
+    selectedTemplateId,
+    setSelectedTemplateId,
+    templateConfig: config,
+    setTemplateConfig: setConfig,
+    templateMode,
+    setTemplateMode,
+  } = useDeviceAnalysisSession();
 
   const [templates, setTemplates] = useState<TemplateRecord[]>([]);
   const [templatesLoaded, setTemplatesLoaded] = useState(false);
@@ -86,36 +102,6 @@ export const useTemplateManagerState = ({
     {},
   );
   const didInitConfigFromSettingsRef = useRef(false);
-
-  const [localSelectedTemplateId, setLocalSelectedTemplateId] = useState<
-    string | null
-  >(null);
-  const selectedTemplateId =
-    (deviceSession?.selectedTemplateId as string | null | undefined) ??
-    localSelectedTemplateId;
-  const setSelectedTemplateId =
-    (deviceSession?.setSelectedTemplateId as
-      | Dispatch<SetStateAction<string | null>>
-      | undefined) ?? setLocalSelectedTemplateId;
-
-  const [localConfig, setLocalConfig] = useState<TemplateConfig>(() =>
-    createEmptyTemplateConfig(),
-  );
-  const config =
-    (deviceSession?.templateConfig as TemplateConfig | undefined) ?? localConfig;
-  const setConfig =
-    (deviceSession?.setTemplateConfig as
-      | Dispatch<SetStateAction<TemplateConfig>>
-      | undefined) ?? setLocalConfig;
-
-  const [localTemplateMode, setLocalTemplateMode] =
-    useState<TemplateMode>("select");
-  const templateMode =
-    (deviceSession?.templateMode as TemplateMode | undefined) ?? localTemplateMode;
-  const setTemplateMode =
-    (deviceSession?.setTemplateMode as
-      | Dispatch<SetStateAction<TemplateMode>>
-      | undefined) ?? setLocalTemplateMode;
   const saveDraftTouchedRef = useRef(false);
   const saveDraftBaseConfigRef = useRef<TemplateConfig | null>(null);
   const [isDiscardConfirmOpen, setIsDiscardConfirmOpen] = useState(false);
@@ -166,7 +152,7 @@ export const useTemplateManagerState = ({
       try {
         const remote = await apiService.getDeviceAnalysisTemplates();
         const remoteTemplates = Array.isArray(remote)
-          ? (remote as TemplateRecord[])
+          ? remote.filter(isTemplateRecord)
           : [];
         setTemplates(remoteTemplates);
         setTemplatesLoaded(true);
@@ -251,14 +237,14 @@ export const useTemplateManagerState = ({
         fileNameVdKeywords: String(
           template?.fileNameVdKeywords ?? template?.vdFileKeywords ?? "",
         ),
-        selectedColumns: Array.isArray(template?.selectedColumns)
-          ? (template.selectedColumns as number[])
-          : null,
+        selectedColumns: normalizeSelectedColumns(template?.selectedColumns),
       };
 
       const startCell = String(rest.xDataStart ?? "").trim();
       const xDataEndRaw = normalizeXDataEndValue(rest.xDataEnd);
       const xDataEnd = !xDataEndRaw ? (startCell ? "End" : "") : xDataEndRaw;
+
+      const templateId = normalizeTemplateId(template?.id);
 
       setConfig((prev) => ({
         ...prev,
@@ -268,12 +254,12 @@ export const useTemplateManagerState = ({
           ? rest.selectedColumns
           : prev.selectedColumns,
       }));
-      setSelectedTemplateId((template?.id as string | null | undefined) ?? null);
+      setSelectedTemplateId(templateId);
       setIsDropdownOpen(false);
 
       if (persist !== false && typeof onUpdateDeviceAnalysisSettings === "function") {
         void onUpdateDeviceAnalysisSettings({
-          lastTemplateId: (template?.id as string | null | undefined) ?? null,
+          lastTemplateId: templateId,
           stopOnErrorDefault: Boolean(template?.stopOnError),
         });
       }
@@ -294,7 +280,7 @@ export const useTemplateManagerState = ({
 
     const validation = validateTemplateForSave(
       config,
-      t as (key: string, params?: Record<string, unknown>) => string,
+      t,
     );
     if (!validation.ok || !validation.normalized) {
       showToast(validation.message || "Invalid configuration", "warning");
@@ -310,8 +296,8 @@ export const useTemplateManagerState = ({
         name,
       });
       const saved: TemplateRecord =
-        savedRaw && typeof savedRaw === "object"
-          ? (savedRaw as TemplateRecord)
+        isTemplateRecord(savedRaw)
+          ? savedRaw
           : { ...validation.normalized, name };
 
       setTemplates((prev) => {
@@ -463,14 +449,14 @@ export const useTemplateManagerState = ({
 
       const validation = validateTemplateForApply(
         config,
-        t as (key: string, params?: Record<string, unknown>) => string,
+        t,
       );
       if (!validation.ok || !validation.normalized) {
         showToast(validation.message || "Invalid configuration", "warning");
         return;
       }
 
-      const normalized = validation.normalized as TemplateConfig;
+      const normalized = validation.normalized;
 
       if (
         normalized.bottomTitle !== config.bottomTitle ||
@@ -484,22 +470,28 @@ export const useTemplateManagerState = ({
       }
 
       const result = handler(normalized);
-      if (result && typeof result === "object") {
-        const safeResult = result as ApplyResult;
-        if (safeResult.ok === false) {
+      if (isObjectRecord(result)) {
+        const ok =
+          typeof result.ok === "boolean" ? result.ok : undefined;
+        const message =
+          typeof result.message === "string" ? result.message : undefined;
+        const type =
+          typeof result.type === "string" ? result.type : undefined;
+
+        if (ok === false) {
           showToast(
-            safeResult.message || "Invalid configuration",
-            safeResult.type || "warning",
+            message || "Invalid configuration",
+            type || "warning",
           );
           return;
         }
         if (
-          safeResult.ok === true &&
-          safeResult.message &&
-          safeResult.type &&
-          safeResult.type !== "success"
+          ok === true &&
+          message &&
+          type &&
+          type !== "success"
         ) {
-          showToast(safeResult.message, safeResult.type || "success");
+          showToast(message, type || "success");
         }
       }
     },

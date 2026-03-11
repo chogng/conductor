@@ -9,6 +9,12 @@ import {
   type SsMethod,
   type TemplateMode,
 } from "./device-analysis-session-context";
+import type {
+  PreviewFile,
+  PreviewRowsRequest,
+  ProcessedEntry,
+  RawDataEntry,
+} from "../lib/sharedTypes";
 
 type DeviceAnalysisSessionProviderProps = {
   children: ReactNode;
@@ -17,9 +23,9 @@ type DeviceAnalysisSessionProviderProps = {
 export const DeviceAnalysisSessionProvider = ({
   children,
 }: DeviceAnalysisSessionProviderProps) => {
-  const [rawData, setRawData] = useState<unknown[]>([]);
+  const [rawData, setRawData] = useState<RawDataEntry[]>([]);
   const [selectedPreviewFileId, setSelectedPreviewFileId] = useState<string | null>(null);
-  const [processedData, setProcessedData] = useState<unknown[]>([]);
+  const [processedData, setProcessedData] = useState<ProcessedEntry[]>([]);
 
   // Device Analysis: template manager session state (persist across route switches)
   const [templateMode, setTemplateMode] = useState<TemplateMode>("select");
@@ -45,7 +51,7 @@ export const DeviceAnalysisSessionProvider = ({
     selectedColumns: [],
   });
 
-  const [previewFile, setPreviewFile] = useState<unknown | null>(null);
+  const [previewFile, setPreviewFile] = useState<PreviewFile | null>(null);
   const [previewStatus, setPreviewStatus] = useState<PreviewStatus>({
     state: "idle",
     message: "",
@@ -54,11 +60,15 @@ export const DeviceAnalysisSessionProvider = ({
   const previewWorkerRef = useRef<Worker | null>(null);
   const previewRequestIdRef = useRef(0);
   const previewRowsRequestIdRef = useRef(0);
-  const previewRowsRequestsRef = useRef<Map<number, unknown>>(new Map());
+  const previewRowsRequestsRef = useRef<Map<number, PreviewRowsRequest>>(
+    new Map(),
+  );
 
-  const previewRowsCacheByFileIdRef = useRef<Map<string, unknown>>(new Map());
+  const previewRowsCacheByFileIdRef = useRef<
+    Map<string, Map<number, unknown[]>>
+  >(new Map());
   const previewLoadedChunksByFileIdRef = useRef<Map<string, Set<number>>>(new Map());
-  const previewRowsCacheRef = useRef<Map<number, unknown>>(new Map());
+  const previewRowsCacheRef = useRef<Map<number, unknown[]>>(new Map());
   const previewLoadedChunksRef = useRef<Set<number>>(new Set());
   const previewCacheFileIdRef = useRef<string | null>(null);
   const previewCacheFileLruRef = useRef<Set<string>>(new Set());

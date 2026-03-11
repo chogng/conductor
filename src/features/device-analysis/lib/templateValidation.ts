@@ -15,6 +15,30 @@ type ValidationConfig = Partial<TemplateConfig> &
     vdFileKeywords: string;
   }>;
 
+type NormalizedTemplateForSave<T extends ValidationConfig> = T & {
+  bottomTitle: string;
+  fileNameVdKeywords: string;
+  fileNameVgKeywords: string;
+  legendPrefix: string;
+  selectedColumns: number[];
+  vdKeyword: string;
+  vgKeyword: string;
+  xUnit: string;
+  yUnit: string;
+};
+
+type NormalizedTemplateForApply<T extends ValidationConfig> = T & {
+  bottomTitle: string;
+  fileNameVdKeywords: string;
+  fileNameVgKeywords: string;
+  leftTitle: string;
+  legendPrefix: string;
+  vdKeyword: string;
+  vgKeyword: string;
+  xUnit: string;
+  yUnit: string;
+};
+
 type VarMode = "cell" | "text" | "empty" | "invalid";
 
 type VarPairValidation = {
@@ -147,10 +171,13 @@ export function validateCurveTaggingMode(
   };
 }
 
-export function validateTemplateForSave(config: ValidationConfig, t?: TranslateFn): {
+export function validateTemplateForSave<T extends ValidationConfig>(
+  config: T,
+  t?: TranslateFn,
+): {
   ok: boolean;
   message?: string;
-  normalized?: ValidationConfig;
+  normalized?: NormalizedTemplateForSave<T>;
 } {
   const selectedColumns = Array.isArray(config?.selectedColumns)
     ? config.selectedColumns
@@ -187,10 +214,13 @@ export function validateTemplateForSave(config: ValidationConfig, t?: TranslateF
   };
 }
 
-export function validateTemplateForApply(config: ValidationConfig, t?: TranslateFn): {
+export function validateTemplateForApply<T extends ValidationConfig>(
+  config: T,
+  t?: TranslateFn,
+): {
   ok: boolean;
   message?: string;
-  normalized?: ValidationConfig;
+  normalized?: NormalizedTemplateForApply<T>;
 } {
   const curveTagging = validateCurveTaggingMode(config, t);
   if (!curveTagging.ok) return { ok: false, message: curveTagging.message };

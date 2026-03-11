@@ -4,77 +4,43 @@ import {
   Suspense,
   useEffect,
   useState,
-  type ComponentType,
   type MouseEvent as ReactMouseEvent,
   type MutableRefObject,
 } from "react";
 import Card from "../../../components/ui/Card";
 import Button from "../../../components/ui/Button";
 import type { TranslateFn } from "../../../context/language-context";
-import CsvImporter from "./CsvImporter";
-import type { PreviewStatus as SessionPreviewStatus } from "../context/device-analysis-session-context";
-import type { RawDataEntry } from "../lib/sharedTypes";
-
-type CsvImporterRef = {
-  openFileDialog?: () => void;
-};
-
-type PreviewStatus = Partial<SessionPreviewStatus>;
+import CsvImporter, {
+  type CsvImporterProps,
+  type CsvImporterRef,
+} from "./CsvImporter";
+import type { TemplateManagerProps } from "./TemplateManager";
 
 type DataPanelProps = {
-  deviceAnalysisSettings?: Record<string, unknown> | null;
-  ensurePreviewRows?: (...args: unknown[]) => Promise<unknown> | void;
-  getPreviewRow?: (rowIndex: number) => unknown;
-  getPreviewRowsVersion?: () => number;
+  deviceAnalysisSettings?: TemplateManagerProps["deviceAnalysisSettings"];
+  ensurePreviewRows?: TemplateManagerProps["ensurePreviewRows"];
+  getPreviewRow?: TemplateManagerProps["getPreviewRow"];
+  getPreviewRowsVersion?: TemplateManagerProps["getPreviewRowsVersion"];
   hasSessionData: boolean;
   importerRef: MutableRefObject<CsvImporterRef | null>;
   isResizing: boolean;
   onClearSession?: () => void;
-  onDataImported?: (fileInfo: unknown) => void;
-  onDataRemoved?: (fileId: string) => void;
-  onFileSelected?: (fileId: string) => void;
+  onDataImported?: CsvImporterProps["onDataImported"];
+  onDataRemoved?: CsvImporterProps["onDataRemoved"];
+  onFileSelected?: CsvImporterProps["onFileSelected"];
   onStartResizing?: (event: ReactMouseEvent<HTMLDivElement>) => void;
-  onTemplateApplied?: (...args: unknown[]) => unknown;
-  onTemplateAppliedIncremental?: (...args: unknown[]) => unknown;
-  onUpdateDeviceAnalysisSettings?: (
-    updates: unknown,
-  ) => Promise<unknown> | unknown;
-  previewFile?: unknown | null;
-  previewStatus?: PreviewStatus;
-  rawData?: RawDataEntry[];
-  selectedPreviewFileId?: string | null;
-  subscribePreviewRowsVersion?: (onStoreChange: () => void) => () => void;
+  onTemplateApplied?: TemplateManagerProps["onTemplateApplied"];
+  onTemplateAppliedIncremental?: TemplateManagerProps["onTemplateAppliedIncremental"];
+  onUpdateDeviceAnalysisSettings?: TemplateManagerProps["onUpdateDeviceAnalysisSettings"];
+  previewFile?: TemplateManagerProps["previewFile"];
+  previewStatus?: TemplateManagerProps["previewStatus"];
+  rawData?: CsvImporterProps["files"];
+  selectedPreviewFileId?: CsvImporterProps["selectedFileId"];
+  subscribePreviewRowsVersion?: TemplateManagerProps["subscribePreviewRowsVersion"];
   t: TranslateFn;
 };
 
-type CsvImporterProps = {
-  files?: RawDataEntry[];
-  onDataImported?: (fileInfo: unknown) => void;
-  onDataRemoved?: (fileId: string) => void;
-  onFileSelected?: (fileId: string) => void;
-  selectedFileId?: string | null;
-};
-
-type TemplateManagerProps = {
-  previewFile?: unknown | null;
-  previewStatus?: PreviewStatus;
-  getPreviewRow?: (rowIndex: number) => unknown;
-  ensurePreviewRows?: (...args: unknown[]) => Promise<unknown> | void;
-  onTemplateApplied?: (...args: unknown[]) => unknown;
-  onTemplateAppliedIncremental?: (...args: unknown[]) => unknown;
-  subscribePreviewRowsVersion?: (onStoreChange: () => void) => () => void;
-  getPreviewRowsVersion?: () => number;
-  deviceAnalysisSettings?: Record<string, unknown> | null;
-  onUpdateDeviceAnalysisSettings?: (
-    updates: unknown,
-  ) => Promise<unknown> | unknown;
-};
-
-const CsvImporterComponent =
-  CsvImporter as unknown as ComponentType<CsvImporterProps & { ref?: unknown }>;
-const TemplateManager = lazy(() => import("./TemplateManager"));
-const TemplateManagerComponent =
-  TemplateManager as unknown as ComponentType<TemplateManagerProps>;
+const LazyTemplateManager = lazy(() => import("./TemplateManager"));
 
 const TemplateManagerFallback = ({ t }: { t: TranslateFn }) => (
   <Card
@@ -197,7 +163,7 @@ const DeviceAnalysisDataPanel = ({
               </div>
             </div>
 
-            <CsvImporterComponent
+            <CsvImporter
               ref={importerRef}
               files={rawData}
               onDataImported={onDataImported}
@@ -235,7 +201,7 @@ const DeviceAnalysisDataPanel = ({
       >
         {shouldMountTemplateManager ? (
           <Suspense fallback={<TemplateManagerFallback t={t} />}>
-            <TemplateManagerComponent
+            <LazyTemplateManager
               previewFile={previewFile}
               previewStatus={previewStatus}
               getPreviewRow={getPreviewRow}

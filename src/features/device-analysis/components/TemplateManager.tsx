@@ -31,7 +31,7 @@ import { DEVICE_ANALYSIS_Y_UNIT_VALUES } from "../lib/deviceAnalysisUnits";
 import type { PreviewStatus as SessionPreviewStatus } from "../context/device-analysis-session-context";
 import type { PreviewFileLike, ToastType } from "../lib/sharedTypes";
 
-type TemplateManagerProps = {
+export type TemplateManagerProps = {
   previewFile?: PreviewFileLike | null;
   previewStatus?: Partial<SessionPreviewStatus> | null;
   getPreviewRow?: (rowIndex: number) => unknown;

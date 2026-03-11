@@ -7,21 +7,7 @@ import {
   computeSubthresholdSwingFitInRange,
 } from "./analysisMath";
 import { getExcelColumnLabel } from "./deviceAnalysisUtils";
-
-type ProcessedSeries = {
-  id?: string;
-  name?: string;
-  groupIndex?: number;
-  yCol?: number;
-  y?: number[];
-};
-
-type ProcessedFile = {
-  fileId?: string;
-  fileName?: string;
-  xGroups?: number[][];
-  series?: ProcessedSeries[];
-};
+import type { ProcessedEntry, ProcessedSeries } from "./sharedTypes";
 
 type SsIdWindow = {
   low?: number | string;
@@ -96,7 +82,7 @@ export const createUniqueDeviceAnalysisFileNameResolver = (): ((
 };
 
 export const buildDeviceAnalysisCsvExports = (
-  processedData: ProcessedFile[] = [],
+  processedData: ProcessedEntry[] = [],
 ): Array<{
   csvText: string;
   filename: string;
@@ -202,7 +188,7 @@ export const buildDeviceAnalysisSsMetricsCsv = ({
   ssManualRanges,
   ssMethod,
 }: {
-  processedData?: ProcessedFile[];
+  processedData?: ProcessedEntry[];
   ssIdWindow?: unknown;
   ssManualRanges?: unknown;
   ssMethod?: unknown;

@@ -8,11 +8,11 @@ import type {
   SsMethod,
 } from "../context/device-analysis-session-context";
 import type { OriginPlotOptions } from "../lib/originPlotOptions";
-import type { ProcessingStatus } from "../lib/sharedTypes";
+import type { ProcessedEntry, ProcessingStatus } from "../lib/sharedTypes";
 import { loadAnalysisCharts } from "./loadAnalysisCharts";
 
 type AnalysisChartsLazyProps = {
-  processedData: unknown[];
+  processedData: ProcessedEntry[];
   processingStatus?: Partial<ProcessingStatus>;
   activeFileId?: string | null;
   onActiveFileIdChange?: (nextFileId: string | null) => void;
