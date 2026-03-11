@@ -42,6 +42,82 @@ export const clearChunkRows = (rowCache, chunkStart, chunkEnd) => {
   }
 };
 
+export const collectMissingChunkRanges = ({
+  rowCache,
+  pendingChunks,
+  startRow,
+  endRow,
+  chunkSize,
+  maxRangeRows,
+}) => {
+  const safeChunkSize = Math.max(1, toSafeInt(chunkSize, 1));
+  const start = Math.max(0, toSafeInt(startRow, 0));
+  const end = Math.max(start, toSafeInt(endRow, start));
+  const safeMaxRangeRows = Number.isFinite(Number(maxRangeRows))
+    ? Math.max(safeChunkSize, toSafeInt(maxRangeRows, safeChunkSize))
+    : Number.POSITIVE_INFINITY;
+  const pendingSet =
+    pendingChunks && typeof pendingChunks.has === "function"
+      ? pendingChunks
+      : { has: () => false };
+
+  const ranges = [];
+  let currentRange = null;
+
+  const flushRange = () => {
+    if (!currentRange || !currentRange.chunkStarts.length) return;
+    ranges.push(currentRange);
+    currentRange = null;
+  };
+
+  const firstChunkStart = Math.floor(start / safeChunkSize) * safeChunkSize;
+  const lastChunkStart =
+    end > start
+      ? Math.floor((end - 1) / safeChunkSize) * safeChunkSize
+      : firstChunkStart;
+
+  for (
+    let chunkStart = firstChunkStart;
+    chunkStart <= lastChunkStart;
+    chunkStart += safeChunkSize
+  ) {
+    const chunkEnd = Math.min(end, chunkStart + safeChunkSize);
+    const isLoaded = hasChunkRowsInCache(rowCache, chunkStart, chunkEnd);
+    const isPending = pendingSet.has(chunkStart);
+    if (isLoaded || isPending) {
+      flushRange();
+      continue;
+    }
+
+    if (!currentRange) {
+      currentRange = {
+        rangeStart: chunkStart,
+        rangeEnd: chunkEnd,
+        chunkStarts: [chunkStart],
+      };
+      continue;
+    }
+
+    const nextRangeEnd = Math.max(currentRange.rangeEnd, chunkEnd);
+    const nextRangeSize = Math.max(0, nextRangeEnd - currentRange.rangeStart);
+    if (nextRangeSize > safeMaxRangeRows) {
+      flushRange();
+      currentRange = {
+        rangeStart: chunkStart,
+        rangeEnd: chunkEnd,
+        chunkStarts: [chunkStart],
+      };
+      continue;
+    }
+
+    currentRange.rangeEnd = nextRangeEnd;
+    currentRange.chunkStarts.push(chunkStart);
+  }
+
+  flushRange();
+  return ranges;
+};
+
 export const mergeChunkRows = ({
   rowCache,
   loadedChunks,
@@ -89,4 +165,55 @@ export const mergeChunkRows = ({
   }
 
   return true;
+};
+
+export const mergeChunkRangeRows = ({
+  rowCache,
+  loadedChunks,
+  rangeStart,
+  rangeEnd,
+  rows,
+  chunkSize,
+  maxChunks,
+}) => {
+  const safeChunkSize = Math.max(1, toSafeInt(chunkSize, 1));
+  const start = Math.max(0, toSafeInt(rangeStart, 0));
+  const end = Math.max(start, toSafeInt(rangeEnd, start));
+  const safeRows = sanitizePreviewRows(rows);
+  const expectedRows = Math.max(0, end - start);
+
+  if (safeRows.length !== expectedRows) {
+    return {
+      complete: false,
+      mergedChunkStarts: [],
+    };
+  }
+
+  const mergedChunkStarts = [];
+  for (let chunkStart = start; chunkStart < end; chunkStart += safeChunkSize) {
+    const chunkEnd = Math.min(end, chunkStart + safeChunkSize);
+    const sliceStart = Math.max(0, chunkStart - start);
+    const sliceEnd = Math.max(sliceStart, chunkEnd - start);
+    const merged = mergeChunkRows({
+      rowCache,
+      loadedChunks,
+      chunkStart,
+      chunkEnd,
+      rows: safeRows.slice(sliceStart, sliceEnd),
+      chunkSize: safeChunkSize,
+      maxChunks,
+    });
+    if (!merged) {
+      return {
+        complete: false,
+        mergedChunkStarts,
+      };
+    }
+    mergedChunkStarts.push(chunkStart);
+  }
+
+  return {
+    complete: true,
+    mergedChunkStarts,
+  };
 };

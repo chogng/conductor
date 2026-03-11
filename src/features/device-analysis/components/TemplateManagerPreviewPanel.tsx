@@ -202,6 +202,11 @@ const formatPreviewCell = (value: unknown): string => {
   return formatNumber(num, { digits: 4 });
 };
 
+const getPreviewPlaceholderWidthPercent = (seed: number): number => {
+  const normalized = Math.abs(Math.floor(Number(seed) || 0)) % 5;
+  return [34, 46, 58, 68, 52][normalized] ?? 46;
+};
+
 const PreviewRow = React.memo(
   ({
     rowIndex,
@@ -238,6 +243,9 @@ const PreviewRow = React.memo(
           const cell = rowCells[index] ?? "";
           const raw = isRowLoaded ? String(cell) : "";
           const display = isRowLoaded ? formatPreviewCell(cell) : "";
+          const placeholderWidth = getPreviewPlaceholderWidthPercent(
+            rowIndex + index + visibleSlot,
+          );
 
           return (
             <td
@@ -251,7 +259,15 @@ const PreviewRow = React.memo(
               onMouseDown={handleCellMouseDown}
               title={raw}
             >
-              {display}
+              {isRowLoaded ? (
+                display
+              ) : (
+                <span
+                  aria-hidden="true"
+                  className="block h-2 rounded bg-text-secondary/15"
+                  style={{ width: `${placeholderWidth}%` }}
+                />
+              )}
             </td>
           );
         })}
@@ -826,6 +842,7 @@ const CanvasPreviewGrid = React.memo(
       const textPrimary = computed?.getPropertyValue("--color-text-primary")?.trim() || "#111827";
       const textSecondary = computed?.getPropertyValue("--color-text-secondary")?.trim() || "#64748b";
       const accentCellBackground = "rgba(217, 119, 6, 0.1)";
+      const placeholderFill = "rgba(100, 116, 139, 0.18)";
 
       context.clearRect(0, 0, canvasWidthPx, canvasHeightPx);
       context.fillStyle = background;
@@ -878,14 +895,37 @@ const CanvasPreviewGrid = React.memo(
             Math.max(0, rowHeightPx - 2),
           );
           context.clip();
-          context.fillStyle = isRowLoaded ? textPrimary : textSecondary;
-          context.textAlign = "left";
-          context.fillText(
-            String(display || ""),
-            colLeft + 6,
-            rowTop + rowHeightPx / 2,
-            Math.max(0, colWidth - 12),
-          );
+          if (isRowLoaded) {
+            context.fillStyle = textPrimary;
+            context.textAlign = "left";
+            context.fillText(
+              String(display || ""),
+              colLeft + 6,
+              rowTop + rowHeightPx / 2,
+              Math.max(0, colWidth - 12),
+            );
+          } else {
+            const placeholderWidth = Math.max(
+              18,
+              Math.min(
+                Math.max(0, colWidth - 12),
+                Math.floor(
+                  ((getPreviewPlaceholderWidthPercent(
+                    rowIndex + colIndex,
+                  ) || 46) /
+                    100) *
+                    Math.max(0, colWidth - 12),
+                ),
+              ),
+            );
+            context.fillStyle = placeholderFill;
+            context.fillRect(
+              colLeft + 6,
+              rowTop + Math.max(4, Math.floor(rowHeightPx / 2) - 4),
+              placeholderWidth,
+              8,
+            );
+          }
           context.restore();
         }
 

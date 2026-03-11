@@ -403,11 +403,10 @@ export const usePreviewColumnLayout = ({ autoColumnWidthsPx, columnCount, column
         applyColumnWidthToDom,
     };
 };
-export const usePreviewViewportSync = ({ previewFileId, previewRowHeightPx = 1, previewScrollRef, previewStatusState, }: any) => {
+export const usePreviewViewportSync = ({ onPreviewScrollFrame, previewFileId, previewRowHeightPx = 1, previewScrollRef, previewStatusState, }: any) => {
     const previewScrollTopRef = useRef(0);
     const previewScrollLeftRef = useRef(0);
     const previousPreviewFileIdRef = useRef<string | null>(null);
-    const previewScrollRafRef = useRef(0);
     const previewScrollVelocityResetTimerRef = useRef(0);
     const previewScrollVelocitySampleRef = useRef({
         left: 0,
@@ -420,6 +419,8 @@ export const usePreviewViewportSync = ({ previewFileId, previewRowHeightPx = 1, 
     const [previewViewportWidth, setPreviewViewportWidth] = useState(0);
     const [previewHorizontalScrollVelocityTier, setPreviewHorizontalScrollVelocityTier] = useState(0);
     const [previewVerticalScrollVelocityTier, setPreviewVerticalScrollVelocityTier] = useState(0);
+    const [previewHorizontalScrollDirection, setPreviewHorizontalScrollDirection] = useState(0);
+    const [previewVerticalScrollDirection, setPreviewVerticalScrollDirection] = useState(0);
     const normalizedPreviewRowHeight = Math.max(1, Math.floor(Number(previewRowHeightPx) || 0));
     const quantizeScrollTop = useCallback((scrollTop: any) => {
         const normalized = Math.max(0, Number(scrollTop) || 0);
@@ -443,41 +444,55 @@ export const usePreviewViewportSync = ({ previewFileId, previewRowHeightPx = 1, 
             previewScrollVelocityResetTimerRef.current = 0;
             setPreviewHorizontalScrollVelocityTier((prev: any) => (prev === 0 ? prev : 0));
             setPreviewVerticalScrollVelocityTier((prev: any) => (prev === 0 ? prev : 0));
+            setPreviewHorizontalScrollDirection((prev: any) => (prev === 0 ? prev : 0));
+            setPreviewVerticalScrollDirection((prev: any) => (prev === 0 ? prev : 0));
         }, 140);
     }, []);
     const handlePreviewScroll = useCallback((scrollTop: any, scrollLeft: any) => {
-        previewScrollTopRef.current = scrollTop;
-        previewScrollLeftRef.current = scrollLeft;
-        if (previewScrollRafRef.current)
-            return;
-        previewScrollRafRef.current = requestAnimationFrame(() => {
-            previewScrollRafRef.current = 0;
-            const nextTop = quantizeScrollTop(previewScrollTopRef.current);
-            const nextLeft = Math.max(0, previewScrollLeftRef.current || 0);
-            const now = typeof performance !== "undefined" && typeof performance.now === "function"
-                ? performance.now()
-                : Date.now();
-            const sample = previewScrollVelocitySampleRef.current;
-            const dt = Math.max(0, now - (Number(sample.time) || 0));
-            const dx = Math.abs(nextLeft - (Number(sample.left) || 0));
-            const dy = Math.abs(nextTop - (Number(sample.top) || 0));
-            const speedX = dt > 0 ? (dx * 1000) / dt : 0;
-            const speedY = dt > 0 ? (dy * 1000) / dt : 0;
-            const nextHorizontalTier = resolveScrollVelocityTier(speedX);
-            const nextVerticalTier = resolveScrollVelocityTier(speedY);
-            setPreviewHorizontalScrollVelocityTier((prev: any) => (prev === nextHorizontalTier ? prev : nextHorizontalTier));
-            setPreviewVerticalScrollVelocityTier((prev: any) => (prev === nextVerticalTier ? prev : nextVerticalTier));
-            previewScrollVelocitySampleRef.current = {
-                left: nextLeft,
-                time: now,
-                top: nextTop,
-            };
-            scheduleScrollVelocityIdleReset();
-            setPreviewScrollTop((prev: any) => (prev === nextTop ? prev : nextTop));
-            setPreviewScrollLeft((prev: any) => (prev === nextLeft ? prev : nextLeft));
+        const nextTop = quantizeScrollTop(scrollTop);
+        const nextLeft = Math.max(0, Number(scrollLeft) || 0);
+        previewScrollTopRef.current = nextTop;
+        previewScrollLeftRef.current = nextLeft;
+        const now = typeof performance !== "undefined" && typeof performance.now === "function"
+            ? performance.now()
+            : Date.now();
+        const sample = previewScrollVelocitySampleRef.current;
+        const dt = Math.max(0, now - (Number(sample.time) || 0));
+        const dx = Math.abs(nextLeft - (Number(sample.left) || 0));
+        const dy = Math.abs(nextTop - (Number(sample.top) || 0));
+        const speedX = dt > 0 ? (dx * 1000) / dt : 0;
+        const speedY = dt > 0 ? (dy * 1000) / dt : 0;
+        const nextHorizontalTier = resolveScrollVelocityTier(speedX);
+        const nextVerticalTier = resolveScrollVelocityTier(speedY);
+        const nextHorizontalDirection = dx > 0.5 ? (nextLeft > (Number(sample.left) || 0) ? 1 : -1) : 0;
+        const nextVerticalDirection = dy > 0.5 ? (nextTop > (Number(sample.top) || 0) ? 1 : -1) : 0;
+        setPreviewHorizontalScrollVelocityTier((prev: any) => (prev === nextHorizontalTier ? prev : nextHorizontalTier));
+        setPreviewVerticalScrollVelocityTier((prev: any) => (prev === nextVerticalTier ? prev : nextVerticalTier));
+        setPreviewHorizontalScrollDirection((prev: any) => (prev === nextHorizontalDirection ? prev : nextHorizontalDirection));
+        setPreviewVerticalScrollDirection((prev: any) => (prev === nextVerticalDirection ? prev : nextVerticalDirection));
+        previewScrollVelocitySampleRef.current = {
+            left: nextLeft,
+            time: now,
+            top: nextTop,
+        };
+        scheduleScrollVelocityIdleReset();
+        const viewportEl = previewScrollRef.current;
+        onPreviewScrollFrame?.({
+            horizontalDirection: nextHorizontalDirection,
+            horizontalVelocityTier: nextHorizontalTier,
+            scrollLeft: nextLeft,
+            scrollTop: nextTop,
+            verticalDirection: nextVerticalDirection,
+            verticalVelocityTier: nextVerticalTier,
+            viewportHeight: Math.round(viewportEl?.clientHeight || 0),
+            viewportWidth: Math.round(viewportEl?.clientWidth || 0),
         });
+        setPreviewScrollTop((prev: any) => (prev === nextTop ? prev : nextTop));
+        setPreviewScrollLeft((prev: any) => (prev === nextLeft ? prev : nextLeft));
     }, [
+        onPreviewScrollFrame,
         quantizeScrollTop,
+        previewScrollRef,
         resolveScrollVelocityTier,
         scheduleScrollVelocityIdleReset,
     ]);
@@ -555,9 +570,6 @@ export const usePreviewViewportSync = ({ previewFileId, previewRowHeightPx = 1, 
     }, [previewFileId, previewScrollRef, previewStatusState]);
     useEffect(() => {
         return () => {
-            if (previewScrollRafRef.current) {
-                cancelAnimationFrame(previewScrollRafRef.current);
-            }
             if (typeof window !== "undefined" &&
                 previewScrollVelocityResetTimerRef.current) {
                 window.clearTimeout(previewScrollVelocityResetTimerRef.current);
@@ -592,6 +604,8 @@ export const usePreviewViewportSync = ({ previewFileId, previewRowHeightPx = 1, 
                 };
                 setPreviewHorizontalScrollVelocityTier((prev: any) => (prev === 0 ? prev : 0));
                 setPreviewVerticalScrollVelocityTier((prev: any) => (prev === 0 ? prev : 0));
+                setPreviewHorizontalScrollDirection((prev: any) => (prev === 0 ? prev : 0));
+                setPreviewVerticalScrollDirection((prev: any) => (prev === 0 ? prev : 0));
             }
             handlePreviewScroll(el.scrollTop || 0, el.scrollLeft || 0);
         });
@@ -602,13 +616,42 @@ export const usePreviewViewportSync = ({ previewFileId, previewRowHeightPx = 1, 
     }, [handlePreviewScroll, previewFileId, previewScrollRef]);
     return {
         handlePreviewScroll,
+        previewHorizontalScrollDirection,
         previewHorizontalScrollVelocityTier,
         previewScrollLeft,
         previewScrollTop,
+        previewVerticalScrollDirection,
         previewVerticalScrollVelocityTier,
         previewViewportHeight,
         previewViewportWidth,
     };
+};
+export const buildPreviewPrefetchRangeFromWindow = ({ prefetchRowsAfter, prefetchRowsBefore, previewWindow, rowCount, }: any) => {
+    const totalRows = Math.max(0, Math.floor(Number(rowCount) || 0));
+    const safeStart = Math.max(0, Math.floor(Number(previewWindow?.startRow) || 0));
+    const safeEnd = Math.max(safeStart, Math.min(totalRows, Math.floor(Number(previewWindow?.endRow) || safeStart)));
+    const before = Math.max(0, Math.floor(Number(prefetchRowsBefore) || 0));
+    const after = Math.max(0, Math.floor(Number(prefetchRowsAfter) || 0));
+    return {
+        endRow: Math.max(safeEnd, Math.min(totalRows, safeEnd + after)),
+        startRow: Math.max(0, safeStart - before),
+    };
+};
+export const buildPreviewPrefetchRange = ({ overscanRows, prefetchRowsAfter, prefetchRowsBefore, rowCount, rowHeightPx, scrollTop, viewportHeight, windowShiftStrideRows, }: any) => {
+    const previewWindow = buildPreviewRowWindow({
+        overscanRows,
+        rowCount,
+        rowHeightPx,
+        scrollTop,
+        viewportHeight,
+        windowShiftStrideRows,
+    });
+    return buildPreviewPrefetchRangeFromWindow({
+        prefetchRowsAfter,
+        prefetchRowsBefore,
+        previewWindow,
+        rowCount,
+    });
 };
 export const buildPreviewRowWindow = ({ overscanRows, rowCount, rowHeightPx, scrollTop, viewportHeight, windowShiftStrideRows, }: any) => {
     const totalRows = Number.isFinite(rowCount) ? rowCount : 0;
@@ -628,14 +671,9 @@ export const buildPreviewRowWindow = ({ overscanRows, rowCount, rowHeightPx, scr
     const rawVisibleCount = Math.max(1, Math.ceil(resolvedViewportHeight / normalizedRowHeight));
     const visibleCount = Math.min(PREVIEW_WINDOW_MAX_VISIBLE_ROWS, rawVisibleCount);
     const visibleStartRow = Math.floor(normalizedScrollTop / normalizedRowHeight);
-    const normalizedWindowShiftStrideRows = Math.max(1, Math.floor(Number(windowShiftStrideRows) ||
-        normalizedOverscanRows ||
-        1));
-    // Hysteresis window: keep a stable row window while scrolling inside the
-    // current overscan band, and shift in larger steps to reduce rerenders.
-    const anchoredVisibleStartRow = Math.floor(visibleStartRow / normalizedWindowShiftStrideRows) * normalizedWindowShiftStrideRows;
-    const startRow = Math.max(0, Math.min(totalRows - 1, anchoredVisibleStartRow - normalizedOverscanRows));
-    const endRow = Math.max(startRow + 1, Math.min(totalRows, anchoredVisibleStartRow + visibleCount + normalizedOverscanRows * 2));
+    const renderBufferRows = Math.max(normalizedOverscanRows, Math.floor(Number(windowShiftStrideRows) || 0));
+    const startRow = Math.max(0, Math.min(totalRows - 1, visibleStartRow - renderBufferRows));
+    const endRow = Math.max(startRow + 1, Math.min(totalRows, visibleStartRow + visibleCount + renderBufferRows));
     return {
         totalRows,
         startRow,
@@ -644,32 +682,35 @@ export const buildPreviewRowWindow = ({ overscanRows, rowCount, rowHeightPx, scr
         bottomSpacerHeight: (totalRows - endRow) * normalizedRowHeight,
     };
 };
-export const usePreviewRowWindow = ({ ensurePreviewRows, overscanRows, prefetchRows, previewFileId, previewRowCount, previewScrollTop, previewViewportHeight, rowHeightPx, }: any) => {
+export const usePreviewRowWindow = ({ ensurePreviewRows, overscanRows, prefetchRowsAfter, prefetchRowsBefore, previewFileId, previewRowCount, previewScrollTop, previewViewportHeight, rowHeightPx, windowShiftStrideRows, }: any) => {
+    const resolvedWindowShiftStrideRows = Math.max(1, Math.floor(Number(windowShiftStrideRows) || Number(overscanRows) || 1));
     const previewWindow = useMemo(() => buildPreviewRowWindow({
         overscanRows,
         rowCount: previewRowCount,
         rowHeightPx,
         scrollTop: previewScrollTop,
         viewportHeight: previewViewportHeight,
-        windowShiftStrideRows: overscanRows,
+        windowShiftStrideRows: resolvedWindowShiftStrideRows,
     }), [
         overscanRows,
         previewRowCount,
         previewScrollTop,
         previewViewportHeight,
         rowHeightPx,
+        resolvedWindowShiftStrideRows,
     ]);
     const previewPrefetchRange = useMemo(() => {
-        const normalizedPrefetchRows = Math.max(0, Math.floor(Number(prefetchRows) || Number(overscanRows) || 0));
-        return {
-            endRow: Math.max(previewWindow.endRow, previewWindow.endRow + normalizedPrefetchRows),
-            startRow: Math.max(0, previewWindow.startRow - normalizedPrefetchRows),
-        };
+        return buildPreviewPrefetchRangeFromWindow({
+            prefetchRowsAfter,
+            prefetchRowsBefore,
+            previewWindow,
+            rowCount: previewRowCount,
+        });
     }, [
-        overscanRows,
-        prefetchRows,
-        previewWindow.endRow,
-        previewWindow.startRow,
+        prefetchRowsAfter,
+        prefetchRowsBefore,
+        previewRowCount,
+        previewWindow,
     ]);
     useEffect(() => {
         if (!previewFileId)

@@ -22,10 +22,11 @@ import type {
   RawDataEntry,
 } from "../lib/sharedTypes";
 import {
+  collectMissingChunkRanges,
   clearChunkRows,
   hasChunkRowsInCache,
   isPreviewRowsResultForRequest,
-  mergeChunkRows,
+  mergeChunkRangeRows,
   sanitizePreviewRows,
 } from "../lib/previewRowChunk";
 import { usePreviewRowsVersion } from "./usePreviewRowsVersion";
@@ -37,6 +38,8 @@ type PreviewResultPayload = {
   rowCount: number;
   columnCount: number;
   maxCellLengths: number[];
+  seedRows?: unknown[][];
+  seedStartRow?: number;
 };
 
 type PreviewRowsResultPayload = {
@@ -85,6 +88,10 @@ const DA_PREVIEW_MAX_CACHED_UI_CHUNKS_PER_FILE = Math.max(
   ),
 );
 const PREVIEW_ROWS_FETCH_MAX_ATTEMPTS = 2;
+const PREVIEW_ROWS_MAX_MERGED_REQUEST_ROWS = Math.max(
+  DA_PREVIEW_UI_CHUNK_SIZE_ROWS * 8,
+  400,
+);
 
 export const useDeviceAnalysisPreview = ({
   rawData = [],
@@ -166,6 +173,28 @@ export const useDeviceAnalysisPreview = ({
     }
     return pendingChunks;
   }, []);
+
+  const mergePreviewSeedRows = useCallback(
+    (fileId: string, startRow: number, rows: unknown[][]) => {
+      if (!fileId) return false;
+      const safeRows = sanitizePreviewRows(rows);
+      if (!safeRows.length) return false;
+
+      const { loadedChunks, rowCache } = getOrCreatePreviewFileCaches(fileId);
+      const safeStart = Math.max(0, Math.floor(Number(startRow) || 0));
+      const merged = mergeChunkRangeRows({
+        rowCache,
+        loadedChunks,
+        rangeStart: safeStart,
+        rangeEnd: safeStart + safeRows.length,
+        rows: safeRows,
+        chunkSize: DA_PREVIEW_UI_CHUNK_SIZE_ROWS,
+        maxChunks: DA_PREVIEW_MAX_CACHED_UI_CHUNKS_PER_FILE,
+      });
+      return merged.complete;
+    },
+    [getOrCreatePreviewFileCaches],
+  );
 
   const cancelPendingPreviewRowRequests = useCallback(() => {
     const pendingRequests = previewRowsRequestsRef.current;
@@ -327,6 +356,13 @@ export const useDeviceAnalysisPreview = ({
         const fileId =
           typeof previewPayload.fileId === "string" ? previewPayload.fileId : null;
         activatePreviewFileCache(fileId);
+        if (fileId) {
+          mergePreviewSeedRows(
+            fileId,
+            Number(previewPayload.seedStartRow) || 0,
+            Array.isArray(previewPayload.seedRows) ? previewPayload.seedRows : [],
+          );
+        }
 
         startTransition(() => {
           setPreviewFile({
@@ -417,6 +453,7 @@ export const useDeviceAnalysisPreview = ({
     },
     [
       activatePreviewFileCache,
+      mergePreviewSeedRows,
       previewRowsRequestsRef,
       previewRequestIdRef,
       setPreviewFile,
@@ -563,9 +600,6 @@ export const useDeviceAnalysisPreview = ({
         Math.floor((end - 1) / DA_PREVIEW_UI_CHUNK_SIZE_ROWS) *
         DA_PREVIEW_UI_CHUNK_SIZE_ROWS;
 
-      let shouldNotifyPreviewRows = false;
-      const requests: Array<Promise<void>> = [];
-
       for (
         let chunkStart = firstChunkStart;
         chunkStart <= lastChunkStart;
@@ -575,20 +609,41 @@ export const useDeviceAnalysisPreview = ({
           totalRows,
           chunkStart + DA_PREVIEW_UI_CHUNK_SIZE_ROWS,
         );
+        if (!hasChunkRowsInCache(rowCache, chunkStart, chunkEnd)) continue;
+        // Treat row-presence as source of truth; loadedChunks is only an LRU index.
+        loadedChunks.delete(chunkStart);
+        loadedChunks.add(chunkStart);
+      }
 
-        if (hasChunkRowsInCache(rowCache, chunkStart, chunkEnd)) {
-          // Treat row-presence as source of truth; loadedChunks is only an LRU index.
+      const missingRanges = collectMissingChunkRanges({
+        rowCache,
+        pendingChunks,
+        startRow: start,
+        endRow: end,
+        chunkSize: DA_PREVIEW_UI_CHUNK_SIZE_ROWS,
+        maxRangeRows: PREVIEW_ROWS_MAX_MERGED_REQUEST_ROWS,
+      });
+
+      let shouldNotifyPreviewRows = false;
+      const requests: Array<Promise<void>> = [];
+
+      for (const range of missingRanges) {
+        const rangeStart = Math.max(0, Math.floor(Number(range.rangeStart) || 0));
+        const rangeEnd = Math.max(rangeStart, Math.floor(Number(range.rangeEnd) || rangeStart));
+        const chunkStarts = Array.isArray(range.chunkStarts)
+          ? range.chunkStarts.map((value: number) =>
+              Math.max(0, Math.floor(Number(value) || 0)),
+            )
+          : [];
+        if (!chunkStarts.length || rangeStart >= rangeEnd) continue;
+
+        for (const chunkStart of chunkStarts) {
           loadedChunks.delete(chunkStart);
-          loadedChunks.add(chunkStart);
-          continue;
+          pendingChunks.add(chunkStart);
         }
 
-        loadedChunks.delete(chunkStart);
-        if (pendingChunks.has(chunkStart)) continue;
-        pendingChunks.add(chunkStart);
-
         const nextRequest = (async () => {
-          const expectedRows = Math.max(0, chunkEnd - chunkStart);
+          const expectedRows = Math.max(0, rangeEnd - rangeStart);
           let rows: unknown[][] = [];
 
           for (
@@ -596,31 +651,42 @@ export const useDeviceAnalysisPreview = ({
             attempt <= PREVIEW_ROWS_FETCH_MAX_ATTEMPTS;
             attempt += 1
           ) {
-            rows = await requestPreviewRowsRange(fileId, chunkStart, chunkEnd);
+            rows = await requestPreviewRowsRange(fileId, rangeStart, rangeEnd);
             if (rows.length === expectedRows) break;
           }
 
-          const merged = mergeChunkRows({
+          const merged = mergeChunkRangeRows({
             rowCache,
             loadedChunks,
-            chunkStart,
-            chunkEnd,
+            rangeStart,
+            rangeEnd,
             rows,
             chunkSize: DA_PREVIEW_UI_CHUNK_SIZE_ROWS,
             maxChunks: DA_PREVIEW_MAX_CACHED_UI_CHUNKS_PER_FILE,
           });
-          if (!merged) return;
+          if (!merged.complete) return;
 
-          if (previewCacheFileIdRef.current === fileId) {
+          if (
+            previewCacheFileIdRef.current === fileId &&
+            merged.mergedChunkStarts.length > 0
+          ) {
             shouldNotifyPreviewRows = true;
           }
         })()
           .catch(() => {
-            clearChunkRows(rowCache, chunkStart, chunkEnd);
-            loadedChunks.delete(chunkStart);
+            for (const chunkStart of chunkStarts) {
+              clearChunkRows(
+                rowCache,
+                chunkStart,
+                chunkStart + DA_PREVIEW_UI_CHUNK_SIZE_ROWS,
+              );
+              loadedChunks.delete(chunkStart);
+            }
           })
           .finally(() => {
-            pendingChunks.delete(chunkStart);
+            for (const chunkStart of chunkStarts) {
+              pendingChunks.delete(chunkStart);
+            }
           });
 
         requests.push(nextRequest);

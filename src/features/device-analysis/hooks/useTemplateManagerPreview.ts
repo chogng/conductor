@@ -11,6 +11,7 @@ import type { PreviewStatus as SessionPreviewStatus } from "../context/device-an
 import type { PreviewFileLike } from "../lib/sharedTypes";
 import type { TemplateConfig } from "../lib/templateManagerUtils";
 import {
+  buildPreviewPrefetchRange,
   createEmptyLiveColumnLayout,
   usePreviewColumnLayout,
   usePreviewPickHandler,
@@ -170,15 +171,85 @@ export const useTemplateManagerPreview = ({
     createEmptyLiveColumnLayout() as LiveColumnLayout,
   );
 
+  const warmPreviewRowsForScrollFrame = useCallback(
+    ({
+      scrollTop,
+      verticalDirection,
+      verticalVelocityTier,
+      viewportHeight,
+    }: {
+      scrollTop: number;
+      verticalDirection: number;
+      verticalVelocityTier: number;
+      viewportHeight: number;
+    }) => {
+      const fileId = previewFile?.fileId;
+      const rowCount = Number(previewFile?.rowCount) || 0;
+      if (!fileId || rowCount <= 0) return;
+      if (typeof ensurePreviewRows !== "function") return;
+
+      const immediateRenderOverscanRows =
+        verticalVelocityTier >= 2
+          ? Math.max(6, PREVIEW_OVERSCAN_ROWS - 4)
+          : verticalVelocityTier >= 1
+            ? PREVIEW_OVERSCAN_ROWS
+            : PREVIEW_OVERSCAN_ROWS + 4;
+      const visibleRows = Math.max(
+        1,
+        Math.ceil(Math.max(1, Number(viewportHeight) || 0) / PREVIEW_ROW_HEIGHT_PX),
+      );
+      const lookBehindRows = Math.max(
+        immediateRenderOverscanRows + 8,
+        Math.round(visibleRows * 1.5),
+      );
+      const lookAheadRows =
+        verticalVelocityTier >= 2
+          ? Math.max(immediateRenderOverscanRows + 24, visibleRows * 8)
+          : verticalVelocityTier >= 1
+            ? Math.max(immediateRenderOverscanRows + 20, visibleRows * 5)
+            : Math.max(immediateRenderOverscanRows + 16, visibleRows * 3);
+      const immediatePrefetchRowsBefore =
+        verticalDirection < 0
+          ? lookAheadRows
+          : verticalDirection > 0
+            ? lookBehindRows
+            : Math.max(lookBehindRows, Math.round(lookAheadRows * 0.75));
+      const immediatePrefetchRowsAfter =
+        verticalDirection > 0
+          ? lookAheadRows
+          : verticalDirection < 0
+            ? lookBehindRows
+            : Math.max(lookBehindRows, Math.round(lookAheadRows * 0.75));
+      const immediateWindowShiftStrideRows = Math.max(
+        immediateRenderOverscanRows,
+        Math.max(1, Math.floor(visibleRows / 2)),
+      );
+      const range = buildPreviewPrefetchRange({
+        overscanRows: immediateRenderOverscanRows,
+        prefetchRowsAfter: immediatePrefetchRowsAfter,
+        prefetchRowsBefore: immediatePrefetchRowsBefore,
+        rowCount,
+        rowHeightPx: PREVIEW_ROW_HEIGHT_PX,
+        scrollTop,
+        viewportHeight,
+        windowShiftStrideRows: immediateWindowShiftStrideRows,
+      });
+      void ensurePreviewRows(fileId, range.startRow, range.endRow);
+    },
+    [ensurePreviewRows, previewFile?.fileId, previewFile?.rowCount],
+  );
+
   const {
     handlePreviewScroll,
     previewHorizontalScrollVelocityTier,
     previewScrollLeft,
     previewScrollTop,
+    previewVerticalScrollDirection,
     previewVerticalScrollVelocityTier,
     previewViewportHeight,
     previewViewportWidth,
   } = usePreviewViewportSync({
+    onPreviewScrollFrame: warmPreviewRowsForScrollFrame,
     previewFileColumnCount: previewFile?.columnCount,
     previewFileId: previewFile?.fileId,
     previewFileRowCount: previewFile?.rowCount,
@@ -190,6 +261,7 @@ export const useTemplateManagerPreview = ({
     previewHorizontalScrollVelocityTier: number;
     previewScrollLeft: number;
     previewScrollTop: number;
+    previewVerticalScrollDirection: number;
     previewVerticalScrollVelocityTier: number;
     previewViewportHeight: number;
     previewViewportWidth: number;
@@ -252,6 +324,77 @@ export const useTemplateManagerPreview = ({
         Array.isArray(config?.selectedColumns) ? config.selectedColumns : [],
       ),
     [config],
+  );
+
+  const previewVisibleRows = useMemo(
+    () =>
+      Math.max(
+        1,
+        Math.ceil(
+          Math.max(1, Number(previewViewportHeight) || 0) / PREVIEW_ROW_HEIGHT_PX,
+        ),
+      ),
+    [previewViewportHeight],
+  );
+
+  const renderOverscanRows = useMemo(
+    () =>
+      previewVerticalScrollVelocityTier >= 2
+        ? Math.max(PREVIEW_OVERSCAN_ROWS + 20, previewVisibleRows * 3)
+        : previewVerticalScrollVelocityTier >= 1
+          ? Math.max(PREVIEW_OVERSCAN_ROWS + 12, previewVisibleRows * 2)
+          : Math.max(
+              PREVIEW_OVERSCAN_ROWS + 6,
+              Math.round(previewVisibleRows * 1.25),
+            ),
+    [previewVerticalScrollVelocityTier, previewVisibleRows],
+  );
+
+  const { prefetchRowsAfter, prefetchRowsBefore } = useMemo(() => {
+    const lookBehindRows = Math.max(
+      renderOverscanRows + 8,
+      Math.round(previewVisibleRows * 1.5),
+    );
+    const lookAheadRows =
+      previewVerticalScrollVelocityTier >= 2
+        ? Math.max(renderOverscanRows + 24, previewVisibleRows * 8)
+        : previewVerticalScrollVelocityTier >= 1
+          ? Math.max(renderOverscanRows + 20, previewVisibleRows * 5)
+          : Math.max(renderOverscanRows + 16, previewVisibleRows * 3);
+
+    if (previewVerticalScrollDirection < 0) {
+      return {
+        prefetchRowsAfter: lookBehindRows,
+        prefetchRowsBefore: lookAheadRows,
+      };
+    }
+
+    if (previewVerticalScrollDirection > 0) {
+      return {
+        prefetchRowsAfter: lookAheadRows,
+        prefetchRowsBefore: lookBehindRows,
+      };
+    }
+
+    const symmetricRows = Math.max(lookBehindRows, Math.round(lookAheadRows * 0.75));
+    return {
+      prefetchRowsAfter: symmetricRows,
+      prefetchRowsBefore: symmetricRows,
+    };
+  }, [
+    previewVerticalScrollDirection,
+    previewVerticalScrollVelocityTier,
+    previewVisibleRows,
+    renderOverscanRows,
+  ]);
+
+  const previewWindowShiftStrideRows = useMemo(
+    () =>
+      Math.max(
+        renderOverscanRows,
+        Math.max(1, Math.floor(previewVisibleRows * 1.5)),
+      ),
+    [previewVisibleRows, renderOverscanRows],
   );
 
   const setSelectionRange = useCallback(
@@ -477,18 +620,15 @@ export const useTemplateManagerPreview = ({
 
   const previewWindow = usePreviewRowWindow({
     ensurePreviewRows,
-    overscanRows:
-      previewVerticalScrollVelocityTier >= 2
-        ? Math.max(6, PREVIEW_OVERSCAN_ROWS - 4)
-        : previewVerticalScrollVelocityTier >= 1
-          ? PREVIEW_OVERSCAN_ROWS
-          : PREVIEW_OVERSCAN_ROWS + 4,
-    prefetchRows: PREVIEW_OVERSCAN_ROWS + 4,
+    overscanRows: renderOverscanRows,
+    prefetchRowsAfter,
+    prefetchRowsBefore,
     previewFileId: previewFile?.fileId,
     previewRowCount: previewFile?.rowCount,
     previewScrollTop,
     previewViewportHeight,
     rowHeightPx: PREVIEW_ROW_HEIGHT_PX,
+    windowShiftStrideRows: previewWindowShiftStrideRows,
   }) as PreviewWindow;
 
   const toggleColumn = useCallback(

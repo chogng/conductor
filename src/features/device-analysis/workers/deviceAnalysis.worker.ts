@@ -5,6 +5,7 @@ const DEFAULT_MAX_POINTS = 600;
 const PREVIEW_ROW_CACHE_CHUNK_DEFAULT = 200;
 const PREVIEW_INDEX_STRIDE_ROWS_DEFAULT = 2000;
 const PREVIEW_MAX_CACHED_CHUNKS_PER_FILE = 30;
+const PREVIEW_RESULT_SEED_ROWS = PREVIEW_ROW_CACHE_CHUNK_DEFAULT * 2;
 type LocalizedError = Error & {
     messageKey?: string | null;
     messageParams?: Record<string, unknown> | null;
@@ -1131,6 +1132,8 @@ workerScope.onmessage = async (event: any) => {
                 // Keep using maxPreviewRows as "cacheRows" for compatibility; 0/null => all rows.
                 maxCacheRows: maxCacheRowsRaw,
             });
+            const seedEndRow = Math.min(cache.rowCount, PREVIEW_RESULT_SEED_ROWS);
+            const seedRows = seedEndRow > 0 ? await getPreviewRows(cache, 0, seedEndRow) : [];
             workerScope.postMessage({
                 type: "previewResult",
                 payload: {
@@ -1140,6 +1143,8 @@ workerScope.onmessage = async (event: any) => {
                     rowCount: cache.rowCount,
                     columnCount: cache.columnCount,
                     maxCellLengths: cache.maxCellLengths,
+                    seedRows,
+                    seedStartRow: 0,
                 },
             });
             return;
