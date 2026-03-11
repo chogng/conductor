@@ -4,7 +4,8 @@ import Button from "../../../../components/ui/Button";
 import Input from "../../../../components/ui/Input";
 import Select from "../../../../components/ui/Select";
 import Toast from "../../../../components/ui/Toast";
-import type { LanguageCode, TranslateFn } from "../../../../context/language-context";
+import type { LanguageCode, TranslateFn } from "../../../../context/language";
+import type { ThemeMode } from "../../../../context/theme";
 import type { Feedback, ToastState } from "../lib/sharedTypes";
 
 type OriginSettings = {
@@ -64,6 +65,8 @@ type DeviceAnalysisSettingsPanelProps = {
   appUpdateSettings: AppUpdateSettings;
   language: LanguageCode;
   onLanguageChange: (language: LanguageCode) => Promise<void> | void;
+  theme: ThemeMode;
+  onThemeChange: (theme: ThemeMode) => Promise<void> | void;
   originSettings: OriginSettings;
   storageSettings: StorageSettings;
   t: TranslateFn;
@@ -77,6 +80,8 @@ const DeviceAnalysisSettingsPanel = ({
   appUpdateSettings,
   language,
   onLanguageChange,
+  theme,
+  onThemeChange,
   originSettings,
   storageSettings,
   t,
@@ -99,6 +104,11 @@ const DeviceAnalysisSettingsPanel = ({
     { value: "7", label: "7" },
     { value: "14", label: "14" },
     { value: "30", label: "30" },
+  ];
+  const themeModeOptions = [
+    { value: "system", label: t("da_settings_theme_system") },
+    { value: "light", label: t("da_settings_theme_light") },
+    { value: "dark", label: t("da_settings_theme_dark") },
   ];
   const originPlotTypeOptions = [
     { value: "200", label: t("da_settings_origin_plot_type_200") },
@@ -194,6 +204,39 @@ const DeviceAnalysisSettingsPanel = ({
                 { value: "zh", label: t("da_settings_language_zh") },
                 { value: "en", label: t("da_settings_language_en") },
               ]}
+              className="w-full sm:w-fit da-neutral-select"
+              stableWidth
+            />
+          </div>
+        </div>
+      </Card>
+
+      <Card
+        id="device-analysis-settings-theme-card"
+        variant="panel"
+        className="p-4 space-y-4 mb-4"
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold text-text-primary">
+              {t("da_settings_theme_title")}
+            </h3>
+            <p className="text-sm text-text-secondary mt-1">
+              {t("da_settings_theme_desc")}
+            </p>
+          </div>
+
+          <div className="w-full sm:w-fit">
+            <Select
+              id="device-analysis-settings-theme-dropdown"
+              menuId="device-analysis-settings-theme-dropdown-menu"
+              value={theme}
+              onChange={(value) => {
+                if (value === "system" || value === "light" || value === "dark") {
+                  void onThemeChange(value);
+                }
+              }}
+              options={themeModeOptions}
               className="w-full sm:w-fit da-neutral-select"
               stableWidth
             />

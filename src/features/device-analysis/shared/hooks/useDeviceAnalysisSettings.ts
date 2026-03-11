@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { LanguageCode } from "../../../../context/language-context";
+import type { LanguageCode } from "../../../../context/language";
+import type { ThemeMode } from "../../../../context/theme";
 import { formatOriginBridgeError } from "../../analysis/lib/originBridgeError";
 import type { SsMethod } from "../../session/context/device-analysis-session-context";
 import { apiService } from "../../analysis/services/apiService";
@@ -14,6 +15,7 @@ import type { LooseTranslateFn as TranslateFn } from "../lib/translateTypes";
 
 type DeviceAnalysisSettings = {
   language?: LanguageCode;
+  theme?: ThemeMode;
   originExePath?: string;
   originPlotCommandDefault?: string;
   originPlotPostCommandsDefault?: string[];
@@ -62,6 +64,8 @@ type UseDeviceAnalysisSettingsOptions = {
   isWindowsDesktopShell: boolean;
   language: LanguageCode;
   setLanguage: (language: LanguageCode) => void;
+  theme: ThemeMode;
+  setTheme: (theme: ThemeMode) => void;
   setSsDiagnosticsEnabled: (enabled: boolean) => void;
   setSsIdWindow: (window: { high: string; low: string }) => void;
   setSsMethod: (method: SsMethod) => void;
@@ -151,6 +155,8 @@ export const useDeviceAnalysisSettings = ({
   isWindowsDesktopShell,
   language,
   setLanguage,
+  theme,
+  setTheme,
   setSsDiagnosticsEnabled,
   setSsIdWindow,
   setSsMethod,
@@ -213,6 +219,24 @@ export const useDeviceAnalysisSettings = ({
       }
     },
     [handleUpdateDeviceAnalysisSettings, language, setLanguage],
+  );
+
+  const handleThemeChange = useCallback(
+    async (nextTheme: ThemeMode) => {
+      if (nextTheme !== "system" && nextTheme !== "light" && nextTheme !== "dark") {
+        return;
+      }
+      if (theme === nextTheme) return;
+
+      setTheme(nextTheme);
+
+      try {
+        await handleUpdateDeviceAnalysisSettings({ theme: nextTheme });
+      } catch {
+        // keep UI responsive even if persistence fails
+      }
+    },
+    [handleUpdateDeviceAnalysisSettings, setTheme, theme],
   );
 
   const getDesktopOriginBridge = useCallback((): OriginBridge | null => {
@@ -290,6 +314,11 @@ export const useDeviceAnalysisSettings = ({
           setLanguage(nextLanguage);
         }
 
+        const nextTheme = settings?.theme;
+        if (nextTheme === "system" || nextTheme === "light" || nextTheme === "dark") {
+          setTheme(nextTheme);
+        }
+
         const ssMethodDefault = settings?.ssMethodDefault;
         if (
           ssMethodDefault === "auto" ||
@@ -332,6 +361,7 @@ export const useDeviceAnalysisSettings = ({
     };
   }, [
     setLanguage,
+    setTheme,
     setSsDiagnosticsEnabled,
     setSsIdWindow,
     setSsMethod,
@@ -838,6 +868,7 @@ export const useDeviceAnalysisSettings = ({
   return {
     deviceAnalysisSettings,
     handleLanguageChange,
+    handleThemeChange,
     handleUpdateDeviceAnalysisSettings,
     originOpenPlotOptions: originPlotConfig,
     originSettings,

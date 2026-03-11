@@ -9,10 +9,12 @@ const DEVICE_ANALYSIS_SETTINGS_FILENAME_SUFFIX = ".settings.json";
 const DEVICE_ANALYSIS_SS_METHODS = new Set(["auto", "manual", "idWindow", "legacy"]);
 const DEVICE_ANALYSIS_Y_UNITS = new Set(["A", "uA", "nA"]);
 const DEVICE_ANALYSIS_Y_SCALES = new Set(["linear", "log"]);
+const DEVICE_ANALYSIS_THEMES = new Set(["system", "light", "dark"]);
 
 const DEVICE_ANALYSIS_DEFAULT_SETTINGS = {
   defaultTemplate: null,
   lastTemplateId: null,
+  theme: "system",
   stopOnErrorDefault: false,
   yUnit: "A",
   yScale: "linear",
@@ -131,6 +133,9 @@ export function createDeviceAnalysisStore(options) {
     const yScale = DEVICE_ANALYSIS_Y_SCALES.has(next.yScale)
       ? next.yScale
       : DEVICE_ANALYSIS_DEFAULT_SETTINGS.yScale;
+    const theme = DEVICE_ANALYSIS_THEMES.has(next.theme)
+      ? next.theme
+      : DEVICE_ANALYSIS_DEFAULT_SETTINGS.theme;
 
     const ssDiagnosticsEnabled =
       typeof next.ssDiagnosticsEnabled === "boolean"
@@ -198,6 +203,7 @@ export function createDeviceAnalysisStore(options) {
       stopOnErrorDefault,
       yUnit,
       yScale,
+      theme,
       ssMethodDefault,
       ssDiagnosticsEnabled,
       ssShowFitLine,

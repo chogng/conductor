@@ -12,7 +12,7 @@ import type { CsvImporterRef } from "../import/components/CsvImporter";
 import DeviceAnalysisDataPanel from "../shared/components/DeviceAnalysisDataPanel";
 import ScrollArea from "../../../components/ui/ScrollArea";
 import Toast from "../../../components/ui/Toast";
-import type { TranslationVars } from "../../../context/language-context";
+import type { TranslationVars } from "../../../context/language";
 import { loadAnalysisCharts } from "../analysis/loadAnalysisCharts";
 import { getDeviceAnalysisExtractionErrorMessage } from "../shared/lib/deviceAnalysisUtils";
 import {
@@ -26,6 +26,7 @@ import {
   useResizableSidebar,
 } from "../hooks";
 import { useLanguage } from "../../../hooks/useLanguage";
+import { useTheme } from "../../../hooks/useTheme";
 import type { ToastType } from "../shared/lib/sharedTypes";
 
 type PageTab = "data" | "analysis" | "settings";
@@ -80,6 +81,7 @@ const DeferredPanelFallback = ({ label }: { label: string }) => (
 
 const DeviceAnalysisPage = () => {
   const { t, language, setLanguage } = useLanguage();
+  const { theme, setTheme } = useTheme();
   const tLoose = useCallback(
     (key: string, vars?: Record<string, unknown>) =>
       t(key, vars as TranslationVars | undefined),
@@ -310,6 +312,7 @@ const DeviceAnalysisPage = () => {
   const {
     deviceAnalysisSettings,
     handleLanguageChange,
+    handleThemeChange,
     handleUpdateDeviceAnalysisSettings,
     originOpenPlotOptions,
     originSettings,
@@ -319,6 +322,8 @@ const DeviceAnalysisPage = () => {
     isWindowsDesktopShell,
     language,
     setLanguage,
+    theme,
+    setTheme,
     setSsDiagnosticsEnabled,
     setSsIdWindow,
     setSsMethod,
@@ -609,6 +614,8 @@ const DeviceAnalysisPage = () => {
                   }}
                   language={language}
                   onLanguageChange={handleLanguageChange}
+                  theme={theme}
+                  onThemeChange={handleThemeChange}
                   originSettings={originSettings}
                   storageSettings={storageSettings}
                   t={t}
