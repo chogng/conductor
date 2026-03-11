@@ -463,7 +463,7 @@ export const useDeviceAnalysisPreview = ({
 
   const createPreviewWorker = useCallback(() => {
     const worker = new Worker(
-      new URL("../../workers/deviceAnalysis.worker", import.meta.url),
+      new URL("../workers/deviceAnalysis.worker.ts", import.meta.url),
       { type: "module" },
     );
 
