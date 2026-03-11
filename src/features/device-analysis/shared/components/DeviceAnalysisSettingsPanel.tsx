@@ -249,55 +249,57 @@ const DeviceAnalysisSettingsPanel = ({
         variant="panel"
         className="p-4 space-y-4 mb-4"
       >
-        <div>
-          <h3 className="text-base font-semibold text-text-primary">
-            {t("da_settings_app_update_title")}
-          </h3>
-          <p className="text-sm text-text-secondary mt-1">
-            {t("da_settings_app_update_desc")}
-          </p>
-        </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold text-text-primary">
+              {t("da_settings_app_update_title")}
+            </h3>
+            <p className="text-sm text-text-secondary mt-1">
+              {t("da_settings_app_update_desc")}
+            </p>
+          </div>
 
-        <div className="flex items-center justify-end">
-          <Button
-            id="device-analysis-settings-app-update-check-btn"
-            type="button"
-            variant="secondary"
-            size="sm"
-            className="h-[38px] whitespace-nowrap"
-            onClick={() => {
-              void (async () => {
-                setAppUpdateFeedback(IDLE_FEEDBACK);
-                setAppUpdateChecking(true);
-                try {
-                  const started = await appUpdateSettings.onCheckForUpdates();
-                  if (started) {
-                    setAppUpdateFeedback({
-                      type: "success",
-                      message: t("da_settings_app_update_check_started"),
-                    });
-                  } else {
+          <div className="w-full sm:w-fit flex justify-end">
+            <Button
+              id="device-analysis-settings-app-update-check-btn"
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="h-[38px] w-full sm:w-auto whitespace-nowrap sm:shrink-0"
+              onClick={() => {
+                void (async () => {
+                  setAppUpdateFeedback(IDLE_FEEDBACK);
+                  setAppUpdateChecking(true);
+                  try {
+                    const started = await appUpdateSettings.onCheckForUpdates();
+                    if (started) {
+                      setAppUpdateFeedback({
+                        type: "success",
+                        message: t("da_settings_app_update_check_started"),
+                      });
+                    } else {
+                      setAppUpdateFeedback({
+                        type: "error",
+                        message: t("da_settings_app_update_check_failed"),
+                      });
+                    }
+                  } catch {
                     setAppUpdateFeedback({
                       type: "error",
                       message: t("da_settings_app_update_check_failed"),
                     });
+                  } finally {
+                    setAppUpdateChecking(false);
                   }
-                } catch {
-                  setAppUpdateFeedback({
-                    type: "error",
-                    message: t("da_settings_app_update_check_failed"),
-                  });
-                } finally {
-                  setAppUpdateChecking(false);
-                }
-              })();
-            }}
-            disabled={!appUpdateSettings.isAvailable || appUpdateChecking}
-          >
-            {appUpdateChecking
-              ? t("da_settings_app_update_checking")
-              : t("da_settings_app_update_check_btn")}
-          </Button>
+                })();
+              }}
+              disabled={!appUpdateSettings.isAvailable || appUpdateChecking}
+            >
+              {appUpdateChecking
+                ? t("da_settings_app_update_checking")
+                : t("da_settings_app_update_check_btn")}
+            </Button>
+          </div>
         </div>
 
         {!appUpdateSettings.isAvailable ? (
