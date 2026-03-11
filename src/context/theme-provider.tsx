@@ -1,22 +1,26 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { ThemeContext, type ThemeMode } from './theme';
+import '../styles/variables-dark.css';
+import { ThemeContext, isThemeMode, type ThemeMode } from './theme';
 
 type ThemeProviderProps = {
   children: ReactNode;
 };
 
-let darkThemeStylePromise: Promise<unknown> | null = null;
-
-const ensureDarkThemeStyles = () => {
-  if (!darkThemeStylePromise) {
-    darkThemeStylePromise = import('../styles/variables-dark.css');
+declare global {
+  interface Window {
+    __APPOINTER_INITIAL_THEME__?: ThemeMode;
   }
+}
 
-  return darkThemeStylePromise;
+const getInitialTheme = (): ThemeMode => {
+  if (typeof window === 'undefined') return 'system';
+  return isThemeMode(window.__APPOINTER_INITIAL_THEME__)
+    ? window.__APPOINTER_INITIAL_THEME__
+    : 'system';
 };
 
 export const ThemeProvider = ({ children }: ThemeProviderProps) => {
-  const [theme, setTheme] = useState<ThemeMode>('system');
+  const [theme, setTheme] = useState<ThemeMode>(() => getInitialTheme());
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -36,12 +40,8 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
       return nextTheme;
     };
 
-    const applyTheme = async (nextTheme: ThemeMode) => {
+    const applyTheme = (nextTheme: ThemeMode) => {
       const resolvedTheme = resolveTheme(nextTheme);
-
-      if (resolvedTheme === 'dark') {
-        await ensureDarkThemeStyles();
-      }
 
       if (cancelled) return;
 
@@ -49,7 +49,7 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
       root.classList.add(resolvedTheme);
     };
 
-    void applyTheme(theme);
+    applyTheme(theme);
 
     if (theme !== 'system') {
       return () => {
@@ -58,7 +58,7 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
     }
 
     const handleChange = () => {
-      void applyTheme('system');
+      applyTheme('system');
     };
     mediaQuery.addEventListener('change', handleChange);
 

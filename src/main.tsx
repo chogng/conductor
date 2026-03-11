@@ -1,5 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import type { ThemeMode } from './context/theme';
+import { isThemeMode } from './context/theme';
 import './styles/global.css';
 import './styles/variables.css';
 import App from './App';
@@ -8,6 +10,7 @@ import { initCtaTracking } from './utils/ctaTracking';
 declare global {
   interface Window {
     __APPOINTER_NAV_MODE_INIT__?: boolean;
+    __APPOINTER_INITIAL_THEME__?: ThemeMode;
   }
 }
 
@@ -57,14 +60,53 @@ if (!rootElement) {
   throw new Error('Root element with id "root" was not found.');
 }
 
-createRoot(rootElement).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+const resolveTheme = (theme: ThemeMode): Exclude<ThemeMode, 'system'> => {
+  if (theme === 'system') {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches
+      ? 'dark'
+      : 'light';
+  }
 
-window.requestAnimationFrame(() => {
+  return theme;
+};
+
+const applyDocumentTheme = (theme: ThemeMode) => {
+  const root = document.documentElement;
+  root.classList.remove('dark');
+  root.classList.remove('light');
+  root.classList.add(resolveTheme(theme));
+};
+
+const loadInitialTheme = async (): Promise<ThemeMode> => {
+  try {
+    const settings = await window.desktopStore?.getDeviceAnalysisSettings?.();
+    const theme =
+      settings && typeof settings === 'object'
+        ? (settings as { theme?: unknown }).theme
+        : undefined;
+
+    return isThemeMode(theme) ? theme : 'system';
+  } catch {
+    return 'system';
+  }
+};
+
+const startApp = async () => {
+  const initialTheme = await loadInitialTheme();
+  window.__APPOINTER_INITIAL_THEME__ = initialTheme;
+  applyDocumentTheme(initialTheme);
+
+  createRoot(rootElement).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+
   window.requestAnimationFrame(() => {
-    dismissBootSplash();
+    window.requestAnimationFrame(() => {
+      dismissBootSplash();
+    });
   });
-});
+};
+
+void startApp();

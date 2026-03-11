@@ -90,3 +90,47 @@ body {
     color: rgba(245, 244, 239, 0.66);
   }
 }
+
+html.light,
+html.light body,
+html.light #boot-splash {
+  background: #f5f4ef;
+  color: #222222;
+}
+
+html.light .boot-splash-card {
+  border-color: rgba(34, 34, 34, 0.08);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+}
+
+html.light .boot-splash-spinner {
+  border-color: rgba(34, 34, 34, 0.14);
+  border-top-color: #222222;
+}
+
+html.light .boot-splash-subtitle {
+  color: rgba(34, 34, 34, 0.65);
+}
+
+html.dark,
+html.dark body,
+html.dark #boot-splash {
+  background: #0b0b0c;
+  color: #f5f4ef;
+}
+
+html.dark .boot-splash-card {
+  border-color: rgba(245, 244, 239, 0.08);
+  background: rgba(18, 18, 20, 0.88);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+}
+
+html.dark .boot-splash-spinner {
+  border-color: rgba(245, 244, 239, 0.14);
+  border-top-color: #f5f4ef;
+}
+
+html.dark .boot-splash-subtitle {
+  color: rgba(245, 244, 239, 0.66);
+}
