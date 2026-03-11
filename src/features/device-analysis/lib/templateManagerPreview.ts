@@ -29,6 +29,18 @@ const PREVIEW_PICK_FIELD_TO_CONFIG_FIELD = {
 };
 const PREVIEW_PICKABLE_FIELD_NAMES = new Set(Object.keys(PREVIEW_PICK_FIELD_TO_CONFIG_FIELD));
 const isPreviewPickableField = (name: any) => PREVIEW_PICKABLE_FIELD_NAMES.has(String(name ?? "").trim());
+const isEditableFormElement = (target: any) => {
+    if (!(target instanceof HTMLElement))
+        return false;
+    const tag = target.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT")
+        return true;
+    if (target.isContentEditable)
+        return true;
+    if (target.closest("[contenteditable='true']"))
+        return true;
+    return false;
+};
 const normalizePreviewRange = (range: any) => {
     if (!range)
         return null;
@@ -63,7 +75,15 @@ export const usePreviewPickHandler = ({ containerRef, writeFieldFromPreview, }: 
             const name = event?.target?.name;
             if (!isPreviewPickableField(name))
                 return;
-            if (focusedInputNameRef.current === name) {
+            const nextFocusedName = event?.relatedTarget?.name;
+            if (isPreviewPickableField(nextFocusedName)) {
+                focusedInputNameRef.current = nextFocusedName;
+                return;
+            }
+            // Keep the last pickable field when focus moves to non-editable UI such
+            // as the preview viewport, buttons, or table cells. Only clear it when
+            // the user explicitly moves into a different editable field.
+            if (isEditableFormElement(event?.relatedTarget)) {
                 focusedInputNameRef.current = "";
             }
         };

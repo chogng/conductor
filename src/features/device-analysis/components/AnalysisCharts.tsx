@@ -17,6 +17,7 @@ import type { ToastState, ToastType } from "../lib/sharedTypes";
 import OverviewGrid from "./analysis-charts/OverviewGrid";
 import CalculatedParametersRow from "./analysis-charts/CalculatedParametersRow";
 import { buildLogTicks, buildNiceTicks, buildOriginAutoTicks, buildPoints, buildStepTicks, computeLabelInterval, computeMinMax, downsamplePointsForDisplay, inferTickDigitsFromTicks, normalizeFloat, normalizeVarToken, padLinearDomain, padLogDomain, parseOptionalNumber, preserveScrollPosition, varTokenToSymbol, } from "../lib/analysisChartsUtils";
+import { getDeviceAnalysisYUnitMeta, normalizeDeviceAnalysisYUnit, } from "../lib/deviceAnalysisUnits";
 import { buildDeviceAnalysisOriginOgsScript, DEVICE_ANALYSIS_ORIGIN_README, triggerDeviceAnalysisBlobDownload, } from "../lib/deviceAnalysisExport";
 import MainPlotChart from "./analysis-charts/MainPlotChart";
 import SsDiagnosticsChart from "./analysis-charts/SsDiagnosticsChart";
@@ -417,11 +418,11 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             try {
                 const settings = await apiService.getDeviceAnalysisSettings();
                 const normalizedSettings = settings as { yScale?: string; yUnit?: string } | null | undefined;
-                const unit = normalizedSettings?.yUnit;
+                const unit = normalizeDeviceAnalysisYUnit(normalizedSettings?.yUnit, "");
                 const yScale = normalizedSettings?.yScale;
                 if (cancelled)
                     return;
-                if (!userChangedYUnitRef.current && (unit === "A" || unit === "uA" || unit === "nA")) {
+                if (!userChangedYUnitRef.current && unit) {
                     setYUnit(unit);
                 }
                 if (!userChangedYScaleRef.current && (yScale === "linear" || yScale === "log")) {
@@ -541,6 +542,15 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             setActiveFileId(next);
     }, [activeFileId, processedData, setActiveFileId]);
     const activeFile = useMemo(() => processedData?.find((f: any) => f.fileId === effectiveActiveFileId) ?? null, [effectiveActiveFileId, processedData]);
+    const resolvedYUnitMeta = useMemo(() => getDeviceAnalysisYUnitMeta(yUnit), [yUnit]);
+    useEffect(() => {
+        if (userChangedYUnitRef.current)
+            return;
+        const nextUnit = normalizeDeviceAnalysisYUnit(activeFile?.yUnit, "");
+        if (!nextUnit)
+            return;
+        setYUnit((prev: any) => (prev === nextUnit ? prev : nextUnit));
+    }, [activeFile?.fileId, activeFile?.yUnit]);
     const originCanvasOptions = useMemo(() => {
         const list = Array.isArray(processedData) ? processedData : [];
         return list
@@ -1201,15 +1211,15 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             metricXHeader: `x@max|${metricSymbol}|`,
         };
     }, [activeFile, gmMode]);
-    const plotYFactor = useMemo(() => currentUnitMeta.factor, [currentUnitMeta.factor]);
+    const plotYFactor = useMemo(() => resolvedYUnitMeta.factor, [resolvedYUnitMeta.factor]);
     const plotYUnitLabel = useMemo(() => {
         if (effectivePlotType === "gm")
-            return `${currentUnitMeta.label}/${gmUi.denomUnit}`;
+            return `${resolvedYUnitMeta.label}/${gmUi.denomUnit}`;
         if (effectivePlotType === "j")
-            return `${currentUnitMeta.label}/Area`;
+            return `${resolvedYUnitMeta.label}/Area`;
         // SS tab main plot is I-V in log(|I|), so keep current unit here.
-        return currentUnitMeta.label;
-    }, [currentUnitMeta.label, effectivePlotType, gmUi.denomUnit]);
+        return resolvedYUnitMeta.label;
+    }, [resolvedYUnitMeta.label, effectivePlotType, gmUi.denomUnit]);
     const pointsBySeriesId = useMemo(() => {
         if (!activeFile?.fileId || !activeFile?.series?.length)
             return new Map();
@@ -2369,8 +2379,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             xTooltipDigits: standbyXTooltipDigits,
             xLabelInterval: computeLabelInterval(standbyXTicks, 7),
             plotYUnitLabel: ivGmStandbyPlotType === "gm"
-                ? `${currentUnitMeta.label}/${gmUi.denomUnit}`
-                : currentUnitMeta.label,
+                ? `${resolvedYUnitMeta.label}/${gmUi.denomUnit}`
+                : resolvedYUnitMeta.label,
         };
     }, [
         activeFile?.fileId,
@@ -2382,7 +2392,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         axis?.xTickCount,
         axis?.xTicks,
         axis?.xTooltipDigits,
-        currentUnitMeta.label,
+        resolvedYUnitMeta.label,
         getFileCache,
         gmMode,
         gmUi.denomUnit,
@@ -2633,7 +2643,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         id="device-analysis-overview-sidebar"
         className="md:min-h-0 flex flex-col h-full"
       >
-        <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} onSelectAllOriginCanvases={selectAllOriginCanvases} onClearOriginCanvasSelection={clearOriginCanvasSelection} yUnitFactor={currentUnitMeta.factor} yUnitLabel={currentUnitMeta.label} yScale={overviewYScaleType}/>
+        <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} onSelectAllOriginCanvases={selectAllOriginCanvases} onClearOriginCanvasSelection={clearOriginCanvasSelection} yUnitFactor={resolvedYUnitMeta.factor} yUnitLabel={resolvedYUnitMeta.label} yScale={overviewYScaleType}/>
       </aside>
 
       <ScrollArea className="md:min-h-0" axis="y" viewportClassName="flex flex-col min-h-full">
@@ -2673,9 +2683,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1">
                   <Select id="device-analysis-y-unit-select" size="md" value={yUnit} onChange={(next: any) => {
-            const nextUnit = next === "A" || next === "uA" || next === "nA"
-                ? next
-                : "A";
+            const nextUnit = normalizeDeviceAnalysisYUnit(next, "A");
             userChangedYUnitRef.current = true;
             setYUnit(nextUnit);
             apiService
@@ -2687,12 +2695,20 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 label: "A",
             },
             {
+                value: "mA",
+                label: "mA",
+            },
+            {
                 value: "uA",
                 label: "µA",
             },
             {
                 value: "nA",
                 label: "nA",
+            },
+            {
+                value: "pA",
+                label: "pA",
             },
         ]} aria-label="Y unit" className="w-fit da-neutral-select" stableWidth data-cta="Device Analysis" data-cta-position="y-unit" data-cta-copy="y unit"/>
                 </div>

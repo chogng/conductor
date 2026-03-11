@@ -1,4 +1,6 @@
 import Papa from "papaparse";
+import { normalizeDeviceAnalysisYUnit } from "../lib/deviceAnalysisUnits";
+
 const DEFAULT_MAX_POINTS = 600;
 const PREVIEW_ROW_CACHE_CHUNK_DEFAULT = 200;
 const PREVIEW_INDEX_STRIDE_ROWS_DEFAULT = 2000;
@@ -510,7 +512,7 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
     const leftTitleRaw = config?.leftTitle;
     const legendPrefixRaw = config?.legendPrefix;
     const xUnitRaw = config?.xUnit;
-    const yUnitRaw = config?.yUnit;
+    const yUnitRaw = normalizeDeviceAnalysisYUnit(config?.yUnit, "");
     const fileNameVgKeywordsRaw = config?.fileNameVgKeywords;
     const fileNameVdKeywordsRaw = config?.fileNameVdKeywords;
     const appendAxisUnit = (labelRaw: any, unitRaw: any) => {
@@ -520,7 +522,10 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
             return label;
         if (!label)
             return unit;
-        if (label.includes(unit))
+        if (/\([^()]+\)\s*$/.test(label)) {
+            return label.replace(/\([^()]+\)\s*$/, `(${unit})`);
+        }
+        if (label === unit)
             return label;
         return `${label} (${unit})`;
     };
@@ -1101,6 +1106,7 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
             groups,
             sampledPoints: targetPoints,
         },
+        yUnit: yUnitRaw,
         y: {
             columns: yCols,
             columnLabels: yCols.map(getExcelColumnLabel),

@@ -1,5 +1,6 @@
 import type { TemplateConfig } from "./templateManagerUtils";
 import type { LooseTranslateFn as TranslateFn } from "./translateTypes";
+import { normalizeDeviceAnalysisYUnit } from "./deviceAnalysisUnits";
 
 const CELL_REF_RE = /^([A-Z]+)([1-9][0-9]*)$/;
 
@@ -176,7 +177,7 @@ export function validateTemplateForSave(config: ValidationConfig, t?: TranslateF
       bottomTitle: varPair.vg,
       legendPrefix: varPair.vd,
       xUnit: normalizeAxisUnit(config?.xUnit),
-      yUnit: normalizeAxisUnit(config?.yUnit),
+      yUnit: normalizeDeviceAnalysisYUnit(config?.yUnit, ""),
       fileNameVgKeywords: curveTagging.fileNameVgKeywords,
       fileNameVdKeywords: curveTagging.fileNameVdKeywords,
       // Back-compat with older backend/template field names.
@@ -204,7 +205,7 @@ export function validateTemplateForApply(config: ValidationConfig, t?: Translate
       leftTitle: config?.leftTitle ?? "",
       legendPrefix: varPair.vd,
       xUnit: normalizeAxisUnit(config?.xUnit),
-      yUnit: normalizeAxisUnit(config?.yUnit),
+      yUnit: normalizeDeviceAnalysisYUnit(config?.yUnit, ""),
       fileNameVgKeywords: curveTagging.fileNameVgKeywords,
       fileNameVdKeywords: curveTagging.fileNameVdKeywords,
       // Back-compat with older backend/template field names.

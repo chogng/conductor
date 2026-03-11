@@ -1,5 +1,6 @@
 import React, {
   useCallback,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -10,6 +11,7 @@ import { useLanguage } from "../../../hooks/useLanguage";
 import type { TranslationVars } from "../../../context/language-context";
 import Toast from "../../../components/ui/Toast";
 import Input from "../../../components/ui/Input";
+import Select from "../../../components/ui/Select";
 import Tabs from "../../../components/ui/Tabs";
 import Card from "../../../components/ui/Card";
 import Button from "../../../components/ui/Button";
@@ -25,6 +27,7 @@ import {
   normalizeXDataEndValue,
   type TemplateConfig,
 } from "../lib/templateManagerUtils";
+import { DEVICE_ANALYSIS_Y_UNIT_VALUES } from "../lib/deviceAnalysisUnits";
 import type { PreviewStatus as SessionPreviewStatus } from "../context/device-analysis-session-context";
 import type { PreviewFileLike, ToastType } from "../lib/sharedTypes";
 
@@ -83,6 +86,14 @@ const TemplateManager = ({
   const closeToast = useCallback(() => {
     setToast((prev) => ({ ...prev, isVisible: false }));
   }, []);
+  const yUnitOptions = useMemo(
+    () =>
+      DEVICE_ANALYSIS_Y_UNIT_VALUES.map((unit) => ({
+        label: unit,
+        value: unit,
+      })),
+    [],
+  );
 
   const {
     applyConfiguration,
@@ -381,18 +392,22 @@ const TemplateManager = ({
                 />
               </div>
               <div className="min-w-0">
-                <Input
+                <Select
                   id={
                     includeIds ? "device-analysis-template-y-unit" : undefined
                   }
-                  value={config.yUnit}
-                  name="yUnit"
+                  value={config.yUnit || undefined}
                   disabled={saveIsSelectMode}
                   onChange={(next) => {
-                    setConfigFromSave((prev) => ({ ...prev, yUnit: next }));
+                    setConfigFromSave((prev) => ({
+                      ...prev,
+                      yUnit: String(next ?? ""),
+                    }));
                     markFieldSource("yUnit", "manual");
                   }}
+                  options={yUnitOptions}
                   placeholder={t("da_save_y_unit")}
+                  className="w-full"
                 />
               </div>
             </div>

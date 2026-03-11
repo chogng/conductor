@@ -18,6 +18,7 @@ import {
   toTemplateNameKey,
   type TemplateConfig,
 } from "../lib/templateManagerUtils";
+import { normalizeDeviceAnalysisYUnit } from "../lib/deviceAnalysisUnits";
 import {
   validateTemplateForApply,
   validateTemplateForSave,
@@ -239,7 +240,7 @@ export const useTemplateManagerState = ({
         yPoints: String(template?.yPoints ?? ""),
         yCount: String(template?.yCount ?? ""),
         yStep: String(template?.yStep ?? ""),
-        yUnit: String(template?.yUnit ?? ""),
+        yUnit: normalizeDeviceAnalysisYUnit(template?.yUnit, ""),
         stopOnError: Boolean(template?.stopOnError),
         bottomTitle: String(template?.bottomTitle ?? template?.vgKeyword ?? ""),
         leftTitle: String(template?.leftTitle ?? ""),
