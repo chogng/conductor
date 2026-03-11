@@ -924,6 +924,7 @@ textarea {
   background-color: rgba(148, 163, 184, 0.42);
   cursor: default;
   pointer-events: auto;
+  will-change: transform;
 }
 
 .scroll-area__thumb--y {

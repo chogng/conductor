@@ -60,6 +60,7 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(
     const xThumbRef = useRef<HTMLDivElement | null>(null);
     const dragRef = useRef<DragState | null>(null);
     const metricsRafRef = useRef<number | null>(null);
+    const thumbOffsetsRafRef = useRef<number | null>(null);
     const thumbOffsetRef = useRef({ x: 0, y: 0 });
     const metricsRef = useRef<ScrollMetrics>({
       showY: false,
@@ -108,13 +109,13 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(
         if (Math.abs(thumbOffsetRef.current.y - yThumbOffset) >= 0.25) {
           thumbOffsetRef.current.y = yThumbOffset;
           if (yThumbRef.current) {
-            yThumbRef.current.style.transform = `translateY(${yThumbOffset}px)`;
+            yThumbRef.current.style.transform = `translate3d(0, ${yThumbOffset}px, 0)`;
           }
         }
       } else {
         thumbOffsetRef.current.y = 0;
         if (yThumbRef.current) {
-          yThumbRef.current.style.transform = "translateY(0px)";
+          yThumbRef.current.style.transform = "translate3d(0, 0, 0)";
         }
       }
 
@@ -125,13 +126,13 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(
         if (Math.abs(thumbOffsetRef.current.x - xThumbOffset) >= 0.25) {
           thumbOffsetRef.current.x = xThumbOffset;
           if (xThumbRef.current) {
-            xThumbRef.current.style.transform = `translateX(${xThumbOffset}px)`;
+            xThumbRef.current.style.transform = `translate3d(${xThumbOffset}px, 0, 0)`;
           }
         }
       } else {
         thumbOffsetRef.current.x = 0;
         if (xThumbRef.current) {
-          xThumbRef.current.style.transform = "translateX(0px)";
+          xThumbRef.current.style.transform = "translate3d(0, 0, 0)";
         }
       }
     }, []);
@@ -185,6 +186,14 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(
       });
     }, [updateMetrics]);
 
+    const scheduleThumbOffsetsUpdate = useCallback(() => {
+      if (thumbOffsetsRafRef.current != null) return;
+      thumbOffsetsRafRef.current = requestAnimationFrame(() => {
+        thumbOffsetsRafRef.current = null;
+        updateThumbOffsets();
+      });
+    }, [updateThumbOffsets]);
+
     useImperativeHandle(ref, () => viewportRef.current as HTMLDivElement, []);
 
     useLayoutEffect(() => {
@@ -193,6 +202,10 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(
         if (metricsRafRef.current != null) {
           cancelAnimationFrame(metricsRafRef.current);
           metricsRafRef.current = null;
+        }
+        if (thumbOffsetsRafRef.current != null) {
+          cancelAnimationFrame(thumbOffsetsRafRef.current);
+          thumbOffsetsRafRef.current = null;
         }
       };
     }, [children, scheduleMetricsUpdate]);
@@ -217,7 +230,7 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(
       if (!viewport) return;
 
       const onScroll = (event: Event) => {
-        updateThumbOffsets();
+        scheduleThumbOffsetsUpdate();
         viewportScrollHandlerRef.current?.(event);
       };
       viewport.addEventListener("scroll", onScroll, { passive: true });
@@ -238,8 +251,12 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(
           cancelAnimationFrame(metricsRafRef.current);
           metricsRafRef.current = null;
         }
+        if (thumbOffsetsRafRef.current != null) {
+          cancelAnimationFrame(thumbOffsetsRafRef.current);
+          thumbOffsetsRafRef.current = null;
+        }
       };
-    }, [scheduleMetricsUpdate, updateThumbOffsets]);
+    }, [scheduleMetricsUpdate, scheduleThumbOffsetsUpdate]);
 
     useEffect(() => {
       const onMouseMove = (event: MouseEvent) => {

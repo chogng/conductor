@@ -407,7 +407,12 @@ export const usePreviewViewportSync = ({ onPreviewScrollFrame, previewFileId, pr
     const previewScrollTopRef = useRef(0);
     const previewScrollLeftRef = useRef(0);
     const previousPreviewFileIdRef = useRef<string | null>(null);
+    const previewScrollCommitRafRef = useRef(0);
     const previewScrollVelocityResetTimerRef = useRef(0);
+    const pendingPreviewScrollRef = useRef({
+        left: 0,
+        top: 0,
+    });
     const previewScrollVelocitySampleRef = useRef({
         left: 0,
         time: 0,
@@ -448,9 +453,13 @@ export const usePreviewViewportSync = ({ onPreviewScrollFrame, previewFileId, pr
             setPreviewVerticalScrollDirection((prev: any) => (prev === 0 ? prev : 0));
         }, 140);
     }, []);
-    const handlePreviewScroll = useCallback((scrollTop: any, scrollLeft: any) => {
-        const nextTop = quantizeScrollTop(scrollTop);
-        const nextLeft = Math.max(0, Number(scrollLeft) || 0);
+    const commitPreviewScroll = useCallback(() => {
+        previewScrollCommitRafRef.current = 0;
+        const pendingScroll = pendingPreviewScrollRef.current;
+        const rawScrollTop = Number(pendingScroll.top) || 0;
+        const rawScrollLeft = Number(pendingScroll.left) || 0;
+        const nextTop = quantizeScrollTop(rawScrollTop);
+        const nextLeft = Math.max(0, rawScrollLeft);
         previewScrollTopRef.current = nextTop;
         previewScrollLeftRef.current = nextLeft;
         const now = typeof performance !== "undefined" && typeof performance.now === "function"
@@ -496,6 +505,24 @@ export const usePreviewViewportSync = ({ onPreviewScrollFrame, previewFileId, pr
         resolveScrollVelocityTier,
         scheduleScrollVelocityIdleReset,
     ]);
+    const schedulePreviewScrollCommit = useCallback(() => {
+        if (typeof window === "undefined") {
+            commitPreviewScroll();
+            return;
+        }
+        if (previewScrollCommitRafRef.current)
+            return;
+        previewScrollCommitRafRef.current = requestAnimationFrame(() => {
+            commitPreviewScroll();
+        });
+    }, [commitPreviewScroll]);
+    const handlePreviewScroll = useCallback((scrollTop: any, scrollLeft: any) => {
+        pendingPreviewScrollRef.current = {
+            left: Math.max(0, Number(scrollLeft) || 0),
+            top: Math.max(0, Number(scrollTop) || 0),
+        };
+        schedulePreviewScrollCommit();
+    }, [schedulePreviewScrollCommit]);
     useEffect(() => {
         const el = previewScrollRef.current;
         if (!el)
@@ -574,6 +601,10 @@ export const usePreviewViewportSync = ({ onPreviewScrollFrame, previewFileId, pr
                 previewScrollVelocityResetTimerRef.current) {
                 window.clearTimeout(previewScrollVelocityResetTimerRef.current);
                 previewScrollVelocityResetTimerRef.current = 0;
+            }
+            if (previewScrollCommitRafRef.current) {
+                cancelAnimationFrame(previewScrollCommitRafRef.current);
+                previewScrollCommitRafRef.current = 0;
             }
         };
     }, []);
