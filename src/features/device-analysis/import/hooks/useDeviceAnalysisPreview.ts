@@ -9,7 +9,7 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from "react";
-import type { TranslateFn } from "../../../../context/language-context";
+import type { TranslateFn } from "../../../../context/language";
 import type { PreviewStatus } from "../../session/context/device-analysis-session-context";
 import {
   DA_PREVIEW_MAX_CACHED_FILES,

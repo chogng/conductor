@@ -11,7 +11,7 @@ import {
 import type { CSSProperties } from "react";
 import originIcon from "../../../../assets/icons/origin.svg";
 import Select from "../../../../components/ui/Select";
-import type { TranslateFn } from "../../../../context/language-context";
+import type { TranslateFn } from "../../../../context/language";
 
 type ActivePage = "data" | "analysis" | "settings" | string;
 type AnalysisFileOption = { value: string; label: string };

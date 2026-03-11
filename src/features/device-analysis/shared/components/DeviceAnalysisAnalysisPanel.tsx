@@ -1,7 +1,7 @@
 import { lazy, Suspense, type ComponentType } from "react";
 import { BarChart2 } from "lucide-react";
 import Card from "../../../../components/ui/Card";
-import type { TranslateFn } from "../../../../context/language-context";
+import type { TranslateFn } from "../../../../context/language";
 import type {
   SsIdWindow,
   SsManualRanges,

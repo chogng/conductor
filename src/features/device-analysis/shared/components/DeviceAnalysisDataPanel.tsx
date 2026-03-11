@@ -9,7 +9,7 @@ import {
 } from "react";
 import Card from "../../../../components/ui/Card";
 import Button from "../../../../components/ui/Button";
-import type { TranslateFn } from "../../../../context/language-context";
+import type { TranslateFn } from "../../../../context/language";
 import CsvImporter, {
   type CsvImporterProps,
   type CsvImporterRef,

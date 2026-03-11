@@ -8,7 +8,7 @@ import React, {
 import { Check, Copy, FileSpreadsheet } from "lucide-react";
 import Avatar from "../../../../components/ui/Avatar";
 import ScrollArea from "../../../../components/ui/ScrollArea";
-import type { TranslateFn } from "../../../../context/language-context";
+import type { TranslateFn } from "../../../../context/language";
 import type { PreviewStatus as SessionPreviewStatus } from "../../session/context/device-analysis-session-context";
 import type { PreviewFileLike } from "../../shared/lib/sharedTypes";
 import { formatNumber } from "../../analysis/lib/analysisMath";

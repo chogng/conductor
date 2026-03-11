@@ -1,8 +1,7 @@
 import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ThemeProvider } from "./context/ThemeContext";
-import { LanguageProvider } from "./context/LanguageContext";
-import { UiPrefsProvider } from "./context/UiPrefsContext";
+import { ThemeProvider } from "./context/theme-provider";
+import { LanguageProvider } from "./context/language-provider";
 
 const DeviceAnalysisApp = lazy(
   () => import("./features/device-analysis/app/DeviceAnalysisApp"),
@@ -34,7 +33,6 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <LanguageProvider>
-          <UiPrefsProvider>
             <div className="h-screen bg-bg-page overflow-hidden">
               <main className="h-full w-full overflow-hidden">
                 <Suspense
@@ -51,7 +49,6 @@ function App() {
                 </Suspense>
               </main>
             </div>
-          </UiPrefsProvider>
         </LanguageProvider>
       </ThemeProvider>
     </QueryClientProvider>

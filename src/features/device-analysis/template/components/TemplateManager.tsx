@@ -8,7 +8,7 @@ import React, {
 } from "react";
 import { Trash2, ArrowUp, ChevronDown, List, Save, Plus, Check } from "lucide-react";
 import { useLanguage } from "../../../../hooks/useLanguage";
-import type { TranslationVars } from "../../../../context/language-context";
+import type { TranslationVars } from "../../../../context/language";
 import Toast from "../../../../components/ui/Toast";
 import Input from "../../../../components/ui/Input";
 import Select from "../../../../components/ui/Select";
