@@ -16,6 +16,7 @@ import { getExcelColumnLabel } from "../lib/templateManagerPreview";
 import {
   computeNextPreviewCell,
   computePreviewPageRows,
+  getSelectionFocusCell,
   getSelectionModeFromPointerEvent,
   isPreviewNavigationKey,
   resolveSelectionDragStart,
@@ -130,6 +131,7 @@ type PreviewPlaceholderProps = {
 };
 
 type TemplateManagerPreviewPanelProps = {
+  activeCellRect?: DOMRect | Record<string, number> | null;
   copySelection?: () => Promise<void> | void;
   dragOverlayRef: React.MutableRefObject<HTMLDivElement | null>;
   getPreviewRow?: (rowIndex: number) => unknown;
@@ -1106,6 +1108,7 @@ const PreviewHeader = React.memo(
 PreviewHeader.displayName = "PreviewHeader";
 
 const TemplateManagerPreviewPanel = ({
+  activeCellRect,
   copySelection,
   dragOverlayRef,
   getPreviewRow,
@@ -1155,17 +1158,8 @@ const TemplateManagerPreviewPanel = ({
 
   const getCurrentSelectionCell = useCallback((): PreviewCellPosition | null => {
     const last = Array.isArray(selections) ? selections[selections.length - 1] : null;
-    const range = last?.range;
-    if (
-      range &&
-      Number.isFinite(range.endRow) &&
-      Number.isFinite(range.endCol)
-    ) {
-      return {
-        rowIndex: Math.max(0, Math.floor(Number(range.endRow) || 0)),
-        colIndex: Math.max(0, Math.floor(Number(range.endCol) || 0)),
-      };
-    }
+    const focusedCell = getSelectionFocusCell(last?.range);
+    if (focusedCell) return focusedCell;
     if (totalRows <= 0 || totalCols <= 0) return null;
     const firstVisibleCol = previewColumnGeometry.visibleColumnIndices[0] ?? 0;
     return {
@@ -1453,6 +1447,17 @@ const TemplateManagerPreviewPanel = ({
                   />
                 );
               })}
+              {activeCellRect ? (
+                <div
+                  className="absolute z-30 box-border border-2 border-accent shadow-[inset_0_0_0_1px_rgba(255,255,255,0.85)]"
+                  style={{
+                    left: activeCellRect.left,
+                    top: activeCellRect.top,
+                    width: activeCellRect.width,
+                    height: activeCellRect.height,
+                  }}
+                />
+              ) : null}
               {!useCanvasPreview ? (
                 <div
                   ref={dragOverlayRef}

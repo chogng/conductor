@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   computeNextPreviewCell,
   computePreviewPageRows,
+  getSelectionFocusCell,
   getSelectionModeFromPointerEvent,
   isPreviewNavigationKey,
   resolveSelectionDragStart,
@@ -99,4 +100,30 @@ test("computeNextPreviewCell clamps row/column bounds", () => {
     }),
     { rowIndex: 5, colIndex: 3 },
   );
+});
+
+test("getSelectionFocusCell returns the normalized range end cell", () => {
+  assert.deepEqual(
+    getSelectionFocusCell({
+      startRow: 3,
+      endRow: 9,
+      startCol: 2,
+      endCol: 6,
+    }),
+    { rowIndex: 9, colIndex: 6 },
+  );
+});
+
+test("getSelectionFocusCell clamps negatives and rejects invalid ranges", () => {
+  assert.deepEqual(
+    getSelectionFocusCell({
+      startRow: 0,
+      endRow: -4,
+      startCol: 0,
+      endCol: -2,
+    }),
+    { rowIndex: 0, colIndex: 0 },
+  );
+  assert.equal(getSelectionFocusCell(null), null);
+  assert.equal(getSelectionFocusCell({ endRow: "x", endCol: 3 }), null);
 });

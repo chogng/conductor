@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, } from "react";
-import { getSelectionModeFromPointerEvent, resolveSelectionDragStart, } from "./previewSelectionNavigation";
+import { getSelectionFocusCell, getSelectionModeFromPointerEvent, resolveSelectionDragStart, } from "./previewSelectionNavigation";
 const clampNumber = (value: any, min: any, max: any) => Math.min(max, Math.max(min, value));
-const sameRect = (a: any, b: any) => a &&
-    b &&
-    a.left === b.left &&
-    a.top === b.top &&
-    a.width === b.width &&
-    a.height === b.height;
+const sameRect = (a: any, b: any) => (!a && !b) ||
+    Boolean(a &&
+        b &&
+        a.left === b.left &&
+        a.top === b.top &&
+        a.width === b.width &&
+        a.height === b.height);
 const scheduleMicrotask = typeof queueMicrotask === "function"
     ? queueMicrotask
     : (callback: any) => Promise.resolve().then(callback);
@@ -1036,6 +1037,7 @@ export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewR
 };
 export const usePreviewSelectionOverlay = ({ dragOverlayRef, gridRef, previewColumnGeometry, previewFileId, previewTableRef, previewWindow, rowHeightPx, rowIndexWidthPx, selections, }: any) => {
     const [selectionRects, setSelectionRects] = useState<any[]>([]);
+    const [activeCellRect, setActiveCellRect] = useState<any>(null);
     const hideDragOverlay = useCallback(() => {
         const overlay = dragOverlayRef.current;
         if (!overlay)
@@ -1121,6 +1123,16 @@ export const usePreviewSelectionOverlay = ({ dragOverlayRef, gridRef, previewCol
                 continue;
             next.push({ id: selection.id, rect });
         }
+        const lastSelection = Array.isArray(selections) ? selections[selections.length - 1] : null;
+        const focusCell = getSelectionFocusCell(lastSelection?.range);
+        const nextActiveCellRect = focusCell
+            ? getRectFromRange({
+                startRow: focusCell.rowIndex,
+                endRow: focusCell.rowIndex,
+                startCol: focusCell.colIndex,
+                endCol: focusCell.colIndex,
+            })
+            : null;
         let cancelled = false;
         scheduleMicrotask(() => {
             if (cancelled)
@@ -1136,6 +1148,7 @@ export const usePreviewSelectionOverlay = ({ dragOverlayRef, gridRef, previewCol
                 }
                 return prev;
             });
+            setActiveCellRect((prev: any) => (sameRect(prev, nextActiveCellRect) ? prev : nextActiveCellRect));
         });
         return () => {
             cancelled = true;
@@ -1160,6 +1173,7 @@ export const usePreviewSelectionOverlay = ({ dragOverlayRef, gridRef, previewCol
         overlay.style.height = `${rect.height}px`;
     }, [dragOverlayRef, getRectFromCells]);
     return {
+        activeCellRect,
         selectionRects,
         hideDragOverlay,
         renderDragOverlay,

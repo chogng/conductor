@@ -159,6 +159,7 @@ const TemplateManager = ({
   }, [showToast, t, varPairValidation.ok, varPairValidation.message]);
 
   const {
+    activeCellRect,
     containerRef,
     copySelection,
     dragOverlayRef,
@@ -915,6 +916,7 @@ const TemplateManager = ({
 
           {/* Preview Panel */}
           <TemplateManagerPreviewPanel
+            activeCellRect={activeCellRect}
             copySelection={copySelection}
             dragOverlayRef={dragOverlayRef}
             getPreviewRow={getPreviewRow}

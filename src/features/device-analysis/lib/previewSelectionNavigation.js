@@ -10,6 +10,17 @@ const hasCell = (cell) =>
       Number.isFinite(Number(cell.colIndex)),
   );
 
+export const getSelectionFocusCell = (range) => {
+  if (!range) return null;
+  const rowIndex = Math.floor(Number(range.endRow));
+  const colIndex = Math.floor(Number(range.endCol));
+  if (!Number.isFinite(rowIndex) || !Number.isFinite(colIndex)) return null;
+  return {
+    rowIndex: Math.max(0, rowIndex),
+    colIndex: Math.max(0, colIndex),
+  };
+};
+
 export const getSelectionModeFromPointerEvent = ({ ctrlKey, metaKey } = {}) =>
   ctrlKey || metaKey ? "append" : "replace";
 

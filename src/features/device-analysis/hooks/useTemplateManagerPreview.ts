@@ -515,7 +515,7 @@ export const useTemplateManagerPreview = ({
     [setConfig],
   );
 
-  const { selectionRects, hideDragOverlay, renderDragOverlay } =
+  const { activeCellRect, selectionRects, hideDragOverlay, renderDragOverlay } =
     usePreviewSelectionOverlay({
       dragOverlayRef,
       gridRef,
@@ -527,6 +527,7 @@ export const useTemplateManagerPreview = ({
       rowIndexWidthPx: PREVIEW_ROW_INDEX_COL_PX,
       selections,
     }) as {
+      activeCellRect: DOMRect | Record<string, number> | null;
       selectionRects: Array<{ id: string; rect: DOMRect | Record<string, number> }>;
       hideDragOverlay: () => void;
       renderDragOverlay: (startCellEl: Element, endCellEl: Element) => void;
@@ -551,6 +552,7 @@ export const useTemplateManagerPreview = ({
     };
 
   return {
+    activeCellRect,
     containerRef,
     copySelection,
     dragOverlayRef,
