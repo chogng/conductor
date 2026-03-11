@@ -5,37 +5,65 @@ type ThemeProviderProps = {
   children: ReactNode;
 };
 
+let darkThemeStylePromise: Promise<unknown> | null = null;
+
+const ensureDarkThemeStyles = () => {
+  if (!darkThemeStylePromise) {
+    darkThemeStylePromise = import('../styles/variables-dark.css');
+  }
+
+  return darkThemeStylePromise;
+};
+
 export const ThemeProvider = ({ children }: ThemeProviderProps) => {
   const [theme, setTheme] = useState<ThemeMode>('system');
 
   useEffect(() => {
     const root = window.document.documentElement;
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    let cancelled = false;
 
     const removeOldTheme = () => {
       root.classList.remove('dark');
       root.classList.remove('light');
     };
 
-    const applyTheme = (nextTheme: ThemeMode) => {
-      removeOldTheme();
+    const resolveTheme = (nextTheme: ThemeMode): Exclude<ThemeMode, 'system'> => {
       if (nextTheme === 'system') {
-        const systemTheme = mediaQuery.matches ? 'dark' : 'light';
-        root.classList.add(systemTheme);
-        return;
+        return mediaQuery.matches ? 'dark' : 'light';
       }
 
-      root.classList.add(nextTheme);
+      return nextTheme;
     };
 
-    applyTheme(theme);
+    const applyTheme = async (nextTheme: ThemeMode) => {
+      const resolvedTheme = resolveTheme(nextTheme);
 
-    if (theme !== 'system') return undefined;
+      if (resolvedTheme === 'dark') {
+        await ensureDarkThemeStyles();
+      }
 
-    const handleChange = () => applyTheme('system');
+      if (cancelled) return;
+
+      removeOldTheme();
+      root.classList.add(resolvedTheme);
+    };
+
+    void applyTheme(theme);
+
+    if (theme !== 'system') {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const handleChange = () => {
+      void applyTheme('system');
+    };
     mediaQuery.addEventListener('change', handleChange);
 
     return () => {
+      cancelled = true;
       mediaQuery.removeEventListener('change', handleChange);
     };
   }, [theme]);
