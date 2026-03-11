@@ -1,0 +1,396 @@
+import React, {
+  startTransition,
+  useCallback,
+  useOptimistic,
+  useRef,
+  useState,
+  useImperativeHandle,
+  forwardRef,
+  useEffect,
+} from "react";
+import { Upload, FileText, X, AlertCircle } from "lucide-react";
+import { cx } from "../../../../utils/cx";
+import { useLanguage } from "../../../../hooks/useLanguage";
+import Avatar from "../../../../components/ui/Avatar";
+import ScrollArea from "../../../../components/ui/ScrollArea";
+import { useCsvImporterVirtualization } from "../hooks/useCsvImporterVirtualization";
+import { collectDroppedCsvFiles } from "../lib/csvDropTraversal";
+import {
+  buildItemKey,
+  createCsvImporterFileId,
+  filterUniqueCsvFiles,
+  toDomIdToken,
+} from "../lib/csvImportUtils";
+import styles from "./CsvImporter.module.css";
+
+export type CsvImporterFileEntry = {
+  file?: unknown;
+  fileId?: string;
+  fileName?: string;
+  itemKey?: string;
+};
+
+type CsvFileEntry = CsvImporterFileEntry & {
+  fileId: string;
+  file: File;
+  itemKey: string;
+};
+
+export type CsvImporterRef = {
+  openFileDialog: () => void;
+  hasFiles: boolean;
+};
+
+type ImportedFileInfo = {
+  fileId: string;
+  fileName: string;
+  file: File;
+  size: number;
+  lastModified: number;
+};
+
+export type CsvImporterProps = {
+  files?: CsvImporterFileEntry[];
+  onDataImported?: (fileInfo: ImportedFileInfo) => void;
+  onDataRemoved?: (fileId: string) => void;
+  onFileSelected?: (fileId: string | null) => void;
+  selectedFileId?: string | null;
+};
+
+type CsvFileItemProps = {
+  fileEntry: CsvImporterFileEntry;
+  isSelected: boolean;
+  onSelect?: (fileId: string | null) => void;
+  onRemove?: (fileId: string | null) => void;
+};
+
+const CsvFileItem = React.memo(
+  ({
+    fileEntry,
+    isSelected,
+    onSelect,
+    onRemove,
+  }: CsvFileItemProps) => {
+    const fileName =
+      fileEntry?.file && typeof fileEntry.file === "object" && "name" in fileEntry.file
+        ? String(fileEntry.file.name ?? "")
+        : String(fileEntry?.fileName ?? "");
+
+    return (
+      <div
+        aria-label="csv-file-item"
+        id={
+          fileEntry?.itemKey
+            ? `csv-file-item-${toDomIdToken(fileEntry.itemKey)}`
+            : undefined
+        }
+        data-item-key={fileEntry?.itemKey || undefined}
+        data-selected={isSelected ? "true" : undefined}
+        title={fileName}
+        onClick={() => onSelect?.(fileEntry?.fileId ?? null)}
+        className={cx(
+          styles.fileItem,
+          "group",
+          isSelected && styles.fileItemSelected,
+        )}
+      >
+        <div className={styles.fileContent}>
+          <div className={styles.fileIcon}>
+            <FileText size={16} />
+          </div>
+          <span className={styles.fileName}>{fileName}</span>
+        </div>
+        <button
+          type="button"
+          aria-label="Remove CSV file"
+          id={
+            fileEntry?.itemKey
+              ? `csv-file-remove-${toDomIdToken(fileEntry.itemKey)}`
+              : undefined
+          }
+          data-item-key={fileEntry?.itemKey || undefined}
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove?.(fileEntry.fileId ?? null);
+          }}
+          className={styles.fileRemove}
+        >
+          <X size={16} />
+        </button>
+      </div>
+    );
+  },
+);
+
+CsvFileItem.displayName = "CsvFileItem";
+
+const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
+  (
+    {
+      files: externalFiles,
+      onDataImported,
+      onDataRemoved,
+      onFileSelected,
+      selectedFileId,
+    },
+    ref,
+  ) => {
+    const { t } = useLanguage();
+
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
+    const [isDragging, setIsDragging] = useState(false);
+    const isControlled = Array.isArray(externalFiles);
+    const [internalFiles, setInternalFiles] = useState<CsvFileEntry[]>([]);
+    const files = (isControlled ? externalFiles : internalFiles) ?? [];
+    const setFiles = isControlled ? null : setInternalFiles;
+    const [error, setError] = useState<string | null>(null);
+
+    const containerRef = useRef<HTMLDivElement | null>(null);
+
+    const [optimisticSelectedFileId, setOptimisticSelectedFileId] =
+      useOptimistic<string | null>(selectedFileId ?? null);
+
+    const effectiveSelectedFileId = optimisticSelectedFileId ?? selectedFileId;
+
+    const setEffectiveSelectedFileId = useCallback(
+      (next: string | null) => {
+        setOptimisticSelectedFileId(next);
+        if (!onFileSelected) return;
+        startTransition(() => {
+          onFileSelected(next);
+        });
+      },
+      [onFileSelected, setOptimisticSelectedFileId],
+    );
+
+    useImperativeHandle(
+      ref,
+      () => ({
+        openFileDialog: () => {
+          setError(null);
+          if (fileInputRef.current) {
+            fileInputRef.current.click();
+          }
+        },
+        hasFiles: files.length > 0,
+      }),
+      [files],
+    );
+
+    useEffect(() => {
+      if (containerRef.current) {
+        containerRef.current.scrollTo({
+          top: containerRef.current.scrollHeight,
+          behavior: "smooth",
+        });
+      }
+    }, [files]);
+
+    const virtual = useCsvImporterVirtualization({
+      containerRef,
+      files,
+    });
+
+    const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+      const selectedFiles = Array.from(event.target.files ?? []);
+      processFiles(selectedFiles);
+      // Reset input value to allow selecting same files again if needed
+      event.target.value = "";
+    };
+
+    const processFiles = (newFiles: File[]) => {
+      setError(null);
+      const uniqueFiles = filterUniqueCsvFiles(files, newFiles);
+
+      if (uniqueFiles.length === 0 && newFiles.length > 0) {
+        return;
+      }
+
+      uniqueFiles.forEach((file) => {
+        if (!file.name.toLowerCase().endsWith(".csv")) return;
+
+        const fileId = createCsvImporterFileId();
+        const fileEntry = { fileId, file, itemKey: buildItemKey(file) };
+
+        if (setFiles) {
+          setFiles((prev) => {
+            if (
+              prev.some(
+                (existing) =>
+                  existing.file.name === file.name &&
+                  existing.file.size === file.size,
+              )
+            ) {
+              return prev;
+            }
+            return [...prev, fileEntry];
+          });
+        }
+
+        onDataImported?.({
+          fileId,
+          fileName: file.name,
+          file,
+          size: file.size,
+          lastModified: file.lastModified,
+        });
+      });
+    };
+
+    const handleSelectFile = useCallback(
+      (fileId: string | null) => {
+        const next = typeof fileId === "string" ? fileId : null;
+        if (!next) return;
+        setEffectiveSelectedFileId(next);
+      },
+      [setEffectiveSelectedFileId],
+    );
+
+    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      setIsDragging(true);
+    };
+
+    const handleDragLeave = () => {
+      setIsDragging(false);
+    };
+
+    const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      setIsDragging(false);
+      const csvFiles = await collectDroppedCsvFiles(e.dataTransfer);
+
+      if (csvFiles.length === 0) {
+        setError("No CSV files found in the dropped items.");
+      } else {
+        processFiles(csvFiles);
+      }
+    };
+
+    const removeFile = useCallback((fileId: string | null) => {
+      if (typeof fileId !== "string") return;
+      if (optimisticSelectedFileId === fileId) {
+        setEffectiveSelectedFileId(null);
+      }
+      if (setFiles) {
+        setFiles((prev) => prev.filter((entry) => entry.fileId !== fileId));
+      }
+      // Notify parent to remove data
+      if (onDataRemoved) {
+        onDataRemoved(fileId);
+      }
+    }, [
+      onDataRemoved,
+      optimisticSelectedFileId,
+      setEffectiveSelectedFileId,
+      setFiles,
+    ]);
+
+    return (
+      <>
+        <ScrollArea
+          ref={containerRef}
+          axis="y"
+          id="device-analysis-csv-dropzone"
+          aria-label={t("da_import_section")}
+          data-state={files.length === 0 ? "empty" : "filled"}
+          className={cx(
+            styles.dropzone,
+            isDragging ? styles.dropzoneDragging : styles.dropzoneIdle,
+          )}
+          viewportClassName={styles.dropzoneViewport}
+          viewportProps={{
+            onDragOver: handleDragOver,
+            onDragLeave: handleDragLeave,
+            onDrop: handleDrop,
+          }}
+          onClick={
+            files.length === 0 ? () => fileInputRef.current?.click() : undefined
+          }
+        >
+          <input
+            id="device-analysis-csv-file-input"
+            type="file"
+            multiple
+            accept=".csv"
+            className="hidden"
+            aria-label={t("da_import_csv")}
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            onClick={(e) => e.stopPropagation()}
+          />
+
+          {files.length === 0 ? (
+            <div
+              id="device-analysis-csv-empty"
+              data-slot="empty"
+              className={styles.empty}
+            >
+              <Avatar icon={Upload} size="lg" variant="empty" />
+              <p className={styles.emptySubtitle}>
+                {t("da_csv_empty_subtitle_prefix")}{" "}
+                <span className={styles.emptyBrowse}>
+                  {t("da_csv_empty_browse")}
+                </span>
+              </p>
+            </div>
+          ) : (
+            <div
+              id="device-analysis-import-scroll"
+              data-slot="filled"
+              className="w-full min-h-full flex flex-col p-3"
+            >
+              {virtual.enabled ? (
+                <div className={styles.virtualStage} style={virtual.stageStyle}>
+                  <div
+                    className={styles.fileGrid}
+                    style={{
+                      ...virtual.gridStyle,
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                    }}
+                  >
+                    {virtual.visibleFiles.map((fileEntry) => (
+                      <CsvFileItem
+                        key={fileEntry.fileId}
+                        fileEntry={fileEntry}
+                        isSelected={effectiveSelectedFileId === fileEntry.fileId}
+                        onSelect={handleSelectFile}
+                        onRemove={removeFile}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className={styles.fileGrid}>
+                  {virtual.visibleFiles.map((fileEntry) => (
+                    <CsvFileItem
+                      key={fileEntry.fileId}
+                      fileEntry={fileEntry}
+                      isSelected={effectiveSelectedFileId === fileEntry.fileId}
+                      onSelect={handleSelectFile}
+                      onRemove={removeFile}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </ScrollArea>
+
+        {error && (
+          <div className="flex items-center gap-2 p-3 text-sm text-red-500 bg-red-500/10 rounded-lg mt-4 whitespace-pre-wrap">
+            <AlertCircle size={16} />
+            {error}
+          </div>
+        )}
+      </>
+    );
+  },
+);
+
+CsvImporter.displayName = "CsvImporter";
+
+export default CsvImporter;

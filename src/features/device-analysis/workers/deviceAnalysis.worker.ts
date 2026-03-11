@@ -1,5 +1,5 @@
 import Papa from "papaparse";
-import { normalizeDeviceAnalysisYUnit } from "../lib/deviceAnalysisUnits";
+import { normalizeDeviceAnalysisYUnit } from "../analysis/lib/deviceAnalysisUnits";
 
 const DEFAULT_MAX_POINTS = 600;
 const PREVIEW_ROW_CACHE_CHUNK_DEFAULT = 200;

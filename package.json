@@ -14,7 +14,7 @@
     "build:web:desktop": "vite build --base ./",
     "build": "vite build",
     "lint": "eslint .",
-    "test:preview": "node --test --test-isolation=none src/features/device-analysis/lib/previewRowChunk.test.mjs src/features/device-analysis/lib/previewSelectionNavigation.test.mjs",
+    "test:preview": "node --test --test-isolation=none src/features/device-analysis/import/lib/previewRowChunk.test.mjs src/features/device-analysis/import/lib/previewSelectionNavigation.test.mjs",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.desktop.json --noEmit && tsc -p tsconfig.scripts.json --noEmit",
     "preview": "vite preview",
     "build:desktop": "node scripts/build-desktop.mjs",

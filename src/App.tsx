@@ -5,7 +5,7 @@ import { LanguageProvider } from "./context/LanguageContext";
 import { UiPrefsProvider } from "./context/UiPrefsContext";
 
 const DeviceAnalysisApp = lazy(
-  () => import("./features/device-analysis/DeviceAnalysisApp"),
+  () => import("./features/device-analysis/app/DeviceAnalysisApp"),
 );
 
 const isUnauthorizedError = (error: unknown) => {
