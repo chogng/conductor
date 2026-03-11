@@ -36,7 +36,7 @@ server/.tmp/
 *.njsproj
 *.sln
 *.sw?
-
+.claude
 
 
 # Local debug snippets
