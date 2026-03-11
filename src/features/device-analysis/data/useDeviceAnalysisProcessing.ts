@@ -7,17 +7,17 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from "react";
-import { prepareDeviceAnalysisExtraction } from "../lib/deviceAnalysisExtractionValidation";
+import { prepareDeviceAnalysisExtraction } from "../shared/lib/deviceAnalysisExtractionValidation";
 import {
   parseLegacyExtractionError,
   stableStringify,
-} from "../lib/deviceAnalysisUtils";
+} from "../shared/lib/deviceAnalysisUtils";
 import type {
   ProcessedEntry,
   ProcessingStatus,
   RawDataEntry,
-} from "../lib/sharedTypes";
-import type { LooseTranslateFn as TranslateFn } from "../lib/translateTypes";
+} from "../shared/lib/sharedTypes";
+import type { LooseTranslateFn as TranslateFn } from "../shared/lib/translateTypes";
 
 type ExtractionErrorEntry = {
   fileName?: string;

@@ -1,15 +1,15 @@
 import { lazy, Suspense, type ComponentType } from "react";
 import { BarChart2 } from "lucide-react";
-import Card from "../../../../components/ui/Card";
-import type { TranslateFn } from "../../../../context/language";
+import Card from "../../../components/ui/Card";
+import type { TranslateFn } from "../../../context/language";
 import type {
   SsIdWindow,
   SsManualRanges,
   SsMethod,
-} from "../../session/context/device-analysis-session-context";
-import type { OriginPlotOptions } from "../../analysis/lib/originPlotOptions";
-import type { ProcessedEntry, ProcessingStatus } from "../lib/sharedTypes";
-import { loadAnalysisCharts } from "../../analysis/loadAnalysisCharts";
+} from "../session/device-analysis-session-context";
+import type { OriginPlotOptions } from "./lib/originPlotOptions";
+import type { ProcessedEntry, ProcessingStatus } from "../shared/lib/sharedTypes";
+import { loadAnalysisCharts } from "./loadAnalysisCharts";
 
 type AnalysisChartsLazyProps = {
   processedData: ProcessedEntry[];

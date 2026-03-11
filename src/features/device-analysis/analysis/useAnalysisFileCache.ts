@@ -3,8 +3,8 @@ import {
   computeCentralDerivative,
   computeSubthresholdSwing,
   computeSubthresholdSwingFitAuto,
-} from "../lib/analysisMath";
-import { buildPoints } from "../lib/analysisChartsUtils";
+} from "./lib/analysisMath";
+import { buildPoints } from "./lib/analysisChartsUtils";
 
 type CachePrefetchHandle =
   | {

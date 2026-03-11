@@ -4,23 +4,23 @@ import {
   useRef,
   useState,
 } from "react";
-import type { PreviewStatus as SessionPreviewStatus } from "../../session/context/device-analysis-session-context";
+import type { PreviewStatus as SessionPreviewStatus } from "../../session/device-analysis-session-context";
 import type { PreviewFileLike } from "../../shared/lib/sharedTypes";
 import type { LooseTranslateFn as TranslateFn } from "../../shared/lib/translateTypes";
 import { apiService } from "../../analysis/services/apiService";
-import { useDeviceAnalysisSession } from "../../session/hooks/useDeviceAnalysisSession";
+import { useDeviceAnalysisSession } from "../../session/useDeviceAnalysisSession";
 import {
   cloneTemplateConfig,
   createEmptyTemplateConfig,
   normalizeXDataEndValue,
   toTemplateNameKey,
   type TemplateConfig,
-} from "../lib/templateManagerUtils";
+} from "./templateManagerUtils";
 import { normalizeDeviceAnalysisYUnit } from "../../analysis/lib/deviceAnalysisUnits";
 import {
   validateTemplateForApply,
   validateTemplateForSave,
-} from "../lib/templateValidation";
+} from "./templateValidation";
 
 type TemplateMode = "select" | "save";
 type InputSource = "manual" | "picked";

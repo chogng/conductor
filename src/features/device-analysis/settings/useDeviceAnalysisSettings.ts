@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { LanguageCode } from "../../../../context/language";
-import type { ThemeMode } from "../../../../context/theme";
-import { formatOriginBridgeError } from "../../analysis/lib/originBridgeError";
-import type { SsMethod } from "../../session/context/device-analysis-session-context";
-import { apiService } from "../../analysis/services/apiService";
+import type { LanguageCode } from "../../../context/language";
+import type { ThemeMode } from "../../../context/theme";
+import { formatOriginBridgeError } from "../analysis/lib/originBridgeError";
+import type { SsMethod } from "../session/device-analysis-session-context";
+import { apiService } from "../analysis/services/apiService";
 import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
   normalizeOriginPlotOptions,
   normalizeOriginPostCommands,
   originPostCommandsToMultiline,
-} from "../../analysis/lib/originPlotOptions";
-import type { Feedback } from "../lib/sharedTypes";
-import type { LooseTranslateFn as TranslateFn } from "../lib/translateTypes";
+} from "../analysis/lib/originPlotOptions";
+import type { Feedback } from "../shared/lib/sharedTypes";
+import type { LooseTranslateFn as TranslateFn } from "../shared/lib/translateTypes";
 
 type DeviceAnalysisSettings = {
   language?: LanguageCode;

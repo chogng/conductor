@@ -4,10 +4,10 @@ import type {
   SsIdWindow,
   SsManualRanges,
   SsMethod,
-} from "../../session/context/device-analysis-session-context";
-import type { ProcessedEntry } from "../../shared/lib/sharedTypes";
+} from "../session/device-analysis-session-context";
+import type { ProcessedEntry } from "../shared/lib/sharedTypes";
 
-type DeviceAnalysisExportModule = typeof import("../lib/deviceAnalysisExport");
+type DeviceAnalysisExportModule = typeof import("./lib/deviceAnalysisExport");
 
 type UseDeviceAnalysisExportsOptions = {
   processedData?: ProcessedEntry[];
@@ -37,7 +37,7 @@ export const useDeviceAnalysisExports = ({
   const loadExportDependencies = useCallback(async () => {
     const [jsZipModule, exportModule] = await Promise.all([
       import("jszip") as Promise<{ default: typeof JSZip }>,
-      import("../lib/deviceAnalysisExport"),
+      import("./lib/deviceAnalysisExport"),
     ]);
 
     return {

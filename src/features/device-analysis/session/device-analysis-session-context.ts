@@ -9,7 +9,7 @@ import type {
   PreviewRowsRequest,
   ProcessedEntry,
   RawDataEntry,
-} from "../../shared/lib/sharedTypes";
+} from "../shared/lib/sharedTypes";
 
 export type TemplateMode = "select" | "save";
 export type PreviewStatusState = "idle" | "loading" | "ready" | "error";

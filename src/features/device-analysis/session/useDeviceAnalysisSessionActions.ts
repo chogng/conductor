@@ -4,12 +4,12 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import type { SsManualRanges } from "../context/device-analysis-session-context";
+import type { SsManualRanges } from "./device-analysis-session-context";
 import type {
   ProcessedEntry,
   ProcessingStatus,
   RawDataEntry,
-} from "../../shared/lib/sharedTypes";
+} from "../shared/lib/sharedTypes";
 
 type UseDeviceAnalysisSessionActionsOptions = {
   clearPreviewState: (options?: { clearSelection?: boolean }) => void;

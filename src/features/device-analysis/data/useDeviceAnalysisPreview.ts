@@ -9,18 +9,18 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from "react";
-import type { TranslateFn } from "../../../../context/language";
-import type { PreviewStatus } from "../../session/context/device-analysis-session-context";
+import type { TranslateFn } from "../../../context/language";
+import type { PreviewStatus } from "../session/device-analysis-session-context";
 import {
   DA_PREVIEW_MAX_CACHED_FILES,
   DA_PREVIEW_MAX_CACHED_UI_ROWS_PER_FILE,
   DA_PREVIEW_UI_CHUNK_SIZE_ROWS,
-} from "../lib/deviceAnalysisPreviewLimits";
+} from "./preview/deviceAnalysisPreviewLimits";
 import type {
   PreviewFile,
   PreviewRowsRequest,
   RawDataEntry,
-} from "../../shared/lib/sharedTypes";
+} from "../shared/lib/sharedTypes";
 import {
   collectMissingChunkRanges,
   clearChunkRows,
@@ -28,7 +28,7 @@ import {
   isPreviewRowsResultForRequest,
   mergeChunkRangeRows,
   sanitizePreviewRows,
-} from "../lib/previewRowChunk";
+} from "./preview/previewRowChunk";
 import { usePreviewRowsVersion } from "./usePreviewRowsVersion";
 
 type PreviewResultPayload = {

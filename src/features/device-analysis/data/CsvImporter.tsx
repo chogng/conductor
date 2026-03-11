@@ -9,18 +9,18 @@ import React, {
   useEffect,
 } from "react";
 import { Upload, FileText, X, AlertCircle } from "lucide-react";
-import { cx } from "../../../../utils/cx";
-import { useLanguage } from "../../../../hooks/useLanguage";
-import Avatar from "../../../../components/ui/Avatar";
-import ScrollArea from "../../../../components/ui/ScrollArea";
-import { useCsvImporterVirtualization } from "../hooks/useCsvImporterVirtualization";
-import { collectDroppedCsvFiles } from "../lib/csvDropTraversal";
+import { cx } from "../../../utils/cx";
+import { useLanguage } from "../../../hooks/useLanguage";
+import Avatar from "../../../components/ui/Avatar";
+import ScrollArea from "../../../components/ui/ScrollArea";
+import { useCsvImporterVirtualization } from "./useCsvImporterVirtualization";
+import { collectDroppedCsvFiles } from "./preview/csvDropTraversal";
 import {
   buildItemKey,
   createCsvImporterFileId,
   filterUniqueCsvFiles,
   toDomIdToken,
-} from "../lib/csvImportUtils";
+} from "./preview/csvImportUtils";
 import styles from "./CsvImporter.module.css";
 
 export type CsvImporterFileEntry = {

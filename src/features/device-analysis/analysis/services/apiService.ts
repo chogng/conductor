@@ -1,7 +1,7 @@
 import {
   requestDeviceAnalysisDesktopStore,
   DEVICE_ANALYSIS_DESKTOP_STORE_UNAVAILABLE,
-} from "../../session/services/deviceAnalysisDesktopStore";
+} from "../../desktop/deviceAnalysisDesktopStore";
 import { requestApi } from "../../../../services/httpClient";
 
 const isDesktopStoreUnavailableError = (error: unknown): boolean =>

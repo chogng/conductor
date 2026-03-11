@@ -18,17 +18,17 @@ import Button from "../../../../components/ui/Button";
 import Modal from "../../../../components/ui/Modal";
 import DropdownMenu from "../../../../components/ui/DropdownMenu";
 import ScrollArea from "../../../../components/ui/ScrollArea";
-import { validateVarPair } from "../lib/templateValidation";
-import { getExcelColumnLabel } from "../lib/templateManagerPreview";
+import { validateVarPair } from "./templateValidation";
+import { getExcelColumnLabel } from "./templateManagerPreview";
 import TemplateManagerPreviewPanel from "./TemplateManagerPreviewPanel";
-import { useTemplateManagerPreview } from "../hooks/useTemplateManagerPreview";
-import { useTemplateManagerState } from "../hooks/useTemplateManagerState";
+import { useTemplateManagerPreview } from "./useTemplateManagerPreview";
+import { useTemplateManagerState } from "./useTemplateManagerState";
 import {
   normalizeXDataEndValue,
   type TemplateConfig,
-} from "../lib/templateManagerUtils";
+} from "./templateManagerUtils";
 import { DEVICE_ANALYSIS_Y_UNIT_VALUES } from "../../analysis/lib/deviceAnalysisUnits";
-import type { PreviewStatus as SessionPreviewStatus } from "../../session/context/device-analysis-session-context";
+import type { PreviewStatus as SessionPreviewStatus } from "../../session/device-analysis-session-context";
 import type { PreviewFileLike, ToastType } from "../../shared/lib/sharedTypes";
 
 export type TemplateManagerProps = {

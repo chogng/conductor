@@ -7,9 +7,9 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import type { PreviewStatus as SessionPreviewStatus } from "../../session/context/device-analysis-session-context";
+import type { PreviewStatus as SessionPreviewStatus } from "../../session/device-analysis-session-context";
 import type { PreviewFileLike } from "../../shared/lib/sharedTypes";
-import type { TemplateConfig } from "../lib/templateManagerUtils";
+import type { TemplateConfig } from "./templateManagerUtils";
 import {
   buildPreviewPrefetchRange,
   createEmptyLiveColumnLayout,
@@ -19,7 +19,7 @@ import {
   usePreviewSelectionInteractions,
   usePreviewSelectionOverlay,
   usePreviewViewportSync,
-} from "../lib/templateManagerPreview";
+} from "./templateManagerPreview";
 
 const PREVIEW_ROW_HEIGHT_PX = 28;
 const PREVIEW_OVERSCAN_ROWS = 12;

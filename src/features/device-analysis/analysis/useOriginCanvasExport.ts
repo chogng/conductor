@@ -8,10 +8,22 @@ import {
 } from "react";
 import Papa from "papaparse";
 import JSZip from "jszip";
-import { buildDeviceAnalysisOriginOgsScript, DEVICE_ANALYSIS_ORIGIN_README, triggerDeviceAnalysisBlobDownload, } from "../lib/deviceAnalysisExport";
-import { buildOriginXAxisRangeCommandsFromDisplayRange, buildOriginYAxisRangeCommands, buildOriginYAxisRangeCommandsFromDisplayRange, resolveOriginLogPositiveMinForRange, } from "../lib/originAxisCommands";
-import { formatOriginBridgeError } from "../lib/originBridgeError";
-import { DEFAULT_ORIGIN_PLOT_OPTIONS, normalizeOriginPlotOptions, } from "../lib/originPlotOptions";
+import {
+  buildDeviceAnalysisOriginOgsScript,
+  DEVICE_ANALYSIS_ORIGIN_README,
+  triggerDeviceAnalysisBlobDownload,
+} from "./lib/deviceAnalysisExport";
+import {
+  buildOriginXAxisRangeCommandsFromDisplayRange,
+  buildOriginYAxisRangeCommands,
+  buildOriginYAxisRangeCommandsFromDisplayRange,
+  resolveOriginLogPositiveMinForRange,
+} from "./lib/originAxisCommands";
+import { formatOriginBridgeError } from "./lib/originBridgeError";
+import {
+  DEFAULT_ORIGIN_PLOT_OPTIONS,
+  normalizeOriginPlotOptions,
+} from "./lib/originPlotOptions";
 
 const ORIGIN_CSV_AUTO_ZIP_FALLBACK_CODES = new Set([
   "ORIGIN_ORIGINPRO_IMPORT_FAILED",

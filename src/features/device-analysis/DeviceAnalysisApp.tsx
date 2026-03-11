@@ -1,4 +1,4 @@
-import { DeviceAnalysisSessionProvider } from "../session/context/DeviceAnalysisSessionContext";
+import { DeviceAnalysisSessionProvider } from "./session/DeviceAnalysisSessionProvider";
 import DeviceAnalysisPage from "./DeviceAnalysisPage";
 
 const DeviceAnalysisApp = () => {

@@ -9,10 +9,10 @@ import { Check, Copy, FileSpreadsheet } from "lucide-react";
 import Avatar from "../../../../components/ui/Avatar";
 import ScrollArea from "../../../../components/ui/ScrollArea";
 import type { TranslateFn } from "../../../../context/language";
-import type { PreviewStatus as SessionPreviewStatus } from "../../session/context/device-analysis-session-context";
+import type { PreviewStatus as SessionPreviewStatus } from "../../session/device-analysis-session-context";
 import type { PreviewFileLike } from "../../shared/lib/sharedTypes";
 import { formatNumber } from "../../analysis/lib/analysisMath";
-import { getExcelColumnLabel } from "../lib/templateManagerPreview";
+import { getExcelColumnLabel } from "./templateManagerPreview";
 import {
   computeNextPreviewCell,
   computePreviewPageRows,
@@ -20,7 +20,7 @@ import {
   getSelectionModeFromPointerEvent,
   isPreviewNavigationKey,
   resolveSelectionDragStart,
-} from "../../import/lib/previewSelectionNavigation";
+} from "../preview/previewSelectionNavigation";
 
 type PreviewStatus = Partial<SessionPreviewStatus>;
 

@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, } from "react";
-import { getSelectionFocusCell, getSelectionModeFromPointerEvent, resolveSelectionDragStart, } from "../../import/lib/previewSelectionNavigation";
+import {
+  getSelectionFocusCell,
+  getSelectionModeFromPointerEvent,
+  resolveSelectionDragStart,
+} from "../preview/previewSelectionNavigation";
 const clampNumber = (value: any, min: any, max: any) => Math.min(max, Math.max(min, value));
 const sameRect = (a: any, b: any) => (!a && !b) ||
     Boolean(a &&

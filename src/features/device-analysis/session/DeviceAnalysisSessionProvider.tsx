@@ -14,7 +14,7 @@ import type {
   PreviewRowsRequest,
   ProcessedEntry,
   RawDataEntry,
-} from "../../shared/lib/sharedTypes";
+} from "../shared/lib/sharedTypes";
 
 type DeviceAnalysisSessionProviderProps = {
   children: ReactNode;

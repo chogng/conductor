@@ -1,4 +1,4 @@
-import { validateTemplateForApply } from "../../template/lib/templateValidation";
+import { validateTemplateForApply } from "../../data/template/templateValidation";
 import type { LooseTranslateFn as TranslateFn } from "./translateTypes";
 
 const CELL_REF_RE = /^([A-Z]+)(\d+)$/;

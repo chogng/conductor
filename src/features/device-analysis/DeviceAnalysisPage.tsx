@@ -8,26 +8,24 @@ import {
   Suspense,
   type CSSProperties,
 } from "react";
-import type { CsvImporterRef } from "../import/components/CsvImporter";
-import DeviceAnalysisDataPanel from "../shared/components/DeviceAnalysisDataPanel";
-import ScrollArea from "../../../components/ui/ScrollArea";
-import Toast from "../../../components/ui/Toast";
-import type { TranslationVars } from "../../../context/language";
-import { loadAnalysisCharts } from "../analysis/loadAnalysisCharts";
-import { getDeviceAnalysisExtractionErrorMessage } from "../shared/lib/deviceAnalysisUtils";
-import {
-  useDeviceAnalysisDesktopShell,
-  useDeviceAnalysisExports,
-  useDeviceAnalysisPreview,
-  useDeviceAnalysisProcessing,
-  useDeviceAnalysisSession,
-  useDeviceAnalysisSessionActions,
-  useDeviceAnalysisSettings,
-  useResizableSidebar,
-} from "../hooks";
-import { useLanguage } from "../../../hooks/useLanguage";
-import { useTheme } from "../../../hooks/useTheme";
-import type { ToastType } from "../shared/lib/sharedTypes";
+import type { CsvImporterRef } from "./data/CsvImporter";
+import DeviceAnalysisDataPanel from "./data/DataPanel";
+import ScrollArea from "../../components/ui/ScrollArea";
+import Toast from "../../components/ui/Toast";
+import type { TranslationVars } from "../../context/language";
+import { loadAnalysisCharts } from "./analysis/loadAnalysisCharts";
+import { getDeviceAnalysisExtractionErrorMessage } from "./shared/lib/deviceAnalysisUtils";
+import { useLanguage } from "../../hooks/useLanguage";
+import { useTheme } from "../../hooks/useTheme";
+import type { ToastType } from "./shared/lib/sharedTypes";
+import { useDeviceAnalysisDesktopShell } from "./desktop/useDeviceAnalysisDesktopShell";
+import { useDeviceAnalysisExports } from "./analysis/useDeviceAnalysisExports";
+import { useDeviceAnalysisPreview } from "./data/useDeviceAnalysisPreview";
+import { useDeviceAnalysisProcessing } from "./data/useDeviceAnalysisProcessing";
+import { useDeviceAnalysisSession } from "./session/useDeviceAnalysisSession";
+import { useDeviceAnalysisSessionActions } from "./session/useDeviceAnalysisSessionActions";
+import { useDeviceAnalysisSettings } from "./settings/useDeviceAnalysisSettings";
+import { useResizableSidebar } from "./useResizableSidebar";
 
 type PageTab = "data" | "analysis" | "settings";
 type PageNavigationState = {
@@ -61,12 +59,12 @@ declare global {
   }
 }
 
-const DesktopCommandBar = lazy(() => import("../shared/components/DesktopCommandBar"));
+const DesktopCommandBar = lazy(() => import("./desktop/DesktopCommandBar"));
 const DeviceAnalysisAnalysisPanel = lazy(
-  () => import("../shared/components/DeviceAnalysisAnalysisPanel"),
+  () => import("./analysis/AnalysisPanel"),
 );
 const DeviceAnalysisSettingsPanel = lazy(
-  () => import("../shared/components/DeviceAnalysisSettingsPanel"),
+  () => import("./settings/SettingsPanel"),
 );
 
 const DesktopCommandBarFallback = () => (

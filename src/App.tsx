@@ -4,7 +4,7 @@ import { ThemeProvider } from "./context/theme-provider";
 import { LanguageProvider } from "./context/language-provider";
 
 const DeviceAnalysisApp = lazy(
-  () => import("./features/device-analysis/app/DeviceAnalysisApp"),
+  () => import("./features/device-analysis/DeviceAnalysisApp"),
 );
 
 const isUnauthorizedError = (error: unknown) => {

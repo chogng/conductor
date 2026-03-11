@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import Card from "../../../../components/ui/Card";
-import Button from "../../../../components/ui/Button";
-import Input from "../../../../components/ui/Input";
-import Select from "../../../../components/ui/Select";
-import Toast from "../../../../components/ui/Toast";
-import type { LanguageCode, TranslateFn } from "../../../../context/language";
-import type { ThemeMode } from "../../../../context/theme";
-import type { Feedback, ToastState } from "../lib/sharedTypes";
+import Card from "../../../components/ui/Card";
+import Button from "../../../components/ui/Button";
+import Input from "../../../components/ui/Input";
+import Select from "../../../components/ui/Select";
+import Toast from "../../../components/ui/Toast";
+import type { LanguageCode, TranslateFn } from "../../../context/language";
+import type { ThemeMode } from "../../../context/theme";
+import type { Feedback, ToastState } from "../shared/lib/sharedTypes";
 
 type OriginSettings = {
   currentPath: string;

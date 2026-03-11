@@ -7,14 +7,14 @@ import {
   type MouseEvent as ReactMouseEvent,
   type MutableRefObject,
 } from "react";
-import Card from "../../../../components/ui/Card";
-import Button from "../../../../components/ui/Button";
-import type { TranslateFn } from "../../../../context/language";
+import Card from "../../../components/ui/Card";
+import Button from "../../../components/ui/Button";
+import type { TranslateFn } from "../../../context/language";
 import CsvImporter, {
   type CsvImporterProps,
   type CsvImporterRef,
-} from "../../import/components/CsvImporter";
-import type { TemplateManagerProps } from "../../template/components/TemplateManager";
+} from "./CsvImporter";
+import type { TemplateManagerProps } from "./template/TemplateManager";
 
 type DataPanelProps = {
   deviceAnalysisSettings?: TemplateManagerProps["deviceAnalysisSettings"];
@@ -40,7 +40,7 @@ type DataPanelProps = {
   t: TranslateFn;
 };
 
-const LazyTemplateManager = lazy(() => import("../../template/components/TemplateManager"));
+const LazyTemplateManager = lazy(() => import("./template/TemplateManager"));
 
 const TemplateManagerFallback = ({ t }: { t: TranslateFn }) => (
   <Card
