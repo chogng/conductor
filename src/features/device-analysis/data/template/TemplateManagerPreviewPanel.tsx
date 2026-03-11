@@ -249,7 +249,7 @@ const PreviewRow = React.memo(
 
           return (
             <td
-              key={visibleSlot}
+              key={index}
               data-row={rowIndex}
               data-col={index}
               className={`px-2 py-1 h-7 border-b border-r border-border last:border-r-0 whitespace-nowrap text-xs transition-colors cursor-default overflow-hidden text-ellipsis ${selectedColumnsSet.has(index)

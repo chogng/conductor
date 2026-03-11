@@ -38,6 +38,32 @@ const clampNumber = (value: number, min: number, max: number): number => {
   return Math.min(max, Math.max(min, value));
 };
 
+const resolvePreviewHorizontalOverscanPx = ({
+  horizontalVelocityTier,
+  viewportWidth,
+}: {
+  horizontalVelocityTier: number;
+  viewportWidth: number;
+}): number => {
+  const viewportBased = Math.max(
+    PREVIEW_COL_OVERSCAN_PX,
+    Math.round((Number(viewportWidth) || 0) * 0.55),
+  );
+
+  const base =
+    horizontalVelocityTier >= 2
+      ? viewportBased * 0.4
+      : horizontalVelocityTier >= 1
+        ? viewportBased * 0.75
+        : viewportBased * 1.2;
+
+  return clampNumber(
+    Math.round(base),
+    PREVIEW_COL_OVERSCAN_PX_MIN,
+    PREVIEW_COL_OVERSCAN_PX_MAX,
+  );
+};
+
 const normalizeSelectionRange = (
   range?: SelectionRange | null,
 ): SelectionRange | null => {
@@ -93,22 +119,33 @@ type LiveColumnLayout = {
 };
 
 type PreviewColumnGeometry = {
+  columnCount: number;
+  dataViewportWidth: number;
   tableWidthPx: number;
+  totalDataWidthPx: number;
   widthsPx: number[];
   visibleColumnIndices: number[];
   hasLeftSpacer: boolean;
   hasRightSpacer: boolean;
   renderColCount: number;
+  scrollLeft: number;
+  viewportWidth: number;
+  overscanPx: number;
   window: {
     leftSpacerPx: number;
     rightSpacerPx: number;
     startCol: number;
     endCol: number;
+    scrollLeft: number;
+    viewportWidth: number;
+    dataViewportWidth: number;
+    overscanPx: number;
   };
   startOffsetsPx: number[];
 };
 
 type PreviewWindow = {
+  totalRows: number;
   startRow: number;
   endRow: number;
   topSpacerHeight: number;
@@ -239,6 +276,27 @@ export const useTemplateManagerPreview = ({
     [ensurePreviewRows, previewFile?.fileId, previewFile?.rowCount],
   );
 
+  const resolvePreviewHorizontalScrollCommitThresholdPx = useCallback(
+    ({
+      horizontalVelocityTier,
+      viewportWidth,
+    }: {
+      horizontalVelocityTier: number;
+      viewportWidth: number;
+    }) => {
+      const overscanPx = resolvePreviewHorizontalOverscanPx({
+        horizontalVelocityTier,
+        viewportWidth,
+      });
+
+      // Refresh the virtual column window after roughly half an overscan buffer
+      // has been consumed so native scrolling stays smooth without starving the
+      // next batch of visible columns.
+      return Math.max(48, Math.round(overscanPx * 0.5));
+    },
+    [],
+  );
+
   const {
     handlePreviewScroll,
     previewHorizontalScrollVelocityTier,
@@ -254,6 +312,7 @@ export const useTemplateManagerPreview = ({
     previewFileId: previewFile?.fileId,
     previewFileRowCount: previewFile?.rowCount,
     previewRowHeightPx: PREVIEW_ROW_HEIGHT_PX,
+    resolvePreviewHorizontalScrollCommitThresholdPx,
     previewScrollRef,
     previewStatusState: previewStatus?.state,
   }) as {
@@ -267,25 +326,14 @@ export const useTemplateManagerPreview = ({
     previewViewportWidth: number;
   };
 
-  const previewColumnOverscanPx = useMemo(() => {
-    const viewportBased = Math.max(
-      PREVIEW_COL_OVERSCAN_PX,
-      Math.round((Number(previewViewportWidth) || 0) * 0.55),
-    );
-
-    const base =
-      previewHorizontalScrollVelocityTier >= 2
-        ? viewportBased * 0.4
-        : previewHorizontalScrollVelocityTier >= 1
-          ? viewportBased * 0.75
-          : viewportBased * 1.2;
-
-    return clampNumber(
-      Math.round(base),
-      PREVIEW_COL_OVERSCAN_PX_MIN,
-      PREVIEW_COL_OVERSCAN_PX_MAX,
-    );
-  }, [previewHorizontalScrollVelocityTier, previewViewportWidth]);
+  const previewColumnOverscanPx = useMemo(
+    () =>
+      resolvePreviewHorizontalOverscanPx({
+        horizontalVelocityTier: previewHorizontalScrollVelocityTier,
+        viewportWidth: previewViewportWidth,
+      }),
+    [previewHorizontalScrollVelocityTier, previewViewportWidth],
+  );
 
   const handlePreviewPick = usePreviewPickHandler({
     containerRef,
