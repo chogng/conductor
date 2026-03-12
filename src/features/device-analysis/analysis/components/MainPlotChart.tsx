@@ -295,13 +295,17 @@ const MainPlotChart = memo(function MainPlotChart({
       return yTicks ? [yTicks[0], yTicks[yTicks.length - 1]] : yDomain;
     }
 
+    if (Array.isArray(chartYTicks) && chartYTicks.length >= 2) {
+      return [chartYTicks[0], chartYTicks[chartYTicks.length - 1]];
+    }
+
     const lo = Math.min(Number(yDomain?.[0]), Number(yDomain?.[1]));
     const hi = Math.max(Number(yDomain?.[0]), Number(yDomain?.[1]));
     const logLo = toLogChartValue(lo);
     const logHi = toLogChartValue(hi);
     if (logLo === null || logHi === null) return [0, 1];
     return [logLo, logHi];
-  }, [effectiveYScale, yDomain, yTicks]);
+  }, [chartYTicks, effectiveYScale, yDomain, yTicks]);
 
   const yTickDigits = useMemo(() => {
     if (effectiveYScale !== "linear") return 4;

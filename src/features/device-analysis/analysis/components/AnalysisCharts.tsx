@@ -47,6 +47,7 @@ const MAX_RENDER_SERIES_POINTS = 600;
 const MIN_RENDER_SERIES_POINTS = 120;
 const DEFAULT_RENDER_POINT_BUDGET = 12000;
 const GM_RENDER_POINT_BUDGET = 9000;
+const MAIN_PLOT_LEGEND_WIDTH = 220;
 const toConductanceUnitLabel = (currentUnitLabel: string, denominatorUnit: string): string => {
     if (denominatorUnit !== "V")
         return `${currentUnitLabel}/${denominatorUnit}`;
@@ -1318,7 +1319,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return { minX: null, maxX: null, minY: null, maxY: null };
         return computeMinMax([{ data: focusedSsDiagnostics }]);
     }, [focusedSsDiagnostics]);
-    const ssDiagnosticsYDomain = useMemo(() => {
+    const ssDiagnosticsBaseYDomain = useMemo(() => {
         const minY = ssDiagnosticsMinMax?.minY ?? null;
         const maxY = ssDiagnosticsMinMax?.maxY ?? null;
         if (minY === null || maxY === null)
@@ -1326,8 +1327,20 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         return padLinearDomain(minY, maxY);
     }, [ssDiagnosticsMinMax?.maxY, ssDiagnosticsMinMax?.minY]);
     const ssDiagnosticsYTicks = useMemo(() => {
-        return buildOriginAutoTicks(ssDiagnosticsYDomain[0], ssDiagnosticsYDomain[1], 6);
-    }, [ssDiagnosticsYDomain]);
+        return (buildOriginAutoTicks(ssDiagnosticsBaseYDomain[0], ssDiagnosticsBaseYDomain[1], 6) ??
+            buildNiceTicks(ssDiagnosticsBaseYDomain[0], ssDiagnosticsBaseYDomain[1], 6, {
+                preferTightRange: false,
+            }));
+    }, [ssDiagnosticsBaseYDomain]);
+    const ssDiagnosticsYDomain = useMemo(() => {
+        if (Array.isArray(ssDiagnosticsYTicks) && ssDiagnosticsYTicks.length >= 2) {
+            return [
+                Number(ssDiagnosticsYTicks[0]),
+                Number(ssDiagnosticsYTicks[ssDiagnosticsYTicks.length - 1]),
+            ];
+        }
+        return ssDiagnosticsBaseYDomain;
+    }, [ssDiagnosticsBaseYDomain, ssDiagnosticsYTicks]);
     const xTicks = useMemo(() => {
         const mode = String(axis?.xTicks ?? "auto");
         if (mode === "auto") {
@@ -1949,8 +1962,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     ssDiagnosticsEnabled: next,
                 })
                     .catch(() => { });
-            }} className="h-[38px] px-2 text-xs" title="Toggle SS(x) diagnostics plot">
-                      Diagnostics
+            }} className="h-[38px] px-2 text-xs" title={t("da_chart_ss_diagnostics_toggle_title")}>
+                      {t("da_chart_ss_diagnostics")}
                     </Button>
 
                     {ssMethod === "idWindow" ? (<div className="flex items-center gap-1 text-xs text-text-secondary">
@@ -2191,7 +2204,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         focusedSeriesColor={focusedSeriesColor}
                         focusedSsOverlay={focusedSsOverlay}
                         ssOverlayStyle={ssOverlayStyle}
-                        legendWidth={220}
+                        legendWidth={MAIN_PLOT_LEGEND_WIDTH}
                         legendContent={renderOriginSelectionLegend}
                         onMouseDown={handleSsMouseDown}
                         onMouseMove={handleSsMouseMove}
@@ -2217,7 +2230,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     focusedSeriesColor={focusedSeriesColor}
                     focusedSsOverlay={focusedSsOverlay}
                     ssOverlayStyle={ssOverlayStyle}
-                    legendWidth={220}
+                    legendWidth={MAIN_PLOT_LEGEND_WIDTH}
                     legendContent={renderOriginSelectionLegend}
                     onMouseDown={handleSsMouseDown}
                     onMouseMove={handleSsMouseMove}
@@ -2227,7 +2240,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
 
               {effectivePlotType === "ss" && focusedSsDiagnosticsForRender ? (<div className="mt-4">
                   <div className="text-xs text-text-secondary mb-2">
-                    Diagnostics: SS(x)
+                    {t("da_chart_ss_diagnostics")}
                   </div>
                   <div ref={diagnosticsChartContainerRef} className="h-[260px] min-h-[260px] flex-shrink-0">
                     {isDiagnosticsChartSizeReady ? (<SsDiagnosticsChart data={focusedSsDiagnosticsForRender} xDomain={xDomain} xTicks={xTicks} xLabelInterval={xLabelInterval} xTickDigits={xTickDigits} xTooltipDigits={xTooltipDigits} yDomain={ssDiagnosticsYDomain} yTicks={ssDiagnosticsYTicks} overlay={focusedSsOverlay} overlayStyle={ssOverlayStyle} ssReferenceValue={ssSummary?.ss} seriesColor={focusedSeriesColor}/>) : (<div className="h-full w-full"/>)}

@@ -10,6 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import { formatNumber } from "../lib/analysisMath";
+import { inferTickDigitsFromTicks } from "../lib/analysisChartsUtils";
 
 type DiagnosticsPoint = {
   x?: number | null;
@@ -56,6 +57,9 @@ const SsDiagnosticsChart = memo(function SsDiagnosticsChart({
   ssReferenceValue = null,
   seriesColor = "#8884d8",
 }: SsDiagnosticsChartProps) {
+  const yTickDigits = inferTickDigitsFromTicks(yTicks);
+  const yTooltipDigits = Math.max(2, yTickDigits);
+
   return (
     <ResponsiveContainer
       width="100%"
@@ -95,7 +99,7 @@ const SsDiagnosticsChart = memo(function SsDiagnosticsChart({
           domain={yDomain}
           ticks={yTicks ?? undefined}
           interval={0}
-          tickFormatter={(v) => formatNumber(v, { digits: 2 })}
+          tickFormatter={(v) => formatNumber(v, { digits: yTickDigits })}
           stroke="currentColor"
           className="text-text-secondary text-xs"
           tick={{ fill: "currentColor", opacity: 0.6 }}
@@ -110,7 +114,7 @@ const SsDiagnosticsChart = memo(function SsDiagnosticsChart({
           itemStyle={{ color: "#ccc" }}
           labelFormatter={(label) => `x=${formatNumber(label, { digits: xTooltipDigits })}`}
           formatter={(value, name) => [
-            `${formatNumber(Number(value), { digits: 2 })} mV/dec`,
+            `${formatNumber(Number(value), { digits: yTooltipDigits })} mV/dec`,
             name,
           ]}
         />
