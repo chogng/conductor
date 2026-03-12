@@ -47,6 +47,19 @@ const MAX_RENDER_SERIES_POINTS = 600;
 const MIN_RENDER_SERIES_POINTS = 120;
 const DEFAULT_RENDER_POINT_BUDGET = 12000;
 const GM_RENDER_POINT_BUDGET = 9000;
+const toConductanceUnitLabel = (currentUnitLabel: string, denominatorUnit: string): string => {
+    if (denominatorUnit !== "V")
+        return `${currentUnitLabel}/${denominatorUnit}`;
+    if (currentUnitLabel === "mA")
+        return "mS";
+    if (currentUnitLabel === "uA")
+        return "uS";
+    if (currentUnitLabel === "nA")
+        return "nS";
+    if (currentUnitLabel === "pA")
+        return "pS";
+    return "S";
+};
 type FormatOriginTranslateFn = (key: string, params?: Record<string, unknown>) => string;
 type OriginCsvBridge = {
     runOriginCsv: (payload: {
@@ -428,7 +441,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const plotYFactor = useMemo(() => resolvedYUnitMeta.factor, [resolvedYUnitMeta.factor]);
     const plotYUnitLabel = useMemo(() => {
         if (effectivePlotType === "gm")
-            return `${resolvedYUnitMeta.label}/${gmUi.denomUnit}`;
+            return toConductanceUnitLabel(resolvedYUnitMeta.label, gmUi.denomUnit);
         if (effectivePlotType === "j")
             return `${resolvedYUnitMeta.label}/Area`;
         // SS tab main plot is I-V in log(|I|), so keep current unit here.
@@ -1455,7 +1468,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             xTooltipDigits: standbyXTooltipDigits,
             xLabelInterval: computeLabelInterval(standbyXTicks, 7),
             plotYUnitLabel: ivGmStandbyPlotType === "gm"
-                ? `${resolvedYUnitMeta.label}/${gmUi.denomUnit}`
+                ? toConductanceUnitLabel(resolvedYUnitMeta.label, gmUi.denomUnit)
                 : resolvedYUnitMeta.label,
         };
     }, [
@@ -1738,7 +1751,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 <button id="device-analysis-plot-gm-btn" type="button" onClick={() => setPlotType("gm")} className={`tab_btn tab_btn--control ${effectivePlotType === "gm"
             ? "tab_btn--active"
             : "tab_btn--inactive"}`}>
-                  gm
+                  gₘ
                 </button>
                 <button id="device-analysis-plot-ss-btn" type="button" onClick={() => ssApplicable && setPlotType("ss")} disabled={!ssApplicable} className={`tab_btn tab_btn--control ${effectivePlotType === "ss"
             ? "tab_btn--active"
