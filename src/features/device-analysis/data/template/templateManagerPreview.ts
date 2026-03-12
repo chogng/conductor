@@ -4,6 +4,7 @@ import {
   getSelectionModeFromPointerEvent,
   resolveSelectionDragStart,
 } from "../preview/previewSelectionNavigation";
+import { getExcelColumnLabel } from "./templateColumnLabel";
 const clampNumber = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const sameRect = (a: any, b: any) => (!a && !b) ||
     Boolean(a &&
@@ -54,15 +55,6 @@ const normalizePreviewRange = (range: SelectionRange | null | undefined): Select
     const startCol = Math.min(range.startCol, range.endCol);
     const endCol = Math.max(range.startCol, range.endCol);
     return { startRow, endRow, startCol, endCol };
-};
-export const getExcelColumnLabel = (index: number) => {
-    let label = "";
-    let i = index;
-    while (i >= 0) {
-        label = String.fromCharCode(65 + (i % 26)) + label;
-        i = Math.floor(i / 26) - 1;
-    }
-    return label;
 };
 export const usePreviewPickHandler = ({ containerRef, writeFieldFromPreview, }: any) => {
     const focusedInputNameRef = useRef("");

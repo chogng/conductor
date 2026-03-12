@@ -1,14 +1,26 @@
 import React, {
   useCallback,
+  useEffect,
+  lazy,
   useMemo,
   useRef,
   useState,
+  Suspense,
   type CSSProperties,
   type SetStateAction,
 } from "react";
-import { Trash2, ArrowUp, ChevronDown, List, Save, Plus, Check } from "lucide-react";
+import {
+  Trash2,
+  ArrowUp,
+  ChevronDown,
+  List,
+  Save,
+  Plus,
+  Check,
+  FileSpreadsheet,
+} from "lucide-react";
 import { useLanguage } from "../../../../hooks/useLanguage";
-import type { TranslationVars } from "../../../../context/language";
+import type { TranslateFn, TranslationVars } from "../../../../context/language";
 import Toast from "../../../../components/ui/Toast";
 import Input from "../../../../components/ui/Input";
 import Select from "../../../../components/ui/Select";
@@ -19,9 +31,7 @@ import Modal from "../../../../components/ui/Modal";
 import DropdownMenu from "../../../../components/ui/DropdownMenu";
 import ScrollArea from "../../../../components/ui/ScrollArea";
 import { validateVarPair } from "./templateValidation";
-import { getExcelColumnLabel } from "./templateManagerPreview";
-import TemplateManagerPreviewPanel from "./TemplateManagerPreviewPanel";
-import { useTemplateManagerPreview } from "./useTemplateManagerPreview";
+import { getExcelColumnLabel } from "./templateColumnLabel";
 import { useTemplateManagerState } from "./useTemplateManagerState";
 import {
   normalizeXDataEndValue,
@@ -48,6 +58,66 @@ export type TemplateManagerProps = {
   onUpdateDeviceAnalysisSettings?: (
     updates: Record<string, unknown>,
   ) => Promise<unknown> | unknown;
+};
+
+const loadTemplateManagerPreviewWorkspace = () =>
+  import("./TemplateManagerPreviewWorkspace");
+
+const LazyTemplateManagerPreviewWorkspace = lazy(
+  loadTemplateManagerPreviewWorkspace,
+);
+
+const TemplateManagerPreviewFallback = ({
+  previewFile,
+  previewStatus,
+  t,
+}: {
+  previewFile?: PreviewFileLike | null;
+  previewStatus?: Partial<SessionPreviewStatus> | null;
+  t: TranslateFn;
+}) => {
+  const fileName = previewFile
+    ? String(previewFile.fileName || "").replace(/\.csv$/i, "")
+    : "";
+  const title =
+    previewStatus?.state === "loading"
+      ? previewStatus.message || t("da_preview_loading")
+      : previewStatus?.state === "error"
+        ? previewStatus.message || t("da_preview_error")
+        : t("da_data_extraction_template");
+  const hint =
+    previewStatus?.state === "loading"
+      ? t("da_preview_loading_hint")
+      : previewStatus?.state === "error"
+        ? t("da_preview_error_hint")
+        : t("da_preview_select_file_hint");
+
+  return (
+    <div className="lg:col-span-3 self-start min-[1200px]:self-stretch bg-bg-page rounded-lg p-4 overflow-hidden flex flex-col min-h-0 h-[var(--da-template-stack-panel-h)] min-[1200px]:h-full">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-medium text-text-secondary">
+          {t("da_preview_filename_label")}: {fileName}
+        </span>
+        {previewStatus?.state === "loading" ? (
+          <span className="text-xs text-text-secondary">
+            {previewStatus.message || t("da_preview_loading")}
+          </span>
+        ) : previewStatus?.state === "error" ? (
+          <span className="text-xs text-red-500">
+            {previewStatus.message || t("da_preview_error")}
+          </span>
+        ) : null}
+      </div>
+
+      <div className="flex-1 min-h-0 border border-border rounded bg-bg-surface/60 px-6 py-8 flex flex-col items-center justify-center text-center">
+        <div className="w-12 h-12 rounded-full bg-accent/10 text-accent flex items-center justify-center mb-4">
+          <FileSpreadsheet size={22} />
+        </div>
+        <div className="text-sm font-medium text-text-primary">{title}</div>
+        <div className="mt-2 text-sm text-text-secondary max-w-md">{hint}</div>
+      </div>
+    </div>
+  );
 };
 
 const TemplateManager = ({
@@ -86,6 +156,7 @@ const TemplateManager = ({
   const closeToast = useCallback(() => {
     setToast((prev) => ({ ...prev, isVisible: false }));
   }, []);
+  const containerRef = useRef<HTMLElement | null>(null);
   const yUnitOptions = useMemo(
     () =>
       DEVICE_ANALYSIS_Y_UNIT_VALUES.map((unit) => ({
@@ -129,6 +200,23 @@ const TemplateManager = ({
     showToast,
     t: tLoose,
   });
+  const previewWorkspaceFallback = (
+    <TemplateManagerPreviewFallback
+      previewFile={previewFile}
+      previewStatus={previewStatus}
+      t={t}
+    />
+  );
+  const shouldRenderPreviewWorkspace =
+    Boolean(previewFile?.fileId) && previewStatus?.state === "ready";
+
+  useEffect(() => {
+    const shouldPreloadPreviewWorkspace =
+      Boolean(previewFile?.fileId) || previewStatus?.state === "loading";
+    if (!shouldPreloadPreviewWorkspace) return;
+
+    void loadTemplateManagerPreviewWorkspace();
+  }, [previewFile?.fileId, previewStatus?.state]);
 
   const varPairValidation = validateVarPair(
     config?.bottomTitle,
@@ -157,39 +245,6 @@ const TemplateManager = ({
     lastVarPairToastRef.current = message;
     showToast(message, "warning");
   }, [showToast, t, varPairValidation.ok, varPairValidation.message]);
-
-  const {
-    activeCellRect,
-    containerRef,
-    copySelection,
-    dragOverlayRef,
-    gridRef,
-    handleCellMouseDown,
-    handleColumnResizeStart,
-    handlePreviewPick,
-    handlePreviewScroll,
-    isColumnResizing,
-    previewColumnGeometry,
-    previewColumnMinWidthPx,
-    previewRowIndexWidthPx,
-    previewScrollRef,
-    previewTableRef,
-    previewWindow,
-    resetColumnWidth,
-    selectedColumnsSet,
-    setSelectionRange,
-    selectionRects,
-    selections,
-    toggleColumn,
-  } = useTemplateManagerPreview({
-    config,
-    ensurePreviewRows,
-    getPreviewRow,
-    previewFile,
-    previewStatus,
-    setConfig,
-    writeFieldFromPreview,
-  });
 
   const renderSavePanel = ({
     includeIds = true,
@@ -884,13 +939,15 @@ const TemplateManager = ({
                 hidden={templateMode !== "select"}
                 className="flex-1 min-h-0"
               >
-                <ScrollArea
-                  className="h-full min-h-0"
-                  axis="y"
-                  viewportClassName="pr-1"
-                >
-                  {renderSelectPane({ includeIds: true, measureOnly: false })}
-                </ScrollArea>
+                {templateMode === "select" ? (
+                  <ScrollArea
+                    className="h-full min-h-0"
+                    axis="y"
+                    viewportClassName="pr-1"
+                  >
+                    {renderSelectPane({ includeIds: true, measureOnly: false })}
+                  </ScrollArea>
+                ) : null}
               </div>
 
               <div
@@ -900,50 +957,42 @@ const TemplateManager = ({
                 hidden={templateMode !== "save"}
                 className="flex-1 min-h-0"
               >
-                <ScrollArea
-                  className="h-full min-h-0"
-                  axis="y"
-                  viewportClassName="pr-1"
-                >
-                  {renderSavePane({
-                    includeIds: true,
-                    selectModeForDisabled: isSelectMode,
-                  })}
-                </ScrollArea>
+                {templateMode === "save" ? (
+                  <ScrollArea
+                    className="h-full min-h-0"
+                    axis="y"
+                    viewportClassName="pr-1"
+                  >
+                    {renderSavePane({
+                      includeIds: true,
+                      selectModeForDisabled: isSelectMode,
+                    })}
+                  </ScrollArea>
+                ) : null}
               </div>
             </div>
           </div>
 
           {/* Preview Panel */}
-          <TemplateManagerPreviewPanel
-            activeCellRect={activeCellRect}
-            copySelection={copySelection}
-            dragOverlayRef={dragOverlayRef}
-            getPreviewRow={getPreviewRow}
-            getPreviewRowsVersion={getPreviewRowsVersion}
-            gridRef={gridRef}
-            handleCellMouseDown={handleCellMouseDown}
-            handleColumnResizeStart={handleColumnResizeStart}
-            handlePreviewPick={handlePreviewPick}
-            handlePreviewScroll={handlePreviewScroll}
-            isColumnResizing={isColumnResizing}
-            previewColumnGeometry={previewColumnGeometry}
-            previewColumnMinWidthPx={previewColumnMinWidthPx}
-            previewFile={previewFile}
-            previewRowIndexWidthPx={previewRowIndexWidthPx}
-            previewScrollRef={previewScrollRef}
-            previewStatus={previewStatus}
-            previewTableRef={previewTableRef}
-            previewWindow={previewWindow}
-            resetColumnWidth={resetColumnWidth}
-            selectedColumnsSet={selectedColumnsSet}
-            setSelectionRange={setSelectionRange}
-            selectionRects={selectionRects}
-            selections={selections}
-            subscribePreviewRowsVersion={subscribePreviewRowsVersion}
-            t={t}
-            toggleColumn={toggleColumn}
-          />
+          {shouldRenderPreviewWorkspace ? (
+            <Suspense fallback={previewWorkspaceFallback}>
+              <LazyTemplateManagerPreviewWorkspace
+                containerRef={containerRef}
+                config={config}
+                ensurePreviewRows={ensurePreviewRows}
+                getPreviewRow={getPreviewRow}
+                getPreviewRowsVersion={getPreviewRowsVersion}
+                previewFile={previewFile}
+                previewStatus={previewStatus}
+                setConfig={setConfig}
+                subscribePreviewRowsVersion={subscribePreviewRowsVersion}
+                t={t}
+                writeFieldFromPreview={writeFieldFromPreview}
+              />
+            </Suspense>
+          ) : (
+            previewWorkspaceFallback
+          )}
 
         </div>
 

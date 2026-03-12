@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type Dispatch,
+  type MutableRefObject,
   type SetStateAction,
 } from "react";
 import type { PreviewStatus as SessionPreviewStatus } from "../../session/device-analysis-session-context";
@@ -159,6 +160,7 @@ type PendingColumnResize = {
 };
 
 type UseTemplateManagerPreviewOptions = {
+  containerRef?: MutableRefObject<HTMLElement | null>;
   config: TemplateConfig;
   ensurePreviewRows?: (
     fileId: string,
@@ -184,6 +186,7 @@ type ResizeStartEvent = {
 };
 
 export const useTemplateManagerPreview = ({
+  containerRef: externalContainerRef,
   config,
   ensurePreviewRows,
   getPreviewRow,
@@ -197,7 +200,8 @@ export const useTemplateManagerPreview = ({
   const previewScrollRef = useRef<HTMLDivElement | null>(null);
   const previewTableRef = useRef<HTMLTableElement | null>(null);
   const dragOverlayRef = useRef<HTMLDivElement | null>(null);
-  const containerRef = useRef<HTMLElement | null>(null);
+  const internalContainerRef = useRef<HTMLElement | null>(null);
+  const containerRef = externalContainerRef ?? internalContainerRef;
 
   const [isColumnResizing, setIsColumnResizing] = useState(false);
   const [columnWidthOverridesByFile, setColumnWidthOverridesByFile] =

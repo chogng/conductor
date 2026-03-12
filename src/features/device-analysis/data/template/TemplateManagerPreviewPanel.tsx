@@ -12,7 +12,7 @@ import type { TranslateFn } from "../../../../context/language";
 import type { PreviewStatus as SessionPreviewStatus } from "../../session/device-analysis-session-context";
 import type { PreviewFileLike } from "../../shared/lib/sharedTypes";
 import { formatNumber } from "../../analysis/lib/analysisMath";
-import { getExcelColumnLabel } from "./templateManagerPreview";
+import { getExcelColumnLabel } from "./templateColumnLabel";
 import {
   computeNextPreviewCell,
   computePreviewPageRows,
