@@ -435,7 +435,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             metricSymbol,
             summaryLabel,
             metricHeader: `max|${metricSymbol}|`,
-            metricXHeader: `x@max|${metricSymbol}|`,
         };
     }, [activeFile, gmMode]);
     const plotYFactor = useMemo(() => resolvedYUnitMeta.factor, [resolvedYUnitMeta.factor]);
@@ -2205,61 +2204,61 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                   <tr className="border-b border-border">
                     <th
                       rowSpan={2}
-                      className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center whitespace-nowrap align-middle"
+                      className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center whitespace-nowrap align-middle"
                     >
                       {t("da_calc_group_series")}
                     </th>
-                    <th colSpan={2} className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-emerald-500/5">
+                    <th colSpan={2} className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-emerald-500/5">
                       {t("da_calc_group_on_state")}
                     </th>
-                    <th colSpan={2} className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-cyan-500/5">
+                    <th colSpan={2} className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-cyan-500/5">
                       {t("da_calc_group_off_state")}
                     </th>
-                    <th className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center border-l border-border">
+                    <th className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border">
                       {t("da_calc_group_ratio")}
                     </th>
-                    <th colSpan={2} className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-amber-500/5">
+                    <th colSpan={2} className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-amber-500/5">
                       {t("da_calc_group_derivative")}
                     </th>
-                    <th colSpan={2} className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-rose-500/5">
+                    <th colSpan={2} className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-rose-500/5">
                       {t("da_calc_group_ss")}
                     </th>
                     <th
-                      className="p-2 text-[11px] font-semibold tracking-wide text-text-secondary text-center border-l border-border"
+                      className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border"
                       title={t("da_calc_group_jon_hint")}
                     >
                       {t("da_calc_group_jon")}
                     </th>
                   </tr>
                   <tr className="border-b border-border">
-                    <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-emerald-500/5">
+                    <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-emerald-500/5">
                       |I|on
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-emerald-500/5">
-                      x@Ion
+                    <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-emerald-500/5">
+                      x
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-cyan-500/5">
+                    <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-cyan-500/5">
                       |I|off
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-cyan-500/5">
-                      x@Ioff
+                    <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-cyan-500/5">
+                      x
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border">
+                    <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border">
                       Ion/Ioff
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-amber-500/5">
+                    <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-amber-500/5">
                       {gmUi.metricHeader}
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-amber-500/5">
-                      {gmUi.metricXHeader}
+                    <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-amber-500/5">
+                      x
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-rose-500/5">
+                    <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-rose-500/5">
                       SS
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-rose-500/5">
-                      x@SS
+                    <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-rose-500/5">
+                      x
                     </th>
-                    <th className="p-2 text-xs font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border" title={t("da_calc_group_jon_hint")}>
+                    <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border" title={t("da_calc_group_jon_hint")}>
                       Jon
                     </th>
                   </tr>
