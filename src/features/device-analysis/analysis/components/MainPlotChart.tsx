@@ -89,10 +89,25 @@ type MainPlotChartProps = {
   onMouseUp?: (...args: unknown[]) => void;
 };
 
+const LOG_CHART_Y_DATA_KEY = "__chartY";
+
 const toDomainTuple = (domain: number[]): [number, number] => [
   Number(domain?.[0] ?? 0),
   Number(domain?.[1] ?? 1),
 ];
+
+const toLogChartValue = (value: unknown): number | null => {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) return null;
+  return Math.log10(num);
+};
+
+const formatLogTickLabel = (value: unknown): string => {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num === 0) return "0";
+  const text = num.toExponential(2);
+  return text.replace(/(?:\.0+|(\.\d*?[1-9])0+)e/, "$1e");
+};
 
 const withYAxisUnit = (
   labelRaw: string | null | undefined,
@@ -239,13 +254,62 @@ const MainPlotChart = memo(function MainPlotChart({
     yTicksMode,
   ]);
 
+  const chartYDataKey = useMemo(
+    () => (effectiveYScale === "linear" ? plotYKey : LOG_CHART_Y_DATA_KEY),
+    [effectiveYScale, plotYKey],
+  );
+
+  const chartSeriesList = useMemo<PlotSeries[]>(() => {
+    if (effectiveYScale === "linear") return seriesList;
+    return seriesList.map((series) => ({
+      ...series,
+      data: Array.isArray(series?.data)
+        ? series.data.map((point) => ({
+            ...point,
+            [LOG_CHART_Y_DATA_KEY]: toLogChartValue(point?.[plotYKey]),
+          }))
+        : [],
+    }));
+  }, [effectiveYScale, plotYKey, seriesList]);
+
+  const chartFocusedFitLine = useMemo<PlotPoint[] | null>(() => {
+    if (!Array.isArray(focusedFitLine)) return null;
+    if (effectiveYScale === "linear") return focusedFitLine;
+    return focusedFitLine.map((point) => ({
+      ...point,
+      [LOG_CHART_Y_DATA_KEY]: toLogChartValue(point?.y),
+    }));
+  }, [effectiveYScale, focusedFitLine]);
+
+  const chartYTicks = useMemo<number[] | null>(() => {
+    if (effectiveYScale === "linear") return yTicks;
+    if (!Array.isArray(yTicks)) return null;
+    const nextTicks = yTicks
+      .map((tick) => toLogChartValue(tick))
+      .filter((tick): tick is number => tick !== null);
+    return nextTicks.length >= 2 ? nextTicks : null;
+  }, [effectiveYScale, yTicks]);
+
+  const chartYDomain = useMemo<[number, number]>(() => {
+    if (effectiveYScale === "linear") {
+      return yTicks ? [yTicks[0], yTicks[yTicks.length - 1]] : yDomain;
+    }
+
+    const lo = Math.min(Number(yDomain?.[0]), Number(yDomain?.[1]));
+    const hi = Math.max(Number(yDomain?.[0]), Number(yDomain?.[1]));
+    const logLo = toLogChartValue(lo);
+    const logHi = toLogChartValue(hi);
+    if (logLo === null || logHi === null) return [0, 1];
+    return [logLo, logHi];
+  }, [effectiveYScale, yDomain, yTicks]);
+
   const yTickDigits = useMemo(() => {
     if (effectiveYScale !== "linear") return 4;
-    const scaledTicks = Array.isArray(yTicks)
-      ? yTicks.map((v) => v * plotYFactor)
+    const scaledTicks = Array.isArray(chartYTicks)
+      ? chartYTicks.map((v) => v * plotYFactor)
       : null;
     return inferTickDigitsFromTicks(scaledTicks);
-  }, [effectiveYScale, plotYFactor, yTicks]);
+  }, [chartYTicks, effectiveYScale, plotYFactor]);
 
   const yAxisNearZeroEpsilon = useMemo(() => {
     if (effectiveYScale !== "linear") return 0;
@@ -259,8 +323,11 @@ const MainPlotChart = memo(function MainPlotChart({
   }, [effectiveYScale, plotYFactor, yTicks]);
 
   const yLabelInterval = useMemo(
-    () => (effectiveYScale === "linear" ? computeLabelInterval(yTicks, 7) : 0),
-    [effectiveYScale, yTicks],
+    () =>
+      effectiveYScale === "linear"
+        ? computeLabelInterval(yTicks, 7)
+        : computeLabelInterval(chartYTicks, 7),
+    [chartYTicks, effectiveYScale, yTicks],
   );
 
   const isSsPlot = plotType === "ss";
@@ -329,17 +396,16 @@ const MainPlotChart = memo(function MainPlotChart({
               : undefined
           }
           type="number"
-          scale={effectiveYScale === "linear" ? "linear" : "log"}
-          domain={yTicks ? [yTicks[0], yTicks[yTicks.length - 1]] : yDomain}
-          ticks={yTicks ?? undefined}
+          scale="linear"
+          domain={chartYDomain}
+          ticks={chartYTicks ?? undefined}
           interval={yLabelInterval}
           tickFormatter={(v) => {
-            const scaled = Number(v) * plotYFactor;
             if (effectiveYScale !== "linear") {
-              if (!Number.isFinite(scaled) || scaled === 0) return "0";
-              const exp = Math.floor(Math.log10(Math.abs(scaled)));
-              return `1e${exp}`;
+              const raw = Number.isFinite(Number(v)) ? Math.pow(10, Number(v)) : Number.NaN;
+              return formatLogTickLabel(raw * plotYFactor);
             }
+            const scaled = Number(v) * plotYFactor;
             const normalized =
               Math.abs(scaled) <= yAxisNearZeroEpsilon ? 0 : scaled;
             return formatNumber(normalized, { digits: yTickDigits });
@@ -359,13 +425,20 @@ const MainPlotChart = memo(function MainPlotChart({
           labelFormatter={(label) =>
             `x=${formatNumber(label, { digits: xTooltipDigits ?? xTickDigits })}`
           }
-          formatter={(value, name) => {
-            const num =
-              typeof value === "number"
-                ? value
-                : value === null || value === undefined
-                  ? Number.NaN
-                  : Number(value);
+          formatter={(value, name, item: any) => {
+            const rawFromPrimary = Number(item?.payload?.[plotYKey]);
+            const rawFromY = Number(item?.payload?.y);
+            const rawFromValue =
+              effectiveYScale === "linear"
+                ? Number(value)
+                : Number.isFinite(Number(value))
+                  ? Math.pow(10, Number(value))
+                  : Number.NaN;
+            const num = Number.isFinite(rawFromPrimary)
+              ? rawFromPrimary
+              : Number.isFinite(rawFromY)
+                ? rawFromY
+                : rawFromValue;
             return [
               `${formatNumber(num * plotYFactor, { digits: yTickDigits })} ${plotYUnitLabel}`,
               name,
@@ -410,8 +483,8 @@ const MainPlotChart = memo(function MainPlotChart({
 
         {isSsPlot && focusedFitLine ? (
           <Line
-            data={focusedFitLine}
-            dataKey="y"
+            data={chartFocusedFitLine ?? undefined}
+            dataKey={chartYDataKey}
             name="Fit"
             stroke={focusedSeriesColor}
             dot={false}
@@ -422,11 +495,11 @@ const MainPlotChart = memo(function MainPlotChart({
           />
         ) : null}
 
-        {seriesList.map((series, idx) => (
+        {chartSeriesList.map((series, idx) => (
           <Line
             key={series.id}
             data={series.data}
-            dataKey={plotYKey}
+            dataKey={chartYDataKey}
             name={series.name}
             stroke={COLORS[idx % COLORS.length]}
             dot={false}

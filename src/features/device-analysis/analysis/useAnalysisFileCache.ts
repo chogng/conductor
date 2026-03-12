@@ -28,6 +28,26 @@ export const useAnalysisFileCache = ({
   const cachePrefetchJobIdRef = useRef(0);
   const cachePrefetchHandleRef = useRef<CachePrefetchHandle | null>(null);
 
+  const createFileCacheEntry = useCallback(
+    (sourceFile: any = null) => ({
+      sourceFile,
+      sourceSeries: sourceFile?.series ?? null,
+      sourceXGroups: sourceFile?.xGroups ?? null,
+      pointsBySeriesId: new Map(),
+      gmByMode: { x: new Map(), legend: new Map() },
+      gmLegendComputed: false,
+      ssDiagnosticsBySeriesId: new Map(),
+      ssAutoBySeriesId: new Map(),
+      baseMetricsBySeriesId: new Map(),
+      gmMetricsByMode: { x: new Map(), legend: new Map() },
+      ssManualFitBySeriesId: new Map(),
+      ssIdWindowFitByKey: new Map(),
+      jByAreaKey: new Map(),
+      minMaxByKey: new Map(),
+    }),
+    [],
+  );
+
   useEffect(() => {
     const store = fileAnalysisCacheRef.current;
     if (!store || store.size === 0) return;
@@ -40,32 +60,41 @@ export const useAnalysisFileCache = ({
     for (const fileId of Array.from(store.keys())) {
       if (!keep.has(fileId)) store.delete(fileId);
     }
-  }, [processedData]);
 
-  const getFileCache = useCallback((fileId: any) => {
+    for (const file of Array.isArray(processedData) ? processedData : []) {
+      const fileId = file?.fileId;
+      if (!fileId) continue;
+      const cache = store.get(fileId);
+      if (!cache) continue;
+      if (
+        cache.sourceFile === file &&
+        cache.sourceSeries === file?.series &&
+        cache.sourceXGroups === file?.xGroups
+      ) {
+        continue;
+      }
+      store.set(fileId, createFileCacheEntry(file));
+    }
+  }, [createFileCacheEntry, processedData]);
+
+  const getFileCache = useCallback((fileId: any, sourceFile: any = null) => {
     if (!fileId) return null;
 
     const store = fileAnalysisCacheRef.current;
     let entry = store.get(fileId);
-    if (!entry) {
-      entry = {
-        pointsBySeriesId: new Map(),
-        gmByMode: { x: new Map(), legend: new Map() },
-        gmLegendComputed: false,
-        ssDiagnosticsBySeriesId: new Map(),
-        ssAutoBySeriesId: new Map(),
-        baseMetricsBySeriesId: new Map(),
-        gmMetricsByMode: { x: new Map(), legend: new Map() },
-        ssManualFitBySeriesId: new Map(),
-        ssIdWindowFitByKey: new Map(),
-        jByAreaKey: new Map(),
-        minMaxByKey: new Map(),
-      };
+    const shouldResetForSource =
+      sourceFile &&
+      entry &&
+      (entry.sourceFile !== sourceFile ||
+        entry.sourceSeries !== sourceFile?.series ||
+        entry.sourceXGroups !== sourceFile?.xGroups);
+    if (!entry || shouldResetForSource) {
+      entry = createFileCacheEntry(sourceFile);
       store.set(fileId, entry);
     }
 
     return entry;
-  }, []);
+  }, [createFileCacheEntry]);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
@@ -112,7 +141,7 @@ export const useAnalysisFileCache = ({
     const precomputeFile = (file: any) => {
       const fileId = file?.fileId;
       if (!fileId) return;
-      const cache = getFileCache(fileId);
+      const cache = getFileCache(fileId, file);
       if (!cache) return;
 
       for (const series of file?.series ?? []) {

@@ -418,7 +418,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const pointsBySeriesId = useMemo(() => {
         if (!activeFile?.fileId || !activeFile?.series?.length)
             return new Map();
-        const cache = getFileCache(activeFile.fileId);
+        const cache = getFileCache(activeFile.fileId, activeFile);
         if (!cache)
             return new Map();
         const map = cache.pointsBySeriesId;
@@ -433,7 +433,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const gmBySeriesId = useMemo(() => {
         if (!activeFile?.fileId || !activeFile?.series?.length)
             return new Map();
-        const cache = getFileCache(activeFile.fileId);
+        const cache = getFileCache(activeFile.fileId, activeFile);
         if (!cache)
             return new Map();
         if (gmMode === "x") {
@@ -507,7 +507,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         if (!activeFile?.fileId || !activeFile?.series?.length)
             return new Map();
         const map = new Map();
-        const cache = getFileCache(activeFile.fileId);
+        const cache = getFileCache(activeFile.fileId, activeFile);
         const ssDiagnosticsCache = cache?.ssDiagnosticsBySeriesId ?? new Map();
         const ssAutoCache = cache?.ssAutoBySeriesId ?? new Map();
         const baseMetricsCache = cache?.baseMetricsBySeriesId ?? new Map();
@@ -1217,7 +1217,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     }, [renderPlotSeries, selectedOriginSeriesKeySet, toggleOriginSeriesSelection]);
     const autoMinMax = useMemo(() => {
         const fileId = activeFile?.fileId ?? null;
-        const cache = fileId ? getFileCache(fileId) : null;
+        const cache = fileId ? getFileCache(fileId, activeFile) : null;
         const areaKeyForMinMax = area && Number.isFinite(area) && area > 0 ? String(normalizeFloat(area)) : "";
         const minMaxKey = `${effectivePlotType}::${gmMode}::${plotYKey}::${areaKeyForMinMax}`;
         if (cache?.minMaxByKey?.has(minMaxKey)) {
@@ -1474,7 +1474,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             cacheBucket.set(renderMaxPointsPerSeries, standbyRenderSeries ?? []);
         }
         const fileId = activeFile?.fileId ?? null;
-        const cache = fileId ? getFileCache(fileId) : null;
+        const cache = fileId ? getFileCache(fileId, activeFile) : null;
         const areaKeyForMinMax = area && Number.isFinite(area) && area > 0 ? String(normalizeFloat(area)) : "";
         const minMaxKey = `${ivGmStandbyPlotType}::${gmMode}::${plotYKey}::${areaKeyForMinMax}`;
         let standbyMinMax = cache?.minMaxByKey?.has(minMaxKey)

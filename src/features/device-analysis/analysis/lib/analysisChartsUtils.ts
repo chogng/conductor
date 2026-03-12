@@ -439,6 +439,25 @@ export const buildLogTicks = (
   if (hi <= 0) return null;
 
   const safeLo = lo > 0 ? lo : hi / 1000;
+  const logLo = Math.log10(safeLo);
+  const logHi = Math.log10(hi);
+  const span = logHi - logLo;
+
+  if (Number.isFinite(span) && span > 0 && span < 1) {
+    const targetCount = 6;
+    const step = span / (targetCount - 1);
+    const out = [];
+    for (let i = 0; i < targetCount; i += 1) {
+      out.push(normalizeFloat(Math.pow(10, logLo + step * i)));
+    }
+    const deduped = out.filter(
+      (value, index, arr) =>
+        index === 0 ||
+        Math.abs(value - arr[index - 1]) > Math.max(1e-18, Math.abs(value) * 1e-12),
+    );
+    return deduped.length >= 2 ? deduped : [normalizeFloat(safeLo), normalizeFloat(hi)];
+  }
+
   const expMin = Math.floor(Math.log10(safeLo));
   const expMax = Math.ceil(Math.log10(hi));
 
