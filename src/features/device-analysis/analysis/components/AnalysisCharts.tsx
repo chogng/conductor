@@ -382,7 +382,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             : kind === "gds"
                 ? "Output Conductance"
                 : "Derivative";
-        const kindSymbol = kind === "gm" ? "gm" : kind === "gds" ? "gds" : null;
+        const kindSymbol = kind === "gm" ? "gₘ" : kind === "gds" ? "gds" : null;
         const derivSymbol = varTokenToSymbol(derivToken);
         const fixedSymbol = varTokenToSymbol(fixedToken);
         const derivShortLabel = derivSymbol
@@ -1840,7 +1840,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
 
                 {effectivePlotType === "gm" ? (<div className="flex items-center gap-1">
                     <span className="text-xs text-text-secondary whitespace-nowrap">
-                      gm:
+                      gₘ:
                     </span>
                     <Select id="device-analysis-gm-mode-select" size="md" value={gmMode} onChange={(next: any) => setGmMode(next === "legend" ? "legend" : "x")} options={gmUi.modeOptions} className="w-[170px]"/>
                   </div>) : null}
