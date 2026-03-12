@@ -340,6 +340,7 @@ export const useTemplateManagerState = ({
 
         if (selectedTemplateId === id) {
           setSelectedTemplateId(null);
+          setConfig((prev) => ({ ...prev, name: "" }));
           if (typeof onUpdateDeviceAnalysisSettings === "function") {
             void onUpdateDeviceAnalysisSettings({ lastTemplateId: null });
           }
@@ -354,6 +355,7 @@ export const useTemplateManagerState = ({
     [
       onUpdateDeviceAnalysisSettings,
       selectedTemplateId,
+      setConfig,
       setSelectedTemplateId,
       showToast,
     ],
