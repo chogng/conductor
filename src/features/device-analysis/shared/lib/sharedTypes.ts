@@ -23,6 +23,9 @@ export type ProcessedEntry = {
   fileId?: string;
   fileName?: string;
   curveType?: string;
+  xAxisRole?: "vg" | "vd" | null;
+  xAxisRoleSource?: "filename" | "title" | "label" | null;
+  supportsSs?: boolean;
   x?: {
     sampledPoints?: number | null;
     [key: string]: unknown;

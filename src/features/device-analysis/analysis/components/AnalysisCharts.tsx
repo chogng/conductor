@@ -327,44 +327,22 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return null;
         return num;
     }, [areaInput]);
-    const ssApplicable = useMemo(() => {
+    const ssHeuristicApplicable = useMemo(() => {
+        if (activeFile?.supportsSs === true)
+            return true;
+        if (activeFile?.supportsSs === false)
+            return false;
+        const xAxisRole = String(activeFile?.xAxisRole || "").toLowerCase();
+        if (xAxisRole)
+            return xAxisRole === "vg";
         const curveType = String(activeFile?.curveType || "").toLowerCase();
         if (curveType)
             return curveType.includes("vg") || curveType.includes("transfer");
         const label = String(activeFile?.xLabel || "").toLowerCase();
         return label.includes("vg");
-    }, [activeFile?.curveType, activeFile?.xLabel]);
-    const effectivePlotType = useMemo(() => {
-        if (plotType === "j" && !area)
-            return "iv";
-        if (plotType === "ss" && !ssApplicable)
-            return "iv";
-        return plotType;
-    }, [area, plotType, ssApplicable]);
-    const { residentMainPlotTypes } = useResidentMainPlot({
-        effectivePlotType,
-    });
-    useEffect(() => {
-        const shouldEnableDrag = effectivePlotType === "ss" && ssMethod === "manual";
-        const activeFileIdNow = activeFile?.fileId ?? null;
-        const focusedSeriesIdNow = focusedSeriesId ?? null;
-        const drag = ssDragStateRef.current;
-        const dragActive = Boolean(drag?.active);
-        const dragIsForCurrent = drag &&
-            drag.fileId === activeFileIdNow &&
-            drag.seriesId === focusedSeriesIdNow;
-        if (!shouldEnableDrag || (dragActive && !dragIsForCurrent)) {
-            if (ssDragCommitTimerRef.current) {
-                clearTimeout(ssDragCommitTimerRef.current);
-                ssDragCommitTimerRef.current = null;
-            }
-            ssDragStateRef.current = null;
-            if (ssManualDraft)
-                setSsManualDraft(null);
-        }
-    }, [activeFile?.fileId, effectivePlotType, focusedSeriesId, ssManualDraft, ssMethod]);
+    }, [activeFile?.curveType, activeFile?.supportsSs, activeFile?.xAxisRole, activeFile?.xLabel]);
     const gmUi = useMemo(() => {
-        const xToken = normalizeVarToken(activeFile?.curveType);
+        const xToken = normalizeVarToken(activeFile?.xAxisRole ?? activeFile?.curveType);
         const legendToken = normalizeVarToken(activeFile?.legend?.varToken);
         const xSymbol = varTokenToSymbol(xToken);
         const legendSymbol = varTokenToSymbol(legendToken);
@@ -437,15 +415,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             metricHeader: `max|${metricSymbol}|`,
         };
     }, [activeFile, gmMode]);
-    const plotYFactor = useMemo(() => resolvedYUnitMeta.factor, [resolvedYUnitMeta.factor]);
-    const plotYUnitLabel = useMemo(() => {
-        if (effectivePlotType === "gm")
-            return toConductanceUnitLabel(resolvedYUnitMeta.label, gmUi.denomUnit);
-        if (effectivePlotType === "j")
-            return `${resolvedYUnitMeta.label}/Area`;
-        // SS tab main plot is I-V in log(|I|), so keep current unit here.
-        return resolvedYUnitMeta.label;
-    }, [resolvedYUnitMeta.label, effectivePlotType, gmUi.denomUnit]);
     const pointsBySeriesId = useMemo(() => {
         if (!activeFile?.fileId || !activeFile?.series?.length)
             return new Map();
@@ -855,6 +824,89 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         ssManualRanges,
         ssMethod,
     ]);
+    const ssComputedApplicable = useMemo(() => {
+        if (!activeFile?.series?.length)
+            return false;
+        for (const series of activeFile.series) {
+            const analysis = analysisBySeriesId.get(series?.id);
+            const selectedFit = analysis?.ssSelected?.fit ?? null;
+            if (selectedFit?.ok && Number.isFinite(selectedFit?.ss)) {
+                return true;
+            }
+            const strictFit = analysis?.ssAuto?.strict ?? null;
+            if (strictFit?.ok && Number.isFinite(strictFit?.ss)) {
+                return true;
+            }
+            const suggestedFit = analysis?.ssAuto?.suggested ?? null;
+            if (suggestedFit?.ok && Number.isFinite(suggestedFit?.ss)) {
+                return true;
+            }
+            const diagnostics = analysis?.ssDiagnostics ?? null;
+            if (Array.isArray(diagnostics) &&
+                diagnostics.some((point: any) => Number.isFinite(point?.y))) {
+                return true;
+            }
+        }
+        return false;
+    }, [activeFile?.series, analysisBySeriesId]);
+    const ssApplicable = ssHeuristicApplicable || ssComputedApplicable;
+    const effectivePlotType = useMemo(() => {
+        if (plotType === "j" && !area)
+            return "iv";
+        if (plotType === "ss" && !ssApplicable)
+            return "iv";
+        return plotType;
+    }, [area, plotType, ssApplicable]);
+    const { residentMainPlotTypes } = useResidentMainPlot({
+        effectivePlotType,
+    });
+    useEffect(() => {
+        const shouldEnableDrag = effectivePlotType === "ss" && ssMethod === "manual";
+        const activeFileIdNow = activeFile?.fileId ?? null;
+        const focusedSeriesIdNow = focusedSeriesId ?? null;
+        const drag = ssDragStateRef.current;
+        const dragActive = Boolean(drag?.active);
+        const dragIsForCurrent = drag &&
+            drag.fileId === activeFileIdNow &&
+            drag.seriesId === focusedSeriesIdNow;
+        if (!shouldEnableDrag || (dragActive && !dragIsForCurrent)) {
+            if (ssDragCommitTimerRef.current) {
+                clearTimeout(ssDragCommitTimerRef.current);
+                ssDragCommitTimerRef.current = null;
+            }
+            ssDragStateRef.current = null;
+            if (ssManualDraft)
+                setSsManualDraft(null);
+        }
+    }, [activeFile?.fileId, effectivePlotType, focusedSeriesId, ssManualDraft, ssMethod]);
+    const plotYFactor = useMemo(() => resolvedYUnitMeta.factor, [resolvedYUnitMeta.factor]);
+    const plotYUnitLabel = useMemo(() => {
+        if (effectivePlotType === "gm")
+            return toConductanceUnitLabel(resolvedYUnitMeta.label, gmUi.denomUnit);
+        if (effectivePlotType === "j")
+            return `${resolvedYUnitMeta.label}/Area`;
+        // SS tab main plot is I-V in log(|I|), so keep current unit here.
+        return resolvedYUnitMeta.label;
+    }, [resolvedYUnitMeta.label, effectivePlotType, gmUi.denomUnit]);
+    useEffect(() => {
+        const seriesList = activeFile?.series ?? [];
+        if (!seriesList.length) {
+            if (focusedSeriesId !== null) {
+                setFocusedSeriesId(null);
+            }
+            return;
+        }
+        if (focusedSeriesId &&
+            seriesList.some((series: any) => series?.id === focusedSeriesId)) {
+            return;
+        }
+        if (effectivePlotType === "iv")
+            return;
+        const nextFocusedSeriesId = seriesList[0]?.id ?? null;
+        if (nextFocusedSeriesId !== focusedSeriesId) {
+            setFocusedSeriesId(nextFocusedSeriesId);
+        }
+    }, [activeFile?.fileId, activeFile?.series, effectivePlotType, focusedSeriesId]);
     useEffect(() => {
         if (effectivePlotType !== "ss")
             return;
