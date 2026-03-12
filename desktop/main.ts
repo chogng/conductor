@@ -61,28 +61,6 @@ function getResourcesPath() {
   const resourcesPath = Reflect.get(process, "resourcesPath");
   return typeof resourcesPath === "string" ? resourcesPath : process.cwd();
 }
-function resolveOriginWorkerScriptPath() {
-  if (!app.isPackaged) {
-    return path.join(__dirname, "..", "origin", "run_origin_job.ps1");
-  }
-
-  const unpackedPath = path.join(
-    getResourcesPath(),
-    "app.asar.unpacked",
-    "origin",
-    "run_origin_job.ps1",
-  );
-  if (fs.existsSync(unpackedPath)) {
-    return unpackedPath;
-  }
-
-  return path.join(
-    getResourcesPath(),
-    "app.asar",
-    "origin",
-    "run_origin_job.ps1",
-  );
-}
 
 function resolveOriginCsvScriptPath() {
   if (!app.isPackaged) {
@@ -141,7 +119,6 @@ function resolveOriginCsvWorkerPath() {
   ]);
 }
 
-const ORIGIN_WORKER_SCRIPT_PATH = resolveOriginWorkerScriptPath();
 const ORIGIN_CSV_SCRIPT_PATH = isDev ? resolveOriginCsvScriptPath() : null;
 const ORIGIN_CSV_WORKER_PATH = resolveOriginCsvWorkerPath();
 
@@ -674,7 +651,7 @@ async function handleOriginHealthCheck(event, payload) {
   try {
     return await runOriginHealthCheck({
       originExePath,
-      workerScriptPath: ORIGIN_WORKER_SCRIPT_PATH,
+      workerExecutablePath: ORIGIN_CSV_WORKER_PATH,
       runtimeRootDir: getDeviceAnalysisHomeDir(),
     });
   } finally {

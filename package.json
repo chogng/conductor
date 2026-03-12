@@ -72,13 +72,11 @@
     "files": [
       "dist/**/*",
       "desktop-dist/**/*",
-      "origin/run_origin_job.ps1",
       "origin/bin/origin-csv-worker.exe",
       "package.json"
     ],
     "asar": true,
     "asarUnpack": [
-      "origin/run_origin_job.ps1",
       "origin/bin/origin-csv-worker.exe"
     ],
     "publish": [

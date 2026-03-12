@@ -1,7 +1,5 @@
 import fs from "node:fs";
 import {
-  getPowerShellExePath,
-  runProcess,
   normalizeOriginExePath,
   assertOriginExePath,
 } from "./core.js";
@@ -11,7 +9,6 @@ import {
   parseWorkerErrorPayload,
 } from "./errors.js";
 import {
-  createJobPaths,
   createCsvJobPaths,
 } from "./runtime.js";
 import {
@@ -215,43 +212,78 @@ export async function runOriginCsvJob({
 
 export async function runOriginHealthCheck({
   originExePath,
-  workerScriptPath,
+  workerExecutablePath,
   runtimeRootDir,
 }) {
   const normalizedOriginExePath = assertOriginExePath(originExePath);
-  if (!workerScriptPath || !fs.existsSync(workerScriptPath)) {
+  const normalizedWorkerExecutablePath = normalizeOriginExePath(workerExecutablePath);
+  const nativeWorkerAvailable = Boolean(
+    normalizedWorkerExecutablePath && fs.existsSync(normalizedWorkerExecutablePath),
+  );
+
+  if (!nativeWorkerAvailable) {
     throw toStructuredOriginError({
-      code: "ORIGIN_WORKER_SCRIPT_NOT_FOUND",
+      code: "ORIGIN_HEALTH_CHECK_RUNNER_NOT_FOUND",
       stage: "PRECHECK",
-      message: `Origin worker script not found: ${workerScriptPath}`,
+      message: `No health-check runner is available. Worker: ${normalizedWorkerExecutablePath || "(none)"}`,
       originExe: normalizedOriginExePath,
     });
   }
 
-  const { jobDir, extractDir, workDir } = createJobPaths("origin_health_check.zip", {
-    runtimeRootDir,
-  });
-
-  const workerResult = await runProcess(
-    getPowerShellExePath(),
-    [
-      "-NoProfile",
-      "-ExecutionPolicy",
-      "Bypass",
-      "-File",
-      workerScriptPath,
-      "-WorkDir",
-      workDir,
-      "-ExtractDir",
-      extractDir,
-      "-OriginExe",
-      normalizedOriginExePath,
-      "-HealthCheckOnly",
-    ],
-    { windowsHide: true },
+  const { jobDir, workDir, logPath, errorPath } = createCsvJobPaths(
+    "origin_health_check.csv",
+    {
+      runtimeRootDir,
+    },
   );
 
-  const { logPath, errorPath, workerErrorPayload, workerErrorRaw } =
+  const healthCheckWorkerArgs = [
+    "--work-dir",
+    workDir,
+    "--origin-exe",
+    normalizedOriginExePath,
+    "--log-path",
+    logPath,
+    "--error-path",
+    errorPath,
+    "--health-check-only",
+  ];
+
+  let workerResult = null;
+  let runnerKind = null;
+  let runnerExecutable = null;
+
+  try {
+    workerResult = await runNativeCsvWorker(
+      normalizedWorkerExecutablePath,
+      healthCheckWorkerArgs,
+      { windowsHide: true },
+    );
+    runnerKind = "native";
+    runnerExecutable = workerResult.executable;
+  } catch (error) {
+    throw toStructuredOriginError({
+      code: "ORIGIN_HEALTH_CHECK_RUNNER_FAILED",
+      stage: "HEALTH_CHECK_NATIVE_RUNNER",
+      message:
+        error?.message ||
+        "Failed to run Origin health-check native worker executable.",
+      logPath,
+      originExe: normalizedOriginExePath,
+    });
+  }
+
+  if (!workerResult) {
+    throw toStructuredOriginError({
+      code: "ORIGIN_HEALTH_CHECK_RUNNER_NOT_FOUND",
+      stage: "PRECHECK",
+      message: "No available runner could be started for Origin health check.",
+      logPath,
+      originExe: normalizedOriginExePath,
+    });
+  }
+
+  const { workerErrorPayload, workerErrorRaw } =
     readWorkerErrorFiles(workDir, parseWorkerErrorPayload);
 
   if (workerResult.code !== 0) {
@@ -259,7 +291,7 @@ export async function runOriginHealthCheck({
       workerResult,
       logPath,
       workerErrorPayload,
-      fallbackStage: "HEALTH_CHECK",
+      fallbackStage: "HEALTH_CHECK_NATIVE_RUNNER",
       fallbackCode: "ORIGIN_HEALTH_CHECK_FAILED",
       fallbackMessage:
         workerErrorRaw ||
@@ -279,6 +311,8 @@ export async function runOriginHealthCheck({
     workDir,
     logPath,
     errorPath,
+    runner: runnerKind,
+    runnerExecutable,
   };
 }
 

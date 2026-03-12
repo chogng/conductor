@@ -6,7 +6,6 @@ This project uses one offline-native worker (built with `uv + pyinstaller`):
 
 Python script remains available as debug fallback (dev mode only):
 
-- `run_origin_job.ps1` (health-check script)
 - `run_origin_csv.py` (CSV fallback)
 
 Worker dependencies are installed into a project-local virtual environment by default:
@@ -48,10 +47,17 @@ CSV job (`device-analysis-origin:run-csv`) order:
 3. `origin/dist/origin-csv-worker.exe` (dev)
 4. Python fallback (dev only): `origin/run_origin_csv.py`
 
+Health check (`device-analysis-origin:health-check`) order:
+
+1. `ORIGIN_CSV_WORKER_PATH` (if set and exists)
+2. `origin/bin/origin-csv-worker.exe` (dev)
+3. `origin/dist/origin-csv-worker.exe` (dev)
+
 Packaged app behavior:
 
 1. Worker EXE is preferred for CSV.
-2. Packaged builds do not rely on local `python`/`originpro` for normal CSV execution.
+2. Worker EXE is preferred for health checks.
+3. Packaged builds do not rely on local `python`/`originpro` for normal CSV execution.
 
 ## Worker CLI Contract
 
@@ -59,7 +65,7 @@ CSV worker CLI (`origin-csv-worker.exe` / `run_origin_csv.py`):
 
 ```text
 --work-dir <dir>
---csv-path <file>
+--csv-path <file>                 # required unless --health-check-only
 --origin-exe <path>
 --log-path <file>
 --error-path <file>
@@ -68,6 +74,7 @@ CSV worker CLI (`origin-csv-worker.exe` / `run_origin_csv.py`):
 --xy-pairs <string>               # default ((1,2))
 --plot-command <string>           # full LabTalk command; overrides plot-type/xy-pairs
 --post-plot-command <string>      # repeatable; executed after main plot
+--health-check-only               # run Origin attach + sec -p 0; without CSV import
 ```
 
 Expected outputs:

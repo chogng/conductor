@@ -252,7 +252,7 @@ def parse_args():
         description="Run Device Analysis CSV import job in Origin via originpro.",
     )
     parser.add_argument("--work-dir", required=True)
-    parser.add_argument("--csv-path", required=True)
+    parser.add_argument("--csv-path", default="")
     parser.add_argument("--origin-exe", required=True)
     parser.add_argument("--log-path", default="")
     parser.add_argument("--error-path", default="")
@@ -264,6 +264,7 @@ def parse_args():
     parser.add_argument("--line-width", type=float, default=2.0)
     parser.add_argument("--capabilities-json", default="")
     parser.add_argument("--max-com-attempts", type=int, default=8)
+    parser.add_argument("--health-check-only", action="store_true")
     return parser.parse_args()
 
 
@@ -271,7 +272,7 @@ def main():
     args = parse_args()
 
     work_dir = Path(args.work_dir).resolve()
-    csv_path = Path(args.csv_path).resolve()
+    csv_path = Path(args.csv_path).resolve() if args.csv_path else None
     origin_exe_path = Path(args.origin_exe).resolve()
     log_path = Path(args.log_path).resolve() if args.log_path else work_dir / "originbridge.log"
     error_path = Path(args.error_path).resolve() if args.error_path else work_dir / "error.txt"
@@ -289,8 +290,12 @@ def main():
     )
 
     ctx.log(f"WorkDir: {work_dir}")
-    ctx.log(f"CsvPath: {csv_path}")
+    if csv_path is not None:
+        ctx.log(f"CsvPath: {csv_path}")
+    else:
+        ctx.log("CsvPath: (health-check mode)")
     ctx.log(f"OriginExe: {origin_exe_path}")
+    ctx.log(f"HealthCheckOnly: {bool(args.health_check_only)}")
 
     if not origin_exe_path.exists():
         ctx.write_error(
@@ -304,18 +309,25 @@ def main():
             stage="PRECHECK",
             message=f"Origin executable path is not a file: {origin_exe_path}",
         )
-    if not csv_path.exists():
-        ctx.write_error(
-            code="ORIGIN_CSV_NOT_FOUND",
-            stage="PRECHECK",
-            message=f"CSV file not found: {csv_path}",
-        )
-    if not csv_path.is_file():
-        ctx.write_error(
-            code="ORIGIN_CSV_NOT_FOUND",
-            stage="PRECHECK",
-            message=f"CSV path is not a file: {csv_path}",
-        )
+    if not args.health_check_only:
+        if csv_path is None:
+            ctx.write_error(
+                code="ORIGIN_CSV_NOT_FOUND",
+                stage="PRECHECK",
+                message="CSV path is required.",
+            )
+        if not csv_path.exists():
+            ctx.write_error(
+                code="ORIGIN_CSV_NOT_FOUND",
+                stage="PRECHECK",
+                message=f"CSV file not found: {csv_path}",
+            )
+        if not csv_path.is_file():
+            ctx.write_error(
+                code="ORIGIN_CSV_NOT_FOUND",
+                stage="PRECHECK",
+                message=f"CSV path is not a file: {csv_path}",
+            )
 
     op_module = get_originpro_module(
         ctx,
@@ -327,6 +339,38 @@ def main():
         max(1, int(args.max_com_attempts)),
         str(origin_exe_path),
     )
+
+    if args.health_check_only:
+        try:
+            run_labtalk_or_raise(
+                op_module,
+                "sec -p 0;",
+                "Origin health-check execute failed",
+            )
+            ctx.log("Origin health check completed successfully.")
+        except Exception as exc:
+            ctx.write_error(
+                code="ORIGIN_HEALTH_EXEC_FAILED",
+                stage="HEALTH_CHECK",
+                message=f"Origin health-check execute failed: {exc}",
+                exc=exc,
+            )
+
+        detach = getattr(op_module, "detach", None)
+        if callable(detach):
+            try:
+                detach()
+            except Exception as exc:
+                ctx.log(f"originpro detach warning: {exc}")
+
+        error_path.write_text("", encoding="utf-8")
+        print(
+            json.dumps(
+                {"ok": True, "healthCheck": True, "logPath": str(log_path)},
+                ensure_ascii=False,
+            )
+        )
+        return 0
 
     try:
         capabilities = parse_capabilities_json(args.capabilities_json)

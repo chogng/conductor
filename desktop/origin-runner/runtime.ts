@@ -167,16 +167,6 @@ export function runOriginRuntimeCleanup(options = {}) {
     };
   }
 
-  const zipSummary = cleanupOneJobBase(
-    path.join(originRootDir, "jobs"),
-    normalizedPolicy,
-    { clearAll },
-  );
-  const batchSummary = cleanupOneJobBase(
-    path.join(originRootDir, "batch-jobs"),
-    normalizedPolicy,
-    { clearAll },
-  );
   const csvSummary = cleanupOneJobBase(
     path.join(originRootDir, "csv-jobs"),
     normalizedPolicy,
@@ -189,42 +179,8 @@ export function runOriginRuntimeCleanup(options = {}) {
     runtimeRootDir: originRootDir,
     clearAll,
     policy: normalizedPolicy,
-    zip: zipSummary,
-    batch: batchSummary,
     csv: csvSummary,
-    removedTotal:
-      zipSummary.removedJobs + batchSummary.removedJobs + csvSummary.removedJobs,
-  };
-}
-
-export function createJobPaths(zipName, options = {}) {
-  const source = options && typeof options === "object" ? options : {};
-  const runtimeRootDir = Reflect.get(source, "runtimeRootDir");
-
-  const rootDir = path.join(
-    resolveRuntimeRootDir(runtimeRootDir),
-    "origin",
-    "jobs",
-  );
-  ensureDir(rootDir);
-
-  const jobId = `${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
-  const jobDir = path.join(rootDir, jobId);
-  const extractDir = path.join(jobDir, "extract");
-  const workDir = path.join(jobDir, ".ob");
-
-  ensureDir(jobDir);
-  ensureDir(extractDir);
-  ensureDir(workDir);
-
-  const safeZipName = sanitizeFileName(zipName);
-  const inputZipPath = path.join(jobDir, safeZipName);
-
-  return {
-    jobDir,
-    extractDir,
-    workDir,
-    inputZipPath,
+    removedTotal: csvSummary.removedJobs,
   };
 }
 
