@@ -464,7 +464,7 @@ async function handleDeviceAnalysisPersistencePathChoose(event) {
   const win = BrowserWindow.fromWebContents(event.sender) ?? null;
 
   const result = await dialog.showSaveDialog(win || undefined, {
-    title: "Select persistence file path",
+    title: "Select user config file path",
     defaultPath: currentInfo.currentPath,
     buttonLabel: "Confirm",
     filters: [

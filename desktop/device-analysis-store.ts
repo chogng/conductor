@@ -485,7 +485,7 @@ export function createDeviceAnalysisStore(options) {
       writeStoreConfig({ customStorePath: null });
     } else {
       if (!path.isAbsolute(normalizedPath)) {
-        throw new Error("Persistence path must be an absolute file path.");
+        throw new Error("User config path must be an absolute file path.");
       }
       writeStoreConfig({ customStorePath: normalizedPath });
     }
