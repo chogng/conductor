@@ -62,6 +62,87 @@ const normalizeSelectedColumns = (value: unknown): number[] | null => {
 const normalizeTemplateId = (value: unknown): string | null =>
   typeof value === "string" ? value : null;
 
+const TEMPLATE_TRANSFER_FILE_TYPE = "device-analysis-template-bundle";
+const TEMPLATE_TRANSFER_FILE_VERSION = 1;
+
+type TemplateTransferBundle = {
+  exportedAt: string;
+  source: string;
+  templates: TemplateRecord[];
+  type: string;
+  version: number;
+};
+
+const toTemplateTransferRecord = (template: TemplateRecord): TemplateRecord => ({
+  name: String(template?.name ?? ""),
+  xDataStart: String(template?.xDataStart ?? ""),
+  xDataEnd: String(template?.xDataEnd ?? ""),
+  xPoints: String(template?.xPoints ?? ""),
+  xUnit: String(template?.xUnit ?? ""),
+  yDataStart: String(template?.yDataStart ?? ""),
+  yDataEnd: String(template?.yDataEnd ?? ""),
+  yPoints: String(template?.yPoints ?? ""),
+  yCount: String(template?.yCount ?? ""),
+  yStep: String(template?.yStep ?? ""),
+  yUnit: normalizeDeviceAnalysisYUnit(template?.yUnit, ""),
+  stopOnError: Boolean(template?.stopOnError),
+  bottomTitle: String(template?.bottomTitle ?? template?.vgKeyword ?? ""),
+  leftTitle: String(template?.leftTitle ?? ""),
+  legendPrefix: String(template?.legendPrefix ?? template?.vdKeyword ?? ""),
+  fileNameVgKeywords: String(
+    template?.fileNameVgKeywords ?? template?.vgFileKeywords ?? "",
+  ),
+  fileNameVdKeywords: String(
+    template?.fileNameVdKeywords ?? template?.vdFileKeywords ?? "",
+  ),
+  selectedColumns: normalizeSelectedColumns(template?.selectedColumns) ?? [],
+});
+
+const mergeTemplatesByIdentity = (
+  existing: TemplateRecord[],
+  incoming: TemplateRecord[],
+): TemplateRecord[] => {
+  if (!Array.isArray(incoming) || incoming.length === 0) return existing;
+
+  const incomingByName = new Map<string, TemplateRecord>();
+  for (const template of incoming) {
+    const nameKey = toTemplateNameKey(template?.name);
+    if (!nameKey) continue;
+    incomingByName.set(nameKey, template);
+  }
+
+  const dedupedIncoming = [...incomingByName.values()];
+  const incomingIds = new Set(
+    dedupedIncoming
+      .map((template) => normalizeTemplateId(template?.id))
+      .filter((id): id is string => Boolean(id)),
+  );
+  const incomingNameKeys = new Set(
+    dedupedIncoming
+      .map((template) => toTemplateNameKey(template?.name))
+      .filter(Boolean),
+  );
+
+  return [
+    ...dedupedIncoming,
+    ...existing.filter((template) => {
+      const id = normalizeTemplateId(template?.id);
+      if (id && incomingIds.has(id)) return false;
+      const nameKey = toTemplateNameKey(template?.name);
+      if (nameKey && incomingNameKeys.has(nameKey)) return false;
+      return true;
+    }),
+  ];
+};
+
+const extractImportedTemplates = (payload: unknown): unknown[] => {
+  if (Array.isArray(payload)) return payload;
+  if (!isObjectRecord(payload)) return [];
+
+  const templates = payload?.templates;
+  return Array.isArray(templates) ? templates : [];
+};
+
 type UseTemplateManagerStateOptions = {
   deviceAnalysisSettings?: DeviceAnalysisSettings | null;
   onTemplateApplied?: (config: TemplateConfig) => unknown;
@@ -97,6 +178,7 @@ export const useTemplateManagerState = ({
   const [templates, setTemplates] = useState<TemplateRecord[]>([]);
   const [templatesLoaded, setTemplatesLoaded] = useState(false);
   const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [templateTransferBusy, setTemplateTransferBusy] = useState(false);
   const templatesRequestRef = useRef<Promise<TemplateRecord[]> | null>(null);
   const [inputSources, setInputSources] = useState<Record<string, InputSource>>(
     {},
@@ -361,6 +443,118 @@ export const useTemplateManagerState = ({
     ],
   );
 
+  const createTemplateExportBundle =
+    useCallback(async (): Promise<TemplateTransferBundle | null> => {
+      setTemplateTransferBusy(true);
+
+      try {
+        const loadedTemplates = await ensureTemplatesLoaded();
+        const templatesForExport = loadedTemplates
+          .map((template) => toTemplateTransferRecord(template))
+          .filter((template) => Boolean(String(template?.name ?? "").trim()));
+
+        if (templatesForExport.length === 0) {
+          showToast(t("da_template_export_empty"), "warning");
+          return null;
+        }
+
+        return {
+          type: TEMPLATE_TRANSFER_FILE_TYPE,
+          version: TEMPLATE_TRANSFER_FILE_VERSION,
+          source: "Device Analysis Studio",
+          exportedAt: new Date().toISOString(),
+          templates: templatesForExport,
+        };
+      } catch (error) {
+        showToast(
+          t("da_template_export_failed", {
+            error: error instanceof Error ? error.message : t("unknownError"),
+          }),
+          "warning",
+        );
+        return null;
+      } finally {
+        setTemplateTransferBusy(false);
+      }
+    }, [ensureTemplatesLoaded, showToast, t]);
+
+  const importTemplatesFromPayload = useCallback(
+    async (payload: unknown) => {
+      const importedEntries = extractImportedTemplates(payload);
+      if (importedEntries.length === 0) {
+        showToast(t("da_template_import_invalid_format"), "warning");
+        return;
+      }
+
+      setTemplateTransferBusy(true);
+
+      try {
+        const savedTemplates: TemplateRecord[] = [];
+        let skippedCount = 0;
+
+        for (const entry of importedEntries) {
+          if (!isTemplateRecord(entry)) {
+            skippedCount += 1;
+            continue;
+          }
+
+          const draft = toTemplateTransferRecord(entry);
+          const name = String(draft?.name ?? "").trim();
+          if (!name) {
+            skippedCount += 1;
+            continue;
+          }
+
+          const validation = validateTemplateForSave(
+            {
+              ...draft,
+              name,
+            },
+            t,
+          );
+          if (!validation.ok || !validation.normalized) {
+            skippedCount += 1;
+            continue;
+          }
+
+          try {
+            const savedRaw = await apiService.createDeviceAnalysisTemplate({
+              ...validation.normalized,
+              name,
+            });
+            const saved: TemplateRecord = isTemplateRecord(savedRaw)
+              ? savedRaw
+              : { ...validation.normalized, name };
+            savedTemplates.push(saved);
+          } catch {
+            skippedCount += 1;
+          }
+        }
+
+        if (savedTemplates.length === 0) {
+          showToast(t("da_template_import_none"), "warning");
+          return;
+        }
+
+        setTemplates((prev) => mergeTemplatesByIdentity(prev, savedTemplates));
+        setTemplatesLoaded(true);
+        loadTemplate(savedTemplates[0]);
+
+        showToast(
+          t("da_template_import_result", {
+            imported: savedTemplates.length,
+            total: importedEntries.length,
+            skipped: skippedCount,
+          }),
+          skippedCount > 0 ? "warning" : "success",
+        );
+      } finally {
+        setTemplateTransferBusy(false);
+      }
+    },
+    [loadTemplate, showToast, t],
+  );
+
   useEffect(() => {
     const startCell = String(config.xDataStart ?? "").trim();
     const endValue = normalizeXDataEndValue(config.xDataEnd);
@@ -573,8 +767,10 @@ export const useTemplateManagerState = ({
     closeTemplateDropdown,
     config,
     confirmDiscardAndSwitch,
+    createTemplateExportBundle,
     handleCreateNewTemplate,
     handleDeleteTemplate,
+    importTemplatesFromPayload,
     handleSaveTemplate,
     handleTemplateModeChange,
     isDiscardConfirmOpen,
@@ -585,6 +781,7 @@ export const useTemplateManagerState = ({
     markSaveDraftTouched,
     openTemplateDropdown,
     setConfig,
+    templateTransferBusy,
     templateMode,
     templates,
     templatesLoading,

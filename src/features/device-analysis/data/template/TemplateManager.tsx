@@ -18,6 +18,8 @@ import {
   Plus,
   Check,
   FileSpreadsheet,
+  Download,
+  Upload,
 } from "lucide-react";
 import { useLanguage } from "../../../../hooks/useLanguage";
 import type { TranslateFn, TranslationVars } from "../../../../context/language";
@@ -120,6 +122,14 @@ const TemplateManagerPreviewFallback = ({
   );
 };
 
+const formatTemplateExportFileName = () => {
+  const now = new Date();
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const date = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
+  const time = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  return `device-analysis-templates-${date}-${time}.json`;
+};
+
 const TemplateManager = ({
   previewFile,
   previewStatus,
@@ -139,6 +149,7 @@ const TemplateManager = ({
     [t],
   );
   const dropdownRef = useRef(null);
+  const importFileInputRef = useRef<HTMLInputElement | null>(null);
   const [toast, setToast] = useState({
     isVisible: false,
     message: "",
@@ -173,8 +184,10 @@ const TemplateManager = ({
     closeTemplateDropdown,
     config,
     confirmDiscardAndSwitch,
+    createTemplateExportBundle,
     handleCreateNewTemplate,
     handleDeleteTemplate,
+    importTemplatesFromPayload,
     handleSaveTemplate,
     handleTemplateModeChange,
     isDiscardConfirmOpen,
@@ -185,6 +198,7 @@ const TemplateManager = ({
     markSaveDraftTouched,
     openTemplateDropdown,
     setConfig,
+    templateTransferBusy,
     templateMode,
     templates,
     templatesLoading,
@@ -245,6 +259,66 @@ const TemplateManager = ({
     lastVarPairToastRef.current = message;
     showToast(message, "warning");
   }, [showToast, t, varPairValidation.ok, varPairValidation.message]);
+
+  const handleExportTemplates = useCallback(async () => {
+    const bundle = await createTemplateExportBundle();
+    if (!bundle) return;
+
+    try {
+      const blob = new Blob([JSON.stringify(bundle, null, 2)], {
+        type: "application/json",
+      });
+      const href = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = href;
+      anchor.download = formatTemplateExportFileName();
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(href), 0);
+      showToast(
+        t("da_template_export_success", {
+          count: Array.isArray(bundle.templates) ? bundle.templates.length : 0,
+        }),
+        "success",
+      );
+    } catch (error) {
+      showToast(
+        t("da_template_export_failed", {
+          error: error instanceof Error ? error.message : t("unknownError"),
+        }),
+        "warning",
+      );
+    }
+  }, [createTemplateExportBundle, showToast, t]);
+
+  const handleImportTemplatesClick = useCallback(() => {
+    importFileInputRef.current?.click();
+  }, []);
+
+  const handleImportTemplatesFileChange = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const input = event.currentTarget;
+      const file = input.files?.[0];
+      if (!file) return;
+
+      try {
+        const raw = await file.text();
+        const payload = JSON.parse(raw) as unknown;
+        await importTemplatesFromPayload(payload);
+      } catch (error) {
+        showToast(
+          t("da_template_import_read_failed", {
+            error: error instanceof Error ? error.message : t("unknownError"),
+          }),
+          "warning",
+        );
+      } finally {
+        input.value = "";
+      }
+    },
+    [importTemplatesFromPayload, showToast, t],
+  );
 
   const renderSavePanel = ({
     includeIds = true,
@@ -839,6 +913,45 @@ const TemplateManager = ({
             {t("da_apply_to_new_files")}
           </Button>
         </div>
+
+        <div className="flex items-center gap-3">
+          <Button
+            id={
+              includeIds ? "device-analysis-template-export-config" : undefined
+            }
+            variant="secondary"
+            size="md"
+            className="flex-1"
+            onClick={measureOnly ? undefined : handleExportTemplates}
+            disabled={templateTransferBusy}
+          >
+            {t("da_template_export_btn")}
+            <Download size={14} />
+          </Button>
+          <Button
+            id={
+              includeIds ? "device-analysis-template-import-config" : undefined
+            }
+            variant="secondary"
+            size="md"
+            className="flex-1"
+            onClick={measureOnly ? undefined : handleImportTemplatesClick}
+            disabled={templateTransferBusy}
+          >
+            {t("da_template_import_btn")}
+            <Upload size={14} />
+          </Button>
+        </div>
+        {includeIds && !measureOnly ? (
+          <input
+            id="device-analysis-template-import-file-input"
+            ref={importFileInputRef}
+            type="file"
+            accept="application/json,.json"
+            className="sr-only"
+            onChange={handleImportTemplatesFileChange}
+          />
+        ) : null}
 
         <div
           id={
