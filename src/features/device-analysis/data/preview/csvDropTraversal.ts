@@ -1,3 +1,5 @@
+import { isSupportedDataImportFileName } from "../../shared/lib/deviceAnalysisImportFileUtils";
+
 type FileSystemEntryLike = {
   isFile: boolean;
   isDirectory: boolean;
@@ -40,16 +42,16 @@ const readAllDirectoryEntries = async (
   return collected;
 };
 
-const traverseCsvEntry = async (
+const traverseImportEntry = async (
   entry: FileSystemEntryLike | null | undefined,
-  csvFiles: File[],
+  importFiles: File[],
 ): Promise<void> => {
   if (!entry) return;
 
   if (entry.isFile) {
-    if (!entry.name.toLowerCase().endsWith(".csv")) return;
+    if (!isSupportedDataImportFileName(entry.name)) return;
     const file = await readEntryFile(entry as FileSystemFileEntryLike);
-    csvFiles.push(file);
+    importFiles.push(file);
     return;
   }
 
@@ -59,29 +61,32 @@ const traverseCsvEntry = async (
     entry as FileSystemDirectoryEntryLike,
   );
   for (const child of entries) {
-    await traverseCsvEntry(child, csvFiles);
+    await traverseImportEntry(child, importFiles);
   }
 };
 
-export const collectDroppedCsvFiles = async (
+export const collectDroppedImportFiles = async (
   dataTransfer: DataTransfer,
 ): Promise<File[]> => {
   const items = Array.from(dataTransfer.items) as DataTransferItemWithWebkit[];
-  const csvFiles: File[] = [];
+  const importFiles: File[] = [];
 
   const pendingTraversals = items.map(async (item) => {
     const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
     if (entry) {
-      await traverseCsvEntry(entry, csvFiles);
+      await traverseImportEntry(entry, importFiles);
       return;
     }
 
     const file = item.getAsFile();
-    if (file && file.name.toLowerCase().endsWith(".csv")) {
-      csvFiles.push(file);
+    if (file && isSupportedDataImportFileName(file.name)) {
+      importFiles.push(file);
     }
   });
 
   await Promise.all(pendingTraversals);
-  return csvFiles;
+  return importFiles;
 };
+
+// Backward-compatible alias for old name.
+export const collectDroppedCsvFiles = collectDroppedImportFiles;

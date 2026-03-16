@@ -1,18 +1,27 @@
 import { stableItemKey } from "../../../../utils/stableKey";
 
-export const buildFileKeyRaw = (file: File | null | undefined): string =>
-  file ? `${file.name}::${file.size}` : "";
+export const buildFileIdentityKey = (file: File | null | undefined): string =>
+  file ? `${file.name}::${file.size}::${file.lastModified}` : "";
 
-export const buildUnknownFileKey = (fileLike: unknown): string => {
+export const buildUnknownFileIdentityKey = (fileLike: unknown): string => {
   if (!fileLike || typeof fileLike !== "object") return "";
-  if (!("name" in fileLike) || !("size" in fileLike)) return "";
-  return `${String(fileLike.name ?? "")}::${String(fileLike.size ?? "")}`;
+  if (!("name" in fileLike) || !("size" in fileLike) || !("lastModified" in fileLike)) {
+    return "";
+  }
+  return `${String(fileLike.name ?? "")}::${String(fileLike.size ?? "")}::${String(fileLike.lastModified ?? "")}`;
 };
 
 export const buildItemKey = (file: File | null | undefined): string => {
-  const raw = buildFileKeyRaw(file);
+  const raw = buildFileIdentityKey(file);
   if (!raw) return "";
   return stableItemKey("csv", raw);
+};
+
+export const buildEntrySourceKey = (entryLike: unknown): string => {
+  if (!entryLike || typeof entryLike !== "object") return "";
+  const entry = entryLike as { sourceKey?: unknown; file?: unknown };
+  if (typeof entry.sourceKey === "string" && entry.sourceKey) return entry.sourceKey;
+  return buildUnknownFileIdentityKey(entry.file);
 };
 
 export const toDomIdToken = (value: unknown): string =>
@@ -33,16 +42,16 @@ export const createCsvImporterFileId = (): string => {
 };
 
 export const filterUniqueCsvFiles = (
-  existingEntries: Array<{ file?: unknown }>,
+  existingEntries: Array<{ file?: unknown; sourceKey?: unknown }>,
   newFiles: File[],
 ): File[] => {
   const seenKeys = new Set(
-    existingEntries.map((entry) => buildUnknownFileKey(entry?.file)).filter(Boolean),
+    existingEntries.map((entry) => buildEntrySourceKey(entry)).filter(Boolean),
   );
 
   const uniqueFiles: File[] = [];
   for (const newFile of newFiles) {
-    const key = buildFileKeyRaw(newFile);
+    const key = buildFileIdentityKey(newFile);
     if (!key || seenKeys.has(key)) continue;
     seenKeys.add(key);
     uniqueFiles.push(newFile);

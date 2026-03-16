@@ -13,9 +13,16 @@ import { cx } from "../../../utils/cx";
 import { useLanguage } from "../../../hooks/useLanguage";
 import Avatar from "../../../components/ui/Avatar";
 import ScrollArea from "../../../components/ui/ScrollArea";
-import { useCsvImporterVirtualization } from "./useCsvImporterVirtualization";
-import { collectDroppedCsvFiles } from "./preview/csvDropTraversal";
 import {
+  DEVICE_ANALYSIS_DATA_IMPORT_ACCEPT,
+  isSupportedDataImportFileName,
+  toCsvCompatibleDataFile,
+} from "../shared/lib/deviceAnalysisImportFileUtils";
+import { useCsvImporterVirtualization } from "./useCsvImporterVirtualization";
+import { collectDroppedImportFiles } from "./preview/csvDropTraversal";
+import {
+  buildFileIdentityKey,
+  buildEntrySourceKey,
   buildItemKey,
   createCsvImporterFileId,
   filterUniqueCsvFiles,
@@ -28,12 +35,14 @@ export type CsvImporterFileEntry = {
   fileId?: string;
   fileName?: string;
   itemKey?: string;
+  sourceKey?: string;
 };
 
 type CsvFileEntry = CsvImporterFileEntry & {
   fileId: string;
   file: File;
   itemKey: string;
+  sourceKey: string;
 };
 
 export type CsvImporterRef = {
@@ -47,6 +56,7 @@ type ImportedFileInfo = {
   file: File;
   size: number;
   lastModified: number;
+  sourceKey?: string;
 };
 
 export type CsvImporterProps = {
@@ -193,12 +203,12 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
       const selectedFiles = Array.from(event.target.files ?? []);
-      processFiles(selectedFiles);
+      void processFiles(selectedFiles);
       // Reset input value to allow selecting same files again if needed
       event.target.value = "";
     };
 
-    const processFiles = (newFiles: File[]) => {
+    const processFiles = useCallback(async (newFiles: File[]) => {
       setError(null);
       const uniqueFiles = filterUniqueCsvFiles(files, newFiles);
 
@@ -206,21 +216,41 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
         return;
       }
 
-      uniqueFiles.forEach((file) => {
-        if (!file.name.toLowerCase().endsWith(".csv")) return;
+      const seenSourceKeys = new Set(
+        files.map((entry) => buildEntrySourceKey(entry)).filter(Boolean),
+      );
+      const failedNames: string[] = [];
+      let hasAnyUnsupportedFiles = false;
+
+      for (const sourceFile of uniqueFiles) {
+        const sourceKey = buildFileIdentityKey(sourceFile);
+        if (!sourceKey || seenSourceKeys.has(sourceKey)) continue;
+        seenSourceKeys.add(sourceKey);
+
+        if (!isSupportedDataImportFileName(sourceFile.name)) {
+          hasAnyUnsupportedFiles = true;
+          continue;
+        }
+
+        let normalizedFile: File;
+        try {
+          normalizedFile = await toCsvCompatibleDataFile(sourceFile);
+        } catch {
+          failedNames.push(sourceFile.name || "Unknown file");
+          continue;
+        }
 
         const fileId = createCsvImporterFileId();
-        const fileEntry = { fileId, file, itemKey: buildItemKey(file) };
+        const fileEntry: CsvFileEntry = {
+          fileId,
+          file: normalizedFile,
+          itemKey: buildItemKey(normalizedFile),
+          sourceKey,
+        };
 
         if (setFiles) {
           setFiles((prev) => {
-            if (
-              prev.some(
-                (existing) =>
-                  existing.file.name === file.name &&
-                  existing.file.size === file.size,
-              )
-            ) {
+            if (prev.some((entry) => buildEntrySourceKey(entry) === sourceKey)) {
               return prev;
             }
             return [...prev, fileEntry];
@@ -229,13 +259,23 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
 
         onDataImported?.({
           fileId,
-          fileName: file.name,
-          file,
-          size: file.size,
-          lastModified: file.lastModified,
+          fileName: sourceFile.name,
+          file: normalizedFile,
+          size: normalizedFile.size,
+          lastModified: normalizedFile.lastModified,
+          sourceKey,
         });
-      });
-    };
+      }
+
+      const errors: string[] = [];
+      if (hasAnyUnsupportedFiles) {
+        errors.push("Skipped unsupported files. Supported: .csv, .xls, .xlsx");
+      }
+      if (failedNames.length > 0) {
+        errors.push(`Failed to parse: ${failedNames.join(", ")}`);
+      }
+      setError(errors.length > 0 ? errors.join("\n") : null);
+    }, [files, onDataImported, setFiles]);
 
     const handleSelectFile = useCallback(
       (fileId: string | null) => {
@@ -258,12 +298,12 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
     const handleDrop = async (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault();
       setIsDragging(false);
-      const csvFiles = await collectDroppedCsvFiles(e.dataTransfer);
+      const droppedFiles = await collectDroppedImportFiles(e.dataTransfer);
 
-      if (csvFiles.length === 0) {
-        setError("No CSV files found in the dropped items.");
+      if (droppedFiles.length === 0) {
+        setError("No supported files found in dropped items (.csv, .xls, .xlsx).");
       } else {
-        processFiles(csvFiles);
+        void processFiles(droppedFiles);
       }
     };
 
@@ -312,7 +352,7 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
             id="device-analysis-csv-file-input"
             type="file"
             multiple
-            accept=".csv"
+            accept={DEVICE_ANALYSIS_DATA_IMPORT_ACCEPT}
             className="hidden"
             aria-label={t("da_import_csv")}
             ref={fileInputRef}
