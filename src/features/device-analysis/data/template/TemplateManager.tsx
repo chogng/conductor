@@ -666,7 +666,7 @@ const TemplateManager = ({
     includeIds = true,
     selectModeForDisabled = false,
   } = {}) => (
-    <div className="space-y-4">
+    <div className="space-y-4 px-1">
       <div>
         <label className="block text-sm font-medium text-text-secondary mb-2">
           {t("da_general_template")}
@@ -729,7 +729,7 @@ const TemplateManager = ({
     const hasDisplayName = Boolean(displayName);
 
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 px-1">
         <div>
           <label className="block text-sm font-medium text-text-secondary mb-2">
             {t("da_general_template")}
@@ -999,7 +999,7 @@ const TemplateManager = ({
       <Card
         ref={containerRef}
         id="device-analysis-template-manager"
-        className="p-4 flex flex-col flex-1 min-h-0 min-[1200px]:h-full"
+        className="pt-4 pr-4 pb-4 pl-0 flex flex-col flex-1 min-h-0 min-[1200px]:h-full"
         style={
           {
             "--da-template-stack-panel-h": "clamp(24rem, 52dvh, 40rem)",
@@ -1012,7 +1012,7 @@ const TemplateManager = ({
             className="lg:col-span-1 self-start min-[1200px]:self-stretch flex flex-col min-h-0 h-[var(--da-template-stack-panel-h)] min-[1200px]:h-full overflow-hidden"
           >
             <div
-              className="flex flex-col gap-4 flex-1 min-h-0"
+              className="flex flex-col gap-4 flex-1 min-h-0 pl-4"
               id="device-analysis-template-config-panel-content"
             >
               <div className="pb-2 shrink-0">
