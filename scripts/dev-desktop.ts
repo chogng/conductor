@@ -313,12 +313,15 @@ const stopProcess = (proc: ChildProcess | null, signal: NodeJS.Signals = "SIGTER
 
 const startElectron = () => {
   console.log(`[desktop] Launching Electron with ${devUrl}`);
+  const electronEnv: NodeJS.ProcessEnv = {
+    ...process.env,
+    ELECTRON_START_URL: devUrl,
+  };
+  delete electronEnv.ELECTRON_RUN_AS_NODE;
+
   const proc = spawn(electronBin, ["."], {
     stdio: "inherit",
-    env: {
-      ...process.env,
-      ELECTRON_START_URL: devUrl,
-    },
+    env: electronEnv,
   });
 
   proc.on("error", (error) => {

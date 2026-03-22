@@ -70,7 +70,7 @@ class ApiService {
     } catch (error) {
       if (isDesktopStoreUnavailableError(error)) {
         throw new Error(
-          "Desktop store bridge unavailable. Device Analysis data is persisted only via desktop config.json.",
+          "Desktop store bridge unavailable. Device Analysis data is persisted only via desktop config.json and template.json.",
         );
       }
 
