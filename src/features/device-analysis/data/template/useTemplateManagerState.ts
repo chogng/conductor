@@ -461,7 +461,7 @@ export const useTemplateManagerState = ({
         return {
           type: TEMPLATE_TRANSFER_FILE_TYPE,
           version: TEMPLATE_TRANSFER_FILE_VERSION,
-          source: "Device Analysis Studio",
+          source: "conductor",
           exportedAt: new Date().toISOString(),
           templates: templatesForExport,
         };

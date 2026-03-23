@@ -86,7 +86,7 @@ If you are shipping a closed-source Windows build without a paid code-signing ce
 Users can verify a download in PowerShell:
 
 ```powershell
-Get-FileHash '.\Device-Analysis-Studio-<version>-windows-x64-setup.exe' -Algorithm SHA256
+Get-FileHash '.\conductor-<version>-windows-x64-setup.exe' -Algorithm SHA256
 ```
 
 Compare the printed SHA256 value with the matching line in `SHA256SUMS.txt` from the same GitHub Release.
@@ -100,7 +100,7 @@ Installed clients will detect the new GitHub Release automatically and update.
 If needed, you can override provider URL at runtime:
 
 ```text
-DEVICE_ANALYSIS_UPDATE_URL=https://your-custom-update-host/path
+CONDUCTOR_UPDATE_URL=https://your-custom-update-host/path
 ```
 
 When this variable is set, app uses a generic provider URL instead of packaged GitHub config.

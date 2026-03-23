@@ -103,7 +103,7 @@ jobs:
           Set-Content -Path "release/SHA256SUMS.txt" -Value $checksumLines -Encoding ascii
 
           $infoLines = @(
-            "Device Analysis Studio Windows downloads"
+            "conductor Windows downloads"
             ""
             "These Windows binaries are unsigned. Microsoft Defender SmartScreen may show an 'Unknown publisher' warning the first time they are opened."
             ""

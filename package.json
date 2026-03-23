@@ -1,5 +1,5 @@
 {
-  "name": "device-analysis-standalone",
+  "name": "conductor",
   "private": true,
   "version": "0.5.6",
   "type": "module",
@@ -59,8 +59,8 @@
     "vite": "^7.2.4"
   },
   "build": {
-    "appId": "com.appointer.deviceanalysis",
-    "productName": "Device Analysis Studio",
+    "appId": "com.conductor.desktop",
+    "productName": "conductor",
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "compression": "maximum",
     "electronLanguages": [
@@ -85,7 +85,7 @@
       {
         "provider": "github",
         "owner": "chogng",
-        "repo": "Device-Analysis-Studio",
+        "repo": "conductor",
         "releaseType": "release"
       }
     ],
@@ -99,7 +99,7 @@
     },
     "win": {
       "icon": "build/icons/icon.ico",
-      "artifactName": "Device-Analysis-Studio-${version}-windows-${arch}-portable.${ext}",
+      "artifactName": "conductor-${version}-windows-${arch}-portable.${ext}",
       "target": [
         "nsis",
         "zip",
@@ -107,7 +107,7 @@
       ]
     },
     "nsis": {
-      "artifactName": "Device-Analysis-Studio-${version}-windows-${arch}-setup.${ext}"
+      "artifactName": "conductor-${version}-windows-${arch}-setup.${ext}"
     },
     "linux": {
       "icon": "build/icons/icon.png",

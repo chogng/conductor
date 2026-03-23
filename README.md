@@ -1,6 +1,6 @@
-# Device Analysis Studio
+# conductor
 
-从 `Appointer` 中拆出的器件分析独立应用，支持 Web 和 Electron 桌面端运行。
+conductor 器件分析独立应用，支持 Web 和 Electron 桌面端运行。
 
 ## 功能概览
 
@@ -80,9 +80,9 @@ release/
 
 Windows 产物命名规则：
 
-- 安装器：`Device-Analysis-Studio-${version}-windows-${arch}-setup.exe`
-- Portable Zip：`Device-Analysis-Studio-${version}-windows-${arch}-portable.zip`
-- Portable 7z：`Device-Analysis-Studio-${version}-windows-${arch}-portable.7z`
+- 安装器：`conductor-${version}-windows-${arch}-setup.exe`
+- Portable Zip：`conductor-${version}-windows-${arch}-portable.zip`
+- Portable 7z：`conductor-${version}-windows-${arch}-portable.7z`
 
 其他平台默认命名规则：
 
@@ -166,7 +166,7 @@ CSV 任务 `device-analysis-origin:run-csv` 按以下顺序选择运行器：
 3. `origin/dist/origin-csv-worker.exe`
 4. 开发环境下回退到 `origin/run_origin_csv.py`
 
-更多说明见 [origin/ORIGIN_WORKERS.md](c:\Users\lanxi\Desktop\Device-Analysis-Studio\origin\ORIGIN_WORKERS.md)。
+更多说明见 [origin/ORIGIN_WORKERS.md](./origin/ORIGIN_WORKERS.md)。
 
 ## Desktop 持久化文件
 
@@ -210,7 +210,7 @@ D:\DeviceAnalysis\config.json
 
 1. 更新 `package.json` 中的版本号。
 2. 提交代码并推送对应 git tag。
-3. 确认当前环境已设置 `GH_TOKEN`，且具备 `chogng/Device-Analysis-Studio` 的 release 上传权限。
+3. 确认当前环境已设置 `GH_TOKEN`，且具备 `chogng/conductor` 的 release 上传权限。
 4. 运行 `npm run dist:desktop:publish`。
 5. 在 GitHub Release 中确认存在 `latest.yml`、安装包和对应的 `.blockmap` 文件。
 6. 在旧版本客户端上验证更新检查、下载和安装提示流程。

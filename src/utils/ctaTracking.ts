@@ -13,8 +13,8 @@ type CtaEventPayload = {
 
 declare global {
   interface Window {
-    __APPOINTER_CTA_TRACKING_INIT__?: boolean;
-    __APPOINTER_CTA_EVENTS__?: CtaEventPayload[];
+    __CONDUCTOR_CTA_TRACKING_INIT__?: boolean;
+    __CONDUCTOR_CTA_EVENTS__?: CtaEventPayload[];
   }
 }
 
@@ -25,11 +25,11 @@ const resolveEventTargetElement = (event: Event): Element | null => {
 };
 
 export const initCtaTracking = () => {
-  if (window.__APPOINTER_CTA_TRACKING_INIT__) return;
-  window.__APPOINTER_CTA_TRACKING_INIT__ = true;
+  if (window.__CONDUCTOR_CTA_TRACKING_INIT__) return;
+  window.__CONDUCTOR_CTA_TRACKING_INIT__ = true;
 
   const events: CtaEventPayload[] = [];
-  window.__APPOINTER_CTA_EVENTS__ = events;
+  window.__CONDUCTOR_CTA_EVENTS__ = events;
 
   const handler = (event: Event) => {
     const target = resolveEventTargetElement(event);
@@ -55,7 +55,7 @@ export const initCtaTracking = () => {
     events.push(payload);
     if (events.length > 200) events.splice(0, events.length - 200);
 
-    window.dispatchEvent(new CustomEvent("appointer:cta", { detail: payload }));
+    window.dispatchEvent(new CustomEvent("conductor:cta", { detail: payload }));
 
     if (import.meta.env.DEV) {
       console.debug("[CTA]", payload);

@@ -8,14 +8,14 @@ type ThemeProviderProps = {
 
 declare global {
   interface Window {
-    __APPOINTER_INITIAL_THEME__?: ThemeMode;
+    __CONDUCTOR_INITIAL_THEME__?: ThemeMode;
   }
 }
 
 const getInitialTheme = (): ThemeMode => {
   if (typeof window === 'undefined') return 'system';
-  return isThemeMode(window.__APPOINTER_INITIAL_THEME__)
-    ? window.__APPOINTER_INITIAL_THEME__
+  return isThemeMode(window.__CONDUCTOR_INITIAL_THEME__)
+    ? window.__CONDUCTOR_INITIAL_THEME__
     : 'system';
 };
 

@@ -40,7 +40,7 @@ function App() {
                     <div className="flex h-full w-full items-center justify-center bg-bg-page text-text-secondary">
                       <div className="flex flex-col items-center gap-3">
                         <div className="h-10 w-10 animate-spin rounded-full border-2 border-border border-t-primary" />
-                        <p className="text-sm">Loading Device Analysis Studio…</p>
+                        <p className="text-sm">Loading conductor...</p>
                       </div>
                     </div>
                   }
@@ -56,3 +56,4 @@ function App() {
 }
 
 export default App;
+

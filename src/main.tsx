@@ -9,14 +9,14 @@ import { initCtaTracking } from './utils/ctaTracking';
 
 declare global {
   interface Window {
-    __APPOINTER_NAV_MODE_INIT__?: boolean;
-    __APPOINTER_INITIAL_THEME__?: ThemeMode;
+    __CONDUCTOR_NAV_MODE_INIT__?: boolean;
+    __CONDUCTOR_INITIAL_THEME__?: ThemeMode;
   }
 }
 
 // Track last input modality so focus rings can be limited to keyboard navigation.
-if (!window.__APPOINTER_NAV_MODE_INIT__) {
-  window.__APPOINTER_NAV_MODE_INIT__ = true;
+if (!window.__CONDUCTOR_NAV_MODE_INIT__) {
+  window.__CONDUCTOR_NAV_MODE_INIT__ = true;
 
   const root = document.documentElement;
 
@@ -93,7 +93,7 @@ const loadInitialTheme = async (): Promise<ThemeMode> => {
 
 const startApp = async () => {
   const initialTheme = await loadInitialTheme();
-  window.__APPOINTER_INITIAL_THEME__ = initialTheme;
+  window.__CONDUCTOR_INITIAL_THEME__ = initialTheme;
   applyDocumentTheme(initialTheme);
 
   createRoot(rootElement).render(

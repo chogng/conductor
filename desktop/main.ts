@@ -748,7 +748,10 @@ function normalizeAutoUpdateUrl(value) {
 
 function resolveAutoUpdateFeedUrl() {
   return normalizeAutoUpdateUrl(
-    process.env.DEVICE_ANALYSIS_UPDATE_URL || process.env.APP_UPDATE_URL || null,
+    process.env.CONDUCTOR_UPDATE_URL ||
+      process.env.DEVICE_ANALYSIS_UPDATE_URL ||
+      process.env.APP_UPDATE_URL ||
+      null,
   );
 }
 
@@ -783,7 +786,7 @@ async function promptInstallDownloadedUpdate(updateInfo) {
     const windowForDialog = getAutoUpdateDialogWindow();
     const result = await dialog.showMessageBox(windowForDialog || undefined, {
       type: "info",
-      title: "Device Analysis Studio",
+      title: "conductor",
       message: "An update has been downloaded.",
       detail: `Version ${updateInfo?.version || "unknown"} is ready to install.`,
       buttons: ["Restart and Install", "Later"],
@@ -810,7 +813,7 @@ async function checkForAutoUpdates({ manual = false } = {}) {
       const windowForDialog = getAutoUpdateDialogWindow();
       await dialog.showMessageBox(windowForDialog || undefined, {
         type: "info",
-        title: "Device Analysis Studio",
+        title: "conductor",
         message: "Auto update is not enabled in this build.",
         buttons: ["OK"],
         defaultId: 0,
@@ -826,7 +829,7 @@ async function checkForAutoUpdates({ manual = false } = {}) {
       const windowForDialog = getAutoUpdateDialogWindow();
       await dialog.showMessageBox(windowForDialog || undefined, {
         type: "info",
-        title: "Device Analysis Studio",
+        title: "conductor",
         message: "You are already using the latest version.",
         buttons: ["OK"],
         defaultId: 0,
@@ -842,7 +845,7 @@ async function checkForAutoUpdates({ manual = false } = {}) {
       const windowForDialog = getAutoUpdateDialogWindow();
       await dialog.showMessageBox(windowForDialog || undefined, {
         type: "error",
-        title: "Device Analysis Studio",
+        title: "conductor",
         message: "Update check failed.",
         detail: message,
         buttons: ["OK"],

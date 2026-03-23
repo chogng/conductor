@@ -18,7 +18,7 @@ type UseDeviceAnalysisExportsOptions = {
 
 declare global {
   interface Window {
-    __appointerDebug?: {
+    __conductorDebug?: {
       [key: string]: unknown;
       deviceAnalysis?: {
         exportOriginZip: () => Promise<void>;
@@ -129,15 +129,15 @@ export const useDeviceAnalysisExports = ({
   useEffect(() => {
     if (!import.meta.env.DEV) return undefined;
 
-    window.__appointerDebug = window.__appointerDebug || {};
-    window.__appointerDebug.deviceAnalysis = {
+    window.__conductorDebug = window.__conductorDebug || {};
+    window.__conductorDebug.deviceAnalysis = {
       exportOriginZip: handleExportOrigin,
       exportZip: handleExport,
     };
 
     return () => {
-      if (window.__appointerDebug?.deviceAnalysis) {
-        delete window.__appointerDebug.deviceAnalysis;
+      if (window.__conductorDebug?.deviceAnalysis) {
+        delete window.__conductorDebug.deviceAnalysis;
       }
     };
   }, [handleExport, handleExportOrigin]);
