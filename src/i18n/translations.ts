@@ -136,7 +136,6 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     da_onboarding_template_config_title: 'Fill in the key template fields',
     da_onboarding_template_config_body:
       'When creating a template, start with the X Data and Y Data ranges. Then check labels such as curve type, legend, and axis titles so the extracted charts match the source file.',
-    da_onboarding_template_config_action: 'Switch to Save Mode',
     da_onboarding_template_select_columns_title: 'Select the Y columns from preview',
     da_onboarding_template_select_columns_body:
       'Click the preview table headers for the Y columns you want to extract. The demo uses one X column and multiple Y columns, so you should select more than one curve column here.',
@@ -462,7 +461,6 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     da_onboarding_template_config_title: '重点先配置模板里的关键字段',
     da_onboarding_template_config_body:
       '新建模板时，先填写 X Data 和 Y Data 的读取范围，再检查曲线类型、图例、坐标轴标题等标签信息，确保提取出的图表与源文件一致。',
-    da_onboarding_template_config_action: '切到保存模式',
     da_onboarding_template_select_columns_title: '在预览里选中要提取的 Y 列',
     da_onboarding_template_select_columns_body:
       '点击预览表头，选择要提取的 Y 列。这个 demo 是 1 列 X 配多列 Y，所以这里应该选中多条曲线对应的列。',

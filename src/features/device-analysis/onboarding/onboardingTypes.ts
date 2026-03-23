@@ -30,6 +30,5 @@ export type OnboardingStep = {
   ringPadding?: number;
   spotlightPadding?: number;
   targetIds?: string[];
-  actionLabelKey?: string;
   highlightMode?: OnboardingHighlightMode;
 };

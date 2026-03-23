@@ -41,16 +41,10 @@ export const DEVICE_ANALYSIS_ONBOARDING_STEPS: OnboardingStep[] = [
     page: "data",
     placement: "left",
     ringTargetIds: ["device-analysis-template-mode-tab-save"],
-    spotlightTargetIds: [
-      "device-analysis-template-mode-panel-save",
-      "device-analysis-preview-canvas-grid",
-      "device-analysis-template-mode-tab-save",
-      "device-analysis-template-x-data-start",
-      "device-analysis-template-y-data-start",
-    ],
+    spotlightTargetIds: ["device-analysis-template-manager"],
+    spotlightPadding: 4,
     titleKey: "da_onboarding_template_config_title",
     bodyKey: "da_onboarding_template_config_body",
-    actionLabelKey: "da_onboarding_template_config_action",
   },
   {
     id: "template-select-columns",

@@ -16,7 +16,6 @@ type DeviceAnalysisOnboardingProps = {
   steps: OnboardingStep[];
   t: TranslateFn;
   canNext?: boolean;
-  onAction?: (step: OnboardingStep) => void;
   onBack: () => void;
   onClose: () => void;
   onNext: () => void;
@@ -45,11 +44,11 @@ type BoxOutsets = {
   left: number;
 };
 
-const CARD_WIDTH = 400;
+const CARD_WIDTH = 500;
 const CARD_MARGIN = 16;
 const RING_PADDING = 8;
 const SPOTLIGHT_PADDING = 12;
-const CARD_ESTIMATED_HEIGHT = 300;
+const CARD_ESTIMATED_HEIGHT = 400;
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
@@ -372,7 +371,6 @@ const DeviceAnalysisOnboarding = ({
   steps,
   t,
   canNext = true,
-  onAction,
   onBack,
   onClose,
   onNext,
@@ -618,15 +616,6 @@ const DeviceAnalysisOnboarding = ({
             >
               {t("da_onboarding_back")}
             </Button>
-            {step.actionLabelKey ? (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => onAction?.(step)}
-              >
-                {t(step.actionLabelKey)}
-              </Button>
-            ) : null}
           </div>
 
           <div className="flex items-center gap-2">

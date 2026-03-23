@@ -662,7 +662,6 @@ const DeviceAnalysisPage = () => {
         steps={onboarding.steps}
         t={t}
         canNext={onboarding.canNext}
-        onAction={onboarding.handleAction}
         onBack={onboarding.back}
         onClose={onboarding.close}
         onNext={onboarding.next}

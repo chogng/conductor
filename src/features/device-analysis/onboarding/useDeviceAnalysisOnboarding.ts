@@ -15,7 +15,6 @@ import {
 } from "../data/preview/csvImportUtils";
 import type { ProcessedEntry, RawDataEntry } from "../shared/lib/sharedTypes";
 import { DEVICE_ANALYSIS_ONBOARDING_STEPS } from "./deviceAnalysisOnboardingSteps";
-import type { OnboardingStep } from "./onboardingTypes";
 
 const DEMO_FILE_PATHS = [
   "/demo/demo-01.csv",
@@ -219,12 +218,6 @@ export const useDeviceAnalysisOnboarding = ({
     importerRef.current?.openFileDialog?.();
   }, [importDemoFiles, importerRef, isOpen, stepIndex, steps]);
 
-  const handleAction = useCallback((step: OnboardingStep) => {
-    if (step.id === "template-config") {
-      clickElementById("device-analysis-template-mode-tab-save");
-    }
-  }, []);
-
   const handleOpenOrigin = useCallback(
     (openOrigin: () => void) => {
       setOriginLaunchCount((prev) => prev + 1);
@@ -401,7 +394,6 @@ export const useDeviceAnalysisOnboarding = ({
   return {
     canNext,
     close,
-    handleAction,
     handleImportTrigger,
     handleOpenOrigin,
     isOpen,
