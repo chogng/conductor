@@ -1090,6 +1090,8 @@ const PreviewHeader = React.memo(
           return (
             <th
               key={index}
+              data-selected={isSelected ? "true" : "false"}
+              data-column-index={index}
               onClick={() => toggleColumn(index)}
               className={`px-2 py-1 border-b border-border border-r last:border-r-0 font-mono text-xs whitespace-nowrap bg-bg-surface font-semibold text-center select-none cursor-pointer relative pr-3 overflow-hidden ${
                 isSelected

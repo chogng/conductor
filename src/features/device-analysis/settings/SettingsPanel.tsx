@@ -61,10 +61,15 @@ type AppUpdateSettings = {
   onCheckForUpdates: () => boolean | Promise<boolean>;
 };
 
+type OnboardingSettings = {
+  onOpenGuide: () => void;
+};
+
 type DeviceAnalysisSettingsPanelProps = {
   appUpdateSettings: AppUpdateSettings;
   language: LanguageCode;
   onLanguageChange: (language: LanguageCode) => Promise<void> | void;
+  onboardingSettings: OnboardingSettings;
   theme: ThemeMode;
   onThemeChange: (theme: ThemeMode) => Promise<void> | void;
   originSettings: OriginSettings;
@@ -80,6 +85,7 @@ const DeviceAnalysisSettingsPanel = ({
   appUpdateSettings,
   language,
   onLanguageChange,
+  onboardingSettings,
   theme,
   onThemeChange,
   originSettings,
@@ -313,6 +319,36 @@ const DeviceAnalysisSettingsPanel = ({
             {appUpdateFeedback.message}
           </p>
         ) : null}
+      </Card>
+
+      <Card
+        id="device-analysis-settings-onboarding-card"
+        variant="panel"
+        className="p-4 space-y-4 mb-4"
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold text-text-primary">
+              {t("da_settings_onboarding_title")}
+            </h3>
+            <p className="text-sm text-text-secondary mt-1">
+              {t("da_settings_onboarding_desc")}
+            </p>
+          </div>
+
+          <div className="w-full sm:w-fit flex justify-end">
+            <Button
+              id="device-analysis-settings-onboarding-open-btn"
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="h-[38px] w-full sm:w-auto whitespace-nowrap sm:shrink-0"
+              onClick={onboardingSettings.onOpenGuide}
+            >
+              {t("da_settings_onboarding_open_btn")}
+            </Button>
+          </div>
+        </div>
       </Card>
 
       <Card

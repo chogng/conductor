@@ -1,0 +1,660 @@
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
+import Button from "../../../components/ui/Button";
+import type { TranslateFn } from "../../../context/language";
+import type { OnboardingCardAnchor, OnboardingStep } from "./onboardingTypes";
+
+type DeviceAnalysisOnboardingProps = {
+  isOpen: boolean;
+  stepIndex: number;
+  steps: OnboardingStep[];
+  t: TranslateFn;
+  canNext?: boolean;
+  onAction?: (step: OnboardingStep) => void;
+  onBack: () => void;
+  onClose: () => void;
+  onNext: () => void;
+};
+
+type RectLike = {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+};
+
+type HighlightRect = RectLike & {
+  radius: number;
+};
+
+type CardSize = {
+  width: number;
+  height: number;
+};
+
+type BoxOutsets = {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+};
+
+const CARD_WIDTH = 400;
+const CARD_MARGIN = 16;
+const RING_PADDING = 8;
+const SPOTLIGHT_PADDING = 12;
+const CARD_ESTIMATED_HEIGHT = 300;
+
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
+
+const parseRadiusValue = (value: string): number => {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const splitCssList = (value: string): string[] => {
+  const parts: string[] = [];
+  let current = "";
+  let depth = 0;
+
+  for (const char of value) {
+    if (char === "(") {
+      depth += 1;
+      current += char;
+      continue;
+    }
+
+    if (char === ")") {
+      depth = Math.max(0, depth - 1);
+      current += char;
+      continue;
+    }
+
+    if (char === "," && depth === 0) {
+      const nextPart = current.trim();
+      if (nextPart) {
+        parts.push(nextPart);
+      }
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  const tail = current.trim();
+  if (tail) {
+    parts.push(tail);
+  }
+
+  return parts;
+};
+
+const getElementRadius = (element: HTMLElement): number => {
+  const styles = window.getComputedStyle(element);
+  return Math.max(
+    parseRadiusValue(styles.borderTopLeftRadius),
+    parseRadiusValue(styles.borderTopRightRadius),
+    parseRadiusValue(styles.borderBottomRightRadius),
+    parseRadiusValue(styles.borderBottomLeftRadius),
+    0,
+  );
+};
+
+const getShadowOutsets = (boxShadowValue: string): BoxOutsets => {
+  if (!boxShadowValue || boxShadowValue === "none") {
+    return { top: 0, right: 0, bottom: 0, left: 0 };
+  }
+
+  return splitCssList(boxShadowValue).reduce<BoxOutsets>(
+    (maxOutsets, shadow) => {
+      if (!shadow || shadow.includes(" inset")) {
+        return maxOutsets;
+      }
+
+      const values = [...shadow.matchAll(/-?\d*\.?\d+px/g)].map((match) =>
+        Number.parseFloat(match[0]),
+      );
+
+      if (values.length < 2) {
+        return maxOutsets;
+      }
+
+      const [offsetX, offsetY, blurRadius = 0, spreadRadius = 0] = values;
+      const extent = blurRadius + spreadRadius;
+
+      return {
+        top: Math.max(maxOutsets.top, Math.max(0, extent - offsetY)),
+        right: Math.max(maxOutsets.right, Math.max(0, extent + offsetX)),
+        bottom: Math.max(maxOutsets.bottom, Math.max(0, extent + offsetY)),
+        left: Math.max(maxOutsets.left, Math.max(0, extent - offsetX)),
+      };
+    },
+    { top: 0, right: 0, bottom: 0, left: 0 },
+  );
+};
+
+const getElementVisualOutsets = (element: HTMLElement): BoxOutsets => {
+  const styles = window.getComputedStyle(element);
+  const shadowOutsets = getShadowOutsets(styles.boxShadow);
+
+  return {
+    top: shadowOutsets.top,
+    right: shadowOutsets.right,
+    bottom: shadowOutsets.bottom,
+    left: shadowOutsets.left,
+  };
+};
+
+const getTargetRects = (
+  targetIds: string[] | undefined,
+  padding: number,
+): HighlightRect[] => {
+  if (!Array.isArray(targetIds) || targetIds.length === 0) return [];
+
+  const rects: HighlightRect[] = [];
+
+  for (const id of targetIds) {
+    if (!id) continue;
+    const element = document.getElementById(id);
+    if (!element) continue;
+
+    const rect = element.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) continue;
+
+    const outsets = getElementVisualOutsets(element);
+    const insetTop = padding + outsets.top;
+    const insetRight = padding + outsets.right;
+    const insetBottom = padding + outsets.bottom;
+    const insetLeft = padding + outsets.left;
+    const width = rect.width + insetLeft + insetRight;
+    const height = rect.height + insetTop + insetBottom;
+    const baseRadius = getElementRadius(element);
+    const radius = clamp(
+      baseRadius + Math.max(insetTop, insetRight, insetBottom, insetLeft) / 2,
+      10,
+      Math.min(width, height) / 2,
+    );
+
+    rects.push({
+      top: Math.max(0, rect.top - insetTop),
+      left: Math.max(0, rect.left - insetLeft),
+      width,
+      height,
+      radius,
+    });
+  }
+
+  return rects;
+};
+
+const getBoundingRect = (rects: HighlightRect[]): RectLike | null => {
+  if (rects.length === 0) return null;
+
+  const top = Math.min(...rects.map((rect) => rect.top));
+  const left = Math.min(...rects.map((rect) => rect.left));
+  const right = Math.max(...rects.map((rect) => rect.left + rect.width));
+  const bottom = Math.max(...rects.map((rect) => rect.top + rect.height));
+
+  return {
+    top,
+    left,
+    width: right - left,
+    height: bottom - top,
+  };
+};
+
+const getRingTargetIds = (step: OnboardingStep | null): string[] | undefined => {
+  if (!step) return undefined;
+  if (Array.isArray(step.ringTargetIds) && step.ringTargetIds.length > 0) {
+    return step.ringTargetIds;
+  }
+  if (step.highlightMode === "ring") {
+    return step.targetIds;
+  }
+  return undefined;
+};
+
+const getSpotlightTargetIds = (
+  step: OnboardingStep | null,
+): string[] | undefined => {
+  if (!step) return undefined;
+  if (
+    Array.isArray(step.spotlightTargetIds) &&
+    step.spotlightTargetIds.length > 0
+  ) {
+    return step.spotlightTargetIds;
+  }
+  if (step.highlightMode === "spotlight") {
+    return step.targetIds;
+  }
+  return undefined;
+};
+
+const computeCardPosition = (
+  rect: RectLike | null,
+  placement: OnboardingStep["placement"],
+  cardSize: CardSize,
+): CSSProperties => {
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const maxLeft = Math.max(
+    CARD_MARGIN,
+    viewportWidth - cardSize.width - CARD_MARGIN,
+  );
+  const maxTop = Math.max(
+    CARD_MARGIN,
+    viewportHeight - cardSize.height - CARD_MARGIN,
+  );
+
+  if (!rect || placement === "center") {
+    return {
+      left: clamp((viewportWidth - cardSize.width) / 2, CARD_MARGIN, maxLeft),
+      top: clamp((viewportHeight - cardSize.height) / 2, CARD_MARGIN, maxTop),
+      width: cardSize.width,
+    };
+  }
+
+  const defaultLeft = clamp(rect.left, CARD_MARGIN, maxLeft);
+  const alignCenterLeft = clamp(
+    rect.left + rect.width / 2 - cardSize.width / 2,
+    CARD_MARGIN,
+    maxLeft,
+  );
+  const topAbove = rect.top - cardSize.height - CARD_MARGIN;
+  const topBelow = rect.top + rect.height + CARD_MARGIN;
+  const centeredTop = clamp(
+    rect.top + rect.height / 2 - cardSize.height / 2,
+    CARD_MARGIN,
+    maxTop,
+  );
+
+  if (placement === "left") {
+    const preferredLeft = rect.left - cardSize.width - CARD_MARGIN;
+    if (preferredLeft >= CARD_MARGIN) {
+      return {
+        left: preferredLeft,
+        top: centeredTop,
+        width: cardSize.width,
+      };
+    }
+  }
+
+  if (placement === "right") {
+    const preferredLeft = rect.left + rect.width + CARD_MARGIN;
+    if (preferredLeft + cardSize.width <= viewportWidth - CARD_MARGIN) {
+      return {
+        left: preferredLeft,
+        top: centeredTop,
+        width: cardSize.width,
+      };
+    }
+  }
+
+  if (placement === "top" && topAbove >= CARD_MARGIN) {
+    return {
+      left: alignCenterLeft,
+      top: topAbove,
+      width: cardSize.width,
+    };
+  }
+
+  if (placement === "bottom" || placement === "top") {
+    return {
+      left: alignCenterLeft,
+      top: clamp(topBelow, CARD_MARGIN, maxTop),
+      width: cardSize.width,
+    };
+  }
+
+  return {
+    left: defaultLeft,
+    top: clamp(topBelow, CARD_MARGIN, maxTop),
+    width: cardSize.width,
+  };
+};
+
+const computeAnchoredCardPosition = (
+  rect: RectLike,
+  anchor: OnboardingCardAnchor,
+  cardSize: CardSize,
+  offsetX = 0,
+  offsetY = 0,
+): CSSProperties => {
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const maxLeft = Math.max(
+    CARD_MARGIN,
+    viewportWidth - cardSize.width - CARD_MARGIN,
+  );
+  const maxTop = Math.max(
+    CARD_MARGIN,
+    viewportHeight - cardSize.height - CARD_MARGIN,
+  );
+
+  const anchorLeft = (() => {
+    if (anchor === "top-center" || anchor === "bottom-center") {
+      return rect.left + rect.width / 2 - cardSize.width / 2;
+    }
+    if (anchor === "top-right" || anchor === "bottom-right") {
+      return rect.left + rect.width - cardSize.width;
+    }
+    return rect.left;
+  })();
+
+  const anchorTop = (() => {
+    if (anchor === "center") {
+      return rect.top + rect.height / 2 - cardSize.height / 2;
+    }
+    if (anchor === "bottom-left" || anchor === "bottom-center" || anchor === "bottom-right") {
+      return rect.top + rect.height - cardSize.height;
+    }
+    return rect.top;
+  })();
+
+  return {
+    left: clamp(anchorLeft + offsetX, CARD_MARGIN, maxLeft),
+    top: clamp(anchorTop + offsetY, CARD_MARGIN, maxTop),
+    width: cardSize.width,
+  };
+};
+
+const DeviceAnalysisOnboarding = ({
+  isOpen,
+  stepIndex,
+  steps,
+  t,
+  canNext = true,
+  onAction,
+  onBack,
+  onClose,
+  onNext,
+}: DeviceAnalysisOnboardingProps) => {
+  const step = steps[stepIndex] ?? null;
+  const cardRef = useRef<HTMLDivElement | null>(null);
+  const maskId = useId();
+  const [cardSize, setCardSize] = useState<CardSize>({
+    width: CARD_WIDTH,
+    height: CARD_ESTIMATED_HEIGHT,
+  });
+  const [ringRects, setRingRects] = useState<HighlightRect[]>([]);
+  const [spotlightRects, setSpotlightRects] = useState<HighlightRect[]>([]);
+  const [cardTargetRect, setCardTargetRect] = useState<RectLike | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const element = cardRef.current;
+    if (!element) return undefined;
+
+    const updateCardSize = () => {
+      const rect = element.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+      setCardSize({
+        width: rect.width,
+        height: rect.height,
+      });
+    };
+
+    updateCardSize();
+
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const observer = new ResizeObserver(() => updateCardSize());
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [isOpen, stepIndex]);
+
+  useEffect(() => {
+    if (!isOpen || !step || typeof window === "undefined") return undefined;
+
+    const ringTargetIds = getRingTargetIds(step);
+    const spotlightTargetIds = getSpotlightTargetIds(step);
+    const cardTargetIds = step.cardTargetIds;
+    const ringPadding = step.ringPadding ?? RING_PADDING;
+    const spotlightPadding = step.spotlightPadding ?? SPOTLIGHT_PADDING;
+    const cardTargetPadding = step.cardTargetPadding ?? 0;
+
+    const updateRect = () => {
+      const nextRingRects = getTargetRects(ringTargetIds, ringPadding);
+      const nextSpotlightRects = getTargetRects(
+        spotlightTargetIds,
+        spotlightPadding,
+      );
+      const nextCardTargetRects = getTargetRects(cardTargetIds, cardTargetPadding);
+
+      setRingRects(nextRingRects);
+      setSpotlightRects(nextSpotlightRects);
+      setCardTargetRect(getBoundingRect(nextCardTargetRects));
+    };
+
+    updateRect();
+
+    const intervalId = window.setInterval(updateRect, 250);
+    const handleWindowChange = () => updateRect();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("resize", handleWindowChange);
+    window.addEventListener("scroll", handleWindowChange, true);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("resize", handleWindowChange);
+      window.removeEventListener("scroll", handleWindowChange, true);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen, onClose, step]);
+
+  const spotlightBounds = useMemo(
+    () => getBoundingRect(spotlightRects),
+    [spotlightRects],
+  );
+
+  const anchorRect = useMemo(
+    () => ringRects[0] ?? spotlightBounds ?? null,
+    [ringRects, spotlightBounds],
+  );
+
+  const cardStyle = useMemo(() => {
+    if (!isOpen || !step || typeof window === "undefined") return undefined;
+    if (cardTargetRect && step.cardAnchor) {
+      return computeAnchoredCardPosition(
+        cardTargetRect,
+        step.cardAnchor,
+        cardSize,
+        step.cardOffsetX ?? 0,
+        step.cardOffsetY ?? 0,
+      );
+    }
+
+    return computeCardPosition(anchorRect, step.placement ?? "bottom", cardSize);
+  }, [anchorRect, cardSize, cardTargetRect, isOpen, step]);
+
+  if (!isOpen || !step) return null;
+
+  const totalSteps = steps.length;
+  const isLastStep = stepIndex >= totalSteps - 1;
+  const viewportWidth =
+    typeof window === "undefined" ? 0 : Math.max(0, window.innerWidth);
+  const viewportHeight =
+    typeof window === "undefined" ? 0 : Math.max(0, window.innerHeight);
+  const backdropOpacity = clamp(step.backdropOpacity ?? 0.58, 0, 0.9);
+  const backdropFill = `rgba(0,0,0,${backdropOpacity})`;
+  const shouldUseFullBackdrop =
+    step.backdropMode === "full" || spotlightRects.length === 0;
+
+  return (
+    <div
+      className="pointer-events-none fixed inset-0 z-[120] text-text-primary"
+      aria-live="polite"
+    >
+      {!shouldUseFullBackdrop ? (
+        <>
+          <svg
+            className="absolute inset-0 h-full w-full"
+            aria-hidden="true"
+            viewBox={`0 0 ${viewportWidth} ${viewportHeight}`}
+            preserveAspectRatio="none"
+          >
+            <defs>
+              <mask
+                id={maskId}
+                x="0"
+                y="0"
+                width={viewportWidth}
+                height={viewportHeight}
+                maskUnits="userSpaceOnUse"
+                maskContentUnits="userSpaceOnUse"
+              >
+                <rect
+                  x="0"
+                  y="0"
+                  width={viewportWidth}
+                  height={viewportHeight}
+                  fill="white"
+                />
+                {spotlightRects.map((rect, index) => (
+                  <rect
+                    key={`${step.id}-mask-${index}`}
+                    x={rect.left}
+                    y={rect.top}
+                    width={rect.width}
+                    height={rect.height}
+                    rx={rect.radius}
+                    ry={rect.radius}
+                    fill="black"
+                  />
+                ))}
+              </mask>
+            </defs>
+
+            <rect
+              x="0"
+              y="0"
+              width={viewportWidth}
+              height={viewportHeight}
+              fill={backdropFill}
+              mask={`url(#${maskId})`}
+            />
+          </svg>
+
+          {spotlightRects.map((rect, index) => (
+            <div
+              key={`${step.id}-spotlight-${index}`}
+              className="absolute border border-white/18 bg-white/[0.02] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]"
+              style={{
+                ...rect,
+                borderRadius: `${rect.radius}px`,
+              }}
+            />
+          ))}
+        </>
+      ) : (
+        <div className="absolute inset-0" style={{ background: backdropFill }} />
+      )}
+
+      {ringRects.map((rect, index) => (
+        <div
+          key={`${step.id}-ring-${index}`}
+          className="device-analysis-onboarding-ring absolute border-2 border-accent-terracotta"
+          style={{
+            ...rect,
+            borderRadius: `${rect.radius}px`,
+            background: "rgba(255,255,255,0.03)",
+          }}
+        />
+      ))}
+
+      <div
+        ref={cardRef}
+        className="pointer-events-auto fixed rounded-[24px] border border-border bg-bg-surface p-6 shadow-[0_24px_80px_rgba(0,0,0,0.35)]"
+        style={cardStyle}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="device-analysis-onboarding-title"
+      >
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="text-xs font-medium uppercase tracking-[0.18em] text-text-secondary">
+            {t("da_onboarding_progress", {
+              current: stepIndex + 1,
+              total: totalSteps,
+            })}
+          </div>
+          <button
+            type="button"
+            className="rounded-full px-2 py-1 text-sm text-text-secondary transition hover:bg-bg-page hover:text-text-primary"
+            onClick={onClose}
+          >
+            {t("da_onboarding_skip")}
+          </button>
+        </div>
+
+        <h3
+          id="device-analysis-onboarding-title"
+          className="text-lg font-semibold text-text-primary"
+        >
+          {t(step.titleKey)}
+        </h3>
+        <p className="mt-2 text-sm leading-6 text-text-secondary">
+          {t(step.bodyKey)}
+        </p>
+
+        <div className="mt-5 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onBack}
+              disabled={stepIndex === 0}
+            >
+              {t("da_onboarding_back")}
+            </Button>
+            {step.actionLabelKey ? (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => onAction?.(step)}
+              >
+                {t(step.actionLabelKey)}
+              </Button>
+            ) : null}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {steps.map((entry, index) => (
+              <span
+                key={entry.id}
+                className={`h-2 rounded-full transition-all ${
+                  index === stepIndex
+                    ? "w-6 bg-[#222222]"
+                    : "w-2 bg-border"
+                }`}
+                aria-hidden="true"
+              />
+            ))}
+          </div>
+
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={onNext}
+            disabled={!canNext}
+          >
+            {isLastStep ? t("da_onboarding_finish") : t("da_onboarding_next")}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default DeviceAnalysisOnboarding;

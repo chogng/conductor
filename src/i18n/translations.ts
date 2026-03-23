@@ -118,6 +118,46 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     da_no_processed_data: 'No Processed Data',
     da_no_processed_data_hint: 'Apply a template above to generate results.',
     da_no_saved_templates: 'No saved templates',
+    da_onboarding_progress: 'Step {current} / {total}',
+    da_onboarding_skip: 'Skip',
+    da_onboarding_back: 'Back',
+    da_onboarding_next: 'Next',
+    da_onboarding_finish: 'Finish',
+    da_onboarding_welcome_title: 'Take a quick guided tour',
+    da_onboarding_welcome_body:
+      'This guide walks through the main flow once: import CSV files, configure a template, review analysis results, and set up Origin for desktop use.',
+    da_onboarding_import_title: 'Click this Import Files button',
+    da_onboarding_import_body:
+      'Click the highlighted Import Files button in the upper-left corner. During this guide, that click will load the demo files so you can continue with the tutorial flow.',
+    da_onboarding_import_action: 'Load Demo Files',
+    da_onboarding_template_title: 'Templates define how data is extracted',
+    da_onboarding_template_body:
+      'Choose an existing template or create a new one to tell the app where to read X/Y data, labels, and curve information from each file.',
+    da_onboarding_template_config_title: 'Fill in the key template fields',
+    da_onboarding_template_config_body:
+      'When creating a template, start with the X Data and Y Data ranges. Then check labels such as curve type, legend, and axis titles so the extracted charts match the source file.',
+    da_onboarding_template_config_action: 'Switch to Save Mode',
+    da_onboarding_template_select_columns_title: 'Select the Y columns from preview',
+    da_onboarding_template_select_columns_body:
+      'Click the preview table headers for the Y columns you want to extract. The demo uses one X column and multiple Y columns, so you should select more than one curve column here.',
+    da_onboarding_template_save_title: 'Name and save the template',
+    da_onboarding_template_save_body:
+      'Give the template a clear name, then click Save Template. Saving it lets you reuse the same extraction rules for the other demo files and your real data later.',
+    da_onboarding_apply_title: 'Apply the template to generate results',
+    da_onboarding_apply_body:
+      'Now apply the saved template to all demo files. Once processing starts, the app will extract the data and prepare the charts automatically.',
+    da_onboarding_analysis_title: 'Review charts and analysis here',
+    da_onboarding_analysis_body:
+      'After extraction finishes, this page shows the charts and key metrics. You can switch files, inspect curves, and continue refining the analysis.',
+    da_onboarding_origin_export_title: 'Use the title-bar Origin icon to send data out',
+    da_onboarding_origin_export_body:
+      'After your charts are ready, click this Origin icon in the title bar to export the current analysis for Origin. If this is your first time, configure Origin.exe in Settings first.',
+    da_onboarding_origin_title: 'Configure Origin before sending results',
+    da_onboarding_origin_body:
+      'If you want to continue work in Origin, choose your Origin.exe path here first. After that, the desktop title-bar action can send the current analysis over.',
+    da_onboarding_finish_title: 'You are ready to use the app',
+    da_onboarding_finish_body:
+      'You can replay this guide anytime from Settings. A good first milestone is to complete one full run: import files, apply a template, and confirm the charts look correct.',
     da_preview_error: 'Preview failed to load',
     da_preview_error_hint: 'Please try selecting the file again.',
     da_preview_filename_label: 'Filename',
@@ -167,6 +207,9 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     da_settings_app_update_unavailable: 'Update checking is available in packaged Windows desktop builds only.',
     da_settings_app_update_check_started: 'Update check started. Result will be shown by the desktop shell.',
     da_settings_app_update_check_failed: 'Failed to start update check.',
+    da_settings_onboarding_title: 'Getting Started Guide',
+    da_settings_onboarding_desc: 'Replay the in-app guided tour whenever you want to walk through the core workflow again.',
+    da_settings_onboarding_open_btn: 'Open Guide',
     da_settings_storage_title: 'User Configuration Path',
     da_settings_storage_desc: 'Configure where the conductor user configuration file is stored on disk.',
     da_settings_storage_path_label: 'User Config Path',
@@ -401,6 +444,46 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     da_no_processed_data: '暂无处理结果',
     da_no_processed_data_hint: '请先在上方应用模板以生成结果。',
     da_no_saved_templates: '暂无已保存模板',
+    da_onboarding_progress: '第 {current} / {total} 步',
+    da_onboarding_skip: '跳过',
+    da_onboarding_back: '上一步',
+    da_onboarding_next: '下一步',
+    da_onboarding_finish: '完成',
+    da_onboarding_welcome_title: '先快速看一遍操作引导',
+    da_onboarding_welcome_body:
+      '这套引导会带你走一遍核心流程：导入 CSV、配置模板、查看分析结果，以及为桌面版配置 Origin。',
+    da_onboarding_import_title: '先点击这个“导入文件”按钮',
+    da_onboarding_import_body:
+      '请先点击左上角高亮的“导入文件”按钮。在这套引导里，点击后会自动载入 demo 文件，然后你就可以继续后面的教学流程。',
+    da_onboarding_import_action: '载入示例文件',
+    da_onboarding_template_title: '模板决定如何提取数据',
+    da_onboarding_template_body:
+      '选择已有模板，或新建一个模板，告诉系统从文件的哪里读取 X/Y 数据、标签和曲线信息。',
+    da_onboarding_template_config_title: '重点先配置模板里的关键字段',
+    da_onboarding_template_config_body:
+      '新建模板时，先填写 X Data 和 Y Data 的读取范围，再检查曲线类型、图例、坐标轴标题等标签信息，确保提取出的图表与源文件一致。',
+    da_onboarding_template_config_action: '切到保存模式',
+    da_onboarding_template_select_columns_title: '在预览里选中要提取的 Y 列',
+    da_onboarding_template_select_columns_body:
+      '点击预览表头，选择要提取的 Y 列。这个 demo 是 1 列 X 配多列 Y，所以这里应该选中多条曲线对应的列。',
+    da_onboarding_template_save_title: '给模板命名并保存',
+    da_onboarding_template_save_body:
+      '先给模板起一个清晰的名字，再点击保存模板。保存后，你就可以把同一套提取规则复用到其他 demo 文件和自己的真实数据上。',
+    da_onboarding_apply_title: '应用模板，生成分析结果',
+    da_onboarding_apply_body:
+      '现在把刚保存的模板应用到全部 demo 文件。开始处理后，系统会自动提取数据，并准备后续图表分析所需结果。',
+    da_onboarding_analysis_title: '在这里查看图表和分析结果',
+    da_onboarding_analysis_body:
+      '提取完成后，这里会展示图表和关键指标。你可以切换文件、查看曲线，并继续调整分析。',
+    da_onboarding_origin_export_title: '用标题栏里的 Origin 图标导出数据',
+    da_onboarding_origin_export_body:
+      '图表准备好后，点击标题栏里的这个 Origin 图标，就可以把当前分析结果导出给 Origin。第一次使用前，建议先在设置里配置 Origin.exe。',
+    da_onboarding_origin_title: '发送到 Origin 前先完成配置',
+    da_onboarding_origin_body:
+      '如果你要继续在 Origin 里处理数据，先在这里选择 Origin.exe 路径。配置完成后，就能从桌面标题栏直接发送当前分析结果。',
+    da_onboarding_finish_title: '现在可以开始正式使用了',
+    da_onboarding_finish_body:
+      '你之后随时都可以在设置页重新打开这套引导。建议先完整跑通一次：导入文件、应用模板，再确认图表结果是否正确。',
     da_preview_error: '预览加载失败',
     da_preview_error_hint: '请尝试重新选择该文件',
     da_preview_filename_label: '文件名',
@@ -450,6 +533,9 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     da_settings_app_update_unavailable: '\u4ec5\u652f\u6301\u5df2\u6253\u5305\u7684 Windows \u684c\u9762\u7248\u66f4\u65b0\u68c0\u67e5\u3002',
     da_settings_app_update_check_started: '\u5df2\u5f00\u59cb\u68c0\u67e5\u66f4\u65b0\uff0c\u7ed3\u679c\u5c06\u7531\u684c\u9762\u7aef\u5f39\u7a97\u663e\u793a\u3002',
     da_settings_app_update_check_failed: '\u542f\u52a8\u66f4\u65b0\u68c0\u67e5\u5931\u8d25\u3002',
+    da_settings_onboarding_title: '新手引导',
+    da_settings_onboarding_desc: '需要时可以重新打开应用内交互引导，再走一遍核心使用流程。',
+    da_settings_onboarding_open_btn: '打开引导',
     da_settings_storage_title: '用户配置路径',
     da_settings_storage_desc: '配置 conductor 用户配置文件（模板与设置）在本地磁盘的存储位置。',
     da_settings_storage_path_label: '用户配置路径',

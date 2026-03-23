@@ -16,6 +16,8 @@ const DEVICE_ANALYSIS_DEFAULT_SETTINGS = {
   defaultTemplate: null,
   lastTemplateId: null,
   theme: "system",
+  onboardingCompleted: false,
+  onboardingAutoStartDismissed: false,
   stopOnErrorDefault: false,
   yUnit: "A",
   yScale: "linear",
@@ -38,6 +40,10 @@ const DEVICE_ANALYSIS_DEFAULT_SETTINGS = {
 function normalizePositiveNumber(value, fallback) {
   const num = Number(value);
   return Number.isFinite(num) && num > 0 ? num : fallback;
+}
+
+function normalizeBoolean(value, fallback) {
+  return typeof value === "boolean" ? value : fallback;
 }
 
 function normalizeBoundedInt(value, fallback, min, max) {
@@ -149,9 +155,18 @@ export function createDeviceAnalysisStore(options) {
         : DEVICE_ANALYSIS_DEFAULT_SETTINGS.ssShowFitLine;
 
     const stopOnErrorDefault =
-      typeof next.stopOnErrorDefault === "boolean"
-        ? next.stopOnErrorDefault
-        : DEVICE_ANALYSIS_DEFAULT_SETTINGS.stopOnErrorDefault;
+      normalizeBoolean(
+        next.stopOnErrorDefault,
+        DEVICE_ANALYSIS_DEFAULT_SETTINGS.stopOnErrorDefault,
+      );
+    const onboardingCompleted = normalizeBoolean(
+      next.onboardingCompleted,
+      DEVICE_ANALYSIS_DEFAULT_SETTINGS.onboardingCompleted,
+    );
+    const onboardingAutoStartDismissed = normalizeBoolean(
+      next.onboardingAutoStartDismissed,
+      DEVICE_ANALYSIS_DEFAULT_SETTINGS.onboardingAutoStartDismissed,
+    );
 
     const ssIdLow = normalizePositiveNumber(
       next.ssIdLow ?? next.ssIdWindowLow,
@@ -201,6 +216,8 @@ export function createDeviceAnalysisStore(options) {
       ...next,
       defaultTemplate: next.defaultTemplate ?? null,
       lastTemplateId: next.lastTemplateId ?? null,
+      onboardingCompleted,
+      onboardingAutoStartDismissed,
       stopOnErrorDefault,
       yUnit,
       yScale,

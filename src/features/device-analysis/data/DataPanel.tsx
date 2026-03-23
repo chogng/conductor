@@ -25,6 +25,7 @@ type DataPanelProps = {
   onClearSession?: () => void;
   onDataImported?: CsvImporterProps["onDataImported"];
   onDataRemoved?: CsvImporterProps["onDataRemoved"];
+  onImportTrigger?: () => void;
   onFileSelected?: CsvImporterProps["onFileSelected"];
   onStartResizing?: (event: ReactMouseEvent<HTMLDivElement>) => void;
   onTemplateApplied?: TemplateManagerProps["onTemplateApplied"];
@@ -49,6 +50,7 @@ const DeviceAnalysisDataPanel = ({
   onClearSession,
   onDataImported,
   onDataRemoved,
+  onImportTrigger,
   onFileSelected,
   onStartResizing,
   onTemplateApplied,
@@ -87,7 +89,7 @@ const DeviceAnalysisDataPanel = ({
                   ctaPosition="data-import"
                   ctaCopy="import csv"
                   aria-label={t("da_import_csv")}
-                  onClick={() => importerRef.current?.openFileDialog?.()}
+                  onClick={() => onImportTrigger?.()}
                 >
                   <Upload size={16} />
                   {t("da_import_csv")}

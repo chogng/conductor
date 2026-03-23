@@ -22,6 +22,8 @@ import { useDeviceAnalysisDesktopShell } from "./desktop/useDeviceAnalysisDeskto
 import { useDeviceAnalysisExports } from "./analysis/useDeviceAnalysisExports";
 import { useDeviceAnalysisPreview } from "./data/useDeviceAnalysisPreview";
 import { useDeviceAnalysisProcessing } from "./data/useDeviceAnalysisProcessing";
+import DeviceAnalysisOnboarding from "./onboarding/DeviceAnalysisOnboarding";
+import { useDeviceAnalysisOnboarding } from "./onboarding/useDeviceAnalysisOnboarding";
 import { useDeviceAnalysisSession } from "./session/useDeviceAnalysisSession";
 import { useDeviceAnalysisSessionActions } from "./session/useDeviceAnalysisSessionActions";
 import { useDeviceAnalysisSettings } from "./settings/useDeviceAnalysisSettings";
@@ -328,7 +330,6 @@ const DeviceAnalysisPage = () => {
     setSsShowFitLine,
     t: tLoose,
   });
-
   const {
     handleTemplateApplied,
     handleTemplateAppliedIncremental,
@@ -441,6 +442,20 @@ const DeviceAnalysisPage = () => {
     navigateToPage(nextPage);
   }, [navigateToPage]);
 
+  const onboarding = useDeviceAnalysisOnboarding({
+    clearPreviewState,
+    deviceAnalysisSettings,
+    importerRef,
+    navigateToPage,
+    processingState: processingStatus?.state,
+    processedData,
+    rawData,
+    setProcessedData,
+    setRawData,
+    setSelectedPreviewFileId,
+    updateSettings: handleUpdateDeviceAnalysisSettings,
+  });
+
   const {
     handleCheckForUpdates,
     handleCloseWindow,
@@ -481,7 +496,9 @@ const DeviceAnalysisPage = () => {
             onNavigateBack={handleNavigateBack}
             onNavigateForward={handleNavigateForward}
             onPageChange={handlePageTabSelect}
-            onOpenOrigin={handleOpenOriginFromTitleBar}
+            onOpenOrigin={() =>
+              onboarding.handleOpenOrigin(handleOpenOriginFromTitleBar)
+            }
             onOpenSettings={() => handlePageTabSelect("settings")}
             onMinimizeWindow={handleMinimizeWindow}
             onToggleMaximizeWindow={handleToggleMaximizeWindow}
@@ -525,6 +542,7 @@ const DeviceAnalysisPage = () => {
               onClearSession={handleClearSession}
               onDataImported={handleDataImported}
               onDataRemoved={handleDataRemoved}
+              onImportTrigger={onboarding.handleImportTrigger}
               onFileSelected={handlePreviewFileSelected}
               onStartResizing={startResizing}
               onTemplateApplied={handleTemplateApplied}
@@ -612,6 +630,9 @@ const DeviceAnalysisPage = () => {
                   }}
                   language={language}
                   onLanguageChange={handleLanguageChange}
+                  onboardingSettings={{
+                    onOpenGuide: () => onboarding.open("manual"),
+                  }}
                   theme={theme}
                   onThemeChange={handleThemeChange}
                   originSettings={originSettings}
@@ -633,6 +654,18 @@ const DeviceAnalysisPage = () => {
         type={extractionErrorToast.type}
         position="fixed"
         dataUi="device-analysis-extraction-error-toast"
+      />
+
+      <DeviceAnalysisOnboarding
+        isOpen={onboarding.isOpen}
+        stepIndex={onboarding.stepIndex}
+        steps={onboarding.steps}
+        t={t}
+        canNext={onboarding.canNext}
+        onAction={onboarding.handleAction}
+        onBack={onboarding.back}
+        onClose={onboarding.close}
+        onNext={onboarding.next}
       />
     </div>
   );
