@@ -456,6 +456,18 @@ const DeviceAnalysisOnboarding = ({
     () => getBoundingRect(spotlightRects),
     [spotlightRects],
   );
+  const progressStepIds = useMemo(() => {
+    const next: string[] = [];
+
+    for (const entry of steps) {
+      const progressId = entry.progressGroupId ?? entry.id;
+      if (!next.includes(progressId)) {
+        next.push(progressId);
+      }
+    }
+
+    return next;
+  }, [steps]);
 
   const anchorRect = useMemo(
     () => ringRects[0] ?? spotlightBounds ?? null,
@@ -481,6 +493,11 @@ const DeviceAnalysisOnboarding = ({
 
   const totalSteps = steps.length;
   const isLastStep = stepIndex >= totalSteps - 1;
+  const currentProgressStepId = step.progressGroupId ?? step.id;
+  const resolvedProgressStepIndex = progressStepIds.indexOf(currentProgressStepId);
+  const progressStepIndex =
+    resolvedProgressStepIndex >= 0 ? resolvedProgressStepIndex : stepIndex;
+  const totalProgressSteps = progressStepIds.length || totalSteps;
   const viewportWidth =
     typeof window === "undefined" ? 0 : Math.max(0, window.innerWidth);
   const viewportHeight =
@@ -583,8 +600,8 @@ const DeviceAnalysisOnboarding = ({
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="text-xs font-medium uppercase tracking-[0.18em] text-text-secondary">
             {t("da_onboarding_progress", {
-              current: stepIndex + 1,
-              total: totalSteps,
+              current: progressStepIndex + 1,
+              total: totalProgressSteps,
             })}
           </div>
           <button
@@ -619,11 +636,11 @@ const DeviceAnalysisOnboarding = ({
           </div>
 
           <div className="flex items-center gap-2">
-            {steps.map((entry, index) => (
+            {progressStepIds.map((progressId, index) => (
               <span
-                key={entry.id}
+                key={progressId}
                 className={`h-2 rounded-full transition-all ${
-                  index === stepIndex
+                  index === progressStepIndex
                     ? "w-6 bg-[#222222]"
                     : "w-2 bg-border"
                 }`}

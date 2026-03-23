@@ -671,7 +671,10 @@ const TemplateManager = ({
         <label className="block text-sm font-medium text-text-secondary mb-2">
           {t("da_general_template")}
         </label>
-        <div className="relative flex-1 min-w-0">
+        <div
+          id={includeIds ? "device-analysis-template-name-row" : undefined}
+          className="relative flex-1 min-w-0"
+        >
           <div
             className="input_field input_field--xl relative flex-1 min-w-0 pr-1"
             data-state="enable"

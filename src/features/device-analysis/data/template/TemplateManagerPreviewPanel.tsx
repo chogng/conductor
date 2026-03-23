@@ -1077,7 +1077,7 @@ const PreviewHeader = React.memo(
     toggleColumn,
   }: PreviewHeaderProps) => (
     <thead className="bg-bg-surface sticky top-0 z-30 shadow-sm">
-      <tr>
+      <tr id="device-analysis-preview-column-selector-row">
         <th className="p-1 border-b border-r border-border bg-bg-surface w-12 text-center font-bold text-xs text-text-secondary select-none sticky left-0 top-0 z-40"></th>
         {previewColumnGeometry.hasLeftSpacer ? (
           <th

@@ -17,6 +17,7 @@ export type OnboardingStep = {
   titleKey: string;
   bodyKey: string;
   page: OnboardingPage;
+  progressGroupId?: string;
   placement?: "top" | "bottom" | "left" | "right" | "center";
   ringTargetIds?: string[];
   spotlightTargetIds?: string[];
@@ -29,6 +30,7 @@ export type OnboardingStep = {
   backdropOpacity?: number;
   ringPadding?: number;
   spotlightPadding?: number;
+  focusTargetId?: string;
   targetIds?: string[];
   highlightMode?: OnboardingHighlightMode;
 };

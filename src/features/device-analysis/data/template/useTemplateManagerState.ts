@@ -17,6 +17,7 @@ import {
   type TemplateConfig,
 } from "./templateManagerUtils";
 import { normalizeDeviceAnalysisYUnit } from "../../analysis/lib/deviceAnalysisUnits";
+import { DEVICE_ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT } from "../../onboarding/onboardingEvents";
 import {
   validateTemplateForApply,
   validateTemplateForSave,
@@ -759,6 +760,26 @@ export const useTemplateManagerState = ({
     setSelectedTemplateId,
     setTemplateMode,
   ]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const handleOnboardingCreateTemplate = () => {
+      handleCreateNewTemplate();
+    };
+
+    window.addEventListener(
+      DEVICE_ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT,
+      handleOnboardingCreateTemplate,
+    );
+
+    return () => {
+      window.removeEventListener(
+        DEVICE_ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT,
+        handleOnboardingCreateTemplate,
+      );
+    };
+  }, [handleCreateNewTemplate]);
 
   return {
     applyConfiguration,

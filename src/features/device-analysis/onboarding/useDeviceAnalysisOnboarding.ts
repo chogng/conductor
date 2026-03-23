@@ -3,7 +3,6 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   type SetStateAction,
   useState,
   type MutableRefObject,
@@ -14,6 +13,7 @@ import {
   createCsvImporterFileId,
 } from "../data/preview/csvImportUtils";
 import type { ProcessedEntry, RawDataEntry } from "../shared/lib/sharedTypes";
+import { DEVICE_ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT } from "./onboardingEvents";
 import { DEVICE_ANALYSIS_ONBOARDING_STEPS } from "./deviceAnalysisOnboardingSteps";
 
 const DEMO_FILE_PATHS = [
@@ -25,11 +25,48 @@ const DEMO_FILE_PATHS = [
   "/demo/demo-06.csv",
 ] as const;
 
+const TEMPLATE_SAVE_MODE_STEP_IDS = new Set([
+  "template-config",
+  "template-name",
+  "template-x-start",
+  "template-x-end",
+  "template-x-points",
+  "template-select-columns",
+  "template-save",
+]);
+
+const CELL_REFERENCE_PATTERN = /^[A-Za-z]+[1-9]\d*$/;
+
 const clickElementById = (id: string): boolean => {
   if (typeof document === "undefined") return false;
   const element = document.getElementById(id);
   if (!element || !(element instanceof HTMLElement)) return false;
   element.click();
+  return true;
+};
+
+const focusElementById = (id: string): boolean => {
+  if (typeof document === "undefined") return false;
+  const element = document.getElementById(id);
+  if (!element || !(element instanceof HTMLElement)) return false;
+
+  element.scrollIntoView({
+    block: "center",
+    inline: "nearest",
+  });
+
+  if (
+    element instanceof HTMLInputElement ||
+    element instanceof HTMLTextAreaElement
+  ) {
+    element.focus({ preventScroll: true });
+    if (typeof element.select === "function") {
+      element.select();
+    }
+    return true;
+  }
+
+  element.focus({ preventScroll: true });
   return true;
 };
 
@@ -45,6 +82,44 @@ const getInputValueById = (id: string): string => {
     return String(element.value ?? "").trim();
   }
   return "";
+};
+
+const isCellReferenceValue = (value: string): boolean =>
+  CELL_REFERENCE_PATTERN.test(String(value ?? "").trim());
+
+const getColumnIndexFromCellReference = (value: string): number | null => {
+  const match = String(value ?? "")
+    .trim()
+    .match(/^([A-Za-z]+)[1-9]\d*$/);
+  if (!match) return null;
+
+  let columnIndex = 0;
+  const letters = match[1].toUpperCase();
+  for (const char of letters) {
+    columnIndex = columnIndex * 26 + (char.charCodeAt(0) - 64);
+  }
+
+  return columnIndex > 0 ? columnIndex - 1 : null;
+};
+
+const getSelectedPreviewColumnCount = (excludeColumnIndex?: number | null): number => {
+  if (typeof document === "undefined") return 0;
+  return Array.from(
+    document.querySelectorAll(
+      "#device-analysis-preview-canvas-grid th[data-selected='true'][data-column-index]",
+    ),
+  ).filter((element) => {
+    const columnIndex = Number(
+      (element as HTMLElement).getAttribute("data-column-index"),
+    );
+    if (!Number.isInteger(columnIndex) || columnIndex < 0) {
+      return false;
+    }
+    if (!Number.isInteger(excludeColumnIndex)) {
+      return true;
+    }
+    return columnIndex !== excludeColumnIndex;
+  }).length;
 };
 
 type UseDeviceAnalysisOnboardingOptions = {
@@ -79,13 +154,6 @@ export const useDeviceAnalysisOnboarding = ({
   const [launchMode, setLaunchMode] = useState<"auto" | "manual">("manual");
   const [originLaunchCount, setOriginLaunchCount] = useState(0);
   const [templateSaveCount, setTemplateSaveCount] = useState(0);
-  const autoAdvanceStateRef = useRef<{
-    stepId: string | null;
-    shouldAdvance: boolean;
-  }>({
-    stepId: null,
-    shouldAdvance: false,
-  });
 
   const steps = DEVICE_ANALYSIS_ONBOARDING_STEPS;
   const onboardingCompleted = Boolean(deviceAnalysisSettings?.onboardingCompleted);
@@ -143,8 +211,20 @@ export const useDeviceAnalysisOnboarding = ({
       finish();
       return;
     }
+
+    const currentStep = steps[stepIndex];
+    if (
+      isOpen &&
+      currentStep?.id === "template" &&
+      typeof window !== "undefined"
+    ) {
+      window.dispatchEvent(
+        new CustomEvent(DEVICE_ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT),
+      );
+    }
+
     setStepIndex((prev) => prev + 1);
-  }, [finish, stepIndex, steps.length]);
+  }, [finish, isOpen, stepIndex, steps]);
 
   const back = useCallback(() => {
     setStepIndex((prev) => Math.max(0, prev - 1));
@@ -240,7 +320,7 @@ export const useDeviceAnalysisOnboarding = ({
     return () => {
       saveButton.removeEventListener("click", handleTemplateSave);
     };
-  }, [isOpen]);
+  }, [isOpen, stepIndex]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -252,89 +332,38 @@ export const useDeviceAnalysisOnboarding = ({
   useEffect(() => {
     if (!isOpen) return;
     const currentStep = steps[stepIndex];
-    if (!currentStep || currentStep.id !== "template-config") return;
-
-    const timeoutId = window.setTimeout(() => {
-      clickElementById("device-analysis-template-mode-tab-save");
-    }, 120);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [isOpen, stepIndex, steps]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const currentStep = steps[stepIndex];
     if (!currentStep) return;
 
-    let shouldAdvance = false;
+    const timeoutIds: number[] = [];
 
-    switch (currentStep.id) {
-      case "import":
-        shouldAdvance = rawData.length > 0;
-        break;
-      case "template-config":
-        shouldAdvance = Boolean(
-          getInputValueById("device-analysis-template-x-data-start") &&
-            getInputValueById("device-analysis-template-y-data-start"),
-        );
-        break;
-      case "template-select-columns":
-        if (typeof document !== "undefined") {
-          shouldAdvance =
-            document.querySelectorAll(
-              "#device-analysis-preview-canvas-grid th[data-selected='true']",
-            ).length > 0;
-        }
-        break;
-      case "template-save":
-        shouldAdvance =
-          Boolean(getInputValueById("device-analysis-template-name")) &&
-          templateSaveCount > 0;
-        break;
-      case "apply":
-        shouldAdvance =
-          processingState === "processing" || processedData.length > 0;
-        break;
-      case "origin-export":
-        shouldAdvance = originLaunchCount > 0;
-        break;
-      default:
-        break;
+    if (TEMPLATE_SAVE_MODE_STEP_IDS.has(currentStep.id)) {
+      timeoutIds.push(
+        window.setTimeout(() => {
+          clickElementById("device-analysis-template-mode-tab-save");
+        }, 120),
+      );
     }
 
-    const previousAutoAdvanceState = autoAdvanceStateRef.current;
-    const autoAdvanceEnabled = currentStep.id !== "import";
-    const shouldAutoAdvance =
-      autoAdvanceEnabled &&
-      previousAutoAdvanceState.stepId === currentStep.id &&
-      previousAutoAdvanceState.shouldAdvance === false &&
-      shouldAdvance === true;
+    if (currentStep.focusTargetId) {
+      const baseDelay = TEMPLATE_SAVE_MODE_STEP_IDS.has(currentStep.id)
+        ? 220
+        : 80;
+      timeoutIds.push(
+        window.setTimeout(() => {
+          focusElementById(currentStep.focusTargetId as string);
+        }, baseDelay),
+      );
+      timeoutIds.push(
+        window.setTimeout(() => {
+          focusElementById(currentStep.focusTargetId as string);
+        }, baseDelay + 180),
+      );
+    }
 
-    autoAdvanceStateRef.current = {
-      stepId: currentStep.id,
-      shouldAdvance,
+    return () => {
+      timeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
     };
-
-    if (!shouldAutoAdvance) return;
-
-    const timeoutId = window.setTimeout(() => {
-      setStepIndex((prev) => {
-        if (prev !== stepIndex) return prev;
-        return Math.min(prev + 1, steps.length - 1);
-      });
-    }, 350);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [
-    isOpen,
-    originLaunchCount,
-    processedData.length,
-    processingState,
-    rawData.length,
-    stepIndex,
-    steps,
-    templateSaveCount,
-  ]);
+  }, [isOpen, stepIndex, steps, templateSaveCount]);
 
   useEffect(() => {
     if (!deviceAnalysisSettings) return;
@@ -359,30 +388,40 @@ export const useDeviceAnalysisOnboarding = ({
     switch (currentStep.id) {
       case "import":
         return rawData.length > 0;
-      case "template-config":
-        return Boolean(
-          getInputValueById("device-analysis-template-x-data-start") &&
-            getInputValueById("device-analysis-template-y-data-start"),
+      case "template-name":
+        return Boolean(getInputValueById("device-analysis-template-name"));
+      case "template-x-start":
+        return isCellReferenceValue(
+          getInputValueById("device-analysis-template-x-data-start"),
+        );
+      case "template-x-end":
+        return isCellReferenceValue(
+          getInputValueById("device-analysis-template-x-data-end"),
+        );
+      case "template-x-points":
+        return isCellReferenceValue(
+          getInputValueById("device-analysis-template-x-points"),
         );
       case "template-select-columns":
-        if (typeof document === "undefined") return false;
         return (
-          document.querySelectorAll(
-            "#device-analysis-preview-canvas-grid th[data-selected='true']",
-          ).length > 0
+          getSelectedPreviewColumnCount(
+            getColumnIndexFromCellReference(
+              getInputValueById("device-analysis-template-x-data-start"),
+            ),
+          ) > 0
         );
       case "template-save":
-        return (
-          Boolean(getInputValueById("device-analysis-template-name")) &&
-          templateSaveCount > 0
-        );
+        return templateSaveCount > 0;
       case "apply":
         return processingState === "processing" || processedData.length > 0;
+      case "origin-export":
+        return originLaunchCount > 0;
       default:
         return true;
     }
   }, [
     isOpen,
+    originLaunchCount,
     processedData.length,
     processingState,
     rawData.length,

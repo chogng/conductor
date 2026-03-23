@@ -135,13 +135,25 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
       'Choose an existing template, use one shared by someone else, or create a new one to tell the app where to read X/Y data, labels, and curve information from each file.',
     da_onboarding_template_config_title: 'Fill in the key template fields',
     da_onboarding_template_config_body:
-      'When creating a template, start with the X Data and Y Data ranges. Then check labels such as curve type, legend, and axis titles so the extracted charts match the source file.',
-    da_onboarding_template_select_columns_title: 'Select the Y columns from preview',
+      'This part of the guide stays on the same progress step while we fill only the minimum fields: template name, X start, X end, X points, and the Y-column checkboxes in preview.',
+    da_onboarding_template_name_title: 'Start by naming the template',
+    da_onboarding_template_name_body:
+      'Enter a clear template name in this field first. Then the guide will walk through the key X fields one by one.',
+    da_onboarding_template_x_start_title: 'Pick the X start cell',
+    da_onboarding_template_x_start_body:
+      'Click this input first, then click the matching cell in the preview table on the right. The cell address will be filled in automatically.',
+    da_onboarding_template_x_end_title: 'Pick the X end cell',
+    da_onboarding_template_x_end_body:
+      'Click this input first, then click the matching end cell in the preview table on the right. The address will be filled in automatically.',
+    da_onboarding_template_x_points_title: 'Pick the X points cell',
+    da_onboarding_template_x_points_body:
+      'Click Points first, then click the preview cell that contains the X-point count so its address is filled in automatically.',
+    da_onboarding_template_select_columns_title: 'Check the Y columns in preview',
     da_onboarding_template_select_columns_body:
-      'Click the preview table headers for the Y columns you want to extract. The demo uses one X column and multiple Y columns, so you should select more than one curve column here.',
-    da_onboarding_template_save_title: 'Name and save the template',
+      'Use the checkboxes in the preview header to select the Y columns you want to extract. Once the needed columns are checked, you can ignore the other fields for now.',
+    da_onboarding_template_save_title: 'Save this template',
     da_onboarding_template_save_body:
-      'Give the template a clear name, then click Save Template. Saving it lets you reuse the same extraction rules for the other demo files and your real data later.',
+      'The key fields are ready. Click Save Template now to store this extraction rule so you can reuse it for the other demo files and your real data later.',
     da_onboarding_apply_title: 'Apply the template to generate results',
     da_onboarding_apply_body:
       'Now apply the saved template to all demo files. Once processing starts, the app will extract the data and prepare the charts automatically.',
@@ -460,13 +472,25 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
       '选择已有模板、他人分享的模板，或新建一个模板，告诉系统从文件的哪里读取 X/Y 数据、标签和曲线信息。',
     da_onboarding_template_config_title: '重点先配置模板里的关键字段',
     da_onboarding_template_config_body:
-      '新建模板时，先填写 X Data 和 Y Data 的读取范围，再检查曲线类型、图例、坐标轴标题等标签信息，确保提取出的图表与源文件一致。',
-    da_onboarding_template_select_columns_title: '在预览里选中要提取的 Y 列',
+      '这一段会先停留在同一个进度点，只带你填最关键的几个字段：模板名称、X 的开始/结束/点数，以及 preview 里的 Y 列勾选。',
+    da_onboarding_template_name_title: '先给模板起个名字',
+    da_onboarding_template_name_body:
+      '先在这里输入模板名称。填好后，引导会继续带你逐个完成 X 的关键字段。',
+    da_onboarding_template_x_start_title: '先选 X 数据的开始单元格',
+    da_onboarding_template_x_start_body:
+      '先点击这个输入框，再点击右侧 preview 里的对应单元格，系统会自动填入单元格地址。',
+    da_onboarding_template_x_end_title: '再选 X 数据的结束单元格',
+    da_onboarding_template_x_end_body:
+      '先点击这个输入框，再点击右侧 preview 里的结束单元格，系统会自动填入它的地址。',
+    da_onboarding_template_x_points_title: '最后选 X 数据的点数字段',
+    da_onboarding_template_x_points_body:
+      '先点击 Points，再点击右侧 preview 中存放点数的单元格，系统会自动填入它的地址。',
+    da_onboarding_template_select_columns_title: '在 preview 里勾选要提取的 Y 列',
     da_onboarding_template_select_columns_body:
-      '点击预览表头，选择要提取的 Y 列。这个 demo 是 1 列 X 配多列 Y，所以这里应该选中多条曲线对应的列。',
-    da_onboarding_template_save_title: '给模板命名并保存',
+      '点击 preview 表头里的勾选框，把需要提取的 Y 列勾上就可以了，其他字段先不用管。',
+    da_onboarding_template_save_title: '把这个模板保存下来',
     da_onboarding_template_save_body:
-      '先给模板起一个清晰的名字，再点击保存模板。保存后，你就可以把同一套提取规则复用到其他 demo 文件和自己的真实数据上。',
+      '关键字段已经填好了，现在点击保存模板，把这套提取规则存下来，后面就可以复用到其他 demo 文件和真实数据。',
     da_onboarding_apply_title: '应用模板，生成分析结果',
     da_onboarding_apply_body:
       '现在把刚保存的模板应用到全部 demo 文件。开始处理后，系统会自动提取数据，并准备后续图表分析所需结果。',
