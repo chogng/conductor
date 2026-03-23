@@ -132,7 +132,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     da_onboarding_import_action: 'Load Demo Files',
     da_onboarding_template_title: 'Templates define how data is extracted',
     da_onboarding_template_body:
-      'Choose an existing template or create a new one to tell the app where to read X/Y data, labels, and curve information from each file.',
+      'Choose an existing template, use one shared by someone else, or create a new one to tell the app where to read X/Y data, labels, and curve information from each file.',
     da_onboarding_template_config_title: 'Fill in the key template fields',
     da_onboarding_template_config_body:
       'When creating a template, start with the X Data and Y Data ranges. Then check labels such as curve type, legend, and axis titles so the extracted charts match the source file.',
@@ -458,7 +458,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     da_onboarding_import_action: '载入示例文件',
     da_onboarding_template_title: '模板决定如何提取数据',
     da_onboarding_template_body:
-      '选择已有模板，或新建一个模板，告诉系统从文件的哪里读取 X/Y 数据、标签和曲线信息。',
+      '选择已有模板、他人分享的模板，或新建一个模板，告诉系统从文件的哪里读取 X/Y 数据、标签和曲线信息。',
     da_onboarding_template_config_title: '重点先配置模板里的关键字段',
     da_onboarding_template_config_body:
       '新建模板时，先填写 X Data 和 Y Data 的读取范围，再检查曲线类型、图例、坐标轴标题等标签信息，确保提取出的图表与源文件一致。',
