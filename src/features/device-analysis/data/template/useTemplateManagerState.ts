@@ -17,6 +17,7 @@ import {
   type TemplateConfig,
 } from "./templateManagerUtils";
 import { normalizeDeviceAnalysisYUnit } from "../../analysis/lib/deviceAnalysisUnits";
+import { resolveXSegmentationMode } from "../../shared/lib/XSegmentation";
 import { DEVICE_ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT } from "../../onboarding/onboardingEvents";
 import {
   validateTemplateForApply,
@@ -78,6 +79,12 @@ const toTemplateTransferRecord = (template: TemplateRecord): TemplateRecord => (
   name: String(template?.name ?? ""),
   xDataStart: String(template?.xDataStart ?? ""),
   xDataEnd: String(template?.xDataEnd ?? ""),
+  xSegmentationMode: resolveXSegmentationMode(
+    template?.xSegmentationMode,
+    template?.xPoints,
+    template?.xSegments,
+  ),
+  xSegments: String(template?.xSegments ?? ""),
   xPoints: String(template?.xPoints ?? ""),
   xUnit: String(template?.xUnit ?? ""),
   yDataStart: String(template?.yDataStart ?? ""),
@@ -302,7 +309,13 @@ export const useTemplateManagerState = ({
         name: String(template?.name ?? ""),
         xDataStart: String(template?.xDataStart ?? ""),
         xDataEnd: String(template?.xDataEnd ?? ""),
+        xSegments: String(template?.xSegments ?? ""),
         xPoints: String(template?.xPoints ?? ""),
+        xSegmentationMode: resolveXSegmentationMode(
+          template?.xSegmentationMode,
+          template?.xPoints,
+          template?.xSegments,
+        ),
         xUnit: String(template?.xUnit ?? ""),
         yDataStart: String(template?.yDataStart ?? ""),
         yDataEnd: String(template?.yDataEnd ?? ""),

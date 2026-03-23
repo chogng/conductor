@@ -429,6 +429,7 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
     const endRowRaw = config?.endRow;
     let groupSize = Number(config?.groupSize);
     let groups = Number(config?.groups);
+    const segmentCount = Number(config?.segmentCount);
     const yCols = Array.isArray(config?.yCols) ? config.yCols.map(Number) : [];
     const groupSizeCell = config?.groupSizeCell ?? null;
     const yLegendStartCell = config?.yLegendStartCell ?? null;
@@ -642,6 +643,13 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
         groups = expectedTotal / points;
     }
     else {
+        if (Number.isInteger(segmentCount) && segmentCount > 0) {
+            if (expectedTotal % segmentCount !== 0) {
+                throw createLocalizedError("da_extractXNotDivisibleBySegments", { total: expectedTotal, segments: segmentCount }, `${fileName}: X range has ${expectedTotal} points, which is not divisible by segments=${segmentCount}.`);
+            }
+            groups = segmentCount;
+            groupSize = expectedTotal / segmentCount;
+        }
         // Allow deferred grouping for End-row mode: resolve once file row count is known.
         if (!Number.isInteger(groupSize) || groupSize <= 0) {
             groupSize = expectedTotal;

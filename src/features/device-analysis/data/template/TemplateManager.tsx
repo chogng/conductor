@@ -40,6 +40,11 @@ import {
   type TemplateConfig,
 } from "./templateManagerUtils";
 import { DEVICE_ANALYSIS_Y_UNIT_VALUES } from "../../analysis/lib/deviceAnalysisUnits";
+import {
+  inferXSegmentationSuggestionFromPreview,
+  resolveXRangeForPreview,
+  resolveXSegmentationMode,
+} from "../../shared/lib/XSegmentation";
 import type { PreviewStatus as SessionPreviewStatus } from "../../session/device-analysis-session-context";
 import type { PreviewFileLike, ToastType } from "../../shared/lib/sharedTypes";
 
@@ -176,6 +181,14 @@ const TemplateManager = ({
       })),
     [],
   );
+  const xSegmentationModeOptions = useMemo(
+    () => [
+      { label: t("da_save_segmentation_mode_auto"), value: "auto" },
+      { label: t("da_save_segmentation_mode_points"), value: "points" },
+      { label: t("da_save_segmentation_mode_segments"), value: "segments" },
+    ],
+    [t],
+  );
 
   const {
     applyConfiguration,
@@ -247,6 +260,37 @@ const TemplateManager = ({
   const disableVarInputs = hasFileNameInputs && !hasVarInputs;
   const disableFileNameInputs = hasVarInputs && !hasFileNameInputs;
   const lastVarPairToastRef = useRef("");
+  const xSegmentationMode = resolveXSegmentationMode(
+    config?.xSegmentationMode,
+    config?.xPoints,
+    config?.xSegments,
+  );
+  const xRangeForPreview = useMemo(
+    () =>
+      resolveXRangeForPreview({
+        xDataStart: config?.xDataStart,
+        xDataEnd: config?.xDataEnd,
+        previewRowCount: previewFile?.rowCount,
+      }),
+    [config?.xDataEnd, config?.xDataStart, previewFile?.rowCount],
+  );
+  const xAutoSuggestion = useMemo(
+    () =>
+      inferXSegmentationSuggestionFromPreview({
+        xDataStart: config?.xDataStart,
+        xDataEnd: config?.xDataEnd,
+        previewRowCount: previewFile?.rowCount,
+        getPreviewRow,
+      }),
+    [config?.xDataEnd, config?.xDataStart, getPreviewRow, previewFile?.rowCount],
+  );
+  const xAutoSuggestionText =
+    xAutoSuggestion && xAutoSuggestion.groups > 1
+      ? t("da_save_x_auto_suggestion", {
+          groups: xAutoSuggestion.groups,
+          points: xAutoSuggestion.groupSize,
+        })
+      : t("da_save_x_auto_suggestion_none");
 
   const toastVarPairIfInvalid = useCallback(() => {
     if (varPairValidation.ok) {
@@ -329,14 +373,56 @@ const TemplateManager = ({
       markSaveDraftTouched();
       setConfig(updater);
     };
+    const isXAutoMode = xSegmentationMode === "auto";
+    const isXSegmentsMode = xSegmentationMode === "segments";
+    const xSegmentationInputValue = isXSegmentsMode
+      ? String(config.xSegments ?? "")
+      : String(config.xPoints ?? "");
+    const xSegmentationInputPlaceholder = isXAutoMode
+      ? t("da_save_segmentation_mode_auto")
+      : isXSegmentsMode
+        ? t("da_save_segments")
+        : t("da_save_points");
+    const xPointsForY = (() => {
+      if (xSegmentationMode === "points") {
+        return String(config.xPoints ?? "").trim();
+      }
+      if (xSegmentationMode === "segments") {
+        const segments = Number(String(config.xSegments ?? "").trim());
+        const total = Number(xRangeForPreview?.total ?? NaN);
+        if (
+          Number.isInteger(segments) &&
+          segments > 0 &&
+          Number.isInteger(total) &&
+          total > 0 &&
+          total % segments === 0
+        ) {
+          return String(total / segments);
+        }
+        return "";
+      }
+      if (
+        xAutoSuggestion &&
+        Number.isInteger(xAutoSuggestion.groupSize) &&
+        xAutoSuggestion.groupSize > 0
+      ) {
+        return String(xAutoSuggestion.groupSize);
+      }
+      return "";
+    })();
 
     return (
       <div className="space-y-4">
         {/* 1. X Data */}
         <div>
-          <label className="block text-sm font-medium text-text-secondary mb-2">
-            {t("da_save_x_data_label")}
-          </label>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <label className="block text-sm font-medium text-text-secondary">
+              {t("da_save_x_data_label")}
+            </label>
+            <span className="text-xs text-text-secondary text-right">
+              {xAutoSuggestionText}
+            </span>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <Input
@@ -390,18 +476,46 @@ const TemplateManager = ({
                 id={
                   includeIds ? "device-analysis-template-x-points" : undefined
                 }
-                name="xPoints"
-                value={config.xPoints}
-                disabled={saveIsSelectMode}
+                name={isXSegmentsMode ? "xSegments" : "xPoints"}
+                value={xSegmentationInputValue}
+                disabled={saveIsSelectMode || isXAutoMode}
                 onChange={(next) => {
+                  if (isXAutoMode) return;
+                  if (isXSegmentsMode) {
+                    setConfigFromSave((prev) => ({ ...prev, xSegments: next }));
+                    markFieldSource("xSegments", "manual");
+                    return;
+                  }
                   setConfigFromSave((prev) => ({ ...prev, xPoints: next }));
                   markFieldSource("xPoints", "manual");
                 }}
-                placeholder={t("da_save_points")}
+                placeholder={xSegmentationInputPlaceholder}
                 inputClassName="no-spinner"
               />
             </div>
             <div>
+              <Select
+                id={
+                  includeIds
+                    ? "device-analysis-template-x-segmentation-mode"
+                    : undefined
+                }
+                value={xSegmentationMode}
+                disabled={saveIsSelectMode}
+                onChange={(next) => {
+                  const nextMode = resolveXSegmentationMode(next);
+                  setConfigFromSave((prev) => ({
+                    ...prev,
+                    xSegmentationMode: nextMode,
+                  }));
+                  markFieldSource("xSegmentationMode", "manual");
+                }}
+                options={xSegmentationModeOptions}
+                placeholder={t("da_save_segmentation_mode")}
+                className="w-full"
+              />
+            </div>
+            <div className="sm:col-span-2">
               <Input
                 id={
                   includeIds ? "device-analysis-template-x-unit" : undefined
@@ -452,9 +566,9 @@ const TemplateManager = ({
                   id={
                     includeIds ? "device-analysis-template-y-points" : undefined
                   }
-                  value={config.xPoints || config.yPoints}
+                  value={xPointsForY || config.yPoints}
                   name="yPoints"
-                  disabled={saveIsSelectMode || !!config.xPoints}
+                  disabled={saveIsSelectMode || !!xPointsForY}
                   onChange={(next) => {
                     setConfigFromSave((prev) => ({
                       ...prev,

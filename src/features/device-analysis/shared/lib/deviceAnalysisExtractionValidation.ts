@@ -1,4 +1,8 @@
 import { validateTemplateForApply } from "../../data/template/templateValidation";
+import {
+  inferXSegmentationSuggestionFromPreview,
+  resolveXSegmentationMode,
+} from "./XSegmentation";
 import type { LooseTranslateFn as TranslateFn } from "./translateTypes";
 
 const CELL_REF_RE = /^([A-Z]+)(\d+)$/;
@@ -11,6 +15,8 @@ type CellRef = {
 type TemplateConfigLike = Partial<{
   xDataStart: string;
   xDataEnd: string;
+  xSegmentationMode: "auto" | "points" | "segments";
+  xSegments: string;
   xPoints: string;
   xUnit: string;
   yDataStart: string;
@@ -53,6 +59,7 @@ type ExtractionConfig = {
   groupSizeCell?: CellRef;
   groupSize?: number | null;
   groups?: number | null;
+  segmentCount?: number | null;
 };
 
 type ExtractionMeta = {
@@ -60,6 +67,7 @@ type ExtractionMeta = {
   groupSizeCell: boolean;
   groupSize: number | null;
   groups: number | null;
+  segmentCount: number | null;
   total: number | null;
   groupSizePreview: number | null;
 };
@@ -216,14 +224,75 @@ export function prepareDeviceAnalysisExtraction({
     };
   }
 
-  const pointsRaw = String(normalizedConfig?.xPoints ?? "").trim();
-
   let groupSize: number | null = null;
   let groups: number | null = null;
+  let segmentCount: number | null = null;
   let groupSizeCell: CellRef | null = null;
   let groupSizePreview: number | null = null;
-
-  if (pointsRaw) {
+  const pointsRaw = String(normalizedConfig?.xPoints ?? "").trim();
+  const segmentsRaw = String(normalizedConfig?.xSegments ?? "").trim();
+  const segmentationMode = resolveXSegmentationMode(
+    normalizedConfig?.xSegmentationMode,
+    pointsRaw,
+    segmentsRaw,
+  );
+  const autoSuggestion = inferXSegmentationSuggestionFromPreview({
+    xDataStart: normalizedConfig?.xDataStart,
+    xDataEnd: normalizedConfig?.xDataEnd,
+    previewRowCount: (previewFile as Record<string, unknown> | null)?.rowCount,
+    getPreviewRow,
+  });
+  if (segmentationMode === "segments") {
+    const segments = Number(segmentsRaw);
+    if (!Number.isInteger(segments) || segments <= 0) {
+      return {
+        ok: false,
+        type: "warning",
+        message: msg(
+          "da_extractXSegmentsPositiveInt",
+          null,
+          "Segments must be a positive integer.",
+        ),
+      };
+    }
+    segmentCount = segments;
+    const totalForValidation = total ?? autoSuggestion?.total ?? null;
+    if (totalForValidation !== null) {
+      if (segments > totalForValidation || totalForValidation % segments !== 0) {
+        return {
+          ok: false,
+          type: "warning",
+          message: msg(
+            "da_extractXNotDivisibleBySegments",
+            { total: totalForValidation, segments },
+            `X range has ${totalForValidation} points, which is not divisible by segments=${segments}.`,
+          ),
+        };
+      }
+      groups = segments;
+      groupSize = totalForValidation / segments;
+    }
+  } else if (segmentationMode === "auto") {
+    if (
+      autoSuggestion &&
+      Number.isInteger(autoSuggestion.groupSize) &&
+      autoSuggestion.groupSize > 0 &&
+      Number.isInteger(autoSuggestion.groups) &&
+      autoSuggestion.groups > 0
+    ) {
+      groupSize = autoSuggestion.groupSize;
+      groups = autoSuggestion.groups;
+      segmentCount = autoSuggestion.groups;
+    } else if (total !== null && total > 0) {
+      groupSize = total;
+      groups = 1;
+      segmentCount = 1;
+    } else {
+      groupSize = null;
+      groups = null;
+      segmentCount = null;
+    }
+  } else if (pointsRaw) {
     const pointsCell = parseCellRef(pointsRaw);
     if (pointsCell) {
       groupSizeCell = pointsCell;
@@ -307,6 +376,27 @@ export function prepareDeviceAnalysisExtraction({
   }
 
   if (!groupSizeCell) {
+    if (
+      Number.isInteger(segmentCount) &&
+      (segmentCount as number) > 0 &&
+      total !== null
+    ) {
+      const normalizedSegments = Number(segmentCount);
+      if (total % normalizedSegments !== 0) {
+        return {
+          ok: false,
+          type: "warning",
+          message: msg(
+            "da_extractXNotDivisibleBySegments",
+            { total, segments: normalizedSegments },
+            `X range has ${total} points, which is not divisible by segments=${normalizedSegments}.`,
+          ),
+        };
+      }
+      groups = normalizedSegments;
+      groupSize = total / normalizedSegments;
+    }
+
     if (total !== null) {
       groupSize = groupSize ?? total;
       if (total % groupSize !== 0) {
@@ -518,6 +608,7 @@ export function prepareDeviceAnalysisExtraction({
   } else {
     extractionConfig.groupSize = groupSize;
     extractionConfig.groups = groups;
+    extractionConfig.segmentCount = segmentCount;
   }
 
   return {
@@ -531,6 +622,7 @@ export function prepareDeviceAnalysisExtraction({
       groupSizeCell: Boolean(groupSizeCell),
       groupSize,
       groups,
+      segmentCount,
       total,
       groupSizePreview,
     },

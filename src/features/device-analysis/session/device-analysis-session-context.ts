@@ -19,6 +19,8 @@ export type DeviceAnalysisTemplateConfig = {
   name: string;
   xDataStart: string;
   xDataEnd: string;
+  xSegmentationMode: "auto" | "points" | "segments";
+  xSegments: string;
   xPoints: string;
   xUnit: string;
   yDataStart: string;

@@ -9,6 +9,8 @@ export type TemplateConfig = {
   stopOnError: boolean;
   xDataEnd: string;
   xDataStart: string;
+  xSegmentationMode: "auto" | "points" | "segments";
+  xSegments: string;
   xPoints: string;
   xUnit: string;
   yCount: string;
@@ -25,6 +27,8 @@ export const createEmptyTemplateConfig = (
   name: "",
   xDataStart: "",
   xDataEnd: "",
+  xSegmentationMode: "points",
+  xSegments: "",
   xPoints: "",
   xUnit: "",
   yDataStart: "",
