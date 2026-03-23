@@ -128,7 +128,7 @@ jobs:
         env:
           RELEASE_TAG: ${{ steps.release_meta.outputs.tag }}
         run: |
-          gh release upload $env:RELEASE_TAG release/SHA256SUMS.txt release/WINDOWS-DOWNLOADS.txt --clobber
+          gh release upload $env:RELEASE_TAG release/SHA256SUMS.txt release/WINDOWS-DOWNLOADS.txt --clobber -R chogng/conductor-update
 
       - name: Summarize release assets
         shell: pwsh
