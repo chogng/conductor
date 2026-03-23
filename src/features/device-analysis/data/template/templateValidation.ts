@@ -204,7 +204,7 @@ export function validateTemplateForSave<T extends ValidationConfig>(
       bottomTitle: varPair.vg,
       legendPrefix: varPair.vd,
       xUnit: normalizeAxisUnit(config?.xUnit),
-      yUnit: normalizeDeviceAnalysisYUnit(config?.yUnit, ""),
+      yUnit: normalizeDeviceAnalysisYUnit(config?.yUnit, "A"),
       fileNameVgKeywords: curveTagging.fileNameVgKeywords,
       fileNameVdKeywords: curveTagging.fileNameVdKeywords,
       // Back-compat with older backend/template field names.
@@ -235,7 +235,7 @@ export function validateTemplateForApply<T extends ValidationConfig>(
       leftTitle: config?.leftTitle ?? "",
       legendPrefix: varPair.vd,
       xUnit: normalizeAxisUnit(config?.xUnit),
-      yUnit: normalizeDeviceAnalysisYUnit(config?.yUnit, ""),
+      yUnit: normalizeDeviceAnalysisYUnit(config?.yUnit, "A"),
       fileNameVgKeywords: curveTagging.fileNameVgKeywords,
       fileNameVdKeywords: curveTagging.fileNameVdKeywords,
       // Back-compat with older backend/template field names.

@@ -64,6 +64,11 @@ const normalizeSelectedColumns = (value: unknown): number[] | null => {
 const normalizeTemplateId = (value: unknown): string | null =>
   typeof value === "string" ? value : null;
 
+const normalizeTemplateXUnit = (value: unknown): string => {
+  const unit = String(value ?? "").trim();
+  return unit || "A";
+};
+
 const TEMPLATE_TRANSFER_FILE_VERSION = 1;
 
 type TemplateTransferPayload = TemplateRecord & {
@@ -78,13 +83,13 @@ const toTemplateTransferRecord = (template: TemplateRecord): TemplateRecord => (
   xSegmentationMode: resolveXSegmentationMode(template?.xSegmentationMode),
   xSegments: String(template?.xSegments ?? ""),
   xPoints: String(template?.xPoints ?? ""),
-  xUnit: String(template?.xUnit ?? ""),
+  xUnit: normalizeTemplateXUnit(template?.xUnit),
   yDataStart: String(template?.yDataStart ?? ""),
   yDataEnd: String(template?.yDataEnd ?? ""),
   yPoints: String(template?.yPoints ?? ""),
   yCount: String(template?.yCount ?? ""),
   yStep: String(template?.yStep ?? ""),
-  yUnit: normalizeDeviceAnalysisYUnit(template?.yUnit, ""),
+  yUnit: normalizeDeviceAnalysisYUnit(template?.yUnit, "A"),
   stopOnError: Boolean(template?.stopOnError),
   bottomTitle: String(template?.bottomTitle ?? template?.vgKeyword ?? ""),
   leftTitle: String(template?.leftTitle ?? ""),
@@ -332,13 +337,13 @@ export const useTemplateManagerState = ({
         xSegments: String(template?.xSegments ?? ""),
         xPoints: String(template?.xPoints ?? ""),
         xSegmentationMode: resolveXSegmentationMode(template?.xSegmentationMode),
-        xUnit: String(template?.xUnit ?? ""),
+        xUnit: normalizeTemplateXUnit(template?.xUnit),
         yDataStart: String(template?.yDataStart ?? ""),
         yDataEnd: String(template?.yDataEnd ?? ""),
         yPoints: String(template?.yPoints ?? ""),
         yCount: String(template?.yCount ?? ""),
         yStep: String(template?.yStep ?? ""),
-        yUnit: normalizeDeviceAnalysisYUnit(template?.yUnit, ""),
+        yUnit: normalizeDeviceAnalysisYUnit(template?.yUnit, "A"),
         stopOnError: Boolean(template?.stopOnError),
         bottomTitle: String(template?.bottomTitle ?? template?.vgKeyword ?? ""),
         leftTitle: String(template?.leftTitle ?? ""),

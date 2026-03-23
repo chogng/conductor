@@ -185,6 +185,14 @@ const TemplateManager = ({
       })),
     [],
   );
+  const xUnitOptions = useMemo(
+    () =>
+      ["A", "mA", "uA", "nA", "pA"].map((unit) => ({
+        label: unit,
+        value: unit,
+      })),
+    [],
+  );
   const xSegmentationModeOptions = useMemo(
     () => [
       { label: t("da_save_segmentation_mode_auto"), value: "auto" },
@@ -565,18 +573,23 @@ const TemplateManager = ({
               />
             </div>
             <div className="sm:col-span-2">
-              <Input
+              <Select
                 id={
                   includeIds ? "device-analysis-template-x-unit" : undefined
                 }
                 name="xUnit"
-                value={config.xUnit}
+                value={config.xUnit || "A"}
                 disabled={saveIsSelectMode}
                 onChange={(next) => {
-                  setConfigFromSave((prev) => ({ ...prev, xUnit: next }));
+                  setConfigFromSave((prev) => ({
+                    ...prev,
+                    xUnit: String(next || "A"),
+                  }));
                   markFieldSource("xUnit", "manual");
                 }}
+                options={xUnitOptions}
                 placeholder={t("da_save_x_unit")}
+                className="w-full"
               />
             </div>
           </div>
@@ -689,12 +702,12 @@ const TemplateManager = ({
                   id={
                     includeIds ? "device-analysis-template-y-unit" : undefined
                   }
-                  value={config.yUnit || undefined}
+                  value={config.yUnit || "A"}
                   disabled={saveIsSelectMode}
                   onChange={(next) => {
                     setConfigFromSave((prev) => ({
                       ...prev,
-                      yUnit: String(next ?? ""),
+                      yUnit: String(next || "A"),
                     }));
                     markFieldSource("yUnit", "manual");
                   }}
