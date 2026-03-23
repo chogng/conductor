@@ -88,7 +88,6 @@ const getColumnIndexFromCellReference = (value: string): number | null => {
 
 type UseDeviceAnalysisOnboardingOptions = {
   clearPreviewState: (options?: { clearSelection?: boolean }) => void;
-  deviceAnalysisSettings?: Record<string, unknown> | null;
   importerRef: MutableRefObject<{ openFileDialog?: () => void } | null>;
   navigateToPage: (page: "data" | "analysis" | "settings") => void;
   processingState?: string;
@@ -104,7 +103,6 @@ type UseDeviceAnalysisOnboardingOptions = {
 
 export const useDeviceAnalysisOnboarding = ({
   clearPreviewState,
-  deviceAnalysisSettings,
   importerRef,
   navigateToPage,
   processingState,
@@ -124,10 +122,6 @@ export const useDeviceAnalysisOnboarding = ({
   const [templateSaveCount, setTemplateSaveCount] = useState(0);
 
   const steps = DEVICE_ANALYSIS_ONBOARDING_STEPS;
-  const onboardingCompleted = Boolean(deviceAnalysisSettings?.onboardingCompleted);
-  const onboardingAutoStartDismissed = Boolean(
-    deviceAnalysisSettings?.onboardingAutoStartDismissed,
-  );
 
   const persistState = useCallback(
     async (updates: Record<string, unknown>) => {
@@ -412,20 +406,6 @@ export const useDeviceAnalysisOnboarding = ({
       timeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
     };
   }, [isOpen, stepIndex, steps, templateSaveCount]);
-
-  useEffect(() => {
-    if (!deviceAnalysisSettings) return;
-    if (onboardingCompleted || onboardingAutoStartDismissed) return;
-    if (rawData.length > 0 || processedData.length > 0) return;
-    open("auto");
-  }, [
-    deviceAnalysisSettings,
-    onboardingAutoStartDismissed,
-    onboardingCompleted,
-    open,
-    processedData.length,
-    rawData.length,
-  ]);
 
   const canNext = useMemo(() => {
     if (!isOpen) return true;

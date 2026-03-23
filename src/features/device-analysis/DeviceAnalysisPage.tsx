@@ -22,7 +22,7 @@ import { useDeviceAnalysisDesktopShell } from "./desktop/useDeviceAnalysisDeskto
 import { useDeviceAnalysisExports } from "./analysis/useDeviceAnalysisExports";
 import { useDeviceAnalysisPreview } from "./data/useDeviceAnalysisPreview";
 import { useDeviceAnalysisProcessing } from "./data/useDeviceAnalysisProcessing";
-import DeviceAnalysisOnboarding from "./onboarding/DeviceAnalysisOnboarding";
+import { loadDeviceAnalysisOnboarding } from "./onboarding/loadDeviceAnalysisOnboarding";
 import { useDeviceAnalysisOnboarding } from "./onboarding/useDeviceAnalysisOnboarding";
 import { useDeviceAnalysisSession } from "./session/useDeviceAnalysisSession";
 import { useDeviceAnalysisSessionActions } from "./session/useDeviceAnalysisSessionActions";
@@ -68,6 +68,7 @@ const DeviceAnalysisAnalysisPanel = lazy(
 const DeviceAnalysisSettingsPanel = lazy(
   () => import("./settings/SettingsPanel"),
 );
+const DeviceAnalysisOnboarding = lazy(loadDeviceAnalysisOnboarding);
 
 const DesktopCommandBarFallback = () => (
   <div className="h-[38px] shrink-0 bg-bg-page" aria-hidden="true" />
@@ -446,7 +447,6 @@ const DeviceAnalysisPage = () => {
 
   const onboarding = useDeviceAnalysisOnboarding({
     clearPreviewState,
-    deviceAnalysisSettings,
     importerRef,
     navigateToPage,
     processingState: processingStatus?.state,
@@ -459,6 +459,44 @@ const DeviceAnalysisPage = () => {
     templateConfig,
     updateSettings: handleUpdateDeviceAnalysisSettings,
   });
+  const hasOnboardingSessionData =
+    rawData.length > 0 || processedData.length > 0;
+  const shouldAutoStartOnboarding =
+    Boolean(deviceAnalysisSettings) &&
+    !Boolean(deviceAnalysisSettings?.onboardingCompleted) &&
+    !Boolean(deviceAnalysisSettings?.onboardingAutoStartDismissed) &&
+    !hasOnboardingSessionData;
+
+  useEffect(() => {
+    if (!shouldAutoStartOnboarding || onboarding.isOpen) return undefined;
+
+    const scheduleAutoOpen = () => {
+      void loadDeviceAnalysisOnboarding();
+      onboarding.open("auto");
+    };
+
+    if (
+      typeof window !== "undefined" &&
+      typeof window.requestIdleCallback === "function"
+    ) {
+      const idleId = window.requestIdleCallback(scheduleAutoOpen, {
+        timeout: 1200,
+      });
+      return () => {
+        if (typeof window.cancelIdleCallback === "function") {
+          window.cancelIdleCallback(idleId);
+        }
+      };
+    }
+
+    const timeoutId = window.setTimeout(scheduleAutoOpen, 320);
+    return () => window.clearTimeout(timeoutId);
+  }, [onboarding.isOpen, onboarding.open, shouldAutoStartOnboarding]);
+
+  const handleOpenOnboardingGuide = useCallback(() => {
+    void loadDeviceAnalysisOnboarding();
+    onboarding.open("manual");
+  }, [onboarding.open]);
 
   const {
     handleCheckForUpdates,
@@ -635,7 +673,7 @@ const DeviceAnalysisPage = () => {
                   language={language}
                   onLanguageChange={handleLanguageChange}
                   onboardingSettings={{
-                    onOpenGuide: () => onboarding.open("manual"),
+                    onOpenGuide: handleOpenOnboardingGuide,
                   }}
                   theme={theme}
                   onThemeChange={handleThemeChange}
@@ -660,16 +698,20 @@ const DeviceAnalysisPage = () => {
         dataUi="device-analysis-extraction-error-toast"
       />
 
-      <DeviceAnalysisOnboarding
-        isOpen={onboarding.isOpen}
-        stepIndex={onboarding.stepIndex}
-        steps={onboarding.steps}
-        t={t}
-        canNext={onboarding.canNext}
-        onBack={onboarding.back}
-        onClose={onboarding.close}
-        onNext={onboarding.next}
-      />
+      {onboarding.isOpen ? (
+        <Suspense fallback={null}>
+          <DeviceAnalysisOnboarding
+            isOpen={onboarding.isOpen}
+            stepIndex={onboarding.stepIndex}
+            steps={onboarding.steps}
+            t={t}
+            canNext={onboarding.canNext}
+            onBack={onboarding.back}
+            onClose={onboarding.close}
+            onNext={onboarding.next}
+          />
+        </Suspense>
+      ) : null}
     </div>
   );
 };

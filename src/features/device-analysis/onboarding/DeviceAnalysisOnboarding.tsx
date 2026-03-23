@@ -48,12 +48,20 @@ type BoxOutsets = {
   left: number;
 };
 
+type HighlightTargets = {
+  cardTargetIds?: string[];
+  ringTargetIds?: string[];
+  ringVirtualTargets?: OnboardingVirtualRingTarget[];
+  spotlightTargetIds?: string[];
+};
+
 const CARD_WIDTH = 500;
 const CARD_MARGIN = 16;
 const RING_PADDING = 8;
 const SPOTLIGHT_PADDING = 12;
 const CARD_ESTIMATED_HEIGHT = 400;
 const ONBOARDING_PREVIEW_ROW_HEIGHT_PX = 28;
+const RECT_EPSILON = 0.5;
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
@@ -300,6 +308,100 @@ const getBoundingRect = (rects: HighlightRect[]): RectLike | null => {
     width: right - left,
     height: bottom - top,
   };
+};
+
+const isRectNumberEqual = (a: number, b: number): boolean =>
+  Math.abs(a - b) < RECT_EPSILON;
+
+const areRectLikesEqual = (a: RectLike | null, b: RectLike | null): boolean => {
+  if (a === b) return true;
+  if (!a || !b) return false;
+
+  return (
+    isRectNumberEqual(a.top, b.top) &&
+    isRectNumberEqual(a.left, b.left) &&
+    isRectNumberEqual(a.width, b.width) &&
+    isRectNumberEqual(a.height, b.height)
+  );
+};
+
+const areHighlightRectsEqual = (
+  currentRects: HighlightRect[],
+  nextRects: HighlightRect[],
+): boolean => {
+  if (currentRects === nextRects) return true;
+  if (currentRects.length !== nextRects.length) return false;
+
+  return currentRects.every((rect, index) => {
+    const nextRect = nextRects[index];
+    return (
+      isRectNumberEqual(rect.top, nextRect.top) &&
+      isRectNumberEqual(rect.left, nextRect.left) &&
+      isRectNumberEqual(rect.width, nextRect.width) &&
+      isRectNumberEqual(rect.height, nextRect.height) &&
+      isRectNumberEqual(rect.radius, nextRect.radius)
+    );
+  });
+};
+
+const addHighlightElement = (
+  elements: Set<HTMLElement>,
+  element: HTMLElement | null | undefined,
+) => {
+  if (!(element instanceof HTMLElement)) return;
+  elements.add(resolveHighlightElement(element));
+};
+
+const collectHighlightElements = ({
+  cardTargetIds,
+  ringTargetIds,
+  ringVirtualTargets,
+  spotlightTargetIds,
+}: HighlightTargets): HTMLElement[] => {
+  if (typeof document === "undefined") return [];
+
+  const elements = new Set<HTMLElement>();
+  const targetIds = [
+    ...(Array.isArray(ringTargetIds) ? ringTargetIds : []),
+    ...(Array.isArray(spotlightTargetIds) ? spotlightTargetIds : []),
+    ...(Array.isArray(cardTargetIds) ? cardTargetIds : []),
+  ];
+
+  targetIds.forEach((id) => {
+    if (!id) return;
+    addHighlightElement(elements, document.getElementById(id));
+  });
+
+  if (Array.isArray(ringVirtualTargets) && ringVirtualTargets.length > 0) {
+    addHighlightElement(
+      elements,
+      document.getElementById("device-analysis-preview-scroll-area"),
+    );
+    addHighlightElement(
+      elements,
+      document.getElementById("device-analysis-preview-column-selector-row"),
+    );
+  }
+
+  for (const target of ringVirtualTargets ?? []) {
+    if (target.kind !== "preview-cell") continue;
+
+    addHighlightElement(elements, document.getElementById(target.anchorId));
+    addHighlightElement(
+      elements,
+      document.querySelector<HTMLElement>(
+        `#device-analysis-preview-scroll-area td[data-row="${target.rowIndex}"][data-col="${target.colIndex}"]`,
+      ),
+    );
+    addHighlightElement(
+      elements,
+      document.querySelector<HTMLElement>(
+        `#device-analysis-preview-column-selector-row [data-column-index="${target.colIndex}"]`,
+      ),
+    );
+  }
+
+  return Array.from(elements);
 };
 
 const clampRectToViewport = (
@@ -711,26 +813,98 @@ const DeviceAnalysisOnboarding = ({
       );
       const nextCardTargetRects = getTargetRects(cardTargetIds, cardTargetPadding);
 
-      setRingRects(nextRingRects);
-      setSpotlightRects(nextSpotlightRects);
-      setCardTargetRect(getBoundingRect(nextCardTargetRects));
+      setRingRects((currentRects) =>
+        areHighlightRectsEqual(currentRects, nextRingRects)
+          ? currentRects
+          : nextRingRects,
+      );
+      setSpotlightRects((currentRects) =>
+        areHighlightRectsEqual(currentRects, nextSpotlightRects)
+          ? currentRects
+          : nextSpotlightRects,
+      );
+      setCardTargetRect((currentRect) => {
+        const nextCardTargetRect = getBoundingRect(nextCardTargetRects);
+        return areRectLikesEqual(currentRect, nextCardTargetRect)
+          ? currentRect
+          : nextCardTargetRect;
+      });
     };
 
+    let frameId: number | null = null;
+    let needsObserverRefresh = false;
+    const scheduleRectUpdate = () => {
+      if (frameId != null) return;
+      frameId = window.requestAnimationFrame(() => {
+        frameId = null;
+        if (needsObserverRefresh) {
+          observeHighlightElements();
+          needsObserverRefresh = false;
+        }
+        updateRect();
+      });
+    };
+
+    const resizeObserver =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(() => {
+            scheduleRectUpdate();
+          });
+    const observeHighlightElements = () => {
+      if (!resizeObserver) return;
+      resizeObserver.disconnect();
+      collectHighlightElements({
+        cardTargetIds,
+        ringTargetIds,
+        ringVirtualTargets,
+        spotlightTargetIds,
+      }).forEach((element) => {
+        resizeObserver.observe(element);
+      });
+    };
+
+    observeHighlightElements();
     updateRect();
 
-    const intervalId = window.setInterval(updateRect, 250);
-    const handleWindowChange = () => updateRect();
+    const handleWindowChange = () => scheduleRectUpdate();
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         onClose();
       }
     };
+    const mutationObserver =
+      typeof MutationObserver === "undefined" || !document.body
+        ? null
+        : new MutationObserver(() => {
+            needsObserverRefresh = true;
+            scheduleRectUpdate();
+          });
+
+    mutationObserver?.observe(document.body, {
+      attributeFilter: [
+        "class",
+        "style",
+        "hidden",
+        "aria-hidden",
+        "data-row",
+        "data-col",
+        "data-column-index",
+      ],
+      attributes: true,
+      childList: true,
+      subtree: true,
+    });
     window.addEventListener("resize", handleWindowChange);
     window.addEventListener("scroll", handleWindowChange, true);
     window.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      window.clearInterval(intervalId);
+      if (frameId != null) {
+        window.cancelAnimationFrame(frameId);
+      }
+      resizeObserver?.disconnect();
+      mutationObserver?.disconnect();
       window.removeEventListener("resize", handleWindowChange);
       window.removeEventListener("scroll", handleWindowChange, true);
       window.removeEventListener("keydown", handleKeyDown);
