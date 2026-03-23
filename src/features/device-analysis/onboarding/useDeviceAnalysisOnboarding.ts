@@ -25,6 +25,7 @@ const DEMO_FILE_PATHS = [
   "/demo/demo-05.csv",
   "/demo/demo-06.csv",
 ] as const;
+const DEMO_TEMPLATE_NAME_FALLBACK = "demo-01";
 const DEMO_X_POINTS_FALLBACK = "11";
 
 const TEMPLATE_SAVE_MODE_STEP_IDS = new Set([
@@ -180,6 +181,16 @@ export const useDeviceAnalysisOnboarding = ({
     }
 
     const currentStep = steps[stepIndex];
+    if (currentStep?.id === "template-name") {
+      const currentTemplateName = String(templateConfig?.name ?? "").trim();
+      if (!currentTemplateName) {
+        setTemplateConfig((prev) => ({
+          ...prev,
+          name: DEMO_TEMPLATE_NAME_FALLBACK,
+        }));
+      }
+    }
+
     if (currentStep?.id === "template-x-points") {
       const currentXPoints = String(templateConfig?.xPoints ?? "").trim();
       if (!currentXPoints) {
@@ -202,7 +213,15 @@ export const useDeviceAnalysisOnboarding = ({
     }
 
     setStepIndex((prev) => prev + 1);
-  }, [finish, isOpen, setTemplateConfig, stepIndex, steps, templateConfig?.xPoints]);
+  }, [
+    finish,
+    isOpen,
+    setTemplateConfig,
+    stepIndex,
+    steps,
+    templateConfig?.name,
+    templateConfig?.xPoints,
+  ]);
 
   const back = useCallback(() => {
     const currentStep = steps[stepIndex];
@@ -291,24 +310,56 @@ export const useDeviceAnalysisOnboarding = ({
 
   useEffect(() => {
     if (!isOpen || typeof document === "undefined") return undefined;
+
+    const isClickWithinButton = (
+      eventTarget: Node,
+      buttonId: string,
+    ): boolean => {
+      const button = document.getElementById(buttonId);
+      if (!(button instanceof HTMLElement)) {
+        return false;
+      }
+      return eventTarget === button || button.contains(eventTarget);
+    };
+
     const handleTemplateSaveClick = (event: MouseEvent) => {
       const eventTarget = event.target;
       if (!(eventTarget instanceof Node)) {
         return;
       }
+      const clickedSaveButton = isClickWithinButton(
+        eventTarget,
+        "device-analysis-template-save-btn",
+      );
+      if (clickedSaveButton) {
+        setTemplateSaveCount((prev) => prev + 1);
+      }
 
-      const saveButton = document.getElementById("device-analysis-template-save-btn");
-      if (!(saveButton instanceof HTMLElement)) {
+      if (clickedSaveButton) {
+        setStepIndex((prev) => {
+          if (steps[prev]?.id !== "template-save") {
+            return prev;
+          }
+          return Math.min(prev + 1, steps.length - 1);
+        });
         return;
       }
 
-      if (eventTarget !== saveButton && !saveButton.contains(eventTarget)) {
-        return;
-      }
-
-      setTemplateSaveCount((prev) => prev + 1);
-      if (steps[stepIndex]?.id === "template-save") {
-        setStepIndex((prev) => Math.min(prev + 1, steps.length - 1));
+      const clickedApplyToAllButton = isClickWithinButton(
+        eventTarget,
+        "device-analysis-template-apply-to-all",
+      );
+      if (clickedApplyToAllButton) {
+        setStepIndex((prev) => {
+          const currentStepId = steps[prev]?.id;
+          if (currentStepId === "template-save") {
+            return Math.min(prev + 2, steps.length - 1);
+          }
+          if (currentStepId === "apply") {
+            return Math.min(prev + 1, steps.length - 1);
+          }
+          return prev;
+        });
       }
     };
 
@@ -316,7 +367,7 @@ export const useDeviceAnalysisOnboarding = ({
     return () => {
       document.removeEventListener("click", handleTemplateSaveClick, true);
     };
-  }, [isOpen, stepIndex, steps]);
+  }, [isOpen, steps]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -386,7 +437,7 @@ export const useDeviceAnalysisOnboarding = ({
       case "import":
         return rawData.length > 0;
       case "template-name":
-        return Boolean(String(templateConfig?.name ?? "").trim());
+        return true;
       case "template-x-start":
         return isCellReferenceValue(templateConfig?.xDataStart ?? "");
       case "template-x-end":
