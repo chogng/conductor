@@ -59,7 +59,7 @@ const CARD_WIDTH = 500;
 const CARD_MARGIN = 16;
 const RING_PADDING = 8;
 const SPOTLIGHT_PADDING = 12;
-const CARD_ESTIMATED_HEIGHT = 400;
+const CARD_HEIGHT = 230;
 const ONBOARDING_PREVIEW_ROW_HEIGHT_PX = 28;
 const RECT_EPSILON = 0.5;
 
@@ -719,7 +719,7 @@ const DeviceAnalysisOnboarding = ({
   const maskId = useId();
   const [cardSize, setCardSize] = useState<CardSize>({
     width: CARD_WIDTH,
-    height: CARD_ESTIMATED_HEIGHT,
+    height: CARD_HEIGHT,
   });
   const [ringRects, setRingRects] = useState<HighlightRect[]>([]);
   const [spotlightRects, setSpotlightRects] = useState<HighlightRect[]>([]);
@@ -1064,8 +1064,11 @@ const DeviceAnalysisOnboarding = ({
 
       <div
         ref={cardRef}
-        className="pointer-events-auto fixed rounded-[24px] border border-border bg-bg-surface p-6 shadow-[0_24px_80px_rgba(0,0,0,0.35)]"
-        style={cardStyle}
+        className="pointer-events-auto fixed flex flex-col overflow-hidden rounded-[24px] border border-border bg-bg-surface p-6 shadow-[0_24px_80px_rgba(0,0,0,0.35)]"
+        style={{
+          ...cardStyle,
+          height: CARD_HEIGHT,
+        }}
         role="dialog"
         aria-modal="true"
         aria-labelledby="device-analysis-onboarding-title"
@@ -1092,11 +1095,11 @@ const DeviceAnalysisOnboarding = ({
         >
           {t(step.titleKey)}
         </h3>
-        <p className="mt-2 text-sm leading-6 text-text-secondary">
-          {t(step.bodyKey)}
-        </p>
+        <div className="mt-2 min-h-0 flex-1 overflow-y-auto pr-1">
+          <p className="text-sm leading-6 text-text-secondary">{t(step.bodyKey)}</p>
+        </div>
 
-        <div className="mt-5 flex items-center justify-between gap-3">
+        <div className="mt-4 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"

@@ -118,7 +118,6 @@ export const useDeviceAnalysisOnboarding = ({
   const [isOpen, setIsOpen] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [launchMode, setLaunchMode] = useState<"auto" | "manual">("manual");
-  const [originLaunchCount, setOriginLaunchCount] = useState(0);
   const [templateSaveCount, setTemplateSaveCount] = useState(0);
 
   const steps = DEVICE_ANALYSIS_ONBOARDING_STEPS;
@@ -140,7 +139,6 @@ export const useDeviceAnalysisOnboarding = ({
       setStepIndex(0);
       setIsOpen(true);
       setTemplateSaveCount(0);
-      setOriginLaunchCount(0);
       navigateToPage("data");
     },
     [navigateToPage],
@@ -150,7 +148,6 @@ export const useDeviceAnalysisOnboarding = ({
     setIsOpen(false);
     setStepIndex(0);
     setTemplateSaveCount(0);
-    setOriginLaunchCount(0);
 
     if (launchMode === "auto") {
       void persistState({ onboardingAutoStartDismissed: true });
@@ -161,7 +158,6 @@ export const useDeviceAnalysisOnboarding = ({
     setIsOpen(false);
     setStepIndex(0);
     setTemplateSaveCount(0);
-    setOriginLaunchCount(0);
     void persistState({
       onboardingCompleted: true,
       onboardingAutoStartDismissed: true,
@@ -294,13 +290,9 @@ export const useDeviceAnalysisOnboarding = ({
     importerRef.current?.openFileDialog?.();
   }, [importDemoFiles, importerRef, isOpen, stepIndex, steps]);
 
-  const handleOpenOrigin = useCallback(
-    (openOrigin: () => void) => {
-      setOriginLaunchCount((prev) => prev + 1);
-      openOrigin();
-    },
-    [],
-  );
+  const handleOpenOrigin = useCallback((openOrigin: () => void) => {
+    openOrigin();
+  }, []);
 
   useEffect(() => {
     if (!isOpen || typeof document === "undefined") return undefined;
@@ -436,14 +428,11 @@ export const useDeviceAnalysisOnboarding = ({
         return templateSaveCount > 0;
       case "apply":
         return processingState === "processing" || processedData.length > 0;
-      case "origin-export":
-        return originLaunchCount > 0;
       default:
         return true;
     }
   }, [
     isOpen,
-    originLaunchCount,
     processedData.length,
     processingState,
     rawData.length,

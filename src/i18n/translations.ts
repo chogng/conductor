@@ -481,16 +481,16 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
       '先点击“开始”输入框，再点击右侧表里 X 列的数据起始单元格，系统会自动填入起始单元格地址。',
     da_onboarding_template_x_end_title: '再选 X 数据的结束单元格',
     da_onboarding_template_x_end_body:
-      '系统默认会把 X 列最后一个单元格填为结束位置。你也可以点击“结束”输入框，再在右侧表里改选其他结束单元格。',
+      '默认把 X 列最后一个单元格填入结束位置。也可以点击“结束”输入框，在右侧表里改选其他结束单元格。',
     da_onboarding_template_x_points_title: '选择 X 数据的曲线散点个数',
     da_onboarding_template_x_points_body:
-      'Points 表示一条曲线上的散点个数。若数据文件里有该值，点击 Points 后再点右侧 preview 对应单元格可自动填入；若文件里没有，请手动输入。',
+      'Points 表示单条曲线的散点数。数据文件中有值时鼓励自动填充单元格地址；无值时手动输入。',
     da_onboarding_template_select_columns_title: '在 preview 里勾选要提取的 Y 列',
     da_onboarding_template_select_columns_body:
-      '点击 preview 表头里的勾选框，把需要提取的 Y 列勾上就可以了，其他字段先不用管。',
-    da_onboarding_template_save_title: '把这个模板保存下来',
+      '点击 preview 表头里的勾选框，勾选需要提取的 Y 列。',
+    da_onboarding_template_save_title: '保存模板',
     da_onboarding_template_save_body:
-      '关键字段已经填好了，现在点击保存模板，把这套提取规则存下来，后面就可以复用到其他 demo 文件和真实数据。',
+      '核心字段填写完成，可点击保存模板，以应用到数据文件。',
     da_onboarding_apply_title: '应用模板，生成分析结果',
     da_onboarding_apply_body:
       '现在把刚保存的模板应用到全部 demo 文件。开始处理后，系统会自动提取数据，并准备后续图表分析所需结果。',

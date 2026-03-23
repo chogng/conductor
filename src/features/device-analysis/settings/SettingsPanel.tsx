@@ -365,7 +365,10 @@ const DeviceAnalysisSettingsPanel = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div
+          id="device-analysis-settings-origin-path-controls"
+          className="flex items-center gap-2"
+        >
           <div className="flex-1 min-w-0 rounded-lg border border-border bg-bg-page px-3 py-2 flex items-center h-[38px]">
             <p className="font-mono text-xs text-text-primary truncate">
               {storageSettings.currentPath ||
