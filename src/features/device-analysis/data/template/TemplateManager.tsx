@@ -136,6 +136,8 @@ const formatTemplateExportFileName = (templateNameRaw?: string) => {
   return `${baseName}.json`;
 };
 
+const X_AUTO_SUGGESTION_MAX_SCAN_ROWS = 5000;
+
 const TemplateManager = ({
   previewFile,
   previewStatus,
@@ -161,6 +163,7 @@ const TemplateManager = ({
     message: "",
     type: "success" as ToastType,
   });
+  const [previewRowsVersionSnapshot, setPreviewRowsVersionSnapshot] = useState(0);
 
   const showToast = useCallback((message: string, type = "warning") => {
     const safeType: ToastType =
@@ -273,6 +276,45 @@ const TemplateManager = ({
       }),
     [config?.xDataEnd, config?.xDataStart, previewFile?.rowCount],
   );
+
+  useEffect(() => {
+    if (typeof subscribePreviewRowsVersion !== "function") return undefined;
+
+    const syncPreviewRowsVersion = () => {
+      if (typeof getPreviewRowsVersion === "function") {
+        setPreviewRowsVersionSnapshot(getPreviewRowsVersion());
+        return;
+      }
+      setPreviewRowsVersionSnapshot((prev) => prev + 1);
+    };
+
+    syncPreviewRowsVersion();
+    const unsubscribe = subscribePreviewRowsVersion(syncPreviewRowsVersion);
+    return () => {
+      if (typeof unsubscribe === "function") unsubscribe();
+    };
+  }, [getPreviewRowsVersion, subscribePreviewRowsVersion]);
+
+  useEffect(() => {
+    if (typeof ensurePreviewRows !== "function") return;
+    const fileId = String(previewFile?.fileId ?? "").trim();
+    if (!fileId || !xRangeForPreview) return;
+
+    const startRow = Math.max(0, xRangeForPreview.startRow);
+    const endRowExclusive = Math.min(
+      xRangeForPreview.endRow + 1,
+      startRow + X_AUTO_SUGGESTION_MAX_SCAN_ROWS,
+    );
+    if (endRowExclusive <= startRow) return;
+
+    void ensurePreviewRows(fileId, startRow, endRowExclusive);
+  }, [
+    ensurePreviewRows,
+    previewFile?.fileId,
+    xRangeForPreview?.endRow,
+    xRangeForPreview?.startRow,
+  ]);
+
   const xAutoSuggestion = useMemo(
     () =>
       inferXSegmentationSuggestionFromPreview({
@@ -280,11 +322,18 @@ const TemplateManager = ({
         xDataEnd: config?.xDataEnd,
         previewRowCount: previewFile?.rowCount,
         getPreviewRow,
+        maxScanRows: X_AUTO_SUGGESTION_MAX_SCAN_ROWS,
       }),
-    [config?.xDataEnd, config?.xDataStart, getPreviewRow, previewFile?.rowCount],
+    [
+      config?.xDataEnd,
+      config?.xDataStart,
+      getPreviewRow,
+      previewFile?.rowCount,
+      previewRowsVersionSnapshot,
+    ],
   );
   const xAutoSuggestionText =
-    xAutoSuggestion && xAutoSuggestion.groups > 1
+    xAutoSuggestion && xAutoSuggestion.groupSize > 0
       ? t("da_save_x_auto_suggestion", {
           groups: xAutoSuggestion.groups,
           points: xAutoSuggestion.groupSize,
