@@ -130,9 +130,36 @@ jobs:
         run: |
           gh release upload $env:RELEASE_TAG release/SHA256SUMS.txt release/WINDOWS-DOWNLOADS.txt --clobber -R chogng/conductor-update
 
+      - name: Mirror release assets to source repository
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.release_meta.outputs.tag }}
+          SOURCE_REPO: ${{ github.repository }}
+        run: |
+          $assets = Get-ChildItem -Path "release" -File | Sort-Object Name
+          if (-not $assets) {
+            throw "No release assets found in release/."
+          }
+
+          gh release view $env:RELEASE_TAG -R $env:SOURCE_REPO *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:RELEASE_TAG --title $env:RELEASE_TAG --notes "Automated release artifacts from CI." -R $env:SOURCE_REPO
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to create release $env:RELEASE_TAG in $env:SOURCE_REPO."
+            }
+          }
+
+          $assetPaths = $assets | ForEach-Object { $_.FullName }
+          gh release upload $env:RELEASE_TAG $assetPaths --clobber -R $env:SOURCE_REPO
+          if ($LASTEXITCODE -ne 0) {
+            throw "Failed to upload release assets to $env:SOURCE_REPO."
+          }
+
       - name: Summarize release assets
         shell: pwsh
         run: |
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '## Windows release extras'
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '- Uploaded `SHA256SUMS.txt` for `.exe`, `.zip`, and `.7z` assets.'
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '- Uploaded `WINDOWS-DOWNLOADS.txt` with SmartScreen and verification guidance.'
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '- Mirrored full `release/` assets back to the source repository release.'
