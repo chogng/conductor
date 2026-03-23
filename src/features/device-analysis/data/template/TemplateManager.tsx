@@ -127,12 +127,13 @@ const TemplateManagerPreviewFallback = ({
   );
 };
 
-const formatTemplateExportFileName = () => {
-  const now = new Date();
-  const pad = (value: number) => String(value).padStart(2, "0");
-  const date = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
-  const time = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-  return `device-analysis-templates-${date}-${time}.json`;
+const formatTemplateExportFileName = (templateNameRaw?: string) => {
+  const safeTemplateName = String(templateNameRaw ?? "")
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const baseName = safeTemplateName || "template";
+  return `${baseName}.json`;
 };
 
 const TemplateManager = ({
@@ -307,13 +308,18 @@ const TemplateManager = ({
     if (!bundle) return;
 
     try {
+      const exportedTemplateName = String(
+        Array.isArray(bundle.templates) && bundle.templates.length > 0
+          ? bundle.templates[0]?.name ?? ""
+          : "",
+      ).trim();
       const blob = new Blob([JSON.stringify(bundle, null, 2)], {
         type: "application/json",
       });
       const href = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = href;
-      anchor.download = formatTemplateExportFileName();
+      anchor.download = formatTemplateExportFileName(exportedTemplateName);
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();

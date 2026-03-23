@@ -455,9 +455,26 @@ export const useTemplateManagerState = ({
 
       try {
         const loadedTemplates = await ensureTemplatesLoaded();
-        const templatesForExport = loadedTemplates
-          .map((template) => toTemplateTransferRecord(template))
-          .filter((template) => Boolean(String(template?.name ?? "").trim()));
+        const selectedById =
+          typeof selectedTemplateId === "string" && selectedTemplateId.trim()
+            ? loadedTemplates.find(
+                (template) =>
+                  normalizeTemplateId(template?.id) === selectedTemplateId,
+              ) || null
+            : null;
+        const selectedNameKey = toTemplateNameKey(config?.name);
+        const selectedByName = selectedNameKey
+          ? loadedTemplates.find(
+              (template) => toTemplateNameKey(template?.name) === selectedNameKey,
+            ) || null
+          : null;
+        const selectedTemplate = selectedById || selectedByName;
+
+        const templatesForExport = selectedTemplate
+          ? [toTemplateTransferRecord(selectedTemplate)].filter((template) =>
+              Boolean(String(template?.name ?? "").trim()),
+            )
+          : [];
 
         if (templatesForExport.length === 0) {
           showToast(t("da_template_export_empty"), "warning");
@@ -482,7 +499,7 @@ export const useTemplateManagerState = ({
       } finally {
         setTemplateTransferBusy(false);
       }
-    }, [ensureTemplatesLoaded, showToast, t]);
+    }, [config?.name, ensureTemplatesLoaded, selectedTemplateId, showToast, t]);
 
   const importTemplatesFromPayload = useCallback(
     async (payload: unknown) => {
