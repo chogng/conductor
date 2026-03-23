@@ -210,7 +210,7 @@ D:\DeviceAnalysis\config.json
 
 1. 更新 `package.json` 中的版本号。
 2. 提交代码并推送对应 git tag。
-3. 确认当前环境已设置 `GH_TOKEN`，且具备 `chogng/conductor` 的 release 上传权限。
+3. 确认当前环境已设置 `GH_TOKEN`，且具备 `chogng/conductor-update` 的 release 上传权限。
 4. 运行 `npm run dist:desktop:publish`。
 5. 在 GitHub Release 中确认存在 `latest.yml`、安装包和对应的 `.blockmap` 文件。
 6. 在旧版本客户端上验证更新检查、下载和安装提示流程。
