@@ -64,14 +64,10 @@ const normalizeSelectedColumns = (value: unknown): number[] | null => {
 const normalizeTemplateId = (value: unknown): string | null =>
   typeof value === "string" ? value : null;
 
-const TEMPLATE_TRANSFER_FILE_TYPE = "device-analysis-template-bundle";
 const TEMPLATE_TRANSFER_FILE_VERSION = 1;
 
-type TemplateTransferBundle = {
-  exportedAt: string;
+type TemplateTransferPayload = TemplateRecord & {
   source: string;
-  templates: TemplateRecord[];
-  type: string;
   version: number;
 };
 
@@ -140,11 +136,39 @@ const mergeTemplatesByIdentity = (
 };
 
 const extractImportedTemplates = (payload: unknown): unknown[] => {
-  if (Array.isArray(payload)) return payload;
   if (!isObjectRecord(payload)) return [];
 
-  const templates = payload?.templates;
-  return Array.isArray(templates) ? templates : [];
+  const version = Number(payload?.version);
+  if (!Number.isInteger(version) || version !== TEMPLATE_TRANSFER_FILE_VERSION) {
+    return [];
+  }
+  const source = String(payload?.source ?? "").trim();
+  if (!source) return [];
+
+  return [payload];
+};
+
+const extractTemplateNameFromFileName = (fileNameRaw: unknown): string =>
+  String(fileNameRaw ?? "")
+    .replace(/\.json$/i, "")
+    .trim();
+
+const createUniqueTemplateName = (
+  baseName: string,
+  occupiedNameKeys: Set<string>,
+): string => {
+  const normalizedBase = String(baseName || "").trim();
+  if (!normalizedBase) return "template(1)";
+
+  let suffix = 1;
+  while (suffix < 10000) {
+    const candidate = `${normalizedBase}(${suffix})`;
+    if (!occupiedNameKeys.has(toTemplateNameKey(candidate))) {
+      return candidate;
+    }
+    suffix += 1;
+  }
+  return `${normalizedBase}(${Date.now()})`;
 };
 
 type UseTemplateManagerStateOptions = {
@@ -450,7 +474,7 @@ export const useTemplateManagerState = ({
   );
 
   const createTemplateExportBundle =
-    useCallback(async (): Promise<TemplateTransferBundle | null> => {
+    useCallback(async (): Promise<TemplateTransferPayload | null> => {
       setTemplateTransferBusy(true);
 
       try {
@@ -470,23 +494,21 @@ export const useTemplateManagerState = ({
           : null;
         const selectedTemplate = selectedById || selectedByName;
 
-        const templatesForExport = selectedTemplate
-          ? [toTemplateTransferRecord(selectedTemplate)].filter((template) =>
-              Boolean(String(template?.name ?? "").trim()),
-            )
-          : [];
+        if (!selectedTemplate) {
+          showToast(t("da_template_export_empty"), "warning");
+          return null;
+        }
 
-        if (templatesForExport.length === 0) {
+        const templateForExport = toTemplateTransferRecord(selectedTemplate);
+        if (!String(templateForExport?.name ?? "").trim()) {
           showToast(t("da_template_export_empty"), "warning");
           return null;
         }
 
         return {
-          type: TEMPLATE_TRANSFER_FILE_TYPE,
           version: TEMPLATE_TRANSFER_FILE_VERSION,
           source: "conductor",
-          exportedAt: new Date().toISOString(),
-          templates: templatesForExport,
+          ...templateForExport,
         };
       } catch (error) {
         showToast(
@@ -502,7 +524,12 @@ export const useTemplateManagerState = ({
     }, [config?.name, ensureTemplatesLoaded, selectedTemplateId, showToast, t]);
 
   const importTemplatesFromPayload = useCallback(
-    async (payload: unknown) => {
+    async (
+      payload: unknown,
+      options: Partial<{
+        fileName: string;
+      }> = {},
+    ) => {
       const importedEntries = extractImportedTemplates(payload);
       if (importedEntries.length === 0) {
         showToast(t("da_template_import_invalid_format"), "warning");
@@ -512,6 +539,13 @@ export const useTemplateManagerState = ({
       setTemplateTransferBusy(true);
 
       try {
+        const loadedTemplates = await ensureTemplatesLoaded();
+        const occupiedNameKeys = new Set(
+          loadedTemplates
+            .map((template) => toTemplateNameKey(template?.name))
+            .filter(Boolean),
+        );
+        const fileNameTemplateName = extractTemplateNameFromFileName(options?.fileName);
         const savedTemplates: TemplateRecord[] = [];
         let skippedCount = 0;
 
@@ -522,16 +556,43 @@ export const useTemplateManagerState = ({
           }
 
           const draft = toTemplateTransferRecord(entry);
-          const name = String(draft?.name ?? "").trim();
-          if (!name) {
+          const jsonName = String(draft?.name ?? "").trim();
+          let resolvedName = jsonName;
+
+          if (fileNameTemplateName && fileNameTemplateName !== jsonName) {
+            resolvedName = fileNameTemplateName;
+          }
+
+          if (!resolvedName) {
             skippedCount += 1;
             continue;
+          }
+
+          const normalizedResolvedNameKey = toTemplateNameKey(resolvedName);
+          if (occupiedNameKeys.has(normalizedResolvedNameKey)) {
+            const nextName = createUniqueTemplateName(
+              resolvedName,
+              occupiedNameKeys,
+            );
+            const confirmMessage = [
+              `模板“${resolvedName}”已存在。`,
+              `确定：改名为“${nextName}”导入。`,
+              "取消：覆盖已有模板。",
+            ].join("\n");
+            const shouldRename =
+              typeof window !== "undefined" &&
+              typeof window.confirm === "function"
+                ? window.confirm(confirmMessage)
+                : true;
+            if (shouldRename) {
+              resolvedName = nextName;
+            }
           }
 
           const validation = validateTemplateForSave(
             {
               ...draft,
-              name,
+              name: resolvedName,
             },
             t,
           );
@@ -543,12 +604,13 @@ export const useTemplateManagerState = ({
           try {
             const savedRaw = await apiService.createDeviceAnalysisTemplate({
               ...validation.normalized,
-              name,
+              name: resolvedName,
             });
             const saved: TemplateRecord = isTemplateRecord(savedRaw)
               ? savedRaw
-              : { ...validation.normalized, name };
+              : { ...validation.normalized, name: resolvedName };
             savedTemplates.push(saved);
+            occupiedNameKeys.add(toTemplateNameKey(resolvedName));
           } catch {
             skippedCount += 1;
           }
@@ -575,7 +637,7 @@ export const useTemplateManagerState = ({
         setTemplateTransferBusy(false);
       }
     },
-    [loadTemplate, showToast, t],
+    [ensureTemplatesLoaded, loadTemplate, showToast, t],
   );
 
   useEffect(() => {

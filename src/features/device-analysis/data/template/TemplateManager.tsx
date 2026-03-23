@@ -308,11 +308,7 @@ const TemplateManager = ({
     if (!bundle) return;
 
     try {
-      const exportedTemplateName = String(
-        Array.isArray(bundle.templates) && bundle.templates.length > 0
-          ? bundle.templates[0]?.name ?? ""
-          : "",
-      ).trim();
+      const exportedTemplateName = String(bundle?.name ?? "").trim();
       const blob = new Blob([JSON.stringify(bundle, null, 2)], {
         type: "application/json",
       });
@@ -326,7 +322,7 @@ const TemplateManager = ({
       window.setTimeout(() => URL.revokeObjectURL(href), 0);
       showToast(
         t("da_template_export_success", {
-          count: Array.isArray(bundle.templates) ? bundle.templates.length : 0,
+          count: 1,
         }),
         "success",
       );
@@ -353,7 +349,7 @@ const TemplateManager = ({
       try {
         const raw = await file.text();
         const payload = JSON.parse(raw) as unknown;
-        await importTemplatesFromPayload(payload);
+        await importTemplatesFromPayload(payload, { fileName: file.name });
       } catch (error) {
         showToast(
           t("da_template_import_read_failed", {
