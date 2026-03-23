@@ -619,44 +619,44 @@ const TemplateManager = ({
           )}
         </div>
 
-        {/* 5. Var2 */}
-        <div>
-          <Input
-            id={
-              includeIds
-                ? "device-analysis-template-var2-legend-prefix"
-                : undefined
-            }
-            label={t("da_save_legend")}
-            value={config.legendPrefix || ""}
-            name="legendPrefix"
-            disabled={disableVarInputs}
-            onChange={(next) => {
-              setConfigFromSave((prev) => ({ ...prev, legendPrefix: next }));
-              markFieldSource("legendPrefix", "manual");
-            }}
-            onBlur={toastVarPairIfInvalid}
-            placeholder={t("da_save_var2")}
-          />
-        </div>
-
-        {/* 6. Var3 */}
-        <div>
-          <Input
-            id={
-              includeIds
-                ? "device-analysis-template-var3-left-title"
-                : undefined
-            }
-            label={t("da_save_left_title")}
-            value={config.leftTitle || ""}
-            name="leftTitle"
-            onChange={(next) => {
-              setConfigFromSave((prev) => ({ ...prev, leftTitle: next }));
-              markFieldSource("leftTitle", "manual");
-            }}
-            placeholder={t("da_save_var3")}
-          />
+        {/* 5-6. Var2 / Var3 */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="min-w-0">
+            <Input
+              id={
+                includeIds
+                  ? "device-analysis-template-var2-legend-prefix"
+                  : undefined
+              }
+              label={t("da_save_legend")}
+              value={config.legendPrefix || ""}
+              name="legendPrefix"
+              disabled={disableVarInputs}
+              onChange={(next) => {
+                setConfigFromSave((prev) => ({ ...prev, legendPrefix: next }));
+                markFieldSource("legendPrefix", "manual");
+              }}
+              onBlur={toastVarPairIfInvalid}
+              placeholder={t("da_save_var2")}
+            />
+          </div>
+          <div className="min-w-0">
+            <Input
+              id={
+                includeIds
+                  ? "device-analysis-template-var3-left-title"
+                  : undefined
+              }
+              label={t("da_save_left_title")}
+              value={config.leftTitle || ""}
+              name="leftTitle"
+              onChange={(next) => {
+                setConfigFromSave((prev) => ({ ...prev, leftTitle: next }));
+                markFieldSource("leftTitle", "manual");
+              }}
+              placeholder={t("da_save_var3")}
+            />
+          </div>
         </div>
       </div>
     );
