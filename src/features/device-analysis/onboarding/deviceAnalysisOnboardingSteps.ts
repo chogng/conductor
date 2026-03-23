@@ -165,9 +165,8 @@ export const DEVICE_ANALYSIS_ONBOARDING_STEPS: OnboardingStep[] = [
     id: "analysis",
     page: "analysis",
     placement: "right",
-    spotlightTargetIds: [
-      "device-analysis-tabpanel-analysis",
-    ],
+    spotlightTargetIds: ["device-analysis-tabpanel-analysis"],
+    spotlightPadding: 4,
     titleKey: "da_onboarding_analysis_title",
     bodyKey: "da_onboarding_analysis_body",
   },
