@@ -133,21 +133,21 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     da_onboarding_template_title: 'Templates define how data is extracted',
     da_onboarding_template_body:
       'Choose an existing template, use one shared by someone else, or create a new one to tell the app where to read X/Y data, labels, and curve information from each file.',
-    da_onboarding_template_config_title: 'Fill in the key template fields',
+    da_onboarding_template_config_title: 'Configure only the essentials first',
     da_onboarding_template_config_body:
-      'This part of the guide stays on the same progress step while we fill only the minimum fields: template name, X start, X end, X points, and the Y-column checkboxes in preview.',
+      'This part stays on the same progress step while we fill only the required fields: template name, X start, X end, X points, and Y-column checkboxes in preview.',
     da_onboarding_template_name_title: 'Start by naming the template',
     da_onboarding_template_name_body:
       'Enter a clear template name in this field first. Then the guide will walk through the key X fields one by one.',
     da_onboarding_template_x_start_title: 'Pick the X start cell',
     da_onboarding_template_x_start_body:
-      'Click this input first, then click the matching cell in the preview table on the right. The cell address will be filled in automatically.',
+      'Click the "Start" field first, then click the starting cell of the X column in the preview table on the right. The app will fill in that address automatically.',
     da_onboarding_template_x_end_title: 'Pick the X end cell',
     da_onboarding_template_x_end_body:
-      'Click this input first, then click the matching end cell in the preview table on the right. The address will be filled in automatically.',
-    da_onboarding_template_x_points_title: 'Pick the X points cell',
+      'By default, the app uses the last cell in the X column as the end position. You can click the "End" field and choose a different end cell from the X column in the preview table.',
+    da_onboarding_template_x_points_title: 'Set points per X curve',
     da_onboarding_template_x_points_body:
-      'Click Points first, then click the preview cell that contains the X-point count so its address is filled in automatically.',
+      'Points is the number of sample points on one curve. If the data file provides this value, click Points and then pick the corresponding cell in preview to fill it automatically. If the file does not provide it, enter it manually.',
     da_onboarding_template_select_columns_title: 'Check the Y columns in preview',
     da_onboarding_template_select_columns_body:
       'Use the checkboxes in the preview header to select the Y columns you want to extract. Once the needed columns are checked, you can ignore the other fields for now.',
@@ -470,21 +470,21 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     da_onboarding_template_title: '模板决定如何提取数据',
     da_onboarding_template_body:
       '选择已有模板、他人分享的模板，或新建一个模板，告诉系统从文件的哪里读取 X/Y 数据、标签和曲线信息。',
-    da_onboarding_template_config_title: '重点先配置模板里的关键字段',
+    da_onboarding_template_config_title: '先把模板的核心字段填好',
     da_onboarding_template_config_body:
-      '这一段会先停留在同一个进度点，只带你填最关键的几个字段：模板名称、X 的开始/结束/点数，以及 preview 里的 Y 列勾选。',
+      '先完成几个必要字段：模板名称、X 的开始/结束/点数，以及 preview 里 Y 列勾选。',
     da_onboarding_template_name_title: '先给模板起个名字',
     da_onboarding_template_name_body:
       '先在这里输入模板名称。填好后，引导会继续带你逐个完成 X 的关键字段。',
     da_onboarding_template_x_start_title: '先选 X 数据的开始单元格',
     da_onboarding_template_x_start_body:
-      '先点击这个输入框，再点击右侧 preview 里的对应单元格，系统会自动填入单元格地址。',
+      '先点击“开始”输入框，再点击右侧表里 X 列的数据起始单元格，系统会自动填入起始单元格地址。',
     da_onboarding_template_x_end_title: '再选 X 数据的结束单元格',
     da_onboarding_template_x_end_body:
-      '先点击这个输入框，再点击右侧 preview 里的结束单元格，系统会自动填入它的地址。',
-    da_onboarding_template_x_points_title: '最后选 X 数据的点数字段',
+      '系统默认会把 X 列最后一个单元格填为结束位置。你也可以点击“结束”输入框，再在右侧表里改选其他结束单元格。',
+    da_onboarding_template_x_points_title: '选择 X 数据的曲线散点个数',
     da_onboarding_template_x_points_body:
-      '先点击 Points，再点击右侧 preview 中存放点数的单元格，系统会自动填入它的地址。',
+      'Points 表示一条曲线上的散点个数。若数据文件里有该值，点击 Points 后再点右侧 preview 对应单元格可自动填入；若文件里没有，请手动输入。',
     da_onboarding_template_select_columns_title: '在 preview 里勾选要提取的 Y 列',
     da_onboarding_template_select_columns_body:
       '点击 preview 表头里的勾选框，把需要提取的 Y 列勾上就可以了，其他字段先不用管。',

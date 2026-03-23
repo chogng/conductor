@@ -8,7 +8,11 @@ import {
 } from "react";
 import Button from "../../../components/ui/Button";
 import type { TranslateFn } from "../../../context/language";
-import type { OnboardingCardAnchor, OnboardingStep } from "./onboardingTypes";
+import type {
+  OnboardingCardAnchor,
+  OnboardingStep,
+  OnboardingVirtualRingTarget,
+} from "./onboardingTypes";
 
 type DeviceAnalysisOnboardingProps = {
   isOpen: boolean;
@@ -49,6 +53,7 @@ const CARD_MARGIN = 16;
 const RING_PADDING = 8;
 const SPOTLIGHT_PADDING = 12;
 const CARD_ESTIMATED_HEIGHT = 400;
+const ONBOARDING_PREVIEW_ROW_HEIGHT_PX = 28;
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));
@@ -152,6 +157,22 @@ const getElementVisualOutsets = (element: HTMLElement): BoxOutsets => {
   };
 };
 
+const resolveHighlightElement = (element: HTMLElement): HTMLElement => {
+  if (
+    element instanceof HTMLInputElement ||
+    element instanceof HTMLTextAreaElement ||
+    element instanceof HTMLSelectElement
+  ) {
+    const wrapper =
+      element.closest("[data-style='input']") ?? element.closest(".input_field");
+    if (wrapper instanceof HTMLElement) {
+      return wrapper;
+    }
+  }
+
+  return element;
+};
+
 const getTargetRects = (
   targetIds: string[] | undefined,
   padding: number,
@@ -162,7 +183,9 @@ const getTargetRects = (
 
   for (const id of targetIds) {
     if (!id) continue;
-    const element = document.getElementById(id);
+    const rawElement = document.getElementById(id);
+    if (!rawElement) continue;
+    const element = resolveHighlightElement(rawElement);
     if (!element) continue;
 
     const rect = element.getBoundingClientRect();
@@ -194,6 +217,75 @@ const getTargetRects = (
   return rects;
 };
 
+const getVirtualRingTargetRects = (
+  targets: OnboardingVirtualRingTarget[] | undefined,
+  padding: number,
+): HighlightRect[] => {
+  if (!Array.isArray(targets) || targets.length === 0) return [];
+
+  const rects: HighlightRect[] = [];
+
+  for (const target of targets) {
+    if (target.kind !== "preview-cell") continue;
+
+    const previewCell = document.querySelector<HTMLElement>(
+      `#device-analysis-preview-scroll-area td[data-row="${target.rowIndex}"][data-col="${target.colIndex}"]`,
+    );
+    if (previewCell) {
+      const cellRect = previewCell.getBoundingClientRect();
+      if (cellRect.width > 0 && cellRect.height > 0) {
+        const width = cellRect.width + padding * 2;
+        const height = cellRect.height + padding * 2;
+        const radius = clamp(10 + padding / 2, 10, Math.min(width, height) / 2);
+
+        rects.push({
+          top: Math.max(0, cellRect.top - padding),
+          left: Math.max(0, cellRect.left - padding),
+          width,
+          height,
+          radius,
+        });
+        continue;
+      }
+    }
+
+    const anchor = document.getElementById(target.anchorId);
+    const headerCell = document.querySelector<HTMLElement>(
+      `#device-analysis-preview-column-selector-row [data-column-index="${target.colIndex}"]`,
+    );
+    if (!anchor || !headerCell) continue;
+
+    const anchorRect = anchor.getBoundingClientRect();
+    const headerRect = headerCell.getBoundingClientRect();
+    if (
+      anchorRect.width <= 0 ||
+      anchorRect.height <= 0 ||
+      headerRect.width <= 0 ||
+      headerRect.height <= 0
+    ) {
+      continue;
+    }
+
+    const rowHeight = Math.max(
+      1,
+      Number(target.rowHeight) || ONBOARDING_PREVIEW_ROW_HEIGHT_PX,
+    );
+    const width = headerRect.width + padding * 2;
+    const height = rowHeight + padding * 2;
+    const radius = clamp(10 + padding / 2, 10, Math.min(width, height) / 2);
+
+    rects.push({
+      top: Math.max(0, anchorRect.top + target.rowIndex * rowHeight - padding),
+      left: Math.max(0, headerRect.left - padding),
+      width,
+      height,
+      radius,
+    });
+  }
+
+  return rects;
+};
+
 const getBoundingRect = (rects: HighlightRect[]): RectLike | null => {
   if (rects.length === 0) return null;
 
@@ -210,6 +302,107 @@ const getBoundingRect = (rects: HighlightRect[]): RectLike | null => {
   };
 };
 
+const clampRectToViewport = (
+  rect: RectLike,
+  viewportWidth: number,
+  viewportHeight: number,
+): RectLike | null => {
+  const left = clamp(rect.left, 0, viewportWidth);
+  const top = clamp(rect.top, 0, viewportHeight);
+  const right = clamp(rect.left + rect.width, 0, viewportWidth);
+  const bottom = clamp(rect.top + rect.height, 0, viewportHeight);
+
+  if (right <= left || bottom <= top) {
+    return null;
+  }
+
+  return {
+    top,
+    left,
+    width: right - left,
+    height: bottom - top,
+  };
+};
+
+const isPointInsideRect = (x: number, y: number, rect: RectLike): boolean =>
+  x >= rect.left &&
+  x <= rect.left + rect.width &&
+  y >= rect.top &&
+  y <= rect.top + rect.height;
+
+const getInteractionBlockerRects = (
+  viewportWidth: number,
+  viewportHeight: number,
+  passthroughRects: RectLike[],
+): RectLike[] => {
+  if (viewportWidth <= 0 || viewportHeight <= 0) {
+    return [];
+  }
+
+  const clampedRects = passthroughRects
+    .map((rect) => clampRectToViewport(rect, viewportWidth, viewportHeight))
+    .filter((rect): rect is RectLike => Boolean(rect));
+
+  if (clampedRects.length === 0) {
+    return [
+      {
+        top: 0,
+        left: 0,
+        width: viewportWidth,
+        height: viewportHeight,
+      },
+    ];
+  }
+
+  const xBoundaries = Array.from(
+    new Set([
+      0,
+      viewportWidth,
+      ...clampedRects.flatMap((rect) => [rect.left, rect.left + rect.width]),
+    ]),
+  ).sort((a, b) => a - b);
+  const yBoundaries = Array.from(
+    new Set([
+      0,
+      viewportHeight,
+      ...clampedRects.flatMap((rect) => [rect.top, rect.top + rect.height]),
+    ]),
+  ).sort((a, b) => a - b);
+
+  const blockerRects: RectLike[] = [];
+
+  for (let yIndex = 0; yIndex < yBoundaries.length - 1; yIndex += 1) {
+    const top = yBoundaries[yIndex];
+    const bottom = yBoundaries[yIndex + 1];
+    if (bottom <= top) continue;
+
+    for (let xIndex = 0; xIndex < xBoundaries.length - 1; xIndex += 1) {
+      const left = xBoundaries[xIndex];
+      const right = xBoundaries[xIndex + 1];
+      if (right <= left) continue;
+
+      const centerX = left + (right - left) / 2;
+      const centerY = top + (bottom - top) / 2;
+      const isPassthroughCell = clampedRects.some((rect) =>
+        isPointInsideRect(centerX, centerY, rect),
+      );
+
+      if (isPassthroughCell) {
+        continue;
+      }
+
+      blockerRects.push({
+        top,
+        left,
+        width: right - left,
+        height: bottom - top,
+      });
+    }
+  }
+
+  return blockerRects;
+};
+
 const getRingTargetIds = (step: OnboardingStep | null): string[] | undefined => {
   if (!step) return undefined;
   if (Array.isArray(step.ringTargetIds) && step.ringTargetIds.length > 0) {
@@ -218,6 +411,50 @@ const getRingTargetIds = (step: OnboardingStep | null): string[] | undefined => 
   if (step.highlightMode === "ring") {
     return step.targetIds;
   }
+  return undefined;
+};
+
+const getResolvedRingTargetIds = (
+  step: OnboardingStep | null,
+  isRingActivated: boolean,
+): string[] | undefined => {
+  if (!step) return undefined;
+
+  if (isRingActivated) {
+    if (
+      Array.isArray(step.activatedRingTargetIds) &&
+      step.activatedRingTargetIds.length > 0
+    ) {
+      return step.activatedRingTargetIds;
+    }
+
+    return undefined;
+  }
+
+  return getRingTargetIds(step);
+};
+
+const getResolvedRingVirtualTargets = (
+  step: OnboardingStep | null,
+  isRingActivated: boolean,
+): OnboardingVirtualRingTarget[] | undefined => {
+  if (!step) return undefined;
+
+  if (isRingActivated) {
+    if (
+      Array.isArray(step.activatedRingVirtualTargets) &&
+      step.activatedRingVirtualTargets.length > 0
+    ) {
+      return step.activatedRingVirtualTargets;
+    }
+
+    return undefined;
+  }
+
+  if (Array.isArray(step.ringVirtualTargets) && step.ringVirtualTargets.length > 0) {
+    return step.ringVirtualTargets;
+  }
+
   return undefined;
 };
 
@@ -385,6 +622,11 @@ const DeviceAnalysisOnboarding = ({
   const [ringRects, setRingRects] = useState<HighlightRect[]>([]);
   const [spotlightRects, setSpotlightRects] = useState<HighlightRect[]>([]);
   const [cardTargetRect, setCardTargetRect] = useState<RectLike | null>(null);
+  const [isRingActivated, setIsRingActivated] = useState(false);
+
+  useEffect(() => {
+    setIsRingActivated(false);
+  }, [isOpen, step?.id]);
 
   useEffect(() => {
     if (!isOpen) return undefined;
@@ -409,9 +651,49 @@ const DeviceAnalysisOnboarding = ({
   }, [isOpen, stepIndex]);
 
   useEffect(() => {
+    if (!isOpen || !step || typeof document === "undefined") return undefined;
+    const activationTargetIds = step.ringActivationTargetIds;
+    if (!Array.isArray(activationTargetIds) || activationTargetIds.length === 0) {
+      return undefined;
+    }
+
+    const handleClick = (event: MouseEvent) => {
+      const eventTarget = event.target;
+      if (!(eventTarget instanceof Node)) {
+        return;
+      }
+
+      const shouldActivate = activationTargetIds.some((id) => {
+        const rawElement = document.getElementById(id);
+        if (!(rawElement instanceof HTMLElement)) {
+          return false;
+        }
+
+        const resolvedElement = resolveHighlightElement(rawElement);
+        return (
+          rawElement === eventTarget ||
+          resolvedElement === eventTarget ||
+          rawElement.contains(eventTarget) ||
+          resolvedElement.contains(eventTarget)
+        );
+      });
+
+      if (shouldActivate) {
+        setIsRingActivated(true);
+      }
+    };
+
+    document.addEventListener("click", handleClick, true);
+    return () => {
+      document.removeEventListener("click", handleClick, true);
+    };
+  }, [isOpen, step]);
+
+  useEffect(() => {
     if (!isOpen || !step || typeof window === "undefined") return undefined;
 
-    const ringTargetIds = getRingTargetIds(step);
+    const ringTargetIds = getResolvedRingTargetIds(step, isRingActivated);
+    const ringVirtualTargets = getResolvedRingVirtualTargets(step, isRingActivated);
     const spotlightTargetIds = getSpotlightTargetIds(step);
     const cardTargetIds = step.cardTargetIds;
     const ringPadding = step.ringPadding ?? RING_PADDING;
@@ -419,7 +701,10 @@ const DeviceAnalysisOnboarding = ({
     const cardTargetPadding = step.cardTargetPadding ?? 0;
 
     const updateRect = () => {
-      const nextRingRects = getTargetRects(ringTargetIds, ringPadding);
+      const nextRingRects = [
+        ...getTargetRects(ringTargetIds, ringPadding),
+        ...getVirtualRingTargetRects(ringVirtualTargets, ringPadding),
+      ];
       const nextSpotlightRects = getTargetRects(
         spotlightTargetIds,
         spotlightPadding,
@@ -450,7 +735,7 @@ const DeviceAnalysisOnboarding = ({
       window.removeEventListener("scroll", handleWindowChange, true);
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, onClose, step]);
+  }, [isOpen, isRingActivated, onClose, step]);
 
   const spotlightBounds = useMemo(
     () => getBoundingRect(spotlightRects),
@@ -506,6 +791,11 @@ const DeviceAnalysisOnboarding = ({
   const backdropFill = `rgba(0,0,0,${backdropOpacity})`;
   const shouldUseFullBackdrop =
     step.backdropMode === "full" || spotlightRects.length === 0;
+  const interactionBlockerRects = getInteractionBlockerRects(
+    viewportWidth,
+    viewportHeight,
+    ringRects,
+  );
 
   return (
     <div
@@ -576,6 +866,15 @@ const DeviceAnalysisOnboarding = ({
       ) : (
         <div className="absolute inset-0" style={{ background: backdropFill }} />
       )}
+
+      {interactionBlockerRects.map((rect, index) => (
+        <div
+          key={`${step.id}-interaction-blocker-${index}`}
+          aria-hidden="true"
+          className="pointer-events-auto absolute"
+          style={rect}
+        />
+      ))}
 
       {ringRects.map((rect, index) => (
         <div

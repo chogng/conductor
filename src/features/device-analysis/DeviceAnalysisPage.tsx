@@ -100,6 +100,8 @@ const DeviceAnalysisPage = () => {
     setSelectedPreviewFileId,
     processedData,
     setProcessedData,
+    templateConfig,
+    setTemplateConfig,
     ssMethod,
     setSsMethod,
     ssDiagnosticsEnabled,
@@ -453,6 +455,8 @@ const DeviceAnalysisPage = () => {
     setProcessedData,
     setRawData,
     setSelectedPreviewFileId,
+    setTemplateConfig,
+    templateConfig,
     updateSettings: handleUpdateDeviceAnalysisSettings,
   });
 

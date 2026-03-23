@@ -1,5 +1,10 @@
 import type { OnboardingStep } from "./onboardingTypes";
 
+const TEMPLATE_CONFIG_SPOTLIGHT_TARGET_IDS = [
+  "device-analysis-template-manager",
+  "device-analysis-preview-canvas-grid",
+];
+
 export const DEVICE_ANALYSIS_ONBOARDING_STEPS: OnboardingStep[] = [
   {
     id: "welcome",
@@ -42,7 +47,7 @@ export const DEVICE_ANALYSIS_ONBOARDING_STEPS: OnboardingStep[] = [
     placement: "left",
     progressGroupId: "template-config",
     ringTargetIds: ["device-analysis-template-mode-tab-save"],
-    spotlightTargetIds: ["device-analysis-template-manager"],
+    spotlightTargetIds: [...TEMPLATE_CONFIG_SPOTLIGHT_TARGET_IDS],
     spotlightPadding: 4,
     cardTargetIds: ["device-analysis-template-config-panel-content"],
     cardAnchor: "center",
@@ -56,10 +61,7 @@ export const DEVICE_ANALYSIS_ONBOARDING_STEPS: OnboardingStep[] = [
     progressGroupId: "template-config",
     ringTargetIds: ["device-analysis-template-name-row"],
     ringPadding: 4,
-    spotlightTargetIds: [
-      "device-analysis-template-manager",
-      "device-analysis-preview-canvas-grid",
-    ],
+    spotlightTargetIds: [...TEMPLATE_CONFIG_SPOTLIGHT_TARGET_IDS],
     spotlightPadding: 4,
     cardTargetIds: ["device-analysis-template-config-panel-content"],
     cardAnchor: "center",
@@ -73,11 +75,17 @@ export const DEVICE_ANALYSIS_ONBOARDING_STEPS: OnboardingStep[] = [
     placement: "left",
     progressGroupId: "template-config",
     ringTargetIds: ["device-analysis-template-x-data-start"],
-    ringPadding: 4,
-    spotlightTargetIds: [
-      "device-analysis-template-manager",
-      "device-analysis-preview-canvas-grid",
+    ringActivationTargetIds: ["device-analysis-template-x-data-start"],
+    activatedRingVirtualTargets: [
+      {
+        kind: "preview-cell",
+        anchorId: "device-analysis-preview-canvas-grid",
+        rowIndex: 5,
+        colIndex: 0,
+      },
     ],
+    ringPadding: 4,
+    spotlightTargetIds: [...TEMPLATE_CONFIG_SPOTLIGHT_TARGET_IDS],
     spotlightPadding: 4,
     cardTargetIds: ["device-analysis-template-config-panel-content"],
     cardAnchor: "center",
@@ -92,10 +100,7 @@ export const DEVICE_ANALYSIS_ONBOARDING_STEPS: OnboardingStep[] = [
     progressGroupId: "template-config",
     ringTargetIds: ["device-analysis-template-x-data-end"],
     ringPadding: 4,
-    spotlightTargetIds: [
-      "device-analysis-template-manager",
-      "device-analysis-preview-canvas-grid",
-    ],
+    spotlightTargetIds: [...TEMPLATE_CONFIG_SPOTLIGHT_TARGET_IDS],
     spotlightPadding: 4,
     cardTargetIds: ["device-analysis-template-config-panel-content"],
     cardAnchor: "center",
@@ -110,10 +115,7 @@ export const DEVICE_ANALYSIS_ONBOARDING_STEPS: OnboardingStep[] = [
     progressGroupId: "template-config",
     ringTargetIds: ["device-analysis-template-x-points"],
     ringPadding: 4,
-    spotlightTargetIds: [
-      "device-analysis-template-manager",
-      "device-analysis-preview-canvas-grid",
-    ],
+    spotlightTargetIds: [...TEMPLATE_CONFIG_SPOTLIGHT_TARGET_IDS],
     spotlightPadding: 4,
     cardTargetIds: ["device-analysis-template-config-panel-content"],
     cardAnchor: "center",
@@ -128,7 +130,7 @@ export const DEVICE_ANALYSIS_ONBOARDING_STEPS: OnboardingStep[] = [
     progressGroupId: "template-config",
     ringTargetIds: ["device-analysis-preview-column-selector-row"],
     ringPadding: 4,
-    spotlightTargetIds: ["device-analysis-preview-canvas-grid"],
+    spotlightTargetIds: [...TEMPLATE_CONFIG_SPOTLIGHT_TARGET_IDS],
     spotlightPadding: 4,
     cardTargetIds: ["device-analysis-template-config-panel-content"],
     cardAnchor: "center",
@@ -140,17 +142,22 @@ export const DEVICE_ANALYSIS_ONBOARDING_STEPS: OnboardingStep[] = [
     page: "data",
     placement: "left",
     ringTargetIds: ["device-analysis-template-save-btn"],
-    spotlightTargetIds: ["device-analysis-template-mode-panel-save"],
+    spotlightTargetIds: [...TEMPLATE_CONFIG_SPOTLIGHT_TARGET_IDS],
+    spotlightPadding: 4,
+    cardTargetIds: ["device-analysis-template-config-panel-content"],
+    cardAnchor: "center",
     titleKey: "da_onboarding_template_save_title",
     bodyKey: "da_onboarding_template_save_body",
   },
   {
     id: "apply",
     page: "data",
-    placement: "bottom",
+    placement: "left",
     ringTargetIds: ["device-analysis-template-apply-to-all"],
     spotlightTargetIds: ["device-analysis-template-manager"],
     spotlightPadding: 4,
+    cardTargetIds: ["device-analysis-template-config-panel-content"],
+    cardAnchor: "center",
     titleKey: "da_onboarding_apply_title",
     bodyKey: "da_onboarding_apply_body",
   },

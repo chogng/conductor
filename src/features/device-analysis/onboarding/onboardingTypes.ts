@@ -11,6 +11,13 @@ export type OnboardingCardAnchor =
   | "bottom-right";
 
 export type OnboardingBackdropMode = "auto" | "full";
+export type OnboardingVirtualRingTarget = {
+  kind: "preview-cell";
+  anchorId: string;
+  rowIndex: number;
+  colIndex: number;
+  rowHeight?: number;
+};
 
 export type OnboardingStep = {
   id: string;
@@ -20,6 +27,10 @@ export type OnboardingStep = {
   progressGroupId?: string;
   placement?: "top" | "bottom" | "left" | "right" | "center";
   ringTargetIds?: string[];
+  ringVirtualTargets?: OnboardingVirtualRingTarget[];
+  ringActivationTargetIds?: string[];
+  activatedRingTargetIds?: string[];
+  activatedRingVirtualTargets?: OnboardingVirtualRingTarget[];
   spotlightTargetIds?: string[];
   cardTargetIds?: string[];
   cardAnchor?: OnboardingCardAnchor;

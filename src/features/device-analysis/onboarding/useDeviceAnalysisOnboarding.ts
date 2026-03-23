@@ -12,6 +12,7 @@ import {
   buildItemKey,
   createCsvImporterFileId,
 } from "../data/preview/csvImportUtils";
+import type { DeviceAnalysisTemplateConfig } from "../session/device-analysis-session-context";
 import type { ProcessedEntry, RawDataEntry } from "../shared/lib/sharedTypes";
 import { DEVICE_ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT } from "./onboardingEvents";
 import { DEVICE_ANALYSIS_ONBOARDING_STEPS } from "./deviceAnalysisOnboardingSteps";
@@ -24,6 +25,7 @@ const DEMO_FILE_PATHS = [
   "/demo/demo-05.csv",
   "/demo/demo-06.csv",
 ] as const;
+const DEMO_X_POINTS_FALLBACK = "11";
 
 const TEMPLATE_SAVE_MODE_STEP_IDS = new Set([
   "template-config",
@@ -45,7 +47,7 @@ const clickElementById = (id: string): boolean => {
   return true;
 };
 
-const focusElementById = (id: string): boolean => {
+const revealElementById = (id: string): boolean => {
   if (typeof document === "undefined") return false;
   const element = document.getElementById(id);
   if (!element || !(element instanceof HTMLElement)) return false;
@@ -55,37 +57,18 @@ const focusElementById = (id: string): boolean => {
     inline: "nearest",
   });
 
-  if (
-    element instanceof HTMLInputElement ||
-    element instanceof HTMLTextAreaElement
-  ) {
-    element.focus({ preventScroll: true });
-    if (typeof element.select === "function") {
-      element.select();
-    }
-    return true;
-  }
-
-  element.focus({ preventScroll: true });
   return true;
-};
-
-const getInputValueById = (id: string): string => {
-  if (typeof document === "undefined") return "";
-  const element = document.getElementById(id);
-  if (!element) return "";
-  if (
-    element instanceof HTMLInputElement ||
-    element instanceof HTMLTextAreaElement ||
-    element instanceof HTMLSelectElement
-  ) {
-    return String(element.value ?? "").trim();
-  }
-  return "";
 };
 
 const isCellReferenceValue = (value: string): boolean =>
   CELL_REFERENCE_PATTERN.test(String(value ?? "").trim());
+
+const isXDataEndValue = (value: string): boolean => {
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed) return false;
+  if (trimmed.toLowerCase() === "end") return true;
+  return isCellReferenceValue(trimmed);
+};
 
 const getColumnIndexFromCellReference = (value: string): number | null => {
   const match = String(value ?? "")
@@ -102,26 +85,6 @@ const getColumnIndexFromCellReference = (value: string): number | null => {
   return columnIndex > 0 ? columnIndex - 1 : null;
 };
 
-const getSelectedPreviewColumnCount = (excludeColumnIndex?: number | null): number => {
-  if (typeof document === "undefined") return 0;
-  return Array.from(
-    document.querySelectorAll(
-      "#device-analysis-preview-canvas-grid th[data-selected='true'][data-column-index]",
-    ),
-  ).filter((element) => {
-    const columnIndex = Number(
-      (element as HTMLElement).getAttribute("data-column-index"),
-    );
-    if (!Number.isInteger(columnIndex) || columnIndex < 0) {
-      return false;
-    }
-    if (!Number.isInteger(excludeColumnIndex)) {
-      return true;
-    }
-    return columnIndex !== excludeColumnIndex;
-  }).length;
-};
-
 type UseDeviceAnalysisOnboardingOptions = {
   clearPreviewState: (options?: { clearSelection?: boolean }) => void;
   deviceAnalysisSettings?: Record<string, unknown> | null;
@@ -133,6 +96,8 @@ type UseDeviceAnalysisOnboardingOptions = {
   setProcessedData: Dispatch<SetStateAction<ProcessedEntry[]>>;
   setRawData: Dispatch<SetStateAction<RawDataEntry[]>>;
   setSelectedPreviewFileId: Dispatch<SetStateAction<string | null>>;
+  setTemplateConfig: Dispatch<SetStateAction<DeviceAnalysisTemplateConfig>>;
+  templateConfig: DeviceAnalysisTemplateConfig;
   updateSettings: (updates: Record<string, unknown>) => Promise<unknown> | unknown;
 };
 
@@ -147,6 +112,8 @@ export const useDeviceAnalysisOnboarding = ({
   setProcessedData,
   setRawData,
   setSelectedPreviewFileId,
+  setTemplateConfig,
+  templateConfig,
   updateSettings,
 }: UseDeviceAnalysisOnboardingOptions) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -213,6 +180,17 @@ export const useDeviceAnalysisOnboarding = ({
     }
 
     const currentStep = steps[stepIndex];
+    if (currentStep?.id === "template-x-points") {
+      const currentXPoints = String(templateConfig?.xPoints ?? "").trim();
+      if (!currentXPoints) {
+        setTemplateConfig((prev) => ({
+          ...prev,
+          xPoints: DEMO_X_POINTS_FALLBACK,
+        }));
+        return;
+      }
+    }
+
     if (
       isOpen &&
       currentStep?.id === "template" &&
@@ -224,11 +202,16 @@ export const useDeviceAnalysisOnboarding = ({
     }
 
     setStepIndex((prev) => prev + 1);
-  }, [finish, isOpen, stepIndex, steps]);
+  }, [finish, isOpen, setTemplateConfig, stepIndex, steps, templateConfig?.xPoints]);
 
   const back = useCallback(() => {
+    const currentStep = steps[stepIndex];
+    if (isOpen && currentStep?.id === "template-config") {
+      clickElementById("device-analysis-template-mode-tab-select");
+    }
+
     setStepIndex((prev) => Math.max(0, prev - 1));
-  }, []);
+  }, [isOpen, stepIndex, steps]);
 
   const importDemoFiles = useCallback(async () => {
     const importedEntries = await Promise.all(
@@ -308,19 +291,32 @@ export const useDeviceAnalysisOnboarding = ({
 
   useEffect(() => {
     if (!isOpen || typeof document === "undefined") return undefined;
+    const handleTemplateSaveClick = (event: MouseEvent) => {
+      const eventTarget = event.target;
+      if (!(eventTarget instanceof Node)) {
+        return;
+      }
 
-    const saveButton = document.getElementById("device-analysis-template-save-btn");
-    if (!(saveButton instanceof HTMLElement)) return undefined;
+      const saveButton = document.getElementById("device-analysis-template-save-btn");
+      if (!(saveButton instanceof HTMLElement)) {
+        return;
+      }
 
-    const handleTemplateSave = () => {
+      if (eventTarget !== saveButton && !saveButton.contains(eventTarget)) {
+        return;
+      }
+
       setTemplateSaveCount((prev) => prev + 1);
+      if (steps[stepIndex]?.id === "template-save") {
+        setStepIndex((prev) => Math.min(prev + 1, steps.length - 1));
+      }
     };
 
-    saveButton.addEventListener("click", handleTemplateSave);
+    document.addEventListener("click", handleTemplateSaveClick, true);
     return () => {
-      saveButton.removeEventListener("click", handleTemplateSave);
+      document.removeEventListener("click", handleTemplateSaveClick, true);
     };
-  }, [isOpen, stepIndex]);
+  }, [isOpen, stepIndex, steps]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -335,8 +331,11 @@ export const useDeviceAnalysisOnboarding = ({
     if (!currentStep) return;
 
     const timeoutIds: number[] = [];
+    const shouldForceSaveMode =
+      TEMPLATE_SAVE_MODE_STEP_IDS.has(currentStep.id) &&
+      !(currentStep.id === "template-save" && templateSaveCount > 0);
 
-    if (TEMPLATE_SAVE_MODE_STEP_IDS.has(currentStep.id)) {
+    if (shouldForceSaveMode) {
       timeoutIds.push(
         window.setTimeout(() => {
           clickElementById("device-analysis-template-mode-tab-save");
@@ -345,17 +344,15 @@ export const useDeviceAnalysisOnboarding = ({
     }
 
     if (currentStep.focusTargetId) {
-      const baseDelay = TEMPLATE_SAVE_MODE_STEP_IDS.has(currentStep.id)
-        ? 220
-        : 80;
+      const baseDelay = shouldForceSaveMode ? 220 : 80;
       timeoutIds.push(
         window.setTimeout(() => {
-          focusElementById(currentStep.focusTargetId as string);
+          revealElementById(currentStep.focusTargetId as string);
         }, baseDelay),
       );
       timeoutIds.push(
         window.setTimeout(() => {
-          focusElementById(currentStep.focusTargetId as string);
+          revealElementById(currentStep.focusTargetId as string);
         }, baseDelay + 180),
       );
     }
@@ -389,27 +386,21 @@ export const useDeviceAnalysisOnboarding = ({
       case "import":
         return rawData.length > 0;
       case "template-name":
-        return Boolean(getInputValueById("device-analysis-template-name"));
+        return Boolean(String(templateConfig?.name ?? "").trim());
       case "template-x-start":
-        return isCellReferenceValue(
-          getInputValueById("device-analysis-template-x-data-start"),
-        );
+        return isCellReferenceValue(templateConfig?.xDataStart ?? "");
       case "template-x-end":
-        return isCellReferenceValue(
-          getInputValueById("device-analysis-template-x-data-end"),
-        );
+        return isXDataEndValue(templateConfig?.xDataEnd ?? "");
       case "template-x-points":
-        return isCellReferenceValue(
-          getInputValueById("device-analysis-template-x-points"),
-        );
+        return true;
       case "template-select-columns":
-        return (
-          getSelectedPreviewColumnCount(
-            getColumnIndexFromCellReference(
-              getInputValueById("device-analysis-template-x-data-start"),
-            ),
-          ) > 0
-        );
+        return Array.isArray(templateConfig?.selectedColumns)
+          ? templateConfig.selectedColumns.some(
+              (columnIndex) =>
+                columnIndex !==
+                getColumnIndexFromCellReference(templateConfig?.xDataStart ?? ""),
+            )
+          : false;
       case "template-save":
         return templateSaveCount > 0;
       case "apply":
@@ -427,6 +418,7 @@ export const useDeviceAnalysisOnboarding = ({
     rawData.length,
     stepIndex,
     steps,
+    templateConfig,
     templateSaveCount,
   ]);
 
