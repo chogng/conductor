@@ -79,7 +79,6 @@ type DeviceAnalysisSettingsPanelProps = {
 
 const feedbackClassName = (type: Feedback["type"]): string =>
   `text-sm ${type === "error" ? "text-red-500" : "text-emerald-600"}`;
-const IDLE_FEEDBACK: Feedback = { type: "idle", message: "" };
 
 const DeviceAnalysisSettingsPanel = ({
   appUpdateSettings,
@@ -132,7 +131,6 @@ const DeviceAnalysisSettingsPanel = ({
     originSettings.plotPostCommandsText ?? "",
   );
   const [appUpdateChecking, setAppUpdateChecking] = useState(false);
-  const [appUpdateFeedback, setAppUpdateFeedback] = useState<Feedback>(IDLE_FEEDBACK);
   const [cleanupToast, setCleanupToast] = useState<ToastState>({
     isVisible: false,
     message: "",
@@ -274,26 +272,11 @@ const DeviceAnalysisSettingsPanel = ({
               className="h-[38px] w-full sm:w-auto whitespace-nowrap sm:shrink-0"
               onClick={() => {
                 void (async () => {
-                  setAppUpdateFeedback(IDLE_FEEDBACK);
                   setAppUpdateChecking(true);
                   try {
-                    const started = await appUpdateSettings.onCheckForUpdates();
-                    if (started) {
-                      setAppUpdateFeedback({
-                        type: "success",
-                        message: t("da_settings_app_update_check_started"),
-                      });
-                    } else {
-                      setAppUpdateFeedback({
-                        type: "error",
-                        message: t("da_settings_app_update_check_failed"),
-                      });
-                    }
+                    await appUpdateSettings.onCheckForUpdates();
                   } catch {
-                    setAppUpdateFeedback({
-                      type: "error",
-                      message: t("da_settings_app_update_check_failed"),
-                    });
+                    // Update check result is shown by desktop shell dialogs.
                   } finally {
                     setAppUpdateChecking(false);
                   }
@@ -311,12 +294,6 @@ const DeviceAnalysisSettingsPanel = ({
         {!appUpdateSettings.isAvailable ? (
           <p className="text-sm text-text-secondary">
             {t("da_settings_app_update_unavailable")}
-          </p>
-        ) : null}
-
-        {appUpdateFeedback.message ? (
-          <p className={feedbackClassName(appUpdateFeedback.type)}>
-            {appUpdateFeedback.message}
           </p>
         ) : null}
       </Card>
