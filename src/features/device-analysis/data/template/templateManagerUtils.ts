@@ -27,7 +27,7 @@ export const createEmptyTemplateConfig = (
   name: "",
   xDataStart: "",
   xDataEnd: "",
-  xSegmentationMode: "points",
+  xSegmentationMode: "auto",
   xSegments: "",
   xPoints: "",
   xUnit: "",
@@ -59,7 +59,7 @@ export const cloneTemplateConfig = (
 export const normalizeXDataEndValue = (value: unknown): string => {
   const raw = String(value ?? "").trim();
   if (!raw) return "";
-  if (raw.toLowerCase() === "end" || raw === "缁撴潫") return "End";
+  if (raw.toLowerCase() === "end") return "End";
   return raw;
 };
 
@@ -67,3 +67,4 @@ export const toTemplateNameKey = (name: unknown): string =>
   String(name ?? "")
     .trim()
     .toLowerCase();
+

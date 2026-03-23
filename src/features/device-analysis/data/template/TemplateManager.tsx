@@ -262,8 +262,6 @@ const TemplateManager = ({
   const lastVarPairToastRef = useRef("");
   const xSegmentationMode = resolveXSegmentationMode(
     config?.xSegmentationMode,
-    config?.xPoints,
-    config?.xSegments,
   );
   const xRangeForPreview = useMemo(
     () =>

@@ -11,6 +11,11 @@ const DEVICE_ANALYSIS_SS_METHODS = new Set(["auto", "manual", "idWindow", "legac
 const DEVICE_ANALYSIS_Y_UNITS = new Set(["A", "uA", "nA"]);
 const DEVICE_ANALYSIS_Y_SCALES = new Set(["linear", "log"]);
 const DEVICE_ANALYSIS_THEMES = new Set(["system", "light", "dark"]);
+const DEVICE_ANALYSIS_X_SEGMENTATION_MODES = new Set([
+  "auto",
+  "points",
+  "segments",
+]);
 
 const DEVICE_ANALYSIS_DEFAULT_SETTINGS = {
   defaultTemplate: null,
@@ -52,11 +57,31 @@ function normalizeBoundedInt(value, fallback, min, max) {
   return Math.min(max, Math.max(min, Math.floor(num)));
 }
 
+function normalizeTemplateTextValue(value) {
+  if (value == null) return "";
+  return String(value);
+}
+
+function normalizeXSegmentationMode(mode) {
+  const normalizedMode =
+    typeof mode === "string" ? mode.trim().toLowerCase() : "";
+  if (DEVICE_ANALYSIS_X_SEGMENTATION_MODES.has(normalizedMode)) {
+    return normalizedMode;
+  }
+
+  return "auto";
+}
+
 function normalizeDeviceAnalysisTemplate(template) {
   if (!template || typeof template !== "object") return null;
 
   return {
     ...template,
+    xSegmentationMode: normalizeXSegmentationMode(
+      template.xSegmentationMode,
+    ),
+    xPoints: normalizeTemplateTextValue(template.xPoints),
+    xSegments: normalizeTemplateTextValue(template.xSegments),
     selectedColumns: Array.isArray(template.selectedColumns)
       ? template.selectedColumns.map((n) => Number(n)).filter(Number.isFinite)
       : [],

@@ -233,8 +233,6 @@ export function prepareDeviceAnalysisExtraction({
   const segmentsRaw = String(normalizedConfig?.xSegments ?? "").trim();
   const segmentationMode = resolveXSegmentationMode(
     normalizedConfig?.xSegmentationMode,
-    pointsRaw,
-    segmentsRaw,
   );
   const autoSuggestion = inferXSegmentationSuggestionFromPreview({
     xDataStart: normalizedConfig?.xDataStart,

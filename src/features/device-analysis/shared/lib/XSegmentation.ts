@@ -69,17 +69,9 @@ const approxEqual = (a: number, b: number, tolerance: number): boolean =>
 
 export const resolveXSegmentationMode = (
   modeRaw: unknown,
-  pointsRaw?: unknown,
-  segmentsRaw?: unknown,
 ): XSegmentationMode => {
   const mode = String(modeRaw ?? "").trim().toLowerCase();
   if (mode === "auto" || mode === "points" || mode === "segments") return mode;
-
-  const hasSegments = Boolean(String(segmentsRaw ?? "").trim());
-  if (hasSegments) return "segments";
-
-  const hasPoints = Boolean(String(pointsRaw ?? "").trim());
-  if (hasPoints) return "points";
 
   return "auto";
 };
@@ -236,4 +228,3 @@ export const inferXSegmentationSuggestionFromPreview = ({
     total: range.total,
   };
 };
-

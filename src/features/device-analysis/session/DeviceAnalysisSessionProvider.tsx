@@ -34,7 +34,7 @@ export const DeviceAnalysisSessionProvider = ({
     name: "",
     xDataStart: "",
     xDataEnd: "",
-    xSegmentationMode: "points",
+    xSegmentationMode: "auto",
     xSegments: "",
     xPoints: "",
     xUnit: "",
