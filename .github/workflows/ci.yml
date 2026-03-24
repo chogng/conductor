@@ -46,4 +46,4 @@ jobs:
         run: npm run verify:auto-update-config
 
       - name: Build desktop artifacts (no publish)
-        run: npm run dist:desktop
+        run: npm run build:desktop && npm run verify:origin-worker && npx electron-builder --publish never
