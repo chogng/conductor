@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - "**"
+    tags-ignore:
+      - "v*"
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    env:
+      UV_CACHE_DIR: ${{ github.workspace }}\\.device\\uv-cache
+      UV_PYTHON_INSTALL_DIR: ${{ github.workspace }}\\.device\\uv-python
+      PIP_CACHE_DIR: ${{ github.workspace }}\\.device\\pip-cache
+      PYINSTALLER_CONFIG_DIR: ${{ github.workspace }}\\.device\\pyinstaller-cache
+      ELECTRON_CACHE: ${{ github.workspace }}\\.device\\electron-cache
+      ELECTRON_BUILDER_CACHE: ${{ github.workspace }}\\.device\\electron-builder-cache
+      npm_config_cache: ${{ github.workspace }}\\.device\\npm-cache
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure .device cache dir
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path ".device" | Out-Null
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify auto-update config
+        run: npm run verify:auto-update-config
+
+      - name: Build desktop artifacts (no publish)
+        run: npm run dist:desktop

@@ -39,8 +39,12 @@ Update `package.json` build publish config:
 npm run dist:desktop:publish
 ```
 
-This command now runs a pre-check (`verify:auto-update-config`) before publishing.
-It then builds desktop artifacts and uploads release assets for updater metadata (`latest.yml`, installer, blockmap).
+This command now runs a local release workflow that:
+
+- validates updater publish config in `package.json`
+- builds desktop artifacts into `release/`
+- creates or updates GitHub Release `v<package.json version>`
+- uploads only updater-required assets: `latest.yml`, `*-setup.exe`, and matching `*.blockmap`
 
 ## 2.1 Publish via GitHub Actions (recommended)
 
@@ -50,7 +54,9 @@ Recommended flow:
 
 1. Bump `package.json` version and push commits.
 2. Create and push a tag that matches the version: `v<package.json version>`.
-3. The workflow runs on that tag and publishes assets to GitHub Releases using `GITHUB_TOKEN`.
+3. The workflow runs on that tag and:
+   - uploads updater-only assets (`latest.yml`, installer, blockmap) to the public update repository
+   - mirrors full `release/` artifacts to the private source repository release
 
 ## 2.2 One-command local release (without Actions)
 
@@ -65,7 +71,7 @@ What it does:
 - validates updater publish config in `package.json`
 - builds desktop artifacts into `release/`
 - creates or updates GitHub Release `v<package.json version>`
-- uploads all files under `release/` (with overwrite on existing assets)
+- uploads only updater-required files: `latest.yml`, `*-setup.exe`, and matching `*.blockmap` (with overwrite on existing assets)
 
 Requirements:
 
@@ -81,7 +87,8 @@ If you are shipping a closed-source Windows build without a paid code-signing ce
 - This repo's GitHub Actions workflow uploads two extra assets to each Windows release:
   - `SHA256SUMS.txt` for `.exe`, `.zip`, and `.7z` artifacts
   - `WINDOWS-DOWNLOADS.txt` with verification and SmartScreen guidance
-- Recommend end users install from `*-setup.exe` first; keep `*-portable.zip` and `*-portable.7z` as portable options.
+- These extra files are mirrored to the private source-repo release for traceability.
+- Public updater-repo releases remain minimal and contain only updater-required assets.
 
 Users can verify a download in PowerShell:
 
@@ -94,6 +101,16 @@ Compare the printed SHA256 value with the matching line in `SHA256SUMS.txt` from
 ## 3. Client behavior
 
 Installed clients will detect the new GitHub Release automatically and update.
+
+## 4. Closed-source safety note for public updater repos
+
+GitHub always shows `Source code (zip)` and `Source code (tar.gz)` on public releases. These archives are generated from the **public updater repository itself**, not from your private source repository.
+
+To avoid source exposure:
+
+- keep the public updater repository artifact-focused (no private app source committed there)
+- run build and packaging in the private source repository
+- upload only updater assets (`latest.yml`, installer, blockmap) to the public updater release
 
 ## Optional override
 

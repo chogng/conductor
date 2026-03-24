@@ -24,7 +24,7 @@
     "dist:desktop:oneclick": "node scripts/run-powershell.mjs scripts/pack-desktop-oneclick.ps1",
     "pack:desktop:oneclick": "node scripts/run-powershell.mjs scripts/pack-desktop-oneclick.ps1 -DirOnly",
     "verify:auto-update-config": "node --experimental-strip-types scripts/verify-auto-update-config.ts",
-    "dist:desktop:publish": "npm run verify:auto-update-config && npm run build:desktop && npm run verify:origin-worker && electron-builder --publish always",
+    "dist:desktop:publish": "node scripts/run-powershell.mjs scripts/release-desktop-local.ps1",
     "release:desktop:local": "node scripts/run-powershell.mjs scripts/release-desktop-local.ps1"
   },
   "dependencies": {

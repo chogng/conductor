@@ -104,16 +104,30 @@ if (-not (Test-Path -LiteralPath $latestYml)) {
   Fail "latest.yml is missing in release/. Auto-update clients require it."
 }
 
-$assetFiles = Get-ChildItem -LiteralPath $releaseDir -File | Sort-Object -Property Name
-if ($assetFiles.Count -eq 0) {
-  Fail "No release assets found under $releaseDir"
+$setupAssets = Get-ChildItem -LiteralPath $releaseDir -File |
+  Where-Object { $_.Name -like "*-setup.exe" } |
+  Sort-Object -Property Name
+if ($setupAssets.Count -eq 0) {
+  Fail "No installer assets (*-setup.exe) found under $releaseDir"
 }
 
+$assetFiles = @((Get-Item -LiteralPath $latestYml))
+foreach ($setupAsset in $setupAssets) {
+  $blockmapPath = "$($setupAsset.FullName).blockmap"
+  if (-not (Test-Path -LiteralPath $blockmapPath)) {
+    Fail "Missing blockmap for $($setupAsset.Name): $blockmapPath"
+  }
+
+  $assetFiles += $setupAsset
+  $assetFiles += Get-Item -LiteralPath $blockmapPath
+}
+
+$assetFiles = $assetFiles | Sort-Object -Property FullName -Unique
 $assetPaths = @($assetFiles | ForEach-Object { $_.FullName })
 
 Write-Host "[release-desktop-local] Target repo: $repoSlug"
 Write-Host "[release-desktop-local] Tag: $Tag"
-Write-Host "[release-desktop-local] Assets to upload:"
+Write-Host "[release-desktop-local] Updater assets to upload:"
 foreach ($asset in $assetFiles) {
   Write-Host "  - $($asset.Name)"
 }
