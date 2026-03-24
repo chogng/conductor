@@ -83,7 +83,6 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     da_origin_error_tip_csv_runner_check: 'Tip: check origin-csv-worker.exe path/permissions, or temporarily fall back to the Python runner.',
     da_origin_error_tip_choose_csv_folder: 'Tip: choose a folder that contains CSV files.',
     da_origin_error_tip_close_extra_origin: 'Tip: close extra Origin processes/windows and keep only one Origin instance before retrying.',
-    da_menu_export_zip: 'Export Analysis ZIP',
     da_menu_file: 'File',
     da_menu_help: 'Help',
     da_menu_import_csv: 'Import Files',
@@ -427,7 +426,6 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     da_origin_error_tip_csv_runner_check: '\u5efa\u8bae\uff1a\u68c0\u67e5 origin-csv-worker.exe \u8def\u5f84/\u6743\u9650\uff0c\u6216\u6682\u65f6\u56de\u9000\u5230 Python \u8fd0\u884c\u5668\u3002',
     da_origin_error_tip_choose_csv_folder: '\u5efa\u8bae\uff1a\u9009\u62e9\u5305\u542b CSV \u6587\u4ef6\u7684\u6587\u4ef6\u5939\u3002',
     da_origin_error_tip_close_extra_origin: '\u5efa\u8bae\uff1a\u5173\u95ed\u989d\u5916\u7684 Origin \u8fdb\u7a0b/\u7a97\u53e3\uff0c\u4ec5\u4fdd\u7559\u4e00\u4e2a Origin \u5b9e\u4f8b\u540e\u518d\u91cd\u8bd5\u3002',
-    da_menu_export_zip: '导出分析压缩包',
     da_menu_file: '文件',
     da_menu_help: '帮助',
     da_menu_import_csv: '导入文件',
@@ -459,8 +457,8 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     da_analysis_processing: '分析数据处理中...',
     da_analysis_processing_hint: '正在提取并准备图表数据，请稍候。',
     da_analysis_processing_progress: '已处理 {processed}/{total} 个文件',
-    da_analysis_loading: '\u5206\u6790\u56fe\u8868\u52a0\u8f7d\u4e2d...',
-    da_analysis_loading_hint: '\u6b63\u5728\u51c6\u5907\u53ef\u89c6\u5316\u6a21\u5757\uff0c\u8bf7\u7a0d\u5019\u3002',
+    da_analysis_loading: '分析图表加载中...',
+    da_analysis_loading_hint: '正在准备可视化模块，请稍候。',
     da_no_processed_data: '暂无处理结果',
     da_no_processed_data_hint: '请先在上方应用模板以生成结果。',
     da_no_saved_templates: '暂无已保存模板',
@@ -472,16 +470,16 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     da_onboarding_welcome_title: '先快速看一遍操作引导',
     da_onboarding_welcome_body:
       '这套引导会带你走一遍核心流程：导入 CSV、配置模板、查看分析结果，以及为桌面版配置 Origin。',
-    da_onboarding_import_title: '先点击这个“导入文件”按钮',
+    da_onboarding_import_title: '快速导入数据文件',
     da_onboarding_import_body:
-      '请先点击左上角高亮的“导入文件”按钮。在这套引导里，点击后会自动载入 demo 文件，然后你就可以继续后面的教学流程。',
+      '点击左上角的“导入文件”按钮 或 拖拽文件到虚线框区域以批量化导入数据。点击后自动载入教学 demo 文件以完成后续指引。',
     da_onboarding_import_action: '载入示例文件',
     da_onboarding_template_title: '模板决定如何提取数据',
     da_onboarding_template_body:
       '选择已有模板、他人分享的模板，或新建一个模板，告诉系统从文件的哪里读取 X/Y 数据、标签和曲线信息。',
-    da_onboarding_template_config_title: '先把模板的核心字段填好',
+    da_onboarding_template_config_title: '填写模板的核心字段',
     da_onboarding_template_config_body:
-      '先完成几个必要字段：模板名称、X 的开始/结束/点数，以及 preview 里 Y 列勾选。',
+      '在进入下一步前，完成以下几个字段是必要的：模板名称、X 的开始/结束/点数，以及 preview 表里 Y 列勾选。它们构成最基础的器件曲线',
     da_onboarding_template_name_title: '先给模板起个名字',
     da_onboarding_template_name_body:
       '先在这里输入模板名称。填好后，引导会继续带你逐个完成 X 的关键字段。',
