@@ -29,6 +29,7 @@ import Select from "../../../../components/ui/Select";
 import Tabs from "../../../../components/ui/Tabs";
 import Card from "../../../../components/ui/Card";
 import Button from "../../../../components/ui/Button";
+import Avatar from "../../../../components/ui/Avatar";
 import Modal from "../../../../components/ui/Modal";
 import DropdownMenu from "../../../../components/ui/DropdownMenu";
 import ScrollArea from "../../../../components/ui/ScrollArea";
@@ -117,9 +118,12 @@ const TemplateManagerPreviewFallback = ({
       </div>
 
       <div className="flex-1 min-h-0 border border-border rounded bg-bg-surface/60 px-6 py-8 flex flex-col items-center justify-center text-center">
-        <div className="w-12 h-12 rounded-full bg-accent/10 text-accent flex items-center justify-center mb-4">
-          <FileSpreadsheet size={22} />
-        </div>
+        <Avatar
+          icon={FileSpreadsheet}
+          size="lg"
+          variant="empty"
+          className="mb-4"
+        />
         <div className="text-sm font-medium text-text-primary">{title}</div>
         <div className="mt-2 text-sm text-text-secondary max-w-md">{hint}</div>
       </div>
