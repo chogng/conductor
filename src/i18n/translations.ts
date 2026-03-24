@@ -482,25 +482,25 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
       '在进入下一步前，完成以下几个字段是必要的：模板名称、X 的开始/结束/点数，以及 preview 表里 Y 列勾选。它们构成最基础的器件曲线',
     da_onboarding_template_name_title: '先给模板起个名字',
     da_onboarding_template_name_body:
-      '先在这里输入模板名称。填好后，引导会继续带你逐个完成 X 的关键字段。',
-    da_onboarding_template_x_start_title: '先选 X 数据的开始单元格',
+      '输入模板名称。引导会继续带你逐个完成 X 的关键字段。',
+    da_onboarding_template_x_start_title: '选择 X 数据的开始单元格',
     da_onboarding_template_x_start_body:
-      '先点击“开始”输入框，再点击右侧表里 X 列的数据起始单元格，系统会自动填入起始单元格地址。',
-    da_onboarding_template_x_end_title: '再选 X 数据的结束单元格',
+      '点击“开始”输入框，再点击右侧 preview 表里 X 列的数据起始单元格，系统会自动向“开始”中填入起始单元格地址。',
+    da_onboarding_template_x_end_title: '选择 X 数据的结束单元格',
     da_onboarding_template_x_end_body:
-      '默认把 X 列最后一个单元格填入结束位置。也可以点击“结束”输入框，在右侧表里改选其他结束单元格。',
+      '默认把 X 列最后一个单元格填入结束位置。也可以点击“结束”输入框，在右侧 preview 表里改选其他单元格作为“结束”。',
     da_onboarding_template_x_points_title: '选择 X 数据的曲线散点个数',
     da_onboarding_template_x_points_body:
-      'Points 表示单条曲线的散点数。数据文件中有值时鼓励自动填充单元格地址；无值时手动输入。',
+      '“点数”表示单条曲线的散点数。“自动”模式会根据数据文件中的内容自动计算并填入合适的点数。',
     da_onboarding_template_select_columns_title: '在 preview 里勾选要提取的 Y 列',
     da_onboarding_template_select_columns_body:
       '点击 preview 表头里的勾选框，勾选需要提取的 Y 列。',
-    da_onboarding_template_save_title: '保存模板',
+    da_onboarding_template_save_title: '记得完成后保存模板',
     da_onboarding_template_save_body:
-      '核心字段填写完成，可点击保存模板，以应用到数据文件。',
+      '核心字段填写完成，可保存模板，以应用到数据文件。保存的模板会保存在本地，以直接使用或分享给他人。',
     da_onboarding_apply_title: '应用模板，生成分析结果',
     da_onboarding_apply_body:
-      '现在把刚保存的模板应用到全部 demo 文件。开始处理后，系统会自动提取数据，并准备后续图表分析所需结果。',
+      '将刚保存的模板应用到全部 demo 文件。开始处理后，系统会自动提取数据，并准备后续图表分析所需结果。',
     da_onboarding_analysis_title: '在这里查看图表和分析结果',
     da_onboarding_analysis_body:
       '提取完成后，这里会展示图表和关键指标。你可以切换文件、查看曲线，并继续调整分析。',
