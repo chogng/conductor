@@ -1,7 +1,7 @@
 {
   "name": "conductor",
   "private": true,
-  "version": "0.5.8",
+  "version": "0.5.7",
   "type": "module",
   "main": "desktop-dist/main.js",
   "scripts": {
