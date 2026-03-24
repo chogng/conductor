@@ -2,17 +2,12 @@ import {
   requestDeviceAnalysisDesktopStore,
   DEVICE_ANALYSIS_DESKTOP_STORE_UNAVAILABLE,
 } from "../../desktop/deviceAnalysisDesktopStore";
-import { requestApi } from "../../../../services/httpClient";
 
 const isDesktopStoreUnavailableError = (error: unknown): boolean =>
   error instanceof Error &&
   error.message === DEVICE_ANALYSIS_DESKTOP_STORE_UNAVAILABLE;
 
 class ApiService {
-  async request<T = unknown>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    return requestApi<T>(endpoint, options);
-  }
-
   async getDeviceAnalysisTemplates(): Promise<unknown> {
     return this._requestDeviceAnalysisStore("/device-analysis/templates");
   }
