@@ -4,6 +4,7 @@ import { ipcChannels } from "./ipc-channels.js";
 contextBridge.exposeInMainWorld("desktopMeta", {
   isDesktop: true,
   platform: process.platform,
+  isPackaged: !process.defaultApp,
 });
 
 contextBridge.exposeInMainWorld("desktopApp", {

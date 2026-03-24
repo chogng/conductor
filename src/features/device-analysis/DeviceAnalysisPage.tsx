@@ -56,6 +56,7 @@ declare global {
     desktopMeta?: {
       isDesktop?: boolean;
       platform?: string;
+      isPackaged?: boolean;
       [key: string]: unknown;
     };
   }
@@ -92,6 +93,8 @@ const DeviceAnalysisPage = () => {
     typeof window !== "undefined" ? window.desktopMeta ?? null : null;
   const isWindowsDesktopShell =
     desktopMeta?.isDesktop === true && desktopMeta?.platform === "win32";
+  const isPackagedWindowsDesktopShell =
+    isWindowsDesktopShell && desktopMeta?.isPackaged === true;
 
   const session = useDeviceAnalysisSession();
   const {
@@ -667,7 +670,7 @@ const DeviceAnalysisPage = () => {
               >
                 <DeviceAnalysisSettingsPanel
                   appUpdateSettings={{
-                    isAvailable: isWindowsDesktopShell,
+                    isAvailable: isPackagedWindowsDesktopShell,
                     onCheckForUpdates: handleCheckForUpdates,
                   }}
                   language={language}
