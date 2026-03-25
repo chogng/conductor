@@ -24,6 +24,8 @@ type OverviewGridProps = {
   onToggleOriginCanvasSelection?: (fileId: string | undefined) => void;
   onSelectAllOriginCanvases?: () => void;
   onClearOriginCanvasSelection?: () => void;
+  xUnitFactor?: number;
+  xUnitLabel?: string;
   yUnitFactor?: number;
   yUnitLabel?: string;
   yScale?: string;
@@ -41,6 +43,8 @@ const OverviewGrid = memo(function OverviewGrid({
   onToggleOriginCanvasSelection,
   onSelectAllOriginCanvases,
   onClearOriginCanvasSelection,
+  xUnitFactor,
+  xUnitLabel,
   yUnitFactor,
   yUnitLabel,
   yScale,
@@ -326,6 +330,8 @@ const OverviewGrid = memo(function OverviewGrid({
               )}
               onToggleOriginSelected={onToggleOriginCanvasSelection}
               originSelectedBadgeLabel={t("da_overview_select_badge")}
+              xUnitFactor={xUnitFactor}
+              xUnitLabel={xUnitLabel}
               yUnitFactor={yUnitFactor}
               yUnitLabel={yUnitLabel}
               yScale={yScale}

@@ -37,7 +37,7 @@ export const DeviceAnalysisSessionProvider = ({
     xSegmentationMode: "auto",
     xSegments: "",
     xPoints: "",
-    xUnit: "A",
+    xUnit: "V",
     yDataStart: "",
     yDataEnd: "",
     yPoints: "",

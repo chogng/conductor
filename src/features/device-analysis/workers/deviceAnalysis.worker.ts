@@ -1157,6 +1157,7 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
             groups,
             sampledPoints: targetPoints,
         },
+        xUnit: String(xUnitRaw ?? "").trim(),
         yUnit: yUnitRaw,
         y: {
             columns: yCols,

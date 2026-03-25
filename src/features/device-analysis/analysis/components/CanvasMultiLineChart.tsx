@@ -50,6 +50,8 @@ export type CanvasMultiLineChartProps = {
   xGroups?: number[][];
   series?: ChartSeries[];
   domain?: ChartDomain | null;
+  xScaleFactor?: number;
+  xUnitLabel?: string;
   yScaleFactor?: number;
   yScaleType?: "linear" | "log";
   yUnitLabel?: string;
@@ -229,6 +231,8 @@ const CanvasMultiLineChart = ({
   xGroups,
   series,
   domain,
+  xScaleFactor = 1,
+  xUnitLabel = "V",
   yScaleFactor = 1,
   yScaleType = "linear",
   yUnitLabel = "",
@@ -604,6 +608,10 @@ const CanvasMultiLineChart = ({
 
   const yFactor =
     Number.isFinite(yScaleFactor) && yScaleFactor > 0 ? yScaleFactor : 1;
+  const xFactor =
+    Number.isFinite(xScaleFactor) && xScaleFactor > 0 ? xScaleFactor : 1;
+  const xSuffix =
+    typeof xUnitLabel === "string" && xUnitLabel ? ` ${xUnitLabel}` : "";
   const ySuffix =
     typeof yUnitLabel === "string" && yUnitLabel ? ` ${yUnitLabel}` : "";
 
@@ -643,7 +651,8 @@ const CanvasMultiLineChart = ({
               {tooltip.seriesName}
             </div>
             <div className="text-[11px] text-[#ccc] font-mono mt-1">
-              x={formatNumber(tooltip.xVal)} &nbsp; y=
+              x={formatNumber(tooltip.xVal * xFactor)}
+              {xSuffix} &nbsp; y=
               {formatNumber(tooltip.yVal * yFactor)}
               {ySuffix}
             </div>

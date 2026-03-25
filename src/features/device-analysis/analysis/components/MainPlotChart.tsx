@@ -70,6 +70,8 @@ type MainPlotChartProps = {
   axis?: AxisConfig;
   xDomain: [number, number];
   xTicks?: number[] | null;
+  plotXFactor: number;
+  plotXUnitLabel: string;
   xTickDigits: number;
   xTooltipDigits?: number;
   xLabelInterval: number;
@@ -130,6 +132,8 @@ const MainPlotChart = memo(function MainPlotChart({
   axis,
   xDomain,
   xTicks,
+  plotXFactor,
+  plotXUnitLabel,
   xTickDigits,
   xTooltipDigits,
   xLabelInterval,
@@ -340,6 +344,10 @@ const MainPlotChart = memo(function MainPlotChart({
     () => withYAxisUnit(activeFile?.yLabel, plotYUnitLabel),
     [activeFile?.yLabel, plotYUnitLabel],
   );
+  const xAxisLabel = useMemo(
+    () => withYAxisUnit(activeFile?.xLabel, plotXUnitLabel),
+    [activeFile?.xLabel, plotXUnitLabel],
+  );
 
   return (
     <ResponsiveContainer
@@ -365,9 +373,9 @@ const MainPlotChart = memo(function MainPlotChart({
           ticks={xTicks ?? undefined}
           interval={xLabelInterval}
           label={
-            activeFile?.xLabel
+            xAxisLabel
               ? {
-                  value: activeFile.xLabel,
+                  value: xAxisLabel,
                   position: "insideBottom",
                   offset: -15,
                   fill: "currentColor",
@@ -377,7 +385,7 @@ const MainPlotChart = memo(function MainPlotChart({
                 }
               : undefined
           }
-          tickFormatter={(v) => formatNumber(v, { digits: xTickDigits })}
+          tickFormatter={(v) => formatNumber(Number(v) * plotXFactor, { digits: xTickDigits })}
           stroke="currentColor"
           className="text-text-secondary text-xs"
           tick={{ fill: "currentColor", opacity: 0.6 }}
@@ -427,7 +435,9 @@ const MainPlotChart = memo(function MainPlotChart({
           }}
           itemStyle={{ color: "#ccc" }}
           labelFormatter={(label) =>
-            `x=${formatNumber(label, { digits: xTooltipDigits ?? xTickDigits })}`
+            `x=${formatNumber(Number(label) * plotXFactor, {
+              digits: xTooltipDigits ?? xTickDigits,
+            })} ${plotXUnitLabel}`
           }
           formatter={(value, name, item: any) => {
             const rawFromPrimary = Number(item?.payload?.[plotYKey]);

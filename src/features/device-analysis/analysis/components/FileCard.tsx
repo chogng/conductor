@@ -34,6 +34,8 @@ type FileCardProps = {
   isOriginSelected?: boolean;
   onToggleOriginSelected?: (fileId: string | undefined) => void;
   originSelectedBadgeLabel?: string;
+  xUnitFactor?: number;
+  xUnitLabel?: string;
   yUnitFactor?: number;
   yUnitLabel?: string;
   yScale?: string;
@@ -83,6 +85,8 @@ const FileCard = memo(function FileCard({
   isOriginSelected = false,
   onToggleOriginSelected,
   originSelectedBadgeLabel = "SELECT",
+  xUnitFactor = 1,
+  xUnitLabel = "V",
   yUnitFactor = 1,
   yUnitLabel = "A",
   yScale = "linear",
@@ -166,6 +170,8 @@ const FileCard = memo(function FileCard({
             xGroups={file.xGroups}
             series={file.series}
             domain={file.domain}
+            xScaleFactor={xUnitFactor}
+            xUnitLabel={xUnitLabel}
             yScaleFactor={yUnitFactor}
             yScaleType={resolvedYScale}
             yUnitLabel={yUnitLabel}

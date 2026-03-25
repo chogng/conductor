@@ -26,6 +26,7 @@ export type ProcessedEntry = {
   xAxisRole?: "vg" | "vd" | null;
   xAxisRoleSource?: "filename" | "title" | "label" | null;
   supportsSs?: boolean;
+  xUnit?: string;
   x?: {
     sampledPoints?: number | null;
     [key: string]: unknown;

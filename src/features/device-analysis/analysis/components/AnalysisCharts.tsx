@@ -18,7 +18,7 @@ import { useResidentMainPlot } from "../useResidentMainPlot";
 import OverviewGrid from "./OverviewGrid";
 import CalculatedParametersRow from "./CalculatedParametersRow";
 import { buildLogTicks, buildNiceTicks, buildOriginAutoTicks, buildPoints, buildStepTicks, computeLabelInterval, computeMinMax, downsamplePointsForDisplay, inferTickDigitsFromTicks, normalizeFloat, normalizeVarToken, padLinearDomain, padLogDomain, parseOptionalNumber, preserveScrollPosition, varTokenToSymbol, } from "../lib/analysisChartsUtils";
-import { getDeviceAnalysisYUnitMeta, normalizeDeviceAnalysisYUnit, } from "../lib/deviceAnalysisUnits";
+import { getDeviceAnalysisXUnitMeta, getDeviceAnalysisYUnitMeta, normalizeDeviceAnalysisYUnit, } from "../lib/deviceAnalysisUnits";
 import MainPlotChart from "./MainPlotChart";
 import SsDiagnosticsChart from "./SsDiagnosticsChart";
 import SsSummaryStrip from "./SsSummaryStrip";
@@ -287,6 +287,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             setActiveFileId(next);
     }, [activeFileId, processedData, setActiveFileId]);
     const activeFile = useMemo(() => processedData?.find((f: any) => f.fileId === effectiveActiveFileId) ?? null, [effectiveActiveFileId, processedData]);
+    const resolvedXUnitMeta = useMemo(() => getDeviceAnalysisXUnitMeta(activeFile?.xUnit), [activeFile?.xUnit]);
     const resolvedYUnitMeta = useMemo(() => getDeviceAnalysisYUnitMeta(yUnit), [yUnit]);
     useEffect(() => {
         if (userChangedYUnitRef.current)
@@ -881,6 +882,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         }
     }, [activeFile?.fileId, effectivePlotType, focusedSeriesId, ssManualDraft, ssMethod]);
     const plotYFactor = useMemo(() => resolvedYUnitMeta.factor, [resolvedYUnitMeta.factor]);
+    const plotXFactor = useMemo(() => resolvedXUnitMeta.factor, [resolvedXUnitMeta.factor]);
     const plotYUnitLabel = useMemo(() => {
         if (effectivePlotType === "gm")
             return toConductanceUnitLabel(resolvedYUnitMeta.label, gmUi.denomUnit);
@@ -1262,10 +1264,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             : padLinearDomain(autoMinMax.minX, autoMinMax.maxX);
         const minUser = parseOptionalNumber(axis?.xMin);
         const maxUser = parseOptionalNumber(axis?.xMax);
-        const min = minUser ?? auto[0];
-        const max = maxUser ?? auto[1];
+        const min = minUser !== null ? minUser / plotXFactor : auto[0];
+        const max = maxUser !== null ? maxUser / plotXFactor : auto[1];
         return padLinearDomain(min, max);
-    }, [autoMinMax.maxX, autoMinMax.minX, axis?.xMax, axis?.xMin]);
+    }, [autoMinMax.maxX, autoMinMax.minX, axis?.xMax, axis?.xMin, plotXFactor]);
     const yDomain = useMemo(() => {
         const auto = autoMinMax.minY === null || autoMinMax.maxY === null
             ? effectiveYScale === "linear"
@@ -1350,14 +1352,15 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return tightTicks ?? buildOriginAutoTicks(xDomain[0], xDomain[1], 6);
         }
         if (mode === "step") {
-            const step = parseOptionalNumber(axis?.xStep);
+            const stepRaw = parseOptionalNumber(axis?.xStep);
+            const step = stepRaw !== null ? stepRaw / plotXFactor : null;
             return step ? buildStepTicks(xDomain[0], xDomain[1], step) : null;
         }
         const count = Math.max(2, Math.floor(Number(axis?.xTickCount) || 6));
         return buildNiceTicks(xDomain[0], xDomain[1], count, {
             preferTightRange: false,
         });
-    }, [axis?.xStep, axis?.xTickCount, axis?.xTicks, xDomain]);
+    }, [axis?.xStep, axis?.xTickCount, axis?.xTicks, plotXFactor, xDomain]);
     const originChartXRange = useMemo(() => {
         const ticks = Array.isArray(xTicks) && xTicks.length >= 2 ? xTicks : null;
         const minCandidate = ticks ? Number(ticks[0]) : Number(xDomain?.[0]);
@@ -1436,8 +1439,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         originChartYRangeRef.current = originChartYRange;
     }, [originChartYRange]);
     const xTickDigits = useMemo(() => inferTickDigitsFromTicks(xTicks), [xTicks]);
+    const displayXTicks = useMemo(() => (Array.isArray(xTicks) ? xTicks.map((tick: any) => Number(tick) * plotXFactor) : null), [plotXFactor, xTicks]);
     // Keep tooltip x precision higher than axis labels by default; allow manual override in settings.
-    const xTooltipDigitsAuto = useMemo(() => Math.min(8, Math.max(2, xTickDigits + 2)), [xTickDigits]);
+    const xTickDigitsDisplay = useMemo(() => inferTickDigitsFromTicks(displayXTicks), [displayXTicks]);
+    const xTooltipDigitsAuto = useMemo(() => Math.min(8, Math.max(2, xTickDigitsDisplay + 2)), [xTickDigitsDisplay]);
     const xTooltipDigits = useMemo(() => {
         const manualDigits = parseOptionalNumber(axis?.xTooltipDigits);
         if (manualDigits === null)
@@ -1501,8 +1506,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const autoX = !standbyMinMax || standbyMinMax.minX === null || standbyMinMax.maxX === null
             ? [0, 1]
             : padLinearDomain(standbyMinMax.minX, standbyMinMax.maxX);
-        const minUser = parseOptionalNumber(axis?.xMin);
-        const maxUser = parseOptionalNumber(axis?.xMax);
+        const minUserRaw = parseOptionalNumber(axis?.xMin);
+        const maxUserRaw = parseOptionalNumber(axis?.xMax);
+        const minUser = minUserRaw !== null ? minUserRaw / plotXFactor : null;
+        const maxUser = maxUserRaw !== null ? maxUserRaw / plotXFactor : null;
         const standbyXDomain = padLinearDomain(minUser ?? autoX[0], maxUser ?? autoX[1]);
         const tickMode = String(axis?.xTicks ?? "auto");
         const standbyXTicks = tickMode === "auto"
@@ -1511,13 +1518,17 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             }) ?? buildOriginAutoTicks(standbyXDomain[0], standbyXDomain[1], 6)
             : tickMode === "step"
                 ? (() => {
-                    const step = parseOptionalNumber(axis?.xStep);
+                    const stepRaw = parseOptionalNumber(axis?.xStep);
+                    const step = stepRaw !== null ? stepRaw / plotXFactor : null;
                     return step ? buildStepTicks(standbyXDomain[0], standbyXDomain[1], step) : null;
                 })()
                 : buildNiceTicks(standbyXDomain[0], standbyXDomain[1], Math.max(2, Math.floor(Number(axis?.xTickCount) || 6)), {
                     preferTightRange: false,
                 });
-        const standbyXTickDigits = inferTickDigitsFromTicks(standbyXTicks);
+        const standbyDisplayXTicks = Array.isArray(standbyXTicks)
+            ? standbyXTicks.map((tick: any) => Number(tick) * plotXFactor)
+            : null;
+        const standbyXTickDigits = inferTickDigitsFromTicks(standbyDisplayXTicks);
         const standbyXTooltipDigitsAuto = Math.min(8, Math.max(2, standbyXTickDigits + 2));
         const manualDigits = parseOptionalNumber(axis?.xTooltipDigits);
         const standbyXTooltipDigits = manualDigits === null
@@ -1552,6 +1563,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         ivGmStandbyPlotType,
         plotSeriesByType,
         plotYKey,
+        plotXFactor,
     ]);
     const metricsRows = useMemo(() => {
         if (!activeFile?.series?.length)
@@ -1796,7 +1808,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         id="device-analysis-overview-sidebar"
         className="md:min-h-0 flex flex-col h-full"
       >
-        <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} onSelectAllOriginCanvases={selectAllOriginCanvases} onClearOriginCanvasSelection={clearOriginCanvasSelection} yUnitFactor={resolvedYUnitMeta.factor} yUnitLabel={resolvedYUnitMeta.label} yScale={overviewYScaleType}/>
+        <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} onSelectAllOriginCanvases={selectAllOriginCanvases} onClearOriginCanvasSelection={clearOriginCanvasSelection} xUnitFactor={resolvedXUnitMeta.factor} xUnitLabel={resolvedXUnitMeta.label} yUnitFactor={resolvedYUnitMeta.factor} yUnitLabel={resolvedYUnitMeta.label} yScale={overviewYScaleType}/>
       </aside>
 
       <ScrollArea className="md:min-h-0" axis="y" viewportClassName="flex flex-col min-h-full">
@@ -2168,6 +2180,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                           axis={axis}
                           xDomain={standbyMainChartProps.xDomain}
                           xTicks={standbyMainChartProps.xTicks}
+                          plotXFactor={plotXFactor}
+                          plotXUnitLabel={resolvedXUnitMeta.label}
                           xTickDigits={standbyMainChartProps.xTickDigits}
                           xTooltipDigits={standbyMainChartProps.xTooltipDigits}
                           xLabelInterval={standbyMainChartProps.xLabelInterval}
@@ -2192,7 +2206,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         axis={axis}
                         xDomain={xDomain}
                         xTicks={xTicks}
-                        xTickDigits={xTickDigits}
+                        plotXFactor={plotXFactor}
+                        plotXUnitLabel={resolvedXUnitMeta.label}
+                        xTickDigits={xTickDigitsDisplay}
                         xTooltipDigits={xTooltipDigits}
                         xLabelInterval={xLabelInterval}
                         yScaleMode={yScaleMode}
@@ -2218,7 +2234,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     axis={axis}
                     xDomain={xDomain}
                     xTicks={xTicks}
-                    xTickDigits={xTickDigits}
+                    plotXFactor={plotXFactor}
+                    plotXUnitLabel={resolvedXUnitMeta.label}
+                    xTickDigits={xTickDigitsDisplay}
                     xTooltipDigits={xTooltipDigits}
                     xLabelInterval={xLabelInterval}
                     yScaleMode={yScaleMode}
@@ -2243,7 +2261,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     {t("da_chart_ss_diagnostics")}
                   </div>
                   <div ref={diagnosticsChartContainerRef} className="h-[260px] min-h-[260px] flex-shrink-0">
-                    {isDiagnosticsChartSizeReady ? (<SsDiagnosticsChart data={focusedSsDiagnosticsForRender} xDomain={xDomain} xTicks={xTicks} xLabelInterval={xLabelInterval} xTickDigits={xTickDigits} xTooltipDigits={xTooltipDigits} yDomain={ssDiagnosticsYDomain} yTicks={ssDiagnosticsYTicks} overlay={focusedSsOverlay} overlayStyle={ssOverlayStyle} ssReferenceValue={ssSummary?.ss} seriesColor={focusedSeriesColor}/>) : (<div className="h-full w-full"/>)}
+                    {isDiagnosticsChartSizeReady ? (<SsDiagnosticsChart data={focusedSsDiagnosticsForRender} xDomain={xDomain} xTicks={xTicks} xFactor={plotXFactor} xUnitLabel={resolvedXUnitMeta.label} xLabelInterval={xLabelInterval} xTickDigits={xTickDigitsDisplay} xTooltipDigits={xTooltipDigits} yDomain={ssDiagnosticsYDomain} yTicks={ssDiagnosticsYTicks} overlay={focusedSsOverlay} overlayStyle={ssOverlayStyle} ssReferenceValue={ssSummary?.ss} seriesColor={focusedSeriesColor}/>) : (<div className="h-full w-full"/>)}
                   </div>
                 </div>) : null}
             </div>) : (<div className="flex items-center justify-center h-[300px] text-text-secondary">

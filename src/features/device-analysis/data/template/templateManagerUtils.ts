@@ -30,7 +30,7 @@ export const createEmptyTemplateConfig = (
   xSegmentationMode: "auto",
   xSegments: "",
   xPoints: "",
-  xUnit: "A",
+  xUnit: "V",
   yDataStart: "",
   yDataEnd: "",
   yPoints: "",

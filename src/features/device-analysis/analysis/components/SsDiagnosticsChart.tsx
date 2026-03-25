@@ -32,6 +32,8 @@ type SsDiagnosticsChartProps = {
   data: DiagnosticsPoint[];
   xDomain: number[];
   xTicks?: number[] | null;
+  xFactor?: number;
+  xUnitLabel?: string;
   xLabelInterval: number;
   xTickDigits: number;
   xTooltipDigits: number;
@@ -47,6 +49,8 @@ const SsDiagnosticsChart = memo(function SsDiagnosticsChart({
   data,
   xDomain,
   xTicks,
+  xFactor = 1,
+  xUnitLabel = "V",
   xLabelInterval,
   xTickDigits,
   xTooltipDigits,
@@ -76,7 +80,9 @@ const SsDiagnosticsChart = memo(function SsDiagnosticsChart({
           domain={xTicks ? [xTicks[0], xTicks[xTicks.length - 1]] : xDomain}
           ticks={xTicks ?? undefined}
           interval={xLabelInterval}
-          tickFormatter={(v) => formatNumber(v, { digits: xTickDigits })}
+          tickFormatter={(v) =>
+            formatNumber(Number(v) * xFactor, { digits: xTickDigits })
+          }
           stroke="currentColor"
           className="text-text-secondary text-xs"
           tick={{ fill: "currentColor", opacity: 0.6 }}
@@ -112,7 +118,11 @@ const SsDiagnosticsChart = memo(function SsDiagnosticsChart({
             color: "#fff",
           }}
           itemStyle={{ color: "#ccc" }}
-          labelFormatter={(label) => `x=${formatNumber(label, { digits: xTooltipDigits })}`}
+          labelFormatter={(label) =>
+            `x=${formatNumber(Number(label) * xFactor, {
+              digits: xTooltipDigits,
+            })} ${xUnitLabel}`
+          }
           formatter={(value, name) => [
             `${formatNumber(Number(value), { digits: yTooltipDigits })} mV/dec`,
             name,

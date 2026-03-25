@@ -66,7 +66,7 @@ const normalizeTemplateId = (value: unknown): string | null =>
 
 const normalizeTemplateXUnit = (value: unknown): string => {
   const unit = String(value ?? "").trim();
-  return unit || "A";
+  return unit || "V";
 };
 
 const TEMPLATE_TRANSFER_FILE_VERSION = 1;

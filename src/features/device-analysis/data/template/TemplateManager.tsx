@@ -191,7 +191,7 @@ const TemplateManager = ({
   );
   const xUnitOptions = useMemo(
     () =>
-      ["A", "mA", "uA", "nA", "pA"].map((unit) => ({
+      ["V", "mV"].map((unit) => ({
         label: unit,
         value: unit,
       })),
@@ -582,12 +582,12 @@ const TemplateManager = ({
                   includeIds ? "device-analysis-template-x-unit" : undefined
                 }
                 name="xUnit"
-                value={config.xUnit || "A"}
+                value={config.xUnit || "V"}
                 disabled={saveIsSelectMode}
                 onChange={(next) => {
                   setConfigFromSave((prev) => ({
                     ...prev,
-                    xUnit: String(next || "A"),
+                    xUnit: String(next || "V"),
                   }));
                   markFieldSource("xUnit", "manual");
                 }}
