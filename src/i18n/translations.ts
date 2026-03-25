@@ -163,10 +163,10 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
       'After extraction finishes, the curve preview area shows the curves extracted from the data files. Check the legend items to choose which curves should be sent to Origin for plotting.',
     da_onboarding_analysis_overview_title: 'Overview area',
     da_onboarding_analysis_overview_body:
-      'This area lists the processed files and their quick previews, so you can switch between results and compare them quickly. Use multi-select or sorting to batch export the data files you need.',
-    da_onboarding_analysis_calculated_title: 'Calculated parameters area',
+      'This area lists the processed files and their quick previews, so you can switch between results and compare them quickly. Use filtering, sorting, or multi-select to batch export the data files you need.',
+    da_onboarding_analysis_calculated_title: 'Parameters area',
     da_onboarding_analysis_calculated_body:
-      'This area summarizes the calculated metrics for each curve. Use it to review the extracted results before sending data to Origin.',
+      'This area summarizes the calculated results for each curve. Be sure to review these key metrics before sending data to Origin.',
     da_onboarding_origin_export_title: 'Send to Origin',
     da_onboarding_origin_export_body:
       'After the charts are ready, click the Origin icon to send the current analysis results to Origin. If this is your first time, go to Settings first and finish the Origin.exe setup.',
@@ -512,10 +512,10 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
       '提取完成后，曲线预览区会显示从数据文件中提取出的曲线。勾选图例以选择需要导入到 Origin 绘制的曲线。',
     da_onboarding_analysis_overview_title: '概览区',
     da_onboarding_analysis_overview_body:
-      '这里会列出处理后的文件和快速预览，方便你在不同结果之间切换并快速对比。多选或排序以批量导出需要的数据文件。',
-    da_onboarding_analysis_calculated_title: '计算参数区',
+      '这里会列出处理后的文件和快速预览，方便你在不同结果之间切换并快速对比。筛选、排序或多选以批量导出需要的数据文件。',
+    da_onboarding_analysis_calculated_title: '参数区',
     da_onboarding_analysis_calculated_body:
-      '这里汇总了每条曲线的计算结果，可在发送到 Origin 前先查看这些关键指标。',
+      '汇总每条曲线的计算结果，在发送到 Origin 前务必查看这些关键指标。',
     da_onboarding_origin_export_title: '发送到 Origin',
     da_onboarding_origin_export_body:
       '图表准备好后，点击 Origin 图标，把当前分析结果发送到 Origin。第一次使用前，请先到设置里完成 Origin.exe 配置。',
