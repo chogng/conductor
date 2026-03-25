@@ -26,7 +26,6 @@ const DEMO_FILE_PATHS = [
   "/demo/demo-06.csv",
 ] as const;
 const DEMO_TEMPLATE_NAME_FALLBACK = "demo-01";
-const DEMO_X_POINTS_FALLBACK = "11";
 
 const TEMPLATE_SAVE_MODE_STEP_IDS = new Set([
   "template-config",
@@ -181,17 +180,6 @@ export const useDeviceAnalysisOnboarding = ({
       }
     }
 
-    if (currentStep?.id === "template-x-points") {
-      const currentXPoints = String(templateConfig?.xPoints ?? "").trim();
-      if (!currentXPoints) {
-        setTemplateConfig((prev) => ({
-          ...prev,
-          xPoints: DEMO_X_POINTS_FALLBACK,
-        }));
-        return;
-      }
-    }
-
     if (
       isOpen &&
       currentStep?.id === "template" &&
@@ -210,7 +198,6 @@ export const useDeviceAnalysisOnboarding = ({
     stepIndex,
     steps,
     templateConfig?.name,
-    templateConfig?.xPoints,
   ]);
 
   const back = useCallback(() => {
@@ -291,8 +278,12 @@ export const useDeviceAnalysisOnboarding = ({
   }, [importDemoFiles, importerRef, isOpen, stepIndex, steps]);
 
   const handleOpenOrigin = useCallback((openOrigin: () => void) => {
+    const currentStep = steps[stepIndex];
     openOrigin();
-  }, []);
+    if (isOpen && currentStep?.id === "origin-export") {
+      setStepIndex((prev) => Math.min(prev + 1, steps.length - 1));
+    }
+  }, [isOpen, stepIndex, steps]);
 
   useEffect(() => {
     if (!isOpen || typeof document === "undefined") return undefined;

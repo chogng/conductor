@@ -172,6 +172,15 @@ export const DEVICE_ANALYSIS_ONBOARDING_STEPS: OnboardingStep[] = [
     bodyKey: "da_onboarding_analysis_body",
   },
   {
+    id: "origin-export",
+    page: "analysis",
+    placement: "left",
+    ringTargetIds: ["device-analysis-window-origin-btn"],
+    ringPadding: 6,
+    titleKey: "da_onboarding_origin_export_title",
+    bodyKey: "da_onboarding_origin_export_body",
+  },
+  {
     id: "origin-settings",
     page: "settings",
     placement: "bottom",
