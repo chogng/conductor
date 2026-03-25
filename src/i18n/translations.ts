@@ -136,7 +136,7 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
       'Choose an existing template, use one shared by someone else, or create a new one to tell the app where to read X/Y data, labels, and curve information from each file.',
     da_onboarding_template_config_title: 'Configure only the essentials first',
     da_onboarding_template_config_body:
-      'This part stays on the same progress step while we fill only the required fields: template name, X start, X end, X points, and Y-column checkboxes in preview.',
+      'Before moving on, complete these required fields first: template name, X start, X end, X curve segmentation, and the Y-column checkboxes in preview. Together they define the basic device curves.',
     da_onboarding_template_name_title: 'Start by naming the template',
     da_onboarding_template_name_body:
       'Enter a clear template name in this field first. Then the guide will walk through the key X fields one by one.',
@@ -146,15 +146,15 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     da_onboarding_template_x_end_title: 'Pick the X end cell',
     da_onboarding_template_x_end_body:
       'By default, the app uses the last cell in the X column as the end position. You can click the "End" field and choose a different end cell from the X column in the preview table.',
-    da_onboarding_template_x_points_title: 'Set points per X curve',
+    da_onboarding_template_x_points_title: 'Choose X curve segmentation',
     da_onboarding_template_x_points_body:
-      'Points is the number of sample points on one curve. If the data file provides this value, click Points and then pick the corresponding cell in preview to fill it automatically. If the file does not provide it, enter it manually.',
+      'Choose how each X curve is segmented here. In most cases, keeping "Auto" is enough, because the app can infer a suitable point count from the data file.',
     da_onboarding_template_select_columns_title: 'Check the Y columns in preview',
     da_onboarding_template_select_columns_body:
-      'Use the checkboxes in the preview header to select the Y columns you want to extract. Once the needed columns are checked, you can ignore the other fields for now.',
+      'Use the checkboxes in the preview header to select the Y columns you want to extract.',
     da_onboarding_template_save_title: 'Save this template',
     da_onboarding_template_save_body:
-      'The key fields are ready. Click Save Template now to store this extraction rule so you can reuse it for the other demo files and your real data later.',
+      'Now the key fields are ready, so you can save the template and apply it to your data files. Saved templates stay on this device and can also be shared with others.',
     da_onboarding_apply_title: 'Apply the template to generate results',
     da_onboarding_apply_body:
       'Now apply the saved template to all demo files. Once processing starts, the app will extract the data and prepare the charts automatically.',
@@ -489,9 +489,9 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     da_onboarding_template_x_end_title: '选择 X 数据的结束单元格',
     da_onboarding_template_x_end_body:
       '默认把 X 列最后一个单元格填入结束位置。也可以点击“结束”输入框，在右侧 preview 表里改选其他单元格作为“结束”。',
-    da_onboarding_template_x_points_title: '选择 X 数据的曲线散点个数',
+    da_onboarding_template_x_points_title: '选择 X 数据的曲线切分',
     da_onboarding_template_x_points_body:
-      '“点数”表示单条曲线的散点数。“自动”模式会根据数据文件中的内容自动计算并填入合适的点数。',
+      '选择每条曲线的切分方式。默认保持“自动”即可，应用会根据数据文件内容推断出合适的点数。',
     da_onboarding_template_select_columns_title: '在 preview 里勾选要提取的 Y 列',
     da_onboarding_template_select_columns_body:
       '点击 preview 表头里的勾选框，勾选需要提取的 Y 列。',

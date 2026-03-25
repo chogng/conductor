@@ -166,6 +166,11 @@ const getElementVisualOutsets = (element: HTMLElement): BoxOutsets => {
 };
 
 const resolveHighlightElement = (element: HTMLElement): HTMLElement => {
+  const selectWrapper = element.closest("[data-style='select']");
+  if (selectWrapper instanceof HTMLElement) {
+    return selectWrapper;
+  }
+
   if (
     element instanceof HTMLInputElement ||
     element instanceof HTMLTextAreaElement ||
