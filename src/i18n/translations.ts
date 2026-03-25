@@ -158,9 +158,15 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     da_onboarding_apply_title: 'Apply the template to generate results',
     da_onboarding_apply_body:
       'Now apply the saved template to all demo files. Once processing starts, the app will extract the data and prepare the charts automatically.',
-    da_onboarding_analysis_title: 'Review charts and analysis here',
-    da_onboarding_analysis_body:
-      'After extraction finishes, this page shows the charts and key metrics. You can switch files, inspect curves, and continue refining the analysis.',
+    da_onboarding_analysis_chart_title: 'Review the chart view first',
+    da_onboarding_analysis_chart_body:
+      'After extraction finishes, start here to inspect the main chart area and confirm that the curves render as expected.',
+    da_onboarding_analysis_overview_title: 'Then review the overview panel',
+    da_onboarding_analysis_overview_body:
+      'This overview panel lists the processed files and quick previews, so you can switch between results and compare them quickly.',
+    da_onboarding_analysis_calculated_title: 'Finally check calculated parameters',
+    da_onboarding_analysis_calculated_body:
+      'This section summarizes the calculated metrics for each curve. Use it to verify the extracted results before sending data to Origin.',
     da_onboarding_origin_export_title: 'Click the Origin icon to send data to Origin',
     da_onboarding_origin_export_body:
       'After the charts are ready, click this Origin icon in the title bar to send the current analysis to Origin. If this is your first time, go to Settings first and finish the Origin.exe setup.',
@@ -501,9 +507,15 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     da_onboarding_apply_title: '应用模板，生成分析结果',
     da_onboarding_apply_body:
       '将刚保存的模板应用到全部 demo 文件。开始处理后，系统会自动提取数据，并准备后续图表分析所需结果。',
-    da_onboarding_analysis_title: '在这里查看图表和分析结果',
-    da_onboarding_analysis_body:
-      '提取完成后，这里会展示图表和关键指标。你可以切换文件、查看曲线，并继续调整分析。',
+    da_onboarding_analysis_chart_title: '先查看 chart view 区域',
+    da_onboarding_analysis_chart_body:
+      '提取完成后，先在这里检查主图区域，确认曲线是否按预期显示。',
+    da_onboarding_analysis_overview_title: '再查看 overview 区域',
+    da_onboarding_analysis_overview_body:
+      '这里会列出处理后的文件和快速预览，方便你切换结果并做快速对比。',
+    da_onboarding_analysis_calculated_title: '最后查看 calculated view 区域',
+    da_onboarding_analysis_calculated_body:
+      '这里汇总了每条曲线的计算结果，可在发送到 Origin 前先检查这些关键指标。',
     da_onboarding_origin_export_title: '点击 Origin 图标发送到 Origin',
     da_onboarding_origin_export_body:
       '图表准备好后，点击标题栏里的这个 Origin 图标，就可以把当前分析结果发送到 Origin。第一次使用前，请先到设置里完成 Origin.exe 配置。',

@@ -12,6 +12,7 @@ import type {
   OnboardingCardAnchor,
   OnboardingStep,
   OnboardingVirtualRingTarget,
+  OnboardingVirtualSpotlightTarget,
 } from "./onboardingTypes";
 
 type DeviceAnalysisOnboardingProps = {
@@ -53,6 +54,7 @@ type HighlightTargets = {
   ringTargetIds?: string[];
   ringVirtualTargets?: OnboardingVirtualRingTarget[];
   spotlightTargetIds?: string[];
+  spotlightVirtualTargets?: OnboardingVirtualSpotlightTarget[];
 };
 
 const CARD_WIDTH = 500;
@@ -299,6 +301,72 @@ const getVirtualRingTargetRects = (
   return rects;
 };
 
+const getAnalysisVirtualSpotlightElement = (
+  target: OnboardingVirtualSpotlightTarget,
+): HTMLElement | null => {
+  if (target.kind === "analysis-overview-section") {
+    return document.getElementById("device-analysis-overview-sidebar");
+  }
+
+  if (target.kind === "analysis-chart-section") {
+    return document.querySelector<HTMLElement>(
+      '#device-analysis-tabpanel-analysis section[aria-label="Device Analysis chart"]',
+    );
+  }
+
+  if (target.kind === "analysis-calculated-section") {
+    const headings = Array.from(document.querySelectorAll("h3"));
+    const heading = headings.find(
+      (node) => node.textContent?.trim() === "Calculated Parameters",
+    );
+    return heading?.closest(".flex.flex-col.flex-1") ?? null;
+  }
+
+  return null;
+};
+
+const getVirtualSpotlightTargetRects = (
+  targets: OnboardingVirtualSpotlightTarget[] | undefined,
+  padding: number,
+): HighlightRect[] => {
+  if (!Array.isArray(targets) || targets.length === 0) return [];
+
+  const rects: HighlightRect[] = [];
+
+  for (const target of targets) {
+    const rawElement = getAnalysisVirtualSpotlightElement(target);
+    if (!(rawElement instanceof HTMLElement)) continue;
+
+    const element = resolveHighlightElement(rawElement);
+    const rect = element.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) continue;
+
+    const outsets = getElementVisualOutsets(element);
+    const insetTop = padding + outsets.top;
+    const insetRight = padding + outsets.right;
+    const insetBottom = padding + outsets.bottom;
+    const insetLeft = padding + outsets.left;
+    const width = rect.width + insetLeft + insetRight;
+    const height = rect.height + insetTop + insetBottom;
+    const baseRadius = getElementRadius(element);
+    const radius = clamp(
+      baseRadius + Math.max(insetTop, insetRight, insetBottom, insetLeft) / 2,
+      10,
+      Math.min(width, height) / 2,
+    );
+
+    rects.push({
+      top: Math.max(0, rect.top - insetTop),
+      left: Math.max(0, rect.left - insetLeft),
+      width,
+      height,
+      radius,
+    });
+  }
+
+  return rects;
+};
+
 const getBoundingRect = (rects: HighlightRect[]): RectLike | null => {
   if (rects.length === 0) return null;
 
@@ -362,6 +430,7 @@ const collectHighlightElements = ({
   ringTargetIds,
   ringVirtualTargets,
   spotlightTargetIds,
+  spotlightVirtualTargets,
 }: HighlightTargets): HTMLElement[] => {
   if (typeof document === "undefined") return [];
 
@@ -376,6 +445,10 @@ const collectHighlightElements = ({
     if (!id) return;
     addHighlightElement(elements, document.getElementById(id));
   });
+
+  for (const target of spotlightVirtualTargets ?? []) {
+    addHighlightElement(elements, getAnalysisVirtualSpotlightElement(target));
+  }
 
   if (Array.isArray(ringVirtualTargets) && ringVirtualTargets.length > 0) {
     addHighlightElement(
@@ -802,6 +875,7 @@ const DeviceAnalysisOnboarding = ({
     const ringTargetIds = getResolvedRingTargetIds(step, isRingActivated);
     const ringVirtualTargets = getResolvedRingVirtualTargets(step, isRingActivated);
     const spotlightTargetIds = getSpotlightTargetIds(step);
+    const spotlightVirtualTargets = step.spotlightVirtualTargets;
     const cardTargetIds = step.cardTargetIds;
     const ringPadding = step.ringPadding ?? RING_PADDING;
     const spotlightPadding = step.spotlightPadding ?? SPOTLIGHT_PADDING;
@@ -815,6 +889,8 @@ const DeviceAnalysisOnboarding = ({
       const nextSpotlightRects = getTargetRects(
         spotlightTargetIds,
         spotlightPadding,
+      ).concat(
+        getVirtualSpotlightTargetRects(spotlightVirtualTargets, spotlightPadding),
       );
       const nextCardTargetRects = getTargetRects(cardTargetIds, cardTargetPadding);
 
@@ -864,6 +940,7 @@ const DeviceAnalysisOnboarding = ({
         ringTargetIds,
         ringVirtualTargets,
         spotlightTargetIds,
+        spotlightVirtualTargets,
       }).forEach((element) => {
         resizeObserver.observe(element);
       });

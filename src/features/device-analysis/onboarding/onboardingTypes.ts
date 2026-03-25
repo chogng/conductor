@@ -19,6 +19,11 @@ export type OnboardingVirtualRingTarget = {
   rowHeight?: number;
 };
 
+export type OnboardingVirtualSpotlightTarget =
+  | { kind: "analysis-chart-section" }
+  | { kind: "analysis-overview-section" }
+  | { kind: "analysis-calculated-section" };
+
 export type OnboardingStep = {
   id: string;
   titleKey: string;
@@ -32,6 +37,7 @@ export type OnboardingStep = {
   activatedRingTargetIds?: string[];
   activatedRingVirtualTargets?: OnboardingVirtualRingTarget[];
   spotlightTargetIds?: string[];
+  spotlightVirtualTargets?: OnboardingVirtualSpotlightTarget[];
   cardTargetIds?: string[];
   cardAnchor?: OnboardingCardAnchor;
   cardOffsetX?: number;
