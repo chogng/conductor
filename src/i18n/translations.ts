@@ -167,9 +167,9 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     da_onboarding_analysis_calculated_title: 'Calculated parameters area',
     da_onboarding_analysis_calculated_body:
       'This area summarizes the calculated metrics for each curve. Use it to review the extracted results before sending data to Origin.',
-    da_onboarding_origin_export_title: 'Click the Origin icon to send data to Origin',
+    da_onboarding_origin_export_title: 'Send to Origin',
     da_onboarding_origin_export_body:
-      'After the charts are ready, click this Origin icon in the title bar to send the current analysis to Origin. If this is your first time, go to Settings first and finish the Origin.exe setup.',
+      'After the charts are ready, click the Origin icon to send the current analysis results to Origin. If this is your first time, go to Settings first and finish the Origin.exe setup.',
     da_onboarding_origin_title: 'Configure Origin before sending results',
     da_onboarding_origin_body:
       'If you want to continue work in Origin, choose your Origin.exe path here first. After that, the desktop title-bar action can send the current analysis over.',
@@ -516,9 +516,9 @@ export const translations: Record<LanguageCode, Record<string, string>> = {
     da_onboarding_analysis_calculated_title: '计算参数区',
     da_onboarding_analysis_calculated_body:
       '这里汇总了每条曲线的计算结果，可在发送到 Origin 前先查看这些关键指标。',
-    da_onboarding_origin_export_title: '点击 Origin 图标发送到 Origin',
+    da_onboarding_origin_export_title: '发送到 Origin',
     da_onboarding_origin_export_body:
-      '图表准备好后，点击标题栏里的这个 Origin 图标，就可以把当前分析结果发送到 Origin。第一次使用前，请先到设置里完成 Origin.exe 配置。',
+      '图表准备好后，点击 Origin 图标，把当前分析结果发送到 Origin。第一次使用前，请先到设置里完成 Origin.exe 配置。',
     da_onboarding_origin_title: '发送到 Origin 前先完成配置',
     da_onboarding_origin_body:
       '如果你要继续在 Origin 里处理数据，先在这里选择 Origin.exe 路径。配置完成后，就能从桌面标题栏直接发送当前分析结果。',
