@@ -658,6 +658,8 @@ const computeCardPosition = (
   rect: RectLike | null,
   placement: OnboardingStep["placement"],
   cardSize: CardSize,
+  offsetX = 0,
+  offsetY = 0,
 ): CSSProperties => {
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
@@ -672,8 +674,16 @@ const computeCardPosition = (
 
   if (!rect || placement === "center") {
     return {
-      left: clamp((viewportWidth - cardSize.width) / 2, CARD_MARGIN, maxLeft),
-      top: clamp((viewportHeight - cardSize.height) / 2, CARD_MARGIN, maxTop),
+      left: clamp(
+        (viewportWidth - cardSize.width) / 2 + offsetX,
+        CARD_MARGIN,
+        maxLeft,
+      ),
+      top: clamp(
+        (viewportHeight - cardSize.height) / 2 + offsetY,
+        CARD_MARGIN,
+        maxTop,
+      ),
       width: cardSize.width,
     };
   }
@@ -696,8 +706,8 @@ const computeCardPosition = (
     const preferredLeft = rect.left - cardSize.width - CARD_MARGIN;
     if (preferredLeft >= CARD_MARGIN) {
       return {
-        left: preferredLeft,
-        top: centeredTop,
+        left: clamp(preferredLeft + offsetX, CARD_MARGIN, maxLeft),
+        top: clamp(centeredTop + offsetY, CARD_MARGIN, maxTop),
         width: cardSize.width,
       };
     }
@@ -707,8 +717,8 @@ const computeCardPosition = (
     const preferredLeft = rect.left + rect.width + CARD_MARGIN;
     if (preferredLeft + cardSize.width <= viewportWidth - CARD_MARGIN) {
       return {
-        left: preferredLeft,
-        top: centeredTop,
+        left: clamp(preferredLeft + offsetX, CARD_MARGIN, maxLeft),
+        top: clamp(centeredTop + offsetY, CARD_MARGIN, maxTop),
         width: cardSize.width,
       };
     }
@@ -716,23 +726,23 @@ const computeCardPosition = (
 
   if (placement === "top" && topAbove >= CARD_MARGIN) {
     return {
-      left: alignCenterLeft,
-      top: topAbove,
+      left: clamp(alignCenterLeft + offsetX, CARD_MARGIN, maxLeft),
+      top: clamp(topAbove + offsetY, CARD_MARGIN, maxTop),
       width: cardSize.width,
     };
   }
 
   if (placement === "bottom" || placement === "top") {
     return {
-      left: alignCenterLeft,
-      top: clamp(topBelow, CARD_MARGIN, maxTop),
+      left: clamp(alignCenterLeft + offsetX, CARD_MARGIN, maxLeft),
+      top: clamp(topBelow + offsetY, CARD_MARGIN, maxTop),
       width: cardSize.width,
     };
   }
 
   return {
-    left: defaultLeft,
-    top: clamp(topBelow, CARD_MARGIN, maxTop),
+    left: clamp(defaultLeft + offsetX, CARD_MARGIN, maxLeft),
+    top: clamp(topBelow + offsetY, CARD_MARGIN, maxTop),
     width: cardSize.width,
   };
 };
@@ -1027,7 +1037,13 @@ const DeviceAnalysisOnboarding = ({
       );
     }
 
-    return computeCardPosition(anchorRect, step.placement ?? "bottom", cardSize);
+    return computeCardPosition(
+      anchorRect,
+      step.placement ?? "bottom",
+      cardSize,
+      step.cardOffsetX ?? 0,
+      step.cardOffsetY ?? 0,
+    );
   }, [anchorRect, cardSize, cardTargetRect, isOpen, step]);
 
   if (!isOpen || !step) return null;
