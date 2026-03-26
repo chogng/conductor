@@ -1,7 +1,11 @@
 import { RefreshCw, Upload } from "lucide-react";
 import {
+  lazy,
+  Suspense,
+  useEffect,
   type MouseEvent as ReactMouseEvent,
   type MutableRefObject,
+  useState,
 } from "react";
 import Card from "../../../components/ui/Card";
 import Button from "../../../components/ui/Button";
@@ -10,9 +14,13 @@ import CsvImporter, {
   type CsvImporterProps,
   type CsvImporterRef,
 } from "./CsvImporter";
-import TemplateManager, {
-  type TemplateManagerProps,
+import type {
+  TemplateManagerProps,
 } from "./template/TemplateManager";
+
+const loadTemplateManager = () => import("./template/TemplateManager");
+
+const LazyTemplateManager = lazy(loadTemplateManager);
 
 type DataPanelProps = {
   deviceAnalysisSettings?: TemplateManagerProps["deviceAnalysisSettings"];
@@ -63,6 +71,21 @@ const DeviceAnalysisDataPanel = ({
   subscribePreviewRowsVersion,
   t,
 }: DataPanelProps) => {
+  const [shouldRenderTemplateManager, setShouldRenderTemplateManager] =
+    useState(false);
+
+  useEffect(() => {
+    if (shouldRenderTemplateManager) return undefined;
+
+    const frameId = window.requestAnimationFrame(() => {
+      setShouldRenderTemplateManager(true);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
+  }, [shouldRenderTemplateManager]);
+
   return (
     <div className="min-h-full grid grid-cols-1 min-[1200px]:grid-cols-[var(--sidebar-width)_minmax(0,1fr)] gap-1 min-[1200px]:gap-1 min-[1200px]:h-full">
       <aside className="min-[1200px]:min-h-0 flex flex-col h-full relative group/sidebar">
@@ -159,18 +182,59 @@ const DeviceAnalysisDataPanel = ({
         aria-label={t("da_data_extraction_template")}
         className="min-[1200px]:min-h-0 flex flex-col h-full"
       >
-        <TemplateManager
-          previewFile={previewFile}
-          previewStatus={previewStatus}
-          getPreviewRow={getPreviewRow}
-          ensurePreviewRows={ensurePreviewRows}
-          onTemplateApplied={onTemplateApplied}
-          onTemplateAppliedIncremental={onTemplateAppliedIncremental}
-          subscribePreviewRowsVersion={subscribePreviewRowsVersion}
-          getPreviewRowsVersion={getPreviewRowsVersion}
-          deviceAnalysisSettings={deviceAnalysisSettings}
-          onUpdateDeviceAnalysisSettings={onUpdateDeviceAnalysisSettings}
-        />
+        {shouldRenderTemplateManager ? (
+          <Suspense
+            fallback={
+              <Card className="pt-4 pr-4 pb-4 pl-0 flex flex-col flex-1 min-h-0 min-[1200px]:h-full">
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 flex-1 min-h-0 items-start min-[1200px]:items-stretch">
+                  <div className="lg:col-span-1 self-start min-[1200px]:self-stretch flex flex-col min-h-0 h-[clamp(24rem,52dvh,40rem)] min-[1200px]:h-full overflow-hidden">
+                    <div className="flex flex-col gap-4 flex-1 min-h-0 pl-4 pr-1 pt-1">
+                      <div className="h-10 rounded-xl bg-bg-surface/70 border border-border" />
+                      <div className="flex-1 rounded-[20px] border border-border bg-bg-surface/60" />
+                    </div>
+                  </div>
+                  <div className="lg:col-span-3 self-start min-[1200px]:self-stretch rounded-[20px] border border-border bg-bg-surface/60 px-6 py-8 flex flex-col items-center justify-center text-center min-h-[18rem] min-[1200px]:min-h-0">
+                    <div className="text-sm font-medium text-text-primary">
+                      {t("da_data_extraction_template")}
+                    </div>
+                    <div className="mt-2 text-sm text-text-secondary">
+                      {t("da_preview_loading_hint")}
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            }
+          >
+            <LazyTemplateManager
+              previewFile={previewFile}
+              previewStatus={previewStatus}
+              getPreviewRow={getPreviewRow}
+              ensurePreviewRows={ensurePreviewRows}
+              onTemplateApplied={onTemplateApplied}
+              onTemplateAppliedIncremental={onTemplateAppliedIncremental}
+              subscribePreviewRowsVersion={subscribePreviewRowsVersion}
+              getPreviewRowsVersion={getPreviewRowsVersion}
+              deviceAnalysisSettings={deviceAnalysisSettings}
+              onUpdateDeviceAnalysisSettings={onUpdateDeviceAnalysisSettings}
+            />
+          </Suspense>
+        ) : (
+          <Card className="pt-4 pr-4 pb-4 pl-0 flex flex-col flex-1 min-h-0 min-[1200px]:h-full">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 flex-1 min-h-0 items-start min-[1200px]:items-stretch">
+              <div className="lg:col-span-1 self-start min-[1200px]:self-stretch flex flex-col min-h-0 h-[clamp(24rem,52dvh,40rem)] min-[1200px]:h-full overflow-hidden">
+                <div className="flex flex-col gap-4 flex-1 min-h-0 pl-4 pr-1 pt-1">
+                  <div className="h-10 rounded-xl bg-bg-surface/70 border border-border" />
+                  <div className="flex-1 rounded-[20px] border border-border bg-bg-surface/60" />
+                </div>
+              </div>
+              <div className="lg:col-span-3 self-start min-[1200px]:self-stretch rounded-[20px] border border-border bg-bg-surface/60 px-6 py-8 flex flex-col items-center justify-center text-center min-h-[18rem] min-[1200px]:min-h-0">
+                <div className="text-sm font-medium text-text-primary">
+                  {t("da_data_extraction_template")}
+                </div>
+              </div>
+            </div>
+          </Card>
+        )}
       </section>
     </div>
   );

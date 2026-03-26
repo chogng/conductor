@@ -1,6 +1,60 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { ipcChannels } from "./ipc-channels.js";
 
+const DESKTOP_BOOTSTRAP_ARG_PREFIX = "--conductor-bootstrap=";
+const preloadStartMs =
+  typeof performance !== "undefined" && typeof performance.now === "function"
+    ? performance.now()
+    : Date.now();
+
+function logPreloadBoot(stage, extra = "") {
+  const nowMs =
+    typeof performance !== "undefined" && typeof performance.now === "function"
+      ? performance.now()
+      : Date.now();
+  const elapsedMs = Math.round(nowMs - preloadStartMs);
+  const suffix = extra ? ` ${extra}` : "";
+  console.info(`[boot][preload] +${elapsedMs}ms ${stage}${suffix}`);
+}
+
+function readDesktopBootstrap() {
+  const argv = Array.isArray(process.argv) ? process.argv : [];
+
+  for (const arg of argv) {
+    if (
+      typeof arg !== "string" ||
+      !arg.startsWith(DESKTOP_BOOTSTRAP_ARG_PREFIX)
+    ) {
+      continue;
+    }
+
+    const encodedPayload = arg.slice(DESKTOP_BOOTSTRAP_ARG_PREFIX.length);
+    if (!encodedPayload) return {};
+
+    try {
+      const decodedPayload = decodeURIComponent(encodedPayload);
+      const parsedPayload = JSON.parse(decodedPayload);
+      return parsedPayload &&
+        typeof parsedPayload === "object" &&
+        !Array.isArray(parsedPayload)
+        ? parsedPayload
+        : {};
+    } catch {
+      return {};
+    }
+  }
+
+  return {};
+}
+
+const desktopBootstrap = readDesktopBootstrap();
+logPreloadBoot(
+  "bootstrap:ready",
+  `(settings=${desktopBootstrap?.initialDeviceAnalysisSettings ? "yes" : "no"})`,
+);
+
+contextBridge.exposeInMainWorld("desktopBootstrap", desktopBootstrap);
+
 contextBridge.exposeInMainWorld("desktopMeta", {
   isDesktop: true,
   platform: process.platform,

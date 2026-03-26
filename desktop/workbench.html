@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>conductor</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      background: #f5f4ef;
+      color: #222222;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    #boot-splash {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f5f4ef;
+      transition: opacity 180ms ease, visibility 180ms ease;
+    }
+
+    #boot-splash.is-hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .boot-splash-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      padding: 24px 28px;
+      border: 1px solid rgba(34, 34, 34, 0.08);
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.82);
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+      backdrop-filter: blur(12px);
+    }
+
+    .boot-splash-spinner {
+      width: 36px;
+      height: 36px;
+      border-radius: 999px;
+      border: 2px solid rgba(34, 34, 34, 0.14);
+      border-top-color: #222222;
+      animation: boot-spin 0.9s linear infinite;
+    }
+
+    .boot-splash-title {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+    }
+
+    .boot-splash-subtitle {
+      font-size: 12px;
+      color: rgba(34, 34, 34, 0.65);
+    }
+
+    @keyframes boot-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @media (prefers-color-scheme: dark) {
+      html,
+      body,
+      #boot-splash {
+        background: #0b0b0c;
+        color: #f5f4ef;
+      }
+
+      .boot-splash-card {
+        border-color: rgba(245, 244, 239, 0.08);
+        background: rgba(18, 18, 20, 0.88);
+        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+      }
+
+      .boot-splash-spinner {
+        border-color: rgba(245, 244, 239, 0.14);
+        border-top-color: #f5f4ef;
+      }
+
+      .boot-splash-subtitle {
+        color: rgba(245, 244, 239, 0.66);
+      }
+    }
+
+    html.light,
+    html.light body,
+    html.light #boot-splash {
+      background: #f5f4ef;
+      color: #222222;
+    }
+
+    html.light .boot-splash-card {
+      border-color: rgba(34, 34, 34, 0.08);
+      background: rgba(255, 255, 255, 0.82);
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+    }
+
+    html.light .boot-splash-spinner {
+      border-color: rgba(34, 34, 34, 0.14);
+      border-top-color: #222222;
+    }
+
+    html.light .boot-splash-subtitle {
+      color: rgba(34, 34, 34, 0.65);
+    }
+
+    html.dark,
+    html.dark body,
+    html.dark #boot-splash {
+      background: #0b0b0c;
+      color: #f5f4ef;
+    }
+
+    html.dark .boot-splash-card {
+      border-color: rgba(245, 244, 239, 0.08);
+      background: rgba(18, 18, 20, 0.88);
+      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+    }
+
+    html.dark .boot-splash-spinner {
+      border-color: rgba(245, 244, 239, 0.14);
+      border-top-color: #f5f4ef;
+    }
+
+    html.dark .boot-splash-subtitle {
+      color: rgba(245, 244, 239, 0.66);
+    }
+  </style>
+  <link rel="stylesheet" href="../src/styles/variables.css" />
+  <link rel="stylesheet" href="../src/styles/global.css" />
+  <script>
+    (function bootstrapConductorWorkbench() {
+      const DEFAULT_LANGUAGE = 'zh';
+      const DEFAULT_THEME = 'system';
+      const startMs =
+        typeof performance !== 'undefined' && typeof performance.now === 'function'
+          ? performance.now()
+          : Date.now();
+
+      const logBoot = (stage, extra = '') => {
+        const nowMs =
+          typeof performance !== 'undefined' && typeof performance.now === 'function'
+            ? performance.now()
+            : Date.now();
+        const elapsedMs = Math.round(nowMs - startMs);
+        const suffix = extra ? ` ${extra}` : '';
+        console.info(`[boot][renderer] +${elapsedMs}ms ${stage}${suffix}`);
+      };
+
+      const isLanguageCode = (value) => value === 'en' || value === 'zh';
+      const isThemeMode = (value) =>
+        value === 'light' || value === 'dark' || value === 'system';
+
+      const resolveTheme = (theme) => {
+        if (theme === 'system') {
+          return window.matchMedia('(prefers-color-scheme: dark)').matches
+            ? 'dark'
+            : 'light';
+        }
+
+        return theme;
+      };
+
+      const applyDocumentTheme = (theme) => {
+        const root = document.documentElement;
+        root.classList.remove('dark');
+        root.classList.remove('light');
+        root.classList.add(resolveTheme(theme));
+      };
+
+      const dismissBootSplash = () => {
+        const splash = document.getElementById('boot-splash');
+        if (!splash) return;
+
+        splash.classList.add('is-hidden');
+        logBoot('boot-splash:hidden');
+        window.setTimeout(() => {
+          splash.remove();
+          logBoot('boot-splash:removed');
+        }, 220);
+      };
+
+      const logNavigationTiming = () => {
+        if (
+          typeof performance === 'undefined' ||
+          typeof performance.getEntriesByType !== 'function'
+        ) {
+          return;
+        }
+
+        const entry = performance.getEntriesByType('navigation')[0];
+        if (!entry) return;
+
+        const summary = [
+          `type=${entry.type}`,
+          `redirect=${Math.round(entry.redirectEnd - entry.redirectStart)}ms`,
+          `dns=${Math.round(entry.domainLookupEnd - entry.domainLookupStart)}ms`,
+          `connect=${Math.round(entry.connectEnd - entry.connectStart)}ms`,
+          `request=${Math.round(entry.responseStart - entry.requestStart)}ms`,
+          `response=${Math.round(entry.responseEnd - entry.responseStart)}ms`,
+          `domInteractive=${Math.round(entry.domInteractive)}ms`,
+          `domContentLoaded=${Math.round(
+            entry.domContentLoadedEventEnd - entry.startTime,
+          )}ms`,
+          `load=${Math.round(entry.loadEventEnd - entry.startTime)}ms`,
+        ].join(' ');
+
+        console.info(`[boot][renderer] nav ${summary}`);
+      };
+
+      const logTopResources = () => {
+        if (
+          typeof performance === 'undefined' ||
+          typeof performance.getEntriesByType !== 'function'
+        ) {
+          return;
+        }
+
+        const resources = performance
+          .getEntriesByType('resource')
+          .filter((entry) => entry && typeof entry.duration === 'number')
+          .sort((a, b) => b.duration - a.duration)
+          .slice(0, 8);
+
+        for (const entry of resources) {
+          const name = String(entry.name || '').replace(/^https?:\/\/[^/]+/i, '');
+          console.info(
+            `[boot][renderer] resource ${Math.round(entry.duration)}ms ${entry.initiatorType || 'other'} ${name}`,
+          );
+        }
+      };
+
+      if (!window.__CONDUCTOR_NAV_MODE_INIT__) {
+        window.__CONDUCTOR_NAV_MODE_INIT__ = true;
+
+        const root = document.documentElement;
+        const setMode = (mode) => {
+          if (!root) return;
+          root.dataset.nav = mode;
+        };
+
+        window.addEventListener(
+          'keydown',
+          (event) => {
+            if (event.key === 'Tab') setMode('keyboard');
+          },
+          true,
+        );
+
+        window.addEventListener(
+          'pointerdown',
+          () => {
+            setMode('pointer');
+          },
+          true,
+        );
+      }
+
+      const settings = window.desktopBootstrap?.initialDeviceAnalysisSettings;
+      const initialSettings =
+        settings && typeof settings === 'object' && !Array.isArray(settings)
+          ? settings
+          : null;
+      const initialLanguage = isLanguageCode(initialSettings?.language)
+        ? initialSettings.language
+        : DEFAULT_LANGUAGE;
+      const initialTheme = isThemeMode(initialSettings?.theme)
+        ? initialSettings.theme
+        : DEFAULT_THEME;
+
+      window.__CONDUCTOR_INITIAL_DEVICE_ANALYSIS_SETTINGS__ = initialSettings;
+      window.__CONDUCTOR_INITIAL_LANGUAGE__ = initialLanguage;
+      window.__CONDUCTOR_INITIAL_THEME__ = initialTheme;
+      window.__CONDUCTOR_BOOT_LOG__ = logBoot;
+      window.__CONDUCTOR_BOOT_DISMISS_SPLASH__ = dismissBootSplash;
+      window.__CONDUCTOR_BOOT_LOG_NAVIGATION__ = logNavigationTiming;
+      window.__CONDUCTOR_BOOT_LOG_RESOURCES__ = logTopResources;
+
+      applyDocumentTheme(initialTheme);
+
+      logBoot(
+        'bootstrap:script-evaluated',
+        `(settings=${initialSettings ? 'yes' : 'no'})`,
+      );
+      logBoot('theme:applied', `(theme=${initialTheme})`);
+      logBoot('language:resolved', `(language=${initialLanguage})`);
+    })();
+  </script>
+</head>
+
+<body>
+  <div id="boot-splash" aria-hidden="true">
+    <div class="boot-splash-card">
+      <div class="boot-splash-spinner"></div>
+      <div class="boot-splash-title">conductor</div>
+      <div class="boot-splash-subtitle">Launching workspace...</div>
+    </div>
+  </div>
+  <div id="root"></div>
+  <script type="module" src="../src/main.tsx"></script>
+</body>
+
+</html>

@@ -1,8 +1,6 @@
 import { createContext, type Dispatch, type SetStateAction } from 'react';
-
-export const SUPPORTED_LANGUAGES = ['en', 'zh'] as const;
-
-export type LanguageCode = (typeof SUPPORTED_LANGUAGES)[number];
+import type { LanguageCode } from '../config/language';
+export type { LanguageCode } from '../config/language';
 
 export type TranslationVars = Record<string, string | number | boolean | null | undefined>;
 

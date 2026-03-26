@@ -23,10 +23,11 @@ import { useDeviceAnalysisExports } from "./analysis/useDeviceAnalysisExports";
 import { useDeviceAnalysisPreview } from "./data/useDeviceAnalysisPreview";
 import { useDeviceAnalysisProcessing } from "./data/useDeviceAnalysisProcessing";
 import { loadDeviceAnalysisOnboarding } from "./onboarding/loadDeviceAnalysisOnboarding";
-import { useDeviceAnalysisOnboarding } from "./onboarding/useDeviceAnalysisOnboarding";
+import { loadDeviceAnalysisOnboardingController } from "./onboarding/loadDeviceAnalysisOnboardingController";
+import type { OnboardingStep } from "./onboarding/onboardingTypes";
 import { useDeviceAnalysisSession } from "./session/useDeviceAnalysisSession";
 import { useDeviceAnalysisSessionActions } from "./session/useDeviceAnalysisSessionActions";
-import { useDeviceAnalysisSettings } from "./settings/useDeviceAnalysisSettings";
+import { useDeviceAnalysisCoreSettings } from "./settings/useDeviceAnalysisCoreSettings";
 import { useResizableSidebar } from "./useResizableSidebar";
 
 type PageTab = "data" | "analysis" | "settings";
@@ -42,6 +43,21 @@ type ProcessingExtractionError = {
   messageKey?: string | null;
   messageParams?: Record<string, unknown> | null;
   [key: string]: unknown;
+};
+
+type OnboardingPage = "data" | "analysis" | "settings";
+type OnboardingLaunchMode = "auto" | "manual";
+type OnboardingControllerState = {
+  back: () => void;
+  canNext: boolean;
+  close: () => void;
+  handleImportTrigger: () => void;
+  handleOpenOrigin: (openOrigin: () => void) => void;
+  isOpen: boolean;
+  next: () => void;
+  open: (mode: OnboardingLaunchMode) => void;
+  stepIndex: number;
+  steps: OnboardingStep[];
 };
 
 const stripCsvExtension = (fileName: string): string => {
@@ -66,8 +82,11 @@ const DesktopCommandBar = lazy(() => import("./desktop/DesktopCommandBar"));
 const DeviceAnalysisAnalysisPanel = lazy(
   () => import("./analysis/AnalysisPanel"),
 );
-const DeviceAnalysisSettingsPanel = lazy(
-  () => import("./settings/SettingsPanel"),
+const DeviceAnalysisSettingsPanelContainer = lazy(
+  () => import("./settings/SettingsPanelContainer"),
+);
+const DeviceAnalysisOnboardingControllerHost = lazy(
+  loadDeviceAnalysisOnboardingController,
 );
 const DeviceAnalysisOnboarding = lazy(loadDeviceAnalysisOnboarding);
 
@@ -80,6 +99,25 @@ const DeferredPanelFallback = ({ label }: { label: string }) => (
     {label}
   </div>
 );
+
+const createIdleOnboardingState = (
+  importerRef: React.MutableRefObject<CsvImporterRef | null>,
+): OnboardingControllerState => ({
+  back: () => {},
+  canNext: true,
+  close: () => {},
+  handleImportTrigger: () => {
+    importerRef.current?.openFileDialog?.();
+  },
+  handleOpenOrigin: (openOrigin) => {
+    openOrigin();
+  },
+  isOpen: false,
+  next: () => {},
+  open: () => {},
+  stepIndex: 0,
+  steps: [],
+});
 
 const DeviceAnalysisPage = () => {
   const { t, language, setLanguage } = useLanguage();
@@ -133,6 +171,13 @@ const DeviceAnalysisPage = () => {
   } = session;
 
   const importerRef = useRef<CsvImporterRef | null>(null);
+  const [shouldMountOnboardingController, setShouldMountOnboardingController] =
+    useState(false);
+  const [pendingOnboardingOpenMode, setPendingOnboardingOpenMode] =
+    useState<OnboardingLaunchMode | null>(null);
+  const [onboarding, setOnboarding] = useState<OnboardingControllerState>(() =>
+    createIdleOnboardingState(importerRef),
+  );
   const [pageNavigation, setPageNavigation] = useState<PageNavigationState>({
     activePage: "data",
     history: ["data"],
@@ -317,15 +362,13 @@ const DeviceAnalysisPage = () => {
 
   const {
     deviceAnalysisSettings,
+    deviceAnalysisSettingsLoaded,
     handleLanguageChange,
     handleThemeChange,
     handleUpdateDeviceAnalysisSettings,
+    mergeDeviceAnalysisSettings,
     originOpenPlotOptions,
-    originSettings,
-    storageSettings,
-  } = useDeviceAnalysisSettings({
-    activePage,
-    isWindowsDesktopShell,
+  } = useDeviceAnalysisCoreSettings({
     language,
     setLanguage,
     theme,
@@ -448,20 +491,6 @@ const DeviceAnalysisPage = () => {
     navigateToPage(nextPage);
   }, [navigateToPage]);
 
-  const onboarding = useDeviceAnalysisOnboarding({
-    clearPreviewState,
-    importerRef,
-    navigateToPage,
-    processingState: processingStatus?.state,
-    processedData,
-    rawData,
-    setProcessedData,
-    setRawData,
-    setSelectedPreviewFileId,
-    setTemplateConfig,
-    templateConfig,
-    updateSettings: handleUpdateDeviceAnalysisSettings,
-  });
   const hasOnboardingSessionData =
     rawData.length > 0 || processedData.length > 0;
   const shouldAutoStartOnboarding =
@@ -474,8 +503,10 @@ const DeviceAnalysisPage = () => {
     if (!shouldAutoStartOnboarding || onboarding.isOpen) return undefined;
 
     const scheduleAutoOpen = () => {
+      setShouldMountOnboardingController(true);
+      setPendingOnboardingOpenMode("auto");
+      void loadDeviceAnalysisOnboardingController();
       void loadDeviceAnalysisOnboarding();
-      onboarding.open("auto");
     };
 
     if (
@@ -494,12 +525,14 @@ const DeviceAnalysisPage = () => {
 
     const timeoutId = window.setTimeout(scheduleAutoOpen, 320);
     return () => window.clearTimeout(timeoutId);
-  }, [onboarding.isOpen, onboarding.open, shouldAutoStartOnboarding]);
+  }, [onboarding.isOpen, shouldAutoStartOnboarding]);
 
   const handleOpenOnboardingGuide = useCallback(() => {
+    setShouldMountOnboardingController(true);
+    setPendingOnboardingOpenMode("manual");
+    void loadDeviceAnalysisOnboardingController();
     void loadDeviceAnalysisOnboarding();
-    onboarding.open("manual");
-  }, [onboarding.open]);
+  }, []);
 
   const {
     handleCheckForUpdates,
@@ -541,9 +574,9 @@ const DeviceAnalysisPage = () => {
             onNavigateBack={handleNavigateBack}
             onNavigateForward={handleNavigateForward}
             onPageChange={handlePageTabSelect}
-            onOpenOrigin={() =>
-              onboarding.handleOpenOrigin(handleOpenOriginFromTitleBar)
-            }
+            onOpenOrigin={() => {
+              onboarding.handleOpenOrigin(handleOpenOriginFromTitleBar);
+            }}
             onOpenSettings={() => handlePageTabSelect("settings")}
             onMinimizeWindow={handleMinimizeWindow}
             onToggleMaximizeWindow={handleToggleMaximizeWindow}
@@ -554,6 +587,33 @@ const DeviceAnalysisPage = () => {
             analysisFileOptions={analysisFileOptions}
             analysisActiveFileId={analysisActiveFileId}
             onAnalysisFileChange={handleAnalysisFileChange}
+          />
+        </Suspense>
+      ) : null}
+
+      {shouldMountOnboardingController ? (
+        <Suspense fallback={null}>
+          <DeviceAnalysisOnboardingControllerHost
+            clearPreviewState={clearPreviewState}
+            importerRef={importerRef}
+            isRequestedOpen={pendingOnboardingOpenMode !== null}
+            openMode={pendingOnboardingOpenMode ?? "manual"}
+            navigateToPage={navigateToPage}
+            onStateChange={(nextState) => {
+              setOnboarding(nextState);
+              if (nextState.isOpen) {
+                setPendingOnboardingOpenMode(null);
+              }
+            }}
+            processingState={processingStatus?.state}
+            processedData={processedData}
+            rawData={rawData}
+            setProcessedData={setProcessedData}
+            setRawData={setRawData}
+            setSelectedPreviewFileId={setSelectedPreviewFileId}
+            setTemplateConfig={setTemplateConfig}
+            templateConfig={templateConfig}
+            updateSettings={handleUpdateDeviceAnalysisSettings}
           />
         </Suspense>
       ) : null}
@@ -587,7 +647,9 @@ const DeviceAnalysisPage = () => {
               onClearSession={handleClearSession}
               onDataImported={handleDataImported}
               onDataRemoved={handleDataRemoved}
-              onImportTrigger={onboarding.handleImportTrigger}
+              onImportTrigger={() => {
+                onboarding.handleImportTrigger();
+              }}
               onFileSelected={handlePreviewFileSelected}
               onStartResizing={startResizing}
               onTemplateApplied={handleTemplateApplied}
@@ -640,7 +702,7 @@ const DeviceAnalysisPage = () => {
                   ssMethod={ssMethod}
                   ssShowFitLine={ssShowFitLine}
                   originOpenPlotOptions={originOpenPlotOptions}
-                  t={t}
+                  t={tLoose}
                 />
               </Suspense>
             ) : null}
@@ -668,21 +730,26 @@ const DeviceAnalysisPage = () => {
               <Suspense
                 fallback={<DeferredPanelFallback label={t("da_settings_title")} />}
               >
-                <DeviceAnalysisSettingsPanel
+                <DeviceAnalysisSettingsPanelContainer
                   appUpdateSettings={{
                     isAvailable: isPackagedWindowsDesktopShell,
                     onCheckForUpdates: handleCheckForUpdates,
                   }}
+                  deviceAnalysisSettings={deviceAnalysisSettings}
+                  deviceAnalysisSettingsLoaded={deviceAnalysisSettingsLoaded}
+                  handleUpdateDeviceAnalysisSettings={
+                    handleUpdateDeviceAnalysisSettings
+                  }
+                  isWindowsDesktopShell={isWindowsDesktopShell}
                   language={language}
-                  onLanguageChange={handleLanguageChange}
+                  handleLanguageChange={handleLanguageChange}
                   onboardingSettings={{
                     onOpenGuide: handleOpenOnboardingGuide,
                   }}
+                  mergeDeviceAnalysisSettings={mergeDeviceAnalysisSettings}
                   theme={theme}
-                  onThemeChange={handleThemeChange}
-                  originSettings={originSettings}
-                  storageSettings={storageSettings}
-                  t={t}
+                  handleThemeChange={handleThemeChange}
+                  t={tLoose}
                 />
               </Suspense>
             </ScrollArea>

@@ -26,7 +26,10 @@ let originRunnerModulePromise = null;
 
 const isDev = !app.isPackaged;
 const isWindows = process.platform === "win32";
-const devUrl = process.env.ELECTRON_START_URL || "http://127.0.0.1:5174/";
+const DESKTOP_BOOTSTRAP_ARG_PREFIX = "--conductor-bootstrap=";
+const devUrl =
+  process.env.ELECTRON_START_URL ||
+  "http://127.0.0.1:5174/desktop/workbench.html";
 const AUTO_UPDATE_INITIAL_DELAY_MS = 15 * 1000;
 const AUTO_UPDATE_INTERVAL_MS = 4 * 60 * 60 * 1000;
 const AUTO_UPDATE_SUPPORTED_PLATFORMS = new Set(["win32"]);
@@ -35,6 +38,13 @@ let autoUpdateTimer = null;
 let autoUpdateConfiguredFeedUrl = null;
 let isAutoUpdateConfigured = false;
 let isUpdateDownloadedPromptVisible = false;
+const desktopProcessStartMs = Date.now();
+
+function logDesktopBoot(stage, extra = "") {
+  const elapsedMs = Date.now() - desktopProcessStartMs;
+  const suffix = extra ? ` ${extra}` : "";
+  console.info(`[boot][main] +${elapsedMs}ms ${stage}${suffix}`);
+}
 
 const loadOriginRunnerModule = async () => {
   if (!originRunnerModulePromise) {
@@ -415,6 +425,26 @@ function getDeviceAnalysisHomeDir() {
 const deviceAnalysisStore = createDeviceAnalysisStore({
   getHomeDir: getDeviceAnalysisHomeDir,
 });
+
+function buildDesktopBootstrapArgument() {
+  try {
+    const payload = {
+      initialDeviceAnalysisSettings:
+        deviceAnalysisStore.getDeviceAnalysisSettings(),
+    };
+
+    return (
+      DESKTOP_BOOTSTRAP_ARG_PREFIX +
+      encodeURIComponent(JSON.stringify(payload))
+    );
+  } catch (error) {
+    console.warn(
+      "[bootstrap] Failed to serialize initial device analysis settings:",
+      error?.message || error,
+    );
+    return null;
+  }
+}
 
 function configureRuntimeCachePath() {
   const cacheDir = path.join(getDeviceAnalysisHomeDir(), "cache");
@@ -933,6 +963,9 @@ async function setupAutoUpdates() {
 }
 
 function createMainWindow() {
+  const bootstrapArgument = buildDesktopBootstrapArgument();
+  logDesktopBoot("create-window:start");
+
   const win = new BrowserWindow({
     width: 1440,
     height: 920,
@@ -946,6 +979,7 @@ function createMainWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      additionalArguments: bootstrapArgument ? [bootstrapArgument] : [],
       ...(isDev
         ? null
         : { v8CacheOptions: "bypassHeatCheckAndEagerCompile" }),
@@ -974,12 +1008,56 @@ function createMainWindow() {
     }
   });
 
+  win.webContents.once("dom-ready", () => {
+    logDesktopBoot("window:dom-ready");
+  });
+
+  win.webContents.on("did-start-navigation", (_event, navigationUrl, isInPlace, isMainFrame) => {
+    if (!isMainFrame) return;
+    logDesktopBoot(
+      "window:did-start-navigation",
+      `(inPlace=${isInPlace} url=${navigationUrl})`,
+    );
+  });
+
+  win.webContents.on("did-start-loading", () => {
+    logDesktopBoot("window:did-start-loading");
+  });
+
+  win.webContents.once("did-finish-load", () => {
+    logDesktopBoot("window:did-finish-load");
+  });
+
+  win.webContents.on("did-stop-loading", () => {
+    logDesktopBoot("window:did-stop-loading");
+  });
+
+  win.webContents.on("console-message", (event) => {
+    const message = typeof event.message === "string" ? event.message : "";
+    if (typeof message !== "string" || !message.startsWith("[boot]")) return;
+    const levelLabel =
+      event.level === "warning"
+        ? "warn"
+        : event.level === "error"
+          ? "error"
+          : "info";
+    const logger =
+      levelLabel === "warn"
+        ? console.warn
+        : levelLabel === "error"
+          ? console.error
+          : console.info;
+    logger(`[renderer-console] ${message}`);
+  });
+
   if (isDev) {
+    logDesktopBoot("load-url", `(dev: ${devUrl})`);
     void win.loadURL(devUrl);
     return win;
   }
 
-  void win.loadFile(path.join(__dirname, "../dist/index.html"));
+  logDesktopBoot("load-file", "(prod: dist/desktop/workbench.html)");
+  void win.loadFile(path.join(__dirname, "../dist/desktop/workbench.html"));
   return win;
 }
 
@@ -1030,6 +1108,7 @@ function handleDesktopCommand(event, payload) {
 }
 
 app.whenReady().then(() => {
+  logDesktopBoot("app:ready");
   if (process.platform !== "darwin") {
     Menu.setApplicationMenu(null);
   }
@@ -1055,6 +1134,7 @@ app.whenReady().then(() => {
   );
   const window = createMainWindow();
   window.webContents.once("did-finish-load", () => {
+    logDesktopBoot("post-load:auto-updates:init");
     void setupAutoUpdates();
   });
 

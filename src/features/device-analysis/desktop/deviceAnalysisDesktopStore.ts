@@ -12,7 +12,7 @@ const REQUIRED_DEVICE_ANALYSIS_STORE_METHODS = [
 type DeviceAnalysisStoreMethod =
   (typeof REQUIRED_DEVICE_ANALYSIS_STORE_METHODS)[number];
 
-type DeviceAnalysisDesktopStore = {
+export type DeviceAnalysisDesktopStore = {
   [K in DeviceAnalysisStoreMethod]?: (...args: unknown[]) => unknown;
 };
 
@@ -47,7 +47,7 @@ const parseJsonBody = (body: unknown): JsonRecord | null => {
   }
 };
 
-const getDesktopStore = (): DeviceAnalysisDesktopStore | null => {
+export const getDesktopStore = (): DeviceAnalysisDesktopStore | null => {
   if (typeof window === "undefined") return null;
 
   const store = window.desktopStore;
@@ -56,7 +56,7 @@ const getDesktopStore = (): DeviceAnalysisDesktopStore | null => {
   return store;
 };
 
-const getDesktopStoreMethod = (
+export const getDesktopStoreMethod = (
   store: DeviceAnalysisDesktopStore,
   method: DeviceAnalysisStoreMethod,
 ): ((...args: unknown[]) => unknown) => {

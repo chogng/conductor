@@ -9,7 +9,27 @@ import { setTimeout as sleep } from "node:timers/promises";
 
 const host = process.env.DEV_HOST || "127.0.0.1";
 const port = Number(process.env.DEV_PORT || 5174);
-const devUrl = `http://${host}:${port}/`;
+const devWorkbenchPath = "/desktop/workbench.html";
+const devUrl = `http://${host}:${port}${devWorkbenchPath}`;
+const devStartupStartMs = Date.now();
+const devServerWarmupPaths = [
+  devWorkbenchPath,
+  "/@vite/client",
+  "/src/main.tsx",
+  "/src/workbench-loader.ts",
+  "/src/App.tsx",
+  "/src/context/language-provider.tsx",
+  "/src/context/theme-provider.tsx",
+  "/src/styles/global.css",
+  "/src/styles/variables.css",
+  "/src/config/theme.ts",
+  "/src/config/language.ts",
+  "/src/i18n/loader.ts",
+  "/src/i18n/en.ts",
+  "/src/i18n/zh.ts",
+  "/src/context/language.ts",
+  "/src/context/theme.ts",
+];
 
 const isWin = process.platform === "win32";
 const npmCmd = "npm";
@@ -37,7 +57,14 @@ let restartTimer: NodeJS.Timeout | null = null;
 let isRestarting = false;
 let electronProc: ChildProcess | null = null;
 let electronBuildWatchProc: ChildProcess | null = null;
+let electronBuildWatcherReady: Promise<void> | null = null;
 const watcherClosers: Array<() => void> = [];
+
+const logDesktopDevBoot = (stage: string, extra = "") => {
+  const elapsedMs = Date.now() - devStartupStartMs;
+  const suffix = extra ? ` ${extra}` : "";
+  console.log(`[desktop] +${elapsedMs}ms ${stage}${suffix}`);
+};
 
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : String(error);
@@ -91,7 +118,10 @@ const viteProc = spawn(
   viteArgs,
   {
     stdio: "inherit",
-    env: process.env,
+    env: {
+      ...process.env,
+      CONDUCTOR_DESKTOP_DEV: "1",
+    },
   },
 );
 
@@ -201,6 +231,31 @@ const waitForServer = async (url: string, timeoutMs = 60_000) => {
     await sleep(250);
   }
   throw new Error(`Timeout waiting for dev server: ${url}`);
+};
+
+const warmupDevServer = async (baseUrl: string) => {
+  for (const warmupPath of devServerWarmupPaths) {
+    const warmupUrl = new URL(warmupPath, baseUrl).toString();
+    const started = Date.now();
+    const response = await fetch(warmupUrl, {
+      method: "GET",
+      headers: {
+        "cache-control": "no-cache",
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        `Warmup request failed for ${warmupPath}: ${response.status} ${response.statusText}`,
+      );
+    }
+
+    await response.arrayBuffer();
+    logDesktopDevBoot(
+      "dev-server:warmup",
+      `(path=${warmupPath} duration=${Date.now() - started}ms)`,
+    );
+  }
 };
 
 const stopProcessTreeOnWindows = (proc: ChildProcess | null, timeoutMs = 5_000) =>
@@ -468,7 +523,7 @@ for (const signal of shutdownSignals) {
   });
 }
 
-console.log(`[desktop] Waiting for dev server: ${devUrl}`);
+logDesktopDevBoot("dev-server:wait", `(url=${devUrl})`);
 
 try {
   await waitForServer(devUrl);
@@ -477,12 +532,19 @@ try {
   await shutdown(1);
 }
 
-console.log("[desktop] Dev server is ready.");
-const electronBuildWatcherReady = startElectronBuildWatcher();
-startElectron();
+logDesktopDevBoot("dev-server:ready");
 
 try {
+  await warmupDevServer(devUrl);
+} catch (error) {
+  console.warn(`[desktop] Dev server warmup failed: ${getErrorMessage(error)}`);
+}
+
+try {
+  electronBuildWatcherReady ??= startElectronBuildWatcher();
   await electronBuildWatcherReady;
+  logDesktopDevBoot("electron:start");
+  startElectron();
   startElectronWatchers();
 } catch (error) {
   console.error(`[desktop] Failed to start file watchers: ${getErrorMessage(error)}`);

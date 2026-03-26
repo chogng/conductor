@@ -1,5 +1,4 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import '../styles/variables-dark.css';
 import { ThemeContext, isThemeMode, type ThemeMode } from './theme';
 
 type ThemeProviderProps = {
@@ -26,6 +25,7 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
     const root = window.document.documentElement;
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     let cancelled = false;
+    let darkThemeStylesPromise: Promise<unknown> | null = null;
 
     const removeOldTheme = () => {
       root.classList.remove('dark');
@@ -40,8 +40,19 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
       return nextTheme;
     };
 
-    const applyTheme = (nextTheme: ThemeMode) => {
+    const ensureDarkThemeStyles = async () => {
+      if (!darkThemeStylesPromise) {
+        darkThemeStylesPromise = import('../styles/variables-dark.css');
+      }
+
+      await darkThemeStylesPromise;
+    };
+
+    const applyTheme = async (nextTheme: ThemeMode) => {
       const resolvedTheme = resolveTheme(nextTheme);
+      if (resolvedTheme === 'dark') {
+        await ensureDarkThemeStyles();
+      }
 
       if (cancelled) return;
 
@@ -49,7 +60,7 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
       root.classList.add(resolvedTheme);
     };
 
-    applyTheme(theme);
+    void applyTheme(theme);
 
     if (theme !== 'system') {
       return () => {
@@ -58,7 +69,7 @@ export const ThemeProvider = ({ children }: ThemeProviderProps) => {
     }
 
     const handleChange = () => {
-      applyTheme('system');
+      void applyTheme('system');
     };
     mediaQuery.addEventListener('change', handleChange);
 

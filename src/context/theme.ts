@@ -1,9 +1,7 @@
 import { createContext } from 'react';
-
-export type ThemeMode = 'light' | 'dark' | 'system';
-
-export const isThemeMode = (value: unknown): value is ThemeMode =>
-  value === 'light' || value === 'dark' || value === 'system';
+import type { ThemeMode } from '../config/theme';
+export type { ThemeMode } from '../config/theme';
+export { isThemeMode } from '../config/theme';
 
 export type ThemeContextValue = {
   theme: ThemeMode;

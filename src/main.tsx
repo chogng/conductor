@@ -1,112 +1,102 @@
-import { StrictMode } from 'react';
+import { Fragment, lazy, StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
-import type { ThemeMode } from './context/theme';
-import { isThemeMode } from './context/theme';
-import './styles/global.css';
-import './styles/variables.css';
-import App from './App';
-import { initCtaTracking } from './utils/ctaTracking';
+import type { LanguageCode } from './config/language';
+import type { ThemeMode } from './config/theme';
+import { loadDeviceAnalysisApp, loadWorkbenchApp } from './workbench-loader';
 
 declare global {
   interface Window {
+    desktopBootstrap?: {
+      initialDeviceAnalysisSettings?: Record<string, unknown> | null;
+      [key: string]: unknown;
+    };
+    desktopMeta?: {
+      isDesktop?: boolean;
+      platform?: string;
+      isPackaged?: boolean;
+      [key: string]: unknown;
+    };
     __CONDUCTOR_NAV_MODE_INIT__?: boolean;
+    __CONDUCTOR_INITIAL_DEVICE_ANALYSIS_SETTINGS__?: Record<string, unknown> | null;
+    __CONDUCTOR_INITIAL_LANGUAGE__?: LanguageCode;
     __CONDUCTOR_INITIAL_THEME__?: ThemeMode;
+    __CONDUCTOR_BOOT_LOG__?: (stage: string, extra?: string) => void;
+    __CONDUCTOR_BOOT_DISMISS_SPLASH__?: () => void;
+    __CONDUCTOR_BOOT_LOG_NAVIGATION__?: () => void;
+    __CONDUCTOR_BOOT_LOG_RESOURCES__?: () => void;
   }
 }
 
-// Track last input modality so focus rings can be limited to keyboard navigation.
-if (!window.__CONDUCTOR_NAV_MODE_INIT__) {
-  window.__CONDUCTOR_NAV_MODE_INIT__ = true;
-
-  const root = document.documentElement;
-
-  const setMode = (mode: 'keyboard' | 'pointer') => {
-    if (!root) return;
-    root.dataset.nav = mode;
-  };
-
-  window.addEventListener(
-    'keydown',
-    (e) => {
-      // "Tab focus ring" behavior
-      if (e.key === 'Tab') setMode('keyboard');
-    },
-    true,
-  );
-
-  window.addEventListener(
-    'pointerdown',
-    () => {
-      setMode('pointer');
-    },
-    true,
-  );
-}
-
-initCtaTracking();
+const logRendererBoot = (stage: string, extra = '') => {
+  window.__CONDUCTOR_BOOT_LOG__?.(stage, extra);
+};
 
 const dismissBootSplash = () => {
-  const splash = document.getElementById('boot-splash');
-  if (!splash) return;
-
-  splash.classList.add('is-hidden');
-  window.setTimeout(() => {
-    splash.remove();
-  }, 220);
+  window.__CONDUCTOR_BOOT_DISMISS_SPLASH__?.();
 };
+
+const appShellStyle: React.CSSProperties = {
+  display: 'flex',
+  minHeight: '100vh',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '24px',
+  background: 'transparent',
+  color: 'inherit',
+  fontFamily: 'inherit',
+};
+
+const appShellTextStyle: React.CSSProperties = {
+  fontSize: '12px',
+  letterSpacing: '0.04em',
+  textTransform: 'uppercase',
+  opacity: 0.68,
+};
+
+const WorkbenchShell = () => (
+  <div style={appShellStyle}>
+    <div style={appShellTextStyle}>Loading workspace...</div>
+  </div>
+);
+
+const RootMode =
+  import.meta.env.DEV && window.desktopMeta?.isDesktop ? Fragment : StrictMode;
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error('Root element with id "root" was not found.');
 }
 
-const resolveTheme = (theme: ThemeMode): Exclude<ThemeMode, 'system'> => {
-  if (theme === 'system') {
-    return window.matchMedia('(prefers-color-scheme: dark)').matches
-      ? 'dark'
-      : 'light';
-  }
+logRendererBoot('main:module-evaluated');
+logRendererBoot('app:module-requested');
 
-  return theme;
-};
+const workbenchAppPromise = loadWorkbenchApp();
+const LazyApp = lazy(async () => {
+  const module = await workbenchAppPromise;
+  logRendererBoot('app:module-resolved');
+  return { default: module.default };
+});
 
-const applyDocumentTheme = (theme: ThemeMode) => {
-  const root = document.documentElement;
-  root.classList.remove('dark');
-  root.classList.remove('light');
-  root.classList.add(resolveTheme(theme));
-};
+createRoot(rootElement).render(
+  <RootMode>
+    <Suspense fallback={<WorkbenchShell />}>
+      <LazyApp />
+    </Suspense>
+  </RootMode>,
+);
+logRendererBoot('react-root:render-called');
 
-const loadInitialTheme = async (): Promise<ThemeMode> => {
-  try {
-    const settings = await window.desktopStore?.getDeviceAnalysisSettings?.();
-    const theme =
-      settings && typeof settings === 'object'
-        ? (settings as { theme?: unknown }).theme
-        : undefined;
+window.requestAnimationFrame(() => {
+  logRendererBoot('raf:1');
+  void workbenchAppPromise;
+  void loadDeviceAnalysisApp();
+});
 
-    return isThemeMode(theme) ? theme : 'system';
-  } catch {
-    return 'system';
-  }
-};
-
-const startApp = async () => {
-  const initialTheme = await loadInitialTheme();
-  window.__CONDUCTOR_INITIAL_THEME__ = initialTheme;
-  applyDocumentTheme(initialTheme);
-
-  createRoot(rootElement).render(
-    <StrictMode>
-      <App />
-    </StrictMode>,
-  );
-
+window.requestAnimationFrame(() => {
   window.requestAnimationFrame(() => {
-    window.requestAnimationFrame(() => {
-      dismissBootSplash();
-    });
+    logRendererBoot('raf:2');
+    window.__CONDUCTOR_BOOT_LOG_NAVIGATION__?.();
+    window.__CONDUCTOR_BOOT_LOG_RESOURCES__?.();
+    dismissBootSplash();
   });
-};
-
-void startApp();
+});

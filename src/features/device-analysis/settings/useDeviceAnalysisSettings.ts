@@ -1,8 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { LanguageCode } from "../../../context/language";
-import type { ThemeMode } from "../../../context/theme";
 import { formatOriginBridgeError } from "../analysis/lib/originBridgeError";
-import type { SsMethod } from "../session/device-analysis-session-context";
 import { apiService } from "../analysis/services/apiService";
 import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
@@ -12,163 +9,46 @@ import {
 } from "../analysis/lib/originPlotOptions";
 import type { Feedback } from "../shared/lib/sharedTypes";
 import type { LooseTranslateFn as TranslateFn } from "../shared/lib/translateTypes";
-
-type DeviceAnalysisSettings = {
-  language?: LanguageCode;
-  theme?: ThemeMode;
-  originExePath?: string;
-  originPlotCommandDefault?: string;
-  originPlotPostCommandsDefault?: string[];
-  originPlotTypeDefault?: number;
-  originPlotXyPairsDefault?: string;
-  originPlotLineWidthDefault?: number;
-  originRuntimeCleanupEnabled?: boolean;
-  originRuntimeFailedRetentionDays?: number;
-  originRuntimeKeepSuccessJobs?: number;
-  ssDiagnosticsEnabled?: boolean;
-  ssIdHigh?: number | string;
-  ssIdLow?: number | string;
-  ssMethodDefault?: SsMethod;
-  ssShowFitLine?: boolean;
-  stopOnErrorDefault?: boolean;
-  [key: string]: unknown;
-};
-
-type PersistencePathInfo = {
-  cancelled?: boolean;
-  currentPath?: string;
-  isConfigurable?: boolean;
-  [key: string]: unknown;
-};
-
-type OriginHealthResult = {
-  logPath?: string;
-  originExePath?: string;
-  [key: string]: unknown;
-};
-
-type OriginCleanupResult = {
-  removedTotal?: number;
-  [key: string]: unknown;
-};
-
-type OriginBridge = {
-  checkOriginHealth?: (options: { path?: string }) => Promise<OriginHealthResult>;
-  getOriginExePath: () => Promise<string>;
-  pickOriginExePath: () => Promise<string>;
-  runOriginRuntimeCleanup?: () => Promise<OriginCleanupResult>;
-};
+import {
+  buildOriginLogMessage,
+  getDesktopOriginBridge,
+  getErrorMessage,
+  getOriginExePathWithTimeout,
+  IDLE_FEEDBACK,
+  normalizeBoundedInt,
+  normalizeTrimmedString,
+  ORIGIN_CLEANUP_DEFAULTS,
+  toPersistencePathInfo,
+  type DeviceAnalysisSettings,
+} from "./deviceAnalysisSettingsShared";
 
 type UseDeviceAnalysisSettingsOptions = {
-  activePage: string;
+  deviceAnalysisSettings: DeviceAnalysisSettings | null;
+  deviceAnalysisSettingsLoaded: boolean;
+  handleUpdateDeviceAnalysisSettings: (
+    updates: unknown,
+  ) => Promise<DeviceAnalysisSettings | null>;
   isWindowsDesktopShell: boolean;
-  language: LanguageCode;
-  setLanguage: (language: LanguageCode) => void;
-  theme: ThemeMode;
-  setTheme: (theme: ThemeMode) => void;
-  setSsDiagnosticsEnabled: (enabled: boolean) => void;
-  setSsIdWindow: (window: { high: string; low: string }) => void;
-  setSsMethod: (method: SsMethod) => void;
-  setSsShowFitLine: (enabled: boolean) => void;
+  mergeDeviceAnalysisSettings: (
+    nextSettings: DeviceAnalysisSettings | null,
+  ) => void;
   t: TranslateFn;
 };
 
-declare global {
-  interface Window {
-    desktopOrigin?: OriginBridge;
-  }
-}
-
-const IDLE_FEEDBACK: Feedback = { type: "idle", message: "" };
-
-const getErrorMessage = (error: unknown): string =>
-  error instanceof Error ? error.message : "";
-
-const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
-  Boolean(value) && typeof value === "object";
-
-const toDeviceAnalysisSettings = (
-  value: unknown,
-): DeviceAnalysisSettings | null => (isObjectRecord(value) ? value : null);
-
-const toPersistencePathInfo = (value: unknown): PersistencePathInfo | null =>
-  isObjectRecord(value) ? value : null;
-
-const normalizeTrimmedString = (value: unknown): string =>
-  typeof value === "string" && value.trim() ? value.trim() : "";
-
-const normalizeBoundedInt = (
-  value: unknown,
-  fallback: number,
-  min: number,
-  max: number,
-): number => {
-  const num = Number(value);
-  if (!Number.isFinite(num)) return fallback;
-  const rounded = Math.floor(num);
-  if (rounded < min) return min;
-  if (rounded > max) return max;
-  return rounded;
-};
-
-const ORIGIN_CLEANUP_DEFAULTS = {
-  enabled: true,
-  keepSuccessJobs: 1,
-  failedRetentionDays: 7,
-};
-
-const buildOriginLogMessage = (
-  baseMessage: string,
-  logPath: unknown,
-  t: TranslateFn,
-): string => {
-  const normalizedLogPath = normalizeTrimmedString(logPath);
-  return normalizedLogPath
-    ? `${baseMessage} ${t("da_origin_error_log_path", {
-        path: normalizedLogPath,
-      })}`
-    : baseMessage;
-};
-
-const ORIGIN_EXE_PATH_LOAD_TIMEOUT_MS = 10000;
-
-const getOriginExePathWithTimeout = async (
-  bridge: OriginBridge,
-): Promise<string> => {
-  let timeoutId: ReturnType<typeof setTimeout> | null = null;
-  try {
-    return await Promise.race<string>([
-      bridge.getOriginExePath(),
-      new Promise<string>((_resolve, reject) => {
-        timeoutId = setTimeout(() => {
-          reject(new Error("Origin executable path load timed out."));
-        }, ORIGIN_EXE_PATH_LOAD_TIMEOUT_MS);
-      }),
-    ]);
-  } finally {
-    if (timeoutId) clearTimeout(timeoutId);
-  }
-};
-
 export const useDeviceAnalysisSettings = ({
-  activePage,
+  deviceAnalysisSettings,
+  deviceAnalysisSettingsLoaded,
+  handleUpdateDeviceAnalysisSettings,
   isWindowsDesktopShell,
-  language,
-  setLanguage,
-  theme,
-  setTheme,
-  setSsDiagnosticsEnabled,
-  setSsIdWindow,
-  setSsMethod,
-  setSsShowFitLine,
+  mergeDeviceAnalysisSettings,
   t,
 }: UseDeviceAnalysisSettingsOptions) => {
-  const [deviceAnalysisSettings, setDeviceAnalysisSettings] =
-    useState<DeviceAnalysisSettings | null>(null);
-  const [deviceAnalysisSettingsLoaded, setDeviceAnalysisSettingsLoaded] =
-    useState(false);
-  const [persistencePathInfo, setPersistencePathInfo] =
-    useState<PersistencePathInfo | null>(null);
+  const [persistencePathInfo, setPersistencePathInfo] = useState<{
+    cancelled?: boolean;
+    currentPath?: string;
+    isConfigurable?: boolean;
+    [key: string]: unknown;
+  } | null>(null);
   const [persistencePathLoading, setPersistencePathLoading] = useState(false);
   const [persistencePathSaving, setPersistencePathSaving] = useState(false);
   const [persistencePathFeedback, setPersistencePathFeedback] =
@@ -179,76 +59,15 @@ export const useDeviceAnalysisSettings = ({
   const [originPathLoading, setOriginPathLoading] = useState(true);
   const [originPathSaving, setOriginPathSaving] = useState(false);
   const [originHealthChecking, setOriginHealthChecking] = useState(false);
-  const [originPathFeedback, setOriginPathFeedback] = useState<Feedback>(IDLE_FEEDBACK);
+  const [originPathFeedback, setOriginPathFeedback] =
+    useState<Feedback>(IDLE_FEEDBACK);
   const [originCleanupSaving, setOriginCleanupSaving] = useState(false);
   const [originCleanupRunning, setOriginCleanupRunning] = useState(false);
   const [originCleanupFeedback, setOriginCleanupFeedback] =
     useState<Feedback>(IDLE_FEEDBACK);
   const [originPlotSaving, setOriginPlotSaving] = useState(false);
-  const [originPlotFeedback, setOriginPlotFeedback] = useState<Feedback>(IDLE_FEEDBACK);
-
-  const handleUpdateDeviceAnalysisSettings = useCallback(
-    async (updates: unknown) => {
-      const patch = updates && typeof updates === "object" ? updates : null;
-      if (!patch) return null;
-
-      const updated = toDeviceAnalysisSettings(
-        await apiService.updateDeviceAnalysisSettings(patch),
-      );
-      setDeviceAnalysisSettings((prev) => ({
-        ...(prev || {}),
-        ...(updated || {}),
-      }));
-
-      return updated;
-    },
-    [],
-  );
-
-  const handleLanguageChange = useCallback(
-    async (nextLanguage: LanguageCode) => {
-      if (nextLanguage !== "zh" && nextLanguage !== "en") return;
-      if (language === nextLanguage) return;
-
-      setLanguage(nextLanguage);
-
-      try {
-        await handleUpdateDeviceAnalysisSettings({ language: nextLanguage });
-      } catch {
-        // keep UI responsive even if persistence fails
-      }
-    },
-    [handleUpdateDeviceAnalysisSettings, language, setLanguage],
-  );
-
-  const handleThemeChange = useCallback(
-    async (nextTheme: ThemeMode) => {
-      if (nextTheme !== "system" && nextTheme !== "light" && nextTheme !== "dark") {
-        return;
-      }
-      if (theme === nextTheme) return;
-
-      setTheme(nextTheme);
-
-      try {
-        await handleUpdateDeviceAnalysisSettings({ theme: nextTheme });
-      } catch {
-        // keep UI responsive even if persistence fails
-      }
-    },
-    [handleUpdateDeviceAnalysisSettings, setTheme, theme],
-  );
-
-  const getDesktopOriginBridge = useCallback((): OriginBridge | null => {
-    if (typeof window === "undefined") return null;
-
-    const bridge = window.desktopOrigin;
-    if (!bridge || typeof bridge !== "object") return null;
-    if (typeof bridge.getOriginExePath !== "function") return null;
-    if (typeof bridge.pickOriginExePath !== "function") return null;
-
-    return bridge;
-  }, []);
+  const [originPlotFeedback, setOriginPlotFeedback] =
+    useState<Feedback>(IDLE_FEEDBACK);
 
   const originCleanupConfig = useMemo(() => {
     const settings = deviceAnalysisSettings || {};
@@ -298,80 +117,6 @@ export const useDeviceAnalysisSettings = ({
 
   useEffect(() => {
     let cancelled = false;
-    setDeviceAnalysisSettingsLoaded(false);
-
-    (async () => {
-      try {
-        const settings = toDeviceAnalysisSettings(
-          await apiService.getDeviceAnalysisSettings(),
-        );
-        if (cancelled) return;
-
-        setDeviceAnalysisSettings(settings ?? null);
-
-        const nextLanguage = settings?.language;
-        if (nextLanguage === "zh" || nextLanguage === "en") {
-          setLanguage(nextLanguage);
-        }
-
-        const nextTheme = settings?.theme;
-        if (nextTheme === "system" || nextTheme === "light" || nextTheme === "dark") {
-          setTheme(nextTheme);
-        }
-
-        const ssMethodDefault = settings?.ssMethodDefault;
-        if (
-          ssMethodDefault === "auto" ||
-          ssMethodDefault === "manual" ||
-          ssMethodDefault === "idWindow" ||
-          ssMethodDefault === "legacy"
-        ) {
-          setSsMethod(ssMethodDefault);
-        }
-
-        if (typeof settings?.ssDiagnosticsEnabled === "boolean") {
-          setSsDiagnosticsEnabled(settings.ssDiagnosticsEnabled);
-        }
-
-        if (typeof settings?.ssShowFitLine === "boolean") {
-          setSsShowFitLine(settings.ssShowFitLine);
-        }
-
-        const low = Number(settings?.ssIdLow);
-        const high = Number(settings?.ssIdHigh);
-        if (
-          Number.isFinite(low) &&
-          Number.isFinite(high) &&
-          low > 0 &&
-          high > 0
-        ) {
-          setSsIdWindow({ low: String(low), high: String(high) });
-        }
-      } catch {
-        // ignore settings load failures
-      } finally {
-        if (!cancelled) {
-          setDeviceAnalysisSettingsLoaded(true);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    setLanguage,
-    setTheme,
-    setSsDiagnosticsEnabled,
-    setSsIdWindow,
-    setSsMethod,
-    setSsShowFitLine,
-  ]);
-
-  useEffect(() => {
-    if (activePage !== "settings") return;
-
-    let cancelled = false;
 
     (async () => {
       setPersistencePathLoading(true);
@@ -401,39 +146,9 @@ export const useDeviceAnalysisSettings = ({
     return () => {
       cancelled = true;
     };
-  }, [activePage, t]);
-
-  const handleChoosePersistencePath = useCallback(async () => {
-    setPersistencePathSaving(true);
-    setPersistencePathFeedback(IDLE_FEEDBACK);
-
-    try {
-      const normalizedInfo = toPersistencePathInfo(
-        await apiService.chooseDeviceAnalysisPersistencePath(),
-      );
-
-      setPersistencePathInfo(normalizedInfo);
-      if (normalizedInfo?.cancelled) return;
-
-      setPersistencePathFeedback({
-        type: "success",
-        message: t("da_settings_storage_choose_saved"),
-      });
-    } catch (error) {
-      setPersistencePathFeedback({
-        type: "error",
-        message: t("da_settings_storage_choose_failed", {
-          error: getErrorMessage(error) || t("unknownError"),
-        }),
-      });
-    } finally {
-      setPersistencePathSaving(false);
-    }
   }, [t]);
 
   useEffect(() => {
-    if (activePage !== "settings") return;
-
     if (!deviceAnalysisSettingsLoaded) {
       setOriginPathLoading(true);
       return;
@@ -471,10 +186,9 @@ export const useDeviceAnalysisSettings = ({
         const normalizedPath = normalizeTrimmedString(configuredPath);
         setOriginExePath(normalizedPath);
         if (normalizedPath) {
-          setDeviceAnalysisSettings((prev) => ({
-            ...(prev || {}),
+          mergeDeviceAnalysisSettings({
             originExePath: normalizedPath,
-          }));
+          });
         }
       } catch {
         if (cancelled) return;
@@ -490,13 +204,40 @@ export const useDeviceAnalysisSettings = ({
       cancelled = true;
     };
   }, [
-    activePage,
     deviceAnalysisSettingsLoaded,
-    getDesktopOriginBridge,
     isWindowsDesktopShell,
+    mergeDeviceAnalysisSettings,
     originPathRequested,
     settingsOriginExePath,
   ]);
+
+  const handleChoosePersistencePath = useCallback(async () => {
+    setPersistencePathSaving(true);
+    setPersistencePathFeedback(IDLE_FEEDBACK);
+
+    try {
+      const normalizedInfo = toPersistencePathInfo(
+        await apiService.chooseDeviceAnalysisPersistencePath(),
+      );
+
+      setPersistencePathInfo(normalizedInfo);
+      if (normalizedInfo?.cancelled) return;
+
+      setPersistencePathFeedback({
+        type: "success",
+        message: t("da_settings_storage_choose_saved"),
+      });
+    } catch (error) {
+      setPersistencePathFeedback({
+        type: "error",
+        message: t("da_settings_storage_choose_failed", {
+          error: getErrorMessage(error) || t("unknownError"),
+        }),
+      });
+    } finally {
+      setPersistencePathSaving(false);
+    }
+  }, [t]);
 
   const handleChooseOriginExePath = useCallback(async () => {
     const bridge = getDesktopOriginBridge();
@@ -510,10 +251,9 @@ export const useDeviceAnalysisSettings = ({
       const nextPath = normalizeTrimmedString(pickedPath);
       if (nextPath) {
         setOriginExePath(nextPath);
-        setDeviceAnalysisSettings((prev) => ({
-          ...(prev || {}),
+        mergeDeviceAnalysisSettings({
           originExePath: nextPath,
-        }));
+        });
         setOriginPathFeedback({
           type: "success",
           message: t("da_settings_origin_choose_saved"),
@@ -529,7 +269,7 @@ export const useDeviceAnalysisSettings = ({
     } finally {
       setOriginPathSaving(false);
     }
-  }, [getDesktopOriginBridge, t]);
+  }, [mergeDeviceAnalysisSettings, t]);
 
   const handleCheckOriginHealth = useCallback(async () => {
     const bridge = getDesktopOriginBridge();
@@ -546,10 +286,9 @@ export const useDeviceAnalysisSettings = ({
       const nextPath = normalizeTrimmedString(health?.originExePath);
       if (nextPath) {
         setOriginExePath(nextPath);
-        setDeviceAnalysisSettings((prev) => ({
-          ...(prev || {}),
+        mergeDeviceAnalysisSettings({
           originExePath: nextPath,
-        }));
+        });
       }
 
       const successMessage = buildOriginLogMessage(
@@ -581,7 +320,7 @@ export const useDeviceAnalysisSettings = ({
     } finally {
       setOriginHealthChecking(false);
     }
-  }, [getDesktopOriginBridge, originExePath, t]);
+  }, [mergeDeviceAnalysisSettings, originExePath, t]);
 
   const updateOriginCleanupSetting = useCallback(
     async (updates: unknown) => {
@@ -766,7 +505,7 @@ export const useDeviceAnalysisSettings = ({
     } finally {
       setOriginCleanupRunning(false);
     }
-  }, [getDesktopOriginBridge, t]);
+  }, [t]);
 
   const storageSettings = useMemo(
     () => ({
@@ -835,42 +574,37 @@ export const useDeviceAnalysisSettings = ({
       onRunCleanupNow: handleRunOriginCleanupNow,
     }),
     [
-      handleRunOriginCleanupNow,
       handleCheckOriginHealth,
       handleChooseOriginExePath,
+      handleRunOriginCleanupNow,
       handleSetOriginCleanupEnabled,
       handleSetOriginFailedRetentionDays,
       handleSetOriginKeepSuccessJobs,
       handleSetOriginPlotCommand,
-      handleSetOriginPostPlotCommands,
-      handleSetOriginPlotType,
       handleSetOriginPlotLineWidth,
+      handleSetOriginPlotType,
       handleSetOriginPlotXyPairs,
+      handleSetOriginPostPlotCommands,
       isWindowsDesktopShell,
+      originBridge,
       originCleanupConfig.enabled,
       originCleanupConfig.failedRetentionDays,
       originCleanupConfig.keepSuccessJobs,
       originCleanupFeedback,
       originCleanupRunning,
       originCleanupSaving,
-      originBridge,
       originExePath,
-      originPlotConfig,
-      originPlotFeedback,
-      originPlotSaving,
       originHealthChecking,
       originPathFeedback,
       originPathLoading,
       originPathSaving,
+      originPlotConfig,
+      originPlotFeedback,
+      originPlotSaving,
     ],
   );
 
   return {
-    deviceAnalysisSettings,
-    handleLanguageChange,
-    handleThemeChange,
-    handleUpdateDeviceAnalysisSettings,
-    originOpenPlotOptions: originPlotConfig,
     originSettings,
     storageSettings,
   };
