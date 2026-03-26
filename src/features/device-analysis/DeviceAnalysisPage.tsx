@@ -7,17 +7,20 @@ import {
   useState,
   Suspense,
   type CSSProperties,
+  type MutableRefObject,
 } from "react";
-import type { CsvImporterRef } from "./data/CsvImporter";
 import DeviceAnalysisDataPanel from "./data/DataPanel";
+import type { CsvImporterRef } from "./data/CsvImporter";
 import ScrollArea from "../../components/ui/ScrollArea";
 import Toast from "../../components/ui/Toast";
 import type { TranslationVars } from "../../context/language";
 import { loadAnalysisCharts } from "./analysis/loadAnalysisCharts";
 import { getDeviceAnalysisExtractionErrorMessage } from "./shared/lib/deviceAnalysisUtils";
+import DeviceAnalysisWorkspaceShell from "./DeviceAnalysisWorkspaceShell";
 import { useLanguage } from "../../hooks/useLanguage";
 import { useTheme } from "../../hooks/useTheme";
 import type { ToastType } from "./shared/lib/sharedTypes";
+import DesktopCommandBar from "./desktop/DesktopCommandBar";
 import { useDeviceAnalysisDesktopShell } from "./desktop/useDeviceAnalysisDesktopShell";
 import { useDeviceAnalysisExports } from "./analysis/useDeviceAnalysisExports";
 import { useDeviceAnalysisPreview } from "./data/useDeviceAnalysisPreview";
@@ -78,7 +81,6 @@ declare global {
   }
 }
 
-const DesktopCommandBar = lazy(() => import("./desktop/DesktopCommandBar"));
 const DeviceAnalysisAnalysisPanel = lazy(
   () => import("./analysis/AnalysisPanel"),
 );
@@ -90,10 +92,6 @@ const DeviceAnalysisOnboardingControllerHost = lazy(
 );
 const DeviceAnalysisOnboarding = lazy(loadDeviceAnalysisOnboarding);
 
-const DesktopCommandBarFallback = () => (
-  <div className="h-[38px] shrink-0 bg-bg-page" aria-hidden="true" />
-);
-
 const DeferredPanelFallback = ({ label }: { label: string }) => (
   <div className="flex h-full w-full items-center justify-center rounded-[20px] border border-border bg-bg-surface/60 text-sm text-text-secondary">
     {label}
@@ -101,7 +99,7 @@ const DeferredPanelFallback = ({ label }: { label: string }) => (
 );
 
 const createIdleOnboardingState = (
-  importerRef: React.MutableRefObject<CsvImporterRef | null>,
+  importerRef: MutableRefObject<CsvImporterRef | null>,
 ): OnboardingControllerState => ({
   back: () => {},
   canNext: true,
@@ -177,6 +175,38 @@ const DeviceAnalysisPage = () => {
     useState<OnboardingLaunchMode | null>(null);
   const [onboarding, setOnboarding] = useState<OnboardingControllerState>(() =>
     createIdleOnboardingState(importerRef),
+  );
+  const handleOnboardingStateChange = useCallback(
+    (nextState: OnboardingControllerState) => {
+      setOnboarding((prevState) => {
+        if (
+          prevState.isOpen === nextState.isOpen &&
+          prevState.canNext === nextState.canNext &&
+          prevState.stepIndex === nextState.stepIndex &&
+          prevState.steps === nextState.steps &&
+          prevState.back === nextState.back &&
+          prevState.close === nextState.close &&
+          prevState.handleImportTrigger === nextState.handleImportTrigger &&
+          prevState.handleOpenOrigin === nextState.handleOpenOrigin &&
+          prevState.next === nextState.next &&
+          prevState.open === nextState.open
+        ) {
+          return prevState;
+        }
+
+        return nextState;
+      });
+    },
+    [],
+  );
+  const handleOnboardingControllerStateChange = useCallback(
+    (nextState: OnboardingControllerState) => {
+      handleOnboardingStateChange(nextState);
+      if (nextState.isOpen) {
+        setPendingOnboardingOpenMode(null);
+      }
+    },
+    [handleOnboardingStateChange],
   );
   const [pageNavigation, setPageNavigation] = useState<PageNavigationState>({
     activePage: "data",
@@ -493,7 +523,9 @@ const DeviceAnalysisPage = () => {
 
   const hasOnboardingSessionData =
     rawData.length > 0 || processedData.length > 0;
+  const shouldSuppressDesktopAutoOnboarding = desktopMeta?.isDesktop === true;
   const shouldAutoStartOnboarding =
+    !shouldSuppressDesktopAutoOnboarding &&
     Boolean(deviceAnalysisSettings) &&
     !Boolean(deviceAnalysisSettings?.onboardingCompleted) &&
     !Boolean(deviceAnalysisSettings?.onboardingAutoStartDismissed) &&
@@ -556,15 +588,16 @@ const DeviceAnalysisPage = () => {
   });
 
   return (
-    <div
+    <DeviceAnalysisWorkspaceShell
       id="device-analysis-page"
-      className={`relative w-full h-full min-h-0 overflow-hidden flex flex-col ${
+      className={`relative w-full h-full min-h-0 overflow-hidden ${
         isResizing ? "cursor-col-resize select-none" : ""
       }`}
+      showDesktopCommandBar={isWindowsDesktopShell}
+      showSkeleton={false}
       style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}
-    >
-      {isWindowsDesktopShell ? (
-        <Suspense fallback={<DesktopCommandBarFallback />}>
+      titleBar={
+        isWindowsDesktopShell ? (
           <DesktopCommandBar
             t={t}
             activePage={activePage}
@@ -588,35 +621,31 @@ const DeviceAnalysisPage = () => {
             analysisActiveFileId={analysisActiveFileId}
             onAnalysisFileChange={handleAnalysisFileChange}
           />
-        </Suspense>
-      ) : null}
-
-      {shouldMountOnboardingController ? (
-        <Suspense fallback={null}>
-          <DeviceAnalysisOnboardingControllerHost
-            clearPreviewState={clearPreviewState}
-            importerRef={importerRef}
-            isRequestedOpen={pendingOnboardingOpenMode !== null}
-            openMode={pendingOnboardingOpenMode ?? "manual"}
-            navigateToPage={navigateToPage}
-            onStateChange={(nextState) => {
-              setOnboarding(nextState);
-              if (nextState.isOpen) {
-                setPendingOnboardingOpenMode(null);
-              }
-            }}
-            processingState={processingStatus?.state}
-            processedData={processedData}
-            rawData={rawData}
-            setProcessedData={setProcessedData}
-            setRawData={setRawData}
-            setSelectedPreviewFileId={setSelectedPreviewFileId}
-            setTemplateConfig={setTemplateConfig}
-            templateConfig={templateConfig}
-            updateSettings={handleUpdateDeviceAnalysisSettings}
-          />
-        </Suspense>
-      ) : null}
+        ) : null
+      }
+    >
+      <div className="relative flex flex-1 min-h-0 flex-col">
+        {shouldMountOnboardingController ? (
+          <Suspense fallback={null}>
+            <DeviceAnalysisOnboardingControllerHost
+              clearPreviewState={clearPreviewState}
+              importerRef={importerRef}
+              isRequestedOpen={pendingOnboardingOpenMode !== null}
+              openMode={pendingOnboardingOpenMode ?? "manual"}
+              navigateToPage={navigateToPage}
+              onStateChange={handleOnboardingControllerStateChange}
+              processingState={processingStatus?.state}
+              processedData={processedData}
+              rawData={rawData}
+              setProcessedData={setProcessedData}
+              setRawData={setRawData}
+              setSelectedPreviewFileId={setSelectedPreviewFileId}
+              setTemplateConfig={setTemplateConfig}
+              templateConfig={templateConfig}
+              updateSettings={handleUpdateDeviceAnalysisSettings}
+            />
+          </Suspense>
+        ) : null}
 
       <div className="relative flex-1 min-h-0">
         <section
@@ -782,7 +811,8 @@ const DeviceAnalysisPage = () => {
           />
         </Suspense>
       ) : null}
-    </div>
+      </div>
+    </DeviceAnalysisWorkspaceShell>
   );
 };
 

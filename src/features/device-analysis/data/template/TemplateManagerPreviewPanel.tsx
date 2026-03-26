@@ -5,12 +5,15 @@ import React, {
   useRef,
   useSyncExternalStore,
 } from "react";
-import { Check, Copy, FileSpreadsheet } from "lucide-react";
-import Avatar from "../../../../components/ui/Avatar";
+import { Check, Copy } from "lucide-react";
 import ScrollArea from "../../../../components/ui/ScrollArea";
 import type { TranslateFn } from "../../../../context/language";
 import type { PreviewStatus as SessionPreviewStatus } from "../../session/device-analysis-session-context";
 import type { PreviewFileLike } from "../../shared/lib/sharedTypes";
+import {
+  TemplateManagerPreviewEmptyState,
+  TemplateManagerPreviewSurface,
+} from "./TemplateManagerPreviewSurface";
 import { formatNumber } from "../../analysis/lib/analysisMath";
 import { getExcelColumnLabel } from "./templateColumnLabel";
 import {
@@ -1005,14 +1008,7 @@ const CanvasPreviewGrid = React.memo(
 CanvasPreviewGrid.displayName = "CanvasPreviewGrid";
 
 const PreviewPlaceholder = ({ title, hint }: PreviewPlaceholderProps) => (
-  <div
-    id="device-analysis-preview-placeholder"
-    className="empty_state_panel flex-1 min-h-0"
-  >
-    <Avatar icon={FileSpreadsheet} size="lg" variant="empty" />
-    {title ? <p className="empty_state_title">{title}</p> : null}
-    {hint ? <p className="empty_state_hint">{hint}</p> : null}
-  </div>
+  <TemplateManagerPreviewEmptyState title={title} hint={hint} />
 );
 
 type PreviewColGroupProps = {
@@ -1413,37 +1409,23 @@ const TemplateManagerPreviewPanel = ({
   const resizeColumnTitle = t("da_preview_resize_column_title");
 
   return (
-    <div className="lg:col-span-3 self-start min-[1200px]:self-stretch bg-bg-page rounded-lg p-4 overflow-hidden flex flex-col min-h-0 h-[var(--da-template-stack-panel-h)] min-[1200px]:h-full">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-sm font-medium text-text-secondary">
-          {t("da_preview_filename_label")}:{" "}
-          {previewFile
-            ? String(previewFile.fileName || "").replace(/\.csv$/i, "")
-            : ""}
-        </span>
-        {previewStatus?.state === "loading" ? (
-          <span className="text-xs text-text-secondary">
-            {previewStatus.message || t("da_preview_loading")}
-          </span>
-        ) : previewStatus?.state === "error" ? (
-          <span className="text-xs text-red-500">
-            {previewStatus.message || t("da_preview_error")}
-          </span>
-        ) : null}
-        <div className="flex items-center gap-2">
-          <button
-            id="device-analysis-preview-copy-selection"
-            type="button"
-            onClick={copySelection}
-            disabled={!hasSelection}
-            className="p-1.5 rounded-md border border-border bg-bg-surface hover:bg-bg-page text-text-secondary hover:text-text-primary disabled:opacity-50 transition-colors"
-            title={copySelectionTitle}
-          >
-            <Copy size={14} />
-          </button>
-        </div>
-      </div>
-
+    <TemplateManagerPreviewSurface
+      previewFile={previewFile}
+      previewStatus={previewStatus}
+      t={t}
+      actions={
+        <button
+          id="device-analysis-preview-copy-selection"
+          type="button"
+          onClick={copySelection}
+          disabled={!hasSelection}
+          className="p-1.5 rounded-md border border-border bg-bg-surface hover:bg-bg-page text-text-secondary hover:text-text-primary disabled:opacity-50 transition-colors"
+          title={copySelectionTitle}
+        >
+          <Copy size={14} />
+        </button>
+      }
+    >
       {previewStatus?.state === "loading" ? (
         <PreviewPlaceholder
           title={previewStatus.message || t("da_preview_loading")}
@@ -1553,49 +1535,47 @@ const TemplateManagerPreviewPanel = ({
                 />
               </>
             ) : (
-              <>
-                <table
-                  ref={previewTableRef}
-                  className="text-sm text-left relative border-separate border-spacing-0 z-10 table-fixed"
-                  style={{
-                    width: `var(--da-preview-table-width, ${previewColumnGeometry.tableWidthPx}px)`,
-                    tableLayout: "fixed",
-                  }}
-                >
-                  <PreviewColGroup
-                    previewColumnGeometry={previewColumnGeometry}
-                    previewColumnMinWidthPx={previewColumnMinWidthPx}
-                    previewRowIndexWidthPx={previewRowIndexWidthPx}
-                  />
-                  <PreviewHeader
-                    handleColumnResizeStart={handleColumnResizeStart}
-                    previewColumnGeometry={previewColumnGeometry}
-                    previewFileId={previewFile?.fileId}
-                    resetColumnWidth={resetColumnWidth}
-                    resizeHintTitle={resizeColumnTitle}
-                    selectedColumnsSet={selectedColumnsSet}
-                    toggleColumnTitle={toggleYColumnTitle}
-                    toggleColumn={toggleColumn}
-                  />
+              <table
+                ref={previewTableRef}
+                className="text-sm text-left relative border-separate border-spacing-0 z-10 table-fixed"
+                style={{
+                  width: `var(--da-preview-table-width, ${previewColumnGeometry.tableWidthPx}px)`,
+                  tableLayout: "fixed",
+                }}
+              >
+                <PreviewColGroup
+                  previewColumnGeometry={previewColumnGeometry}
+                  previewColumnMinWidthPx={previewColumnMinWidthPx}
+                  previewRowIndexWidthPx={previewRowIndexWidthPx}
+                />
+                <PreviewHeader
+                  handleColumnResizeStart={handleColumnResizeStart}
+                  previewColumnGeometry={previewColumnGeometry}
+                  previewFileId={previewFile?.fileId}
+                  resetColumnWidth={resetColumnWidth}
+                  resizeHintTitle={resizeColumnTitle}
+                  selectedColumnsSet={selectedColumnsSet}
+                  toggleColumnTitle={toggleYColumnTitle}
+                  toggleColumn={toggleColumn}
+                />
 
-                  <PreviewTbody
-                    subscribePreviewRowsVersion={subscribePreviewRowsVersion}
-                    getPreviewRowsVersion={getPreviewRowsVersion}
-                    previewWindow={previewWindow}
-                    columnGeometry={previewColumnGeometry}
-                    selectedColumnsSet={selectedColumnsSet}
-                    getPreviewRow={getPreviewRow}
-                    handleCellMouseDown={handleCellMouseDown}
-                  />
-                </table>
-              </>
+                <PreviewTbody
+                  subscribePreviewRowsVersion={subscribePreviewRowsVersion}
+                  getPreviewRowsVersion={getPreviewRowsVersion}
+                  previewWindow={previewWindow}
+                  columnGeometry={previewColumnGeometry}
+                  selectedColumnsSet={selectedColumnsSet}
+                  getPreviewRow={getPreviewRow}
+                  handleCellMouseDown={handleCellMouseDown}
+                />
+              </table>
             )}
           </div>
         </ScrollArea>
       ) : (
         <PreviewPlaceholder hint={t("da_preview_select_file_hint")} />
       )}
-    </div>
+    </TemplateManagerPreviewSurface>
   );
 };
 

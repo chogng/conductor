@@ -10,7 +10,6 @@ import {
 import type { Feedback } from "../shared/lib/sharedTypes";
 import type { LooseTranslateFn as TranslateFn } from "../shared/lib/translateTypes";
 import {
-  buildOriginLogMessage,
   getDesktopOriginBridge,
   getErrorMessage,
   getOriginExePathWithTimeout,
@@ -291,15 +290,9 @@ export const useDeviceAnalysisSettings = ({
         });
       }
 
-      const successMessage = buildOriginLogMessage(
-        t("da_settings_origin_check_success"),
-        health?.logPath,
-        t,
-      );
-
       setOriginPathFeedback({
         type: "success",
-        message: successMessage,
+        message: t("da_settings_origin_check_success"),
       });
     } catch (error) {
       const detail = formatOriginBridgeError(t, error);

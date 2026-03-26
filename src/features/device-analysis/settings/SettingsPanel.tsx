@@ -131,11 +131,20 @@ const DeviceAnalysisSettingsPanel = ({
     originSettings.plotPostCommandsText ?? "",
   );
   const [appUpdateChecking, setAppUpdateChecking] = useState(false);
+  const [originHealthToast, setOriginHealthToast] = useState<ToastState>({
+    isVisible: false,
+    message: "",
+    type: "success",
+  });
   const [cleanupToast, setCleanupToast] = useState<ToastState>({
     isVisible: false,
     message: "",
     type: "success",
   });
+
+  const closeOriginHealthToast = useCallback(() => {
+    setOriginHealthToast((prev) => ({ ...prev, isVisible: false }));
+  }, []);
 
   const closeCleanupToast = useCallback(() => {
     setCleanupToast((prev) => ({ ...prev, isVisible: false }));
@@ -156,6 +165,17 @@ const DeviceAnalysisSettingsPanel = ({
   useEffect(() => {
     setPostCommandsDraft(originSettings.plotPostCommandsText ?? "");
   }, [originSettings.plotPostCommandsText]);
+
+  useEffect(() => {
+    const feedback = originSettings.feedback;
+    if (!feedback?.message || feedback.type === "idle") return;
+
+    setOriginHealthToast({
+      isVisible: true,
+      message: feedback.message,
+      type: feedback.type === "error" ? "error" : "success",
+    });
+  }, [originSettings.feedback?.message, originSettings.feedback?.type]);
 
   useEffect(() => {
     const feedback = originSettings.cleanupFeedback;
@@ -443,11 +463,6 @@ const DeviceAnalysisSettingsPanel = ({
           </p>
         ) : null}
 
-        {originSettings.feedback.message ? (
-          <p className={feedbackClassName(originSettings.feedback.type)}>
-            {originSettings.feedback.message}
-          </p>
-        ) : null}
       </Card>
 
       <Card
@@ -661,6 +676,16 @@ const DeviceAnalysisSettingsPanel = ({
           </p>
         ) : null}
       </Card>
+
+      <Toast
+        message={originHealthToast.message}
+        isVisible={originHealthToast.isVisible}
+        onClose={closeOriginHealthToast}
+        type={originHealthToast.type}
+        containerRef={settingsSectionRef}
+        position="absolute"
+        dataUi="device-analysis-settings-origin-health-toast"
+      />
 
       <Toast
         message={cleanupToast.message}

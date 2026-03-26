@@ -8,26 +8,27 @@
   <style>
     :root {
       color-scheme: light dark;
+      --boot-sidebar-width: 280px;
+      --boot-template-stack-panel-h: clamp(24rem, 52dvh, 40rem);
     }
 
     html,
-    body {
+    body,
+    #root {
       margin: 0;
+      height: 100%;
       min-height: 100%;
       background: #f5f4ef;
       color: #222222;
-      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-family: var(--font-family-base, Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+      overflow: hidden;
     }
 
     #boot-splash {
       position: fixed;
       inset: 0;
       z-index: 9999;
-      display: flex;
-      align-items: center;
-      justify-content: center;
       background: #f5f4ef;
-      transition: opacity 180ms ease, visibility 180ms ease;
     }
 
     #boot-splash.is-hidden {
@@ -36,43 +37,198 @@
       pointer-events: none;
     }
 
-    .boot-splash-card {
+    .boot-shell {
       display: flex;
       flex-direction: column;
+      height: 100%;
+      min-height: 100%;
+      overflow: hidden;
+      background: #f5f4ef;
+      color: #222222;
+    }
+
+    .boot-shell-titlebar {
+      display: flex;
       align-items: center;
-      gap: 14px;
-      padding: 24px 28px;
-      border: 1px solid rgba(34, 34, 34, 0.08);
-      border-radius: 20px;
-      background: rgba(255, 255, 255, 0.82);
-      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
-      backdrop-filter: blur(12px);
+      justify-content: space-between;
+      min-height: 38px;
+      padding-left: 12px;
+      background: #f5f4ef;
+      user-select: none;
     }
 
-    .boot-splash-spinner {
-      width: 36px;
-      height: 36px;
-      border-radius: 999px;
-      border: 2px solid rgba(34, 34, 34, 0.14);
-      border-top-color: #222222;
-      animation: boot-spin 0.9s linear infinite;
-    }
-
-    .boot-splash-title {
-      font-size: 15px;
+    .boot-shell-brand {
+      flex: 0 0 auto;
+      font-size: 14px;
       font-weight: 600;
       letter-spacing: 0.01em;
+      white-space: nowrap;
     }
 
-    .boot-splash-subtitle {
-      font-size: 12px;
-      color: rgba(34, 34, 34, 0.65);
+    .boot-shell-center {
+      display: flex;
+      flex: 1 1 auto;
+      align-items: center;
+      justify-content: center;
+      min-width: 0;
+      min-height: 38px;
     }
 
-    @keyframes boot-spin {
-      to {
-        transform: rotate(360deg);
+    .boot-shell-center-pill {
+      width: 176px;
+      max-width: calc(100vw - 240px);
+      height: 28px;
+      border: 1px solid rgba(34, 34, 34, 0.08);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.62);
+    }
+
+    .boot-shell-controls {
+      display: flex;
+      align-items: center;
+      height: 38px;
+    }
+
+    .boot-shell-controls--nav {
+      margin-left: 16px;
+    }
+
+    .boot-shell-icon-btn,
+    .boot-shell-control-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(34, 34, 34, 0.56);
+    }
+
+    .boot-shell-icon-btn {
+      width: 38px;
+      height: 38px;
+    }
+
+    .boot-shell-control-btn {
+      width: 48px;
+      height: 38px;
+    }
+
+    .boot-shell-control-btn--close {
+      color: rgba(180, 44, 44, 0.72);
+    }
+
+    .boot-shell-dot {
+      border-radius: 999px;
+      background: currentColor;
+      opacity: 0.18;
+    }
+
+    .boot-shell-dot--sm {
+      width: 12px;
+      height: 12px;
+    }
+
+    .boot-shell-dot--md {
+      width: 14px;
+      height: 14px;
+    }
+
+    .boot-shell-main {
+      flex: 1 1 auto;
+      min-height: 0;
+      padding: 4px;
+      padding-top: 0;
+    }
+
+    .boot-shell-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 4px;
+      height: 100%;
+      min-height: 0;
+    }
+
+    .boot-shell-card {
+      min-height: 0;
+      border: 1px solid rgba(34, 34, 34, 0.08);
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.62);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+    }
+
+    .boot-shell-card--left {
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+    }
+
+    .boot-shell-card--right {
+      display: flex;
+      min-height: 0;
+      padding-top: 16px;
+      padding-right: 16px;
+      padding-bottom: 16px;
+      padding-left: 0;
+      background: rgba(255, 255, 255, 0.5);
+    }
+
+    .boot-shell-import-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .boot-shell-import-body {
+      flex: 1 1 auto;
+      min-height: 220px;
+    }
+
+    .boot-shell-rect {
+      border: 1px solid rgba(34, 34, 34, 0.08);
+      border-radius: 16px;
+      background: rgba(245, 244, 239, 0.9);
+    }
+
+    .boot-shell-line {
+      border-radius: 999px;
+      background: rgba(222, 219, 212, 0.92);
+    }
+
+    .boot-shell-fill {
+      width: 100%;
+      min-height: 0;
+      border: 1px solid rgba(34, 34, 34, 0.08);
+      border-radius: 20px;
+      background: rgba(245, 244, 239, 0.84);
+    }
+
+    .boot-shell-preview-main {
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: column;
+      min-height: 0;
+      padding-left: 16px;
+    }
+
+    .boot-shell-preview-frame {
+      flex: 1 1 auto;
+      min-height: 0;
+      border: 1px solid rgba(34, 34, 34, 0.08);
+      border-radius: 8px;
+      background: rgba(245, 244, 239, 0.9);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+    }
+
+    @media (min-width: 1200px) {
+      .boot-shell-grid {
+        grid-template-columns: var(--boot-sidebar-width) minmax(0, 1fr);
       }
+
     }
 
     @media (prefers-color-scheme: dark) {
@@ -83,42 +239,46 @@
         color: #f5f4ef;
       }
 
-      .boot-splash-card {
+      .boot-shell,
+      .boot-shell-titlebar {
+        background: #0b0b0c;
+        color: #f5f4ef;
+      }
+
+      .boot-shell-icon-btn,
+      .boot-shell-control-btn {
+        color: rgba(245, 244, 239, 0.58);
+      }
+
+      .boot-shell-center-pill,
+      .boot-shell-card,
+      .boot-shell-fill,
+      .boot-shell-rect {
         border-color: rgba(245, 244, 239, 0.08);
-        background: rgba(18, 18, 20, 0.88);
-        box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
       }
 
-      .boot-splash-spinner {
-        border-color: rgba(245, 244, 239, 0.14);
-        border-top-color: #f5f4ef;
+      .boot-shell-center-pill,
+      .boot-shell-card {
+        background: rgba(24, 24, 27, 0.7);
       }
 
-      .boot-splash-subtitle {
-        color: rgba(245, 244, 239, 0.66);
+      .boot-shell-card--right,
+      .boot-shell-fill,
+      .boot-shell-rect {
+        background: rgba(16, 16, 19, 0.68);
       }
-    }
 
-    html.light,
-    html.light body,
-    html.light #boot-splash {
-      background: #f5f4ef;
-      color: #222222;
-    }
+      .boot-shell-preview-main {
+        background: transparent;
+      }
 
-    html.light .boot-splash-card {
-      border-color: rgba(34, 34, 34, 0.08);
-      background: rgba(255, 255, 255, 0.82);
-      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
-    }
+      .boot-shell-preview-frame {
+        background: rgba(16, 16, 19, 0.68);
+      }
 
-    html.light .boot-splash-spinner {
-      border-color: rgba(34, 34, 34, 0.14);
-      border-top-color: #222222;
-    }
-
-    html.light .boot-splash-subtitle {
-      color: rgba(34, 34, 34, 0.65);
+      .boot-shell-line {
+        background: rgba(245, 244, 239, 0.14);
+      }
     }
 
     html.dark,
@@ -128,27 +288,60 @@
       color: #f5f4ef;
     }
 
-    html.dark .boot-splash-card {
+    html.dark .boot-shell,
+    html.dark .boot-shell-titlebar {
+      background: #0b0b0c;
+      color: #f5f4ef;
+    }
+
+    html.dark .boot-shell-icon-btn,
+    html.dark .boot-shell-control-btn {
+      color: rgba(245, 244, 239, 0.58);
+    }
+
+    html.dark .boot-shell-center-pill,
+    html.dark .boot-shell-card,
+    html.dark .boot-shell-fill,
+    html.dark .boot-shell-rect {
       border-color: rgba(245, 244, 239, 0.08);
-      background: rgba(18, 18, 20, 0.88);
-      box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
     }
 
-    html.dark .boot-splash-spinner {
-      border-color: rgba(245, 244, 239, 0.14);
-      border-top-color: #f5f4ef;
+    html.dark .boot-shell-center-pill,
+    html.dark .boot-shell-card {
+      background: rgba(24, 24, 27, 0.7);
     }
 
-    html.dark .boot-splash-subtitle {
-      color: rgba(245, 244, 239, 0.66);
+    html.dark .boot-shell-card--right,
+    html.dark .boot-shell-fill,
+    html.dark .boot-shell-rect {
+      background: rgba(16, 16, 19, 0.68);
+    }
+
+    html.dark .boot-shell-preview-main {
+      background: transparent;
+    }
+
+    html.dark .boot-shell-preview-frame {
+      background: rgba(16, 16, 19, 0.68);
+    }
+
+    html.dark .boot-shell-line {
+      background: rgba(245, 244, 239, 0.14);
     }
   </style>
-  <link rel="stylesheet" href="../src/styles/variables.css" />
-  <link rel="stylesheet" href="../src/styles/global.css" />
+  <link rel="stylesheet" href="../src/styles/variables.css" data-boot-style="true" />
+  <link rel="stylesheet" href="../src/styles/global.css" data-boot-style="true" />
   <script>
     (function bootstrapConductorWorkbench() {
       const DEFAULT_LANGUAGE = 'zh';
       const DEFAULT_THEME = 'system';
+      const DEFAULT_SIDEBAR_WIDTH = 280;
+      const MIN_SIDEBAR_WIDTH = 200;
+      const MAX_SIDEBAR_WIDTH = 600;
+      const SIDEBAR_STORAGE_KEY = 'da-sidebar-width';
+      let bootUiReady = false;
+      let bootStylesReady = false;
+      let bootSplashDismissed = false;
       const startMs =
         typeof performance !== 'undefined' && typeof performance.now === 'function'
           ? performance.now()
@@ -167,6 +360,26 @@
       const isLanguageCode = (value) => value === 'en' || value === 'zh';
       const isThemeMode = (value) =>
         value === 'light' || value === 'dark' || value === 'system';
+      const resolveBootProfileEnabled = () => {
+        try {
+          const params = new URLSearchParams(window.location.search);
+          const searchValue = params.get('bootProfile');
+          if (searchValue === '1' || searchValue === 'true') {
+            window.localStorage?.setItem('conductor.bootProfile', '1');
+            return true;
+          }
+          if (searchValue === '0' || searchValue === 'false') {
+            window.localStorage?.removeItem('conductor.bootProfile');
+            return false;
+          }
+        } catch {}
+
+        try {
+          return window.localStorage?.getItem('conductor.bootProfile') === '1';
+        } catch {
+          return false;
+        }
+      };
 
       const resolveTheme = (theme) => {
         if (theme === 'system') {
@@ -185,16 +398,105 @@
         root.classList.add(resolveTheme(theme));
       };
 
+      const applyBootSidebarWidth = () => {
+        let width = DEFAULT_SIDEBAR_WIDTH;
+
+        try {
+          const raw = window.localStorage?.getItem(SIDEBAR_STORAGE_KEY);
+          const parsed = Number.parseInt(String(raw ?? ''), 10);
+          if (
+            Number.isFinite(parsed) &&
+            parsed >= MIN_SIDEBAR_WIDTH &&
+            parsed <= MAX_SIDEBAR_WIDTH
+          ) {
+            width = parsed;
+          }
+        } catch {}
+
+        document.documentElement.style.setProperty('--boot-sidebar-width', `${width}px`);
+      };
+
       const dismissBootSplash = () => {
+        if (bootSplashDismissed) return;
+
         const splash = document.getElementById('boot-splash');
         if (!splash) return;
 
+        bootSplashDismissed = true;
         splash.classList.add('is-hidden');
         logBoot('boot-splash:hidden');
-        window.setTimeout(() => {
+        window.requestAnimationFrame(() => {
           splash.remove();
           logBoot('boot-splash:removed');
-        }, 220);
+        });
+      };
+
+      const maybeDismissBootSplash = () => {
+        if (!bootUiReady || !bootStylesReady) return;
+        dismissBootSplash();
+      };
+
+      const markBootUiReady = (source = 'unknown') => {
+        if (bootUiReady) return;
+
+        bootUiReady = true;
+        logBoot('boot-ui:ready', `(source=${source})`);
+        logNavigationTiming();
+        logTopResources();
+        maybeDismissBootSplash();
+      };
+
+      const markBootStylesReady = (source = 'unknown') => {
+        if (bootStylesReady) return;
+
+        bootStylesReady = true;
+        logBoot('boot-styles:ready', `(source=${source})`);
+        maybeDismissBootSplash();
+      };
+
+      const trackBootStyles = () => {
+        const links = Array.from(
+          document.querySelectorAll('link[data-boot-style="true"]'),
+        );
+
+        if (links.length === 0) {
+          markBootStylesReady('no-links');
+          return;
+        }
+
+        let remaining = 0;
+        let finished = false;
+
+        const complete = (source) => {
+          if (finished) return;
+          remaining = Math.max(remaining - 1, 0);
+          if (remaining === 0) {
+            finished = true;
+            markBootStylesReady(source);
+          }
+        };
+
+        for (const link of links) {
+          if (link.sheet) {
+            continue;
+          }
+
+          remaining += 1;
+          link.addEventListener('load', () => complete('link-load'), { once: true });
+          link.addEventListener('error', () => complete('link-error'), { once: true });
+        }
+
+        if (remaining === 0) {
+          markBootStylesReady('already-loaded');
+          return;
+        }
+
+        window.setTimeout(() => {
+          if (!finished) {
+            finished = true;
+            markBootStylesReady('timeout');
+          }
+        }, 1500);
       };
 
       const logNavigationTiming = () => {
@@ -288,12 +590,16 @@
       window.__CONDUCTOR_INITIAL_DEVICE_ANALYSIS_SETTINGS__ = initialSettings;
       window.__CONDUCTOR_INITIAL_LANGUAGE__ = initialLanguage;
       window.__CONDUCTOR_INITIAL_THEME__ = initialTheme;
+      window.__CONDUCTOR_BOOT_PROFILE_ENABLED__ = resolveBootProfileEnabled();
       window.__CONDUCTOR_BOOT_LOG__ = logBoot;
       window.__CONDUCTOR_BOOT_DISMISS_SPLASH__ = dismissBootSplash;
+      window.__CONDUCTOR_BOOT_MARK_UI_READY__ = markBootUiReady;
       window.__CONDUCTOR_BOOT_LOG_NAVIGATION__ = logNavigationTiming;
       window.__CONDUCTOR_BOOT_LOG_RESOURCES__ = logTopResources;
 
       applyDocumentTheme(initialTheme);
+      applyBootSidebarWidth();
+      trackBootStyles();
 
       logBoot(
         'bootstrap:script-evaluated',
@@ -307,10 +613,66 @@
 
 <body>
   <div id="boot-splash" aria-hidden="true">
-    <div class="boot-splash-card">
-      <div class="boot-splash-spinner"></div>
-      <div class="boot-splash-title">conductor</div>
-      <div class="boot-splash-subtitle">Launching workspace...</div>
+    <div class="boot-shell">
+      <header class="boot-shell-titlebar" aria-hidden="true">
+        <div class="boot-shell-brand">conductor</div>
+
+        <div class="boot-shell-controls boot-shell-controls--nav">
+          <div class="boot-shell-icon-btn">
+            <div class="boot-shell-dot boot-shell-dot--md"></div>
+          </div>
+          <div class="boot-shell-icon-btn">
+            <div class="boot-shell-dot boot-shell-dot--md"></div>
+          </div>
+        </div>
+
+        <div class="boot-shell-center">
+          <div class="boot-shell-center-pill"></div>
+        </div>
+
+        <div class="boot-shell-controls">
+          <div class="boot-shell-icon-btn">
+            <div class="boot-shell-dot boot-shell-dot--md"></div>
+          </div>
+          <div class="boot-shell-icon-btn">
+            <div class="boot-shell-dot boot-shell-dot--md"></div>
+          </div>
+          <div class="boot-shell-icon-btn">
+            <div class="boot-shell-dot boot-shell-dot--md"></div>
+          </div>
+          <div class="boot-shell-icon-btn">
+            <div class="boot-shell-dot boot-shell-dot--md"></div>
+          </div>
+          <div class="boot-shell-control-btn">
+            <div class="boot-shell-dot boot-shell-dot--sm"></div>
+          </div>
+          <div class="boot-shell-control-btn">
+            <div class="boot-shell-dot boot-shell-dot--sm"></div>
+          </div>
+          <div class="boot-shell-control-btn boot-shell-control-btn--close">
+            <div class="boot-shell-dot boot-shell-dot--sm"></div>
+          </div>
+        </div>
+      </header>
+
+      <div class="boot-shell-main">
+        <div class="boot-shell-grid" aria-hidden="true">
+          <section class="boot-shell-card boot-shell-card--left">
+            <div class="boot-shell-import-header">
+              <div class="boot-shell-rect" style="width: 160px; height: 40px;"></div>
+              <div class="boot-shell-rect" style="width: 40px; height: 40px;"></div>
+            </div>
+            <div class="boot-shell-line" style="width: 112px; height: 16px; margin-bottom: 16px;"></div>
+            <div class="boot-shell-fill boot-shell-import-body"></div>
+          </section>
+
+          <section class="boot-shell-card boot-shell-card--right">
+            <div class="boot-shell-preview-main">
+              <div class="boot-shell-preview-frame"></div>
+            </div>
+          </section>
+        </div>
+      </div>
     </div>
   </div>
   <div id="root"></div>

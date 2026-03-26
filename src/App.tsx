@@ -1,11 +1,55 @@
-import { lazy, Suspense } from "react";
-import { useEffect } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "./context/theme-provider";
 import { LanguageProvider } from "./context/language-provider";
+import DeviceAnalysisWorkspaceShell from "./features/device-analysis/DeviceAnalysisWorkspaceShell";
 import { loadDeviceAnalysisApp } from "./workbench-loader";
 
-const DeviceAnalysisApp = lazy(loadDeviceAnalysisApp);
+const isBootProfileEnabled = () =>
+  import.meta.env.DEV && window.__CONDUCTOR_BOOT_PROFILE_ENABLED__ === true;
+
+const logRendererBoot = (stage: string, extra = "") => {
+  if (!isBootProfileEnabled()) {
+    return;
+  }
+
+  window.__CONDUCTOR_BOOT_LOG__?.(stage, extra);
+};
+
+const markBootUiReady = (source: string) => {
+  window.__CONDUCTOR_BOOT_MARK_UI_READY__?.(source);
+};
+
+const getBootNowMs = () => {
+  if (typeof performance !== "undefined" && typeof performance.now === "function") {
+    return performance.now();
+  }
+
+  return Date.now();
+};
+
+const formatWaitSince = (startedAtMs: number, label = "wait") => {
+  const elapsedMs = Math.max(0, Math.round(getBootNowMs() - startedAtMs));
+  return `(${label}=${elapsedMs}ms)`;
+};
+
+const deviceAnalysisLazyRequestedAtMs = isBootProfileEnabled() ? getBootNowMs() : 0;
+const DeviceAnalysisApp = lazy(async () => {
+  if (isBootProfileEnabled()) {
+    logRendererBoot(
+      "device-analysis:lazy-awaiting",
+      formatWaitSince(deviceAnalysisLazyRequestedAtMs, "sinceAppModule"),
+    );
+  }
+  const module = await loadDeviceAnalysisApp();
+  if (isBootProfileEnabled()) {
+    logRendererBoot(
+      "device-analysis:lazy-ready",
+      formatWaitSince(deviceAnalysisLazyRequestedAtMs, "sinceAppModule"),
+    );
+  }
+  return { default: module.default };
+});
 
 const isUnauthorizedError = (error: unknown) => {
   if (typeof error !== "object" || error === null || !("status" in error)) {
@@ -30,29 +74,30 @@ const queryClient = new QueryClient({
 
 function App() {
   useEffect(() => {
-    console.info("[boot][renderer] App:mounted");
+    if (isBootProfileEnabled()) {
+      logRendererBoot("App:mounted");
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      markBootUiReady("app-root");
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
   }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <LanguageProvider>
-            <div className="h-screen bg-bg-page overflow-hidden">
-              <main className="h-full w-full overflow-hidden">
-                <Suspense
-                  fallback={
-                    <div className="flex h-full w-full items-center justify-center bg-bg-page text-text-secondary">
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="h-10 w-10 animate-spin rounded-full border-2 border-border border-t-primary" />
-                        <p className="text-sm">Loading conductor...</p>
-                      </div>
-                    </div>
-                  }
-                >
-                  <DeviceAnalysisApp />
-                </Suspense>
-              </main>
-            </div>
+          <div className="h-screen bg-bg-page overflow-hidden">
+            <main className="h-full w-full overflow-hidden">
+              <Suspense fallback={<DeviceAnalysisWorkspaceShell />}>
+                <DeviceAnalysisApp />
+              </Suspense>
+            </main>
+          </div>
         </LanguageProvider>
       </ThemeProvider>
     </QueryClientProvider>

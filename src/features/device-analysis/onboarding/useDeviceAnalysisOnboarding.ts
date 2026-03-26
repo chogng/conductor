@@ -433,16 +433,30 @@ export const useDeviceAnalysisOnboarding = ({
     templateSaveCount,
   ]);
 
-  return {
-    canNext,
-    close,
-    handleImportTrigger,
-    handleOpenOrigin,
-    isOpen,
-    next,
-    open,
-    stepIndex,
-    steps,
-    back,
-  };
+  return useMemo(
+    () => ({
+      canNext,
+      close,
+      handleImportTrigger,
+      handleOpenOrigin,
+      isOpen,
+      next,
+      open,
+      stepIndex,
+      steps,
+      back,
+    }),
+    [
+      back,
+      canNext,
+      close,
+      handleImportTrigger,
+      handleOpenOrigin,
+      isOpen,
+      next,
+      open,
+      stepIndex,
+      steps,
+    ],
+  );
 };

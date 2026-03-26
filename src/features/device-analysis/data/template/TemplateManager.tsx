@@ -1,11 +1,9 @@
 import React, {
   useCallback,
   useEffect,
-  lazy,
   useMemo,
   useRef,
   useState,
-  Suspense,
   type CSSProperties,
   type SetStateAction,
 } from "react";
@@ -17,7 +15,6 @@ import {
   Save,
   Plus,
   Check,
-  FileSpreadsheet,
   Download,
   Upload,
 } from "lucide-react";
@@ -29,10 +26,14 @@ import Select from "../../../../components/ui/Select";
 import Tabs from "../../../../components/ui/Tabs";
 import Card from "../../../../components/ui/Card";
 import Button from "../../../../components/ui/Button";
-import Avatar from "../../../../components/ui/Avatar";
 import Modal from "../../../../components/ui/Modal";
 import DropdownMenu from "../../../../components/ui/DropdownMenu";
 import ScrollArea from "../../../../components/ui/ScrollArea";
+import {
+  TemplateManagerPreviewEmptyState,
+  TemplateManagerPreviewSurface,
+} from "./TemplateManagerPreviewSurface";
+import TemplateManagerPreviewWorkspace from "./TemplateManagerPreviewWorkspace";
 import { validateVarPair } from "./templateValidation";
 import { getExcelColumnLabel } from "./templateColumnLabel";
 import { useTemplateManagerState } from "./useTemplateManagerState";
@@ -68,13 +69,6 @@ export type TemplateManagerProps = {
   ) => Promise<unknown> | unknown;
 };
 
-const loadTemplateManagerPreviewWorkspace = () =>
-  import("./TemplateManagerPreviewWorkspace");
-
-const LazyTemplateManagerPreviewWorkspace = lazy(
-  loadTemplateManagerPreviewWorkspace,
-);
-
 const TemplateManagerPreviewFallback = ({
   previewFile,
   previewStatus,
@@ -101,33 +95,17 @@ const TemplateManagerPreviewFallback = ({
         : t("da_preview_select_file_hint");
 
   return (
-    <div className="lg:col-span-3 self-start min-[1200px]:self-stretch bg-bg-page rounded-lg p-4 overflow-hidden flex flex-col min-h-0 h-[var(--da-template-stack-panel-h)] min-[1200px]:h-full">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-sm font-medium text-text-secondary">
-          {t("da_preview_filename_label")}: {fileName}
-        </span>
-        {previewStatus?.state === "loading" ? (
-          <span className="text-xs text-text-secondary">
-            {previewStatus.message || t("da_preview_loading")}
-          </span>
-        ) : previewStatus?.state === "error" ? (
-          <span className="text-xs text-red-500">
-            {previewStatus.message || t("da_preview_error")}
-          </span>
-        ) : null}
-      </div>
-
-      <div className="flex-1 min-h-0 border border-border rounded bg-bg-surface/60 px-6 py-8 flex flex-col items-center justify-center text-center">
-        <Avatar
-          icon={FileSpreadsheet}
-          size="lg"
-          variant="empty"
-          className="mb-4"
-        />
-        <div className="text-sm font-medium text-text-primary">{title}</div>
-        <div className="mt-2 text-sm text-text-secondary max-w-md">{hint}</div>
-      </div>
-    </div>
+    <TemplateManagerPreviewSurface
+      previewFile={previewFile}
+      previewStatus={previewStatus}
+      t={t}
+    >
+      <TemplateManagerPreviewEmptyState
+        id="device-analysis-template-preview-fallback"
+        title={title}
+        hint={hint}
+      />
+    </TemplateManagerPreviewSurface>
   );
 };
 
@@ -252,14 +230,6 @@ const TemplateManager = ({
   );
   const shouldRenderPreviewWorkspace =
     Boolean(previewFile?.fileId) && previewStatus?.state === "ready";
-
-  useEffect(() => {
-    const shouldPreloadPreviewWorkspace =
-      Boolean(previewFile?.fileId) || previewStatus?.state === "loading";
-    if (!shouldPreloadPreviewWorkspace) return;
-
-    void loadTemplateManagerPreviewWorkspace();
-  }, [previewFile?.fileId, previewStatus?.state]);
 
   const varPairValidation = validateVarPair(
     config?.bottomTitle,
@@ -1271,21 +1241,19 @@ const TemplateManager = ({
 
           {/* Preview Panel */}
           {shouldRenderPreviewWorkspace ? (
-            <Suspense fallback={previewWorkspaceFallback}>
-              <LazyTemplateManagerPreviewWorkspace
-                containerRef={containerRef}
-                config={config}
-                ensurePreviewRows={ensurePreviewRows}
-                getPreviewRow={getPreviewRow}
-                getPreviewRowsVersion={getPreviewRowsVersion}
-                previewFile={previewFile}
-                previewStatus={previewStatus}
-                setConfig={setConfig}
-                subscribePreviewRowsVersion={subscribePreviewRowsVersion}
-                t={t}
-                writeFieldFromPreview={writeFieldFromPreview}
-              />
-            </Suspense>
+            <TemplateManagerPreviewWorkspace
+              containerRef={containerRef}
+              config={config}
+              ensurePreviewRows={ensurePreviewRows}
+              getPreviewRow={getPreviewRow}
+              getPreviewRowsVersion={getPreviewRowsVersion}
+              previewFile={previewFile}
+              previewStatus={previewStatus}
+              setConfig={setConfig}
+              subscribePreviewRowsVersion={subscribePreviewRowsVersion}
+              t={t}
+              writeFieldFromPreview={writeFieldFromPreview}
+            />
           ) : (
             previewWorkspaceFallback
           )}

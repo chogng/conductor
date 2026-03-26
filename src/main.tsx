@@ -2,6 +2,7 @@ import { Fragment, lazy, StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { LanguageCode } from './config/language';
 import type { ThemeMode } from './config/theme';
+import DeviceAnalysisWorkspaceShell from './features/device-analysis/DeviceAnalysisWorkspaceShell';
 import { loadDeviceAnalysisApp, loadWorkbenchApp } from './workbench-loader';
 
 declare global {
@@ -22,6 +23,7 @@ declare global {
     __CONDUCTOR_INITIAL_THEME__?: ThemeMode;
     __CONDUCTOR_BOOT_LOG__?: (stage: string, extra?: string) => void;
     __CONDUCTOR_BOOT_DISMISS_SPLASH__?: () => void;
+    __CONDUCTOR_BOOT_MARK_UI_READY__?: (source?: string) => void;
     __CONDUCTOR_BOOT_LOG_NAVIGATION__?: () => void;
     __CONDUCTOR_BOOT_LOG_RESOURCES__?: () => void;
   }
@@ -31,37 +33,8 @@ const logRendererBoot = (stage: string, extra = '') => {
   window.__CONDUCTOR_BOOT_LOG__?.(stage, extra);
 };
 
-const dismissBootSplash = () => {
-  window.__CONDUCTOR_BOOT_DISMISS_SPLASH__?.();
-};
-
-const appShellStyle: React.CSSProperties = {
-  display: 'flex',
-  minHeight: '100vh',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: '24px',
-  background: 'transparent',
-  color: 'inherit',
-  fontFamily: 'inherit',
-};
-
-const appShellTextStyle: React.CSSProperties = {
-  fontSize: '12px',
-  letterSpacing: '0.04em',
-  textTransform: 'uppercase',
-  opacity: 0.68,
-};
-
-const WorkbenchShell = () => (
-  <div style={appShellStyle}>
-    <div style={appShellTextStyle}>Loading workspace...</div>
-  </div>
-);
-
 const RootMode =
   import.meta.env.DEV && window.desktopMeta?.isDesktop ? Fragment : StrictMode;
-
 const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error('Root element with id "root" was not found.');
@@ -79,7 +52,7 @@ const LazyApp = lazy(async () => {
 
 createRoot(rootElement).render(
   <RootMode>
-    <Suspense fallback={<WorkbenchShell />}>
+    <Suspense fallback={<DeviceAnalysisWorkspaceShell />}>
       <LazyApp />
     </Suspense>
   </RootMode>,
@@ -88,15 +61,9 @@ logRendererBoot('react-root:render-called');
 
 window.requestAnimationFrame(() => {
   logRendererBoot('raf:1');
-  void workbenchAppPromise;
   void loadDeviceAnalysisApp();
 });
 
 window.requestAnimationFrame(() => {
-  window.requestAnimationFrame(() => {
-    logRendererBoot('raf:2');
-    window.__CONDUCTOR_BOOT_LOG_NAVIGATION__?.();
-    window.__CONDUCTOR_BOOT_LOG_RESOURCES__?.();
-    dismissBootSplash();
-  });
+  logRendererBoot('raf:2');
 });
