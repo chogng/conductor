@@ -8,7 +8,7 @@ import React, {
   forwardRef,
   useEffect,
 } from "react";
-import { Upload, FileText, X, AlertCircle } from "lucide-react";
+import { Import, FileText, X, AlertCircle } from "lucide-react";
 import { cx } from "../../../utils/cx";
 import { useLanguage } from "../../../hooks/useLanguage";
 import Avatar from "../../../components/ui/Avatar";
@@ -156,6 +156,8 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
     const [error, setError] = useState<string | null>(null);
 
     const containerRef = useRef<HTMLDivElement | null>(null);
+    const prevFileCountRef = useRef(files.length);
+    const shouldAutoScrollToBottomRef = useRef(true);
 
     const [optimisticSelectedFileId, setOptimisticSelectedFileId] =
       useOptimistic<string | null>(selectedFileId ?? null);
@@ -188,13 +190,40 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
     );
 
     useEffect(() => {
-      if (containerRef.current) {
-        containerRef.current.scrollTo({
-          top: containerRef.current.scrollHeight,
-          behavior: "smooth",
+      const viewport = containerRef.current;
+      if (!viewport) return;
+
+      const updateAutoScrollState = () => {
+        const distanceToBottom =
+          viewport.scrollHeight - viewport.clientHeight - viewport.scrollTop;
+        shouldAutoScrollToBottomRef.current = distanceToBottom <= 24;
+      };
+
+      updateAutoScrollState();
+      viewport.addEventListener("scroll", updateAutoScrollState, {
+        passive: true,
+      });
+
+      return () => {
+        viewport.removeEventListener("scroll", updateAutoScrollState);
+      };
+    }, []);
+
+    useEffect(() => {
+      const viewport = containerRef.current;
+      const previousCount = prevFileCountRef.current;
+      const nextCount = files.length;
+      const hasAddedFiles = nextCount > previousCount;
+
+      if (viewport && hasAddedFiles && shouldAutoScrollToBottomRef.current) {
+        viewport.scrollTo({
+          top: viewport.scrollHeight,
+          behavior: previousCount === 0 ? "auto" : "smooth",
         });
       }
-    }, [files]);
+
+      prevFileCountRef.current = nextCount;
+    }, [files.length]);
 
     const virtual = useCsvImporterVirtualization({
       containerRef,
@@ -366,7 +395,7 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
               data-slot="empty"
               className={styles.empty}
             >
-              <Avatar icon={Upload} size="lg" variant="empty" />
+              <Avatar icon={Import} size="lg" variant="empty" />
               <p className={styles.emptySubtitle}>
                 {t("da_csv_empty_subtitle_prefix")}{" "}
                 <span className={styles.emptyBrowse}>

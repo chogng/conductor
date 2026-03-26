@@ -2,10 +2,10 @@ import {
   ArrowLeft,
   ArrowRight,
   BarChart2,
+  Import,
   Minus,
   Settings,
   Square,
-  Upload,
   X,
 } from "lucide-react";
 import type { CSSProperties } from "react";
@@ -126,7 +126,7 @@ const DesktopCommandBar = ({
           className={`da_window_icon_btn ${activePage === "data" ? "da_top_nav_btn--active" : ""}`}
           onClick={() => onPageChange?.("data")}
         >
-          <Upload size={14} className="opacity-80" />
+          <Import size={14} className="opacity-80" />
         </button>
         <button
           type="button"

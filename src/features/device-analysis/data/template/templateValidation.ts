@@ -140,18 +140,6 @@ export function validateCurveTaggingMode(
     config?.fileNameVdKeywords ?? config?.vdFileKeywords ?? "",
   );
   const hasFileNameRules = Boolean(fileNameVgKeywords) || Boolean(fileNameVdKeywords);
-  const hasVarRules = varPair.mode !== "empty";
-
-  if (hasFileNameRules && hasVarRules) {
-    return {
-      ok: false,
-      message:
-        typeof t === "function"
-          ? t("da_curveTaggingModeExclusive")
-          : "Curve tagging must use either Var1/Var2 or file-name keywords, not both.",
-    };
-  }
-
   if (hasFileNameRules && (!fileNameVgKeywords || !fileNameVdKeywords)) {
     return {
       ok: false,
@@ -167,7 +155,7 @@ export function validateCurveTaggingMode(
     varPair,
     fileNameVgKeywords,
     fileNameVdKeywords,
-    mode: hasFileNameRules ? "filename" : hasVarRules ? "var" : "auto",
+    mode: hasFileNameRules ? "filename" : varPair.mode !== "empty" ? "var" : "auto",
   };
 }
 

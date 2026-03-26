@@ -576,7 +576,8 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
         return null;
     };
     // Deterministic curve tagging:
-    // - file-name mode: use file-name keywords only
+    // - file-name mode: file-name keywords gate applicability, while curve type
+    //   still falls back to Var1 token (or inferred x-label) for chart semantics
     // - var mode: use Var1 token only (Var2 is display-only)
     const var1Token = detectAxisRole(bottomTitle);
     const var2Token = detectAxisRole(legendPrefix);
@@ -992,33 +993,21 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
     if (seenRowsInRange !== expectedTotal) {
         throw new Error(`${fileName}: X end row (${endRow + 1}) exceeds total parsed rows (${currentRowIndex + 1}).`);
     }
-    // Finalize curveType and labels.
-    // Modes:
-    // - file-name mapping: ONLY use user-provided keywords (exclusive)
-    // - var mode: use Var1 only (Var2 does not affect curveType)
+    // Finalize applicability/curve labels.
+    // File-name mapping now serves as template applicability gating only.
     if (useFileNameMapping) {
         if (fileNameVgKeywords.length === 0 || fileNameVdKeywords.length === 0) {
-            throw new Error(`${fileName}: Invalid template config: file-name keywords must be provided for both Vg and Vd.`);
+            throw new Error(`${fileName}: Invalid template config: both file-name prefix groups are required.`);
         }
         const lowerName = String(fileName ?? "").toLowerCase();
         const vgHits = fileNameVgKeywords.filter((token: any) => token && lowerName.includes(token));
         const vdHits = fileNameVdKeywords.filter((token: any) => token && lowerName.includes(token));
-        if (vgHits.length > 0 && vdHits.length === 0) {
-            curveType = "vg";
-            xAxisRole = "vg";
-            xAxisRoleSource = "filename";
+        if (vgHits.length === 0 && vdHits.length === 0) {
+            throw new Error(`${fileName}: File name does not match configured template prefixes.`);
         }
-        else if (vdHits.length > 0 && vgHits.length === 0) {
-            curveType = "vd";
-            xAxisRole = "vd";
-            xAxisRoleSource = "filename";
-        }
-        else if (vgHits.length > 0 && vdHits.length > 0) {
-            throw new Error(`${fileName}: File-name tagging is ambiguous (matches both Vg and Vd). Vg hits: ${vgHits.join(", ")}; Vd hits: ${vdHits.join(", ")}.`);
-        }
-        else {
-            throw new Error(`${fileName}: Unable to tag curve type from file name. Please add keywords for Vg/Vd in the template.`);
-        }
+        curveType = var1Token ?? null;
+        xAxisRole = var1Token ?? null;
+        xAxisRoleSource = var1Token ? "title" : null;
     }
     else {
         curveType = var1Token ?? null;

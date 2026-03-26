@@ -22,7 +22,6 @@ import { useLanguage } from "../../../../hooks/useLanguage";
 import type { TranslateFn, TranslationVars } from "../../../../context/language";
 import Toast from "../../../../components/ui/Toast";
 import Input from "../../../../components/ui/Input";
-import Select from "../../../../components/ui/Select";
 import Tabs from "../../../../components/ui/Tabs";
 import Card from "../../../../components/ui/Card";
 import Button from "../../../../components/ui/Button";
@@ -119,6 +118,7 @@ const formatTemplateExportFileName = (templateNameRaw?: string) => {
 };
 
 const X_AUTO_SUGGESTION_MAX_SCAN_ROWS = 5000;
+const FILE_RULE_PREFIX_DELIMITER = ", ";
 
 const TemplateManager = ({
   previewFile,
@@ -137,6 +137,15 @@ const TemplateManager = ({
     (key: string, params?: Record<string, unknown>) =>
       t(key, params as TranslationVars | undefined),
     [t],
+  );
+  const sanitizeFileNamePrefixInput = useCallback(
+    (value: unknown) =>
+      String(value ?? "")
+        .split(/[,;\n]+/)
+        .map((token) => token.trim())
+        .filter(Boolean)
+        .join(FILE_RULE_PREFIX_DELIMITER),
+    [],
   );
   const dropdownRef = useRef(null);
   const importFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -159,6 +168,19 @@ const TemplateManager = ({
     setToast((prev) => ({ ...prev, isVisible: false }));
   }, []);
   const containerRef = useRef<HTMLElement | null>(null);
+  const xSegmentationModeMenuRef = useRef<HTMLDivElement | null>(null);
+  const xUnitMenuRef = useRef<HTMLDivElement | null>(null);
+  const yUnitMenuRef = useRef<HTMLDivElement | null>(null);
+  const transferRuleTemplateMenuRef = useRef<HTMLDivElement | null>(null);
+  const outputRuleTemplateMenuRef = useRef<HTMLDivElement | null>(null);
+  const [isXSegmentationModeMenuOpen, setIsXSegmentationModeMenuOpen] =
+    useState(false);
+  const [isXUnitMenuOpen, setIsXUnitMenuOpen] = useState(false);
+  const [isYUnitMenuOpen, setIsYUnitMenuOpen] = useState(false);
+  const [isTransferRuleTemplateMenuOpen, setIsTransferRuleTemplateMenuOpen] =
+    useState(false);
+  const [isOutputRuleTemplateMenuOpen, setIsOutputRuleTemplateMenuOpen] =
+    useState(false);
   const yUnitOptions = useMemo(
     () =>
       DEVICE_ANALYSIS_Y_UNIT_VALUES.map((unit) => ({
@@ -185,13 +207,14 @@ const TemplateManager = ({
   );
 
   const {
-    applyConfiguration,
-    applyNewFilesConfiguration,
+    applyConfigurationWithConfig,
+    applyNewFilesConfigurationWithConfig,
     closeDiscardConfirm,
     closeTemplateDropdown,
     config,
     confirmDiscardAndSwitch,
     createTemplateExportBundle,
+    ensureTemplatesLoaded,
     handleCreateNewTemplate,
     handleDeleteTemplate,
     importTemplatesFromPayload,
@@ -230,21 +253,164 @@ const TemplateManager = ({
   );
   const shouldRenderPreviewWorkspace =
     Boolean(previewFile?.fileId) && previewStatus?.state === "ready";
+  const availableTemplateNames = useMemo(
+    () =>
+      (Array.isArray(templates) ? templates : [])
+        .map((entry) => String(entry?.name ?? "").trim())
+        .filter(Boolean),
+    [templates],
+  );
+  const availableTemplateOptions = useMemo(
+    () => availableTemplateNames.map((name) => ({ label: name, value: name })),
+    [availableTemplateNames],
+  );
+  const resolveTemplateByName = useCallback(
+    (name: string) => {
+      const target = String(name ?? "").trim();
+      if (!target) return null;
+      return (
+        (Array.isArray(templates) ? templates : []).find(
+          (entry) => String(entry?.name ?? "").trim() === target,
+        ) || null
+      );
+    },
+    [templates],
+  );
+  const cloneTemplateConfigFromRecord = useCallback(
+    (template: Record<string, unknown>): TemplateConfig => {
+      const selectedColumns = Array.isArray(template?.selectedColumns)
+        ? template.selectedColumns
+            .map((entry) => Number(entry))
+            .filter((entry) => Number.isInteger(entry) && entry >= 0)
+        : [];
+      const xDataStart = String(template?.xDataStart ?? "");
+      const xDataEndRaw = normalizeXDataEndValue(template?.xDataEnd);
+      const xDataEnd = !xDataEndRaw ? (xDataStart.trim() ? "End" : "") : xDataEndRaw;
+
+      return {
+        name: String(template?.name ?? ""),
+        xDataStart,
+        xDataEnd,
+        xSegmentationMode: resolveXSegmentationMode(template?.xSegmentationMode),
+        xSegments: String(template?.xSegments ?? ""),
+        xPoints: String(template?.xPoints ?? ""),
+        xUnit: String(template?.xUnit ?? "V"),
+        yDataStart: String(template?.yDataStart ?? ""),
+        yDataEnd: String(template?.yDataEnd ?? ""),
+        yPoints: String(template?.yPoints ?? ""),
+        yCount: String(template?.yCount ?? ""),
+        yStep: String(template?.yStep ?? ""),
+        yUnit: String(template?.yUnit ?? "A"),
+        stopOnError: Boolean(template?.stopOnError),
+        bottomTitle: String(template?.bottomTitle ?? template?.vgKeyword ?? ""),
+        leftTitle: String(template?.leftTitle ?? ""),
+        legendPrefix: String(template?.legendPrefix ?? template?.vdKeyword ?? ""),
+        fileNameVgKeywords: String(
+          template?.fileNameVgKeywords ?? template?.vgFileKeywords ?? "",
+        ),
+        fileNameVdKeywords: String(
+          template?.fileNameVdKeywords ?? template?.vdFileKeywords ?? "",
+        ),
+        selectedColumns,
+      };
+    },
+    [],
+  );
 
   const varPairValidation = validateVarPair(
     config?.bottomTitle,
     config?.legendPrefix,
     tLoose,
   );
-  const hasVarInputs =
-    Boolean(String(config?.bottomTitle ?? "").trim()) ||
-    Boolean(String(config?.legendPrefix ?? "").trim());
-  const hasFileNameInputs =
-    Boolean(String(config?.fileNameVgKeywords ?? "").trim()) ||
-    Boolean(String(config?.fileNameVdKeywords ?? "").trim());
-  const curveTaggingConflict = hasVarInputs && hasFileNameInputs;
-  const disableVarInputs = hasFileNameInputs && !hasVarInputs;
-  const disableFileNameInputs = hasVarInputs && !hasFileNameInputs;
+  const [transferRuleTemplateName, setTransferRuleTemplateName] = useState("");
+  const [outputRuleTemplateName, setOutputRuleTemplateName] = useState("");
+  const transferRuleTemplate = resolveTemplateByName(transferRuleTemplateName);
+  const outputRuleTemplate = resolveTemplateByName(outputRuleTemplateName);
+  const buildRuleApplyConfig = useCallback(
+    (prefixValue: string, templateName: string, ruleKey: "transfer" | "output") => {
+      const templateRecord = resolveTemplateByName(templateName);
+      if (!templateRecord) return null;
+      const normalizedPrefix = sanitizeFileNamePrefixInput(prefixValue);
+      const nextConfig = cloneTemplateConfigFromRecord(
+        templateRecord as Record<string, unknown>,
+      );
+      if (ruleKey === "transfer") {
+        nextConfig.fileNameVgKeywords = normalizedPrefix;
+        nextConfig.fileNameVdKeywords = "";
+      } else {
+        nextConfig.fileNameVgKeywords = "";
+        nextConfig.fileNameVdKeywords = normalizedPrefix;
+      }
+      return nextConfig;
+    },
+    [cloneTemplateConfigFromRecord, resolveTemplateByName, sanitizeFileNamePrefixInput],
+  );
+  const applyRuleTemplate = useCallback(
+    (ruleKey: "transfer" | "output", incremental: boolean) => {
+      const prefix =
+        ruleKey === "transfer"
+          ? String(config?.fileNameVgKeywords ?? "")
+          : String(config?.fileNameVdKeywords ?? "");
+      const templateName =
+        ruleKey === "transfer" ? transferRuleTemplateName : outputRuleTemplateName;
+      const nextConfig = buildRuleApplyConfig(prefix, templateName, ruleKey);
+      if (!nextConfig) {
+        showToast(t("da_template_name"), "warning");
+        return;
+      }
+      if (incremental) {
+        applyNewFilesConfigurationWithConfig(nextConfig);
+      } else {
+        applyConfigurationWithConfig(nextConfig);
+      }
+    },
+    [
+      applyConfigurationWithConfig,
+      applyNewFilesConfigurationWithConfig,
+      buildRuleApplyConfig,
+      config?.fileNameVdKeywords,
+      config?.fileNameVgKeywords,
+      outputRuleTemplateName,
+      showToast,
+      t,
+      transferRuleTemplateName,
+    ],
+  );
+  useEffect(() => {
+    if (templateMode === "select") {
+      void ensureTemplatesLoaded().catch(() => {});
+    }
+  }, [ensureTemplatesLoaded, templateMode]);
+  useEffect(() => {
+    if (!availableTemplateNames.length) {
+      setTransferRuleTemplateName("");
+      setOutputRuleTemplateName("");
+      return;
+    }
+    if (
+      transferRuleTemplateName &&
+      !availableTemplateNames.includes(transferRuleTemplateName)
+    ) {
+      setTransferRuleTemplateName("");
+    }
+    if (
+      outputRuleTemplateName &&
+      !availableTemplateNames.includes(outputRuleTemplateName)
+    ) {
+      setOutputRuleTemplateName("");
+    }
+  }, [availableTemplateNames, outputRuleTemplateName, transferRuleTemplateName]);
+  useEffect(() => {
+    if (templateMode !== "save") {
+      setIsXSegmentationModeMenuOpen(false);
+      setIsXUnitMenuOpen(false);
+      setIsYUnitMenuOpen(false);
+    }
+    if (templateMode !== "select") {
+      setIsTransferRuleTemplateMenuOpen(false);
+      setIsOutputRuleTemplateMenuOpen(false);
+    }
+  }, [templateMode]);
   const lastVarPairToastRef = useRef("");
   const xSegmentationMode = resolveXSegmentationMode(
     config?.xSegmentationMode,
@@ -524,47 +690,200 @@ const TemplateManager = ({
                 inputClassName="no-spinner"
               />
             </div>
-            <div>
-              <Select
+            <div className="relative min-w-0" ref={xSegmentationModeMenuRef}>
+              <div
+                className="input_field input_field--md relative flex-1 min-w-0 pr-1"
+                data-state={saveIsSelectMode ? "disable" : "enable"}
+              >
+                <button
+                  id={
+                    includeIds
+                      ? "device-analysis-template-x-segmentation-mode"
+                      : undefined
+                  }
+                  type="button"
+                  disabled={saveIsSelectMode}
+                  aria-haspopup="menu"
+                  aria-expanded={isXSegmentationModeMenuOpen}
+                  aria-controls={
+                    includeIds
+                      ? "device-analysis-template-x-segmentation-mode-menu"
+                      : undefined
+                  }
+                  onClick={() => {
+                    if (saveIsSelectMode) return;
+                    setIsXSegmentationModeMenuOpen((prev) => !prev);
+                  }}
+                  onKeyDown={(e) => {
+                    if (saveIsSelectMode) return;
+                    if (e.key === "Escape") {
+                      setIsXSegmentationModeMenuOpen(false);
+                      return;
+                    }
+                    if (
+                      e.key === "Enter" ||
+                      e.key === " " ||
+                      e.key === "ArrowDown"
+                    ) {
+                      e.preventDefault();
+                      setIsXSegmentationModeMenuOpen(true);
+                    }
+                  }}
+                  className="input_native no-focus-outline p-0 pr-8 text-left cursor-pointer select-none disabled:cursor-not-allowed"
+                >
+                  <span className="block truncate text-text-primary">
+                    {xSegmentationModeOptions.find(
+                      (entry) =>
+                        String(entry.value) === String(xSegmentationMode),
+                    )?.label || t("da_save_segmentation_mode")}
+                  </span>
+                </button>
+
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-secondary pointer-events-none">
+                  <ChevronDown
+                    size={16}
+                    className={`transition-transform duration-200 ${
+                      isXSegmentationModeMenuOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </span>
+              </div>
+              <DropdownMenu
+                isOpen={isXSegmentationModeMenuOpen}
+                onClose={() => setIsXSegmentationModeMenuOpen(false)}
+                anchorRef={xSegmentationModeMenuRef}
                 id={
                   includeIds
-                    ? "device-analysis-template-x-segmentation-mode"
+                    ? "device-analysis-template-x-segmentation-mode-menu"
                     : undefined
                 }
-                value={xSegmentationMode}
-                disabled={saveIsSelectMode}
-                onChange={(next) => {
-                  const nextMode = resolveXSegmentationMode(next);
-                  setConfigFromSave((prev) => ({
-                    ...prev,
-                    xSegmentationMode: nextMode,
-                  }));
-                  markFieldSource("xSegmentationMode", "manual");
-                }}
-                options={xSegmentationModeOptions}
-                placeholder={t("da_save_segmentation_mode")}
-                className="w-full"
-              />
+                role="menu"
+              >
+                {xSegmentationModeOptions.map((entry) => {
+                  const isActive =
+                    String(entry.value) === String(xSegmentationMode);
+                  return (
+                    <button
+                      key={`${entry.value}`}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={isActive}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-bg-page cursor-pointer transition-colors"
+                      onClick={() => {
+                        const nextMode = resolveXSegmentationMode(entry.value);
+                        setConfigFromSave((prev) => ({
+                          ...prev,
+                          xSegmentationMode: nextMode,
+                        }));
+                        markFieldSource("xSegmentationMode", "manual");
+                        setIsXSegmentationModeMenuOpen(false);
+                      }}
+                    >
+                      <span className="text-sm text-text-primary truncate">
+                        {entry.label}
+                      </span>
+                      {isActive ? (
+                        <span className="text-accent">
+                          <Check size={14} />
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </DropdownMenu>
             </div>
-            <div className="sm:col-span-2">
-              <Select
+            <div className="sm:col-span-2 relative min-w-0" ref={xUnitMenuRef}>
+              <div
+                className="input_field input_field--md relative flex-1 min-w-0 pr-1"
+                data-state={saveIsSelectMode ? "disable" : "enable"}
+              >
+                <button
+                  id={includeIds ? "device-analysis-template-x-unit" : undefined}
+                  type="button"
+                  disabled={saveIsSelectMode}
+                  aria-haspopup="menu"
+                  aria-expanded={isXUnitMenuOpen}
+                  aria-controls={
+                    includeIds ? "device-analysis-template-x-unit-menu" : undefined
+                  }
+                  onClick={() => {
+                    if (saveIsSelectMode) return;
+                    setIsXUnitMenuOpen((prev) => !prev);
+                  }}
+                  onKeyDown={(e) => {
+                    if (saveIsSelectMode) return;
+                    if (e.key === "Escape") {
+                      setIsXUnitMenuOpen(false);
+                      return;
+                    }
+                    if (
+                      e.key === "Enter" ||
+                      e.key === " " ||
+                      e.key === "ArrowDown"
+                    ) {
+                      e.preventDefault();
+                      setIsXUnitMenuOpen(true);
+                    }
+                  }}
+                  className="input_native no-focus-outline p-0 pr-8 text-left cursor-pointer select-none disabled:cursor-not-allowed"
+                >
+                  <span className="block truncate text-text-primary">
+                    {xUnitOptions.find(
+                      (entry) =>
+                        String(entry.value) === String(config.xUnit || "V"),
+                    )?.label || t("da_save_x_unit")}
+                  </span>
+                </button>
+
+                <span className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-secondary pointer-events-none">
+                  <ChevronDown
+                    size={16}
+                    className={`transition-transform duration-200 ${
+                      isXUnitMenuOpen ? "rotate-180" : ""
+                    }`}
+                  />
+                </span>
+              </div>
+              <DropdownMenu
+                isOpen={isXUnitMenuOpen}
+                onClose={() => setIsXUnitMenuOpen(false)}
+                anchorRef={xUnitMenuRef}
                 id={
-                  includeIds ? "device-analysis-template-x-unit" : undefined
+                  includeIds ? "device-analysis-template-x-unit-menu" : undefined
                 }
-                name="xUnit"
-                value={config.xUnit || "V"}
-                disabled={saveIsSelectMode}
-                onChange={(next) => {
-                  setConfigFromSave((prev) => ({
-                    ...prev,
-                    xUnit: String(next || "V"),
-                  }));
-                  markFieldSource("xUnit", "manual");
-                }}
-                options={xUnitOptions}
-                placeholder={t("da_save_x_unit")}
-                className="w-full"
-              />
+                role="menu"
+              >
+                {xUnitOptions.map((entry) => {
+                  const isActive =
+                    String(entry.value) === String(config.xUnit || "V");
+                  return (
+                    <button
+                      key={`${entry.value}`}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={isActive}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-bg-page cursor-pointer transition-colors"
+                      onClick={() => {
+                        setConfigFromSave((prev) => ({
+                          ...prev,
+                          xUnit: String(entry.value || "V"),
+                        }));
+                        markFieldSource("xUnit", "manual");
+                        setIsXUnitMenuOpen(false);
+                      }}
+                    >
+                      <span className="text-sm text-text-primary truncate">
+                        {entry.label}
+                      </span>
+                      {isActive ? (
+                        <span className="text-accent">
+                          <Check size={14} />
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </DropdownMenu>
             </div>
           </div>
         </div>
@@ -671,24 +990,98 @@ const TemplateManager = ({
                   inputClassName="no-spinner"
                 />
               </div>
-              <div className="min-w-0">
-                <Select
+              <div className="min-w-0 relative" ref={yUnitMenuRef}>
+                <div
+                  className="input_field input_field--md relative flex-1 min-w-0 pr-1"
+                  data-state={saveIsSelectMode ? "disable" : "enable"}
+                >
+                  <button
+                    id={includeIds ? "device-analysis-template-y-unit" : undefined}
+                    type="button"
+                    disabled={saveIsSelectMode}
+                    aria-haspopup="menu"
+                    aria-expanded={isYUnitMenuOpen}
+                    aria-controls={
+                      includeIds ? "device-analysis-template-y-unit-menu" : undefined
+                    }
+                    onClick={() => {
+                      if (saveIsSelectMode) return;
+                      setIsYUnitMenuOpen((prev) => !prev);
+                    }}
+                    onKeyDown={(e) => {
+                      if (saveIsSelectMode) return;
+                      if (e.key === "Escape") {
+                        setIsYUnitMenuOpen(false);
+                        return;
+                      }
+                      if (
+                        e.key === "Enter" ||
+                        e.key === " " ||
+                        e.key === "ArrowDown"
+                      ) {
+                        e.preventDefault();
+                        setIsYUnitMenuOpen(true);
+                      }
+                    }}
+                    className="input_native no-focus-outline p-0 pr-8 text-left cursor-pointer select-none disabled:cursor-not-allowed"
+                  >
+                    <span className="block truncate text-text-primary">
+                      {yUnitOptions.find(
+                        (entry) =>
+                          String(entry.value) === String(config.yUnit || "A"),
+                      )?.label || t("da_save_y_unit")}
+                    </span>
+                  </button>
+
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-secondary pointer-events-none">
+                    <ChevronDown
+                      size={16}
+                      className={`transition-transform duration-200 ${
+                        isYUnitMenuOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </span>
+                </div>
+                <DropdownMenu
+                  isOpen={isYUnitMenuOpen}
+                  onClose={() => setIsYUnitMenuOpen(false)}
+                  anchorRef={yUnitMenuRef}
                   id={
-                    includeIds ? "device-analysis-template-y-unit" : undefined
+                    includeIds ? "device-analysis-template-y-unit-menu" : undefined
                   }
-                  value={config.yUnit || "A"}
-                  disabled={saveIsSelectMode}
-                  onChange={(next) => {
-                    setConfigFromSave((prev) => ({
-                      ...prev,
-                      yUnit: String(next || "A"),
-                    }));
-                    markFieldSource("yUnit", "manual");
-                  }}
-                  options={yUnitOptions}
-                  placeholder={t("da_save_y_unit")}
-                  className="w-full"
-                />
+                  role="menu"
+                >
+                  {yUnitOptions.map((entry) => {
+                    const isActive =
+                      String(entry.value) === String(config.yUnit || "A");
+                    return (
+                      <button
+                        key={`${entry.value}`}
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={isActive}
+                        className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-bg-page cursor-pointer transition-colors"
+                        onClick={() => {
+                          setConfigFromSave((prev) => ({
+                            ...prev,
+                            yUnit: String(entry.value || "A"),
+                          }));
+                          markFieldSource("yUnit", "manual");
+                          setIsYUnitMenuOpen(false);
+                        }}
+                      >
+                        <span className="text-sm text-text-primary truncate">
+                          {entry.label}
+                        </span>
+                        {isActive ? (
+                          <span className="text-accent">
+                            <Check size={14} />
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </DropdownMenu>
               </div>
             </div>
           </div>
@@ -705,7 +1098,6 @@ const TemplateManager = ({
             label={t("da_save_curve_type")}
             value={config.bottomTitle || ""}
             name="bottomTitle"
-            disabled={disableVarInputs}
             onChange={(next) => {
               setConfigFromSave((prev) => ({ ...prev, bottomTitle: next }));
               markFieldSource("bottomTitle", "manual");
@@ -713,60 +1105,6 @@ const TemplateManager = ({
             onBlur={toastVarPairIfInvalid}
             placeholder={t("da_save_var1")}
           />
-        </div>
-
-        {/* 4. Match by File Name */}
-        <div>
-          <label className="block text-sm font-medium text-text-secondary mb-2">
-            {t("da_match_by_file_name")}
-          </label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4">
-            <div className="min-w-0">
-              <Input
-                id={
-                  includeIds
-                    ? "device-analysis-template-file-name-vg-keywords"
-                    : undefined
-                }
-                value={config.fileNameVgKeywords || ""}
-                name="fileNameVgKeywords"
-                disabled={disableFileNameInputs}
-                onChange={(next) => {
-                  setConfigFromSave((prev) => ({
-                    ...prev,
-                    fileNameVgKeywords: next,
-                  }));
-                  markFieldSource("fileNameVgKeywords", "manual");
-                }}
-                placeholder={t("da_save_transfer")}
-              />
-            </div>
-            <div className="min-w-0">
-              <Input
-                id={
-                  includeIds
-                    ? "device-analysis-template-file-name-vd-keywords"
-                    : undefined
-                }
-                value={config.fileNameVdKeywords || ""}
-                name="fileNameVdKeywords"
-                disabled={disableFileNameInputs}
-                onChange={(next) => {
-                  setConfigFromSave((prev) => ({
-                    ...prev,
-                    fileNameVdKeywords: next,
-                  }));
-                  markFieldSource("fileNameVdKeywords", "manual");
-                }}
-                placeholder={t("da_save_output")}
-              />
-            </div>
-          </div>
-          {curveTaggingConflict && (
-            <p className="text-xs text-red-600 mt-1">
-              {t("da_save_curve_tagging_conflict")}
-            </p>
-          )}
         </div>
 
         {/* 5-6. Var2 / Var3 */}
@@ -781,7 +1119,6 @@ const TemplateManager = ({
               label={t("da_save_legend")}
               value={config.legendPrefix || ""}
               name="legendPrefix"
-              disabled={disableVarInputs}
               onChange={(next) => {
                 setConfigFromSave((prev) => ({ ...prev, legendPrefix: next }));
                 markFieldSource("legendPrefix", "manual");
@@ -873,6 +1210,10 @@ const TemplateManager = ({
     includeIds = true,
     measureOnly = false,
   } = {}) => {
+    const setConfigFromSelect = (updater: SetStateAction<TemplateConfig>) => {
+      markSaveDraftTouched();
+      setConfig(updater);
+    };
     const shouldAttachDropdownRef = includeIds && !measureOnly;
     const shouldRenderDropdownMenu = includeIds && !measureOnly;
     const resolvedInputId = includeIds
@@ -1044,32 +1385,6 @@ const TemplateManager = ({
         <div className="flex items-center gap-3">
           <Button
             id={
-              includeIds ? "device-analysis-template-apply-to-all" : undefined
-            }
-            variant="primary"
-            size="md"
-            className="flex-1"
-            onClick={measureOnly ? undefined : applyConfiguration}
-          >
-            {t("da_apply_to_all_files")}
-          </Button>
-          <Button
-            id={
-              includeIds ? "device-analysis-template-apply-to-new" : undefined
-            }
-            variant="secondary"
-            size="md"
-            className="flex-1"
-            onClick={measureOnly ? undefined : applyNewFilesConfiguration}
-            disabled={typeof onTemplateAppliedIncremental !== "function"}
-          >
-            {t("da_apply_to_new_files")}
-          </Button>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <Button
-            id={
               includeIds ? "device-analysis-template-export-config" : undefined
             }
             variant="secondary"
@@ -1105,6 +1420,365 @@ const TemplateManager = ({
             onChange={handleImportTemplatesFileChange}
           />
         ) : null}
+
+        <div>
+          <label className="block text-sm font-medium text-text-secondary mb-2">
+            {t("da_match_by_file_name")}
+          </label>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <div className="grid grid-cols-1 gap-4">
+                <div className="min-w-0">
+                  <Input
+                    id={
+                      includeIds
+                        ? "device-analysis-template-file-name-vg-keywords"
+                        : undefined
+                    }
+                    value={config.fileNameVgKeywords || ""}
+                    name="fileNameVgKeywords"
+                    disabled={measureOnly}
+                    onChange={(next) => {
+                      setConfigFromSelect((prev) => ({
+                        ...prev,
+                        fileNameVgKeywords: next,
+                      }));
+                      markFieldSource("fileNameVgKeywords", "manual");
+                    }}
+                    placeholder={t("da_save_transfer")}
+                  />
+                </div>
+                <div
+                  className="relative min-w-0"
+                  ref={transferRuleTemplateMenuRef}
+                >
+                  <div
+                    className="input_field input_field--md relative flex-1 min-w-0 pr-1"
+                    data-state={
+                      measureOnly || templatesLoading ? "disable" : "enable"
+                    }
+                  >
+                    <button
+                      id={
+                        includeIds
+                          ? "device-analysis-template-transfer-rule-template-select"
+                          : undefined
+                      }
+                      type="button"
+                      disabled={measureOnly || templatesLoading}
+                      aria-haspopup="menu"
+                      aria-expanded={isTransferRuleTemplateMenuOpen}
+                      aria-controls={
+                        includeIds
+                          ? "device-analysis-template-transfer-rule-template-menu"
+                          : undefined
+                      }
+                      onClick={() => {
+                        if (measureOnly || templatesLoading) return;
+                        setIsTransferRuleTemplateMenuOpen((prev) => !prev);
+                      }}
+                      onKeyDown={(e) => {
+                        if (measureOnly || templatesLoading) return;
+                        if (e.key === "Escape") {
+                          setIsTransferRuleTemplateMenuOpen(false);
+                          return;
+                        }
+                        if (
+                          e.key === "Enter" ||
+                          e.key === " " ||
+                          e.key === "ArrowDown"
+                        ) {
+                          e.preventDefault();
+                          setIsTransferRuleTemplateMenuOpen(true);
+                        }
+                      }}
+                      className="input_native no-focus-outline p-0 pr-8 text-left cursor-pointer select-none disabled:cursor-not-allowed"
+                    >
+                      <span
+                        className={`block truncate ${
+                          transferRuleTemplateName
+                            ? "text-text-primary"
+                            : "text-text-tertiary"
+                        }`}
+                      >
+                        {transferRuleTemplateName || t("da_template_name")}
+                      </span>
+                    </button>
+
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-secondary pointer-events-none">
+                      <ChevronDown
+                        size={16}
+                        className={`transition-transform duration-200 ${
+                          isTransferRuleTemplateMenuOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </span>
+                  </div>
+                  <DropdownMenu
+                    isOpen={isTransferRuleTemplateMenuOpen}
+                    onClose={() => setIsTransferRuleTemplateMenuOpen(false)}
+                    anchorRef={transferRuleTemplateMenuRef}
+                    id={
+                      includeIds
+                        ? "device-analysis-template-transfer-rule-template-menu"
+                        : undefined
+                    }
+                    role="menu"
+                  >
+                    {availableTemplateOptions.length > 0 ? (
+                      availableTemplateOptions.map((entry) => {
+                        const isActive =
+                          String(entry.value) ===
+                          String(transferRuleTemplateName || "");
+                        return (
+                          <button
+                            key={`${entry.value}`}
+                            type="button"
+                            role="menuitemradio"
+                            aria-checked={isActive}
+                            className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-bg-page cursor-pointer transition-colors"
+                            onClick={() => {
+                              setTransferRuleTemplateName(
+                                String(entry.value || ""),
+                              );
+                              setIsTransferRuleTemplateMenuOpen(false);
+                            }}
+                          >
+                            <span className="text-sm text-text-primary truncate">
+                              {entry.label}
+                            </span>
+                            {isActive ? (
+                              <span className="text-accent">
+                                <Check size={14} />
+                              </span>
+                            ) : null}
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <div className="px-3 py-2 text-sm text-text-secondary italic text-center">
+                        {t("da_template_name")}
+                      </div>
+                    )}
+                  </DropdownMenu>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Button
+                  id={
+                    includeIds
+                      ? "device-analysis-template-transfer-rule-apply-to-all"
+                      : undefined
+                  }
+                  variant="primary"
+                  size="md"
+                  onClick={
+                    measureOnly
+                      ? undefined
+                      : () => applyRuleTemplate("transfer", false)
+                  }
+                  disabled={measureOnly || !transferRuleTemplate}
+                >
+                  {t("da_apply_to_all_files")}
+                </Button>
+                <Button
+                  id={
+                    includeIds
+                      ? "device-analysis-template-transfer-rule-apply-to-new"
+                      : undefined
+                  }
+                  variant="secondary"
+                  size="md"
+                  onClick={
+                    measureOnly
+                      ? undefined
+                      : () => applyRuleTemplate("transfer", true)
+                  }
+                  disabled={
+                    measureOnly ||
+                    !transferRuleTemplate ||
+                    typeof onTemplateAppliedIncremental !== "function"
+                  }
+                >
+                  {t("da_apply_to_new_files")}
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="grid grid-cols-1 gap-4">
+                <div className="min-w-0">
+                  <Input
+                    id={
+                      includeIds
+                        ? "device-analysis-template-file-name-vd-keywords"
+                        : undefined
+                    }
+                    value={config.fileNameVdKeywords || ""}
+                    name="fileNameVdKeywords"
+                    disabled={measureOnly}
+                    onChange={(next) => {
+                      setConfigFromSelect((prev) => ({
+                        ...prev,
+                        fileNameVdKeywords: next,
+                      }));
+                      markFieldSource("fileNameVdKeywords", "manual");
+                    }}
+                    placeholder={t("da_save_output")}
+                  />
+                </div>
+                <div className="relative min-w-0" ref={outputRuleTemplateMenuRef}>
+                  <div
+                    className="input_field input_field--md relative flex-1 min-w-0 pr-1"
+                    data-state={
+                      measureOnly || templatesLoading ? "disable" : "enable"
+                    }
+                  >
+                    <button
+                      id={
+                        includeIds
+                          ? "device-analysis-template-output-rule-template-select"
+                          : undefined
+                      }
+                      type="button"
+                      disabled={measureOnly || templatesLoading}
+                      aria-haspopup="menu"
+                      aria-expanded={isOutputRuleTemplateMenuOpen}
+                      aria-controls={
+                        includeIds
+                          ? "device-analysis-template-output-rule-template-menu"
+                          : undefined
+                      }
+                      onClick={() => {
+                        if (measureOnly || templatesLoading) return;
+                        setIsOutputRuleTemplateMenuOpen((prev) => !prev);
+                      }}
+                      onKeyDown={(e) => {
+                        if (measureOnly || templatesLoading) return;
+                        if (e.key === "Escape") {
+                          setIsOutputRuleTemplateMenuOpen(false);
+                          return;
+                        }
+                        if (
+                          e.key === "Enter" ||
+                          e.key === " " ||
+                          e.key === "ArrowDown"
+                        ) {
+                          e.preventDefault();
+                          setIsOutputRuleTemplateMenuOpen(true);
+                        }
+                      }}
+                      className="input_native no-focus-outline p-0 pr-8 text-left cursor-pointer select-none disabled:cursor-not-allowed"
+                    >
+                      <span
+                        className={`block truncate ${
+                          outputRuleTemplateName
+                            ? "text-text-primary"
+                            : "text-text-tertiary"
+                        }`}
+                      >
+                        {outputRuleTemplateName || t("da_template_name")}
+                      </span>
+                    </button>
+
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-secondary pointer-events-none">
+                      <ChevronDown
+                        size={16}
+                        className={`transition-transform duration-200 ${
+                          isOutputRuleTemplateMenuOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </span>
+                  </div>
+                  <DropdownMenu
+                    isOpen={isOutputRuleTemplateMenuOpen}
+                    onClose={() => setIsOutputRuleTemplateMenuOpen(false)}
+                    anchorRef={outputRuleTemplateMenuRef}
+                    id={
+                      includeIds
+                        ? "device-analysis-template-output-rule-template-menu"
+                        : undefined
+                    }
+                    role="menu"
+                  >
+                    {availableTemplateOptions.length > 0 ? (
+                      availableTemplateOptions.map((entry) => {
+                        const isActive =
+                          String(entry.value) === String(outputRuleTemplateName || "");
+                        return (
+                          <button
+                            key={`${entry.value}`}
+                            type="button"
+                            role="menuitemradio"
+                            aria-checked={isActive}
+                            className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-bg-page cursor-pointer transition-colors"
+                            onClick={() => {
+                              setOutputRuleTemplateName(String(entry.value || ""));
+                              setIsOutputRuleTemplateMenuOpen(false);
+                            }}
+                          >
+                            <span className="text-sm text-text-primary truncate">
+                              {entry.label}
+                            </span>
+                            {isActive ? (
+                              <span className="text-accent">
+                                <Check size={14} />
+                              </span>
+                            ) : null}
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <div className="px-3 py-2 text-sm text-text-secondary italic text-center">
+                        {t("da_template_name")}
+                      </div>
+                    )}
+                  </DropdownMenu>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <Button
+                  id={
+                    includeIds
+                      ? "device-analysis-template-output-rule-apply-to-all"
+                      : undefined
+                  }
+                  variant="primary"
+                  size="md"
+                  onClick={
+                    measureOnly
+                      ? undefined
+                      : () => applyRuleTemplate("output", false)
+                  }
+                  disabled={measureOnly || !outputRuleTemplate}
+                >
+                  {t("da_apply_to_all_files")}
+                </Button>
+                <Button
+                  id={
+                    includeIds
+                      ? "device-analysis-template-output-rule-apply-to-new"
+                      : undefined
+                  }
+                  variant="secondary"
+                  size="md"
+                  onClick={
+                    measureOnly
+                      ? undefined
+                      : () => applyRuleTemplate("output", true)
+                  }
+                  disabled={
+                    measureOnly ||
+                    !outputRuleTemplate ||
+                    typeof onTemplateAppliedIncremental !== "function"
+                  }
+                >
+                  {t("da_apply_to_new_files")}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
 
         <div
           id={

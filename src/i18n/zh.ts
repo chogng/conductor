@@ -1,4 +1,4 @@
-const messages = {
+﻿const messages = {
     common_clear: '清除',
     da_analysis_visualization: '分析与可视化',
     da_apply_to_all_files: '应用到所有',
@@ -43,7 +43,7 @@ const messages = {
     da_extract_started_incremental: '提取 {count} 个新增文件（{detail}{groups}）以显示图表。完成后将自动跳转到分析与可视化页面。{warnings}',
     da_extract_warnings_block: '\n\n警告：\n- {warnings}',
     da_extraction_errors: '提取错误',
-    da_general_template: '通用模板',
+    da_general_template: '模板管理',
     da_import: '数据导入',
     da_import_csv: '导入文件',
     da_import_section: '导入文件',

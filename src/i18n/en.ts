@@ -1,4 +1,4 @@
-const messages = {
+﻿const messages = {
     common_clear: 'Clear',
     da_analysis_visualization: 'Analysis & Visualization',
     da_apply_to_all_files: 'Apply to All',
@@ -43,7 +43,7 @@ const messages = {
     da_extract_started_incremental: 'Extracting {count} new file(s) ({detail}{groups}) to display charts. Will auto-switch to Analysis & Visualization when done.{warnings}',
     da_extract_warnings_block: '\n\nWarnings:\n- {warnings}',
     da_extraction_errors: 'Extraction errors',
-    da_general_template: 'General Template',
+    da_general_template: 'Template Management',
     da_import: 'Data Import',
     da_import_csv: 'Import Files',
     da_import_section: 'Import Files',

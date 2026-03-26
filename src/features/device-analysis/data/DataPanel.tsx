@@ -1,4 +1,4 @@
-import { RefreshCw, Upload } from "lucide-react";
+import { Import, RefreshCw } from "lucide-react";
 import {
   useEffect,
   useRef,
@@ -139,7 +139,7 @@ const DeviceAnalysisDataPanel = ({
                     importerRef.current?.openFileDialog?.();
                   }}
                 >
-                  <Upload size={16} />
+                  <Import size={16} />
                   {t("da_import_csv")}
                 </Button>
 

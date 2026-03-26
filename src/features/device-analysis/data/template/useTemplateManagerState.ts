@@ -23,6 +23,7 @@ import {
   validateTemplateForApply,
   validateTemplateForSave,
 } from "./templateValidation";
+import { stableStringify } from "../../shared/lib/deviceAnalysisUtils";
 
 type TemplateMode = "select" | "save";
 type InputSource = "manual" | "picked";
@@ -730,11 +731,14 @@ export const useTemplateManagerState = ({
   ]);
 
   const applyWithHandler = useCallback(
-    (handler: ((nextConfig: TemplateConfig) => unknown) | undefined) => {
+    (
+      handler: ((nextConfig: TemplateConfig) => unknown) | undefined,
+      sourceConfig: TemplateConfig = config,
+    ) => {
       if (typeof handler !== "function") return;
 
       const validation = validateTemplateForApply(
-        config,
+        sourceConfig,
         t,
       );
       if (!validation.ok || !validation.normalized) {
@@ -744,14 +748,7 @@ export const useTemplateManagerState = ({
 
       const normalized = validation.normalized;
 
-      if (
-        normalized.bottomTitle !== config.bottomTitle ||
-        normalized.legendPrefix !== config.legendPrefix ||
-        normalized.xUnit !== config.xUnit ||
-        normalized.yUnit !== config.yUnit ||
-        normalized.fileNameVgKeywords !== config.fileNameVgKeywords ||
-        normalized.fileNameVdKeywords !== config.fileNameVdKeywords
-      ) {
+      if (stableStringify(normalized) !== stableStringify(config)) {
         setConfig(normalized);
       }
 
@@ -791,6 +788,20 @@ export const useTemplateManagerState = ({
   const applyNewFilesConfiguration = useCallback(() => {
     applyWithHandler(onTemplateAppliedIncremental);
   }, [applyWithHandler, onTemplateAppliedIncremental]);
+
+  const applyConfigurationWithConfig = useCallback(
+    (nextConfig: TemplateConfig) => {
+      applyWithHandler(onTemplateApplied, nextConfig);
+    },
+    [applyWithHandler, onTemplateApplied],
+  );
+
+  const applyNewFilesConfigurationWithConfig = useCallback(
+    (nextConfig: TemplateConfig) => {
+      applyWithHandler(onTemplateAppliedIncremental, nextConfig);
+    },
+    [applyWithHandler, onTemplateAppliedIncremental],
+  );
 
   const handleTemplateModeChange = useCallback(
     (nextMode: unknown) => {
@@ -872,12 +883,15 @@ export const useTemplateManagerState = ({
 
   return {
     applyConfiguration,
+    applyConfigurationWithConfig,
     applyNewFilesConfiguration,
+    applyNewFilesConfigurationWithConfig,
     closeDiscardConfirm,
     closeTemplateDropdown,
     config,
     confirmDiscardAndSwitch,
     createTemplateExportBundle,
+    ensureTemplatesLoaded,
     handleCreateNewTemplate,
     handleDeleteTemplate,
     importTemplatesFromPayload,
