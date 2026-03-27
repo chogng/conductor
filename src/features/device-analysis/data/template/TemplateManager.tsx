@@ -622,9 +622,11 @@ const TemplateManager = ({
     };
     const isXAutoMode = xSegmentationMode === "auto";
     const isXSegmentsMode = xSegmentationMode === "segments";
-    const xSegmentationInputValue = isXSegmentsMode
-      ? String(config.xSegments ?? "")
-      : String(config.xPoints ?? "");
+    const xSegmentationInputValue = isXAutoMode
+      ? ""
+      : isXSegmentsMode
+        ? String(config.xSegments ?? "")
+        : String(config.xPoints ?? "");
     const xSegmentationInputPlaceholder = isXAutoMode
       ? t("da_save_segmentation_mode_auto")
       : isXSegmentsMode
