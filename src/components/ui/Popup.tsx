@@ -71,7 +71,7 @@ const Popup = ({
         data-align={align}
         tabIndex={-1}
         className={`
-          rounded-xl shadow-premium p-1 border border-border-subtle
+          rounded-xl shadow-xl p-1 border border-border-subtle
           bg-bg-surface/80 backdrop-blur-xl
           transition-all duration-200 ease-out
           ${align === "right" ? "origin-top-right" : align === "center" ? "origin-top" : "origin-top-left"}

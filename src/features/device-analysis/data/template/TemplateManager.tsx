@@ -190,13 +190,6 @@ const TemplateManager = ({
     setToast((prev) => ({ ...prev, isVisible: false }));
   }, []);
   const containerRef = useRef<HTMLElement | null>(null);
-  const xSegmentationModeMenuRef = useRef<HTMLDivElement | null>(null);
-  const xUnitMenuRef = useRef<HTMLDivElement | null>(null);
-  const yUnitMenuRef = useRef<HTMLDivElement | null>(null);
-  const [isXSegmentationModeMenuOpen, setIsXSegmentationModeMenuOpen] =
-    useState(false);
-  const [isXUnitMenuOpen, setIsXUnitMenuOpen] = useState(false);
-  const [isYUnitMenuOpen, setIsYUnitMenuOpen] = useState(false);
   const yUnitOptions = useMemo(
     () =>
       DEVICE_ANALYSIS_Y_UNIT_VALUES.map((unit) => ({
@@ -466,9 +459,6 @@ const TemplateManager = ({
   }, [availableTemplateNames]);
   useEffect(() => {
     if (templateMode !== "save") {
-      setIsXSegmentationModeMenuOpen(false);
-      setIsXUnitMenuOpen(false);
-      setIsYUnitMenuOpen(false);
     }
   }, [templateMode]);
   const lastVarPairToastRef = useRef("");
@@ -750,200 +740,56 @@ const TemplateManager = ({
                 inputClassName="no-spinner"
               />
             </div>
-            <div className="relative min-w-0" ref={xSegmentationModeMenuRef}>
-              <div
-                className="input_field input_field--md relative flex-1 min-w-0 pr-1"
-                data-state={saveIsSelectMode ? "disable" : "enable"}
-              >
-                <button
-                  id={
-                    includeIds
-                      ? "device-analysis-template-x-segmentation-mode"
-                      : undefined
-                  }
-                  type="button"
-                  disabled={saveIsSelectMode}
-                  aria-haspopup="menu"
-                  aria-expanded={isXSegmentationModeMenuOpen}
-                  aria-controls={
-                    includeIds
-                      ? "device-analysis-template-x-segmentation-mode-menu"
-                      : undefined
-                  }
-                  onClick={() => {
-                    if (saveIsSelectMode) return;
-                    setIsXSegmentationModeMenuOpen((prev) => !prev);
-                  }}
-                  onKeyDown={(e) => {
-                    if (saveIsSelectMode) return;
-                    if (e.key === "Escape") {
-                      setIsXSegmentationModeMenuOpen(false);
-                      return;
-                    }
-                    if (
-                      e.key === "Enter" ||
-                      e.key === " " ||
-                      e.key === "ArrowDown"
-                    ) {
-                      e.preventDefault();
-                      setIsXSegmentationModeMenuOpen(true);
-                    }
-                  }}
-                  className="input_native no-focus-outline p-0 pr-8 text-left cursor-pointer select-none disabled:cursor-not-allowed"
-                >
-                  <span className="block truncate text-text-primary">
-                    {xSegmentationModeOptions.find(
-                      (entry) =>
-                        String(entry.value) === String(xSegmentationMode),
-                    )?.label || t("da_save_segmentation_mode")}
-                  </span>
-                </button>
-
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-secondary pointer-events-none">
-                  <ChevronDown
-                    size={16}
-                    className={`transition-transform duration-200 ${
-                      isXSegmentationModeMenuOpen ? "rotate-180" : ""
-                    }`}
-                  />
-                </span>
-              </div>
-              <DropdownMenu
-                isOpen={isXSegmentationModeMenuOpen}
-                onClose={() => setIsXSegmentationModeMenuOpen(false)}
-                anchorRef={xSegmentationModeMenuRef}
+            <div className="relative min-w-0">
+              <Select
                 id={
+                  includeIds
+                    ? "device-analysis-template-x-segmentation-mode"
+                    : undefined
+                }
+                menuId={
                   includeIds
                     ? "device-analysis-template-x-segmentation-mode-menu"
                     : undefined
                 }
-                role="menu"
-              >
-                {xSegmentationModeOptions.map((entry) => {
-                  const isActive =
-                    String(entry.value) === String(xSegmentationMode);
-                  return (
-                    <button
-                      key={`${entry.value}`}
-                      type="button"
-                      role="menuitemradio"
-                      aria-checked={isActive}
-                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-bg-page cursor-pointer transition-colors"
-                      onClick={() => {
-                        const nextMode = resolveXSegmentationMode(entry.value);
-                        setConfigFromSave((prev) => ({
-                          ...prev,
-                          xSegmentationMode: nextMode,
-                        }));
-                        markFieldSource("xSegmentationMode", "manual");
-                        setIsXSegmentationModeMenuOpen(false);
-                      }}
-                    >
-                      <span className="text-sm text-text-primary truncate">
-                        {entry.label}
-                      </span>
-                      {isActive ? (
-                        <span className="text-accent">
-                          <Check size={14} />
-                        </span>
-                      ) : null}
-                    </button>
-                  );
-                })}
-              </DropdownMenu>
+                size="md"
+                className="w-full"
+                value={xSegmentationMode}
+                options={xSegmentationModeOptions}
+                onChange={(value) => {
+                  const nextMode = resolveXSegmentationMode(value);
+                  setConfigFromSave((prev) => ({
+                    ...prev,
+                    xSegmentationMode: nextMode,
+                  }));
+                  markFieldSource("xSegmentationMode", "manual");
+                }}
+                placeholder={t("da_save_segmentation_mode")}
+                disabled={saveIsSelectMode}
+                stableWidth={false}
+              />
             </div>
-            <div className="sm:col-span-2 relative min-w-0" ref={xUnitMenuRef}>
-              <div
-                className="input_field input_field--md relative flex-1 min-w-0 pr-1"
-                data-state={saveIsSelectMode ? "disable" : "enable"}
-              >
-                <button
-                  id={includeIds ? "device-analysis-template-x-unit" : undefined}
-                  type="button"
-                  disabled={saveIsSelectMode}
-                  aria-haspopup="menu"
-                  aria-expanded={isXUnitMenuOpen}
-                  aria-controls={
-                    includeIds ? "device-analysis-template-x-unit-menu" : undefined
-                  }
-                  onClick={() => {
-                    if (saveIsSelectMode) return;
-                    setIsXUnitMenuOpen((prev) => !prev);
-                  }}
-                  onKeyDown={(e) => {
-                    if (saveIsSelectMode) return;
-                    if (e.key === "Escape") {
-                      setIsXUnitMenuOpen(false);
-                      return;
-                    }
-                    if (
-                      e.key === "Enter" ||
-                      e.key === " " ||
-                      e.key === "ArrowDown"
-                    ) {
-                      e.preventDefault();
-                      setIsXUnitMenuOpen(true);
-                    }
-                  }}
-                  className="input_native no-focus-outline p-0 pr-8 text-left cursor-pointer select-none disabled:cursor-not-allowed"
-                >
-                  <span className="block truncate text-text-primary">
-                    {xUnitOptions.find(
-                      (entry) =>
-                        String(entry.value) === String(config.xUnit || "V"),
-                    )?.label || t("da_save_x_unit")}
-                  </span>
-                </button>
-
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-secondary pointer-events-none">
-                  <ChevronDown
-                    size={16}
-                    className={`transition-transform duration-200 ${
-                      isXUnitMenuOpen ? "rotate-180" : ""
-                    }`}
-                  />
-                </span>
-              </div>
-              <DropdownMenu
-                isOpen={isXUnitMenuOpen}
-                onClose={() => setIsXUnitMenuOpen(false)}
-                anchorRef={xUnitMenuRef}
-                id={
+            <div className="sm:col-span-2 relative min-w-0">
+              <Select
+                id={includeIds ? "device-analysis-template-x-unit" : undefined}
+                menuId={
                   includeIds ? "device-analysis-template-x-unit-menu" : undefined
                 }
-                role="menu"
-              >
-                {xUnitOptions.map((entry) => {
-                  const isActive =
-                    String(entry.value) === String(config.xUnit || "V");
-                  return (
-                    <button
-                      key={`${entry.value}`}
-                      type="button"
-                      role="menuitemradio"
-                      aria-checked={isActive}
-                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-bg-page cursor-pointer transition-colors"
-                      onClick={() => {
-                        setConfigFromSave((prev) => ({
-                          ...prev,
-                          xUnit: String(entry.value || "V"),
-                        }));
-                        markFieldSource("xUnit", "manual");
-                        setIsXUnitMenuOpen(false);
-                      }}
-                    >
-                      <span className="text-sm text-text-primary truncate">
-                        {entry.label}
-                      </span>
-                      {isActive ? (
-                        <span className="text-accent">
-                          <Check size={14} />
-                        </span>
-                      ) : null}
-                    </button>
-                  );
-                })}
-              </DropdownMenu>
+                size="md"
+                className="w-full"
+                value={String(config.xUnit || "V")}
+                options={xUnitOptions}
+                onChange={(value) => {
+                  setConfigFromSave((prev) => ({
+                    ...prev,
+                    xUnit: String(value || "V"),
+                  }));
+                  markFieldSource("xUnit", "manual");
+                }}
+                placeholder={t("da_save_x_unit")}
+                disabled={saveIsSelectMode}
+                stableWidth={false}
+              />
             </div>
           </div>
         </div>
@@ -1050,98 +896,27 @@ const TemplateManager = ({
                   inputClassName="no-spinner"
                 />
               </div>
-              <div className="min-w-0 relative" ref={yUnitMenuRef}>
-                <div
-                  className="input_field input_field--md relative flex-1 min-w-0 pr-1"
-                  data-state={saveIsSelectMode ? "disable" : "enable"}
-                >
-                  <button
-                    id={includeIds ? "device-analysis-template-y-unit" : undefined}
-                    type="button"
-                    disabled={saveIsSelectMode}
-                    aria-haspopup="menu"
-                    aria-expanded={isYUnitMenuOpen}
-                    aria-controls={
-                      includeIds ? "device-analysis-template-y-unit-menu" : undefined
-                    }
-                    onClick={() => {
-                      if (saveIsSelectMode) return;
-                      setIsYUnitMenuOpen((prev) => !prev);
-                    }}
-                    onKeyDown={(e) => {
-                      if (saveIsSelectMode) return;
-                      if (e.key === "Escape") {
-                        setIsYUnitMenuOpen(false);
-                        return;
-                      }
-                      if (
-                        e.key === "Enter" ||
-                        e.key === " " ||
-                        e.key === "ArrowDown"
-                      ) {
-                        e.preventDefault();
-                        setIsYUnitMenuOpen(true);
-                      }
-                    }}
-                    className="input_native no-focus-outline p-0 pr-8 text-left cursor-pointer select-none disabled:cursor-not-allowed"
-                  >
-                    <span className="block truncate text-text-primary">
-                      {yUnitOptions.find(
-                        (entry) =>
-                          String(entry.value) === String(config.yUnit || "A"),
-                      )?.label || t("da_save_y_unit")}
-                    </span>
-                  </button>
-
-                  <span className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-secondary pointer-events-none">
-                    <ChevronDown
-                      size={16}
-                      className={`transition-transform duration-200 ${
-                        isYUnitMenuOpen ? "rotate-180" : ""
-                      }`}
-                    />
-                  </span>
-                </div>
-                <DropdownMenu
-                  isOpen={isYUnitMenuOpen}
-                  onClose={() => setIsYUnitMenuOpen(false)}
-                  anchorRef={yUnitMenuRef}
-                  id={
+              <div className="min-w-0 relative">
+                <Select
+                  id={includeIds ? "device-analysis-template-y-unit" : undefined}
+                  menuId={
                     includeIds ? "device-analysis-template-y-unit-menu" : undefined
                   }
-                  role="menu"
-                >
-                  {yUnitOptions.map((entry) => {
-                    const isActive =
-                      String(entry.value) === String(config.yUnit || "A");
-                    return (
-                      <button
-                        key={`${entry.value}`}
-                        type="button"
-                        role="menuitemradio"
-                        aria-checked={isActive}
-                        className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-bg-page cursor-pointer transition-colors"
-                        onClick={() => {
-                          setConfigFromSave((prev) => ({
-                            ...prev,
-                            yUnit: String(entry.value || "A"),
-                          }));
-                          markFieldSource("yUnit", "manual");
-                          setIsYUnitMenuOpen(false);
-                        }}
-                      >
-                        <span className="text-sm text-text-primary truncate">
-                          {entry.label}
-                        </span>
-                        {isActive ? (
-                          <span className="text-accent">
-                            <Check size={14} />
-                          </span>
-                        ) : null}
-                      </button>
-                    );
-                  })}
-                </DropdownMenu>
+                  size="md"
+                  className="w-full"
+                  value={String(config.yUnit || "A")}
+                  options={yUnitOptions}
+                  onChange={(value) => {
+                    setConfigFromSave((prev) => ({
+                      ...prev,
+                      yUnit: String(value || "A"),
+                    }));
+                    markFieldSource("yUnit", "manual");
+                  }}
+                  placeholder={t("da_save_y_unit")}
+                  disabled={saveIsSelectMode}
+                  stableWidth={false}
+                />
               </div>
             </div>
           </div>

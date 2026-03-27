@@ -2,14 +2,12 @@ import { memo, useMemo, useRef, useState } from "react";
 import {
   ArrowDownWideNarrow,
   ArrowUpWideNarrow,
-  Check,
   CheckCheck,
-  ChevronDown,
   MousePointer2,
 } from "lucide-react";
 import Button from "../../../../components/ui/Button";
 import Card from "../../../../components/ui/Card";
-import DropdownMenu from "../../../../components/ui/DropdownMenu";
+import Select from "../../../../components/ui/Select";
 import ScrollArea from "../../../../components/ui/ScrollArea";
 import { useLanguage } from "../../../../hooks/useLanguage";
 import type { ProcessingStatus } from "../../shared/lib/sharedTypes";
@@ -50,10 +48,8 @@ const OverviewGrid = memo(function OverviewGrid({
   yScale,
 }: OverviewGridProps) {
   const { t } = useLanguage();
-  const curveFilterDropdownRef = useRef<HTMLDivElement | null>(null);
   const [sortOrder, setSortOrder] = useState<SortOrder>("none");
   const [curveFilter, setCurveFilter] = useState<CurveFilter>("all");
-  const [isCurveFilterMenuOpen, setIsCurveFilterMenuOpen] = useState(false);
   const [isSelectMode, setIsSelectMode] = useState(false);
 
   const curveFilterOptions = useMemo(
@@ -67,11 +63,6 @@ const OverviewGrid = memo(function OverviewGrid({
     ],
     [t],
   );
-
-  const activeCurveFilterLabel =
-    curveFilterOptions.find((option) => option.value === curveFilter)?.label ??
-    curveFilterOptions[0]?.label ??
-    t("da_overview_curve_filter_all");
 
   const sortOrderLabel =
     sortOrder === "none"
@@ -129,94 +120,27 @@ const OverviewGrid = memo(function OverviewGrid({
             >
               {t("da_overview_curve_filter_label")}
             </label>
-            <div ref={curveFilterDropdownRef} className="relative">
-              <div
-                className="input_field input_field--md relative pr-1"
-                data-state="enable"
-                data-cta="Device Analysis"
-                data-cta-position="overview-grid"
-                data-cta-copy="curve filter"
-              >
-                <button
-                  id="device-analysis-overview-curve-filter-btn"
-                  type="button"
-                  aria-haspopup="menu"
-                  aria-expanded={isCurveFilterMenuOpen}
-                  aria-controls="device-analysis-overview-curve-filter-menu"
-                  aria-label={t("da_overview_curve_filter_label")}
-                  title={t("da_overview_curve_filter_label")}
-                  onClick={() => setIsCurveFilterMenuOpen((prev) => !prev)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Escape") {
-                      setIsCurveFilterMenuOpen(false);
-                      return;
-                    }
-
-                    if (
-                      event.key === "Enter" ||
-                      event.key === " " ||
-                      event.key === "ArrowDown"
-                    ) {
-                      event.preventDefault();
-                      setIsCurveFilterMenuOpen(true);
-                    }
-                  }}
-                  className="input_native no-focus-outline p-0 pr-8 text-left cursor-pointer select-none"
-                >
-                  <span className="block truncate text-text-primary">
-                    {activeCurveFilterLabel}
-                  </span>
-                </button>
-
-                <span className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-secondary pointer-events-none">
-                  <ChevronDown
-                    size={16}
-                    className={`transition-transform duration-200 ${
-                      isCurveFilterMenuOpen ? "rotate-180" : ""
-                    }`}
-                  />
-                </span>
-              </div>
-
-              <DropdownMenu
-                isOpen={isCurveFilterMenuOpen}
-                onClose={() => setIsCurveFilterMenuOpen(false)}
-                anchorRef={curveFilterDropdownRef}
-                id="device-analysis-overview-curve-filter-menu"
-                role="menu"
-                className="left-0 right-auto w-max min-w-max"
-              >
-                {curveFilterOptions.map((option) => {
-                  const isActive = option.value === curveFilter;
-
-                  return (
-                    <button
-                      key={option.value}
-                      type="button"
-                      role="menuitemradio"
-                      aria-checked={isActive}
-                      className={`w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-sm text-left whitespace-nowrap transition-colors ${
-                        isActive
-                          ? "bg-bg-page text-text-primary"
-                          : "text-text-secondary hover:bg-bg-page hover:text-text-primary"
-                      }`}
-                      onClick={() => {
-                        setCurveFilter(option.value);
-                        setIsCurveFilterMenuOpen(false);
-                      }}
-                    >
-                      <span className="whitespace-nowrap">{option.label}</span>
-                      <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center text-accent">
-                        <Check
-                          size={14}
-                          className={isActive ? "opacity-100" : "opacity-0"}
-                        />
-                      </span>
-                    </button>
-                  );
-                })}
-              </DropdownMenu>
-            </div>
+            <Select
+              id="device-analysis-overview-curve-filter-btn"
+              menuId="device-analysis-overview-curve-filter-menu"
+              value={curveFilter}
+              onChange={(next) => {
+                if (next === "transfer" || next === "output") {
+                  setCurveFilter(next);
+                  return;
+                }
+                setCurveFilter("all");
+              }}
+              options={curveFilterOptions}
+              aria-label={t("da_overview_curve_filter_label")}
+              title={t("da_overview_curve_filter_label")}
+              className="w-fit da-neutral-select"
+              stableWidth
+              popupClassName="w-max min-w-max !bg-bg-surface !backdrop-blur-none"
+              data-cta="Device Analysis"
+              data-cta-position="overview-grid"
+              data-cta-copy="curve filter"
+            />
           </div>
 
           <Button

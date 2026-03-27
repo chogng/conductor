@@ -767,24 +767,6 @@ body {
     @apply bg-accent/10 text-accent font-medium;
   }
 
-  .da-neutral-select .ui-select_item[data-selected] {
-    @apply bg-transparent text-text-primary font-normal;
-  }
-
-  .da-neutral-select .ui-select_item[data-selected]:hover,
-  .da-neutral-select .ui-select_item[data-selected][data-highlighted] {
-    @apply bg-bg-surface-hover text-text-primary;
-  }
-
-  .da-neutral-select .ui-select_item[data-selected] svg {
-    @apply text-text-secondary;
-  }
-
-  .da-neutral-select .ui-select_item[data-highlighted]:not([data-selected]),
-  .da-neutral-select .ui-select_item:not([data-selected]):hover {
-    @apply bg-bg-surface-hover/70 text-text-primary;
-  }
-
   .ui-select_item[data-highlighted]:not([data-selected]) {
     @apply bg-bg-surface-hover text-text-primary;
   }
