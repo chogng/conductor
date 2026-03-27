@@ -337,17 +337,13 @@ const TemplateManager = ({
     config?.legendPrefix,
     tLoose,
   );
-  const [
-    isFileNameTemplateMatchEnabled,
-    setIsFileNameTemplateMatchEnabled,
-  ] = useState(false);
   const [fileNameTemplateRules, setFileNameTemplateRules] = useState<
     FileNameTemplateRuleDraft[]
-  >([{ id: `${FILE_NAME_TEMPLATE_RULE_PREFIX}-1`, pattern: "", templateName: "" }]);
+  >([]);
   const [
     fileNameTemplateRuleIdSeed,
     setFileNameTemplateRuleIdSeed,
-  ] = useState(2);
+  ] = useState(1);
   const addFileNameTemplateRule = useCallback(() => {
     setFileNameTemplateRules((prev) => [
       ...prev,
@@ -360,11 +356,7 @@ const TemplateManager = ({
     setFileNameTemplateRuleIdSeed((prev) => prev + 1);
   }, [fileNameTemplateRuleIdSeed]);
   const removeFileNameTemplateRule = useCallback((id: string) => {
-    setFileNameTemplateRules((prev) => {
-      const next = prev.filter((rule) => rule.id !== id);
-      if (next.length > 0) return next;
-      return [{ id: `${FILE_NAME_TEMPLATE_RULE_PREFIX}-1`, pattern: "", templateName: "" }];
-    });
+    setFileNameTemplateRules((prev) => prev.filter((rule) => rule.id !== id));
   }, []);
   const updateFileNameTemplateRule = useCallback(
     (id: string, updates: Partial<FileNameTemplateRuleDraft>) => {
@@ -414,23 +406,15 @@ const TemplateManager = ({
       sanitizeFileNamePrefixInput,
     ],
   );
-  const canApplyRuleBasedExtraction =
-    isFileNameTemplateMatchEnabled &&
-    normalizedRuleRuntimeConfigs.length > 0;
   const applyFileNameTemplateRules = useCallback(
     (incremental: boolean) => {
-      if (!isFileNameTemplateMatchEnabled) {
-        showToast(t("da_match_template_by_file_name"), "warning");
-        return;
-      }
-      if (!normalizedRuleRuntimeConfigs.length) {
-        showToast(t("da_template_name"), "warning");
-        return;
-      }
-
       const applyHandler = incremental
         ? applyNewFilesConfigurationWithExternalConfig
         : applyConfigurationWithExternalConfig;
+      if (!normalizedRuleRuntimeConfigs.length) {
+        applyHandler(config as unknown as Record<string, unknown>);
+        return;
+      }
       const rulePayload = normalizedRuleRuntimeConfigs.map((rule) => ({
         pattern: rule.pattern,
         templateName: rule.templateName,
@@ -442,6 +426,7 @@ const TemplateManager = ({
       })) as FileNameTemplateRulePayload[];
       const ruleConfig: Record<string, unknown> = {
         fileNameTemplateRules: rulePayload,
+        fallbackTemplateConfig: { ...config },
         stopOnError: Boolean(config?.stopOnError),
       };
       applyHandler(ruleConfig);
@@ -450,7 +435,6 @@ const TemplateManager = ({
       applyConfigurationWithExternalConfig,
       applyNewFilesConfigurationWithExternalConfig,
       config?.stopOnError,
-      isFileNameTemplateMatchEnabled,
       normalizedRuleRuntimeConfigs,
       showToast,
       t,
@@ -1500,108 +1484,78 @@ const TemplateManager = ({
               variant="secondary"
               size="md"
               onClick={measureOnly ? undefined : addFileNameTemplateRule}
-              disabled={
-                measureOnly ||
-                !isFileNameTemplateMatchEnabled ||
-                templatesLoading
-              }
+              disabled={measureOnly || templatesLoading}
             >
               {t("da_add_rule")}
               <Plus size={14} />
             </Button>
           </div>
-
-          <div
-            id={
-              includeIds
-                ? "device-analysis-match-template-by-file-name-toggle"
-                : undefined
-            }
-            onClick={
-              measureOnly
-                ? undefined
-                : () => setIsFileNameTemplateMatchEnabled((prev) => !prev)
-            }
-            className="flex items-center gap-2 text-sm text-text-secondary select-none cursor-pointer group w-fit"
-          >
-            {isFileNameTemplateMatchEnabled ? (
-              <div className="clickable-ckb" data-state="checked">
-                <Check size={14} className="text-white" strokeWidth={3} />
-              </div>
-            ) : (
-              <div className="clickable-ckb" data-state="unchecked" />
-            )}
-            <span>{t("da_match_template_by_file_name")}</span>
-          </div>
-
-          {isFileNameTemplateMatchEnabled ? (
-            <div className="mt-3 space-y-3">
-              {fileNameTemplateRules.map((rule, index) => (
-                <div
-                  key={rule.id}
-                  className="group border border-border-primary/40 rounded-xl p-3 space-y-3"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs text-text-secondary">
-                      {t("da_rule_item_index", { index: index + 1 })}
-                    </span>
-                    <Button
-                      id={
-                        includeIds
-                          ? `device-analysis-template-remove-rule-${index + 1}`
-                          : undefined
-                      }
-                      variant="icon"
-                      size="icon"
-                      aria-label={t("da_remove_rule")}
-                      title={t("da_remove_rule")}
-                      onClick={
-                        measureOnly
-                          ? undefined
-                          : () => removeFileNameTemplateRule(rule.id)
-                      }
-                      disabled={measureOnly || fileNameTemplateRules.length <= 1}
-                      className="hover:text-red-500 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus:opacity-100 focus:pointer-events-auto"
-                    >
-                      <Trash2 size={14} />
-                    </Button>
-                  </div>
-                  <Input
+          <div className="mt-3 space-y-3">
+            {fileNameTemplateRules.map((rule, index) => (
+              <div
+                key={rule.id}
+                className="group border border-border-primary/40 rounded-xl p-3 space-y-3"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs text-text-secondary">
+                    {t("da_rule_item_index", { index: index + 1 })}
+                  </span>
+                  <Button
                     id={
                       includeIds
-                        ? `device-analysis-template-rule-pattern-${index + 1}`
+                        ? `device-analysis-template-remove-rule-${index + 1}`
                         : undefined
                     }
-                    value={rule.pattern}
-                    name={`fileNameTemplateRulePattern-${rule.id}`}
+                    variant="icon"
+                    size="icon"
+                    aria-label={t("da_remove_rule")}
+                    title={t("da_remove_rule")}
+                    onClick={
+                      measureOnly
+                        ? undefined
+                        : () => removeFileNameTemplateRule(rule.id)
+                    }
                     disabled={measureOnly}
-                    onChange={(next) => {
-                      updateFileNameTemplateRule(rule.id, { pattern: next });
-                    }}
-                    placeholder={t("da_match_field_placeholder")}
-                  />
-                  <Select
-                    id={
-                      includeIds
-                        ? `device-analysis-template-rule-template-${index + 1}`
-                        : undefined
-                    }
-                    size="md"
-                    value={rule.templateName}
-                    options={availableTemplateOptions}
-                    onChange={(value) => {
-                      updateFileNameTemplateRule(rule.id, {
-                        templateName: String(value ?? ""),
-                      });
-                    }}
-                    placeholder={t("da_template_name")}
-                    disabled={measureOnly || templatesLoading}
-                    stableWidth={false}
-                  />
+                    className="hover:text-red-500 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus:opacity-100 focus:pointer-events-auto"
+                  >
+                    <Trash2 size={14} />
+                  </Button>
                 </div>
-              ))}
-            </div>
-          ) : null}
+                <Input
+                  id={
+                    includeIds
+                      ? `device-analysis-template-rule-pattern-${index + 1}`
+                      : undefined
+                  }
+                  value={rule.pattern}
+                  name={`fileNameTemplateRulePattern-${rule.id}`}
+                  disabled={measureOnly}
+                  onChange={(next) => {
+                    updateFileNameTemplateRule(rule.id, { pattern: next });
+                  }}
+                  placeholder={t("da_match_field_placeholder")}
+                />
+                <Select
+                  id={
+                    includeIds
+                      ? `device-analysis-template-rule-template-${index + 1}`
+                      : undefined
+                  }
+                  size="md"
+                  value={rule.templateName}
+                  options={availableTemplateOptions}
+                  onChange={(value) => {
+                    updateFileNameTemplateRule(rule.id, {
+                      templateName: String(value ?? ""),
+                    });
+                  }}
+                  placeholder={t("da_template_name")}
+                  disabled={measureOnly || templatesLoading}
+                  stableWidth={false}
+                />
+              </div>
+            ))}
+          </div>
 
           <div className="grid grid-cols-2 gap-3 mt-3">
             <Button
@@ -1617,7 +1571,7 @@ const TemplateManager = ({
                   ? undefined
                   : () => applyFileNameTemplateRules(false)
               }
-              disabled={measureOnly || !canApplyRuleBasedExtraction}
+              disabled={measureOnly}
             >
               {t("da_apply_to_all_files")}
             </Button>
@@ -1636,7 +1590,6 @@ const TemplateManager = ({
               }
               disabled={
                 measureOnly ||
-                !canApplyRuleBasedExtraction ||
                 typeof onTemplateAppliedIncremental !== "function"
               }
             >

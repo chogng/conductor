@@ -84,6 +84,7 @@ type FileNameTemplateRulePayload = {
 };
 
 type RuleBasedExtractionConfig = {
+  fallbackTemplateConfig?: unknown;
   fileNameTemplateRules?: FileNameTemplateRulePayload[];
   stopOnError?: unknown;
 };
@@ -446,6 +447,9 @@ export const useDeviceAnalysisProcessing = ({
       const rawRules = Array.isArray(config?.fileNameTemplateRules)
         ? config.fileNameTemplateRules
         : [];
+      const fallbackTemplateConfig = isObjectRecord(config?.fallbackTemplateConfig)
+        ? (config.fallbackTemplateConfig as Record<string, unknown>)
+        : null;
       const normalizedRules = rawRules
         .map((rule) => {
           const patternTokens = normalizeRulePatternTokens(rule?.pattern);
@@ -484,7 +488,16 @@ export const useDeviceAnalysisProcessing = ({
         const matchedRule = normalizedRules.find((rule) =>
           rule.patternTokens.some((token) => fileNameLower.includes(token)),
         );
-        if (!matchedRule) continue;
+        if (!matchedRule) {
+          if (!fallbackTemplateConfig) continue;
+          const fallbackKey = "__fallback__";
+          if (!queueByTemplateName.has(fallbackKey)) {
+            queueByTemplateName.set(fallbackKey, []);
+          }
+          queueByTemplateName.get(fallbackKey)?.push(entry);
+          configByTemplateName.set(fallbackKey, fallbackTemplateConfig);
+          continue;
+        }
         const key = matchedRule.templateName || stableStringify(matchedRule.templateConfig);
         if (!queueByTemplateName.has(key)) queueByTemplateName.set(key, []);
         queueByTemplateName.get(key)?.push(entry);
