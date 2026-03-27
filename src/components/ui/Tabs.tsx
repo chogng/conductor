@@ -107,7 +107,7 @@ const Tabs = ({
 
   if (import.meta.env.DEV && dataUi != null) {
     console.warn(
-      "[Tabs] `dataUi` is legacy. Prefer `idBase` + stable `id` / `data-cta*` / `aria-*` instead.",
+      "[Tabs] Prefer `idBase` + stable `id` / `data-cta*` / `aria-*` for new usage.",
     );
   }
 

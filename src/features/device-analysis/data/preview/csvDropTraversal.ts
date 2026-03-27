@@ -87,6 +87,3 @@ export const collectDroppedImportFiles = async (
   await Promise.all(pendingTraversals);
   return importFiles;
 };
-
-// Backward-compatible alias for old name.
-export const collectDroppedCsvFiles = collectDroppedImportFiles;

@@ -37,7 +37,7 @@ const Card = forwardRef<HTMLElement, CardProps>(
     const { dataUi, ...restProps } = props;
     if (import.meta.env.DEV && dataUi != null) {
       console.warn(
-        "[Card] `dataUi` is deprecated and ignored. Use `id` / `data-cta*` / `aria-*` instead.",
+        "[Card] `dataUi` is ignored in this component. Use `id` / `data-cta*` / `aria-*` instead.",
       );
     }
 

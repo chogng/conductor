@@ -390,12 +390,12 @@ def main():
         args.xy_pairs,
         args.plot_type,
     )
-    legacy_post_plot_commands = [
+    extra_post_plot_commands = [
         item.strip()
         for item in (args.post_plot_command if isinstance(args.post_plot_command, list) else [])
         if isinstance(item, str) and item.strip()
     ]
-    all_post_plot_commands = legacy_post_plot_commands + capability_plan.plot_post_commands
+    all_post_plot_commands = extra_post_plot_commands + capability_plan.plot_post_commands
 
     try:
         ctx.log(f"Plot command: {plot_command}")

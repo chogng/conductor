@@ -137,7 +137,7 @@ export function prepareDeviceAnalysisExtraction({
     if (typeof t !== "function") return fallback;
     return t(key, vars ?? undefined);
   };
-  // Kept for API compatibility; preview readiness is no longer a hard blocker.
+  // `previewFile` is currently unused; keep the signature aligned with callers.
   void previewFile;
 
   if (!rawData || rawData.length === 0) {
