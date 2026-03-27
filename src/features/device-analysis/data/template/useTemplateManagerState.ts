@@ -179,8 +179,8 @@ const createUniqueTemplateName = (
 
 type UseTemplateManagerStateOptions = {
   deviceAnalysisSettings?: DeviceAnalysisSettings | null;
-  onTemplateApplied?: (config: TemplateConfig) => unknown;
-  onTemplateAppliedIncremental?: (config: TemplateConfig) => unknown;
+  onTemplateApplied?: (config: Record<string, unknown>) => unknown;
+  onTemplateAppliedIncremental?: (config: Record<string, unknown>) => unknown;
   onUpdateDeviceAnalysisSettings?: (
     updates: Record<string, unknown>,
   ) => Promise<unknown> | unknown;
@@ -732,13 +732,47 @@ export const useTemplateManagerState = ({
 
   const applyWithHandler = useCallback(
     (
-      handler: ((nextConfig: TemplateConfig) => unknown) | undefined,
-      sourceConfig: TemplateConfig = config,
+      handler: ((nextConfig: Record<string, unknown>) => unknown) | undefined,
+      sourceConfig: Record<string, unknown> = config,
+      options: { syncConfig?: boolean } = {},
     ) => {
       if (typeof handler !== "function") return;
+      const sourceConfigRecord = sourceConfig as Record<string, unknown>;
+      const hasRuleList =
+        Array.isArray(sourceConfigRecord?.fileNameTemplateRules) &&
+        sourceConfigRecord.fileNameTemplateRules.length > 0;
+
+      if (hasRuleList) {
+        const result = handler(sourceConfigRecord);
+        if (isObjectRecord(result)) {
+          const ok =
+            typeof result.ok === "boolean" ? result.ok : undefined;
+          const message =
+            typeof result.message === "string" ? result.message : undefined;
+          const type =
+            typeof result.type === "string" ? result.type : undefined;
+
+          if (ok === false) {
+            showToast(
+              message || "Invalid configuration",
+              type || "warning",
+            );
+            return;
+          }
+          if (
+            ok === true &&
+            message &&
+            type &&
+            type !== "success"
+          ) {
+            showToast(message, type || "success");
+          }
+        }
+        return;
+      }
 
       const validation = validateTemplateForApply(
-        sourceConfig,
+        sourceConfig as TemplateConfig,
         t,
       );
       if (!validation.ok || !validation.normalized) {
@@ -747,8 +781,12 @@ export const useTemplateManagerState = ({
       }
 
       const normalized = validation.normalized;
+      const shouldSyncConfig = options.syncConfig !== false;
 
-      if (stableStringify(normalized) !== stableStringify(config)) {
+      if (
+        shouldSyncConfig &&
+        stableStringify(normalized) !== stableStringify(config)
+      ) {
         setConfig(normalized);
       }
 
@@ -790,15 +828,31 @@ export const useTemplateManagerState = ({
   }, [applyWithHandler, onTemplateAppliedIncremental]);
 
   const applyConfigurationWithConfig = useCallback(
-    (nextConfig: TemplateConfig) => {
+    (nextConfig: Record<string, unknown>) => {
       applyWithHandler(onTemplateApplied, nextConfig);
     },
     [applyWithHandler, onTemplateApplied],
   );
 
   const applyNewFilesConfigurationWithConfig = useCallback(
-    (nextConfig: TemplateConfig) => {
+    (nextConfig: Record<string, unknown>) => {
       applyWithHandler(onTemplateAppliedIncremental, nextConfig);
+    },
+    [applyWithHandler, onTemplateAppliedIncremental],
+  );
+
+  const applyConfigurationWithExternalConfig = useCallback(
+    (nextConfig: Record<string, unknown>) => {
+      applyWithHandler(onTemplateApplied, nextConfig, { syncConfig: false });
+    },
+    [applyWithHandler, onTemplateApplied],
+  );
+
+  const applyNewFilesConfigurationWithExternalConfig = useCallback(
+    (nextConfig: Record<string, unknown>) => {
+      applyWithHandler(onTemplateAppliedIncremental, nextConfig, {
+        syncConfig: false,
+      });
     },
     [applyWithHandler, onTemplateAppliedIncremental],
   );
@@ -884,8 +938,10 @@ export const useTemplateManagerState = ({
   return {
     applyConfiguration,
     applyConfigurationWithConfig,
+    applyConfigurationWithExternalConfig,
     applyNewFilesConfiguration,
     applyNewFilesConfigurationWithConfig,
+    applyNewFilesConfigurationWithExternalConfig,
     closeDiscardConfirm,
     closeTemplateDropdown,
     config,

@@ -22,6 +22,7 @@ import { useLanguage } from "../../../../hooks/useLanguage";
 import type { TranslateFn, TranslationVars } from "../../../../context/language";
 import Toast from "../../../../components/ui/Toast";
 import Input from "../../../../components/ui/Input";
+import Select from "../../../../components/ui/Select";
 import Tabs from "../../../../components/ui/Tabs";
 import Card from "../../../../components/ui/Card";
 import Button from "../../../../components/ui/Button";
@@ -58,8 +59,8 @@ export type TemplateManagerProps = {
     startRow: number,
     endRow: number,
   ) => Promise<unknown> | unknown;
-  onTemplateApplied?: (config: TemplateConfig) => unknown;
-  onTemplateAppliedIncremental?: (config: TemplateConfig) => unknown;
+  onTemplateApplied?: (config: Record<string, unknown>) => unknown;
+  onTemplateAppliedIncremental?: (config: Record<string, unknown>) => unknown;
   subscribePreviewRowsVersion?: (onStoreChange: () => void) => () => void;
   getPreviewRowsVersion?: () => number;
   deviceAnalysisSettings?: Record<string, unknown> | null;
@@ -119,6 +120,26 @@ const formatTemplateExportFileName = (templateNameRaw?: string) => {
 
 const X_AUTO_SUGGESTION_MAX_SCAN_ROWS = 5000;
 const FILE_RULE_PREFIX_DELIMITER = ", ";
+const FILE_NAME_TEMPLATE_RULE_PREFIX = "rule";
+
+type FileNameTemplateRuleDraft = {
+  id: string;
+  pattern: string;
+  templateName: string;
+};
+
+type FileNameTemplateRuleRuntimeConfig = {
+  id: string;
+  pattern: string;
+  templateName: string;
+  templateConfig: TemplateConfig;
+};
+
+type FileNameTemplateRulePayload = {
+  pattern: string;
+  templateName: string;
+  templateConfig: TemplateConfig;
+};
 
 const TemplateManager = ({
   previewFile,
@@ -171,16 +192,10 @@ const TemplateManager = ({
   const xSegmentationModeMenuRef = useRef<HTMLDivElement | null>(null);
   const xUnitMenuRef = useRef<HTMLDivElement | null>(null);
   const yUnitMenuRef = useRef<HTMLDivElement | null>(null);
-  const transferRuleTemplateMenuRef = useRef<HTMLDivElement | null>(null);
-  const outputRuleTemplateMenuRef = useRef<HTMLDivElement | null>(null);
   const [isXSegmentationModeMenuOpen, setIsXSegmentationModeMenuOpen] =
     useState(false);
   const [isXUnitMenuOpen, setIsXUnitMenuOpen] = useState(false);
   const [isYUnitMenuOpen, setIsYUnitMenuOpen] = useState(false);
-  const [isTransferRuleTemplateMenuOpen, setIsTransferRuleTemplateMenuOpen] =
-    useState(false);
-  const [isOutputRuleTemplateMenuOpen, setIsOutputRuleTemplateMenuOpen] =
-    useState(false);
   const yUnitOptions = useMemo(
     () =>
       DEVICE_ANALYSIS_Y_UNIT_VALUES.map((unit) => ({
@@ -207,8 +222,8 @@ const TemplateManager = ({
   );
 
   const {
-    applyConfigurationWithConfig,
-    applyNewFilesConfigurationWithConfig,
+    applyConfigurationWithExternalConfig,
+    applyNewFilesConfigurationWithExternalConfig,
     closeDiscardConfirm,
     closeTemplateDropdown,
     config,
@@ -322,58 +337,123 @@ const TemplateManager = ({
     config?.legendPrefix,
     tLoose,
   );
-  const [transferRuleTemplateName, setTransferRuleTemplateName] = useState("");
-  const [outputRuleTemplateName, setOutputRuleTemplateName] = useState("");
-  const transferRuleTemplate = resolveTemplateByName(transferRuleTemplateName);
-  const outputRuleTemplate = resolveTemplateByName(outputRuleTemplateName);
-  const buildRuleApplyConfig = useCallback(
-    (prefixValue: string, templateName: string, ruleKey: "transfer" | "output") => {
-      const templateRecord = resolveTemplateByName(templateName);
-      if (!templateRecord) return null;
-      const normalizedPrefix = sanitizeFileNamePrefixInput(prefixValue);
-      const nextConfig = cloneTemplateConfigFromRecord(
-        templateRecord as Record<string, unknown>,
+  const [
+    isFileNameTemplateMatchEnabled,
+    setIsFileNameTemplateMatchEnabled,
+  ] = useState(false);
+  const [fileNameTemplateRules, setFileNameTemplateRules] = useState<
+    FileNameTemplateRuleDraft[]
+  >([{ id: `${FILE_NAME_TEMPLATE_RULE_PREFIX}-1`, pattern: "", templateName: "" }]);
+  const [
+    fileNameTemplateRuleIdSeed,
+    setFileNameTemplateRuleIdSeed,
+  ] = useState(2);
+  const addFileNameTemplateRule = useCallback(() => {
+    setFileNameTemplateRules((prev) => [
+      ...prev,
+      {
+        id: `${FILE_NAME_TEMPLATE_RULE_PREFIX}-${fileNameTemplateRuleIdSeed}`,
+        pattern: "",
+        templateName: "",
+      },
+    ]);
+    setFileNameTemplateRuleIdSeed((prev) => prev + 1);
+  }, [fileNameTemplateRuleIdSeed]);
+  const removeFileNameTemplateRule = useCallback((id: string) => {
+    setFileNameTemplateRules((prev) => {
+      const next = prev.filter((rule) => rule.id !== id);
+      if (next.length > 0) return next;
+      return [{ id: `${FILE_NAME_TEMPLATE_RULE_PREFIX}-1`, pattern: "", templateName: "" }];
+    });
+  }, []);
+  const updateFileNameTemplateRule = useCallback(
+    (id: string, updates: Partial<FileNameTemplateRuleDraft>) => {
+      setFileNameTemplateRules((prev) =>
+        prev.map((rule) =>
+          rule.id === id
+            ? {
+                ...rule,
+                ...(typeof updates.pattern === "string"
+                  ? {
+                      pattern: sanitizeFileNamePrefixInput(updates.pattern),
+                    }
+                  : {}),
+                ...(typeof updates.templateName === "string"
+                  ? { templateName: String(updates.templateName) }
+                  : {}),
+              }
+            : rule,
+        ),
       );
-      if (ruleKey === "transfer") {
-        nextConfig.fileNameVgKeywords = normalizedPrefix;
-        nextConfig.fileNameVdKeywords = "";
-      } else {
-        nextConfig.fileNameVgKeywords = "";
-        nextConfig.fileNameVdKeywords = normalizedPrefix;
-      }
-      return nextConfig;
     },
-    [cloneTemplateConfigFromRecord, resolveTemplateByName, sanitizeFileNamePrefixInput],
+    [sanitizeFileNamePrefixInput],
   );
-  const applyRuleTemplate = useCallback(
-    (ruleKey: "transfer" | "output", incremental: boolean) => {
-      const prefix =
-        ruleKey === "transfer"
-          ? String(config?.fileNameVgKeywords ?? "")
-          : String(config?.fileNameVdKeywords ?? "");
-      const templateName =
-        ruleKey === "transfer" ? transferRuleTemplateName : outputRuleTemplateName;
-      const nextConfig = buildRuleApplyConfig(prefix, templateName, ruleKey);
-      if (!nextConfig) {
+  const normalizedRuleRuntimeConfigs = useMemo(
+    () =>
+      fileNameTemplateRules
+        .map((rule) => {
+          const pattern = sanitizeFileNamePrefixInput(rule.pattern);
+          const templateName = String(rule.templateName ?? "").trim();
+          if (!pattern || !templateName) return null;
+          const templateRecord = resolveTemplateByName(templateName);
+          if (!templateRecord) return null;
+          return {
+            id: rule.id,
+            pattern,
+            templateName,
+            templateConfig: cloneTemplateConfigFromRecord(
+              templateRecord as Record<string, unknown>,
+            ),
+          } as FileNameTemplateRuleRuntimeConfig;
+        })
+        .filter(Boolean) as FileNameTemplateRuleRuntimeConfig[],
+    [
+      cloneTemplateConfigFromRecord,
+      fileNameTemplateRules,
+      resolveTemplateByName,
+      sanitizeFileNamePrefixInput,
+    ],
+  );
+  const canApplyRuleBasedExtraction =
+    isFileNameTemplateMatchEnabled &&
+    normalizedRuleRuntimeConfigs.length > 0;
+  const applyFileNameTemplateRules = useCallback(
+    (incremental: boolean) => {
+      if (!isFileNameTemplateMatchEnabled) {
+        showToast(t("da_match_template_by_file_name"), "warning");
+        return;
+      }
+      if (!normalizedRuleRuntimeConfigs.length) {
         showToast(t("da_template_name"), "warning");
         return;
       }
-      if (incremental) {
-        applyNewFilesConfigurationWithConfig(nextConfig);
-      } else {
-        applyConfigurationWithConfig(nextConfig);
-      }
+
+      const applyHandler = incremental
+        ? applyNewFilesConfigurationWithExternalConfig
+        : applyConfigurationWithExternalConfig;
+      const rulePayload = normalizedRuleRuntimeConfigs.map((rule) => ({
+        pattern: rule.pattern,
+        templateName: rule.templateName,
+        templateConfig: {
+          ...rule.templateConfig,
+          fileNameVgKeywords: "",
+          fileNameVdKeywords: "",
+        },
+      })) as FileNameTemplateRulePayload[];
+      const ruleConfig: Record<string, unknown> = {
+        fileNameTemplateRules: rulePayload,
+        stopOnError: Boolean(config?.stopOnError),
+      };
+      applyHandler(ruleConfig);
     },
     [
-      applyConfigurationWithConfig,
-      applyNewFilesConfigurationWithConfig,
-      buildRuleApplyConfig,
-      config?.fileNameVdKeywords,
-      config?.fileNameVgKeywords,
-      outputRuleTemplateName,
+      applyConfigurationWithExternalConfig,
+      applyNewFilesConfigurationWithExternalConfig,
+      config?.stopOnError,
+      isFileNameTemplateMatchEnabled,
+      normalizedRuleRuntimeConfigs,
       showToast,
       t,
-      transferRuleTemplateName,
     ],
   );
   useEffect(() => {
@@ -383,32 +463,25 @@ const TemplateManager = ({
   }, [ensureTemplatesLoaded, templateMode]);
   useEffect(() => {
     if (!availableTemplateNames.length) {
-      setTransferRuleTemplateName("");
-      setOutputRuleTemplateName("");
+      setFileNameTemplateRules((prev) =>
+        prev.map((rule) => ({ ...rule, templateName: "" })),
+      );
       return;
     }
-    if (
-      transferRuleTemplateName &&
-      !availableTemplateNames.includes(transferRuleTemplateName)
-    ) {
-      setTransferRuleTemplateName("");
-    }
-    if (
-      outputRuleTemplateName &&
-      !availableTemplateNames.includes(outputRuleTemplateName)
-    ) {
-      setOutputRuleTemplateName("");
-    }
-  }, [availableTemplateNames, outputRuleTemplateName, transferRuleTemplateName]);
+    setFileNameTemplateRules((prev) =>
+      prev.map((rule) => {
+        const templateName = String(rule.templateName ?? "").trim();
+        if (!templateName) return rule;
+        if (availableTemplateNames.includes(templateName)) return rule;
+        return { ...rule, templateName: "" };
+      }),
+    );
+  }, [availableTemplateNames]);
   useEffect(() => {
     if (templateMode !== "save") {
       setIsXSegmentationModeMenuOpen(false);
       setIsXUnitMenuOpen(false);
       setIsYUnitMenuOpen(false);
-    }
-    if (templateMode !== "select") {
-      setIsTransferRuleTemplateMenuOpen(false);
-      setIsOutputRuleTemplateMenuOpen(false);
     }
   }, [templateMode]);
   const lastVarPairToastRef = useRef("");
@@ -1210,10 +1283,6 @@ const TemplateManager = ({
     includeIds = true,
     measureOnly = false,
   } = {}) => {
-    const setConfigFromSelect = (updater: SetStateAction<TemplateConfig>) => {
-      markSaveDraftTouched();
-      setConfig(updater);
-    };
     const shouldAttachDropdownRef = includeIds && !measureOnly;
     const shouldRenderDropdownMenu = includeIds && !measureOnly;
     const resolvedInputId = includeIds
@@ -1394,7 +1463,7 @@ const TemplateManager = ({
             disabled={templateTransferBusy}
           >
             {t("da_template_export_btn")}
-            <Download size={14} />
+            <Upload size={14} />
           </Button>
           <Button
             id={
@@ -1407,7 +1476,7 @@ const TemplateManager = ({
             disabled={templateTransferBusy}
           >
             {t("da_template_import_btn")}
-            <Upload size={14} />
+            <Download size={14} />
           </Button>
         </div>
         {includeIds && !measureOnly ? (
@@ -1422,361 +1491,157 @@ const TemplateManager = ({
         ) : null}
 
         <div>
-          <label className="block text-sm font-medium text-text-secondary mb-2">
-            {t("da_match_by_file_name")}
-          </label>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <div className="grid grid-cols-1 gap-4">
-                <div className="min-w-0">
-                  <Input
-                    id={
-                      includeIds
-                        ? "device-analysis-template-file-name-vg-keywords"
-                        : undefined
-                    }
-                    value={config.fileNameVgKeywords || ""}
-                    name="fileNameVgKeywords"
-                    disabled={measureOnly}
-                    onChange={(next) => {
-                      setConfigFromSelect((prev) => ({
-                        ...prev,
-                        fileNameVgKeywords: next,
-                      }));
-                      markFieldSource("fileNameVgKeywords", "manual");
-                    }}
-                    placeholder={t("da_save_transfer")}
-                  />
-                </div>
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <label className="block text-sm font-medium text-text-secondary">
+              {t("da_match_by_file_name")}
+            </label>
+            <Button
+              id={includeIds ? "device-analysis-template-add-rule" : undefined}
+              variant="secondary"
+              size="md"
+              onClick={measureOnly ? undefined : addFileNameTemplateRule}
+              disabled={
+                measureOnly ||
+                !isFileNameTemplateMatchEnabled ||
+                templatesLoading
+              }
+            >
+              {t("da_add_rule")}
+              <Plus size={14} />
+            </Button>
+          </div>
+
+          <div
+            id={
+              includeIds
+                ? "device-analysis-match-template-by-file-name-toggle"
+                : undefined
+            }
+            onClick={
+              measureOnly
+                ? undefined
+                : () => setIsFileNameTemplateMatchEnabled((prev) => !prev)
+            }
+            className="flex items-center gap-2 text-sm text-text-secondary select-none cursor-pointer group w-fit"
+          >
+            {isFileNameTemplateMatchEnabled ? (
+              <div className="clickable-ckb" data-state="checked">
+                <Check size={14} className="text-white" strokeWidth={3} />
+              </div>
+            ) : (
+              <div className="clickable-ckb" data-state="unchecked" />
+            )}
+            <span>{t("da_match_template_by_file_name")}</span>
+          </div>
+
+          {isFileNameTemplateMatchEnabled ? (
+            <div className="mt-3 space-y-3">
+              {fileNameTemplateRules.map((rule, index) => (
                 <div
-                  className="relative min-w-0"
-                  ref={transferRuleTemplateMenuRef}
+                  key={rule.id}
+                  className="group border border-border-primary/40 rounded-xl p-3 space-y-3"
                 >
-                  <div
-                    className="input_field input_field--md relative flex-1 min-w-0 pr-1"
-                    data-state={
-                      measureOnly || templatesLoading ? "disable" : "enable"
-                    }
-                  >
-                    <button
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-text-secondary">
+                      {t("da_rule_item_index", { index: index + 1 })}
+                    </span>
+                    <Button
                       id={
                         includeIds
-                          ? "device-analysis-template-transfer-rule-template-select"
+                          ? `device-analysis-template-remove-rule-${index + 1}`
                           : undefined
                       }
-                      type="button"
-                      disabled={measureOnly || templatesLoading}
-                      aria-haspopup="menu"
-                      aria-expanded={isTransferRuleTemplateMenuOpen}
-                      aria-controls={
-                        includeIds
-                          ? "device-analysis-template-transfer-rule-template-menu"
-                          : undefined
+                      variant="icon"
+                      size="icon"
+                      aria-label={t("da_remove_rule")}
+                      title={t("da_remove_rule")}
+                      onClick={
+                        measureOnly
+                          ? undefined
+                          : () => removeFileNameTemplateRule(rule.id)
                       }
-                      onClick={() => {
-                        if (measureOnly || templatesLoading) return;
-                        setIsTransferRuleTemplateMenuOpen((prev) => !prev);
-                      }}
-                      onKeyDown={(e) => {
-                        if (measureOnly || templatesLoading) return;
-                        if (e.key === "Escape") {
-                          setIsTransferRuleTemplateMenuOpen(false);
-                          return;
-                        }
-                        if (
-                          e.key === "Enter" ||
-                          e.key === " " ||
-                          e.key === "ArrowDown"
-                        ) {
-                          e.preventDefault();
-                          setIsTransferRuleTemplateMenuOpen(true);
-                        }
-                      }}
-                      className="input_native no-focus-outline p-0 pr-8 text-left cursor-pointer select-none disabled:cursor-not-allowed"
+                      disabled={measureOnly || fileNameTemplateRules.length <= 1}
+                      className="hover:text-red-500 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus:opacity-100 focus:pointer-events-auto"
                     >
-                      <span
-                        className={`block truncate ${
-                          transferRuleTemplateName
-                            ? "text-text-primary"
-                            : "text-text-tertiary"
-                        }`}
-                      >
-                        {transferRuleTemplateName || t("da_template_name")}
-                      </span>
-                    </button>
-
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-secondary pointer-events-none">
-                      <ChevronDown
-                        size={16}
-                        className={`transition-transform duration-200 ${
-                          isTransferRuleTemplateMenuOpen ? "rotate-180" : ""
-                        }`}
-                      />
-                    </span>
+                      <Trash2 size={14} />
+                    </Button>
                   </div>
-                  <DropdownMenu
-                    isOpen={isTransferRuleTemplateMenuOpen}
-                    onClose={() => setIsTransferRuleTemplateMenuOpen(false)}
-                    anchorRef={transferRuleTemplateMenuRef}
-                    id={
-                      includeIds
-                        ? "device-analysis-template-transfer-rule-template-menu"
-                        : undefined
-                    }
-                    role="menu"
-                  >
-                    {availableTemplateOptions.length > 0 ? (
-                      availableTemplateOptions.map((entry) => {
-                        const isActive =
-                          String(entry.value) ===
-                          String(transferRuleTemplateName || "");
-                        return (
-                          <button
-                            key={`${entry.value}`}
-                            type="button"
-                            role="menuitemradio"
-                            aria-checked={isActive}
-                            className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-bg-page cursor-pointer transition-colors"
-                            onClick={() => {
-                              setTransferRuleTemplateName(
-                                String(entry.value || ""),
-                              );
-                              setIsTransferRuleTemplateMenuOpen(false);
-                            }}
-                          >
-                            <span className="text-sm text-text-primary truncate">
-                              {entry.label}
-                            </span>
-                            {isActive ? (
-                              <span className="text-accent">
-                                <Check size={14} />
-                              </span>
-                            ) : null}
-                          </button>
-                        );
-                      })
-                    ) : (
-                      <div className="px-3 py-2 text-sm text-text-secondary italic text-center">
-                        {t("da_template_name")}
-                      </div>
-                    )}
-                  </DropdownMenu>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <Button
-                  id={
-                    includeIds
-                      ? "device-analysis-template-transfer-rule-apply-to-all"
-                      : undefined
-                  }
-                  variant="primary"
-                  size="md"
-                  onClick={
-                    measureOnly
-                      ? undefined
-                      : () => applyRuleTemplate("transfer", false)
-                  }
-                  disabled={measureOnly || !transferRuleTemplate}
-                >
-                  {t("da_apply_to_all_files")}
-                </Button>
-                <Button
-                  id={
-                    includeIds
-                      ? "device-analysis-template-transfer-rule-apply-to-new"
-                      : undefined
-                  }
-                  variant="secondary"
-                  size="md"
-                  onClick={
-                    measureOnly
-                      ? undefined
-                      : () => applyRuleTemplate("transfer", true)
-                  }
-                  disabled={
-                    measureOnly ||
-                    !transferRuleTemplate ||
-                    typeof onTemplateAppliedIncremental !== "function"
-                  }
-                >
-                  {t("da_apply_to_new_files")}
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="grid grid-cols-1 gap-4">
-                <div className="min-w-0">
                   <Input
                     id={
                       includeIds
-                        ? "device-analysis-template-file-name-vd-keywords"
+                        ? `device-analysis-template-rule-pattern-${index + 1}`
                         : undefined
                     }
-                    value={config.fileNameVdKeywords || ""}
-                    name="fileNameVdKeywords"
+                    value={rule.pattern}
+                    name={`fileNameTemplateRulePattern-${rule.id}`}
                     disabled={measureOnly}
                     onChange={(next) => {
-                      setConfigFromSelect((prev) => ({
-                        ...prev,
-                        fileNameVdKeywords: next,
-                      }));
-                      markFieldSource("fileNameVdKeywords", "manual");
+                      updateFileNameTemplateRule(rule.id, { pattern: next });
                     }}
-                    placeholder={t("da_save_output")}
+                    placeholder={t("da_match_field_placeholder")}
                   />
-                </div>
-                <div className="relative min-w-0" ref={outputRuleTemplateMenuRef}>
-                  <div
-                    className="input_field input_field--md relative flex-1 min-w-0 pr-1"
-                    data-state={
-                      measureOnly || templatesLoading ? "disable" : "enable"
-                    }
-                  >
-                    <button
-                      id={
-                        includeIds
-                          ? "device-analysis-template-output-rule-template-select"
-                          : undefined
-                      }
-                      type="button"
-                      disabled={measureOnly || templatesLoading}
-                      aria-haspopup="menu"
-                      aria-expanded={isOutputRuleTemplateMenuOpen}
-                      aria-controls={
-                        includeIds
-                          ? "device-analysis-template-output-rule-template-menu"
-                          : undefined
-                      }
-                      onClick={() => {
-                        if (measureOnly || templatesLoading) return;
-                        setIsOutputRuleTemplateMenuOpen((prev) => !prev);
-                      }}
-                      onKeyDown={(e) => {
-                        if (measureOnly || templatesLoading) return;
-                        if (e.key === "Escape") {
-                          setIsOutputRuleTemplateMenuOpen(false);
-                          return;
-                        }
-                        if (
-                          e.key === "Enter" ||
-                          e.key === " " ||
-                          e.key === "ArrowDown"
-                        ) {
-                          e.preventDefault();
-                          setIsOutputRuleTemplateMenuOpen(true);
-                        }
-                      }}
-                      className="input_native no-focus-outline p-0 pr-8 text-left cursor-pointer select-none disabled:cursor-not-allowed"
-                    >
-                      <span
-                        className={`block truncate ${
-                          outputRuleTemplateName
-                            ? "text-text-primary"
-                            : "text-text-tertiary"
-                        }`}
-                      >
-                        {outputRuleTemplateName || t("da_template_name")}
-                      </span>
-                    </button>
-
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-secondary pointer-events-none">
-                      <ChevronDown
-                        size={16}
-                        className={`transition-transform duration-200 ${
-                          isOutputRuleTemplateMenuOpen ? "rotate-180" : ""
-                        }`}
-                      />
-                    </span>
-                  </div>
-                  <DropdownMenu
-                    isOpen={isOutputRuleTemplateMenuOpen}
-                    onClose={() => setIsOutputRuleTemplateMenuOpen(false)}
-                    anchorRef={outputRuleTemplateMenuRef}
+                  <Select
                     id={
                       includeIds
-                        ? "device-analysis-template-output-rule-template-menu"
+                        ? `device-analysis-template-rule-template-${index + 1}`
                         : undefined
                     }
-                    role="menu"
-                  >
-                    {availableTemplateOptions.length > 0 ? (
-                      availableTemplateOptions.map((entry) => {
-                        const isActive =
-                          String(entry.value) === String(outputRuleTemplateName || "");
-                        return (
-                          <button
-                            key={`${entry.value}`}
-                            type="button"
-                            role="menuitemradio"
-                            aria-checked={isActive}
-                            className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-bg-page cursor-pointer transition-colors"
-                            onClick={() => {
-                              setOutputRuleTemplateName(String(entry.value || ""));
-                              setIsOutputRuleTemplateMenuOpen(false);
-                            }}
-                          >
-                            <span className="text-sm text-text-primary truncate">
-                              {entry.label}
-                            </span>
-                            {isActive ? (
-                              <span className="text-accent">
-                                <Check size={14} />
-                              </span>
-                            ) : null}
-                          </button>
-                        );
-                      })
-                    ) : (
-                      <div className="px-3 py-2 text-sm text-text-secondary italic text-center">
-                        {t("da_template_name")}
-                      </div>
-                    )}
-                  </DropdownMenu>
+                    size="md"
+                    value={rule.templateName}
+                    options={availableTemplateOptions}
+                    onChange={(value) => {
+                      updateFileNameTemplateRule(rule.id, {
+                        templateName: String(value ?? ""),
+                      });
+                    }}
+                    placeholder={t("da_template_name")}
+                    disabled={measureOnly || templatesLoading}
+                    stableWidth={false}
+                  />
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <Button
-                  id={
-                    includeIds
-                      ? "device-analysis-template-output-rule-apply-to-all"
-                      : undefined
-                  }
-                  variant="primary"
-                  size="md"
-                  onClick={
-                    measureOnly
-                      ? undefined
-                      : () => applyRuleTemplate("output", false)
-                  }
-                  disabled={measureOnly || !outputRuleTemplate}
-                >
-                  {t("da_apply_to_all_files")}
-                </Button>
-                <Button
-                  id={
-                    includeIds
-                      ? "device-analysis-template-output-rule-apply-to-new"
-                      : undefined
-                  }
-                  variant="secondary"
-                  size="md"
-                  onClick={
-                    measureOnly
-                      ? undefined
-                      : () => applyRuleTemplate("output", true)
-                  }
-                  disabled={
-                    measureOnly ||
-                    !outputRuleTemplate ||
-                    typeof onTemplateAppliedIncremental !== "function"
-                  }
-                >
-                  {t("da_apply_to_new_files")}
-                </Button>
-              </div>
+              ))}
             </div>
+          ) : null}
+
+          <div className="grid grid-cols-2 gap-3 mt-3">
+            <Button
+              id={
+                includeIds
+                  ? "device-analysis-template-output-rule-apply-to-all"
+                  : undefined
+              }
+              variant="primary"
+              size="md"
+              onClick={
+                measureOnly
+                  ? undefined
+                  : () => applyFileNameTemplateRules(false)
+              }
+              disabled={measureOnly || !canApplyRuleBasedExtraction}
+            >
+              {t("da_apply_to_all_files")}
+            </Button>
+            <Button
+              id={
+                includeIds
+                  ? "device-analysis-template-output-rule-apply-to-new"
+                  : undefined
+              }
+              variant="secondary"
+              size="md"
+              onClick={
+                measureOnly
+                  ? undefined
+                  : () => applyFileNameTemplateRules(true)
+              }
+              disabled={
+                measureOnly ||
+                !canApplyRuleBasedExtraction ||
+                typeof onTemplateAppliedIncremental !== "function"
+              }
+            >
+              {t("da_apply_to_new_files")}
+            </Button>
           </div>
         </div>
 

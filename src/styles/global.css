@@ -533,6 +533,10 @@ body {
     @apply w-[36px] h-[36px] px-0;
   }
 
+  .action-btn--icon-size {
+    @apply w-7 h-7 px-0;
+  }
+
   /* Content */
   .action-btn__content {
     @apply relative z-10 flex items-center gap-2;
@@ -576,6 +580,34 @@ body {
 
   .action-btn--danger {
     @apply text-text-tertiary bg-bg-0 hover:text-text-danger;
+  }
+
+  .action-btn--icon {
+    @apply bg-transparent border-0 text-text-primary;
+    box-shadow: none;
+  }
+
+  .action-btn--icon .action-btn__content {
+    @apply gap-0;
+  }
+
+  .action-btn.action-btn--icon:not(:disabled):hover {
+    box-shadow: none;
+  }
+
+  .action-btn--icon-disabled {
+    @apply bg-transparent border-0 text-text-tertiary cursor-not-allowed;
+    box-shadow: none;
+    transform: none;
+  }
+
+  .action-btn--icon-disabled .action-btn__content {
+    @apply gap-0;
+  }
+
+  .action-btn--icon::after,
+  .action-btn--icon-disabled::after {
+    display: none;
   }
 
   .action-btn--disabled {

@@ -9,8 +9,9 @@ type ButtonVariant =
   | "secondary"
   | "ghost"
   | "text"
+  | "icon"
   | "danger";
-type ButtonSize = "sm" | "md" | "lg" | "control";
+type ButtonSize = "sm" | "md" | "lg" | "control" | "icon";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   children?: ReactNode;
@@ -54,6 +55,8 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     const devTestId = import.meta.env.DEV && testId ? testId : undefined;
 
     const resolvedVariant = (() => {
+      if (variant === "icon" && isDisabled) return "icon-disabled";
+      if (variant === "icon") return "icon";
       if (isDisabled) return "disabled";
       if (variant === "ghost") return "ghost";
       return variant;
@@ -64,6 +67,8 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       if (resolvedVariant === "secondary") return "action-btn--secondary";
       if (resolvedVariant === "ghost") return "action-btn--ghost";
       if (resolvedVariant === "text") return "action-btn--text";
+      if (resolvedVariant === "icon") return "action-btn--icon";
+      if (resolvedVariant === "icon-disabled") return "action-btn--icon-disabled";
       if (resolvedVariant === "danger") return "action-btn--danger";
       return "action-btn--primary";
     })();
@@ -72,6 +77,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       if (size === "sm") return "action-btn--sm";
       if (size === "lg") return "action-btn--lg";
       if (size === "control") return "action-btn--control";
+      if (size === "icon") return "action-btn--icon-size";
       return "action-btn--md";
     })();
 
