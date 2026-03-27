@@ -81,6 +81,7 @@ type FileNameTemplateRulePayload = {
   pattern?: unknown;
   templateName?: unknown;
   templateConfig?: unknown;
+  caseSensitive?: unknown;
 };
 
 type RuleBasedExtractionConfig = {
@@ -96,6 +97,12 @@ const normalizeRulePatternTokens = (value: unknown): string[] =>
   String(value ?? "")
     .split(/[,;\n]+/)
     .map((token) => token.trim().toLowerCase())
+    .filter(Boolean);
+
+const normalizeRulePatternTokensRaw = (value: unknown): string[] =>
+  String(value ?? "")
+    .split(/[,;\n]+/)
+    .map((token) => token.trim())
     .filter(Boolean);
 
 const buildProcessingQueue = (
@@ -452,19 +459,24 @@ export const useDeviceAnalysisProcessing = ({
         : null;
       const normalizedRules = rawRules
         .map((rule) => {
-          const patternTokens = normalizeRulePatternTokens(rule?.pattern);
+          const caseSensitive = Boolean(rule?.caseSensitive);
+          const patternTokens = caseSensitive
+            ? normalizeRulePatternTokensRaw(rule?.pattern)
+            : normalizeRulePatternTokens(rule?.pattern);
           const templateConfig = isObjectRecord(rule?.templateConfig)
             ? (rule.templateConfig as Record<string, unknown>)
             : null;
           const templateName = String(rule?.templateName ?? "").trim();
           if (!patternTokens.length || !templateConfig) return null;
           return {
+            caseSensitive,
             patternTokens,
             templateConfig,
             templateName,
           };
         })
         .filter(Boolean) as Array<{
+        caseSensitive: boolean;
         patternTokens: string[];
         templateConfig: Record<string, unknown>;
         templateName: string;
@@ -484,9 +496,14 @@ export const useDeviceAnalysisProcessing = ({
       const configByTemplateName = new Map<string, Record<string, unknown>>();
 
       for (const entry of candidates) {
-        const fileNameLower = String(entry.fileName ?? "").toLowerCase();
+        const fileNameRaw = String(entry.fileName ?? "");
+        const fileNameLower = fileNameRaw.toLowerCase();
         const matchedRule = normalizedRules.find((rule) =>
-          rule.patternTokens.some((token) => fileNameLower.includes(token)),
+          rule.patternTokens.some((token) =>
+            rule.caseSensitive
+              ? fileNameRaw.includes(token)
+              : fileNameLower.includes(token),
+          ),
         );
         if (!matchedRule) {
           if (!fallbackTemplateConfig) continue;

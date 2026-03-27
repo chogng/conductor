@@ -1,5 +1,6 @@
 export type TemplateConfig = {
   bottomTitle: string;
+  fileNameMatchCaseSensitive: boolean;
   fileNameVdKeywords: string;
   fileNameVgKeywords: string;
   leftTitle: string;
@@ -38,6 +39,7 @@ export const createEmptyTemplateConfig = (
   yStep: "",
   yUnit: "A",
   stopOnError: false,
+  fileNameMatchCaseSensitive: false,
   bottomTitle: "",
   leftTitle: "",
   legendPrefix: "",

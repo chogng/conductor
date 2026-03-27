@@ -110,6 +110,7 @@
     da_remove_rule: 'Remove rule',
     da_rule_item_index: 'Rule #{index}',
     da_match_field_placeholder: 'Match field',
+    da_match_field_case_sensitive: 'Case-sensitive field match',
     da_new_template: 'New template',
     da_analysis_processing: 'Processing analysis data...',
     da_analysis_processing_hint: 'Extracting and preparing chart data, please wait.',

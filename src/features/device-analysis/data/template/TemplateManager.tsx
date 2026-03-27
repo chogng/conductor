@@ -139,6 +139,7 @@ type FileNameTemplateRulePayload = {
   pattern: string;
   templateName: string;
   templateConfig: TemplateConfig;
+  caseSensitive: boolean;
 };
 
 const TemplateManager = ({
@@ -317,6 +318,7 @@ const TemplateManager = ({
         yStep: String(template?.yStep ?? ""),
         yUnit: String(template?.yUnit ?? "A"),
         stopOnError: Boolean(template?.stopOnError),
+        fileNameMatchCaseSensitive: Boolean(template?.fileNameMatchCaseSensitive),
         bottomTitle: String(template?.bottomTitle ?? template?.vgKeyword ?? ""),
         leftTitle: String(template?.leftTitle ?? ""),
         legendPrefix: String(template?.legendPrefix ?? template?.vdKeyword ?? ""),
@@ -418,6 +420,7 @@ const TemplateManager = ({
       const rulePayload = normalizedRuleRuntimeConfigs.map((rule) => ({
         pattern: rule.pattern,
         templateName: rule.templateName,
+        caseSensitive: Boolean(config?.fileNameMatchCaseSensitive),
         templateConfig: {
           ...rule.templateConfig,
           fileNameVgKeywords: "",
@@ -1632,6 +1635,32 @@ const TemplateManager = ({
             <div className="clickable-ckb" data-state="unchecked" />
           )}
           <span>{t("da_stop_on_first_invalid_file")}</span>
+        </div>
+        <div
+          id={
+            includeIds
+              ? "device-analysis-rule-case-sensitive-toggle"
+              : undefined
+          }
+          onClick={
+            measureOnly
+              ? undefined
+              : () =>
+                  setConfig((prev) => ({
+                    ...prev,
+                    fileNameMatchCaseSensitive: !prev.fileNameMatchCaseSensitive,
+                  }))
+          }
+          className="flex items-center gap-2 text-sm text-text-secondary select-none cursor-pointer group w-fit"
+        >
+          {config.fileNameMatchCaseSensitive ? (
+            <div className="clickable-ckb" data-state="checked">
+              <Check size={14} className="text-white" strokeWidth={3} />
+            </div>
+          ) : (
+            <div className="clickable-ckb" data-state="unchecked" />
+          )}
+          <span>{t("da_match_field_case_sensitive")}</span>
         </div>
       </div>
     );

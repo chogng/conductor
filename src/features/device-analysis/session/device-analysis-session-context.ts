@@ -30,6 +30,7 @@ export type DeviceAnalysisTemplateConfig = {
   yStep: string;
   yUnit: string;
   stopOnError: boolean;
+  fileNameMatchCaseSensitive: boolean;
   bottomTitle: string;
   leftTitle: string;
   legendPrefix: string;

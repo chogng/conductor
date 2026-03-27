@@ -45,6 +45,7 @@ export const DeviceAnalysisSessionProvider = ({
     yStep: "",
     yUnit: "A",
     stopOnError: false,
+    fileNameMatchCaseSensitive: false,
     bottomTitle: "",
     leftTitle: "",
     legendPrefix: "",

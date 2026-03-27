@@ -110,6 +110,7 @@
     da_remove_rule: '删除规则',
     da_rule_item_index: '规则 {index}',
     da_match_field_placeholder: '匹配字段',
+    da_match_field_case_sensitive: '字段区分大小写',
     da_new_template: '新建模板',
     da_analysis_processing: '分析数据处理中...',
     da_analysis_processing_hint: '正在提取并准备图表数据，请稍候。',
