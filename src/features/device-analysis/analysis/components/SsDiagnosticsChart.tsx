@@ -43,6 +43,7 @@ type SsDiagnosticsChartProps = {
   overlayStyle: SsOverlayStyle;
   ssReferenceValue?: number | null;
   seriesColor?: string;
+  rightReservedWidth?: number;
 };
 
 const SsDiagnosticsChart = memo(function SsDiagnosticsChart({
@@ -60,6 +61,7 @@ const SsDiagnosticsChart = memo(function SsDiagnosticsChart({
   overlayStyle,
   ssReferenceValue = null,
   seriesColor = "#8884d8",
+  rightReservedWidth = 135,
 }: SsDiagnosticsChartProps) {
   const yTickDigits = inferTickDigitsFromTicks(yTicks);
   const yTooltipDigits = Math.max(2, yTickDigits);
@@ -72,7 +74,10 @@ const SsDiagnosticsChart = memo(function SsDiagnosticsChart({
       minHeight={1}
       className="!outline-none"
     >
-      <LineChart data={[]} margin={{ top: 20, right: 135, left: 45, bottom: 20 }}>
+      <LineChart
+        data={[]}
+        margin={{ top: 20, right: rightReservedWidth, left: 45, bottom: 20 }}
+      >
         <CartesianGrid strokeDasharray="3 3" stroke="#333" opacity={0.2} />
         <XAxis
           dataKey="x"

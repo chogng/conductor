@@ -2261,7 +2261,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     {t("da_chart_ss_diagnostics")}
                   </div>
                   <div ref={diagnosticsChartContainerRef} className="h-[260px] min-h-[260px] flex-shrink-0">
-                    {isDiagnosticsChartSizeReady ? (<SsDiagnosticsChart data={focusedSsDiagnosticsForRender} xDomain={xDomain} xTicks={xTicks} xFactor={plotXFactor} xUnitLabel={resolvedXUnitMeta.label} xLabelInterval={xLabelInterval} xTickDigits={xTickDigitsDisplay} xTooltipDigits={xTooltipDigits} yDomain={ssDiagnosticsYDomain} yTicks={ssDiagnosticsYTicks} overlay={focusedSsOverlay} overlayStyle={ssOverlayStyle} ssReferenceValue={ssSummary?.ss} seriesColor={focusedSeriesColor}/>) : (<div className="h-full w-full"/>)}
+                    {isDiagnosticsChartSizeReady ? (<SsDiagnosticsChart data={focusedSsDiagnosticsForRender} xDomain={xDomain} xTicks={xTicks} xFactor={plotXFactor} xUnitLabel={resolvedXUnitMeta.label} xLabelInterval={xLabelInterval} xTickDigits={xTickDigitsDisplay} xTooltipDigits={xTooltipDigits} yDomain={ssDiagnosticsYDomain} yTicks={ssDiagnosticsYTicks} overlay={focusedSsOverlay} overlayStyle={ssOverlayStyle} ssReferenceValue={ssSummary?.ss} seriesColor={focusedSeriesColor} rightReservedWidth={MAIN_PLOT_LEGEND_WIDTH + 15}/>) : (<div className="h-full w-full"/>)}
                   </div>
                 </div>) : null}
             </div>) : (<div className="flex items-center justify-center h-[300px] text-text-secondary">
