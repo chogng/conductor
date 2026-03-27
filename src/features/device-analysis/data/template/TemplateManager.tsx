@@ -86,7 +86,7 @@ const TemplateManagerPreviewFallback = ({
       ? previewStatus.message || t("da_preview_loading")
       : previewStatus?.state === "error"
         ? previewStatus.message || t("da_preview_error")
-        : t("da_data_extraction_template");
+        : undefined;
   const hint =
     previewStatus?.state === "loading"
       ? t("da_preview_loading_hint")
@@ -1552,6 +1552,7 @@ const TemplateManager = ({
                   placeholder={t("da_template_name")}
                   disabled={measureOnly || templatesLoading}
                   stableWidth={false}
+                  popupClassName="min-w-full !bg-bg-surface !backdrop-blur-none"
                 />
               </div>
             ))}

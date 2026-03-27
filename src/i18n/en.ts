@@ -109,7 +109,7 @@
     da_add_rule: 'Add rule',
     da_remove_rule: 'Remove rule',
     da_rule_item_index: 'Rule #{index}',
-    da_match_field_placeholder: 'Match field (e.g. idvg, transfer)',
+    da_match_field_placeholder: 'Match field',
     da_new_template: 'New template',
     da_analysis_processing: 'Processing analysis data...',
     da_analysis_processing_hint: 'Extracting and preparing chart data, please wait.',
