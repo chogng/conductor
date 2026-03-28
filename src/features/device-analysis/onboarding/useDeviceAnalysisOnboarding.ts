@@ -408,8 +408,8 @@ export const useDeviceAnalysisOnboarding = ({
       case "template-x-points":
         return true;
       case "template-select-columns":
-        return Array.isArray(templateConfig?.selectedColumns)
-          ? templateConfig.selectedColumns.some(
+        return Array.isArray(templateConfig?.yColumns)
+          ? templateConfig.yColumns.some(
               (columnIndex) =>
                 columnIndex !==
                 getColumnIndexFromCellReference(templateConfig?.xDataStart ?? ""),

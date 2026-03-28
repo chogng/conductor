@@ -13,6 +13,7 @@ import {
   cloneTemplateConfig,
   createEmptyTemplateConfig,
   normalizeXDataEndValue,
+  normalizeTemplateConfigRecord,
   toTemplateNameKey,
   type TemplateConfig,
 } from "./templateManagerUtils";
@@ -32,10 +33,6 @@ type ToastType = "warning" | "success" | "error" | "idle" | string;
 type TemplateRecord = Partial<TemplateConfig> &
   Partial<{
     id: string | null;
-    vdFileKeywords: string;
-    vdKeyword: string;
-    vgFileKeywords: string;
-    vgKeyword: string;
   }> & {
     [key: string]: unknown;
   };
@@ -54,14 +51,6 @@ const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
 const isTemplateRecord = (value: unknown): value is TemplateRecord =>
   isObjectRecord(value);
 
-const normalizeSelectedColumns = (value: unknown): number[] | null => {
-  if (!Array.isArray(value)) return null;
-  const next = value
-    .map((entry) => Number(entry))
-    .filter((entry) => Number.isInteger(entry) && entry >= 0);
-  return next.length > 0 ? next : null;
-};
-
 const normalizeTemplateId = (value: unknown): string | null =>
   typeof value === "string" ? value : null;
 
@@ -78,31 +67,9 @@ type TemplateTransferPayload = TemplateRecord & {
 };
 
 const toTemplateTransferRecord = (template: TemplateRecord): TemplateRecord => ({
-  name: String(template?.name ?? ""),
-  xDataStart: String(template?.xDataStart ?? ""),
-  xDataEnd: String(template?.xDataEnd ?? ""),
-  xSegmentationMode: resolveXSegmentationMode(template?.xSegmentationMode),
-  xSegments: String(template?.xSegments ?? ""),
-  xPoints: String(template?.xPoints ?? ""),
+  ...normalizeTemplateConfigRecord(template),
   xUnit: normalizeTemplateXUnit(template?.xUnit),
-  yDataStart: String(template?.yDataStart ?? ""),
-  yDataEnd: String(template?.yDataEnd ?? ""),
-  yPoints: String(template?.yPoints ?? ""),
-  yCount: String(template?.yCount ?? ""),
-  yStep: String(template?.yStep ?? ""),
   yUnit: normalizeDeviceAnalysisYUnit(template?.yUnit, "A"),
-  stopOnError: Boolean(template?.stopOnError),
-  fileNameMatchCaseSensitive: Boolean(template?.fileNameMatchCaseSensitive),
-  bottomTitle: String(template?.bottomTitle ?? template?.vgKeyword ?? ""),
-  leftTitle: String(template?.leftTitle ?? ""),
-  legendPrefix: String(template?.legendPrefix ?? template?.vdKeyword ?? ""),
-  fileNameVgKeywords: String(
-    template?.fileNameVgKeywords ?? template?.vgFileKeywords ?? "",
-  ),
-  fileNameVdKeywords: String(
-    template?.fileNameVdKeywords ?? template?.vdFileKeywords ?? "",
-  ),
-  selectedColumns: normalizeSelectedColumns(template?.selectedColumns) ?? [],
 });
 
 const mergeTemplatesByIdentity = (
@@ -329,50 +296,19 @@ export const useTemplateManagerState = ({
     (template: TemplateRecord, options: { persist?: boolean } = {}) => {
       const { persist } = options;
       setInputSources({});
-
-      const rest: Omit<TemplateConfig, "selectedColumns"> & {
-        selectedColumns: number[] | null;
-      } = {
-        name: String(template?.name ?? ""),
-        xDataStart: String(template?.xDataStart ?? ""),
-        xDataEnd: String(template?.xDataEnd ?? ""),
-        xSegments: String(template?.xSegments ?? ""),
-        xPoints: String(template?.xPoints ?? ""),
+      const rest = normalizeTemplateConfigRecord({
+        ...template,
         xSegmentationMode: resolveXSegmentationMode(template?.xSegmentationMode),
         xUnit: normalizeTemplateXUnit(template?.xUnit),
-        yDataStart: String(template?.yDataStart ?? ""),
-        yDataEnd: String(template?.yDataEnd ?? ""),
-        yPoints: String(template?.yPoints ?? ""),
-        yCount: String(template?.yCount ?? ""),
-        yStep: String(template?.yStep ?? ""),
         yUnit: normalizeDeviceAnalysisYUnit(template?.yUnit, "A"),
-        stopOnError: Boolean(template?.stopOnError),
-        fileNameMatchCaseSensitive: Boolean(template?.fileNameMatchCaseSensitive),
-        bottomTitle: String(template?.bottomTitle ?? template?.vgKeyword ?? ""),
-        leftTitle: String(template?.leftTitle ?? ""),
-        legendPrefix: String(template?.legendPrefix ?? template?.vdKeyword ?? ""),
-        fileNameVgKeywords: String(
-          template?.fileNameVgKeywords ?? template?.vgFileKeywords ?? "",
-        ),
-        fileNameVdKeywords: String(
-          template?.fileNameVdKeywords ?? template?.vdFileKeywords ?? "",
-        ),
-        selectedColumns: normalizeSelectedColumns(template?.selectedColumns),
-      };
-
-      const startCell = String(rest.xDataStart ?? "").trim();
-      const xDataEndRaw = normalizeXDataEndValue(rest.xDataEnd);
-      const xDataEnd = !xDataEndRaw ? (startCell ? "End" : "") : xDataEndRaw;
+      });
 
       const templateId = normalizeTemplateId(template?.id);
 
       setConfig((prev) => ({
         ...prev,
         ...rest,
-        xDataEnd,
-        selectedColumns: Array.isArray(rest.selectedColumns)
-          ? rest.selectedColumns
-          : prev.selectedColumns,
+        yColumns: Array.isArray(rest.yColumns) ? rest.yColumns : prev.yColumns,
       }));
       setSelectedTemplateId(templateId);
       setIsDropdownOpen(false);
@@ -411,14 +347,17 @@ export const useTemplateManagerState = ({
       saveDraftTouchedRef.current = false;
       saveDraftBaseConfigRef.current = null;
 
-      const savedRaw = await apiService.createDeviceAnalysisTemplate({
+      const persistedTemplate = {
         ...validation.normalized,
         name,
+      };
+      const savedRaw = await apiService.createDeviceAnalysisTemplate({
+        ...persistedTemplate,
       });
       const saved: TemplateRecord =
         isTemplateRecord(savedRaw)
           ? savedRaw
-          : { ...validation.normalized, name };
+          : persistedTemplate;
 
       setTemplates((prev) => {
         const savedNameKey = toTemplateNameKey(saved?.name);
@@ -609,14 +548,17 @@ export const useTemplateManagerState = ({
             continue;
           }
 
+          const persistedTemplate = {
+            ...validation.normalized,
+            name: resolvedName,
+          };
           try {
             const savedRaw = await apiService.createDeviceAnalysisTemplate({
-              ...validation.normalized,
-              name: resolvedName,
+              ...persistedTemplate,
             });
             const saved: TemplateRecord = isTemplateRecord(savedRaw)
               ? savedRaw
-              : { ...validation.normalized, name: resolvedName };
+              : persistedTemplate;
             savedTemplates.push(saved);
             occupiedNameKeys.add(toTemplateNameKey(resolvedName));
           } catch {
@@ -773,10 +715,10 @@ export const useTemplateManagerState = ({
         return;
       }
 
-      const validation = validateTemplateForApply(
-        sourceConfig as TemplateConfig,
-        t,
+      const normalizedSourceConfig = normalizeTemplateConfigRecord(
+        sourceConfig as Record<string, unknown>,
       );
+      const validation = validateTemplateForApply(normalizedSourceConfig, t);
       if (!validation.ok || !validation.normalized) {
         showToast(validation.message || "Invalid configuration", "warning");
         return;

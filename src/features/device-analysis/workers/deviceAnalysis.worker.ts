@@ -438,6 +438,7 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
     const yLegendStepCell = config?.yLegendStepCell ?? null;
     const yLegendCountRaw = config?.yLegendCount ?? null;
     const yLegendStepRaw = config?.yLegendStep ?? null;
+    const yLegendTargetRaw = config?.yLegendTarget ?? "auto";
     /* New helper to read specific cell as string */
     const readCsvCellString = async (file: any, rowIndex: any, colIndex: any): Promise<string> => {
         const targetRow = Number(rowIndex);
@@ -741,6 +742,56 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
             return null;
         return num;
     };
+    const resolveLegendLayout = (desiredCount: number | null) => {
+        const yCount = yCols.length;
+        const gCount = groups;
+        const preferredTarget = yLegendTargetRaw === "yColumn"
+            ? "yCol"
+            : yLegendTargetRaw === "group"
+                ? "group"
+                : "auto";
+        let mode: "yCol" | "group" | null = null;
+        let count: number | null = desiredCount;
+        if (preferredTarget === "yCol") {
+            mode = "yCol";
+            if (!(Number.isInteger(count) && Number(count) > 0))
+                count = yCount;
+        }
+        else if (preferredTarget === "group") {
+            mode = "group";
+            if (!(Number.isInteger(count) && Number(count) > 0))
+                count = gCount;
+        }
+        else if (Number.isInteger(count) && Number(count) > 0) {
+            if (count === yCount && count !== gCount)
+                mode = "yCol";
+            else if (count === gCount && count !== yCount)
+                mode = "group";
+            else if (yCount === 1 && gCount > 1)
+                mode = "group";
+            else if (gCount === 1 && yCount > 1)
+                mode = "yCol";
+            else
+                mode = yCount >= gCount ? "yCol" : "group";
+        }
+        else if (gCount === 1) {
+            mode = "yCol";
+            count = yCount;
+        }
+        else if (yCount === 1) {
+            mode = "group";
+            count = gCount;
+        }
+        else {
+            mode = "yCol";
+            count = yCount;
+        }
+        const maxCount = mode === "group" ? gCount : yCount;
+        const finalCount = Number.isInteger(count) && Number(count) > 0
+            ? Math.min(Number(count), maxCount)
+            : 0;
+        return { mode, finalCount };
+    };
     const xFullByGroup = Array.from({ length: groups }, () => new Float64Array(groupSize));
     const yFullByGroup = Array.from({ length: groups }, () => yCols.map(() => new Float64Array(groupSize)));
     // Optional: map Y Data points to curve legends (best-effort).
@@ -768,40 +819,7 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
             const stepFromRaw = normalizePositiveNumber(yLegendStepRaw);
             const desiredCount = countFromCell ?? countFromRaw;
             const desiredStep = stepFromCell ?? stepFromRaw;
-            const yCount = yCols.length;
-            const gCount = groups;
-            let mode: "yCol" | "group" | null = null;
-            let count: number | null = desiredCount;
-            if (Number.isInteger(count) && Number(count) > 0) {
-                if (count === yCount && count !== gCount)
-                    mode = "yCol";
-                else if (count === gCount && count !== yCount)
-                    mode = "group";
-                else if (yCount === 1 && gCount > 1)
-                    mode = "group";
-                else if (gCount === 1 && yCount > 1)
-                    mode = "yCol";
-                else
-                    mode = yCount >= gCount ? "yCol" : "group";
-            }
-            else {
-                if (gCount === 1) {
-                    mode = "yCol";
-                    count = yCount;
-                }
-                else if (yCount === 1) {
-                    mode = "group";
-                    count = gCount;
-                }
-                else {
-                    mode = "yCol";
-                    count = yCount;
-                }
-            }
-            const maxCount = mode === "group" ? gCount : yCount;
-            const finalCount = Number.isInteger(count) && Number(count) > 0
-                ? Math.min(Number(count), maxCount)
-                : 0;
+            const { mode, finalCount } = resolveLegendLayout(desiredCount);
             if (finalCount > 0) {
                 yLegendMode = mode;
                 yLegendLabels = new Array(finalCount).fill(null);
@@ -838,40 +856,7 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
         const stepFromRaw = normalizePositiveNumber(yLegendStepRaw);
         const desiredCount = countFromCell ?? countFromRaw;
         const desiredStep = stepFromCell ?? stepFromRaw;
-        const yCount = yCols.length;
-        const gCount = groups;
-            let mode: "yCol" | "group" | null = null;
-            let count: number | null = desiredCount;
-        if (Number.isInteger(count) && Number(count) > 0) {
-            if (count === yCount && count !== gCount)
-                mode = "yCol";
-            else if (count === gCount && count !== yCount)
-                mode = "group";
-            else if (yCount === 1 && gCount > 1)
-                mode = "group";
-            else if (gCount === 1 && yCount > 1)
-                mode = "yCol";
-            else
-                mode = yCount >= gCount ? "yCol" : "group";
-        }
-        else {
-            if (gCount === 1) {
-                mode = "yCol";
-                count = yCount;
-            }
-            else if (yCount === 1) {
-                mode = "group";
-                count = gCount;
-            }
-            else {
-                mode = "yCol";
-                count = yCount;
-            }
-        }
-        const maxCount = mode === "group" ? gCount : yCount;
-        const finalCount = Number.isInteger(count) && Number(count) > 0
-            ? Math.min(Number(count), maxCount)
-            : 0;
+        const { mode, finalCount } = resolveLegendLayout(desiredCount);
         const startValue = parseNumberStrict(yLegendStartValueRaw);
         const desiredStepValue = Number(desiredStep);
         const stepValue = Number.isFinite(desiredStepValue) && desiredStepValue > 0 ? desiredStepValue : 1;

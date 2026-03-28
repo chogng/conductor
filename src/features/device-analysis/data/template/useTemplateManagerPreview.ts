@@ -373,7 +373,7 @@ export const useTemplateManagerPreview = ({
   const selectedColumnsSet = useMemo(
     () =>
       new Set(
-        Array.isArray(config?.selectedColumns) ? config.selectedColumns : [],
+        Array.isArray(config?.yColumns) ? config.yColumns : [],
       ),
     [config],
   );
@@ -686,21 +686,21 @@ export const useTemplateManagerPreview = ({
   const toggleColumn = useCallback(
     (index: number) => {
       setConfig((prev) => {
-        const selectedColumns = Array.isArray(prev?.selectedColumns)
-          ? prev.selectedColumns
+        const selectedColumns = Array.isArray(prev?.yColumns)
+          ? prev.yColumns
           : [];
         const isSelected = selectedColumns.includes(index);
 
         if (isSelected) {
           return {
             ...prev,
-            selectedColumns: selectedColumns.filter((value) => value !== index),
+            yColumns: selectedColumns.filter((value) => value !== index),
           };
         }
 
         return {
           ...prev,
-          selectedColumns: [...selectedColumns, index],
+          yColumns: [...selectedColumns, index],
         };
       });
     },

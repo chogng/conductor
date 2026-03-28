@@ -16,25 +16,21 @@ type TemplateConfigLike = Partial<{
   xDataStart: string;
   xDataEnd: string;
   xSegmentationMode: "auto" | "points" | "segments";
-  xSegments: string;
-  xPoints: string;
+  xSegmentCount: string;
+  xPointsPerGroup: string;
   xUnit: string;
-  yDataStart: string;
-  yDataEnd: string;
-  yCount: string;
-  yStep: string;
+  yLegendStart: string;
+  yLegendCount: string;
+  yLegendStep: string;
+  yLegendTarget: "auto" | "yColumn" | "group";
   yUnit: string;
-  selectedColumns: number[];
+  yColumns: number[];
   autoDetectCurveType: boolean;
   bottomTitle: string;
   legendPrefix: string;
   leftTitle: string;
   fileNameVgKeywords: string;
   fileNameVdKeywords: string;
-  vgKeyword: string;
-  vdKeyword: string;
-  vgFileKeywords: string;
-  vdFileKeywords: string;
 }>;
 
 type ExtractionConfig = {
@@ -56,6 +52,7 @@ type ExtractionConfig = {
   yLegendCount?: number;
   yLegendStepCell?: CellRef;
   yLegendStep?: number;
+  yLegendTarget?: "auto" | "yColumn" | "group";
   groupSizeCell?: CellRef;
   groupSize?: number | null;
   groups?: number | null;
@@ -229,8 +226,8 @@ export function prepareDeviceAnalysisExtraction({
   let segmentCount: number | null = null;
   let groupSizeCell: CellRef | null = null;
   let groupSizePreview: number | null = null;
-  const pointsRaw = String(normalizedConfig?.xPoints ?? "").trim();
-  const segmentsRaw = String(normalizedConfig?.xSegments ?? "").trim();
+  const pointsRaw = String(normalizedConfig?.xPointsPerGroup ?? "").trim();
+  const segmentsRaw = String(normalizedConfig?.xSegmentCount ?? "").trim();
   const segmentationMode = resolveXSegmentationMode(
     normalizedConfig?.xSegmentationMode,
   );
@@ -419,32 +416,10 @@ export function prepareDeviceAnalysisExtraction({
     }
   }
 
-  const yColsFromToggle = Array.isArray(normalizedConfig?.selectedColumns)
-    ? normalizedConfig.selectedColumns
+  const yColsFromToggle = Array.isArray(normalizedConfig?.yColumns)
+    ? normalizedConfig.yColumns
     : [];
   let yCols = yColsFromToggle;
-
-  if (
-    yCols.length === 0 &&
-    (normalizedConfig?.yDataStart || normalizedConfig?.yDataEnd)
-  ) {
-    const yStart = parseCellRef(normalizedConfig?.yDataStart || "");
-    const yEnd = parseCellRef(normalizedConfig?.yDataEnd || "");
-    if (!yStart || !yEnd) {
-      return {
-        ok: false,
-        type: "warning",
-        message: msg(
-          "da_extractYStartEndValidCells",
-          null,
-          "Y Data start/end must be valid cells (e.g. B2 and D2).",
-        ),
-      };
-    }
-    const yStartCol = Math.min(yStart.colIndex, yEnd.colIndex);
-    const yEndCol = Math.max(yStart.colIndex, yEnd.colIndex);
-    yCols = Array.from({ length: yEndCol - yStartCol + 1 }, (_, i) => yStartCol + i);
-  }
 
   const uniqueYCols = Array.from(new Set(yCols)).sort((a, b) => a - b);
 
@@ -484,12 +459,13 @@ export function prepareDeviceAnalysisExtraction({
     yUnit: String(normalizedConfig?.yUnit ?? "").trim(),
     fileNameVgKeywords: normalizedConfig?.fileNameVgKeywords ?? "",
     fileNameVdKeywords: normalizedConfig?.fileNameVdKeywords ?? "",
+    yLegendTarget: normalizedConfig?.yLegendTarget ?? "auto",
   };
 
-  // Optional: use Y Data start/count/step for plot legend labels.
-  const yLegendStartRaw = String(normalizedConfig?.yDataStart ?? "").trim();
-  const yLegendCountRaw = String(normalizedConfig?.yCount ?? "").trim();
-  const yLegendStepRaw = String(normalizedConfig?.yStep ?? "").trim();
+  // Optional: use Y legend start/count/step for curve legend labels.
+  const yLegendStartRaw = String(normalizedConfig?.yLegendStart ?? "").trim();
+  const yLegendCountRaw = String(normalizedConfig?.yLegendCount ?? "").trim();
+  const yLegendStepRaw = String(normalizedConfig?.yLegendStep ?? "").trim();
 
   if (yLegendStartRaw && (yLegendCountRaw || yLegendStepRaw)) {
     const yLegendStartCell = parseCellRef(yLegendStartRaw);

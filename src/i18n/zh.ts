@@ -190,6 +190,7 @@
     da_save_template: '保存模板',
     da_save_x_data_label: '\u0058 \u6570\u636e',
     da_save_y_data_label: '\u0059 \u6570\u636e',
+    da_save_curve_legend_label: '\u66f2\u7ebf\u56fe\u4f8b',
     da_save_start: '\u5f00\u59cb',
     da_save_end: '\u7ed3\u675f',
     da_save_points: '\u70b9\u6570',
@@ -213,6 +214,10 @@
     da_save_check_columns: '\u52fe\u9009\u5217',
     da_save_count: '\u70b9\u6570',
     da_save_step: '\u6b65\u957f',
+    da_save_legend_mapping: '\u56fe\u4f8b\u6620\u5c04',
+    da_save_legend_mapping_auto: '\u81ea\u52a8',
+    da_save_legend_mapping_y_column: '\u6309 Y \u5217',
+    da_save_legend_mapping_x_group: '\u6309 X \u5206\u7ec4',
     da_save_curve_tagging_conflict:
       '\u0056\u0061\u0072\u0031\u002f\u0056\u0061\u0072\u0032 \u4e0e\u6587\u4ef6\u540d\u5173\u952e\u8bcd\u4e0d\u80fd\u540c\u65f6\u4f7f\u7528\uff0c\u8bf7\u6e05\u7a7a\u5176\u4e2d\u4e00\u7ec4\u3002',
     da_settings_section_aria_label: '设置',

@@ -7,22 +7,14 @@ const CELL_REF_RE = /^([A-Z]+)([1-9][0-9]*)$/;
 export const Y_COLUMNS_REQUIRED_MESSAGE =
   "Y Data must be selected from the columns in the preview header.";
 
-type ValidationConfig = Partial<TemplateConfig> &
-  Partial<{
-    vgKeyword: string;
-    vdKeyword: string;
-    vgFileKeywords: string;
-    vdFileKeywords: string;
-  }>;
+type ValidationConfig = Partial<TemplateConfig>;
 
 type NormalizedTemplateForSave<T extends ValidationConfig> = T & {
   bottomTitle: string;
   fileNameVdKeywords: string;
   fileNameVgKeywords: string;
   legendPrefix: string;
-  selectedColumns: number[];
-  vdKeyword: string;
-  vgKeyword: string;
+  yColumns: number[];
   xUnit: string;
   yUnit: string;
 };
@@ -33,8 +25,6 @@ type NormalizedTemplateForApply<T extends ValidationConfig> = T & {
   fileNameVgKeywords: string;
   leftTitle: string;
   legendPrefix: string;
-  vdKeyword: string;
-  vgKeyword: string;
   xUnit: string;
   yUnit: string;
 };
@@ -126,19 +116,11 @@ export function validateCurveTaggingMode(
   config: ValidationConfig,
   t?: TranslateFn,
 ): CurveTaggingValidation {
-  const varPair = validateVarPair(
-    config?.bottomTitle ?? config?.vgKeyword,
-    config?.legendPrefix ?? config?.vdKeyword,
-    t,
-  );
+  const varPair = validateVarPair(config?.bottomTitle, config?.legendPrefix, t);
   if (!varPair.ok) return { ok: false, message: varPair.message };
 
-  const fileNameVgKeywords = normalizeKeywordList(
-    config?.fileNameVgKeywords ?? config?.vgFileKeywords ?? "",
-  );
-  const fileNameVdKeywords = normalizeKeywordList(
-    config?.fileNameVdKeywords ?? config?.vdFileKeywords ?? "",
-  );
+  const fileNameVgKeywords = normalizeKeywordList(config?.fileNameVgKeywords ?? "");
+  const fileNameVdKeywords = normalizeKeywordList(config?.fileNameVdKeywords ?? "");
   const hasFileNameRules = Boolean(fileNameVgKeywords) || Boolean(fileNameVdKeywords);
   if (hasFileNameRules && (!fileNameVgKeywords || !fileNameVdKeywords)) {
     return {
@@ -167,11 +149,11 @@ export function validateTemplateForSave<T extends ValidationConfig>(
   message?: string;
   normalized?: NormalizedTemplateForSave<T>;
 } {
-  const selectedColumns = Array.isArray(config?.selectedColumns)
-    ? config.selectedColumns
+  const yColumns = Array.isArray(config?.yColumns)
+    ? config.yColumns
     : [];
 
-  if (selectedColumns.length === 0) {
+  if (yColumns.length === 0) {
     return {
       ok: false,
       message:
@@ -188,16 +170,13 @@ export function validateTemplateForSave<T extends ValidationConfig>(
     ok: true,
     normalized: {
       ...config,
-      selectedColumns,
+      yColumns,
       bottomTitle: varPair.vg,
       legendPrefix: varPair.vd,
       xUnit: normalizeAxisUnit(config?.xUnit),
       yUnit: normalizeDeviceAnalysisYUnit(config?.yUnit, "A"),
       fileNameVgKeywords: curveTagging.fileNameVgKeywords,
       fileNameVdKeywords: curveTagging.fileNameVdKeywords,
-      // Back-compat with older backend/template field names.
-      vgKeyword: varPair.vg,
-      vdKeyword: varPair.vd,
     },
   };
 }
@@ -226,9 +205,6 @@ export function validateTemplateForApply<T extends ValidationConfig>(
       yUnit: normalizeDeviceAnalysisYUnit(config?.yUnit, "A"),
       fileNameVgKeywords: curveTagging.fileNameVgKeywords,
       fileNameVdKeywords: curveTagging.fileNameVdKeywords,
-      // Back-compat with older backend/template field names.
-      vgKeyword: varPair.vg,
-      vdKeyword: varPair.vd,
     },
   };
 }

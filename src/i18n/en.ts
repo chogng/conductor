@@ -190,6 +190,7 @@
     da_save_template: 'Save template',
     da_save_x_data_label: 'X data',
     da_save_y_data_label: 'Y data',
+    da_save_curve_legend_label: 'Curve legend',
     da_save_start: 'Start',
     da_save_end: 'End',
     da_save_points: 'Points',
@@ -213,6 +214,10 @@
     da_save_check_columns: 'Check columns',
     da_save_count: 'Points',
     da_save_step: 'Step',
+    da_save_legend_mapping: 'Legend mapping',
+    da_save_legend_mapping_auto: 'Auto',
+    da_save_legend_mapping_y_column: 'By Y column',
+    da_save_legend_mapping_x_group: 'By X group',
     da_save_curve_tagging_conflict:
       'Var1/Var2 and file-name keywords cannot be used together. Please clear one.',
     da_settings_section_aria_label: 'Settings',

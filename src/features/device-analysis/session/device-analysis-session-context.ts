@@ -20,14 +20,13 @@ export type DeviceAnalysisTemplateConfig = {
   xDataStart: string;
   xDataEnd: string;
   xSegmentationMode: "auto" | "points" | "segments";
-  xSegments: string;
-  xPoints: string;
+  xSegmentCount: string;
+  xPointsPerGroup: string;
   xUnit: string;
-  yDataStart: string;
-  yDataEnd: string;
-  yPoints: string;
-  yCount: string;
-  yStep: string;
+  yLegendStart: string;
+  yLegendCount: string;
+  yLegendStep: string;
+  yLegendTarget: "auto" | "yColumn" | "group";
   yUnit: string;
   stopOnError: boolean;
   fileNameMatchCaseSensitive: boolean;
@@ -36,7 +35,7 @@ export type DeviceAnalysisTemplateConfig = {
   legendPrefix: string;
   fileNameVgKeywords: string;
   fileNameVdKeywords: string;
-  selectedColumns: number[];
+  yColumns: number[];
 };
 
 export type PreviewStatus = {

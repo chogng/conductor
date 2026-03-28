@@ -39,6 +39,7 @@ import { getExcelColumnLabel } from "./templateColumnLabel";
 import { useTemplateManagerState } from "./useTemplateManagerState";
 import {
   normalizeXDataEndValue,
+  normalizeTemplateConfigRecord,
   type TemplateConfig,
 } from "./templateManagerUtils";
 import { DEVICE_ANALYSIS_Y_UNIT_VALUES } from "../../analysis/lib/deviceAnalysisUnits";
@@ -214,6 +215,14 @@ const TemplateManager = ({
     ],
     [t],
   );
+  const legendMappingOptions = useMemo(
+    () => [
+      { label: t("da_save_legend_mapping_auto"), value: "auto" },
+      { label: t("da_save_legend_mapping_y_column"), value: "yColumn" },
+      { label: t("da_save_legend_mapping_x_group"), value: "group" },
+    ],
+    [t],
+  );
 
   const {
     applyConfigurationWithExternalConfig,
@@ -287,42 +296,11 @@ const TemplateManager = ({
   );
   const cloneTemplateConfigFromRecord = useCallback(
     (template: Record<string, unknown>): TemplateConfig => {
-      const selectedColumns = Array.isArray(template?.selectedColumns)
-        ? template.selectedColumns
-            .map((entry) => Number(entry))
-            .filter((entry) => Number.isInteger(entry) && entry >= 0)
-        : [];
-      const xDataStart = String(template?.xDataStart ?? "");
-      const xDataEndRaw = normalizeXDataEndValue(template?.xDataEnd);
-      const xDataEnd = !xDataEndRaw ? (xDataStart.trim() ? "End" : "") : xDataEndRaw;
-
-      return {
-        name: String(template?.name ?? ""),
-        xDataStart,
-        xDataEnd,
+      return normalizeTemplateConfigRecord({
+        ...template,
         xSegmentationMode: resolveXSegmentationMode(template?.xSegmentationMode),
-        xSegments: String(template?.xSegments ?? ""),
-        xPoints: String(template?.xPoints ?? ""),
-        xUnit: String(template?.xUnit ?? "V"),
-        yDataStart: String(template?.yDataStart ?? ""),
-        yDataEnd: String(template?.yDataEnd ?? ""),
-        yPoints: String(template?.yPoints ?? ""),
-        yCount: String(template?.yCount ?? ""),
-        yStep: String(template?.yStep ?? ""),
-        yUnit: String(template?.yUnit ?? "A"),
-        stopOnError: Boolean(template?.stopOnError),
-        fileNameMatchCaseSensitive: Boolean(template?.fileNameMatchCaseSensitive),
-        bottomTitle: String(template?.bottomTitle ?? template?.vgKeyword ?? ""),
-        leftTitle: String(template?.leftTitle ?? ""),
-        legendPrefix: String(template?.legendPrefix ?? template?.vdKeyword ?? ""),
-        fileNameVgKeywords: String(
-          template?.fileNameVgKeywords ?? template?.vgFileKeywords ?? "",
-        ),
-        fileNameVdKeywords: String(
-          template?.fileNameVdKeywords ?? template?.vdFileKeywords ?? "",
-        ),
-        selectedColumns,
-      };
+        xDataEnd: normalizeXDataEndValue(template?.xDataEnd),
+      });
     },
     [],
   );
@@ -625,41 +603,13 @@ const TemplateManager = ({
     const xSegmentationInputValue = isXAutoMode
       ? ""
       : isXSegmentsMode
-        ? String(config.xSegments ?? "")
-        : String(config.xPoints ?? "");
+        ? String(config.xSegmentCount ?? "")
+        : String(config.xPointsPerGroup ?? "");
     const xSegmentationInputPlaceholder = isXAutoMode
       ? t("da_save_segmentation_mode_auto")
       : isXSegmentsMode
         ? t("da_save_segments")
         : t("da_save_points");
-    const xPointsForY = (() => {
-      if (xSegmentationMode === "points") {
-        return String(config.xPoints ?? "").trim();
-      }
-      if (xSegmentationMode === "segments") {
-        const segments = Number(String(config.xSegments ?? "").trim());
-        const total = Number(xRangeForPreview?.total ?? NaN);
-        if (
-          Number.isInteger(segments) &&
-          segments > 0 &&
-          Number.isInteger(total) &&
-          total > 0 &&
-          total % segments === 0
-        ) {
-          return String(total / segments);
-        }
-        return "";
-      }
-      if (
-        xAutoSuggestion &&
-        Number.isInteger(xAutoSuggestion.groupSize) &&
-        xAutoSuggestion.groupSize > 0
-      ) {
-        return String(xAutoSuggestion.groupSize);
-      }
-      return "";
-    })();
-
     return (
       <div className="space-y-4">
         {/* 1. X Data */}
@@ -725,18 +675,18 @@ const TemplateManager = ({
                 id={
                   includeIds ? "device-analysis-template-x-points" : undefined
                 }
-                name={isXSegmentsMode ? "xSegments" : "xPoints"}
+                name={isXSegmentsMode ? "xSegmentCount" : "xPointsPerGroup"}
                 value={xSegmentationInputValue}
                 disabled={saveIsSelectMode || isXAutoMode}
                 onChange={(next) => {
                   if (isXAutoMode) return;
                   if (isXSegmentsMode) {
-                    setConfigFromSave((prev) => ({ ...prev, xSegments: next }));
-                    markFieldSource("xSegments", "manual");
+                    setConfigFromSave((prev) => ({ ...prev, xSegmentCount: next }));
+                    markFieldSource("xSegmentCount", "manual");
                     return;
                   }
-                  setConfigFromSave((prev) => ({ ...prev, xPoints: next }));
-                  markFieldSource("xPoints", "manual");
+                  setConfigFromSave((prev) => ({ ...prev, xPointsPerGroup: next }));
+                  markFieldSource("xPointsPerGroup", "manual");
                 }}
                 placeholder={xSegmentationInputPlaceholder}
                 inputClassName="no-spinner"
@@ -802,7 +752,7 @@ const TemplateManager = ({
             {t("da_save_y_data_label")}
           </label>
           <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4">
               <div className="min-w-0">
                 <Input
                   id={
@@ -811,8 +761,8 @@ const TemplateManager = ({
                       : undefined
                   }
                   value={
-                    config.selectedColumns.length > 0
-                      ? config.selectedColumns
+                    config.yColumns.length > 0
+                      ? config.yColumns
                           .slice()
                           .sort((a, b) => a - b)
                           .map((col) => getExcelColumnLabel(col))
@@ -824,27 +774,13 @@ const TemplateManager = ({
                   readOnly
                 />
               </div>
-              <div className="min-w-0">
-                <Input
-                  id={
-                    includeIds ? "device-analysis-template-y-points" : undefined
-                  }
-                  value={xPointsForY || config.yPoints}
-                  name="yPoints"
-                  disabled={saveIsSelectMode || !!xPointsForY}
-                  onChange={(next) => {
-                    setConfigFromSave((prev) => ({
-                      ...prev,
-                      yPoints: next,
-                    }));
-                    markFieldSource("yPoints", "manual");
-                  }}
-                  placeholder={t("da_save_points")}
-                  inputClassName="no-spinner"
-                />
-              </div>
             </div>
 
+            <div>
+              <label className="block text-sm font-medium text-text-secondary mb-2">
+                {t("da_save_curve_legend_label")}
+              </label>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="min-w-0">
                 <Input
@@ -853,15 +789,15 @@ const TemplateManager = ({
                       ? "device-analysis-template-y-data-start"
                       : undefined
                   }
-                  value={config.yDataStart}
-                  name="yDataStart"
+                  value={config.yLegendStart}
+                  name="yLegendStart"
                   disabled={saveIsSelectMode}
                   onChange={(next) => {
                     setConfigFromSave((prev) => ({
                       ...prev,
-                      yDataStart: next,
+                      yLegendStart: next,
                     }));
-                    markFieldSource("yDataStart", "manual");
+                    markFieldSource("yLegendStart", "manual");
                   }}
                   placeholder={t("da_save_start")}
                 />
@@ -871,12 +807,12 @@ const TemplateManager = ({
                   id={
                     includeIds ? "device-analysis-template-y-count" : undefined
                   }
-                  value={config.yCount}
-                  name="yCount"
+                  value={config.yLegendCount}
+                  name="yLegendCount"
                   disabled={saveIsSelectMode}
                   onChange={(next) => {
-                    setConfigFromSave((prev) => ({ ...prev, yCount: next }));
-                    markFieldSource("yCount", "manual");
+                    setConfigFromSave((prev) => ({ ...prev, yLegendCount: next }));
+                    markFieldSource("yLegendCount", "manual");
                   }}
                   placeholder={t("da_save_count")}
                   inputClassName="no-spinner"
@@ -887,15 +823,47 @@ const TemplateManager = ({
                   id={
                     includeIds ? "device-analysis-template-y-step" : undefined
                   }
-                  value={config.yStep}
-                  name="yStep"
+                  value={config.yLegendStep}
+                  name="yLegendStep"
                   disabled={saveIsSelectMode}
                   onChange={(next) => {
-                    setConfigFromSave((prev) => ({ ...prev, yStep: next }));
-                    markFieldSource("yStep", "manual");
+                    setConfigFromSave((prev) => ({ ...prev, yLegendStep: next }));
+                    markFieldSource("yLegendStep", "manual");
                   }}
                   placeholder={t("da_save_step")}
                   inputClassName="no-spinner"
+                />
+              </div>
+              <div className="min-w-0 relative">
+                <Select
+                  id={
+                    includeIds
+                      ? "device-analysis-template-legend-mapping"
+                      : undefined
+                  }
+                  menuId={
+                    includeIds
+                      ? "device-analysis-template-legend-mapping-menu"
+                      : undefined
+                  }
+                  size="md"
+                  className="w-full"
+                  value={config.yLegendTarget}
+                  options={legendMappingOptions}
+                  onChange={(value) => {
+                    const next =
+                      value === "yColumn" || value === "group" || value === "auto"
+                        ? value
+                        : "auto";
+                    setConfigFromSave((prev) => ({
+                      ...prev,
+                      yLegendTarget: next,
+                    }));
+                    markFieldSource("yLegendTarget", "manual");
+                  }}
+                  placeholder={t("da_save_legend_mapping")}
+                  disabled={saveIsSelectMode}
+                  stableWidth={false}
                 />
               </div>
               <div className="min-w-0 relative">
