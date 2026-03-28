@@ -60,7 +60,7 @@ const TemplateManagerPreviewWorkspace = ({
     previewTableRef,
     previewWindow,
     resetColumnWidth,
-    selectedColumnsSet,
+    yColumnsSet,
     setSelectionRange,
     selectionRects,
     selections,
@@ -98,7 +98,7 @@ const TemplateManagerPreviewWorkspace = ({
       previewTableRef={previewTableRef}
       previewWindow={previewWindow}
       resetColumnWidth={resetColumnWidth}
-      selectedColumnsSet={selectedColumnsSet}
+      yColumnsSet={yColumnsSet}
       setSelectionRange={setSelectionRange}
       selectionRects={selectionRects}
       selections={selections}
@@ -110,3 +110,4 @@ const TemplateManagerPreviewWorkspace = ({
 };
 
 export default React.memo(TemplateManagerPreviewWorkspace);
+

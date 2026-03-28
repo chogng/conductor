@@ -757,7 +757,7 @@ const TemplateManager = ({
                 <Input
                   id={
                     includeIds
-                      ? "device-analysis-template-selected-columns"
+                      ? "device-analysis-template-y-columns"
                       : undefined
                   }
                   value={
@@ -786,7 +786,7 @@ const TemplateManager = ({
                 <Input
                   id={
                     includeIds
-                      ? "device-analysis-template-y-data-start"
+                      ? "device-analysis-template-legend-start"
                       : undefined
                   }
                   value={config.yLegendStart}
@@ -805,7 +805,7 @@ const TemplateManager = ({
               <div className="min-w-0">
                 <Input
                   id={
-                    includeIds ? "device-analysis-template-y-count" : undefined
+                    includeIds ? "device-analysis-template-legend-count" : undefined
                   }
                   value={config.yLegendCount}
                   name="yLegendCount"
@@ -821,7 +821,7 @@ const TemplateManager = ({
               <div className="min-w-0">
                 <Input
                   id={
-                    includeIds ? "device-analysis-template-y-step" : undefined
+                    includeIds ? "device-analysis-template-legend-step" : undefined
                   }
                   value={config.yLegendStep}
                   name="yLegendStep"
@@ -1571,6 +1571,7 @@ const TemplateManager = ({
 };
 
 export default React.memo(TemplateManager);
+
 
 
 

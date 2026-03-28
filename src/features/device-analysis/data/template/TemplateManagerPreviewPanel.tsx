@@ -92,7 +92,7 @@ type PreviewRowProps = {
   rowIndex: number;
   rowCellsRaw: unknown;
   columnGeometry: PreviewColumnGeometry;
-  selectedColumnsSet: Set<number>;
+  yColumnsSet: Set<number>;
   handleCellMouseDown?: (event: React.MouseEvent<HTMLTableCellElement>) => void;
 };
 
@@ -101,7 +101,7 @@ type PreviewTbodyProps = {
   getPreviewRowsVersion?: () => number;
   previewWindow: PreviewWindow;
   columnGeometry: PreviewColumnGeometry;
-  selectedColumnsSet: Set<number>;
+  yColumnsSet: Set<number>;
   getPreviewRow?: (rowIndex: number) => unknown;
   handleCellMouseDown?: (event: React.MouseEvent<HTMLTableCellElement>) => void;
 };
@@ -114,7 +114,7 @@ type CanvasPreviewGridProps = {
   previewScrollRef?: React.MutableRefObject<HTMLDivElement | null>;
   previewRowIndexWidthPx: number;
   rowHeightPx: number;
-  selectedColumnsSet: Set<number>;
+  yColumnsSet: Set<number>;
   getPreviewRow?: (rowIndex: number) => unknown;
   selections?: SelectionItem[];
   subscribePreviewRowsVersion?: (onStoreChange: () => void) => () => void;
@@ -162,7 +162,7 @@ type TemplateManagerPreviewPanelProps = {
   previewTableRef: React.MutableRefObject<HTMLTableElement | null>;
   previewWindow: PreviewWindow;
   resetColumnWidth: (fileId: string, colIndex: number) => void;
-  selectedColumnsSet: Set<number>;
+  yColumnsSet: Set<number>;
   setSelectionRange?: SetSelectionRangeFn;
   selectionRects: SelectionRect[];
   selections: SelectionItem[];
@@ -215,7 +215,7 @@ const PreviewRow = React.memo(
     rowIndex,
     rowCellsRaw,
     columnGeometry,
-    selectedColumnsSet,
+    yColumnsSet,
     handleCellMouseDown,
   }: PreviewRowProps) => {
     const rowLabel = rowIndex + 1;
@@ -255,7 +255,7 @@ const PreviewRow = React.memo(
               key={index}
               data-row={rowIndex}
               data-col={index}
-              className={`px-2 py-1 h-7 border-b border-r border-border last:border-r-0 whitespace-nowrap text-xs transition-colors cursor-default overflow-hidden text-ellipsis ${selectedColumnsSet.has(index)
+              className={`px-2 py-1 h-7 border-b border-r border-border last:border-r-0 whitespace-nowrap text-xs transition-colors cursor-default overflow-hidden text-ellipsis ${yColumnsSet.has(index)
                   ? "bg-accent/5 border-accent/20 text-text-primary"
                   : "text-text-secondary"
                 }`}
@@ -293,7 +293,7 @@ const PreviewTbody = React.memo(
     getPreviewRowsVersion,
     previewWindow,
     columnGeometry,
-    selectedColumnsSet,
+    yColumnsSet,
     getPreviewRow,
     handleCellMouseDown,
   }: PreviewTbodyProps) => {
@@ -331,7 +331,7 @@ const PreviewTbody = React.memo(
             rowIndex={rowIndex}
             rowCellsRaw={rowCellsRaw}
             columnGeometry={columnGeometry}
-            selectedColumnsSet={selectedColumnsSet}
+            yColumnsSet={yColumnsSet}
             handleCellMouseDown={handleCellMouseDown}
           />,
         );
@@ -344,7 +344,7 @@ const PreviewTbody = React.memo(
       previewRowsVersion,
       previewWindow.endRow,
       previewWindow.startRow,
-      selectedColumnsSet,
+      yColumnsSet,
     ]);
 
     return (
@@ -384,7 +384,7 @@ const CanvasPreviewGrid = React.memo(
     previewScrollRef,
     previewRowIndexWidthPx,
     rowHeightPx,
-    selectedColumnsSet,
+    yColumnsSet,
     getPreviewRow,
     selections,
     subscribePreviewRowsVersion,
@@ -882,7 +882,7 @@ const CanvasPreviewGrid = React.memo(
             Number(widths[colIndex]) || previewColumnMinWidthPx,
           );
           const colLeft = previewRowIndexWidthPx + startOffset;
-          if (selectedColumnsSet.has(colIndex)) {
+          if (yColumnsSet.has(colIndex)) {
             context.fillStyle = accentCellBackground;
             context.fillRect(colLeft, rowTop, colWidth, rowHeightPx);
           }
@@ -979,7 +979,7 @@ const CanvasPreviewGrid = React.memo(
       previewWindow.startRow,
       rowHeightPx,
       startOffsets,
-      selectedColumnsSet,
+      yColumnsSet,
       visibleColumns,
       visibleRowCount,
       widths,
@@ -1055,7 +1055,7 @@ type PreviewHeaderProps = {
   previewColumnGeometry: PreviewColumnGeometry;
   previewFileId?: string;
   resetColumnWidth: (fileId: string, colIndex: number) => void;
-  selectedColumnsSet: Set<number>;
+  yColumnsSet: Set<number>;
   resizeHintTitle: string;
   toggleColumnTitle: string;
   toggleColumn: (index: number) => void;
@@ -1067,7 +1067,7 @@ const PreviewHeader = React.memo(
     previewColumnGeometry,
     previewFileId,
     resetColumnWidth,
-    selectedColumnsSet,
+    yColumnsSet,
     resizeHintTitle,
     toggleColumnTitle,
     toggleColumn,
@@ -1082,7 +1082,7 @@ const PreviewHeader = React.memo(
           />
         ) : null}
         {previewColumnGeometry.visibleColumnIndices.map((index) => {
-          const isSelected = selectedColumnsSet.has(index);
+          const isSelected = yColumnsSet.has(index);
           return (
             <th
               key={index}
@@ -1166,7 +1166,7 @@ const TemplateManagerPreviewPanel = ({
   previewTableRef,
   previewWindow,
   resetColumnWidth,
-  selectedColumnsSet,
+  yColumnsSet,
   setSelectionRange,
   selectionRects,
   selections,
@@ -1511,7 +1511,7 @@ const TemplateManagerPreviewPanel = ({
                     previewFileId={previewFile?.fileId}
                     resetColumnWidth={resetColumnWidth}
                     resizeHintTitle={resizeColumnTitle}
-                    selectedColumnsSet={selectedColumnsSet}
+                    yColumnsSet={yColumnsSet}
                     toggleColumnTitle={toggleYColumnTitle}
                     toggleColumn={toggleColumn}
                   />
@@ -1525,7 +1525,7 @@ const TemplateManagerPreviewPanel = ({
                   previewScrollRef={previewScrollRef}
                   previewRowIndexWidthPx={previewRowIndexWidthPx}
                   rowHeightPx={PREVIEW_ROW_HEIGHT_PX}
-                  selectedColumnsSet={selectedColumnsSet}
+                  yColumnsSet={yColumnsSet}
                   getPreviewRow={getPreviewRow}
                   selections={selections}
                   subscribePreviewRowsVersion={subscribePreviewRowsVersion}
@@ -1554,7 +1554,7 @@ const TemplateManagerPreviewPanel = ({
                   previewFileId={previewFile?.fileId}
                   resetColumnWidth={resetColumnWidth}
                   resizeHintTitle={resizeColumnTitle}
-                  selectedColumnsSet={selectedColumnsSet}
+                  yColumnsSet={yColumnsSet}
                   toggleColumnTitle={toggleYColumnTitle}
                   toggleColumn={toggleColumn}
                 />
@@ -1564,7 +1564,7 @@ const TemplateManagerPreviewPanel = ({
                   getPreviewRowsVersion={getPreviewRowsVersion}
                   previewWindow={previewWindow}
                   columnGeometry={previewColumnGeometry}
-                  selectedColumnsSet={selectedColumnsSet}
+                  yColumnsSet={yColumnsSet}
                   getPreviewRow={getPreviewRow}
                   handleCellMouseDown={handleCellMouseDown}
                 />
@@ -1580,4 +1580,5 @@ const TemplateManagerPreviewPanel = ({
 };
 
 export default React.memo(TemplateManagerPreviewPanel);
+
 
