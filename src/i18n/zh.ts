@@ -206,7 +206,6 @@
     da_save_curve_type: '\u66f2\u7ebf\u7c7b\u578b\uff08\u6a2a\u5750\u6807\u6807\u9898\uff09',
     da_save_var1: 'Var1',
     da_save_legend: '\u56fe\u4f8b',
-    da_save_var2: 'Var2',
     da_save_left_title: '\u7eb5\u6807\u9898',
     da_save_var3: 'Var3',
     da_save_transfer: '\u8f6c\u79fb',

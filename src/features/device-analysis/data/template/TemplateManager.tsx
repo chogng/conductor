@@ -866,6 +866,24 @@ const TemplateManager = ({
                   stableWidth={false}
                 />
               </div>
+              <div className="min-w-0">
+                <Input
+                  id={
+                    includeIds
+                      ? "device-analysis-template-legend-prefix"
+                      : undefined
+                  }
+                  value={config.legendPrefix || ""}
+                  name="legendPrefix"
+                  disabled={saveIsSelectMode}
+                  onChange={(next) => {
+                    setConfigFromSave((prev) => ({ ...prev, legendPrefix: next }));
+                    markFieldSource("legendPrefix", "manual");
+                  }}
+                  onBlur={toastVarPairIfInvalid}
+                  placeholder={t("da_save_legend")}
+                />
+              </div>
               <div className="min-w-0 relative">
                 <Select
                   id={includeIds ? "device-analysis-template-y-unit" : undefined}
@@ -912,43 +930,23 @@ const TemplateManager = ({
           />
         </div>
 
-        {/* 5-6. Var2 / Var3 */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="min-w-0">
-            <Input
-              id={
-                includeIds
-                  ? "device-analysis-template-var2-legend-prefix"
-                  : undefined
-              }
-              label={t("da_save_legend")}
-              value={config.legendPrefix || ""}
-              name="legendPrefix"
-              onChange={(next) => {
-                setConfigFromSave((prev) => ({ ...prev, legendPrefix: next }));
-                markFieldSource("legendPrefix", "manual");
-              }}
-              onBlur={toastVarPairIfInvalid}
-              placeholder={t("da_save_var2")}
-            />
-          </div>
-          <div className="min-w-0">
-            <Input
-              id={
-                includeIds
-                  ? "device-analysis-template-var3-left-title"
-                  : undefined
-              }
-              label={t("da_save_left_title")}
-              value={config.leftTitle || ""}
-              name="leftTitle"
-              onChange={(next) => {
-                setConfigFromSave((prev) => ({ ...prev, leftTitle: next }));
-                markFieldSource("leftTitle", "manual");
-              }}
-              placeholder={t("da_save_var3")}
-            />
-          </div>
+        {/* 5. Var3 */}
+        <div className="min-w-0">
+          <Input
+            id={
+              includeIds
+                ? "device-analysis-template-var3-left-title"
+                : undefined
+            }
+            label={t("da_save_left_title")}
+            value={config.leftTitle || ""}
+            name="leftTitle"
+            onChange={(next) => {
+              setConfigFromSave((prev) => ({ ...prev, leftTitle: next }));
+              markFieldSource("leftTitle", "manual");
+            }}
+            placeholder={t("da_save_var3")}
+          />
         </div>
       </div>
     );

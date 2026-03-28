@@ -206,7 +206,6 @@
     da_save_curve_type: 'Curve type (X-axis title)',
     da_save_var1: 'Var1',
     da_save_legend: 'Legend',
-    da_save_var2: 'Var2',
     da_save_left_title: 'Left Title',
     da_save_var3: 'Var3',
     da_save_transfer: 'Transfer',
