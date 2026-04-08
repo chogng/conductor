@@ -5,6 +5,31 @@ const shouldShowDesktopCommandBarByDefault =
   window.desktopMeta?.isDesktop === true &&
   window.desktopMeta?.platform === "win32";
 const DEFAULT_SIDEBAR_WIDTH_PX = 280;
+const MIN_SIDEBAR_WIDTH_PX = 200;
+const MAX_SIDEBAR_WIDTH_PX = 600;
+const SIDEBAR_STORAGE_KEY = "da-sidebar-width";
+
+const resolveInitialSidebarWidth = () => {
+  if (typeof window === "undefined") {
+    return DEFAULT_SIDEBAR_WIDTH_PX;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
+    const parsed = Number.parseInt(String(raw ?? ""), 10);
+    if (
+      Number.isFinite(parsed) &&
+      parsed >= MIN_SIDEBAR_WIDTH_PX &&
+      parsed <= MAX_SIDEBAR_WIDTH_PX
+    ) {
+      return parsed;
+    }
+  } catch {
+    // Fall back to the default shell width when storage is unavailable.
+  }
+
+  return DEFAULT_SIDEBAR_WIDTH_PX;
+};
 
 type DesktopCommandBarShellProps = {
   className?: string;
@@ -75,7 +100,7 @@ const DeviceAnalysisWorkspaceShell = ({
   titleBar,
 }: DeviceAnalysisWorkspaceShellProps) => {
   const resolvedStyle = {
-    "--sidebar-width": `${DEFAULT_SIDEBAR_WIDTH_PX}px`,
+    "--sidebar-width": `${resolveInitialSidebarWidth()}px`,
     "--da-template-stack-panel-h": "clamp(24rem, 52dvh, 40rem)",
     ...(style ?? {}),
   } as CSSProperties;
