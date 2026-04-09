@@ -324,7 +324,7 @@ export const useDeviceAnalysisOnboarding = ({
 
       const clickedApplyToAllButton = isClickWithinButton(
         eventTarget,
-        "device-analysis-template-apply-to-all",
+        "device-analysis-template-output-rule-apply-to-all",
       );
       if (clickedApplyToAllButton) {
         setStepIndex((prev) => {
