@@ -47,6 +47,11 @@ const MIN_RENDER_SERIES_POINTS = 120;
 const DEFAULT_RENDER_POINT_BUDGET = 12000;
 const GM_RENDER_POINT_BUDGET = 9000;
 const MAIN_PLOT_LEGEND_WIDTH = 220;
+const CALCULATED_PARAMETERS_COLUMN_WIDTHS_PX = [
+    92, 128, 88, 128, 88, 120, 168, 88, 104, 88, 120,
+];
+const CALCULATED_PARAMETERS_TABLE_MIN_WIDTH_PX =
+    CALCULATED_PARAMETERS_COLUMN_WIDTHS_PX.reduce((total, width) => total + width, 0);
 const toConductanceUnitLabel = (currentUnitLabel: string, denominatorUnit: string): string => {
     if (denominatorUnit !== "V")
         return `${currentUnitLabel}/${denominatorUnit}`;
@@ -1716,6 +1721,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         return parts.join(" | ");
     }, []);
     const metricsRowElements = useMemo(() => metricsRows.map((row: any) => (<CalculatedParametersRow key={row.id} row={row} buildSsTooltip={buildSsTooltip}/>)), [buildSsTooltip, metricsRows]);
+    const calculatedParametersSummary =
+        `${gmUi.summaryLabel}: max |${gmUi.metricSymbol}|, SS: fit (mV/dec), J uses |I|/Area`;
     if (!processedData || processedData.length === 0)
         return null;
     return (<div className="h-full min-h-0 grid grid-cols-1 md:grid-rows-1 md:grid-cols-[var(--analysis-sidebar-width)_minmax(0,1fr)] gap-1 md:gap-1" ref={toastContainerRef} style={{
@@ -1728,10 +1735,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} onSelectAllOriginCanvases={selectAllOriginCanvases} onClearOriginCanvasSelection={clearOriginCanvasSelection} xUnitFactor={resolvedXUnitMeta.factor} xUnitLabel={resolvedXUnitMeta.label} yUnitFactor={resolvedYUnitMeta.factor} yUnitLabel={resolvedYUnitMeta.label} yScale={overviewYScaleType}/>
       </aside>
 
-      <ScrollArea className="md:min-h-0" axis="y" viewportClassName="flex flex-col min-h-full">
-        <section className="flex flex-col flex-1 gap-1 pr-1" aria-label="Device Analysis results">
+      <ScrollArea className="md:min-h-0 min-w-0" axis="y" viewportClassName="flex flex-col min-h-full">
+        <section className="flex min-w-0 flex-col flex-1 gap-1 pr-1" aria-label="Device Analysis results">
           <section aria-label="Device Analysis chart">
-        <Card variant="panel" className="flex flex-col">
+        <Card variant="panel" className="flex min-w-0 flex-col">
 
           <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
             <div className="flex items-center gap-4 flex-wrap">
@@ -2108,19 +2115,30 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         </Card>
       </section>
 
-          {activeFile?.series?.length ? (<Card variant="panel" className="flex flex-col flex-1">
-            <div className="flex items-center justify-between gap-3 mb-3">
+          {activeFile?.series?.length ? (<Card variant="panel" className="flex min-w-0 flex-col flex-1">
+            <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
               <h3 className="text-sm font-semibold text-text-primary">
                 Calculated Parameters
               </h3>
-              <div className="text-xs text-text-secondary whitespace-nowrap">
+              <div
+                className="min-w-0 flex-1 truncate text-right text-xs text-text-secondary"
+                title={calculatedParametersSummary}
+              >
                 {gmUi.summaryLabel}: max |{gmUi.metricSymbol}| · SS: fit (mV/dec) ·
                 J uses |I|/Area
               </div>
             </div>
 
-            <ScrollArea axis="x" className="w-full">
-              <table className="min-w-[1080px] w-full text-sm border-collapse">
+            <ScrollArea axis="x" className="min-w-0 w-full">
+              <table
+                className="w-full table-fixed text-sm border-collapse"
+                style={{ minWidth: CALCULATED_PARAMETERS_TABLE_MIN_WIDTH_PX }}
+              >
+                <colgroup>
+                  {CALCULATED_PARAMETERS_COLUMN_WIDTHS_PX.map((width, index) => (
+                    <col key={index} style={{ width }}/>
+                  ))}
+                </colgroup>
                 <thead className="sticky top-0 bg-bg-surface z-10">
                   <tr className="border-b border-border">
                     <th
