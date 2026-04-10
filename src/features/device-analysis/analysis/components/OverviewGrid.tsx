@@ -215,7 +215,6 @@ const OverviewGrid = memo(function OverviewGrid({
               }}
               options={curveFilterOptions}
               aria-label={t("da_overview_curve_filter_label")}
-              title={t("da_overview_curve_filter_label")}
               className="w-fit da-neutral-select"
               stableWidth
               popupClassName="w-max min-w-max !bg-bg-surface !backdrop-blur-none"
