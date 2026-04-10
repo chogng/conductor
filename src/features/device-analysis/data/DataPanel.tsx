@@ -1,4 +1,4 @@
-import { Import, RefreshCw } from "lucide-react";
+import { Import, Trash2 } from "lucide-react";
 import {
   useEffect,
   useRef,
@@ -159,10 +159,7 @@ const DeviceAnalysisDataPanel = ({
                   onClick={onClearSession}
                   disabled={!hasSessionData}
                 >
-                  <RefreshCw
-                    size={16}
-                    className="transition-transform duration-500 hover:rotate-180"
-                  />
+                  <Trash2 size={16} />
                 </Button>
               </div>
 

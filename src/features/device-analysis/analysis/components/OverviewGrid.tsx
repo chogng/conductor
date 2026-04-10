@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import {
   ArrowDownWideNarrow,
   ArrowUpWideNarrow,
@@ -30,7 +30,32 @@ type OverviewGridProps = {
 };
 
 type SortOrder = "none" | "desc" | "asc";
-type CurveFilter = "all" | "transfer" | "output";
+type CurveFilter = string;
+const isBuiltInCurveFilter = (
+  value: unknown,
+): value is "all" | "transfer" | "output" =>
+  value === "all" || value === "transfer" || value === "output";
+const resolveCurveFieldFilterMeta = (
+  file: ProcessedFileLike,
+): { key: string; label: string } | null => {
+  const key = String(file?.curveFilterKey ?? "").trim();
+  const label = String(file?.curveFilterField ?? "").trim();
+
+  if (key) {
+    return {
+      key,
+      label: label || key,
+    };
+  }
+  if (label) {
+    // Backward-compat for legacy payloads that only carry display field text.
+    return {
+      key: `legacy-field:${label.toLowerCase()}`,
+      label,
+    };
+  }
+  return null;
+};
 
 const OverviewGrid = memo(function OverviewGrid({
   processedData = [],
@@ -51,9 +76,27 @@ const OverviewGrid = memo(function OverviewGrid({
   const [sortOrder, setSortOrder] = useState<SortOrder>("none");
   const [curveFilter, setCurveFilter] = useState<CurveFilter>("all");
   const [isSelectMode, setIsSelectMode] = useState(false);
+  const fieldFilterOptions = useMemo(() => {
+    const options: Array<{ label: string; value: string }> = [];
+    const seen = new Set<string>();
+
+    for (const file of processedData) {
+      const meta = resolveCurveFieldFilterMeta(file);
+      if (!meta) continue;
+      if (seen.has(meta.key)) continue;
+      seen.add(meta.key);
+      options.push({
+        label: `${t("da_match_mode_field")}: ${meta.label}`,
+        value: meta.key,
+      });
+    }
+
+    return options;
+  }, [processedData, t]);
 
   const curveFilterOptions = useMemo(
     () => [
+      ...fieldFilterOptions,
       { label: t("da_overview_curve_filter_all"), value: "all" as const },
       {
         label: t("da_overview_curve_filter_transfer"),
@@ -61,8 +104,25 @@ const OverviewGrid = memo(function OverviewGrid({
       },
       { label: t("da_overview_curve_filter_output"), value: "output" as const },
     ],
-    [t],
+    [fieldFilterOptions, t],
   );
+
+  useEffect(() => {
+    if (!fieldFilterOptions.length) {
+      if (!isBuiltInCurveFilter(curveFilter)) {
+        setCurveFilter("all");
+      }
+      return;
+    }
+
+    const hasCurrentFieldOption = fieldFilterOptions.some(
+      (option) => option.value === curveFilter,
+    );
+    if (isBuiltInCurveFilter(curveFilter)) return;
+    if (hasCurrentFieldOption) return;
+
+    setCurveFilter("all");
+  }, [curveFilter, fieldFilterOptions]);
 
   const sortOrderLabel =
     sortOrder === "none"
@@ -84,18 +144,28 @@ const OverviewGrid = memo(function OverviewGrid({
 
   const filteredData = useMemo(() => {
     if (curveFilter === "all") return sortedData;
-    const target = curveFilter === "transfer" ? "vg" : "vd";
+    if (curveFilter === "transfer" || curveFilter === "output") {
+      const target = curveFilter === "transfer" ? "vg" : "vd";
+      return sortedData.filter((file) => {
+        // Check curveType field first (if available).
+        if (file?.curveType) {
+          const curveType = String(file.curveType).toLowerCase();
+          return curveType.includes(target);
+        }
+        // Fallback to xLabel (may exist in broader processed shape).
+        const label = String(
+          (file as ProcessedFileLike & { xLabel?: string })?.xLabel || "",
+        ).toLowerCase();
+        return label.includes(target);
+      });
+    }
+
+    const selectedFieldKey = String(curveFilter).trim().toLowerCase();
+    if (!selectedFieldKey) return sortedData;
     return sortedData.filter((file) => {
-      // Check curveType field first (if available).
-      if (file?.curveType) {
-        const curveType = String(file.curveType).toLowerCase();
-        return curveType.includes(target);
-      }
-      // Fallback to xLabel (may exist in broader processed shape).
-      const label = String(
-        (file as ProcessedFileLike & { xLabel?: string })?.xLabel || "",
-      ).toLowerCase();
-      return label.includes(target);
+      const meta = resolveCurveFieldFilterMeta(file);
+      if (!meta) return false;
+      return meta.key.toLowerCase() === selectedFieldKey;
     });
   }, [sortedData, curveFilter]);
 
@@ -125,8 +195,20 @@ const OverviewGrid = memo(function OverviewGrid({
               menuId="device-analysis-overview-curve-filter-menu"
               value={curveFilter}
               onChange={(next) => {
-                if (next === "transfer" || next === "output") {
-                  setCurveFilter(next);
+                const nextValue = String(next ?? "").trim();
+                if (!nextValue) {
+                  setCurveFilter("all");
+                  return;
+                }
+                if (isBuiltInCurveFilter(nextValue)) {
+                  setCurveFilter(nextValue);
+                  return;
+                }
+                const matchedFieldOption = fieldFilterOptions.find(
+                  (option) => option.value === nextValue,
+                );
+                if (matchedFieldOption) {
+                  setCurveFilter(matchedFieldOption.value);
                   return;
                 }
                 setCurveFilter("all");

@@ -22,6 +22,8 @@ export type ProcessedDomain = {
 export type ProcessedEntry = {
   fileId?: string;
   fileName?: string;
+  curveFilterKey?: string | null;
+  curveFilterField?: string | null;
   curveType?: string;
   xAxisRole?: "vg" | "vd" | null;
   xAxisRoleSource?: "filename" | "title" | "label" | null;

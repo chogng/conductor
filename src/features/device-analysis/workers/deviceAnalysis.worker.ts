@@ -502,7 +502,7 @@ const readXValuesForAutoSegmentation = async ({ cache, endRow, fileName, startRo
     }
     return xValues;
 };
-const processFile = async (file: any, fileId: any, fileName: any, config: any, { maxPoints }: any) => {
+const processFile = async (file: any, fileId: any, fileName: any, config: any, { curveFilterField, curveFilterKey, maxPoints }: any) => {
     const xCol = Number(config?.xCol);
     const startRow = Number(config?.startRow);
     const endRowRaw = config?.endRow;
@@ -520,6 +520,8 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
     const yLegendCountRaw = config?.yLegendCount ?? null;
     const yLegendStepRaw = config?.yLegendStep ?? null;
     const yLegendTargetRaw = config?.yLegendTarget ?? "auto";
+    const normalizedCurveFilterKey = typeof curveFilterKey === "string" ? curveFilterKey.trim() : "";
+    const normalizedCurveFilterField = typeof curveFilterField === "string" ? curveFilterField.trim() : "";
     /* New helper to read specific cell as string */
     const readCsvCellString = async (file: any, rowIndex: any, colIndex: any): Promise<string> => {
         const targetRow = Number(rowIndex);
@@ -1210,6 +1212,8 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
     return {
         fileId,
         fileName,
+        curveFilterKey: normalizedCurveFilterKey || null,
+        curveFilterField: normalizedCurveFilterField || null,
         legend: yLegendMode
             ? {
                 mode: yLegendMode,
@@ -1324,6 +1328,8 @@ workerScope.onmessage = async (event: any) => {
             if (!fileId)
                 throw new Error("Missing fileId for processing.");
             const processed = await processFile(file, fileId, fileName, config, {
+                curveFilterKey: payload?.curveFilterKey ?? null,
+                curveFilterField: payload?.curveFilterField ?? null,
                 maxPoints,
             });
             const transfer = [];

@@ -37,6 +37,8 @@ type ProcessingQueueItem = {
   file: unknown;
   fileId: string;
   fileName?: string;
+  curveFilterKey?: string | null;
+  curveFilterField?: string | null;
 };
 
 type ExtractionMeta = {
@@ -100,6 +102,42 @@ type RuleBasedExtractionConfig = {
 
 const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+const resolveRuleCurveFilterInfo = (rule: {
+  matchMode?: unknown;
+  patternText?: unknown;
+  patternTokens?: unknown;
+}): { key: string; label: string } | null => {
+  if (!rule || typeof rule !== "object") return null;
+
+  if (rule.matchMode === "phrase") {
+    const phrase = String(rule.patternText ?? "").trim();
+    if (!phrase) return null;
+    return {
+      key: `rule:${encodeURIComponent(
+        stableStringify({ mode: "phrase", pattern: phrase.toLowerCase() }),
+      )}`,
+      label: phrase,
+    };
+  }
+
+  const tokens = Array.isArray(rule.patternTokens)
+    ? rule.patternTokens
+        .map((token) => String(token ?? "").trim())
+        .filter(Boolean)
+    : [];
+
+  if (!tokens.length) return null;
+
+  const normalizedTokens = tokens.map((token) => token.toLowerCase());
+  return {
+    key: `rule:${encodeURIComponent(
+      stableStringify({ mode: "field", tokens: normalizedTokens }),
+    )}`,
+    // Keep full selected rule semantics visible in filter label.
+    label: tokens.length === 1 ? tokens[0] : tokens.join(" + "),
+  };
+};
 
 const buildProcessingQueue = (
   rawData: RawDataEntry[],
@@ -402,6 +440,8 @@ export const useDeviceAnalysisProcessing = ({
           type: "processFile",
           payload: {
             config: extractionConfig,
+            curveFilterKey: nextEntry.curveFilterKey ?? null,
+            curveFilterField: nextEntry.curveFilterField ?? null,
             file: nextEntry.file,
             fileId: nextEntry.fileId,
             fileName: nextEntry.fileName,
@@ -568,9 +608,17 @@ export const useDeviceAnalysisProcessing = ({
           configByTemplateName.set(fallbackKey, fallbackTemplateConfig);
           continue;
         }
+        const matchedCurveFilterInfo = resolveRuleCurveFilterInfo(matchedRule);
+        const queuedEntry: ProcessingQueueItem = matchedCurveFilterInfo
+          ? {
+              ...entry,
+              curveFilterKey: matchedCurveFilterInfo.key,
+              curveFilterField: matchedCurveFilterInfo.label,
+            }
+          : entry;
         const key = matchedRule.templateName || stableStringify(matchedRule.templateConfig);
         if (!queueByTemplateName.has(key)) queueByTemplateName.set(key, []);
-        queueByTemplateName.get(key)?.push(entry);
+        queueByTemplateName.get(key)?.push(queuedEntry);
         configByTemplateName.set(key, matchedRule.templateConfig);
       }
 
@@ -684,6 +732,8 @@ export const useDeviceAnalysisProcessing = ({
           type: "processFile",
           payload: {
             config: group.extractionConfig,
+            curveFilterKey: nextEntry.curveFilterKey ?? null,
+            curveFilterField: nextEntry.curveFilterField ?? null,
             file: nextEntry.file,
             fileId: nextEntry.fileId,
             fileName: nextEntry.fileName,
