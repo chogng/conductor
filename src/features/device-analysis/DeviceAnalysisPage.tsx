@@ -686,6 +686,7 @@ const DeviceAnalysisPage = () => {
               previewFile={previewFile}
               previewStatus={previewStatus}
               rawData={rawData}
+              sidebarWidth={sidebarWidth}
               selectedPreviewFileId={selectedPreviewFileId}
               subscribePreviewRowsVersion={subscribePreviewRowsVersion}
               t={t}

@@ -57,6 +57,7 @@ import {
   resolveXRangeForPreview,
   resolveXSegmentationMode,
 } from "../../shared/lib/XSegmentation";
+import { shouldStackTemplateTransferButtons } from "../../deviceAnalysisLayout";
 import type { PreviewStatus as SessionPreviewStatus } from "../../session/device-analysis-session-context";
 import type {
   PreviewFileLike,
@@ -67,6 +68,7 @@ import type {
 export type TemplateManagerProps = {
   previewFile?: PreviewFileLike | null;
   previewStatus?: Partial<SessionPreviewStatus> | null;
+  sidebarWidth?: number;
   rawData?: RawDataEntry[];
   getPreviewRow?: (rowIndex: number) => unknown;
   ensurePreviewRows?: (
@@ -159,6 +161,7 @@ type FileNameTemplateRulePayload = {
 const TemplateManager = ({
   previewFile,
   previewStatus,
+  sidebarWidth,
   rawData = [],
   getPreviewRow,
   ensurePreviewRows,
@@ -200,6 +203,17 @@ const TemplateManager = ({
   const closeToast = useCallback(() => {
     setToast((prev) => ({ ...prev, isVisible: false }));
   }, []);
+  const shouldStackTransferButtons =
+    shouldStackTemplateTransferButtons(sidebarWidth);
+  const transferButtonsContainerClassName = shouldStackTransferButtons
+    ? "flex flex-col gap-3"
+    : "flex items-center gap-3";
+  const transferButtonClassName = shouldStackTransferButtons
+    ? "w-full min-w-0"
+    : "flex-1 min-w-0";
+  const applyButtonsContainerClassName = shouldStackTransferButtons
+    ? "grid grid-cols-1 gap-3 mt-3"
+    : "grid grid-cols-2 gap-3 mt-3";
   const containerRef = useRef<HTMLElement | null>(null);
   const yUnitOptions = useMemo(
     () =>
@@ -1404,14 +1418,14 @@ const TemplateManager = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className={transferButtonsContainerClassName}>
           <Button
             id={
               includeIds ? "device-analysis-template-export-config" : undefined
             }
             variant="secondary"
             size="md"
-            className="flex-1 min-w-0"
+            className={transferButtonClassName}
             contentClassName="w-full min-w-0 justify-between"
             onClick={measureOnly ? undefined : handleExportTemplates}
             disabled={templateTransferBusy}
@@ -1428,7 +1442,7 @@ const TemplateManager = ({
             }
             variant="secondary"
             size="md"
-            className="flex-1 min-w-0"
+            className={transferButtonClassName}
             contentClassName="w-full min-w-0 justify-between"
             onClick={measureOnly ? undefined : handleImportTemplatesClick}
             disabled={templateTransferBusy}
@@ -1460,11 +1474,16 @@ const TemplateManager = ({
               id={includeIds ? "device-analysis-template-add-rule" : undefined}
               variant="secondary"
               size="md"
+              className="min-w-0 max-w-full"
+              contentClassName="w-full min-w-0 justify-between"
               onClick={measureOnly ? undefined : addFileNameTemplateRule}
               disabled={measureOnly || templatesLoading}
+              title={t("da_add_rule")}
             >
-              {t("da_add_rule")}
-              <Plus size={14} />
+              <span className="block min-w-0 flex-1 truncate text-left">
+                {t("da_add_rule")}
+              </span>
+              <Plus size={14} className="shrink-0" />
             </Button>
           </div>
           <div className="mt-3 space-y-3">
@@ -1636,7 +1655,7 @@ const TemplateManager = ({
             })}
           </div>
 
-          <div className="grid grid-cols-2 gap-3 mt-3">
+          <div className={applyButtonsContainerClassName}>
             <Button
               id={
                 includeIds
@@ -1645,14 +1664,19 @@ const TemplateManager = ({
               }
               variant="primary"
               size="md"
+              className="w-full min-w-0"
+              contentClassName="w-full min-w-0 justify-center"
               onClick={
                 measureOnly
                   ? undefined
                   : () => applyFileNameTemplateRules(false)
               }
               disabled={measureOnly}
+              title={t("da_apply_to_all_files")}
             >
-              {t("da_apply_to_all_files")}
+              <span className="block min-w-0 truncate">
+                {t("da_apply_to_all_files")}
+              </span>
             </Button>
             <Button
               id={
@@ -1662,6 +1686,8 @@ const TemplateManager = ({
               }
               variant="secondary"
               size="md"
+              className="w-full min-w-0"
+              contentClassName="w-full min-w-0 justify-center"
               onClick={
                 measureOnly
                   ? undefined
@@ -1671,8 +1697,11 @@ const TemplateManager = ({
                 measureOnly ||
                 typeof onTemplateAppliedIncremental !== "function"
               }
+              title={t("da_apply_to_new_files")}
             >
-              {t("da_apply_to_new_files")}
+              <span className="block min-w-0 truncate">
+                {t("da_apply_to_new_files")}
+              </span>
             </Button>
           </div>
         </div>

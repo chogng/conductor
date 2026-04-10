@@ -38,6 +38,7 @@ type DataPanelProps = {
   previewFile?: TemplateManagerProps["previewFile"];
   previewStatus?: TemplateManagerProps["previewStatus"];
   rawData?: CsvImporterProps["files"];
+  sidebarWidth?: number;
   selectedPreviewFileId?: CsvImporterProps["selectedFileId"];
   subscribePreviewRowsVersion?: TemplateManagerProps["subscribePreviewRowsVersion"];
   t: TranslateFn;
@@ -63,6 +64,7 @@ const DeviceAnalysisDataPanel = ({
   previewFile,
   previewStatus,
   rawData = [],
+  sidebarWidth,
   selectedPreviewFileId,
   subscribePreviewRowsVersion,
   t,
@@ -210,6 +212,7 @@ const DeviceAnalysisDataPanel = ({
         <TemplateManager
           previewFile={previewFile}
           previewStatus={previewStatus}
+          sidebarWidth={sidebarWidth}
           rawData={rawData}
           getPreviewRow={getPreviewRow}
           ensurePreviewRows={ensurePreviewRows}

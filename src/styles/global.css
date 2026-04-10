@@ -470,7 +470,7 @@ body {
 
   /* Base */
   .action-btn {
-    @apply relative inline-flex items-center justify-center px-4 rounded-lg text-sm font-medium transition-all;
+    @apply relative inline-flex min-w-0 items-center justify-center px-4 rounded-lg text-sm font-medium transition-all;
 
     /* Two-ring illusion via box-shadow spread (no layout shift).
        Override per variant or inline style via:
@@ -539,7 +539,7 @@ body {
 
   /* Content */
   .action-btn__content {
-    @apply relative z-10 flex items-center gap-2;
+    @apply relative z-10 flex min-w-0 items-center gap-2;
   }
 
   /* Ring behavior (default for all buttons) */
