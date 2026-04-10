@@ -38,6 +38,7 @@ type ExtractionConfig = {
   xCol: number;
   startRow: number;
   endRow: number | "end";
+  xSegmentationMode?: "auto" | "points" | "segments";
   yCols: number[];
   autoDetectCurveType: boolean;
   bottomTitle: string;
@@ -450,6 +451,7 @@ export function prepareDeviceAnalysisExtraction({
     xCol,
     startRow,
     endRow,
+    xSegmentationMode: segmentationMode,
     yCols: uniqueYCols,
     autoDetectCurveType: Boolean(normalizedConfig?.autoDetectCurveType),
     bottomTitle: normalizedConfig?.bottomTitle ?? "",
@@ -583,6 +585,12 @@ export function prepareDeviceAnalysisExtraction({
 
   if (groupSizeCell) {
     extractionConfig.groupSizeCell = groupSizeCell;
+  } else if (segmentationMode === "auto") {
+    // In auto mode, grouping must be inferred per file in the worker.
+    // Do not freeze preview-derived group values into the shared batch config.
+    extractionConfig.groupSize = null;
+    extractionConfig.groups = null;
+    extractionConfig.segmentCount = null;
   } else {
     extractionConfig.groupSize = groupSize;
     extractionConfig.groups = groups;

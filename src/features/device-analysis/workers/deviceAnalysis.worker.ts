@@ -11,6 +11,9 @@ const PREVIEW_ROW_CACHE_CHUNK_DEFAULT = 200;
 const PREVIEW_INDEX_STRIDE_ROWS_DEFAULT = 2000;
 const PREVIEW_MAX_CACHED_CHUNKS_PER_FILE = 30;
 const PREVIEW_RESULT_SEED_ROWS = PREVIEW_ROW_CACHE_CHUNK_DEFAULT * 2;
+const AUTO_SEGMENTATION_MIN_GROUP_SIZE = 2;
+const AUTO_SEGMENTATION_MIN_GROUPS = 2;
+const AUTO_SEGMENTATION_REPEAT_THRESHOLD = 0.9;
 type LocalizedError = Error & {
     messageKey?: string | null;
     messageParams?: Record<string, unknown> | null;
@@ -49,6 +52,61 @@ const parseNumberStrict = (raw: any): number | null => {
         return Number.isFinite(num) ? num : null;
     }
     return null;
+};
+const approxEqual = (a: any, b: any, tolerance: any): boolean => Math.abs(a - b) <= tolerance;
+const inferAutoSegmentationFromXValues = (xValues: any, totalRaw: any): { groupSize: number; groups: number } | null => {
+    const values = Array.isArray(xValues) ? xValues : [];
+    const total = Number(totalRaw);
+    if (!Number.isInteger(total) || total <= 0)
+        return null;
+    if (values.length < AUTO_SEGMENTATION_MIN_GROUP_SIZE * AUTO_SEGMENTATION_MIN_GROUPS)
+        return null;
+    if (values.length !== total)
+        return null;
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const span = Math.abs(max - min);
+    const tolerance = Math.max(1e-9, span * 1e-4);
+    const maxIndex = Math.min(values.length - 1, 4000);
+    const candidates: number[] = [];
+    for (let groupSize = AUTO_SEGMENTATION_MIN_GROUP_SIZE; groupSize <= maxIndex; groupSize += 1) {
+        if (total % groupSize !== 0)
+            continue;
+        if (approxEqual(values[groupSize], values[0], tolerance)) {
+            candidates.push(groupSize);
+            if (candidates.length >= 64)
+                break;
+        }
+    }
+    if (!candidates.length)
+        return null;
+    let bestGroupSize = 0;
+    let bestScore = 0;
+    for (const candidate of candidates) {
+        const groups = total / candidate;
+        if (!Number.isInteger(groups) || groups < AUTO_SEGMENTATION_MIN_GROUPS)
+            continue;
+        const compareWindow = Math.min(values.length - candidate, candidate * 8);
+        if (compareWindow <= 0)
+            continue;
+        let matched = 0;
+        for (let i = 0; i < compareWindow; i += 1) {
+            if (approxEqual(values[i], values[i + candidate], tolerance * 2)) {
+                matched += 1;
+            }
+        }
+        const score = matched / compareWindow;
+        if (score > bestScore) {
+            bestScore = score;
+            bestGroupSize = candidate;
+        }
+    }
+    if (!bestGroupSize || bestScore < AUTO_SEGMENTATION_REPEAT_THRESHOLD)
+        return null;
+    return {
+        groupSize: bestGroupSize,
+        groups: total / bestGroupSize,
+    };
 };
 const createLocalizedError = (messageKey: any, messageParams: any, fallbackMessage: any): LocalizedError => {
     const err = new Error(fallbackMessage || String(messageKey || "Unknown error")) as LocalizedError;
@@ -428,6 +486,22 @@ async function getPreviewRows(cache: any, startRow: any, endRow: any) {
     }
     return rows;
 }
+const readXValuesForAutoSegmentation = async ({ cache, endRow, fileName, startRow, xCol, }: any): Promise<number[]> => {
+    const rows = await getPreviewRows(cache, startRow, endRow + 1);
+    const xValues: number[] = new Array(rows.length);
+    for (let i = 0; i < rows.length; i += 1) {
+        const row = Array.isArray(rows[i]) ? rows[i] : [];
+        const xRaw = row[xCol];
+        const xVal = parseNumberStrict(xRaw);
+        if (xVal === null) {
+            const rowIndex = startRow + i;
+            const cellRef = `${getExcelColumnLabel(xCol)}${rowIndex + 1}`;
+            throw new Error(`${fileName}: Invalid X at ${cellRef} (${JSON.stringify(xRaw ?? "")}).`);
+        }
+        xValues[i] = xVal;
+    }
+    return xValues;
+};
 const processFile = async (file: any, fileId: any, fileName: any, config: any, { maxPoints }: any) => {
     const xCol = Number(config?.xCol);
     const startRow = Number(config?.startRow);
@@ -435,6 +509,8 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
     let groupSize = Number(config?.groupSize);
     let groups = Number(config?.groups);
     const segmentCount = Number(config?.segmentCount);
+    const xSegmentationMode = String(config?.xSegmentationMode ?? "").trim().toLowerCase();
+    const isAutoSegmentationMode = xSegmentationMode === "auto";
     const yCols = Array.isArray(config?.yCols) ? config.yCols.map(Number) : [];
     const groupSizeCell = config?.groupSizeCell ?? null;
     const yLegendStartCell = config?.yLegendStartCell ?? null;
@@ -647,26 +723,47 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
         groups = expectedTotal / points;
     }
     else {
-        if (Number.isInteger(segmentCount) && segmentCount > 0) {
-            if (expectedTotal % segmentCount !== 0) {
-                throw createLocalizedError("da_extractXNotDivisibleBySegments", { total: expectedTotal, segments: segmentCount }, `${fileName}: X range has ${expectedTotal} points, which is not divisible by segments=${segmentCount}.`);
+        if (isAutoSegmentationMode) {
+            const cache = await ensurePreviewCache(fileId, file);
+            const xValues = await readXValuesForAutoSegmentation({
+                cache,
+                endRow,
+                fileName,
+                startRow,
+                xCol,
+            });
+            const inferred = inferAutoSegmentationFromXValues(xValues, expectedTotal);
+            if (inferred) {
+                groupSize = inferred.groupSize;
+                groups = inferred.groups;
             }
-            groups = segmentCount;
-            groupSize = expectedTotal / segmentCount;
-        }
-        // Allow deferred grouping for End-row mode: resolve once file row count is known.
-        if (!Number.isInteger(groupSize) || groupSize <= 0) {
-            groupSize = expectedTotal;
-            groups = 1;
-        }
-        else if (!Number.isInteger(groups) || groups <= 0) {
-            if (expectedTotal % groupSize !== 0) {
-                throw createLocalizedError("da_extractXNotDivisibleByPoints", { total: expectedTotal, points: groupSize }, `${fileName}: X range has ${expectedTotal} points, which is not divisible by points=${groupSize}.`);
+            else {
+                groupSize = expectedTotal;
+                groups = 1;
             }
-            groups = expectedTotal / groupSize;
         }
-        else if (expectedTotal !== groups * groupSize) {
-            throw new Error(`Invalid config: X range (${expectedTotal}) != groups(${groups}) * points(${groupSize})`);
+        else {
+            if (Number.isInteger(segmentCount) && segmentCount > 0) {
+                if (expectedTotal % segmentCount !== 0) {
+                    throw createLocalizedError("da_extractXNotDivisibleBySegments", { total: expectedTotal, segments: segmentCount }, `${fileName}: X range has ${expectedTotal} points, which is not divisible by segments=${segmentCount}.`);
+                }
+                groups = segmentCount;
+                groupSize = expectedTotal / segmentCount;
+            }
+            // Allow deferred grouping for End-row mode: resolve once file row count is known.
+            if (!Number.isInteger(groupSize) || groupSize <= 0) {
+                groupSize = expectedTotal;
+                groups = 1;
+            }
+            else if (!Number.isInteger(groups) || groups <= 0) {
+                if (expectedTotal % groupSize !== 0) {
+                    throw createLocalizedError("da_extractXNotDivisibleByPoints", { total: expectedTotal, points: groupSize }, `${fileName}: X range has ${expectedTotal} points, which is not divisible by points=${groupSize}.`);
+                }
+                groups = expectedTotal / groupSize;
+            }
+            else if (expectedTotal !== groups * groupSize) {
+                throw new Error(`Invalid config: X range (${expectedTotal}) != groups(${groups}) * points(${groupSize})`);
+            }
         }
     }
     if (!Number.isInteger(groupSize) || groupSize <= 0) {
