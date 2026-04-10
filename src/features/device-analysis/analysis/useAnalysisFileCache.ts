@@ -5,6 +5,7 @@ import {
   computeSubthresholdSwingFitAuto,
 } from "./lib/analysisMath";
 import { buildPoints } from "./lib/analysisChartsUtils";
+import { computeBaseCurrentMetrics } from "./lib/deviceAnalysisMetrics";
 
 type CachePrefetchHandle =
   | {
@@ -170,27 +171,10 @@ export const useAnalysisFileCache = ({
           );
         }
         if (!cache.baseMetricsBySeriesId.has(series.id)) {
-          let ion = -Infinity;
-          let xAtIon = null;
-          let ioff = Infinity;
-          let xAtIoff = null;
-
-          for (const point of points) {
-            const x = point?.x;
-            const y = point?.y;
-            if (typeof x !== "number" || !Number.isFinite(x)) continue;
-            if (typeof y !== "number" || !Number.isFinite(y)) continue;
-            const absI = Math.abs(y);
-            if (absI > ion) {
-              ion = absI;
-              xAtIon = x;
-            }
-            if (absI > 0 && absI < ioff) {
-              ioff = absI;
-              xAtIoff = x;
-            }
-          }
-
+          const baseCurrentMetrics = computeBaseCurrentMetrics({
+            points,
+            sourceFile: file,
+          });
           const ssDiagnostics = cache.ssDiagnosticsBySeriesId.get(series.id) ?? [];
           let legacySsMin = Infinity;
           let legacyXAtSsMin = null;
@@ -205,10 +189,7 @@ export const useAnalysisFileCache = ({
           }
 
           cache.baseMetricsBySeriesId.set(series.id, {
-            ion: Number.isFinite(ion) ? ion : null,
-            xAtIon,
-            ioff: Number.isFinite(ioff) ? ioff : null,
-            xAtIoff,
+            ...baseCurrentMetrics,
             legacySsMin: Number.isFinite(legacySsMin) ? legacySsMin : null,
             legacyXAtSsMin,
           });

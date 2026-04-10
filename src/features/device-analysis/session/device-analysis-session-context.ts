@@ -43,6 +43,13 @@ export type PreviewStatus = {
   message: string;
 };
 
+export type IonIoffMethod = "auto" | "manual";
+
+export type IonIoffManualTargets = {
+  ionX: string;
+  ioffX: string;
+};
+
 export type SsIdWindow = {
   low: string;
   high: string;
@@ -84,6 +91,10 @@ export type DeviceAnalysisSessionContextValue = {
   previewLoadedChunksRef: MutableRefObject<Set<number>>;
   previewCacheFileIdRef: MutableRefObject<string | null>;
   previewCacheFileLruRef: MutableRefObject<Set<string>>;
+  ionIoffMethod: IonIoffMethod;
+  setIonIoffMethod: Dispatch<SetStateAction<IonIoffMethod>>;
+  ionIoffManualTargets: IonIoffManualTargets;
+  setIonIoffManualTargets: Dispatch<SetStateAction<IonIoffManualTargets>>;
   ssMethod: SsMethod;
   setSsMethod: Dispatch<SetStateAction<SsMethod>>;
   ssDiagnosticsEnabled: boolean;

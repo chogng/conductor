@@ -17,6 +17,7 @@ import { useOriginCanvasExport } from "../useOriginCanvasExport";
 import OverviewGrid from "./OverviewGrid";
 import CalculatedParametersRow from "./CalculatedParametersRow";
 import { buildLogTicks, buildNiceTicks, buildOriginAutoTicks, buildPoints, buildStepTicks, computeLabelInterval, computeMinMax, downsamplePointsForDisplay, inferTickDigitsFromTicks, normalizeFloat, normalizeVarToken, padLinearDomain, padLogDomain, parseOptionalNumber, preserveScrollPosition, varTokenToSymbol, } from "../lib/analysisChartsUtils";
+import { computeBaseCurrentMetrics, isTransferLikeDeviceAnalysisFile, } from "../lib/deviceAnalysisMetrics";
 import { getDeviceAnalysisXUnitMeta, getDeviceAnalysisYUnitMeta, normalizeDeviceAnalysisYUnit, } from "../lib/deviceAnalysisUnits";
 import MainPlotChart from "./MainPlotChart";
 import SsDiagnosticsChart from "./SsDiagnosticsChart";
@@ -64,6 +65,21 @@ const toConductanceUnitLabel = (currentUnitLabel: string, denominatorUnit: strin
     if (currentUnitLabel === "pA")
         return "pS";
     return "S";
+};
+const formatCurrentWindowSummary = (window: any, xFactor: number, digits: number): string => {
+    if (!window)
+        return "not selected";
+    const parts = [String(window?.label || "window")];
+    if (Number.isFinite(window?.targetX)) {
+        parts.push(`@ ${formatNumber(Number(window.targetX) * xFactor, { digits })}`);
+    }
+    if (Number.isFinite(window?.x1) && Number.isFinite(window?.x2)) {
+        parts.push(`[${formatNumber(Number(window.x1) * xFactor, { digits })}, ${formatNumber(Number(window.x2) * xFactor, { digits })}]`);
+    }
+    if (Number.isFinite(window?.current)) {
+        parts.push(`|I|=${formatNumber(window.current)}`);
+    }
+    return parts.join(" · ");
 };
 type FormatOriginTranslateFn = (key: string, params?: Record<string, unknown>) => string;
 type OriginCsvBridge = {
@@ -129,7 +145,7 @@ const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, ssAp
         </button>
       </div>);
 });
-const AnalysisCharts = ({ processedData, processingStatus, activeFileId: controlledActiveFileId = undefined, onActiveFileIdChange = undefined, showFileSelect = true, ssMethod = "auto", setSsMethod = () => { }, ssDiagnosticsEnabled = true, setSsDiagnosticsEnabled = () => { }, ssShowFitLine = true, setSsShowFitLine = () => { }, ssIdWindow = { low: "1e-11", high: "1e-9" }, setSsIdWindow = () => { }, ssManualRanges = {}, setSsManualRanges = () => { }, originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS, }: any) => {
+const AnalysisCharts = ({ processedData, processingStatus, activeFileId: controlledActiveFileId = undefined, onActiveFileIdChange = undefined, showFileSelect = true, ionIoffMethod = "auto", setIonIoffMethod = () => { }, ionIoffManualTargets = { ionX: "", ioffX: "" }, setIonIoffManualTargets = () => { }, ssMethod = "auto", setSsMethod = () => { }, ssDiagnosticsEnabled = true, setSsDiagnosticsEnabled = () => { }, ssShowFitLine = true, setSsShowFitLine = () => { }, ssIdWindow = { low: "1e-11", high: "1e-9" }, setSsIdWindow = () => { }, ssManualRanges = {}, setSsManualRanges = () => { }, originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS, }: any) => {
     const { t } = useLanguage();
     const tLoose = React.useCallback<FormatOriginTranslateFn>((key, params) => t(key, params as any), [t]);
     const [internalActiveFileId, setInternalActiveFileId] = useState(processedData?.[0]?.fileId ?? null);
@@ -365,20 +381,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return null;
         return num;
     }, [areaInput]);
-    const ssHeuristicApplicable = useMemo(() => {
-        if (activeFile?.supportsSs === true)
-            return true;
-        if (activeFile?.supportsSs === false)
-            return false;
-        const xAxisRole = String(activeFile?.xAxisRole || "").toLowerCase();
-        if (xAxisRole)
-            return xAxisRole === "vg";
-        const curveType = String(activeFile?.curveType || "").toLowerCase();
-        if (curveType)
-            return curveType.includes("vg") || curveType.includes("transfer");
-        const label = String(activeFile?.xLabel || "").toLowerCase();
-        return label.includes("vg");
-    }, [activeFile?.curveType, activeFile?.supportsSs, activeFile?.xAxisRole, activeFile?.xLabel]);
+    const ssHeuristicApplicable = useMemo(() => isTransferLikeDeviceAnalysisFile(activeFile), [activeFile]);
+    const currentMetricsApplicable = useMemo(() => isTransferLikeDeviceAnalysisFile(activeFile), [activeFile]);
     const gmUi = useMemo(() => {
         const xToken = normalizeVarToken(activeFile?.xAxisRole ?? activeFile?.curveType);
         const legendToken = normalizeVarToken(activeFile?.legend?.varToken);
@@ -633,51 +637,41 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 jCacheBySeriesId.set(series.id, arr);
                 return arr;
             })();
-            let base = baseMetricsCache.get(series.id) ?? null;
+            let base = ionIoffMethod === "auto" ? baseMetricsCache.get(series.id) ?? null : null;
+            let legacySsMin = Infinity;
+            let legacyXAtSsMin = null;
+            for (const p of ssDiagnostics ?? []) {
+                const x = p?.x;
+                const y = p?.y;
+                if (!Number.isFinite(x) || !Number.isFinite(y))
+                    continue;
+                if (y > 0 && y < legacySsMin) {
+                    legacySsMin = y;
+                    legacyXAtSsMin = x;
+                }
+            }
             if (!base) {
-                // Scalar metrics (computed from |I| to support p/n-type)
-                let ion = -Infinity;
-                let xAtIon = null;
-                let ioff = Infinity;
-                let xAtIoff = null;
-                for (const p of points) {
-                    const x = p?.x;
-                    const y = p?.y;
-                    if (typeof x !== "number" || !Number.isFinite(x))
-                        continue;
-                    if (typeof y !== "number" || !Number.isFinite(y))
-                        continue;
-                    const absI = Math.abs(y);
-                    if (absI > ion) {
-                        ion = absI;
-                        xAtIon = x;
-                    }
-                    if (absI > 0 && absI < ioff) {
-                        ioff = absI;
-                        xAtIoff = x;
-                    }
-                }
-                let legacySsMin = Infinity;
-                let legacyXAtSsMin = null;
-                for (const p of ssDiagnostics ?? []) {
-                    const x = p?.x;
-                    const y = p?.y;
-                    if (!Number.isFinite(x) || !Number.isFinite(y))
-                        continue;
-                    if (y > 0 && y < legacySsMin) {
-                        legacySsMin = y;
-                        legacyXAtSsMin = x;
-                    }
-                }
+                // Use transfer-curve bias windows instead of single-point extrema.
                 base = {
-                    ion: Number.isFinite(ion) ? ion : null,
-                    xAtIon,
-                    ioff: Number.isFinite(ioff) ? ioff : null,
-                    xAtIoff,
+                    ...computeBaseCurrentMetrics({
+                        manualTargets: ionIoffMethod === "manual"
+                            ? {
+                                ionX: Number.isFinite(Number(ionIoffManualTargets?.ionX))
+                                    ? Number(ionIoffManualTargets?.ionX) / resolvedXUnitMeta.factor
+                                    : null,
+                                ioffX: Number.isFinite(Number(ionIoffManualTargets?.ioffX))
+                                    ? Number(ionIoffManualTargets?.ioffX) / resolvedXUnitMeta.factor
+                                    : null,
+                            }
+                            : null,
+                        method: ionIoffMethod,
+                        points,
+                        sourceFile: activeFile,
+                    }),
                     legacySsMin: Number.isFinite(legacySsMin) ? legacySsMin : null,
                     legacyXAtSsMin,
                 };
-                if (cache)
+                if (cache && ionIoffMethod === "auto")
                     baseMetricsCache.set(series.id, base);
             }
             const ionFinite = base.ion;
@@ -685,7 +679,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             const xAtIon = base.xAtIon ?? null;
             const xAtIoff = base.xAtIoff ?? null;
             const legacySsMinFinite = base.legacySsMin;
-            const legacyXAtSsMin = base.legacyXAtSsMin ?? null;
+            const legacyXAtSsMinResolved = base.legacyXAtSsMin ?? null;
             let gmMetric = gmMetricsCache.get(series.id) ?? null;
             if (!gmMetric) {
                 let gmMaxAbs = -Infinity;
@@ -843,7 +837,11 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     ssN: Number.isFinite(selectedFit?.n) ? selectedFit.n : null,
                     xAtSs: selectedSs !== null ? selected.xAt : null,
                     legacySsMin: legacySsMinFinite,
-                    legacyXAtSsMin,
+                    legacyXAtSsMin: legacyXAtSsMinResolved,
+                    currentMethod: base.method ?? ionIoffMethod,
+                    currentCandidateWindows: base.candidateWindows ?? [],
+                    ionWindow: base.ionWindow ?? null,
+                    ioffWindow: base.ioffWindow ?? null,
                     jon: area && ionFinite !== null ? ionFinite / area : null,
                     joff: area && ioffFinite !== null ? ioffFinite / area : null,
                 },
@@ -857,6 +855,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         gmMode,
         getFileCache,
         pointsBySeriesId,
+        resolvedXUnitMeta.factor,
+        ionIoffManualTargets?.ioffX,
+        ionIoffManualTargets?.ionX,
+        ionIoffMethod,
         ssIdWindow?.high,
         ssIdWindow?.low,
         ssManualRanges,
@@ -1126,6 +1128,82 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         }
         return { fill: "#60a5fa", fillOpacity: 0.08, stroke: "#60a5fa", strokeOpacity: 0.45 };
     }, [focusedSsOverlay?.kind]);
+    const focusedCurrentOverlays = useMemo(() => {
+        if (!currentMetricsApplicable)
+            return [];
+        const metrics = focusedAnalysis?.metrics ?? null;
+        const candidateWindows = Array.isArray(metrics?.currentCandidateWindows)
+            ? metrics.currentCandidateWindows
+            : [];
+        const overlays = [];
+        for (const window of candidateWindows) {
+            const x1 = Number(window?.x1);
+            const x2 = Number(window?.x2);
+            if (!Number.isFinite(x1) || !Number.isFinite(x2))
+                continue;
+            overlays.push({
+                key: `candidate-${window.key}`,
+                x1,
+                x2,
+                fill: "#94a3b8",
+                fillOpacity: 0.05,
+                stroke: "#94a3b8",
+                strokeOpacity: 0.28,
+                strokeDasharray: "4 4",
+                strokeWidth: 1.2,
+            });
+        }
+        const pushSelected = (window: any, role: "ion" | "ioff") => {
+            const x1 = Number(window?.x1);
+            const x2 = Number(window?.x2);
+            if (!Number.isFinite(x1) || !Number.isFinite(x2))
+                return;
+            const color = role === "ion" ? "#22c55e" : "#ef4444";
+            overlays.push({
+                key: `selected-${role}`,
+                x1,
+                x2,
+                fill: color,
+                fillOpacity: 0.1,
+                stroke: color,
+                strokeOpacity: 0.52,
+                strokeWidth: 2,
+            });
+        };
+        pushSelected(metrics?.ionWindow, "ion");
+        pushSelected(metrics?.ioffWindow, "ioff");
+        return overlays;
+    }, [currentMetricsApplicable, focusedAnalysis?.metrics]);
+    const focusedCurrentSummary = useMemo(() => {
+        if (!currentMetricsApplicable)
+            return null;
+        const metrics = focusedAnalysis?.metrics ?? null;
+        if (!metrics)
+            return "Ion/Ioff is available only on transfer curves.";
+        if (ionIoffMethod === "manual" &&
+            (!String(ionIoffManualTargets?.ionX ?? "").trim() ||
+                !String(ionIoffManualTargets?.ioffX ?? "").trim())) {
+            return "Manual Ion/Ioff needs both Ion x and Ioff x inputs.";
+        }
+        const ionSummary = formatCurrentWindowSummary(metrics?.ionWindow, plotXFactor, 4);
+        const ioffSummary = formatCurrentWindowSummary(metrics?.ioffWindow, plotXFactor, 4);
+        const modeLabel = metrics?.currentMethod === "manual" ? "Manual bias" : "Auto";
+        return `Ion/Ioff (${modeLabel}): Ion ${ionSummary} | Ioff ${ioffSummary}`;
+    }, [
+        currentMetricsApplicable,
+        focusedAnalysis?.metrics,
+        ionIoffManualTargets?.ioffX,
+        ionIoffManualTargets?.ionX,
+        ionIoffMethod,
+        plotXFactor,
+    ]);
+    const focusedCurrentLegend = useMemo(() => {
+        if (!currentMetricsApplicable)
+            return null;
+        return ionIoffMethod === "manual"
+            ? "Gray bands show auto candidates; green/red bands show the manual Ion/Ioff windows now in use."
+            : "Gray bands show auto candidates; green and red bands mark the selected Ion and Ioff windows.";
+    }, [currentMetricsApplicable, ionIoffMethod]);
     const focusedSeriesColor = useMemo(() => {
         const idx = (plotSeriesByType?.iv ?? []).findIndex((s: any) => s?.id === focusedSeriesId);
         if (idx < 0)
@@ -1720,7 +1798,28 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         }
         return parts.join(" | ");
     }, []);
-    const metricsRowElements = useMemo(() => metricsRows.map((row: any) => (<CalculatedParametersRow key={row.id} row={row} buildSsTooltip={buildSsTooltip}/>)), [buildSsTooltip, metricsRows]);
+    const buildCurrentTooltip = React.useCallback((role: "ion" | "ioff" | "ratio", row: any) => {
+        if (!row)
+            return "";
+        if (role === "ratio") {
+            const parts = [`method=${row.currentMethod ?? "unavailable"}`];
+            if (row.ionWindow) {
+                parts.push(`Ion ${formatCurrentWindowSummary(row.ionWindow, plotXFactor, xTooltipDigits)}`);
+            }
+            if (row.ioffWindow) {
+                parts.push(`Ioff ${formatCurrentWindowSummary(row.ioffWindow, plotXFactor, xTooltipDigits)}`);
+            }
+            if (Array.isArray(row.currentCandidateWindows) && row.currentCandidateWindows.length) {
+                parts.push(`candidates=${row.currentCandidateWindows
+                    .map((window: any) => formatCurrentWindowSummary(window, plotXFactor, xTooltipDigits))
+                    .join(" | ")}`);
+            }
+            return parts.join(" | ");
+        }
+        const window = role === "ion" ? row.ionWindow : row.ioffWindow;
+        return formatCurrentWindowSummary(window, plotXFactor, xTooltipDigits);
+    }, [plotXFactor, xTooltipDigits]);
+    const metricsRowElements = useMemo(() => metricsRows.map((row: any) => (<CalculatedParametersRow key={row.id} row={row} buildCurrentTooltip={buildCurrentTooltip} buildSsTooltip={buildSsTooltip}/>)), [buildCurrentTooltip, buildSsTooltip, metricsRows]);
     const calculatedParametersSummary =
         `${gmUi.summaryLabel}: max |${gmUi.metricSymbol}|, SS: fit (mV/dec), J uses |I|/Area`;
     if (!processedData || processedData.length === 0)
@@ -1921,6 +2020,51 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                       </div>) : null}
                   </div>) : null}
 
+                {currentMetricsApplicable ? (<div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-text-secondary whitespace-nowrap">
+                        Ion/Ioff:
+                      </span>
+                      <Select id="device-analysis-current-method-select" size="md" value={ionIoffMethod} onChange={(next: any) => {
+                const method = next === "manual" ? "manual" : "auto";
+                setIonIoffMethod(method);
+                apiService
+                    .updateDeviceAnalysisSettings({
+                    ionIoffMethodDefault: method,
+                })
+                    .catch(() => { });
+            }} options={[
+                { value: "auto", label: "Auto windows" },
+                { value: "manual", label: "Manual bias" },
+            ]} className="w-[150px]"/>
+                    </div>
+
+                    {ionIoffMethod === "manual" ? (<div className="flex items-center gap-1 text-xs text-text-secondary">
+                        <span className="whitespace-nowrap">Ion x:</span>
+                        <input id="device-analysis-ion-x-input" value={ionIoffManualTargets?.ionX ?? ""} onChange={(e: any) => setIonIoffManualTargets((prev: any) => ({
+                    ...(prev || {}),
+                    ionX: e.target.value,
+                }))} onBlur={() => {
+                    apiService
+                        .updateDeviceAnalysisSettings({
+                        ionIoffManualIonX: String(ionIoffManualTargets?.ionX ?? "").trim(),
+                    })
+                        .catch(() => { });
+                }} placeholder={`e.g. ${formatNumber((Number(xDomain?.[1]) || 1) * plotXFactor, { digits: 2 })}`} className="bg-bg-page border border-border rounded-lg h-[38px] px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40 w-[90px]"/>
+                        <span className="whitespace-nowrap">Ioff x:</span>
+                        <input id="device-analysis-ioff-x-input" value={ionIoffManualTargets?.ioffX ?? ""} onChange={(e: any) => setIonIoffManualTargets((prev: any) => ({
+                    ...(prev || {}),
+                    ioffX: e.target.value,
+                }))} onBlur={() => {
+                    apiService
+                        .updateDeviceAnalysisSettings({
+                        ionIoffManualIoffX: String(ionIoffManualTargets?.ioffX ?? "").trim(),
+                    })
+                        .catch(() => { });
+                }} placeholder="e.g. 0" className="bg-bg-page border border-border rounded-lg h-[38px] px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40 w-[90px]"/>
+                      </div>) : null}
+                  </div>) : null}
+
                 {showFileSelect ? (<Select id="device-analysis-file-select" size="md" value={effectiveActiveFileId ?? ""} onChange={(val: any) => handleSelectFile(val)} options={processedData.map((f: any) => ({
             value: f.fileId,
             label: f.fileName,
@@ -1941,6 +2085,12 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
           </div>
 
           {effectivePlotType === "ss" && ssSummary ? (<SsSummaryStrip summary={ssSummary}/>) : null}
+          {currentMetricsApplicable ? (<div className="mb-3 flex flex-col gap-1 rounded-lg border border-border/60 bg-bg-page/70 px-3 py-2 text-xs text-text-secondary">
+              <div className="text-text-primary">
+                {focusedCurrentSummary}
+              </div>
+              {focusedCurrentLegend ? (<div>{focusedCurrentLegend}</div>) : null}
+            </div>) : null}
 
           {showAxisControls && (<div className="bg-bg-page border border-border rounded-lg p-3">
               <div className="flex items-center justify-between gap-2 mb-2">
@@ -2091,6 +2241,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     focusedSeriesId={focusedSeriesId}
                     focusedFitLine={focusedFitLineForRender}
                     focusedSeriesColor={focusedSeriesColor}
+                    highlightOverlays={focusedCurrentOverlays}
                     focusedSsOverlay={focusedSsOverlay}
                     ssOverlayStyle={ssOverlayStyle}
                     legendWidth={MAIN_PLOT_LEGEND_WIDTH}

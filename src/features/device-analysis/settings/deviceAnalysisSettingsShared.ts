@@ -2,7 +2,10 @@ import type { LanguageCode } from "../../../context/language";
 import type { ThemeMode } from "../../../context/theme";
 import type { Feedback } from "../shared/lib/sharedTypes";
 import type { LooseTranslateFn as TranslateFn } from "../shared/lib/translateTypes";
-import type { SsMethod } from "../session/device-analysis-session-context";
+import type {
+  IonIoffMethod,
+  SsMethod,
+} from "../session/device-analysis-session-context";
 
 export type DeviceAnalysisSettings = {
   fileNameFieldSeparators?: string;
@@ -17,6 +20,9 @@ export type DeviceAnalysisSettings = {
   originRuntimeCleanupEnabled?: boolean;
   originRuntimeFailedRetentionDays?: number;
   originRuntimeKeepSuccessJobs?: number;
+  ionIoffManualIoffX?: number | string;
+  ionIoffManualIonX?: number | string;
+  ionIoffMethodDefault?: IonIoffMethod;
   ssDiagnosticsEnabled?: boolean;
   ssIdHigh?: number | string;
   ssIdLow?: number | string;

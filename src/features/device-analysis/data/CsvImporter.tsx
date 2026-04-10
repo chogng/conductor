@@ -15,6 +15,7 @@ import Avatar from "../../../components/ui/Avatar";
 import ScrollArea from "../../../components/ui/ScrollArea";
 import {
   DEVICE_ANALYSIS_DATA_IMPORT_ACCEPT,
+  assessImportedDeviceAnalysisFile,
   isSupportedDataImportFileName,
   toCsvCompatibleDataFile,
 } from "../shared/lib/deviceAnalysisImportFileUtils";
@@ -36,6 +37,10 @@ export type CsvImporterFileEntry = {
   fileName?: string;
   itemKey?: string;
   sourceKey?: string;
+  curveType?: string | null;
+  curveTypeConfidence?: "high" | "medium" | "low";
+  curveTypeNeedsTemplate?: boolean;
+  curveTypeReasons?: string[];
 };
 
 type CsvFileEntry = CsvImporterFileEntry & {
@@ -57,6 +62,18 @@ type ImportedFileInfo = {
   size: number;
   lastModified: number;
   sourceKey?: string;
+  curveType?: string | null;
+  curveTypeConfidence?: "high" | "medium" | "low";
+  curveTypeNeedsTemplate?: boolean;
+  curveTypeReasons?: string[];
+  xAxisRole?: "vg" | "vd" | null;
+  xAxisRoleSource?:
+    | "filename"
+    | "title"
+    | "label"
+    | "metadata"
+    | "shape"
+    | null;
 };
 
 export type CsvImporterProps = {
@@ -85,6 +102,16 @@ const CsvFileItem = React.memo(
       fileEntry?.file && typeof fileEntry.file === "object" && "name" in fileEntry.file
         ? String(fileEntry.file.name ?? "")
         : String(fileEntry?.fileName ?? "");
+    const needsReview =
+      fileEntry?.curveTypeNeedsTemplate === true ||
+      fileEntry?.curveTypeConfidence === "low";
+    const autoSummary = fileEntry?.curveType
+      ? `Auto: ${String(fileEntry.curveType).trim()}${
+          fileEntry?.curveTypeConfidence
+            ? ` (${String(fileEntry.curveTypeConfidence).trim()})`
+            : ""
+        }`
+      : "";
 
     return (
       <div
@@ -108,25 +135,42 @@ const CsvFileItem = React.memo(
           <div className={styles.fileIcon}>
             <FileText size={16} />
           </div>
-          <span className={styles.fileName}>{fileName}</span>
+          <div className={styles.fileText}>
+            <span className={styles.fileName}>{fileName}</span>
+            {autoSummary ? (
+              <span
+                className={cx(
+                  styles.fileMeta,
+                  needsReview && styles.fileMetaWarning,
+                )}
+              >
+                {autoSummary}
+              </span>
+            ) : null}
+          </div>
         </div>
-        <button
-          type="button"
-          aria-label="Remove CSV file"
-          id={
-            fileEntry?.itemKey
-              ? `csv-file-remove-${toDomIdToken(fileEntry.itemKey)}`
-              : undefined
-          }
-          data-item-key={fileEntry?.itemKey || undefined}
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove?.(fileEntry.fileId ?? null);
-          }}
-          className={styles.fileRemove}
-        >
-          <X size={16} />
-        </button>
+        <div className={styles.fileActions}>
+          {needsReview ? (
+            <span className={styles.reviewBadge}>Needs review</span>
+          ) : null}
+          <button
+            type="button"
+            aria-label="Remove CSV file"
+            id={
+              fileEntry?.itemKey
+                ? `csv-file-remove-${toDomIdToken(fileEntry.itemKey)}`
+                : undefined
+            }
+            data-item-key={fileEntry?.itemKey || undefined}
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove?.(fileEntry.fileId ?? null);
+            }}
+            className={styles.fileRemove}
+          >
+            <X size={16} />
+          </button>
+        </div>
       </div>
     );
   },
@@ -268,6 +312,7 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
           failedNames.push(sourceFile.name || "Unknown file");
           continue;
         }
+        const curveAssessment = await assessImportedDeviceAnalysisFile(normalizedFile);
 
         const fileId = createCsvImporterFileId();
         const fileEntry: CsvFileEntry = {
@@ -275,6 +320,10 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
           file: normalizedFile,
           itemKey: buildItemKey(normalizedFile),
           sourceKey,
+          curveType: curveAssessment.curveType,
+          curveTypeConfidence: curveAssessment.curveTypeConfidence,
+          curveTypeNeedsTemplate: curveAssessment.curveTypeNeedsTemplate,
+          curveTypeReasons: curveAssessment.curveTypeReasons,
         };
 
         if (setFiles) {
@@ -293,6 +342,12 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
           size: normalizedFile.size,
           lastModified: normalizedFile.lastModified,
           sourceKey,
+          curveType: curveAssessment.curveType,
+          curveTypeConfidence: curveAssessment.curveTypeConfidence,
+          curveTypeNeedsTemplate: curveAssessment.curveTypeNeedsTemplate,
+          curveTypeReasons: curveAssessment.curveTypeReasons,
+          xAxisRole: curveAssessment.xAxisRole,
+          xAxisRoleSource: curveAssessment.xAxisRoleSource,
         });
       }
 

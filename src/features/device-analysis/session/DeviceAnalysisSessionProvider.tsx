@@ -3,6 +3,8 @@ import {
   DeviceAnalysisSessionContext,
   type DeviceAnalysisSessionContextValue,
   type DeviceAnalysisTemplateConfig,
+  type IonIoffManualTargets,
+  type IonIoffMethod,
   type PreviewStatus,
   type SsIdWindow,
   type SsManualRanges,
@@ -75,6 +77,13 @@ export const DeviceAnalysisSessionProvider = ({
   const previewCacheFileIdRef = useRef<string | null>(null);
   const previewCacheFileLruRef = useRef<Set<string>>(new Set());
 
+  const [ionIoffMethod, setIonIoffMethod] = useState<IonIoffMethod>("auto");
+  const [ionIoffManualTargets, setIonIoffManualTargets] =
+    useState<IonIoffManualTargets>({
+      ionX: "",
+      ioffX: "",
+    });
+
   // Device analysis SS (session state; defaults overridden by user settings if loaded).
   const [ssMethod, setSsMethod] = useState<SsMethod>("auto");
   const [ssDiagnosticsEnabled, setSsDiagnosticsEnabled] = useState(true);
@@ -113,6 +122,10 @@ export const DeviceAnalysisSessionProvider = ({
       previewLoadedChunksRef,
       previewCacheFileIdRef,
       previewCacheFileLruRef,
+      ionIoffMethod,
+      setIonIoffMethod,
+      ionIoffManualTargets,
+      setIonIoffManualTargets,
       ssMethod,
       setSsMethod,
       ssDiagnosticsEnabled,
@@ -133,6 +146,8 @@ export const DeviceAnalysisSessionProvider = ({
       processedData,
       rawData,
       selectedPreviewFileId,
+      ionIoffManualTargets,
+      ionIoffMethod,
       ssDiagnosticsEnabled,
       ssIdWindow,
       ssManualRanges,

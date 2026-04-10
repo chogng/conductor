@@ -1,3 +1,10 @@
+import Papa from "papaparse";
+import {
+  classifyDeviceAnalysisCurve,
+  extractDeviceAnalysisCurveMetadata,
+  type DeviceAnalysisCurveClassification,
+} from "./deviceAnalysisCurveClassification.js";
+
 export const DEVICE_ANALYSIS_DATA_IMPORT_EXTENSIONS = [
   ".csv",
   ".xls",
@@ -11,6 +18,17 @@ const SUPPORTED_IMPORT_EXTENSIONS = new Set<string>(
   DEVICE_ANALYSIS_DATA_IMPORT_EXTENSIONS,
 );
 const EXCEL_IMPORT_EXTENSIONS = new Set<string>([".xls", ".xlsx"]);
+const IMPORT_CLASSIFICATION_PREVIEW_BYTES = 128 * 1024;
+const IMPORT_CLASSIFICATION_PREVIEW_ROWS = 160;
+
+export type ImportedDeviceAnalysisCurveAssessment = {
+  curveType: string | null;
+  curveTypeConfidence: DeviceAnalysisCurveClassification["confidence"];
+  curveTypeNeedsTemplate: boolean;
+  curveTypeReasons: string[];
+  xAxisRole: DeviceAnalysisCurveClassification["xAxisRole"];
+  xAxisRoleSource: DeviceAnalysisCurveClassification["xAxisRoleSource"];
+};
 
 const toLowerTrimmed = (value: unknown): string =>
   String(value ?? "").trim().toLowerCase();
@@ -68,4 +86,33 @@ export const toCsvCompatibleDataFile = async (file: File): Promise<File> => {
       ? file.lastModified
       : Date.now(),
   });
+};
+
+export const assessImportedDeviceAnalysisFile = async (
+  file: File,
+): Promise<ImportedDeviceAnalysisCurveAssessment> => {
+  const previewText = await file
+    .slice(0, IMPORT_CLASSIFICATION_PREVIEW_BYTES)
+    .text();
+  const parsed = Papa.parse(previewText, {
+    preview: IMPORT_CLASSIFICATION_PREVIEW_ROWS,
+    skipEmptyLines: false,
+  }) as unknown as { data?: unknown[] };
+  const rows = Array.isArray(parsed?.data)
+    ? (parsed.data as Array<Array<unknown>>)
+    : [];
+  const metadata = extractDeviceAnalysisCurveMetadata(rows);
+  const classification = classifyDeviceAnalysisCurve({
+    fileName: file?.name,
+    metadata,
+  });
+
+  return {
+    curveType: classification.curveTypeLabel ?? null,
+    curveTypeConfidence: classification.confidence,
+    curveTypeNeedsTemplate: classification.needsTemplate,
+    curveTypeReasons: classification.reasons,
+    xAxisRole: classification.xAxisRole,
+    xAxisRoleSource: classification.xAxisRoleSource,
+  };
 };

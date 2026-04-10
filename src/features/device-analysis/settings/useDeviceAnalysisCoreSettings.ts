@@ -5,7 +5,10 @@ import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
   normalizeOriginPlotOptions,
 } from "../analysis/lib/originPlotOptions";
-import type { SsMethod } from "../session/device-analysis-session-context";
+import type {
+  IonIoffMethod,
+  SsMethod,
+} from "../session/device-analysis-session-context";
 import type { LooseTranslateFn as TranslateFn } from "../shared/lib/translateTypes";
 import {
   getDeviceAnalysisSettings,
@@ -19,6 +22,8 @@ import {
 
 type UseDeviceAnalysisCoreSettingsOptions = {
   language: LanguageCode;
+  setIonIoffManualTargets: (targets: { ionX: string; ioffX: string }) => void;
+  setIonIoffMethod: (method: IonIoffMethod) => void;
   setLanguage: (language: LanguageCode) => void;
   theme: ThemeMode;
   setTheme: (theme: ThemeMode) => void;
@@ -35,6 +40,8 @@ type UpdateDeviceAnalysisSettingsFn = (
 
 export const useDeviceAnalysisCoreSettings = ({
   language,
+  setIonIoffManualTargets,
+  setIonIoffMethod,
   setLanguage,
   theme,
   setTheme,
@@ -139,6 +146,26 @@ export const useDeviceAnalysisCoreSettings = ({
         setSsShowFitLine(settings.ssShowFitLine);
       }
 
+      const ionIoffMethodDefault = settings?.ionIoffMethodDefault;
+      if (ionIoffMethodDefault === "auto" || ionIoffMethodDefault === "manual") {
+        setIonIoffMethod(ionIoffMethodDefault);
+      }
+
+      const ionX = settings?.ionIoffManualIonX;
+      const ioffX = settings?.ionIoffManualIoffX;
+      if (ionX !== undefined || ioffX !== undefined) {
+        setIonIoffManualTargets({
+          ionX:
+            ionX === undefined || ionX === null || ionX === ""
+              ? ""
+              : String(ionX),
+          ioffX:
+            ioffX === undefined || ioffX === null || ioffX === ""
+              ? ""
+              : String(ioffX),
+        });
+      }
+
       const low = Number(settings?.ssIdLow);
       const high = Number(settings?.ssIdHigh);
       if (
@@ -183,6 +210,8 @@ export const useDeviceAnalysisCoreSettings = ({
     };
   }, [
     initialSettingsSnapshot,
+    setIonIoffManualTargets,
+    setIonIoffMethod,
     setLanguage,
     setTheme,
     setSsDiagnosticsEnabled,

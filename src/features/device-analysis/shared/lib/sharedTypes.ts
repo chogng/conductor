@@ -2,6 +2,18 @@ export type RawDataEntry = {
   file?: unknown;
   fileId?: string;
   fileName?: string;
+  curveType?: string | null;
+  curveTypeConfidence?: "high" | "medium" | "low";
+  curveTypeNeedsTemplate?: boolean;
+  curveTypeReasons?: string[];
+  xAxisRole?: "vg" | "vd" | null;
+  xAxisRoleSource?:
+    | "filename"
+    | "title"
+    | "label"
+    | "metadata"
+    | "shape"
+    | null;
   [key: string]: unknown;
 };
 
@@ -25,8 +37,17 @@ export type ProcessedEntry = {
   curveFilterKey?: string | null;
   curveFilterField?: string | null;
   curveType?: string;
+  curveTypeConfidence?: "high" | "medium" | "low";
+  curveTypeNeedsTemplate?: boolean;
+  curveTypeReasons?: string[];
   xAxisRole?: "vg" | "vd" | null;
-  xAxisRoleSource?: "filename" | "title" | "label" | null;
+  xAxisRoleSource?:
+    | "filename"
+    | "title"
+    | "label"
+    | "metadata"
+    | "shape"
+    | null;
   supportsSs?: boolean;
   xUnit?: string;
   x?: {

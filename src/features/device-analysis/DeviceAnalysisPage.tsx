@@ -141,6 +141,10 @@ const DeviceAnalysisPage = () => {
     setProcessedData,
     templateConfig,
     setTemplateConfig,
+    ionIoffMethod,
+    setIonIoffMethod,
+    ionIoffManualTargets,
+    setIonIoffManualTargets,
     ssMethod,
     setSsMethod,
     ssDiagnosticsEnabled,
@@ -399,6 +403,8 @@ const DeviceAnalysisPage = () => {
     originOpenPlotOptions,
   } = useDeviceAnalysisCoreSettings({
     language,
+    setIonIoffManualTargets,
+    setIonIoffMethod,
     setLanguage,
     theme,
     setTheme,
@@ -721,6 +727,10 @@ const DeviceAnalysisPage = () => {
                     isAnalysisPageActive || hasVisitedAnalysisPage
                   }
                   setSsDiagnosticsEnabled={setSsDiagnosticsEnabled}
+                  ionIoffMethod={ionIoffMethod}
+                  ionIoffManualTargets={ionIoffManualTargets}
+                  setIonIoffMethod={setIonIoffMethod}
+                  setIonIoffManualTargets={setIonIoffManualTargets}
                   setSsIdWindow={setSsIdWindow}
                   setSsManualRanges={setSsManualRanges}
                   setSsMethod={setSsMethod}

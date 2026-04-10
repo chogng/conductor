@@ -52,12 +52,32 @@
   @apply flex items-center gap-3 overflow-hidden min-w-0 flex-1;
 }
 
+.fileText {
+  @apply flex flex-col min-w-0 flex-1;
+}
+
 .fileIcon {
   @apply w-8 h-8 rounded bg-green-500/10 flex items-center justify-center text-green-500 shrink-0;
 }
 
 .fileName {
   @apply text-sm text-text-primary truncate flex-1 min-w-0;
+}
+
+.fileMeta {
+  @apply mt-0.5 text-[11px] text-text-secondary truncate;
+}
+
+.fileMetaWarning {
+  @apply text-amber-600 dark:text-amber-400;
+}
+
+.fileActions {
+  @apply flex items-center gap-2 shrink-0 pl-2;
+}
+
+.reviewBadge {
+  @apply inline-flex items-center rounded-full border border-amber-500/35 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-amber-700;
 }
 
 .fileRemove {

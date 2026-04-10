@@ -147,10 +147,14 @@ const OverviewGrid = memo(function OverviewGrid({
     if (curveFilter === "transfer" || curveFilter === "output") {
       const target = curveFilter === "transfer" ? "vg" : "vd";
       return sortedData.filter((file) => {
+        const xAxisRole = String(file?.xAxisRole ?? "").toLowerCase();
+        if (xAxisRole) {
+          return xAxisRole === target;
+        }
         // Check curveType field first (if available).
         if (file?.curveType) {
           const curveType = String(file.curveType).toLowerCase();
-          return curveType.includes(target);
+          return curveType.includes(target) || curveType.includes(curveFilter);
         }
         // Fallback to xLabel (may exist in broader processed shape).
         const label = String(

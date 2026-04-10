@@ -1,6 +1,11 @@
 import Papa from "papaparse";
 import { normalizeDeviceAnalysisYUnit } from "../analysis/lib/deviceAnalysisUnits";
 import {
+    classifyDeviceAnalysisCurve,
+    detectDeviceAnalysisAxisRole,
+    extractDeviceAnalysisCurveMetadata,
+} from "../shared/lib/deviceAnalysisCurveClassification";
+import {
     matchFileNameAgainstPatternTokens,
     normalizeFileNameFieldSeparators,
     splitFileNameMatchInput,
@@ -623,48 +628,16 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
     const bottomTitle = await resolveKeyword(bottomTitleRaw);
     const leftTitle = await resolveKeyword(leftTitleRaw);
     const legendPrefix = await resolveKeyword(legendPrefixRaw);
-    const detectAxisRole = (raw: any) => {
-        const text = String(raw ?? "").trim().toLowerCase();
-        if (!text)
-            return null;
-        const compact = text.replace(/[\s_\-./()[\]{}]+/g, "");
-        const hasVg = /(^|[^a-z0-9])v[_-]?g(s|[^a-z0-9]|$)/.test(text) ||
-            /(^|[^a-z0-9])gate(\s+voltage)?([^a-z0-9]|$)/.test(text) ||
-            /(^|[^a-z0-9])transfer(\s+(curve|curves|characteristic|characteristics))?([^a-z0-9]|$)/.test(text) ||
-            compact.includes("gatevoltage") ||
-            compact.includes("transfercurve") ||
-            compact.includes("transfercurves") ||
-            compact.includes("transfercharacteristic") ||
-            compact.includes("transfercharacteristics") ||
-            text.includes("\u6805\u538b") ||
-            text.includes("\u6805\u6781") ||
-            text.includes("\u6805\u6781\u7535\u538b");
-        const hasVd = /(^|[^a-z0-9])v[_-]?d(s|[^a-z0-9]|$)/.test(text) ||
-            /(^|[^a-z0-9])drain(\s+voltage)?([^a-z0-9]|$)/.test(text) ||
-            /(^|[^a-z0-9])output(\s+(curve|curves|characteristic|characteristics))?([^a-z0-9]|$)/.test(text) ||
-            compact.includes("drainvoltage") ||
-            compact.includes("outputcurve") ||
-            compact.includes("outputcurves") ||
-            compact.includes("outputcharacteristic") ||
-            compact.includes("outputcharacteristics") ||
-            text.includes("\u6f0f\u538b") ||
-            text.includes("\u6f0f\u6781") ||
-            text.includes("\u6f0f\u6781\u7535\u538b");
-        if (hasVg && !hasVd)
-            return "vg";
-        if (hasVd && !hasVg)
-            return "vd";
-        return null;
-    };
-    // Deterministic curve tagging:
-    // - file-name mode: file-name keywords gate applicability, while curve type
-    //   still falls back to Var1 token (or inferred x-label) for chart semantics
-    // - var mode: use Var1 token only (Var2 is display-only)
-    const var1Token = detectAxisRole(bottomTitle);
-    const var2Token = detectAxisRole(legendPrefix);
+    // Curve classification now prefers file metadata and only falls back to
+    // template labels / file-name hints when metadata is incomplete.
+    const var2Token = detectDeviceAnalysisAxisRole(legendPrefix);
     let curveType = null;
+    let curveTypeConfidence = "low";
+    let curveTypeNeedsTemplate = false;
+    let curveTypeReasons: string[] = [];
     let xAxisRole = null;
     let xAxisRoleSource = null;
+    let fileNameRole: "vg" | "vd" | null = null;
     const endRowIsEnd = typeof endRowRaw === "string" && endRowRaw.trim().toLowerCase() === "end";
     let endRow: number | null = endRowIsEnd ? null : Number(endRowRaw);
     if (!Number.isInteger(xCol) || xCol < 0) {
@@ -1094,14 +1067,7 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
         if (!matchedVg && !matchedVd) {
             throw new Error(`${fileName}: File name does not match configured template prefixes.`);
         }
-        curveType = var1Token ?? null;
-        xAxisRole = var1Token ?? null;
-        xAxisRoleSource = var1Token ? "title" : null;
-    }
-    else {
-        curveType = var1Token ?? null;
-        xAxisRole = var1Token ?? null;
-        xAxisRoleSource = var1Token ? "title" : null;
+        fileNameRole = matchedVg && !matchedVd ? "vg" : matchedVd && !matchedVg ? "vd" : null;
     }
     const legendVarToken = var2Token;
     let effectiveBottomTitle = bottomTitle;
@@ -1198,15 +1164,25 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
     // Use Var1 as X Label, fallback to column label
     // Use bottomTitle directly (resolved string from Var1)
     const xLabel = appendAxisUnit(effectiveBottomTitle || getExcelColumnLabel(xCol), xUnitRaw);
-    if (!xAxisRole) {
-        const axisRoleFromLabel = detectAxisRole(xLabel);
-        if (axisRoleFromLabel) {
-            xAxisRole = axisRoleFromLabel;
-            xAxisRoleSource = "label";
-            if (!curveType)
-                curveType = axisRoleFromLabel;
-        }
-    }
+    const classificationCache = await ensurePreviewCache(fileId, file);
+    const classificationRowCount = Math.min(Number(classificationCache.rowCount) || 0, 160);
+    const classificationRows = classificationRowCount > 0
+        ? await getPreviewRows(classificationCache, 0, classificationRowCount)
+        : [];
+    const curveMetadata = extractDeviceAnalysisCurveMetadata(classificationRows);
+    const curveClassification = classifyDeviceAnalysisCurve({
+        fileName,
+        fileNameRole,
+        metadata: curveMetadata,
+        templateXAxisLabel: bottomTitle,
+        xAxisLabel: xLabel,
+    });
+    curveType = curveClassification.curveTypeLabel ?? null;
+    curveTypeConfidence = curveClassification.confidence;
+    curveTypeNeedsTemplate = curveClassification.needsTemplate;
+    curveTypeReasons = curveClassification.reasons;
+    xAxisRole = curveClassification.xAxisRole;
+    xAxisRoleSource = curveClassification.xAxisRoleSource;
     const yLabel = appendAxisUnit(leftTitle || "", yUnitRaw);
     const supportsSs = xAxisRole === "vg";
     return {
@@ -1223,6 +1199,9 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
             }
             : null,
         curveType,
+        curveTypeConfidence,
+        curveTypeNeedsTemplate,
+        curveTypeReasons,
         xAxisRole,
         xAxisRoleSource,
         supportsSs,

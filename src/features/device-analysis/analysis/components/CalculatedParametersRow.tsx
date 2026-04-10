@@ -4,10 +4,14 @@ import { formatNumber } from "../lib/analysisMath";
 type SsConfidence = "high" | "low" | "fail" | string;
 
 type CalculatedParameterRowData = {
+  currentCandidateWindows?: unknown[];
+  currentMethod?: string | null;
   name: string;
   ion: number | null;
+  ionWindow?: unknown;
   xAtIon: number | null;
   ioff: number | null;
+  ioffWindow?: unknown;
   xAtIoff: number | null;
   ionIoff: number | null;
   gmMaxAbs: number | null;
@@ -20,10 +24,15 @@ type CalculatedParameterRowData = {
 
 type CalculatedParametersRowProps = {
   row?: CalculatedParameterRowData | null;
+  buildCurrentTooltip?: (
+    role: "ion" | "ioff" | "ratio",
+    row: CalculatedParameterRowData,
+  ) => string;
   buildSsTooltip?: (row: CalculatedParameterRowData) => string;
 };
 
 const CalculatedParametersRow = memo(function CalculatedParametersRow({
+  buildCurrentTooltip,
   row,
   buildSsTooltip,
 }: CalculatedParametersRowProps) {
@@ -34,19 +43,34 @@ const CalculatedParametersRow = memo(function CalculatedParametersRow({
       <td className="p-2 text-[14px] text-text-primary font-medium whitespace-nowrap text-center">
         {row.name}
       </td>
-      <td className="p-2 font-mono text-[14px] text-text-primary whitespace-nowrap text-center border-l border-border bg-emerald-500/5">
+      <td
+        className="p-2 font-mono text-[14px] text-text-primary whitespace-nowrap text-center border-l border-border bg-emerald-500/5"
+        title={buildCurrentTooltip ? buildCurrentTooltip("ion", row) : ""}
+      >
         {formatNumber(row.ion)}
       </td>
-      <td className="p-2 font-mono text-[14px] text-text-secondary whitespace-nowrap text-center border-l border-border bg-emerald-500/5">
+      <td
+        className="p-2 font-mono text-[14px] text-text-secondary whitespace-nowrap text-center border-l border-border bg-emerald-500/5"
+        title={buildCurrentTooltip ? buildCurrentTooltip("ion", row) : ""}
+      >
         {formatNumber(row.xAtIon)}
       </td>
-      <td className="p-2 font-mono text-[14px] text-text-primary whitespace-nowrap text-center border-l border-border bg-cyan-500/5">
+      <td
+        className="p-2 font-mono text-[14px] text-text-primary whitespace-nowrap text-center border-l border-border bg-cyan-500/5"
+        title={buildCurrentTooltip ? buildCurrentTooltip("ioff", row) : ""}
+      >
         {formatNumber(row.ioff)}
       </td>
-      <td className="p-2 font-mono text-[14px] text-text-secondary whitespace-nowrap text-center border-l border-border bg-cyan-500/5">
+      <td
+        className="p-2 font-mono text-[14px] text-text-secondary whitespace-nowrap text-center border-l border-border bg-cyan-500/5"
+        title={buildCurrentTooltip ? buildCurrentTooltip("ioff", row) : ""}
+      >
         {formatNumber(row.xAtIoff)}
       </td>
-      <td className="p-2 font-mono text-[14px] text-text-primary whitespace-nowrap text-center border-l border-border">
+      <td
+        className="p-2 font-mono text-[14px] text-text-primary whitespace-nowrap text-center border-l border-border"
+        title={buildCurrentTooltip ? buildCurrentTooltip("ratio", row) : ""}
+      >
         {formatNumber(row.ionIoff, { digits: 3 })}
       </td>
       <td className="p-2 font-mono text-[14px] text-text-primary whitespace-nowrap text-center border-l border-border bg-amber-500/5">

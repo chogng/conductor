@@ -3,6 +3,8 @@ import { BarChart2 } from "lucide-react";
 import Card from "../../../components/ui/Card";
 import type { TranslateFn } from "../../../context/language";
 import type {
+  IonIoffManualTargets,
+  IonIoffMethod,
   SsIdWindow,
   SsManualRanges,
   SsMethod,
@@ -15,8 +17,12 @@ type AnalysisChartsLazyProps = {
   processedData: ProcessedEntry[];
   processingStatus?: Partial<ProcessingStatus>;
   activeFileId?: string | null;
+  ionIoffMethod?: IonIoffMethod;
+  ionIoffManualTargets?: IonIoffManualTargets;
   onActiveFileIdChange?: (nextFileId: string | null) => void;
   showFileSelect?: boolean;
+  setIonIoffMethod?: (next: IonIoffMethod) => void;
+  setIonIoffManualTargets?: (next: IonIoffManualTargets) => void;
   ssMethod?: SsMethod;
   setSsMethod?: (next: SsMethod) => void;
   ssDiagnosticsEnabled?: boolean;
@@ -58,9 +64,13 @@ const DeviceAnalysisAnalysisPanel = ({
   processedData = [],
   processingStatus,
   activeFileId,
+  ionIoffMethod,
+  ionIoffManualTargets,
   onActiveFileIdChange,
   showFileSelect = true,
   shouldMountCharts = false,
+  setIonIoffMethod,
+  setIonIoffManualTargets,
   setSsDiagnosticsEnabled,
   setSsIdWindow,
   setSsManualRanges,
@@ -87,8 +97,12 @@ const DeviceAnalysisAnalysisPanel = ({
               processedData={processedData}
               processingStatus={processingStatus}
               activeFileId={activeFileId}
+              ionIoffMethod={ionIoffMethod}
+              ionIoffManualTargets={ionIoffManualTargets}
               onActiveFileIdChange={onActiveFileIdChange}
               showFileSelect={showFileSelect}
+              setIonIoffMethod={setIonIoffMethod}
+              setIonIoffManualTargets={setIonIoffManualTargets}
               ssMethod={ssMethod}
               setSsMethod={setSsMethod}
               ssDiagnosticsEnabled={ssDiagnosticsEnabled}

@@ -17,9 +17,11 @@ export type ProcessedFileLike = {
   curveFilterKey?: string | null;
   curveFilterField?: string | null;
   curveType?: string;
+  curveTypeConfidence?: "high" | "medium" | "low";
   x?: {
     sampledPoints?: number | null;
   };
+  xAxisRole?: "vg" | "vd" | null;
   xGroups?: number[][];
   series?: CanvasMultiLineChartProps["series"];
   domain?: {
@@ -154,7 +156,12 @@ const FileCard = memo(function FileCard({
                 {file.curveType ? (
                   <>
                     {" | "}
-                    <span id={`file-card-type-${fileIdSuffix}`}>Type: {file.curveType}</span>
+                    <span id={`file-card-type-${fileIdSuffix}`}>
+                      Type: {file.curveType}
+                      {file.curveTypeConfidence
+                        ? ` (${file.curveTypeConfidence})`
+                        : ""}
+                    </span>
                   </>
                 ) : null}
               </div>

@@ -1,4 +1,4 @@
-import { memo, useMemo } from "react";
+import { Fragment, memo, useMemo } from "react";
 import {
   CartesianGrid,
   Legend,
@@ -60,6 +60,18 @@ type SsOverlayStyle = {
   strokeOpacity: number;
 };
 
+type HighlightOverlay = {
+  key: string;
+  fill: string;
+  fillOpacity: number;
+  stroke: string;
+  strokeDasharray?: string;
+  strokeOpacity: number;
+  strokeWidth?: number;
+  x1: number;
+  x2: number;
+};
+
 type MainPlotChartProps = {
   plotType?: string;
   activeFile?: Partial<{
@@ -82,6 +94,7 @@ type MainPlotChartProps = {
   focusedSeriesId?: string | null;
   focusedFitLine?: PlotPoint[] | null;
   focusedSeriesColor?: string;
+  highlightOverlays?: HighlightOverlay[];
   focusedSsOverlay?: SsOverlay | null;
   ssOverlayStyle: SsOverlayStyle;
   legendWidth?: number;
@@ -193,6 +206,7 @@ const MainPlotChart = memo(function MainPlotChart({
   focusedSeriesId,
   focusedFitLine,
   focusedSeriesColor = "#8884d8",
+  highlightOverlays = [],
   focusedSsOverlay,
   ssOverlayStyle,
   legendWidth = 120,
@@ -500,6 +514,32 @@ const MainPlotChart = memo(function MainPlotChart({
             ];
           }}
         />
+
+        {highlightOverlays.map((overlay) => (<Fragment key={overlay.key}>
+            <ReferenceArea
+              x1={Math.min(overlay.x1, overlay.x2)}
+              x2={Math.max(overlay.x1, overlay.x2)}
+              fill={overlay.fill}
+              fillOpacity={overlay.fillOpacity}
+              ifOverflow="hidden"
+            />
+            <ReferenceLine
+              x={Math.min(overlay.x1, overlay.x2)}
+              stroke={overlay.stroke}
+              strokeOpacity={overlay.strokeOpacity}
+              strokeWidth={overlay.strokeWidth ?? 1.5}
+              strokeDasharray={overlay.strokeDasharray}
+              ifOverflow="hidden"
+            />
+            <ReferenceLine
+              x={Math.max(overlay.x1, overlay.x2)}
+              stroke={overlay.stroke}
+              strokeOpacity={overlay.strokeOpacity}
+              strokeWidth={overlay.strokeWidth ?? 1.5}
+              strokeDasharray={overlay.strokeDasharray}
+              ifOverflow="hidden"
+            />
+          </Fragment>))}
 
         {isSsPlot && focusedSsOverlay ? (
           <>

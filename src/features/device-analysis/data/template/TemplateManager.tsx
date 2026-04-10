@@ -18,6 +18,7 @@ import {
   Download,
   Upload,
   X,
+  AlertTriangle,
 } from "lucide-react";
 import { useLanguage } from "../../../../hooks/useLanguage";
 import type { TranslateFn, TranslationVars } from "../../../../context/language";
@@ -59,6 +60,7 @@ import {
 } from "../../shared/lib/XSegmentation";
 import { shouldStackTemplateTransferButtons } from "../../deviceAnalysisLayout";
 import type { PreviewStatus as SessionPreviewStatus } from "../../session/device-analysis-session-context";
+import { useDeviceAnalysisSession } from "../../session/useDeviceAnalysisSession";
 import type {
   PreviewFileLike,
   RawDataEntry,
@@ -173,6 +175,11 @@ const TemplateManager = ({
   onUpdateDeviceAnalysisSettings,
 }: TemplateManagerProps) => {
   const { t } = useLanguage();
+  const {
+    processedData,
+    selectedPreviewFileId,
+    setSelectedPreviewFileId,
+  } = useDeviceAnalysisSession();
   const tLoose = useCallback(
     (key: string, params?: Record<string, unknown>) =>
       t(key, params as TranslationVars | undefined),
@@ -335,6 +342,56 @@ const TemplateManager = ({
       resolvedFileNameFieldSeparators,
     ],
   );
+  const lowConfidenceReviewFiles = useMemo(() => {
+    const processedById = new Map(
+      (Array.isArray(processedData) ? processedData : [])
+        .filter((entry) => typeof entry?.fileId === "string" && entry.fileId)
+        .map((entry) => [String(entry.fileId), entry]),
+    );
+
+    const reviewFiles: RawDataEntry[] = [];
+
+    for (const entry of Array.isArray(processedData) ? processedData : []) {
+      if (!entry?.fileId) continue;
+      if (
+        entry.curveTypeNeedsTemplate === true ||
+        entry.curveTypeConfidence === "low"
+      ) {
+        reviewFiles.push(entry);
+      }
+    }
+
+    for (const entry of Array.isArray(rawData) ? rawData : []) {
+      const fileId = String(entry?.fileId ?? "").trim();
+      if (!fileId || processedById.has(fileId)) continue;
+      if (
+        entry.curveTypeNeedsTemplate === true ||
+        entry.curveTypeConfidence === "low"
+      ) {
+        reviewFiles.push(entry);
+      }
+    }
+
+    return reviewFiles;
+  }, [processedData, rawData]);
+  const activeLowConfidenceFile = useMemo(() => {
+    if (!lowConfidenceReviewFiles.length) return null;
+    return (
+      lowConfidenceReviewFiles.find(
+        (entry) => entry?.fileId === selectedPreviewFileId,
+      ) || lowConfidenceReviewFiles[0]
+    );
+  }, [lowConfidenceReviewFiles, selectedPreviewFileId]);
+  const activeLowConfidenceReasons = useMemo(
+    () =>
+      Array.isArray(activeLowConfidenceFile?.curveTypeReasons)
+        ? activeLowConfidenceFile.curveTypeReasons
+            .map((entry) => String(entry ?? "").trim())
+            .filter(Boolean)
+            .slice(0, 3)
+        : [],
+    [activeLowConfidenceFile],
+  );
   const resolveTemplateByName = useCallback(
     (name: string) => {
       const target = String(name ?? "").trim();
@@ -357,6 +414,42 @@ const TemplateManager = ({
     },
     [],
   );
+  const focusLowConfidenceFile = useCallback(
+    (fileId: unknown) => {
+      const nextFileId = String(fileId ?? "").trim();
+      if (!nextFileId) return;
+      setSelectedPreviewFileId(nextFileId);
+    },
+    [setSelectedPreviewFileId],
+  );
+  const handleReviewLowConfidenceFile = useCallback(() => {
+    const targetFileId = String(activeLowConfidenceFile?.fileId ?? "").trim();
+    if (targetFileId) {
+      focusLowConfidenceFile(targetFileId);
+    }
+    handleTemplateModeChange("save");
+  }, [
+    activeLowConfidenceFile?.fileId,
+    focusLowConfidenceFile,
+    handleTemplateModeChange,
+  ]);
+  const handleFocusNextLowConfidenceFile = useCallback(() => {
+    if (!lowConfidenceReviewFiles.length) return;
+    const currentIndex = lowConfidenceReviewFiles.findIndex(
+      (entry) => entry?.fileId === activeLowConfidenceFile?.fileId,
+    );
+    const nextIndex =
+      currentIndex >= 0
+        ? (currentIndex + 1) % lowConfidenceReviewFiles.length
+        : 0;
+    const nextFile = lowConfidenceReviewFiles[nextIndex];
+    if (!nextFile?.fileId) return;
+    focusLowConfidenceFile(nextFile.fileId);
+  }, [
+    activeLowConfidenceFile?.fileId,
+    focusLowConfidenceFile,
+    lowConfidenceReviewFiles,
+  ]);
 
   const varPairValidation = validateVarPair(
     config?.bottomTitle,
@@ -1795,6 +1888,89 @@ const TemplateManager = ({
               id="device-analysis-template-config-panel-content"
             >
               <div className="pb-2 shrink-0">
+                {activeLowConfidenceFile ? (
+                  <div
+                    role="status"
+                    aria-live="polite"
+                    className="mb-3 rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-3 text-sm"
+                  >
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle
+                        size={16}
+                        className="mt-0.5 shrink-0 text-amber-500"
+                        aria-hidden="true"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold text-text-primary">
+                          Auto classification needs review
+                          {lowConfidenceReviewFiles.length > 1
+                            ? ` (${lowConfidenceReviewFiles.length} files)`
+                            : ""}
+                        </div>
+                        <div className="mt-1 text-xs text-text-secondary break-words">
+                          {String(activeLowConfidenceFile.fileName ?? "").trim() ||
+                            "Unnamed file"}
+                        </div>
+                        <div className="mt-1 text-xs text-text-secondary">
+                          Auto result:{" "}
+                          {String(activeLowConfidenceFile.curveType ?? "unknown").trim() ||
+                            "unknown"}{" "}
+                          ({String(
+                            activeLowConfidenceFile.curveTypeConfidence ?? "low",
+                          ).trim() || "low"}{" "}
+                          confidence)
+                        </div>
+                        {activeLowConfidenceReasons.length ? (
+                          <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-text-secondary">
+                            {activeLowConfidenceReasons.map((reason, index) => (
+                              <li
+                                key={`${String(activeLowConfidenceFile.fileId ?? "file")}-${index}`}
+                              >
+                                {reason}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : null}
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={handleReviewLowConfidenceFile}
+                            cta="Device Analysis"
+                            ctaPosition="template-low-confidence"
+                            ctaCopy="review file"
+                          >
+                            Review In Save Mode
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                              focusLowConfidenceFile(activeLowConfidenceFile.fileId)
+                            }
+                            cta="Device Analysis"
+                            ctaPosition="template-low-confidence"
+                            ctaCopy="focus file"
+                          >
+                            Focus File
+                          </Button>
+                          {lowConfidenceReviewFiles.length > 1 ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={handleFocusNextLowConfidenceFile}
+                              cta="Device Analysis"
+                              ctaPosition="template-low-confidence"
+                              ctaCopy="next flagged file"
+                            >
+                              Next Flagged
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="flex items-center justify-start gap-3">
                   <Tabs
                     value={templateMode}
