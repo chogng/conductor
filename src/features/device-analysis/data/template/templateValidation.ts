@@ -1,6 +1,10 @@
 import type { TemplateConfig } from "./templateManagerUtils";
 import type { LooseTranslateFn as TranslateFn } from "../../shared/lib/translateTypes";
 import { normalizeDeviceAnalysisYUnit } from "../../analysis/lib/deviceAnalysisUnits";
+import {
+  joinFileNameMatchInput,
+  splitFileNameMatchInput,
+} from "../../shared/lib/fileNameFieldMatching";
 
 const CELL_REF_RE = /^([A-Z]+)([1-9][0-9]*)$/;
 
@@ -66,14 +70,11 @@ export function normalizeVarKeyword(raw: unknown): string {
 }
 
 export function splitKeywordList(raw: unknown): string[] {
-  return String(raw ?? "")
-    .split(/[,;\n]+/)
-    .map((token) => token.trim())
-    .filter(Boolean);
+  return splitFileNameMatchInput(raw, true);
 }
 
 export function normalizeKeywordList(raw: unknown): string {
-  return splitKeywordList(raw).join(", ");
+  return joinFileNameMatchInput(splitKeywordList(raw));
 }
 
 export function normalizeAxisUnit(raw: unknown): string {

@@ -5,6 +5,7 @@ import type { LooseTranslateFn as TranslateFn } from "../shared/lib/translateTyp
 import type { SsMethod } from "../session/device-analysis-session-context";
 
 export type DeviceAnalysisSettings = {
+  fileNameFieldSeparators?: string;
   language?: LanguageCode;
   theme?: ThemeMode;
   originExePath?: string;

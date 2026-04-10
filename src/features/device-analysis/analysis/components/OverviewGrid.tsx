@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import {
   ArrowDownWideNarrow,
   ArrowUpWideNarrow,

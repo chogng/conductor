@@ -1,5 +1,10 @@
 import Papa from "papaparse";
 import { normalizeDeviceAnalysisYUnit } from "../analysis/lib/deviceAnalysisUnits";
+import {
+    matchFileNameAgainstPatternTokens,
+    normalizeFileNameFieldSeparators,
+    splitFileNameMatchInput,
+} from "../shared/lib/fileNameFieldMatching";
 
 const DEFAULT_MAX_POINTS = 600;
 const PREVIEW_ROW_CACHE_CHUNK_DEFAULT = 200;
@@ -532,12 +537,9 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
             return label;
         return `${label} (${unit})`;
     };
-    const splitKeywordList = (raw: any) => String(raw ?? "")
-        .split(/[,;\n]+/)
-        .map((token: any) => token.trim())
-        .filter(Boolean);
-    const fileNameVgKeywords = splitKeywordList(fileNameVgKeywordsRaw).map((t: any) => t.toLowerCase());
-    const fileNameVdKeywords = splitKeywordList(fileNameVdKeywordsRaw).map((t: any) => t.toLowerCase());
+    const fileNameFieldSeparators = normalizeFileNameFieldSeparators(config?.fileNameFieldSeparators);
+    const fileNameVgKeywords = splitFileNameMatchInput(fileNameVgKeywordsRaw);
+    const fileNameVdKeywords = splitFileNameMatchInput(fileNameVdKeywordsRaw);
     const useFileNameMapping = fileNameVgKeywords.length > 0 || fileNameVdKeywords.length > 0;
     // Resolve potentially dynamic keywords
     const bottomTitle = await resolveKeyword(bottomTitleRaw);
@@ -984,10 +986,13 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
         if (fileNameVgKeywords.length === 0 || fileNameVdKeywords.length === 0) {
             throw new Error(`${fileName}: Invalid template config: both file-name prefix groups are required.`);
         }
-        const lowerName = String(fileName ?? "").toLowerCase();
-        const vgHits = fileNameVgKeywords.filter((token: any) => token && lowerName.includes(token));
-        const vdHits = fileNameVdKeywords.filter((token: any) => token && lowerName.includes(token));
-        if (vgHits.length === 0 && vdHits.length === 0) {
+        const matchedVg = matchFileNameAgainstPatternTokens(fileName, fileNameVgKeywords, {
+            separators: fileNameFieldSeparators,
+        });
+        const matchedVd = matchFileNameAgainstPatternTokens(fileName, fileNameVdKeywords, {
+            separators: fileNameFieldSeparators,
+        });
+        if (!matchedVg && !matchedVd) {
             throw new Error(`${fileName}: File name does not match configured template prefixes.`);
         }
         curveType = var1Token ?? null;

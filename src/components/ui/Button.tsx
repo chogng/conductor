@@ -19,6 +19,7 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   size?: ButtonSize;
   fx?: boolean;
   fullWidth?: boolean;
+  contentClassName?: string;
   testId?: string;
   dataIcon?: string;
   cta?: string;
@@ -40,6 +41,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       size = "md",
       fx = false,
       fullWidth = false,
+      contentClassName = "",
       className = "",
       disabled = false,
       testId,
@@ -101,7 +103,9 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         )}
         {...props}
       >
-        <span className="action-btn__content">{children}</span>
+        <span className={cx("action-btn__content", contentClassName)}>
+          {children}
+        </span>
       </button>
     );
   },

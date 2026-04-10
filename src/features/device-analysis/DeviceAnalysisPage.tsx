@@ -48,7 +48,6 @@ type ProcessingExtractionError = {
   [key: string]: unknown;
 };
 
-type OnboardingPage = "data" | "analysis" | "settings";
 type OnboardingLaunchMode = "auto" | "manual";
 type OnboardingControllerState = {
   back: () => void;

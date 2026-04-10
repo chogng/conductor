@@ -12,6 +12,12 @@ import {
   parseLegacyExtractionError,
   stableStringify,
 } from "../shared/lib/deviceAnalysisUtils";
+import {
+  matchFileNameAgainstPhrase,
+  matchFileNameAgainstPatternTokens,
+  normalizeFileNameFieldSeparators,
+  splitFileNameMatchInput,
+} from "../shared/lib/fileNameFieldMatching";
 import type {
   ProcessedEntry,
   ProcessingStatus,
@@ -78,6 +84,7 @@ type UseDeviceAnalysisProcessingOptions = {
 };
 
 type FileNameTemplateRulePayload = {
+  matchMode?: unknown;
   pattern?: unknown;
   templateName?: unknown;
   templateConfig?: unknown;
@@ -86,24 +93,13 @@ type FileNameTemplateRulePayload = {
 
 type RuleBasedExtractionConfig = {
   fallbackTemplateConfig?: unknown;
+  fileNameFieldSeparators?: unknown;
   fileNameTemplateRules?: FileNameTemplateRulePayload[];
   stopOnError?: unknown;
 };
 
 const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
-
-const normalizeRulePatternTokens = (value: unknown): string[] =>
-  String(value ?? "")
-    .split(/[,;\n]+/)
-    .map((token) => token.trim().toLowerCase())
-    .filter(Boolean);
-
-const normalizeRulePatternTokensRaw = (value: unknown): string[] =>
-  String(value ?? "")
-    .split(/[,;\n]+/)
-    .map((token) => token.trim())
-    .filter(Boolean);
 
 const buildProcessingQueue = (
   rawData: RawDataEntry[],
@@ -184,6 +180,82 @@ const buildExtractionStartFeedback = ({
   };
 };
 
+const createProcessingWorker = () =>
+  new Worker(new URL("../workers/deviceAnalysis.worker.ts", import.meta.url), {
+    type: "module",
+  });
+
+const terminateProcessingWorker = (
+  workerRef: MutableRefObject<Worker | null>,
+  worker: Worker | null = workerRef.current,
+) => {
+  if (!worker) return;
+  worker.terminate();
+  if (workerRef.current === worker) {
+    workerRef.current = null;
+  }
+};
+
+const finishProcessingJob = ({
+  hasAnyProcessedResult,
+  setActivePage,
+  setProcessingStatus,
+  worker,
+  workerRef,
+}: {
+  hasAnyProcessedResult: boolean;
+  setActivePage: (page: string) => void;
+  setProcessingStatus: Dispatch<SetStateAction<ProcessingStatus>>;
+  worker: Worker;
+  workerRef: MutableRefObject<Worker | null>;
+}) => {
+  setProcessingStatus((prev) => ({ ...prev, state: "done" }));
+  if (hasAnyProcessedResult) {
+    setActivePage("analysis");
+  }
+  terminateProcessingWorker(workerRef, worker);
+};
+
+const failProcessingJob = ({
+  setProcessingStatus,
+  worker,
+  workerRef,
+}: {
+  setProcessingStatus: Dispatch<SetStateAction<ProcessingStatus>>;
+  worker: Worker;
+  workerRef: MutableRefObject<Worker | null>;
+}) => {
+  setProcessingStatus((prev) => ({ ...prev, state: "error" }));
+  terminateProcessingWorker(workerRef, worker);
+};
+
+const buildWorkerExtractionError = (payload: any): ExtractionErrorEntry => {
+  const rawMessage =
+    typeof payload?.message === "string" && payload.message.trim()
+      ? payload.message
+      : "Unknown error";
+  const legacyParsed = parseLegacyExtractionError(rawMessage) as {
+    fileName?: string;
+    messageKey?: string | null;
+    messageParams?: Record<string, unknown> | null;
+  } | null;
+
+  return {
+    fileName: payload?.fileName ?? legacyParsed?.fileName ?? "Unknown file",
+    message: rawMessage,
+    messageKey:
+      (typeof payload?.messageKey === "string" && payload.messageKey) ||
+      legacyParsed?.messageKey ||
+      null,
+    messageParams:
+      (payload?.messageParams &&
+        typeof payload.messageParams === "object" &&
+        (payload.messageParams as Record<string, unknown>)) ||
+      legacyParsed?.messageParams ||
+      null,
+  };
+};
+
 export const useDeviceAnalysisProcessing = ({
   getPreviewRow,
   previewFile,
@@ -214,10 +286,7 @@ export const useDeviceAnalysisProcessing = ({
     processingStopOnErrorRef.current = false;
     removedQueuedFileIdsRef.current = new Set();
 
-    if (processingWorkerRef.current) {
-      processingWorkerRef.current.terminate();
-      processingWorkerRef.current = null;
-    }
+    terminateProcessingWorker(processingWorkerRef);
 
     setProcessingStatus({
       state: "idle",
@@ -249,10 +318,7 @@ export const useDeviceAnalysisProcessing = ({
 
   useEffect(() => {
     return () => {
-      if (processingWorkerRef.current) {
-        processingWorkerRef.current.terminate();
-        processingWorkerRef.current = null;
-      }
+      terminateProcessingWorker(processingWorkerRef);
     };
   }, []);
 
@@ -302,15 +368,9 @@ export const useDeviceAnalysisProcessing = ({
       processingJobIdRef.current += 1;
       const jobId = processingJobIdRef.current;
 
-      if (processingWorkerRef.current) {
-        processingWorkerRef.current.terminate();
-        processingWorkerRef.current = null;
-      }
+      terminateProcessingWorker(processingWorkerRef);
 
-      const worker = new Worker(
-        new URL("../workers/deviceAnalysis.worker.ts", import.meta.url),
-        { type: "module" },
-      );
+      const worker = createProcessingWorker();
       processingWorkerRef.current = worker;
 
       processingQueueRef.current = workQueue;
@@ -324,15 +384,13 @@ export const useDeviceAnalysisProcessing = ({
         const nextEntry = processingQueueRef.current.shift();
 
         if (!nextEntry) {
-          setProcessingStatus((prev) => ({ ...prev, state: "done" }));
-          if (hasAnyProcessedResult) {
-            setActivePage("analysis");
-          }
-
-          worker.terminate();
-          if (processingWorkerRef.current === worker) {
-            processingWorkerRef.current = null;
-          }
+          finishProcessingJob({
+            hasAnyProcessedResult,
+            setActivePage,
+            setProcessingStatus,
+            worker,
+            workerRef: processingWorkerRef,
+          });
           return;
         }
         if (removedQueuedFileIdsRef.current.has(nextEntry.fileId)) {
@@ -384,43 +442,18 @@ export const useDeviceAnalysisProcessing = ({
         if (type === "workerError") {
           if (payload?.jobId !== jobId) return;
 
-          const rawMessage =
-            typeof payload?.message === "string" && payload.message.trim()
-              ? payload.message
-              : "Unknown error";
-          const legacyParsed = parseLegacyExtractionError(rawMessage) as {
-            fileName?: string;
-            messageKey?: string | null;
-            messageParams?: Record<string, unknown> | null;
-          } | null;
-          const errFileName =
-            payload?.fileName ?? legacyParsed?.fileName ?? "Unknown file";
-          const errMessageKey =
-            typeof payload?.messageKey === "string" && payload.messageKey
-              ? payload.messageKey
-              : legacyParsed?.messageKey ?? null;
-          const errMessageParams =
-            payload?.messageParams && typeof payload.messageParams === "object"
-              ? (payload.messageParams as Record<string, unknown>)
-              : legacyParsed?.messageParams ?? null;
-
-          onExtractionError?.({
-            fileName: errFileName,
-            message: rawMessage,
-            messageKey: errMessageKey,
-            messageParams: errMessageParams,
-          });
+          onExtractionError?.(buildWorkerExtractionError(payload));
           setProcessingStatus((prev) => ({
             ...prev,
             processed: prev.processed + 1,
           }));
 
           if (processingStopOnErrorRef.current) {
-            setProcessingStatus((prev) => ({ ...prev, state: "error" }));
-            worker.terminate();
-            if (processingWorkerRef.current === worker) {
-              processingWorkerRef.current = null;
-            }
+            failProcessingJob({
+              setProcessingStatus,
+              worker,
+              workerRef: processingWorkerRef,
+            });
             return;
           }
 
@@ -454,22 +487,38 @@ export const useDeviceAnalysisProcessing = ({
       const rawRules = Array.isArray(config?.fileNameTemplateRules)
         ? config.fileNameTemplateRules
         : [];
+      const fileNameFieldSeparators = normalizeFileNameFieldSeparators(
+        config?.fileNameFieldSeparators,
+      );
       const fallbackTemplateConfig = isObjectRecord(config?.fallbackTemplateConfig)
-        ? (config.fallbackTemplateConfig as Record<string, unknown>)
+        ? ({
+            ...(config.fallbackTemplateConfig as Record<string, unknown>),
+            fileNameFieldSeparators,
+          } as Record<string, unknown>)
         : null;
       const normalizedRules = rawRules
         .map((rule) => {
           const caseSensitive = Boolean(rule?.caseSensitive);
-          const patternTokens = caseSensitive
-            ? normalizeRulePatternTokensRaw(rule?.pattern)
-            : normalizeRulePatternTokens(rule?.pattern);
+          const matchMode = rule?.matchMode === "phrase" ? "phrase" : "field";
+          const patternText = String(rule?.pattern ?? "").trim();
+          const patternTokens = splitFileNameMatchInput(
+            rule?.pattern,
+            caseSensitive,
+          );
           const templateConfig = isObjectRecord(rule?.templateConfig)
-            ? (rule.templateConfig as Record<string, unknown>)
+            ? ({
+                ...(rule.templateConfig as Record<string, unknown>),
+                fileNameFieldSeparators,
+              } as Record<string, unknown>)
             : null;
           const templateName = String(rule?.templateName ?? "").trim();
-          if (!patternTokens.length || !templateConfig) return null;
+          if (!templateConfig) return null;
+          if (matchMode === "field" && !patternTokens.length) return null;
+          if (matchMode === "phrase" && !patternText) return null;
           return {
             caseSensitive,
+            matchMode,
+            patternText,
             patternTokens,
             templateConfig,
             templateName,
@@ -477,6 +526,8 @@ export const useDeviceAnalysisProcessing = ({
         })
         .filter(Boolean) as Array<{
         caseSensitive: boolean;
+        matchMode: "field" | "phrase";
+        patternText: string;
         patternTokens: string[];
         templateConfig: Record<string, unknown>;
         templateName: string;
@@ -497,13 +548,15 @@ export const useDeviceAnalysisProcessing = ({
 
       for (const entry of candidates) {
         const fileNameRaw = String(entry.fileName ?? "");
-        const fileNameLower = fileNameRaw.toLowerCase();
         const matchedRule = normalizedRules.find((rule) =>
-          rule.patternTokens.some((token) =>
-            rule.caseSensitive
-              ? fileNameRaw.includes(token)
-              : fileNameLower.includes(token),
-          ),
+          rule.matchMode === "phrase"
+            ? matchFileNameAgainstPhrase(fileNameRaw, rule.patternText, {
+                caseSensitive: rule.caseSensitive,
+              })
+            : matchFileNameAgainstPatternTokens(fileNameRaw, rule.patternTokens, {
+                caseSensitive: rule.caseSensitive,
+                separators: fileNameFieldSeparators,
+              }),
         );
         if (!matchedRule) {
           if (!fallbackTemplateConfig) continue;
@@ -575,15 +628,9 @@ export const useDeviceAnalysisProcessing = ({
       processingJobIdRef.current += 1;
       const jobId = processingJobIdRef.current;
 
-      if (processingWorkerRef.current) {
-        processingWorkerRef.current.terminate();
-        processingWorkerRef.current = null;
-      }
+      terminateProcessingWorker(processingWorkerRef);
 
-      const worker = new Worker(
-        new URL("../workers/deviceAnalysis.worker.ts", import.meta.url),
-        { type: "module" },
-      );
+      const worker = createProcessingWorker();
       processingWorkerRef.current = worker;
 
       if (!incremental) setProcessedData([]);
@@ -610,12 +657,13 @@ export const useDeviceAnalysisProcessing = ({
         }
 
         if (currentGroupIndex >= groupedPrepared.length) {
-          setProcessingStatus((prev) => ({ ...prev, state: "done" }));
-          if (hasAnyProcessedResult) setActivePage("analysis");
-          worker.terminate();
-          if (processingWorkerRef.current === worker) {
-            processingWorkerRef.current = null;
-          }
+          finishProcessingJob({
+            hasAnyProcessedResult,
+            setActivePage,
+            setProcessingStatus,
+            worker,
+            workerRef: processingWorkerRef,
+          });
           return;
         }
 
@@ -667,39 +715,16 @@ export const useDeviceAnalysisProcessing = ({
         }
 
         if (type === "workerError") {
-          const rawMessage =
-            typeof payload?.message === "string" && payload.message.trim()
-              ? payload.message
-              : "Unknown error";
-          const legacyParsed = parseLegacyExtractionError(rawMessage) as {
-            fileName?: string;
-            messageKey?: string | null;
-            messageParams?: Record<string, unknown> | null;
-          } | null;
-          onExtractionError?.({
-            fileName:
-              payload?.fileName ?? legacyParsed?.fileName ?? "Unknown file",
-            message: rawMessage,
-            messageKey:
-              (typeof payload?.messageKey === "string" && payload.messageKey) ||
-              legacyParsed?.messageKey ||
-              null,
-            messageParams:
-              (payload?.messageParams &&
-                typeof payload.messageParams === "object" &&
-                (payload.messageParams as Record<string, unknown>)) ||
-              legacyParsed?.messageParams ||
-              null,
-          });
+          onExtractionError?.(buildWorkerExtractionError(payload));
           processedCount += 1;
           setProcessingStatus((prev) => ({ ...prev, processed: processedCount }));
 
           if (processingStopOnErrorRef.current) {
-            setProcessingStatus((prev) => ({ ...prev, state: "error" }));
-            worker.terminate();
-            if (processingWorkerRef.current === worker) {
-              processingWorkerRef.current = null;
-            }
+            failProcessingJob({
+              setProcessingStatus,
+              worker,
+              workerRef: processingWorkerRef,
+            });
             return;
           }
           processNext();

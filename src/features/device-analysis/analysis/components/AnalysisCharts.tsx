@@ -253,14 +253,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             window.removeEventListener("keyup", onKeyUp);
         };
     }, [setSsManualRanges]);
-    const currentUnitMeta = useMemo(() => {
-        const unit = String(yUnit || "A");
-        if (unit === "uA")
-            return { value: "uA", label: "µA", factor: 1e6 };
-        if (unit === "nA")
-            return { value: "nA", label: "nA", factor: 1e9 };
-        return { value: "A", label: "A", factor: 1 };
-    }, [yUnit]);
     const effectiveActiveFileId = useMemo(() => {
         if (!processedData?.length)
             return null;
@@ -1438,7 +1430,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     useEffect(() => {
         originChartYRangeRef.current = originChartYRange;
     }, [originChartYRange]);
-    const xTickDigits = useMemo(() => inferTickDigitsFromTicks(xTicks), [xTicks]);
     const displayXTicks = useMemo(() => (Array.isArray(xTicks) ? xTicks.map((tick: any) => Number(tick) * plotXFactor) : null), [plotXFactor, xTicks]);
     // Keep tooltip x precision higher than axis labels by default; allow manual override in settings.
     const xTickDigitsDisplay = useMemo(() => inferTickDigitsFromTicks(displayXTicks), [displayXTicks]);

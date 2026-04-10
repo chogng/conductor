@@ -31,6 +31,7 @@ type TemplateConfigLike = Partial<{
   leftTitle: string;
   fileNameVgKeywords: string;
   fileNameVdKeywords: string;
+  fileNameFieldSeparators: string;
 }>;
 
 type ExtractionConfig = {
@@ -46,6 +47,7 @@ type ExtractionConfig = {
   yUnit: string;
   fileNameVgKeywords: string;
   fileNameVdKeywords: string;
+  fileNameFieldSeparators?: string;
   yLegendStartCell?: CellRef;
   yLegendStartValue?: string;
   yLegendCountCell?: CellRef;
@@ -134,8 +136,6 @@ export function prepareDeviceAnalysisExtraction({
     if (typeof t !== "function") return fallback;
     return t(key, vars ?? undefined);
   };
-  // `previewFile` is currently unused; keep the signature aligned with callers.
-  void previewFile;
 
   if (!rawData || rawData.length === 0) {
     return {
@@ -459,6 +459,10 @@ export function prepareDeviceAnalysisExtraction({
     yUnit: String(normalizedConfig?.yUnit ?? "").trim(),
     fileNameVgKeywords: normalizedConfig?.fileNameVgKeywords ?? "",
     fileNameVdKeywords: normalizedConfig?.fileNameVdKeywords ?? "",
+    fileNameFieldSeparators:
+      typeof normalizedConfig?.fileNameFieldSeparators === "string"
+        ? normalizedConfig.fileNameFieldSeparators
+        : undefined,
     yLegendTarget: normalizedConfig?.yLegendTarget ?? "auto",
   };
 

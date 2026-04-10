@@ -210,6 +210,7 @@ const DeviceAnalysisDataPanel = ({
         <TemplateManager
           previewFile={previewFile}
           previewStatus={previewStatus}
+          rawData={rawData}
           getPreviewRow={getPreviewRow}
           ensurePreviewRows={ensurePreviewRows}
           onTemplateApplied={onTemplateApplied}

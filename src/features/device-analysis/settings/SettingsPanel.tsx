@@ -7,6 +7,7 @@ import Toast from "../../../components/ui/Toast";
 import type { LanguageCode, TranslateFn } from "../../../context/language";
 import type { ThemeMode } from "../../../context/theme";
 import type { Feedback, ToastState } from "../shared/lib/sharedTypes";
+import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "../shared/lib/fileNameFieldMatching";
 
 type OriginSettings = {
   currentPath: string;
@@ -61,12 +62,20 @@ type AppUpdateSettings = {
   onCheckForUpdates: () => boolean | Promise<boolean>;
 };
 
+type FileNameMatchingSettings = {
+  feedback: Feedback;
+  fieldSeparators: string;
+  isSaving: boolean;
+  onFieldSeparatorsChange: (value: string) => Promise<void> | void;
+};
+
 type OnboardingSettings = {
   onOpenGuide: () => void;
 };
 
 type DeviceAnalysisSettingsPanelProps = {
   appUpdateSettings: AppUpdateSettings;
+  fileNameMatchingSettings: FileNameMatchingSettings;
   language: LanguageCode;
   onLanguageChange: (language: LanguageCode) => Promise<void> | void;
   onboardingSettings: OnboardingSettings;
@@ -82,6 +91,7 @@ const feedbackClassName = (type: Feedback["type"]): string =>
 
 const DeviceAnalysisSettingsPanel = ({
   appUpdateSettings,
+  fileNameMatchingSettings,
   language,
   onLanguageChange,
   onboardingSettings,
@@ -130,6 +140,8 @@ const DeviceAnalysisSettingsPanel = ({
   const [postCommandsDraft, setPostCommandsDraft] = useState(
     originSettings.plotPostCommandsText ?? "",
   );
+  const [fileNameFieldSeparatorsDraft, setFileNameFieldSeparatorsDraft] =
+    useState(fileNameMatchingSettings.fieldSeparators ?? "");
   const [appUpdateChecking, setAppUpdateChecking] = useState(false);
   const [originHealthToast, setOriginHealthToast] = useState<ToastState>({
     isVisible: false,
@@ -165,6 +177,10 @@ const DeviceAnalysisSettingsPanel = ({
   useEffect(() => {
     setPostCommandsDraft(originSettings.plotPostCommandsText ?? "");
   }, [originSettings.plotPostCommandsText]);
+
+  useEffect(() => {
+    setFileNameFieldSeparatorsDraft(fileNameMatchingSettings.fieldSeparators ?? "");
+  }, [fileNameMatchingSettings.fieldSeparators]);
 
   useEffect(() => {
     const feedback = originSettings.feedback;
@@ -393,6 +409,50 @@ const DeviceAnalysisSettingsPanel = ({
         {storageSettings.feedback.message ? (
           <p className={feedbackClassName(storageSettings.feedback.type)}>
             {storageSettings.feedback.message}
+          </p>
+        ) : null}
+      </Card>
+
+      <Card
+        id="device-analysis-settings-filename-matching-card"
+        variant="panel"
+        className="p-4 space-y-4 mt-4"
+      >
+        <div>
+          <h3 className="text-base font-semibold text-text-primary">
+            {t("da_settings_filename_matching_title")}
+          </h3>
+          <p className="text-sm text-text-secondary mt-1">
+            {t("da_settings_filename_matching_desc")}
+          </p>
+        </div>
+
+        <div className="space-y-1">
+          <p className="text-xs text-text-secondary">
+            {t("da_settings_filename_matching_label")}
+          </p>
+          <Input
+            id="device-analysis-settings-filename-separators-input"
+            value={fileNameFieldSeparatorsDraft}
+            onChange={setFileNameFieldSeparatorsDraft}
+            onBlur={() => {
+              const nextValue = fileNameFieldSeparatorsDraft;
+              if (nextValue === fileNameMatchingSettings.fieldSeparators) return;
+              void fileNameMatchingSettings.onFieldSeparatorsChange(nextValue);
+            }}
+            disabled={fileNameMatchingSettings.isSaving}
+            inputClassName="font-mono"
+          />
+          <p className="text-xs text-text-secondary">
+            {t("da_settings_filename_matching_hint", {
+              value: DEFAULT_FILE_NAME_FIELD_SEPARATORS,
+            })}
+          </p>
+        </div>
+
+        {fileNameMatchingSettings.feedback.message ? (
+          <p className={feedbackClassName(fileNameMatchingSettings.feedback.type)}>
+            {fileNameMatchingSettings.feedback.message}
           </p>
         ) : null}
       </Card>

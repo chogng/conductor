@@ -17,6 +17,7 @@ import {
   Check,
   Download,
   Upload,
+  X,
 } from "lucide-react";
 import { useLanguage } from "../../../../hooks/useLanguage";
 import type { TranslateFn, TranslationVars } from "../../../../context/language";
@@ -44,16 +45,29 @@ import {
 } from "./templateManagerUtils";
 import { DEVICE_ANALYSIS_Y_UNIT_VALUES } from "../../analysis/lib/deviceAnalysisUnits";
 import {
+  deriveFileNameFieldSuggestions,
+  joinFileNameMatchInput,
+  matchFileNameAgainstPhrase,
+  matchFileNameAgainstPatternTokens,
+  normalizeFileNameFieldSeparators,
+  splitFileNameMatchInput,
+} from "../../shared/lib/fileNameFieldMatching";
+import {
   inferXSegmentationSuggestionFromPreview,
   resolveXRangeForPreview,
   resolveXSegmentationMode,
 } from "../../shared/lib/XSegmentation";
 import type { PreviewStatus as SessionPreviewStatus } from "../../session/device-analysis-session-context";
-import type { PreviewFileLike, ToastType } from "../../shared/lib/sharedTypes";
+import type {
+  PreviewFileLike,
+  RawDataEntry,
+  ToastType,
+} from "../../shared/lib/sharedTypes";
 
 export type TemplateManagerProps = {
   previewFile?: PreviewFileLike | null;
   previewStatus?: Partial<SessionPreviewStatus> | null;
+  rawData?: RawDataEntry[];
   getPreviewRow?: (rowIndex: number) => unknown;
   ensurePreviewRows?: (
     fileId: string,
@@ -79,9 +93,6 @@ const TemplateManagerPreviewFallback = ({
   previewStatus?: Partial<SessionPreviewStatus> | null;
   t: TranslateFn;
 }) => {
-  const fileName = previewFile
-    ? String(previewFile.fileName || "").replace(/\.csv$/i, "")
-    : "";
   const title =
     previewStatus?.state === "loading"
       ? previewStatus.message || t("da_preview_loading")
@@ -120,23 +131,25 @@ const formatTemplateExportFileName = (templateNameRaw?: string) => {
 };
 
 const X_AUTO_SUGGESTION_MAX_SCAN_ROWS = 5000;
-const FILE_RULE_PREFIX_DELIMITER = ", ";
 const FILE_NAME_TEMPLATE_RULE_PREFIX = "rule";
 
 type FileNameTemplateRuleDraft = {
   id: string;
+  matchMode: "field" | "phrase";
   pattern: string;
   templateName: string;
 };
 
 type FileNameTemplateRuleRuntimeConfig = {
   id: string;
+  matchMode: "field" | "phrase";
   pattern: string;
   templateName: string;
   templateConfig: TemplateConfig;
 };
 
 type FileNameTemplateRulePayload = {
+  matchMode: "field" | "phrase";
   pattern: string;
   templateName: string;
   templateConfig: TemplateConfig;
@@ -146,6 +159,7 @@ type FileNameTemplateRulePayload = {
 const TemplateManager = ({
   previewFile,
   previewStatus,
+  rawData = [],
   getPreviewRow,
   ensurePreviewRows,
   onTemplateApplied,
@@ -163,11 +177,7 @@ const TemplateManager = ({
   );
   const sanitizeFileNamePrefixInput = useCallback(
     (value: unknown) =>
-      String(value ?? "")
-        .split(/[,;\n]+/)
-        .map((token) => token.trim())
-        .filter(Boolean)
-        .join(FILE_RULE_PREFIX_DELIMITER),
+      joinFileNameMatchInput(splitFileNameMatchInput(value, true)),
     [],
   );
   const dropdownRef = useRef(null);
@@ -220,6 +230,13 @@ const TemplateManager = ({
       { label: t("da_save_legend_mapping_auto"), value: "auto" },
       { label: t("da_save_legend_mapping_y_column"), value: "yColumn" },
       { label: t("da_save_legend_mapping_x_group"), value: "group" },
+    ],
+    [t],
+  );
+  const fileNameRuleModeOptions = useMemo(
+    () => [
+      { label: t("da_match_mode_field"), value: "field" },
+      { label: t("da_match_mode_phrase"), value: "phrase" },
     ],
     [t],
   );
@@ -282,6 +299,28 @@ const TemplateManager = ({
     () => availableTemplateNames.map((name) => ({ label: name, value: name })),
     [availableTemplateNames],
   );
+  const resolvedFileNameFieldSeparators = useMemo(
+    () =>
+      normalizeFileNameFieldSeparators(
+        deviceAnalysisSettings?.fileNameFieldSeparators,
+      ),
+    [deviceAnalysisSettings?.fileNameFieldSeparators],
+  );
+  const fileNameFieldSuggestions = useMemo(
+    () =>
+      deriveFileNameFieldSuggestions(
+        (Array.isArray(rawData) ? rawData : []).map((entry) => entry?.fileName),
+        {
+          caseSensitive: Boolean(config?.fileNameMatchCaseSensitive),
+          separators: resolvedFileNameFieldSeparators,
+        },
+      ),
+    [
+      config?.fileNameMatchCaseSensitive,
+      rawData,
+      resolvedFileNameFieldSeparators,
+    ],
+  );
   const resolveTemplateByName = useCallback(
     (name: string) => {
       const target = String(name ?? "").trim();
@@ -322,6 +361,7 @@ const TemplateManager = ({
       ...prev,
       {
         id: `${FILE_NAME_TEMPLATE_RULE_PREFIX}-${fileNameTemplateRuleIdSeed}`,
+        matchMode: "field",
         pattern: "",
         templateName: "",
       },
@@ -334,37 +374,119 @@ const TemplateManager = ({
   const updateFileNameTemplateRule = useCallback(
     (id: string, updates: Partial<FileNameTemplateRuleDraft>) => {
       setFileNameTemplateRules((prev) =>
-        prev.map((rule) =>
-          rule.id === id
+        prev.map((rule) => {
+          const nextMatchMode =
+            updates.matchMode === "phrase" || updates.matchMode === "field"
+              ? updates.matchMode
+              : rule.matchMode;
+
+          return rule.id === id
             ? {
                 ...rule,
+                ...(nextMatchMode !== rule.matchMode
+                  ? {
+                      matchMode: nextMatchMode,
+                      pattern:
+                        nextMatchMode === "field"
+                          ? sanitizeFileNamePrefixInput(rule.pattern)
+                          : String(rule.pattern ?? "").trim(),
+                    }
+                  : {}),
                 ...(typeof updates.pattern === "string"
                   ? {
-                      pattern: sanitizeFileNamePrefixInput(updates.pattern),
+                      pattern:
+                        nextMatchMode === "field"
+                          ? sanitizeFileNamePrefixInput(updates.pattern)
+                          : String(updates.pattern).trim(),
                     }
                   : {}),
                 ...(typeof updates.templateName === "string"
                   ? { templateName: String(updates.templateName) }
                   : {}),
               }
-            : rule,
-        ),
+            : rule;
+        }),
       );
     },
     [sanitizeFileNamePrefixInput],
+  );
+  const getRulePatternTokens = useCallback(
+    (pattern: string) => splitFileNameMatchInput(pattern, true),
+    [],
+  );
+  const addPatternTokenToRule = useCallback(
+    (id: string, token: string) => {
+      const normalizedToken = String(token ?? "").trim();
+      if (!normalizedToken) return;
+
+      setFileNameTemplateRules((prev) =>
+        prev.map((rule) => {
+          if (rule.id !== id) return rule;
+
+          const existingTokens = getRulePatternTokens(rule.pattern);
+          const comparisonToken = Boolean(config?.fileNameMatchCaseSensitive)
+            ? normalizedToken
+            : normalizedToken.toLowerCase();
+          const hasToken = existingTokens.some((entry) =>
+            (Boolean(config?.fileNameMatchCaseSensitive)
+              ? entry
+              : entry.toLowerCase()) === comparisonToken,
+          );
+          if (hasToken) return rule;
+
+          return {
+            ...rule,
+            pattern: joinFileNameMatchInput([...existingTokens, normalizedToken]),
+          };
+        }),
+      );
+    },
+    [config?.fileNameMatchCaseSensitive, getRulePatternTokens],
+  );
+  const removePatternTokenFromRule = useCallback(
+    (id: string, token: string) => {
+      const normalizedToken = String(token ?? "").trim();
+      if (!normalizedToken) return;
+
+      setFileNameTemplateRules((prev) =>
+        prev.map((rule) => {
+          if (rule.id !== id) return rule;
+
+          const nextTokens = getRulePatternTokens(rule.pattern).filter((entry) => {
+            const left = Boolean(config?.fileNameMatchCaseSensitive)
+              ? entry
+              : entry.toLowerCase();
+            const right = Boolean(config?.fileNameMatchCaseSensitive)
+              ? normalizedToken
+              : normalizedToken.toLowerCase();
+            return left !== right;
+          });
+
+          return {
+            ...rule,
+            pattern: joinFileNameMatchInput(nextTokens),
+          };
+        }),
+      );
+    },
+    [config?.fileNameMatchCaseSensitive, getRulePatternTokens],
   );
   const normalizedRuleRuntimeConfigs = useMemo(
     () =>
       fileNameTemplateRules
         .map((rule) => {
           const pattern = sanitizeFileNamePrefixInput(rule.pattern);
+          const phrasePattern = String(rule.pattern ?? "").trim();
           const templateName = String(rule.templateName ?? "").trim();
-          if (!pattern || !templateName) return null;
+          if (!templateName) return null;
+          if (rule.matchMode === "field" && !pattern) return null;
+          if (rule.matchMode === "phrase" && !phrasePattern) return null;
           const templateRecord = resolveTemplateByName(templateName);
           if (!templateRecord) return null;
           return {
             id: rule.id,
-            pattern,
+            matchMode: rule.matchMode,
+            pattern: rule.matchMode === "phrase" ? phrasePattern : pattern,
             templateName,
             templateConfig: cloneTemplateConfigFromRecord(
               templateRecord as Record<string, unknown>,
@@ -379,6 +501,106 @@ const TemplateManager = ({
       sanitizeFileNamePrefixInput,
     ],
   );
+  const getRuleMatchCount = useCallback(
+    (rule: FileNameTemplateRuleDraft) => {
+      if (rule.matchMode === "phrase") {
+        const phrase = String(rule.pattern ?? "").trim();
+        if (!phrase) return 0;
+
+        return (Array.isArray(rawData) ? rawData : []).reduce((count, entry) => {
+          return count +
+            (matchFileNameAgainstPhrase(entry?.fileName, phrase, {
+              caseSensitive: Boolean(config?.fileNameMatchCaseSensitive),
+            })
+              ? 1
+              : 0);
+        }, 0);
+      }
+
+      const patternTokens = splitFileNameMatchInput(
+        rule.pattern,
+        Boolean(config?.fileNameMatchCaseSensitive),
+      );
+      if (!patternTokens.length) return 0;
+
+      return (Array.isArray(rawData) ? rawData : []).reduce((count, entry) => {
+        return count +
+          (matchFileNameAgainstPatternTokens(entry?.fileName, patternTokens, {
+            caseSensitive: Boolean(config?.fileNameMatchCaseSensitive),
+            separators: resolvedFileNameFieldSeparators,
+          })
+            ? 1
+            : 0);
+      }, 0);
+    },
+    [
+      config?.fileNameMatchCaseSensitive,
+      rawData,
+      resolvedFileNameFieldSeparators,
+    ],
+  );
+  const buildRuleSuggestionOptions = useCallback(
+    (rule: FileNameTemplateRuleDraft) => {
+      if (rule.matchMode !== "field") return [];
+
+      const caseSensitive = Boolean(config?.fileNameMatchCaseSensitive);
+      const minimumPinnedSuggestionCount = 5;
+      const defaultSuggestionLimit = 10;
+      const normalizedPatternTokens = new Set(
+        splitFileNameMatchInput(rule.pattern, caseSensitive),
+      );
+
+      const rankedSuggestions = fileNameFieldSuggestions.reduce<
+        Array<{
+          count: number;
+          label: React.ReactElement;
+          score: number;
+          value: string;
+        }>
+      >((entries, suggestion) => {
+          const comparisonValue = caseSensitive
+            ? suggestion.value
+            : suggestion.normalizedValue;
+          if (normalizedPatternTokens.has(comparisonValue)) return entries;
+
+          entries.push({
+            count: suggestion.count,
+            label: (
+              <div className="flex min-w-0 flex-col">
+                <span className="truncate font-medium text-text-primary">
+                  {suggestion.value}
+                </span>
+                <span className="truncate text-xs text-text-secondary">
+                  {t("da_match_field_suggestion_matches", {
+                    count: suggestion.count,
+                  })}
+                </span>
+              </div>
+            ),
+            score: suggestion.score,
+            value: suggestion.value,
+          });
+          return entries;
+        }, []);
+
+      return rankedSuggestions
+        .sort((left, right) => right.score - left.score)
+        .filter(
+          (entry, index) =>
+            index < defaultSuggestionLimit ||
+            entry.count >= minimumPinnedSuggestionCount,
+        )
+        .map((entry) => ({
+          label: entry.label,
+          value: entry.value,
+        }));
+    },
+    [
+      config?.fileNameMatchCaseSensitive,
+      fileNameFieldSuggestions,
+      t,
+    ],
+  );
   const applyFileNameTemplateRules = useCallback(
     (incremental: boolean) => {
       const applyHandler = incremental
@@ -389,6 +611,7 @@ const TemplateManager = ({
         return;
       }
       const rulePayload = normalizedRuleRuntimeConfigs.map((rule) => ({
+        matchMode: rule.matchMode,
         pattern: rule.pattern,
         templateName: rule.templateName,
         caseSensitive: Boolean(config?.fileNameMatchCaseSensitive),
@@ -399,6 +622,7 @@ const TemplateManager = ({
         },
       })) as FileNameTemplateRulePayload[];
       const ruleConfig: Record<string, unknown> = {
+        fileNameFieldSeparators: resolvedFileNameFieldSeparators,
         fileNameTemplateRules: rulePayload,
         fallbackTemplateConfig: { ...config },
         stopOnError: Boolean(config?.stopOnError),
@@ -408,10 +632,9 @@ const TemplateManager = ({
     [
       applyConfigurationWithExternalConfig,
       applyNewFilesConfigurationWithExternalConfig,
-      config?.stopOnError,
+      config,
+      resolvedFileNameFieldSeparators,
       normalizedRuleRuntimeConfigs,
-      showToast,
-      t,
     ],
   );
   useEffect(() => {
@@ -1188,12 +1411,16 @@ const TemplateManager = ({
             }
             variant="secondary"
             size="md"
-            className="flex-1"
+            className="flex-1 min-w-0"
+            contentClassName="w-full min-w-0 justify-between"
             onClick={measureOnly ? undefined : handleExportTemplates}
             disabled={templateTransferBusy}
+            title={t("da_template_export_btn")}
           >
-            {t("da_template_export_btn")}
-            <Upload size={14} />
+            <span className="block min-w-0 flex-1 truncate text-left">
+              {t("da_template_export_btn")}
+            </span>
+            <Upload size={14} className="shrink-0" />
           </Button>
           <Button
             id={
@@ -1201,12 +1428,16 @@ const TemplateManager = ({
             }
             variant="secondary"
             size="md"
-            className="flex-1"
+            className="flex-1 min-w-0"
+            contentClassName="w-full min-w-0 justify-between"
             onClick={measureOnly ? undefined : handleImportTemplatesClick}
             disabled={templateTransferBusy}
+            title={t("da_template_import_btn")}
           >
-            {t("da_template_import_btn")}
-            <Download size={14} />
+            <span className="block min-w-0 flex-1 truncate text-left">
+              {t("da_template_import_btn")}
+            </span>
+            <Download size={14} className="shrink-0" />
           </Button>
         </div>
         {includeIds && !measureOnly ? (
@@ -1237,71 +1468,172 @@ const TemplateManager = ({
             </Button>
           </div>
           <div className="mt-3 space-y-3">
-            {fileNameTemplateRules.map((rule, index) => (
-              <div
-                key={rule.id}
-                className="group border border-border-primary/40 rounded-xl p-3 space-y-3"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs text-text-secondary">
-                    {t("da_rule_item_index", { index: index + 1 })}
-                  </span>
-                  <Button
+            {fileNameTemplateRules.map((rule, index) => {
+              const suggestionOptions = buildRuleSuggestionOptions(rule);
+              const matchedFilesCount = getRuleMatchCount(rule);
+              const selectedPatternTokens = getRulePatternTokens(rule.pattern);
+              const isPhraseMode = rule.matchMode === "phrase";
+              const hasMatchCondition = isPhraseMode
+                ? Boolean(String(rule.pattern ?? "").trim())
+                : selectedPatternTokens.length > 0;
+
+              return (
+                <div
+                  key={rule.id}
+                  className="group border border-border-primary/40 rounded-xl p-3 space-y-3"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-text-secondary">
+                      {t("da_rule_item_index", { index: index + 1 })}
+                    </span>
+                    <Button
+                      id={
+                        includeIds
+                          ? `device-analysis-template-remove-rule-${index + 1}`
+                          : undefined
+                      }
+                      variant="icon"
+                      size="icon"
+                      aria-label={t("da_remove_rule")}
+                      title={t("da_remove_rule")}
+                      onClick={
+                        measureOnly
+                          ? undefined
+                          : () => removeFileNameTemplateRule(rule.id)
+                      }
+                      disabled={measureOnly}
+                      className="hover:text-red-500 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus:opacity-100 focus:pointer-events-auto"
+                    >
+                      <Trash2 size={14} />
+                    </Button>
+                  </div>
+                  <Select
                     id={
                       includeIds
-                        ? `device-analysis-template-remove-rule-${index + 1}`
+                        ? `device-analysis-template-rule-mode-${index + 1}`
                         : undefined
                     }
-                    variant="icon"
-                    size="icon"
-                    aria-label={t("da_remove_rule")}
-                    title={t("da_remove_rule")}
-                    onClick={
-                      measureOnly
-                        ? undefined
-                        : () => removeFileNameTemplateRule(rule.id)
-                    }
+                    size="md"
+                    value={rule.matchMode}
+                    options={fileNameRuleModeOptions}
+                    onChange={(value) => {
+                      updateFileNameTemplateRule(rule.id, {
+                        matchMode:
+                          value === "phrase" ? "phrase" : "field",
+                      });
+                    }}
+                    placeholder={t("da_match_mode_label")}
                     disabled={measureOnly}
-                    className="hover:text-red-500 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus:opacity-100 focus:pointer-events-auto"
-                  >
-                    <Trash2 size={14} />
-                  </Button>
+                    stableWidth={false}
+                    popupClassName="min-w-full !bg-bg-surface !backdrop-blur-none"
+                  />
+                  <div className="space-y-2">
+                    {isPhraseMode ? (
+                      <>
+                        <Input
+                          id={
+                            includeIds
+                              ? `device-analysis-template-rule-phrase-${index + 1}`
+                              : undefined
+                          }
+                          value={rule.pattern}
+                          name={`fileNameTemplateRulePhrase-${rule.id}`}
+                          disabled={measureOnly}
+                          onChange={(next) => {
+                            updateFileNameTemplateRule(rule.id, { pattern: next });
+                          }}
+                          placeholder={t("da_match_phrase_placeholder")}
+                        />
+                        <p className="text-xs text-text-secondary">
+                          {t("da_match_phrase_hint")}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex flex-wrap gap-2 min-h-[2rem]">
+                          {selectedPatternTokens.length ? (
+                            selectedPatternTokens.map((token) => (
+                              <span
+                                key={`${rule.id}-${token}`}
+                                className="inline-flex items-center gap-1 rounded-full border border-border bg-bg-page px-2.5 py-1 text-xs text-text-primary"
+                              >
+                                <span>{token}</span>
+                                <button
+                                  type="button"
+                                  className="rounded-full p-0.5 text-text-secondary transition-colors hover:text-text-primary"
+                                  onClick={
+                                    measureOnly
+                                      ? undefined
+                                      : () =>
+                                          removePatternTokenFromRule(rule.id, token)
+                                  }
+                                  disabled={measureOnly}
+                                  aria-label={t("da_remove_rule")}
+                                  title={t("da_remove_rule")}
+                                >
+                                  <X size={12} />
+                                </button>
+                              </span>
+                            ))
+                          ) : (
+                            <p className="text-xs text-text-secondary">
+                              {t("da_match_field_selected_none")}
+                            </p>
+                          )}
+                        </div>
+                        <Select
+                          id={
+                            includeIds
+                              ? `device-analysis-template-rule-suggestions-${index + 1}`
+                              : undefined
+                          }
+                          size="md"
+                          value={undefined}
+                          options={suggestionOptions}
+                          onChange={(value) => {
+                            addPatternTokenToRule(rule.id, String(value ?? ""));
+                          }}
+                          placeholder={
+                            suggestionOptions.length
+                              ? t("da_match_field_suggestions")
+                              : t("da_match_field_suggestion_none")
+                          }
+                          disabled={measureOnly || suggestionOptions.length === 0}
+                          stableWidth={false}
+                          popupClassName="min-w-full !bg-bg-surface !backdrop-blur-none"
+                        />
+                      </>
+                    )}
+                  </div>
+                  {hasMatchCondition ? (
+                    <p className="text-xs text-text-secondary">
+                      {t("da_match_field_rule_matches", {
+                        count: matchedFilesCount,
+                      })}
+                    </p>
+                  ) : null}
+                  <Select
+                    id={
+                      includeIds
+                        ? `device-analysis-template-rule-template-${index + 1}`
+                        : undefined
+                    }
+                    size="md"
+                    value={rule.templateName}
+                    options={availableTemplateOptions}
+                    onChange={(value) => {
+                      updateFileNameTemplateRule(rule.id, {
+                        templateName: String(value ?? ""),
+                      });
+                    }}
+                    placeholder={t("da_template_name")}
+                    disabled={measureOnly || templatesLoading}
+                    stableWidth={false}
+                    popupClassName="min-w-full !bg-bg-surface !backdrop-blur-none"
+                  />
                 </div>
-                <Input
-                  id={
-                    includeIds
-                      ? `device-analysis-template-rule-pattern-${index + 1}`
-                      : undefined
-                  }
-                  value={rule.pattern}
-                  name={`fileNameTemplateRulePattern-${rule.id}`}
-                  disabled={measureOnly}
-                  onChange={(next) => {
-                    updateFileNameTemplateRule(rule.id, { pattern: next });
-                  }}
-                  placeholder={t("da_match_field_placeholder")}
-                />
-                <Select
-                  id={
-                    includeIds
-                      ? `device-analysis-template-rule-template-${index + 1}`
-                      : undefined
-                  }
-                  size="md"
-                  value={rule.templateName}
-                  options={availableTemplateOptions}
-                  onChange={(value) => {
-                    updateFileNameTemplateRule(rule.id, {
-                      templateName: String(value ?? ""),
-                    });
-                  }}
-                  placeholder={t("da_template_name")}
-                  disabled={measureOnly || templatesLoading}
-                  stableWidth={false}
-                  popupClassName="min-w-full !bg-bg-surface !backdrop-blur-none"
-                />
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="grid grid-cols-2 gap-3 mt-3">

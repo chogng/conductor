@@ -25,6 +25,7 @@ import {
   validateTemplateForSave,
 } from "./templateValidation";
 import { stableStringify } from "../../shared/lib/deviceAnalysisUtils";
+import { normalizeFileNameFieldSeparators } from "../../shared/lib/fileNameFieldMatching";
 
 type TemplateMode = "select" | "save";
 type InputSource = "manual" | "picked";
@@ -725,6 +726,12 @@ export const useTemplateManagerState = ({
       }
 
       const normalized = validation.normalized;
+      const normalizedForApply = {
+        ...normalized,
+        fileNameFieldSeparators: normalizeFileNameFieldSeparators(
+          deviceAnalysisSettings?.fileNameFieldSeparators,
+        ),
+      };
       const shouldSyncConfig = options.syncConfig !== false;
 
       if (
@@ -734,7 +741,7 @@ export const useTemplateManagerState = ({
         setConfig(normalized);
       }
 
-      const result = handler(normalized);
+      const result = handler(normalizedForApply);
       if (isObjectRecord(result)) {
         const ok =
           typeof result.ok === "boolean" ? result.ok : undefined;
@@ -760,7 +767,13 @@ export const useTemplateManagerState = ({
         }
       }
     },
-    [config, setConfig, showToast, t],
+    [
+      config,
+      deviceAnalysisSettings?.fileNameFieldSeparators,
+      setConfig,
+      showToast,
+      t,
+    ],
   );
 
   const applyConfiguration = useCallback(() => {

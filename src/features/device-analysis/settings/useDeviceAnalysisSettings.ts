@@ -20,6 +20,9 @@ import {
   toPersistencePathInfo,
   type DeviceAnalysisSettings,
 } from "./deviceAnalysisSettingsShared";
+import {
+  normalizeFileNameFieldSeparators,
+} from "../shared/lib/fileNameFieldMatching";
 
 type UseDeviceAnalysisSettingsOptions = {
   deviceAnalysisSettings: DeviceAnalysisSettings | null;
@@ -67,6 +70,9 @@ export const useDeviceAnalysisSettings = ({
   const [originPlotSaving, setOriginPlotSaving] = useState(false);
   const [originPlotFeedback, setOriginPlotFeedback] =
     useState<Feedback>(IDLE_FEEDBACK);
+  const [fileNameMatchingSaving, setFileNameMatchingSaving] = useState(false);
+  const [fileNameMatchingFeedback, setFileNameMatchingFeedback] =
+    useState<Feedback>(IDLE_FEEDBACK);
 
   const originCleanupConfig = useMemo(() => {
     const settings = deviceAnalysisSettings || {};
@@ -112,6 +118,9 @@ export const useDeviceAnalysisSettings = ({
 
   const settingsOriginExePath = normalizeTrimmedString(
     deviceAnalysisSettings?.originExePath,
+  );
+  const fileNameFieldSeparators = normalizeFileNameFieldSeparators(
+    deviceAnalysisSettings?.fileNameFieldSeparators,
   );
 
   useEffect(() => {
@@ -500,6 +509,34 @@ export const useDeviceAnalysisSettings = ({
     }
   }, [t]);
 
+  const handleSetFileNameFieldSeparators = useCallback(
+    async (nextValue: unknown) => {
+      const normalized = normalizeFileNameFieldSeparators(nextValue);
+
+      setFileNameMatchingSaving(true);
+      setFileNameMatchingFeedback(IDLE_FEEDBACK);
+      try {
+        await handleUpdateDeviceAnalysisSettings({
+          fileNameFieldSeparators: normalized,
+        });
+        setFileNameMatchingFeedback({
+          type: "success",
+          message: t("da_settings_filename_matching_saved"),
+        });
+      } catch (error) {
+        setFileNameMatchingFeedback({
+          type: "error",
+          message: t("da_settings_filename_matching_save_failed", {
+            error: getErrorMessage(error) || t("unknownError"),
+          }),
+        });
+      } finally {
+        setFileNameMatchingSaving(false);
+      }
+    },
+    [handleUpdateDeviceAnalysisSettings, t],
+  );
+
   const storageSettings = useMemo(
     () => ({
       currentPath: String(persistencePathInfo?.currentPath ?? ""),
@@ -521,6 +558,21 @@ export const useDeviceAnalysisSettings = ({
   );
 
   const originBridge = getDesktopOriginBridge();
+
+  const fileNameMatchingSettings = useMemo(
+    () => ({
+      feedback: fileNameMatchingFeedback,
+      fieldSeparators: fileNameFieldSeparators,
+      isSaving: fileNameMatchingSaving,
+      onFieldSeparatorsChange: handleSetFileNameFieldSeparators,
+    }),
+    [
+      fileNameFieldSeparators,
+      fileNameMatchingFeedback,
+      fileNameMatchingSaving,
+      handleSetFileNameFieldSeparators,
+    ],
+  );
 
   const originSettings = useMemo(
     () => ({
@@ -598,6 +650,7 @@ export const useDeviceAnalysisSettings = ({
   );
 
   return {
+    fileNameMatchingSettings,
     originSettings,
     storageSettings,
   };

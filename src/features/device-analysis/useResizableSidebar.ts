@@ -1,22 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
-
-const DEFAULT_WIDTH = 280;
-const MIN_WIDTH = 200;
-const MAX_WIDTH = 600;
-const STORAGE_KEY = "da-sidebar-width";
+import {
+  DEFAULT_DEVICE_ANALYSIS_SIDEBAR_WIDTH_PX,
+  MAX_DEVICE_ANALYSIS_SIDEBAR_WIDTH_PX,
+  MIN_DEVICE_ANALYSIS_SIDEBAR_WIDTH_PX,
+} from "./deviceAnalysisLayout";
 
 export const useResizableSidebar = () => {
-  const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
-    if (typeof window !== "undefined") {
-      const savedWidth = localStorage.getItem(STORAGE_KEY);
-      if (savedWidth) {
-        const parsed = Number.parseInt(savedWidth, 10);
-        if (Number.isFinite(parsed)) return parsed;
-      }
-    }
-
-    return DEFAULT_WIDTH;
-  });
+  const [sidebarWidth, setSidebarWidth] = useState<number>(
+    DEFAULT_DEVICE_ANALYSIS_SIDEBAR_WIDTH_PX,
+  );
 
   const [isResizing, setIsResizing] = useState(false);
 
@@ -26,18 +18,17 @@ export const useResizableSidebar = () => {
 
   const stopResizing = useCallback(() => {
     setIsResizing(false);
-
-    if (typeof window !== "undefined") {
-      localStorage.setItem(STORAGE_KEY, sidebarWidth.toString());
-    }
-  }, [sidebarWidth]);
+  }, []);
 
   const resize = useCallback(
     (event: MouseEvent) => {
       if (!isResizing) return;
 
       const nextWidth = event.clientX;
-      if (nextWidth >= MIN_WIDTH && nextWidth <= MAX_WIDTH) {
+      if (
+        nextWidth >= MIN_DEVICE_ANALYSIS_SIDEBAR_WIDTH_PX &&
+        nextWidth <= MAX_DEVICE_ANALYSIS_SIDEBAR_WIDTH_PX
+      ) {
         setSidebarWidth(nextWidth);
       }
     },
