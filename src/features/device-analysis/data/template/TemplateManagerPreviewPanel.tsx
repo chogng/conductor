@@ -3,6 +3,7 @@ import React, {
   useEffect,
   useMemo,
   useRef,
+  useState,
   useSyncExternalStore,
 } from "react";
 import { Check, Copy } from "lucide-react";
@@ -86,6 +87,24 @@ type SetSelectionRangeFn = (
 type PreviewCellPosition = {
   rowIndex: number;
   colIndex: number;
+};
+
+type CanvasPreviewTheme = {
+  background: string;
+  border: string;
+  textPrimary: string;
+  textSecondary: string;
+  accentCellBackground: string;
+  placeholderFill: string;
+};
+
+type CanvasVisibleColumnMetric = {
+  colIndex: number;
+  colLeft: number;
+  colWidth: number;
+  textMaxWidth: number;
+  placeholderMaxWidth: number;
+  isYColumn: boolean;
 };
 
 type PreviewRowProps = {
@@ -175,10 +194,29 @@ const EMPTY_ARRAY: unknown[] = [];
 const noopSubscribe = (_onStoreChange: () => void) => () => {};
 const getZero = () => 0;
 const PREVIEW_ROW_HEIGHT_PX = 28;
-const ENABLE_EXPERIMENTAL_CANVAS_PREVIEW =
-  String(import.meta?.env?.VITE_DA_PREVIEW_CANVAS || "").trim() === "1";
+const PREVIEW_RENDERER_OVERRIDE = String(
+  import.meta?.env?.VITE_DA_PREVIEW_RENDERER ||
+    import.meta?.env?.VITE_DA_PREVIEW_CANVAS ||
+    "",
+)
+  .trim()
+  .toLowerCase();
+const PREVIEW_AUTO_CANVAS_TOTAL_CELL_THRESHOLD = 20000;
+const PREVIEW_AUTO_CANVAS_RENDER_CELL_THRESHOLD = 1800;
+const PREVIEW_AUTO_CANVAS_ROW_THRESHOLD = 600;
+const PREVIEW_AUTO_CANVAS_COL_THRESHOLD = 24;
 const PREVIEW_DRAG_EDGE_SCROLL_ZONE_PX = 28;
 const PREVIEW_DRAG_EDGE_SCROLL_STEP_PX = 26;
+const CANVAS_PREVIEW_FONT =
+  "12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace";
+const CANVAS_PREVIEW_THEME_FALLBACK: CanvasPreviewTheme = {
+  background: "#ffffff",
+  border: "rgba(148, 163, 184, 0.45)",
+  textPrimary: "#111827",
+  textSecondary: "#64748b",
+  accentCellBackground: "rgba(217, 119, 6, 0.1)",
+  placeholderFill: "rgba(100, 116, 139, 0.18)",
+};
 
 const isEditableElement = (target: EventTarget | null): boolean => {
   if (!(target instanceof HTMLElement)) return false;
@@ -205,10 +243,90 @@ const formatPreviewCell = (value: unknown): string => {
   return formatNumber(num, { digits: 4 });
 };
 
+const shouldUseCanvasPreview = ({
+  totalRows,
+  totalCols,
+  renderRowCount,
+  renderColCount,
+}: {
+  totalRows: number;
+  totalCols: number;
+  renderRowCount: number;
+  renderColCount: number;
+}): boolean => {
+  if (
+    PREVIEW_RENDERER_OVERRIDE === "canvas" ||
+    PREVIEW_RENDERER_OVERRIDE === "1" ||
+    PREVIEW_RENDERER_OVERRIDE === "true"
+  ) {
+    return true;
+  }
+
+  if (
+    PREVIEW_RENDERER_OVERRIDE === "dom" ||
+    PREVIEW_RENDERER_OVERRIDE === "0" ||
+    PREVIEW_RENDERER_OVERRIDE === "false"
+  ) {
+    return false;
+  }
+
+  const safeTotalRows = Math.max(0, Math.floor(Number(totalRows) || 0));
+  const safeTotalCols = Math.max(0, Math.floor(Number(totalCols) || 0));
+  const safeRenderRows = Math.max(0, Math.floor(Number(renderRowCount) || 0));
+  const safeRenderCols = Math.max(0, Math.floor(Number(renderColCount) || 0));
+  const totalCellCount = safeTotalRows * safeTotalCols;
+  const renderCellCount = safeRenderRows * safeRenderCols;
+
+  // Large previews behave much better when we decouple scrolling from DOM cell churn.
+  return (
+    safeTotalRows >= PREVIEW_AUTO_CANVAS_ROW_THRESHOLD ||
+    safeTotalCols >= PREVIEW_AUTO_CANVAS_COL_THRESHOLD ||
+    totalCellCount >= PREVIEW_AUTO_CANVAS_TOTAL_CELL_THRESHOLD ||
+    renderCellCount >= PREVIEW_AUTO_CANVAS_RENDER_CELL_THRESHOLD
+  );
+};
+
 const getPreviewPlaceholderWidthPercent = (seed: number): number => {
   const normalized = Math.abs(Math.floor(Number(seed) || 0)) % 5;
   return [34, 46, 58, 68, 52][normalized] ?? 46;
 };
+
+const readCanvasPreviewTheme = (
+  canvas: HTMLCanvasElement | null,
+): CanvasPreviewTheme => {
+  if (!canvas || typeof window === "undefined") {
+    return CANVAS_PREVIEW_THEME_FALLBACK;
+  }
+
+  const computed = window.getComputedStyle(canvas);
+  return {
+    background:
+      computed.getPropertyValue("--color-bg-surface")?.trim() ||
+      CANVAS_PREVIEW_THEME_FALLBACK.background,
+    border:
+      computed.getPropertyValue("--color-border")?.trim() ||
+      CANVAS_PREVIEW_THEME_FALLBACK.border,
+    textPrimary:
+      computed.getPropertyValue("--color-text-primary")?.trim() ||
+      CANVAS_PREVIEW_THEME_FALLBACK.textPrimary,
+    textSecondary:
+      computed.getPropertyValue("--color-text-secondary")?.trim() ||
+      CANVAS_PREVIEW_THEME_FALLBACK.textSecondary,
+    accentCellBackground: CANVAS_PREVIEW_THEME_FALLBACK.accentCellBackground,
+    placeholderFill: CANVAS_PREVIEW_THEME_FALLBACK.placeholderFill,
+  };
+};
+
+const areCanvasPreviewThemesEqual = (
+  left: CanvasPreviewTheme,
+  right: CanvasPreviewTheme,
+): boolean =>
+  left.background === right.background &&
+  left.border === right.border &&
+  left.textPrimary === right.textPrimary &&
+  left.textSecondary === right.textSecondary &&
+  left.accentCellBackground === right.accentCellBackground &&
+  left.placeholderFill === right.placeholderFill;
 
 const PreviewRow = React.memo(
   ({
@@ -441,6 +559,57 @@ const CanvasPreviewGrid = React.memo(
       null,
     );
     const autoScrollRafRef = useRef(0);
+    const formattedCellCacheRef = useRef<WeakMap<unknown[], Map<number, string>>>(
+      new WeakMap(),
+    );
+    const canvasThemeRef = useRef<CanvasPreviewTheme>(
+      CANVAS_PREVIEW_THEME_FALLBACK,
+    );
+    const [canvasThemeVersion, setCanvasThemeVersion] = useState(0);
+    const visibleColumnMetrics = useMemo<CanvasVisibleColumnMetric[]>(
+      () =>
+        visibleColumns.map((colIndex) => {
+          const startOffset = Number(startOffsets[colIndex]) || 0;
+          const colWidth = Math.max(
+            1,
+            Number(widths[colIndex]) || previewColumnMinWidthPx,
+          );
+          return {
+            colIndex,
+            colLeft: previewRowIndexWidthPx + startOffset,
+            colWidth,
+            textMaxWidth: Math.max(0, colWidth - 12),
+            placeholderMaxWidth: Math.max(0, colWidth - 12),
+            isYColumn: yColumnsSet.has(colIndex),
+          };
+        }),
+      [
+        previewColumnMinWidthPx,
+        previewRowIndexWidthPx,
+        startOffsets,
+        visibleColumns,
+        widths,
+        yColumnsSet,
+      ],
+    );
+
+    const getFormattedPreviewCell = useCallback(
+      (rowCells: unknown[], colIndex: number): string => {
+        let rowCache = formattedCellCacheRef.current.get(rowCells);
+        if (!rowCache) {
+          rowCache = new Map<number, string>();
+          formattedCellCacheRef.current.set(rowCells, rowCache);
+        }
+        if (rowCache.has(colIndex)) {
+          return rowCache.get(colIndex) ?? "";
+        }
+
+        const display = formatPreviewCell(rowCells[colIndex]);
+        rowCache.set(colIndex, display);
+        return display;
+      },
+      [],
+    );
 
     const computeEdgeScrollDelta = useCallback(
       (pointer: number, edgeStart: number, edgeEnd: number) => {
@@ -813,6 +982,50 @@ const CanvasPreviewGrid = React.memo(
     }, [selections]);
 
     useEffect(() => {
+      formattedCellCacheRef.current = new WeakMap();
+    }, [previewFile?.fileId]);
+
+    useEffect(() => {
+      const updateCanvasTheme = () => {
+        const nextTheme = readCanvasPreviewTheme(canvasRef.current);
+        if (
+          areCanvasPreviewThemesEqual(canvasThemeRef.current, nextTheme)
+        ) {
+          return;
+        }
+        canvasThemeRef.current = nextTheme;
+        setCanvasThemeVersion((version) => version + 1);
+      };
+
+      updateCanvasTheme();
+
+      if (
+        typeof MutationObserver === "undefined" ||
+        typeof document === "undefined"
+      ) {
+        return undefined;
+      }
+
+      const observer = new MutationObserver(() => {
+        updateCanvasTheme();
+      });
+      const observerTargets = [document.documentElement, document.body].filter(
+        (target): target is HTMLElement => Boolean(target),
+      );
+
+      for (const target of observerTargets) {
+        observer.observe(target, {
+          attributeFilter: ["class", "data-theme", "style"],
+          attributes: true,
+        });
+      }
+
+      return () => {
+        observer.disconnect();
+      };
+    }, [previewFile?.fileId]);
+
+    useEffect(() => {
       const canvas = canvasRef.current;
       if (!canvas) return;
       const context = canvas.getContext("2d");
@@ -838,20 +1051,19 @@ const CanvasPreviewGrid = React.memo(
       }
 
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const computed =
-        typeof window !== "undefined" ? window.getComputedStyle(canvas) : null;
-      const background = computed?.getPropertyValue("--color-bg-surface")?.trim() || "#ffffff";
-      const border = computed?.getPropertyValue("--color-border")?.trim() || "rgba(148, 163, 184, 0.45)";
-      const textPrimary = computed?.getPropertyValue("--color-text-primary")?.trim() || "#111827";
-      const textSecondary = computed?.getPropertyValue("--color-text-secondary")?.trim() || "#64748b";
-      const accentCellBackground = "rgba(217, 119, 6, 0.1)";
-      const placeholderFill = "rgba(100, 116, 139, 0.18)";
+      const {
+        accentCellBackground,
+        background,
+        border,
+        placeholderFill,
+        textPrimary,
+        textSecondary,
+      } = canvasThemeRef.current;
 
       context.clearRect(0, 0, canvasWidthPx, canvasHeightPx);
       context.fillStyle = background;
       context.fillRect(0, 0, canvasWidthPx, canvasHeightPx);
-      context.font =
-        "12px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace";
+      context.font = CANVAS_PREVIEW_FONT;
       context.textBaseline = "middle";
 
       for (let rowSlot = 0; rowSlot < visibleRowCount; rowSlot += 1) {
@@ -875,20 +1087,23 @@ const CanvasPreviewGrid = React.memo(
           rowTop + rowHeightPx / 2,
         );
 
-        for (const colIndex of visibleColumns) {
-          const startOffset = Number(startOffsets[colIndex]) || 0;
-          const colWidth = Math.max(
-            1,
-            Number(widths[colIndex]) || previewColumnMinWidthPx,
-          );
-          const colLeft = previewRowIndexWidthPx + startOffset;
-          if (yColumnsSet.has(colIndex)) {
+        for (const columnMetric of visibleColumnMetrics) {
+          const {
+            colIndex,
+            colLeft,
+            colWidth,
+            isYColumn,
+            placeholderMaxWidth,
+            textMaxWidth,
+          } = columnMetric;
+          if (isYColumn) {
             context.fillStyle = accentCellBackground;
             context.fillRect(colLeft, rowTop, colWidth, rowHeightPx);
           }
 
-          const raw = rowCells[colIndex] ?? "";
-          const display = isRowLoaded ? formatPreviewCell(raw) : "";
+          const display = isRowLoaded
+            ? getFormattedPreviewCell(rowCells, colIndex)
+            : "";
           context.save();
           context.beginPath();
           context.rect(
@@ -902,22 +1117,22 @@ const CanvasPreviewGrid = React.memo(
             context.fillStyle = textPrimary;
             context.textAlign = "left";
             context.fillText(
-              String(display || ""),
+              display,
               colLeft + 6,
               rowTop + rowHeightPx / 2,
-              Math.max(0, colWidth - 12),
+              textMaxWidth,
             );
           } else {
             const placeholderWidth = Math.max(
               18,
               Math.min(
-                Math.max(0, colWidth - 12),
+                placeholderMaxWidth,
                 Math.floor(
                   ((getPreviewPlaceholderWidthPercent(
                     rowIndex + colIndex,
                   ) || 46) /
                     100) *
-                    Math.max(0, colWidth - 12),
+                    placeholderMaxWidth,
                 ),
               ),
             );
@@ -931,46 +1146,32 @@ const CanvasPreviewGrid = React.memo(
           }
           context.restore();
         }
-
-        context.strokeStyle = border;
-        context.lineWidth = 1;
-        context.beginPath();
-        context.moveTo(0, rowBottom - 0.5);
-        context.lineTo(canvasWidthPx, rowBottom - 0.5);
-        context.stroke();
       }
 
       context.strokeStyle = border;
       context.lineWidth = 1;
       context.beginPath();
-      for (const colIndex of visibleColumns) {
-        const startOffset = Number(startOffsets[colIndex]) || 0;
-        const colLeft = previewRowIndexWidthPx + startOffset;
+      for (let rowSlot = 0; rowSlot < visibleRowCount; rowSlot += 1) {
+        const rowBottom = (rowSlot + 1) * rowHeightPx;
+        context.moveTo(0, rowBottom - 0.5);
+        context.lineTo(canvasWidthPx, rowBottom - 0.5);
+      }
+      for (const columnMetric of visibleColumnMetrics) {
+        const { colLeft, colWidth } = columnMetric;
         context.moveTo(colLeft - 0.5, 0);
         context.lineTo(colLeft - 0.5, canvasHeightPx);
-
-        const colWidth = Math.max(
-          1,
-          Number(widths[colIndex]) || previewColumnMinWidthPx,
-        );
         const colRight = colLeft + colWidth;
         context.moveTo(colRight - 0.5, 0);
         context.lineTo(colRight - 0.5, canvasHeightPx);
       }
-      context.stroke();
-
-      context.strokeStyle = border;
-      context.lineWidth = 1;
-      context.beginPath();
       context.moveTo(previewRowIndexWidthPx - 0.5, 0);
       context.lineTo(previewRowIndexWidthPx - 0.5, canvasHeightPx);
       context.stroke();
     }, [
       canvasHeightPx,
       canvasWidthPx,
-      columnGeometry.startOffsetsPx,
-      columnGeometry.visibleColumnIndices,
-      columnGeometry.widthsPx,
+      canvasThemeVersion,
+      getFormattedPreviewCell,
       getPreviewRow,
       previewColumnMinWidthPx,
       previewRowIndexWidthPx,
@@ -978,11 +1179,8 @@ const CanvasPreviewGrid = React.memo(
       previewWindow.endRow,
       previewWindow.startRow,
       rowHeightPx,
-      startOffsets,
-      yColumnsSet,
-      visibleColumns,
+      visibleColumnMetrics,
       visibleRowCount,
-      widths,
     ]);
 
     return (
@@ -1174,9 +1372,6 @@ const TemplateManagerPreviewPanel = ({
   t,
   toggleColumn,
 }: TemplateManagerPreviewPanelProps) => {
-  const useCanvasPreview = ENABLE_EXPERIMENTAL_CANVAS_PREVIEW;
-  const hasSelection = selections.length > 0;
-  const keyboardAnchorRef = useRef<PreviewCellPosition | null>(null);
   const totalRows = Math.max(0, Math.floor(Number(previewFile?.rowCount) || 0));
   const totalCols = Math.max(
     0,
@@ -1186,6 +1381,26 @@ const TemplateManagerPreviewPanel = ({
         0,
     ),
   );
+  const renderRowCount = Math.max(
+    0,
+    previewWindow.endRow - previewWindow.startRow,
+  );
+  const renderColCount = Math.max(
+    1,
+    Number(previewColumnGeometry?.renderColCount) || 1,
+  );
+  const useCanvasPreview = useMemo(
+    () =>
+      shouldUseCanvasPreview({
+        totalRows,
+        totalCols,
+        renderRowCount,
+        renderColCount,
+      }),
+    [renderColCount, renderRowCount, totalCols, totalRows],
+  );
+  const hasSelection = selections.length > 0;
+  const keyboardAnchorRef = useRef<PreviewCellPosition | null>(null);
 
   const getPreviewHeaderHeight = useCallback(() => {
     const thead = previewTableRef.current?.tHead;

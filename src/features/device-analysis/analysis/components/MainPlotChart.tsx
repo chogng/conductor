@@ -92,6 +92,8 @@ type MainPlotChartProps = {
 };
 
 const LOG_CHART_Y_DATA_KEY = "__chartY";
+const logChartSeriesListCache = new WeakMap<object, Map<string, PlotSeries[]>>();
+const logChartSeriesDataCache = new WeakMap<object, Map<string, PlotPoint[]>>();
 
 const toDomainTuple = (domain: number[]): [number, number] => [
   Number(domain?.[0] ?? 0),
@@ -102,6 +104,53 @@ const toLogChartValue = (value: unknown): number | null => {
   const num = Number(value);
   if (!Number.isFinite(num) || num <= 0) return null;
   return Math.log10(num);
+};
+
+const getCachedLogChartSeriesData = (
+  data: PlotPoint[],
+  plotYKey: "y" | "yPositive" | "yAbsPositive",
+): PlotPoint[] => {
+  const cacheKey = data as unknown as object;
+  let cacheBucket = logChartSeriesDataCache.get(cacheKey);
+  if (!cacheBucket) {
+    cacheBucket = new Map<string, PlotPoint[]>();
+    logChartSeriesDataCache.set(cacheKey, cacheBucket);
+  }
+
+  const cached = cacheBucket.get(plotYKey);
+  if (cached) return cached;
+
+  const computed = data.map((point) => ({
+    ...point,
+    [LOG_CHART_Y_DATA_KEY]: toLogChartValue(point?.[plotYKey]),
+  }));
+  cacheBucket.set(plotYKey, computed);
+  return computed;
+};
+
+const getCachedLogChartSeriesList = (
+  seriesList: PlotSeries[],
+  plotYKey: "y" | "yPositive" | "yAbsPositive",
+): PlotSeries[] => {
+  const cacheKey = seriesList as unknown as object;
+  let cacheBucket = logChartSeriesListCache.get(cacheKey);
+  if (!cacheBucket) {
+    cacheBucket = new Map<string, PlotSeries[]>();
+    logChartSeriesListCache.set(cacheKey, cacheBucket);
+  }
+
+  const cached = cacheBucket.get(plotYKey);
+  if (cached) return cached;
+
+  // Cache per rendered series array so repeated plot switches reuse the converted points.
+  const computed = seriesList.map((series) => ({
+    ...series,
+    data: Array.isArray(series?.data)
+      ? getCachedLogChartSeriesData(series.data, plotYKey)
+      : [],
+  }));
+  cacheBucket.set(plotYKey, computed);
+  return computed;
 };
 
 const formatLogTickLabel = (value: unknown): string => {
@@ -265,15 +314,7 @@ const MainPlotChart = memo(function MainPlotChart({
 
   const chartSeriesList = useMemo<PlotSeries[]>(() => {
     if (effectiveYScale === "linear") return seriesList;
-    return seriesList.map((series) => ({
-      ...series,
-      data: Array.isArray(series?.data)
-        ? series.data.map((point) => ({
-            ...point,
-            [LOG_CHART_Y_DATA_KEY]: toLogChartValue(point?.[plotYKey]),
-          }))
-        : [],
-    }));
+    return getCachedLogChartSeriesList(seriesList, plotYKey);
   }, [effectiveYScale, plotYKey, seriesList]);
 
   const chartFocusedFitLine = useMemo<PlotPoint[] | null>(() => {

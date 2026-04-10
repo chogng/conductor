@@ -375,7 +375,7 @@ export const useTemplateManagerPreview = ({
       new Set(
         Array.isArray(config?.yColumns) ? config.yColumns : [],
       ),
-    [config],
+    [config?.yColumns],
   );
 
   const previewVisibleRows = useMemo(
@@ -391,15 +391,11 @@ export const useTemplateManagerPreview = ({
 
   const renderOverscanRows = useMemo(
     () =>
-      previewVerticalScrollVelocityTier >= 2
-        ? Math.max(PREVIEW_OVERSCAN_ROWS + 20, previewVisibleRows * 3)
-        : previewVerticalScrollVelocityTier >= 1
-          ? Math.max(PREVIEW_OVERSCAN_ROWS + 12, previewVisibleRows * 2)
-          : Math.max(
-              PREVIEW_OVERSCAN_ROWS + 6,
-              Math.round(previewVisibleRows * 1.25),
-            ),
-    [previewVerticalScrollVelocityTier, previewVisibleRows],
+      Math.max(
+        PREVIEW_OVERSCAN_ROWS + 10,
+        Math.round(previewVisibleRows * 1.5),
+      ),
+    [previewVisibleRows],
   );
 
   const { prefetchRowsAfter, prefetchRowsBefore } = useMemo(() => {

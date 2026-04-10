@@ -940,9 +940,12 @@ export const buildPreviewRowWindow = ({ overscanRows, rowCount, rowHeightPx, scr
     const rawVisibleCount = Math.max(1, Math.ceil(resolvedViewportHeight / normalizedRowHeight));
     const visibleCount = Math.min(PREVIEW_WINDOW_MAX_VISIBLE_ROWS, rawVisibleCount);
     const visibleStartRow = Math.floor(normalizedScrollTop / normalizedRowHeight);
-    const renderBufferRows = Math.max(normalizedOverscanRows, Math.floor(Number(windowShiftStrideRows) || 0));
-    const startRow = Math.max(0, Math.min(totalRows - 1, visibleStartRow - renderBufferRows));
-    const endRow = Math.max(startRow + 1, Math.min(totalRows, visibleStartRow + visibleCount + renderBufferRows));
+    const renderBufferRows = Math.max(normalizedOverscanRows, 0);
+    const strideRows = Math.max(1, Math.floor(Number(windowShiftStrideRows) || normalizedOverscanRows || 1));
+    const targetStartRow = Math.max(0, Math.min(totalRows - 1, visibleStartRow - renderBufferRows));
+    const startRow = Math.max(0, Math.min(totalRows - 1, Math.floor(targetStartRow / strideRows) * strideRows));
+    const windowRowCount = visibleCount + renderBufferRows * 2 + strideRows;
+    const endRow = Math.max(startRow + 1, Math.min(totalRows, startRow + windowRowCount));
     return {
         totalRows,
         startRow,

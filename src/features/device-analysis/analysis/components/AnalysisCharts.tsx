@@ -14,7 +14,6 @@ import type { ToastState, ToastType } from "../../shared/lib/sharedTypes";
 import { useAnalysisFileCache } from "../useAnalysisFileCache";
 import { useContainerSizeReady } from "../useContainerSizeReady";
 import { useOriginCanvasExport } from "../useOriginCanvasExport";
-import { useResidentMainPlot } from "../useResidentMainPlot";
 import OverviewGrid from "./OverviewGrid";
 import CalculatedParametersRow from "./CalculatedParametersRow";
 import { buildLogTicks, buildNiceTicks, buildOriginAutoTicks, buildPoints, buildStepTicks, computeLabelInterval, computeMinMax, downsamplePointsForDisplay, inferTickDigitsFromTicks, normalizeFloat, normalizeVarToken, padLinearDomain, padLogDomain, parseOptionalNumber, preserveScrollPosition, varTokenToSymbol, } from "../lib/analysisChartsUtils";
@@ -42,7 +41,7 @@ type SsDragState = {
     startRange: SsRange | null;
     draftRange: SsRange | null;
 };
-type IvGmPlotType = "iv" | "gm";
+type PlotTypeOption = "iv" | "gm" | "ss" | "j";
 const MAX_RENDER_SERIES_POINTS = 600;
 const MIN_RENDER_SERIES_POINTS = 120;
 const DEFAULT_RENDER_POINT_BUDGET = 12000;
@@ -85,6 +84,46 @@ type OriginCsvBridge = {
         };
     }) => Promise<unknown>;
 };
+const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, ssApplicable, areaAvailable, onChange, }: {
+    activePlotType: PlotTypeOption;
+    ssApplicable: boolean;
+    areaAvailable: boolean;
+    onChange: (nextPlotType: PlotTypeOption) => void;
+}) {
+    // Keep the button feedback local so the rest of the panel can update in a transition.
+    const [displayedPlotType, setDisplayedPlotType] = useState<PlotTypeOption>(activePlotType);
+    useEffect(() => {
+        setDisplayedPlotType(activePlotType);
+    }, [activePlotType]);
+    const selectPlotType = React.useCallback((nextPlotType: PlotTypeOption) => {
+        setDisplayedPlotType(nextPlotType);
+        onChange(nextPlotType);
+    }, [onChange]);
+    return (<div id="device-analysis-plot-type-toggle" className="tab_menu">
+        <button id="device-analysis-plot-iv-btn" type="button" onClick={() => selectPlotType("iv")} className={`tab_btn tab_btn--control ${displayedPlotType === "iv"
+            ? "tab_btn--active"
+            : "tab_btn--inactive"}`}>
+          I-V
+        </button>
+        <button id="device-analysis-plot-gm-btn" type="button" onClick={() => selectPlotType("gm")} className={`tab_btn tab_btn--control ${displayedPlotType === "gm"
+            ? "tab_btn--active"
+            : "tab_btn--inactive"}`}>
+          g{"\u2098"}
+        </button>
+        <button id="device-analysis-plot-ss-btn" type="button" onClick={() => ssApplicable && selectPlotType("ss")} disabled={!ssApplicable} className={`tab_btn tab_btn--control ${displayedPlotType === "ss"
+            ? "tab_btn--active"
+            : "tab_btn--inactive"} ${!ssApplicable ? "opacity-50 cursor-not-allowed" : ""}`} title={!ssApplicable
+            ? "SS is defined for transfer (Vg) curves. This file does not look like a Vg sweep."
+            : ""}>
+          SS
+        </button>
+        <button id="device-analysis-plot-j-btn" type="button" onClick={() => selectPlotType("j")} disabled={!areaAvailable} className={`tab_btn tab_btn--control ${displayedPlotType === "j"
+            ? "tab_btn--active"
+            : "tab_btn--inactive"} ${!areaAvailable ? "opacity-50 cursor-not-allowed" : ""}`} title={!areaAvailable ? "Set a positive Area to enable J plot" : ""}>
+          J
+        </button>
+      </div>);
+});
 const AnalysisCharts = ({ processedData, processingStatus, activeFileId: controlledActiveFileId = undefined, onActiveFileIdChange = undefined, showFileSelect = true, ssMethod = "auto", setSsMethod = () => { }, ssDiagnosticsEnabled = true, setSsDiagnosticsEnabled = () => { }, ssShowFitLine = true, setSsShowFitLine = () => { }, ssIdWindow = { low: "1e-11", high: "1e-9" }, setSsIdWindow = () => { }, ssManualRanges = {}, setSsManualRanges = () => { }, originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS, }: any) => {
     const { t } = useLanguage();
     const tLoose = React.useCallback<FormatOriginTranslateFn>((key, params) => t(key, params as any), [t]);
@@ -100,7 +139,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         }
         setInternalActiveFileId(nextFileId ?? null);
     }, [isActiveFileControlled, onActiveFileIdChange]);
-    const [plotType, setPlotType] = useState("iv"); // 'iv' | 'gm' | 'ss' | 'j'
+    const [plotType, setPlotType] = useState<PlotTypeOption>("iv"); // 'iv' | 'gm' | 'ss' | 'j'
     const [focusedSeriesId, setFocusedSeriesId] = useState(null);
     const [yUnit, setYUnit] = useState("A"); // 'A' | 'uA' | 'nA'
     const userChangedYUnitRef = useRef(false);
@@ -851,9 +890,11 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return "iv";
         return plotType;
     }, [area, plotType, ssApplicable]);
-    const { residentMainPlotTypes } = useResidentMainPlot({
-        effectivePlotType,
-    });
+    const handlePlotTypeChange = React.useCallback((nextPlotType: PlotTypeOption) => {
+        startTransition(() => {
+            setPlotType(nextPlotType);
+        });
+    }, []);
     useEffect(() => {
         const shouldEnableDrag = effectivePlotType === "ss" && ssMethod === "manual";
         const activeFileIdNow = activeFile?.fileId ?? null;
@@ -1441,121 +1482,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         return Math.max(0, Math.min(20, Math.round(manualDigits)));
     }, [axis?.xTooltipDigits, xTooltipDigitsAuto]);
     const xLabelInterval = useMemo(() => computeLabelInterval(xTicks, 7), [xTicks]);
-    const ivGmActivePlotType = effectivePlotType === "iv" || effectivePlotType === "gm"
-        ? (effectivePlotType as IvGmPlotType)
-        : null;
-    const ivGmStandbyPlotType = useMemo(() => {
-        if (!ivGmActivePlotType)
-            return null;
-        const standby: IvGmPlotType = ivGmActivePlotType === "iv" ? "gm" : "iv";
-        return residentMainPlotTypes.includes(standby) ? standby : null;
-    }, [ivGmActivePlotType, residentMainPlotTypes]);
-    const standbyMainChartProps = useMemo(() => {
-        if (!ivGmStandbyPlotType)
-            return null;
-        if (!activeFile?.series?.length)
-            return null;
-        const byType = plotSeriesByType ?? { iv: [], gm: [], ss: [], j: [] };
-        const standbyDisplaySeries = ivGmStandbyPlotType === "gm" ? byType.gm ?? [] : byType.iv ?? [];
-        const renderPointBudget = ivGmStandbyPlotType === "gm"
-            ? GM_RENDER_POINT_BUDGET
-            : DEFAULT_RENDER_POINT_BUDGET;
-        const seriesCount = Math.max(1, standbyDisplaySeries.length);
-        const renderMaxPointsPerSeries = Math.max(MIN_RENDER_SERIES_POINTS, Math.min(MAX_RENDER_SERIES_POINTS, Math.floor(renderPointBudget / seriesCount)));
-        const cacheKey = standbyDisplaySeries as unknown as object;
-        let cacheBucket = renderSeriesCacheRef.current.get(cacheKey);
-        if (!cacheBucket) {
-            cacheBucket = new Map<number, any[]>();
-            renderSeriesCacheRef.current.set(cacheKey, cacheBucket);
-        }
-        let standbyRenderSeries = cacheBucket.get(renderMaxPointsPerSeries);
-        if (!standbyRenderSeries) {
-            standbyRenderSeries = standbyDisplaySeries.map((series: any) => {
-                const fullData = Array.isArray(series?.data) ? series.data : [];
-                const nextData = downsamplePointsForDisplay(fullData, renderMaxPointsPerSeries);
-                if (nextData === fullData)
-                    return series;
-                return {
-                    ...series,
-                    data: nextData,
-                };
-            });
-            cacheBucket.set(renderMaxPointsPerSeries, standbyRenderSeries ?? []);
-        }
-        const fileId = activeFile?.fileId ?? null;
-        const cache = fileId ? getFileCache(fileId, activeFile) : null;
-        const areaKeyForMinMax = area && Number.isFinite(area) && area > 0 ? String(normalizeFloat(area)) : "";
-        const minMaxKey = `${ivGmStandbyPlotType}::${gmMode}::${plotYKey}::${areaKeyForMinMax}`;
-        let standbyMinMax = cache?.minMaxByKey?.has(minMaxKey)
-            ? cache.minMaxByKey.get(minMaxKey)
-            : null;
-        if (!standbyMinMax) {
-            standbyMinMax = computeMinMax(standbyDisplaySeries, { yKey: plotYKey });
-            if (cache?.minMaxByKey)
-                cache.minMaxByKey.set(minMaxKey, standbyMinMax);
-        }
-        const autoX = !standbyMinMax || standbyMinMax.minX === null || standbyMinMax.maxX === null
-            ? [0, 1]
-            : padLinearDomain(standbyMinMax.minX, standbyMinMax.maxX);
-        const minUserRaw = parseOptionalNumber(axis?.xMin);
-        const maxUserRaw = parseOptionalNumber(axis?.xMax);
-        const minUser = minUserRaw !== null ? minUserRaw / plotXFactor : null;
-        const maxUser = maxUserRaw !== null ? maxUserRaw / plotXFactor : null;
-        const standbyXDomain = padLinearDomain(minUser ?? autoX[0], maxUser ?? autoX[1]);
-        const tickMode = String(axis?.xTicks ?? "auto");
-        const standbyXTicks = tickMode === "auto"
-            ? buildNiceTicks(standbyXDomain[0], standbyXDomain[1], 6, {
-                preferTightRange: true,
-            }) ?? buildOriginAutoTicks(standbyXDomain[0], standbyXDomain[1], 6)
-            : tickMode === "step"
-                ? (() => {
-                    const stepRaw = parseOptionalNumber(axis?.xStep);
-                    const step = stepRaw !== null ? stepRaw / plotXFactor : null;
-                    return step ? buildStepTicks(standbyXDomain[0], standbyXDomain[1], step) : null;
-                })()
-                : buildNiceTicks(standbyXDomain[0], standbyXDomain[1], Math.max(2, Math.floor(Number(axis?.xTickCount) || 6)), {
-                    preferTightRange: false,
-                });
-        const standbyDisplayXTicks = Array.isArray(standbyXTicks)
-            ? standbyXTicks.map((tick: any) => Number(tick) * plotXFactor)
-            : null;
-        const standbyXTickDigits = inferTickDigitsFromTicks(standbyDisplayXTicks);
-        const standbyXTooltipDigitsAuto = Math.min(8, Math.max(2, standbyXTickDigits + 2));
-        const manualDigits = parseOptionalNumber(axis?.xTooltipDigits);
-        const standbyXTooltipDigits = manualDigits === null
-            ? standbyXTooltipDigitsAuto
-            : Math.max(0, Math.min(20, Math.round(manualDigits)));
-        return {
-            plotType: ivGmStandbyPlotType,
-            seriesList: standbyRenderSeries ?? [],
-            xDomain: standbyXDomain,
-            xTicks: standbyXTicks,
-            xTickDigits: standbyXTickDigits,
-            xTooltipDigits: standbyXTooltipDigits,
-            xLabelInterval: computeLabelInterval(standbyXTicks, 7),
-            plotYUnitLabel: ivGmStandbyPlotType === "gm"
-                ? toConductanceUnitLabel(resolvedYUnitMeta.label, gmUi.denomUnit)
-                : resolvedYUnitMeta.label,
-        };
-    }, [
-        activeFile?.fileId,
-        activeFile?.series?.length,
-        area,
-        axis?.xMax,
-        axis?.xMin,
-        axis?.xStep,
-        axis?.xTickCount,
-        axis?.xTicks,
-        axis?.xTooltipDigits,
-        resolvedYUnitMeta.label,
-        getFileCache,
-        gmMode,
-        gmUi.denomUnit,
-        ivGmStandbyPlotType,
-        plotSeriesByType,
-        plotYKey,
-        plotXFactor,
-    ]);
     const metricsRows = useMemo(() => {
         if (!activeFile?.series?.length)
             return [];
@@ -1809,30 +1735,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
 
           <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
             <div className="flex items-center gap-4 flex-wrap">
-              <div id="device-analysis-plot-type-toggle" className="tab_menu">
-                <button id="device-analysis-plot-iv-btn" type="button" onClick={() => setPlotType("iv")} className={`tab_btn tab_btn--control ${effectivePlotType === "iv"
-            ? "tab_btn--active"
-            : "tab_btn--inactive"}`}>
-                  I-V
-                </button>
-                <button id="device-analysis-plot-gm-btn" type="button" onClick={() => setPlotType("gm")} className={`tab_btn tab_btn--control ${effectivePlotType === "gm"
-            ? "tab_btn--active"
-            : "tab_btn--inactive"}`}>
-                  gₘ
-                </button>
-                <button id="device-analysis-plot-ss-btn" type="button" onClick={() => ssApplicable && setPlotType("ss")} disabled={!ssApplicable} className={`tab_btn tab_btn--control ${effectivePlotType === "ss"
-            ? "tab_btn--active"
-            : "tab_btn--inactive"} ${!ssApplicable ? "opacity-50 cursor-not-allowed" : ""}`} title={!ssApplicable
-            ? "SS is defined for transfer (Vg) curves. This file does not look like a Vg sweep."
-            : ""}>
-                  SS
-                </button>
-                <button id="device-analysis-plot-j-btn" type="button" onClick={() => setPlotType("j")} disabled={!area} className={`tab_btn tab_btn--control ${effectivePlotType === "j"
-            ? "tab_btn--active"
-            : "tab_btn--inactive"} ${!area ? "opacity-50 cursor-not-allowed" : ""}`} title={!area ? "Set a positive Area to enable J plot" : ""}>
-                  J
-                </button>
-              </div>
+              <PlotTypeToggle activePlotType={effectivePlotType} ssApplicable={ssApplicable} areaAvailable={Boolean(area)} onChange={handlePlotTypeChange}/>
 
 
 
@@ -2162,63 +2065,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 </div>) : null}
 
               <div ref={mainChartContainerRef} className="h-[500px] min-h-[500px] flex-shrink-0">
-                {isMainChartSizeReady ? (ivGmActivePlotType ? (<div className="relative h-full w-full">
-                    {standbyMainChartProps ? (<div className="absolute inset-0 opacity-0 pointer-events-none" aria-hidden="true">
-                        <MainPlotChart
-                          plotType={standbyMainChartProps.plotType}
-                          activeFile={activeFile}
-                          seriesList={standbyMainChartProps.seriesList}
-                          axis={axis}
-                          xDomain={standbyMainChartProps.xDomain}
-                          xTicks={standbyMainChartProps.xTicks}
-                          plotXFactor={plotXFactor}
-                          plotXUnitLabel={resolvedXUnitMeta.label}
-                          xTickDigits={standbyMainChartProps.xTickDigits}
-                          xTooltipDigits={standbyMainChartProps.xTooltipDigits}
-                          xLabelInterval={standbyMainChartProps.xLabelInterval}
-                          yScaleMode={yScaleMode}
-                          yTicksMode={axis?.yTicks}
-                          plotYFactor={plotYFactor}
-                          plotYUnitLabel={standbyMainChartProps.plotYUnitLabel}
-                          focusedSeriesId={null}
-                          focusedFitLine={null}
-                          focusedSeriesColor={focusedSeriesColor}
-                          focusedSsOverlay={null}
-                          ssOverlayStyle={ssOverlayStyle}
-                          legendWidth={0}
-                          legendContent={undefined}
-                        />
-                      </div>) : null}
-                    <div className="absolute inset-0">
-                      <MainPlotChart
-                        plotType={effectivePlotType}
-                        activeFile={activeFile}
-                        seriesList={renderPlotSeries}
-                        axis={axis}
-                        xDomain={xDomain}
-                        xTicks={xTicks}
-                        plotXFactor={plotXFactor}
-                        plotXUnitLabel={resolvedXUnitMeta.label}
-                        xTickDigits={xTickDigitsDisplay}
-                        xTooltipDigits={xTooltipDigits}
-                        xLabelInterval={xLabelInterval}
-                        yScaleMode={yScaleMode}
-                        yTicksMode={axis?.yTicks}
-                        plotYFactor={plotYFactor}
-                        plotYUnitLabel={plotYUnitLabel}
-                        focusedSeriesId={focusedSeriesId}
-                        focusedFitLine={focusedFitLineForRender}
-                        focusedSeriesColor={focusedSeriesColor}
-                        focusedSsOverlay={focusedSsOverlay}
-                        ssOverlayStyle={ssOverlayStyle}
-                        legendWidth={MAIN_PLOT_LEGEND_WIDTH}
-                        legendContent={renderOriginSelectionLegend}
-                        onMouseDown={handleSsMouseDown}
-                        onMouseMove={handleSsMouseMove}
-                        onMouseUp={handleSsMouseUp}
-                      />
-                    </div>
-                  </div>) : (<MainPlotChart
+                {isMainChartSizeReady ? (<MainPlotChart
                     plotType={effectivePlotType}
                     activeFile={activeFile}
                     seriesList={renderPlotSeries}
@@ -2244,7 +2091,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     onMouseDown={handleSsMouseDown}
                     onMouseMove={handleSsMouseMove}
                     onMouseUp={handleSsMouseUp}
-                  />)) : (<div className="h-full w-full"/>) }
+                  />) : (<div className="h-full w-full"/>) }
               </div>
 
               {effectivePlotType === "ss" && focusedSsDiagnosticsForRender ? (<div className="mt-4">
