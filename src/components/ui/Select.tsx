@@ -14,11 +14,9 @@ import {
   type RefObject,
 } from "react";
 import { Check, ChevronDown } from "lucide-react";
+import { cx } from "../../utils/cx";
 import Popup from "./Popup";
 import ScrollArea from "./ScrollArea";
-
-const cx = (...parts: Array<string | false | null | undefined>): string =>
-  parts.filter(Boolean).join(" ");
 
 const hasWidthConstraintClass = (className: string): boolean => {
   if (!className.trim()) return false;

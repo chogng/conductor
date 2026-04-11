@@ -8,6 +8,13 @@ import {
   type DeviceAnalysisCurveKind,
   type DeviceAnalysisCurveSource,
 } from "./deviceAnalysisCurveClassification.js";
+import {
+  approxEqual,
+  computeSpan,
+  normalizeCellText,
+  parseFiniteNumber,
+} from "./deviceAnalysisSharedUtils.js";
+import { getExcelColumnLabel } from "./deviceAnalysisUtils.js";
 
 export const DEVICE_ANALYSIS_AUTO_TEMPLATE_ID = "__auto__";
 
@@ -46,46 +53,12 @@ export type DeviceAnalysisAutoExtractionResult =
       plan: DeviceAnalysisAutoExtractionPlan;
     };
 
-const normalizeCellText = (value: unknown): string =>
-  String(value ?? "")
-    .trim()
-    .replace(/^"+|"+$/g, "")
-    .trim();
-
 const AUTO_SEGMENTATION_MIN_GROUP_SIZE = 2;
 const AUTO_SEGMENTATION_MIN_GROUPS = 2;
 const AUTO_SEGMENTATION_REPEAT_THRESHOLD = 0.9;
 
-const parseFiniteNumber = (value: unknown): number | null => {
-  const normalized = normalizeCellText(value);
-  if (!normalized) return null;
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : null;
-};
-
-const approxEqual = (left: number, right: number, tolerance: number): boolean =>
-  Math.abs(left - right) <= tolerance;
-
-const computeSpan = (values: number[]): number | null => {
-  const finiteValues = values.filter((value) => Number.isFinite(value));
-  if (finiteValues.length < 2) return null;
-  return Math.max(...finiteValues) - Math.min(...finiteValues);
-};
-
-const toExcelColumnLabel = (index: number): string => {
-  let label = "";
-  let nextIndex = index;
-
-  while (nextIndex >= 0) {
-    label = String.fromCharCode(65 + (nextIndex % 26)) + label;
-    nextIndex = Math.floor(nextIndex / 26) - 1;
-  }
-
-  return label;
-};
-
 const toCellRef = (rowIndex: number, colIndex: number): string =>
-  `${toExcelColumnLabel(colIndex)}${rowIndex + 1}`;
+  `${getExcelColumnLabel(colIndex)}${rowIndex + 1}`;
 
 const getNormalizedRow = (
   rows: Array<Array<unknown> | null | undefined>,

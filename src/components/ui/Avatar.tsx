@@ -1,8 +1,6 @@
 import type { ComponentType, HTMLAttributes } from "react";
 import { normalizeCtaName, normalizeCtaToken } from "../../utils/cta";
-
-const cx = (...classes: Array<string | false | null | undefined>): string =>
-  classes.filter(Boolean).join(" ");
+import { cx } from "../../utils/cx";
 
 type AvatarSize = "sm" | "md" | "lg" | "xl";
 type AvatarVariant = "default" | "empty";

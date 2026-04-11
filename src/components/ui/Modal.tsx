@@ -1,9 +1,7 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { normalizeCtaName, normalizeCtaToken } from "../../utils/cta";
-
-const cx = (...parts: Array<string | false | null | undefined>): string =>
-  parts.filter(Boolean).join(" ");
+import { cx } from "../../utils/cx";
 
 const MODAL_OVERLAY_CLASS = "modal-overlay";
 const MODAL_BACKDROP_CLASS = "modal-backdrop";

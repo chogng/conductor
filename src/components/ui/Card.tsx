@@ -5,9 +5,7 @@ import {
   type HTMLAttributes,
 } from "react";
 import { normalizeCtaName, normalizeCtaToken } from "../../utils/cta";
-
-const cx = (...parts: Array<string | false | null | undefined>): string =>
-  parts.filter(Boolean).join(" ");
+import { cx } from "../../utils/cx";
 
 type CardVariant = "default" | "panel" | "glass" | "flat" | "fill";
 

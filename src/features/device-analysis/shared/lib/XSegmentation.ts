@@ -1,3 +1,5 @@
+import { approxEqual, parseFiniteNumber } from "./deviceAnalysisSharedUtils.js";
+
 export type XSegmentationMode = "auto" | "points" | "segments";
 
 type CellRef = {
@@ -45,27 +47,11 @@ const parseCellRef = (value: unknown): CellRef | null => {
   };
 };
 
-const parseFiniteNumber = (value: unknown): number | null => {
-  if (typeof value === "number") {
-    return Number.isFinite(value) ? value : null;
-  }
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    if (!trimmed) return null;
-    const parsed = Number(trimmed);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
-};
-
 const normalizePreviewRowCount = (value: unknown): number | null => {
   const rowCount = Number(value);
   if (!Number.isInteger(rowCount) || rowCount <= 0) return null;
   return rowCount;
 };
-
-const approxEqual = (a: number, b: number, tolerance: number): boolean =>
-  Math.abs(a - b) <= tolerance;
 
 export const resolveXSegmentationMode = (
   modeRaw: unknown,

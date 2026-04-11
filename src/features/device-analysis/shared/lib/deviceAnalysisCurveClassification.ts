@@ -1,3 +1,9 @@
+import {
+  computeSpan,
+  normalizeCellText,
+  parseFiniteNumber,
+} from "./deviceAnalysisSharedUtils.js";
+
 export type DeviceAnalysisAxisRole = "vg" | "vd";
 
 export type DeviceAnalysisCurveKind = "transfer" | "output" | "unknown";
@@ -55,12 +61,6 @@ type CurveEvidence = {
   source: NonNullable<DeviceAnalysisCurveSource>;
   weight: number;
 };
-
-const normalizeCellText = (value: unknown): string =>
-  String(value ?? "")
-    .trim()
-    .replace(/^"+|"+$/g, "")
-    .trim();
 
 const firstNonEmpty = (values: unknown[]): string => {
   for (const value of values) {
@@ -142,13 +142,6 @@ const deriveVarNameFromChannelMeta = ({
   return normalizeCellText(channelVNames[index]);
 };
 
-const parseFiniteNumber = (value: unknown): number | null => {
-  const normalized = normalizeCellText(value);
-  if (!normalized) return null;
-  const parsed = Number(normalized);
-  return Number.isFinite(parsed) ? parsed : null;
-};
-
 const computeQuantile = (values: number[], quantile: number): number | null => {
   if (!Array.isArray(values) || !values.length) return null;
   const sorted = values
@@ -166,12 +159,6 @@ const computeQuantile = (values: number[], quantile: number): number | null => {
   if (lowerIndex === upperIndex) return sorted[lowerIndex];
   const ratio = position - lowerIndex;
   return sorted[lowerIndex] + (sorted[upperIndex] - sorted[lowerIndex]) * ratio;
-};
-
-const computeSpan = (values: number[]): number | null => {
-  const finiteValues = values.filter((value) => Number.isFinite(value));
-  if (finiteValues.length < 2) return null;
-  return Math.max(...finiteValues) - Math.min(...finiteValues);
 };
 
 const computeRobustLogSpan = (values: number[]): number | null => {

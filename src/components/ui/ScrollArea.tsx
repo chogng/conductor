@@ -10,9 +10,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
-
-const cx = (...parts: Array<string | false | null | undefined>): string =>
-  parts.filter(Boolean).join(" ");
+import { cx } from "../../utils/cx";
 
 const MIN_THUMB_SIZE = 24;
 

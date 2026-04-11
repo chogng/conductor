@@ -1,9 +1,7 @@
 import { useEffect, type HTMLAttributes, type RefObject } from "react";
+import { cx } from "../../utils/cx";
 import Popup from "./Popup";
 import ScrollArea from "./ScrollArea";
-
-const cx = (...parts: Array<string | false | null | undefined>): string =>
-  parts.filter(Boolean).join(" ");
 
 const DEFAULT_MENU_CLASSNAME =
   "!bg-bg-surface !backdrop-blur-none text-text-primary p-1.5";
