@@ -29,6 +29,9 @@ export type DeviceAnalysisAutoExtractionPlan = {
   legendPrefix: string;
   legendStartColIndex: number | null;
   legendStartRowIndex: number | null;
+  legendStartValue: string | null;
+  legendCount: number | null;
+  legendStep: number | null;
   legendTarget: "auto" | "group";
   needsTemplate: boolean;
   reasons: string[];
@@ -365,12 +368,14 @@ const currentHeaderLooksLikeDrainCurrent = (header: string): boolean => {
 
 const findFirstMatchingColumn = ({
   dataStartRowIndex,
+  fallbackToFirst = true,
   headers,
   rows,
   type,
   role,
 }: {
   dataStartRowIndex: number;
+  fallbackToFirst?: boolean;
   headers: string[];
   role: DeviceAnalysisAxisRole | null;
   rows: Array<Array<unknown> | null | undefined>;
@@ -403,7 +408,7 @@ const findFirstMatchingColumn = ({
     if (roleCandidate) return roleCandidate.index;
   }
 
-  return candidates[0]?.index ?? null;
+  return fallbackToFirst ? (candidates[0]?.index ?? null) : null;
 };
 
 const resolveLabelForRole = (
@@ -413,6 +418,59 @@ const resolveLabelForRole = (
   if (role === "vg") return "Vg";
   if (role === "vd") return "Vd";
   return fallback;
+};
+
+const parseVoltageLikeValue = (raw: string): number | null => {
+  const normalized = normalizeCellText(raw);
+  if (!normalized) return null;
+  const match = normalized.match(/([-+]?\d*\.?\d+(?:e[-+]?\d+)?)\s*([a-zA-Zuμ]*)/);
+  if (!match) return null;
+  const value = Number(match[1]);
+  if (!Number.isFinite(value)) return null;
+  const unit = (match[2] || "").toLowerCase();
+  const factor =
+    unit === "mv"
+      ? 1e-3
+      : unit === "uv" || unit === "μv"
+        ? 1e-6
+        : unit === "kv"
+          ? 1e3
+          : 1;
+  return value * factor;
+};
+
+const parsePositiveIntegerText = (raw: string): number | null => {
+  const normalized = normalizeCellText(raw);
+  if (!normalized) return null;
+  const match = normalized.match(/(\d+)/);
+  if (!match) return null;
+  const value = Number(match[1]);
+  return Number.isInteger(value) && value > 0 ? value : null;
+};
+
+const parseVarSweepFromNotes = (
+  notesText: string,
+  varTag: "VAR1" | "VAR2",
+): {
+  count: number | null;
+  start: number | null;
+  step: number | null;
+} | null => {
+  const blockMatch = notesText.match(
+    new RegExp(`\\[${varTag}\\]([\\s\\S]*?)(?=\\[[A-Z]+\\]|$)`, "i"),
+  );
+  const block = blockMatch?.[1] ?? "";
+  if (!block) return null;
+
+  const startMatch = block.match(/Start=([^,\]\t]+)/i);
+  const stepMatch = block.match(/Step=([^,\]\t]+)/i);
+  const countMatch = block.match(/No\.\s*of\s*Steps=([^,\]\t]+)/i);
+  const start = startMatch ? parseVoltageLikeValue(startMatch[1]) : null;
+  const step = stepMatch ? parseVoltageLikeValue(stepMatch[1]) : null;
+  const count = countMatch ? parsePositiveIntegerText(countMatch[1]) : null;
+
+  if (start === null && step === null && count === null) return null;
+  return { count, start, step };
 };
 
 const inferStrippedChannelPlan = ({
@@ -497,6 +555,9 @@ const inferStrippedChannelPlan = ({
       legendPrefix: resolveLabelForRole(biasRole, headers[fixedVoltageCol] || "Bias"),
       legendStartColIndex: hasGroupedLegend ? fixedVoltageCol : null,
       legendStartRowIndex: hasGroupedLegend ? dataStartRowIndex : null,
+      legendStartValue: null,
+      legendCount: null,
+      legendStep: null,
       legendTarget: hasGroupedLegend ? "group" : "auto",
       needsTemplate: classification.needsTemplate,
       reasons: classification.reasons,
@@ -517,6 +578,7 @@ const inferGenericPlan = ({
   dataStartRowIndex,
   fileName,
   headers,
+  metadata,
   rows,
   totalRowCount,
 }: {
@@ -524,6 +586,7 @@ const inferGenericPlan = ({
   dataStartRowIndex: number;
   fileName: unknown;
   headers: string[];
+  metadata: ReturnType<typeof extractDeviceAnalysisCurveMetadata>;
   rows: Array<Array<unknown> | null | undefined>;
   totalRowCount?: number | null;
 }): DeviceAnalysisAutoExtractionResult => {
@@ -571,15 +634,24 @@ const inferGenericPlan = ({
   const biasRole = classification.xAxisRole === "vg" ? "vd" : "vg";
   const legendCol = findFirstMatchingColumn({
     dataStartRowIndex,
+    fallbackToFirst: false,
     headers,
     role: biasRole,
     rows,
     type: "voltage",
   });
+  const var2Role = detectDeviceAnalysisAxisRole(metadata.var2Name);
+  const generatedLegendSweep =
+    legendCol === null && var2Role === biasRole
+      ? parseVarSweepFromNotes(metadata.notesText, "VAR2")
+      : null;
   const normalizedGroupSize =
     Number.isInteger(groupSize) && Number(groupSize) > 0 ? Number(groupSize) : null;
   const hasGroupedLegend =
-    legendCol !== null && normalizedGroupSize !== null && (groups ?? 0) > 1;
+    normalizedGroupSize !== null &&
+    (groups ?? 0) > 1 &&
+    (legendCol !== null ||
+      (generatedLegendSweep?.start !== null && generatedLegendSweep?.count !== null));
   const yHeader = headers[yCol] || "Y";
 
   return {
@@ -595,9 +667,24 @@ const inferGenericPlan = ({
       legendPrefix:
         legendCol !== null
           ? resolveLabelForRole(biasRole, headers[legendCol] || "Bias")
-          : "",
+          : resolveLabelForRole(biasRole, metadata.var2Name || "Bias"),
       legendStartColIndex: hasGroupedLegend ? legendCol : null,
       legendStartRowIndex: hasGroupedLegend ? dataStartRowIndex : null,
+      legendStartValue:
+        hasGroupedLegend &&
+        legendCol === null &&
+        generatedLegendSweep &&
+        generatedLegendSweep.start !== null
+          ? String(generatedLegendSweep.start)
+          : null,
+      legendCount:
+        hasGroupedLegend && legendCol === null
+          ? (generatedLegendSweep?.count ?? null)
+          : null,
+      legendStep:
+        hasGroupedLegend && legendCol === null
+          ? (generatedLegendSweep?.step ?? null)
+          : null,
       legendTarget: hasGroupedLegend ? "group" : "auto",
       needsTemplate: classification.needsTemplate,
       reasons: classification.reasons,
@@ -657,6 +744,7 @@ export const inferDeviceAnalysisAutoExtraction = ({
     dataStartRowIndex,
     fileName,
     headers,
+    metadata,
     rows: safeRows,
     totalRowCount,
   });
@@ -680,12 +768,12 @@ export const buildDeviceAnalysisAutoTemplateConfig = (
     xSegmentationMode: plan.xSegmentationMode,
     xUnit: plan.xUnit,
     yColumns: [...plan.yCols],
-    yLegendCount: "",
+    yLegendCount: plan.legendCount !== null ? String(plan.legendCount) : "",
     yLegendStart:
       plan.legendStartColIndex !== null && plan.legendStartRowIndex !== null
         ? toCellRef(plan.legendStartRowIndex, plan.legendStartColIndex)
-        : "",
-    yLegendStep: "",
+        : plan.legendStartValue ?? "",
+    yLegendStep: plan.legendStep !== null ? String(plan.legendStep) : "",
     yLegendTarget: plan.legendTarget,
     yUnit: plan.yUnit,
   };
@@ -724,6 +812,9 @@ export const buildDeviceAnalysisAutoWorkerConfig = (
             rowIndex: plan.legendStartRowIndex,
           }
         : null,
+    yLegendStartValue: plan.legendStartValue,
+    yLegendCount: plan.legendCount,
+    yLegendStep: plan.legendStep,
     yLegendTarget: plan.legendTarget,
     yUnit: plan.yUnit,
   };

@@ -63,6 +63,62 @@ const parseNumberStrict = (raw: any): number | null => {
     }
     return null;
 };
+const trimCompactExponent = (text: string): string => text.replace(/e([+-])0+(\d+)/i, "e$1$2");
+const trimTrailingZeros = (text: string): string => trimCompactExponent(text
+    .replace(/(\.\d*?[1-9])0+$/i, "$1")
+    .replace(/\.0+$/i, ""));
+const formatCompactNumericLabel = (value: number): string | null => {
+    if (!Number.isFinite(value))
+        return null;
+    const normalized = Number(value);
+    if (Math.abs(normalized) < 1e-12)
+        return "0";
+    const roundedInteger = Math.round(normalized);
+    const integerTolerance = Math.max(1e-12, Math.abs(normalized) * 1e-9);
+    if (Math.abs(normalized - roundedInteger) <= integerTolerance) {
+        return String(roundedInteger);
+    }
+    const abs = Math.abs(normalized);
+    if (abs >= 1e-3 && abs < 1e4) {
+        return trimTrailingZeros(normalized.toFixed(6));
+    }
+    return trimCompactExponent(normalized.toExponential(3));
+};
+const normalizeNearZeroLegendLabels = (labels: Array<string | null> | null): Array<string | null> | null => {
+    if (!Array.isArray(labels) || labels.length === 0)
+        return labels;
+    const numericValues = labels.map((label) => typeof label === "string" ? parseNumberStrict(label) : null);
+    const finiteValues = numericValues.filter((value): value is number => Number.isFinite(value));
+    if (finiteValues.length < 3)
+        return labels;
+    const hasNegative = finiteValues.some((value) => value < 0);
+    const hasPositive = finiteValues.some((value) => value > 0);
+    const hasZero = finiteValues.some((value) => value === 0);
+    if (!hasNegative || !hasPositive || hasZero)
+        return labels;
+    const absValues = finiteValues
+        .map((value) => Math.abs(value))
+        .filter((value) => value > 0)
+        .sort((a, b) => a - b);
+    if (!absValues.length)
+        return labels;
+    const medianIndex = Math.floor(absValues.length / 2);
+    const medianAbs = absValues.length % 2 === 1
+        ? (absValues[medianIndex] ?? null)
+        : ((absValues[medianIndex - 1] ?? 0) + (absValues[medianIndex] ?? 0)) / 2;
+    if (!Number.isFinite(medianAbs) || medianAbs <= 0)
+        return labels;
+    const zeroTolerance = Math.max(1e-12, medianAbs * 1e-4);
+    let changed = false;
+    const nextLabels = labels.map((label, index) => {
+        const numericValue = numericValues[index];
+        if (numericValue === null || Math.abs(numericValue) > zeroTolerance)
+            return label;
+        changed = true;
+        return "0";
+    });
+    return changed ? nextLabels : labels;
+};
 const approxEqual = (a: any, b: any, tolerance: any): boolean => Math.abs(a - b) <= tolerance;
 const inferAutoSegmentationFromXValues = (xValues: any, totalRaw: any): { groupSize: number; groups: number } | null => {
     const values = Array.isArray(xValues) ? xValues : [];
@@ -756,16 +812,19 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
         if (raw === null || raw === undefined)
             return null;
         if (typeof raw === "number") {
-            return Number.isFinite(raw) ? String(raw) : null;
+            return formatCompactNumericLabel(raw);
         }
         const text = String(raw).trim();
-        return text ? text : null;
+        if (!text)
+            return null;
+        const numericValue = parseNumberStrict(text);
+        return numericValue === null ? text : formatCompactNumericLabel(numericValue);
     };
     const formatGeneratedLegendValue = (value: any) => {
         if (!Number.isFinite(value))
             return null;
         const normalized = Number(value.toPrecision(12));
-        return Number.isFinite(normalized) ? String(normalized) : null;
+        return Number.isFinite(normalized) ? formatCompactNumericLabel(normalized) : null;
     };
     const tryReadPositiveIntegerCell = async (cell: any): Promise<number | null> => {
         if (!cell || typeof cell !== "object")
@@ -1057,6 +1116,7 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
     if (seenRowsInRange !== expectedTotal) {
         throw new Error(`${fileName}: X end row (${endRow + 1}) exceeds total parsed rows (${currentRowIndex + 1}).`);
     }
+    yLegendLabels = normalizeNearZeroLegendLabels(yLegendLabels);
     // Finalize applicability/curve labels.
     // File-name mapping now serves as template applicability gating only.
     if (useFileNameMapping) {
