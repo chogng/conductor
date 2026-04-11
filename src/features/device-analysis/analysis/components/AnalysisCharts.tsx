@@ -17,7 +17,7 @@ import { useOriginCanvasExport } from "../useOriginCanvasExport";
 import OverviewGrid from "./OverviewGrid";
 import CalculatedParametersRow from "./CalculatedParametersRow";
 import { buildLogTicks, buildNiceTicks, buildOriginAutoTicks, buildPoints, buildStepTicks, computeLabelInterval, computeMinMax, downsamplePointsForDisplay, inferTickDigitsFromTicks, normalizeFloat, normalizeVarToken, padLinearDomain, padLogDomain, parseOptionalNumber, preserveScrollPosition, varTokenToSymbol, } from "../lib/analysisChartsUtils";
-import { computeBaseCurrentMetrics, isTransferLikeDeviceAnalysisFile, } from "../lib/deviceAnalysisMetrics";
+import { computeBaseCurrentMetrics, isOutputLikeDeviceAnalysisFile, isTransferLikeDeviceAnalysisFile, } from "../lib/deviceAnalysisMetrics";
 import { getDeviceAnalysisXUnitMeta, getDeviceAnalysisYUnitMeta, normalizeDeviceAnalysisYUnit, } from "../lib/deviceAnalysisUnits";
 import MainPlotChart from "./MainPlotChart";
 import SsDiagnosticsChart from "./SsDiagnosticsChart";
@@ -48,11 +48,10 @@ const MIN_RENDER_SERIES_POINTS = 120;
 const DEFAULT_RENDER_POINT_BUDGET = 12000;
 const GM_RENDER_POINT_BUDGET = 9000;
 const MAIN_PLOT_LEGEND_WIDTH = 220;
-const CALCULATED_PARAMETERS_COLUMN_WIDTHS_PX = [
+const TRANSFER_CALCULATED_PARAMETERS_COLUMN_WIDTHS_PX = [
     92, 128, 88, 128, 88, 120, 168, 88, 104, 88, 120,
 ];
-const CALCULATED_PARAMETERS_TABLE_MIN_WIDTH_PX =
-    CALCULATED_PARAMETERS_COLUMN_WIDTHS_PX.reduce((total, width) => total + width, 0);
+const DERIVATIVE_ONLY_CALCULATED_PARAMETERS_COLUMN_WIDTHS_PX = [92, 168, 88];
 const toConductanceUnitLabel = (currentUnitLabel: string, denominatorUnit: string): string => {
     if (denominatorUnit !== "V")
         return `${currentUnitLabel}/${denominatorUnit}`;
@@ -381,8 +380,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return null;
         return num;
     }, [areaInput]);
-    const ssHeuristicApplicable = useMemo(() => isTransferLikeDeviceAnalysisFile(activeFile), [activeFile]);
-    const currentMetricsApplicable = useMemo(() => isTransferLikeDeviceAnalysisFile(activeFile), [activeFile]);
+    const transferMetricsApplicable = useMemo(() => isTransferLikeDeviceAnalysisFile(activeFile), [activeFile]);
+    const outputMetricsApplicable = useMemo(() => isOutputLikeDeviceAnalysisFile(activeFile), [activeFile]);
+    const calculatedParametersMode = useMemo(() => transferMetricsApplicable ? "transfer" : outputMetricsApplicable ? "output" : "generic", [outputMetricsApplicable, transferMetricsApplicable]);
+    const ssHeuristicApplicable = transferMetricsApplicable;
     const gmUi = useMemo(() => {
         const xToken = normalizeVarToken(activeFile?.xAxisRole ?? activeFile?.curveType);
         const legendToken = normalizeVarToken(activeFile?.legend?.varToken);
@@ -889,7 +890,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         }
         return false;
     }, [activeFile?.series, analysisBySeriesId]);
-    const ssApplicable = ssHeuristicApplicable || ssComputedApplicable;
+    const ssApplicable = transferMetricsApplicable && (ssHeuristicApplicable || ssComputedApplicable);
     const effectivePlotType = useMemo(() => {
         if (plotType === "j" && !area)
             return "iv";
@@ -1129,7 +1130,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         return { fill: "#60a5fa", fillOpacity: 0.08, stroke: "#60a5fa", strokeOpacity: 0.45 };
     }, [focusedSsOverlay?.kind]);
     const focusedCurrentOverlays = useMemo(() => {
-        if (!currentMetricsApplicable)
+        if (!transferMetricsApplicable)
             return [];
         const metrics = focusedAnalysis?.metrics ?? null;
         const candidateWindows = Array.isArray(metrics?.currentCandidateWindows)
@@ -1173,9 +1174,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         pushSelected(metrics?.ionWindow, "ion");
         pushSelected(metrics?.ioffWindow, "ioff");
         return overlays;
-    }, [currentMetricsApplicable, focusedAnalysis?.metrics]);
+    }, [focusedAnalysis?.metrics, transferMetricsApplicable]);
     const focusedCurrentSummary = useMemo(() => {
-        if (!currentMetricsApplicable)
+        if (!transferMetricsApplicable)
             return null;
         const metrics = focusedAnalysis?.metrics ?? null;
         if (!metrics)
@@ -1190,20 +1191,20 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const modeLabel = metrics?.currentMethod === "manual" ? "Manual bias" : "Auto";
         return `Ion/Ioff (${modeLabel}): Ion ${ionSummary} | Ioff ${ioffSummary}`;
     }, [
-        currentMetricsApplicable,
         focusedAnalysis?.metrics,
         ionIoffManualTargets?.ioffX,
         ionIoffManualTargets?.ionX,
         ionIoffMethod,
         plotXFactor,
+        transferMetricsApplicable,
     ]);
     const focusedCurrentLegend = useMemo(() => {
-        if (!currentMetricsApplicable)
+        if (!transferMetricsApplicable)
             return null;
         return ionIoffMethod === "manual"
             ? "Gray bands show auto candidates; green/red bands show the manual Ion/Ioff windows now in use."
             : "Gray bands show auto candidates; green and red bands mark the selected Ion and Ioff windows.";
-    }, [currentMetricsApplicable, ionIoffMethod]);
+    }, [ionIoffMethod, transferMetricsApplicable]);
     const focusedSeriesColor = useMemo(() => {
         const idx = (plotSeriesByType?.iv ?? []).findIndex((s: any) => s?.id === focusedSeriesId);
         if (idx < 0)
@@ -1819,9 +1820,16 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const window = role === "ion" ? row.ionWindow : row.ioffWindow;
         return formatCurrentWindowSummary(window, plotXFactor, xTooltipDigits);
     }, [plotXFactor, xTooltipDigits]);
-    const metricsRowElements = useMemo(() => metricsRows.map((row: any) => (<CalculatedParametersRow key={row.id} row={row} buildCurrentTooltip={buildCurrentTooltip} buildSsTooltip={buildSsTooltip}/>)), [buildCurrentTooltip, buildSsTooltip, metricsRows]);
-    const calculatedParametersSummary =
-        `${gmUi.summaryLabel}: max |${gmUi.metricSymbol}|, SS: fit (mV/dec), J uses |I|/Area`;
+    const calculatedParametersColumnWidths = useMemo(() => calculatedParametersMode === "transfer"
+        ? TRANSFER_CALCULATED_PARAMETERS_COLUMN_WIDTHS_PX
+        : DERIVATIVE_ONLY_CALCULATED_PARAMETERS_COLUMN_WIDTHS_PX, [calculatedParametersMode]);
+    const calculatedParametersTableMinWidth = useMemo(() => calculatedParametersColumnWidths.reduce((total, width) => total + width, 0), [calculatedParametersColumnWidths]);
+    const metricsRowElements = useMemo(() => metricsRows.map((row: any) => (<CalculatedParametersRow key={row.id} row={row} buildCurrentTooltip={buildCurrentTooltip} buildSsTooltip={buildSsTooltip} showTransferMetrics={calculatedParametersMode === "transfer"}/>)), [buildCurrentTooltip, buildSsTooltip, calculatedParametersMode, metricsRows]);
+    const calculatedParametersSummary = useMemo(() => calculatedParametersMode === "transfer"
+        ? `${gmUi.summaryLabel}: max |${gmUi.metricSymbol}|, SS: fit (mV/dec), J uses |I|/Area`
+        : calculatedParametersMode === "output"
+            ? `${gmUi.summaryLabel}: max |${gmUi.metricSymbol}| (output)`
+            : `${gmUi.summaryLabel}: max |${gmUi.metricSymbol}|`, [calculatedParametersMode, gmUi.metricSymbol, gmUi.summaryLabel]);
     if (!processedData || processedData.length === 0)
         return null;
     return (<div className="h-full min-h-0 grid grid-cols-1 md:grid-rows-1 md:grid-cols-[var(--analysis-sidebar-width)_minmax(0,1fr)] gap-1 md:gap-1" ref={toastContainerRef} style={{
@@ -2020,7 +2028,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                       </div>) : null}
                   </div>) : null}
 
-                {currentMetricsApplicable ? (<div className="flex items-center gap-2">
+                {transferMetricsApplicable ? (<div className="flex items-center gap-2">
                     <div className="flex items-center gap-1">
                       <span className="text-xs text-text-secondary whitespace-nowrap">
                         Ion/Ioff:
@@ -2085,7 +2093,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
           </div>
 
           {effectivePlotType === "ss" && ssSummary ? (<SsSummaryStrip summary={ssSummary}/>) : null}
-          {currentMetricsApplicable ? (<div className="mb-3 flex flex-col gap-1 rounded-lg border border-border/60 bg-bg-page/70 px-3 py-2 text-xs text-text-secondary">
+          {transferMetricsApplicable ? (<div className="mb-3 flex flex-col gap-1 rounded-lg border border-border/60 bg-bg-page/70 px-3 py-2 text-xs text-text-secondary">
               <div className="text-text-primary">
                 {focusedCurrentSummary}
               </div>
@@ -2275,18 +2283,17 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 className="min-w-0 flex-1 truncate text-right text-xs text-text-secondary"
                 title={calculatedParametersSummary}
               >
-                {gmUi.summaryLabel}: max |{gmUi.metricSymbol}| · SS: fit (mV/dec) ·
-                J uses |I|/Area
+                {calculatedParametersSummary}
               </div>
             </div>
 
             <ScrollArea axis="x" className="min-w-0 w-full">
               <table
                 className="w-full table-fixed text-sm border-collapse"
-                style={{ minWidth: CALCULATED_PARAMETERS_TABLE_MIN_WIDTH_PX }}
+                style={{ minWidth: calculatedParametersTableMinWidth }}
               >
                 <colgroup>
-                  {CALCULATED_PARAMETERS_COLUMN_WIDTHS_PX.map((width, index) => (
+                  {calculatedParametersColumnWidths.map((width, index) => (
                     <col key={index} style={{ width }}/>
                   ))}
                 </colgroup>
@@ -2298,59 +2305,67 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     >
                       {t("da_calc_group_series")}
                     </th>
-                    <th colSpan={2} className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-emerald-500/5">
-                      {t("da_calc_group_on_state")}
-                    </th>
-                    <th colSpan={2} className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-cyan-500/5">
-                      {t("da_calc_group_off_state")}
-                    </th>
-                    <th className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border">
-                      {t("da_calc_group_ratio")}
-                    </th>
+                    {transferMetricsApplicable ? (<>
+                        <th colSpan={2} className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-emerald-500/5">
+                          {t("da_calc_group_on_state")}
+                        </th>
+                        <th colSpan={2} className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-cyan-500/5">
+                          {t("da_calc_group_off_state")}
+                        </th>
+                        <th className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border">
+                          {t("da_calc_group_ratio")}
+                        </th>
+                      </>) : null}
                     <th colSpan={2} className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-amber-500/5">
                       {t("da_calc_group_derivative")}
                     </th>
-                    <th colSpan={2} className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-rose-500/5">
-                      {t("da_calc_group_ss")}
-                    </th>
-                    <th
-                      className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border"
-                      title={t("da_calc_group_jon_hint")}
-                    >
-                      {t("da_calc_group_jon")}
-                    </th>
+                    {transferMetricsApplicable ? (<>
+                        <th colSpan={2} className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-rose-500/5">
+                          {t("da_calc_group_ss")}
+                        </th>
+                        <th
+                          className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border"
+                          title={t("da_calc_group_jon_hint")}
+                        >
+                          {t("da_calc_group_jon")}
+                        </th>
+                      </>) : null}
                   </tr>
                   <tr className="border-b border-border">
-                    <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-emerald-500/5">
-                      |I|on
-                    </th>
-                    <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-emerald-500/5">
-                      x
-                    </th>
-                    <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-cyan-500/5">
-                      |I|off
-                    </th>
-                    <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-cyan-500/5">
-                      x
-                    </th>
-                    <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border">
-                      Ion/Ioff
-                    </th>
+                    {transferMetricsApplicable ? (<>
+                        <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-emerald-500/5">
+                          |I|on
+                        </th>
+                        <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-emerald-500/5">
+                          x
+                        </th>
+                        <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-cyan-500/5">
+                          |I|off
+                        </th>
+                        <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-cyan-500/5">
+                          x
+                        </th>
+                        <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border">
+                          Ion/Ioff
+                        </th>
+                      </>) : null}
                     <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-amber-500/5">
                       {gmUi.metricHeader}
                     </th>
                     <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-amber-500/5">
                       x
                     </th>
-                    <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-rose-500/5">
-                      SS
-                    </th>
-                    <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-rose-500/5">
-                      x
-                    </th>
-                    <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border" title={t("da_calc_group_jon_hint")}>
-                      Jon
-                    </th>
+                    {transferMetricsApplicable ? (<>
+                        <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-rose-500/5">
+                          SS
+                        </th>
+                        <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-rose-500/5">
+                          x
+                        </th>
+                        <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border" title={t("da_calc_group_jon_hint")}>
+                          Jon
+                        </th>
+                      </>) : null}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">

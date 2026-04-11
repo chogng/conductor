@@ -266,6 +266,22 @@ export const isTransferLikeDeviceAnalysisFile = (
   return label.includes("vg");
 };
 
+export const isOutputLikeDeviceAnalysisFile = (
+  file: DeviceAnalysisFileLike | null | undefined,
+): boolean => {
+  if (file?.supportsSs === true) return false;
+  if (file?.supportsSs === false) return true;
+
+  const xAxisRole = String(file?.xAxisRole || "").toLowerCase();
+  if (xAxisRole) return xAxisRole === "vd";
+
+  const curveType = String(file?.curveType || "").toLowerCase();
+  if (curveType) return curveType.includes("vd") || curveType.includes("output");
+
+  const label = String(file?.xLabel || "").toLowerCase();
+  return label.includes("vd");
+};
+
 export const computeBaseCurrentMetrics = ({
   manualTargets,
   method = "auto",

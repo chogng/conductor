@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   computeBaseCurrentMetrics,
+  isOutputLikeDeviceAnalysisFile,
   isTransferLikeDeviceAnalysisFile,
 } from "./deviceAnalysisMetrics.ts";
 
@@ -13,6 +14,16 @@ test("isTransferLikeDeviceAnalysisFile recognizes Vg sweeps", () => {
   );
   assert.equal(isTransferLikeDeviceAnalysisFile({ xLabel: "Vg (V)" }), true);
   assert.equal(isTransferLikeDeviceAnalysisFile({ xAxisRole: "vd" }), false);
+});
+
+test("isOutputLikeDeviceAnalysisFile recognizes Vd sweeps", () => {
+  assert.equal(isOutputLikeDeviceAnalysisFile({ xAxisRole: "vd" }), true);
+  assert.equal(
+    isOutputLikeDeviceAnalysisFile({ curveType: "output curve" }),
+    true,
+  );
+  assert.equal(isOutputLikeDeviceAnalysisFile({ xLabel: "Vd (V)" }), true);
+  assert.equal(isOutputLikeDeviceAnalysisFile({ xAxisRole: "vg" }), false);
 });
 
 test("computeBaseCurrentMetrics uses sweep endpoints for n-type transfer curves", () => {
