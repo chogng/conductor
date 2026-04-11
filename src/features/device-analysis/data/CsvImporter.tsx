@@ -150,9 +150,6 @@ const CsvFileItem = React.memo(
           </div>
         </div>
         <div className={styles.fileActions}>
-          {needsReview ? (
-            <span className={styles.reviewBadge}>Needs review</span>
-          ) : null}
           <button
             type="button"
             aria-label="Remove CSV file"
