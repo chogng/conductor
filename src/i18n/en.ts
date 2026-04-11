@@ -9,7 +9,6 @@
     da_apply_to_new_files_requires_same_config: 'Template changed. Please Apply to All again.',
     da_auto_template: 'Auto',
     da_auto_template_hint: 'Infer columns and grouping per file',
-    da_auto_template_preview_locked: 'Preview column picks are locked in Auto mode; each file is inferred independently.',
     da_auto_template_summary_title: 'Auto extraction',
     da_auto_template_summary_pending: 'Inspecting the current preview file…',
     da_auto_template_summary_failed: 'Auto extraction could not infer this preview yet.',

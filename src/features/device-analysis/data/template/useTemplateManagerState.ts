@@ -19,6 +19,7 @@ import {
 } from "./templateManagerUtils";
 import { normalizeDeviceAnalysisYUnit } from "../../analysis/lib/deviceAnalysisUnits";
 import { resolveXSegmentationMode } from "../../shared/lib/XSegmentation";
+import { DEVICE_ANALYSIS_AUTO_TEMPLATE_ID } from "../../shared/lib/deviceAnalysisAutoExtraction";
 import { DEVICE_ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT } from "../../onboarding/onboardingEvents";
 import {
   validateTemplateForApply,
@@ -683,11 +684,12 @@ export const useTemplateManagerState = ({
     ) => {
       if (typeof handler !== "function") return;
       const sourceConfigRecord = sourceConfig as Record<string, unknown>;
+      const isAutoExtraction = Boolean(sourceConfigRecord?.autoExtractionMode);
       const hasRuleList =
         Array.isArray(sourceConfigRecord?.fileNameTemplateRules) &&
         sourceConfigRecord.fileNameTemplateRules.length > 0;
 
-      if (hasRuleList) {
+      if (hasRuleList || isAutoExtraction) {
         const result = handler(sourceConfigRecord);
         if (isObjectRecord(result)) {
           const ok =
@@ -845,6 +847,88 @@ export const useTemplateManagerState = ({
     [config, setTemplateMode, templateMode],
   );
 
+  const activateAutoTemplate = useCallback(
+    (options: { persist?: boolean } = {}) => {
+      const shouldPersist = options.persist !== false;
+
+      saveDraftTouchedRef.current = false;
+      saveDraftBaseConfigRef.current = null;
+      setIsDropdownOpen(false);
+      setInputSources({});
+      setSelectedTemplateId(DEVICE_ANALYSIS_AUTO_TEMPLATE_ID);
+      setConfig((prev) =>
+        createEmptyTemplateConfig({
+          fileNameMatchCaseSensitive: Boolean(prev?.fileNameMatchCaseSensitive),
+          stopOnError: Boolean(
+            prev?.stopOnError ?? deviceAnalysisSettings?.stopOnErrorDefault,
+          ),
+        }),
+      );
+
+      if (
+        shouldPersist &&
+        typeof onUpdateDeviceAnalysisSettings === "function"
+      ) {
+        void onUpdateDeviceAnalysisSettings({
+          lastTemplateId: null,
+        });
+      }
+    },
+    [
+      deviceAnalysisSettings?.stopOnErrorDefault,
+      onUpdateDeviceAnalysisSettings,
+      setConfig,
+      setSelectedTemplateId,
+    ],
+  );
+
+  const selectAutoTemplate = useCallback(() => {
+    activateAutoTemplate();
+  }, [activateAutoTemplate]);
+
+  useEffect(() => {
+    if (!isSelectMode) return;
+    if (deviceAnalysisSettings === undefined) return;
+    if (selectedTemplateId) return;
+
+    const rememberedTemplateId = String(
+      deviceAnalysisSettings?.lastTemplateId ?? "",
+    ).trim();
+    if (rememberedTemplateId) {
+      if (!templatesLoaded) return;
+      const hasRememberedTemplate =
+        Array.isArray(templates) &&
+        templates.some(
+          (template) => normalizeTemplateId(template?.id) === rememberedTemplateId,
+        );
+      if (hasRememberedTemplate) return;
+    }
+
+    let cancelled = false;
+    const scheduleMicrotaskFn: (callback: () => void) => void =
+      typeof queueMicrotask === "function"
+        ? queueMicrotask
+        : (callback) => {
+            void Promise.resolve().then(callback);
+          };
+
+    scheduleMicrotaskFn(() => {
+      if (cancelled) return;
+      activateAutoTemplate({ persist: false });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activateAutoTemplate,
+    deviceAnalysisSettings,
+    isSelectMode,
+    selectedTemplateId,
+    templates,
+    templatesLoaded,
+  ]);
+
   const handleCreateNewTemplate = useCallback(() => {
     const nextConfig = createEmptyTemplateConfig({
       stopOnError: Boolean(deviceAnalysisSettings?.stopOnErrorDefault),
@@ -917,6 +1001,7 @@ export const useTemplateManagerState = ({
     markFieldSource,
     markSaveDraftTouched,
     openTemplateDropdown,
+    selectAutoTemplate,
     setConfig,
     templateTransferBusy,
     templateMode,

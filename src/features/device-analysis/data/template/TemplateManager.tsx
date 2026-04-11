@@ -40,11 +40,19 @@ import { validateVarPair } from "./templateValidation";
 import { getExcelColumnLabel } from "./templateColumnLabel";
 import { useTemplateManagerState } from "./useTemplateManagerState";
 import {
+  createEmptyTemplateConfig,
   normalizeXDataEndValue,
   normalizeTemplateConfigRecord,
   type TemplateConfig,
 } from "./templateManagerUtils";
 import { DEVICE_ANALYSIS_Y_UNIT_VALUES } from "../../analysis/lib/deviceAnalysisUnits";
+import {
+  buildDeviceAnalysisAutoTemplateConfig,
+  inferDeviceAnalysisAutoExtraction,
+  DEVICE_ANALYSIS_AUTO_TEMPLATE_ID,
+  type DeviceAnalysisAutoExtractionResult,
+} from "../../shared/lib/deviceAnalysisAutoExtraction";
+import { stableStringify } from "../../shared/lib/deviceAnalysisUtils";
 import {
   deriveFileNameFieldSuggestions,
   joinFileNameMatchInput,
@@ -135,6 +143,7 @@ const formatTemplateExportFileName = (templateNameRaw?: string) => {
 };
 
 const X_AUTO_SUGGESTION_MAX_SCAN_ROWS = 5000;
+const AUTO_EXTRACTION_PREVIEW_MAX_ROWS = 512;
 const FILE_NAME_TEMPLATE_RULE_PREFIX = "rule";
 
 type FileNameTemplateRuleDraft = {
@@ -177,6 +186,8 @@ const TemplateManager = ({
   const { t } = useLanguage();
   const {
     processedData,
+    selectedTemplateId,
+    setSelectedTemplateId,
     selectedPreviewFileId,
     setSelectedPreviewFileId,
   } = useDeviceAnalysisSession();
@@ -290,6 +301,7 @@ const TemplateManager = ({
     templatesLoading,
     toggleTemplateDropdown,
     writeFieldFromPreview,
+    selectAutoTemplate,
   } = useTemplateManagerState({
     deviceAnalysisSettings,
     onTemplateApplied,
@@ -413,6 +425,12 @@ const TemplateManager = ({
   const translateLowConfidenceCurveType = useCallback(
     (value: unknown) => {
       const normalized = String(value ?? "").trim().toLowerCase();
+      if (normalized.startsWith("transfer")) {
+        return t("da_low_confidence_type_transfer");
+      }
+      if (normalized.startsWith("output")) {
+        return t("da_low_confidence_type_output");
+      }
       switch (normalized) {
         case "transfer":
           return t("da_low_confidence_type_transfer");
@@ -440,6 +458,8 @@ const TemplateManager = ({
     },
     [t],
   );
+  const isAutoTemplateSelected =
+    selectedTemplateId === DEVICE_ANALYSIS_AUTO_TEMPLATE_ID;
   const resolveTemplateByName = useCallback(
     (name: string) => {
       const target = String(name ?? "").trim();
@@ -850,6 +870,27 @@ const TemplateManager = ({
   }, [getPreviewRowsVersion, subscribePreviewRowsVersion]);
 
   useEffect(() => {
+    if (!isAutoTemplateSelected) return;
+    if (typeof ensurePreviewRows !== "function") return;
+
+    const fileId = String(previewFile?.fileId ?? "").trim();
+    if (!fileId) return;
+
+    const targetRows = Math.min(
+      Math.max(0, Number(previewFile?.rowCount) || 0),
+      AUTO_EXTRACTION_PREVIEW_MAX_ROWS,
+    );
+    if (targetRows <= 0) return;
+
+    void ensurePreviewRows(fileId, 0, targetRows);
+  }, [
+    ensurePreviewRows,
+    isAutoTemplateSelected,
+    previewFile?.fileId,
+    previewFile?.rowCount,
+  ]);
+
+  useEffect(() => {
     if (typeof ensurePreviewRows !== "function") return;
     const fileId = String(previewFile?.fileId ?? "").trim();
     if (!fileId || !xRangeForPreview) return;
@@ -893,6 +934,137 @@ const TemplateManager = ({
           points: xAutoSuggestion.groupSize,
         })
       : t("da_save_x_auto_suggestion_none");
+
+  const autoPreviewRows = useMemo(() => {
+    if (!isAutoTemplateSelected) return [];
+    if (typeof getPreviewRow !== "function") return [];
+
+    const targetRows = Math.min(
+      Math.max(0, Number(previewFile?.rowCount) || 0),
+      AUTO_EXTRACTION_PREVIEW_MAX_ROWS,
+    );
+    if (targetRows <= 0) return [];
+
+    const rows: Array<Array<unknown> | null | undefined> = [];
+    for (let rowIndex = 0; rowIndex < targetRows; rowIndex += 1) {
+      const row = getPreviewRow(rowIndex);
+      if (!Array.isArray(row)) break;
+      rows.push(row);
+    }
+    return rows;
+  }, [
+    getPreviewRow,
+    isAutoTemplateSelected,
+    previewFile?.rowCount,
+    previewRowsVersionSnapshot,
+  ]);
+
+  const autoExtractionPreviewResult = useMemo<DeviceAnalysisAutoExtractionResult | null>(
+    () => {
+      if (!isAutoTemplateSelected) return null;
+      if (!autoPreviewRows.length) return null;
+
+      return inferDeviceAnalysisAutoExtraction({
+        fileName: previewFile?.fileName || previewFile?.fileId || "preview",
+        rows: autoPreviewRows,
+        totalRowCount: previewFile?.rowCount,
+      });
+    },
+    [
+      autoPreviewRows,
+      isAutoTemplateSelected,
+      previewFile?.fileId,
+      previewFile?.fileName,
+      previewFile?.rowCount,
+    ],
+  );
+
+  const autoTemplateConfig = useMemo(() => {
+    if (!isAutoTemplateSelected) return null;
+
+    const baseConfig = createEmptyTemplateConfig({
+      fileNameMatchCaseSensitive: Boolean(config?.fileNameMatchCaseSensitive),
+      stopOnError: Boolean(config?.stopOnError),
+    });
+
+    if (!autoExtractionPreviewResult?.ok) {
+      return baseConfig;
+    }
+
+    return normalizeTemplateConfigRecord({
+      ...baseConfig,
+      ...buildDeviceAnalysisAutoTemplateConfig(autoExtractionPreviewResult.plan),
+    });
+  }, [
+    autoExtractionPreviewResult,
+    config?.fileNameMatchCaseSensitive,
+    config?.stopOnError,
+    isAutoTemplateSelected,
+  ]);
+
+  useEffect(() => {
+    if (!isAutoTemplateSelected || !autoTemplateConfig) return;
+
+    setConfig((prev) => {
+      const next = {
+        ...prev,
+        ...autoTemplateConfig,
+        name: "",
+      };
+      return stableStringify(next) === stableStringify(prev) ? prev : next;
+    });
+  }, [autoTemplateConfig, isAutoTemplateSelected, setConfig]);
+
+  const autoPreviewHeaders = useMemo(() => {
+    if (!autoExtractionPreviewResult?.ok) return [];
+    const headerRowIndex = Math.max(
+      0,
+      autoExtractionPreviewResult.plan.dataStartRowIndex - 1,
+    );
+    const headerRow = autoPreviewRows[headerRowIndex];
+    return Array.isArray(headerRow)
+      ? headerRow.map((value) => String(value ?? "").trim())
+      : [];
+  }, [autoExtractionPreviewResult, autoPreviewRows]);
+
+  const resolveAutoColumnLabel = useCallback(
+    (colIndex: number | null) => {
+      if (!Number.isInteger(colIndex) || Number(colIndex) < 0) {
+        return t("da_auto_template_summary_none");
+      }
+
+      const header = String(autoPreviewHeaders[Number(colIndex)] ?? "").trim();
+      return header || getExcelColumnLabel(Number(colIndex));
+    },
+    [autoPreviewHeaders, t],
+  );
+
+  const autoApplyConfig = useMemo(
+    () => ({
+      autoExtractionMode: true,
+      stopOnError: Boolean(config?.stopOnError),
+    }),
+    [config?.stopOnError],
+  );
+
+  const applyAutoTemplate = useCallback(
+    (incremental: boolean) => {
+      const applyHandler = incremental
+        ? applyNewFilesConfigurationWithExternalConfig
+        : applyConfigurationWithExternalConfig;
+      applyHandler(autoApplyConfig);
+    },
+    [
+      applyConfigurationWithExternalConfig,
+      applyNewFilesConfigurationWithExternalConfig,
+      autoApplyConfig,
+    ],
+  );
+
+  const handleSelectAutoTemplate = useCallback(() => {
+    selectAutoTemplate();
+    setSelectedTemplateId(DEVICE_ANALYSIS_AUTO_TEMPLATE_ID);
+  }, [selectAutoTemplate, setSelectedTemplateId]);
 
   const toastVarPairIfInvalid = useCallback(() => {
     if (varPairValidation.ok) {
@@ -1396,7 +1568,9 @@ const TemplateManager = ({
     const resolvedInputId = includeIds
       ? "device-analysis-template-dropdown-btn"
       : undefined;
-    const displayName = String(config.name ?? "").trim();
+    const displayName = isAutoTemplateSelected
+      ? t("da_auto_template")
+      : String(config.name ?? "").trim();
     const hasDisplayName = Boolean(displayName);
     const lowConfidenceReviewCard = activeLowConfidenceFile ? (
       <div
@@ -1469,6 +1643,119 @@ const TemplateManager = ({
             </div>
           </div>
         </div>
+      </div>
+    ) : null;
+    const autoSummaryCard = isAutoTemplateSelected ? (
+      <div className="rounded-xl border border-border-primary/40 px-3 py-3 space-y-3">
+        <div className="space-y-1">
+          <div className="text-xs font-medium text-text-tertiary">
+            {t("da_auto_template_summary_title")}
+          </div>
+        </div>
+        {!previewFile?.fileId ? (
+          <p className="text-sm text-text-secondary">
+            {t("da_preview_select_file_hint")}
+          </p>
+        ) : !autoExtractionPreviewResult ? (
+          <p className="text-sm text-text-secondary">
+            {t("da_auto_template_summary_pending")}
+          </p>
+        ) : autoExtractionPreviewResult.ok ? (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 gap-2 text-sm">
+              <div className="flex items-start justify-between gap-3">
+                <span className="text-text-secondary">
+                  {t("da_auto_template_summary_curve")}
+                </span>
+                <span className="text-right text-text-primary">
+                  {`${String(
+                    autoExtractionPreviewResult.plan.curveTypeLabel ??
+                      autoExtractionPreviewResult.plan.curveType ??
+                      "",
+                  ).trim()} (${translateLowConfidenceConfidence(
+                    autoExtractionPreviewResult.plan.confidence,
+                  )})`}
+                </span>
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <span className="text-text-secondary">
+                  {t("da_auto_template_summary_x")}
+                </span>
+                <span className="text-right text-text-primary">
+                  {resolveAutoColumnLabel(autoExtractionPreviewResult.plan.xCol)}
+                </span>
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <span className="text-text-secondary">
+                  {t("da_auto_template_summary_y")}
+                </span>
+                <span className="text-right text-text-primary">
+                  {autoExtractionPreviewResult.plan.yCols.length
+                    ? autoExtractionPreviewResult.plan.yCols
+                        .map((colIndex) => resolveAutoColumnLabel(colIndex))
+                        .join(", ")
+                    : t("da_auto_template_summary_none")}
+                </span>
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <span className="text-text-secondary">
+                  {t("da_auto_template_summary_grouping")}
+                </span>
+                <span className="text-right text-text-primary">
+                  {Number.isInteger(autoExtractionPreviewResult.plan.xPointsPerGroup) &&
+                  Number(autoExtractionPreviewResult.plan.xPointsPerGroup) > 0
+                    ? Number.isInteger(autoExtractionPreviewResult.plan.groups) &&
+                      Number(autoExtractionPreviewResult.plan.groups) > 0
+                      ? t("da_auto_template_summary_points_groups", {
+                          groups: autoExtractionPreviewResult.plan.groups,
+                          points: autoExtractionPreviewResult.plan.xPointsPerGroup,
+                        })
+                      : t("da_auto_template_summary_points_only", {
+                          points: autoExtractionPreviewResult.plan.xPointsPerGroup,
+                        })
+                    : t("da_auto_template_summary_auto_grouping")}
+                </span>
+              </div>
+              <div className="flex items-start justify-between gap-3">
+                <span className="text-text-secondary">
+                  {t("da_auto_template_summary_legend")}
+                </span>
+                <span className="text-right text-text-primary">
+                  {resolveAutoColumnLabel(
+                    autoExtractionPreviewResult.plan.legendStartColIndex,
+                  )}
+                </span>
+              </div>
+            </div>
+            {autoExtractionPreviewResult.plan.reasons.length ? (
+              <ul className="list-disc space-y-1 pl-4 text-sm text-text-primary">
+                {autoExtractionPreviewResult.plan.reasons.slice(0, 3).map((reason, index) => (
+                  <li key={`auto-reason-${index}`}>
+                    {translateLowConfidenceReason(reason)}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-sm text-text-primary">
+              {t("da_auto_template_summary_failed")}
+            </p>
+            <p className="text-sm text-text-secondary break-words">
+              {autoExtractionPreviewResult.message}
+            </p>
+            {autoExtractionPreviewResult.reasons.length ? (
+              <ul className="list-disc space-y-1 pl-4 text-sm text-text-primary">
+                {autoExtractionPreviewResult.reasons.slice(0, 3).map((reason, index) => (
+                  <li key={`auto-reason-${index}`}>
+                    {translateLowConfidenceReason(reason)}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        )}
       </div>
     ) : null;
 
@@ -1570,6 +1857,32 @@ const TemplateManager = ({
                 id="device-analysis-template-dropdown-menu"
                 role="menu"
               >
+                <button
+                  type="button"
+                  role="menuitem"
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-colors mb-1 ${
+                    isAutoTemplateSelected
+                      ? "bg-bg-page text-accent"
+                      : "hover:bg-bg-page text-text-primary"
+                  }`}
+                  onClick={handleSelectAutoTemplate}
+                >
+                  <span className="min-w-0 flex-1 text-left">
+                    <span className="block text-sm font-medium">
+                      {t("da_auto_template")}
+                    </span>
+                    <span className="block text-xs text-text-secondary truncate">
+                      {t("da_auto_template_hint")}
+                    </span>
+                  </span>
+                  <span className="p-1">
+                    {isAutoTemplateSelected ? (
+                      <Check size={14} />
+                    ) : (
+                      <span className="block h-3.5 w-3.5 rounded-full border border-border-primary/60" />
+                    )}
+                  </span>
+                </button>
                 <button
                   type="button"
                   role="menuitem"
@@ -1679,246 +1992,292 @@ const TemplateManager = ({
           />
         ) : null}
 
-        <div>
-          <div className="flex items-center justify-between gap-2 mb-2">
-            <label className="block text-sm font-medium text-text-secondary">
-              {t("da_match_by_file_name")}
-            </label>
-            <Button
-              id={includeIds ? "device-analysis-template-add-rule" : undefined}
-              variant="secondary"
-              size="md"
-              className="min-w-0 max-w-full"
-              contentClassName="w-full min-w-0 justify-between"
-              onClick={measureOnly ? undefined : addFileNameTemplateRule}
-              disabled={measureOnly || templatesLoading}
-              title={t("da_add_rule")}
-            >
-              <span className="block min-w-0 flex-1 truncate text-left">
-                {t("da_add_rule")}
-              </span>
-              <Plus size={14} className="shrink-0" />
-            </Button>
+        {isAutoTemplateSelected ? (
+          <div className="space-y-3">
+            <div className={applyButtonsContainerClassName}>
+              <Button
+                id={
+                  includeIds
+                    ? "device-analysis-template-output-rule-apply-to-all"
+                    : undefined
+                }
+                variant="primary"
+                size="md"
+                className="w-full min-w-0"
+                contentClassName="w-full min-w-0 justify-center"
+                onClick={measureOnly ? undefined : () => applyAutoTemplate(false)}
+                disabled={measureOnly}
+                title={t("da_apply_to_all_files")}
+              >
+                <span className="block min-w-0 truncate">
+                  {t("da_apply_to_all_files")}
+                </span>
+              </Button>
+              <Button
+                id={
+                  includeIds
+                    ? "device-analysis-template-output-rule-apply-to-new"
+                    : undefined
+                }
+                variant="secondary"
+                size="md"
+                className="w-full min-w-0"
+                contentClassName="w-full min-w-0 justify-center"
+                onClick={measureOnly ? undefined : () => applyAutoTemplate(true)}
+                disabled={
+                  measureOnly ||
+                  typeof onTemplateAppliedIncremental !== "function"
+                }
+                title={t("da_apply_to_new_files")}
+              >
+                <span className="block min-w-0 truncate">
+                  {t("da_apply_to_new_files")}
+                </span>
+              </Button>
+            </div>
           </div>
-          <div className="mt-3 space-y-3">
-            {fileNameTemplateRules.map((rule, index) => {
-              const suggestionOptions = buildRuleSuggestionOptions(rule);
-              const matchedFilesCount = getRuleMatchCount(rule);
-              const selectedPatternTokens = getRulePatternTokens(rule.pattern);
-              const isPhraseMode = rule.matchMode === "phrase";
-              const hasMatchCondition = isPhraseMode
-                ? Boolean(String(rule.pattern ?? "").trim())
-                : selectedPatternTokens.length > 0;
+        ) : (
+          <div>
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <label className="block text-sm font-medium text-text-secondary">
+                {t("da_match_by_file_name")}
+              </label>
+              <Button
+                id={includeIds ? "device-analysis-template-add-rule" : undefined}
+                variant="secondary"
+                size="md"
+                className="min-w-0 max-w-full"
+                contentClassName="w-full min-w-0 justify-between"
+                onClick={measureOnly ? undefined : addFileNameTemplateRule}
+                disabled={measureOnly || templatesLoading}
+                title={t("da_add_rule")}
+              >
+                <span className="block min-w-0 flex-1 truncate text-left">
+                  {t("da_add_rule")}
+                </span>
+                <Plus size={14} className="shrink-0" />
+              </Button>
+            </div>
+            <div className="mt-3 space-y-3">
+              {fileNameTemplateRules.map((rule, index) => {
+                const suggestionOptions = buildRuleSuggestionOptions(rule);
+                const matchedFilesCount = getRuleMatchCount(rule);
+                const selectedPatternTokens = getRulePatternTokens(rule.pattern);
+                const isPhraseMode = rule.matchMode === "phrase";
+                const hasMatchCondition = isPhraseMode
+                  ? Boolean(String(rule.pattern ?? "").trim())
+                  : selectedPatternTokens.length > 0;
 
-              return (
-                <div
-                  key={rule.id}
-                  className="group border border-border-primary/40 rounded-xl p-3 space-y-3"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs text-text-secondary">
-                      {t("da_rule_item_index", { index: index + 1 })}
-                    </span>
-                    <Button
+                return (
+                  <div
+                    key={rule.id}
+                    className="group border border-border-primary/40 rounded-xl p-3 space-y-3"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-text-secondary">
+                        {t("da_rule_item_index", { index: index + 1 })}
+                      </span>
+                      <Button
+                        id={
+                          includeIds
+                            ? `device-analysis-template-remove-rule-${index + 1}`
+                            : undefined
+                        }
+                        variant="icon"
+                        size="icon"
+                        aria-label={t("da_remove_rule")}
+                        title={t("da_remove_rule")}
+                        onClick={
+                          measureOnly
+                            ? undefined
+                            : () => removeFileNameTemplateRule(rule.id)
+                        }
+                        disabled={measureOnly}
+                        className="hover:text-red-500 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus:opacity-100 focus:pointer-events-auto"
+                      >
+                        <Trash2 size={14} />
+                      </Button>
+                    </div>
+                    <Select
                       id={
                         includeIds
-                          ? `device-analysis-template-remove-rule-${index + 1}`
+                          ? `device-analysis-template-rule-mode-${index + 1}`
                           : undefined
                       }
-                      variant="icon"
-                      size="icon"
-                      aria-label={t("da_remove_rule")}
-                      title={t("da_remove_rule")}
-                      onClick={
-                        measureOnly
-                          ? undefined
-                          : () => removeFileNameTemplateRule(rule.id)
-                      }
+                      size="md"
+                      value={rule.matchMode}
+                      options={fileNameRuleModeOptions}
+                      onChange={(value) => {
+                        updateFileNameTemplateRule(rule.id, {
+                          matchMode:
+                            value === "phrase" ? "phrase" : "field",
+                        });
+                      }}
+                      placeholder={t("da_match_mode_label")}
                       disabled={measureOnly}
-                      className="hover:text-red-500 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus:opacity-100 focus:pointer-events-auto"
-                    >
-                      <Trash2 size={14} />
-                    </Button>
-                  </div>
-                  <Select
-                    id={
-                      includeIds
-                        ? `device-analysis-template-rule-mode-${index + 1}`
-                        : undefined
-                    }
-                    size="md"
-                    value={rule.matchMode}
-                    options={fileNameRuleModeOptions}
-                    onChange={(value) => {
-                      updateFileNameTemplateRule(rule.id, {
-                        matchMode:
-                          value === "phrase" ? "phrase" : "field",
-                      });
-                    }}
-                    placeholder={t("da_match_mode_label")}
-                    disabled={measureOnly}
-                    stableWidth={false}
-                    popupClassName="min-w-full !bg-bg-surface !backdrop-blur-none"
-                  />
-                  <div className="space-y-2">
-                    {isPhraseMode ? (
-                      <>
-                        <Input
-                          id={
-                            includeIds
-                              ? `device-analysis-template-rule-phrase-${index + 1}`
-                              : undefined
-                          }
-                          value={rule.pattern}
-                          name={`fileNameTemplateRulePhrase-${rule.id}`}
-                          disabled={measureOnly}
-                          onChange={(next) => {
-                            updateFileNameTemplateRule(rule.id, { pattern: next });
-                          }}
-                          placeholder={t("da_match_phrase_placeholder")}
-                        />
-                        <p className="text-xs text-text-secondary">
-                          {t("da_match_phrase_hint")}
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <div className="flex flex-wrap gap-2 min-h-[2rem]">
-                          {selectedPatternTokens.length ? (
-                            selectedPatternTokens.map((token) => (
-                              <span
-                                key={`${rule.id}-${token}`}
-                                className="inline-flex items-center gap-1 rounded-full border border-border bg-bg-page px-2.5 py-1 text-xs text-text-primary"
-                              >
-                                <span>{token}</span>
-                                <button
-                                  type="button"
-                                  className="rounded-full p-0.5 text-text-secondary transition-colors hover:text-text-primary"
-                                  onClick={
-                                    measureOnly
-                                      ? undefined
-                                      : () =>
-                                          removePatternTokenFromRule(rule.id, token)
-                                  }
-                                  disabled={measureOnly}
-                                  aria-label={t("da_remove_rule")}
-                                  title={t("da_remove_rule")}
+                      stableWidth={false}
+                      popupClassName="min-w-full !bg-bg-surface !backdrop-blur-none"
+                    />
+                    <div className="space-y-2">
+                      {isPhraseMode ? (
+                        <>
+                          <Input
+                            id={
+                              includeIds
+                                ? `device-analysis-template-rule-phrase-${index + 1}`
+                                : undefined
+                            }
+                            value={rule.pattern}
+                            name={`fileNameTemplateRulePhrase-${rule.id}`}
+                            disabled={measureOnly}
+                            onChange={(next) => {
+                              updateFileNameTemplateRule(rule.id, { pattern: next });
+                            }}
+                            placeholder={t("da_match_phrase_placeholder")}
+                          />
+                          <p className="text-xs text-text-secondary">
+                            {t("da_match_phrase_hint")}
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex flex-wrap gap-2 min-h-[2rem]">
+                            {selectedPatternTokens.length ? (
+                              selectedPatternTokens.map((token) => (
+                                <span
+                                  key={`${rule.id}-${token}`}
+                                  className="inline-flex items-center gap-1 rounded-full border border-border bg-bg-page px-2.5 py-1 text-xs text-text-primary"
                                 >
-                                  <X size={12} />
-                                </button>
-                              </span>
-                            ))
-                          ) : (
-                            <p className="text-xs text-text-secondary">
-                              {t("da_match_field_selected_none")}
-                            </p>
-                          )}
-                        </div>
-                        <Select
-                          id={
-                            includeIds
-                              ? `device-analysis-template-rule-suggestions-${index + 1}`
-                              : undefined
-                          }
-                          size="md"
-                          value={undefined}
-                          options={suggestionOptions}
-                          onChange={(value) => {
-                            addPatternTokenToRule(rule.id, String(value ?? ""));
-                          }}
-                          placeholder={
-                            suggestionOptions.length
-                              ? t("da_match_field_suggestions")
-                              : t("da_match_field_suggestion_none")
-                          }
-                          disabled={measureOnly || suggestionOptions.length === 0}
-                          stableWidth={false}
-                          popupClassName="min-w-full !bg-bg-surface !backdrop-blur-none"
-                        />
-                      </>
-                    )}
+                                  <span>{token}</span>
+                                  <button
+                                    type="button"
+                                    className="rounded-full p-0.5 text-text-secondary transition-colors hover:text-text-primary"
+                                    onClick={
+                                      measureOnly
+                                        ? undefined
+                                        : () =>
+                                            removePatternTokenFromRule(rule.id, token)
+                                    }
+                                    disabled={measureOnly}
+                                    aria-label={t("da_remove_rule")}
+                                    title={t("da_remove_rule")}
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                </span>
+                              ))
+                            ) : (
+                              <p className="text-xs text-text-secondary">
+                                {t("da_match_field_selected_none")}
+                              </p>
+                            )}
+                          </div>
+                          <Select
+                            id={
+                              includeIds
+                                ? `device-analysis-template-rule-suggestions-${index + 1}`
+                                : undefined
+                            }
+                            size="md"
+                            value={undefined}
+                            options={suggestionOptions}
+                            onChange={(value) => {
+                              addPatternTokenToRule(rule.id, String(value ?? ""));
+                            }}
+                            placeholder={
+                              suggestionOptions.length
+                                ? t("da_match_field_suggestions")
+                                : t("da_match_field_suggestion_none")
+                            }
+                            disabled={measureOnly || suggestionOptions.length === 0}
+                            stableWidth={false}
+                            popupClassName="min-w-full !bg-bg-surface !backdrop-blur-none"
+                          />
+                        </>
+                      )}
+                    </div>
+                    {hasMatchCondition ? (
+                      <p className="text-xs text-text-secondary">
+                        {t("da_match_field_rule_matches", {
+                          count: matchedFilesCount,
+                        })}
+                      </p>
+                    ) : null}
+                    <Select
+                      id={
+                        includeIds
+                          ? `device-analysis-template-rule-template-${index + 1}`
+                          : undefined
+                      }
+                      size="md"
+                      value={rule.templateName}
+                      options={availableTemplateOptions}
+                      onChange={(value) => {
+                        updateFileNameTemplateRule(rule.id, {
+                          templateName: String(value ?? ""),
+                        });
+                      }}
+                      placeholder={t("da_template_name")}
+                      disabled={measureOnly || templatesLoading}
+                      stableWidth={false}
+                      popupClassName="min-w-full !bg-bg-surface !backdrop-blur-none"
+                    />
                   </div>
-                  {hasMatchCondition ? (
-                    <p className="text-xs text-text-secondary">
-                      {t("da_match_field_rule_matches", {
-                        count: matchedFilesCount,
-                      })}
-                    </p>
-                  ) : null}
-                  <Select
-                    id={
-                      includeIds
-                        ? `device-analysis-template-rule-template-${index + 1}`
-                        : undefined
-                    }
-                    size="md"
-                    value={rule.templateName}
-                    options={availableTemplateOptions}
-                    onChange={(value) => {
-                      updateFileNameTemplateRule(rule.id, {
-                        templateName: String(value ?? ""),
-                      });
-                    }}
-                    placeholder={t("da_template_name")}
-                    disabled={measureOnly || templatesLoading}
-                    stableWidth={false}
-                    popupClassName="min-w-full !bg-bg-surface !backdrop-blur-none"
-                  />
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
 
-          <div className={applyButtonsContainerClassName}>
-            <Button
-              id={
-                includeIds
-                  ? "device-analysis-template-output-rule-apply-to-all"
-                  : undefined
-              }
-              variant="primary"
-              size="md"
-              className="w-full min-w-0"
-              contentClassName="w-full min-w-0 justify-center"
-              onClick={
-                measureOnly
-                  ? undefined
-                  : () => applyFileNameTemplateRules(false)
-              }
-              disabled={measureOnly}
-              title={t("da_apply_to_all_files")}
-            >
-              <span className="block min-w-0 truncate">
-                {t("da_apply_to_all_files")}
-              </span>
-            </Button>
-            <Button
-              id={
-                includeIds
-                  ? "device-analysis-template-output-rule-apply-to-new"
-                  : undefined
-              }
-              variant="secondary"
-              size="md"
-              className="w-full min-w-0"
-              contentClassName="w-full min-w-0 justify-center"
-              onClick={
-                measureOnly
-                  ? undefined
-                  : () => applyFileNameTemplateRules(true)
-              }
-              disabled={
-                measureOnly ||
-                typeof onTemplateAppliedIncremental !== "function"
-              }
-              title={t("da_apply_to_new_files")}
-            >
-              <span className="block min-w-0 truncate">
-                {t("da_apply_to_new_files")}
-              </span>
-            </Button>
+            <div className={applyButtonsContainerClassName}>
+              <Button
+                id={
+                  includeIds
+                    ? "device-analysis-template-output-rule-apply-to-all"
+                    : undefined
+                }
+                variant="primary"
+                size="md"
+                className="w-full min-w-0"
+                contentClassName="w-full min-w-0 justify-center"
+                onClick={
+                  measureOnly
+                    ? undefined
+                    : () => applyFileNameTemplateRules(false)
+                }
+                disabled={measureOnly}
+                title={t("da_apply_to_all_files")}
+              >
+                <span className="block min-w-0 truncate">
+                  {t("da_apply_to_all_files")}
+                </span>
+              </Button>
+              <Button
+                id={
+                  includeIds
+                    ? "device-analysis-template-output-rule-apply-to-new"
+                    : undefined
+                }
+                variant="secondary"
+                size="md"
+                className="w-full min-w-0"
+                contentClassName="w-full min-w-0 justify-center"
+                onClick={
+                  measureOnly
+                    ? undefined
+                    : () => applyFileNameTemplateRules(true)
+                }
+                disabled={
+                  measureOnly ||
+                  typeof onTemplateAppliedIncremental !== "function"
+                }
+                title={t("da_apply_to_new_files")}
+              >
+                <span className="block min-w-0 truncate">
+                  {t("da_apply_to_new_files")}
+                </span>
+              </Button>
+            </div>
           </div>
-        </div>
+        )}
 
         <div
           id={
@@ -1980,6 +2339,11 @@ const TemplateManager = ({
           )}
           <span>{t("da_match_field_case_sensitive")}</span>
         </div>
+        {autoSummaryCard ? (
+          <div className="pt-1">
+            {autoSummaryCard}
+          </div>
+        ) : null}
         {lowConfidenceReviewCard}
       </div>
     );
@@ -2088,6 +2452,7 @@ const TemplateManager = ({
               ensurePreviewRows={ensurePreviewRows}
               getPreviewRow={getPreviewRow}
               getPreviewRowsVersion={getPreviewRowsVersion}
+              interactive={!isAutoTemplateSelected}
               previewFile={previewFile}
               previewStatus={previewStatus}
               setConfig={setConfig}

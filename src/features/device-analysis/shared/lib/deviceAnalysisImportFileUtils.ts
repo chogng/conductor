@@ -19,7 +19,7 @@ const SUPPORTED_IMPORT_EXTENSIONS = new Set<string>(
 );
 const EXCEL_IMPORT_EXTENSIONS = new Set<string>([".xls", ".xlsx"]);
 const IMPORT_CLASSIFICATION_PREVIEW_BYTES = 128 * 1024;
-const IMPORT_CLASSIFICATION_PREVIEW_ROWS = 160;
+const IMPORT_CLASSIFICATION_PREVIEW_ROWS = 256;
 
 export type ImportedDeviceAnalysisCurveAssessment = {
   curveType: string | null;

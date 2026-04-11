@@ -68,6 +68,7 @@ type PreparedExtractionResult = {
 
 type StartExtractionJobOptions = {
   extractionConfig: unknown;
+  messageType?: "processFile" | "processFileAuto";
   queue: ProcessingQueueItem[];
   resetProcessedData: boolean;
   stopOnError: boolean;
@@ -390,6 +391,7 @@ export const useDeviceAnalysisProcessing = ({
   const startExtractionJob = useCallback(
     ({
       extractionConfig,
+      messageType = "processFile",
       queue,
       resetProcessedData,
       stopOnError,
@@ -437,7 +439,7 @@ export const useDeviceAnalysisProcessing = ({
         }
 
         worker.postMessage({
-          type: "processFile",
+          type: messageType,
           payload: {
             config: extractionConfig,
             curveFilterKey: nextEntry.curveFilterKey ?? null,
@@ -807,14 +809,34 @@ export const useDeviceAnalysisProcessing = ({
 
   const handleTemplateApplied = useCallback(
     (config: Record<string, unknown>) => {
-      if (Array.isArray((config as RuleBasedExtractionConfig)?.fileNameTemplateRules)) {
-        return handleRuleBasedTemplateApplied(
-          config as RuleBasedExtractionConfig,
-          false,
-        );
-      }
-      const prepared = prepareExtractionRun(config);
-      if (!prepared.ok) return prepared;
+        if (Array.isArray((config as RuleBasedExtractionConfig)?.fileNameTemplateRules)) {
+          return handleRuleBasedTemplateApplied(
+            config as RuleBasedExtractionConfig,
+            false,
+          );
+        }
+        if (Boolean(config?.autoExtractionMode)) {
+          const queue = buildProcessingQueue(rawData);
+
+          lastAppliedTemplateConfigFingerprintRef.current = stableStringify(config);
+          startExtractionJob({
+            extractionConfig: config,
+            messageType: "processFileAuto",
+            queue,
+            resetProcessedData: true,
+            stopOnError: Boolean(config?.stopOnError),
+          });
+
+          return buildExtractionStartFeedback({
+            count: queue.length,
+            messageKey: "da_extract_started",
+            meta: {},
+            t,
+            warnings: [],
+          });
+        }
+        const prepared = prepareExtractionRun(config);
+        if (!prepared.ok) return prepared;
 
       const queue = buildProcessingQueue(rawData);
 
@@ -844,6 +866,58 @@ export const useDeviceAnalysisProcessing = ({
           config as RuleBasedExtractionConfig,
           true,
         );
+      }
+      if (Boolean(config?.autoExtractionMode)) {
+        if (processingStatus.state === "processing") {
+          return {
+            message: t("da_apply_to_new_files_busy"),
+            ok: false,
+            type: "warning",
+          };
+        }
+
+        const lastFingerprint = lastAppliedTemplateConfigFingerprintRef.current;
+        if (!lastFingerprint) {
+          return {
+            message: t("da_apply_to_new_files_requires_full_apply"),
+            ok: false,
+            type: "warning",
+          };
+        }
+
+        if (stableStringify(config) !== lastFingerprint) {
+          return {
+            message: t("da_apply_to_new_files_requires_same_config"),
+            ok: false,
+            type: "warning",
+          };
+        }
+
+        const processedIds = buildProcessedFileIds(processedData);
+        const queue = buildProcessingQueue(rawData, processedIds);
+        if (!queue.length) {
+          return {
+            message: t("da_apply_to_new_files_no_new"),
+            ok: false,
+            type: "warning",
+          };
+        }
+
+        startExtractionJob({
+          extractionConfig: config,
+          messageType: "processFileAuto",
+          queue,
+          resetProcessedData: false,
+          stopOnError: Boolean(config?.stopOnError),
+        });
+
+        return buildExtractionStartFeedback({
+          count: queue.length,
+          messageKey: "da_apply_to_new_files_started",
+          meta: {},
+          t,
+          warnings: [],
+        });
       }
       if (processingStatus.state === "processing") {
         return {

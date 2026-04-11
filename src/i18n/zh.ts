@@ -9,7 +9,6 @@
     da_apply_to_new_files_requires_same_config: '模板配置已变更，请重新“应用到所有”。',
     da_auto_template: 'Auto',
     da_auto_template_hint: '按文件自动推导列与分组',
-    da_auto_template_preview_locked: 'Auto 模式下预览列选择会锁定；系统会对每个文件独立推导。',
     da_auto_template_summary_title: '自动提取',
     da_auto_template_summary_pending: '正在分析当前预览文件…',
     da_auto_template_summary_failed: '当前预览还无法自动推导。',

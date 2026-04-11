@@ -97,13 +97,15 @@ test("assessImportedDeviceAnalysisFile detects transfer metadata on import", asy
   assert.equal(result.xAxisRole, "vg");
 });
 
-test("assessImportedDeviceAnalysisFile flags stripped CH1/CH2 data for review", async () => {
+test("assessImportedDeviceAnalysisFile infers output from stripped CH1/CH2 data when shape evidence is strong", async () => {
   const file = new File(
     [
       [
         "Repeat,VAR2,Point,CH1 Voltage,CH1 Current,CH1 Resistance,CH1 Time,CH2 Voltage,CH2 Current,CH2 Time,R",
-        "1,1,1,-3.00000E+000,-3.70327E-009,810.09486E+006,125.47200E-003,-60.00000E+000,1.34000E-009,9.64800E-003,810.09486E+006",
-        "1,1,2,-2.97001E+000,-3.49041E-009,850.90577E+006,246.44300E-003,-60.00000E+000,1.06200E-009,146.86600E-003,850.90577E+006",
+        "1,1,1,-3.00000E+000,-1.00000E-012,810.09486E+006,125.47200E-003,-60.00000E+000,1.00000E-009,9.64800E-003,810.09486E+006",
+        "1,1,2,-2.00000E+000,-1.00000E-010,850.90577E+006,246.44300E-003,-60.00000E+000,1.10000E-009,146.86600E-003,850.90577E+006",
+        "1,1,3,-1.00000E+000,-1.00000E-008,963.61533E+006,367.26100E-003,-60.00000E+000,1.20000E-009,267.67400E-003,963.61533E+006",
+        "1,1,4,0.00000E+000,-1.00000E-007,981.84432E+006,488.05500E-003,-60.00000E+000,1.10000E-009,388.45600E-003,981.84432E+006",
       ].join("\n"),
     ],
     "tran.csv",
@@ -112,8 +114,9 @@ test("assessImportedDeviceAnalysisFile flags stripped CH1/CH2 data for review", 
 
   const result = await assessImportedDeviceAnalysisFile(file);
 
-  assert.equal(result.curveType, "unknown");
-  assert.equal(result.curveTypeConfidence, "low");
-  assert.equal(result.curveTypeNeedsTemplate, true);
-  assert.match(result.curveTypeReasons.join(" "), /CH1\/CH2 sweep columns/i);
+  assert.equal(result.curveType, "output (vd)");
+  assert.equal(result.curveTypeConfidence, "medium");
+  assert.equal(result.curveTypeNeedsTemplate, false);
+  assert.equal(result.xAxisRole, "vd");
+  assert.match(result.curveTypeReasons.join(" "), /output-style Id-Vd behavior/i);
 });

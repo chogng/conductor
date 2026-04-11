@@ -1,6 +1,10 @@
 import Papa from "papaparse";
 import { normalizeDeviceAnalysisYUnit } from "../analysis/lib/deviceAnalysisUnits";
 import {
+    buildDeviceAnalysisAutoWorkerConfig,
+    inferDeviceAnalysisAutoExtraction,
+} from "../shared/lib/deviceAnalysisAutoExtraction";
+import {
     classifyDeviceAnalysisCurve,
     detectDeviceAnalysisAxisRole,
     extractDeviceAnalysisCurveMetadata,
@@ -16,6 +20,7 @@ const PREVIEW_ROW_CACHE_CHUNK_DEFAULT = 200;
 const PREVIEW_INDEX_STRIDE_ROWS_DEFAULT = 2000;
 const PREVIEW_MAX_CACHED_CHUNKS_PER_FILE = 30;
 const PREVIEW_RESULT_SEED_ROWS = PREVIEW_ROW_CACHE_CHUNK_DEFAULT * 2;
+const AUTO_EXTRACTION_PREVIEW_ROWS = 512;
 const AUTO_SEGMENTATION_MIN_GROUP_SIZE = 2;
 const AUTO_SEGMENTATION_MIN_GROUPS = 2;
 const AUTO_SEGMENTATION_REPEAT_THRESHOLD = 0.9;
@@ -1165,7 +1170,7 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
     // Use bottomTitle directly (resolved string from Var1)
     const xLabel = appendAxisUnit(effectiveBottomTitle || getExcelColumnLabel(xCol), xUnitRaw);
     const classificationCache = await ensurePreviewCache(fileId, file);
-    const classificationRowCount = Math.min(Number(classificationCache.rowCount) || 0, 160);
+    const classificationRowCount = Math.min(Number(classificationCache.rowCount) || 0, 256);
     const classificationRows = classificationRowCount > 0
         ? await getPreviewRows(classificationCache, 0, classificationRowCount)
         : [];
@@ -1291,6 +1296,55 @@ workerScope.onmessage = async (event: any) => {
                 type: "previewDisposeResult",
                 payload: { fileId },
             });
+            return;
+        }
+        if (type === "processFileAuto") {
+            const jobId = payload?.jobId ?? null;
+            const file = payload?.file ?? null;
+            const fileId = payload?.fileId ?? null;
+            const fileName = payload?.fileName ?? file?.name ?? "Unknown file";
+            const maxPoints = Number.isFinite(payload?.maxPoints)
+                ? payload.maxPoints
+                : DEFAULT_MAX_POINTS;
+            if (!file)
+                throw new Error("Missing file for processing.");
+            if (!fileId)
+                throw new Error("Missing fileId for processing.");
+            const previewCache = await ensurePreviewCache(fileId, file, {
+                maxCacheRows: AUTO_EXTRACTION_PREVIEW_ROWS,
+            });
+            const previewRowCount = Math.min(
+                Number(previewCache.rowCount) || 0,
+                AUTO_EXTRACTION_PREVIEW_ROWS,
+            );
+            const previewRows = previewRowCount > 0
+                ? await getPreviewRows(previewCache, 0, previewRowCount)
+                : [];
+            const autoExtraction = inferDeviceAnalysisAutoExtraction({
+                fileName,
+                rows: previewRows,
+                totalRowCount: previewCache.rowCount,
+            });
+            if (!autoExtraction.ok) {
+                throw new Error(autoExtraction.message);
+            }
+            const processed = await processFile(
+                file,
+                fileId,
+                fileName,
+                buildDeviceAnalysisAutoWorkerConfig(autoExtraction.plan),
+                {
+                    curveFilterKey: payload?.curveFilterKey ?? null,
+                    curveFilterField: payload?.curveFilterField ?? null,
+                    maxPoints,
+                },
+            );
+            const transfer = [];
+            for (const xArr of processed.xGroups)
+                transfer.push(xArr.buffer);
+            for (const s of processed.series)
+                transfer.push(s.y.buffer);
+            workerScope.postMessage({ type: "processResult", payload: { jobId, processed } }, transfer);
             return;
         }
         if (type === "processFile") {

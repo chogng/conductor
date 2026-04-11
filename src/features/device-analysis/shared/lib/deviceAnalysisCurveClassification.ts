@@ -17,6 +17,11 @@ export type DeviceAnalysisCurveMetadata = {
   channelVNames: string[];
   dataNameColumns: string[];
   isStrippedChannelSweep: boolean;
+  strippedSweepVoltageAxis: "ch1" | "ch2" | null;
+  strippedSweepVoltageSpan: number | null;
+  strippedFixedVoltageMagnitude: number | null;
+  strippedCurrentLogSpanCh1: number | null;
+  strippedCurrentLogSpanCh2: number | null;
   notesText: string;
   setupTitle: string;
   var1Name: string;
@@ -75,9 +80,12 @@ export const detectDeviceAnalysisAxisRole = (
   const hasVg =
     /(^|[^a-z0-9])v[_-]?g(s|[^a-z0-9]|$)/.test(text) ||
     /(^|[^a-z0-9])gate(\s+voltage)?([^a-z0-9]|$)/.test(text) ||
+    /(^|[^a-z0-9])tran(s|fer)?([^a-z0-9]|$)/.test(text) ||
     /(^|[^a-z0-9])transfer(\s+(curve|curves|characteristic|characteristics))?([^a-z0-9]|$)/.test(
       text,
     ) ||
+    compact === "tran" ||
+    compact.startsWith("tran") ||
     compact.includes("gatevoltage") ||
     compact.includes("transfercurve") ||
     compact.includes("transfercurves") ||
@@ -89,9 +97,12 @@ export const detectDeviceAnalysisAxisRole = (
   const hasVd =
     /(^|[^a-z0-9])v[_-]?d(s|[^a-z0-9]|$)/.test(text) ||
     /(^|[^a-z0-9])drain(\s+voltage)?([^a-z0-9]|$)/.test(text) ||
+    /(^|[^a-z0-9])out(put)?([^a-z0-9]|$)/.test(text) ||
     /(^|[^a-z0-9])output(\s+(curve|curves|characteristic|characteristics))?([^a-z0-9]|$)/.test(
       text,
     ) ||
+    compact === "out" ||
+    compact.startsWith("output") ||
     compact.includes("drainvoltage") ||
     compact.includes("outputcurve") ||
     compact.includes("outputcurves") ||
@@ -131,6 +142,173 @@ const deriveVarNameFromChannelMeta = ({
   return normalizeCellText(channelVNames[index]);
 };
 
+const parseFiniteNumber = (value: unknown): number | null => {
+  const normalized = normalizeCellText(value);
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const computeQuantile = (values: number[], quantile: number): number | null => {
+  if (!Array.isArray(values) || !values.length) return null;
+  const sorted = values
+    .filter((value) => Number.isFinite(value))
+    .slice()
+    .sort((left, right) => left - right);
+  if (!sorted.length) return null;
+  if (sorted.length === 1) return sorted[0];
+  const position = Math.min(
+    sorted.length - 1,
+    Math.max(0, quantile * (sorted.length - 1)),
+  );
+  const lowerIndex = Math.floor(position);
+  const upperIndex = Math.ceil(position);
+  if (lowerIndex === upperIndex) return sorted[lowerIndex];
+  const ratio = position - lowerIndex;
+  return sorted[lowerIndex] + (sorted[upperIndex] - sorted[lowerIndex]) * ratio;
+};
+
+const computeSpan = (values: number[]): number | null => {
+  const finiteValues = values.filter((value) => Number.isFinite(value));
+  if (finiteValues.length < 2) return null;
+  return Math.max(...finiteValues) - Math.min(...finiteValues);
+};
+
+const computeRobustLogSpan = (values: number[]): number | null => {
+  const magnitudeValues = values
+    .map((value) => Math.abs(value))
+    .filter((value) => Number.isFinite(value));
+  if (magnitudeValues.length < 3) return null;
+  const low = computeQuantile(magnitudeValues, 0.15);
+  const high = computeQuantile(magnitudeValues, 0.85);
+  if (low === null || high === null) return null;
+  if (!Number.isFinite(low) || !Number.isFinite(high)) return null;
+  return Math.log10((Math.max(high, 0) + 1e-30) / (Math.max(low, 0) + 1e-30));
+};
+
+const collectStrippedSweepShapeStats = (
+  rows: Array<Array<unknown> | null | undefined>,
+  headerRowIndex: number,
+): {
+  fixedVoltageMagnitude: number | null;
+  currentLogSpanCh1: number | null;
+  currentLogSpanCh2: number | null;
+  sweepVoltageAxis: "ch1" | "ch2" | null;
+  sweepVoltageSpan: number | null;
+} => {
+  if (!Array.isArray(rows) || headerRowIndex < 0 || headerRowIndex >= rows.length) {
+    return {
+      fixedVoltageMagnitude: null,
+      currentLogSpanCh1: null,
+      currentLogSpanCh2: null,
+      sweepVoltageAxis: null,
+      sweepVoltageSpan: null,
+    };
+  }
+
+  const headerRow = Array.isArray(rows[headerRowIndex])
+    ? (rows[headerRowIndex] as Array<unknown>).map((value) => normalizeCellText(value))
+    : [];
+  if (!headerRow.length) {
+    return {
+      fixedVoltageMagnitude: null,
+      currentLogSpanCh1: null,
+      currentLogSpanCh2: null,
+      sweepVoltageAxis: null,
+      sweepVoltageSpan: null,
+    };
+  }
+
+  const var2Index = headerRow.findIndex((entry, index) => index === 1 && entry === "VAR2");
+  const ch1VoltageIndex = headerRow.findIndex((entry) => entry === "CH1 Voltage");
+  const ch2VoltageIndex = headerRow.findIndex((entry) => entry === "CH2 Voltage");
+  const ch1CurrentIndex = headerRow.findIndex((entry) => entry === "CH1 Current");
+  const ch2CurrentIndex = headerRow.findIndex((entry) => entry === "CH2 Current");
+  if (ch1VoltageIndex < 0 || ch2VoltageIndex < 0) {
+    return {
+      fixedVoltageMagnitude: null,
+      currentLogSpanCh1: null,
+      currentLogSpanCh2: null,
+      sweepVoltageAxis: null,
+      sweepVoltageSpan: null,
+    };
+  }
+
+  const ch1Values: number[] = [];
+  const ch2Values: number[] = [];
+  const ch1Currents: number[] = [];
+  const ch2Currents: number[] = [];
+  let activeVar2 = "";
+
+  for (let index = headerRowIndex + 1; index < rows.length && ch1Values.length < 256; index += 1) {
+    const row = Array.isArray(rows[index]) ? (rows[index] as Array<unknown>) : [];
+    const var2Value =
+      var2Index >= 0 ? normalizeCellText(row[var2Index] ?? "") : "";
+    if (activeVar2 && var2Value && var2Value !== activeVar2 && ch1Values.length >= 2) {
+      break;
+    }
+    const ch1Value = parseFiniteNumber(row[ch1VoltageIndex]);
+    const ch2Value = parseFiniteNumber(row[ch2VoltageIndex]);
+    if (ch1Value === null || ch2Value === null) continue;
+    if (!activeVar2) {
+      activeVar2 = var2Value;
+    }
+    ch1Values.push(ch1Value);
+    ch2Values.push(ch2Value);
+    if (ch1CurrentIndex >= 0) {
+      const current = parseFiniteNumber(row[ch1CurrentIndex]);
+      if (current !== null) ch1Currents.push(current);
+    }
+    if (ch2CurrentIndex >= 0) {
+      const current = parseFiniteNumber(row[ch2CurrentIndex]);
+      if (current !== null) ch2Currents.push(current);
+    }
+  }
+
+  const ch1Span = computeSpan(ch1Values);
+  const ch2Span = computeSpan(ch2Values);
+  if (ch1Span === null || ch2Span === null) {
+    return {
+      fixedVoltageMagnitude: null,
+      currentLogSpanCh1: computeRobustLogSpan(ch1Currents),
+      currentLogSpanCh2: computeRobustLogSpan(ch2Currents),
+      sweepVoltageAxis: null,
+      sweepVoltageSpan: null,
+    };
+  }
+
+  const baseTolerance = 1e-9;
+  const relativeTolerance = Math.max(ch1Span, ch2Span) * 1e-4;
+  const stableTolerance = Math.max(baseTolerance, relativeTolerance);
+
+  const sweepVoltageAxis =
+    ch1Span > stableTolerance && ch2Span <= stableTolerance
+      ? "ch1"
+      : ch2Span > stableTolerance && ch1Span <= stableTolerance
+        ? "ch2"
+        : null;
+  const fixedValues = sweepVoltageAxis === "ch1" ? ch2Values : sweepVoltageAxis === "ch2" ? ch1Values : [];
+
+  return {
+    fixedVoltageMagnitude:
+      fixedValues.length > 0
+        ? computeQuantile(
+            fixedValues.map((value) => Math.abs(value)),
+            0.5,
+          )
+        : null,
+    currentLogSpanCh1: computeRobustLogSpan(ch1Currents),
+    currentLogSpanCh2: computeRobustLogSpan(ch2Currents),
+    sweepVoltageAxis,
+    sweepVoltageSpan:
+      sweepVoltageAxis === "ch1"
+        ? ch1Span
+        : sweepVoltageAxis === "ch2"
+          ? ch2Span
+          : null,
+  };
+};
+
 export const extractDeviceAnalysisCurveMetadata = (
   rows: Array<Array<unknown> | null | undefined>,
 ): DeviceAnalysisCurveMetadata => {
@@ -145,8 +323,9 @@ export const extractDeviceAnalysisCurveMetadata = (
   let channelVNames: string[] = [];
   let dataNameColumns: string[] = [];
   let isStrippedChannelSweep = false;
+  let strippedChannelHeaderRowIndex = -1;
 
-  for (const rawRow of Array.isArray(rows) ? rows : []) {
+  for (const [rowIndex, rawRow] of (Array.isArray(rows) ? rows : []).entries()) {
     const row = Array.isArray(rawRow) ? rawRow.map((value) => normalizeCellText(value)) : [];
     if (!row.length) continue;
 
@@ -185,8 +364,20 @@ export const extractDeviceAnalysisCurveMetadata = (
       row.includes("CH2 Voltage")
     ) {
       isStrippedChannelSweep = true;
+      strippedChannelHeaderRowIndex = rowIndex;
     }
   }
+
+  const strippedSweepVoltageAxis =
+    isStrippedChannelSweep && strippedChannelHeaderRowIndex >= 0
+      ? collectStrippedSweepShapeStats(rows, strippedChannelHeaderRowIndex)
+      : {
+          fixedVoltageMagnitude: null,
+          currentLogSpanCh1: null,
+          currentLogSpanCh2: null,
+          sweepVoltageAxis: null,
+          sweepVoltageSpan: null,
+        };
 
   if (notesText) {
     const noteVar1 = parseVarNameFromNotes(notesText, "VAR1");
@@ -230,6 +421,11 @@ export const extractDeviceAnalysisCurveMetadata = (
     channelVNames,
     dataNameColumns,
     isStrippedChannelSweep,
+    strippedCurrentLogSpanCh1: strippedSweepVoltageAxis.currentLogSpanCh1,
+    strippedCurrentLogSpanCh2: strippedSweepVoltageAxis.currentLogSpanCh2,
+    strippedFixedVoltageMagnitude: strippedSweepVoltageAxis.fixedVoltageMagnitude,
+    strippedSweepVoltageAxis: strippedSweepVoltageAxis.sweepVoltageAxis,
+    strippedSweepVoltageSpan: strippedSweepVoltageAxis.sweepVoltageSpan,
     notesText,
     setupTitle,
     var1Name,
@@ -238,6 +434,21 @@ export const extractDeviceAnalysisCurveMetadata = (
     var2NameSource,
     xAxisData,
   };
+};
+
+const formatVoltage = (value: number | null | undefined): string => {
+  if (!Number.isFinite(value)) return "?";
+  const abs = Math.abs(Number(value));
+  if (abs >= 100 || (abs > 0 && abs < 0.01)) {
+    return Number(value).toExponential(2);
+  }
+  const rounded = Math.round(Number(value) * 100) / 100;
+  return `${rounded}`;
+};
+
+const formatDecades = (value: number | null | undefined): string => {
+  if (!Number.isFinite(value)) return "?";
+  return `${Math.round(Number(value) * 10) / 10}`;
 };
 
 const buildCurveTypeLabel = (
@@ -285,6 +496,8 @@ const collectRoleEvidence = ({
 }: DeviceAnalysisCurveClassificationInput): CurveEvidence[] => {
   const evidence: CurveEvidence[] = [];
   const normalizedMetadata = metadata ?? {};
+  const fileNameRoleFromText = detectDeviceAnalysisAxisRole(fileName);
+  const shapeRoleHint = fileNameRole ?? fileNameRoleFromText;
 
   pushEvidence(
     evidence,
@@ -349,14 +562,87 @@ const collectRoleEvidence = ({
     );
   }
 
-  const fileNameRoleFromText = detectDeviceAnalysisAxisRole(fileName);
   pushEvidence(
     evidence,
     fileNameRoleFromText,
     2,
     "filename",
-    `contains ${toRoleLabel(fileNameRoleFromText ?? "vg")} hints.`,
+      `contains ${toRoleLabel(fileNameRoleFromText ?? "vg")} hints.`,
   );
+
+  if (normalizedMetadata.isStrippedChannelSweep && normalizedMetadata.strippedSweepVoltageAxis) {
+    const sweptAxis = normalizedMetadata.strippedSweepVoltageAxis;
+    const fixedAxis = sweptAxis === "ch1" ? "ch2" : "ch1";
+    const sweptChannel = sweptAxis.toUpperCase();
+    const fixedChannel = fixedAxis.toUpperCase();
+    const sweptCurrentSpan =
+      sweptAxis === "ch1"
+        ? Number(normalizedMetadata.strippedCurrentLogSpanCh1)
+        : Number(normalizedMetadata.strippedCurrentLogSpanCh2);
+    const fixedCurrentSpan =
+      fixedAxis === "ch1"
+        ? Number(normalizedMetadata.strippedCurrentLogSpanCh1)
+        : Number(normalizedMetadata.strippedCurrentLogSpanCh2);
+    const currentSpanGap = Math.abs(sweptCurrentSpan - fixedCurrentSpan);
+
+    if (
+      Number.isFinite(sweptCurrentSpan) &&
+      Number.isFinite(fixedCurrentSpan) &&
+      currentSpanGap >= 1.2
+    ) {
+      const dominantAxis = sweptCurrentSpan >= fixedCurrentSpan ? sweptAxis : fixedAxis;
+      const dominantChannel = dominantAxis.toUpperCase();
+      const inferredRole = dominantAxis === sweptAxis ? "vd" : "vg";
+      const weight = currentSpanGap >= 2.5 ? 9 : currentSpanGap >= 1.8 ? 8 : 7;
+      pushEvidence(
+        evidence,
+        inferredRole,
+        weight,
+        "shape",
+        dominantAxis === sweptAxis
+          ? `shows ${dominantChannel} Current changing ${formatDecades(currentSpanGap)} decades more than ${fixedChannel} Current while ${sweptChannel} Voltage is swept, which matches output-style Id-Vd behavior.`
+          : `shows ${dominantChannel} Current changing ${formatDecades(currentSpanGap)} decades more than ${sweptChannel} Current while ${sweptChannel} Voltage is swept, which matches transfer-style drain-current response to Vg.`,
+      );
+    }
+
+    const sweepVoltageSpan = Number(normalizedMetadata.strippedSweepVoltageSpan);
+    const fixedVoltageMagnitude = Number(normalizedMetadata.strippedFixedVoltageMagnitude);
+    if (Number.isFinite(sweepVoltageSpan) && Number.isFinite(fixedVoltageMagnitude)) {
+      if (
+        sweepVoltageSpan <= 12 &&
+        fixedVoltageMagnitude >= Math.max(12, sweepVoltageSpan * 3)
+      ) {
+        pushEvidence(
+          evidence,
+          "vd",
+          6,
+          "shape",
+          `sweeps ${sweptChannel} over about ${formatVoltage(sweepVoltageSpan)} V while ${fixedChannel} sits near ${formatVoltage(fixedVoltageMagnitude)} V, which is more typical of output sweeps under stepped gate bias.`,
+        );
+      } else if (
+        fixedVoltageMagnitude <= 12 &&
+        sweepVoltageSpan >= Math.max(12, fixedVoltageMagnitude * 3)
+      ) {
+        pushEvidence(
+          evidence,
+          "vg",
+          6,
+          "shape",
+          `sweeps ${sweptChannel} over about ${formatVoltage(sweepVoltageSpan)} V while ${fixedChannel} stays near ${formatVoltage(fixedVoltageMagnitude)} V, which is more typical of transfer sweeps at modest drain bias.`,
+        );
+      }
+    }
+
+    if (shapeRoleHint) {
+      pushEvidence(
+        evidence,
+        shapeRoleHint,
+        3,
+        "shape",
+        `shows ${sweptChannel} Voltage sweeping while ${fixedChannel} stays nearly fixed, matching ${toRoleLabel(shapeRoleHint)} filename hints.`,
+      );
+    }
+  }
 
   return evidence;
 };
@@ -464,7 +750,9 @@ export const classifyDeviceAnalysisCurve = ({
     confidence = "medium";
   }
 
-  if (confidence === "low" && normalizedMetadata.isStrippedChannelSweep) {
+  const hasShapeSupport = winningEvidence.some((entry) => entry.source === "shape");
+
+  if (confidence === "low" && normalizedMetadata.isStrippedChannelSweep && !hasShapeSupport) {
     return {
       confidence: "low",
       curveType: "unknown",
