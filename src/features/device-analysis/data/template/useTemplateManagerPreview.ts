@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -21,16 +22,21 @@ import {
   usePreviewSelectionOverlay,
   usePreviewViewportSync,
 } from "./templateManagerPreview";
+import {
+  clampPreviewZoomPercent,
+  scalePreviewMeasurement,
+  toBasePreviewMeasurement,
+} from "./templateManagerPreviewZoom";
 
-const PREVIEW_ROW_HEIGHT_PX = 28;
+const PREVIEW_ROW_HEIGHT_BASE_PX = 28;
 const PREVIEW_OVERSCAN_ROWS = 12;
-const PREVIEW_ROW_INDEX_COL_PX = 48;
-const PREVIEW_COL_MIN_PX = 120;
-const PREVIEW_COL_MAX_PX = 420;
-const PREVIEW_COL_CHAR_PX = 7;
-const PREVIEW_COL_PADDING_PX = 44;
-const PREVIEW_COL_RESIZE_MIN_PX = 80;
-const PREVIEW_COL_RESIZE_MAX_PX = 800;
+const PREVIEW_ROW_INDEX_COL_BASE_PX = 48;
+const PREVIEW_COL_MIN_BASE_PX = 120;
+const PREVIEW_COL_MAX_BASE_PX = 420;
+const PREVIEW_COL_CHAR_BASE_PX = 7;
+const PREVIEW_COL_PADDING_BASE_PX = 44;
+const PREVIEW_COL_RESIZE_MIN_BASE_PX = 80;
+const PREVIEW_COL_RESIZE_MAX_BASE_PX = 800;
 const PREVIEW_COL_OVERSCAN_PX = 240;
 const PREVIEW_COL_OVERSCAN_PX_MIN = 96;
 const PREVIEW_COL_OVERSCAN_PX_MAX = 720;
@@ -168,8 +174,10 @@ type UseTemplateManagerPreviewOptions = {
     endRow: number,
   ) => Promise<unknown> | unknown;
   getPreviewRow?: (rowIndex: number) => unknown;
+  interactive?: boolean;
   previewFile?: PreviewFileLike | null;
   previewStatus?: PreviewStatus | null;
+  previewZoomPercent?: number;
   setConfig: Dispatch<SetStateAction<TemplateConfig>>;
   writeFieldFromPreview: (field: string, value: string) => void;
 };
@@ -190,8 +198,10 @@ export const useTemplateManagerPreview = ({
   config,
   ensurePreviewRows,
   getPreviewRow,
+  interactive = true,
   previewFile,
   previewStatus,
+  previewZoomPercent = 100,
   setConfig,
   writeFieldFromPreview,
 }: UseTemplateManagerPreviewOptions) => {
@@ -210,6 +220,65 @@ export const useTemplateManagerPreview = ({
   const pendingColumnResizeRef = useRef<PendingColumnResize | null>(null);
   const liveColumnLayoutRef = useRef<LiveColumnLayout>(
     createEmptyLiveColumnLayout() as LiveColumnLayout,
+  );
+  const previousPreviewZoomPercentRef = useRef(
+    clampPreviewZoomPercent(previewZoomPercent),
+  );
+
+  const normalizedPreviewZoomPercent = clampPreviewZoomPercent(previewZoomPercent);
+  const previewRowHeightPx = useMemo(
+    () =>
+      scalePreviewMeasurement(
+        PREVIEW_ROW_HEIGHT_BASE_PX,
+        normalizedPreviewZoomPercent,
+        { minPx: 14 },
+      ),
+    [normalizedPreviewZoomPercent],
+  );
+  const previewRowIndexWidthPx = useMemo(
+    () =>
+      scalePreviewMeasurement(
+        PREVIEW_ROW_INDEX_COL_BASE_PX,
+        normalizedPreviewZoomPercent,
+        { minPx: 32 },
+      ),
+    [normalizedPreviewZoomPercent],
+  );
+  const previewColumnMinWidthPx = useMemo(
+    () =>
+      scalePreviewMeasurement(
+        PREVIEW_COL_MIN_BASE_PX,
+        normalizedPreviewZoomPercent,
+        { minPx: 60 },
+      ),
+    [normalizedPreviewZoomPercent],
+  );
+  const previewColumnMaxWidthPx = useMemo(
+    () =>
+      scalePreviewMeasurement(
+        PREVIEW_COL_MAX_BASE_PX,
+        normalizedPreviewZoomPercent,
+        { minPx: previewColumnMinWidthPx + 1 },
+      ),
+    [normalizedPreviewZoomPercent, previewColumnMinWidthPx],
+  );
+  const previewResizeMinWidthPx = useMemo(
+    () =>
+      scalePreviewMeasurement(
+        PREVIEW_COL_RESIZE_MIN_BASE_PX,
+        normalizedPreviewZoomPercent,
+        { minPx: 48 },
+      ),
+    [normalizedPreviewZoomPercent],
+  );
+  const previewResizeMaxWidthPx = useMemo(
+    () =>
+      scalePreviewMeasurement(
+        PREVIEW_COL_RESIZE_MAX_BASE_PX,
+        normalizedPreviewZoomPercent,
+        { minPx: previewResizeMinWidthPx + 1 },
+      ),
+    [normalizedPreviewZoomPercent, previewResizeMinWidthPx],
   );
 
   const warmPreviewRowsForScrollFrame = useCallback(
@@ -237,7 +306,7 @@ export const useTemplateManagerPreview = ({
             : PREVIEW_OVERSCAN_ROWS + 4;
       const visibleRows = Math.max(
         1,
-        Math.ceil(Math.max(1, Number(viewportHeight) || 0) / PREVIEW_ROW_HEIGHT_PX),
+        Math.ceil(Math.max(1, Number(viewportHeight) || 0) / previewRowHeightPx),
       );
       const lookBehindRows = Math.max(
         immediateRenderOverscanRows + 8,
@@ -270,14 +339,19 @@ export const useTemplateManagerPreview = ({
         prefetchRowsAfter: immediatePrefetchRowsAfter,
         prefetchRowsBefore: immediatePrefetchRowsBefore,
         rowCount,
-        rowHeightPx: PREVIEW_ROW_HEIGHT_PX,
+        rowHeightPx: previewRowHeightPx,
         scrollTop,
         viewportHeight,
         windowShiftStrideRows: immediateWindowShiftStrideRows,
       });
       void ensurePreviewRows(fileId, range.startRow, range.endRow);
     },
-    [ensurePreviewRows, previewFile?.fileId, previewFile?.rowCount],
+    [
+      ensurePreviewRows,
+      previewFile?.fileId,
+      previewFile?.rowCount,
+      previewRowHeightPx,
+    ],
   );
 
   const resolvePreviewHorizontalScrollCommitThresholdPx = useCallback(
@@ -315,7 +389,7 @@ export const useTemplateManagerPreview = ({
     previewFileColumnCount: previewFile?.columnCount,
     previewFileId: previewFile?.fileId,
     previewFileRowCount: previewFile?.rowCount,
-    previewRowHeightPx: PREVIEW_ROW_HEIGHT_PX,
+    previewRowHeightPx,
     resolvePreviewHorizontalScrollCommitThresholdPx,
     previewScrollRef,
     previewStatusState: previewStatus?.state,
@@ -339,7 +413,7 @@ export const useTemplateManagerPreview = ({
     [previewHorizontalScrollVelocityTier, previewViewportWidth],
   );
 
-  const handlePreviewPick = usePreviewPickHandler({
+  const previewPickHandler = usePreviewPickHandler({
     containerRef,
     writeFieldFromPreview,
   }) as (payload: {
@@ -348,6 +422,7 @@ export const useTemplateManagerPreview = ({
     colIndex: number;
     cellEl: Element;
   }) => boolean;
+  const handlePreviewPick = interactive ? previewPickHandler : undefined;
 
   useEffect(() => {
     return () => {
@@ -382,11 +457,9 @@ export const useTemplateManagerPreview = ({
     () =>
       Math.max(
         1,
-        Math.ceil(
-          Math.max(1, Number(previewViewportHeight) || 0) / PREVIEW_ROW_HEIGHT_PX,
-        ),
+        Math.ceil(Math.max(1, Number(previewViewportHeight) || 0) / previewRowHeightPx),
       ),
-    [previewViewportHeight],
+    [previewRowHeightPx, previewViewportHeight],
   );
 
   const renderOverscanRows = useMemo(
@@ -492,7 +565,7 @@ export const useTemplateManagerPreview = ({
     [setSelections],
   );
 
-  const autoColumnWidthsPx = useMemo(() => {
+  const autoColumnWidthsBasePx = useMemo(() => {
     const maxLens = Array.isArray(previewFile?.maxCellLengths)
       ? previewFile.maxCellLengths
       : [];
@@ -504,13 +577,62 @@ export const useTemplateManagerPreview = ({
     const widths = new Array<number>(count);
     for (let index = 0; index < count; index += 1) {
       const maxLen = Number(maxLens[index]) || 0;
-      const estimated = maxLen * PREVIEW_COL_CHAR_PX + PREVIEW_COL_PADDING_PX;
+      const estimated = maxLen * PREVIEW_COL_CHAR_BASE_PX + PREVIEW_COL_PADDING_BASE_PX;
       const base = maxLen > 0 ? estimated : 160;
-      widths[index] = clampNumber(base, PREVIEW_COL_MIN_PX, PREVIEW_COL_MAX_PX);
+      widths[index] = clampNumber(base, PREVIEW_COL_MIN_BASE_PX, PREVIEW_COL_MAX_BASE_PX);
     }
 
     return widths;
   }, [previewFile]);
+
+  const autoColumnWidthsPx = useMemo(
+    () =>
+      autoColumnWidthsBasePx.map((width) =>
+        scalePreviewMeasurement(width, normalizedPreviewZoomPercent, {
+          maxPx: previewColumnMaxWidthPx,
+          minPx: previewColumnMinWidthPx,
+        }),
+      ),
+    [
+      autoColumnWidthsBasePx,
+      normalizedPreviewZoomPercent,
+      previewColumnMaxWidthPx,
+      previewColumnMinWidthPx,
+    ],
+  );
+
+  const scaledColumnWidthOverridesByFile = useMemo(() => {
+    const fileId = previewFile?.fileId;
+    if (!fileId) return {};
+
+    const baseOverrides = columnWidthOverridesByFile[fileId] ?? {};
+    const nextForFile = Object.entries(baseOverrides).reduce<Record<number, number>>(
+      (acc, [colIndex, width]) => {
+        const normalizedColIndex = Number(colIndex);
+        if (!Number.isInteger(normalizedColIndex) || normalizedColIndex < 0) {
+          return acc;
+        }
+        acc[normalizedColIndex] = scalePreviewMeasurement(
+          Number(width) || 0,
+          normalizedPreviewZoomPercent,
+          {
+            maxPx: previewResizeMaxWidthPx,
+            minPx: previewResizeMinWidthPx,
+          },
+        );
+        return acc;
+      },
+      {},
+    );
+
+    return { [fileId]: nextForFile };
+  }, [
+    columnWidthOverridesByFile,
+    normalizedPreviewZoomPercent,
+    previewFile?.fileId,
+    previewResizeMaxWidthPx,
+    previewResizeMinWidthPx,
+  ]);
 
   const {
     previewColumnGeometry,
@@ -520,17 +642,17 @@ export const useTemplateManagerPreview = ({
   } = usePreviewColumnLayout({
     autoColumnWidthsPx,
     columnCount,
-    columnWidthOverridesByFile,
+    columnWidthOverridesByFile: scaledColumnWidthOverridesByFile,
     liveColumnLayoutRef,
-    minColumnWidthPx: PREVIEW_COL_MIN_PX,
+    minColumnWidthPx: previewColumnMinWidthPx,
     overscanPx: previewColumnOverscanPx,
     previewFileId: previewFile?.fileId,
     previewScrollLeft,
     previewTableRef,
     previewViewportWidth,
-    resizeMaxWidthPx: PREVIEW_COL_RESIZE_MAX_PX,
-    resizeMinWidthPx: PREVIEW_COL_RESIZE_MIN_PX,
-    rowIndexWidthPx: PREVIEW_ROW_INDEX_COL_PX,
+    resizeMaxWidthPx: previewResizeMaxWidthPx,
+    resizeMinWidthPx: previewResizeMinWidthPx,
+    rowIndexWidthPx: previewRowIndexWidthPx,
   }) as {
     previewColumnGeometry: PreviewColumnGeometry;
     getColumnWidthPx: (colIndex: number) => number;
@@ -562,7 +684,7 @@ export const useTemplateManagerPreview = ({
 
   const resetColumnWidth = useCallback(
     (fileId: string, colIndex: number) => {
-      const auto = autoColumnWidthsPx[colIndex] ?? PREVIEW_COL_MIN_PX;
+      const auto = autoColumnWidthsPx[colIndex] ?? previewColumnMinWidthPx;
       applyColumnWidthToDom(fileId, colIndex, auto);
 
       setColumnWidthOverridesByFile((prev) => {
@@ -574,7 +696,7 @@ export const useTemplateManagerPreview = ({
         return { ...prev, [fileId]: nextForFile };
       });
     },
-    [applyColumnWidthToDom, autoColumnWidthsPx],
+    [applyColumnWidthToDom, autoColumnWidthsPx, previewColumnMinWidthPx],
   );
 
   const handleColumnResizeStart = useCallback(
@@ -625,7 +747,17 @@ export const useTemplateManagerPreview = ({
         if (Number.isFinite(resolvedFinalWidth) && resolvedFinalWidth > 0) {
           setColumnWidthOverridesByFile((prev) => {
             const existing = prev[fileId] ?? {};
-            const nextForFile = { ...existing, [colIndex]: resolvedFinalWidth };
+            const nextForFile = {
+              ...existing,
+              [colIndex]: toBasePreviewMeasurement(
+                resolvedFinalWidth,
+                normalizedPreviewZoomPercent,
+                {
+                  maxPx: PREVIEW_COL_RESIZE_MAX_BASE_PX,
+                  minPx: PREVIEW_COL_RESIZE_MIN_BASE_PX,
+                },
+              ),
+            };
             return { ...prev, [fileId]: nextForFile };
           });
         }
@@ -661,10 +793,49 @@ export const useTemplateManagerPreview = ({
       flushPendingColumnResize,
       getColumnWidthPx,
       initLiveColumnLayout,
+      normalizedPreviewZoomPercent,
       previewFile?.fileId,
       scheduleColumnResizeDomUpdate,
     ],
   );
+
+  useLayoutEffect(() => {
+    const viewport = previewScrollRef.current;
+    const previousZoomPercent = previousPreviewZoomPercentRef.current;
+    previousPreviewZoomPercentRef.current = normalizedPreviewZoomPercent;
+
+    if (!viewport || previousZoomPercent === normalizedPreviewZoomPercent) {
+      return;
+    }
+
+    const previousScale = previousZoomPercent / 100;
+    const nextScale = normalizedPreviewZoomPercent / 100;
+    const scaleRatio =
+      previousScale > 0 ? nextScale / previousScale : nextScale || 1;
+    if (!Number.isFinite(scaleRatio) || scaleRatio <= 0) return;
+
+    const nextScrollTop = Math.max(
+      0,
+      Math.min(
+        Math.max(0, viewport.scrollHeight - viewport.clientHeight),
+        viewport.scrollTop * scaleRatio,
+      ),
+    );
+    const nextScrollLeft = Math.max(
+      0,
+      Math.min(
+        Math.max(0, viewport.scrollWidth - viewport.clientWidth),
+        viewport.scrollLeft * scaleRatio,
+      ),
+    );
+
+    if (Math.abs(nextScrollTop - viewport.scrollTop) > 0.5) {
+      viewport.scrollTop = nextScrollTop;
+    }
+    if (Math.abs(nextScrollLeft - viewport.scrollLeft) > 0.5) {
+      viewport.scrollLeft = nextScrollLeft;
+    }
+  }, [normalizedPreviewZoomPercent, previewScrollRef]);
 
   const previewWindow = usePreviewRowWindow({
     ensurePreviewRows,
@@ -675,12 +846,13 @@ export const useTemplateManagerPreview = ({
     previewRowCount: previewFile?.rowCount,
     previewScrollTop,
     previewViewportHeight,
-    rowHeightPx: PREVIEW_ROW_HEIGHT_PX,
+    rowHeightPx: previewRowHeightPx,
     windowShiftStrideRows: previewWindowShiftStrideRows,
   }) as PreviewWindow;
 
   const toggleColumn = useCallback(
     (index: number) => {
+      if (!interactive) return;
       setConfig((prev) => {
         const yColumns = Array.isArray(prev?.yColumns)
           ? prev.yColumns
@@ -700,7 +872,7 @@ export const useTemplateManagerPreview = ({
         };
       });
     },
-    [setConfig],
+    [interactive, setConfig],
   );
 
   const { activeCellRect, selectionRects, hideDragOverlay, renderDragOverlay } =
@@ -711,8 +883,8 @@ export const useTemplateManagerPreview = ({
       previewFileId: previewFile?.fileId,
       previewTableRef,
       previewWindow,
-      rowHeightPx: PREVIEW_ROW_HEIGHT_PX,
-      rowIndexWidthPx: PREVIEW_ROW_INDEX_COL_PX,
+      rowHeightPx: previewRowHeightPx,
+      rowIndexWidthPx: previewRowIndexWidthPx,
       selections,
     }) as {
       activeCellRect: DOMRect | Record<string, number> | null;
@@ -751,8 +923,9 @@ export const useTemplateManagerPreview = ({
     handlePreviewScroll,
     isColumnResizing,
     previewColumnGeometry,
-    previewColumnMinWidthPx: PREVIEW_COL_MIN_PX,
-    previewRowIndexWidthPx: PREVIEW_ROW_INDEX_COL_PX,
+    previewColumnMinWidthPx,
+    previewRowHeightPx,
+    previewRowIndexWidthPx,
     previewScrollRef,
     previewTableRef,
     previewWindow,

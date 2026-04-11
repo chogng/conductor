@@ -2,11 +2,17 @@ import React, {
   type Dispatch,
   type MutableRefObject,
   type SetStateAction,
+  useCallback,
+  useState,
 } from "react";
 import type { TranslateFn } from "../../../../context/language";
 import type { PreviewStatus as SessionPreviewStatus } from "../../session/device-analysis-session-context";
 import type { PreviewFileLike } from "../../shared/lib/sharedTypes";
 import TemplateManagerPreviewPanel from "./TemplateManagerPreviewPanel";
+import {
+  PREVIEW_ZOOM_DEFAULT_PERCENT,
+  offsetPreviewZoomPercent,
+} from "./templateManagerPreviewZoom";
 import { useTemplateManagerPreview } from "./useTemplateManagerPreview";
 import type { TemplateConfig } from "./templateManagerUtils";
 
@@ -22,6 +28,7 @@ type TemplateManagerPreviewWorkspaceProps = {
   ) => Promise<unknown> | unknown;
   getPreviewRow?: (rowIndex: number) => unknown;
   getPreviewRowsVersion?: () => number;
+  interactive?: boolean;
   previewFile?: PreviewFileLike | null;
   previewStatus?: PreviewStatus | null;
   setConfig: Dispatch<SetStateAction<TemplateConfig>>;
@@ -36,6 +43,7 @@ const TemplateManagerPreviewWorkspace = ({
   ensurePreviewRows,
   getPreviewRow,
   getPreviewRowsVersion,
+  interactive = true,
   previewFile,
   previewStatus,
   setConfig,
@@ -43,6 +51,16 @@ const TemplateManagerPreviewWorkspace = ({
   t,
   writeFieldFromPreview,
 }: TemplateManagerPreviewWorkspaceProps) => {
+  const [previewZoomPercent, setPreviewZoomPercent] = useState(
+    PREVIEW_ZOOM_DEFAULT_PERCENT,
+  );
+  const adjustPreviewZoom = useCallback((deltaSteps: number) => {
+    setPreviewZoomPercent((prev) => offsetPreviewZoomPercent(prev, deltaSteps));
+  }, []);
+  const resetPreviewZoom = useCallback(() => {
+    setPreviewZoomPercent(PREVIEW_ZOOM_DEFAULT_PERCENT);
+  }, []);
+
   const {
     activeCellRect,
     copySelection,
@@ -56,6 +74,7 @@ const TemplateManagerPreviewWorkspace = ({
     previewColumnGeometry,
     previewColumnMinWidthPx,
     previewRowIndexWidthPx,
+    previewRowHeightPx,
     previewScrollRef,
     previewTableRef,
     previewWindow,
@@ -70,8 +89,10 @@ const TemplateManagerPreviewWorkspace = ({
     config,
     ensurePreviewRows,
     getPreviewRow,
+    interactive,
     previewFile,
     previewStatus,
+    previewZoomPercent,
     setConfig,
     writeFieldFromPreview,
   });
@@ -84,6 +105,7 @@ const TemplateManagerPreviewWorkspace = ({
       getPreviewRow={getPreviewRow}
       getPreviewRowsVersion={getPreviewRowsVersion}
       gridRef={gridRef}
+      adjustPreviewZoom={adjustPreviewZoom}
       handleCellMouseDown={handleCellMouseDown}
       handleColumnResizeStart={handleColumnResizeStart}
       handlePreviewPick={handlePreviewPick}
@@ -92,11 +114,14 @@ const TemplateManagerPreviewWorkspace = ({
       previewColumnGeometry={previewColumnGeometry}
       previewColumnMinWidthPx={previewColumnMinWidthPx}
       previewFile={previewFile}
+      previewRowHeightPx={previewRowHeightPx}
       previewRowIndexWidthPx={previewRowIndexWidthPx}
       previewScrollRef={previewScrollRef}
       previewStatus={previewStatus}
       previewTableRef={previewTableRef}
       previewWindow={previewWindow}
+      previewZoomPercent={previewZoomPercent}
+      resetPreviewZoom={resetPreviewZoom}
       resetColumnWidth={resetColumnWidth}
       yColumnsSet={yColumnsSet}
       setSelectionRange={setSelectionRange}
@@ -104,6 +129,7 @@ const TemplateManagerPreviewWorkspace = ({
       selections={selections}
       subscribePreviewRowsVersion={subscribePreviewRowsVersion}
       t={t}
+      toggleColumnEnabled={interactive}
       toggleColumn={toggleColumn}
     />
   );
