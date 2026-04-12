@@ -957,6 +957,17 @@ textarea {
   background-color: rgba(255, 255, 255, 0.28);
 }
 
+/* Calculated parameters table: place the horizontal scrollbar into the panel's bottom padding. */
+.da-calculated-parameters-scroll-area {
+  overflow: visible;
+}
+
+.da-calculated-parameters-scroll-area .scroll-area__track--x {
+  left: 0;
+  right: 0;
+  bottom: -14px;
+}
+
 /* Template preview panel: keep both custom scrollbars visually aligned with outer card edges */
 .da-preview-scroll-area {
   overflow: visible;

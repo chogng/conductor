@@ -80,9 +80,13 @@ const SsSummaryStrip = memo(function SsSummaryStrip({
         </span>
       </span>
 
-      {summary.confidence === "fail" ? (
+      {summary.reason && summary.reason !== "ok" ? (
         <span
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-red-500/10 text-red-500 border border-red-500/20"
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border ${
+            summary.confidence === "fail"
+              ? "bg-red-500/10 text-red-500 border-red-500/20"
+              : "bg-yellow-500/10 text-yellow-500 border-yellow-500/20"
+          }`}
           title={summary.reason}
         >
           reason: <span className="font-mono">{summary.reason}</span>

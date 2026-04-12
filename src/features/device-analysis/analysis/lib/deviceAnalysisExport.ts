@@ -5,6 +5,7 @@ import {
   computeSubthresholdSwingFitAuto,
   computeSubthresholdSwingFitInIdWindow,
   computeSubthresholdSwingFitInRange,
+  resolveAutoSsSelection,
 } from "./analysisMath";
 import { getExcelColumnLabel } from "../../shared/lib/deviceAnalysisUtils";
 import type { ProcessedEntry, ProcessedSeries } from "../../shared/lib/sharedTypes";
@@ -270,11 +271,13 @@ export const buildDeviceAnalysisSsMetricsCsv = ({
 
       if (method === "auto") {
         const autoFit = computeSubthresholdSwingFitAuto(points) as
-          | Partial<{ strict: SsFit }>
+          | Partial<{ strict: SsFit; suggested: SsFit }>
           | null
           | undefined;
-        fit = autoFit?.strict ?? { ok: false, reason: "common.invalid_points" };
-        cls = classifySsFit("auto", fit) as SsClassification;
+        const autoSelection = resolveAutoSsSelection(autoFit);
+        fit = autoSelection.fit as SsFit;
+        cls = autoSelection.classification as SsClassification;
+        rangeSource = autoSelection.source ?? "";
       } else if (method === "manual") {
         const autoFit = computeSubthresholdSwingFitAuto(points) as
           | Partial<{ strict: SsFit; suggested: SsFit }>

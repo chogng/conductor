@@ -79,6 +79,42 @@ test("falls back to repeated X shape for grouped generic transfer files", () => 
   assert.equal(result.plan.legendTarget, "group");
 });
 
+test("infers grouped transfer legend sweep from notes when bias column is absent", () => {
+  const rows = [
+    ["SetupTitle", "Transfer_DB"],
+    ["TestParameter", "Output.Graph.XAxis.Data", "Vg"],
+    [
+      "AnalysisSetup",
+      "Analysis.Setup.Vector.Graph.Notes",
+      "[VAR1] Unit=SMU3:MP, Name=Vg, Direction=Double, Start=-1 V, Stop=4 V, Step=25 mV\t[VAR2] Unit=SMU2:MP, Name=Vd, Start=50 mV, Stop=1 V, Step=950 mV, No. of Steps=2",
+    ],
+    ["DataName", "Vg", "Id", "Ig"],
+    ["DataValue", "-1", "1e-13", "1e-12"],
+    ["DataValue", "0", "1e-12", "1e-12"],
+    ["DataValue", "1", "1e-9", "1e-12"],
+    ["DataValue", "-1", "2e-13", "1e-12"],
+    ["DataValue", "0", "2e-12", "1e-12"],
+    ["DataValue", "1", "2e-9", "1e-12"],
+  ];
+
+  const result = inferDeviceAnalysisAutoExtraction({
+    fileName: "Transfer_DB [notes-only-bias].csv",
+    rows,
+    totalRowCount: rows.length,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.plan.curveType, "transfer");
+  assert.equal(result.plan.xPointsPerGroup, 3);
+  assert.equal(result.plan.groups, 2);
+  assert.equal(result.plan.legendPrefix, "Vd");
+  assert.equal(result.plan.legendStartColIndex, null);
+  assert.equal(result.plan.legendStartValue, "0.05");
+  assert.equal(result.plan.legendCount, 2);
+  assert.ok(Math.abs(result.plan.legendStep - 0.95) < 1e-12);
+  assert.equal(result.plan.legendTarget, "group");
+});
+
 test("returns a failure result when auto extraction cannot infer columns", () => {
   const result = inferDeviceAnalysisAutoExtraction({
     fileName: "unknown.csv",

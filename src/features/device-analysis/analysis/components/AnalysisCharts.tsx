@@ -1,6 +1,6 @@
 import React, { startTransition, useEffect, useMemo, useRef, useState, type CSSProperties, } from "react";
 import { Check } from "lucide-react";
-import { computeCentralDerivative, computeSubthresholdSwing, computeSubthresholdSwingFitAuto, computeSubthresholdSwingFitInIdWindow, computeSubthresholdSwingFitInRange, classifySsFit, computeLegendDerivativeSeries, formatNumber, } from "../lib/analysisMath";
+import { computeCentralDerivative, computeSubthresholdSwing, computeSubthresholdSwingFitAuto, computeSubthresholdSwingFitInIdWindow, computeSubthresholdSwingFitInRange, classifySsFit, computeLegendDerivativeSeries, formatNumber, resolveAutoSsSelection, } from "../lib/analysisMath";
 import { apiService } from "../services/apiService";
 import Select from "../../../../components/ui/Select";
 import Button from "../../../../components/ui/Button";
@@ -22,26 +22,11 @@ import { getDeviceAnalysisXUnitMeta, getDeviceAnalysisYUnitMeta, normalizeDevice
 import MainPlotChart from "./MainPlotChart";
 import SsDiagnosticsChart from "./SsDiagnosticsChart";
 import SsSummaryStrip from "./SsSummaryStrip";
-type SsManualDraft = {
-    fileId: any;
-    seriesId: any;
-    x1: number;
-    x2: number;
-};
 type SsRange = {
     x1: number;
     x2: number;
 };
-type SsDragMode = "new" | "left" | "right" | "move";
-type SsDragState = {
-    active: boolean;
-    mode: SsDragMode;
-    fileId: any;
-    seriesId: any;
-    startX: number;
-    startRange: SsRange | null;
-    draftRange: SsRange | null;
-};
+type CurrentBiasRole = "ion" | "ioff";
 type PlotTypeOption = "iv" | "gm" | "ss" | "j";
 const MAX_RENDER_SERIES_POINTS = 600;
 const MIN_RENDER_SERIES_POINTS = 120;
@@ -80,6 +65,7 @@ const formatCurrentWindowSummary = (window: any, xFactor: number, digits: number
     }
     return parts.join(" · ");
 };
+const formatBiasInputValue = (xRaw: number, xFactor: number): string => String(normalizeFloat(xRaw * xFactor));
 type FormatOriginTranslateFn = (key: string, params?: Record<string, unknown>) => string;
 type OriginCsvBridge = {
     runOriginCsv: (payload: {
@@ -167,10 +153,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const [gmMode, setGmMode] = useState("x"); // 'x' | 'legend'
     const [areaInput, setAreaInput] = useState("");
     const [showAxisControls, setShowAxisControls] = useState(false);
-    const [ssManualDraft, setSsManualDraft] = useState<SsManualDraft | null>(null);
-    const ssDragStateRef = useRef<SsDragState | null>(null);
-    const ssDragCommitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const ssKeyStateRef = useRef({ shift: false, alt: false });
     const originChartXRangeRef = useRef<{ min: number; max: number; } | null>(null);
     const originChartYRangeRef = useRef<{ mode: "linear" | "log"; min: number; max: number; } | null>(null);
     const [axis, setAxis] = useState({
@@ -246,72 +228,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             cancelled = true;
         };
     }, []);
-    useEffect(() => {
-        const updateKeys = (e: any) => {
-            ssKeyStateRef.current = {
-                shift: Boolean(e?.shiftKey),
-                alt: Boolean(e?.altKey),
-            };
-        };
-        const cancelActiveDrag = (e: any) => {
-            const drag = ssDragStateRef.current;
-            if (!drag?.active)
-                return;
-            e?.preventDefault?.();
-            if (ssDragCommitTimerRef.current) {
-                clearTimeout(ssDragCommitTimerRef.current);
-                ssDragCommitTimerRef.current = null;
-            }
-            ssDragStateRef.current = null;
-            setSsManualDraft(null);
-            const fileId = drag?.fileId ?? null;
-            const seriesId = drag?.seriesId ?? null;
-            const startRange = drag?.startRange ?? null;
-            if (!fileId || !seriesId)
-                return;
-            const x1 = Number(startRange?.x1);
-            const x2 = Number(startRange?.x2);
-            if (Number.isFinite(x1) && Number.isFinite(x2)) {
-                setSsManualRanges((prev: any) => {
-                    const prevFile = prev?.[fileId] ?? {};
-                    return {
-                        ...(prev || {}),
-                        [fileId]: {
-                            ...prevFile,
-                            [seriesId]: { x1, x2 },
-                        },
-                    };
-                });
-                return;
-            }
-            // No prior range: revert to "unset" (remove key) if a draft already committed.
-            setSsManualRanges((prev: any) => {
-                const prevFile = prev?.[fileId] ?? {};
-                if (!Object.prototype.hasOwnProperty.call(prevFile, seriesId))
-                    return prev;
-                const { [seriesId]: _omit, ...restFile } = prevFile;
-                const next = { ...(prev || {}) };
-                if (Object.keys(restFile).length === 0) {
-                    const { [fileId]: _omitFile, ...rest } = next;
-                    return rest;
-                }
-                next[fileId] = restFile;
-                return next;
-            });
-        };
-        const onKeyDown = (e: any) => {
-            updateKeys(e);
-            if (e?.key === "Escape")
-                cancelActiveDrag(e);
-        };
-        const onKeyUp = (e: any) => updateKeys(e);
-        window.addEventListener("keydown", onKeyDown);
-        window.addEventListener("keyup", onKeyUp);
-        return () => {
-            window.removeEventListener("keydown", onKeyDown);
-            window.removeEventListener("keyup", onKeyUp);
-        };
-    }, [setSsManualRanges]);
     const effectiveActiveFileId = useMemo(() => {
         if (!processedData?.length)
             return null;
@@ -790,15 +706,20 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         xAt: fit?.x1 != null && fit?.x2 != null ? (fit.x1 + fit.x2) * 0.5 : null,
                     };
                 }
-                // Auto (strict) by default.
-                const cls = classifySsFit("auto", strictFit);
+                const autoSelection = resolveAutoSsSelection({
+                    strict: strictFit,
+                    suggested: suggestedFit,
+                });
+                const cls = autoSelection.classification;
+                const fit = autoSelection.fit;
                 return {
                     method: "auto",
                     confidence: cls.ss_confidence,
                     reason: cls.ss_reason,
-                    fit: strictFit,
-                    xAt: strictFit?.x1 != null && strictFit?.x2 != null
-                        ? (strictFit.x1 + strictFit.x2) * 0.5
+                    fit,
+                    rangeSource: autoSelection.source,
+                    xAt: fit?.x1 != null && fit?.x2 != null
+                        ? (fit.x1 + fit.x2) * 0.5
                         : null,
                 };
             };
@@ -898,30 +819,12 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return "iv";
         return plotType;
     }, [area, plotType, ssApplicable]);
+    const currentManualBiasApplicable = transferMetricsApplicable && effectivePlotType === "iv" && ionIoffMethod === "manual" && Boolean(focusedSeriesId);
     const handlePlotTypeChange = React.useCallback((nextPlotType: PlotTypeOption) => {
         startTransition(() => {
             setPlotType(nextPlotType);
         });
     }, []);
-    useEffect(() => {
-        const shouldEnableDrag = effectivePlotType === "ss" && ssMethod === "manual";
-        const activeFileIdNow = activeFile?.fileId ?? null;
-        const focusedSeriesIdNow = focusedSeriesId ?? null;
-        const drag = ssDragStateRef.current;
-        const dragActive = Boolean(drag?.active);
-        const dragIsForCurrent = drag &&
-            drag.fileId === activeFileIdNow &&
-            drag.seriesId === focusedSeriesIdNow;
-        if (!shouldEnableDrag || (dragActive && !dragIsForCurrent)) {
-            if (ssDragCommitTimerRef.current) {
-                clearTimeout(ssDragCommitTimerRef.current);
-                ssDragCommitTimerRef.current = null;
-            }
-            ssDragStateRef.current = null;
-            if (ssManualDraft)
-                setSsManualDraft(null);
-        }
-    }, [activeFile?.fileId, effectivePlotType, focusedSeriesId, ssManualDraft, ssMethod]);
     const plotYFactor = useMemo(() => resolvedYUnitMeta.factor, [resolvedYUnitMeta.factor]);
     const plotXFactor = useMemo(() => resolvedXUnitMeta.factor, [resolvedXUnitMeta.factor]);
     const plotYUnitLabel = useMemo(() => {
@@ -944,8 +847,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             seriesList.some((series: any) => series?.id === focusedSeriesId)) {
             return;
         }
-        if (effectivePlotType === "iv")
-            return;
         const nextFocusedSeriesId = seriesList[0]?.id ?? null;
         if (nextFocusedSeriesId !== focusedSeriesId) {
             setFocusedSeriesId(nextFocusedSeriesId);
@@ -1031,23 +932,18 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const manualStored = fileId ? ssManualRanges?.[fileId]?.[focusedSeriesId] : null;
         if (ssMethod === "manual") {
             const fit = analysis?.ssSelected?.fit ?? null;
-            const draft = ssManualDraft &&
-                ssManualDraft.fileId === fileId &&
-                ssManualDraft.seriesId === focusedSeriesId
-                ? ssManualDraft
-                : null;
-            const draftX1 = draft?.x1;
-            const draftX2 = draft?.x2;
-            const x1 = Number.isFinite(draftX1)
-                ? draftX1
+            const storedX1 = Number(manualStored?.x1);
+            const storedX2 = Number(manualStored?.x2);
+            const x1 = Number.isFinite(storedX1)
+                ? storedX1
                 : Number.isFinite(fit?.x1)
                     ? fit.x1
-                    : Number(manualStored?.x1);
-            const x2 = Number.isFinite(draftX2)
-                ? draftX2
+                    : null;
+            const x2 = Number.isFinite(storedX2)
+                ? storedX2
                 : Number.isFinite(fit?.x2)
                     ? fit.x2
-                    : Number(manualStored?.x2);
+                    : null;
             if (!Number.isFinite(x1) || !Number.isFinite(x2))
                 return null;
             return { x1, x2, kind: "manual" };
@@ -1074,7 +970,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         activeFile?.fileId,
         focusedAnalysis,
         focusedSeriesId,
-        ssManualDraft,
         ssManualRanges,
         ssMethod,
     ]);
@@ -1160,12 +1055,19 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             if (!Number.isFinite(x1) || !Number.isFinite(x2))
                 return;
             const color = role === "ion" ? "#22c55e" : "#ef4444";
+            const targetX = Number(window?.targetX);
+            const lower = Math.min(x1, x2);
+            const upper = Math.max(x1, x2);
+            const targetMatchesLower = Number.isFinite(targetX) && Math.abs(targetX - lower) <= 1e-12;
+            const targetMatchesUpper = Number.isFinite(targetX) && Math.abs(targetX - upper) <= 1e-12;
             overlays.push({
                 key: `selected-${role}`,
                 x1,
                 x2,
                 fill: color,
                 fillOpacity: 0.1,
+                hideEndLine: targetMatchesUpper,
+                hideStartLine: targetMatchesLower,
                 stroke: color,
                 strokeOpacity: 0.52,
                 strokeWidth: 2,
@@ -1202,9 +1104,60 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         if (!transferMetricsApplicable)
             return null;
         return ionIoffMethod === "manual"
-            ? "Gray bands show auto candidates; green/red bands show the manual Ion/Ioff windows now in use."
+            ? "Gray bands show auto candidates; drag the green/red bias markers or edit Ion x / Ioff x. The colored tint shows the averaging window used around each manual bias."
             : "Gray bands show auto candidates; green and red bands mark the selected Ion and Ioff windows.";
     }, [ionIoffMethod, transferMetricsApplicable]);
+    const currentOverlaysForPlot = useMemo(() => effectivePlotType === "ss" ? [] : focusedCurrentOverlays, [effectivePlotType, focusedCurrentOverlays]);
+    const showCurrentContext = transferMetricsApplicable && effectivePlotType !== "ss";
+    const currentBiasMarkers = useMemo(() => {
+        if (!currentManualBiasApplicable)
+            return [];
+        const markers: Array<{
+            key: string;
+            label: string;
+            role: CurrentBiasRole;
+            x: number;
+            stroke: string;
+            strokeOpacity: number;
+            strokeWidth: number;
+            strokeDasharray: string;
+        }> = [];
+        const ionRaw = Number(ionIoffManualTargets?.ionX);
+        if (Number.isFinite(ionRaw)) {
+            markers.push({
+                key: "ion-bias",
+                label: "Ion",
+                role: "ion",
+                x: ionRaw / plotXFactor,
+                stroke: "#22c55e",
+                strokeOpacity: 0.88,
+                strokeWidth: 2.5,
+                strokeDasharray: "6 4",
+            });
+        }
+        const ioffRaw = Number(ionIoffManualTargets?.ioffX);
+        if (Number.isFinite(ioffRaw)) {
+            markers.push({
+                key: "ioff-bias",
+                label: "Ioff",
+                role: "ioff",
+                x: ioffRaw / plotXFactor,
+                stroke: "#ef4444",
+                strokeOpacity: 0.88,
+                strokeWidth: 2.5,
+                strokeDasharray: "6 4",
+            });
+        }
+        return markers;
+    }, [currentManualBiasApplicable, ionIoffManualTargets?.ioffX, ionIoffManualTargets?.ionX, plotXFactor]);
+    const focusedSeriesXs = useMemo(() => {
+        if (!focusedSeriesId)
+            return [];
+        const points = pointsBySeriesId.get(focusedSeriesId) ?? [];
+        return points
+            .map((point: any) => Number(point?.x))
+            .filter((value: number) => Number.isFinite(value));
+    }, [focusedSeriesId, pointsBySeriesId]);
     const focusedSeriesColor = useMemo(() => {
         const idx = (plotSeriesByType?.iv ?? []).findIndex((s: any) => s?.id === focusedSeriesId);
         if (idx < 0)
@@ -1580,28 +1533,15 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             };
         });
     }, [activeFile, analysisBySeriesId]);
-    const snapXToSeries = React.useCallback((x: any, seriesId: any, { disableSnap = false }: any = {}) => {
-        const raw = Number(x);
-        if (!Number.isFinite(raw))
-            return null;
-        if (disableSnap)
-            return raw;
-        const pts = pointsBySeriesId.get(seriesId) ?? [];
-        let best = null;
-        let bestDist = Infinity;
-        for (const p of pts) {
-            const px = p?.x;
-            if (!Number.isFinite(px))
-                continue;
-            const d = Math.abs(px - raw);
-            if (d < bestDist) {
-                bestDist = d;
-                best = px;
-            }
-        }
-        return best !== null ? best : raw;
-    }, [pointsBySeriesId]);
-    const commitManualRange = React.useCallback((fileId: any, seriesId: any, range: any, { immediate = false }: any = {}) => {
+    const persistIonIoffManualTargets = React.useCallback((targets: any) => {
+        apiService
+            .updateDeviceAnalysisSettings({
+            ionIoffManualIonX: String(targets?.ionX ?? "").trim(),
+            ionIoffManualIoffX: String(targets?.ioffX ?? "").trim(),
+        })
+            .catch(() => { });
+    }, []);
+    const commitManualRange = React.useCallback((fileId: any, seriesId: any, range: any) => {
         if (!fileId || !seriesId)
             return;
         if (!range)
@@ -1612,161 +1552,113 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return;
         const lo = Math.min(x1, x2);
         const hi = Math.max(x1, x2);
-        const doCommit = () => {
-            setSsManualRanges((prev: any) => {
-                const prevFile = prev?.[fileId] ?? {};
-                return {
-                    ...(prev || {}),
-                    [fileId]: {
-                        ...prevFile,
-                        [seriesId]: { x1: lo, x2: hi },
-                    },
-                };
-            });
-        };
-        if (ssDragCommitTimerRef.current) {
-            clearTimeout(ssDragCommitTimerRef.current);
-            ssDragCommitTimerRef.current = null;
-        }
-        if (immediate) {
-            doCommit();
-            return;
-        }
-        ssDragCommitTimerRef.current = setTimeout(doCommit, 120);
+        setSsManualRanges((prev: any) => {
+            const prevFile = prev?.[fileId] ?? {};
+            const prevRange = prevFile?.[seriesId] ?? null;
+            if (Number(prevRange?.x1) === lo && Number(prevRange?.x2) === hi) {
+                return prev;
+            }
+            return {
+                ...(prev || {}),
+                [fileId]: {
+                    ...prevFile,
+                    [seriesId]: { x1: lo, x2: hi },
+                },
+            };
+        });
     }, [setSsManualRanges]);
-    const handleSsMouseDown = React.useCallback((e: any) => {
-        if (ssMethod !== "manual")
+    const handleCurrentBiasOverlayCommit = React.useCallback((role: CurrentBiasRole, x: number) => {
+        if (!Number.isFinite(x))
             return;
+        const nextValue = formatBiasInputValue(x, plotXFactor);
+        const nextTargets = {
+            ionX: role === "ion"
+                ? nextValue
+                : String(ionIoffManualTargets?.ionX ?? ""),
+            ioffX: role === "ioff"
+                ? nextValue
+                : String(ionIoffManualTargets?.ioffX ?? ""),
+        };
+        setIonIoffManualTargets((prev: any) => {
+            const prevIon = String(prev?.ionX ?? "");
+            const prevIoff = String(prev?.ioffX ?? "");
+            if (prevIon === nextTargets.ionX && prevIoff === nextTargets.ioffX) {
+                return prev;
+            }
+            return {
+                ...(prev || {}),
+                ionX: nextTargets.ionX,
+                ioffX: nextTargets.ioffX,
+            };
+        });
+        persistIonIoffManualTargets(nextTargets);
+    }, [
+        ionIoffManualTargets?.ioffX,
+        ionIoffManualTargets?.ionX,
+        persistIonIoffManualTargets,
+        plotXFactor,
+        setIonIoffManualTargets,
+    ]);
+    const handleSsOverlayCommit = React.useCallback((range: SsRange) => {
         const fileId = activeFile?.fileId ?? null;
         const seriesId = focusedSeriesId ?? null;
         if (!fileId || !seriesId)
             return;
-        const rawX = Number(e?.activeLabel);
-        if (!Number.isFinite(rawX))
+        commitManualRange(fileId, seriesId, range);
+    }, [activeFile?.fileId, commitManualRange, focusedSeriesId]);
+    useEffect(() => {
+        if (ionIoffMethod !== "manual")
             return;
-        const disableSnap = Boolean(ssKeyStateRef.current?.alt);
-        const x = snapXToSeries(rawX, seriesId, { disableSnap });
-        if (!Number.isFinite(x))
+        if (!transferMetricsApplicable)
             return;
-        const stored = ssManualRanges?.[fileId]?.[seriesId] ?? null;
-        const draft = ssManualDraft &&
-            ssManualDraft.fileId === fileId &&
-            ssManualDraft.seriesId === seriesId
-            ? ssManualDraft
-            : null;
-        const current = draft ?? stored;
-        const hasCurrent = Number.isFinite(Number(current?.x1)) && Number.isFinite(Number(current?.x2));
-        const shift = Boolean(ssKeyStateRef.current?.shift);
-        let mode: SsDragMode = "new"; // new | left | right | move
-        let startRange = hasCurrent
-            ? { x1: Number(current.x1), x2: Number(current.x2) }
-            : null;
-        if (!shift && startRange) {
-            const x1 = startRange.x1;
-            const x2 = startRange.x2;
-            const lo = Math.min(x1, x2);
-            const hi = Math.max(x1, x2);
-            const span = Math.abs((xDomain?.[1] ?? 1) - (xDomain?.[0] ?? 0));
-            const tol = Math.max(1e-12, span * 0.015);
-            if (Math.abs(x - lo) <= tol)
-                mode = "left";
-            else if (Math.abs(x - hi) <= tol)
-                mode = "right";
-            else if (x >= lo && x <= hi)
-                mode = "move";
-        }
-        const initial = mode === "new" || !startRange ? { x1: x, x2: x } : { ...startRange };
-        ssDragStateRef.current = {
-            active: true,
-            mode,
-            fileId,
-            seriesId,
-            startX: x,
-            startRange,
-            draftRange: initial,
-        };
-        setSsManualDraft({ fileId, seriesId, x1: initial.x1, x2: initial.x2 });
-    }, [
-        activeFile?.fileId,
-        focusedSeriesId,
-        snapXToSeries,
-        ssManualDraft,
-        ssManualRanges,
-        ssMethod,
-        xDomain,
-    ]);
-    const handleSsMouseMove = React.useCallback((e: any) => {
-        const drag = ssDragStateRef.current;
-        if (!drag?.active)
+        if (!focusedSeriesId)
             return;
-        if (drag.mode !== "new" && drag.mode !== "left" && drag.mode !== "right" && drag.mode !== "move") {
+        const ionFilled = String(ionIoffManualTargets?.ionX ?? "").trim().length > 0;
+        const ioffFilled = String(ionIoffManualTargets?.ioffX ?? "").trim().length > 0;
+        if (ionFilled && ioffFilled)
             return;
-        }
-        const rawX = Number(e?.activeLabel);
-        if (!Number.isFinite(rawX))
+        const points = pointsBySeriesId.get(focusedSeriesId) ?? [];
+        if (!points.length)
             return;
-        const disableSnap = Boolean(ssKeyStateRef.current?.alt);
-        const x = snapXToSeries(rawX, drag.seriesId, { disableSnap });
-        if (!Number.isFinite(x))
-            return;
-        let next = null;
-        if (drag.mode === "new") {
-            next = { x1: drag.startX, x2: x };
-        }
-        else if (drag.mode === "left") {
-            next = { x1: x, x2: drag.startRange?.x2 ?? x };
-        }
-        else if (drag.mode === "right") {
-            next = { x1: drag.startRange?.x1 ?? x, x2: x };
-        }
-        else if (drag.mode === "move") {
-            const base = drag.startRange;
-            if (!base)
-                return;
-            const dx = x - drag.startX;
-            let x1 = base.x1 + dx;
-            let x2 = base.x2 + dx;
-            const domLo = Number(xDomain?.[0]);
-            const domHi = Number(xDomain?.[1]);
-            if (Number.isFinite(domLo) && Number.isFinite(domHi)) {
-                const lo = Math.min(x1, x2);
-                const hi = Math.max(x1, x2);
-                if (lo < domLo) {
-                    const d = domLo - lo;
-                    x1 += d;
-                    x2 += d;
-                }
-                if (hi > domHi) {
-                    const d = domHi - hi;
-                    x1 += d;
-                    x2 += d;
-                }
-            }
-            next = { x1, x2 };
-        }
-        if (!next)
-            return;
-        drag.draftRange = next;
-        ssDragStateRef.current = drag;
-        setSsManualDraft({
-            fileId: drag.fileId,
-            seriesId: drag.seriesId,
-            x1: next.x1,
-            x2: next.x2,
+        const autoMetrics = computeBaseCurrentMetrics({
+            points,
+            sourceFile: activeFile,
         });
-        commitManualRange(drag.fileId, drag.seriesId, next, { immediate: false });
-    }, [commitManualRange, snapXToSeries, xDomain]);
-    const handleSsMouseUp = React.useCallback(() => {
-        const drag = ssDragStateRef.current;
-        if (!drag?.active)
+        const nextIonX = ionFilled
+            ? String(ionIoffManualTargets?.ionX ?? "")
+            : Number.isFinite(autoMetrics?.xAtIon)
+                ? formatBiasInputValue(Number(autoMetrics.xAtIon), plotXFactor)
+                : "";
+        const nextIoffX = ioffFilled
+            ? String(ionIoffManualTargets?.ioffX ?? "")
+            : Number.isFinite(autoMetrics?.xAtIoff)
+                ? formatBiasInputValue(Number(autoMetrics.xAtIoff), plotXFactor)
+                : "";
+        if (!nextIonX && !nextIoffX)
             return;
-        const finalRange = drag.draftRange ?? drag.startRange;
-        if (finalRange) {
-            commitManualRange(drag.fileId, drag.seriesId, finalRange, { immediate: true });
-        }
-        ssDragStateRef.current = null;
-        setSsManualDraft(null);
-    }, [commitManualRange]);
+        setIonIoffManualTargets((prev: any) => {
+            const prevIon = String(prev?.ionX ?? "");
+            const prevIoff = String(prev?.ioffX ?? "");
+            if (prevIon === nextIonX && prevIoff === nextIoffX) {
+                return prev;
+            }
+            return {
+                ...(prev || {}),
+                ionX: nextIonX,
+                ioffX: nextIoffX,
+            };
+        });
+    }, [
+        activeFile,
+        focusedSeriesId,
+        ionIoffManualTargets?.ioffX,
+        ionIoffManualTargets?.ionX,
+        ionIoffMethod,
+        plotXFactor,
+        pointsBySeriesId,
+        setIonIoffManualTargets,
+        transferMetricsApplicable,
+    ]);
     const handleSelectFile = React.useCallback((fileId: any) => {
         if (!fileId)
             return;
@@ -2049,10 +1941,12 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
 
                     {ionIoffMethod === "manual" ? (<div className="flex items-center gap-1 text-xs text-text-secondary">
                         <span className="whitespace-nowrap">Ion x:</span>
-                        <input id="device-analysis-ion-x-input" value={ionIoffManualTargets?.ionX ?? ""} onChange={(e: any) => setIonIoffManualTargets((prev: any) => ({
+                        <input id="device-analysis-ion-x-input" value={ionIoffManualTargets?.ionX ?? ""} onChange={(e: any) => {
+                    setIonIoffManualTargets((prev: any) => ({
                     ...(prev || {}),
                     ionX: e.target.value,
-                }))} onBlur={() => {
+                }));
+                }} onBlur={() => {
                     apiService
                         .updateDeviceAnalysisSettings({
                         ionIoffManualIonX: String(ionIoffManualTargets?.ionX ?? "").trim(),
@@ -2060,10 +1954,12 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         .catch(() => { });
                 }} placeholder={`e.g. ${formatNumber((Number(xDomain?.[1]) || 1) * plotXFactor, { digits: 2 })}`} className="bg-bg-page border border-border rounded-lg h-[38px] px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40 w-[90px]"/>
                         <span className="whitespace-nowrap">Ioff x:</span>
-                        <input id="device-analysis-ioff-x-input" value={ionIoffManualTargets?.ioffX ?? ""} onChange={(e: any) => setIonIoffManualTargets((prev: any) => ({
+                        <input id="device-analysis-ioff-x-input" value={ionIoffManualTargets?.ioffX ?? ""} onChange={(e: any) => {
+                    setIonIoffManualTargets((prev: any) => ({
                     ...(prev || {}),
                     ioffX: e.target.value,
-                }))} onBlur={() => {
+                }));
+                }} onBlur={() => {
                     apiService
                         .updateDeviceAnalysisSettings({
                         ionIoffManualIoffX: String(ionIoffManualTargets?.ioffX ?? "").trim(),
@@ -2093,7 +1989,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
           </div>
 
           {effectivePlotType === "ss" && ssSummary ? (<SsSummaryStrip summary={ssSummary}/>) : null}
-          {transferMetricsApplicable ? (<div className="mb-3 flex flex-col gap-1 rounded-lg border border-border/60 bg-bg-page/70 px-3 py-2 text-xs text-text-secondary">
+          {showCurrentContext ? (<div className="mb-3 flex flex-col gap-1 rounded-lg border border-border/60 bg-bg-page/70 px-3 py-2 text-xs text-text-secondary">
               <div className="text-text-primary">
                 {focusedCurrentSummary}
               </div>
@@ -2249,14 +2145,27 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     focusedSeriesId={focusedSeriesId}
                     focusedFitLine={focusedFitLineForRender}
                     focusedSeriesColor={focusedSeriesColor}
-                    highlightOverlays={focusedCurrentOverlays}
+                    highlightOverlays={currentOverlaysForPlot}
+                    currentBiasMarkers={currentBiasMarkers}
                     focusedSsOverlay={focusedSsOverlay}
                     ssOverlayStyle={ssOverlayStyle}
+                    interactiveSeriesXs={focusedSeriesXs}
+                    currentBiasInteraction={currentManualBiasApplicable
+                    ? {
+                        enabled: true,
+                        markers: currentBiasMarkers,
+                        onCommit: handleCurrentBiasOverlayCommit,
+                    }
+                    : null}
+                    ssInteraction={effectivePlotType === "ss" && ssMethod === "manual"
+                    ? {
+                        enabled: true,
+                        range: focusedSsOverlay,
+                        onCommit: handleSsOverlayCommit,
+                    }
+                    : null}
                     legendWidth={MAIN_PLOT_LEGEND_WIDTH}
                     legendContent={renderOriginSelectionLegend}
-                    onMouseDown={handleSsMouseDown}
-                    onMouseMove={handleSsMouseMove}
-                    onMouseUp={handleSsMouseUp}
                   />) : (<div className="h-full w-full"/>) }
               </div>
 
@@ -2287,7 +2196,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
               </div>
             </div>
 
-            <ScrollArea axis="x" className="min-w-0 w-full">
+            <ScrollArea axis="x" className="da-calculated-parameters-scroll-area min-w-0 w-full">
               <table
                 className="w-full table-fixed text-sm border-collapse"
                 style={{ minWidth: calculatedParametersTableMinWidth }}

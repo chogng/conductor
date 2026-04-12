@@ -23,17 +23,17 @@ export const SS_CONF = {
     },
     manual: {
         classify: {
-            high: { r2: 0.995, span: 1.0, n: 12, stab: 0.1 },
-            low: { r2: 0.98, span: 0.5, n: 8 },
-            fail: { minN: 8, minSpan: 0.3, minR2: 0.95 },
+            high: { r2: 0.995, span: 1.0, n: 12, stab: 0.1, floorMarginDec: 1.0 },
+            low: { r2: 0.98, span: 0.5, n: 8, floorMarginDec: 0.7 },
+            fail: { minN: 8, minSpan: 0.3, minR2: 0.95, floorMarginDec: 0.3 },
         },
     },
     idw: {
         minWindowRatioWarn: 10,
         classify: {
-            high: { r2: 0.995, span: 1.0, n: 12, stab: 0.1, minWindowRatio: 10 },
-            low: { r2: 0.98, span: 0.5, n: 8 },
-            fail: { minN: 8, minSpan: 0.3, minR2: 0.95 },
+            high: { r2: 0.995, span: 1.0, n: 12, stab: 0.1, minWindowRatio: 10, floorMarginDec: 1.0 },
+            low: { r2: 0.98, span: 0.5, n: 8, floorMarginDec: 0.7 },
+            fail: { minN: 8, minSpan: 0.3, minR2: 0.95, floorMarginDec: 0.3 },
         },
     },
     legacy: { confidence: "low" },
@@ -551,6 +551,56 @@ const sanitizeLogPoints = (points: any) => {
     }
     return { ok: true, segments };
 };
+const estimateLogCurrentFloor = (values: any, quantile: any = SS_CONF.auto.floorQuantile) => {
+    const valid = (Array.isArray(values) ? values : []).filter(isFiniteNumber);
+    if (valid.length < 3)
+        return null;
+    const qRaw = Number(quantile);
+    const q = Number.isFinite(qRaw) ? Math.max(0.01, Math.min(0.5, qRaw)) : 0.1;
+    const sorted = valid.slice().sort((a: any, b: any) => a - b);
+    const nFloor = Math.max(3, Math.ceil(sorted.length * q));
+    return median(sorted.slice(0, Math.min(nFloor, sorted.length)));
+};
+const computeFloorMarginDec = (fit: any, yFloor: any) => {
+    if (!isFiniteNumber(yFloor))
+        return null;
+    const yMin = fit?.yMin;
+    if (!isFiniteNumber(yMin))
+        return null;
+    return yMin - yFloor;
+};
+const buildCandidateWindowSizes = (segLen: any, minPoints: any, preferredWindowPoints: any) => {
+    const maxLen = Math.max(0, Math.floor(Number(segLen) || 0));
+    const minLen = Math.max(3, Math.floor(Number(minPoints) || 0));
+    if (maxLen < minLen)
+        return [];
+    const preferred = Math.max(minLen, Math.floor(Number(preferredWindowPoints) || minLen));
+    const out = new Set<number>();
+    const push = (value: any) => {
+        const next = Math.round(Number(value));
+        if (!Number.isFinite(next))
+            return;
+        if (next < minLen || next > maxLen)
+            return;
+        out.add(next);
+    };
+    const denseUpper = Math.min(maxLen, Math.max(preferred, minLen + 6));
+    for (let k = minLen; k <= denseUpper; k++) {
+        push(k);
+    }
+    let probe = denseUpper;
+    while (probe < maxLen) {
+        const next = Math.min(maxLen, Math.round(probe * 1.35));
+        if (next <= probe)
+            break;
+        push(next);
+        probe = next;
+    }
+    push(Math.round((denseUpper + maxLen) * 0.5));
+    push(Math.round((denseUpper + maxLen * 2) / 3));
+    push(maxLen);
+    return Array.from(out.values()).sort((a: number, b: number) => a - b);
+};
 const selectBestByScore = (results: any) => {
     const list = Array.isArray(results) ? results.filter(Boolean) : [];
     if (list.length === 0)
@@ -584,13 +634,7 @@ const selectBestByScore = (results: any) => {
 const runAutoSearch = (segment: any, conf: any, { wantSuggestion = false }: any = {}) => {
     const xArr = segment?.x ?? [];
     const yArr = segment?.y ?? [];
-    const validY = yArr.filter(isFiniteNumber);
-    if (validY.length < 3)
-        return null;
-    const q = conf.floorQuantile ?? 0.1;
-    const sortedY = validY.slice().sort((a: any, b: any) => a - b);
-    const nFloor = Math.max(10, Math.ceil(sortedY.length * q));
-    const yFloor = median(sortedY.slice(0, Math.min(nFloor, sortedY.length)));
+    const yFloor = estimateLogCurrentFloor(yArr, conf.floorQuantile ?? 0.1);
     if (!isFiniteNumber(yFloor))
         return null;
     const floorTry = Array.isArray(conf.floorMarginDecTry)
@@ -645,9 +689,7 @@ const runAutoSearch = (segment: any, conf: any, { wantSuggestion = false }: any 
                             if ((seg?.length ?? 0) < minPoints)
                                 continue;
                             const segLen = seg.length;
-                            const k1 = Math.min(windowPoints, segLen);
-                            const k2 = Math.min(minPoints, segLen);
-                            const windows = k1 === k2 ? [k1] : [k1, k2];
+                            const windows = buildCandidateWindowSizes(segLen, minPoints, windowPoints);
                             for (const k of windows) {
                                 if (k < minPoints)
                                     continue;
@@ -672,8 +714,9 @@ const runAutoSearch = (segment: any, conf: any, { wantSuggestion = false }: any 
                                         x1: xArr[l],
                                         x2: xArr[r],
                                         yFloor,
+                                        floorMarginDec: computeFloorMarginDec(fit, yFloor),
                                         stab: isFiniteNumber(stab) ? stab : null,
-                                        score,
+                                        score: score + 0.05 * Math.min(3, Math.max(0, computeFloorMarginDec(fit, yFloor) ?? 0)),
                                         profileUsed: { floorMarginDec, minSpan, minPoints, r2Min, stabMax },
                                         profileRank: [iFloor, iSpan, iMinPts, iR2, iStab],
                                         l,
@@ -768,6 +811,7 @@ export const computeSubthresholdSwingFitAuto = (points: any, { conf = SS_CONF.au
                 reason: isFiniteNumber(ss) ? "ok" : "common.invalid_points",
                 detail: {
                     yFloor: pickStrict.yFloor,
+                    floorMarginDec: pickStrict.floorMarginDec,
                     profileUsed: pickStrict.profileUsed,
                     stab: pickStrict.stab,
                     score: pickStrict.score,
@@ -793,6 +837,7 @@ export const computeSubthresholdSwingFitAuto = (points: any, { conf = SS_CONF.au
                         decadeSpan: bestAttempt.decadeSpan,
                         n: bestAttempt.n,
                         yFloor: bestAttempt.yFloor,
+                        floorMarginDec: bestAttempt.floorMarginDec,
                         stab: bestAttempt.stab,
                         profileUsed: bestAttempt.profileUsed,
                     },
@@ -823,6 +868,7 @@ export const computeSubthresholdSwingFitAuto = (points: any, { conf = SS_CONF.au
             reason: isFiniteNumber(ss) ? "ok" : "common.invalid_points",
             detail: {
                 yFloor: pickSuggested.yFloor,
+                floorMarginDec: pickSuggested.floorMarginDec,
                 profileUsed: pickSuggested.profileUsed,
                 stab: pickSuggested.stab,
                 score: pickSuggested.score,
@@ -862,10 +908,13 @@ export const computeSubthresholdSwingFitInRange = (points: any, x1: any, x2: any
         if (!fit)
             return null;
         const stab = computeSlopeStability(xArr, yArr, indices[0], indices[indices.length - 1]);
+        const yFloor = estimateLogCurrentFloor(yArr);
         return {
             ...fit,
             x1: xArr[indices[0]],
             x2: xArr[indices[indices.length - 1]],
+            yFloor: isFiniteNumber(yFloor) ? yFloor : null,
+            floorMarginDec: computeFloorMarginDec(fit, yFloor),
             stab: isFiniteNumber(stab) ? stab : null,
         };
     })
@@ -941,10 +990,13 @@ export const computeSubthresholdSwingFitInIdWindow = (points: any, iLow: any, iH
         if (!fit)
             return null;
         const stab = computeSlopeStability(xArr, yArr, indices[0], indices[indices.length - 1]);
+        const yFloor = estimateLogCurrentFloor(yArr);
         return {
             ...fit,
             x1: xArr[indices[0]],
             x2: xArr[indices[indices.length - 1]],
+            yFloor: isFiniteNumber(yFloor) ? yFloor : null,
+            floorMarginDec: computeFloorMarginDec(fit, yFloor),
             stab: isFiniteNumber(stab) ? stab : null,
         };
     })
@@ -970,8 +1022,52 @@ export const computeSubthresholdSwingFitInIdWindow = (points: any, iLow: any, iH
             stab: best.stab,
             dataMinAbsI: dataMin,
             dataMaxAbsI: dataMax,
+            yFloor: best.yFloor,
+            floorMarginDec: best.floorMarginDec,
             windowRatio,
         },
+    };
+};
+export const resolveAutoSsSelection = (autoFit: any) => {
+    const strict = autoFit?.strict ?? null;
+    if (strict?.ok && isFiniteNumber(strict?.ss)) {
+        return {
+            classification: {
+                ss_ok: true,
+                ss_confidence: "high",
+                ss_reason: "ok",
+            },
+            fit: strict,
+            source: "strict",
+        };
+    }
+    const suggested = autoFit?.suggested ?? null;
+    if (suggested?.ok && isFiniteNumber(suggested?.ss)) {
+        return {
+            classification: {
+                ss_ok: true,
+                ss_confidence: "low",
+                ss_reason: "auto.suggested_window",
+            },
+            fit: {
+                ...suggested,
+                detail: {
+                    ...(suggested?.detail ?? {}),
+                    autoTier: "suggested",
+                },
+            },
+            source: "suggested",
+        };
+    }
+    const fallback = strict ?? suggested ?? { ok: false, reason: "common.invalid_points" };
+    return {
+        classification: {
+            ss_ok: false,
+            ss_confidence: "fail",
+            ss_reason: strict?.reason || suggested?.reason || fallback?.reason || "common.invalid_points",
+        },
+        fit: fallback,
+        source: "none",
     };
 };
 export const computeDomain = (seriesList: any) => {
@@ -1022,6 +1118,7 @@ export const classifySsFit = (method: any, fit: any, { conf = SS_CONF, idWindowR
     const span = fit?.decadeSpan;
     const n = fit?.n;
     const stab = fit?.detail?.stab ?? fit?.stab ?? null;
+    const floorMarginDec = fit?.detail?.floorMarginDec ?? fit?.floorMarginDec ?? null;
     if (m === "manual") {
         const failCfg = conf.manual?.classify?.fail ?? null;
         if (failCfg) {
@@ -1046,6 +1143,15 @@ export const classifySsFit = (method: any, fit: any, { conf = SS_CONF, idWindowR
                     ss_reason: "manual.fit_quality_low",
                 };
             }
+            if (isFiniteNumber(floorMarginDec) &&
+                isFiniteNumber(failCfg.floorMarginDec) &&
+                floorMarginDec < failCfg.floorMarginDec) {
+                return {
+                    ss_ok: false,
+                    ss_confidence: "fail",
+                    ss_reason: "manual.too_close_to_floor",
+                };
+            }
         }
         const highCfg = conf.manual?.classify?.high ?? null;
         if (highCfg &&
@@ -1055,6 +1161,9 @@ export const classifySsFit = (method: any, fit: any, { conf = SS_CONF, idWindowR
             r2 >= highCfg.r2 &&
             span >= highCfg.span &&
             n >= highCfg.n &&
+            (highCfg.floorMarginDec == null ||
+                floorMarginDec == null ||
+                (isFiniteNumber(floorMarginDec) && floorMarginDec >= highCfg.floorMarginDec)) &&
             (highCfg.stab == null ||
                 stab == null ||
                 (isFiniteNumber(stab) && stab <= highCfg.stab))) {
@@ -1067,7 +1176,10 @@ export const classifySsFit = (method: any, fit: any, { conf = SS_CONF, idWindowR
             isFiniteNumber(n) &&
             r2 >= lowCfg.r2 &&
             span >= lowCfg.span &&
-            n >= lowCfg.n) {
+            n >= lowCfg.n &&
+            (lowCfg.floorMarginDec == null ||
+                floorMarginDec == null ||
+                (isFiniteNumber(floorMarginDec) && floorMarginDec >= lowCfg.floorMarginDec))) {
             return {
                 ss_ok: true,
                 ss_confidence: "low",
@@ -1077,7 +1189,11 @@ export const classifySsFit = (method: any, fit: any, { conf = SS_CONF, idWindowR
         return {
             ss_ok: true,
             ss_confidence: "low",
-            ss_reason: "manual.fit_quality_low",
+            ss_reason: isFiniteNumber(floorMarginDec) &&
+                isFiniteNumber(lowCfg?.floorMarginDec) &&
+                floorMarginDec < lowCfg.floorMarginDec
+                ? "manual.too_close_to_floor"
+                : "manual.fit_quality_low",
         };
     }
     if (m === "idWindow") {
@@ -1119,6 +1235,15 @@ export const classifySsFit = (method: any, fit: any, { conf = SS_CONF, idWindowR
                     ss_reason: "idw.fit_quality_low",
                 };
             }
+            if (isFiniteNumber(floorMarginDec) &&
+                isFiniteNumber(failCfg.floorMarginDec) &&
+                floorMarginDec < failCfg.floorMarginDec) {
+                return {
+                    ss_ok: false,
+                    ss_confidence: "fail",
+                    ss_reason: "idw.too_close_to_floor",
+                };
+            }
         }
         const highCfg = conf.idw?.classify?.high ?? null;
         if (highCfg &&
@@ -1128,6 +1253,9 @@ export const classifySsFit = (method: any, fit: any, { conf = SS_CONF, idWindowR
             r2 >= highCfg.r2 &&
             span >= highCfg.span &&
             n >= highCfg.n &&
+            (highCfg.floorMarginDec == null ||
+                floorMarginDec == null ||
+                (isFiniteNumber(floorMarginDec) && floorMarginDec >= highCfg.floorMarginDec)) &&
             (highCfg.stab == null ||
                 stab == null ||
                 (isFiniteNumber(stab) && stab <= highCfg.stab))) {
@@ -1136,7 +1264,11 @@ export const classifySsFit = (method: any, fit: any, { conf = SS_CONF, idWindowR
         return {
             ss_ok: true,
             ss_confidence: "low",
-            ss_reason: "idw.fit_quality_low",
+            ss_reason: isFiniteNumber(floorMarginDec) &&
+                isFiniteNumber(conf.idw?.classify?.low?.floorMarginDec) &&
+                floorMarginDec < conf.idw.classify.low.floorMarginDec
+                ? "idw.too_close_to_floor"
+                : "idw.fit_quality_low",
         };
     }
     return {
