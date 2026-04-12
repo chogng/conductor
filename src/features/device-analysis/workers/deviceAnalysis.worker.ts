@@ -3,6 +3,7 @@ import { normalizeDeviceAnalysisYUnit } from "../analysis/lib/deviceAnalysisUnit
 import {
     buildDeviceAnalysisAutoWorkerConfig,
     inferDeviceAnalysisAutoExtraction,
+    inferMetadataGroupShapeFromRows,
 } from "../shared/lib/deviceAnalysisAutoExtraction";
 import {
     classifyDeviceAnalysisCurve,
@@ -761,21 +762,34 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
     else {
         if (isAutoSegmentationMode) {
             const cache = await ensurePreviewCache(fileId, file);
-            const xValues = await readXValuesForAutoSegmentation({
-                cache,
-                endRow,
-                fileName,
-                startRow,
-                xCol,
+            const seedEndRow = Math.min(Number(cache.rowCount) || 0, PREVIEW_RESULT_SEED_ROWS);
+            const seedRows = seedEndRow > 0 ? await getPreviewRows(cache, 0, seedEndRow) : [];
+            const metadataGrouping = inferMetadataGroupShapeFromRows({
+                dataStartRowIndex: startRow,
+                rows: seedRows,
+                totalRowCount: cache.rowCount,
             });
-            const inferred = inferAutoSegmentationFromXValues(xValues, expectedTotal);
-            if (inferred) {
-                groupSize = inferred.groupSize;
-                groups = inferred.groups;
+            if (metadataGrouping.groupSize !== null && metadataGrouping.groups !== null) {
+                groupSize = metadataGrouping.groupSize;
+                groups = metadataGrouping.groups;
             }
             else {
-                groupSize = expectedTotal;
-                groups = 1;
+                const xValues = await readXValuesForAutoSegmentation({
+                    cache,
+                    endRow,
+                    fileName,
+                    startRow,
+                    xCol,
+                });
+                const inferred = inferAutoSegmentationFromXValues(xValues, expectedTotal);
+                if (inferred) {
+                    groupSize = inferred.groupSize;
+                    groups = inferred.groups;
+                }
+                else {
+                    groupSize = expectedTotal;
+                    groups = 1;
+                }
             }
         }
         else {

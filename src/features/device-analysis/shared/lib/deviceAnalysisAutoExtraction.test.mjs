@@ -115,6 +115,42 @@ test("infers grouped transfer legend sweep from notes when bias column is absent
   assert.equal(result.plan.legendTarget, "group");
 });
 
+test("infers transfer grouping from metadata rows when preview is truncated", () => {
+  const rows = [
+    ["SetupTitle", "Transfer_DB"],
+    ["TestParameter", "Channel.VName", "Vg", "Vd", "Vs"],
+    ["TestParameter", "Channel.Func", "VAR1", "VAR2", "CONST"],
+    ["TestParameter", "Output.Graph.XAxis.Data", "Vg"],
+    ["TestParameter", "Measurement.Secondary.Start", "0.05"],
+    ["TestParameter", "Measurement.Secondary.Count", "2"],
+    ["TestParameter", "Measurement.Secondary.Step", "0.95"],
+    ["Dimension1", "402", "402", "402"],
+    ["Dimension2", "2", "2", "2"],
+    ["DataName", "Vg", "Id", "Ig"],
+    ["DataValue", "-1", "1e-13", "1e-12"],
+    ["DataValue", "-0.975", "2e-13", "1e-12"],
+    ["DataValue", "-0.95", "3e-13", "1e-12"],
+    ["DataValue", "-0.925", "4e-13", "1e-12"],
+    ["DataValue", "-0.9", "5e-13", "1e-12"],
+  ];
+
+  const result = inferDeviceAnalysisAutoExtraction({
+    fileName: "Transfer_DB [truncated-preview].csv",
+    rows,
+    totalRowCount: 814,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.plan.curveType, "transfer");
+  assert.equal(result.plan.xPointsPerGroup, 402);
+  assert.equal(result.plan.groups, 2);
+  assert.equal(result.plan.legendPrefix, "Vd");
+  assert.equal(result.plan.legendStartValue, "0.05");
+  assert.equal(result.plan.legendCount, 2);
+  assert.ok(Math.abs(result.plan.legendStep - 0.95) < 1e-12);
+  assert.equal(result.plan.legendTarget, "group");
+});
+
 test("returns a failure result when auto extraction cannot infer columns", () => {
   const result = inferDeviceAnalysisAutoExtraction({
     fileName: "unknown.csv",

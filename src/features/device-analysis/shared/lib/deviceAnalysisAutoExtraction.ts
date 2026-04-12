@@ -60,6 +60,12 @@ const AUTO_SEGMENTATION_MIN_GROUP_SIZE = 2;
 const AUTO_SEGMENTATION_MIN_GROUPS = 2;
 const AUTO_SEGMENTATION_REPEAT_THRESHOLD = 0.9;
 
+type ResolvedGroupShape = {
+  groupSize: number | null;
+  groups: number | null;
+  source: "dimension" | "secondaryCount" | "notes" | null;
+};
+
 const toCellRef = (rowIndex: number, colIndex: number): string =>
   `${getExcelColumnLabel(colIndex)}${rowIndex + 1}`;
 
@@ -294,6 +300,7 @@ const inferRepeatedXGroupLength = ({
 
 const resolveAutoGroupShape = ({
   dataStartRowIndex,
+  notesText,
   pointColIndex,
   rows,
   totalRowCount,
@@ -301,6 +308,7 @@ const resolveAutoGroupShape = ({
   xCol,
 }: {
   dataStartRowIndex: number;
+  notesText?: string;
   pointColIndex: number;
   rows: Array<Array<unknown> | null | undefined>;
   totalRowCount?: number | null;
@@ -310,6 +318,19 @@ const resolveAutoGroupShape = ({
   groupSize: number | null;
   groups: number | null;
 } => {
+  const metadataShape = inferMetadataGroupShapeFromRows({
+    dataStartRowIndex,
+    rows,
+    totalRowCount,
+    notesText,
+  });
+  if (metadataShape.groupSize !== null && metadataShape.groups !== null) {
+    return {
+      groupSize: metadataShape.groupSize,
+      groups: metadataShape.groups,
+    };
+  }
+
   const explicitGroupSize = detectFirstGroupLength({
     dataStartRowIndex,
     pointColIndex,
@@ -473,6 +494,240 @@ const parseVarSweepFromNotes = (
   return { count, start, step };
 };
 
+const parsePositiveIntegerFromCells = (cells: unknown[]): number | null => {
+  const values = cells
+    .map((cell) => {
+      const numeric = parseFiniteNumber(cell);
+      if (Number.isInteger(numeric) && Number(numeric) > 0) {
+        return Number(numeric);
+      }
+      return parsePositiveIntegerText(String(cell ?? ""));
+    })
+    .filter(
+      (value): value is number =>
+        typeof value === "number" && Number.isInteger(value) && value > 0,
+    );
+
+  if (!values.length) return null;
+  const first = values[0];
+  return first === undefined ? null : first;
+};
+
+const findMetadataPositiveInteger = ({
+  rows,
+  firstCell,
+  secondCell = null,
+}: {
+  firstCell: string;
+  rows: Array<Array<unknown> | null | undefined>;
+  secondCell?: string | null;
+}): number | null => {
+  const expectedFirst = normalizeCellText(firstCell);
+  const expectedSecond =
+    secondCell === null ? null : normalizeCellText(secondCell);
+
+  for (const rawRow of Array.isArray(rows) ? rows : []) {
+    const row = Array.isArray(rawRow) ? rawRow : [];
+    if (!row.length) continue;
+
+    const first = normalizeCellText(row[0] ?? "");
+    const second = normalizeCellText(row[1] ?? "");
+    if (first !== expectedFirst) continue;
+    if (expectedSecond !== null && second !== expectedSecond) continue;
+
+    const valueStartIndex = expectedSecond === null ? 1 : 2;
+    const resolved = parsePositiveIntegerFromCells(row.slice(valueStartIndex));
+    if (resolved !== null) return resolved;
+  }
+
+  return null;
+};
+
+const findMetadataFiniteNumber = ({
+  rows,
+  firstCell,
+  secondCell,
+}: {
+  firstCell: string;
+  rows: Array<Array<unknown> | null | undefined>;
+  secondCell: string;
+}): number | null => {
+  const expectedFirst = normalizeCellText(firstCell);
+  const expectedSecond = normalizeCellText(secondCell);
+
+  for (const rawRow of Array.isArray(rows) ? rows : []) {
+    const row = Array.isArray(rawRow) ? rawRow : [];
+    if (!row.length) continue;
+    if (normalizeCellText(row[0] ?? "") !== expectedFirst) continue;
+    if (normalizeCellText(row[1] ?? "") !== expectedSecond) continue;
+
+    for (const cell of row.slice(2)) {
+      const numeric = parseFiniteNumber(cell);
+      if (numeric !== null) return numeric;
+      const voltageLike = parseVoltageLikeValue(String(cell ?? ""));
+      if (voltageLike !== null) return voltageLike;
+    }
+  }
+
+  return null;
+};
+
+const parseSecondarySweepFromRows = (
+  rows: Array<Array<unknown> | null | undefined>,
+): {
+  count: number | null;
+  start: number | null;
+  step: number | null;
+} | null => {
+  const count = findMetadataPositiveInteger({
+    firstCell: "TestParameter",
+    secondCell: "Measurement.Secondary.Count",
+    rows,
+  });
+  const start = findMetadataFiniteNumber({
+    firstCell: "TestParameter",
+    secondCell: "Measurement.Secondary.Start",
+    rows,
+  });
+  const step = findMetadataFiniteNumber({
+    firstCell: "TestParameter",
+    secondCell: "Measurement.Secondary.Step",
+    rows,
+  });
+
+  if (count === null && start === null && step === null) return null;
+  return { count, start, step };
+};
+
+const resolveGroupShapeFromCounts = ({
+  dataStartRowIndex,
+  groupSize,
+  groups,
+  totalRowCount,
+}: {
+  dataStartRowIndex: number;
+  groupSize?: number | null;
+  groups?: number | null;
+  totalRowCount?: number | null;
+}): Omit<ResolvedGroupShape, "source"> | null => {
+  const totalRows = Number(totalRowCount);
+  if (!Number.isInteger(totalRows) || totalRows <= dataStartRowIndex) return null;
+
+  const dataRows = totalRows - dataStartRowIndex;
+  if (dataRows < AUTO_SEGMENTATION_MIN_GROUP_SIZE * AUTO_SEGMENTATION_MIN_GROUPS) {
+    return null;
+  }
+
+  const normalizedGroupSize =
+    Number.isInteger(groupSize) && Number(groupSize) >= AUTO_SEGMENTATION_MIN_GROUP_SIZE
+      ? Number(groupSize)
+      : null;
+  const normalizedGroups =
+    Number.isInteger(groups) && Number(groups) >= AUTO_SEGMENTATION_MIN_GROUPS
+      ? Number(groups)
+      : null;
+
+  if (normalizedGroupSize !== null && normalizedGroups !== null) {
+    if (normalizedGroupSize * normalizedGroups !== dataRows) return null;
+    return {
+      groupSize: normalizedGroupSize,
+      groups: normalizedGroups,
+    };
+  }
+
+  if (normalizedGroupSize !== null) {
+    if (dataRows % normalizedGroupSize !== 0) return null;
+    const resolvedGroups = dataRows / normalizedGroupSize;
+    if (!Number.isInteger(resolvedGroups) || resolvedGroups < AUTO_SEGMENTATION_MIN_GROUPS) {
+      return null;
+    }
+    return {
+      groupSize: normalizedGroupSize,
+      groups: resolvedGroups,
+    };
+  }
+
+  if (normalizedGroups !== null) {
+    if (dataRows % normalizedGroups !== 0) return null;
+    const resolvedGroupSize = dataRows / normalizedGroups;
+    if (
+      !Number.isInteger(resolvedGroupSize) ||
+      resolvedGroupSize < AUTO_SEGMENTATION_MIN_GROUP_SIZE
+    ) {
+      return null;
+    }
+    return {
+      groupSize: resolvedGroupSize,
+      groups: normalizedGroups,
+    };
+  }
+
+  return null;
+};
+
+export const inferMetadataGroupShapeFromRows = ({
+  dataStartRowIndex,
+  rows,
+  totalRowCount,
+  notesText = "",
+}: {
+  dataStartRowIndex: number;
+  rows: Array<Array<unknown> | null | undefined>;
+  totalRowCount?: number | null;
+  notesText?: string;
+}): ResolvedGroupShape => {
+  const dimensionShape = resolveGroupShapeFromCounts({
+    dataStartRowIndex,
+    groupSize: findMetadataPositiveInteger({
+      firstCell: "Dimension1",
+      rows,
+    }),
+    groups: findMetadataPositiveInteger({
+      firstCell: "Dimension2",
+      rows,
+    }),
+    totalRowCount,
+  });
+  if (dimensionShape) {
+    return {
+      ...dimensionShape,
+      source: "dimension",
+    };
+  }
+
+  const secondarySweep = parseSecondarySweepFromRows(rows);
+  const secondaryCountShape = resolveGroupShapeFromCounts({
+    dataStartRowIndex,
+    groups: secondarySweep?.count ?? null,
+    totalRowCount,
+  });
+  if (secondaryCountShape) {
+    return {
+      ...secondaryCountShape,
+      source: "secondaryCount",
+    };
+  }
+
+  const notesSweep = notesText ? parseVarSweepFromNotes(notesText, "VAR2") : null;
+  const notesShape = resolveGroupShapeFromCounts({
+    dataStartRowIndex,
+    groups: notesSweep?.count ?? null,
+    totalRowCount,
+  });
+  if (notesShape) {
+    return {
+      ...notesShape,
+      source: "notes",
+    };
+  }
+
+  return {
+    groupSize: null,
+    groups: null,
+    source: null,
+  };
+};
+
 const inferStrippedChannelPlan = ({
   classification,
   dataStartRowIndex,
@@ -531,6 +786,7 @@ const inferStrippedChannelPlan = ({
         : ch1CurrentCol;
   const { groupSize, groups } = resolveAutoGroupShape({
     dataStartRowIndex,
+    notesText: metadata.notesText,
     pointColIndex: pointCol,
     rows,
     totalRowCount,
@@ -625,6 +881,7 @@ const inferGenericPlan = ({
   const var2Col = headers.findIndex((entry) => normalizeCellText(entry) === "VAR2");
   const { groupSize, groups } = resolveAutoGroupShape({
     dataStartRowIndex,
+    notesText: metadata.notesText,
     pointColIndex: pointCol,
     rows,
     totalRowCount,
@@ -643,7 +900,8 @@ const inferGenericPlan = ({
   const var2Role = detectDeviceAnalysisAxisRole(metadata.var2Name);
   const generatedLegendSweep =
     legendCol === null && var2Role === biasRole
-      ? parseVarSweepFromNotes(metadata.notesText, "VAR2")
+      ? parseVarSweepFromNotes(metadata.notesText, "VAR2") ??
+        parseSecondarySweepFromRows(rows)
       : null;
   const normalizedGroupSize =
     Number.isInteger(groupSize) && Number(groupSize) > 0 ? Number(groupSize) : null;
