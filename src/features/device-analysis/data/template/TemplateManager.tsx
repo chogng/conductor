@@ -1039,6 +1039,92 @@ const TemplateManager = ({
     [autoPreviewHeaders, t],
   );
 
+  const formatAutoSummaryNumber = useCallback((value: number | null | undefined) => {
+    if (!Number.isFinite(value)) return "";
+    return `${Number(Number(value).toPrecision(12))}`;
+  }, []);
+
+  const formatAutoLegendValue = useCallback(
+    (value: unknown) => {
+      const text = String(value ?? "").trim();
+      if (!text) return "";
+      const numeric = Number(text);
+      return Number.isFinite(numeric) ? formatAutoSummaryNumber(numeric) : text;
+    },
+    [formatAutoSummaryNumber],
+  );
+
+  const resolveAutoLegendSummary = useCallback(
+    (result: DeviceAnalysisAutoExtractionResult | null) => {
+      if (!result?.ok) {
+        return t("da_auto_template_summary_none");
+      }
+
+      const { plan } = result;
+      const prefix =
+        String(plan.legendPrefix ?? "").trim() ||
+        t("da_auto_template_summary_legend");
+      if (Number(plan.legendCount) === 1) {
+        if (
+          Number.isInteger(plan.legendStartRowIndex) &&
+          Number(plan.legendStartRowIndex) >= 0 &&
+          Number.isInteger(plan.legendStartColIndex) &&
+          Number(plan.legendStartColIndex) >= 0
+        ) {
+          const rawValue =
+            autoPreviewRows[Number(plan.legendStartRowIndex)]?.[
+              Number(plan.legendStartColIndex)
+            ];
+          const value = formatAutoLegendValue(rawValue);
+          if (value) {
+            return t("da_auto_template_summary_legend_fixed", {
+              prefix,
+              value,
+            });
+          }
+        }
+
+        const value = formatAutoLegendValue(plan.legendStartValue);
+        if (value) {
+          return t("da_auto_template_summary_legend_fixed", {
+            prefix,
+            value,
+          });
+        }
+      }
+
+      if (
+        Number.isInteger(plan.legendStartColIndex) &&
+        Number(plan.legendStartColIndex) >= 0
+      ) {
+        return resolveAutoColumnLabel(plan.legendStartColIndex);
+      }
+
+      const start = String(plan.legendStartValue ?? "").trim();
+      const count = Number(plan.legendCount);
+      const step = Number(plan.legendStep);
+      if (start && Number.isInteger(count) && count > 0) {
+        if (Number.isFinite(step) && step > 0) {
+          return t("da_auto_template_summary_legend_generated", {
+            count,
+            prefix,
+            start,
+            step: formatAutoSummaryNumber(step),
+          });
+        }
+
+        return t("da_auto_template_summary_legend_generated_no_step", {
+          count,
+          prefix,
+          start,
+        });
+      }
+
+      return t("da_auto_template_summary_none");
+    },
+    [autoPreviewRows, formatAutoLegendValue, formatAutoSummaryNumber, resolveAutoColumnLabel, t],
+  );
+
   const autoApplyConfig = useMemo(
     () => ({
       autoExtractionMode: true,
@@ -1721,9 +1807,7 @@ const TemplateManager = ({
                   {t("da_auto_template_summary_legend")}
                 </span>
                 <span className="text-right text-text-primary">
-                  {resolveAutoColumnLabel(
-                    autoExtractionPreviewResult.plan.legendStartColIndex,
-                  )}
+                  {resolveAutoLegendSummary(autoExtractionPreviewResult)}
                 </span>
               </div>
             </div>

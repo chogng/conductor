@@ -113,6 +113,11 @@ test("infers grouped transfer legend sweep from notes when bias column is absent
   assert.equal(result.plan.legendCount, 2);
   assert.ok(Math.abs(result.plan.legendStep - 0.95) < 1e-12);
   assert.equal(result.plan.legendTarget, "group");
+
+  const templateConfig = buildDeviceAnalysisAutoTemplateConfig(result.plan);
+  assert.equal(templateConfig.yLegendStart, "0.05");
+  assert.equal(templateConfig.yLegendCount, "2");
+  assert.equal(templateConfig.yLegendStep, "0.95");
 });
 
 test("infers transfer grouping from metadata rows when preview is truncated", () => {
@@ -149,6 +154,43 @@ test("infers transfer grouping from metadata rows when preview is truncated", ()
   assert.equal(result.plan.legendCount, 2);
   assert.ok(Math.abs(result.plan.legendStep - 0.95) < 1e-12);
   assert.equal(result.plan.legendTarget, "group");
+});
+
+test("infers a fixed legend for single-curve Trans_Br metadata", () => {
+  const rows = [
+    ["SetupTitle", "Trans_Br"],
+    ["TestParameter", "Channel.VName", "Vg", "Vd", "Vs"],
+    ["TestParameter", "Channel.Func", "VAR1", "VAR2", "CONST"],
+    ["TestParameter", "Measurement.Secondary.Start", "0.05"],
+    ["TestParameter", "Measurement.Secondary.Count", "1"],
+    ["TestParameter", "Measurement.Secondary.Step", "0.2"],
+    ["TestParameter", "Output.Graph.XAxis.Data", "Vg"],
+    ["DataName", "Vg", "Id", "Ig"],
+    ["DataValue", "0", "1e-12", "1e-13"],
+    ["DataValue", "0.033", "2e-12", "1e-13"],
+    ["DataValue", "0.066", "3e-12", "1e-13"],
+  ];
+
+  const result = inferDeviceAnalysisAutoExtraction({
+    fileName: "Trans_Br [sample, Vbr=4.6V].csv",
+    rows,
+    totalRowCount: rows.length,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.plan.curveType, "transfer");
+  assert.equal(result.plan.legendPrefix, "Vd");
+  assert.equal(result.plan.legendStartColIndex, null);
+  assert.equal(result.plan.legendStartValue, "0.05");
+  assert.equal(result.plan.legendCount, 1);
+  assert.equal(result.plan.legendStep, null);
+  assert.equal(result.plan.legendTarget, "yColumn");
+
+  const templateConfig = buildDeviceAnalysisAutoTemplateConfig(result.plan);
+  assert.equal(templateConfig.yLegendStart, "0.05");
+  assert.equal(templateConfig.yLegendCount, "1");
+  assert.equal(templateConfig.yLegendStep, "");
+  assert.equal(templateConfig.yLegendTarget, "yColumn");
 });
 
 test("returns a failure result when auto extraction cannot infer columns", () => {

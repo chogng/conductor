@@ -32,7 +32,7 @@ export type DeviceAnalysisAutoExtractionPlan = {
   legendStartValue: string | null;
   legendCount: number | null;
   legendStep: number | null;
-  legendTarget: "auto" | "group";
+  legendTarget: "auto" | "group" | "yColumn";
   needsTemplate: boolean;
   reasons: string[];
   xAxisRole: DeviceAnalysisAxisRole | null;
@@ -59,6 +59,11 @@ export type DeviceAnalysisAutoExtractionResult =
 const AUTO_SEGMENTATION_MIN_GROUP_SIZE = 2;
 const AUTO_SEGMENTATION_MIN_GROUPS = 2;
 const AUTO_SEGMENTATION_REPEAT_THRESHOLD = 0.9;
+
+const formatCompactNumber = (value: number | null | undefined): string => {
+  if (!Number.isFinite(value)) return "";
+  return `${Number(Number(value).toPrecision(12))}`;
+};
 
 type ResolvedGroupShape = {
   groupSize: number | null;
@@ -796,6 +801,10 @@ const inferStrippedChannelPlan = ({
   const normalizedGroupSize =
     Number.isInteger(groupSize) && Number(groupSize) > 0 ? Number(groupSize) : null;
   const hasGroupedLegend = normalizedGroupSize !== null && (groups ?? 0) > 1;
+  const fixedLegendValue =
+    !hasGroupedLegend && Number.isFinite(metadata.strippedFixedVoltageMagnitude)
+      ? formatCompactNumber(metadata.strippedFixedVoltageMagnitude)
+      : null;
   const biasRole = classification.xAxisRole === "vg" ? "vd" : "vg";
 
   return {
@@ -811,10 +820,10 @@ const inferStrippedChannelPlan = ({
       legendPrefix: resolveLabelForRole(biasRole, headers[fixedVoltageCol] || "Bias"),
       legendStartColIndex: hasGroupedLegend ? fixedVoltageCol : null,
       legendStartRowIndex: hasGroupedLegend ? dataStartRowIndex : null,
-      legendStartValue: null,
-      legendCount: null,
+      legendStartValue: fixedLegendValue,
+      legendCount: hasGroupedLegend ? null : fixedLegendValue ? 1 : null,
       legendStep: null,
-      legendTarget: hasGroupedLegend ? "group" : "auto",
+      legendTarget: hasGroupedLegend ? "group" : fixedLegendValue ? "yColumn" : "auto",
       needsTemplate: classification.needsTemplate,
       reasons: classification.reasons,
       xAxisRole: classification.xAxisRole,
@@ -910,6 +919,10 @@ const inferGenericPlan = ({
     (groups ?? 0) > 1 &&
     (legendCol !== null ||
       (generatedLegendSweep?.start !== null && generatedLegendSweep?.count !== null));
+  const hasSingleGeneratedLegend =
+    !hasGroupedLegend &&
+    generatedLegendSweep?.start !== null &&
+    generatedLegendSweep?.count === 1;
   const yHeader = headers[yCol] || "Y";
 
   return {
@@ -933,17 +946,21 @@ const inferGenericPlan = ({
         legendCol === null &&
         generatedLegendSweep &&
         generatedLegendSweep.start !== null
-          ? String(generatedLegendSweep.start)
+          ? formatCompactNumber(generatedLegendSweep.start)
+          : hasSingleGeneratedLegend
+            ? formatCompactNumber(generatedLegendSweep.start)
           : null,
       legendCount:
         hasGroupedLegend && legendCol === null
           ? (generatedLegendSweep?.count ?? null)
+          : hasSingleGeneratedLegend
+            ? 1
           : null,
       legendStep:
         hasGroupedLegend && legendCol === null
           ? (generatedLegendSweep?.step ?? null)
           : null,
-      legendTarget: hasGroupedLegend ? "group" : "auto",
+      legendTarget: hasGroupedLegend ? "group" : hasSingleGeneratedLegend ? "yColumn" : "auto",
       needsTemplate: classification.needsTemplate,
       reasons: classification.reasons,
       xAxisRole: classification.xAxisRole,
@@ -1031,7 +1048,7 @@ export const buildDeviceAnalysisAutoTemplateConfig = (
       plan.legendStartColIndex !== null && plan.legendStartRowIndex !== null
         ? toCellRef(plan.legendStartRowIndex, plan.legendStartColIndex)
         : plan.legendStartValue ?? "",
-    yLegendStep: plan.legendStep !== null ? String(plan.legendStep) : "",
+    yLegendStep: plan.legendStep !== null ? formatCompactNumber(plan.legendStep) : "",
     yLegendTarget: plan.legendTarget,
     yUnit: plan.yUnit,
   };
