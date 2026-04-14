@@ -278,10 +278,18 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         setYUnit((prev: any) => (prev === nextUnit ? prev : nextUnit));
     }, [activeFile?.fileId, activeFile?.yUnit]);
     const {
+        activeOriginSeries,
         clearOriginCanvasSelection,
+        clearAllOriginSeriesSelections,
+        clearOriginSeriesSelectionForActiveFile,
+        clearOriginSeriesSelectionForFile,
         originExportMode: resolvedOriginExportMode,
+        selectAllOriginSeriesForActiveFile,
+        selectedOriginCollectionEntries,
         selectedOriginCanvasKeySet,
+        selectedOriginSeriesCountByFile,
         selectedOriginSeriesKeySet,
+        selectedOriginSeriesTotalCount,
         toggleOriginCanvasSelection,
         toggleOriginSeriesSelection,
         selectAllOriginCanvases,
@@ -300,6 +308,12 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         t,
         tLoose,
     });
+    const currentCollectedSeriesCount = useMemo(() => {
+        const fileKey = String(activeFile?.fileId ?? "");
+        if (!fileKey)
+            return 0;
+        return Number(selectedOriginSeriesCountByFile?.[fileKey] ?? 0);
+    }, [activeFile?.fileId, selectedOriginSeriesCountByFile]);
     const area = useMemo(() => {
         if (areaInput === null || areaInput === undefined)
             return null;
@@ -1746,7 +1760,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         id="device-analysis-overview-sidebar"
         className="md:min-h-0 flex flex-col h-full"
       >
-        <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} onSelectAllOriginCanvases={selectAllOriginCanvases} onClearOriginCanvasSelection={clearOriginCanvasSelection} originExportMode={resolvedOriginExportMode} onOriginExportModeChange={(nextMode: DeviceAnalysisOriginExportMode) => {
+        <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} originCollectionEntries={selectedOriginCollectionEntries} onClearAllOriginSeriesSelections={clearAllOriginSeriesSelections} onClearOriginSeriesSelectionForFile={clearOriginSeriesSelectionForFile} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} selectedOriginSeriesTotalCount={selectedOriginSeriesTotalCount} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} onSelectAllOriginCanvases={selectAllOriginCanvases} onClearOriginCanvasSelection={clearOriginCanvasSelection} originExportMode={resolvedOriginExportMode} onOriginExportModeChange={(nextMode: DeviceAnalysisOriginExportMode) => {
             setOriginExportMode(nextMode);
             apiService
                 .updateDeviceAnalysisSettings({
@@ -2145,6 +2159,41 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
 
               {effectivePlotType === "gm" ? (<div className="text-[11px] text-text-secondary mb-2">
                   {t("da_chart_gm_note", { label: gmUi.summaryLabel })}
+                </div>) : null}
+
+              {resolvedOriginExportMode === "merged" && activeOriginSeries.length ? (<div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-page/40 px-3 py-2 flex-wrap">
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold text-text-primary">
+                      {t("da_origin_collection_title")}
+                    </div>
+                    <div className="text-[11px] text-text-secondary leading-5">
+                      {t("da_origin_collection_current_file_summary", {
+                        count: currentCollectedSeriesCount,
+                        total: activeOriginSeries.length,
+                      })}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Button
+                      variant="ghost"
+                      size="control"
+                      onClick={selectAllOriginSeriesForActiveFile}
+                      title={t("da_origin_collection_select_all_current")}
+                      aria-label={t("da_origin_collection_select_all_current")}
+                    >
+                      {t("da_origin_collection_select_all_current")}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="control"
+                      onClick={clearOriginSeriesSelectionForActiveFile}
+                      disabled={currentCollectedSeriesCount <= 0}
+                      title={t("da_origin_collection_clear_current")}
+                      aria-label={t("da_origin_collection_clear_current")}
+                    >
+                      {t("da_origin_collection_clear_current")}
+                    </Button>
+                  </div>
                 </div>) : null}
 
               <div ref={mainChartContainerRef} className="h-[500px] min-h-[500px] flex-shrink-0">

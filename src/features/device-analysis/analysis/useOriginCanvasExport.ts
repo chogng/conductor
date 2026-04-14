@@ -189,6 +189,25 @@ export const useOriginCanvasExport = ({
       .filter(Boolean);
   }, [activeFile?.series]);
 
+  const getAllOriginSeriesKeysForFile = useCallback(
+    (fileId: any) => {
+      const targetKey = String(fileId ?? "").trim();
+      if (!targetKey) return [];
+
+      const file = (Array.isArray(processedData) ? processedData : []).find(
+        (item: any) => String(item?.fileId ?? "") === targetKey,
+      );
+      const allSeries = Array.isArray(file?.series) ? file.series : [];
+      return allSeries
+        .map((series: any) => String(series?.id ?? ""))
+        .filter(
+          (item: string, index: number, arr: string[]) =>
+            Boolean(item) && arr.indexOf(item) === index,
+        );
+    },
+    [processedData],
+  );
+
   const getSelectedOriginSeriesKeySetForFile = useCallback(
     (file: any) => {
       const allSeries = Array.isArray(file?.series) ? file.series : [];
@@ -196,22 +215,27 @@ export const useOriginCanvasExport = ({
         .map((series: any) => String(series?.id ?? ""))
         .filter(Boolean);
       if (!allKeys.length) return new Set<string>();
+      const defaultToAll = resolvedOriginExportMode !== "merged";
 
       const fileKey = String(file?.fileId ?? "");
-      if (!fileKey) return new Set(allKeys);
+      if (!fileKey) return defaultToAll ? new Set(allKeys) : new Set<string>();
 
       const stored = originSelectedSeriesIdsByFile?.[fileKey];
-      if (!Array.isArray(stored)) return new Set(allKeys);
+      if (!Array.isArray(stored)) {
+        return defaultToAll ? new Set(allKeys) : new Set<string>();
+      }
 
       const live = new Set(allKeys);
       const filtered = stored
         .map((item) => String(item ?? ""))
         .filter((item) => live.has(item));
-      if (!filtered.length && stored.length > 0) return new Set(allKeys);
+      if (!filtered.length && stored.length > 0) {
+        return defaultToAll ? new Set(allKeys) : new Set<string>();
+      }
 
       return new Set(filtered);
     },
-    [originSelectedSeriesIdsByFile],
+    [originSelectedSeriesIdsByFile, resolvedOriginExportMode],
   );
 
   const selectedOriginSeriesKeySet = useMemo(
@@ -219,13 +243,60 @@ export const useOriginCanvasExport = ({
     [activeFile, getSelectedOriginSeriesKeySetForFile],
   );
 
+  const selectedOriginSeriesCountByFile = useMemo(() => {
+    const next: Record<string, number> = {};
+    for (const item of originCanvasOptions as Array<any>) {
+      const count = getSelectedOriginSeriesKeySetForFile(item.file).size;
+      if (count > 0) {
+        next[String(item.key)] = count;
+      }
+    }
+    return next;
+  }, [getSelectedOriginSeriesKeySetForFile, originCanvasOptions]);
+
+  const selectedOriginSeriesTotalCount = useMemo(
+    () =>
+      Object.values(selectedOriginSeriesCountByFile).reduce(
+        (sum, count) => sum + Number(count || 0),
+        0,
+      ),
+    [selectedOriginSeriesCountByFile],
+  );
+
+  const selectedOriginCollectionEntries = useMemo(() => {
+    return (originCanvasOptions as Array<any>)
+      .map((item) => {
+        const fileId = String(item?.key ?? "");
+        const selectedCount = Number(selectedOriginSeriesCountByFile[fileId] ?? 0);
+        if (!fileId || selectedCount <= 0) return null;
+        return {
+          fileId,
+          fileName: String(item?.label ?? fileId),
+          selectedCount,
+        };
+      })
+      .filter(
+        (
+          item,
+        ): item is { fileId: string; fileName: string; selectedCount: number } =>
+          Boolean(item),
+      );
+  }, [originCanvasOptions, selectedOriginSeriesCountByFile]);
+
   const selectedOriginCanvasKeySet = useMemo(() => {
+    if (resolvedOriginExportMode === "merged") {
+      return new Set(Object.keys(selectedOriginSeriesCountByFile));
+    }
     return new Set(
       originSelectedCanvasIds
         .map((item) => String(item ?? ""))
         .filter(Boolean),
     );
-  }, [originSelectedCanvasIds]);
+  }, [
+    originSelectedCanvasIds,
+    resolvedOriginExportMode,
+    selectedOriginSeriesCountByFile,
+  ]);
 
   const selectedOriginCanvases = useMemo(() => {
     return originCanvasOptions
@@ -259,6 +330,65 @@ export const useOriginCanvasExport = ({
     setOriginSelectedCanvasIds([]);
   }, []);
 
+  const selectAllOriginSeriesForFile = useCallback(
+    (fileId: any) => {
+      const fileKey = String(fileId ?? "").trim();
+      if (!fileKey) return;
+
+      const allKeys = getAllOriginSeriesKeysForFile(fileKey);
+      if (!allKeys.length) return;
+
+      setOriginSelectedSeriesIdsByFile((prev) => {
+        const prevList = Array.isArray(prev?.[fileKey]) ? prev[fileKey] : [];
+        const unchanged =
+          prevList.length === allKeys.length &&
+          prevList.every((value, index) => value === allKeys[index]);
+        if (unchanged) return prev;
+        return {
+          ...(prev || {}),
+          [fileKey]: allKeys,
+        };
+      });
+    },
+    [getAllOriginSeriesKeysForFile],
+  );
+
+  const clearOriginSeriesSelectionForFile = useCallback(
+    (fileId: any) => {
+      const fileKey = String(fileId ?? "").trim();
+      if (!fileKey) return;
+
+      setOriginSelectedSeriesIdsByFile((prev) => {
+        if (!prev || !(fileKey in prev)) return prev;
+        if (resolvedOriginExportMode !== "merged") {
+          return {
+            ...(prev || {}),
+            [fileKey]: [],
+          };
+        }
+        const next = { ...(prev || {}) };
+        delete next[fileKey];
+        return next;
+      });
+    },
+    [resolvedOriginExportMode],
+  );
+
+  const clearAllOriginSeriesSelections = useCallback(() => {
+    setOriginSelectedSeriesIdsByFile((prev) => {
+      if (!prev || Object.keys(prev).length === 0) return prev;
+      return {};
+    });
+  }, []);
+
+  const selectAllOriginSeriesForActiveFile = useCallback(() => {
+    selectAllOriginSeriesForFile(activeFile?.fileId);
+  }, [activeFile?.fileId, selectAllOriginSeriesForFile]);
+
+  const clearOriginSeriesSelectionForActiveFile = useCallback(() => {
+    clearOriginSeriesSelectionForFile(activeFile?.fileId);
+  }, [activeFile?.fileId, clearOriginSeriesSelectionForFile]);
+
   const toggleOriginSeriesSelection = useCallback(
     (seriesId: any) => {
       const fileKey = String(activeFile?.fileId ?? "");
@@ -271,11 +401,19 @@ export const useOriginCanvasExport = ({
         const stored = prev?.[fileKey];
         const current = Array.isArray(stored)
           ? stored.map((item) => String(item ?? "")).filter((item) => live.has(item))
-          : [...allKeys];
+          : resolvedOriginExportMode === "merged"
+            ? []
+            : [...allKeys];
         const hasTarget = current.includes(targetKey);
         const nextSelected = hasTarget
           ? current.filter((item) => item !== targetKey)
           : [...current, targetKey];
+
+        if (!nextSelected.length && resolvedOriginExportMode === "merged") {
+          const next = { ...(prev || {}) };
+          delete next[fileKey];
+          return next;
+        }
 
         return {
           ...(prev || {}),
@@ -283,7 +421,7 @@ export const useOriginCanvasExport = ({
         };
       });
     },
-    [activeFile?.fileId, activeOriginSeries],
+    [activeFile?.fileId, activeOriginSeries, resolvedOriginExportMode],
   );
 
   const buildOriginExportPayloadsForSelectedCanvases = useCallback(() => {
@@ -606,15 +744,22 @@ export const useOriginCanvasExport = ({
 
   return {
     activeOriginSeries,
+    clearAllOriginSeriesSelections,
     clearOriginCanvasSelection,
+    clearOriginSeriesSelectionForActiveFile,
+    clearOriginSeriesSelectionForFile,
     handleExportOriginZip,
     handleOpenInOrigin,
     originCanvasOptions,
     originExportMode: resolvedOriginExportMode,
+    selectAllOriginSeriesForActiveFile,
     selectAllOriginCanvases,
+    selectedOriginCollectionEntries,
     selectedOriginCanvasKeySet,
     selectedOriginCanvases,
+    selectedOriginSeriesCountByFile,
     selectedOriginSeriesKeySet,
+    selectedOriginSeriesTotalCount,
     toggleOriginCanvasSelection,
     toggleOriginSeriesSelection,
   };
