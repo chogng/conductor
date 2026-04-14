@@ -619,7 +619,7 @@ const resolveGroupShapeFromCounts = ({
   if (!Number.isInteger(totalRows) || totalRows <= dataStartRowIndex) return null;
 
   const dataRows = totalRows - dataStartRowIndex;
-  if (dataRows < AUTO_SEGMENTATION_MIN_GROUP_SIZE * AUTO_SEGMENTATION_MIN_GROUPS) {
+  if (dataRows < AUTO_SEGMENTATION_MIN_GROUP_SIZE) {
     return null;
   }
 
@@ -628,7 +628,7 @@ const resolveGroupShapeFromCounts = ({
       ? Number(groupSize)
       : null;
   const normalizedGroups =
-    Number.isInteger(groups) && Number(groups) >= AUTO_SEGMENTATION_MIN_GROUPS
+    Number.isInteger(groups) && Number(groups) >= 1
       ? Number(groups)
       : null;
 
@@ -643,7 +643,7 @@ const resolveGroupShapeFromCounts = ({
   if (normalizedGroupSize !== null) {
     if (dataRows % normalizedGroupSize !== 0) return null;
     const resolvedGroups = dataRows / normalizedGroupSize;
-    if (!Number.isInteger(resolvedGroups) || resolvedGroups < AUTO_SEGMENTATION_MIN_GROUPS) {
+    if (!Number.isInteger(resolvedGroups) || resolvedGroups < 1) {
       return null;
     }
     return {

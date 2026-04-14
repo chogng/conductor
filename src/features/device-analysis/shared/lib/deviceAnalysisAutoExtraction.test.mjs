@@ -179,6 +179,8 @@ test("infers a fixed legend for single-curve Trans_Br metadata", () => {
 
   assert.equal(result.ok, true);
   assert.equal(result.plan.curveType, "transfer");
+  assert.equal(result.plan.xPointsPerGroup, 3);
+  assert.equal(result.plan.groups, 1);
   assert.equal(result.plan.legendPrefix, "Vd");
   assert.equal(result.plan.legendStartColIndex, null);
   assert.equal(result.plan.legendStartValue, "0.05");

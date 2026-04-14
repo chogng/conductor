@@ -1027,6 +1027,41 @@ const TemplateManager = ({
       : [];
   }, [autoExtractionPreviewResult, autoPreviewRows]);
 
+  const autoGroupingSummary = useMemo(() => {
+    if (!autoExtractionPreviewResult?.ok) {
+      return t("da_auto_template_summary_none");
+    }
+
+    const explicitPoints = Number(autoExtractionPreviewResult.plan.xPointsPerGroup);
+    const points =
+      Number.isInteger(explicitPoints) && explicitPoints > 0
+        ? explicitPoints
+        : Number.isInteger(Number(previewFile?.rowCount)) &&
+            Number(previewFile?.rowCount) > autoExtractionPreviewResult.plan.dataStartRowIndex
+          ? Number(previewFile?.rowCount) - autoExtractionPreviewResult.plan.dataStartRowIndex
+          : null;
+    const explicitGroups = Number(autoExtractionPreviewResult.plan.groups);
+    const groups =
+      Number.isInteger(explicitGroups) && explicitGroups > 0
+        ? explicitGroups
+        : points !== null
+          ? 1
+          : null;
+
+    if (points === null) {
+      return t("da_auto_template_summary_none");
+    }
+
+    return groups !== null
+      ? t("da_auto_template_summary_points_groups", {
+          groups,
+          points,
+        })
+      : t("da_auto_template_summary_points_only", {
+          points,
+        });
+  }, [autoExtractionPreviewResult, previewFile?.rowCount, t]);
+
   const resolveAutoColumnLabel = useCallback(
     (colIndex: number | null) => {
       if (!Number.isInteger(colIndex) || Number(colIndex) < 0) {
@@ -1787,20 +1822,7 @@ const TemplateManager = ({
                 <span className="text-text-secondary">
                   {t("da_auto_template_summary_grouping")}
                 </span>
-                <span className="text-right text-text-primary">
-                  {Number.isInteger(autoExtractionPreviewResult.plan.xPointsPerGroup) &&
-                  Number(autoExtractionPreviewResult.plan.xPointsPerGroup) > 0
-                    ? Number.isInteger(autoExtractionPreviewResult.plan.groups) &&
-                      Number(autoExtractionPreviewResult.plan.groups) > 0
-                      ? t("da_auto_template_summary_points_groups", {
-                          groups: autoExtractionPreviewResult.plan.groups,
-                          points: autoExtractionPreviewResult.plan.xPointsPerGroup,
-                        })
-                      : t("da_auto_template_summary_points_only", {
-                          points: autoExtractionPreviewResult.plan.xPointsPerGroup,
-                        })
-                    : t("da_auto_template_summary_auto_grouping")}
-                </span>
+                <span className="text-right text-text-primary">{autoGroupingSummary}</span>
               </div>
               <div className="flex items-start justify-between gap-3">
                 <span className="text-text-secondary">
