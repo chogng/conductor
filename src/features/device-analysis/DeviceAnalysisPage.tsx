@@ -574,6 +574,7 @@ const DeviceAnalysisPage = () => {
   const {
     handleCheckForUpdates,
     handleCloseWindow,
+    handleExportOriginZipFromTitleBar,
     handleMinimizeWindow,
     handleOpenOriginFromTitleBar,
     handleToggleMaximizeWindow,
@@ -615,6 +616,7 @@ const DeviceAnalysisPage = () => {
             onOpenOrigin={() => {
               onboarding.handleOpenOrigin(handleOpenOriginFromTitleBar);
             }}
+            onExportOriginZip={handleExportOriginZipFromTitleBar}
             onOpenSettings={() => handlePageTabSelect("settings")}
             onMinimizeWindow={handleMinimizeWindow}
             onToggleMaximizeWindow={handleToggleMaximizeWindow}

@@ -56,6 +56,17 @@ export const useDeviceAnalysisDesktopShell = ({
     });
   }, [setActivePage]);
 
+  const handleExportOriginZipFromTitleBar = useCallback(() => {
+    setActivePage("analysis");
+
+    if (typeof window === "undefined") return;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.dispatchEvent(new Event("device-analysis:export-origin-zip"));
+      });
+    });
+  }, [setActivePage]);
+
   const handleToggleDevTools = useCallback(() => {
     sendDesktopCommand("toggle-devtools");
   }, [sendDesktopCommand]);
@@ -130,6 +141,7 @@ export const useDeviceAnalysisDesktopShell = ({
   return {
     handleCheckForUpdates,
     handleCloseWindow,
+    handleExportOriginZipFromTitleBar,
     handleMinimizeWindow,
     handleOpenOriginFromTitleBar,
     handleReloadWindow,

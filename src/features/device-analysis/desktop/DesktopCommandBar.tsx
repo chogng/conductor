@@ -1,4 +1,5 @@
 import {
+  Archive,
   ArrowLeft,
   ArrowRight,
   BarChart2,
@@ -30,6 +31,7 @@ type DesktopCommandBarProps = {
   onCloseWindow?: () => void;
   onOpenSettings?: () => void;
   onOpenOrigin?: () => void;
+  onExportOriginZip?: () => void;
   showAnalysisFileSelector?: boolean;
   analysisFileOptions?: AnalysisFileOption[];
   analysisActiveFileId?: string | null;
@@ -50,6 +52,7 @@ const DesktopCommandBar = ({
   onCloseWindow,
   onOpenSettings,
   onOpenOrigin,
+  onExportOriginZip,
   showAnalysisFileSelector = false,
   analysisFileOptions = [],
   analysisActiveFileId = null,
@@ -156,6 +159,18 @@ const DesktopCommandBar = ({
             aria-hidden="true"
             className="h-[14px] w-[14px] opacity-80 dark:invert"
           />
+        </button>
+        <button
+          id="device-analysis-window-origin-zip-btn"
+          type="button"
+          aria-label={t("da_export_origin_zip")}
+          title={t("da_export_origin_zip")}
+          className="da_window_icon_btn"
+          onMouseEnter={onAnalysisIntent}
+          onFocus={onAnalysisIntent}
+          onClick={onExportOriginZip}
+        >
+          <Archive size={14} className="opacity-80" />
         </button>
         <button
           id="device-analysis-window-settings-btn"

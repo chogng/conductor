@@ -8,6 +8,7 @@ const DEVICE_ANALYSIS_SETTINGS_FILENAME = "config.json";
 const DEVICE_ANALYSIS_STORE_CONFIG_FILENAME = "store-path.json";
 const DEVICE_ANALYSIS_LEGACY_SETTINGS_FILENAME_SUFFIX = ".settings.json";
 const DEVICE_ANALYSIS_SS_METHODS = new Set(["auto", "manual", "idWindow", "legacy"]);
+const DEVICE_ANALYSIS_ORIGIN_EXPORT_MODES = new Set(["merged", "separate"]);
 const DEVICE_ANALYSIS_Y_UNITS = new Set(["A", "uA", "nA"]);
 const DEVICE_ANALYSIS_Y_SCALES = new Set(["linear", "log"]);
 const DEVICE_ANALYSIS_THEMES = new Set(["system", "light", "dark"]);
@@ -32,6 +33,7 @@ const DEVICE_ANALYSIS_DEFAULT_SETTINGS = {
   ssIdLow: 1e-11,
   ssIdHigh: 1e-9,
   originExePath: null,
+  originExportModeDefault: "merged",
   originPlotTypeDefault: 202,
   originPlotXyPairsDefault: "((1,2))",
   originPlotCommandDefault: "",
@@ -202,6 +204,13 @@ export function createDeviceAnalysisStore(options) {
       DEVICE_ANALYSIS_DEFAULT_SETTINGS.ssIdHigh,
     );
     const originExePath = normalizeOriginExePath(next.originExePath);
+    const originExportModeDefault = DEVICE_ANALYSIS_ORIGIN_EXPORT_MODES.has(
+      next.originExportModeDefault,
+    )
+      ? next.originExportModeDefault
+      : DEVICE_ANALYSIS_ORIGIN_EXPORT_MODES.has(next.originExportMode)
+        ? next.originExportMode
+        : DEVICE_ANALYSIS_DEFAULT_SETTINGS.originExportModeDefault;
     const originPlotDefaults = normalizeOriginPlotOptions({
       plotCommand: DEVICE_ANALYSIS_DEFAULT_SETTINGS.originPlotCommandDefault,
       plotType: DEVICE_ANALYSIS_DEFAULT_SETTINGS.originPlotTypeDefault,
@@ -253,6 +262,7 @@ export function createDeviceAnalysisStore(options) {
       ssIdLow,
       ssIdHigh,
       originExePath,
+      originExportModeDefault,
       originPlotTypeDefault: originPlotSettings.plotType,
       originPlotXyPairsDefault: originPlotSettings.xyPairs,
       originPlotCommandDefault: originPlotSettings.plotCommand,

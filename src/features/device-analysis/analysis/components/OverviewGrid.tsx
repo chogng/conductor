@@ -10,6 +10,7 @@ import Card from "../../../../components/ui/Card";
 import Select from "../../../../components/ui/Select";
 import ScrollArea from "../../../../components/ui/ScrollArea";
 import { useLanguage } from "../../../../hooks/useLanguage";
+import type { DeviceAnalysisOriginExportMode } from "../lib/originSelectionExport";
 import type { ProcessingStatus } from "../../shared/lib/sharedTypes";
 import FileCard, { type ProcessedFileLike } from "./FileCard";
 
@@ -22,6 +23,8 @@ type OverviewGridProps = {
   onToggleOriginCanvasSelection?: (fileId: string | undefined) => void;
   onSelectAllOriginCanvases?: () => void;
   onClearOriginCanvasSelection?: () => void;
+  originExportMode?: DeviceAnalysisOriginExportMode;
+  onOriginExportModeChange?: (mode: DeviceAnalysisOriginExportMode) => void;
   xUnitFactor?: number;
   xUnitLabel?: string;
   yUnitFactor?: number;
@@ -66,6 +69,8 @@ const OverviewGrid = memo(function OverviewGrid({
   onToggleOriginCanvasSelection,
   onSelectAllOriginCanvases,
   onClearOriginCanvasSelection,
+  originExportMode = "merged",
+  onOriginExportModeChange,
   xUnitFactor,
   xUnitLabel,
   yUnitFactor,
@@ -179,6 +184,9 @@ const OverviewGrid = memo(function OverviewGrid({
   const selectModeStateLabel = isSelectMode
     ? t("da_overview_select_mode_on")
     : t("da_overview_select_mode_off");
+  const originExportModeHint = originExportMode === "separate"
+    ? t("da_origin_export_mode_separate_hint")
+    : t("da_origin_export_mode_merged_hint");
 
   if (!processedData.length) return null;
 
@@ -322,6 +330,39 @@ const OverviewGrid = memo(function OverviewGrid({
           {t("da_overview_selected_num_figures", {
             count: selectedCanvasCount,
           })}
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-text-secondary whitespace-nowrap">
+            {t("da_origin_export_mode_label")}
+          </span>
+          <Select
+            id="device-analysis-origin-export-mode-select"
+            size="md"
+            value={originExportMode}
+            onChange={(next) =>
+              onOriginExportModeChange?.(
+                next === "separate" ? "separate" : "merged",
+              )
+            }
+            options={[
+              {
+                value: "merged",
+                label: t("da_origin_export_mode_merged"),
+              },
+              {
+                value: "separate",
+                label: t("da_origin_export_mode_separate"),
+              },
+            ]}
+            className="w-fit da-neutral-select"
+            stableWidth
+            data-cta="Device Analysis"
+            data-cta-position="overview-grid"
+            data-cta-copy="origin export mode"
+          />
+        </div>
+        <div className="text-[11px] text-text-secondary">
+          {originExportModeHint}
         </div>
       </div>
 

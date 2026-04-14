@@ -6,7 +6,6 @@ import {
   useState,
   type MutableRefObject,
 } from "react";
-import Papa from "papaparse";
 import JSZip from "jszip";
 import {
   buildDeviceAnalysisOriginOgsScript,
@@ -14,10 +13,14 @@ import {
   triggerDeviceAnalysisBlobDownload,
 } from "./lib/deviceAnalysisExport";
 import {
+  buildDeviceAnalysisOriginExportsByMode,
+  isDeviceAnalysisOriginExportMode,
+  type DeviceAnalysisOriginExportMode,
+} from "./lib/originSelectionExport";
+import {
   buildOriginXAxisRangeCommandsFromDisplayRange,
   buildOriginYAxisRangeCommands,
   buildOriginYAxisRangeCommandsFromDisplayRange,
-  resolveOriginLogPositiveMinForRange,
 } from "./lib/originAxisCommands";
 import { formatOriginBridgeError } from "./lib/originBridgeError";
 import {
@@ -46,6 +49,7 @@ type UseOriginCanvasExportOptions = {
     min: number;
     max: number;
   } | null>;
+  originExportMode?: unknown;
   originOpenPlotOptions: unknown;
   processedData: any[];
   showToast: (message: string, type?: any) => void;
@@ -62,25 +66,6 @@ const sanitizeFilename = (name: any, { max = 180 }: any = {}) => {
   return raw.length > max ? raw.slice(0, max) : raw;
 };
 
-const sanitizeOriginDisplayName = (name: any, { max = 180 }: any = {}) => {
-  const raw = String(name || "")
-    .replace(/[\\_]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!raw) return "device analysis";
-  return raw.length > max ? raw.slice(0, max).trim() : raw;
-};
-
-const buildOriginSharedXyPairs = (yCount: number) => {
-  const safeYCount = Number.isFinite(yCount) ? Math.max(1, Math.floor(yCount)) : 1;
-  const chunks = new Array(safeYCount);
-  for (let i = 0; i < safeYCount; i += 1) {
-    const yCol = i + 2;
-    chunks[i] = `(1,${yCol})`;
-  }
-  return `(${chunks.join(",")})`;
-};
-
 export const useOriginCanvasExport = ({
   activeFile,
   axisYScale,
@@ -89,6 +74,7 @@ export const useOriginCanvasExport = ({
   isWindowsDesktopShell,
   originChartXRangeRef,
   originChartYRangeRef,
+  originExportMode,
   originOpenPlotOptions,
   processedData,
   showToast,
@@ -104,6 +90,8 @@ export const useOriginCanvasExport = ({
       return firstFileId ? [firstFileId] : [];
     },
   );
+  const resolvedOriginExportMode: DeviceAnalysisOriginExportMode =
+    isDeviceAnalysisOriginExportMode(originExportMode) ? originExportMode : "merged";
 
   const originCanvasOptions = useMemo(() => {
     const list = Array.isArray(processedData) ? processedData : [];
@@ -298,151 +286,54 @@ export const useOriginCanvasExport = ({
     [activeFile?.fileId, activeOriginSeries],
   );
 
-  const buildOriginCsvPayloadForCanvas = useCallback(
-    (canvasFile: any) => {
-      const allSeries = Array.isArray(canvasFile?.series) ? canvasFile.series : [];
-      if (!canvasFile?.fileId || !allSeries.length) {
-        return null;
-      }
-
-      const selectedSeriesKeySet = getSelectedOriginSeriesKeySetForFile(canvasFile);
-      const selectedSeries = allSeries.filter((series: any) =>
-        selectedSeriesKeySet.has(String(series?.id ?? "")),
-      );
-      if (!selectedSeries.length) {
-        return null;
-      }
-
-      const curveEntries = selectedSeries
-        .map((series: any) => {
-          const groupIndex = Number(series?.groupIndex);
-          const xArr = canvasFile?.xGroups?.[groupIndex];
-          const yArr = series?.y;
-          const rowCount = Math.min(xArr?.length ?? 0, yArr?.length ?? 0);
-          if (!xArr || !yArr || rowCount <= 0) return null;
-          return { xArr, yArr, rowCount };
-        })
-        .filter(Boolean);
-      if (!curveEntries.length) {
-        return null;
-      }
-
-      let yLinearMin = Number.POSITIVE_INFINITY;
-      let yLinearMax = Number.NEGATIVE_INFINITY;
-      let yPositiveMin = Number.POSITIVE_INFINITY;
-      let yPositiveMax = Number.NEGATIVE_INFINITY;
-      const yPositiveValues: number[] = [];
-
-      for (const entry of curveEntries as any[]) {
-        const rowCount = Number(entry?.rowCount);
-        const yArr = entry?.yArr;
-        const hasArrayLikeY =
-          yArr != null && Number.isFinite(Number((yArr as any).length));
-        if (!hasArrayLikeY || !Number.isFinite(rowCount) || rowCount <= 0) {
-          continue;
-        }
-
-        for (let idx = 0; idx < rowCount; idx += 1) {
-          const y = Number(yArr[idx]);
-          if (!Number.isFinite(y)) continue;
-          if (y < yLinearMin) yLinearMin = y;
-          if (y > yLinearMax) yLinearMax = y;
-          if (y > 0) {
-            if (y < yPositiveMin) yPositiveMin = y;
-            if (y > yPositiveMax) yPositiveMax = y;
-            yPositiveValues.push(y);
-          }
-        }
-      }
-
-      const yPositiveMinResolved = Number.isFinite(yPositiveMin)
-        ? resolveOriginLogPositiveMinForRange(yPositiveValues, yPositiveMin)
-        : null;
-      const maxRowCount = curveEntries.reduce(
-        (max: number, entry: any) => Math.max(max, entry.rowCount),
-        0,
-      );
-      const rows = new Array(maxRowCount);
-      const sharedX = curveEntries[0]?.xArr;
-      for (let i = 0; i < maxRowCount; i += 1) {
-        const row: any[] = [];
-        row.push(i < (sharedX?.length ?? 0) ? sharedX[i] ?? "" : "");
-        for (const entry of curveEntries as any[]) {
-          row.push(i < entry.rowCount ? entry.yArr[i] ?? "" : "");
-        }
-        rows[i] = row;
-      }
-
-      const csvText = Papa.unparse(rows);
-      const base = sanitizeFilename(canvasFile?.fileName ?? "device_analysis").replace(
-        /\.csv$/i,
-        "",
-      );
-      const csvName = `${base}__all_curves.csv`;
-      const seriesName = sanitizeOriginDisplayName(base);
-
-      return {
-        csvName,
-        csvText: "\uFEFF" + csvText,
-        seriesName,
-        xyPairCount: curveEntries.length,
-        xyPairs: buildOriginSharedXyPairs(curveEntries.length),
-        yLinearMin: Number.isFinite(yLinearMin) ? yLinearMin : null,
-        yLinearMax: Number.isFinite(yLinearMax) ? yLinearMax : null,
-        yPositiveMin: yPositiveMinResolved,
-        yPositiveMax: Number.isFinite(yPositiveMax) ? yPositiveMax : null,
-      };
-    },
-    [getSelectedOriginSeriesKeySetForFile],
-  );
-
-  const buildOriginCsvPayloadsForSelectedCanvases = useCallback(() => {
+  const buildOriginExportPayloadsForSelectedCanvases = useCallback(() => {
     if (!selectedOriginCanvases.length) {
       throw new Error(t("da_origin_select_canvas"));
     }
 
-    const payloads = selectedOriginCanvases
-      .map((canvasFile: any) => buildOriginCsvPayloadForCanvas(canvasFile))
-      .filter(Boolean);
+    const payloads = buildDeviceAnalysisOriginExportsByMode(
+      selectedOriginCanvases,
+      originSelectedSeriesIdsByFile,
+      resolvedOriginExportMode,
+    );
     if (!payloads.length) {
       throw new Error(t("da_origin_select_curve"));
     }
 
-    return payloads as any[];
-  }, [buildOriginCsvPayloadForCanvas, selectedOriginCanvases, t]);
+    const totalCurveCount = payloads.reduce(
+      (sum, payload) => sum + Number(payload?.curveCount ?? 0),
+      0,
+    );
+    return {
+      mode: resolvedOriginExportMode,
+      payloads,
+      totalCanvasCount: selectedOriginCanvases.length,
+      totalCurveCount,
+    };
+  }, [
+    originSelectedSeriesIdsByFile,
+    resolvedOriginExportMode,
+    selectedOriginCanvases,
+    t,
+  ]);
 
   const exportOriginZipFallbackForSelectedCanvases = useCallback(async () => {
-    const payloads = buildOriginCsvPayloadsForSelectedCanvases();
+    const result = buildOriginExportPayloadsForSelectedCanvases();
     const zip = new JSZip();
     zip.file("README_ORIGIN.txt", DEVICE_ANALYSIS_ORIGIN_README);
 
-    const usedCsvNames = new Set<string>();
-    const toUniqueCsvName = (rawName: any, idx: number) => {
-      const safe = sanitizeFilename(rawName || `canvas_${idx + 1}__all_curves.csv`);
-      const normalized = /\.csv$/i.test(safe) ? safe : `${safe}.csv`;
-      if (!usedCsvNames.has(normalized)) {
-        usedCsvNames.add(normalized);
-        return normalized;
-      }
-
-      const stem = normalized.replace(/\.csv$/i, "");
-      let suffix = 2;
-      let candidate = `${stem}__${suffix}.csv`;
-      while (usedCsvNames.has(candidate)) {
-        suffix += 1;
-        candidate = `${stem}__${suffix}.csv`;
-      }
-      usedCsvNames.add(candidate);
-      return candidate;
-    };
-
-    payloads.forEach((pkg: any, idx: number) => {
-      const csvName = toUniqueCsvName(pkg?.csvName, idx);
-      zip.file(csvName, pkg.csvText);
-      const ogsName = csvName.replace(/\.csv$/i, ".ogs");
+    result.payloads.forEach((payload, index) => {
+      const csvName = sanitizeFilename(
+        payload?.csvName || `device_analysis_${index + 1}.csv`,
+      );
+      zip.file(csvName, payload.csvText);
       zip.file(
-        ogsName,
-        buildDeviceAnalysisOriginOgsScript(csvName, pkg.xyPairCount, pkg.xyPairs),
+        csvName.replace(/\.csv$/i, ".ogs"),
+        buildDeviceAnalysisOriginOgsScript(
+          csvName,
+          payload.xyPairCount,
+          payload.xyPairs,
+        ),
       );
     });
 
@@ -452,16 +343,28 @@ export const useOriginCanvasExport = ({
       compressionOptions: { level: 6 },
     });
     const zipBase =
-      payloads.length === 1
-        ? sanitizeFilename(payloads[0]?.seriesName || "device_analysis")
-        : sanitizeFilename(`device_analysis_batch_${payloads.length}_canvases`);
+      result.mode === "merged"
+        ? sanitizeFilename(
+            String(result.payloads[0]?.csvName || "device_analysis").replace(
+              /\.csv$/i,
+              "",
+            ),
+          )
+        : sanitizeFilename(
+            `device_analysis_batch_${result.totalCanvasCount}_canvases`,
+          );
     const zipName = `${String(zipBase || "device_analysis").replace(
       /\.zip$/i,
       "",
     )}__origin.zip`;
     triggerDeviceAnalysisBlobDownload(zipName, zipBlob);
-    return { zipName, count: payloads.length };
-  }, [buildOriginCsvPayloadsForSelectedCanvases]);
+    return {
+      canvasCount: result.totalCanvasCount,
+      curveCount: result.totalCurveCount,
+      mode: result.mode,
+      zipName,
+    };
+  }, [buildOriginExportPayloadsForSelectedCanvases, resolvedOriginExportMode]);
 
   const handleOpenInOrigin = useCallback(async () => {
     if (originBusyRef.current) return;
@@ -473,7 +376,7 @@ export const useOriginCanvasExport = ({
         throw new Error(t("da_origin_pick_exe_required"));
       }
 
-      const payloads = buildOriginCsvPayloadsForSelectedCanvases();
+      const result = buildOriginExportPayloadsForSelectedCanvases();
       const normalizedPlotOptions = normalizeOriginPlotOptions(
         originOpenPlotOptions,
         DEFAULT_ORIGIN_PLOT_OPTIONS,
@@ -494,23 +397,33 @@ export const useOriginCanvasExport = ({
       const originYAxisTypeCommand =
         originYScaleMode === "log" ? "layer.y.type=2" : "layer.y.type=1";
       const shouldApplySmartYAxisRange = !hasCustomPlotCommand;
-
-      for (const pkg of payloads) {
+      for (const payload of result.payloads) {
+        const shouldUseDisplayRange =
+          payload.fileIds.length === 1 &&
+          payload.fileIds[0] === String(effectiveActiveFileId ?? "") &&
+          selectedOriginCanvases.length === 1;
         const effectiveXyPairs =
           !hasCustomPlotCommand && !hasCustomXyPairs
-            ? pkg.xyPairs
+            ? payload.xyPairs
             : normalizedPlotOptions.xyPairs;
-        const displayXRangeCommands =
-          buildOriginXAxisRangeCommandsFromDisplayRange(chartXRange);
-        const displayRangeCommands =
-          buildOriginYAxisRangeCommandsFromDisplayRange(
-            originYScaleMode,
-            chartYRange,
-          );
+        const displayXRangeCommands = buildOriginXAxisRangeCommandsFromDisplayRange(
+          shouldUseDisplayRange
+            ? chartXRange
+            : {
+                min: payload.xMin,
+                max: payload.xMax,
+              },
+        );
+        const displayRangeCommands = shouldUseDisplayRange
+          ? buildOriginYAxisRangeCommandsFromDisplayRange(
+              originYScaleMode,
+              chartYRange,
+            )
+          : [];
         const smartYRangeCommands = shouldApplySmartYAxisRange
           ? displayRangeCommands.length
             ? displayRangeCommands
-            : buildOriginYAxisRangeCommands(originYScaleMode, pkg)
+            : buildOriginYAxisRangeCommands(originYScaleMode, payload)
           : [];
         const originAxisCommands = [
           originYAxisTypeCommand,
@@ -522,11 +435,11 @@ export const useOriginCanvasExport = ({
 
         await originBridge.runOriginCsv({
           csv: {
-            name: pkg.csvName,
-            text: pkg.csvText,
+            name: payload.csvName,
+            text: payload.csvText,
           },
           sheet: {
-            longName: pkg.seriesName,
+            longName: payload.seriesName,
           },
           plot: {
             command: normalizedPlotOptions.command,
@@ -543,8 +456,21 @@ export const useOriginCanvasExport = ({
         });
       }
 
-      if (payloads.length > 1) {
-        showToast(t("da_open_in_origin_batch_success", { count: payloads.length }), "success");
+      if (result.mode === "merged" && result.totalCanvasCount > 1) {
+        showToast(
+          t("da_open_in_origin_combined_success", {
+            curves: result.totalCurveCount,
+            files: result.totalCanvasCount,
+          }),
+          "success",
+        );
+      } else if (result.mode === "separate" && result.totalCanvasCount > 1) {
+        showToast(
+          t("da_open_in_origin_batch_success", {
+            count: result.totalCanvasCount,
+          }),
+          "success",
+        );
       } else {
         showToast(t("da_open_in_origin_success"), "success");
       }
@@ -570,17 +496,19 @@ export const useOriginCanvasExport = ({
             : detail.message || t("unknownError");
         try {
           const fallback = await exportOriginZipFallbackForSelectedCanvases();
-          if (fallback.count > 1) {
+          if (fallback.mode === "merged") {
             showToast(
-              t("da_open_in_origin_fallback_zip_batch_success_with_reason", {
-                count: fallback.count,
+              t("da_open_in_origin_fallback_zip_success_with_reason_and_stats", {
+                curves: fallback.curveCount,
+                files: fallback.canvasCount,
                 reason: fallbackReason,
               }),
               "warning",
             );
           } else {
             showToast(
-              t("da_open_in_origin_fallback_zip_success_with_reason", {
+              t("da_open_in_origin_fallback_zip_batch_success_with_reason", {
+                count: fallback.canvasCount,
                 reason: fallbackReason,
               }),
               "warning",
@@ -609,16 +537,44 @@ export const useOriginCanvasExport = ({
     }
   }, [
     axisYScale,
-    buildOriginCsvPayloadsForSelectedCanvases,
+    buildOriginExportPayloadsForSelectedCanvases,
+    effectiveActiveFileId,
     exportOriginZipFallbackForSelectedCanvases,
     getDesktopOriginBridge,
     originChartXRangeRef,
     originChartYRangeRef,
     originOpenPlotOptions,
+    selectedOriginCanvases,
     showToast,
     t,
     tLoose,
   ]);
+
+  const handleExportOriginZip = useCallback(async () => {
+    try {
+      const exported = await exportOriginZipFallbackForSelectedCanvases();
+      if (exported.mode === "merged") {
+        showToast(
+          t("da_origin_zip_export_success", {
+            curves: exported.curveCount,
+            files: exported.canvasCount,
+          }),
+          "success",
+        );
+      } else {
+        showToast(
+          t("da_origin_zip_export_batch_success", {
+            count: exported.canvasCount,
+          }),
+          "success",
+        );
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : String(err ?? t("unknownError"));
+      showToast(t("da_open_in_origin_fallback_zip_failed", { error: message }), "error");
+    }
+  }, [exportOriginZipFallbackForSelectedCanvases, showToast, t]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !isWindowsDesktopShell) {
@@ -628,20 +584,33 @@ export const useOriginCanvasExport = ({
     const handleOpenOriginRequest = () => {
       void handleOpenInOrigin();
     };
+    const handleExportOriginZipRequest = () => {
+      void handleExportOriginZip();
+    };
     window.addEventListener("device-analysis:open-origin", handleOpenOriginRequest);
+    window.addEventListener(
+      "device-analysis:export-origin-zip",
+      handleExportOriginZipRequest,
+    );
     return () => {
       window.removeEventListener(
         "device-analysis:open-origin",
         handleOpenOriginRequest,
       );
+      window.removeEventListener(
+        "device-analysis:export-origin-zip",
+        handleExportOriginZipRequest,
+      );
     };
-  }, [handleOpenInOrigin, isWindowsDesktopShell]);
+  }, [handleExportOriginZip, handleOpenInOrigin, isWindowsDesktopShell]);
 
   return {
     activeOriginSeries,
     clearOriginCanvasSelection,
+    handleExportOriginZip,
     handleOpenInOrigin,
     originCanvasOptions,
+    originExportMode: resolvedOriginExportMode,
     selectAllOriginCanvases,
     selectedOriginCanvasKeySet,
     selectedOriginCanvases,

@@ -10,6 +10,10 @@ import Toast from "../../../../components/ui/Toast";
 import { useLanguage } from "../../../../hooks/useLanguage";
 import { COLORS } from "../lib/chartColors";
 import { DEFAULT_ORIGIN_PLOT_OPTIONS } from "../lib/originPlotOptions";
+import {
+  isDeviceAnalysisOriginExportMode,
+  type DeviceAnalysisOriginExportMode,
+} from "../lib/originSelectionExport";
 import type { ToastState, ToastType } from "../../shared/lib/sharedTypes";
 import { useAnalysisFileCache } from "../useAnalysisFileCache";
 import { useContainerSizeReady } from "../useContainerSizeReady";
@@ -153,6 +157,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const [gmMode, setGmMode] = useState("x"); // 'x' | 'legend'
     const [areaInput, setAreaInput] = useState("");
     const [showAxisControls, setShowAxisControls] = useState(false);
+    const [originExportMode, setOriginExportMode] = useState<DeviceAnalysisOriginExportMode>("merged");
     const originChartXRangeRef = useRef<{ min: number; max: number; } | null>(null);
     const originChartYRangeRef = useRef<{ mode: "linear" | "log"; min: number; max: number; } | null>(null);
     const [axis, setAxis] = useState({
@@ -199,13 +204,21 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         (async () => {
             try {
                 const settings = await apiService.getDeviceAnalysisSettings();
-                const normalizedSettings = settings as { yScale?: string; yUnit?: string } | null | undefined;
+                const normalizedSettings = settings as {
+                    originExportModeDefault?: string;
+                    yScale?: string;
+                    yUnit?: string;
+                } | null | undefined;
                 const unit = normalizeDeviceAnalysisYUnit(normalizedSettings?.yUnit, "");
                 const yScale = normalizedSettings?.yScale;
+                const exportMode = normalizedSettings?.originExportModeDefault;
                 if (cancelled)
                     return;
                 if (!userChangedYUnitRef.current && unit) {
                     setYUnit(unit);
+                }
+                if (isDeviceAnalysisOriginExportMode(exportMode)) {
+                    setOriginExportMode(exportMode);
                 }
                 if (!userChangedYScaleRef.current && (yScale === "linear" || yScale === "log")) {
                     setAxis((prev: any) => {
@@ -266,6 +279,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     }, [activeFile?.fileId, activeFile?.yUnit]);
     const {
         clearOriginCanvasSelection,
+        originExportMode: resolvedOriginExportMode,
         selectedOriginCanvasKeySet,
         selectedOriginSeriesKeySet,
         toggleOriginCanvasSelection,
@@ -279,6 +293,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         isWindowsDesktopShell,
         originChartXRangeRef,
         originChartYRangeRef,
+        originExportMode,
         originOpenPlotOptions,
         processedData,
         showToast,
@@ -1731,7 +1746,14 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         id="device-analysis-overview-sidebar"
         className="md:min-h-0 flex flex-col h-full"
       >
-        <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} onSelectAllOriginCanvases={selectAllOriginCanvases} onClearOriginCanvasSelection={clearOriginCanvasSelection} xUnitFactor={resolvedXUnitMeta.factor} xUnitLabel={resolvedXUnitMeta.label} yUnitFactor={resolvedYUnitMeta.factor} yUnitLabel={resolvedYUnitMeta.label} yScale={overviewYScaleType}/>
+        <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} onSelectAllOriginCanvases={selectAllOriginCanvases} onClearOriginCanvasSelection={clearOriginCanvasSelection} originExportMode={resolvedOriginExportMode} onOriginExportModeChange={(nextMode: DeviceAnalysisOriginExportMode) => {
+            setOriginExportMode(nextMode);
+            apiService
+                .updateDeviceAnalysisSettings({
+                originExportModeDefault: nextMode,
+            })
+                .catch(() => { });
+        }} xUnitFactor={resolvedXUnitMeta.factor} xUnitLabel={resolvedXUnitMeta.label} yUnitFactor={resolvedYUnitMeta.factor} yUnitLabel={resolvedYUnitMeta.label} yScale={overviewYScaleType}/>
       </aside>
 
       <ScrollArea className="md:min-h-0 min-w-0" axis="y" viewportClassName="flex flex-col min-h-full">

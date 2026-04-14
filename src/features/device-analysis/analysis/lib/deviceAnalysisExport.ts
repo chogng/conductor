@@ -9,6 +9,16 @@ import {
 } from "./analysisMath";
 import { getExcelColumnLabel } from "../../shared/lib/deviceAnalysisUtils";
 import type { ProcessedEntry, ProcessedSeries } from "../../shared/lib/sharedTypes";
+export type {
+  DeviceAnalysisOriginExportMode,
+  DeviceAnalysisOriginSelectionExport,
+} from "./originSelectionExport";
+export {
+  buildDeviceAnalysisOriginCanvasExport,
+  buildDeviceAnalysisOriginExportsByMode,
+  buildDeviceAnalysisOriginSelectionExport,
+  isDeviceAnalysisOriginExportMode,
+} from "./originSelectionExport";
 
 type SsIdWindow = {
   low?: number | string;

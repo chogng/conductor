@@ -29,22 +29,25 @@ export const DesktopCommandBarShell = ({
       <div className="h-7 w-44 rounded-full border border-border bg-bg-surface/70" />
     </div>
 
-    <div className="da_window_controls">
-      <div className="da_window_icon_btn pointer-events-none">
+      <div className="da_window_controls">
+        <div className="da_window_icon_btn pointer-events-none">
+          <div className="h-[14px] w-[14px] rounded-full bg-current/15" />
+        </div>
+        <div className="da_window_icon_btn pointer-events-none">
         <div className="h-[14px] w-[14px] rounded-full bg-current/15" />
       </div>
       <div className="da_window_icon_btn pointer-events-none">
         <div className="h-[14px] w-[14px] rounded-full bg-current/15" />
       </div>
-      <div className="da_window_icon_btn pointer-events-none">
-        <div className="h-[14px] w-[14px] rounded-full bg-current/15" />
-      </div>
-      <div className="da_window_icon_btn pointer-events-none">
-        <div className="h-[14px] w-[14px] rounded-full bg-current/15" />
-      </div>
-      <div className="da_window_control_btn pointer-events-none">
-        <div className="h-[12px] w-[12px] rounded-full bg-current/15" />
-      </div>
+        <div className="da_window_icon_btn pointer-events-none">
+          <div className="h-[14px] w-[14px] rounded-full bg-current/15" />
+        </div>
+        <div className="da_window_icon_btn pointer-events-none">
+          <div className="h-[14px] w-[14px] rounded-full bg-current/15" />
+        </div>
+        <div className="da_window_control_btn pointer-events-none">
+          <div className="h-[12px] w-[12px] rounded-full bg-current/15" />
+        </div>
       <div className="da_window_control_btn pointer-events-none">
         <div className="h-[12px] w-[12px] rounded-full bg-current/15" />
       </div>
