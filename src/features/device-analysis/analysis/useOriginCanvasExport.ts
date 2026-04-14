@@ -66,6 +66,43 @@ const sanitizeFilename = (name: any, { max = 180 }: any = {}) => {
   return raw.length > max ? raw.slice(0, max) : raw;
 };
 
+const normalizeOriginSeriesToken = (value: unknown): string | null => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return `num:${Number(Number(value).toPrecision(12))}`;
+  }
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+  const asNumber = Number(text);
+  if (Number.isFinite(asNumber)) {
+    return `num:${Number(Number(asNumber).toPrecision(12))}`;
+  }
+  return `txt:${text.toLowerCase()}`;
+};
+
+const resolveOriginSeriesMatchTokens = (series: any): string[] => {
+  const legendToken = normalizeOriginSeriesToken(series?.legendValue);
+  if (legendToken) return [`legend:${legendToken}`];
+
+  const nameToken = normalizeOriginSeriesToken(series?.name);
+  return nameToken ? [`name:${nameToken}`] : [];
+};
+
+const resolveOriginFileCurveFamily = (file: any): string | null => {
+  const xAxisRole = String(file?.xAxisRole ?? "")
+    .trim()
+    .toLowerCase();
+  if (xAxisRole === "vg") return "transfer";
+  if (xAxisRole === "vd") return "output";
+
+  const curveType = String(file?.curveType ?? "")
+    .trim()
+    .toLowerCase();
+  if (!curveType) return null;
+  if (curveType.includes("transfer")) return "transfer";
+  if (curveType.includes("output")) return "output";
+  return curveType;
+};
+
 export const useOriginCanvasExport = ({
   activeFile,
   axisYScale,
@@ -388,6 +425,125 @@ export const useOriginCanvasExport = ({
   const clearOriginSeriesSelectionForActiveFile = useCallback(() => {
     clearOriginSeriesSelectionForFile(activeFile?.fileId);
   }, [activeFile?.fileId, clearOriginSeriesSelectionForFile]);
+
+  const collectMatchingOriginSeriesAcrossFiles = useCallback(
+    ({
+      fileIds,
+      sourceSeriesId,
+    }: {
+      fileIds?: unknown[];
+      sourceSeriesId?: unknown;
+    }) => {
+      const activeFileKey = String(activeFile?.fileId ?? "").trim();
+      const sourceKey = String(sourceSeriesId ?? "").trim();
+      if (!activeFileKey || !sourceKey) {
+        return {
+          addedFileCount: 0,
+          addedSeriesCount: 0,
+          matchedFileCount: 0,
+          matchedSeriesCount: 0,
+        };
+      }
+
+      const sourceSeries = (Array.isArray(activeFile?.series) ? activeFile.series : []).find(
+        (series: any) => String(series?.id ?? "") === sourceKey,
+      );
+      const sourceTokens = resolveOriginSeriesMatchTokens(sourceSeries);
+      const sourceCurveFamily = resolveOriginFileCurveFamily(activeFile);
+      if (!sourceSeries || !sourceTokens.length) {
+        return {
+          addedFileCount: 0,
+          addedSeriesCount: 0,
+          matchedFileCount: 0,
+          matchedSeriesCount: 0,
+        };
+      }
+
+      const requestedFileIds = Array.isArray(fileIds) ? fileIds : [];
+      const fallbackFileIds = (Array.isArray(processedData) ? processedData : []).map((file: any) =>
+        String(file?.fileId ?? ""),
+      );
+      const targetFileIds = (requestedFileIds.length ? requestedFileIds : fallbackFileIds)
+        .map((item) => String(item ?? "").trim())
+        .filter((item, index, arr) => Boolean(item) && arr.indexOf(item) === index);
+
+      let matchedFileCount = 0;
+      let matchedSeriesCount = 0;
+      let addedFileCount = 0;
+      let addedSeriesCount = 0;
+
+      setOriginSelectedSeriesIdsByFile((prev) => {
+        const next: Record<string, string[]> = { ...(prev || {}) };
+        let changed = false;
+
+        for (const fileKey of targetFileIds) {
+          const file = (Array.isArray(processedData) ? processedData : []).find(
+            (item: any) => String(item?.fileId ?? "") === fileKey,
+          );
+          if (
+            sourceCurveFamily &&
+            resolveOriginFileCurveFamily(file) !== sourceCurveFamily
+          ) {
+            continue;
+          }
+          const allSeries = Array.isArray(file?.series) ? file.series : [];
+          if (!allSeries.length) continue;
+
+          const matchingSeriesIds = allSeries
+            .filter((series: any) => {
+              const candidateTokens = resolveOriginSeriesMatchTokens(series);
+              return candidateTokens.some((token) => sourceTokens.includes(token));
+            })
+            .map((series: any) => String(series?.id ?? "").trim())
+            .filter(Boolean);
+
+          if (!matchingSeriesIds.length) continue;
+
+          matchedFileCount += 1;
+          matchedSeriesCount += matchingSeriesIds.length;
+
+          const current = Array.isArray(prev?.[fileKey])
+            ? prev[fileKey].map((item) => String(item ?? "").trim()).filter(Boolean)
+            : resolvedOriginExportMode === "merged"
+              ? []
+              : getAllOriginSeriesKeysForFile(fileKey);
+          const currentSet = new Set(current);
+          const nextSelected = [...current];
+          let fileAddedCount = 0;
+
+          for (const seriesId of matchingSeriesIds) {
+            if (currentSet.has(seriesId)) continue;
+            currentSet.add(seriesId);
+            nextSelected.push(seriesId);
+            fileAddedCount += 1;
+          }
+
+          if (fileAddedCount <= 0) continue;
+
+          next[fileKey] = nextSelected;
+          changed = true;
+          addedFileCount += 1;
+          addedSeriesCount += fileAddedCount;
+        }
+
+        return changed ? next : prev;
+      });
+
+      return {
+        addedFileCount,
+        addedSeriesCount,
+        matchedFileCount,
+        matchedSeriesCount,
+      };
+    },
+    [
+      activeFile?.fileId,
+      activeFile?.series,
+      getAllOriginSeriesKeysForFile,
+      processedData,
+      resolvedOriginExportMode,
+    ],
+  );
 
   const toggleOriginSeriesSelection = useCallback(
     (seriesId: any) => {
@@ -746,6 +902,7 @@ export const useOriginCanvasExport = ({
     activeOriginSeries,
     clearAllOriginSeriesSelections,
     clearOriginCanvasSelection,
+    collectMatchingOriginSeriesAcrossFiles,
     clearOriginSeriesSelectionForActiveFile,
     clearOriginSeriesSelectionForFile,
     handleExportOriginZip,

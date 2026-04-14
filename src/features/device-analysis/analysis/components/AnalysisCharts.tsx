@@ -158,6 +158,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const [areaInput, setAreaInput] = useState("");
     const [showAxisControls, setShowAxisControls] = useState(false);
     const [originExportMode, setOriginExportMode] = useState<DeviceAnalysisOriginExportMode>("merged");
+    const [overviewVisibleFileIds, setOverviewVisibleFileIds] = useState<string[]>([]);
     const originChartXRangeRef = useRef<{ min: number; max: number; } | null>(null);
     const originChartYRangeRef = useRef<{ mode: "linear" | "log"; min: number; max: number; } | null>(null);
     const [axis, setAxis] = useState({
@@ -281,6 +282,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         activeOriginSeries,
         clearOriginCanvasSelection,
         clearAllOriginSeriesSelections,
+        collectMatchingOriginSeriesAcrossFiles,
         clearOriginSeriesSelectionForActiveFile,
         clearOriginSeriesSelectionForFile,
         originExportMode: resolvedOriginExportMode,
@@ -314,6 +316,60 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return 0;
         return Number(selectedOriginSeriesCountByFile?.[fileKey] ?? 0);
     }, [activeFile?.fileId, selectedOriginSeriesCountByFile]);
+    const focusedOriginSeries = useMemo(() => {
+        if (!focusedSeriesId)
+            return null;
+        const list = Array.isArray(activeFile?.series) ? activeFile.series : [];
+        return list.find((series: any) => series?.id === focusedSeriesId) ?? null;
+    }, [activeFile?.series, focusedSeriesId]);
+    const focusedOriginSeriesDisplayLabel = useMemo(() => {
+        const legendValue = focusedOriginSeries?.legendValue;
+        if (legendValue !== null &&
+            legendValue !== undefined &&
+            String(legendValue).trim()) {
+            return String(legendValue).trim();
+        }
+        const name = String(focusedOriginSeries?.name ?? "").trim();
+        return name || t("da_auto_template_summary_none");
+    }, [focusedOriginSeries?.legendValue, focusedOriginSeries?.name, t]);
+    const handleCollectMatchingLegendAcrossFilteredFiles = React.useCallback(() => {
+        if (resolvedOriginExportMode !== "merged")
+            return;
+        if (!focusedSeriesId) {
+            showToast(t("da_origin_collection_match_filtered_pick_curve"), "warning");
+            return;
+        }
+        const result = collectMatchingOriginSeriesAcrossFiles({
+            fileIds: overviewVisibleFileIds,
+            sourceSeriesId: focusedSeriesId,
+        });
+        if (result.matchedSeriesCount <= 0) {
+            showToast(t("da_origin_collection_match_filtered_no_match", {
+                label: focusedOriginSeriesDisplayLabel,
+            }), "warning");
+            return;
+        }
+        if (result.addedSeriesCount <= 0) {
+            showToast(t("da_origin_collection_match_filtered_already_added", {
+                label: focusedOriginSeriesDisplayLabel,
+                files: result.matchedFileCount,
+            }), "info");
+            return;
+        }
+        showToast(t("da_origin_collection_match_filtered_success", {
+            curves: result.addedSeriesCount,
+            files: result.addedFileCount,
+            label: focusedOriginSeriesDisplayLabel,
+        }), "success");
+    }, [
+        collectMatchingOriginSeriesAcrossFiles,
+        focusedOriginSeriesDisplayLabel,
+        focusedSeriesId,
+        overviewVisibleFileIds,
+        resolvedOriginExportMode,
+        showToast,
+        t,
+    ]);
     const area = useMemo(() => {
         if (areaInput === null || areaInput === undefined)
             return null;
@@ -1760,7 +1816,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         id="device-analysis-overview-sidebar"
         className="md:min-h-0 flex flex-col h-full"
       >
-        <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} originCollectionEntries={selectedOriginCollectionEntries} onClearAllOriginSeriesSelections={clearAllOriginSeriesSelections} onClearOriginSeriesSelectionForFile={clearOriginSeriesSelectionForFile} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} selectedOriginSeriesTotalCount={selectedOriginSeriesTotalCount} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} onSelectAllOriginCanvases={selectAllOriginCanvases} onClearOriginCanvasSelection={clearOriginCanvasSelection} originExportMode={resolvedOriginExportMode} onOriginExportModeChange={(nextMode: DeviceAnalysisOriginExportMode) => {
+        <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} onVisibleFileIdsChange={setOverviewVisibleFileIds} originCollectionEntries={selectedOriginCollectionEntries} onClearAllOriginSeriesSelections={clearAllOriginSeriesSelections} onClearOriginSeriesSelectionForFile={clearOriginSeriesSelectionForFile} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} selectedOriginSeriesTotalCount={selectedOriginSeriesTotalCount} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} onSelectAllOriginCanvases={selectAllOriginCanvases} onClearOriginCanvasSelection={clearOriginCanvasSelection} originExportMode={resolvedOriginExportMode} onOriginExportModeChange={(nextMode: DeviceAnalysisOriginExportMode) => {
             setOriginExportMode(nextMode);
             apiService
                 .updateDeviceAnalysisSettings({
@@ -2172,6 +2228,11 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         total: activeOriginSeries.length,
                       })}
                     </div>
+                    {focusedSeriesId ? (<div className="text-[11px] text-text-secondary leading-5">
+                        {t("da_origin_collection_match_filtered_hint", {
+                            label: focusedOriginSeriesDisplayLabel,
+                        })}
+                      </div>) : null}
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <Button
@@ -2192,6 +2253,16 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                       aria-label={t("da_origin_collection_clear_current")}
                     >
                       {t("da_origin_collection_clear_current")}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="control"
+                      onClick={handleCollectMatchingLegendAcrossFilteredFiles}
+                      disabled={!focusedSeriesId || overviewVisibleFileIds.length <= 0}
+                      title={t("da_origin_collection_match_filtered")}
+                      aria-label={t("da_origin_collection_match_filtered")}
+                    >
+                      {t("da_origin_collection_match_filtered")}
                     </Button>
                   </div>
                 </div>) : null}

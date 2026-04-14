@@ -19,6 +19,7 @@ type OverviewGridProps = {
   processingStatus?: Partial<ProcessingStatus>;
   activeFileId?: string | null;
   onSelectFile?: (fileId: string | undefined) => void;
+  onVisibleFileIdsChange?: (fileIds: string[]) => void;
   originCollectionEntries?: Array<{
     fileId: string;
     fileName: string;
@@ -73,6 +74,7 @@ const OverviewGrid = memo(function OverviewGrid({
   processingStatus,
   activeFileId,
   onSelectFile,
+  onVisibleFileIdsChange,
   originCollectionEntries = [],
   onClearAllOriginSeriesSelections,
   onClearOriginSeriesSelectionForFile,
@@ -189,6 +191,18 @@ const OverviewGrid = memo(function OverviewGrid({
       return meta.key.toLowerCase() === selectedFieldKey;
     });
   }, [sortedData, curveFilter]);
+
+  const visibleFileIds = useMemo(
+    () =>
+      filteredData
+        .map((file) => String(file?.fileId ?? "").trim())
+        .filter(Boolean),
+    [filteredData],
+  );
+
+  useEffect(() => {
+    onVisibleFileIdsChange?.(visibleFileIds);
+  }, [onVisibleFileIdsChange, visibleFileIds]);
 
   const selectedCanvasCount = selectedOriginCanvasKeySet?.size ?? 0;
   const isAllCanvasSelected =
