@@ -2,6 +2,8 @@ import Papa from "papaparse";
 
 type ProcessedSeriesLike = {
   id?: string;
+  name?: string;
+  legendValue?: unknown;
   groupIndex?: number;
   y?: number[];
 };
@@ -16,6 +18,8 @@ type ProcessedEntryLike = {
 export type DeviceAnalysisOriginExportMode = "merged" | "separate";
 
 type DeviceAnalysisOriginCurveEntry = {
+  canvasLabel: string;
+  label: string;
   rowCount: number;
   xArr: number[];
   yArr: number[];
@@ -26,6 +30,7 @@ export type DeviceAnalysisOriginSelectionExport = {
   csvName: string;
   csvText: string;
   curveCount: number;
+  curveLabels: string[];
   fileIds: string[];
   seriesName: string;
   xMax: number | null;
@@ -57,6 +62,51 @@ const sanitizeOriginDisplayName = (
     .trim();
   if (!raw) return "device analysis";
   return raw.length > max ? raw.slice(0, max).trim() : raw;
+};
+
+const resolveCanvasDisplayName = (
+  value: unknown,
+  { max = 80 }: { max?: number } = {},
+): string =>
+  sanitizeOriginDisplayName(String(value ?? "").replace(/\.csv$/i, ""), { max });
+
+const resolveSeriesDisplayName = (
+  series: ProcessedSeriesLike | null | undefined,
+  index: number,
+): string => {
+  const legendValue = String(series?.legendValue ?? "").trim();
+  if (legendValue) return legendValue;
+
+  const name = String(series?.name ?? "").trim();
+  if (name) return name;
+
+  return `Curve ${index + 1}`;
+};
+
+const dedupeCurveLabels = (
+  curveEntries: DeviceAnalysisOriginCurveEntry[],
+): string[] => {
+  const normalizedLabels = curveEntries.map((entry, index) => {
+    const label = sanitizeOriginDisplayName(entry?.label ?? "", { max: 120 });
+    return label || `Curve ${index + 1}`;
+  });
+
+  const duplicateCounts = new Map<string, number>();
+  for (const label of normalizedLabels) {
+    const key = label.toLowerCase();
+    duplicateCounts.set(key, (duplicateCounts.get(key) ?? 0) + 1);
+  }
+
+  return normalizedLabels.map((label, index) => {
+    const duplicateCount = duplicateCounts.get(label.toLowerCase()) ?? 0;
+    if (duplicateCount <= 1) return label;
+
+    const canvasLabel = sanitizeOriginDisplayName(curveEntries[index]?.canvasLabel ?? "", {
+      max: 64,
+    });
+    if (!canvasLabel) return label;
+    return sanitizeOriginDisplayName(`${canvasLabel} | ${label}`, { max: 160 });
+  });
 };
 
 const computeSortedQuantile = (
@@ -163,15 +213,22 @@ const buildOriginCurveEntriesForCanvas = (
     file,
     selectedSeriesIdsByFile,
   );
+  const canvasLabel = resolveCanvasDisplayName(file?.fileName ?? file?.fileId);
 
   return selectedSeries
-    .map((series) => {
+    .map((series, index) => {
       const groupIndex = Number(series?.groupIndex);
       const xArr = xGroups[groupIndex];
       const yArr = series?.y;
       const rowCount = Math.min(xArr?.length ?? 0, yArr?.length ?? 0);
       if (!xArr || !yArr || rowCount <= 0) return null;
-      return { rowCount, xArr, yArr };
+      return {
+        canvasLabel,
+        label: resolveSeriesDisplayName(series, index),
+        rowCount,
+        xArr,
+        yArr,
+      };
     })
     .filter((entry): entry is DeviceAnalysisOriginCurveEntry => Boolean(entry));
 };
@@ -237,12 +294,14 @@ const buildWorksheetExport = ({
   const resolvedPositiveMin = Number.isFinite(yPositiveMin)
     ? resolveOriginLogPositiveMinForRange(yPositiveValues, yPositiveMin)
     : null;
+  const curveLabels = dedupeCurveLabels(curveEntries);
 
   return {
     canvasCount: canvases.length,
     csvName: `${csvBase}.csv`,
     csvText: "\uFEFF" + Papa.unparse(rows),
     curveCount: curveEntries.length,
+    curveLabels,
     fileIds: canvases
       .map((canvas) => String(canvas?.fileId ?? ""))
       .filter(Boolean),

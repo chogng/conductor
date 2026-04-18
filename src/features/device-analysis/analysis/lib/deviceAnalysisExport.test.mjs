@@ -15,6 +15,7 @@ test("buildDeviceAnalysisOriginSelectionExport merges selected curves from multi
         series: [
           {
             id: "curve-a",
+            legendValue: "Vg=0",
             groupIndex: 0,
             y: [10, 11, 12],
           },
@@ -27,6 +28,7 @@ test("buildDeviceAnalysisOriginSelectionExport merges selected curves from multi
         series: [
           {
             id: "curve-b",
+            legendValue: "Vg=0.5",
             groupIndex: 0,
             y: [20, 21],
           },
@@ -45,6 +47,7 @@ test("buildDeviceAnalysisOriginSelectionExport merges selected curves from multi
   assert.deepEqual(payload.fileIds, ["file-a", "file-b"]);
   assert.equal(payload.xyPairCount, 2);
   assert.equal(payload.xyPairs, "((1,2),(3,4))");
+  assert.deepEqual(payload.curveLabels, ["Vg=0", "Vg=0.5"]);
   assert.equal(payload.xMin, 0);
   assert.equal(payload.xMax, 2);
   assert.equal(payload.yLinearMin, 10);
@@ -67,11 +70,13 @@ test("buildDeviceAnalysisOriginSelectionExport defaults to all live series when 
       series: [
         {
           id: "curve-a",
+          name: "Drain_A",
           groupIndex: 0,
           y: [1, 2],
         },
         {
           id: "curve-b",
+          legendValue: "Vg=1",
           groupIndex: 1,
           y: [3, 4],
         },
@@ -84,6 +89,7 @@ test("buildDeviceAnalysisOriginSelectionExport defaults to all live series when 
   assert.equal(payload.curveCount, 2);
   assert.deepEqual(payload.fileIds, ["file-a"]);
   assert.equal(payload.xyPairs, "((1,2),(3,4))");
+  assert.deepEqual(payload.curveLabels, ["Drain A", "Vg=1"]);
   assert.match(payload.csvName, /^file_a__selected_curves\.csv$/);
 });
 
@@ -126,4 +132,42 @@ test("buildDeviceAnalysisOriginExportsByMode returns one worksheet per selected 
   );
   assert.match(payloads[0].csvName, /^file_a__selected_curves\.csv$/);
   assert.match(payloads[1].csvName, /^file_b__selected_curves\.csv$/);
+  assert.deepEqual(
+    payloads.map((payload) => payload.curveLabels),
+    [["Curve 1"], ["Curve 1"]],
+  );
+});
+
+test("buildDeviceAnalysisOriginSelectionExport disambiguates duplicate curve labels with canvas labels", () => {
+  const payload = buildDeviceAnalysisOriginSelectionExport([
+    {
+      fileId: "file-a",
+      fileName: "file_a.csv",
+      xGroups: [[0, 1]],
+      series: [
+        {
+          id: "curve-a",
+          legendValue: "Vg=0",
+          groupIndex: 0,
+          y: [1, 2],
+        },
+      ],
+    },
+    {
+      fileId: "file-b",
+      fileName: "file_b.csv",
+      xGroups: [[0, 1]],
+      series: [
+        {
+          id: "curve-b",
+          legendValue: "Vg=0",
+          groupIndex: 0,
+          y: [3, 4],
+        },
+      ],
+    },
+  ]);
+
+  assert.ok(payload);
+  assert.deepEqual(payload.curveLabels, ["file a | Vg=0", "file b | Vg=0"]);
 });

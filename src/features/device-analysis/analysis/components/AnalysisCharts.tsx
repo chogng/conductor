@@ -6,6 +6,7 @@ import Select from "../../../../components/ui/Select";
 import Button from "../../../../components/ui/Button";
 import Card from "../../../../components/ui/Card";
 import ScrollArea from "../../../../components/ui/ScrollArea";
+import Tabs from "../../../../components/ui/Tabs";
 import Toast from "../../../../components/ui/Toast";
 import { useLanguage } from "../../../../hooks/useLanguage";
 import { COLORS } from "../lib/chartColors";
@@ -17,7 +18,10 @@ import {
 import type { ToastState, ToastType } from "../../shared/lib/sharedTypes";
 import { useAnalysisFileCache } from "../useAnalysisFileCache";
 import { useContainerSizeReady } from "../useContainerSizeReady";
-import { useOriginCanvasExport } from "../useOriginCanvasExport";
+import {
+  useOriginCanvasExport,
+  type DeviceAnalysisOriginCanvasExportScope,
+} from "../useOriginCanvasExport";
 import OverviewGrid from "./OverviewGrid";
 import CalculatedParametersRow from "./CalculatedParametersRow";
 import { buildLogTicks, buildNiceTicks, buildOriginAutoTicks, buildPoints, buildStepTicks, computeLabelInterval, computeMinMax, downsamplePointsForDisplay, inferTickDigitsFromTicks, normalizeFloat, normalizeVarToken, padLinearDomain, padLogDomain, parseOptionalNumber, preserveScrollPosition, varTokenToSymbol, } from "../lib/analysisChartsUtils";
@@ -88,6 +92,14 @@ type OriginCsvBridge = {
             xyPairs?: string;
         };
         capabilities?: {
+            import?: {
+                longName?: string;
+                workbookLongName?: string;
+                postCommands?: string[];
+            };
+            plot?: {
+                postCommands?: string[];
+            };
             axis?: {
                 commands?: string[];
             };
@@ -158,6 +170,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const [areaInput, setAreaInput] = useState("");
     const [showAxisControls, setShowAxisControls] = useState(false);
     const [originExportMode, setOriginExportMode] = useState<DeviceAnalysisOriginExportMode>("merged");
+    const [originCanvasExportScope, setOriginCanvasExportScope] = useState<DeviceAnalysisOriginCanvasExportScope>("filtered");
+    const [resultsTab, setResultsTab] = useState<"metrics" | "export">("metrics");
     const [overviewVisibleFileIds, setOverviewVisibleFileIds] = useState<string[]>([]);
     const originChartXRangeRef = useRef<{ min: number; max: number; } | null>(null);
     const originChartYRangeRef = useRef<{ mode: "linear" | "log"; min: number; max: number; } | null>(null);
@@ -285,6 +299,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         collectMatchingOriginSeriesAcrossFiles,
         clearOriginSeriesSelectionForActiveFile,
         clearOriginSeriesSelectionForFile,
+        handleExportOriginZip,
+        handleOpenInOrigin,
+        replaceOriginCanvasSelection,
         originExportMode: resolvedOriginExportMode,
         selectAllOriginSeriesForActiveFile,
         selectedOriginCollectionEntries,
@@ -298,6 +315,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     } = useOriginCanvasExport({
         activeFile,
         axisYScale: axis?.yScale,
+        canvasExportScope: originCanvasExportScope,
         effectiveActiveFileId,
         getDesktopOriginBridge,
         isWindowsDesktopShell,
@@ -309,6 +327,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         showToast,
         t,
         tLoose,
+        visibleOriginCanvasIds: overviewVisibleFileIds,
     });
     const currentCollectedSeriesCount = useMemo(() => {
         const fileKey = String(activeFile?.fileId ?? "");
@@ -316,6 +335,88 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return 0;
         return Number(selectedOriginSeriesCountByFile?.[fileKey] ?? 0);
     }, [activeFile?.fileId, selectedOriginSeriesCountByFile]);
+    const selectedCanvasCount = selectedOriginCanvasKeySet?.size ?? 0;
+    const isManualCanvasScope = originCanvasExportScope === "manual";
+    const separateCanvasScopeSummary = useMemo(() => {
+        if (originCanvasExportScope === "current") {
+            return t("da_origin_canvas_scope_summary_current");
+        }
+        if (originCanvasExportScope === "filtered") {
+            return t("da_origin_canvas_scope_summary_filtered", {
+                count: selectedCanvasCount,
+            });
+        }
+        if (originCanvasExportScope === "all") {
+            return t("da_origin_canvas_scope_summary_all", {
+                count: selectedCanvasCount,
+            });
+        }
+        return t("da_origin_canvas_scope_summary_manual", {
+            count: selectedCanvasCount,
+        });
+    }, [originCanvasExportScope, selectedCanvasCount, t]);
+    const originExportModeHint = resolvedOriginExportMode === "separate"
+        ? t("da_origin_export_mode_separate_hint")
+        : t("da_origin_export_mode_merged_hint");
+    const exportSelectionSummary = resolvedOriginExportMode === "merged"
+        ? t("da_origin_collection_summary", {
+            curves: selectedOriginSeriesTotalCount,
+            files: selectedCanvasCount,
+        })
+        : separateCanvasScopeSummary;
+    const exportListEntries = useMemo(() => {
+        if (resolvedOriginExportMode === "merged") {
+            return selectedOriginCollectionEntries;
+        }
+        const selectedFileIds = selectedOriginCanvasKeySet ?? new Set<string>();
+        return (Array.isArray(processedData) ? processedData : [])
+            .map((file: any) => {
+            const fileId = String(file?.fileId ?? "");
+            if (!fileId || !selectedFileIds.has(fileId))
+                return null;
+            const selectedCount = Number(selectedOriginSeriesCountByFile?.[fileId] ?? 0);
+            return {
+                fileId,
+                fileName: String(file?.fileName ?? fileId),
+                selectedCount,
+            };
+        })
+            .filter((entry): entry is {
+            fileId: string;
+            fileName: string;
+            selectedCount: number;
+        } => Boolean(entry));
+    }, [
+        processedData,
+        resolvedOriginExportMode,
+        selectedOriginCanvasKeySet,
+        selectedOriginCollectionEntries,
+        selectedOriginSeriesCountByFile,
+    ]);
+    const exportListTitle = resolvedOriginExportMode === "merged"
+        ? t("da_origin_export_list_title_merged")
+        : t("da_origin_export_list_title_separate");
+    const exportListEmptyText = resolvedOriginExportMode === "merged"
+        ? t("da_origin_collection_empty")
+        : t("da_origin_export_selection_empty");
+    const exportModeBadgeLabel = resolvedOriginExportMode === "merged"
+        ? t("da_origin_export_mode_badge_merged")
+        : t("da_origin_export_mode_badge_separate");
+    const exportEntryActionLabel = resolvedOriginExportMode === "merged"
+        ? t("da_origin_export_list_remove_merged")
+        : t("da_origin_export_list_remove_separate");
+    const handleOriginExportModeChange = React.useCallback((nextMode: DeviceAnalysisOriginExportMode) => {
+        setOriginExportMode(nextMode);
+        apiService
+            .updateDeviceAnalysisSettings({
+            originExportModeDefault: nextMode,
+        })
+            .catch(() => { });
+    }, []);
+    const handleUseFilteredCanvasSelection = React.useCallback(() => {
+        setOriginCanvasExportScope("manual");
+        replaceOriginCanvasSelection(overviewVisibleFileIds);
+    }, [overviewVisibleFileIds, replaceOriginCanvasSelection]);
     const focusedOriginSeries = useMemo(() => {
         if (!focusedSeriesId)
             return null;
@@ -1816,14 +1917,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         id="device-analysis-overview-sidebar"
         className="md:min-h-0 flex flex-col h-full"
       >
-        <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} onVisibleFileIdsChange={setOverviewVisibleFileIds} originCollectionEntries={selectedOriginCollectionEntries} onClearAllOriginSeriesSelections={clearAllOriginSeriesSelections} onClearOriginSeriesSelectionForFile={clearOriginSeriesSelectionForFile} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} selectedOriginSeriesTotalCount={selectedOriginSeriesTotalCount} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} onSelectAllOriginCanvases={selectAllOriginCanvases} onClearOriginCanvasSelection={clearOriginCanvasSelection} originExportMode={resolvedOriginExportMode} onOriginExportModeChange={(nextMode: DeviceAnalysisOriginExportMode) => {
-            setOriginExportMode(nextMode);
-            apiService
-                .updateDeviceAnalysisSettings({
-                originExportModeDefault: nextMode,
-            })
-                .catch(() => { });
-        }} xUnitFactor={resolvedXUnitMeta.factor} xUnitLabel={resolvedXUnitMeta.label} yUnitFactor={resolvedYUnitMeta.factor} yUnitLabel={resolvedYUnitMeta.label} yScale={overviewYScaleType}/>
+        <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} onVisibleFileIdsChange={setOverviewVisibleFileIds} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} onSelectAllOriginCanvases={selectAllOriginCanvases} onClearOriginCanvasSelection={clearOriginCanvasSelection} originExportMode={resolvedOriginExportMode} originCanvasExportScope={originCanvasExportScope} xUnitFactor={resolvedXUnitMeta.factor} xUnitLabel={resolvedXUnitMeta.label} yUnitFactor={resolvedYUnitMeta.factor} yUnitLabel={resolvedYUnitMeta.label} yScale={overviewYScaleType}/>
       </aside>
 
       <ScrollArea className="md:min-h-0 min-w-0" axis="y" viewportClassName="flex flex-col min-h-full">
@@ -2217,53 +2311,55 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                   {t("da_chart_gm_note", { label: gmUi.summaryLabel })}
                 </div>) : null}
 
-              {resolvedOriginExportMode === "merged" && activeOriginSeries.length ? (<div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-border bg-bg-page/40 px-3 py-2 flex-wrap">
-                  <div className="min-w-0">
-                    <div className="text-xs font-semibold text-text-primary">
-                      {t("da_origin_collection_title")}
-                    </div>
-                    <div className="text-[11px] text-text-secondary leading-5">
-                      {t("da_origin_collection_current_file_summary", {
-                        count: currentCollectedSeriesCount,
-                        total: activeOriginSeries.length,
-                      })}
-                    </div>
-                    {focusedSeriesId ? (<div className="text-[11px] text-text-secondary leading-5">
-                        {t("da_origin_collection_match_filtered_hint", {
-                            label: focusedOriginSeriesDisplayLabel,
+              {resolvedOriginExportMode === "merged" ? (<div className="mb-3 rounded-xl border border-border bg-bg-page/40 px-3 py-2">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold text-text-primary">
+                        {t("da_origin_collect_actions_title")}
+                      </div>
+                      <div className="text-[11px] text-text-secondary leading-5">
+                        {t("da_origin_collection_current_file_summary", {
+                            count: currentCollectedSeriesCount,
+                            total: activeOriginSeries.length,
                         })}
-                      </div>) : null}
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Button
-                      variant="ghost"
-                      size="control"
-                      onClick={selectAllOriginSeriesForActiveFile}
-                      title={t("da_origin_collection_select_all_current")}
-                      aria-label={t("da_origin_collection_select_all_current")}
-                    >
-                      {t("da_origin_collection_select_all_current")}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="control"
-                      onClick={clearOriginSeriesSelectionForActiveFile}
-                      disabled={currentCollectedSeriesCount <= 0}
-                      title={t("da_origin_collection_clear_current")}
-                      aria-label={t("da_origin_collection_clear_current")}
-                    >
-                      {t("da_origin_collection_clear_current")}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="control"
-                      onClick={handleCollectMatchingLegendAcrossFilteredFiles}
-                      disabled={!focusedSeriesId || overviewVisibleFileIds.length <= 0}
-                      title={t("da_origin_collection_match_filtered")}
-                      aria-label={t("da_origin_collection_match_filtered")}
-                    >
-                      {t("da_origin_collection_match_filtered")}
-                    </Button>
+                      </div>
+                      {focusedSeriesId ? (<div className="text-[11px] text-text-secondary leading-5">
+                          {t("da_origin_collection_match_filtered_hint", {
+                                label: focusedOriginSeriesDisplayLabel,
+                            })}
+                        </div>) : null}
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Button
+                        variant="ghost"
+                        size="control"
+                        onClick={selectAllOriginSeriesForActiveFile}
+                        title={t("da_origin_collection_select_all_current")}
+                        aria-label={t("da_origin_collection_select_all_current")}
+                      >
+                        {t("da_origin_collection_select_all_current")}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="control"
+                        onClick={clearOriginSeriesSelectionForActiveFile}
+                        disabled={currentCollectedSeriesCount <= 0}
+                        title={t("da_origin_collection_clear_current")}
+                        aria-label={t("da_origin_collection_clear_current")}
+                      >
+                        {t("da_origin_collection_clear_current")}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="control"
+                        onClick={handleCollectMatchingLegendAcrossFilteredFiles}
+                        disabled={!focusedSeriesId || overviewVisibleFileIds.length <= 0}
+                        title={t("da_origin_collection_match_filtered")}
+                        aria-label={t("da_origin_collection_match_filtered")}
+                      >
+                        {t("da_origin_collection_match_filtered")}
+                      </Button>
+                    </div>
                   </div>
                 </div>) : null}
 
@@ -2326,104 +2422,299 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
       </section>
 
           {activeFile?.series?.length ? (<Card variant="panel" className="flex min-w-0 flex-col flex-1">
-            <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
-              <h3 className="text-sm font-semibold text-text-primary">
-                Calculated Parameters
-              </h3>
+            <div className="mb-3 flex min-w-0 items-center justify-between gap-3 flex-wrap">
+              <div className="flex min-w-0 items-center gap-3 flex-wrap">
+                <h3 className="text-sm font-semibold text-text-primary">
+                  {t("da_analysis_results_title")}
+                </h3>
+                <Tabs idBase="device-analysis-results-tabs" value={resultsTab} onChange={(next) => setResultsTab(next === "export" ? "export" : "metrics")} size="sm" hoverPreview={false} groupLabel={t("da_analysis_results_title")} options={[
+                {
+                    value: "metrics",
+                    label: t("da_analysis_results_tab_metrics"),
+                },
+                {
+                    value: "export",
+                    label: t("da_analysis_results_tab_export"),
+                },
+            ]}/>
+              </div>
               <div
                 className="min-w-0 flex-1 truncate text-right text-xs text-text-secondary"
-                title={calculatedParametersSummary}
+                title={resultsTab === "metrics" ? calculatedParametersSummary : exportSelectionSummary}
               >
-                {calculatedParametersSummary}
+                {resultsTab === "metrics" ? calculatedParametersSummary : exportSelectionSummary}
               </div>
             </div>
 
-            <ScrollArea axis="x" className="da-calculated-parameters-scroll-area min-w-0 w-full">
-              <table
-                className="w-full table-fixed text-sm border-collapse"
-                style={{ minWidth: calculatedParametersTableMinWidth }}
-              >
-                <colgroup>
-                  {calculatedParametersColumnWidths.map((width, index) => (
-                    <col key={index} style={{ width }}/>
-                  ))}
-                </colgroup>
-                <thead className="sticky top-0 bg-bg-surface z-10">
-                  <tr className="border-b border-border">
-                    <th
-                      rowSpan={2}
-                      className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center whitespace-nowrap align-middle"
-                    >
-                      {t("da_calc_group_series")}
-                    </th>
-                    {transferMetricsApplicable ? (<>
-                        <th colSpan={2} className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-emerald-500/5">
-                          {t("da_calc_group_on_state")}
-                        </th>
-                        <th colSpan={2} className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-cyan-500/5">
-                          {t("da_calc_group_off_state")}
-                        </th>
-                        <th className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border">
-                          {t("da_calc_group_ratio")}
-                        </th>
-                      </>) : null}
-                    <th colSpan={2} className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-amber-500/5">
-                      {t("da_calc_group_derivative")}
-                    </th>
-                    {transferMetricsApplicable ? (<>
-                        <th colSpan={2} className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-rose-500/5">
-                          {t("da_calc_group_ss")}
-                        </th>
-                        <th
-                          className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border"
-                          title={t("da_calc_group_jon_hint")}
+            {resultsTab === "metrics" ? (<ScrollArea axis="x" className="da-calculated-parameters-scroll-area min-w-0 w-full">
+                <table
+                  className="w-full table-fixed text-sm border-collapse"
+                  style={{ minWidth: calculatedParametersTableMinWidth }}
+                >
+                  <colgroup>
+                    {calculatedParametersColumnWidths.map((width, index) => (<col key={index} style={{ width }}/>))}
+                  </colgroup>
+                  <thead className="sticky top-0 bg-bg-surface z-10">
+                    <tr className="border-b border-border">
+                      <th
+                        rowSpan={2}
+                        className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center whitespace-nowrap align-middle"
+                      >
+                        {t("da_calc_group_series")}
+                      </th>
+                      {transferMetricsApplicable ? (<>
+                          <th colSpan={2} className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-emerald-500/5">
+                            {t("da_calc_group_on_state")}
+                          </th>
+                          <th colSpan={2} className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-cyan-500/5">
+                            {t("da_calc_group_off_state")}
+                          </th>
+                          <th className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border">
+                            {t("da_calc_group_ratio")}
+                          </th>
+                        </>) : null}
+                      <th colSpan={2} className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-amber-500/5">
+                        {t("da_calc_group_derivative")}
+                      </th>
+                      {transferMetricsApplicable ? (<>
+                          <th colSpan={2} className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-rose-500/5">
+                            {t("da_calc_group_ss")}
+                          </th>
+                          <th
+                            className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border"
+                            title={t("da_calc_group_jon_hint")}
+                          >
+                            {t("da_calc_group_jon")}
+                          </th>
+                        </>) : null}
+                    </tr>
+                    <tr className="border-b border-border">
+                      {transferMetricsApplicable ? (<>
+                          <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-emerald-500/5">
+                            |I|on
+                          </th>
+                          <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-emerald-500/5">
+                            x
+                          </th>
+                          <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-cyan-500/5">
+                            |I|off
+                          </th>
+                          <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-cyan-500/5">
+                            x
+                          </th>
+                          <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border">
+                            Ion/Ioff
+                          </th>
+                        </>) : null}
+                      <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-amber-500/5">
+                        {gmUi.metricHeader}
+                      </th>
+                      <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-amber-500/5">
+                        x
+                      </th>
+                      {transferMetricsApplicable ? (<>
+                          <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-rose-500/5">
+                            SS
+                          </th>
+                          <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-rose-500/5">
+                            x
+                          </th>
+                          <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border" title={t("da_calc_group_jon_hint")}>
+                            Jon
+                          </th>
+                        </>) : null}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {metricsRowElements}
+                  </tbody>
+                </table>
+              </ScrollArea>) : (<div className="flex min-w-0 flex-col gap-3">
+                <div className="rounded-xl border border-border bg-bg-page/40 px-4 py-3">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div className="text-xs font-semibold text-text-primary">
+                          {t("da_origin_export_settings_title")}
+                        </div>
+                        <span className="inline-flex items-center rounded-full border border-border bg-bg-surface px-2 py-0.5 text-[10px] font-medium text-text-secondary">
+                          {exportModeBadgeLabel}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-text-secondary leading-5">
+                        {exportSelectionSummary}
+                      </div>
+                      <div className="text-[11px] text-text-secondary leading-5">
+                        {originExportModeHint}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs text-text-secondary whitespace-nowrap">
+                        {t("da_origin_export_mode_label")}
+                      </span>
+                      <Select
+                        id="device-analysis-origin-export-mode-select"
+                        size="md"
+                        value={resolvedOriginExportMode}
+                        onChange={(next: any) => handleOriginExportModeChange(next === "separate" ? "separate" : "merged")}
+                        options={[
+                        {
+                            value: "merged",
+                            label: t("da_origin_export_mode_merged"),
+                        },
+                        {
+                            value: "separate",
+                            label: t("da_origin_export_mode_separate"),
+                        },
+                    ]}
+                        className="w-fit da-neutral-select"
+                        stableWidth
+                        data-cta="Device Analysis"
+                        data-cta-position="export-pane"
+                        data-cta-copy="origin export mode"
+                      />
+                      {resolvedOriginExportMode === "separate" ? (<>
+                          <span className="text-xs text-text-secondary whitespace-nowrap">
+                            {t("da_origin_canvas_scope_label")}
+                          </span>
+                          <Select
+                            id="device-analysis-origin-canvas-scope-select"
+                            size="md"
+                            value={originCanvasExportScope}
+                            onChange={(next: any) => {
+                            const normalizedScope = next === "current" ||
+                                next === "filtered" ||
+                                next === "manual" ||
+                                next === "all"
+                                ? next
+                                : "filtered";
+                            setOriginCanvasExportScope(normalizedScope);
+                        }}
+                            options={[
+                            {
+                                value: "current",
+                                label: t("da_origin_canvas_scope_current"),
+                            },
+                            {
+                                value: "filtered",
+                                label: t("da_origin_canvas_scope_filtered"),
+                            },
+                            {
+                                value: "manual",
+                                label: t("da_origin_canvas_scope_manual"),
+                            },
+                            {
+                                value: "all",
+                                label: t("da_origin_canvas_scope_all"),
+                            },
+                        ]}
+                            className="w-fit da-neutral-select"
+                            stableWidth
+                            data-cta="Device Analysis"
+                            data-cta-position="export-pane"
+                            data-cta-copy="origin canvas export scope"
+                          />
+                        </>) : null}
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between gap-3 flex-wrap">
+                    <div className="min-w-0 text-[11px] text-text-secondary leading-5">
+                      {resolvedOriginExportMode === "merged"
+                        ? t("da_origin_export_summary_merged", {
+                            curves: selectedOriginSeriesTotalCount,
+                            files: selectedCanvasCount,
+                          })
+                        : separateCanvasScopeSummary}
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => {
+                          void handleOpenInOrigin();
+                        }}
+                      >
+                        {t("da_open_in_origin")}
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          void handleExportOriginZip();
+                        }}
+                      >
+                        {t("da_export_origin_zip")}
+                      </Button>
+                      {resolvedOriginExportMode === "merged" ? (<Button variant="ghost" size="control" onClick={clearAllOriginSeriesSelections} disabled={selectedOriginSeriesTotalCount <= 0} title={t("da_origin_collection_clear_all")} aria-label={t("da_origin_collection_clear_all")}>
+                          {t("da_origin_collection_clear_all")}
+                        </Button>) : isManualCanvasScope ? (<>
+                          <Button variant="ghost" size="control" onClick={handleUseFilteredCanvasSelection} disabled={overviewVisibleFileIds.length <= 0} title={t("da_origin_canvas_scope_apply_filtered")} aria-label={t("da_origin_canvas_scope_apply_filtered")}>
+                            {t("da_origin_canvas_scope_apply_filtered")}
+                          </Button>
+                          <Button variant="ghost" size="control" onClick={clearOriginCanvasSelection} disabled={selectedCanvasCount <= 0} title={t("da_origin_canvas_clear")} aria-label={t("da_origin_canvas_clear")}>
+                            {t("da_origin_canvas_clear")}
+                          </Button>
+                        </>) : null}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold text-text-primary">
+                      {exportListTitle}
+                    </div>
+                    <div className="text-[11px] text-text-secondary leading-5">
+                      {exportSelectionSummary}
+                    </div>
+                  </div>
+                </div>
+
+                {exportListEntries.length ? (<ScrollArea axis="y" className="min-w-0 w-full max-h-[320px]" viewportClassName="pr-2">
+                    <div className="space-y-2">
+                      {exportListEntries.map((entry: any) => (<div
+                          key={entry.fileId}
+                          className={`rounded-xl border px-3 py-2.5 ${entry.fileId === effectiveActiveFileId
+                                ? "border-accent/40 bg-accent/5"
+                                : "border-border bg-bg-page/40"}`}
                         >
-                          {t("da_calc_group_jon")}
-                        </th>
-                      </>) : null}
-                  </tr>
-                  <tr className="border-b border-border">
-                    {transferMetricsApplicable ? (<>
-                        <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-emerald-500/5">
-                          |I|on
-                        </th>
-                        <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-emerald-500/5">
-                          x
-                        </th>
-                        <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-cyan-500/5">
-                          |I|off
-                        </th>
-                        <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-cyan-500/5">
-                          x
-                        </th>
-                        <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border">
-                          Ion/Ioff
-                        </th>
-                      </>) : null}
-                    <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-amber-500/5">
-                      {gmUi.metricHeader}
-                    </th>
-                    <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-amber-500/5">
-                      x
-                    </th>
-                    {transferMetricsApplicable ? (<>
-                        <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-rose-500/5">
-                          SS
-                        </th>
-                        <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-rose-500/5">
-                          x
-                        </th>
-                        <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border" title={t("da_calc_group_jon_hint")}>
-                          Jon
-                        </th>
-                      </>) : null}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {metricsRowElements}
-                </tbody>
-              </table>
-            </ScrollArea>
+                          <div className="flex items-start justify-between gap-3">
+                            <button
+                              type="button"
+                              onClick={() => handleSelectFile(entry.fileId)}
+                              className="min-w-0 flex-1 text-left"
+                            >
+                              <div className="truncate text-sm font-medium text-text-primary">
+                                {entry.fileName}
+                              </div>
+                              <div className="mt-1 flex items-center gap-2 flex-wrap text-[11px] text-text-secondary">
+                                <span className="inline-flex items-center rounded-full bg-bg-surface px-2 py-0.5">
+                                  {t("da_origin_collection_file_curves", {
+                                        count: entry.selectedCount,
+                                    })}
+                                </span>
+                                {entry.fileId === effectiveActiveFileId ? (<span className="inline-flex items-center rounded-full border border-accent/20 bg-accent/10 px-2 py-0.5 text-accent">
+                                    {t("da_origin_export_list_active_badge")}
+                                  </span>) : null}
+                              </div>
+                            </button>
+                            {resolvedOriginExportMode === "merged" ? (<Button variant="text" size="sm" className="shrink-0 px-2 text-xs text-text-secondary hover:text-text-primary" onClick={() => {
+                    clearOriginSeriesSelectionForFile(entry.fileId);
+                }} title={exportEntryActionLabel} aria-label={exportEntryActionLabel}>
+                                {exportEntryActionLabel}
+                              </Button>) : isManualCanvasScope ? (<Button variant="text" size="sm" className="shrink-0 px-2 text-xs text-text-secondary hover:text-text-primary" onClick={() => {
+                    toggleOriginCanvasSelection(entry.fileId);
+                }} title={exportEntryActionLabel} aria-label={exportEntryActionLabel}>
+                                {exportEntryActionLabel}
+                              </Button>) : null}
+                          </div>
+                        </div>))}
+                    </div>
+                  </ScrollArea>) : (<div className="rounded-xl border border-dashed border-border bg-bg-page/40 px-4 py-6 text-sm text-text-secondary">
+                    {exportListEmptyText}
+                  </div>)}
+              </div>)}
           </Card>) : null}
         </section>
       </ScrollArea>

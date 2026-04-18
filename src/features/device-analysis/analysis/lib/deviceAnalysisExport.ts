@@ -390,16 +390,51 @@ export const buildDeviceAnalysisOriginPairsExpr = (xyPairCount: unknown): string
   return `(${pairs.join(",")})`;
 };
 
+const normalizeOriginDisplayText = (
+  value: unknown,
+  { max = 160 }: { max?: number } = {},
+): string => {
+  const raw = String(value ?? "")
+    .replace(/[\\_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!raw) return "";
+  return raw.length > max ? raw.slice(0, max).trim() : raw;
+};
+
+const escapeOriginLabtalkText = (value: unknown): string =>
+  normalizeOriginDisplayText(value)
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"');
+
+const buildOriginWorksheetLabelCommands = (curveLabels: unknown): string[] => {
+  const labels = Array.isArray(curveLabels) ? curveLabels : [];
+  return labels
+    .map((label, index) => {
+      const escaped = escapeOriginLabtalkText(label);
+      if (!escaped) return "";
+      const yColumnIndex = index * 2 + 2;
+      return `wks.col${yColumnIndex}.lname$="${escaped}";`;
+    })
+    .filter(Boolean);
+};
+
 export const buildDeviceAnalysisOriginOgsScript = (
   csvFileName: unknown,
   xyPairCount: unknown,
   xyPairsExprOverride?: unknown,
+  curveLabels?: unknown,
 ): string => {
   const normalizedPairsExpr =
     typeof xyPairsExprOverride === "string" ? xyPairsExprOverride.trim() : "";
   const pairsExpr = normalizedPairsExpr || buildDeviceAnalysisOriginPairsExpr(xyPairCount);
   const safeCsv = String(csvFileName || "data.csv").replace(/"/g, "");
   const ogsFileName = safeCsv.replace(/\.csv$/i, ".ogs");
+  const labelCommands = buildOriginWorksheetLabelCommands(curveLabels);
+  const labelBlock = labelCommands.length
+    ? `\n// Apply curve labels so Origin legend matches the chart\n${labelCommands.join("\n")}\n`
+    : "\n";
+  const legendRefreshBlock = labelCommands.length ? "\nlegend -r;\n" : "\n";
 
   return `[Main]
 // Auto plot exported Device Analysis CSV in Origin
@@ -424,10 +459,10 @@ if(exist(csv$) < 0)
 
 newbook;
 impCSV fname:=csv$;
-
+${labelBlock}
 // Plot XY XY pairs: (1,2) (3,4) ...
 plotxy iy:=${pairsExpr} plot:=202;
-`;
+${legendRefreshBlock}`;
 };
 
 export const DEVICE_ANALYSIS_ORIGIN_README = `Device Analysis -> Origin package

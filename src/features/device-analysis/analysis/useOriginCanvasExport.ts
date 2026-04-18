@@ -37,9 +37,16 @@ const ORIGIN_CSV_AUTO_ZIP_FALLBACK_CODES = new Set([
   "ORIGIN_CSV_IMPORT_FAILED",
 ]);
 
+export type DeviceAnalysisOriginCanvasExportScope =
+  | "current"
+  | "filtered"
+  | "manual"
+  | "all";
+
 type UseOriginCanvasExportOptions = {
   activeFile: any;
   axisYScale: unknown;
+  canvasExportScope?: DeviceAnalysisOriginCanvasExportScope;
   effectiveActiveFileId: unknown;
   getDesktopOriginBridge: () => any;
   isWindowsDesktopShell: boolean;
@@ -55,6 +62,7 @@ type UseOriginCanvasExportOptions = {
   showToast: (message: string, type?: any) => void;
   t: (key: string, params?: any) => string;
   tLoose: (key: string, params?: any) => string;
+  visibleOriginCanvasIds?: string[];
 };
 
 const sanitizeFilename = (name: any, { max = 180 }: any = {}) => {
@@ -64,6 +72,44 @@ const sanitizeFilename = (name: any, { max = 180 }: any = {}) => {
     .trim();
   if (!raw) return "export";
   return raw.length > max ? raw.slice(0, max) : raw;
+};
+
+const normalizeOriginLabelText = (
+  value: unknown,
+  { max = 160 }: { max?: number } = {},
+): string => {
+  const raw = String(value ?? "")
+    .replace(/[\\_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!raw) return "";
+  return raw.length > max ? raw.slice(0, max).trim() : raw;
+};
+
+const escapeOriginLabtalkText = (value: unknown): string =>
+  normalizeOriginLabelText(value)
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"');
+
+const buildOriginCurveLabelImportPostCommands = (
+  curveLabels: unknown,
+): string[] => {
+  const labels = Array.isArray(curveLabels) ? curveLabels : [];
+  return labels
+    .map((label, index) => {
+      const escaped = escapeOriginLabtalkText(label);
+      if (!escaped) return "";
+      const yColumnIndex = index * 2 + 2;
+      return `wks.col${yColumnIndex}.lname$="${escaped}";`;
+    })
+    .filter(Boolean);
+};
+
+const buildOriginLegendRefreshCommands = (curveLabels: unknown): string[] => {
+  const labels = Array.isArray(curveLabels) ? curveLabels : [];
+  return labels.some((label) => normalizeOriginLabelText(label).length > 0)
+    ? ["legend -r;"]
+    : [];
 };
 
 const normalizeOriginSeriesToken = (value: unknown): string | null => {
@@ -106,6 +152,7 @@ const resolveOriginFileCurveFamily = (file: any): string | null => {
 export const useOriginCanvasExport = ({
   activeFile,
   axisYScale,
+  canvasExportScope = "manual",
   effectiveActiveFileId,
   getDesktopOriginBridge,
   isWindowsDesktopShell,
@@ -117,6 +164,7 @@ export const useOriginCanvasExport = ({
   showToast,
   t,
   tLoose,
+  visibleOriginCanvasIds = [],
 }: UseOriginCanvasExportOptions) => {
   const originBusyRef = useRef(false);
   const [originSelectedSeriesIdsByFile, setOriginSelectedSeriesIdsByFile] =
@@ -320,16 +368,46 @@ export const useOriginCanvasExport = ({
       );
   }, [originCanvasOptions, selectedOriginSeriesCountByFile]);
 
+  const filteredOriginCanvasIds = useMemo(
+    () =>
+      (Array.isArray(visibleOriginCanvasIds) ? visibleOriginCanvasIds : [])
+        .map((item) => String(item ?? "").trim())
+        .filter(Boolean),
+    [visibleOriginCanvasIds],
+  );
+
   const selectedOriginCanvasKeySet = useMemo(() => {
     if (resolvedOriginExportMode === "merged") {
       return new Set(Object.keys(selectedOriginSeriesCountByFile));
     }
+
+    if (canvasExportScope === "current") {
+      const activeKey = String(effectiveActiveFileId ?? "").trim();
+      return activeKey ? new Set([activeKey]) : new Set<string>();
+    }
+
+    if (canvasExportScope === "filtered") {
+      return new Set(filteredOriginCanvasIds);
+    }
+
+    if (canvasExportScope === "all") {
+      return new Set(
+        originCanvasOptions
+          .map((item: any) => String(item?.key ?? "").trim())
+          .filter(Boolean),
+      );
+    }
+
     return new Set(
       originSelectedCanvasIds
-        .map((item) => String(item ?? ""))
+        .map((item) => String(item ?? "").trim())
         .filter(Boolean),
     );
   }, [
+    canvasExportScope,
+    effectiveActiveFileId,
+    filteredOriginCanvasIds,
+    originCanvasOptions,
     originSelectedCanvasIds,
     resolvedOriginExportMode,
     selectedOriginSeriesCountByFile,
@@ -365,6 +443,13 @@ export const useOriginCanvasExport = ({
 
   const clearOriginCanvasSelection = useCallback(() => {
     setOriginSelectedCanvasIds([]);
+  }, []);
+
+  const replaceOriginCanvasSelection = useCallback((fileIds: unknown[]) => {
+    const normalized = (Array.isArray(fileIds) ? fileIds : [])
+      .map((item) => String(item ?? "").trim())
+      .filter((item, index, arr) => Boolean(item) && arr.indexOf(item) === index);
+    setOriginSelectedCanvasIds(normalized);
   }, []);
 
   const selectAllOriginSeriesForFile = useCallback(
@@ -627,6 +712,7 @@ export const useOriginCanvasExport = ({
           csvName,
           payload.xyPairCount,
           payload.xyPairs,
+          payload.curveLabels,
         ),
       );
     });
@@ -692,6 +778,12 @@ export const useOriginCanvasExport = ({
         originYScaleMode === "log" ? "layer.y.type=2" : "layer.y.type=1";
       const shouldApplySmartYAxisRange = !hasCustomPlotCommand;
       for (const payload of result.payloads) {
+        const importPostCommands = buildOriginCurveLabelImportPostCommands(
+          payload.curveLabels,
+        );
+        const legendPostCommands = buildOriginLegendRefreshCommands(
+          payload.curveLabels,
+        );
         const shouldUseDisplayRange =
           payload.fileIds.length === 1 &&
           payload.fileIds[0] === String(effectiveActiveFileId ?? "") &&
@@ -743,6 +835,16 @@ export const useOriginCanvasExport = ({
             xyPairs: effectiveXyPairs,
           },
           capabilities: {
+            import: importPostCommands.length
+              ? {
+                  postCommands: importPostCommands,
+                }
+              : undefined,
+            plot: legendPostCommands.length
+              ? {
+                  postCommands: legendPostCommands,
+                }
+              : undefined,
             axis: {
               commands: originAxisCommands,
             },
@@ -908,7 +1010,9 @@ export const useOriginCanvasExport = ({
     handleExportOriginZip,
     handleOpenInOrigin,
     originCanvasOptions,
+    originCanvasExportScope: canvasExportScope,
     originExportMode: resolvedOriginExportMode,
+    replaceOriginCanvasSelection,
     selectAllOriginSeriesForActiveFile,
     selectAllOriginCanvases,
     selectedOriginCollectionEntries,

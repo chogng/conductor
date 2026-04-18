@@ -11,6 +11,7 @@ import Select from "../../../../components/ui/Select";
 import ScrollArea from "../../../../components/ui/ScrollArea";
 import { useLanguage } from "../../../../hooks/useLanguage";
 import type { DeviceAnalysisOriginExportMode } from "../lib/originSelectionExport";
+import type { DeviceAnalysisOriginCanvasExportScope } from "../useOriginCanvasExport";
 import type { ProcessingStatus } from "../../shared/lib/sharedTypes";
 import FileCard, { type ProcessedFileLike } from "./FileCard";
 
@@ -20,20 +21,12 @@ type OverviewGridProps = {
   activeFileId?: string | null;
   onSelectFile?: (fileId: string | undefined) => void;
   onVisibleFileIdsChange?: (fileIds: string[]) => void;
-  originCollectionEntries?: Array<{
-    fileId: string;
-    fileName: string;
-    selectedCount: number;
-  }>;
-  onClearAllOriginSeriesSelections?: () => void;
-  onClearOriginSeriesSelectionForFile?: (fileId: string | undefined) => void;
   selectedOriginCanvasKeySet?: Set<string>;
-  selectedOriginSeriesTotalCount?: number;
   onToggleOriginCanvasSelection?: (fileId: string | undefined) => void;
   onSelectAllOriginCanvases?: () => void;
   onClearOriginCanvasSelection?: () => void;
   originExportMode?: DeviceAnalysisOriginExportMode;
-  onOriginExportModeChange?: (mode: DeviceAnalysisOriginExportMode) => void;
+  originCanvasExportScope?: DeviceAnalysisOriginCanvasExportScope;
   xUnitFactor?: number;
   xUnitLabel?: string;
   yUnitFactor?: number;
@@ -75,16 +68,12 @@ const OverviewGrid = memo(function OverviewGrid({
   activeFileId,
   onSelectFile,
   onVisibleFileIdsChange,
-  originCollectionEntries = [],
-  onClearAllOriginSeriesSelections,
-  onClearOriginSeriesSelectionForFile,
   selectedOriginCanvasKeySet,
-  selectedOriginSeriesTotalCount = 0,
   onToggleOriginCanvasSelection,
   onSelectAllOriginCanvases,
   onClearOriginCanvasSelection,
   originExportMode = "merged",
-  onOriginExportModeChange,
+  originCanvasExportScope = "manual",
   xUnitFactor,
   xUnitLabel,
   yUnitFactor,
@@ -205,23 +194,22 @@ const OverviewGrid = memo(function OverviewGrid({
   }, [onVisibleFileIdsChange, visibleFileIds]);
 
   const selectedCanvasCount = selectedOriginCanvasKeySet?.size ?? 0;
+  const isManualCanvasScope =
+    originExportMode === "separate" && originCanvasExportScope === "manual";
   const isAllCanvasSelected =
     processedData.length > 0 && selectedCanvasCount >= processedData.length;
   const selectModeStateLabel = isSelectMode
     ? t("da_overview_select_mode_on")
     : t("da_overview_select_mode_off");
-  const originExportModeHint = originExportMode === "separate"
-    ? t("da_origin_export_mode_separate_hint")
-    : t("da_origin_export_mode_merged_hint");
-  const selectionSummaryText =
-    originExportMode === "merged"
-      ? t("da_origin_collection_summary", {
-          curves: selectedOriginSeriesTotalCount,
-          files: selectedCanvasCount,
-        })
-      : t("da_overview_selected_num_figures", {
-          count: selectedCanvasCount,
-        });
+  const fileSummaryText = t("da_overview_file_count", {
+    visible: visibleFileIds.length,
+    total: processedData.length,
+  });
+  const selectionSummaryText = t("da_overview_selected_num_figures", {
+    count: selectedCanvasCount,
+  });
+  const sidebarSummaryText =
+    originExportMode === "separate" ? selectionSummaryText : fileSummaryText;
 
   if (!processedData.length) return null;
 
@@ -311,7 +299,7 @@ const OverviewGrid = memo(function OverviewGrid({
             aria-label={t("da_overview_select_mode_title", {
               state: selectModeStateLabel,
             })}
-            hidden={originExportMode !== "separate"}
+            hidden={!isManualCanvasScope}
           >
             <MousePointer2 size={16} className={isSelectMode ? "text-accent" : ""} />
           </Button>
@@ -331,13 +319,13 @@ const OverviewGrid = memo(function OverviewGrid({
               onSelectAllOriginCanvases?.();
             }}
             disabled={
-              originExportMode !== "separate" ||
+              !isManualCanvasScope ||
               !isSelectMode ||
               !onSelectAllOriginCanvases ||
               !onClearOriginCanvasSelection ||
               processedData.length === 0
             }
-            hidden={originExportMode !== "separate"}
+            hidden={!isManualCanvasScope}
             title={t(
               isAllCanvasSelected
                 ? "da_origin_canvas_clear"
@@ -365,108 +353,11 @@ const OverviewGrid = memo(function OverviewGrid({
         </div>
 
         <div className="meta_text whitespace-nowrap">
-          {selectionSummaryText}
+          {sidebarSummaryText}
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs text-text-secondary whitespace-nowrap">
-            {t("da_origin_export_mode_label")}
-          </span>
-          <Select
-            id="device-analysis-origin-export-mode-select"
-            size="md"
-            value={originExportMode}
-            onChange={(next) =>
-              onOriginExportModeChange?.(
-                next === "separate" ? "separate" : "merged",
-              )
-            }
-            options={[
-              {
-                value: "merged",
-                label: t("da_origin_export_mode_merged"),
-              },
-              {
-                value: "separate",
-                label: t("da_origin_export_mode_separate"),
-              },
-            ]}
-            className="w-fit da-neutral-select"
-            stableWidth
-            data-cta="Device Analysis"
-            data-cta-position="overview-grid"
-            data-cta-copy="origin export mode"
-          />
-        </div>
-        <div className="text-[11px] text-text-secondary">
-          {originExportModeHint}
-        </div>
-        {originExportMode === "merged" ? (
-          <div className="rounded-xl border border-border bg-bg-page/40 p-3 space-y-2">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="text-xs font-semibold text-text-primary">
-                  {t("da_origin_collection_title")}
-                </div>
-                <div className="text-[11px] text-text-secondary leading-5">
-                  {selectionSummaryText}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => onClearAllOriginSeriesSelections?.()}
-                disabled={
-                  !onClearAllOriginSeriesSelections || selectedOriginSeriesTotalCount <= 0
-                }
-                className="shrink-0 text-[11px] font-medium text-accent disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {t("da_origin_collection_clear_all")}
-              </button>
-            </div>
-
-            {originCollectionEntries.length ? (
-              <div className="max-h-40 space-y-1.5 overflow-auto pr-1">
-                {originCollectionEntries.map((entry) => (
-                  <div
-                    key={entry.fileId}
-                    className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 ${
-                      entry.fileId === activeFileId
-                        ? "border-accent/40 bg-accent/5"
-                        : "border-border bg-bg-surface"
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => onSelectFile?.(entry.fileId)}
-                      className="min-w-0 flex-1 text-left"
-                    >
-                      <div className="truncate text-[11px] font-medium text-text-primary">
-                        {entry.fileName}
-                      </div>
-                      <div className="text-[10px] text-text-secondary">
-                        {t("da_origin_collection_file_curves", {
-                          count: entry.selectedCount,
-                        })}
-                      </div>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onClearOriginSeriesSelectionForFile?.(entry.fileId)
-                      }
-                      disabled={!onClearOriginSeriesSelectionForFile}
-                      title={t("da_origin_collection_remove_file")}
-                      className="shrink-0 text-[11px] font-medium text-text-secondary hover:text-text-primary disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      {t("da_origin_collection_remove")}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-[11px] leading-5 text-text-secondary">
-                {t("da_origin_collection_empty")}
-              </div>
-            )}
+        {originExportMode === "separate" ? (
+          <div className="text-[11px] text-text-secondary">
+            {t("da_origin_export_mode_separate_hint")}
           </div>
         ) : null}
       </div>
@@ -479,10 +370,11 @@ const OverviewGrid = memo(function OverviewGrid({
               file={file}
               isActive={file.fileId === activeFileId}
               onSelectFile={onSelectFile}
-              isSelectionMode={originExportMode === "separate" ? isSelectMode : false}
+              isSelectionMode={isManualCanvasScope ? isSelectMode : false}
               isOriginSelected={selectedOriginCanvasKeySet?.has(
                 String(file?.fileId ?? ""),
               )}
+              showOriginSelectionBadge={isManualCanvasScope}
               onToggleOriginSelected={onToggleOriginCanvasSelection}
               originSelectedBadgeLabel={t("da_overview_select_badge")}
               xUnitFactor={xUnitFactor}

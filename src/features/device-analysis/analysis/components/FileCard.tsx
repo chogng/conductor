@@ -36,6 +36,7 @@ type FileCardProps = {
   onSelectFile?: (fileId: string | undefined) => void;
   isSelectionMode?: boolean;
   isOriginSelected?: boolean;
+  showOriginSelectionBadge?: boolean;
   onToggleOriginSelected?: (fileId: string | undefined) => void;
   originSelectedBadgeLabel?: string;
   xUnitFactor?: number;
@@ -87,6 +88,7 @@ const FileCard = memo(function FileCard({
   onSelectFile,
   isSelectionMode = false,
   isOriginSelected = false,
+  showOriginSelectionBadge = false,
   onToggleOriginSelected,
   originSelectedBadgeLabel = "SELECT",
   xUnitFactor = 1,
@@ -190,7 +192,7 @@ const FileCard = memo(function FileCard({
         ) : (
           <div className="absolute inset-0 animate-pulse bg-bg-page/40" />
         )}
-        {isSelectionMode && isOriginSelected ? (
+        {showOriginSelectionBadge && isOriginSelected ? (
           <div className="absolute bottom-1 left-1 text-[10px] px-1.5 py-0.5 rounded-md bg-accent-terracotta/90 text-white font-semibold tracking-wide">
             {originSelectedBadgeLabel}
           </div>
