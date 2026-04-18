@@ -24,6 +24,7 @@ type CalculatedParameterRowData = {
 
 type CalculatedParametersRowProps = {
   row?: CalculatedParameterRowData | null;
+  isPending?: boolean;
   buildCurrentTooltip?: (
     role: "ion" | "ioff" | "ratio",
     row: CalculatedParameterRowData,
@@ -35,10 +36,17 @@ type CalculatedParametersRowProps = {
 const CalculatedParametersRow = memo(function CalculatedParametersRow({
   buildCurrentTooltip,
   row,
+  isPending = false,
   buildSsTooltip,
   showTransferMetrics = true,
 }: CalculatedParametersRowProps) {
   if (!row) return null;
+  const renderValue = (value: unknown, options?: { digits?: number }) =>
+    isPending ? "..." : formatNumber(value, options);
+  const tooltipOrEmpty = (builder?: (row: CalculatedParameterRowData) => string) =>
+    isPending || !builder ? "" : builder(row);
+  const currentTooltip = (role: "ion" | "ioff" | "ratio") =>
+    isPending || !buildCurrentTooltip ? "" : buildCurrentTooltip(role, row);
 
   return (
     <tr className="hover:bg-bg-page/30">
@@ -49,48 +57,50 @@ const CalculatedParametersRow = memo(function CalculatedParametersRow({
         <>
           <td
             className="p-2 font-mono text-[14px] text-text-primary whitespace-nowrap text-center border-l border-border bg-emerald-500/5"
-            title={buildCurrentTooltip ? buildCurrentTooltip("ion", row) : ""}
+            title={currentTooltip("ion")}
           >
-            {formatNumber(row.ion)}
+            {renderValue(row.ion)}
           </td>
           <td
             className="p-2 font-mono text-[14px] text-text-secondary whitespace-nowrap text-center border-l border-border bg-emerald-500/5"
-            title={buildCurrentTooltip ? buildCurrentTooltip("ion", row) : ""}
+            title={currentTooltip("ion")}
           >
-            {formatNumber(row.xAtIon)}
+            {renderValue(row.xAtIon)}
           </td>
           <td
             className="p-2 font-mono text-[14px] text-text-primary whitespace-nowrap text-center border-l border-border bg-cyan-500/5"
-            title={buildCurrentTooltip ? buildCurrentTooltip("ioff", row) : ""}
+            title={currentTooltip("ioff")}
           >
-            {formatNumber(row.ioff)}
+            {renderValue(row.ioff)}
           </td>
           <td
             className="p-2 font-mono text-[14px] text-text-secondary whitespace-nowrap text-center border-l border-border bg-cyan-500/5"
-            title={buildCurrentTooltip ? buildCurrentTooltip("ioff", row) : ""}
+            title={currentTooltip("ioff")}
           >
-            {formatNumber(row.xAtIoff)}
+            {renderValue(row.xAtIoff)}
           </td>
           <td
             className="p-2 font-mono text-[14px] text-text-primary whitespace-nowrap text-center border-l border-border"
-            title={buildCurrentTooltip ? buildCurrentTooltip("ratio", row) : ""}
+            title={currentTooltip("ratio")}
           >
-            {formatNumber(row.ionIoff, { digits: 3 })}
+            {renderValue(row.ionIoff, { digits: 3 })}
           </td>
         </>
       ) : null}
       <td className="p-2 font-mono text-[14px] text-text-primary whitespace-nowrap text-center border-l border-border bg-amber-500/5">
-        {formatNumber(row.gmMaxAbs)}
+        {renderValue(row.gmMaxAbs)}
       </td>
       <td className="p-2 font-mono text-[14px] text-text-secondary whitespace-nowrap text-center border-l border-border bg-amber-500/5">
-        {formatNumber(row.xAtGmMaxAbs)}
+        {renderValue(row.xAtGmMaxAbs)}
       </td>
       {showTransferMetrics ? (
         <>
           <td className="p-2 font-mono text-[14px] text-text-primary whitespace-nowrap text-center border-l border-border bg-rose-500/5">
             <span
               className={`inline-flex items-center px-2 py-0.5 rounded-md text-[14px] font-medium border ${
-                row.ssConfidence === "high"
+                isPending
+                  ? "bg-bg-page text-text-secondary border-border"
+                  : row.ssConfidence === "high"
                   ? "bg-green-500/10 text-green-500 border-green-500/20"
                   : row.ssConfidence === "low"
                     ? "bg-yellow-500/10 text-yellow-500 border-yellow-500/20"
@@ -98,9 +108,11 @@ const CalculatedParametersRow = memo(function CalculatedParametersRow({
                       ? "bg-red-500/10 text-red-500 border-red-500/20"
                       : "bg-bg-page text-text-primary border-border"
               }`}
-              title={buildSsTooltip ? buildSsTooltip(row) : ""}
+              title={tooltipOrEmpty(buildSsTooltip)}
             >
-              {row.ss !== null
+              {isPending
+                ? "..."
+                : row.ss !== null
                 ? formatNumber(row.ss, { digits: 2 })
                 : row.ssConfidence === "fail"
                   ? "Fail"
@@ -108,10 +120,10 @@ const CalculatedParametersRow = memo(function CalculatedParametersRow({
             </span>
           </td>
           <td className="p-2 font-mono text-[14px] text-text-secondary whitespace-nowrap text-center border-l border-border bg-rose-500/5">
-            {formatNumber(row.xAtSs)}
+            {renderValue(row.xAtSs)}
           </td>
           <td className="p-2 font-mono text-[14px] text-text-primary whitespace-nowrap text-center border-l border-border">
-            {formatNumber(row.jon)}
+            {renderValue(row.jon)}
           </td>
         </>
       ) : null}

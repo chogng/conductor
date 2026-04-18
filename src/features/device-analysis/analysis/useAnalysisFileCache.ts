@@ -34,6 +34,8 @@ export const useAnalysisFileCache = ({
       sourceFile,
       sourceSeries: sourceFile?.series ?? null,
       sourceXGroups: sourceFile?.xGroups ?? null,
+      analysisByConfigKey: new Map(),
+      plotSeriesByConfigKey: new Map(),
       pointsBySeriesId: new Map(),
       gmByMode: { x: new Map(), legend: new Map() },
       gmLegendComputed: false,

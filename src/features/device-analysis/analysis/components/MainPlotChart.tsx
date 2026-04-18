@@ -24,25 +24,9 @@ import {
 import { formatNumber } from "../lib/analysisMath";
 import { COLORS } from "../lib/chartColors";
 import {
-  buildLogTicks,
-  buildNiceTicks,
-  buildOriginAutoTicks,
-  buildStepTicks,
   computeLabelInterval,
-  computeMinMax,
   inferTickDigitsFromTicks,
-  padLinearDomain,
-  padLogDomain,
-  parseOptionalNumber,
 } from "../lib/analysisChartsUtils";
-
-type AxisConfig = Partial<{
-  yMin: number | string;
-  yMax: number | string;
-  yDecadeStep: number | string;
-  yStep: number | string;
-  yTickCount: number | string;
-}>;
 
 type PlotPoint = {
   x?: number;
@@ -114,7 +98,6 @@ type MainPlotChartProps = {
     yLabel: string;
   }> | null;
   seriesList: PlotSeries[];
-  axis?: AxisConfig;
   xDomain: [number, number];
   xTicks?: number[] | null;
   plotXFactor: number;
@@ -122,8 +105,10 @@ type MainPlotChartProps = {
   xTickDigits: number;
   xTooltipDigits?: number;
   xLabelInterval: number;
+  effectiveYScale: "linear" | "log" | "logAbs";
+  yDomain: [number, number];
+  yTicks?: number[] | null;
   yScaleMode: "linear" | "log" | "logAbs";
-  yTicksMode?: string;
   plotYFactor: number;
   plotYUnitLabel: string;
   focusedSeriesId?: string | null;
@@ -143,11 +128,6 @@ type MainPlotChartProps = {
 const LOG_CHART_Y_DATA_KEY = "__chartY";
 const logChartSeriesListCache = new WeakMap<object, Map<string, PlotSeries[]>>();
 const logChartSeriesDataCache = new WeakMap<object, Map<string, PlotPoint[]>>();
-
-const toDomainTuple = (domain: number[]): [number, number] => [
-  Number(domain?.[0] ?? 0),
-  Number(domain?.[1] ?? 1),
-];
 
 const toLogChartValue = (value: unknown): number | null => {
   const num = Number(value);
@@ -1082,7 +1062,6 @@ const MainPlotChart = memo(function MainPlotChart({
   plotType,
   activeFile,
   seriesList,
-  axis,
   xDomain,
   xTicks,
   plotXFactor,
@@ -1090,8 +1069,10 @@ const MainPlotChart = memo(function MainPlotChart({
   xTickDigits,
   xTooltipDigits,
   xLabelInterval,
+  effectiveYScale,
+  yDomain,
+  yTicks,
   yScaleMode,
-  yTicksMode,
   plotYFactor,
   plotYUnitLabel,
   focusedSeriesId,
@@ -1114,106 +1095,6 @@ const MainPlotChart = memo(function MainPlotChart({
     return "y";
   }, [yScaleMode]);
 
-  const autoMinMax = useMemo(
-    () => computeMinMax(seriesList, { yKey: plotYKey }),
-    [plotYKey, seriesList],
-  ) as { minY: number | null; maxY: number | null } | null;
-
-  const autoMinY = autoMinMax?.minY ?? null;
-  const autoMaxY = autoMinMax?.maxY ?? null;
-
-  const effectiveYScale = useMemo(() => {
-    if (yScaleMode === "linear") return "linear";
-    if (autoMinY === null || autoMaxY === null) return "linear";
-    if (autoMaxY <= 0) return "linear";
-    return yScaleMode;
-  }, [autoMaxY, autoMinY, yScaleMode]);
-
-  const yDomain = useMemo<[number, number]>(() => {
-    const minY = autoMinMax?.minY ?? null;
-    const maxY = autoMinMax?.maxY ?? null;
-    const auto: [number, number] =
-      minY === null || maxY === null
-        ? effectiveYScale === "linear"
-          ? [0, 1]
-          : [1e-3, 1]
-        : effectiveYScale === "linear"
-          ? toDomainTuple(padLinearDomain(minY, maxY))
-          : toDomainTuple(padLogDomain(minY, maxY));
-
-    const minUserRaw = parseOptionalNumber(axis?.yMin);
-    const maxUserRaw = parseOptionalNumber(axis?.yMax);
-    const minUser = minUserRaw !== null ? minUserRaw / plotYFactor : null;
-    const maxUser = maxUserRaw !== null ? maxUserRaw / plotYFactor : null;
-
-    let min = minUser ?? auto[0];
-    let max = maxUser ?? auto[1];
-
-    if (effectiveYScale !== "linear") {
-      if (min <= 0) min = auto[0];
-      if (max <= 0) max = auto[1];
-      if (min <= 0 || max <= 0) return auto;
-      return toDomainTuple(padLogDomain(min, max));
-    }
-
-    return toDomainTuple(padLinearDomain(min, max));
-  }, [
-    autoMinMax?.maxY,
-    autoMinMax?.minY,
-    axis?.yMax,
-    axis?.yMin,
-    effectiveYScale,
-    plotYFactor,
-  ]);
-
-  const yTicks = useMemo<number[] | null>(() => {
-    const mode = String(yTicksMode ?? "nice");
-    if (mode === "auto") {
-      if (effectiveYScale !== "linear") {
-        const min = Number(yDomain?.[0]);
-        const max = Number(yDomain?.[1]);
-        if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
-        const lo = Math.min(min, max);
-        const hi = Math.max(min, max);
-        if (!(hi > 0)) return null;
-        const safeLo = lo > 0 ? lo : hi / 1000;
-        const expMin = Math.floor(Math.log10(safeLo));
-        const expMax = Math.ceil(Math.log10(hi));
-        const decades = Math.max(1, expMax - expMin);
-        const decadeStep = Math.max(1, Math.ceil(decades / 6));
-        return buildLogTicks(yDomain[0], yDomain[1], decadeStep);
-      }
-      return buildOriginAutoTicks(yDomain[0], yDomain[1], 6);
-    }
-
-    if (effectiveYScale !== "linear") {
-      if (mode !== "decades") return null;
-      return buildLogTicks(
-        yDomain[0],
-        yDomain[1],
-        parseOptionalNumber(axis?.yDecadeStep) ?? undefined,
-      );
-    }
-
-    if (mode === "step") {
-      const stepRaw = parseOptionalNumber(axis?.yStep);
-      const step = stepRaw !== null ? stepRaw / plotYFactor : null;
-      return step ? buildStepTicks(yDomain[0], yDomain[1], step) : null;
-    }
-    const count = Math.max(2, Math.floor(Number(axis?.yTickCount) || 6));
-    return buildNiceTicks(yDomain[0], yDomain[1], count, {
-      preferTightRange: false,
-    });
-  }, [
-    axis?.yDecadeStep,
-    axis?.yStep,
-    axis?.yTickCount,
-    effectiveYScale,
-    plotYFactor,
-    yDomain,
-    yTicksMode,
-  ]);
-
   const chartYDataKey = useMemo(
     () => (effectiveYScale === "linear" ? plotYKey : LOG_CHART_Y_DATA_KEY),
     [effectiveYScale, plotYKey],
@@ -1234,7 +1115,7 @@ const MainPlotChart = memo(function MainPlotChart({
   }, [effectiveYScale, focusedFitLine]);
 
   const chartYTicks = useMemo<number[] | null>(() => {
-    if (effectiveYScale === "linear") return yTicks;
+    if (effectiveYScale === "linear") return Array.isArray(yTicks) ? yTicks : null;
     if (!Array.isArray(yTicks)) return null;
     const nextTicks = yTicks
       .map((tick) => toLogChartValue(tick))

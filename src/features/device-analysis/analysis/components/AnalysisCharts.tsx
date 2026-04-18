@@ -74,6 +74,33 @@ const formatCurrentWindowSummary = (window: any, xFactor: number, digits: number
     return parts.join(" · ");
 };
 const formatBiasInputValue = (xRaw: number, xFactor: number): string => String(normalizeFloat(xRaw * xFactor));
+const toStableNumericToken = (value: unknown): string => {
+    const num = Number(value);
+    return Number.isFinite(num) ? String(normalizeFloat(num)) : "";
+};
+const buildSeriesRangeSignature = (ranges: Record<string, {
+    x1?: unknown;
+    x2?: unknown;
+}> | null | undefined): string => {
+    if (!ranges)
+        return "";
+    return Object.keys(ranges)
+        .sort()
+        .map((seriesId) => {
+        const entry = ranges[seriesId] ?? {};
+        return `${seriesId}:${toStableNumericToken(entry?.x1)}:${toStableNumericToken(entry?.x2)}`;
+    })
+        .join("|");
+};
+const resolveAvailableActiveFileId = (processedData: any[], preferredFileId: any): string | null => {
+    if (!processedData?.length)
+        return null;
+    if (preferredFileId &&
+        processedData.some((file: any) => file?.fileId === preferredFileId)) {
+        return preferredFileId;
+    }
+    return processedData[0]?.fileId ?? null;
+};
 type FormatOriginTranslateFn = (key: string, params?: Record<string, unknown>) => string;
 type OriginCsvBridge = {
     runOriginCsv: (payload: {
@@ -105,6 +132,20 @@ type OriginCsvBridge = {
             };
         };
     }) => Promise<unknown>;
+};
+type ProgressiveAnalysisHandle = {
+    type: "idle";
+    id: number;
+} | {
+    type: "timeout";
+    id: ReturnType<typeof setTimeout>;
+};
+type ProgressiveAnalysisState = {
+    key: string;
+    map: Map<string, any>;
+    completedCount: number;
+    totalCount: number;
+    pending: boolean;
 };
 const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, ssApplicable, areaAvailable, onChange, }: {
     activePlotType: PlotTypeOption;
@@ -256,14 +297,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             cancelled = true;
         };
     }, []);
-    const effectiveActiveFileId = useMemo(() => {
-        if (!processedData?.length)
-            return null;
-        if (activeFileId && processedData.some((f: any) => f.fileId === activeFileId)) {
-            return activeFileId;
-        }
-        return processedData[0].fileId;
-    }, [activeFileId, processedData]);
+    const effectiveActiveFileId = useMemo(() => resolveAvailableActiveFileId(processedData, activeFileId), [activeFileId, processedData]);
     const { getFileCache, renderSeriesCacheRef } = useAnalysisFileCache({
         effectiveActiveFileId,
         processedData,
@@ -575,52 +609,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         }
         return map;
     }, [activeFile, getFileCache]);
-    const gmBySeriesId = useMemo(() => {
-        if (!activeFile?.fileId || !activeFile?.series?.length)
-            return new Map();
-        const cache = getFileCache(activeFile.fileId, activeFile);
-        if (!cache)
-            return new Map();
-        if (gmMode === "x") {
-            const map = cache.gmByMode.x;
-            for (const series of activeFile.series) {
-                if (map.has(series.id))
-                    continue;
-                const points = pointsBySeriesId.get(series.id) ?? [];
-                map.set(series.id, computeCentralDerivative(points));
-            }
-            return map;
-        }
-        // gmMode === "legend"
-        const map = cache.gmByMode.legend;
-        if (cache.gmLegendComputed)
-            return map;
-        cache.gmLegendComputed = true;
-        const legendMode = activeFile?.legend?.mode ?? null;
-        if (legendMode !== "yCol" && legendMode !== "group")
-            return map;
-        const buckets = new Map();
-        for (const series of activeFile.series) {
-            const param = series?.legendValue;
-            if (typeof param !== "number" || !Number.isFinite(param))
-                continue;
-            const xArr = activeFile?.xGroups?.[series.groupIndex];
-            const yArr = series?.y;
-            if (!xArr || !yArr)
-                continue;
-            const bucketKey = legendMode === "yCol" ? `g:${series.groupIndex}` : `y:${series.yCol}`;
-            const list = buckets.get(bucketKey) ?? [];
-            list.push({ id: series.id, x: xArr, y: yArr, param });
-            buckets.set(bucketKey, list);
-        }
-        for (const list of buckets.values()) {
-            const derived = computeLegendDerivativeSeries(list);
-            for (const [id, data] of derived.entries()) {
-                map.set(id, data);
-            }
-        }
-        return map;
-    }, [activeFile, getFileCache, gmMode, pointsBySeriesId]);
+    const gmBySeriesId = useMemo(() => new Map(), []);
     const gmLegendStatus = useMemo(() => {
         if (gmMode !== "legend")
             return { ok: true, message: "" };
@@ -648,20 +637,555 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         }
         return { ok: true, message: "" };
     }, [activeFile, gmMode]);
+    const manualBySeriesForActiveFile = useMemo(() => activeFile?.fileId ? ssManualRanges?.[activeFile.fileId] ?? {} : {}, [activeFile?.fileId, ssManualRanges]);
+    const manualRangeSignature = useMemo(() => buildSeriesRangeSignature(manualBySeriesForActiveFile), [manualBySeriesForActiveFile]);
+    const analysisCacheKey = useMemo(() => {
+        const areaToken = area && Number.isFinite(area) && area > 0
+            ? String(normalizeFloat(area))
+            : "";
+        const parts = [
+            `gm:${gmMode}`,
+            `current:${ionIoffMethod}`,
+            `ss:${ssMethod}`,
+        ];
+        if (ionIoffMethod === "manual") {
+            parts.push(`ion:${String(ionIoffManualTargets?.ionX ?? "").trim()}`);
+            parts.push(`ioff:${String(ionIoffManualTargets?.ioffX ?? "").trim()}`);
+            parts.push(`xFactor:${toStableNumericToken(resolvedXUnitMeta.factor)}`);
+        }
+        if (ssMethod === "idWindow") {
+            parts.push(`idLow:${toStableNumericToken(ssIdWindow?.low)}`);
+            parts.push(`idHigh:${toStableNumericToken(ssIdWindow?.high)}`);
+        }
+        if (ssMethod === "manual") {
+            parts.push(`manual:${manualRangeSignature}`);
+        }
+        parts.push(`area:${areaToken}`);
+        return parts.join("::");
+    }, [
+        area,
+        gmMode,
+        ionIoffManualTargets?.ioffX,
+        ionIoffManualTargets?.ionX,
+        ionIoffMethod,
+        manualRangeSignature,
+        resolvedXUnitMeta.factor,
+        ssIdWindow?.high,
+        ssIdWindow?.low,
+        ssMethod,
+    ]);
+    const activeFileCache = useMemo(() => activeFile?.fileId ? getFileCache(activeFile.fileId, activeFile) : null, [activeFile, getFileCache]);
+    const detailAnalysisKey = useMemo(() => `${effectiveActiveFileId ?? "no-file"}::${analysisCacheKey}`, [analysisCacheKey, effectiveActiveFileId]);
+    const gmModeKey = gmMode === "legend" ? "legend" : "x";
+    const idLowRaw = Number(ssIdWindow?.low);
+    const idHighRaw = Number(ssIdWindow?.high);
+    const idWindowOk = Number.isFinite(idLowRaw) &&
+        Number.isFinite(idHighRaw) &&
+        idLowRaw > 0 &&
+        idHighRaw > 0;
+    const idLow = idWindowOk ? Math.min(idLowRaw, idHighRaw) : null;
+    const idHigh = idWindowOk ? Math.max(idLowRaw, idHighRaw) : null;
+    const idWindowRatio = idLow && idHigh && idLow > 0 ? idHigh / idLow : null;
+    const idWindowKey = idWindowOk && idLow !== null && idHigh !== null
+        ? `${normalizeFloat(idLow)}::${normalizeFloat(idHigh)}`
+        : "invalid";
+    const areaValue = typeof area === "number" && Number.isFinite(area) && area > 0 ? area : null;
+    const areaKey = areaValue !== null ? String(normalizeFloat(areaValue)) : null;
+    const cacheAnalysisMap = React.useCallback((map: Map<string, any>) => {
+        if (!activeFileCache?.analysisByConfigKey)
+            return;
+        if (!activeFileCache.analysisByConfigKey.has(analysisCacheKey) &&
+            activeFileCache.analysisByConfigKey.size >= 24) {
+            const oldestKey = activeFileCache.analysisByConfigKey.keys().next();
+            if (!oldestKey.done) {
+                activeFileCache.analysisByConfigKey.delete(oldestKey.value);
+            }
+        }
+        activeFileCache.analysisByConfigKey.set(analysisCacheKey, map);
+    }, [activeFileCache, analysisCacheKey]);
+    const getSeriesGm = React.useCallback((series: any) => {
+        if (!series?.id)
+            return [];
+        const points = pointsBySeriesId.get(series.id) ?? [];
+        if (gmMode === "x") {
+            const map = activeFileCache?.gmByMode?.x ?? new Map();
+            if (!map.has(series.id)) {
+                map.set(series.id, computeCentralDerivative(points));
+            }
+            return map.get(series.id) ?? [];
+        }
+        const map = activeFileCache?.gmByMode?.legend ?? new Map();
+        if (activeFileCache?.gmLegendComputed) {
+            return map.get(series.id) ?? [];
+        }
+        const legendMode = activeFile?.legend?.mode ?? null;
+        const derivedMap = new Map();
+        if (legendMode === "yCol" || legendMode === "group") {
+            const buckets = new Map();
+            for (const currentSeries of activeFile?.series ?? []) {
+                const param = currentSeries?.legendValue;
+                if (typeof param !== "number" || !Number.isFinite(param))
+                    continue;
+                const xArr = activeFile?.xGroups?.[currentSeries.groupIndex];
+                const yArr = currentSeries?.y;
+                if (!xArr || !yArr)
+                    continue;
+                const bucketKey = legendMode === "yCol"
+                    ? `g:${currentSeries.groupIndex}`
+                    : `y:${currentSeries.yCol}`;
+                const list = buckets.get(bucketKey) ?? [];
+                list.push({ id: currentSeries.id, x: xArr, y: yArr, param });
+                buckets.set(bucketKey, list);
+            }
+            for (const list of buckets.values()) {
+                const derived = computeLegendDerivativeSeries(list);
+                for (const [id, data] of derived.entries()) {
+                    derivedMap.set(id, data);
+                }
+            }
+        }
+        if (activeFileCache) {
+            activeFileCache.gmLegendComputed = true;
+            for (const [id, data] of derivedMap.entries()) {
+                map.set(id, data);
+            }
+            return map.get(series.id) ?? [];
+        }
+        return derivedMap.get(series.id) ?? [];
+    }, [activeFile, activeFileCache, gmMode, pointsBySeriesId]);
+    const getSeriesSsDiagnostics = React.useCallback((series: any) => {
+        if (!series?.id)
+            return [];
+        const cache = activeFileCache?.ssDiagnosticsBySeriesId ?? new Map();
+        const cached = cache.get(series.id);
+        if (cached)
+            return cached;
+        const points = pointsBySeriesId.get(series.id) ?? [];
+        const computed = computeSubthresholdSwing(points);
+        if (activeFileCache) {
+            cache.set(series.id, computed);
+        }
+        return computed;
+    }, [activeFileCache, pointsBySeriesId]);
+    const getSeriesSsAuto = React.useCallback((series: any) => {
+        if (!series?.id)
+            return null;
+        const cache = activeFileCache?.ssAutoBySeriesId ?? new Map();
+        const cached = cache.get(series.id) ?? null;
+        if (cached)
+            return cached;
+        const points = pointsBySeriesId.get(series.id) ?? [];
+        const computed = computeSubthresholdSwingFitAuto(points);
+        if (activeFileCache) {
+            cache.set(series.id, computed);
+        }
+        return computed;
+    }, [activeFileCache, pointsBySeriesId]);
+    const getSeriesJ = React.useCallback((series: any) => {
+        if (!series?.id || areaValue === null)
+            return null;
+        const resolvedAreaValue = areaValue;
+        const areaCache = activeFileCache?.jByAreaKey;
+        let seriesCache = null;
+        if (areaCache && areaKey) {
+            seriesCache = areaCache.get(areaKey) ?? null;
+            if (!seriesCache) {
+                seriesCache = new Map();
+                areaCache.set(areaKey, seriesCache);
+            }
+            const cached = seriesCache.get(series.id) ?? null;
+            if (cached)
+                return cached;
+        }
+        const points = pointsBySeriesId.get(series.id) ?? [];
+        const computed = points.map((point: any) => ({
+            x: point?.x ?? null,
+            y: typeof point?.y === "number" && Number.isFinite(point.y)
+                ? Math.abs(point.y) / resolvedAreaValue
+                : null,
+            yPositive: typeof point?.y === "number" && Number.isFinite(point.y) && point.y !== 0
+                ? Math.abs(point.y) / resolvedAreaValue
+                : null,
+            yAbsPositive: typeof point?.y === "number" && Number.isFinite(point.y) && point.y !== 0
+                ? Math.abs(point.y) / resolvedAreaValue
+                : null,
+        }));
+        if (seriesCache) {
+            seriesCache.set(series.id, computed);
+        }
+        return computed;
+    }, [activeFileCache, areaKey, areaValue, pointsBySeriesId]);
+    const buildSeriesAnalysisEntry = React.useCallback((series: any) => {
+        if (!series?.id)
+            return null;
+        const points = pointsBySeriesId.get(series.id) ?? [];
+        const gm = getSeriesGm(series);
+        const ssDiagnostics = getSeriesSsDiagnostics(series);
+        const ssAuto = getSeriesSsAuto(series);
+        const j = getSeriesJ(series);
+        const baseMetricsCache = activeFileCache?.baseMetricsBySeriesId ?? new Map();
+        const gmMetricsCache = activeFileCache?.gmMetricsByMode?.[gmModeKey] ?? new Map();
+        const manualFitCache = activeFileCache?.ssManualFitBySeriesId ?? new Map();
+        let idWindowFitMap = null;
+        if (activeFileCache && idWindowOk) {
+            idWindowFitMap = activeFileCache.ssIdWindowFitByKey.get(idWindowKey) ?? null;
+            if (!idWindowFitMap) {
+                idWindowFitMap = new Map();
+                activeFileCache.ssIdWindowFitByKey.set(idWindowKey, idWindowFitMap);
+            }
+        }
+        let base = ionIoffMethod === "auto" ? baseMetricsCache.get(series.id) ?? null : null;
+        let legacySsMin = Infinity;
+        let legacyXAtSsMin = null;
+        for (const point of ssDiagnostics ?? []) {
+            const x = point?.x;
+            const y = point?.y;
+            if (!Number.isFinite(x) || !Number.isFinite(y))
+                continue;
+            if (y > 0 && y < legacySsMin) {
+                legacySsMin = y;
+                legacyXAtSsMin = x;
+            }
+        }
+        if (!base) {
+            base = {
+                ...computeBaseCurrentMetrics({
+                    manualTargets: ionIoffMethod === "manual"
+                        ? {
+                            ionX: Number.isFinite(Number(ionIoffManualTargets?.ionX))
+                                ? Number(ionIoffManualTargets?.ionX) / resolvedXUnitMeta.factor
+                                : null,
+                            ioffX: Number.isFinite(Number(ionIoffManualTargets?.ioffX))
+                                ? Number(ionIoffManualTargets?.ioffX) / resolvedXUnitMeta.factor
+                                : null,
+                        }
+                        : null,
+                    method: ionIoffMethod,
+                    points,
+                    sourceFile: activeFile,
+                }),
+                legacySsMin: Number.isFinite(legacySsMin) ? legacySsMin : null,
+                legacyXAtSsMin,
+            };
+            if (activeFileCache && ionIoffMethod === "auto") {
+                baseMetricsCache.set(series.id, base);
+            }
+        }
+        let gmMetric = gmMetricsCache.get(series.id) ?? null;
+        if (!gmMetric) {
+            let gmMaxAbs = -Infinity;
+            let xAtGmMaxAbs = null;
+            for (const point of gm) {
+                const x = point?.x;
+                const y = point?.y;
+                if (typeof x !== "number" || !Number.isFinite(x))
+                    continue;
+                if (typeof y !== "number" || !Number.isFinite(y))
+                    continue;
+                const absGm = Math.abs(y);
+                if (absGm > gmMaxAbs) {
+                    gmMaxAbs = absGm;
+                    xAtGmMaxAbs = x;
+                }
+            }
+            gmMetric = {
+                gmMaxAbs: Number.isFinite(gmMaxAbs) ? gmMaxAbs : null,
+                xAtGmMaxAbs,
+            };
+            if (activeFileCache) {
+                gmMetricsCache.set(series.id, gmMetric);
+            }
+        }
+        const strictFit = ssAuto?.strict ?? { ok: false, reason: "common.invalid_points" };
+        const suggestedFit = ssAuto?.suggested ?? {
+            ok: false,
+            reason: "common.invalid_points",
+        };
+        const initRange = strictFit?.ok
+            ? { x1: strictFit.x1, x2: strictFit.x2, source: "strict" }
+            : suggestedFit?.ok
+                ? { x1: suggestedFit.x1, x2: suggestedFit.x2, source: "suggested" }
+                : null;
+        const storedManual = manualBySeriesForActiveFile?.[series.id] ?? null;
+        const resolveSelectedFit = () => {
+            if (ssMethod === "legacy") {
+                return {
+                    method: "legacy",
+                    confidence: "low",
+                    fit: base.legacySsMin !== null
+                        ? {
+                            ok: true,
+                            ss: base.legacySsMin,
+                            x1: null,
+                            x2: null,
+                            r2: null,
+                            decadeSpan: null,
+                            n: null,
+                            reason: "ok",
+                        }
+                        : { ok: false, reason: "common.not_enough_points" },
+                    xAt: legacyXAtSsMin,
+                };
+            }
+            if (ssMethod === "idWindow") {
+                if (idWindowOk && idWindowFitMap) {
+                    const cached = idWindowFitMap.get(series.id);
+                    if (cached)
+                        return cached;
+                }
+                const fit = idWindowOk
+                    ? computeSubthresholdSwingFitInIdWindow(points, idLow, idHigh)
+                    : { ok: false, reason: "idw.invalid_input" };
+                const classification = classifySsFit("idWindow", fit, { idWindowRatio });
+                const result = {
+                    method: "idWindow",
+                    confidence: classification.ss_confidence,
+                    reason: classification.ss_reason,
+                    fit,
+                    xAt: fit?.x1 != null && fit?.x2 != null ? (fit.x1 + fit.x2) * 0.5 : null,
+                };
+                if (idWindowOk && idWindowFitMap) {
+                    idWindowFitMap.set(series.id, result);
+                }
+                return result;
+            }
+            if (ssMethod === "manual") {
+                const range = storedManual ?? initRange;
+                const lo = range ? Math.min(range.x1, range.x2) : null;
+                const hi = range ? Math.max(range.x1, range.x2) : null;
+                const rangeKey = range && Number.isFinite(lo) && Number.isFinite(hi)
+                    ? `${normalizeFloat(lo)}::${normalizeFloat(hi)}`
+                    : "none";
+                let cached = manualFitCache.get(series.id) ?? null;
+                let fit;
+                let classification;
+                if (cached && cached.key === rangeKey) {
+                    fit = cached.fit;
+                    classification = cached.cls;
+                }
+                else {
+                    fit = range
+                        ? computeSubthresholdSwingFitInRange(points, lo, hi)
+                        : { ok: false, reason: "manual.range_outside_domain" };
+                    classification = classifySsFit("manual", fit);
+                    if (activeFileCache) {
+                        manualFitCache.set(series.id, { key: rangeKey, fit, cls: classification });
+                    }
+                }
+                return {
+                    method: "manual",
+                    confidence: classification.ss_confidence,
+                    reason: classification.ss_reason,
+                    fit,
+                    rangeSource: storedManual ? "manual" : range?.source ?? null,
+                    xAt: fit?.x1 != null && fit?.x2 != null ? (fit.x1 + fit.x2) * 0.5 : null,
+                };
+            }
+            const autoSelection = resolveAutoSsSelection({
+                strict: strictFit,
+                suggested: suggestedFit,
+            });
+            const classification = autoSelection.classification;
+            const fit = autoSelection.fit;
+            return {
+                method: "auto",
+                confidence: classification.ss_confidence,
+                reason: classification.ss_reason,
+                fit,
+                rangeSource: autoSelection.source,
+                xAt: fit?.x1 != null && fit?.x2 != null ? (fit.x1 + fit.x2) * 0.5 : null,
+            };
+        };
+        const selected = resolveSelectedFit();
+        const selectedFit = selected.fit;
+        const selectedSs = selected?.confidence !== "fail" &&
+            selectedFit?.ok &&
+            Number.isFinite(selectedFit?.ss)
+            ? selectedFit.ss
+            : null;
+        return {
+            gm,
+            ssDiagnostics,
+            ssAuto,
+            ssSelected: selected,
+            j,
+            metrics: {
+                ion: base.ion,
+                xAtIon: base.xAtIon ?? null,
+                ioff: base.ioff,
+                xAtIoff: base.xAtIoff ?? null,
+                ionIoff: base.ion !== null && base.ioff !== null && base.ioff !== 0
+                    ? base.ion / base.ioff
+                    : null,
+                gmMaxAbs: gmMetric.gmMaxAbs,
+                xAtGmMaxAbs: gmMetric.xAtGmMaxAbs ?? null,
+                ss: selectedSs,
+                ssMethod: selected.method,
+                ssConfidence: selected.confidence,
+                ssReason: selected.reason ?? null,
+                ssX1: Number.isFinite(selectedFit?.x1) ? selectedFit.x1 : null,
+                ssX2: Number.isFinite(selectedFit?.x2) ? selectedFit.x2 : null,
+                ssR2: Number.isFinite(selectedFit?.r2) ? selectedFit.r2 : null,
+                ssSpanDec: Number.isFinite(selectedFit?.decadeSpan)
+                    ? selectedFit.decadeSpan
+                    : null,
+                ssN: Number.isFinite(selectedFit?.n) ? selectedFit.n : null,
+                xAtSs: selectedSs !== null ? selected.xAt : null,
+                legacySsMin: base.legacySsMin,
+                legacyXAtSsMin: base.legacyXAtSsMin ?? null,
+                currentMethod: base.method ?? ionIoffMethod,
+                currentCandidateWindows: base.candidateWindows ?? [],
+                ionWindow: base.ionWindow ?? null,
+                ioffWindow: base.ioffWindow ?? null,
+                jon: areaValue !== null && base.ion !== null ? base.ion / areaValue : null,
+                joff: areaValue !== null && base.ioff !== null ? base.ioff / areaValue : null,
+            },
+        };
+    }, [activeFile, activeFileCache, areaValue, getSeriesGm, getSeriesJ, getSeriesSsAuto, getSeriesSsDiagnostics, gmModeKey, idHigh, idLow, idWindowKey, idWindowOk, idWindowRatio, ionIoffManualTargets?.ioffX, ionIoffManualTargets?.ionX, ionIoffMethod, manualBySeriesForActiveFile, pointsBySeriesId, resolvedXUnitMeta.factor, ssMethod]);
+    const progressiveAnalysisHandleRef = useRef<ProgressiveAnalysisHandle | null>(null);
+    const progressiveAnalysisJobIdRef = useRef(0);
+    const [detailAnalysisState, setDetailAnalysisState] = useState<ProgressiveAnalysisState>(() => ({
+        key: "",
+        map: new Map(),
+        completedCount: 0,
+        totalCount: 0,
+        pending: false,
+    }));
+    useEffect(() => {
+        if (typeof window === "undefined")
+            return undefined;
+        progressiveAnalysisJobIdRef.current += 1;
+        const jobId = progressiveAnalysisJobIdRef.current;
+        const cancelScheduled = () => {
+            const handle = progressiveAnalysisHandleRef.current;
+            if (!handle)
+                return;
+            if (handle.type === "idle" &&
+                typeof window.cancelIdleCallback === "function") {
+                window.cancelIdleCallback(handle.id);
+            }
+            else if (handle.type === "timeout") {
+                clearTimeout(handle.id);
+            }
+            progressiveAnalysisHandleRef.current = null;
+        };
+        cancelScheduled();
+        if (!activeFile?.series?.length) {
+            setDetailAnalysisState({
+                key: detailAnalysisKey,
+                map: new Map(),
+                completedCount: 0,
+                totalCount: 0,
+                pending: false,
+            });
+            return cancelScheduled;
+        }
+        const totalCount = activeFile.series.length;
+        const cached = activeFileCache?.analysisByConfigKey?.get(analysisCacheKey) ?? null;
+        if (cached) {
+            setDetailAnalysisState({
+                key: detailAnalysisKey,
+                map: cached,
+                completedCount: totalCount,
+                totalCount,
+                pending: false,
+            });
+            return cancelScheduled;
+        }
+        const workingMap = new Map<string, any>();
+        const prioritySeries = activeFile.series[0] ?? null;
+        if (prioritySeries?.id) {
+            const entry = buildSeriesAnalysisEntry(prioritySeries);
+            if (entry) {
+                workingMap.set(prioritySeries.id, entry);
+            }
+        }
+        setDetailAnalysisState({
+            key: detailAnalysisKey,
+            map: new Map(workingMap),
+            completedCount: workingMap.size,
+            totalCount,
+            pending: workingMap.size < totalCount,
+        });
+        const queue = activeFile.series.filter((series: any) => series?.id && !workingMap.has(series.id));
+        const run = (_deadline?: IdleDeadline) => {
+            if (progressiveAnalysisJobIdRef.current !== jobId)
+                return;
+            let processed = 0;
+            while (queue.length) {
+                if (_deadline) {
+                    if (processed > 0 && _deadline.timeRemaining() < 5)
+                        break;
+                }
+                else if (processed >= 2) {
+                    break;
+                }
+                const nextSeries = queue.shift();
+                if (!nextSeries?.id)
+                    continue;
+                const entry = buildSeriesAnalysisEntry(nextSeries);
+                if (entry) {
+                    workingMap.set(nextSeries.id, entry);
+                }
+                processed += 1;
+            }
+            const pending = queue.length > 0;
+            setDetailAnalysisState({
+                key: detailAnalysisKey,
+                map: new Map(workingMap),
+                completedCount: workingMap.size,
+                totalCount,
+                pending,
+            });
+            if (!pending) {
+                cacheAnalysisMap(new Map(workingMap));
+                progressiveAnalysisHandleRef.current = null;
+                return;
+            }
+            schedule();
+        };
+        const schedule = () => {
+            if (progressiveAnalysisJobIdRef.current !== jobId || !queue.length)
+                return;
+            if (typeof window.requestIdleCallback === "function") {
+                const id = window.requestIdleCallback(run, { timeout: 240 });
+                progressiveAnalysisHandleRef.current = { type: "idle", id };
+                return;
+            }
+            const id = setTimeout(() => run(), 16);
+            progressiveAnalysisHandleRef.current = { type: "timeout", id };
+        };
+        if (queue.length) {
+            schedule();
+        }
+        else {
+            cacheAnalysisMap(new Map(workingMap));
+        }
+        return cancelScheduled;
+    }, [activeFile, activeFileCache, analysisCacheKey, buildSeriesAnalysisEntry, cacheAnalysisMap, detailAnalysisKey]);
+    const detailAnalysisBySeriesId = useMemo(() => {
+        if (detailAnalysisState.key === detailAnalysisKey) {
+            return detailAnalysisState.map;
+        }
+        return activeFileCache?.analysisByConfigKey?.get(analysisCacheKey) ?? new Map();
+    }, [activeFileCache, analysisCacheKey, detailAnalysisKey, detailAnalysisState.key, detailAnalysisState.map]);
     const analysisBySeriesId = useMemo(() => {
+        return detailAnalysisBySeriesId;
+        /*
         if (!activeFile?.fileId || !activeFile?.series?.length)
             return new Map();
         const map = new Map();
         const cache = getFileCache(activeFile.fileId, activeFile);
+        const cached = cache?.analysisByConfigKey?.get(analysisCacheKey);
+        if (cached)
+            return cached;
         const ssDiagnosticsCache = cache?.ssDiagnosticsBySeriesId ?? new Map();
         const ssAutoCache = cache?.ssAutoBySeriesId ?? new Map();
         const baseMetricsCache = cache?.baseMetricsBySeriesId ?? new Map();
         const gmModeKey = gmMode === "legend" ? "legend" : "x";
         const gmMetricsCache = cache?.gmMetricsByMode?.[gmModeKey] ?? new Map();
         const manualFitCache = cache?.ssManualFitBySeriesId ?? new Map();
-        const manualBySeries = activeFile?.fileId && ssManualRanges?.[activeFile.fileId]
-            ? ssManualRanges[activeFile.fileId]
-            : {};
+        const manualBySeries = manualBySeriesForActiveFile;
         const idLowRaw = Number(ssIdWindow?.low);
         const idHighRaw = Number(ssIdWindow?.high);
         const idWindowOk = Number.isFinite(idLowRaw) &&
@@ -670,7 +1194,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             idHighRaw > 0;
         const idLow = idWindowOk ? Math.min(idLowRaw, idHighRaw) : null;
         const idHigh = idWindowOk ? Math.max(idLowRaw, idHighRaw) : null;
-        const idWindowRatio = idLow && idHigh && idLow > 0 ? idHigh / idLow : null;
+        const idWindowRatio = idLow !== null && idHigh !== null && idLow > 0 ? idHigh / idLow : null;
         const idWindowKey = idWindowOk && idLow !== null && idHigh !== null
             ? `${normalizeFloat(idLow)}::${normalizeFloat(idHigh)}`
             : "invalid";
@@ -686,8 +1210,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             }
             return m;
         })();
-        const areaKey = area && Number.isFinite(area) && area > 0
-            ? String(normalizeFloat(area))
+        const areaKey = area !== null && Number.isFinite(area) && area > 0
+            ? String(normalizeFloat(Number(area)))
             : null;
         const jCacheBySeriesId = (() => {
             if (!cache)
@@ -719,22 +1243,23 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             const j = (() => {
                 if (!jCacheBySeriesId)
                     return null;
-                const areaValue = typeof area === "number" && Number.isFinite(area) && area > 0 ? area : null;
+                const areaValue = area !== null && Number.isFinite(area) && area > 0 ? area : null;
                 if (areaValue === null)
                     return null;
+                const normalizedAreaValue = areaValue;
                 const existing = jCacheBySeriesId.get(series.id) ?? null;
                 if (existing)
                     return existing;
                 const arr = points.map((p: any) => ({
                     x: p?.x ?? null,
                     y: typeof p?.y === "number" && Number.isFinite(p.y)
-                        ? Math.abs(p.y) / areaValue
+                        ? Math.abs(p.y) / Number(normalizedAreaValue)
                         : null,
                     yPositive: typeof p?.y === "number" && Number.isFinite(p.y) && p.y !== 0
-                        ? Math.abs(p.y) / areaValue
+                        ? Math.abs(p.y) / Number(normalizedAreaValue)
                         : null,
                     yAbsPositive: typeof p?.y === "number" && Number.isFinite(p.y) && p.y !== 0
-                        ? Math.abs(p.y) / areaValue
+                        ? Math.abs(p.y) / Number(normalizedAreaValue)
                         : null,
                 }));
                 jCacheBySeriesId.set(series.id, arr);
@@ -950,28 +1475,24 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     currentCandidateWindows: base.candidateWindows ?? [],
                     ionWindow: base.ionWindow ?? null,
                     ioffWindow: base.ioffWindow ?? null,
-                    jon: area && ionFinite !== null ? ionFinite / area : null,
-                    joff: area && ioffFinite !== null ? ioffFinite / area : null,
+                    jon: area !== null && ionFinite !== null ? ionFinite / Number(area) : null,
+                    joff: area !== null && ioffFinite !== null ? ioffFinite / Number(area) : null,
                 },
             });
         }
+        if (cache?.analysisByConfigKey) {
+            if (!cache.analysisByConfigKey.has(analysisCacheKey) &&
+                cache.analysisByConfigKey.size >= 24) {
+                const oldestKey = cache.analysisByConfigKey.keys().next();
+                if (!oldestKey.done) {
+                    cache.analysisByConfigKey.delete(oldestKey.value);
+                }
+            }
+            cache.analysisByConfigKey.set(analysisCacheKey, map);
+        }
         return map;
-    }, [
-        activeFile,
-        area,
-        gmBySeriesId,
-        gmMode,
-        getFileCache,
-        pointsBySeriesId,
-        resolvedXUnitMeta.factor,
-        ionIoffManualTargets?.ioffX,
-        ionIoffManualTargets?.ionX,
-        ionIoffMethod,
-        ssIdWindow?.high,
-        ssIdWindow?.low,
-        ssManualRanges,
-        ssMethod,
-    ]);
+        */
+    }, [detailAnalysisBySeriesId]);
     const ssComputedApplicable = useMemo(() => {
         if (!activeFile?.series?.length)
             return false;
@@ -1005,6 +1526,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return "iv";
         return plotType;
     }, [area, plotType, ssApplicable]);
+    const plotSeriesCacheKey = useMemo(() => `${analysisCacheKey}::plot:${effectivePlotType}`, [analysisCacheKey, effectivePlotType]);
     const currentManualBiasApplicable = transferMetricsApplicable && effectivePlotType === "iv" && ionIoffMethod === "manual" && Boolean(focusedSeriesId);
     const handlePlotTypeChange = React.useCallback((nextPlotType: PlotTypeOption) => {
         startTransition(() => {
@@ -1050,7 +1572,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         if (existing && Number.isFinite(existing.x1) && Number.isFinite(existing.x2)) {
             return;
         }
-        const analysis = analysisBySeriesId.get(focusedSeriesId);
+        const analysis = detailAnalysisBySeriesId.get(focusedSeriesId) ??
+            buildSeriesAnalysisEntry(activeFile?.series?.find((series: any) => series?.id === focusedSeriesId));
         const strict = analysis?.ssAuto?.strict ?? null;
         const suggested = analysis?.ssAuto?.suggested ?? null;
         const init = strict?.ok
@@ -1074,7 +1597,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         });
     }, [
         activeFile?.fileId,
-        analysisBySeriesId,
+        activeFile?.series,
+        buildSeriesAnalysisEntry,
+        detailAnalysisBySeriesId,
         effectivePlotType,
         focusedSeriesId,
         setSsManualRanges,
@@ -1082,31 +1607,50 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         ssMethod,
     ]);
     const plotSeriesByType = useMemo(() => {
-        if (!activeFile?.series?.length) {
+        if (!activeFile?.fileId || !activeFile?.series?.length) {
             return { iv: [], gm: [], ss: [], j: [] };
+        }
+        const cache = getFileCache(activeFile.fileId, activeFile);
+        const cached = cache?.plotSeriesByConfigKey?.get(plotSeriesCacheKey);
+        if (cached) {
+            return cached;
         }
         const base = activeFile.series.map((series: any) => ({
             ...series,
             data: pointsBySeriesId.get(series.id) ?? [],
         }));
-        return {
+        const computed = {
             iv: base,
             ss: base,
-            gm: activeFile.series.map((series: any) => ({
-                ...series,
-                data: analysisBySeriesId.get(series.id)?.gm ?? [],
-            })),
-            j: activeFile.series.map((series: any) => ({
-                ...series,
-                data: analysisBySeriesId.get(series.id)?.j ?? [],
-            })),
+            gm: effectivePlotType === "gm"
+                ? activeFile.series.map((series: any) => ({
+                    ...series,
+                    data: getSeriesGm(series),
+                }))
+                : [],
+            j: effectivePlotType === "j"
+                ? activeFile.series.map((series: any) => ({
+                    ...series,
+                    data: getSeriesJ(series) ?? [],
+                }))
+                : [],
         };
-    }, [activeFile, analysisBySeriesId, pointsBySeriesId]);
+        if (cache?.plotSeriesByConfigKey) {
+            cache.plotSeriesByConfigKey.set(plotSeriesCacheKey, computed);
+        }
+        return computed;
+    }, [activeFile, effectivePlotType, getFileCache, getSeriesGm, getSeriesJ, plotSeriesCacheKey, pointsBySeriesId]);
     const focusedAnalysis = useMemo(() => {
         if (!focusedSeriesId)
             return null;
-        return analysisBySeriesId.get(focusedSeriesId) ?? null;
-    }, [analysisBySeriesId, focusedSeriesId]);
+        const cached = detailAnalysisBySeriesId.get(focusedSeriesId) ?? null;
+        if (cached)
+            return cached;
+        const focusedSeries = activeFile?.series?.find((series: any) => series?.id === focusedSeriesId);
+        if (!focusedSeries)
+            return null;
+        return buildSeriesAnalysisEntry(focusedSeries);
+    }, [activeFile?.series, buildSeriesAnalysisEntry, detailAnalysisBySeriesId, focusedSeriesId]);
     const focusedSsOverlay = useMemo(() => {
         if (!focusedSeriesId)
             return null;
@@ -1524,8 +2068,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const max = maxUser !== null ? maxUser / plotXFactor : auto[1];
         return padLinearDomain(min, max);
     }, [autoMinMax.maxX, autoMinMax.minX, axis?.xMax, axis?.xMin, plotXFactor]);
-    const yDomain = useMemo(() => {
-        const auto = autoMinMax.minY === null || autoMinMax.maxY === null
+    const yDomain = useMemo<[number, number]>(() => {
+        const auto: [number, number] = autoMinMax.minY === null || autoMinMax.maxY === null
             ? effectiveYScale === "linear"
                 ? [0, 1]
                 : [1e-3, 1]
@@ -1705,20 +2249,34 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         return Math.max(0, Math.min(20, Math.round(manualDigits)));
     }, [axis?.xTooltipDigits, xTooltipDigitsAuto]);
     const xLabelInterval = useMemo(() => computeLabelInterval(xTicks, 7), [xTicks]);
+    const mainChartRenderKey = useMemo(() => [
+        effectiveActiveFileId ?? "no-file",
+        effectivePlotType,
+        axis?.yScale ?? "linear",
+        focusedSeriesId ?? "no-focus",
+    ].join("::"), [
+        effectiveActiveFileId,
+        effectivePlotType,
+        focusedSeriesId,
+        axis?.yScale,
+    ]);
+    const isMetricsDetailsPending = detailAnalysisState.key === detailAnalysisKey && detailAnalysisState.pending;
     const metricsRows = useMemo(() => {
         if (!activeFile?.series?.length)
             return [];
         return activeFile.series.map((series: any) => {
-            const analysis = analysisBySeriesId.get(series.id);
+            const analysis = detailAnalysisBySeriesId.get(series.id) ??
+                (focusedSeriesId === series.id ? focusedAnalysis : null);
             return {
                 id: series.id,
                 name: series.name,
                 group: Number(series.groupIndex ?? 0) + 1,
                 yCol: series.yCol,
+                isPending: !analysis && isMetricsDetailsPending,
                 ...analysis?.metrics,
             };
         });
-    }, [activeFile, analysisBySeriesId]);
+    }, [activeFile, detailAnalysisBySeriesId, focusedAnalysis, focusedSeriesId, isMetricsDetailsPending]);
     const persistIonIoffManualTargets = React.useCallback((targets: any) => {
         apiService
             .updateDeviceAnalysisSettings({
@@ -1848,7 +2406,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const handleSelectFile = React.useCallback((fileId: any) => {
         if (!fileId)
             return;
-        preserveScrollPosition(() => startTransition(() => setActiveFileId(fileId)));
+        preserveScrollPosition(() => setActiveFileId(fileId));
     }, [setActiveFileId]);
     const buildSsTooltip = React.useCallback((row: any) => {
         if (!row)
@@ -1902,12 +2460,15 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         ? TRANSFER_CALCULATED_PARAMETERS_COLUMN_WIDTHS_PX
         : DERIVATIVE_ONLY_CALCULATED_PARAMETERS_COLUMN_WIDTHS_PX, [calculatedParametersMode]);
     const calculatedParametersTableMinWidth = useMemo(() => calculatedParametersColumnWidths.reduce((total, width) => total + width, 0), [calculatedParametersColumnWidths]);
-    const metricsRowElements = useMemo(() => metricsRows.map((row: any) => (<CalculatedParametersRow key={row.id} row={row} buildCurrentTooltip={buildCurrentTooltip} buildSsTooltip={buildSsTooltip} showTransferMetrics={calculatedParametersMode === "transfer"}/>)), [buildCurrentTooltip, buildSsTooltip, calculatedParametersMode, metricsRows]);
+    const metricsRowElements = useMemo(() => metricsRows.map((row: any) => (<CalculatedParametersRow key={row.id} row={row} isPending={Boolean(row?.isPending)} buildCurrentTooltip={buildCurrentTooltip} buildSsTooltip={buildSsTooltip} showTransferMetrics={calculatedParametersMode === "transfer"}/>)), [buildCurrentTooltip, buildSsTooltip, calculatedParametersMode, metricsRows]);
     const calculatedParametersSummary = useMemo(() => calculatedParametersMode === "transfer"
         ? `${gmUi.summaryLabel}: max |${gmUi.metricSymbol}|, SS: fit (mV/dec), J uses |I|/Area`
         : calculatedParametersMode === "output"
             ? `${gmUi.summaryLabel}: max |${gmUi.metricSymbol}| (output)`
             : `${gmUi.summaryLabel}: max |${gmUi.metricSymbol}|`, [calculatedParametersMode, gmUi.metricSymbol, gmUi.summaryLabel]);
+    const metricsProgressText = useMemo(() => isMetricsDetailsPending
+        ? `${calculatedParametersSummary} | Computing details ${detailAnalysisState.completedCount}/${detailAnalysisState.totalCount}`
+        : calculatedParametersSummary, [calculatedParametersSummary, detailAnalysisState.completedCount, detailAnalysisState.totalCount, isMetricsDetailsPending]);
     if (!processedData || processedData.length === 0)
         return null;
     return (<div className="h-full min-h-0 grid grid-cols-1 md:grid-rows-1 md:grid-cols-[var(--analysis-sidebar-width)_minmax(0,1fr)] gap-1 md:gap-1" ref={toastContainerRef} style={{
@@ -2362,13 +2923,12 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     </div>
                   </div>
                 </div>) : null}
-
               <div ref={mainChartContainerRef} className="h-[500px] min-h-[500px] flex-shrink-0">
                 {isMainChartSizeReady ? (<MainPlotChart
+                    key={mainChartRenderKey}
                     plotType={effectivePlotType}
                     activeFile={activeFile}
                     seriesList={renderPlotSeries}
-                    axis={axis}
                     xDomain={xDomain}
                     xTicks={xTicks}
                     plotXFactor={plotXFactor}
@@ -2376,8 +2936,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     xTickDigits={xTickDigitsDisplay}
                     xTooltipDigits={xTooltipDigits}
                     xLabelInterval={xLabelInterval}
+                    effectiveYScale={effectiveYScale}
+                    yDomain={yDomain}
+                    yTicks={yTicks}
                     yScaleMode={yScaleMode}
-                    yTicksMode={axis?.yTicks}
                     plotYFactor={plotYFactor}
                     plotYUnitLabel={plotYUnitLabel}
                     focusedSeriesId={focusedSeriesId}
@@ -2440,9 +3002,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
               </div>
               <div
                 className="min-w-0 flex-1 truncate text-right text-xs text-text-secondary"
-                title={resultsTab === "metrics" ? calculatedParametersSummary : exportSelectionSummary}
+                title={resultsTab === "metrics" ? metricsProgressText : exportSelectionSummary}
               >
-                {resultsTab === "metrics" ? calculatedParametersSummary : exportSelectionSummary}
+                {resultsTab === "metrics" ? metricsProgressText : exportSelectionSummary}
               </div>
             </div>
 
