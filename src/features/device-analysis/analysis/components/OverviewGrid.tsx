@@ -1,8 +1,5 @@
 import { memo, useEffect, useMemo, useState } from "react";
 import {
-  ArrowDownWideNarrow,
-  ArrowUpWideNarrow,
-  CheckCheck,
   MousePointer2,
 } from "lucide-react";
 import Button from "../../../../components/ui/Button";
@@ -23,8 +20,6 @@ type OverviewGridProps = {
   onVisibleFileIdsChange?: (fileIds: string[]) => void;
   selectedOriginCanvasKeySet?: Set<string>;
   onToggleOriginCanvasSelection?: (fileId: string | undefined) => void;
-  onSelectAllOriginCanvases?: () => void;
-  onClearOriginCanvasSelection?: () => void;
   originExportMode?: DeviceAnalysisOriginExportMode;
   originCanvasExportScope?: DeviceAnalysisOriginCanvasExportScope;
   xUnitFactor?: number;
@@ -34,7 +29,6 @@ type OverviewGridProps = {
   yScale?: string;
 };
 
-type SortOrder = "none" | "desc" | "asc";
 type CurveFilter = string;
 const isBuiltInCurveFilter = (
   value: unknown,
@@ -70,8 +64,6 @@ const OverviewGrid = memo(function OverviewGrid({
   onVisibleFileIdsChange,
   selectedOriginCanvasKeySet,
   onToggleOriginCanvasSelection,
-  onSelectAllOriginCanvases,
-  onClearOriginCanvasSelection,
   originExportMode = "merged",
   originCanvasExportScope = "manual",
   xUnitFactor,
@@ -81,7 +73,6 @@ const OverviewGrid = memo(function OverviewGrid({
   yScale,
 }: OverviewGridProps) {
   const { t } = useLanguage();
-  const [sortOrder, setSortOrder] = useState<SortOrder>("none");
   const [curveFilter, setCurveFilter] = useState<CurveFilter>("all");
   const [isSelectMode, setIsSelectMode] = useState(false);
   const fieldFilterOptions = useMemo(() => {
@@ -132,29 +123,11 @@ const OverviewGrid = memo(function OverviewGrid({
     setCurveFilter("all");
   }, [curveFilter, fieldFilterOptions]);
 
-  const sortOrderLabel =
-    sortOrder === "none"
-      ? t("da_overview_sort_ymax_none")
-      : sortOrder === "desc"
-        ? t("da_overview_sort_ymax_desc")
-        : t("da_overview_sort_ymax_asc");
-
-  const sortedData = useMemo(() => {
-    if (!processedData.length) return [];
-    if (sortOrder === "none") return processedData;
-    return [...processedData].sort((a, b) => {
-      // Sort by yMax.
-      const aY = a?.domain?.y?.[1] ?? Number.NEGATIVE_INFINITY;
-      const bY = b?.domain?.y?.[1] ?? Number.NEGATIVE_INFINITY;
-      return sortOrder === "desc" ? bY - aY : aY - bY;
-    });
-  }, [processedData, sortOrder]);
-
   const filteredData = useMemo(() => {
-    if (curveFilter === "all") return sortedData;
+    if (curveFilter === "all") return processedData;
     if (curveFilter === "transfer" || curveFilter === "output") {
       const target = curveFilter === "transfer" ? "vg" : "vd";
-      return sortedData.filter((file) => {
+      return processedData.filter((file) => {
         const xAxisRole = String(file?.xAxisRole ?? "").toLowerCase();
         if (xAxisRole) {
           return xAxisRole === target;
@@ -173,13 +146,13 @@ const OverviewGrid = memo(function OverviewGrid({
     }
 
     const selectedFieldKey = String(curveFilter).trim().toLowerCase();
-    if (!selectedFieldKey) return sortedData;
-    return sortedData.filter((file) => {
+    if (!selectedFieldKey) return processedData;
+    return processedData.filter((file) => {
       const meta = resolveCurveFieldFilterMeta(file);
       if (!meta) return false;
       return meta.key.toLowerCase() === selectedFieldKey;
     });
-  }, [sortedData, curveFilter]);
+  }, [curveFilter, processedData]);
 
   const visibleFileIds = useMemo(
     () =>
@@ -193,24 +166,11 @@ const OverviewGrid = memo(function OverviewGrid({
     onVisibleFileIdsChange?.(visibleFileIds);
   }, [onVisibleFileIdsChange, visibleFileIds]);
 
-  const selectedCanvasCount = selectedOriginCanvasKeySet?.size ?? 0;
   const isManualCanvasScope =
     originExportMode === "separate" && originCanvasExportScope === "manual";
-  const isAllCanvasSelected =
-    processedData.length > 0 && selectedCanvasCount >= processedData.length;
   const selectModeStateLabel = isSelectMode
     ? t("da_overview_select_mode_on")
     : t("da_overview_select_mode_off");
-  const fileSummaryText = t("da_overview_file_count", {
-    visible: visibleFileIds.length,
-    total: processedData.length,
-  });
-  const selectionSummaryText = t("da_overview_selected_num_figures", {
-    count: selectedCanvasCount,
-  });
-  const sidebarSummaryText =
-    originExportMode === "separate" ? selectionSummaryText : fileSummaryText;
-
   if (!processedData.length) return null;
 
   return (
@@ -260,32 +220,6 @@ const OverviewGrid = memo(function OverviewGrid({
           </div>
 
           <Button
-            id="device-analysis-overview-sort-ymax-btn"
-            cta="Device Analysis"
-            ctaPosition="overview-grid"
-            ctaCopy="sort by ymax"
-            variant={sortOrder !== "none" ? "secondary" : "ghost"}
-            size="control"
-            onClick={() => {
-              setSortOrder((prev) => {
-                if (prev === "none") return "desc";
-                if (prev === "desc") return "asc";
-                return "none";
-              });
-            }}
-            title={t("da_overview_sort_ymax_title", { order: sortOrderLabel })}
-            aria-label={t("da_overview_sort_ymax_title", {
-              order: sortOrderLabel,
-            })}
-          >
-            {sortOrder === "asc" ? (
-              <ArrowUpWideNarrow size={18} />
-            ) : (
-              <ArrowDownWideNarrow size={18} />
-            )}
-          </Button>
-
-          <Button
             id="device-analysis-overview-select-mode-btn"
             cta="Device Analysis"
             ctaPosition="overview-grid"
@@ -304,42 +238,6 @@ const OverviewGrid = memo(function OverviewGrid({
             <MousePointer2 size={16} className={isSelectMode ? "text-accent" : ""} />
           </Button>
 
-          <Button
-            id="device-analysis-overview-canvas-toggle-all-btn"
-            cta="Device Analysis"
-            ctaPosition="overview-grid"
-            ctaCopy="canvas toggle all"
-            variant="ghost"
-            size="control"
-            onClick={() => {
-              if (isAllCanvasSelected) {
-                onClearOriginCanvasSelection?.();
-                return;
-              }
-              onSelectAllOriginCanvases?.();
-            }}
-            disabled={
-              !isManualCanvasScope ||
-              !isSelectMode ||
-              !onSelectAllOriginCanvases ||
-              !onClearOriginCanvasSelection ||
-              processedData.length === 0
-            }
-            hidden={!isManualCanvasScope}
-            title={t(
-              isAllCanvasSelected
-                ? "da_origin_canvas_clear"
-                : "da_origin_canvas_select_all",
-            )}
-            aria-label={t(
-              isAllCanvasSelected
-                ? "da_origin_canvas_clear"
-                : "da_origin_canvas_select_all",
-            )}
-          >
-            <CheckCheck size={16} />
-          </Button>
-
           {processingStatus?.state === "processing" ? (
             <div className="text-xs text-text-secondary">
               {t("da_overview_processing", {
@@ -351,15 +249,6 @@ const OverviewGrid = memo(function OverviewGrid({
 
           </div>
         </div>
-
-        <div className="meta_text whitespace-nowrap">
-          {sidebarSummaryText}
-        </div>
-        {originExportMode === "separate" ? (
-          <div className="text-[11px] text-text-secondary">
-            {t("da_origin_export_mode_separate_hint")}
-          </div>
-        ) : null}
       </div>
 
       <ScrollArea className="flex-1 min-h-0" viewportClassName="pr-4" axis="y">

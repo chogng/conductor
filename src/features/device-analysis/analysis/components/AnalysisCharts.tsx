@@ -345,7 +345,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         selectedOriginSeriesTotalCount,
         toggleOriginCanvasSelection,
         toggleOriginSeriesSelection,
-        selectAllOriginCanvases,
     } = useOriginCanvasExport({
         activeFile,
         axisYScale: axis?.yScale,
@@ -2478,7 +2477,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         id="device-analysis-overview-sidebar"
         className="md:min-h-0 flex flex-col h-full"
       >
-        <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} onVisibleFileIdsChange={setOverviewVisibleFileIds} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} onSelectAllOriginCanvases={selectAllOriginCanvases} onClearOriginCanvasSelection={clearOriginCanvasSelection} originExportMode={resolvedOriginExportMode} originCanvasExportScope={originCanvasExportScope} xUnitFactor={resolvedXUnitMeta.factor} xUnitLabel={resolvedXUnitMeta.label} yUnitFactor={resolvedYUnitMeta.factor} yUnitLabel={resolvedYUnitMeta.label} yScale={overviewYScaleType}/>
+        <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} onVisibleFileIdsChange={setOverviewVisibleFileIds} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} originExportMode={resolvedOriginExportMode} originCanvasExportScope={originCanvasExportScope} xUnitFactor={resolvedXUnitMeta.factor} xUnitLabel={resolvedXUnitMeta.label} yUnitFactor={resolvedYUnitMeta.factor} yUnitLabel={resolvedYUnitMeta.label} yScale={overviewYScaleType}/>
       </aside>
 
       <ScrollArea className="md:min-h-0 min-w-0" axis="y" viewportClassName="flex flex-col min-h-full">
