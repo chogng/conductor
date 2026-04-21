@@ -1,6 +1,7 @@
 import subprocess
 import time
 import os
+import traceback
 
 
 def parse_bool_env(name: str, default: bool) -> bool:
@@ -52,6 +53,47 @@ def extract_hresult(exc: Exception):
     if args and isinstance(args[0], int):
         return f"0x{args[0] & 0xFFFFFFFF:08X}"
     return None
+
+
+def format_exception_trace(exc: Exception) -> str:
+    if exc is None:
+        return ""
+    try:
+        return "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)).strip()
+    except Exception:
+        return repr(exc)
+
+
+def summarize_exception(exc: Exception) -> dict:
+    if exc is None:
+        return {}
+    return {
+        "exceptionType": type(exc).__name__,
+        "exceptionRepr": repr(exc),
+        "traceback": format_exception_trace(exc),
+    }
+
+
+def get_originpro_state(op_module) -> dict:
+    try:
+        po = getattr(op_module, "po", None)
+    except Exception:
+        po = None
+    app = getattr(po, "_app", None) if po is not None else None
+    return {
+        "oext": bool(getattr(op_module, "oext", False)),
+        "poType": type(po).__name__ if po is not None else None,
+        "appType": type(app).__name__ if app is not None else None,
+        "appInitialized": app is not None,
+    }
+
+
+def log_exception(ctx, label: str, exc: Exception):
+    ctx.log(f"{label}: {type(exc).__name__}: {exc!r}")
+    trace = format_exception_trace(exc)
+    if trace:
+        for line in trace.splitlines():
+            ctx.log(f"{label} traceback: {line}")
 
 
 def ensure_lt_terminated(command: str) -> str:
@@ -138,6 +180,21 @@ def get_originpro_module(ctx, import_error_message: str):
     return op
 
 
+def ensure_originpro_session_ready(ctx, op_module):
+    ctx.log("originpro connection mode: direct-session")
+    ctx.log(f"originpro state before health check: {get_originpro_state(op_module)}")
+    health = lt_exec(op_module, "sec -p 0;")
+    ctx.log(f"originpro LT health command succeeded: {health}")
+
+    set_show = getattr(op_module, "set_show", None)
+    if callable(set_show):
+        set_show(True)
+        ctx.log("originpro set_show(True) succeeded.")
+
+    ctx.log(f"originpro state after health check: {get_originpro_state(op_module)}")
+    return health
+
+
 def connect_originpro(ctx, op_module, max_attempts: int, origin_exe: str):
     origin_process_count = None
     try:
@@ -167,47 +224,46 @@ def connect_originpro(ctx, op_module, max_attempts: int, origin_exe: str):
                 extra={"originProcessCount": origin_process_count},
             )
         else:
-            ctx.log(f"WARNING: {message} Continue with originpro attach.")
+            ctx.log(f"WARNING: {message} Continue with direct originpro session.")
 
-    attach = getattr(op_module, "attach", None)
-    set_show = getattr(op_module, "set_show", None)
-    launch_triggered = False
+    detach = getattr(op_module, "detach", None)
     last_exc = None
 
     for attempt in range(1, max_attempts + 1):
         try:
-            attached = False
-            if callable(attach):
-                try:
-                    attach()
-                    attached = True
-                    ctx.log(f"originpro attach() succeeded on attempt {attempt}.")
-                except Exception as attach_exc:
-                    ctx.log(f"originpro attach() failed on attempt {attempt}: {attach_exc}")
-
-            if callable(set_show):
-                set_show(True)
-            health = lt_exec(op_module, "sec -p 0;")
+            ctx.log(f"originpro connect attempt {attempt} starting.")
+            health = ensure_originpro_session_ready(ctx, op_module)
             ctx.log(
                 f"originpro session ready on attempt {attempt}. "
-                f"attachUsed={attached} Health={health}"
+                f"mode=direct-session Health={health}"
             )
             return
         except Exception as exc:
             last_exc = exc
-            ctx.log(f"originpro attach attempt {attempt} failed: {exc}")
-
-            if not launch_triggered:
-                try_launch_origin(ctx, origin_exe)
-                launch_triggered = True
+            log_exception(ctx, f"originpro connect attempt {attempt} failed", exc)
 
             if attempt < max_attempts:
+                if callable(detach):
+                    try:
+                        detach()
+                        ctx.log("originpro detach() after failed attempt succeeded.")
+                    except Exception as detach_exc:
+                        log_exception(
+                            ctx,
+                            "originpro detach() after failed attempt failed",
+                            detach_exc,
+                        )
                 time.sleep(min(2.0, 0.5 * attempt))
                 continue
 
             ctx.write_error(
                 code="ORIGIN_ORIGINPRO_ATTACH_FAILED",
                 stage="ORIGINPRO_ATTACH",
-                message=f"Failed to attach Origin via originpro: {last_exc}",
+                message=f"Failed to initialize Origin session via originpro: {last_exc}",
                 exc=last_exc if isinstance(last_exc, Exception) else None,
+                extra={
+                    "originProcessCount": origin_process_count,
+                    "originproState": get_originpro_state(op_module),
+                    **summarize_exception(last_exc),
+                },
             )

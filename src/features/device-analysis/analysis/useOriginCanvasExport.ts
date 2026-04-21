@@ -1169,6 +1169,7 @@ export const useOriginCanvasExport = ({
     originCanvasExportScope: canvasExportScope,
     originExportMode: resolvedOriginExportMode,
     replaceOriginCanvasSelection,
+    scopedOriginCanvasKeySet,
     selectAllOriginSeriesForActiveFile,
     selectAllOriginSeriesForFile,
     selectAllOriginCanvases,

@@ -357,9 +357,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         handleOpenInOrigin,
         replaceOriginCanvasSelection,
         originExportMode: resolvedOriginExportMode,
+        scopedOriginCanvasKeySet,
         selectAllOriginSeriesForActiveFile,
         selectAllOriginSeriesForFile,
-        selectedOriginCollectionEntries,
         selectedOriginCanvasKeySet,
         selectedOriginSeriesCountByFile,
         selectedOriginSeriesKeySet,
@@ -429,7 +429,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         })
         : separateCanvasScopeSummary;
     const exportListEntries = useMemo(() => {
-        const selectedFileIds = selectedOriginCanvasKeySet ?? new Set<string>();
+        const selectedFileIds = resolvedOriginExportMode === "merged" && !isExportListCanvasSelectionMode && resolvedCurveExportMode === "select"
+            ? scopedOriginCanvasKeySet ?? new Set<string>()
+            : selectedOriginCanvasKeySet ?? new Set<string>();
         return (Array.isArray(processedData) ? processedData : [])
             .map((file: any) => {
             const fileId = String(file?.fileId ?? "");
@@ -437,7 +439,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 return null;
             const selectedCount = Number(selectedOriginSeriesCountByFile?.[fileId] ?? 0);
             if (resolvedOriginExportMode === "merged" && !isExportListCanvasSelectionMode) {
-                if (selectedCount <= 0 || !selectedFileIds.has(fileId))
+                if ((resolvedCurveExportMode !== "select" && selectedCount <= 0) || !selectedFileIds.has(fileId))
                     return null;
             }
             else if (!isExportListCanvasSelectionMode && !selectedFileIds.has(fileId)) {
@@ -487,7 +489,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         getSelectedOriginSeriesKeySetForFile,
         isExportListCanvasSelectionMode,
         processedData,
+        resolvedCurveExportMode,
         resolvedOriginExportMode,
+        scopedOriginCanvasKeySet,
         selectedOriginCanvasKeySet,
         selectedOriginSeriesCountByFile,
     ]);
@@ -3249,32 +3253,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         data-cta-position="export-pane"
                         data-cta-copy="origin canvas export scope"
                       />
-                      <span className="text-xs text-text-secondary whitespace-nowrap">
-                        {t("da_origin_curve_export_mode_label")}
-                      </span>
-                      <Select
-                        id="device-analysis-origin-curve-export-mode-select"
-                        size="md"
-                        value={resolvedCurveExportMode}
-                        onChange={(next: any) => {
-                        setOriginCurveExportMode(next === "select" ? "select" : "all");
-                    }}
-                        options={[
-                        {
-                            value: "all",
-                            label: t("da_origin_curve_export_mode_all"),
-                        },
-                        {
-                            value: "select",
-                            label: t("da_origin_curve_export_mode_select"),
-                        },
-                    ]}
-                        className="w-fit da-neutral-select"
-                        stableWidth
-                        data-cta="Device Analysis"
-                        data-cta-position="export-pane"
-                        data-cta-copy="origin curve export mode"
-                      />
                       {showFilteredCanvasKindSelect ? (<>
                           <span className="text-xs text-text-secondary whitespace-nowrap">
                             {t("da_origin_filtered_canvas_kind_label")}
@@ -3303,6 +3281,32 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                             data-cta-copy="origin filtered canvas kind"
                           />
                         </>) : null}
+                      <span className="text-xs text-text-secondary whitespace-nowrap">
+                        {t("da_origin_curve_export_mode_label")}
+                      </span>
+                      <Select
+                        id="device-analysis-origin-curve-export-mode-select"
+                        size="md"
+                        value={resolvedCurveExportMode}
+                        onChange={(next: any) => {
+                        setOriginCurveExportMode(next === "select" ? "select" : "all");
+                    }}
+                        options={[
+                        {
+                            value: "all",
+                            label: t("da_origin_curve_export_mode_all"),
+                        },
+                        {
+                            value: "select",
+                            label: t("da_origin_curve_export_mode_select"),
+                        },
+                    ]}
+                        className="w-fit da-neutral-select"
+                        stableWidth
+                        data-cta="Device Analysis"
+                        data-cta-position="export-pane"
+                        data-cta-copy="origin curve export mode"
+                      />
                     </div>
                   </div>
 

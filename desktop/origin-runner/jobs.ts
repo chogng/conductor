@@ -41,6 +41,81 @@ function buildWorkerFailureError({
   return toStructuredOriginError(payload);
 }
 
+function buildPythonRunnerStartError(error, { logPath, originExe }) {
+  const pythonMissing = error?.code === "ENOENT";
+  const moduleMissing = error?.code === "PY_MODULE_MISSING";
+  return toStructuredOriginError({
+    code: pythonMissing
+      ? "ORIGIN_PYTHON_NOT_FOUND"
+      : moduleMissing
+        ? "ORIGIN_ORIGINPRO_IMPORT_FAILED"
+        : "ORIGIN_CSV_RUNNER_FAILED",
+    stage: pythonMissing
+      ? "PYTHON_RUNNER"
+      : moduleMissing
+        ? "ORIGINPRO_INIT"
+        : "CSV_PYTHON_RUNNER",
+    message:
+      pythonMissing
+        ? "Python executable not found. Install Python and ensure python/py is available in PATH."
+        : moduleMissing
+          ? "Failed to import originpro in available Python environments."
+          : error?.message || "Failed to run Origin CSV python script.",
+    logPath,
+    originExe,
+  });
+}
+
+function buildHealthCheckPythonRunnerStartError(error, { logPath, originExe }) {
+  const pythonMissing = error?.code === "ENOENT";
+  const moduleMissing = error?.code === "PY_MODULE_MISSING";
+  return toStructuredOriginError({
+    code: pythonMissing
+      ? "ORIGIN_PYTHON_NOT_FOUND"
+      : moduleMissing
+        ? "ORIGIN_ORIGINPRO_IMPORT_FAILED"
+        : "ORIGIN_HEALTH_CHECK_RUNNER_FAILED",
+    stage: pythonMissing
+      ? "PYTHON_RUNNER"
+      : moduleMissing
+        ? "ORIGINPRO_INIT"
+        : "HEALTH_CHECK_PYTHON_RUNNER",
+    message:
+      pythonMissing
+        ? "Python executable not found. Install Python and ensure python/py is available in PATH."
+        : moduleMissing
+          ? "Failed to import originpro in available Python environments."
+          : error?.message || "Failed to run Origin health-check python script.",
+    logPath,
+    originExe,
+  });
+}
+
+function buildNativeRunnerStartError(error, { logPath, originExe, stage, message, code }) {
+  return toStructuredOriginError({
+    code: code || "ORIGIN_CSV_RUNNER_FAILED",
+    stage,
+    message: error?.message || message,
+    logPath,
+    originExe,
+  });
+}
+
+function buildNativeWorkerEnv(workDir) {
+  return {
+    ...process.env,
+    TEMP: workDir,
+    TMP: workDir,
+  };
+}
+
+async function runPythonWorker(workerScriptPath, workerArgs) {
+  return runPythonScriptForBatch(workerScriptPath, workerArgs, {
+    windowsHide: true,
+    requiredModule: "originpro",
+  });
+}
+
 export async function runOriginCsvJob({
   csvName,
   csvText,
@@ -113,86 +188,73 @@ export async function runOriginCsvJob({
   let workerResult = null;
   let runnerExecutable = null;
   let runnerKind = null;
+  let scriptStartUnavailable = false;
 
-  if (nativeWorkerAvailable) {
+  if (scriptWorkerAvailable) {
     try {
-      workerResult = await runNativeCsvWorker(
-        normalizedWorkerExecutablePath,
-        workerArgs,
-        { windowsHide: true },
-      );
-      runnerKind = "native";
-      runnerExecutable = workerResult.executable;
-    } catch (error) {
-      const canFallbackToPython = scriptWorkerAvailable && error?.code === "ENOENT";
-      if (!canFallbackToPython) {
-        throw toStructuredOriginError({
-          code: "ORIGIN_CSV_RUNNER_FAILED",
-          stage: "NATIVE_RUNNER",
-          message:
-            error?.message ||
-            "Failed to run Origin CSV native worker executable.",
-          logPath,
-          originExe: normalizedOriginExePath,
-        });
-      }
-    }
-  }
-
-  if (!workerResult && scriptWorkerAvailable) {
-    try {
-      workerResult = await runPythonScriptForBatch(
-        workerScriptPath,
-        workerArgs,
-        { windowsHide: true, requiredModule: "originpro" },
-      );
+      workerResult = await runPythonWorker(workerScriptPath, workerArgs);
       runnerKind = "python";
       runnerExecutable = workerResult.executable;
     } catch (error) {
       const pythonMissing = error?.code === "ENOENT";
       const moduleMissing = error?.code === "PY_MODULE_MISSING";
-      throw toStructuredOriginError({
-        code: pythonMissing
-          ? "ORIGIN_PYTHON_NOT_FOUND"
-          : moduleMissing
-            ? "ORIGIN_ORIGINPRO_IMPORT_FAILED"
-            : "ORIGIN_CSV_RUNNER_FAILED",
-        stage: pythonMissing
-          ? "PYTHON_RUNNER"
-          : moduleMissing
-            ? "ORIGINPRO_INIT"
-            : "CSV_PYTHON_RUNNER",
-        message:
-          pythonMissing
-            ? "Python executable not found. Install Python and ensure python/py is available in PATH."
-            : moduleMissing
-              ? "Failed to import originpro in available Python environments."
-              : error?.message || "Failed to run Origin CSV python script.",
+      if (!nativeWorkerAvailable || (!pythonMissing && !moduleMissing)) {
+        throw buildPythonRunnerStartError(error, {
+          logPath,
+          originExe: normalizedOriginExePath,
+        });
+      }
+      scriptStartUnavailable = true;
+    }
+  }
+
+  if (!workerResult && nativeWorkerAvailable) {
+    try {
+      workerResult = await runNativeCsvWorker(
+        normalizedWorkerExecutablePath,
+        workerArgs,
+        {
+          cwd: workDir,
+          env: buildNativeWorkerEnv(workDir),
+          windowsHide: true,
+        },
+      );
+      runnerKind = "native";
+      runnerExecutable = workerResult.executable;
+    } catch (error) {
+      throw buildNativeRunnerStartError(error, {
+        code: "ORIGIN_CSV_RUNNER_FAILED",
         logPath,
         originExe: normalizedOriginExePath,
+        stage: "NATIVE_RUNNER",
+        message: "Failed to run Origin CSV native worker executable.",
       });
     }
   }
 
   if (!workerResult) {
     throw toStructuredOriginError({
-      code: "ORIGIN_CSV_RUNNER_NOT_FOUND",
+      code: scriptStartUnavailable
+        ? "ORIGIN_CSV_RUNNER_FAILED"
+        : "ORIGIN_CSV_RUNNER_NOT_FOUND",
       stage: "PRECHECK",
-      message: "No available runner could be started for Origin CSV job.",
+      message: scriptStartUnavailable
+        ? "Python-based Origin CSV runner is unavailable, and no native runner could be started."
+        : "No available runner could be started for Origin CSV job.",
       logPath,
       originExe: normalizedOriginExePath,
     });
   }
 
-  const workerErrorFiles = readWorkerErrorFiles(workDir, parseWorkerErrorPayload);
-  const workerErrorPayload = workerErrorFiles.workerErrorPayload;
-  const workerErrorRaw = workerErrorFiles.workerErrorRaw;
+  const { workerErrorPayload, workerErrorRaw } =
+    readWorkerErrorFiles(workDir, parseWorkerErrorPayload);
+
   if (workerResult.code !== 0) {
     throw buildWorkerFailureError({
       workerResult,
       logPath,
       workerErrorPayload,
-      fallbackStage: runnerKind === "native" ? "CSV_NATIVE_RUNNER" : "CSV_PYTHON_RUNNER",
+      fallbackStage: runnerKind === "python" ? "CSV_PYTHON_RUNNER" : "CSV_NATIVE_RUNNER",
       fallbackCode: "ORIGIN_CSV_FAILED",
       fallbackMessage:
         workerErrorRaw ||
@@ -219,6 +281,7 @@ export async function runOriginCsvJob({
 export async function runOriginHealthCheck({
   originExePath,
   workerExecutablePath,
+  workerScriptPath,
   runtimeRootDir,
 }) {
   const normalizedOriginExePath = assertOriginExePath(originExePath);
@@ -226,12 +289,15 @@ export async function runOriginHealthCheck({
   const nativeWorkerAvailable = Boolean(
     normalizedWorkerExecutablePath && fs.existsSync(normalizedWorkerExecutablePath),
   );
+  const scriptWorkerAvailable = Boolean(workerScriptPath && fs.existsSync(workerScriptPath));
 
-  if (!nativeWorkerAvailable) {
+  if (!nativeWorkerAvailable && !scriptWorkerAvailable) {
     throw toStructuredOriginError({
       code: "ORIGIN_HEALTH_CHECK_RUNNER_NOT_FOUND",
       stage: "PRECHECK",
-      message: `No health-check runner is available. Worker: ${normalizedWorkerExecutablePath || "(none)"}`,
+      message:
+        `No health-check runner is available. Worker: ${normalizedWorkerExecutablePath || "(none)"}; ` +
+        `Script: ${workerScriptPath || "(none)"}`,
       originExe: normalizedOriginExePath,
     });
   }
@@ -258,32 +324,59 @@ export async function runOriginHealthCheck({
   let workerResult = null;
   let runnerKind = null;
   let runnerExecutable = null;
+  let scriptStartUnavailable = false;
 
-  try {
-    workerResult = await runNativeCsvWorker(
-      normalizedWorkerExecutablePath,
-      healthCheckWorkerArgs,
-      { windowsHide: true },
-    );
-    runnerKind = "native";
-    runnerExecutable = workerResult.executable;
-  } catch (error) {
-    throw toStructuredOriginError({
-      code: "ORIGIN_HEALTH_CHECK_RUNNER_FAILED",
-      stage: "HEALTH_CHECK_NATIVE_RUNNER",
-      message:
-        error?.message ||
-        "Failed to run Origin health-check native worker executable.",
-      logPath,
-      originExe: normalizedOriginExePath,
-    });
+  if (scriptWorkerAvailable) {
+    try {
+      workerResult = await runPythonWorker(workerScriptPath, healthCheckWorkerArgs);
+      runnerKind = "python";
+      runnerExecutable = workerResult.executable;
+    } catch (error) {
+      const pythonMissing = error?.code === "ENOENT";
+      const moduleMissing = error?.code === "PY_MODULE_MISSING";
+      if (!nativeWorkerAvailable || (!pythonMissing && !moduleMissing)) {
+        throw buildHealthCheckPythonRunnerStartError(error, {
+          logPath,
+          originExe: normalizedOriginExePath,
+        });
+      }
+      scriptStartUnavailable = true;
+    }
+  }
+
+  if (!workerResult && nativeWorkerAvailable) {
+    try {
+      workerResult = await runNativeCsvWorker(
+        normalizedWorkerExecutablePath,
+        healthCheckWorkerArgs,
+        {
+          cwd: workDir,
+          env: buildNativeWorkerEnv(workDir),
+          windowsHide: true,
+        },
+      );
+      runnerKind = "native";
+      runnerExecutable = workerResult.executable;
+    } catch (error) {
+      throw buildNativeRunnerStartError(error, {
+        code: "ORIGIN_HEALTH_CHECK_RUNNER_FAILED",
+        logPath,
+        originExe: normalizedOriginExePath,
+        stage: "HEALTH_CHECK_NATIVE_RUNNER",
+        message: "Failed to run Origin health-check native worker executable.",
+      });
+    }
   }
 
   if (!workerResult) {
     throw toStructuredOriginError({
-      code: "ORIGIN_HEALTH_CHECK_RUNNER_NOT_FOUND",
+      code: scriptStartUnavailable
+        ? "ORIGIN_HEALTH_CHECK_RUNNER_FAILED"
+        : "ORIGIN_HEALTH_CHECK_RUNNER_NOT_FOUND",
       stage: "PRECHECK",
-      message: "No available runner could be started for Origin health check.",
+      message: scriptStartUnavailable
+        ? "Python-based Origin health-check runner is unavailable, and no native runner could be started."
+        : "No available runner could be started for Origin health check.",
       logPath,
       originExe: normalizedOriginExePath,
     });
@@ -297,7 +390,10 @@ export async function runOriginHealthCheck({
       workerResult,
       logPath,
       workerErrorPayload,
-      fallbackStage: "HEALTH_CHECK_NATIVE_RUNNER",
+      fallbackStage:
+        runnerKind === "python"
+          ? "HEALTH_CHECK_PYTHON_RUNNER"
+          : "HEALTH_CHECK_NATIVE_RUNNER",
       fallbackCode: "ORIGIN_HEALTH_CHECK_FAILED",
       fallbackMessage:
         workerErrorRaw ||
@@ -321,4 +417,3 @@ export async function runOriginHealthCheck({
     runnerExecutable,
   };
 }
-

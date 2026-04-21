@@ -701,6 +701,7 @@ async function handleOriginHealthCheck(event, payload) {
   try {
     return await runOriginHealthCheck({
       originExePath,
+      workerScriptPath: ORIGIN_CSV_SCRIPT_PATH,
       workerExecutablePath: ORIGIN_CSV_WORKER_PATH,
       runtimeRootDir: getDeviceAnalysisHomeDir(),
     });

@@ -10,6 +10,7 @@ export type RunProcessResult = {
 
 export type RunProcessOptions = {
   cwd?: string;
+  env?: NodeJS.ProcessEnv;
   windowsHide?: boolean;
   [key: string]: unknown;
 };
@@ -61,10 +62,12 @@ export function runProcess(
   return new Promise<RunProcessResult>((resolve, reject) => {
     const runOptions = options && typeof options === "object" ? options : {};
     const cwd = Reflect.get(runOptions, "cwd");
+    const env = Reflect.get(runOptions, "env");
     const windowsHide = Reflect.get(runOptions, "windowsHide");
 
     const child = spawn(exePath, args, {
       cwd: typeof cwd === "string" && cwd ? cwd : undefined,
+      env: env && typeof env === "object" ? env as NodeJS.ProcessEnv : process.env,
       windowsHide: windowsHide !== false,
       stdio: ["ignore", "pipe", "pipe"],
     });

@@ -1,4 +1,4 @@
-from .origin_session import run_command_list, run_labtalk_or_raise
+from .origin_session import lt_exec, run_command_list, run_labtalk_or_raise
 
 
 def escape_labtalk_path(path_value: str) -> str:
@@ -28,6 +28,62 @@ def normalize_origin_short_name(name_value: str, fallback_prefix: str = "CDX") -
     return text[:21]
 
 
+def log_origin_warning(warning_logger, message: str) -> None:
+    if callable(warning_logger):
+        try:
+            warning_logger(message)
+        except Exception:
+            pass
+
+
+def try_set_origin_long_name_via_object(op_module, target: str, value: str) -> bool:
+    finder_name = "find_book" if target == "book" else "find_sheet"
+    finder = getattr(op_module, finder_name, None)
+    if not callable(finder):
+        return False
+    obj = finder("w")
+    if obj is None:
+        return False
+    obj.lname = value
+    return True
+
+
+def try_set_origin_long_name(
+    op_module,
+    target: str,
+    value: str,
+    warning_logger=None,
+    label_prefix: str = "CSV import",
+) -> None:
+    normalized_value = normalize_origin_display_text(value)
+    if not normalized_value:
+        return
+
+    try:
+        if try_set_origin_long_name_via_object(op_module, target, normalized_value):
+            return
+    except Exception as exc:
+        log_origin_warning(
+            warning_logger,
+            f"{label_prefix} warning: failed to set {target} long name via originpro object API: {exc!r}",
+        )
+
+    command_prefix = "page.longname$" if target == "book" else "wks.lname$"
+    escaped_value = escape_labtalk_text(normalized_value)
+    try:
+        result = lt_exec(op_module, f'{command_prefix}="{escaped_value}";')
+        if result is False:
+            log_origin_warning(
+                warning_logger,
+                f"{label_prefix} warning: LabTalk returned False while setting {target} long name to '{normalized_value}'.",
+            )
+    except Exception as exc:
+        log_origin_warning(
+            warning_logger,
+            f"{label_prefix} warning: failed to set {target} long name via LabTalk fallback: {exc!r}",
+        )
+
+
 def run_csv_import(
     op_module,
     csv_path,
@@ -38,6 +94,7 @@ def run_csv_import(
     import_pre_commands=None,
     import_post_commands=None,
     label_prefix: str = "CSV import",
+    warning_logger=None,
 ):
     csv_lt = escape_labtalk_path(str(csv_path))
     normalized_import_mode = str(import_mode or "new-book").strip().lower()
@@ -74,17 +131,19 @@ def run_csv_import(
         f"{label_prefix} failed at impCSV",
     )
     if workbook_long_name:
-        title = escape_labtalk_text(workbook_long_name)
-        run_labtalk_or_raise(
+        try_set_origin_long_name(
             op_module,
-            f'page.longname$="{title}";',
-            f"{label_prefix} failed at setting workbook title",
+            "book",
+            workbook_long_name,
+            warning_logger=warning_logger,
+            label_prefix=label_prefix,
         )
     if sheet_long_name:
-        sheet_title = escape_labtalk_text(sheet_long_name)
-        run_labtalk_or_raise(
+        try_set_origin_long_name(
             op_module,
-            f'wks.lname$="{sheet_title}";',
-            f"{label_prefix} failed at setting worksheet title",
+            "sheet",
+            sheet_long_name,
+            warning_logger=warning_logger,
+            label_prefix=label_prefix,
         )
     run_command_list(op_module, import_post_commands or [], "Import post-command")

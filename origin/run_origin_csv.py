@@ -3,6 +3,10 @@ import argparse
 import csv
 import json
 import math
+import os
+import platform
+import sys
+import traceback
 from datetime import datetime
 from pathlib import Path
 
@@ -218,6 +222,18 @@ class CsvContext:
         with self.log_path.open("a", encoding="utf-8") as file_obj:
             file_obj.write(line + "\n")
 
+    def log_exception(self, label: str, exc: Exception) -> None:
+        self.log(f"{label}: {type(exc).__name__}: {exc!r}")
+        try:
+            trace = "".join(
+                traceback.format_exception(type(exc), exc, exc.__traceback__)
+            ).strip()
+        except Exception:
+            trace = repr(exc)
+        if trace:
+            for line in trace.splitlines():
+                self.log(f"{label} traceback: {line}")
+
     def write_error(
         self,
         code: str,
@@ -233,8 +249,23 @@ class CsvContext:
             "hresult": extract_hresult(exc) if exc else None,
             "originExe": self.origin_exe,
             "logPath": str(self.log_path),
+            "workDir": str(self.work_dir),
+            "cwd": os.getcwd(),
+            "pythonExecutable": sys.executable,
+            "pythonVersion": sys.version,
+            "platform": platform.platform(),
             "timestamp": to_iso_now(),
         }
+        if exc is not None:
+            payload.update(
+                {
+                    "exceptionType": type(exc).__name__,
+                    "exceptionRepr": repr(exc),
+                    "traceback": "".join(
+                        traceback.format_exception(type(exc), exc, exc.__traceback__)
+                    ).strip(),
+                }
+            )
         if isinstance(extra, dict):
             payload.update(extra)
         self.error_path.write_text(
@@ -244,6 +275,8 @@ class CsvContext:
         self.log(f"ERROR [{payload['stage']}] {payload['code']}: {payload['message']}")
         if payload.get("hresult"):
             self.log(f"HRESULT: {payload['hresult']}")
+        if exc is not None:
+            self.log_exception(f"ERROR [{payload['stage']}]", exc)
         raise SystemExit(1)
 
 
@@ -407,6 +440,13 @@ def main():
 
     try:
         ctx.log(f"Plot command: {plot_command}")
+        ctx.log(
+            "Import target: "
+            f"mode={args.import_mode}, "
+            f"workbookKey={args.workbook_key!r}, "
+            f"workbookName={effective_workbook_name!r}, "
+            f"sheetName={requested_sheet_name!r}"
+        )
         if capabilities:
             ctx.log("Capabilities v1 detected.")
         ctx.log(f"Running CSV import via originpro: {csv_path}")
@@ -422,6 +462,7 @@ def main():
             import_pre_commands=capability_plan.import_pre_commands,
             import_post_commands=capability_plan.import_post_commands,
             label_prefix="CSV import",
+            warning_logger=ctx.log,
         )
         run_plot_pipeline(
             op_module,
