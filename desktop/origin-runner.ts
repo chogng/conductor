@@ -11,5 +11,6 @@ export { pickOriginExecutable } from "./origin-runner/picker.js";
 export { runOriginRuntimeCleanup } from "./origin-runner/runtime.js";
 export {
   runOriginCsvJob,
+  runOriginCsvBatchJob,
   runOriginHealthCheck,
 } from "./origin-runner/jobs.js";

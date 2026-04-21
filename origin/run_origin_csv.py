@@ -280,12 +280,219 @@ class CsvContext:
         raise SystemExit(1)
 
 
+def _coerce_text(value, default: str = "") -> str:
+    if isinstance(value, str):
+        text = value.strip()
+        return text if text else default
+    return default
+
+
+def _coerce_int(value, default: int) -> int:
+    try:
+        return int(value)
+    except Exception:
+        return default
+
+
+def _coerce_float(value, default: float) -> float:
+    try:
+        return float(value)
+    except Exception:
+        return default
+
+
+def _normalize_command_list(value) -> list[str]:
+    if isinstance(value, str):
+        return [line.strip() for line in value.splitlines() if line and line.strip()]
+    if isinstance(value, list):
+        return [item.strip() for item in value if isinstance(item, str) and item.strip()]
+    return []
+
+
+def load_batch_jobs(batch_jobs_path: Path) -> list[dict]:
+    try:
+        raw_text = batch_jobs_path.read_text(encoding="utf-8-sig")
+    except Exception as exc:
+        raise RuntimeError(f"Failed to read batch jobs file: {exc}") from exc
+
+    try:
+        payload = json.loads(raw_text or "{}")
+    except Exception as exc:
+        raise RuntimeError(f"Invalid batch jobs JSON: {exc}") from exc
+
+    if not isinstance(payload, dict):
+        raise RuntimeError("Batch jobs payload must be an object.")
+
+    jobs = payload.get("jobs")
+    if not isinstance(jobs, list) or not jobs:
+        raise RuntimeError("Batch jobs payload must contain a non-empty 'jobs' array.")
+
+    normalized_jobs: list[dict] = []
+    for idx, item in enumerate(jobs, start=1):
+        if not isinstance(item, dict):
+            raise RuntimeError(f"Batch job #{idx} must be an object.")
+
+        csv_path_value = _coerce_text(item.get("csvPath"))
+        if not csv_path_value:
+            raise RuntimeError(f"Batch job #{idx} is missing csvPath.")
+
+        raw_capabilities = item.get("capabilities")
+        if raw_capabilities is None:
+            capabilities = {}
+        elif isinstance(raw_capabilities, dict):
+            capabilities = raw_capabilities
+        else:
+            raise RuntimeError(f"Batch job #{idx} has invalid capabilities payload.")
+
+        normalized_jobs.append(
+            {
+                "csv_path": Path(csv_path_value).resolve(),
+                "import_mode": _coerce_text(item.get("importMode"), "new-book"),
+                "workbook_key": _coerce_text(item.get("workbookKey")),
+                "workbook_name": _coerce_text(item.get("workbookName")),
+                "sheet_name": _coerce_text(item.get("sheetName")),
+                "plot_type": _coerce_int(item.get("plotType"), 202),
+                "xy_pairs": _coerce_text(item.get("xyPairs"), "((1,2))"),
+                "plot_command": _coerce_text(item.get("plotCommand")),
+                "post_plot_commands": _normalize_command_list(item.get("postPlotCommands")),
+                "line_width": _coerce_float(item.get("lineWidth"), 2.0),
+                "capabilities": capabilities,
+            }
+        )
+
+    return normalized_jobs
+
+
+def build_single_job_from_args(args, csv_path: Path) -> dict:
+    return {
+        "csv_path": csv_path,
+        "import_mode": _coerce_text(args.import_mode, "new-book"),
+        "workbook_key": _coerce_text(args.workbook_key),
+        "workbook_name": _coerce_text(args.workbook_name),
+        "sheet_name": _coerce_text(args.sheet_name),
+        "plot_type": _coerce_int(args.plot_type, 202),
+        "xy_pairs": _coerce_text(args.xy_pairs, "((1,2))"),
+        "plot_command": _coerce_text(args.plot_command),
+        "post_plot_commands": _normalize_command_list(args.post_plot_command),
+        "line_width": _coerce_float(args.line_width, 2.0),
+        "capabilities": _coerce_text(args.capabilities_json),
+    }
+
+
+def resolve_job_capabilities(ctx, raw_capabilities, source_label: str):
+    try:
+        if isinstance(raw_capabilities, str):
+            capabilities = parse_capabilities_json(raw_capabilities)
+        elif raw_capabilities is None:
+            capabilities = {}
+        elif isinstance(raw_capabilities, dict):
+            capabilities = raw_capabilities
+        else:
+            raise RuntimeError("Capabilities must be a JSON string or object.")
+        capability_plan = resolve_capability_plan(capabilities)
+        return capabilities, capability_plan
+    except Exception as exc:
+        ctx.write_error(
+            code="ORIGIN_CSV_IMPORT_FAILED",
+            stage="CAPABILITIES_PARSE",
+            message=f"Failed to parse capabilities for {source_label}: {exc}",
+            exc=exc if isinstance(exc, Exception) else None,
+        )
+
+
+def run_csv_job(ctx, op_module, job: dict, job_index: int, job_count: int) -> str:
+    csv_path = job["csv_path"]
+    label_suffix = f" #{job_index}/{job_count}" if job_count > 1 else ""
+    source_label = f"batch job #{job_index}" if job_count > 1 else "single job"
+    log_prefix = f"CSV job{label_suffix}"
+    import_label_prefix = f"CSV import{label_suffix}"
+    capabilities, capability_plan = resolve_job_capabilities(
+        ctx,
+        job.get("capabilities"),
+        source_label,
+    )
+
+    requested_workbook_name = _coerce_text(job.get("workbook_name"))
+    requested_sheet_name = _coerce_text(job.get("sheet_name"))
+    effective_workbook_name = capability_plan.workbook_long_name or requested_workbook_name
+    plot_command = build_plot_command(
+        capability_plan.plot_command_override or _coerce_text(job.get("plot_command")),
+        _coerce_text(job.get("xy_pairs"), "((1,2))"),
+        _coerce_int(job.get("plot_type"), 202),
+    )
+    extra_post_plot_commands = _normalize_command_list(job.get("post_plot_commands"))
+    all_post_plot_commands = extra_post_plot_commands + capability_plan.plot_post_commands
+
+    ctx.log(f"{log_prefix} plot command: {plot_command}")
+    ctx.log(
+        f"{log_prefix} import target: "
+        f"mode={_coerce_text(job.get('import_mode'), 'new-book')}, "
+        f"workbookKey={_coerce_text(job.get('workbook_key'))!r}, "
+        f"workbookName={effective_workbook_name!r}, "
+        f"sheetName={requested_sheet_name!r}"
+    )
+    if capabilities:
+        ctx.log(f"{log_prefix} capabilities v1 detected.")
+    ctx.log(f"{log_prefix} running CSV import via originpro: {csv_path}")
+
+    run_command_list(
+        op_module,
+        capability_plan.global_pre_commands,
+        f"Global pre-command{label_suffix}",
+    )
+    actual_workbook_key = run_csv_import(
+        op_module,
+        csv_path,
+        import_mode=_coerce_text(job.get("import_mode"), "new-book"),
+        workbook_short_name=_coerce_text(job.get("workbook_key")),
+        workbook_long_name=effective_workbook_name,
+        sheet_long_name=requested_sheet_name,
+        import_pre_commands=capability_plan.import_pre_commands,
+        import_post_commands=capability_plan.import_post_commands,
+        label_prefix=import_label_prefix,
+        warning_logger=ctx.log,
+    )
+    if actual_workbook_key:
+        ctx.log(f"{log_prefix} actual workbook key: {actual_workbook_key!r}")
+    run_plot_pipeline(
+        op_module,
+        plot_command,
+        graph_pre_commands=capability_plan.graph_pre_commands,
+        plot_pre_commands=capability_plan.plot_pre_commands,
+        post_plot_commands=all_post_plot_commands,
+        plot_error_message=f"CSV plot{label_suffix} failed at plotxy",
+        line_width=_coerce_float(job.get("line_width"), 2.0),
+    )
+    axis_commands = ensure_log_y_axis_range_commands(
+        capability_plan.axis_commands,
+        csv_path,
+        ctx,
+    )
+    if axis_commands:
+        ctx.log(f"{log_prefix} axis commands: {axis_commands}")
+    apply_style_commands(op_module, capability_plan.style_commands)
+    apply_axis_commands(op_module, axis_commands)
+    run_command_list(
+        op_module,
+        capability_plan.graph_post_commands,
+        f"Graph post-command{label_suffix}",
+    )
+    run_command_list(
+        op_module,
+        capability_plan.global_post_commands,
+        f"Global post-command{label_suffix}",
+    )
+    ctx.log(f"{log_prefix} completed.")
+    return actual_workbook_key
+
+
 def parse_args():
     parser = argparse.ArgumentParser(
         description="Run Device Analysis CSV import job in Origin via originpro.",
     )
     parser.add_argument("--work-dir", required=True)
     parser.add_argument("--csv-path", default="")
+    parser.add_argument("--batch-jobs-path", default="")
     parser.add_argument("--origin-exe", required=True)
     parser.add_argument("--log-path", default="")
     parser.add_argument("--error-path", default="")
@@ -309,6 +516,7 @@ def main():
 
     work_dir = Path(args.work_dir).resolve()
     csv_path = Path(args.csv_path).resolve() if args.csv_path else None
+    batch_jobs_path = Path(args.batch_jobs_path).resolve() if args.batch_jobs_path else None
     origin_exe_path = Path(args.origin_exe).resolve()
     log_path = Path(args.log_path).resolve() if args.log_path else work_dir / "originbridge.log"
     error_path = Path(args.error_path).resolve() if args.error_path else work_dir / "error.txt"
@@ -326,7 +534,9 @@ def main():
     )
 
     ctx.log(f"WorkDir: {work_dir}")
-    if csv_path is not None:
+    if batch_jobs_path is not None:
+        ctx.log(f"BatchJobsPath: {batch_jobs_path}")
+    elif csv_path is not None:
         ctx.log(f"CsvPath: {csv_path}")
     else:
         ctx.log("CsvPath: (health-check mode)")
@@ -345,25 +555,64 @@ def main():
             stage="PRECHECK",
             message=f"Origin executable path is not a file: {origin_exe_path}",
         )
+    batch_jobs: list[dict] = []
     if not args.health_check_only:
-        if csv_path is None:
-            ctx.write_error(
-                code="ORIGIN_CSV_NOT_FOUND",
-                stage="PRECHECK",
-                message="CSV path is required.",
-            )
-        if not csv_path.exists():
-            ctx.write_error(
-                code="ORIGIN_CSV_NOT_FOUND",
-                stage="PRECHECK",
-                message=f"CSV file not found: {csv_path}",
-            )
-        if not csv_path.is_file():
-            ctx.write_error(
-                code="ORIGIN_CSV_NOT_FOUND",
-                stage="PRECHECK",
-                message=f"CSV path is not a file: {csv_path}",
-            )
+        if batch_jobs_path is not None:
+            if not batch_jobs_path.exists():
+                ctx.write_error(
+                    code="ORIGIN_CSV_NOT_FOUND",
+                    stage="PRECHECK",
+                    message=f"Batch jobs file not found: {batch_jobs_path}",
+                )
+            if not batch_jobs_path.is_file():
+                ctx.write_error(
+                    code="ORIGIN_CSV_NOT_FOUND",
+                    stage="PRECHECK",
+                    message=f"Batch jobs path is not a file: {batch_jobs_path}",
+                )
+            try:
+                batch_jobs = load_batch_jobs(batch_jobs_path)
+            except Exception as exc:
+                ctx.write_error(
+                    code="ORIGIN_CSV_IMPORT_FAILED",
+                    stage="BATCH_PARSE",
+                    message=f"Failed to parse batch jobs file: {exc}",
+                    exc=exc if isinstance(exc, Exception) else None,
+                )
+            ctx.log(f"BatchJobCount: {len(batch_jobs)}")
+            for idx, job in enumerate(batch_jobs, start=1):
+                job_csv_path = job["csv_path"]
+                if not job_csv_path.exists():
+                    ctx.write_error(
+                        code="ORIGIN_CSV_NOT_FOUND",
+                        stage="PRECHECK",
+                        message=f"Batch CSV file #{idx} not found: {job_csv_path}",
+                    )
+                if not job_csv_path.is_file():
+                    ctx.write_error(
+                        code="ORIGIN_CSV_NOT_FOUND",
+                        stage="PRECHECK",
+                        message=f"Batch CSV path #{idx} is not a file: {job_csv_path}",
+                    )
+        else:
+            if csv_path is None:
+                ctx.write_error(
+                    code="ORIGIN_CSV_NOT_FOUND",
+                    stage="PRECHECK",
+                    message="CSV path is required.",
+                )
+            if not csv_path.exists():
+                ctx.write_error(
+                    code="ORIGIN_CSV_NOT_FOUND",
+                    stage="PRECHECK",
+                    message=f"CSV file not found: {csv_path}",
+                )
+            if not csv_path.is_file():
+                ctx.write_error(
+                    code="ORIGIN_CSV_NOT_FOUND",
+                    stage="PRECHECK",
+                    message=f"CSV path is not a file: {csv_path}",
+                )
 
     op_module = get_originpro_module(
         ctx,
@@ -408,83 +657,38 @@ def main():
         )
         return 0
 
-    try:
-        capabilities = parse_capabilities_json(args.capabilities_json)
-        capability_plan = resolve_capability_plan(capabilities)
-    except Exception as exc:
-        ctx.write_error(
-            code="ORIGIN_CSV_IMPORT_FAILED",
-            stage="CAPABILITIES_PARSE",
-            message=f"Failed to parse capabilities JSON: {exc}",
-            exc=exc if isinstance(exc, Exception) else None,
-        )
-
-    requested_workbook_name = (
-        args.workbook_name.strip() if isinstance(args.workbook_name, str) else ""
+    jobs = (
+        batch_jobs
+        if batch_jobs
+        else [build_single_job_from_args(args, csv_path)]
     )
-    requested_sheet_name = (
-        args.sheet_name.strip() if isinstance(args.sheet_name, str) else ""
-    )
-    effective_workbook_name = capability_plan.workbook_long_name or requested_workbook_name
-    plot_command = build_plot_command(
-        capability_plan.plot_command_override or args.plot_command,
-        args.xy_pairs,
-        args.plot_type,
-    )
-    extra_post_plot_commands = [
-        item.strip()
-        for item in (args.post_plot_command if isinstance(args.post_plot_command, list) else [])
-        if isinstance(item, str) and item.strip()
-    ]
-    all_post_plot_commands = extra_post_plot_commands + capability_plan.plot_post_commands
 
     try:
-        ctx.log(f"Plot command: {plot_command}")
-        ctx.log(
-            "Import target: "
-            f"mode={args.import_mode}, "
-            f"workbookKey={args.workbook_key!r}, "
-            f"workbookName={effective_workbook_name!r}, "
-            f"sheetName={requested_sheet_name!r}"
-        )
-        if capabilities:
-            ctx.log("Capabilities v1 detected.")
-        ctx.log(f"Running CSV import via originpro: {csv_path}")
-
-        run_command_list(op_module, capability_plan.global_pre_commands, "Global pre-command")
-        run_csv_import(
-            op_module,
-            csv_path,
-            import_mode=args.import_mode,
-            workbook_short_name=args.workbook_key,
-            workbook_long_name=effective_workbook_name,
-            sheet_long_name=requested_sheet_name,
-            import_pre_commands=capability_plan.import_pre_commands,
-            import_post_commands=capability_plan.import_post_commands,
-            label_prefix="CSV import",
-            warning_logger=ctx.log,
-        )
-        run_plot_pipeline(
-            op_module,
-            plot_command,
-            graph_pre_commands=capability_plan.graph_pre_commands,
-            plot_pre_commands=capability_plan.plot_pre_commands,
-            post_plot_commands=all_post_plot_commands,
-            plot_error_message="CSV plot failed at plotxy",
-            line_width=args.line_width,
-        )
-        axis_commands = ensure_log_y_axis_range_commands(
-            capability_plan.axis_commands,
-            csv_path,
-            ctx,
-        )
-        if axis_commands:
-            ctx.log(f"Axis commands: {axis_commands}")
-        apply_style_commands(op_module, capability_plan.style_commands)
-        apply_axis_commands(op_module, axis_commands)
-        run_command_list(op_module, capability_plan.graph_post_commands, "Graph post-command")
-        run_command_list(op_module, capability_plan.global_post_commands, "Global post-command")
-        ctx.log("CSV plot completed.")
+        if len(jobs) > 1:
+            ctx.log(f"Running Origin CSV batch with {len(jobs)} jobs.")
+        resolved_workbook_key = ""
+        for idx, job in enumerate(jobs, start=1):
+            effective_job = dict(job)
+            if (
+                len(jobs) > 1
+                and _coerce_text(effective_job.get("import_mode"), "new-book").lower()
+                == "existing-book-new-sheet"
+                and resolved_workbook_key
+            ):
+                effective_job["workbook_key"] = resolved_workbook_key
+                ctx.log(
+                    f"CSV job #{idx}/{len(jobs)} using resolved workbook key override: "
+                    f"{resolved_workbook_key!r}"
+                )
+            actual_workbook_key = run_csv_job(
+                ctx,
+                op_module,
+                effective_job,
+                idx,
+                len(jobs),
+            )
+            if actual_workbook_key:
+                resolved_workbook_key = actual_workbook_key
     except Exception as exc:
         ctx.write_error(
             code="ORIGIN_CSV_IMPORT_FAILED",
@@ -505,9 +709,17 @@ def main():
         except Exception as exc:
             ctx.log(f"originpro detach warning: {exc}")
 
-    ctx.log("Origin CSV job completed successfully.")
+    if len(jobs) > 1:
+        ctx.log(f"Origin CSV batch completed successfully. jobCount={len(jobs)}")
+    else:
+        ctx.log("Origin CSV job completed successfully.")
     error_path.write_text("", encoding="utf-8")
-    print(json.dumps({"ok": True, "logPath": str(log_path)}, ensure_ascii=False))
+    print(
+        json.dumps(
+            {"ok": True, "logPath": str(log_path), "jobCount": len(jobs)},
+            ensure_ascii=False,
+        )
+    )
     return 0
 
 

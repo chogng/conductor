@@ -36,6 +36,127 @@ def log_origin_warning(warning_logger, message: str) -> None:
             pass
 
 
+def get_origin_book(
+    op_module,
+    short_name: str = "",
+):
+    finder = getattr(op_module, "find_book", None)
+    if not callable(finder):
+        return None
+    try:
+        if short_name:
+            return finder("w", short_name)
+        return finder("w")
+    except TypeError:
+        try:
+            return finder(short_name or "w")
+        except Exception:
+            return None
+    except Exception:
+        return None
+
+
+def get_origin_book_short_name(book) -> str:
+    if book is None:
+        return ""
+
+    try:
+        value = getattr(book, "name", "")
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    except Exception:
+        pass
+
+    obj = getattr(book, "obj", None)
+    get_name = getattr(obj, "GetName", None) if obj is not None else None
+    if callable(get_name):
+        try:
+            value = get_name()
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        except Exception:
+            pass
+
+    return ""
+
+
+def resolve_active_origin_book_short_name(op_module) -> str:
+    return get_origin_book_short_name(get_origin_book(op_module))
+
+
+def try_activate_origin_book(
+    op_module,
+    workbook_short_name: str,
+    warning_logger=None,
+    label_prefix: str = "CSV import",
+) -> str:
+    normalized_name = normalize_origin_short_name(workbook_short_name)
+    if not normalized_name:
+        return ""
+
+    book = get_origin_book(op_module, normalized_name)
+    if book is not None:
+        activate = getattr(book, "activate", None)
+        if callable(activate):
+            try:
+                activate()
+                return get_origin_book_short_name(book) or normalized_name
+            except Exception as exc:
+                log_origin_warning(
+                    warning_logger,
+                    f"{label_prefix} warning: object activation for workbook '{normalized_name}' failed: {exc!r}",
+                )
+
+    run_labtalk_or_raise(
+        op_module,
+        f"win -a {normalized_name};",
+        f"{label_prefix} failed at activating workbook",
+    )
+    return resolve_active_origin_book_short_name(op_module) or normalized_name
+
+
+def try_set_origin_book_short_name(
+    op_module,
+    workbook_short_name: str,
+    warning_logger=None,
+    label_prefix: str = "CSV import",
+) -> str:
+    normalized_name = normalize_origin_short_name(workbook_short_name)
+    if not normalized_name:
+        return ""
+
+    book = get_origin_book(op_module)
+    if book is not None:
+        try:
+            book.name = normalized_name
+            actual_name = get_origin_book_short_name(book) or normalized_name
+            if actual_name != normalized_name:
+                log_origin_warning(
+                    warning_logger,
+                    f"{label_prefix} warning: workbook short name '{normalized_name}' was adjusted to '{actual_name}'.",
+                )
+            return actual_name
+        except Exception as exc:
+            log_origin_warning(
+                warning_logger,
+                f"{label_prefix} warning: failed to set workbook short name via originpro object API: {exc!r}",
+            )
+
+    short_name = escape_labtalk_text(normalized_name)
+    run_labtalk_or_raise(
+        op_module,
+        f'page.name$="{short_name}";',
+        f"{label_prefix} failed at setting workbook short name",
+    )
+    actual_name = resolve_active_origin_book_short_name(op_module) or normalized_name
+    if actual_name != normalized_name:
+        log_origin_warning(
+            warning_logger,
+            f"{label_prefix} warning: workbook short name '{normalized_name}' was adjusted to '{actual_name}'.",
+        )
+    return actual_name
+
+
 def try_set_origin_long_name_via_object(op_module, target: str, value: str) -> bool:
     finder_name = "find_book" if target == "book" else "find_sheet"
     finder = getattr(op_module, finder_name, None)
@@ -99,12 +220,14 @@ def run_csv_import(
     csv_lt = escape_labtalk_path(str(csv_path))
     normalized_import_mode = str(import_mode or "new-book").strip().lower()
     normalized_workbook_short_name = normalize_origin_short_name(workbook_short_name)
+    actual_workbook_short_name = ""
 
     if normalized_import_mode == "existing-book-new-sheet":
-        run_labtalk_or_raise(
+        actual_workbook_short_name = try_activate_origin_book(
             op_module,
-            f"win -a {normalized_workbook_short_name};",
-            f"{label_prefix} failed at activating workbook",
+            normalized_workbook_short_name,
+            warning_logger=warning_logger,
+            label_prefix=label_prefix,
         )
         run_labtalk_or_raise(
             op_module,
@@ -118,12 +241,14 @@ def run_csv_import(
             f"{label_prefix} failed at newbook",
         )
         if workbook_short_name:
-            short_name = escape_labtalk_text(normalized_workbook_short_name)
-            run_labtalk_or_raise(
+            actual_workbook_short_name = try_set_origin_book_short_name(
                 op_module,
-                f'page.name$="{short_name}";',
-                f"{label_prefix} failed at setting workbook short name",
+                normalized_workbook_short_name,
+                warning_logger=warning_logger,
+                label_prefix=label_prefix,
             )
+        else:
+            actual_workbook_short_name = resolve_active_origin_book_short_name(op_module)
     run_command_list(op_module, import_pre_commands or [], "Import pre-command")
     run_labtalk_or_raise(
         op_module,
@@ -147,3 +272,4 @@ def run_csv_import(
             label_prefix=label_prefix,
         )
     run_command_list(op_module, import_post_commands or [], "Import post-command")
+    return resolve_active_origin_book_short_name(op_module) or actual_workbook_short_name

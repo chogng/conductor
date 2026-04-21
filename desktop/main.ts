@@ -438,6 +438,13 @@ function normalizeOriginCsvPayload(payload, plotDefaults = undefined) {
   };
 }
 
+function normalizeOriginCsvBatchPayload(payload, plotDefaults = undefined) {
+  const raw = payload && typeof payload === "object" ? payload : {};
+  const jobs = Array.isArray(raw.jobs) ? raw.jobs : [];
+  if (!jobs.length) return [];
+  return jobs.map((job) => normalizeOriginCsvPayload(job, plotDefaults));
+}
+
 function getDeviceAnalysisHomeDir() {
   return path.join(app.getPath("home"), ".device");
 }
@@ -719,38 +726,50 @@ async function handleOriginRunCsv(event, payload) {
     throw new Error("Origin integration is only available on Windows desktop.");
   }
 
-  const normalizedPayload = normalizeOriginCsvPayload(
-    payload,
-    getOriginPlotOptionsFromSettings(),
-  );
-  const {
-    csvName,
-    csvText,
-    importMode,
-    workbookKey,
-    workbookName,
-    sheetName,
-    plotType,
-    xyPairs,
-    plotCommand,
-    postPlotCommands,
-    lineWidth,
-    capabilities,
-  } =
-    normalizedPayload;
-
-  if (!csvText.trim()) {
-    throw new Error("CSV payload is missing.");
-  }
+  const plotDefaults = getOriginPlotOptionsFromSettings();
+  const normalizedBatchJobs = normalizeOriginCsvBatchPayload(payload, plotDefaults);
+  const normalizedPayload = normalizedBatchJobs.length
+    ? null
+    : normalizeOriginCsvPayload(payload, plotDefaults);
 
   const originExePath = await resolveOriginExePath(event);
   if (!originExePath) {
     throw new Error("__ORIGIN_EXE_REQUIRED__");
   }
 
-  const { runOriginCsvJob } = await loadOriginRunnerModule();
+  const { runOriginCsvBatchJob, runOriginCsvJob } = await loadOriginRunnerModule();
 
   try {
+    if (normalizedBatchJobs.length) {
+      return await runOriginCsvBatchJob({
+        jobs: normalizedBatchJobs,
+        originExePath,
+        workerScriptPath: ORIGIN_CSV_SCRIPT_PATH,
+        workerExecutablePath: ORIGIN_CSV_WORKER_PATH,
+        runtimeRootDir: getDeviceAnalysisHomeDir(),
+      });
+    }
+
+    const {
+      csvName,
+      csvText,
+      importMode,
+      workbookKey,
+      workbookName,
+      sheetName,
+      plotType,
+      xyPairs,
+      plotCommand,
+      postPlotCommands,
+      lineWidth,
+      capabilities,
+    } =
+      normalizedPayload;
+
+    if (!csvText.trim()) {
+      throw new Error("CSV payload is missing.");
+    }
+
     return await runOriginCsvJob({
       csvName,
       csvText,

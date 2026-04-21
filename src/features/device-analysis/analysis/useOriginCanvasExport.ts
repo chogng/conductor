@@ -902,7 +902,7 @@ export const useOriginCanvasExport = ({
       const shouldApplySmartYAxisRange = !hasCustomPlotCommand;
       const sharedWorkbookKey =
         result.mode === "workbookSheets" ? buildOriginWorkbookKey() : "";
-      for (const payload of result.payloads) {
+      const originCsvJobs = result.payloads.map((payload, index) => {
         const importPostCommands = buildOriginCurveLabelImportPostCommands(
           payload.curveLabels,
         );
@@ -944,13 +944,13 @@ export const useOriginCanvasExport = ({
           ...smartYRangeCommands,
         ];
 
-        await originBridge.runOriginCsv({
+        return {
           csv: {
             name: payload.csvName,
             text: payload.csvText,
           },
           importMode:
-            result.mode === "workbookSheets" && payload !== result.payloads[0]
+            result.mode === "workbookSheets" && index > 0
               ? "existing-book-new-sheet"
               : "new-book",
           workbook: {
@@ -982,7 +982,17 @@ export const useOriginCanvasExport = ({
               commands: originAxisCommands,
             },
           },
+        };
+      });
+
+      if (result.mode === "workbookSheets" && originCsvJobs.length > 1) {
+        await originBridge.runOriginCsv({
+          jobs: originCsvJobs,
         });
+      } else {
+        for (const job of originCsvJobs) {
+          await originBridge.runOriginCsv(job);
+        }
       }
 
       if (result.mode === "merged" && result.totalCanvasCount > 1) {

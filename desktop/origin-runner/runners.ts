@@ -122,6 +122,29 @@ export function buildOriginCsvWorkerArgs({
   return appendOriginCapabilitiesWorkerArgs(withPlotArgs, capabilities);
 }
 
+export function buildOriginCsvBatchWorkerArgs({
+  workDir,
+  batchJobsPath,
+  originExePath,
+  logPath,
+  errorPath,
+}) {
+  const args = [
+    "--work-dir",
+    workDir,
+    "--origin-exe",
+    originExePath,
+    "--log-path",
+    logPath,
+    "--error-path",
+    errorPath,
+    "--batch-jobs-path",
+    batchJobsPath,
+  ];
+
+  return args;
+}
+
 export async function runNativeCsvWorker(workerExecutablePath, workerArgs, options = {}) {
   if (!workerExecutablePath || !fs.existsSync(workerExecutablePath)) {
     const error = new Error(

@@ -1,7 +1,9 @@
 import fs from "node:fs";
+import path from "node:path";
 import {
   normalizeOriginExePath,
   assertOriginExePath,
+  sanitizeFileName,
 } from "./core.js";
 import {
   normalizeOriginErrorPayload,
@@ -12,6 +14,7 @@ import {
   createCsvJobPaths,
 } from "./runtime.js";
 import {
+  buildOriginCsvBatchWorkerArgs,
   buildOriginCsvWorkerArgs,
   runNativeCsvWorker,
   runPythonScriptForBatch,
@@ -113,6 +116,77 @@ async function runPythonWorker(workerScriptPath, workerArgs) {
   return runPythonScriptForBatch(workerScriptPath, workerArgs, {
     windowsHide: true,
     requiredModule: "originpro",
+  });
+}
+
+function createUniqueCsvFileName(name, usedNames, index) {
+  const original = sanitizeFileName(name || `device_analysis_origin_${index + 1}.csv`);
+  const extension = path.extname(original);
+  const base = extension ? original.slice(0, -extension.length) : original;
+  let candidate = original;
+  let counter = 2;
+  while (usedNames.has(candidate.toLowerCase())) {
+    candidate = `${base}_${counter}${extension}`;
+    counter += 1;
+  }
+  usedNames.add(candidate.toLowerCase());
+  return candidate;
+}
+
+function normalizeBatchCsvJobs(jobs, originExePath) {
+  const list = Array.isArray(jobs) ? jobs : [];
+  if (!list.length) {
+    throw toStructuredOriginError({
+      code: "ORIGIN_CSV_EMPTY",
+      stage: "PRECHECK",
+      message: "Origin CSV batch payload is empty.",
+      originExe: originExePath,
+    });
+  }
+
+  return list.map((job, index) => {
+    const source = job && typeof job === "object" ? job : {};
+    const csvName =
+      typeof source.csvName === "string" && source.csvName.trim()
+        ? source.csvName.trim()
+        : `device_analysis_origin_${index + 1}.csv`;
+    const csvText =
+      typeof source.csvText === "string" ? source.csvText : String(source.csvText || "");
+    if (!csvText.trim()) {
+      throw toStructuredOriginError({
+        code: "ORIGIN_CSV_EMPTY",
+        stage: "PRECHECK",
+        message: `CSV payload is empty for batch job #${index + 1}.`,
+        originExe: originExePath,
+      });
+    }
+
+    return {
+      csvName,
+      csvText,
+      importMode:
+        typeof source.importMode === "string" && source.importMode.trim()
+          ? source.importMode.trim()
+          : "new-book",
+      workbookKey:
+        typeof source.workbookKey === "string" ? source.workbookKey.trim() : "",
+      workbookName:
+        typeof source.workbookName === "string" ? source.workbookName.trim() : "",
+      sheetName:
+        typeof source.sheetName === "string" ? source.sheetName.trim() : "",
+      plotType: source.plotType,
+      xyPairs: typeof source.xyPairs === "string" ? source.xyPairs : "",
+      plotCommand:
+        typeof source.plotCommand === "string" ? source.plotCommand : "",
+      postPlotCommands: Array.isArray(source.postPlotCommands)
+        ? source.postPlotCommands
+        : [],
+      lineWidth: source.lineWidth,
+      capabilities:
+        source.capabilities && typeof source.capabilities === "object"
+          ? source.capabilities
+          : null,
+    };
   });
 }
 
@@ -272,6 +346,166 @@ export async function runOriginCsvJob({
     logPath,
     errorPath,
     csvPath,
+    runner: runnerKind,
+    runnerExecutable,
+    pythonExecutable: runnerKind === "python" ? runnerExecutable : null,
+  };
+}
+
+export async function runOriginCsvBatchJob({
+  jobs,
+  originExePath,
+  workerScriptPath,
+  workerExecutablePath,
+  runtimeRootDir,
+}) {
+  const normalizedOriginExePath = assertOriginExePath(originExePath);
+  const normalizedWorkerExecutablePath = normalizeOriginExePath(workerExecutablePath);
+  const nativeWorkerAvailable = Boolean(
+    normalizedWorkerExecutablePath && fs.existsSync(normalizedWorkerExecutablePath),
+  );
+  const scriptWorkerAvailable = Boolean(workerScriptPath && fs.existsSync(workerScriptPath));
+
+  if (!nativeWorkerAvailable && !scriptWorkerAvailable) {
+    throw toStructuredOriginError({
+      code: "ORIGIN_CSV_RUNNER_NOT_FOUND",
+      stage: "PRECHECK",
+      message:
+        `No CSV runner is available. Worker: ${normalizedWorkerExecutablePath || "(none)"}; ` +
+        `Script: ${workerScriptPath || "(none)"}`,
+      originExe: normalizedOriginExePath,
+    });
+  }
+
+  const normalizedJobs = normalizeBatchCsvJobs(jobs, normalizedOriginExePath);
+  const { jobDir, workDir, logPath, errorPath } = createCsvJobPaths(
+    normalizedJobs[0]?.csvName || "device_analysis_origin.csv",
+    {
+      runtimeRootDir,
+    },
+  );
+  const manifestPath = path.join(workDir, "batch-jobs.json");
+  const usedCsvNames = new Set();
+  const manifestJobs = normalizedJobs.map((job, index) => {
+    const csvFileName = createUniqueCsvFileName(job.csvName, usedCsvNames, index);
+    const csvPath = path.join(jobDir, csvFileName);
+    fs.writeFileSync(csvPath, job.csvText, "utf8");
+    return {
+      csvPath,
+      importMode: job.importMode,
+      workbookKey: job.workbookKey,
+      workbookName: job.workbookName,
+      sheetName: job.sheetName,
+      plotType: job.plotType,
+      xyPairs: job.xyPairs,
+      plotCommand: job.plotCommand,
+      postPlotCommands: job.postPlotCommands,
+      lineWidth: job.lineWidth,
+      capabilities: job.capabilities,
+    };
+  });
+  fs.writeFileSync(
+    manifestPath,
+    JSON.stringify({ jobs: manifestJobs }, null, 2),
+    "utf8",
+  );
+
+  const workerArgs = buildOriginCsvBatchWorkerArgs({
+    workDir,
+    batchJobsPath: manifestPath,
+    originExePath: normalizedOriginExePath,
+    logPath,
+    errorPath,
+  });
+
+  let workerResult = null;
+  let runnerExecutable = null;
+  let runnerKind = null;
+  let scriptStartUnavailable = false;
+
+  if (scriptWorkerAvailable) {
+    try {
+      workerResult = await runPythonWorker(workerScriptPath, workerArgs);
+      runnerKind = "python";
+      runnerExecutable = workerResult.executable;
+    } catch (error) {
+      const pythonMissing = error?.code === "ENOENT";
+      const moduleMissing = error?.code === "PY_MODULE_MISSING";
+      if (!nativeWorkerAvailable || (!pythonMissing && !moduleMissing)) {
+        throw buildPythonRunnerStartError(error, {
+          logPath,
+          originExe: normalizedOriginExePath,
+        });
+      }
+      scriptStartUnavailable = true;
+    }
+  }
+
+  if (!workerResult && nativeWorkerAvailable) {
+    try {
+      workerResult = await runNativeCsvWorker(
+        normalizedWorkerExecutablePath,
+        workerArgs,
+        {
+          cwd: workDir,
+          env: buildNativeWorkerEnv(workDir),
+          windowsHide: true,
+        },
+      );
+      runnerKind = "native";
+      runnerExecutable = workerResult.executable;
+    } catch (error) {
+      throw buildNativeRunnerStartError(error, {
+        code: "ORIGIN_CSV_RUNNER_FAILED",
+        logPath,
+        originExe: normalizedOriginExePath,
+        stage: "NATIVE_RUNNER",
+        message: "Failed to run Origin CSV native worker executable.",
+      });
+    }
+  }
+
+  if (!workerResult) {
+    throw toStructuredOriginError({
+      code: scriptStartUnavailable
+        ? "ORIGIN_CSV_RUNNER_FAILED"
+        : "ORIGIN_CSV_RUNNER_NOT_FOUND",
+      stage: "PRECHECK",
+      message: scriptStartUnavailable
+        ? "Python-based Origin CSV runner is unavailable, and no native runner could be started."
+        : "No available runner could be started for Origin CSV batch job.",
+      logPath,
+      originExe: normalizedOriginExePath,
+    });
+  }
+
+  const { workerErrorPayload, workerErrorRaw } =
+    readWorkerErrorFiles(workDir, parseWorkerErrorPayload);
+
+  if (workerResult.code !== 0) {
+    throw buildWorkerFailureError({
+      workerResult,
+      logPath,
+      workerErrorPayload,
+      fallbackStage: runnerKind === "python" ? "CSV_PYTHON_RUNNER" : "CSV_NATIVE_RUNNER",
+      fallbackCode: "ORIGIN_CSV_FAILED",
+      fallbackMessage:
+        workerErrorRaw ||
+        workerResult.stderr ||
+        workerResult.stdout ||
+        "Origin CSV batch run failed.",
+      originExe: normalizedOriginExePath,
+    });
+  }
+
+  return {
+    ok: true,
+    jobDir,
+    workDir,
+    logPath,
+    errorPath,
+    batchJobCount: manifestJobs.length,
+    manifestPath,
     runner: runnerKind,
     runnerExecutable,
     pythonExecutable: runnerKind === "python" ? runnerExecutable : null,
