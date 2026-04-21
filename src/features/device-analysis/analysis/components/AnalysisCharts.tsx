@@ -1,5 +1,5 @@
 import React, { startTransition, useEffect, useMemo, useRef, useState, type CSSProperties, } from "react";
-import { Check } from "lucide-react";
+import { Check, X } from "lucide-react";
 import { computeCentralDerivative, computeSubthresholdSwing, computeSubthresholdSwingFitAuto, computeSubthresholdSwingFitInIdWindow, computeSubthresholdSwingFitInRange, classifySsFit, computeLegendDerivativeSeries, formatNumber, resolveAutoSsSelection, } from "../lib/analysisMath";
 import { apiService } from "../services/apiService";
 import Select from "../../../../components/ui/Select";
@@ -345,11 +345,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         setYUnit((prev: any) => (prev === nextUnit ? prev : nextUnit));
     }, [activeFile?.fileId, activeFile?.yUnit]);
     const {
-        activeOriginSeries,
         clearOriginCanvasSelection,
-        clearAllOriginSeriesSelections,
-        collectMatchingOriginSeriesAcrossFiles,
-        clearOriginSeriesSelectionForActiveFile,
         clearOriginSeriesSelectionForFile,
         curveExportMode: resolvedCurveExportMode,
         getSelectedOriginSeriesKeySetForFile,
@@ -358,7 +354,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         replaceOriginCanvasSelection,
         originExportMode: resolvedOriginExportMode,
         scopedOriginCanvasKeySet,
-        selectAllOriginSeriesForActiveFile,
         selectAllOriginSeriesForFile,
         selectedOriginCanvasKeySet,
         selectedOriginSeriesCountByFile,
@@ -386,12 +381,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         tLoose,
         visibleOriginCanvasIds: overviewVisibleFileIds,
     });
-    const currentCollectedSeriesCount = useMemo(() => {
-        const fileKey = String(activeFile?.fileId ?? "");
-        if (!fileKey)
-            return 0;
-        return Number(selectedOriginSeriesCountByFile?.[fileKey] ?? 0);
-    }, [activeFile?.fileId, selectedOriginSeriesCountByFile]);
     const selectedCanvasCount = selectedOriginCanvasKeySet?.size ?? 0;
     const isManualCanvasScope = originCanvasExportScope === "selected";
     const isExportListCanvasSelectionMode = originCanvasExportScope === "selected";
@@ -521,60 +510,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         setOriginCanvasExportScope("selected");
         replaceOriginCanvasSelection(overviewVisibleFileIds);
     }, [overviewVisibleFileIds, replaceOriginCanvasSelection]);
-    const focusedOriginSeries = useMemo(() => {
-        if (!focusedSeriesId)
-            return null;
-        const list = Array.isArray(activeFile?.series) ? activeFile.series : [];
-        return list.find((series: any) => series?.id === focusedSeriesId) ?? null;
-    }, [activeFile?.series, focusedSeriesId]);
-    const focusedOriginSeriesDisplayLabel = useMemo(() => {
-        const legendValue = focusedOriginSeries?.legendValue;
-        if (legendValue !== null &&
-            legendValue !== undefined &&
-            String(legendValue).trim()) {
-            return String(legendValue).trim();
-        }
-        const name = String(focusedOriginSeries?.name ?? "").trim();
-        return name || t("da_auto_template_summary_none");
-    }, [focusedOriginSeries?.legendValue, focusedOriginSeries?.name, t]);
-    const handleCollectMatchingLegendAcrossFilteredFiles = React.useCallback(() => {
-        if (resolvedOriginExportMode !== "merged")
-            return;
-        if (!focusedSeriesId) {
-            showToast(t("da_origin_collection_match_filtered_pick_curve"), "warning");
-            return;
-        }
-        const result = collectMatchingOriginSeriesAcrossFiles({
-            fileIds: overviewVisibleFileIds,
-            sourceSeriesId: focusedSeriesId,
-        });
-        if (result.matchedSeriesCount <= 0) {
-            showToast(t("da_origin_collection_match_filtered_no_match", {
-                label: focusedOriginSeriesDisplayLabel,
-            }), "warning");
-            return;
-        }
-        if (result.addedSeriesCount <= 0) {
-            showToast(t("da_origin_collection_match_filtered_already_added", {
-                label: focusedOriginSeriesDisplayLabel,
-                files: result.matchedFileCount,
-            }), "info");
-            return;
-        }
-        showToast(t("da_origin_collection_match_filtered_success", {
-            curves: result.addedSeriesCount,
-            files: result.addedFileCount,
-            label: focusedOriginSeriesDisplayLabel,
-        }), "success");
-    }, [
-        collectMatchingOriginSeriesAcrossFiles,
-        focusedOriginSeriesDisplayLabel,
-        focusedSeriesId,
-        overviewVisibleFileIds,
-        resolvedOriginExportMode,
-        showToast,
-        t,
-    ]);
     const area = useMemo(() => {
         if (areaInput === null || areaInput === undefined)
             return null;
@@ -2942,57 +2877,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                   {t("da_chart_gm_note", { label: gmUi.summaryLabel })}
                 </div>) : null}
 
-              {resolvedOriginExportMode === "merged" ? (<div className="mb-3 rounded-xl border border-border bg-bg-page/40 px-3 py-2">
-                  <div className="flex items-start justify-between gap-3 flex-wrap">
-                    <div className="min-w-0">
-                      <div className="text-xs font-semibold text-text-primary">
-                        {t("da_origin_collect_actions_title")}
-                      </div>
-                      <div className="text-[11px] text-text-secondary leading-5">
-                        {t("da_origin_collection_current_file_summary", {
-                            count: currentCollectedSeriesCount,
-                            total: activeOriginSeries.length,
-                        })}
-                      </div>
-                      {focusedSeriesId ? (<div className="text-[11px] text-text-secondary leading-5">
-                          {t("da_origin_collection_match_filtered_hint", {
-                                label: focusedOriginSeriesDisplayLabel,
-                            })}
-                        </div>) : null}
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Button
-                        variant="ghost"
-                        size="control"
-                        onClick={selectAllOriginSeriesForActiveFile}
-                        title={t("da_origin_collection_select_all_current")}
-                        aria-label={t("da_origin_collection_select_all_current")}
-                      >
-                        {t("da_origin_collection_select_all_current")}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="control"
-                        onClick={clearOriginSeriesSelectionForActiveFile}
-                        disabled={currentCollectedSeriesCount <= 0}
-                        title={t("da_origin_collection_clear_current")}
-                        aria-label={t("da_origin_collection_clear_current")}
-                      >
-                        {t("da_origin_collection_clear_current")}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="control"
-                        onClick={handleCollectMatchingLegendAcrossFilteredFiles}
-                        disabled={!focusedSeriesId || overviewVisibleFileIds.length <= 0}
-                        title={t("da_origin_collection_match_filtered")}
-                        aria-label={t("da_origin_collection_match_filtered")}
-                      >
-                        {t("da_origin_collection_match_filtered")}
-                      </Button>
-                    </div>
-                  </div>
-                </div>) : null}
               <div ref={mainChartContainerRef} className="h-[500px] min-h-[500px] flex-shrink-0">
                 {isMainChartSizeReady ? (<MainPlotChart
                     key={mainChartRenderKey}
@@ -3338,9 +3222,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                       >
                         {t("da_export_origin_zip")}
                       </Button>
-                      {resolvedOriginExportMode === "merged" ? (<Button variant="ghost" size="control" onClick={clearAllOriginSeriesSelections} disabled={selectedOriginSeriesTotalCount <= 0} title={t("da_origin_collection_clear_all")} aria-label={t("da_origin_collection_clear_all")}>
-                          {t("da_origin_collection_clear_all")}
-                        </Button>) : null}
                     </div>
                   </div>
                 </div>
@@ -3396,14 +3277,14 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                                   </span>) : null}
                               </div>
                             </button>
-                            {isExportListCanvasSelectionMode ? null : resolvedOriginExportMode === "merged" ? (<Button variant="text" size="sm" className="shrink-0 px-2 text-xs text-text-secondary hover:text-text-primary" onClick={() => {
+                            {isExportListCanvasSelectionMode ? null : resolvedOriginExportMode === "merged" ? (<Button variant="icon" size="icon" className="shrink-0 rounded-full text-text-tertiary hover:text-text-primary" onClick={() => {
                     clearOriginSeriesSelectionForFile(entry.fileId);
                 }} title={exportEntryActionLabel} aria-label={exportEntryActionLabel} hidden={resolvedCurveExportMode !== "select"}>
-                                {exportEntryActionLabel}
-                              </Button>) : isManualCanvasScope ? (<Button variant="text" size="sm" className="shrink-0 px-2 text-xs text-text-secondary hover:text-text-primary" onClick={() => {
+                                <X size={14} strokeWidth={2} />
+                              </Button>) : isManualCanvasScope ? (<Button variant="icon" size="icon" className="shrink-0 rounded-full text-text-tertiary hover:text-text-primary" onClick={() => {
                     toggleOriginCanvasSelection(entry.fileId);
                 }} title={exportEntryActionLabel} aria-label={exportEntryActionLabel}>
-                                {exportEntryActionLabel}
+                                <X size={14} strokeWidth={2} />
                               </Button>) : null}
                           </div>
                           <div className="mt-3">
