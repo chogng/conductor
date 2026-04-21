@@ -9,6 +9,7 @@ import {
 import JSZip from "jszip";
 import {
   buildDeviceAnalysisOriginOgsScript,
+  buildDeviceAnalysisOriginWorkbookOgsScript,
   DEVICE_ANALYSIS_ORIGIN_README,
   triggerDeviceAnalysisBlobDownload,
 } from "./lib/deviceAnalysisExport";
@@ -40,13 +41,18 @@ const ORIGIN_CSV_AUTO_ZIP_FALLBACK_CODES = new Set([
 export type DeviceAnalysisOriginCanvasExportScope =
   | "current"
   | "filtered"
-  | "manual"
+  | "selected"
   | "all";
+
+export type DeviceAnalysisOriginFilteredCanvasKind = "transfer" | "output";
+export type DeviceAnalysisOriginCurveExportMode = "all" | "select";
 
 type UseOriginCanvasExportOptions = {
   activeFile: any;
   axisYScale: unknown;
   canvasExportScope?: DeviceAnalysisOriginCanvasExportScope;
+  curveExportMode?: DeviceAnalysisOriginCurveExportMode;
+  filteredCanvasKind?: DeviceAnalysisOriginFilteredCanvasKind;
   effectiveActiveFileId: unknown;
   getDesktopOriginBridge: () => any;
   isWindowsDesktopShell: boolean;
@@ -90,6 +96,12 @@ const escapeOriginLabtalkText = (value: unknown): string =>
   normalizeOriginLabelText(value)
     .replace(/\\/g, "\\\\")
     .replace(/"/g, '\\"');
+
+const buildOriginWorkbookKey = (): string => {
+  const timeToken = Date.now().toString(36).toUpperCase().slice(-6);
+  const randomToken = Math.random().toString(36).slice(2, 5).toUpperCase();
+  return `CDX${timeToken}${randomToken}`.slice(0, 18);
+};
 
 const buildOriginCurveLabelImportPostCommands = (
   curveLabels: unknown,
@@ -152,7 +164,9 @@ const resolveOriginFileCurveFamily = (file: any): string | null => {
 export const useOriginCanvasExport = ({
   activeFile,
   axisYScale,
-  canvasExportScope = "manual",
+  canvasExportScope = "selected",
+  curveExportMode = "all",
+  filteredCanvasKind = "output",
   effectiveActiveFileId,
   getDesktopOriginBridge,
   isWindowsDesktopShell,
@@ -300,7 +314,11 @@ export const useOriginCanvasExport = ({
         .map((series: any) => String(series?.id ?? ""))
         .filter(Boolean);
       if (!allKeys.length) return new Set<string>();
-      const defaultToAll = resolvedOriginExportMode !== "merged";
+      if (curveExportMode === "all") {
+        return new Set(allKeys);
+      }
+      const defaultToAll =
+        curveExportMode === "select" || resolvedOriginExportMode !== "merged";
 
       const fileKey = String(file?.fileId ?? "");
       if (!fileKey) return defaultToAll ? new Set(allKeys) : new Set<string>();
@@ -320,7 +338,7 @@ export const useOriginCanvasExport = ({
 
       return new Set(filtered);
     },
-    [originSelectedSeriesIdsByFile, resolvedOriginExportMode],
+    [curveExportMode, originSelectedSeriesIdsByFile, resolvedOriginExportMode],
   );
 
   const selectedOriginSeriesKeySet = useMemo(
@@ -339,35 +357,6 @@ export const useOriginCanvasExport = ({
     return next;
   }, [getSelectedOriginSeriesKeySetForFile, originCanvasOptions]);
 
-  const selectedOriginSeriesTotalCount = useMemo(
-    () =>
-      Object.values(selectedOriginSeriesCountByFile).reduce(
-        (sum, count) => sum + Number(count || 0),
-        0,
-      ),
-    [selectedOriginSeriesCountByFile],
-  );
-
-  const selectedOriginCollectionEntries = useMemo(() => {
-    return (originCanvasOptions as Array<any>)
-      .map((item) => {
-        const fileId = String(item?.key ?? "");
-        const selectedCount = Number(selectedOriginSeriesCountByFile[fileId] ?? 0);
-        if (!fileId || selectedCount <= 0) return null;
-        return {
-          fileId,
-          fileName: String(item?.label ?? fileId),
-          selectedCount,
-        };
-      })
-      .filter(
-        (
-          item,
-        ): item is { fileId: string; fileName: string; selectedCount: number } =>
-          Boolean(item),
-      );
-  }, [originCanvasOptions, selectedOriginSeriesCountByFile]);
-
   const filteredOriginCanvasIds = useMemo(
     () =>
       (Array.isArray(visibleOriginCanvasIds) ? visibleOriginCanvasIds : [])
@@ -376,18 +365,33 @@ export const useOriginCanvasExport = ({
     [visibleOriginCanvasIds],
   );
 
-  const selectedOriginCanvasKeySet = useMemo(() => {
-    if (resolvedOriginExportMode === "merged") {
-      return new Set(Object.keys(selectedOriginSeriesCountByFile));
+  const filteredOriginCanvasKindIds = useMemo(() => {
+    const targetFamily = String(filteredCanvasKind ?? "").trim().toLowerCase();
+    if (targetFamily !== "transfer" && targetFamily !== "output") {
+      return filteredOriginCanvasIds;
     }
 
+    const visibleIdSet = new Set(filteredOriginCanvasIds);
+    return (Array.isArray(processedData) ? processedData : [])
+      .filter((file: any) => {
+        const fileId = String(file?.fileId ?? "").trim();
+        return visibleIdSet.has(fileId);
+      })
+      .filter(
+        (file: any) => resolveOriginFileCurveFamily(file) === targetFamily,
+      )
+      .map((file: any) => String(file?.fileId ?? "").trim())
+      .filter(Boolean);
+  }, [filteredCanvasKind, filteredOriginCanvasIds, processedData]);
+
+  const scopedOriginCanvasKeySet = useMemo(() => {
     if (canvasExportScope === "current") {
       const activeKey = String(effectiveActiveFileId ?? "").trim();
       return activeKey ? new Set([activeKey]) : new Set<string>();
     }
 
     if (canvasExportScope === "filtered") {
-      return new Set(filteredOriginCanvasIds);
+      return new Set(filteredOriginCanvasKindIds);
     }
 
     if (canvasExportScope === "all") {
@@ -406,10 +410,63 @@ export const useOriginCanvasExport = ({
   }, [
     canvasExportScope,
     effectiveActiveFileId,
-    filteredOriginCanvasIds,
+    filteredOriginCanvasKindIds,
     originCanvasOptions,
     originSelectedCanvasIds,
+  ]);
+
+  const selectedOriginCanvasKeySet = useMemo(() => {
+    if (resolvedOriginExportMode !== "merged") {
+      return scopedOriginCanvasKeySet;
+    }
+
+    const scopedKeys = scopedOriginCanvasKeySet;
+    const mergedKeys = Object.keys(selectedOriginSeriesCountByFile).filter((fileId) =>
+      scopedKeys.has(fileId),
+    );
+    return new Set(mergedKeys);
+  }, [
     resolvedOriginExportMode,
+    scopedOriginCanvasKeySet,
+    selectedOriginSeriesCountByFile,
+  ]);
+
+  const selectedOriginSeriesTotalCount = useMemo(
+    () =>
+      Array.from(selectedOriginCanvasKeySet).reduce(
+        (sum, fileId) => sum + Number(selectedOriginSeriesCountByFile[fileId] ?? 0),
+        0,
+      ),
+    [selectedOriginCanvasKeySet, selectedOriginSeriesCountByFile],
+  );
+
+  const selectedOriginCollectionEntries = useMemo(() => {
+    return (originCanvasOptions as Array<any>)
+      .map((item) => {
+        const fileId = String(item?.key ?? "");
+        const selectedCount = Number(selectedOriginSeriesCountByFile[fileId] ?? 0);
+        if (
+          !fileId ||
+          selectedCount <= 0 ||
+          !selectedOriginCanvasKeySet.has(fileId)
+        ) {
+          return null;
+        }
+        return {
+          fileId,
+          fileName: String(item?.label ?? fileId),
+          selectedCount,
+        };
+      })
+      .filter(
+        (
+          item,
+        ): item is { fileId: string; fileName: string; selectedCount: number } =>
+          Boolean(item),
+      );
+  }, [
+    originCanvasOptions,
+    selectedOriginCanvasKeySet,
     selectedOriginSeriesCountByFile,
   ]);
 
@@ -481,6 +538,12 @@ export const useOriginCanvasExport = ({
       if (!fileKey) return;
 
       setOriginSelectedSeriesIdsByFile((prev) => {
+        if (curveExportMode === "select") {
+          return {
+            ...(prev || {}),
+            [fileKey]: [],
+          };
+        }
         if (!prev || !(fileKey in prev)) return prev;
         if (resolvedOriginExportMode !== "merged") {
           return {
@@ -493,7 +556,7 @@ export const useOriginCanvasExport = ({
         return next;
       });
     },
-    [resolvedOriginExportMode],
+    [curveExportMode, resolvedOriginExportMode],
   );
 
   const clearAllOriginSeriesSelections = useCallback(() => {
@@ -665,6 +728,40 @@ export const useOriginCanvasExport = ({
     [activeFile?.fileId, activeOriginSeries, resolvedOriginExportMode],
   );
 
+  const toggleOriginSeriesSelectionForFile = useCallback(
+    (fileId: any, seriesId: any) => {
+      const fileKey = String(fileId ?? "").trim();
+      const targetKey = String(seriesId ?? "").trim();
+      if (!fileKey || !targetKey) return;
+
+      setOriginSelectedSeriesIdsByFile((prev) => {
+        const file = (Array.isArray(processedData) ? processedData : []).find(
+          (item: any) => String(item?.fileId ?? "") === fileKey,
+        );
+        const allKeys = (Array.isArray(file?.series) ? file.series : [])
+          .map((series: any) => String(series?.id ?? ""))
+          .filter(Boolean);
+        const live = new Set(allKeys);
+        if (!live.has(targetKey)) return prev;
+
+        const stored = prev?.[fileKey];
+        const current = Array.isArray(stored)
+          ? stored.map((item) => String(item ?? "")).filter((item) => live.has(item))
+          : [...allKeys];
+        const hasTarget = current.includes(targetKey);
+        const nextSelected = hasTarget
+          ? current.filter((item) => item !== targetKey)
+          : [...current, targetKey];
+
+        return {
+          ...(prev || {}),
+          [fileKey]: nextSelected,
+        };
+      });
+    },
+    [processedData],
+  );
+
   const buildOriginExportPayloadsForSelectedCanvases = useCallback(() => {
     if (!selectedOriginCanvases.length) {
       throw new Error(t("da_origin_select_canvas"));
@@ -700,12 +797,18 @@ export const useOriginCanvasExport = ({
     const result = buildOriginExportPayloadsForSelectedCanvases();
     const zip = new JSZip();
     zip.file("README_ORIGIN.txt", DEVICE_ANALYSIS_ORIGIN_README);
-
-    result.payloads.forEach((payload, index) => {
-      const csvName = sanitizeFilename(
+    const sanitizedPayloads = result.payloads.map((payload, index) => ({
+      csvName: sanitizeFilename(
         payload?.csvName || `device_analysis_${index + 1}.csv`,
-      );
+      ),
+      payload,
+    }));
+
+    sanitizedPayloads.forEach(({ csvName, payload }) => {
       zip.file(csvName, payload.csvText);
+      if (result.mode === "workbookSheets") {
+        return;
+      }
       zip.file(
         csvName.replace(/\.csv$/i, ".ogs"),
         buildDeviceAnalysisOriginOgsScript(
@@ -716,6 +819,22 @@ export const useOriginCanvasExport = ({
         ),
       );
     });
+
+    if (result.mode === "workbookSheets") {
+      zip.file(
+        "device_analysis_workbook.ogs",
+        buildDeviceAnalysisOriginWorkbookOgsScript(
+          sanitizedPayloads.map(({ csvName, payload }) => ({
+            csvFileName: csvName,
+            curveLabels: payload.curveLabels,
+            sheetName: payload.sheetName,
+            xyPairCount: payload.xyPairCount,
+            xyPairsExprOverride: payload.xyPairs,
+          })),
+          result.payloads[0]?.workbookName,
+        ),
+      );
+    }
 
     const zipBlob = await zip.generateAsync({
       type: "blob",
@@ -730,6 +849,10 @@ export const useOriginCanvasExport = ({
               "",
             ),
           )
+        : result.mode === "workbookSheets"
+          ? sanitizeFilename(
+              String(result.payloads[0]?.workbookName || "device_analysis_workbook"),
+            )
         : sanitizeFilename(
             `device_analysis_batch_${result.totalCanvasCount}_canvases`,
           );
@@ -777,6 +900,8 @@ export const useOriginCanvasExport = ({
       const originYAxisTypeCommand =
         originYScaleMode === "log" ? "layer.y.type=2" : "layer.y.type=1";
       const shouldApplySmartYAxisRange = !hasCustomPlotCommand;
+      const sharedWorkbookKey =
+        result.mode === "workbookSheets" ? buildOriginWorkbookKey() : "";
       for (const payload of result.payloads) {
         const importPostCommands = buildOriginCurveLabelImportPostCommands(
           payload.curveLabels,
@@ -824,8 +949,16 @@ export const useOriginCanvasExport = ({
             name: payload.csvName,
             text: payload.csvText,
           },
+          importMode:
+            result.mode === "workbookSheets" && payload !== result.payloads[0]
+              ? "existing-book-new-sheet"
+              : "new-book",
+          workbook: {
+            key: sharedWorkbookKey || undefined,
+            longName: payload.workbookName,
+          },
           sheet: {
-            longName: payload.seriesName,
+            longName: payload.sheetName,
           },
           plot: {
             command: normalizedPlotOptions.command,
@@ -857,6 +990,13 @@ export const useOriginCanvasExport = ({
           t("da_open_in_origin_combined_success", {
             curves: result.totalCurveCount,
             files: result.totalCanvasCount,
+          }),
+          "success",
+        );
+      } else if (result.mode === "workbookSheets" && result.totalCanvasCount > 1) {
+        showToast(
+          t("da_open_in_origin_workbook_sheets_success", {
+            count: result.totalCanvasCount,
           }),
           "success",
         );
@@ -897,6 +1037,14 @@ export const useOriginCanvasExport = ({
               t("da_open_in_origin_fallback_zip_success_with_reason_and_stats", {
                 curves: fallback.curveCount,
                 files: fallback.canvasCount,
+                reason: fallbackReason,
+              }),
+              "warning",
+            );
+          } else if (fallback.mode === "workbookSheets") {
+            showToast(
+              t("da_open_in_origin_fallback_zip_workbook_sheets_success_with_reason", {
+                count: fallback.canvasCount,
                 reason: fallbackReason,
               }),
               "warning",
@@ -957,6 +1105,13 @@ export const useOriginCanvasExport = ({
           }),
           "success",
         );
+      } else if (exported.mode === "workbookSheets") {
+        showToast(
+          t("da_origin_zip_export_workbook_sheets_success", {
+            count: exported.canvasCount,
+          }),
+          "success",
+        );
       } else {
         showToast(
           t("da_origin_zip_export_batch_success", {
@@ -1007,6 +1162,7 @@ export const useOriginCanvasExport = ({
     collectMatchingOriginSeriesAcrossFiles,
     clearOriginSeriesSelectionForActiveFile,
     clearOriginSeriesSelectionForFile,
+    curveExportMode,
     handleExportOriginZip,
     handleOpenInOrigin,
     originCanvasOptions,
@@ -1014,6 +1170,7 @@ export const useOriginCanvasExport = ({
     originExportMode: resolvedOriginExportMode,
     replaceOriginCanvasSelection,
     selectAllOriginSeriesForActiveFile,
+    selectAllOriginSeriesForFile,
     selectAllOriginCanvases,
     selectedOriginCollectionEntries,
     selectedOriginCanvasKeySet,
@@ -1023,5 +1180,7 @@ export const useOriginCanvasExport = ({
     selectedOriginSeriesTotalCount,
     toggleOriginCanvasSelection,
     toggleOriginSeriesSelection,
+    toggleOriginSeriesSelectionForFile,
+    getSelectedOriginSeriesKeySetForFile,
   };
 };

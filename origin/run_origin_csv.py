@@ -256,7 +256,10 @@ def parse_args():
     parser.add_argument("--origin-exe", required=True)
     parser.add_argument("--log-path", default="")
     parser.add_argument("--error-path", default="")
-    parser.add_argument("--series-name", default="")
+    parser.add_argument("--import-mode", default="new-book")
+    parser.add_argument("--workbook-key", default="")
+    parser.add_argument("--workbook-name", default="")
+    parser.add_argument("--sheet-name", default="")
     parser.add_argument("--plot-type", type=int, default=202)
     parser.add_argument("--xy-pairs", default="((1,2))")
     parser.add_argument("--plot-command", default="")
@@ -383,8 +386,13 @@ def main():
             exc=exc if isinstance(exc, Exception) else None,
         )
 
-    requested_series_name = args.series_name.strip() if isinstance(args.series_name, str) else ""
-    effective_series_name = capability_plan.workbook_long_name or requested_series_name
+    requested_workbook_name = (
+        args.workbook_name.strip() if isinstance(args.workbook_name, str) else ""
+    )
+    requested_sheet_name = (
+        args.sheet_name.strip() if isinstance(args.sheet_name, str) else ""
+    )
+    effective_workbook_name = capability_plan.workbook_long_name or requested_workbook_name
     plot_command = build_plot_command(
         capability_plan.plot_command_override or args.plot_command,
         args.xy_pairs,
@@ -407,7 +415,10 @@ def main():
         run_csv_import(
             op_module,
             csv_path,
-            workbook_long_name=effective_series_name,
+            import_mode=args.import_mode,
+            workbook_short_name=args.workbook_key,
+            workbook_long_name=effective_workbook_name,
+            sheet_long_name=requested_sheet_name,
             import_pre_commands=capability_plan.import_pre_commands,
             import_post_commands=capability_plan.import_post_commands,
             label_prefix="CSV import",

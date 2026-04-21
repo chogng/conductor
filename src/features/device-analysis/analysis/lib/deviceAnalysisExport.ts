@@ -465,6 +465,61 @@ plotxy iy:=${pairsExpr} plot:=202;
 ${legendRefreshBlock}`;
 };
 
+export const buildDeviceAnalysisOriginWorkbookOgsScript = (
+  entries: Array<{
+    csvFileName?: unknown;
+    curveLabels?: unknown;
+    sheetName?: unknown;
+    xyPairCount?: unknown;
+    xyPairsExprOverride?: unknown;
+  }> = [],
+  workbookName?: unknown,
+): string => {
+  const liveEntries = (Array.isArray(entries) ? entries : []).filter((entry) =>
+    Boolean(String(entry?.csvFileName ?? "").trim()),
+  );
+  const escapedWorkbookName = escapeOriginLabtalkText(workbookName);
+  const lines = [
+    "[Main]",
+    "// Auto import multiple Device Analysis CSV files into one Origin workbook",
+    "newbook;",
+  ];
+
+  if (escapedWorkbookName) {
+    lines.push(`page.longname$="${escapedWorkbookName}";`);
+  }
+
+  liveEntries.forEach((entry, index) => {
+    const safeCsv = String(entry?.csvFileName || `data_${index + 1}.csv`).replace(/"/g, "");
+    const normalizedPairsExpr =
+      typeof entry?.xyPairsExprOverride === "string"
+        ? entry.xyPairsExprOverride.trim()
+        : "";
+    const pairsExpr =
+      normalizedPairsExpr ||
+      buildDeviceAnalysisOriginPairsExpr(entry?.xyPairCount ?? 1);
+    const sheetTitle = escapeOriginLabtalkText(entry?.sheetName);
+    const labelCommands = buildOriginWorksheetLabelCommands(entry?.curveLabels);
+
+    if (index > 0) {
+      lines.push("newsheet;");
+    }
+    lines.push(`impCSV fname:="${safeCsv}";`);
+    if (sheetTitle) {
+      lines.push(`wks.lname$="${sheetTitle}";`);
+    }
+    if (labelCommands.length) {
+      lines.push(...labelCommands);
+    }
+    lines.push(`plotxy iy:=${pairsExpr} plot:=202;`);
+    if (labelCommands.length) {
+      lines.push("legend -r;");
+    }
+  });
+
+  return `${lines.join("\n")}\n`;
+};
+
 export const DEVICE_ANALYSIS_ORIGIN_README = `Device Analysis -> Origin package
 
 Files:

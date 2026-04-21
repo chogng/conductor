@@ -20,7 +20,9 @@ import { useAnalysisFileCache } from "../useAnalysisFileCache";
 import { useContainerSizeReady } from "../useContainerSizeReady";
 import {
   useOriginCanvasExport,
+  type DeviceAnalysisOriginFilteredCanvasKind,
   type DeviceAnalysisOriginCanvasExportScope,
+  type DeviceAnalysisOriginCurveExportMode,
 } from "../useOriginCanvasExport";
 import OverviewGrid from "./OverviewGrid";
 import CalculatedParametersRow from "./CalculatedParametersRow";
@@ -45,6 +47,15 @@ const TRANSFER_CALCULATED_PARAMETERS_COLUMN_WIDTHS_PX = [
     92, 128, 88, 128, 88, 120, 168, 88, 104, 88, 120,
 ];
 const DERIVATIVE_ONLY_CALCULATED_PARAMETERS_COLUMN_WIDTHS_PX = [92, 168, 88];
+const resolveOriginSeriesExportLabel = (series: any, index: number): string => {
+    const legendValue = String(series?.legendValue ?? "").trim();
+    if (legendValue)
+        return legendValue;
+    const name = String(series?.name ?? "").trim();
+    if (name)
+        return name;
+    return `Curve ${index + 1}`;
+};
 const toConductanceUnitLabel = (currentUnitLabel: string, denominatorUnit: string): string => {
     if (denominatorUnit !== "V")
         return `${currentUnitLabel}/${denominatorUnit}`;
@@ -107,6 +118,11 @@ type OriginCsvBridge = {
         csv: {
             name: string;
             text: string;
+        };
+        importMode?: string;
+        workbook?: {
+            key?: string;
+            longName?: string;
         };
         sheet?: {
             longName?: string;
@@ -212,6 +228,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const [showAxisControls, setShowAxisControls] = useState(false);
     const [originExportMode, setOriginExportMode] = useState<DeviceAnalysisOriginExportMode>("merged");
     const [originCanvasExportScope, setOriginCanvasExportScope] = useState<DeviceAnalysisOriginCanvasExportScope>("filtered");
+    const [originCurveExportMode, setOriginCurveExportMode] = useState<DeviceAnalysisOriginCurveExportMode>("all");
+    const [originFilteredCanvasKind, setOriginFilteredCanvasKind] = useState<DeviceAnalysisOriginFilteredCanvasKind>("output");
     const [resultsTab, setResultsTab] = useState<"metrics" | "export">("metrics");
     const [overviewVisibleFileIds, setOverviewVisibleFileIds] = useState<string[]>([]);
     const originChartXRangeRef = useRef<{ min: number; max: number; } | null>(null);
@@ -333,11 +351,14 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         collectMatchingOriginSeriesAcrossFiles,
         clearOriginSeriesSelectionForActiveFile,
         clearOriginSeriesSelectionForFile,
+        curveExportMode: resolvedCurveExportMode,
+        getSelectedOriginSeriesKeySetForFile,
         handleExportOriginZip,
         handleOpenInOrigin,
         replaceOriginCanvasSelection,
         originExportMode: resolvedOriginExportMode,
         selectAllOriginSeriesForActiveFile,
+        selectAllOriginSeriesForFile,
         selectedOriginCollectionEntries,
         selectedOriginCanvasKeySet,
         selectedOriginSeriesCountByFile,
@@ -345,10 +366,13 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         selectedOriginSeriesTotalCount,
         toggleOriginCanvasSelection,
         toggleOriginSeriesSelection,
+        toggleOriginSeriesSelectionForFile,
     } = useOriginCanvasExport({
         activeFile,
         axisYScale: axis?.yScale,
         canvasExportScope: originCanvasExportScope,
+        curveExportMode: originCurveExportMode,
+        filteredCanvasKind: originFilteredCanvasKind,
         effectiveActiveFileId,
         getDesktopOriginBridge,
         isWindowsDesktopShell,
@@ -369,7 +393,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         return Number(selectedOriginSeriesCountByFile?.[fileKey] ?? 0);
     }, [activeFile?.fileId, selectedOriginSeriesCountByFile]);
     const selectedCanvasCount = selectedOriginCanvasKeySet?.size ?? 0;
-    const isManualCanvasScope = originCanvasExportScope === "manual";
+    const isManualCanvasScope = originCanvasExportScope === "selected";
+    const isExportListCanvasSelectionMode = originCanvasExportScope === "selected";
+    const showFilteredCanvasKindSelect = originCanvasExportScope === "filtered";
     const separateCanvasScopeSummary = useMemo(() => {
         if (originCanvasExportScope === "current") {
             return t("da_origin_canvas_scope_summary_current");
@@ -377,6 +403,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         if (originCanvasExportScope === "filtered") {
             return t("da_origin_canvas_scope_summary_filtered", {
                 count: selectedCanvasCount,
+                kind: originFilteredCanvasKind === "transfer"
+                    ? t("da_origin_filtered_canvas_kind_transfer")
+                    : t("da_origin_filtered_canvas_kind_output"),
             });
         }
         if (originCanvasExportScope === "all") {
@@ -384,13 +413,15 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 count: selectedCanvasCount,
             });
         }
-        return t("da_origin_canvas_scope_summary_manual", {
+        return t("da_origin_canvas_scope_summary_selected", {
             count: selectedCanvasCount,
         });
-    }, [originCanvasExportScope, selectedCanvasCount, t]);
-    const originExportModeHint = resolvedOriginExportMode === "separate"
-        ? t("da_origin_export_mode_separate_hint")
-        : t("da_origin_export_mode_merged_hint");
+    }, [originCanvasExportScope, originFilteredCanvasKind, selectedCanvasCount, t]);
+    const originExportModeHint = resolvedOriginExportMode === "workbookSheets"
+        ? t("da_origin_export_mode_workbook_sheets_hint")
+        : resolvedOriginExportMode === "separate"
+            ? t("da_origin_export_mode_separate_hint")
+            : t("da_origin_export_mode_merged_hint");
     const exportSelectionSummary = resolvedOriginExportMode === "merged"
         ? t("da_origin_collection_summary", {
             curves: selectedOriginSeriesTotalCount,
@@ -398,28 +429,61 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         })
         : separateCanvasScopeSummary;
     const exportListEntries = useMemo(() => {
-        if (resolvedOriginExportMode === "merged") {
+        if (resolvedOriginExportMode === "merged" && !isExportListCanvasSelectionMode) {
             return selectedOriginCollectionEntries;
         }
         const selectedFileIds = selectedOriginCanvasKeySet ?? new Set<string>();
         return (Array.isArray(processedData) ? processedData : [])
             .map((file: any) => {
             const fileId = String(file?.fileId ?? "");
-            if (!fileId || !selectedFileIds.has(fileId))
+            if (!fileId)
+                return null;
+            if (!isExportListCanvasSelectionMode && !selectedFileIds.has(fileId))
                 return null;
             const selectedCount = Number(selectedOriginSeriesCountByFile?.[fileId] ?? 0);
+            const selectedSeriesKeySet = getSelectedOriginSeriesKeySetForFile(file);
+            const series = (Array.isArray(file?.series) ? file.series : [])
+                .map((series: any, index: number) => {
+                const key = String(series?.id ?? "");
+                if (!key)
+                    return null;
+                return {
+                    key,
+                    label: resolveOriginSeriesExportLabel(series, index),
+                    selected: resolvedCurveExportMode === "all"
+                        ? true
+                        : selectedSeriesKeySet.has(key),
+                };
+            })
+                .filter((series: any): series is {
+                key: string;
+                label: string;
+                selected: boolean;
+            } => Boolean(series));
             return {
                 fileId,
                 fileName: String(file?.fileName ?? fileId),
+                isCanvasSelected: selectedFileIds.has(fileId),
                 selectedCount,
+                allSeriesSelected: series.length > 0 && series.every((item: any) => item.selected),
+                series,
             };
         })
             .filter((entry): entry is {
             fileId: string;
             fileName: string;
+            isCanvasSelected: boolean;
             selectedCount: number;
+            allSeriesSelected: boolean;
+            series: Array<{
+                key: string;
+                label: string;
+                selected: boolean;
+            }>;
         } => Boolean(entry));
     }, [
+        getSelectedOriginSeriesKeySetForFile,
+        isExportListCanvasSelectionMode,
         processedData,
         resolvedOriginExportMode,
         selectedOriginCanvasKeySet,
@@ -432,9 +496,11 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const exportListEmptyText = resolvedOriginExportMode === "merged"
         ? t("da_origin_collection_empty")
         : t("da_origin_export_selection_empty");
-    const exportModeBadgeLabel = resolvedOriginExportMode === "merged"
-        ? t("da_origin_export_mode_badge_merged")
-        : t("da_origin_export_mode_badge_separate");
+    const exportModeBadgeLabel = resolvedOriginExportMode === "workbookSheets"
+        ? t("da_origin_export_mode_badge_workbook_sheets")
+        : resolvedOriginExportMode === "merged"
+            ? t("da_origin_export_mode_badge_merged")
+            : t("da_origin_export_mode_badge_separate");
     const exportEntryActionLabel = resolvedOriginExportMode === "merged"
         ? t("da_origin_export_list_remove_merged")
         : t("da_origin_export_list_remove_separate");
@@ -447,7 +513,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             .catch(() => { });
     }, []);
     const handleUseFilteredCanvasSelection = React.useCallback(() => {
-        setOriginCanvasExportScope("manual");
+        setOriginCanvasExportScope("selected");
         replaceOriginCanvasSelection(overviewVisibleFileIds);
     }, [overviewVisibleFileIds, replaceOriginCanvasSelection]);
     const focusedOriginSeries = useMemo(() => {
@@ -2988,7 +3054,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 <h3 className="text-sm font-semibold text-text-primary">
                   {t("da_analysis_results_title")}
                 </h3>
-                <Tabs idBase="device-analysis-results-tabs" value={resultsTab} onChange={(next) => setResultsTab(next === "export" ? "export" : "metrics")} size="sm" hoverPreview={false} groupLabel={t("da_analysis_results_title")} options={[
+                <Tabs idBase="device-analysis-results-tabs" value={resultsTab} onChange={(next) => setResultsTab(next === "export" ? "export" : "metrics")} size="sm" hoverPreview={false} groupLabel={t("da_analysis_results_title")} itemClassName="!px-3" options={[
                 {
                     value: "metrics",
                     label: t("da_analysis_results_tab_metrics"),
@@ -3117,11 +3183,19 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         id="device-analysis-origin-export-mode-select"
                         size="md"
                         value={resolvedOriginExportMode}
-                        onChange={(next: any) => handleOriginExportModeChange(next === "separate" ? "separate" : "merged")}
+                        onChange={(next: any) => handleOriginExportModeChange(next === "workbookSheets"
+                            ? "workbookSheets"
+                            : next === "separate"
+                                ? "separate"
+                                : "merged")}
                         options={[
                         {
                             value: "merged",
                             label: t("da_origin_export_mode_merged"),
+                        },
+                        {
+                            value: "workbookSheets",
+                            label: t("da_origin_export_mode_workbook_sheets"),
                         },
                         {
                             value: "separate",
@@ -3134,46 +3208,98 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         data-cta-position="export-pane"
                         data-cta-copy="origin export mode"
                       />
-                      {resolvedOriginExportMode === "separate" ? (<>
+                      <span className="text-xs text-text-secondary whitespace-nowrap">
+                        {t("da_origin_canvas_scope_label")}
+                      </span>
+                      <Select
+                        id="device-analysis-origin-canvas-scope-select"
+                        size="md"
+                        value={originCanvasExportScope}
+                        onChange={(next: any) => {
+                        const normalizedScope = next === "current" ||
+                            next === "filtered" ||
+                            next === "selected" ||
+                            next === "all"
+                            ? next
+                            : "filtered";
+                        setOriginCanvasExportScope(normalizedScope);
+                    }}
+                        options={[
+                        {
+                            value: "all",
+                            label: t("da_origin_canvas_scope_all"),
+                        },
+                        {
+                            value: "current",
+                            label: t("da_origin_canvas_scope_current"),
+                        },
+                        {
+                            value: "filtered",
+                            label: t("da_origin_canvas_scope_filtered"),
+                        },
+                        {
+                            value: "selected",
+                            label: t("da_origin_canvas_scope_selected"),
+                        },
+                    ]}
+                        className="w-fit da-neutral-select"
+                        stableWidth
+                        data-cta="Device Analysis"
+                        data-cta-position="export-pane"
+                        data-cta-copy="origin canvas export scope"
+                      />
+                      <span className="text-xs text-text-secondary whitespace-nowrap">
+                        {t("da_origin_curve_export_mode_label")}
+                      </span>
+                      <Select
+                        id="device-analysis-origin-curve-export-mode-select"
+                        size="md"
+                        value={resolvedCurveExportMode}
+                        onChange={(next: any) => {
+                        setOriginCurveExportMode(next === "select" ? "select" : "all");
+                    }}
+                        options={[
+                        {
+                            value: "all",
+                            label: t("da_origin_curve_export_mode_all"),
+                        },
+                        {
+                            value: "select",
+                            label: t("da_origin_curve_export_mode_select"),
+                        },
+                    ]}
+                        className="w-fit da-neutral-select"
+                        stableWidth
+                        data-cta="Device Analysis"
+                        data-cta-position="export-pane"
+                        data-cta-copy="origin curve export mode"
+                      />
+                      {showFilteredCanvasKindSelect ? (<>
                           <span className="text-xs text-text-secondary whitespace-nowrap">
-                            {t("da_origin_canvas_scope_label")}
+                            {t("da_origin_filtered_canvas_kind_label")}
                           </span>
                           <Select
-                            id="device-analysis-origin-canvas-scope-select"
+                            id="device-analysis-origin-filtered-canvas-kind-select"
                             size="md"
-                            value={originCanvasExportScope}
+                            value={originFilteredCanvasKind}
                             onChange={(next: any) => {
-                            const normalizedScope = next === "current" ||
-                                next === "filtered" ||
-                                next === "manual" ||
-                                next === "all"
-                                ? next
-                                : "filtered";
-                            setOriginCanvasExportScope(normalizedScope);
+                            setOriginFilteredCanvasKind(next === "transfer" ? "transfer" : "output");
                         }}
                             options={[
                             {
-                                value: "current",
-                                label: t("da_origin_canvas_scope_current"),
+                                value: "transfer",
+                                label: t("da_origin_filtered_canvas_kind_transfer"),
                             },
                             {
-                                value: "filtered",
-                                label: t("da_origin_canvas_scope_filtered"),
-                            },
-                            {
-                                value: "manual",
-                                label: t("da_origin_canvas_scope_manual"),
-                            },
-                            {
-                                value: "all",
-                                label: t("da_origin_canvas_scope_all"),
+                                value: "output",
+                                label: t("da_origin_filtered_canvas_kind_output"),
                             },
                         ]}
                             className="w-fit da-neutral-select"
                             stableWidth
                             data-cta="Device Analysis"
                             data-cta-position="export-pane"
-                            data-cta-copy="origin canvas export scope"
+                            data-cta-copy="origin filtered canvas kind"
                           />
                         </>) : null}
                     </div>
@@ -3209,14 +3335,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                       </Button>
                       {resolvedOriginExportMode === "merged" ? (<Button variant="ghost" size="control" onClick={clearAllOriginSeriesSelections} disabled={selectedOriginSeriesTotalCount <= 0} title={t("da_origin_collection_clear_all")} aria-label={t("da_origin_collection_clear_all")}>
                           {t("da_origin_collection_clear_all")}
-                        </Button>) : isManualCanvasScope ? (<>
-                          <Button variant="ghost" size="control" onClick={handleUseFilteredCanvasSelection} disabled={overviewVisibleFileIds.length <= 0} title={t("da_origin_canvas_scope_apply_filtered")} aria-label={t("da_origin_canvas_scope_apply_filtered")}>
-                            {t("da_origin_canvas_scope_apply_filtered")}
-                          </Button>
-                          <Button variant="ghost" size="control" onClick={clearOriginCanvasSelection} disabled={selectedCanvasCount <= 0} title={t("da_origin_canvas_clear")} aria-label={t("da_origin_canvas_clear")}>
-                            {t("da_origin_canvas_clear")}
-                          </Button>
-                        </>) : null}
+                        </Button>) : null}
                     </div>
                   </div>
                 </div>
@@ -3226,9 +3345,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     <div className="text-xs font-semibold text-text-primary">
                       {exportListTitle}
                     </div>
-                    <div className="text-[11px] text-text-secondary leading-5">
-                      {exportSelectionSummary}
-                    </div>
                   </div>
                 </div>
 
@@ -3236,39 +3352,99 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     <div className="space-y-2">
                       {exportListEntries.map((entry: any) => (<div
                           key={entry.fileId}
-                          className={`rounded-xl border px-3 py-2.5 ${entry.fileId === effectiveActiveFileId
-                                ? "border-accent/40 bg-accent/5"
-                                : "border-border bg-bg-page/40"}`}
+                          className={`rounded-xl border border-border bg-bg-page/40 px-3 py-2.5 ${isExportListCanvasSelectionMode ? "cursor-pointer" : ""}`}
+                          onClick={isExportListCanvasSelectionMode
+                            ? () => {
+                                toggleOriginCanvasSelection(entry.fileId);
+                              }
+                            : undefined}
+                          onKeyDown={isExportListCanvasSelectionMode
+                            ? (event) => {
+                                if (event.key !== "Enter" && event.key !== " ") return;
+                                event.preventDefault();
+                                toggleOriginCanvasSelection(entry.fileId);
+                              }
+                            : undefined}
+                          role={isExportListCanvasSelectionMode ? "button" : undefined}
+                          tabIndex={isExportListCanvasSelectionMode ? 0 : undefined}
                         >
                           <div className="flex items-start justify-between gap-3">
                             <button
                               type="button"
-                              onClick={() => handleSelectFile(entry.fileId)}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleSelectFile(entry.fileId);
+                              }}
                               className="min-w-0 flex-1 text-left"
                             >
-                              <div className="truncate text-sm font-medium text-text-primary">
-                                {entry.fileName}
-                              </div>
-                              <div className="mt-1 flex items-center gap-2 flex-wrap text-[11px] text-text-secondary">
+                              <div className="flex items-center gap-2 flex-wrap text-[11px] text-text-secondary">
+                                <div className="truncate text-sm font-medium text-text-primary">
+                                  {entry.fileName}
+                                </div>
                                 <span className="inline-flex items-center rounded-full bg-bg-surface px-2 py-0.5">
                                   {t("da_origin_collection_file_curves", {
                                         count: entry.selectedCount,
                                     })}
                                 </span>
-                                {entry.fileId === effectiveActiveFileId ? (<span className="inline-flex items-center rounded-full border border-accent/20 bg-accent/10 px-2 py-0.5 text-accent">
-                                    {t("da_origin_export_list_active_badge")}
+                                {isExportListCanvasSelectionMode && entry.isCanvasSelected ? (<span className="inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-accent">
+                                    {t("da_origin_export_list_selected_badge")}
                                   </span>) : null}
                               </div>
                             </button>
-                            {resolvedOriginExportMode === "merged" ? (<Button variant="text" size="sm" className="shrink-0 px-2 text-xs text-text-secondary hover:text-text-primary" onClick={() => {
+                            {isExportListCanvasSelectionMode ? null : resolvedOriginExportMode === "merged" ? (<Button variant="text" size="sm" className="shrink-0 px-2 text-xs text-text-secondary hover:text-text-primary" onClick={() => {
                     clearOriginSeriesSelectionForFile(entry.fileId);
-                }} title={exportEntryActionLabel} aria-label={exportEntryActionLabel}>
+                }} title={exportEntryActionLabel} aria-label={exportEntryActionLabel} hidden={resolvedCurveExportMode !== "select"}>
                                 {exportEntryActionLabel}
                               </Button>) : isManualCanvasScope ? (<Button variant="text" size="sm" className="shrink-0 px-2 text-xs text-text-secondary hover:text-text-primary" onClick={() => {
                     toggleOriginCanvasSelection(entry.fileId);
                 }} title={exportEntryActionLabel} aria-label={exportEntryActionLabel}>
                                 {exportEntryActionLabel}
                               </Button>) : null}
+                          </div>
+                          <div className="mt-3">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                    event.stopPropagation();
+                    if (resolvedCurveExportMode === "all") {
+                        setOriginCurveExportMode("select");
+                    }
+                    if (entry.allSeriesSelected) {
+                        clearOriginSeriesSelectionForFile(entry.fileId);
+                        return;
+                    }
+                    selectAllOriginSeriesForFile(entry.fileId);
+                }}
+                                className="inline-flex min-w-0 items-center gap-1.5 rounded-md border border-border bg-bg-surface px-2 py-1 text-[11px] leading-none text-text-secondary hover:text-text-primary"
+                              >
+                                <span className="clickable-ckb" data-state={entry.allSeriesSelected ? "checked" : "unchecked"}>
+                                  {entry.allSeriesSelected ? <Check size={10} className="text-white" strokeWidth={4}/> : null}
+                                </span>
+                                <span className="whitespace-nowrap">{t("da_origin_curve_export_pick_all")}</span>
+                              </button>
+                              {entry.series.map((series: any) => (<button
+                                  key={series.key}
+                                  type="button"
+                                  onClick={(event) => {
+                    event.stopPropagation();
+                    if (resolvedCurveExportMode === "all") {
+                        setOriginCurveExportMode("select");
+                    }
+                    toggleOriginSeriesSelectionForFile(entry.fileId, series.key);
+                }}
+                                  className={`inline-flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] leading-none ${series.selected
+                                        ? "border-accent/30 bg-accent/5 text-text-primary"
+                                        : "border-border bg-bg-surface text-text-secondary"} ${resolvedCurveExportMode === "select"
+                                        ? "cursor-pointer"
+                                        : "cursor-default"}`}
+                                >
+                                  <span className="clickable-ckb shrink-0" data-state={series.selected ? "checked" : "unchecked"}>
+                                    {series.selected ? <Check size={10} className="text-white" strokeWidth={4}/> : null}
+                                  </span>
+                                  <span className="truncate whitespace-nowrap">{series.label}</span>
+                                </button>))}
+                            </div>
                           </div>
                         </div>))}
                     </div>

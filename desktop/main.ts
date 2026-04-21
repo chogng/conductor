@@ -380,6 +380,8 @@ function normalizeOriginCapabilitiesPayload(rawCapabilities) {
 function normalizeOriginCsvPayload(payload, plotDefaults = undefined) {
   const raw = payload && typeof payload === "object" ? payload : {};
   const csv = raw.csv && typeof raw.csv === "object" ? raw.csv : {};
+  const workbook =
+    raw.workbook && typeof raw.workbook === "object" ? raw.workbook : {};
   const sheet = raw.sheet && typeof raw.sheet === "object" ? raw.sheet : {};
   const plot = raw.plot && typeof raw.plot === "object" ? raw.plot : {};
   const resolvedPlotDefaults = plotDefaults ?? DEFAULT_ORIGIN_PLOT_OPTIONS;
@@ -397,7 +399,22 @@ function normalizeOriginCsvPayload(payload, plotDefaults = undefined) {
       : typeof csv.text === "string"
         ? csv.text
         : "";
-  const seriesName = normalizeNonEmptyString(raw.seriesName ?? sheet.longName, "");
+  const importMode = normalizeNonEmptyString(raw.importMode, "new-book");
+  const workbookName = normalizeNonEmptyString(
+    raw.workbookName ??
+      workbook.longName ??
+      raw.seriesName ??
+      sheet.longName,
+    "",
+  );
+  const workbookKey = normalizeNonEmptyString(
+    raw.workbookKey ?? workbook.key,
+    "",
+  );
+  const sheetName = normalizeNonEmptyString(
+    raw.sheetName ?? sheet.longName ?? sheet.name,
+    "",
+  );
   const normalizedPlot = normalizeOriginPlotOptions(
     {
       plotCommand: plot.command ?? plot.plotCommand ?? raw.plotCommand,
@@ -412,7 +429,10 @@ function normalizeOriginCsvPayload(payload, plotDefaults = undefined) {
   return {
     csvName,
     csvText,
-    seriesName,
+    importMode,
+    workbookKey,
+    workbookName,
+    sheetName,
     capabilities,
     ...normalizedPlot,
   };
@@ -705,7 +725,10 @@ async function handleOriginRunCsv(event, payload) {
   const {
     csvName,
     csvText,
-    seriesName,
+    importMode,
+    workbookKey,
+    workbookName,
+    sheetName,
     plotType,
     xyPairs,
     plotCommand,
@@ -730,7 +753,10 @@ async function handleOriginRunCsv(event, payload) {
     return await runOriginCsvJob({
       csvName,
       csvText,
-      seriesName,
+      importMode,
+      workbookKey,
+      workbookName,
+      sheetName,
       plotType,
       xyPairs,
       plotCommand,

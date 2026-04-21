@@ -72,7 +72,10 @@ export function buildOriginCsvWorkerArgs({
   originExePath,
   logPath,
   errorPath,
-  seriesName,
+  importMode,
+  workbookKey,
+  workbookName,
+  sheetName,
   plotType,
   xyPairs,
   plotCommand,
@@ -93,8 +96,20 @@ export function buildOriginCsvWorkerArgs({
     errorPath,
   ];
 
-  if (typeof seriesName === "string" && seriesName.trim()) {
-    args.push("--series-name", seriesName.trim());
+  if (typeof importMode === "string" && importMode.trim()) {
+    args.push("--import-mode", importMode.trim());
+  }
+
+  if (typeof workbookKey === "string" && workbookKey.trim()) {
+    args.push("--workbook-key", workbookKey.trim());
+  }
+
+  if (typeof workbookName === "string" && workbookName.trim()) {
+    args.push("--workbook-name", workbookName.trim());
+  }
+
+  if (typeof sheetName === "string" && sheetName.trim()) {
+    args.push("--sheet-name", sheetName.trim());
   }
 
   const withPlotArgs = appendOriginPlotWorkerArgs(args, {

@@ -15,7 +15,14 @@ type ProcessedEntryLike = {
   series?: ProcessedSeriesLike[];
 };
 
-export type DeviceAnalysisOriginExportMode = "merged" | "separate";
+export type DeviceAnalysisOriginExportMode =
+  | "merged"
+  | "workbookSheets"
+  | "separate";
+
+export type DeviceAnalysisOriginImportMode =
+  | "new-book"
+  | "existing-book-new-sheet";
 
 type DeviceAnalysisOriginCurveEntry = {
   canvasLabel: string;
@@ -32,7 +39,9 @@ export type DeviceAnalysisOriginSelectionExport = {
   curveCount: number;
   curveLabels: string[];
   fileIds: string[];
-  seriesName: string;
+  importMode: DeviceAnalysisOriginImportMode;
+  sheetName: string;
+  workbookName: string;
   xMax: number | null;
   xMin: number | null;
   xyPairCount: number;
@@ -163,7 +172,7 @@ const buildDeviceAnalysisOriginPairsExpr = (xyPairCount: unknown): string => {
 export const isDeviceAnalysisOriginExportMode = (
   value: unknown,
 ): value is DeviceAnalysisOriginExportMode =>
-  value === "merged" || value === "separate";
+  value === "merged" || value === "workbookSheets" || value === "separate";
 
 const resolveSelectedSeriesForOriginCanvas = (
   file: ProcessedEntryLike | null | undefined,
@@ -237,12 +246,16 @@ const buildWorksheetExport = ({
   canvases,
   curveEntries,
   csvBase,
-  seriesName,
+  importMode = "new-book",
+  sheetName,
+  workbookName,
 }: {
   canvases: ProcessedEntryLike[];
   curveEntries: DeviceAnalysisOriginCurveEntry[];
   csvBase: string;
-  seriesName: string;
+  importMode?: DeviceAnalysisOriginImportMode;
+  sheetName: string;
+  workbookName: string;
 }): DeviceAnalysisOriginSelectionExport | null => {
   if (!curveEntries.length) return null;
 
@@ -305,7 +318,9 @@ const buildWorksheetExport = ({
     fileIds: canvases
       .map((canvas) => String(canvas?.fileId ?? ""))
       .filter(Boolean),
-    seriesName,
+    importMode,
+    sheetName,
+    workbookName,
     xMax: Number.isFinite(xMax) ? xMax : null,
     xMin: Number.isFinite(xMin) ? xMin : null,
     xyPairCount: curveEntries.length,
@@ -341,7 +356,8 @@ export const buildDeviceAnalysisOriginCanvasExport = (
     canvases: [canvas],
     curveEntries,
     csvBase,
-    seriesName: sanitizeOriginDisplayName(canvasName.replace(/\.csv$/i, "")),
+    sheetName: sanitizeOriginDisplayName(canvasName.replace(/\.csv$/i, "")),
+    workbookName: sanitizeOriginDisplayName(canvasName.replace(/\.csv$/i, "")),
   });
 };
 
@@ -372,7 +388,7 @@ export const buildDeviceAnalysisOriginSelectionExport = (
     canvasCount === 1
       ? `${sanitizedFirstBase || "device_analysis"}__selected_curves`
       : `device_analysis__merged_${canvasCount}files_${curveCount}curves`;
-  const seriesName =
+  const workbookName =
     canvasCount === 1
       ? sanitizeOriginDisplayName(sanitizedFirstBase || "device analysis")
       : sanitizeOriginDisplayName(
@@ -383,8 +399,51 @@ export const buildDeviceAnalysisOriginSelectionExport = (
     canvases: liveCanvases,
     curveEntries,
     csvBase,
-    seriesName,
+    sheetName: workbookName,
+    workbookName,
   });
+};
+
+const buildDeviceAnalysisOriginWorkbookSheetsExports = (
+  selectedCanvases: ProcessedEntryLike[] = [],
+  selectedSeriesIdsByFile:
+    | Record<string, string[] | undefined>
+    | null
+    | undefined = {},
+): DeviceAnalysisOriginSelectionExport[] => {
+  const liveCanvases = (Array.isArray(selectedCanvases) ? selectedCanvases : []).filter(
+    (file): file is ProcessedEntryLike => Boolean(file),
+  );
+  if (!liveCanvases.length) return [];
+
+  const firstCanvasName = String(liveCanvases[0]?.fileName ?? "device_analysis");
+  const sanitizedFirstBase = sanitizeDeviceAnalysisFilename(firstCanvasName)
+    .replace(/\.csv$/i, "")
+    .trim();
+  const workbookName =
+    liveCanvases.length === 1
+      ? sanitizeOriginDisplayName(sanitizedFirstBase || "device analysis")
+      : sanitizeOriginDisplayName(
+          `Selected thumbnails ${liveCanvases.length} sheets`,
+        );
+
+  return liveCanvases
+    .map((canvas): DeviceAnalysisOriginSelectionExport | null => {
+      const exportPayload = buildDeviceAnalysisOriginCanvasExport(
+        canvas,
+        selectedSeriesIdsByFile,
+      );
+      if (!exportPayload) return null;
+      return {
+        ...exportPayload,
+        importMode: "new-book" as const,
+        sheetName: sanitizeOriginDisplayName(
+          String(canvas?.fileName ?? exportPayload.sheetName).replace(/\.csv$/i, ""),
+        ),
+        workbookName,
+      };
+    })
+    .filter((item): item is DeviceAnalysisOriginSelectionExport => Boolean(item));
 };
 
 export const buildDeviceAnalysisOriginExportsByMode = (
@@ -399,6 +458,13 @@ export const buildDeviceAnalysisOriginExportsByMode = (
     (file): file is ProcessedEntryLike => Boolean(file),
   );
   if (!liveCanvases.length) return [];
+
+  if (exportMode === "workbookSheets") {
+    return buildDeviceAnalysisOriginWorkbookSheetsExports(
+      liveCanvases,
+      selectedSeriesIdsByFile,
+    );
+  }
 
   if (exportMode === "separate") {
     return liveCanvases

@@ -1973,13 +1973,8 @@ const TemplateManager = ({
                   }`}
                   onClick={handleSelectAutoTemplate}
                 >
-                  <span className="min-w-0 flex-1 text-left">
-                    <span className="block text-sm font-medium">
-                      {t("da_auto_template")}
-                    </span>
-                    <span className="block text-xs text-text-secondary truncate">
-                      {t("da_auto_template_hint")}
-                    </span>
+                  <span className="min-w-0 flex-1 text-left text-sm font-medium">
+                    {t("da_auto_template")}
                   </span>
                   <span className="p-1">
                     {isAutoTemplateSelected ? (

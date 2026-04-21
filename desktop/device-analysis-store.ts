@@ -8,7 +8,11 @@ const DEVICE_ANALYSIS_SETTINGS_FILENAME = "config.json";
 const DEVICE_ANALYSIS_STORE_CONFIG_FILENAME = "store-path.json";
 const DEVICE_ANALYSIS_LEGACY_SETTINGS_FILENAME_SUFFIX = ".settings.json";
 const DEVICE_ANALYSIS_SS_METHODS = new Set(["auto", "manual", "idWindow", "legacy"]);
-const DEVICE_ANALYSIS_ORIGIN_EXPORT_MODES = new Set(["merged", "separate"]);
+const DEVICE_ANALYSIS_ORIGIN_EXPORT_MODES = new Set([
+  "merged",
+  "workbookSheets",
+  "separate",
+]);
 const DEVICE_ANALYSIS_Y_UNITS = new Set(["A", "uA", "nA"]);
 const DEVICE_ANALYSIS_Y_SCALES = new Set(["linear", "log"]);
 const DEVICE_ANALYSIS_THEMES = new Set(["system", "light", "dark"]);

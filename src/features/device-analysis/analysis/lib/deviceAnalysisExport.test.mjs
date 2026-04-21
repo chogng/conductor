@@ -52,6 +52,8 @@ test("buildDeviceAnalysisOriginSelectionExport merges selected curves from multi
   assert.equal(payload.xMax, 2);
   assert.equal(payload.yLinearMin, 10);
   assert.equal(payload.yLinearMax, 21);
+  assert.equal(payload.workbookName, payload.sheetName);
+  assert.equal(payload.importMode, "new-book");
   assert.match(payload.csvName, /merged_2files_2curves\.csv$/);
 
   const csvText = payload.csvText.replace(/^\uFEFF/, "");
@@ -135,6 +137,50 @@ test("buildDeviceAnalysisOriginExportsByMode returns one worksheet per selected 
   assert.deepEqual(
     payloads.map((payload) => payload.curveLabels),
     [["Curve 1"], ["Curve 1"]],
+  );
+  assert.deepEqual(
+    payloads.map((payload) => payload.workbookName),
+    ["file a", "file b"],
+  );
+});
+
+test("buildDeviceAnalysisOriginExportsByMode returns one workbook with multiple worksheets in workbookSheets mode", () => {
+  const payloads = buildDeviceAnalysisOriginExportsByMode(
+    [
+      {
+        fileId: "file-a",
+        fileName: "file_a.csv",
+        xGroups: [[0, 1]],
+        series: [
+          {
+            id: "curve-a",
+            groupIndex: 0,
+            y: [1, 2],
+          },
+        ],
+      },
+      {
+        fileId: "file-b",
+        fileName: "file_b.csv",
+        xGroups: [[0, 1]],
+        series: [
+          {
+            id: "curve-b",
+            groupIndex: 0,
+            y: [3, 4],
+          },
+        ],
+      },
+    ],
+    undefined,
+    "workbookSheets",
+  );
+
+  assert.equal(payloads.length, 2);
+  assert.equal(payloads[0].workbookName, payloads[1].workbookName);
+  assert.deepEqual(
+    payloads.map((payload) => payload.sheetName),
+    ["file a", "file b"],
   );
 });
 

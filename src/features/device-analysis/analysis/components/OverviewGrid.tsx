@@ -65,7 +65,7 @@ const OverviewGrid = memo(function OverviewGrid({
   selectedOriginCanvasKeySet,
   onToggleOriginCanvasSelection,
   originExportMode = "merged",
-  originCanvasExportScope = "manual",
+  originCanvasExportScope = "selected",
   xUnitFactor,
   xUnitLabel,
   yUnitFactor,
@@ -166,8 +166,7 @@ const OverviewGrid = memo(function OverviewGrid({
     onVisibleFileIdsChange?.(visibleFileIds);
   }, [onVisibleFileIdsChange, visibleFileIds]);
 
-  const isManualCanvasScope =
-    originExportMode === "separate" && originCanvasExportScope === "manual";
+  const isManualCanvasScope = false;
   const selectModeStateLabel = isSelectMode
     ? t("da_overview_select_mode_on")
     : t("da_overview_select_mode_off");

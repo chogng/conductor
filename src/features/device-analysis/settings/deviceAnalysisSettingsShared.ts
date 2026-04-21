@@ -12,7 +12,7 @@ export type DeviceAnalysisSettings = {
   language?: LanguageCode;
   theme?: ThemeMode;
   originExePath?: string;
-  originExportModeDefault?: "merged" | "separate";
+  originExportModeDefault?: "merged" | "workbookSheets" | "separate";
   originPlotCommandDefault?: string;
   originPlotPostCommandsDefault?: string[];
   originPlotTypeDefault?: number;
