@@ -429,18 +429,20 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         })
         : separateCanvasScopeSummary;
     const exportListEntries = useMemo(() => {
-        if (resolvedOriginExportMode === "merged" && !isExportListCanvasSelectionMode) {
-            return selectedOriginCollectionEntries;
-        }
         const selectedFileIds = selectedOriginCanvasKeySet ?? new Set<string>();
         return (Array.isArray(processedData) ? processedData : [])
             .map((file: any) => {
             const fileId = String(file?.fileId ?? "");
             if (!fileId)
                 return null;
-            if (!isExportListCanvasSelectionMode && !selectedFileIds.has(fileId))
-                return null;
             const selectedCount = Number(selectedOriginSeriesCountByFile?.[fileId] ?? 0);
+            if (resolvedOriginExportMode === "merged" && !isExportListCanvasSelectionMode) {
+                if (selectedCount <= 0 || !selectedFileIds.has(fileId))
+                    return null;
+            }
+            else if (!isExportListCanvasSelectionMode && !selectedFileIds.has(fileId)) {
+                return null;
+            }
             const selectedSeriesKeySet = getSelectedOriginSeriesKeySetForFile(file);
             const series = (Array.isArray(file?.series) ? file.series : [])
                 .map((series: any, index: number) => {
@@ -487,7 +489,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         processedData,
         resolvedOriginExportMode,
         selectedOriginCanvasKeySet,
-        selectedOriginCollectionEntries,
         selectedOriginSeriesCountByFile,
     ]);
     const exportListTitle = resolvedOriginExportMode === "merged"

@@ -166,7 +166,12 @@ const OverviewGrid = memo(function OverviewGrid({
     onVisibleFileIdsChange?.(visibleFileIds);
   }, [onVisibleFileIdsChange, visibleFileIds]);
 
-  const isManualCanvasScope = false;
+  const isManualCanvasScope = originCanvasExportScope === "selected";
+  useEffect(() => {
+    if (!isManualCanvasScope) {
+      setIsSelectMode(false);
+    }
+  }, [isManualCanvasScope]);
   const selectModeStateLabel = isSelectMode
     ? t("da_overview_select_mode_on")
     : t("da_overview_select_mode_off");
