@@ -138,6 +138,20 @@ const normalizeYScaleByFileIdRecord = (value: unknown): Record<string, "linear" 
     }
     return next;
 };
+const normalizeYUnitByFileIdRecord = (value: unknown): Record<string, "A" | "mA" | "uA" | "nA" | "pA"> => {
+    const raw = value && typeof value === "object" ? value as Record<string, unknown> : {};
+    const next: Record<string, "A" | "mA" | "uA" | "nA" | "pA"> = {};
+    for (const [fileId, unit] of Object.entries(raw)) {
+        const normalizedFileId = String(fileId ?? "").trim();
+        if (!normalizedFileId)
+            continue;
+        const normalizedUnit = normalizeDeviceAnalysisYUnit(unit, "A");
+        if (!normalizedUnit)
+            continue;
+        next[normalizedFileId] = normalizedUnit;
+    }
+    return next;
+};
 type FormatOriginTranslateFn = (key: string, params?: Record<string, unknown>) => string;
 type OriginCsvBridge = {
     runOriginCsv: (payload: {
@@ -259,7 +273,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     }, [isActiveFileControlled, onActiveFileIdChange]);
     const [plotType, setPlotType] = useState<PlotTypeOption>("iv"); // 'iv' | 'gm' | 'ss' | 'j'
     const [focusedSeriesId, setFocusedSeriesId] = useState(null);
-    const [yUnit, setYUnit] = useState("A"); // 'A' | 'uA' | 'nA'
+    const [persistedYUnitByFileId, setPersistedYUnitByFileId] = useState<Record<string, "A" | "mA" | "uA" | "nA" | "pA">>({});
     const [persistedYScaleByFileId, setPersistedYScaleByFileId] = useState<Record<string, "linear" | "log">>({});
     const [chartYScaleByFileId, setChartYScaleByFileId] = useState<Record<string, "linear" | "log" | "logAbs">>({});
     const userChangedYUnitRef = useRef(false);
@@ -321,16 +335,16 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 const settings = await apiService.getDeviceAnalysisSettings();
                 const normalizedSettings = settings as {
                     originExportModeDefault?: string;
+                    yUnitByFileId?: Record<string, unknown>;
                     yScaleByFileId?: Record<string, unknown>;
-                    yUnit?: string;
                 } | null | undefined;
-                const unit = normalizeDeviceAnalysisYUnit(normalizedSettings?.yUnit, "");
+                const yUnitByFileId = normalizeYUnitByFileIdRecord(normalizedSettings?.yUnitByFileId);
                 const yScaleByFileId = normalizeYScaleByFileIdRecord(normalizedSettings?.yScaleByFileId);
                 const exportMode = normalizedSettings?.originExportModeDefault;
                 if (cancelled)
                     return;
-                if (!userChangedYUnitRef.current && unit) {
-                    setYUnit(unit);
+                if (!userChangedYUnitRef.current) {
+                    setPersistedYUnitByFileId(yUnitByFileId);
                 }
                 if (isDeviceAnalysisOriginExportMode(exportMode)) {
                     setOriginExportMode(exportMode);
@@ -390,6 +404,13 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             setActiveFileId(next);
     }, [activeFileId, processedData, setActiveFileId]);
     const activeFile = useMemo(() => processedData?.find((f: any) => f.fileId === effectiveActiveFileId) ?? null, [effectiveActiveFileId, processedData]);
+    const resolveYUnitForFile = React.useCallback((fileLike: any): "A" | "mA" | "uA" | "nA" | "pA" => {
+        const fileKey = String(fileLike?.fileId ?? "").trim();
+        const fallbackUnit = normalizeDeviceAnalysisYUnit(fileLike?.yUnit, "A");
+        if (!fileKey)
+            return fallbackUnit || "A";
+        return persistedYUnitByFileId[fileKey] ?? (fallbackUnit || "A");
+    }, [persistedYUnitByFileId]);
     const resolveLinearLogYScaleForFile = React.useCallback((fileLike: any): "linear" | "log" => {
         const fileKey = String(fileLike?.fileId ?? "").trim();
         if (!fileKey)
@@ -397,15 +418,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         return persistedYScaleByFileId[fileKey] ?? "linear";
     }, [persistedYScaleByFileId]);
     const resolvedXUnitMeta = useMemo(() => getDeviceAnalysisXUnitMeta(activeFile?.xUnit), [activeFile?.xUnit]);
-    const resolvedYUnitMeta = useMemo(() => getDeviceAnalysisYUnitMeta(yUnit), [yUnit]);
-    useEffect(() => {
-        if (userChangedYUnitRef.current)
-            return;
-        const nextUnit = normalizeDeviceAnalysisYUnit(activeFile?.yUnit, "");
-        if (!nextUnit)
-            return;
-        setYUnit((prev: any) => (prev === nextUnit ? prev : nextUnit));
-    }, [activeFile?.fileId, activeFile?.yUnit]);
+    const activeYUnit = useMemo(() => resolveYUnitForFile(activeFile), [activeFile, resolveYUnitForFile]);
+    const resolvedYUnitMeta = useMemo(() => getDeviceAnalysisYUnitMeta(activeYUnit), [activeYUnit]);
     useEffect(() => {
         setAxis((prev: any) => {
             const nextTicks = activeChartYScale === "linear" ? "nice" : "decades";
@@ -2736,7 +2750,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         id="device-analysis-overview-sidebar"
         className="md:min-h-0 flex flex-col h-full"
       >
-        <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} onVisibleFileIdsChange={setOverviewVisibleFileIds} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} originCanvasExportScope={originCanvasExportScope} xUnitFactor={resolvedXUnitMeta.factor} xUnitLabel={resolvedXUnitMeta.label} yUnitFactor={resolvedYUnitMeta.factor} yUnitLabel={resolvedYUnitMeta.label} resolveYScaleForFile={resolveLinearLogYScaleForFile}/>
+        <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} onVisibleFileIdsChange={setOverviewVisibleFileIds} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} originCanvasExportScope={originCanvasExportScope} xUnitFactor={resolvedXUnitMeta.factor} xUnitLabel={resolvedXUnitMeta.label} resolveYUnitForFile={resolveYUnitForFile} resolveYScaleForFile={resolveLinearLogYScaleForFile}/>
       </aside>
 
       <ScrollArea className="da-analysis-scroll-area md:min-h-0 min-w-0" axis="y" viewportClassName="flex flex-col min-h-full">
@@ -2752,12 +2766,25 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
 
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1">
-                  <Select id="device-analysis-y-unit-select" size="sm" value={yUnit} onChange={(next: any) => {
+                  <Select id="device-analysis-y-unit-select" size="sm" value={activeYUnit} onChange={(next: any) => {
             const nextUnit = normalizeDeviceAnalysisYUnit(next, "A");
             userChangedYUnitRef.current = true;
-            setYUnit(nextUnit);
+            const fileKey = String(effectiveActiveFileId ?? "").trim();
+            if (fileKey && nextUnit) {
+                setPersistedYUnitByFileId((prev) => ({
+                    ...prev,
+                    [fileKey]: nextUnit,
+                }));
+            }
             apiService
-                .updateDeviceAnalysisSettings({ yUnit: nextUnit })
+                .updateDeviceAnalysisSettings(fileKey && nextUnit
+                ? {
+                    yUnitByFileId: {
+                        ...persistedYUnitByFileId,
+                        [fileKey]: nextUnit,
+                    },
+                }
+                : {})
                 .catch(() => { });
         }} options={[
             {

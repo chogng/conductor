@@ -204,8 +204,15 @@ body {
   }
 
   .da_top_menu_brand {
-    @apply text-sm font-semibold text-text-primary whitespace-nowrap;
+    @apply inline-flex items-center gap-2 text-sm font-semibold text-text-primary whitespace-nowrap;
     letter-spacing: 0.01em;
+  }
+
+  .da_top_menu_brand_icon {
+    width: 16px;
+    height: 16px;
+    flex: 0 0 auto;
+    object-fit: contain;
   }
 
   .da_top_menu_center {
@@ -765,11 +772,11 @@ body {
   }
 
   .ui-select_group {
-    @apply px-3 py-1 text-[10px] font-semibold text-text-secondary uppercase tracking-wider;
+    @apply px-3 py-1.5 text-[10px] font-semibold text-text-secondary uppercase tracking-wider;
   }
 
   .ui-select_item {
-    @apply w-full px-1.5 py-1 text-sm text-left rounded-md transition-colors flex items-center justify-between gap-2;
+    @apply w-full px-2 py-1.5 text-sm text-left rounded-md transition-colors flex items-center justify-between gap-2;
   }
 
   .ui-select_item[data-selected] {
@@ -793,7 +800,7 @@ body {
   }
 
   .ui-select_empty {
-    @apply px-3 py-2 text-sm text-text-secondary;
+    @apply px-3 py-2.5 text-sm text-text-secondary;
   }
 
   .ui-select_scroll-area {

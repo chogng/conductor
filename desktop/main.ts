@@ -33,6 +33,7 @@ const devUrl =
 const AUTO_UPDATE_INITIAL_DELAY_MS = 15 * 1000;
 const AUTO_UPDATE_INTERVAL_MS = 4 * 60 * 60 * 1000;
 const AUTO_UPDATE_SUPPORTED_PLATFORMS = new Set(["win32"]);
+const DESKTOP_APP_USER_MODEL_ID = "com.conductor.desktop";
 let mainWindow = null;
 let autoUpdateTimer = null;
 let autoUpdateConfiguredFeedUrl = null;
@@ -70,6 +71,24 @@ const ensureAutoUpdater = async () => {
 function getResourcesPath() {
   const resourcesPath = Reflect.get(process, "resourcesPath");
   return typeof resourcesPath === "string" ? resourcesPath : process.cwd();
+}
+
+function resolveDesktopWindowIconPath() {
+  const iconFileName =
+    process.platform === "win32"
+      ? "icon.png"
+      : process.platform === "darwin"
+        ? "icon.icns"
+        : "icon.png";
+
+  const candidates = app.isPackaged
+    ? [
+        path.join(getResourcesPath(), "build", "icons", iconFileName),
+        path.join(getResourcesPath(), "app.asar.unpacked", "build", "icons", iconFileName),
+      ]
+    : [path.join(__dirname, "..", "build", "icons", iconFileName)];
+
+  return resolveFirstExistingPath(candidates) ?? undefined;
 }
 
 function resolveOriginCsvScriptPath() {
@@ -1009,12 +1028,14 @@ async function setupAutoUpdates() {
 function createMainWindow() {
   const bootstrapArgument = buildDesktopBootstrapArgument();
   logDesktopBoot("create-window:start");
+  const windowIcon = resolveDesktopWindowIconPath();
 
   const win = new BrowserWindow({
     width: 1440,
     height: 920,
     minWidth: 1080,
     minHeight: 700,
+    icon: windowIcon,
     backgroundColor: "#f5f4ef",
     autoHideMenuBar: true,
     frame: !isWindows,
@@ -1153,6 +1174,9 @@ function handleDesktopCommand(event, payload) {
 
 app.whenReady().then(() => {
   logDesktopBoot("app:ready");
+  if (isWindows) {
+    app.setAppUserModelId(DESKTOP_APP_USER_MODEL_ID);
+  }
   if (process.platform !== "darwin") {
     Menu.setApplicationMenu(null);
   }

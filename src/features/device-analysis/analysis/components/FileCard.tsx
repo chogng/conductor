@@ -14,6 +14,7 @@ type UseInViewOnceOptions = {
 export type ProcessedFileLike = {
   fileId?: string;
   fileName: string;
+  yUnit?: string;
   curveFilterKey?: string | null;
   curveFilterField?: string | null;
   curveType?: string;

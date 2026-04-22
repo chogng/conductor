@@ -14,7 +14,15 @@ export const DesktopCommandBarShell = ({
   className = "",
 }: DesktopCommandBarShellProps) => (
   <header className={`da_top_menu_bar ${className}`.trim()} aria-hidden="true">
-    <div className="da_top_menu_brand">conductor</div>
+    <div className="da_top_menu_brand">
+      <img
+        src="/logo.svg"
+        alt=""
+        aria-hidden="true"
+        className="da_top_menu_brand_icon"
+      />
+      <span>conductor</span>
+    </div>
 
     <div className="da_window_controls ml-4">
       <div className="da_window_icon_btn pointer-events-none">

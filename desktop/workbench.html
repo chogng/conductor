@@ -58,11 +58,22 @@
     }
 
     .boot-shell-brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
       flex: 0 0 auto;
       font-size: 14px;
       font-weight: 600;
       letter-spacing: 0.01em;
       white-space: nowrap;
+    }
+
+    .boot-shell-brand img {
+      display: block;
+      width: 16px;
+      height: 16px;
+      object-fit: contain;
+      flex: 0 0 auto;
     }
 
     .boot-shell-center {
@@ -615,7 +626,10 @@
   <div id="boot-splash" aria-hidden="true">
     <div class="boot-shell">
       <header class="boot-shell-titlebar" aria-hidden="true">
-        <div class="boot-shell-brand">conductor</div>
+        <div class="boot-shell-brand">
+          <img src="../public/logo.svg" alt="" aria-hidden="true" />
+          <span>conductor</span>
+        </div>
 
         <div class="boot-shell-controls boot-shell-controls--nav">
           <div class="boot-shell-icon-btn">

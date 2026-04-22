@@ -14,6 +14,8 @@ import originIcon from "../../../assets/icons/origin.svg";
 import Select from "../../../components/ui/Select";
 import type { TranslateFn } from "../../../context/language";
 
+const appIconSrc = "/logo.svg";
+
 type ActivePage = "data" | "analysis" | "settings" | string;
 type AnalysisFileOption = { value: string; label: string };
 
@@ -73,7 +75,15 @@ const DesktopCommandBar = ({
       className="da_top_menu_bar"
       onContextMenu={(event) => event.preventDefault()}
     >
-      <div className="da_top_menu_brand">{t("da_menu_app")}</div>
+      <div className="da_top_menu_brand">
+        <img
+          src={appIconSrc}
+          alt=""
+          aria-hidden="true"
+          className="da_top_menu_brand_icon"
+        />
+        <span>{t("da_menu_app")}</span>
+      </div>
 
       <div className="da_window_controls ml-4">
         <button

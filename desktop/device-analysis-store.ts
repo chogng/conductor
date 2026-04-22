@@ -14,7 +14,7 @@ const DEVICE_ANALYSIS_ORIGIN_EXPORT_MODES = new Set([
   "workbookSheets",
   "separate",
 ]);
-const DEVICE_ANALYSIS_Y_UNITS = new Set(["A", "uA", "nA"]);
+const DEVICE_ANALYSIS_Y_UNITS = new Set(["A", "mA", "uA", "nA", "pA"]);
 const DEVICE_ANALYSIS_Y_SCALES = new Set(["linear", "log"]);
 const DEVICE_ANALYSIS_DEFAULT_Y_SCALE = "linear";
 const DEVICE_ANALYSIS_THEMES = new Set(["system", "light", "dark"]);
@@ -31,7 +31,7 @@ const DEVICE_ANALYSIS_DEFAULT_SETTINGS = {
   onboardingCompleted: false,
   onboardingAutoStartDismissed: false,
   stopOnErrorDefault: false,
-  yUnit: "A",
+  yUnitByFileId: {},
   yScaleByFileId: {},
   ssMethodDefault: "auto",
   ssDiagnosticsEnabled: true,
@@ -85,6 +85,23 @@ function normalizeYScaleByFileIdMap(value) {
     next[normalizedFileId] = normalizedScale
       ? normalizedScale
       : DEVICE_ANALYSIS_DEFAULT_Y_SCALE;
+  }
+
+  return next;
+}
+
+function normalizeYUnitByFileIdMap(value) {
+  const raw = value && typeof value === "object" ? value : {};
+  const next = {};
+
+  for (const [fileId, unit] of Object.entries(raw)) {
+    const normalizedFileId =
+      typeof fileId === "string" && fileId.trim() ? fileId.trim() : "";
+    if (!normalizedFileId) continue;
+    next[normalizedFileId] =
+      typeof unit === "string" && DEVICE_ANALYSIS_Y_UNITS.has(unit)
+        ? unit
+        : "A";
   }
 
   return next;
@@ -180,7 +197,7 @@ export function createDeviceAnalysisStore(options) {
 
   function normalizeDeviceAnalysisSettings(raw) {
     const next = raw && typeof raw === "object" ? { ...raw } : {};
-    const { yScale: _legacyGlobalYScale, ...nextWithoutLegacyYScale } = next;
+    const { yUnit: _legacyGlobalYUnit, yScale: _legacyGlobalYScale, ...nextWithoutLegacyAxes } = next;
 
     const ssMethodDefault = DEVICE_ANALYSIS_SS_METHODS.has(next.ssMethodDefault)
       ? next.ssMethodDefault
@@ -188,9 +205,7 @@ export function createDeviceAnalysisStore(options) {
         ? next.ssMethod
         : DEVICE_ANALYSIS_DEFAULT_SETTINGS.ssMethodDefault;
 
-    const yUnit = DEVICE_ANALYSIS_Y_UNITS.has(next.yUnit)
-      ? next.yUnit
-      : DEVICE_ANALYSIS_DEFAULT_SETTINGS.yUnit;
+    const yUnitByFileId = normalizeYUnitByFileIdMap(next.yUnitByFileId);
     const yScaleByFileId = normalizeYScaleByFileIdMap(next.yScaleByFileId);
     const theme = DEVICE_ANALYSIS_THEMES.has(next.theme)
       ? next.theme
@@ -272,13 +287,13 @@ export function createDeviceAnalysisStore(options) {
 
     return {
       ...DEVICE_ANALYSIS_DEFAULT_SETTINGS,
-      ...nextWithoutLegacyYScale,
+      ...nextWithoutLegacyAxes,
       defaultTemplate: next.defaultTemplate ?? null,
       lastTemplateId: next.lastTemplateId ?? null,
       onboardingCompleted,
       onboardingAutoStartDismissed,
       stopOnErrorDefault,
-      yUnit,
+      yUnitByFileId,
       yScaleByFileId,
       theme,
       ssMethodDefault,

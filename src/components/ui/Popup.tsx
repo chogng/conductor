@@ -63,11 +63,16 @@ const Popup = ({
       const viewportHeight = window.innerHeight;
       const anchorWidth = Math.max(0, rect.width);
       const maxWidth = Math.max(0, viewportWidth - VIEWPORT_PADDING_PX * 2);
-      const resolvedWidth = matchAnchorWidth
+      const contentWidth = Math.max(
+        popupEl.scrollWidth || 0,
+        popupEl.offsetWidth || 0,
+      );
+      const popupWidth = matchAnchorWidth
+        ? Math.min(Math.max(contentWidth, anchorWidth), maxWidth)
+        : Math.min(contentWidth, maxWidth);
+      const minWidth = matchAnchorWidth
         ? Math.min(anchorWidth, maxWidth)
         : undefined;
-      const minWidth = resolvedWidth ?? anchorWidth;
-      const popupWidth = resolvedWidth ?? Math.max(minWidth, popupEl.offsetWidth || 0);
       const popupHeight = popupEl.offsetHeight || 0;
 
       let left = rect.left;
@@ -105,7 +110,7 @@ const Popup = ({
         position: "fixed",
         top,
         left,
-        width: resolvedWidth,
+        width: popupWidth,
         minWidth,
         maxWidth,
         zIndex,

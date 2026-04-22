@@ -3,6 +3,7 @@ import Card from "../../../../components/ui/Card";
 import Select from "../../../../components/ui/Select";
 import ScrollArea from "../../../../components/ui/ScrollArea";
 import { useLanguage } from "../../../../hooks/useLanguage";
+import { getDeviceAnalysisYUnitMeta } from "../lib/deviceAnalysisUnits";
 import type { DeviceAnalysisOriginCanvasExportScope } from "../useOriginCanvasExport";
 import type { ProcessingStatus } from "../../shared/lib/sharedTypes";
 import FileCard, { type ProcessedFileLike } from "./FileCard";
@@ -18,8 +19,9 @@ type OverviewGridProps = {
   originCanvasExportScope?: DeviceAnalysisOriginCanvasExportScope;
   xUnitFactor?: number;
   xUnitLabel?: string;
-  yUnitFactor?: number;
-  yUnitLabel?: string;
+  resolveYUnitForFile?: (
+    file: ProcessedFileLike | null | undefined,
+  ) => string;
   resolveYScaleForFile?: (file: ProcessedFileLike | null | undefined) => string;
 };
 
@@ -61,8 +63,7 @@ const OverviewGrid = memo(function OverviewGrid({
   originCanvasExportScope = "selected",
   xUnitFactor,
   xUnitLabel,
-  yUnitFactor,
-  yUnitLabel,
+  resolveYUnitForFile,
   resolveYScaleForFile,
 }: OverviewGridProps) {
   const { t } = useLanguage();
@@ -223,24 +224,31 @@ const OverviewGrid = memo(function OverviewGrid({
       <ScrollArea className="flex-1 min-h-0" viewportClassName="pr-4" axis="y">
         <div className="grid grid-cols-1 auto-rows-max gap-2.5 content-start">
           {filteredData.map((file) => (
-            <FileCard
-              key={file.fileId}
-              file={file}
-              isActive={file.fileId === activeFileId}
-              onSelectFile={onSelectFile}
-              isSelectionMode={isManualCanvasScope}
-              isOriginSelected={selectedOriginCanvasKeySet?.has(
-                String(file?.fileId ?? ""),
-              )}
-              showOriginSelectionBadge={isManualCanvasScope}
-              onToggleOriginSelected={onToggleOriginCanvasSelection}
-              originSelectedBadgeLabel={t("da_overview_select_badge")}
-              xUnitFactor={xUnitFactor}
-              xUnitLabel={xUnitLabel}
-              yUnitFactor={yUnitFactor}
-              yUnitLabel={yUnitLabel}
-              yScale={resolveYScaleForFile?.(file) ?? "linear"}
-            />
+            (() => {
+              const yUnitMeta = getDeviceAnalysisYUnitMeta(
+                resolveYUnitForFile?.(file) ?? file?.yUnit ?? "A",
+              );
+              return (
+                <FileCard
+                  key={file.fileId}
+                  file={file}
+                  isActive={file.fileId === activeFileId}
+                  onSelectFile={onSelectFile}
+                  isSelectionMode={isManualCanvasScope}
+                  isOriginSelected={selectedOriginCanvasKeySet?.has(
+                    String(file?.fileId ?? ""),
+                  )}
+                  showOriginSelectionBadge={isManualCanvasScope}
+                  onToggleOriginSelected={onToggleOriginCanvasSelection}
+                  originSelectedBadgeLabel={t("da_overview_select_badge")}
+                  xUnitFactor={xUnitFactor}
+                  xUnitLabel={xUnitLabel}
+                  yUnitFactor={yUnitMeta.factor}
+                  yUnitLabel={yUnitMeta.label}
+                  yScale={resolveYScaleForFile?.(file) ?? "linear"}
+                />
+              );
+            })()
           ))}
         </div>
       </ScrollArea>
