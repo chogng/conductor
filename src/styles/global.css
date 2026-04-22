@@ -922,14 +922,14 @@ textarea {
   top: 4px;
   bottom: 4px;
   right: 2px;
-  width: 8px;
+  width: 6px;
 }
 
 .scroll-area__track--x {
   left: 4px;
   right: 4px;
   bottom: 2px;
-  height: 8px;
+  height: 6px;
 }
 
 .scroll-area__thumb {
@@ -943,14 +943,14 @@ textarea {
 
 .scroll-area__thumb--y {
   top: 0;
-  left: 1px;
-  right: 1px;
+  left: 0;
+  right: 0;
 }
 
 .scroll-area__thumb--x {
   left: 0;
-  top: 1px;
-  bottom: 1px;
+  top: 0;
+  bottom: 0;
 }
 
 .dark .scroll-area__thumb {
@@ -988,8 +988,8 @@ textarea {
   overflow: visible;
 }
 
-.da-analysis-scroll-area .scroll-area__track--y {
-  right: -4px;
+.da-analysis-scroll-area > .scroll-area__track--y {
+  right: -2px;
 }
 
 /* Global Scrollbar Styling */
@@ -1058,10 +1058,7 @@ textarea {
 
 ::-webkit-scrollbar-thumb {
   background-color: rgba(148, 163, 184, 0.3);
-  /* Slate-400 equivalent with opacity */
   border-radius: 100vh;
-  border: 2px solid transparent;
-  background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -1090,8 +1087,6 @@ textarea {
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
   background-color: transparent;
-  border: 4px solid transparent;
-  background-clip: content-box;
   border-radius: 9999px;
 }
 

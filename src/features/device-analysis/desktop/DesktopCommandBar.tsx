@@ -111,7 +111,7 @@ const DesktopCommandBar = ({
               options={normalizedAnalysisFileOptions}
               className="da-neutral-select"
               align="center"
-              stableWidth
+              stableWidth={false}
               data-cta="Device Analysis"
               data-cta-position="titlebar-file-select"
               data-cta-copy="titlebar file select"
