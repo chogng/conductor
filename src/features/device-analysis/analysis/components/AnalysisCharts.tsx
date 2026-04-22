@@ -547,8 +547,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         visibleOriginCanvasIds: overviewVisibleFileIds,
     });
     const selectedCanvasCount = selectedOriginCanvasKeySet?.size ?? 0;
-    const isManualCanvasScope = originCanvasExportScope === "selected";
-    const isExportListCanvasSelectionMode = originCanvasExportScope === "selected";
+    const isExportPaneActive = resultsTab === "export";
+    const isManualCanvasScope = isExportPaneActive && originCanvasExportScope === "selected";
+    const isExportListCanvasSelectionMode = isManualCanvasScope;
     const showFilteredCanvasKindSelect = originCanvasExportScope === "filtered";
     const separateCanvasScopeSummary = useMemo(() => {
         if (originCanvasExportScope === "current") {
@@ -2835,7 +2836,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         id="device-analysis-overview-sidebar"
         className="md:min-h-0 flex flex-col h-full"
       >
-        <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} onVisibleFileIdsChange={setOverviewVisibleFileIds} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} originCanvasExportScope={originCanvasExportScope} xUnitFactor={resolvedXUnitMeta.factor} xUnitLabel={resolvedXUnitMeta.label} resolveYUnitForFile={resolveYUnitForFile} resolveYScaleForFile={resolveLinearLogYScaleForFile}/>
+        <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} onVisibleFileIdsChange={setOverviewVisibleFileIds} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} originCanvasExportScope={originCanvasExportScope} isSelectionMode={isManualCanvasScope} xUnitFactor={resolvedXUnitMeta.factor} xUnitLabel={resolvedXUnitMeta.label} resolveYUnitForFile={resolveYUnitForFile} resolveYScaleForFile={resolveLinearLogYScaleForFile}/>
       </aside>
 
       <ScrollArea className="da-analysis-scroll-area md:min-h-0 min-w-0" axis="y" viewportClassName="flex flex-col min-h-full">

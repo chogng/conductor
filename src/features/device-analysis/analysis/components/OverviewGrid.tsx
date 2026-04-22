@@ -17,6 +17,7 @@ type OverviewGridProps = {
   selectedOriginCanvasKeySet?: Set<string>;
   onToggleOriginCanvasSelection?: (fileId: string | undefined) => void;
   originCanvasExportScope?: DeviceAnalysisOriginCanvasExportScope;
+  isSelectionMode?: boolean;
   xUnitFactor?: number;
   xUnitLabel?: string;
   resolveYUnitForFile?: (
@@ -61,6 +62,7 @@ const OverviewGrid = memo(function OverviewGrid({
   selectedOriginCanvasKeySet,
   onToggleOriginCanvasSelection,
   originCanvasExportScope = "selected",
+  isSelectionMode = false,
   xUnitFactor,
   xUnitLabel,
   resolveYUnitForFile,
@@ -159,7 +161,7 @@ const OverviewGrid = memo(function OverviewGrid({
     onVisibleFileIdsChange?.(visibleFileIds);
   }, [onVisibleFileIdsChange, visibleFileIds]);
 
-  const isManualCanvasScope = originCanvasExportScope === "selected";
+  const isManualCanvasScope = isSelectionMode && originCanvasExportScope === "selected";
   if (!processedData.length) return null;
 
   return (
