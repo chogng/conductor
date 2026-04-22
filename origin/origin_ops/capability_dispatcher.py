@@ -5,6 +5,9 @@ from dataclasses import dataclass, field
 @dataclass
 class CapabilityPlan:
     workbook_long_name: str = ""
+    import_column_long_names: list[str] = field(default_factory=list)
+    import_column_units: list[str] = field(default_factory=list)
+    axis_limits: dict = field(default_factory=dict)
     plot_command_override: str = ""
     import_pre_commands: list[str] = field(default_factory=list)
     import_post_commands: list[str] = field(default_factory=list)
@@ -58,6 +61,33 @@ def _assert_command_list_shape(value, field_path: str) -> None:
             )
 
 
+def _assert_string_list_shape(value, field_path: str) -> None:
+    if value is None:
+        return
+    if not isinstance(value, list):
+        raise RuntimeError(
+            f"Invalid Origin capabilities at '{field_path}': expected string array."
+        )
+    for idx, item in enumerate(value):
+        if not isinstance(item, str):
+            raise RuntimeError(
+                f"Invalid Origin capabilities at '{field_path}[{idx}]': expected string."
+            )
+
+
+def _assert_number(value, field_path: str) -> None:
+    if value is None:
+        return
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise RuntimeError(
+            f"Invalid Origin capabilities at '{field_path}': expected finite number."
+        )
+    if value != value or value in (float("inf"), float("-inf")):
+        raise RuntimeError(
+            f"Invalid Origin capabilities at '{field_path}': expected finite number."
+        )
+
+
 def validate_capabilities_payload(raw_capabilities) -> dict:
     root = _assert_allowed_keys(
         raw_capabilities,
@@ -76,7 +106,7 @@ def validate_capabilities_payload(raw_capabilities) -> dict:
 
     import_section = _assert_allowed_keys(
         root.get("import"),
-        ["workbookLongName", "longName", "preCommands", "beforeCommands", "postCommands", "afterCommands"],
+        ["workbookLongName", "longName", "columnLabels", "preCommands", "beforeCommands", "postCommands", "afterCommands"],
         "capabilities.import",
     )
     plot_section = _assert_allowed_keys(
@@ -96,7 +126,7 @@ def validate_capabilities_payload(raw_capabilities) -> dict:
     )
     axis_section = _assert_allowed_keys(
         root.get("axis"),
-        ["commands", "postCommands"],
+        ["commands", "postCommands", "limits"],
         "capabilities.axis",
     )
     commands_section = _assert_allowed_keys(
@@ -104,11 +134,47 @@ def validate_capabilities_payload(raw_capabilities) -> dict:
         ["preCommands", "beforeCommands", "postCommands", "afterCommands"],
         "capabilities.commands",
     )
+    import_column_labels = _assert_allowed_keys(
+        import_section.get("columnLabels"),
+        ["longNames", "units"],
+        "capabilities.import.columnLabels",
+    )
+    axis_limits = _assert_allowed_keys(
+        axis_section.get("limits"),
+        ["x", "y"],
+        "capabilities.axis.limits",
+    )
+    axis_x_limits = _assert_allowed_keys(
+        axis_limits.get("x"),
+        ["from", "to", "step", "scale"],
+        "capabilities.axis.limits.x",
+    )
+    axis_y_limits = _assert_allowed_keys(
+        axis_limits.get("y"),
+        ["from", "to", "step", "scale"],
+        "capabilities.axis.limits.y",
+    )
 
     _assert_string(import_section.get("workbookLongName"), "capabilities.import.workbookLongName")
     _assert_string(import_section.get("longName"), "capabilities.import.longName")
     _assert_string(plot_section.get("command"), "capabilities.plot.command")
     _assert_string(plot_section.get("plotCommand"), "capabilities.plot.plotCommand")
+    _assert_string_list_shape(
+        import_column_labels.get("longNames"),
+        "capabilities.import.columnLabels.longNames",
+    )
+    _assert_string_list_shape(
+        import_column_labels.get("units"),
+        "capabilities.import.columnLabels.units",
+    )
+    _assert_number(axis_x_limits.get("from"), "capabilities.axis.limits.x.from")
+    _assert_number(axis_x_limits.get("to"), "capabilities.axis.limits.x.to")
+    _assert_number(axis_x_limits.get("step"), "capabilities.axis.limits.x.step")
+    _assert_string(axis_x_limits.get("scale"), "capabilities.axis.limits.x.scale")
+    _assert_number(axis_y_limits.get("from"), "capabilities.axis.limits.y.from")
+    _assert_number(axis_y_limits.get("to"), "capabilities.axis.limits.y.to")
+    _assert_number(axis_y_limits.get("step"), "capabilities.axis.limits.y.step")
+    _assert_string(axis_y_limits.get("scale"), "capabilities.axis.limits.y.scale")
 
     _assert_command_list_shape(root.get("preCommands"), "capabilities.preCommands")
     _assert_command_list_shape(root.get("postCommands"), "capabilities.postCommands")
@@ -165,6 +231,46 @@ def normalize_commands(value):
     return []
 
 
+def normalize_string_list(value):
+    if not isinstance(value, list):
+        return []
+    items = []
+    for item in value:
+        if not isinstance(item, str):
+            continue
+        items.append(item.strip())
+    return items
+
+
+def normalize_axis_limit_settings(value):
+    if not isinstance(value, dict):
+        return {}
+
+    def _normalize_axis(axis_value):
+        if not isinstance(axis_value, dict):
+            return None
+        normalized = {}
+        for key in ("from", "to", "step"):
+            raw = axis_value.get(key)
+            if isinstance(raw, bool):
+                continue
+            if isinstance(raw, (int, float)) and raw == raw and raw not in (float("inf"), float("-inf")):
+                normalized[key] = float(raw)
+        scale_raw = axis_value.get("scale")
+        if isinstance(scale_raw, str) and scale_raw.strip():
+            normalized["scale"] = scale_raw.strip()
+        return normalized or None
+
+    normalized_limits = {}
+    x_value = _normalize_axis(value.get("x"))
+    y_value = _normalize_axis(value.get("y"))
+    if x_value:
+        normalized_limits["x"] = x_value
+    if y_value:
+        normalized_limits["y"] = y_value
+    return normalized_limits
+
+
 def _as_dict(value):
     return value if isinstance(value, dict) else {}
 
@@ -194,6 +300,10 @@ def resolve_capability_plan(raw_capabilities) -> CapabilityPlan:
         if isinstance(workbook_long_name_raw, str)
         else ""
     )
+    import_column_labels = _as_dict(import_capabilities.get("columnLabels"))
+    import_column_long_names = normalize_string_list(import_column_labels.get("longNames"))
+    import_column_units = normalize_string_list(import_column_labels.get("units"))
+    axis_limits = normalize_axis_limit_settings(axis_capabilities.get("limits"))
     plot_command_override_raw = plot_capabilities.get("command")
     plot_command_override = (
         plot_command_override_raw.strip()
@@ -203,6 +313,9 @@ def resolve_capability_plan(raw_capabilities) -> CapabilityPlan:
 
     return CapabilityPlan(
         workbook_long_name=workbook_long_name,
+        import_column_long_names=import_column_long_names,
+        import_column_units=import_column_units,
+        axis_limits=axis_limits,
         plot_command_override=plot_command_override,
         import_pre_commands=_pick_commands(import_capabilities, "preCommands", "beforeCommands"),
         import_post_commands=_pick_commands(import_capabilities, "postCommands", "afterCommands"),

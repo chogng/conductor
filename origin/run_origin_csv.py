@@ -10,7 +10,7 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 
-from origin_ops.axis_ops import apply_axis_commands
+from origin_ops.axis_ops import apply_axis_commands, apply_axis_limits
 from origin_ops.capability_dispatcher import (
     parse_capabilities_json,
     resolve_capability_plan,
@@ -84,6 +84,46 @@ def _scan_y_axis_command_flags(commands) -> tuple[bool, bool, bool]:
         elif text.startswith("layer.y.rescale="):
             has_rescale = True
     return (has_from, has_to, has_rescale)
+
+
+def _extract_axis_command_summary(commands):
+    summary = {
+        "x": {"from": None, "to": None, "rescale": None, "type": None},
+        "y": {"from": None, "to": None, "rescale": None, "type": None},
+    }
+    if not isinstance(commands, list):
+        return summary
+
+    for command in commands:
+        if not isinstance(command, str):
+            continue
+        text = _normalize_axis_command(command)
+        if text.startswith("layer.x.from="):
+            summary["x"]["from"] = _parse_axis_assignment_value(text, "layer.x.from=")
+        elif text.startswith("layer.x.to="):
+            summary["x"]["to"] = _parse_axis_assignment_value(text, "layer.x.to=")
+        elif text.startswith("layer.x.rescale="):
+            summary["x"]["rescale"] = _parse_axis_assignment_value(text, "layer.x.rescale=")
+        elif text.startswith("layer.x.type="):
+            summary["x"]["type"] = _parse_axis_assignment_value(text, "layer.x.type=")
+        elif text.startswith("layer.y.from="):
+            summary["y"]["from"] = _parse_axis_assignment_value(text, "layer.y.from=")
+        elif text.startswith("layer.y.to="):
+            summary["y"]["to"] = _parse_axis_assignment_value(text, "layer.y.to=")
+        elif text.startswith("layer.y.rescale="):
+            summary["y"]["rescale"] = _parse_axis_assignment_value(text, "layer.y.rescale=")
+        elif text.startswith("layer.y.type="):
+            summary["y"]["type"] = _parse_axis_assignment_value(text, "layer.y.type=")
+    return summary
+
+
+def _log_axis_command_summary(ctx, log_prefix: str, commands) -> None:
+    summary = _extract_axis_command_summary(commands)
+    ctx.log(
+        f"{log_prefix} axis summary: "
+        f"x[from={summary['x']['from']}, to={summary['x']['to']}, rescale={summary['x']['rescale']}, type={summary['x']['type']}], "
+        f"y[from={summary['y']['from']}, to={summary['y']['to']}, rescale={summary['y']['rescale']}, type={summary['y']['type']}]"
+    )
 
 
 def _compute_csv_positive_y_bounds(csv_path: Path):
@@ -451,6 +491,8 @@ def run_csv_job(ctx, op_module, job: dict, job_index: int, job_count: int) -> st
         workbook_short_name=_coerce_text(job.get("workbook_key")),
         workbook_long_name=effective_workbook_name,
         sheet_long_name=requested_sheet_name,
+        import_column_long_names=capability_plan.import_column_long_names,
+        import_column_units=capability_plan.import_column_units,
         import_pre_commands=capability_plan.import_pre_commands,
         import_post_commands=capability_plan.import_post_commands,
         label_prefix=import_label_prefix,
@@ -472,10 +514,14 @@ def run_csv_job(ctx, op_module, job: dict, job_index: int, job_count: int) -> st
         csv_path,
         ctx,
     )
+    if capability_plan.axis_limits:
+        ctx.log(f"{log_prefix} axis limits payload: {capability_plan.axis_limits}")
     if axis_commands:
         ctx.log(f"{log_prefix} axis commands: {axis_commands}")
+        _log_axis_command_summary(ctx, log_prefix, axis_commands)
     apply_style_commands(op_module, capability_plan.style_commands)
     apply_axis_commands(op_module, axis_commands)
+    apply_axis_limits(op_module, capability_plan.axis_limits, warning_logger=ctx.log)
     run_command_list(
         op_module,
         capability_plan.graph_post_commands,

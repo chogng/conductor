@@ -1,5 +1,5 @@
 import React, { startTransition, useEffect, useMemo, useRef, useState, type CSSProperties, } from "react";
-import { Check, X } from "lucide-react";
+import { AlertTriangle, Check, X } from "lucide-react";
 import { computeCentralDerivative, computeSubthresholdSwing, computeSubthresholdSwingFitAuto, computeSubthresholdSwingFitInIdWindow, computeSubthresholdSwingFitInRange, classifySsFit, computeLegendDerivativeSeries, formatNumber, interpolateCurveAtX, resolveAutoSsSelection, } from "../lib/analysisMath";
 import { apiService } from "../services/apiService";
 import Select from "../../../../components/ui/Select";
@@ -111,6 +111,29 @@ const buildSeriesRangeSignature = (ranges: Record<string, {
     })
         .join("|");
 };
+const inferUniformTickStep = (ticks: unknown, toleranceRatio = 1e-6): number | null => {
+    if (!Array.isArray(ticks) || ticks.length < 2)
+        return null;
+    const values = ticks
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value));
+    if (values.length < 2)
+        return null;
+    const deltas: number[] = [];
+    for (let index = 1; index < values.length; index += 1) {
+        const delta = values[index] - values[index - 1];
+        if (!Number.isFinite(delta) || !(Math.abs(delta) > 0))
+            return null;
+        deltas.push(delta);
+    }
+    if (!deltas.length)
+        return null;
+    const base = deltas[0];
+    const tolerance = Math.max(Math.abs(base) * toleranceRatio, 1e-12);
+    if (!deltas.every((delta) => Math.abs(delta - base) <= tolerance))
+        return null;
+    return Math.abs(base);
+};
 const resolveAvailableActiveFileId = (processedData: any[], preferredFileId: any): string | null => {
     if (!processedData?.length)
         return null;
@@ -178,12 +201,30 @@ type OriginCsvBridge = {
             import?: {
                 longName?: string;
                 workbookLongName?: string;
+                columnLabels?: {
+                    longNames?: string[];
+                    units?: string[];
+                };
                 postCommands?: string[];
             };
             plot?: {
                 postCommands?: string[];
             };
             axis?: {
+                limits?: {
+                    x?: {
+                        from?: number;
+                        to?: number;
+                        step?: number;
+                        scale?: string;
+                    };
+                    y?: {
+                        from?: number;
+                        to?: number;
+                        step?: number;
+                        scale?: string;
+                    };
+                };
                 commands?: string[];
             };
         };
@@ -287,8 +328,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const [originFilteredCanvasKind, setOriginFilteredCanvasKind] = useState<DeviceAnalysisOriginFilteredCanvasKind>("output");
     const [resultsTab, setResultsTab] = useState<"metrics" | "export">("metrics");
     const [overviewVisibleFileIds, setOverviewVisibleFileIds] = useState<string[]>([]);
-    const originChartXRangeRef = useRef<{ min: number; max: number; } | null>(null);
-    const originChartYRangeRef = useRef<{ mode: "linear" | "log"; min: number; max: number; } | null>(null);
+    const originChartXRangeRef = useRef<{ min: number; max: number; step?: number | null; } | null>(null);
+    const originChartYRangeRef = useRef<{ mode: "linear" | "log"; min: number; max: number; step?: number | null; } | null>(null);
     const [axis, setAxis] = useState({
         xMin: "",
         xMax: "",
@@ -432,6 +473,40 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             };
         });
     }, [activeChartYScale]);
+    const hasManualAxisOverride = useMemo(() => {
+        const hasManualXRange =
+            parseOptionalNumber(axis?.xMin) !== null || parseOptionalNumber(axis?.xMax) !== null;
+        const hasManualYRange =
+            parseOptionalNumber(axis?.yMin) !== null || parseOptionalNumber(axis?.yMax) !== null;
+        const hasManualXTickMode = String(axis?.xTicks ?? "auto") !== "auto";
+        const hasManualYTickMode = String(axis?.yTicks ?? "nice") !== "nice";
+        const hasManualXStep = parseOptionalNumber(axis?.xStep) !== null;
+        const hasManualYStep = parseOptionalNumber(axis?.yStep) !== null;
+        const hasManualYDecadeStep = Number(axis?.yDecadeStep ?? 1) !== 1;
+        const hasManualXTickCount = Number(axis?.xTickCount ?? 6) !== 6;
+        const hasManualYTickCount = Number(axis?.yTickCount ?? 6) !== 6;
+        return hasManualXRange ||
+            hasManualYRange ||
+            hasManualXTickMode ||
+            hasManualYTickMode ||
+            hasManualXStep ||
+            hasManualYStep ||
+            hasManualYDecadeStep ||
+            hasManualXTickCount ||
+            hasManualYTickCount;
+    }, [
+        axis?.xMax,
+        axis?.xMin,
+        axis?.xStep,
+        axis?.xTickCount,
+        axis?.xTicks,
+        axis?.yDecadeStep,
+        axis?.yMax,
+        axis?.yMin,
+        axis?.yStep,
+        axis?.yTickCount,
+        axis?.yTicks,
+    ]);
     const {
         clearOriginCanvasSelection,
         clearOriginSeriesSelectionForFile,
@@ -461,9 +536,11 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         originChartXRangeRef,
         originChartYRangeRef,
         originExportMode,
+        originHasManualAxisOverride: hasManualAxisOverride,
         originOpenPlotOptions,
         processedData,
         resolveYScaleForFile: resolveLinearLogYScaleForFile,
+        resolveYUnitForFile,
         showToast,
         t,
         tLoose,
@@ -2299,16 +2376,20 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     }, [axis?.xStep, axis?.xTickCount, axis?.xTicks, plotXFactor, xDomain]);
     const originChartXRange = useMemo(() => {
         const ticks = Array.isArray(xTicks) && xTicks.length >= 2 ? xTicks : null;
-        const minCandidate = ticks ? Number(ticks[0]) : Number(xDomain?.[0]);
-        const maxCandidate = ticks ? Number(ticks[ticks.length - 1]) : Number(xDomain?.[1]);
+        const minCandidateRaw = ticks ? Number(ticks[0]) : Number(xDomain?.[0]);
+        const maxCandidateRaw = ticks ? Number(ticks[ticks.length - 1]) : Number(xDomain?.[1]);
+        const stepRaw = inferUniformTickStep(ticks);
+        const minCandidate = minCandidateRaw * plotXFactor;
+        const maxCandidate = maxCandidateRaw * plotXFactor;
         if (!Number.isFinite(minCandidate) || !Number.isFinite(maxCandidate))
             return null;
         const min = Math.min(minCandidate, maxCandidate);
         const max = Math.max(minCandidate, maxCandidate);
         if (!(max > min))
             return null;
-        return { min, max };
-    }, [xDomain, xTicks]);
+        const step = Number.isFinite(stepRaw) ? Number(stepRaw) * plotXFactor : null;
+        return { min, max, step };
+    }, [plotXFactor, xDomain, xTicks]);
     useEffect(() => {
         originChartXRangeRef.current = originChartXRange;
     }, [originChartXRange]);
@@ -2358,8 +2439,11 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     ]);
     const originChartYRange = useMemo(() => {
         const ticks = Array.isArray(yTicks) && yTicks.length >= 2 ? yTicks : null;
-        const minCandidate = ticks ? Number(ticks[0]) : Number(yDomain?.[0]);
-        const maxCandidate = ticks ? Number(ticks[ticks.length - 1]) : Number(yDomain?.[1]);
+        const minCandidateRaw = ticks ? Number(ticks[0]) : Number(yDomain?.[0]);
+        const maxCandidateRaw = ticks ? Number(ticks[ticks.length - 1]) : Number(yDomain?.[1]);
+        const stepRaw = effectiveYScale === "linear" ? inferUniformTickStep(ticks) : null;
+        const minCandidate = minCandidateRaw * plotYFactor;
+        const maxCandidate = maxCandidateRaw * plotYFactor;
         if (!Number.isFinite(minCandidate) || !Number.isFinite(maxCandidate))
             return null;
         const min = Math.min(minCandidate, maxCandidate);
@@ -2369,8 +2453,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const mode: "linear" | "log" = effectiveYScale === "linear" ? "linear" : "log";
         if (mode === "log" && (!(min > 0) || !(max > 0)))
             return null;
-        return { mode, min, max };
-    }, [effectiveYScale, yDomain, yTicks]);
+        const step = Number.isFinite(stepRaw) ? Number(stepRaw) * plotYFactor : null;
+        return { mode, min, max, step };
+    }, [effectiveYScale, plotYFactor, yDomain, yTicks]);
     useEffect(() => {
         originChartYRangeRef.current = originChartYRange;
     }, [originChartYRange]);
@@ -3320,11 +3405,14 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     </div>
                   </div>
                   <div className="mt-3 space-y-2">
-                    <div className="text-xs text-text-secondary">
-                      {originExportModeHint}
-                    </div>
-                    {resolvedOriginExportMode === "merged" && hasMixedExportYScales ? (<div className="rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-                        {t("da_origin_export_mode_mixed_y_scale_split_hint")}
+                    {resolvedOriginExportMode !== "merged" ? (<div className="text-xs text-text-secondary">
+                        {originExportModeHint}
+                      </div>) : null}
+                    {resolvedOriginExportMode === "merged" && hasMixedExportYScales ? (<div className="rounded-lg border border-border bg-bg-page/60 px-3 py-2 text-xs text-text-secondary">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden="true"/>
+                          <span>{t("da_origin_export_mode_mixed_y_scale_split_hint")}</span>
+                        </div>
                       </div>) : null}
                   </div>
                 </div>

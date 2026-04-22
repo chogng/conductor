@@ -151,7 +151,7 @@ const ORIGIN_CSV_WORKER_PATH = resolveOriginCsvWorkerPath();
 
 /**
  * @typedef {{
- *   import?: {workbookLongName?: string, preCommands?: string[], postCommands?: string[]},
+ *   import?: {workbookLongName?: string, columnLabels?: {longNames?: string[], units?: string[]}, preCommands?: string[], postCommands?: string[]},
  *   plot?: {command?: string, preCommands?: string[], postCommands?: string[]},
  *   graph?: {preCommands?: string[], postCommands?: string[]},
  *   style?: {commands?: string[]},
@@ -200,6 +200,27 @@ function assertOriginCapabilitiesCommandList(value, fieldPath) {
   }
 }
 
+function assertOriginCapabilitiesStringList(value, fieldPath) {
+  if (value == null) return;
+  if (!Array.isArray(value)) {
+    throw new Error(`Invalid Origin capabilities at '${fieldPath}': expected string array.`);
+  }
+  for (let i = 0; i < value.length; i += 1) {
+    if (typeof value[i] !== "string") {
+      throw new Error(
+        `Invalid Origin capabilities at '${fieldPath}[${i}]': expected string.`,
+      );
+    }
+  }
+}
+
+function assertOriginCapabilitiesNumber(value, fieldPath) {
+  if (value == null) return;
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Error(`Invalid Origin capabilities at '${fieldPath}': expected finite number.`);
+  }
+}
+
 function validateOriginCapabilitiesPayload(rawCapabilities) {
   if (rawCapabilities == null) return;
 
@@ -220,7 +241,7 @@ function validateOriginCapabilitiesPayload(rawCapabilities) {
 
   const importSection = assertOriginCapabilitiesAllowedKeys(
     root.import,
-    ["workbookLongName", "longName", "preCommands", "beforeCommands", "postCommands", "afterCommands"],
+    ["workbookLongName", "longName", "columnLabels", "preCommands", "beforeCommands", "postCommands", "afterCommands"],
     "capabilities.import",
   );
   const plotSection = assertOriginCapabilitiesAllowedKeys(
@@ -240,7 +261,7 @@ function validateOriginCapabilitiesPayload(rawCapabilities) {
   );
   const axisSection = assertOriginCapabilitiesAllowedKeys(
     root.axis,
-    ["commands", "postCommands"],
+    ["commands", "postCommands", "limits"],
     "capabilities.axis",
   );
   const commandsSection = assertOriginCapabilitiesAllowedKeys(
@@ -248,11 +269,41 @@ function validateOriginCapabilitiesPayload(rawCapabilities) {
     ["preCommands", "beforeCommands", "postCommands", "afterCommands"],
     "capabilities.commands",
   );
+  const importColumnLabels = assertOriginCapabilitiesAllowedKeys(
+    importSection.columnLabels,
+    ["longNames", "units"],
+    "capabilities.import.columnLabels",
+  );
+  const axisLimits = assertOriginCapabilitiesAllowedKeys(
+    axisSection.limits,
+    ["x", "y"],
+    "capabilities.axis.limits",
+  );
+  const axisXLimits = assertOriginCapabilitiesAllowedKeys(
+    axisLimits.x,
+    ["from", "to", "step", "scale"],
+    "capabilities.axis.limits.x",
+  );
+  const axisYLimits = assertOriginCapabilitiesAllowedKeys(
+    axisLimits.y,
+    ["from", "to", "step", "scale"],
+    "capabilities.axis.limits.y",
+  );
 
   assertOriginCapabilitiesString(importSection.workbookLongName, "capabilities.import.workbookLongName");
   assertOriginCapabilitiesString(importSection.longName, "capabilities.import.longName");
   assertOriginCapabilitiesString(plotSection.command, "capabilities.plot.command");
   assertOriginCapabilitiesString(plotSection.plotCommand, "capabilities.plot.plotCommand");
+  assertOriginCapabilitiesStringList(importColumnLabels.longNames, "capabilities.import.columnLabels.longNames");
+  assertOriginCapabilitiesStringList(importColumnLabels.units, "capabilities.import.columnLabels.units");
+  assertOriginCapabilitiesNumber(axisXLimits.from, "capabilities.axis.limits.x.from");
+  assertOriginCapabilitiesNumber(axisXLimits.to, "capabilities.axis.limits.x.to");
+  assertOriginCapabilitiesNumber(axisXLimits.step, "capabilities.axis.limits.x.step");
+  assertOriginCapabilitiesString(axisXLimits.scale, "capabilities.axis.limits.x.scale");
+  assertOriginCapabilitiesNumber(axisYLimits.from, "capabilities.axis.limits.y.from");
+  assertOriginCapabilitiesNumber(axisYLimits.to, "capabilities.axis.limits.y.to");
+  assertOriginCapabilitiesNumber(axisYLimits.step, "capabilities.axis.limits.y.step");
+  assertOriginCapabilitiesString(axisYLimits.scale, "capabilities.axis.limits.y.scale");
 
   assertOriginCapabilitiesCommandList(root.preCommands, "capabilities.preCommands");
   assertOriginCapabilitiesCommandList(root.postCommands, "capabilities.postCommands");
@@ -308,6 +359,20 @@ function normalizeOriginCapabilitiesPayload(rawCapabilities) {
     importSection.workbookLongName ?? importSection.longName,
     "",
   );
+  const importColumnLabelsRaw =
+    importSection.columnLabels && typeof importSection.columnLabels === "object"
+      ? importSection.columnLabels
+      : {};
+  const importColumnLongNames = Array.isArray(importColumnLabelsRaw.longNames)
+    ? importColumnLabelsRaw.longNames
+        .filter((item) => typeof item === "string")
+        .map((item) => item.trim())
+    : [];
+  const importColumnUnits = Array.isArray(importColumnLabelsRaw.units)
+    ? importColumnLabelsRaw.units
+        .filter((item) => typeof item === "string")
+        .map((item) => item.trim())
+    : [];
   const importPreCommands = normalizeOriginCommandList(
     importSection.preCommands ?? importSection.beforeCommands,
   );
@@ -339,6 +404,40 @@ function normalizeOriginCapabilitiesPayload(rawCapabilities) {
   const axisCommands = normalizeOriginCommandList(
     axisSection.commands ?? axisSection.postCommands,
   );
+  const axisLimitsRaw =
+    axisSection.limits && typeof axisSection.limits === "object"
+      ? axisSection.limits
+      : {};
+  const normalizeAxisLimitShape = (value) => {
+    const source = value && typeof value === "object" ? value : {};
+    const from = Number.isFinite(source.from) ? Number(source.from) : undefined;
+    const to = Number.isFinite(source.to) ? Number(source.to) : undefined;
+    const step = Number.isFinite(source.step) ? Number(source.step) : undefined;
+    const scale = normalizeNonEmptyString(source.scale, "");
+    if (
+      from === undefined &&
+      to === undefined &&
+      step === undefined &&
+      !scale
+    ) {
+      return null;
+    }
+    const normalizedAxis: {
+      from?: number;
+      to?: number;
+      step?: number;
+      scale?: string;
+    } = {};
+    if (from !== undefined) normalizedAxis.from = from;
+    if (to !== undefined) normalizedAxis.to = to;
+    if (step !== undefined) normalizedAxis.step = step;
+    if (scale) normalizedAxis.scale = scale;
+    return normalizedAxis;
+  };
+  const axisLimitsNormalized = {
+    x: normalizeAxisLimitShape(axisLimitsRaw.x),
+    y: normalizeAxisLimitShape(axisLimitsRaw.y),
+  };
 
   const globalPreCommands = normalizeOriginCommandList(
     raw.preCommands ??
@@ -353,9 +452,20 @@ function normalizeOriginCapabilitiesPayload(rawCapabilities) {
 
   const normalized: any = {};
 
-  if (importWorkbookLongName || importPreCommands.length || importPostCommands.length) {
+  if (
+    importWorkbookLongName ||
+    importColumnLongNames.length ||
+    importColumnUnits.length ||
+    importPreCommands.length ||
+    importPostCommands.length
+  ) {
     normalized.import = {};
     if (importWorkbookLongName) normalized.import.workbookLongName = importWorkbookLongName;
+    if (importColumnLongNames.length || importColumnUnits.length) {
+      normalized.import.columnLabels = {};
+      if (importColumnLongNames.length) normalized.import.columnLabels.longNames = importColumnLongNames;
+      if (importColumnUnits.length) normalized.import.columnLabels.units = importColumnUnits;
+    }
     if (importPreCommands.length) normalized.import.preCommands = importPreCommands;
     if (importPostCommands.length) normalized.import.postCommands = importPostCommands;
   }
@@ -377,8 +487,13 @@ function normalizeOriginCapabilitiesPayload(rawCapabilities) {
     normalized.style = { commands: styleCommands };
   }
 
-  if (axisCommands.length) {
+  if (axisCommands.length || axisLimitsNormalized.x || axisLimitsNormalized.y) {
     normalized.axis = { commands: axisCommands };
+    if (axisLimitsNormalized.x || axisLimitsNormalized.y) {
+      normalized.axis.limits = {};
+      if (axisLimitsNormalized.x) normalized.axis.limits.x = axisLimitsNormalized.x;
+      if (axisLimitsNormalized.y) normalized.axis.limits.y = axisLimitsNormalized.y;
+    }
   }
 
   if (globalPreCommands.length || globalPostCommands.length) {

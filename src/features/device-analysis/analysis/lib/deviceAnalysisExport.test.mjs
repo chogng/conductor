@@ -97,6 +97,41 @@ test("buildDeviceAnalysisOriginSelectionExport defaults to all live series when 
   assert.match(payload.csvName, /^file_a__selected_curves\.csv$/);
 });
 
+test("buildDeviceAnalysisOriginExportPlan scales exported X/Y data to the active display units", () => {
+  const plan = buildDeviceAnalysisOriginExportPlan(
+    [
+      {
+        fileId: "file-a",
+        fileName: "file_a.csv",
+        xGroups: [[0, 1]],
+        series: [
+          {
+            id: "curve-a",
+            groupIndex: 0,
+            y: [0.00001, 0.00002],
+          },
+        ],
+      },
+    ],
+    undefined,
+    "merged",
+    () => "linear",
+    () => 1e3,
+    () => 1e3,
+  );
+
+  assert.equal(plan.payloads.length, 1);
+  const payload = plan.payloads[0];
+  assert.equal(payload.xMin, 0);
+  assert.equal(payload.xMax, 1000);
+  assert.equal(payload.yLinearMin, 0.01);
+  assert.equal(payload.yLinearMax, 0.02);
+  const csvText = payload.csvText.replace(/^\uFEFF/, "");
+  const rows = csvText.split(/\r?\n/);
+  assert.equal(rows[0], "0,0.01");
+  assert.equal(rows[1], "1000,0.02");
+});
+
 test("isDeviceAnalysisOriginExportMode accepts workbookBooks as a valid export mode", () => {
   assert.equal(isDeviceAnalysisOriginExportMode("workbookBooks"), true);
 });

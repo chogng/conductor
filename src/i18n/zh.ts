@@ -88,7 +88,7 @@
     da_origin_export_mode_workbook_sheets: '新建工作表',
     da_origin_export_mode_separate: '新建窗口',
     da_origin_export_mode_merged_hint: '把所选文件中的已选曲线汇总到 Origin 的同一张工作表，并以新增列的方式写入。',
-    da_origin_export_mode_mixed_y_scale_split_hint: '当前导出列表里同时包含 Linear 和 Log 纵坐标。Origin 的同一图层不能混用两种纵轴类型，因此本次“新建列”会自动拆分为多个工作表后再绘图。',
+    da_origin_export_mode_mixed_y_scale_split_hint: '当前导出列表里同时包含 Linear 和 Log 纵坐标，“新建列”会自动拆分为多个工作表。',
     da_origin_export_mode_workbook_books_hint: '把所选缩略图导入到同一个 Origin 窗口，并为每个缩略图新建一个工作簿。',
     da_origin_export_mode_workbook_sheets_hint: '把所选缩略图导入到同一 Origin 工作簿，并为每个缩略图新建一张工作表。',
     da_origin_export_mode_separate_hint: '为导出范围内的每个缩略图分别新建一个 Origin 窗口。',

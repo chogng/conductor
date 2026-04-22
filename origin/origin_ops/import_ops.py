@@ -80,6 +80,21 @@ def get_origin_book_short_name(book) -> str:
     return ""
 
 
+def get_origin_sheet(op_module):
+    finder = getattr(op_module, "find_sheet", None)
+    if not callable(finder):
+        return None
+    try:
+        return finder("w")
+    except TypeError:
+        try:
+            return finder()
+        except Exception:
+            return None
+    except Exception:
+        return None
+
+
 def resolve_active_origin_book_short_name(op_module) -> str:
     return get_origin_book_short_name(get_origin_book(op_module))
 
@@ -169,6 +184,72 @@ def try_set_origin_long_name_via_object(op_module, target: str, value: str) -> b
     return True
 
 
+def try_apply_origin_column_labels(
+    op_module,
+    long_names,
+    units,
+    warning_logger=None,
+    label_prefix: str = "CSV import",
+) -> None:
+    normalized_long_names = [str(item or "").strip() for item in (long_names or [])]
+    normalized_units = [str(item or "").strip() for item in (units or [])]
+    if not normalized_long_names and not normalized_units:
+        return
+
+    sheet = get_origin_sheet(op_module)
+    if sheet is None:
+        log_origin_warning(
+            warning_logger,
+            f"{label_prefix} warning: active worksheet object is unavailable for originpro label update.",
+        )
+        return
+
+    header_rows = getattr(sheet, "header_rows", None)
+    if callable(header_rows):
+        try:
+            header_rows("lu")
+        except Exception as exc:
+            log_origin_warning(
+                warning_logger,
+                f"{label_prefix} warning: failed to show worksheet label rows via originpro API: {exc!r}",
+            )
+
+    set_labels = getattr(sheet, "set_labels", None)
+    if callable(set_labels):
+        try:
+            if normalized_long_names:
+                set_labels(normalized_long_names, "L")
+            if normalized_units:
+                set_labels(normalized_units, "U")
+            return
+        except Exception as exc:
+            log_origin_warning(
+                warning_logger,
+                f"{label_prefix} warning: failed to set worksheet column labels via originpro API: {exc!r}",
+            )
+
+    set_label = getattr(sheet, "set_label", None)
+    if callable(set_label):
+        try:
+            for idx, value in enumerate(normalized_long_names):
+                if value:
+                    set_label(idx, value, "L")
+            for idx, value in enumerate(normalized_units):
+                if value:
+                    set_label(idx, value, "U")
+            return
+        except Exception as exc:
+            log_origin_warning(
+                warning_logger,
+                f"{label_prefix} warning: failed to set worksheet labels one-by-one via originpro API: {exc!r}",
+            )
+
+    log_origin_warning(
+        warning_logger,
+        f"{label_prefix} warning: worksheet label update skipped because originpro label APIs are unavailable.",
+    )
+
+
 def try_set_origin_long_name(
     op_module,
     target: str,
@@ -212,6 +293,8 @@ def run_csv_import(
     workbook_short_name: str = "",
     workbook_long_name: str = "",
     sheet_long_name: str = "",
+    import_column_long_names=None,
+    import_column_units=None,
     import_pre_commands=None,
     import_post_commands=None,
     label_prefix: str = "CSV import",
@@ -271,5 +354,12 @@ def run_csv_import(
             warning_logger=warning_logger,
             label_prefix=label_prefix,
         )
+    try_apply_origin_column_labels(
+        op_module,
+        import_column_long_names,
+        import_column_units,
+        warning_logger=warning_logger,
+        label_prefix=label_prefix,
+    )
     run_command_list(op_module, import_post_commands or [], "Import post-command")
     return resolve_active_origin_book_short_name(op_module) or actual_workbook_short_name

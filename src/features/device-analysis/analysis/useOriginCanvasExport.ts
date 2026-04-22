@@ -27,6 +27,10 @@ import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
   normalizeOriginPlotOptions,
 } from "./lib/originPlotOptions";
+import {
+  getDeviceAnalysisXUnitMeta,
+  getDeviceAnalysisYUnitMeta,
+} from "./lib/deviceAnalysisUnits";
 
 const ORIGIN_CSV_AUTO_ZIP_FALLBACK_CODES = new Set([
   "ORIGIN_ORIGINPRO_IMPORT_FAILED",
@@ -46,6 +50,12 @@ export type DeviceAnalysisOriginCanvasExportScope =
 export type DeviceAnalysisOriginFilteredCanvasKind = "transfer" | "output";
 export type DeviceAnalysisOriginCurveExportMode = "all" | "select";
 
+type OriginDisplayRange = {
+  min: number;
+  max: number;
+  step?: number | null;
+};
+
 type UseOriginCanvasExportOptions = {
   activeFile: any;
   canvasExportScope?: DeviceAnalysisOriginCanvasExportScope;
@@ -54,18 +64,21 @@ type UseOriginCanvasExportOptions = {
   effectiveActiveFileId: unknown;
   getDesktopOriginBridge: () => any;
   isWindowsDesktopShell: boolean;
-  originChartXRangeRef: MutableRefObject<{ min: number; max: number } | null>;
+  originChartXRangeRef: MutableRefObject<OriginDisplayRange | null>;
   originChartYRangeRef: MutableRefObject<{
     mode: "linear" | "log";
     min: number;
     max: number;
+    step?: number | null;
   } | null>;
   originExportMode?: unknown;
+  originHasManualAxisOverride?: boolean;
   originOpenPlotOptions: unknown;
   processedData: any[];
   resolveYScaleForFile?: (
     file: any,
   ) => DeviceAnalysisOriginYAxisScaleMode;
+  resolveYUnitForFile?: (file: any) => string;
   showToast: (message: string, type?: any) => void;
   t: (key: string, params?: any) => string;
   tLoose: (key: string, params?: any) => string;
@@ -93,29 +106,44 @@ const normalizeOriginLabelText = (
   return raw.length > max ? raw.slice(0, max).trim() : raw;
 };
 
-const escapeOriginLabtalkText = (value: unknown): string =>
-  normalizeOriginLabelText(value)
-    .replace(/\\/g, "\\\\")
-    .replace(/"/g, '\\"');
-
 const buildOriginWorkbookKey = (): string => {
   const timeToken = Date.now().toString(36).toUpperCase().slice(-6);
   const randomToken = Math.random().toString(36).slice(2, 5).toUpperCase();
   return `CDX${timeToken}${randomToken}`.slice(0, 18);
 };
 
-const buildOriginCurveLabelImportPostCommands = (
-  curveLabels: unknown,
-): string[] => {
-  const labels = Array.isArray(curveLabels) ? curveLabels : [];
-  return labels
-    .map((label, index) => {
-      const escaped = escapeOriginLabtalkText(label);
-      if (!escaped) return "";
-      const yColumnIndex = index * 2 + 2;
-      return `wks.col${yColumnIndex}.lname$="${escaped}";`;
-    })
-    .filter(Boolean);
+const buildOriginImportColumnLabels = (options: {
+  curveLabels?: unknown;
+  xColumnLongNames?: unknown;
+  xColumnUnits?: unknown;
+  yColumnLongNames?: unknown;
+  yColumnUnits?: unknown;
+}): { longNames: string[]; units: string[] } | undefined => {
+  const curveLabels = Array.isArray(options.curveLabels) ? options.curveLabels : [];
+  if (!curveLabels.length) return undefined;
+  const xColumnLongNames = Array.isArray(options.xColumnLongNames)
+    ? options.xColumnLongNames
+    : [];
+  const xColumnUnits = Array.isArray(options.xColumnUnits)
+    ? options.xColumnUnits
+    : [];
+  const yColumnLongNames = Array.isArray(options.yColumnLongNames)
+    ? options.yColumnLongNames
+    : [];
+  const yColumnUnits = Array.isArray(options.yColumnUnits)
+    ? options.yColumnUnits
+    : [];
+  const longNames: string[] = [];
+  const units: string[] = [];
+  for (let index = 0; index < curveLabels.length; index += 1) {
+    longNames.push(normalizeOriginLabelText(xColumnLongNames[index]));
+    units.push(normalizeOriginLabelText(xColumnUnits[index]));
+    longNames.push(
+      normalizeOriginLabelText(yColumnLongNames[index] ?? curveLabels[index]),
+    );
+    units.push(normalizeOriginLabelText(yColumnUnits[index]));
+  }
+  return { longNames, units };
 };
 
 const buildOriginLegendRefreshCommands = (curveLabels: unknown): string[] => {
@@ -173,9 +201,11 @@ export const useOriginCanvasExport = ({
   originChartXRangeRef,
   originChartYRangeRef,
   originExportMode,
+  originHasManualAxisOverride = false,
   originOpenPlotOptions,
   processedData,
   resolveYScaleForFile = () => "linear",
+  resolveYUnitForFile = () => "A",
   showToast,
   t,
   tLoose,
@@ -773,6 +803,9 @@ export const useOriginCanvasExport = ({
       originSelectedSeriesIdsByFile,
       resolvedOriginExportMode,
       resolveYScaleForFile,
+      (file) => getDeviceAnalysisXUnitMeta(file?.xUnit).factor,
+      (file) => getDeviceAnalysisYUnitMeta(resolveYUnitForFile(file)).factor,
+      (file) => getDeviceAnalysisYUnitMeta(resolveYUnitForFile(file)).label,
     );
     if (!plan.payloads.length) {
       throw new Error(t("da_origin_select_curve"));
@@ -781,6 +814,7 @@ export const useOriginCanvasExport = ({
   }, [
     originSelectedSeriesIdsByFile,
     resolveYScaleForFile,
+    resolveYUnitForFile,
     resolvedOriginExportMode,
     selectedOriginCanvases,
     t,
@@ -857,19 +891,24 @@ export const useOriginCanvasExport = ({
         DEFAULT_ORIGIN_PLOT_OPTIONS.xyPairs;
       const chartXRange = originChartXRangeRef.current;
       const chartYRange = originChartYRangeRef.current;
-      const shouldApplySmartYAxisRange = !hasCustomPlotCommand;
+      const shouldApplyAutoYAxisRange = !hasCustomPlotCommand;
       const shouldBatchOriginCsvJobs =
         result.mode === "workbookBooks" || result.mode === "workbookSheets";
       const sharedWorkbookKey =
         result.mode === "workbookSheets" ? buildOriginWorkbookKey() : "";
       const originCsvJobs = result.payloads.map((payload, index) => {
-        const importPostCommands = buildOriginCurveLabelImportPostCommands(
-          payload.curveLabels,
-        );
+        const importColumnLabels = buildOriginImportColumnLabels({
+          curveLabels: payload.curveLabels,
+          xColumnLongNames: payload.xColumnLongNames,
+          xColumnUnits: payload.xColumnUnits,
+          yColumnLongNames: payload.yColumnLongNames,
+          yColumnUnits: payload.yColumnUnits,
+        });
         const legendPostCommands = buildOriginLegendRefreshCommands(
           payload.curveLabels,
         );
         const shouldUseDisplayRange =
+          originHasManualAxisOverride &&
           payload.fileIds.length === 1 &&
           payload.fileIds[0] === String(effectiveActiveFileId ?? "") &&
           selectedOriginCanvases.length === 1;
@@ -885,32 +924,62 @@ export const useOriginCanvasExport = ({
           !hasCustomPlotCommand && !hasCustomXyPairs
             ? payload.xyPairs
             : normalizedPlotOptions.xyPairs;
-        const displayXRangeCommands = buildOriginXAxisRangeCommandsFromDisplayRange(
-          shouldUseDisplayRange
-            ? chartXRange
-            : {
-                min: payload.xMin,
-                max: payload.xMax,
-              },
-        );
+        const displayXRangeCommands = shouldUseDisplayRange
+          ? buildOriginXAxisRangeCommandsFromDisplayRange(chartXRange)
+          : [];
         const displayRangeCommands = shouldUseDisplayRange
           ? buildOriginYAxisRangeCommandsFromDisplayRange(
               originYScaleMode,
               chartYRange,
             )
           : [];
-        const smartYRangeCommands = shouldApplySmartYAxisRange
-          ? displayRangeCommands.length
-            ? displayRangeCommands
-            : buildOriginYAxisRangeCommands(originYScaleMode, payload)
-          : [];
+        const autoYRangeCommands: string[] = [];
         const originAxisCommands = [
           originYAxisTypeCommand,
           "layer.x.opposite=1",
           "layer.y.opposite=1",
           ...displayXRangeCommands,
-          ...smartYRangeCommands,
+          ...displayRangeCommands,
+          ...autoYRangeCommands,
         ];
+        const originAxisLimits = {
+          x: shouldUseDisplayRange
+            ? {
+                from: chartXRange?.min,
+                to: chartXRange?.max,
+                step: chartXRange?.step ?? undefined,
+                scale: "linear",
+              }
+            : undefined,
+          y: shouldUseDisplayRange
+            ? {
+                from: chartYRange?.min,
+                to: chartYRange?.max,
+                step:
+                  originYScaleMode === "linear"
+                    ? chartYRange?.step ?? undefined
+                    : undefined,
+                scale: originYScaleMode,
+              }
+            : {
+                scale: originYScaleMode,
+              },
+        };
+        console.info("[origin-export] axis payload", {
+          csvName: payload.csvName,
+          fileIds: payload.fileIds,
+          shouldUseDisplayRange,
+          xRangeSource: shouldUseDisplayRange ? "chart-display" : "payload-data",
+          yRangeSource: displayRangeCommands.length
+            ? "chart-display"
+            : autoYRangeCommands.length
+              ? "payload-auto"
+              : "none",
+          chartXRange,
+          chartYRange,
+          originYScaleMode,
+          axisCommands: originAxisCommands,
+        });
 
         return {
           csv: {
@@ -936,9 +1005,9 @@ export const useOriginCanvasExport = ({
             xyPairs: effectiveXyPairs,
           },
           capabilities: {
-            import: importPostCommands.length
+            import: importColumnLabels
               ? {
-                  postCommands: importPostCommands,
+                  columnLabels: importColumnLabels,
                 }
               : undefined,
             plot: legendPostCommands.length
@@ -947,6 +1016,7 @@ export const useOriginCanvasExport = ({
                 }
               : undefined,
             axis: {
+              limits: originAxisLimits,
               commands: originAxisCommands,
             },
           },
@@ -1075,6 +1145,7 @@ export const useOriginCanvasExport = ({
     getDesktopOriginBridge,
     originChartXRangeRef,
     originChartYRangeRef,
+    originHasManualAxisOverride,
     originOpenPlotOptions,
     selectedOriginCanvases,
     showToast,
