@@ -75,9 +75,13 @@ New-Item -ItemType Directory -Force -Path `
 
 $OriginDir = Join-Path $ProjectRoot "origin"
 $EntryScript = Join-Path $OriginDir "run_origin_csv.py"
+$PackageJsonPath = Join-Path $ProjectRoot "package.json"
 
 if (-not (Test-Path -LiteralPath $EntryScript)) {
   throw "Entry script not found: $EntryScript"
+}
+if (-not (Test-Path -LiteralPath $PackageJsonPath)) {
+  throw "package.json not found: $PackageJsonPath"
 }
 
 $DistDir = Resolve-PathOrDefault -Value $DistDir -Fallback (Join-Path $OriginDir "bin")
@@ -91,10 +95,50 @@ if (-not [System.IO.Path]::IsPathRooted($VenvDir)) {
 }
 $BuildWorkDir = Join-Path $DeviceDir "origin-workers\\pyinstaller\\csv\\work"
 $SpecDir = Join-Path $DeviceDir "origin-workers\\pyinstaller\\csv\\spec"
+$BuildInfoPath = Join-Path $DeviceDir "origin-workers\\pyinstaller\\csv\\worker-build-info.json"
 
 New-Item -ItemType Directory -Path $DistDir -Force | Out-Null
 New-Item -ItemType Directory -Path $BuildWorkDir -Force | Out-Null
 New-Item -ItemType Directory -Path $SpecDir -Force | Out-Null
+New-Item -ItemType Directory -Path (Split-Path -Parent $BuildInfoPath) -Force | Out-Null
+
+$packageJson = Get-Content -LiteralPath $PackageJsonPath -Raw | ConvertFrom-Json
+$appVersion = [string]$packageJson.version
+if ([string]::IsNullOrWhiteSpace($appVersion)) {
+  throw "package.json version is empty."
+}
+$expectedTag = "v$appVersion"
+
+$gitCommit = ""
+try {
+  $gitCommitRaw = & git -C $ProjectRoot rev-parse --short HEAD 2>$null
+  if ($LASTEXITCODE -eq 0 -and $gitCommitRaw) {
+    $gitCommit = ($gitCommitRaw | Select-Object -First 1).Trim()
+  }
+} catch {
+  $gitCommit = ""
+}
+
+$gitTag = ""
+try {
+  $gitTagRaw = & git -C $ProjectRoot tag --points-at HEAD 2>$null
+  if ($LASTEXITCODE -eq 0 -and $gitTagRaw) {
+    $gitTag = ($gitTagRaw | Select-Object -First 1).Trim()
+  }
+} catch {
+  $gitTag = ""
+}
+
+$buildInfo = [ordered]@{
+  mode = "packaged-exe"
+  workerVersion = $appVersion
+  appVersion = $appVersion
+  expectedTag = $expectedTag
+  gitTag = $gitTag
+  gitCommit = $gitCommit
+  builtAt = [DateTimeOffset]::UtcNow.ToString("o")
+}
+$buildInfo | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $BuildInfoPath -Encoding UTF8
 
 $uvCmd = Get-Command uv -ErrorAction SilentlyContinue
 $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
@@ -174,6 +218,7 @@ $pyinstallerArgs = @(
   "--distpath", $DistDir,
   "--workpath", $BuildWorkDir,
   "--specpath", $SpecDir,
+  "--add-data", "$BuildInfoPath;.",
   "--collect-all", "originpro",
   "--collect-all", "OriginExt",
   "--hidden-import", "pythoncom",
@@ -195,10 +240,11 @@ if (-not (Test-Path -LiteralPath $exePath)) {
 }
 
 Write-Host "[build-origin-csv-worker] OK: $exePath"
-Write-Host "[build-origin-csv-worker] Smoke test: $exePath --help"
+Write-Host "[build-origin-csv-worker] Metadata: version=$appVersion expectedTag=$expectedTag gitTag=$gitTag gitCommit=$gitCommit"
+Write-Host "[build-origin-csv-worker] Smoke test: $exePath --worker-version"
 $smokeExitCode = 0
 try {
-  & $exePath --help
+  & $exePath --worker-version
   $smokeExitCode = $LASTEXITCODE
 } catch {
   $smokeExitCode = -1

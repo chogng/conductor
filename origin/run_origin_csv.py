@@ -25,6 +25,10 @@ from origin_ops.origin_session import (
 )
 from origin_ops.plot_ops import build_plot_command, run_plot_pipeline
 from origin_ops.style_ops import apply_style_commands
+from worker_build_info import (
+    format_worker_build_info_text,
+    get_worker_build_info_json,
+)
 
 
 LOG_RANGE_ROBUST_MIN_SAMPLE_COUNT = 50
@@ -490,10 +494,10 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Run Device Analysis CSV import job in Origin via originpro.",
     )
-    parser.add_argument("--work-dir", required=True)
+    parser.add_argument("--work-dir", default="")
     parser.add_argument("--csv-path", default="")
     parser.add_argument("--batch-jobs-path", default="")
-    parser.add_argument("--origin-exe", required=True)
+    parser.add_argument("--origin-exe", default="")
     parser.add_argument("--log-path", default="")
     parser.add_argument("--error-path", default="")
     parser.add_argument("--import-mode", default="new-book")
@@ -508,11 +512,26 @@ def parse_args():
     parser.add_argument("--capabilities-json", default="")
     parser.add_argument("--max-com-attempts", type=int, default=8)
     parser.add_argument("--health-check-only", action="store_true")
+    parser.add_argument("--worker-version", action="store_true")
+    parser.add_argument("--worker-version-json", action="store_true")
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
+
+    if args.worker_version_json:
+        print(get_worker_build_info_json())
+        return 0
+
+    if args.worker_version:
+        print(format_worker_build_info_text())
+        return 0
+
+    if not _coerce_text(args.work_dir):
+        raise SystemExit("--work-dir is required unless --worker-version or --worker-version-json is used.")
+    if not _coerce_text(args.origin_exe):
+        raise SystemExit("--origin-exe is required unless --worker-version or --worker-version-json is used.")
 
     work_dir = Path(args.work_dir).resolve()
     csv_path = Path(args.csv_path).resolve() if args.csv_path else None

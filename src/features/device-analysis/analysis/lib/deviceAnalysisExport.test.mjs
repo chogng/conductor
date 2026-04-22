@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildDeviceAnalysisOriginExportsByMode,
   buildDeviceAnalysisOriginSelectionExport,
+  isDeviceAnalysisOriginExportMode,
 } from "./originSelectionExport.ts";
 
 test("buildDeviceAnalysisOriginSelectionExport merges selected curves from multiple files into one worksheet payload", () => {
@@ -95,7 +96,60 @@ test("buildDeviceAnalysisOriginSelectionExport defaults to all live series when 
   assert.match(payload.csvName, /^file_a__selected_curves\.csv$/);
 });
 
-test("buildDeviceAnalysisOriginExportsByMode returns one worksheet per selected file in separate mode", () => {
+test("isDeviceAnalysisOriginExportMode accepts workbookBooks as a valid export mode", () => {
+  assert.equal(isDeviceAnalysisOriginExportMode("workbookBooks"), true);
+});
+
+test("buildDeviceAnalysisOriginExportsByMode returns one workbook payload per selected file in workbookBooks mode", () => {
+  const payloads = buildDeviceAnalysisOriginExportsByMode(
+    [
+      {
+        fileId: "file-a",
+        fileName: "file_a.csv",
+        xGroups: [[0, 1]],
+        series: [
+          {
+            id: "curve-a",
+            groupIndex: 0,
+            y: [1, 2],
+          },
+        ],
+      },
+      {
+        fileId: "file-b",
+        fileName: "file_b.csv",
+        xGroups: [[0, 1]],
+        series: [
+          {
+            id: "curve-b",
+            groupIndex: 0,
+            y: [3, 4],
+          },
+        ],
+      },
+    ],
+    undefined,
+    "workbookBooks",
+  );
+
+  assert.equal(payloads.length, 2);
+  assert.deepEqual(
+    payloads.map((payload) => payload.fileIds),
+    [["file-a"], ["file-b"]],
+  );
+  assert.match(payloads[0].csvName, /^file_a__selected_curves\.csv$/);
+  assert.match(payloads[1].csvName, /^file_b__selected_curves\.csv$/);
+  assert.deepEqual(
+    payloads.map((payload) => payload.curveLabels),
+    [["Curve 1"], ["Curve 1"]],
+  );
+  assert.deepEqual(
+    payloads.map((payload) => payload.workbookName),
+    ["file a", "file b"],
+  );
+});
+
+test("buildDeviceAnalysisOriginExportsByMode returns one worksheet payload per selected file in separate mode", () => {
   const payloads = buildDeviceAnalysisOriginExportsByMode(
     [
       {

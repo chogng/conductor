@@ -406,11 +406,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             count: selectedCanvasCount,
         });
     }, [originCanvasExportScope, originFilteredCanvasKind, selectedCanvasCount, t]);
-    const originExportModeHint = resolvedOriginExportMode === "workbookSheets"
-        ? t("da_origin_export_mode_workbook_sheets_hint")
-        : resolvedOriginExportMode === "separate"
-            ? t("da_origin_export_mode_separate_hint")
-            : t("da_origin_export_mode_merged_hint");
     const exportSelectionSummary = resolvedOriginExportMode === "merged"
         ? t("da_origin_collection_summary", {
             curves: selectedOriginSeriesTotalCount,
@@ -490,14 +485,35 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const exportListEmptyText = resolvedOriginExportMode === "merged"
         ? t("da_origin_collection_empty")
         : t("da_origin_export_selection_empty");
-    const exportModeBadgeLabel = resolvedOriginExportMode === "workbookSheets"
-        ? t("da_origin_export_mode_badge_workbook_sheets")
-        : resolvedOriginExportMode === "merged"
-            ? t("da_origin_export_mode_badge_merged")
-            : t("da_origin_export_mode_badge_separate");
+    const exportModeBadgeLabel = resolvedOriginExportMode === "workbookBooks"
+        ? t("da_origin_export_mode_badge_workbook_books")
+        : resolvedOriginExportMode === "workbookSheets"
+            ? t("da_origin_export_mode_badge_workbook_sheets")
+            : resolvedOriginExportMode === "merged"
+                ? t("da_origin_export_mode_badge_merged")
+                : t("da_origin_export_mode_badge_separate");
     const exportEntryActionLabel = resolvedOriginExportMode === "merged"
         ? t("da_origin_export_list_remove_merged")
         : t("da_origin_export_list_remove_separate");
+    const handleRemoveOriginExportEntry = React.useCallback((fileId: string) => {
+        const targetFileId = String(fileId ?? "").trim();
+        if (!targetFileId) return;
+
+        if (isManualCanvasScope) {
+            toggleOriginCanvasSelection(targetFileId);
+            return;
+        }
+
+        const nextSelectedFileIds = Array.from(scopedOriginCanvasKeySet ?? new Set<string>())
+            .filter((item) => item !== targetFileId);
+        setOriginCanvasExportScope("selected");
+        replaceOriginCanvasSelection(nextSelectedFileIds);
+    }, [
+        isManualCanvasScope,
+        replaceOriginCanvasSelection,
+        scopedOriginCanvasKeySet,
+        toggleOriginCanvasSelection,
+    ]);
     const handleOriginExportModeChange = React.useCallback((nextMode: DeviceAnalysisOriginExportMode) => {
         setOriginExportMode(nextMode);
         apiService
@@ -3057,12 +3073,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                           {exportModeBadgeLabel}
                         </span>
                       </div>
-                      <div className="text-[11px] text-text-secondary leading-5">
-                        {exportSelectionSummary}
-                      </div>
-                      <div className="text-[11px] text-text-secondary leading-5">
-                        {originExportModeHint}
-                      </div>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs text-text-secondary whitespace-nowrap">
@@ -3072,11 +3082,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         id="device-analysis-origin-export-mode-select"
                         size="md"
                         value={resolvedOriginExportMode}
-                        onChange={(next: any) => handleOriginExportModeChange(next === "workbookSheets"
-                            ? "workbookSheets"
-                            : next === "separate"
-                                ? "separate"
-                                : "merged")}
+                        onChange={(next: any) => handleOriginExportModeChange(isDeviceAnalysisOriginExportMode(next)
+                            ? next
+                            : "merged")}
                         options={[
                         {
                             value: "merged",
@@ -3085,6 +3093,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         {
                             value: "workbookSheets",
                             label: t("da_origin_export_mode_workbook_sheets"),
+                        },
+                        {
+                            value: "workbookBooks",
+                            label: t("da_origin_export_mode_workbook_books"),
                         },
                         {
                             value: "separate",
@@ -3255,18 +3267,18 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                           tabIndex={isExportListCanvasSelectionMode ? 0 : undefined}
                         >
                           <div className="flex items-start justify-between gap-3">
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                handleSelectFile(entry.fileId);
-                              }}
-                              className="min-w-0 flex-1 text-left"
-                            >
+                            <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2 flex-wrap text-[11px] text-text-secondary">
-                                <div className="truncate text-sm font-medium text-text-primary">
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    handleSelectFile(entry.fileId);
+                                  }}
+                                  className="max-w-full truncate rounded-lg p-1 -m-1 text-left text-sm font-medium text-text-primary hover:text-accent"
+                                >
                                   {entry.fileName}
-                                </div>
+                                </button>
                                 <span className="inline-flex items-center rounded-full bg-bg-surface px-2 py-0.5">
                                   {t("da_origin_collection_file_curves", {
                                         count: entry.selectedCount,
@@ -3276,16 +3288,13 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                                     {t("da_origin_export_list_selected_badge")}
                                   </span>) : null}
                               </div>
-                            </button>
-                            {isExportListCanvasSelectionMode ? null : resolvedOriginExportMode === "merged" ? (<Button variant="icon" size="icon" className="shrink-0 rounded-full text-text-tertiary hover:text-text-primary" onClick={() => {
-                    clearOriginSeriesSelectionForFile(entry.fileId);
-                }} title={exportEntryActionLabel} aria-label={exportEntryActionLabel} hidden={resolvedCurveExportMode !== "select"}>
-                                <X size={14} strokeWidth={2} />
-                              </Button>) : isManualCanvasScope ? (<Button variant="icon" size="icon" className="shrink-0 rounded-full text-text-tertiary hover:text-text-primary" onClick={() => {
-                    toggleOriginCanvasSelection(entry.fileId);
+                            </div>
+                            <Button variant="icon" size="icon" className="shrink-0 rounded-full text-text-tertiary hover:text-text-primary" onClick={(event) => {
+                    event.stopPropagation();
+                    handleRemoveOriginExportEntry(entry.fileId);
                 }} title={exportEntryActionLabel} aria-label={exportEntryActionLabel}>
                                 <X size={14} strokeWidth={2} />
-                              </Button>) : null}
+                              </Button>
                           </div>
                           <div className="mt-3">
                             <div className="flex flex-wrap items-center gap-1.5">

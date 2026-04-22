@@ -1,65 +1,90 @@
 # conductor
 
-`conductor` 是一个器件分析应用，支持 Web 与 Electron 桌面端（Windows 自动更新）两种运行形态。
+`conductor` is a device-analysis app with both Web and Electron desktop runtimes.
 
-## 功能概览
+## Highlights
 
-- CSV 批量导入与预览
-- 模板管理
-- 数据提取与异常提示
-- 图表分析与导出
-- Origin CSV Worker 离线处理
-- Windows 桌面端自动更新
+- CSV batch import and preview
+- template-based data extraction
+- chart analysis and export
+- Origin integration for `Open in Origin`
+- Windows desktop packaging and auto update
 
-## 环境要求
+## Requirements
 
-- Node.js 22+（推荐与 CI 一致）
+- Node.js 22+
 - npm 10+
-- Windows 下构建 Origin Worker 需要 PowerShell（Python 3.11 由脚本自动处理）
+- Windows is required for building and testing the Origin CSV worker
 
-## 快速开始
+## Quick Start
 
-安装依赖：
+Install dependencies:
 
 ```bash
 npm install
 ```
 
-启动 Web 开发：
+Start the Web app:
 
 ```bash
 npm run dev
 ```
 
-默认地址：
+Default Vite URL:
 
 ```text
 http://localhost:5173
 ```
 
-## 本地开发（Desktop）
+## Desktop Development
 
-启动桌面联调：
+Start Electron dev mode:
 
 ```bash
 npm run dev:desktop
 ```
 
-`dev:desktop` 会自动执行以下流程：
+This flow:
 
-1. 编译 Electron 主进程/预加载脚本（`build:desktop:core`）
-2. 启动 Vite 开发服务
-3. 启动 Electron 窗口并监听 `desktop-dist/` 变更自动重启
-4. 关闭 Electron 后，开发进程一并退出
+1. builds the Electron main/preload code with `npm run build:desktop:core`
+2. starts the Vite dev server
+3. launches the Electron app
 
-可选环境变量（桌面联调）：
+Useful scripts:
 
-- `DEV_HOST`：Vite host，默认 `127.0.0.1`
-- `DEV_PORT`：Vite port，默认 `5174`
+- `npm run build:desktop:core`: build Electron main/preload only
+- `npm run build:web:desktop`: build the desktop-targeted web bundle
+- `npm run build:desktop`: build desktop assets
 
-## 环境变量
+## Common Scripts
 
-可复制 `.env.example` 到 `.env.local` 后按需覆盖：
+Quality checks:
+
+```bash
+npm run lint
+npm run typecheck
+npm run test:unit
+```
+
+Build and package:
+
+- `npm run build`: build the Web app
+- `npm run pack:desktop`: build and package desktop output without an installer
+- `npm run dist:desktop`: build desktop installers/artifacts
+- `npm run pack:desktop:oneclick`: one-click desktop dir packaging
+- `npm run dist:desktop:oneclick`: one-click desktop installer build
+
+Release and verification:
+
+- `npm run verify:auto-update-config`: verify updater configuration
+- `npm run build:origin-csv-worker`: build the Origin worker EXE
+- `npm run verify:origin-worker`: verify the Origin worker EXE and embedded version metadata
+- `npm run dist:desktop:publish`: local desktop release publishing flow
+- `npm run release:desktop:local`: explicit local release entrypoint
+
+## Environment Variables
+
+Copy `.env.example` to `.env.local` when needed.
 
 ```env
 VITE_WS_URL=
@@ -68,111 +93,87 @@ VITE_DA_PREVIEW_CANVAS=0
 CONDUCTOR_UPDATE_URL=
 ```
 
-说明：
+Notes:
 
-- `VITE_ORIGINBRIDGE_API_BASE_URL` 建议在本地联调 OriginBridge 时显式配置
-- `CONDUCTOR_UPDATE_URL` 可覆盖桌面端默认自动更新源
+- `VITE_ORIGINBRIDGE_API_BASE_URL` is mainly for local OriginBridge integration.
+- `CONDUCTOR_UPDATE_URL` overrides the packaged auto-update source at runtime.
 
-## 常用脚本
+## Desktop Artifacts
 
-质量检查：
-
-```bash
-npm run lint
-npm run typecheck
-npm run test:unit
-```
-
-构建与打包：
-
-- `npm run build`：构建 Web 产物
-- `npm run build:desktop`：构建桌面端所需产物（Windows 下自动构建 CSV Worker）
-- `npm run pack:desktop`：打包目录，不生成安装器
-- `npm run dist:desktop`：生成安装包
-- `npm run pack:desktop:oneclick`：一键目录打包（缓存写入 `.device/`）
-- `npm run dist:desktop:oneclick`：一键安装包构建（缓存写入 `.device/`）
-
-发布与校验：
-
-- `npm run verify:auto-update-config`：校验自动更新配置
-- `npm run verify:origin-worker`：校验 CSV Worker 产物
-- `npm run dist:desktop:publish`：本地发布 updater 资产到 GitHub Release（`gh` CLI）
-- `npm run release:desktop:local`：同上，显式本地发布脚本入口
-
-## 桌面端构建产物
-
-输出目录：
+Desktop output directory:
 
 ```text
 release/
 ```
 
-Windows 命名规则：
+Windows naming:
 
-- 安装器：`conductor-${version}-windows-${arch}-setup.exe`
-- Portable Zip：`conductor-${version}-windows-${arch}-portable.zip`
-- Portable 7z：`conductor-${version}-windows-${arch}-portable.7z`
+- installer: `conductor-${version}-windows-${arch}-setup.exe`
+- portable zip: `conductor-${version}-windows-${arch}-portable.zip`
+- portable 7z: `conductor-${version}-windows-${arch}-portable.7z`
 
-其他平台默认命名：
+Other platforms use:
 
 ```text
 ${productName}-${version}-${os}-${arch}.${ext}
 ```
 
-## Origin Offline Worker
+## Origin Worker
 
-当前离线 Worker：
+The desktop app ships one offline-native worker:
 
-- `origin-csv-worker.exe`
+- `origin/bin/origin-csv-worker.exe`
 
-默认虚拟环境目录：
+Default local worker virtual environment:
 
 ```text
 .venv-origin-workers/
 ```
 
-构建 Worker：
+Build the worker:
 
 ```powershell
 npm run build:origin-csv-worker
 ```
 
-校验 Worker：
+Verify the worker:
 
 ```powershell
 npm run verify:origin-worker
 ```
 
-手动指定 Python 版本或虚拟环境目录：
+Inspect embedded worker metadata:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-origin-csv-worker.ps1 -PythonVersion 3.11 -VenvDir .venv-origin-workers
+origin/bin/origin-csv-worker.exe --worker-version
 ```
 
-输出路径：
+Runner behavior:
 
-```text
-origin/bin/origin-csv-worker.exe
-```
+- dev mode defaults to `origin/run_origin_csv.py`
+- `ORIGIN_CSV_WORKER_PATH` can be set explicitly for EXE smoke testing
+- packaged desktop builds use the bundled worker EXE
 
-运行时选择顺序（`device-analysis-origin:run-csv`）：
+More details: [origin/ORIGIN_WORKERS.md](./origin/ORIGIN_WORKERS.md)
 
-1. `ORIGIN_CSV_WORKER_PATH`
-2. `origin/bin/origin-csv-worker.exe`
-3. `origin/dist/origin-csv-worker.exe`
-4. 仅开发环境回退：`origin/run_origin_csv.py`
+## Device Analysis Origin Export Modes
 
-更多说明见 [origin/ORIGIN_WORKERS.md](./origin/ORIGIN_WORKERS.md)。
+`Open in Origin` currently uses four distinct modes:
 
-## Desktop 持久化文件
+- `merged` (`New columns`): append exported curves into the same worksheet
+- `workbookSheets` (`New worksheet`): create new sheets inside the same workbook
+- `workbookBooks` (`New workbook`): create multiple books inside the same Origin window/session
+- `separate` (`New window`): open each export item through an independent Origin window/session path
 
-桌面端将模板与设置拆分保存：
+## Desktop Persistence
 
-- 模板：`template.json`
-- 设置：`config.json`
-- 路径覆盖：`store-path.json`
+Desktop stores templates and settings separately:
 
-默认路径：
+- `template.json`
+- `config.json`
+- `store-path.json`
+
+Default location:
 
 ```text
 ~/.device/template.json
@@ -180,54 +181,41 @@ origin/bin/origin-csv-worker.exe
 ~/.device/store-path.json
 ```
 
-若自定义为 `D:\DeviceAnalysis\config.json`，对应文件变为：
+If a custom config path is used, for example `D:\DeviceAnalysis\config.json`, the sibling files are stored alongside it.
 
-```text
-D:\DeviceAnalysis\template.json
-D:\DeviceAnalysis\config.json
-```
+## Auto Update
 
-职责划分：
+Windows desktop releases support `electron-updater`.
 
-- `template.json` 仅保存模板
-- `config.json` 仅保存设置（语言、默认值、`originExePath` 等）
+Recommended release flow:
 
-旧版本 `config.json` / `config.settings.json` 会在首次读取时自动迁移到新结构。
+1. bump `package.json.version`
+2. push the matching code and tag, usually `v<version>`
+3. ensure `gh` or `GH_TOKEN` has release upload permission
+4. run `npm run dist:desktop:publish`
+5. verify the release contains `latest.yml`, installer, and matching blockmap files
 
-## 自动更新发布
+Reference: [docs/desktop-auto-update.md](./docs/desktop-auto-update.md)
 
-发布支持自动更新的 Windows 版本，建议流程：
+## Icons
 
-1. 更新 `package.json` 的 `version`
-2. 推送代码与对应 tag（推荐 `v<version>`）
-3. 确认 `GH_TOKEN` 或 `gh auth` 权限可上传目标 release
-4. 执行 `npm run dist:desktop:publish`
-5. 确认 release 中存在 `latest.yml`、`*-setup.exe` 与对应 `.blockmap`
-6. 在旧版本客户端验证检查更新、下载、安装提示流程
-
-补充：
-
-- 自动更新仅针对打包后的 Windows 桌面版
-- `npm run dev:desktop` 不代表真实自动更新行为
-- 可参考 [docs/desktop-auto-update.md](./docs/desktop-auto-update.md)
-
-## 图标资源
+Project icons:
 
 - `build/icons/icon.png`
 - `build/icons/icon.icns`
 - `build/icons/icon.ico`
 
-从 `public/logo.svg` 重新生成：
+Regenerate from `public/logo.svg`:
 
 ```bash
 npm run make:icons
 ```
 
-## 可选签名
+## Code Signing
 
-项目兼容 `electron-builder` 环境变量签名流程。未配置证书变量时会生成未签名安装包。
+The project supports the standard `electron-builder` signing environment variables.
 
-常用变量：
+Common variables:
 
-- macOS：`CSC_LINK`、`CSC_KEY_PASSWORD`、可选 `CSC_NAME`
-- Windows：`WIN_CSC_LINK`、`WIN_CSC_KEY_PASSWORD`
+- macOS: `CSC_LINK`, `CSC_KEY_PASSWORD`, optional `CSC_NAME`
+- Windows: `WIN_CSC_LINK`, `WIN_CSC_KEY_PASSWORD`

@@ -1,8 +1,4 @@
 import { memo, useEffect, useMemo, useState } from "react";
-import {
-  MousePointer2,
-} from "lucide-react";
-import Button from "../../../../components/ui/Button";
 import Card from "../../../../components/ui/Card";
 import Select from "../../../../components/ui/Select";
 import ScrollArea from "../../../../components/ui/ScrollArea";
@@ -74,7 +70,6 @@ const OverviewGrid = memo(function OverviewGrid({
 }: OverviewGridProps) {
   const { t } = useLanguage();
   const [curveFilter, setCurveFilter] = useState<CurveFilter>("all");
-  const [isSelectMode, setIsSelectMode] = useState(false);
   const fieldFilterOptions = useMemo(() => {
     const options: Array<{ label: string; value: string }> = [];
     const seen = new Set<string>();
@@ -167,14 +162,6 @@ const OverviewGrid = memo(function OverviewGrid({
   }, [onVisibleFileIdsChange, visibleFileIds]);
 
   const isManualCanvasScope = originCanvasExportScope === "selected";
-  useEffect(() => {
-    if (!isManualCanvasScope) {
-      setIsSelectMode(false);
-    }
-  }, [isManualCanvasScope]);
-  const selectModeStateLabel = isSelectMode
-    ? t("da_overview_select_mode_on")
-    : t("da_overview_select_mode_off");
   if (!processedData.length) return null;
 
   return (
@@ -223,25 +210,6 @@ const OverviewGrid = memo(function OverviewGrid({
             />
           </div>
 
-          <Button
-            id="device-analysis-overview-select-mode-btn"
-            cta="Device Analysis"
-            ctaPosition="overview-grid"
-            ctaCopy="canvas select mode"
-            variant={isSelectMode ? "secondary" : "ghost"}
-            size="control"
-            onClick={() => setIsSelectMode((prev) => !prev)}
-            title={t("da_overview_select_mode_title", {
-              state: selectModeStateLabel,
-            })}
-            aria-label={t("da_overview_select_mode_title", {
-              state: selectModeStateLabel,
-            })}
-            hidden={!isManualCanvasScope}
-          >
-            <MousePointer2 size={16} className={isSelectMode ? "text-accent" : ""} />
-          </Button>
-
           {processingStatus?.state === "processing" ? (
             <div className="text-xs text-text-secondary">
               {t("da_overview_processing", {
@@ -263,7 +231,7 @@ const OverviewGrid = memo(function OverviewGrid({
               file={file}
               isActive={file.fileId === activeFileId}
               onSelectFile={onSelectFile}
-              isSelectionMode={isManualCanvasScope ? isSelectMode : false}
+              isSelectionMode={isManualCanvasScope}
               isOriginSelected={selectedOriginCanvasKeySet?.has(
                 String(file?.fileId ?? ""),
               )}

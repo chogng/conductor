@@ -17,6 +17,7 @@ type ProcessedEntryLike = {
 
 export type DeviceAnalysisOriginExportMode =
   | "merged"
+  | "workbookBooks"
   | "workbookSheets"
   | "separate";
 
@@ -172,7 +173,10 @@ const buildDeviceAnalysisOriginPairsExpr = (xyPairCount: unknown): string => {
 export const isDeviceAnalysisOriginExportMode = (
   value: unknown,
 ): value is DeviceAnalysisOriginExportMode =>
-  value === "merged" || value === "workbookSheets" || value === "separate";
+  value === "merged" ||
+  value === "workbookBooks" ||
+  value === "workbookSheets" ||
+  value === "separate";
 
 const resolveSelectedSeriesForOriginCanvas = (
   file: ProcessedEntryLike | null | undefined,
@@ -466,7 +470,7 @@ export const buildDeviceAnalysisOriginExportsByMode = (
     );
   }
 
-  if (exportMode === "separate") {
+  if (exportMode === "workbookBooks" || exportMode === "separate") {
     return liveCanvases
       .map((canvas) =>
         buildDeviceAnalysisOriginCanvasExport(canvas, selectedSeriesIdsByFile),

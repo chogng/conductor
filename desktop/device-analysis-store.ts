@@ -10,6 +10,7 @@ const DEVICE_ANALYSIS_LEGACY_SETTINGS_FILENAME_SUFFIX = ".settings.json";
 const DEVICE_ANALYSIS_SS_METHODS = new Set(["auto", "manual", "idWindow", "legacy"]);
 const DEVICE_ANALYSIS_ORIGIN_EXPORT_MODES = new Set([
   "merged",
+  "workbookBooks",
   "workbookSheets",
   "separate",
 ]);

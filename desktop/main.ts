@@ -109,11 +109,9 @@ function resolveFirstExistingPath(candidates) {
 function resolveOriginCsvWorkerPath() {
   const envPath = normalizeOriginExePath(process.env.ORIGIN_CSV_WORKER_PATH);
   if (!app.isPackaged) {
-    return resolveFirstExistingPath([
-      envPath,
-      path.join(__dirname, "..", "origin", "bin", "origin-csv-worker.exe"),
-      path.join(__dirname, "..", "origin", "dist", "origin-csv-worker.exe"),
-    ]);
+    // Dev mode should use the source Python worker by default.
+    // Use ORIGIN_CSV_WORKER_PATH only when explicitly smoke-testing the built EXE.
+    return resolveFirstExistingPath([envPath]);
   }
 
   return resolveFirstExistingPath([

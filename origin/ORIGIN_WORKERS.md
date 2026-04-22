@@ -1,12 +1,12 @@
 # Origin Workers (Offline Runtime)
 
-This project uses one offline-native worker (built with `uv + pyinstaller`):
+This project uses one offline-native worker:
 
 1. `origin-csv-worker.exe` for CSV import/plot (`Open in Origin`)
 
-Python script remains available as debug fallback (dev mode only):
+Python script remains available as the default dev worker:
 
-- `run_origin_csv.py` (CSV fallback)
+- `run_origin_csv.py` (default in `npm run dev:desktop`)
 
 Worker dependencies are installed into a project-local virtual environment by default:
 
@@ -32,32 +32,48 @@ Optional parameters:
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-origin-csv-worker.ps1 -PythonVersion 3.11 -VenvDir .venv-origin-workers
 ```
 
+Release-prep smoke test in dev:
+
+```powershell
+$env:ORIGIN_CSV_WORKER_PATH = (Resolve-Path .\origin\bin\origin-csv-worker.exe).Path
+npm run dev:desktop
+```
+
+Release-prep verification:
+
+```powershell
+npm run verify:origin-worker
+```
+
 Output path:
 
 ```text
 origin/bin/origin-csv-worker.exe
 ```
 
+Worker metadata:
+
+- The built EXE embeds `workerVersion`, `expectedTag`, `gitTag`, `gitCommit`, and `builtAt`.
+- Query it with `origin-csv-worker.exe --worker-version` or `origin-csv-worker.exe --worker-version-json`.
+
 ## Runner Selection
 
-CSV job (`device-analysis-origin:run-csv`) order:
+The same runner-selection rule applies to both CSV jobs (`device-analysis-origin:run-csv`) and health checks (`device-analysis-origin:health-check`).
+
+Dev (`npm run dev:desktop`):
+
+1. `origin/run_origin_csv.py`
+2. `ORIGIN_CSV_WORKER_PATH` only when explicitly set for EXE smoke testing
+
+Packaged app:
 
 1. `ORIGIN_CSV_WORKER_PATH` (if set and exists)
-2. `origin/bin/origin-csv-worker.exe` (dev)
-3. `origin/dist/origin-csv-worker.exe` (dev)
-4. Python fallback (dev only): `origin/run_origin_csv.py`
+2. bundled `origin-csv-worker.exe`
 
-Health check (`device-analysis-origin:health-check`) order:
+Notes:
 
-1. `ORIGIN_CSV_WORKER_PATH` (if set and exists)
-2. `origin/bin/origin-csv-worker.exe` (dev)
-3. `origin/dist/origin-csv-worker.exe` (dev)
-
-Packaged app behavior:
-
-1. Worker EXE is preferred for CSV.
-2. Worker EXE is preferred for health checks.
-3. Packaged builds do not rely on local `python`/`originpro` for normal CSV execution.
+1. Packaged builds do not rely on local `python`/`originpro` for normal CSV execution.
+2. Release prep should rebuild and verify the EXE before tagging/publishing.
 
 ## Worker CLI Contract
 
@@ -66,19 +82,46 @@ CSV worker CLI (`origin-csv-worker.exe` / `run_origin_csv.py`):
 ```text
 --work-dir <dir>
 --csv-path <file>                 # required unless --health-check-only
+--batch-jobs-path <file>          # batch manifest JSON; alternative to --csv-path
 --origin-exe <path>
 --log-path <file>
 --error-path <file>
---series-name <string>
+--import-mode <string>            # default new-book
+--workbook-key <string>
+--workbook-name <string>
+--sheet-name <string>
 --plot-type <int>                 # default 202
 --xy-pairs <string>               # default ((1,2))
 --plot-command <string>           # full LabTalk command; overrides plot-type/xy-pairs
 --post-plot-command <string>      # repeatable; executed after main plot
+--line-width <float>              # default 2.0
+--capabilities-json <json>
+--max-com-attempts <int>          # default 8
 --health-check-only               # run Origin attach + sec -p 0; without CSV import
+--worker-version                  # print a human-readable worker version summary
+--worker-version-json             # print machine-readable worker metadata JSON
 ```
 
 Expected outputs:
 
 1. Structured error JSON to `--error-path` on failure.
 2. Exit code `0` on success, non-zero on failure.
-3. Batch runner writes summary JSON to `--summary-path`.
+3. Success prints a small JSON payload to stdout, including `logPath` and `jobCount` in batch mode.
+
+## Device Analysis Export Modes
+
+`Open in Origin` currently distinguishes four export modes in Device Analysis:
+
+1. `New columns`:
+   Import selected curves into the same worksheet as appended columns.
+2. `New worksheet` (`workbookSheets`):
+   Reuse one workbook in one Origin session and create one new sheet per thumbnail.
+3. `New workbook` (`workbookBooks`):
+   Reuse one Origin session/window and create one new workbook (`newbook`) per thumbnail.
+4. `New window` (`separate`):
+   Keep the legacy per-job behavior so each thumbnail can open through an independent Origin launch/session path.
+
+Implementation note:
+
+- `workbookSheets` and `workbookBooks` are both batch-in-one-session flows.
+- `separate` is intentionally reserved for independent Origin windows, not just independent workbooks.

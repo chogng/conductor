@@ -900,6 +900,8 @@ export const useOriginCanvasExport = ({
       const originYAxisTypeCommand =
         originYScaleMode === "log" ? "layer.y.type=2" : "layer.y.type=1";
       const shouldApplySmartYAxisRange = !hasCustomPlotCommand;
+      const shouldBatchOriginCsvJobs =
+        result.mode === "workbookBooks" || result.mode === "workbookSheets";
       const sharedWorkbookKey =
         result.mode === "workbookSheets" ? buildOriginWorkbookKey() : "";
       const originCsvJobs = result.payloads.map((payload, index) => {
@@ -985,7 +987,7 @@ export const useOriginCanvasExport = ({
         };
       });
 
-      if (result.mode === "workbookSheets" && originCsvJobs.length > 1) {
+      if (shouldBatchOriginCsvJobs && originCsvJobs.length > 1) {
         await originBridge.runOriginCsv({
           jobs: originCsvJobs,
         });
@@ -1000,6 +1002,13 @@ export const useOriginCanvasExport = ({
           t("da_open_in_origin_combined_success", {
             curves: result.totalCurveCount,
             files: result.totalCanvasCount,
+          }),
+          "success",
+        );
+      } else if (result.mode === "workbookBooks" && result.totalCanvasCount > 1) {
+        showToast(
+          t("da_open_in_origin_workbook_books_success", {
+            count: result.totalCanvasCount,
           }),
           "success",
         );
