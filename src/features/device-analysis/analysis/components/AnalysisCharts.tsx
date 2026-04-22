@@ -178,30 +178,43 @@ const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, ssAp
         setDisplayedPlotType(nextPlotType);
         onChange(nextPlotType);
     }, [onChange]);
-    return (<div id="device-analysis-plot-type-toggle" className="tab_menu">
-        <button id="device-analysis-plot-iv-btn" type="button" onClick={() => selectPlotType("iv")} className={`tab_btn tab_btn--control ${displayedPlotType === "iv"
-            ? "tab_btn--active"
-            : "tab_btn--inactive"}`}>
-          I-V
-        </button>
-        <button id="device-analysis-plot-gm-btn" type="button" onClick={() => selectPlotType("gm")} className={`tab_btn tab_btn--control ${displayedPlotType === "gm"
-            ? "tab_btn--active"
-            : "tab_btn--inactive"}`}>
-          g{"\u2098"}
-        </button>
-        <button id="device-analysis-plot-ss-btn" type="button" onClick={() => ssApplicable && selectPlotType("ss")} disabled={!ssApplicable} className={`tab_btn tab_btn--control ${displayedPlotType === "ss"
-            ? "tab_btn--active"
-            : "tab_btn--inactive"} ${!ssApplicable ? "opacity-50 cursor-not-allowed" : ""}`} title={!ssApplicable
-            ? "SS is defined for transfer (Vg) curves. This file does not look like a Vg sweep."
-            : ""}>
-          SS
-        </button>
-        <button id="device-analysis-plot-j-btn" type="button" onClick={() => selectPlotType("j")} disabled={!areaAvailable} className={`tab_btn tab_btn--control ${displayedPlotType === "j"
-            ? "tab_btn--active"
-            : "tab_btn--inactive"} ${!areaAvailable ? "opacity-50 cursor-not-allowed" : ""}`} title={!areaAvailable ? "Set a positive Area to enable J plot" : ""}>
-          J
-        </button>
-      </div>);
+    return (<Tabs
+        idBase="device-analysis-plot-type-tabs"
+        value={displayedPlotType}
+        onChange={(next) => selectPlotType(next as PlotTypeOption)}
+        size="sm"
+        hoverPreview={false}
+        groupLabel="Plot type"
+        itemClassName="!px-3"
+        options={[
+            {
+                value: "iv",
+                label: "I-V",
+                id: "device-analysis-plot-iv-btn",
+            },
+            {
+                value: "gm",
+                label: `g${"\u2098"}`,
+                id: "device-analysis-plot-gm-btn",
+            },
+            {
+                value: "ss",
+                label: "SS",
+                id: "device-analysis-plot-ss-btn",
+                disabled: !ssApplicable,
+                title: !ssApplicable
+                    ? "SS is defined for transfer (Vg) curves. This file does not look like a Vg sweep."
+                    : "",
+            },
+            {
+                value: "j",
+                label: "J",
+                id: "device-analysis-plot-j-btn",
+                disabled: !areaAvailable,
+                title: !areaAvailable ? "Set a positive Area to enable J plot" : "",
+            },
+        ]}
+      />);
 });
 const AnalysisCharts = ({ processedData, processingStatus, activeFileId: controlledActiveFileId = undefined, onActiveFileIdChange = undefined, showFileSelect = true, ionIoffMethod = "auto", setIonIoffMethod = () => { }, ionIoffManualTargets = { ionX: "", ioffX: "" }, setIonIoffManualTargets = () => { }, ssMethod = "auto", setSsMethod = () => { }, ssDiagnosticsEnabled = true, setSsDiagnosticsEnabled = () => { }, ssShowFitLine = true, setSsShowFitLine = () => { }, ssIdWindow = { low: "1e-11", high: "1e-9" }, setSsIdWindow = () => { }, ssManualRanges = {}, setSsManualRanges = () => { }, originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS, }: any) => {
     const { t } = useLanguage();
@@ -1834,7 +1847,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         }
         const ionSummary = formatCurrentWindowSummary(metrics?.ionWindow, plotXFactor, 4);
         const ioffSummary = formatCurrentWindowSummary(metrics?.ioffWindow, plotXFactor, 4);
-        const modeLabel = metrics?.currentMethod === "manual" ? "Manual bias" : "Auto";
+        const modeLabel = metrics?.currentMethod === "manual" ? "manual" : "auto";
         return `Ion/Ioff (${modeLabel}): Ion ${ionSummary} | Ioff ${ioffSummary}`;
     }, [
         focusedAnalysis?.metrics,
@@ -2508,7 +2521,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
 
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1">
-                  <Select id="device-analysis-y-unit-select" size="md" value={yUnit} onChange={(next: any) => {
+                  <Select id="device-analysis-y-unit-select" size="sm" value={yUnit} onChange={(next: any) => {
             const nextUnit = normalizeDeviceAnalysisYUnit(next, "A");
             userChangedYUnitRef.current = true;
             setYUnit(nextUnit);
@@ -2542,7 +2555,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 <div className="flex items-center gap-1">
                   {effectivePlotType === "ss" ? (<span className="text-xs text-text-primary font-mono whitespace-nowrap">
                       log(|I|)
-                    </span>) : (<Select id="device-analysis-y-scale-select" size="md" value={axis.yScale === "logAbs" ? "log" : axis.yScale} onChange={(next: any) => {
+                    </span>) : (<Select id="device-analysis-y-scale-select" size="sm" value={axis.yScale === "logAbs" ? "log" : axis.yScale} onChange={(next: any) => {
                 const nextScale = next === "log" ? "log" : "linear";
                 userChangedYScaleRef.current = true;
                 setAxis((prev: any) => {
@@ -2569,7 +2582,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 </div>
 
                 {effectivePlotType !== "iv" && activeFile?.series?.length ? (<div className="flex items-center gap-1">
-                    <Select id="device-analysis-curve-select" size="md" value={focusedSeriesId ?? ""} onChange={(next: any) => setFocusedSeriesId(next)} options={(activeFile?.series ?? []).map((s: any) => ({
+                    <Select id="device-analysis-curve-select" size="sm" value={focusedSeriesId ?? ""} onChange={(next: any) => setFocusedSeriesId(next)} options={(activeFile?.series ?? []).map((s: any) => ({
                 value: s.id,
                 label: s.name,
             }))} className="w-fit max-w-[180px] da-neutral-select" placeholder="Select curve"/>
@@ -2579,7 +2592,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     <span className="text-xs text-text-secondary whitespace-nowrap">
                       gₘ:
                     </span>
-                    <Select id="device-analysis-gm-mode-select" size="md" value={gmMode} onChange={(next: any) => setGmMode(next === "legend" ? "legend" : "x")} options={gmUi.modeOptions} className="w-[170px]"/>
+                    <Select id="device-analysis-gm-mode-select" size="sm" value={gmMode} onChange={(next: any) => setGmMode(next === "legend" ? "legend" : "x")} options={gmUi.modeOptions} className="w-[170px]"/>
                   </div>) : null}
 
                 {effectivePlotType === "ss" ? (<div className="flex items-center gap-2">
@@ -2587,7 +2600,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                       <span className="text-xs text-text-secondary whitespace-nowrap">
                         SS:
                       </span>
-                      <Select id="device-analysis-ss-method-select" size="md" value={ssMethod} onChange={(next: any) => {
+                      <Select id="device-analysis-ss-method-select" size="sm" value={ssMethod} onChange={(next: any) => {
                 const method = next === "auto" ||
                     next === "manual" ||
                     next === "idWindow" ||
@@ -2613,7 +2626,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 apiService
                     .updateDeviceAnalysisSettings({ ssMethodDefault: "auto" })
                     .catch(() => { });
-            }} className="h-[38px] px-2 text-xs border border-border/50 hover:bg-bg-subtle" title="Reset SS method to Auto (strict)">
+            }} className="h-8 px-2 text-xs border border-border/50 hover:bg-bg-subtle" title="Reset SS method to Auto (strict)">
                       Reset
                     </Button>
 
@@ -2623,7 +2636,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 apiService
                     .updateDeviceAnalysisSettings({ ssShowFitLine: next })
                     .catch(() => { });
-            }} className="h-[38px] px-2 text-xs" title="Toggle fit line overlay (focused curve only)">
+            }} className="h-8 px-2 text-xs" title="Toggle fit line overlay (focused curve only)">
                       Fit line
                     </Button>
 
@@ -2635,7 +2648,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     ssDiagnosticsEnabled: next,
                 })
                     .catch(() => { });
-            }} className="h-[38px] px-2 text-xs" title={t("da_chart_ss_diagnostics_toggle_title")}>
+            }} className="h-8 px-2 text-xs" title={t("da_chart_ss_diagnostics_toggle_title")}>
                       {t("da_chart_ss_diagnostics")}
                     </Button>
 
@@ -2658,7 +2671,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         })
                             .catch(() => { });
                     }
-                }} placeholder="low (A)" className="bg-bg-page border border-border rounded-lg h-[38px] px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40 w-[90px]"/>
+                }} placeholder="low (A)" className="bg-bg-page border border-border rounded-lg h-8 px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40 w-[90px]"/>
                         <span>~</span>
                         <input id="device-analysis-ss-id-high" value={ssIdWindow?.high ?? ""} onChange={(e: any) => setSsIdWindow((prev: any) => ({
                     ...(prev || {}),
@@ -2677,7 +2690,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         })
                             .catch(() => { });
                     }
-                }} placeholder="high (A)" className="bg-bg-page border border-border rounded-lg h-[38px] px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40 w-[90px]"/>
+                }} placeholder="high (A)" className="bg-bg-page border border-border rounded-lg h-8 px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40 w-[90px]"/>
                       </div>) : null}
                   </div>) : null}
 
@@ -2686,7 +2699,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                       <span className="text-xs text-text-secondary whitespace-nowrap">
                         Ion/Ioff:
                       </span>
-                      <Select id="device-analysis-current-method-select" size="md" value={ionIoffMethod} onChange={(next: any) => {
+                      <Select id="device-analysis-current-method-select" size="sm" value={ionIoffMethod} onChange={(next: any) => {
                 const method = next === "manual" ? "manual" : "auto";
                 setIonIoffMethod(method);
                 apiService
@@ -2695,9 +2708,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 })
                     .catch(() => { });
             }} options={[
-                { value: "auto", label: "Auto windows" },
-                { value: "manual", label: "Manual bias" },
-            ]} className="w-[150px]"/>
+                { value: "auto", label: "auto" },
+                { value: "manual", label: "manual" },
+            ]} className="w-fit da-neutral-select"/>
                     </div>
 
                     {ionIoffMethod === "manual" ? (<div className="flex items-center gap-1 text-xs text-text-secondary">
@@ -2713,7 +2726,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         ionIoffManualIonX: String(ionIoffManualTargets?.ionX ?? "").trim(),
                     })
                         .catch(() => { });
-                }} placeholder={`e.g. ${formatNumber((Number(xDomain?.[1]) || 1) * plotXFactor, { digits: 2 })}`} className="bg-bg-page border border-border rounded-lg h-[38px] px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40 w-[90px]"/>
+                }} placeholder={`e.g. ${formatNumber((Number(xDomain?.[1]) || 1) * plotXFactor, { digits: 2 })}`} className="bg-bg-page border border-border rounded-lg h-8 px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40 w-[90px]"/>
                         <span className="whitespace-nowrap">Ioff x:</span>
                         <input id="device-analysis-ioff-x-input" value={ionIoffManualTargets?.ioffX ?? ""} onChange={(e: any) => {
                     setIonIoffManualTargets((prev: any) => ({
@@ -2726,15 +2739,15 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         ionIoffManualIoffX: String(ionIoffManualTargets?.ioffX ?? "").trim(),
                     })
                         .catch(() => { });
-                }} placeholder="e.g. 0" className="bg-bg-page border border-border rounded-lg h-[38px] px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40 w-[90px]"/>
+                }} placeholder="e.g. 0" className="bg-bg-page border border-border rounded-lg h-8 px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40 w-[90px]"/>
                       </div>) : null}
                   </div>) : null}
 
-                {showFileSelect ? (<Select id="device-analysis-file-select" size="md" value={effectiveActiveFileId ?? ""} onChange={(val: any) => handleSelectFile(val)} options={processedData.map((f: any) => ({
+                {showFileSelect ? (<Select id="device-analysis-file-select" size="sm" value={effectiveActiveFileId ?? ""} onChange={(val: any) => handleSelectFile(val)} options={processedData.map((f: any) => ({
             value: f.fileId,
             label: f.fileName,
         }))} className="w-[240px] da-neutral-select" placeholder="Select File" data-cta="Device Analysis" data-cta-position="file-select" data-cta-copy="file select"/>) : null}
-                <Button id="device-analysis-axis-toggle-btn" variant="secondary" size="sm" onClick={() => setShowAxisControls((v: any) => !v)} className="h-[38px] px-3 text-xs border-border bg-bg-page hover:bg-bg-surface-hover" title="Axis settings">
+                <Button id="device-analysis-axis-toggle-btn" variant="secondary" size="sm" onClick={() => setShowAxisControls((v: any) => !v)} className="h-8 px-3 text-xs border-border bg-bg-page hover:bg-bg-surface-hover" title="Axis settings">
                   Axis
                 </Button>
               </div>
@@ -2744,7 +2757,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
               <span className="whitespace-nowrap">
                 Area (for J = |I|/Area):
               </span>
-              <input id="device-analysis-area-input" value={areaInput} onChange={(e: any) => setAreaInput(e.target.value)} placeholder="e.g. 1e-4" className="bg-bg-page border border-border rounded-lg h-[38px] px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40 w-[100px]"/>
+              <input id="device-analysis-area-input" value={areaInput} onChange={(e: any) => setAreaInput(e.target.value)} placeholder="e.g. 1e-4" className="bg-bg-page border border-border rounded-lg h-8 px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40 w-[100px]"/>
             </div>
 
           </div>
@@ -3060,7 +3073,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                       </span>
                       <Select
                         id="device-analysis-origin-export-mode-select"
-                        size="md"
+                        size="sm"
                         value={resolvedOriginExportMode}
                         onChange={(next: any) => handleOriginExportModeChange(isDeviceAnalysisOriginExportMode(next)
                             ? next
@@ -3094,7 +3107,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                       </span>
                       <Select
                         id="device-analysis-origin-canvas-scope-select"
-                        size="md"
+                        size="sm"
                         value={originCanvasExportScope}
                         onChange={(next: any) => {
                         const normalizedScope = next === "current" ||
@@ -3135,7 +3148,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                           </span>
                           <Select
                             id="device-analysis-origin-filtered-canvas-kind-select"
-                            size="md"
+                            size="sm"
                             value={originFilteredCanvasKind}
                             onChange={(next: any) => {
                             setOriginFilteredCanvasKind(next === "transfer" ? "transfer" : "output");
@@ -3162,7 +3175,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                       </span>
                       <Select
                         id="device-analysis-origin-curve-export-mode-select"
-                        size="md"
+                        size="sm"
                         value={resolvedCurveExportMode}
                         onChange={(next: any) => {
                         setOriginCurveExportMode(next === "select" ? "select" : "all");

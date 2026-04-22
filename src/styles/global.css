@@ -174,7 +174,7 @@ body {
   }
 
   .tab_btn--control {
-    @apply h-[30px] text-xs px-3 py-1.5;
+    @apply h-8 text-xs px-2 py-1;
   }
 
   .tab_btn--active {
@@ -213,18 +213,27 @@ body {
   }
 
   .da_top_menu_center_file_select {
-    @apply max-w-full px-2;
+    @apply inline-flex max-w-full px-2;
     width: fit-content;
+    flex: 0 0 auto;
     -webkit-app-region: no-drag;
   }
 
   .da_top_menu_center_file_select .ui-select_warp {
+    display: inline-flex;
+    flex: 0 0 auto;
     max-width: 100%;
     width: fit-content;
   }
 
   .da_top_menu_center_file_select .input_field {
     @apply bg-transparent border-transparent;
+    width: fit-content;
+  }
+
+  .da_top_menu_center_file_select .input_native {
+    @apply flex-none;
+    width: max-content;
   }
 
   .da_top_menu_center_file_select .input_field[data-state="enable"]:hover,
@@ -736,15 +745,15 @@ body {
   }
 
   .ui-select_field--sm {
-    @apply h-8 px-2 text-xs;
+    @apply h-8 py-1 pl-1.5 pr-1 text-xs;
   }
 
   .ui-select_field--md {
-    @apply h-[38px] text-sm;
+    @apply h-[38px] py-1 pl-1.5 pr-1 text-sm;
   }
 
   .ui-select_field--xl {
-    @apply h-[47.6px] text-sm;
+    @apply h-[47.6px] py-1 pl-1.5 pr-1 text-sm;
   }
 
   .ui-select_list {
@@ -760,7 +769,7 @@ body {
   }
 
   .ui-select_item {
-    @apply w-full px-3 py-2 text-sm text-left rounded-md transition-colors flex items-center justify-between gap-3;
+    @apply w-full px-1.5 py-1 text-sm text-left rounded-md transition-colors flex items-center justify-between gap-3;
   }
 
   .ui-select_item[data-selected] {

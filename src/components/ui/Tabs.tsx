@@ -31,6 +31,7 @@ type TabOption = {
   label: ReactNode;
   icon?: TabIconComponent;
   ariaLabel?: string;
+  title?: string;
   disabled?: boolean;
   testId?: string;
   id?: string;
@@ -330,6 +331,7 @@ const Tabs = ({
             role="tab"
             id={tabId}
             aria-label={option.ariaLabel}
+            title={option.title}
             aria-selected={isSelected}
             aria-controls={panelId}
             tabIndex={tabIndex}
