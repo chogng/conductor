@@ -159,6 +159,208 @@ const interpolateMonotonicLinear = (xArrRaw: any, yArrRaw: any, xTarget: any) =>
     const tc = Math.max(0, Math.min(1, t));
     return yLo + tc * (yHi - yLo);
 };
+export const interpolateCurveAtX = (pointsRaw: any, xTargetRaw: any, modeRaw: any = "linear") => {
+    if (!Array.isArray(pointsRaw))
+        return null;
+    const xTarget = Number(xTargetRaw);
+    const mode = modeRaw === "log" ? "log" : "linear";
+    if (!isFiniteNumber(xTarget))
+        return null;
+    const points = pointsRaw
+        .map((point: any) => ({
+        x: Number(point?.x),
+        y: Number(point?.y),
+    }))
+        .filter((point: any) => isFiniteNumber(point.x) && isFiniteNumber(point.y));
+    if (!points.length) {
+        return {
+            kind: "empty",
+            x: xTarget,
+            y: null,
+            left: null,
+            right: null,
+            domain: null,
+            mode,
+        };
+    }
+    const first = points[0];
+    const last = points[points.length - 1];
+    const increasing = first.x <= last.x;
+    const domain = {
+        minX: Math.min(first.x, last.x),
+        maxX: Math.max(first.x, last.x),
+    };
+    if (points.length === 1) {
+        if (xTarget !== first.x) {
+            return {
+                kind: "outOfRange",
+                x: xTarget,
+                y: null,
+                left: first,
+                right: first,
+                domain,
+                mode,
+            };
+        }
+        return {
+            kind: "exact",
+            x: xTarget,
+            y: first.y,
+            left: first,
+            right: first,
+            domain,
+            mode,
+        };
+    }
+    if (increasing) {
+        if (xTarget < first.x || xTarget > last.x) {
+            return {
+                kind: "outOfRange",
+                x: xTarget,
+                y: null,
+                left: first,
+                right: last,
+                domain,
+                mode,
+            };
+        }
+    }
+    else if (xTarget > first.x || xTarget < last.x) {
+        return {
+            kind: "outOfRange",
+            x: xTarget,
+            y: null,
+            left: first,
+            right: last,
+            domain,
+            mode,
+        };
+    }
+    if (xTarget === first.x) {
+        return {
+            kind: "exact",
+            x: xTarget,
+            y: first.y,
+            left: first,
+            right: first,
+            domain,
+            mode,
+        };
+    }
+    if (xTarget === last.x) {
+        return {
+            kind: "exact",
+            x: xTarget,
+            y: last.y,
+            left: last,
+            right: last,
+            domain,
+            mode,
+        };
+    }
+    let lo = 0;
+    let hi = points.length - 1;
+    while (hi - lo > 1) {
+        const mid = (lo + hi) >> 1;
+        const xm = points[mid]?.x;
+        if (!isFiniteNumber(xm)) {
+            return {
+                kind: "empty",
+                x: xTarget,
+                y: null,
+                left: null,
+                right: null,
+                domain,
+                mode,
+            };
+        }
+        const goRight = increasing ? xm <= xTarget : xm >= xTarget;
+        if (goRight)
+            lo = mid;
+        else
+            hi = mid;
+    }
+    const left = points[lo];
+    const right = points[hi];
+    if (xTarget === left.x) {
+        return {
+            kind: "exact",
+            x: xTarget,
+            y: left.y,
+            left,
+            right: left,
+            domain,
+            mode,
+        };
+    }
+    if (xTarget === right.x) {
+        return {
+            kind: "exact",
+            x: xTarget,
+            y: right.y,
+            left: right,
+            right,
+            domain,
+            mode,
+        };
+    }
+    const dx = right.x - left.x;
+    if (!isFiniteNumber(dx) || dx === 0) {
+        return {
+            kind: "exact",
+            x: xTarget,
+            y: left.y,
+            left,
+            right,
+            domain,
+            mode,
+        };
+    }
+    const ratio = (xTarget - left.x) / dx;
+    if (!isFiniteNumber(ratio)) {
+        return {
+            kind: "empty",
+            x: xTarget,
+            y: null,
+            left,
+            right,
+            domain,
+            mode,
+        };
+    }
+    const t = Math.max(0, Math.min(1, ratio));
+    if (mode === "log") {
+        if (!(left.y > 0) || !(right.y > 0)) {
+            return {
+                kind: "empty",
+                x: xTarget,
+                y: null,
+                left,
+                right,
+                domain,
+                mode,
+            };
+        }
+        return {
+            kind: "interpolated",
+            x: xTarget,
+            y: Math.exp(Math.log(left.y) + t * (Math.log(right.y) - Math.log(left.y))),
+            left,
+            right,
+            domain,
+            mode,
+        };
+    }
+    return {
+        kind: "interpolated",
+        x: xTarget,
+        y: left.y + t * (right.y - left.y),
+        left,
+        right,
+        domain,
+        mode,
+    };
+};
 export const computeLegendDerivativeSeries = (curves: any) => {
     if (!Array.isArray(curves) || curves.length < 2)
         return new Map();

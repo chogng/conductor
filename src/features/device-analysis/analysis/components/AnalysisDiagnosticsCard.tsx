@@ -21,12 +21,18 @@ type AnalysisDiagnosticsCardProps = {
   ssSummary: any;
   plotYUnitLabel: string;
   showIvDiagnosticsPanel: boolean;
+  showCurveProbePanel: boolean;
   ionIoffMethod: string;
   showCurrentDiagnosticsControls: boolean;
   ionIoffManualTargets: any;
   setIonIoffManualTargets: (value: any) => void;
   xDomain: any;
   plotXFactor: number;
+  curveProbeXInput: string;
+  setCurveProbeXInput: (value: string) => void;
+  curveProbeMode: "linear" | "log";
+  setCurveProbeMode: (value: "linear" | "log") => void;
+  curveProbeRows: any[];
   showGmDiagnosticsPanel: boolean;
   gmMode: string;
   focusedSeriesLabel: string | null;
@@ -73,12 +79,18 @@ export default function AnalysisDiagnosticsCard({
   ssSummary,
   plotYUnitLabel,
   showIvDiagnosticsPanel,
+  showCurveProbePanel,
   ionIoffMethod,
   showCurrentDiagnosticsControls,
   ionIoffManualTargets,
   setIonIoffManualTargets,
   xDomain,
   plotXFactor,
+  curveProbeXInput,
+  setCurveProbeXInput,
+  curveProbeMode,
+  setCurveProbeMode,
+  curveProbeRows,
   showGmDiagnosticsPanel,
   gmMode,
   focusedSeriesLabel,
@@ -109,29 +121,39 @@ export default function AnalysisDiagnosticsCard({
   analysisCompactSurfaceFieldClass,
   t,
 }: AnalysisDiagnosticsCardProps) {
+  const formatProbeModeLabel = (kindRaw: unknown): string => {
+    const kind = String(kindRaw ?? "");
+    if (kind === "exact") return "命中";
+    if (kind === "interpolated") return "插值";
+    if (kind === "outOfRange") return "超出";
+    return "无法计算";
+  };
+
   if (!showDiagnosticsPanel) {
     return null;
   }
 
   return (
     <Card variant="panel" className="flex min-w-0 flex-col">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <div>
-          <div className="text-xs font-semibold text-text-primary">{diagnosticsHeading}</div>
-          <div className="text-[11px] text-text-secondary">{diagnosticsDescription}</div>
+      {!showCurveProbePanel || showSsDiagnosticsPanel || showGmDiagnosticsPanel || showAreaDiagnosticsControls || showAxisControls ? (
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div>
+            <div className="text-xs font-semibold text-text-primary">{diagnosticsHeading}</div>
+            <div className="text-[11px] text-text-secondary">{diagnosticsDescription}</div>
+          </div>
+          {effectivePlotType === "ss" ? (
+            <Button
+              variant="text"
+              size="sm"
+              onClick={onResetSs}
+              className="h-8 px-2 text-xs border border-border/50 hover:bg-bg-subtle"
+              title="Reset SS method to Auto (strict)"
+            >
+              Reset SS
+            </Button>
+          ) : null}
         </div>
-        {effectivePlotType === "ss" ? (
-          <Button
-            variant="text"
-            size="sm"
-            onClick={onResetSs}
-            className="h-8 px-2 text-xs border border-border/50 hover:bg-bg-subtle"
-            title="Reset SS method to Auto (strict)"
-          >
-            Reset SS
-          </Button>
-        ) : null}
-      </div>
+      ) : null}
 
       <div className="flex flex-col gap-3">
         {showSsDiagnosticsPanel ? (
@@ -187,42 +209,79 @@ export default function AnalysisDiagnosticsCard({
           </div>
         ) : null}
 
-        {showIvDiagnosticsPanel ? (
-          <div className="rounded-lg border border-border/60 bg-bg-surface px-3 py-2">
-            <div className="mb-2 text-[11px] font-semibold text-text-primary">IV Controls</div>
+        {showCurveProbePanel ? (
+          <div className="bg-bg-surface">
             <div className="flex flex-col gap-2 text-xs text-text-secondary">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="whitespace-nowrap">Ion/Ioff mode:</span>
-                <span className="rounded-full border border-border/70 bg-bg-page px-2 py-0.5 text-text-primary">{ionIoffMethod}</span>
+                <span className="whitespace-nowrap">x:</span>
+                <Input
+                  id="device-analysis-curve-probe-x-input"
+                  value={curveProbeXInput}
+                  onChange={setCurveProbeXInput}
+                  placeholder={`e.g. ${formatNumber((Number(xDomain?.[1]) || 1) * plotXFactor, { digits: 3 })}`}
+                  className={analysisCompactInputWrapperClass}
+                  fieldClassName={`${analysisCompactPageFieldClass} !w-[110px]`}
+                  inputClassName={analysisCompactInputClass}
+                />
+                <span className="whitespace-nowrap">{resolvedXUnitLabel}</span>
+                <Select
+                  id="device-analysis-curve-probe-mode-select"
+                  size="sm"
+                  value={curveProbeMode}
+                  onChange={(next: any) => setCurveProbeMode(next === "log" ? "log" : "linear")}
+                  options={[
+                    { value: "linear", label: "线性" },
+                    { value: "log", label: "对数" },
+                  ]}
+                  className="w-[96px]"
+                />
               </div>
-              {showCurrentDiagnosticsControls ? (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="whitespace-nowrap">Ion x:</span>
-                  <Input
-                    id="device-analysis-ion-x-input"
-                    value={ionIoffManualTargets?.ionX ?? ""}
-                    onChange={(nextValue) => setIonIoffManualTargets((prev: any) => ({ ...(prev || {}), ionX: nextValue }))}
-                    onBlur={() => onPersistIonIoffTargets("ion")}
-                    placeholder={`e.g. ${formatNumber((Number(xDomain?.[1]) || 1) * plotXFactor, { digits: 2 })}`}
-                    className={analysisCompactInputWrapperClass}
-                    fieldClassName={`${analysisCompactPageFieldClass} !w-[90px]`}
-                    inputClassName={analysisCompactInputClass}
-                  />
-                  <span className="whitespace-nowrap">Ioff x:</span>
-                  <Input
-                    id="device-analysis-ioff-x-input"
-                    value={ionIoffManualTargets?.ioffX ?? ""}
-                    onChange={(nextValue) => setIonIoffManualTargets((prev: any) => ({ ...(prev || {}), ioffX: nextValue }))}
-                    onBlur={() => onPersistIonIoffTargets("ioff")}
-                    placeholder="e.g. 0"
-                    className={analysisCompactInputWrapperClass}
-                    fieldClassName={`${analysisCompactPageFieldClass} !w-[90px]`}
-                    inputClassName={analysisCompactInputClass}
-                  />
+              {!curveProbeXInput.trim() ? (
+                <div className="rounded-lg border border-dashed border-border/70 bg-bg-page/60 px-3 py-2">
+                  输入x后进行诊断
                 </div>
               ) : (
-                <div className="rounded-lg border border-dashed border-border/70 bg-bg-page/60 px-3 py-2">
-                  Auto mode uses the detected windows shown in the summary strip and chart overlays.
+                <div className="overflow-x-auto rounded-lg border border-border/60 bg-bg-page/60">
+                  <table className="w-full min-w-[520px] table-fixed border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b border-border text-text-secondary">
+                        <th className="p-2 text-left font-semibold">曲线</th>
+                        <th className="p-2 text-left font-semibold">对应 y</th>
+                        <th className="p-2 text-left font-semibold">备注</th>
+                        <th className="p-2 text-left font-semibold">参考点</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {curveProbeRows.map((row) => {
+                        const sample = row?.sample ?? null;
+                        const kind = String(sample?.kind ?? "empty");
+                        const yValue = Number(sample?.y);
+                        const left = sample?.left ?? null;
+                        const right = sample?.right ?? null;
+                        const bracketText =
+                          Number.isFinite(left?.x) && Number.isFinite(right?.x)
+                            ? `[${formatNumber(left.x * plotXFactor, { digits: xTooltipDigits })}, ${formatNumber(right.x * plotXFactor, { digits: xTooltipDigits })}] ${resolvedXUnitLabel}`
+                            : "n/a";
+                        return (
+                          <tr key={row.id} className="border-b border-border/50 last:border-b-0">
+                            <td className="p-2 text-text-primary">
+                              <span className="inline-flex items-center gap-2">
+                                <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: row.color }} />
+                                <span>{row.name}</span>
+                              </span>
+                            </td>
+                            <td className="p-2 text-text-primary">
+                              {Number.isFinite(yValue)
+                                ? `${formatNumber(yValue, { digits: 6 })} ${plotYUnitLabel}`
+                                : "n/a"}
+                            </td>
+                            <td className="p-2">{formatProbeModeLabel(kind)}</td>
+                            <td className="p-2">{bracketText}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   classifySsFit,
   computeSubthresholdSwingFitAuto,
+  interpolateCurveAtX,
   resolveAutoSsSelection,
 } from "./analysisMath.ts";
 
@@ -89,4 +90,62 @@ test("computeSubthresholdSwingFitAuto can recover a long strict window beyond th
   assert.ok((fit.strict?.n ?? 0) > 12);
   assert.ok((fit.strict?.decadeSpan ?? 0) >= 1);
   assert.ok((fit.strict?.detail?.floorMarginDec ?? 0) >= 1);
+});
+
+test("interpolateCurveAtX linearly interpolates between neighboring points", () => {
+  const sample = interpolateCurveAtX(
+    [
+      { x: 0, y: 0 },
+      { x: 1, y: 10 },
+      { x: 2, y: 30 },
+    ],
+    1.5,
+  );
+
+  assert.equal(sample?.kind, "interpolated");
+  assert.equal(sample?.y, 20);
+  assert.deepEqual(sample?.left, { x: 1, y: 10 });
+  assert.deepEqual(sample?.right, { x: 2, y: 30 });
+});
+
+test("interpolateCurveAtX reports out-of-range queries without extrapolating", () => {
+  const sample = interpolateCurveAtX(
+    [
+      { x: 0, y: 5 },
+      { x: 1, y: 15 },
+    ],
+    2,
+  );
+
+  assert.equal(sample?.kind, "outOfRange");
+  assert.equal(sample?.y, null);
+  assert.deepEqual(sample?.domain, { minX: 0, maxX: 1 });
+});
+
+test("interpolateCurveAtX supports log interpolation for positive y", () => {
+  const sample = interpolateCurveAtX(
+    [
+      { x: 0, y: 1e-12 },
+      { x: 1, y: 1e-8 },
+    ],
+    0.5,
+    "log",
+  );
+
+  assert.equal(sample?.kind, "interpolated");
+  assert.ok(Math.abs((sample?.y ?? 0) - 1e-10) / 1e-10 < 1e-12);
+});
+
+test("interpolateCurveAtX rejects log interpolation when y is non-positive", () => {
+  const sample = interpolateCurveAtX(
+    [
+      { x: 0, y: 0 },
+      { x: 1, y: 10 },
+    ],
+    0.5,
+    "log",
+  );
+
+  assert.equal(sample?.kind, "empty");
+  assert.equal(sample?.y, null);
 });
