@@ -983,6 +983,15 @@ textarea {
   bottom: -14px;
 }
 
+/* Analysis page: let the outer Y scrollbar sit inside the page/card gutter. */
+.da-analysis-scroll-area {
+  overflow: visible;
+}
+
+.da-analysis-scroll-area .scroll-area__track--y {
+  right: -4px;
+}
+
 /* Global Scrollbar Styling */
 ::-webkit-scrollbar {
   width: 6px;

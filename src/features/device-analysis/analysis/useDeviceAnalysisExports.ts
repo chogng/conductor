@@ -44,12 +44,8 @@ export const useDeviceAnalysisExports = ({
       JSZip: jsZipModule.default,
       buildDeviceAnalysisCsvExports:
         exportModule.buildDeviceAnalysisCsvExports as DeviceAnalysisExportModule["buildDeviceAnalysisCsvExports"],
-      buildDeviceAnalysisOriginOgsScript:
-        exportModule.buildDeviceAnalysisOriginOgsScript as DeviceAnalysisExportModule["buildDeviceAnalysisOriginOgsScript"],
       buildDeviceAnalysisSsMetricsCsv:
         exportModule.buildDeviceAnalysisSsMetricsCsv as DeviceAnalysisExportModule["buildDeviceAnalysisSsMetricsCsv"],
-      DEVICE_ANALYSIS_ORIGIN_README:
-        exportModule.DEVICE_ANALYSIS_ORIGIN_README as DeviceAnalysisExportModule["DEVICE_ANALYSIS_ORIGIN_README"],
       triggerDeviceAnalysisBlobDownload:
         exportModule.triggerDeviceAnalysisBlobDownload as DeviceAnalysisExportModule["triggerDeviceAnalysisBlobDownload"],
     };
@@ -99,8 +95,6 @@ export const useDeviceAnalysisExports = ({
     const {
       JSZip,
       buildDeviceAnalysisCsvExports,
-      buildDeviceAnalysisOriginOgsScript,
-      DEVICE_ANALYSIS_ORIGIN_README,
       triggerDeviceAnalysisBlobDownload,
     } = await loadExportDependencies();
 
@@ -108,13 +102,9 @@ export const useDeviceAnalysisExports = ({
     if (exports.length === 0) return;
 
     const zip = new JSZip();
-    zip.file("README_ORIGIN.txt", DEVICE_ANALYSIS_ORIGIN_README);
 
     for (const item of exports) {
       zip.file(item.filename, "\uFEFF" + item.csvText);
-
-      const ogsName = String(item.filename).replace(/\.csv$/i, ".ogs");
-      zip.file(ogsName, buildDeviceAnalysisOriginOgsScript(item.filename, item.xyPairCount));
     }
 
     const zipBlob = await zip.generateAsync({
@@ -123,7 +113,7 @@ export const useDeviceAnalysisExports = ({
       compressionOptions: { level: 6 },
     });
 
-    triggerDeviceAnalysisBlobDownload("device_analysis_origin.zip", zipBlob);
+    triggerDeviceAnalysisBlobDownload("device_analysis.zip", zipBlob);
   }, [loadExportDependencies, processedData]);
 
   useEffect(() => {

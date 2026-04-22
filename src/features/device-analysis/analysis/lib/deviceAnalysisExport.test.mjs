@@ -55,7 +55,7 @@ test("buildDeviceAnalysisOriginSelectionExport merges selected curves from multi
   assert.equal(payload.yLinearMax, 21);
   assert.equal(payload.workbookName, payload.sheetName);
   assert.equal(payload.importMode, "new-book");
-  assert.match(payload.csvName, /merged_2files_2curves\.csv$/);
+  assert.equal(payload.csvName, "2files_2curves.csv");
 
   const csvText = payload.csvText.replace(/^\uFEFF/, "");
   const rows = csvText.split(/\r?\n/);

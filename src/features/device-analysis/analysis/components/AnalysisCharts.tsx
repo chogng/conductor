@@ -485,13 +485,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const exportListEmptyText = resolvedOriginExportMode === "merged"
         ? t("da_origin_collection_empty")
         : t("da_origin_export_selection_empty");
-    const exportModeBadgeLabel = resolvedOriginExportMode === "workbookBooks"
-        ? t("da_origin_export_mode_badge_workbook_books")
-        : resolvedOriginExportMode === "workbookSheets"
-            ? t("da_origin_export_mode_badge_workbook_sheets")
-            : resolvedOriginExportMode === "merged"
-                ? t("da_origin_export_mode_badge_merged")
-                : t("da_origin_export_mode_badge_separate");
     const exportEntryActionLabel = resolvedOriginExportMode === "merged"
         ? t("da_origin_export_list_remove_merged")
         : t("da_origin_export_list_remove_separate");
@@ -2502,7 +2495,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} onVisibleFileIdsChange={setOverviewVisibleFileIds} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} originExportMode={resolvedOriginExportMode} originCanvasExportScope={originCanvasExportScope} xUnitFactor={resolvedXUnitMeta.factor} xUnitLabel={resolvedXUnitMeta.label} yUnitFactor={resolvedYUnitMeta.factor} yUnitLabel={resolvedYUnitMeta.label} yScale={overviewYScaleType}/>
       </aside>
 
-      <ScrollArea className="md:min-h-0 min-w-0" axis="y" viewportClassName="flex flex-col min-h-full">
+      <ScrollArea className="da-analysis-scroll-area md:min-h-0 min-w-0" axis="y" viewportClassName="flex flex-col min-h-full">
         <section className="flex min-w-0 flex-col flex-1 gap-1 pr-1" aria-label="Device Analysis results">
           <section aria-label="Device Analysis chart">
         <Card variant="panel" className="flex min-w-0 flex-col">
@@ -2955,11 +2948,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
 
           {activeFile?.series?.length ? (<Card variant="panel" className="flex min-w-0 flex-col flex-1">
             <div className="mb-3 flex min-w-0 items-center justify-between gap-3 flex-wrap">
-              <div className="flex min-w-0 items-center gap-3 flex-wrap">
-                <h3 className="text-sm font-semibold text-text-primary">
-                  {t("da_analysis_results_title")}
-                </h3>
-                <Tabs idBase="device-analysis-results-tabs" value={resultsTab} onChange={(next) => setResultsTab(next === "export" ? "export" : "metrics")} size="sm" hoverPreview={false} groupLabel={t("da_analysis_results_title")} itemClassName="!px-3" options={[
+              <div className="flex min-w-0 items-center flex-wrap">
+                <Tabs idBase="device-analysis-results-tabs" value={resultsTab} onChange={(next) => setResultsTab(next === "export" ? "export" : "metrics")} size="sm" hoverPreview={false} groupLabel={t("da_analysis_results_tabs_label")} itemClassName="!px-3" options={[
                 {
                     value: "metrics",
                     label: t("da_analysis_results_tab_metrics"),
@@ -3063,17 +3053,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 </table>
               </ScrollArea>) : (<div className="flex min-w-0 flex-col gap-3">
                 <div className="rounded-xl border border-border bg-bg-page/40 px-4 py-3">
-                  <div className="flex items-start justify-between gap-3 flex-wrap">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <div className="text-xs font-semibold text-text-primary">
-                          {t("da_origin_export_settings_title")}
-                        </div>
-                        <span className="inline-flex items-center rounded-full border border-border bg-bg-surface px-2 py-0.5 text-[10px] font-medium text-text-secondary">
-                          {exportModeBadgeLabel}
-                        </span>
-                      </div>
-                    </div>
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs text-text-secondary whitespace-nowrap">
                         {t("da_origin_export_mode_label")}
@@ -3204,17 +3184,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         data-cta-copy="origin curve export mode"
                       />
                     </div>
-                  </div>
-
-                  <div className="mt-3 flex items-center justify-between gap-3 flex-wrap">
-                    <div className="min-w-0 text-[11px] text-text-secondary leading-5">
-                      {resolvedOriginExportMode === "merged"
-                        ? t("da_origin_export_summary_merged", {
-                            curves: selectedOriginSeriesTotalCount,
-                            files: selectedCanvasCount,
-                          })
-                        : separateCanvasScopeSummary}
-                    </div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <Button
                         variant="primary"
@@ -3284,7 +3253,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                                         count: entry.selectedCount,
                                     })}
                                 </span>
-                                {isExportListCanvasSelectionMode && entry.isCanvasSelected ? (<span className="inline-flex items-center rounded-full bg-accent/10 px-2 py-0.5 text-accent">
+                                {isExportListCanvasSelectionMode && entry.isCanvasSelected ? (<span className="inline-flex items-center rounded-full bg-accent-terracotta/15 px-2 py-0.5 text-accent-terracotta">
                                     {t("da_origin_export_list_selected_badge")}
                                   </span>) : null}
                               </div>

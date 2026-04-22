@@ -8,9 +8,6 @@ import {
 } from "react";
 import JSZip from "jszip";
 import {
-  buildDeviceAnalysisOriginOgsScript,
-  buildDeviceAnalysisOriginWorkbookOgsScript,
-  DEVICE_ANALYSIS_ORIGIN_README,
   triggerDeviceAnalysisBlobDownload,
 } from "./lib/deviceAnalysisExport";
 import {
@@ -796,7 +793,6 @@ export const useOriginCanvasExport = ({
   const exportOriginZipFallbackForSelectedCanvases = useCallback(async () => {
     const result = buildOriginExportPayloadsForSelectedCanvases();
     const zip = new JSZip();
-    zip.file("README_ORIGIN.txt", DEVICE_ANALYSIS_ORIGIN_README);
     const sanitizedPayloads = result.payloads.map((payload, index) => ({
       csvName: sanitizeFilename(
         payload?.csvName || `device_analysis_${index + 1}.csv`,
@@ -806,35 +802,7 @@ export const useOriginCanvasExport = ({
 
     sanitizedPayloads.forEach(({ csvName, payload }) => {
       zip.file(csvName, payload.csvText);
-      if (result.mode === "workbookSheets") {
-        return;
-      }
-      zip.file(
-        csvName.replace(/\.csv$/i, ".ogs"),
-        buildDeviceAnalysisOriginOgsScript(
-          csvName,
-          payload.xyPairCount,
-          payload.xyPairs,
-          payload.curveLabels,
-        ),
-      );
     });
-
-    if (result.mode === "workbookSheets") {
-      zip.file(
-        "device_analysis_workbook.ogs",
-        buildDeviceAnalysisOriginWorkbookOgsScript(
-          sanitizedPayloads.map(({ csvName, payload }) => ({
-            csvFileName: csvName,
-            curveLabels: payload.curveLabels,
-            sheetName: payload.sheetName,
-            xyPairCount: payload.xyPairCount,
-            xyPairsExprOverride: payload.xyPairs,
-          })),
-          result.payloads[0]?.workbookName,
-        ),
-      );
-    }
 
     const zipBlob = await zip.generateAsync({
       type: "blob",
@@ -859,7 +827,7 @@ export const useOriginCanvasExport = ({
     const zipName = `${String(zipBase || "device_analysis").replace(
       /\.zip$/i,
       "",
-    )}__origin.zip`;
+    )}.zip`;
     triggerDeviceAnalysisBlobDownload(zipName, zipBlob);
     return {
       canvasCount: result.totalCanvasCount,

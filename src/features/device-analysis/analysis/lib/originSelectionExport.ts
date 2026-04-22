@@ -391,7 +391,7 @@ export const buildDeviceAnalysisOriginSelectionExport = (
   const csvBase =
     canvasCount === 1
       ? `${sanitizedFirstBase || "device_analysis"}__selected_curves`
-      : `device_analysis__merged_${canvasCount}files_${curveCount}curves`;
+      : `${canvasCount}files_${curveCount}curves`;
   const workbookName =
     canvasCount === 1
       ? sanitizeOriginDisplayName(sanitizedFirstBase || "device analysis")
