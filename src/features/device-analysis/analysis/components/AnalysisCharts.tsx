@@ -33,6 +33,7 @@ import { getDeviceAnalysisXUnitMeta, getDeviceAnalysisYUnitMeta, normalizeDevice
 import MainPlotChart from "./MainPlotChart";
 import SsDiagnosticsChart from "./SsDiagnosticsChart";
 import SsSummaryStrip from "./SsSummaryStrip";
+import AnalysisDiagnosticsCard from "./AnalysisDiagnosticsCard";
 type SsRange = {
     x1: number;
     x2: number;
@@ -2500,6 +2501,101 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         : calculatedParametersMode === "output"
             ? `${gmUi.summaryLabel}: max |${gmUi.metricSymbol}| (output)`
             : `${gmUi.summaryLabel}: max |${gmUi.metricSymbol}|`, [calculatedParametersMode, gmUi.metricSymbol, gmUi.summaryLabel]);
+    const showIvDiagnosticsPanel = effectivePlotType === "iv";
+    const showSsDiagnosticsPanel = effectivePlotType === "ss";
+    const showGmDiagnosticsPanel = effectivePlotType === "gm";
+    const showJDiagnosticsPanel = effectivePlotType === "j";
+    const showSsDiagnosticsControls = showSsDiagnosticsPanel && ssMethod === "idWindow";
+    const showCurrentDiagnosticsControls = showIvDiagnosticsPanel && transferMetricsApplicable && ionIoffMethod === "manual";
+    const showAreaDiagnosticsControls = showJDiagnosticsPanel;
+    const showDiagnosticsPanel = showIvDiagnosticsPanel || showSsDiagnosticsPanel || showGmDiagnosticsPanel || showJDiagnosticsPanel || showAxisControls;
+    const focusedSeriesLabel = useMemo(() => {
+        if (!focusedSeriesId) {
+            return null;
+        }
+        const focusedSeries = activeFile?.series?.find((series: any) => series?.id === focusedSeriesId);
+        return focusedSeries?.name ?? null;
+    }, [activeFile?.series, focusedSeriesId]);
+    const focusedGmSummary = useMemo(() => {
+        const metrics = focusedAnalysis?.metrics ?? null;
+        if (!metrics || !Number.isFinite(metrics?.gmMaxAbs)) {
+            return null;
+        }
+        return {
+            value: metrics.gmMaxAbs,
+            xAt: Number.isFinite(metrics?.xAtGmMaxAbs) ? metrics.xAtGmMaxAbs : null,
+        };
+    }, [focusedAnalysis?.metrics]);
+    const areaDiagnosticsSummary = useMemo(() => {
+        const metrics = focusedAnalysis?.metrics ?? null;
+        const areaValue = area && Number.isFinite(area) && area > 0 ? area : null;
+        return {
+            areaValue,
+            jon: Number.isFinite(metrics?.jon) ? metrics.jon : null,
+            joff: Number.isFinite(metrics?.joff) ? metrics.joff : null,
+        };
+    }, [area, focusedAnalysis?.metrics]);
+    const diagnosticsHeading = showSsDiagnosticsPanel
+        ? "SS Diagnostics"
+        : showGmDiagnosticsPanel
+            ? "gm Diagnostics"
+            : showJDiagnosticsPanel
+                ? "J Diagnostics"
+                : "IV Diagnostics";
+    const diagnosticsDescription = showSsDiagnosticsPanel
+        ? "Subthreshold controls and fit configuration for the active curve."
+        : showGmDiagnosticsPanel
+            ? "Derivative-focused guidance for gm interpretation and focused-curve inspection."
+            : showJDiagnosticsPanel
+                ? "Current-density controls driven by Area and axis configuration."
+                : "Current-window controls and manual biases for IV analysis.";
+    const handlePersistSsIdWindow = React.useCallback(() => {
+        const low = Number(ssIdWindow?.low);
+        const high = Number(ssIdWindow?.high);
+        if (Number.isFinite(low) &&
+            Number.isFinite(high) &&
+            low > 0 &&
+            high > 0) {
+            apiService
+                .updateDeviceAnalysisSettings({
+                ssIdLow: low,
+                ssIdHigh: high,
+            })
+                .catch(() => { });
+        }
+    }, [ssIdWindow?.high, ssIdWindow?.low]);
+    const handlePersistIonIoffTarget = React.useCallback((role: "ion" | "ioff") => {
+        apiService
+            .updateDeviceAnalysisSettings(role === "ion"
+            ? {
+                ionIoffManualIonX: String(ionIoffManualTargets?.ionX ?? "").trim(),
+            }
+            : {
+                ionIoffManualIoffX: String(ionIoffManualTargets?.ioffX ?? "").trim(),
+            })
+            .catch(() => { });
+    }, [ionIoffManualTargets?.ioffX, ionIoffManualTargets?.ionX]);
+    const handleAxisYScaleChange = React.useCallback((next: any) => {
+        const nextScale = next;
+        const nextTicks = nextScale === "linear" ? "nice" : "decades";
+        userChangedYScaleRef.current = true;
+        setAxis((prev: any) => ({
+            ...prev,
+            yScale: nextScale,
+            yTicks: nextTicks,
+        }));
+        if (nextScale === "linear" || nextScale === "log") {
+            apiService
+                .updateDeviceAnalysisSettings({ yScale: nextScale })
+                .catch(() => { });
+        }
+    }, []);
+    const handleResetSsDiagnostics = React.useCallback(() => {
+        setSsMethod("auto");
+        apiService
+            .updateDeviceAnalysisSettings({ ssMethodDefault: "auto" })
+            .catch(() => { });
+    }, [setSsMethod]);
     const metricsProgressText = useMemo(() => isMetricsDetailsPending
         ? `${calculatedParametersSummary} | Computing details ${detailAnalysisState.completedCount}/${detailAnalysisState.totalCount}`
         : calculatedParametersSummary, [calculatedParametersSummary, detailAnalysisState.completedCount, detailAnalysisState.totalCount, isMetricsDetailsPending]);
@@ -2520,7 +2616,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
           <section aria-label="Device Analysis chart">
         <Card variant="panel" className="flex min-w-0 flex-col">
 
-          <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
+          <div className="mb-4 flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-4 flex-wrap">
               <PlotTypeToggle activePlotType={effectivePlotType} ssApplicable={ssApplicable} areaAvailable={Boolean(area)} onChange={handlePlotTypeChange}/>
 
@@ -2628,15 +2724,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             ]} className="w-[150px]"/>
                     </div>
 
-                    <Button variant="text" size="sm" onClick={() => {
-                setSsMethod("auto");
-                apiService
-                    .updateDeviceAnalysisSettings({ ssMethodDefault: "auto" })
-                    .catch(() => { });
-            }} className="h-8 px-2 text-xs border border-border/50 hover:bg-bg-subtle" title="Reset SS method to Auto (strict)">
-                      Reset
-                    </Button>
-
                     <Button variant={ssShowFitLine ? "secondary" : "text"} size="sm" onClick={() => {
                 const next = !ssShowFitLine;
                 setSsShowFitLine(next);
@@ -2658,47 +2745,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             }} className="h-8 px-2 text-xs" title={t("da_chart_ss_diagnostics_toggle_title")}>
                       {t("da_chart_ss_diagnostics")}
                     </Button>
-
-                    {ssMethod === "idWindow" ? (<div className="flex items-center gap-1 text-xs text-text-secondary">
-                        <span className="whitespace-nowrap">|Id|:</span>
-                        <Input id="device-analysis-ss-id-low" value={ssIdWindow?.low ?? ""} onChange={(nextValue) => setSsIdWindow((prev: any) => ({
-                    ...(prev || {}),
-                    low: nextValue,
-                }))} onBlur={() => {
-                    const low = Number(ssIdWindow?.low);
-                    const high = Number(ssIdWindow?.high);
-                    if (Number.isFinite(low) &&
-                        Number.isFinite(high) &&
-                        low > 0 &&
-                        high > 0) {
-                        apiService
-                            .updateDeviceAnalysisSettings({
-                            ssIdLow: low,
-                            ssIdHigh: high,
-                        })
-                            .catch(() => { });
-                    }
-                }} placeholder="low (A)" className={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} fieldClassName={`${ANALYSIS_COMPACT_PAGE_FIELD_CLASS} !w-[90px]`} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS}/>
-                        <span>~</span>
-                        <Input id="device-analysis-ss-id-high" value={ssIdWindow?.high ?? ""} onChange={(nextValue) => setSsIdWindow((prev: any) => ({
-                    ...(prev || {}),
-                    high: nextValue,
-                }))} onBlur={() => {
-                    const low = Number(ssIdWindow?.low);
-                    const high = Number(ssIdWindow?.high);
-                    if (Number.isFinite(low) &&
-                        Number.isFinite(high) &&
-                        low > 0 &&
-                        high > 0) {
-                        apiService
-                            .updateDeviceAnalysisSettings({
-                            ssIdLow: low,
-                            ssIdHigh: high,
-                        })
-                            .catch(() => { });
-                    }
-                }} placeholder="high (A)" className={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} fieldClassName={`${ANALYSIS_COMPACT_PAGE_FIELD_CLASS} !w-[90px]`} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS}/>
-                      </div>) : null}
                   </div>) : null}
 
                 {transferMetricsApplicable ? (<div className="flex items-center gap-2">
@@ -2719,35 +2765,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 { value: "manual", label: "manual" },
             ]} className="w-fit da-neutral-select"/>
                     </div>
-
-                    {ionIoffMethod === "manual" ? (<div className="flex items-center gap-1 text-xs text-text-secondary">
-                        <span className="whitespace-nowrap">Ion x:</span>
-                        <Input id="device-analysis-ion-x-input" value={ionIoffManualTargets?.ionX ?? ""} onChange={(nextValue) => {
-                    setIonIoffManualTargets((prev: any) => ({
-                    ...(prev || {}),
-                    ionX: nextValue,
-                }));
-                }} onBlur={() => {
-                    apiService
-                        .updateDeviceAnalysisSettings({
-                        ionIoffManualIonX: String(ionIoffManualTargets?.ionX ?? "").trim(),
-                    })
-                        .catch(() => { });
-                }} placeholder={`e.g. ${formatNumber((Number(xDomain?.[1]) || 1) * plotXFactor, { digits: 2 })}`} className={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} fieldClassName={`${ANALYSIS_COMPACT_PAGE_FIELD_CLASS} !w-[90px]`} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS}/>
-                        <span className="whitespace-nowrap">Ioff x:</span>
-                        <Input id="device-analysis-ioff-x-input" value={ionIoffManualTargets?.ioffX ?? ""} onChange={(nextValue) => {
-                    setIonIoffManualTargets((prev: any) => ({
-                    ...(prev || {}),
-                    ioffX: nextValue,
-                }));
-                }} onBlur={() => {
-                    apiService
-                        .updateDeviceAnalysisSettings({
-                        ionIoffManualIoffX: String(ionIoffManualTargets?.ioffX ?? "").trim(),
-                    })
-                        .catch(() => { });
-                }} placeholder="e.g. 0" className={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} fieldClassName={`${ANALYSIS_COMPACT_PAGE_FIELD_CLASS} !w-[90px]`} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS}/>
-                      </div>) : null}
                   </div>) : null}
 
                 {showFileSelect ? (<Select id="device-analysis-file-select" size="sm" value={effectiveActiveFileId ?? ""} onChange={(val: any) => handleSelectFile(val)} options={processedData.map((f: any) => ({
@@ -2759,14 +2776,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 </Button>
               </div>
             </div>
-
-            <div className="flex items-center gap-2 text-xs text-text-secondary">
-              <span className="whitespace-nowrap">
-                Area (for J = |I|/Area):
-              </span>
-              <Input id="device-analysis-area-input" value={areaInput} onChange={setAreaInput} placeholder="e.g. 1e-4" className={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} fieldClassName={`${ANALYSIS_COMPACT_PAGE_FIELD_CLASS} !w-[100px]`} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS}/>
-            </div>
-
           </div>
 
           {effectivePlotType === "ss" && ssSummary ? (<SsSummaryStrip summary={ssSummary}/>) : null}
@@ -2776,120 +2785,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
               </div>
               {focusedCurrentLegend ? (<div>{focusedCurrentLegend}</div>) : null}
             </div>) : null}
-
-          {showAxisControls && (<div className="bg-bg-page border border-border rounded-lg p-3">
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <div className="text-xs font-semibold text-text-primary">
-                  Axis Settings
-                </div>
-                <Button variant="text" size="sm" onClick={() => setAxis((prev: any) => ({
-                ...prev,
-                xMin: "",
-                xMax: "",
-                xTicks: "auto",
-                xTickCount: 6,
-                xStep: "",
-                xTooltipDigits: "",
-                yMin: "",
-                yMax: "",
-                yScale: "linear",
-                yTicks: "nice",
-                yTickCount: 6,
-                yStep: "",
-                yDecadeStep: 1,
-            }))} className="h-6 px-2 text-xs text-text-secondary hover:text-text-primary">
-                  Reset
-                </Button>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <div className="text-[11px] font-semibold text-text-secondary">
-                    X Axis
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input id="device-analysis-axis-x-min" value={axis.xMin} onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, xMin: nextValue }))} placeholder="min (auto)" className={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} fieldClassName={ANALYSIS_COMPACT_SURFACE_FIELD_CLASS} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS}/>
-                    <Input id="device-analysis-axis-x-max" value={axis.xMax} onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, xMax: nextValue }))} placeholder="max (auto)" className={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} fieldClassName={ANALYSIS_COMPACT_SURFACE_FIELD_CLASS} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS}/>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2 items-center">
-                    <Select size="sm" value={axis.xTicks} onChange={(next: any) => setAxis((prev: any) => ({ ...prev, xTicks: next }))} options={[
-                { value: "auto", label: "ticks: auto" },
-                { value: "nice", label: "ticks: nice" },
-                { value: "step", label: "ticks: step" },
-            ]} className="w-full"/>
-                    <Input id="device-analysis-axis-x-tick-count" value={axis.xTickCount} onChange={(nextValue) => setAxis((prev: any) => ({
-                ...prev,
-                xTickCount: nextValue,
-            }))} disabled={axis.xTicks !== "nice"} placeholder="count" className={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} fieldClassName={ANALYSIS_COMPACT_SURFACE_FIELD_CLASS} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS} title="Nice tick count"/>
-                    <Input id="device-analysis-axis-x-step" value={axis.xStep} onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, xStep: nextValue }))} disabled={axis.xTicks !== "step"} placeholder="step" className={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} fieldClassName={ANALYSIS_COMPACT_SURFACE_FIELD_CLASS} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS} title="Step tick increment"/>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2 items-center">
-                    <div className="text-[11px] text-text-secondary">
-                      {t("da_chart_axis_x_tooltip_digits")}
-                    </div>
-                    <Input id="device-analysis-axis-x-tooltip-digits" value={axis.xTooltipDigits} onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, xTooltipDigits: nextValue }))} inputMode="numeric" placeholder={t("da_chart_axis_x_tooltip_digits_placeholder", { auto: xTooltipDigitsAuto })} className={`${ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} col-span-2`} fieldClassName={ANALYSIS_COMPACT_SURFACE_FIELD_CLASS} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS} title={t("da_chart_axis_x_tooltip_digits_title")}/>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="text-[11px] font-semibold text-text-secondary">
-                    Y Axis
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input id="device-analysis-axis-y-min" value={axis.yMin} onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, yMin: nextValue }))} placeholder={`min (auto) (${plotYUnitLabel})`} className={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} fieldClassName={ANALYSIS_COMPACT_SURFACE_FIELD_CLASS} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS}/>
-                    <Input id="device-analysis-axis-y-max" value={axis.yMax} onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, yMax: nextValue }))} placeholder={`max (auto) (${plotYUnitLabel})`} className={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} fieldClassName={ANALYSIS_COMPACT_SURFACE_FIELD_CLASS} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS}/>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2 items-center">
-                    <Select size="sm" value={axis.yScale} onChange={(next: any) => {
-                const nextScale = next;
-                const nextTicks = nextScale === "linear" ? "nice" : "decades";
-                userChangedYScaleRef.current = true;
-                setAxis((prev: any) => ({
-                    ...prev,
-                    yScale: nextScale,
-                    yTicks: nextTicks,
-                }));
-                if (nextScale === "linear" || nextScale === "log") {
-                    apiService
-                        .updateDeviceAnalysisSettings({ yScale: nextScale })
-                        .catch(() => { });
-                }
-            }} options={[
-                { value: "linear", label: "scale: linear" },
-                { value: "log", label: "scale: log" },
-                { value: "logAbs", label: "scale: log(|y|)" },
-            ]} className="w-full" title="Scale"/>
-                    <Select size="sm" value={axis.yTicks} onChange={(next: any) => setAxis((prev: any) => ({ ...prev, yTicks: next }))} options={effectiveYScale === "linear"
-                ? [
-                    { value: "auto", label: "ticks: auto" },
-                    { value: "nice", label: "ticks: nice" },
-                    { value: "step", label: "ticks: step" },
-                ]
-                : [
-                    { value: "auto", label: "ticks: auto" },
-                    { value: "decades", label: "ticks: decades" },
-                ]} className="w-full"/>
-                    {effectiveYScale === "linear" ? (axis.yTicks === "step" ? (<Input id="device-analysis-axis-y-step" value={axis.yStep} onChange={(nextValue) => setAxis((prev: any) => ({
-                    ...prev,
-                    yStep: nextValue,
-                }))} placeholder={`step (${plotYUnitLabel})`} className={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} fieldClassName={ANALYSIS_COMPACT_SURFACE_FIELD_CLASS} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS} title="Major tick increment"/>) : (<Input id="device-analysis-axis-y-tick-count" value={axis.yTickCount} onChange={(nextValue) => setAxis((prev: any) => ({
-                    ...prev,
-                    yTickCount: nextValue,
-                }))} disabled={axis.yTicks !== "nice"} placeholder="count" className={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} fieldClassName={ANALYSIS_COMPACT_SURFACE_FIELD_CLASS} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS} title="Nice tick count"/>)) : (<Input id="device-analysis-axis-y-decade-step" value={axis.yDecadeStep} onChange={(nextValue) => setAxis((prev: any) => ({
-                    ...prev,
-                    yDecadeStep: nextValue,
-                }))} disabled={axis.yTicks !== "decades"} placeholder="decade step" className={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} fieldClassName={ANALYSIS_COMPACT_SURFACE_FIELD_CLASS} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS} title="Major tick increment (decades)"/>)}
-                  </div>
-
-                  {yScaleWarning ? (<div className="text-[11px] text-yellow-500">
-                      {yScaleWarning}
-                    </div>) : null}
-                </div>
-              </div>
-            </div>)}
 
           {activeFile?.series?.length ? (<div className="flex flex-col">
 
@@ -2963,6 +2858,58 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             </div>)}
         </Card>
       </section>
+
+          <AnalysisDiagnosticsCard
+            showDiagnosticsPanel={showDiagnosticsPanel}
+            diagnosticsHeading={diagnosticsHeading}
+            diagnosticsDescription={diagnosticsDescription}
+            effectivePlotType={effectivePlotType}
+            showSsDiagnosticsPanel={showSsDiagnosticsPanel}
+            showSsDiagnosticsControls={showSsDiagnosticsControls}
+            ssMethod={ssMethod}
+            ssShowFitLine={ssShowFitLine}
+            ssDiagnosticsEnabled={ssDiagnosticsEnabled}
+            ssIdWindow={ssIdWindow}
+            setSsIdWindow={setSsIdWindow}
+            ssSummary={ssSummary}
+            plotYUnitLabel={plotYUnitLabel}
+            showIvDiagnosticsPanel={showIvDiagnosticsPanel}
+            ionIoffMethod={ionIoffMethod}
+            showCurrentDiagnosticsControls={showCurrentDiagnosticsControls}
+            ionIoffManualTargets={ionIoffManualTargets}
+            setIonIoffManualTargets={setIonIoffManualTargets}
+            xDomain={xDomain}
+            plotXFactor={plotXFactor}
+            showGmDiagnosticsPanel={showGmDiagnosticsPanel}
+            gmMode={gmMode}
+            focusedSeriesLabel={focusedSeriesLabel}
+            focusedGmSummary={focusedGmSummary}
+            gmLegendStatus={gmLegendStatus}
+            gmMetricHeader={gmUi.metricHeader}
+            gmDenomUnit={gmUi.denomUnit}
+            xTooltipDigits={xTooltipDigits}
+            resolvedXUnitLabel={resolvedXUnitMeta.label}
+            showAreaDiagnosticsControls={showAreaDiagnosticsControls}
+            areaInput={areaInput}
+            setAreaInput={setAreaInput}
+            areaDiagnosticsSummary={areaDiagnosticsSummary}
+            transferMetricsApplicable={transferMetricsApplicable}
+            showAxisControls={showAxisControls}
+            axis={axis}
+            setAxis={setAxis}
+            effectiveYScale={effectiveYScale}
+            yScaleWarning={yScaleWarning}
+            xTooltipDigitsAuto={xTooltipDigitsAuto}
+            onResetSs={handleResetSsDiagnostics}
+            onPersistSsIdWindow={handlePersistSsIdWindow}
+            onPersistIonIoffTargets={handlePersistIonIoffTarget}
+            onAxisYScaleChange={handleAxisYScaleChange}
+            analysisCompactInputWrapperClass={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS}
+            analysisCompactInputClass={ANALYSIS_COMPACT_INPUT_CLASS}
+            analysisCompactPageFieldClass={ANALYSIS_COMPACT_PAGE_FIELD_CLASS}
+            analysisCompactSurfaceFieldClass={ANALYSIS_COMPACT_SURFACE_FIELD_CLASS}
+            t={t}
+          />
 
           {activeFile?.series?.length ? (<Card variant="panel" className="flex min-w-0 flex-col flex-1">
             <div className="mb-3 flex min-w-0 items-center justify-between gap-3 flex-wrap">
