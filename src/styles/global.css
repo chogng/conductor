@@ -676,7 +676,7 @@ body {
   }
 
   .input_field[data-state="enable"] {
-    @apply border-border-200;
+    @apply border-transparent;
   }
 
   /* Keyboard focus ring (component-level outer ring).
@@ -745,15 +745,15 @@ body {
   }
 
   .ui-select_field--sm {
-    @apply h-8 py-1 pl-1.5 pr-1 text-xs;
+    @apply h-8 py-1 pl-2 pr-0 text-xs;
   }
 
   .ui-select_field--md {
-    @apply h-[38px] py-1 pl-1.5 pr-1 text-sm;
+    @apply h-[38px] py-1 pl-2 pr-0 text-sm;
   }
 
   .ui-select_field--xl {
-    @apply h-[47.6px] py-1 pl-1.5 pr-1 text-sm;
+    @apply h-[47.6px] py-1 pl-2 pr-0 text-sm;
   }
 
   .ui-select_list {
@@ -769,11 +769,11 @@ body {
   }
 
   .ui-select_item {
-    @apply w-full px-1.5 py-1 text-sm text-left rounded-md transition-colors flex items-center justify-between gap-3;
+    @apply w-full px-1.5 py-1 text-sm text-left rounded-md transition-colors flex items-center justify-between gap-2;
   }
 
   .ui-select_item[data-selected] {
-    @apply bg-accent/10 text-accent font-medium;
+    @apply bg-accent/10 text-accent;
   }
 
   .ui-select_item[data-highlighted]:not([data-selected]) {
@@ -789,7 +789,7 @@ body {
   }
 
   .ui-select_item-right {
-    @apply inline-flex items-center justify-center w-5 shrink-0 ml-3;
+    @apply inline-flex items-center justify-center w-4 shrink-0 ml-1;
   }
 
   .ui-select_empty {

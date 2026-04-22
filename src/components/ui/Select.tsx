@@ -163,6 +163,9 @@ const Select = ({
       : size === "xl"
         ? "ui-select_field--xl"
         : "ui-select_field--md";
+  const itemSizeClass = size === "sm" ? "text-xs" : "text-sm";
+  const chevronIconSizePx = size === "sm" ? 16 : 16;
+  const checkIconSizePx = size === "sm" ? 14 : 16;
 
   const selectableOptions = useMemo(
     () => (Array.isArray(options) ? options.filter(isSelectableOption) : []),
@@ -393,14 +396,26 @@ const Select = ({
         maxTextWidth = Math.max(maxTextWidth, nextWidth);
       }
 
-      const nextWidthPx = Math.ceil(
+      const triggerWidthPx =
         maxTextWidth +
           triggerPaddingLeft +
           triggerPaddingRight +
           fieldPaddingLeft +
           fieldPaddingRight +
           fieldBorderLeft +
-          fieldBorderRight,
+          fieldBorderRight;
+
+      const popupShellHorizontalPx = 10;
+      const menuItemHorizontalPaddingPx = 12;
+      const menuItemRightAdornmentPx = 28;
+      const menuWidthPx =
+        maxTextWidth +
+        popupShellHorizontalPx +
+        menuItemHorizontalPaddingPx +
+        menuItemRightAdornmentPx;
+
+      const nextWidthPx = Math.ceil(
+        Math.max(triggerWidthPx, menuWidthPx),
       );
 
       setStableWidthPx((prev) => (prev === nextWidthPx ? prev : nextWidthPx));
@@ -459,7 +474,7 @@ const Select = ({
           onKeyDown={handleKeyDown}
           className={cx(
             "input_native no-focus-outline p-0 text-left cursor-pointer select-none",
-            hideChevron ? "pr-0" : "pr-12",
+            hideChevron ? "pr-0" : "pr-6",
             triggerClassName,
           )}
         >
@@ -474,9 +489,9 @@ const Select = ({
         </button>
 
         {!hideChevron && (
-          <span className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-secondary pointer-events-none">
+          <span className="absolute right-1 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none">
             <ChevronDown
-              size={16}
+              size={chevronIconSizePx}
               className={cx(
                 "transition-transform duration-200",
                 isOpen ? "rotate-180" : "",
@@ -491,6 +506,7 @@ const Select = ({
         onClose={closeMenu}
         align={align}
         zIndex={zIndex}
+        matchAnchorWidth
         triggerId={triggerId}
         menuId={resolvedMenuId}
         containerRef={containerRef as RefObject<HTMLElement | null>}
@@ -540,7 +556,7 @@ const Select = ({
                           data-value={String(option.value)}
                           onClick={() => selectOption(option)}
                           onMouseEnter={() => setHighlightedIndex(currentIndex)}
-                          className="ui-select_item"
+                          className={cx("ui-select_item", itemSizeClass)}
                         >
                           <span className="ui-select_item-left">
                             {Icon ? (
@@ -553,7 +569,7 @@ const Select = ({
                           <span className="ui-select_item-right" aria-hidden="true">
                             {isSelected ? (
                               <Check
-                                style={{ width: "0.9rem", height: "0.9rem" }}
+                                size={checkIconSizePx}
                                 className="text-accent"
                               />
                             ) : null}

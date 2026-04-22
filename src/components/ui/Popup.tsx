@@ -23,6 +23,7 @@ type PopupProps = {
   menuId?: string;
   closeOnClickOutside?: boolean;
   containerRef?: RefObject<HTMLElement | null>;
+  matchAnchorWidth?: boolean;
 };
 
 const POPUP_GAP_PX = 8;
@@ -39,6 +40,7 @@ const Popup = ({
   menuId,
   closeOnClickOutside = true,
   containerRef,
+  matchAnchorWidth = false,
 }: PopupProps) => {
   const popupRef = useRef<HTMLDivElement | null>(null);
   const [portalStyle, setPortalStyle] = useState<CSSProperties | null>(null);
@@ -59,12 +61,13 @@ const Popup = ({
       const rect = anchorEl.getBoundingClientRect();
       const viewportWidth = window.innerWidth;
       const viewportHeight = window.innerHeight;
-      const minWidth = Math.max(0, rect.width);
-      const maxWidth = Math.max(
-        minWidth,
-        viewportWidth - VIEWPORT_PADDING_PX * 2,
-      );
-      const popupWidth = Math.max(minWidth, popupEl.offsetWidth || 0);
+      const anchorWidth = Math.max(0, rect.width);
+      const maxWidth = Math.max(0, viewportWidth - VIEWPORT_PADDING_PX * 2);
+      const resolvedWidth = matchAnchorWidth
+        ? Math.min(anchorWidth, maxWidth)
+        : undefined;
+      const minWidth = resolvedWidth ?? anchorWidth;
+      const popupWidth = resolvedWidth ?? Math.max(minWidth, popupEl.offsetWidth || 0);
       const popupHeight = popupEl.offsetHeight || 0;
 
       let left = rect.left;
@@ -102,6 +105,7 @@ const Popup = ({
         position: "fixed",
         top,
         left,
+        width: resolvedWidth,
         minWidth,
         maxWidth,
         zIndex,
@@ -117,7 +121,7 @@ const Popup = ({
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
     };
-  }, [align, containerRef, isOpen, zIndex]);
+  }, [align, containerRef, isOpen, matchAnchorWidth, zIndex]);
 
   useEffect(() => {
     if (!isOpen || !closeOnClickOutside) return;

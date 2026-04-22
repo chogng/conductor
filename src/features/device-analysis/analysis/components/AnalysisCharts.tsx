@@ -5,6 +5,7 @@ import { apiService } from "../services/apiService";
 import Select from "../../../../components/ui/Select";
 import Button from "../../../../components/ui/Button";
 import Card from "../../../../components/ui/Card";
+import Input from "../../../../components/ui/Input";
 import ScrollArea from "../../../../components/ui/ScrollArea";
 import Tabs from "../../../../components/ui/Tabs";
 import Toast from "../../../../components/ui/Toast";
@@ -47,6 +48,12 @@ const TRANSFER_CALCULATED_PARAMETERS_COLUMN_WIDTHS_PX = [
     92, 128, 88, 128, 88, 120, 168, 88, 104, 88, 120,
 ];
 const DERIVATIVE_ONLY_CALCULATED_PARAMETERS_COLUMN_WIDTHS_PX = [92, 168, 88];
+const ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS = "!space-y-0";
+const ANALYSIS_COMPACT_INPUT_CLASS = "text-xs";
+const ANALYSIS_COMPACT_PAGE_FIELD_CLASS =
+    "!h-8 !gap-0 rounded-lg border border-border bg-bg-page px-2 py-1";
+const ANALYSIS_COMPACT_SURFACE_FIELD_CLASS =
+    "!gap-0 rounded border border-border bg-bg-surface px-2 py-1";
 const resolveOriginSeriesExportLabel = (series: any, index: number): string => {
     const legendValue = String(series?.legendValue ?? "").trim();
     if (legendValue)
@@ -2654,9 +2661,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
 
                     {ssMethod === "idWindow" ? (<div className="flex items-center gap-1 text-xs text-text-secondary">
                         <span className="whitespace-nowrap">|Id|:</span>
-                        <input id="device-analysis-ss-id-low" value={ssIdWindow?.low ?? ""} onChange={(e: any) => setSsIdWindow((prev: any) => ({
+                        <Input id="device-analysis-ss-id-low" value={ssIdWindow?.low ?? ""} onChange={(nextValue) => setSsIdWindow((prev: any) => ({
                     ...(prev || {}),
-                    low: e.target.value,
+                    low: nextValue,
                 }))} onBlur={() => {
                     const low = Number(ssIdWindow?.low);
                     const high = Number(ssIdWindow?.high);
@@ -2671,11 +2678,11 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         })
                             .catch(() => { });
                     }
-                }} placeholder="low (A)" className="bg-bg-page border border-border rounded-lg h-8 px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40 w-[90px]"/>
+                }} placeholder="low (A)" className={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} fieldClassName={`${ANALYSIS_COMPACT_PAGE_FIELD_CLASS} !w-[90px]`} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS}/>
                         <span>~</span>
-                        <input id="device-analysis-ss-id-high" value={ssIdWindow?.high ?? ""} onChange={(e: any) => setSsIdWindow((prev: any) => ({
+                        <Input id="device-analysis-ss-id-high" value={ssIdWindow?.high ?? ""} onChange={(nextValue) => setSsIdWindow((prev: any) => ({
                     ...(prev || {}),
-                    high: e.target.value,
+                    high: nextValue,
                 }))} onBlur={() => {
                     const low = Number(ssIdWindow?.low);
                     const high = Number(ssIdWindow?.high);
@@ -2690,7 +2697,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         })
                             .catch(() => { });
                     }
-                }} placeholder="high (A)" className="bg-bg-page border border-border rounded-lg h-8 px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40 w-[90px]"/>
+                }} placeholder="high (A)" className={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} fieldClassName={`${ANALYSIS_COMPACT_PAGE_FIELD_CLASS} !w-[90px]`} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS}/>
                       </div>) : null}
                   </div>) : null}
 
@@ -2715,10 +2722,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
 
                     {ionIoffMethod === "manual" ? (<div className="flex items-center gap-1 text-xs text-text-secondary">
                         <span className="whitespace-nowrap">Ion x:</span>
-                        <input id="device-analysis-ion-x-input" value={ionIoffManualTargets?.ionX ?? ""} onChange={(e: any) => {
+                        <Input id="device-analysis-ion-x-input" value={ionIoffManualTargets?.ionX ?? ""} onChange={(nextValue) => {
                     setIonIoffManualTargets((prev: any) => ({
                     ...(prev || {}),
-                    ionX: e.target.value,
+                    ionX: nextValue,
                 }));
                 }} onBlur={() => {
                     apiService
@@ -2726,12 +2733,12 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         ionIoffManualIonX: String(ionIoffManualTargets?.ionX ?? "").trim(),
                     })
                         .catch(() => { });
-                }} placeholder={`e.g. ${formatNumber((Number(xDomain?.[1]) || 1) * plotXFactor, { digits: 2 })}`} className="bg-bg-page border border-border rounded-lg h-8 px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40 w-[90px]"/>
+                }} placeholder={`e.g. ${formatNumber((Number(xDomain?.[1]) || 1) * plotXFactor, { digits: 2 })}`} className={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} fieldClassName={`${ANALYSIS_COMPACT_PAGE_FIELD_CLASS} !w-[90px]`} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS}/>
                         <span className="whitespace-nowrap">Ioff x:</span>
-                        <input id="device-analysis-ioff-x-input" value={ionIoffManualTargets?.ioffX ?? ""} onChange={(e: any) => {
+                        <Input id="device-analysis-ioff-x-input" value={ionIoffManualTargets?.ioffX ?? ""} onChange={(nextValue) => {
                     setIonIoffManualTargets((prev: any) => ({
                     ...(prev || {}),
-                    ioffX: e.target.value,
+                    ioffX: nextValue,
                 }));
                 }} onBlur={() => {
                     apiService
@@ -2739,7 +2746,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         ionIoffManualIoffX: String(ionIoffManualTargets?.ioffX ?? "").trim(),
                     })
                         .catch(() => { });
-                }} placeholder="e.g. 0" className="bg-bg-page border border-border rounded-lg h-8 px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40 w-[90px]"/>
+                }} placeholder="e.g. 0" className={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} fieldClassName={`${ANALYSIS_COMPACT_PAGE_FIELD_CLASS} !w-[90px]`} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS}/>
                       </div>) : null}
                   </div>) : null}
 
@@ -2757,7 +2764,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
               <span className="whitespace-nowrap">
                 Area (for J = |I|/Area):
               </span>
-              <input id="device-analysis-area-input" value={areaInput} onChange={(e: any) => setAreaInput(e.target.value)} placeholder="e.g. 1e-4" className="bg-bg-page border border-border rounded-lg h-8 px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40 w-[100px]"/>
+              <Input id="device-analysis-area-input" value={areaInput} onChange={setAreaInput} placeholder="e.g. 1e-4" className={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} fieldClassName={`${ANALYSIS_COMPACT_PAGE_FIELD_CLASS} !w-[100px]`} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS}/>
             </div>
 
           </div>
@@ -2801,28 +2808,28 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     X Axis
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <input id="device-analysis-axis-x-min" value={axis.xMin} onChange={(e: any) => setAxis((prev: any) => ({ ...prev, xMin: e.target.value }))} placeholder="min (auto)" className="bg-bg-surface border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40"/>
-                    <input id="device-analysis-axis-x-max" value={axis.xMax} onChange={(e: any) => setAxis((prev: any) => ({ ...prev, xMax: e.target.value }))} placeholder="max (auto)" className="bg-bg-surface border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40"/>
+                    <Input id="device-analysis-axis-x-min" value={axis.xMin} onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, xMin: nextValue }))} placeholder="min (auto)" className={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} fieldClassName={ANALYSIS_COMPACT_SURFACE_FIELD_CLASS} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS}/>
+                    <Input id="device-analysis-axis-x-max" value={axis.xMax} onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, xMax: nextValue }))} placeholder="max (auto)" className={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} fieldClassName={ANALYSIS_COMPACT_SURFACE_FIELD_CLASS} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS}/>
                   </div>
 
                   <div className="grid grid-cols-3 gap-2 items-center">
-                    <select value={axis.xTicks} onChange={(e: any) => setAxis((prev: any) => ({ ...prev, xTicks: e.target.value }))} className="bg-bg-surface border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40" title="Tick mode">
-                      <option value="auto">ticks: auto</option>
-                      <option value="nice">ticks: nice</option>
-                      <option value="step">ticks: step</option>
-                    </select>
-                    <input id="device-analysis-axis-x-tick-count" value={axis.xTickCount} onChange={(e: any) => setAxis((prev: any) => ({
+                    <Select size="sm" value={axis.xTicks} onChange={(next: any) => setAxis((prev: any) => ({ ...prev, xTicks: next }))} options={[
+                { value: "auto", label: "ticks: auto" },
+                { value: "nice", label: "ticks: nice" },
+                { value: "step", label: "ticks: step" },
+            ]} className="w-full"/>
+                    <Input id="device-analysis-axis-x-tick-count" value={axis.xTickCount} onChange={(nextValue) => setAxis((prev: any) => ({
                 ...prev,
-                xTickCount: e.target.value,
-            }))} disabled={axis.xTicks !== "nice"} placeholder="count" className="bg-bg-surface border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40 disabled:opacity-50" title="Nice tick count"/>
-                    <input id="device-analysis-axis-x-step" value={axis.xStep} onChange={(e: any) => setAxis((prev: any) => ({ ...prev, xStep: e.target.value }))} disabled={axis.xTicks !== "step"} placeholder="step" className="bg-bg-surface border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40 disabled:opacity-50" title="Step tick increment"/>
+                xTickCount: nextValue,
+            }))} disabled={axis.xTicks !== "nice"} placeholder="count" className={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} fieldClassName={ANALYSIS_COMPACT_SURFACE_FIELD_CLASS} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS} title="Nice tick count"/>
+                    <Input id="device-analysis-axis-x-step" value={axis.xStep} onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, xStep: nextValue }))} disabled={axis.xTicks !== "step"} placeholder="step" className={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} fieldClassName={ANALYSIS_COMPACT_SURFACE_FIELD_CLASS} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS} title="Step tick increment"/>
                   </div>
 
                   <div className="grid grid-cols-3 gap-2 items-center">
                     <div className="text-[11px] text-text-secondary">
                       {t("da_chart_axis_x_tooltip_digits")}
                     </div>
-                    <input id="device-analysis-axis-x-tooltip-digits" value={axis.xTooltipDigits} onChange={(e: any) => setAxis((prev: any) => ({ ...prev, xTooltipDigits: e.target.value }))} inputMode="numeric" placeholder={t("da_chart_axis_x_tooltip_digits_placeholder", { auto: xTooltipDigitsAuto })} className="col-span-2 bg-bg-surface border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40" title={t("da_chart_axis_x_tooltip_digits_title")}/>
+                    <Input id="device-analysis-axis-x-tooltip-digits" value={axis.xTooltipDigits} onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, xTooltipDigits: nextValue }))} inputMode="numeric" placeholder={t("da_chart_axis_x_tooltip_digits_placeholder", { auto: xTooltipDigitsAuto })} className={`${ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} col-span-2`} fieldClassName={ANALYSIS_COMPACT_SURFACE_FIELD_CLASS} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS} title={t("da_chart_axis_x_tooltip_digits_title")}/>
                   </div>
                 </div>
 
@@ -2831,13 +2838,13 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     Y Axis
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <input id="device-analysis-axis-y-min" value={axis.yMin} onChange={(e: any) => setAxis((prev: any) => ({ ...prev, yMin: e.target.value }))} placeholder={`min (auto) (${plotYUnitLabel})`} className="bg-bg-surface border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40"/>
-                    <input id="device-analysis-axis-y-max" value={axis.yMax} onChange={(e: any) => setAxis((prev: any) => ({ ...prev, yMax: e.target.value }))} placeholder={`max (auto) (${plotYUnitLabel})`} className="bg-bg-surface border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40"/>
+                    <Input id="device-analysis-axis-y-min" value={axis.yMin} onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, yMin: nextValue }))} placeholder={`min (auto) (${plotYUnitLabel})`} className={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} fieldClassName={ANALYSIS_COMPACT_SURFACE_FIELD_CLASS} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS}/>
+                    <Input id="device-analysis-axis-y-max" value={axis.yMax} onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, yMax: nextValue }))} placeholder={`max (auto) (${plotYUnitLabel})`} className={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} fieldClassName={ANALYSIS_COMPACT_SURFACE_FIELD_CLASS} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS}/>
                   </div>
 
                   <div className="grid grid-cols-3 gap-2 items-center">
-                    <select value={axis.yScale} onChange={(e: any) => {
-                const nextScale = e.target.value;
+                    <Select size="sm" value={axis.yScale} onChange={(next: any) => {
+                const nextScale = next;
                 const nextTicks = nextScale === "linear" ? "nice" : "decades";
                 userChangedYScaleRef.current = true;
                 setAxis((prev: any) => ({
@@ -2850,33 +2857,31 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         .updateDeviceAnalysisSettings({ yScale: nextScale })
                         .catch(() => { });
                 }
-            }} className="bg-bg-surface border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40" title="Scale">
-                      <option value="linear">scale: linear</option>
-                      <option value="log">scale: log</option>
-                      <option value="logAbs">scale: log(|y|)</option>
-                    </select>
-                    <select value={axis.yTicks} onChange={(e: any) => setAxis((prev: any) => ({ ...prev, yTicks: e.target.value }))} className="bg-bg-surface border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40" title="Tick mode">
-                      <option value="auto">ticks: auto</option>
-                      <option value="nice" disabled={effectiveYScale !== "linear"}>
-                        ticks: nice
-                      </option>
-                      <option value="step" disabled={effectiveYScale !== "linear"}>
-                        ticks: step
-                      </option>
-                      <option value="decades" disabled={effectiveYScale === "linear"}>
-                        ticks: decades
-                      </option>
-                    </select>
-                    {effectiveYScale === "linear" ? (axis.yTicks === "step" ? (<input id="device-analysis-axis-y-step" value={axis.yStep} onChange={(e: any) => setAxis((prev: any) => ({
+            }} options={[
+                { value: "linear", label: "scale: linear" },
+                { value: "log", label: "scale: log" },
+                { value: "logAbs", label: "scale: log(|y|)" },
+            ]} className="w-full" title="Scale"/>
+                    <Select size="sm" value={axis.yTicks} onChange={(next: any) => setAxis((prev: any) => ({ ...prev, yTicks: next }))} options={effectiveYScale === "linear"
+                ? [
+                    { value: "auto", label: "ticks: auto" },
+                    { value: "nice", label: "ticks: nice" },
+                    { value: "step", label: "ticks: step" },
+                ]
+                : [
+                    { value: "auto", label: "ticks: auto" },
+                    { value: "decades", label: "ticks: decades" },
+                ]} className="w-full"/>
+                    {effectiveYScale === "linear" ? (axis.yTicks === "step" ? (<Input id="device-analysis-axis-y-step" value={axis.yStep} onChange={(nextValue) => setAxis((prev: any) => ({
                     ...prev,
-                    yStep: e.target.value,
-                }))} placeholder={`step (${plotYUnitLabel})`} className="bg-bg-surface border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40" title="Major tick increment"/>) : (<input id="device-analysis-axis-y-tick-count" value={axis.yTickCount} onChange={(e: any) => setAxis((prev: any) => ({
+                    yStep: nextValue,
+                }))} placeholder={`step (${plotYUnitLabel})`} className={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} fieldClassName={ANALYSIS_COMPACT_SURFACE_FIELD_CLASS} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS} title="Major tick increment"/>) : (<Input id="device-analysis-axis-y-tick-count" value={axis.yTickCount} onChange={(nextValue) => setAxis((prev: any) => ({
                     ...prev,
-                    yTickCount: e.target.value,
-                }))} disabled={axis.yTicks !== "nice"} placeholder="count" className="bg-bg-surface border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40 disabled:opacity-50" title="Nice tick count"/>)) : (<input id="device-analysis-axis-y-decade-step" value={axis.yDecadeStep} onChange={(e: any) => setAxis((prev: any) => ({
+                    yTickCount: nextValue,
+                }))} disabled={axis.yTicks !== "nice"} placeholder="count" className={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} fieldClassName={ANALYSIS_COMPACT_SURFACE_FIELD_CLASS} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS} title="Nice tick count"/>)) : (<Input id="device-analysis-axis-y-decade-step" value={axis.yDecadeStep} onChange={(nextValue) => setAxis((prev: any) => ({
                     ...prev,
-                    yDecadeStep: e.target.value,
-                }))} disabled={axis.yTicks !== "decades"} placeholder="decade step" className="bg-bg-surface border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-focus/40 disabled:opacity-50" title="Major tick increment (decades)"/>)}
+                    yDecadeStep: nextValue,
+                }))} disabled={axis.yTicks !== "decades"} placeholder="decade step" className={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS} fieldClassName={ANALYSIS_COMPACT_SURFACE_FIELD_CLASS} inputClassName={ANALYSIS_COMPACT_INPUT_CLASS} title="Major tick increment (decades)"/>)}
                   </div>
 
                   {yScaleWarning ? (<div className="text-[11px] text-yellow-500">
