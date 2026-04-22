@@ -16,6 +16,7 @@ const DEVICE_ANALYSIS_ORIGIN_EXPORT_MODES = new Set([
 ]);
 const DEVICE_ANALYSIS_Y_UNITS = new Set(["A", "uA", "nA"]);
 const DEVICE_ANALYSIS_Y_SCALES = new Set(["linear", "log"]);
+const DEVICE_ANALYSIS_DEFAULT_Y_SCALE = "linear";
 const DEVICE_ANALYSIS_THEMES = new Set(["system", "light", "dark"]);
 const DEVICE_ANALYSIS_X_SEGMENTATION_MODES = new Set([
   "auto",
@@ -31,7 +32,7 @@ const DEVICE_ANALYSIS_DEFAULT_SETTINGS = {
   onboardingAutoStartDismissed: false,
   stopOnErrorDefault: false,
   yUnit: "A",
-  yScale: "linear",
+  yScaleByFileId: {},
   ssMethodDefault: "auto",
   ssDiagnosticsEnabled: true,
   ssShowFitLine: true,
@@ -67,6 +68,26 @@ function normalizeBoundedInt(value, fallback, min, max) {
 function normalizeTemplateTextValue(value) {
   if (value == null) return "";
   return String(value);
+}
+
+function normalizeYScaleByFileIdMap(value) {
+  const raw = value && typeof value === "object" ? value : {};
+  const next = {};
+
+  for (const [fileId, scale] of Object.entries(raw)) {
+    const normalizedFileId =
+      typeof fileId === "string" && fileId.trim() ? fileId.trim() : "";
+    if (!normalizedFileId) continue;
+    const normalizedScale =
+      typeof scale === "string" && DEVICE_ANALYSIS_Y_SCALES.has(scale)
+        ? scale
+        : DEVICE_ANALYSIS_DEFAULT_Y_SCALE;
+    next[normalizedFileId] = normalizedScale
+      ? normalizedScale
+      : DEVICE_ANALYSIS_DEFAULT_Y_SCALE;
+  }
+
+  return next;
 }
 
 function normalizeXSegmentationMode(mode) {
@@ -159,6 +180,7 @@ export function createDeviceAnalysisStore(options) {
 
   function normalizeDeviceAnalysisSettings(raw) {
     const next = raw && typeof raw === "object" ? { ...raw } : {};
+    const { yScale: _legacyGlobalYScale, ...nextWithoutLegacyYScale } = next;
 
     const ssMethodDefault = DEVICE_ANALYSIS_SS_METHODS.has(next.ssMethodDefault)
       ? next.ssMethodDefault
@@ -169,9 +191,7 @@ export function createDeviceAnalysisStore(options) {
     const yUnit = DEVICE_ANALYSIS_Y_UNITS.has(next.yUnit)
       ? next.yUnit
       : DEVICE_ANALYSIS_DEFAULT_SETTINGS.yUnit;
-    const yScale = DEVICE_ANALYSIS_Y_SCALES.has(next.yScale)
-      ? next.yScale
-      : DEVICE_ANALYSIS_DEFAULT_SETTINGS.yScale;
+    const yScaleByFileId = normalizeYScaleByFileIdMap(next.yScaleByFileId);
     const theme = DEVICE_ANALYSIS_THEMES.has(next.theme)
       ? next.theme
       : DEVICE_ANALYSIS_DEFAULT_SETTINGS.theme;
@@ -252,14 +272,14 @@ export function createDeviceAnalysisStore(options) {
 
     return {
       ...DEVICE_ANALYSIS_DEFAULT_SETTINGS,
-      ...next,
+      ...nextWithoutLegacyYScale,
       defaultTemplate: next.defaultTemplate ?? null,
       lastTemplateId: next.lastTemplateId ?? null,
       onboardingCompleted,
       onboardingAutoStartDismissed,
       stopOnErrorDefault,
       yUnit,
-      yScale,
+      yScaleByFileId,
       theme,
       ssMethodDefault,
       ssDiagnosticsEnabled,
@@ -432,6 +452,16 @@ export function createDeviceAnalysisStore(options) {
         normalizeDeviceAnalysisSettings(extractLegacySettings(currentSettingsRaw)),
       );
       clearSettingsCache();
+    } else if (currentSettingsRaw && typeof currentSettingsRaw === "object") {
+      const normalizedCurrentSettings = normalizeDeviceAnalysisSettings(
+        currentSettingsRaw,
+      );
+      const rawSerialized = JSON.stringify(currentSettingsRaw);
+      const normalizedSerialized = JSON.stringify(normalizedCurrentSettings);
+      if (rawSerialized !== normalizedSerialized) {
+        writeJsonFile(settingsPath, normalizedCurrentSettings);
+        clearSettingsCache();
+      }
     }
   }
 

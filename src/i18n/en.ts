@@ -88,6 +88,7 @@
     da_origin_export_mode_workbook_sheets: 'New worksheet',
     da_origin_export_mode_separate: 'New window',
     da_origin_export_mode_merged_hint: 'Collect selected curves into the same Origin worksheet and write them as newly added columns.',
+    da_origin_export_mode_mixed_y_scale_split_hint: 'The current export list mixes Linear and Log Y scales. Origin cannot use both axis types in the same graph layer, so this New columns export will be split into multiple worksheets before plotting.',
     da_origin_export_mode_workbook_books_hint: 'Import selected thumbnails into the same Origin window and create a new workbook for each thumbnail.',
     da_origin_export_mode_workbook_sheets_hint: 'Import selected thumbnails into one Origin workbook and create a new worksheet for each thumbnail.',
     da_origin_export_mode_separate_hint: 'Create a new Origin window for each thumbnail in the export scope.',

@@ -25,6 +25,8 @@ export type DeviceAnalysisOriginImportMode =
   | "new-book"
   | "existing-book-new-sheet";
 
+export type DeviceAnalysisOriginYAxisScaleMode = "linear" | "log";
+
 type DeviceAnalysisOriginCurveEntry = {
   canvasLabel: string;
   label: string;
@@ -51,6 +53,15 @@ export type DeviceAnalysisOriginSelectionExport = {
   yLinearMin: number | null;
   yPositiveMax: number | null;
   yPositiveMin: number | null;
+  yScaleMode?: DeviceAnalysisOriginYAxisScaleMode;
+};
+
+export type DeviceAnalysisOriginExportPlan = {
+  mixedYScales: boolean;
+  mode: DeviceAnalysisOriginExportMode;
+  payloads: DeviceAnalysisOriginSelectionExport[];
+  totalCanvasCount: number;
+  totalCurveCount: number;
 };
 
 const ORIGIN_LOG_ROBUST_MIN_SAMPLE_COUNT = 50;
@@ -483,4 +494,141 @@ export const buildDeviceAnalysisOriginExportsByMode = (
     selectedSeriesIdsByFile,
   );
   return merged ? [merged] : [];
+};
+
+const resolveNormalizedOriginYScale = (
+  value: unknown,
+): DeviceAnalysisOriginYAxisScaleMode =>
+  String(value ?? "").trim().toLowerCase() === "log" ? "log" : "linear";
+
+const appendOriginScaleSuffix = (
+  value: unknown,
+  scaleMode: DeviceAnalysisOriginYAxisScaleMode,
+): string => {
+  const base = sanitizeOriginDisplayName(value, { max: 140 });
+  const suffix = scaleMode === "log" ? "Log" : "Linear";
+  return sanitizeOriginDisplayName(`${base || "Merged curves"} ${suffix}`, {
+    max: 160,
+  });
+};
+
+export const buildDeviceAnalysisOriginExportPlan = (
+  selectedCanvases: ProcessedEntryLike[] = [],
+  selectedSeriesIdsByFile:
+    | Record<string, string[] | undefined>
+    | null
+    | undefined = {},
+  exportMode: DeviceAnalysisOriginExportMode = "merged",
+  resolveYScaleForFile: (
+    file: ProcessedEntryLike | null | undefined,
+  ) => DeviceAnalysisOriginYAxisScaleMode = () => "linear",
+): DeviceAnalysisOriginExportPlan => {
+  const liveCanvases = (Array.isArray(selectedCanvases) ? selectedCanvases : []).filter(
+    (file): file is ProcessedEntryLike => Boolean(file),
+  );
+  if (!liveCanvases.length) {
+    return {
+      mixedYScales: false,
+      mode: exportMode,
+      payloads: [],
+      totalCanvasCount: 0,
+      totalCurveCount: 0,
+    };
+  }
+
+  if (exportMode !== "merged") {
+    const payloads = buildDeviceAnalysisOriginExportsByMode(
+      liveCanvases,
+      selectedSeriesIdsByFile,
+      exportMode,
+    ).map((payload) => ({
+      ...payload,
+      yScaleMode: resolveNormalizedOriginYScale(
+        resolveYScaleForFile(
+          liveCanvases.find(
+            (file) => String(file?.fileId ?? "") === String(payload.fileIds?.[0] ?? ""),
+          ) ?? null,
+        ),
+      ),
+    }));
+    return {
+      mixedYScales: false,
+      mode: exportMode,
+      payloads,
+      totalCanvasCount: liveCanvases.length,
+      totalCurveCount: payloads.reduce(
+        (sum, payload) => sum + Number(payload?.curveCount ?? 0),
+        0,
+      ),
+    };
+  }
+
+  const groupedCanvases = new Map<
+    DeviceAnalysisOriginYAxisScaleMode,
+    ProcessedEntryLike[]
+  >();
+  for (const canvas of liveCanvases) {
+    const scaleMode = resolveNormalizedOriginYScale(resolveYScaleForFile(canvas));
+    const existing = groupedCanvases.get(scaleMode);
+    if (existing) {
+      existing.push(canvas);
+    } else {
+      groupedCanvases.set(scaleMode, [canvas]);
+    }
+  }
+
+  if (groupedCanvases.size <= 1) {
+    const payloads = buildDeviceAnalysisOriginExportsByMode(
+      liveCanvases,
+      selectedSeriesIdsByFile,
+      "merged",
+    ).map((payload) => ({
+      ...payload,
+      yScaleMode: resolveNormalizedOriginYScale(resolveYScaleForFile(liveCanvases[0] ?? null)),
+    }));
+    return {
+      mixedYScales: false,
+      mode: "merged",
+      payloads,
+      totalCanvasCount: liveCanvases.length,
+      totalCurveCount: payloads.reduce(
+        (sum, payload) => sum + Number(payload?.curveCount ?? 0),
+        0,
+      ),
+    };
+  }
+
+  const firstCanvasName = String(liveCanvases[0]?.fileName ?? "device_analysis");
+  const workbookName = sanitizeOriginDisplayName(
+    `Mixed-scale export ${sanitizeDeviceAnalysisFilename(firstCanvasName).replace(/\.csv$/i, "").trim() || "device analysis"}`,
+  );
+  const payloads = Array.from(groupedCanvases.entries())
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([scaleMode, canvases]): DeviceAnalysisOriginSelectionExport | null => {
+      const payload = buildDeviceAnalysisOriginSelectionExport(
+        canvases,
+        selectedSeriesIdsByFile,
+      );
+      if (!payload) return null;
+      const suffix = scaleMode === "log" ? "log" : "linear";
+      return {
+        ...payload,
+        csvName: `${String(payload.csvName || "device_analysis").replace(/\.csv$/i, "")}__${suffix}.csv`,
+        sheetName: appendOriginScaleSuffix(payload.sheetName, scaleMode),
+        workbookName,
+        yScaleMode: scaleMode,
+      };
+    })
+    .filter((payload): payload is DeviceAnalysisOriginSelectionExport => payload !== null);
+
+  return {
+    mixedYScales: true,
+    mode: "workbookSheets",
+    payloads,
+    totalCanvasCount: liveCanvases.length,
+    totalCurveCount: payloads.reduce(
+      (sum, payload) => sum + Number(payload?.curveCount ?? 0),
+      0,
+    ),
+  };
 };

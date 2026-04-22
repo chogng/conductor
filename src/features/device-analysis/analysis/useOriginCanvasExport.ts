@@ -11,9 +11,11 @@ import {
   triggerDeviceAnalysisBlobDownload,
 } from "./lib/deviceAnalysisExport";
 import {
-  buildDeviceAnalysisOriginExportsByMode,
+  buildDeviceAnalysisOriginExportPlan,
   isDeviceAnalysisOriginExportMode,
+  type DeviceAnalysisOriginExportPlan,
   type DeviceAnalysisOriginExportMode,
+  type DeviceAnalysisOriginYAxisScaleMode,
 } from "./lib/originSelectionExport";
 import {
   buildOriginXAxisRangeCommandsFromDisplayRange,
@@ -46,7 +48,6 @@ export type DeviceAnalysisOriginCurveExportMode = "all" | "select";
 
 type UseOriginCanvasExportOptions = {
   activeFile: any;
-  axisYScale: unknown;
   canvasExportScope?: DeviceAnalysisOriginCanvasExportScope;
   curveExportMode?: DeviceAnalysisOriginCurveExportMode;
   filteredCanvasKind?: DeviceAnalysisOriginFilteredCanvasKind;
@@ -62,6 +63,9 @@ type UseOriginCanvasExportOptions = {
   originExportMode?: unknown;
   originOpenPlotOptions: unknown;
   processedData: any[];
+  resolveYScaleForFile?: (
+    file: any,
+  ) => DeviceAnalysisOriginYAxisScaleMode;
   showToast: (message: string, type?: any) => void;
   t: (key: string, params?: any) => string;
   tLoose: (key: string, params?: any) => string;
@@ -160,7 +164,6 @@ const resolveOriginFileCurveFamily = (file: any): string | null => {
 
 export const useOriginCanvasExport = ({
   activeFile,
-  axisYScale,
   canvasExportScope = "selected",
   curveExportMode = "all",
   filteredCanvasKind = "output",
@@ -172,6 +175,7 @@ export const useOriginCanvasExport = ({
   originExportMode,
   originOpenPlotOptions,
   processedData,
+  resolveYScaleForFile = () => "linear",
   showToast,
   t,
   tLoose,
@@ -759,32 +763,24 @@ export const useOriginCanvasExport = ({
     [processedData],
   );
 
-  const buildOriginExportPayloadsForSelectedCanvases = useCallback(() => {
+  const buildOriginExportPayloadsForSelectedCanvases = useCallback((): DeviceAnalysisOriginExportPlan => {
     if (!selectedOriginCanvases.length) {
       throw new Error(t("da_origin_select_canvas"));
     }
 
-    const payloads = buildDeviceAnalysisOriginExportsByMode(
+    const plan = buildDeviceAnalysisOriginExportPlan(
       selectedOriginCanvases,
       originSelectedSeriesIdsByFile,
       resolvedOriginExportMode,
+      resolveYScaleForFile,
     );
-    if (!payloads.length) {
+    if (!plan.payloads.length) {
       throw new Error(t("da_origin_select_curve"));
     }
-
-    const totalCurveCount = payloads.reduce(
-      (sum, payload) => sum + Number(payload?.curveCount ?? 0),
-      0,
-    );
-    return {
-      mode: resolvedOriginExportMode,
-      payloads,
-      totalCanvasCount: selectedOriginCanvases.length,
-      totalCurveCount,
-    };
+    return plan;
   }, [
     originSelectedSeriesIdsByFile,
+    resolveYScaleForFile,
     resolvedOriginExportMode,
     selectedOriginCanvases,
     t,
@@ -832,6 +828,7 @@ export const useOriginCanvasExport = ({
     return {
       canvasCount: result.totalCanvasCount,
       curveCount: result.totalCurveCount,
+      mixedYScales: result.mixedYScales,
       mode: result.mode,
       zipName,
     };
@@ -860,13 +857,6 @@ export const useOriginCanvasExport = ({
         DEFAULT_ORIGIN_PLOT_OPTIONS.xyPairs;
       const chartXRange = originChartXRangeRef.current;
       const chartYRange = originChartYRangeRef.current;
-      const originYScaleMode = chartYRange?.mode
-        ? chartYRange.mode
-        : String(axisYScale ?? "linear") === "log"
-          ? "log"
-          : "linear";
-      const originYAxisTypeCommand =
-        originYScaleMode === "log" ? "layer.y.type=2" : "layer.y.type=1";
       const shouldApplySmartYAxisRange = !hasCustomPlotCommand;
       const shouldBatchOriginCsvJobs =
         result.mode === "workbookBooks" || result.mode === "workbookSheets";
@@ -883,6 +873,14 @@ export const useOriginCanvasExport = ({
           payload.fileIds.length === 1 &&
           payload.fileIds[0] === String(effectiveActiveFileId ?? "") &&
           selectedOriginCanvases.length === 1;
+        const originYScaleMode: DeviceAnalysisOriginYAxisScaleMode =
+          shouldUseDisplayRange && chartYRange?.mode
+            ? chartYRange.mode
+            : payload.yScaleMode === "log"
+              ? "log"
+              : "linear";
+        const originYAxisTypeCommand =
+          originYScaleMode === "log" ? "layer.y.type=2" : "layer.y.type=1";
         const effectiveXyPairs =
           !hasCustomPlotCommand && !hasCustomXyPairs
             ? payload.xyPairs
@@ -982,9 +980,11 @@ export const useOriginCanvasExport = ({
         );
       } else if (result.mode === "workbookSheets" && result.totalCanvasCount > 1) {
         showToast(
-          t("da_open_in_origin_workbook_sheets_success", {
-            count: result.totalCanvasCount,
-          }),
+          result.mixedYScales
+            ? "Mixed linear/log export was split into separate Origin worksheets."
+            : t("da_open_in_origin_workbook_sheets_success", {
+                count: result.totalCanvasCount,
+              }),
           "success",
         );
       } else if (result.mode === "separate" && result.totalCanvasCount > 1) {
@@ -1030,10 +1030,12 @@ export const useOriginCanvasExport = ({
             );
           } else if (fallback.mode === "workbookSheets") {
             showToast(
-              t("da_open_in_origin_fallback_zip_workbook_sheets_success_with_reason", {
-                count: fallback.canvasCount,
-                reason: fallbackReason,
-              }),
+              fallback.mixedYScales
+                ? `Mixed linear/log export was split into separate worksheets. ${fallbackReason}`
+                : t("da_open_in_origin_fallback_zip_workbook_sheets_success_with_reason", {
+                    count: fallback.canvasCount,
+                    reason: fallbackReason,
+                  }),
               "warning",
             );
           } else {
@@ -1067,7 +1069,6 @@ export const useOriginCanvasExport = ({
       originBusyRef.current = false;
     }
   }, [
-    axisYScale,
     buildOriginExportPayloadsForSelectedCanvases,
     effectiveActiveFileId,
     exportOriginZipFallbackForSelectedCanvases,
@@ -1094,9 +1095,11 @@ export const useOriginCanvasExport = ({
         );
       } else if (exported.mode === "workbookSheets") {
         showToast(
-          t("da_origin_zip_export_workbook_sheets_success", {
-            count: exported.canvasCount,
-          }),
+          exported.mixedYScales
+            ? "Mixed linear/log export was packaged as separate worksheets."
+            : t("da_origin_zip_export_workbook_sheets_success", {
+                count: exported.canvasCount,
+              }),
           "success",
         );
       } else {

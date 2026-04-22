@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  buildDeviceAnalysisOriginExportPlan,
   buildDeviceAnalysisOriginExportsByMode,
   buildDeviceAnalysisOriginSelectionExport,
   isDeviceAnalysisOriginExportMode,
@@ -270,4 +271,67 @@ test("buildDeviceAnalysisOriginSelectionExport disambiguates duplicate curve lab
 
   assert.ok(payload);
   assert.deepEqual(payload.curveLabels, ["file a | Vg=0", "file b | Vg=0"]);
+});
+
+test("buildDeviceAnalysisOriginExportPlan downgrades mixed merged exports into workbook sheets grouped by y scale", () => {
+  const plan = buildDeviceAnalysisOriginExportPlan(
+    [
+      {
+        fileId: "file-a",
+        fileName: "file_a.csv",
+        xGroups: [[0, 1]],
+        series: [
+          {
+            id: "curve-a",
+            groupIndex: 0,
+            y: [1, 2],
+          },
+        ],
+      },
+      {
+        fileId: "file-b",
+        fileName: "file_b.csv",
+        xGroups: [[0, 1]],
+        series: [
+          {
+            id: "curve-b",
+            groupIndex: 0,
+            y: [3, 4],
+          },
+        ],
+      },
+      {
+        fileId: "file-c",
+        fileName: "file_c.csv",
+        xGroups: [[0, 1]],
+        series: [
+          {
+            id: "curve-c",
+            groupIndex: 0,
+            y: [5, 6],
+          },
+        ],
+      },
+    ],
+    undefined,
+    "merged",
+    (file) => (String(file?.fileId ?? "") === "file-b" ? "log" : "linear"),
+  );
+
+  assert.equal(plan.mode, "workbookSheets");
+  assert.equal(plan.mixedYScales, true);
+  assert.equal(plan.totalCanvasCount, 3);
+  assert.equal(plan.totalCurveCount, 3);
+  assert.equal(plan.payloads.length, 2);
+  assert.deepEqual(
+    plan.payloads.map((payload) => payload.yScaleMode),
+    ["linear", "log"],
+  );
+  assert.deepEqual(
+    plan.payloads.map((payload) => payload.fileIds),
+    [["file-a", "file-c"], ["file-b"]],
+  );
+  assert.equal(plan.payloads[0].workbookName, plan.payloads[1].workbookName);
+  assert.match(plan.payloads[0].sheetName, /Linear$/);
+  assert.match(plan.payloads[1].sheetName, /Log$/);
 });

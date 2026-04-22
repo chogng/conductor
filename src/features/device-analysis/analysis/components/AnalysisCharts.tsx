@@ -1,6 +1,6 @@
 import React, { startTransition, useEffect, useMemo, useRef, useState, type CSSProperties, } from "react";
 import { Check, X } from "lucide-react";
-import { computeCentralDerivative, computeSubthresholdSwing, computeSubthresholdSwingFitAuto, computeSubthresholdSwingFitInIdWindow, computeSubthresholdSwingFitInRange, classifySsFit, computeLegendDerivativeSeries, formatNumber, resolveAutoSsSelection, } from "../lib/analysisMath";
+import { computeCentralDerivative, computeSubthresholdSwing, computeSubthresholdSwingFitAuto, computeSubthresholdSwingFitInIdWindow, computeSubthresholdSwingFitInRange, classifySsFit, computeLegendDerivativeSeries, formatNumber, interpolateCurveAtX, resolveAutoSsSelection, } from "../lib/analysisMath";
 import { apiService } from "../services/apiService";
 import Select from "../../../../components/ui/Select";
 import Button from "../../../../components/ui/Button";
@@ -119,6 +119,24 @@ const resolveAvailableActiveFileId = (processedData: any[], preferredFileId: any
         return preferredFileId;
     }
     return processedData[0]?.fileId ?? null;
+};
+const normalizeLinearLogScale = (value: unknown): "linear" | "log" => String(value ?? "").trim().toLowerCase() === "log" ? "log" : "linear";
+const normalizeChartYScale = (value: unknown): "linear" | "log" | "logAbs" => {
+    const normalized = String(value ?? "").trim();
+    if (normalized === "logAbs")
+        return "logAbs";
+    return normalizeLinearLogScale(normalized);
+};
+const normalizeYScaleByFileIdRecord = (value: unknown): Record<string, "linear" | "log"> => {
+    const raw = value && typeof value === "object" ? value as Record<string, unknown> : {};
+    const next: Record<string, "linear" | "log"> = {};
+    for (const [fileId, scale] of Object.entries(raw)) {
+        const normalizedFileId = String(fileId ?? "").trim();
+        if (!normalizedFileId)
+            continue;
+        next[normalizedFileId] = normalizeLinearLogScale(scale);
+    }
+    return next;
 };
 type FormatOriginTranslateFn = (key: string, params?: Record<string, unknown>) => string;
 type OriginCsvBridge = {
@@ -242,6 +260,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const [plotType, setPlotType] = useState<PlotTypeOption>("iv"); // 'iv' | 'gm' | 'ss' | 'j'
     const [focusedSeriesId, setFocusedSeriesId] = useState(null);
     const [yUnit, setYUnit] = useState("A"); // 'A' | 'uA' | 'nA'
+    const [persistedYScaleByFileId, setPersistedYScaleByFileId] = useState<Record<string, "linear" | "log">>({});
+    const [chartYScaleByFileId, setChartYScaleByFileId] = useState<Record<string, "linear" | "log" | "logAbs">>({});
     const userChangedYUnitRef = useRef(false);
     const userChangedYScaleRef = useRef(false);
     const [gmMode, setGmMode] = useState("x"); // 'x' | 'legend'
@@ -301,11 +321,11 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 const settings = await apiService.getDeviceAnalysisSettings();
                 const normalizedSettings = settings as {
                     originExportModeDefault?: string;
-                    yScale?: string;
+                    yScaleByFileId?: Record<string, unknown>;
                     yUnit?: string;
                 } | null | undefined;
                 const unit = normalizeDeviceAnalysisYUnit(normalizedSettings?.yUnit, "");
-                const yScale = normalizedSettings?.yScale;
+                const yScaleByFileId = normalizeYScaleByFileIdRecord(normalizedSettings?.yScaleByFileId);
                 const exportMode = normalizedSettings?.originExportModeDefault;
                 if (cancelled)
                     return;
@@ -315,16 +335,19 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 if (isDeviceAnalysisOriginExportMode(exportMode)) {
                     setOriginExportMode(exportMode);
                 }
-                if (!userChangedYScaleRef.current && (yScale === "linear" || yScale === "log")) {
-                    setAxis((prev: any) => {
-                        const nextTicks = yScale === "linear" ? "nice" : "decades";
-                        if (prev?.yScale === yScale && prev?.yTicks === nextTicks)
-                            return prev;
-                        return {
-                            ...prev,
-                            yScale,
-                            yTicks: nextTicks,
-                        };
+                if (!userChangedYScaleRef.current) {
+                    setPersistedYScaleByFileId(yScaleByFileId);
+                    setChartYScaleByFileId((prev) => {
+                        const next: Record<string, "linear" | "log" | "logAbs"> = {};
+                        for (const [fileId, scale] of Object.entries(yScaleByFileId)) {
+                            next[fileId] = normalizeChartYScale(prev?.[fileId] ?? scale);
+                        }
+                        for (const [fileId, scale] of Object.entries(prev ?? {})) {
+                            if (next[fileId])
+                                continue;
+                            next[fileId] = normalizeChartYScale(scale);
+                        }
+                        return next;
                     });
                 }
             }
@@ -337,6 +360,18 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         };
     }, []);
     const effectiveActiveFileId = useMemo(() => resolveAvailableActiveFileId(processedData, activeFileId), [activeFileId, processedData]);
+    const activePersistedYScale = useMemo(() => {
+        const fileKey = String(effectiveActiveFileId ?? "").trim();
+        if (!fileKey)
+            return "linear";
+        return persistedYScaleByFileId[fileKey] ?? "linear";
+    }, [effectiveActiveFileId, persistedYScaleByFileId]);
+    const activeChartYScale = useMemo(() => {
+        const fileKey = String(effectiveActiveFileId ?? "").trim();
+        if (!fileKey)
+            return activePersistedYScale;
+        return normalizeChartYScale(chartYScaleByFileId[fileKey] ?? activePersistedYScale);
+    }, [activePersistedYScale, chartYScaleByFileId, effectiveActiveFileId]);
     const { getFileCache, renderSeriesCacheRef } = useAnalysisFileCache({
         effectiveActiveFileId,
         processedData,
@@ -355,6 +390,12 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             setActiveFileId(next);
     }, [activeFileId, processedData, setActiveFileId]);
     const activeFile = useMemo(() => processedData?.find((f: any) => f.fileId === effectiveActiveFileId) ?? null, [effectiveActiveFileId, processedData]);
+    const resolveLinearLogYScaleForFile = React.useCallback((fileLike: any): "linear" | "log" => {
+        const fileKey = String(fileLike?.fileId ?? "").trim();
+        if (!fileKey)
+            return "linear";
+        return persistedYScaleByFileId[fileKey] ?? "linear";
+    }, [persistedYScaleByFileId]);
     const resolvedXUnitMeta = useMemo(() => getDeviceAnalysisXUnitMeta(activeFile?.xUnit), [activeFile?.xUnit]);
     const resolvedYUnitMeta = useMemo(() => getDeviceAnalysisYUnitMeta(yUnit), [yUnit]);
     useEffect(() => {
@@ -365,6 +406,18 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return;
         setYUnit((prev: any) => (prev === nextUnit ? prev : nextUnit));
     }, [activeFile?.fileId, activeFile?.yUnit]);
+    useEffect(() => {
+        setAxis((prev: any) => {
+            const nextTicks = activeChartYScale === "linear" ? "nice" : "decades";
+            if (prev?.yScale === activeChartYScale && prev?.yTicks === nextTicks)
+                return prev;
+            return {
+                ...prev,
+                yScale: activeChartYScale,
+                yTicks: nextTicks,
+            };
+        });
+    }, [activeChartYScale]);
     const {
         clearOriginCanvasSelection,
         clearOriginSeriesSelectionForFile,
@@ -385,7 +438,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         toggleOriginSeriesSelectionForFile,
     } = useOriginCanvasExport({
         activeFile,
-        axisYScale: axis?.yScale,
         canvasExportScope: originCanvasExportScope,
         curveExportMode: originCurveExportMode,
         filteredCanvasKind: originFilteredCanvasKind,
@@ -397,6 +449,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         originExportMode,
         originOpenPlotOptions,
         processedData,
+        resolveYScaleForFile: resolveLinearLogYScaleForFile,
         showToast,
         t,
         tLoose,
@@ -433,6 +486,23 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             files: selectedCanvasCount,
         })
         : separateCanvasScopeSummary;
+    const selectedExportCanvasFiles = useMemo(() => (Array.isArray(processedData) ? processedData : []).filter((file: any) => {
+        const fileId = String(file?.fileId ?? "").trim();
+        return Boolean(fileId) && selectedOriginCanvasKeySet.has(fileId);
+    }), [processedData, selectedOriginCanvasKeySet]);
+    const hasMixedExportYScales = useMemo(() => {
+        const scaleSet = new Set(selectedExportCanvasFiles.map((file: any) => resolveLinearLogYScaleForFile(file)));
+        return scaleSet.size > 1;
+    }, [resolveLinearLogYScaleForFile, selectedExportCanvasFiles]);
+    const originExportModeHint = useMemo(() => {
+        if (resolvedOriginExportMode === "workbookBooks")
+            return t("da_origin_export_mode_workbook_books_hint");
+        if (resolvedOriginExportMode === "workbookSheets")
+            return t("da_origin_export_mode_workbook_sheets_hint");
+        if (resolvedOriginExportMode === "separate")
+            return t("da_origin_export_mode_separate_hint");
+        return t("da_origin_export_mode_merged_hint");
+    }, [resolvedOriginExportMode, t]);
     const exportListEntries = useMemo(() => {
         const selectedFileIds = resolvedOriginExportMode === "merged" && !isExportListCanvasSelectionMode && resolvedCurveExportMode === "select"
             ? scopedOriginCanvasKeySet ?? new Set<string>()
@@ -1086,6 +1156,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         totalCount: 0,
         pending: false,
     }));
+    const [curveProbeXInput, setCurveProbeXInput] = useState("");
+    const [curveProbeMode, setCurveProbeMode] = useState<"linear" | "log">("linear");
     useEffect(() => {
         if (typeof window === "undefined")
             return undefined;
@@ -1973,7 +2045,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return "log";
         return "linear";
     }, [axis?.yScale]);
-    const overviewYScaleType = useMemo(() => (yScaleMode === "linear" ? "linear" : "log"), [yScaleMode]);
     const plotYKey = useMemo(() => {
         if (yScaleMode === "logAbs")
             return "yAbsPositive";
@@ -2053,6 +2124,22 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             })}
       </ul>);
     }, [renderPlotSeries, selectedOriginSeriesKeySet, toggleOriginSeriesSelection]);
+    const curveProbeX = useMemo(() => {
+        const raw = Number(curveProbeXInput);
+        if (!Number.isFinite(raw))
+            return null;
+        return raw / plotXFactor;
+    }, [curveProbeXInput, plotXFactor]);
+    const curveProbeRows = useMemo(() => {
+        if (!displayPlotSeries.length || curveProbeX === null)
+            return [];
+        return displayPlotSeries.map((series: any, index: number) => ({
+            color: COLORS[index % COLORS.length],
+            id: series?.id ?? `curve-${index}`,
+            name: String(series?.name ?? `Curve ${index + 1}`),
+            sample: interpolateCurveAtX(series?.data, curveProbeX, curveProbeMode),
+        }));
+    }, [curveProbeMode, curveProbeX, displayPlotSeries]);
     const autoMinMax = useMemo(() => {
         const fileId = activeFile?.fileId ?? null;
         const cache = fileId ? getFileCache(fileId, activeFile) : null;
@@ -2501,14 +2588,15 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         : calculatedParametersMode === "output"
             ? `${gmUi.summaryLabel}: max |${gmUi.metricSymbol}| (output)`
             : `${gmUi.summaryLabel}: max |${gmUi.metricSymbol}|`, [calculatedParametersMode, gmUi.metricSymbol, gmUi.summaryLabel]);
-    const showIvDiagnosticsPanel = effectivePlotType === "iv";
+    const showIvDiagnosticsPanel = false;
     const showSsDiagnosticsPanel = effectivePlotType === "ss";
     const showGmDiagnosticsPanel = effectivePlotType === "gm";
     const showJDiagnosticsPanel = effectivePlotType === "j";
     const showSsDiagnosticsControls = showSsDiagnosticsPanel && ssMethod === "idWindow";
     const showCurrentDiagnosticsControls = showIvDiagnosticsPanel && transferMetricsApplicable && ionIoffMethod === "manual";
     const showAreaDiagnosticsControls = showJDiagnosticsPanel;
-    const showDiagnosticsPanel = showIvDiagnosticsPanel || showSsDiagnosticsPanel || showGmDiagnosticsPanel || showJDiagnosticsPanel || showAxisControls;
+    const showCurveProbePanel = activeFile?.series?.length > 0;
+    const showDiagnosticsPanel = showCurveProbePanel || showSsDiagnosticsPanel || showGmDiagnosticsPanel || showJDiagnosticsPanel || showAxisControls;
     const focusedSeriesLabel = useMemo(() => {
         if (!focusedSeriesId) {
             return null;
@@ -2541,14 +2629,16 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             ? "gm Diagnostics"
             : showJDiagnosticsPanel
                 ? "J Diagnostics"
-                : "IV Diagnostics";
+                : showCurveProbePanel
+                    ? "Curve Probe"
+                    : "Diagnostics";
     const diagnosticsDescription = showSsDiagnosticsPanel
         ? "Subthreshold controls and fit configuration for the active curve."
         : showGmDiagnosticsPanel
             ? "Derivative-focused guidance for gm interpretation and focused-curve inspection."
             : showJDiagnosticsPanel
                 ? "Current-density controls driven by Area and axis configuration."
-                : "Current-window controls and manual biases for IV analysis.";
+                : "Query any x between measured points and get y by linear interpolation.";
     const handlePersistSsIdWindow = React.useCallback(() => {
         const low = Number(ssIdWindow?.low);
         const high = Number(ssIdWindow?.high);
@@ -2575,21 +2665,59 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             })
             .catch(() => { });
     }, [ionIoffManualTargets?.ioffX, ionIoffManualTargets?.ionX]);
-    const handleAxisYScaleChange = React.useCallback((next: any) => {
-        const nextScale = next;
+    const applyLinearLogYScaleForFile = React.useCallback((nextScaleRaw: unknown) => {
+        const nextScale = normalizeLinearLogScale(nextScaleRaw);
         const nextTicks = nextScale === "linear" ? "nice" : "decades";
+        const fileKey = String(effectiveActiveFileId ?? "").trim();
         userChangedYScaleRef.current = true;
         setAxis((prev: any) => ({
             ...prev,
             yScale: nextScale,
             yTicks: nextTicks,
         }));
-        if (nextScale === "linear" || nextScale === "log") {
-            apiService
-                .updateDeviceAnalysisSettings({ yScale: nextScale })
-                .catch(() => { });
+        if (fileKey) {
+            setPersistedYScaleByFileId((prev) => ({
+                ...prev,
+                [fileKey]: nextScale,
+            }));
+            setChartYScaleByFileId((prev) => ({
+                ...prev,
+                [fileKey]: nextScale,
+            }));
         }
-    }, []);
+        apiService
+            .updateDeviceAnalysisSettings(fileKey
+            ? {
+                yScaleByFileId: {
+                    ...persistedYScaleByFileId,
+                    [fileKey]: nextScale,
+                },
+            }
+            : {})
+            .catch(() => { });
+        return nextScale;
+    }, [effectiveActiveFileId, persistedYScaleByFileId]);
+    const handleAxisYScaleChange = React.useCallback((next: any) => {
+        const nextScale = normalizeChartYScale(next);
+        const nextTicks = nextScale === "linear" ? "nice" : "decades";
+        if (nextScale === "linear" || nextScale === "log") {
+            applyLinearLogYScaleForFile(nextScale);
+            return;
+        }
+        const fileKey = String(effectiveActiveFileId ?? "").trim();
+        userChangedYScaleRef.current = true;
+        setAxis((prev: any) => ({
+            ...prev,
+            yScale: nextScale,
+            yTicks: nextTicks,
+        }));
+        if (fileKey) {
+            setChartYScaleByFileId((prev) => ({
+                ...prev,
+                [fileKey]: nextScale,
+            }));
+        }
+    }, [applyLinearLogYScaleForFile, effectiveActiveFileId]);
     const handleResetSsDiagnostics = React.useCallback(() => {
         setSsMethod("auto");
         apiService
@@ -2608,7 +2736,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         id="device-analysis-overview-sidebar"
         className="md:min-h-0 flex flex-col h-full"
       >
-        <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} onVisibleFileIdsChange={setOverviewVisibleFileIds} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} originExportMode={resolvedOriginExportMode} originCanvasExportScope={originCanvasExportScope} xUnitFactor={resolvedXUnitMeta.factor} xUnitLabel={resolvedXUnitMeta.label} yUnitFactor={resolvedYUnitMeta.factor} yUnitLabel={resolvedYUnitMeta.label} yScale={overviewYScaleType}/>
+        <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} onVisibleFileIdsChange={setOverviewVisibleFileIds} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} originCanvasExportScope={originCanvasExportScope} xUnitFactor={resolvedXUnitMeta.factor} xUnitLabel={resolvedXUnitMeta.label} yUnitFactor={resolvedYUnitMeta.factor} yUnitLabel={resolvedYUnitMeta.label} resolveYScaleForFile={resolveLinearLogYScaleForFile}/>
       </aside>
 
       <ScrollArea className="da-analysis-scroll-area md:min-h-0 min-w-0" axis="y" viewportClassName="flex flex-col min-h-full">
@@ -2659,19 +2787,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                   {effectivePlotType === "ss" ? (<span className="text-xs text-text-primary font-mono whitespace-nowrap">
                       log(|I|)
                     </span>) : (<Select id="device-analysis-y-scale-select" size="sm" value={axis.yScale === "logAbs" ? "log" : axis.yScale} onChange={(next: any) => {
-                const nextScale = next === "log" ? "log" : "linear";
-                userChangedYScaleRef.current = true;
-                setAxis((prev: any) => {
-                    const nextTicks = nextScale === "linear" ? "nice" : "decades";
-                    return {
-                        ...prev,
-                        yScale: nextScale,
-                        yTicks: nextTicks,
-                    };
-                });
-                apiService
-                    .updateDeviceAnalysisSettings({ yScale: nextScale })
-                    .catch(() => { });
+                applyLinearLogYScaleForFile(next);
             }} options={[
                 {
                     value: "linear",
@@ -2874,12 +2990,18 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             ssSummary={ssSummary}
             plotYUnitLabel={plotYUnitLabel}
             showIvDiagnosticsPanel={showIvDiagnosticsPanel}
+            showCurveProbePanel={showCurveProbePanel}
             ionIoffMethod={ionIoffMethod}
             showCurrentDiagnosticsControls={showCurrentDiagnosticsControls}
             ionIoffManualTargets={ionIoffManualTargets}
             setIonIoffManualTargets={setIonIoffManualTargets}
             xDomain={xDomain}
             plotXFactor={plotXFactor}
+            curveProbeXInput={curveProbeXInput}
+            setCurveProbeXInput={setCurveProbeXInput}
+            curveProbeMode={curveProbeMode}
+            setCurveProbeMode={setCurveProbeMode}
+            curveProbeRows={curveProbeRows}
             showGmDiagnosticsPanel={showGmDiagnosticsPanel}
             gmMode={gmMode}
             focusedSeriesLabel={focusedSeriesLabel}
@@ -3169,6 +3291,14 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         {t("da_export_origin_zip")}
                       </Button>
                     </div>
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    <div className="text-xs text-text-secondary">
+                      {originExportModeHint}
+                    </div>
+                    {resolvedOriginExportMode === "merged" && hasMixedExportYScales ? (<div className="rounded-lg border border-amber-400/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+                        {t("da_origin_export_mode_mixed_y_scale_split_hint")}
+                      </div>) : null}
                   </div>
                 </div>
 

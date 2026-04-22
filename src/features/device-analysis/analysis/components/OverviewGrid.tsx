@@ -3,7 +3,6 @@ import Card from "../../../../components/ui/Card";
 import Select from "../../../../components/ui/Select";
 import ScrollArea from "../../../../components/ui/ScrollArea";
 import { useLanguage } from "../../../../hooks/useLanguage";
-import type { DeviceAnalysisOriginExportMode } from "../lib/originSelectionExport";
 import type { DeviceAnalysisOriginCanvasExportScope } from "../useOriginCanvasExport";
 import type { ProcessingStatus } from "../../shared/lib/sharedTypes";
 import FileCard, { type ProcessedFileLike } from "./FileCard";
@@ -16,13 +15,12 @@ type OverviewGridProps = {
   onVisibleFileIdsChange?: (fileIds: string[]) => void;
   selectedOriginCanvasKeySet?: Set<string>;
   onToggleOriginCanvasSelection?: (fileId: string | undefined) => void;
-  originExportMode?: DeviceAnalysisOriginExportMode;
   originCanvasExportScope?: DeviceAnalysisOriginCanvasExportScope;
   xUnitFactor?: number;
   xUnitLabel?: string;
   yUnitFactor?: number;
   yUnitLabel?: string;
-  yScale?: string;
+  resolveYScaleForFile?: (file: ProcessedFileLike | null | undefined) => string;
 };
 
 type CurveFilter = string;
@@ -60,13 +58,12 @@ const OverviewGrid = memo(function OverviewGrid({
   onVisibleFileIdsChange,
   selectedOriginCanvasKeySet,
   onToggleOriginCanvasSelection,
-  originExportMode = "merged",
   originCanvasExportScope = "selected",
   xUnitFactor,
   xUnitLabel,
   yUnitFactor,
   yUnitLabel,
-  yScale,
+  resolveYScaleForFile,
 }: OverviewGridProps) {
   const { t } = useLanguage();
   const [curveFilter, setCurveFilter] = useState<CurveFilter>("all");
@@ -242,7 +239,7 @@ const OverviewGrid = memo(function OverviewGrid({
               xUnitLabel={xUnitLabel}
               yUnitFactor={yUnitFactor}
               yUnitLabel={yUnitLabel}
-              yScale={yScale}
+              yScale={resolveYScaleForFile?.(file) ?? "linear"}
             />
           ))}
         </div>

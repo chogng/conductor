@@ -34,6 +34,7 @@ export type DeviceAnalysisSettings = {
   ssMethodDefault?: SsMethod;
   ssShowFitLine?: boolean;
   stopOnErrorDefault?: boolean;
+  yScaleByFileId?: Record<string, "linear" | "log">;
   [key: string]: unknown;
 };
 
