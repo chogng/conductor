@@ -2185,6 +2185,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const focusedCurrentOverlays = useMemo(() => {
         if (!transferMetricsApplicable)
             return [];
+        if (ionIoffMethod === "manual")
+            return [];
         const metrics = focusedAnalysis?.metrics ?? null;
         const overlays: ChartHighlightOverlay[] = [];
         const pushSelected = (window: any, role: "ion" | "ioff") => {
@@ -2214,7 +2216,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         pushSelected(metrics?.ionWindow, "ion");
         pushSelected(metrics?.ioffWindow, "ioff");
         return overlays;
-    }, [focusedAnalysis?.metrics, transferMetricsApplicable]);
+    }, [focusedAnalysis?.metrics, ionIoffMethod, transferMetricsApplicable]);
     const currentOverlaysForPlot = useMemo(() => effectivePlotType === "ss" ? [] : focusedCurrentOverlays, [effectivePlotType, focusedCurrentOverlays]);
     const currentBiasMarkers = useMemo(() => {
         if (!currentManualBiasApplicable)
