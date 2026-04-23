@@ -73,6 +73,9 @@ export const useDeviceAnalysisSettings = ({
   const [fileNameMatchingSaving, setFileNameMatchingSaving] = useState(false);
   const [fileNameMatchingFeedback, setFileNameMatchingFeedback] =
     useState<Feedback>(IDLE_FEEDBACK);
+  const [analysisDefaultsSaving, setAnalysisDefaultsSaving] = useState(false);
+  const [analysisDefaultsFeedback, setAnalysisDefaultsFeedback] =
+    useState<Feedback>(IDLE_FEEDBACK);
 
   const originCleanupConfig = useMemo(() => {
     const settings = deviceAnalysisSettings || {};
@@ -119,6 +122,16 @@ export const useDeviceAnalysisSettings = ({
   const settingsOriginExePath = normalizeTrimmedString(
     deviceAnalysisSettings?.originExePath,
   );
+  const defaultYScaleForTransfer =
+    deviceAnalysisSettings?.defaultYScaleForTransfer === "linear" ||
+    deviceAnalysisSettings?.defaultYScaleForTransfer === "log"
+      ? deviceAnalysisSettings.defaultYScaleForTransfer
+      : "log";
+  const defaultYScaleForOutput =
+    deviceAnalysisSettings?.defaultYScaleForOutput === "linear" ||
+    deviceAnalysisSettings?.defaultYScaleForOutput === "log"
+      ? deviceAnalysisSettings.defaultYScaleForOutput
+      : "linear";
   const fileNameFieldSeparators = normalizeFileNameFieldSeparators(
     deviceAnalysisSettings?.fileNameFieldSeparators,
   );
@@ -537,6 +550,49 @@ export const useDeviceAnalysisSettings = ({
     [handleUpdateDeviceAnalysisSettings, t],
   );
 
+  const updateAnalysisDefaultSetting = useCallback(
+    async (updates: unknown) => {
+      const patch = updates && typeof updates === "object" ? updates : null;
+      if (!patch) return;
+
+      setAnalysisDefaultsSaving(true);
+      setAnalysisDefaultsFeedback(IDLE_FEEDBACK);
+      try {
+        await handleUpdateDeviceAnalysisSettings(patch);
+        setAnalysisDefaultsFeedback({
+          type: "success",
+          message: "Analysis defaults saved.",
+        });
+      } catch (error) {
+        setAnalysisDefaultsFeedback({
+          type: "error",
+          message: `Failed to save analysis defaults: ${getErrorMessage(error) || t("unknownError")}`,
+        });
+      } finally {
+        setAnalysisDefaultsSaving(false);
+      }
+    },
+    [handleUpdateDeviceAnalysisSettings, t],
+  );
+
+  const handleSetDefaultYScaleForTransfer = useCallback(
+    async (nextValue: unknown) => {
+      await updateAnalysisDefaultSetting({
+        defaultYScaleForTransfer: nextValue === "linear" ? "linear" : "log",
+      });
+    },
+    [updateAnalysisDefaultSetting],
+  );
+
+  const handleSetDefaultYScaleForOutput = useCallback(
+    async (nextValue: unknown) => {
+      await updateAnalysisDefaultSetting({
+        defaultYScaleForOutput: nextValue === "log" ? "log" : "linear",
+      });
+    },
+    [updateAnalysisDefaultSetting],
+  );
+
   const storageSettings = useMemo(
     () => ({
       currentPath: String(persistencePathInfo?.currentPath ?? ""),
@@ -571,6 +627,25 @@ export const useDeviceAnalysisSettings = ({
       fileNameMatchingFeedback,
       fileNameMatchingSaving,
       handleSetFileNameFieldSeparators,
+    ],
+  );
+
+  const analysisDefaultSettings = useMemo(
+    () => ({
+      defaultYScaleForOutput,
+      defaultYScaleForTransfer,
+      feedback: analysisDefaultsFeedback,
+      isSaving: analysisDefaultsSaving,
+      onDefaultYScaleForOutputChange: handleSetDefaultYScaleForOutput,
+      onDefaultYScaleForTransferChange: handleSetDefaultYScaleForTransfer,
+    }),
+    [
+      analysisDefaultsFeedback,
+      analysisDefaultsSaving,
+      defaultYScaleForOutput,
+      defaultYScaleForTransfer,
+      handleSetDefaultYScaleForOutput,
+      handleSetDefaultYScaleForTransfer,
     ],
   );
 
@@ -650,6 +725,7 @@ export const useDeviceAnalysisSettings = ({
   );
 
   return {
+    analysisDefaultSettings,
     fileNameMatchingSettings,
     originSettings,
     storageSettings,

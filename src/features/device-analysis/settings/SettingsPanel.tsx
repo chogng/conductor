@@ -69,12 +69,22 @@ type FileNameMatchingSettings = {
   onFieldSeparatorsChange: (value: string) => Promise<void> | void;
 };
 
+type AnalysisDefaultSettings = {
+  defaultYScaleForOutput: "linear" | "log";
+  defaultYScaleForTransfer: "linear" | "log";
+  feedback: Feedback;
+  isSaving: boolean;
+  onDefaultYScaleForOutputChange: (value: string) => Promise<void> | void;
+  onDefaultYScaleForTransferChange: (value: string) => Promise<void> | void;
+};
+
 type OnboardingSettings = {
   onOpenGuide: () => void;
 };
 
 type DeviceAnalysisSettingsPanelProps = {
   appUpdateSettings: AppUpdateSettings;
+  analysisDefaultSettings: AnalysisDefaultSettings;
   fileNameMatchingSettings: FileNameMatchingSettings;
   language: LanguageCode;
   onLanguageChange: (language: LanguageCode) => Promise<void> | void;
@@ -91,6 +101,7 @@ const feedbackClassName = (type: Feedback["type"]): string =>
 
 const DeviceAnalysisSettingsPanel = ({
   appUpdateSettings,
+  analysisDefaultSettings,
   fileNameMatchingSettings,
   language,
   onLanguageChange,
@@ -129,6 +140,10 @@ const DeviceAnalysisSettingsPanel = ({
     { value: "200", label: t("da_settings_origin_plot_type_200") },
     { value: "201", label: t("da_settings_origin_plot_type_201") },
     { value: "202", label: t("da_settings_origin_plot_type_202") },
+  ];
+  const yScaleOptions = [
+    { value: "linear", label: "Linear" },
+    { value: "log", label: "Log" },
   ];
   const [lineWidthDraft, setLineWidthDraft] = useState(
     String(originSettings.plotLineWidth ?? 2),
@@ -362,6 +377,55 @@ const DeviceAnalysisSettingsPanel = ({
             </Button>
           </div>
         </div>
+      </Card>
+
+      <Card
+        id="device-analysis-settings-analysis-defaults-card"
+        variant="panel"
+        className="p-4 space-y-4 mb-4"
+      >
+        <div>
+          <h3 className="text-base font-semibold text-text-primary">
+            Analysis Defaults
+          </h3>
+          <p className="text-sm text-text-secondary mt-1">
+            Choose the default Y scale used when a file has no per-file override yet.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="space-y-1">
+            <p className="text-xs text-text-secondary">Transfer Curve Default</p>
+            <DropdownField
+              id="device-analysis-settings-default-transfer-y-scale-select"
+              value={analysisDefaultSettings.defaultYScaleForTransfer}
+              onChange={(value) => {
+                void analysisDefaultSettings.onDefaultYScaleForTransferChange(String(value));
+              }}
+              options={yScaleOptions}
+              disabled={analysisDefaultSettings.isSaving}
+            />
+          </div>
+
+          <div className="space-y-1">
+            <p className="text-xs text-text-secondary">Output Curve Default</p>
+            <DropdownField
+              id="device-analysis-settings-default-output-y-scale-select"
+              value={analysisDefaultSettings.defaultYScaleForOutput}
+              onChange={(value) => {
+                void analysisDefaultSettings.onDefaultYScaleForOutputChange(String(value));
+              }}
+              options={yScaleOptions}
+              disabled={analysisDefaultSettings.isSaving}
+            />
+          </div>
+        </div>
+
+        {analysisDefaultSettings.feedback.message ? (
+          <p className={feedbackClassName(analysisDefaultSettings.feedback.type)}>
+            {analysisDefaultSettings.feedback.message}
+          </p>
+        ) : null}
       </Card>
 
       <Card

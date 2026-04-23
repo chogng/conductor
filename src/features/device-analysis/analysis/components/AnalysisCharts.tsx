@@ -429,6 +429,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const [persistedYUnitByFileId, setPersistedYUnitByFileId] = useState<Record<string, "A" | "mA" | "uA" | "nA" | "pA">>({});
     const [persistedYScaleByFileId, setPersistedYScaleByFileId] = useState<Record<string, "linear" | "log">>({});
     const [chartYScaleByFileId, setChartYScaleByFileId] = useState<Record<string, "linear" | "log" | "logAbs">>({});
+    const [defaultYScaleForTransfer, setDefaultYScaleForTransfer] = useState<"linear" | "log">("log");
+    const [defaultYScaleForOutput, setDefaultYScaleForOutput] = useState<"linear" | "log">("linear");
     const userChangedYUnitRef = useRef(false);
     const userChangedYScaleRef = useRef(false);
     const [areaInput, setAreaInput] = useState("");
@@ -491,15 +493,21 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             try {
                 const settings = await apiService.getDeviceAnalysisSettings();
                 const normalizedSettings = settings as {
+                    defaultYScaleForOutput?: unknown;
+                    defaultYScaleForTransfer?: unknown;
                     originExportModeDefault?: string;
                     yUnitByFileId?: Record<string, unknown>;
                     yScaleByFileId?: Record<string, unknown>;
                 } | null | undefined;
                 const yUnitByFileId = normalizeYUnitByFileIdRecord(normalizedSettings?.yUnitByFileId);
                 const yScaleByFileId = normalizeYScaleByFileIdRecord(normalizedSettings?.yScaleByFileId);
+                const exportDefaultYScaleForTransfer = normalizeLinearLogScale(normalizedSettings?.defaultYScaleForTransfer ?? "log");
+                const exportDefaultYScaleForOutput = normalizeLinearLogScale(normalizedSettings?.defaultYScaleForOutput ?? "linear");
                 const exportMode = normalizedSettings?.originExportModeDefault;
                 if (cancelled)
                     return;
+                setDefaultYScaleForTransfer(exportDefaultYScaleForTransfer);
+                setDefaultYScaleForOutput(exportDefaultYScaleForOutput);
                 if (!userChangedYUnitRef.current) {
                     setPersistedYUnitByFileId(yUnitByFileId);
                 }
@@ -533,11 +541,11 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const effectiveActiveFileId = useMemo(() => resolveAvailableActiveFileId(processedData, activeFileId), [activeFileId, processedData]);
     const getDefaultLinearLogYScaleForFile = React.useCallback((fileLike: any): "linear" | "log" => {
         if (isTransferLikeDeviceAnalysisFile(fileLike))
-            return "log";
+            return defaultYScaleForTransfer;
         if (isOutputLikeDeviceAnalysisFile(fileLike))
-            return "linear";
+            return defaultYScaleForOutput;
         return "linear";
-    }, []);
+    }, [defaultYScaleForOutput, defaultYScaleForTransfer]);
     const activePersistedYScale = useMemo(() => {
         const fileKey = String(effectiveActiveFileId ?? "").trim();
         if (!fileKey)

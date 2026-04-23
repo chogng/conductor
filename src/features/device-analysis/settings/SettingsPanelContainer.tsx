@@ -43,7 +43,12 @@ const SettingsPanelContainer = ({
   t,
   theme,
 }: SettingsPanelContainerProps) => {
-  const { fileNameMatchingSettings, originSettings, storageSettings } =
+  const {
+    analysisDefaultSettings,
+    fileNameMatchingSettings,
+    originSettings,
+    storageSettings,
+  } =
     useDeviceAnalysisSettings({
     deviceAnalysisSettings,
     deviceAnalysisSettingsLoaded,
@@ -56,6 +61,7 @@ const SettingsPanelContainer = ({
   return (
     <SettingsPanel
       appUpdateSettings={appUpdateSettings}
+      analysisDefaultSettings={analysisDefaultSettings}
       fileNameMatchingSettings={fileNameMatchingSettings}
       language={language}
       onLanguageChange={handleLanguageChange}
