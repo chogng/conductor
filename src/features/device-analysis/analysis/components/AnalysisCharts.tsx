@@ -2432,6 +2432,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         });
     }, [plotLegendSeries, visibleSeriesKeySet]);
     const hasVisiblePlotSeries = displayPlotSeries.length > 0;
+    const currentOverlaysForVisiblePlot = useMemo(() => hasVisiblePlotSeries ? currentOverlaysForPlot : [], [currentOverlaysForPlot, hasVisiblePlotSeries]);
+    const currentBiasMarkersForVisiblePlot = useMemo(() => hasVisiblePlotSeries ? currentBiasMarkers : [], [currentBiasMarkers, hasVisiblePlotSeries]);
+    const focusedSsOverlayForVisiblePlot = useMemo(() => hasVisiblePlotSeries ? focusedSsOverlay : null, [focusedSsOverlay, hasVisiblePlotSeries]);
     const renderPointBudget = useMemo(() => effectivePlotType === "gm" ? GM_RENDER_POINT_BUDGET : DEFAULT_RENDER_POINT_BUDGET, [effectivePlotType]);
     const renderMaxPointsPerSeries = useMemo(() => {
         const seriesCount = Math.max(1, displayPlotSeries.length);
@@ -3394,22 +3397,22 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     focusedSeriesId={focusedSeriesId}
                     focusedFitLine={focusedFitLineForRender}
                     focusedSeriesColor={focusedSeriesColor}
-                    highlightOverlays={currentOverlaysForPlot}
-                    currentBiasMarkers={currentBiasMarkers}
-                    focusedSsOverlay={focusedSsOverlay}
+                    highlightOverlays={currentOverlaysForVisiblePlot}
+                    currentBiasMarkers={currentBiasMarkersForVisiblePlot}
+                    focusedSsOverlay={focusedSsOverlayForVisiblePlot}
                     ssOverlayStyle={ssOverlayStyle}
                     interactiveSeriesXs={focusedSeriesXs}
                     currentBiasInteraction={currentManualBiasApplicable
                     ? {
                         enabled: true,
-                        markers: currentBiasMarkers,
+                        markers: currentBiasMarkersForVisiblePlot,
                         onCommit: handleCurrentBiasOverlayCommit,
                     }
                     : null}
                     ssInteraction={effectivePlotType === "ss" && ssMethod === "manual"
                     ? {
                         enabled: true,
-                        range: focusedSsOverlay,
+                        range: focusedSsOverlayForVisiblePlot,
                         onCommit: handleSsOverlayCommit,
                     }
                     : null}

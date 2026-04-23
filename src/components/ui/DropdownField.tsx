@@ -527,72 +527,72 @@ const DropdownField = ({
                     style: { height: "auto", maxHeight: "15rem" },
                   }}
                 >
-                  <div className="ui-select_list">
-                    {indexedGroups.map(({ group, options: groupOptions }, groupIdx) => (
-                      <div key={group || "default"} role={group ? "group" : undefined}>
-                        {group ? (
-                          <>
-                            {groupIdx > 0 ? (
-                              <div
-                                role="separator"
-                                aria-orientation="horizontal"
-                                className="ui-select_separator"
-                              />
-                            ) : null}
-                            <div className="ui-select_group">{group}</div>
-                          </>
-                        ) : null}
-
-                        {groupOptions.map(({ option, index: currentIndex }) => {
-                          const isHighlighted = highlightedIndex === currentIndex;
-                          const isSelected = value === option.value;
-                          const Icon = option.icon;
-
-                          return (
-                            <MenuItem
-                              key={String(option.value)}
-                              tabIndex={-1}
-                              data-highlighted={isHighlighted || undefined}
-                              data-selected={isSelected || undefined}
-                              data-value={String(option.value)}
-                              onClick={() => selectOption(option)}
-                              onMouseEnter={() => setHighlightedIndex(currentIndex)}
-                              className={cx("ui-select_item", itemSizeClass)}
-                              left={
-                                <span className="ui-select_item-left">
-                                  {Icon ? (
-                                    <Icon
-                                      style={{ width: "0.9rem", height: "0.9rem" }}
-                                    />
-                                  ) : null}
-                                  <span className="truncate">
-                                    {option.label ?? String(option.value)}
-                                  </span>
-                                </span>
-                              }
-                              right={
-                                <span
-                                  className="ui-select_item-right"
-                                  aria-hidden="true"
-                                >
-                                  {isSelected ? (
-                                    <Check
-                                      size={checkIconSizePx}
-                                      className="text-accent"
-                                    />
-                                  ) : null}
-                                </span>
-                              }
+                <div className="ui-select_list">
+                  {indexedGroups.map(({ group, options: groupOptions }, groupIdx) => (
+                    <div key={group || "default"} role={group ? "group" : undefined}>
+                      {group ? (
+                        <>
+                          {groupIdx > 0 ? (
+                            <div
+                              role="separator"
+                              aria-orientation="horizontal"
+                              className="ui-select_separator"
                             />
-                          );
-                        })}
-                      </div>
-                    ))}
+                          ) : null}
+                          <div className="ui-select_group">{group}</div>
+                        </>
+                      ) : null}
 
-                    {flatOptions.length === 0 ? (
-                      <div className="ui-select_empty">No options</div>
-                    ) : null}
-                  </div>
+                      {groupOptions.map(({ option, index: currentIndex }) => {
+                        const isHighlighted = highlightedIndex === currentIndex;
+                        const isSelected = value === option.value;
+                        const Icon = option.icon;
+
+                        return (
+                          <MenuItem
+                            key={String(option.value)}
+                            tabIndex={-1}
+                            data-highlighted={isHighlighted || undefined}
+                            data-selected={isSelected || undefined}
+                            data-value={String(option.value)}
+                            onClick={() => selectOption(option)}
+                            onMouseEnter={() => setHighlightedIndex(currentIndex)}
+                            className={cx("ui-select_item", itemSizeClass)}
+                            left={
+                              <span className="ui-select_item-left">
+                                {Icon ? (
+                                  <Icon
+                                    style={{ width: "0.9rem", height: "0.9rem" }}
+                                  />
+                                ) : null}
+                                <span className="truncate">
+                                  {option.label ?? String(option.value)}
+                                </span>
+                              </span>
+                            }
+                            right={
+                              <span
+                                className="ui-select_item-right"
+                                aria-hidden="true"
+                              >
+                                {isSelected ? (
+                                  <Check
+                                    size={checkIconSizePx}
+                                    className="text-accent"
+                                  />
+                                ) : null}
+                              </span>
+                            }
+                          />
+                        );
+                      })}
+                    </div>
+                  ))}
+
+                  {flatOptions.length === 0 ? (
+                    <div className="ui-select_empty">No options</div>
+                  ) : null}
+                </div>
                 </ScrollArea>
               </>
             )}

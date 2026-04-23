@@ -3,7 +3,7 @@ import { cx } from "../../utils/cx";
 import ScrollArea from "./ScrollArea";
 
 const DEFAULT_MENU_CLASSNAME =
-  "!bg-bg-surface !backdrop-blur-none text-text-primary p-0";
+  "!bg-bg-surface !backdrop-blur-none text-text-primary p-1.5";
 
 type MenuProps = HTMLAttributes<HTMLDivElement> & {
   withScrollArea?: boolean;
@@ -17,7 +17,7 @@ const Menu = ({
   ...props
 }: MenuProps) => {
   const content = withScrollArea ? (
-    <ScrollArea className="max-h-60" viewportClassName="pr-1" axis="y">
+    <ScrollArea className="max-h-60" axis="y">
       {children}
     </ScrollArea>
   ) : (
