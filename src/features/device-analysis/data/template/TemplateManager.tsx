@@ -10,7 +10,6 @@ import React, {
 import {
   Trash2,
   ArrowUp,
-  ChevronDown,
   List,
   Save,
   Plus,
@@ -24,12 +23,16 @@ import { useLanguage } from "../../../../hooks/useLanguage";
 import type { TranslateFn, TranslationVars } from "../../../../context/language";
 import Toast from "../../../../components/ui/Toast";
 import Input from "../../../../components/ui/Input";
-import Select from "../../../../components/ui/Select";
+import DropdownField from "../../../../components/ui/DropdownField";
+import Dropdown from "../../../../components/ui/Dropdown";
+import ContentView from "../../../../components/ui/ContentView";
+import DropdownTrigger from "../../../../components/ui/DropdownTrigger";
+import Menu from "../../../../components/ui/Menu";
+import MenuItem from "../../../../components/ui/MenuItem";
 import Tabs from "../../../../components/ui/Tabs";
 import Card from "../../../../components/ui/Card";
 import Button from "../../../../components/ui/Button";
 import Modal from "../../../../components/ui/Modal";
-import DropdownMenu from "../../../../components/ui/DropdownMenu";
 import ScrollArea from "../../../../components/ui/ScrollArea";
 import {
   TemplateManagerPreviewEmptyState,
@@ -1364,7 +1367,7 @@ const TemplateManager = ({
               />
             </div>
             <div className="relative min-w-0">
-              <Select
+              <DropdownField
                 id={
                   includeIds
                     ? "device-analysis-template-x-segmentation-mode"
@@ -1393,7 +1396,7 @@ const TemplateManager = ({
               />
             </div>
             <div className="sm:col-span-2 relative min-w-0">
-              <Select
+              <DropdownField
                 id={includeIds ? "device-analysis-template-x-unit" : undefined}
                 menuId={
                   includeIds ? "device-analysis-template-x-unit-menu" : undefined
@@ -1506,7 +1509,7 @@ const TemplateManager = ({
                 />
               </div>
               <div className="min-w-0 relative">
-                <Select
+                <DropdownField
                   id={
                     includeIds
                       ? "device-analysis-template-legend-mapping"
@@ -1556,7 +1559,7 @@ const TemplateManager = ({
                 />
               </div>
               <div className="min-w-0 relative">
-                <Select
+                <DropdownField
                   id={includeIds ? "device-analysis-template-y-unit" : undefined}
                   menuId={
                     includeIds ? "device-analysis-template-y-unit-menu" : undefined
@@ -1875,12 +1878,48 @@ const TemplateManager = ({
             className="relative flex-1 min-w-0"
             ref={shouldAttachDropdownRef ? dropdownRef : null}
           >
-            <div
-              id={
-                includeIds ? "device-analysis-template-input-field" : undefined
+            <DropdownTrigger
+              id={resolvedInputId}
+              isOpen={includeIds ? isDropdownOpen : false}
+              menuId={
+                includeIds
+                  ? "device-analysis-template-dropdown-menu"
+                  : undefined
               }
-              className="input_field input_field--xl relative flex-1 min-w-0 pr-1"
-              data-state="enable"
+              aria-label={includeIds ? t("da_template_name") : undefined}
+              onMouseDown={
+                measureOnly
+                  ? undefined
+                  : (e) => {
+                      if (e.detail > 1) e.preventDefault();
+                    }
+              }
+              onDoubleClick={
+                measureOnly ? undefined : (e) => e.preventDefault()
+              }
+              onClick={measureOnly ? undefined : toggleTemplateDropdown}
+              onKeyDown={
+                measureOnly
+                  ? undefined
+                  : (e) => {
+                      if (e.key === "Escape") {
+                        closeTemplateDropdown();
+                        return;
+                      }
+
+                      if (
+                        e.key === "Enter" ||
+                        e.key === " " ||
+                        e.key === "ArrowDown"
+                      ) {
+                        e.preventDefault();
+                        openTemplateDropdown();
+                      }
+                    }
+              }
+              className="input_native no-focus-outline p-0 pr-8 text-left cursor-pointer select-none"
+              fieldClassName="input_field input_field--xl relative flex-1 min-w-0 pr-1"
+              indicatorClassName="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-secondary pointer-events-none"
               {...(includeIds
                 ? {
                     "data-cta": "Device Analysis",
@@ -1889,159 +1928,119 @@ const TemplateManager = ({
                   }
                 : {})}
             >
-              <button
-                id={resolvedInputId}
-                type="button"
-                aria-haspopup={includeIds ? "menu" : undefined}
-                aria-expanded={includeIds ? isDropdownOpen : undefined}
-                aria-controls={
-                  includeIds
-                    ? "device-analysis-template-dropdown-menu"
-                    : undefined
-                }
-                aria-label={includeIds ? t("da_template_name") : undefined}
-                onMouseDown={
-                  measureOnly
-                    ? undefined
-                    : (e) => {
-                        if (e.detail > 1) e.preventDefault();
-                      }
-                }
-                onDoubleClick={
-                  measureOnly ? undefined : (e) => e.preventDefault()
-                }
-                onClick={
-                  measureOnly
-                    ? undefined
-                    : toggleTemplateDropdown
-                }
-                onKeyDown={
-                  measureOnly
-                    ? undefined
-                    : (e) => {
-                        if (e.key === "Escape") {
-                          closeTemplateDropdown();
-                          return;
-                        }
-
-                        if (
-                          e.key === "Enter" ||
-                          e.key === " " ||
-                          e.key === "ArrowDown"
-                        ) {
-                          e.preventDefault();
-                          openTemplateDropdown();
-                        }
-                      }
-                }
-                className="input_native no-focus-outline p-0 pr-8 text-left cursor-pointer select-none"
+              <span
+                className={`block truncate ${
+                  hasDisplayName ? "text-text-primary" : "text-text-tertiary"
+                }`}
               >
-                <span
-                  className={`block truncate ${
-                    hasDisplayName ? "text-text-primary" : "text-text-tertiary"
-                  }`}
-                >
-                  {hasDisplayName ? displayName : t("da_template_name")}
-                </span>
-              </button>
-
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-secondary pointer-events-none">
-                <ChevronDown
-                  size={16}
-                  className={`transition-transform duration-200 ${
-                    isDropdownOpen ? "rotate-180" : ""
-                  }`}
-                />
+                {hasDisplayName ? displayName : t("da_template_name")}
               </span>
-            </div>
+            </DropdownTrigger>
 
             {shouldRenderDropdownMenu && (
-              <DropdownMenu
+              <Dropdown
                 isOpen={templateMode === "select" && isDropdownOpen}
-                onClose={closeTemplateDropdown}
+                onOpenChange={(nextOpen) => {
+                  if (!nextOpen) closeTemplateDropdown();
+                }}
                 anchorRef={dropdownRef}
-                id="device-analysis-template-dropdown-menu"
-                role="menu"
               >
-                <button
-                  type="button"
-                  role="menuitem"
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-colors mb-1 ${
-                    isAutoTemplateSelected
-                      ? "bg-bg-page text-accent"
-                      : "hover:bg-bg-page text-text-primary"
-                  }`}
-                  onClick={handleSelectAutoTemplate}
-                >
-                  <span className="min-w-0 flex-1 text-left text-sm font-medium">
-                    {t("da_auto_template")}
-                  </span>
-                  <span className="p-1">
-                    {isAutoTemplateSelected ? (
-                      <Check size={14} />
-                    ) : (
-                      <span className="block h-3.5 w-3.5 rounded-full border border-border-primary/60" />
-                    )}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-bg-page cursor-pointer group transition-colors mb-1 text-accent"
-                  onClick={handleCreateNewTemplate}
-                >
-                  <span className="flex-1 text-sm font-medium">
-                    {t("da_new_template")}
-                  </span>
-                  <span className="p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Plus size={14} />
-                  </span>
-                </button>
-                {templatesLoading ? (
-                  <div className="px-3 py-2 text-sm text-text-secondary italic text-center">
-                    {t("da_settings_storage_loading")}
-                  </div>
-                ) : templates.length > 0 ? (
-                  templates.map((template) => (
-                    <div
-                      key={template.id}
-                      data-template-id={template.id}
-                      className="relative group mb-0.5 last:mb-0"
-                    >
-                      <button
-                        type="button"
-                        role="menuitem"
-                        onClick={() => loadTemplate(template)}
-                        className="w-full flex items-center justify-between px-3 py-2 pr-9 rounded-lg transition-colors text-left hover:bg-bg-page group-hover:bg-bg-page"
-                      >
-                        <span className="flex-1 text-sm text-text-primary font-medium truncate">
-                          {template.name}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        aria-label={t("da_delete_template")}
-                        data-template-id={template.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (typeof template.id === "string") {
-                            handleDeleteTemplate(template.id);
+                {({ anchorRef: resolvedAnchorRef, setContentRef }) => (
+                  <ContentView
+                    isOpen={templateMode === "select" && isDropdownOpen}
+                    anchorRef={resolvedAnchorRef}
+                    contentRef={setContentRef}
+                    menuId="device-analysis-template-dropdown-menu"
+                    triggerId={resolvedInputId}
+                    zIndex={50}
+                    matchAnchorWidth
+                  >
+                    {() => (
+                      <Menu role="menu">
+                        <MenuItem
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-colors mb-1 ${
+                            isAutoTemplateSelected
+                              ? "bg-bg-page text-accent"
+                              : "hover:bg-bg-page text-text-primary"
+                          }`}
+                          onClick={handleSelectAutoTemplate}
+                          left={
+                            <span className="min-w-0 flex-1 text-left text-sm font-medium">
+                              {t("da_auto_template")}
+                            </span>
                           }
-                        }}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-primary hover:text-red-500 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity"
-                        title={t("da_delete_template")}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  ))
-                ) : (
-                  <div className="px-3 py-2 text-sm text-text-secondary italic text-center">
-                    {t("da_no_saved_templates")}
-                  </div>
+                          right={
+                            <span className="p-1">
+                              {isAutoTemplateSelected ? (
+                                <Check size={14} />
+                              ) : (
+                                <span className="block h-3.5 w-3.5 rounded-full border border-border-primary/60" />
+                              )}
+                            </span>
+                          }
+                        />
+                        <MenuItem
+                          className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-bg-page cursor-pointer group transition-colors mb-1 text-accent"
+                          onClick={handleCreateNewTemplate}
+                          left={
+                            <span className="flex-1 text-sm font-medium">
+                              {t("da_new_template")}
+                            </span>
+                          }
+                          right={
+                            <span className="p-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Plus size={14} />
+                            </span>
+                          }
+                        />
+                        {templatesLoading ? (
+                          <div className="px-3 py-2 text-sm text-text-secondary italic text-center">
+                            {t("da_settings_storage_loading")}
+                          </div>
+                        ) : templates.length > 0 ? (
+                          templates.map((template) => (
+                            <div
+                              key={template.id}
+                              data-template-id={template.id}
+                              className="relative group mb-0.5 last:mb-0"
+                            >
+                              <MenuItem
+                                onClick={() => loadTemplate(template)}
+                                className="w-full flex items-center justify-between px-3 py-2 pr-9 rounded-lg transition-colors text-left hover:bg-bg-page group-hover:bg-bg-page"
+                                left={
+                                  <span className="flex-1 text-sm text-text-primary font-medium truncate">
+                                    {template.name}
+                                  </span>
+                                }
+                              />
+                              <button
+                                type="button"
+                                role="menuitem"
+                                aria-label={t("da_delete_template")}
+                                data-template-id={template.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (typeof template.id === "string") {
+                                    handleDeleteTemplate(template.id);
+                                  }
+                                }}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-primary hover:text-red-500 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity"
+                                title={t("da_delete_template")}
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="px-3 py-2 text-sm text-text-secondary italic text-center">
+                            {t("da_no_saved_templates")}
+                          </div>
+                        )}
+                      </Menu>
+                    )}
+                  </ContentView>
                 )}
-              </DropdownMenu>
+              </Dropdown>
             )}
           </div>
         </div>
@@ -2199,7 +2198,7 @@ const TemplateManager = ({
                         <Trash2 size={14} />
                       </Button>
                     </div>
-                    <Select
+                    <DropdownField
                       id={
                         includeIds
                           ? `device-analysis-template-rule-mode-${index + 1}`
@@ -2273,7 +2272,7 @@ const TemplateManager = ({
                               </p>
                             )}
                           </div>
-                          <Select
+                          <DropdownField
                             id={
                               includeIds
                                 ? `device-analysis-template-rule-suggestions-${index + 1}`
@@ -2304,7 +2303,7 @@ const TemplateManager = ({
                         })}
                       </p>
                     ) : null}
-                    <Select
+                    <DropdownField
                       id={
                         includeIds
                           ? `device-analysis-template-rule-template-${index + 1}`
@@ -2611,6 +2610,7 @@ const TemplateManager = ({
 };
 
 export default React.memo(TemplateManager);
+
 
 
 

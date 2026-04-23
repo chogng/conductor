@@ -2,7 +2,7 @@ import React, { startTransition, useEffect, useMemo, useRef, useState, type CSSP
 import { AlertTriangle, Check, X } from "lucide-react";
 import { computeCentralDerivative, computeSubthresholdSwing, computeSubthresholdSwingFitAuto, computeSubthresholdSwingFitInIdWindow, computeSubthresholdSwingFitInRange, classifySsFit, computeLegendDerivativeSeries, formatNumber, interpolateCurveAtX, resolveAutoSsSelection, } from "../lib/analysisMath";
 import { apiService } from "../services/apiService";
-import Select from "../../../../components/ui/Select";
+import DropdownField from "../../../../components/ui/DropdownField";
 import Button from "../../../../components/ui/Button";
 import Card from "../../../../components/ui/Card";
 import Input from "../../../../components/ui/Input";
@@ -2938,7 +2938,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
 
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1">
-                  <Select id="device-analysis-y-unit-select" size="sm" value={activeYUnit} onChange={(next: any) => {
+                  <DropdownField id="device-analysis-y-unit-select" size="sm" value={activeYUnit} onChange={(next: any) => {
             const nextUnit = normalizeDeviceAnalysisYUnit(next, "A");
             userChangedYUnitRef.current = true;
             const fileKey = String(effectiveActiveFileId ?? "").trim();
@@ -2985,7 +2985,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 <div className="flex items-center gap-1">
                   {effectivePlotType === "ss" ? (<span className="text-xs text-text-primary font-mono whitespace-nowrap">
                       log(|I|)
-                    </span>) : (<Select id="device-analysis-y-scale-select" size="sm" value={axis.yScale === "logAbs" ? "log" : axis.yScale} onChange={(next: any) => {
+                    </span>) : (<DropdownField id="device-analysis-y-scale-select" size="sm" value={axis.yScale === "logAbs" ? "log" : axis.yScale} onChange={(next: any) => {
                 applyLinearLogYScaleForFile(next);
             }} options={[
                 {
@@ -3000,7 +3000,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 </div>
 
                 {effectivePlotType !== "iv" && activeFile?.series?.length ? (<div className="flex items-center gap-1">
-                    <Select id="device-analysis-curve-select" size="sm" value={focusedSeriesId ?? ""} onChange={(next: any) => setFocusedSeriesId(next)} options={(activeFile?.series ?? []).map((s: any) => ({
+                    <DropdownField id="device-analysis-curve-select" size="sm" value={focusedSeriesId ?? ""} onChange={(next: any) => setFocusedSeriesId(next)} options={(activeFile?.series ?? []).map((s: any) => ({
                 value: s.id,
                 label: s.name,
             }))} className="w-fit max-w-[180px] da-neutral-select" placeholder="Select curve"/>
@@ -3010,7 +3010,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     <span className="text-xs text-text-secondary whitespace-nowrap">
                       gₘ:
                     </span>
-                    <Select id="device-analysis-gm-mode-select" size="sm" value={gmMode} onChange={(next: any) => setGmMode(next === "legend" ? "legend" : "x")} options={gmUi.modeOptions} className="w-[170px]"/>
+                    <DropdownField id="device-analysis-gm-mode-select" size="sm" value={gmMode} onChange={(next: any) => setGmMode(next === "legend" ? "legend" : "x")} options={gmUi.modeOptions} className="w-[170px]"/>
                   </div>) : null}
 
                 {effectivePlotType === "ss" ? (<div className="flex items-center gap-2">
@@ -3018,7 +3018,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                       <span className="text-xs text-text-secondary whitespace-nowrap">
                         SS:
                       </span>
-                      <Select id="device-analysis-ss-method-select" size="sm" value={ssMethod} onChange={(next: any) => {
+                      <DropdownField id="device-analysis-ss-method-select" size="sm" value={ssMethod} onChange={(next: any) => {
                 const method = next === "auto" ||
                     next === "manual" ||
                     next === "idWindow" ||
@@ -3067,7 +3067,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                       <span className="text-xs text-text-secondary whitespace-nowrap">
                         Ion/Ioff:
                       </span>
-                      <Select id="device-analysis-current-method-select" size="sm" value={ionIoffMethod} onChange={(next: any) => {
+                      <DropdownField id="device-analysis-current-method-select" size="sm" value={ionIoffMethod} onChange={(next: any) => {
                 const method = next === "manual" ? "manual" : "auto";
                 setIonIoffMethod(method);
                 apiService
@@ -3082,7 +3082,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     </div>
                   </div>) : null}
 
-                {showFileSelect ? (<Select id="device-analysis-file-select" size="sm" value={effectiveActiveFileId ?? ""} onChange={(val: any) => handleSelectFile(val)} options={processedData.map((f: any) => ({
+                {showFileSelect ? (<DropdownField id="device-analysis-file-select" size="sm" value={effectiveActiveFileId ?? ""} onChange={(val: any) => handleSelectFile(val)} options={processedData.map((f: any) => ({
             value: f.fileId,
             label: f.fileName,
         }))} className="w-[240px] da-neutral-select" placeholder="Select File" data-cta="Device Analysis" data-cta-position="file-select" data-cta-copy="file select"/>) : null}
@@ -3344,7 +3344,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                       <span className="text-xs text-text-secondary whitespace-nowrap">
                         {t("da_origin_export_mode_label")}
                       </span>
-                      <Select
+                      <DropdownField
                         id="device-analysis-origin-export-mode-select"
                         size="sm"
                         value={resolvedOriginExportMode}
@@ -3378,7 +3378,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                       <span className="text-xs text-text-secondary whitespace-nowrap">
                         {t("da_origin_canvas_scope_label")}
                       </span>
-                      <Select
+                      <DropdownField
                         id="device-analysis-origin-canvas-scope-select"
                         size="sm"
                         value={originCanvasExportScope}
@@ -3419,7 +3419,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                           <span className="text-xs text-text-secondary whitespace-nowrap">
                             {t("da_origin_filtered_canvas_kind_label")}
                           </span>
-                          <Select
+                          <DropdownField
                             id="device-analysis-origin-filtered-canvas-kind-select"
                             size="sm"
                             value={originFilteredCanvasKind}
@@ -3446,7 +3446,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                       <span className="text-xs text-text-secondary whitespace-nowrap">
                         {t("da_origin_curve_export_mode_label")}
                       </span>
-                      <Select
+                      <DropdownField
                         id="device-analysis-origin-curve-export-mode-select"
                         size="sm"
                         value={resolvedCurveExportMode}

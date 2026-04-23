@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Card from "../../../components/ui/Card";
 import Button from "../../../components/ui/Button";
 import Input from "../../../components/ui/Input";
-import Select from "../../../components/ui/Select";
+import DropdownField from "../../../components/ui/DropdownField";
 import Toast from "../../../components/ui/Toast";
 import type { LanguageCode, TranslateFn } from "../../../context/language";
 import type { ThemeMode } from "../../../context/theme";
@@ -231,7 +231,7 @@ const DeviceAnalysisSettingsPanel = ({
           </div>
 
           <div className="w-full sm:w-fit">
-            <Select
+            <DropdownField
               id="device-analysis-settings-language-dropdown"
               menuId="device-analysis-settings-language-dropdown-menu"
               value={language}
@@ -267,7 +267,7 @@ const DeviceAnalysisSettingsPanel = ({
           </div>
 
           <div className="w-full sm:w-fit">
-            <Select
+            <DropdownField
               id="device-analysis-settings-theme-dropdown"
               menuId="device-analysis-settings-theme-dropdown-menu"
               value={theme}
@@ -544,7 +544,7 @@ const DeviceAnalysisSettingsPanel = ({
             <p className="text-xs text-text-secondary">
               {t("da_settings_origin_cleanup_enable_label")}
             </p>
-            <Select
+            <DropdownField
               id="device-analysis-settings-origin-cleanup-enabled-select"
               menuId="device-analysis-settings-origin-cleanup-enabled-menu"
               value={String(Boolean(originSettings.cleanupEnabled))}
@@ -560,7 +560,7 @@ const DeviceAnalysisSettingsPanel = ({
             <p className="text-xs text-text-secondary">
               {t("da_settings_origin_cleanup_keep_success_label")}
             </p>
-            <Select
+            <DropdownField
               id="device-analysis-settings-origin-cleanup-keep-success-select"
               menuId="device-analysis-settings-origin-cleanup-keep-success-menu"
               value={String(originSettings.cleanupKeepSuccessJobs ?? 0)}
@@ -576,7 +576,7 @@ const DeviceAnalysisSettingsPanel = ({
             <p className="text-xs text-text-secondary">
               {t("da_settings_origin_cleanup_failed_days_label")}
             </p>
-            <Select
+            <DropdownField
               id="device-analysis-settings-origin-cleanup-failed-days-select"
               menuId="device-analysis-settings-origin-cleanup-failed-days-menu"
               value={String(originSettings.cleanupFailedRetentionDays ?? 7)}
@@ -632,7 +632,7 @@ const DeviceAnalysisSettingsPanel = ({
             <p className="text-xs text-text-secondary">
               {t("da_settings_origin_plot_type_label")}
             </p>
-            <Select
+            <DropdownField
               id="device-analysis-settings-origin-plot-type-select"
               menuId="device-analysis-settings-origin-plot-type-menu"
               className="w-full"
@@ -761,3 +761,4 @@ const DeviceAnalysisSettingsPanel = ({
 };
 
 export default DeviceAnalysisSettingsPanel;
+

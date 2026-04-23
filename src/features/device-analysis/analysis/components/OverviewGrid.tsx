@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useState } from "react";
 import Card from "../../../../components/ui/Card";
-import Select from "../../../../components/ui/Select";
+import DropdownField from "../../../../components/ui/DropdownField";
 import ScrollArea from "../../../../components/ui/ScrollArea";
 import { useLanguage } from "../../../../hooks/useLanguage";
 import { getDeviceAnalysisYUnitMeta } from "../lib/deviceAnalysisUnits";
@@ -176,7 +176,7 @@ const OverviewGrid = memo(function OverviewGrid({
             >
               {t("da_overview_curve_filter_label")}
             </label>
-            <Select
+            <DropdownField
               id="device-analysis-overview-curve-filter-btn"
               menuId="device-analysis-overview-curve-filter-menu"
               value={curveFilter}
@@ -261,3 +261,4 @@ const OverviewGrid = memo(function OverviewGrid({
 OverviewGrid.displayName = "OverviewGrid";
 
 export default OverviewGrid;
+

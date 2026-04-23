@@ -3,7 +3,7 @@ import { formatNumber } from "../lib/analysisMath";
 import Button from "../../../../components/ui/Button";
 import Card from "../../../../components/ui/Card";
 import Input from "../../../../components/ui/Input";
-import Select from "../../../../components/ui/Select";
+import DropdownField from "../../../../components/ui/DropdownField";
 import type { TranslateFn } from "../../../../context/language";
 
 type AnalysisDiagnosticsCardProps = {
@@ -224,7 +224,7 @@ export default function AnalysisDiagnosticsCard({
                   inputClassName={analysisCompactInputClass}
                 />
                 <span className="whitespace-nowrap">{resolvedXUnitLabel}</span>
-                <Select
+                <DropdownField
                   id="device-analysis-curve-probe-mode-select"
                   size="sm"
                   value={curveProbeMode}
@@ -426,7 +426,7 @@ export default function AnalysisDiagnosticsCard({
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 items-center">
-                  <Select
+                  <DropdownField
                     size="sm"
                     value={axis.xTicks}
                     onChange={(next: any) => setAxis((prev: any) => ({ ...prev, xTicks: next }))}
@@ -501,7 +501,7 @@ export default function AnalysisDiagnosticsCard({
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 items-center">
-                  <Select
+                  <DropdownField
                     size="sm"
                     value={axis.yScale}
                     onChange={onAxisYScaleChange}
@@ -513,7 +513,7 @@ export default function AnalysisDiagnosticsCard({
                     className="w-full"
                     title="Scale"
                   />
-                  <Select
+                  <DropdownField
                     size="sm"
                     value={axis.yTicks}
                     onChange={(next: any) => setAxis((prev: any) => ({ ...prev, yTicks: next }))}

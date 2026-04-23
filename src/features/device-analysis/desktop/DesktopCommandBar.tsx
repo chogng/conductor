@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import type { CSSProperties } from "react";
 import originIcon from "../../../assets/icons/origin.svg";
-import Select from "../../../components/ui/Select";
+import DropdownField from "../../../components/ui/DropdownField";
 import type { TranslateFn } from "../../../context/language";
 
 const appIconSrc = "/logo.svg";
@@ -113,7 +113,7 @@ const DesktopCommandBar = ({
       <div className="da_top_menu_center" style={dragRegionStyle}>
         {shouldShowAnalysisFileSelector ? (
           <div className="da_top_menu_center_file_select">
-            <Select
+            <DropdownField
               id="device-analysis-window-file-select"
               size="md"
               value={analysisActiveFileId ?? ""}
@@ -228,3 +228,4 @@ const DesktopCommandBar = ({
 };
 
 export default DesktopCommandBar;
+

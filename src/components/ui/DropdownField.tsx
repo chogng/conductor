@@ -11,11 +11,13 @@ import {
   type ComponentType,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
-  type RefObject,
 } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { cx } from "../../utils/cx";
-import Popup from "./Popup";
+import ContentView, { type ContentViewAlign } from "./ContentView";
+import Dropdown from "./Dropdown";
+import DropdownTrigger from "./DropdownTrigger";
+import MenuItem from "./MenuItem";
 import ScrollArea from "./ScrollArea";
 
 const hasWidthConstraintClass = (className: string): boolean => {
@@ -47,41 +49,40 @@ const hasWidthConstraintClass = (className: string): boolean => {
     });
 };
 
-type SelectValue = string | number;
-type SelectSize = "sm" | "md" | "xl";
-type PopupAlign = "left" | "center" | "right";
+type DropdownFieldValue = string | number;
+type DropdownFieldSize = "sm" | "md" | "xl";
 
-type SelectIconComponent = ComponentType<{
+type DropdownFieldIconComponent = ComponentType<{
   style?: CSSProperties;
   className?: string;
 }>;
 
-type SelectOption = {
+type DropdownFieldOption = {
   label?: ReactNode;
-  value: SelectValue;
-  icon?: SelectIconComponent;
+  value: DropdownFieldValue;
+  icon?: DropdownFieldIconComponent;
   group?: string;
 };
 
 type IndexedGroup = {
   group: string;
-  options: Array<{ option: SelectOption; index: number }>;
+  options: Array<{ option: DropdownFieldOption; index: number }>;
 };
 
-type SelectProps = Omit<
+type DropdownFieldProps = Omit<
   ButtonHTMLAttributes<HTMLButtonElement>,
   "onChange" | "value" | "size"
 > & {
-  options?: SelectOption[];
-  value?: SelectValue;
-  onChange?: (nextValue: SelectValue) => void;
+  options?: DropdownFieldOption[];
+  value?: DropdownFieldValue;
+  onChange?: (nextValue: DropdownFieldValue) => void;
   placeholder?: ReactNode;
   title?: ReactNode;
   disabled?: boolean;
-  size?: SelectSize;
+  size?: DropdownFieldSize;
   className?: string;
-  formatDisplay?: (selected: SelectOption | null) => ReactNode;
-  align?: PopupAlign;
+  formatDisplay?: (selected: DropdownFieldOption | null) => ReactNode;
+  align?: ContentViewAlign;
   zIndex?: number;
   id?: string;
   menuId?: string;
@@ -92,7 +93,7 @@ type SelectProps = Omit<
   hideChevron?: boolean;
 };
 
-const isSelectableOption = (opt: unknown): opt is SelectOption => {
+const isSelectableOption = (opt: unknown): opt is DropdownFieldOption => {
   if (!opt || typeof opt !== "object") return false;
   if (!Object.prototype.hasOwnProperty.call(opt, "value")) return false;
   const value = (opt as { value: unknown }).value;
@@ -122,7 +123,7 @@ const getNodePlainText = (node: ReactNode): string => {
   return "";
 };
 
-const Select = ({
+const DropdownField = ({
   options = [],
   value,
   onChange,
@@ -142,7 +143,7 @@ const Select = ({
   stableWidth,
   hideChevron = false,
   ...props
-}: SelectProps) => {
+}: DropdownFieldProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -194,7 +195,7 @@ const Select = ({
   }, [formatDisplay, selected, value]);
 
   const grouped = useMemo(() => {
-    const map = new Map<string, SelectOption[]>();
+    const map = new Map<string, DropdownFieldOption[]>();
     for (const opt of selectableOptions) {
       const group = opt.group ? String(opt.group) : "";
       if (!map.has(group)) map.set(group, []);
@@ -204,7 +205,7 @@ const Select = ({
   }, [selectableOptions]);
 
   const flatOptions = useMemo(() => {
-    const flat: SelectOption[] = [];
+    const flat: DropdownFieldOption[] = [];
     for (const group of grouped.groups) {
       for (const opt of grouped.map.get(group) ?? []) {
         flat.push(opt);
@@ -238,7 +239,7 @@ const Select = ({
     setHighlightedIndex(-1);
   };
 
-  const selectOption = (opt: SelectOption | undefined) => {
+  const selectOption = (opt: DropdownFieldOption | undefined) => {
     if (!opt) return;
     onChange?.(opt.value);
     closeMenu();
@@ -454,142 +455,149 @@ const Select = ({
       data-style="select"
       data-disabled={disabled || undefined}
     >
-      <div
-        className={cx("input_field", sizeClass, !hideChevron && "pr-1")}
-        data-state={disabled ? "disabled" : "enable"}
+      <DropdownTrigger
+        {...props}
+        ref={triggerRef}
+        id={triggerId}
+        isOpen={isOpen}
+        menuId={resolvedMenuId}
+        disabled={disabled}
+        data-size={size}
+        data-testid={devTestId}
+        onClick={handleTriggerClick}
+        onKeyDown={handleKeyDown}
+        fieldClassName={cx("input_field", sizeClass, !hideChevron && "pr-1")}
+        className={cx(
+          "input_native no-focus-outline p-0 text-left cursor-pointer select-none",
+          hideChevron ? "pr-0" : "pr-6",
+          triggerClassName,
+        )}
+        hideIndicator={hideChevron}
+        indicatorClassName="absolute right-1 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none"
+        indicator={
+          <ChevronDown
+            size={chevronIconSizePx}
+            className={cx(
+              "transition-transform duration-200",
+              isOpen ? "rotate-180" : "",
+            )}
+          />
+        }
       >
-        <button
-          {...props}
-          ref={triggerRef}
-          id={triggerId}
-          type="button"
-          aria-haspopup="menu"
-          aria-expanded={isOpen}
-          aria-controls={resolvedMenuId}
-          disabled={disabled}
-          data-state={isOpen ? "open" : "closed"}
-          data-size={size}
-          data-testid={devTestId}
-          onClick={handleTriggerClick}
-          onKeyDown={handleKeyDown}
+        <span
           className={cx(
-            "input_native no-focus-outline p-0 text-left cursor-pointer select-none",
-            hideChevron ? "pr-0" : "pr-6",
-            triggerClassName,
+            "block truncate",
+            hasDisplayValue ? "text-text-primary" : "text-text-tertiary",
           )}
         >
-          <span
-            className={cx(
-              "block truncate",
-              hasDisplayValue ? "text-text-primary" : "text-text-tertiary",
-            )}
-          >
-            {hasDisplayValue ? displayNode : placeholder ?? ""}
-          </span>
-        </button>
+          {hasDisplayValue ? displayNode : placeholder ?? ""}
+        </span>
+      </DropdownTrigger>
 
-        {!hideChevron && (
-          <span className="absolute right-1 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none">
-            <ChevronDown
-              size={chevronIconSizePx}
-              className={cx(
-                "transition-transform duration-200",
-                isOpen ? "rotate-180" : "",
-              )}
-            />
-          </span>
-        )}
-      </div>
-
-      <Popup
+      <Dropdown
         isOpen={isOpen}
-        onClose={closeMenu}
-        align={align}
-        zIndex={zIndex}
-        matchAnchorWidth
-        triggerId={triggerId}
-        menuId={resolvedMenuId}
-        containerRef={containerRef as RefObject<HTMLElement | null>}
-        className={popupClassName}
+        onOpenChange={setIsOpen}
+        anchorRef={containerRef}
       >
-        {() => (
-          <>
-            {title ? <div>{title}</div> : null}
+        {({ anchorRef, setContentRef }) => (
+          <ContentView
+            isOpen={isOpen}
+            align={align}
+            zIndex={zIndex}
+            matchAnchorWidth
+            triggerId={triggerId}
+            menuId={resolvedMenuId}
+            anchorRef={anchorRef}
+            contentRef={setContentRef}
+            className={popupClassName}
+          >
+            {() => (
+              <>
+                {title ? <div>{title}</div> : null}
 
-            <ScrollArea
-              className="ui-select_scroll-area max-h-60 -mr-1 pr-1"
-              axis="y"
-              viewportClassName="max-h-60"
-              viewportProps={{
-                style: { height: "auto", maxHeight: "15rem" },
-              }}
-            >
-              <div className="ui-select_list">
-                {indexedGroups.map(({ group, options: groupOptions }, groupIdx) => (
-                  <div key={group || "default"} role={group ? "group" : undefined}>
-                    {group ? (
-                      <>
-                        {groupIdx > 0 ? (
-                          <div
-                            role="separator"
-                            aria-orientation="horizontal"
-                            className="ui-select_separator"
-                          />
-                        ) : null}
-                        <div className="ui-select_group">{group}</div>
-                      </>
-                    ) : null}
-
-                    {groupOptions.map(({ option, index: currentIndex }) => {
-                      const isHighlighted = highlightedIndex === currentIndex;
-                      const isSelected = value === option.value;
-                      const Icon = option.icon;
-
-                      return (
-                        <button
-                          key={String(option.value)}
-                          type="button"
-                          role="menuitem"
-                          tabIndex={-1}
-                          data-highlighted={isHighlighted || undefined}
-                          data-selected={isSelected || undefined}
-                          data-value={String(option.value)}
-                          onClick={() => selectOption(option)}
-                          onMouseEnter={() => setHighlightedIndex(currentIndex)}
-                          className={cx("ui-select_item", itemSizeClass)}
-                        >
-                          <span className="ui-select_item-left">
-                            {Icon ? (
-                              <Icon style={{ width: "0.9rem", height: "0.9rem" }} />
-                            ) : null}
-                            <span className="truncate">
-                              {option.label ?? String(option.value)}
-                            </span>
-                          </span>
-                          <span className="ui-select_item-right" aria-hidden="true">
-                            {isSelected ? (
-                              <Check
-                                size={checkIconSizePx}
-                                className="text-accent"
+                <ScrollArea
+                  className="ui-select_scroll-area max-h-60 -mr-1 pr-1"
+                  axis="y"
+                  viewportClassName="max-h-60"
+                  viewportProps={{
+                    style: { height: "auto", maxHeight: "15rem" },
+                  }}
+                >
+                  <div className="ui-select_list">
+                    {indexedGroups.map(({ group, options: groupOptions }, groupIdx) => (
+                      <div key={group || "default"} role={group ? "group" : undefined}>
+                        {group ? (
+                          <>
+                            {groupIdx > 0 ? (
+                              <div
+                                role="separator"
+                                aria-orientation="horizontal"
+                                className="ui-select_separator"
                               />
                             ) : null}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ))}
+                            <div className="ui-select_group">{group}</div>
+                          </>
+                        ) : null}
 
-                {flatOptions.length === 0 ? (
-                  <div className="ui-select_empty">No options</div>
-                ) : null}
-              </div>
-            </ScrollArea>
-          </>
+                        {groupOptions.map(({ option, index: currentIndex }) => {
+                          const isHighlighted = highlightedIndex === currentIndex;
+                          const isSelected = value === option.value;
+                          const Icon = option.icon;
+
+                          return (
+                            <MenuItem
+                              key={String(option.value)}
+                              tabIndex={-1}
+                              data-highlighted={isHighlighted || undefined}
+                              data-selected={isSelected || undefined}
+                              data-value={String(option.value)}
+                              onClick={() => selectOption(option)}
+                              onMouseEnter={() => setHighlightedIndex(currentIndex)}
+                              className={cx("ui-select_item", itemSizeClass)}
+                              left={
+                                <span className="ui-select_item-left">
+                                  {Icon ? (
+                                    <Icon
+                                      style={{ width: "0.9rem", height: "0.9rem" }}
+                                    />
+                                  ) : null}
+                                  <span className="truncate">
+                                    {option.label ?? String(option.value)}
+                                  </span>
+                                </span>
+                              }
+                              right={
+                                <span
+                                  className="ui-select_item-right"
+                                  aria-hidden="true"
+                                >
+                                  {isSelected ? (
+                                    <Check
+                                      size={checkIconSizePx}
+                                      className="text-accent"
+                                    />
+                                  ) : null}
+                                </span>
+                              }
+                            />
+                          );
+                        })}
+                      </div>
+                    ))}
+
+                    {flatOptions.length === 0 ? (
+                      <div className="ui-select_empty">No options</div>
+                    ) : null}
+                  </div>
+                </ScrollArea>
+              </>
+            )}
+          </ContentView>
         )}
-      </Popup>
+      </Dropdown>
     </div>
   );
 };
 
-export default Select;
+export default DropdownField;
+

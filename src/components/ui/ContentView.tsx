@@ -1,47 +1,50 @@
 import {
-  useEffect,
   useLayoutEffect,
   useRef,
   useState,
   type CSSProperties,
   type ReactNode,
+  type Ref,
   type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
+import { cx } from "../../utils/cx";
 
-type PopupAlign = "left" | "center" | "right";
-type PopupChildren = ReactNode | (() => ReactNode);
+export type ContentViewAlign = "left" | "center" | "right";
+type ContentViewChildren = ReactNode | (() => ReactNode);
 
-type PopupProps = {
+type ContentViewProps = {
   isOpen: boolean;
-  onClose?: () => void;
-  align?: PopupAlign;
+  align?: ContentViewAlign;
   zIndex?: number;
   className?: string;
-  children?: PopupChildren;
+  children?: ContentViewChildren;
   triggerId?: string;
   menuId?: string;
-  closeOnClickOutside?: boolean;
-  containerRef?: RefObject<HTMLElement | null>;
+  anchorRef?: RefObject<HTMLElement | null>;
+  contentRef?: Ref<HTMLDivElement | null>;
   matchAnchorWidth?: boolean;
+  role?: string;
+  "aria-orientation"?: "vertical" | "horizontal";
 };
 
 const POPUP_GAP_PX = 8;
 const VIEWPORT_PADDING_PX = 8;
 
-const Popup = ({
+const ContentView = ({
   isOpen,
-  onClose,
   align = "left",
   zIndex = 20,
   className = "",
   children,
   triggerId,
   menuId,
-  closeOnClickOutside = true,
-  containerRef,
+  anchorRef,
+  contentRef,
   matchAnchorWidth = false,
-}: PopupProps) => {
+  role = "menu",
+  "aria-orientation": ariaOrientation = "vertical",
+}: ContentViewProps) => {
   const popupRef = useRef<HTMLDivElement | null>(null);
   const [portalStyle, setPortalStyle] = useState<CSSProperties | null>(null);
   const [side, setSide] = useState<"top" | "bottom">("bottom");
@@ -54,7 +57,7 @@ const Popup = ({
     }
 
     const updatePosition = () => {
-      const anchorEl = containerRef?.current;
+      const anchorEl = anchorRef?.current;
       const popupEl = popupRef.current;
       if (!anchorEl || !popupEl) return;
 
@@ -126,24 +129,7 @@ const Popup = ({
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
     };
-  }, [align, containerRef, isOpen, matchAnchorWidth, zIndex]);
-
-  useEffect(() => {
-    if (!isOpen || !closeOnClickOutside) return;
-
-    const handleClickOutside = (event: MouseEvent) => {
-      const anchorEl = containerRef?.current;
-      const menuEl = popupRef.current;
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (anchorEl?.contains(target)) return;
-      if (menuEl?.contains(target)) return;
-      onClose?.();
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [closeOnClickOutside, containerRef, isOpen, onClose]);
+  }, [align, anchorRef, isOpen, matchAnchorWidth, zIndex]);
 
   const resolvedChildren =
     typeof children === "function" ? (isOpen ? children() : null) : children;
@@ -157,9 +143,10 @@ const Popup = ({
       style={portalStyle ?? { position: "fixed", zIndex }}
     >
       <div
+        ref={contentRef}
         id={menuId}
-        role="menu"
-        aria-orientation="vertical"
+        role={role}
+        aria-orientation={ariaOrientation}
         aria-labelledby={triggerId}
         aria-hidden={isOpen ? undefined : true}
         data-style="popup"
@@ -167,15 +154,23 @@ const Popup = ({
         data-side={side}
         data-align={align}
         tabIndex={-1}
-        className={`
-          rounded-xl shadow-xl p-1 border border-border-subtle
-          bg-bg-surface/80 backdrop-blur-xl
-          transition-all duration-200 ease-out
-          data-[side=top]:origin-bottom
-          ${align === "right" ? "origin-top-right data-[side=top]:origin-bottom-right" : align === "center" ? "origin-top data-[side=top]:origin-bottom" : "origin-top-left data-[side=top]:origin-bottom-left"}
-          ${isOpen ? "opacity-100 translate-y-0 scale-100" : "opacity-0 data-[side=bottom]:-translate-y-2 data-[side=top]:translate-y-2 scale-95"}
-          ${className}
-        `}
+        className={cx(
+          `
+            rounded-xl shadow-xl p-1 border border-border-subtle
+            bg-bg-surface/80 backdrop-blur-xl
+            transition-all duration-200 ease-out
+            data-[side=top]:origin-bottom
+          `,
+          align === "right"
+            ? "origin-top-right data-[side=top]:origin-bottom-right"
+            : align === "center"
+              ? "origin-top data-[side=top]:origin-bottom"
+              : "origin-top-left data-[side=top]:origin-bottom-left",
+          isOpen
+            ? "opacity-100 translate-y-0 scale-100"
+            : "opacity-0 data-[side=bottom]:-translate-y-2 data-[side=top]:translate-y-2 scale-95",
+          className,
+        )}
       >
         {resolvedChildren}
       </div>
@@ -184,4 +179,4 @@ const Popup = ({
   );
 };
 
-export default Popup;
+export default ContentView;
