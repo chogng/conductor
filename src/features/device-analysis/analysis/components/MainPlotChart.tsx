@@ -39,6 +39,7 @@ type PlotPoint = {
 type PlotSeries = {
   id: string;
   name: string;
+  tooltipName?: string;
   data: PlotPoint[];
 };
 
@@ -126,8 +127,23 @@ type MainPlotChartProps = {
 };
 
 const LOG_CHART_Y_DATA_KEY = "__chartY";
+const TOOLTIP_SERIES_NAME_SEPARATOR = "\u0000";
 const logChartSeriesListCache = new WeakMap<object, Map<string, PlotSeries[]>>();
 const logChartSeriesDataCache = new WeakMap<object, Map<string, PlotPoint[]>>();
+
+const decodeTooltipSeriesName = (
+  value: unknown,
+): { label: string; token: string } => {
+  const token = String(value ?? "");
+  const separatorIndex = token.lastIndexOf(TOOLTIP_SERIES_NAME_SEPARATOR);
+  if (separatorIndex < 0) {
+    return { label: token, token };
+  }
+  return {
+    label: token.slice(0, separatorIndex),
+    token,
+  };
+};
 
 const toLogChartValue = (value: unknown): number | null => {
   const num = Number(value);
@@ -1105,6 +1121,14 @@ const MainPlotChart = memo(function MainPlotChart({
     return getCachedLogChartSeriesList(seriesList, plotYKey);
   }, [effectiveYScale, plotYKey, seriesList]);
 
+  const tooltipSeriesOrder = useMemo(() => {
+    const order = new Map<string, number>();
+    chartSeriesList.forEach((series, index) => {
+      order.set(String(series?.tooltipName ?? series?.name ?? ""), index);
+    });
+    return order;
+  }, [chartSeriesList]);
+
   const chartFocusedFitLine = useMemo<PlotPoint[] | null>(() => {
     if (!Array.isArray(focusedFitLine)) return null;
     if (effectiveYScale === "linear") return focusedFitLine;
@@ -1281,6 +1305,9 @@ const MainPlotChart = memo(function MainPlotChart({
                 digits: xTooltipDigits ?? xTickDigits,
               })} ${plotXUnitLabel}`
             }
+            itemSorter={(entry: any) =>
+              tooltipSeriesOrder.get(String(entry?.name ?? "")) ?? Number.MAX_SAFE_INTEGER
+            }
             formatter={(value, name, item: any) => {
               const rawFromPrimary = Number(item?.payload?.[plotYKey]);
               const rawFromY = Number(item?.payload?.y);
@@ -1295,9 +1322,10 @@ const MainPlotChart = memo(function MainPlotChart({
                 : Number.isFinite(rawFromY)
                   ? rawFromY
                   : rawFromValue;
+              const decodedName = decodeTooltipSeriesName(name);
               return [
                 `${formatNumber(num * plotYFactor, { digits: yTickDigits })} ${plotYUnitLabel}`,
-                name,
+                decodedName.label,
               ];
             }}
           />
@@ -1401,7 +1429,7 @@ const MainPlotChart = memo(function MainPlotChart({
               key={series.id}
               data={series.data}
               dataKey={chartYDataKey}
-              name={series.name}
+              name={series.tooltipName ?? series.name}
               stroke={COLORS[idx % COLORS.length]}
               dot={false}
               isAnimationActive={false}

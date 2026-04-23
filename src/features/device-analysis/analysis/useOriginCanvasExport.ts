@@ -13,6 +13,7 @@ import {
 import {
   buildDeviceAnalysisOriginExportPlan,
   isDeviceAnalysisOriginExportMode,
+  resolveDeviceAnalysisSeriesLabel,
   type DeviceAnalysisOriginExportPlan,
   type DeviceAnalysisOriginExportMode,
   type DeviceAnalysisOriginYAxisScaleMode,
@@ -78,6 +79,11 @@ type UseOriginCanvasExportOptions = {
   resolveYScaleForFile?: (
     file: any,
   ) => DeviceAnalysisOriginYAxisScaleMode;
+  resolveCurveLabelForSeries?: (
+    file: any,
+    series: any,
+    index: number,
+  ) => string;
   resolveYUnitForFile?: (file: any) => string;
   showToast: (message: string, type?: any) => void;
   t: (key: string, params?: any) => string;
@@ -204,6 +210,8 @@ export const useOriginCanvasExport = ({
   originHasManualAxisOverride = false,
   originOpenPlotOptions,
   processedData,
+  resolveCurveLabelForSeries = (_file, series, index) =>
+    resolveDeviceAnalysisSeriesLabel(series, index),
   resolveYScaleForFile = () => "linear",
   resolveYUnitForFile = () => "A",
   showToast,
@@ -806,6 +814,7 @@ export const useOriginCanvasExport = ({
       (file) => getDeviceAnalysisXUnitMeta(file?.xUnit).factor,
       (file) => getDeviceAnalysisYUnitMeta(resolveYUnitForFile(file)).factor,
       (file) => getDeviceAnalysisYUnitMeta(resolveYUnitForFile(file)).label,
+      resolveCurveLabelForSeries,
     );
     if (!plan.payloads.length) {
       throw new Error(t("da_origin_select_curve"));
@@ -814,6 +823,7 @@ export const useOriginCanvasExport = ({
   }, [
     originSelectedSeriesIdsByFile,
     resolveYScaleForFile,
+    resolveCurveLabelForSeries,
     resolveYUnitForFile,
     resolvedOriginExportMode,
     selectedOriginCanvases,

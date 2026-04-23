@@ -14,6 +14,7 @@ import { COLORS } from "../lib/chartColors";
 import { DEFAULT_ORIGIN_PLOT_OPTIONS } from "../lib/originPlotOptions";
 import {
   isDeviceAnalysisOriginExportMode,
+  resolveDeviceAnalysisSeriesLabel,
   type DeviceAnalysisOriginExportMode,
 } from "../lib/originSelectionExport";
 import type { ToastState, ToastType } from "../../shared/lib/sharedTypes";
@@ -55,6 +56,7 @@ const ANALYSIS_COMPACT_PAGE_FIELD_CLASS =
     "!h-8 !gap-0 rounded-lg border border-border bg-bg-page px-2 py-1";
 const ANALYSIS_COMPACT_SURFACE_FIELD_CLASS =
     "!gap-0 rounded border border-border bg-bg-surface px-2 py-1";
+const TOOLTIP_SERIES_NAME_SEPARATOR = "\u0000";
 
 type LegendEditingState = {
     fileId: string;
@@ -73,7 +75,7 @@ type EditableLegendItemProps = {
     onDraftChange: (nextValue: string) => void;
     onToggleVisible: () => void;
     draftValue: string;
-    inputRef: React.RefObject<HTMLInputElement | null>;
+    inputRef?: React.RefObject<HTMLInputElement | null>;
 };
 
 const EditableLegendItem = ({
@@ -111,15 +113,6 @@ const EditableLegendItem = ({
     </div>
   </li>);
 
-const resolveOriginSeriesExportLabel = (series: any, index: number): string => {
-    const legendValue = String(series?.legendValue ?? "").trim();
-    if (legendValue)
-        return legendValue;
-    const name = String(series?.name ?? "").trim();
-    if (name)
-        return name;
-    return `Curve ${index + 1}`;
-};
 const toConductanceUnitLabel = (currentUnitLabel: string, denominatorUnit: string): string => {
     if (denominatorUnit !== "V")
         return `${currentUnitLabel}/${denominatorUnit}`;
@@ -266,6 +259,7 @@ const normalizeYUnitByFileIdRecord = (value: unknown): Record<string, "A" | "mA"
     }
     return next;
 };
+const buildTooltipSeriesName = (label: string, seriesId: unknown): string => `${label}${TOOLTIP_SERIES_NAME_SEPARATOR}${String(seriesId ?? "").trim()}`;
 type FormatOriginTranslateFn = (key: string, params?: Record<string, unknown>) => string;
 type OriginCsvBridge = {
     runOriginCsv: (payload: {
@@ -630,6 +624,16 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         return new Set(configuredSeriesIds?.length ? configuredSeriesIds : fallbackSeriesIds);
     }, [activeFile?.fileId, activeFile?.series, visibleSeriesByFileId]);
     const visibleSeriesSignature = useMemo(() => Array.from(visibleSeriesKeySet).sort().join("|"), [visibleSeriesKeySet]);
+    const activeSeriesLegendLabelsSignature = useMemo(() => {
+        const fileId = String(activeFile?.fileId ?? "").trim();
+        if (!fileId)
+            return "";
+        const labels = seriesLegendLabelsByFileId[fileId] ?? {};
+        return Object.keys(labels)
+            .sort()
+            .map((seriesId) => `${seriesId}:${labels[seriesId]}`)
+            .join("|");
+    }, [activeFile?.fileId, seriesLegendLabelsByFileId]);
     const toggleVisibleSeries = React.useCallback((seriesId: string) => {
         const normalizedSeriesId = String(seriesId ?? "").trim();
         const fileId = String(activeFile?.fileId ?? "").trim();
@@ -663,7 +667,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             : "";
         if (customLabel)
             return customLabel;
-        return resolveOriginSeriesExportLabel(series, index);
+        return resolveDeviceAnalysisSeriesLabel(series, index);
     }, [seriesLegendLabelsByFileId]);
     const beginLegendLabelEdit = React.useCallback((fileId: unknown, series: any, index: number) => {
         const normalizedFileId = String(fileId ?? "").trim();
@@ -793,6 +797,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         originHasManualAxisOverride: hasManualAxisOverride,
         originOpenPlotOptions,
         processedData,
+        resolveCurveLabelForSeries: (file, series, index) => resolveDisplayLegendLabel(file?.fileId, series, index),
         resolveYScaleForFile: resolveLinearLogYScaleForFile,
         resolveYUnitForFile,
         showToast,
@@ -1980,7 +1985,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return "iv";
         return plotType;
     }, [area, plotType, ssApplicable]);
-    const plotSeriesCacheKey = useMemo(() => `${analysisCacheKey}::plot:${effectivePlotType}`, [analysisCacheKey, effectivePlotType]);
+    const plotSeriesCacheKey = useMemo(() => `${analysisCacheKey}::plot:${effectivePlotType}::labels:${activeSeriesLegendLabelsSignature}`, [activeSeriesLegendLabelsSignature, analysisCacheKey, effectivePlotType]);
     const currentManualBiasApplicable = transferMetricsApplicable && effectivePlotType === "iv" && ionIoffMethod === "manual" && Boolean(focusedSeriesId);
     const handlePlotTypeChange = React.useCallback((nextPlotType: PlotTypeOption) => {
         startTransition(() => {
@@ -2069,31 +2074,46 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         if (cached) {
             return cached;
         }
-        const base = activeFile.series.map((series: any) => ({
-            ...series,
-            data: pointsBySeriesId.get(series.id) ?? [],
-        }));
+        const base = activeFile.series.map((series: any, index: number) => {
+            const label = resolveDisplayLegendLabel(activeFile.fileId, series, index);
+            return {
+                ...series,
+                name: label,
+                tooltipName: buildTooltipSeriesName(label, series?.id),
+                data: pointsBySeriesId.get(series.id) ?? [],
+            };
+        });
         const computed = {
             iv: base,
             ss: base,
             gm: effectivePlotType === "gm"
-                ? activeFile.series.map((series: any) => ({
-                    ...series,
-                    data: getSeriesGm(series),
-                }))
+                ? activeFile.series.map((series: any, index: number) => {
+                    const label = resolveDisplayLegendLabel(activeFile.fileId, series, index);
+                    return {
+                        ...series,
+                        name: label,
+                        tooltipName: buildTooltipSeriesName(label, series?.id),
+                        data: getSeriesGm(series),
+                    };
+                })
                 : [],
             j: effectivePlotType === "j"
-                ? activeFile.series.map((series: any) => ({
-                    ...series,
-                    data: getSeriesJ(series) ?? [],
-                }))
+                ? activeFile.series.map((series: any, index: number) => {
+                    const label = resolveDisplayLegendLabel(activeFile.fileId, series, index);
+                    return {
+                        ...series,
+                        name: label,
+                        tooltipName: buildTooltipSeriesName(label, series?.id),
+                        data: getSeriesJ(series) ?? [],
+                    };
+                })
                 : [],
         };
         if (cache?.plotSeriesByConfigKey) {
             cache.plotSeriesByConfigKey.set(plotSeriesCacheKey, computed);
         }
         return computed;
-    }, [activeFile, effectivePlotType, getFileCache, getSeriesGm, getSeriesJ, plotSeriesCacheKey, pointsBySeriesId]);
+    }, [activeFile, effectivePlotType, getFileCache, getSeriesGm, getSeriesJ, plotSeriesCacheKey, pointsBySeriesId, resolveDisplayLegendLabel]);
     const focusedAnalysis = useMemo(() => {
         if (!focusedSeriesId)
             return null;
@@ -2463,7 +2483,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 return (<EditableLegendItem key={seriesId || `${label}-${idx}`} checked={checked} color={color} disabled={disabled} isEditing={isEditing} label={label} onBeginEdit={() => beginLegendLabelEdit(activeLegendFileId, series, idx)} onCancelEdit={cancelLegendLabelEdit} onCommitEdit={commitLegendLabelEdit} onDraftChange={setEditingLegendDraft} onToggleVisible={() => {
                         if (!disabled)
                             toggleVisibleSeries(seriesId);
-                    }} draftValue={editingLegendDraft} inputRef={editingLegendInputRef}/>);
+                    }} draftValue={editingLegendDraft} inputRef={isEditing ? editingLegendInputRef : undefined}/>);
             })}
       </ul>);
     }, [activeFile?.fileId, beginLegendLabelEdit, cancelLegendLabelEdit, commitLegendLabelEdit, editingLegendDraft, editingLegendLabel, plotLegendSeries, resolveDisplayLegendLabel, toggleVisibleSeries, visibleSeriesKeySet]);
@@ -2723,17 +2743,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         return Math.max(0, Math.min(20, Math.round(manualDigits)));
     }, [axis?.xTooltipDigits, xTooltipDigitsAuto]);
     const xLabelInterval = useMemo(() => computeLabelInterval(xTicks, 7), [xTicks]);
-    const mainChartRenderKey = useMemo(() => [
-        effectiveActiveFileId ?? "no-file",
-        effectivePlotType,
-        axis?.yScale ?? "linear",
-        focusedSeriesId ?? "no-focus",
-    ].join("::"), [
-        effectiveActiveFileId,
-        effectivePlotType,
-        focusedSeriesId,
-        axis?.yScale,
-    ]);
     const isMetricsDetailsPending = detailAnalysisState.key === detailAnalysisKey && detailAnalysisState.pending;
     const metricsRows = useMemo(() => {
         if (!activeFile?.series?.length)
@@ -2741,16 +2750,17 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         return activeFile.series.map((series: any) => {
             const analysis = detailAnalysisBySeriesId.get(series.id) ??
                 (focusedSeriesId === series.id ? focusedAnalysis : null);
+            const seriesIndex = activeFile.series.findIndex((item: any) => item?.id === series?.id);
             return {
                 id: series.id,
-                name: series.name,
+                name: resolveDisplayLegendLabel(activeFile.fileId, series, seriesIndex >= 0 ? seriesIndex : 0),
                 group: Number(series.groupIndex ?? 0) + 1,
                 yCol: series.yCol,
                 isPending: !analysis && isMetricsDetailsPending,
                 ...analysis?.metrics,
             };
         });
-    }, [activeFile, detailAnalysisBySeriesId, focusedAnalysis, focusedSeriesId, isMetricsDetailsPending]);
+    }, [activeFile, detailAnalysisBySeriesId, focusedAnalysis, focusedSeriesId, isMetricsDetailsPending, resolveDisplayLegendLabel]);
     const persistIonIoffManualTargets = React.useCallback((targets: any) => {
         apiService
             .updateDeviceAnalysisSettings({
@@ -3282,7 +3292,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
 
               <div ref={mainChartContainerRef} className="h-[500px] min-h-[500px] flex-shrink-0">
                 {isMainChartSizeReady ? (<MainPlotChart
-                    key={mainChartRenderKey}
                     plotType={effectivePlotType}
                     activeFile={activeFile}
                     seriesList={renderPlotSeries}

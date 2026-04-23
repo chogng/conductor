@@ -97,6 +97,40 @@ test("buildDeviceAnalysisOriginSelectionExport defaults to all live series when 
   assert.match(payload.csvName, /^file_a__selected_curves\.csv$/);
 });
 
+test("buildDeviceAnalysisOriginSelectionExport prefers caller-provided legend labels across export payloads", () => {
+  const payload = buildDeviceAnalysisOriginSelectionExport(
+    [
+      {
+        fileId: "file-a",
+        fileName: "file_a.csv",
+        xGroups: [[0, 1]],
+        series: [
+          {
+            id: "curve-a",
+            legendValue: "Vg=1",
+            groupIndex: 0,
+            y: [3, 4],
+          },
+        ],
+      },
+    ],
+    undefined,
+    () => 1,
+    () => 1,
+    () => "A",
+    (file, series, index) => {
+      assert.equal(file?.fileId, "file-a");
+      assert.equal(series?.id, "curve-a");
+      assert.equal(index, 0);
+      return "Edited Legend";
+    },
+  );
+
+  assert.ok(payload);
+  assert.deepEqual(payload.curveLabels, ["Edited Legend"]);
+  assert.deepEqual(payload.yColumnLongNames, ["Y"]);
+});
+
 test("buildDeviceAnalysisOriginExportPlan scales exported X/Y data to the active display units", () => {
   const plan = buildDeviceAnalysisOriginExportPlan(
     [
