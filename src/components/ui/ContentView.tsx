@@ -3,6 +3,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type MutableRefObject,
   type ReactNode,
   type Ref,
   type RefObject,
@@ -31,6 +32,15 @@ type ContentViewProps = {
 const POPUP_GAP_PX = 8;
 const VIEWPORT_PADDING_PX = 8;
 
+const assignRef = <T,>(ref: Ref<T> | undefined, value: T) => {
+  if (!ref) return;
+  if (typeof ref === "function") {
+    ref(value);
+    return;
+  }
+  (ref as MutableRefObject<T>).current = value;
+};
+
 const ContentView = ({
   isOpen,
   align = "left",
@@ -48,6 +58,11 @@ const ContentView = ({
   const popupRef = useRef<HTMLDivElement | null>(null);
   const [portalStyle, setPortalStyle] = useState<CSSProperties | null>(null);
   const [side, setSide] = useState<"top" | "bottom">("bottom");
+
+  const setPopupNode = (node: HTMLDivElement | null) => {
+    popupRef.current = node;
+    assignRef(contentRef, node);
+  };
 
   useLayoutEffect(() => {
     if (!isOpen) {
@@ -138,37 +153,28 @@ const ContentView = ({
 
   return createPortal(
     <div
-      ref={popupRef}
+      ref={setPopupNode}
+      id={menuId}
+      role={role}
+      aria-orientation={ariaOrientation}
+      aria-labelledby={triggerId}
+      aria-hidden={isOpen ? undefined : true}
+      data-style="popup"
+      data-state={isOpen ? "open" : "closed"}
+      data-side={side}
+      data-align={align}
+      tabIndex={-1}
       className={isOpen ? "pointer-events-auto" : "pointer-events-none"}
       style={portalStyle ?? { position: "fixed", zIndex }}
     >
       <div
-        ref={contentRef}
-        id={menuId}
-        role={role}
-        aria-orientation={ariaOrientation}
-        aria-labelledby={triggerId}
-        aria-hidden={isOpen ? undefined : true}
-        data-style="popup"
-        data-state={isOpen ? "open" : "closed"}
-        data-side={side}
-        data-align={align}
-        tabIndex={-1}
         className={cx(
           `
             rounded-xl shadow-xl p-1 border border-border-subtle
             bg-bg-surface/80 backdrop-blur-xl
-            transition-all duration-200 ease-out
-            data-[side=top]:origin-bottom
+            transition-opacity duration-150 ease-out
           `,
-          align === "right"
-            ? "origin-top-right data-[side=top]:origin-bottom-right"
-            : align === "center"
-              ? "origin-top data-[side=top]:origin-bottom"
-              : "origin-top-left data-[side=top]:origin-bottom-left",
-          isOpen
-            ? "opacity-100 translate-y-0 scale-100"
-            : "opacity-0 data-[side=bottom]:-translate-y-2 data-[side=top]:translate-y-2 scale-95",
+          isOpen ? "opacity-100" : "opacity-0",
           className,
         )}
       >

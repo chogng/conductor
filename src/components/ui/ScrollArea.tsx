@@ -206,7 +206,7 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(
           thumbOffsetsRafRef.current = null;
         }
       };
-    }, [children, scheduleMetricsUpdate]);
+    }, [scheduleMetricsUpdate]);
 
     useLayoutEffect(() => {
       updateThumbOffsets();
@@ -238,12 +238,19 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(
 
       const contentEl = viewport.firstElementChild;
       if (contentEl) ro.observe(contentEl);
+      const mo = new MutationObserver(() => scheduleMetricsUpdate());
+      mo.observe(viewport, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+      });
 
       scheduleMetricsUpdate();
       window.addEventListener("resize", scheduleMetricsUpdate);
       return () => {
         viewport.removeEventListener("scroll", onScroll);
         ro.disconnect();
+        mo.disconnect();
         window.removeEventListener("resize", scheduleMetricsUpdate);
         if (metricsRafRef.current != null) {
           cancelAnimationFrame(metricsRafRef.current);

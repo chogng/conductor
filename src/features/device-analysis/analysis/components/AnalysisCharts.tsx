@@ -55,6 +55,68 @@ const ANALYSIS_COMPACT_PAGE_FIELD_CLASS =
     "!h-8 !gap-0 rounded-lg border border-border bg-bg-page px-2 py-1";
 const ANALYSIS_COMPACT_SURFACE_FIELD_CLASS =
     "!gap-0 rounded border border-border bg-bg-surface px-2 py-1";
+
+type LegendEditingState = {
+    fileId: string;
+    seriesId: string;
+};
+
+type EditableLegendItemProps = {
+    checked: boolean;
+    color: string;
+    disabled: boolean;
+    isEditing: boolean;
+    label: string;
+    onBeginEdit: () => void;
+    onCancelEdit: () => void;
+    onCommitEdit: () => void;
+    onDraftChange: (nextValue: string) => void;
+    onToggleVisible: () => void;
+    draftValue: string;
+    inputRef: React.RefObject<HTMLInputElement | null>;
+};
+
+const EditableLegendItem = ({
+    checked,
+    color,
+    disabled,
+    isEditing,
+    label,
+    onBeginEdit,
+    onCancelEdit,
+    onCommitEdit,
+    onDraftChange,
+    onToggleVisible,
+    draftValue,
+    inputRef,
+}: EditableLegendItemProps) => (<li>
+    <div className={`group flex items-center gap-2 py-px text-[11px] leading-4 ${disabled ? "opacity-60 cursor-default" : "cursor-pointer"}`}>
+      <span className="inline-block h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: color }}/>
+      <button type="button" aria-pressed={checked} aria-label={label} disabled={disabled} onClick={onToggleVisible} className={`shrink-0 ${disabled ? "cursor-default" : "cursor-pointer"}`}>
+        <span className="clickable-ckb" data-state={checked ? "checked" : "unchecked"}>
+          {checked ? <Check size={10} className="text-white" strokeWidth={4}/> : null}
+        </span>
+      </button>
+      {isEditing ? (<Input ref={inputRef} value={draftValue} onChange={onDraftChange} onBlur={onCommitEdit} onKeyDown={(event) => {
+            if (event.key === "Enter") {
+                event.preventDefault();
+                event.currentTarget.blur();
+                onCommitEdit();
+                return;
+            }
+            if (event.key === "Escape") {
+                event.preventDefault();
+                event.currentTarget.blur();
+                onCancelEdit();
+            }
+        }} size="sm" className="min-w-0 flex-1" fieldClassName="!h-6 !min-h-6 !py-0 px-1.5" inputClassName="h-full text-[11px] leading-4"/>) : (<div className="flex h-6 min-w-0 flex-1 items-center cursor-text" title={`${label}\n双击可编辑`} onDoubleClick={onBeginEdit}>
+          <span className="block truncate text-text-secondary select-text">
+            {label}
+          </span>
+        </div>)}
+    </div>
+  </li>);
+
 const resolveOriginSeriesExportLabel = (series: any, index: number): string => {
     const legendValue = String(series?.legendValue ?? "").trim();
     if (legendValue)
@@ -154,6 +216,27 @@ const normalizeVisibleSeriesByFileId = (value: unknown): Record<string, string[]
             .map((seriesId) => String(seriesId ?? "").trim())
             .filter(Boolean);
         next[normalizedFileId] = Array.from(new Set(normalizedSeriesIds));
+    }
+    return next;
+};
+const normalizeSeriesLegendLabelsByFileId = (value: unknown): Record<string, Record<string, string>> => {
+    const raw = value && typeof value === "object" ? value as Record<string, unknown> : {};
+    const next: Record<string, Record<string, string>> = {};
+    for (const [fileId, labels] of Object.entries(raw)) {
+        const normalizedFileId = String(fileId ?? "").trim();
+        if (!normalizedFileId || !labels || typeof labels !== "object")
+            continue;
+        const nextLabels: Record<string, string> = {};
+        for (const [seriesId, label] of Object.entries(labels as Record<string, unknown>)) {
+            const normalizedSeriesId = String(seriesId ?? "").trim();
+            const normalizedLabel = String(label ?? "").trim();
+            if (!normalizedSeriesId || !normalizedLabel)
+                continue;
+            nextLabels[normalizedSeriesId] = normalizedLabel;
+        }
+        if (Object.keys(nextLabels).length) {
+            next[normalizedFileId] = nextLabels;
+        }
     }
     return next;
 };
@@ -343,8 +426,12 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const [resultsTab, setResultsTab] = useState<"metrics" | "export">("metrics");
     const [overviewVisibleFileIds, setOverviewVisibleFileIds] = useState<string[]>([]);
     const [visibleSeriesByFileId, setVisibleSeriesByFileId] = useState<Record<string, string[]>>({});
+    const [seriesLegendLabelsByFileId, setSeriesLegendLabelsByFileId] = useState<Record<string, Record<string, string>>>({});
+    const [editingLegendLabel, setEditingLegendLabel] = useState<LegendEditingState | null>(null);
+    const [editingLegendDraft, setEditingLegendDraft] = useState("");
     const originChartXRangeRef = useRef<{ min: number; max: number; step?: number | null; } | null>(null);
     const originChartYRangeRef = useRef<{ mode: "linear" | "log"; min: number; max: number; step?: number | null; } | null>(null);
+    const editingLegendInputRef = useRef<HTMLInputElement | null>(null);
     const [axis, setAxis] = useState({
         xMin: "",
         xMax: "",
@@ -492,6 +579,45 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return changed ? next : prev;
         });
     }, [processedData]);
+    useEffect(() => {
+        setSeriesLegendLabelsByFileId((prev) => {
+            const normalizedPrev = normalizeSeriesLegendLabelsByFileId(prev);
+            const next: Record<string, Record<string, string>> = {};
+            let changed = false;
+            for (const file of Array.isArray(processedData) ? processedData : []) {
+                const fileId = String(file?.fileId ?? "").trim();
+                if (!fileId)
+                    continue;
+                const validSeriesIds = new Set<string>((Array.isArray(file?.series) ? file.series : [])
+                    .map((series: any) => String(series?.id ?? "").trim())
+                    .filter(Boolean));
+                const prevLabels = normalizedPrev[fileId] ?? {};
+                const nextLabels = Object.fromEntries(Object.entries(prevLabels).filter(([seriesId]) => validSeriesIds.has(seriesId)));
+                if (Object.keys(nextLabels).length) {
+                    next[fileId] = nextLabels;
+                }
+                if (!changed) {
+                    const prevKeys = Object.keys(prevLabels);
+                    const nextKeys = Object.keys(nextLabels);
+                    changed = prevKeys.length !== nextKeys.length ||
+                        nextKeys.some((seriesId) => prevLabels[seriesId] !== nextLabels[seriesId]);
+                }
+            }
+            if (!changed) {
+                const prevFileKeys = Object.keys(normalizedPrev);
+                const nextFileKeys = Object.keys(next);
+                changed = prevFileKeys.length !== nextFileKeys.length ||
+                    nextFileKeys.some((fileId) => !(fileId in normalizedPrev));
+            }
+            return changed ? next : prev;
+        });
+    }, [processedData]);
+    useEffect(() => {
+        if (!editingLegendLabel)
+            return;
+        editingLegendInputRef.current?.focus();
+        editingLegendInputRef.current?.select();
+    }, [editingLegendLabel]);
     const resolveYUnitForFile = React.useCallback((fileLike: any): "A" | "mA" | "uA" | "nA" | "pA" => {
         const fileKey = String(fileLike?.fileId ?? "").trim();
         const fallbackUnit = normalizeDeviceAnalysisYUnit(fileLike?.yUnit, "A");
@@ -535,6 +661,59 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             };
         });
     }, [activeFile?.fileId, processedData]);
+    const resolveDisplayLegendLabel = React.useCallback((fileId: unknown, series: any, index: number): string => {
+        const normalizedFileId = String(fileId ?? "").trim();
+        const normalizedSeriesId = String(series?.id ?? "").trim();
+        const customLabel = normalizedFileId && normalizedSeriesId
+            ? String(seriesLegendLabelsByFileId?.[normalizedFileId]?.[normalizedSeriesId] ?? "").trim()
+            : "";
+        if (customLabel)
+            return customLabel;
+        return resolveOriginSeriesExportLabel(series, index);
+    }, [seriesLegendLabelsByFileId]);
+    const beginLegendLabelEdit = React.useCallback((fileId: unknown, series: any, index: number) => {
+        const normalizedFileId = String(fileId ?? "").trim();
+        const normalizedSeriesId = String(series?.id ?? "").trim();
+        if (!normalizedFileId || !normalizedSeriesId)
+            return;
+        setEditingLegendLabel({ fileId: normalizedFileId, seriesId: normalizedSeriesId });
+        setEditingLegendDraft(resolveDisplayLegendLabel(normalizedFileId, series, index));
+    }, [resolveDisplayLegendLabel]);
+    const cancelLegendLabelEdit = React.useCallback(() => {
+        setEditingLegendLabel(null);
+        setEditingLegendDraft("");
+    }, []);
+    const commitLegendLabelEdit = React.useCallback(() => {
+        const currentEdit = editingLegendLabel;
+        if (!currentEdit)
+            return;
+        const normalizedFileId = String(currentEdit.fileId ?? "").trim();
+        const normalizedSeriesId = String(currentEdit.seriesId ?? "").trim();
+        const nextLabel = String(editingLegendDraft ?? "").trim();
+        setSeriesLegendLabelsByFileId((prev) => {
+            const normalizedPrev = normalizeSeriesLegendLabelsByFileId(prev);
+            const currentFileLabels = { ...(normalizedPrev[normalizedFileId] ?? {}) };
+            if (nextLabel) {
+                currentFileLabels[normalizedSeriesId] = nextLabel;
+            }
+            else {
+                delete currentFileLabels[normalizedSeriesId];
+            }
+            if (nextLabel === String(normalizedPrev?.[normalizedFileId]?.[normalizedSeriesId] ?? "").trim()) {
+                return prev;
+            }
+            if (Object.keys(currentFileLabels).length) {
+                return {
+                    ...normalizedPrev,
+                    [normalizedFileId]: currentFileLabels,
+                };
+            }
+            const { [normalizedFileId]: _removedFile, ...rest } = normalizedPrev;
+            return rest;
+        });
+        setEditingLegendLabel(null);
+        setEditingLegendDraft("");
+    }, [editingLegendDraft, editingLegendLabel]);
     const resolveLinearLogYScaleForFile = React.useCallback((fileLike: any): "linear" | "log" => {
         const fileKey = String(fileLike?.fileId ?? "").trim();
         if (!fileKey)
@@ -701,7 +880,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     return null;
                 return {
                     key,
-                    label: resolveOriginSeriesExportLabel(series, index),
+                    label: resolveDisplayLegendLabel(fileId, series, index),
                     selected: resolvedCurveExportMode === "all"
                         ? true
                         : selectedSeriesKeySet.has(key),
@@ -737,6 +916,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         getSelectedOriginSeriesKeySetForFile,
         isExportListCanvasSelectionMode,
         processedData,
+        resolveDisplayLegendLabel,
         resolvedCurveExportMode,
         resolvedOriginExportMode,
         scopedOriginCanvasKeySet,
@@ -2275,32 +2455,24 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const renderOriginSelectionLegend = React.useCallback((legendProps: any) => {
         if (!plotLegendSeries.length)
             return null;
-        return (<ul className="m-0 p-0 list-none">
+        const activeLegendFileId = String(activeFile?.fileId ?? "").trim();
+        return (<ul className="m-0 flex list-none flex-col gap-1.5 p-0">
         {plotLegendSeries.map((series: any, idx: number) => {
                 const seriesId = String(series?.id ?? "");
                 const checked = seriesId ? visibleSeriesKeySet.has(seriesId) : false;
-                const label = resolveOriginSeriesExportLabel(series, idx);
+                const label = resolveDisplayLegendLabel(activeLegendFileId, series, idx);
                 const color = String(series?.color || COLORS[idx % COLORS.length] || "#8884d8");
                 const disabled = !seriesId;
-                return (<li key={seriesId || `${label}-${idx}`} className="mb-1 last:mb-0">
-              <div className={`group flex items-center gap-2 text-[11px] leading-4 ${disabled ? "opacity-60 cursor-default" : "cursor-pointer"}`}>
-                <span className="inline-block h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: color }}/>
-                <button type="button" aria-pressed={checked} aria-label={label} disabled={disabled} onClick={() => {
+                const isEditing = Boolean(editingLegendLabel &&
+                    editingLegendLabel.fileId === activeLegendFileId &&
+                    editingLegendLabel.seriesId === seriesId);
+                return (<EditableLegendItem key={seriesId || `${label}-${idx}`} checked={checked} color={color} disabled={disabled} isEditing={isEditing} label={label} onBeginEdit={() => beginLegendLabelEdit(activeLegendFileId, series, idx)} onCancelEdit={cancelLegendLabelEdit} onCommitEdit={commitLegendLabelEdit} onDraftChange={setEditingLegendDraft} onToggleVisible={() => {
                         if (!disabled)
                             toggleVisibleSeries(seriesId);
-                    }} className={`shrink-0 ${disabled ? "cursor-default" : "cursor-pointer"}`}>
-                  <span className="clickable-ckb" data-state={checked ? "checked" : "unchecked"}>
-                    {checked ? <Check size={10} className="text-white" strokeWidth={4}/> : null}
-                  </span>
-                </button>
-                <span className="truncate max-w-[130px] text-text-secondary" title={label}>
-                  {label}
-                </span>
-              </div>
-            </li>);
+                    }} draftValue={editingLegendDraft} inputRef={editingLegendInputRef}/>);
             })}
       </ul>);
-    }, [plotLegendSeries, toggleVisibleSeries, visibleSeriesKeySet]);
+    }, [activeFile?.fileId, beginLegendLabelEdit, cancelLegendLabelEdit, commitLegendLabelEdit, editingLegendDraft, editingLegendLabel, plotLegendSeries, resolveDisplayLegendLabel, toggleVisibleSeries, visibleSeriesKeySet]);
     const curveProbeX = useMemo(() => {
         const raw = Number(curveProbeXInput);
         if (!Number.isFinite(raw))
