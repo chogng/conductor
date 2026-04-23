@@ -11,14 +11,6 @@ type AnalysisDiagnosticsCardProps = {
   diagnosticsHeading: string;
   diagnosticsDescription: string;
   effectivePlotType: string;
-  showSsDiagnosticsPanel: boolean;
-  showSsDiagnosticsControls: boolean;
-  ssMethod: string;
-  ssShowFitLine: boolean;
-  ssDiagnosticsEnabled: boolean;
-  ssIdWindow: any;
-  setSsIdWindow: (value: any) => void;
-  ssSummary: any;
   plotYUnitLabel: string;
   showIvDiagnosticsPanel: boolean;
   showCurveProbePanel: boolean;
@@ -48,8 +40,6 @@ type AnalysisDiagnosticsCardProps = {
   effectiveYScale: string;
   yScaleWarning: string | null;
   xTooltipDigitsAuto: number;
-  onResetSs: () => void;
-  onPersistSsIdWindow: () => void;
   onPersistIonIoffTargets: (role: "ion" | "ioff") => void;
   onAxisYScaleChange: (next: any) => void;
   analysisCompactInputWrapperClass: string;
@@ -64,14 +54,6 @@ export default function AnalysisDiagnosticsCard({
   diagnosticsHeading,
   diagnosticsDescription,
   effectivePlotType,
-  showSsDiagnosticsPanel,
-  showSsDiagnosticsControls,
-  ssMethod,
-  ssShowFitLine,
-  ssDiagnosticsEnabled,
-  ssIdWindow,
-  setSsIdWindow,
-  ssSummary,
   plotYUnitLabel,
   showIvDiagnosticsPanel,
   showCurveProbePanel,
@@ -101,8 +83,6 @@ export default function AnalysisDiagnosticsCard({
   effectiveYScale,
   yScaleWarning,
   xTooltipDigitsAuto,
-  onResetSs,
-  onPersistSsIdWindow,
   onPersistIonIoffTargets,
   onAxisYScaleChange,
   analysisCompactInputWrapperClass,
@@ -125,80 +105,16 @@ export default function AnalysisDiagnosticsCard({
 
   return (
     <Card variant="panel" className="flex min-w-0 flex-col">
-      {!showCurveProbePanel || showSsDiagnosticsPanel || showAreaDiagnosticsControls || showAxisControls ? (
+      {!showCurveProbePanel || showAreaDiagnosticsControls || showAxisControls ? (
         <div className="mb-3 flex items-center justify-between gap-2">
           <div>
             <div className="text-xs font-semibold text-text-primary">{diagnosticsHeading}</div>
             <div className="text-[11px] text-text-secondary">{diagnosticsDescription}</div>
           </div>
-          {effectivePlotType === "ss" ? (
-            <Button
-              variant="text"
-              size="sm"
-              onClick={onResetSs}
-              className="h-8 px-2 text-xs border border-border/50 hover:bg-bg-subtle"
-              title="Reset SS method to Auto (strict)"
-            >
-              Reset SS
-            </Button>
-          ) : null}
         </div>
       ) : null}
 
       <div className="flex flex-col gap-3">
-        {showSsDiagnosticsPanel ? (
-          <div className="rounded-lg border border-border/60 bg-bg-surface px-3 py-2">
-            <div className="mb-2 text-[11px] font-semibold text-text-primary">SS Controls</div>
-            <div className="flex flex-col gap-2 text-xs text-text-secondary">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="whitespace-nowrap">Method:</span>
-                <span className="rounded-full border border-border/70 bg-bg-page px-2 py-0.5 text-text-primary">{ssMethod}</span>
-                <span className="whitespace-nowrap">Fit line:</span>
-                <span className="rounded-full border border-border/70 bg-bg-page px-2 py-0.5 text-text-primary">{ssShowFitLine ? "on" : "off"}</span>
-                <span className="whitespace-nowrap">Diagnostics:</span>
-                <span className="rounded-full border border-border/70 bg-bg-page px-2 py-0.5 text-text-primary">{ssDiagnosticsEnabled ? "on" : "off"}</span>
-              </div>
-              {showSsDiagnosticsControls ? (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="whitespace-nowrap">|Id| window:</span>
-                  <Input
-                    id="device-analysis-ss-id-low"
-                    value={ssIdWindow?.low ?? ""}
-                    onChange={(nextValue) => setSsIdWindow((prev: any) => ({ ...(prev || {}), low: nextValue }))}
-                    onBlur={onPersistSsIdWindow}
-                    placeholder="low (A)"
-                    className={analysisCompactInputWrapperClass}
-                    fieldClassName={`${analysisCompactPageFieldClass} !w-[90px]`}
-                    inputClassName={analysisCompactInputClass}
-                  />
-                  <span>~</span>
-                  <Input
-                    id="device-analysis-ss-id-high"
-                    value={ssIdWindow?.high ?? ""}
-                    onChange={(nextValue) => setSsIdWindow((prev: any) => ({ ...(prev || {}), high: nextValue }))}
-                    onBlur={onPersistSsIdWindow}
-                    placeholder="high (A)"
-                    className={analysisCompactInputWrapperClass}
-                    fieldClassName={`${analysisCompactPageFieldClass} !w-[90px]`}
-                    inputClassName={analysisCompactInputClass}
-                  />
-                </div>
-              ) : (
-                <div className="rounded-lg border border-dashed border-border/70 bg-bg-page/60 px-3 py-2">
-                  {ssMethod === "manual"
-                    ? "Manual SS uses the overlay on the chart. Drag the highlighted window to update the fit range."
-                    : "This SS method does not require additional numeric inputs in the diagnostics panel."}
-                </div>
-              )}
-              {ssSummary ? (
-                <div className="rounded-lg border border-border/60 bg-bg-page/60 px-3 py-2 text-text-primary">
-                  Current SS summary: {formatNumber(ssSummary.ss, { digits: 3 })} {plotYUnitLabel === "mA" ? "mV/dec" : "mV/dec"}
-                </div>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
-
         {showCurveProbePanel ? (
           <div className="rounded-lg border border-border/60 bg-bg-surface px-3 py-2">
             <div className="flex flex-col gap-2 text-xs text-text-secondary">

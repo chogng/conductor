@@ -40,6 +40,7 @@ type PlotSeries = {
   id: string;
   name: string;
   tooltipName?: string;
+  color?: string;
   data: PlotPoint[];
 };
 

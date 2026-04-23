@@ -1,4 +1,4 @@
-import { splitBidirectionalCurvePoints } from "./analysisMath.ts";
+import { splitBidirectionalCurvePoints } from "./analysisMath";
 
 type PointLike = {
   x?: unknown;

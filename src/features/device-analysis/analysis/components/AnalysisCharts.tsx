@@ -1,6 +1,6 @@
 ﻿import React, { startTransition, useEffect, useMemo, useRef, useState, type CSSProperties, } from "react";
 import { AlertTriangle, Check, X } from "lucide-react";
-import { computeCentralDerivative, computeSubthresholdSwing, computeSubthresholdSwingFitAuto, computeSubthresholdSwingFitInIdWindow, computeSubthresholdSwingFitInRange, classifySsFit, computeLegendDerivativeSeries, formatNumber, interpolateCurveAtX, resolveAutoSsSelection, splitBidirectionalCurvePoints, } from "../lib/analysisMath";
+import { computeCentralDerivative, computeSubthresholdSwing, computeSubthresholdSwingFitAuto, computeSubthresholdSwingFitInIdWindow, computeSubthresholdSwingFitInRange, classifySsFit, formatNumber, interpolateCurveAtX, resolveAutoSsSelection, splitBidirectionalCurvePoints, } from "../lib/analysisMath";
 import { apiService } from "../services/apiService";
 import DropdownField from "../../../../components/ui/DropdownField";
 import Button from "../../../../components/ui/Button";
@@ -19,7 +19,6 @@ import {
 } from "../lib/originSelectionExport";
 import type { ToastState, ToastType } from "../../shared/lib/sharedTypes";
 import { useAnalysisFileCache } from "../useAnalysisFileCache";
-import { useContainerSizeReady } from "../useContainerSizeReady";
 import {
   useOriginCanvasExport,
   type DeviceAnalysisOriginFilteredCanvasKind,
@@ -58,6 +57,20 @@ const ANALYSIS_COMPACT_PAGE_FIELD_CLASS =
 const ANALYSIS_COMPACT_SURFACE_FIELD_CLASS =
     "!gap-0 rounded border border-border bg-bg-surface px-2 py-1";
 const TOOLTIP_SERIES_NAME_SEPARATOR = "\u0000";
+
+type ChartHighlightOverlay = {
+    key: string;
+    fill: string;
+    fillOpacity: number;
+    hideEndLine?: boolean;
+    hideStartLine?: boolean;
+    stroke: string;
+    strokeDasharray?: string;
+    strokeOpacity: number;
+    strokeWidth?: number;
+    x1: number;
+    x2: number;
+};
 
 type LegendEditingState = {
     fileId: string;
@@ -342,8 +355,9 @@ type ProgressiveAnalysisState = {
     totalCount: number;
     pending: boolean;
 };
-const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, ssApplicable, areaAvailable, onChange, }: {
+const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, derivativeLabel, ssApplicable, areaAvailable, onChange, }: {
     activePlotType: PlotTypeOption;
+    derivativeLabel: string;
     ssApplicable: boolean;
     areaAvailable: boolean;
     onChange: (nextPlotType: PlotTypeOption) => void;
@@ -373,7 +387,7 @@ const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, ssAp
             },
             {
                 value: "gm",
-                label: `g${"\u2098"}`,
+                label: derivativeLabel,
                 id: "device-analysis-plot-gm-btn",
             },
             {
@@ -417,7 +431,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const [chartYScaleByFileId, setChartYScaleByFileId] = useState<Record<string, "linear" | "log" | "logAbs">>({});
     const userChangedYUnitRef = useRef(false);
     const userChangedYScaleRef = useRef(false);
-    const [gmMode, setGmMode] = useState("x"); // 'x' | 'legend'
     const [areaInput, setAreaInput] = useState("");
     const [showAxisControls, setShowAxisControls] = useState(false);
     const [originExportMode, setOriginExportMode] = useState<DeviceAnalysisOriginExportMode>("merged");
@@ -991,6 +1004,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const outputMetricsApplicable = useMemo(() => isOutputLikeDeviceAnalysisFile(activeFile), [activeFile]);
     const calculatedParametersMode = useMemo(() => transferMetricsApplicable ? "transfer" : outputMetricsApplicable ? "output" : "generic", [outputMetricsApplicable, transferMetricsApplicable]);
     const ssHeuristicApplicable = transferMetricsApplicable;
+    const gmMode = "x";
     const gmUi = useMemo(() => {
         const xToken = normalizeVarToken(activeFile?.xAxisRole ?? activeFile?.curveType);
         const legendToken = normalizeVarToken(activeFile?.legend?.varToken);
@@ -1002,52 +1016,34 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             : "";
         const xDisplay = xSymbol || xLabelRaw || "X";
         const legendDisplay = legendSymbol || legendLabelRaw || "Legend";
-        const derivToken = gmMode === "legend" ? legendToken : xToken;
-        const fixedToken = gmMode === "legend" ? xToken : legendToken;
+        const derivToken = xToken;
+        const fixedToken = legendToken;
         const kind = derivToken === "vg" ? "gm" : derivToken === "vd" ? "gds" : "derivative";
         const kindTitle = kind === "gm"
-            ? "Transconductance"
+            ? t("da_chart_derivative_label_gm")
             : kind === "gds"
-                ? "Output Conductance"
-                : "Derivative";
-        const kindSymbol = kind === "gm" ? "g_m" : kind === "gds" ? "gds" : null;
+                ? t("da_chart_derivative_label_gds")
+                : t("da_chart_derivative_label_generic");
+        const kindSymbol = kind === "gm" ? "gm" : kind === "gds" ? "gds" : null;
         const derivSymbol = varTokenToSymbol(derivToken);
         const fixedSymbol = varTokenToSymbol(fixedToken);
         const derivShortLabel = derivSymbol
             ? `dI/d${derivSymbol}`
-            : gmMode === "legend"
-                ? `dI/d${legendDisplay}`
-                : `dI/d${xDisplay}`;
+            : `dI/d${xDisplay}`;
         const formula = (() => {
             if (derivSymbol && fixedSymbol) {
                 const base = `\u2202I/\u2202${derivSymbol} |${fixedSymbol}`;
                 return kindSymbol ? `${kindSymbol} = ${base}` : base;
             }
             if (derivSymbol) {
-                const fixedFallback = gmMode === "legend" ? xDisplay : legendDisplay;
+                const fixedFallback = legendDisplay;
                 const base = `\u2202I/\u2202${derivSymbol} |${fixedFallback}`;
                 return kindSymbol ? `${kindSymbol} = ${base}` : base;
             }
-            return gmMode === "legend"
-                ? `dI/d${legendDisplay} @ fixed ${xDisplay}`
-                : `dI/d${xDisplay} (per curve)`;
+            return `dI/d${xDisplay} (per curve)`;
         })();
         const plotLabel = `${kindTitle} (${formula})`;
-        const denomUnit = derivSymbol ? "V" : gmMode === "legend" ? "Legend" : "X";
-        const modeOptions = [
-            {
-                value: "x",
-                label: xSymbol
-                    ? `dI/d${xSymbol} (per curve)`
-                    : `dI/d${xDisplay} (per curve)`,
-            },
-            {
-                value: "legend",
-                label: legendSymbol
-                    ? `dI/d${legendSymbol} @ fixed ${xSymbol ?? xDisplay}`
-                    : `dI/d${legendDisplay} @ fixed ${xDisplay}`,
-            },
-        ];
+        const denomUnit = derivSymbol ? "V" : "X";
         const metricSymbol = kindSymbol ?? derivShortLabel;
         const summaryLabel = kindSymbol
             ? `${kindSymbol} (${derivShortLabel})`
@@ -1059,14 +1055,13 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             derivShortLabel,
             plotLabel,
             denomUnit,
-            modeOptions,
             metricSymbol,
             summaryLabel,
             metricHeader: `max|${metricSymbol}|`,
             xDisplay,
             xSymbol,
         };
-    }, [activeFile, gmMode]);
+    }, [activeFile, t]);
     const pointsBySeriesId = useMemo(() => {
         if (!activeFile?.fileId || !activeFile?.series?.length)
             return new Map();
@@ -1083,33 +1078,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         return map;
     }, [activeFile, getFileCache]);
     const gmBySeriesId = useMemo(() => new Map(), []);
-    const gmLegendStatus = useMemo(() => {
-        if (gmMode !== "legend")
-            return { ok: true, message: "" };
-        const legendMode = activeFile?.legend?.mode ?? null;
-        if (legendMode !== "yCol" && legendMode !== "group") {
-            return {
-                ok: false,
-                message: "Legend derivative needs numeric legend labels (configure Y Data Start/Count/Step).",
-            };
-        }
-        const counts = new Map();
-        for (const series of activeFile?.series ?? []) {
-            const param = series?.legendValue;
-            if (typeof param !== "number" || !Number.isFinite(param))
-                continue;
-            const bucketKey = legendMode === "yCol" ? `g:${series.groupIndex}` : `y:${series.yCol}`;
-            counts.set(bucketKey, (counts.get(bucketKey) ?? 0) + 1);
-        }
-        const maxCurves = Math.max(0, ...Array.from(counts.values()));
-        if (maxCurves < 2) {
-            return {
-                ok: false,
-                message: "Legend derivative needs at least 2 curves with numeric legend values.",
-            };
-        }
-        return { ok: true, message: "" };
-    }, [activeFile, gmMode]);
     const manualBySeriesForActiveFile = useMemo(() => activeFile?.fileId ? ssManualRanges?.[activeFile.fileId] ?? {} : {}, [activeFile?.fileId, ssManualRanges]);
     const manualRangeSignature = useMemo(() => buildSeriesRangeSignature(manualBySeriesForActiveFile), [manualBySeriesForActiveFile]);
     const analysisCacheKey = useMemo(() => {
@@ -1137,7 +1105,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         return parts.join("::");
     }, [
         area,
-        gmMode,
         ionIoffManualTargets?.ioffX,
         ionIoffManualTargets?.ionX,
         ionIoffMethod,
@@ -1149,7 +1116,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     ]);
     const activeFileCache = useMemo(() => activeFile?.fileId ? getFileCache(activeFile.fileId, activeFile) : null, [activeFile, getFileCache]);
     const detailAnalysisKey = useMemo(() => `${effectiveActiveFileId ?? "no-file"}::${analysisCacheKey}`, [analysisCacheKey, effectiveActiveFileId]);
-    const gmModeKey = gmMode === "legend" ? "legend" : "x";
+    const gmModeKey = "x";
     const idLowRaw = Number(ssIdWindow?.low);
     const idHighRaw = Number(ssIdWindow?.high);
     const idWindowOk = Number.isFinite(idLowRaw) &&
@@ -1180,52 +1147,12 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         if (!series?.id)
             return [];
         const points = pointsBySeriesId.get(series.id) ?? [];
-        if (gmMode === "x") {
-            const map = activeFileCache?.gmByMode?.x ?? new Map();
-            if (!map.has(series.id)) {
-                map.set(series.id, computeCentralDerivative(points));
-            }
-            return map.get(series.id) ?? [];
+        const map = activeFileCache?.gmByMode?.x ?? new Map();
+        if (!map.has(series.id)) {
+            map.set(series.id, computeCentralDerivative(points));
         }
-        const map = activeFileCache?.gmByMode?.legend ?? new Map();
-        if (activeFileCache?.gmLegendComputed) {
-            return map.get(series.id) ?? [];
-        }
-        const legendMode = activeFile?.legend?.mode ?? null;
-        const derivedMap = new Map();
-        if (legendMode === "yCol" || legendMode === "group") {
-            const buckets = new Map();
-            for (const currentSeries of activeFile?.series ?? []) {
-                const param = currentSeries?.legendValue;
-                if (typeof param !== "number" || !Number.isFinite(param))
-                    continue;
-                const xArr = activeFile?.xGroups?.[currentSeries.groupIndex];
-                const yArr = currentSeries?.y;
-                if (!xArr || !yArr)
-                    continue;
-                const bucketKey = legendMode === "yCol"
-                    ? `g:${currentSeries.groupIndex}`
-                    : `y:${currentSeries.yCol}`;
-                const list = buckets.get(bucketKey) ?? [];
-                list.push({ id: currentSeries.id, x: xArr, y: yArr, param });
-                buckets.set(bucketKey, list);
-            }
-            for (const list of buckets.values()) {
-                const derived = computeLegendDerivativeSeries(list);
-                for (const [id, data] of derived.entries()) {
-                    derivedMap.set(id, data);
-                }
-            }
-        }
-        if (activeFileCache) {
-            activeFileCache.gmLegendComputed = true;
-            for (const [id, data] of derivedMap.entries()) {
-                map.set(id, data);
-            }
-            return map.get(series.id) ?? [];
-        }
-        return derivedMap.get(series.id) ?? [];
-    }, [activeFile, activeFileCache, gmMode, pointsBySeriesId]);
+        return map.get(series.id) ?? [];
+    }, [activeFileCache, pointsBySeriesId]);
     const getSeriesSsDiagnostics = React.useCallback((series: any) => {
         if (!series?.id)
             return [];
@@ -2259,27 +2186,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         if (!transferMetricsApplicable)
             return [];
         const metrics = focusedAnalysis?.metrics ?? null;
-        const candidateWindows = Array.isArray(metrics?.currentCandidateWindows)
-            ? metrics.currentCandidateWindows
-            : [];
-        const overlays = [];
-        for (const window of candidateWindows) {
-            const x1 = Number(window?.x1);
-            const x2 = Number(window?.x2);
-            if (!Number.isFinite(x1) || !Number.isFinite(x2))
-                continue;
-            overlays.push({
-                key: `candidate-${window.key}`,
-                x1,
-                x2,
-                fill: "#94a3b8",
-                fillOpacity: 0.05,
-                stroke: "#94a3b8",
-                strokeOpacity: 0.28,
-                strokeDasharray: "4 4",
-                strokeWidth: 1.2,
-            });
-        }
+        const overlays: ChartHighlightOverlay[] = [];
         const pushSelected = (window: any, role: "ion" | "ioff") => {
             const x1 = Number(window?.x1);
             const x2 = Number(window?.x2);
@@ -2656,10 +2563,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     }, [curveProbeMode, curveProbeRows, curveProbeX, effectivePlotType, gmDiagnosticsEnabled, visibleGmDiagnosticsSeries]);
     const activeCurveProbeHeading = useMemo(() => {
         if (effectivePlotType === "gm" && gmDiagnosticsEnabled) {
-            return t("da_chart_gm_second_diagnostics");
+            return t("da_chart_gm_second_diagnostics", { label: gmUi.kindTitle });
         }
         return "Curve Probe";
-    }, [effectivePlotType, gmDiagnosticsEnabled, t]);
+    }, [effectivePlotType, gmDiagnosticsEnabled, gmUi.kindTitle, t]);
     const activeCurveProbeYUnitLabel = useMemo(() => {
         if (effectivePlotType === "gm" && gmDiagnosticsEnabled) {
             return gmSecondDerivativeUnitLabel;
@@ -2671,8 +2578,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         : effectivePlotType === "gm"
             ? visibleGmDiagnosticsSeries.length > 0
             : false;
-    const isMainChartSizeReady = useContainerSizeReady(mainChartContainerRef, Boolean(activeFile?.series?.length));
-    const isDiagnosticsChartSizeReady = useContainerSizeReady(diagnosticsChartContainerRef, diagnosticsChartVisible);
     const ssDiagnosticsMinMax = useMemo(() => {
         if (!focusedSsDiagnostics)
             return { minX: null, maxX: null, minY: null, maxY: null };
@@ -3052,29 +2957,12 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const showSsDiagnosticsPanel = effectivePlotType === "ss";
     const showGmDiagnosticsPanel = effectivePlotType === "gm";
     const showJDiagnosticsPanel = effectivePlotType === "j";
-    const showSsDiagnosticsControls = showSsDiagnosticsPanel && ssMethod === "idWindow";
     const showCurrentDiagnosticsControls = showIvDiagnosticsPanel && transferMetricsApplicable && ionIoffMethod === "manual";
     const showAreaDiagnosticsControls = showJDiagnosticsPanel;
     const showCurveProbePanel = effectivePlotType === "gm" && gmDiagnosticsEnabled
         ? visibleGmDiagnosticsSeries.length > 0
         : hasVisiblePlotSeries;
     const showDiagnosticsPanel = showCurveProbePanel || showSsDiagnosticsPanel || showGmDiagnosticsPanel || showJDiagnosticsPanel || showAxisControls;
-    const focusedSeriesLabel = useMemo(() => {
-        if (!focusedSeriesId) {
-            return null;
-        }
-        const focusedSeries = activeFile?.series?.find((series: any) => series?.id === focusedSeriesId);
-        return focusedSeries?.name ?? null;
-    }, [activeFile?.series, focusedSeriesId]);
-    const areaDiagnosticsSummary = useMemo(() => {
-        const metrics = focusedAnalysis?.metrics ?? null;
-        const areaValue = area && Number.isFinite(area) && area > 0 ? area : null;
-        return {
-            areaValue,
-            jon: Number.isFinite(metrics?.jon) ? metrics.jon : null,
-            joff: Number.isFinite(metrics?.joff) ? metrics.joff : null,
-        };
-    }, [area, focusedAnalysis?.metrics]);
     const diagnosticsHeading = showSsDiagnosticsPanel
         ? "SS Diagnostics"
         : showGmDiagnosticsPanel
@@ -3093,21 +2981,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             : showJDiagnosticsPanel
                 ? "Current-density controls driven by Area and axis configuration."
                 : "Query any x between measured points and get y by linear interpolation.";
-    const handlePersistSsIdWindow = React.useCallback(() => {
-        const low = Number(ssIdWindow?.low);
-        const high = Number(ssIdWindow?.high);
-        if (Number.isFinite(low) &&
-            Number.isFinite(high) &&
-            low > 0 &&
-            high > 0) {
-            apiService
-                .updateDeviceAnalysisSettings({
-                ssIdLow: low,
-                ssIdHigh: high,
-            })
-                .catch(() => { });
-        }
-    }, [ssIdWindow?.high, ssIdWindow?.low]);
     const handlePersistIonIoffTarget = React.useCallback((role: "ion" | "ioff") => {
         apiService
             .updateDeviceAnalysisSettings(role === "ion"
@@ -3172,12 +3045,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             }));
         }
     }, [applyLinearLogYScaleForFile, effectiveActiveFileId]);
-    const handleResetSsDiagnostics = React.useCallback(() => {
-        setSsMethod("auto");
-        apiService
-            .updateDeviceAnalysisSettings({ ssMethodDefault: "auto" })
-            .catch(() => { });
-    }, [setSsMethod]);
     const metricsProgressText = useMemo(() => isMetricsDetailsPending
         ? `${calculatedParametersSummary} | Computing details ${detailAnalysisState.completedCount}/${detailAnalysisState.totalCount}`
         : calculatedParametersSummary, [calculatedParametersSummary, detailAnalysisState.completedCount, detailAnalysisState.totalCount, isMetricsDetailsPending]);
@@ -3200,7 +3067,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
 
           <div className="mb-4 flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-4 flex-wrap">
-              <PlotTypeToggle activePlotType={effectivePlotType} ssApplicable={ssApplicable} areaAvailable={Boolean(area)} onChange={handlePlotTypeChange}/>
+              <PlotTypeToggle activePlotType={effectivePlotType} derivativeLabel={gmUi.kind === "gds" ? "gds" : "gm"} ssApplicable={ssApplicable} areaAvailable={Boolean(area)} onChange={handlePlotTypeChange}/>
 
 
 
@@ -3269,9 +3136,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
 
                 {effectivePlotType === "gm" ? (<div className="flex items-center gap-1">
                     <span className="text-xs text-text-secondary whitespace-nowrap">
-                      g_m
+                      {gmUi.kind === "gds" ? "gds" : "gm"}
                     </span>
-                    <DropdownField id="device-analysis-gm-mode-select" size="sm" value={gmMode} onChange={(next: any) => setGmMode(next === "legend" ? "legend" : "x")} options={gmUi.modeOptions} className="w-[170px]"/>
                     <Button variant={gmDiagnosticsEnabled ? "secondary" : "text"} size="sm" onClick={() => {
                 const next = !gmDiagnosticsEnabled;
                 setGmDiagnosticsEnabled(next);
@@ -3280,8 +3146,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     gmDiagnosticsEnabled: next,
                 })
                     .catch(() => { });
-            }} className="h-8 px-2 text-xs" title={t("da_chart_gm_second_diagnostics")}>
-                      {t("da_chart_gm_second_diagnostics")}
+            }} className="h-8 px-2 text-xs" title={t("da_chart_gm_second_diagnostics", { label: gmUi.kindTitle })}>
+                      {t("da_chart_gm_second_diagnostics", { label: gmUi.kindTitle })}
                     </Button>
                   </div>) : null}
 
@@ -3369,15 +3235,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
 
           {activeFile?.series?.length ? (<div className="flex flex-col">
 
-
-              {effectivePlotType === "gm" &&
-                gmMode === "legend" &&
-                !gmLegendStatus.ok ? (<div className="text-[11px] text-red-500 mb-2">
-                  {gmLegendStatus.message}
-                </div>) : null}
-
               <div ref={mainChartContainerRef} className="h-[500px] min-h-[500px] flex-shrink-0">
-                {isMainChartSizeReady ? (<MainPlotChart
+                <MainPlotChart
                     plotType={effectivePlotType}
                     activeFile={activeFile}
                     seriesList={renderPlotSeries}
@@ -3418,7 +3277,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     : null}
                     legendWidth={MAIN_PLOT_LEGEND_WIDTH}
                     legendContent={renderOriginSelectionLegend}
-                  />) : (<div className="h-full w-full"/>) }
+                  />
               </div>
               {!hasVisiblePlotSeries ? (<div className="mt-2 rounded-lg border border-dashed border-border/70 bg-bg-page/40 px-3 py-2 text-sm text-text-secondary">
                   No visible curves. Use the legend checkboxes to show one or more series.
@@ -3429,19 +3288,19 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     {t("da_chart_ss_diagnostics")}
                   </div>
                   <div ref={diagnosticsChartContainerRef} className="h-[260px] min-h-[260px] flex-shrink-0">
-                    {isDiagnosticsChartSizeReady ? (<SsDiagnosticsChart data={focusedSsDiagnosticsForRender} xDomain={xDomain} xTicks={xTicks} xFactor={plotXFactor} xUnitLabel={resolvedXUnitMeta.label} xLabelInterval={xLabelInterval} xTickDigits={xTickDigitsDisplay} xTooltipDigits={xTooltipDigits} yDomain={ssDiagnosticsYDomain} yTicks={ssDiagnosticsYTicks} overlay={focusedSsOverlay} overlayStyle={ssOverlayStyle} ssReferenceValue={ssSummary?.ss} seriesColor={focusedSeriesColor} rightReservedWidth={MAIN_PLOT_LEGEND_WIDTH + 15}/>) : (<div className="h-full w-full"/>)}
+                    <SsDiagnosticsChart data={focusedSsDiagnosticsForRender} xDomain={xDomain} xTicks={xTicks} xFactor={plotXFactor} xUnitLabel={resolvedXUnitMeta.label} xLabelInterval={xLabelInterval} xTickDigits={xTickDigitsDisplay} xTooltipDigits={xTooltipDigits} yDomain={ssDiagnosticsYDomain} yTicks={ssDiagnosticsYTicks} overlay={focusedSsOverlay} overlayStyle={ssOverlayStyle} ssReferenceValue={ssSummary?.ss} seriesColor={focusedSeriesColor} rightReservedWidth={MAIN_PLOT_LEGEND_WIDTH + 15}/>
                   </div>
                 </div>) : null}
 
               {effectivePlotType === "gm" && gmDiagnosticsEnabled && visibleGmDiagnosticsSeriesForRender.length ? (<div className="mt-4">
                   <div className="text-xs text-text-secondary mb-2">
-                    {t("da_chart_gm_second_diagnostics")}
+                    {t("da_chart_gm_second_diagnostics", { label: gmUi.kindTitle })}
                   </div>
                   <div className="text-[11px] text-text-secondary mb-2">
-                    {t("da_chart_gm_second_note", { label: gmSecondDerivativeAxisLabel })}
+                    {t("da_chart_gm_second_note", { label: gmUi.kindTitle, axisLabel: gmSecondDerivativeAxisLabel })}
                   </div>
                   <div ref={diagnosticsChartContainerRef} className="h-[260px] min-h-[260px] flex-shrink-0">
-                    {isDiagnosticsChartSizeReady ? (<GmDiagnosticsChart series={visibleGmDiagnosticsSeriesForRender} xDomain={xDomain} xTicks={xTicks} xFactor={plotXFactor} xUnitLabel={resolvedXUnitMeta.label} xLabelInterval={xLabelInterval} xTickDigits={xTickDigitsDisplay} xTooltipDigits={xTooltipDigits} yDomain={gmDiagnosticsYDomain} yTicks={gmDiagnosticsYTicks} rightReservedWidth={MAIN_PLOT_LEGEND_WIDTH + 15} yAxisLabel={gmSecondDerivativeAxisLabel} valueUnitLabel={gmSecondDerivativeUnitLabel}/>) : (<div className="h-full w-full"/>)}
+                    <GmDiagnosticsChart series={visibleGmDiagnosticsSeriesForRender} xDomain={xDomain} xTicks={xTicks} xFactor={plotXFactor} xUnitLabel={resolvedXUnitMeta.label} xLabelInterval={xLabelInterval} xTickDigits={xTickDigitsDisplay} xTooltipDigits={xTooltipDigits} yDomain={gmDiagnosticsYDomain} yTicks={gmDiagnosticsYTicks} rightReservedWidth={MAIN_PLOT_LEGEND_WIDTH + 15} yAxisLabel={gmSecondDerivativeAxisLabel} valueUnitLabel={gmSecondDerivativeUnitLabel}/>
                   </div>
                 </div>) : null}
             </div>) : (<div className="flex items-center justify-center h-[300px] text-text-secondary">
@@ -3455,14 +3314,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             diagnosticsHeading={diagnosticsHeading}
             diagnosticsDescription={diagnosticsDescription}
             effectivePlotType={effectivePlotType}
-            showSsDiagnosticsPanel={showSsDiagnosticsPanel}
-            showSsDiagnosticsControls={showSsDiagnosticsControls}
-            ssMethod={ssMethod}
-            ssShowFitLine={ssShowFitLine}
-            ssDiagnosticsEnabled={ssDiagnosticsEnabled}
-            ssIdWindow={ssIdWindow}
-            setSsIdWindow={setSsIdWindow}
-            ssSummary={ssSummary}
             plotYUnitLabel={activeCurveProbeYUnitLabel}
             showIvDiagnosticsPanel={showIvDiagnosticsPanel}
             showCurveProbePanel={showCurveProbePanel}
@@ -3478,13 +3329,17 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             setCurveProbeMode={setCurveProbeMode}
             curveProbeHeading={activeCurveProbeHeading}
             curveProbeRows={activeCurveProbeRows}
-            focusedSeriesLabel={focusedSeriesLabel}
+            focusedSeriesLabel={null}
             xTooltipDigits={xTooltipDigits}
             resolvedXUnitLabel={resolvedXUnitMeta.label}
             showAreaDiagnosticsControls={showAreaDiagnosticsControls}
             areaInput={areaInput}
             setAreaInput={setAreaInput}
-            areaDiagnosticsSummary={areaDiagnosticsSummary}
+            areaDiagnosticsSummary={{
+                areaValue: area && Number.isFinite(area) && area > 0 ? area : null,
+                jon: Number.isFinite(focusedAnalysis?.metrics?.jon) ? focusedAnalysis.metrics.jon : null,
+                joff: Number.isFinite(focusedAnalysis?.metrics?.joff) ? focusedAnalysis.metrics.joff : null,
+            }}
             transferMetricsApplicable={transferMetricsApplicable}
             showAxisControls={showAxisControls}
             axis={axis}
@@ -3492,8 +3347,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             effectiveYScale={effectiveYScale}
             yScaleWarning={yScaleWarning}
             xTooltipDigitsAuto={xTooltipDigitsAuto}
-            onResetSs={handleResetSsDiagnostics}
-            onPersistSsIdWindow={handlePersistSsIdWindow}
             onPersistIonIoffTargets={handlePersistIonIoffTarget}
             onAxisYScaleChange={handleAxisYScaleChange}
             analysisCompactInputWrapperClass={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS}
