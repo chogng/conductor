@@ -143,6 +143,20 @@ const resolveAvailableActiveFileId = (processedData: any[], preferredFileId: any
     }
     return processedData[0]?.fileId ?? null;
 };
+const normalizeVisibleSeriesByFileId = (value: unknown): Record<string, string[]> => {
+    const raw = value && typeof value === "object" ? value as Record<string, unknown> : {};
+    const next: Record<string, string[]> = {};
+    for (const [fileId, seriesIds] of Object.entries(raw)) {
+        const normalizedFileId = String(fileId ?? "").trim();
+        if (!normalizedFileId || !Array.isArray(seriesIds))
+            continue;
+        const normalizedSeriesIds = seriesIds
+            .map((seriesId) => String(seriesId ?? "").trim())
+            .filter(Boolean);
+        next[normalizedFileId] = Array.from(new Set(normalizedSeriesIds));
+    }
+    return next;
+};
 const normalizeLinearLogScale = (value: unknown): "linear" | "log" => String(value ?? "").trim().toLowerCase() === "log" ? "log" : "linear";
 const normalizeChartYScale = (value: unknown): "linear" | "log" | "logAbs" => {
     const normalized = String(value ?? "").trim();
@@ -328,6 +342,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const [originFilteredCanvasKind, setOriginFilteredCanvasKind] = useState<DeviceAnalysisOriginFilteredCanvasKind>("output");
     const [resultsTab, setResultsTab] = useState<"metrics" | "export">("metrics");
     const [overviewVisibleFileIds, setOverviewVisibleFileIds] = useState<string[]>([]);
+    const [visibleSeriesByFileId, setVisibleSeriesByFileId] = useState<Record<string, string[]>>({});
     const originChartXRangeRef = useRef<{ min: number; max: number; step?: number | null; } | null>(null);
     const originChartYRangeRef = useRef<{ mode: "linear" | "log"; min: number; max: number; step?: number | null; } | null>(null);
     const [axis, setAxis] = useState({
@@ -445,6 +460,38 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             setActiveFileId(next);
     }, [activeFileId, processedData, setActiveFileId]);
     const activeFile = useMemo(() => processedData?.find((f: any) => f.fileId === effectiveActiveFileId) ?? null, [effectiveActiveFileId, processedData]);
+    useEffect(() => {
+        setVisibleSeriesByFileId((prev) => {
+            const normalizedPrev = normalizeVisibleSeriesByFileId(prev);
+            const next: Record<string, string[]> = {};
+            let changed = false;
+            for (const file of Array.isArray(processedData) ? processedData : []) {
+                const fileId = String(file?.fileId ?? "").trim();
+                if (!fileId)
+                    continue;
+                const validSeriesIds = new Set<string>((Array.isArray(file?.series) ? file.series : [])
+                    .map((series: any) => String(series?.id ?? "").trim())
+                    .filter(Boolean));
+                const previousSeriesIds = normalizedPrev[fileId] ?? [];
+                const filteredSeriesIds = previousSeriesIds.filter((seriesId) => validSeriesIds.has(seriesId));
+                next[fileId] = filteredSeriesIds.length ? filteredSeriesIds : Array.from(validSeriesIds);
+                if (!changed) {
+                    if (filteredSeriesIds.length !== previousSeriesIds.length ||
+                        next[fileId].length !== previousSeriesIds.length ||
+                        next[fileId].some((seriesId, index) => seriesId !== previousSeriesIds[index])) {
+                        changed = true;
+                    }
+                }
+            }
+            if (!changed) {
+                const prevKeys = Object.keys(normalizedPrev);
+                const nextKeys = Object.keys(next);
+                changed = prevKeys.length !== nextKeys.length ||
+                    nextKeys.some((fileId) => !(fileId in normalizedPrev));
+            }
+            return changed ? next : prev;
+        });
+    }, [processedData]);
     const resolveYUnitForFile = React.useCallback((fileLike: any): "A" | "mA" | "uA" | "nA" | "pA" => {
         const fileKey = String(fileLike?.fileId ?? "").trim();
         const fallbackUnit = normalizeDeviceAnalysisYUnit(fileLike?.yUnit, "A");
@@ -452,6 +499,42 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return fallbackUnit || "A";
         return persistedYUnitByFileId[fileKey] ?? (fallbackUnit || "A");
     }, [persistedYUnitByFileId]);
+    const visibleSeriesKeySet = useMemo(() => {
+        const fileId = String(activeFile?.fileId ?? "").trim();
+        if (!fileId)
+            return new Set<string>();
+        const configuredSeriesIds = visibleSeriesByFileId[fileId];
+        const fallbackSeriesIds = (Array.isArray(activeFile?.series) ? activeFile.series : [])
+            .map((series: any) => String(series?.id ?? "").trim())
+            .filter(Boolean);
+        return new Set(configuredSeriesIds?.length ? configuredSeriesIds : fallbackSeriesIds);
+    }, [activeFile?.fileId, activeFile?.series, visibleSeriesByFileId]);
+    const visibleSeriesSignature = useMemo(() => Array.from(visibleSeriesKeySet).sort().join("|"), [visibleSeriesKeySet]);
+    const toggleVisibleSeries = React.useCallback((seriesId: string) => {
+        const normalizedSeriesId = String(seriesId ?? "").trim();
+        const fileId = String(activeFile?.fileId ?? "").trim();
+        if (!fileId || !normalizedSeriesId)
+            return;
+        setVisibleSeriesByFileId((prev) => {
+            const normalizedPrev = normalizeVisibleSeriesByFileId(prev);
+            const file = (Array.isArray(processedData) ? processedData : []).find((entry: any) => String(entry?.fileId ?? "").trim() === fileId);
+            const allSeriesIds = (Array.isArray(file?.series) ? file.series : [])
+                .map((series: any) => String(series?.id ?? "").trim())
+                .filter(Boolean);
+            const currentSeriesIds = normalizedPrev[fileId] ?? allSeriesIds;
+            const currentSet = new Set(currentSeriesIds);
+            if (currentSet.has(normalizedSeriesId)) {
+                currentSet.delete(normalizedSeriesId);
+            }
+            else {
+                currentSet.add(normalizedSeriesId);
+            }
+            return {
+                ...normalizedPrev,
+                [fileId]: allSeriesIds.filter((id: string) => currentSet.has(id)),
+            };
+        });
+    }, [activeFile?.fileId, processedData]);
     const resolveLinearLogYScaleForFile = React.useCallback((fileLike: any): "linear" | "log" => {
         const fileKey = String(fileLike?.fileId ?? "").trim();
         if (!fileKey)
@@ -520,10 +603,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         selectAllOriginSeriesForFile,
         selectedOriginCanvasKeySet,
         selectedOriginSeriesCountByFile,
-        selectedOriginSeriesKeySet,
         selectedOriginSeriesTotalCount,
         toggleOriginCanvasSelection,
-        toggleOriginSeriesSelection,
         toggleOriginSeriesSelectionForFile,
     } = useOriginCanvasExport({
         activeFile,
@@ -2144,16 +2225,22 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return "yPositive";
         return "y";
     }, [yScaleMode]);
-    const displayPlotSeries = useMemo(() => {
+    const plotLegendSeries = useMemo(() => {
         const byType = plotSeriesByType ?? { iv: [], gm: [], ss: [], j: [] };
-        if (effectivePlotType === "gm")
-            return byType.gm ?? [];
-        if (effectivePlotType === "j")
-            return byType.j ?? [];
-        if (effectivePlotType === "ss")
-            return byType.ss ?? byType.iv ?? [];
-        return byType.iv ?? [];
+        return effectivePlotType === "gm"
+            ? byType.gm ?? []
+            : effectivePlotType === "j"
+                ? byType.j ?? []
+                : effectivePlotType === "ss"
+                    ? byType.ss ?? byType.iv ?? []
+                    : byType.iv ?? [];
     }, [effectivePlotType, plotSeriesByType]);
+    const displayPlotSeries = useMemo(() => {
+        return plotLegendSeries.filter((series: any) => {
+            const seriesId = String(series?.id ?? "").trim();
+            return !seriesId || visibleSeriesKeySet.has(seriesId);
+        });
+    }, [plotLegendSeries, visibleSeriesKeySet]);
     const renderPointBudget = useMemo(() => effectivePlotType === "gm" ? GM_RENDER_POINT_BUDGET : DEFAULT_RENDER_POINT_BUDGET, [effectivePlotType]);
     const renderMaxPointsPerSeries = useMemo(() => {
         const seriesCount = Math.max(1, displayPlotSeries.length);
@@ -2186,23 +2273,21 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         return computedSeries;
     }, [displayPlotSeries, renderMaxPointsPerSeries]);
     const renderOriginSelectionLegend = React.useCallback((legendProps: any) => {
-        const payload = Array.isArray(legendProps?.payload) ? legendProps.payload : [];
-        if (!payload.length)
+        if (!plotLegendSeries.length)
             return null;
         return (<ul className="m-0 p-0 list-none">
-        {payload.map((entry: any, idx: number) => {
-                const fallbackSeries = renderPlotSeries?.[idx];
-                const seriesId = String(fallbackSeries?.id ?? "");
-                const checked = seriesId ? selectedOriginSeriesKeySet.has(seriesId) : false;
-                const label = String(entry?.value ?? fallbackSeries?.name ?? "");
-                const color = String(entry?.color || fallbackSeries?.color || "#8884d8");
+        {plotLegendSeries.map((series: any, idx: number) => {
+                const seriesId = String(series?.id ?? "");
+                const checked = seriesId ? visibleSeriesKeySet.has(seriesId) : false;
+                const label = resolveOriginSeriesExportLabel(series, idx);
+                const color = String(series?.color || COLORS[idx % COLORS.length] || "#8884d8");
                 const disabled = !seriesId;
                 return (<li key={seriesId || `${label}-${idx}`} className="mb-1 last:mb-0">
               <div className={`group flex items-center gap-2 text-[11px] leading-4 ${disabled ? "opacity-60 cursor-default" : "cursor-pointer"}`}>
                 <span className="inline-block h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: color }}/>
                 <button type="button" aria-pressed={checked} aria-label={label} disabled={disabled} onClick={() => {
                         if (!disabled)
-                            toggleOriginSeriesSelection(seriesId);
+                            toggleVisibleSeries(seriesId);
                     }} className={`shrink-0 ${disabled ? "cursor-default" : "cursor-pointer"}`}>
                   <span className="clickable-ckb" data-state={checked ? "checked" : "unchecked"}>
                     {checked ? <Check size={10} className="text-white" strokeWidth={4}/> : null}
@@ -2215,7 +2300,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             </li>);
             })}
       </ul>);
-    }, [renderPlotSeries, selectedOriginSeriesKeySet, toggleOriginSeriesSelection]);
+    }, [plotLegendSeries, toggleVisibleSeries, visibleSeriesKeySet]);
     const curveProbeX = useMemo(() => {
         const raw = Number(curveProbeXInput);
         if (!Number.isFinite(raw))
@@ -2236,7 +2321,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const fileId = activeFile?.fileId ?? null;
         const cache = fileId ? getFileCache(fileId, activeFile) : null;
         const areaKeyForMinMax = area && Number.isFinite(area) && area > 0 ? String(normalizeFloat(area)) : "";
-        const minMaxKey = `${effectivePlotType}::${gmMode}::${plotYKey}::${areaKeyForMinMax}`;
+        const minMaxKey = `${effectivePlotType}::${gmMode}::${plotYKey}::${areaKeyForMinMax}::${visibleSeriesSignature}`;
         if (cache?.minMaxByKey?.has(minMaxKey)) {
             return cache.minMaxByKey.get(minMaxKey);
         }
@@ -2252,6 +2337,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         getFileCache,
         gmMode,
         plotYKey,
+        visibleSeriesSignature,
     ]);
     const autoMinY = autoMinMax?.minY ?? null;
     const autoMaxY = autoMinMax?.maxY ?? null;
