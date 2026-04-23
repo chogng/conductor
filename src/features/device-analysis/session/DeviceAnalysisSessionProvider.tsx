@@ -3,7 +3,7 @@ import {
   DeviceAnalysisSessionContext,
   type DeviceAnalysisSessionContextValue,
   type DeviceAnalysisTemplateConfig,
-  type IonIoffManualTargets,
+  type IonIoffManualTargetsByFileId,
   type IonIoffMethod,
   type PreviewStatus,
   type SsIdWindow,
@@ -78,11 +78,8 @@ export const DeviceAnalysisSessionProvider = ({
   const previewCacheFileLruRef = useRef<Set<string>>(new Set());
 
   const [ionIoffMethod, setIonIoffMethod] = useState<IonIoffMethod>("auto");
-  const [ionIoffManualTargets, setIonIoffManualTargets] =
-    useState<IonIoffManualTargets>({
-      ionX: "",
-      ioffX: "",
-    });
+  const [ionIoffManualTargetsByFileId, setIonIoffManualTargetsByFileId] =
+    useState<IonIoffManualTargetsByFileId>({});
 
   // Device analysis SS (session state; defaults overridden by user settings if loaded).
   const [ssMethod, setSsMethod] = useState<SsMethod>("auto");
@@ -125,8 +122,8 @@ export const DeviceAnalysisSessionProvider = ({
       previewCacheFileLruRef,
       ionIoffMethod,
       setIonIoffMethod,
-      ionIoffManualTargets,
-      setIonIoffManualTargets,
+      ionIoffManualTargetsByFileId,
+      setIonIoffManualTargetsByFileId,
       ssMethod,
       setSsMethod,
       ssDiagnosticsEnabled,
@@ -149,7 +146,7 @@ export const DeviceAnalysisSessionProvider = ({
       processedData,
       rawData,
       selectedPreviewFileId,
-      ionIoffManualTargets,
+      ionIoffManualTargetsByFileId,
       ionIoffMethod,
       gmDiagnosticsEnabled,
       ssDiagnosticsEnabled,

@@ -3,6 +3,7 @@ import type { ThemeMode } from "../../../context/theme";
 import type { Feedback } from "../shared/lib/sharedTypes";
 import type { LooseTranslateFn as TranslateFn } from "../shared/lib/translateTypes";
 import type {
+  IonIoffManualTargetsByFileId,
   IonIoffMethod,
   SsMethod,
 } from "../session/device-analysis-session-context";
@@ -27,6 +28,7 @@ export type DeviceAnalysisSettings = {
   originRuntimeKeepSuccessJobs?: number;
   ionIoffManualIoffX?: number | string;
   ionIoffManualIonX?: number | string;
+  ionIoffManualTargetsByFileId?: IonIoffManualTargetsByFileId;
   ionIoffMethodDefault?: IonIoffMethod;
   gmDiagnosticsEnabled?: boolean;
   ssDiagnosticsEnabled?: boolean;
@@ -35,6 +37,8 @@ export type DeviceAnalysisSettings = {
   ssMethodDefault?: SsMethod;
   ssShowFitLine?: boolean;
   stopOnErrorDefault?: boolean;
+  defaultYScaleForOutput?: "linear" | "log";
+  defaultYScaleForTransfer?: "linear" | "log";
   yUnitByFileId?: Record<string, "A" | "mA" | "uA" | "nA" | "pA">;
   yScaleByFileId?: Record<string, "linear" | "log">;
   [key: string]: unknown;

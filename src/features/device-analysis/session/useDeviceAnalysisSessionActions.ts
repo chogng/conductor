@@ -4,7 +4,10 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import type { SsManualRanges } from "./device-analysis-session-context";
+import type {
+  IonIoffManualTargetsByFileId,
+  SsManualRanges,
+} from "./device-analysis-session-context";
 import type {
   ProcessedEntry,
   ProcessingStatus,
@@ -26,6 +29,9 @@ type UseDeviceAnalysisSessionActionsOptions = {
   setProcessedData: Dispatch<SetStateAction<ProcessedEntry[]>>;
   setRawData: Dispatch<SetStateAction<RawDataEntry[]>>;
   setSelectedPreviewFileId: Dispatch<SetStateAction<string | null>>;
+  setIonIoffManualTargetsByFileId: Dispatch<
+    SetStateAction<IonIoffManualTargetsByFileId>
+  >;
   setSsManualRanges: Dispatch<SetStateAction<SsManualRanges>>;
 };
 
@@ -44,6 +50,7 @@ export const useDeviceAnalysisSessionActions = ({
   setProcessedData,
   setRawData,
   setSelectedPreviewFileId,
+  setIonIoffManualTargetsByFileId,
   setSsManualRanges,
 }: UseDeviceAnalysisSessionActionsOptions) => {
   const hasSessionData = useMemo(
@@ -63,6 +70,7 @@ export const useDeviceAnalysisSessionActions = ({
 
     setProcessedData([]);
     setRawData([]);
+    setIonIoffManualTargetsByFileId({});
     setSsManualRanges({});
     resetPreviewWorker();
   }, [
@@ -71,6 +79,7 @@ export const useDeviceAnalysisSessionActions = ({
     invalidatePreviewRequests,
     resetPreviewWorker,
     resetProcessingWorker,
+    setIonIoffManualTargetsByFileId,
     setProcessedData,
     setRawData,
     setSsManualRanges,
@@ -97,6 +106,12 @@ export const useDeviceAnalysisSessionActions = ({
       setProcessedData((prev) =>
         (Array.isArray(prev) ? prev : []).filter((entry) => entry?.fileId !== fileId),
       );
+      setIonIoffManualTargetsByFileId((prev) => {
+        if (!prev?.[fileId]) return prev;
+        const next = { ...prev };
+        delete next[fileId];
+        return next;
+      });
 
       if (processingStatus.state === "processing") {
         removeQueuedProcessingFile(fileId);
@@ -116,6 +131,7 @@ export const useDeviceAnalysisSessionActions = ({
       rawData,
       removeQueuedProcessingFile,
       selectedPreviewFileId,
+      setIonIoffManualTargetsByFileId,
       setProcessedData,
       setRawData,
       setSelectedPreviewFileId,

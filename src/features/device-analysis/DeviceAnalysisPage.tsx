@@ -32,6 +32,7 @@ import { useDeviceAnalysisSession } from "./session/useDeviceAnalysisSession";
 import { useDeviceAnalysisSessionActions } from "./session/useDeviceAnalysisSessionActions";
 import { useDeviceAnalysisCoreSettings } from "./settings/useDeviceAnalysisCoreSettings";
 import { useResizableSidebar } from "./useResizableSidebar";
+import type { IonIoffManualTargets } from "./session/device-analysis-session-context";
 
 type PageTab = "data" | "analysis" | "settings";
 type PageNavigationState = {
@@ -143,8 +144,8 @@ const DeviceAnalysisPage = () => {
     setTemplateConfig,
     ionIoffMethod,
     setIonIoffMethod,
-    ionIoffManualTargets,
-    setIonIoffManualTargets,
+    ionIoffManualTargetsByFileId,
+    setIonIoffManualTargetsByFileId,
     ssMethod,
     setSsMethod,
     ssDiagnosticsEnabled,
@@ -405,7 +406,6 @@ const DeviceAnalysisPage = () => {
     originOpenPlotOptions,
   } = useDeviceAnalysisCoreSettings({
     language,
-    setIonIoffManualTargets,
     setIonIoffMethod,
     setLanguage,
     theme,
@@ -466,6 +466,7 @@ const DeviceAnalysisPage = () => {
     setProcessedData,
     setRawData,
     setSelectedPreviewFileId,
+    setIonIoffManualTargetsByFileId,
     setSsManualRanges,
   });
 
@@ -516,6 +517,94 @@ const DeviceAnalysisPage = () => {
   const handleAnalysisFileChange = useCallback((nextFileId: string | null) => {
     setAnalysisActiveFileId(nextFileId ?? null);
   }, []);
+
+  const analysisIonIoffManualTargets = useMemo<IonIoffManualTargets>(
+    () =>
+      analysisActiveFileId
+        ? ionIoffManualTargetsByFileId[analysisActiveFileId] ?? { ionX: "", ioffX: "" }
+        : { ionX: "", ioffX: "" },
+    [analysisActiveFileId, ionIoffManualTargetsByFileId],
+  );
+
+  const handleAnalysisIonIoffManualTargetsChange = useCallback(
+    (
+      next:
+        | IonIoffManualTargets
+        | ((prev: IonIoffManualTargets) => IonIoffManualTargets),
+    ) => {
+      if (!analysisActiveFileId) return;
+
+      setIonIoffManualTargetsByFileId((prev) => {
+        const previousTargets = prev?.[analysisActiveFileId] ?? {
+          ionX: "",
+          ioffX: "",
+        };
+        const resolvedTargets =
+          typeof next === "function" ? next(previousTargets) : next;
+        return {
+          ...(prev || {}),
+          [analysisActiveFileId]: {
+            ionX: String(resolvedTargets?.ionX ?? ""),
+            ioffX: String(resolvedTargets?.ioffX ?? ""),
+          },
+        };
+      });
+    },
+    [analysisActiveFileId, setIonIoffManualTargetsByFileId],
+  );
+
+  useEffect(() => {
+    const fileId = String(analysisActiveFileId ?? "").trim();
+    if (!fileId) return;
+    if (ionIoffManualTargetsByFileId[fileId]) return;
+
+    const legacyIonX = deviceAnalysisSettings?.ionIoffManualIonX;
+    const legacyIoffX = deviceAnalysisSettings?.ionIoffManualIoffX;
+    if (
+      (legacyIonX === undefined || legacyIonX === null || legacyIonX === "") &&
+      (legacyIoffX === undefined || legacyIoffX === null || legacyIoffX === "")
+    ) {
+      return;
+    }
+
+    setIonIoffManualTargetsByFileId((prev) => {
+      if (prev?.[fileId]) return prev;
+      return {
+        ...(prev || {}),
+        [fileId]: {
+          ionX:
+            legacyIonX === undefined || legacyIonX === null || legacyIonX === ""
+              ? ""
+              : String(legacyIonX),
+          ioffX:
+            legacyIoffX === undefined || legacyIoffX === null || legacyIoffX === ""
+              ? ""
+              : String(legacyIoffX),
+        },
+      };
+    });
+  }, [
+    analysisActiveFileId,
+    deviceAnalysisSettings?.ionIoffManualIoffX,
+    deviceAnalysisSettings?.ionIoffManualIonX,
+    ionIoffManualTargetsByFileId,
+    setIonIoffManualTargetsByFileId,
+  ]);
+
+  const persistedIonIoffTargetsRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!deviceAnalysisSettingsLoaded) return;
+    const serializedTargets = JSON.stringify(ionIoffManualTargetsByFileId);
+    if (persistedIonIoffTargetsRef.current === serializedTargets) return;
+    persistedIonIoffTargetsRef.current = serializedTargets;
+    handleUpdateDeviceAnalysisSettings({
+      ionIoffManualTargetsByFileId,
+    }).catch(() => {});
+  }, [
+    deviceAnalysisSettingsLoaded,
+    handleUpdateDeviceAnalysisSettings,
+    ionIoffManualTargetsByFileId,
+  ]);
 
   const handlePageTabSelect = useCallback((nextPage: string) => {
     if (
@@ -734,9 +823,9 @@ const DeviceAnalysisPage = () => {
                   setSsDiagnosticsEnabled={setSsDiagnosticsEnabled}
                   setGmDiagnosticsEnabled={setGmDiagnosticsEnabled}
                   ionIoffMethod={ionIoffMethod}
-                  ionIoffManualTargets={ionIoffManualTargets}
+                  ionIoffManualTargets={analysisIonIoffManualTargets}
                   setIonIoffMethod={setIonIoffMethod}
-                  setIonIoffManualTargets={setIonIoffManualTargets}
+                  setIonIoffManualTargets={handleAnalysisIonIoffManualTargetsChange}
                   setSsIdWindow={setSsIdWindow}
                   setSsManualRanges={setSsManualRanges}
                   setSsMethod={setSsMethod}

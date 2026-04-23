@@ -1,4 +1,10 @@
-import { lazy, Suspense, type ComponentType } from "react";
+import {
+  lazy,
+  Suspense,
+  type ComponentType,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import { BarChart2 } from "lucide-react";
 import Card from "../../../components/ui/Card";
 import type { TranslateFn } from "../../../context/language";
@@ -22,7 +28,7 @@ type AnalysisChartsLazyProps = {
   onActiveFileIdChange?: (nextFileId: string | null) => void;
   showFileSelect?: boolean;
   setIonIoffMethod?: (next: IonIoffMethod) => void;
-  setIonIoffManualTargets?: (next: IonIoffManualTargets) => void;
+  setIonIoffManualTargets?: Dispatch<SetStateAction<IonIoffManualTargets>>;
   ssMethod?: SsMethod;
   setSsMethod?: (next: SsMethod) => void;
   ssDiagnosticsEnabled?: boolean;

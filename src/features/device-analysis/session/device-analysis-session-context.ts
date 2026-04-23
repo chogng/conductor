@@ -50,6 +50,8 @@ export type IonIoffManualTargets = {
   ioffX: string;
 };
 
+export type IonIoffManualTargetsByFileId = Record<string, IonIoffManualTargets>;
+
 export type SsIdWindow = {
   low: string;
   high: string;
@@ -93,8 +95,10 @@ export type DeviceAnalysisSessionContextValue = {
   previewCacheFileLruRef: MutableRefObject<Set<string>>;
   ionIoffMethod: IonIoffMethod;
   setIonIoffMethod: Dispatch<SetStateAction<IonIoffMethod>>;
-  ionIoffManualTargets: IonIoffManualTargets;
-  setIonIoffManualTargets: Dispatch<SetStateAction<IonIoffManualTargets>>;
+  ionIoffManualTargetsByFileId: IonIoffManualTargetsByFileId;
+  setIonIoffManualTargetsByFileId: Dispatch<
+    SetStateAction<IonIoffManualTargetsByFileId>
+  >;
   ssMethod: SsMethod;
   setSsMethod: Dispatch<SetStateAction<SsMethod>>;
   ssDiagnosticsEnabled: boolean;

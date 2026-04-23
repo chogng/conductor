@@ -531,12 +531,19 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         };
     }, []);
     const effectiveActiveFileId = useMemo(() => resolveAvailableActiveFileId(processedData, activeFileId), [activeFileId, processedData]);
+    const getDefaultLinearLogYScaleForFile = React.useCallback((fileLike: any): "linear" | "log" => {
+        if (isTransferLikeDeviceAnalysisFile(fileLike))
+            return "log";
+        if (isOutputLikeDeviceAnalysisFile(fileLike))
+            return "linear";
+        return "linear";
+    }, []);
     const activePersistedYScale = useMemo(() => {
         const fileKey = String(effectiveActiveFileId ?? "").trim();
         if (!fileKey)
             return "linear";
-        return persistedYScaleByFileId[fileKey] ?? "linear";
-    }, [effectiveActiveFileId, persistedYScaleByFileId]);
+        return persistedYScaleByFileId[fileKey] ?? getDefaultLinearLogYScaleForFile(processedData?.find((f: any) => String(f?.fileId ?? "").trim() === fileKey) ?? null);
+    }, [effectiveActiveFileId, getDefaultLinearLogYScaleForFile, persistedYScaleByFileId, processedData]);
     const activeChartYScale = useMemo(() => {
         const fileKey = String(effectiveActiveFileId ?? "").trim();
         if (!fileKey)
@@ -742,9 +749,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const resolveLinearLogYScaleForFile = React.useCallback((fileLike: any): "linear" | "log" => {
         const fileKey = String(fileLike?.fileId ?? "").trim();
         if (!fileKey)
-            return "linear";
-        return persistedYScaleByFileId[fileKey] ?? "linear";
-    }, [persistedYScaleByFileId]);
+            return getDefaultLinearLogYScaleForFile(fileLike);
+        return persistedYScaleByFileId[fileKey] ?? getDefaultLinearLogYScaleForFile(fileLike);
+    }, [getDefaultLinearLogYScaleForFile, persistedYScaleByFileId]);
     const resolvedXUnitMeta = useMemo(() => getDeviceAnalysisXUnitMeta(activeFile?.xUnit), [activeFile?.xUnit]);
     const activeYUnit = useMemo(() => resolveYUnitForFile(activeFile), [activeFile, resolveYUnitForFile]);
     const resolvedYUnitMeta = useMemo(() => getDeviceAnalysisYUnitMeta(activeYUnit), [activeYUnit]);
@@ -2217,7 +2224,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         pushSelected(metrics?.ioffWindow, "ioff");
         return overlays;
     }, [focusedAnalysis?.metrics, ionIoffMethod, transferMetricsApplicable]);
-    const currentOverlaysForPlot = useMemo(() => effectivePlotType === "ss" ? [] : focusedCurrentOverlays, [effectivePlotType, focusedCurrentOverlays]);
+    const currentOverlaysForPlot = useMemo(() => effectivePlotType === "iv" ? focusedCurrentOverlays : [], [effectivePlotType, focusedCurrentOverlays]);
     const currentBiasMarkers = useMemo(() => {
         if (!currentManualBiasApplicable)
             return [];
@@ -2766,14 +2773,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             };
         });
     }, [activeFile, detailAnalysisBySeriesId, focusedAnalysis, focusedSeriesId, isMetricsDetailsPending, resolveDisplayLegendLabel]);
-    const persistIonIoffManualTargets = React.useCallback((targets: any) => {
-        apiService
-            .updateDeviceAnalysisSettings({
-            ionIoffManualIonX: String(targets?.ionX ?? "").trim(),
-            ionIoffManualIoffX: String(targets?.ioffX ?? "").trim(),
-        })
-            .catch(() => { });
-    }, []);
     const commitManualRange = React.useCallback((fileId: any, seriesId: any, range: any) => {
         if (!fileId || !seriesId)
             return;
@@ -2824,11 +2823,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 ioffX: nextTargets.ioffX,
             };
         });
-        persistIonIoffManualTargets(nextTargets);
     }, [
         ionIoffManualTargets?.ioffX,
         ionIoffManualTargets?.ionX,
-        persistIonIoffManualTargets,
         plotXFactor,
         setIonIoffManualTargets,
     ]);
@@ -2955,6 +2952,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         : calculatedParametersMode === "output"
             ? `${gmUi.summaryLabel}: max |${gmUi.metricSymbol}| (output)`
             : `${gmUi.summaryLabel}: max |${gmUi.metricSymbol}|`, [calculatedParametersMode, gmUi.metricSymbol, gmUi.summaryLabel]);
+    const showIonIoffControl = transferMetricsApplicable && effectivePlotType === "iv";
     const showIvDiagnosticsPanel = false;
     const showSsDiagnosticsPanel = effectivePlotType === "ss";
     const showGmDiagnosticsPanel = effectivePlotType === "gm";
@@ -2983,17 +2981,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             : showJDiagnosticsPanel
                 ? "Current-density controls driven by Area and axis configuration."
                 : "Query any x between measured points and get y by linear interpolation.";
-    const handlePersistIonIoffTarget = React.useCallback((role: "ion" | "ioff") => {
-        apiService
-            .updateDeviceAnalysisSettings(role === "ion"
-            ? {
-                ionIoffManualIonX: String(ionIoffManualTargets?.ionX ?? "").trim(),
-            }
-            : {
-                ionIoffManualIoffX: String(ionIoffManualTargets?.ioffX ?? "").trim(),
-            })
-            .catch(() => { });
-    }, [ionIoffManualTargets?.ioffX, ionIoffManualTargets?.ionX]);
+    const handlePersistIonIoffTarget = React.useCallback((_role: "ion" | "ioff") => { }, []);
     const applyLinearLogYScaleForFile = React.useCallback((nextScaleRaw: unknown) => {
         const nextScale = normalizeLinearLogScale(nextScaleRaw);
         const nextTicks = nextScale === "linear" ? "nice" : "decades";
@@ -3202,7 +3190,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     </Button>
                   </div>) : null}
 
-                {transferMetricsApplicable ? (<div className="flex items-center gap-2">
+                {showIonIoffControl ? (<div className="flex items-center gap-2">
                     <div className="flex items-center gap-1">
                       <span className="text-xs text-text-secondary whitespace-nowrap">
                         Ion/Ioff:
@@ -3210,11 +3198,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                       <DropdownField id="device-analysis-current-method-select" size="sm" value={ionIoffMethod} onChange={(next: any) => {
                 const method = next === "manual" ? "manual" : "auto";
                 setIonIoffMethod(method);
-                apiService
-                    .updateDeviceAnalysisSettings({
-                    ionIoffMethodDefault: method,
-                })
-                    .catch(() => { });
             }} options={[
                 { value: "auto", label: "auto" },
                 { value: "manual", label: "manual" },
