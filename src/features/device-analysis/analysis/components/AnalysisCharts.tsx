@@ -1,11 +1,11 @@
-import React, { startTransition, useEffect, useMemo, useRef, useState, type CSSProperties, } from "react";
+﻿import React, { startTransition, useEffect, useMemo, useRef, useState, type CSSProperties, } from "react";
 import { AlertTriangle, Check, X } from "lucide-react";
 import { computeCentralDerivative, computeSubthresholdSwing, computeSubthresholdSwingFitAuto, computeSubthresholdSwingFitInIdWindow, computeSubthresholdSwingFitInRange, classifySsFit, computeLegendDerivativeSeries, formatNumber, interpolateCurveAtX, resolveAutoSsSelection, } from "../lib/analysisMath";
 import { apiService } from "../services/apiService";
 import DropdownField from "../../../../components/ui/DropdownField";
 import Button from "../../../../components/ui/Button";
 import Card from "../../../../components/ui/Card";
-import Input from "../../../../components/ui/Input";
+import InlineEditableText from "../../../../components/ui/InlineEditableText";
 import ScrollArea from "../../../../components/ui/ScrollArea";
 import Tabs from "../../../../components/ui/Tabs";
 import Toast from "../../../../components/ui/Toast";
@@ -97,23 +97,17 @@ const EditableLegendItem = ({
           {checked ? <Check size={10} className="text-white" strokeWidth={4}/> : null}
         </span>
       </button>
-      {isEditing ? (<Input ref={inputRef} value={draftValue} onChange={onDraftChange} onBlur={onCommitEdit} onKeyDown={(event) => {
-            if (event.key === "Enter") {
-                event.preventDefault();
-                event.currentTarget.blur();
-                onCommitEdit();
-                return;
-            }
-            if (event.key === "Escape") {
-                event.preventDefault();
-                event.currentTarget.blur();
-                onCancelEdit();
-            }
-        }} size="sm" className="min-w-0 flex-1" fieldClassName="!h-6 !min-h-6 !py-0 px-1.5" inputClassName="h-full text-[11px] leading-4"/>) : (<div className="flex h-6 min-w-0 flex-1 items-center cursor-text" title={`${label}\n双击可编辑`} onDoubleClick={onBeginEdit}>
-          <span className="block truncate text-text-secondary select-text">
-            {label}
-          </span>
-        </div>)}
+      <InlineEditableText
+        editing={isEditing}
+        draftValue={draftValue}
+        inputRef={inputRef}
+        onChange={onDraftChange}
+        onCommit={onCommitEdit}
+        onCancel={onCancelEdit}
+        onStartEdit={onBeginEdit}
+        title={`${label}\n双击可编辑`}
+        value={label}
+      />
     </div>
   </li>);
 
@@ -152,7 +146,7 @@ const formatCurrentWindowSummary = (window: any, xFactor: number, digits: number
     if (Number.isFinite(window?.current)) {
         parts.push(`|I|=${formatNumber(window.current)}`);
     }
-    return parts.join(" · ");
+    return parts.join(" 路 ");
 };
 const formatBiasInputValue = (xRaw: number, xFactor: number): string => String(normalizeFloat(xRaw * xFactor));
 const toStableNumericToken = (value: unknown): string => {
@@ -997,7 +991,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             : kind === "gds"
                 ? "Output Conductance"
                 : "Derivative";
-        const kindSymbol = kind === "gm" ? "gₘ" : kind === "gds" ? "gds" : null;
+        const kindSymbol = kind === "gm" ? "g_m" : kind === "gds" ? "gds" : null;
         const derivSymbol = varTokenToSymbol(derivToken);
         const fixedSymbol = varTokenToSymbol(fixedToken);
         const derivShortLabel = derivSymbol
@@ -3141,7 +3135,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             },
             {
                 value: "uA",
-                label: "µA",
+                label: "碌A",
             },
             {
                 value: "nA",
@@ -3180,7 +3174,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
 
                 {effectivePlotType === "gm" ? (<div className="flex items-center gap-1">
                     <span className="text-xs text-text-secondary whitespace-nowrap">
-                      gₘ:
+                      g_m
                     </span>
                     <DropdownField id="device-analysis-gm-mode-select" size="sm" value={gmMode} onChange={(next: any) => setGmMode(next === "legend" ? "legend" : "x")} options={gmUi.modeOptions} className="w-[170px]"/>
                   </div>) : null}
@@ -3793,3 +3787,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     </div>);
 };
 export default React.memo(AnalysisCharts);
+
+
+
