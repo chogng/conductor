@@ -71,8 +71,29 @@ type ResolvedGroupShape = {
   source: "dimension" | "secondaryCount" | "notes" | null;
 };
 
+type StructuredSeriesLayout = {
+  curveType: DeviceAnalysisCurveKind;
+  leftTitle: string;
+  legendStartColIndex: number | null;
+  legendStartRowIndex: number | null;
+  legendStep: number | null;
+  legendTarget: "auto" | "group" | "yColumn";
+  reasons: string[];
+  xAxisRole: DeviceAnalysisAxisRole | null;
+  xAxisRoleSource: DeviceAnalysisCurveSource;
+  xCol: number;
+  yCols: number[];
+};
+
 const toCellRef = (rowIndex: number, colIndex: number): string =>
   `${getExcelColumnLabel(colIndex)}${rowIndex + 1}`;
+
+// ---------------------------------------------------------------------------
+// Header and row-shape detection
+// These helpers answer two questions for the rest of the file:
+// 1. which row is the effective header row
+// 2. which columns contain usable numeric data
+// ---------------------------------------------------------------------------
 
 const getNormalizedRow = (
   rows: Array<Array<unknown> | null | undefined>,
@@ -208,6 +229,12 @@ const detectFirstGroupLength = ({
   return count >= 2 ? count : null;
 };
 
+// ---------------------------------------------------------------------------
+// X segmentation inference
+// These helpers infer repeated sweep groups when the file is already flattened
+// into rows and does not carry an explicit "group size" field we can trust.
+// ---------------------------------------------------------------------------
+
 const inferRepeatedXGroupLength = ({
   dataStartRowIndex,
   rows,
@@ -323,6 +350,8 @@ const resolveAutoGroupShape = ({
   groupSize: number | null;
   groups: number | null;
 } => {
+  // Prefer explicit metadata first; if that is absent, fall back to shape-based
+  // detection from Point/VAR2 columns or repeated X values.
   const metadataShape = inferMetadataGroupShapeFromRows({
     dataStartRowIndex,
     rows,
@@ -386,11 +415,264 @@ const currentHeaderLooksLikeDrainCurrent = (header: string): boolean => {
   const compact = normalized.replace(/[\s_\-./()[\]{}:=]+/g, "");
   return (
     compact === "id" ||
+    compact.startsWith("id") ||
     compact === "draincurrent" ||
+    compact === "totalcurrent" ||
     compact === "draini" ||
-    normalized.includes("drain current")
+    normalized.includes("drain current") ||
+    (normalized.includes("drain") && normalized.includes("current")) ||
+    normalized.includes("totalcurrent")
   );
 };
+
+// ---------------------------------------------------------------------------
+// Structured column-layout detection
+// This is the main extension point for new CSV layouts such as:
+// - XYXYXY... : repeated adjacent X/Y pairs
+// - XYYYY...  : one shared X followed by many drain-current columns
+// The goal is to normalize those layouts back into the worker's native model:
+// one xCol + many yCols + legend information.
+// ---------------------------------------------------------------------------
+
+const getNumericColumnValues = ({
+  rows,
+  dataStartRowIndex,
+  colIndex,
+  limit = 512,
+}: {
+  rows: Array<Array<unknown> | null | undefined>;
+  dataStartRowIndex: number;
+  colIndex: number;
+  limit?: number;
+}): number[] => {
+  const values: number[] = [];
+  for (
+    let rowIndex = dataStartRowIndex;
+    rowIndex < rows.length && values.length < limit;
+    rowIndex += 1
+  ) {
+    const row = Array.isArray(rows[rowIndex]) ? (rows[rowIndex] as Array<unknown>) : [];
+    const parsed = parseFiniteNumber(row[colIndex]);
+    if (parsed === null) break;
+    values.push(parsed);
+  }
+  return values;
+};
+
+const normalizeStructuredAxisSuffix = (
+  header: string,
+): { axis: "x" | "y" | null; stem: string } => {
+  const normalized = normalizeCellText(header);
+  if (!normalized) return { axis: null, stem: "" };
+  const trimmed = normalized.trim();
+  const suffixMatch = trimmed.match(/^(.*?)(?:[\s_\-./()[\]{}:=]+)?([xy])$/i);
+  if (!suffixMatch) {
+    return { axis: null, stem: trimmed.toLowerCase() };
+  }
+  const stem = normalizeCellText(suffixMatch[1]).toLowerCase();
+  return {
+    axis: suffixMatch[2].toLowerCase() === "x" ? "x" : "y",
+    stem,
+  };
+};
+
+const columnsShareEquivalentX = ({
+  rows,
+  dataStartRowIndex,
+  leftCol,
+  rightCol,
+}: {
+  rows: Array<Array<unknown> | null | undefined>;
+  dataStartRowIndex: number;
+  leftCol: number;
+  rightCol: number;
+}): boolean => {
+  // We allow tiny floating-point drift because many export tools rewrite the
+  // same X sweep with slightly different text formatting.
+  const leftValues = getNumericColumnValues({
+    rows,
+    dataStartRowIndex,
+    colIndex: leftCol,
+  });
+  const rightValues = getNumericColumnValues({
+    rows,
+    dataStartRowIndex,
+    colIndex: rightCol,
+  });
+  const compareCount = Math.min(leftValues.length, rightValues.length);
+  if (compareCount < AUTO_SEGMENTATION_MIN_GROUP_SIZE) return false;
+
+  const leftSpan = computeSpan(leftValues) ?? 0;
+  const rightSpan = computeSpan(rightValues) ?? 0;
+  const tolerance = Math.max(
+    1e-9,
+    Math.max(Math.abs(leftSpan), Math.abs(rightSpan), 1) * 1e-4,
+  );
+
+  for (let index = 0; index < compareCount; index += 1) {
+    if (!approxEqual(leftValues[index], rightValues[index], tolerance)) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const inferStructuredSeriesLayout = ({
+  classification,
+  dataStartRowIndex,
+  headers,
+  rows,
+}: {
+  classification: DeviceAnalysisCurveClassification;
+  dataStartRowIndex: number;
+  headers: string[];
+  rows: Array<Array<unknown> | null | undefined>;
+}): StructuredSeriesLayout | null => {
+  const headerEntries = headers.map((header, index) => {
+    const normalizedHeader = normalizeCellText(header);
+    const normalized = normalizedHeader.toLowerCase();
+    const compact = normalized.replace(/[\s_\-./()[\]{}:=]+/g, "");
+    const suffix = normalizeStructuredAxisSuffix(normalizedHeader);
+    const numeric = columnHasNumericRows(rows, dataStartRowIndex, index, 2);
+    return {
+      header: normalizedHeader,
+      index,
+      normalized,
+      numeric,
+      suffixAxis: suffix.axis,
+      suffixStem: suffix.stem,
+      role: detectDeviceAnalysisAxisRole(normalizedHeader),
+      isCurrent:
+        normalized.includes("current") ||
+        normalized === "id" ||
+        /^i[gds]?([^a-z0-9]|$)/.test(normalized) ||
+        compact.startsWith("id") ||
+        compact.startsWith("ig") ||
+        normalized === "ig" ||
+        currentHeaderLooksLikeDrainCurrent(normalizedHeader),
+      isDrainCurrent: currentHeaderLooksLikeDrainCurrent(normalizedHeader),
+    };
+  });
+
+  const pairCandidates: Array<{ xCol: number; yCol: number }> = [];
+  for (let index = 0; index < headerEntries.length - 1; index += 1) {
+    const left = headerEntries[index];
+    const right = headerEntries[index + 1];
+    if (!left.numeric || !right.numeric) continue;
+    if (left.suffixAxis !== "x" || right.suffixAxis !== "y") continue;
+    if (!left.suffixStem || left.suffixStem !== right.suffixStem) continue;
+    pairCandidates.push({ xCol: left.index, yCol: right.index });
+  }
+
+  if (pairCandidates.length >= 2) {
+    // XYXYXY... case: if every X column is effectively the same sweep, keep the
+    // first X and turn all Y columns into parallel series.
+    const sharedX = pairCandidates.every((pair) =>
+      columnsShareEquivalentX({
+        rows,
+        dataStartRowIndex,
+        leftCol: pairCandidates[0]?.xCol ?? pair.xCol,
+        rightCol: pair.xCol,
+      }),
+    );
+
+    if (sharedX) {
+      const firstXHeader = headers[pairCandidates[0]?.xCol ?? 0] || "X";
+      const xAxisRole =
+        classification.xAxisRole ??
+        detectDeviceAnalysisAxisRole(firstXHeader) ??
+        (normalizeCellText(firstXHeader).toLowerCase().includes("drain") ? "vd" : null) ??
+        (normalizeCellText(firstXHeader).toLowerCase().includes("gate") ? "vg" : null);
+
+      return {
+        curveType:
+          classification.curveType !== "unknown"
+            ? classification.curveType
+            : xAxisRole === "vg"
+              ? "transfer"
+              : xAxisRole === "vd"
+                ? "output"
+                : "unknown",
+        leftTitle: "Id",
+        legendStartColIndex: pairCandidates[0]?.yCol ?? null,
+        legendStartRowIndex: dataStartRowIndex - 1 >= 0 ? dataStartRowIndex - 1 : null,
+        legendStep:
+          pairCandidates.length >= 2
+            ? pairCandidates[1]!.yCol - pairCandidates[0]!.yCol
+            : 1,
+        legendTarget: "yColumn",
+        reasons: [
+          `Detected ${pairCandidates.length} adjacent X/Y column pairs with equivalent X traces.`,
+        ],
+        xAxisRole,
+        xAxisRoleSource: classification.xAxisRole ? classification.xAxisRoleSource : "label",
+        xCol: pairCandidates[0]!.xCol,
+        yCols: pairCandidates.map((pair) => pair.yCol),
+      };
+    }
+  }
+
+  // XYYYY... case: one X-like column plus many drain-current columns. We keep
+  // this strict on purpose so transfer files with Id/Ig/Vd do not get
+  // misclassified as multi-Y output files.
+  const xCandidates = headerEntries.filter(
+    (entry) =>
+      entry.numeric &&
+      (entry.suffixAxis === "x" ||
+        entry.role === classification.xAxisRole ||
+        entry.role !== null),
+  );
+  const primaryX = xCandidates[0] ?? null;
+  if (!primaryX) return null;
+
+  const yCandidates = headerEntries.filter(
+    (entry) => entry.numeric && entry.index !== primaryX.index && entry.isDrainCurrent,
+  );
+
+  if (yCandidates.length < 2) return null;
+
+  const yStep =
+    yCandidates.length >= 2
+      ? yCandidates[1]!.index - yCandidates[0]!.index
+      : 1;
+  const uniformYStep = yCandidates.every(
+    (entry, index) => index === 0 || entry.index - yCandidates[index - 1]!.index === yStep,
+  );
+  const xAxisRole =
+    classification.xAxisRole ??
+    primaryX.role ??
+    (primaryX.normalized.includes("drain") ? "vd" : null) ??
+    (primaryX.normalized.includes("gate") ? "vg" : null);
+
+  return {
+    curveType:
+      classification.curveType !== "unknown"
+        ? classification.curveType
+        : xAxisRole === "vg"
+          ? "transfer"
+          : xAxisRole === "vd"
+            ? "output"
+            : "unknown",
+    leftTitle: "Id",
+    legendStartColIndex: yCandidates[0]!.index,
+    legendStartRowIndex: dataStartRowIndex - 1 >= 0 ? dataStartRowIndex - 1 : null,
+    legendStep: uniformYStep ? yStep : 1,
+    legendTarget: "yColumn",
+    reasons: [
+      `Detected one shared X column with ${yCandidates.length} numeric Y columns.`,
+    ],
+    xAxisRole,
+    xAxisRoleSource: classification.xAxisRole ? classification.xAxisRoleSource : "label",
+    xCol: primaryX.index,
+    yCols: yCandidates.map((entry) => entry.index),
+  };
+};
+
+// ---------------------------------------------------------------------------
+// Generic header matching and metadata parsing
+// These helpers support the legacy "single X + single Y/grouped rows" flow and
+// also feed legend/group inference for the structured layouts above.
+// ---------------------------------------------------------------------------
 
 const findFirstMatchingColumn = ({
   dataStartRowIndex,
@@ -681,6 +963,8 @@ export const inferMetadataGroupShapeFromRows = ({
   totalRowCount?: number | null;
   notesText?: string;
 }): ResolvedGroupShape => {
+  // Order matters here: explicit exported dimensions are more reliable than
+  // sweep counts reconstructed from notes.
   const dimensionShape = resolveGroupShapeFromCounts({
     dataStartRowIndex,
     groupSize: findMetadataPositiveInteger({
@@ -732,6 +1016,13 @@ export const inferMetadataGroupShapeFromRows = ({
     source: null,
   };
 };
+
+// ---------------------------------------------------------------------------
+// Plan builders
+// The stripped-channel path handles CH1/CH2 exports from measurement tools.
+// The generic path handles everything else, including the new structured
+// XYXY... / XYYYY... layouts.
+// ---------------------------------------------------------------------------
 
 const inferStrippedChannelPlan = ({
   classification,
@@ -855,34 +1146,61 @@ const inferGenericPlan = ({
   rows: Array<Array<unknown> | null | undefined>;
   totalRowCount?: number | null;
 }): DeviceAnalysisAutoExtractionResult => {
-  if (!classification.xAxisRole || classification.curveType === "unknown") {
+  const structuredLayout = inferStructuredSeriesLayout({
+    classification,
+    dataStartRowIndex,
+    headers,
+    rows,
+  });
+
+  const effectiveXAxisRole = structuredLayout?.xAxisRole ?? classification.xAxisRole;
+  const effectiveCurveType = structuredLayout?.curveType ?? classification.curveType;
+  const effectiveConfidence =
+    classification.curveType !== "unknown" && classification.xAxisRole
+      ? classification.confidence
+      : structuredLayout
+        ? "medium"
+        : classification.confidence;
+  const effectiveReasons = structuredLayout
+    ? [...structuredLayout.reasons, ...classification.reasons]
+    : classification.reasons;
+  const effectiveRoleSource = structuredLayout?.xAxisRoleSource ?? classification.xAxisRoleSource;
+
+  if (!effectiveXAxisRole || effectiveCurveType === "unknown") {
     return {
       message: `${String(fileName ?? "file")}: unable to infer axis roles automatically.`,
       ok: false,
-      reasons: classification.reasons,
+      reasons: effectiveReasons,
     };
   }
 
-  const xCol = findFirstMatchingColumn({
-    dataStartRowIndex,
-    headers,
-    role: classification.xAxisRole,
-    rows,
-    type: "voltage",
-  });
-  const yCol = findFirstMatchingColumn({
+  const xCol =
+    structuredLayout?.xCol ??
+    findFirstMatchingColumn({
+      dataStartRowIndex,
+      headers,
+      role: effectiveXAxisRole,
+      rows,
+      type: "voltage",
+    });
+  const fallbackYCol = findFirstMatchingColumn({
     dataStartRowIndex,
     headers,
     role: "vd",
     rows,
     type: "current",
   });
+  const yCols = structuredLayout?.yCols?.length
+    ? structuredLayout.yCols
+    : fallbackYCol !== null
+      ? [fallbackYCol]
+      : [];
 
-  if (xCol === null || yCol === null) {
+  if (xCol === null || !yCols.length) {
     return {
       message: `${String(fileName ?? "file")}: unable to locate auto extraction columns.`,
       ok: false,
-      reasons: classification.reasons,
+      reasons: effectiveReasons,
     };
   }
 
@@ -897,7 +1215,7 @@ const inferGenericPlan = ({
     var2ColIndex: var2Col,
     xCol,
   });
-  const biasRole = classification.xAxisRole === "vg" ? "vd" : "vg";
+  const biasRole = effectiveXAxisRole === "vg" ? "vd" : "vg";
   const legendCol = findFirstMatchingColumn({
     dataStartRowIndex,
     fallbackToFirst: false,
@@ -914,7 +1232,11 @@ const inferGenericPlan = ({
       : null;
   const normalizedGroupSize =
     Number.isInteger(groupSize) && Number(groupSize) > 0 ? Number(groupSize) : null;
+  const structuredLegendTarget = structuredLayout?.legendTarget ?? "auto";
+  // Structured layouts already map legends by header columns, so they should
+  // not be reinterpreted as "group legend" sweeps from row-wise metadata.
   const hasGroupedLegend =
+    structuredLegendTarget !== "yColumn" &&
     normalizedGroupSize !== null &&
     (groups ?? 0) > 1 &&
     (legendCol !== null ||
@@ -923,25 +1245,51 @@ const inferGenericPlan = ({
     !hasGroupedLegend &&
     generatedLegendSweep?.start !== null &&
     generatedLegendSweep?.count === 1;
-  const yHeader = headers[yCol] || "Y";
+  const primaryYHeader = headers[yCols[0]!] || "Y";
 
   return {
     ok: true,
     plan: {
-      bottomTitle: resolveLabelForRole(classification.xAxisRole, headers[xCol] || "X"),
-      confidence: classification.confidence,
-      curveType: classification.curveType,
-      curveTypeLabel: classification.curveTypeLabel,
+      bottomTitle: resolveLabelForRole(effectiveXAxisRole, headers[xCol] || "X"),
+      confidence: effectiveConfidence,
+      curveType: effectiveCurveType,
+      curveTypeLabel:
+        effectiveCurveType === classification.curveType
+          ? classification.curveTypeLabel
+          : effectiveCurveType === "transfer"
+            ? effectiveXAxisRole === "vg"
+              ? "transfer (vg)"
+              : "transfer"
+            : effectiveCurveType === "output"
+              ? effectiveXAxisRole === "vd"
+                ? "output (vd)"
+                : "output"
+              : "unknown",
       dataStartRowIndex,
       groups,
-      leftTitle: currentHeaderLooksLikeDrainCurrent(yHeader) ? "Id" : yHeader,
+      leftTitle:
+        structuredLayout?.leftTitle ??
+        (currentHeaderLooksLikeDrainCurrent(primaryYHeader) ? "Id" : primaryYHeader),
       legendPrefix:
-        legendCol !== null
+        structuredLegendTarget === "yColumn"
+          ? ""
+          : legendCol !== null
           ? resolveLabelForRole(biasRole, headers[legendCol] || "Bias")
           : resolveLabelForRole(biasRole, metadata.var2Name || "Bias"),
-      legendStartColIndex: hasGroupedLegend ? legendCol : null,
-      legendStartRowIndex: hasGroupedLegend ? dataStartRowIndex : null,
+      legendStartColIndex:
+        structuredLegendTarget === "yColumn"
+          ? structuredLayout?.legendStartColIndex ?? null
+          : hasGroupedLegend
+            ? legendCol
+            : null,
+      legendStartRowIndex:
+        structuredLegendTarget === "yColumn"
+          ? structuredLayout?.legendStartRowIndex ?? null
+          : hasGroupedLegend
+            ? dataStartRowIndex
+            : null,
       legendStartValue:
+        structuredLegendTarget !== "yColumn" &&
         hasGroupedLegend &&
         legendCol === null &&
         generatedLegendSweep &&
@@ -951,30 +1299,43 @@ const inferGenericPlan = ({
             ? formatCompactNumber(generatedLegendSweep.start)
           : null,
       legendCount:
-        hasGroupedLegend && legendCol === null
+        structuredLegendTarget === "yColumn"
+          ? yCols.length
+          : hasGroupedLegend && legendCol === null
           ? (generatedLegendSweep?.count ?? null)
           : hasSingleGeneratedLegend
             ? 1
           : null,
       legendStep:
-        hasGroupedLegend && legendCol === null
+        structuredLegendTarget === "yColumn"
+          ? (structuredLayout?.legendStep ?? 1)
+          : hasGroupedLegend && legendCol === null
           ? (generatedLegendSweep?.step ?? null)
           : null,
-      legendTarget: hasGroupedLegend ? "group" : hasSingleGeneratedLegend ? "yColumn" : "auto",
-      needsTemplate: classification.needsTemplate,
-      reasons: classification.reasons,
-      xAxisRole: classification.xAxisRole,
-      xAxisRoleSource: classification.xAxisRoleSource,
+      legendTarget:
+        structuredLegendTarget === "yColumn"
+          ? "yColumn"
+          : hasGroupedLegend
+            ? "group"
+            : hasSingleGeneratedLegend
+              ? "yColumn"
+              : "auto",
+      needsTemplate: classification.needsTemplate && !structuredLayout,
+      reasons: effectiveReasons,
+      xAxisRole: effectiveXAxisRole,
+      xAxisRoleSource: effectiveRoleSource,
       xCol,
       xPointsPerGroup: normalizedGroupSize,
       xSegmentationMode: normalizedGroupSize !== null ? "points" : "auto",
       xUnit: "V",
-      yCols: [yCol],
+      yCols,
       yUnit: "A",
     },
   };
 };
 
+// Public entry point for preview-time auto inference. Keep this thin so future
+// layout rules can stay inside the dedicated helpers above.
 export const inferDeviceAnalysisAutoExtraction = ({
   fileName,
   rows,
@@ -1025,6 +1386,8 @@ export const inferDeviceAnalysisAutoExtraction = ({
   });
 };
 
+// Shared serializer used by the template UI. This intentionally mirrors the
+// worker config model so auto-detected plans remain editable by users.
 export const buildDeviceAnalysisAutoTemplateConfig = (
   plan: DeviceAnalysisAutoExtractionPlan,
 ): Record<string, unknown> => {
@@ -1054,6 +1417,7 @@ export const buildDeviceAnalysisAutoTemplateConfig = (
   };
 };
 
+// Shared serializer used by the worker processing path.
 export const buildDeviceAnalysisAutoWorkerConfig = (
   plan: DeviceAnalysisAutoExtractionPlan,
 ): Record<string, unknown> => {

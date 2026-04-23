@@ -195,6 +195,74 @@ test("infers a fixed legend for single-curve Trans_Br metadata", () => {
   assert.equal(templateConfig.yLegendTarget, "yColumn");
 });
 
+test("infers adjacent XY pairs with equivalent X traces into shared-X multi-series extraction", () => {
+  const rows = [
+    [
+      "drain TotalCurrent(IdVg_n938_des) X",
+      "drain TotalCurrent(IdVg_n938_des) Y",
+      "drain TotalCurrent(IdVg_n944_des) X",
+      "drain TotalCurrent(IdVg_n944_des) Y",
+      "drain TotalCurrent(IdVg_n950_des) X",
+      "drain TotalCurrent(IdVg_n950_des) Y",
+    ],
+    ["-0.5", "2e-23", "-0.5", "3e-22", "-0.5", "4e-21"],
+    ["0.0", "1e-15", "0.0", "2e-14", "0.0", "3e-13"],
+    ["0.5", "8e-8", "0.5", "7e-7", "0.5", "3e-6"],
+    ["1.0", "2e-5", "1.0", "2.4e-5", "1.0", "2.8e-5"],
+  ];
+
+  const result = inferDeviceAnalysisAutoExtraction({
+    fileName: "30020 SLVT IVlin.csv",
+    rows,
+    totalRowCount: rows.length,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.plan.curveType, "output");
+  assert.equal(result.plan.xAxisRole, "vd");
+  assert.equal(result.plan.xCol, 0);
+  assert.deepEqual(result.plan.yCols, [1, 3, 5]);
+  assert.equal(result.plan.legendTarget, "yColumn");
+  assert.equal(result.plan.legendStartColIndex, 1);
+  assert.equal(result.plan.legendStartRowIndex, 0);
+  assert.equal(result.plan.legendCount, 3);
+  assert.equal(result.plan.legendStep, 2);
+
+  const templateConfig = buildDeviceAnalysisAutoTemplateConfig(result.plan);
+  assert.equal(templateConfig.xDataStart, "A2");
+  assert.deepEqual(templateConfig.yColumns, [1, 3, 5]);
+  assert.equal(templateConfig.yLegendStart, "B1");
+  assert.equal(templateConfig.yLegendCount, "3");
+  assert.equal(templateConfig.yLegendStep, "2");
+  assert.equal(templateConfig.yLegendTarget, "yColumn");
+});
+
+test("infers one shared X column with multiple Y current columns", () => {
+  const rows = [
+    ["Vd", "Id @ Vg=0.5", "Id @ Vg=1.0", "Id @ Vg=1.5"],
+    ["0.0", "1e-9", "2e-9", "3e-9"],
+    ["0.5", "1e-6", "2e-6", "3e-6"],
+    ["1.0", "2e-5", "2.5e-5", "3.2e-5"],
+  ];
+
+  const result = inferDeviceAnalysisAutoExtraction({
+    fileName: "output_multi_y.csv",
+    rows,
+    totalRowCount: rows.length,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.plan.curveType, "output");
+  assert.equal(result.plan.xAxisRole, "vd");
+  assert.equal(result.plan.xCol, 0);
+  assert.deepEqual(result.plan.yCols, [1, 2, 3]);
+  assert.equal(result.plan.legendTarget, "yColumn");
+  assert.equal(result.plan.legendStartColIndex, 1);
+  assert.equal(result.plan.legendStartRowIndex, 0);
+  assert.equal(result.plan.legendCount, 3);
+  assert.equal(result.plan.legendStep, 1);
+});
+
 test("returns a failure result when auto extraction cannot infer columns", () => {
   const result = inferDeviceAnalysisAutoExtraction({
     fileName: "unknown.csv",
