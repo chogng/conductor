@@ -127,6 +127,15 @@
   right: -2px;
 }
 
+.da-template-config-scroll-area {
+  overflow: visible;
+  padding-right: 4px;
+}
+
+.da-template-config-scroll-area > .scroll-area__track--y {
+  right: 0;
+}
+
 /* Native scrollbar baseline */
 ::-webkit-scrollbar {
   width: 6px;

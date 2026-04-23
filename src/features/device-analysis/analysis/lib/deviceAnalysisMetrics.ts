@@ -1,3 +1,5 @@
+import { splitBidirectionalCurvePoints } from "./analysisMath.ts";
+
 type PointLike = {
   x?: unknown;
   y?: unknown;
@@ -208,16 +210,18 @@ const pickExtremeCurrentWindow = (
 
 const buildAutoCandidateWindows = (
   finitePoints: FiniteCurrentPoint[],
+  branchLabel?: string | null,
 ): CurrentWindowMeta[] => {
   const windowPointCount = resolveCurrentWindowPointCount(finitePoints.length);
+  const suffix = branchLabel ? ` (${branchLabel})` : "";
   const lowEnd = buildCurrentWindow({
     key: "lowEnd",
-    label: "low-end",
+    label: `low-end${suffix}`,
     points: finitePoints.slice(0, windowPointCount),
   });
   const highEnd = buildCurrentWindow({
     key: "highEnd",
-    label: "high-end",
+    label: `high-end${suffix}`,
     points: finitePoints.slice(-windowPointCount),
   });
   const minX = finitePoints[0]?.x;
@@ -226,7 +230,7 @@ const buildAutoCandidateWindows = (
     isFiniteNumber(minX) && isFiniteNumber(maxX) && minX <= 0 && maxX >= 0
       ? takeNearestWindow({
           key: "zeroBias",
-          label: "near 0",
+          label: `near 0${suffix}`,
           pointCount: windowPointCount,
           points: finitePoints,
           targetX: 0,
@@ -236,6 +240,12 @@ const buildAutoCandidateWindows = (
   return [lowEnd, highEnd, zeroBias].filter(
     (candidate): candidate is CurrentWindowMeta => candidate !== null,
   );
+};
+const resolveSegmentBranchLabel = (branch: unknown): string | null => {
+  const value = String(branch ?? "").trim().toLowerCase();
+  if (value === "forward") return "forward";
+  if (value === "reverse") return "reverse";
+  return null;
 };
 
 const buildEmptyBaseCurrentMetrics = (): BaseCurrentMetrics => ({
@@ -297,12 +307,19 @@ export const computeBaseCurrentMetrics = ({
     return buildEmptyBaseCurrentMetrics();
   }
 
-  const finitePoints = toFiniteCurrentPoints(points).sort((a, b) => a.x - b.x);
-  if (finitePoints.length === 0) {
+  const segmentEntries = splitBidirectionalCurvePoints(points)
+    .map((segment) => ({
+      branchLabel: resolveSegmentBranchLabel(segment?.branch),
+      points: toFiniteCurrentPoints(segment?.points ?? []).sort((a, b) => a.x - b.x),
+    }))
+    .filter((segment) => segment.points.length > 0);
+  if (!segmentEntries.length) {
     return buildEmptyBaseCurrentMetrics();
   }
 
-  const candidateWindows = buildAutoCandidateWindows(finitePoints);
+  const candidateWindows = segmentEntries.flatMap((segment) =>
+    buildAutoCandidateWindows(segment.points, segment.branchLabel),
+  );
   const autoIonWindow = pickExtremeCurrentWindow(candidateWindows, "max");
   const autoIoffWindow = pickExtremeCurrentWindow(candidateWindows, "min");
 
@@ -324,28 +341,36 @@ export const computeBaseCurrentMetrics = ({
       xAtIon: autoIonWindow?.x ?? null,
     };
   }
-
-  const windowPointCount = resolveCurrentWindowPointCount(finitePoints.length);
   const ionTargetX = Number(manualTargets?.ionX);
   const ioffTargetX = Number(manualTargets?.ioffX);
-  const ionWindow = isFiniteNumber(ionTargetX)
-    ? takeNearestWindow({
-        key: "manualIon",
-        label: "manual Ion",
-        pointCount: windowPointCount,
-        points: finitePoints,
-        targetX: ionTargetX,
-      })
-    : null;
-  const ioffWindow = isFiniteNumber(ioffTargetX)
-    ? takeNearestWindow({
-        key: "manualIoff",
-        label: "manual Ioff",
-        pointCount: windowPointCount,
-        points: finitePoints,
-        targetX: ioffTargetX,
-      })
-    : null;
+  const ionCandidates = isFiniteNumber(ionTargetX)
+    ? segmentEntries
+        .map((segment) =>
+          takeNearestWindow({
+            key: "manualIon",
+            label: `manual Ion${segment.branchLabel ? ` (${segment.branchLabel})` : ""}`,
+            pointCount: resolveCurrentWindowPointCount(segment.points.length),
+            points: segment.points,
+            targetX: ionTargetX,
+          }),
+        )
+        .filter((window): window is CurrentWindowMeta => window !== null)
+    : [];
+  const ioffCandidates = isFiniteNumber(ioffTargetX)
+    ? segmentEntries
+        .map((segment) =>
+          takeNearestWindow({
+            key: "manualIoff",
+            label: `manual Ioff${segment.branchLabel ? ` (${segment.branchLabel})` : ""}`,
+            pointCount: resolveCurrentWindowPointCount(segment.points.length),
+            points: segment.points,
+            targetX: ioffTargetX,
+          }),
+        )
+        .filter((window): window is CurrentWindowMeta => window !== null)
+    : [];
+  const ionWindow = pickExtremeCurrentWindow(ionCandidates, "max");
+  const ioffWindow = pickExtremeCurrentWindow(ioffCandidates, "min");
   const ion = ionWindow?.current ?? null;
   const ioff = ioffWindow?.current ?? null;
 

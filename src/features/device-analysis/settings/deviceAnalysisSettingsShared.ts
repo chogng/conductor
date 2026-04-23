@@ -28,6 +28,7 @@ export type DeviceAnalysisSettings = {
   ionIoffManualIoffX?: number | string;
   ionIoffManualIonX?: number | string;
   ionIoffMethodDefault?: IonIoffMethod;
+  gmDiagnosticsEnabled?: boolean;
   ssDiagnosticsEnabled?: boolean;
   ssIdHigh?: number | string;
   ssIdLow?: number | string;

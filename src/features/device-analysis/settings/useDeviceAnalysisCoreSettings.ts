@@ -27,6 +27,7 @@ type UseDeviceAnalysisCoreSettingsOptions = {
   setLanguage: (language: LanguageCode) => void;
   theme: ThemeMode;
   setTheme: (theme: ThemeMode) => void;
+  setGmDiagnosticsEnabled: (enabled: boolean) => void;
   setSsDiagnosticsEnabled: (enabled: boolean) => void;
   setSsIdWindow: (window: { high: string; low: string }) => void;
   setSsMethod: (method: SsMethod) => void;
@@ -45,6 +46,7 @@ export const useDeviceAnalysisCoreSettings = ({
   setLanguage,
   theme,
   setTheme,
+  setGmDiagnosticsEnabled,
   setSsDiagnosticsEnabled,
   setSsIdWindow,
   setSsMethod,
@@ -140,6 +142,10 @@ export const useDeviceAnalysisCoreSettings = ({
 
       if (typeof settings?.ssDiagnosticsEnabled === "boolean") {
         setSsDiagnosticsEnabled(settings.ssDiagnosticsEnabled);
+      }
+
+      if (typeof settings?.gmDiagnosticsEnabled === "boolean") {
+        setGmDiagnosticsEnabled(settings.gmDiagnosticsEnabled);
       }
 
       if (typeof settings?.ssShowFitLine === "boolean") {

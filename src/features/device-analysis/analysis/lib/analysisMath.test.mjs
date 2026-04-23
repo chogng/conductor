@@ -2,9 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   classifySsFit,
+  computeCentralDerivative,
   computeSubthresholdSwingFitAuto,
   interpolateCurveAtX,
   resolveAutoSsSelection,
+  splitBidirectionalCurvePoints,
 } from "./analysisMath.ts";
 
 test("resolveAutoSsSelection falls back to suggested window with low confidence", () => {
@@ -148,4 +150,65 @@ test("interpolateCurveAtX rejects log interpolation when y is non-positive", () 
 
   assert.equal(sample?.kind, "empty");
   assert.equal(sample?.y, null);
+});
+
+test("interpolateCurveAtX uses the true domain for bidirectional sweeps", () => {
+  const sample = interpolateCurveAtX(
+    [
+      { x: -1, y: 1e-12 },
+      { x: 0, y: 1e-11 },
+      { x: 1, y: 1e-8 },
+      { x: 2, y: 1e-6 },
+      { x: 3, y: 1e-5 },
+      { x: 2, y: 8e-7 },
+      { x: 1, y: 8e-9 },
+      { x: 0, y: 9e-12 },
+      { x: -1, y: 1.1e-12 },
+    ],
+    2,
+  );
+
+  assert.equal(sample?.kind, "exact");
+  assert.equal(sample?.y, 1e-6);
+  assert.deepEqual(sample?.domain, { minX: -1, maxX: 3 });
+});
+
+test("splitBidirectionalCurvePoints returns forward and reverse segments", () => {
+  const segments = splitBidirectionalCurvePoints([
+    { x: -1, y: 1e-12 },
+    { x: 0, y: 1e-11 },
+    { x: 1, y: 1e-9 },
+    { x: 2, y: 1e-6 },
+    { x: 1, y: 8e-8 },
+    { x: 0, y: 2e-12 },
+    { x: -1, y: 1.5e-12 },
+  ]);
+
+  assert.equal(segments.length, 2);
+  assert.equal(segments[0]?.branch, "forward");
+  assert.equal(segments[1]?.branch, "reverse");
+  assert.deepEqual(
+    segments.map((segment) => segment.points.map((point) => point.x)),
+    [
+      [-1, 0, 1, 2],
+      [2, 1, 0, -1],
+    ],
+  );
+});
+
+test("computeCentralDerivative avoids bridging across a bidirectional turning point", () => {
+  const derivative = computeCentralDerivative([
+    { x: -1, y: 0 },
+    { x: 0, y: 1 },
+    { x: 1, y: 2 },
+    { x: 2, y: 3 },
+    { x: 1, y: 30 },
+    { x: 0, y: 31 },
+    { x: -1, y: 32 },
+  ]);
+
+  assert.equal(derivative.length, 7);
+  assert.equal(derivative[3]?.y, 1);
+  assert.ok(Number.isFinite(derivative[4]?.y));
+  assert.ok((derivative[4]?.y ?? 0) < 0);
 });

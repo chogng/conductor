@@ -1,6 +1,6 @@
 ﻿import React, { startTransition, useEffect, useMemo, useRef, useState, type CSSProperties, } from "react";
 import { AlertTriangle, Check, X } from "lucide-react";
-import { computeCentralDerivative, computeSubthresholdSwing, computeSubthresholdSwingFitAuto, computeSubthresholdSwingFitInIdWindow, computeSubthresholdSwingFitInRange, classifySsFit, computeLegendDerivativeSeries, formatNumber, interpolateCurveAtX, resolveAutoSsSelection, } from "../lib/analysisMath";
+import { computeCentralDerivative, computeSubthresholdSwing, computeSubthresholdSwingFitAuto, computeSubthresholdSwingFitInIdWindow, computeSubthresholdSwingFitInRange, classifySsFit, computeLegendDerivativeSeries, formatNumber, interpolateCurveAtX, resolveAutoSsSelection, splitBidirectionalCurvePoints, } from "../lib/analysisMath";
 import { apiService } from "../services/apiService";
 import DropdownField from "../../../../components/ui/DropdownField";
 import Button from "../../../../components/ui/Button";
@@ -32,6 +32,7 @@ import { buildLogTicks, buildNiceTicks, buildOriginAutoTicks, buildPoints, build
 import { computeBaseCurrentMetrics, isOutputLikeDeviceAnalysisFile, isTransferLikeDeviceAnalysisFile, } from "../lib/deviceAnalysisMetrics";
 import { getDeviceAnalysisXUnitMeta, getDeviceAnalysisYUnitMeta, normalizeDeviceAnalysisYUnit, } from "../lib/deviceAnalysisUnits";
 import MainPlotChart from "./MainPlotChart";
+import GmDiagnosticsChart from "./GmDiagnosticsChart";
 import SsDiagnosticsChart from "./SsDiagnosticsChart";
 import SsSummaryStrip from "./SsSummaryStrip";
 import AnalysisDiagnosticsCard from "./AnalysisDiagnosticsCard";
@@ -126,6 +127,10 @@ const toConductanceUnitLabel = (currentUnitLabel: string, denominatorUnit: strin
         return "pS";
     return "S";
 };
+const toSecondDerivativeUnitLabel = (conductanceUnitLabel: string, xUnitLabel: string): string => {
+    const xUnit = String(xUnitLabel ?? "").trim() || "X";
+    return `${conductanceUnitLabel}/${xUnit}`;
+};
 const formatCurrentWindowSummary = (window: any, xFactor: number, digits: number): string => {
     if (!window)
         return "not selected";
@@ -139,9 +144,17 @@ const formatCurrentWindowSummary = (window: any, xFactor: number, digits: number
     if (Number.isFinite(window?.current)) {
         parts.push(`|I|=${formatNumber(window.current)}`);
     }
-    return parts.join(" 路 ");
+    return parts.join(" | ");
 };
 const formatBiasInputValue = (xRaw: number, xFactor: number): string => String(normalizeFloat(xRaw * xFactor));
+const formatCurveProbeBranchSuffix = (branchRaw: unknown): string => {
+    const branch = String(branchRaw ?? "").trim().toLowerCase();
+    if (branch === "forward")
+        return " (forward)";
+    if (branch === "reverse")
+        return " (reverse)";
+    return "";
+};
 const toStableNumericToken = (value: unknown): string => {
     const num = Number(value);
     return Number.isFinite(num) ? String(normalizeFloat(num)) : "";
@@ -382,7 +395,7 @@ const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, ssAp
         ]}
       />);
 });
-const AnalysisCharts = ({ processedData, processingStatus, activeFileId: controlledActiveFileId = undefined, onActiveFileIdChange = undefined, showFileSelect = true, ionIoffMethod = "auto", setIonIoffMethod = () => { }, ionIoffManualTargets = { ionX: "", ioffX: "" }, setIonIoffManualTargets = () => { }, ssMethod = "auto", setSsMethod = () => { }, ssDiagnosticsEnabled = true, setSsDiagnosticsEnabled = () => { }, ssShowFitLine = true, setSsShowFitLine = () => { }, ssIdWindow = { low: "1e-11", high: "1e-9" }, setSsIdWindow = () => { }, ssManualRanges = {}, setSsManualRanges = () => { }, originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS, }: any) => {
+const AnalysisCharts = ({ processedData, processingStatus, activeFileId: controlledActiveFileId = undefined, onActiveFileIdChange = undefined, showFileSelect = true, ionIoffMethod = "auto", setIonIoffMethod = () => { }, ionIoffManualTargets = { ionX: "", ioffX: "" }, setIonIoffManualTargets = () => { }, ssMethod = "auto", setSsMethod = () => { }, ssDiagnosticsEnabled = true, setSsDiagnosticsEnabled = () => { }, gmDiagnosticsEnabled = false, setGmDiagnosticsEnabled = () => { }, ssShowFitLine = true, setSsShowFitLine = () => { }, ssIdWindow = { low: "1e-11", high: "1e-9" }, setSsIdWindow = () => { }, ssManualRanges = {}, setSsManualRanges = () => { }, originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS, }: any) => {
     const { t } = useLanguage();
     const tLoose = React.useCallback<FormatOriginTranslateFn>((key, params) => t(key, params as any), [t]);
     const [internalActiveFileId, setInternalActiveFileId] = useState(processedData?.[0]?.fileId ?? null);
@@ -617,11 +630,12 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const fileId = String(activeFile?.fileId ?? "").trim();
         if (!fileId)
             return new Set<string>();
+        const hasConfiguredSeriesIds = Object.prototype.hasOwnProperty.call(visibleSeriesByFileId, fileId);
         const configuredSeriesIds = visibleSeriesByFileId[fileId];
         const fallbackSeriesIds = (Array.isArray(activeFile?.series) ? activeFile.series : [])
             .map((series: any) => String(series?.id ?? "").trim())
             .filter(Boolean);
-        return new Set(configuredSeriesIds?.length ? configuredSeriesIds : fallbackSeriesIds);
+        return new Set(hasConfiguredSeriesIds ? (configuredSeriesIds ?? []) : fallbackSeriesIds);
     }, [activeFile?.fileId, activeFile?.series, visibleSeriesByFileId]);
     const visibleSeriesSignature = useMemo(() => Array.from(visibleSeriesKeySet).sort().join("|"), [visibleSeriesKeySet]);
     const activeSeriesLegendLabelsSignature = useMemo(() => {
@@ -1049,6 +1063,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             metricSymbol,
             summaryLabel,
             metricHeader: `max|${metricSymbol}|`,
+            xDisplay,
+            xSymbol,
         };
     }, [activeFile, gmMode]);
     const pointsBySeriesId = useMemo(() => {
@@ -1994,6 +2010,14 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     }, []);
     const plotYFactor = useMemo(() => resolvedYUnitMeta.factor, [resolvedYUnitMeta.factor]);
     const plotXFactor = useMemo(() => resolvedXUnitMeta.factor, [resolvedXUnitMeta.factor]);
+    const gmSecondDerivativeUnitLabel = useMemo(() => {
+        const conductanceUnitLabel = toConductanceUnitLabel(resolvedYUnitMeta.label, gmUi.denomUnit);
+        return toSecondDerivativeUnitLabel(conductanceUnitLabel, resolvedXUnitMeta.label);
+    }, [gmUi.denomUnit, resolvedXUnitMeta.label, resolvedYUnitMeta.label]);
+    const gmSecondDerivativeAxisLabel = useMemo(() => {
+        const xToken = gmUi.xSymbol || gmUi.xDisplay || "x";
+        return `d(${gmUi.metricSymbol})/d${xToken}`;
+    }, [gmUi.metricSymbol, gmUi.xDisplay, gmUi.xSymbol]);
     const plotYUnitLabel = useMemo(() => {
         if (effectivePlotType === "gm")
             return toConductanceUnitLabel(resolvedYUnitMeta.label, gmUi.denomUnit);
@@ -2078,6 +2102,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             const label = resolveDisplayLegendLabel(activeFile.fileId, series, index);
             return {
                 ...series,
+                color: String(series?.color || COLORS[index % COLORS.length] || "#8884d8"),
                 name: label,
                 tooltipName: buildTooltipSeriesName(label, series?.id),
                 data: pointsBySeriesId.get(series.id) ?? [],
@@ -2091,6 +2116,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     const label = resolveDisplayLegendLabel(activeFile.fileId, series, index);
                     return {
                         ...series,
+                        color: String(series?.color || COLORS[index % COLORS.length] || "#8884d8"),
                         name: label,
                         tooltipName: buildTooltipSeriesName(label, series?.id),
                         data: getSeriesGm(series),
@@ -2102,6 +2128,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     const label = resolveDisplayLegendLabel(activeFile.fileId, series, index);
                     return {
                         ...series,
+                        color: String(series?.color || COLORS[index % COLORS.length] || "#8884d8"),
                         name: label,
                         tooltipName: buildTooltipSeriesName(label, series?.id),
                         data: getSeriesJ(series) ?? [],
@@ -2281,38 +2308,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         pushSelected(metrics?.ioffWindow, "ioff");
         return overlays;
     }, [focusedAnalysis?.metrics, transferMetricsApplicable]);
-    const focusedCurrentSummary = useMemo(() => {
-        if (!transferMetricsApplicable)
-            return null;
-        const metrics = focusedAnalysis?.metrics ?? null;
-        if (!metrics)
-            return "Ion/Ioff is available only on transfer curves.";
-        if (ionIoffMethod === "manual" &&
-            (!String(ionIoffManualTargets?.ionX ?? "").trim() ||
-                !String(ionIoffManualTargets?.ioffX ?? "").trim())) {
-            return "Manual Ion/Ioff needs both Ion x and Ioff x inputs.";
-        }
-        const ionSummary = formatCurrentWindowSummary(metrics?.ionWindow, plotXFactor, 4);
-        const ioffSummary = formatCurrentWindowSummary(metrics?.ioffWindow, plotXFactor, 4);
-        const modeLabel = metrics?.currentMethod === "manual" ? "manual" : "auto";
-        return `Ion/Ioff (${modeLabel}): Ion ${ionSummary} | Ioff ${ioffSummary}`;
-    }, [
-        focusedAnalysis?.metrics,
-        ionIoffManualTargets?.ioffX,
-        ionIoffManualTargets?.ionX,
-        ionIoffMethod,
-        plotXFactor,
-        transferMetricsApplicable,
-    ]);
-    const focusedCurrentLegend = useMemo(() => {
-        if (!transferMetricsApplicable)
-            return null;
-        return ionIoffMethod === "manual"
-            ? "Gray bands show auto candidates; drag the green/red bias markers or edit Ion x / Ioff x. The colored tint shows the averaging window used around each manual bias."
-            : "Gray bands show auto candidates; green and red bands mark the selected Ion and Ioff windows.";
-    }, [ionIoffMethod, transferMetricsApplicable]);
     const currentOverlaysForPlot = useMemo(() => effectivePlotType === "ss" ? [] : focusedCurrentOverlays, [effectivePlotType, focusedCurrentOverlays]);
-    const showCurrentContext = transferMetricsApplicable && effectivePlotType !== "ss";
     const currentBiasMarkers = useMemo(() => {
         if (!currentManualBiasApplicable)
             return [];
@@ -2435,6 +2431,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return !seriesId || visibleSeriesKeySet.has(seriesId);
         });
     }, [plotLegendSeries, visibleSeriesKeySet]);
+    const hasVisiblePlotSeries = displayPlotSeries.length > 0;
     const renderPointBudget = useMemo(() => effectivePlotType === "gm" ? GM_RENDER_POINT_BUDGET : DEFAULT_RENDER_POINT_BUDGET, [effectivePlotType]);
     const renderMaxPointsPerSeries = useMemo(() => {
         const seriesCount = Math.max(1, displayPlotSeries.length);
@@ -2496,12 +2493,25 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const curveProbeRows = useMemo(() => {
         if (!displayPlotSeries.length || curveProbeX === null)
             return [];
-        return displayPlotSeries.map((series: any, index: number) => ({
-            color: COLORS[index % COLORS.length],
-            id: series?.id ?? `curve-${index}`,
-            name: String(series?.name ?? `Curve ${index + 1}`),
-            sample: interpolateCurveAtX(series?.data, curveProbeX, curveProbeMode),
-        }));
+        return displayPlotSeries.flatMap((series: any, index: number) => {
+            const color = String(series?.color || COLORS[index % COLORS.length] || "#8884d8");
+            const baseName = String(series?.name ?? `Curve ${index + 1}`);
+            const segments = splitBidirectionalCurvePoints(series?.data);
+            if (!segments.length) {
+                return [{
+                        color,
+                        id: series?.id ?? `curve-${index}`,
+                        name: baseName,
+                        sample: interpolateCurveAtX(series?.data, curveProbeX, curveProbeMode),
+                    }];
+            }
+            return segments.map((segment: any, segmentIndex: number) => ({
+                color,
+                id: `${series?.id ?? `curve-${index}`}-${segment?.branch ?? segmentIndex}`,
+                name: `${baseName}${formatCurveProbeBranchSuffix(segment?.branch)}`,
+                sample: interpolateCurveAtX(segment?.points, curveProbeX, curveProbeMode),
+            }));
+        });
     }, [curveProbeMode, curveProbeX, displayPlotSeries]);
     const autoMinMax = useMemo(() => {
         const fileId = activeFile?.fileId ?? null;
@@ -2599,7 +2609,65 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return null;
         return downsamplePointsForDisplay(focusedSsDiagnostics, MAX_RENDER_SERIES_POINTS);
     }, [focusedSsDiagnostics]);
-    const diagnosticsChartVisible = effectivePlotType === "ss" && Boolean(focusedSsDiagnostics);
+    const visibleGmDiagnosticsSeries = useMemo(() => {
+        if (effectivePlotType !== "gm")
+            return [];
+        if (!gmDiagnosticsEnabled)
+            return [];
+        return displayPlotSeries
+            .map((series: any, index: number) => {
+            const gm = Array.isArray(series?.data) ? series.data : [];
+            if (gm.length < 2)
+                return null;
+            const computed = computeCentralDerivative(gm).map((point: any) => ({
+                ...point,
+                y: Number.isFinite(point?.y) ? Number(point.y) * plotYFactor : null,
+            }));
+            if (!computed.some((point: any) => Number.isFinite(point?.y)))
+                return null;
+            return {
+                color: String(series?.color || COLORS[index % COLORS.length] || "#8884d8"),
+                data: computed,
+                id: String(series?.id ?? `gm-second-${index}`),
+                lineName: String(series?.name ?? `Curve ${index + 1}`),
+            };
+        })
+            .filter((series: any) => series !== null);
+    }, [displayPlotSeries, effectivePlotType, gmDiagnosticsEnabled, plotYFactor]);
+    const visibleGmDiagnosticsSeriesForRender = useMemo(() => visibleGmDiagnosticsSeries.map((series: any) => ({
+        ...series,
+        data: downsamplePointsForDisplay(series.data, MAX_RENDER_SERIES_POINTS),
+    })), [visibleGmDiagnosticsSeries]);
+    const activeCurveProbeRows = useMemo(() => {
+        if (effectivePlotType === "gm" && gmDiagnosticsEnabled) {
+            if (!visibleGmDiagnosticsSeries.length || curveProbeX === null)
+                return [];
+            return visibleGmDiagnosticsSeries.flatMap((series: any) => splitBidirectionalCurvePoints(series.data).map((segment: any, index: number) => ({
+                color: series.color || "#8884d8",
+                id: `${series.id}-${segment?.branch ?? index}`,
+                name: `${series.lineName}${formatCurveProbeBranchSuffix(segment?.branch)}`,
+                sample: interpolateCurveAtX(segment?.points, curveProbeX, curveProbeMode),
+            })));
+        }
+        return curveProbeRows;
+    }, [curveProbeMode, curveProbeRows, curveProbeX, effectivePlotType, gmDiagnosticsEnabled, visibleGmDiagnosticsSeries]);
+    const activeCurveProbeHeading = useMemo(() => {
+        if (effectivePlotType === "gm" && gmDiagnosticsEnabled) {
+            return t("da_chart_gm_second_diagnostics");
+        }
+        return "Curve Probe";
+    }, [effectivePlotType, gmDiagnosticsEnabled, t]);
+    const activeCurveProbeYUnitLabel = useMemo(() => {
+        if (effectivePlotType === "gm" && gmDiagnosticsEnabled) {
+            return gmSecondDerivativeUnitLabel;
+        }
+        return plotYUnitLabel;
+    }, [effectivePlotType, gmDiagnosticsEnabled, gmSecondDerivativeUnitLabel, plotYUnitLabel]);
+    const diagnosticsChartVisible = effectivePlotType === "ss"
+        ? Boolean(focusedSsDiagnostics)
+        : effectivePlotType === "gm"
+            ? visibleGmDiagnosticsSeries.length > 0
+            : false;
     const isMainChartSizeReady = useContainerSizeReady(mainChartContainerRef, Boolean(activeFile?.series?.length));
     const isDiagnosticsChartSizeReady = useContainerSizeReady(diagnosticsChartContainerRef, diagnosticsChartVisible);
     const ssDiagnosticsMinMax = useMemo(() => {
@@ -2629,6 +2697,33 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         }
         return ssDiagnosticsBaseYDomain;
     }, [ssDiagnosticsBaseYDomain, ssDiagnosticsYTicks]);
+    const gmDiagnosticsMinMax = useMemo(() => {
+        if (!visibleGmDiagnosticsSeries.length)
+            return { minX: null, maxX: null, minY: null, maxY: null };
+        return computeMinMax(visibleGmDiagnosticsSeries.map((series: any) => ({ data: series.data })));
+    }, [visibleGmDiagnosticsSeries]);
+    const gmDiagnosticsBaseYDomain = useMemo(() => {
+        const minY = gmDiagnosticsMinMax?.minY ?? null;
+        const maxY = gmDiagnosticsMinMax?.maxY ?? null;
+        if (minY === null || maxY === null)
+            return [-1, 1];
+        return padLinearDomain(minY, maxY);
+    }, [gmDiagnosticsMinMax?.maxY, gmDiagnosticsMinMax?.minY]);
+    const gmDiagnosticsYTicks = useMemo(() => {
+        return (buildOriginAutoTicks(gmDiagnosticsBaseYDomain[0], gmDiagnosticsBaseYDomain[1], 6) ??
+            buildNiceTicks(gmDiagnosticsBaseYDomain[0], gmDiagnosticsBaseYDomain[1], 6, {
+                preferTightRange: false,
+            }));
+    }, [gmDiagnosticsBaseYDomain]);
+    const gmDiagnosticsYDomain = useMemo(() => {
+        if (Array.isArray(gmDiagnosticsYTicks) && gmDiagnosticsYTicks.length >= 2) {
+            return [
+                Number(gmDiagnosticsYTicks[0]),
+                Number(gmDiagnosticsYTicks[gmDiagnosticsYTicks.length - 1]),
+            ];
+        }
+        return gmDiagnosticsBaseYDomain;
+    }, [gmDiagnosticsBaseYDomain, gmDiagnosticsYTicks]);
     const xTicks = useMemo(() => {
         const mode = String(axis?.xTicks ?? "auto");
         if (mode === "auto") {
@@ -2957,7 +3052,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const showSsDiagnosticsControls = showSsDiagnosticsPanel && ssMethod === "idWindow";
     const showCurrentDiagnosticsControls = showIvDiagnosticsPanel && transferMetricsApplicable && ionIoffMethod === "manual";
     const showAreaDiagnosticsControls = showJDiagnosticsPanel;
-    const showCurveProbePanel = activeFile?.series?.length > 0;
+    const showCurveProbePanel = effectivePlotType === "gm" && gmDiagnosticsEnabled
+        ? visibleGmDiagnosticsSeries.length > 0
+        : hasVisiblePlotSeries;
     const showDiagnosticsPanel = showCurveProbePanel || showSsDiagnosticsPanel || showGmDiagnosticsPanel || showJDiagnosticsPanel || showAxisControls;
     const focusedSeriesLabel = useMemo(() => {
         if (!focusedSeriesId) {
@@ -2966,16 +3063,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const focusedSeries = activeFile?.series?.find((series: any) => series?.id === focusedSeriesId);
         return focusedSeries?.name ?? null;
     }, [activeFile?.series, focusedSeriesId]);
-    const focusedGmSummary = useMemo(() => {
-        const metrics = focusedAnalysis?.metrics ?? null;
-        if (!metrics || !Number.isFinite(metrics?.gmMaxAbs)) {
-            return null;
-        }
-        return {
-            value: metrics.gmMaxAbs,
-            xAt: Number.isFinite(metrics?.xAtGmMaxAbs) ? metrics.xAtGmMaxAbs : null,
-        };
-    }, [focusedAnalysis?.metrics]);
     const areaDiagnosticsSummary = useMemo(() => {
         const metrics = focusedAnalysis?.metrics ?? null;
         const areaValue = area && Number.isFinite(area) && area > 0 ? area : null;
@@ -2997,7 +3084,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const diagnosticsDescription = showSsDiagnosticsPanel
         ? "Subthreshold controls and fit configuration for the active curve."
         : showGmDiagnosticsPanel
-            ? "Derivative-focused guidance for gm interpretation and focused-curve inspection."
+            ? gmDiagnosticsEnabled
+                ? "Diagnostics now target the second-order transconductance curve; enter x below to inspect the diagnostic trace directly."
+                : "Derivative-focused guidance for gm interpretation. Turn on diagnostics to inspect the second-order transconductance trace."
             : showJDiagnosticsPanel
                 ? "Current-density controls driven by Area and axis configuration."
                 : "Query any x between measured points and get y by linear interpolation.";
@@ -3145,7 +3234,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             },
             {
                 value: "uA",
-                label: "碌A",
+                label: "uA",
             },
             {
                 value: "nA",
@@ -3187,6 +3276,17 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                       g_m
                     </span>
                     <DropdownField id="device-analysis-gm-mode-select" size="sm" value={gmMode} onChange={(next: any) => setGmMode(next === "legend" ? "legend" : "x")} options={gmUi.modeOptions} className="w-[170px]"/>
+                    <Button variant={gmDiagnosticsEnabled ? "secondary" : "text"} size="sm" onClick={() => {
+                const next = !gmDiagnosticsEnabled;
+                setGmDiagnosticsEnabled(next);
+                apiService
+                    .updateDeviceAnalysisSettings({
+                    gmDiagnosticsEnabled: next,
+                })
+                    .catch(() => { });
+            }} className="h-8 px-2 text-xs" title={t("da_chart_gm_second_diagnostics")}>
+                      {t("da_chart_gm_second_diagnostics")}
+                    </Button>
                   </div>) : null}
 
                 {effectivePlotType === "ss" ? (<div className="flex items-center gap-2">
@@ -3270,12 +3370,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
           </div>
 
           {effectivePlotType === "ss" && ssSummary ? (<SsSummaryStrip summary={ssSummary}/>) : null}
-          {showCurrentContext ? (<div className="mb-3 flex flex-col gap-1 rounded-lg border border-border/60 bg-bg-page/70 px-3 py-2 text-xs text-text-secondary">
-              <div className="text-text-primary">
-                {focusedCurrentSummary}
-              </div>
-              {focusedCurrentLegend ? (<div>{focusedCurrentLegend}</div>) : null}
-            </div>) : null}
 
           {activeFile?.series?.length ? (<div className="flex flex-col">
 
@@ -3290,7 +3384,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                   {t("da_chart_gm_note", { label: gmUi.summaryLabel })}
                 </div>) : null}
 
-              <div ref={mainChartContainerRef} className="h-[500px] min-h-[500px] flex-shrink-0">
+              {hasVisiblePlotSeries ? (<div ref={mainChartContainerRef} className="h-[500px] min-h-[500px] flex-shrink-0">
                 {isMainChartSizeReady ? (<MainPlotChart
                     plotType={effectivePlotType}
                     activeFile={activeFile}
@@ -3333,7 +3427,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     legendWidth={MAIN_PLOT_LEGEND_WIDTH}
                     legendContent={renderOriginSelectionLegend}
                   />) : (<div className="h-full w-full"/>) }
-              </div>
+              </div>) : (<div className="flex h-[220px] items-center justify-center rounded-lg border border-dashed border-border/70 bg-bg-page/40 text-sm text-text-secondary">
+                  No visible curves. Use the legend checkboxes to show one or more series.
+                </div>)}
 
               {effectivePlotType === "ss" && focusedSsDiagnosticsForRender ? (<div className="mt-4">
                   <div className="text-xs text-text-secondary mb-2">
@@ -3341,6 +3437,18 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                   </div>
                   <div ref={diagnosticsChartContainerRef} className="h-[260px] min-h-[260px] flex-shrink-0">
                     {isDiagnosticsChartSizeReady ? (<SsDiagnosticsChart data={focusedSsDiagnosticsForRender} xDomain={xDomain} xTicks={xTicks} xFactor={plotXFactor} xUnitLabel={resolvedXUnitMeta.label} xLabelInterval={xLabelInterval} xTickDigits={xTickDigitsDisplay} xTooltipDigits={xTooltipDigits} yDomain={ssDiagnosticsYDomain} yTicks={ssDiagnosticsYTicks} overlay={focusedSsOverlay} overlayStyle={ssOverlayStyle} ssReferenceValue={ssSummary?.ss} seriesColor={focusedSeriesColor} rightReservedWidth={MAIN_PLOT_LEGEND_WIDTH + 15}/>) : (<div className="h-full w-full"/>)}
+                  </div>
+                </div>) : null}
+
+              {effectivePlotType === "gm" && gmDiagnosticsEnabled && visibleGmDiagnosticsSeriesForRender.length ? (<div className="mt-4">
+                  <div className="text-xs text-text-secondary mb-2">
+                    {t("da_chart_gm_second_diagnostics")}
+                  </div>
+                  <div className="text-[11px] text-text-secondary mb-2">
+                    {t("da_chart_gm_second_note", { label: gmSecondDerivativeAxisLabel })}
+                  </div>
+                  <div ref={diagnosticsChartContainerRef} className="h-[260px] min-h-[260px] flex-shrink-0">
+                    {isDiagnosticsChartSizeReady ? (<GmDiagnosticsChart series={visibleGmDiagnosticsSeriesForRender} xDomain={xDomain} xTicks={xTicks} xFactor={plotXFactor} xUnitLabel={resolvedXUnitMeta.label} xLabelInterval={xLabelInterval} xTickDigits={xTickDigitsDisplay} xTooltipDigits={xTooltipDigits} yDomain={gmDiagnosticsYDomain} yTicks={gmDiagnosticsYTicks} rightReservedWidth={MAIN_PLOT_LEGEND_WIDTH + 15} yAxisLabel={gmSecondDerivativeAxisLabel} valueUnitLabel={gmSecondDerivativeUnitLabel}/>) : (<div className="h-full w-full"/>)}
                   </div>
                 </div>) : null}
             </div>) : (<div className="flex items-center justify-center h-[300px] text-text-secondary">
@@ -3362,7 +3470,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             ssIdWindow={ssIdWindow}
             setSsIdWindow={setSsIdWindow}
             ssSummary={ssSummary}
-            plotYUnitLabel={plotYUnitLabel}
+            plotYUnitLabel={activeCurveProbeYUnitLabel}
             showIvDiagnosticsPanel={showIvDiagnosticsPanel}
             showCurveProbePanel={showCurveProbePanel}
             ionIoffMethod={ionIoffMethod}
@@ -3375,14 +3483,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             setCurveProbeXInput={setCurveProbeXInput}
             curveProbeMode={curveProbeMode}
             setCurveProbeMode={setCurveProbeMode}
-            curveProbeRows={curveProbeRows}
-            showGmDiagnosticsPanel={showGmDiagnosticsPanel}
-            gmMode={gmMode}
+            curveProbeHeading={activeCurveProbeHeading}
+            curveProbeRows={activeCurveProbeRows}
             focusedSeriesLabel={focusedSeriesLabel}
-            focusedGmSummary={focusedGmSummary}
-            gmLegendStatus={gmLegendStatus}
-            gmMetricHeader={gmUi.metricHeader}
-            gmDenomUnit={gmUi.denomUnit}
             xTooltipDigits={xTooltipDigits}
             resolvedXUnitLabel={resolvedXUnitMeta.label}
             showAreaDiagnosticsControls={showAreaDiagnosticsControls}

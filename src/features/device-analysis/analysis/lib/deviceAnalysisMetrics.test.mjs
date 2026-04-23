@@ -115,3 +115,33 @@ test("computeBaseCurrentMetrics keeps Ion and Ioff empty for non-transfer curves
     xAtIon: null,
   });
 });
+
+test("computeBaseCurrentMetrics keeps bidirectional branches separate for manual targets", () => {
+  const metrics = computeBaseCurrentMetrics({
+    method: "manual",
+    manualTargets: {
+      ionX: 1,
+      ioffX: 0,
+    },
+    sourceFile: { xAxisRole: "vg" },
+    points: [
+      { x: -1, y: 1e-12 },
+      { x: 0, y: 1e-11 },
+      { x: 1, y: 1e-9 },
+      { x: 2, y: 1e-6 },
+      { x: 1, y: 2e-8 },
+      { x: 0, y: 2e-12 },
+      { x: -1, y: 1.5e-12 },
+    ],
+  });
+
+  assert.equal(metrics.method, "manual");
+  assert.equal(metrics.xAtIon, 1);
+  assert.equal(metrics.xAtIoff, 0);
+  assert.equal(metrics.ion, 2e-8);
+  assert.equal(metrics.ioff, 2e-12);
+  assert.equal(metrics.ionWindow?.label, "manual Ion (reverse)");
+  assert.equal(metrics.ioffWindow?.label, "manual Ioff (reverse)");
+  assert.ok(metrics.candidateWindows.some((window) => window.label.includes("(forward)")));
+  assert.ok(metrics.candidateWindows.some((window) => window.label.includes("(reverse)")));
+});

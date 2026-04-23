@@ -27,6 +27,8 @@ type AnalysisChartsLazyProps = {
   setSsMethod?: (next: SsMethod) => void;
   ssDiagnosticsEnabled?: boolean;
   setSsDiagnosticsEnabled?: (next: boolean) => void;
+  gmDiagnosticsEnabled?: boolean;
+  setGmDiagnosticsEnabled?: (next: boolean) => void;
   ssShowFitLine?: boolean;
   setSsShowFitLine?: (next: boolean) => void;
   ssIdWindow?: SsIdWindow;
@@ -72,6 +74,8 @@ const DeviceAnalysisAnalysisPanel = ({
   setIonIoffMethod,
   setIonIoffManualTargets,
   setSsDiagnosticsEnabled,
+  gmDiagnosticsEnabled,
+  setGmDiagnosticsEnabled,
   setSsIdWindow,
   setSsManualRanges,
   setSsMethod,
@@ -107,6 +111,8 @@ const DeviceAnalysisAnalysisPanel = ({
               setSsMethod={setSsMethod}
               ssDiagnosticsEnabled={ssDiagnosticsEnabled}
               setSsDiagnosticsEnabled={setSsDiagnosticsEnabled}
+              gmDiagnosticsEnabled={gmDiagnosticsEnabled}
+              setGmDiagnosticsEnabled={setGmDiagnosticsEnabled}
               ssShowFitLine={ssShowFitLine}
               setSsShowFitLine={setSsShowFitLine}
               ssIdWindow={ssIdWindow}

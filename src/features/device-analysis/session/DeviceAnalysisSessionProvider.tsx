@@ -87,6 +87,7 @@ export const DeviceAnalysisSessionProvider = ({
   // Device analysis SS (session state; defaults overridden by user settings if loaded).
   const [ssMethod, setSsMethod] = useState<SsMethod>("auto");
   const [ssDiagnosticsEnabled, setSsDiagnosticsEnabled] = useState(true);
+  const [gmDiagnosticsEnabled, setGmDiagnosticsEnabled] = useState(false);
   const [ssShowFitLine, setSsShowFitLine] = useState(true);
   const [ssIdWindow, setSsIdWindow] = useState<SsIdWindow>({
     low: "1e-11",
@@ -130,6 +131,8 @@ export const DeviceAnalysisSessionProvider = ({
       setSsMethod,
       ssDiagnosticsEnabled,
       setSsDiagnosticsEnabled,
+      gmDiagnosticsEnabled,
+      setGmDiagnosticsEnabled,
       ssShowFitLine,
       setSsShowFitLine,
       ssIdWindow,
@@ -148,6 +151,7 @@ export const DeviceAnalysisSessionProvider = ({
       selectedPreviewFileId,
       ionIoffManualTargets,
       ionIoffMethod,
+      gmDiagnosticsEnabled,
       ssDiagnosticsEnabled,
       ssIdWindow,
       ssManualRanges,

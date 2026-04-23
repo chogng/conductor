@@ -51,7 +51,7 @@ const padDomain = (min: any, max: any) => {
     const pad = span * 0.05;
     return [lo - pad, hi + pad];
 };
-export const computeCentralDerivative = (points: any) => {
+const computeCentralDerivativeSegment = (points: any) => {
     if (!Array.isArray(points) || points.length < 2)
         return [];
     const out = new Array(points.length);
@@ -95,6 +95,17 @@ export const computeCentralDerivative = (points: any) => {
         out[i] = toPoint(x, null);
     }
     return out;
+};
+export const computeCentralDerivative = (points: any) => {
+    const segments = splitBidirectionalCurvePoints(points);
+    if (!segments.length)
+        return [];
+    if (segments.length === 1)
+        return computeCentralDerivativeSegment(segments[0].points);
+    return segments.flatMap((segment: any, index: number) => {
+        const computed = computeCentralDerivativeSegment(segment.points);
+        return index === 0 ? computed : computed.slice(1);
+    });
 };
 const interpolateMonotonicLinear = (xArrRaw: any, yArrRaw: any, xTarget: any) => {
     const xArr = xArrRaw ?? [];
@@ -183,21 +194,26 @@ export const interpolateCurveAtX = (pointsRaw: any, xTargetRaw: any, modeRaw: an
             mode,
         };
     }
-    const first = points[0];
-    const last = points[points.length - 1];
-    const increasing = first.x <= last.x;
+    let minPoint = points[0];
+    let maxPoint = points[0];
+    for (const point of points) {
+        if (point.x < minPoint.x)
+            minPoint = point;
+        if (point.x > maxPoint.x)
+            maxPoint = point;
+    }
     const domain = {
-        minX: Math.min(first.x, last.x),
-        maxX: Math.max(first.x, last.x),
+        minX: minPoint.x,
+        maxX: maxPoint.x,
     };
     if (points.length === 1) {
-        if (xTarget !== first.x) {
+        if (xTarget !== points[0].x) {
             return {
                 kind: "outOfRange",
                 x: xTarget,
                 y: null,
-                left: first,
-                right: first,
+                left: points[0],
+                right: points[0],
                 domain,
                 mode,
             };
@@ -205,83 +221,86 @@ export const interpolateCurveAtX = (pointsRaw: any, xTargetRaw: any, modeRaw: an
         return {
             kind: "exact",
             x: xTarget,
-            y: first.y,
-            left: first,
-            right: first,
+            y: points[0].y,
+            left: points[0],
+            right: points[0],
             domain,
             mode,
         };
     }
-    if (increasing) {
-        if (xTarget < first.x || xTarget > last.x) {
-            return {
-                kind: "outOfRange",
-                x: xTarget,
-                y: null,
-                left: first,
-                right: last,
-                domain,
-                mode,
-            };
-        }
-    }
-    else if (xTarget > first.x || xTarget < last.x) {
+    if (xTarget < domain.minX || xTarget > domain.maxX) {
         return {
             kind: "outOfRange",
             x: xTarget,
             y: null,
-            left: first,
-            right: last,
+            left: minPoint,
+            right: maxPoint,
             domain,
             mode,
         };
     }
-    if (xTarget === first.x) {
+    const exactPoint = points.find((point: any) => point.x === xTarget) ?? null;
+    if (exactPoint) {
         return {
             kind: "exact",
             x: xTarget,
-            y: first.y,
-            left: first,
-            right: first,
+            y: exactPoint.y,
+            left: exactPoint,
+            right: exactPoint,
             domain,
             mode,
         };
     }
-    if (xTarget === last.x) {
-        return {
-            kind: "exact",
-            x: xTarget,
-            y: last.y,
-            left: last,
-            right: last,
-            domain,
-            mode,
-        };
-    }
-    let lo = 0;
-    let hi = points.length - 1;
-    while (hi - lo > 1) {
-        const mid = (lo + hi) >> 1;
-        const xm = points[mid]?.x;
-        if (!isFiniteNumber(xm)) {
-            return {
-                kind: "empty",
-                x: xTarget,
-                y: null,
-                left: null,
-                right: null,
-                domain,
-                mode,
-            };
+    let left: any = null;
+    let right: any = null;
+    let bestSpan = Number.POSITIVE_INFINITY;
+    for (let index = 0; index < points.length - 1; index += 1) {
+        const p1 = points[index];
+        const p2 = points[index + 1];
+        const x1 = p1?.x;
+        const x2 = p2?.x;
+        if (!isFiniteNumber(x1) || !isFiniteNumber(x2))
+            continue;
+        if (x1 === x2)
+            continue;
+        const lo = Math.min(x1, x2);
+        const hi = Math.max(x1, x2);
+        if (xTarget < lo || xTarget > hi)
+            continue;
+        const span = hi - lo;
+        if (span < bestSpan) {
+            bestSpan = span;
+            left = p1;
+            right = p2;
         }
-        const goRight = increasing ? xm <= xTarget : xm >= xTarget;
-        if (goRight)
-            lo = mid;
-        else
-            hi = mid;
     }
-    const left = points[lo];
-    const right = points[hi];
+    if (!left || !right) {
+        const sorted = points.slice().sort((a: any, b: any) => a.x - b.x);
+        for (let index = 0; index < sorted.length - 1; index += 1) {
+            const p1 = sorted[index];
+            const p2 = sorted[index + 1];
+            if (!isFiniteNumber(p1?.x) || !isFiniteNumber(p2?.x))
+                continue;
+            if (p1.x === p2.x)
+                continue;
+            if (xTarget < p1.x || xTarget > p2.x)
+                continue;
+            left = p1;
+            right = p2;
+            break;
+        }
+    }
+    if (!left || !right) {
+        return {
+            kind: "empty",
+            x: xTarget,
+            y: null,
+            left: minPoint,
+            right: maxPoint,
+            domain,
+            mode,
+        };
+    }
     if (xTarget === left.x) {
         return {
             kind: "exact",
@@ -469,7 +488,7 @@ export const computeLegendDerivativeSeries = (curves: any) => {
     }
     return outById;
 };
-export const computeSubthresholdSwing = (points: any) => {
+const computeSubthresholdSwingSegment = (points: any) => {
     if (!Array.isArray(points) || points.length < 3)
         return [];
     const log10AbsY = points.map((p: any) => {
@@ -514,6 +533,17 @@ export const computeSubthresholdSwing = (points: any) => {
         out[i] = toPoint(x, ss);
     }
     return out;
+};
+export const computeSubthresholdSwing = (points: any) => {
+    const segments = splitBidirectionalCurvePoints(points);
+    if (!segments.length)
+        return [];
+    if (segments.length === 1)
+        return computeSubthresholdSwingSegment(segments[0].points);
+    return segments.flatMap((segment: any, index: number) => {
+        const computed = computeSubthresholdSwingSegment(segment.points);
+        return index === 0 ? computed : computed.slice(1);
+    });
 };
 const median = (arr: any) => {
     const list = (Array.isArray(arr) ? arr : []).filter(isFiniteNumber);
@@ -719,6 +749,38 @@ const detectBidirectionalSplitIndex = (xSeq: any) => {
         return null;
     return idxMin;
 };
+export const splitBidirectionalCurvePoints = (pointsRaw: any) => {
+    const points = Array.isArray(pointsRaw) ? pointsRaw : [];
+    if (points.length < 2) {
+        return points.length ? [{ branch: "full", points }] : [];
+    }
+    const xsSeq = points.map((point: any) => {
+        const x = point?.x;
+        return typeof x === "number" ? x : Number(x);
+    });
+    const splitIdx = detectBidirectionalSplitIndex(xsSeq);
+    if (splitIdx == null) {
+        return [{ branch: "full", points }];
+    }
+    let firstDir = 0;
+    for (let i = 1; i < xsSeq.length; i++) {
+        const prev = xsSeq[i - 1];
+        const curr = xsSeq[i];
+        if (!isFiniteNumber(prev) || !isFiniteNumber(curr))
+            continue;
+        const dx = curr - prev;
+        if (dx === 0)
+            continue;
+        firstDir = dx > 0 ? 1 : -1;
+        break;
+    }
+    const firstBranch = firstDir >= 0 ? "forward" : "reverse";
+    const secondBranch = firstBranch === "forward" ? "reverse" : "forward";
+    return [
+        { branch: firstBranch, points: points.slice(0, splitIdx + 1) },
+        { branch: secondBranch, points: points.slice(splitIdx) },
+    ].filter((segment: any) => Array.isArray(segment.points) && segment.points.length > 0);
+};
 const sanitizeLogPoints = (points: any) => {
     const raw = Array.isArray(points) ? points : [];
     const cleaned = raw
@@ -729,8 +791,6 @@ const sanitizeLogPoints = (points: any) => {
         .filter((p: any) => isFiniteNumber(p.x) && isFiniteNumber(p.i) && p.i !== 0);
     if (cleaned.length < 3)
         return { ok: false, reason: "common.not_enough_points" };
-    const xsSeq = cleaned.map((p: any) => p.x);
-    const splitIdx = detectBidirectionalSplitIndex(xsSeq);
     const toSegment = (list: any) => {
         const sorted = list.slice().sort((a: any, b: any) => a.x - b.x);
         const x = sorted.map((p: any) => p.x);
@@ -738,16 +798,14 @@ const sanitizeLogPoints = (points: any) => {
         const y = absI.map((v: any) => (v > 0 ? Math.log10(v) : null));
         return { x, absI, y };
     };
-    if (splitIdx == null) {
+    const rawSegments = splitBidirectionalCurvePoints(cleaned);
+    if (rawSegments.length <= 1) {
         return { ok: true, segments: [toSegment(cleaned)] };
     }
-    const s1 = cleaned.slice(0, splitIdx + 1);
-    const s2 = cleaned.slice(splitIdx);
-    const segments = [];
-    if (s1.length >= 3)
-        segments.push(toSegment(s1));
-    if (s2.length >= 3)
-        segments.push(toSegment(s2));
+    const segments = rawSegments
+        .map((segment: any) => segment.points)
+        .filter((segmentPoints: any) => Array.isArray(segmentPoints) && segmentPoints.length >= 3)
+        .map((segmentPoints: any) => toSegment(segmentPoints));
     if (segments.length === 0) {
         return { ok: false, reason: "common.sweep_split_no_valid" };
     }

@@ -466,7 +466,11 @@ const DropdownField = ({
         data-testid={devTestId}
         onClick={handleTriggerClick}
         onKeyDown={handleKeyDown}
-        fieldClassName={cx("input_field", sizeClass, !hideChevron && "pr-1")}
+        fieldClassName={cx(
+          "input_field",
+          sizeClass,
+          hideChevron ? "pr-2" : "pr-1",
+        )}
         className={cx(
           "input_native no-focus-outline p-0 text-left cursor-pointer select-none",
           hideChevron ? "pr-0" : "pr-6",

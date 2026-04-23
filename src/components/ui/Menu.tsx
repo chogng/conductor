@@ -3,7 +3,7 @@ import { cx } from "../../utils/cx";
 import ScrollArea from "./ScrollArea";
 
 const DEFAULT_MENU_CLASSNAME =
-  "!bg-bg-surface !backdrop-blur-none text-text-primary p-1.5";
+  "!bg-bg-surface !backdrop-blur-none text-text-primary p-0";
 
 type MenuProps = HTMLAttributes<HTMLDivElement> & {
   withScrollArea?: boolean;

@@ -149,6 +149,8 @@ const DeviceAnalysisPage = () => {
     setSsMethod,
     ssDiagnosticsEnabled,
     setSsDiagnosticsEnabled,
+    gmDiagnosticsEnabled,
+    setGmDiagnosticsEnabled,
     ssShowFitLine,
     setSsShowFitLine,
     ssIdWindow,
@@ -408,6 +410,7 @@ const DeviceAnalysisPage = () => {
     setLanguage,
     theme,
     setTheme,
+    setGmDiagnosticsEnabled,
     setSsDiagnosticsEnabled,
     setSsIdWindow,
     setSsMethod,
@@ -729,6 +732,7 @@ const DeviceAnalysisPage = () => {
                     isAnalysisPageActive || hasVisitedAnalysisPage
                   }
                   setSsDiagnosticsEnabled={setSsDiagnosticsEnabled}
+                  setGmDiagnosticsEnabled={setGmDiagnosticsEnabled}
                   ionIoffMethod={ionIoffMethod}
                   ionIoffManualTargets={ionIoffManualTargets}
                   setIonIoffMethod={setIonIoffMethod}
@@ -737,6 +741,7 @@ const DeviceAnalysisPage = () => {
                   setSsManualRanges={setSsManualRanges}
                   setSsMethod={setSsMethod}
                   setSsShowFitLine={setSsShowFitLine}
+                  gmDiagnosticsEnabled={gmDiagnosticsEnabled}
                   ssDiagnosticsEnabled={ssDiagnosticsEnabled}
                   ssIdWindow={ssIdWindow}
                   ssManualRanges={ssManualRanges}

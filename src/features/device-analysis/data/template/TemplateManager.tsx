@@ -2512,7 +2512,7 @@ const TemplateManager = ({
               >
                 {templateMode === "select" ? (
                   <ScrollArea
-                    className="h-full min-h-0"
+                    className="da-template-config-scroll-area h-full min-h-0"
                     axis="y"
                     viewportClassName="pr-1"
                   >
@@ -2530,7 +2530,7 @@ const TemplateManager = ({
               >
                 {templateMode === "save" ? (
                   <ScrollArea
-                    className="h-full min-h-0"
+                    className="da-template-config-scroll-area h-full min-h-0"
                     axis="y"
                     viewportClassName="pr-1"
                   >
