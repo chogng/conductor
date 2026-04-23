@@ -421,7 +421,6 @@
     da_chart_axis_x_tooltip_digits: 'Tooltip X digits',
     da_chart_axis_x_tooltip_digits_placeholder: 'Auto ({auto})',
     da_chart_axis_x_tooltip_digits_title: 'Set tooltip X decimal digits (0-20). Leave empty for auto.',
-    da_chart_gm_note: 'Note: {label} is a numeric derivative on signed I (no smoothing). Computed after downsampling (max 600 points). Legend mode interpolates across curves; non-monotonic X or mismatched X ranges yield gaps.',
     da_chart_gm_second_diagnostics: 'Second-Order Transconductance Diagnostics',
     da_chart_gm_second_note: 'Note: {label} differentiates the focused transconductance curve once more along chart x (no smoothing). Treat it as a shape diagnostic only; spikes near sparse or noisy regions may be numerical artifacts.',
     da_chart_ss_diagnostics: 'SS(x) Diagnostics',

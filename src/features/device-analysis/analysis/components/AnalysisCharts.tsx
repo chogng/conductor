@@ -93,7 +93,7 @@ const EditableLegendItem = ({
     draftValue,
     inputRef,
 }: EditableLegendItemProps) => (<li>
-    <div className={`group flex items-center gap-2 py-px text-[11px] leading-4 ${disabled ? "opacity-60 cursor-default" : "cursor-pointer"}`}>
+    <div className={`group flex items-center gap-1 py-0 text-[11px] leading-4 ${disabled ? "opacity-60 cursor-default" : "cursor-pointer"}`}>
       <span className="inline-block h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: color }}/>
       <button type="button" aria-pressed={checked} aria-label={label} disabled={disabled} onClick={onToggleVisible} className={`shrink-0 ${disabled ? "cursor-default" : "cursor-pointer"}`}>
         <span className="clickable-ckb" data-state={checked ? "checked" : "unchecked"}>
@@ -2467,7 +2467,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         if (!plotLegendSeries.length)
             return null;
         const activeLegendFileId = String(activeFile?.fileId ?? "").trim();
-        return (<ul className="m-0 flex list-none flex-col gap-1.5 p-0">
+        return (<ul className="m-0 flex list-none flex-col gap-0.5 p-0">
         {plotLegendSeries.map((series: any, idx: number) => {
                 const seriesId = String(series?.id ?? "");
                 const checked = seriesId ? visibleSeriesKeySet.has(seriesId) : false;
@@ -3264,13 +3264,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             ]} aria-label="Y scale" className="w-fit da-neutral-select" stableWidth data-cta="Device Analysis" data-cta-position="y-scale" data-cta-copy="y scale"/>)}
                 </div>
 
-                {effectivePlotType !== "iv" && activeFile?.series?.length ? (<div className="flex items-center gap-1">
-                    <DropdownField id="device-analysis-curve-select" size="sm" value={focusedSeriesId ?? ""} onChange={(next: any) => setFocusedSeriesId(next)} options={(activeFile?.series ?? []).map((s: any) => ({
-                value: s.id,
-                label: s.name,
-            }))} className="w-fit max-w-[180px] da-neutral-select" placeholder="Select curve"/>
-                  </div>) : null}
-
                 {effectivePlotType === "gm" ? (<div className="flex items-center gap-1">
                     <span className="text-xs text-text-secondary whitespace-nowrap">
                       g_m
@@ -3380,11 +3373,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                   {gmLegendStatus.message}
                 </div>) : null}
 
-              {effectivePlotType === "gm" ? (<div className="text-[11px] text-text-secondary mb-2">
-                  {t("da_chart_gm_note", { label: gmUi.summaryLabel })}
-                </div>) : null}
-
-              {hasVisiblePlotSeries ? (<div ref={mainChartContainerRef} className="h-[500px] min-h-[500px] flex-shrink-0">
+              <div ref={mainChartContainerRef} className="h-[500px] min-h-[500px] flex-shrink-0">
                 {isMainChartSizeReady ? (<MainPlotChart
                     plotType={effectivePlotType}
                     activeFile={activeFile}
@@ -3427,9 +3416,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     legendWidth={MAIN_PLOT_LEGEND_WIDTH}
                     legendContent={renderOriginSelectionLegend}
                   />) : (<div className="h-full w-full"/>) }
-              </div>) : (<div className="flex h-[220px] items-center justify-center rounded-lg border border-dashed border-border/70 bg-bg-page/40 text-sm text-text-secondary">
+              </div>
+              {!hasVisiblePlotSeries ? (<div className="mt-2 rounded-lg border border-dashed border-border/70 bg-bg-page/40 px-3 py-2 text-sm text-text-secondary">
                   No visible curves. Use the legend checkboxes to show one or more series.
-                </div>)}
+                </div>) : null}
 
               {effectivePlotType === "ss" && focusedSsDiagnosticsForRender ? (<div className="mt-4">
                   <div className="text-xs text-text-secondary mb-2">
