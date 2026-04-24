@@ -18,6 +18,13 @@ type DiagnosticsPoint = {
   [key: string]: number | string | null | undefined;
 };
 
+type DiagnosticsSeries = {
+  color?: string;
+  data: DiagnosticsPoint[];
+  id: string;
+  lineName: string;
+};
+
 type SsOverlay = {
   x1: number;
   x2: number;
@@ -29,7 +36,7 @@ type SsOverlayStyle = {
 };
 
 type SsDiagnosticsChartProps = {
-  data: DiagnosticsPoint[];
+  series: DiagnosticsSeries[];
   xDomain: number[];
   xTicks?: number[] | null;
   xFactor?: number;
@@ -47,7 +54,7 @@ type SsDiagnosticsChartProps = {
 };
 
 const SsDiagnosticsChart = memo(function SsDiagnosticsChart({
-  data,
+  series,
   xDomain,
   xTicks,
   xFactor = 1,
@@ -163,15 +170,18 @@ const SsDiagnosticsChart = memo(function SsDiagnosticsChart({
           />
         ) : null}
 
-        <Line
-          data={data}
-          dataKey="y"
-          name="SS(x)"
-          stroke={seriesColor}
-          dot={false}
-          isAnimationActive={false}
-          strokeWidth={2}
-        />
+        {series.map((item) => (
+          <Line
+            key={item.id}
+            data={item.data}
+            dataKey="y"
+            name={item.lineName}
+            stroke={item.color || "#8884d8"}
+            dot={false}
+            isAnimationActive={false}
+            strokeWidth={2}
+          />
+        ))}
       </LineChart>
     </ResponsiveContainer>
   );

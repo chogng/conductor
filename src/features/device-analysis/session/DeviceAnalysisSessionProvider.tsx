@@ -6,7 +6,6 @@ import {
   type IonIoffManualTargetsByFileId,
   type IonIoffMethod,
   type PreviewStatus,
-  type SsIdWindow,
   type SsManualRanges,
   type SsMethod,
   type TemplateMode,
@@ -86,10 +85,6 @@ export const DeviceAnalysisSessionProvider = ({
   const [ssDiagnosticsEnabled, setSsDiagnosticsEnabled] = useState(false);
   const [gmDiagnosticsEnabled, setGmDiagnosticsEnabled] = useState(false);
   const [ssShowFitLine, setSsShowFitLine] = useState(true);
-  const [ssIdWindow, setSsIdWindow] = useState<SsIdWindow>({
-    low: "1e-11",
-    high: "1e-9",
-  });
   const [ssManualRanges, setSsManualRanges] = useState<SsManualRanges>({});
 
   const value = useMemo<DeviceAnalysisSessionContextValue>(
@@ -132,8 +127,6 @@ export const DeviceAnalysisSessionProvider = ({
       setGmDiagnosticsEnabled,
       ssShowFitLine,
       setSsShowFitLine,
-      ssIdWindow,
-      setSsIdWindow,
       ssManualRanges,
       setSsManualRanges,
     }),
@@ -150,7 +143,6 @@ export const DeviceAnalysisSessionProvider = ({
       ionIoffMethod,
       gmDiagnosticsEnabled,
       ssDiagnosticsEnabled,
-      ssIdWindow,
       ssManualRanges,
       ssMethod,
       ssShowFitLine,

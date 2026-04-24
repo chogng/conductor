@@ -116,9 +116,7 @@ export default function AnalysisDiagnosticsCard({
 
       <div className="flex flex-col gap-3">
         {showCurveProbePanel ? (
-          <div className="rounded-lg border border-border/60 bg-bg-surface px-3 py-2">
             <div className="flex flex-col gap-2 text-xs text-text-secondary">
-              <div className="text-[11px] font-semibold text-text-primary">{curveProbeHeading}</div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="whitespace-nowrap">x:</span>
                 <Input
@@ -192,7 +190,6 @@ export default function AnalysisDiagnosticsCard({
                 </div>
               )}
             </div>
-          </div>
         ) : null}
 
         {showAreaDiagnosticsControls ? (
@@ -220,12 +217,6 @@ export default function AnalysisDiagnosticsCard({
                   Enter a positive area to enable current-density conversion.
                 </div>
               )}
-              {focusedSeriesLabel ? (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="whitespace-nowrap">Curve:</span>
-                  <span className="rounded-full border border-border/70 bg-bg-page px-2 py-0.5 text-text-primary">{focusedSeriesLabel}</span>
-                </div>
-              ) : null}
               {areaDiagnosticsSummary.areaValue !== null && transferMetricsApplicable ? (
                 <div className="rounded-lg border border-border/60 bg-bg-page/60 px-3 py-2 text-text-primary">
                   Jon: {areaDiagnosticsSummary.jon !== null ? formatNumber(areaDiagnosticsSummary.jon, { digits: 3 }) : "n/a"} {plotYUnitLabel}/cm^2

@@ -1,9 +1,7 @@
 import Papa from "papaparse";
 import {
   classifySsFit,
-  computeSubthresholdSwing,
   computeSubthresholdSwingFitAuto,
-  computeSubthresholdSwingFitInIdWindow,
   computeSubthresholdSwingFitInRange,
   resolveAutoSsSelection,
 } from "./analysisMath";
@@ -19,11 +17,6 @@ export {
   buildDeviceAnalysisOriginSelectionExport,
   isDeviceAnalysisOriginExportMode,
 } from "./originSelectionExport";
-
-type SsIdWindow = {
-  low?: number | string;
-  high?: number | string;
-};
 
 type SsManualRangeEntry = {
   x1?: number;
@@ -195,12 +188,10 @@ const buildPoints = (xArr?: number[], yArr?: number[]): Array<{ x: number; y: nu
 
 export const buildDeviceAnalysisSsMetricsCsv = ({
   processedData = [],
-  ssIdWindow,
   ssManualRanges,
   ssMethod,
 }: {
   processedData?: ProcessedEntry[];
-  ssIdWindow?: unknown;
   ssManualRanges?: unknown;
   ssMethod?: unknown;
 }): string => {
@@ -222,31 +213,16 @@ export const buildDeviceAnalysisSsMetricsCsv = ({
     "ss_r2",
     "ss_span_dec",
     "ss_n",
-    "ss_iLow",
-    "ss_iHigh",
     "ss_range_source",
   ];
 
   const rows: Array<Record<string, string | number>> = [];
   const confVersion = "ssfit_v1";
-  const idWindow =
-    ssIdWindow && typeof ssIdWindow === "object"
-      ? (ssIdWindow as SsIdWindow)
-      : {};
   const manualRanges =
     ssManualRanges && typeof ssManualRanges === "object"
       ? (ssManualRanges as SsManualRanges)
       : {};
   const methodDefault = String(ssMethod || "auto");
-  const idLow = Number(idWindow?.low);
-  const idHigh = Number(idWindow?.high);
-  const idWindowRatio =
-    Number.isFinite(idLow) &&
-    Number.isFinite(idHigh) &&
-    idLow > 0 &&
-    idHigh > 0
-      ? Math.max(idLow, idHigh) / Math.min(idLow, idHigh)
-      : null;
 
   for (const file of processedData) {
     const fileId = file?.fileId ?? "";
@@ -264,10 +240,7 @@ export const buildDeviceAnalysisSsMetricsCsv = ({
       const points = buildPoints(xArr, yArr);
 
       const method =
-        methodDefault === "auto" ||
-        methodDefault === "manual" ||
-        methodDefault === "idWindow" ||
-        methodDefault === "legacy"
+        methodDefault === "auto" || methodDefault === "manual"
           ? methodDefault
           : "auto";
 
@@ -320,28 +293,6 @@ export const buildDeviceAnalysisSsMetricsCsv = ({
             ) as SsFit)
           : { ok: false, reason: "manual.range_outside_domain" };
         cls = classifySsFit("manual", fit) as SsClassification;
-      } else if (method === "idWindow") {
-        fit = computeSubthresholdSwingFitInIdWindow(points, idLow, idHigh) as SsFit;
-        cls = classifySsFit("idWindow", fit, {
-          idWindowRatio,
-        } as Record<string, unknown>) as SsClassification;
-      } else if (method === "legacy") {
-        const diagnostics = computeSubthresholdSwing(points) as
-          | Array<{ y?: number }>
-          | null
-          | undefined;
-        let minValue = Number.POSITIVE_INFINITY;
-
-        for (const point of diagnostics ?? []) {
-          const nextValue = Number(point?.y);
-          if (!Number.isFinite(nextValue)) continue;
-          if (nextValue > 0 && nextValue < minValue) minValue = nextValue;
-        }
-
-        fit = Number.isFinite(minValue)
-          ? { ok: true, reason: "ok", ss: minValue }
-          : { ok: false, reason: "common.not_enough_points" };
-        cls = classifySsFit("legacy", fit) as SsClassification;
       }
 
       const ssOk = Boolean(cls?.ss_ok);
@@ -356,10 +307,6 @@ export const buildDeviceAnalysisSsMetricsCsv = ({
         ss: ssValue,
         ss_conf_version: confVersion,
         ss_confidence: cls?.ss_confidence ?? "fail",
-        ss_iHigh:
-          method === "idWindow" && Number.isFinite(idHigh) ? idHigh : "",
-        ss_iLow:
-          method === "idWindow" && Number.isFinite(idLow) ? idLow : "",
         ss_method: method,
         ss_n: ssOk && Number.isFinite(fit?.n) ? (fit.n as number) : "",
         ss_ok: ssOk ? "true" : "false",

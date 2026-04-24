@@ -36,7 +36,6 @@ export const SS_CONF = {
             fail: { minN: 8, minSpan: 0.3, minR2: 0.95, floorMarginDec: 0.3 },
         },
     },
-    legacy: { confidence: "low" },
 };
 const padDomain = (min: any, max: any) => {
     if (!Number.isFinite(min) || !Number.isFinite(max))
@@ -1197,97 +1196,6 @@ export const computeSubthresholdSwingFitInRange = (points: any, x1: any, x2: any
         detail: { stab: best.stab },
     };
 };
-export const computeSubthresholdSwingFitInIdWindow = (points: any, iLow: any, iHigh: any, { conf = SS_CONF.idw }: any = {}) => {
-    const low = Number(iLow);
-    const high = Number(iHigh);
-    if (!isFiniteNumber(low) || !isFiniteNumber(high) || low <= 0 || high <= 0) {
-        return { ok: false, reason: "idw.invalid_input" };
-    }
-    const lo = Math.min(low, high);
-    const hi = Math.max(low, high);
-    const sanitized = sanitizeLogPoints(points);
-    if (!sanitized.ok) {
-        return { ok: false, reason: sanitized.reason ?? "common.invalid_points" };
-    }
-    const segments = sanitized.segments ?? [];
-    let dataMin = Infinity;
-    let dataMax = -Infinity;
-    for (const seg of segments) {
-        for (const v of seg.absI ?? []) {
-            if (!isFiniteNumber(v) || v <= 0)
-                continue;
-            dataMin = Math.min(dataMin, v);
-            dataMax = Math.max(dataMax, v);
-        }
-    }
-    if (!Number.isFinite(dataMin) || !Number.isFinite(dataMax)) {
-        return { ok: false, reason: "common.invalid_points" };
-    }
-    if (dataMax < lo || dataMin > hi) {
-        return {
-            ok: false,
-            reason: "idw.out_of_data_range",
-            detail: { dataMinAbsI: dataMin, dataMaxAbsI: dataMax },
-        };
-    }
-    const yLo = Math.log10(lo);
-    const yHi = Math.log10(hi);
-    const perSeg = segments
-        .map((seg: any) => {
-        const xArr = seg.x;
-        const yArr = seg.y;
-        const indices = [];
-        for (let i = 0; i < yArr.length; i++) {
-            const y = yArr[i];
-            if (!isFiniteNumber(y))
-                continue;
-            if (y >= yLo && y <= yHi)
-                indices.push(i);
-        }
-        if (indices.length < 2)
-            return null;
-        const fit = computeLinearFit(xArr, yArr, indices[0], indices[indices.length - 1]);
-        if (!fit)
-            return null;
-        const stab = computeSlopeStability(xArr, yArr, indices[0], indices[indices.length - 1]);
-        const yFloor = estimateLogCurrentFloor(yArr);
-        return {
-            ...fit,
-            x1: xArr[indices[0]],
-            x2: xArr[indices[indices.length - 1]],
-            yFloor: isFiniteNumber(yFloor) ? yFloor : null,
-            floorMarginDec: computeFloorMarginDec(fit, yFloor),
-            stab: isFiniteNumber(stab) ? stab : null,
-        };
-    })
-        .filter(Boolean);
-    const best = selectBestByScore(perSeg.map((r: any) => ({ ...r, score: r.r2 })).filter(Boolean));
-    if (!best)
-        return { ok: false, reason: "idw.too_few_points" };
-    const ss = isFiniteNumber(best.a) && best.a !== 0 ? 1000 / Math.abs(best.a) : null;
-    const windowRatio = hi / lo;
-    const warnNarrow = windowRatio < (conf?.minWindowRatioWarn ?? 10);
-    return {
-        ok: isFiniteNumber(ss),
-        ss: isFiniteNumber(ss) ? ss : null,
-        x1: best.x1,
-        x2: best.x2,
-        a: isFiniteNumber(best.a) ? best.a : null,
-        b: isFiniteNumber(best.b) ? best.b : null,
-        r2: best.r2,
-        decadeSpan: best.decadeSpan,
-        n: best.n,
-        reason: warnNarrow ? "idw.window_too_narrow" : isFiniteNumber(ss) ? "ok" : "common.invalid_points",
-        detail: {
-            stab: best.stab,
-            dataMinAbsI: dataMin,
-            dataMaxAbsI: dataMax,
-            yFloor: best.yFloor,
-            floorMarginDec: best.floorMarginDec,
-            windowRatio,
-        },
-    };
-};
 export const resolveAutoSsSelection = (autoFit: any) => {
     const strict = autoFit?.strict ?? null;
     if (strict?.ok && isFiniteNumber(strict?.ss)) {
@@ -1354,7 +1262,7 @@ export const computeDomain = (seriesList: any) => {
     const [y0, y1] = padDomain(Number.isFinite(minY) ? minY : 0, Number.isFinite(maxY) ? maxY : 1);
     return { x: [x0, x1], y: [y0, y1] };
 };
-export const classifySsFit = (method: any, fit: any, { conf = SS_CONF, idWindowRatio = null }: any = {}) => {
+export const classifySsFit = (method: any, fit: any, { conf = SS_CONF }: any = {}) => {
     const m = String(method || "").trim();
     const ss = fit?.ss;
     if (!fit?.ok || !isFiniteNumber(ss)) {
@@ -1362,13 +1270,6 @@ export const classifySsFit = (method: any, fit: any, { conf = SS_CONF, idWindowR
             ss_ok: false,
             ss_confidence: "fail",
             ss_reason: fit?.reason || "common.invalid_points",
-        };
-    }
-    if (m === "legacy") {
-        return {
-            ss_ok: true,
-            ss_confidence: "low",
-            ss_reason: "legacy.compare_only",
         };
     }
     if (m === "auto") {
@@ -1454,81 +1355,6 @@ export const classifySsFit = (method: any, fit: any, { conf = SS_CONF, idWindowR
                 floorMarginDec < lowCfg.floorMarginDec
                 ? "manual.too_close_to_floor"
                 : "manual.fit_quality_low",
-        };
-    }
-    if (m === "idWindow") {
-        if (fit?.reason === "idw.window_too_narrow") {
-            return {
-                ss_ok: true,
-                ss_confidence: "low",
-                ss_reason: "idw.window_too_narrow",
-            };
-        }
-        if (isFiniteNumber(idWindowRatio) &&
-            idWindowRatio < (conf.idw?.minWindowRatioWarn ?? 10)) {
-            return {
-                ss_ok: true,
-                ss_confidence: "low",
-                ss_reason: "idw.window_too_narrow",
-            };
-        }
-        const failCfg = conf.idw?.classify?.fail ?? null;
-        if (failCfg) {
-            if (isFiniteNumber(n) && n < failCfg.minN) {
-                return {
-                    ss_ok: false,
-                    ss_confidence: "fail",
-                    ss_reason: "idw.too_few_points",
-                };
-            }
-            if (isFiniteNumber(span) && span < failCfg.minSpan) {
-                return {
-                    ss_ok: false,
-                    ss_confidence: "fail",
-                    ss_reason: "idw.span_too_small",
-                };
-            }
-            if (isFiniteNumber(r2) && r2 < failCfg.minR2) {
-                return {
-                    ss_ok: false,
-                    ss_confidence: "fail",
-                    ss_reason: "idw.fit_quality_low",
-                };
-            }
-            if (isFiniteNumber(floorMarginDec) &&
-                isFiniteNumber(failCfg.floorMarginDec) &&
-                floorMarginDec < failCfg.floorMarginDec) {
-                return {
-                    ss_ok: false,
-                    ss_confidence: "fail",
-                    ss_reason: "idw.too_close_to_floor",
-                };
-            }
-        }
-        const highCfg = conf.idw?.classify?.high ?? null;
-        if (highCfg &&
-            isFiniteNumber(r2) &&
-            isFiniteNumber(span) &&
-            isFiniteNumber(n) &&
-            r2 >= highCfg.r2 &&
-            span >= highCfg.span &&
-            n >= highCfg.n &&
-            (highCfg.floorMarginDec == null ||
-                floorMarginDec == null ||
-                (isFiniteNumber(floorMarginDec) && floorMarginDec >= highCfg.floorMarginDec)) &&
-            (highCfg.stab == null ||
-                stab == null ||
-                (isFiniteNumber(stab) && stab <= highCfg.stab))) {
-            return { ss_ok: true, ss_confidence: "high", ss_reason: "ok" };
-        }
-        return {
-            ss_ok: true,
-            ss_confidence: "low",
-            ss_reason: isFiniteNumber(floorMarginDec) &&
-                isFiniteNumber(conf.idw?.classify?.low?.floorMarginDec) &&
-                floorMarginDec < conf.idw.classify.low.floorMarginDec
-                ? "idw.too_close_to_floor"
-                : "idw.fit_quality_low",
         };
     }
     return {

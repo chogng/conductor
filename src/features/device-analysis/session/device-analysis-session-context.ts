@@ -13,7 +13,7 @@ import type {
 
 export type TemplateMode = "select" | "save";
 export type PreviewStatusState = "idle" | "loading" | "ready" | "error";
-export type SsMethod = "auto" | "manual" | "idWindow" | "legacy";
+export type SsMethod = "auto" | "manual";
 
 export type DeviceAnalysisTemplateConfig = {
   name: string;
@@ -50,12 +50,15 @@ export type IonIoffManualTargets = {
   ioffX: string;
 };
 
-export type IonIoffManualTargetsByFileId = Record<string, IonIoffManualTargets>;
+export type IonIoffManualTargetsBySeriesId = Record<
+  string,
+  IonIoffManualTargets
+>;
 
-export type SsIdWindow = {
-  low: string;
-  high: string;
-};
+export type IonIoffManualTargetsByFileId = Record<
+  string,
+  IonIoffManualTargetsBySeriesId
+>;
 
 export type SsManualRange = {
   x1: unknown;
@@ -107,8 +110,6 @@ export type DeviceAnalysisSessionContextValue = {
   setGmDiagnosticsEnabled: Dispatch<SetStateAction<boolean>>;
   ssShowFitLine: boolean;
   setSsShowFitLine: Dispatch<SetStateAction<boolean>>;
-  ssIdWindow: SsIdWindow;
-  setSsIdWindow: Dispatch<SetStateAction<SsIdWindow>>;
   ssManualRanges: SsManualRanges;
   setSsManualRanges: Dispatch<SetStateAction<SsManualRanges>>;
 };

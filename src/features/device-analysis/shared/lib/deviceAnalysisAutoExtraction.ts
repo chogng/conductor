@@ -670,7 +670,7 @@ const inferStructuredSeriesLayout = ({
 
 // ---------------------------------------------------------------------------
 // Generic header matching and metadata parsing
-// These helpers support the legacy "single X + single Y/grouped rows" flow and
+// These helpers support the classic "single X + single Y/grouped rows" flow and
 // also feed legend/group inference for the structured layouts above.
 // ---------------------------------------------------------------------------
 

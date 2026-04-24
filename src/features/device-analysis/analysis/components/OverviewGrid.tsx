@@ -44,9 +44,9 @@ const resolveCurveFieldFilterMeta = (
     };
   }
   if (label) {
-    // Backward-compat for legacy payloads that only carry display field text.
+    // Backward-compat for older payloads that only carry display field text.
     return {
-      key: `legacy-field:${label.toLowerCase()}`,
+      key: `field-label:${label.toLowerCase()}`,
       label,
     };
   }

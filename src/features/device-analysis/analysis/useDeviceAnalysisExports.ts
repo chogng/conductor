@@ -1,7 +1,6 @@
 import { useCallback, useEffect } from "react";
 import type JSZip from "jszip";
 import type {
-  SsIdWindow,
   SsManualRanges,
   SsMethod,
 } from "../session/device-analysis-session-context";
@@ -11,7 +10,6 @@ type DeviceAnalysisExportModule = typeof import("./lib/deviceAnalysisExport");
 
 type UseDeviceAnalysisExportsOptions = {
   processedData?: ProcessedEntry[];
-  ssIdWindow?: SsIdWindow;
   ssManualRanges?: SsManualRanges;
   ssMethod?: SsMethod;
 };
@@ -30,7 +28,6 @@ declare global {
 
 export const useDeviceAnalysisExports = ({
   processedData = [],
-  ssIdWindow,
   ssManualRanges,
   ssMethod,
 }: UseDeviceAnalysisExportsOptions) => {
@@ -74,7 +71,6 @@ export const useDeviceAnalysisExports = ({
       "\uFEFF" +
         buildDeviceAnalysisSsMetricsCsv({
           processedData,
-          ssIdWindow,
           ssManualRanges,
           ssMethod,
         }),
@@ -87,7 +83,7 @@ export const useDeviceAnalysisExports = ({
     });
 
     triggerDeviceAnalysisBlobDownload("device_analysis_export.zip", zipBlob);
-  }, [loadExportDependencies, processedData, ssIdWindow, ssManualRanges, ssMethod]);
+  }, [loadExportDependencies, processedData, ssManualRanges, ssMethod]);
 
   const handleExportOrigin = useCallback(async () => {
     if (processedData.length === 0) return;

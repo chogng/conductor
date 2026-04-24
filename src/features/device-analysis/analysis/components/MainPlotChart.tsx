@@ -1195,8 +1195,11 @@ const MainPlotChart = memo(function MainPlotChart({
   const isSsPlot = plotType === "ss";
 
   const yAxisLabel = useMemo(
-    () => withYAxisUnit(activeFile?.yLabel, plotYUnitLabel),
-    [activeFile?.yLabel, plotYUnitLabel],
+    () =>
+      isSsPlot
+        ? withYAxisUnit("|Id|", plotYUnitLabel)
+        : withYAxisUnit(activeFile?.yLabel, plotYUnitLabel),
+    [activeFile?.yLabel, isSsPlot, plotYUnitLabel],
   );
   const xAxisLabel = useMemo(
     () => withYAxisUnit(activeFile?.xLabel, plotXUnitLabel),

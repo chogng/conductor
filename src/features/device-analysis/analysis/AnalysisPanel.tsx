@@ -9,9 +9,8 @@ import { BarChart2 } from "lucide-react";
 import Card from "../../../components/ui/Card";
 import type { TranslateFn } from "../../../context/language";
 import type {
-  IonIoffManualTargets,
+  IonIoffManualTargetsByFileId,
   IonIoffMethod,
-  SsIdWindow,
   SsManualRanges,
   SsMethod,
 } from "../session/device-analysis-session-context";
@@ -24,11 +23,13 @@ type AnalysisChartsLazyProps = {
   processingStatus?: Partial<ProcessingStatus>;
   activeFileId?: string | null;
   ionIoffMethod?: IonIoffMethod;
-  ionIoffManualTargets?: IonIoffManualTargets;
+  ionIoffManualTargetsByFileId?: IonIoffManualTargetsByFileId;
   onActiveFileIdChange?: (nextFileId: string | null) => void;
   showFileSelect?: boolean;
   setIonIoffMethod?: (next: IonIoffMethod) => void;
-  setIonIoffManualTargets?: Dispatch<SetStateAction<IonIoffManualTargets>>;
+  setIonIoffManualTargetsByFileId?: Dispatch<
+    SetStateAction<IonIoffManualTargetsByFileId>
+  >;
   ssMethod?: SsMethod;
   setSsMethod?: (next: SsMethod) => void;
   ssDiagnosticsEnabled?: boolean;
@@ -37,8 +38,6 @@ type AnalysisChartsLazyProps = {
   setGmDiagnosticsEnabled?: (next: boolean) => void;
   ssShowFitLine?: boolean;
   setSsShowFitLine?: (next: boolean) => void;
-  ssIdWindow?: SsIdWindow;
-  setSsIdWindow?: (next: SsIdWindow) => void;
   ssManualRanges?: SsManualRanges;
   setSsManualRanges?: (next: SsManualRanges) => void;
   originOpenPlotOptions?: OriginPlotOptions;
@@ -73,21 +72,19 @@ const DeviceAnalysisAnalysisPanel = ({
   processingStatus,
   activeFileId,
   ionIoffMethod,
-  ionIoffManualTargets,
+  ionIoffManualTargetsByFileId,
   onActiveFileIdChange,
   showFileSelect = true,
   shouldMountCharts = false,
   setIonIoffMethod,
-  setIonIoffManualTargets,
+  setIonIoffManualTargetsByFileId,
   setSsDiagnosticsEnabled,
   gmDiagnosticsEnabled,
   setGmDiagnosticsEnabled,
-  setSsIdWindow,
   setSsManualRanges,
   setSsMethod,
   setSsShowFitLine,
   ssDiagnosticsEnabled,
-  ssIdWindow,
   ssManualRanges,
   ssMethod,
   ssShowFitLine,
@@ -108,11 +105,11 @@ const DeviceAnalysisAnalysisPanel = ({
               processingStatus={processingStatus}
               activeFileId={activeFileId}
               ionIoffMethod={ionIoffMethod}
-              ionIoffManualTargets={ionIoffManualTargets}
+              ionIoffManualTargetsByFileId={ionIoffManualTargetsByFileId}
               onActiveFileIdChange={onActiveFileIdChange}
               showFileSelect={showFileSelect}
               setIonIoffMethod={setIonIoffMethod}
-              setIonIoffManualTargets={setIonIoffManualTargets}
+              setIonIoffManualTargetsByFileId={setIonIoffManualTargetsByFileId}
               ssMethod={ssMethod}
               setSsMethod={setSsMethod}
               ssDiagnosticsEnabled={ssDiagnosticsEnabled}
@@ -121,8 +118,6 @@ const DeviceAnalysisAnalysisPanel = ({
               setGmDiagnosticsEnabled={setGmDiagnosticsEnabled}
               ssShowFitLine={ssShowFitLine}
               setSsShowFitLine={setSsShowFitLine}
-              ssIdWindow={ssIdWindow}
-              setSsIdWindow={setSsIdWindow}
               ssManualRanges={ssManualRanges}
               setSsManualRanges={setSsManualRanges}
               originOpenPlotOptions={originOpenPlotOptions}

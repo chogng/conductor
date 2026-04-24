@@ -8,7 +8,7 @@ type JsonLike =
   | JsonLike[]
   | { [key: string]: JsonLike };
 
-type LegacyExtractionError = {
+type OlderExtractionError = {
   fileName: string | null;
   messageKey: string;
   messageParams: Record<string, number | string>;
@@ -41,15 +41,15 @@ export const stableStringify = (value: unknown): string => {
   return JSON.stringify(normalize(value));
 };
 
-export const parseLegacyExtractionError = (
+export const parseOlderExtractionError = (
   rawMessage: unknown,
-): LegacyExtractionError | null => {
+): OlderExtractionError | null => {
   const message = String(rawMessage ?? "").trim();
   if (!message) return null;
 
   const patterns: Array<{
     regex: RegExp;
-    map: (matched: RegExpMatchArray) => LegacyExtractionError;
+    map: (matched: RegExpMatchArray) => OlderExtractionError;
   }> = [
     {
       regex:

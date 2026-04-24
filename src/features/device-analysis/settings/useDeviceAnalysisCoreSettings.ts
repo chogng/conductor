@@ -28,7 +28,6 @@ type UseDeviceAnalysisCoreSettingsOptions = {
   setTheme: (theme: ThemeMode) => void;
   setGmDiagnosticsEnabled: (enabled: boolean) => void;
   setSsDiagnosticsEnabled: (enabled: boolean) => void;
-  setSsIdWindow: (window: { high: string; low: string }) => void;
   setSsMethod: (method: SsMethod) => void;
   setSsShowFitLine: (enabled: boolean) => void;
   t: TranslateFn;
@@ -46,7 +45,6 @@ export const useDeviceAnalysisCoreSettings = ({
   setTheme,
   setGmDiagnosticsEnabled,
   setSsDiagnosticsEnabled,
-  setSsIdWindow,
   setSsMethod,
   setSsShowFitLine,
   t: _t,
@@ -131,9 +129,7 @@ export const useDeviceAnalysisCoreSettings = ({
       const ssMethodDefault = settings?.ssMethodDefault;
       if (
         ssMethodDefault === "auto" ||
-        ssMethodDefault === "manual" ||
-        ssMethodDefault === "idWindow" ||
-        ssMethodDefault === "legacy"
+        ssMethodDefault === "manual"
       ) {
         setSsMethod(ssMethodDefault);
       }
@@ -148,17 +144,6 @@ export const useDeviceAnalysisCoreSettings = ({
 
       if (typeof settings?.ssShowFitLine === "boolean") {
         setSsShowFitLine(settings.ssShowFitLine);
-      }
-
-      const low = Number(settings?.ssIdLow);
-      const high = Number(settings?.ssIdHigh);
-      if (
-        Number.isFinite(low) &&
-        Number.isFinite(high) &&
-        low > 0 &&
-        high > 0
-      ) {
-        setSsIdWindow({ low: String(low), high: String(high) });
       }
     };
 
@@ -198,7 +183,6 @@ export const useDeviceAnalysisCoreSettings = ({
     setLanguage,
     setTheme,
     setSsDiagnosticsEnabled,
-    setSsIdWindow,
     setSsMethod,
     setSsShowFitLine,
   ]);

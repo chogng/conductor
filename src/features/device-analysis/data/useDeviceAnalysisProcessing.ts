@@ -9,7 +9,7 @@ import {
 } from "react";
 import { prepareDeviceAnalysisExtraction } from "../shared/lib/deviceAnalysisExtractionValidation";
 import {
-  parseLegacyExtractionError,
+  parseOlderExtractionError,
   stableStringify,
 } from "../shared/lib/deviceAnalysisUtils";
 import {
@@ -273,24 +273,24 @@ const buildWorkerExtractionError = (payload: any): ExtractionErrorEntry => {
     typeof payload?.message === "string" && payload.message.trim()
       ? payload.message
       : "Unknown error";
-  const legacyParsed = parseLegacyExtractionError(rawMessage) as {
+  const fallbackParsed = parseOlderExtractionError(rawMessage) as {
     fileName?: string;
     messageKey?: string | null;
     messageParams?: Record<string, unknown> | null;
   } | null;
 
   return {
-    fileName: payload?.fileName ?? legacyParsed?.fileName ?? "Unknown file",
+    fileName: payload?.fileName ?? fallbackParsed?.fileName ?? "Unknown file",
     message: rawMessage,
     messageKey:
       (typeof payload?.messageKey === "string" && payload.messageKey) ||
-      legacyParsed?.messageKey ||
+      fallbackParsed?.messageKey ||
       null,
     messageParams:
       (payload?.messageParams &&
         typeof payload.messageParams === "object" &&
         (payload.messageParams as Record<string, unknown>)) ||
-      legacyParsed?.messageParams ||
+      fallbackParsed?.messageParams ||
       null,
   };
 };

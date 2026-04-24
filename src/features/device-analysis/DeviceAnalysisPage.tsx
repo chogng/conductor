@@ -32,7 +32,6 @@ import { useDeviceAnalysisSession } from "./session/useDeviceAnalysisSession";
 import { useDeviceAnalysisSessionActions } from "./session/useDeviceAnalysisSessionActions";
 import { useDeviceAnalysisCoreSettings } from "./settings/useDeviceAnalysisCoreSettings";
 import { useResizableSidebar } from "./useResizableSidebar";
-import type { IonIoffManualTargets } from "./session/device-analysis-session-context";
 
 type PageTab = "data" | "analysis" | "settings";
 type PageNavigationState = {
@@ -154,8 +153,6 @@ const DeviceAnalysisPage = () => {
     setGmDiagnosticsEnabled,
     ssShowFitLine,
     setSsShowFitLine,
-    ssIdWindow,
-    setSsIdWindow,
     ssManualRanges,
     setSsManualRanges,
     previewFile,
@@ -412,7 +409,6 @@ const DeviceAnalysisPage = () => {
     setTheme,
     setGmDiagnosticsEnabled,
     setSsDiagnosticsEnabled,
-    setSsIdWindow,
     setSsMethod,
     setSsShowFitLine,
     t: tLoose,
@@ -441,7 +437,6 @@ const DeviceAnalysisPage = () => {
 
   const { handleExport } = useDeviceAnalysisExports({
     processedData,
-    ssIdWindow,
     ssManualRanges,
     ssMethod,
   });
@@ -518,68 +513,39 @@ const DeviceAnalysisPage = () => {
     setAnalysisActiveFileId(nextFileId ?? null);
   }, []);
 
-  const analysisIonIoffManualTargets = useMemo<IonIoffManualTargets>(
-    () =>
-      analysisActiveFileId
-        ? ionIoffManualTargetsByFileId[analysisActiveFileId] ?? { ionX: "", ioffX: "" }
-        : { ionX: "", ioffX: "" },
-    [analysisActiveFileId, ionIoffManualTargetsByFileId],
-  );
-
-  const handleAnalysisIonIoffManualTargetsChange = useCallback(
-    (
-      next:
-        | IonIoffManualTargets
-        | ((prev: IonIoffManualTargets) => IonIoffManualTargets),
-    ) => {
-      if (!analysisActiveFileId) return;
-
-      setIonIoffManualTargetsByFileId((prev) => {
-        const previousTargets = prev?.[analysisActiveFileId] ?? {
-          ionX: "",
-          ioffX: "",
-        };
-        const resolvedTargets =
-          typeof next === "function" ? next(previousTargets) : next;
-        return {
-          ...(prev || {}),
-          [analysisActiveFileId]: {
-            ionX: String(resolvedTargets?.ionX ?? ""),
-            ioffX: String(resolvedTargets?.ioffX ?? ""),
-          },
-        };
-      });
-    },
-    [analysisActiveFileId, setIonIoffManualTargetsByFileId],
-  );
-
   useEffect(() => {
     const fileId = String(analysisActiveFileId ?? "").trim();
     if (!fileId) return;
-    if (ionIoffManualTargetsByFileId[fileId]) return;
+    const activeFile = processedData.find((entry) => entry?.fileId === fileId) ?? null;
+    const defaultSeriesId = String(activeFile?.series?.[0]?.id ?? "").trim();
+    if (!defaultSeriesId) return;
+    if (ionIoffManualTargetsByFileId[fileId]?.[defaultSeriesId]) return;
 
-    const legacyIonX = deviceAnalysisSettings?.ionIoffManualIonX;
-    const legacyIoffX = deviceAnalysisSettings?.ionIoffManualIoffX;
+    const fallbackIonX = deviceAnalysisSettings?.ionIoffManualIonX;
+    const fallbackIoffX = deviceAnalysisSettings?.ionIoffManualIoffX;
     if (
-      (legacyIonX === undefined || legacyIonX === null || legacyIonX === "") &&
-      (legacyIoffX === undefined || legacyIoffX === null || legacyIoffX === "")
+      (fallbackIonX === undefined || fallbackIonX === null || fallbackIonX === "") &&
+      (fallbackIoffX === undefined || fallbackIoffX === null || fallbackIoffX === "")
     ) {
       return;
     }
 
     setIonIoffManualTargetsByFileId((prev) => {
-      if (prev?.[fileId]) return prev;
+      if (prev?.[fileId]?.[defaultSeriesId]) return prev;
       return {
         ...(prev || {}),
         [fileId]: {
-          ionX:
-            legacyIonX === undefined || legacyIonX === null || legacyIonX === ""
-              ? ""
-              : String(legacyIonX),
-          ioffX:
-            legacyIoffX === undefined || legacyIoffX === null || legacyIoffX === ""
-              ? ""
-              : String(legacyIoffX),
+          ...(prev?.[fileId] ?? {}),
+          [defaultSeriesId]: {
+            ionX:
+              fallbackIonX === undefined || fallbackIonX === null || fallbackIonX === ""
+                ? ""
+                : String(fallbackIonX),
+            ioffX:
+              fallbackIoffX === undefined || fallbackIoffX === null || fallbackIoffX === ""
+                ? ""
+                : String(fallbackIoffX),
+          },
         },
       };
     });
@@ -588,6 +554,7 @@ const DeviceAnalysisPage = () => {
     deviceAnalysisSettings?.ionIoffManualIoffX,
     deviceAnalysisSettings?.ionIoffManualIonX,
     ionIoffManualTargetsByFileId,
+    processedData,
     setIonIoffManualTargetsByFileId,
   ]);
 
@@ -823,16 +790,14 @@ const DeviceAnalysisPage = () => {
                   setSsDiagnosticsEnabled={setSsDiagnosticsEnabled}
                   setGmDiagnosticsEnabled={setGmDiagnosticsEnabled}
                   ionIoffMethod={ionIoffMethod}
-                  ionIoffManualTargets={analysisIonIoffManualTargets}
+                  ionIoffManualTargetsByFileId={ionIoffManualTargetsByFileId}
                   setIonIoffMethod={setIonIoffMethod}
-                  setIonIoffManualTargets={handleAnalysisIonIoffManualTargetsChange}
-                  setSsIdWindow={setSsIdWindow}
+                  setIonIoffManualTargetsByFileId={setIonIoffManualTargetsByFileId}
                   setSsManualRanges={setSsManualRanges}
                   setSsMethod={setSsMethod}
                   setSsShowFitLine={setSsShowFitLine}
                   gmDiagnosticsEnabled={gmDiagnosticsEnabled}
                   ssDiagnosticsEnabled={ssDiagnosticsEnabled}
-                  ssIdWindow={ssIdWindow}
                   ssManualRanges={ssManualRanges}
                   ssMethod={ssMethod}
                   ssShowFitLine={ssShowFitLine}

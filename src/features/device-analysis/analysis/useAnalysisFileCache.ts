@@ -44,7 +44,6 @@ export const useAnalysisFileCache = ({
       baseMetricsBySeriesId: new Map(),
       gmMetricsByMode: { x: new Map(), legend: new Map() },
       ssManualFitBySeriesId: new Map(),
-      ssIdWindowFitByKey: new Map(),
       jByAreaKey: new Map(),
       minMaxByKey: new Map(),
     }),
@@ -177,24 +176,7 @@ export const useAnalysisFileCache = ({
             points,
             sourceFile: file,
           });
-          const ssDiagnostics = cache.ssDiagnosticsBySeriesId.get(series.id) ?? [];
-          let legacySsMin = Infinity;
-          let legacyXAtSsMin = null;
-          for (const point of ssDiagnostics) {
-            const x = point?.x;
-            const y = point?.y;
-            if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
-            if (y > 0 && y < legacySsMin) {
-              legacySsMin = y;
-              legacyXAtSsMin = x;
-            }
-          }
-
-          cache.baseMetricsBySeriesId.set(series.id, {
-            ...baseCurrentMetrics,
-            legacySsMin: Number.isFinite(legacySsMin) ? legacySsMin : null,
-            legacyXAtSsMin,
-          });
+          cache.baseMetricsBySeriesId.set(series.id, baseCurrentMetrics);
         }
       }
     };
