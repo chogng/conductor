@@ -384,8 +384,9 @@ type ProgressiveAnalysisState = {
     totalCount: number;
     pending: boolean;
 };
-const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, derivativeLabel, ssApplicable, areaAvailable, onChange, }: {
+const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, primaryPlotLabel, derivativeLabel, ssApplicable, areaAvailable, onChange, }: {
     activePlotType: PlotTypeOption;
+    primaryPlotLabel?: string;
     derivativeLabel: string;
     ssApplicable: boolean;
     areaAvailable: boolean;
@@ -411,7 +412,7 @@ const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, deri
         options={[
             {
                 value: "iv",
-                label: "I-V",
+                label: primaryPlotLabel || "I-V",
                 id: "device-analysis-plot-iv-btn",
             },
             {
@@ -1151,6 +1152,16 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             xSymbol,
         };
     }, [activeFile, t]);
+    const primaryPlotLabel = useMemo(() => {
+        const curveType = String(activeFile?.curveType ?? "").trim().toLowerCase();
+        if (curveType === "pv")
+            return "P-V";
+        if (curveType === "cv")
+            return "C-V";
+        if (curveType === "cf")
+            return "C-f";
+        return "I-V";
+    }, [activeFile?.curveType]);
     const pointsBySeriesId = useMemo(() => {
         if (!activeFile?.fileId || !activeFile?.series?.length)
             return new Map();
@@ -2809,7 +2820,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
 
           <div className="mb-4 flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-4 flex-wrap">
-              <PlotTypeToggle activePlotType={effectivePlotType} derivativeLabel={gmUi.kind === "gds" ? "gds" : "gm"} ssApplicable={ssApplicable} areaAvailable={Boolean(area)} onChange={handlePlotTypeChange}/>
+              <PlotTypeToggle activePlotType={effectivePlotType} primaryPlotLabel={primaryPlotLabel} derivativeLabel={gmUi.kind === "gds" ? "gds" : "gm"} ssApplicable={ssApplicable} areaAvailable={Boolean(area)} onChange={handlePlotTypeChange}/>
 
 
 

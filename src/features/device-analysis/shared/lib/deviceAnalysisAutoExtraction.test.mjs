@@ -276,3 +276,85 @@ test("returns a failure result when auto extraction cannot infer columns", () =>
   assert.equal(result.ok, false);
   assert.match(result.message, /unable to infer|no rows/i);
 });
+
+test("infers a cv two-column layout into an executable auto extraction plan", () => {
+  const rows = [
+    ["{c_v_ext}", "2026-01-08-21-55-45"],
+    ["{(C_V_C_V_EXT)Cp_vp@ vn=0.0}", "vn=0.00000"],
+    ["vp", "Cp"],
+    ["-7", "5.91849e-12"],
+    ["-6.9", "6.96301e-12"],
+    ["-6.8", "7.24286e-12"],
+    ["-6.7", "6.74907e-12"],
+  ];
+
+  const result = inferDeviceAnalysisAutoExtraction({
+    fileName: "#CV-60um-5,10kHz_2026-01-09-10-09-59.xls",
+    rows,
+    totalRowCount: rows.length,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.plan.curveType, "cv");
+  assert.equal(result.plan.xAxisRole, null);
+  assert.equal(result.plan.xCol, 0);
+  assert.deepEqual(result.plan.yCols, [1]);
+  assert.equal(result.plan.bottomTitle, "vp");
+  assert.equal(result.plan.leftTitle, "Cp");
+  assert.equal(result.plan.xUnit, "V");
+  assert.equal(result.plan.yUnit, "F");
+});
+
+test("infers a cf two-column layout into an executable auto extraction plan", () => {
+  const rows = [
+    ["{c_freq_ext}", "2026-01-09-11-07-05"],
+    ["{(C_freq_ext_C_Freq_EXT)Cp_freq@ vn=1.0}", "vn=1.00000"],
+    ["freq", "Cp(vp=0.00000)"],
+    ["1000", "1.48524e-12"],
+    ["11000", "1.34488e-12"],
+    ["21000", "1.33745e-12"],
+    ["31000", "1.33642e-12"],
+  ];
+
+  const result = inferDeviceAnalysisAutoExtraction({
+    fileName: "#CF-10um-10_2026-01-09-11-09-36.xls",
+    rows,
+    totalRowCount: rows.length,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.plan.curveType, "cf");
+  assert.equal(result.plan.xAxisRole, null);
+  assert.equal(result.plan.xCol, 0);
+  assert.deepEqual(result.plan.yCols, [1]);
+  assert.equal(result.plan.bottomTitle, "freq");
+  assert.equal(result.plan.leftTitle, "Cp(vp=0.00000)");
+  assert.equal(result.plan.xUnit, "Hz");
+  assert.equal(result.plan.yUnit, "F");
+});
+
+test("infers a pv fastiv layout into an executable auto extraction plan", () => {
+  const rows = [
+    ["{i_v_fastiv_ivt-D150}", "2026-01-15-16-20-41", "", "{i_v_fastiv_ivt-D150}", "2026-01-15-16-20-41", ""],
+    ["{(_FastIV(IVT))vp,in_Time@ vn; vp}", "wave", "", "", "{(original__FastIV(IVT))vp,in_Time@ vn; vp}", "wave"],
+    ["vp", "`vp", "ipt", "Time", "vp", "in"],
+    ["-0.0071", "0.0002", "3.6e-7", "1e-7", "-0.0071", "-3.6e-7"],
+    ["-0.0048", "0.0010", "9.4e-7", "2e-7", "-0.0048", "-9.4e-7"],
+    ["0.0068", "0.0131", "1.8e-5", "1.2e-6", "0.0068", "-1.8e-5"],
+  ];
+
+  const result = inferDeviceAnalysisAutoExtraction({
+    fileName: "W-AOHZOAO-W-380C-PV-D100-WAKE UP_2026-01-15-16-25-29.xls",
+    rows,
+    totalRowCount: rows.length,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.plan.curveType, "pv");
+  assert.equal(result.plan.xCol, 4);
+  assert.deepEqual(result.plan.yCols, [5]);
+  assert.equal(result.plan.bottomTitle, "vp");
+  assert.equal(result.plan.leftTitle, "in");
+  assert.equal(result.plan.xUnit, "V");
+  assert.equal(result.plan.yUnit, "A");
+});

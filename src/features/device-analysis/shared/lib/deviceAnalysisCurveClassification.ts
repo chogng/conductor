@@ -6,7 +6,13 @@ import {
 
 export type DeviceAnalysisAxisRole = "vg" | "vd";
 
-export type DeviceAnalysisCurveKind = "transfer" | "output" | "unknown";
+export type DeviceAnalysisCurveKind =
+  | "transfer"
+  | "output"
+  | "pv"
+  | "cv"
+  | "cf"
+  | "unknown";
 
 export type DeviceAnalysisCurveConfidence = "high" | "medium" | "low";
 
@@ -60,6 +66,13 @@ type CurveEvidence = {
   role: DeviceAnalysisAxisRole;
   source: NonNullable<DeviceAnalysisCurveSource>;
   weight: number;
+};
+
+const unwrapBraceToken = (value: unknown): string => {
+  const normalized = normalizeCellText(value);
+  if (!normalized) return "";
+  const match = normalized.match(/^\{+([^{}]+)\}+$/);
+  return normalizeCellText(match ? match[1] : normalized);
 };
 
 const firstNonEmpty = (values: unknown[]): string => {
@@ -322,6 +335,9 @@ export const extractDeviceAnalysisCurveMetadata = (
     if (!setupTitle && first === "SetupTitle") {
       setupTitle = firstNonEmpty(row.slice(1));
     }
+    if (!setupTitle && rowIndex === 0) {
+      setupTitle = unwrapBraceToken(first);
+    }
 
     if (!xAxisData && second === "Output.Graph.XAxis.Data") {
       xAxisData = firstNonEmpty(row.slice(2));
@@ -444,8 +460,132 @@ const buildCurveTypeLabel = (
 ): string | null => {
   if (curveType === "transfer") return xAxisRole === "vg" ? "transfer (vg)" : "transfer";
   if (curveType === "output") return xAxisRole === "vd" ? "output (vd)" : "output";
+  if (curveType === "pv") return "pv";
+  if (curveType === "cv") return "cv";
+  if (curveType === "cf") return "cf";
   if (curveType === "unknown") return "unknown";
   return null;
+};
+
+const normalizeCompactText = (value: unknown): string =>
+  normalizeCellText(value)
+    .toLowerCase()
+    .replace(/[\s_\-./()[\]{}:=]+/g, "");
+
+const detectCapacitanceCurveKind = ({
+  fileName,
+  metadata,
+  templateXAxisLabel,
+  xAxisLabel,
+}: Pick<
+  DeviceAnalysisCurveClassificationInput,
+  "fileName" | "metadata" | "templateXAxisLabel" | "xAxisLabel"
+>): {
+  confidence: DeviceAnalysisCurveConfidence;
+  curveType: Exclude<DeviceAnalysisCurveKind, "transfer" | "output" | "unknown">;
+  reason: string;
+  source: NonNullable<DeviceAnalysisCurveSource>;
+} | null => {
+  const metadataLikeTexts = [
+    metadata?.setupTitle,
+    metadata?.xAxisData,
+    ...(Array.isArray(metadata?.dataNameColumns) ? metadata.dataNameColumns : []),
+  ];
+  const labelTexts = [templateXAxisLabel, xAxisLabel];
+  const fileNameCompact = normalizeCompactText(fileName);
+  const metadataCompact = metadataLikeTexts.map((value) => normalizeCompactText(value));
+  const labelCompact = labelTexts.map((value) => normalizeCompactText(value));
+  const allCompact = [fileNameCompact, ...metadataCompact, ...labelCompact].filter(Boolean);
+  const hasFileNameCvHint =
+    fileNameCompact.includes("cv") && !fileNameCompact.includes("svc");
+  const hasFileNameCfHint =
+    fileNameCompact.includes("cf") ||
+    fileNameCompact.includes("freq");
+
+  const hasCapacitanceY = allCompact.some(
+    (value) =>
+      value.includes("cp") ||
+      value.includes("cs") ||
+      value.includes("cap") ||
+      value.includes("capacit"),
+  );
+  if (!hasCapacitanceY && !hasFileNameCvHint && !hasFileNameCfHint) return null;
+
+  if (hasFileNameCvHint) {
+    return {
+      confidence: "medium",
+      curveType: "cv",
+      reason: "Filename/labels identify a capacitance-voltage sweep (Cp/C-V).",
+      source: "filename",
+    };
+  }
+
+  const hasFreqHint = allCompact.some(
+    (value) =>
+      value.includes("freq") ||
+      value.includes("frequency") ||
+      value.includes("hz") ||
+      /(^|[^a-z0-9])cf([^a-z0-9]|$)/.test(value),
+  );
+  if (hasFreqHint || hasFileNameCfHint) {
+    return {
+      confidence: "medium",
+      curveType: "cf",
+      reason: "Filename/labels identify a capacitance-frequency sweep (Cp/C-f).",
+      source: hasFileNameCfHint ? "filename" : "label",
+    };
+  }
+
+  const hasVoltageHint = allCompact.some(
+    (value) =>
+      value.includes("cv") ||
+      value.includes("vp") ||
+      value.includes("voltage") ||
+      value.includes("bias"),
+  );
+  if (hasVoltageHint) {
+    return {
+      confidence: "medium",
+      curveType: "cv",
+      reason: "Filename/labels identify a capacitance-voltage sweep (Cp/C-V).",
+      source: "label",
+    };
+  }
+
+  return null;
+};
+
+const detectPulseVoltageCurveKind = ({
+  fileName,
+  metadata,
+}: Pick<DeviceAnalysisCurveClassificationInput, "fileName" | "metadata">): {
+  confidence: DeviceAnalysisCurveConfidence;
+  curveType: "pv";
+  reason: string;
+  source: NonNullable<DeviceAnalysisCurveSource>;
+} | null => {
+  const fileNameCompact = normalizeCompactText(fileName);
+  const setupTitleCompact = normalizeCompactText(metadata?.setupTitle);
+  const dataNamesCompact = Array.isArray(metadata?.dataNameColumns)
+    ? metadata.dataNameColumns.map((value) => normalizeCompactText(value))
+    : [];
+  const hasPulseFileHint =
+    fileNameCompact.includes("pv") ||
+    fileNameCompact.includes("fastiv") ||
+    fileNameCompact.includes("ivt");
+  const hasPulseMetadataHint =
+    setupTitleCompact.includes("fastiv") ||
+    setupTitleCompact.includes("ivt") ||
+    dataNamesCompact.some((value) => value === "vp" || value === "in" || value === "ipt");
+
+  if (!hasPulseFileHint && !hasPulseMetadataHint) return null;
+
+  return {
+    confidence: hasPulseMetadataHint ? "medium" : "low",
+    curveType: "pv",
+    reason: "Filename/metadata identify a pulse-voltage or FastIV-style sweep.",
+    source: hasPulseMetadataHint ? "metadata" : "filename",
+  };
 };
 
 const reasonPrefixBySource: Record<NonNullable<DeviceAnalysisCurveSource>, string> = {
@@ -694,8 +834,41 @@ export const classifyDeviceAnalysisCurve = ({
           "Shape only exposes generic CH1/CH2 sweep columns, so the gate/drain meaning is not reliable without a template.",
         ]
       : [];
+  const pulseVoltageCurve = detectPulseVoltageCurveKind({
+    fileName,
+    metadata: normalizedMetadata,
+  });
+  if (pulseVoltageCurve && !strongMetadataConflict) {
+    return {
+      confidence: pulseVoltageCurve.confidence,
+      curveType: pulseVoltageCurve.curveType,
+      curveTypeLabel: buildCurveTypeLabel(pulseVoltageCurve.curveType, null),
+      needsTemplate: false,
+      reasons: [pulseVoltageCurve.reason],
+      xAxisRole: null,
+      xAxisRoleSource: pulseVoltageCurve.source,
+    };
+  }
+  const capacitanceCurve = detectCapacitanceCurveKind({
+    fileName,
+    metadata: normalizedMetadata,
+    templateXAxisLabel,
+    xAxisLabel,
+  });
 
   if (!winningRole || strongMetadataConflict) {
+    if (capacitanceCurve && !strongMetadataConflict) {
+      return {
+        confidence: capacitanceCurve.confidence,
+        curveType: capacitanceCurve.curveType,
+        curveTypeLabel: buildCurveTypeLabel(capacitanceCurve.curveType, null),
+        needsTemplate: false,
+        reasons: [capacitanceCurve.reason],
+        xAxisRole: null,
+        xAxisRoleSource: capacitanceCurve.source,
+      };
+    }
+
     const reasons = strongMetadataConflict
       ? [
           "Metadata signals disagree on whether VAR1/X belongs to Vg or Vd.",

@@ -258,3 +258,54 @@ test("returns unknown when strong metadata conflicts", () => {
   assert.equal(result.needsTemplate, true);
   assert.match(result.reasons[0], /disagree/i);
 });
+
+test("classifies Cp-V files as cv without needing a template", () => {
+  const result = classifyDeviceAnalysisCurve({
+    fileName: "#CV-60um-5,10kHz_2026-01-09-10-09-59.xls",
+    metadata: extractDeviceAnalysisCurveMetadata([
+      ["{c_v_ext}", "2026-01-08-21-55-45"],
+      ["{(C_V_C_V_EXT)Cp_vp@ vn=0.0}", "vn=0.00000"],
+      ["vp", "Cp"],
+    ]),
+    xAxisLabel: "vp",
+  });
+
+  assert.equal(result.curveType, "cv");
+  assert.equal(result.xAxisRole, null);
+  assert.equal(result.confidence, "medium");
+  assert.equal(result.needsTemplate, false);
+  assert.match(result.reasons.join(" "), /capacitance-voltage/i);
+});
+
+test("classifies Cp-freq files as cf without needing a template", () => {
+  const result = classifyDeviceAnalysisCurve({
+    fileName: "#CF-10um-10_2026-01-09-11-09-36.xls",
+    metadata: extractDeviceAnalysisCurveMetadata([
+      ["{c_freq_ext}", "2026-01-09-11-07-05"],
+      ["{(C_freq_ext_C_Freq_EXT)Cp_freq@ vn=1.0}", "vn=1.00000"],
+      ["freq", "Cp(vp=0.00000)"],
+    ]),
+    xAxisLabel: "freq",
+  });
+
+  assert.equal(result.curveType, "cf");
+  assert.equal(result.xAxisRole, null);
+  assert.equal(result.confidence, "medium");
+  assert.equal(result.needsTemplate, false);
+  assert.match(result.reasons.join(" "), /capacitance-frequency/i);
+});
+
+test("classifies FastIV pulse-voltage files as pv without needing a template", () => {
+  const result = classifyDeviceAnalysisCurve({
+    fileName: "W-AOHZOAO-W-380C-PV-D100-WAKE UP_2026-01-15-16-25-29.xls",
+    metadata: extractDeviceAnalysisCurveMetadata([
+      ["{i_v_fastiv_ivt-D150}", "2026-01-15-16-20-41"],
+      ["vp", "`vp", "ipt", "Time", "vp", "in"],
+    ]),
+  });
+
+  assert.equal(result.curveType, "pv");
+  assert.equal(result.xAxisRole, null);
+  assert.equal(result.needsTemplate, false);
+  assert.match(result.reasons.join(" "), /pulse-voltage|fastiv/i);
+});

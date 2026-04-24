@@ -45,6 +45,35 @@ export type DeviceAnalysisAutoExtractionPlan = {
   yUnit: string;
 };
 
+const findGenericNumericColumns = ({
+  dataStartRowIndex,
+  rows,
+}: {
+  dataStartRowIndex: number;
+  rows: Array<Array<unknown> | null | undefined>;
+}): { xCol: number | null; yCols: number[] } => {
+  const maxColumns = rows.reduce((max, rawRow) => {
+    const length = Array.isArray(rawRow) ? rawRow.length : 0;
+    return Math.max(max, length);
+  }, 0);
+  const numericColumns: number[] = [];
+
+  for (let colIndex = 0; colIndex < maxColumns; colIndex += 1) {
+    if (columnHasNumericRows(rows, dataStartRowIndex, colIndex, 2)) {
+      numericColumns.push(colIndex);
+    }
+  }
+
+  if (numericColumns.length < 2) {
+    return { xCol: null, yCols: [] };
+  }
+
+  return {
+    xCol: numericColumns[0] ?? null,
+    yCols: numericColumns.slice(1),
+  };
+};
+
 export type DeviceAnalysisAutoExtractionResult =
   | {
       message: string;
@@ -83,6 +112,53 @@ type StructuredSeriesLayout = {
   xAxisRoleSource: DeviceAnalysisCurveSource;
   xCol: number;
   yCols: number[];
+};
+
+const normalizeHeaderCompact = (value: unknown): string =>
+  normalizeCellText(value)
+    .toLowerCase()
+    .replace(/[\s_\-./()[\]{}:=`]+/g, "");
+
+const isVoltageLikeHeader = (value: unknown): boolean => {
+  const compact = normalizeHeaderCompact(value);
+  return (
+    compact === "v" ||
+    compact === "vp" ||
+    compact === "vpn" ||
+    compact === "vg" ||
+    compact === "vd" ||
+    compact.startsWith("vbias") ||
+    compact.includes("voltage")
+  );
+};
+
+const isFrequencyLikeHeader = (value: unknown): boolean => {
+  const compact = normalizeHeaderCompact(value);
+  return compact.includes("freq") || compact.includes("frequency") || compact.includes("hz");
+};
+
+const isCapacitanceLikeHeader = (value: unknown): boolean => {
+  const compact = normalizeHeaderCompact(value);
+  return (
+    compact === "cp" ||
+    compact === "cs" ||
+    compact.startsWith("cp") ||
+    compact.startsWith("cs") ||
+    compact.includes("cap")
+  );
+};
+
+const isCurrentLikeHeader = (value: unknown): boolean => {
+  const compact = normalizeHeaderCompact(value);
+  return (
+    compact === "in" ||
+    compact === "ipt" ||
+    compact === "id" ||
+    compact === "ig" ||
+    compact.includes("current") ||
+    compact.startsWith("in") ||
+    compact.startsWith("ipt")
+  );
 };
 
 const toCellRef = (rowIndex: number, colIndex: number): string =>
@@ -142,6 +218,20 @@ const findHeaderRowIndex = (
     if (row[0] !== "DataName") continue;
     const dataHeaders = row.slice(1).filter(Boolean);
     if (dataHeaders.length >= 2) {
+      return rowIndex;
+    }
+  }
+
+  for (let rowIndex = 0; rowIndex < rows.length - 1; rowIndex += 1) {
+    const row = getNormalizedRow(rows, rowIndex);
+    const nonEmptyCells = row.filter(Boolean);
+    if (nonEmptyCells.length < 2) continue;
+
+    const nextRow = Array.isArray(rows[rowIndex + 1]) ? (rows[rowIndex + 1] as Array<unknown>) : [];
+    const numericCount = nextRow.reduce<number>((count, cell) => {
+      return parseFiniteNumber(cell) === null ? count : count + 1;
+    }, 0);
+    if (numericCount >= 2) {
       return rowIndex;
     }
   }
@@ -515,6 +605,176 @@ const columnsShareEquivalentX = ({
     }
   }
   return true;
+};
+
+const columnsShareEquivalentY = ({
+  rows,
+  dataStartRowIndex,
+  leftCol,
+  rightCol,
+}: {
+  rows: Array<Array<unknown> | null | undefined>;
+  dataStartRowIndex: number;
+  leftCol: number;
+  rightCol: number;
+}): boolean => {
+  const leftValues = getNumericColumnValues({
+    rows,
+    dataStartRowIndex,
+    colIndex: leftCol,
+  });
+  const rightValues = getNumericColumnValues({
+    rows,
+    dataStartRowIndex,
+    colIndex: rightCol,
+  });
+  const compareCount = Math.min(leftValues.length, rightValues.length);
+  if (compareCount < AUTO_SEGMENTATION_MIN_GROUP_SIZE) return false;
+
+  const maxMagnitude = Math.max(
+    1,
+    ...leftValues.map((value) => Math.abs(value)),
+    ...rightValues.map((value) => Math.abs(value)),
+  );
+  const tolerance = Math.max(1e-12, maxMagnitude * 1e-6);
+  for (let index = 0; index < compareCount; index += 1) {
+    if (!approxEqual(leftValues[index], rightValues[index], tolerance)) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const findNumericSemanticColumns = ({
+  dataStartRowIndex,
+  headers,
+  rows,
+  predicate,
+}: {
+  dataStartRowIndex: number;
+  headers: string[];
+  rows: Array<Array<unknown> | null | undefined>;
+  predicate: (header: string) => boolean;
+}): number[] =>
+  headers
+    .map((header, index) => ({ header, index }))
+    .filter(
+      ({ header, index }) =>
+        predicate(header) && columnHasNumericRows(rows, dataStartRowIndex, index, 2),
+    )
+    .map(({ index }) => index);
+
+const chooseBestSemanticPair = ({
+  xCandidates,
+  yCandidates,
+}: {
+  xCandidates: number[];
+  yCandidates: number[];
+}): { xCol: number | null; yCol: number | null } => {
+  let bestPair: { gap: number; xCol: number; yCol: number } | null = null;
+  for (const xCol of xCandidates) {
+    for (const yCol of yCandidates) {
+      if (yCol <= xCol) continue;
+      const gap = yCol - xCol;
+      if (
+        !bestPair ||
+        gap < bestPair.gap ||
+        (gap === bestPair.gap && xCol > bestPair.xCol)
+      ) {
+        bestPair = { gap, xCol, yCol };
+      }
+    }
+  }
+  if (bestPair) {
+    return { xCol: bestPair.xCol, yCol: bestPair.yCol };
+  }
+  return {
+    xCol: xCandidates.at(-1) ?? xCandidates[0] ?? null,
+    yCol: yCandidates.at(-1) ?? yCandidates[0] ?? null,
+  };
+};
+
+const inferSpecializedGenericLayout = ({
+  curveType,
+  dataStartRowIndex,
+  headers,
+  rows,
+}: {
+  curveType: DeviceAnalysisCurveKind;
+  dataStartRowIndex: number;
+  headers: string[];
+  rows: Array<Array<unknown> | null | undefined>;
+}): {
+  leftTitle: string;
+  xCol: number | null;
+  xUnit: string;
+  yCols: number[];
+  yUnit: string;
+} | null => {
+  if (curveType === "pv") {
+    const xCandidates = findNumericSemanticColumns({
+      dataStartRowIndex,
+      headers,
+      rows,
+      predicate: isVoltageLikeHeader,
+    });
+    const yCandidates = findNumericSemanticColumns({
+      dataStartRowIndex,
+      headers,
+      rows,
+      predicate: isCurrentLikeHeader,
+    });
+    const pair = chooseBestSemanticPair({ xCandidates, yCandidates });
+    if (pair.xCol === null || pair.yCol === null) return null;
+    return {
+      leftTitle: headers[pair.yCol] || "I",
+      xCol: pair.xCol,
+      xUnit: "V",
+      yCols: [pair.yCol],
+      yUnit: "A",
+    };
+  }
+
+  if (curveType === "cv" || curveType === "cf") {
+    const xCandidates = findNumericSemanticColumns({
+      dataStartRowIndex,
+      headers,
+      rows,
+      predicate: curveType === "cf" ? isFrequencyLikeHeader : isVoltageLikeHeader,
+    });
+    const yCandidates = findNumericSemanticColumns({
+      dataStartRowIndex,
+      headers,
+      rows,
+      predicate: isCapacitanceLikeHeader,
+    });
+    const pair = chooseBestSemanticPair({ xCandidates, yCandidates });
+    if (pair.xCol === null || pair.yCol === null) return null;
+    const uniqueYCols = yCandidates.filter(
+      (colIndex, index) =>
+        index ===
+        yCandidates.findIndex((otherCol) =>
+          columnsShareEquivalentY({
+            rows,
+            dataStartRowIndex,
+            leftCol: colIndex,
+            rightCol: otherCol,
+          }),
+        ),
+    );
+    const resolvedYCols = uniqueYCols.length ? uniqueYCols : [pair.yCol];
+    const preferredYCols = resolvedYCols.filter((colIndex) => colIndex >= pair.xCol!);
+    const yCols = preferredYCols.length ? preferredYCols : resolvedYCols;
+    return {
+      leftTitle: headers[yCols.at(-1) ?? pair.yCol] || "C",
+      xCol: pair.xCol,
+      xUnit: curveType === "cf" ? "Hz" : "V",
+      yCols,
+      yUnit: "F",
+    };
+  }
+
+  return null;
 };
 
 const inferStructuredSeriesLayout = ({
@@ -1167,6 +1427,81 @@ const inferGenericPlan = ({
   const effectiveRoleSource = structuredLayout?.xAxisRoleSource ?? classification.xAxisRoleSource;
 
   if (!effectiveXAxisRole || effectiveCurveType === "unknown") {
+    if (
+      effectiveCurveType === "cv" ||
+      effectiveCurveType === "cf" ||
+      effectiveCurveType === "pv"
+    ) {
+      const specializedLayout =
+        inferSpecializedGenericLayout({
+          curveType: effectiveCurveType,
+          dataStartRowIndex,
+          headers,
+          rows,
+        }) ??
+        (() => {
+          const genericColumns = findGenericNumericColumns({
+            dataStartRowIndex,
+            rows,
+          });
+          if (genericColumns.xCol === null || !genericColumns.yCols.length) return null;
+          return {
+            leftTitle: headers[genericColumns.yCols[0]!] || "Y",
+            xCol: genericColumns.xCol,
+            xUnit: effectiveCurveType === "cf" ? "Hz" : "V",
+            yCols: genericColumns.yCols,
+            yUnit: effectiveCurveType === "pv" ? "A" : "F",
+          };
+        })();
+      if (
+        specializedLayout &&
+        specializedLayout.xCol !== null &&
+        specializedLayout.yCols.length
+      ) {
+        const resolvedLayout = specializedLayout as typeof specializedLayout & {
+          xCol: number;
+        };
+        const xHeader = headers[resolvedLayout.xCol] || "X";
+        const isSingleSeries = resolvedLayout.yCols.length === 1;
+
+        return {
+          ok: true,
+          plan: {
+            bottomTitle: xHeader,
+            confidence: effectiveConfidence === "low" ? "medium" : effectiveConfidence,
+            curveType: effectiveCurveType,
+            curveTypeLabel: effectiveCurveType,
+            dataStartRowIndex,
+            groups: 1,
+            leftTitle: resolvedLayout.leftTitle,
+            legendPrefix: "",
+            legendStartColIndex: isSingleSeries ? null : resolvedLayout.yCols[0]!,
+            legendStartRowIndex:
+              isSingleSeries || dataStartRowIndex - 1 < 0 ? null : dataStartRowIndex - 1,
+            legendStartValue: null,
+            legendCount: isSingleSeries ? null : resolvedLayout.yCols.length,
+            legendStep: isSingleSeries ? null : 1,
+            legendTarget: isSingleSeries ? "auto" : "yColumn",
+            needsTemplate: false,
+            reasons:
+              effectiveReasons.length > 0
+                ? effectiveReasons
+                : [
+                    `Detected a generic ${effectiveCurveType.toUpperCase()} layout with one numeric X column and ${resolvedLayout.yCols.length} numeric Y column(s).`,
+                  ],
+            xAxisRole: null,
+            xAxisRoleSource: effectiveRoleSource,
+            xCol: resolvedLayout.xCol,
+            xPointsPerGroup: null,
+            xSegmentationMode: "auto",
+            xUnit: resolvedLayout.xUnit,
+            yCols: resolvedLayout.yCols,
+            yUnit: resolvedLayout.yUnit,
+          },
+        };
+      }
+    }
+
     return {
       message: `${String(fileName ?? "file")}: unable to infer axis roles automatically.`,
       ok: false,
@@ -1264,6 +1599,12 @@ const inferGenericPlan = ({
               ? effectiveXAxisRole === "vd"
                 ? "output (vd)"
                 : "output"
+              : effectiveCurveType === "pv"
+                ? "pv"
+              : effectiveCurveType === "cv"
+                ? "cv"
+                : effectiveCurveType === "cf"
+                  ? "cf"
               : "unknown",
       dataStartRowIndex,
       groups,
