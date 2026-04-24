@@ -10,6 +10,10 @@ type AnalysisDiagnosticsCardProps = {
   showDiagnosticsPanel: boolean;
   diagnosticsHeading: string;
   diagnosticsDescription: string;
+  diagnosticsContextBadges?: Array<{
+    color?: string | null;
+    text: string;
+  }>;
   effectivePlotType: string;
   plotYUnitLabel: string;
   showIvDiagnosticsPanel: boolean;
@@ -53,6 +57,7 @@ export default function AnalysisDiagnosticsCard({
   showDiagnosticsPanel,
   diagnosticsHeading,
   diagnosticsDescription,
+  diagnosticsContextBadges = [],
   effectivePlotType,
   plotYUnitLabel,
   showIvDiagnosticsPanel,
@@ -103,6 +108,31 @@ export default function AnalysisDiagnosticsCard({
     return null;
   }
 
+  const renderDiagnosticsContextBadges = () => {
+    if (!diagnosticsContextBadges.length) return null;
+    return (
+      <div className="flex max-w-full items-center justify-end gap-2 flex-wrap">
+        {diagnosticsContextBadges.map((badge, index) => (
+          <div
+            key={`${badge.text}-${index}`}
+            className="max-w-full rounded-md border border-border/70 bg-bg-page/70 px-3 py-1.5 text-xs text-text-secondary"
+            title={badge.text}
+          >
+            <span className="flex items-center gap-2.5">
+              {badge.color ? (
+                <span
+                  className="inline-block h-3 w-3 shrink-0 rounded-sm"
+                  style={{ backgroundColor: badge.color }}
+                />
+              ) : null}
+              <span className="block truncate">{badge.text}</span>
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <Card variant="panel" className="flex min-w-0 flex-col">
       {!showCurveProbePanel || showAreaDiagnosticsControls || showAxisControls ? (
@@ -111,13 +141,15 @@ export default function AnalysisDiagnosticsCard({
             <div className="text-xs font-semibold text-text-primary">{diagnosticsHeading}</div>
             <div className="text-[11px] text-text-secondary">{diagnosticsDescription}</div>
           </div>
+          {renderDiagnosticsContextBadges()}
         </div>
       ) : null}
 
       <div className="flex flex-col gap-3">
         {showCurveProbePanel ? (
             <div className="flex flex-col gap-2 text-xs text-text-secondary">
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap">
                 <span className="whitespace-nowrap">x:</span>
                 <Input
                   id="device-analysis-curve-probe-x-input"
@@ -140,6 +172,8 @@ export default function AnalysisDiagnosticsCard({
                   ]}
                   className="w-[96px]"
                 />
+                </div>
+                {renderDiagnosticsContextBadges()}
               </div>
               {!curveProbeXInput.trim() ? (
                 <div className="rounded-lg border border-dashed border-border/70 bg-bg-page/60 px-3 py-2">

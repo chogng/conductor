@@ -200,6 +200,21 @@ const buildSeriesCurrentTargetsSignature = (targetsBySeries: Record<string, {
     })
         .join("|");
 };
+const collectChangedSeriesIds = (previousMap: Record<string, any> | null | undefined, nextMap: Record<string, any> | null | undefined, keys: Array<"ionX" | "ioffX" | "x1" | "x2">): string[] => {
+    const previous = previousMap && typeof previousMap === "object" ? previousMap : {};
+    const next = nextMap && typeof nextMap === "object" ? nextMap : {};
+    const seriesIds = new Set([...Object.keys(previous), ...Object.keys(next)]);
+    const changed: string[] = [];
+    for (const seriesId of seriesIds) {
+        const prevEntry = previous[seriesId] ?? {};
+        const nextEntry = next[seriesId] ?? {};
+        const didChange = keys.some((key) => toStableNumericToken(prevEntry?.[key]) !== toStableNumericToken(nextEntry?.[key]));
+        if (didChange) {
+            changed.push(seriesId);
+        }
+    }
+    return changed.sort();
+};
 const inferUniformTickStep = (ticks: unknown, toleranceRatio = 1e-6): number | null => {
     if (!Array.isArray(ticks) || ticks.length < 2)
         return null;
@@ -1165,19 +1180,13 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             `ss:${ssMethod}`,
         ];
         if (ionIoffMethod === "manual") {
-            parts.push(`manualCurrent:${ionIoffManualTargetsSignature}`);
             parts.push(`xFactor:${toStableNumericToken(resolvedXUnitMeta.factor)}`);
-        }
-        if (ssMethod === "manual") {
-            parts.push(`manual:${manualRangeSignature}`);
         }
         parts.push(`area:${areaToken}`);
         return parts.join("::");
     }, [
         area,
         ionIoffMethod,
-        ionIoffManualTargetsSignature,
-        manualRangeSignature,
         resolvedXUnitMeta.factor,
         ssMethod,
     ]);
@@ -1562,6 +1571,83 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         }
         return activeFileCache?.analysisByConfigKey?.get(analysisCacheKey) ?? new Map();
     }, [activeFileCache, analysisCacheKey, detailAnalysisKey, detailAnalysisState.key, detailAnalysisState.map]);
+    const previousPerSeriesAnalysisRef = useRef<{
+        fileId: string;
+        ionIoffMethod: string;
+        ssMethod: string;
+        xFactorToken: string;
+        areaToken: string;
+        manualCurrentSignature: string;
+        manualRangeSignature: string;
+        currentTargetsBySeries: Record<string, any>;
+        manualRangesBySeries: Record<string, any>;
+    } | null>(null);
+    useEffect(() => {
+        const fileId = String(activeFile?.fileId ?? "").trim();
+        const snapshot = {
+            fileId,
+            ionIoffMethod,
+            ssMethod,
+            xFactorToken: toStableNumericToken(resolvedXUnitMeta.factor),
+            areaToken: areaValue !== null ? toStableNumericToken(areaValue) : "",
+            manualCurrentSignature: ionIoffManualTargetsSignature,
+            manualRangeSignature,
+            currentTargetsBySeries: ionIoffManualTargetsBySeriesForActiveFile,
+            manualRangesBySeries: manualBySeriesForActiveFile,
+        };
+        const previous = previousPerSeriesAnalysisRef.current;
+        previousPerSeriesAnalysisRef.current = snapshot;
+        if (!fileId || !previous) {
+            return;
+        }
+        const globalContextChanged = previous.fileId !== snapshot.fileId ||
+            previous.ionIoffMethod !== snapshot.ionIoffMethod ||
+            previous.ssMethod !== snapshot.ssMethod ||
+            previous.xFactorToken !== snapshot.xFactorToken ||
+            previous.areaToken !== snapshot.areaToken;
+        if (globalContextChanged) {
+            return;
+        }
+        if (previous.manualCurrentSignature === snapshot.manualCurrentSignature &&
+            previous.manualRangeSignature === snapshot.manualRangeSignature) {
+            return;
+        }
+        const changedCurrentSeriesIds = collectChangedSeriesIds(previous.currentTargetsBySeries, snapshot.currentTargetsBySeries, ["ionX", "ioffX"]);
+        const changedSsSeriesIds = collectChangedSeriesIds(previous.manualRangesBySeries, snapshot.manualRangesBySeries, ["x1", "x2"]);
+        const changedSeriesIds = Array.from(new Set([...changedCurrentSeriesIds, ...changedSsSeriesIds]));
+        if (!changedSeriesIds.length) {
+            return;
+        }
+        setDetailAnalysisState((prev) => {
+            if (prev.key !== detailAnalysisKey || prev.pending) {
+                return prev;
+            }
+            const nextMap = new Map(prev.map);
+            let didChange = false;
+            for (const seriesId of changedSeriesIds) {
+                const series = activeFile?.series?.find((entry: any) => entry?.id === seriesId);
+                if (!series) {
+                    continue;
+                }
+                const entry = buildSeriesAnalysisEntry(series);
+                if (!entry) {
+                    continue;
+                }
+                nextMap.set(seriesId, entry);
+                didChange = true;
+            }
+            if (!didChange) {
+                return prev;
+            }
+            if (activeFileCache?.analysisByConfigKey?.has(analysisCacheKey)) {
+                activeFileCache.analysisByConfigKey.set(analysisCacheKey, new Map(nextMap));
+            }
+            return {
+                ...prev,
+                map: nextMap,
+            };
+        });
+    }, [activeFile, activeFileCache, analysisCacheKey, areaValue, buildSeriesAnalysisEntry, detailAnalysisKey, ionIoffManualTargetsBySeriesForActiveFile, ionIoffManualTargetsSignature, ionIoffMethod, manualBySeriesForActiveFile, manualRangeSignature, resolvedXUnitMeta.factor, ssMethod]);
     const analysisBySeriesId = useMemo(() => detailAnalysisBySeriesId, [detailAnalysisBySeriesId]);
     const ssComputedApplicable = useMemo(() => {
         if (!activeFile?.series?.length)
@@ -2606,11 +2692,18 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         : DERIVATIVE_ONLY_CALCULATED_PARAMETERS_COLUMN_WIDTHS_PX, [calculatedParametersMode]);
     const calculatedParametersTableMinWidth = useMemo(() => calculatedParametersColumnWidths.reduce((total, width) => total + width, 0), [calculatedParametersColumnWidths]);
     const metricsRowElements = useMemo(() => metricsRows.map((row: any) => (<CalculatedParametersRow key={row.id} row={row} isPending={Boolean(row?.isPending)} buildCurrentTooltip={buildCurrentTooltip} buildSsTooltip={buildSsTooltip} showTransferMetrics={calculatedParametersMode === "transfer"}/>)), [buildCurrentTooltip, buildSsTooltip, calculatedParametersMode, metricsRows]);
-    const calculatedParametersSummary = useMemo(() => calculatedParametersMode === "transfer"
-        ? `${gmUi.summaryLabel}: max |${gmUi.metricSymbol}|, SS: fit (mV/dec), J uses |I|/Area`
-        : calculatedParametersMode === "output"
-            ? `${gmUi.summaryLabel}: max |${gmUi.metricSymbol}| (output)`
-            : `${gmUi.summaryLabel}: max |${gmUi.metricSymbol}|`, [calculatedParametersMode, gmUi.metricSymbol, gmUi.summaryLabel]);
+    const diagnosticsContextBadges = useMemo(() => {
+        const focusedLabel = String(focusedSeriesLabel ?? "").trim();
+        const isDiagnosticCurveContext = ssDiagnosticsEnabled || gmDiagnosticsEnabled;
+        const curvePrefix = isDiagnosticCurveContext ? "Diagnostic curve" : "Curve";
+        return [
+            { text: curvePrefix },
+            {
+                color: focusedSeriesColor,
+                text: focusedLabel || "current",
+            },
+        ];
+    }, [focusedSeriesColor, focusedSeriesLabel, gmDiagnosticsEnabled, ssDiagnosticsEnabled]);
     const showIonIoffControl = transferMetricsApplicable && effectivePlotType === "iv";
     const showIvDiagnosticsPanel = false;
     const showSsDiagnosticsPanel = effectivePlotType === "ss";
@@ -2695,8 +2788,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         }
     }, [applyLinearLogYScaleForFile, effectiveActiveFileId]);
     const metricsProgressText = useMemo(() => isMetricsDetailsPending
-        ? `${calculatedParametersSummary} | Computing details ${detailAnalysisState.completedCount}/${detailAnalysisState.totalCount}`
-        : calculatedParametersSummary, [calculatedParametersSummary, detailAnalysisState.completedCount, detailAnalysisState.totalCount, isMetricsDetailsPending]);
+        ? `Computing details ${detailAnalysisState.completedCount}/${detailAnalysisState.totalCount}`
+        : "", [detailAnalysisState.completedCount, detailAnalysisState.totalCount, isMetricsDetailsPending]);
     if (!processedData || processedData.length === 0)
         return null;
     return (<div className="h-full min-h-0 grid grid-cols-1 md:grid-rows-1 md:grid-cols-[var(--analysis-sidebar-width)_minmax(0,1fr)] gap-1 md:gap-1" ref={toastContainerRef} style={{
@@ -2951,6 +3044,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             showDiagnosticsPanel={showDiagnosticsPanel}
             diagnosticsHeading={diagnosticsHeading}
             diagnosticsDescription={diagnosticsDescription}
+            diagnosticsContextBadges={diagnosticsContextBadges}
             effectivePlotType={effectivePlotType}
             plotYUnitLabel={activeCurveProbeYUnitLabel}
             showIvDiagnosticsPanel={showIvDiagnosticsPanel}
