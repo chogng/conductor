@@ -98,14 +98,6 @@ function buildInstantBootHtml() {
       line-height: 1.1;
       letter-spacing: 0;
     }
-    .boot-pane-copy {
-      margin: 0;
-      color: rgba(34,34,34,.66);
-      font-size: 14px;
-      font-weight: 500;
-      line-height: 1.45;
-      letter-spacing: 0;
-    }
     .boot-pane-bar {
       position: relative;
       width: 168px;
@@ -131,7 +123,6 @@ function buildInstantBootHtml() {
       html, body { background: #0b0b0c; color: #f5f4ef; }
       .boot-pane { background: #0b0b0c; }
       .boot-pane-brand { color: #f5f4ef; }
-      .boot-pane-copy { color: rgba(245,244,239,.64); }
       .boot-pane-bar { background: rgba(245,244,239,.14); }
       .boot-pane-bar::after { background: #f5f4ef; }
     }
@@ -142,7 +133,6 @@ function buildInstantBootHtml() {
     <div class="boot-pane-content">
       ${logoUrl ? `<img class="boot-pane-logo" src="${logoUrl}" alt="" />` : ""}
       <h1 class="boot-pane-brand" data-boot-brand="true" data-boot-text="Conductor">Conductor</h1>
-      <p class="boot-pane-copy">超能分析，马上就绪</p>
       <div class="boot-pane-bar"></div>
     </div>
   </div>

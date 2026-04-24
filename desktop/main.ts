@@ -41,6 +41,7 @@ const MAIN_WINDOW_BOUNDS = {
   minHeight: 700,
 };
 const BOOT_WINDOW_SETTLE_MS = 80;
+const BOOT_UI_READY_FALLBACK_MS = 3500;
 let mainWindow = null;
 let splashWindow = null;
 let mainWindowBootExpansionPromise = null;
@@ -638,14 +639,15 @@ function handleDeviceAnalysisSettingsGet() {
 function handleDesktopBootSettingsGet(event) {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win || win.isDestroyed()) {
-    return null;
+    event.returnValue = null;
+    return;
   }
 
   try {
-    return deviceAnalysisStore.getDeviceAnalysisSettings();
+    event.returnValue = deviceAnalysisStore.getDeviceAnalysisSettings();
   } catch (error) {
     console.warn("[boot] Failed to load initial desktop settings:", error?.message || error);
-    return null;
+    event.returnValue = null;
   }
 }
 
@@ -1241,7 +1243,28 @@ function createMainWindow() {
 
   win.webContents.once("did-finish-load", () => {
     logDesktopBoot("window:did-finish-load");
+    setTimeout(() => {
+      if (!win.isDestroyed() && !win.isVisible()) {
+        logDesktopBoot(
+          "renderer:boot-ui-ready:fallback",
+          `(after=${BOOT_UI_READY_FALLBACK_MS}ms)`,
+        );
+        void showMainWindowAfterBoot(win);
+      }
+    }, BOOT_UI_READY_FALLBACK_MS);
   });
+
+  win.webContents.once(
+    "did-fail-load",
+    (_event, errorCode, errorDescription, validatedUrl, isMainFrame) => {
+      if (!isMainFrame) return;
+      logDesktopBoot(
+        "window:did-fail-load",
+        `(code=${errorCode} message=${errorDescription} url=${validatedUrl})`,
+      );
+      void showMainWindowAfterBoot(win);
+    },
+  );
 
   win.webContents.on("did-stop-loading", () => {
     logDesktopBoot("window:did-stop-loading");
