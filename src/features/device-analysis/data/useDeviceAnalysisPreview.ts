@@ -29,6 +29,11 @@ import {
   mergeChunkRangeRows,
   sanitizePreviewRows,
 } from "./preview/previewRowChunk";
+import {
+  buildRustPreviewCellRequests,
+  rowsFromRustPreviewCells,
+  type RustPreviewCellRequest,
+} from "./preview/rustPreviewCells";
 import { usePreviewRowsVersion } from "./usePreviewRowsVersion";
 
 type PreviewResultPayload = {
@@ -626,6 +631,30 @@ export const useDeviceAnalysisPreview = ({
       const end = Math.max(start, Math.floor(Number(endRow) || start));
 
       const bridge = (globalThis.window as any)?.desktopImport;
+      const requestRowsWithWorker = () => {
+        const worker = getOrCreatePreviewWorker();
+        if (!worker) return Promise.resolve([]);
+
+        return new Promise<unknown[][]>((resolve, reject) => {
+          previewRowsRequestsRef.current.set(requestId, {
+            endRow: end,
+            fileId,
+            reject,
+            resolve,
+            startRow: start,
+          });
+          worker.postMessage({
+            type: "previewRows",
+            payload: {
+              requestId,
+              fileId,
+              startRow: start,
+              endRow: end,
+            },
+          });
+        });
+      };
+
       if (
         rustPreviewFileIdsRef.current.has(fileId) &&
         bridge?.getDeviceAnalysisPreviewRowsWithRust
@@ -652,37 +681,160 @@ export const useDeviceAnalysisPreview = ({
               payloadFileId,
               payloadStartRow,
             });
-            return isMatched ? rows : [];
+            return isMatched ? rows : requestRowsWithWorker();
           })
-          .catch(() => []);
+          .catch(() => requestRowsWithWorker());
       }
 
-      const worker = getOrCreatePreviewWorker();
-      if (!worker) return Promise.resolve([]);
+      if (
+        rustPreviewFileIdsRef.current.has(fileId) &&
+        bridge?.readDeviceAnalysisCellsWithRust
+      ) {
+        const columnCount = Math.max(
+          0,
+          Math.floor(Number(previewFile?.columnCount) || 0),
+        );
+        const rowIndices: number[] = [];
+        for (let rowIndex = start; rowIndex < end; rowIndex += 1) {
+          rowIndices.push(rowIndex);
+        }
+        const cells = buildRustPreviewCellRequests({
+          columnCount,
+          rowIndices,
+        });
+        if (cells.length > 0) {
+          return bridge
+            .readDeviceAnalysisCellsWithRust({ cells, fileId })
+            .then((response: any) => {
+              if (!response?.ok || !response?.result) {
+                return requestRowsWithWorker();
+              }
+              const rowsByIndex = rowsFromRustPreviewCells({
+                cells: response.result.cells,
+                columnCount,
+              });
+              const rows: unknown[][] = [];
+              for (let rowIndex = start; rowIndex < end; rowIndex += 1) {
+                const row = rowsByIndex.get(rowIndex);
+                if (!row) return requestRowsWithWorker();
+                rows.push(row);
+              }
+              return rows;
+            })
+            .catch(() => requestRowsWithWorker());
+        }
+      }
 
-      return new Promise<unknown[][]>((resolve, reject) => {
-        previewRowsRequestsRef.current.set(requestId, {
-          endRow: end,
-          fileId,
-          reject,
-          resolve,
-          startRow: start,
-        });
-        worker.postMessage({
-          type: "previewRows",
-          payload: {
-            requestId,
-            fileId,
-            startRow: start,
-            endRow: end,
-          },
-        });
-      });
+      return requestRowsWithWorker();
     },
     [
       getOrCreatePreviewWorker,
+      previewFile?.columnCount,
       previewRowsRequestIdRef,
       previewRowsRequestsRef,
+    ],
+  );
+
+  const ensurePreviewCells = useCallback(
+    async (fileId: string, cells: RustPreviewCellRequest[]) => {
+      if (!fileId || !Array.isArray(cells) || !cells.length) return;
+      if (!previewFile?.rowCount || !Number.isFinite(previewFile.rowCount)) return;
+
+      const totalRows = Math.max(0, Math.floor(previewFile.rowCount));
+      const columnCount = Math.max(
+        0,
+        Math.floor(Number(previewFile.columnCount) || 0),
+      );
+      if (totalRows <= 0 || columnCount <= 0) return;
+
+      const { rowCache } = getOrCreatePreviewFileCaches(fileId);
+      const requestedRows = new Set<number>();
+      for (const cell of cells) {
+        const rowIndex = Math.floor(Number(cell?.rowIndex));
+        const colIndex = Math.floor(Number(cell?.colIndex));
+        if (
+          !Number.isInteger(rowIndex) ||
+          rowIndex < 0 ||
+          rowIndex >= totalRows ||
+          !Number.isInteger(colIndex) ||
+          colIndex < 0 ||
+          colIndex >= columnCount
+        ) {
+          continue;
+        }
+        if (!Array.isArray(rowCache.get(rowIndex))) {
+          requestedRows.add(rowIndex);
+        }
+      }
+      if (!requestedRows.size) return;
+
+      const bridge = (globalThis.window as any)?.desktopImport;
+      if (
+        rustPreviewFileIdsRef.current.has(fileId) &&
+        bridge?.readDeviceAnalysisCellsWithRust
+      ) {
+        const requestCells = buildRustPreviewCellRequests({
+          columnCount,
+          rowIndices: requestedRows,
+        });
+        if (requestCells.length > 0) {
+          try {
+            const response = await bridge.readDeviceAnalysisCellsWithRust({
+              cells: requestCells,
+              fileId,
+            });
+            if (response?.ok && response?.result) {
+              const rowsByIndex = rowsFromRustPreviewCells({
+                cells: response.result.cells,
+                columnCount,
+              });
+              if (rowsByIndex.size === requestedRows.size) {
+                for (const [rowIndex, row] of rowsByIndex.entries()) {
+                  rowCache.set(rowIndex, row);
+                }
+                if (previewCacheFileIdRef.current === fileId) {
+                  notifyPreviewRowsVersion();
+                }
+                return;
+              }
+            }
+          } catch {
+            // Fall through to the existing preview-row path.
+          }
+        }
+      }
+
+      const sortedRows = Array.from(requestedRows).sort((a, b) => a - b);
+      const ranges: Array<[number, number]> = [];
+      for (const rowIndex of sortedRows) {
+        const last = ranges[ranges.length - 1];
+        if (last && rowIndex <= last[1]) {
+          last[1] = Math.max(last[1], rowIndex + 1);
+        } else {
+          ranges.push([rowIndex, rowIndex + 1]);
+        }
+      }
+
+      let changed = false;
+      for (const [rangeStart, rangeEnd] of ranges) {
+        const rows = await requestPreviewRowsRange(fileId, rangeStart, rangeEnd);
+        for (let index = 0; index < rows.length; index += 1) {
+          rowCache.set(rangeStart + index, rows[index]);
+          changed = true;
+        }
+      }
+
+      if (changed && previewCacheFileIdRef.current === fileId) {
+        notifyPreviewRowsVersion();
+      }
+    },
+    [
+      getOrCreatePreviewFileCaches,
+      notifyPreviewRowsVersion,
+      previewCacheFileIdRef,
+      previewFile?.columnCount,
+      previewFile?.rowCount,
+      requestPreviewRowsRange,
     ],
   );
 
@@ -827,6 +979,7 @@ export const useDeviceAnalysisPreview = ({
     cancelPendingPreviewRowRequests,
     clearPreviewState,
     disposePreviewFileCache,
+    ensurePreviewCells,
     ensurePreviewRows,
     getPreviewRow,
     getPreviewRowsVersion,

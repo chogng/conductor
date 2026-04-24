@@ -41,6 +41,7 @@ type PreviewWindow = {
 };
 
 type PreviewColumnGeometry = {
+  columnCount?: number;
   tableWidthPx: number;
   widthsPx: number[];
   startOffsetsPx: number[];
@@ -107,6 +108,7 @@ type CanvasVisibleColumnMetric = {
   colIndex: number;
   colLeft: number;
   colWidth: number;
+  isPlaceholder: boolean;
   textMaxWidth: number;
   placeholderMaxWidth: number;
   isYColumn: boolean;
@@ -129,6 +131,7 @@ type PreviewRowProps = {
   rowIndex: number;
   rowCellsRaw: unknown;
   columnGeometry: PreviewColumnGeometry;
+  dataColumnCount: number;
   yColumnsSet: Set<number>;
   handleCellMouseDown?: (event: React.MouseEvent<HTMLTableCellElement>) => void;
 };
@@ -138,6 +141,7 @@ type PreviewTbodyProps = {
   getPreviewRowsVersion?: () => number;
   previewWindow: PreviewWindow;
   columnGeometry: PreviewColumnGeometry;
+  dataColumnCount: number;
   density: PreviewDensity;
   yColumnsSet: Set<number>;
   getPreviewRow?: (rowIndex: number) => unknown;
@@ -366,6 +370,7 @@ const PreviewRow = React.memo(
     rowIndex,
     rowCellsRaw,
     columnGeometry,
+    dataColumnCount,
     yColumnsSet,
     handleCellMouseDown,
   }: PreviewRowProps) => {
@@ -413,9 +418,11 @@ const PreviewRow = React.memo(
           />
         ) : null}
         {visibleColumnIndices.map((index: number, visibleSlot: number) => {
-          const cell = rowCells[index] ?? "";
-          const raw = isRowLoaded ? String(cell) : "";
-          const display = isRowLoaded ? formatPreviewCell(cell) : "";
+          const isPlaceholder = index >= dataColumnCount;
+          const cell = isPlaceholder ? "" : rowCells[index] ?? "";
+          const raw = isRowLoaded && !isPlaceholder ? String(cell) : "";
+          const display =
+            isRowLoaded && !isPlaceholder ? formatPreviewCell(cell) : "";
           const placeholderWidth = getPreviewPlaceholderWidthPercent(
             rowIndex + index + visibleSlot,
           );
@@ -423,13 +430,15 @@ const PreviewRow = React.memo(
           return (
             <td
               key={index}
-              data-row={rowIndex}
-              data-col={index}
-              className={`border-b border-r border-border last:border-r-0 whitespace-nowrap transition-colors cursor-default overflow-hidden text-ellipsis ${yColumnsSet.has(index)
+              data-row={isPlaceholder ? undefined : rowIndex}
+              data-col={isPlaceholder ? undefined : index}
+              className={`border-b border-r border-border last:border-r-0 whitespace-nowrap transition-colors cursor-default overflow-hidden text-ellipsis ${isPlaceholder
+                  ? "bg-bg-page/20 text-text-secondary/40"
+                  : yColumnsSet.has(index)
                   ? "bg-accent/5 border-accent/20 text-text-primary"
                   : "text-text-secondary"
                 }`}
-              onMouseDown={handleCellMouseDown}
+              onMouseDown={isPlaceholder ? undefined : handleCellMouseDown}
               style={{
                 fontSize: fontSizePx,
                 height: rowHeightPx,
@@ -437,7 +446,9 @@ const PreviewRow = React.memo(
               }}
               title={raw}
             >
-              {isRowLoaded ? (
+              {isPlaceholder ? (
+                ""
+              ) : isRowLoaded ? (
                 display
               ) : (
                 <span
@@ -472,6 +483,7 @@ const PreviewTbody = React.memo(
     getPreviewRowsVersion,
     previewWindow,
     columnGeometry,
+    dataColumnCount,
     density,
     yColumnsSet,
     getPreviewRow,
@@ -512,6 +524,7 @@ const PreviewTbody = React.memo(
             rowIndex={rowIndex}
             rowCellsRaw={rowCellsRaw}
             columnGeometry={columnGeometry}
+            dataColumnCount={dataColumnCount}
             yColumnsSet={yColumnsSet}
             handleCellMouseDown={handleCellMouseDown}
           />,
@@ -639,6 +652,11 @@ const CanvasPreviewGrid = React.memo(
     const visibleColumnMetrics = useMemo<CanvasVisibleColumnMetric[]>(
       () =>
         visibleColumns.map((colIndex) => {
+          const dataColumnCount = Math.max(
+            0,
+            Math.floor(Number(previewFile?.columnCount) || 0),
+          );
+          const isPlaceholder = colIndex >= dataColumnCount;
           const startOffset = Number(startOffsets[colIndex]) || 0;
           const colWidth = Math.max(
             1,
@@ -648,15 +666,17 @@ const CanvasPreviewGrid = React.memo(
             colIndex,
             colLeft: previewRowIndexWidthPx + startOffset,
             colWidth,
+            isPlaceholder,
             textMaxWidth: Math.max(0, colWidth - cellPaddingXPx * 2),
             placeholderMaxWidth: Math.max(0, colWidth - cellPaddingXPx * 2),
-            isYColumn: yColumnsSet.has(colIndex),
+            isYColumn: !isPlaceholder && yColumnsSet.has(colIndex),
           };
         }),
       [
         cellPaddingXPx,
         density,
         previewColumnMinWidthPx,
+        previewFile?.columnCount,
         previewRowIndexWidthPx,
         startOffsets,
         visibleColumns,
@@ -742,6 +762,10 @@ const CanvasPreviewGrid = React.memo(
         const rowIndex = previewWindow.startRow + rowSlot;
         const firstVisibleCol = visibleColumns[0];
         const lastVisibleCol = visibleColumns[visibleColumns.length - 1];
+        const dataColumnCount = Math.max(
+          0,
+          Math.floor(Number(previewFile?.columnCount) || 0),
+        );
 
         let colIndex = -1;
         if (x < previewRowIndexWidthPx) {
@@ -765,13 +789,20 @@ const CanvasPreviewGrid = React.memo(
         if (colIndex < 0) {
           colIndex = x < previewRowIndexWidthPx ? firstVisibleCol : lastVisibleCol;
         }
-        if (!Number.isFinite(colIndex) || colIndex < 0) return null;
+        if (
+          !Number.isFinite(colIndex) ||
+          colIndex < 0 ||
+          colIndex >= dataColumnCount
+        ) {
+          return null;
+        }
         return { rowIndex, colIndex };
       },
       [
         canvasHeightPx,
         canvasWidthPx,
         previewColumnMinWidthPx,
+        previewFile?.columnCount,
         previewRowIndexWidthPx,
         previewWindow.startRow,
         rowHeightPx,
@@ -1164,6 +1195,7 @@ const CanvasPreviewGrid = React.memo(
             colIndex,
             colLeft,
             colWidth,
+            isPlaceholder,
             isYColumn,
             placeholderMaxWidth,
             textMaxWidth,
@@ -1173,7 +1205,7 @@ const CanvasPreviewGrid = React.memo(
             context.fillRect(colLeft, rowTop, colWidth, rowHeightPx);
           }
 
-          const display = isRowLoaded
+          const display = isRowLoaded && !isPlaceholder
             ? getFormattedPreviewCell(rowCells, colIndex)
             : "";
           context.save();
@@ -1185,7 +1217,10 @@ const CanvasPreviewGrid = React.memo(
             Math.max(0, rowHeightPx - 2),
           );
           context.clip();
-          if (isRowLoaded) {
+          if (isPlaceholder) {
+            // Real files may have fewer columns than the viewport can show.
+            // Keep these cells blank while preserving grid structure.
+          } else if (isRowLoaded) {
             context.fillStyle = textPrimary;
             context.textAlign = "left";
             context.fillText(
@@ -1331,6 +1366,7 @@ type PreviewHeaderProps = {
     event: React.PointerEvent<HTMLDivElement>,
     colIndex: number,
   ) => void;
+  dataColumnCount: number;
   previewColumnGeometry: PreviewColumnGeometry;
   previewFileId?: string;
   resetColumnWidth: (fileId: string, colIndex: number) => void;
@@ -1345,6 +1381,7 @@ const PreviewHeader = React.memo(
   ({
     density,
     handleColumnResizeStart,
+    dataColumnCount,
     previewColumnGeometry,
     previewFileId,
     resetColumnWidth,
@@ -1388,20 +1425,28 @@ const PreviewHeader = React.memo(
           ) : null}
           {previewColumnGeometry.visibleColumnIndices.map((index) => {
             const isSelected = yColumnsSet.has(index);
+            const isPlaceholder = index >= dataColumnCount;
             return (
               <th
                 key={index}
                 data-selected={isSelected ? "true" : "false"}
                 data-column-index={index}
-                onClick={toggleColumnEnabled ? () => toggleColumn(index) : undefined}
+                data-placeholder={isPlaceholder ? "true" : "false"}
+                onClick={
+                  toggleColumnEnabled && !isPlaceholder
+                    ? () => toggleColumn(index)
+                    : undefined
+                }
                 className={`border-b border-border border-r last:border-r-0 font-mono whitespace-nowrap bg-bg-surface font-semibold text-center select-none relative overflow-hidden ${
-                  isSelected
+                  isPlaceholder
+                    ? "text-text-secondary/35 bg-bg-page/30"
+                    : isSelected
                     ? "text-accent bg-accent/10 border-accent/30"
                     : toggleColumnEnabled
                       ? "text-text-secondary hover:bg-bg-page/60"
                       : "text-text-secondary"
                 }`}
-                title={toggleColumnTitle}
+                title={isPlaceholder ? "" : toggleColumnTitle}
                 style={{
                   fontSize: fontSizePx,
                   height: rowHeightPx,
@@ -1411,60 +1456,66 @@ const PreviewHeader = React.memo(
               >
                 <div
                   className={`flex items-center justify-center gap-2 ${
-                    toggleColumnEnabled ? "cursor-pointer group" : ""
+                    toggleColumnEnabled && !isPlaceholder
+                      ? "cursor-pointer group"
+                      : ""
                   }`}
                   onClick={(event) => {
-                    if (!toggleColumnEnabled) return;
+                    if (!toggleColumnEnabled || isPlaceholder) return;
                     event.stopPropagation();
                     toggleColumn(index);
                   }}
                 >
-                  <div
-                    className="relative flex items-center justify-center"
-                    style={{ height: checkboxSizePx, width: checkboxSizePx }}
-                  >
-                    {isSelected ? (
-                      <div
-                        className="rounded bg-accent-terracotta border border-accent-terracotta flex items-center justify-center transition-all"
-                        style={{
-                          height: checkboxSizePx,
-                          width: checkboxSizePx,
-                        }}
-                      >
-                        <Check
-                          size={checkIconSizePx}
-                          className="text-white"
-                          strokeWidth={4}
+                  {!isPlaceholder ? (
+                    <div
+                      className="relative flex items-center justify-center"
+                      style={{ height: checkboxSizePx, width: checkboxSizePx }}
+                    >
+                      {isSelected ? (
+                        <div
+                          className="rounded bg-accent-terracotta border border-accent-terracotta flex items-center justify-center transition-all"
+                          style={{
+                            height: checkboxSizePx,
+                            width: checkboxSizePx,
+                          }}
+                        >
+                          <Check
+                            size={checkIconSizePx}
+                            className="text-white"
+                            strokeWidth={4}
+                          />
+                        </div>
+                      ) : (
+                        <div
+                          className="rounded border border-border-200 group-hover:border-accent-terracotta/50 transition-colors bg-bg-surface"
+                          style={{
+                            height: checkboxSizePx,
+                            width: checkboxSizePx,
+                          }}
                         />
-                      </div>
-                    ) : (
-                      <div
-                        className="rounded border border-border-200 group-hover:border-accent-terracotta/50 transition-colors bg-bg-surface"
-                        style={{
-                          height: checkboxSizePx,
-                          width: checkboxSizePx,
-                        }}
-                      />
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  ) : null}
                   <span>{getExcelColumnLabel(index)}</span>
                 </div>
 
-                <div
-                  role="separator"
-                  aria-orientation="vertical"
-                  title={resizeHintTitle}
-                  onPointerDown={(event) => handleColumnResizeStart(event, index)}
-                  onClick={(event) => event.stopPropagation()}
-                  onDoubleClick={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    if (!previewFileId) return;
-                    resetColumnWidth(previewFileId, index);
-                  }}
-                  className="absolute top-0 right-0 h-full cursor-col-resize select-none hover:bg-accent/20 touch-none"
-                  style={{ width: resizerWidthPx }}
-                />
+                {!isPlaceholder ? (
+                  <div
+                    role="separator"
+                    aria-orientation="vertical"
+                    title={resizeHintTitle}
+                    onPointerDown={(event) => handleColumnResizeStart(event, index)}
+                    onClick={(event) => event.stopPropagation()}
+                    onDoubleClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      if (!previewFileId) return;
+                      resetColumnWidth(previewFileId, index);
+                    }}
+                    className="absolute top-0 right-0 h-full cursor-col-resize select-none hover:bg-accent/20 touch-none"
+                    style={{ width: resizerWidthPx }}
+                  />
+                ) : null}
               </th>
             );
           })}
@@ -1521,7 +1572,6 @@ const TemplateManagerPreviewPanel = ({
     0,
     Math.floor(
       Number(previewFile?.columnCount) ||
-        Number(previewColumnGeometry?.widthsPx?.length) ||
         0,
     ),
   );
@@ -1977,6 +2027,7 @@ const TemplateManagerPreviewPanel = ({
                   <PreviewHeader
                     density={previewDensity}
                     handleColumnResizeStart={handleColumnResizeStart}
+                    dataColumnCount={totalCols}
                     previewColumnGeometry={previewColumnGeometry}
                     previewFileId={previewFile?.fileId}
                     resetColumnWidth={resetColumnWidth}
@@ -2021,6 +2072,7 @@ const TemplateManagerPreviewPanel = ({
                 <PreviewHeader
                   density={previewDensity}
                   handleColumnResizeStart={handleColumnResizeStart}
+                  dataColumnCount={totalCols}
                   previewColumnGeometry={previewColumnGeometry}
                   previewFileId={previewFile?.fileId}
                   resetColumnWidth={resetColumnWidth}
@@ -2036,6 +2088,7 @@ const TemplateManagerPreviewPanel = ({
                   getPreviewRowsVersion={getPreviewRowsVersion}
                   previewWindow={previewWindow}
                   columnGeometry={previewColumnGeometry}
+                  dataColumnCount={totalCols}
                   density={previewDensity}
                   yColumnsSet={yColumnsSet}
                   getPreviewRow={getPreviewRow}

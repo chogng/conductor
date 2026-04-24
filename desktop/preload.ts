@@ -116,9 +116,27 @@ contextBridge.exposeInMainWorld("desktopImport", {
   async openDeviceAnalysisFileWithRust(payload) {
     return ipcRenderer.invoke(ipcChannels.deviceAnalysisRustEngineOpen, payload);
   },
+  async getDeviceAnalysisPreviewMetaWithRust(payload) {
+    return ipcRenderer.invoke(
+      ipcChannels.deviceAnalysisRustEnginePreviewMeta,
+      payload,
+    );
+  },
   async getDeviceAnalysisPreviewRowsWithRust(payload) {
     return ipcRenderer.invoke(
       ipcChannels.deviceAnalysisRustEnginePreviewRows,
+      payload,
+    );
+  },
+  async readDeviceAnalysisCellWithRust(payload) {
+    return ipcRenderer.invoke(
+      ipcChannels.deviceAnalysisRustEngineReadCell,
+      payload,
+    );
+  },
+  async readDeviceAnalysisCellsWithRust(payload) {
+    return ipcRenderer.invoke(
+      ipcChannels.deviceAnalysisRustEngineReadCells,
       payload,
     );
   },

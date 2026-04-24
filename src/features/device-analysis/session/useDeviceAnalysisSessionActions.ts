@@ -89,7 +89,7 @@ export const useDeviceAnalysisSessionActions = ({
     (fileInfo: RawDataEntry) => {
       setRawData((prev) => [...prev, fileInfo]);
       if (fileInfo?.fileId) {
-        setSelectedPreviewFileId(fileInfo.fileId);
+        setSelectedPreviewFileId((currentFileId) => currentFileId ?? fileInfo.fileId ?? null);
       }
     },
     [setRawData, setSelectedPreviewFileId],

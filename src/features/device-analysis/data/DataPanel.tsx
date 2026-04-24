@@ -20,6 +20,7 @@ import TemplateManager, {
 
 type DataPanelProps = {
   deviceAnalysisSettings?: TemplateManagerProps["deviceAnalysisSettings"];
+  ensurePreviewCells?: TemplateManagerProps["ensurePreviewCells"];
   ensurePreviewRows?: TemplateManagerProps["ensurePreviewRows"];
   getPreviewRow?: TemplateManagerProps["getPreviewRow"];
   getPreviewRowsVersion?: TemplateManagerProps["getPreviewRowsVersion"];
@@ -46,6 +47,7 @@ type DataPanelProps = {
 
 const DeviceAnalysisDataPanel = ({
   deviceAnalysisSettings,
+  ensurePreviewCells,
   ensurePreviewRows,
   getPreviewRow,
   getPreviewRowsVersion,
@@ -213,6 +215,7 @@ const DeviceAnalysisDataPanel = ({
           sidebarWidth={sidebarWidth}
           rawData={rawData}
           getPreviewRow={getPreviewRow}
+          ensurePreviewCells={ensurePreviewCells}
           ensurePreviewRows={ensurePreviewRows}
           onTemplateApplied={onTemplateApplied}
           onTemplateAppliedIncremental={onTemplateAppliedIncremental}

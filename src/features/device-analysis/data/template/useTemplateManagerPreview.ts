@@ -27,6 +27,7 @@ import {
   scalePreviewMeasurement,
   toBasePreviewMeasurement,
 } from "./templateManagerPreviewZoom";
+import { resolvePreviewRenderColumnCount } from "./previewRenderColumns";
 
 const PREVIEW_ROW_HEIGHT_BASE_PX = 28;
 const PREVIEW_OVERSCAN_ROWS = 12;
@@ -432,7 +433,7 @@ export const useTemplateManagerPreview = ({
     };
   }, []);
 
-  const columnCount = useMemo(() => {
+  const dataColumnCount = useMemo(() => {
     if (Number.isFinite(previewFile?.columnCount)) {
       return Number(previewFile?.columnCount);
     }
@@ -444,6 +445,19 @@ export const useTemplateManagerPreview = ({
 
     return 0;
   }, [previewFile]);
+  const columnCount = useMemo(() => {
+    return resolvePreviewRenderColumnCount({
+      dataColumnCount,
+      minColumnWidthPx: previewColumnMinWidthPx,
+      previewViewportWidth,
+      rowIndexWidthPx: previewRowIndexWidthPx,
+    });
+  }, [
+    dataColumnCount,
+    previewColumnMinWidthPx,
+    previewRowIndexWidthPx,
+    previewViewportWidth,
+  ]);
 
   const yColumnsSet = useMemo(
     () =>
@@ -853,6 +867,7 @@ export const useTemplateManagerPreview = ({
   const toggleColumn = useCallback(
     (index: number) => {
       if (!interactive) return;
+      if (index < 0 || index >= dataColumnCount) return;
       setConfig((prev) => {
         const yColumns = Array.isArray(prev?.yColumns)
           ? prev.yColumns

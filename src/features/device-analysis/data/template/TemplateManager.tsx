@@ -79,6 +79,10 @@ export type TemplateManagerProps = {
   sidebarWidth?: number;
   rawData?: RawDataEntry[];
   getPreviewRow?: (rowIndex: number) => unknown;
+  ensurePreviewCells?: (
+    fileId: string,
+    cells: Array<{ colIndex: number; rowIndex: number }>,
+  ) => Promise<unknown> | unknown;
   ensurePreviewRows?: (
     fileId: string,
     startRow: number,
@@ -176,6 +180,7 @@ const TemplateManager = ({
   sidebarWidth,
   rawData = [],
   getPreviewRow,
+  ensurePreviewCells,
   ensurePreviewRows,
   onTemplateApplied,
   onTemplateAppliedIncremental,
@@ -846,6 +851,20 @@ const TemplateManager = ({
       }),
     [config?.xDataEnd, config?.xDataStart, previewFile?.rowCount],
   );
+  const parsePreviewCellRef = useCallback((value: unknown) => {
+    const text = String(value ?? "").trim().toUpperCase();
+    const match = text.match(/^([A-Z]+)([1-9]\d*)$/);
+    if (!match) return null;
+
+    let colIndex = 0;
+    for (const char of match[1]) {
+      colIndex = colIndex * 26 + (char.charCodeAt(0) - 64);
+    }
+    return {
+      colIndex: colIndex - 1,
+      rowIndex: Number(match[2]) - 1,
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof subscribePreviewRowsVersion !== "function") return undefined;
@@ -904,6 +923,34 @@ const TemplateManager = ({
     previewFile?.fileId,
     xRangeForPreview?.endRow,
     xRangeForPreview?.startRow,
+  ]);
+
+  useEffect(() => {
+    if (typeof ensurePreviewCells !== "function") return;
+    const fileId = String(previewFile?.fileId ?? "").trim();
+    if (!fileId) return;
+
+    const cells = [
+      config?.xPointsPerGroup,
+      config?.yLegendStart,
+      config?.yLegendCount,
+      config?.yLegendStep,
+    ]
+      .map(parsePreviewCellRef)
+      .filter(
+        (cell): cell is { colIndex: number; rowIndex: number } => cell !== null,
+      );
+    if (!cells.length) return;
+
+    void ensurePreviewCells(fileId, cells);
+  }, [
+    config?.xPointsPerGroup,
+    config?.yLegendCount,
+    config?.yLegendStart,
+    config?.yLegendStep,
+    ensurePreviewCells,
+    parsePreviewCellRef,
+    previewFile?.fileId,
   ]);
 
   const xAutoSuggestion = useMemo(

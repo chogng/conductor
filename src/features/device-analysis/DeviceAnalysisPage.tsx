@@ -365,6 +365,7 @@ const DeviceAnalysisPage = () => {
   const {
     clearPreviewState,
     disposePreviewFileCache,
+    ensurePreviewCells,
     ensurePreviewRows,
     getPreviewRow,
     getPreviewRowsVersion,
@@ -731,6 +732,7 @@ const DeviceAnalysisPage = () => {
           >
             <DeviceAnalysisDataPanel
               deviceAnalysisSettings={deviceAnalysisSettings}
+              ensurePreviewCells={ensurePreviewCells}
               ensurePreviewRows={ensurePreviewRows}
               getPreviewRow={getPreviewRow}
               getPreviewRowsVersion={getPreviewRowsVersion}

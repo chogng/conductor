@@ -17,7 +17,10 @@ export const ipcChannels = {
   originRuntimeCleanupRun: "device-analysis-origin:runtime-cleanup:run",
   excelConvertRust: "device-analysis-excel:convert-rust",
   deviceAnalysisRustEngineOpen: "device-analysis-rust-engine:open",
+  deviceAnalysisRustEnginePreviewMeta: "device-analysis-rust-engine:preview-meta",
   deviceAnalysisRustEnginePreviewRows: "device-analysis-rust-engine:preview-rows",
+  deviceAnalysisRustEngineReadCell: "device-analysis-rust-engine:read-cell",
+  deviceAnalysisRustEngineReadCells: "device-analysis-rust-engine:read-cells",
   deviceAnalysisRustEngineProcessFile: "device-analysis-rust-engine:process-file",
   deviceAnalysisRustEngineDispose: "device-analysis-rust-engine:dispose",
 } as const;

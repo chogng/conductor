@@ -58,12 +58,24 @@ type DesktopImportBridge = {
     fileId: string;
     startRow: number;
   }) => Promise<unknown>;
+  getDeviceAnalysisPreviewMetaWithRust?: (payload: {
+    fileId: string;
+  }) => Promise<unknown>;
   getFilePath?: (file: File) => string;
   openDeviceAnalysisFileWithRust?: (payload: {
     fileId: string;
     fileName: string;
     path: string;
     seedRows?: number;
+  }) => Promise<unknown>;
+  readDeviceAnalysisCellWithRust?: (payload: {
+    colIndex: number;
+    fileId: string;
+    rowIndex: number;
+  }) => Promise<unknown>;
+  readDeviceAnalysisCellsWithRust?: (payload: {
+    cells: Array<{ colIndex: number; rowIndex: number }>;
+    fileId: string;
   }) => Promise<unknown>;
 };
 

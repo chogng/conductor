@@ -1,4 +1,18 @@
+mod engine_cells;
+mod engine_dataset;
+mod engine_infer;
+mod engine_legend;
+mod engine_utils;
+
 use calamine::{Reader, open_workbook_auto};
+use engine_cells::EngineCellRequest;
+use engine_dataset::{EngineDataset, is_excel_path, load_engine_dataset};
+use engine_infer::{
+    find_metadata_positive_integer, infer_auto_segmentation_from_x_values,
+    infer_metadata_group_shape, parse_positive_integer_text,
+};
+use engine_legend::{LegendMode, resolve_legend_labels};
+use engine_utils::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{
@@ -43,17 +57,11 @@ struct ConvertFailure {
     path: PathBuf,
 }
 
-#[derive(Clone)]
-struct EngineDataset {
-    column_count: usize,
-    file_name: String,
-    max_cell_lengths: Vec<usize>,
-    rows: Vec<Vec<String>>,
-}
-
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct EngineRequest {
+    cells: Option<Vec<EngineCellRequest>>,
+    col_index: Option<usize>,
     config: Option<Value>,
     command: String,
     curve_filter_field: Option<String>,
@@ -63,6 +71,7 @@ struct EngineRequest {
     file_name: Option<String>,
     id: u64,
     path: Option<String>,
+    row_index: Option<usize>,
     seed_rows: Option<usize>,
     start_row: Option<usize>,
     max_points: Option<usize>,
@@ -81,226 +90,6 @@ struct EngineResponse {
     result: Option<Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     error: Option<EngineError>,
-}
-
-fn is_excel_path(path: &Path) -> bool {
-    match path.extension().and_then(|value| value.to_str()) {
-        Some(ext) => {
-            let lower = ext.to_ascii_lowercase();
-            lower == "xls" || lower == "xlsx"
-        }
-        None => false,
-    }
-}
-
-fn is_csv_path(path: &Path) -> bool {
-    match path.extension().and_then(|value| value.to_str()) {
-        Some(ext) => ext.eq_ignore_ascii_case("csv"),
-        None => false,
-    }
-}
-
-fn update_dataset_meta(
-    row: &[String],
-    column_count: &mut usize,
-    max_cell_lengths: &mut Vec<usize>,
-) {
-    if row.len() > *column_count {
-        *column_count = row.len();
-        max_cell_lengths.resize(*column_count, 0);
-    }
-    for (index, value) in row.iter().enumerate() {
-        let len = value.chars().count();
-        if len > max_cell_lengths[index] {
-            max_cell_lengths[index] = len;
-        }
-    }
-}
-
-fn load_excel_rows(path: &Path) -> Result<Vec<Vec<String>>, String> {
-    let mut workbook = open_workbook_auto(path).map_err(|error| error.to_string())?;
-    let sheet_name = workbook
-        .sheet_names()
-        .first()
-        .cloned()
-        .ok_or_else(|| "workbook has no sheet".to_string())?;
-    let range = workbook
-        .worksheet_range(&sheet_name)
-        .map_err(|error| error.to_string())?;
-
-    let mut rows = Vec::<Vec<String>>::new();
-    for row in range.rows() {
-        let values: Vec<String> = row.iter().map(|cell| cell.to_string()).collect();
-        if values.iter().all(|value| value.trim().is_empty()) {
-            continue;
-        }
-        rows.push(values);
-    }
-    Ok(rows)
-}
-
-fn load_csv_rows(path: &Path) -> Result<Vec<Vec<String>>, String> {
-    let mut reader = csv::ReaderBuilder::new()
-        .has_headers(false)
-        .flexible(true)
-        .from_path(path)
-        .map_err(|error| error.to_string())?;
-    let mut rows = Vec::<Vec<String>>::new();
-    for record in reader.records() {
-        let record = record.map_err(|error| error.to_string())?;
-        let row: Vec<String> = record.iter().map(|value| value.to_string()).collect();
-        if row.iter().all(|value| value.trim().is_empty()) {
-            continue;
-        }
-        rows.push(row);
-    }
-    Ok(rows)
-}
-
-fn load_engine_dataset(path: &Path, file_name: &str) -> Result<EngineDataset, String> {
-    let rows = if is_excel_path(path) {
-        load_excel_rows(path)?
-    } else if is_csv_path(path) {
-        load_csv_rows(path)?
-    } else {
-        return Err("unsupported file type".to_string());
-    };
-
-    let mut column_count = 0usize;
-    let mut max_cell_lengths = Vec::<usize>::new();
-    for row in &rows {
-        update_dataset_meta(row, &mut column_count, &mut max_cell_lengths);
-    }
-
-    Ok(EngineDataset {
-        column_count,
-        file_name: file_name.to_string(),
-        max_cell_lengths,
-        rows,
-    })
-}
-
-fn dataset_preview_result(file_id: &str, dataset: &EngineDataset, seed_rows: usize) -> Value {
-    let seed_count = seed_rows.min(dataset.rows.len());
-    json!({
-        "fileId": file_id,
-        "fileName": dataset.file_name,
-        "rowCount": dataset.rows.len(),
-        "columnCount": dataset.column_count,
-        "maxCellLengths": dataset.max_cell_lengths,
-        "seedRows": dataset.rows.iter().take(seed_count).collect::<Vec<_>>(),
-        "seedStartRow": 0,
-    })
-}
-
-fn json_number(value: &Value) -> Option<f64> {
-    match value {
-        Value::Number(number) => number.as_f64(),
-        Value::String(text) => text.trim().parse::<f64>().ok(),
-        _ => None,
-    }
-}
-
-fn json_usize(value: Option<&Value>) -> Option<usize> {
-    let value = value?;
-    let number = json_number(value)?;
-    if !number.is_finite() || number < 0.0 {
-        return None;
-    }
-    let rounded = number.round();
-    if (number - rounded).abs() > f64::EPSILON {
-        return None;
-    }
-    Some(rounded as usize)
-}
-
-fn json_string(value: Option<&Value>) -> String {
-    match value {
-        Some(Value::String(text)) => text.trim().to_string(),
-        Some(Value::Number(number)) => number.to_string(),
-        Some(Value::Bool(value)) => value.to_string(),
-        _ => String::new(),
-    }
-}
-
-fn json_usize_array(value: Option<&Value>) -> Vec<usize> {
-    match value {
-        Some(Value::Array(values)) => values
-            .iter()
-            .filter_map(|value| json_usize(Some(value)))
-            .collect(),
-        _ => Vec::new(),
-    }
-}
-
-fn excel_column_label(index: usize) -> String {
-    let mut label = String::new();
-    let mut i = index;
-    loop {
-        label.insert(0, (b'A' + (i % 26) as u8) as char);
-        if i < 26 {
-            break;
-        }
-        i = i / 26 - 1;
-    }
-    label
-}
-
-fn parse_number_strict(raw: Option<&String>) -> Option<f64> {
-    let text = raw?.trim();
-    if text.is_empty() {
-        return None;
-    }
-    text.parse::<f64>().ok().filter(|value| value.is_finite())
-}
-
-fn json_cell_ref(value: Option<&Value>) -> Option<(usize, usize)> {
-    let object = value?.as_object()?;
-    let row = json_usize(object.get("rowIndex"))?;
-    let col = json_usize(object.get("colIndex"))?;
-    Some((row, col))
-}
-
-fn read_cell_number(dataset: &EngineDataset, row_index: usize, col_index: usize) -> Option<f64> {
-    parse_number_strict(dataset.rows.get(row_index)?.get(col_index))
-}
-
-fn normalize_cell_text(raw: &str) -> String {
-    raw.trim().to_ascii_lowercase()
-}
-
-fn clean_cell_text(raw: &str) -> String {
-    raw.trim().to_string()
-}
-
-fn normalize_header_compact(raw: &str) -> String {
-    clean_cell_text(raw)
-        .to_lowercase()
-        .chars()
-        .filter(|ch| ch.is_alphanumeric())
-        .collect()
-}
-
-fn cell_number(dataset: &EngineDataset, row_index: usize, col_index: usize) -> Option<f64> {
-    parse_number_strict(dataset.rows.get(row_index)?.get(col_index))
-}
-
-fn column_has_numeric_rows(
-    dataset: &EngineDataset,
-    data_start_row_index: usize,
-    col_index: usize,
-    minimum_count: usize,
-) -> bool {
-    let mut count = 0usize;
-    for row_index in data_start_row_index..dataset.rows.len() {
-        if cell_number(dataset, row_index, col_index).is_some() {
-            count += 1;
-            if count >= minimum_count {
-                return true;
-            }
-        }
-    }
-    false
 }
 
 fn row_trimmed(dataset: &EngineDataset, row_index: usize) -> Vec<String> {
@@ -351,376 +140,6 @@ fn find_header_row_index(dataset: &EngineDataset) -> usize {
     }
 
     0
-}
-
-fn parse_positive_integer_text(raw: &str) -> Option<usize> {
-    let mut digits = String::new();
-    let mut started = false;
-    for ch in raw.chars() {
-        if ch.is_ascii_digit() {
-            digits.push(ch);
-            started = true;
-        } else if started {
-            break;
-        }
-    }
-    let value = digits.parse::<usize>().ok()?;
-    if value > 0 { Some(value) } else { None }
-}
-
-fn parse_positive_integer_from_cells(cells: &[String]) -> Option<usize> {
-    for cell in cells {
-        if let Some(value) = parse_number_strict(Some(cell)) {
-            if value > 0.0 && value.fract().abs() <= f64::EPSILON {
-                return Some(value as usize);
-            }
-        }
-        if let Some(value) = parse_positive_integer_text(cell) {
-            return Some(value);
-        }
-    }
-    None
-}
-
-fn find_metadata_positive_integer(
-    dataset: &EngineDataset,
-    first_cell: &str,
-    second_cell: Option<&str>,
-) -> Option<usize> {
-    let expected_first = normalize_cell_text(first_cell);
-    let expected_second = second_cell.map(normalize_cell_text);
-    for row in &dataset.rows {
-        if row.is_empty() {
-            continue;
-        }
-        if normalize_cell_text(row.first().map(String::as_str).unwrap_or("")) != expected_first {
-            continue;
-        }
-        if let Some(expected_second) = expected_second.as_deref() {
-            if normalize_cell_text(row.get(1).map(String::as_str).unwrap_or("")) != expected_second
-            {
-                continue;
-            }
-        }
-        let value_start = if expected_second.is_some() { 2 } else { 1 };
-        if let Some(value) =
-            parse_positive_integer_from_cells(row.get(value_start..).unwrap_or(&[]))
-        {
-            return Some(value);
-        }
-    }
-    None
-}
-
-fn resolve_group_shape_from_counts(
-    data_start_row_index: usize,
-    group_size: Option<usize>,
-    groups: Option<usize>,
-    total_row_count: usize,
-) -> Option<(usize, usize)> {
-    if total_row_count <= data_start_row_index {
-        return None;
-    }
-    let data_rows = total_row_count - data_start_row_index;
-    if data_rows < 2 {
-        return None;
-    }
-    let normalized_group_size = group_size.filter(|value| *value >= 2);
-    let normalized_groups = groups.filter(|value| *value >= 1);
-
-    match (normalized_group_size, normalized_groups) {
-        (Some(group_size), Some(groups)) => {
-            if group_size * groups == data_rows {
-                Some((group_size, groups))
-            } else {
-                None
-            }
-        }
-        (Some(group_size), None) => {
-            if data_rows % group_size == 0 {
-                Some((group_size, data_rows / group_size))
-            } else {
-                None
-            }
-        }
-        (None, Some(groups)) => {
-            if data_rows % groups == 0 {
-                let group_size = data_rows / groups;
-                if group_size >= 2 {
-                    Some((group_size, groups))
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        }
-        (None, None) => None,
-    }
-}
-
-fn infer_metadata_group_shape(dataset: &EngineDataset, start_row: usize) -> Option<(usize, usize)> {
-    let dimension_shape = resolve_group_shape_from_counts(
-        start_row,
-        find_metadata_positive_integer(dataset, "Dimension1", None),
-        find_metadata_positive_integer(dataset, "Dimension2", None),
-        dataset.rows.len(),
-    );
-    if dimension_shape.is_some() {
-        return dimension_shape;
-    }
-    resolve_group_shape_from_counts(
-        start_row,
-        None,
-        find_metadata_positive_integer(
-            dataset,
-            "TestParameter",
-            Some("Measurement.Secondary.Count"),
-        ),
-        dataset.rows.len(),
-    )
-}
-
-fn approx_equal(left: f64, right: f64, tolerance: f64) -> bool {
-    (left - right).abs() <= tolerance
-}
-
-fn infer_auto_segmentation_from_x_values(values: &[f64], total: usize) -> Option<(usize, usize)> {
-    const MIN_GROUP_SIZE: usize = 2;
-    const MIN_GROUPS: usize = 2;
-    const REPEAT_THRESHOLD: f64 = 0.9;
-
-    if total == 0 || values.len() != total || values.len() < MIN_GROUP_SIZE * MIN_GROUPS {
-        return None;
-    }
-    let min = values.iter().copied().fold(f64::INFINITY, f64::min);
-    let max = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-    let tolerance = (max - min).abs().mul_add(1e-4, 0.0).max(1e-9);
-    let max_index = values.len().saturating_sub(1).min(4000);
-    let mut candidates = Vec::<usize>::new();
-    for group_size in MIN_GROUP_SIZE..=max_index {
-        if total % group_size != 0 {
-            continue;
-        }
-        if approx_equal(values[group_size], values[0], tolerance) {
-            candidates.push(group_size);
-            if candidates.len() >= 64 {
-                break;
-            }
-        }
-    }
-    if candidates.is_empty() {
-        return None;
-    }
-
-    let mut best_group_size = 0usize;
-    let mut best_score = 0f64;
-    for candidate in candidates {
-        let groups = total / candidate;
-        if groups < MIN_GROUPS {
-            continue;
-        }
-        let compare_window = (values.len() - candidate).min(candidate * 8);
-        if compare_window == 0 {
-            continue;
-        }
-        let mut matched = 0usize;
-        for index in 0..compare_window {
-            if approx_equal(values[index], values[index + candidate], tolerance * 2.0) {
-                matched += 1;
-            }
-        }
-        let score = matched as f64 / compare_window as f64;
-        if score > best_score {
-            best_score = score;
-            best_group_size = candidate;
-        }
-    }
-    if best_group_size == 0 || best_score < REPEAT_THRESHOLD {
-        return None;
-    }
-    Some((best_group_size, total / best_group_size))
-}
-
-fn pad_domain(min_raw: f64, max_raw: f64) -> [f64; 2] {
-    let min = if min_raw.is_finite() { min_raw } else { 0.0 };
-    let max = if max_raw.is_finite() { max_raw } else { 1.0 };
-    let lo = min.min(max);
-    let hi = min.max(max);
-    if (lo - hi).abs() <= f64::EPSILON {
-        let pad = if lo == 0.0 { 1.0 } else { lo.abs() * 0.05 };
-        return [lo - pad, hi + pad];
-    }
-    let span = hi - lo;
-    let pad = span * 0.05;
-    [lo - pad, hi + pad]
-}
-
-fn append_axis_unit(label_raw: &str, unit_raw: &str) -> String {
-    let label = label_raw.trim();
-    let unit = unit_raw.trim();
-    if unit.is_empty() {
-        return label.to_string();
-    }
-    if label.is_empty() {
-        return unit.to_string();
-    }
-    if label == unit {
-        return label.to_string();
-    }
-    format!("{} ({})", label, unit)
-}
-
-fn strip_file_extension(file_name: &str) -> String {
-    let base_name = file_name
-        .rsplit_once(['\\', '/'])
-        .map(|(_, tail)| tail)
-        .unwrap_or(file_name);
-    if let Some((stem, ext)) = base_name.rsplit_once('.') {
-        let valid_ext = ext.len() >= 1
-            && ext.len() <= 10
-            && ext
-                .chars()
-                .next()
-                .map(|ch| ch.is_ascii_alphabetic())
-                .unwrap_or(false)
-            && ext.chars().all(|ch| ch.is_ascii_alphanumeric());
-        if valid_ext {
-            return stem.to_string();
-        }
-    }
-    base_name.to_string()
-}
-
-fn split_file_name_match_input(value: &str) -> Vec<String> {
-    value
-        .split(|ch| ch == ',' || ch == ';' || ch == '\n')
-        .map(|token| token.trim().to_ascii_lowercase())
-        .filter(|token| !token.is_empty())
-        .collect()
-}
-
-fn normalize_file_name_field_separators(value: &str) -> String {
-    let raw = value
-        .replace('\r', "")
-        .replace('\n', "")
-        .replace('\t', " ");
-    let mut result = String::new();
-    for ch in raw.chars() {
-        if !result.contains(ch) {
-            result.push(ch);
-        }
-    }
-    if result.is_empty() {
-        "_- .()[]{}".to_string()
-    } else {
-        result
-    }
-}
-
-fn trim_match_token(value: &str) -> String {
-    value
-        .trim_matches(|ch: char| !ch.is_alphanumeric())
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-fn compact_match_key(value: &str) -> String {
-    value
-        .chars()
-        .filter(|ch| ch.is_alphanumeric())
-        .flat_map(|ch| ch.to_lowercase())
-        .collect()
-}
-
-fn push_file_name_candidate(candidates: &mut Vec<String>, value: String) {
-    let normalized = value.trim().to_ascii_lowercase();
-    if normalized.is_empty() || candidates.iter().any(|entry| entry == &normalized) {
-        return;
-    }
-    candidates.push(normalized);
-}
-
-fn collect_file_name_candidates(file_name: &str, separators: &str) -> Vec<String> {
-    let base_name = strip_file_extension(file_name);
-    let mut candidates = Vec::<String>::new();
-    push_file_name_candidate(&mut candidates, trim_match_token(&base_name));
-
-    for raw_chunk in base_name.split(|ch| ",[]{};".contains(ch)) {
-        for sub_chunk in raw_chunk.split('_') {
-            let trimmed = trim_match_token(sub_chunk);
-            if !trimmed.is_empty() {
-                push_file_name_candidate(&mut candidates, trimmed);
-            }
-        }
-    }
-
-    for token in base_name.split(|ch| separators.contains(ch)) {
-        let trimmed = trim_match_token(token);
-        if trimmed.is_empty() {
-            continue;
-        }
-        push_file_name_candidate(&mut candidates, trimmed.clone());
-
-        let mut boundary_token = String::new();
-        let mut previous_kind: Option<u8> = None;
-        for ch in trimmed.chars() {
-            let kind = if ch.is_ascii_digit() {
-                1
-            } else if ch.is_ascii_alphabetic() {
-                2
-            } else {
-                3
-            };
-            if let Some(prev) = previous_kind {
-                if prev != kind && !boundary_token.is_empty() {
-                    push_file_name_candidate(&mut candidates, boundary_token.clone());
-                    boundary_token.clear();
-                }
-            }
-            boundary_token.push(ch);
-            previous_kind = Some(kind);
-        }
-        push_file_name_candidate(&mut candidates, boundary_token);
-    }
-
-    candidates
-}
-
-fn match_file_name_against_pattern_tokens(
-    file_name: &str,
-    pattern_tokens: &[String],
-    separators: &str,
-) -> bool {
-    if pattern_tokens.is_empty() {
-        return false;
-    }
-    let candidates = collect_file_name_candidates(file_name, separators);
-    let compact_candidates: Vec<String> = candidates
-        .iter()
-        .map(|candidate| compact_match_key(candidate))
-        .filter(|candidate| !candidate.is_empty())
-        .collect();
-
-    pattern_tokens.iter().any(|pattern| {
-        let token = pattern.trim().to_ascii_lowercase();
-        if token.is_empty() {
-            return false;
-        }
-        if candidates.iter().any(|candidate| candidate == &token) {
-            return true;
-        }
-        let compact_token = compact_match_key(&token);
-        if compact_token.is_empty() {
-            return false;
-        }
-        compact_candidates.iter().any(|candidate| {
-            candidate == &compact_token
-                || (candidate.starts_with(&compact_token) && compact_token.len() >= 5)
-                || (compact_token.starts_with(candidate) && candidate.len() >= 5)
-        })
-    })
 }
 
 #[derive(Default)]
@@ -785,7 +204,10 @@ fn derive_var_name_from_channel_meta(
     let token = var_token.to_ascii_uppercase();
     for (index, func) in channel_funcs.iter().enumerate() {
         if clean_cell_text(func).to_ascii_uppercase() == token {
-            return channel_vnames.get(index).map(|v| clean_cell_text(v)).unwrap_or_default();
+            return channel_vnames
+                .get(index)
+                .map(|v| clean_cell_text(v))
+                .unwrap_or_default();
         }
     }
     String::new()
@@ -878,16 +300,37 @@ fn extract_auto_metadata(dataset: &EngineDataset) -> AutoMetadata {
             metadata.x_axis_data = first_non_empty(row.get(2..).unwrap_or(&[]));
         }
         if channel_funcs.is_empty() && second == "Channel.Func" {
-            channel_funcs = row.iter().skip(2).filter(|v| !v.is_empty()).cloned().collect();
+            channel_funcs = row
+                .iter()
+                .skip(2)
+                .filter(|v| !v.is_empty())
+                .cloned()
+                .collect();
         }
         if channel_vnames.is_empty() && second == "Channel.VName" {
-            channel_vnames = row.iter().skip(2).filter(|v| !v.is_empty()).cloned().collect();
+            channel_vnames = row
+                .iter()
+                .skip(2)
+                .filter(|v| !v.is_empty())
+                .cloned()
+                .collect();
         }
         if metadata.data_name_columns.is_empty() && first == "DataName" {
-            metadata.data_name_columns = row.iter().skip(1).filter(|v| !v.is_empty()).cloned().collect();
+            metadata.data_name_columns = row
+                .iter()
+                .skip(1)
+                .filter(|v| !v.is_empty())
+                .cloned()
+                .collect();
         }
         if metadata.notes_text.is_empty() && second == "Analysis.Setup.Vector.Graph.Notes" {
-            metadata.notes_text = row.iter().skip(2).filter(|v| !v.is_empty()).cloned().collect::<Vec<_>>().join(", ");
+            metadata.notes_text = row
+                .iter()
+                .skip(2)
+                .filter(|v| !v.is_empty())
+                .cloned()
+                .collect::<Vec<_>>()
+                .join(", ");
         }
         if !metadata.is_stripped_channel_sweep
             && first == "Repeat"
@@ -943,28 +386,53 @@ fn classify_auto_curve(
     ];
     all_text.extend(metadata.data_name_columns.clone());
     all_text.extend(headers.iter().cloned());
-    let compact_all: Vec<String> = all_text.iter().map(|value| normalize_header_compact(value)).collect();
+    let compact_all: Vec<String> = all_text
+        .iter()
+        .map(|value| normalize_header_compact(value))
+        .collect();
     let file_compact = normalize_header_compact(file_name);
 
     if file_compact.contains("pv")
         || file_compact.contains("fastiv")
         || file_compact.contains("ivt")
-        || compact_all.iter().any(|value| value.contains("fastiv") || value == "ipt")
+        || compact_all
+            .iter()
+            .any(|value| value.contains("fastiv") || value == "ipt")
     {
-        return ("pv".to_string(), None, "filename", "medium".to_string(), false);
+        return (
+            "pv".to_string(),
+            None,
+            "filename",
+            "medium".to_string(),
+            false,
+        );
     }
     if file_compact.contains("cf")
         || file_compact.contains("freq")
-        || compact_all.iter().any(|value| value.contains("freq") || value.contains("frequency"))
+        || compact_all
+            .iter()
+            .any(|value| value.contains("freq") || value.contains("frequency"))
     {
-        return ("cf".to_string(), None, "filename", "medium".to_string(), false);
+        return (
+            "cf".to_string(),
+            None,
+            "filename",
+            "medium".to_string(),
+            false,
+        );
     }
     if (file_compact.contains("cv") && !file_compact.contains("svc"))
         || compact_all
             .iter()
             .any(|value| value.contains("cp") || value.contains("cap") || value.contains("cv"))
     {
-        return ("cv".to_string(), None, "filename", "medium".to_string(), false);
+        return (
+            "cv".to_string(),
+            None,
+            "filename",
+            "medium".to_string(),
+            false,
+        );
     }
 
     let mut vg_score = 0i32;
@@ -972,7 +440,14 @@ fn classify_auto_curve(
     for (value, weight) in [
         (metadata.x_axis_data.as_str(), 18),
         (metadata.var1_name.as_str(), 16),
-        (metadata.data_name_columns.first().map(String::as_str).unwrap_or(""), 14),
+        (
+            metadata
+                .data_name_columns
+                .first()
+                .map(String::as_str)
+                .unwrap_or(""),
+            14,
+        ),
         (metadata.setup_title.as_str(), 6),
         (file_name, 2),
     ] {
@@ -996,13 +471,31 @@ fn classify_auto_curve(
     }
 
     if vg_score == vd_score {
-        return ("unknown".to_string(), None, "metadata", "low".to_string(), true);
+        return (
+            "unknown".to_string(),
+            None,
+            "metadata",
+            "low".to_string(),
+            true,
+        );
     }
     let role = if vg_score > vd_score { "vg" } else { "vd" };
     let score_gap = (vg_score - vd_score).abs();
-    let confidence = if score_gap >= 10 { "high" } else if score_gap >= 6 { "medium" } else { "low" };
+    let confidence = if score_gap >= 10 {
+        "high"
+    } else if score_gap >= 6 {
+        "medium"
+    } else {
+        "low"
+    };
     let curve_type = if role == "vg" { "transfer" } else { "output" };
-    (curve_type.to_string(), Some(role), "metadata", confidence.to_string(), confidence == "low")
+    (
+        curve_type.to_string(),
+        Some(role),
+        "metadata",
+        confidence.to_string(),
+        confidence == "low",
+    )
 }
 
 fn is_voltage_like_header(value: &str) -> bool {
@@ -1023,12 +516,22 @@ fn is_frequency_like_header(value: &str) -> bool {
 
 fn is_capacitance_like_header(value: &str) -> bool {
     let compact = normalize_header_compact(value);
-    compact == "cp" || compact == "cs" || compact.starts_with("cp") || compact.starts_with("cs") || compact.contains("cap")
+    compact == "cp"
+        || compact == "cs"
+        || compact.starts_with("cp")
+        || compact.starts_with("cs")
+        || compact.contains("cap")
 }
 
 fn is_current_like_header(value: &str) -> bool {
     let compact = normalize_header_compact(value);
-    compact == "in" || compact == "ipt" || compact == "id" || compact == "ig" || compact.contains("current") || compact.starts_with("in") || compact.starts_with("ipt")
+    compact == "in"
+        || compact == "ipt"
+        || compact == "id"
+        || compact == "ig"
+        || compact.contains("current")
+        || compact.starts_with("in")
+        || compact.starts_with("ipt")
 }
 
 fn current_header_looks_like_drain_current(value: &str) -> bool {
@@ -1127,7 +630,16 @@ fn choose_best_semantic_pair(
     if let Some((_, x_col, y_col)) = best {
         (Some(x_col), Some(y_col))
     } else {
-        (x_candidates.last().copied().or_else(|| x_candidates.first().copied()), y_candidates.last().copied().or_else(|| y_candidates.first().copied()))
+        (
+            x_candidates
+                .last()
+                .copied()
+                .or_else(|| x_candidates.first().copied()),
+            y_candidates
+                .last()
+                .copied()
+                .or_else(|| y_candidates.first().copied()),
+        )
     }
 }
 
@@ -1145,7 +657,8 @@ fn detect_first_group_length(
         .and_then(|index| first_row.get(index))
         .map(|value| clean_cell_text(value))
         .unwrap_or_default();
-    let first_point = point_col_index.and_then(|index| cell_number(dataset, data_start_row_index, index));
+    let first_point =
+        point_col_index.and_then(|index| cell_number(dataset, data_start_row_index, index));
     let mut count = 0usize;
     let mut previous_point: Option<f64> = None;
     for row_index in data_start_row_index..dataset.rows.len() {
@@ -1154,13 +667,18 @@ fn detect_first_group_length(
             .and_then(|index| row.get(index))
             .map(|value| clean_cell_text(value))
             .unwrap_or_default();
-        let current_point = point_col_index.and_then(|index| cell_number(dataset, row_index, index));
+        let current_point =
+            point_col_index.and_then(|index| cell_number(dataset, row_index, index));
         if count > 0 {
             if !first_var2.is_empty() && !current_var2.is_empty() && current_var2 != first_var2 {
                 break;
             }
             if let (Some(first), Some(current)) = (first_point, current_point) {
-                if current == first || previous_point.map(|previous| current < previous).unwrap_or(false) {
+                if current == first
+                    || previous_point
+                        .map(|previous| current < previous)
+                        .unwrap_or(false)
+                {
                     break;
                 }
             }
@@ -1203,7 +721,10 @@ fn parse_voltage_like_value(raw: &str) -> Option<f64> {
     Some(value * factor)
 }
 
-fn parse_var_sweep_from_notes(notes: &str, var_tag: &str) -> Option<(Option<usize>, Option<f64>, Option<f64>)> {
+fn parse_var_sweep_from_notes(
+    notes: &str,
+    var_tag: &str,
+) -> Option<(Option<usize>, Option<f64>, Option<f64>)> {
     let lower = notes.to_lowercase();
     let needle = format!("[{}]", var_tag.to_lowercase());
     let start = lower.find(&needle)?;
@@ -1213,7 +734,13 @@ fn parse_var_sweep_from_notes(notes: &str, var_tag: &str) -> Option<(Option<usiz
     let block_lower = block.to_lowercase();
     let field = |name: &str| -> Option<String> {
         let index = block_lower.find(&name.to_lowercase())?;
-        Some(block[index + name.len()..].split([',', '\t', ']']).next().unwrap_or("").to_string())
+        Some(
+            block[index + name.len()..]
+                .split([',', '\t', ']'])
+                .next()
+                .unwrap_or("")
+                .to_string(),
+        )
     };
     let start_value = field("Start=").and_then(|value| parse_voltage_like_value(&value));
     let step = field("Step=").and_then(|value| parse_voltage_like_value(&value));
@@ -1240,7 +767,9 @@ fn find_metadata_finite_number(
             continue;
         }
         for cell in row.iter().skip(2) {
-            if let Some(value) = parse_number_strict(Some(cell)).or_else(|| parse_voltage_like_value(cell)) {
+            if let Some(value) =
+                parse_number_strict(Some(cell)).or_else(|| parse_voltage_like_value(cell))
+            {
                 return Some(value);
             }
         }
@@ -1248,9 +777,16 @@ fn find_metadata_finite_number(
     None
 }
 
-fn parse_secondary_sweep_from_rows(dataset: &EngineDataset) -> Option<(Option<usize>, Option<f64>, Option<f64>)> {
-    let count = find_metadata_positive_integer(dataset, "TestParameter", Some("Measurement.Secondary.Count"));
-    let start = find_metadata_finite_number(dataset, "TestParameter", "Measurement.Secondary.Start");
+fn parse_secondary_sweep_from_rows(
+    dataset: &EngineDataset,
+) -> Option<(Option<usize>, Option<f64>, Option<f64>)> {
+    let count = find_metadata_positive_integer(
+        dataset,
+        "TestParameter",
+        Some("Measurement.Secondary.Count"),
+    );
+    let start =
+        find_metadata_finite_number(dataset, "TestParameter", "Measurement.Secondary.Start");
     let step = find_metadata_finite_number(dataset, "TestParameter", "Measurement.Secondary.Step");
     if count.is_none() && start.is_none() && step.is_none() {
         None
@@ -1269,17 +805,31 @@ fn resolve_auto_group_shape_full(
     if let Some(shape) = infer_metadata_group_shape(dataset, data_start_row_index) {
         return (Some(shape.0), Some(shape.1));
     }
-    let explicit = detect_first_group_length(dataset, data_start_row_index, point_col_index, var2_col_index);
+    let explicit = detect_first_group_length(
+        dataset,
+        data_start_row_index,
+        point_col_index,
+        var2_col_index,
+    );
     let repeated = if explicit.is_none() {
-        let values = collect_column_numbers(dataset, data_start_row_index, x_col, dataset.rows.len());
-        infer_auto_segmentation_from_x_values(&values, dataset.rows.len().saturating_sub(data_start_row_index)).map(|shape| shape.0)
+        let values =
+            collect_column_numbers(dataset, data_start_row_index, x_col, dataset.rows.len());
+        infer_auto_segmentation_from_x_values(
+            &values,
+            dataset.rows.len().saturating_sub(data_start_row_index),
+        )
+        .map(|shape| shape.0)
     } else {
         None
     };
     let group_size = explicit.or(repeated);
     let groups = group_size.and_then(|size| {
         let data_rows = dataset.rows.len().saturating_sub(data_start_row_index);
-        if size > 0 && data_rows % size == 0 { Some(data_rows / size) } else { None }
+        if size > 0 && data_rows % size == 0 {
+            Some(data_rows / size)
+        } else {
+            None
+        }
     });
     (group_size, groups)
 }
@@ -1342,7 +892,10 @@ fn with_auto_curve_type(mut config: Value, curve_type: &str) -> Value {
 
 fn infer_auto_worker_config(dataset: &EngineDataset) -> Result<Value, String> {
     if dataset.rows.is_empty() {
-        return Err(format!("{}: no rows available for auto extraction.", dataset.file_name));
+        return Err(format!(
+            "{}: no rows available for auto extraction.",
+            dataset.file_name
+        ));
     }
     let header_row_index = find_header_row_index(dataset);
     let headers = row_trimmed(dataset, header_row_index);
@@ -1356,19 +909,46 @@ fn infer_auto_worker_config(dataset: &EngineDataset) -> Result<Value, String> {
         let ch2_voltage_col = headers.iter().position(|entry| entry == "CH2 Voltage");
         let ch1_current_col = headers.iter().position(|entry| entry == "CH1 Current");
         let ch2_current_col = headers.iter().position(|entry| entry == "CH2 Current");
-        let (Some(ch1_voltage_col), Some(ch2_voltage_col), Some(ch1_current_col), Some(ch2_current_col)) =
-            (ch1_voltage_col, ch2_voltage_col, ch1_current_col, ch2_current_col)
+        let (
+            Some(ch1_voltage_col),
+            Some(ch2_voltage_col),
+            Some(ch1_current_col),
+            Some(ch2_current_col),
+        ) = (
+            ch1_voltage_col,
+            ch2_voltage_col,
+            ch1_current_col,
+            ch2_current_col,
+        )
         else {
-            return Err(format!("{}: missing CH1/CH2 voltage/current columns.", dataset.file_name));
+            return Err(format!(
+                "{}: missing CH1/CH2 voltage/current columns.",
+                dataset.file_name
+            ));
         };
         let Some(swept_axis) = metadata.stripped_sweep_voltage_axis else {
-            return Err(format!("{}: unable to infer stripped sweep roles automatically.", dataset.file_name));
+            return Err(format!(
+                "{}: unable to infer stripped sweep roles automatically.",
+                dataset.file_name
+            ));
         };
         let role = x_axis_role.unwrap_or("vd");
-        let x_col = if swept_axis == "ch1" { ch1_voltage_col } else { ch2_voltage_col };
-        let fixed_voltage_col = if swept_axis == "ch1" { ch2_voltage_col } else { ch1_voltage_col };
+        let x_col = if swept_axis == "ch1" {
+            ch1_voltage_col
+        } else {
+            ch2_voltage_col
+        };
+        let fixed_voltage_col = if swept_axis == "ch1" {
+            ch2_voltage_col
+        } else {
+            ch1_voltage_col
+        };
         let y_col = if curve_type == "output" {
-            if swept_axis == "ch1" { ch1_current_col } else { ch2_current_col }
+            if swept_axis == "ch1" {
+                ch1_current_col
+            } else {
+                ch2_current_col
+            }
         } else if swept_axis == "ch1" {
             ch2_current_col
         } else {
@@ -1376,31 +956,62 @@ fn infer_auto_worker_config(dataset: &EngineDataset) -> Result<Value, String> {
         };
         let point_col = headers.iter().position(|entry| entry == "Point");
         let var2_col = headers.iter().position(|entry| entry == "VAR2");
-        let (group_size, groups) = resolve_auto_group_shape_full(dataset, data_start_row_index, x_col, point_col, var2_col);
+        let (group_size, groups) = resolve_auto_group_shape_full(
+            dataset,
+            data_start_row_index,
+            x_col,
+            point_col,
+            var2_col,
+        );
         let grouped = group_size.is_some() && groups.unwrap_or(1) > 1;
         let fixed_value = if grouped {
             None
         } else {
-            metadata.stripped_fixed_voltage_magnitude.map(format_compact_number)
+            metadata
+                .stripped_fixed_voltage_magnitude
+                .map(format_compact_number)
         };
         let bias_role = if role == "vg" { "Vd" } else { "Vg" };
-        return Ok(with_auto_curve_type(auto_config_json(
-            if role == "vg" { "Vg".to_string() } else { "Vd".to_string() },
-            "Id".to_string(),
-            data_start_row_index,
-            x_col,
-            vec![y_col],
-            group_size,
-            groups,
-            "V",
-            "A",
-            bias_role.to_string(),
-            if grouped { Some((data_start_row_index, fixed_voltage_col)) } else { None },
-            fixed_value.clone(),
-            if grouped { None } else if fixed_value.is_some() { Some(1) } else { None },
-            None,
-            if grouped { "group" } else if fixed_value.is_some() { "yColumn" } else { "auto" },
-        ), &curve_type));
+        return Ok(with_auto_curve_type(
+            auto_config_json(
+                if role == "vg" {
+                    "Vg".to_string()
+                } else {
+                    "Vd".to_string()
+                },
+                "Id".to_string(),
+                data_start_row_index,
+                x_col,
+                vec![y_col],
+                group_size,
+                groups,
+                "V",
+                "A",
+                bias_role.to_string(),
+                if grouped {
+                    Some((data_start_row_index, fixed_voltage_col))
+                } else {
+                    None
+                },
+                fixed_value.clone(),
+                if grouped {
+                    None
+                } else if fixed_value.is_some() {
+                    Some(1)
+                } else {
+                    None
+                },
+                None,
+                if grouped {
+                    "group"
+                } else if fixed_value.is_some() {
+                    "yColumn"
+                } else {
+                    "auto"
+                },
+            ),
+            &curve_type,
+        ));
     }
 
     let mut pair_candidates = Vec::<(usize, usize)>::new();
@@ -1424,9 +1035,13 @@ fn infer_auto_worker_config(dataset: &EngineDataset) -> Result<Value, String> {
         })
     {
         let x_col = pair_candidates[0].0;
-        let y_cols = pair_candidates.iter().map(|pair| pair.1).collect::<Vec<_>>();
-        let role = x_axis_role
-            .or_else(|| detect_axis_role_text(headers.get(x_col).map(String::as_str).unwrap_or("")));
+        let y_cols = pair_candidates
+            .iter()
+            .map(|pair| pair.1)
+            .collect::<Vec<_>>();
+        let role = x_axis_role.or_else(|| {
+            detect_axis_role_text(headers.get(x_col).map(String::as_str).unwrap_or(""))
+        });
         let inferred_curve = if curve_type != "unknown" {
             curve_type.as_str()
         } else if role == Some("vg") {
@@ -1437,9 +1052,21 @@ fn infer_auto_worker_config(dataset: &EngineDataset) -> Result<Value, String> {
             "unknown"
         };
         let (x_unit, y_unit, left_title) = match inferred_curve {
-            "cv" => ("V", "F", headers[*y_cols.last().unwrap_or(&pair_candidates[0].1)].clone()),
-            "cf" => ("Hz", "F", headers[*y_cols.last().unwrap_or(&pair_candidates[0].1)].clone()),
-            "pv" => ("V", "A", headers[*y_cols.last().unwrap_or(&pair_candidates[0].1)].clone()),
+            "cv" => (
+                "V",
+                "F",
+                headers[*y_cols.last().unwrap_or(&pair_candidates[0].1)].clone(),
+            ),
+            "cf" => (
+                "Hz",
+                "F",
+                headers[*y_cols.last().unwrap_or(&pair_candidates[0].1)].clone(),
+            ),
+            "pv" => (
+                "V",
+                "A",
+                headers[*y_cols.last().unwrap_or(&pair_candidates[0].1)].clone(),
+            ),
             _ => ("V", "A", "Id".to_string()),
         };
         let y_step = if pair_candidates.len() >= 2 {
@@ -1447,23 +1074,29 @@ fn infer_auto_worker_config(dataset: &EngineDataset) -> Result<Value, String> {
         } else {
             1
         };
-        return Ok(with_auto_curve_type(auto_config_json(
-            headers.get(x_col).cloned().unwrap_or_else(|| "X".to_string()),
-            left_title,
-            data_start_row_index,
-            x_col,
-            y_cols,
-            None,
-            Some(1),
-            x_unit,
-            y_unit,
-            String::new(),
-            Some((header_row_index, pair_candidates[0].1)),
-            None,
-            Some(pair_candidates.len()),
-            Some(y_step as f64),
-            "yColumn",
-        ), inferred_curve));
+        return Ok(with_auto_curve_type(
+            auto_config_json(
+                headers
+                    .get(x_col)
+                    .cloned()
+                    .unwrap_or_else(|| "X".to_string()),
+                left_title,
+                data_start_row_index,
+                x_col,
+                y_cols,
+                None,
+                Some(1),
+                x_unit,
+                y_unit,
+                String::new(),
+                Some((header_row_index, pair_candidates[0].1)),
+                None,
+                Some(pair_candidates.len()),
+                Some(y_step as f64),
+                "yColumn",
+            ),
+            inferred_curve,
+        ));
     }
 
     if curve_type == "pv" || curve_type == "cv" || curve_type == "cf" {
@@ -1471,39 +1104,71 @@ fn infer_auto_worker_config(dataset: &EngineDataset) -> Result<Value, String> {
             dataset,
             &headers,
             data_start_row_index,
-            if curve_type == "cf" { is_frequency_like_header } else { is_voltage_like_header },
+            if curve_type == "cf" {
+                is_frequency_like_header
+            } else {
+                is_voltage_like_header
+            },
         );
         let y_candidates = find_numeric_semantic_columns(
             dataset,
             &headers,
             data_start_row_index,
-            if curve_type == "pv" { is_current_like_header } else { is_capacitance_like_header },
+            if curve_type == "pv" {
+                is_current_like_header
+            } else {
+                is_capacitance_like_header
+            },
         );
         let (x_col, y_col) = choose_best_semantic_pair(&x_candidates, &y_candidates);
         if let (Some(x_col), Some(y_col)) = (x_col, y_col) {
             let y_cols = if curve_type == "cv" || curve_type == "cf" {
-                y_candidates.into_iter().filter(|col| *col >= x_col).collect::<Vec<_>>()
+                y_candidates
+                    .into_iter()
+                    .filter(|col| *col >= x_col)
+                    .collect::<Vec<_>>()
             } else {
                 vec![y_col]
             };
-            let y_cols = if y_cols.is_empty() { vec![y_col] } else { y_cols };
-            return Ok(with_auto_curve_type(auto_config_json(
-                headers.get(x_col).cloned().unwrap_or_else(|| "X".to_string()),
-                headers.get(*y_cols.last().unwrap_or(&y_col)).cloned().unwrap_or_else(|| "Y".to_string()),
-                data_start_row_index,
-                x_col,
-                y_cols.clone(),
-                None,
-                Some(1),
-                if curve_type == "cf" { "Hz" } else { "V" },
-                if curve_type == "pv" { "A" } else { "F" },
-                String::new(),
-                if y_cols.len() > 1 { Some((header_row_index, y_cols[0])) } else { None },
-                None,
-                if y_cols.len() > 1 { Some(y_cols.len()) } else { None },
-                if y_cols.len() > 1 { Some(1.0) } else { None },
-                if y_cols.len() > 1 { "yColumn" } else { "auto" },
-            ), &curve_type));
+            let y_cols = if y_cols.is_empty() {
+                vec![y_col]
+            } else {
+                y_cols
+            };
+            return Ok(with_auto_curve_type(
+                auto_config_json(
+                    headers
+                        .get(x_col)
+                        .cloned()
+                        .unwrap_or_else(|| "X".to_string()),
+                    headers
+                        .get(*y_cols.last().unwrap_or(&y_col))
+                        .cloned()
+                        .unwrap_or_else(|| "Y".to_string()),
+                    data_start_row_index,
+                    x_col,
+                    y_cols.clone(),
+                    None,
+                    Some(1),
+                    if curve_type == "cf" { "Hz" } else { "V" },
+                    if curve_type == "pv" { "A" } else { "F" },
+                    String::new(),
+                    if y_cols.len() > 1 {
+                        Some((header_row_index, y_cols[0]))
+                    } else {
+                        None
+                    },
+                    None,
+                    if y_cols.len() > 1 {
+                        Some(y_cols.len())
+                    } else {
+                        None
+                    },
+                    if y_cols.len() > 1 { Some(1.0) } else { None },
+                    if y_cols.len() > 1 { "yColumn" } else { "auto" },
+                ),
+                &curve_type,
+            ));
         }
     }
 
@@ -1518,7 +1183,10 @@ fn infer_auto_worker_config(dataset: &EngineDataset) -> Result<Value, String> {
         }
     }
     let x_col = x_candidates.first().copied().ok_or_else(|| {
-        format!("{}: unable to locate auto extraction columns.", dataset.file_name)
+        format!(
+            "{}: unable to locate auto extraction columns.",
+            dataset.file_name
+        )
     })?;
     let y_candidates = headers
         .iter()
@@ -1547,53 +1215,131 @@ fn infer_auto_worker_config(dataset: &EngineDataset) -> Result<Value, String> {
             .unwrap_or_default()
     };
     if y_cols.is_empty() {
-        return Err(format!("{}: unable to locate auto extraction columns.", dataset.file_name));
+        return Err(format!(
+            "{}: unable to locate auto extraction columns.",
+            dataset.file_name
+        ));
     }
-    let point_col = headers.iter().position(|entry| clean_cell_text(entry) == "Point");
-    let var2_col = headers.iter().position(|entry| clean_cell_text(entry) == "VAR2");
-    let (group_size, groups) = resolve_auto_group_shape_full(dataset, data_start_row_index, x_col, point_col, var2_col);
-    let bias_role = if x_axis_role == Some("vg") { "vd" } else { "vg" };
-    let legend_col = headers.iter().enumerate().find(|(index, header)| {
-        *index != x_col
-            && detect_axis_role_text(header) == Some(bias_role)
-            && column_has_numeric_rows(dataset, data_start_row_index, *index, 2)
-    }).map(|(index, _)| index);
-    let generated = if legend_col.is_none() && detect_axis_role_text(&metadata.var2_name) == Some(bias_role) {
-        parse_var_sweep_from_notes(&metadata.notes_text, "VAR2").or_else(|| parse_secondary_sweep_from_rows(dataset))
+    let point_col = headers
+        .iter()
+        .position(|entry| clean_cell_text(entry) == "Point");
+    let var2_col = headers
+        .iter()
+        .position(|entry| clean_cell_text(entry) == "VAR2");
+    let (group_size, groups) =
+        resolve_auto_group_shape_full(dataset, data_start_row_index, x_col, point_col, var2_col);
+    let bias_role = if x_axis_role == Some("vg") {
+        "vd"
     } else {
-        None
+        "vg"
     };
+    let legend_col = headers
+        .iter()
+        .enumerate()
+        .find(|(index, header)| {
+            *index != x_col
+                && detect_axis_role_text(header) == Some(bias_role)
+                && column_has_numeric_rows(dataset, data_start_row_index, *index, 2)
+        })
+        .map(|(index, _)| index);
+    let generated =
+        if legend_col.is_none() && detect_axis_role_text(&metadata.var2_name) == Some(bias_role) {
+            parse_var_sweep_from_notes(&metadata.notes_text, "VAR2")
+                .or_else(|| parse_secondary_sweep_from_rows(dataset))
+        } else {
+            None
+        };
     let grouped = group_size.is_some()
         && groups.unwrap_or(1) > 1
         && (legend_col.is_some() || generated.as_ref().and_then(|value| value.0).is_some());
     let single_generated = !grouped && generated.as_ref().and_then(|value| value.0) == Some(1);
-    let generated_start = generated.as_ref().and_then(|value| value.1).map(format_compact_number);
+    let generated_start = generated
+        .as_ref()
+        .and_then(|value| value.1)
+        .map(format_compact_number);
     let generated_count = generated.as_ref().and_then(|value| value.0);
     let generated_step = generated.as_ref().and_then(|value| value.2);
 
-    Ok(with_auto_curve_type(auto_config_json(
-        if x_axis_role == Some("vg") { "Vg".to_string() } else if x_axis_role == Some("vd") { "Vd".to_string() } else { headers.get(x_col).cloned().unwrap_or_else(|| "X".to_string()) },
-        if headers.get(y_cols[0]).map(|value| current_header_looks_like_drain_current(value)).unwrap_or(false) { "Id".to_string() } else { headers.get(y_cols[0]).cloned().unwrap_or_else(|| "Y".to_string()) },
-        data_start_row_index,
-        x_col,
-        y_cols.clone(),
-        group_size,
-        groups,
-        "V",
-        "A",
-        if y_cols.len() > 1 {
-            String::new()
-        } else if bias_role == "vd" {
-            "Vd".to_string()
-        } else {
-            "Vg".to_string()
-        },
-        if grouped { legend_col.map(|col| (data_start_row_index, col)) } else if y_cols.len() > 1 { Some((header_row_index, y_cols[0])) } else { None },
-        if grouped && legend_col.is_none() { generated_start.clone() } else if single_generated { generated_start } else { None },
-        if y_cols.len() > 1 { Some(y_cols.len()) } else if grouped && legend_col.is_none() { generated_count } else if single_generated { Some(1) } else { None },
-        if y_cols.len() > 1 { Some(1.0) } else if grouped && legend_col.is_none() { generated_step } else { None },
-        if y_cols.len() > 1 { "yColumn" } else if grouped { "group" } else if single_generated { "yColumn" } else { "auto" },
-    ), &curve_type))
+    Ok(with_auto_curve_type(
+        auto_config_json(
+            if x_axis_role == Some("vg") {
+                "Vg".to_string()
+            } else if x_axis_role == Some("vd") {
+                "Vd".to_string()
+            } else {
+                headers
+                    .get(x_col)
+                    .cloned()
+                    .unwrap_or_else(|| "X".to_string())
+            },
+            if headers
+                .get(y_cols[0])
+                .map(|value| current_header_looks_like_drain_current(value))
+                .unwrap_or(false)
+            {
+                "Id".to_string()
+            } else {
+                headers
+                    .get(y_cols[0])
+                    .cloned()
+                    .unwrap_or_else(|| "Y".to_string())
+            },
+            data_start_row_index,
+            x_col,
+            y_cols.clone(),
+            group_size,
+            groups,
+            "V",
+            "A",
+            if y_cols.len() > 1 {
+                String::new()
+            } else if bias_role == "vd" {
+                "Vd".to_string()
+            } else {
+                "Vg".to_string()
+            },
+            if grouped {
+                legend_col.map(|col| (data_start_row_index, col))
+            } else if y_cols.len() > 1 {
+                Some((header_row_index, y_cols[0]))
+            } else {
+                None
+            },
+            if grouped && legend_col.is_none() {
+                generated_start.clone()
+            } else if single_generated {
+                generated_start
+            } else {
+                None
+            },
+            if y_cols.len() > 1 {
+                Some(y_cols.len())
+            } else if grouped && legend_col.is_none() {
+                generated_count
+            } else if single_generated {
+                Some(1)
+            } else {
+                None
+            },
+            if y_cols.len() > 1 {
+                Some(1.0)
+            } else if grouped && legend_col.is_none() {
+                generated_step
+            } else {
+                None
+            },
+            if y_cols.len() > 1 {
+                "yColumn"
+            } else if grouped {
+                "group"
+            } else if single_generated {
+                "yColumn"
+            } else {
+                "auto"
+            },
+        ),
+        &curve_type,
+    ))
 }
 
 fn build_uniform_sample_indices(length: usize, target: usize) -> Option<Vec<usize>> {
@@ -1632,248 +1378,6 @@ fn detect_axis_role(text: &str) -> (Option<&'static str>, &'static str) {
         return (Some("vd"), "label");
     }
     (None, "metadata")
-}
-
-fn trim_compact_exponent(text: String) -> String {
-    text.replace("e+0", "e+")
-        .replace("e-0", "e-")
-        .replace("E+0", "e+")
-        .replace("E-0", "e-")
-}
-
-fn trim_trailing_zeros(mut text: String) -> String {
-    if let Some(dot_index) = text.find('.') {
-        while text.ends_with('0') {
-            text.pop();
-        }
-        if text.len() == dot_index + 1 {
-            text.pop();
-        }
-    }
-    trim_compact_exponent(text)
-}
-
-fn format_compact_numeric_label(value: f64) -> Option<String> {
-    if !value.is_finite() {
-        return None;
-    }
-    let normalized = value;
-    if normalized.abs() < 1e-12 {
-        return Some("0".to_string());
-    }
-    let rounded = normalized.round();
-    let tolerance = 1e-12_f64.max(normalized.abs() * 1e-9);
-    if (normalized - rounded).abs() <= tolerance {
-        return Some(format!("{}", rounded as i64));
-    }
-    let abs = normalized.abs();
-    if (1e-3..1e4).contains(&abs) {
-        return Some(trim_trailing_zeros(format!("{:.6}", normalized)));
-    }
-    Some(trim_compact_exponent(format!("{:.3e}", normalized)))
-}
-
-fn format_legend_value(raw: Option<&String>) -> Option<String> {
-    let text = raw?.trim();
-    if text.is_empty() {
-        return None;
-    }
-    match text.parse::<f64>() {
-        Ok(value) if value.is_finite() => format_compact_numeric_label(value),
-        _ => Some(text.to_string()),
-    }
-}
-
-fn format_generated_legend_value(value: f64) -> Option<String> {
-    if !value.is_finite() {
-        return None;
-    }
-    format_compact_numeric_label(value)
-}
-
-fn normalize_positive_integer(value: Option<&Value>) -> Option<usize> {
-    let value = json_number(value?)?;
-    if value > 0.0 && value.fract().abs() <= f64::EPSILON {
-        Some(value as usize)
-    } else {
-        None
-    }
-}
-
-fn normalize_positive_number(value: Option<&Value>) -> Option<f64> {
-    let value = json_number(value?)?;
-    if value.is_finite() && value > 0.0 {
-        Some(value)
-    } else {
-        None
-    }
-}
-
-fn read_positive_integer_cell(dataset: &EngineDataset, cell: Option<&Value>) -> Option<usize> {
-    let (row, col) = json_cell_ref(cell)?;
-    let value = read_cell_number(dataset, row, col)?;
-    if value > 0.0 && value.fract().abs() <= f64::EPSILON {
-        Some(value as usize)
-    } else {
-        None
-    }
-}
-
-fn read_positive_number_cell(dataset: &EngineDataset, cell: Option<&Value>) -> Option<f64> {
-    let (row, col) = json_cell_ref(cell)?;
-    let value = read_cell_number(dataset, row, col)?;
-    if value.is_finite() && value > 0.0 {
-        Some(value)
-    } else {
-        None
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum LegendMode {
-    YCol,
-    Group,
-}
-
-impl LegendMode {
-    fn as_str(self) -> &'static str {
-        match self {
-            LegendMode::YCol => "yCol",
-            LegendMode::Group => "group",
-        }
-    }
-}
-
-fn resolve_legend_layout(
-    desired_count: Option<usize>,
-    target_raw: &str,
-    y_count: usize,
-    group_count: usize,
-) -> (LegendMode, usize) {
-    let preferred = match target_raw {
-        "yColumn" => Some(LegendMode::YCol),
-        "group" => Some(LegendMode::Group),
-        _ => None,
-    };
-
-    let (mode, count) = if let Some(mode) = preferred {
-        let fallback = if mode == LegendMode::Group {
-            group_count
-        } else {
-            y_count
-        };
-        (mode, desired_count.unwrap_or(fallback))
-    } else if let Some(count) = desired_count.filter(|value| *value > 0) {
-        if count == y_count && count != group_count {
-            (LegendMode::YCol, count)
-        } else if count == group_count && count != y_count {
-            (LegendMode::Group, count)
-        } else if y_count == 1 && group_count > 1 {
-            (LegendMode::Group, count)
-        } else if group_count == 1 && y_count > 1 {
-            (LegendMode::YCol, count)
-        } else if y_count >= group_count {
-            (LegendMode::YCol, count)
-        } else {
-            (LegendMode::Group, count)
-        }
-    } else if group_count == 1 {
-        (LegendMode::YCol, y_count)
-    } else if y_count == 1 {
-        (LegendMode::Group, group_count)
-    } else {
-        (LegendMode::YCol, y_count)
-    };
-
-    let max_count = if mode == LegendMode::Group {
-        group_count
-    } else {
-        y_count
-    };
-    (mode, count.min(max_count))
-}
-
-fn resolve_legend_labels(
-    dataset: &EngineDataset,
-    config: &Value,
-    group_size: usize,
-    groups: usize,
-    y_cols: &[usize],
-) -> (Option<LegendMode>, Option<Vec<Option<String>>>) {
-    let target = json_string(config.get("yLegendTarget"));
-    let count = read_positive_integer_cell(dataset, config.get("yLegendCountCell"))
-        .or_else(|| normalize_positive_integer(config.get("yLegendCount")));
-    let step = read_positive_number_cell(dataset, config.get("yLegendStepCell"))
-        .or_else(|| normalize_positive_number(config.get("yLegendStep")));
-
-    if let Some((start_row, start_col)) = json_cell_ref(config.get("yLegendStartCell")) {
-        let (mode, final_count) = resolve_legend_layout(count, &target, y_cols.len(), groups);
-        if final_count == 0 {
-            return (None, None);
-        }
-        let default_step = if mode == LegendMode::Group {
-            group_size
-        } else {
-            1
-        };
-        let step_value = step.unwrap_or(default_step as f64);
-        let generate_step = if step_value > 0.0 && step_value.fract().abs() > f64::EPSILON {
-            Some(step_value)
-        } else {
-            None
-        };
-        let cell_step = if generate_step.is_some() {
-            default_step
-        } else {
-            step_value.round().max(1.0) as usize
-        };
-        let mut labels = vec![None; final_count];
-        if let Some(generate_step) = generate_step {
-            if let Some(start_value) = read_cell_number(dataset, start_row, start_col) {
-                for (index, label) in labels.iter_mut().enumerate() {
-                    *label =
-                        format_generated_legend_value(start_value + generate_step * index as f64);
-                }
-            }
-        } else if mode == LegendMode::YCol {
-            for (index, label) in labels.iter_mut().enumerate() {
-                *label = format_legend_value(
-                    dataset
-                        .rows
-                        .get(start_row)
-                        .and_then(|row| row.get(start_col + cell_step * index)),
-                );
-            }
-        } else {
-            for (index, label) in labels.iter_mut().enumerate() {
-                *label = format_legend_value(
-                    dataset
-                        .rows
-                        .get(start_row + cell_step * index)
-                        .and_then(|row| row.get(start_col)),
-                );
-            }
-        }
-        return (Some(mode), Some(labels));
-    }
-
-    let start_value_raw = json_string(config.get("yLegendStartValue"));
-    if !start_value_raw.is_empty() {
-        let start_value = start_value_raw.parse::<f64>().ok();
-        let (mode, final_count) = resolve_legend_layout(count, &target, y_cols.len(), groups);
-        let step_value = step.unwrap_or(1.0);
-        if final_count > 0 {
-            if let Some(start_value) = start_value {
-                let mut labels = vec![None; final_count];
-                for (index, label) in labels.iter_mut().enumerate() {
-                    *label = format_generated_legend_value(start_value + step_value * index as f64);
-                }
-                return (Some(mode), Some(labels));
-            }
-        }
-    }
-
-    (None, None)
 }
 
 fn process_engine_file(
@@ -2134,8 +1638,9 @@ fn process_engine_file(
                 dataset.file_name
             ));
         }
-        let separators =
-            normalize_file_name_field_separators(&json_string(config.get("fileNameFieldSeparators")));
+        let separators = normalize_file_name_field_separators(&json_string(
+            config.get("fileNameFieldSeparators"),
+        ));
         let matched_vg = match_file_name_against_pattern_tokens(
             &dataset.file_name,
             &file_name_vg_keywords,
@@ -2272,8 +1777,11 @@ fn handle_engine_request(
                             .to_string()
                     });
                     let dataset = load_engine_dataset(&path, &file_name)?;
-                    let result =
-                        dataset_preview_result(file_id, &dataset, request.seed_rows.unwrap_or(400));
+                    let result = engine_dataset::preview_result(
+                        file_id,
+                        &dataset,
+                        request.seed_rows.unwrap_or(400),
+                    );
                     cache.insert(file_id.to_string(), dataset);
                     Ok(result)
                 }
@@ -2299,6 +1807,61 @@ fn handle_engine_request(
                 "fileId": file_id,
                 "startRow": start,
                 "rows": dataset.rows[start..end].iter().collect::<Vec<_>>(),
+            }))
+        }
+        "previewMeta" => {
+            let file_id = request
+                .file_id
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+                .ok_or_else(|| "missing fileId".to_string())?;
+            let dataset = cache
+                .get(file_id)
+                .ok_or_else(|| "file is not open in engine".to_string())?;
+            Ok(dataset.preview_meta_result(file_id))
+        }
+        "readCell" => {
+            let file_id = request
+                .file_id
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+                .ok_or_else(|| "missing fileId".to_string())?;
+            let row_index = request
+                .row_index
+                .ok_or_else(|| "missing rowIndex".to_string())?;
+            let col_index = request
+                .col_index
+                .ok_or_else(|| "missing colIndex".to_string())?;
+            let dataset = cache
+                .get(file_id)
+                .ok_or_else(|| "file is not open in engine".to_string())?;
+            let mut result = dataset.cell_result(row_index, col_index)?;
+            if let Some(object) = result.as_object_mut() {
+                object.insert("fileId".to_string(), json!(file_id));
+            }
+            Ok(result)
+        }
+        "readCells" => {
+            let file_id = request
+                .file_id
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+                .ok_or_else(|| "missing fileId".to_string())?;
+            let cells = request
+                .cells
+                .as_ref()
+                .filter(|cells| !cells.is_empty())
+                .ok_or_else(|| "missing cells".to_string())?;
+            let dataset = cache
+                .get(file_id)
+                .ok_or_else(|| "file is not open in engine".to_string())?;
+            let mut results = Vec::<Value>::with_capacity(cells.len());
+            for cell in cells {
+                results.push(dataset.cell_result(cell.row_index, cell.col_index)?);
+            }
+            Ok(json!({
+                "fileId": file_id,
+                "cells": results,
             }))
         }
         "processFile" => {
