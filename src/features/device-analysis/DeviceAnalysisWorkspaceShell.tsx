@@ -21,7 +21,7 @@ export const DesktopCommandBarShell = ({
         aria-hidden="true"
         className="da_top_menu_brand_icon"
       />
-      <span>conductor</span>
+      <span>Conductor</span>
     </div>
 
     <div className="da_window_controls ml-4">

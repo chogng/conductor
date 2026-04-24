@@ -1696,9 +1696,15 @@ const TemplateManager = ({
       {
         label: t("da_new_template"),
         value: TEMPLATE_CREATE_OPTION_VALUE,
-        icon: Plus,
         tone: "accent" as const,
         onSelect: handleCreateNewTemplate,
+        secondaryAction: {
+          ariaLabel: t("da_new_template"),
+          title: t("da_new_template"),
+          icon: Plus,
+          visible: "hover" as const,
+          onClick: () => handleCreateNewTemplate(),
+        },
       },
       ...(templatesLoading
         ? [
@@ -2399,6 +2405,7 @@ const TemplateManager = ({
                   <Tabs
                     value={templateMode}
                     onChange={handleTemplateModeChange}
+                    size="sm"
                     controlsPanels
                     idBase="device-analysis-template-mode"
                     groupLabel={t("da_template_mode")}

@@ -13,6 +13,9 @@ import {
 import { cx } from "../../utils/cx";
 
 const MIN_THUMB_SIZE = 24;
+const WHEEL_LINE_DELTA_PX = 40;
+const HORIZONTAL_WHEEL_SMOOTHING = 0.24;
+const HORIZONTAL_WHEEL_STOP_THRESHOLD_PX = 0.5;
 
 type ScrollAxis = "x" | "y" | "both";
 
@@ -41,6 +44,56 @@ type DragState = {
   thumbSize: number;
 };
 
+type WheelClassifierItem = {
+  deltaX: number;
+  deltaY: number;
+  score: number;
+};
+
+class WheelClassifier {
+  private readonly capacity = 5;
+  private readonly memory: WheelClassifierItem[] = [];
+
+  accept(deltaX: number, deltaY: number): void {
+    const item: WheelClassifierItem = {
+      deltaX,
+      deltaY,
+      score: this.computeScore(deltaX, deltaY),
+    };
+    this.memory.push(item);
+    if (this.memory.length > this.capacity) {
+      this.memory.shift();
+    }
+  }
+
+  isPhysicalWheel(): boolean {
+    if (!this.memory.length) return false;
+
+    let remainingInfluence = 1;
+    let score = 0;
+    for (let index = this.memory.length - 1; index >= 0; index -= 1) {
+      const influence =
+        index === 0 ? remainingInfluence : Math.pow(2, index - this.memory.length);
+      remainingInfluence -= influence;
+      score += this.memory[index].score * influence;
+    }
+    return score <= 0.5;
+  }
+
+  private computeScore(deltaX: number, deltaY: number): number {
+    if (Math.abs(deltaX) > 0 && Math.abs(deltaY) > 0) return 1;
+    let score = 0.5;
+    if (!this.isAlmostInteger(deltaX) || !this.isAlmostInteger(deltaY)) {
+      score += 0.25;
+    }
+    return Math.min(Math.max(score, 0), 1);
+  }
+
+  private isAlmostInteger(value: number): boolean {
+    return Math.abs(Math.round(value) - value) < 0.01;
+  }
+}
+
 const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(
   (
     {
@@ -59,7 +112,10 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(
     const dragRef = useRef<DragState | null>(null);
     const metricsRafRef = useRef<number | null>(null);
     const thumbOffsetsRafRef = useRef<number | null>(null);
+    const horizontalWheelRafRef = useRef<number | null>(null);
     const thumbOffsetRef = useRef({ x: 0, y: 0 });
+    const horizontalWheelTargetRef = useRef(0);
+    const wheelClassifierRef = useRef(new WheelClassifier());
     const metricsRef = useRef<ScrollMetrics>({
       showY: false,
       showX: false,
@@ -134,6 +190,66 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(
         }
       }
     }, []);
+
+    const normalizeWheelDelta = useCallback(
+      (event: WheelEvent, delta: number) => {
+        if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+          return delta * WHEEL_LINE_DELTA_PX;
+        }
+        if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+          return delta * Math.max(1, viewportRef.current?.clientWidth ?? 1);
+        }
+        return delta;
+      },
+      [],
+    );
+
+    const cancelHorizontalWheelAnimation = useCallback(() => {
+      if (horizontalWheelRafRef.current == null) return;
+      cancelAnimationFrame(horizontalWheelRafRef.current);
+      horizontalWheelRafRef.current = null;
+    }, []);
+
+    const scrollHorizontalNow = useCallback((scrollLeft: number) => {
+      const viewport = viewportRef.current;
+      if (!viewport) return;
+      cancelHorizontalWheelAnimation();
+      horizontalWheelTargetRef.current = scrollLeft;
+      viewport.scrollLeft = scrollLeft;
+    }, [cancelHorizontalWheelAnimation]);
+
+    const scrollHorizontalSmooth = useCallback(
+      (targetScrollLeft: number) => {
+        const viewport = viewportRef.current;
+        if (!viewport) return;
+
+        horizontalWheelTargetRef.current = targetScrollLeft;
+        if (horizontalWheelRafRef.current != null) return;
+
+        const tick = () => {
+          const nextViewport = viewportRef.current;
+          if (!nextViewport) {
+            horizontalWheelRafRef.current = null;
+            return;
+          }
+
+          const target = horizontalWheelTargetRef.current;
+          const delta = target - nextViewport.scrollLeft;
+          if (Math.abs(delta) <= HORIZONTAL_WHEEL_STOP_THRESHOLD_PX) {
+            nextViewport.scrollLeft = target;
+            horizontalWheelRafRef.current = null;
+            return;
+          }
+
+          nextViewport.scrollLeft =
+            nextViewport.scrollLeft + delta * HORIZONTAL_WHEEL_SMOOTHING;
+          horizontalWheelRafRef.current = requestAnimationFrame(tick);
+        };
+
+        horizontalWheelRafRef.current = requestAnimationFrame(tick);
+      },
+      [],
+    );
 
     const updateMetrics = useCallback(() => {
       const viewport = viewportRef.current;
@@ -231,7 +347,52 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(
         scheduleThumbOffsetsUpdate();
         viewportScrollHandlerRef.current?.(event);
       };
+
+      const onWheel = (event: WheelEvent) => {
+        if (event.defaultPrevented || axis !== "x") return;
+
+        const maxScrollLeft = Math.max(
+          0,
+          viewport.scrollWidth - viewport.clientWidth,
+        );
+        if (maxScrollLeft <= 0) return;
+
+        let deltaY = normalizeWheelDelta(event, event.deltaY);
+        let deltaX = normalizeWheelDelta(event, event.deltaX);
+        wheelClassifierRef.current.accept(deltaX, deltaY);
+
+        if (Math.abs(deltaY) >= Math.abs(deltaX)) {
+          deltaX = 0;
+        } else {
+          deltaY = 0;
+        }
+
+        if (!deltaX) {
+          deltaX = deltaY;
+        }
+        if (Math.abs(deltaX) < 0.5) return;
+
+        const currentOrTargetScrollLeft =
+          horizontalWheelRafRef.current == null
+            ? viewport.scrollLeft
+            : horizontalWheelTargetRef.current;
+        const nextScrollLeft = Math.max(
+          0,
+          Math.min(maxScrollLeft, currentOrTargetScrollLeft + deltaX),
+        );
+        if (Math.abs(nextScrollLeft - viewport.scrollLeft) < 0.5) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        if (wheelClassifierRef.current.isPhysicalWheel()) {
+          scrollHorizontalSmooth(nextScrollLeft);
+        } else {
+          scrollHorizontalNow(nextScrollLeft);
+        }
+      };
+
       viewport.addEventListener("scroll", onScroll, { passive: true });
+      viewport.addEventListener("wheel", onWheel, { passive: false });
 
       const ro = new ResizeObserver(() => scheduleMetricsUpdate());
       ro.observe(viewport);
@@ -249,6 +410,7 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(
       window.addEventListener("resize", scheduleMetricsUpdate);
       return () => {
         viewport.removeEventListener("scroll", onScroll);
+        viewport.removeEventListener("wheel", onWheel);
         ro.disconnect();
         mo.disconnect();
         window.removeEventListener("resize", scheduleMetricsUpdate);
@@ -260,8 +422,17 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(
           cancelAnimationFrame(thumbOffsetsRafRef.current);
           thumbOffsetsRafRef.current = null;
         }
+        cancelHorizontalWheelAnimation();
       };
-    }, [scheduleMetricsUpdate, scheduleThumbOffsetsUpdate]);
+    }, [
+      axis,
+      cancelHorizontalWheelAnimation,
+      normalizeWheelDelta,
+      scheduleMetricsUpdate,
+      scheduleThumbOffsetsUpdate,
+      scrollHorizontalNow,
+      scrollHorizontalSmooth,
+    ]);
 
     useEffect(() => {
       const onMouseMove = (event: MouseEvent) => {
@@ -284,8 +455,9 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(
             1,
             viewport.scrollWidth - viewport.clientWidth,
           );
-          viewport.scrollLeft =
-            drag.startScroll + (delta * scrollRange) / trackRange;
+          scrollHorizontalNow(
+            drag.startScroll + (delta * scrollRange) / trackRange,
+          );
         }
       };
 
@@ -299,7 +471,7 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(
         window.removeEventListener("mousemove", onMouseMove);
         window.removeEventListener("mouseup", onMouseUp);
       };
-    }, []);
+    }, [scrollHorizontalNow]);
 
     const startDrag = (
       dragAxis: "x" | "y",
@@ -308,6 +480,7 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(
       const viewport = viewportRef.current;
       if (!viewport) return;
       event.preventDefault();
+      cancelHorizontalWheelAnimation();
 
       dragRef.current =
         dragAxis === "y"
@@ -352,8 +525,9 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(
           0,
           Math.min(1, (clickOffset - xThumbSize / 2) / maxThumbTravel),
         );
-        viewport.scrollLeft =
-          ratio * Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+        scrollHorizontalNow(
+          ratio * Math.max(0, viewport.scrollWidth - viewport.clientWidth),
+        );
       }
     };
 

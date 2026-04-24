@@ -79,7 +79,7 @@
     da_import: 'Data Import',
     da_import_csv: 'Import Files',
     da_import_section: 'Import Files',
-    da_menu_app: 'conductor',
+    da_menu_app: 'Conductor',
     da_open_in_origin: 'Open in Origin',
     da_export_origin_zip: 'Export ZIP package',
     da_origin_export_mode_label: 'Export mode',

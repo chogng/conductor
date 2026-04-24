@@ -179,6 +179,7 @@ const OverviewGrid = memo(function OverviewGrid({
             <DropdownField
               id="device-analysis-overview-curve-filter-btn"
               menuId="device-analysis-overview-curve-filter-menu"
+              size="sm"
               value={curveFilter}
               onChange={(next) => {
                 const nextValue = String(next ?? "").trim();

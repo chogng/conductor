@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell, Tray } from "electron";
 import { createBootSplashWindow } from "./boot-splash.js";
 import { createDeviceAnalysisStore } from "./device-analysis-store.js";
 import {
@@ -44,6 +44,7 @@ const BOOT_WINDOW_SETTLE_MS = 80;
 const BOOT_UI_READY_FALLBACK_MS = 3500;
 let mainWindow = null;
 let splashWindow = null;
+let appTray = null;
 let mainWindowBootExpansionPromise = null;
 let mainWindowBootShown = false;
 let startupGatePromise = null;
@@ -51,6 +52,8 @@ let autoUpdateTimer = null;
 let autoUpdateConfiguredFeedUrl = null;
 let isAutoUpdateConfigured = false;
 let isUpdateDownloadedPromptVisible = false;
+let isAppQuitting = false;
+let hasShownTrayHint = false;
 const desktopProcessStartMs = Date.now();
 
 function logDesktopBoot(stage, extra = "") {
@@ -101,6 +104,24 @@ function resolveDesktopWindowIconPath() {
     : [path.join(__dirname, "..", "build", "icons", iconFileName)];
 
   return resolveFirstExistingPath(candidates) ?? undefined;
+}
+
+function resolveTrayIconPath() {
+  const iconFileName =
+    process.platform === "win32"
+      ? "icon.ico"
+      : process.platform === "darwin"
+        ? "icon.icns"
+        : "icon.png";
+
+  const candidates = app.isPackaged
+    ? [
+        path.join(getResourcesPath(), "build", "icons", iconFileName),
+        path.join(getResourcesPath(), "app.asar.unpacked", "build", "icons", iconFileName),
+      ]
+    : [path.join(__dirname, "..", "build", "icons", iconFileName)];
+
+  return resolveFirstExistingPath(candidates) ?? resolveDesktopWindowIconPath();
 }
 
 function prepareStartupGate() {
@@ -1012,7 +1033,7 @@ async function promptInstallDownloadedUpdate(updateInfo) {
     const windowForDialog = getAutoUpdateDialogWindow();
     const result = await dialog.showMessageBox(windowForDialog || undefined, {
       type: "info",
-      title: "conductor",
+      title: "Conductor",
       message: "An update has been downloaded.",
       detail: `Version ${updateInfo?.version || "unknown"} is ready to install.`,
       buttons: ["Restart and Install", "Later"],
@@ -1039,7 +1060,7 @@ async function checkForAutoUpdates({ manual = false } = {}) {
       const windowForDialog = getAutoUpdateDialogWindow();
       await dialog.showMessageBox(windowForDialog || undefined, {
         type: "info",
-        title: "conductor",
+        title: "Conductor",
         message: "Auto update is not enabled in this build.",
         buttons: ["OK"],
         defaultId: 0,
@@ -1055,7 +1076,7 @@ async function checkForAutoUpdates({ manual = false } = {}) {
       const windowForDialog = getAutoUpdateDialogWindow();
       await dialog.showMessageBox(windowForDialog || undefined, {
         type: "info",
-        title: "conductor",
+        title: "Conductor",
         message: "You are already using the latest version.",
         buttons: ["OK"],
         defaultId: 0,
@@ -1071,7 +1092,7 @@ async function checkForAutoUpdates({ manual = false } = {}) {
       const windowForDialog = getAutoUpdateDialogWindow();
       await dialog.showMessageBox(windowForDialog || undefined, {
         type: "error",
-        title: "conductor",
+        title: "Conductor",
         message: "Update check failed.",
         detail: message,
         buttons: ["OK"],
@@ -1174,6 +1195,121 @@ function createSplashWindow() {
   return win;
 }
 
+async function revealMainWindow(win) {
+  if (!win || win.isDestroyed()) return;
+
+  if (win.isMinimized()) {
+    win.restore();
+  }
+
+  if (!mainWindowBootShown) {
+    await showMainWindowAfterBoot(win);
+    return;
+  }
+
+  if (!win.isVisible()) {
+    win.show();
+  }
+
+  win.focus();
+}
+
+function showTrayHint() {
+  if (!isWindows || !appTray || hasShownTrayHint) return;
+  if (typeof appTray.displayBalloon !== "function") return;
+
+  hasShownTrayHint = true;
+  appTray.displayBalloon({
+    title: "Conductor",
+    content: "应用仍在后台运行，可从系统托盘恢复或退出。",
+    noSound: true,
+  });
+}
+
+function hideMainWindowToTray(win) {
+  if (!win || win.isDestroyed()) return;
+  win.hide();
+  showTrayHint();
+}
+
+function updateTrayMenu() {
+  if (!appTray) return;
+
+  const hasVisibleWindow = Boolean(
+    mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible(),
+  );
+
+  appTray.setContextMenu(
+    Menu.buildFromTemplate([
+      {
+        label: hasVisibleWindow ? "隐藏窗口" : "显示窗口",
+        click: () => {
+          if (hasVisibleWindow) {
+            hideMainWindowToTray(mainWindow);
+            return;
+          }
+          void ensureMainWindowVisible();
+        },
+      },
+      {
+        label: "检查更新",
+        click: () => {
+          void checkForAutoUpdates({ manual: true });
+        },
+      },
+      { type: "separator" },
+      {
+        label: "退出",
+        click: () => {
+          isAppQuitting = true;
+          app.quit();
+        },
+      },
+    ]),
+  );
+}
+
+function createAppTray() {
+  if (appTray) {
+    updateTrayMenu();
+    return appTray;
+  }
+
+  const trayIconPath = resolveTrayIconPath();
+  if (!trayIconPath) {
+    console.warn("[tray] Tray icon is unavailable.");
+    return null;
+  }
+
+  appTray = new Tray(trayIconPath);
+  appTray.setToolTip("Conductor");
+  appTray.on("click", () => {
+    void ensureMainWindowVisible();
+  });
+  appTray.on("double-click", () => {
+    void ensureMainWindowVisible();
+  });
+  updateTrayMenu();
+  return appTray;
+}
+
+async function ensureMainWindowVisible() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    await revealMainWindow(mainWindow);
+    updateTrayMenu();
+    return mainWindow;
+  }
+
+  if (!splashWindow || splashWindow.isDestroyed()) {
+    createSplashWindow();
+  }
+
+  const win = createMainWindow();
+  await revealMainWindow(win);
+  updateTrayMenu();
+  return win;
+}
+
 function createMainWindow() {
   logDesktopBoot("create-window:start");
   const windowIcon = resolveDesktopWindowIconPath();
@@ -1217,6 +1353,26 @@ function createMainWindow() {
   });
 
   mainWindow = win;
+  win.on("close", (event) => {
+    if (isAppQuitting) return;
+    if (process.platform === "darwin") return;
+
+    event.preventDefault();
+    hideMainWindowToTray(win);
+    updateTrayMenu();
+  });
+  win.on("show", () => {
+    updateTrayMenu();
+  });
+  win.on("hide", () => {
+    updateTrayMenu();
+  });
+  win.on("minimize", () => {
+    updateTrayMenu();
+  });
+  win.on("restore", () => {
+    updateTrayMenu();
+  });
   win.on("closed", () => {
     if (mainWindow === win) {
       mainWindow = null;
@@ -1370,6 +1526,7 @@ function handleDesktopCommand(event, payload) {
 
   if (command === "minimize-window") {
     win.minimize();
+    updateTrayMenu();
     return;
   }
 
@@ -1388,7 +1545,8 @@ function handleDesktopCommand(event, payload) {
   }
 
   if (command === "close-window") {
-    win.close();
+    hideMainWindowToTray(win);
+    updateTrayMenu();
   }
 }
 
@@ -1401,6 +1559,7 @@ app.whenReady().then(() => {
     Menu.setApplicationMenu(null);
   }
   configureRuntimeCachePath();
+  createAppTray();
 
   ipcMain.on("desktop-command", handleDesktopCommand);
   ipcMain.on(ipcChannels.desktopBootSettingsGet, handleDesktopBootSettingsGet);
@@ -1431,21 +1590,25 @@ app.whenReady().then(() => {
   });
 
   app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createSplashWindow();
-      createMainWindow();
-    }
+    void ensureMainWindowVisible();
   });
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
+  if (process.platform === "darwin") return;
+  if (appTray && !isAppQuitting) return;
+  app.quit();
 });
 
 app.on("will-quit", () => {
+  isAppQuitting = true;
   stopAutoUpdatePolling();
   isAutoUpdateConfigured = false;
   autoUpdateConfiguredFeedUrl = null;
+  if (appTray) {
+    appTray.destroy();
+    appTray = null;
+  }
   ipcMain.removeListener("desktop-command", handleDesktopCommand);
   ipcMain.removeListener(ipcChannels.desktopBootSettingsGet, handleDesktopBootSettingsGet);
   ipcMain.removeHandler(ipcChannels.desktopBootUiReady);

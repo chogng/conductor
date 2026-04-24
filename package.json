@@ -60,7 +60,7 @@
   },
   "build": {
     "appId": "com.conductor.desktop",
-    "productName": "conductor",
+    "productName": "Conductor",
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "compression": "maximum",
     "electronLanguages": [
@@ -105,7 +105,7 @@
     },
     "win": {
       "icon": "build/icons/icon.ico",
-      "artifactName": "conductor-${version}-windows-${arch}-portable.${ext}",
+      "artifactName": "Conductor-${version}-windows-${arch}-portable.${ext}",
       "target": [
         "nsis",
         "zip",
@@ -113,7 +113,7 @@
       ]
     },
     "nsis": {
-      "artifactName": "conductor-${version}-windows-${arch}-setup.${ext}"
+      "artifactName": "Conductor-${version}-windows-${arch}-setup.${ext}"
     },
     "linux": {
       "icon": "build/icons/icon.png",

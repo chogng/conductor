@@ -79,7 +79,7 @@
     da_import: '数据导入',
     da_import_csv: '导入文件',
     da_import_section: '导入文件',
-    da_menu_app: 'conductor',
+    da_menu_app: 'Conductor',
     da_open_in_origin: '在 Origin 中打开',
     da_export_origin_zip: '导出 ZIP 包',
     da_origin_export_mode_label: '导出方式',
