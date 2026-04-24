@@ -333,6 +333,43 @@ test("infers a cf two-column layout into an executable auto extraction plan", ()
   assert.equal(result.plan.yUnit, "F");
 });
 
+test("infers shared-X adjacent XY capacitance pairs without treating X columns as Y series", () => {
+  const rows = [
+    [
+      "c(g:g)(CV_n256_ac_des) X",
+      "c(g:g)(CV_n256_ac_des) Y",
+      "c(g:g)(CV_n350_ac_des) X",
+      "c(g:g)(CV_n350_ac_des) Y",
+      "c(g:g)(CV_n356_ac_des) X",
+      "c(g:g)(CV_n356_ac_des) Y",
+      "c(g:g)(CV_n362_ac_des) X",
+      "c(g:g)(CV_n362_ac_des) Y",
+      "c(g:g)(CV_n368_ac_des) X",
+      "c(g:g)(CV_n368_ac_des) Y",
+    ],
+    ["-0.5", "9.8493571e-16", "-0.5", "9.8777813e-16", "-0.5", "9.9085634e-16", "-0.5", "9.9417108e-16", "-0.5", "9.9767852e-16"],
+    ["-0.49", "9.8525372e-16", "-0.49", "9.8812868e-16", "-0.49", "9.9124231e-16", "-0.49", "9.9458988e-16", "-0.49", "9.9812284e-16"],
+    ["-0.48", "9.8557594e-16", "-0.48", "9.8848412e-16", "-0.48", "9.9163325e-16", "-0.48", "9.9501303e-16", "-0.48", "9.9857063e-16"],
+  ];
+
+  const result = inferDeviceAnalysisAutoExtraction({
+    fileName: "300Cgg.csv",
+    rows,
+    totalRowCount: rows.length,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.plan.curveType, "cv");
+  assert.equal(result.plan.xCol, 0);
+  assert.deepEqual(result.plan.yCols, [1, 3, 5, 7, 9]);
+  assert.equal(result.plan.legendTarget, "yColumn");
+  assert.equal(result.plan.legendStartColIndex, 1);
+  assert.equal(result.plan.legendStartRowIndex, 0);
+  assert.equal(result.plan.legendCount, 5);
+  assert.equal(result.plan.leftTitle, "c(g:g)(CV_n368_ac_des) Y");
+  assert.equal(result.plan.yUnit, "F");
+});
+
 test("infers a pv fastiv layout into an executable auto extraction plan", () => {
   const rows = [
     ["{i_v_fastiv_ivt-D150}", "2026-01-15-16-20-41", "", "{i_v_fastiv_ivt-D150}", "2026-01-15-16-20-41", ""],

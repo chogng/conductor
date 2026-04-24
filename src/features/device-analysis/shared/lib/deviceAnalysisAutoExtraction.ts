@@ -711,6 +711,42 @@ const inferSpecializedGenericLayout = ({
   yCols: number[];
   yUnit: string;
 } | null => {
+  const structuredPairCandidates: Array<{ xCol: number; yCol: number }> = [];
+  for (let index = 0; index < headers.length - 1; index += 1) {
+    const leftHeader = normalizeCellText(headers[index]);
+    const rightHeader = normalizeCellText(headers[index + 1]);
+    const leftSuffix = normalizeStructuredAxisSuffix(leftHeader);
+    const rightSuffix = normalizeStructuredAxisSuffix(rightHeader);
+    if (leftSuffix.axis !== "x" || rightSuffix.axis !== "y") continue;
+    if (!leftSuffix.stem || leftSuffix.stem !== rightSuffix.stem) continue;
+    if (!columnHasNumericRows(rows, dataStartRowIndex, index, 2)) continue;
+    if (!columnHasNumericRows(rows, dataStartRowIndex, index + 1, 2)) continue;
+    structuredPairCandidates.push({ xCol: index, yCol: index + 1 });
+  }
+
+  if (structuredPairCandidates.length >= 2) {
+    const sharedX = structuredPairCandidates.every((pair) =>
+      columnsShareEquivalentX({
+        rows,
+        dataStartRowIndex,
+        leftCol: structuredPairCandidates[0]?.xCol ?? pair.xCol,
+        rightCol: pair.xCol,
+      }),
+    );
+    if (sharedX) {
+      return {
+        leftTitle:
+          headers[
+            structuredPairCandidates[structuredPairCandidates.length - 1]?.yCol ?? 1
+          ] || (curveType === "pv" ? "I" : "C"),
+        xCol: structuredPairCandidates[0]?.xCol ?? null,
+        xUnit: curveType === "cf" ? "Hz" : "V",
+        yCols: structuredPairCandidates.map((pair) => pair.yCol),
+        yUnit: curveType === "pv" ? "A" : "F",
+      };
+    }
+  }
+
   if (curveType === "pv") {
     const xCandidates = findNumericSemanticColumns({
       dataStartRowIndex,
