@@ -2713,16 +2713,14 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const metricsRowElements = useMemo(() => metricsRows.map((row: any) => (<CalculatedParametersRow key={row.id} row={row} isPending={Boolean(row?.isPending)} buildCurrentTooltip={buildCurrentTooltip} buildSsTooltip={buildSsTooltip} showTransferMetrics={calculatedParametersMode === "transfer"}/>)), [buildCurrentTooltip, buildSsTooltip, calculatedParametersMode, metricsRows]);
     const diagnosticsContextBadges = useMemo(() => {
         const focusedLabel = String(focusedSeriesLabel ?? "").trim();
-        const isDiagnosticCurveContext = ssDiagnosticsEnabled || gmDiagnosticsEnabled;
-        const curvePrefix = isDiagnosticCurveContext ? "Diagnostic curve" : "Curve";
         return [
-            { text: curvePrefix },
+            { text: "Curve" },
             {
                 color: focusedSeriesColor,
                 text: focusedLabel || "current",
             },
         ];
-    }, [focusedSeriesColor, focusedSeriesLabel, gmDiagnosticsEnabled, ssDiagnosticsEnabled]);
+    }, [focusedSeriesColor, focusedSeriesLabel]);
     const showIonIoffControl = transferMetricsApplicable && effectivePlotType === "iv";
     const showIvDiagnosticsPanel = false;
     const showSsDiagnosticsPanel = effectivePlotType === "ss";
