@@ -1,0 +1,27 @@
+.content-view__portal--open {
+  pointer-events: auto;
+}
+
+.content-view__portal--closed {
+  pointer-events: none;
+}
+
+.content-view__surface {
+  border: 1px solid rgb(var(--border-subtle) / 1);
+  border-radius: 0.75rem;
+  background-color: rgb(var(--bg-surface) / 0.8);
+  padding: 0.25rem;
+  box-shadow:
+    0 20px 25px -5px rgb(0 0 0 / 0.1),
+    0 8px 10px -6px rgb(0 0 0 / 0.1);
+  backdrop-filter: blur(24px);
+  transition: opacity 150ms ease-out;
+}
+
+.content-view__surface--open {
+  opacity: 1;
+}
+
+.content-view__surface--closed {
+  opacity: 0;
+}

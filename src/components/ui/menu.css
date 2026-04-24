@@ -1,0 +1,6 @@
+.ui-menu {
+  background-color: rgb(var(--bg-surface) / 1) !important;
+  color: rgb(var(--text-primary) / 1);
+  padding: 0.375rem;
+  backdrop-filter: none !important;
+}

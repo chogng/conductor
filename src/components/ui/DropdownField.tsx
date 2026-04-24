@@ -10,6 +10,7 @@ import {
   type CSSProperties,
   type ComponentType,
   type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
 import { Check, ChevronDown } from "lucide-react";
@@ -57,11 +58,28 @@ type DropdownFieldIconComponent = ComponentType<{
   className?: string;
 }>;
 
+type DropdownFieldOptionAction = {
+  ariaLabel: string;
+  title?: string;
+  icon: DropdownFieldIconComponent;
+  onClick: (
+    option: DropdownFieldOption,
+    event: ReactMouseEvent<HTMLButtonElement>,
+  ) => void;
+  className?: string;
+  visible?: "always" | "hover";
+};
+
 type DropdownFieldOption = {
   label?: ReactNode;
   value: DropdownFieldValue;
   icon?: DropdownFieldIconComponent;
   group?: string;
+  tone?: "default" | "accent";
+  disabled?: boolean;
+  closeOnSelect?: boolean;
+  onSelect?: (option: DropdownFieldOption) => void;
+  secondaryAction?: DropdownFieldOptionAction;
 };
 
 type IndexedGroup = {
@@ -91,6 +109,10 @@ type DropdownFieldProps = Omit<
   testId?: string;
   stableWidth?: boolean;
   hideChevron?: boolean;
+  loading?: boolean;
+  loadingLabel?: ReactNode;
+  emptyLabel?: ReactNode;
+  onOpenChange?: (nextOpen: boolean) => void;
 };
 
 const isSelectableOption = (opt: unknown): opt is DropdownFieldOption => {
@@ -142,6 +164,10 @@ const DropdownField = ({
   testId,
   stableWidth,
   hideChevron = false,
+  loading = false,
+  loadingLabel,
+  emptyLabel = "No options",
+  onOpenChange,
   ...props
 }: DropdownFieldProps) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -227,6 +253,7 @@ const DropdownField = ({
 
   const openMenu = () => {
     if (disabled) return;
+    if (!isOpen) onOpenChange?.(true);
     setIsOpen(true);
     const selectedIdx = selected
       ? flatOptions.findIndex((opt) => opt.value === selected.value)
@@ -235,30 +262,34 @@ const DropdownField = ({
   };
 
   const closeMenu = () => {
+    if (isOpen) onOpenChange?.(false);
     setIsOpen(false);
     setHighlightedIndex(-1);
   };
 
   const selectOption = (opt: DropdownFieldOption | undefined) => {
-    if (!opt) return;
-    onChange?.(opt.value);
-    closeMenu();
+    if (!opt || opt.disabled) return;
+    if (typeof opt.onSelect === "function") {
+      opt.onSelect(opt);
+    } else {
+      onChange?.(opt.value);
+    }
+    if (opt.closeOnSelect !== false) closeMenu();
   };
 
   const handleTriggerClick = () => {
     if (disabled) return;
-    setIsOpen((prev) => {
-      const next = !prev;
-      if (next) {
-        const selectedIdx = selected
-          ? flatOptions.findIndex((opt) => opt.value === selected.value)
-          : -1;
-        setHighlightedIndex(selectedIdx >= 0 ? selectedIdx : 0);
-      } else {
-        setHighlightedIndex(-1);
-      }
-      return next;
-    });
+    if (isOpen) {
+      closeMenu();
+      return;
+    }
+    openMenu();
+  };
+
+  const handleDropdownOpenChange = (nextOpen: boolean) => {
+    if (isOpen !== nextOpen) onOpenChange?.(nextOpen);
+    setIsOpen(nextOpen);
+    if (!nextOpen) setHighlightedIndex(-1);
   };
 
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
@@ -268,7 +299,8 @@ const DropdownField = ({
       if (
         event.key === "ArrowDown" ||
         event.key === "ArrowUp" ||
-        event.key === "Enter"
+        event.key === "Enter" ||
+        event.key === " "
       ) {
         event.preventDefault();
         openMenu();
@@ -302,7 +334,7 @@ const DropdownField = ({
       return;
     }
 
-    if (event.key === "Enter") {
+    if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       const opt = flatOptions[highlightedIndex];
       if (opt) selectOption(opt);
@@ -500,7 +532,7 @@ const DropdownField = ({
 
       <Dropdown
         isOpen={isOpen}
-        onOpenChange={setIsOpen}
+        onOpenChange={handleDropdownOpenChange}
         anchorRef={containerRef}
       >
         {({ anchorRef, setContentRef }) => (
@@ -528,7 +560,14 @@ const DropdownField = ({
                   }}
                 >
                 <div className="ui-select_list">
-                  {indexedGroups.map(({ group, options: groupOptions }, groupIdx) => (
+                  {loading ? (
+                    <div className="ui-select_empty">
+                      {loadingLabel ?? emptyLabel}
+                    </div>
+                  ) : null}
+
+                  {!loading
+                    ? indexedGroups.map(({ group, options: groupOptions }, groupIdx) => (
                     <div key={group || "default"} role={group ? "group" : undefined}>
                       {group ? (
                         <>
@@ -544,9 +583,12 @@ const DropdownField = ({
                       ) : null}
 
                       {groupOptions.map(({ option, index: currentIndex }) => {
-                        const isHighlighted = highlightedIndex === currentIndex;
+                        const isHighlighted =
+                          !option.disabled && highlightedIndex === currentIndex;
                         const isSelected = value === option.value;
                         const Icon = option.icon;
+                        const action = option.secondaryAction;
+                        const ActionIcon = action?.icon;
 
                         return (
                           <MenuItem
@@ -556,8 +598,18 @@ const DropdownField = ({
                             data-selected={isSelected || undefined}
                             data-value={String(option.value)}
                             onClick={() => selectOption(option)}
-                            onMouseEnter={() => setHighlightedIndex(currentIndex)}
-                            className={cx("ui-select_item", itemSizeClass)}
+                            onMouseEnter={() => {
+                              if (!option.disabled) setHighlightedIndex(currentIndex);
+                            }}
+                            disabled={option.disabled}
+                            className={cx(
+                              "ui-select_item group",
+                              itemSizeClass,
+                              option.disabled
+                                ? "cursor-default italic text-text-secondary"
+                                : "",
+                              option.tone === "accent" ? "text-accent" : "",
+                            )}
                             left={
                               <span className="ui-select_item-left">
                                 {Icon ? (
@@ -571,11 +623,29 @@ const DropdownField = ({
                               </span>
                             }
                             right={
-                              <span
-                                className="ui-select_item-right"
-                                aria-hidden="true"
-                              >
-                                {isSelected ? (
+                              <span className="ui-select_item-right">
+                                {ActionIcon && action ? (
+                                  <button
+                                    type="button"
+                                    aria-label={action.ariaLabel}
+                                    title={action.title}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      action.onClick(option, event);
+                                    }}
+                                    className={cx(
+                                      "inline-flex h-6 w-6 items-center justify-center rounded-md text-text-primary transition-colors hover:text-red-500",
+                                      action.visible === "hover"
+                                        ? "opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus:opacity-100 focus:pointer-events-auto"
+                                        : "",
+                                      action.className,
+                                    )}
+                                  >
+                                    <ActionIcon
+                                      style={{ width: "0.875rem", height: "0.875rem" }}
+                                    />
+                                  </button>
+                                ) : isSelected ? (
                                   <Check
                                     size={checkIconSizePx}
                                     className="text-accent"
@@ -587,10 +657,11 @@ const DropdownField = ({
                         );
                       })}
                     </div>
-                  ))}
+                    ))
+                    : null}
 
-                  {flatOptions.length === 0 ? (
-                    <div className="ui-select_empty">No options</div>
+                  {!loading && flatOptions.length === 0 ? (
+                    <div className="ui-select_empty">{emptyLabel}</div>
                   ) : null}
                 </div>
                 </ScrollArea>

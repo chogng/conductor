@@ -10,6 +10,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { cx } from "../../utils/cx";
+import "./contentview.css";
 
 export type ContentViewAlign = "left" | "center" | "right";
 type ContentViewChildren = ReactNode | (() => ReactNode);
@@ -164,17 +165,17 @@ const ContentView = ({
       data-side={side}
       data-align={align}
       tabIndex={-1}
-      className={isOpen ? "pointer-events-auto" : "pointer-events-none"}
+      className={
+        isOpen ? "content-view__portal--open" : "content-view__portal--closed"
+      }
       style={portalStyle ?? { position: "fixed", zIndex }}
     >
       <div
         className={cx(
-          `
-            rounded-xl shadow-xl p-1 border border-border-subtle
-            bg-bg-surface/80 backdrop-blur-xl
-            transition-opacity duration-150 ease-out
-          `,
-          isOpen ? "opacity-100" : "opacity-0",
+          "content-view__surface",
+          isOpen
+            ? "content-view__surface--open"
+            : "content-view__surface--closed",
           className,
         )}
       >

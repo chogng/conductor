@@ -24,11 +24,6 @@ import type { TranslateFn, TranslationVars } from "../../../../context/language"
 import Toast from "../../../../components/ui/Toast";
 import Input from "../../../../components/ui/Input";
 import DropdownField from "../../../../components/ui/DropdownField";
-import Dropdown from "../../../../components/ui/Dropdown";
-import ContentView from "../../../../components/ui/ContentView";
-import DropdownTrigger from "../../../../components/ui/DropdownTrigger";
-import Menu from "../../../../components/ui/Menu";
-import MenuItem from "../../../../components/ui/MenuItem";
 import Tabs from "../../../../components/ui/Tabs";
 import Card from "../../../../components/ui/Card";
 import Button from "../../../../components/ui/Button";
@@ -148,6 +143,9 @@ const formatTemplateExportFileName = (templateNameRaw?: string) => {
 const X_AUTO_SUGGESTION_MAX_SCAN_ROWS = 5000;
 const AUTO_EXTRACTION_PREVIEW_MAX_ROWS = 512;
 const FILE_NAME_TEMPLATE_RULE_PREFIX = "rule";
+const TEMPLATE_CREATE_OPTION_VALUE = "__template-create__";
+const TEMPLATE_LOADING_OPTION_VALUE = "__template-loading__";
+const TEMPLATE_EMPTY_OPTION_VALUE = "__template-empty__";
 
 type FileNameTemplateRuleDraft = {
   id: string;
@@ -204,7 +202,6 @@ const TemplateManager = ({
       joinFileNameMatchInput(splitFileNameMatchInput(value, true)),
     [],
   );
-  const dropdownRef = useRef(null);
   const importFileInputRef = useRef<HTMLInputElement | null>(null);
   const [toast, setToast] = useState({
     isVisible: false,
@@ -280,7 +277,6 @@ const TemplateManager = ({
     applyConfigurationWithExternalConfig,
     applyNewFilesConfigurationWithExternalConfig,
     closeDiscardConfirm,
-    closeTemplateDropdown,
     config,
     confirmDiscardAndSwitch,
     createTemplateExportBundle,
@@ -291,18 +287,15 @@ const TemplateManager = ({
     handleSaveTemplate,
     handleTemplateModeChange,
     isDiscardConfirmOpen,
-    isDropdownOpen,
     isSelectMode,
     loadTemplate,
     markFieldSource,
     markSaveDraftTouched,
-    openTemplateDropdown,
     setConfig,
     templateTransferBusy,
     templateMode,
     templates,
     templatesLoading,
-    toggleTemplateDropdown,
     writeFieldFromPreview,
     selectAutoTemplate,
   } = useTemplateManagerState({
@@ -1687,8 +1680,6 @@ const TemplateManager = ({
     includeIds = true,
     measureOnly = false,
   } = {}) => {
-    const shouldAttachDropdownRef = includeIds && !measureOnly;
-    const shouldRenderDropdownMenu = includeIds && !measureOnly;
     const resolvedInputId = includeIds
       ? "device-analysis-template-dropdown-btn"
       : undefined;
@@ -1696,6 +1687,54 @@ const TemplateManager = ({
       ? t("da_auto_template")
       : String(config.name ?? "").trim();
     const hasDisplayName = Boolean(displayName);
+    const templateSelectOptions = [
+      {
+        label: t("da_auto_template"),
+        value: DEVICE_ANALYSIS_AUTO_TEMPLATE_ID,
+        onSelect: handleSelectAutoTemplate,
+      },
+      {
+        label: t("da_new_template"),
+        value: TEMPLATE_CREATE_OPTION_VALUE,
+        icon: Plus,
+        tone: "accent" as const,
+        onSelect: handleCreateNewTemplate,
+      },
+      ...(templatesLoading
+        ? [
+            {
+              label: t("da_settings_storage_loading"),
+              value: TEMPLATE_LOADING_OPTION_VALUE,
+              disabled: true,
+            },
+          ]
+        : templates.length > 0
+          ? templates.map((template) => {
+              const templateId =
+                typeof template.id === "string" ? template.id : "";
+              return {
+                label: template.name,
+                value: templateId,
+                onSelect: () => loadTemplate(template),
+                secondaryAction: templateId
+                  ? {
+                      ariaLabel: t("da_delete_template"),
+                      title: t("da_delete_template"),
+                      icon: Trash2,
+                      visible: "hover" as const,
+                      onClick: () => handleDeleteTemplate(templateId),
+                    }
+                  : undefined,
+              };
+            })
+          : [
+              {
+                label: t("da_no_saved_templates"),
+                value: TEMPLATE_EMPTY_OPTION_VALUE,
+                disabled: true,
+              },
+            ]),
+    ];
     const lowConfidenceReviewCard = activeLowConfidenceFile ? (
       <div
         role="status"
@@ -1874,19 +1913,38 @@ const TemplateManager = ({
           <label className="block text-sm font-medium text-text-secondary mb-2">
             {t("da_general_template")}
           </label>
-          <div
-            className="relative flex-1 min-w-0"
-            ref={shouldAttachDropdownRef ? dropdownRef : null}
-          >
-            <DropdownTrigger
+          <div className="relative flex-1 min-w-0">
+            <DropdownField
               id={resolvedInputId}
-              isOpen={includeIds ? isDropdownOpen : false}
+              size="md"
               menuId={
                 includeIds
                   ? "device-analysis-template-dropdown-menu"
                   : undefined
               }
+              value={
+                isAutoTemplateSelected
+                  ? DEVICE_ANALYSIS_AUTO_TEMPLATE_ID
+                  : selectedTemplateId ?? ""
+              }
+              options={templateSelectOptions}
+              formatDisplay={() => (hasDisplayName ? displayName : "")}
+              placeholder={t("da_template_name")}
               aria-label={includeIds ? t("da_template_name") : undefined}
+              className="w-full"
+              popupClassName="min-w-full !bg-bg-surface !backdrop-blur-none"
+              triggerClassName="pr-8"
+              disabled={measureOnly}
+              emptyLabel={t("da_no_saved_templates")}
+              onOpenChange={
+                measureOnly
+                  ? undefined
+                  : (nextOpen) => {
+                      if (nextOpen) {
+                        void ensureTemplatesLoaded().catch(() => {});
+                      }
+                    }
+              }
               onMouseDown={
                 measureOnly
                   ? undefined
@@ -1897,29 +1955,6 @@ const TemplateManager = ({
               onDoubleClick={
                 measureOnly ? undefined : (e) => e.preventDefault()
               }
-              onClick={measureOnly ? undefined : toggleTemplateDropdown}
-              onKeyDown={
-                measureOnly
-                  ? undefined
-                  : (e) => {
-                      if (e.key === "Escape") {
-                        closeTemplateDropdown();
-                        return;
-                      }
-
-                      if (
-                        e.key === "Enter" ||
-                        e.key === " " ||
-                        e.key === "ArrowDown"
-                      ) {
-                        e.preventDefault();
-                        openTemplateDropdown();
-                      }
-                    }
-              }
-              className="input_native no-focus-outline p-0 pr-8 text-left cursor-pointer select-none"
-              fieldClassName="input_field input_field--xl relative flex-1 min-w-0 pr-1"
-              indicatorClassName="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-secondary pointer-events-none"
               {...(includeIds
                 ? {
                     "data-cta": "Device Analysis",
@@ -1927,121 +1962,7 @@ const TemplateManager = ({
                     "data-cta-copy": "template name",
                   }
                 : {})}
-            >
-              <span
-                className={`block truncate ${
-                  hasDisplayName ? "text-text-primary" : "text-text-tertiary"
-                }`}
-              >
-                {hasDisplayName ? displayName : t("da_template_name")}
-              </span>
-            </DropdownTrigger>
-
-            {shouldRenderDropdownMenu && (
-              <Dropdown
-                isOpen={templateMode === "select" && isDropdownOpen}
-                onOpenChange={(nextOpen) => {
-                  if (!nextOpen) closeTemplateDropdown();
-                }}
-                anchorRef={dropdownRef}
-              >
-                {({ anchorRef: resolvedAnchorRef, setContentRef }) => (
-                  <ContentView
-                    isOpen={templateMode === "select" && isDropdownOpen}
-                    anchorRef={resolvedAnchorRef}
-                    contentRef={setContentRef}
-                    menuId="device-analysis-template-dropdown-menu"
-                    triggerId={resolvedInputId}
-                    zIndex={50}
-                    matchAnchorWidth
-                  >
-                    {() => (
-                      <Menu role="menu">
-                        <MenuItem
-                          className={`w-full flex items-center justify-between px-3 py-2 rounded-lg cursor-pointer transition-colors mb-1 ${
-                            isAutoTemplateSelected
-                              ? "bg-bg-page text-accent"
-                              : "hover:bg-bg-page text-text-primary"
-                          }`}
-                          onClick={handleSelectAutoTemplate}
-                          left={
-                            <span className="min-w-0 flex-1 text-left text-sm font-medium">
-                              {t("da_auto_template")}
-                            </span>
-                          }
-                          right={
-                            <span className="p-1">
-                              {isAutoTemplateSelected ? (
-                                <Check size={14} />
-                              ) : (
-                                <span className="block h-3.5 w-3.5 rounded-full border border-border-primary/60" />
-                              )}
-                            </span>
-                          }
-                        />
-                        <MenuItem
-                          className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-bg-page cursor-pointer group transition-colors mb-1 text-accent"
-                          onClick={handleCreateNewTemplate}
-                          left={
-                            <span className="flex-1 text-sm font-medium">
-                              {t("da_new_template")}
-                            </span>
-                          }
-                          right={
-                            <span className="p-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Plus size={14} />
-                            </span>
-                          }
-                        />
-                        {templatesLoading ? (
-                          <div className="px-3 py-2 text-sm text-text-secondary italic text-center">
-                            {t("da_settings_storage_loading")}
-                          </div>
-                        ) : templates.length > 0 ? (
-                          templates.map((template) => (
-                            <div
-                              key={template.id}
-                              data-template-id={template.id}
-                              className="relative group mb-0.5 last:mb-0"
-                            >
-                              <MenuItem
-                                onClick={() => loadTemplate(template)}
-                                className="w-full flex items-center justify-between px-3 py-2 pr-9 rounded-lg transition-colors text-left hover:bg-bg-page group-hover:bg-bg-page"
-                                left={
-                                  <span className="flex-1 text-sm text-text-primary font-medium truncate">
-                                    {template.name}
-                                  </span>
-                                }
-                              />
-                              <button
-                                type="button"
-                                role="menuitem"
-                                aria-label={t("da_delete_template")}
-                                data-template-id={template.id}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (typeof template.id === "string") {
-                                    handleDeleteTemplate(template.id);
-                                  }
-                                }}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-primary hover:text-red-500 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-opacity"
-                                title={t("da_delete_template")}
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="px-3 py-2 text-sm text-text-secondary italic text-center">
-                            {t("da_no_saved_templates")}
-                          </div>
-                        )}
-                      </Menu>
-                    )}
-                  </ContentView>
-                )}
-              </Dropdown>
-            )}
+            />
           </div>
         </div>
 

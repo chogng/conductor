@@ -1,9 +1,7 @@
 import { type HTMLAttributes } from "react";
 import { cx } from "../../utils/cx";
 import ScrollArea from "./ScrollArea";
-
-const DEFAULT_MENU_CLASSNAME =
-  "!bg-bg-surface !backdrop-blur-none text-text-primary p-1.5";
+import "./menu.css";
 
 type MenuProps = HTMLAttributes<HTMLDivElement> & {
   withScrollArea?: boolean;
@@ -28,7 +26,7 @@ const Menu = ({
     <div
       {...props}
       role={role}
-      className={cx(DEFAULT_MENU_CLASSNAME, className)}
+      className={cx("ui-menu", className)}
     >
       {content}
     </div>

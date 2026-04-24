@@ -792,6 +792,10 @@ body {
     @apply text-text-secondary hover:bg-bg-surface-hover hover:text-text-primary;
   }
 
+  .ui-select_item[aria-disabled="true"] {
+    @apply pointer-events-none !bg-transparent !text-text-secondary;
+  }
+
   .ui-select_item-left {
     @apply flex items-center gap-2 min-w-0 flex-1;
   }
