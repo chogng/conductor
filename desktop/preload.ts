@@ -1,7 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { ipcChannels } from "./ipc-channels.js";
-
-const DESKTOP_BOOTSTRAP_ARG_PREFIX = "--conductor-bootstrap=";
 const preloadStartMs =
   typeof performance !== "undefined" && typeof performance.now === "function"
     ? performance.now()
@@ -17,43 +15,23 @@ function logPreloadBoot(stage, extra = "") {
   console.info(`[boot][preload] +${elapsedMs}ms ${stage}${suffix}`);
 }
 
-function readDesktopBootstrap() {
-  const argv = Array.isArray(process.argv) ? process.argv : [];
+logPreloadBoot("bootstrap:ready");
 
-  for (const arg of argv) {
-    if (
-      typeof arg !== "string" ||
-      !arg.startsWith(DESKTOP_BOOTSTRAP_ARG_PREFIX)
-    ) {
-      continue;
-    }
-
-    const encodedPayload = arg.slice(DESKTOP_BOOTSTRAP_ARG_PREFIX.length);
-    if (!encodedPayload) return {};
-
-    try {
-      const decodedPayload = decodeURIComponent(encodedPayload);
-      const parsedPayload = JSON.parse(decodedPayload);
-      return parsedPayload &&
-        typeof parsedPayload === "object" &&
-        !Array.isArray(parsedPayload)
-        ? parsedPayload
-        : {};
-    } catch {
-      return {};
-    }
+const desktopBootstrap = (() => {
+  try {
+    return ipcRenderer.sendSync(ipcChannels.desktopBootSettingsGet);
+  } catch (error) {
+    console.warn("[boot][preload] Failed to get initial desktop settings:", error);
+    return null;
   }
+})();
 
-  return {};
-}
-
-const desktopBootstrap = readDesktopBootstrap();
-logPreloadBoot(
-  "bootstrap:ready",
-  `(settings=${desktopBootstrap?.initialDeviceAnalysisSettings ? "yes" : "no"})`,
-);
-
-contextBridge.exposeInMainWorld("desktopBootstrap", desktopBootstrap);
+contextBridge.exposeInMainWorld("desktopBootstrap", {
+  initialDeviceAnalysisSettings:
+    desktopBootstrap && typeof desktopBootstrap === "object" && !Array.isArray(desktopBootstrap)
+      ? desktopBootstrap
+      : null,
+});
 
 contextBridge.exposeInMainWorld("desktopMeta", {
   isDesktop: true,
@@ -65,6 +43,14 @@ contextBridge.exposeInMainWorld("desktopApp", {
   sendCommand(command, payload) {
     if (typeof command !== "string" || command.trim().length === 0) return;
     ipcRenderer.send("desktop-command", { command, payload });
+  },
+});
+
+contextBridge.exposeInMainWorld("desktopBoot", {
+  async markUiReady(source) {
+    return ipcRenderer.invoke(ipcChannels.desktopBootUiReady, {
+      source: typeof source === "string" ? source : "unknown",
+    });
   },
 });
 

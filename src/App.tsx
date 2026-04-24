@@ -1,8 +1,7 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "./context/theme-provider";
 import { LanguageProvider } from "./context/language-provider";
-import DeviceAnalysisWorkspaceShell from "./features/device-analysis/DeviceAnalysisWorkspaceShell";
 import { loadDeviceAnalysisApp } from "./workbench-loader";
 
 const isBootProfileEnabled = () =>
@@ -14,10 +13,6 @@ const logRendererBoot = (stage: string, extra = "") => {
   }
 
   window.__CONDUCTOR_BOOT_LOG__?.(stage, extra);
-};
-
-const markBootUiReady = (source: string) => {
-  window.__CONDUCTOR_BOOT_MARK_UI_READY__?.(source);
 };
 
 const getBootNowMs = () => {
@@ -73,27 +68,13 @@ const queryClient = new QueryClient({
 });
 
 function App() {
-  useEffect(() => {
-    if (isBootProfileEnabled()) {
-      logRendererBoot("App:mounted");
-    }
-
-    const frameId = window.requestAnimationFrame(() => {
-      markBootUiReady("app-root");
-    });
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-    };
-  }, []);
-
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <LanguageProvider>
           <div className="h-screen bg-bg-page overflow-hidden">
             <main className="h-full w-full overflow-hidden">
-              <Suspense fallback={<DeviceAnalysisWorkspaceShell />}>
+              <Suspense fallback={null}>
                 <DeviceAnalysisApp />
               </Suspense>
             </main>

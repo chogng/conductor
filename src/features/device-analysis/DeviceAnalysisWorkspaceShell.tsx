@@ -1,4 +1,4 @@
-import { useEffect, type CSSProperties, type ReactNode } from "react";
+import { type CSSProperties, type ReactNode } from "react";
 import { DEFAULT_DEVICE_ANALYSIS_SIDEBAR_WIDTH_PX } from "./deviceAnalysisLayout";
 
 const shouldShowDesktopCommandBarByDefault =
@@ -90,25 +90,6 @@ const DeviceAnalysisWorkspaceShell = ({
     "--da-template-stack-panel-h": "clamp(24rem, 52dvh, 40rem)",
     ...(style ?? {}),
   } as CSSProperties;
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return undefined;
-    }
-
-    const markUiReady = window.__CONDUCTOR_BOOT_MARK_UI_READY__;
-    if (!markUiReady) {
-      return undefined;
-    }
-
-    const frameId = window.requestAnimationFrame(() => {
-      markUiReady("workspace-shell");
-    });
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-    };
-  }, []);
 
   return (
     <div

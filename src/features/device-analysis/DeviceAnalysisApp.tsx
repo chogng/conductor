@@ -13,6 +13,10 @@ const logRendererBoot = (stage: string, extra = "") => {
   window.__CONDUCTOR_BOOT_LOG__?.(stage, extra);
 };
 
+const markBootUiReady = (source: string) => {
+  window.__CONDUCTOR_BOOT_MARK_UI_READY__?.(source);
+};
+
 const logSlowScriptResources = () => {
   if (
     !isBootProfileEnabled() ||
@@ -59,6 +63,14 @@ const DeviceAnalysisApp = () => {
       logRendererBoot("DeviceAnalysisApp:mounted");
       logSlowScriptResources();
     }
+
+    const frameId = window.requestAnimationFrame(() => {
+      markBootUiReady("device-analysis-app");
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+    };
   }, []);
 
   return (

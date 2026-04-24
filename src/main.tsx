@@ -2,7 +2,6 @@ import { Fragment, lazy, StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { LanguageCode } from './config/language';
 import type { ThemeMode } from './config/theme';
-import DeviceAnalysisWorkspaceShell from './features/device-analysis/DeviceAnalysisWorkspaceShell';
 import { loadDeviceAnalysisApp, loadWorkbenchApp } from './workbench-loader';
 
 declare global {
@@ -17,15 +16,15 @@ declare global {
       isPackaged?: boolean;
       [key: string]: unknown;
     };
+    desktopBoot?: {
+      markUiReady?: (source?: string) => Promise<unknown>;
+    };
     __CONDUCTOR_NAV_MODE_INIT__?: boolean;
     __CONDUCTOR_INITIAL_DEVICE_ANALYSIS_SETTINGS__?: Record<string, unknown> | null;
     __CONDUCTOR_INITIAL_LANGUAGE__?: LanguageCode;
     __CONDUCTOR_INITIAL_THEME__?: ThemeMode;
     __CONDUCTOR_BOOT_LOG__?: (stage: string, extra?: string) => void;
-    __CONDUCTOR_BOOT_DISMISS_SPLASH__?: () => void;
     __CONDUCTOR_BOOT_MARK_UI_READY__?: (source?: string) => void;
-    __CONDUCTOR_BOOT_LOG_NAVIGATION__?: () => void;
-    __CONDUCTOR_BOOT_LOG_RESOURCES__?: () => void;
   }
 }
 
@@ -52,7 +51,7 @@ const LazyApp = lazy(async () => {
 
 createRoot(rootElement).render(
   <RootMode>
-    <Suspense fallback={<DeviceAnalysisWorkspaceShell />}>
+    <Suspense fallback={null}>
       <LazyApp />
     </Suspense>
   </RootMode>,

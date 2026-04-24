@@ -3,6 +3,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
+import { createBootSplashWindow } from "./boot-splash.js";
 import { createDeviceAnalysisStore } from "./device-analysis-store.js";
 import {
   assertOriginExePath,
@@ -26,7 +27,6 @@ let originRunnerModulePromise = null;
 
 const isDev = !app.isPackaged;
 const isWindows = process.platform === "win32";
-const DESKTOP_BOOTSTRAP_ARG_PREFIX = "--conductor-bootstrap=";
 const devUrl =
   process.env.ELECTRON_START_URL ||
   "http://127.0.0.1:5174/desktop/workbench.html";
@@ -34,7 +34,17 @@ const AUTO_UPDATE_INITIAL_DELAY_MS = 15 * 1000;
 const AUTO_UPDATE_INTERVAL_MS = 4 * 60 * 60 * 1000;
 const AUTO_UPDATE_SUPPORTED_PLATFORMS = new Set(["win32"]);
 const DESKTOP_APP_USER_MODEL_ID = "com.conductor.desktop";
+const MAIN_WINDOW_BOUNDS = {
+  width: 1440,
+  height: 920,
+  minWidth: 1080,
+  minHeight: 700,
+};
+const BOOT_WINDOW_SETTLE_MS = 80;
 let mainWindow = null;
+let splashWindow = null;
+let mainWindowBootExpansionPromise = null;
+let startupGatePromise = null;
 let autoUpdateTimer = null;
 let autoUpdateConfiguredFeedUrl = null;
 let isAutoUpdateConfigured = false;
@@ -89,6 +99,17 @@ function resolveDesktopWindowIconPath() {
     : [path.join(__dirname, "..", "build", "icons", iconFileName)];
 
   return resolveFirstExistingPath(candidates) ?? undefined;
+}
+
+function prepareStartupGate() {
+  if (!startupGatePromise) {
+    startupGatePromise = Promise.resolve().then(() => {
+      logDesktopBoot("startup-gate:ready", "(session=skipped)");
+      return { session: "skipped" };
+    });
+  }
+
+  return startupGatePromise;
 }
 
 function resolveOriginCsvScriptPath() {
@@ -585,26 +606,6 @@ const deviceAnalysisStore = createDeviceAnalysisStore({
   getHomeDir: getDeviceAnalysisHomeDir,
 });
 
-function buildDesktopBootstrapArgument() {
-  try {
-    const payload = {
-      initialDeviceAnalysisSettings:
-        deviceAnalysisStore.getDeviceAnalysisSettings(),
-    };
-
-    return (
-      DESKTOP_BOOTSTRAP_ARG_PREFIX +
-      encodeURIComponent(JSON.stringify(payload))
-    );
-  } catch (error) {
-    console.warn(
-      "[bootstrap] Failed to serialize initial device analysis settings:",
-      error?.message || error,
-    );
-    return null;
-  }
-}
-
 function configureRuntimeCachePath() {
   const cacheDir = path.join(getDeviceAnalysisHomeDir(), "cache");
   if (!fs.existsSync(cacheDir)) {
@@ -632,6 +633,20 @@ function handleDeviceAnalysisTemplatesDelete(_event, id) {
 
 function handleDeviceAnalysisSettingsGet() {
   return deviceAnalysisStore.getDeviceAnalysisSettings();
+}
+
+function handleDesktopBootSettingsGet(event) {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed()) {
+    return null;
+  }
+
+  try {
+    return deviceAnalysisStore.getDeviceAnalysisSettings();
+  } catch (error) {
+    console.warn("[boot] Failed to load initial desktop settings:", error?.message || error);
+    return null;
+  }
 }
 
 function handleDeviceAnalysisSettingsPatch(_event, updates) {
@@ -1140,26 +1155,42 @@ async function setupAutoUpdates() {
   }, AUTO_UPDATE_INTERVAL_MS);
 }
 
+function createSplashWindow() {
+  const win = createBootSplashWindow({
+    icon: resolveDesktopWindowIconPath(),
+    logDesktopBoot,
+  });
+
+  splashWindow = win;
+  win.on("closed", () => {
+    if (splashWindow === win) {
+      splashWindow = null;
+    }
+  });
+
+  return win;
+}
+
 function createMainWindow() {
-  const bootstrapArgument = buildDesktopBootstrapArgument();
   logDesktopBoot("create-window:start");
   const windowIcon = resolveDesktopWindowIconPath();
 
   const win = new BrowserWindow({
-    width: 1440,
-    height: 920,
-    minWidth: 1080,
-    minHeight: 700,
+    width: MAIN_WINDOW_BOUNDS.width,
+    height: MAIN_WINDOW_BOUNDS.height,
+    minWidth: MAIN_WINDOW_BOUNDS.minWidth,
+    minHeight: MAIN_WINDOW_BOUNDS.minHeight,
     icon: windowIcon,
     backgroundColor: "#f5f4ef",
     autoHideMenuBar: true,
+    center: true,
     frame: !isWindows,
+    show: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
-      additionalArguments: bootstrapArgument ? [bootstrapArgument] : [],
       ...(isDev
         ? null
         : { v8CacheOptions: "bypassHeatCheckAndEagerCompile" }),
@@ -1185,6 +1216,10 @@ function createMainWindow() {
   win.on("closed", () => {
     if (mainWindow === win) {
       mainWindow = null;
+      mainWindowBootExpansionPromise = null;
+    }
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      splashWindow.close();
     }
   });
 
@@ -1239,6 +1274,48 @@ function createMainWindow() {
   logDesktopBoot("load-file", "(prod: dist/desktop/workbench.html)");
   void win.loadFile(path.join(__dirname, "../dist/desktop/workbench.html"));
   return win;
+}
+
+async function showMainWindowAfterBoot(win) {
+  if (!win || win.isDestroyed()) return;
+
+  logDesktopBoot("main-window:show:start");
+  await prepareStartupGate();
+  if (win.isDestroyed()) return;
+
+  if (!win.isVisible()) {
+    win.show();
+  }
+
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.close();
+  }
+  splashWindow = null;
+
+  if (!win.isFocused()) {
+    win.focus();
+  }
+  await new Promise((resolve) => setTimeout(resolve, BOOT_WINDOW_SETTLE_MS));
+  logDesktopBoot("main-window:show:done");
+}
+
+function handleDesktopBootUiReady(event, payload) {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed() || win !== mainWindow) {
+    return null;
+  }
+
+  const source =
+    payload && typeof payload.source === "string" ? payload.source : "unknown";
+  logDesktopBoot("renderer:boot-ui-ready", `(source=${source})`);
+
+  if (!mainWindowBootExpansionPromise) {
+    mainWindowBootExpansionPromise = showMainWindowAfterBoot(win).finally(() => {
+      mainWindowBootExpansionPromise = null;
+    });
+  }
+
+  return mainWindowBootExpansionPromise;
 }
 
 function handleDesktopCommand(event, payload) {
@@ -1298,6 +1375,8 @@ app.whenReady().then(() => {
   configureRuntimeCachePath();
 
   ipcMain.on("desktop-command", handleDesktopCommand);
+  ipcMain.on(ipcChannels.desktopBootSettingsGet, handleDesktopBootSettingsGet);
+  ipcMain.handle(ipcChannels.desktopBootUiReady, handleDesktopBootUiReady);
   ipcMain.handle(ipcChannels.templatesGet, handleDeviceAnalysisTemplatesGet);
   ipcMain.handle(ipcChannels.templatesCreate, handleDeviceAnalysisTemplatesCreate);
   ipcMain.handle(ipcChannels.templatesDelete, handleDeviceAnalysisTemplatesDelete);
@@ -1315,6 +1394,8 @@ app.whenReady().then(() => {
     ipcChannels.originRuntimeCleanupRun,
     handleOriginRuntimeCleanupRun,
   );
+  createSplashWindow();
+  void prepareStartupGate();
   const window = createMainWindow();
   window.webContents.once("did-finish-load", () => {
     logDesktopBoot("post-load:auto-updates:init");
@@ -1323,6 +1404,7 @@ app.whenReady().then(() => {
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
+      createSplashWindow();
       createMainWindow();
     }
   });
@@ -1337,6 +1419,8 @@ app.on("will-quit", () => {
   isAutoUpdateConfigured = false;
   autoUpdateConfiguredFeedUrl = null;
   ipcMain.removeListener("desktop-command", handleDesktopCommand);
+  ipcMain.removeListener(ipcChannels.desktopBootSettingsGet, handleDesktopBootSettingsGet);
+  ipcMain.removeHandler(ipcChannels.desktopBootUiReady);
   ipcMain.removeHandler(ipcChannels.templatesGet);
   ipcMain.removeHandler(ipcChannels.templatesCreate);
   ipcMain.removeHandler(ipcChannels.templatesDelete);

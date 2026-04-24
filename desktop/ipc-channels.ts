@@ -1,4 +1,6 @@
 export const ipcChannels = {
+  desktopBootSettingsGet: "desktop-boot:settings:get",
+  desktopBootUiReady: "desktop-boot:ui-ready",
   templatesGet: "device-analysis-store:templates:get",
   templatesCreate: "device-analysis-store:templates:create",
   templatesDelete: "device-analysis-store:templates:delete",
