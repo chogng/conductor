@@ -1,4 +1,4 @@
-import { splitBidirectionalCurvePoints } from "./analysisMath";
+import { splitBidirectionalCurvePoints } from "./analysisMath.ts";
 
 type PointLike = {
   x?: unknown;
@@ -11,6 +11,12 @@ type DeviceAnalysisFileLike = {
   curveType?: unknown;
   xLabel?: unknown;
 };
+
+const normalizeCurveTypeToken = (value: unknown): string =>
+  String(value ?? "").trim().toLowerCase();
+
+const isNonIvSpecialCurveType = (curveType: string): boolean =>
+  curveType === "pv" || curveType === "cv" || curveType === "cf";
 
 type FiniteCurrentPoint = {
   absI: number;
@@ -263,13 +269,14 @@ const buildEmptyBaseCurrentMetrics = (): BaseCurrentMetrics => ({
 export const isTransferLikeDeviceAnalysisFile = (
   file: DeviceAnalysisFileLike | null | undefined,
 ): boolean => {
+  const curveType = normalizeCurveTypeToken(file?.curveType);
+  if (isNonIvSpecialCurveType(curveType)) return false;
   if (file?.supportsSs === true) return true;
   if (file?.supportsSs === false) return false;
 
   const xAxisRole = String(file?.xAxisRole || "").toLowerCase();
   if (xAxisRole) return xAxisRole === "vg";
 
-  const curveType = String(file?.curveType || "").toLowerCase();
   if (curveType) return curveType.includes("vg") || curveType.includes("transfer");
 
   const label = String(file?.xLabel || "").toLowerCase();
@@ -279,13 +286,14 @@ export const isTransferLikeDeviceAnalysisFile = (
 export const isOutputLikeDeviceAnalysisFile = (
   file: DeviceAnalysisFileLike | null | undefined,
 ): boolean => {
+  const curveType = normalizeCurveTypeToken(file?.curveType);
+  if (isNonIvSpecialCurveType(curveType)) return false;
   if (file?.supportsSs === true) return false;
-  if (file?.supportsSs === false) return true;
+  if (file?.supportsSs === false && curveType === "output") return true;
 
   const xAxisRole = String(file?.xAxisRole || "").toLowerCase();
   if (xAxisRole) return xAxisRole === "vd";
 
-  const curveType = String(file?.curveType || "").toLowerCase();
   if (curveType) return curveType.includes("vd") || curveType.includes("output");
 
   const label = String(file?.xLabel || "").toLowerCase();

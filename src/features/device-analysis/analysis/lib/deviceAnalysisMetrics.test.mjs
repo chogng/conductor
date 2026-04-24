@@ -26,6 +26,17 @@ test("isOutputLikeDeviceAnalysisFile recognizes Vd sweeps", () => {
   assert.equal(isOutputLikeDeviceAnalysisFile({ xAxisRole: "vg" }), false);
 });
 
+test("special pv/cv/cf curve types are not treated as transfer/output-like", () => {
+  for (const curveType of ["pv", "cv", "cf"]) {
+    assert.equal(isTransferLikeDeviceAnalysisFile({ curveType }), false);
+    assert.equal(isOutputLikeDeviceAnalysisFile({ curveType }), false);
+    assert.equal(
+      isOutputLikeDeviceAnalysisFile({ curveType, supportsSs: false }),
+      false,
+    );
+  }
+});
+
 test("computeBaseCurrentMetrics uses sweep endpoints for n-type transfer curves", () => {
   const metrics = computeBaseCurrentMetrics({
     sourceFile: { xAxisRole: "vg" },

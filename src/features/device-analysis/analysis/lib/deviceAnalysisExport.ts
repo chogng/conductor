@@ -4,19 +4,19 @@ import {
   computeSubthresholdSwingFitAuto,
   computeSubthresholdSwingFitInRange,
   resolveAutoSsSelection,
-} from "./analysisMath";
+} from "./analysisMath.ts";
 import { getExcelColumnLabel } from "../../shared/lib/deviceAnalysisUtils";
 import type { ProcessedEntry, ProcessedSeries } from "../../shared/lib/sharedTypes";
 export type {
   DeviceAnalysisOriginExportMode,
   DeviceAnalysisOriginSelectionExport,
-} from "./originSelectionExport";
+} from "./originSelectionExport.ts";
 export {
   buildDeviceAnalysisOriginCanvasExport,
   buildDeviceAnalysisOriginExportsByMode,
   buildDeviceAnalysisOriginSelectionExport,
   isDeviceAnalysisOriginExportMode,
-} from "./originSelectionExport";
+} from "./originSelectionExport.ts";
 
 type SsManualRangeEntry = {
   x1?: number;

@@ -384,10 +384,11 @@ type ProgressiveAnalysisState = {
     totalCount: number;
     pending: boolean;
 };
-const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, primaryPlotLabel, derivativeLabel, ssApplicable, areaAvailable, onChange, }: {
+const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, primaryPlotLabel, derivativeLabel, gmApplicable, ssApplicable, areaAvailable, onChange, }: {
     activePlotType: PlotTypeOption;
     primaryPlotLabel?: string;
     derivativeLabel: string;
+    gmApplicable: boolean;
     ssApplicable: boolean;
     areaAvailable: boolean;
     onChange: (nextPlotType: PlotTypeOption) => void;
@@ -419,6 +420,10 @@ const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, prim
                 value: "gm",
                 label: derivativeLabel,
                 id: "device-analysis-plot-gm-btn",
+                disabled: !gmApplicable,
+                title: !gmApplicable
+                    ? "Only transfer/output curves support derivative plots"
+                    : "",
             },
             {
                 value: "ss",
@@ -1685,14 +1690,17 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         }
         return false;
     }, [activeFile?.series, analysisBySeriesId]);
+    const gmApplicable = useMemo(() => transferMetricsApplicable || outputMetricsApplicable, [outputMetricsApplicable, transferMetricsApplicable]);
     const ssApplicable = transferMetricsApplicable && (ssHeuristicApplicable || ssComputedApplicable);
     const effectivePlotType = useMemo(() => {
         if (plotType === "j" && !area)
             return "iv";
+        if (plotType === "gm" && !gmApplicable)
+            return "iv";
         if (plotType === "ss" && !ssApplicable)
             return "iv";
         return plotType;
-    }, [area, plotType, ssApplicable]);
+    }, [area, gmApplicable, plotType, ssApplicable]);
     const plotSeriesCacheKey = useMemo(() => `${analysisCacheKey}::plot:${effectivePlotType}::labels:${activeSeriesLegendLabelsSignature}`, [activeSeriesLegendLabelsSignature, analysisCacheKey, effectivePlotType]);
     const currentManualBiasApplicable = transferMetricsApplicable && effectivePlotType === "iv" && ionIoffMethod === "manual" && Boolean(focusedSeriesId);
     const handlePlotTypeChange = React.useCallback((nextPlotType: PlotTypeOption) => {
@@ -2820,7 +2828,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
 
           <div className="mb-4 flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-4 flex-wrap">
-              <PlotTypeToggle activePlotType={effectivePlotType} primaryPlotLabel={primaryPlotLabel} derivativeLabel={gmUi.kind === "gds" ? "gds" : "gm"} ssApplicable={ssApplicable} areaAvailable={Boolean(area)} onChange={handlePlotTypeChange}/>
+              <PlotTypeToggle activePlotType={effectivePlotType} primaryPlotLabel={primaryPlotLabel} derivativeLabel={gmUi.kind === "gds" ? "gds" : "gm"} gmApplicable={gmApplicable} ssApplicable={ssApplicable} areaAvailable={Boolean(area)} onChange={handlePlotTypeChange}/>
 
 
 
