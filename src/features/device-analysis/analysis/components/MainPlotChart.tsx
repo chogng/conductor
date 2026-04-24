@@ -27,6 +27,11 @@ import {
   computeLabelInterval,
   inferTickDigitsFromTicks,
 } from "../lib/analysisChartsUtils";
+import {
+  getDeviceAnalysisPerfNow,
+  isDeviceAnalysisPerfEnabled,
+  logDeviceAnalysisPerf,
+} from "../../shared/lib/deviceAnalysisPerf";
 
 type PlotPoint = {
   x?: number;
@@ -96,6 +101,8 @@ type SsInteractionConfig = {
 type MainPlotChartProps = {
   plotType?: string;
   activeFile?: Partial<{
+    fileId: string;
+    fileName: string;
     xLabel: string;
     yLabel: string;
   }> | null;
@@ -1105,6 +1112,9 @@ const MainPlotChart = memo(function MainPlotChart({
   legendWidth = 120,
   legendContent = undefined,
 }: MainPlotChartProps) {
+  const renderStartedAt = isDeviceAnalysisPerfEnabled()
+    ? getDeviceAnalysisPerfNow()
+    : 0;
   const [chartPlotArea, setChartPlotArea] = useState<PlotRect | null>(null);
   const plotYKey = useMemo<"y" | "yPositive" | "yAbsPositive">(() => {
     if (yScaleMode === "logAbs") return "yAbsPositive";
@@ -1121,6 +1131,31 @@ const MainPlotChart = memo(function MainPlotChart({
     if (effectiveYScale === "linear") return seriesList;
     return getCachedLogChartSeriesList(seriesList, plotYKey);
   }, [effectiveYScale, plotYKey, seriesList]);
+  const chartPointCount = useMemo(
+    () =>
+      chartSeriesList.reduce(
+        (sum, series) => sum + (Array.isArray(series?.data) ? series.data.length : 0),
+        0,
+      ),
+    [chartSeriesList],
+  );
+
+  useEffect(() => {
+    if (!renderStartedAt) return;
+    const durationMs = getDeviceAnalysisPerfNow() - renderStartedAt;
+    if (durationMs < 12 && chartSeriesList.length < 8 && chartPointCount < 3000) {
+      return;
+    }
+    logDeviceAnalysisPerf("render:main-plot-commit", {
+      chartPointCount,
+      durationMs,
+      effectiveYScale,
+      fileId: activeFile?.fileId ?? null,
+      fileName: activeFile?.fileName ?? null,
+      plotType: plotType ?? null,
+      seriesCount: chartSeriesList.length,
+    });
+  });
 
   const tooltipSeriesOrder = useMemo(() => {
     const order = new Map<string, number>();

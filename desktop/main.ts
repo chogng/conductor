@@ -1193,6 +1193,47 @@ async function handleDeviceAnalysisRustEngineReadCells(_event, payload) {
   }
 }
 
+async function handleDeviceAnalysisRustEngineInferAutoExtraction(_event, payload) {
+  const rawPath = payload && typeof payload === "object" ? payload.path : "";
+  const inputPath = normalizeAbsoluteFilePath(rawPath);
+  const fileId =
+    payload && typeof payload.fileId === "string" ? payload.fileId.trim() : "";
+  const fileName =
+    payload && typeof payload.fileName === "string" ? payload.fileName.trim() : "";
+
+  if (!fileId || !inputPath || !isSupportedRustDeviceAnalysisInputPath(inputPath)) {
+    return {
+      ok: false,
+      code: "INVALID_DEVICE_ANALYSIS_PATH",
+      message: "Invalid device-analysis file path.",
+    };
+  }
+
+  const startedAt = Date.now();
+  try {
+    const result = await sendRustDeviceAnalysisEngineCommand("inferAutoExtraction", {
+      fileId,
+      fileName: fileName || path.basename(inputPath),
+      path: inputPath,
+    });
+    return {
+      ok: true,
+      durationMs: Date.now() - startedAt,
+      result,
+      source: "rust-engine",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      code: "RUST_ENGINE_INFER_AUTO_EXTRACTION_FAILED",
+      durationMs: Date.now() - startedAt,
+      message:
+        error?.message ||
+        "Rust device-analysis engine failed to infer auto extraction.",
+    };
+  }
+}
+
 function isRustProcessFileConfigSupported(config) {
   if (!config || typeof config !== "object" || Array.isArray(config)) {
     return false;
@@ -1257,6 +1298,64 @@ async function handleDeviceAnalysisRustEngineProcessFile(_event, payload) {
       code: "RUST_ENGINE_PROCESS_FAILED",
       durationMs: Date.now() - startedAt,
       message: error?.message || "Rust device-analysis engine failed to process file.",
+    };
+  }
+}
+
+function normalizeDeviceAnalysisAnalysisSeries(rawSeries) {
+  if (!Array.isArray(rawSeries)) return [];
+  return rawSeries
+    .map((item) => {
+      const id = typeof item?.id === "string" ? item.id.trim() : "";
+      const rawX = Array.isArray(item?.x) ? item.x : [];
+      const rawY = Array.isArray(item?.y) ? item.y : [];
+      const length = Math.min(rawX.length, rawY.length, 10000);
+      const x = [];
+      const y = [];
+      for (let index = 0; index < length; index += 1) {
+        const xv = Number(rawX[index]);
+        const yv = Number(rawY[index]);
+        if (!Number.isFinite(xv) || !Number.isFinite(yv)) continue;
+        x.push(xv);
+        y.push(yv);
+      }
+      return id && x.length >= 3 ? { id, x, y } : null;
+    })
+    .filter(Boolean)
+    .slice(0, 2000);
+}
+
+async function handleDeviceAnalysisRustEngineAnalyzeSeriesBatch(_event, payload) {
+  const fileId =
+    payload && typeof payload.fileId === "string" ? payload.fileId.trim() : "";
+  const series = normalizeDeviceAnalysisAnalysisSeries(payload?.series);
+  if (!series.length) {
+    return {
+      ok: false,
+      code: "INVALID_DEVICE_ANALYSIS_SERIES",
+      message: "Missing analysis series.",
+    };
+  }
+
+  const startedAt = Date.now();
+  try {
+    const result = await sendRustDeviceAnalysisEngineCommand("analyzeSeriesBatch", {
+      fileId,
+      series,
+    });
+    return {
+      ok: true,
+      durationMs: Date.now() - startedAt,
+      result,
+      source: "rust-engine",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      code: "RUST_ENGINE_ANALYZE_SERIES_FAILED",
+      durationMs: Date.now() - startedAt,
+      message:
+        error?.message || "Rust device-analysis engine failed to analyze series.",
     };
   }
 }
@@ -2219,6 +2318,14 @@ app.whenReady().then(() => {
     handleDeviceAnalysisRustEngineReadCells,
   );
   ipcMain.handle(
+    ipcChannels.deviceAnalysisRustEngineInferAutoExtraction,
+    handleDeviceAnalysisRustEngineInferAutoExtraction,
+  );
+  ipcMain.handle(
+    ipcChannels.deviceAnalysisRustEngineAnalyzeSeriesBatch,
+    handleDeviceAnalysisRustEngineAnalyzeSeriesBatch,
+  );
+  ipcMain.handle(
     ipcChannels.deviceAnalysisRustEngineProcessFile,
     handleDeviceAnalysisRustEngineProcessFile,
   );
@@ -2280,6 +2387,8 @@ app.on("will-quit", () => {
   ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEnginePreviewRows);
   ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEngineReadCell);
   ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEngineReadCells);
+  ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEngineInferAutoExtraction);
+  ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEngineAnalyzeSeriesBatch);
   ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEngineProcessFile);
   ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEngineDispose);
   ipcMain.removeHandler(ipcChannels.originExeGet);

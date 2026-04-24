@@ -1,0 +1,717 @@
+use serde::Deserialize;
+use serde_json::{Value, json};
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalysisSeriesRequest {
+    pub id: String,
+    pub x: Vec<f64>,
+    pub y: Vec<f64>,
+}
+
+#[derive(Clone)]
+struct Point {
+    x: f64,
+    y: f64,
+}
+
+struct LogSegment {
+    x: Vec<f64>,
+    y: Vec<f64>,
+}
+
+#[derive(Clone)]
+struct LinearFit {
+    a: f64,
+    b: f64,
+    r2: f64,
+    rmse: f64,
+    n: usize,
+    y_min: f64,
+    decade_span: f64,
+}
+
+#[derive(Clone)]
+struct Candidate {
+    fit: LinearFit,
+    x1: f64,
+    x2: f64,
+    y_floor: f64,
+    floor_margin_dec: Option<f64>,
+    stab: Option<f64>,
+    score: f64,
+    floor_margin_dec_used: f64,
+    min_span: f64,
+    min_points: usize,
+    r2_min: f64,
+    stab_max: f64,
+}
+
+struct SearchResult {
+    max_above_count: usize,
+    best_strict: Option<Candidate>,
+    best_any: Option<Candidate>,
+}
+
+#[derive(Default, Clone)]
+struct PrefixSums {
+    x: Vec<f64>,
+    y: Vec<f64>,
+    xx: Vec<f64>,
+    xy: Vec<f64>,
+    yy: Vec<f64>,
+}
+
+const FLOOR_QUANTILE: f64 = 0.1;
+const FLOOR_TRY: [f64; 2] = [1.0, 0.7];
+const R2_TRY: [f64; 3] = [0.995, 0.99, 0.98];
+const SPAN_TRY: [f64; 2] = [1.0, 0.7];
+const MIN_POINTS_TRY: [usize; 2] = [12, 8];
+const STAB_TRY: [f64; 2] = [0.1, 0.15];
+const WINDOW_POINTS: usize = 12;
+const STRICT_R2: f64 = 0.995;
+const STRICT_SPAN: f64 = 1.0;
+const STRICT_N: usize = 12;
+const STRICT_STAB: f64 = 0.1;
+const SUGGESTION_R2: f64 = 0.98;
+const SUGGESTION_SPAN: f64 = 0.7;
+const SUGGESTION_N: usize = 8;
+const SUGGESTION_STAB: f64 = 0.15;
+const SUGGESTION_FLOOR: f64 = 0.7;
+
+fn median(values: &[f64]) -> Option<f64> {
+    let mut list = values
+        .iter()
+        .copied()
+        .filter(|value| value.is_finite())
+        .collect::<Vec<_>>();
+    if list.is_empty() {
+        return None;
+    }
+    list.sort_by(|a, b| a.total_cmp(b));
+    let mid = list.len() / 2;
+    if list.len() % 2 == 0 {
+        Some((list[mid - 1] + list[mid]) / 2.0)
+    } else {
+        Some(list[mid])
+    }
+}
+
+fn mad(values: &[f64], med: f64) -> Option<f64> {
+    if !med.is_finite() {
+        return None;
+    }
+    let deviations = values
+        .iter()
+        .copied()
+        .filter(|value| value.is_finite())
+        .map(|value| (value - med).abs())
+        .collect::<Vec<_>>();
+    median(&deviations)
+}
+
+fn detect_bidirectional_split_index(xs: &[f64]) -> Option<usize> {
+    if xs.len() < 5 {
+        return None;
+    }
+    let mut first_dir = 0i32;
+    for index in 1..xs.len() {
+        let prev = xs[index - 1];
+        let curr = xs[index];
+        if !prev.is_finite() || !curr.is_finite() {
+            continue;
+        }
+        let dx = curr - prev;
+        if dx == 0.0 {
+            continue;
+        }
+        first_dir = if dx > 0.0 { 1 } else { -1 };
+        break;
+    }
+    if first_dir == 0 {
+        return None;
+    }
+    let mut has_pos = false;
+    let mut has_neg = false;
+    for index in 1..xs.len() {
+        let dx = xs[index] - xs[index - 1];
+        if dx > 0.0 {
+            has_pos = true;
+        }
+        if dx < 0.0 {
+            has_neg = true;
+        }
+    }
+    if !(has_pos && has_neg) {
+        return None;
+    }
+    if first_dir > 0 {
+        let mut idx_max = 0usize;
+        let mut max = xs[0];
+        for (index, value) in xs.iter().copied().enumerate().skip(1) {
+            if !max.is_finite() || value > max {
+                max = value;
+                idx_max = index;
+            }
+        }
+        if idx_max <= 1 || idx_max >= xs.len().saturating_sub(2) {
+            None
+        } else {
+            Some(idx_max)
+        }
+    } else {
+        let mut idx_min = 0usize;
+        let mut min = xs[0];
+        for (index, value) in xs.iter().copied().enumerate().skip(1) {
+            if !min.is_finite() || value < min {
+                min = value;
+                idx_min = index;
+            }
+        }
+        if idx_min <= 1 || idx_min >= xs.len().saturating_sub(2) {
+            None
+        } else {
+            Some(idx_min)
+        }
+    }
+}
+
+fn split_bidirectional_points(points: &[Point]) -> Vec<Vec<Point>> {
+    if points.len() < 2 {
+        return if points.is_empty() {
+            Vec::new()
+        } else {
+            vec![points.to_vec()]
+        };
+    }
+    let xs = points.iter().map(|point| point.x).collect::<Vec<_>>();
+    let Some(split_index) = detect_bidirectional_split_index(&xs) else {
+        return vec![points.to_vec()];
+    };
+    vec![
+        points[..=split_index].to_vec(),
+        points[split_index..].to_vec(),
+    ]
+    .into_iter()
+    .filter(|segment| !segment.is_empty())
+    .collect()
+}
+
+fn sanitize_log_points(x_raw: &[f64], y_raw: &[f64]) -> Result<Vec<LogSegment>, &'static str> {
+    let points = x_raw
+        .iter()
+        .copied()
+        .zip(y_raw.iter().copied())
+        .filter(|(x, y)| x.is_finite() && y.is_finite() && *y != 0.0)
+        .map(|(x, y)| Point { x, y })
+        .collect::<Vec<_>>();
+    if points.len() < 3 {
+        return Err("common.not_enough_points");
+    }
+
+    let to_segment = |list: Vec<Point>| {
+        let mut sorted = list;
+        sorted.sort_by(|a, b| a.x.total_cmp(&b.x));
+        let x = sorted.iter().map(|point| point.x).collect::<Vec<_>>();
+        let y = sorted
+            .iter()
+            .map(|point| point.y.abs().log10())
+            .collect::<Vec<_>>();
+        LogSegment { x, y }
+    };
+
+    let raw_segments = split_bidirectional_points(&points);
+    if raw_segments.len() <= 1 {
+        return Ok(vec![to_segment(points)]);
+    }
+
+    let segments = raw_segments
+        .into_iter()
+        .filter(|segment| segment.len() >= 3)
+        .map(to_segment)
+        .collect::<Vec<_>>();
+    if segments.is_empty() {
+        Err("common.sweep_split_no_valid")
+    } else {
+        Ok(segments)
+    }
+}
+
+fn estimate_log_current_floor(values: &[f64]) -> Option<f64> {
+    let mut valid = values
+        .iter()
+        .copied()
+        .filter(|value| value.is_finite())
+        .collect::<Vec<_>>();
+    if valid.len() < 3 {
+        return None;
+    }
+    valid.sort_by(|a, b| a.total_cmp(b));
+    let q = FLOOR_QUANTILE.clamp(0.01, 0.5);
+    let n_floor = 3usize.max((valid.len() as f64 * q).ceil() as usize);
+    median(&valid[..n_floor.min(valid.len())])
+}
+
+fn build_candidate_window_sizes(seg_len: usize, min_points: usize, preferred: usize) -> Vec<usize> {
+    let min_len = 3usize.max(min_points);
+    if seg_len < min_len {
+        return Vec::new();
+    }
+    let preferred = min_len.max(preferred);
+    let mut out = Vec::<usize>::new();
+    let push = |out: &mut Vec<usize>, value: usize| {
+        if value >= min_len && value <= seg_len && !out.contains(&value) {
+            out.push(value);
+        }
+    };
+    let dense_upper = seg_len.min(preferred.max(min_len + 6));
+    for value in min_len..=dense_upper {
+        push(&mut out, value);
+    }
+    let mut probe = dense_upper;
+    while probe < seg_len {
+        let next = seg_len.min((probe as f64 * 1.35).round() as usize);
+        if next <= probe {
+            break;
+        }
+        push(&mut out, next);
+        probe = next;
+    }
+    push(
+        &mut out,
+        ((dense_upper + seg_len) as f64 * 0.5).round() as usize,
+    );
+    push(
+        &mut out,
+        ((dense_upper + seg_len * 2) as f64 / 3.0).round() as usize,
+    );
+    push(&mut out, seg_len);
+    out.sort_unstable();
+    out
+}
+
+fn build_prefix_sums(x: &[f64], y: &[f64]) -> PrefixSums {
+    let mut prefix = PrefixSums {
+        x: vec![0.0; x.len() + 1],
+        y: vec![0.0; y.len() + 1],
+        xx: vec![0.0; x.len() + 1],
+        xy: vec![0.0; x.len() + 1],
+        yy: vec![0.0; x.len() + 1],
+    };
+    for index in 0..x.len() {
+        prefix.x[index + 1] = prefix.x[index] + x[index];
+        prefix.y[index + 1] = prefix.y[index] + y[index];
+        prefix.xx[index + 1] = prefix.xx[index] + x[index] * x[index];
+        prefix.xy[index + 1] = prefix.xy[index] + x[index] * y[index];
+        prefix.yy[index + 1] = prefix.yy[index] + y[index] * y[index];
+    }
+    prefix
+}
+
+fn range_sum(values: &[f64], start: usize, end: usize) -> f64 {
+    values[end + 1] - values[start]
+}
+
+fn compute_linear_fit(
+    x: &[f64],
+    y: &[f64],
+    prefix: &PrefixSums,
+    l: usize,
+    r: usize,
+) -> Option<LinearFit> {
+    let start = l.min(r).min(x.len().saturating_sub(1));
+    let end = l.max(r).min(x.len().saturating_sub(1));
+    if end <= start {
+        return None;
+    }
+    let count = end - start + 1;
+    if count < 2 {
+        return None;
+    }
+    let sum_x = range_sum(&prefix.x, start, end);
+    let sum_y = range_sum(&prefix.y, start, end);
+    let sum_xx = range_sum(&prefix.xx, start, end);
+    let sum_xy = range_sum(&prefix.xy, start, end);
+    let sum_yy = range_sum(&prefix.yy, start, end);
+    let count_f = count as f64;
+    let mean_x = sum_x / count_f;
+    let mean_y = sum_y / count_f;
+    let sxx = sum_xx - count_f * mean_x * mean_x;
+    if !sxx.is_finite() || sxx == 0.0 {
+        return None;
+    }
+    let sxy = sum_xy - count_f * mean_x * mean_y;
+    let syy = sum_yy - count_f * mean_y * mean_y;
+    let a = sxy / sxx;
+    let b = mean_y - a * mean_x;
+    let mut ss_res = 0.0;
+    let mut y_min = f64::INFINITY;
+    let mut y_max = f64::NEG_INFINITY;
+    for index in start..=end {
+        let y_hat = a * x[index] + b;
+        let error = y[index] - y_hat;
+        ss_res += error * error;
+        y_min = y_min.min(y[index]);
+        y_max = y_max.max(y[index]);
+    }
+    let r2 = if syy > 0.0 { 1.0 - ss_res / syy } else { 1.0 };
+    Some(LinearFit {
+        a,
+        b,
+        r2,
+        rmse: (ss_res / count_f.max(1.0)).sqrt(),
+        n: count,
+        y_min,
+        decade_span: y_max - y_min,
+    })
+}
+
+fn compute_slope_stability(x: &[f64], y: &[f64], l: usize, r: usize) -> Option<f64> {
+    let start = l.min(r).min(x.len().saturating_sub(1));
+    let end = l.max(r).min(x.len().saturating_sub(1));
+    if end < start + 2 {
+        return None;
+    }
+    let mut slopes = Vec::<f64>::new();
+    for index in start + 1..=end - 1 {
+        let dx = x[index + 1] - x[index - 1];
+        if !dx.is_finite() || dx == 0.0 {
+            continue;
+        }
+        let slope = (y[index + 1] - y[index - 1]) / dx;
+        if slope.is_finite() && slope != 0.0 {
+            slopes.push(slope.abs());
+        }
+    }
+    if slopes.len() < 3 {
+        return None;
+    }
+    let m = median(&slopes)?;
+    if !m.is_finite() || m <= 0.0 {
+        return None;
+    }
+    let mdev = mad(&slopes, m)?;
+    if mdev.is_finite() {
+        Some(mdev / m)
+    } else {
+        None
+    }
+}
+
+fn split_into_consecutive_segments(indices: &[usize]) -> Vec<Vec<usize>> {
+    if indices.is_empty() {
+        return Vec::new();
+    }
+    let mut segments = Vec::<Vec<usize>>::new();
+    let mut start = 0usize;
+    for index in 1..indices.len() {
+        if indices[index] != indices[index - 1] + 1 {
+            segments.push(indices[start..index].to_vec());
+            start = index;
+        }
+    }
+    segments.push(indices[start..].to_vec());
+    segments
+}
+
+fn compute_floor_margin_dec(fit: &LinearFit, y_floor: f64) -> Option<f64> {
+    if y_floor.is_finite() && fit.y_min.is_finite() {
+        Some(fit.y_min - y_floor)
+    } else {
+        None
+    }
+}
+
+fn select_best_by_score(
+    candidates: impl IntoIterator<Item = Option<Candidate>>,
+) -> Option<Candidate> {
+    let mut best: Option<Candidate> = None;
+    for candidate in candidates.into_iter().flatten() {
+        let replace = match best.as_ref() {
+            None => true,
+            Some(current) => {
+                candidate.score > current.score
+                    || (candidate.score == current.score
+                        && (candidate.fit.decade_span > current.fit.decade_span
+                            || (candidate.fit.decade_span == current.fit.decade_span
+                                && (candidate.fit.rmse < current.fit.rmse
+                                    || (candidate.fit.rmse == current.fit.rmse
+                                        && (candidate.fit.n > current.fit.n
+                                            || (candidate.fit.n == current.fit.n
+                                                && candidate.x1 < current.x1)))))))
+            }
+        };
+        if replace {
+            best = Some(candidate);
+        }
+    }
+    best
+}
+
+fn run_auto_search(segment: &LogSegment) -> Option<SearchResult> {
+    let y_floor = estimate_log_current_floor(&segment.y)?;
+    let prefix = build_prefix_sums(&segment.x, &segment.y);
+    let mut best_any: Option<Candidate> = None;
+    let mut best_strict: Option<Candidate> = None;
+    let mut max_above_count = 0usize;
+
+    for floor_margin_dec in FLOOR_TRY {
+        let above = segment
+            .y
+            .iter()
+            .enumerate()
+            .filter_map(|(index, y)| {
+                if y.is_finite() && *y >= y_floor + floor_margin_dec {
+                    Some(index)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        max_above_count = max_above_count.max(above.len());
+        let segments = split_into_consecutive_segments(&above);
+        for min_span in SPAN_TRY {
+            for min_points in MIN_POINTS_TRY {
+                for r2_min in R2_TRY {
+                    for stab_max in STAB_TRY {
+                        for seg in &segments {
+                            if seg.len() < min_points {
+                                continue;
+                            }
+                            let windows =
+                                build_candidate_window_sizes(seg.len(), min_points, WINDOW_POINTS);
+                            for window_size in windows {
+                                if window_size < min_points {
+                                    continue;
+                                }
+                                for start in 0..=seg.len() - window_size {
+                                    let l = seg[start];
+                                    let r = seg[start + window_size - 1];
+                                    let Some(fit) =
+                                        compute_linear_fit(&segment.x, &segment.y, &prefix, l, r)
+                                    else {
+                                        continue;
+                                    };
+                                    if !fit.r2.is_finite() || fit.r2 < r2_min {
+                                        continue;
+                                    }
+                                    if !fit.decade_span.is_finite() || fit.decade_span < min_span {
+                                        continue;
+                                    }
+                                    let stab =
+                                        compute_slope_stability(&segment.x, &segment.y, l, r);
+                                    if let Some(stab) = stab {
+                                        if stab.is_finite() && stab > stab_max {
+                                            continue;
+                                        }
+                                    }
+                                    let floor_margin = compute_floor_margin_dec(&fit, y_floor);
+                                    let score = fit.r2 + 0.25 * fit.decade_span.min(3.0)
+                                        - 0.5 * stab.unwrap_or(0.0)
+                                        + 0.05 * floor_margin.unwrap_or(0.0).max(0.0).min(3.0);
+                                    let candidate = Candidate {
+                                        fit,
+                                        x1: segment.x[l],
+                                        x2: segment.x[r],
+                                        y_floor,
+                                        floor_margin_dec: floor_margin,
+                                        stab: stab.filter(|value| value.is_finite()),
+                                        score,
+                                        floor_margin_dec_used: floor_margin_dec,
+                                        min_span,
+                                        min_points,
+                                        r2_min,
+                                        stab_max,
+                                    };
+                                    let meets_suggestion = candidate.fit.r2 >= SUGGESTION_R2
+                                        && candidate.fit.decade_span >= SUGGESTION_SPAN
+                                        && candidate.fit.n >= SUGGESTION_N
+                                        && candidate
+                                            .stab
+                                            .map(|value| value <= SUGGESTION_STAB)
+                                            .unwrap_or(true)
+                                        && floor_margin_dec >= SUGGESTION_FLOOR;
+                                    if meets_suggestion {
+                                        best_any = select_best_by_score([
+                                            best_any,
+                                            Some(candidate.clone()),
+                                        ]);
+                                    }
+                                    let is_strict = floor_margin_dec == 1.0
+                                        && min_span == STRICT_SPAN
+                                        && min_points == STRICT_N
+                                        && r2_min == STRICT_R2
+                                        && stab_max == STRICT_STAB;
+                                    if is_strict {
+                                        best_strict =
+                                            select_best_by_score([best_strict, Some(candidate)]);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Some(SearchResult {
+        max_above_count,
+        best_strict,
+        best_any,
+    })
+}
+
+fn profile_json(candidate: &Candidate) -> Value {
+    json!({
+        "floorMarginDec": candidate.floor_margin_dec_used,
+        "minSpan": candidate.min_span,
+        "minPoints": candidate.min_points,
+        "r2Min": candidate.r2_min,
+        "stabMax": candidate.stab_max,
+    })
+}
+
+fn candidate_fit_json(candidate: &Candidate) -> Value {
+    let ss = if candidate.fit.a.is_finite() && candidate.fit.a != 0.0 {
+        Some(1000.0 / candidate.fit.a.abs())
+    } else {
+        None
+    };
+    json!({
+        "ok": ss.is_some(),
+        "ss": ss,
+        "x1": candidate.x1,
+        "x2": candidate.x2,
+        "a": if candidate.fit.a.is_finite() { Some(candidate.fit.a) } else { None },
+        "b": if candidate.fit.b.is_finite() { Some(candidate.fit.b) } else { None },
+        "r2": candidate.fit.r2,
+        "decadeSpan": candidate.fit.decade_span,
+        "n": candidate.fit.n,
+        "reason": if ss.is_some() { "ok" } else { "common.invalid_points" },
+        "detail": {
+            "yFloor": candidate.y_floor,
+            "floorMarginDec": candidate.floor_margin_dec,
+            "profileUsed": profile_json(candidate),
+            "stab": candidate.stab,
+            "score": candidate.score,
+        },
+    })
+}
+
+fn strict_failure_json(best_attempt: Option<&Candidate>, max_above_count: usize) -> Value {
+    let reason = if max_above_count < 8 {
+        "auto.no_points_above_floor"
+    } else if best_attempt.is_some() {
+        "auto.no_window_meets_strict"
+    } else {
+        "auto.no_window_meets_threshold"
+    };
+    if let Some(best) = best_attempt {
+        json!({
+            "ok": false,
+            "reason": reason,
+            "detail": {
+                "bestAttempt": {
+                    "x1": best.x1,
+                    "x2": best.x2,
+                    "r2": best.fit.r2,
+                    "decadeSpan": best.fit.decade_span,
+                    "n": best.fit.n,
+                    "yFloor": best.y_floor,
+                    "floorMarginDec": best.floor_margin_dec,
+                    "stab": best.stab,
+                    "profileUsed": profile_json(best),
+                },
+            },
+        })
+    } else {
+        json!({
+            "ok": false,
+            "reason": reason,
+            "detail": {},
+        })
+    }
+}
+
+fn suggested_failure_json(max_above_count: usize) -> Value {
+    json!({
+        "ok": false,
+        "reason": if max_above_count < 8 {
+            "auto.no_points_above_floor"
+        } else {
+            "auto.no_window_meets_threshold"
+        },
+    })
+}
+
+pub fn compute_subthreshold_swing_fit_auto(x: &[f64], y: &[f64]) -> Value {
+    let segments = match sanitize_log_points(x, y) {
+        Ok(segments) => segments,
+        Err(reason) => {
+            return json!({
+                "strict": {
+                    "ok": false,
+                    "reason": reason,
+                    "detail": {},
+                },
+                "suggested": {
+                    "ok": false,
+                    "reason": reason,
+                },
+            });
+        }
+    };
+    let mut results = Vec::<SearchResult>::new();
+    for segment in &segments {
+        if let Some(result) = run_auto_search(segment) {
+            results.push(result);
+        }
+    }
+
+    let pick_strict = select_best_by_score(results.iter().map(|result| result.best_strict.clone()));
+    let pick_suggested = select_best_by_score(results.iter().map(|result| result.best_any.clone()));
+    let max_above_count = results
+        .iter()
+        .map(|result| result.max_above_count)
+        .max()
+        .unwrap_or(0);
+    let strict = if let Some(candidate) = pick_strict.as_ref() {
+        candidate_fit_json(candidate)
+    } else {
+        strict_failure_json(pick_suggested.as_ref(), max_above_count)
+    };
+    let suggested = if let Some(candidate) = pick_suggested.as_ref() {
+        candidate_fit_json(candidate)
+    } else {
+        suggested_failure_json(max_above_count)
+    };
+
+    json!({
+        "strict": strict,
+        "suggested": suggested,
+    })
+}
+
+pub fn analyze_series_batch(series: &[AnalysisSeriesRequest]) -> Value {
+    let mut output = serde_json::Map::<String, Value>::new();
+    for item in series {
+        output.insert(
+            item.id.clone(),
+            json!({
+                "ssFitAuto": compute_subthreshold_swing_fit_auto(&item.x, &item.y),
+            }),
+        );
+    }
+    Value::Object(output)
+}
+
+pub fn analyze_series_batch_result(
+    file_id: Option<&str>,
+    series: &[AnalysisSeriesRequest],
+) -> Value {
+    json!({
+        "fileId": file_id,
+        "series": analyze_series_batch(series),
+    })
+}

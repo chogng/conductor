@@ -140,9 +140,21 @@ contextBridge.exposeInMainWorld("desktopImport", {
       payload,
     );
   },
+  async inferDeviceAnalysisAutoExtractionWithRust(payload) {
+    return ipcRenderer.invoke(
+      ipcChannels.deviceAnalysisRustEngineInferAutoExtraction,
+      payload,
+    );
+  },
   async processDeviceAnalysisFileWithRust(payload) {
     return ipcRenderer.invoke(
       ipcChannels.deviceAnalysisRustEngineProcessFile,
+      payload,
+    );
+  },
+  async analyzeDeviceAnalysisSeriesBatchWithRust(payload) {
+    return ipcRenderer.invoke(
+      ipcChannels.deviceAnalysisRustEngineAnalyzeSeriesBatch,
       payload,
     );
   },

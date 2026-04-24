@@ -21,6 +21,10 @@ export const ipcChannels = {
   deviceAnalysisRustEnginePreviewRows: "device-analysis-rust-engine:preview-rows",
   deviceAnalysisRustEngineReadCell: "device-analysis-rust-engine:read-cell",
   deviceAnalysisRustEngineReadCells: "device-analysis-rust-engine:read-cells",
+  deviceAnalysisRustEngineInferAutoExtraction:
+    "device-analysis-rust-engine:infer-auto-extraction",
+  deviceAnalysisRustEngineAnalyzeSeriesBatch:
+    "device-analysis-rust-engine:analyze-series-batch",
   deviceAnalysisRustEngineProcessFile: "device-analysis-rust-engine:process-file",
   deviceAnalysisRustEngineDispose: "device-analysis-rust-engine:dispose",
 } as const;

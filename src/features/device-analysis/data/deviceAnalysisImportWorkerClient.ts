@@ -77,6 +77,15 @@ type DesktopImportBridge = {
     cells: Array<{ colIndex: number; rowIndex: number }>;
     fileId: string;
   }) => Promise<unknown>;
+  inferDeviceAnalysisAutoExtractionWithRust?: (payload: {
+    fileId: string;
+    fileName: string;
+    path: string;
+  }) => Promise<unknown>;
+  analyzeDeviceAnalysisSeriesBatchWithRust?: (payload: {
+    fileId?: string;
+    series: Array<{ id: string; x: number[]; y: number[] }>;
+  }) => Promise<unknown>;
 };
 
 type ImportWorkerSlot = {

@@ -2,6 +2,10 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { formatNumber } from "../lib/analysisMath";
 import { padLinearDomain, padLogDomain } from "../lib/analysisChartsUtils";
 import { COLORS } from "../lib/chartColors";
+import {
+  getDeviceAnalysisPerfNow,
+  logDeviceAnalysisPerf,
+} from "../../shared/lib/deviceAnalysisPerf";
 
 type Padding = {
   top: number;
@@ -378,6 +382,8 @@ const CanvasMultiLineChart = ({
     const ctx = baseCtxRef.current;
     if (!ctx) return;
     if (size.width <= 0 || size.height <= 0) return;
+    const startedAt = getDeviceAnalysisPerfNow();
+    let pointCount = 0;
 
     ctx.clearRect(0, 0, size.width, size.height);
 
@@ -405,6 +411,7 @@ const CanvasMultiLineChart = ({
       if (!xArr || !yArr) continue;
       const n = Math.min(xArr.length ?? 0, yArr.length ?? 0);
       if (n < 2) continue;
+      pointCount += n;
 
       ctx.beginPath();
       ctx.strokeStyle = s._color;
@@ -425,6 +432,17 @@ const CanvasMultiLineChart = ({
         }
       }
       if (started) ctx.stroke();
+    }
+    const durationMs = getDeviceAnalysisPerfNow() - startedAt;
+    if (durationMs >= 8 || prepared.series.length >= 8 || pointCount >= 3000) {
+      logDeviceAnalysisPerf("render:canvas-preview", {
+        durationMs,
+        height: size.height,
+        pointCount,
+        seriesCount: prepared.series.length,
+        title: title ?? null,
+        width: size.width,
+      });
     }
   };
 

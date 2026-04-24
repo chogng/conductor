@@ -30,7 +30,7 @@ import CalculatedParametersRow from "./CalculatedParametersRow";
 import { buildLogTicks, buildNiceTicks, buildOriginAutoTicks, buildPoints, buildStepTicks, computeLabelInterval, computeMinMax, downsamplePointsForDisplay, inferTickDigitsFromTicks, normalizeFloat, normalizeVarToken, padLinearDomain, padLogDomain, parseOptionalNumber, preserveScrollPosition, varTokenToSymbol, } from "../lib/analysisChartsUtils";
 import { computeBaseCurrentMetrics, isOutputLikeDeviceAnalysisFile, isTransferLikeDeviceAnalysisFile, } from "../lib/deviceAnalysisMetrics";
 import { getDeviceAnalysisXUnitMeta, getDeviceAnalysisYUnitMeta, normalizeDeviceAnalysisYUnit, } from "../lib/deviceAnalysisUnits";
-import { startDeviceAnalysisPerf } from "../../shared/lib/deviceAnalysisPerf";
+import { getDeviceAnalysisPerfNow, logDeviceAnalysisPerf, startDeviceAnalysisPerf } from "../../shared/lib/deviceAnalysisPerf";
 import MainPlotChart from "./MainPlotChart";
 import GmDiagnosticsChart from "./GmDiagnosticsChart";
 import SsDiagnosticsChart from "./SsDiagnosticsChart";
@@ -432,7 +432,7 @@ const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, prim
                 id: "device-analysis-plot-ss-btn",
                 disabled: !ssApplicable,
                 title: !ssApplicable
-                    ? "SS is defined for transfer (Vg) curves. This file does not look like a Vg sweep."
+                    ? "SS is available when the selected data has a usable current-vs-bias sweep."
                     : "",
             },
             {
@@ -1171,15 +1171,31 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const pointsBySeriesId = useMemo(() => {
         if (!activeFile?.fileId || !activeFile?.series?.length)
             return new Map();
+        const startedAt = getDeviceAnalysisPerfNow();
         const cache = getFileCache(activeFile.fileId, activeFile);
         if (!cache)
             return new Map();
         const map = cache.pointsBySeriesId;
+        let builtSeriesCount = 0;
+        let builtPointCount = 0;
         for (const s of activeFile.series) {
             if (map.has(s.id))
                 continue;
             const xArr = activeFile?.xGroups?.[s.groupIndex];
-            map.set(s.id, buildPoints(xArr, s.y));
+            const points = buildPoints(xArr, s.y);
+            builtSeriesCount += 1;
+            builtPointCount += points.length;
+            map.set(s.id, points);
+        }
+        if (builtSeriesCount > 0) {
+            logDeviceAnalysisPerf("analysis:active-points", {
+                fileId: activeFile.fileId,
+                fileName: activeFile.fileName ?? null,
+                builtPointCount,
+                builtSeriesCount,
+                durationMs: getDeviceAnalysisPerfNow() - startedAt,
+                totalSeriesCount: activeFile.series.length,
+            });
         }
         return map;
     }, [activeFile, getFileCache]);
@@ -1539,6 +1555,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const run = (_deadline?: IdleDeadline) => {
             if (progressiveAnalysisJobIdRef.current !== jobId)
                 return;
+            const chunkStartedAt = getDeviceAnalysisPerfNow();
             let processed = 0;
             while (queue.length) {
                 if (_deadline) {
@@ -1556,6 +1573,17 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     workingMap.set(nextSeries.id, entry);
                 }
                 processed += 1;
+            }
+            if (processed > 0) {
+                logDeviceAnalysisPerf("analysis:detail-chunk", {
+                    fileId: activeFile?.fileId ?? null,
+                    fileName: activeFile?.fileName ?? null,
+                    completedCount: workingMap.size,
+                    durationMs: getDeviceAnalysisPerfNow() - chunkStartedAt,
+                    pendingCount: queue.length,
+                    processedCount: processed,
+                    totalCount,
+                });
             }
             const pending = queue.length > 0;
             setDetailAnalysisState({
@@ -1709,7 +1737,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         return false;
     }, [activeFile?.series, analysisBySeriesId]);
     const gmApplicable = useMemo(() => transferMetricsApplicable || outputMetricsApplicable, [outputMetricsApplicable, transferMetricsApplicable]);
-    const ssApplicable = transferMetricsApplicable && (ssHeuristicApplicable || ssComputedApplicable);
+    const ssApplicable = ssHeuristicApplicable || ssComputedApplicable;
     const effectivePlotType = useMemo(() => {
         if (plotType === "j" && !area)
             return "iv";

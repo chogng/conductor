@@ -368,12 +368,12 @@ Phase 1:
 
 Phase 2:
 
-- [ ] Port `extractDeviceAnalysisCurveMetadata`.
-- [ ] Port `classifyDeviceAnalysisCurve`.
-- [ ] Port `inferMetadataGroupShapeFromRows`.
-- [ ] Port `inferDeviceAnalysisAutoExtraction`.
-- [ ] Add `verify-rust-auto-extraction-compat.mjs`.
-- [ ] Use Rust inference inside `processFileAuto`.
+- [x] Port `extractDeviceAnalysisCurveMetadata`.
+- [x] Port `classifyDeviceAnalysisCurve`.
+- [x] Port `inferMetadataGroupShapeFromRows`.
+- [x] Port `inferDeviceAnalysisAutoExtraction`.
+- [x] Add `verify-rust-auto-extraction-compat.mjs`.
+- [x] Use Rust inference inside `processFileAuto`.
 
 Phase 3:
 

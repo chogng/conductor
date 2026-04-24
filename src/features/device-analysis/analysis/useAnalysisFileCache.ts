@@ -7,6 +7,8 @@ import {
 import { buildPoints } from "./lib/analysisChartsUtils";
 import { computeBaseCurrentMetrics } from "./lib/deviceAnalysisMetrics";
 import {
+  getDeviceAnalysisPerfNow,
+  logDeviceAnalysisPerf,
   startDeviceAnalysisPerf,
   summarizeDeviceAnalysisProcessedFile,
 } from "../shared/lib/deviceAnalysisPerf";
@@ -20,6 +22,31 @@ type CachePrefetchHandle =
       type: "timeout";
       id: ReturnType<typeof setTimeout>;
     };
+
+const buildRustSsAutoSeriesPayload = (file: any, cache: any) => {
+  const payload = [];
+  for (const series of file?.series ?? []) {
+    if (!series?.id || cache.ssAutoBySeriesId.has(series.id)) continue;
+    const points = cache.pointsBySeriesId.get(series.id) ?? [];
+    const x = [];
+    const y = [];
+    for (const point of points) {
+      const xv = point?.x;
+      const yv = point?.y;
+      if (!Number.isFinite(xv) || !Number.isFinite(yv)) continue;
+      x.push(xv);
+      y.push(yv);
+    }
+    if (x.length >= 3) {
+      payload.push({
+        id: series.id,
+        x,
+        y,
+      });
+    }
+  }
+  return payload;
+};
 
 export const useAnalysisFileCache = ({
   effectiveActiveFileId,
@@ -144,57 +171,129 @@ export const useAnalysisFileCache = ({
       }
     }
 
-    const precomputeFile = (file: any) => {
+    const precomputeFile = async (file: any) => {
       const fileId = file?.fileId;
       if (!fileId) return;
       const finishPerf = startDeviceAnalysisPerf("analysis:prefetch-file", {
         ...summarizeDeviceAnalysisProcessedFile(file),
         active: fileId === effectiveActiveFileId,
       });
+      const stageMs = {
+        baseCurrent: 0,
+        gm: 0,
+        points: 0,
+        ss: 0,
+        ssAuto: 0,
+      };
+      const stageCounts = {
+        baseCurrent: 0,
+        gm: 0,
+        points: 0,
+        ss: 0,
+        ssAuto: 0,
+      };
       const cache = getFileCache(fileId, file);
       if (!cache) return;
 
+      let stageStartedAt = getDeviceAnalysisPerfNow();
       for (const series of file?.series ?? []) {
         if (!series?.id || cache.pointsBySeriesId.has(series.id)) continue;
         const xArr = file?.xGroups?.[series.groupIndex];
         cache.pointsBySeriesId.set(series.id, buildPoints(xArr, series.y));
+        stageCounts.points += 1;
       }
+      stageMs.points += getDeviceAnalysisPerfNow() - stageStartedAt;
 
       for (const series of file?.series ?? []) {
         if (!series?.id) continue;
 
         const points = cache.pointsBySeriesId.get(series.id) ?? [];
         if (!cache.gmByMode.x.has(series.id)) {
+          stageStartedAt = getDeviceAnalysisPerfNow();
           cache.gmByMode.x.set(series.id, computeCentralDerivative(points));
+          stageMs.gm += getDeviceAnalysisPerfNow() - stageStartedAt;
+          stageCounts.gm += 1;
         }
         if (!cache.ssDiagnosticsBySeriesId.has(series.id)) {
+          stageStartedAt = getDeviceAnalysisPerfNow();
           cache.ssDiagnosticsBySeriesId.set(
             series.id,
             computeSubthresholdSwing(points),
           );
-        }
-        if (!cache.ssAutoBySeriesId.has(series.id)) {
-          cache.ssAutoBySeriesId.set(
-            series.id,
-            computeSubthresholdSwingFitAuto(points),
-          );
+          stageMs.ss += getDeviceAnalysisPerfNow() - stageStartedAt;
+          stageCounts.ss += 1;
         }
         if (!cache.baseMetricsBySeriesId.has(series.id)) {
+          stageStartedAt = getDeviceAnalysisPerfNow();
           const baseCurrentMetrics = computeBaseCurrentMetrics({
             points,
             sourceFile: file,
           });
           cache.baseMetricsBySeriesId.set(series.id, baseCurrentMetrics);
+          stageMs.baseCurrent += getDeviceAnalysisPerfNow() - stageStartedAt;
+          stageCounts.baseCurrent += 1;
         }
       }
-      finishPerf();
+
+      const rustSsAutoSeries = buildRustSsAutoSeriesPayload(file, cache);
+      const rustAnalyze =
+        globalThis.window?.desktopImport?.analyzeDeviceAnalysisSeriesBatchWithRust;
+      if (rustAnalyze && rustSsAutoSeries.length) {
+        stageStartedAt = getDeviceAnalysisPerfNow();
+        try {
+          const response: any = await rustAnalyze({
+            fileId,
+            series: rustSsAutoSeries,
+          });
+          const resultBySeriesId = response?.ok
+            ? response?.result?.series
+            : null;
+          if (resultBySeriesId && typeof resultBySeriesId === "object") {
+            for (const series of rustSsAutoSeries) {
+              const ssFitAuto = resultBySeriesId?.[series.id]?.ssFitAuto;
+              if (ssFitAuto && !cache.ssAutoBySeriesId.has(series.id)) {
+                cache.ssAutoBySeriesId.set(series.id, ssFitAuto);
+                stageCounts.ssAuto += 1;
+              }
+            }
+          }
+        } catch {
+          // The TypeScript implementation below remains the compatibility fallback.
+        } finally {
+          stageMs.ssAuto += getDeviceAnalysisPerfNow() - stageStartedAt;
+        }
+      }
+
+      stageStartedAt = getDeviceAnalysisPerfNow();
+      for (const series of file?.series ?? []) {
+        if (!series?.id || cache.ssAutoBySeriesId.has(series.id)) continue;
+        cache.ssAutoBySeriesId.set(
+          series.id,
+          computeSubthresholdSwingFitAuto(
+            cache.pointsBySeriesId.get(series.id) ?? [],
+          ),
+        );
+        stageCounts.ssAuto += 1;
+      }
+      stageMs.ssAuto += getDeviceAnalysisPerfNow() - stageStartedAt;
+
+      finishPerf({
+        stageCounts,
+        stageMs,
+      });
+      logDeviceAnalysisPerf("analysis:prefetch-breakdown", {
+        ...summarizeDeviceAnalysisProcessedFile(file),
+        stageCounts,
+        stageMs,
+      });
     };
 
-    const run = (_deadline?: IdleDeadline) => {
+    const run = async (_deadline?: IdleDeadline) => {
       if (cachePrefetchJobIdRef.current !== jobId) return;
 
       const next = queue.shift();
-      if (next) precomputeFile(next);
+      if (next) await precomputeFile(next);
+      if (cachePrefetchJobIdRef.current !== jobId) return;
 
       if (!queue.length) {
         cachePrefetchHandleRef.current = null;

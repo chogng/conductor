@@ -1,3 +1,4 @@
+mod engine_analysis;
 mod engine_cells;
 mod engine_dataset;
 mod engine_infer;
@@ -5,6 +6,7 @@ mod engine_legend;
 mod engine_utils;
 
 use calamine::{Reader, open_workbook_auto};
+use engine_analysis::AnalysisSeriesRequest;
 use engine_cells::EngineCellRequest;
 use engine_dataset::{EngineDataset, is_excel_path, load_engine_dataset};
 use engine_infer::{
@@ -73,6 +75,7 @@ struct EngineRequest {
     path: Option<String>,
     row_index: Option<usize>,
     seed_rows: Option<usize>,
+    series: Option<Vec<AnalysisSeriesRequest>>,
     start_row: Option<usize>,
     max_points: Option<usize>,
 }
@@ -252,8 +255,12 @@ fn collect_stripped_sweep_metadata(
         return (None, None);
     };
     let data_start = header_row_index + 1;
-    let ch1_values = collect_column_numbers(dataset, data_start, ch1_voltage_col, 2048);
-    let ch2_values = collect_column_numbers(dataset, data_start, ch2_voltage_col, 2048);
+    let point_col = headers.iter().position(|entry| entry == "Point");
+    let var2_col = headers.iter().position(|entry| entry == "VAR2");
+    let first_group_len =
+        detect_first_group_length(dataset, data_start, point_col, var2_col).unwrap_or(2048);
+    let ch1_values = collect_column_numbers(dataset, data_start, ch1_voltage_col, first_group_len);
+    let ch2_values = collect_column_numbers(dataset, data_start, ch2_voltage_col, first_group_len);
     let ch1_span = numeric_span(&ch1_values).unwrap_or(0.0).abs();
     let ch2_span = numeric_span(&ch2_values).unwrap_or(0.0).abs();
     let axis = if ch1_span >= ch2_span.max(1e-12) * 3.0 {
@@ -365,11 +372,11 @@ fn extract_auto_metadata(dataset: &EngineDataset) -> AutoMetadata {
 
 fn detect_axis_role_text(value: &str) -> Option<&'static str> {
     let compact = normalize_header_compact(value);
-    if compact.contains("vg") || compact.contains("gate") || compact == "var1" {
-        return Some("vg");
-    }
     if compact.contains("vd") || compact.contains("drain") {
         return Some("vd");
+    }
+    if compact.contains("vg") || compact.contains("gate") || compact == "var1" {
+        return Some("vg");
     }
     None
 }
@@ -890,6 +897,101 @@ fn with_auto_curve_type(mut config: Value, curve_type: &str) -> Value {
     config
 }
 
+fn nullable_non_empty_json_string(value: String) -> Value {
+    if value.trim().is_empty() {
+        Value::Null
+    } else {
+        json!(value)
+    }
+}
+
+fn infer_auto_extraction_plan_from_config(config: &Value) -> Value {
+    let bottom_title = json_string(config.get("bottomTitle"));
+    let left_title = json_string(config.get("leftTitle"));
+    let x_axis_role = match detect_axis_role_text(&bottom_title) {
+        Some(role) => json!(role),
+        None => Value::Null,
+    };
+    let curve_type_raw = json_string(config.get("autoCurveType")).to_ascii_lowercase();
+    let curve_type = match curve_type_raw.as_str() {
+        "transfer" | "output" | "cv" | "cf" | "pv" => curve_type_raw,
+        _ => match x_axis_role.as_str() {
+            Some("vg") => "transfer".to_string(),
+            Some("vd") => "output".to_string(),
+            _ => "unknown".to_string(),
+        },
+    };
+    let legend_start_cell = json_cell_ref(config.get("yLegendStartCell"));
+    let legend_start_value =
+        nullable_non_empty_json_string(json_string(config.get("yLegendStartValue")));
+    let legend_count = json_usize(config.get("yLegendCount"));
+    let legend_step = config.get("yLegendStep").and_then(json_number);
+    let group_size = json_usize(config.get("groupSize"));
+    let legend_target = {
+        let target = json_string(config.get("yLegendTarget"));
+        if target.is_empty() {
+            "auto".to_string()
+        } else {
+            target
+        }
+    };
+    let start_row = json_usize(config.get("startRow")).unwrap_or(0);
+    let legend_start_row_index = legend_start_cell.map(|(row, _)| row).or_else(|| {
+        if !legend_start_value.is_null() && legend_target == "group" {
+            Some(start_row)
+        } else {
+            None
+        }
+    });
+    let groups = if group_size.is_some() || legend_target != "yColumn" {
+        json_usize(config.get("groups"))
+    } else {
+        None
+    };
+
+    json!({
+        "bottomTitle": bottom_title,
+        "confidence": if curve_type == "unknown" { "low" } else { "medium" },
+        "curveType": curve_type,
+        "curveTypeLabel": Value::Null,
+        "dataStartRowIndex": start_row,
+        "groups": groups,
+        "leftTitle": left_title,
+        "legendPrefix": json_string(config.get("legendPrefix")),
+        "legendStartColIndex": legend_start_cell.map(|(_, col)| col),
+        "legendStartRowIndex": legend_start_row_index,
+        "legendStartValue": legend_start_value,
+        "legendCount": legend_count,
+        "legendStep": legend_step,
+        "legendTarget": legend_target,
+        "needsTemplate": curve_type == "unknown",
+        "reasons": Vec::<String>::new(),
+        "xAxisRole": x_axis_role,
+        "xAxisRoleSource": "metadata",
+        "xCol": json_usize(config.get("xCol")).unwrap_or(0),
+        "xPointsPerGroup": group_size,
+        "xSegmentationMode": json_string(config.get("xSegmentationMode")),
+        "xUnit": json_string(config.get("xUnit")),
+        "yCols": json_usize_array(config.get("yCols")),
+        "yUnit": json_string(config.get("yUnit")),
+    })
+}
+
+fn infer_auto_extraction_result(dataset: &EngineDataset) -> Value {
+    match infer_auto_worker_config(dataset) {
+        Ok(config) => json!({
+            "ok": true,
+            "config": config,
+            "plan": infer_auto_extraction_plan_from_config(&config),
+        }),
+        Err(message) => json!({
+            "ok": false,
+            "message": message,
+            "reasons": [message],
+        }),
+    }
+}
+
 fn infer_auto_worker_config(dataset: &EngineDataset) -> Result<Value, String> {
     if dataset.rows.is_empty() {
         return Err(format!(
@@ -1367,15 +1469,15 @@ fn build_uniform_sample_indices(length: usize, target: usize) -> Option<Vec<usiz
 
 fn detect_axis_role(text: &str) -> (Option<&'static str>, &'static str) {
     let normalized = text.to_ascii_lowercase();
+    if normalized.contains("vd") || normalized.contains("v_d") || normalized.contains("drain") {
+        return (Some("vd"), "label");
+    }
     if normalized.contains("vg")
         || normalized.contains("v_g")
         || normalized.contains("gate")
         || normalized.contains("var1")
     {
         return (Some("vg"), "label");
-    }
-    if normalized.contains("vd") || normalized.contains("v_d") || normalized.contains("drain") {
-        return (Some("vd"), "label");
     }
     (None, "metadata")
 }
@@ -1864,6 +1966,70 @@ fn handle_engine_request(
                 "cells": results,
             }))
         }
+        "inferAutoWorkerConfig" => {
+            let file_id = request
+                .file_id
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+                .ok_or_else(|| "missing fileId".to_string())?;
+            if !cache.contains_key(file_id) {
+                let path_text = request
+                    .path
+                    .as_deref()
+                    .filter(|value| !value.trim().is_empty())
+                    .ok_or_else(|| "file is not open in engine".to_string())?;
+                let path = PathBuf::from(path_text);
+                let file_name = request.file_name.clone().unwrap_or_else(|| {
+                    path.file_name()
+                        .and_then(|value| value.to_str())
+                        .unwrap_or("")
+                        .to_string()
+                });
+                let dataset = load_engine_dataset(&path, &file_name)?;
+                cache.insert(file_id.to_string(), dataset);
+            }
+            let dataset = cache
+                .get(file_id)
+                .ok_or_else(|| "file is not open in engine".to_string())?;
+            let config = infer_auto_worker_config(dataset)?;
+            Ok(json!({
+                "fileId": file_id,
+                "fileName": dataset.file_name,
+                "config": config,
+            }))
+        }
+        "inferAutoExtraction" => {
+            let file_id = request
+                .file_id
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+                .ok_or_else(|| "missing fileId".to_string())?;
+            if !cache.contains_key(file_id) {
+                let path_text = request
+                    .path
+                    .as_deref()
+                    .filter(|value| !value.trim().is_empty())
+                    .ok_or_else(|| "file is not open in engine".to_string())?;
+                let path = PathBuf::from(path_text);
+                let file_name = request.file_name.clone().unwrap_or_else(|| {
+                    path.file_name()
+                        .and_then(|value| value.to_str())
+                        .unwrap_or("")
+                        .to_string()
+                });
+                let dataset = load_engine_dataset(&path, &file_name)?;
+                cache.insert(file_id.to_string(), dataset);
+            }
+            let dataset = cache
+                .get(file_id)
+                .ok_or_else(|| "file is not open in engine".to_string())?;
+            let mut result = infer_auto_extraction_result(dataset);
+            if let Some(object) = result.as_object_mut() {
+                object.insert("fileId".to_string(), json!(file_id));
+                object.insert("fileName".to_string(), json!(dataset.file_name));
+            }
+            Ok(result)
+        }
         "processFile" => {
             let file_id = request
                 .file_id
@@ -1940,6 +2106,17 @@ fn handle_engine_request(
                 object.insert("autoConfig".to_string(), config);
             }
             Ok(processed)
+        }
+        "analyzeSeriesBatch" => {
+            let series = request
+                .series
+                .as_deref()
+                .filter(|series| !series.is_empty())
+                .ok_or_else(|| "missing series".to_string())?;
+            Ok(engine_analysis::analyze_series_batch_result(
+                request.file_id.as_deref(),
+                series,
+            ))
         }
         "dispose" => {
             if let Some(file_id) = request.file_id.as_deref() {
