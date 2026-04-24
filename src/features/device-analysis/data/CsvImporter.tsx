@@ -15,10 +15,11 @@ import Avatar from "../../../components/ui/Avatar";
 import ScrollArea from "../../../components/ui/ScrollArea";
 import {
   DEVICE_ANALYSIS_DATA_IMPORT_ACCEPT,
-  assessImportedDeviceAnalysisFile,
   isSupportedDataImportFileName,
-  toCsvCompatibleDataFile,
+  type ImportedDeviceAnalysisCurveAssessment,
 } from "../shared/lib/deviceAnalysisImportFileUtils";
+import { startDeviceAnalysisPerf } from "../shared/lib/deviceAnalysisPerf";
+import { prepareDeviceAnalysisImportFileInWorker } from "./deviceAnalysisImportWorkerClient";
 import { useCsvImporterVirtualization } from "./useCsvImporterVirtualization";
 import { collectDroppedImportFiles } from "./preview/csvDropTraversal";
 import {
@@ -37,6 +38,7 @@ export type CsvImporterFileEntry = {
   fileName?: string;
   itemKey?: string;
   sourceKey?: string;
+  sourcePath?: string | null;
   curveType?: string | null;
   curveTypeConfidence?: "high" | "medium" | "low";
   curveTypeNeedsTemplate?: boolean;
@@ -62,6 +64,7 @@ type ImportedFileInfo = {
   size: number;
   lastModified: number;
   sourceKey?: string;
+  sourcePath?: string | null;
   curveType?: string | null;
   curveTypeConfidence?: "high" | "medium" | "low";
   curveTypeNeedsTemplate?: boolean;
@@ -74,6 +77,12 @@ type ImportedFileInfo = {
     | "metadata"
     | "shape"
     | null;
+};
+
+type PendingImportFile = {
+  finishFilePerf: (meta?: Record<string, unknown>) => void;
+  sourceFile: File;
+  sourceKey: string;
 };
 
 export type CsvImporterProps = {
@@ -174,6 +183,8 @@ const CsvFileItem = React.memo(
 );
 
 CsvFileItem.displayName = "CsvFileItem";
+
+const IMPORT_PREPARE_CONCURRENCY = 2;
 
 const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
   (
@@ -279,10 +290,20 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
     };
 
     const processFiles = useCallback(async (newFiles: File[]) => {
+      const finishBatchPerf = startDeviceAnalysisPerf("import:add-files", {
+        currentCount: files.length,
+        incomingCount: newFiles.length,
+      });
       setError(null);
       const uniqueFiles = filterUniqueCsvFiles(files, newFiles);
 
       if (uniqueFiles.length === 0 && newFiles.length > 0) {
+        finishBatchPerf({
+          acceptedCount: 0,
+          duplicateCount: newFiles.length,
+          failedCount: 0,
+          unsupportedCount: 0,
+        });
         return;
       }
 
@@ -290,26 +311,72 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
         files.map((entry) => buildEntrySourceKey(entry)).filter(Boolean),
       );
       const failedNames: string[] = [];
+      let acceptedCount = 0;
+      let duplicateCount = newFiles.length - uniqueFiles.length;
       let hasAnyUnsupportedFiles = false;
+      let unsupportedCount = 0;
+      const pendingImports: PendingImportFile[] = [];
 
       for (const sourceFile of uniqueFiles) {
+        const finishFilePerf = startDeviceAnalysisPerf("import:prepare-file", {
+          fileName: sourceFile.name,
+          sizeBytes: sourceFile.size,
+        });
         const sourceKey = buildFileIdentityKey(sourceFile);
-        if (!sourceKey || seenSourceKeys.has(sourceKey)) continue;
+        if (!sourceKey || seenSourceKeys.has(sourceKey)) {
+          duplicateCount += 1;
+          finishFilePerf({ skipped: "duplicate" });
+          continue;
+        }
         seenSourceKeys.add(sourceKey);
 
         if (!isSupportedDataImportFileName(sourceFile.name)) {
           hasAnyUnsupportedFiles = true;
+          unsupportedCount += 1;
+          finishFilePerf({ skipped: "unsupported" });
           continue;
         }
 
+        pendingImports.push({
+          finishFilePerf,
+          sourceFile,
+          sourceKey,
+        });
+      }
+
+      let nextImportIndex = 0;
+      const prepareOneFile = async ({
+        finishFilePerf,
+        sourceFile,
+        sourceKey,
+      }: PendingImportFile) => {
         let normalizedFile: File;
+        let curveAssessment: ImportedDeviceAnalysisCurveAssessment;
+        let sourcePath: string | null = null;
         try {
-          normalizedFile = await toCsvCompatibleDataFile(sourceFile);
+          const finishWorkerPerf = startDeviceAnalysisPerf(
+            "import:worker-prepare-file",
+            {
+              fileName: sourceFile.name,
+              sizeBytes: sourceFile.size,
+            },
+          );
+          const prepared = await prepareDeviceAnalysisImportFileInWorker(sourceFile);
+          normalizedFile = prepared.file;
+          curveAssessment = prepared.assessment;
+          sourcePath = prepared.sourcePath ?? null;
+          finishWorkerPerf({
+            confidence: curveAssessment.curveTypeConfidence,
+            curveType: curveAssessment.curveType,
+            normalizedName: normalizedFile.name,
+            normalizedSizeBytes: normalizedFile.size,
+            xAxisRole: curveAssessment.xAxisRole,
+          });
         } catch {
           failedNames.push(sourceFile.name || "Unknown file");
-          continue;
+          finishFilePerf({ failed: "worker-prepare" });
+          return;
         }
-        const curveAssessment = await assessImportedDeviceAnalysisFile(normalizedFile);
 
         const fileId = createCsvImporterFileId();
         const fileEntry: CsvFileEntry = {
@@ -317,6 +384,7 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
           file: normalizedFile,
           itemKey: buildItemKey(normalizedFile),
           sourceKey,
+          sourcePath,
           curveType: curveAssessment.curveType,
           curveTypeConfidence: curveAssessment.curveTypeConfidence,
           curveTypeNeedsTemplate: curveAssessment.curveTypeNeedsTemplate,
@@ -339,6 +407,7 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
           size: normalizedFile.size,
           lastModified: normalizedFile.lastModified,
           sourceKey,
+          sourcePath,
           curveType: curveAssessment.curveType,
           curveTypeConfidence: curveAssessment.curveTypeConfidence,
           curveTypeNeedsTemplate: curveAssessment.curveTypeNeedsTemplate,
@@ -346,7 +415,31 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
           xAxisRole: curveAssessment.xAxisRole,
           xAxisRoleSource: curveAssessment.xAxisRoleSource,
         });
-      }
+        acceptedCount += 1;
+        finishFilePerf({
+          accepted: true,
+          curveType: curveAssessment.curveType,
+          confidence: curveAssessment.curveTypeConfidence,
+          fileId,
+          normalizedSizeBytes: normalizedFile.size,
+        });
+      };
+
+      const workerCount = Math.min(
+        IMPORT_PREPARE_CONCURRENCY,
+        pendingImports.length,
+      );
+      await Promise.all(
+        Array.from({ length: workerCount }, async () => {
+          while (true) {
+            const index = nextImportIndex;
+            nextImportIndex += 1;
+            const pendingImport = pendingImports[index];
+            if (!pendingImport) return;
+            await prepareOneFile(pendingImport);
+          }
+        }),
+      );
 
       const errors: string[] = [];
       if (hasAnyUnsupportedFiles) {
@@ -356,6 +449,12 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
         errors.push(`Failed to parse: ${failedNames.join(", ")}`);
       }
       setError(errors.length > 0 ? errors.join("\n") : null);
+      finishBatchPerf({
+        acceptedCount,
+        duplicateCount,
+        failedCount: failedNames.length,
+        unsupportedCount,
+      });
     }, [files, onDataImported, setFiles]);
 
     const handleSelectFile = useCallback(

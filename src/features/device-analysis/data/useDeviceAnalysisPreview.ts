@@ -123,6 +123,7 @@ export const useDeviceAnalysisPreview = ({
   const previewPendingChunksByFileIdRef = useRef<Map<string, Set<number>>>(
     new Map(),
   );
+  const rustPreviewFileIdsRef = useRef<Set<string>>(new Set());
 
   const rawDataById = useMemo(() => {
     const map = new Map<string, RawDataEntry>();
@@ -240,6 +241,10 @@ export const useDeviceAnalysisPreview = ({
         type: "previewDispose",
         payload: { fileId },
       });
+      rustPreviewFileIdsRef.current.delete(fileId);
+      void (globalThis.window as any)?.desktopImport?.disposeDeviceAnalysisFileWithRust?.({
+        fileId,
+      });
     },
     [previewWorkerRef],
   );
@@ -254,6 +259,10 @@ export const useDeviceAnalysisPreview = ({
     previewLoadedChunksByFileIdRef.current = new Map();
     previewCacheFileLruRef.current = new Set();
     previewPendingChunksByFileIdRef.current = new Map();
+    rustPreviewFileIdsRef.current = new Set();
+    void (globalThis.window as any)?.desktopImport?.disposeDeviceAnalysisFileWithRust?.({
+      clear: true,
+    });
     assignCurrentPreviewCache();
     notifyPreviewRowsCacheChanged();
   }, [
@@ -503,9 +512,6 @@ export const useDeviceAnalysisPreview = ({
     if (!targetFile?.file || !targetFile?.fileId) return;
     if (previewFile?.fileId === targetFile.fileId) return;
 
-    const worker = getOrCreatePreviewWorker();
-    if (!worker) return;
-
     const requestId = previewRequestIdRef.current + 1;
     previewRequestIdRef.current = requestId;
 
@@ -513,20 +519,85 @@ export const useDeviceAnalysisPreview = ({
       setPreviewStatus({ state: "loading", message: t("da_preview_loading") });
     });
 
-    worker.postMessage({
-      type: "preview",
-      payload: {
-        requestId,
-        fileId: targetFile.fileId,
-        file: targetFile.file,
-        maxPreviewRows: DA_PREVIEW_MAX_CACHED_UI_ROWS_PER_FILE,
-      },
-    });
+    const postWorkerPreview = () => {
+      const worker = getOrCreatePreviewWorker();
+      if (!worker) return;
+
+      worker.postMessage({
+        type: "preview",
+        payload: {
+          requestId,
+          fileId: targetFile.fileId,
+          file: targetFile.file,
+          maxPreviewRows: DA_PREVIEW_MAX_CACHED_UI_ROWS_PER_FILE,
+        },
+      });
+    };
+
+    const sourcePath =
+      typeof targetFile.sourcePath === "string" ? targetFile.sourcePath : "";
+    const bridge = (globalThis.window as any)?.desktopImport;
+    if (sourcePath && bridge?.openDeviceAnalysisFileWithRust) {
+      void bridge
+        .openDeviceAnalysisFileWithRust({
+          fileId: targetFile.fileId,
+          fileName: targetFile.fileName ?? "",
+          path: sourcePath,
+          seedRows: DA_PREVIEW_MAX_CACHED_UI_ROWS_PER_FILE,
+        })
+        .then((response: any) => {
+          if (requestId !== previewRequestIdRef.current) return;
+          if (!response?.ok || !response?.result) {
+            postWorkerPreview();
+            return;
+          }
+
+          const previewPayload = response.result as PreviewResultPayload;
+          const fileId =
+            typeof previewPayload.fileId === "string" ? previewPayload.fileId : null;
+          if (fileId) {
+            rustPreviewFileIdsRef.current.add(fileId);
+          }
+          activatePreviewFileCache(fileId);
+          if (fileId) {
+            mergePreviewSeedRows(
+              fileId,
+              Number(previewPayload.seedStartRow) || 0,
+              Array.isArray(previewPayload.seedRows)
+                ? previewPayload.seedRows
+                : [],
+            );
+          }
+
+          startTransition(() => {
+            setPreviewFile({
+              fileId: String(fileId || ""),
+              fileName: String(previewPayload.fileName || ""),
+              rowCount: Number(previewPayload.rowCount) || 0,
+              columnCount: Number(previewPayload.columnCount) || 0,
+              maxCellLengths: Array.isArray(previewPayload.maxCellLengths)
+                ? previewPayload.maxCellLengths.map((n) => Number(n) || 0)
+                : [],
+            });
+            setPreviewStatus({ state: "ready", message: "" });
+          });
+        })
+        .catch(() => {
+          if (requestId === previewRequestIdRef.current) {
+            postWorkerPreview();
+          }
+        });
+      return;
+    }
+
+    postWorkerPreview();
   }, [
+    activatePreviewFileCache,
     clearPreviewState,
     deferredSelectedPreviewFileId,
     getOrCreatePreviewWorker,
     invalidatePreviewRequests,
+    mergePreviewSeedRows,
     previewFile?.fileId,
     previewRequestIdRef,
     rawData,
@@ -546,14 +617,48 @@ export const useDeviceAnalysisPreview = ({
 
   const requestPreviewRowsRange = useCallback(
     (fileId: string, startRow: number, endRow: number): Promise<unknown[][]> => {
-      const worker = getOrCreatePreviewWorker();
-      if (!worker || !fileId) return Promise.resolve([]);
+      if (!fileId) return Promise.resolve([]);
 
       const requestId = previewRowsRequestIdRef.current + 1;
       previewRowsRequestIdRef.current = requestId;
 
       const start = Math.max(0, Math.floor(Number(startRow) || 0));
       const end = Math.max(start, Math.floor(Number(endRow) || start));
+
+      const bridge = (globalThis.window as any)?.desktopImport;
+      if (
+        rustPreviewFileIdsRef.current.has(fileId) &&
+        bridge?.getDeviceAnalysisPreviewRowsWithRust
+      ) {
+        return bridge
+          .getDeviceAnalysisPreviewRowsWithRust({
+            endRow: end,
+            fileId,
+            startRow: start,
+          })
+          .then((response: any) => {
+            if (!response?.ok || !response?.result) return [];
+            const rowsPayload = response.result as PreviewRowsResultPayload;
+            const rows = sanitizePreviewRows(rowsPayload.rows);
+            const payloadFileId =
+              typeof rowsPayload.fileId === "string" ? rowsPayload.fileId : "";
+            const payloadStartRow = Math.max(
+              0,
+              Math.floor(Number(rowsPayload.startRow) || 0),
+            );
+            const isMatched = isPreviewRowsResultForRequest({
+              requestFileId: fileId,
+              requestStartRow: start,
+              payloadFileId,
+              payloadStartRow,
+            });
+            return isMatched ? rows : [];
+          })
+          .catch(() => []);
+      }
+
+      const worker = getOrCreatePreviewWorker();
+      if (!worker) return Promise.resolve([]);
 
       return new Promise<unknown[][]>((resolve, reject) => {
         previewRowsRequestsRef.current.set(requestId, {

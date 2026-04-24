@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { execFile, spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell, Tray } from "electron";
@@ -24,6 +25,10 @@ const __dirname = path.dirname(__filename);
 
 let autoUpdater = null;
 let originRunnerModulePromise = null;
+let rustDeviceAnalysisEngine = null;
+let rustDeviceAnalysisEngineStdoutBuffer = "";
+let rustDeviceAnalysisEngineRequestId = 0;
+const rustDeviceAnalysisEnginePending = new Map();
 
 const isDev = !app.isPackaged;
 const isWindows = process.platform === "win32";
@@ -625,6 +630,229 @@ function getDeviceAnalysisHomeDir() {
   return path.join(app.getPath("home"), ".device");
 }
 
+function normalizeAbsoluteFilePath(rawPath) {
+  const normalized = typeof rawPath === "string" ? rawPath.trim() : "";
+  if (!normalized || !path.isAbsolute(normalized)) return "";
+  return path.normalize(normalized);
+}
+
+function isSupportedRustExcelInputPath(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  return ext === ".xls" || ext === ".xlsx";
+}
+
+function isSupportedRustDeviceAnalysisInputPath(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  return ext === ".csv" || ext === ".xls" || ext === ".xlsx";
+}
+
+function resolveRustExcelConverterPath() {
+  const envPath = normalizeAbsoluteFilePath(process.env.CONDUCTOR_RUST_XLS_CONVERTER_PATH);
+  const candidates = [
+    envPath,
+    path.join(getResourcesPath(), "excel", "bin", "rust-xls-converter.exe"),
+    isDev
+      ? path.join(
+          __dirname,
+          "..",
+          ".tooling",
+          "rust-xls-target",
+          "release",
+          "rust-xls-bench.exe",
+        )
+      : "",
+    isDev
+      ? path.join(
+          __dirname,
+          "..",
+          "tools",
+          "rust-xls-bench",
+          "target",
+          "release",
+          "rust-xls-bench.exe",
+        )
+      : "",
+    path.join(
+      getResourcesPath(),
+      "app.asar.unpacked",
+      "excel",
+      "bin",
+      "rust-xls-converter.exe",
+    ),
+  ].filter(Boolean);
+
+  return candidates.find((candidate) => {
+    try {
+      return fs.existsSync(candidate) && fs.statSync(candidate).isFile();
+    } catch {
+      return false;
+    }
+  }) ?? null;
+}
+
+function rejectPendingRustDeviceAnalysisEngineRequests(error) {
+  for (const pending of rustDeviceAnalysisEnginePending.values()) {
+    clearTimeout(pending.timeoutId);
+    pending.reject(error);
+  }
+  rustDeviceAnalysisEnginePending.clear();
+}
+
+function stopRustDeviceAnalysisEngine() {
+  if (!rustDeviceAnalysisEngine) return;
+  const child = rustDeviceAnalysisEngine;
+  rustDeviceAnalysisEngine = null;
+  rustDeviceAnalysisEngineStdoutBuffer = "";
+  rejectPendingRustDeviceAnalysisEngineRequests(
+    new Error("Rust device-analysis engine stopped."),
+  );
+  try {
+    child.kill();
+  } catch {
+    // best-effort shutdown
+  }
+}
+
+function handleRustDeviceAnalysisEngineLine(line) {
+  const text = String(line ?? "").trim();
+  if (!text) return;
+
+  let message = null;
+  try {
+    message = JSON.parse(text);
+  } catch (error) {
+    console.warn("[device-analysis-rust] invalid engine JSON:", error?.message || error);
+    return;
+  }
+
+  const id = Number(message?.id);
+  if (!Number.isFinite(id)) return;
+  const pending = rustDeviceAnalysisEnginePending.get(id);
+  if (!pending) return;
+
+  rustDeviceAnalysisEnginePending.delete(id);
+  clearTimeout(pending.timeoutId);
+
+  if (message?.ok === true) {
+    pending.resolve(message.result ?? {});
+    return;
+  }
+
+  const errorMessage =
+    typeof message?.error?.message === "string" && message.error.message.trim()
+      ? message.error.message
+      : "Rust device-analysis engine failed.";
+  pending.reject(new Error(errorMessage));
+}
+
+function ensureRustDeviceAnalysisEngine() {
+  if (rustDeviceAnalysisEngine && !rustDeviceAnalysisEngine.killed) {
+    return rustDeviceAnalysisEngine;
+  }
+
+  const executablePath = resolveRustExcelConverterPath();
+  if (!executablePath) {
+    throw new Error("Rust device-analysis engine was not found.");
+  }
+
+  const child = spawn(executablePath, ["--stdio-engine"], {
+    stdio: ["pipe", "pipe", "pipe"],
+    windowsHide: true,
+  });
+  rustDeviceAnalysisEngine = child;
+  rustDeviceAnalysisEngineStdoutBuffer = "";
+
+  child.stdout?.setEncoding("utf8");
+  child.stdout?.on("data", (chunk) => {
+    rustDeviceAnalysisEngineStdoutBuffer += String(chunk ?? "");
+    while (true) {
+      const newlineIndex = rustDeviceAnalysisEngineStdoutBuffer.indexOf("\n");
+      if (newlineIndex < 0) break;
+      const line = rustDeviceAnalysisEngineStdoutBuffer.slice(0, newlineIndex);
+      rustDeviceAnalysisEngineStdoutBuffer =
+        rustDeviceAnalysisEngineStdoutBuffer.slice(newlineIndex + 1);
+      handleRustDeviceAnalysisEngineLine(line);
+    }
+  });
+
+  child.stderr?.setEncoding("utf8");
+  child.stderr?.on("data", (chunk) => {
+    const text = String(chunk ?? "").trim();
+    if (text) console.warn("[device-analysis-rust]", text);
+  });
+
+  child.on("error", (error) => {
+    if (rustDeviceAnalysisEngine === child) rustDeviceAnalysisEngine = null;
+    rejectPendingRustDeviceAnalysisEngineRequests(error);
+  });
+
+  child.on("exit", (code, signal) => {
+    if (rustDeviceAnalysisEngine === child) rustDeviceAnalysisEngine = null;
+    rejectPendingRustDeviceAnalysisEngineRequests(
+      new Error(
+        `Rust device-analysis engine exited (code=${code ?? "null"} signal=${signal ?? "null"}).`,
+      ),
+    );
+  });
+
+  return child;
+}
+
+function sendRustDeviceAnalysisEngineCommand(command, payload = {}, timeoutMs = 120000) {
+  const child = ensureRustDeviceAnalysisEngine();
+  const id = (rustDeviceAnalysisEngineRequestId += 1);
+  const message = JSON.stringify({ id, command, ...payload });
+
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      rustDeviceAnalysisEnginePending.delete(id);
+      reject(new Error(`Rust device-analysis engine command timed out: ${command}`));
+    }, timeoutMs);
+
+    rustDeviceAnalysisEnginePending.set(id, { reject, resolve, timeoutId });
+
+    try {
+      child.stdin.write(`${message}\n`, "utf8", (error) => {
+        if (!error) return;
+        rustDeviceAnalysisEnginePending.delete(id);
+        clearTimeout(timeoutId);
+        reject(error);
+      });
+    } catch (error) {
+      rustDeviceAnalysisEnginePending.delete(id);
+      clearTimeout(timeoutId);
+      reject(error);
+    }
+  });
+}
+
+function runRustExcelConverter(executablePath, inputPath, outputPath) {
+  return new Promise((resolve, reject) => {
+    execFile(
+      executablePath,
+      ["--convert-one", inputPath, "--out", outputPath],
+      {
+        timeout: 120000,
+        windowsHide: true,
+      },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(
+            new Error(
+              stderr?.trim() ||
+                stdout?.trim() ||
+                error.message ||
+                "Rust Excel converter failed.",
+            ),
+          );
+          return;
+        }
+        resolve({ stdout, stderr });
+      },
+    );
+  });
+}
+
 const deviceAnalysisStore = createDeviceAnalysisStore({
   getHomeDir: getDeviceAnalysisHomeDir,
 });
@@ -679,6 +907,263 @@ function handleDeviceAnalysisSettingsPatch(_event, updates) {
 
 function handleDeviceAnalysisPersistencePathGet() {
   return deviceAnalysisStore.getStorePersistenceInfo();
+}
+
+async function handleExcelConvertRust(_event, payload) {
+  const rawPath = payload && typeof payload === "object" ? payload.path : payload;
+  const inputPath = normalizeAbsoluteFilePath(rawPath);
+  if (!inputPath || !isSupportedRustExcelInputPath(inputPath)) {
+    return {
+      ok: false,
+      code: "INVALID_EXCEL_PATH",
+      message: "Invalid Excel file path.",
+    };
+  }
+
+  try {
+    const stat = fs.statSync(inputPath);
+    if (!stat.isFile()) {
+      return {
+        ok: false,
+        code: "INVALID_EXCEL_PATH",
+        message: "Excel path is not a file.",
+      };
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      code: "EXCEL_FILE_NOT_FOUND",
+      message: error?.message || "Excel file not found.",
+    };
+  }
+
+  const converterPath = resolveRustExcelConverterPath();
+  if (!converterPath) {
+    return {
+      ok: false,
+      code: "RUST_CONVERTER_NOT_FOUND",
+      message: "Rust Excel converter was not found.",
+    };
+  }
+
+  const startedAt = Date.now();
+  const jobRoot = path.join(getDeviceAnalysisHomeDir(), "rust-xls-jobs");
+  fs.mkdirSync(jobRoot, { recursive: true });
+  const jobDir = fs.mkdtempSync(path.join(jobRoot, "job-"));
+  const csvPath = path.join(jobDir, "converted.csv");
+
+  try {
+    await runRustExcelConverter(converterPath, inputPath, csvPath);
+    const csvText = fs.readFileSync(csvPath, "utf8");
+    return {
+      ok: true,
+      csvText,
+      durationMs: Date.now() - startedAt,
+      source: "rust",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      code: "RUST_CONVERTER_FAILED",
+      message: error?.message || "Rust Excel conversion failed.",
+      durationMs: Date.now() - startedAt,
+    };
+  } finally {
+    try {
+      fs.rmSync(jobDir, { recursive: true, force: true });
+    } catch {
+      // best-effort cleanup
+    }
+  }
+}
+
+async function handleDeviceAnalysisRustEngineOpen(_event, payload) {
+  const rawPath = payload && typeof payload === "object" ? payload.path : "";
+  const inputPath = normalizeAbsoluteFilePath(rawPath);
+  const fileId =
+    payload && typeof payload.fileId === "string" ? payload.fileId.trim() : "";
+  const fileName =
+    payload && typeof payload.fileName === "string" ? payload.fileName.trim() : "";
+  const seedRows = Math.max(
+    0,
+    Math.min(5000, Math.floor(Number(payload?.seedRows) || 0)),
+  );
+
+  if (!fileId || !inputPath || !isSupportedRustDeviceAnalysisInputPath(inputPath)) {
+    return {
+      ok: false,
+      code: "INVALID_DEVICE_ANALYSIS_PATH",
+      message: "Invalid device-analysis file path.",
+    };
+  }
+
+  try {
+    const stat = fs.statSync(inputPath);
+    if (!stat.isFile()) {
+      return {
+        ok: false,
+        code: "INVALID_DEVICE_ANALYSIS_PATH",
+        message: "Device-analysis path is not a file.",
+      };
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      code: "DEVICE_ANALYSIS_FILE_NOT_FOUND",
+      message: error?.message || "Device-analysis file not found.",
+    };
+  }
+
+  const startedAt = Date.now();
+  try {
+    const result = await sendRustDeviceAnalysisEngineCommand("open", {
+      fileId,
+      fileName: fileName || path.basename(inputPath),
+      path: inputPath,
+      seedRows,
+    });
+    return {
+      ok: true,
+      durationMs: Date.now() - startedAt,
+      result,
+      source: "rust-engine",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      code: "RUST_ENGINE_OPEN_FAILED",
+      durationMs: Date.now() - startedAt,
+      message: error?.message || "Rust device-analysis engine failed to open file.",
+    };
+  }
+}
+
+async function handleDeviceAnalysisRustEnginePreviewRows(_event, payload) {
+  const fileId =
+    payload && typeof payload.fileId === "string" ? payload.fileId.trim() : "";
+  const startRow = Math.max(0, Math.floor(Number(payload?.startRow) || 0));
+  const endRow = Math.max(startRow, Math.floor(Number(payload?.endRow) || startRow));
+
+  if (!fileId) {
+    return {
+      ok: false,
+      code: "INVALID_DEVICE_ANALYSIS_FILE_ID",
+      message: "Missing file id.",
+    };
+  }
+
+  const startedAt = Date.now();
+  try {
+    const result = await sendRustDeviceAnalysisEngineCommand("previewRows", {
+      endRow,
+      fileId,
+      startRow,
+    });
+    return {
+      ok: true,
+      durationMs: Date.now() - startedAt,
+      result,
+      source: "rust-engine",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      code: "RUST_ENGINE_PREVIEW_ROWS_FAILED",
+      durationMs: Date.now() - startedAt,
+      message:
+        error?.message || "Rust device-analysis engine failed to read preview rows.",
+    };
+  }
+}
+
+function isRustProcessFileConfigSupported(config) {
+  if (!config || typeof config !== "object" || Array.isArray(config)) {
+    return false;
+  }
+  const mode = String(config.xSegmentationMode ?? "").trim().toLowerCase();
+  if (mode && mode !== "auto" && mode !== "points" && mode !== "segments") return false;
+  if (!Array.isArray(config.yCols) || !config.yCols.length) return false;
+  return true;
+}
+
+async function handleDeviceAnalysisRustEngineProcessFile(_event, payload) {
+  const rawPath = payload && typeof payload === "object" ? payload.path : "";
+  const inputPath = normalizeAbsoluteFilePath(rawPath);
+  const fileId =
+    payload && typeof payload.fileId === "string" ? payload.fileId.trim() : "";
+  const fileName =
+    payload && typeof payload.fileName === "string" ? payload.fileName.trim() : "";
+  const config =
+    payload && typeof payload.config === "object" && !Array.isArray(payload.config)
+      ? payload.config
+      : null;
+  const maxPoints = Math.max(2, Math.floor(Number(payload?.maxPoints) || 600));
+  const auto = payload?.auto === true;
+
+  if (!fileId || !inputPath || !isSupportedRustDeviceAnalysisInputPath(inputPath)) {
+    return {
+      ok: false,
+      code: "INVALID_DEVICE_ANALYSIS_PATH",
+      message: "Invalid device-analysis file path.",
+    };
+  }
+  if (!auto && !isRustProcessFileConfigSupported(config)) {
+    return {
+      ok: false,
+      code: "RUST_ENGINE_PROCESS_UNSUPPORTED_CONFIG",
+      message: "Rust engine does not support this extraction config yet.",
+    };
+  }
+
+  const startedAt = Date.now();
+  try {
+    const result = await sendRustDeviceAnalysisEngineCommand(auto ? "processFileAuto" : "processFile", {
+      config,
+      curveFilterField:
+        typeof payload?.curveFilterField === "string" ? payload.curveFilterField : null,
+      curveFilterKey:
+        typeof payload?.curveFilterKey === "string" ? payload.curveFilterKey : null,
+      fileId,
+      fileName: fileName || path.basename(inputPath),
+      maxPoints,
+      path: inputPath,
+    });
+    return {
+      ok: true,
+      durationMs: Date.now() - startedAt,
+      result,
+      source: "rust-engine",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      code: "RUST_ENGINE_PROCESS_FAILED",
+      durationMs: Date.now() - startedAt,
+      message: error?.message || "Rust device-analysis engine failed to process file.",
+    };
+  }
+}
+
+async function handleDeviceAnalysisRustEngineDispose(_event, payload) {
+  const fileId =
+    payload && typeof payload.fileId === "string" ? payload.fileId.trim() : "";
+
+  try {
+    if (payload?.clear === true) {
+      await sendRustDeviceAnalysisEngineCommand("clear", {}, 30000);
+      return { ok: true, source: "rust-engine" };
+    }
+    if (fileId) {
+      await sendRustDeviceAnalysisEngineCommand("dispose", { fileId }, 30000);
+    }
+    return { ok: true, source: "rust-engine" };
+  } catch (error) {
+    return {
+      ok: false,
+      code: "RUST_ENGINE_DISPOSE_FAILED",
+      message: error?.message || "Rust device-analysis engine dispose failed.",
+    };
+  }
 }
 
 function handleDeviceAnalysisPersistencePathSet(_event, payload) {
@@ -1572,6 +2057,23 @@ app.whenReady().then(() => {
   ipcMain.handle(ipcChannels.persistencePathGet, handleDeviceAnalysisPersistencePathGet);
   ipcMain.handle(ipcChannels.persistencePathSet, handleDeviceAnalysisPersistencePathSet);
   ipcMain.handle(ipcChannels.persistencePathChoose, handleDeviceAnalysisPersistencePathChoose);
+  ipcMain.handle(ipcChannels.excelConvertRust, handleExcelConvertRust);
+  ipcMain.handle(
+    ipcChannels.deviceAnalysisRustEngineOpen,
+    handleDeviceAnalysisRustEngineOpen,
+  );
+  ipcMain.handle(
+    ipcChannels.deviceAnalysisRustEnginePreviewRows,
+    handleDeviceAnalysisRustEnginePreviewRows,
+  );
+  ipcMain.handle(
+    ipcChannels.deviceAnalysisRustEngineProcessFile,
+    handleDeviceAnalysisRustEngineProcessFile,
+  );
+  ipcMain.handle(
+    ipcChannels.deviceAnalysisRustEngineDispose,
+    handleDeviceAnalysisRustEngineDispose,
+  );
   ipcMain.handle(ipcChannels.originExeGet, handleOriginExeGet);
   ipcMain.handle(ipcChannels.originExeSet, handleOriginExeSet);
   ipcMain.handle(ipcChannels.originExePick, handleOriginExePick);
@@ -1620,10 +2122,16 @@ app.on("will-quit", () => {
   ipcMain.removeHandler(ipcChannels.persistencePathGet);
   ipcMain.removeHandler(ipcChannels.persistencePathSet);
   ipcMain.removeHandler(ipcChannels.persistencePathChoose);
+  ipcMain.removeHandler(ipcChannels.excelConvertRust);
+  ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEngineOpen);
+  ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEnginePreviewRows);
+  ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEngineProcessFile);
+  ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEngineDispose);
   ipcMain.removeHandler(ipcChannels.originExeGet);
   ipcMain.removeHandler(ipcChannels.originExeSet);
   ipcMain.removeHandler(ipcChannels.originExePick);
   ipcMain.removeHandler(ipcChannels.originHealthCheck);
   ipcMain.removeHandler(ipcChannels.originRunCsv);
   ipcMain.removeHandler(ipcChannels.originRuntimeCleanupRun);
+  stopRustDeviceAnalysisEngine();
 });

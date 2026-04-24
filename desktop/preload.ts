@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 import { ipcChannels } from "./ipc-channels.js";
 const preloadStartMs =
   typeof performance !== "undefined" && typeof performance.now === "function"
@@ -99,5 +99,39 @@ contextBridge.exposeInMainWorld("desktopOrigin", {
   },
   async runOriginRuntimeCleanup(payload) {
     return ipcRenderer.invoke(ipcChannels.originRuntimeCleanupRun, payload);
+  },
+});
+
+contextBridge.exposeInMainWorld("desktopImport", {
+  getFilePath(file) {
+    try {
+      return webUtils.getPathForFile(file);
+    } catch {
+      return "";
+    }
+  },
+  async convertExcelFileWithRust(payload) {
+    return ipcRenderer.invoke(ipcChannels.excelConvertRust, payload);
+  },
+  async openDeviceAnalysisFileWithRust(payload) {
+    return ipcRenderer.invoke(ipcChannels.deviceAnalysisRustEngineOpen, payload);
+  },
+  async getDeviceAnalysisPreviewRowsWithRust(payload) {
+    return ipcRenderer.invoke(
+      ipcChannels.deviceAnalysisRustEnginePreviewRows,
+      payload,
+    );
+  },
+  async processDeviceAnalysisFileWithRust(payload) {
+    return ipcRenderer.invoke(
+      ipcChannels.deviceAnalysisRustEngineProcessFile,
+      payload,
+    );
+  },
+  async disposeDeviceAnalysisFileWithRust(payload) {
+    return ipcRenderer.invoke(
+      ipcChannels.deviceAnalysisRustEngineDispose,
+      payload,
+    );
   },
 });

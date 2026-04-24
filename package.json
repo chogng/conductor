@@ -9,6 +9,7 @@
     "dev": "vite",
     "dev:desktop": "npm run build:desktop:core && node --experimental-strip-types scripts/dev-desktop.ts",
     "build:origin-csv-worker": "node scripts/run-powershell.mjs scripts/build-origin-csv-worker.ps1",
+    "build:rust-xls-converter": "node scripts/run-powershell.mjs scripts/build-rust-xls-converter.ps1",
     "verify:origin-worker": "node scripts/verify-origin-csv-worker.mjs",
     "build:desktop:core": "tsc -p tsconfig.desktop.json",
     "build:web:desktop": "vite build --base ./",
@@ -74,6 +75,7 @@
     "files": [
       "dist/**/*",
       "desktop-dist/**/*",
+      "excel/bin/rust-xls-converter.exe",
       "origin/bin/origin-csv-worker.exe",
       "package.json"
     ],
@@ -85,6 +87,7 @@
     ],
     "asar": true,
     "asarUnpack": [
+      "excel/bin/rust-xls-converter.exe",
       "origin/bin/origin-csv-worker.exe"
     ],
     "publish": [

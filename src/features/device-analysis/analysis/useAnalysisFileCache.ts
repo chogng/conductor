@@ -6,6 +6,10 @@ import {
 } from "./lib/analysisMath";
 import { buildPoints } from "./lib/analysisChartsUtils";
 import { computeBaseCurrentMetrics } from "./lib/deviceAnalysisMetrics";
+import {
+  startDeviceAnalysisPerf,
+  summarizeDeviceAnalysisProcessedFile,
+} from "../shared/lib/deviceAnalysisPerf";
 
 type CachePrefetchHandle =
   | {
@@ -143,6 +147,10 @@ export const useAnalysisFileCache = ({
     const precomputeFile = (file: any) => {
       const fileId = file?.fileId;
       if (!fileId) return;
+      const finishPerf = startDeviceAnalysisPerf("analysis:prefetch-file", {
+        ...summarizeDeviceAnalysisProcessedFile(file),
+        active: fileId === effectiveActiveFileId,
+      });
       const cache = getFileCache(fileId, file);
       if (!cache) return;
 
@@ -179,6 +187,7 @@ export const useAnalysisFileCache = ({
           cache.baseMetricsBySeriesId.set(series.id, baseCurrentMetrics);
         }
       }
+      finishPerf();
     };
 
     const run = (_deadline?: IdleDeadline) => {

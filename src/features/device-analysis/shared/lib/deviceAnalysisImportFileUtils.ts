@@ -61,6 +61,10 @@ export const toCsvCompatibleDataFile = async (file: File): Promise<File> => {
   const workbook = xlsxModule.read(fileBuffer, {
     type: "array",
     cellDates: false,
+    cellNF: false,
+    cellStyles: false,
+    cellText: false,
+    dense: true,
     raw: false,
   });
 

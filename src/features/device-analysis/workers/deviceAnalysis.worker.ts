@@ -15,6 +15,13 @@ import {
     normalizeFileNameFieldSeparators,
     splitFileNameMatchInput,
 } from "../shared/lib/fileNameFieldMatching";
+import {
+    getDeviceAnalysisPerfNow,
+    isDeviceAnalysisPerfEnabled,
+    logDeviceAnalysisPerf,
+    startDeviceAnalysisPerf,
+    summarizeDeviceAnalysisProcessedFile,
+} from "../shared/lib/deviceAnalysisPerf";
 
 const DEFAULT_MAX_POINTS = 600;
 const PREVIEW_ROW_CACHE_CHUNK_DEFAULT = 200;
@@ -569,7 +576,13 @@ const readXValuesForAutoSegmentation = async ({ cache, endRow, fileName, startRo
     }
     return xValues;
 };
-const processFile = async (file: any, fileId: any, fileName: any, config: any, { curveFilterField, curveFilterKey, maxPoints }: any) => {
+const processFile = async (file: any, fileId: any, fileName: any, config: any, { curveFilterField, curveFilterKey, maxPoints, perfEnabled }: any) => {
+    const shouldLogPerf = Boolean(perfEnabled) || isDeviceAnalysisPerfEnabled();
+    const finishProcessPerf = startDeviceAnalysisPerf("worker:process-file", {
+        fileId,
+        fileName,
+        sizeBytes: file?.size ?? null,
+    }, { force: shouldLogPerf });
     const xCol = Number(config?.xCol);
     const startRow = Number(config?.startRow);
     const endRowRaw = config?.endRow;
@@ -1025,6 +1038,7 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
     }
     let seenRowsInRange = 0;
     let currentRowIndex = -1;
+    const parseStartMs = getDeviceAnalysisPerfNow();
     await new Promise((resolve: any, reject: any) => {
         Papa.parse(file, {
             header: false,
@@ -1127,6 +1141,14 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
             error: (err: any) => reject(err),
         });
     });
+    logDeviceAnalysisPerf("worker:parse-csv", {
+        durationMs: getDeviceAnalysisPerfNow() - parseStartMs,
+        expectedRows: expectedTotal,
+        fileId,
+        fileName,
+        groups,
+        yColumnCount: yCols.length,
+    }, { force: shouldLogPerf });
     if (seenRowsInRange !== expectedTotal) {
         throw new Error(`${fileName}: X end row (${endRow + 1}) exceeds total parsed rows (${currentRowIndex + 1}).`);
     }
@@ -1264,7 +1286,7 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
     xAxisRoleSource = curveClassification.xAxisRoleSource;
     const yLabel = appendAxisUnit(leftTitle || "", yUnitRaw);
     const supportsSs = xAxisRole === "vg";
-    return {
+    const processed = {
         fileId,
         fileName,
         curveFilterKey: normalizedCurveFilterKey || null,
@@ -1305,6 +1327,12 @@ const processFile = async (file: any, fileId: any, fileName: any, config: any, {
         series,
         domain,
     };
+    finishProcessPerf({
+        ...summarizeDeviceAnalysisProcessedFile(processed),
+        expectedRows: expectedTotal,
+        yColumnCount: yCols.length,
+    });
+    return processed;
 };
 workerScope.onmessage = async (event: any) => {
     const { type, payload } = event.data ?? {};
@@ -1373,6 +1401,11 @@ workerScope.onmessage = async (event: any) => {
             return;
         }
         if (type === "processFileAuto") {
+            const shouldLogPerf = Boolean(payload?.perfEnabled) || isDeviceAnalysisPerfEnabled();
+            const finishAutoPerf = startDeviceAnalysisPerf("worker:auto-config", {
+                fileId: payload?.fileId ?? null,
+                fileName: payload?.fileName ?? payload?.file?.name ?? null,
+            }, { force: shouldLogPerf });
             const jobId = payload?.jobId ?? null;
             const file = payload?.file ?? null;
             const fileId = payload?.fileId ?? null;
@@ -1402,6 +1435,10 @@ workerScope.onmessage = async (event: any) => {
             if (!autoExtraction.ok) {
                 throw new Error(autoExtraction.message);
             }
+            finishAutoPerf({
+                rowCount: previewCache.rowCount,
+                previewRows: previewRows.length,
+            });
             const processed = await processFile(
                 file,
                 fileId,
@@ -1411,6 +1448,7 @@ workerScope.onmessage = async (event: any) => {
                     curveFilterKey: payload?.curveFilterKey ?? null,
                     curveFilterField: payload?.curveFilterField ?? null,
                     maxPoints,
+                    perfEnabled: shouldLogPerf,
                 },
             );
             const transfer = [];
@@ -1422,6 +1460,7 @@ workerScope.onmessage = async (event: any) => {
             return;
         }
         if (type === "processFile") {
+            const shouldLogPerf = Boolean(payload?.perfEnabled) || isDeviceAnalysisPerfEnabled();
             const jobId = payload?.jobId ?? null;
             const file = payload?.file ?? null;
             const fileId = payload?.fileId ?? null;
@@ -1438,6 +1477,7 @@ workerScope.onmessage = async (event: any) => {
                 curveFilterKey: payload?.curveFilterKey ?? null,
                 curveFilterField: payload?.curveFilterField ?? null,
                 maxPoints,
+                perfEnabled: shouldLogPerf,
             });
             const transfer = [];
             for (const xArr of processed.xGroups)

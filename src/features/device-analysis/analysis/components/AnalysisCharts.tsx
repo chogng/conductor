@@ -30,6 +30,7 @@ import CalculatedParametersRow from "./CalculatedParametersRow";
 import { buildLogTicks, buildNiceTicks, buildOriginAutoTicks, buildPoints, buildStepTicks, computeLabelInterval, computeMinMax, downsamplePointsForDisplay, inferTickDigitsFromTicks, normalizeFloat, normalizeVarToken, padLinearDomain, padLogDomain, parseOptionalNumber, preserveScrollPosition, varTokenToSymbol, } from "../lib/analysisChartsUtils";
 import { computeBaseCurrentMetrics, isOutputLikeDeviceAnalysisFile, isTransferLikeDeviceAnalysisFile, } from "../lib/deviceAnalysisMetrics";
 import { getDeviceAnalysisXUnitMeta, getDeviceAnalysisYUnitMeta, normalizeDeviceAnalysisYUnit, } from "../lib/deviceAnalysisUnits";
+import { startDeviceAnalysisPerf } from "../../shared/lib/deviceAnalysisPerf";
 import MainPlotChart from "./MainPlotChart";
 import GmDiagnosticsChart from "./GmDiagnosticsChart";
 import SsDiagnosticsChart from "./SsDiagnosticsChart";
@@ -1499,6 +1500,11 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return cancelScheduled;
         }
         const totalCount = activeFile.series.length;
+        const finishAnalysisPerf = startDeviceAnalysisPerf("analysis:detail-file", {
+            fileId: activeFile?.fileId ?? null,
+            fileName: activeFile?.fileName ?? null,
+            seriesCount: totalCount,
+        });
         const cached = activeFileCache?.analysisByConfigKey?.get(analysisCacheKey) ?? null;
         if (cached) {
             setDetailAnalysisState({
@@ -1507,6 +1513,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 completedCount: totalCount,
                 totalCount,
                 pending: false,
+            });
+            finishAnalysisPerf({
+                cached: true,
+                completedCount: totalCount,
             });
             return cancelScheduled;
         }
@@ -1558,6 +1568,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             if (!pending) {
                 cacheAnalysisMap(new Map(workingMap));
                 progressiveAnalysisHandleRef.current = null;
+                finishAnalysisPerf({
+                    cached: false,
+                    completedCount: workingMap.size,
+                });
                 return;
             }
             schedule();
@@ -1578,6 +1592,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         }
         else {
             cacheAnalysisMap(new Map(workingMap));
+            finishAnalysisPerf({
+                cached: false,
+                completedCount: workingMap.size,
+            });
         }
         return cancelScheduled;
     }, [activeFile, activeFileCache, analysisCacheKey, buildSeriesAnalysisEntry, cacheAnalysisMap, detailAnalysisKey]);
@@ -2117,6 +2135,12 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const renderPlotSeries = useMemo(() => {
         if (!displayPlotSeries.length)
             return displayPlotSeries;
+        const finishPerf = startDeviceAnalysisPerf("render:plot-series", {
+            fileId: activeFile?.fileId ?? null,
+            fileName: activeFile?.fileName ?? null,
+            maxPointsPerSeries: renderMaxPointsPerSeries,
+            seriesCount: displayPlotSeries.length,
+        });
         const cacheKey = displayPlotSeries as unknown as object;
         let cacheBucket = renderSeriesCacheRef.current.get(cacheKey);
         if (!cacheBucket) {
@@ -2124,11 +2148,17 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             renderSeriesCacheRef.current.set(cacheKey, cacheBucket);
         }
         const cachedSeries = cacheBucket.get(renderMaxPointsPerSeries);
-        if (cachedSeries)
+        if (cachedSeries) {
+            finishPerf({ cached: true });
             return cachedSeries;
+        }
+        let inputPointCount = 0;
+        let outputPointCount = 0;
         const computedSeries = displayPlotSeries.map((series: any) => {
             const fullData = Array.isArray(series?.data) ? series.data : [];
+            inputPointCount += fullData.length;
             const nextData = downsamplePointsForDisplay(fullData, renderMaxPointsPerSeries);
+            outputPointCount += Array.isArray(nextData) ? nextData.length : 0;
             if (nextData === fullData)
                 return series;
             return {
@@ -2137,8 +2167,13 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             };
         });
         cacheBucket.set(renderMaxPointsPerSeries, computedSeries);
+        finishPerf({
+            cached: false,
+            inputPointCount,
+            outputPointCount,
+        });
         return computedSeries;
-    }, [displayPlotSeries, renderMaxPointsPerSeries]);
+    }, [activeFile?.fileId, activeFile?.fileName, displayPlotSeries, renderMaxPointsPerSeries]);
     const renderOriginSelectionLegend = React.useCallback((legendProps: any) => {
         if (!plotLegendSeries.length)
             return null;
