@@ -62,6 +62,14 @@ type AppUpdateSettings = {
   onCheckForUpdates: () => boolean | Promise<boolean>;
 };
 
+type WindowCloseSettings = {
+  behavior: "minimizeToTray" | "quit";
+  isSaving: boolean;
+  onBehaviorChange: (
+    behavior: "minimizeToTray" | "quit",
+  ) => Promise<void> | void;
+};
+
 type FileNameMatchingSettings = {
   feedback: Feedback;
   fieldSeparators: string;
@@ -93,6 +101,7 @@ type DeviceAnalysisSettingsPanelProps = {
   onThemeChange: (theme: ThemeMode) => Promise<void> | void;
   originSettings: OriginSettings;
   storageSettings: StorageSettings;
+  windowCloseSettings: WindowCloseSettings;
   t: TranslateFn;
 };
 
@@ -110,6 +119,7 @@ const DeviceAnalysisSettingsPanel = ({
   onThemeChange,
   originSettings,
   storageSettings,
+  windowCloseSettings,
   t,
 }: DeviceAnalysisSettingsPanelProps) => {
   const settingsSectionRef = useRef<HTMLElement | null>(null);
@@ -135,6 +145,13 @@ const DeviceAnalysisSettingsPanel = ({
     { value: "system", label: t("da_settings_theme_system") },
     { value: "light", label: t("da_settings_theme_light") },
     { value: "dark", label: t("da_settings_theme_dark") },
+  ];
+  const windowCloseBehaviorOptions = [
+    {
+      value: "minimizeToTray",
+      label: t("da_settings_close_behavior_minimize_to_tray"),
+    },
+    { value: "quit", label: t("da_settings_close_behavior_quit") },
   ];
   const originPlotTypeOptions = [
     { value: "200", label: t("da_settings_origin_plot_type_200") },
@@ -294,6 +311,40 @@ const DeviceAnalysisSettingsPanel = ({
               options={themeModeOptions}
               className="w-full sm:w-fit da-neutral-select"
               stableWidth
+            />
+          </div>
+        </div>
+      </Card>
+
+      <Card
+        id="device-analysis-settings-close-behavior-card"
+        variant="panel"
+        className="p-4 space-y-4 mb-4"
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold text-text-primary">
+              {t("da_settings_close_behavior_title")}
+            </h3>
+            <p className="text-sm text-text-secondary mt-1">
+              {t("da_settings_close_behavior_desc")}
+            </p>
+          </div>
+
+          <div className="w-full sm:w-fit">
+            <DropdownField
+              id="device-analysis-settings-close-behavior-dropdown"
+              menuId="device-analysis-settings-close-behavior-dropdown-menu"
+              value={windowCloseSettings.behavior}
+              onChange={(value) => {
+                if (value === "minimizeToTray" || value === "quit") {
+                  void windowCloseSettings.onBehaviorChange(value);
+                }
+              }}
+              options={windowCloseBehaviorOptions}
+              className="w-full sm:w-fit da-neutral-select"
+              stableWidth
+              disabled={windowCloseSettings.isSaving}
             />
           </div>
         </div>

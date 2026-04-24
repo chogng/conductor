@@ -76,6 +76,7 @@ export const useDeviceAnalysisSettings = ({
   const [analysisDefaultsSaving, setAnalysisDefaultsSaving] = useState(false);
   const [analysisDefaultsFeedback, setAnalysisDefaultsFeedback] =
     useState<Feedback>(IDLE_FEEDBACK);
+  const [windowCloseSaving, setWindowCloseSaving] = useState(false);
 
   const originCleanupConfig = useMemo(() => {
     const settings = deviceAnalysisSettings || {};
@@ -135,6 +136,10 @@ export const useDeviceAnalysisSettings = ({
   const fileNameFieldSeparators = normalizeFileNameFieldSeparators(
     deviceAnalysisSettings?.fileNameFieldSeparators,
   );
+  const windowCloseBehavior =
+    deviceAnalysisSettings?.windowCloseBehavior === "quit"
+      ? ("quit" as const)
+      : ("minimizeToTray" as const);
 
   useEffect(() => {
     let cancelled = false;
@@ -575,6 +580,20 @@ export const useDeviceAnalysisSettings = ({
     [handleUpdateDeviceAnalysisSettings, t],
   );
 
+  const handleSetWindowCloseBehavior = useCallback(
+    async (nextBehavior: "minimizeToTray" | "quit") => {
+      setWindowCloseSaving(true);
+      try {
+        await handleUpdateDeviceAnalysisSettings({
+          windowCloseBehavior: nextBehavior === "quit" ? "quit" : "minimizeToTray",
+        });
+      } finally {
+        setWindowCloseSaving(false);
+      }
+    },
+    [handleUpdateDeviceAnalysisSettings],
+  );
+
   const handleSetDefaultYScaleForTransfer = useCallback(
     async (nextValue: unknown) => {
       await updateAnalysisDefaultSetting({
@@ -647,6 +666,15 @@ export const useDeviceAnalysisSettings = ({
       handleSetDefaultYScaleForOutput,
       handleSetDefaultYScaleForTransfer,
     ],
+  );
+
+  const windowCloseSettings = useMemo(
+    () => ({
+      behavior: windowCloseBehavior,
+      isSaving: windowCloseSaving,
+      onBehaviorChange: handleSetWindowCloseBehavior,
+    }),
+    [handleSetWindowCloseBehavior, windowCloseBehavior, windowCloseSaving],
   );
 
   const originSettings = useMemo(
@@ -729,5 +757,6 @@ export const useDeviceAnalysisSettings = ({
     fileNameMatchingSettings,
     originSettings,
     storageSettings,
+    windowCloseSettings,
   };
 };

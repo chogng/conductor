@@ -1829,6 +1829,16 @@ function showTrayHint() {
   });
 }
 
+function getWindowCloseBehaviorFromSettings() {
+  const settings = deviceAnalysisStore.getDeviceAnalysisSettings();
+  return settings?.windowCloseBehavior === "quit" ? "quit" : "minimizeToTray";
+}
+
+function shouldMinimizeToTrayOnWindowClose() {
+  if (process.platform === "darwin") return false;
+  return getWindowCloseBehaviorFromSettings() === "minimizeToTray";
+}
+
 function hideMainWindowToTray(win) {
   if (!win || win.isDestroyed()) return;
   win.hide();
@@ -1959,6 +1969,7 @@ function createMainWindow() {
   win.on("close", (event) => {
     if (isAppQuitting) return;
     if (process.platform === "darwin") return;
+    if (!shouldMinimizeToTrayOnWindowClose()) return;
 
     event.preventDefault();
     hideMainWindowToTray(win);
@@ -2148,8 +2159,14 @@ function handleDesktopCommand(event, payload) {
   }
 
   if (command === "close-window") {
-    hideMainWindowToTray(win);
-    updateTrayMenu();
+    if (shouldMinimizeToTrayOnWindowClose()) {
+      hideMainWindowToTray(win);
+      updateTrayMenu();
+      return;
+    }
+
+    isAppQuitting = true;
+    app.quit();
   }
 }
 

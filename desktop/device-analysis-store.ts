@@ -18,6 +18,10 @@ const DEVICE_ANALYSIS_Y_UNITS = new Set(["A", "mA", "uA", "nA", "pA"]);
 const DEVICE_ANALYSIS_Y_SCALES = new Set(["linear", "log"]);
 const DEVICE_ANALYSIS_DEFAULT_Y_SCALE = "linear";
 const DEVICE_ANALYSIS_THEMES = new Set(["system", "light", "dark"]);
+const DEVICE_ANALYSIS_WINDOW_CLOSE_BEHAVIORS = new Set([
+  "minimizeToTray",
+  "quit",
+]);
 const DEVICE_ANALYSIS_X_SEGMENTATION_MODES = new Set([
   "auto",
   "points",
@@ -28,6 +32,7 @@ const DEVICE_ANALYSIS_DEFAULT_SETTINGS = {
   defaultTemplate: null,
   lastTemplateId: null,
   theme: "system",
+  windowCloseBehavior: "minimizeToTray",
   onboardingCompleted: false,
   onboardingAutoStartDismissed: false,
   stopOnErrorDefault: false,
@@ -210,6 +215,11 @@ export function createDeviceAnalysisStore(options) {
     const theme = DEVICE_ANALYSIS_THEMES.has(next.theme)
       ? next.theme
       : DEVICE_ANALYSIS_DEFAULT_SETTINGS.theme;
+    const windowCloseBehavior = DEVICE_ANALYSIS_WINDOW_CLOSE_BEHAVIORS.has(
+      next.windowCloseBehavior,
+    )
+      ? next.windowCloseBehavior
+      : DEVICE_ANALYSIS_DEFAULT_SETTINGS.windowCloseBehavior;
 
     const ssDiagnosticsEnabled =
       typeof next.ssDiagnosticsEnabled === "boolean"
@@ -296,6 +306,7 @@ export function createDeviceAnalysisStore(options) {
       yUnitByFileId,
       yScaleByFileId,
       theme,
+      windowCloseBehavior,
       ssMethodDefault,
       ssDiagnosticsEnabled,
       ssShowFitLine,

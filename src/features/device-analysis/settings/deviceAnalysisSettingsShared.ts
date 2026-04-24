@@ -12,6 +12,7 @@ export type DeviceAnalysisSettings = {
   fileNameFieldSeparators?: string;
   language?: LanguageCode;
   theme?: ThemeMode;
+  windowCloseBehavior?: "minimizeToTray" | "quit";
   originExePath?: string;
   originExportModeDefault?:
     | "merged"

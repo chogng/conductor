@@ -48,6 +48,7 @@ const SettingsPanelContainer = ({
     fileNameMatchingSettings,
     originSettings,
     storageSettings,
+    windowCloseSettings,
   } =
     useDeviceAnalysisSettings({
     deviceAnalysisSettings,
@@ -70,6 +71,7 @@ const SettingsPanelContainer = ({
       onThemeChange={handleThemeChange}
       originSettings={originSettings}
       storageSettings={storageSettings}
+      windowCloseSettings={windowCloseSettings}
       t={t}
     />
   );

@@ -341,6 +341,11 @@
     da_settings_theme_system: 'System',
     da_settings_theme_light: 'Light',
     da_settings_theme_dark: 'Dark',
+    da_settings_close_behavior_title: 'Close Window',
+    da_settings_close_behavior_desc:
+      'Choose whether clicking the close button minimizes to the tray or exits the app.',
+    da_settings_close_behavior_minimize_to_tray: 'Minimize to Tray',
+    da_settings_close_behavior_quit: 'Quit App',
     da_settings_app_update_title: 'App Updates',
     da_settings_app_update_desc: 'Checks for updates automatically, with manual check available.',
     da_settings_app_update_check_btn: 'Check for Updates',
