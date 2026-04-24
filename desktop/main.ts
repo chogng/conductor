@@ -1325,6 +1325,19 @@ function normalizeDeviceAnalysisAnalysisSeries(rawSeries) {
     .slice(0, 2000);
 }
 
+function normalizeDeviceAnalysisAnalysisSourceFile(rawSourceFile) {
+  if (!rawSourceFile || typeof rawSourceFile !== "object") return null;
+  return {
+    curveType:
+      typeof rawSourceFile.curveType === "string" ? rawSourceFile.curveType : null,
+    supportsSs:
+      typeof rawSourceFile.supportsSs === "boolean" ? rawSourceFile.supportsSs : null,
+    xAxisRole:
+      typeof rawSourceFile.xAxisRole === "string" ? rawSourceFile.xAxisRole : null,
+    xLabel: typeof rawSourceFile.xLabel === "string" ? rawSourceFile.xLabel : null,
+  };
+}
+
 async function handleDeviceAnalysisRustEngineAnalyzeSeriesBatch(_event, payload) {
   const fileId =
     payload && typeof payload.fileId === "string" ? payload.fileId.trim() : "";
@@ -1342,6 +1355,7 @@ async function handleDeviceAnalysisRustEngineAnalyzeSeriesBatch(_event, payload)
     const result = await sendRustDeviceAnalysisEngineCommand("analyzeSeriesBatch", {
       fileId,
       series,
+      sourceFile: normalizeDeviceAnalysisAnalysisSourceFile(payload?.sourceFile),
     });
     return {
       ok: true,

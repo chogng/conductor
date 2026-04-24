@@ -23,10 +23,17 @@ type CachePrefetchHandle =
       id: ReturnType<typeof setTimeout>;
     };
 
-const buildRustSsAutoSeriesPayload = (file: any, cache: any) => {
+const buildRustAnalysisSeriesPayload = (file: any, cache: any) => {
   const payload = [];
   for (const series of file?.series ?? []) {
-    if (!series?.id || cache.ssAutoBySeriesId.has(series.id)) continue;
+    if (!series?.id) continue;
+    if (
+      cache.gmByMode.x.has(series.id) &&
+      cache.ssDiagnosticsBySeriesId.has(series.id) &&
+      cache.ssAutoBySeriesId.has(series.id)
+    ) {
+      continue;
+    }
     const points = cache.pointsBySeriesId.get(series.id) ?? [];
     const x = [];
     const y = [];
@@ -182,6 +189,7 @@ export const useAnalysisFileCache = ({
         baseCurrent: 0,
         gm: 0,
         points: 0,
+        rustAnalysis: 0,
         ss: 0,
         ssAuto: 0,
       };
@@ -203,6 +211,59 @@ export const useAnalysisFileCache = ({
         stageCounts.points += 1;
       }
       stageMs.points += getDeviceAnalysisPerfNow() - stageStartedAt;
+
+      const rustAnalysisSeries = buildRustAnalysisSeriesPayload(file, cache);
+      const rustAnalyze =
+        globalThis.window?.desktopImport?.analyzeDeviceAnalysisSeriesBatchWithRust;
+      if (rustAnalyze && rustAnalysisSeries.length) {
+        stageStartedAt = getDeviceAnalysisPerfNow();
+        try {
+          const response: any = await rustAnalyze({
+            fileId,
+            series: rustAnalysisSeries,
+            sourceFile: {
+              curveType: file?.curveType ?? null,
+              supportsSs: file?.supportsSs ?? null,
+              xAxisRole: file?.xAxisRole ?? null,
+              xLabel: file?.xLabel ?? null,
+            },
+          });
+          const resultBySeriesId = response?.ok
+            ? response?.result?.series
+            : null;
+          if (resultBySeriesId && typeof resultBySeriesId === "object") {
+            for (const series of rustAnalysisSeries) {
+              const result = resultBySeriesId?.[series.id];
+              if (Array.isArray(result?.gm) && !cache.gmByMode.x.has(series.id)) {
+                cache.gmByMode.x.set(series.id, result.gm);
+                stageCounts.gm += 1;
+              }
+              if (
+                Array.isArray(result?.ss) &&
+                !cache.ssDiagnosticsBySeriesId.has(series.id)
+              ) {
+                cache.ssDiagnosticsBySeriesId.set(series.id, result.ss);
+                stageCounts.ss += 1;
+              }
+              if (result?.ssFitAuto && !cache.ssAutoBySeriesId.has(series.id)) {
+                cache.ssAutoBySeriesId.set(series.id, result.ssFitAuto);
+                stageCounts.ssAuto += 1;
+              }
+              if (
+                result?.baseCurrent &&
+                !cache.baseMetricsBySeriesId.has(series.id)
+              ) {
+                cache.baseMetricsBySeriesId.set(series.id, result.baseCurrent);
+                stageCounts.baseCurrent += 1;
+              }
+            }
+          }
+        } catch {
+          // The TypeScript implementation below remains the compatibility fallback.
+        } finally {
+          stageMs.rustAnalysis += getDeviceAnalysisPerfNow() - stageStartedAt;
+        }
+      }
 
       for (const series of file?.series ?? []) {
         if (!series?.id) continue;
@@ -232,35 +293,6 @@ export const useAnalysisFileCache = ({
           cache.baseMetricsBySeriesId.set(series.id, baseCurrentMetrics);
           stageMs.baseCurrent += getDeviceAnalysisPerfNow() - stageStartedAt;
           stageCounts.baseCurrent += 1;
-        }
-      }
-
-      const rustSsAutoSeries = buildRustSsAutoSeriesPayload(file, cache);
-      const rustAnalyze =
-        globalThis.window?.desktopImport?.analyzeDeviceAnalysisSeriesBatchWithRust;
-      if (rustAnalyze && rustSsAutoSeries.length) {
-        stageStartedAt = getDeviceAnalysisPerfNow();
-        try {
-          const response: any = await rustAnalyze({
-            fileId,
-            series: rustSsAutoSeries,
-          });
-          const resultBySeriesId = response?.ok
-            ? response?.result?.series
-            : null;
-          if (resultBySeriesId && typeof resultBySeriesId === "object") {
-            for (const series of rustSsAutoSeries) {
-              const ssFitAuto = resultBySeriesId?.[series.id]?.ssFitAuto;
-              if (ssFitAuto && !cache.ssAutoBySeriesId.has(series.id)) {
-                cache.ssAutoBySeriesId.set(series.id, ssFitAuto);
-                stageCounts.ssAuto += 1;
-              }
-            }
-          }
-        } catch {
-          // The TypeScript implementation below remains the compatibility fallback.
-        } finally {
-          stageMs.ssAuto += getDeviceAnalysisPerfNow() - stageStartedAt;
         }
       }
 

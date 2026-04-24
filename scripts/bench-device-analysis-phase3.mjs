@@ -16,6 +16,10 @@ const ROOT = process.cwd();
 const OUTPUT_DIR = path.join(ROOT, ".tooling", "device-analysis-phase3-bench");
 const REQUESTS_PATH = path.join(OUTPUT_DIR, "requests.jsonl");
 const RUST_RESULTS_PATH = path.join(OUTPUT_DIR, "rust-results.jsonl");
+const ANALYSIS_REQUESTS_PATH = path.join(OUTPUT_DIR, "analysis-requests.jsonl");
+const RUST_ANALYSIS_RESULTS_PATH = path.join(OUTPUT_DIR, "rust-analysis-results.jsonl");
+const PROCESS_TIMING_PATH = path.join(OUTPUT_DIR, "rust-process-timing.json");
+const ANALYSIS_TIMING_PATH = path.join(OUTPUT_DIR, "rust-analysis-timing.json");
 const REPORT_PATH = path.join(OUTPUT_DIR, "report.json");
 const DEFAULT_ROOT = "C:/Users/lanxi/Desktop/293K";
 const SUPPORTED_EXTENSIONS = new Set([".csv", ".xls", ".xlsx"]);
@@ -69,11 +73,47 @@ const walkFiles = async (root) => {
 
 const safeArray = (value) => (Array.isArray(value) ? value : []);
 
+const isFiniteNumber = (value) => typeof value === "number" && Number.isFinite(value);
+
 const measure = (totals, key, fn) => {
   const startedAt = now();
   const result = fn();
   totals[key] += now() - startedAt;
   return result;
+};
+
+const readJsonLines = async (filePath) => {
+  const text = await fs.readFile(filePath, "utf8");
+  return text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => JSON.parse(line));
+};
+
+const readJsonIfExists = async (filePath) => {
+  try {
+    return JSON.parse((await fs.readFile(filePath, "utf8")).replace(/^\uFEFF/, ""));
+  } catch {
+    return null;
+  }
+};
+
+const collectProcessedEntries = async () => {
+  const entries = await readJsonLines(RUST_RESULTS_PATH);
+  const successes = [];
+  const failures = [];
+  for (const entry of entries) {
+    if (entry?.ok && entry?.result?.series?.length) {
+      successes.push(entry.result);
+    } else {
+      failures.push({
+        id: entry?.id ?? null,
+        message: entry?.error?.message ?? entry?.result?.message ?? "no series",
+      });
+    }
+  }
+  return { entries, failures, successes };
 };
 
 const buildRenderSeries = ({ pointsBySeriesId, series, type }) => {
@@ -239,30 +279,99 @@ const prepare = async (rootArg) => {
   console.log(`[phase3-bench] prepared files=${files.length} root=${selectedRoot}`);
 };
 
-const analyze = async () => {
-  const startedAt = now();
-  const rustText = await fs.readFile(RUST_RESULTS_PATH, "utf8");
-  const lines = rustText
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const entries = lines.map((line) => JSON.parse(line));
-  const successes = [];
+const buildRustAnalysisSeries = (file) => {
+  const xGroups = safeArray(file?.xGroups);
+  const out = [];
+  for (const item of safeArray(file?.series)) {
+    if (!item?.id) continue;
+    const points = buildPoints(xGroups[item.groupIndex], item.y);
+    const x = [];
+    const y = [];
+    for (const point of points) {
+      if (!isFiniteNumber(point.x) || !isFiniteNumber(point.y)) continue;
+      x.push(point.x);
+      y.push(point.y);
+    }
+    if (x.length >= 3) out.push({ id: item.id, x, y });
+  }
+  return out;
+};
+
+const prepareRustAnalysis = async () => {
+  const { successes } = await collectProcessedEntries();
+  const requests = [];
+  let seriesCount = 0;
+  for (const [index, file] of successes.entries()) {
+    const series = buildRustAnalysisSeries(file);
+    if (!series.length) continue;
+    seriesCount += series.length;
+    requests.push(
+      JSON.stringify({
+        command: "analyzeSeriesBatch",
+        fileId: file.fileId ?? `phase3-analysis-${index}`,
+        id: index + 1,
+        series,
+        sourceFile: {
+          curveType: file.curveType ?? null,
+          supportsSs: file.supportsSs ?? null,
+          xAxisRole: file.xAxisRole ?? null,
+          xLabel: file.xLabel ?? null,
+        },
+      }),
+    );
+  }
+  await fs.writeFile(ANALYSIS_REQUESTS_PATH, `${requests.join("\n")}\n`, "utf8");
+  console.log(
+    `[phase3-bench] prepared rust analysis requests files=${requests.length} series=${seriesCount}`,
+  );
+};
+
+const summarizeRustAnalysisResults = async () => {
+  let responses = [];
+  try {
+    responses = await readJsonLines(RUST_ANALYSIS_RESULTS_PATH);
+  } catch {
+    return null;
+  }
+
+  let failedCount = 0;
+  let files = 0;
+  let seriesCount = 0;
   const failures = [];
-  for (const entry of entries) {
-    if (entry?.ok && entry?.result?.series?.length) {
-      successes.push(entry.result);
-    } else {
+  for (const response of responses) {
+    if (!response?.ok) {
+      failedCount += 1;
       failures.push({
-        id: entry?.id ?? null,
-        message: entry?.error?.message ?? entry?.result?.message ?? "no series",
+        id: response?.id ?? null,
+        message: response?.error?.message ?? "Rust analysis failed",
       });
+      continue;
+    }
+    files += 1;
+    const resultSeries = response?.result?.series;
+    if (resultSeries && typeof resultSeries === "object") {
+      seriesCount += Object.keys(resultSeries).length;
     }
   }
+
+  return {
+    failedCount,
+    failures: failures.slice(0, 20),
+    files,
+    seriesCount,
+    timing: await readJsonIfExists(ANALYSIS_TIMING_PATH),
+  };
+};
+
+const analyze = async () => {
+  const startedAt = now();
+  const { failures, successes } = await collectProcessedEntries();
 
   const startRss = process.memoryUsage().rss;
   const results = successes.map(analyzeProcessedFile);
   const endRss = process.memoryUsage().rss;
+  const rustAnalysis = await summarizeRustAnalysisResults();
+  const processTiming = await readJsonIfExists(PROCESS_TIMING_PATH);
 
   const totals = results.reduce(
     (acc, result) => {
@@ -305,7 +414,9 @@ const analyze = async () => {
     failedCount: failures.length,
     failures: failures.slice(0, 40),
     processedCount: successes.length,
+    processTiming,
     rssDeltaBytes: endRss - startRss,
+    rustAnalysis,
     slowestAnalysis: [...results].sort((a, b) => b.totalAnalysisMs - a.totalAnalysisMs).slice(0, 15),
     slowestTotal: [...results].sort((a, b) => b.totalMs - a.totalMs).slice(0, 15),
     suiteMs: now() - startedAt,
@@ -324,6 +435,19 @@ const analyze = async () => {
   console.log(
     `points=${formatMs(totals.stageMs.points)} gm=${formatMs(totals.stageMs.gm)} ss=${formatMs(totals.stageMs.ss)} ssAuto=${formatMs(totals.stageMs.ssAuto)} baseCurrent=${formatMs(totals.stageMs.baseCurrent)}`,
   );
+  if (rustAnalysis?.timing?.durationMs) {
+    const replacedTsMs =
+      totals.stageMs.gm +
+      totals.stageMs.ss +
+      totals.stageMs.ssAuto +
+      totals.stageMs.baseCurrent;
+    const projectedAnalysisMs =
+      totals.totalAnalysisMs - replacedTsMs + rustAnalysis.timing.durationMs;
+    const savedMs = replacedTsMs - rustAnalysis.timing.durationMs;
+    console.log(
+      `rustAnalysis=${formatMs(rustAnalysis.timing.durationMs)} projectedAnalysis=${formatMs(projectedAnalysisMs)} saved=${formatMs(savedMs)}`,
+    );
+  }
   console.log(
     `ivRender=${formatMs(totals.stageMs.ivRender)} gmRender=${formatMs(totals.stageMs.gmRender)} overviewCanvas=${formatMs(totals.stageMs.overviewCanvas)}`,
   );
@@ -340,9 +464,11 @@ const analyze = async () => {
 const mode = process.argv[2] || "prepare";
 if (mode === "prepare") {
   await prepare(process.argv[3]);
+} else if (mode === "prepare-rust-analysis") {
+  await prepareRustAnalysis();
 } else if (mode === "analyze") {
   await analyze();
 } else {
-  console.error("Usage: node --experimental-strip-types scripts/bench-device-analysis-phase3.mjs <prepare|analyze> [root]");
+  console.error("Usage: node --experimental-strip-types scripts/bench-device-analysis-phase3.mjs <prepare|prepare-rust-analysis|analyze> [root]");
   process.exitCode = 2;
 }

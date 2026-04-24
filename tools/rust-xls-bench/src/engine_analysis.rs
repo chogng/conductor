@@ -1,5 +1,7 @@
 use serde::Deserialize;
 use serde_json::{Value, json};
+use std::collections::HashMap;
+use std::thread;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -7,6 +9,15 @@ pub struct AnalysisSeriesRequest {
     pub id: String,
     pub x: Vec<f64>,
     pub y: Vec<f64>,
+}
+
+#[derive(Clone, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AnalysisSourceFile {
+    pub curve_type: Option<String>,
+    pub supports_ss: Option<bool>,
+    pub x_axis_role: Option<String>,
+    pub x_label: Option<String>,
 }
 
 #[derive(Clone)]
@@ -18,6 +29,29 @@ struct Point {
 struct LogSegment {
     x: Vec<f64>,
     y: Vec<f64>,
+}
+
+struct IndexedSegment {
+    branch: &'static str,
+    indices: Vec<usize>,
+}
+
+#[derive(Clone)]
+struct FiniteCurrentPoint {
+    abs_i: f64,
+    x: f64,
+}
+
+#[derive(Clone)]
+struct CurrentWindow {
+    current: f64,
+    key: &'static str,
+    label: String,
+    point_count: usize,
+    target_x: Option<f64>,
+    x: f64,
+    x1: f64,
+    x2: f64,
 }
 
 #[derive(Clone)]
@@ -64,10 +98,6 @@ struct PrefixSums {
 
 const FLOOR_QUANTILE: f64 = 0.1;
 const FLOOR_TRY: [f64; 2] = [1.0, 0.7];
-const R2_TRY: [f64; 3] = [0.995, 0.99, 0.98];
-const SPAN_TRY: [f64; 2] = [1.0, 0.7];
-const MIN_POINTS_TRY: [usize; 2] = [12, 8];
-const STAB_TRY: [f64; 2] = [0.1, 0.15];
 const WINDOW_POINTS: usize = 12;
 const STRICT_R2: f64 = 0.995;
 const STRICT_SPAN: f64 = 1.0;
@@ -195,6 +225,466 @@ fn split_bidirectional_points(points: &[Point]) -> Vec<Vec<Point>> {
     .into_iter()
     .filter(|segment| !segment.is_empty())
     .collect()
+}
+
+fn split_bidirectional_indices(x: &[f64]) -> Vec<IndexedSegment> {
+    if x.len() < 2 {
+        return if x.is_empty() {
+            Vec::new()
+        } else {
+            vec![IndexedSegment {
+                branch: "full",
+                indices: vec![0usize],
+            }]
+        };
+    }
+    let Some(split_index) = detect_bidirectional_split_index(x) else {
+        return vec![IndexedSegment {
+            branch: "full",
+            indices: (0..x.len()).collect(),
+        }];
+    };
+    let mut first_dir = 0i32;
+    for index in 1..x.len() {
+        if !x[index - 1].is_finite() || !x[index].is_finite() {
+            continue;
+        }
+        let dx = x[index] - x[index - 1];
+        if dx == 0.0 {
+            continue;
+        }
+        first_dir = if dx > 0.0 { 1 } else { -1 };
+        break;
+    }
+    let first_branch = if first_dir >= 0 { "forward" } else { "reverse" };
+    let second_branch = if first_branch == "forward" {
+        "reverse"
+    } else {
+        "forward"
+    };
+    vec![
+        IndexedSegment {
+            branch: first_branch,
+            indices: (0..=split_index).collect(),
+        },
+        IndexedSegment {
+            branch: second_branch,
+            indices: (split_index..x.len()).collect(),
+        },
+    ]
+}
+
+fn point_json(x: f64, y: Option<f64>) -> Value {
+    let y_value = y.filter(|value| value.is_finite());
+    let y_abs = y_value.map(f64::abs);
+    json!({
+        "x": x,
+        "y": y_value,
+        "yPositive": y_value.filter(|value| *value > 0.0),
+        "yAbsPositive": y_abs.filter(|value| *value > 0.0),
+    })
+}
+
+fn compute_central_derivative_segment(x: &[f64], y: &[f64], indices: &[usize]) -> Vec<Value> {
+    if indices.len() < 2 {
+        return Vec::new();
+    }
+    let mut out = Vec::<Value>::with_capacity(indices.len());
+    for position in 0..indices.len() {
+        let index = indices[position];
+        let xv = x[index];
+        let yv = y[index];
+        if !xv.is_finite() || !yv.is_finite() {
+            out.push(point_json(xv, None));
+            continue;
+        }
+        let prev = if position > 0 {
+            Some(indices[position - 1])
+        } else {
+            None
+        };
+        let next = if position + 1 < indices.len() {
+            Some(indices[position + 1])
+        } else {
+            None
+        };
+        let derivative = if let (Some(prev), Some(next)) = (prev, next) {
+            let dx = x[next] - x[prev];
+            if dx.is_finite() && dx != 0.0 {
+                Some((y[next] - y[prev]) / dx)
+            } else {
+                None
+            }
+        } else if let Some(next) = next {
+            let dx = x[next] - xv;
+            if dx.is_finite() && dx != 0.0 {
+                Some((y[next] - yv) / dx)
+            } else {
+                None
+            }
+        } else if let Some(prev) = prev {
+            let dx = xv - x[prev];
+            if dx.is_finite() && dx != 0.0 {
+                Some((yv - y[prev]) / dx)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        out.push(point_json(xv, derivative));
+    }
+    out
+}
+
+fn compute_central_derivative(x: &[f64], y: &[f64]) -> Vec<Value> {
+    let n = x.len().min(y.len());
+    if n < 2 {
+        return Vec::new();
+    }
+    let x = &x[..n];
+    let y = &y[..n];
+    let segments = split_bidirectional_indices(x);
+    if segments.len() == 1 {
+        return compute_central_derivative_segment(x, y, &segments[0].indices);
+    }
+    let mut out = Vec::<Value>::new();
+    for (index, segment) in segments.iter().enumerate() {
+        let computed = compute_central_derivative_segment(x, y, &segment.indices);
+        if index == 0 {
+            out.extend(computed);
+        } else {
+            out.extend(computed.into_iter().skip(1));
+        }
+    }
+    out
+}
+
+fn compute_subthreshold_swing_segment(x: &[f64], y: &[f64], indices: &[usize]) -> Vec<Value> {
+    if indices.len() < 3 {
+        return Vec::new();
+    }
+    let mut log10_abs_y = Vec::<Option<f64>>::with_capacity(indices.len());
+    for index in indices {
+        let yv = y[*index];
+        let abs = yv.abs();
+        log10_abs_y.push(if yv.is_finite() && abs > 0.0 {
+            Some(abs.log10())
+        } else {
+            None
+        });
+    }
+    let mut out = Vec::<Value>::with_capacity(indices.len());
+    for position in 0..indices.len() {
+        let index = indices[position];
+        let xv = x[index];
+        if !xv.is_finite() || position == 0 || position + 1 >= indices.len() {
+            out.push(point_json(xv, None));
+            continue;
+        }
+        let prev_log = log10_abs_y[position - 1];
+        let next_log = log10_abs_y[position + 1];
+        let Some(prev_log) = prev_log else {
+            out.push(point_json(xv, None));
+            continue;
+        };
+        let Some(next_log) = next_log else {
+            out.push(point_json(xv, None));
+            continue;
+        };
+        let prev = indices[position - 1];
+        let next = indices[position + 1];
+        let dx = x[next] - x[prev];
+        if !dx.is_finite() || dx == 0.0 {
+            out.push(point_json(xv, None));
+            continue;
+        }
+        let slope = (next_log - prev_log) / dx;
+        let ss = if slope.is_finite() && slope != 0.0 {
+            Some(1000.0 / slope.abs())
+        } else {
+            None
+        };
+        out.push(point_json(xv, ss));
+    }
+    out
+}
+
+fn compute_subthreshold_swing(x: &[f64], y: &[f64]) -> Vec<Value> {
+    let n = x.len().min(y.len());
+    if n < 3 {
+        return Vec::new();
+    }
+    let x = &x[..n];
+    let y = &y[..n];
+    let segments = split_bidirectional_indices(x);
+    if segments.len() == 1 {
+        return compute_subthreshold_swing_segment(x, y, &segments[0].indices);
+    }
+    let mut out = Vec::<Value>::new();
+    for (index, segment) in segments.iter().enumerate() {
+        let computed = compute_subthreshold_swing_segment(x, y, &segment.indices);
+        if index == 0 {
+            out.extend(computed);
+        } else {
+            out.extend(computed.into_iter().skip(1));
+        }
+    }
+    out
+}
+
+fn normalize_curve_type(value: Option<&String>) -> String {
+    value
+        .map(|value| value.trim().to_ascii_lowercase())
+        .unwrap_or_default()
+}
+
+fn is_non_iv_special_curve_type(curve_type: &str) -> bool {
+    matches!(curve_type, "pv" | "cv" | "cf")
+}
+
+fn is_transfer_like_source_file(source_file: Option<&AnalysisSourceFile>) -> bool {
+    let Some(source_file) = source_file else {
+        return false;
+    };
+    let curve_type = normalize_curve_type(source_file.curve_type.as_ref());
+    if is_non_iv_special_curve_type(&curve_type) {
+        return false;
+    }
+    if source_file.supports_ss == Some(true) {
+        return true;
+    }
+    if source_file.supports_ss == Some(false) {
+        return false;
+    }
+    let x_axis_role = source_file
+        .x_axis_role
+        .as_ref()
+        .map(|value| value.to_ascii_lowercase())
+        .unwrap_or_default();
+    if !x_axis_role.is_empty() {
+        return x_axis_role == "vg";
+    }
+    if !curve_type.is_empty() {
+        return curve_type.contains("vg") || curve_type.contains("transfer");
+    }
+    source_file
+        .x_label
+        .as_ref()
+        .map(|value| value.to_ascii_lowercase().contains("vg"))
+        .unwrap_or(false)
+}
+
+fn empty_base_current_metrics() -> Value {
+    json!({
+        "candidateWindows": Vec::<Value>::new(),
+        "ioff": Value::Null,
+        "ioffWindow": Value::Null,
+        "ion": Value::Null,
+        "ionIoff": Value::Null,
+        "ionWindow": Value::Null,
+        "method": "unavailable",
+        "xAtIoff": Value::Null,
+        "xAtIon": Value::Null,
+    })
+}
+
+fn resolve_current_window_point_count(point_count: usize) -> usize {
+    if point_count == 0 {
+        return 1;
+    }
+    let max_window_points = 1usize.max(7usize.min(point_count / 3));
+    let min_window_points = 3usize.min(max_window_points);
+    let preferred_window_points = ((point_count as f64) * 0.1).round() as usize;
+    preferred_window_points
+        .max(min_window_points)
+        .clamp(1, max_window_points)
+}
+
+fn build_current_window(
+    key: &'static str,
+    label: String,
+    points: &[FiniteCurrentPoint],
+    target_x: Option<f64>,
+) -> Option<CurrentWindow> {
+    if points.is_empty() {
+        return None;
+    }
+    let abs_values = points.iter().map(|point| point.abs_i).collect::<Vec<_>>();
+    let x_values = points.iter().map(|point| point.x).collect::<Vec<_>>();
+    let current = median(&abs_values)?;
+    let x_median = median(&x_values)?;
+    let x1 = x_values.iter().copied().fold(f64::INFINITY, f64::min);
+    let x2 = x_values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    Some(CurrentWindow {
+        current,
+        key,
+        label,
+        point_count: x_values.len(),
+        target_x: target_x.filter(|value| value.is_finite()),
+        x: target_x
+            .filter(|value| value.is_finite())
+            .unwrap_or(x_median),
+        x1,
+        x2,
+    })
+}
+
+fn take_nearest_window(
+    key: &'static str,
+    label: String,
+    point_count: usize,
+    points: &[FiniteCurrentPoint],
+    target_x: f64,
+) -> Option<CurrentWindow> {
+    let mut window_points = points.to_vec();
+    window_points.sort_by(|a, b| {
+        let distance_delta = (a.x - target_x).abs().total_cmp(&(b.x - target_x).abs());
+        if distance_delta != std::cmp::Ordering::Equal {
+            return distance_delta;
+        }
+        a.x.total_cmp(&b.x)
+    });
+    window_points.truncate(point_count);
+    build_current_window(key, label, &window_points, Some(target_x))
+}
+
+fn current_window_json(window: &CurrentWindow) -> Value {
+    json!({
+        "current": window.current,
+        "key": window.key,
+        "label": window.label,
+        "pointCount": window.point_count,
+        "targetX": window.target_x,
+        "x": window.x,
+        "x1": window.x1,
+        "x2": window.x2,
+    })
+}
+
+fn build_auto_candidate_windows(
+    points: &[FiniteCurrentPoint],
+    branch: &'static str,
+) -> Vec<CurrentWindow> {
+    let window_point_count = resolve_current_window_point_count(points.len());
+    let suffix = if branch == "forward" || branch == "reverse" {
+        format!(" ({})", branch)
+    } else {
+        String::new()
+    };
+    let mut out = Vec::<CurrentWindow>::new();
+    if let Some(window) = build_current_window(
+        "lowEnd",
+        format!("low-end{}", suffix),
+        &points[..window_point_count.min(points.len())],
+        None,
+    ) {
+        out.push(window);
+    }
+    if let Some(window) = build_current_window(
+        "highEnd",
+        format!("high-end{}", suffix),
+        &points[points.len().saturating_sub(window_point_count)..],
+        None,
+    ) {
+        out.push(window);
+    }
+    let min_x = points.first().map(|point| point.x);
+    let max_x = points.last().map(|point| point.x);
+    if min_x.map(|value| value <= 0.0).unwrap_or(false)
+        && max_x.map(|value| value >= 0.0).unwrap_or(false)
+    {
+        if let Some(window) = take_nearest_window(
+            "zeroBias",
+            format!("near 0{}", suffix),
+            window_point_count,
+            points,
+            0.0,
+        ) {
+            out.push(window);
+        }
+    }
+    out
+}
+
+fn pick_extreme_current_window<'a>(
+    candidates: &'a [CurrentWindow],
+    kind: &str,
+) -> Option<&'a CurrentWindow> {
+    let mut iter = candidates.iter();
+    let mut best = iter.next()?;
+    for candidate in iter {
+        if kind == "max" {
+            if candidate.current > best.current {
+                best = candidate;
+            }
+        } else if candidate.current < best.current {
+            best = candidate;
+        }
+    }
+    Some(best)
+}
+
+fn compute_base_current_metrics(
+    x: &[f64],
+    y: &[f64],
+    source_file: Option<&AnalysisSourceFile>,
+) -> Value {
+    if !is_transfer_like_source_file(source_file) {
+        return empty_base_current_metrics();
+    }
+    let n = x.len().min(y.len());
+    if n == 0 {
+        return empty_base_current_metrics();
+    }
+    let x = &x[..n];
+    let y = &y[..n];
+    let mut candidate_windows = Vec::<CurrentWindow>::new();
+    for segment in split_bidirectional_indices(x) {
+        let mut points = segment
+            .indices
+            .iter()
+            .filter_map(|index| {
+                let xv = x[*index];
+                let yv = y[*index];
+                if xv.is_finite() && yv.is_finite() {
+                    Some(FiniteCurrentPoint {
+                        abs_i: yv.abs(),
+                        x: xv,
+                    })
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+        if points.is_empty() {
+            continue;
+        }
+        points.sort_by(|a, b| a.x.total_cmp(&b.x));
+        candidate_windows.extend(build_auto_candidate_windows(&points, segment.branch));
+    }
+    if candidate_windows.is_empty() {
+        return empty_base_current_metrics();
+    }
+    let ion_window = pick_extreme_current_window(&candidate_windows, "max");
+    let ioff_window = pick_extreme_current_window(&candidate_windows, "min");
+    let ion = ion_window.map(|window| window.current);
+    let ioff = ioff_window.map(|window| window.current);
+    let ion_ioff = match (ion, ioff) {
+        (Some(ion), Some(ioff)) if ioff.is_finite() && ioff != 0.0 => Some(ion / ioff),
+        _ => None,
+    };
+    json!({
+        "candidateWindows": candidate_windows.iter().map(current_window_json).collect::<Vec<_>>(),
+        "ioff": ioff,
+        "ioffWindow": ioff_window.map(current_window_json),
+        "ion": ion,
+        "ionIoff": ion_ioff,
+        "ionWindow": ion_window.map(current_window_json),
+        "method": "auto",
+        "xAtIoff": ioff_window.map(|window| window.x),
+        "xAtIon": ion_window.map(|window| window.x),
+    })
 }
 
 fn sanitize_log_points(x_raw: &[f64], y_raw: &[f64]) -> Result<Vec<LogSegment>, &'static str> {
@@ -451,6 +941,8 @@ fn select_best_by_score(
 fn run_auto_search(segment: &LogSegment) -> Option<SearchResult> {
     let y_floor = estimate_log_current_floor(&segment.y)?;
     let prefix = build_prefix_sums(&segment.x, &segment.y);
+    let mut fit_cache = HashMap::<(usize, usize), Option<LinearFit>>::new();
+    let mut stab_cache = HashMap::<(usize, usize), Option<f64>>::new();
     let mut best_any: Option<Candidate> = None;
     let mut best_strict: Option<Candidate> = None;
     let mut max_above_count = 0usize;
@@ -470,84 +962,95 @@ fn run_auto_search(segment: &LogSegment) -> Option<SearchResult> {
             .collect::<Vec<_>>();
         max_above_count = max_above_count.max(above.len());
         let segments = split_into_consecutive_segments(&above);
-        for min_span in SPAN_TRY {
-            for min_points in MIN_POINTS_TRY {
-                for r2_min in R2_TRY {
-                    for stab_max in STAB_TRY {
-                        for seg in &segments {
-                            if seg.len() < min_points {
+        let profile_count = if floor_margin_dec == 1.0 { 2 } else { 1 };
+        for profile_index in 0..profile_count {
+            let is_strict_profile = floor_margin_dec == 1.0 && profile_index == 0;
+            let (min_span, min_points, r2_min, stab_max) = if is_strict_profile {
+                (STRICT_SPAN, STRICT_N, STRICT_R2, STRICT_STAB)
+            } else {
+                (
+                    SUGGESTION_SPAN,
+                    SUGGESTION_N,
+                    SUGGESTION_R2,
+                    SUGGESTION_STAB,
+                )
+            };
+
+            for seg in &segments {
+                if seg.len() < min_points {
+                    continue;
+                }
+                let mut windows =
+                    build_candidate_window_sizes(seg.len(), min_points, WINDOW_POINTS);
+                if !is_strict_profile {
+                    for value in build_candidate_window_sizes(seg.len(), STRICT_N, WINDOW_POINTS) {
+                        if !windows.contains(&value) {
+                            windows.push(value);
+                        }
+                    }
+                    windows.sort_unstable();
+                }
+
+                for window_size in windows {
+                    if window_size < min_points {
+                        continue;
+                    }
+                    for start in 0..=seg.len() - window_size {
+                        let l = seg[start];
+                        let r = seg[start + window_size - 1];
+                        let cache_key = (l, r);
+                        let fit = fit_cache
+                            .entry(cache_key)
+                            .or_insert_with(|| {
+                                compute_linear_fit(&segment.x, &segment.y, &prefix, l, r)
+                            })
+                            .clone();
+                        let Some(fit) = fit else {
+                            continue;
+                        };
+                        if !fit.r2.is_finite() || fit.r2 < r2_min {
+                            continue;
+                        }
+                        if !fit.decade_span.is_finite() || fit.decade_span < min_span {
+                            continue;
+                        }
+                        let stab = if let Some(cached) = stab_cache.get(&cache_key) {
+                            *cached
+                        } else {
+                            let computed = compute_slope_stability(&segment.x, &segment.y, l, r);
+                            stab_cache.insert(cache_key, computed);
+                            computed
+                        };
+                        if let Some(stab) = stab {
+                            if stab.is_finite() && stab > stab_max {
                                 continue;
                             }
-                            let windows =
-                                build_candidate_window_sizes(seg.len(), min_points, WINDOW_POINTS);
-                            for window_size in windows {
-                                if window_size < min_points {
-                                    continue;
-                                }
-                                for start in 0..=seg.len() - window_size {
-                                    let l = seg[start];
-                                    let r = seg[start + window_size - 1];
-                                    let Some(fit) =
-                                        compute_linear_fit(&segment.x, &segment.y, &prefix, l, r)
-                                    else {
-                                        continue;
-                                    };
-                                    if !fit.r2.is_finite() || fit.r2 < r2_min {
-                                        continue;
-                                    }
-                                    if !fit.decade_span.is_finite() || fit.decade_span < min_span {
-                                        continue;
-                                    }
-                                    let stab =
-                                        compute_slope_stability(&segment.x, &segment.y, l, r);
-                                    if let Some(stab) = stab {
-                                        if stab.is_finite() && stab > stab_max {
-                                            continue;
-                                        }
-                                    }
-                                    let floor_margin = compute_floor_margin_dec(&fit, y_floor);
-                                    let score = fit.r2 + 0.25 * fit.decade_span.min(3.0)
-                                        - 0.5 * stab.unwrap_or(0.0)
-                                        + 0.05 * floor_margin.unwrap_or(0.0).max(0.0).min(3.0);
-                                    let candidate = Candidate {
-                                        fit,
-                                        x1: segment.x[l],
-                                        x2: segment.x[r],
-                                        y_floor,
-                                        floor_margin_dec: floor_margin,
-                                        stab: stab.filter(|value| value.is_finite()),
-                                        score,
-                                        floor_margin_dec_used: floor_margin_dec,
-                                        min_span,
-                                        min_points,
-                                        r2_min,
-                                        stab_max,
-                                    };
-                                    let meets_suggestion = candidate.fit.r2 >= SUGGESTION_R2
-                                        && candidate.fit.decade_span >= SUGGESTION_SPAN
-                                        && candidate.fit.n >= SUGGESTION_N
-                                        && candidate
-                                            .stab
-                                            .map(|value| value <= SUGGESTION_STAB)
-                                            .unwrap_or(true)
-                                        && floor_margin_dec >= SUGGESTION_FLOOR;
-                                    if meets_suggestion {
-                                        best_any = select_best_by_score([
-                                            best_any,
-                                            Some(candidate.clone()),
-                                        ]);
-                                    }
-                                    let is_strict = floor_margin_dec == 1.0
-                                        && min_span == STRICT_SPAN
-                                        && min_points == STRICT_N
-                                        && r2_min == STRICT_R2
-                                        && stab_max == STRICT_STAB;
-                                    if is_strict {
-                                        best_strict =
-                                            select_best_by_score([best_strict, Some(candidate)]);
-                                    }
-                                }
-                            }
+                        }
+                        let floor_margin = compute_floor_margin_dec(&fit, y_floor);
+                        let score = fit.r2 + 0.25 * fit.decade_span.min(3.0)
+                            - 0.5 * stab.unwrap_or(0.0)
+                            + 0.05 * floor_margin.unwrap_or(0.0).max(0.0).min(3.0);
+                        let candidate = Candidate {
+                            fit,
+                            x1: segment.x[l],
+                            x2: segment.x[r],
+                            y_floor,
+                            floor_margin_dec: floor_margin,
+                            stab: stab.filter(|value| value.is_finite()),
+                            score,
+                            floor_margin_dec_used: floor_margin_dec,
+                            min_span,
+                            min_points,
+                            r2_min,
+                            stab_max,
+                        };
+
+                        if is_strict_profile {
+                            best_strict = select_best_by_score([best_strict, Some(candidate)]);
+                        } else if floor_margin_dec >= SUGGESTION_FLOOR
+                            && candidate.fit.n >= SUGGESTION_N
+                        {
+                            best_any = select_best_by_score([best_any, Some(candidate)]);
                         }
                     }
                 }
@@ -693,15 +1196,59 @@ pub fn compute_subthreshold_swing_fit_auto(x: &[f64], y: &[f64]) -> Value {
     })
 }
 
-pub fn analyze_series_batch(series: &[AnalysisSeriesRequest]) -> Value {
+fn analyze_one_series(
+    item: &AnalysisSeriesRequest,
+    source_file: Option<&AnalysisSourceFile>,
+) -> (String, Value) {
+    (
+        item.id.clone(),
+        json!({
+            "baseCurrent": compute_base_current_metrics(&item.x, &item.y, source_file),
+            "gm": compute_central_derivative(&item.x, &item.y),
+            "ss": compute_subthreshold_swing(&item.x, &item.y),
+            "ssFitAuto": compute_subthreshold_swing_fit_auto(&item.x, &item.y),
+        }),
+    )
+}
+
+pub fn analyze_series_batch(
+    series: &[AnalysisSeriesRequest],
+    source_file: Option<&AnalysisSourceFile>,
+) -> Value {
     let mut output = serde_json::Map::<String, Value>::new();
-    for item in series {
-        output.insert(
-            item.id.clone(),
-            json!({
-                "ssFitAuto": compute_subthreshold_swing_fit_auto(&item.x, &item.y),
-            }),
-        );
+    if series.len() < 8 {
+        for item in series {
+            let (id, value) = analyze_one_series(item, source_file);
+            output.insert(id, value);
+        }
+        return Value::Object(output);
+    }
+
+    let available_threads = thread::available_parallelism()
+        .map(|count| count.get())
+        .unwrap_or(1)
+        .clamp(1, 8);
+    let worker_count = available_threads.min(series.len());
+    let chunk_size = series.len().div_ceil(worker_count);
+
+    let chunks = thread::scope(|scope| {
+        let mut handles = Vec::new();
+        for chunk in series.chunks(chunk_size) {
+            handles.push(scope.spawn(move || {
+                chunk
+                    .iter()
+                    .map(|item| analyze_one_series(item, source_file))
+                    .collect::<Vec<_>>()
+            }));
+        }
+        handles
+            .into_iter()
+            .flat_map(|handle| handle.join().unwrap_or_default())
+            .collect::<Vec<_>>()
+    });
+
+    for (id, value) in chunks {
+        output.insert(id, value);
     }
     Value::Object(output)
 }
@@ -709,9 +1256,10 @@ pub fn analyze_series_batch(series: &[AnalysisSeriesRequest]) -> Value {
 pub fn analyze_series_batch_result(
     file_id: Option<&str>,
     series: &[AnalysisSeriesRequest],
+    source_file: Option<&AnalysisSourceFile>,
 ) -> Value {
     json!({
         "fileId": file_id,
-        "series": analyze_series_batch(series),
+        "series": analyze_series_batch(series, source_file),
     })
 }

@@ -85,6 +85,12 @@ type DesktopImportBridge = {
   analyzeDeviceAnalysisSeriesBatchWithRust?: (payload: {
     fileId?: string;
     series: Array<{ id: string; x: number[]; y: number[] }>;
+    sourceFile?: {
+      curveType?: unknown;
+      supportsSs?: unknown;
+      xAxisRole?: unknown;
+      xLabel?: unknown;
+    } | null;
   }) => Promise<unknown>;
 };
 

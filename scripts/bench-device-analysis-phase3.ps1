@@ -1,5 +1,7 @@
 param(
-  [string]$ProjectRoot = ""
+  [string]$ProjectRoot = "",
+  [ValidateSet("process", "analysis")]
+  [string]$RequestSet = "process"
 )
 
 $ErrorActionPreference = "Stop"
@@ -10,8 +12,16 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 $CrateDir = Join-Path $ProjectRoot "tools\rust-xls-bench"
-$RequestsPath = Join-Path $ProjectRoot ".tooling\device-analysis-phase3-bench\requests.jsonl"
-$ResultsPath = Join-Path $ProjectRoot ".tooling\device-analysis-phase3-bench\rust-results.jsonl"
+$BenchDir = Join-Path $ProjectRoot ".tooling\device-analysis-phase3-bench"
+if ($RequestSet -eq "analysis") {
+  $RequestsPath = Join-Path $BenchDir "analysis-requests.jsonl"
+  $ResultsPath = Join-Path $BenchDir "rust-analysis-results.jsonl"
+  $TimingPath = Join-Path $BenchDir "rust-analysis-timing.json"
+} else {
+  $RequestsPath = Join-Path $BenchDir "requests.jsonl"
+  $ResultsPath = Join-Path $BenchDir "rust-results.jsonl"
+  $TimingPath = Join-Path $BenchDir "rust-process-timing.json"
+}
 $EngineExe = Join-Path $CrateDir "target\release\rust-xls-bench.exe"
 
 if (-not (Test-Path -LiteralPath $RequestsPath)) {
@@ -35,5 +45,10 @@ try {
 }
 
 $results | Set-Content -LiteralPath $ResultsPath -Encoding UTF8
-Write-Host "[phase3-bench] rustProcessMs=$([Math]::Round($startedAt.Elapsed.TotalMilliseconds))"
+$durationMs = [Math]::Round($startedAt.Elapsed.TotalMilliseconds)
+@{
+  durationMs = $durationMs
+  requestSet = $RequestSet
+} | ConvertTo-Json | Set-Content -LiteralPath $TimingPath -Encoding UTF8
+Write-Host "[phase3-bench] rust$($RequestSet.Substring(0,1).ToUpper() + $RequestSet.Substring(1))Ms=$durationMs"
 Write-Host "[phase3-bench] wrote Rust results to $ResultsPath"

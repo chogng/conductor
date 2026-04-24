@@ -250,6 +250,14 @@ Validation rules:
 
 Phase 3 should move analysis-page precomputation into Rust. The most expensive target is automatic SS fit selection, followed by derivatives and Ion/Ioff windows.
 
+Current Phase 3 status:
+
+- `computeCentralDerivative`, `computeSubthresholdSwing`, `computeBaseCurrentMetrics` auto mode, and `computeSubthresholdSwingFitAuto` are ported to Rust and exposed through `analyzeSeriesBatch`.
+- The analysis page prefetch path tries Rust for gm, SS diagnostics, Ion/Ioff auto metrics, and SS auto fit, then falls back to TypeScript for any missing results.
+- `verify:rust-ss-auto` compares Rust against TypeScript on the 293K dataset and currently passes 579/579 series.
+- `bench:phase3` now reports both the TypeScript baseline and projected Rust batch analysis time.
+- The Rust SS auto search avoids repeated threshold-profile enumeration; on 293K, the projected analysis path is now under 1 second on the benchmark machine.
+
 ### Engine API
 
 Add `analyzeSeriesBatch`:
@@ -289,11 +297,6 @@ Return:
       "ssFitAuto": {
         "strict": { "ok": true, "ss": 120 },
         "suggested": { "ok": true, "ss": 130 }
-      },
-      "baseCurrent": {
-        "ion": 1e-5,
-        "ioff": 1e-10,
-        "ionIoff": 100000
       }
     }
   }
@@ -302,11 +305,11 @@ Return:
 
 ### Porting Order
 
-1. `computeCentralDerivative`
-2. `computeSubthresholdSwing`
-3. `computeBaseCurrentMetrics`
-4. `computeSubthresholdSwingFitAuto`
-5. `computeLegendDerivativeSeries`
+1. `computeSubthresholdSwingFitAuto`
+2. `computeCentralDerivative`
+3. `computeSubthresholdSwing`
+4. `computeBaseCurrentMetrics`
+5. `computeLegendDerivativeSeries` if a legend-derivative UI path is re-enabled
 
 `computeSubthresholdSwingFitAuto` should be the main optimization target. It performs window enumeration, linear fit, R2, decade span, and slope stability calculations. Rust should reduce both loop overhead and object allocation pressure.
 
@@ -321,7 +324,7 @@ Target files:
 Strategy:
 
 - Try `analyzeSeriesBatch` from `useAnalysisFileCache.ts`.
-- When Rust succeeds, fill `gmByMode`, `ssDiagnosticsBySeriesId`, `ssAutoBySeriesId`, and `baseMetricsBySeriesId` from the result.
+- When Rust succeeds, fill `gmByMode`, `ssDiagnosticsBySeriesId`, `baseMetricsBySeriesId`, and `ssAutoBySeriesId` from the result.
 - Keep the existing TypeScript calculation path as fallback.
 
 ### Acceptance Criteria
@@ -377,13 +380,15 @@ Phase 2:
 
 Phase 3:
 
-- [ ] Port `computeCentralDerivative`.
-- [ ] Port `computeSubthresholdSwing`.
-- [ ] Port `computeBaseCurrentMetrics`.
-- [ ] Port `computeSubthresholdSwingFitAuto`.
-- [ ] Port `computeLegendDerivativeSeries`.
-- [ ] Add `analyzeSeriesBatch` IPC.
-- [ ] Integrate Rust batch analysis in `useAnalysisFileCache.ts`.
+- [x] Port `computeCentralDerivative`.
+- [x] Port `computeSubthresholdSwing`.
+- [x] Port `computeBaseCurrentMetrics` auto mode.
+- [x] Port `computeSubthresholdSwingFitAuto`.
+- [x] Leave `computeLegendDerivativeSeries` on the TypeScript path; it has no current UI call site.
+- [x] Add `analyzeSeriesBatch` IPC.
+- [x] Integrate Rust gm, SS diagnostics, Ion/Ioff auto metrics, and SS auto batch analysis in `useAnalysisFileCache.ts`.
+- [x] Add 293K `verify:rust-ss-auto` AB check.
+- [x] Extend `bench:phase3` with Rust SS auto projected analysis timing.
 
 ## Verification Commands
 
@@ -392,6 +397,9 @@ Common validation:
 ```powershell
 npm run test:unit
 npm run typecheck
+npm run verify:rust-auto-extraction
+npm run verify:rust-ss-auto
+npm run bench:phase3
 ```
 
 Rust converter build:

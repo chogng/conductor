@@ -1,7 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
-import { computeSubthresholdSwingFitAuto } from "../src/features/device-analysis/analysis/lib/analysisMath.ts";
+import {
+  computeCentralDerivative,
+  computeSubthresholdSwing,
+  computeSubthresholdSwingFitAuto,
+} from "../src/features/device-analysis/analysis/lib/analysisMath.ts";
+import { computeBaseCurrentMetrics } from "../src/features/device-analysis/analysis/lib/deviceAnalysisMetrics.ts";
 import { buildPoints } from "../src/features/device-analysis/analysis/lib/analysisChartsUtils.ts";
 
 const ROOT = process.cwd();
@@ -53,13 +58,15 @@ const prepare = async () => {
   }
 
   const baseline = [];
-  const rustSeries = [];
+  const requests = [];
   const startedAt = now();
+  let requestId = 0;
 
   for (const entry of entries) {
     if (!entry?.ok || !entry?.result) continue;
     const file = entry.result;
     const xGroups = safeArray(file.xGroups);
+    const rustSeries = [];
     for (const item of safeArray(file.series)) {
       if (!item?.id) continue;
       const points = finitePairs(xGroups[item.groupIndex], item.y);
@@ -72,6 +79,12 @@ const prepare = async () => {
         id,
         pointCount: points.length,
         seriesId: item.id,
+        baseCurrent: computeBaseCurrentMetrics({
+          points,
+          sourceFile: file,
+        }),
+        gm: computeCentralDerivative(points),
+        ss: computeSubthresholdSwing(points),
         ssFitAuto: computeSubthresholdSwingFitAuto(points),
       });
       rustSeries.push({
@@ -80,17 +93,25 @@ const prepare = async () => {
         y: points.map((point) => point.y),
       });
     }
+    if (rustSeries.length) {
+      requestId += 1;
+      requests.push(JSON.stringify({
+        command: "analyzeSeriesBatch",
+        fileId: file.fileId ?? `phase3-ss-auto-ab-${requestId}`,
+        id: requestId,
+        series: rustSeries,
+        sourceFile: {
+          curveType: file.curveType ?? null,
+          supportsSs: file.supportsSs ?? null,
+          xAxisRole: file.xAxisRole ?? null,
+          xLabel: file.xLabel ?? null,
+        },
+      }));
+    }
   }
 
-  const request = {
-    command: "analyzeSeriesBatch",
-    fileId: "phase3-ss-auto-ab",
-    id: 1,
-    series: rustSeries,
-  };
-
   await fs.writeFile(BASELINE_PATH, `${JSON.stringify(baseline, null, 2)}\n`, "utf8");
-  await fs.writeFile(REQUESTS_PATH, `${JSON.stringify(request)}\n`, "utf8");
+  await fs.writeFile(REQUESTS_PATH, `${requests.join("\n")}\n`, "utf8");
   console.log(
     `[rust-ss-auto-compat] prepared series=${baseline.length} tsBaselineMs=${formatMs(now() - startedAt)}`,
   );
@@ -167,13 +188,102 @@ const compareFit = (expected, actual, prefix) => {
   return failures;
 };
 
+const comparePointArray = (expected, actual, prefix) => {
+  const failures = [];
+  if (!Array.isArray(expected) || !Array.isArray(actual)) {
+    return [{
+      path: prefix,
+      rust: Array.isArray(actual) ? "array" : typeof actual,
+      ts: Array.isArray(expected) ? "array" : typeof expected,
+    }];
+  }
+  if (expected.length !== actual.length) {
+    failures.push({
+      path: `${prefix}.length`,
+      rust: actual.length,
+      ts: expected.length,
+    });
+  }
+  const n = Math.min(expected.length, actual.length);
+  for (let index = 0; index < n; index += 1) {
+    for (const key of ["x", "y", "yPositive", "yAbsPositive"]) {
+      if (!numericClose(expected[index]?.[key], actual[index]?.[key])) {
+        failures.push({
+          path: `${prefix}[${index}].${key}`,
+          rust: actual[index]?.[key],
+          ts: expected[index]?.[key],
+        });
+        if (failures.length >= 20) return failures;
+      }
+    }
+  }
+  return failures;
+};
+
+const compareWindow = (expected, actual, prefix) => {
+  const failures = [];
+  if (expected == null || actual == null) {
+    if (expected !== actual) failures.push({ path: prefix, rust: actual, ts: expected });
+    return failures;
+  }
+  for (const key of ["key", "label", "pointCount"]) {
+    if (expected?.[key] !== actual?.[key]) {
+      failures.push({ path: `${prefix}.${key}`, rust: actual?.[key], ts: expected?.[key] });
+    }
+  }
+  for (const key of ["current", "targetX", "x", "x1", "x2"]) {
+    if (!numericClose(expected?.[key], actual?.[key])) {
+      failures.push({ path: `${prefix}.${key}`, rust: actual?.[key], ts: expected?.[key] });
+    }
+  }
+  return failures;
+};
+
+const compareBaseCurrent = (expected, actual) => {
+  const failures = [];
+  for (const key of ["method"]) {
+    if (expected?.[key] !== actual?.[key]) {
+      failures.push({ path: `baseCurrent.${key}`, rust: actual?.[key], ts: expected?.[key] });
+    }
+  }
+  for (const key of ["ion", "ioff", "ionIoff", "xAtIon", "xAtIoff"]) {
+    if (!numericClose(expected?.[key], actual?.[key])) {
+      failures.push({ path: `baseCurrent.${key}`, rust: actual?.[key], ts: expected?.[key] });
+    }
+  }
+  failures.push(...compareWindow(expected?.ionWindow, actual?.ionWindow, "baseCurrent.ionWindow"));
+  failures.push(...compareWindow(expected?.ioffWindow, actual?.ioffWindow, "baseCurrent.ioffWindow"));
+  const expectedWindows = safeArray(expected?.candidateWindows);
+  const actualWindows = safeArray(actual?.candidateWindows);
+  if (expectedWindows.length !== actualWindows.length) {
+    failures.push({
+      path: "baseCurrent.candidateWindows.length",
+      rust: actualWindows.length,
+      ts: expectedWindows.length,
+    });
+  }
+  const n = Math.min(expectedWindows.length, actualWindows.length);
+  for (let index = 0; index < n; index += 1) {
+    failures.push(
+      ...compareWindow(
+        expectedWindows[index],
+        actualWindows[index],
+        `baseCurrent.candidateWindows[${index}]`,
+      ),
+    );
+    if (failures.length >= 20) break;
+  }
+  return failures;
+};
+
 const compare = async () => {
   const baseline = JSON.parse(await fs.readFile(BASELINE_PATH, "utf8"));
   const responses = await readJsonLines(RUST_RESULTS_PATH);
-  const response = responses.find((item) => item?.id === 1);
-  const rustById = response?.ok && response?.result?.series
-    ? response.result.series
-    : {};
+  const rustById = {};
+  for (const response of responses) {
+    if (!response?.ok || !response?.result?.series) continue;
+    Object.assign(rustById, response.result.series);
+  }
   const failures = [];
 
   for (const expected of baseline) {
@@ -187,6 +297,9 @@ const compare = async () => {
       continue;
     }
     const fitFailures = [
+      ...compareBaseCurrent(expected.baseCurrent, rustById[expected.id]?.baseCurrent),
+      ...comparePointArray(expected.gm, rustById[expected.id]?.gm, "gm"),
+      ...comparePointArray(expected.ss, rustById[expected.id]?.ss, "ss"),
       ...compareFit(expected.ssFitAuto.strict, actual.strict, "strict"),
       ...compareFit(expected.ssFitAuto.suggested, actual.suggested, "suggested"),
     ];

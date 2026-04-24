@@ -6,7 +6,7 @@ mod engine_legend;
 mod engine_utils;
 
 use calamine::{Reader, open_workbook_auto};
-use engine_analysis::AnalysisSeriesRequest;
+use engine_analysis::{AnalysisSeriesRequest, AnalysisSourceFile};
 use engine_cells::EngineCellRequest;
 use engine_dataset::{EngineDataset, is_excel_path, load_engine_dataset};
 use engine_infer::{
@@ -76,6 +76,7 @@ struct EngineRequest {
     row_index: Option<usize>,
     seed_rows: Option<usize>,
     series: Option<Vec<AnalysisSeriesRequest>>,
+    source_file: Option<AnalysisSourceFile>,
     start_row: Option<usize>,
     max_points: Option<usize>,
 }
@@ -2116,6 +2117,7 @@ fn handle_engine_request(
             Ok(engine_analysis::analyze_series_batch_result(
                 request.file_id.as_deref(),
                 series,
+                request.source_file.as_ref(),
             ))
         }
         "dispose" => {
