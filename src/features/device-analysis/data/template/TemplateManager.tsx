@@ -1978,7 +1978,7 @@ const TemplateManager = ({
               includeIds ? "device-analysis-template-export-config" : undefined
             }
             variant="secondary"
-            size="md"
+            size="sm"
             className={transferButtonClassName}
             contentClassName="w-full min-w-0 justify-between"
             onClick={measureOnly ? undefined : handleExportTemplates}
@@ -1995,7 +1995,7 @@ const TemplateManager = ({
               includeIds ? "device-analysis-template-import-config" : undefined
             }
             variant="secondary"
-            size="md"
+            size="sm"
             className={transferButtonClassName}
             contentClassName="w-full min-w-0 justify-between"
             onClick={measureOnly ? undefined : handleImportTemplatesClick}
@@ -2029,7 +2029,7 @@ const TemplateManager = ({
                     : undefined
                 }
                 variant="primary"
-                size="md"
+                size="sm"
                 className="w-full min-w-0"
                 contentClassName="w-full min-w-0 justify-center"
                 onClick={measureOnly ? undefined : () => applyAutoTemplate(false)}
@@ -2047,7 +2047,7 @@ const TemplateManager = ({
                     : undefined
                 }
                 variant="secondary"
-                size="md"
+                size="sm"
                 className="w-full min-w-0"
                 contentClassName="w-full min-w-0 justify-center"
                 onClick={measureOnly ? undefined : () => applyAutoTemplate(true)}
@@ -2397,7 +2397,7 @@ const TemplateManager = ({
             className="lg:col-span-1 self-start min-[1200px]:self-stretch flex flex-col min-h-0 h-[var(--da-template-stack-panel-h)] min-[1200px]:h-full overflow-hidden"
           >
             <div
-              className="flex flex-col gap-4 flex-1 min-h-0 pl-4"
+              className="flex flex-col gap-3 flex-1 min-h-0 pl-4"
               id="device-analysis-template-config-panel-content"
             >
               <div className="pb-2 shrink-0">

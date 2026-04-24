@@ -2831,8 +2831,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
 
 
               <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1">
-                  <DropdownField id="device-analysis-y-unit-select" size="sm" value={activeYUnit} onChange={(next: any) => {
+                <DropdownField id="device-analysis-y-unit-select" size="sm" value={activeYUnit} onChange={(next: any) => {
             const nextUnit = normalizeDeviceAnalysisYUnit(next, "A");
             userChangedYUnitRef.current = true;
             const fileKey = String(effectiveActiveFileId ?? "").trim();
@@ -2874,7 +2873,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 label: "pA",
             },
         ]} aria-label="Y unit" className="w-fit da-neutral-select" stableWidth data-cta="Device Analysis" data-cta-position="y-unit" data-cta-copy="y unit"/>
-                </div>
 
                 <div className="flex items-center gap-1">
                   {effectivePlotType === "ss" ? (<span className="text-xs text-text-primary font-mono whitespace-nowrap">
@@ -2894,9 +2892,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 </div>
 
                 {effectivePlotType === "gm" ? (<div className="flex items-center gap-1">
-                    <span className="text-xs text-text-secondary whitespace-nowrap">
-                      {gmUi.kind === "gds" ? "gds" : "gm"}
-                    </span>
                     <Button variant={gmDiagnosticsEnabled ? "secondary" : "text"} size="sm" onClick={() => {
                 const next = !gmDiagnosticsEnabled;
                 setGmDiagnosticsEnabled(next);
@@ -2924,9 +2919,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 })
                     .catch(() => { });
             }} options={[
-                { value: "auto", label: "Auto (strict)" },
-                { value: "manual", label: "Manual (drag)" },
-            ]} className="w-[150px]"/>
+                { value: "auto", label: "Auto" },
+                { value: "manual", label: "Manual" },
+            ]} className="w-[100px]"/>
                     </div>
 
                     <Button variant={ssShowFitLine ? "secondary" : "text"} size="sm" onClick={() => {
@@ -3494,6 +3489,3 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     </div>);
 };
 export default React.memo(AnalysisCharts);
-
-
-

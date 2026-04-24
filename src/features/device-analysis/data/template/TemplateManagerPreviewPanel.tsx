@@ -6,7 +6,7 @@ import React, {
   useState,
   useSyncExternalStore,
 } from "react";
-import { Check, Copy, Minus, Plus } from "lucide-react";
+import { Check, Minus, Plus } from "lucide-react";
 import ScrollArea from "../../../../components/ui/ScrollArea";
 import type { TranslateFn } from "../../../../context/language";
 import type { PreviewStatus as SessionPreviewStatus } from "../../session/device-analysis-session-context";
@@ -1842,7 +1842,6 @@ const TemplateManagerPreviewPanel = ({
     [adjustPreviewZoom],
   );
 
-  const copySelectionTitle = t("da_preview_copy_selection_tsv");
   const toggleYColumnTitle = toggleColumnEnabled
     ? t("da_preview_toggle_y_column_title")
     : t("da_preview_auto_columns_locked");
@@ -1863,12 +1862,12 @@ const TemplateManagerPreviewPanel = ({
       actions={
         previewFile ? (
           <div className="flex items-center gap-1.5">
-            <div className="inline-flex items-center gap-1 rounded-md border border-border bg-bg-surface p-1">
+            <div className="inline-flex h-8 items-center rounded-md border border-border bg-bg-surface">
               <button
                 type="button"
                 onClick={() => adjustPreviewZoom(-1)}
                 disabled={!canZoomOut}
-                className="inline-flex h-7 w-7 items-center justify-center rounded text-text-secondary transition-colors hover:bg-bg-page hover:text-text-primary disabled:opacity-45"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-l-md text-text-secondary transition-colors hover:bg-bg-page hover:text-text-primary disabled:opacity-45"
                 title={zoomOutTitle}
               >
                 <Minus size={14} />
@@ -1876,7 +1875,7 @@ const TemplateManagerPreviewPanel = ({
               <button
                 type="button"
                 onClick={resetPreviewZoom}
-                className="min-w-[3.75rem] rounded px-2 py-1 text-xs font-medium tabular-nums text-text-secondary transition-colors hover:bg-bg-page hover:text-text-primary"
+                className="h-8 min-w-[3.75rem] px-2 text-xs font-medium tabular-nums text-text-secondary transition-colors hover:bg-bg-page hover:text-text-primary"
                 title={zoomResetTitle}
               >
                 {previewZoomPercent}%
@@ -1885,23 +1884,12 @@ const TemplateManagerPreviewPanel = ({
                 type="button"
                 onClick={() => adjustPreviewZoom(1)}
                 disabled={!canZoomIn}
-                className="inline-flex h-7 w-7 items-center justify-center rounded text-text-secondary transition-colors hover:bg-bg-page hover:text-text-primary disabled:opacity-45"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-r-md text-text-secondary transition-colors hover:bg-bg-page hover:text-text-primary disabled:opacity-45"
                 title={zoomInTitle}
               >
                 <Plus size={14} />
               </button>
             </div>
-
-            <button
-              id="device-analysis-preview-copy-selection"
-              type="button"
-              onClick={copySelection}
-              disabled={!hasSelection}
-              className="p-1.5 rounded-md border border-border bg-bg-surface hover:bg-bg-page text-text-secondary hover:text-text-primary disabled:opacity-50 transition-colors"
-              title={copySelectionTitle}
-            >
-              <Copy size={14} />
-            </button>
           </div>
         ) : null
       }

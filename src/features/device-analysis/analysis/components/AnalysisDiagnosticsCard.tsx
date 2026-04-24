@@ -135,7 +135,8 @@ export default function AnalysisDiagnosticsCard({
 
   return (
     <Card variant="panel" className="flex min-w-0 flex-col">
-      {!showCurveProbePanel || showAreaDiagnosticsControls || showAxisControls ? (
+      {!showAxisControls &&
+      (!showCurveProbePanel || showAreaDiagnosticsControls) ? (
         <div className="mb-3 flex items-center justify-between gap-2">
           <div>
             <div className="text-xs font-semibold text-text-primary">{diagnosticsHeading}</div>
