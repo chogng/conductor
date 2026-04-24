@@ -45,6 +45,7 @@ const BOOT_UI_READY_FALLBACK_MS = 3500;
 let mainWindow = null;
 let splashWindow = null;
 let mainWindowBootExpansionPromise = null;
+let mainWindowBootShown = false;
 let startupGatePromise = null;
 let autoUpdateTimer = null;
 let autoUpdateConfiguredFeedUrl = null;
@@ -87,7 +88,7 @@ function getResourcesPath() {
 function resolveDesktopWindowIconPath() {
   const iconFileName =
     process.platform === "win32"
-      ? "icon.png"
+      ? "icon-150.png"
       : process.platform === "darwin"
         ? "icon.icns"
         : "icon.png";
@@ -1176,6 +1177,7 @@ function createSplashWindow() {
 function createMainWindow() {
   logDesktopBoot("create-window:start");
   const windowIcon = resolveDesktopWindowIconPath();
+  mainWindowBootShown = false;
 
   const win = new BrowserWindow({
     width: MAIN_WINDOW_BOUNDS.width,
@@ -1301,10 +1303,12 @@ function createMainWindow() {
 
 async function showMainWindowAfterBoot(win) {
   if (!win || win.isDestroyed()) return;
+  if (mainWindowBootShown) return;
 
   logDesktopBoot("main-window:show:start");
   await prepareStartupGate();
   if (win.isDestroyed()) return;
+  if (mainWindowBootShown) return;
 
   if (!win.isVisible()) {
     win.show();
@@ -1318,6 +1322,7 @@ async function showMainWindowAfterBoot(win) {
   if (!win.isFocused()) {
     win.focus();
   }
+  mainWindowBootShown = true;
   await new Promise((resolve) => setTimeout(resolve, BOOT_WINDOW_SETTLE_MS));
   logDesktopBoot("main-window:show:done");
 }

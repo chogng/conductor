@@ -98,33 +98,10 @@ function buildInstantBootHtml() {
       line-height: 1.1;
       letter-spacing: 0;
     }
-    .boot-pane-bar {
-      position: relative;
-      width: 168px;
-      height: 3px;
-      overflow: hidden;
-      border-radius: 999px;
-      background: rgba(34,34,34,.09);
-    }
-    .boot-pane-bar::after {
-      position: absolute;
-      inset: 0;
-      width: 46%;
-      border-radius: inherit;
-      background: #222222;
-      content: "";
-      animation: boot-pane-progress 1.1s ease-in-out infinite;
-    }
-    @keyframes boot-pane-progress {
-      0% { transform: translateX(-115%); }
-      100% { transform: translateX(255%); }
-    }
     @media (prefers-color-scheme: dark) {
       html, body { background: #0b0b0c; color: #f5f4ef; }
       .boot-pane { background: #0b0b0c; }
       .boot-pane-brand { color: #f5f4ef; }
-      .boot-pane-bar { background: rgba(245,244,239,.14); }
-      .boot-pane-bar::after { background: #f5f4ef; }
     }
   </style>
 </head>
@@ -133,7 +110,6 @@ function buildInstantBootHtml() {
     <div class="boot-pane-content">
       ${logoUrl ? `<img class="boot-pane-logo" src="${logoUrl}" alt="" />` : ""}
       <h1 class="boot-pane-brand" data-boot-brand="true" data-boot-text="Conductor">Conductor</h1>
-      <div class="boot-pane-bar"></div>
     </div>
   </div>
   <script>

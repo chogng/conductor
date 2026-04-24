@@ -77,6 +77,12 @@
       "origin/bin/origin-csv-worker.exe",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "build/icons",
+        "to": "build/icons"
+      }
+    ],
     "asar": true,
     "asarUnpack": [
       "origin/bin/origin-csv-worker.exe"

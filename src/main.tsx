@@ -2,7 +2,7 @@ import { Fragment, lazy, StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { LanguageCode } from './config/language';
 import type { ThemeMode } from './config/theme';
-import { loadDeviceAnalysisApp, loadWorkbenchApp } from './workbench-loader';
+import { loadWorkbenchApp } from './workbench-loader';
 
 declare global {
   interface Window {
@@ -32,8 +32,9 @@ const logRendererBoot = (stage: string, extra = '') => {
   window.__CONDUCTOR_BOOT_LOG__?.(stage, extra);
 };
 
+const isDesktopRenderer = window.desktopMeta?.isDesktop === true;
 const RootMode =
-  import.meta.env.DEV && window.desktopMeta?.isDesktop ? Fragment : StrictMode;
+  import.meta.env.DEV && isDesktopRenderer ? Fragment : StrictMode;
 const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error('Root element with id "root" was not found.');
@@ -60,7 +61,6 @@ logRendererBoot('react-root:render-called');
 
 window.requestAnimationFrame(() => {
   logRendererBoot('raf:1');
-  void loadDeviceAnalysisApp();
 });
 
 window.requestAnimationFrame(() => {

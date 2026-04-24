@@ -1,27 +1,32 @@
-import { DEFAULT_LANGUAGE, type LanguageCode } from '../config/language';
+import {
+  DEFAULT_LANGUAGE,
+  isLanguageCode,
+  type LanguageCode,
+} from '../config/language';
+import enMessages from './en';
+import zhMessages from './zh';
 
 export type TranslationMessages = Record<string, string>;
 
-const translationLoaders: Record<
-  LanguageCode,
-  () => Promise<{ default: TranslationMessages }>
-> = {
-  en: () => import('./en'),
-  zh: () => import('./zh'),
+const staticMessages: Record<LanguageCode, TranslationMessages> = {
+  en: enMessages,
+  zh: zhMessages,
 };
 
-const translationCache = new Map<LanguageCode, TranslationMessages>();
+const translationCache = new Map<LanguageCode, TranslationMessages>(
+  Object.entries(staticMessages) as [LanguageCode, TranslationMessages][],
+);
 
 export const preloadLanguageMessages = async (
   language: LanguageCode,
 ): Promise<TranslationMessages> => {
-  const normalizedLanguage =
-    language in translationLoaders ? language : DEFAULT_LANGUAGE;
+  const normalizedLanguage = isLanguageCode(language)
+    ? language
+    : DEFAULT_LANGUAGE;
   const cached = translationCache.get(normalizedLanguage);
   if (cached) return cached;
 
-  const loadedModule = await translationLoaders[normalizedLanguage]();
-  const messages = loadedModule.default;
+  const messages = staticMessages[normalizedLanguage];
   translationCache.set(normalizedLanguage, messages);
   return messages;
 };
