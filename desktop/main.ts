@@ -58,7 +58,6 @@ let autoUpdateConfiguredFeedUrl = null;
 let isAutoUpdateConfigured = false;
 let isUpdateDownloadedPromptVisible = false;
 let isAppQuitting = false;
-let hasShownTrayHint = false;
 const desktopProcessStartMs = Date.now();
 
 function logDesktopBoot(stage, extra = "") {
@@ -1818,14 +1817,18 @@ async function revealMainWindow(win) {
 }
 
 function showTrayHint() {
-  if (!isWindows || !appTray || hasShownTrayHint) return;
+  if (!isWindows || !appTray) return;
   if (typeof appTray.displayBalloon !== "function") return;
+  const settings = deviceAnalysisStore.getDeviceAnalysisSettings();
+  if (settings?.trayMinimizeHintShown) return;
 
-  hasShownTrayHint = true;
   appTray.displayBalloon({
     title: "Conductor",
     content: "应用仍在后台运行，可从系统托盘恢复或退出。",
     noSound: true,
+  });
+  deviceAnalysisStore.patchDeviceAnalysisSettings({
+    trayMinimizeHintShown: true,
   });
 }
 
@@ -1839,10 +1842,12 @@ function shouldMinimizeToTrayOnWindowClose() {
   return getWindowCloseBehaviorFromSettings() === "minimizeToTray";
 }
 
-function hideMainWindowToTray(win) {
+function hideMainWindowToTray(win, options = { showTrayHint: false }) {
   if (!win || win.isDestroyed()) return;
   win.hide();
-  showTrayHint();
+  if (options.showTrayHint === true) {
+    showTrayHint();
+  }
 }
 
 function updateTrayMenu() {
@@ -1972,7 +1977,7 @@ function createMainWindow() {
     if (!shouldMinimizeToTrayOnWindowClose()) return;
 
     event.preventDefault();
-    hideMainWindowToTray(win);
+    hideMainWindowToTray(win, { showTrayHint: true });
     updateTrayMenu();
   });
   win.on("show", () => {
@@ -2160,7 +2165,7 @@ function handleDesktopCommand(event, payload) {
 
   if (command === "close-window") {
     if (shouldMinimizeToTrayOnWindowClose()) {
-      hideMainWindowToTray(win);
+      hideMainWindowToTray(win, { showTrayHint: true });
       updateTrayMenu();
       return;
     }

@@ -13,6 +13,7 @@ export type DeviceAnalysisSettings = {
   language?: LanguageCode;
   theme?: ThemeMode;
   windowCloseBehavior?: "minimizeToTray" | "quit";
+  trayMinimizeHintShown?: boolean;
   originExePath?: string;
   originExportModeDefault?:
     | "merged"

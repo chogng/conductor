@@ -33,6 +33,7 @@ const DEVICE_ANALYSIS_DEFAULT_SETTINGS = {
   lastTemplateId: null,
   theme: "system",
   windowCloseBehavior: "minimizeToTray",
+  trayMinimizeHintShown: false,
   onboardingCompleted: false,
   onboardingAutoStartDismissed: false,
   stopOnErrorDefault: false,
@@ -220,6 +221,10 @@ export function createDeviceAnalysisStore(options) {
     )
       ? next.windowCloseBehavior
       : DEVICE_ANALYSIS_DEFAULT_SETTINGS.windowCloseBehavior;
+    const trayMinimizeHintShown = normalizeBoolean(
+      next.trayMinimizeHintShown,
+      DEVICE_ANALYSIS_DEFAULT_SETTINGS.trayMinimizeHintShown,
+    );
 
     const ssDiagnosticsEnabled =
       typeof next.ssDiagnosticsEnabled === "boolean"
@@ -307,6 +312,7 @@ export function createDeviceAnalysisStore(options) {
       yScaleByFileId,
       theme,
       windowCloseBehavior,
+      trayMinimizeHintShown,
       ssMethodDefault,
       ssDiagnosticsEnabled,
       ssShowFitLine,
