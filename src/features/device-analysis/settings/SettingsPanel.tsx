@@ -160,8 +160,8 @@ const DeviceAnalysisSettingsPanel = ({
     { value: "quit", label: t("da_settings_close_behavior_quit") },
   ];
   const yScaleOptions = [
-    { value: "linear", label: "Linear" },
-    { value: "log", label: "Log" },
+    { value: "linear", label: t("da_settings_y_scale_linear") },
+    { value: "log", label: t("da_settings_y_scale_log") },
   ];
   const [xyPairsDraft, setXyPairsDraft] = useState(originSettings.plotXyPairs ?? "");
   const [plotCommandDraft, setPlotCommandDraft] = useState(
@@ -409,13 +409,15 @@ const DeviceAnalysisSettingsPanel = ({
           <div id="device-analysis-settings-analysis-defaults-card" className="p-4 space-y-4">
             <div>
               <h3 className="text-base font-semibold text-text-primary">
-                Analysis Defaults
+                {t("da_settings_analysis_defaults_title")}
               </h3>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="space-y-1">
-                <p className="text-xs text-text-secondary">Transfer Curve Default</p>
+                <p className="text-xs text-text-secondary">
+                  {t("da_settings_analysis_defaults_transfer_curve")}
+                </p>
                 <DropdownField
                   id="device-analysis-settings-default-transfer-y-scale-select"
                   value={analysisDefaultSettings.defaultYScaleForTransfer}
@@ -428,7 +430,9 @@ const DeviceAnalysisSettingsPanel = ({
               </div>
 
               <div className="space-y-1">
-                <p className="text-xs text-text-secondary">Output Curve Default</p>
+                <p className="text-xs text-text-secondary">
+                  {t("da_settings_analysis_defaults_output_curve")}
+                </p>
                 <DropdownField
                   id="device-analysis-settings-default-output-y-scale-select"
                   value={analysisDefaultSettings.defaultYScaleForOutput}
