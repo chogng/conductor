@@ -509,6 +509,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         yStep: "",
         yDecadeStep: 1,
         showGrid: true,
+        showMajorTicks: true,
         tickLabelFontSize: 12,
         axisTitleFontSize: 18,
     });
@@ -900,6 +901,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const hasManualXTickCount = Number(axis?.xTickCount ?? 6) !== 6;
         const hasManualYTickCount = Number(axis?.yTickCount ?? 6) !== 6;
         const hasManualGrid = axis?.showGrid === false;
+        const hasManualMajorTicks = axis?.showMajorTicks === false;
         const hasManualTickFont = Number(axis?.tickLabelFontSize ?? 12) !== 12;
         const hasManualTitleFont = Number(axis?.axisTitleFontSize ?? 18) !== 18;
         return hasManualXRange ||
@@ -912,6 +914,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             hasManualXTickCount ||
             hasManualYTickCount ||
             hasManualGrid ||
+            hasManualMajorTicks ||
             hasManualTickFont ||
             hasManualTitleFont;
     }, [
@@ -927,6 +930,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         axis?.yTickCount,
         axis?.yTicks,
         axis?.showGrid,
+        axis?.showMajorTicks,
         axis?.tickLabelFontSize,
         axis?.axisTitleFontSize,
     ]);
@@ -3169,6 +3173,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     }
                     : null}
                     showGrid={axis?.showGrid !== false}
+                    showMajorTicks={axis?.showMajorTicks !== false}
                     tickLabelFontSize={mainPlotTickLabelFontSize}
                     axisTitleFontSize={mainPlotAxisTitleFontSize}
                     legendWidth={MAIN_PLOT_LEGEND_WIDTH}

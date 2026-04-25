@@ -286,6 +286,7 @@ export default function AnalysisDiagnosticsCard({
                     yStep: "",
                     yDecadeStep: 1,
                     showGrid: true,
+                    showMajorTicks: true,
                     tickLabelFontSize: 12,
                     axisTitleFontSize: 18,
                   }))
@@ -307,6 +308,18 @@ export default function AnalysisDiagnosticsCard({
                     setAxis((prev: any) => ({ ...prev, showGrid: checked }))
                   }
                   aria-label={t("da_chart_axis_show_grid_title")}
+                />
+              </div>
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/50 px-3 py-2">
+                <div className="text-xs text-text-secondary">{t("da_chart_axis_major_ticks")}</div>
+                <Switch
+                  id="device-analysis-axis-show-major-ticks"
+                  size="sm"
+                  checked={axis?.showMajorTicks !== false}
+                  onCheckedChange={(checked) =>
+                    setAxis((prev: any) => ({ ...prev, showMajorTicks: checked }))
+                  }
+                  aria-label={t("da_chart_axis_show_major_ticks_title")}
                 />
               </div>
               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/50 px-3 py-2">

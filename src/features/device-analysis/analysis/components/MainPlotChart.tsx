@@ -122,6 +122,7 @@ type MainPlotChartProps = {
   currentBiasInteraction?: CurrentBiasInteractionConfig | null;
   ssInteraction?: SsInteractionConfig | null;
   showGrid?: boolean;
+  showMajorTicks?: boolean;
   tickLabelFontSize?: number;
   axisTitleFontSize?: number;
   legendWidth?: number;
@@ -265,7 +266,9 @@ const withYAxisUnit = (
 const DEFAULT_CHART_MARGIN = { top: 25, right: 15, left: 72, bottom: 46 } as const;
 const GRID_STROKE = "rgba(15,23,42,0.14)";
 const GRID_DASH: [number, number] = [4, 4];
-const PLOT_BORDER_STROKE = "rgba(15,23,42,0.28)";
+const PLOT_BORDER_STROKE = "#000000";
+const MAJOR_TICK_LENGTH_PX = 6;
+const MAJOR_TICK_STROKE = "#000000";
 const DEFAULT_TICK_LABEL_FONT_SIZE = 12;
 const DEFAULT_AXIS_TITLE_FONT_SIZE = 18;
 const AXIS_LABEL_COLOR = "rgba(55,65,81,0.96)";
@@ -523,6 +526,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
   plotYKey,
   plotYUnitLabel,
   showGrid,
+  showMajorTicks,
   ssInteraction,
   ssOverlayStyle,
   tickLabelFontSize,
@@ -562,6 +566,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
   plotYKey: PlotYKey;
   plotYUnitLabel: string;
   showGrid: boolean;
+  showMajorTicks: boolean;
   ssInteraction?: SsInteractionConfig | null;
   ssOverlayStyle: SsOverlayStyle;
   tickLabelFontSize: number;
@@ -750,6 +755,29 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
         }
         ctx.setLineDash([]);
       }
+      const plotRight = plotRect.left + plotRect.width;
+      const plotBottom = plotRect.top + plotRect.height;
+      ctx.strokeStyle = PLOT_BORDER_STROKE;
+      ctx.strokeRect(plotRect.left, plotRect.top, plotRect.width, plotRect.height);
+      if (showMajorTicks) {
+        ctx.strokeStyle = MAJOR_TICK_STROKE;
+        ctx.lineWidth = 1.25;
+        ctx.beginPath();
+        for (const tick of visibleXTicks) {
+          const x = scale.xToPx(tick);
+          if (x < plotRect.left - 0.5 || x > plotRight + 0.5) continue;
+          ctx.moveTo(x, plotBottom);
+          ctx.lineTo(x, plotBottom + MAJOR_TICK_LENGTH_PX);
+        }
+        for (const tick of visibleYTicks) {
+          const y = scale.yToPx(tick);
+          if (y < plotRect.top - 0.5 || y > plotBottom + 0.5) continue;
+          ctx.moveTo(plotRect.left, y);
+          ctx.lineTo(plotRect.left - MAJOR_TICK_LENGTH_PX, y);
+        }
+        ctx.stroke();
+      }
+      const tickLabelOffset = showMajorTicks ? MAJOR_TICK_LENGTH_PX + 4 : 8;
       for (const tick of visibleXTicks) {
         const x = scale.xToPx(tick);
         ctx.fillStyle = "rgba(120,120,120,0.92)";
@@ -758,7 +786,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
         ctx.fillText(
           formatNumber(tick * plotXFactor, { digits: xTickDigits }),
           x,
-          plotRect.top + plotRect.height + 6,
+          plotBottom + tickLabelOffset,
         );
       }
       for (const tick of visibleYTicks) {
@@ -774,10 +802,8 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
         ctx.fillStyle = "rgba(120,120,120,0.92)";
         ctx.textAlign = "right";
         ctx.textBaseline = "middle";
-        ctx.fillText(label, plotRect.left - 8, y);
+        ctx.fillText(label, plotRect.left - tickLabelOffset, y);
       }
-      ctx.strokeStyle = PLOT_BORDER_STROKE;
-      ctx.strokeRect(plotRect.left, plotRect.top, plotRect.width, plotRect.height);
       ctx.fillStyle = AXIS_LABEL_COLOR;
       ctx.font = `${axisTitleFontSize}px sans-serif`;
       ctx.textAlign = "center";
@@ -947,6 +973,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
     size.height,
     size.width,
     showGrid,
+    showMajorTicks,
     ssOverlayStyle,
     tickLabelFontSize,
     xAxisLabel,
@@ -1848,6 +1875,7 @@ const MainPlotChart = memo(function MainPlotChart({
   currentBiasInteraction = null,
   ssInteraction = null,
   showGrid = true,
+  showMajorTicks = true,
   tickLabelFontSize = DEFAULT_TICK_LABEL_FONT_SIZE,
   axisTitleFontSize = DEFAULT_AXIS_TITLE_FONT_SIZE,
   legendWidth = 120,
@@ -2018,6 +2046,7 @@ const MainPlotChart = memo(function MainPlotChart({
       plotYKey={plotYKey}
       plotYUnitLabel={plotYUnitLabel}
       showGrid={showGrid}
+      showMajorTicks={showMajorTicks}
       ssInteraction={ssInteraction}
       ssOverlayStyle={ssOverlayStyle}
       tickLabelFontSize={tickLabelFontSize}
