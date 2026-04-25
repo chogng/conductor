@@ -14,6 +14,7 @@ import {
 } from "../shared/lib/deviceAnalysisUtils";
 import {
   isDeviceAnalysisPerfEnabled,
+  logDeviceAnalysisPerf,
   startDeviceAnalysisPerf,
   summarizeDeviceAnalysisProcessedFile,
 } from "../shared/lib/deviceAnalysisPerf";
@@ -83,6 +84,7 @@ type StartExtractionJobOptions = {
 };
 
 type UseDeviceAnalysisProcessingOptions = {
+  activeFileId?: unknown;
   getPreviewRow: (rowIndex: number) => unknown;
   previewFile: unknown;
   processedData?: ProcessedEntry[];
@@ -110,6 +112,8 @@ type RuleBasedExtractionConfig = {
 };
 
 const RUST_PROCESSING_CONCURRENCY = 2;
+const ANALYSIS_CACHE_SINGLE_FILE_BUDGET_BYTES = 32 * 1024 * 1024;
+const ANALYSIS_CACHE_TOTAL_BUDGET_BYTES = 64 * 1024 * 1024;
 
 const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -200,6 +204,139 @@ const buildProcessedFileIds = (processedData: ProcessedEntry[]): Set<string> =>
       .map((entry) => entry?.fileId)
       .filter((fileId): fileId is string => Boolean(fileId)),
   );
+
+const getEstimatedAnalysisCacheBytes = (file: unknown): number => {
+  const summary = summarizeDeviceAnalysisProcessedFile(file);
+  const value = Number(summary.analysisCacheEstimatedBytes);
+  return Number.isFinite(value) && value > 0 ? value : 0;
+};
+
+const getAnalysisCacheTouchedAt = (file: unknown): number => {
+  const value = Number((file as any)?.analysisCacheTouchedAt);
+  return Number.isFinite(value) && value > 0 ? value : 0;
+};
+
+const hasPrunableAnalysisCurves = (file: unknown): boolean => {
+  const rawSeries = (file as any)?.analysisCache?.series;
+  if (!rawSeries || typeof rawSeries !== "object" || Array.isArray(rawSeries)) {
+    return false;
+  }
+  return Object.values(rawSeries).some((entry: any) => {
+    return Array.isArray(entry?.gm) || Array.isArray(entry?.ss);
+  });
+};
+
+const pruneAnalysisCacheCurves = (file: ProcessedEntry): ProcessedEntry => {
+  const analysisCache = (file as any)?.analysisCache;
+  const rawSeries = analysisCache?.series;
+  if (!rawSeries || typeof rawSeries !== "object" || Array.isArray(rawSeries)) {
+    return file;
+  }
+
+  const nextSeries: Record<string, unknown> = {};
+  for (const [seriesId, entry] of Object.entries(rawSeries)) {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      nextSeries[seriesId] = entry;
+      continue;
+    }
+    const { gm: _gm, ss: _ss, ...rest } = entry as Record<string, unknown>;
+    nextSeries[seriesId] = rest;
+  }
+
+  return {
+    ...file,
+    analysisCache: {
+      ...analysisCache,
+      curvesPruned: true,
+      series: nextSeries,
+    },
+  };
+};
+
+const applyAnalysisCacheBudget = (
+  files: ProcessedEntry[],
+  activeFileId: unknown = null,
+): ProcessedEntry[] => {
+  if (!Array.isArray(files) || files.length === 0) return files;
+
+  let totalBytes = 0;
+  const estimatedBytes = files.map((file) => {
+    const bytes = getEstimatedAnalysisCacheBytes(file);
+    totalBytes += bytes;
+    return bytes;
+  });
+
+  const activeFileKey = String(activeFileId ?? "").trim();
+  const pruneOrder = files
+    .map((file, index) => ({
+      index,
+      isActive:
+        activeFileKey.length > 0 &&
+        String((file as any)?.fileId ?? "") === activeFileKey,
+      touchedAt: getAnalysisCacheTouchedAt(file),
+    }))
+    .sort((a, b) => {
+      if (a.isActive !== b.isActive) return a.isActive ? 1 : -1;
+      if (a.touchedAt !== b.touchedAt) return a.touchedAt - b.touchedAt;
+      return a.index - b.index;
+    });
+
+  const pruneIndexes = new Set<number>();
+  for (const { index } of pruneOrder) {
+    if (
+      estimatedBytes[index] > ANALYSIS_CACHE_SINGLE_FILE_BUDGET_BYTES &&
+      hasPrunableAnalysisCurves(files[index])
+    ) {
+      pruneIndexes.add(index);
+    }
+  }
+
+  let projectedTotalBytes = totalBytes;
+  for (const index of pruneIndexes) {
+    projectedTotalBytes -= estimatedBytes[index] ?? 0;
+  }
+
+  if (projectedTotalBytes > ANALYSIS_CACHE_TOTAL_BUDGET_BYTES) {
+    for (const { index } of pruneOrder) {
+      if (projectedTotalBytes <= ANALYSIS_CACHE_TOTAL_BUDGET_BYTES) break;
+      if (pruneIndexes.has(index)) continue;
+      if (!hasPrunableAnalysisCurves(files[index])) continue;
+      pruneIndexes.add(index);
+      projectedTotalBytes -= estimatedBytes[index] ?? 0;
+    }
+  }
+
+  if (pruneIndexes.size === 0) return files;
+
+  let prunedBytes = 0;
+  let prunedFiles = 0;
+  const nextFiles = files.map((file, index) => {
+    if (!pruneIndexes.has(index)) return file;
+    prunedBytes += estimatedBytes[index] ?? 0;
+    prunedFiles += 1;
+    return pruneAnalysisCacheCurves(file);
+  });
+
+  const prunedFileIds = nextFiles
+    .map((file, index) =>
+      pruneIndexes.has(index) ? String((file as any)?.fileId ?? "") : "",
+    )
+    .filter(Boolean);
+
+  logDeviceAnalysisPerf("processing:analysis-cache-prune", {
+    activeFileId: activeFileKey || null,
+    prunedBytes,
+    prunedFileIds,
+    prunedFiles,
+    totalBeforeBytes: totalBytes,
+    totalAfterBytes: nextFiles.reduce(
+      (sum, file) => sum + getEstimatedAnalysisCacheBytes(file),
+      0,
+    ),
+  });
+
+  return nextFiles;
+};
 
 const buildExtractionStartFeedback = ({
   count,
@@ -327,6 +464,7 @@ const buildWorkerExtractionError = (payload: any): ExtractionErrorEntry => {
 };
 
 export const useDeviceAnalysisProcessing = ({
+  activeFileId = null,
   getPreviewRow,
   previewFile,
   processedData = [],
@@ -604,7 +742,9 @@ export const useDeviceAnalysisProcessing = ({
               });
               filePerfFinishers.delete(nextFileId);
             }
-            setProcessedData((prev) => [...prev, rustProcessed]);
+            setProcessedData((prev) =>
+              applyAnalysisCacheBudget([...prev, rustProcessed], activeFileId),
+            );
             setProcessingStatus((prev) => ({
               ...prev,
               processed: prev.processed + 1,
@@ -667,7 +807,12 @@ export const useDeviceAnalysisProcessing = ({
             );
             filePerfFinishers.delete(nextFileId);
           }
-          setProcessedData((prev) => [...prev, nextProcessed as ProcessedEntry]);
+          setProcessedData((prev) =>
+            applyAnalysisCacheBudget(
+              [...prev, nextProcessed as ProcessedEntry],
+              activeFileId,
+            ),
+          );
           setProcessingStatus((prev) => ({
             ...prev,
             processed: prev.processed + 1,
@@ -715,6 +860,7 @@ export const useDeviceAnalysisProcessing = ({
       launchNext();
     },
     [
+      activeFileId,
       onExtractionError,
       rawDataByIdRef,
       setActivePage,
@@ -1007,7 +1153,9 @@ export const useDeviceAnalysisProcessing = ({
                 });
                 filePerfFinishers.delete(nextFileId);
               }
-              setProcessedData((prev) => [...prev, rustProcessed]);
+              setProcessedData((prev) =>
+                applyAnalysisCacheBudget([...prev, rustProcessed], activeFileId),
+              );
               processedCount += 1;
               activeCount = Math.max(0, activeCount - 1);
               setProcessingStatus((prev) => ({
@@ -1065,7 +1213,12 @@ export const useDeviceAnalysisProcessing = ({
             );
             filePerfFinishers.delete(nextFileId);
           }
-          setProcessedData((prev) => [...prev, nextProcessed as ProcessedEntry]);
+          setProcessedData((prev) =>
+            applyAnalysisCacheBudget(
+              [...prev, nextProcessed as ProcessedEntry],
+              activeFileId,
+            ),
+          );
           processedCount += 1;
           activeCount = Math.max(0, activeCount - 1);
           setProcessingStatus((prev) => ({ ...prev, processed: processedCount }));
@@ -1118,6 +1271,7 @@ export const useDeviceAnalysisProcessing = ({
       });
     },
     [
+      activeFileId,
       onExtractionError,
       prepareExtractionRun,
       processedData,

@@ -26,6 +26,11 @@ type CachePrefetchHandle =
       id: ReturnType<typeof setTimeout>;
     };
 
+const touchAnalysisCacheSourceFile = (file: any) => {
+  if (!file || typeof file !== "object") return;
+  file.analysisCacheTouchedAt = Date.now();
+};
+
 const applyRustAnalysisResultsToCache = ({
   cache,
   resultBySeriesId,
@@ -149,9 +154,18 @@ export const useAnalysisFileCache = ({
     }
   }, [createFileCacheEntry, processedData]);
 
+  useEffect(() => {
+    if (!effectiveActiveFileId || !Array.isArray(processedData)) return;
+    const activeFile = processedData.find(
+      (file: any) => file?.fileId === effectiveActiveFileId,
+    );
+    touchAnalysisCacheSourceFile(activeFile);
+  }, [effectiveActiveFileId, processedData]);
+
   const getFileCache = useCallback((fileId: any, sourceFile: any = null) => {
     if (!fileId) return null;
 
+    touchAnalysisCacheSourceFile(sourceFile);
     const store = fileAnalysisCacheRef.current;
     let entry = store.get(fileId);
     const shouldResetForSource =
@@ -213,6 +227,7 @@ export const useAnalysisFileCache = ({
     const precomputeFile = async (file: any) => {
       const fileId = file?.fileId;
       if (!fileId) return;
+      touchAnalysisCacheSourceFile(file);
       const finishPerf = startDeviceAnalysisPerf("analysis:prefetch-file", {
         ...summarizeDeviceAnalysisProcessedFile(file),
         active: fileId === effectiveActiveFileId,

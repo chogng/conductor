@@ -166,12 +166,6 @@ contextBridge.exposeInMainWorld("desktopImport", {
       payload,
     );
   },
-  async analyzeDeviceAnalysisSeriesBatchWithRust(payload) {
-    return ipcRenderer.invoke(
-      ipcChannels.deviceAnalysisRustEngineAnalyzeSeriesBatch,
-      payload,
-    );
-  },
   async disposeDeviceAnalysisFileWithRust(payload) {
     return ipcRenderer.invoke(
       ipcChannels.deviceAnalysisRustEngineDispose,

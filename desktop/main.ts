@@ -986,6 +986,33 @@ function sendRustDeviceAnalysisProcessingCommand(command, payload = {}, timeoutM
   return sendRustDeviceAnalysisEngineSlotCommand(slot, command, payload, timeoutMs);
 }
 
+function createRustDeviceAnalysisResultTempDir(fileId) {
+  const safeFileId = String(fileId || "file").replace(/[^a-zA-Z0-9._-]+/g, "_");
+  const root = path.join(app.getPath("temp"), "conductor-device-analysis");
+  fs.mkdirSync(root, { recursive: true });
+  return fs.mkdtempSync(path.join(root, `${safeFileId}-`));
+}
+
+async function hydrateRustDeviceAnalysisResultRefs(result, tempDir = null) {
+  if (!result || typeof result !== "object" || Array.isArray(result)) return result;
+
+  const ref = result.analysisCacheRef;
+  const refPath =
+    ref && typeof ref === "object" && typeof ref.path === "string"
+      ? normalizeAbsoluteFilePath(ref.path)
+      : "";
+  if (refPath && ref?.format === "json") {
+    const text = await fs.promises.readFile(refPath, "utf8");
+    result.analysisCache = JSON.parse(text);
+    delete result.analysisCacheRef;
+  }
+
+  if (tempDir) {
+    void fs.promises.rm(tempDir, { force: true, recursive: true }).catch(() => {});
+  }
+  return result;
+}
+
 function sendRustDeviceAnalysisEngineSlotCommand(
   slot,
   command,
@@ -1615,10 +1642,13 @@ async function handleDeviceAnalysisRustEngineProcessFile(_event, payload) {
   }
 
   const startedAt = Date.now();
+  const tempDir = createRustDeviceAnalysisResultTempDir(fileId);
+  const analysisCachePath = path.join(tempDir, "analysis-cache.json");
   try {
     const result = await sendRustDeviceAnalysisProcessingCommand(
       auto ? "processFileAuto" : "processFile",
       {
+        analysisCachePath,
         config,
         curveFilterField:
           typeof payload?.curveFilterField === "string" ? payload.curveFilterField : null,
@@ -1630,6 +1660,7 @@ async function handleDeviceAnalysisRustEngineProcessFile(_event, payload) {
         path: inputPath,
       },
     );
+    await hydrateRustDeviceAnalysisResultRefs(result, tempDir);
     void disposeRustDeviceAnalysisProcessingFile(fileId);
     return {
       ok: true,
@@ -1638,135 +1669,12 @@ async function handleDeviceAnalysisRustEngineProcessFile(_event, payload) {
       source: "rust-engine-pool",
     };
   } catch (error) {
+    void fs.promises.rm(tempDir, { force: true, recursive: true }).catch(() => {});
     return {
       ok: false,
       code: "RUST_ENGINE_PROCESS_FAILED",
       durationMs: Date.now() - startedAt,
       message: error?.message || "Rust device-analysis engine failed to process file.",
-    };
-  }
-}
-
-function toFiniteNumberArray(rawValues, limit = 10000) {
-  if (!Array.isArray(rawValues)) return null;
-  const length = Math.min(rawValues.length, limit);
-  const values = new Array(length);
-  for (let index = 0; index < length; index += 1) {
-    const value = Number(rawValues[index]);
-    if (!Number.isFinite(value)) return null;
-    values[index] = value;
-  }
-  return values;
-}
-
-function buildFilteredAnalysisPair(rawX, rawY) {
-  const length = Math.min(
-    Array.isArray(rawX) ? rawX.length : 0,
-    Array.isArray(rawY) ? rawY.length : 0,
-    10000,
-  );
-  const x = [];
-  const y = [];
-  for (let index = 0; index < length; index += 1) {
-    const xv = Number(rawX[index]);
-    const yv = Number(rawY[index]);
-    if (!Number.isFinite(xv) || !Number.isFinite(yv)) continue;
-    x.push(xv);
-    y.push(yv);
-  }
-  return x.length >= 3 ? { x, y } : null;
-}
-
-function normalizeDeviceAnalysisAnalysisXGroups(rawXGroups) {
-  if (!Array.isArray(rawXGroups)) return [];
-  return rawXGroups
-    .slice(0, 2000)
-    .map((group) => toFiniteNumberArray(group))
-    .map((group) => (Array.isArray(group) && group.length >= 3 ? group : []));
-}
-
-function normalizeDeviceAnalysisAnalysisSeries(rawSeries, normalizedXGroups = []) {
-  if (!Array.isArray(rawSeries)) return [];
-  return rawSeries
-    .map((item) => {
-      const id = typeof item?.id === "string" ? item.id.trim() : "";
-      const rawY = Array.isArray(item?.y) ? item.y : [];
-      if (!id) return null;
-
-      if (Array.isArray(item?.x)) {
-        const pair = buildFilteredAnalysisPair(item.x, rawY);
-        return pair ? { id, ...pair } : null;
-      }
-
-      const groupIndex = Number(item?.groupIndex);
-      if (
-        Number.isInteger(groupIndex) &&
-        groupIndex >= 0 &&
-        Array.isArray(normalizedXGroups[groupIndex]) &&
-        normalizedXGroups[groupIndex].length >= 3
-      ) {
-        const xGroup = normalizedXGroups[groupIndex];
-        const y = toFiniteNumberArray(rawY, xGroup.length);
-        if (y && Math.min(xGroup.length, y.length) >= 3) {
-          return { id, groupIndex, y };
-        }
-        const pair = buildFilteredAnalysisPair(xGroup, rawY);
-        return pair ? { id, ...pair } : null;
-      }
-
-      return null;
-    })
-    .filter(Boolean)
-    .slice(0, 2000);
-}
-
-function normalizeDeviceAnalysisAnalysisSourceFile(rawSourceFile) {
-  if (!rawSourceFile || typeof rawSourceFile !== "object") return null;
-  return {
-    curveType:
-      typeof rawSourceFile.curveType === "string" ? rawSourceFile.curveType : null,
-    supportsSs:
-      typeof rawSourceFile.supportsSs === "boolean" ? rawSourceFile.supportsSs : null,
-    xAxisRole:
-      typeof rawSourceFile.xAxisRole === "string" ? rawSourceFile.xAxisRole : null,
-    xLabel: typeof rawSourceFile.xLabel === "string" ? rawSourceFile.xLabel : null,
-  };
-}
-
-async function handleDeviceAnalysisRustEngineAnalyzeSeriesBatch(_event, payload) {
-  const fileId =
-    payload && typeof payload.fileId === "string" ? payload.fileId.trim() : "";
-  const xGroups = normalizeDeviceAnalysisAnalysisXGroups(payload?.xGroups);
-  const series = normalizeDeviceAnalysisAnalysisSeries(payload?.series, xGroups);
-  if (!series.length) {
-    return {
-      ok: false,
-      code: "INVALID_DEVICE_ANALYSIS_SERIES",
-      message: "Missing analysis series.",
-    };
-  }
-
-  const startedAt = Date.now();
-  try {
-    const result = await sendRustDeviceAnalysisEngineCommand("analyzeSeriesBatch", {
-      fileId,
-      series,
-      sourceFile: normalizeDeviceAnalysisAnalysisSourceFile(payload?.sourceFile),
-      xGroups,
-    });
-    return {
-      ok: true,
-      durationMs: Date.now() - startedAt,
-      result,
-      source: "rust-engine",
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      code: "RUST_ENGINE_ANALYZE_SERIES_FAILED",
-      durationMs: Date.now() - startedAt,
-      message:
-        error?.message || "Rust device-analysis engine failed to analyze series.",
     };
   }
 }
@@ -2736,10 +2644,6 @@ app.whenReady().then(() => {
     handleDeviceAnalysisRustEngineInferAutoExtraction,
   );
   ipcMain.handle(
-    ipcChannels.deviceAnalysisRustEngineAnalyzeSeriesBatch,
-    handleDeviceAnalysisRustEngineAnalyzeSeriesBatch,
-  );
-  ipcMain.handle(
     ipcChannels.deviceAnalysisRustEngineProcessFile,
     handleDeviceAnalysisRustEngineProcessFile,
   );
@@ -2806,7 +2710,6 @@ app.on("will-quit", () => {
   ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEngineReadCell);
   ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEngineReadCells);
   ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEngineInferAutoExtraction);
-  ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEngineAnalyzeSeriesBatch);
   ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEngineProcessFile);
   ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEngineDispose);
   ipcMain.removeHandler(ipcChannels.originExeGet);

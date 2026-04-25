@@ -14,6 +14,7 @@
     "verify:rust-auto-extraction": "node --experimental-strip-types scripts/verify-rust-auto-extraction-compat.mjs prepare && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify-rust-auto-extraction-compat.ps1 && node --experimental-strip-types scripts/verify-rust-auto-extraction-compat.mjs compare",
     "verify:rust-analysis": "npm run verify:rust-ss-auto",
     "verify:rust-ss-auto": "node --experimental-strip-types scripts/bench-device-analysis-phase3.mjs prepare && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/bench-device-analysis-phase3.ps1 && node --experimental-strip-types scripts/verify-rust-ss-auto-compat.mjs prepare && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify-rust-ss-auto-compat.ps1 && node --experimental-strip-types scripts/verify-rust-ss-auto-compat.mjs compare",
+    "bench:analysis-cache": "node scripts/bench-analysis-cache-budget.mjs",
     "bench:phase3": "node --experimental-strip-types scripts/bench-device-analysis-phase3.mjs prepare && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/bench-device-analysis-phase3.ps1 -RequestSet process && node --experimental-strip-types scripts/bench-device-analysis-phase3.mjs prepare-rust-analysis && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/bench-device-analysis-phase3.ps1 -RequestSet analysis && node --experimental-strip-types scripts/bench-device-analysis-phase3.mjs analyze",
     "build:desktop:core": "tsc -p tsconfig.desktop.json",
     "build:web:desktop": "vite build --base ./",

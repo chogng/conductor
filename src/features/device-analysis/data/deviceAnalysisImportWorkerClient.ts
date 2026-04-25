@@ -89,17 +89,6 @@ type DesktopImportBridge = {
     fileName: string;
     path: string;
   }) => Promise<unknown>;
-  analyzeDeviceAnalysisSeriesBatchWithRust?: (payload: {
-    fileId?: string;
-    series: Array<{ groupIndex?: number; id: string; x?: number[]; y: number[] }>;
-    sourceFile?: {
-      curveType?: unknown;
-      supportsSs?: unknown;
-      xAxisRole?: unknown;
-      xLabel?: unknown;
-    } | null;
-    xGroups?: number[][];
-  }) => Promise<unknown>;
 };
 
 type ImportWorkerSlot = {

@@ -421,6 +421,7 @@ const DeviceAnalysisPage = () => {
     removeQueuedProcessingFile,
     resetProcessingWorker,
   } = useDeviceAnalysisProcessing({
+    activeFileId: analysisActiveFileId,
     getPreviewRow,
     previewFile,
     processedData,
