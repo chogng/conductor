@@ -1,14 +1,50 @@
-# conductor
+# Conductor
 
-`conductor` is a device-analysis app with both Web and Electron desktop runtimes.
+English | [中文](./README.zh-CN.md)
 
-## Highlights
+Conductor is a desktop-first analysis tool for semiconductor device test data.
+It turns folders of raw CSV/Excel measurements into extracted curves,
+diagnostic plots, calculated parameters, and Origin-ready datasets.
 
-- CSV batch import and preview
-- template-based data extraction
-- chart analysis and export
-- Origin integration for `Open in Origin`
-- Windows desktop packaging and auto update
+It is built for lab workflows where the same measurement format appears again
+and again: import a batch once, teach Conductor where the X/Y data and labels
+live, save that rule as a template, then reuse it across future experiments.
+
+## What It Helps With
+
+- **Batch device data intake**: import CSV and Excel files, preview large tables,
+  and keep multi-file experiments together instead of cleaning files one by one.
+- **Reusable extraction templates**: define X ranges, curve segmentation, Y
+  columns, legends, units, curve type hints, and filename matching rules for
+  repeated measurement layouts.
+- **Automatic extraction when possible**: infer columns, grouping, and
+  transfer/output-like curve roles for supported files, while keeping manual
+  templates available for messy real-world data.
+- **Curve review and parameter checks**: compare processed files in one analysis
+  workspace with overview thumbnails, focused plots, calculated metrics, gm
+  diagnostics, SS diagnostics, and Ion/Ioff summaries.
+- **Origin handoff**: send selected curves directly to Origin as merged columns,
+  new worksheets, new workbooks, or separate windows, with ZIP fallback when
+  automatic opening is not available.
+- **Large-file performance**: use a Rust sidecar on desktop for Excel conversion,
+  preview, extraction, processing, and batch analysis, with TypeScript fallbacks
+  for compatibility.
+
+## Core Workflow
+
+1. Import raw measurement files.
+2. Preview one file and choose `Auto` or configure a saved extraction template.
+3. Apply the extraction to one file, new files, or the whole batch.
+4. Inspect curves and calculated parameters in the analysis workspace.
+5. Export CSV/ZIP results or open selected curves directly in Origin.
+
+## Desktop Capabilities
+
+- Electron desktop runtime for offline Windows lab machines.
+- Persistent local templates, app settings, Origin path settings, and custom
+  storage location support.
+- Bundled Rust Excel converter and Python Origin CSV worker in packaged builds.
+- Electron Builder packaging, Windows release artifacts, and auto-update support.
 
 ## Requirements
 
@@ -54,7 +90,8 @@ Useful scripts:
 
 - `npm run build:desktop:core`: build Electron main/preload only
 - `npm run build:web:desktop`: build the desktop-targeted web bundle
-- `npm run build:desktop`: build desktop assets
+- `npm run build:desktop`: build the Origin CSV worker, Rust Excel converter,
+  Electron main/preload code, and desktop web bundle
 
 ## Common Scripts
 
@@ -81,6 +118,14 @@ Release and verification:
 - `npm run verify:origin-worker`: verify the Origin worker EXE and embedded version metadata
 - `npm run dist:desktop:publish`: local desktop release publishing flow
 - `npm run release:desktop:local`: explicit local release entrypoint
+
+Packaging note:
+
+- On Windows, `npm run build:desktop`, `npm run pack:desktop`, and
+  `npm run dist:desktop` automatically build the Python Origin CSV worker and
+  Rust Excel converter before Electron Builder packages the app.
+- After a clean workspace, run `npm install` first because `node_modules/` is
+  required for the build scripts.
 
 ## Environment Variables
 
