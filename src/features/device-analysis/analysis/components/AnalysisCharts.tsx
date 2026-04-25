@@ -344,6 +344,17 @@ const normalizeYScaleByFileIdRecord = (value: unknown): Record<string, "linear" 
     }
     return next;
 };
+const normalizeYLogCurrentModeByFileIdRecord = (value: unknown): Record<string, "all" | "positive"> => {
+    const raw = value && typeof value === "object" ? value as Record<string, unknown> : {};
+    const next: Record<string, "all" | "positive"> = {};
+    for (const [fileId, mode] of Object.entries(raw)) {
+        const normalizedFileId = String(fileId ?? "").trim();
+        if (!normalizedFileId)
+            continue;
+        next[normalizedFileId] = normalizeLogCurrentMode(mode);
+    }
+    return next;
+};
 const normalizeYUnitByFileIdRecord = (value: unknown): Record<string, "A" | "mA" | "uA" | "nA" | "pA"> => {
     const raw = value && typeof value === "object" ? value as Record<string, unknown> : {};
     const next: Record<string, "A" | "mA" | "uA" | "nA" | "pA"> = {};
@@ -541,11 +552,13 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const [focusedSeriesId, setFocusedSeriesId] = useState<string | null>(null);
     const [persistedYUnitByFileId, setPersistedYUnitByFileId] = useState<Record<string, "A" | "mA" | "uA" | "nA" | "pA">>({});
     const [persistedYScaleByFileId, setPersistedYScaleByFileId] = useState<Record<string, "linear" | "log">>({});
+    const [persistedYLogCurrentModeByFileId, setPersistedYLogCurrentModeByFileId] = useState<Record<string, "all" | "positive">>({});
     const [chartYScaleByFileId, setChartYScaleByFileId] = useState<Record<string, "linear" | "log" | "logAbs">>({});
     const [defaultYScaleForTransfer, setDefaultYScaleForTransfer] = useState<"linear" | "log">("log");
     const [defaultYScaleForOutput, setDefaultYScaleForOutput] = useState<"linear" | "log">("linear");
     const userChangedYUnitRef = useRef(false);
     const userChangedYScaleRef = useRef(false);
+    const userChangedYLogCurrentModeRef = useRef(false);
     const [areaInput, setAreaInput] = useState("");
     const [showPlotSettingsPane, setShowPlotSettingsPane] = useState(false);
     const [originExportMode, setOriginExportMode] = useState<DeviceAnalysisOriginExportMode>("merged");
@@ -611,9 +624,11 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     originExportModeDefault?: string;
                     yUnitByFileId?: Record<string, unknown>;
                     yScaleByFileId?: Record<string, unknown>;
+                    yLogCurrentModeByFileId?: Record<string, unknown>;
                 } | null | undefined;
                 const yUnitByFileId = normalizeYUnitByFileIdRecord(normalizedSettings?.yUnitByFileId);
                 const yScaleByFileId = normalizeYScaleByFileIdRecord(normalizedSettings?.yScaleByFileId);
+                const yLogCurrentModeByFileId = normalizeYLogCurrentModeByFileIdRecord(normalizedSettings?.yLogCurrentModeByFileId);
                 const exportDefaultYScaleForTransfer = normalizeLinearLogScale(normalizedSettings?.defaultYScaleForTransfer ?? "log");
                 const exportDefaultYScaleForOutput = normalizeLinearLogScale(normalizedSettings?.defaultYScaleForOutput ?? "linear");
                 const exportMode = normalizedSettings?.originExportModeDefault;
@@ -629,6 +644,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 setDefaultYScaleForOutput(exportDefaultYScaleForOutput);
                 if (!userChangedYUnitRef.current) {
                     setPersistedYUnitByFileId(yUnitByFileId);
+                }
+                if (!userChangedYLogCurrentModeRef.current) {
+                    setPersistedYLogCurrentModeByFileId(yLogCurrentModeByFileId);
                 }
                 if (isDeviceAnalysisOriginExportMode(exportMode)) {
                     setOriginExportMode(exportMode);
@@ -1004,6 +1022,13 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return getDefaultLinearLogYScaleForFile(fileLike);
         return persistedYScaleByFileId[fileKey] ?? getDefaultLinearLogYScaleForFile(fileLike);
     }, [getDefaultLinearLogYScaleForFile, persistedYScaleByFileId]);
+    const resolveYLogCurrentModeForFile = React.useCallback((fileLike: any): "all" | "positive" => {
+        const fileKey = String(fileLike?.fileId ?? "").trim();
+        if (fileKey && persistedYLogCurrentModeByFileId[fileKey]) {
+            return persistedYLogCurrentModeByFileId[fileKey];
+        }
+        return normalizeLogCurrentMode(axis?.yLogCurrentMode);
+    }, [axis?.yLogCurrentMode, persistedYLogCurrentModeByFileId]);
     const resolvedXUnitMeta = useMemo(() => getDeviceAnalysisXUnitMeta(activeFile?.xUnit), [activeFile?.xUnit]);
     const activeYUnit = useMemo(() => resolveYUnitForFile(activeFile), [activeFile, resolveYUnitForFile]);
     const resolvedYUnitMeta = useMemo(() => getDeviceAnalysisYUnitMeta(activeYUnit), [activeYUnit]);
@@ -2366,8 +2391,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         return "linear";
     }, [axis?.yScale]);
     const yLogCurrentMode = useMemo(
-        () => normalizeLogCurrentMode(axis?.yLogCurrentMode),
-        [axis?.yLogCurrentMode],
+        () => resolveYLogCurrentModeForFile(activeFile),
+        [activeFile, resolveYLogCurrentModeForFile],
     );
     const plotYKey = useMemo(() => {
         if (yScaleMode === "logAbs")
@@ -3187,7 +3212,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             t={t}
           />
         ) : (
-          <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} onVisibleFileIdsChange={setOverviewVisibleFileIds} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} originCanvasExportScope={originCanvasExportScope} isSelectionMode={isManualCanvasScope} xUnitFactor={resolvedXUnitMeta.factor} xUnitLabel={resolvedXUnitMeta.label} resolveYUnitForFile={resolveYUnitForFile} resolveYScaleForFile={resolveLinearLogYScaleForFile} resolveYLogCurrentModeForFile={() => yLogCurrentMode}/>
+          <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} onVisibleFileIdsChange={setOverviewVisibleFileIds} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} originCanvasExportScope={originCanvasExportScope} isSelectionMode={isManualCanvasScope} xUnitFactor={resolvedXUnitMeta.factor} xUnitLabel={resolvedXUnitMeta.label} resolveYUnitForFile={resolveYUnitForFile} resolveYScaleForFile={resolveLinearLogYScaleForFile} resolveYLogCurrentModeForFile={resolveYLogCurrentModeForFile}/>
         )}
       </aside>
 
@@ -3263,10 +3288,20 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             ]} aria-label="Y scale" className="w-fit da-neutral-select" stableWidth data-cta="Device Analysis" data-cta-position="y-scale" data-cta-copy="y scale"/>)}
                   {effectivePlotType !== "ss" && yScaleMode === "log" ? (<DropdownField id="device-analysis-log-current-mode-select" size="sm" value={yLogCurrentMode} onChange={(next: any) => {
                 const mode = normalizeLogCurrentMode(next);
-                setAxis((prev: any) => ({
-                    ...prev,
-                    yLogCurrentMode: mode,
-                }));
+                const fileKey = String(effectiveActiveFileId ?? "").trim();
+                userChangedYLogCurrentModeRef.current = true;
+                if (fileKey) {
+                    const nextByFileId = {
+                        ...persistedYLogCurrentModeByFileId,
+                        [fileKey]: mode,
+                    };
+                    setPersistedYLogCurrentModeByFileId(nextByFileId);
+                    apiService
+                        .updateDeviceAnalysisSettings({
+                        yLogCurrentModeByFileId: nextByFileId,
+                    })
+                        .catch(() => { });
+                }
             }} options={[
                 {
                     value: "all",

@@ -44,6 +44,7 @@ export type DeviceAnalysisSettings = {
   analysisPlotAxisSettings?: Record<string, unknown>;
   yUnitByFileId?: Record<string, "A" | "mA" | "uA" | "nA" | "pA">;
   yScaleByFileId?: Record<string, "linear" | "log">;
+  yLogCurrentModeByFileId?: Record<string, "all" | "positive">;
   [key: string]: unknown;
 };
 
