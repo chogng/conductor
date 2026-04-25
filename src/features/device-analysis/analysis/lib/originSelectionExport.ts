@@ -129,10 +129,12 @@ export const resolveDeviceAnalysisSeriesLabel = (
   series: ProcessedSeriesLike | null | undefined,
   index: number,
 ): string => {
+  const name = String(series?.name ?? "").trim();
+  if (name && name.includes("=")) return name;
+
   const legendValue = String(series?.legendValue ?? "").trim();
   if (legendValue) return legendValue;
 
-  const name = String(series?.name ?? "").trim();
   if (name) return name;
 
   return `Curve ${index + 1}`;
