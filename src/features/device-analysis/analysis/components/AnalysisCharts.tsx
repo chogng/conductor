@@ -461,7 +461,7 @@ const clampChartFontSize = (value: unknown, fallback: number): number => {
     const num = parseOptionalNumber(value);
     if (num === null)
         return fallback;
-    return Math.min(32, Math.max(8, Math.round(num)));
+    return Math.min(96, Math.max(1, Math.round(num)));
 };
 
 const AnalysisCharts = ({ processedData, processingStatus, activeFileId: controlledActiveFileId = undefined, onActiveFileIdChange = undefined, showFileSelect = true, ionIoffMethod = "auto", setIonIoffMethod = () => { }, ionIoffManualTargetsByFileId = {}, setIonIoffManualTargetsByFileId = () => { }, ssMethod = "auto", setSsMethod = () => { }, ssDiagnosticsEnabled = true, setSsDiagnosticsEnabled = () => { }, gmDiagnosticsEnabled = false, setGmDiagnosticsEnabled = () => { }, ssShowFitLine = true, setSsShowFitLine = () => { }, ssManualRanges = {}, setSsManualRanges = () => { }, originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS, onOriginOpenPlotOptionsChange = undefined, }: any) => {
@@ -940,7 +940,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const hasManualMajorTicks = axis?.showMajorTicks === false;
         const manualTickFont = parseOptionalNumber(axis?.tickLabelFontSize);
         const manualTitleFont = parseOptionalNumber(axis?.axisTitleFontSize);
-        const hasManualTickFont = manualTickFont !== null && Math.round(manualTickFont) !== 12;
+        const hasManualTickFont = manualTickFont !== null && Math.round(manualTickFont) !== 18;
         const hasManualTitleFont = manualTitleFont !== null && Math.round(manualTitleFont) !== 18;
         const hasManualOriginTickLabelOffset = parseOptionalNumber(axis?.originTickLabelOffset) !== null;
         const hasManualOriginAxisTitleGap = parseOptionalNumber(axis?.originAxisTitleGap) !== null;
@@ -2703,7 +2703,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return xTooltipDigitsAuto;
         return Math.max(0, Math.min(20, Math.round(manualDigits)));
     }, [axis?.xTooltipDigits, xTooltipDigitsAuto]);
-    const mainPlotTickLabelFontSize = useMemo(() => clampChartFontSize(axis?.tickLabelFontSize, 12), [axis?.tickLabelFontSize]);
+    const mainPlotTickLabelFontSize = useMemo(() => clampChartFontSize(axis?.tickLabelFontSize, 18), [axis?.tickLabelFontSize]);
     const mainPlotAxisTitleFontSize = useMemo(() => clampChartFontSize(axis?.axisTitleFontSize, 18), [axis?.axisTitleFontSize]);
     const xLabelInterval = useMemo(() => computeLabelInterval(xTicks, 7), [xTicks]);
     const isMetricsDetailsPending = detailAnalysisState.key === detailAnalysisKey && detailAnalysisState.pending;

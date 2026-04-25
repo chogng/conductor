@@ -275,13 +275,15 @@ const GRID_DASH: [number, number] = [4, 4];
 const PLOT_BORDER_STROKE = "#000000";
 const MAJOR_TICK_LENGTH_PX = 6;
 const MAJOR_TICK_STROKE = "#000000";
-const DEFAULT_TICK_LABEL_FONT_SIZE = 12;
+const TICK_LABEL_COLOR = "#000000";
+const AXIS_FONT_FAMILY = "Arial, sans-serif";
+const DEFAULT_TICK_LABEL_FONT_SIZE = 18;
 const DEFAULT_AXIS_TITLE_FONT_SIZE = 18;
 const DEFAULT_AXIS_TITLE_GAP_PX = 10;
 const PREVIEW_TICK_LABEL_OFFSET_SCALE = 5;
 const PREVIEW_AXIS_TITLE_GAP_SCALE = 4;
 const AXIS_TITLE_EDGE_PADDING_PX = 14;
-const AXIS_LABEL_COLOR = "rgba(55,65,81,0.96)";
+const AXIS_LABEL_COLOR = "#000000";
 const CURRENT_BIAS_DRAG_TOLERANCE_PX = 22;
 const CURRENT_BIAS_HIT_WIDTH_PX = 28;
 const SS_HANDLE_TOLERANCE_PX = 14;
@@ -752,7 +754,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
     const drawGridAndAxes = () => {
       ctx.save();
       ctx.lineWidth = 1;
-      ctx.font = `${tickLabelFontSize}px sans-serif`;
+      ctx.font = `${tickLabelFontSize}px ${AXIS_FONT_FAMILY}`;
       if (showGrid) {
         const plotRight = plotRect.left + plotRect.width;
         const plotBottom = plotRect.top + plotRect.height;
@@ -804,7 +806,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
       }
       for (const tick of visibleXTicks) {
         const x = scale.xToPx(tick);
-        ctx.fillStyle = "rgba(120,120,120,0.92)";
+        ctx.fillStyle = TICK_LABEL_COLOR;
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
         ctx.fillText(
@@ -823,13 +825,13 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
                 : tick * plotYFactor,
               { digits: yTickDigits },
             );
-        ctx.fillStyle = "rgba(120,120,120,0.92)";
+        ctx.fillStyle = TICK_LABEL_COLOR;
         ctx.textAlign = "right";
         ctx.textBaseline = "middle";
         ctx.fillText(label, plotRect.left - tickLabelOffsetPx, y);
       }
       ctx.fillStyle = AXIS_LABEL_COLOR;
-      ctx.font = `${axisTitleFontSize}px sans-serif`;
+      ctx.font = `${axisTitleFontSize}px ${AXIS_FONT_FAMILY}`;
       ctx.textAlign = "center";
       ctx.textBaseline = "bottom";
       if (xAxisLabel) {

@@ -44,6 +44,9 @@ export const DEFAULT_PLOT_AXIS_SETTINGS: PlotAxisSettings = Object.freeze({
   originAxisTitleGap: "",
 }) as PlotAxisSettings;
 
+const CHART_FONT_SIZE_MIN = 1;
+const CHART_FONT_SIZE_MAX = 96;
+
 const normalizeFiniteNumberText = (value: unknown): string => {
   if (value === null || value === undefined) return "";
   const text = String(value).trim();
@@ -146,14 +149,14 @@ export const normalizePlotAxisSettings = (
     tickLabelFontSize: normalizeOptionalBoundedInt(
       raw.tickLabelFontSize,
       fallback.tickLabelFontSize,
-      8,
-      32,
+      CHART_FONT_SIZE_MIN,
+      CHART_FONT_SIZE_MAX,
     ),
     axisTitleFontSize: normalizeOptionalBoundedInt(
       raw.axisTitleFontSize,
       fallback.axisTitleFontSize,
-      8,
-      32,
+      CHART_FONT_SIZE_MIN,
+      CHART_FONT_SIZE_MAX,
     ),
     originTickLabelOffset: normalizeFiniteNumberText(
       raw.originTickLabelOffset ?? fallback.originTickLabelOffset,
