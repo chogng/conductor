@@ -1008,15 +1008,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const scaleSet = new Set(selectedExportCanvasFiles.map((file: any) => resolveLinearLogYScaleForFile(file)));
         return scaleSet.size > 1;
     }, [resolveLinearLogYScaleForFile, selectedExportCanvasFiles]);
-    const originExportModeHint = useMemo(() => {
-        if (resolvedOriginExportMode === "workbookBooks")
-            return t("da_origin_export_mode_workbook_books_hint");
-        if (resolvedOriginExportMode === "workbookSheets")
-            return t("da_origin_export_mode_workbook_sheets_hint");
-        if (resolvedOriginExportMode === "separate")
-            return t("da_origin_export_mode_separate_hint");
-        return t("da_origin_export_mode_merged_hint");
-    }, [resolvedOriginExportMode, t]);
     const exportListEntries = useMemo(() => {
         const selectedFileIds = resolvedOriginExportMode === "merged" && !isExportListCanvasSelectionMode && resolvedCurveExportMode === "select"
             ? scopedOriginCanvasKeySet ?? new Set<string>()
@@ -3523,17 +3514,15 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                       </Button>
                     </div>
                   </div>
+                  {resolvedOriginExportMode === "merged" && hasMixedExportYScales ? (
                   <div className="mt-3 space-y-2">
-                    {resolvedOriginExportMode !== "merged" ? (<div className="text-xs text-text-secondary">
-                        {originExportModeHint}
-                      </div>) : null}
-                    {resolvedOriginExportMode === "merged" && hasMixedExportYScales ? (<div className="rounded-lg border border-border bg-bg-page/60 px-3 py-2 text-xs text-text-secondary">
+                    <div className="rounded-lg border border-border bg-bg-page/60 px-3 py-2 text-xs text-text-secondary">
                         <div className="flex items-start gap-2">
                           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden="true"/>
                           <span>{t("da_origin_export_mode_mixed_y_scale_split_hint")}</span>
                         </div>
-                      </div>) : null}
-                  </div>
+                      </div>
+                  </div>) : null}
                 </div>
 
                 <div className="flex items-start justify-between gap-3 flex-wrap">
