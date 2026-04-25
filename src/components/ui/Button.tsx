@@ -1,6 +1,7 @@
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { normalizeCtaName, normalizeCtaToken } from "../../utils/cta";
 import { cx } from "../../utils/cx";
+import "./button.css";
 
 type ButtonVariant =
   | "primary"
@@ -9,7 +10,7 @@ type ButtonVariant =
   | "text"
   | "icon"
   | "danger";
-type ButtonSize = "sm" | "md" | "lg" | "control" | "icon";
+type ButtonSize = "sm" | "md" | "lg" | "control" | "icon" | "iconSm";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   children?: ReactNode;
@@ -27,7 +28,7 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 
 /**
  * Button (UI)
- * - Matches `docs/button_component_spec.md` (`action-btn*` classes in `src/styles/global.css`)
+ * - Matches `action-btn*` classes in `src/components/ui/button.css`
  * - Defaults `type="button"` to avoid accidental submits
  */
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -77,6 +78,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       if (size === "sm") return "action-btn--sm";
       if (size === "lg") return "action-btn--lg";
       if (size === "control") return "action-btn--control";
+      if (size === "iconSm") return "action-btn--icon-sm";
       if (size === "icon") return "action-btn--icon-size";
       return "action-btn--md";
     })();

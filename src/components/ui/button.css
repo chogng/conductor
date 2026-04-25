@@ -1,0 +1,151 @@
+/* Button / action-btn* */
+
+/* Base */
+.action-btn {
+  @apply relative inline-flex min-w-0 items-center justify-center px-4 rounded-lg text-sm font-medium transition-all;
+
+  /* Two-ring illusion via box-shadow spread (no layout shift).
+       Override per variant or inline style via:
+         - --btn-ring-inner
+         - --btn-ring-outer
+         - --btn-ring-outer-hover (defaults to --btn-ring-outer)
+     */
+  --btn-ring-inner: rgb(var(--bg-0));
+  --btn-ring-outer: rgb(var(--border-200));
+  --btn-ring-outer-hover: var(--btn-ring-outer);
+
+  box-shadow: 0 0 0 0 var(--btn-ring-inner), 0 0 0 1px var(--btn-ring-outer);
+  transition:
+    color 0.1s ease-in-out,
+    opacity 0.2s ease-in-out,
+    background-color 0.2s ease-in-out,
+    box-shadow 0.2s ease-in-out,
+    transform 0.08s ease-out;
+  transform-origin: center;
+}
+
+/* Keyboard focus ring (component-level outer ring).
+     Mirrors the Input shell focus halo and is gated to keyboard navigation only. */
+.action-btn::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: calc(0.5rem + 6px);
+  /* rounded-lg + offset */
+  @apply border-2 border-transparent;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease, border-color 120ms ease;
+}
+
+html[data-nav="keyboard"] .action-btn:focus-visible::after {
+  @apply border-accent-terracotta;
+  opacity: 0.5;
+}
+
+.action-btn:focus,
+.action-btn:focus-visible {
+  outline: none;
+}
+
+/* Sizes */
+.action-btn--sm {
+  @apply h-8 px-3 text-xs;
+}
+
+.action-btn--md {
+  @apply h-[38px];
+}
+
+.action-btn--lg {
+  @apply h-[42px] px-5 text-sm;
+}
+
+.action-btn--control {
+  @apply w-[36px] h-[36px] px-0;
+}
+
+.action-btn--icon-size {
+  @apply w-7 h-7 px-0;
+}
+
+.action-btn--icon-sm {
+  @apply w-8 h-8 px-0;
+}
+
+/* Content */
+.action-btn__content {
+  @apply relative z-10 flex min-w-0 items-center gap-2;
+}
+
+/* Ring behavior (default for all buttons) */
+.action-btn:not(:disabled):not(.action-btn--disabled):hover {
+  box-shadow: 0 0 0 1px var(--btn-ring-inner),
+    0 0 0 2px var(--btn-ring-outer-hover);
+}
+
+.action-btn:disabled,
+.action-btn.action-btn--disabled {
+  box-shadow: none;
+  transform: none;
+}
+
+/* Variants */
+.action-btn--primary {
+  @apply text-white bg-bg-primary border border-transparent;
+  --btn-ring-inner: rgb(var(--bg-primary));
+  --btn-ring-outer: rgb(var(--border-300));
+  --btn-ring-outer-hover: rgb(var(--border-300));
+}
+
+.action-btn--secondary {
+  @apply text-text-primary bg-bg-surface border border-transparent hover:bg-bg-surface-hover;
+}
+
+.action-btn--text {
+  @apply text-text-secondary hover:text-text-primary bg-transparent border border-transparent hover:bg-bg-surface-hover/70;
+}
+
+.action-btn--ghost {
+  @apply text-text-secondary hover:text-text-primary bg-bg-ghost border border-transparent;
+  /* Avoid hard-coupling border to text color so demos can set borderColor independently */
+  --btn-ring-inner: rgb(var(--bg-ghost));
+  --btn-ring-outer: rgb(var(--border-200));
+  --btn-ring-outer-hover: rgb(var(--border-200));
+}
+
+.action-btn--danger {
+  @apply text-text-tertiary bg-bg-0 hover:text-text-danger;
+}
+
+.action-btn--icon {
+  @apply bg-transparent border-0 text-text-primary;
+  box-shadow: none;
+}
+
+.action-btn--icon .action-btn__content {
+  @apply gap-0;
+}
+
+.action-btn.action-btn--icon:not(:disabled):hover {
+  box-shadow: none;
+}
+
+.action-btn--icon-disabled {
+  @apply bg-transparent border-0 text-text-tertiary cursor-not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.action-btn--icon-disabled .action-btn__content {
+  @apply gap-0;
+}
+
+.action-btn--icon::after,
+.action-btn--icon-disabled::after {
+  display: none;
+}
+
+.action-btn--disabled {
+  @apply text-text-secondary cursor-not-allowed bg-bg-200 border border-transparent;
+}

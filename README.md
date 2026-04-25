@@ -46,6 +46,11 @@ live, save that rule as a template, then reuse it across future experiments.
 - Bundled Rust Excel converter and Python Origin CSV worker in packaged builds.
 - Electron Builder packaging, Windows release artifacts, and auto-update support.
 
+## Project Map
+
+For a directory-by-directory guide to source areas, generated artifacts, and
+common entrypoints, see [docs/project-structure.md](./docs/project-structure.md).
+
 ## Requirements
 
 - Node.js 22+
