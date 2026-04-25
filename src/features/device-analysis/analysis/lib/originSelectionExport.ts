@@ -33,6 +33,10 @@ type ResolveCurveLabelForSeries = (
   series: ProcessedSeriesLike | null | undefined,
   index: number,
 ) => string;
+type ResolveAxisTitleForFile = (
+  file: ProcessedEntryLike | null | undefined,
+  axis: "x" | "y",
+) => string | null | undefined;
 
 export type DeviceAnalysisOriginExportMode =
   | "merged"
@@ -270,6 +274,7 @@ const buildOriginCurveEntriesForCanvas = (
     String(source?.yUnit ?? "").trim(),
   resolveCurveLabelForSeries: ResolveCurveLabelForSeries = (_file, series, index) =>
     resolveDeviceAnalysisSeriesLabel(series, index),
+  resolveAxisTitleForFile: ResolveAxisTitleForFile = () => "",
 ): DeviceAnalysisOriginCurveEntry[] => {
   const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
   const selectedSeries = resolveSelectedSeriesForOriginCanvas(
@@ -283,9 +288,15 @@ const buildOriginCurveEntriesForCanvas = (
   const rawYScaleFactor = Number(resolveYScaleFactorForFile(file));
   const yScaleFactor =
     Number.isFinite(rawYScaleFactor) && rawYScaleFactor > 0 ? rawYScaleFactor : 1;
-  const xLongName = stripAxisUnitSuffix(file?.xLabel) || "X";
+  const xLongName =
+    stripAxisUnitSuffix(resolveAxisTitleForFile(file, "x")) ||
+    stripAxisUnitSuffix(file?.xLabel) ||
+    "X";
   const xUnits = String(file?.xUnit ?? "").trim();
-  const yAxisLongName = stripAxisUnitSuffix(file?.yLabel) || "Y";
+  const yAxisLongName =
+    stripAxisUnitSuffix(resolveAxisTitleForFile(file, "y")) ||
+    stripAxisUnitSuffix(file?.yLabel) ||
+    "Y";
   const yUnits = String(resolveYUnitLabelForFile(file) ?? "").trim();
   const useCurveLabelAsYLongName = selectedSeries.length > 1;
   const resolveCurveLabel = (series: ProcessedSeriesLike, index: number): string =>
@@ -421,6 +432,7 @@ export const buildDeviceAnalysisOriginCanvasExport = (
     String(source?.yUnit ?? "").trim(),
   resolveCurveLabelForSeries: ResolveCurveLabelForSeries = (_file, series, index) =>
     resolveDeviceAnalysisSeriesLabel(series, index),
+  resolveAxisTitleForFile: ResolveAxisTitleForFile = () => "",
 ): DeviceAnalysisOriginSelectionExport | null => {
   if (!canvas) return null;
 
@@ -431,6 +443,7 @@ export const buildDeviceAnalysisOriginCanvasExport = (
     resolveYScaleFactorForFile,
     resolveYUnitLabelForFile,
     resolveCurveLabelForSeries,
+    resolveAxisTitleForFile,
   );
   if (!curveEntries.length) return null;
 
@@ -460,6 +473,7 @@ export const buildDeviceAnalysisOriginSelectionExport = (
     String(source?.yUnit ?? "").trim(),
   resolveCurveLabelForSeries: ResolveCurveLabelForSeries = (_file, series, index) =>
     resolveDeviceAnalysisSeriesLabel(series, index),
+  resolveAxisTitleForFile: ResolveAxisTitleForFile = () => "",
 ): DeviceAnalysisOriginSelectionExport | null => {
   const liveCanvases = (Array.isArray(selectedCanvases) ? selectedCanvases : []).filter(
     (file): file is ProcessedEntryLike => Boolean(file),
@@ -474,6 +488,7 @@ export const buildDeviceAnalysisOriginSelectionExport = (
       resolveYScaleFactorForFile,
       resolveYUnitLabelForFile,
       resolveCurveLabelForSeries,
+      resolveAxisTitleForFile,
     ),
   );
   if (!curveEntries.length) return null;
@@ -516,6 +531,7 @@ const buildDeviceAnalysisOriginWorkbookSheetsExports = (
     String(source?.yUnit ?? "").trim(),
   resolveCurveLabelForSeries: ResolveCurveLabelForSeries = (_file, series, index) =>
     resolveDeviceAnalysisSeriesLabel(series, index),
+  resolveAxisTitleForFile: ResolveAxisTitleForFile = () => "",
 ): DeviceAnalysisOriginSelectionExport[] => {
   const liveCanvases = (Array.isArray(selectedCanvases) ? selectedCanvases : []).filter(
     (file): file is ProcessedEntryLike => Boolean(file),
@@ -542,6 +558,7 @@ const buildDeviceAnalysisOriginWorkbookSheetsExports = (
         resolveYScaleFactorForFile,
         resolveYUnitLabelForFile,
         resolveCurveLabelForSeries,
+        resolveAxisTitleForFile,
       );
       if (!exportPayload) return null;
       return {
@@ -569,6 +586,7 @@ export const buildDeviceAnalysisOriginExportsByMode = (
     String(source?.yUnit ?? "").trim(),
   resolveCurveLabelForSeries: ResolveCurveLabelForSeries = (_file, series, index) =>
     resolveDeviceAnalysisSeriesLabel(series, index),
+  resolveAxisTitleForFile: ResolveAxisTitleForFile = () => "",
 ): DeviceAnalysisOriginSelectionExport[] => {
   const liveCanvases = (Array.isArray(selectedCanvases) ? selectedCanvases : []).filter(
     (file): file is ProcessedEntryLike => Boolean(file),
@@ -583,6 +601,7 @@ export const buildDeviceAnalysisOriginExportsByMode = (
       resolveYScaleFactorForFile,
       resolveYUnitLabelForFile,
       resolveCurveLabelForSeries,
+      resolveAxisTitleForFile,
     );
   }
 
@@ -596,6 +615,7 @@ export const buildDeviceAnalysisOriginExportsByMode = (
           resolveYScaleFactorForFile,
           resolveYUnitLabelForFile,
           resolveCurveLabelForSeries,
+          resolveAxisTitleForFile,
         ),
       )
       .filter((item): item is DeviceAnalysisOriginSelectionExport => Boolean(item));
@@ -608,6 +628,7 @@ export const buildDeviceAnalysisOriginExportsByMode = (
     resolveYScaleFactorForFile,
     resolveYUnitLabelForFile,
     resolveCurveLabelForSeries,
+    resolveAxisTitleForFile,
   );
   return merged ? [merged] : [];
 };
@@ -644,6 +665,7 @@ export const buildDeviceAnalysisOriginExportPlan = (
     String(source?.yUnit ?? "").trim(),
   resolveCurveLabelForSeries: ResolveCurveLabelForSeries = (_file, series, index) =>
     resolveDeviceAnalysisSeriesLabel(series, index),
+  resolveAxisTitleForFile: ResolveAxisTitleForFile = () => "",
 ): DeviceAnalysisOriginExportPlan => {
   const liveCanvases = (Array.isArray(selectedCanvases) ? selectedCanvases : []).filter(
     (file): file is ProcessedEntryLike => Boolean(file),
@@ -667,6 +689,7 @@ export const buildDeviceAnalysisOriginExportPlan = (
       resolveYScaleFactorForFile,
       resolveYUnitLabelForFile,
       resolveCurveLabelForSeries,
+      resolveAxisTitleForFile,
     ).map((payload) => ({
       ...payload,
       yScaleMode: resolveNormalizedOriginYScale(
@@ -712,6 +735,7 @@ export const buildDeviceAnalysisOriginExportPlan = (
       resolveYScaleFactorForFile,
       resolveYUnitLabelForFile,
       resolveCurveLabelForSeries,
+      resolveAxisTitleForFile,
     ).map((payload) => ({
       ...payload,
       yScaleMode: resolveNormalizedOriginYScale(resolveYScaleForFile(liveCanvases[0] ?? null)),
@@ -742,6 +766,7 @@ export const buildDeviceAnalysisOriginExportPlan = (
         resolveYScaleFactorForFile,
         resolveYUnitLabelForFile,
         resolveCurveLabelForSeries,
+        resolveAxisTitleForFile,
       );
       if (!payload) return null;
       const suffix = scaleMode === "log" ? "log" : "linear";

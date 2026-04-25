@@ -300,6 +300,7 @@ const AXIS_TITLE_EDGE_PADDING_PX = 14;
 const AXIS_LABEL_COLOR = "#000000";
 const AXIS_TITLE_EDIT_MIN_WIDTH_PX = 64;
 const AXIS_TITLE_EDIT_MAX_WIDTH_PX = 260;
+const Y_AXIS_TITLE_EDIT_X_OFFSET_PX = -12;
 const CURRENT_BIAS_DRAG_TOLERANCE_PX = 22;
 const CURRENT_BIAS_HIT_WIDTH_PX = 28;
 const SS_HANDLE_TOLERANCE_PX = 14;
@@ -865,7 +866,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
         width: titleTextWidth(xAxisEditableLabel),
       },
       y: {
-        centerX: yTitleX,
+        centerX: yTitleX + Y_AXIS_TITLE_EDIT_X_OFFSET_PX,
         centerY: plotRect.top + plotRect.height / 2,
         height: axisTitleFontSize + 10,
         width: titleTextWidth(yAxisEditableLabel),
@@ -1085,7 +1086,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
       ctx.font = `${axisTitleFontSize}px ${AXIS_FONT_FAMILY}`;
       ctx.textAlign = "center";
       ctx.textBaseline = "bottom";
-      if (xAxisLabel) {
+      if (xAxisLabel && editingAxisTitle !== "x") {
         const xTitleBottom =
           plotBottom +
           tickLabelOffsetPx +
@@ -1094,7 +1095,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
           axisTitleFontSize;
         ctx.fillText(xAxisLabel, plotRect.left + plotRect.width / 2, xTitleBottom);
       }
-      if (yAxisLabel) {
+      if (yAxisLabel && editingAxisTitle !== "y") {
         ctx.save();
         const yTitleX =
           plotRect.left -
@@ -1280,6 +1281,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
     curveRenderMode,
     currentBiasMarkers,
     effectiveYScale,
+    editingAxisTitle,
     focusedSeriesColor,
     focusedSeriesId,
     focusedSsOverlay,
@@ -1441,7 +1443,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
               ref={axisTitleInputRef}
               size="sm"
               className="h-full w-full"
-              fieldClassName="!h-full !rounded-md !border-border !bg-bg-surface !px-2"
+              fieldClassName="!h-full !rounded-md !border-border !bg-bg-page !px-2"
               inputClassName="!text-center"
               style={{
                 color: AXIS_LABEL_COLOR,
@@ -1489,7 +1491,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
               ref={axisTitleInputRef}
               size="sm"
               className="h-full w-full"
-              fieldClassName="!h-full !rounded-md !border-border !bg-bg-surface !px-2"
+              fieldClassName="!h-full !rounded-md !border-border !bg-bg-page !px-2"
               inputClassName="!text-center"
               style={{
                 color: AXIS_LABEL_COLOR,
@@ -2449,6 +2451,13 @@ const MainPlotChart = memo(function MainPlotChart({
 
   const chartYDomain = useMemo<[number, number]>(() => {
     if (effectiveYScale === "linear") {
+      if (Array.isArray(yTicks) && yTicks.length >= 2) {
+        const tickMin = Number(yTicks[0]);
+        const tickMax = Number(yTicks[yTicks.length - 1]);
+        if (Number.isFinite(tickMin) && Number.isFinite(tickMax)) {
+          return [tickMin, tickMax];
+        }
+      }
       return yDomain;
     }
 

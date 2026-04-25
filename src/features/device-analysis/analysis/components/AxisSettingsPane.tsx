@@ -22,7 +22,6 @@ type AxisSettingsPaneProps = {
   xTooltipDigitsAuto: number;
   originOpenPlotOptions: OriginPlotOptions;
   onOriginOpenPlotOptionsChange?: (updates: Partial<OriginPlotOptions>) => void;
-  onAxisYScaleChange: (next: any) => void;
   onClose: () => void;
   analysisCompactInputWrapperClass: string;
   analysisCompactInputClass: string;
@@ -66,7 +65,6 @@ export default function AxisSettingsPane({
   xTooltipDigitsAuto,
   originOpenPlotOptions,
   onOriginOpenPlotOptionsChange,
-  onAxisYScaleChange,
   onClose,
   analysisCompactInputWrapperClass,
   analysisCompactInputClass,
@@ -101,6 +99,25 @@ export default function AxisSettingsPane({
     if (event.key !== "Enter") return;
     event.preventDefault();
     event.currentTarget.blur();
+  };
+
+  const handleXAxisTickModeChange = (next: any) => {
+    setAxis((prev: any) => ({
+      ...prev,
+      xTicks: next,
+      xTickCount: next === "nice" ? prev.xTickCount : "",
+      xStep: next === "step" ? prev.xStep : "",
+    }));
+  };
+
+  const handleYAxisTickModeChange = (next: any) => {
+    setAxis((prev: any) => ({
+      ...prev,
+      yTicks: next,
+      yTickCount: next === "nice" ? prev.yTickCount : "",
+      yStep: next === "step" ? prev.yStep : "",
+      yDecadeStep: next === "decades" ? prev.yDecadeStep : "",
+    }));
   };
 
   const commitLineWidthDraft = (nextDraft = lineWidthDraft) => {
@@ -373,7 +390,7 @@ export default function AxisSettingsPane({
               <DropdownField
                 size="sm"
                 value={axis.xTicks}
-                onChange={(next: any) => setAxis((prev: any) => ({ ...prev, xTicks: next }))}
+                onChange={handleXAxisTickModeChange}
                 options={[
                   { value: "auto", label: t("da_chart_axis_auto") },
                   { value: "nice", label: t("da_chart_axis_nice") },
@@ -386,7 +403,7 @@ export default function AxisSettingsPane({
               <div className="text-xs text-text-secondary">{t("da_chart_axis_count")}</div>
               <Input
                 id="device-analysis-axis-x-tick-count"
-                value={axis.xTickCount}
+                value={axis.xTicks === "nice" ? axis.xTickCount : ""}
                 onChange={(nextValue) =>
                   setAxis((prev: any) => ({ ...prev, xTickCount: nextValue }))
                 }
@@ -403,7 +420,7 @@ export default function AxisSettingsPane({
               <div className="text-xs text-text-secondary">{t("da_chart_axis_step")}</div>
               <Input
                 id="device-analysis-axis-x-step"
-                value={axis.xStep}
+                value={axis.xTicks === "step" ? axis.xStep : ""}
                 onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, xStep: nextValue }))}
                 onKeyDown={blurInputOnEnter}
                 disabled={axis.xTicks !== "step"}
@@ -470,26 +487,11 @@ export default function AxisSettingsPane({
               />
             </div>
             <div className={settingRowClassName}>
-              <div className="text-xs text-text-secondary">{t("da_chart_axis_scale")}</div>
-              <DropdownField
-                size="sm"
-                value={axis.yScale}
-                onChange={onAxisYScaleChange}
-                options={[
-                  { value: "linear", label: "linear" },
-                  { value: "log", label: "log" },
-                  { value: "logAbs", label: "log(|y|)" },
-                ]}
-                className={compactInputWidth}
-                title="Scale"
-              />
-            </div>
-            <div className={settingRowClassName}>
               <div className="text-xs text-text-secondary">{t("da_chart_axis_ticks")}</div>
               <DropdownField
                 size="sm"
                 value={axis.yTicks}
-                onChange={(next: any) => setAxis((prev: any) => ({ ...prev, yTicks: next }))}
+                onChange={handleYAxisTickModeChange}
                 options={
                   effectiveYScale === "linear"
                     ? [
@@ -513,7 +515,7 @@ export default function AxisSettingsPane({
                   </div>
                   <Input
                     id="device-analysis-axis-y-step"
-                    value={axis.yStep}
+                    value={axis.yTicks === "step" ? axis.yStep : ""}
                     onChange={(nextValue) =>
                       setAxis((prev: any) => ({ ...prev, yStep: nextValue }))
                     }
@@ -530,7 +532,7 @@ export default function AxisSettingsPane({
                   <div className="text-xs text-text-secondary">{t("da_chart_axis_count")}</div>
                   <Input
                     id="device-analysis-axis-y-tick-count"
-                    value={axis.yTickCount}
+                    value={axis.yTicks === "nice" ? axis.yTickCount : ""}
                     onChange={(nextValue) =>
                       setAxis((prev: any) => ({ ...prev, yTickCount: nextValue }))
                     }
@@ -549,7 +551,7 @@ export default function AxisSettingsPane({
                 <div className="text-xs text-text-secondary">{t("da_chart_axis_decade_step")}</div>
                 <Input
                   id="device-analysis-axis-y-decade-step"
-                  value={axis.yDecadeStep}
+                  value={axis.yTicks === "decades" ? axis.yDecadeStep : ""}
                   onChange={(nextValue) =>
                     setAxis((prev: any) => ({ ...prev, yDecadeStep: nextValue }))
                   }

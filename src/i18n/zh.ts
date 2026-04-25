@@ -449,7 +449,7 @@
     da_chart_axis_min: '\u6700\u5c0f\u503c',
     da_chart_axis_max: '\u6700\u5927\u503c',
     da_chart_axis_ticks: '\u4e3b\u523b\u5ea6',
-    da_chart_axis_count: '\u6570\u91cf',
+    da_chart_axis_count: '\u4e3b\u523b\u5ea6\u6570\u91cf',
     da_chart_axis_step: '\u6b65\u957f',
     da_chart_axis_scale: '\u5750\u6807\u7c7b\u578b',
     da_chart_axis_decade_step: '\u6570\u91cf\u7ea7\u6b65\u957f',

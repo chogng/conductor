@@ -992,6 +992,12 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const fileId = String(activeFile?.fileId ?? "").trim();
         return fileId ? axisTitleOverridesByFileId[fileId] ?? {} : {};
     }, [activeFile?.fileId, axisTitleOverridesByFileId]);
+    const resolveAxisTitleForOrigin = React.useCallback((file: any, axisKey: "x" | "y") => {
+        const fileId = String(file?.fileId ?? "").trim();
+        if (!fileId)
+            return "";
+        return axisTitleOverridesByFileId[fileId]?.[axisKey] ?? "";
+    }, [axisTitleOverridesByFileId]);
     const resolveLinearLogYScaleForFile = React.useCallback((fileLike: any): "linear" | "log" => {
         const fileKey = String(fileLike?.fileId ?? "").trim();
         if (!fileKey)
@@ -1133,6 +1139,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         originOpenPlotOptions,
         processedData,
         resolveCurveLabelForSeries: (file, series, index) => resolveDisplayLegendLabel(file?.fileId, series, index),
+        resolveAxisTitleForFile: resolveAxisTitleForOrigin,
         resolveYScaleForFile: resolveLinearLogYScaleForFile,
         resolveYUnitForFile,
         showToast,
@@ -3156,7 +3163,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             xTooltipDigitsAuto={xTooltipDigitsAuto}
             originOpenPlotOptions={normalizedOriginOpenPlotOptions}
             onOriginOpenPlotOptionsChange={handleOriginOpenPlotOptionsChange}
-            onAxisYScaleChange={handleAxisYScaleChange}
             onClose={() => setShowPlotSettingsPane(false)}
             analysisCompactInputWrapperClass={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS}
             analysisCompactInputClass={ANALYSIS_COMPACT_INPUT_CLASS}
@@ -3471,7 +3477,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             yScaleWarning={yScaleWarning}
             xTooltipDigitsAuto={xTooltipDigitsAuto}
             onPersistIonIoffTargets={handlePersistIonIoffTarget}
-            onAxisYScaleChange={handleAxisYScaleChange}
             analysisCompactInputWrapperClass={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS}
             analysisCompactInputClass={ANALYSIS_COMPACT_INPUT_CLASS}
             analysisCompactPageFieldClass={ANALYSIS_COMPACT_PAGE_FIELD_CLASS}

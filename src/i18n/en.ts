@@ -450,7 +450,7 @@
     da_chart_axis_min: 'min',
     da_chart_axis_max: 'max',
     da_chart_axis_ticks: 'Major ticks',
-    da_chart_axis_count: 'count',
+    da_chart_axis_count: 'Major tick count',
     da_chart_axis_step: 'step',
     da_chart_axis_scale: 'scale',
     da_chart_axis_decade_step: 'decade step',

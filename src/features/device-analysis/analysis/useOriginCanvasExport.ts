@@ -86,6 +86,10 @@ type UseOriginCanvasExportOptions = {
     series: any,
     index: number,
   ) => string;
+  resolveAxisTitleForFile?: (
+    file: any,
+    axis: "x" | "y",
+  ) => string | null | undefined;
   resolveYUnitForFile?: (file: any) => string;
   showToast: (message: string, type?: any) => void;
   t: (key: string, params?: any) => string;
@@ -215,6 +219,7 @@ export const useOriginCanvasExport = ({
   processedData,
   resolveCurveLabelForSeries = (_file, series, index) =>
     resolveDeviceAnalysisSeriesLabel(series, index),
+  resolveAxisTitleForFile = () => "",
   resolveYScaleForFile = () => "linear",
   resolveYUnitForFile = () => "A",
   showToast,
@@ -818,6 +823,7 @@ export const useOriginCanvasExport = ({
       (file) => getDeviceAnalysisYUnitMeta(resolveYUnitForFile(file)).factor,
       (file) => getDeviceAnalysisYUnitMeta(resolveYUnitForFile(file)).label,
       resolveCurveLabelForSeries,
+      resolveAxisTitleForFile,
     );
     if (!plan.payloads.length) {
       throw new Error(t("da_origin_select_curve"));
@@ -827,6 +833,7 @@ export const useOriginCanvasExport = ({
     originSelectedSeriesIdsByFile,
     resolveYScaleForFile,
     resolveCurveLabelForSeries,
+    resolveAxisTitleForFile,
     resolveYUnitForFile,
     resolvedOriginExportMode,
     selectedOriginCanvases,
