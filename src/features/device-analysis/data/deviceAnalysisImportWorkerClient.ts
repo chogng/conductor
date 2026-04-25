@@ -91,13 +91,14 @@ type DesktopImportBridge = {
   }) => Promise<unknown>;
   analyzeDeviceAnalysisSeriesBatchWithRust?: (payload: {
     fileId?: string;
-    series: Array<{ id: string; x: number[]; y: number[] }>;
+    series: Array<{ groupIndex?: number; id: string; x?: number[]; y: number[] }>;
     sourceFile?: {
       curveType?: unknown;
       supportsSs?: unknown;
       xAxisRole?: unknown;
       xLabel?: unknown;
     } | null;
+    xGroups?: number[][];
   }) => Promise<unknown>;
 };
 

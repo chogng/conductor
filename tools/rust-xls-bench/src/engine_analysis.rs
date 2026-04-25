@@ -7,7 +7,10 @@ use std::thread;
 #[serde(rename_all = "camelCase")]
 pub struct AnalysisSeriesRequest {
     pub id: String,
+    #[serde(default)]
     pub x: Vec<f64>,
+    #[serde(default)]
+    pub group_index: Option<usize>,
     pub y: Vec<f64>,
 }
 
@@ -40,6 +43,12 @@ struct IndexedSegment {
 struct FiniteCurrentPoint {
     abs_i: f64,
     x: f64,
+}
+
+struct AnalysisSeriesView<'a> {
+    id: &'a str,
+    x: &'a [f64],
+    y: &'a [f64],
 }
 
 #[derive(Clone)]
@@ -1196,30 +1205,68 @@ pub fn compute_subthreshold_swing_fit_auto(x: &[f64], y: &[f64]) -> Value {
     })
 }
 
+fn resolve_analysis_series<'a>(
+    item: &'a AnalysisSeriesRequest,
+    x_groups: Option<&'a [Vec<f64>]>,
+) -> Option<AnalysisSeriesView<'a>> {
+    let x = if !item.x.is_empty() {
+        item.x.as_slice()
+    } else {
+        let group_index = item.group_index?;
+        x_groups?.get(group_index)?.as_slice()
+    };
+    if x.len().min(item.y.len()) < 3 {
+        return None;
+    }
+    Some(AnalysisSeriesView {
+        id: item.id.as_str(),
+        x,
+        y: item.y.as_slice(),
+    })
+}
+
 fn analyze_one_series(
-    item: &AnalysisSeriesRequest,
+    item: AnalysisSeriesView<'_>,
     source_file: Option<&AnalysisSourceFile>,
 ) -> (String, Value) {
+    let supports_ss = is_transfer_like_source_file(source_file);
+    let mut result = serde_json::Map::<String, Value>::new();
+    result.insert(
+        "baseCurrent".to_string(),
+        compute_base_current_metrics(&item.x, &item.y, source_file),
+    );
+    result.insert(
+        "gm".to_string(),
+        Value::Array(compute_central_derivative(&item.x, &item.y)),
+    );
+    if supports_ss {
+        result.insert(
+            "ss".to_string(),
+            Value::Array(compute_subthreshold_swing(&item.x, &item.y)),
+        );
+        result.insert(
+            "ssFitAuto".to_string(),
+            compute_subthreshold_swing_fit_auto(&item.x, &item.y),
+        );
+    }
     (
-        item.id.clone(),
-        json!({
-            "baseCurrent": compute_base_current_metrics(&item.x, &item.y, source_file),
-            "gm": compute_central_derivative(&item.x, &item.y),
-            "ss": compute_subthreshold_swing(&item.x, &item.y),
-            "ssFitAuto": compute_subthreshold_swing_fit_auto(&item.x, &item.y),
-        }),
+        item.id.to_string(),
+        Value::Object(result),
     )
 }
 
 pub fn analyze_series_batch(
     series: &[AnalysisSeriesRequest],
+    x_groups: Option<&[Vec<f64>]>,
     source_file: Option<&AnalysisSourceFile>,
 ) -> Value {
     let mut output = serde_json::Map::<String, Value>::new();
     if series.len() < 8 {
         for item in series {
-            let (id, value) = analyze_one_series(item, source_file);
-            output.insert(id, value);
+            if let Some(view) = resolve_analysis_series(item, x_groups) {
+                let (id, value) = analyze_one_series(view, source_file);
+                output.insert(id, value);
+            }
         }
         return Value::Object(output);
     }
@@ -1237,7 +1284,10 @@ pub fn analyze_series_batch(
             handles.push(scope.spawn(move || {
                 chunk
                     .iter()
-                    .map(|item| analyze_one_series(item, source_file))
+                    .filter_map(|item| {
+                        resolve_analysis_series(item, x_groups)
+                            .map(|view| analyze_one_series(view, source_file))
+                    })
                     .collect::<Vec<_>>()
             }));
         }
@@ -1256,10 +1306,11 @@ pub fn analyze_series_batch(
 pub fn analyze_series_batch_result(
     file_id: Option<&str>,
     series: &[AnalysisSeriesRequest],
+    x_groups: Option<&[Vec<f64>]>,
     source_file: Option<&AnalysisSourceFile>,
 ) -> Value {
     json!({
         "fileId": file_id,
-        "series": analyze_series_batch(series, source_file),
+        "series": analyze_series_batch(series, x_groups, source_file),
     })
 }

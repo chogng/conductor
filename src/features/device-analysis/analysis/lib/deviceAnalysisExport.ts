@@ -5,7 +5,8 @@ import {
   computeSubthresholdSwingFitInRange,
   resolveAutoSsSelection,
 } from "./analysisMath.ts";
-import { getExcelColumnLabel } from "../../shared/lib/deviceAnalysisUtils";
+import { isTransferLikeDeviceAnalysisFile } from "./deviceAnalysisMetrics.ts";
+import { getExcelColumnLabel } from "../../shared/lib/deviceAnalysisUtils.ts";
 import type { ProcessedEntry, ProcessedSeries } from "../../shared/lib/sharedTypes";
 export type {
   DeviceAnalysisOriginExportMode,
@@ -229,6 +230,7 @@ export const buildDeviceAnalysisSsMetricsCsv = ({
     const fileName = file?.fileName ?? "";
     const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
     const seriesList = Array.isArray(file?.series) ? file.series : [];
+    const supportsSs = isTransferLikeDeviceAnalysisFile(file);
 
     for (const series of seriesList) {
       const seriesId = series?.id ?? "";
@@ -252,7 +254,14 @@ export const buildDeviceAnalysisSsMetricsCsv = ({
       };
       let rangeSource = "";
 
-      if (method === "auto") {
+      if (!supportsSs) {
+        fit = { ok: false, reason: "not_transfer_curve" };
+        cls = {
+          ss_confidence: "fail",
+          ss_ok: false,
+          ss_reason: "not_transfer_curve",
+        };
+      } else if (method === "auto") {
         const autoFit = computeSubthresholdSwingFitAuto(points) as
           | Partial<{ strict: SsFit; suggested: SsFit }>
           | null

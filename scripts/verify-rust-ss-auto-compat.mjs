@@ -6,7 +6,10 @@ import {
   computeSubthresholdSwing,
   computeSubthresholdSwingFitAuto,
 } from "../src/features/device-analysis/analysis/lib/analysisMath.ts";
-import { computeBaseCurrentMetrics } from "../src/features/device-analysis/analysis/lib/deviceAnalysisMetrics.ts";
+import {
+  computeBaseCurrentMetrics,
+  isTransferLikeDeviceAnalysisFile,
+} from "../src/features/device-analysis/analysis/lib/deviceAnalysisMetrics.ts";
 import { buildPoints } from "../src/features/device-analysis/analysis/lib/analysisChartsUtils.ts";
 
 const ROOT = process.cwd();
@@ -65,6 +68,7 @@ const prepare = async () => {
   for (const entry of entries) {
     if (!entry?.ok || !entry?.result) continue;
     const file = entry.result;
+    if (!isTransferLikeDeviceAnalysisFile(file)) continue;
     const xGroups = safeArray(file.xGroups);
     const rustSeries = [];
     for (const item of safeArray(file.series)) {

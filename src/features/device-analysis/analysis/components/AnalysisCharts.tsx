@@ -1251,6 +1251,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         return map.get(series.id) ?? [];
     }, [activeFileCache, pointsBySeriesId]);
     const getSeriesSsDiagnostics = React.useCallback((series: any) => {
+        if (!transferMetricsApplicable)
+            return [];
         if (!series?.id)
             return [];
         const cache = activeFileCache?.ssDiagnosticsBySeriesId ?? new Map();
@@ -1263,8 +1265,13 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             cache.set(series.id, computed);
         }
         return computed;
-    }, [activeFileCache, pointsBySeriesId]);
+    }, [activeFileCache, pointsBySeriesId, transferMetricsApplicable]);
     const getSeriesSsAuto = React.useCallback((series: any) => {
+        if (!transferMetricsApplicable)
+            return {
+                strict: { ok: false, reason: "not_transfer_curve" },
+                suggested: { ok: false, reason: "not_transfer_curve" },
+            };
         if (!series?.id)
             return null;
         const cache = activeFileCache?.ssAutoBySeriesId ?? new Map();
@@ -1277,7 +1284,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             cache.set(series.id, computed);
         }
         return computed;
-    }, [activeFileCache, pointsBySeriesId]);
+    }, [activeFileCache, pointsBySeriesId, transferMetricsApplicable]);
     const getSeriesJ = React.useCallback((series: any) => {
         if (!series?.id || areaValue === null)
             return null;
@@ -1384,6 +1391,17 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 : null;
         const storedManual = manualBySeriesForActiveFile?.[series.id] ?? null;
         const resolveSelectedFit = () => {
+            if (!transferMetricsApplicable) {
+                const fit = { ok: false, reason: "not_transfer_curve" };
+                return {
+                    method: ssMethod === "manual" ? "manual" : "auto",
+                    confidence: "fail",
+                    reason: "not_transfer_curve",
+                    fit,
+                    rangeSource: null,
+                    xAt: null,
+                };
+            }
             if (ssMethod === "manual") {
                 const range = storedManual ?? initRange;
                 const lo = range ? Math.min(range.x1, range.x2) : null;
@@ -1474,7 +1492,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 joff: areaValue !== null && base.ioff !== null ? base.ioff / areaValue : null,
             },
         };
-    }, [activeFile, activeFileCache, areaValue, getSeriesGm, getSeriesJ, getSeriesSsAuto, getSeriesSsDiagnostics, gmModeKey, ionIoffManualTargetsBySeriesForActiveFile, ionIoffMethod, manualBySeriesForActiveFile, pointsBySeriesId, resolvedXUnitMeta.factor, ssMethod]);
+    }, [activeFile, activeFileCache, areaValue, getSeriesGm, getSeriesJ, getSeriesSsAuto, getSeriesSsDiagnostics, gmModeKey, ionIoffManualTargetsBySeriesForActiveFile, ionIoffMethod, manualBySeriesForActiveFile, pointsBySeriesId, resolvedXUnitMeta.factor, ssMethod, transferMetricsApplicable]);
     const progressiveAnalysisHandleRef = useRef<ProgressiveAnalysisHandle | null>(null);
     const progressiveAnalysisJobIdRef = useRef(0);
     const [detailAnalysisState, setDetailAnalysisState] = useState<ProgressiveAnalysisState>(() => ({
@@ -1712,6 +1730,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     }, [activeFile, activeFileCache, analysisCacheKey, areaValue, buildSeriesAnalysisEntry, detailAnalysisKey, ionIoffManualTargetsBySeriesForActiveFile, ionIoffManualTargetsSignature, ionIoffMethod, manualBySeriesForActiveFile, manualRangeSignature, resolvedXUnitMeta.factor, ssMethod]);
     const analysisBySeriesId = useMemo(() => detailAnalysisBySeriesId, [detailAnalysisBySeriesId]);
     const ssComputedApplicable = useMemo(() => {
+        if (!transferMetricsApplicable)
+            return false;
         if (!activeFile?.series?.length)
             return false;
         for (const series of activeFile.series) {
@@ -1735,7 +1755,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             }
         }
         return false;
-    }, [activeFile?.series, analysisBySeriesId]);
+    }, [activeFile?.series, analysisBySeriesId, transferMetricsApplicable]);
     const gmApplicable = useMemo(() => transferMetricsApplicable || outputMetricsApplicable, [outputMetricsApplicable, transferMetricsApplicable]);
     const ssApplicable = ssHeuristicApplicable || ssComputedApplicable;
     const effectivePlotType = useMemo(() => {

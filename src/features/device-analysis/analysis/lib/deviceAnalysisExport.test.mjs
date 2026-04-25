@@ -1,11 +1,45 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { buildDeviceAnalysisSsMetricsCsv } from "./deviceAnalysisExport.ts";
 import {
   buildDeviceAnalysisOriginExportPlan,
   buildDeviceAnalysisOriginExportsByMode,
   buildDeviceAnalysisOriginSelectionExport,
   isDeviceAnalysisOriginExportMode,
 } from "./originSelectionExport.ts";
+
+test("buildDeviceAnalysisSsMetricsCsv does not compute SS for output curves", () => {
+  const csv = buildDeviceAnalysisSsMetricsCsv({
+    processedData: [
+      {
+        fileId: "output-file",
+        fileName: "output.csv",
+        curveType: "output",
+        supportsSs: false,
+        xAxisRole: "vd",
+        xGroups: [[0, 0.5, 1, 1.5, 2]],
+        series: [
+          {
+            id: "curve-output",
+            name: "Vg=1",
+            groupIndex: 0,
+            y: [1e-12, 1e-10, 1e-8, 1e-6, 1e-4],
+          },
+        ],
+      },
+    ],
+    ssMethod: "auto",
+  });
+
+  const rows = csv.split(/\r?\n/);
+  const headers = rows[0].split(",");
+  const values = rows[1].split(",");
+  const byHeader = Object.fromEntries(headers.map((header, index) => [header, values[index]]));
+
+  assert.equal(byHeader.ss, "");
+  assert.equal(byHeader.ss_ok, "false");
+  assert.equal(byHeader.ss_reason, "not_transfer_curve");
+});
 
 test("buildDeviceAnalysisOriginSelectionExport merges selected curves from multiple files into one worksheet payload", () => {
   const payload = buildDeviceAnalysisOriginSelectionExport(

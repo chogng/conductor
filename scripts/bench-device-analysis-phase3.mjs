@@ -10,7 +10,10 @@ import {
   buildPoints,
   downsamplePointsForDisplay,
 } from "../src/features/device-analysis/analysis/lib/analysisChartsUtils.ts";
-import { computeBaseCurrentMetrics } from "../src/features/device-analysis/analysis/lib/deviceAnalysisMetrics.ts";
+import {
+  computeBaseCurrentMetrics,
+  isTransferLikeDeviceAnalysisFile,
+} from "../src/features/device-analysis/analysis/lib/deviceAnalysisMetrics.ts";
 
 const ROOT = process.cwd();
 const OUTPUT_DIR = path.join(ROOT, ".tooling", "device-analysis-phase3-bench");
@@ -164,6 +167,7 @@ const analyzeProcessedFile = (file) => {
   const xGroups = safeArray(file?.xGroups);
   const pointsBySeriesId = new Map();
   const gmBySeriesId = new Map();
+  const supportsSs = isTransferLikeDeviceAnalysisFile(file);
   let sourcePointCount = 0;
 
   measure(stageMs, "points", () => {
@@ -183,19 +187,21 @@ const analyzeProcessedFile = (file) => {
     }
   });
 
-  measure(stageMs, "ss", () => {
-    for (const item of series) {
-      if (!item?.id) continue;
-      computeSubthresholdSwing(pointsBySeriesId.get(item.id) ?? []);
-    }
-  });
+  if (supportsSs) {
+    measure(stageMs, "ss", () => {
+      for (const item of series) {
+        if (!item?.id) continue;
+        computeSubthresholdSwing(pointsBySeriesId.get(item.id) ?? []);
+      }
+    });
 
-  measure(stageMs, "ssAuto", () => {
-    for (const item of series) {
-      if (!item?.id) continue;
-      computeSubthresholdSwingFitAuto(pointsBySeriesId.get(item.id) ?? []);
-    }
-  });
+    measure(stageMs, "ssAuto", () => {
+      for (const item of series) {
+        if (!item?.id) continue;
+        computeSubthresholdSwingFitAuto(pointsBySeriesId.get(item.id) ?? []);
+      }
+    });
+  }
 
   measure(stageMs, "baseCurrent", () => {
     for (const item of series) {

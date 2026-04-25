@@ -5,7 +5,10 @@ import {
   computeSubthresholdSwingFitAuto,
 } from "./lib/analysisMath";
 import { buildPoints } from "./lib/analysisChartsUtils";
-import { computeBaseCurrentMetrics } from "./lib/deviceAnalysisMetrics";
+import {
+  computeBaseCurrentMetrics,
+  isTransferLikeDeviceAnalysisFile,
+} from "./lib/deviceAnalysisMetrics";
 import {
   getDeviceAnalysisPerfNow,
   logDeviceAnalysisPerf,
@@ -23,41 +26,37 @@ type CachePrefetchHandle =
       id: ReturnType<typeof setTimeout>;
     };
 
-const buildRustAnalysisSeriesPayload = (file: any, cache: any) => {
-  const payload = [];
+const buildRustAnalysisPayload = (file: any, cache: any) => {
+  const seriesPayload = [];
+  const supportsSs = isTransferLikeDeviceAnalysisFile(file);
   for (const series of file?.series ?? []) {
     if (!series?.id) continue;
     if (
       cache.gmByMode.x.has(series.id) &&
-      cache.ssDiagnosticsBySeriesId.has(series.id) &&
-      cache.ssAutoBySeriesId.has(series.id) &&
+      (!supportsSs ||
+        (cache.ssDiagnosticsBySeriesId.has(series.id) &&
+          cache.ssAutoBySeriesId.has(series.id))) &&
       cache.baseMetricsBySeriesId.has(series.id)
     ) {
       continue;
     }
-    const xArr = Array.isArray(file?.xGroups?.[series.groupIndex])
-      ? file.xGroups[series.groupIndex]
-      : [];
     const yArr = Array.isArray(series?.y) ? series.y : [];
-    const length = Math.min(xArr.length, yArr.length);
-    const x = [];
-    const y = [];
-    for (let index = 0; index < length; index += 1) {
-      const xv = xArr[index];
-      const yv = yArr[index];
-      if (!Number.isFinite(xv) || !Number.isFinite(yv)) continue;
-      x.push(xv);
-      y.push(yv);
-    }
-    if (x.length >= 3) {
-      payload.push({
+    const groupIndex = Number(series?.groupIndex ?? 0);
+    const xArr = Array.isArray(file?.xGroups?.[groupIndex])
+      ? file.xGroups[groupIndex]
+      : [];
+    if (Math.min(xArr.length, yArr.length) >= 3) {
+      seriesPayload.push({
+        groupIndex,
         id: series.id,
-        x,
-        y,
+        y: yArr,
       });
     }
   }
-  return payload;
+  return {
+    series: seriesPayload,
+    xGroups: Array.isArray(file?.xGroups) ? file.xGroups : [],
+  };
 };
 
 const getCachedSeriesPoints = (file: any, cache: any, series: any) => {
@@ -217,8 +216,10 @@ export const useAnalysisFileCache = ({
       };
       const cache = getFileCache(fileId, file);
       if (!cache) return;
+      const supportsSs = isTransferLikeDeviceAnalysisFile(file);
 
-      const rustAnalysisSeries = buildRustAnalysisSeriesPayload(file, cache);
+      const rustAnalysisPayload = buildRustAnalysisPayload(file, cache);
+      const rustAnalysisSeries = rustAnalysisPayload.series;
       const rustAnalyze =
         globalThis.window?.desktopImport?.analyzeDeviceAnalysisSeriesBatchWithRust;
       if (rustAnalyze && rustAnalysisSeries.length) {
@@ -227,6 +228,7 @@ export const useAnalysisFileCache = ({
           const response: any = await rustAnalyze({
             fileId,
             series: rustAnalysisSeries,
+            xGroups: rustAnalysisPayload.xGroups,
             sourceFile: {
               curveType: file?.curveType ?? null,
               supportsSs: file?.supportsSs ?? null,
@@ -245,13 +247,18 @@ export const useAnalysisFileCache = ({
                 stageCounts.gm += 1;
               }
               if (
+                supportsSs &&
                 Array.isArray(result?.ss) &&
                 !cache.ssDiagnosticsBySeriesId.has(series.id)
               ) {
                 cache.ssDiagnosticsBySeriesId.set(series.id, result.ss);
                 stageCounts.ss += 1;
               }
-              if (result?.ssFitAuto && !cache.ssAutoBySeriesId.has(series.id)) {
+              if (
+                supportsSs &&
+                result?.ssFitAuto &&
+                !cache.ssAutoBySeriesId.has(series.id)
+              ) {
                 cache.ssAutoBySeriesId.set(series.id, result.ssFitAuto);
                 stageCounts.ssAuto += 1;
               }
@@ -292,7 +299,7 @@ export const useAnalysisFileCache = ({
           stageMs.gm += getDeviceAnalysisPerfNow() - stageStartedAt;
           stageCounts.gm += 1;
         }
-        if (!cache.ssDiagnosticsBySeriesId.has(series.id)) {
+        if (supportsSs && !cache.ssDiagnosticsBySeriesId.has(series.id)) {
           const stageStartedAt = getDeviceAnalysisPerfNow();
           cache.ssDiagnosticsBySeriesId.set(
             series.id,
@@ -313,20 +320,22 @@ export const useAnalysisFileCache = ({
         }
       }
 
-      for (const series of file?.series ?? []) {
-        if (!series?.id || cache.ssAutoBySeriesId.has(series.id)) continue;
-        const stageStartedAt = getDeviceAnalysisPerfNow();
-        const pointsResult = getCachedSeriesPoints(file, cache, series);
-        stageMs.points += getDeviceAnalysisPerfNow() - stageStartedAt;
-        if (pointsResult.built) stageCounts.points += 1;
+      if (supportsSs) {
+        for (const series of file?.series ?? []) {
+          if (!series?.id || cache.ssAutoBySeriesId.has(series.id)) continue;
+          const stageStartedAt = getDeviceAnalysisPerfNow();
+          const pointsResult = getCachedSeriesPoints(file, cache, series);
+          stageMs.points += getDeviceAnalysisPerfNow() - stageStartedAt;
+          if (pointsResult.built) stageCounts.points += 1;
 
-        const ssAutoStartedAt = getDeviceAnalysisPerfNow();
-        cache.ssAutoBySeriesId.set(
-          series.id,
-          computeSubthresholdSwingFitAuto(pointsResult.points),
-        );
-        stageMs.ssAuto += getDeviceAnalysisPerfNow() - ssAutoStartedAt;
-        stageCounts.ssAuto += 1;
+          const ssAutoStartedAt = getDeviceAnalysisPerfNow();
+          cache.ssAutoBySeriesId.set(
+            series.id,
+            computeSubthresholdSwingFitAuto(pointsResult.points),
+          );
+          stageMs.ssAuto += getDeviceAnalysisPerfNow() - ssAutoStartedAt;
+          stageCounts.ssAuto += 1;
+        }
       }
 
       finishPerf({

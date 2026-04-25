@@ -1633,24 +1633,74 @@ async function handleDeviceAnalysisRustEngineProcessFile(_event, payload) {
   }
 }
 
-function normalizeDeviceAnalysisAnalysisSeries(rawSeries) {
+function toFiniteNumberArray(rawValues, limit = 10000) {
+  if (!Array.isArray(rawValues)) return null;
+  const length = Math.min(rawValues.length, limit);
+  const values = new Array(length);
+  for (let index = 0; index < length; index += 1) {
+    const value = Number(rawValues[index]);
+    if (!Number.isFinite(value)) return null;
+    values[index] = value;
+  }
+  return values;
+}
+
+function buildFilteredAnalysisPair(rawX, rawY) {
+  const length = Math.min(
+    Array.isArray(rawX) ? rawX.length : 0,
+    Array.isArray(rawY) ? rawY.length : 0,
+    10000,
+  );
+  const x = [];
+  const y = [];
+  for (let index = 0; index < length; index += 1) {
+    const xv = Number(rawX[index]);
+    const yv = Number(rawY[index]);
+    if (!Number.isFinite(xv) || !Number.isFinite(yv)) continue;
+    x.push(xv);
+    y.push(yv);
+  }
+  return x.length >= 3 ? { x, y } : null;
+}
+
+function normalizeDeviceAnalysisAnalysisXGroups(rawXGroups) {
+  if (!Array.isArray(rawXGroups)) return [];
+  return rawXGroups
+    .slice(0, 2000)
+    .map((group) => toFiniteNumberArray(group))
+    .map((group) => (Array.isArray(group) && group.length >= 3 ? group : []));
+}
+
+function normalizeDeviceAnalysisAnalysisSeries(rawSeries, normalizedXGroups = []) {
   if (!Array.isArray(rawSeries)) return [];
   return rawSeries
     .map((item) => {
       const id = typeof item?.id === "string" ? item.id.trim() : "";
-      const rawX = Array.isArray(item?.x) ? item.x : [];
       const rawY = Array.isArray(item?.y) ? item.y : [];
-      const length = Math.min(rawX.length, rawY.length, 10000);
-      const x = [];
-      const y = [];
-      for (let index = 0; index < length; index += 1) {
-        const xv = Number(rawX[index]);
-        const yv = Number(rawY[index]);
-        if (!Number.isFinite(xv) || !Number.isFinite(yv)) continue;
-        x.push(xv);
-        y.push(yv);
+      if (!id) return null;
+
+      if (Array.isArray(item?.x)) {
+        const pair = buildFilteredAnalysisPair(item.x, rawY);
+        return pair ? { id, ...pair } : null;
       }
-      return id && x.length >= 3 ? { id, x, y } : null;
+
+      const groupIndex = Number(item?.groupIndex);
+      if (
+        Number.isInteger(groupIndex) &&
+        groupIndex >= 0 &&
+        Array.isArray(normalizedXGroups[groupIndex]) &&
+        normalizedXGroups[groupIndex].length >= 3
+      ) {
+        const xGroup = normalizedXGroups[groupIndex];
+        const y = toFiniteNumberArray(rawY, xGroup.length);
+        if (y && Math.min(xGroup.length, y.length) >= 3) {
+          return { id, groupIndex, y };
+        }
+        const pair = buildFilteredAnalysisPair(xGroup, rawY);
+        return pair ? { id, ...pair } : null;
+      }
+
+      return null;
     })
     .filter(Boolean)
     .slice(0, 2000);
@@ -1672,7 +1722,8 @@ function normalizeDeviceAnalysisAnalysisSourceFile(rawSourceFile) {
 async function handleDeviceAnalysisRustEngineAnalyzeSeriesBatch(_event, payload) {
   const fileId =
     payload && typeof payload.fileId === "string" ? payload.fileId.trim() : "";
-  const series = normalizeDeviceAnalysisAnalysisSeries(payload?.series);
+  const xGroups = normalizeDeviceAnalysisAnalysisXGroups(payload?.xGroups);
+  const series = normalizeDeviceAnalysisAnalysisSeries(payload?.series, xGroups);
   if (!series.length) {
     return {
       ok: false,
@@ -1687,6 +1738,7 @@ async function handleDeviceAnalysisRustEngineAnalyzeSeriesBatch(_event, payload)
       fileId,
       series,
       sourceFile: normalizeDeviceAnalysisAnalysisSourceFile(payload?.sourceFile),
+      xGroups,
     });
     return {
       ok: true,

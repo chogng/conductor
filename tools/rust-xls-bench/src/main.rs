@@ -80,6 +80,7 @@ struct EngineRequest {
     source_file: Option<AnalysisSourceFile>,
     start_row: Option<usize>,
     max_points: Option<usize>,
+    x_groups: Option<Vec<Vec<f64>>>,
 }
 
 #[derive(Serialize)]
@@ -2118,6 +2119,7 @@ fn handle_engine_request(
             Ok(engine_analysis::analyze_series_batch_result(
                 request.file_id.as_deref(),
                 series,
+                request.x_groups.as_deref(),
                 request.source_file.as_ref(),
             ))
         }
