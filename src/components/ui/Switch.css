@@ -1,0 +1,90 @@
+.ui-switch {
+  --switch-padding: 2px;
+  --switch-thumb-size: calc(var(--switch-height) - (var(--switch-padding) * 2));
+  --switch-off: rgb(var(--bg-300) / 1);
+  --switch-off-hover: rgb(var(--bg-400) / 1);
+  --switch-thumb: rgb(var(--bg-surface) / 1);
+
+  position: relative;
+  display: inline-flex;
+  width: var(--switch-width);
+  height: var(--switch-height);
+  flex: 0 0 auto;
+  align-items: center;
+  border: 0;
+  border-radius: 9999px;
+  padding: var(--switch-padding);
+  background: var(--switch-off);
+  box-shadow:
+    inset 0 0 0 1px rgb(var(--border-200) / 0.28),
+    0 1px 2px rgb(0 0 0 / 0.06);
+  cursor: pointer;
+  transition:
+    background-color 140ms ease,
+    box-shadow 140ms ease,
+    opacity 140ms ease;
+}
+
+.ui-switch[data-state="checked"] {
+  background: var(--switch-on);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.14),
+    0 1px 2px rgb(0 0 0 / 0.08);
+}
+
+.ui-switch:not(:disabled):hover {
+  background: var(--switch-off-hover);
+}
+
+.ui-switch[data-state="checked"]:not(:disabled):hover {
+  background: var(--switch-on-hover);
+}
+
+.ui-switch:focus,
+.ui-switch:focus-visible {
+  outline: none;
+}
+
+html[data-nav="keyboard"] .ui-switch:focus-visible::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border: 2px solid rgb(var(--accent-terracotta) / 0.5);
+  border-radius: 9999px;
+  pointer-events: none;
+}
+
+.ui-switch:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.ui-switch__thumb {
+  display: block;
+  width: var(--switch-thumb-size);
+  height: var(--switch-thumb-size);
+  border-radius: 9999px;
+  background: var(--switch-thumb);
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.18),
+    0 0 0 1px rgb(0 0 0 / 0.03);
+  transform: translateX(0);
+  transition: transform 170ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.ui-switch[data-state="checked"] .ui-switch__thumb {
+  transform: translateX(calc(var(--switch-width) - var(--switch-height)));
+}
+
+.dark .ui-switch {
+  --switch-off: rgb(var(--bg-300) / 1);
+  --switch-off-hover: rgb(var(--bg-400) / 1);
+  --switch-thumb: rgb(var(--text-primary) / 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-switch,
+  .ui-switch__thumb {
+    transition: none;
+  }
+}
