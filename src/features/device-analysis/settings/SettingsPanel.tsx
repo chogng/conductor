@@ -153,18 +153,10 @@ const DeviceAnalysisSettingsPanel = ({
     },
     { value: "quit", label: t("da_settings_close_behavior_quit") },
   ];
-  const originPlotTypeOptions = [
-    { value: "200", label: t("da_settings_origin_plot_type_200") },
-    { value: "201", label: t("da_settings_origin_plot_type_201") },
-    { value: "202", label: t("da_settings_origin_plot_type_202") },
-  ];
   const yScaleOptions = [
     { value: "linear", label: "Linear" },
     { value: "log", label: "Log" },
   ];
-  const [lineWidthDraft, setLineWidthDraft] = useState(
-    String(originSettings.plotLineWidth ?? 2),
-  );
   const [xyPairsDraft, setXyPairsDraft] = useState(originSettings.plotXyPairs ?? "");
   const [plotCommandDraft, setPlotCommandDraft] = useState(
     originSettings.plotCommand ?? "",
@@ -193,10 +185,6 @@ const DeviceAnalysisSettingsPanel = ({
   const closeCleanupToast = useCallback(() => {
     setCleanupToast((prev) => ({ ...prev, isVisible: false }));
   }, []);
-
-  useEffect(() => {
-    setLineWidthDraft(String(originSettings.plotLineWidth ?? 2));
-  }, [originSettings.plotLineWidth]);
 
   useEffect(() => {
     setXyPairsDraft(originSettings.plotXyPairs ?? "");
@@ -742,44 +730,7 @@ const DeviceAnalysisSettingsPanel = ({
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="space-y-1 min-w-0">
-            <p className="text-xs text-text-secondary">
-              {t("da_settings_origin_plot_type_label")}
-            </p>
-            <DropdownField
-              id="device-analysis-settings-origin-plot-type-select"
-              menuId="device-analysis-settings-origin-plot-type-menu"
-              className="w-full"
-              value={String(originSettings.plotType ?? 202)}
-              onChange={(value) => {
-                void originSettings.onPlotTypeChange(value);
-              }}
-              options={originPlotTypeOptions}
-              disabled={originSettings.plotSaving || !originSettings.isConfigurable}
-            />
-          </div>
-
-          <div className="space-y-1 min-w-0">
-            <p className="text-xs text-text-secondary">
-              {t("da_settings_origin_plot_line_width_label")}
-            </p>
-            <Input
-              id="device-analysis-settings-origin-plot-line-width-input"
-              value={lineWidthDraft}
-              onChange={setLineWidthDraft}
-              onBlur={() => {
-                const nextValue = lineWidthDraft.trim();
-                if (nextValue === String(originSettings.plotLineWidth ?? 2)) return;
-                void originSettings.onPlotLineWidthChange(nextValue);
-              }}
-              disabled={originSettings.plotSaving || !originSettings.isConfigurable}
-            />
-            <p className="text-xs text-text-secondary">
-              {t("da_settings_origin_plot_line_width_hint")}
-            </p>
-          </div>
-
+        <div className="grid grid-cols-1 gap-3">
           <div className="space-y-1 min-w-0">
             <p className="text-xs text-text-secondary">
               {t("da_settings_origin_plot_xy_pairs_label")}

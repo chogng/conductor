@@ -802,6 +802,7 @@ const DeviceAnalysisPage = () => {
                   ssMethod={ssMethod}
                   ssShowFitLine={ssShowFitLine}
                   originOpenPlotOptions={originOpenPlotOptions}
+                  onOriginOpenPlotOptionsChange={handleUpdateDeviceAnalysisSettings}
                   t={tLoose}
                 />
               </Suspense>

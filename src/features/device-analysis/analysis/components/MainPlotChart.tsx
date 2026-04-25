@@ -90,6 +90,8 @@ type SsInteractionConfig = {
 
 type MainPlotChartProps = {
   plotType?: string;
+  curveLineWidth?: number;
+  curvePlotType?: number;
   activeFile?: Partial<{
     fileId: string;
     fileName: string;
@@ -128,6 +130,8 @@ type MainPlotChartProps = {
   legendWidth?: number;
   legendContent?: any;
 };
+
+type CurveRenderMode = "line" | "scatter" | "lineSymbol";
 
 type CanvasTooltipState = {
   cursorX?: number;
@@ -506,6 +510,8 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
   chartYDataKey,
   chartYDomain,
   chartYTicks,
+  curveLineWidth,
+  curveRenderMode,
   currentBiasMarkers,
   currentBiasInteraction,
   effectiveYScale,
@@ -546,6 +552,8 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
   chartYDataKey: string;
   chartYDomain: [number, number];
   chartYTicks?: number[] | null;
+  curveLineWidth: number;
+  curveRenderMode: CurveRenderMode;
   currentBiasMarkers: CurrentBiasMarker[];
   currentBiasInteraction?: CurrentBiasInteractionConfig | null;
   effectiveYScale: MainPlotChartProps["effectiveYScale"];
@@ -840,7 +848,34 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
     ctx.rect(plotRect.left, plotRect.top, plotRect.width, plotRect.height);
     ctx.clip();
 
-    const drawSeries = (
+    const drawSeriesSymbols = (
+      data: PlotPoint[] | null | undefined,
+      color: string,
+      radius: number,
+      alpha = 1,
+    ) => {
+      if (!Array.isArray(data) || !data.length) return;
+      ctx.save();
+      ctx.fillStyle = color;
+      ctx.globalAlpha = alpha;
+      const runs = collectCanvasLineRuns({
+        chartYDataKey,
+        data,
+        effectiveYScale,
+        xMax: scale.xMax,
+        xMin: scale.xMin,
+      });
+      for (const run of runs) {
+        for (const point of run) {
+          ctx.beginPath();
+          ctx.arc(scale.xToPx(point.x), scale.yToPx(point.y), radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+    };
+
+    const drawSeriesLine = (
       data: PlotPoint[] | null | undefined,
       color: string,
       width: number,
@@ -882,15 +917,18 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
     chartSeriesList.forEach((series, index) => {
       const isFocused = isSsPlot && focusedSeriesId && series.id === focusedSeriesId;
       const dimmed = isSsPlot && focusedSeriesId && series.id !== focusedSeriesId;
-      drawSeries(
-        series.data,
-        String(series.color || COLORS[index % COLORS.length] || "#8884d8"),
-        isFocused ? 2.5 : 2,
-        dimmed ? 0.35 : 1,
-      );
+      const color = String(series.color || COLORS[index % COLORS.length] || "#8884d8");
+      const alpha = dimmed ? 0.35 : 1;
+      const width = Math.max(0.5, isFocused ? curveLineWidth + 0.5 : curveLineWidth);
+      if (curveRenderMode === "line" || curveRenderMode === "lineSymbol") {
+        drawSeriesLine(series.data, color, width, alpha);
+      }
+      if (curveRenderMode === "scatter" || curveRenderMode === "lineSymbol") {
+        drawSeriesSymbols(series.data, color, curveRenderMode === "scatter" ? 3 : 2.6, alpha);
+      }
     });
     if (isSsPlot && chartFocusedFitLine) {
-      drawSeries(chartFocusedFitLine, focusedSeriesColor, 2, 0.7, [6, 4]);
+      drawSeriesLine(chartFocusedFitLine, focusedSeriesColor, 2, 0.7, [6, 4]);
     }
     ctx.restore();
 
@@ -957,6 +995,8 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
     chartSeriesList,
     chartYDataKey,
     chartYTicks,
+    curveLineWidth,
+    curveRenderMode,
     currentBiasMarkers,
     effectiveYScale,
     focusedSeriesColor,
@@ -1849,6 +1889,8 @@ const ChartInteractionOverlay = memo(function ChartInteractionOverlay({
 
 const MainPlotChart = memo(function MainPlotChart({
   plotType,
+  curveLineWidth = 2,
+  curvePlotType = 202,
   activeFile,
   seriesList,
   xDomain,
@@ -1898,6 +1940,16 @@ const MainPlotChart = memo(function MainPlotChart({
     }),
     [axisTitleFontSize, tickLabelFontSize],
   );
+  const normalizedCurveLineWidth = useMemo(() => {
+    const value = Number(curveLineWidth);
+    if (!Number.isFinite(value) || value <= 0) return 2;
+    return Math.min(20, Math.max(0.5, value));
+  }, [curveLineWidth]);
+  const curveRenderMode = useMemo<CurveRenderMode>(() => {
+    if (Number(curvePlotType) === 201) return "scatter";
+    if (Number(curvePlotType) === 202) return "lineSymbol";
+    return "line";
+  }, [curvePlotType]);
   const plotYKey = useMemo<PlotYKey>(() => {
     if (yScaleMode === "logAbs") return "yAbsPositive";
     if (yScaleMode === "log") {
@@ -2026,6 +2078,8 @@ const MainPlotChart = memo(function MainPlotChart({
       chartYDataKey={chartYDataKey}
       chartYDomain={chartYDomain}
       chartYTicks={chartYTicks}
+      curveLineWidth={normalizedCurveLineWidth}
+      curveRenderMode={curveRenderMode}
       currentBiasMarkers={currentBiasMarkers}
       currentBiasInteraction={currentBiasInteraction}
       effectiveYScale={effectiveYScale}

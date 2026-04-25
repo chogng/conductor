@@ -41,6 +41,7 @@ type AnalysisChartsLazyProps = {
   ssManualRanges?: SsManualRanges;
   setSsManualRanges?: (next: SsManualRanges) => void;
   originOpenPlotOptions?: OriginPlotOptions;
+  onOriginOpenPlotOptionsChange?: (updates: unknown) => Promise<unknown> | void;
 };
 
 const AnalysisCharts = lazy(loadAnalysisCharts) as ComponentType<AnalysisChartsLazyProps>;
@@ -89,6 +90,7 @@ const DeviceAnalysisAnalysisPanel = ({
   ssMethod,
   ssShowFitLine,
   originOpenPlotOptions,
+  onOriginOpenPlotOptionsChange,
   t,
 }: DeviceAnalysisAnalysisPanelProps) => {
   const hasProcessedData = processedData.length > 0;
@@ -121,6 +123,7 @@ const DeviceAnalysisAnalysisPanel = ({
               ssManualRanges={ssManualRanges}
               setSsManualRanges={setSsManualRanges}
               originOpenPlotOptions={originOpenPlotOptions}
+              onOriginOpenPlotOptionsChange={onOriginOpenPlotOptionsChange}
             />
           </Suspense>
         ) : null

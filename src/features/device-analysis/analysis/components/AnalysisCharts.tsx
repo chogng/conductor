@@ -11,7 +11,11 @@ import Tabs from "../../../../components/ui/Tabs";
 import Toast from "../../../../components/ui/Toast";
 import { useLanguage } from "../../../../hooks/useLanguage";
 import { COLORS } from "../lib/chartColors";
-import { DEFAULT_ORIGIN_PLOT_OPTIONS } from "../lib/originPlotOptions";
+import {
+  DEFAULT_ORIGIN_PLOT_OPTIONS,
+  normalizeOriginPlotOptions,
+  type OriginPlotOptions,
+} from "../lib/originPlotOptions";
 import {
   isDeviceAnalysisOriginExportMode,
   resolveDeviceAnalysisSeriesLabel,
@@ -455,7 +459,7 @@ const clampChartFontSize = (value: unknown, fallback: number): number => {
     return Math.min(32, Math.max(8, Math.round(num)));
 };
 
-const AnalysisCharts = ({ processedData, processingStatus, activeFileId: controlledActiveFileId = undefined, onActiveFileIdChange = undefined, showFileSelect = true, ionIoffMethod = "auto", setIonIoffMethod = () => { }, ionIoffManualTargetsByFileId = {}, setIonIoffManualTargetsByFileId = () => { }, ssMethod = "auto", setSsMethod = () => { }, ssDiagnosticsEnabled = true, setSsDiagnosticsEnabled = () => { }, gmDiagnosticsEnabled = false, setGmDiagnosticsEnabled = () => { }, ssShowFitLine = true, setSsShowFitLine = () => { }, ssManualRanges = {}, setSsManualRanges = () => { }, originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS, }: any) => {
+const AnalysisCharts = ({ processedData, processingStatus, activeFileId: controlledActiveFileId = undefined, onActiveFileIdChange = undefined, showFileSelect = true, ionIoffMethod = "auto", setIonIoffMethod = () => { }, ionIoffManualTargetsByFileId = {}, setIonIoffManualTargetsByFileId = () => { }, ssMethod = "auto", setSsMethod = () => { }, ssDiagnosticsEnabled = true, setSsDiagnosticsEnabled = () => { }, gmDiagnosticsEnabled = false, setGmDiagnosticsEnabled = () => { }, ssShowFitLine = true, setSsShowFitLine = () => { }, ssManualRanges = {}, setSsManualRanges = () => { }, originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS, onOriginOpenPlotOptionsChange = undefined, }: any) => {
     const { t } = useLanguage();
     const tLoose = React.useCallback<FormatOriginTranslateFn>((key, params) => t(key, params as any), [t]);
     const [internalActiveFileId, setInternalActiveFileId] = useState(processedData?.[0]?.fileId ?? null);
@@ -480,7 +484,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const userChangedYUnitRef = useRef(false);
     const userChangedYScaleRef = useRef(false);
     const [areaInput, setAreaInput] = useState("");
-    const [showAxisControls, setShowAxisControls] = useState(false);
+    const [showPlotSettingsPane, setShowPlotSettingsPane] = useState(false);
     const [originExportMode, setOriginExportMode] = useState<DeviceAnalysisOriginExportMode>("merged");
     const [originCanvasExportScope, setOriginCanvasExportScope] = useState<DeviceAnalysisOriginCanvasExportScope>("filtered");
     const [originCurveExportMode, setOriginCurveExportMode] = useState<DeviceAnalysisOriginCurveExportMode>("all");
@@ -2945,6 +2949,19 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             }));
         }
     }, [applyLinearLogYScaleForFile, effectiveActiveFileId]);
+    const handleOriginOpenPlotOptionsChange = React.useCallback((nextOptions: Partial<OriginPlotOptions>) => {
+        if (typeof onOriginOpenPlotOptionsChange !== "function")
+            return;
+        void onOriginOpenPlotOptionsChange({
+            ...(Object.prototype.hasOwnProperty.call(nextOptions, "type")
+                ? { originPlotTypeDefault: nextOptions.type }
+                : {}),
+            ...(Object.prototype.hasOwnProperty.call(nextOptions, "lineWidth")
+                ? { originPlotLineWidthDefault: nextOptions.lineWidth }
+            : {}),
+        });
+    }, [onOriginOpenPlotOptionsChange]);
+    const normalizedOriginOpenPlotOptions = useMemo(() => normalizeOriginPlotOptions(originOpenPlotOptions, DEFAULT_ORIGIN_PLOT_OPTIONS), [originOpenPlotOptions]);
     const metricsProgressText = useMemo(() => isMetricsDetailsPending
         ? `Computing details ${detailAnalysisState.completedCount}/${detailAnalysisState.totalCount}`
         : "", [detailAnalysisState.completedCount, detailAnalysisState.totalCount, isMetricsDetailsPending]);
@@ -2957,7 +2974,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         id="device-analysis-overview-sidebar"
         className="md:min-h-0 flex flex-col h-full"
       >
-        {showAxisControls ? (
+        {showPlotSettingsPane ? (
           <AxisSettingsPane
             axis={axis}
             setAxis={setAxis}
@@ -2965,11 +2982,12 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             plotYUnitLabel={plotYUnitLabel}
             yScaleWarning={yScaleWarning}
             xTooltipDigitsAuto={xTooltipDigitsAuto}
+            originOpenPlotOptions={normalizedOriginOpenPlotOptions}
+            onOriginOpenPlotOptionsChange={handleOriginOpenPlotOptionsChange}
             onAxisYScaleChange={handleAxisYScaleChange}
-            onClose={() => setShowAxisControls(false)}
+            onClose={() => setShowPlotSettingsPane(false)}
             analysisCompactInputWrapperClass={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS}
             analysisCompactInputClass={ANALYSIS_COMPACT_INPUT_CLASS}
-            analysisCompactSurfaceFieldClass={ANALYSIS_COMPACT_SURFACE_FIELD_CLASS}
             t={t}
           />
         ) : (
@@ -3140,8 +3158,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             value: f.fileId,
             label: f.fileName,
         }))} className="w-[240px] da-neutral-select" placeholder="Select File" data-cta="Device Analysis" data-cta-position="file-select" data-cta-copy="file select"/>) : null}
-                <Button id="device-analysis-axis-toggle-btn" variant="secondary" size="sm" onClick={() => setShowAxisControls((v: any) => !v)} className="h-8 px-3 text-xs border-border bg-bg-page hover:bg-bg-surface-hover" title="Axis settings">
-                  Axis
+                <Button id="device-analysis-plot-settings-toggle-btn" variant="secondary" size="sm" onClick={() => setShowPlotSettingsPane((v: any) => !v)} className="h-8 px-3 text-xs border-border bg-bg-page hover:bg-bg-surface-hover" title={t("da_chart_plot_settings_title")}>
+                  Plot
                 </Button>
               </div>
             </div>
@@ -3152,6 +3170,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
               <div ref={mainChartContainerRef} className="h-[500px] min-h-[500px] flex-shrink-0">
                 <MainPlotChart
                     plotType={effectivePlotType}
+                    curvePlotType={normalizedOriginOpenPlotOptions.type}
+                    curveLineWidth={normalizedOriginOpenPlotOptions.lineWidth}
                     activeFile={activeFile}
                     seriesList={renderPlotSeries}
                     xDomain={xDomain}
