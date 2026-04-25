@@ -105,6 +105,7 @@ type MainPlotChartProps = {
   plotXUnitLabel: string;
   xTickDigits: number;
   xTooltipDigits?: number;
+  curveProbeX?: number | null;
   xLabelInterval: number;
   effectiveYScale: "linear" | "log" | "logAbs";
   yDomain: [number, number];
@@ -125,6 +126,7 @@ type MainPlotChartProps = {
   ssInteraction?: SsInteractionConfig | null;
   showGrid?: boolean;
   showMajorTicks?: boolean;
+  showMinorTicks?: boolean;
   tickLabelFontSize?: number;
   axisTitleFontSize?: number;
   originTickLabelOffset?: unknown;
@@ -275,6 +277,8 @@ const GRID_DASH: [number, number] = [4, 4];
 const PLOT_BORDER_STROKE = "#000000";
 const MAJOR_TICK_LENGTH_PX = 6;
 const MAJOR_TICK_STROKE = "#000000";
+const MINOR_TICK_LENGTH_PX = 3.5;
+const MINOR_TICK_STROKE = "rgba(0,0,0,0.8)";
 const TICK_LABEL_COLOR = "#000000";
 const AXIS_FONT_FAMILY = "Arial, sans-serif";
 const DEFAULT_TICK_LABEL_FONT_SIZE = 18;
@@ -290,6 +294,7 @@ const SS_HANDLE_TOLERANCE_PX = 14;
 const SS_HANDLE_WIDTH_PX = 18;
 const SS_MOVE_BAND_HEIGHT_PX = 24;
 const CANVAS_TOOLTIP_EDGE_BUFFER_PX = 18;
+const CANVAS_TOOLTIP_PROBE_SNAP_PX = 8;
 
 type PlotRect = {
   left: number;
@@ -358,6 +363,56 @@ const clamp = (value: number, min: number, max: number): number =>
 
 const isFiniteNumber = (value: unknown): value is number =>
   Number.isFinite(Number(value));
+
+const buildLinearMinorTicks = (ticks: number[] | null | undefined): number[] => {
+  if (!Array.isArray(ticks) || ticks.length < 2) return [];
+  const result: number[] = [];
+  for (let index = 1; index < ticks.length; index += 1) {
+    const start = Number(ticks[index - 1]);
+    const end = Number(ticks[index]);
+    if (!Number.isFinite(start) || !Number.isFinite(end) || end === start) continue;
+    const step = (end - start) / 5;
+    for (let offset = 1; offset < 5; offset += 1) {
+      result.push(start + step * offset);
+    }
+  }
+  return result;
+};
+
+const buildLogMinorTicks = (domain: [number, number]): number[] => {
+  const minExp = Math.min(Number(domain[0]), Number(domain[1]));
+  const maxExp = Math.max(Number(domain[0]), Number(domain[1]));
+  if (!Number.isFinite(minExp) || !Number.isFinite(maxExp) || maxExp <= minExp) {
+    return [];
+  }
+  const result: number[] = [];
+  const startDecade = Math.floor(minExp);
+  const endDecade = Math.ceil(maxExp);
+  for (let decade = startDecade; decade < endDecade; decade += 1) {
+    for (let digit = 2; digit < 10; digit += 1) {
+      const tick = decade + Math.log10(digit);
+      if (tick <= minExp || tick >= maxExp) continue;
+      result.push(tick);
+    }
+  }
+  return result;
+};
+
+const filterTicksToDomain = (
+  ticks: number[] | null | undefined,
+  min: number,
+  max: number,
+): number[] => {
+  if (!Array.isArray(ticks)) return [];
+  const lo = Math.min(min, max);
+  const hi = Math.max(min, max);
+  const span = Math.max(1, Math.abs(hi - lo));
+  const epsilon = span * 1e-9;
+  return ticks.filter((tick) => {
+    const value = Number(tick);
+    return Number.isFinite(value) && value >= lo - epsilon && value <= hi + epsilon;
+  });
+};
 
 const getSortedDomain = (domain: [number, number]): [number, number] => {
   const a = Number(domain?.[0] ?? 0);
@@ -501,6 +556,57 @@ const getNearestCanvasTooltipPoint = (
   return best;
 };
 
+const interpolateCanvasTooltipPoint = (
+  lookup: CanvasTooltipLookup,
+  rawX: number,
+): CanvasTooltipPoint | null => {
+  const { points } = lookup;
+  if (!points.length) return null;
+  if (!lookup.monotonic || points.length < 2) {
+    return getNearestCanvasTooltipPoint(lookup, rawX);
+  }
+
+  let lo = 0;
+  let hi = points.length - 1;
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    const midX = points[mid].rawX;
+    if (lookup.monotonic === "asc") {
+      if (midX < rawX) lo = mid + 1;
+      else hi = mid;
+    } else if (midX > rawX) {
+      lo = mid + 1;
+    } else {
+      hi = mid;
+    }
+  }
+
+  const upper = points[lo];
+  const lower = points[lo - 1];
+  if (!lower || !upper) {
+    return getNearestCanvasTooltipPoint(lookup, rawX);
+  }
+  if (upper.rawX === rawX) return upper;
+  if (lower.rawX === rawX) return lower;
+
+  const dx = upper.rawX - lower.rawX;
+  if (!Number.isFinite(dx) || dx === 0) {
+    return getNearestCanvasTooltipPoint(lookup, rawX);
+  }
+  const t = (rawX - lower.rawX) / dx;
+  if (!Number.isFinite(t)) {
+    return getNearestCanvasTooltipPoint(lookup, rawX);
+  }
+  const tc = Math.max(0, Math.min(1, t));
+  return {
+    chartY: lower.chartY + tc * (upper.chartY - lower.chartY),
+    index: lower.index,
+    point: lower.point,
+    rawX,
+    rawY: lower.rawY + tc * (upper.rawY - lower.rawY),
+  };
+};
+
 const sameHoverTarget = (
   a: OverlayHoverTarget | null,
   b: OverlayHoverTarget | null,
@@ -540,6 +646,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
   legendContent,
   legendWidth,
   chartMargin,
+  curveProbeX,
   plotType,
   plotXFactor,
   plotXUnitLabel,
@@ -548,6 +655,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
   plotYUnitLabel,
   showGrid,
   showMajorTicks,
+  showMinorTicks,
   ssInteraction,
   ssOverlayStyle,
   tickLabelFontSize,
@@ -592,6 +700,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
   plotYUnitLabel: string;
   showGrid: boolean;
   showMajorTicks: boolean;
+  showMinorTicks: boolean;
   ssInteraction?: SsInteractionConfig | null;
   ssOverlayStyle: SsOverlayStyle;
   tickLabelFontSize: number;
@@ -600,6 +709,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
   xTickDigits: number;
   xTicks?: number[] | null;
   xTooltipDigits?: number;
+  curveProbeX?: number | null;
   axisTitleFontSize: number;
   axisTitleGapPx: number;
   yAxisLabel: string;
@@ -744,12 +854,20 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
       ctx.restore();
     };
 
-    const visibleXTicks = Array.isArray(xTicks) && xTicks.length >= 2
-      ? xTicks
+    const xTicksInDomain = filterTicksToDomain(xTicks, scale.xMin, scale.xMax);
+    const yTicksInDomain = filterTicksToDomain(chartYTicks, scale.yMin, scale.yMax);
+    const visibleXTicks = xTicksInDomain.length >= 2
+      ? xTicksInDomain
       : [scale.xMin, (scale.xMin + scale.xMax) / 2, scale.xMax];
-    const visibleYTicks = Array.isArray(chartYTicks) && chartYTicks.length >= 2
-      ? chartYTicks
+    const visibleYTicks = yTicksInDomain.length >= 2
+      ? yTicksInDomain
       : [scale.yMin, (scale.yMin + scale.yMax) / 2, scale.yMax];
+    const visibleXMinorTicks = showMinorTicks ? buildLinearMinorTicks(visibleXTicks) : [];
+    const visibleYMinorTicks = showMinorTicks
+      ? effectiveYScale === "linear"
+        ? buildLinearMinorTicks(visibleYTicks)
+        : buildLogMinorTicks(chartYDomain)
+      : [];
 
     const drawGridAndAxes = () => {
       ctx.save();
@@ -786,6 +904,24 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
       const plotBottom = plotRect.top + plotRect.height;
       ctx.strokeStyle = PLOT_BORDER_STROKE;
       ctx.strokeRect(plotRect.left, plotRect.top, plotRect.width, plotRect.height);
+      if (showMinorTicks) {
+        ctx.strokeStyle = MINOR_TICK_STROKE;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (const tick of visibleXMinorTicks) {
+          const x = scale.xToPx(tick);
+          if (x < plotRect.left - 0.5 || x > plotRight + 0.5) continue;
+          ctx.moveTo(x, plotBottom);
+          ctx.lineTo(x, plotBottom + MINOR_TICK_LENGTH_PX);
+        }
+        for (const tick of visibleYMinorTicks) {
+          const y = scale.yToPx(tick);
+          if (y < plotRect.top - 0.5 || y > plotBottom + 0.5) continue;
+          ctx.moveTo(plotRect.left, y);
+          ctx.lineTo(plotRect.left - MINOR_TICK_LENGTH_PX, y);
+        }
+        ctx.stroke();
+      }
       if (showMajorTicks) {
         ctx.strokeStyle = MAJOR_TICK_STROKE;
         ctx.lineWidth = 1.25;
@@ -1081,11 +1217,24 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
         setTooltip((prev) => ({ ...prev, visible: false }));
         return;
       }
-      const lookupX = clamp(rawX, tooltipXDomain[0], tooltipXDomain[1]);
+      let lookupX = clamp(rawX, tooltipXDomain[0], tooltipXDomain[1]);
+      let cursorX = mx;
+      const probeX = Number(curveProbeX);
+      if (
+        Number.isFinite(probeX) &&
+        probeX >= tooltipXDomain[0] &&
+        probeX <= tooltipXDomain[1]
+      ) {
+        const probePx = scale.xToPx(probeX);
+        if (Math.abs(mx - probePx) <= CANVAS_TOOLTIP_PROBE_SNAP_PX) {
+          lookupX = probeX;
+          cursorX = probePx;
+        }
+      }
 
       const entries: CanvasTooltipEntry[] = [];
       for (const { color, lookup, series } of tooltipLookups) {
-        const point = getNearestCanvasTooltipPoint(lookup, lookupX);
+        const point = interpolateCanvasTooltipPoint(lookup, lookupX);
         if (!point) continue;
         if (
           point.rawX < scale.xMin ||
@@ -1113,7 +1262,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
       }
 
       setTooltip({
-        cursorX: mx,
+        cursorX,
         entries,
         label: `x=${formatNumber(lookupX * plotXFactor, {
           digits: xTooltipDigits ?? xTickDigits,
@@ -1121,7 +1270,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
         seriesName: "",
         visible: true,
         x: clamp(
-          mx + 12,
+          cursorX + 12,
           plotRect.left + 4,
           Math.max(plotRect.left + 4, plotRect.left + plotRect.width - 280),
         ),
@@ -1134,6 +1283,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
     },
     [
       chartSeriesList.length,
+      curveProbeX,
       plotRect,
       plotXFactor,
       plotXUnitLabel,
@@ -1931,6 +2081,7 @@ const MainPlotChart = memo(function MainPlotChart({
   plotXUnitLabel,
   xTickDigits,
   xTooltipDigits,
+  curveProbeX,
   effectiveYScale,
   yDomain,
   yTicks,
@@ -1950,6 +2101,7 @@ const MainPlotChart = memo(function MainPlotChart({
   ssInteraction = null,
   showGrid = true,
   showMajorTicks = true,
+  showMinorTicks = true,
   tickLabelFontSize = DEFAULT_TICK_LABEL_FONT_SIZE,
   axisTitleFontSize = DEFAULT_AXIS_TITLE_FONT_SIZE,
   originTickLabelOffset,
@@ -1961,7 +2113,12 @@ const MainPlotChart = memo(function MainPlotChart({
     ? getDeviceAnalysisPerfNow()
     : 0;
   const tickLabelOffsetPx = useMemo(() => {
-    const baseOffset = showMajorTicks ? MAJOR_TICK_LENGTH_PX + 4 : 8;
+    const axisTickLength = showMajorTicks
+      ? MAJOR_TICK_LENGTH_PX
+      : showMinorTicks
+        ? MINOR_TICK_LENGTH_PX
+        : 0;
+    const baseOffset = axisTickLength > 0 ? axisTickLength + 4 : 8;
     const originOffset = normalizeAxisSpacingValue(originTickLabelOffset);
     if (originOffset === null) return baseOffset;
     return Math.max(
@@ -1971,7 +2128,7 @@ const MainPlotChart = memo(function MainPlotChart({
           tickLabelFontSize *
           PREVIEW_TICK_LABEL_OFFSET_SCALE,
     );
-  }, [originTickLabelOffset, showMajorTicks, tickLabelFontSize]);
+  }, [originTickLabelOffset, showMajorTicks, showMinorTicks, tickLabelFontSize]);
   const axisTitleGapPx = useMemo(() => {
     const originGap = normalizeAxisSpacingValue(originAxisTitleGap);
     if (originGap === null) return DEFAULT_AXIS_TITLE_GAP_PX;
@@ -2075,11 +2232,7 @@ const MainPlotChart = memo(function MainPlotChart({
 
   const chartYDomain = useMemo<[number, number]>(() => {
     if (effectiveYScale === "linear") {
-      return yTicks ? [yTicks[0], yTicks[yTicks.length - 1]] : yDomain;
-    }
-
-    if (Array.isArray(chartYTicks) && chartYTicks.length >= 2) {
-      return [chartYTicks[0], chartYTicks[chartYTicks.length - 1]];
+      return yDomain;
     }
 
     const lo = Math.min(Number(yDomain?.[0]), Number(yDomain?.[1]));
@@ -2088,7 +2241,7 @@ const MainPlotChart = memo(function MainPlotChart({
     const logHi = toLogChartValue(hi);
     if (logLo === null || logHi === null) return [0, 1];
     return [logLo, logHi];
-  }, [chartYTicks, effectiveYScale, yDomain, yTicks]);
+  }, [effectiveYScale, yDomain]);
 
   const yTickDigits = useMemo(() => {
     if (effectiveYScale !== "linear") return 4;
@@ -2123,13 +2276,7 @@ const MainPlotChart = memo(function MainPlotChart({
     [activeFile?.xLabel, plotXUnitLabel],
   );
 
-  const interactiveXDomain = useMemo<[number, number]>(
-    () =>
-      xTicks && xTicks.length >= 2
-        ? [Number(xTicks[0]), Number(xTicks[xTicks.length - 1])]
-        : xDomain,
-    [xDomain, xTicks],
-  );
+  const interactiveXDomain = useMemo<[number, number]>(() => xDomain, [xDomain]);
 
   return (
     <CanvasMainPlotChart
@@ -2155,6 +2302,7 @@ const MainPlotChart = memo(function MainPlotChart({
       legendContent={legendContent}
       legendWidth={legendWidth}
       chartMargin={chartMargin}
+      curveProbeX={curveProbeX}
       plotType={plotType}
       plotXFactor={plotXFactor}
       plotXUnitLabel={plotXUnitLabel}
@@ -2163,6 +2311,7 @@ const MainPlotChart = memo(function MainPlotChart({
       plotYUnitLabel={plotYUnitLabel}
       showGrid={showGrid}
       showMajorTicks={showMajorTicks}
+      showMinorTicks={showMinorTicks}
       ssInteraction={ssInteraction}
       ssOverlayStyle={ssOverlayStyle}
       tickLabelFontSize={tickLabelFontSize}

@@ -473,6 +473,32 @@ const clampChartFontSize = (value: unknown, fallback: number): number => {
     return Math.min(96, Math.max(1, Math.round(num)));
 };
 
+const makeStrictLinearDomain = (min: unknown, max: unknown): [number, number] => {
+    const minValue = Number(min);
+    const maxValue = Number(max);
+    if (!Number.isFinite(minValue) || !Number.isFinite(maxValue))
+        return [0, 1];
+    const lo = Math.min(minValue, maxValue);
+    const hi = Math.max(minValue, maxValue);
+    if (lo === hi)
+        return padLinearDomain(lo, hi);
+    return [lo, hi];
+};
+
+const makeStrictLogDomain = (min: unknown, max: unknown): [number, number] | null => {
+    const minValue = Number(min);
+    const maxValue = Number(max);
+    if (!Number.isFinite(minValue) || !Number.isFinite(maxValue))
+        return null;
+    const lo = Math.min(minValue, maxValue);
+    const hi = Math.max(minValue, maxValue);
+    if (!(lo > 0) || !(hi > 0))
+        return null;
+    if (lo === hi)
+        return padLogDomain(lo, hi);
+    return [lo, hi];
+};
+
 const AnalysisCharts = ({ processedData, processingStatus, activeFileId: controlledActiveFileId = undefined, onActiveFileIdChange = undefined, showFileSelect = true, ionIoffMethod = "auto", setIonIoffMethod = () => { }, ionIoffManualTargetsByFileId = {}, setIonIoffManualTargetsByFileId = () => { }, ssMethod = "auto", setSsMethod = () => { }, ssDiagnosticsEnabled = true, setSsDiagnosticsEnabled = () => { }, gmDiagnosticsEnabled = false, setGmDiagnosticsEnabled = () => { }, ssShowFitLine = true, setSsShowFitLine = () => { }, ssManualRanges = {}, setSsManualRanges = () => { }, originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS, onOriginOpenPlotOptionsChange = undefined, }: any) => {
     const { t } = useLanguage();
     const tLoose = React.useCallback<FormatOriginTranslateFn>((key, params) => t(key, params as any), [t]);
@@ -947,6 +973,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const hasManualYTickCount = Number(axis?.yTickCount ?? 6) !== 6;
         const hasManualGrid = axis?.showGrid === false;
         const hasManualMajorTicks = axis?.showMajorTicks === false;
+        const hasManualMinorTicks = axis?.showMinorTicks === false;
         const manualTickFont = parseOptionalNumber(axis?.tickLabelFontSize);
         const manualTitleFont = parseOptionalNumber(axis?.axisTitleFontSize);
         const hasManualTickFont = manualTickFont !== null && Math.round(manualTickFont) !== 18;
@@ -966,6 +993,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             hasManualYTickCount ||
             hasManualGrid ||
             hasManualMajorTicks ||
+            hasManualMinorTicks ||
             hasManualTickFont ||
             hasManualTitleFont ||
             hasManualLegendFont ||
@@ -985,6 +1013,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         axis?.yTicks,
         axis?.showGrid,
         axis?.showMajorTicks,
+        axis?.showMinorTicks,
         axis?.tickLabelFontSize,
         axis?.axisTitleFontSize,
         axis?.legendFontSize,
@@ -2431,7 +2460,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const maxUser = parseOptionalNumber(axis?.xMax);
         const min = minUser !== null ? minUser / plotXFactor : auto[0];
         const max = maxUser !== null ? maxUser / plotXFactor : auto[1];
-        return padLinearDomain(min, max);
+        return minUser !== null || maxUser !== null
+            ? makeStrictLinearDomain(min, max)
+            : padLinearDomain(min, max);
     }, [autoMinMax.maxX, autoMinMax.minX, axis?.xMax, axis?.xMin, plotXFactor]);
     const yDomain = useMemo<[number, number]>(() => {
         const auto: [number, number] = autoMinMax.minY === null || autoMinMax.maxY === null
@@ -2447,6 +2478,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const maxUser = maxUserRaw !== null ? maxUserRaw / plotYFactor : null;
         let min = minUser ?? auto[0];
         let max = maxUser ?? auto[1];
+        const hasManualRange = minUserRaw !== null || maxUserRaw !== null;
         if (effectiveYScale !== "linear") {
             if (min <= 0)
                 min = auto[0];
@@ -2454,9 +2486,14 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 max = auto[1];
             if (min <= 0 || max <= 0)
                 return auto;
+            if (hasManualRange) {
+                const strictDomain = makeStrictLogDomain(min, max);
+                if (strictDomain)
+                    return strictDomain;
+            }
             return padLogDomain(min, max);
         }
-        return padLinearDomain(min, max);
+        return hasManualRange ? makeStrictLinearDomain(min, max) : padLinearDomain(min, max);
     }, [
         autoMinMax.maxY,
         autoMinMax.minY,
@@ -3234,6 +3271,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     plotXUnitLabel={resolvedXUnitMeta.label}
                     xTickDigits={xTickDigitsDisplay}
                     xTooltipDigits={xTooltipDigits}
+                    curveProbeX={curveProbeX}
                     xLabelInterval={xLabelInterval}
                     effectiveYScale={effectiveYScale}
                     yDomain={yDomain}
@@ -3266,6 +3304,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     : null}
                     showGrid={axis?.showGrid !== false}
                     showMajorTicks={axis?.showMajorTicks !== false}
+                    showMinorTicks={axis?.showMinorTicks !== false}
                     tickLabelFontSize={mainPlotTickLabelFontSize}
                     axisTitleFontSize={mainPlotAxisTitleFontSize}
                     originTickLabelOffset={axis?.originTickLabelOffset}
