@@ -1,4 +1,4 @@
-﻿import React, { startTransition, useEffect, useMemo, useRef, useState, type CSSProperties, } from "react";
+﻿import React, { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, } from "react";
 import { AlertTriangle, Check, X } from "lucide-react";
 import { computeCentralDerivative, computeSubthresholdSwing, computeSubthresholdSwingFitAuto, computeSubthresholdSwingFitInRange, classifySsFit, formatNumber, interpolateCurveAtX, resolveAutoSsSelection, splitBidirectionalCurvePoints, } from "../lib/analysisMath";
 import { apiService } from "../services/apiService";
@@ -462,7 +462,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         setInternalActiveFileId(nextFileId ?? null);
     }, [isActiveFileControlled, onActiveFileIdChange]);
     const [plotType, setPlotType] = useState<PlotTypeOption>("iv"); // 'iv' | 'gm' | 'ss' | 'j'
-    const [focusedSeriesId, setFocusedSeriesId] = useState(null);
+    const [focusedSeriesId, setFocusedSeriesId] = useState<string | null>(null);
     const [persistedYUnitByFileId, setPersistedYUnitByFileId] = useState<Record<string, "A" | "mA" | "uA" | "nA" | "pA">>({});
     const [persistedYScaleByFileId, setPersistedYScaleByFileId] = useState<Record<string, "linear" | "log">>({});
     const [chartYScaleByFileId, setChartYScaleByFileId] = useState<Record<string, "linear" | "log" | "logAbs">>({});
@@ -703,9 +703,27 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             .filter(Boolean);
         return new Set(hasConfiguredSeriesIds ? (configuredSeriesIds ?? []) : fallbackSeriesIds);
     }, [activeFile?.fileId, activeFile?.series, visibleSeriesByFileId]);
-    const visibleSeriesIdsInLegendOrder = useMemo(() => (Array.isArray(activeFile?.series) ? activeFile.series : [])
-        .map((series: any) => String(series?.id ?? "").trim())
-        .filter((seriesId: string) => Boolean(seriesId) && visibleSeriesKeySet.has(seriesId)), [activeFile?.series, visibleSeriesKeySet]);
+    const resolveFirstVisibleSeriesIdForFile = React.useCallback((fileIdRaw: any): string | null => {
+        const fileId = String(fileIdRaw ?? "").trim();
+        if (!fileId)
+            return null;
+        const file = processedData?.find((entry: any) => String(entry?.fileId ?? "").trim() === fileId);
+        if (!file || !Array.isArray(file?.series))
+            return null;
+        const hasConfiguredSeriesIds = Object.prototype.hasOwnProperty.call(visibleSeriesByFileId, fileId);
+        const configuredSeriesIds = hasConfiguredSeriesIds ? visibleSeriesByFileId[fileId] ?? [] : null;
+        const visibleSet = configuredSeriesIds
+            ? new Set(configuredSeriesIds.map((seriesId: any) => String(seriesId ?? "").trim()).filter(Boolean))
+            : null;
+        for (const series of file.series) {
+            const seriesId = String(series?.id ?? "").trim();
+            if (!seriesId)
+                continue;
+            if (!visibleSet || visibleSet.has(seriesId))
+                return seriesId;
+        }
+        return null;
+    }, [processedData, visibleSeriesByFileId]);
     const visibleSeriesSignature = useMemo(() => Array.from(visibleSeriesKeySet).sort().join("|"), [visibleSeriesKeySet]);
     const ionIoffManualTargetsBySeriesForActiveFile = useMemo(() => {
         const fileId = String(activeFile?.fileId ?? "").trim();
@@ -1794,8 +1812,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         // SS tab main plot is I-V in log(|I|), so keep current unit here.
         return resolvedYUnitMeta.label;
     }, [resolvedYUnitMeta.label, effectivePlotType, gmUi.denomUnit]);
-    useEffect(() => {
-        const nextFocusedSeriesId = visibleSeriesIdsInLegendOrder[0] ?? null;
+    useLayoutEffect(() => {
+        const nextFocusedSeriesId = resolveFirstVisibleSeriesIdForFile(activeFile?.fileId);
         if (!nextFocusedSeriesId) {
             if (focusedSeriesId !== null) {
                 setFocusedSeriesId(null);
@@ -1805,7 +1823,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         if (nextFocusedSeriesId !== focusedSeriesId) {
             setFocusedSeriesId(nextFocusedSeriesId);
         }
-    }, [focusedSeriesId, visibleSeriesIdsInLegendOrder]);
+    }, [activeFile?.fileId, focusedSeriesId, resolveFirstVisibleSeriesIdForFile]);
     useEffect(() => {
         if (effectivePlotType !== "ss")
             return;
@@ -2763,8 +2781,12 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const handleSelectFile = React.useCallback((fileId: any) => {
         if (!fileId)
             return;
-        preserveScrollPosition(() => setActiveFileId(fileId));
-    }, [setActiveFileId]);
+        const nextFocusedSeriesId = resolveFirstVisibleSeriesIdForFile(fileId);
+        preserveScrollPosition(() => {
+            setFocusedSeriesId(nextFocusedSeriesId);
+            setActiveFileId(fileId);
+        });
+    }, [resolveFirstVisibleSeriesIdForFile, setActiveFileId]);
     const buildSsTooltip = React.useCallback((row: any) => {
         if (!row)
             return "";
@@ -3191,7 +3213,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             setCurveProbeMode={setCurveProbeMode}
             curveProbeHeading={activeCurveProbeHeading}
             curveProbeRows={activeCurveProbeRows}
-            focusedSeriesLabel={focusedSeriesLabel}
             xTooltipDigits={xTooltipDigits}
             resolvedXUnitLabel={resolvedXUnitMeta.label}
             showAreaDiagnosticsControls={showAreaDiagnosticsControls}

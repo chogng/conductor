@@ -30,7 +30,6 @@ type AnalysisDiagnosticsCardProps = {
   setCurveProbeMode: (value: "linear" | "log") => void;
   curveProbeHeading: string;
   curveProbeRows: any[];
-  focusedSeriesLabel: string | null;
   xTooltipDigits: number;
   resolvedXUnitLabel: string;
   showAreaDiagnosticsControls: boolean;
@@ -74,7 +73,6 @@ export default function AnalysisDiagnosticsCard({
   setCurveProbeMode,
   curveProbeHeading,
   curveProbeRows,
-  focusedSeriesLabel,
   xTooltipDigits,
   resolvedXUnitLabel,
   showAreaDiagnosticsControls,
