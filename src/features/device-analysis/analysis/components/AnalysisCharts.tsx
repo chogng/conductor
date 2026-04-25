@@ -123,12 +123,12 @@ const EditableLegendItem = ({
       className={`group flex min-w-0 w-full max-w-full items-center gap-1 overflow-hidden py-0 leading-4 ${disabled ? "opacity-60 cursor-default" : "cursor-pointer"}`}
       style={{ fontFamily: "Arial, sans-serif", fontSize }}
     >
-      <span className="inline-block h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: color }}/>
       <button type="button" aria-pressed={checked} aria-label={label} disabled={disabled} onClick={onToggleVisible} className={`shrink-0 ${disabled ? "cursor-default" : "cursor-pointer"}`}>
         <span className="clickable-ckb" data-state={checked ? "checked" : "unchecked"}>
           {checked ? <Check size={10} className="text-white" strokeWidth={4}/> : null}
         </span>
       </button>
+      <span className="inline-block h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: color }}/>
       <InlineEditableText
         editing={isEditing}
         draftValue={draftValue}

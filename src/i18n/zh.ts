@@ -344,7 +344,7 @@
     da_settings_close_behavior_title: '关闭窗口',
     da_settings_close_behavior_desc: '设置点击关闭按钮时，是最小化到托盘还是直接退出程序。',
     da_settings_close_behavior_minimize_to_tray: '最小化到托盘',
-    da_settings_close_behavior_quit: '直接关闭程序',
+    da_settings_close_behavior_quit: '退出Conductor',
     da_settings_app_update_title: '\u5e94\u7528\u66f4\u65b0',
     da_settings_app_update_desc: '\u81ea\u52a8\u68c0\u67e5\u66f4\u65b0\uff0c\u4e5f\u53ef\u624b\u52a8\u68c0\u67e5\u3002',
     da_settings_app_update_check_btn: '\u68c0\u67e5\u66f4\u65b0',

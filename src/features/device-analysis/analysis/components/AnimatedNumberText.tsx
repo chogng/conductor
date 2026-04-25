@@ -1,10 +1,4 @@
-import {
-  memo,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { formatNumber } from "../lib/analysisMath";
 
 type AnimatedNumberTextProps = {
@@ -110,11 +104,7 @@ const AnimatedNumberText = memo(function AnimatedNumberText({
   }, [digits, displayValue, fallback]);
 
   return (
-    <span
-      className={`inline-block tabular-nums transition-transform duration-200 ${
-        isAnimating ? "-translate-y-[1px]" : "translate-y-0"
-      }`}
-    >
+    <span className="inline-block tabular-nums leading-none">
       {formattedValue}
     </span>
   );

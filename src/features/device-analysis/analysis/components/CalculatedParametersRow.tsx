@@ -93,7 +93,7 @@ const SsMetricCell = memo(function SsMetricCell({
   return (
     <td className="p-2 font-mono text-[14px] text-text-primary whitespace-nowrap text-center border-l border-border bg-rose-500/5">
       <span
-        className={`inline-flex items-center px-2 py-0.5 rounded-md text-[14px] font-medium border ${
+        className={`inline-flex h-6 min-w-[4.75rem] items-center justify-center px-2 rounded-md text-[14px] font-medium leading-none border ${
           isPending
             ? "bg-bg-page text-text-secondary border-border"
             : confidence === "high"
