@@ -165,6 +165,29 @@ More details: [origin/ORIGIN_WORKERS.md](./origin/ORIGIN_WORKERS.md)
 - `workbookBooks` (`New workbook`): create multiple books inside the same Origin window/session
 - `separate` (`New window`): open each export item through an independent Origin window/session path
 
+## Device Analysis Chart Auto Range
+
+In-app chart auto ranges should follow an Origin-like strategy:
+
+- Auto range and major ticks are selected together.
+- Axis endpoints snap to readable major tick boundaries instead of only padding raw data min/max.
+- Linear axes use nice steps and snapped endpoints.
+- Log axes use decade-based major ticks; if data is close to a decade boundary, the auto range expands to the next outside decade so curves do not touch the plot border.
+- Manual min/max inputs remain strict. They should not be expanded unless needed to recover from invalid log-axis values.
+
+Relevant code:
+
+- `src/features/device-analysis/analysis/lib/analysisChartsUtils.ts`
+  - `buildOriginAutoTicks`
+  - `buildOriginLogAutoTicks`
+  - `padLinearDomain`
+  - `padLogDomain`
+- `src/features/device-analysis/analysis/components/AnalysisCharts.tsx`
+  - `xDomain`
+  - `yDomain`
+  - `xTicks`
+  - `yTicks`
+
 ## Desktop Persistence
 
 Desktop stores templates and settings separately:

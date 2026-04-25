@@ -36,7 +36,7 @@ import {
 } from "../useOriginCanvasExport";
 import OverviewGrid from "./OverviewGrid";
 import CalculatedParametersRow from "./CalculatedParametersRow";
-import { SIGNED_LOG_Y_DATA_KEY, buildLogTicks, buildNiceTicks, buildOriginAutoTicks, buildPoints, buildStepTicks, computeLabelInterval, computeMinMax, downsamplePointsForDisplay, inferTickDigitsFromTicks, normalizeFloat, normalizeVarToken, padLinearDomain, padLogDomain, parseOptionalNumber, preserveScrollPosition, varTokenToSymbol, withSignedLogPositivePoints, } from "../lib/analysisChartsUtils";
+import { SIGNED_LOG_Y_DATA_KEY, buildLogTicks, buildNiceTicks, buildOriginAutoTicks, buildOriginLogAutoTicks, buildPoints, buildStepTicks, computeLabelInterval, computeMinMax, downsamplePointsForDisplay, inferTickDigitsFromTicks, normalizeFloat, normalizeVarToken, padLinearDomain, padLogDomain, parseOptionalNumber, preserveScrollPosition, varTokenToSymbol, withSignedLogPositivePoints, } from "../lib/analysisChartsUtils";
 import { computeBaseCurrentMetrics, isOutputLikeDeviceAnalysisFile, isTransferLikeDeviceAnalysisFile, } from "../lib/deviceAnalysisMetrics";
 import { getDeviceAnalysisXUnitMeta, getDeviceAnalysisYUnitMeta, normalizeDeviceAnalysisYUnit, } from "../lib/deviceAnalysisUnits";
 import { getDeviceAnalysisPerfNow, logDeviceAnalysisPerf, startDeviceAnalysisPerf } from "../../shared/lib/deviceAnalysisPerf";
@@ -2549,7 +2549,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         return "";
     }, [effectiveYScale, yLogCurrentMode, yScaleMode]);
     const xDomain = useMemo(() => {
-        const auto = autoMinMax.minX === null || autoMinMax.maxX === null
+        const auto: [number, number] = autoMinMax.minX === null || autoMinMax.maxX === null
             ? [0, 1]
             : padLinearDomain(autoMinMax.minX, autoMinMax.maxX);
         const minUser = parseOptionalNumber(axis?.xMin);
@@ -2558,16 +2558,22 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const max = maxUser !== null ? maxUser / plotXFactor : auto[1];
         return minUser !== null || maxUser !== null
             ? makeStrictLinearDomain(min, max)
-            : padLinearDomain(min, max);
+            : auto;
     }, [autoMinMax.maxX, autoMinMax.minX, axis?.xMax, axis?.xMin, plotXFactor]);
     const yDomain = useMemo<[number, number]>(() => {
-        const auto: [number, number] = autoMinMax.minY === null || autoMinMax.maxY === null
-            ? effectiveYScale === "linear"
-                ? [0, 1]
-                : [1e-3, 1]
-            : effectiveYScale === "linear"
-                ? padLinearDomain(autoMinMax.minY, autoMinMax.maxY)
-                : padLogDomain(autoMinMax.minY, autoMinMax.maxY);
+        const auto: [number, number] = (() => {
+            if (autoMinMax.minY === null || autoMinMax.maxY === null) {
+                return effectiveYScale === "linear" ? [0, 1] : [1e-3, 1];
+            }
+            if (effectiveYScale === "linear") {
+                return padLinearDomain(autoMinMax.minY, autoMinMax.maxY);
+            }
+            const logTicks = buildOriginLogAutoTicks(autoMinMax.minY, autoMinMax.maxY, 6);
+            if (Array.isArray(logTicks) && logTicks.length >= 2) {
+                return [Number(logTicks[0]), Number(logTicks[logTicks.length - 1])];
+            }
+            return padLogDomain(autoMinMax.minY, autoMinMax.maxY);
+        })();
         const minUserRaw = parseOptionalNumber(axis?.yMin);
         const maxUserRaw = parseOptionalNumber(axis?.yMax);
         const minUser = minUserRaw !== null ? minUserRaw / plotYFactor : null;
@@ -2575,6 +2581,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         let min = minUser ?? auto[0];
         let max = maxUser ?? auto[1];
         const hasManualRange = minUserRaw !== null || maxUserRaw !== null;
+        if (!hasManualRange) {
+            return auto;
+        }
         if (effectiveYScale !== "linear") {
             if (min <= 0)
                 min = auto[0];
@@ -2582,14 +2591,12 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 max = auto[1];
             if (min <= 0 || max <= 0)
                 return auto;
-            if (hasManualRange) {
-                const strictDomain = makeStrictLogDomain(min, max);
-                if (strictDomain)
-                    return strictDomain;
-            }
+            const strictDomain = makeStrictLogDomain(min, max);
+            if (strictDomain)
+                return strictDomain;
             return padLogDomain(min, max);
         }
-        return hasManualRange ? makeStrictLinearDomain(min, max) : padLinearDomain(min, max);
+        return makeStrictLinearDomain(min, max);
     }, [
         autoMinMax.maxY,
         autoMinMax.minY,

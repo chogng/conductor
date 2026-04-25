@@ -390,8 +390,68 @@ export const padLogDomain = (min: unknown, max: unknown): [number, number] => {
   const hi = Math.max(minValue, maxValue);
   if (hi <= 0) return [1e-3, 1];
   const safeLo = lo > 0 ? lo : hi / 1000;
-  if (safeLo === hi) return [safeLo / 1.25, hi * 1.25];
-  return [safeLo / 1.1, hi * 1.1];
+  const logLo = Math.log10(safeLo);
+  const logHi = Math.log10(hi);
+  if (!Number.isFinite(logLo) || !Number.isFinite(logHi)) return [safeLo, hi];
+
+  if (logLo === logHi) {
+    return [Math.pow(10, logLo - 0.1), Math.pow(10, logHi + 0.1)];
+  }
+
+  const span = logHi - logLo;
+  const pad = Math.min(0.18, Math.max(0.03, span * 0.03));
+  if (span < 1) {
+    return [Math.pow(10, logLo - pad), Math.pow(10, logHi + pad)];
+  }
+
+  return [
+    Math.pow(10, Math.floor(logLo - pad)),
+    Math.pow(10, Math.ceil(logHi + pad)),
+  ];
+};
+
+export const buildOriginLogAutoTicks = (
+  minRaw: unknown,
+  maxRaw: unknown,
+  desiredTickCount = 6,
+): number[] | null => {
+  const min = Number(minRaw);
+  const max = Number(maxRaw);
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+  const lo = Math.min(min, max);
+  const hi = Math.max(min, max);
+  if (hi <= 0) return null;
+
+  const safeLo = lo > 0 ? lo : hi / 1000;
+  let expMin = Math.floor(Math.log10(safeLo));
+  let expMax = Math.ceil(Math.log10(hi));
+  if (!Number.isFinite(expMin) || !Number.isFinite(expMax)) return null;
+
+  const logLo = Math.log10(safeLo);
+  const logHi = Math.log10(hi);
+  const edgeTolerance = 0.04;
+  if (logLo - expMin <= edgeTolerance) expMin -= 1;
+  if (expMax - logHi <= edgeTolerance) expMax += 1;
+  if (expMax <= expMin) expMax = expMin + 1;
+
+  const target = Math.max(2, Math.floor(desiredTickCount));
+  const decades = expMax - expMin;
+  const decadeStep = Math.max(1, Math.ceil(decades / target));
+  const out = [];
+  for (let exp = expMin; exp <= expMax; exp += decadeStep) {
+    out.push(Math.pow(10, exp));
+  }
+
+  const endTick = Math.pow(10, expMax);
+  const last = out[out.length - 1];
+  if (
+    Number.isFinite(endTick) &&
+    (!Number.isFinite(last) || Math.abs(last - endTick) > Math.max(1e-18, endTick * 1e-12))
+  ) {
+    out.push(endTick);
+  }
+
+  return out.length >= 2 ? out : null;
 };
 
 export const computeMinMax = (
@@ -495,6 +555,14 @@ export const buildLogTicks = (
   const out = [];
   for (let e = expMin; e <= expMax; e += decadeStep) {
     out.push(Math.pow(10, e));
+  }
+  const last = out[out.length - 1];
+  const endTick = Math.pow(10, expMax);
+  if (
+    Number.isFinite(endTick) &&
+    (!Number.isFinite(last) || Math.abs(last - endTick) > Math.max(1e-18, endTick * 1e-12))
+  ) {
+    out.push(endTick);
   }
   return out.length >= 2 ? out : null;
 };
