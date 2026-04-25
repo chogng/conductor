@@ -149,24 +149,6 @@ def run_command_list(op_module, commands, label: str):
         )
 
 
-def try_launch_origin(ctx, origin_exe: str):
-    try:
-        proc = subprocess.Popen(
-            [origin_exe],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-        )
-        ctx.log(f"Origin process started. PID={proc.pid}")
-        time.sleep(1.4)
-        return proc
-    except Exception as exc:
-        ctx.log(f"Origin launch failed; continue with originpro attach: {exc}")
-        hresult = extract_hresult(exc)
-        if hresult:
-            ctx.log(f"Launch HRESULT: {hresult}")
-        return None
-
-
 def get_originpro_module(ctx, import_error_message: str):
     try:
         import originpro as op  # type: ignore

@@ -169,7 +169,7 @@
     da_origin_error_tip_launch_once: 'Tip: launch Origin once manually, then retry.',
     da_origin_error_tip_register_com: 'Tip: run Origin once as administrator and register COM server (Origin.exe /regserver), then retry.',
     da_origin_error_tip_reselect_exe: 'Tip: reselect the correct Origin.exe path in Settings.',
-    da_origin_error_tip_manual_zip: 'Tip: if auto open fails, export ZIP and run OGS manually in Origin.',
+    da_origin_error_tip_manual_zip: 'Tip: if auto open fails, export ZIP and import the CSV files manually in Origin.',
     da_origin_error_tip_install_python: 'Tip: install Python with pywin32 and ensure python/py is available in PATH.',
     da_origin_error_tip_csv_runner_missing: 'Tip: CSV runner is missing. Include origin-csv-worker.exe, or temporarily fall back to the Python runner.',
     da_origin_error_tip_csv_runner_check: 'Tip: check origin-csv-worker.exe path/permissions, or temporarily fall back to the Python runner.',

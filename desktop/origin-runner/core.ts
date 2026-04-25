@@ -17,8 +17,6 @@ export type RunProcessOptions = {
   [key: string]: unknown;
 };
 
-export type JsonObject = Record<string, unknown>;
-
 export function ensureDir(dirPath: unknown): asserts dirPath is string {
   if (!dirPath || typeof dirPath !== "string") {
     throw new Error("Invalid directory path.");
@@ -44,18 +42,6 @@ export function getOriginBridgeFilePaths(workDir: string): { logPath: string; er
     logPath: path.join(workDir, "originbridge.log"),
     errorPath: path.join(workDir, "error.txt"),
   };
-}
-
-export function getPowerShellExePath() {
-  const systemRoot = process.env.SystemRoot || "C:\\Windows";
-  const candidate = path.join(
-    systemRoot,
-    "System32",
-    "WindowsPowerShell",
-    "v1.0",
-    "powershell.exe",
-  );
-  return fs.existsSync(candidate) ? candidate : "powershell.exe";
 }
 
 export function runProcess(
@@ -216,21 +202,5 @@ export function assertOriginExePath(originExePath: unknown): string {
     throw new Error(`Origin executable path is not a file: ${normalized}`);
   }
   return normalized;
-}
-
-export function parseJsonFile(filePath: unknown): JsonObject | null {
-  if (typeof filePath !== "string" || !filePath || !fs.existsSync(filePath)) {
-    return null;
-  }
-  try {
-    const raw = String(fs.readFileSync(filePath, "utf8") || "").trim();
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-      ? parsed as JsonObject
-      : null;
-  } catch {
-    return null;
-  }
 }
 

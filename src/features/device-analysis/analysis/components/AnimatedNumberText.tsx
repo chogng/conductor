@@ -30,7 +30,6 @@ const AnimatedNumberText = memo(function AnimatedNumberText({
   const [displayValue, setDisplayValue] = useState<number | null>(
     isFiniteNumber(value) ? value : null,
   );
-  const [isAnimating, setIsAnimating] = useState(false);
   const frameRef = useRef<number | null>(null);
   const currentValueRef = useRef<number | null>(isFiniteNumber(value) ? value : null);
 
@@ -46,7 +45,6 @@ const AnimatedNumberText = memo(function AnimatedNumberText({
     if (!isFiniteNumber(value)) {
       currentValueRef.current = null;
       setDisplayValue(null);
-      setIsAnimating(false);
       if (frameRef.current !== null && typeof window !== "undefined") {
         window.cancelAnimationFrame(frameRef.current);
         frameRef.current = null;
@@ -64,7 +62,6 @@ const AnimatedNumberText = memo(function AnimatedNumberText({
       typeof window === "undefined"
     ) {
       setDisplayValue(value);
-      setIsAnimating(false);
       if (frameRef.current !== null) {
         window.cancelAnimationFrame(frameRef.current);
         frameRef.current = null;
@@ -79,7 +76,6 @@ const AnimatedNumberText = memo(function AnimatedNumberText({
     const start = previous;
     const delta = value - start;
     const startTime = window.performance.now();
-    setIsAnimating(true);
 
     const step = (now: number) => {
       const elapsed = now - startTime;
@@ -89,7 +85,6 @@ const AnimatedNumberText = memo(function AnimatedNumberText({
       if (progress >= 1) {
         frameRef.current = null;
         setDisplayValue(value);
-        setIsAnimating(false);
         return;
       }
       frameRef.current = window.requestAnimationFrame(step);

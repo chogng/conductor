@@ -1,10 +1,8 @@
-export { ORIGIN_ERROR_PREFIX } from "./origin-runner/errors.js";
 export {
   normalizeOriginExePath,
   assertOriginExePath,
 } from "./origin-runner/core.js";
 export {
-  detectOriginExecutablePath,
   detectOriginExecutablePathDetailed,
 } from "./origin-runner/detect.js";
 export { pickOriginExecutable } from "./origin-runner/picker.js";

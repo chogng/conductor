@@ -17,7 +17,6 @@ import {
   normalizeOriginCommandList,
   normalizeOriginPlotOptions,
 } from "./origin-plot-options.js";
-import type { OriginPlotOptions } from "./origin-plot-options.js";
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);

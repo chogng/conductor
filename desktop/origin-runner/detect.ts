@@ -273,9 +273,4 @@ export async function detectOriginExecutablePathDetailed(): Promise<OriginDetect
   };
 }
 
-export async function detectOriginExecutablePath(): Promise<string | null> {
-  const result = await detectOriginExecutablePathDetailed();
-  return result.path;
-}
-
 

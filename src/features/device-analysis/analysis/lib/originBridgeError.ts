@@ -1,6 +1,6 @@
 import type { LooseTranslateFn as TranslateFn } from "../../shared/lib/translateTypes";
 
-export const ORIGIN_BRIDGE_ERROR_PREFIX = "__ORIGIN_ERROR__:";
+const ORIGIN_BRIDGE_ERROR_PREFIX = "__ORIGIN_ERROR__:";
 
 type OriginBridgeErrorCode =
   | "ORIGIN_EXE_REQUIRED"
@@ -26,7 +26,7 @@ type OriginBridgeErrorCode =
   | "ORIGIN_SESSION_BEGIN_FAILED"
   | null;
 
-export type ParsedOriginBridgeError = {
+type ParsedOriginBridgeError = {
   code: OriginBridgeErrorCode;
   stage: string | null;
   hresult: string | null;
@@ -135,7 +135,7 @@ const parseStructuredOriginErrorMessage = (
   return tryParseObject(jsonFragment);
 };
 
-export const parseOriginBridgeError = (
+const parseOriginBridgeError = (
   errorLike: unknown,
 ): ParsedOriginBridgeError => {
   const messageFromError =
@@ -185,7 +185,7 @@ export const parseOriginBridgeError = (
   };
 };
 
-export const inferOriginSuggestionKey = (
+const inferOriginSuggestionKey = (
   detail: Partial<ParsedOriginBridgeError> | null | undefined,
 ): string | null => {
   const code = String(detail?.code || "")

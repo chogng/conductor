@@ -1052,22 +1052,6 @@ textarea {
   }
 }
 
-/* Fix: Remove default focus outline from Recharts wrapper and internals */
-.recharts-wrapper,
-.recharts-surface,
-.recharts-responsive-container {
-  outline: none !important;
-  border: none !important;
-}
-
-.recharts-wrapper:focus,
-.recharts-wrapper:active,
-.recharts-surface:focus,
-.recharts-surface:active {
-  outline: none !important;
-  border: none !important;
-}
-
 /* Specific fix for the SVG element causing focus rings */
 *:focus:not(:focus-visible) {
   outline: none !important;

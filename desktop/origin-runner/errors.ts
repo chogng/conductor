@@ -1,4 +1,4 @@
-export const ORIGIN_ERROR_PREFIX = "__ORIGIN_ERROR__:";
+const ORIGIN_ERROR_PREFIX = "__ORIGIN_ERROR__:";
 
 export type OriginErrorPayload = {
   code?: string | null;

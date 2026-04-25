@@ -6,7 +6,6 @@ import math
 import os
 import platform
 import sys
-import traceback
 from datetime import datetime
 from pathlib import Path
 
@@ -19,7 +18,9 @@ from origin_ops.import_ops import run_csv_import
 from origin_ops.origin_session import (
     connect_originpro,
     extract_hresult,
+    format_exception_trace,
     get_originpro_module,
+    log_exception as log_origin_exception,
     run_command_list,
     run_labtalk_or_raise,
 )
@@ -266,18 +267,6 @@ class CsvContext:
         with self.log_path.open("a", encoding="utf-8") as file_obj:
             file_obj.write(line + "\n")
 
-    def log_exception(self, label: str, exc: Exception) -> None:
-        self.log(f"{label}: {type(exc).__name__}: {exc!r}")
-        try:
-            trace = "".join(
-                traceback.format_exception(type(exc), exc, exc.__traceback__)
-            ).strip()
-        except Exception:
-            trace = repr(exc)
-        if trace:
-            for line in trace.splitlines():
-                self.log(f"{label} traceback: {line}")
-
     def write_error(
         self,
         code: str,
@@ -305,9 +294,7 @@ class CsvContext:
                 {
                     "exceptionType": type(exc).__name__,
                     "exceptionRepr": repr(exc),
-                    "traceback": "".join(
-                        traceback.format_exception(type(exc), exc, exc.__traceback__)
-                    ).strip(),
+                    "traceback": format_exception_trace(exc),
                 }
             )
         if isinstance(extra, dict):
@@ -320,7 +307,7 @@ class CsvContext:
         if payload.get("hresult"):
             self.log(f"HRESULT: {payload['hresult']}")
         if exc is not None:
-            self.log_exception(f"ERROR [{payload['stage']}]", exc)
+            log_origin_exception(self, f"ERROR [{payload['stage']}]", exc)
         raise SystemExit(1)
 
 

@@ -35,18 +35,6 @@ export default defineConfig({
             return "app-vendor";
           }
 
-          if (id.includes("/xlsx/")) {
-            return "excel-vendor";
-          }
-
-          if (
-            id.includes("recharts") ||
-            id.includes("victory-vendor") ||
-            id.includes("d3-")
-          ) {
-            return "charts-vendor";
-          }
-
           if (id.includes("papaparse") || id.includes("jszip")) {
             return "data-vendor";
           }
@@ -87,26 +75,12 @@ export default defineConfig({
         timeout: 300000,
         proxyTimeout: 300000,
       },
-      "/socket.io": {
-        target: "http://localhost:3001",
-        ws: true,
-        changeOrigin: true,
-        timeout: 300000,
-        proxyTimeout: 300000,
-      },
     },
   },
   preview: {
     proxy: {
       "/api": {
         target: "http://localhost:3001",
-        changeOrigin: true,
-        timeout: 300000,
-        proxyTimeout: 300000,
-      },
-      "/socket.io": {
-        target: "http://localhost:3001",
-        ws: true,
         changeOrigin: true,
         timeout: 300000,
         proxyTimeout: 300000,
