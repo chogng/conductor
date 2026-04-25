@@ -2192,10 +2192,11 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const cacheKey = displayPlotSeries as unknown as object;
         let cacheBucket = renderSeriesCacheRef.current.get(cacheKey);
         if (!cacheBucket) {
-            cacheBucket = new Map<number, any[]>();
+            cacheBucket = new Map<string, any[]>();
             renderSeriesCacheRef.current.set(cacheKey, cacheBucket);
         }
-        const cachedSeries = cacheBucket.get(renderMaxPointsPerSeries);
+        const renderSeriesModeKey = `${yScaleMode}:${renderMaxPointsPerSeries}`;
+        const cachedSeries = cacheBucket.get(renderSeriesModeKey);
         if (cachedSeries) {
             finishPerf({ cached: true });
             return cachedSeries;
@@ -2205,7 +2206,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const computedSeries = displayPlotSeries.map((series: any) => {
             const fullData = Array.isArray(series?.data) ? series.data : [];
             inputPointCount += fullData.length;
-            const nextData = downsamplePointsForDisplay(fullData, renderMaxPointsPerSeries);
+            const nextData = yScaleMode === "linear"
+                ? downsamplePointsForDisplay(fullData, renderMaxPointsPerSeries)
+                : fullData;
             outputPointCount += Array.isArray(nextData) ? nextData.length : 0;
             if (nextData === fullData)
                 return series;
@@ -2214,14 +2217,14 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 data: nextData,
             };
         });
-        cacheBucket.set(renderMaxPointsPerSeries, computedSeries);
+        cacheBucket.set(renderSeriesModeKey, computedSeries);
         finishPerf({
             cached: false,
             inputPointCount,
             outputPointCount,
         });
         return computedSeries;
-    }, [activeFile?.fileId, activeFile?.fileName, displayPlotSeries, renderMaxPointsPerSeries]);
+    }, [activeFile?.fileId, activeFile?.fileName, displayPlotSeries, renderMaxPointsPerSeries, yScaleMode]);
     const renderOriginSelectionLegend = React.useCallback((legendProps: any) => {
         if (!plotLegendSeries.length)
             return null;

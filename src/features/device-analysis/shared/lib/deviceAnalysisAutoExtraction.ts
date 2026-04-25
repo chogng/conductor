@@ -1015,6 +1015,34 @@ const findFirstMatchingColumn = ({
   return fallbackToFirst ? (candidates[0]?.index ?? null) : null;
 };
 
+const findPreferredGraphYColumn = ({
+  dataStartRowIndex,
+  headers,
+  metadata,
+  rows,
+}: {
+  dataStartRowIndex: number;
+  headers: string[];
+  metadata: ReturnType<typeof extractDeviceAnalysisCurveMetadata>;
+  rows: Array<Array<unknown> | null | undefined>;
+}): number | null => {
+  const requested = Array.isArray(metadata?.yAxisData) ? metadata.yAxisData : [];
+  const seen = new Set<string>();
+  for (const rawName of requested) {
+    const compactName = normalizeHeaderCompact(rawName);
+    if (!compactName || seen.has(compactName)) continue;
+    seen.add(compactName);
+    const index = headers.findIndex(
+      (header) => normalizeHeaderCompact(header) === compactName,
+    );
+    if (index < 0) continue;
+    if (!columnHasNumericRows(rows, dataStartRowIndex, index, 2)) continue;
+    if (!isCurrentLikeHeader(headers[index])) continue;
+    return index;
+  }
+  return null;
+};
+
 const resolveLabelForRole = (
   role: DeviceAnalysisAxisRole | null,
   fallback: string,
@@ -1561,8 +1589,16 @@ const inferGenericPlan = ({
     rows,
     type: "current",
   });
+  const preferredGraphYCol = findPreferredGraphYColumn({
+    dataStartRowIndex,
+    headers,
+    metadata,
+    rows,
+  });
   const yCols = structuredLayout?.yCols?.length
     ? structuredLayout.yCols
+    : preferredGraphYCol !== null
+      ? [preferredGraphYCol]
     : fallbackYCol !== null
       ? [fallbackYCol]
       : [];

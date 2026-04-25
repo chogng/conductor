@@ -77,7 +77,7 @@ export const useAnalysisFileCache = ({
   processedData: any[];
 }) => {
   const fileAnalysisCacheRef = useRef(new Map());
-  const renderSeriesCacheRef = useRef(new WeakMap<object, Map<number, any[]>>());
+  const renderSeriesCacheRef = useRef(new WeakMap<object, Map<string, any[]>>());
   const cachePrefetchJobIdRef = useRef(0);
   const cachePrefetchHandleRef = useRef<CachePrefetchHandle | null>(null);
 

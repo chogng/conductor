@@ -28,6 +28,11 @@ import {
   inferTickDigitsFromTicks,
 } from "../lib/analysisChartsUtils";
 import {
+  collectCanvasLineRuns,
+  toFiniteCanvasNumber,
+  valueToCanvasY,
+} from "../lib/canvasPlotUtils";
+import {
   getDeviceAnalysisPerfNow,
   isDeviceAnalysisPerfEnabled,
   logDeviceAnalysisPerf,
@@ -134,10 +139,38 @@ type MainPlotChartProps = {
   legendContent?: any;
 };
 
+type CanvasTooltipState = {
+  color?: string;
+  label: string;
+  pointX?: number;
+  pointY?: number;
+  seriesName: string;
+  visible: boolean;
+  x: number;
+  y: number;
+};
+
+type CanvasTooltipPoint = {
+  chartY: number;
+  index: number;
+  point: PlotPoint;
+  rawX: number;
+  rawY: number;
+};
+
+type CanvasTooltipLookup = {
+  monotonic: "asc" | "desc" | null;
+  points: CanvasTooltipPoint[];
+};
+
 const LOG_CHART_Y_DATA_KEY = "__chartY";
 const TOOLTIP_SERIES_NAME_SEPARATOR = "\u0000";
 const logChartSeriesListCache = new WeakMap<object, Map<string, PlotSeries[]>>();
 const logChartSeriesDataCache = new WeakMap<object, Map<string, PlotPoint[]>>();
+const canvasTooltipLookupCache = new WeakMap<
+  PlotPoint[],
+  Map<string, CanvasTooltipLookup>
+>();
 
 const decodeTooltipSeriesName = (
   value: unknown,
@@ -355,6 +388,132 @@ const samePlotRect = (a: PlotRect | null, b: PlotRect | null): boolean => {
 const plotRectHasArea = (plotRect: PlotRect | null): plotRect is PlotRect =>
   Boolean(plotRect && plotRect.width > 0 && plotRect.height > 0);
 
+const isCanvasMainPlotEnabled = (): boolean => {
+  if (typeof window === "undefined") return false;
+  if ((window as any).__CONDUCTOR_DA_CANVAS_MAIN_PLOT__ === false) return false;
+  if ((window as any).__CONDUCTOR_DA_CANVAS_MAIN_PLOT__ === true) return true;
+  try {
+    const stored = window.localStorage?.getItem("CONDUCTOR_DA_CANVAS_MAIN_PLOT");
+    if (stored === "0") return false;
+    if (stored === "1") return true;
+  } catch {
+    // Keep the optimized default when storage is unavailable.
+  }
+  return true;
+};
+
+const setupCanvas = (
+  canvas: HTMLCanvasElement,
+  width: number,
+  height: number,
+): CanvasRenderingContext2D | null => {
+  const dpr = typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1;
+  canvas.width = Math.max(1, Math.floor(width * dpr));
+  canvas.height = Math.max(1, Math.floor(height * dpr));
+  canvas.style.width = `${width}px`;
+  canvas.style.height = `${height}px`;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return ctx;
+};
+
+const getCanvasTooltipLookup = (
+  data: PlotPoint[],
+  chartYDataKey: string,
+  plotYKey: "y" | "yPositive" | "yAbsPositive",
+): CanvasTooltipLookup => {
+  const cacheKey = `${chartYDataKey}:${plotYKey}`;
+  let cacheBucket = canvasTooltipLookupCache.get(data);
+  if (!cacheBucket) {
+    cacheBucket = new Map<string, CanvasTooltipLookup>();
+    canvasTooltipLookupCache.set(data, cacheBucket);
+  }
+  const cached = cacheBucket.get(cacheKey);
+  if (cached) return cached;
+
+  const points: CanvasTooltipPoint[] = [];
+  for (let index = 0; index < data.length; index += 1) {
+    const point = data[index];
+    const rawX = toFiniteCanvasNumber(point?.x);
+    const chartY = valueToCanvasY(point, chartYDataKey);
+    const rawY = toFiniteCanvasNumber(point?.[plotYKey]);
+    if (
+      rawX !== null &&
+      chartY !== null &&
+      rawY !== null
+    ) {
+      points.push({ chartY, index, point, rawX, rawY });
+    }
+  }
+
+  let ascending = true;
+  let descending = true;
+  for (let index = 1; index < points.length; index += 1) {
+    const prev = points[index - 1].rawX;
+    const next = points[index].rawX;
+    if (next < prev) ascending = false;
+    if (next > prev) descending = false;
+    if (!ascending && !descending) break;
+  }
+
+  const lookup = {
+    monotonic: ascending ? "asc" : descending ? "desc" : null,
+    points,
+  } satisfies CanvasTooltipLookup;
+  cacheBucket.set(cacheKey, lookup);
+  return lookup;
+};
+
+const getNearestCanvasTooltipPoint = (
+  lookup: CanvasTooltipLookup,
+  rawX: number,
+): CanvasTooltipPoint | null => {
+  const { points } = lookup;
+  if (!points.length) return null;
+
+  const pickNearest = (
+    best: CanvasTooltipPoint | null,
+    candidate: CanvasTooltipPoint | undefined,
+  ): CanvasTooltipPoint | null => {
+    if (!candidate) return best;
+    if (!best) return candidate;
+    const candidateDistance = Math.abs(candidate.rawX - rawX);
+    const bestDistance = Math.abs(best.rawX - rawX);
+    if (candidateDistance < bestDistance) return candidate;
+    return best;
+  };
+
+  if (!lookup.monotonic) {
+    let best: CanvasTooltipPoint | null = null;
+    for (const point of points) {
+      best = pickNearest(best, point);
+    }
+    return best;
+  }
+
+  let lo = 0;
+  let hi = points.length - 1;
+  while (lo < hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    const midX = points[mid].rawX;
+    if (lookup.monotonic === "asc") {
+      if (midX < rawX) lo = mid + 1;
+      else hi = mid;
+    } else if (midX > rawX) {
+      lo = mid + 1;
+    } else {
+      hi = mid;
+    }
+  }
+
+  let best: CanvasTooltipPoint | null = null;
+  best = pickNearest(best, points[lo]);
+  best = pickNearest(best, points[lo - 1]);
+  best = pickNearest(best, points[lo + 1]);
+  return best;
+};
+
 const sameHoverTarget = (
   a: OverlayHoverTarget | null,
   b: OverlayHoverTarget | null,
@@ -370,6 +529,574 @@ const sameHoverTarget = (
   }
   return false;
 };
+
+const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
+  activeFile,
+  chartFocusedFitLine,
+  chartPointCount,
+  chartSeriesList,
+  chartYDataKey,
+  chartYDomain,
+  chartYTicks,
+  currentBiasMarkers,
+  currentBiasInteraction,
+  effectiveYScale,
+  focusedSeriesColor,
+  focusedSeriesId,
+  focusedSsOverlay,
+  highlightOverlays,
+  interactiveSeriesXs,
+  interactiveXDomain,
+  isSsPlot,
+  legendContent,
+  legendWidth,
+  plotType,
+  plotXFactor,
+  plotXUnitLabel,
+  plotYFactor,
+  plotYKey,
+  plotYUnitLabel,
+  ssInteraction,
+  ssOverlayStyle,
+  xAxisLabel,
+  xTickDigits,
+  xTicks,
+  xTooltipDigits,
+  yAxisLabel,
+  yAxisNearZeroEpsilon,
+  yTickDigits,
+}: {
+  activeFile: MainPlotChartProps["activeFile"];
+  chartFocusedFitLine: PlotPoint[] | null;
+  chartPointCount: number;
+  chartSeriesList: PlotSeries[];
+  chartYDataKey: string;
+  chartYDomain: [number, number];
+  chartYTicks?: number[] | null;
+  currentBiasMarkers: CurrentBiasMarker[];
+  currentBiasInteraction?: CurrentBiasInteractionConfig | null;
+  effectiveYScale: MainPlotChartProps["effectiveYScale"];
+  focusedSeriesColor: string;
+  focusedSeriesId?: string | null;
+  focusedSsOverlay?: SsOverlay | null;
+  highlightOverlays: HighlightOverlay[];
+  interactiveSeriesXs?: number[];
+  interactiveXDomain: [number, number];
+  isSsPlot: boolean;
+  legendContent?: any;
+  legendWidth: number;
+  plotType?: string;
+  plotXFactor: number;
+  plotXUnitLabel: string;
+  plotYFactor: number;
+  plotYKey: "y" | "yPositive" | "yAbsPositive";
+  plotYUnitLabel: string;
+  ssInteraction?: SsInteractionConfig | null;
+  ssOverlayStyle: SsOverlayStyle;
+  xAxisLabel: string;
+  xTickDigits: number;
+  xTicks?: number[] | null;
+  xTooltipDigits?: number;
+  yAxisLabel: string;
+  yAxisNearZeroEpsilon: number;
+  yTickDigits: number;
+}) {
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [size, setSize] = useState({ height: 0, width: 0 });
+  const [tooltip, setTooltip] = useState<CanvasTooltipState>({
+    label: "",
+    seriesName: "",
+    visible: false,
+    x: 0,
+    y: 0,
+  });
+
+  useEffect(() => {
+    if (!wrapperRef.current) return;
+    const observer = new ResizeObserver((entries) => {
+      const rect = entries[0]?.contentRect;
+      if (!rect) return;
+      const width = Math.floor(rect.width);
+      const height = Math.floor(rect.height);
+      setSize((prev) =>
+        prev.width === width && prev.height === height
+          ? prev
+          : { width, height },
+      );
+    });
+    observer.observe(wrapperRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  const plotRect = useMemo<PlotRect | null>(() => {
+    const legendSpace = Math.max(0, Number(legendWidth) || 0);
+    const width = size.width - legendSpace;
+    const plotWidth = width - CHART_MARGIN.left - CHART_MARGIN.right;
+    const plotHeight = size.height - CHART_MARGIN.top - CHART_MARGIN.bottom;
+    if (plotWidth <= 0 || plotHeight <= 0) return null;
+    return {
+      left: CHART_MARGIN.left,
+      top: CHART_MARGIN.top,
+      width: plotWidth,
+      height: plotHeight,
+    };
+  }, [legendWidth, size.height, size.width]);
+
+  const scale = useMemo(() => {
+    if (!plotRect) return null;
+    const [x0, x1] = getSortedDomain(interactiveXDomain);
+    const [y0, y1] = getSortedDomain(chartYDomain);
+    const xMin = x0;
+    const xMax = x1 > x0 ? x1 : x0 + 1;
+    const yMin = y0;
+    const yMax = y1 > y0 ? y1 : y0 + 1;
+    const xSpan = xMax - xMin || 1;
+    const ySpan = yMax - yMin || 1;
+    return {
+      xMax,
+      xMin,
+      yMax,
+      yMin,
+      pxToX: (px: number) => xMin + ((px - plotRect.left) / plotRect.width) * xSpan,
+      xToPx: (x: number) => plotRect.left + ((x - xMin) / xSpan) * plotRect.width,
+      yToPx: (y: number) => plotRect.top + (1 - (y - yMin) / ySpan) * plotRect.height,
+    };
+  }, [chartYDomain, interactiveXDomain, plotRect]);
+
+  const tooltipLookups = useMemo(
+    () =>
+      chartSeriesList.map((series, index) => ({
+        color: String(series.color || COLORS[index % COLORS.length] || "#8884d8"),
+        lookup: getCanvasTooltipLookup(series.data ?? [], chartYDataKey, plotYKey),
+        series,
+      })),
+    [chartSeriesList, chartYDataKey, plotYKey],
+  );
+
+  const renderedLegendContent = useMemo(
+    () =>
+      typeof legendContent === "function"
+        ? legendContent({})
+        : legendContent,
+    [legendContent],
+  );
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !plotRect || !scale || size.width <= 0 || size.height <= 0) return;
+    const ctx = setupCanvas(canvas, size.width, size.height);
+    if (!ctx) return;
+    const startedAt = isDeviceAnalysisPerfEnabled() ? getDeviceAnalysisPerfNow() : 0;
+    ctx.clearRect(0, 0, size.width, size.height);
+
+    const drawVerticalBand = (x1Raw: number, x2Raw: number, fill: string, opacity: number) => {
+      const x1 = clamp(
+        scale.xToPx(Math.min(x1Raw, x2Raw)),
+        plotRect.left,
+        plotRect.left + plotRect.width,
+      );
+      const x2 = clamp(
+        scale.xToPx(Math.max(x1Raw, x2Raw)),
+        plotRect.left,
+        plotRect.left + plotRect.width,
+      );
+      if (x2 <= x1) return;
+      ctx.save();
+      ctx.fillStyle = fill;
+      ctx.globalAlpha = opacity;
+      ctx.fillRect(x1, plotRect.top, x2 - x1, plotRect.height);
+      ctx.restore();
+    };
+    const drawVerticalLine = (
+      xRaw: number,
+      stroke: string,
+      opacity = 1,
+      lineWidth = 1.5,
+    ) => {
+      const x = scale.xToPx(xRaw);
+      if (x < plotRect.left || x > plotRect.left + plotRect.width) return;
+      ctx.save();
+      ctx.strokeStyle = stroke;
+      ctx.globalAlpha = opacity;
+      ctx.lineWidth = lineWidth;
+      ctx.beginPath();
+      ctx.moveTo(x, plotRect.top);
+      ctx.lineTo(x, plotRect.top + plotRect.height);
+      ctx.stroke();
+      ctx.restore();
+    };
+
+    const visibleXTicks = Array.isArray(xTicks) && xTicks.length >= 2
+      ? xTicks
+      : [scale.xMin, (scale.xMin + scale.xMax) / 2, scale.xMax];
+    const visibleYTicks = Array.isArray(chartYTicks) && chartYTicks.length >= 2
+      ? chartYTicks
+      : [scale.yMin, (scale.yMin + scale.yMax) / 2, scale.yMax];
+
+    const drawGridAndAxes = () => {
+      ctx.save();
+      ctx.strokeStyle = "rgba(51,51,51,0.45)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(plotRect.left, plotRect.top, plotRect.width, plotRect.height);
+      ctx.font = "11px sans-serif";
+      for (const tick of visibleXTicks) {
+        const x = scale.xToPx(tick);
+        ctx.strokeStyle = "rgba(51,51,51,0.25)";
+        ctx.beginPath();
+        ctx.moveTo(x, plotRect.top);
+        ctx.lineTo(x, plotRect.top + plotRect.height);
+        ctx.stroke();
+        ctx.fillStyle = "rgba(120,120,120,0.92)";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.fillText(
+          formatNumber(tick * plotXFactor, { digits: xTickDigits }),
+          x,
+          plotRect.top + plotRect.height + 6,
+        );
+      }
+      for (const tick of visibleYTicks) {
+        const y = scale.yToPx(tick);
+        ctx.strokeStyle = "rgba(51,51,51,0.25)";
+        ctx.beginPath();
+        ctx.moveTo(plotRect.left, y);
+        ctx.lineTo(plotRect.left + plotRect.width, y);
+        ctx.stroke();
+        const label = effectiveYScale !== "linear"
+          ? formatLogTickLabel(Math.pow(10, tick) * plotYFactor)
+          : formatNumber(
+              Math.abs(tick * plotYFactor) <= yAxisNearZeroEpsilon
+                ? 0
+                : tick * plotYFactor,
+              { digits: yTickDigits },
+            );
+        ctx.fillStyle = "rgba(120,120,120,0.92)";
+        ctx.textAlign = "right";
+        ctx.textBaseline = "middle";
+        ctx.fillText(label, plotRect.left - 8, y);
+      }
+      ctx.fillStyle = "rgba(80,80,80,0.95)";
+      ctx.font = "16px sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "bottom";
+      if (xAxisLabel) {
+        ctx.fillText(xAxisLabel, plotRect.left + plotRect.width / 2, size.height - 2);
+      }
+      if (yAxisLabel) {
+        ctx.save();
+        ctx.translate(13, plotRect.top + plotRect.height / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText(yAxisLabel, 0, 0);
+        ctx.restore();
+      }
+      ctx.restore();
+    };
+
+    for (const overlay of highlightOverlays) {
+      drawVerticalBand(overlay.x1, overlay.x2, overlay.fill, overlay.fillOpacity);
+    }
+    if (isSsPlot && focusedSsOverlay) {
+      drawVerticalBand(
+        focusedSsOverlay.x1,
+        focusedSsOverlay.x2,
+        ssOverlayStyle.fill,
+        ssOverlayStyle.fillOpacity,
+      );
+    }
+
+    drawGridAndAxes();
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(plotRect.left, plotRect.top, plotRect.width, plotRect.height);
+    ctx.clip();
+
+    const drawSeries = (
+      data: PlotPoint[] | null | undefined,
+      color: string,
+      width: number,
+      alpha = 1,
+      dash: number[] = [],
+    ) => {
+      if (!Array.isArray(data) || data.length < 2) return;
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.globalAlpha = alpha;
+      ctx.lineWidth = width;
+      ctx.setLineDash(dash);
+      const runs = collectCanvasLineRuns({
+        chartYDataKey,
+        data,
+        effectiveYScale,
+        xMax: scale.xMax,
+        xMin: scale.xMin,
+      });
+
+      const strokeRun = (run: Array<{ x: number; y: number }>) => {
+        if (run.length < 2) return;
+        ctx.beginPath();
+        run.forEach((point, index) => {
+          if (index === 0) ctx.moveTo(point.x, point.y);
+          else ctx.lineTo(point.x, point.y);
+        });
+        ctx.stroke();
+      };
+
+      for (const run of runs) {
+        strokeRun(run.map((point) => ({
+          x: scale.xToPx(point.x),
+          y: scale.yToPx(point.y),
+        })));
+      }
+      ctx.restore();
+    };
+    chartSeriesList.forEach((series, index) => {
+      const isFocused = isSsPlot && focusedSeriesId && series.id === focusedSeriesId;
+      const dimmed = isSsPlot && focusedSeriesId && series.id !== focusedSeriesId;
+      drawSeries(
+        series.data,
+        String(series.color || COLORS[index % COLORS.length] || "#8884d8"),
+        isFocused ? 2.5 : 2,
+        dimmed ? 0.35 : 1,
+      );
+    });
+    if (isSsPlot && chartFocusedFitLine) {
+      drawSeries(chartFocusedFitLine, focusedSeriesColor, 2, 0.7, [6, 4]);
+    }
+    ctx.restore();
+
+    for (const overlay of highlightOverlays) {
+      if (!overlay.hideStartLine) {
+        drawVerticalLine(
+          Math.min(overlay.x1, overlay.x2),
+          overlay.stroke,
+          overlay.strokeOpacity,
+          overlay.strokeWidth ?? 1.5,
+        );
+      }
+      if (!overlay.hideEndLine) {
+        drawVerticalLine(
+          Math.max(overlay.x1, overlay.x2),
+          overlay.stroke,
+          overlay.strokeOpacity,
+          overlay.strokeWidth ?? 1.5,
+        );
+      }
+    }
+    if (isSsPlot && focusedSsOverlay) {
+      drawVerticalLine(
+        Math.min(focusedSsOverlay.x1, focusedSsOverlay.x2),
+        ssOverlayStyle.stroke,
+        ssOverlayStyle.strokeOpacity,
+        2,
+      );
+      drawVerticalLine(
+        Math.max(focusedSsOverlay.x1, focusedSsOverlay.x2),
+        ssOverlayStyle.stroke,
+        ssOverlayStyle.strokeOpacity,
+        2,
+      );
+    }
+    for (const marker of currentBiasMarkers) {
+      drawVerticalLine(
+        marker.x,
+        marker.stroke,
+        marker.strokeOpacity ?? 1,
+        marker.strokeWidth ?? 2,
+      );
+    }
+
+    if (startedAt) {
+      const durationMs = getDeviceAnalysisPerfNow() - startedAt;
+      if (durationMs >= 8 || chartSeriesList.length >= 8 || chartPointCount >= 3000) {
+        logDeviceAnalysisPerf("render:main-plot-canvas", {
+          chartPointCount,
+          durationMs,
+          effectiveYScale,
+          fileId: activeFile?.fileId ?? null,
+          fileName: activeFile?.fileName ?? null,
+          plotType: plotType ?? null,
+          seriesCount: chartSeriesList.length,
+        });
+      }
+    }
+  }, [
+    activeFile?.fileId,
+    activeFile?.fileName,
+    chartFocusedFitLine,
+    chartPointCount,
+    chartSeriesList,
+    chartYDataKey,
+    chartYTicks,
+    currentBiasMarkers,
+    effectiveYScale,
+    focusedSeriesColor,
+    focusedSeriesId,
+    focusedSsOverlay,
+    highlightOverlays,
+    isSsPlot,
+    plotRect,
+    plotType,
+    plotXFactor,
+    plotYFactor,
+    scale,
+    size.height,
+    size.width,
+    ssOverlayStyle,
+    xAxisLabel,
+    xTickDigits,
+    xTicks,
+    yAxisLabel,
+    yAxisNearZeroEpsilon,
+    yTickDigits,
+  ]);
+
+  const handleMouseMove = useCallback(
+    (event: React.MouseEvent<HTMLCanvasElement>) => {
+      if (!plotRect || !scale || !chartSeriesList.length) return;
+      const rect = event.currentTarget.getBoundingClientRect();
+      const mx = event.clientX - rect.left;
+      const my = event.clientY - rect.top;
+      if (
+        mx < plotRect.left ||
+        mx > plotRect.left + plotRect.width ||
+        my < plotRect.top ||
+        my > plotRect.top + plotRect.height
+      ) {
+        setTooltip((prev) => ({ ...prev, visible: false }));
+        return;
+      }
+      const rawX = scale.pxToX(mx);
+      let best:
+        | {
+            color: string;
+            distance: number;
+            label: string;
+            pointX: number;
+            pointY: number;
+            seriesName: string;
+          }
+        | null = null;
+      for (const { color, lookup, series } of tooltipLookups) {
+        const point = getNearestCanvasTooltipPoint(lookup, rawX);
+        if (!point) continue;
+        if (
+          point.rawX < scale.xMin ||
+          point.rawX > scale.xMax ||
+          point.chartY < scale.yMin ||
+          point.chartY > scale.yMax
+        ) {
+          continue;
+        }
+        const distance = Math.abs(point.rawX - rawX);
+        if (best && distance >= best.distance) continue;
+        best = {
+          color,
+          distance,
+          label: `#${point.index + 1}  x=${formatNumber(point.rawX * plotXFactor, {
+              digits: xTooltipDigits ?? xTickDigits,
+            })} ${plotXUnitLabel}  y=${formatNumber(point.rawY * plotYFactor, {
+            digits: yTickDigits,
+          })} ${plotYUnitLabel}`,
+          pointX: scale.xToPx(point.rawX),
+          pointY: scale.yToPx(point.chartY),
+          seriesName: decodeTooltipSeriesName(series.tooltipName ?? series.name).label,
+        };
+      }
+      if (!best) {
+        setTooltip((prev) => ({ ...prev, visible: false }));
+        return;
+      }
+      setTooltip({
+        color: best.color,
+        label: best.label,
+        pointX: best.pointX,
+        pointY: best.pointY,
+        seriesName: best.seriesName,
+        visible: true,
+        x: clamp(mx + 12, 8, Math.max(8, size.width - 240)),
+        y: clamp(my + 12, 8, Math.max(8, size.height - 78)),
+      });
+    },
+    [
+      plotRect,
+      plotXFactor,
+      plotXUnitLabel,
+      plotYFactor,
+      plotYUnitLabel,
+      scale,
+      size.height,
+      size.width,
+      tooltipLookups,
+      xTickDigits,
+      xTooltipDigits,
+      yTickDigits,
+    ],
+  );
+
+  return (
+    <div ref={wrapperRef} className="relative h-full w-full">
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0"
+        aria-label="main plot chart"
+        onMouseMove={handleMouseMove}
+        onMouseLeave={() => setTooltip((prev) => ({ ...prev, visible: false }))}
+      />
+      {renderedLegendContent ? (
+        <div className="absolute right-0 top-0 bottom-0 z-[5] flex items-center" style={{ width: legendWidth }}>
+          {renderedLegendContent}
+        </div>
+      ) : null}
+      {tooltip.visible &&
+      typeof tooltip.pointX === "number" &&
+      typeof tooltip.pointY === "number" &&
+      plotRect ? (
+        <div className="absolute inset-0 pointer-events-none z-[3]">
+          <div
+            className="absolute top-0 bottom-0 border-l border-dashed border-[#111827]/25"
+            style={{ left: tooltip.pointX }}
+          />
+          <div
+            className="absolute left-0 right-0 border-t border-dashed border-[#111827]/18"
+            style={{ top: tooltip.pointY }}
+          />
+          <div
+            className="absolute h-2.5 w-2.5 rounded-full border-2 border-white shadow"
+            style={{
+              backgroundColor: tooltip.color ?? "#111827",
+              left: tooltip.pointX,
+              top: tooltip.pointY,
+              transform: "translate(-50%, -50%)",
+            }}
+          />
+        </div>
+      ) : null}
+      <ChartInteractionOverlay
+        key={`${plotType ?? "plot"}:${focusedSeriesId ?? "series"}:${currentBiasInteraction?.enabled ? "currentBias" : ssInteraction?.enabled ? "ss" : "off"}`}
+        xDomain={interactiveXDomain}
+        plotArea={plotRect}
+        interactiveSeriesXs={interactiveSeriesXs}
+        currentBiasInteraction={currentBiasInteraction}
+        ssInteraction={ssInteraction}
+        ssOverlayStyle={ssOverlayStyle}
+      />
+      {tooltip.visible ? (
+        <div className="absolute z-10 pointer-events-none" style={{ left: tooltip.x, top: tooltip.y }}>
+          <div className="bg-[#1e1e1e] border border-[#333] rounded-lg px-2 py-1.5 shadow-xl text-white">
+            <div className="text-xs text-white font-medium truncate max-w-[220px]">
+              {tooltip.seriesName}
+            </div>
+            <div className="text-[11px] text-[#ccc] font-mono mt-1 whitespace-nowrap">
+              {tooltip.label}
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+});
 
 const ChartPlotAreaReporter = memo(function ChartPlotAreaReporter({
   onChange,
@@ -1257,6 +1984,49 @@ const MainPlotChart = memo(function MainPlotChart({
     );
   }, []);
 
+  const shouldUseCanvasMainPlot = isCanvasMainPlotEnabled();
+
+  if (shouldUseCanvasMainPlot) {
+    return (
+      <CanvasMainPlotChart
+        activeFile={activeFile}
+        chartFocusedFitLine={chartFocusedFitLine}
+        chartPointCount={chartPointCount}
+        chartSeriesList={chartSeriesList}
+        chartYDataKey={chartYDataKey}
+        chartYDomain={chartYDomain}
+        chartYTicks={chartYTicks}
+        currentBiasMarkers={currentBiasMarkers}
+        currentBiasInteraction={currentBiasInteraction}
+        effectiveYScale={effectiveYScale}
+        focusedSeriesColor={focusedSeriesColor}
+        focusedSeriesId={focusedSeriesId}
+        focusedSsOverlay={focusedSsOverlay}
+        highlightOverlays={highlightOverlays}
+        interactiveSeriesXs={interactiveSeriesXs}
+        interactiveXDomain={interactiveXDomain}
+        isSsPlot={isSsPlot}
+        legendContent={legendContent}
+        legendWidth={legendWidth}
+        plotType={plotType}
+        plotXFactor={plotXFactor}
+        plotXUnitLabel={plotXUnitLabel}
+        plotYFactor={plotYFactor}
+        plotYKey={plotYKey}
+        plotYUnitLabel={plotYUnitLabel}
+        ssInteraction={ssInteraction}
+        ssOverlayStyle={ssOverlayStyle}
+        xAxisLabel={xAxisLabel}
+        xTickDigits={xTickDigits}
+        xTicks={xTicks}
+        xTooltipDigits={xTooltipDigits}
+        yAxisLabel={yAxisLabel}
+        yAxisNearZeroEpsilon={yAxisNearZeroEpsilon}
+        yTickDigits={yTickDigits}
+      />
+    );
+  }
+
   return (
     <div className="relative h-full w-full">
       <ResponsiveContainer
@@ -1348,22 +2118,25 @@ const MainPlotChart = memo(function MainPlotChart({
               tooltipSeriesOrder.get(String(entry?.name ?? "")) ?? Number.MAX_SAFE_INTEGER
             }
             formatter={(value, name, item: any) => {
-              const rawFromPrimary = Number(item?.payload?.[plotYKey]);
-              const rawFromY = Number(item?.payload?.y);
+              const rawFromPrimary = toFiniteCanvasNumber(item?.payload?.[plotYKey]);
+              const rawFromY = toFiniteCanvasNumber(item?.payload?.y);
+              const strictValue = toFiniteCanvasNumber(value);
               const rawFromValue =
                 effectiveYScale === "linear"
-                  ? Number(value)
-                  : Number.isFinite(Number(value))
-                    ? Math.pow(10, Number(value))
-                    : Number.NaN;
-              const num = Number.isFinite(rawFromPrimary)
+                  ? strictValue
+                  : strictValue !== null
+                    ? Math.pow(10, strictValue)
+                    : null;
+              const num = rawFromPrimary !== null
                 ? rawFromPrimary
-                : Number.isFinite(rawFromY)
+                : rawFromY !== null
                   ? rawFromY
                   : rawFromValue;
               const decodedName = decodeTooltipSeriesName(name);
               return [
-                `${formatNumber(num * plotYFactor, { digits: yTickDigits })} ${plotYUnitLabel}`,
+                num !== null
+                  ? `${formatNumber(num * plotYFactor, { digits: yTickDigits })} ${plotYUnitLabel}`
+                  : `- ${plotYUnitLabel}`,
                 decodedName.label,
               ];
             }}

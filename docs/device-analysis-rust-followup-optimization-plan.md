@@ -312,3 +312,40 @@ For import changes, use any existing import benchmark script. If the benchmark i
 - Log source labels such as `rust-import-meta`, `rust-analysis-direct`, or `rust-engine-concurrent` so perf output remains easy to compare.
 - Prefer additive IPC methods first. Remove older methods only after real datasets have passed.
 - Update this document after each priority with benchmark notes and any changed assumptions.
+
+## Next Pass: Analysis Payload and Chart Rendering
+
+The completed Rust path made numeric analysis fast enough that the next bottlenecks are mostly data shape and rendering overhead. This pass should avoid rebuilding identical arrays in the renderer and only move drawing technology where the current SVG path is measurably expensive.
+
+Checklist:
+
+- [x] Audit current Rust, chart, parameter, and cold-start paths.
+- [x] Pick the first implementation target: analysis payload de-duplication before chart rewrites.
+- [x] Add shared-`xGroups` Rust analysis payload support while keeping the existing `{x, y}` payload compatible.
+- [x] Update `useAnalysisFileCache.ts` so Rust prefetch sends each X group once and each series references `groupIndex`.
+- [x] Verify TypeScript fallback still builds points lazily only when Rust misses or fails.
+- [x] Run focused checks: `npm run typecheck`, `npm run verify:rust-ss-auto`, and `npm run bench:phase3` when practical.
+- [x] After payload work, prototype main-chart Canvas/uPlot rendering behind a feature flag; keep thumbnail charts on current Canvas 2D.
+
+Non-goals for this pass:
+
+- Do not introduce WebGL/GPU as the default chart renderer.
+- Do not remove Recharts until the replacement handles overlays, tooltip behavior, legend selection, and manual marker dragging.
+- Do not prewarm Rust during app cold start unless boot logs prove it improves first useful interaction.
+
+Implementation notes:
+
+- `analyzeSeriesBatch` now accepts either legacy series entries with `{x, y}` or compact entries with `{groupIndex, y}` plus top-level `xGroups`.
+- The renderer no longer filters and rebuilds per-series X arrays for Rust prefetch; Electron normalizes the shared X groups once before forwarding to Rust.
+- Verification on 2026-04-25: `cargo check`, `npm.cmd run typecheck`, `npm.cmd run verify:rust-ss-auto`, `npm.cmd run bench:phase3`, and a direct stdio smoke test for the compact payload all passed.
+- Latest benchmark: `rustAnalysisMs=709`, `projectedAnalysis=714ms`, `saved=8379ms` on the 293K phase3 benchmark set.
+- Main plot Canvas 2D is now the default main-chart renderer, including manual current-bias and SS-window interaction through the shared overlay. It can still be disabled with `localStorage.CONDUCTOR_DA_CANVAS_MAIN_PLOT = "0"` or `window.__CONDUCTOR_DA_CANVAS_MAIN_PLOT__ = false`.
+- Log and log-absolute Canvas rendering now follows source gap semantics: bidirectional transfer traces are split into forward/reverse branches, invalid log points break the path, single isolated valid points are not connected, and finite out-of-domain Y values are clipped by the plot area instead of breaking the path. Canvas also invokes the existing legend content callback so editable/toggleable chart legends remain visible.
+- Main plot log/log-absolute series now keep the full source point sequence before rendering so invalid-gap rows are not lost by display downsampling. Linear plots still use the display point budget, and render-series caching is keyed by `yScaleMode` so linear/log mode switches cannot reuse the wrong point sequence.
+- Canvas layer ordering now draws highlight fills, grid/axes, clipped series paths, and then marker/window lines, which keeps the data visible while preserving draggable overlays. Tooltip inspection ignores points outside the current visible domain so the crosshair cannot snap to hidden samples.
+- Canvas numeric reads now reject `null`/empty values before coercion. This prevents log-null points from becoming `0` (`10^0 = 1A`) and drawing false top-edge vertical spikes in low-current regions.
+- Canvas path construction is now covered by unit tests through `canvasPlotUtils`: strict numeric coercion, log gap breaking, and bidirectional sweep splitting are checked without requiring a browser harness.
+- Trans_Br auto extraction now honors `Output.Graph.YAxis.Data` when it names a valid current column. The 293K Trans_Br samples with `DataName: Vg, Id, Ig` now select `Ig` instead of defaulting to the first drain-current-like column.
+- Canvas tooltip inspect now caches per-series lookup data, uses binary search for monotonic X traces, falls back to exact linear search for non-monotonic traces, and displays the real source point index with a crosshair/dot marker.
+- Canvas prototype verification on 2026-04-25: `npm.cmd run typecheck`, `npm.cmd run test:unit`, and `npm.cmd run build` passed.
+- Browser smoke verification on 2026-04-25: a temporary Vite harness rendered the default Canvas path as `canvas=1/svg=0`, confirmed the canvas backing/store size was non-zero, rendered current-bias and SS interaction modes as `canvas=1/svg=0` with the shared interaction overlay mounted, and rendered the explicit opt-out Recharts path as `svg=1/canvas=0`.
