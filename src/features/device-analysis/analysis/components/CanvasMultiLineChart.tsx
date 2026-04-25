@@ -58,6 +58,7 @@ export type CanvasMultiLineChartProps = {
   xUnitLabel?: string;
   yScaleFactor?: number;
   yScaleType?: "linear" | "log";
+  yLogCurrentMode?: "all" | "positive";
   yUnitLabel?: string;
   padding?: Padding;
   title?: string;
@@ -87,12 +88,35 @@ const normalizeDomainTuple = (
   return [lo, hi];
 };
 
+const resolvePreviewYForScale = (
+  value: unknown,
+  yScaleType: "linear" | "log",
+  yLogCurrentMode: "all" | "positive" = "all",
+): number | null => {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return null;
+  if (yScaleType !== "log") return num;
+  if (yLogCurrentMode === "positive") return num > 0 ? num : null;
+  const abs = Math.abs(num);
+  return abs > 0 ? abs : null;
+};
+
+const resolvePreviewSignForScale = (value: unknown): number | null => {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num === 0) return null;
+  return num > 0 ? 1 : -1;
+};
+
 export const resolvePreviewChartDomain = ({
   xGroups,
   series,
   domain,
   yScaleType,
-}: Pick<CanvasMultiLineChartProps, "xGroups" | "series" | "domain" | "yScaleType">): ResolvedPreviewDomain => {
+  yLogCurrentMode = "all",
+}: Pick<
+  CanvasMultiLineChartProps,
+  "xGroups" | "series" | "domain" | "yScaleType" | "yLogCurrentMode"
+>): ResolvedPreviewDomain => {
   const explicitXDomain = normalizeDomainTuple(domain?.x);
   const explicitYDomain = normalizeDomainTuple(domain?.y);
 
@@ -110,8 +134,8 @@ export const resolvePreviewChartDomain = ({
 
   let minY = Infinity;
   let maxY = -Infinity;
-  let minPositiveY = Infinity;
-  let maxPositiveY = -Infinity;
+  let minLogY = Infinity;
+  let maxLogY = -Infinity;
   for (const chartSeries of series ?? []) {
     const yArr = chartSeries?.y;
     if (!yArr) continue;
@@ -121,9 +145,10 @@ export const resolvePreviewChartDomain = ({
       if (!Number.isFinite(yVal)) continue;
       if (yVal < minY) minY = yVal;
       if (yVal > maxY) maxY = yVal;
-      if (yVal > 0) {
-        if (yVal < minPositiveY) minPositiveY = yVal;
-        if (yVal > maxPositiveY) maxPositiveY = yVal;
+      const logY = resolvePreviewYForScale(yVal, "log", yLogCurrentMode);
+      if (logY !== null) {
+        if (logY < minLogY) minLogY = logY;
+        if (logY > maxLogY) maxLogY = logY;
       }
     }
   }
@@ -137,13 +162,13 @@ export const resolvePreviewChartDomain = ({
   const wantsLogScale = String(yScaleType ?? "linear") === "log";
   if (
     wantsLogScale &&
-    Number.isFinite(minPositiveY) &&
-    Number.isFinite(maxPositiveY) &&
-    maxPositiveY > 0
+    Number.isFinite(minLogY) &&
+    Number.isFinite(maxLogY) &&
+    maxLogY > 0
   ) {
     return {
       x: resolvedXDomain,
-      y: padLogDomain(minPositiveY, maxPositiveY),
+      y: padLogDomain(minLogY, maxLogY),
       effectiveYScaleType: "log",
     };
   }
@@ -239,6 +264,7 @@ const CanvasMultiLineChart = ({
   xUnitLabel = "V",
   yScaleFactor = 1,
   yScaleType = "linear",
+  yLogCurrentMode = "all",
   yUnitLabel = "",
   padding = DEFAULT_PADDING,
   title,
@@ -284,8 +310,15 @@ const CanvasMultiLineChart = ({
   }, [series, xGroups]);
 
   const resolvedDomain = useMemo(
-    () => resolvePreviewChartDomain({ xGroups, series, domain, yScaleType }),
-    [domain, series, xGroups, yScaleType],
+    () =>
+      resolvePreviewChartDomain({
+        xGroups,
+        series,
+        domain,
+        yScaleType,
+        yLogCurrentMode,
+      }),
+    [domain, series, xGroups, yLogCurrentMode, yScaleType],
   );
 
   useEffect(() => {
@@ -418,18 +451,37 @@ const CanvasMultiLineChart = ({
       ctx.lineWidth = 1;
 
       let started = false;
+      let previousSign: number | null = null;
       for (let i = 0; i < n; i++) {
         const xVal = xArr[i];
         const yVal = yArr[i];
         if (!Number.isFinite(xVal) || !Number.isFinite(yVal)) continue;
         const px = xToPx(Number(xVal));
-        const py = yToPx(Number(yVal));
+        const displayY = resolvePreviewYForScale(
+          yVal,
+          resolvedDomain.effectiveYScaleType,
+          yLogCurrentMode,
+        );
+        if (displayY === null) {
+          started = false;
+          previousSign = null;
+          continue;
+        }
+        const sign =
+          resolvedDomain.effectiveYScaleType === "log" && yLogCurrentMode === "all"
+            ? resolvePreviewSignForScale(yVal)
+            : null;
+        if (started && previousSign !== null && sign !== null && sign !== previousSign) {
+          started = false;
+        }
+        const py = yToPx(displayY);
         if (!started) {
           ctx.moveTo(px, py);
           started = true;
         } else {
           ctx.lineTo(px, py);
         }
+        previousSign = sign;
       }
       if (started) ctx.stroke();
     }
@@ -489,18 +541,37 @@ const CanvasMultiLineChart = ({
     ctx.lineWidth = 2;
     ctx.beginPath();
     let started = false;
+    let previousSign: number | null = null;
     for (let i = 0; i < n; i++) {
       const xVal = xArr[i];
       const yVal = yArr[i];
       if (!Number.isFinite(xVal) || !Number.isFinite(yVal)) continue;
       const px = xToPx(Number(xVal));
-      const py = yToPx(Number(yVal));
+      const displayY = resolvePreviewYForScale(
+        yVal,
+        resolvedDomain.effectiveYScaleType,
+        yLogCurrentMode,
+      );
+      if (displayY === null) {
+        started = false;
+        previousSign = null;
+        continue;
+      }
+      const sign =
+        resolvedDomain.effectiveYScaleType === "log" && yLogCurrentMode === "all"
+          ? resolvePreviewSignForScale(yVal)
+          : null;
+      if (started && previousSign !== null && sign !== null && sign !== previousSign) {
+        started = false;
+      }
+      const py = yToPx(displayY);
       if (!started) {
         ctx.moveTo(px, py);
         started = true;
       } else {
         ctx.lineTo(px, py);
       }
+      previousSign = sign;
     }
     if (started) ctx.stroke();
     ctx.restore();
@@ -583,7 +654,13 @@ const CanvasMultiLineChart = ({
       const yVal = yArr[idx];
       if (!Number.isFinite(yVal)) continue;
       const yValue = Number(yVal);
-      const py = yToPx(yValue);
+      const displayY = resolvePreviewYForScale(
+        yValue,
+        resolvedDomain.effectiveYScaleType,
+        yLogCurrentMode,
+      );
+      if (displayY === null) continue;
+      const py = yToPx(displayY);
       const dy = Math.abs(py - my);
       if (dy < bestDy) {
         bestDy = dy;
@@ -596,7 +673,13 @@ const CanvasMultiLineChart = ({
 
     const cursorX = xToPx(bestGroupX);
     const pointX = cursorX;
-    const pointY = yToPx(bestY);
+    const bestDisplayY = resolvePreviewYForScale(
+      bestY,
+      resolvedDomain.effectiveYScaleType,
+      yLogCurrentMode,
+    );
+    if (bestDisplayY === null) return;
+    const pointY = yToPx(bestDisplayY);
 
     hoverRef.current = {
       active: true,

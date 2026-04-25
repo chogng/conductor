@@ -27,7 +27,7 @@ import {
 } from "../useOriginCanvasExport";
 import OverviewGrid from "./OverviewGrid";
 import CalculatedParametersRow from "./CalculatedParametersRow";
-import { buildLogTicks, buildNiceTicks, buildOriginAutoTicks, buildPoints, buildStepTicks, computeLabelInterval, computeMinMax, downsamplePointsForDisplay, inferTickDigitsFromTicks, normalizeFloat, normalizeVarToken, padLinearDomain, padLogDomain, parseOptionalNumber, preserveScrollPosition, varTokenToSymbol, } from "../lib/analysisChartsUtils";
+import { SIGNED_LOG_Y_DATA_KEY, buildLogTicks, buildNiceTicks, buildOriginAutoTicks, buildPoints, buildStepTicks, computeLabelInterval, computeMinMax, downsamplePointsForDisplay, inferTickDigitsFromTicks, normalizeFloat, normalizeVarToken, padLinearDomain, padLogDomain, parseOptionalNumber, preserveScrollPosition, varTokenToSymbol, withSignedLogPositivePoints, } from "../lib/analysisChartsUtils";
 import { computeBaseCurrentMetrics, isOutputLikeDeviceAnalysisFile, isTransferLikeDeviceAnalysisFile, } from "../lib/deviceAnalysisMetrics";
 import { getDeviceAnalysisXUnitMeta, getDeviceAnalysisYUnitMeta, normalizeDeviceAnalysisYUnit, } from "../lib/deviceAnalysisUnits";
 import { getDeviceAnalysisPerfNow, logDeviceAnalysisPerf, startDeviceAnalysisPerf } from "../../shared/lib/deviceAnalysisPerf";
@@ -290,6 +290,7 @@ const normalizeChartYScale = (value: unknown): "linear" | "log" | "logAbs" => {
         return "logAbs";
     return normalizeLinearLogScale(normalized);
 };
+const normalizeLogCurrentMode = (value: unknown): "all" | "positive" => String(value ?? "").trim() === "positive" ? "positive" : "all";
 const normalizeYScaleByFileIdRecord = (value: unknown): Record<string, "linear" | "log"> => {
     const raw = value && typeof value === "object" ? value as Record<string, unknown> : {};
     const next: Record<string, "linear" | "log"> = {};
@@ -494,6 +495,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         yMin: "",
         yMax: "",
         yScale: "linear", // 'linear' | 'log' | 'logAbs'
+        yLogCurrentMode: "all", // 'all' | 'positive'
         yTicks: "nice", // 'auto' | 'nice' | 'step' | 'decades'
         yTickCount: 6,
         yStep: "",
@@ -2147,13 +2149,18 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return "log";
         return "linear";
     }, [axis?.yScale]);
+    const yLogCurrentMode = useMemo(
+        () => normalizeLogCurrentMode(axis?.yLogCurrentMode),
+        [axis?.yLogCurrentMode],
+    );
     const plotYKey = useMemo(() => {
         if (yScaleMode === "logAbs")
             return "yAbsPositive";
-        if (yScaleMode === "log")
-            return "yPositive";
+        if (yScaleMode === "log") {
+            return yLogCurrentMode === "positive" ? "yPositive" : SIGNED_LOG_Y_DATA_KEY;
+        }
         return "y";
-    }, [yScaleMode]);
+    }, [yLogCurrentMode, yScaleMode]);
     const plotLegendSeries = useMemo(() => {
         const byType = plotSeriesByType ?? { iv: [], gm: [], ss: [], j: [] };
         return effectivePlotType === "gm"
@@ -2165,11 +2172,17 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     : byType.iv ?? [];
     }, [effectivePlotType, plotSeriesByType]);
     const displayPlotSeries = useMemo(() => {
-        return plotLegendSeries.filter((series: any) => {
+        const visible = plotLegendSeries.filter((series: any) => {
             const seriesId = String(series?.id ?? "").trim();
             return !seriesId || visibleSeriesKeySet.has(seriesId);
         });
-    }, [plotLegendSeries, visibleSeriesKeySet]);
+        if (yScaleMode !== "log" || yLogCurrentMode === "positive")
+            return visible;
+        return visible.map((series: any) => ({
+            ...series,
+            data: withSignedLogPositivePoints(series?.data),
+        }));
+    }, [plotLegendSeries, visibleSeriesKeySet, yLogCurrentMode, yScaleMode]);
     const hasVisiblePlotSeries = displayPlotSeries.length > 0;
     const currentOverlaysForVisiblePlot = useMemo(() => hasVisiblePlotSeries ? currentOverlaysForPlot : [], [currentOverlaysForPlot, hasVisiblePlotSeries]);
     const currentBiasMarkersForVisiblePlot = useMemo(() => hasVisiblePlotSeries ? currentBiasMarkers : [], [currentBiasMarkers, hasVisiblePlotSeries]);
@@ -2195,7 +2208,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             cacheBucket = new Map<string, any[]>();
             renderSeriesCacheRef.current.set(cacheKey, cacheBucket);
         }
-        const renderSeriesModeKey = `${yScaleMode}:${renderMaxPointsPerSeries}`;
+        const renderSeriesModeKey = `${yScaleMode}:${yLogCurrentMode}:${renderMaxPointsPerSeries}`;
         const cachedSeries = cacheBucket.get(renderSeriesModeKey);
         if (cachedSeries) {
             finishPerf({ cached: true });
@@ -2224,7 +2237,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             outputPointCount,
         });
         return computedSeries;
-    }, [activeFile?.fileId, activeFile?.fileName, displayPlotSeries, renderMaxPointsPerSeries, yScaleMode]);
+    }, [activeFile?.fileId, activeFile?.fileName, displayPlotSeries, renderMaxPointsPerSeries, yLogCurrentMode, yScaleMode]);
     const renderOriginSelectionLegend = React.useCallback((legendProps: any) => {
         if (!plotLegendSeries.length)
             return null;
@@ -2312,10 +2325,12 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         if (yScaleMode === "linear")
             return "";
         if (effectiveYScale !== yScaleMode) {
-            return "Log scale requires positive values (use Log(|y|) if your data crosses 0).";
+            return yLogCurrentMode === "positive"
+                ? "Log I+ requires positive values."
+                : "Log all-I requires non-zero values.";
         }
         return "";
-    }, [effectiveYScale, yScaleMode]);
+    }, [effectiveYScale, yLogCurrentMode, yScaleMode]);
     const xDomain = useMemo(() => {
         const auto = autoMinMax.minX === null || autoMinMax.maxX === null
             ? [0, 1]
@@ -2902,7 +2917,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         id="device-analysis-overview-sidebar"
         className="md:min-h-0 flex flex-col h-full"
       >
-        <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} onVisibleFileIdsChange={setOverviewVisibleFileIds} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} originCanvasExportScope={originCanvasExportScope} isSelectionMode={isManualCanvasScope} xUnitFactor={resolvedXUnitMeta.factor} xUnitLabel={resolvedXUnitMeta.label} resolveYUnitForFile={resolveYUnitForFile} resolveYScaleForFile={resolveLinearLogYScaleForFile}/>
+        <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} onVisibleFileIdsChange={setOverviewVisibleFileIds} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} originCanvasExportScope={originCanvasExportScope} isSelectionMode={isManualCanvasScope} xUnitFactor={resolvedXUnitMeta.factor} xUnitLabel={resolvedXUnitMeta.label} resolveYUnitForFile={resolveYUnitForFile} resolveYScaleForFile={resolveLinearLogYScaleForFile} resolveYLogCurrentModeForFile={() => yLogCurrentMode}/>
       </aside>
 
       <ScrollArea className="da-analysis-scroll-area md:min-h-0 min-w-0" axis="y" viewportClassName="flex flex-col min-h-full">
@@ -2975,6 +2990,22 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     label: "Log",
                 },
             ]} aria-label="Y scale" className="w-fit da-neutral-select" stableWidth data-cta="Device Analysis" data-cta-position="y-scale" data-cta-copy="y scale"/>)}
+                  {effectivePlotType !== "ss" && yScaleMode === "log" ? (<DropdownField id="device-analysis-log-current-mode-select" size="sm" value={yLogCurrentMode} onChange={(next: any) => {
+                const mode = normalizeLogCurrentMode(next);
+                setAxis((prev: any) => ({
+                    ...prev,
+                    yLogCurrentMode: mode,
+                }));
+            }} options={[
+                {
+                    value: "all",
+                    label: "I: 全部",
+                },
+                {
+                    value: "positive",
+                    label: "I: I+",
+                },
+            ]} aria-label="Log current mode" className="w-fit da-neutral-select" stableWidth data-cta="Device Analysis" data-cta-position="log-current-mode" data-cta-copy="log current mode"/>) : null}
                 </div>
 
                 {effectivePlotType === "gm" ? (<div className="flex items-center gap-1">
@@ -3076,6 +3107,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     effectiveYScale={effectiveYScale}
                     yDomain={yDomain}
                     yTicks={yTicks}
+                    yLogCurrentMode={yLogCurrentMode}
                     yScaleMode={yScaleMode}
                     plotYFactor={plotYFactor}
                     plotYUnitLabel={plotYUnitLabel}

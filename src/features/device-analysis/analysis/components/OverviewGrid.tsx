@@ -24,6 +24,9 @@ type OverviewGridProps = {
     file: ProcessedFileLike | null | undefined,
   ) => string;
   resolveYScaleForFile?: (file: ProcessedFileLike | null | undefined) => string;
+  resolveYLogCurrentModeForFile?: (
+    file: ProcessedFileLike | null | undefined,
+  ) => "all" | "positive";
 };
 
 type CurveFilter = string;
@@ -67,6 +70,7 @@ const OverviewGrid = memo(function OverviewGrid({
   xUnitLabel,
   resolveYUnitForFile,
   resolveYScaleForFile,
+  resolveYLogCurrentModeForFile,
 }: OverviewGridProps) {
   const { t } = useLanguage();
   const [curveFilter, setCurveFilter] = useState<CurveFilter>("all");
@@ -249,6 +253,9 @@ const OverviewGrid = memo(function OverviewGrid({
                   yUnitFactor={yUnitMeta.factor}
                   yUnitLabel={yUnitMeta.label}
                   yScale={resolveYScaleForFile?.(file) ?? "linear"}
+                  yLogCurrentMode={
+                    resolveYLogCurrentModeForFile?.(file) ?? "all"
+                  }
                 />
               );
             })()

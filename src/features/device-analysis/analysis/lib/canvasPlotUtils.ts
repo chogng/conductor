@@ -18,6 +18,12 @@ export const valueToCanvasY = (
   chartYDataKey: string,
 ): number | null => toFiniteCanvasNumber(point?.[chartYDataKey]);
 
+const valueToCanvasSign = (point: CanvasPlotPoint | null | undefined): number | null => {
+  const sign = toFiniteCanvasNumber(point?.__chartSign);
+  if (sign === null || sign === 0) return null;
+  return sign > 0 ? 1 : -1;
+};
+
 export const collectCanvasLineRuns = ({
   chartYDataKey,
   data,
@@ -46,25 +52,40 @@ export const collectCanvasLineRuns = ({
   for (const segment of segments) {
     if (!Array.isArray(segment) || segment.length < 2) continue;
     let run: CanvasLineRun = [];
+    let previousSign: number | null = null;
     for (const point of segment) {
       const xVal = toFiniteCanvasNumber(point?.x);
       const yVal = valueToCanvasY(point, chartYDataKey);
+      const sign = effectiveYScale !== "linear" ? valueToCanvasSign(point) : null;
       if (xVal === null || yVal === null) {
         pushRun(run);
         run = [];
+        previousSign = null;
         continue;
+      }
+      if (
+        effectiveYScale !== "linear" &&
+        previousSign !== null &&
+        sign !== null &&
+        sign !== previousSign
+      ) {
+        pushRun(run);
+        run = [];
       }
       if (effectiveYScale !== "linear" && xVal < xMin) {
         pushRun(run);
         run = [];
+        previousSign = null;
         continue;
       }
       if (effectiveYScale !== "linear" && xVal > xMax) {
         pushRun(run);
         run = [];
+        previousSign = null;
         continue;
       }
       run.push({ x: xVal, y: yVal });
+      previousSign = sign;
     }
     pushRun(run);
   }

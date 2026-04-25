@@ -45,6 +45,7 @@ type FileCardProps = {
   yUnitFactor?: number;
   yUnitLabel?: string;
   yScale?: string;
+  yLogCurrentMode?: "all" | "positive";
 };
 
 const toSafeIdSuffix = (value: string | undefined) => {
@@ -97,6 +98,7 @@ const FileCard = memo(function FileCard({
   yUnitFactor = 1,
   yUnitLabel = "A",
   yScale = "linear",
+  yLogCurrentMode = "all",
 }: FileCardProps) {
   const { ref, inView } = useInViewOnce();
   const resolvedYScale = yScale === "log" ? "log" : "linear";
@@ -110,8 +112,9 @@ const FileCard = memo(function FileCard({
         series: file?.series,
         domain: file?.domain,
         yScaleType: yScale === "log" ? "log" : "linear",
+        yLogCurrentMode,
       }),
-    [file?.domain, file?.series, file?.xGroups, yScale],
+    [file?.domain, file?.series, file?.xGroups, yLogCurrentMode, yScale],
   );
   const yAxisMin = Number(previewDomain.y[0]);
   const yAxisMax = Number(previewDomain.y[1]);
@@ -186,6 +189,7 @@ const FileCard = memo(function FileCard({
             xUnitLabel={xUnitLabel}
             yScaleFactor={yUnitFactor}
             yScaleType={resolvedYScale}
+            yLogCurrentMode={yLogCurrentMode}
             yUnitLabel={yUnitLabel}
             title={file.fileName}
             className="absolute inset-0"

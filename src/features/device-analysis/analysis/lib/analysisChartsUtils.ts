@@ -3,6 +3,8 @@ type PlotPoint = {
   y: number | null;
   yPositive: number | null;
   yAbsPositive: number | null;
+  ySignedLogPositive?: number | null;
+  ySignedLogSign?: number | null;
 };
 
 type TickBuilderOptions = {
@@ -31,6 +33,33 @@ type DisplayPoint = {
 };
 
 const displayDownsampleCache = new WeakMap<object, Map<number, unknown[]>>();
+const signedLogPointsCache = new WeakMap<object, unknown[]>();
+
+export const SIGNED_LOG_Y_DATA_KEY = "ySignedLogPositive";
+export const SIGNED_LOG_SIGN_DATA_KEY = "ySignedLogSign";
+
+export const withSignedLogPositivePoints = <T extends { y?: unknown }>(
+  points: T[] | null | undefined,
+): Array<T & { [SIGNED_LOG_Y_DATA_KEY]: number | null }> => {
+  if (!Array.isArray(points)) return [];
+  const cacheKey = points as unknown as object;
+  const cached = signedLogPointsCache.get(cacheKey);
+  if (cached) {
+    return cached as Array<T & { [SIGNED_LOG_Y_DATA_KEY]: number | null }>;
+  }
+
+  const next = points.map((point) => {
+    const y = Number(point?.y);
+    const sign = Number.isFinite(y) && y !== 0 ? (y > 0 ? 1 : -1) : null;
+    return {
+      ...point,
+      [SIGNED_LOG_SIGN_DATA_KEY]: sign,
+      [SIGNED_LOG_Y_DATA_KEY]: sign === null ? null : Math.abs(y),
+    };
+  });
+  signedLogPointsCache.set(cacheKey, next);
+  return next;
+};
 
 export const buildPoints = (
   xArr: ArrayLike<unknown> | null | undefined,
@@ -51,6 +80,8 @@ export const buildPoints = (
       y,
       yPositive: y !== null && y > 0 ? y : null,
       yAbsPositive: yAbs !== null && yAbs > 0 ? yAbs : null,
+      ySignedLogPositive: null,
+      ySignedLogSign: null,
     };
   }
   return out;

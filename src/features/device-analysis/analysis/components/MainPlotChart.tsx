@@ -54,6 +54,8 @@ type PlotSeries = {
   data: PlotPoint[];
 };
 
+type PlotYKey = "y" | "yPositive" | "yAbsPositive" | "ySignedLogPositive";
+
 type SsOverlay = {
   x1: number;
   x2: number;
@@ -122,6 +124,7 @@ type MainPlotChartProps = {
   effectiveYScale: "linear" | "log" | "logAbs";
   yDomain: [number, number];
   yTicks?: number[] | null;
+  yLogCurrentMode?: "all" | "positive";
   yScaleMode: "linear" | "log" | "logAbs";
   plotYFactor: number;
   plotYUnitLabel: string;
@@ -164,6 +167,8 @@ type CanvasTooltipLookup = {
 };
 
 const LOG_CHART_Y_DATA_KEY = "__chartY";
+const LOG_CHART_SIGN_DATA_KEY = "__chartSign";
+const SIGNED_LOG_Y_DATA_KEY = "ySignedLogPositive";
 const TOOLTIP_SERIES_NAME_SEPARATOR = "\u0000";
 const logChartSeriesListCache = new WeakMap<object, Map<string, PlotSeries[]>>();
 const logChartSeriesDataCache = new WeakMap<object, Map<string, PlotPoint[]>>();
@@ -194,7 +199,7 @@ const toLogChartValue = (value: unknown): number | null => {
 
 const getCachedLogChartSeriesData = (
   data: PlotPoint[],
-  plotYKey: "y" | "yPositive" | "yAbsPositive",
+  plotYKey: PlotYKey,
 ): PlotPoint[] => {
   const cacheKey = data as unknown as object;
   let cacheBucket = logChartSeriesDataCache.get(cacheKey);
@@ -209,6 +214,10 @@ const getCachedLogChartSeriesData = (
   const computed = data.map((point) => ({
     ...point,
     [LOG_CHART_Y_DATA_KEY]: toLogChartValue(point?.[plotYKey]),
+    [LOG_CHART_SIGN_DATA_KEY]:
+      plotYKey === SIGNED_LOG_Y_DATA_KEY
+        ? toFiniteCanvasNumber(point?.ySignedLogSign)
+        : null,
   }));
   cacheBucket.set(plotYKey, computed);
   return computed;
@@ -216,7 +225,7 @@ const getCachedLogChartSeriesData = (
 
 const getCachedLogChartSeriesList = (
   seriesList: PlotSeries[],
-  plotYKey: "y" | "yPositive" | "yAbsPositive",
+  plotYKey: PlotYKey,
 ): PlotSeries[] => {
   const cacheKey = seriesList as unknown as object;
   let cacheBucket = logChartSeriesListCache.get(cacheKey);
@@ -421,7 +430,7 @@ const setupCanvas = (
 const getCanvasTooltipLookup = (
   data: PlotPoint[],
   chartYDataKey: string,
-  plotYKey: "y" | "yPositive" | "yAbsPositive",
+  plotYKey: PlotYKey,
 ): CanvasTooltipLookup => {
   const cacheKey = `${chartYDataKey}:${plotYKey}`;
   let cacheBucket = canvasTooltipLookupCache.get(data);
@@ -437,7 +446,8 @@ const getCanvasTooltipLookup = (
     const point = data[index];
     const rawX = toFiniteCanvasNumber(point?.x);
     const chartY = valueToCanvasY(point, chartYDataKey);
-    const rawY = toFiniteCanvasNumber(point?.[plotYKey]);
+    const rawYKey = plotYKey === SIGNED_LOG_Y_DATA_KEY ? "y" : plotYKey;
+    const rawY = toFiniteCanvasNumber(point?.[rawYKey]);
     if (
       rawX !== null &&
       chartY !== null &&
@@ -589,7 +599,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
   plotXFactor: number;
   plotXUnitLabel: string;
   plotYFactor: number;
-  plotYKey: "y" | "yPositive" | "yAbsPositive";
+  plotYKey: PlotYKey;
   plotYUnitLabel: string;
   ssInteraction?: SsInteractionConfig | null;
   ssOverlayStyle: SsOverlayStyle;
@@ -1823,6 +1833,7 @@ const MainPlotChart = memo(function MainPlotChart({
   effectiveYScale,
   yDomain,
   yTicks,
+  yLogCurrentMode = "all",
   yScaleMode,
   plotYFactor,
   plotYUnitLabel,
@@ -1843,11 +1854,13 @@ const MainPlotChart = memo(function MainPlotChart({
     ? getDeviceAnalysisPerfNow()
     : 0;
   const [chartPlotArea, setChartPlotArea] = useState<PlotRect | null>(null);
-  const plotYKey = useMemo<"y" | "yPositive" | "yAbsPositive">(() => {
+  const plotYKey = useMemo<PlotYKey>(() => {
     if (yScaleMode === "logAbs") return "yAbsPositive";
-    if (yScaleMode === "log") return "yPositive";
+    if (yScaleMode === "log") {
+      return yLogCurrentMode === "positive" ? "yPositive" : SIGNED_LOG_Y_DATA_KEY;
+    }
     return "y";
-  }, [yScaleMode]);
+  }, [yLogCurrentMode, yScaleMode]);
 
   const chartYDataKey = useMemo(
     () => (effectiveYScale === "linear" ? plotYKey : LOG_CHART_Y_DATA_KEY),
@@ -2118,7 +2131,8 @@ const MainPlotChart = memo(function MainPlotChart({
               tooltipSeriesOrder.get(String(entry?.name ?? "")) ?? Number.MAX_SAFE_INTEGER
             }
             formatter={(value, name, item: any) => {
-              const rawFromPrimary = toFiniteCanvasNumber(item?.payload?.[plotYKey]);
+              const rawTooltipKey = plotYKey === SIGNED_LOG_Y_DATA_KEY ? "y" : plotYKey;
+              const rawFromPrimary = toFiniteCanvasNumber(item?.payload?.[rawTooltipKey]);
               const rawFromY = toFiniteCanvasNumber(item?.payload?.y);
               const strictValue = toFiniteCanvasNumber(value);
               const rawFromValue =
