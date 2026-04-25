@@ -64,6 +64,7 @@ type DeviceAnalysisOriginCurveEntry = {
 
 export type DeviceAnalysisOriginSelectionExport = {
   canvasCount: number;
+  columnLayout?: "xy-pairs" | "shared-x";
   csvName: string;
   csvText: string;
   curveCount: number;
@@ -143,6 +144,18 @@ const stripAxisUnitSuffix = (value: unknown): string =>
     .replace(/\s*\([^()]+\)\s*$/, "")
     .trim();
 
+const resolveAxisTitleWithUnit = (
+  preferred: unknown,
+  fallback: unknown,
+  defaultTitle: string,
+): string => {
+  const preferredText = String(preferred ?? "").trim();
+  if (preferredText) return preferredText;
+  const fallbackText = String(fallback ?? "").trim();
+  if (fallbackText) return fallbackText;
+  return defaultTitle;
+};
+
 const dedupeCurveLabels = (
   curveEntries: DeviceAnalysisOriginCurveEntry[],
 ): string[] => {
@@ -215,6 +228,17 @@ const buildDeviceAnalysisOriginPairsExpr = (xyPairCount: unknown): string => {
 
   for (let index = 0; index < count; index += 1) {
     pairs.push(`(${index * 2 + 1},${index * 2 + 2})`);
+  }
+
+  return `(${pairs.join(",")})`;
+};
+
+const buildDeviceAnalysisOriginSharedXPairsExpr = (curveCountRaw: unknown): string => {
+  const pairs: string[] = [];
+  const count = Math.max(1, Number(curveCountRaw) || 1);
+
+  for (let index = 0; index < count; index += 1) {
+    pairs.push(`(1,${index + 2})`);
   }
 
   return `(${pairs.join(",")})`;
@@ -348,6 +372,7 @@ const buildWorksheetExport = ({
   yAxisTitle: string;
 }): DeviceAnalysisOriginSelectionExport | null => {
   if (!curveEntries.length) return null;
+  const useSharedXLayout = canvases.length === 1 && curveEntries.length > 1;
 
   let xMin = Number.POSITIVE_INFINITY;
   let xMax = Number.NEGATIVE_INFINITY;
@@ -385,11 +410,19 @@ const buildWorksheetExport = ({
   const rows = new Array<Array<number | string>>(maxRowCount);
   for (let rowIndex = 0; rowIndex < maxRowCount; rowIndex += 1) {
     const row: Array<number | string> = [];
-    for (const entry of curveEntries) {
-      row.push(
-        rowIndex < entry.rowCount ? (entry.xArr[rowIndex] ?? "") : "",
-        rowIndex < entry.rowCount ? (entry.yArr[rowIndex] ?? "") : "",
-      );
+    if (useSharedXLayout) {
+      const sharedXEntry = curveEntries[0];
+      row.push(rowIndex < sharedXEntry.rowCount ? (sharedXEntry.xArr[rowIndex] ?? "") : "");
+      for (const entry of curveEntries) {
+        row.push(rowIndex < entry.rowCount ? (entry.yArr[rowIndex] ?? "") : "");
+      }
+    } else {
+      for (const entry of curveEntries) {
+        row.push(
+          rowIndex < entry.rowCount ? (entry.xArr[rowIndex] ?? "") : "",
+          rowIndex < entry.rowCount ? (entry.yArr[rowIndex] ?? "") : "",
+        );
+      }
     }
     rows[rowIndex] = row;
   }
@@ -398,9 +431,11 @@ const buildWorksheetExport = ({
     ? resolveOriginLogPositiveMinForRange(yPositiveValues, yPositiveMin)
     : null;
   const curveLabels = dedupeCurveLabels(curveEntries);
+  const sharedXEntry = curveEntries[0];
 
   return {
     canvasCount: canvases.length,
+    columnLayout: useSharedXLayout ? "shared-x" : "xy-pairs",
     csvName: `${csvBase}.csv`,
     csvText: "\uFEFF" + Papa.unparse(rows),
     curveCount: curveEntries.length,
@@ -412,12 +447,18 @@ const buildWorksheetExport = ({
     sheetName,
     workbookName,
     xAxisTitle,
-    xColumnLongNames: curveEntries.map((entry) => entry.xLongName),
-    xColumnUnits: curveEntries.map((entry) => entry.xUnits),
+    xColumnLongNames: useSharedXLayout
+      ? [sharedXEntry.xLongName]
+      : curveEntries.map((entry) => entry.xLongName),
+    xColumnUnits: useSharedXLayout
+      ? [sharedXEntry.xUnits]
+      : curveEntries.map((entry) => entry.xUnits),
     xMax: Number.isFinite(xMax) ? xMax : null,
     xMin: Number.isFinite(xMin) ? xMin : null,
     xyPairCount: curveEntries.length,
-    xyPairs: buildDeviceAnalysisOriginPairsExpr(curveEntries.length),
+    xyPairs: useSharedXLayout
+      ? buildDeviceAnalysisOriginSharedXPairsExpr(curveEntries.length)
+      : buildDeviceAnalysisOriginPairsExpr(curveEntries.length),
     yAxisTitle,
     yColumnLongNames: curveEntries.map((entry) => entry.yLongName),
     yColumnUnits: curveEntries.map((entry) => entry.yUnits),
@@ -459,14 +500,16 @@ export const buildDeviceAnalysisOriginCanvasExport = (
   const csvBase = `${sanitizeDeviceAnalysisFilename(canvasName)
     .replace(/\.csv$/i, "")
     .trim() || "device_analysis"}__selected_curves`;
-  const xAxisTitle =
-    stripAxisUnitSuffix(resolveAxisTitleForFile(canvas, "x")) ||
-    stripAxisUnitSuffix(canvas?.xLabel) ||
-    "X";
-  const yAxisTitle =
-    stripAxisUnitSuffix(resolveAxisTitleForFile(canvas, "y")) ||
-    stripAxisUnitSuffix(canvas?.yLabel) ||
-    "Y";
+  const xAxisTitle = resolveAxisTitleWithUnit(
+    resolveAxisTitleForFile(canvas, "x"),
+    canvas?.xLabel,
+    "X",
+  );
+  const yAxisTitle = resolveAxisTitleWithUnit(
+    resolveAxisTitleForFile(canvas, "y"),
+    canvas?.yLabel,
+    "Y",
+  );
 
   return buildWorksheetExport({
     canvases: [canvas],
@@ -528,14 +571,16 @@ export const buildDeviceAnalysisOriginSelectionExport = (
           `Merged curves ${canvasCount} files ${curveCount} curves`,
         );
   const firstCanvas = liveCanvases[0] ?? null;
-  const xAxisTitle =
-    stripAxisUnitSuffix(resolveAxisTitleForFile(firstCanvas, "x")) ||
-    stripAxisUnitSuffix(firstCanvas?.xLabel) ||
-    "X";
-  const yAxisTitle =
-    stripAxisUnitSuffix(resolveAxisTitleForFile(firstCanvas, "y")) ||
-    stripAxisUnitSuffix(firstCanvas?.yLabel) ||
-    "Y";
+  const xAxisTitle = resolveAxisTitleWithUnit(
+    resolveAxisTitleForFile(firstCanvas, "x"),
+    firstCanvas?.xLabel,
+    "X",
+  );
+  const yAxisTitle = resolveAxisTitleWithUnit(
+    resolveAxisTitleForFile(firstCanvas, "y"),
+    firstCanvas?.yLabel,
+    "Y",
+  );
 
   return buildWorksheetExport({
     canvases: liveCanvases,

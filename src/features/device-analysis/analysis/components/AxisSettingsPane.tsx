@@ -82,6 +82,7 @@ export default function AxisSettingsPane({
     originOpenPlotOptions,
     DEFAULT_ORIGIN_PLOT_OPTIONS,
   );
+  const minorTicksEnabled = axis?.showMinorTicks !== false;
   const [lineWidthDraft, setLineWidthDraft] = useState(
     String(normalizedOriginPlotOptions.lineWidth),
   );
@@ -244,7 +245,7 @@ export default function AxisSettingsPane({
               <Switch
                 id="device-analysis-axis-show-minor-ticks"
                 size="sm"
-                checked={axis?.showMinorTicks !== false}
+                checked={minorTicksEnabled}
                 onCheckedChange={(checked) =>
                   setAxis((prev: any) => ({ ...prev, showMinorTicks: checked }))
                 }
@@ -261,6 +262,7 @@ export default function AxisSettingsPane({
                 }
                 onKeyDown={blurInputOnEnter}
                 inputMode="numeric"
+                disabled={!minorTicksEnabled}
                 placeholder="1"
                 className={`${analysisCompactInputWrapperClass} w-[86px]`}
                 fieldClassName={compactInputFieldClass}
@@ -403,12 +405,12 @@ export default function AxisSettingsPane({
               <div className="text-xs text-text-secondary">{t("da_chart_axis_count")}</div>
               <Input
                 id="device-analysis-axis-x-tick-count"
-                value={axis.xTicks === "nice" ? axis.xTickCount : ""}
+                value={axis.xTicks === "step" ? "" : axis.xTickCount}
                 onChange={(nextValue) =>
                   setAxis((prev: any) => ({ ...prev, xTickCount: nextValue }))
                 }
                 onKeyDown={blurInputOnEnter}
-                disabled={axis.xTicks !== "nice"}
+                disabled={axis.xTicks === "step"}
                 placeholder="6"
                 className={`${analysisCompactInputWrapperClass} ${compactInputWidth}`}
                 fieldClassName={compactInputFieldClass}
@@ -532,12 +534,12 @@ export default function AxisSettingsPane({
                   <div className="text-xs text-text-secondary">{t("da_chart_axis_count")}</div>
                   <Input
                     id="device-analysis-axis-y-tick-count"
-                    value={axis.yTicks === "nice" ? axis.yTickCount : ""}
+                    value={axis.yTicks === "step" ? "" : axis.yTickCount}
                     onChange={(nextValue) =>
                       setAxis((prev: any) => ({ ...prev, yTickCount: nextValue }))
                     }
                     onKeyDown={blurInputOnEnter}
-                    disabled={axis.yTicks !== "nice"}
+                    disabled={axis.yTicks === "step"}
                     placeholder="6"
                     className={`${analysisCompactInputWrapperClass} ${compactInputWidth}`}
                     fieldClassName={compactInputFieldClass}

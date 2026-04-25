@@ -160,11 +160,18 @@ test("buildDeviceAnalysisOriginSelectionExport defaults to all live series when 
 
   assert.ok(payload);
   assert.equal(payload.canvasCount, 1);
+  assert.equal(payload.columnLayout, "shared-x");
   assert.equal(payload.curveCount, 2);
   assert.deepEqual(payload.fileIds, ["file-a"]);
-  assert.equal(payload.xyPairs, "((1,2),(3,4))");
+  assert.equal(payload.xyPairs, "((1,2),(1,3))");
   assert.deepEqual(payload.curveLabels, ["Drain A", "Vg=1"]);
+  assert.deepEqual(payload.xColumnLongNames, ["X"]);
+  assert.deepEqual(payload.xColumnUnits, [""]);
   assert.match(payload.csvName, /^file_a__selected_curves\.csv$/);
+  const csvText = payload.csvText.replace(/^\uFEFF/, "");
+  const rows = csvText.split(/\r?\n/);
+  assert.equal(rows[0], "0,1,3");
+  assert.equal(rows[1], "1,2,4");
 });
 
 test("buildDeviceAnalysisOriginSelectionExport prefers caller-provided legend labels across export payloads", () => {
@@ -204,8 +211,8 @@ test("buildDeviceAnalysisOriginSelectionExport prefers caller-provided legend la
 
   assert.ok(payload);
   assert.deepEqual(payload.curveLabels, ["Edited Legend"]);
-  assert.equal(payload.xAxisTitle, "Gate Voltage");
-  assert.equal(payload.yAxisTitle, "Drain Current");
+  assert.equal(payload.xAxisTitle, "Gate Voltage (V)");
+  assert.equal(payload.yAxisTitle, "Drain Current (A)");
   assert.deepEqual(payload.yColumnLongNames, ["Y"]);
 });
 

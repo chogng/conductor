@@ -126,12 +126,15 @@ const buildOriginWorkbookKey = (): string => {
 };
 
 const buildOriginImportColumnLabels = (options: {
+  columnLayout?: unknown;
   curveLabels?: unknown;
   xColumnLongNames?: unknown;
   xColumnUnits?: unknown;
   yColumnLongNames?: unknown;
   yColumnUnits?: unknown;
 }): { longNames: string[]; units: string[] } | undefined => {
+  const columnLayout =
+    options.columnLayout === "shared-x" ? "shared-x" : "xy-pairs";
   const curveLabels = Array.isArray(options.curveLabels) ? options.curveLabels : [];
   if (!curveLabels.length) return undefined;
   const xColumnLongNames = Array.isArray(options.xColumnLongNames)
@@ -148,6 +151,18 @@ const buildOriginImportColumnLabels = (options: {
     : [];
   const longNames: string[] = [];
   const units: string[] = [];
+  if (columnLayout === "shared-x") {
+    longNames.push(normalizeOriginLabelText(xColumnLongNames[0]));
+    units.push(normalizeOriginLabelText(xColumnUnits[0]));
+    for (let index = 0; index < curveLabels.length; index += 1) {
+      longNames.push(
+        normalizeOriginLabelText(yColumnLongNames[index] ?? curveLabels[index]),
+      );
+      units.push(normalizeOriginLabelText(yColumnUnits[index]));
+    }
+    return { longNames, units };
+  }
+
   for (let index = 0; index < curveLabels.length; index += 1) {
     longNames.push(normalizeOriginLabelText(xColumnLongNames[index]));
     units.push(normalizeOriginLabelText(xColumnUnits[index]));
@@ -919,6 +934,7 @@ export const useOriginCanvasExport = ({
         result.mode === "workbookSheets" ? buildOriginWorkbookKey() : "";
       const originCsvJobs = result.payloads.map((payload, index) => {
         const importColumnLabels = buildOriginImportColumnLabels({
+          columnLayout: payload.columnLayout,
           curveLabels: payload.curveLabels,
           xColumnLongNames: payload.xColumnLongNames,
           xColumnUnits: payload.xColumnUnits,

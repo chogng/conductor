@@ -119,6 +119,7 @@ export default function AnalysisDiagnosticsCard({
     if (kind === "outOfRange") return "\u8d85\u51fa";
     return "\u65e0\u6cd5\u8ba1\u7b97";
   };
+  const minorTicksEnabled = axis?.showMinorTicks !== false;
 
   if (!showDiagnosticsPanel) {
     return null;
@@ -172,12 +173,12 @@ export default function AnalysisDiagnosticsCard({
                   id="device-analysis-curve-probe-x-input"
                   value={curveProbeXInput}
                   onChange={setCurveProbeXInput}
-                  placeholder={`e.g. ${formatNumber((Number(xDomain?.[1]) || 1) * plotXFactor, { digits: 3 })}`}
+                  placeholder=""
                   className={analysisCompactInputWrapperClass}
                   fieldClassName={`${analysisCompactPageFieldClass} !w-[110px]`}
                   inputClassName={analysisCompactInputClass}
                 />
-                <span className="whitespace-nowrap">{resolvedXUnitLabel}</span>
+                <span className="whitespace-nowrap">插值: </span>
                 <DropdownField
                   id="device-analysis-curve-probe-mode-select"
                   size="sm"
@@ -349,7 +350,7 @@ export default function AnalysisDiagnosticsCard({
                 <Switch
                   id="device-analysis-axis-show-minor-ticks"
                   size="sm"
-                  checked={axis?.showMinorTicks !== false}
+                  checked={minorTicksEnabled}
                   onCheckedChange={(checked) =>
                     setAxis((prev: any) => ({ ...prev, showMinorTicks: checked }))
                   }
@@ -365,6 +366,7 @@ export default function AnalysisDiagnosticsCard({
                     setAxis((prev: any) => ({ ...prev, minorTickCount: nextValue }))
                   }
                   inputMode="numeric"
+                  disabled={!minorTicksEnabled}
                   placeholder="1"
                   className={`${analysisCompactInputWrapperClass} w-[96px]`}
                   fieldClassName={analysisCompactSurfaceFieldClass}
@@ -499,9 +501,9 @@ export default function AnalysisDiagnosticsCard({
                   <div className="text-xs text-text-secondary">{t("da_chart_axis_count")}</div>
                   <Input
                     id="device-analysis-axis-x-tick-count"
-                    value={axis.xTicks === "nice" ? axis.xTickCount : ""}
+                    value={axis.xTicks === "step" ? "" : axis.xTickCount}
                     onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, xTickCount: nextValue }))}
-                    disabled={axis.xTicks !== "nice"}
+                    disabled={axis.xTicks === "step"}
                     placeholder="6"
                     className={`${analysisCompactInputWrapperClass} w-[160px]`}
                     fieldClassName={analysisCompactSurfaceFieldClass}
@@ -606,9 +608,9 @@ export default function AnalysisDiagnosticsCard({
                       <div className="text-xs text-text-secondary">{t("da_chart_axis_count")}</div>
                       <Input
                         id="device-analysis-axis-y-tick-count"
-                        value={axis.yTicks === "nice" ? axis.yTickCount : ""}
+                        value={axis.yTicks === "step" ? "" : axis.yTickCount}
                         onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, yTickCount: nextValue }))}
-                        disabled={axis.yTicks !== "nice"}
+                        disabled={axis.yTicks === "step"}
                         placeholder="6"
                         className={`${analysisCompactInputWrapperClass} w-[160px]`}
                         fieldClassName={analysisCompactSurfaceFieldClass}
