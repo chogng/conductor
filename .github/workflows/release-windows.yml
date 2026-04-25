@@ -90,7 +90,7 @@ jobs:
         run: npm ci
 
       - name: Build desktop artifacts
-        run: npm run dist:desktop
+        run: npm run build:desktop && npm run verify:origin-worker && npx electron-builder --publish never
 
       - name: Publish updater assets to public update repository
         shell: pwsh
