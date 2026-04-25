@@ -143,14 +143,21 @@ type MainPlotChartProps = {
 };
 
 type CanvasTooltipState = {
-  color?: string;
+  cursorX?: number;
+  entries?: CanvasTooltipEntry[];
   label: string;
-  pointX?: number;
-  pointY?: number;
   seriesName: string;
   visible: boolean;
   x: number;
   y: number;
+};
+
+type CanvasTooltipEntry = {
+  color: string;
+  pointY: number;
+  pointX: number;
+  seriesName: string;
+  valueLabel: string;
 };
 
 type CanvasTooltipPoint = {
@@ -275,6 +282,7 @@ const CURRENT_BIAS_HIT_WIDTH_PX = 28;
 const SS_HANDLE_TOLERANCE_PX = 14;
 const SS_HANDLE_WIDTH_PX = 18;
 const SS_MOVE_BAND_HEIGHT_PX = 24;
+const CANVAS_TOOLTIP_EDGE_BUFFER_PX = 18;
 
 type PlotRect = {
   left: number;
@@ -684,6 +692,18 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
     [chartSeriesList, chartYDataKey, plotYKey],
   );
 
+  const tooltipXDomain = useMemo<[number, number] | null>(() => {
+    let minX = Number.POSITIVE_INFINITY;
+    let maxX = Number.NEGATIVE_INFINITY;
+    for (const { lookup } of tooltipLookups) {
+      for (const point of lookup.points) {
+        if (point.rawX < minX) minX = point.rawX;
+        if (point.rawX > maxX) maxX = point.rawX;
+      }
+    }
+    return Number.isFinite(minX) && Number.isFinite(maxX) ? [minX, maxX] : null;
+  }, [tooltipLookups]);
+
   const renderedLegendContent = useMemo(
     () =>
       typeof legendContent === "function"
@@ -977,19 +997,21 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
         setTooltip((prev) => ({ ...prev, visible: false }));
         return;
       }
+
       const rawX = scale.pxToX(mx);
-      let best:
-        | {
-            color: string;
-            distance: number;
-            label: string;
-            pointX: number;
-            pointY: number;
-            seriesName: string;
-          }
-        | null = null;
+      if (
+        !tooltipXDomain ||
+        mx < scale.xToPx(tooltipXDomain[0]) - CANVAS_TOOLTIP_EDGE_BUFFER_PX ||
+        mx > scale.xToPx(tooltipXDomain[1]) + CANVAS_TOOLTIP_EDGE_BUFFER_PX
+      ) {
+        setTooltip((prev) => ({ ...prev, visible: false }));
+        return;
+      }
+      const lookupX = clamp(rawX, tooltipXDomain[0], tooltipXDomain[1]);
+
+      const entries: CanvasTooltipEntry[] = [];
       for (const { color, lookup, series } of tooltipLookups) {
-        const point = getNearestCanvasTooltipPoint(lookup, rawX);
+        const point = getNearestCanvasTooltipPoint(lookup, lookupX);
         if (!point) continue;
         if (
           point.rawX < scale.xMin ||
@@ -999,46 +1021,53 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
         ) {
           continue;
         }
-        const distance = Math.abs(point.rawX - rawX);
-        if (best && distance >= best.distance) continue;
-        best = {
+
+        entries.push({
           color,
-          distance,
-          label: `#${point.index + 1}  x=${formatNumber(point.rawX * plotXFactor, {
-              digits: xTooltipDigits ?? xTickDigits,
-            })} ${plotXUnitLabel}  y=${formatNumber(point.rawY * plotYFactor, {
-            digits: yTickDigits,
-          })} ${plotYUnitLabel}`,
           pointX: scale.xToPx(point.rawX),
           pointY: scale.yToPx(point.chartY),
           seriesName: decodeTooltipSeriesName(series.tooltipName ?? series.name).label,
-        };
+          valueLabel: `${formatNumber(point.rawY * plotYFactor, {
+            digits: yTickDigits,
+          })} ${plotYUnitLabel}`,
+        });
       }
-      if (!best) {
+
+      if (!entries.length) {
         setTooltip((prev) => ({ ...prev, visible: false }));
         return;
       }
+
       setTooltip({
-        color: best.color,
-        label: best.label,
-        pointX: best.pointX,
-        pointY: best.pointY,
-        seriesName: best.seriesName,
+        cursorX: mx,
+        entries,
+        label: `x=${formatNumber(lookupX * plotXFactor, {
+          digits: xTooltipDigits ?? xTickDigits,
+        })} ${plotXUnitLabel}`,
+        seriesName: "",
         visible: true,
-        x: clamp(mx + 12, 8, Math.max(8, size.width - 240)),
-        y: clamp(my + 12, 8, Math.max(8, size.height - 78)),
+        x: clamp(
+          mx + 12,
+          plotRect.left + 4,
+          Math.max(plotRect.left + 4, plotRect.left + plotRect.width - 280),
+        ),
+        y: clamp(
+          my + 12,
+          plotRect.top + 4,
+          Math.max(plotRect.top + 4, plotRect.top + plotRect.height - 110),
+        ),
       });
     },
     [
+      chartSeriesList.length,
       plotRect,
       plotXFactor,
       plotXUnitLabel,
       plotYFactor,
       plotYUnitLabel,
       scale,
-      size.height,
-      size.width,
       tooltipLookups,
+      tooltipXDomain,
       xTickDigits,
       xTooltipDigits,
       yTickDigits,
@@ -1060,27 +1089,34 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
         </div>
       ) : null}
       {tooltip.visible &&
-      typeof tooltip.pointX === "number" &&
-      typeof tooltip.pointY === "number" &&
+      typeof tooltip.cursorX === "number" &&
+      tooltip.entries?.length &&
       plotRect ? (
-        <div className="absolute inset-0 pointer-events-none z-[3]">
+        <div
+          className="absolute pointer-events-none z-[3] overflow-hidden"
+          style={{
+            height: plotRect.height,
+            left: plotRect.left,
+            top: plotRect.top,
+            width: plotRect.width,
+          }}
+        >
           <div
             className="absolute top-0 bottom-0 border-l border-dashed border-[#111827]/25"
-            style={{ left: tooltip.pointX }}
+            style={{ left: tooltip.cursorX - plotRect.left }}
           />
-          <div
-            className="absolute left-0 right-0 border-t border-dashed border-[#111827]/18"
-            style={{ top: tooltip.pointY }}
-          />
-          <div
-            className="absolute h-2.5 w-2.5 rounded-full border-2 border-white shadow"
-            style={{
-              backgroundColor: tooltip.color ?? "#111827",
-              left: tooltip.pointX,
-              top: tooltip.pointY,
-              transform: "translate(-50%, -50%)",
-            }}
-          />
+          {tooltip.entries.map((entry, index) => (
+            <div
+              key={`${entry.seriesName}-${index}`}
+              className="absolute h-2.5 w-2.5 rounded-full border-2 border-white shadow"
+              style={{
+                backgroundColor: entry.color,
+                left: entry.pointX - plotRect.left,
+                top: entry.pointY - plotRect.top,
+                transform: "translate(-50%, -50%)",
+              }}
+            />
+          ))}
         </div>
       ) : null}
       <ChartInteractionOverlay
@@ -1094,13 +1130,27 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
       />
       {tooltip.visible ? (
         <div className="absolute z-10 pointer-events-none" style={{ left: tooltip.x, top: tooltip.y }}>
-          <div className="bg-[#1e1e1e] border border-[#333] rounded-lg px-2 py-1.5 shadow-xl text-white">
-            <div className="text-xs text-white font-medium truncate max-w-[220px]">
-              {tooltip.seriesName}
-            </div>
-            <div className="text-[11px] text-[#ccc] font-mono mt-1 whitespace-nowrap">
+          <div
+            className="bg-[#1e1e1e] border border-[#333] rounded-lg px-2 py-1.5 shadow-xl text-white"
+            style={{ width: 252 }}
+          >
+            <div className="border-b border-white/10 pb-1 text-xs font-mono text-[#d7d7d7]">
               {tooltip.label}
             </div>
+            {tooltip.entries?.map((entry, index) => (
+              <div key={`${entry.seriesName}-${index}`} className="mt-1.5">
+                <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 text-xs text-white">
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                    style={{ backgroundColor: entry.color }}
+                  />
+                  <span className="truncate font-medium">{entry.seriesName}</span>
+                  <span className="font-mono text-xs text-[#ddd]">
+                    {entry.valueLabel}
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       ) : null}
