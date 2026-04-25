@@ -896,13 +896,13 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
         centerX: plotRect.left + plotRect.width / 2,
         centerY: xTitleBottom - axisTitleFontSize / 2,
         height: axisTitleFontSize + 10,
-        width: titleTextWidth(xAxisEditableLabel),
+        width: titleTextWidth(xAxisLabel),
       },
       y: {
         centerX: yTitleX + Y_AXIS_TITLE_EDIT_X_OFFSET_PX,
         centerY: plotRect.top + plotRect.height / 2,
         height: axisTitleFontSize + 10,
-        width: titleTextWidth(yAxisEditableLabel),
+        width: titleTextWidth(yAxisLabel),
       },
     };
   }, [
@@ -912,8 +912,8 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
     tickLabelFontSize,
     tickLabelOffsetPx,
     titleTextWidth,
-    xAxisEditableLabel,
-    yAxisEditableLabel,
+    xAxisLabel,
+    yAxisLabel,
   ]);
 
   const beginAxisTitleEdit = useCallback(

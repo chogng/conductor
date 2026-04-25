@@ -146,16 +146,28 @@ const stripAxisUnitSuffix = (value: unknown): string =>
     .replace(/\s*\([^()]+\)\s*$/, "")
     .trim();
 
+const withAxisUnit = (labelRaw: unknown, unitRaw: unknown): string => {
+  const label = String(labelRaw ?? "").trim();
+  const unit = String(unitRaw ?? "").trim();
+  if (!unit) return label;
+  if (!label) return unit;
+  if (/\([^()]+\)\s*$/.test(label)) {
+    return label.replace(/\([^()]+\)\s*$/, `(${unit})`);
+  }
+  return `${label} (${unit})`;
+};
+
 const resolveAxisTitleWithUnit = (
   preferred: unknown,
   fallback: unknown,
   defaultTitle: string,
+  unit?: unknown,
 ): string => {
   const preferredText = String(preferred ?? "").trim();
-  if (preferredText) return preferredText;
+  if (preferredText) return withAxisUnit(preferredText, unit);
   const fallbackText = String(fallback ?? "").trim();
-  if (fallbackText) return fallbackText;
-  return defaultTitle;
+  if (fallbackText) return withAxisUnit(fallbackText, unit);
+  return withAxisUnit(defaultTitle, unit);
 };
 
 const dedupeCurveLabels = (
@@ -506,11 +518,13 @@ export const buildDeviceAnalysisOriginCanvasExport = (
     resolveAxisTitleForFile(canvas, "x"),
     canvas?.xLabel,
     "X",
+    curveEntries[0]?.xUnits,
   );
   const yAxisTitle = resolveAxisTitleWithUnit(
     resolveAxisTitleForFile(canvas, "y"),
     canvas?.yLabel,
     "Y",
+    curveEntries[0]?.yUnits,
   );
 
   return buildWorksheetExport({
@@ -577,11 +591,13 @@ export const buildDeviceAnalysisOriginSelectionExport = (
     resolveAxisTitleForFile(firstCanvas, "x"),
     firstCanvas?.xLabel,
     "X",
+    curveEntries[0]?.xUnits,
   );
   const yAxisTitle = resolveAxisTitleWithUnit(
     resolveAxisTitleForFile(firstCanvas, "y"),
     firstCanvas?.yLabel,
     "Y",
+    curveEntries[0]?.yUnits,
   );
 
   return buildWorksheetExport({

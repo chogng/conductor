@@ -213,7 +213,7 @@ test("buildDeviceAnalysisOriginSelectionExport prefers caller-provided legend la
   assert.deepEqual(payload.curveLabels, ["Edited Legend"]);
   assert.equal(payload.xAxisTitle, "Gate Voltage (V)");
   assert.equal(payload.yAxisTitle, "Drain Current (A)");
-  assert.deepEqual(payload.yColumnLongNames, ["Y"]);
+  assert.deepEqual(payload.yColumnLongNames, ["Drain Current"]);
 });
 
 test("buildDeviceAnalysisOriginExportPlan scales exported X/Y data to the active display units", () => {
@@ -237,6 +237,7 @@ test("buildDeviceAnalysisOriginExportPlan scales exported X/Y data to the active
     () => "linear",
     () => 1e3,
     () => 1e3,
+    () => "mA",
   );
 
   assert.equal(plan.payloads.length, 1);
@@ -245,6 +246,8 @@ test("buildDeviceAnalysisOriginExportPlan scales exported X/Y data to the active
   assert.equal(payload.xMax, 1000);
   assert.equal(payload.yLinearMin, 0.01);
   assert.equal(payload.yLinearMax, 0.02);
+  assert.equal(payload.yAxisTitle, "Y (mA)");
+  assert.deepEqual(payload.yColumnUnits, ["mA"]);
   const csvText = payload.csvText.replace(/^\uFEFF/, "");
   const rows = csvText.split(/\r?\n/);
   assert.equal(rows[0], "0,0.01");
