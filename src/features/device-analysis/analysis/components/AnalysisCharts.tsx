@@ -88,6 +88,8 @@ type LegendEditingState = {
     seriesId: string;
 };
 
+type AxisTitleOverridesByFileId = Record<string, Partial<Record<"x" | "y", string>>>;
+
 type EditableLegendItemProps = {
     checked: boolean;
     color: string;
@@ -295,6 +297,27 @@ const normalizeSeriesLegendLabelsByFileId = (value: unknown): Record<string, Rec
             if (!normalizedSeriesId || !normalizedLabel)
                 continue;
             nextLabels[normalizedSeriesId] = normalizedLabel;
+        }
+        if (Object.keys(nextLabels).length) {
+            next[normalizedFileId] = nextLabels;
+        }
+    }
+    return next;
+};
+const normalizeAxisTitleOverridesByFileId = (value: unknown): AxisTitleOverridesByFileId => {
+    const raw = value && typeof value === "object" ? value as Record<string, unknown> : {};
+    const next: AxisTitleOverridesByFileId = {};
+    for (const [fileId, labels] of Object.entries(raw)) {
+        const normalizedFileId = String(fileId ?? "").trim();
+        if (!normalizedFileId || !labels || typeof labels !== "object")
+            continue;
+        const rawLabels = labels as Record<string, unknown>;
+        const nextLabels: Partial<Record<"x" | "y", string>> = {};
+        for (const axisKey of ["x", "y"] as const) {
+            const normalizedLabel = String(rawLabels[axisKey] ?? "").trim();
+            if (normalizedLabel) {
+                nextLabels[axisKey] = normalizedLabel;
+            }
         }
         if (Object.keys(nextLabels).length) {
             next[normalizedFileId] = nextLabels;
@@ -533,6 +556,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const [overviewVisibleFileIds, setOverviewVisibleFileIds] = useState<string[]>([]);
     const [visibleSeriesByFileId, setVisibleSeriesByFileId] = useState<Record<string, string[]>>({});
     const [seriesLegendLabelsByFileId, setSeriesLegendLabelsByFileId] = useState<Record<string, Record<string, string>>>({});
+    const [axisTitleOverridesByFileId, setAxisTitleOverridesByFileId] = useState<AxisTitleOverridesByFileId>({});
     const [editingLegendLabel, setEditingLegendLabel] = useState<LegendEditingState | null>(null);
     const [editingLegendDraft, setEditingLegendDraft] = useState("");
     const originChartXRangeRef = useRef<{ min: number; max: number; step?: number | null; } | null>(null);
@@ -741,6 +765,27 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         });
     }, [processedData]);
     useEffect(() => {
+        setAxisTitleOverridesByFileId((prev) => {
+            const normalizedPrev = normalizeAxisTitleOverridesByFileId(prev);
+            const next: AxisTitleOverridesByFileId = {};
+            let changed = false;
+            for (const file of Array.isArray(processedData) ? processedData : []) {
+                const fileId = String(file?.fileId ?? "").trim();
+                if (!fileId)
+                    continue;
+                const previousLabels = normalizedPrev[fileId];
+                if (previousLabels) {
+                    next[fileId] = previousLabels;
+                }
+            }
+            const prevFileKeys = Object.keys(normalizedPrev);
+            const nextFileKeys = Object.keys(next);
+            changed = prevFileKeys.length !== nextFileKeys.length ||
+                nextFileKeys.some((fileId) => !(fileId in normalizedPrev));
+            return changed ? next : prev;
+        });
+    }, [processedData]);
+    useEffect(() => {
         if (!editingLegendLabel)
             return;
         editingLegendInputRef.current?.focus();
@@ -916,6 +961,37 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         setEditingLegendLabel(null);
         setEditingLegendDraft("");
     }, [editingLegendDraft, editingLegendLabel]);
+    const setActiveAxisTitleOverride = React.useCallback((axisKey: "x" | "y", nextLabelRaw: string) => {
+        const normalizedFileId = String(activeFile?.fileId ?? "").trim();
+        if (!normalizedFileId)
+            return;
+        const nextLabel = String(nextLabelRaw ?? "").trim();
+        setAxisTitleOverridesByFileId((prev) => {
+            const normalizedPrev = normalizeAxisTitleOverridesByFileId(prev);
+            const currentLabels = { ...(normalizedPrev[normalizedFileId] ?? {}) };
+            if (nextLabel) {
+                currentLabels[axisKey] = nextLabel;
+            }
+            else {
+                delete currentLabels[axisKey];
+            }
+            if (nextLabel === String(normalizedPrev?.[normalizedFileId]?.[axisKey] ?? "").trim()) {
+                return prev;
+            }
+            if (Object.keys(currentLabels).length) {
+                return {
+                    ...normalizedPrev,
+                    [normalizedFileId]: currentLabels,
+                };
+            }
+            const { [normalizedFileId]: _removedFile, ...rest } = normalizedPrev;
+            return rest;
+        });
+    }, [activeFile?.fileId]);
+    const activeAxisTitleOverrides = useMemo(() => {
+        const fileId = String(activeFile?.fileId ?? "").trim();
+        return fileId ? axisTitleOverridesByFileId[fileId] ?? {} : {};
+    }, [activeFile?.fileId, axisTitleOverridesByFileId]);
     const resolveLinearLogYScaleForFile = React.useCallback((fileLike: any): "linear" | "log" => {
         const fileKey = String(fileLike?.fileId ?? "").trim();
         if (!fileKey)
@@ -974,6 +1050,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const hasManualGrid = axis?.showGrid === false;
         const hasManualMajorTicks = axis?.showMajorTicks === false;
         const hasManualMinorTicks = axis?.showMinorTicks === false;
+        const manualMinorTickCount = parseOptionalNumber(axis?.minorTickCount);
+        const hasManualMinorTickCount =
+            manualMinorTickCount !== null && Math.round(manualMinorTickCount) !== 1;
         const manualTickFont = parseOptionalNumber(axis?.tickLabelFontSize);
         const manualTitleFont = parseOptionalNumber(axis?.axisTitleFontSize);
         const hasManualTickFont = manualTickFont !== null && Math.round(manualTickFont) !== 18;
@@ -994,6 +1073,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             hasManualGrid ||
             hasManualMajorTicks ||
             hasManualMinorTicks ||
+            hasManualMinorTickCount ||
             hasManualTickFont ||
             hasManualTitleFont ||
             hasManualLegendFont ||
@@ -1014,6 +1094,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         axis?.showGrid,
         axis?.showMajorTicks,
         axis?.showMinorTicks,
+        axis?.minorTickCount,
         axis?.tickLabelFontSize,
         axis?.axisTitleFontSize,
         axis?.legendFontSize,
@@ -3305,12 +3386,17 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     showGrid={axis?.showGrid !== false}
                     showMajorTicks={axis?.showMajorTicks !== false}
                     showMinorTicks={axis?.showMinorTicks !== false}
+                    minorTickCount={axis?.minorTickCount || 1}
                     tickLabelFontSize={mainPlotTickLabelFontSize}
                     axisTitleFontSize={mainPlotAxisTitleFontSize}
                     originTickLabelOffset={axis?.originTickLabelOffset}
                     originAxisTitleGap={axis?.originAxisTitleGap}
                     legendWidth={MAIN_PLOT_LEGEND_WIDTH}
                     legendContent={renderOriginSelectionLegend}
+                    xAxisLabelOverride={activeAxisTitleOverrides.x}
+                    yAxisLabelOverride={activeAxisTitleOverrides.y}
+                    onXAxisLabelChange={(nextLabel: string) => setActiveAxisTitleOverride("x", nextLabel)}
+                    onYAxisLabelChange={(nextLabel: string) => setActiveAxisTitleOverride("y", nextLabel)}
                   />
               </div>
               {!hasVisiblePlotSeries ? (<div className="mt-2 rounded-lg border border-dashed border-border/70 bg-bg-page/40 px-3 py-2 text-sm text-text-secondary">

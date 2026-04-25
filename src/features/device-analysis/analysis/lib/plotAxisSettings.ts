@@ -15,6 +15,8 @@ export type PlotAxisSettings = {
   yDecadeStep: number;
   showGrid: boolean;
   showMajorTicks: boolean;
+  showMinorTicks: boolean;
+  minorTickCount: number | "";
   tickLabelFontSize: number | "";
   axisTitleFontSize: number | "";
   legendFontSize: number | "";
@@ -39,6 +41,8 @@ export const DEFAULT_PLOT_AXIS_SETTINGS: PlotAxisSettings = Object.freeze({
   yDecadeStep: 1,
   showGrid: true,
   showMajorTicks: true,
+  showMinorTicks: true,
+  minorTickCount: "",
   tickLabelFontSize: "",
   axisTitleFontSize: "",
   legendFontSize: "",
@@ -148,6 +152,13 @@ export const normalizePlotAxisSettings = (
     yDecadeStep: normalizeBoundedInt(raw.yDecadeStep, fallback.yDecadeStep, 1, 10),
     showGrid: normalizeBoolean(raw.showGrid, fallback.showGrid),
     showMajorTicks: normalizeBoolean(raw.showMajorTicks, fallback.showMajorTicks),
+    showMinorTicks: normalizeBoolean(raw.showMinorTicks, fallback.showMinorTicks),
+    minorTickCount: normalizeOptionalBoundedInt(
+      raw.minorTickCount,
+      fallback.minorTickCount,
+      1,
+      20,
+    ),
     tickLabelFontSize: normalizeOptionalBoundedInt(
       raw.tickLabelFontSize,
       fallback.tickLabelFontSize,

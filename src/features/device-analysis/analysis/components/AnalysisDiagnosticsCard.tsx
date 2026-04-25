@@ -287,6 +287,8 @@ export default function AnalysisDiagnosticsCard({
                     yDecadeStep: 1,
                     showGrid: true,
                     showMajorTicks: true,
+                    showMinorTicks: true,
+                    minorTickCount: "",
                     tickLabelFontSize: "",
                     axisTitleFontSize: "",
                     legendFontSize: "",
@@ -323,6 +325,34 @@ export default function AnalysisDiagnosticsCard({
                     setAxis((prev: any) => ({ ...prev, showMajorTicks: checked }))
                   }
                   aria-label={t("da_chart_axis_show_major_ticks_title")}
+                />
+              </div>
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/50 px-3 py-2">
+                <div className="text-xs text-text-secondary">{t("da_chart_axis_minor_ticks")}</div>
+                <Switch
+                  id="device-analysis-axis-show-minor-ticks"
+                  size="sm"
+                  checked={axis?.showMinorTicks !== false}
+                  onCheckedChange={(checked) =>
+                    setAxis((prev: any) => ({ ...prev, showMinorTicks: checked }))
+                  }
+                  aria-label={t("da_chart_axis_show_minor_ticks_title")}
+                />
+              </div>
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/50 px-3 py-2">
+                <div className="text-xs text-text-secondary">{t("da_chart_axis_minor_tick_count")}</div>
+                <Input
+                  id="device-analysis-axis-minor-tick-count"
+                  value={axis.minorTickCount}
+                  onChange={(nextValue) =>
+                    setAxis((prev: any) => ({ ...prev, minorTickCount: nextValue }))
+                  }
+                  inputMode="numeric"
+                  placeholder="1"
+                  className={`${analysisCompactInputWrapperClass} w-[96px]`}
+                  fieldClassName={analysisCompactSurfaceFieldClass}
+                  inputClassName={analysisCompactInputClass}
+                  title={t("da_chart_axis_minor_tick_count_title")}
                 />
               </div>
               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/50 px-3 py-2">

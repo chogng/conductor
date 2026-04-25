@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import Input from "../../../../components/ui/Input";
 import { formatNumber } from "../lib/analysisMath";
 import { COLORS } from "../lib/chartColors";
 import { inferTickDigitsFromTicks } from "../lib/analysisChartsUtils";
@@ -127,12 +128,17 @@ type MainPlotChartProps = {
   showGrid?: boolean;
   showMajorTicks?: boolean;
   showMinorTicks?: boolean;
+  minorTickCount?: number;
   tickLabelFontSize?: number;
   axisTitleFontSize?: number;
   originTickLabelOffset?: unknown;
   originAxisTitleGap?: unknown;
   legendWidth?: number;
   legendContent?: any;
+  xAxisLabelOverride?: string;
+  yAxisLabelOverride?: string;
+  onXAxisLabelChange?: (nextLabel: string) => void;
+  onYAxisLabelChange?: (nextLabel: string) => void;
 };
 
 type CurveRenderMode = "line" | "scatter" | "lineSymbol";
@@ -271,6 +277,10 @@ const withYAxisUnit = (
   return `${label} (${unit})`;
 };
 
+const stripAxisUnitSuffix = (labelRaw: string | null | undefined): string => {
+  return String(labelRaw ?? "").trim().replace(/\s*\([^()]+\)\s*$/, "").trim();
+};
+
 const DEFAULT_CHART_MARGIN = { top: 25, right: 15, left: 112, bottom: 46 } as const;
 const GRID_STROKE = "rgba(15,23,42,0.14)";
 const GRID_DASH: [number, number] = [4, 4];
@@ -288,6 +298,8 @@ const PREVIEW_TICK_LABEL_OFFSET_SCALE = 5;
 const PREVIEW_AXIS_TITLE_GAP_SCALE = 4;
 const AXIS_TITLE_EDGE_PADDING_PX = 14;
 const AXIS_LABEL_COLOR = "#000000";
+const AXIS_TITLE_EDIT_MIN_WIDTH_PX = 64;
+const AXIS_TITLE_EDIT_MAX_WIDTH_PX = 260;
 const CURRENT_BIAS_DRAG_TOLERANCE_PX = 22;
 const CURRENT_BIAS_HIT_WIDTH_PX = 28;
 const SS_HANDLE_TOLERANCE_PX = 14;
@@ -364,35 +376,26 @@ const clamp = (value: number, min: number, max: number): number =>
 const isFiniteNumber = (value: unknown): value is number =>
   Number.isFinite(Number(value));
 
-const buildLinearMinorTicks = (ticks: number[] | null | undefined): number[] => {
+const normalizeMinorTickCount = (value: unknown): number => {
+  const count = Number(value);
+  if (!Number.isFinite(count)) return 1;
+  return Math.min(20, Math.max(1, Math.round(count)));
+};
+
+const buildLinearMinorTicks = (
+  ticks: number[] | null | undefined,
+  minorTickCount: number,
+): number[] => {
   if (!Array.isArray(ticks) || ticks.length < 2) return [];
+  const count = normalizeMinorTickCount(minorTickCount);
   const result: number[] = [];
   for (let index = 1; index < ticks.length; index += 1) {
     const start = Number(ticks[index - 1]);
     const end = Number(ticks[index]);
     if (!Number.isFinite(start) || !Number.isFinite(end) || end === start) continue;
-    const step = (end - start) / 5;
-    for (let offset = 1; offset < 5; offset += 1) {
+    const step = (end - start) / (count + 1);
+    for (let offset = 1; offset <= count; offset += 1) {
       result.push(start + step * offset);
-    }
-  }
-  return result;
-};
-
-const buildLogMinorTicks = (domain: [number, number]): number[] => {
-  const minExp = Math.min(Number(domain[0]), Number(domain[1]));
-  const maxExp = Math.max(Number(domain[0]), Number(domain[1]));
-  if (!Number.isFinite(minExp) || !Number.isFinite(maxExp) || maxExp <= minExp) {
-    return [];
-  }
-  const result: number[] = [];
-  const startDecade = Math.floor(minExp);
-  const endDecade = Math.ceil(maxExp);
-  for (let decade = startDecade; decade < endDecade; decade += 1) {
-    for (let digit = 2; digit < 10; digit += 1) {
-      const tick = decade + Math.log10(digit);
-      if (tick <= minExp || tick >= maxExp) continue;
-      result.push(tick);
     }
   }
   return result;
@@ -656,17 +659,22 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
   showGrid,
   showMajorTicks,
   showMinorTicks,
+  minorTickCount,
   ssInteraction,
   ssOverlayStyle,
   tickLabelFontSize,
   tickLabelOffsetPx,
   xAxisLabel,
+  xAxisEditableLabel,
+  onXAxisLabelChange,
   xTickDigits,
   xTicks,
   xTooltipDigits,
   axisTitleFontSize,
   axisTitleGapPx,
   yAxisLabel,
+  yAxisEditableLabel,
+  onYAxisLabelChange,
   yAxisNearZeroEpsilon,
   yTickDigits,
 }: {
@@ -701,11 +709,14 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
   showGrid: boolean;
   showMajorTicks: boolean;
   showMinorTicks: boolean;
+  minorTickCount: number;
   ssInteraction?: SsInteractionConfig | null;
   ssOverlayStyle: SsOverlayStyle;
   tickLabelFontSize: number;
   tickLabelOffsetPx: number;
   xAxisLabel: string;
+  xAxisEditableLabel: string;
+  onXAxisLabelChange?: (nextLabel: string) => void;
   xTickDigits: number;
   xTicks?: number[] | null;
   xTooltipDigits?: number;
@@ -713,11 +724,14 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
   axisTitleFontSize: number;
   axisTitleGapPx: number;
   yAxisLabel: string;
+  yAxisEditableLabel: string;
+  onYAxisLabelChange?: (nextLabel: string) => void;
   yAxisNearZeroEpsilon: number;
   yTickDigits: number;
 }) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const axisTitleInputRef = useRef<HTMLInputElement | null>(null);
   const [size, setSize] = useState({ height: 0, width: 0 });
   const [tooltip, setTooltip] = useState<CanvasTooltipState>({
     label: "",
@@ -726,6 +740,8 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
     x: 0,
     y: 0,
   });
+  const [editingAxisTitle, setEditingAxisTitle] = useState<"x" | "y" | null>(null);
+  const [editingAxisTitleDraft, setEditingAxisTitleDraft] = useState("");
 
   useEffect(() => {
     if (!wrapperRef.current) return;
@@ -810,6 +826,105 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
   );
 
   useEffect(() => {
+    if (!editingAxisTitle) return;
+    axisTitleInputRef.current?.focus();
+    axisTitleInputRef.current?.select();
+  }, [editingAxisTitle]);
+
+  const titleTextWidth = useCallback(
+    (label: string): number => {
+      const textWidth = Math.ceil(label.length * axisTitleFontSize * 0.62);
+      return Math.min(
+        AXIS_TITLE_EDIT_MAX_WIDTH_PX,
+        Math.max(AXIS_TITLE_EDIT_MIN_WIDTH_PX, textWidth + 18),
+      );
+    },
+    [axisTitleFontSize],
+  );
+
+  const axisTitleLayout = useMemo(() => {
+    if (!plotRect) return null;
+    const plotBottom = plotRect.top + plotRect.height;
+    const xTitleBottom =
+      plotBottom +
+      tickLabelOffsetPx +
+      tickLabelFontSize +
+      axisTitleGapPx +
+      axisTitleFontSize;
+    const yTitleX =
+      plotRect.left -
+      tickLabelOffsetPx -
+      tickLabelFontSize * 2.6 -
+      axisTitleGapPx -
+      axisTitleFontSize * 0.5;
+    return {
+      x: {
+        centerX: plotRect.left + plotRect.width / 2,
+        centerY: xTitleBottom - axisTitleFontSize / 2,
+        height: axisTitleFontSize + 10,
+        width: titleTextWidth(xAxisEditableLabel),
+      },
+      y: {
+        centerX: yTitleX,
+        centerY: plotRect.top + plotRect.height / 2,
+        height: axisTitleFontSize + 10,
+        width: titleTextWidth(yAxisEditableLabel),
+      },
+    };
+  }, [
+    axisTitleFontSize,
+    axisTitleGapPx,
+    plotRect,
+    tickLabelFontSize,
+    tickLabelOffsetPx,
+    titleTextWidth,
+    xAxisEditableLabel,
+    yAxisEditableLabel,
+  ]);
+
+  const beginAxisTitleEdit = useCallback(
+    (axis: "x" | "y") => {
+      const canEdit =
+        axis === "x"
+          ? typeof onXAxisLabelChange === "function"
+          : typeof onYAxisLabelChange === "function";
+      if (!canEdit) return;
+      setEditingAxisTitle(axis);
+      setEditingAxisTitleDraft(
+        axis === "x" ? xAxisEditableLabel : yAxisEditableLabel,
+      );
+    },
+    [
+      onXAxisLabelChange,
+      onYAxisLabelChange,
+      xAxisEditableLabel,
+      yAxisEditableLabel,
+    ],
+  );
+
+  const cancelAxisTitleEdit = useCallback(() => {
+    setEditingAxisTitle(null);
+    setEditingAxisTitleDraft("");
+  }, []);
+
+  const commitAxisTitleEdit = useCallback(() => {
+    if (!editingAxisTitle) return;
+    const nextLabel = stripAxisUnitSuffix(editingAxisTitleDraft);
+    if (editingAxisTitle === "x") {
+      onXAxisLabelChange?.(nextLabel);
+    } else {
+      onYAxisLabelChange?.(nextLabel);
+    }
+    setEditingAxisTitle(null);
+    setEditingAxisTitleDraft("");
+  }, [
+    editingAxisTitle,
+    editingAxisTitleDraft,
+    onXAxisLabelChange,
+    onYAxisLabelChange,
+  ]);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !plotRect || !scale || size.width <= 0 || size.height <= 0) return;
     const ctx = setupCanvas(canvas, size.width, size.height);
@@ -862,11 +977,11 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
     const visibleYTicks = yTicksInDomain.length >= 2
       ? yTicksInDomain
       : [scale.yMin, (scale.yMin + scale.yMax) / 2, scale.yMax];
-    const visibleXMinorTicks = showMinorTicks ? buildLinearMinorTicks(visibleXTicks) : [];
+    const visibleXMinorTicks = showMinorTicks
+      ? buildLinearMinorTicks(visibleXTicks, minorTickCount)
+      : [];
     const visibleYMinorTicks = showMinorTicks
-      ? effectiveYScale === "linear"
-        ? buildLinearMinorTicks(visibleYTicks)
-        : buildLogMinorTicks(chartYDomain)
+      ? buildLinearMinorTicks(visibleYTicks, minorTickCount)
       : [];
 
     const drawGridAndAxes = () => {
@@ -1172,6 +1287,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
     isSsPlot,
     axisTitleFontSize,
     axisTitleGapPx,
+    minorTickCount,
     plotRect,
     plotType,
     plotXFactor,
@@ -1181,6 +1297,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
     size.width,
     showGrid,
     showMajorTicks,
+    showMinorTicks,
     ssOverlayStyle,
     tickLabelFontSize,
     tickLabelOffsetPx,
@@ -1307,6 +1424,101 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
         onMouseMove={handleMouseMove}
         onMouseLeave={() => setTooltip((prev) => ({ ...prev, visible: false }))}
       />
+      {axisTitleLayout?.x && xAxisLabel ? (
+        <div
+          className="absolute z-[6]"
+          style={{
+            height: axisTitleLayout.x.height,
+            left: axisTitleLayout.x.centerX - axisTitleLayout.x.width / 2,
+            top: axisTitleLayout.x.centerY - axisTitleLayout.x.height / 2,
+            width: axisTitleLayout.x.width,
+          }}
+          title={`${xAxisLabel}\n双击可编辑`}
+          onDoubleClick={() => beginAxisTitleEdit("x")}
+        >
+          {editingAxisTitle === "x" ? (
+            <Input
+              ref={axisTitleInputRef}
+              size="sm"
+              className="h-full w-full"
+              fieldClassName="!h-full !rounded-md !border-border !bg-bg-surface !px-2"
+              inputClassName="!text-center"
+              style={{
+                color: AXIS_LABEL_COLOR,
+                fontFamily: AXIS_FONT_FAMILY,
+                fontSize: axisTitleFontSize,
+              }}
+              value={editingAxisTitleDraft}
+              onChange={setEditingAxisTitleDraft}
+              onBlur={commitAxisTitleEdit}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  event.currentTarget.blur();
+                }
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  cancelAxisTitleEdit();
+                }
+              }}
+            />
+          ) : (
+            <button
+              type="button"
+              aria-label={`Edit ${xAxisLabel}`}
+              className="h-full w-full cursor-text border-0 bg-transparent p-0 outline-none"
+            />
+          )}
+        </div>
+      ) : null}
+      {axisTitleLayout?.y && yAxisLabel ? (
+        <div
+          className="absolute z-[6]"
+          style={{
+            height: axisTitleLayout.y.height,
+            left: axisTitleLayout.y.centerX - axisTitleLayout.y.width / 2,
+            top: axisTitleLayout.y.centerY - axisTitleLayout.y.height / 2,
+            transform: "rotate(-90deg)",
+            width: axisTitleLayout.y.width,
+          }}
+          title={`${yAxisLabel}\n双击可编辑`}
+          onDoubleClick={() => beginAxisTitleEdit("y")}
+        >
+          {editingAxisTitle === "y" ? (
+            <Input
+              ref={axisTitleInputRef}
+              size="sm"
+              className="h-full w-full"
+              fieldClassName="!h-full !rounded-md !border-border !bg-bg-surface !px-2"
+              inputClassName="!text-center"
+              style={{
+                color: AXIS_LABEL_COLOR,
+                fontFamily: AXIS_FONT_FAMILY,
+                fontSize: axisTitleFontSize,
+              }}
+              value={editingAxisTitleDraft}
+              onChange={setEditingAxisTitleDraft}
+              onBlur={commitAxisTitleEdit}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  event.currentTarget.blur();
+                }
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  cancelAxisTitleEdit();
+                }
+              }}
+            />
+          ) : (
+            <button
+              type="button"
+              aria-label={`Edit ${yAxisLabel}`}
+              className="h-full w-full cursor-text border-0 bg-transparent p-0 outline-none"
+            />
+          )}
+        </div>
+      ) : null}
       {renderedLegendContent ? (
         <div className="absolute right-0 top-0 bottom-0 z-[5] flex items-center" style={{ width: legendWidth }}>
           {renderedLegendContent}
@@ -2102,12 +2314,17 @@ const MainPlotChart = memo(function MainPlotChart({
   showGrid = true,
   showMajorTicks = true,
   showMinorTicks = true,
+  minorTickCount = 1,
   tickLabelFontSize = DEFAULT_TICK_LABEL_FONT_SIZE,
   axisTitleFontSize = DEFAULT_AXIS_TITLE_FONT_SIZE,
   originTickLabelOffset,
   originAxisTitleGap,
   legendWidth = 120,
   legendContent = undefined,
+  xAxisLabelOverride,
+  yAxisLabelOverride,
+  onXAxisLabelChange,
+  onYAxisLabelChange,
 }: MainPlotChartProps) {
   const renderStartedAt = isDeviceAnalysisPerfEnabled()
     ? getDeviceAnalysisPerfNow()
@@ -2264,17 +2481,27 @@ const MainPlotChart = memo(function MainPlotChart({
 
   const isSsPlot = plotType === "ss";
 
-  const yAxisLabel = useMemo(
+  const defaultYAxisLabel = useMemo(
     () =>
       isSsPlot
         ? withYAxisUnit("|Id|", plotYUnitLabel)
         : withYAxisUnit(activeFile?.yLabel, plotYUnitLabel),
     [activeFile?.yLabel, isSsPlot, plotYUnitLabel],
   );
-  const xAxisLabel = useMemo(
+  const defaultXAxisLabel = useMemo(
     () => withYAxisUnit(activeFile?.xLabel, plotXUnitLabel),
     [activeFile?.xLabel, plotXUnitLabel],
   );
+  const xAxisLabel = useMemo(() => {
+    const override = String(xAxisLabelOverride ?? "").trim();
+    if (override) return withYAxisUnit(override, plotXUnitLabel);
+    return defaultXAxisLabel;
+  }, [defaultXAxisLabel, plotXUnitLabel, xAxisLabelOverride]);
+  const yAxisLabel = useMemo(() => {
+    const override = String(yAxisLabelOverride ?? "").trim();
+    if (override) return withYAxisUnit(override, plotYUnitLabel);
+    return defaultYAxisLabel;
+  }, [defaultYAxisLabel, plotYUnitLabel, yAxisLabelOverride]);
 
   const interactiveXDomain = useMemo<[number, number]>(() => xDomain, [xDomain]);
 
@@ -2312,17 +2539,22 @@ const MainPlotChart = memo(function MainPlotChart({
       showGrid={showGrid}
       showMajorTicks={showMajorTicks}
       showMinorTicks={showMinorTicks}
+      minorTickCount={normalizeMinorTickCount(minorTickCount)}
       ssInteraction={ssInteraction}
       ssOverlayStyle={ssOverlayStyle}
       tickLabelFontSize={tickLabelFontSize}
       tickLabelOffsetPx={tickLabelOffsetPx}
       xAxisLabel={xAxisLabel}
+      xAxisEditableLabel={stripAxisUnitSuffix(xAxisLabel)}
+      onXAxisLabelChange={onXAxisLabelChange}
       xTickDigits={xTickDigits}
       xTicks={xTicks}
       xTooltipDigits={xTooltipDigits}
       axisTitleFontSize={axisTitleFontSize}
       axisTitleGapPx={axisTitleGapPx}
       yAxisLabel={yAxisLabel}
+      yAxisEditableLabel={stripAxisUnitSuffix(yAxisLabel)}
+      onYAxisLabelChange={onYAxisLabelChange}
       yAxisNearZeroEpsilon={yAxisNearZeroEpsilon}
       yTickDigits={yTickDigits}
     />
