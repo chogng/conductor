@@ -1,6 +1,24 @@
 export const ORIGIN_ERROR_PREFIX = "__ORIGIN_ERROR__:";
 
-function readTrimmedString(source, key) {
+export type OriginErrorPayload = {
+  code?: string | null;
+  stage?: string | null;
+  message?: string | null;
+  hresult?: string | null;
+  logPath?: string | null;
+  originExe?: string | null;
+};
+
+export type NormalizedOriginErrorPayload = {
+  code: string;
+  stage: string;
+  message: string;
+  hresult: string | null;
+  logPath: string | null;
+  originExe: string | null;
+};
+
+function readTrimmedString(source: unknown, key: string): string | null {
   if (!source || typeof source !== "object") return null;
   const value = Reflect.get(source, key);
   if (typeof value !== "string") return null;
@@ -8,7 +26,10 @@ function readTrimmedString(source, key) {
   return trimmed || null;
 }
 
-export function normalizeOriginErrorPayload(rawPayload, fallback = {}) {
+export function normalizeOriginErrorPayload(
+  rawPayload: unknown,
+  fallback: OriginErrorPayload = {},
+): NormalizedOriginErrorPayload {
   const normalizedMessage =
     readTrimmedString(rawPayload, "message") ||
     readTrimmedString(fallback, "message") ||
@@ -46,7 +67,10 @@ export function normalizeOriginErrorPayload(rawPayload, fallback = {}) {
   };
 }
 
-export function toStructuredOriginError(rawPayload, fallback = {}) {
+export function toStructuredOriginError(
+  rawPayload: unknown,
+  fallback: OriginErrorPayload = {},
+): Error {
   const normalized = normalizeOriginErrorPayload(rawPayload, fallback);
   const error = new Error(`${ORIGIN_ERROR_PREFIX}${JSON.stringify(normalized)}`);
   error.name = "OriginBridgeError";
@@ -54,12 +78,14 @@ export function toStructuredOriginError(rawPayload, fallback = {}) {
   return error;
 }
 
-export function parseWorkerErrorPayload(rawText) {
+export function parseWorkerErrorPayload(rawText: unknown): OriginErrorPayload | null {
   const raw = String(rawText || "").trim();
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === "object") return parsed;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as OriginErrorPayload;
+    }
   } catch {
     // Fall through to plain text payload.
   }

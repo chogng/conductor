@@ -14,7 +14,18 @@ const DEVICE_ANALYSIS_ORIGIN_EXPORT_MODES = new Set([
   "workbookSheets",
   "separate",
 ]);
-const DEVICE_ANALYSIS_Y_UNITS = new Set(["A", "mA", "uA", "nA", "pA"]);
+const DEVICE_ANALYSIS_Y_UNITS = new Set([
+  "A",
+  "mA",
+  "uA",
+  "nA",
+  "pA",
+  "F",
+  "mF",
+  "uF",
+  "nF",
+  "pF",
+]);
 const DEVICE_ANALYSIS_Y_SCALES = new Set(["linear", "log"]);
 const DEVICE_ANALYSIS_DEFAULT_Y_SCALE = "linear";
 const DEVICE_ANALYSIS_THEMES = new Set(["system", "light", "dark"]);

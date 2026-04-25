@@ -9,7 +9,20 @@ import {
   sanitizeFileName,
 } from "./core.js";
 
-function resolveRuntimeRootDir(runtimeRootDir) {
+type OriginRuntimeCleanupPolicy = {
+  enabled: boolean;
+  keepSuccessJobs: number;
+  failedRetentionDays: number;
+};
+
+type OriginRuntimeCleanupOptions = {
+  runtimeRootDir?: unknown;
+  policy?: unknown;
+  force?: unknown;
+  clearAll?: unknown;
+};
+
+function resolveRuntimeRootDir(runtimeRootDir: unknown): string {
   const normalized = normalizeOriginExePath(runtimeRootDir);
   const fallback = path.join(process.cwd(), ".device");
   const candidate = normalized
@@ -21,8 +34,9 @@ function resolveRuntimeRootDir(runtimeRootDir) {
   return candidate;
 }
 
-function normalizeCleanupPolicy(policy) {
-  const source = policy && typeof policy === "object" ? policy : {};
+function normalizeCleanupPolicy(policy: unknown): OriginRuntimeCleanupPolicy {
+  const source: Record<string, unknown> =
+    policy && typeof policy === "object" ? policy as Record<string, unknown> : {};
 
   const enabled =
     typeof source.enabled === "boolean" ? source.enabled : true;
@@ -44,7 +58,7 @@ function normalizeCleanupPolicy(policy) {
   };
 }
 
-function listJobDirectories(baseDir) {
+function listJobDirectories(baseDir: string): string[] {
   if (!baseDir || !fs.existsSync(baseDir)) return [];
 
   let entries = [];
@@ -59,7 +73,7 @@ function listJobDirectories(baseDir) {
     .map((entry) => path.join(baseDir, entry.name));
 }
 
-function readJobErrorText(jobDir) {
+function readJobErrorText(jobDir: string): string {
   const { errorPath } = getOriginBridgeFilePaths(getOriginBridgeWorkDir(jobDir));
   if (!fs.existsSync(errorPath)) return "";
   try {
@@ -69,7 +83,7 @@ function readJobErrorText(jobDir) {
   }
 }
 
-function getJobMtimeMs(jobDir) {
+function getJobMtimeMs(jobDir: string): number {
   try {
     const stat = fs.statSync(jobDir);
     return Number.isFinite(stat?.mtimeMs) ? stat.mtimeMs : 0;
@@ -78,7 +92,7 @@ function getJobMtimeMs(jobDir) {
   }
 }
 
-function deleteJobDirectory(jobDir) {
+function deleteJobDirectory(jobDir: string): boolean {
   try {
     fs.rmSync(jobDir, { recursive: true, force: true });
     return true;
@@ -87,7 +101,11 @@ function deleteJobDirectory(jobDir) {
   }
 }
 
-function cleanupOneJobBase(baseDir, policy, options = {}) {
+function cleanupOneJobBase(
+  baseDir: string,
+  policy: OriginRuntimeCleanupPolicy,
+  options: { clearAll?: unknown } = {},
+) {
   const source = options && typeof options === "object" ? options : {};
   const clearAll = Reflect.get(source, "clearAll") === true;
 
@@ -144,7 +162,7 @@ function cleanupOneJobBase(baseDir, policy, options = {}) {
   };
 }
 
-export function runOriginRuntimeCleanup(options = {}) {
+export function runOriginRuntimeCleanup(options: OriginRuntimeCleanupOptions = {}) {
   const source = options && typeof options === "object" ? options : {};
   const runtimeRootDir = Reflect.get(source, "runtimeRootDir");
   const policy = Reflect.get(source, "policy");
@@ -184,7 +202,10 @@ export function runOriginRuntimeCleanup(options = {}) {
   };
 }
 
-export function createCsvJobPaths(csvName, options = {}) {
+export function createCsvJobPaths(
+  csvName: unknown,
+  options: { runtimeRootDir?: unknown } = {},
+) {
   const source = options && typeof options === "object" ? options : {};
   const runtimeRootDir = Reflect.get(source, "runtimeRootDir");
 

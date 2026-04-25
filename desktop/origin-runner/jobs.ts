@@ -4,11 +4,13 @@ import {
   normalizeOriginExePath,
   assertOriginExePath,
   sanitizeFileName,
+  type RunProcessResult,
 } from "./core.js";
 import {
   normalizeOriginErrorPayload,
   toStructuredOriginError,
   parseWorkerErrorPayload,
+  type OriginErrorPayload,
 } from "./errors.js";
 import {
   createCsvJobPaths,
@@ -21,6 +23,67 @@ import {
   readWorkerErrorFiles,
 } from "./runners.js";
 
+type OriginRunnerResult = RunProcessResult & {
+  executable: string;
+};
+
+type OriginCsvJobInput = {
+  csvName?: unknown;
+  csvText?: unknown;
+  originExePath: unknown;
+  workerScriptPath?: string | null;
+  workerExecutablePath?: unknown;
+  runtimeRootDir?: unknown;
+  importMode?: string;
+  workbookKey?: string;
+  workbookName?: string;
+  sheetName?: string;
+  plotType?: unknown;
+  xyPairs?: unknown;
+  plotCommand?: unknown;
+  postPlotCommands?: unknown;
+  lineWidth?: unknown;
+  capabilities?: unknown;
+};
+
+type OriginCsvBatchInput = {
+  jobs?: unknown;
+  originExePath: unknown;
+  workerScriptPath?: string | null;
+  workerExecutablePath?: unknown;
+  runtimeRootDir?: unknown;
+};
+
+type OriginHealthCheckInput = {
+  originExePath: unknown;
+  workerExecutablePath?: unknown;
+  workerScriptPath?: string | null;
+  runtimeRootDir?: unknown;
+};
+
+type NormalizedBatchCsvJob = {
+  csvName: string;
+  csvText: string;
+  importMode: string;
+  workbookKey: string;
+  workbookName: string;
+  sheetName: string;
+  plotType: unknown;
+  xyPairs: string;
+  plotCommand: string;
+  postPlotCommands: unknown[];
+  lineWidth: unknown;
+  capabilities: Record<string, unknown> | null;
+};
+
+function getErrorCode(error: unknown): unknown {
+  return Reflect.get(error && typeof error === "object" ? error : {}, "code");
+}
+
+function getErrorMessage(error: unknown): string | null {
+  return error instanceof Error && error.message ? error.message : null;
+}
+
 function buildWorkerFailureError({
   workerResult,
   logPath,
@@ -29,7 +92,15 @@ function buildWorkerFailureError({
   fallbackCode,
   fallbackMessage,
   originExe,
-}) {
+}: {
+  workerResult: OriginRunnerResult;
+  logPath: string;
+  workerErrorPayload: OriginErrorPayload | null;
+  fallbackStage: string;
+  fallbackCode: string;
+  fallbackMessage: string;
+  originExe: string;
+}): Error {
   const payload = normalizeOriginErrorPayload(workerErrorPayload, {
     code: fallbackCode,
     stage: fallbackStage,
@@ -44,9 +115,13 @@ function buildWorkerFailureError({
   return toStructuredOriginError(payload);
 }
 
-function buildPythonRunnerStartError(error, { logPath, originExe }) {
-  const pythonMissing = error?.code === "ENOENT";
-  const moduleMissing = error?.code === "PY_MODULE_MISSING";
+function buildPythonRunnerStartError(
+  error: unknown,
+  { logPath, originExe }: { logPath: string; originExe: string },
+): Error {
+  const errorCode = getErrorCode(error);
+  const pythonMissing = errorCode === "ENOENT";
+  const moduleMissing = errorCode === "PY_MODULE_MISSING";
   return toStructuredOriginError({
     code: pythonMissing
       ? "ORIGIN_PYTHON_NOT_FOUND"
@@ -63,15 +138,19 @@ function buildPythonRunnerStartError(error, { logPath, originExe }) {
         ? "Python executable not found. Install Python and ensure python/py is available in PATH."
         : moduleMissing
           ? "Failed to import originpro in available Python environments."
-          : error?.message || "Failed to run Origin CSV python script.",
+          : getErrorMessage(error) || "Failed to run Origin CSV python script.",
     logPath,
     originExe,
   });
 }
 
-function buildHealthCheckPythonRunnerStartError(error, { logPath, originExe }) {
-  const pythonMissing = error?.code === "ENOENT";
-  const moduleMissing = error?.code === "PY_MODULE_MISSING";
+function buildHealthCheckPythonRunnerStartError(
+  error: unknown,
+  { logPath, originExe }: { logPath: string; originExe: string },
+): Error {
+  const errorCode = getErrorCode(error);
+  const pythonMissing = errorCode === "ENOENT";
+  const moduleMissing = errorCode === "PY_MODULE_MISSING";
   return toStructuredOriginError({
     code: pythonMissing
       ? "ORIGIN_PYTHON_NOT_FOUND"
@@ -88,23 +167,32 @@ function buildHealthCheckPythonRunnerStartError(error, { logPath, originExe }) {
         ? "Python executable not found. Install Python and ensure python/py is available in PATH."
         : moduleMissing
           ? "Failed to import originpro in available Python environments."
-          : error?.message || "Failed to run Origin health-check python script.",
+          : getErrorMessage(error) || "Failed to run Origin health-check python script.",
     logPath,
     originExe,
   });
 }
 
-function buildNativeRunnerStartError(error, { logPath, originExe, stage, message, code }) {
+function buildNativeRunnerStartError(
+  error: unknown,
+  { logPath, originExe, stage, message, code }: {
+    logPath: string;
+    originExe: string;
+    stage: string;
+    message: string;
+    code?: string;
+  },
+): Error {
   return toStructuredOriginError({
     code: code || "ORIGIN_CSV_RUNNER_FAILED",
     stage,
-    message: error?.message || message,
+    message: getErrorMessage(error) || message,
     logPath,
     originExe,
   });
 }
 
-function buildNativeWorkerEnv(workDir) {
+function buildNativeWorkerEnv(workDir: string): NodeJS.ProcessEnv {
   return {
     ...process.env,
     TEMP: workDir,
@@ -112,14 +200,21 @@ function buildNativeWorkerEnv(workDir) {
   };
 }
 
-async function runPythonWorker(workerScriptPath, workerArgs) {
+async function runPythonWorker(
+  workerScriptPath: string,
+  workerArgs: string[],
+): Promise<OriginRunnerResult> {
   return runPythonScriptForBatch(workerScriptPath, workerArgs, {
     windowsHide: true,
     requiredModule: "originpro",
   });
 }
 
-function createUniqueCsvFileName(name, usedNames, index) {
+function createUniqueCsvFileName(
+  name: unknown,
+  usedNames: Set<string>,
+  index: number,
+): string {
   const original = sanitizeFileName(name || `device_analysis_origin_${index + 1}.csv`);
   const extension = path.extname(original);
   const base = extension ? original.slice(0, -extension.length) : original;
@@ -133,7 +228,10 @@ function createUniqueCsvFileName(name, usedNames, index) {
   return candidate;
 }
 
-function normalizeBatchCsvJobs(jobs, originExePath) {
+function normalizeBatchCsvJobs(
+  jobs: unknown,
+  originExePath: string,
+): NormalizedBatchCsvJob[] {
   const list = Array.isArray(jobs) ? jobs : [];
   if (!list.length) {
     throw toStructuredOriginError({
@@ -207,13 +305,14 @@ export async function runOriginCsvJob({
   postPlotCommands,
   lineWidth,
   capabilities,
-}) {
+}: OriginCsvJobInput) {
   const normalizedOriginExePath = assertOriginExePath(originExePath);
   const normalizedWorkerExecutablePath = normalizeOriginExePath(workerExecutablePath);
   const nativeWorkerAvailable = Boolean(
     normalizedWorkerExecutablePath && fs.existsSync(normalizedWorkerExecutablePath),
   );
-  const scriptWorkerAvailable = Boolean(workerScriptPath && fs.existsSync(workerScriptPath));
+  const scriptWorkerAvailable =
+    typeof workerScriptPath === "string" && fs.existsSync(workerScriptPath);
 
   if (!nativeWorkerAvailable && !scriptWorkerAvailable) {
     throw toStructuredOriginError({
@@ -270,8 +369,9 @@ export async function runOriginCsvJob({
       runnerKind = "python";
       runnerExecutable = workerResult.executable;
     } catch (error) {
-      const pythonMissing = error?.code === "ENOENT";
-      const moduleMissing = error?.code === "PY_MODULE_MISSING";
+      const errorCode = getErrorCode(error);
+      const pythonMissing = errorCode === "ENOENT";
+      const moduleMissing = errorCode === "PY_MODULE_MISSING";
       if (!nativeWorkerAvailable || (!pythonMissing && !moduleMissing)) {
         throw buildPythonRunnerStartError(error, {
           logPath,
@@ -358,13 +458,14 @@ export async function runOriginCsvBatchJob({
   workerScriptPath,
   workerExecutablePath,
   runtimeRootDir,
-}) {
+}: OriginCsvBatchInput) {
   const normalizedOriginExePath = assertOriginExePath(originExePath);
   const normalizedWorkerExecutablePath = normalizeOriginExePath(workerExecutablePath);
   const nativeWorkerAvailable = Boolean(
     normalizedWorkerExecutablePath && fs.existsSync(normalizedWorkerExecutablePath),
   );
-  const scriptWorkerAvailable = Boolean(workerScriptPath && fs.existsSync(workerScriptPath));
+  const scriptWorkerAvailable =
+    typeof workerScriptPath === "string" && fs.existsSync(workerScriptPath);
 
   if (!nativeWorkerAvailable && !scriptWorkerAvailable) {
     throw toStructuredOriginError({
@@ -385,7 +486,7 @@ export async function runOriginCsvBatchJob({
     },
   );
   const manifestPath = path.join(workDir, "batch-jobs.json");
-  const usedCsvNames = new Set();
+  const usedCsvNames = new Set<string>();
   const manifestJobs = normalizedJobs.map((job, index) => {
     const csvFileName = createUniqueCsvFileName(job.csvName, usedCsvNames, index);
     const csvPath = path.join(jobDir, csvFileName);
@@ -429,8 +530,9 @@ export async function runOriginCsvBatchJob({
       runnerKind = "python";
       runnerExecutable = workerResult.executable;
     } catch (error) {
-      const pythonMissing = error?.code === "ENOENT";
-      const moduleMissing = error?.code === "PY_MODULE_MISSING";
+      const errorCode = getErrorCode(error);
+      const pythonMissing = errorCode === "ENOENT";
+      const moduleMissing = errorCode === "PY_MODULE_MISSING";
       if (!nativeWorkerAvailable || (!pythonMissing && !moduleMissing)) {
         throw buildPythonRunnerStartError(error, {
           logPath,
@@ -517,13 +619,14 @@ export async function runOriginHealthCheck({
   workerExecutablePath,
   workerScriptPath,
   runtimeRootDir,
-}) {
+}: OriginHealthCheckInput) {
   const normalizedOriginExePath = assertOriginExePath(originExePath);
   const normalizedWorkerExecutablePath = normalizeOriginExePath(workerExecutablePath);
   const nativeWorkerAvailable = Boolean(
     normalizedWorkerExecutablePath && fs.existsSync(normalizedWorkerExecutablePath),
   );
-  const scriptWorkerAvailable = Boolean(workerScriptPath && fs.existsSync(workerScriptPath));
+  const scriptWorkerAvailable =
+    typeof workerScriptPath === "string" && fs.existsSync(workerScriptPath);
 
   if (!nativeWorkerAvailable && !scriptWorkerAvailable) {
     throw toStructuredOriginError({
@@ -566,8 +669,9 @@ export async function runOriginHealthCheck({
       runnerKind = "python";
       runnerExecutable = workerResult.executable;
     } catch (error) {
-      const pythonMissing = error?.code === "ENOENT";
-      const moduleMissing = error?.code === "PY_MODULE_MISSING";
+      const errorCode = getErrorCode(error);
+      const pythonMissing = errorCode === "ENOENT";
+      const moduleMissing = errorCode === "PY_MODULE_MISSING";
       if (!nativeWorkerAvailable || (!pythonMissing && !moduleMissing)) {
         throw buildHealthCheckPythonRunnerStartError(error, {
           logPath,

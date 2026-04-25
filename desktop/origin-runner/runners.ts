@@ -6,12 +6,55 @@ import {
   normalizeOriginExePath,
   normalizeOriginPathKey,
   runProcess,
+  type RunProcessOptions,
+  type RunProcessResult,
 } from "./core.js";
+import type { OriginErrorPayload } from "./errors.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-export function appendOriginPlotWorkerArgs(baseArgs, plotOptions = {}) {
+type OriginPlotWorkerOptions = {
+  plotType?: unknown;
+  xyPairs?: unknown;
+  plotCommand?: unknown;
+  postPlotCommands?: unknown;
+  lineWidth?: unknown;
+};
+
+type OriginCsvWorkerArgsOptions = OriginPlotWorkerOptions & {
+  workDir: string;
+  csvPath: string;
+  originExePath: string;
+  logPath: string;
+  errorPath: string;
+  importMode?: unknown;
+  workbookKey?: unknown;
+  workbookName?: unknown;
+  sheetName?: unknown;
+  capabilities?: unknown;
+};
+
+type OriginCsvBatchWorkerArgsOptions = {
+  workDir: string;
+  batchJobsPath: string;
+  originExePath: string;
+  logPath: string;
+  errorPath: string;
+};
+
+type WorkerRunResult = RunProcessResult & {
+  executable: string;
+};
+
+type PythonBatchOptions = RunProcessOptions & {
+  requiredModule?: unknown;
+};
+
+export function appendOriginPlotWorkerArgs(
+  baseArgs: string[],
+  plotOptions: OriginPlotWorkerOptions = {},
+): string[] {
   const args = Array.isArray(baseArgs) ? [...baseArgs] : [];
   const source = plotOptions && typeof plotOptions === "object" ? plotOptions : {};
   const plotType = Reflect.get(source, "plotType");
@@ -48,7 +91,10 @@ export function appendOriginPlotWorkerArgs(baseArgs, plotOptions = {}) {
   return args;
 }
 
-export function appendOriginCapabilitiesWorkerArgs(baseArgs, capabilities) {
+export function appendOriginCapabilitiesWorkerArgs(
+  baseArgs: string[],
+  capabilities: unknown,
+): string[] {
   const args = Array.isArray(baseArgs) ? [...baseArgs] : [];
   if (!capabilities || typeof capabilities !== "object") {
     return args;
@@ -82,7 +128,7 @@ export function buildOriginCsvWorkerArgs({
   postPlotCommands,
   lineWidth,
   capabilities,
-}) {
+}: OriginCsvWorkerArgsOptions): string[] {
   const args = [
     "--work-dir",
     workDir,
@@ -128,7 +174,7 @@ export function buildOriginCsvBatchWorkerArgs({
   originExePath,
   logPath,
   errorPath,
-}) {
+}: OriginCsvBatchWorkerArgsOptions): string[] {
   const args = [
     "--work-dir",
     workDir,
@@ -145,7 +191,11 @@ export function buildOriginCsvBatchWorkerArgs({
   return args;
 }
 
-export async function runNativeCsvWorker(workerExecutablePath, workerArgs, options = {}) {
+export async function runNativeCsvWorker(
+  workerExecutablePath: string | null,
+  workerArgs: string[],
+  options: RunProcessOptions = {},
+): Promise<WorkerRunResult> {
   if (!workerExecutablePath || !fs.existsSync(workerExecutablePath)) {
     const error = new Error(
       `Origin CSV worker executable not found: ${workerExecutablePath}`,
@@ -161,14 +211,14 @@ export async function runNativeCsvWorker(workerExecutablePath, workerArgs, optio
   };
 }
 
-function collectPreferredPythonExecutables() {
+function collectPreferredPythonExecutables(): string[] {
   const candidates = [
     path.join(process.cwd(), ".venv-origin-workers", "Scripts", "python.exe"),
     path.join(__dirname, "..", "..", ".venv-origin-workers", "Scripts", "python.exe"),
   ];
 
-  const seen = new Set();
-  const existing = [];
+  const seen = new Set<string>();
+  const existing: string[] = [];
   for (const item of candidates) {
     const normalized = normalizeOriginExePath(item);
     const key = normalizeOriginPathKey(item);
@@ -182,7 +232,11 @@ function collectPreferredPythonExecutables() {
   return existing;
 }
 
-export async function runPythonScriptForBatch(pythonScriptPath, scriptArgs, options = {}) {
+export async function runPythonScriptForBatch(
+  pythonScriptPath: string,
+  scriptArgs: string[],
+  options: PythonBatchOptions = {},
+): Promise<WorkerRunResult> {
   const source = options && typeof options === "object" ? options : {};
   const requiredModuleRaw = Reflect.get(source, "requiredModule");
   const requiredModule =
@@ -190,7 +244,7 @@ export async function runPythonScriptForBatch(pythonScriptPath, scriptArgs, opti
       ? requiredModuleRaw.trim()
       : null;
 
-  const attempts = [];
+  const attempts: Array<{ exe: string; prefix: string[] }> = [];
   const envPython = normalizeOriginExePath(process.env.ORIGIN_PYTHON);
   if (envPython) {
     attempts.push({ exe: envPython, prefix: [] });
@@ -203,8 +257,8 @@ export async function runPythonScriptForBatch(pythonScriptPath, scriptArgs, opti
     { exe: "py", prefix: ["-3"] },
   );
 
-  const tried = [];
-  let lastError = null;
+  const tried: string[] = [];
+  let lastError: unknown = null;
   let sawExecutable = false;
   let sawRequiredModuleFailure = false;
 
@@ -258,7 +312,15 @@ export async function runPythonScriptForBatch(pythonScriptPath, scriptArgs, opti
   throw notFoundError;
 }
 
-export function readWorkerErrorFiles(workDir, parseWorkerErrorPayload) {
+export function readWorkerErrorFiles(
+  workDir: string,
+  parseWorkerErrorPayload: (rawText: unknown) => OriginErrorPayload | null,
+): {
+  logPath: string;
+  errorPath: string;
+  workerErrorRaw: string;
+  workerErrorPayload: OriginErrorPayload | null;
+} {
   const { logPath, errorPath } = getOriginBridgeFilePaths(workDir);
 
   const workerErrorRaw = fs.existsSync(errorPath)

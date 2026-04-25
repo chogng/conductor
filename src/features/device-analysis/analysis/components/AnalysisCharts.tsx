@@ -38,7 +38,16 @@ import OverviewGrid from "./OverviewGrid";
 import CalculatedParametersRow from "./CalculatedParametersRow";
 import { SIGNED_LOG_Y_DATA_KEY, buildLogTicks, buildNiceTicks, buildOriginAutoTicks, buildOriginLogAutoTicks, buildPoints, buildStepTicks, computeLabelInterval, computeMinMax, downsamplePointsForDisplay, inferTickDigitsFromTicks, normalizeFloat, normalizeVarToken, padLinearDomain, padLogDomain, parseOptionalNumber, preserveScrollPosition, varTokenToSymbol, withSignedLogPositivePoints, } from "../lib/analysisChartsUtils";
 import { computeBaseCurrentMetrics, isOutputLikeDeviceAnalysisFile, isTransferLikeDeviceAnalysisFile, } from "../lib/deviceAnalysisMetrics";
-import { getDeviceAnalysisXUnitMeta, getDeviceAnalysisYUnitMeta, normalizeDeviceAnalysisYUnit, } from "../lib/deviceAnalysisUnits";
+import {
+  DEVICE_ANALYSIS_CAPACITANCE_Y_UNIT_VALUES,
+  DEVICE_ANALYSIS_CURRENT_Y_UNIT_VALUES,
+  getDeviceAnalysisXUnitMeta,
+  getDeviceAnalysisYUnitMeta,
+  isDeviceAnalysisCapacitanceYUnit,
+  isDeviceAnalysisCurrentYUnit,
+  normalizeDeviceAnalysisYUnit,
+  type DeviceAnalysisYUnit,
+} from "../lib/deviceAnalysisUnits";
 import { getDeviceAnalysisPerfNow, logDeviceAnalysisPerf, startDeviceAnalysisPerf } from "../../shared/lib/deviceAnalysisPerf";
 import MainPlotChart from "./MainPlotChart";
 import GmDiagnosticsChart from "./GmDiagnosticsChart";
@@ -353,9 +362,24 @@ const normalizeYLogCurrentModeByFileIdRecord = (value: unknown): Record<string, 
     }
     return next;
 };
-const normalizeYUnitByFileIdRecord = (value: unknown): Record<string, "A" | "mA" | "uA" | "nA" | "pA"> => {
+const isCapacitanceCurve = (fileLike: any): boolean => {
+    const curveType = String(fileLike?.curveType ?? "").trim().toLowerCase();
+    return curveType === "cv" || curveType === "cf";
+};
+const resolveDefaultYUnitForFile = (fileLike: any): DeviceAnalysisYUnit => {
+    if (isCapacitanceCurve(fileLike))
+        return "pF";
+    return normalizeDeviceAnalysisYUnit(fileLike?.yUnit, "A") || "A";
+};
+const resolveAllowedYUnitsForFile = (fileLike: any): readonly DeviceAnalysisYUnit[] => isCapacitanceCurve(fileLike)
+    ? DEVICE_ANALYSIS_CAPACITANCE_Y_UNIT_VALUES
+    : DEVICE_ANALYSIS_CURRENT_Y_UNIT_VALUES;
+const isYUnitAllowedForFile = (unit: unknown, fileLike: any): unit is DeviceAnalysisYUnit => isCapacitanceCurve(fileLike)
+    ? isDeviceAnalysisCapacitanceYUnit(unit)
+    : isDeviceAnalysisCurrentYUnit(unit);
+const normalizeYUnitByFileIdRecord = (value: unknown): Record<string, DeviceAnalysisYUnit> => {
     const raw = value && typeof value === "object" ? value as Record<string, unknown> : {};
-    const next: Record<string, "A" | "mA" | "uA" | "nA" | "pA"> = {};
+    const next: Record<string, DeviceAnalysisYUnit> = {};
     for (const [fileId, unit] of Object.entries(raw)) {
         const normalizedFileId = String(fileId ?? "").trim();
         if (!normalizedFileId)
@@ -548,7 +572,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     }, [isActiveFileControlled, onActiveFileIdChange]);
     const [plotType, setPlotType] = useState<PlotTypeOption>("iv"); // 'iv' | 'gm' | 'ss' | 'j'
     const [focusedSeriesId, setFocusedSeriesId] = useState<string | null>(null);
-    const [persistedYUnitByFileId, setPersistedYUnitByFileId] = useState<Record<string, "A" | "mA" | "uA" | "nA" | "pA">>({});
+    const [persistedYUnitByFileId, setPersistedYUnitByFileId] = useState<Record<string, DeviceAnalysisYUnit>>({});
     const [persistedYScaleByFileId, setPersistedYScaleByFileId] = useState<Record<string, "linear" | "log">>({});
     const [persistedYLogCurrentModeByFileId, setPersistedYLogCurrentModeByFileId] = useState<Record<string, "all" | "positive">>({});
     const [chartYScaleByFileId, setChartYScaleByFileId] = useState<Record<string, "linear" | "log" | "logAbs">>({});
@@ -560,7 +584,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const [areaInput, setAreaInput] = useState("");
     const [showPlotSettingsPane, setShowPlotSettingsPane] = useState(false);
     const [originExportMode, setOriginExportMode] = useState<DeviceAnalysisOriginExportMode>("merged");
-    const [originCanvasExportScope, setOriginCanvasExportScope] = useState<DeviceAnalysisOriginCanvasExportScope>("filtered");
+    const [originCanvasExportScope, setOriginCanvasExportScope] = useState<DeviceAnalysisOriginCanvasExportScope>("selected");
     const [originCurveExportMode, setOriginCurveExportMode] = useState<DeviceAnalysisOriginCurveExportMode>("all");
     const [originFilteredCanvasKind, setOriginFilteredCanvasKind] = useState<DeviceAnalysisOriginFilteredCanvasKind>("output");
     const [resultsTab, setResultsTab] = useState<"metrics" | "export">("metrics");
@@ -807,12 +831,13 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         editingLegendInputRef.current?.focus();
         editingLegendInputRef.current?.select();
     }, [editingLegendLabel]);
-    const resolveYUnitForFile = React.useCallback((fileLike: any): "A" | "mA" | "uA" | "nA" | "pA" => {
+    const resolveYUnitForFile = React.useCallback((fileLike: any): DeviceAnalysisYUnit => {
         const fileKey = String(fileLike?.fileId ?? "").trim();
-        const fallbackUnit = normalizeDeviceAnalysisYUnit(fileLike?.yUnit, "A");
+        const fallbackUnit = resolveDefaultYUnitForFile(fileLike);
         if (!fileKey)
-            return fallbackUnit || "A";
-        return persistedYUnitByFileId[fileKey] ?? (fallbackUnit || "A");
+            return fallbackUnit;
+        const persistedUnit = persistedYUnitByFileId[fileKey];
+        return isYUnitAllowedForFile(persistedUnit, fileLike) ? persistedUnit : fallbackUnit;
     }, [persistedYUnitByFileId]);
     const visibleSeriesKeySet = useMemo(() => {
         const fileId = String(activeFile?.fileId ?? "").trim();
@@ -1029,6 +1054,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     }, [axis?.yLogCurrentMode, persistedYLogCurrentModeByFileId]);
     const resolvedXUnitMeta = useMemo(() => getDeviceAnalysisXUnitMeta(activeFile?.xUnit), [activeFile?.xUnit]);
     const activeYUnit = useMemo(() => resolveYUnitForFile(activeFile), [activeFile, resolveYUnitForFile]);
+    const activeYUnitOptions = useMemo(() => resolveAllowedYUnitsForFile(activeFile), [activeFile]);
     const resolvedYUnitMeta = useMemo(() => getDeviceAnalysisYUnitMeta(activeYUnit), [activeYUnit]);
     useEffect(() => {
         setAxisState((prev: any) => {
@@ -1291,9 +1317,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         selectedOriginCanvasKeySet,
         selectedOriginSeriesCountByFile,
     ]);
-    const exportListTitle = resolvedOriginExportMode === "merged"
-        ? t("da_origin_export_list_title_merged")
-        : t("da_origin_export_list_title_separate");
     const exportListEmptyText = resolvedOriginExportMode === "merged"
         ? t("da_origin_collection_empty")
         : t("da_origin_export_selection_empty");
@@ -3192,7 +3215,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
 
               <div className="flex items-center gap-2">
                 <DropdownField id="device-analysis-y-unit-select" size="sm" value={activeYUnit} onChange={(next: any) => {
-            const nextUnit = normalizeDeviceAnalysisYUnit(next, "A");
+            const nextUnitRaw = normalizeDeviceAnalysisYUnit(next, activeYUnit);
+            const nextUnit = isYUnitAllowedForFile(nextUnitRaw, activeFile)
+                ? nextUnitRaw
+                : resolveDefaultYUnitForFile(activeFile);
             userChangedYUnitRef.current = true;
             const fileKey = String(effectiveActiveFileId ?? "").trim();
             if (fileKey && nextUnit) {
@@ -3211,28 +3237,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 }
                 : {})
                 .catch(() => { });
-        }} options={[
-            {
-                value: "A",
-                label: "A",
-            },
-            {
-                value: "mA",
-                label: "mA",
-            },
-            {
-                value: "uA",
-                label: "uA",
-            },
-            {
-                value: "nA",
-                label: "nA",
-            },
-            {
-                value: "pA",
-                label: "pA",
-            },
-        ]} aria-label="Y unit" className="w-fit da-neutral-select" stableWidth data-cta="Device Analysis" data-cta-position="y-unit" data-cta-copy="y unit"/>
+        }} options={activeYUnitOptions.map((unit) => ({
+            value: unit,
+            label: unit,
+        }))} aria-label="Y unit" className="w-fit da-neutral-select" stableWidth data-cta="Device Analysis" data-cta-position="y-unit" data-cta-copy="y unit"/>
 
                 <div className="flex items-center gap-1">
                   {effectivePlotType === "ss" ? (<span className="text-xs text-text-primary font-mono whitespace-nowrap">
@@ -3640,7 +3648,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                             next === "selected" ||
                             next === "all"
                             ? next
-                            : "filtered";
+                            : "selected";
                         setOriginCanvasExportScope(normalizedScope);
                     }}
                         options={[
@@ -3753,15 +3761,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                       </div>
                   </div>) : null}
                 </div>
-
-                <div className="flex items-start justify-between gap-3 flex-wrap">
-                  <div className="min-w-0">
-                    <div className="text-xs font-semibold text-text-primary">
-                      {exportListTitle}
-                    </div>
-                  </div>
-                </div>
-
                 {exportListEntries.length ? (<ScrollArea axis="y" className="min-w-0 w-full max-h-[320px]" viewportClassName="pr-2">
                     <div className="space-y-2">
                       {exportListEntries.map((entry: any) => (<div

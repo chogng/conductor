@@ -15,14 +15,16 @@ export type RunProcessOptions = {
   [key: string]: unknown;
 };
 
-export function ensureDir(dirPath) {
+export type JsonObject = Record<string, unknown>;
+
+export function ensureDir(dirPath: unknown): asserts dirPath is string {
   if (!dirPath || typeof dirPath !== "string") {
     throw new Error("Invalid directory path.");
   }
   fs.mkdirSync(dirPath, { recursive: true });
 }
 
-export function sanitizeFileName(name) {
+export function sanitizeFileName(name: unknown): string {
   const raw = String(name || "device_analysis_origin.zip");
   const cleaned = raw
     .replace(/[/\\?%*:|"<>]/g, "_")
@@ -31,11 +33,11 @@ export function sanitizeFileName(name) {
   return cleaned || "device_analysis_origin.zip";
 }
 
-export function getOriginBridgeWorkDir(jobDir) {
+export function getOriginBridgeWorkDir(jobDir: string): string {
   return path.join(jobDir, ".ob");
 }
 
-export function getOriginBridgeFilePaths(workDir) {
+export function getOriginBridgeFilePaths(workDir: string): { logPath: string; errorPath: string } {
   return {
     logPath: path.join(workDir, "originbridge.log"),
     errorPath: path.join(workDir, "error.txt"),
@@ -88,7 +90,7 @@ export function runProcess(
 
     child.on("close", (code) => {
       resolve({
-        code: Number.isInteger(code) ? code : -1,
+        code: typeof code === "number" && Number.isInteger(code) ? code : -1,
         stdout,
         stderr,
       });
@@ -96,18 +98,18 @@ export function runProcess(
   });
 }
 
-export function normalizeOriginExePath(inputPath) {
+export function normalizeOriginExePath(inputPath: unknown): string | null {
   if (typeof inputPath !== "string") return null;
   const normalized = inputPath.trim();
   return normalized || null;
 }
 
-export function normalizeOriginPathKey(inputPath) {
+export function normalizeOriginPathKey(inputPath: unknown): string | null {
   const normalized = normalizeOriginExePath(inputPath);
   return normalized ? normalized.toLowerCase() : null;
 }
 
-export function assertOriginExePath(originExePath) {
+export function assertOriginExePath(originExePath: unknown): string {
   const normalized = normalizeOriginExePath(originExePath);
   if (!normalized) {
     throw new Error("Origin executable path is empty.");
@@ -125,13 +127,17 @@ export function assertOriginExePath(originExePath) {
   return normalized;
 }
 
-export function parseJsonFile(filePath) {
-  if (!filePath || !fs.existsSync(filePath)) return null;
+export function parseJsonFile(filePath: unknown): JsonObject | null {
+  if (typeof filePath !== "string" || !filePath || !fs.existsSync(filePath)) {
+    return null;
+  }
   try {
     const raw = String(fs.readFileSync(filePath, "utf8") || "").trim();
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === "object" ? parsed : null;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed as JsonObject
+      : null;
   } catch {
     return null;
   }

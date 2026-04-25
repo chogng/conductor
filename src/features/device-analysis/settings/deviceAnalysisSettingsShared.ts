@@ -42,7 +42,10 @@ export type DeviceAnalysisSettings = {
   defaultYScaleForOutput?: "linear" | "log";
   defaultYScaleForTransfer?: "linear" | "log";
   analysisPlotAxisSettings?: Record<string, unknown>;
-  yUnitByFileId?: Record<string, "A" | "mA" | "uA" | "nA" | "pA">;
+  yUnitByFileId?: Record<
+    string,
+    "A" | "mA" | "uA" | "nA" | "pA" | "F" | "mF" | "uF" | "nF" | "pF"
+  >;
   yScaleByFileId?: Record<string, "linear" | "log">;
   yLogCurrentModeByFileId?: Record<string, "all" | "positive">;
   [key: string]: unknown;
