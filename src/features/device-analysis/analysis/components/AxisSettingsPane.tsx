@@ -47,8 +47,10 @@ const resetAxisSettings = (setAxis: (value: any) => void) => {
     yDecadeStep: 1,
     showGrid: true,
     showMajorTicks: true,
-    tickLabelFontSize: 12,
-    axisTitleFontSize: 18,
+    tickLabelFontSize: "",
+    axisTitleFontSize: "",
+    originTickLabelOffset: "",
+    originAxisTitleGap: "",
   }));
 };
 
@@ -227,7 +229,7 @@ export default function AxisSettingsPane({
                 }
                 onKeyDown={blurInputOnEnter}
                 inputMode="numeric"
-                placeholder="12"
+                placeholder={t("da_chart_axis_auto")}
                 className={`${analysisCompactInputWrapperClass} w-[86px]`}
                 fieldClassName={compactInputFieldClass}
                 inputClassName={analysisCompactInputClass}
@@ -244,11 +246,45 @@ export default function AxisSettingsPane({
                 }
                 onKeyDown={blurInputOnEnter}
                 inputMode="numeric"
-                placeholder="18"
+                placeholder={t("da_chart_axis_auto")}
                 className={`${analysisCompactInputWrapperClass} w-[86px]`}
                 fieldClassName={compactInputFieldClass}
                 inputClassName={analysisCompactInputClass}
                 title={t("da_chart_axis_title_font_size_title")}
+              />
+            </div>
+            <div className={settingRowClassName}>
+              <div className="text-xs text-text-secondary">{t("da_chart_axis_origin_tick_label_offset")}</div>
+              <Input
+                id="device-analysis-axis-origin-tick-label-offset"
+                value={axis.originTickLabelOffset}
+                onChange={(nextValue) =>
+                  setAxis((prev: any) => ({ ...prev, originTickLabelOffset: nextValue }))
+                }
+                onKeyDown={blurInputOnEnter}
+                inputMode="decimal"
+                placeholder={t("da_chart_axis_auto")}
+                className={`${analysisCompactInputWrapperClass} w-[86px]`}
+                fieldClassName={compactInputFieldClass}
+                inputClassName={analysisCompactInputClass}
+                title={t("da_chart_axis_origin_tick_label_offset_title")}
+              />
+            </div>
+            <div className={settingRowClassName}>
+              <div className="text-xs text-text-secondary">{t("da_chart_axis_origin_title_gap")}</div>
+              <Input
+                id="device-analysis-axis-origin-title-gap"
+                value={axis.originAxisTitleGap}
+                onChange={(nextValue) =>
+                  setAxis((prev: any) => ({ ...prev, originAxisTitleGap: nextValue }))
+                }
+                onKeyDown={blurInputOnEnter}
+                inputMode="decimal"
+                placeholder={t("da_chart_axis_auto")}
+                className={`${analysisCompactInputWrapperClass} w-[86px]`}
+                fieldClassName={compactInputFieldClass}
+                inputClassName={analysisCompactInputClass}
+                title={t("da_chart_axis_origin_title_gap_title")}
               />
             </div>
           </div>

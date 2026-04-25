@@ -20,6 +20,15 @@ const toOriginCommandNumber = (value: unknown): string => {
   return String(normalized);
 };
 
+const toOriginStyleCommandNumber = (value: unknown): string => {
+  const text = String(value ?? "").trim();
+  if (!text) return "";
+  const num = Number(text);
+  if (!Number.isFinite(num)) return "";
+  const normalized = Object.is(num, -0) ? 0 : num;
+  return String(normalized);
+};
+
 const toOriginLogCommandNumber = (value: unknown): string => {
   const num = Number(value);
   if (!Number.isFinite(num) || !(num > 0)) return "";
@@ -198,4 +207,31 @@ export const buildOriginXAxisRangeCommandsFromDisplayRange = (
   if (!fromText || !toText) return [];
 
   return [`layer.x.from=${fromText}`, `layer.x.to=${toText}`, "layer.x.rescale=1"];
+};
+
+export const buildOriginAxisSpacingCommands = (
+  axisSettings: {
+    originTickLabelOffset?: unknown;
+    originAxisTitleGap?: unknown;
+  } | null | undefined,
+): string[] => {
+  const commands: string[] = [];
+  const tickLabelOffset = toOriginStyleCommandNumber(
+    axisSettings?.originTickLabelOffset,
+  );
+  if (tickLabelOffset) {
+    commands.push(
+      `layer.x.label.offsetV=${tickLabelOffset}`,
+      `layer.y.label.offsetH=${tickLabelOffset}`,
+    );
+  }
+
+  const axisTitleGap = toOriginStyleCommandNumber(
+    axisSettings?.originAxisTitleGap,
+  );
+  if (axisTitleGap) {
+    commands.push(`system.tick.gapAxTitle=${axisTitleGap}`);
+  }
+
+  return commands.length ? [commands.join("; ")] : [];
 };

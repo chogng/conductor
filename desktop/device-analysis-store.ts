@@ -54,6 +54,28 @@ const DEVICE_ANALYSIS_DEFAULT_SETTINGS = {
   originRuntimeCleanupEnabled: true,
   originRuntimeKeepSuccessJobs: 1,
   originRuntimeFailedRetentionDays: 7,
+  analysisPlotAxisSettings: {
+    xMin: "",
+    xMax: "",
+    xTicks: "auto",
+    xTickCount: 6,
+    xStep: "",
+    xTooltipDigits: "",
+    yMin: "",
+    yMax: "",
+    yScale: "linear",
+    yLogCurrentMode: "all",
+    yTicks: "nice",
+    yTickCount: 6,
+    yStep: "",
+    yDecadeStep: 1,
+    showGrid: true,
+    showMajorTicks: true,
+    tickLabelFontSize: 12,
+    axisTitleFontSize: 18,
+    originTickLabelOffset: "",
+    originAxisTitleGap: "",
+  },
 };
 
 function normalizePositiveNumber(value, fallback) {
@@ -69,6 +91,78 @@ function normalizeBoundedInt(value, fallback, min, max) {
   const num = Number(value);
   if (!Number.isFinite(num)) return fallback;
   return Math.min(max, Math.max(min, Math.floor(num)));
+}
+
+function normalizeRoundedBoundedInt(value, fallback, min, max) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(num)));
+}
+
+function normalizeFiniteNumberText(value) {
+  if (value === null || value === undefined) return "";
+  const text = String(value).trim();
+  if (!text) return "";
+  const num = Number(text);
+  return Number.isFinite(num) ? text : "";
+}
+
+function normalizeIntegerText(value, min, max) {
+  const text = normalizeFiniteNumberText(value);
+  if (!text) return "";
+  return String(normalizeRoundedBoundedInt(text, min, min, max));
+}
+
+function normalizePlotAxisSettings(value, fallback = DEVICE_ANALYSIS_DEFAULT_SETTINGS.analysisPlotAxisSettings) {
+  const raw = value && typeof value === "object" ? value : {};
+  const yScale = raw.yScale === "log" || raw.yScale === "logAbs" ? raw.yScale : fallback.yScale;
+  const xTicks = raw.xTicks === "nice" || raw.xTicks === "step" ? raw.xTicks : "auto";
+  const yTicks =
+    yScale !== "linear"
+      ? raw.yTicks === "auto"
+        ? "auto"
+        : "decades"
+      : raw.yTicks === "auto" || raw.yTicks === "step"
+        ? raw.yTicks
+        : "nice";
+
+  return {
+    xMin: normalizeFiniteNumberText(raw.xMin ?? fallback.xMin),
+    xMax: normalizeFiniteNumberText(raw.xMax ?? fallback.xMax),
+    xTicks,
+    xTickCount: normalizeRoundedBoundedInt(raw.xTickCount, fallback.xTickCount, 2, 20),
+    xStep: normalizeFiniteNumberText(raw.xStep ?? fallback.xStep),
+    xTooltipDigits: normalizeIntegerText(raw.xTooltipDigits ?? fallback.xTooltipDigits, 0, 20),
+    yMin: normalizeFiniteNumberText(raw.yMin ?? fallback.yMin),
+    yMax: normalizeFiniteNumberText(raw.yMax ?? fallback.yMax),
+    yScale,
+    yLogCurrentMode: raw.yLogCurrentMode === "positive" ? "positive" : "all",
+    yTicks,
+    yTickCount: normalizeRoundedBoundedInt(raw.yTickCount, fallback.yTickCount, 2, 20),
+    yStep: normalizeFiniteNumberText(raw.yStep ?? fallback.yStep),
+    yDecadeStep: normalizeRoundedBoundedInt(raw.yDecadeStep, fallback.yDecadeStep, 1, 10),
+    showGrid: typeof raw.showGrid === "boolean" ? raw.showGrid : fallback.showGrid,
+    showMajorTicks:
+      typeof raw.showMajorTicks === "boolean" ? raw.showMajorTicks : fallback.showMajorTicks,
+    tickLabelFontSize: normalizeRoundedBoundedInt(
+      raw.tickLabelFontSize,
+      fallback.tickLabelFontSize,
+      8,
+      32,
+    ),
+    axisTitleFontSize: normalizeRoundedBoundedInt(
+      raw.axisTitleFontSize,
+      fallback.axisTitleFontSize,
+      8,
+      32,
+    ),
+    originTickLabelOffset: normalizeFiniteNumberText(
+      raw.originTickLabelOffset ?? fallback.originTickLabelOffset,
+    ),
+    originAxisTitleGap: normalizeFiniteNumberText(
+      raw.originAxisTitleGap ?? fallback.originAxisTitleGap,
+    ),
+  };
 }
 
 function normalizeTemplateTextValue(value) {
@@ -299,6 +393,9 @@ export function createDeviceAnalysisStore(options) {
       1,
       365,
     );
+    const analysisPlotAxisSettings = normalizePlotAxisSettings(
+      next.analysisPlotAxisSettings,
+    );
 
     return {
       ...DEVICE_ANALYSIS_DEFAULT_SETTINGS,
@@ -328,6 +425,7 @@ export function createDeviceAnalysisStore(options) {
       originRuntimeCleanupEnabled,
       originRuntimeKeepSuccessJobs,
       originRuntimeFailedRetentionDays,
+      analysisPlotAxisSettings,
     };
   }
 

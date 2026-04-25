@@ -17,6 +17,11 @@ import {
   type OriginPlotOptions,
 } from "../lib/originPlotOptions";
 import {
+  DEFAULT_PLOT_AXIS_SETTINGS,
+  normalizePlotAxisSettings,
+  type PlotAxisSettings,
+} from "../lib/plotAxisSettings";
+import {
   isDeviceAnalysisOriginExportMode,
   resolveDeviceAnalysisSeriesLabel,
   type DeviceAnalysisOriginExportMode,
@@ -498,26 +503,19 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const originChartXRangeRef = useRef<{ min: number; max: number; step?: number | null; } | null>(null);
     const originChartYRangeRef = useRef<{ mode: "linear" | "log"; min: number; max: number; step?: number | null; } | null>(null);
     const editingLegendInputRef = useRef<HTMLInputElement | null>(null);
-    const [axis, setAxis] = useState({
-        xMin: "",
-        xMax: "",
-        xTicks: "auto", // 'auto' | 'nice' | 'step'
-        xTickCount: 6,
-        xStep: "",
-        xTooltipDigits: "",
-        yMin: "",
-        yMax: "",
-        yScale: "linear", // 'linear' | 'log' | 'logAbs'
-        yLogCurrentMode: "all", // 'all' | 'positive'
-        yTicks: "nice", // 'auto' | 'nice' | 'step' | 'decades'
-        yTickCount: 6,
-        yStep: "",
-        yDecadeStep: 1,
-        showGrid: true,
-        showMajorTicks: true,
-        tickLabelFontSize: 12,
-        axisTitleFontSize: 18,
-    });
+    const [axis, setAxisState] = useState<PlotAxisSettings>(DEFAULT_PLOT_AXIS_SETTINGS);
+    const [plotAxisSettingsLoaded, setPlotAxisSettingsLoaded] = useState(false);
+    const userChangedAxisSettingsRef = useRef(false);
+    const plotAxisSettingsDirtyRef = useRef(false);
+    const persistedPlotAxisSettingsRef = useRef<string | null>(null);
+    const setAxis = React.useCallback((value: any) => {
+        userChangedAxisSettingsRef.current = true;
+        plotAxisSettingsDirtyRef.current = true;
+        setAxisState((prev) => {
+            const resolved = typeof value === "function" ? value(prev) : value;
+            return normalizePlotAxisSettings(resolved, prev);
+        });
+    }, []);
     const [toast, setToast] = useState<ToastState>({
         isVisible: false,
         message: "",
@@ -548,6 +546,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             try {
                 const settings = await apiService.getDeviceAnalysisSettings();
                 const normalizedSettings = settings as {
+                    analysisPlotAxisSettings?: unknown;
                     defaultYScaleForOutput?: unknown;
                     defaultYScaleForTransfer?: unknown;
                     originExportModeDefault?: string;
@@ -561,6 +560,12 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 const exportMode = normalizedSettings?.originExportModeDefault;
                 if (cancelled)
                     return;
+                const normalizedAxisSettings = normalizePlotAxisSettings(normalizedSettings?.analysisPlotAxisSettings);
+                persistedPlotAxisSettingsRef.current = JSON.stringify(normalizedAxisSettings);
+                setPlotAxisSettingsLoaded(true);
+                if (!userChangedAxisSettingsRef.current) {
+                    setAxisState(normalizedAxisSettings);
+                }
                 setDefaultYScaleForTransfer(exportDefaultYScaleForTransfer);
                 setDefaultYScaleForOutput(exportDefaultYScaleForOutput);
                 if (!userChangedYUnitRef.current) {
@@ -587,6 +592,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             }
             catch {
                 // ignore settings load failures
+                if (!cancelled) {
+                    persistedPlotAxisSettingsRef.current = JSON.stringify(DEFAULT_PLOT_AXIS_SETTINGS);
+                    setPlotAxisSettingsLoaded(true);
+                }
             }
         })();
         return () => {
@@ -882,17 +891,39 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const activeYUnit = useMemo(() => resolveYUnitForFile(activeFile), [activeFile, resolveYUnitForFile]);
     const resolvedYUnitMeta = useMemo(() => getDeviceAnalysisYUnitMeta(activeYUnit), [activeYUnit]);
     useEffect(() => {
-        setAxis((prev: any) => {
+        setAxisState((prev: any) => {
             const nextTicks = activeChartYScale === "linear" ? "nice" : "decades";
             if (prev?.yScale === activeChartYScale && prev?.yTicks === nextTicks)
                 return prev;
-            return {
+            return normalizePlotAxisSettings({
                 ...prev,
                 yScale: activeChartYScale,
                 yTicks: nextTicks,
-            };
+            }, prev);
         });
     }, [activeChartYScale]);
+    useEffect(() => {
+        if (!plotAxisSettingsLoaded)
+            return;
+        if (!plotAxisSettingsDirtyRef.current)
+            return;
+        const normalized = normalizePlotAxisSettings(axis);
+        const serialized = JSON.stringify(normalized);
+        if (persistedPlotAxisSettingsRef.current === serialized) {
+            plotAxisSettingsDirtyRef.current = false;
+            return;
+        }
+        plotAxisSettingsDirtyRef.current = false;
+        persistedPlotAxisSettingsRef.current = serialized;
+        const timeoutId = window.setTimeout(() => {
+            apiService
+                .updateDeviceAnalysisSettings({
+                    analysisPlotAxisSettings: normalized,
+                })
+                .catch(() => { });
+        }, 250);
+        return () => window.clearTimeout(timeoutId);
+    }, [axis, plotAxisSettingsLoaded]);
     const hasManualAxisOverride = useMemo(() => {
         const hasManualXRange =
             parseOptionalNumber(axis?.xMin) !== null || parseOptionalNumber(axis?.xMax) !== null;
@@ -907,8 +938,12 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const hasManualYTickCount = Number(axis?.yTickCount ?? 6) !== 6;
         const hasManualGrid = axis?.showGrid === false;
         const hasManualMajorTicks = axis?.showMajorTicks === false;
-        const hasManualTickFont = Number(axis?.tickLabelFontSize ?? 12) !== 12;
-        const hasManualTitleFont = Number(axis?.axisTitleFontSize ?? 18) !== 18;
+        const manualTickFont = parseOptionalNumber(axis?.tickLabelFontSize);
+        const manualTitleFont = parseOptionalNumber(axis?.axisTitleFontSize);
+        const hasManualTickFont = manualTickFont !== null && Math.round(manualTickFont) !== 12;
+        const hasManualTitleFont = manualTitleFont !== null && Math.round(manualTitleFont) !== 18;
+        const hasManualOriginTickLabelOffset = parseOptionalNumber(axis?.originTickLabelOffset) !== null;
+        const hasManualOriginAxisTitleGap = parseOptionalNumber(axis?.originAxisTitleGap) !== null;
         return hasManualXRange ||
             hasManualYRange ||
             hasManualXTickMode ||
@@ -921,7 +956,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             hasManualGrid ||
             hasManualMajorTicks ||
             hasManualTickFont ||
-            hasManualTitleFont;
+            hasManualTitleFont ||
+            hasManualOriginTickLabelOffset ||
+            hasManualOriginAxisTitleGap;
     }, [
         axis?.xMax,
         axis?.xMin,
@@ -938,6 +975,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         axis?.showMajorTicks,
         axis?.tickLabelFontSize,
         axis?.axisTitleFontSize,
+        axis?.originTickLabelOffset,
+        axis?.originAxisTitleGap,
     ]);
     const {
         clearOriginCanvasSelection,
@@ -966,6 +1005,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         originChartXRangeRef,
         originChartYRangeRef,
         originExportMode,
+        originAxisSettings: axis,
         originHasManualAxisOverride: hasManualAxisOverride,
         originOpenPlotOptions,
         processedData,
@@ -3214,6 +3254,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     showMajorTicks={axis?.showMajorTicks !== false}
                     tickLabelFontSize={mainPlotTickLabelFontSize}
                     axisTitleFontSize={mainPlotAxisTitleFontSize}
+                    originTickLabelOffset={axis?.originTickLabelOffset}
+                    originAxisTitleGap={axis?.originAxisTitleGap}
                     legendWidth={MAIN_PLOT_LEGEND_WIDTH}
                     legendContent={renderOriginSelectionLegend}
                   />

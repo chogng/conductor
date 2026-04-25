@@ -41,6 +41,7 @@ export type DeviceAnalysisSettings = {
   stopOnErrorDefault?: boolean;
   defaultYScaleForOutput?: "linear" | "log";
   defaultYScaleForTransfer?: "linear" | "log";
+  analysisPlotAxisSettings?: Record<string, unknown>;
   yUnitByFileId?: Record<string, "A" | "mA" | "uA" | "nA" | "pA">;
   yScaleByFileId?: Record<string, "linear" | "log">;
   [key: string]: unknown;

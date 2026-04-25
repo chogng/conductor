@@ -127,6 +127,8 @@ type MainPlotChartProps = {
   showMajorTicks?: boolean;
   tickLabelFontSize?: number;
   axisTitleFontSize?: number;
+  originTickLabelOffset?: unknown;
+  originAxisTitleGap?: unknown;
   legendWidth?: number;
   legendContent?: any;
 };
@@ -267,7 +269,7 @@ const withYAxisUnit = (
   return `${label} (${unit})`;
 };
 
-const DEFAULT_CHART_MARGIN = { top: 25, right: 15, left: 72, bottom: 46 } as const;
+const DEFAULT_CHART_MARGIN = { top: 25, right: 15, left: 112, bottom: 46 } as const;
 const GRID_STROKE = "rgba(15,23,42,0.14)";
 const GRID_DASH: [number, number] = [4, 4];
 const PLOT_BORDER_STROKE = "#000000";
@@ -275,6 +277,10 @@ const MAJOR_TICK_LENGTH_PX = 6;
 const MAJOR_TICK_STROKE = "#000000";
 const DEFAULT_TICK_LABEL_FONT_SIZE = 12;
 const DEFAULT_AXIS_TITLE_FONT_SIZE = 18;
+const DEFAULT_AXIS_TITLE_GAP_PX = 10;
+const PREVIEW_TICK_LABEL_OFFSET_SCALE = 5;
+const PREVIEW_AXIS_TITLE_GAP_SCALE = 4;
+const AXIS_TITLE_EDGE_PADDING_PX = 14;
 const AXIS_LABEL_COLOR = "rgba(55,65,81,0.96)";
 const CURRENT_BIAS_DRAG_TOLERANCE_PX = 22;
 const CURRENT_BIAS_HIT_WIDTH_PX = 28;
@@ -295,6 +301,13 @@ type ChartMargin = {
   right: number;
   left: number;
   bottom: number;
+};
+
+const normalizeAxisSpacingValue = (value: unknown): number | null => {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+  const num = Number(text);
+  return Number.isFinite(num) ? num : null;
 };
 
 type OverlayDraftState =
@@ -536,11 +549,13 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
   ssInteraction,
   ssOverlayStyle,
   tickLabelFontSize,
+  tickLabelOffsetPx,
   xAxisLabel,
   xTickDigits,
   xTicks,
   xTooltipDigits,
   axisTitleFontSize,
+  axisTitleGapPx,
   yAxisLabel,
   yAxisNearZeroEpsilon,
   yTickDigits,
@@ -578,11 +593,13 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
   ssInteraction?: SsInteractionConfig | null;
   ssOverlayStyle: SsOverlayStyle;
   tickLabelFontSize: number;
+  tickLabelOffsetPx: number;
   xAxisLabel: string;
   xTickDigits: number;
   xTicks?: number[] | null;
   xTooltipDigits?: number;
   axisTitleFontSize: number;
+  axisTitleGapPx: number;
   yAxisLabel: string;
   yAxisNearZeroEpsilon: number;
   yTickDigits: number;
@@ -785,7 +802,6 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
         }
         ctx.stroke();
       }
-      const tickLabelOffset = showMajorTicks ? MAJOR_TICK_LENGTH_PX + 4 : 8;
       for (const tick of visibleXTicks) {
         const x = scale.xToPx(tick);
         ctx.fillStyle = "rgba(120,120,120,0.92)";
@@ -794,7 +810,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
         ctx.fillText(
           formatNumber(tick * plotXFactor, { digits: xTickDigits }),
           x,
-          plotBottom + tickLabelOffset,
+          plotBottom + tickLabelOffsetPx,
         );
       }
       for (const tick of visibleYTicks) {
@@ -810,18 +826,30 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
         ctx.fillStyle = "rgba(120,120,120,0.92)";
         ctx.textAlign = "right";
         ctx.textBaseline = "middle";
-        ctx.fillText(label, plotRect.left - tickLabelOffset, y);
+        ctx.fillText(label, plotRect.left - tickLabelOffsetPx, y);
       }
       ctx.fillStyle = AXIS_LABEL_COLOR;
       ctx.font = `${axisTitleFontSize}px sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "bottom";
       if (xAxisLabel) {
-        ctx.fillText(xAxisLabel, plotRect.left + plotRect.width / 2, size.height - 6);
+        const xTitleBottom =
+          plotBottom +
+          tickLabelOffsetPx +
+          tickLabelFontSize +
+          axisTitleGapPx +
+          axisTitleFontSize;
+        ctx.fillText(xAxisLabel, plotRect.left + plotRect.width / 2, xTitleBottom);
       }
       if (yAxisLabel) {
         ctx.save();
-        ctx.translate(16, plotRect.top + plotRect.height / 2);
+        const yTitleX =
+          plotRect.left -
+          tickLabelOffsetPx -
+          tickLabelFontSize * 2.6 -
+          axisTitleGapPx -
+          axisTitleFontSize * 0.5;
+        ctx.translate(yTitleX, plotRect.top + plotRect.height / 2);
         ctx.rotate(-Math.PI / 2);
         ctx.fillText(yAxisLabel, 0, 0);
         ctx.restore();
@@ -1005,6 +1033,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
     highlightOverlays,
     isSsPlot,
     axisTitleFontSize,
+    axisTitleGapPx,
     plotRect,
     plotType,
     plotXFactor,
@@ -1016,6 +1045,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
     showMajorTicks,
     ssOverlayStyle,
     tickLabelFontSize,
+    tickLabelOffsetPx,
     xAxisLabel,
     xTickDigits,
     xTicks,
@@ -1920,22 +1950,52 @@ const MainPlotChart = memo(function MainPlotChart({
   showMajorTicks = true,
   tickLabelFontSize = DEFAULT_TICK_LABEL_FONT_SIZE,
   axisTitleFontSize = DEFAULT_AXIS_TITLE_FONT_SIZE,
+  originTickLabelOffset,
+  originAxisTitleGap,
   legendWidth = 120,
   legendContent = undefined,
 }: MainPlotChartProps) {
   const renderStartedAt = isDeviceAnalysisPerfEnabled()
     ? getDeviceAnalysisPerfNow()
     : 0;
+  const tickLabelOffsetPx = useMemo(() => {
+    const baseOffset = showMajorTicks ? MAJOR_TICK_LENGTH_PX + 4 : 8;
+    const originOffset = normalizeAxisSpacingValue(originTickLabelOffset);
+    if (originOffset === null) return baseOffset;
+    return Math.max(
+      0,
+      baseOffset +
+        (originOffset / 100) *
+          tickLabelFontSize *
+          PREVIEW_TICK_LABEL_OFFSET_SCALE,
+    );
+  }, [originTickLabelOffset, showMajorTicks, tickLabelFontSize]);
+  const axisTitleGapPx = useMemo(() => {
+    const originGap = normalizeAxisSpacingValue(originAxisTitleGap);
+    if (originGap === null) return DEFAULT_AXIS_TITLE_GAP_PX;
+    return Math.max(
+      0,
+      (originGap / 100) * axisTitleFontSize * PREVIEW_AXIS_TITLE_GAP_SCALE,
+    );
+  }, [axisTitleFontSize, originAxisTitleGap]);
   const chartMargin = useMemo(
     () => ({
       ...DEFAULT_CHART_MARGIN,
       left: Math.max(
         DEFAULT_CHART_MARGIN.left,
-        Math.ceil(axisTitleFontSize * 2.6 + tickLabelFontSize * 2.2),
+        Math.ceil(
+          AXIS_TITLE_EDGE_PADDING_PX +
+            axisTitleFontSize +
+            tickLabelFontSize * 3.2,
+        ),
       ),
       bottom: Math.max(
         DEFAULT_CHART_MARGIN.bottom,
-        Math.ceil(axisTitleFontSize * 1.7 + tickLabelFontSize * 1.5),
+        Math.ceil(
+          AXIS_TITLE_EDGE_PADDING_PX +
+            axisTitleFontSize +
+            tickLabelFontSize * 1.35,
+        ),
       ),
     }),
     [axisTitleFontSize, tickLabelFontSize],
@@ -2104,11 +2164,13 @@ const MainPlotChart = memo(function MainPlotChart({
       ssInteraction={ssInteraction}
       ssOverlayStyle={ssOverlayStyle}
       tickLabelFontSize={tickLabelFontSize}
+      tickLabelOffsetPx={tickLabelOffsetPx}
       xAxisLabel={xAxisLabel}
       xTickDigits={xTickDigits}
       xTicks={xTicks}
       xTooltipDigits={xTooltipDigits}
       axisTitleFontSize={axisTitleFontSize}
+      axisTitleGapPx={axisTitleGapPx}
       yAxisLabel={yAxisLabel}
       yAxisNearZeroEpsilon={yAxisNearZeroEpsilon}
       yTickDigits={yTickDigits}

@@ -7,6 +7,7 @@ import {
   buildDeviceAnalysisOriginSelectionExport,
   isDeviceAnalysisOriginExportMode,
 } from "./originSelectionExport.ts";
+import { buildOriginAxisSpacingCommands } from "./originAxisCommands.ts";
 
 test("buildDeviceAnalysisSsMetricsCsv does not compute SS for output curves", () => {
   const csv = buildDeviceAnalysisSsMetricsCsv({
@@ -39,6 +40,19 @@ test("buildDeviceAnalysisSsMetricsCsv does not compute SS for output curves", ()
   assert.equal(byHeader.ss, "");
   assert.equal(byHeader.ss_ok, "false");
   assert.equal(byHeader.ss_reason, "not_transfer_curve");
+});
+
+test("buildOriginAxisSpacingCommands emits LabTalk spacing commands only for provided values", () => {
+  assert.deepEqual(buildOriginAxisSpacingCommands(null), []);
+  assert.deepEqual(
+    buildOriginAxisSpacingCommands({
+      originTickLabelOffset: "45",
+      originAxisTitleGap: "80",
+    }),
+    [
+      "layer.x.label.offsetV=45; layer.y.label.offsetH=45; system.tick.gapAxTitle=80",
+    ],
+  );
 });
 
 test("buildDeviceAnalysisOriginSelectionExport merges selected curves from multiple files into one worksheet payload", () => {

@@ -287,8 +287,10 @@ export default function AnalysisDiagnosticsCard({
                     yDecadeStep: 1,
                     showGrid: true,
                     showMajorTicks: true,
-                    tickLabelFontSize: 12,
-                    axisTitleFontSize: 18,
+                    tickLabelFontSize: "",
+                    axisTitleFontSize: "",
+                    originTickLabelOffset: "",
+                    originAxisTitleGap: "",
                   }))
                 }
                 className="h-6 px-2 text-xs text-text-secondary hover:text-text-primary"
@@ -331,7 +333,7 @@ export default function AnalysisDiagnosticsCard({
                     setAxis((prev: any) => ({ ...prev, tickLabelFontSize: nextValue }))
                   }
                   inputMode="numeric"
-                  placeholder="12"
+                  placeholder={t("da_chart_axis_auto")}
                   className={`${analysisCompactInputWrapperClass} w-[96px]`}
                   fieldClassName={analysisCompactSurfaceFieldClass}
                   inputClassName={analysisCompactInputClass}
@@ -347,11 +349,43 @@ export default function AnalysisDiagnosticsCard({
                     setAxis((prev: any) => ({ ...prev, axisTitleFontSize: nextValue }))
                   }
                   inputMode="numeric"
-                  placeholder="18"
+                  placeholder={t("da_chart_axis_auto")}
                   className={`${analysisCompactInputWrapperClass} w-[96px]`}
                   fieldClassName={analysisCompactSurfaceFieldClass}
                   inputClassName={analysisCompactInputClass}
                   title={t("da_chart_axis_title_font_size_title")}
+                />
+              </div>
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-t border-border/50 px-3 py-2">
+                <div className="text-xs text-text-secondary">{t("da_chart_axis_origin_tick_label_offset")}</div>
+                <Input
+                  id="device-analysis-axis-origin-tick-label-offset"
+                  value={axis.originTickLabelOffset}
+                  onChange={(nextValue) =>
+                    setAxis((prev: any) => ({ ...prev, originTickLabelOffset: nextValue }))
+                  }
+                  inputMode="decimal"
+                  placeholder={t("da_chart_axis_auto")}
+                  className={`${analysisCompactInputWrapperClass} w-[96px]`}
+                  fieldClassName={analysisCompactSurfaceFieldClass}
+                  inputClassName={analysisCompactInputClass}
+                  title={t("da_chart_axis_origin_tick_label_offset_title")}
+                />
+              </div>
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-t border-border/50 px-3 py-2">
+                <div className="text-xs text-text-secondary">{t("da_chart_axis_origin_title_gap")}</div>
+                <Input
+                  id="device-analysis-axis-origin-title-gap"
+                  value={axis.originAxisTitleGap}
+                  onChange={(nextValue) =>
+                    setAxis((prev: any) => ({ ...prev, originAxisTitleGap: nextValue }))
+                  }
+                  inputMode="decimal"
+                  placeholder={t("da_chart_axis_auto")}
+                  className={`${analysisCompactInputWrapperClass} w-[96px]`}
+                  fieldClassName={analysisCompactSurfaceFieldClass}
+                  inputClassName={analysisCompactInputClass}
+                  title={t("da_chart_axis_origin_title_gap_title")}
                 />
               </div>
             </div>

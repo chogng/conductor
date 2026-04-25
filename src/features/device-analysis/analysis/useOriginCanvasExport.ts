@@ -19,6 +19,7 @@ import {
   type DeviceAnalysisOriginYAxisScaleMode,
 } from "./lib/originSelectionExport";
 import {
+  buildOriginAxisSpacingCommands,
   buildOriginXAxisRangeCommandsFromDisplayRange,
   buildOriginYAxisRangeCommands,
   buildOriginYAxisRangeCommandsFromDisplayRange,
@@ -73,6 +74,7 @@ type UseOriginCanvasExportOptions = {
     step?: number | null;
   } | null>;
   originExportMode?: unknown;
+  originAxisSettings?: unknown;
   originHasManualAxisOverride?: boolean;
   originOpenPlotOptions: unknown;
   processedData: any[];
@@ -207,6 +209,7 @@ export const useOriginCanvasExport = ({
   originChartXRangeRef,
   originChartYRangeRef,
   originExportMode,
+  originAxisSettings,
   originHasManualAxisOverride = false,
   originOpenPlotOptions,
   processedData,
@@ -944,6 +947,11 @@ export const useOriginCanvasExport = ({
             )
           : [];
         const autoYRangeCommands: string[] = [];
+        const originAxisSpacingCommands = buildOriginAxisSpacingCommands(
+          originAxisSettings && typeof originAxisSettings === "object"
+            ? (originAxisSettings as any)
+            : null,
+        );
         const originAxisCommands = [
           originYAxisTypeCommand,
           "layer.x.opposite=1",
@@ -951,6 +959,7 @@ export const useOriginCanvasExport = ({
           ...displayXRangeCommands,
           ...displayRangeCommands,
           ...autoYRangeCommands,
+          ...originAxisSpacingCommands,
         ];
         const originAxisLimits = {
           x: shouldUseDisplayRange
@@ -1155,6 +1164,7 @@ export const useOriginCanvasExport = ({
     getDesktopOriginBridge,
     originChartXRangeRef,
     originChartYRangeRef,
+    originAxisSettings,
     originHasManualAxisOverride,
     originOpenPlotOptions,
     selectedOriginCanvases,
