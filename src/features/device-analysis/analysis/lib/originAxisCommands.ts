@@ -29,6 +29,23 @@ const toOriginStyleCommandNumber = (value: unknown): string => {
   return String(normalized);
 };
 
+const normalizeOriginCommandText = (
+  value: unknown,
+  { max = 160 }: { max?: number } = {},
+): string => {
+  const raw = String(value ?? "")
+    .replace(/[\\_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!raw) return "";
+  return raw.length > max ? raw.slice(0, max).trim() : raw;
+};
+
+const escapeOriginLabTalkText = (value: unknown): string =>
+  normalizeOriginCommandText(value)
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, '\\"');
+
 const toOriginLogCommandNumber = (value: unknown): string => {
   const num = Number(value);
   if (!Number.isFinite(num) || !(num > 0)) return "";
@@ -234,4 +251,29 @@ export const buildOriginAxisSpacingCommands = (
   }
 
   return commands.length ? [commands.join("; ")] : [];
+};
+
+export const buildOriginAxisTitleCommands = (
+  options: {
+    xAxisTitle?: unknown;
+    yAxisTitle?: unknown;
+    axisTitleFontSize?: unknown;
+  } | null | undefined,
+): string[] => {
+  const commands: string[] = [];
+  const xAxisTitle = escapeOriginLabTalkText(options?.xAxisTitle);
+  const yAxisTitle = escapeOriginLabTalkText(options?.yAxisTitle);
+  const axisTitleFontSize = toOriginStyleCommandNumber(options?.axisTitleFontSize);
+
+  if (xAxisTitle) {
+    commands.push(`label -xb "${xAxisTitle}";`);
+  }
+  if (yAxisTitle) {
+    commands.push(`label -yl "${yAxisTitle}";`);
+  }
+  if (axisTitleFontSize) {
+    commands.push(`xb.fsize=${axisTitleFontSize};`, `yl.fsize=${axisTitleFontSize};`);
+  }
+
+  return commands;
 };

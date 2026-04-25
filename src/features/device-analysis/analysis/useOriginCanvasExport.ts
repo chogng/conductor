@@ -19,6 +19,7 @@ import {
   type DeviceAnalysisOriginYAxisScaleMode,
 } from "./lib/originSelectionExport";
 import {
+  buildOriginAxisTitleCommands,
   buildOriginAxisSpacingCommands,
   buildOriginXAxisRangeCommandsFromDisplayRange,
   buildOriginYAxisRangeCommands,
@@ -959,6 +960,14 @@ export const useOriginCanvasExport = ({
             ? (originAxisSettings as any)
             : null,
         );
+        const originAxisTitleCommands = buildOriginAxisTitleCommands({
+          xAxisTitle: payload.xAxisTitle,
+          yAxisTitle: payload.yAxisTitle,
+          axisTitleFontSize:
+            originAxisSettings && typeof originAxisSettings === "object"
+              ? (originAxisSettings as any).axisTitleFontSize
+              : null,
+        });
         const originAxisCommands = [
           originYAxisTypeCommand,
           "layer.x.opposite=1",
@@ -966,6 +975,7 @@ export const useOriginCanvasExport = ({
           ...displayXRangeCommands,
           ...displayRangeCommands,
           ...autoYRangeCommands,
+          ...originAxisTitleCommands,
           ...originAxisSpacingCommands,
         ];
         const originAxisLimits = {

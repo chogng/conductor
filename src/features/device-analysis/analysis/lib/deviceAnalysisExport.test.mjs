@@ -7,7 +7,10 @@ import {
   buildDeviceAnalysisOriginSelectionExport,
   isDeviceAnalysisOriginExportMode,
 } from "./originSelectionExport.ts";
-import { buildOriginAxisSpacingCommands } from "./originAxisCommands.ts";
+import {
+  buildOriginAxisSpacingCommands,
+  buildOriginAxisTitleCommands,
+} from "./originAxisCommands.ts";
 
 test("buildDeviceAnalysisSsMetricsCsv does not compute SS for output curves", () => {
   const csv = buildDeviceAnalysisSsMetricsCsv({
@@ -51,6 +54,23 @@ test("buildOriginAxisSpacingCommands emits LabTalk spacing commands only for pro
     }),
     [
       "layer.x.label.offsetV=45; layer.y.label.offsetH=45; system.tick.gapAxTitle=80",
+    ],
+  );
+});
+
+test("buildOriginAxisTitleCommands emits explicit Origin axis title commands", () => {
+  assert.deepEqual(buildOriginAxisTitleCommands(null), []);
+  assert.deepEqual(
+    buildOriginAxisTitleCommands({
+      xAxisTitle: 'Vd (V)',
+      yAxisTitle: 'Ig "test" (A)',
+      axisTitleFontSize: "22",
+    }),
+    [
+      'label -xb "Vd (V)";',
+      'label -yl "Ig \\"test\\" (A)";',
+      "xb.fsize=22;",
+      "yl.fsize=22;",
     ],
   );
 });
@@ -105,6 +125,8 @@ test("buildDeviceAnalysisOriginSelectionExport merges selected curves from multi
   assert.equal(payload.workbookName, payload.sheetName);
   assert.equal(payload.importMode, "new-book");
   assert.equal(payload.csvName, "2files_2curves.csv");
+  assert.equal(payload.xAxisTitle, "X");
+  assert.equal(payload.yAxisTitle, "Y");
 
   const csvText = payload.csvText.replace(/^\uFEFF/, "");
   const rows = csvText.split(/\r?\n/);
@@ -151,6 +173,7 @@ test("buildDeviceAnalysisOriginSelectionExport prefers caller-provided legend la
       {
         fileId: "file-a",
         fileName: "file_a.csv",
+        xLabel: "Vg (V)",
         xGroups: [[0, 1]],
         series: [
           {
@@ -160,6 +183,7 @@ test("buildDeviceAnalysisOriginSelectionExport prefers caller-provided legend la
             y: [3, 4],
           },
         ],
+        yLabel: "Id (A)",
       },
     ],
     undefined,
@@ -172,10 +196,16 @@ test("buildDeviceAnalysisOriginSelectionExport prefers caller-provided legend la
       assert.equal(index, 0);
       return "Edited Legend";
     },
+    (file, axis) => {
+      assert.equal(file?.fileId, "file-a");
+      return axis === "x" ? "Gate Voltage (V)" : "Drain Current (A)";
+    },
   );
 
   assert.ok(payload);
   assert.deepEqual(payload.curveLabels, ["Edited Legend"]);
+  assert.equal(payload.xAxisTitle, "Gate Voltage");
+  assert.equal(payload.yAxisTitle, "Drain Current");
   assert.deepEqual(payload.yColumnLongNames, ["Y"]);
 });
 

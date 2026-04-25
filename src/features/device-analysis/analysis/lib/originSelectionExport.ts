@@ -72,12 +72,14 @@ export type DeviceAnalysisOriginSelectionExport = {
   importMode: DeviceAnalysisOriginImportMode;
   sheetName: string;
   workbookName: string;
+  xAxisTitle: string;
   xColumnLongNames: string[];
   xColumnUnits: string[];
   xMax: number | null;
   xMin: number | null;
   xyPairCount: number;
   xyPairs: string;
+  yAxisTitle: string;
   yColumnLongNames: string[];
   yColumnUnits: string[];
   yLinearMax: number | null;
@@ -333,6 +335,8 @@ const buildWorksheetExport = ({
   importMode = "new-book",
   sheetName,
   workbookName,
+  xAxisTitle,
+  yAxisTitle,
 }: {
   canvases: ProcessedEntryLike[];
   curveEntries: DeviceAnalysisOriginCurveEntry[];
@@ -340,6 +344,8 @@ const buildWorksheetExport = ({
   importMode?: DeviceAnalysisOriginImportMode;
   sheetName: string;
   workbookName: string;
+  xAxisTitle: string;
+  yAxisTitle: string;
 }): DeviceAnalysisOriginSelectionExport | null => {
   if (!curveEntries.length) return null;
 
@@ -405,12 +411,14 @@ const buildWorksheetExport = ({
     importMode,
     sheetName,
     workbookName,
+    xAxisTitle,
     xColumnLongNames: curveEntries.map((entry) => entry.xLongName),
     xColumnUnits: curveEntries.map((entry) => entry.xUnits),
     xMax: Number.isFinite(xMax) ? xMax : null,
     xMin: Number.isFinite(xMin) ? xMin : null,
     xyPairCount: curveEntries.length,
     xyPairs: buildDeviceAnalysisOriginPairsExpr(curveEntries.length),
+    yAxisTitle,
     yColumnLongNames: curveEntries.map((entry) => entry.yLongName),
     yColumnUnits: curveEntries.map((entry) => entry.yUnits),
     yLinearMax: Number.isFinite(yLinearMax) ? yLinearMax : null,
@@ -451,6 +459,14 @@ export const buildDeviceAnalysisOriginCanvasExport = (
   const csvBase = `${sanitizeDeviceAnalysisFilename(canvasName)
     .replace(/\.csv$/i, "")
     .trim() || "device_analysis"}__selected_curves`;
+  const xAxisTitle =
+    stripAxisUnitSuffix(resolveAxisTitleForFile(canvas, "x")) ||
+    stripAxisUnitSuffix(canvas?.xLabel) ||
+    "X";
+  const yAxisTitle =
+    stripAxisUnitSuffix(resolveAxisTitleForFile(canvas, "y")) ||
+    stripAxisUnitSuffix(canvas?.yLabel) ||
+    "Y";
 
   return buildWorksheetExport({
     canvases: [canvas],
@@ -458,6 +474,8 @@ export const buildDeviceAnalysisOriginCanvasExport = (
     csvBase,
     sheetName: sanitizeOriginDisplayName(canvasName.replace(/\.csv$/i, "")),
     workbookName: sanitizeOriginDisplayName(canvasName.replace(/\.csv$/i, "")),
+    xAxisTitle,
+    yAxisTitle,
   });
 };
 
@@ -509,6 +527,15 @@ export const buildDeviceAnalysisOriginSelectionExport = (
       : sanitizeOriginDisplayName(
           `Merged curves ${canvasCount} files ${curveCount} curves`,
         );
+  const firstCanvas = liveCanvases[0] ?? null;
+  const xAxisTitle =
+    stripAxisUnitSuffix(resolveAxisTitleForFile(firstCanvas, "x")) ||
+    stripAxisUnitSuffix(firstCanvas?.xLabel) ||
+    "X";
+  const yAxisTitle =
+    stripAxisUnitSuffix(resolveAxisTitleForFile(firstCanvas, "y")) ||
+    stripAxisUnitSuffix(firstCanvas?.yLabel) ||
+    "Y";
 
   return buildWorksheetExport({
     canvases: liveCanvases,
@@ -516,6 +543,8 @@ export const buildDeviceAnalysisOriginSelectionExport = (
     csvBase,
     sheetName: workbookName,
     workbookName,
+    xAxisTitle,
+    yAxisTitle,
   });
 };
 
