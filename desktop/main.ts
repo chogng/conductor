@@ -1185,6 +1185,20 @@ function handleDeviceAnalysisSettingsGet() {
   return deviceAnalysisStore.getDeviceAnalysisSettings();
 }
 
+function handleDesktopMetaGet(event) {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed()) {
+    event.returnValue = null;
+    return;
+  }
+
+  event.returnValue = {
+    isDesktop: true,
+    platform: process.platform,
+    isPackaged: app.isPackaged,
+  };
+}
+
 function handleDesktopBootSettingsGet(event) {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win || win.isDestroyed()) {
@@ -2684,6 +2698,7 @@ app.whenReady().then(() => {
   createAppTray();
 
   ipcMain.on("desktop-command", handleDesktopCommand);
+  ipcMain.on(ipcChannels.desktopMetaGet, handleDesktopMetaGet);
   ipcMain.on(ipcChannels.desktopBootSettingsGet, handleDesktopBootSettingsGet);
   ipcMain.handle(ipcChannels.desktopBootUiReady, handleDesktopBootUiReady);
   ipcMain.handle(ipcChannels.templatesGet, handleDeviceAnalysisTemplatesGet);
@@ -2772,6 +2787,7 @@ app.on("will-quit", () => {
     appTray = null;
   }
   ipcMain.removeListener("desktop-command", handleDesktopCommand);
+  ipcMain.removeListener(ipcChannels.desktopMetaGet, handleDesktopMetaGet);
   ipcMain.removeListener(ipcChannels.desktopBootSettingsGet, handleDesktopBootSettingsGet);
   ipcMain.removeHandler(ipcChannels.desktopBootUiReady);
   ipcMain.removeHandler(ipcChannels.templatesGet);

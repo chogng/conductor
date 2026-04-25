@@ -25,6 +25,14 @@ const desktopBootstrap = (() => {
     return null;
   }
 })();
+const desktopMeta = (() => {
+  try {
+    return ipcRenderer.sendSync(ipcChannels.desktopMetaGet);
+  } catch (error) {
+    console.warn("[boot][preload] Failed to get desktop metadata:", error);
+    return null;
+  }
+})();
 
 contextBridge.exposeInMainWorld("desktopBootstrap", {
   initialDeviceAnalysisSettings:
@@ -36,7 +44,10 @@ contextBridge.exposeInMainWorld("desktopBootstrap", {
 contextBridge.exposeInMainWorld("desktopMeta", {
   isDesktop: true,
   platform: process.platform,
-  isPackaged: !process.defaultApp,
+  isPackaged:
+    desktopMeta && typeof desktopMeta === "object" && "isPackaged" in desktopMeta
+      ? desktopMeta.isPackaged === true
+      : false,
 });
 
 contextBridge.exposeInMainWorld("desktopApp", {
