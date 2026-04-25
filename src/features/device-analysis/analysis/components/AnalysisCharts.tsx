@@ -65,8 +65,6 @@ const ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS = "!space-y-0";
 const ANALYSIS_COMPACT_INPUT_CLASS = "text-xs";
 const ANALYSIS_COMPACT_PAGE_FIELD_CLASS =
     "!h-8 !gap-0 rounded-lg border border-border bg-bg-page px-2 py-1";
-const ANALYSIS_COMPACT_SURFACE_FIELD_CLASS =
-    "!gap-0 rounded border border-border bg-bg-surface px-2 py-1";
 const TOOLTIP_SERIES_NAME_SEPARATOR = "\u0000";
 
 type ChartHighlightOverlay = {
@@ -1080,12 +1078,18 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const hasManualYRange =
             parseOptionalNumber(axis?.yMin) !== null || parseOptionalNumber(axis?.yMax) !== null;
         const hasManualXTickMode = String(axis?.xTicks ?? "auto") !== "auto";
-        const hasManualYTickMode = String(axis?.yTicks ?? "nice") !== "nice";
+        const hasManualYTickMode = String(axis?.yTicks ?? "auto") !== "auto";
         const hasManualXStep = parseOptionalNumber(axis?.xStep) !== null;
         const hasManualYStep = parseOptionalNumber(axis?.yStep) !== null;
-        const hasManualYDecadeStep = Number(axis?.yDecadeStep ?? 1) !== 1;
-        const hasManualXTickCount = Number(axis?.xTickCount ?? 6) !== 6;
-        const hasManualYTickCount = Number(axis?.yTickCount ?? 6) !== 6;
+        const manualYDecadeStep = parseOptionalNumber(axis?.yDecadeStep);
+        const hasManualYDecadeStep =
+            manualYDecadeStep !== null && Math.round(manualYDecadeStep) !== 1;
+        const manualXTickCount = parseOptionalNumber(axis?.xTickCount);
+        const hasManualXTickCount =
+            manualXTickCount !== null && Math.round(manualXTickCount) !== 6;
+        const manualYTickCount = parseOptionalNumber(axis?.yTickCount);
+        const hasManualYTickCount =
+            manualYTickCount !== null && Math.round(manualYTickCount) !== 6;
         const hasManualGrid = axis?.showGrid === false;
         const hasManualMajorTicks = axis?.showMajorTicks === false;
         const hasManualMinorTicks = axis?.showMinorTicks === false;
@@ -1141,7 +1145,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         axis?.originAxisTitleGap,
     ]);
     const {
-        clearOriginCanvasSelection,
         clearOriginSeriesSelectionForFile,
         curveExportMode: resolvedCurveExportMode,
         getSelectedOriginSeriesKeySetForFile,
@@ -1324,10 +1327,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         })
             .catch(() => { });
     }, []);
-    const handleUseFilteredCanvasSelection = React.useCallback(() => {
-        setOriginCanvasExportScope("selected");
-        replaceOriginCanvasSelection(overviewVisibleFileIds);
-    }, [overviewVisibleFileIds, replaceOriginCanvasSelection]);
     const area = useMemo(() => {
         if (areaInput === null || areaInput === undefined)
             return null;
@@ -1442,7 +1441,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         }
         return map;
     }, [activeFile, getFileCache]);
-    const gmBySeriesId = useMemo(() => new Map(), []);
     const manualBySeriesForActiveFile = useMemo(() => activeFile?.fileId ? ssManualRanges?.[activeFile.fileId] ?? {} : {}, [activeFile?.fileId, ssManualRanges]);
     const manualRangeSignature = useMemo(() => buildSeriesRangeSignature(manualBySeriesForActiveFile), [manualBySeriesForActiveFile]);
     const ionIoffManualTargetsSignature = useMemo(() => buildSeriesCurrentTargetsSignature(ionIoffManualTargetsBySeriesForActiveFile), [ionIoffManualTargetsBySeriesForActiveFile]);
@@ -2480,7 +2478,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         return computedSeries;
     }, [activeFile?.fileId, activeFile?.fileName, displayPlotSeries, renderMaxPointsPerSeries, yLogCurrentMode, yScaleMode]);
     const mainPlotLegendFontSize = useMemo(() => clampChartFontSize(axis?.legendFontSize, 18), [axis?.legendFontSize]);
-    const renderOriginSelectionLegend = React.useCallback((legendProps: any) => {
+    const renderOriginSelectionLegend = React.useCallback(() => {
         if (!plotLegendSeries.length)
             return null;
         const activeLegendFileId = String(activeFile?.fileId ?? "").trim();
@@ -2701,23 +2699,12 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         }
         return curveProbeRows;
     }, [curveProbeMode, curveProbeRows, curveProbeX, effectivePlotType, gmDiagnosticsEnabled, visibleGmDiagnosticsSeries]);
-    const activeCurveProbeHeading = useMemo(() => {
-        if (effectivePlotType === "gm" && gmDiagnosticsEnabled) {
-            return t("da_chart_gm_second_diagnostics", { label: gmUi.kindSymbol ?? gmUi.metricSymbol });
-        }
-        return "Curve Probe";
-    }, [effectivePlotType, gmDiagnosticsEnabled, gmUi.kindSymbol, gmUi.metricSymbol, t]);
     const activeCurveProbeYUnitLabel = useMemo(() => {
         if (effectivePlotType === "gm" && gmDiagnosticsEnabled) {
             return gmSecondDerivativeUnitLabel;
         }
         return plotYUnitLabel;
     }, [effectivePlotType, gmDiagnosticsEnabled, gmSecondDerivativeUnitLabel, plotYUnitLabel]);
-    const diagnosticsChartVisible = effectivePlotType === "ss"
-        ? visibleSsDiagnosticsSeries.length > 0
-        : effectivePlotType === "gm"
-            ? visibleGmDiagnosticsSeries.length > 0
-            : false;
     const ssDiagnosticsMinMax = useMemo(() => {
         if (!visibleSsDiagnosticsSeries.length)
             return { minX: null, maxX: null, minY: null, maxY: null };
@@ -2810,7 +2797,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         originChartXRangeRef.current = originChartXRange;
     }, [originChartXRange]);
     const yTicks = useMemo(() => {
-        const mode = String(axis?.yTicks ?? "nice");
+        const mode = String(axis?.yTicks ?? "auto");
         if (mode === "auto") {
             if (effectiveYScale !== "linear") {
                 const min = Number(yDomain?.[0]);
@@ -3089,11 +3076,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         ];
     }, [focusedSeriesColor, focusedSeriesLabel]);
     const showIonIoffControl = transferMetricsApplicable && effectivePlotType === "iv";
-    const showIvDiagnosticsPanel = false;
     const showSsDiagnosticsPanel = effectivePlotType === "ss";
     const showGmDiagnosticsPanel = effectivePlotType === "gm";
     const showJDiagnosticsPanel = effectivePlotType === "j";
-    const showCurrentDiagnosticsControls = showIvDiagnosticsPanel && transferMetricsApplicable && ionIoffMethod === "manual";
     const showAreaDiagnosticsControls = showJDiagnosticsPanel;
     const showCurveProbePanel = effectivePlotType === "gm" && gmDiagnosticsEnabled
         ? visibleGmDiagnosticsSeries.length > 0
@@ -3117,10 +3102,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             : showJDiagnosticsPanel
                 ? "Current-density controls driven by Area and axis configuration."
                 : "Query any x between measured points and get y by linear interpolation.";
-    const handlePersistIonIoffTarget = React.useCallback((_role: "ion" | "ioff") => { }, []);
     const applyLinearLogYScaleForFile = React.useCallback((nextScaleRaw: unknown) => {
         const nextScale = normalizeLinearLogScale(nextScaleRaw);
-        const nextTicks = nextScale === "linear" ? "nice" : "decades";
+        const nextTicks = "auto";
         const fileKey = String(effectiveActiveFileId ?? "").trim();
         userChangedYScaleRef.current = true;
         setAxis((prev: any) => ({
@@ -3150,27 +3134,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             .catch(() => { });
         return nextScale;
     }, [effectiveActiveFileId, persistedYScaleByFileId]);
-    const handleAxisYScaleChange = React.useCallback((next: any) => {
-        const nextScale = normalizeChartYScale(next);
-        const nextTicks = nextScale === "linear" ? "nice" : "decades";
-        if (nextScale === "linear" || nextScale === "log") {
-            applyLinearLogYScaleForFile(nextScale);
-            return;
-        }
-        const fileKey = String(effectiveActiveFileId ?? "").trim();
-        userChangedYScaleRef.current = true;
-        setAxis((prev: any) => ({
-            ...prev,
-            yScale: nextScale,
-            yTicks: nextTicks,
-        }));
-        if (fileKey) {
-            setChartYScaleByFileId((prev) => ({
-                ...prev,
-                [fileKey]: nextScale,
-            }));
-        }
-    }, [applyLinearLogYScaleForFile, effectiveActiveFileId]);
     const handleOriginOpenPlotOptionsChange = React.useCallback((nextOptions: Partial<OriginPlotOptions>) => {
         if (typeof onOriginOpenPlotOptionsChange !== "function")
             return;
@@ -3497,21 +3460,13 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             diagnosticsHeading={diagnosticsHeading}
             diagnosticsDescription={diagnosticsDescription}
             diagnosticsContextBadges={diagnosticsContextBadges}
-            effectivePlotType={effectivePlotType}
             plotYUnitLabel={activeCurveProbeYUnitLabel}
-            showIvDiagnosticsPanel={showIvDiagnosticsPanel}
             showCurveProbePanel={showCurveProbePanel}
-            ionIoffMethod={ionIoffMethod}
-            showCurrentDiagnosticsControls={showCurrentDiagnosticsControls}
-            ionIoffManualTargets={ionIoffManualTargets}
-            setIonIoffManualTargets={setIonIoffManualTargets}
-            xDomain={xDomain}
             plotXFactor={plotXFactor}
             curveProbeXInput={curveProbeXInput}
             setCurveProbeXInput={setCurveProbeXInput}
             curveProbeMode={curveProbeMode}
             setCurveProbeMode={setCurveProbeMode}
-            curveProbeHeading={activeCurveProbeHeading}
             curveProbeRows={activeCurveProbeRows}
             xTooltipDigits={xTooltipDigits}
             resolvedXUnitLabel={resolvedXUnitMeta.label}
@@ -3524,18 +3479,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 joff: Number.isFinite(focusedAnalysis?.metrics?.joff) ? focusedAnalysis.metrics.joff : null,
             }}
             transferMetricsApplicable={transferMetricsApplicable}
-            showAxisControls={false}
-            axis={axis}
-            setAxis={setAxis}
-            effectiveYScale={effectiveYScale}
-            yScaleWarning={yScaleWarning}
-            xTooltipDigitsAuto={xTooltipDigitsAuto}
-            onPersistIonIoffTargets={handlePersistIonIoffTarget}
             analysisCompactInputWrapperClass={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS}
             analysisCompactInputClass={ANALYSIS_COMPACT_INPUT_CLASS}
             analysisCompactPageFieldClass={ANALYSIS_COMPACT_PAGE_FIELD_CLASS}
-            analysisCompactSurfaceFieldClass={ANALYSIS_COMPACT_SURFACE_FIELD_CLASS}
-            t={t}
           />
 
           {activeFile?.series?.length ? (<Card variant="panel" className="flex min-w-0 flex-col flex-1">

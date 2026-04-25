@@ -40,7 +40,7 @@ const resetAxisSettings = (setAxis: (value: any) => void) => {
     yMin: "",
     yMax: "",
     yScale: "linear",
-    yTicks: "nice",
+    yTicks: "auto",
     yTickCount: 6,
     yStep: "",
     yDecadeStep: 1,

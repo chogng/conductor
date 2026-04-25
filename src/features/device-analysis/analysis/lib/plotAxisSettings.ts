@@ -35,7 +35,7 @@ export const DEFAULT_PLOT_AXIS_SETTINGS: PlotAxisSettings = Object.freeze({
   yMax: "",
   yScale: "linear",
   yLogCurrentMode: "all",
-  yTicks: "nice",
+  yTicks: "auto",
   yTickCount: 6,
   yStep: "",
   yDecadeStep: 1,
@@ -78,6 +78,9 @@ const normalizeBoundedInt = (
   min: number,
   max: number,
 ): number => {
+  if (value === null || value === undefined || String(value).trim() === "") {
+    return fallback;
+  }
   const num = Number(value);
   if (!Number.isFinite(num)) return fallback;
   return Math.min(max, Math.max(min, Math.round(num)));

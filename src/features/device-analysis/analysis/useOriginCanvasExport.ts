@@ -22,7 +22,6 @@ import {
   buildOriginAxisTitleCommands,
   buildOriginAxisSpacingCommands,
   buildOriginXAxisRangeCommandsFromDisplayRange,
-  buildOriginYAxisRangeCommands,
   buildOriginYAxisRangeCommandsFromDisplayRange,
 } from "./lib/originAxisCommands";
 import { formatOriginBridgeError } from "./lib/originBridgeError";
@@ -927,7 +926,6 @@ export const useOriginCanvasExport = ({
         DEFAULT_ORIGIN_PLOT_OPTIONS.xyPairs;
       const chartXRange = originChartXRangeRef.current;
       const chartYRange = originChartYRangeRef.current;
-      const shouldApplyAutoYAxisRange = !hasCustomPlotCommand;
       const shouldBatchOriginCsvJobs =
         result.mode === "workbookBooks" || result.mode === "workbookSheets";
       const sharedWorkbookKey =

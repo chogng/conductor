@@ -543,7 +543,7 @@ const CanvasDiagnosticsChart = memo(function CanvasDiagnosticsChart({
     ctx.fillStyle = TICK_LABEL_COLOR;
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
-    visibleXTicks.forEach((tick, index) => {
+    visibleXTicks.forEach((tick) => {
       const x = scale.xToPx(Number(tick));
       if (x < plotRect.left - 1 || x > plotRight + 1) return;
       ctx.fillText(

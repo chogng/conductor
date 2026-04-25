@@ -429,7 +429,7 @@ export const buildOriginLogAutoTicks = (
 
   const logLo = Math.log10(safeLo);
   const logHi = Math.log10(hi);
-  const edgeTolerance = 0.04;
+  const edgeTolerance = 0.12;
   if (logLo - expMin <= edgeTolerance) expMin -= 1;
   if (expMax - logHi <= edgeTolerance) expMax += 1;
   if (expMax <= expMin) expMax = expMin + 1;

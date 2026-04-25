@@ -1172,7 +1172,6 @@ const CanvasPreviewGrid = React.memo(
       for (let rowSlot = 0; rowSlot < visibleRowCount; rowSlot += 1) {
         const rowIndex = previewWindow.startRow + rowSlot;
         const rowTop = rowSlot * rowHeightPx;
-        const rowBottom = rowTop + rowHeightPx;
         const rowCellsRaw =
           typeof getPreviewRow === "function" ? getPreviewRow(rowIndex) : null;
         const rowCells = Array.isArray(rowCellsRaw)
