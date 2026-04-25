@@ -8,6 +8,8 @@ import {
 } from "./core.js";
 
 type OriginDetectSource = "env" | "registry" | "directory";
+const REGISTRY_QUERY_TIMEOUT_MS = 5000;
+const REGISTRY_QUERY_MAX_OUTPUT_BYTES = 1024 * 1024;
 
 export type OriginDetectionProbe = {
   source: OriginDetectSource;
@@ -95,21 +97,32 @@ async function collectRegistryOriginCandidates(): Promise<string[]> {
     ],
   ];
 
-  const candidates: string[] = [];
-  for (const args of regQueries) {
-    try {
-      const result = await runProcess("reg.exe", args, { windowsHide: true });
-      if (result.code !== 0) continue;
-      const lines = String(result.stdout || "").split(/\r?\n/);
-      for (const line of lines) {
-        const match = line.match(/^\s*([^\s].*?)\s+REG_[A-Z0-9_]+\s+(.+)\s*$/i);
-        if (!match) continue;
-        const value = String(match[2] || "").trim();
-        if (!value) continue;
-        candidates.push(...collectCandidatePathsFromString(value));
+  const outputs = await Promise.all(
+    regQueries.map(async (args) => {
+      try {
+        const result = await runProcess("reg.exe", args, {
+          windowsHide: true,
+          timeoutMs: REGISTRY_QUERY_TIMEOUT_MS,
+          maxOutputBytes: REGISTRY_QUERY_MAX_OUTPUT_BYTES,
+        });
+        return result.code === 0 ? String(result.stdout || "") : "";
+      } catch {
+        // Ignore registry read failures; continue probing other sources.
+        return "";
       }
-    } catch {
-      // Ignore registry read failures; continue probing other sources.
+    }),
+  );
+
+  const candidates: string[] = [];
+  for (const output of outputs) {
+    if (!output) continue;
+    const lines = output.split(/\r?\n/);
+    for (const line of lines) {
+      const match = line.match(/^\s*([^\s].*?)\s+REG_[A-Z0-9_]+\s+(.+)\s*$/i);
+      if (!match) continue;
+      const value = String(match[2] || "").trim();
+      if (!value) continue;
+      candidates.push(...collectCandidatePathsFromString(value));
     }
   }
 
@@ -210,8 +223,10 @@ export async function detectOriginExecutablePathDetailed(): Promise<OriginDetect
   }
 
   const envCandidates = collectCandidatePathsFromString(process.env.ORIGIN_EXE_PATH);
-  const registryCandidates = await collectRegistryOriginCandidates();
-  const directoryCandidates = collectDirectoryOriginCandidates();
+  const [registryCandidates, directoryCandidates] = await Promise.all([
+    collectRegistryOriginCandidates(),
+    Promise.resolve().then(() => collectDirectoryOriginCandidates()),
+  ]);
 
   const allCandidates: string[] = [
     ...envCandidates,

@@ -41,6 +41,7 @@ const AUTO_UPDATE_INITIAL_DELAY_MS = 15 * 1000;
 const AUTO_UPDATE_INTERVAL_MS = 4 * 60 * 60 * 1000;
 const AUTO_UPDATE_SUPPORTED_PLATFORMS = new Set(["win32"]);
 const DESKTOP_APP_USER_MODEL_ID = "com.conductor.desktop";
+const ORIGIN_DETECTION_CACHE_TTL_MS = 60 * 1000;
 const MAIN_WINDOW_BOUNDS = {
   width: 1440,
   height: 920,
@@ -64,6 +65,8 @@ let autoUpdateConfiguredFeedUrl = null;
 let isAutoUpdateConfigured = false;
 let isUpdateDownloadedPromptVisible = false;
 let isAppQuitting = false;
+let originDetectionCache = null;
+let originDetectionPromise = null;
 const desktopProcessStartMs = Date.now();
 
 function logDesktopBoot(stage, extra = "") {
@@ -1736,6 +1739,8 @@ function getOriginExePathFromSettings() {
 }
 
 function saveOriginExePathToSettings(originExePath) {
+  originDetectionCache = null;
+  originDetectionPromise = null;
   const normalizedPath = normalizeOriginExePath(originExePath);
   const settings = deviceAnalysisStore.patchDeviceAnalysisSettings({
     originExePath: normalizedPath,
@@ -1794,6 +1799,34 @@ function logOriginDetectionResult(context, result) {
   );
 }
 
+async function detectOriginExecutablePathCached() {
+  const now = Date.now();
+  if (
+    originDetectionCache &&
+    now - originDetectionCache.createdAt < ORIGIN_DETECTION_CACHE_TTL_MS
+  ) {
+    return originDetectionCache.result;
+  }
+
+  if (!originDetectionPromise) {
+    originDetectionPromise = Promise.resolve()
+      .then(async () => {
+        const { detectOriginExecutablePathDetailed } = await loadOriginRunnerModule();
+        const result = await detectOriginExecutablePathDetailed();
+        originDetectionCache = {
+          createdAt: Date.now(),
+          result,
+        };
+        return result;
+      })
+      .finally(() => {
+        originDetectionPromise = null;
+      });
+  }
+
+  return originDetectionPromise;
+}
+
 async function tryRunOriginRuntimeCleanup({ force = false, clearAll = false } = {}) {
   const { runOriginRuntimeCleanup } = await loadOriginRunnerModule();
   return runOriginRuntimeCleanup({
@@ -1814,8 +1847,7 @@ async function handleOriginExeGet() {
     }
   }
 
-  const { detectOriginExecutablePathDetailed } = await loadOriginRunnerModule();
-  const detectResult = await detectOriginExecutablePathDetailed();
+  const detectResult = await detectOriginExecutablePathCached();
   logOriginDetectionResult("originExeGet", detectResult);
   if (detectResult.path) {
     return saveOriginExePathToSettings(detectResult.path);
@@ -1856,8 +1888,7 @@ async function resolveOriginExePath(event) {
     }
   }
 
-  const { detectOriginExecutablePathDetailed } = await loadOriginRunnerModule();
-  const detectResult = await detectOriginExecutablePathDetailed();
+  const detectResult = await detectOriginExecutablePathCached();
   logOriginDetectionResult("resolveOriginExePath", detectResult);
   if (detectResult.path) {
     return saveOriginExePathToSettings(detectResult.path);

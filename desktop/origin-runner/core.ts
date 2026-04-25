@@ -12,6 +12,8 @@ export type RunProcessOptions = {
   cwd?: string;
   env?: NodeJS.ProcessEnv;
   windowsHide?: boolean;
+  timeoutMs?: number;
+  maxOutputBytes?: number;
   [key: string]: unknown;
 };
 
@@ -66,6 +68,16 @@ export function runProcess(
     const cwd = Reflect.get(runOptions, "cwd");
     const env = Reflect.get(runOptions, "env");
     const windowsHide = Reflect.get(runOptions, "windowsHide");
+    const timeoutMsRaw = Number(Reflect.get(runOptions, "timeoutMs"));
+    const timeoutMs =
+      Number.isFinite(timeoutMsRaw) && timeoutMsRaw > 0
+        ? Math.floor(timeoutMsRaw)
+        : 0;
+    const maxOutputBytesRaw = Number(Reflect.get(runOptions, "maxOutputBytes"));
+    const maxOutputBytes =
+      Number.isFinite(maxOutputBytesRaw) && maxOutputBytesRaw > 0
+        ? Math.floor(maxOutputBytesRaw)
+        : 0;
 
     const child = spawn(exePath, args, {
       cwd: typeof cwd === "string" && cwd ? cwd : undefined,
@@ -76,19 +88,98 @@ export function runProcess(
 
     let stdout = "";
     let stderr = "";
+    let stdoutBytes = 0;
+    let stderrBytes = 0;
+    let stdoutTruncated = false;
+    let stderrTruncated = false;
+    let settled = false;
+    let timeout: NodeJS.Timeout | null = null;
+
+    const appendOutput = (
+      current: string,
+      currentBytes: number,
+      chunk: unknown,
+    ): { text: string; bytes: number; truncated: boolean } => {
+      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
+      if (!maxOutputBytes) {
+        return {
+          text: current + buffer.toString(),
+          bytes: currentBytes + buffer.length,
+          truncated: false,
+        };
+      }
+
+      const remainingBytes = maxOutputBytes - currentBytes;
+      if (remainingBytes <= 0) {
+        return { text: current, bytes: currentBytes, truncated: true };
+      }
+      if (buffer.length <= remainingBytes) {
+        return {
+          text: current + buffer.toString(),
+          bytes: currentBytes + buffer.length,
+          truncated: false,
+        };
+      }
+
+      return {
+        text: current + buffer.subarray(0, remainingBytes).toString(),
+        bytes: maxOutputBytes,
+        truncated: true,
+      };
+    };
+
+    const clearProcessTimeout = () => {
+      if (timeout) {
+        clearTimeout(timeout);
+        timeout = null;
+      }
+    };
+
+    if (timeoutMs > 0) {
+      timeout = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        try {
+          child.kill();
+        } catch {
+          // Process may have already exited.
+        }
+        const error = new Error(
+          `Process timed out after ${timeoutMs}ms: ${exePath}`,
+        );
+        Reflect.set(error, "code", "ETIMEDOUT");
+        Reflect.set(error, "stdout", stdout);
+        Reflect.set(error, "stderr", stderr);
+        reject(error);
+      }, timeoutMs);
+    }
 
     child.stdout?.on("data", (chunk) => {
-      stdout += String(chunk);
+      if (stdoutTruncated) return;
+      const next = appendOutput(stdout, stdoutBytes, chunk);
+      stdout = next.text;
+      stdoutBytes = next.bytes;
+      stdoutTruncated = next.truncated;
     });
     child.stderr?.on("data", (chunk) => {
-      stderr += String(chunk);
+      if (stderrTruncated) return;
+      const next = appendOutput(stderr, stderrBytes, chunk);
+      stderr = next.text;
+      stderrBytes = next.bytes;
+      stderrTruncated = next.truncated;
     });
 
     child.on("error", (error) => {
+      if (settled) return;
+      settled = true;
+      clearProcessTimeout();
       reject(error);
     });
 
     child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      clearProcessTimeout();
       resolve({
         code: typeof code === "number" && Number.isInteger(code) ? code : -1,
         stdout,
