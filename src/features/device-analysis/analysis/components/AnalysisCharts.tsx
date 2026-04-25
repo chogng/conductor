@@ -2739,18 +2739,18 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     }, [gmDiagnosticsBaseYDomain, gmDiagnosticsYTicks]);
     const xTicks = useMemo(() => {
         const mode = String(axis?.xTicks ?? "auto");
-        const count = Math.max(2, Math.floor(Number(axis?.xTickCount) || 6));
         if (mode === "auto") {
-            const tightTicks = buildNiceTicks(xDomain[0], xDomain[1], count, {
+            const tightTicks = buildNiceTicks(xDomain[0], xDomain[1], 6, {
                 preferTightRange: true,
             });
-            return tightTicks ?? buildOriginAutoTicks(xDomain[0], xDomain[1], count);
+            return tightTicks ?? buildOriginAutoTicks(xDomain[0], xDomain[1], 6);
         }
         if (mode === "step") {
             const stepRaw = parseOptionalNumber(axis?.xStep);
             const step = stepRaw !== null ? stepRaw / plotXFactor : null;
             return step ? buildStepTicks(xDomain[0], xDomain[1], step) : null;
         }
+        const count = Math.max(2, Math.floor(Number(axis?.xTickCount) || 6));
         return buildNiceTicks(xDomain[0], xDomain[1], count, {
             preferTightRange: false,
         });
@@ -2776,7 +2776,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     }, [originChartXRange]);
     const yTicks = useMemo(() => {
         const mode = String(axis?.yTicks ?? "nice");
-        const count = Math.max(2, Math.floor(Number(axis?.yTickCount) || 6));
         if (mode === "auto") {
             if (effectiveYScale !== "linear") {
                 const min = Number(yDomain?.[0]);
@@ -2791,10 +2790,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 const expMin = Math.floor(Math.log10(safeLo));
                 const expMax = Math.ceil(Math.log10(hi));
                 const decades = Math.max(1, expMax - expMin);
-                const decadeStep = Math.max(1, Math.ceil(decades / count));
+                const decadeStep = Math.max(1, Math.ceil(decades / 6));
                 return buildLogTicks(yDomain[0], yDomain[1], decadeStep);
             }
-            return buildOriginAutoTicks(yDomain[0], yDomain[1], count);
+            return buildOriginAutoTicks(yDomain[0], yDomain[1], 6);
         }
         if (effectiveYScale !== "linear") {
             if (mode !== "decades")
@@ -2806,6 +2805,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             const step = stepRaw !== null ? stepRaw / plotYFactor : null;
             return step ? buildStepTicks(yDomain[0], yDomain[1], step) : null;
         }
+        const count = Math.max(2, Math.floor(Number(axis?.yTickCount) || 6));
         return buildNiceTicks(yDomain[0], yDomain[1], count, {
             preferTightRange: false,
         });

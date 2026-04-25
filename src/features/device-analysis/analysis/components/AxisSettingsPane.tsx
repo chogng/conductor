@@ -405,12 +405,12 @@ export default function AxisSettingsPane({
               <div className="text-xs text-text-secondary">{t("da_chart_axis_count")}</div>
               <Input
                 id="device-analysis-axis-x-tick-count"
-                value={axis.xTicks === "step" ? "" : axis.xTickCount}
+                value={axis.xTicks === "nice" ? axis.xTickCount : ""}
                 onChange={(nextValue) =>
                   setAxis((prev: any) => ({ ...prev, xTickCount: nextValue }))
                 }
                 onKeyDown={blurInputOnEnter}
-                disabled={axis.xTicks === "step"}
+                disabled={axis.xTicks !== "nice"}
                 placeholder="6"
                 className={`${analysisCompactInputWrapperClass} ${compactInputWidth}`}
                 fieldClassName={compactInputFieldClass}
@@ -534,12 +534,12 @@ export default function AxisSettingsPane({
                   <div className="text-xs text-text-secondary">{t("da_chart_axis_count")}</div>
                   <Input
                     id="device-analysis-axis-y-tick-count"
-                    value={axis.yTicks === "step" ? "" : axis.yTickCount}
+                    value={axis.yTicks === "nice" ? axis.yTickCount : ""}
                     onChange={(nextValue) =>
                       setAxis((prev: any) => ({ ...prev, yTickCount: nextValue }))
                     }
                     onKeyDown={blurInputOnEnter}
-                    disabled={axis.yTicks === "step"}
+                    disabled={axis.yTicks !== "nice"}
                     placeholder="6"
                     className={`${analysisCompactInputWrapperClass} ${compactInputWidth}`}
                     fieldClassName={compactInputFieldClass}
