@@ -1,5 +1,5 @@
 ﻿import React, { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, } from "react";
-import { AlertTriangle, Check, X } from "lucide-react";
+import { AlertTriangle, Check, SlidersHorizontal, X } from "lucide-react";
 import { computeCentralDerivative, computeSubthresholdSwing, computeSubthresholdSwingFitAuto, computeSubthresholdSwingFitInRange, classifySsFit, formatNumber, interpolateCurveAtX, resolveAutoSsSelection, splitBidirectionalCurvePoints, } from "../lib/analysisMath";
 import { apiService } from "../services/apiService";
 import DropdownField from "../../../../components/ui/DropdownField";
@@ -3336,8 +3336,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             value: f.fileId,
             label: f.fileName,
         }))} className="w-[240px] da-neutral-select" placeholder="Select File" data-cta="Device Analysis" data-cta-position="file-select" data-cta-copy="file select"/>) : null}
-                <Button id="device-analysis-plot-settings-toggle-btn" variant="secondary" size="sm" onClick={() => setShowPlotSettingsPane((v: any) => !v)} className="h-8 px-3 text-xs border-border bg-bg-page hover:bg-bg-surface-hover" title={t("da_chart_plot_settings_title")}>
-                  Plot
+                <Button id="device-analysis-plot-settings-toggle-btn" variant="secondary" size="sm" onClick={() => setShowPlotSettingsPane((v: any) => !v)} title={t("da_chart_plot_settings_title")} aria-pressed={showPlotSettingsPane}>
+                  <SlidersHorizontal size={14} strokeWidth={2} />
+                  <span>{t("da_chart_plot_settings_title")}</span>
                 </Button>
               </div>
             </div>
