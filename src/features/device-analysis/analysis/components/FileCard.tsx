@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
 import CanvasMultiLineChart, {
-  resolvePreviewChartDomain,
+  resolvePreviewChartYDataRange,
   type CanvasMultiLineChartProps,
 } from "./CanvasMultiLineChart";
 import { formatNumber } from "../lib/analysisMath";
@@ -105,24 +105,22 @@ const FileCard = memo(function FileCard({
   const fileIdSuffix = toSafeIdSuffix(file?.fileId ?? file?.fileName);
   const seriesCount = Array.isArray(file?.series) ? file.series.length : 0;
   const sampledPoints = file?.x?.sampledPoints ?? null;
-  const previewDomain = useMemo(
+  const previewYDataRange = useMemo(
     () =>
-      resolvePreviewChartDomain({
-        xGroups: file?.xGroups,
+      resolvePreviewChartYDataRange({
         series: file?.series,
-        domain: file?.domain,
         yScaleType: yScale === "log" ? "log" : "linear",
         yLogCurrentMode,
       }),
-    [file?.domain, file?.series, file?.xGroups, yLogCurrentMode, yScale],
+    [file?.series, yLogCurrentMode, yScale],
   );
-  const yAxisMin = Number(previewDomain.y[0]);
-  const yAxisMax = Number(previewDomain.y[1]);
-  const yAxisMinLabel = Number.isFinite(yAxisMin)
-    ? formatNumber(yAxisMin * yUnitFactor, { digits: 3 })
+  const yDataMin = Number(previewYDataRange.min);
+  const yDataMax = Number(previewYDataRange.max);
+  const yAxisMinLabel = Number.isFinite(yDataMin)
+    ? formatNumber(yDataMin * yUnitFactor, { digits: 3 })
     : null;
-  const yAxisMaxLabel = Number.isFinite(yAxisMax)
-    ? formatNumber(yAxisMax * yUnitFactor, { digits: 3 })
+  const yAxisMaxLabel = Number.isFinite(yDataMax)
+    ? formatNumber(yDataMax * yUnitFactor, { digits: 3 })
     : null;
   const ySuffix =
     typeof yUnitLabel === "string" && yUnitLabel ? ` ${yUnitLabel}` : "";

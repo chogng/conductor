@@ -76,6 +76,11 @@ type ResolvedPreviewDomain = {
   effectiveYScaleType: "linear" | "log";
 };
 
+type ResolvedPreviewYDataRange = {
+  min: number | null;
+  max: number | null;
+};
+
 const clamp = (value: number, min: number, max: number): number =>
   Math.max(min, Math.min(max, value));
 
@@ -102,6 +107,41 @@ const resolvePreviewYForScale = (
   if (yLogCurrentMode === "positive") return num > 0 ? num : null;
   const abs = Math.abs(num);
   return abs > 0 ? abs : null;
+};
+
+export const resolvePreviewChartYDataRange = ({
+  series,
+  yScaleType,
+  yLogCurrentMode = "all",
+}: Pick<
+  CanvasMultiLineChartProps,
+  "series" | "yScaleType" | "yLogCurrentMode"
+>): ResolvedPreviewYDataRange => {
+  const wantsLogScale = String(yScaleType ?? "linear") === "log";
+  const resolvedYScaleType = wantsLogScale ? "log" : "linear";
+  let minY = Infinity;
+  let maxY = -Infinity;
+
+  for (const chartSeries of series ?? []) {
+    const yArr = chartSeries?.y;
+    if (!yArr) continue;
+    const pointCount = yArr?.length ?? 0;
+    for (let i = 0; i < pointCount; i++) {
+      const yVal = resolvePreviewYForScale(
+        yArr[i],
+        resolvedYScaleType,
+        yLogCurrentMode,
+      );
+      if (yVal === null) continue;
+      if (yVal < minY) minY = yVal;
+      if (yVal > maxY) maxY = yVal;
+    }
+  }
+
+  return {
+    min: Number.isFinite(minY) ? minY : null,
+    max: Number.isFinite(maxY) ? maxY : null,
+  };
 };
 
 const resolvePreviewSignForScale = (value: unknown): number | null => {
