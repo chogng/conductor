@@ -80,10 +80,16 @@ type FileNameMatchingSettings = {
 type AnalysisDefaultSettings = {
   defaultYScaleForOutput: "linear" | "log";
   defaultYScaleForTransfer: "linear" | "log";
+  tickLabelFontSize: number | "";
+  axisTitleFontSize: number | "";
+  legendFontSize: number | "";
   feedback: Feedback;
   isSaving: boolean;
   onDefaultYScaleForOutputChange: (value: string) => Promise<void> | void;
   onDefaultYScaleForTransferChange: (value: string) => Promise<void> | void;
+  onTickLabelFontSizeChange: (value: string | number) => Promise<void> | void;
+  onAxisTitleFontSizeChange: (value: string | number) => Promise<void> | void;
+  onLegendFontSizeChange: (value: string | number) => Promise<void> | void;
 };
 
 type OnboardingSettings = {
@@ -166,6 +172,15 @@ const DeviceAnalysisSettingsPanel = ({
   );
   const [fileNameFieldSeparatorsDraft, setFileNameFieldSeparatorsDraft] =
     useState(fileNameMatchingSettings.fieldSeparators ?? "");
+  const [tickLabelFontSizeDraft, setTickLabelFontSizeDraft] = useState(
+    String(analysisDefaultSettings.tickLabelFontSize ?? ""),
+  );
+  const [axisTitleFontSizeDraft, setAxisTitleFontSizeDraft] = useState(
+    String(analysisDefaultSettings.axisTitleFontSize ?? ""),
+  );
+  const [legendFontSizeDraft, setLegendFontSizeDraft] = useState(
+    String(analysisDefaultSettings.legendFontSize ?? ""),
+  );
   const [appUpdateChecking, setAppUpdateChecking] = useState(false);
   const [originHealthToast, setOriginHealthToast] = useState<ToastState>({
     isVisible: false,
@@ -201,6 +216,18 @@ const DeviceAnalysisSettingsPanel = ({
   useEffect(() => {
     setFileNameFieldSeparatorsDraft(fileNameMatchingSettings.fieldSeparators ?? "");
   }, [fileNameMatchingSettings.fieldSeparators]);
+
+  useEffect(() => {
+    setTickLabelFontSizeDraft(String(analysisDefaultSettings.tickLabelFontSize ?? ""));
+  }, [analysisDefaultSettings.tickLabelFontSize]);
+
+  useEffect(() => {
+    setAxisTitleFontSizeDraft(String(analysisDefaultSettings.axisTitleFontSize ?? ""));
+  }, [analysisDefaultSettings.axisTitleFontSize]);
+
+  useEffect(() => {
+    setLegendFontSizeDraft(String(analysisDefaultSettings.legendFontSize ?? ""));
+  }, [analysisDefaultSettings.legendFontSize]);
 
   useEffect(() => {
     const feedback = originSettings.feedback;
@@ -465,6 +492,72 @@ const DeviceAnalysisSettingsPanel = ({
             {analysisDefaultSettings.feedback.message}
           </p>
         ) : null}
+      </Card>
+
+      <Card
+        id="device-analysis-settings-chart-defaults-card"
+        variant="panel"
+        className="p-4 space-y-4 mb-4"
+      >
+        <div>
+          <h3 className="text-base font-semibold text-text-primary">
+            {t("da_settings_chart_defaults_title")}
+          </h3>
+          <p className="text-sm text-text-secondary mt-1">
+            {t("da_settings_chart_defaults_desc")}
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="space-y-1">
+            <p className="text-xs text-text-secondary">
+              {t("da_settings_chart_defaults_legend")}
+            </p>
+            <Input
+              id="device-analysis-settings-default-legend-font-size-input"
+              value={legendFontSizeDraft}
+              onChange={setLegendFontSizeDraft}
+              onBlur={() => {
+                if (legendFontSizeDraft === String(analysisDefaultSettings.legendFontSize ?? "")) return;
+                void analysisDefaultSettings.onLegendFontSizeChange(legendFontSizeDraft.trim());
+              }}
+              placeholder="18"
+              disabled={analysisDefaultSettings.isSaving}
+            />
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs text-text-secondary">
+              {t("da_settings_chart_defaults_title_size")}
+            </p>
+            <Input
+              id="device-analysis-settings-default-title-font-size-input"
+              value={axisTitleFontSizeDraft}
+              onChange={setAxisTitleFontSizeDraft}
+              onBlur={() => {
+                if (axisTitleFontSizeDraft === String(analysisDefaultSettings.axisTitleFontSize ?? "")) return;
+                void analysisDefaultSettings.onAxisTitleFontSizeChange(axisTitleFontSizeDraft.trim());
+              }}
+              placeholder="22"
+              disabled={analysisDefaultSettings.isSaving}
+            />
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs text-text-secondary">
+              {t("da_settings_chart_defaults_tick_label")}
+            </p>
+            <Input
+              id="device-analysis-settings-default-tick-label-font-size-input"
+              value={tickLabelFontSizeDraft}
+              onChange={setTickLabelFontSizeDraft}
+              onBlur={() => {
+                if (tickLabelFontSizeDraft === String(analysisDefaultSettings.tickLabelFontSize ?? "")) return;
+                void analysisDefaultSettings.onTickLabelFontSizeChange(tickLabelFontSizeDraft.trim());
+              }}
+              placeholder="18"
+              disabled={analysisDefaultSettings.isSaving}
+            />
+          </div>
+        </div>
       </Card>
 
       <Card

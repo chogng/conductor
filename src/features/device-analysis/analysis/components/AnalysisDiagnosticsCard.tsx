@@ -334,7 +334,7 @@ export default function AnalysisDiagnosticsCard({
                     setAxis((prev: any) => ({ ...prev, tickLabelFontSize: nextValue }))
                   }
                   inputMode="numeric"
-                  placeholder={t("da_chart_axis_auto")}
+                  placeholder="18"
                   className={`${analysisCompactInputWrapperClass} w-[96px]`}
                   fieldClassName={analysisCompactSurfaceFieldClass}
                   inputClassName={analysisCompactInputClass}
@@ -350,7 +350,7 @@ export default function AnalysisDiagnosticsCard({
                     setAxis((prev: any) => ({ ...prev, axisTitleFontSize: nextValue }))
                   }
                   inputMode="numeric"
-                  placeholder={t("da_chart_axis_auto")}
+                  placeholder="22"
                   className={`${analysisCompactInputWrapperClass} w-[96px]`}
                   fieldClassName={analysisCompactSurfaceFieldClass}
                   inputClassName={analysisCompactInputClass}
@@ -366,7 +366,7 @@ export default function AnalysisDiagnosticsCard({
                     setAxis((prev: any) => ({ ...prev, legendFontSize: nextValue }))
                   }
                   inputMode="numeric"
-                  placeholder={t("da_chart_axis_auto")}
+                  placeholder="18"
                   className={`${analysisCompactInputWrapperClass} w-[96px]`}
                   fieldClassName={analysisCompactSurfaceFieldClass}
                   inputClassName={analysisCompactInputClass}

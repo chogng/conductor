@@ -230,7 +230,7 @@ export default function AxisSettingsPane({
                 }
                 onKeyDown={blurInputOnEnter}
                 inputMode="numeric"
-                placeholder={t("da_chart_axis_auto")}
+                placeholder="18"
                 className={`${analysisCompactInputWrapperClass} w-[86px]`}
                 fieldClassName={compactInputFieldClass}
                 inputClassName={analysisCompactInputClass}
@@ -247,7 +247,7 @@ export default function AxisSettingsPane({
                 }
                 onKeyDown={blurInputOnEnter}
                 inputMode="numeric"
-                placeholder={t("da_chart_axis_auto")}
+                placeholder="22"
                 className={`${analysisCompactInputWrapperClass} w-[86px]`}
                 fieldClassName={compactInputFieldClass}
                 inputClassName={analysisCompactInputClass}
@@ -264,7 +264,7 @@ export default function AxisSettingsPane({
                 }
                 onKeyDown={blurInputOnEnter}
                 inputMode="numeric"
-                placeholder={t("da_chart_axis_auto")}
+                placeholder="18"
                 className={`${analysisCompactInputWrapperClass} w-[86px]`}
                 fieldClassName={compactInputFieldClass}
                 inputClassName={analysisCompactInputClass}

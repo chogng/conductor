@@ -7,6 +7,7 @@ import {
   normalizeOriginPostCommands,
   originPostCommandsToMultiline,
 } from "../analysis/lib/originPlotOptions";
+import { normalizePlotAxisSettings } from "../analysis/lib/plotAxisSettings";
 import type { Feedback } from "../shared/lib/sharedTypes";
 import type { LooseTranslateFn as TranslateFn } from "../shared/lib/translateTypes";
 import {
@@ -135,6 +136,10 @@ export const useDeviceAnalysisSettings = ({
       : "linear";
   const fileNameFieldSeparators = normalizeFileNameFieldSeparators(
     deviceAnalysisSettings?.fileNameFieldSeparators,
+  );
+  const analysisPlotAxisConfig = useMemo(
+    () => normalizePlotAxisSettings(deviceAnalysisSettings?.analysisPlotAxisSettings),
+    [deviceAnalysisSettings?.analysisPlotAxisSettings],
   );
   const windowCloseBehavior =
     deviceAnalysisSettings?.windowCloseBehavior === "quit"
@@ -612,6 +617,49 @@ export const useDeviceAnalysisSettings = ({
     [updateAnalysisDefaultSetting],
   );
 
+  const updateAnalysisPlotAxisDefaults = useCallback(
+    async (updates: Record<string, unknown>) => {
+      const nextAxisSettings = normalizePlotAxisSettings(
+        {
+          ...analysisPlotAxisConfig,
+          ...updates,
+        },
+        analysisPlotAxisConfig,
+      );
+      await updateAnalysisDefaultSetting({
+        analysisPlotAxisSettings: nextAxisSettings,
+      });
+    },
+    [analysisPlotAxisConfig, updateAnalysisDefaultSetting],
+  );
+
+  const handleSetDefaultTickLabelFontSize = useCallback(
+    async (nextValue: unknown) => {
+      await updateAnalysisPlotAxisDefaults({
+        tickLabelFontSize: nextValue,
+      });
+    },
+    [updateAnalysisPlotAxisDefaults],
+  );
+
+  const handleSetDefaultAxisTitleFontSize = useCallback(
+    async (nextValue: unknown) => {
+      await updateAnalysisPlotAxisDefaults({
+        axisTitleFontSize: nextValue,
+      });
+    },
+    [updateAnalysisPlotAxisDefaults],
+  );
+
+  const handleSetDefaultLegendFontSize = useCallback(
+    async (nextValue: unknown) => {
+      await updateAnalysisPlotAxisDefaults({
+        legendFontSize: nextValue,
+      });
+    },
+    [updateAnalysisPlotAxisDefaults],
+  );
+
   const storageSettings = useMemo(
     () => ({
       currentPath: String(persistencePathInfo?.currentPath ?? ""),
@@ -653,18 +701,30 @@ export const useDeviceAnalysisSettings = ({
     () => ({
       defaultYScaleForOutput,
       defaultYScaleForTransfer,
+      tickLabelFontSize: analysisPlotAxisConfig.tickLabelFontSize,
+      axisTitleFontSize: analysisPlotAxisConfig.axisTitleFontSize,
+      legendFontSize: analysisPlotAxisConfig.legendFontSize,
       feedback: analysisDefaultsFeedback,
       isSaving: analysisDefaultsSaving,
       onDefaultYScaleForOutputChange: handleSetDefaultYScaleForOutput,
       onDefaultYScaleForTransferChange: handleSetDefaultYScaleForTransfer,
+      onTickLabelFontSizeChange: handleSetDefaultTickLabelFontSize,
+      onAxisTitleFontSizeChange: handleSetDefaultAxisTitleFontSize,
+      onLegendFontSizeChange: handleSetDefaultLegendFontSize,
     }),
     [
+      analysisPlotAxisConfig.axisTitleFontSize,
+      analysisPlotAxisConfig.legendFontSize,
+      analysisPlotAxisConfig.tickLabelFontSize,
       analysisDefaultsFeedback,
       analysisDefaultsSaving,
       defaultYScaleForOutput,
       defaultYScaleForTransfer,
+      handleSetDefaultAxisTitleFontSize,
       handleSetDefaultYScaleForOutput,
       handleSetDefaultYScaleForTransfer,
+      handleSetDefaultLegendFontSize,
+      handleSetDefaultTickLabelFontSize,
     ],
   );
 
