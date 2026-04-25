@@ -1,6 +1,10 @@
 use calamine::{Reader, open_workbook_auto};
 use serde_json::{Value, json};
-use std::{cell::RefCell, collections::HashMap, path::Path};
+use std::{
+    cell::{Ref, RefCell},
+    collections::HashMap,
+    path::Path,
+};
 
 #[derive(Clone)]
 pub struct EngineDataset {
@@ -76,13 +80,32 @@ impl EngineDataset {
             .flatten()
     }
 
-    pub fn column_number_values(&self, col_index: usize) -> Vec<Option<f64>> {
+    pub fn column_number_values_ref(&self, col_index: usize) -> Ref<'_, Vec<Option<f64>>> {
         self.ensure_numeric_column(col_index);
-        self.numeric_column_cache
-            .borrow()
-            .get(&col_index)
-            .cloned()
-            .unwrap_or_default()
+        Ref::map(self.numeric_column_cache.borrow(), |cache| {
+            cache
+                .get(&col_index)
+                .expect("numeric column cache should exist after ensure_numeric_column")
+        })
+    }
+
+    pub fn has_numeric_rows(
+        &self,
+        data_start_row_index: usize,
+        col_index: usize,
+        minimum_count: usize,
+    ) -> bool {
+        let values = self.column_number_values_ref(col_index);
+        let mut count = 0usize;
+        for value in values.iter().skip(data_start_row_index) {
+            if value.is_some() {
+                count += 1;
+                if count >= minimum_count {
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     fn ensure_numeric_column(&self, col_index: usize) {

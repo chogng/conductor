@@ -102,20 +102,7 @@ pub fn column_has_numeric_rows(
     col_index: usize,
     minimum_count: usize,
 ) -> bool {
-    let mut count = 0usize;
-    for value in dataset
-        .column_number_values(col_index)
-        .into_iter()
-        .skip(data_start_row_index)
-    {
-        if value.is_some() {
-            count += 1;
-            if count >= minimum_count {
-                return true;
-            }
-        }
-    }
-    false
+    dataset.has_numeric_rows(data_start_row_index, col_index, minimum_count)
 }
 
 pub fn approx_equal(left: f64, right: f64, tolerance: f64) -> bool {

@@ -26,37 +26,55 @@ type CachePrefetchHandle =
       id: ReturnType<typeof setTimeout>;
     };
 
-const buildRustAnalysisPayload = (file: any, cache: any) => {
-  const seriesPayload = [];
-  const supportsSs = isTransferLikeDeviceAnalysisFile(file);
-  for (const series of file?.series ?? []) {
+const applyRustAnalysisResultsToCache = ({
+  cache,
+  resultBySeriesId,
+  seriesList,
+  stageCounts,
+  supportsSs,
+}: {
+  cache: any;
+  resultBySeriesId: any;
+  seriesList: any[];
+  stageCounts: Record<string, number>;
+  supportsSs: boolean;
+}) => {
+  if (!resultBySeriesId || typeof resultBySeriesId !== "object") return false;
+
+  let applied = false;
+  for (const series of seriesList) {
     if (!series?.id) continue;
-    if (
-      cache.gmByMode.x.has(series.id) &&
-      (!supportsSs ||
-        (cache.ssDiagnosticsBySeriesId.has(series.id) &&
-          cache.ssAutoBySeriesId.has(series.id))) &&
-      cache.baseMetricsBySeriesId.has(series.id)
-    ) {
-      continue;
+    const result = resultBySeriesId?.[series.id];
+    if (Array.isArray(result?.gm) && !cache.gmByMode.x.has(series.id)) {
+      cache.gmByMode.x.set(series.id, result.gm);
+      stageCounts.gm += 1;
+      applied = true;
     }
-    const yArr = Array.isArray(series?.y) ? series.y : [];
-    const groupIndex = Number(series?.groupIndex ?? 0);
-    const xArr = Array.isArray(file?.xGroups?.[groupIndex])
-      ? file.xGroups[groupIndex]
-      : [];
-    if (Math.min(xArr.length, yArr.length) >= 3) {
-      seriesPayload.push({
-        groupIndex,
-        id: series.id,
-        y: yArr,
-      });
+    if (
+      supportsSs &&
+      Array.isArray(result?.ss) &&
+      !cache.ssDiagnosticsBySeriesId.has(series.id)
+    ) {
+      cache.ssDiagnosticsBySeriesId.set(series.id, result.ss);
+      stageCounts.ss += 1;
+      applied = true;
+    }
+    if (
+      supportsSs &&
+      result?.ssFitAuto &&
+      !cache.ssAutoBySeriesId.has(series.id)
+    ) {
+      cache.ssAutoBySeriesId.set(series.id, result.ssFitAuto);
+      stageCounts.ssAuto += 1;
+      applied = true;
+    }
+    if (result?.baseCurrent && !cache.baseMetricsBySeriesId.has(series.id)) {
+      cache.baseMetricsBySeriesId.set(series.id, result.baseCurrent);
+      stageCounts.baseCurrent += 1;
+      applied = true;
     }
   }
-  return {
-    series: seriesPayload,
-    xGroups: Array.isArray(file?.xGroups) ? file.xGroups : [],
-  };
+  return applied;
 };
 
 const getCachedSeriesPoints = (file: any, cache: any, series: any) => {
@@ -203,7 +221,6 @@ export const useAnalysisFileCache = ({
         baseCurrent: 0,
         gm: 0,
         points: 0,
-        rustAnalysis: 0,
         ss: 0,
         ssAuto: 0,
       };
@@ -217,66 +234,13 @@ export const useAnalysisFileCache = ({
       const cache = getFileCache(fileId, file);
       if (!cache) return;
       const supportsSs = isTransferLikeDeviceAnalysisFile(file);
-
-      const rustAnalysisPayload = buildRustAnalysisPayload(file, cache);
-      const rustAnalysisSeries = rustAnalysisPayload.series;
-      const rustAnalyze =
-        globalThis.window?.desktopImport?.analyzeDeviceAnalysisSeriesBatchWithRust;
-      if (rustAnalyze && rustAnalysisSeries.length) {
-        let stageStartedAt = getDeviceAnalysisPerfNow();
-        try {
-          const response: any = await rustAnalyze({
-            fileId,
-            series: rustAnalysisSeries,
-            xGroups: rustAnalysisPayload.xGroups,
-            sourceFile: {
-              curveType: file?.curveType ?? null,
-              supportsSs: file?.supportsSs ?? null,
-              xAxisRole: file?.xAxisRole ?? null,
-              xLabel: file?.xLabel ?? null,
-            },
-          });
-          const resultBySeriesId = response?.ok
-            ? response?.result?.series
-            : null;
-          if (resultBySeriesId && typeof resultBySeriesId === "object") {
-            for (const series of rustAnalysisSeries) {
-              const result = resultBySeriesId?.[series.id];
-              if (Array.isArray(result?.gm) && !cache.gmByMode.x.has(series.id)) {
-                cache.gmByMode.x.set(series.id, result.gm);
-                stageCounts.gm += 1;
-              }
-              if (
-                supportsSs &&
-                Array.isArray(result?.ss) &&
-                !cache.ssDiagnosticsBySeriesId.has(series.id)
-              ) {
-                cache.ssDiagnosticsBySeriesId.set(series.id, result.ss);
-                stageCounts.ss += 1;
-              }
-              if (
-                supportsSs &&
-                result?.ssFitAuto &&
-                !cache.ssAutoBySeriesId.has(series.id)
-              ) {
-                cache.ssAutoBySeriesId.set(series.id, result.ssFitAuto);
-                stageCounts.ssAuto += 1;
-              }
-              if (
-                result?.baseCurrent &&
-                !cache.baseMetricsBySeriesId.has(series.id)
-              ) {
-                cache.baseMetricsBySeriesId.set(series.id, result.baseCurrent);
-                stageCounts.baseCurrent += 1;
-              }
-            }
-          }
-        } catch {
-          // The TypeScript implementation below remains the compatibility fallback.
-        } finally {
-          stageMs.rustAnalysis += getDeviceAnalysisPerfNow() - stageStartedAt;
-        }
-      }
+      applyRustAnalysisResultsToCache({
+        cache,
+        resultBySeriesId: file?.analysisCache?.series,
+        seriesList: Array.isArray(file?.series) ? file.series : [],
+        stageCounts,
+        supportsSs,
+      });
 
       for (const series of file?.series ?? []) {
         if (!series?.id) continue;

@@ -235,11 +235,12 @@ fn collect_column_numbers(
     limit: usize,
 ) -> Vec<f64> {
     let mut values = Vec::<f64>::new();
-    for row_index in data_start_row_index..dataset.rows.len() {
+    let column = dataset.column_number_values_ref(col_index);
+    for row_index in data_start_row_index..column.len() {
         if values.len() >= limit {
             break;
         }
-        let Some(value) = cell_number(dataset, row_index, col_index) else {
+        let Some(value) = column.get(row_index).copied().flatten() else {
             break;
         };
         values.push(value);
@@ -1570,8 +1571,7 @@ fn process_engine_file(
         } else {
             let mut x_values = Vec::<f64>::with_capacity(expected_total);
             for row_index in start_row..=end_row {
-                let row = &dataset.rows[row_index];
-                let x_value = parse_number_strict(row.get(x_col)).ok_or_else(|| {
+                let x_value = cell_number(dataset, row_index, x_col).ok_or_else(|| {
                     format!(
                         "{}: Invalid X at {}{}.",
                         dataset.file_name,
@@ -1627,11 +1627,10 @@ fn process_engine_file(
     let mut max_y = f64::NEG_INFINITY;
 
     for row_index in start_row..=end_row {
-        let row = &dataset.rows[row_index];
         let local = row_index - start_row;
         let group_index = local / group_size;
         let index_in_group = local % group_size;
-        let x_value = parse_number_strict(row.get(x_col)).ok_or_else(|| {
+        let x_value = cell_number(dataset, row_index, x_col).ok_or_else(|| {
             format!(
                 "{}: Invalid X at {}{}.",
                 dataset.file_name,
@@ -1641,7 +1640,7 @@ fn process_engine_file(
         })?;
         x_full_by_group[group_index][index_in_group] = x_value;
         for (yi, y_col) in y_cols.iter().enumerate() {
-            let y_value = parse_number_strict(row.get(*y_col)).ok_or_else(|| {
+            let y_value = cell_number(dataset, row_index, *y_col).ok_or_else(|| {
                 format!(
                     "{}: Invalid Y at {}{}.",
                     dataset.file_name,
@@ -1660,6 +1659,7 @@ fn process_engine_file(
 
     let mut x_groups = Vec::<Vec<f64>>::with_capacity(groups);
     let mut series = Vec::<Value>::new();
+    let mut analysis_series = Vec::<AnalysisSeriesRequest>::new();
     for group_index in 0..groups {
         let x_full = &x_full_by_group[group_index];
         let x_down: Vec<f64> = match &sample_indices {
@@ -1719,8 +1719,15 @@ fn process_engine_file(
             } else {
                 format!("{} #{}", y_label, group_index + 1)
             };
+            let series_id = format!("{}_{}_{}", file_id, y_col, group_index);
+            analysis_series.push(AnalysisSeriesRequest {
+                group_index: Some(group_index),
+                id: series_id.clone(),
+                x: Vec::new(),
+                y: y_down.clone(),
+            });
             series.push(json!({
-                "id": format!("{}_{}_{}", file_id, y_col, group_index),
+                "id": series_id,
                 "name": series_name,
                 "fileId": file_id,
                 "groupIndex": group_index,
@@ -1809,6 +1816,23 @@ fn process_engine_file(
     } else {
         "low"
     };
+    let analysis_cache = if !analysis_series.is_empty() {
+        Some(json!({
+            "source": "rust-process-precompute",
+            "series": engine_analysis::analyze_series_batch(
+                &analysis_series,
+                Some(&x_groups),
+                Some(&AnalysisSourceFile {
+                    curve_type: curve_type.map(|value| value.to_string()),
+                    supports_ss: Some(effective_axis_role == Some("vg")),
+                    x_axis_role: effective_axis_role.map(|value| value.to_string()),
+                    x_label: Some(x_label.clone()),
+                }),
+            ),
+        }))
+    } else {
+        None
+    };
 
     Ok(json!({
         "fileId": file_id,
@@ -1851,6 +1875,7 @@ fn process_engine_file(
             "x": pad_domain(min_x, max_x),
             "y": pad_domain(min_y, max_y),
         },
+        "analysisCache": analysis_cache,
         "source": "rust-engine",
     }))
 }
