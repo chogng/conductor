@@ -2032,10 +2032,10 @@ const TemplateManager = ({
             disabled={templateTransferBusy}
             title={t("da_template_export_btn")}
           >
+            <Upload size={14} className="shrink-0" />
             <span className="block min-w-0 flex-1 truncate text-left">
               {t("da_template_export_btn")}
             </span>
-            <Upload size={14} className="shrink-0" />
           </Button>
           <Button
             id={
@@ -2049,10 +2049,10 @@ const TemplateManager = ({
             disabled={templateTransferBusy}
             title={t("da_template_import_btn")}
           >
+            <Download size={14} className="shrink-0" />
             <span className="block min-w-0 flex-1 truncate text-left">
               {t("da_template_import_btn")}
             </span>
-            <Download size={14} className="shrink-0" />
           </Button>
         </div>
         {includeIds && !measureOnly ? (
