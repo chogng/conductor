@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 import Input from "../../../../components/ui/Input";
-import { formatNumber } from "../lib/analysisMath";
+import { formatNumber, splitBidirectionalCurvePoints } from "../lib/analysisMath";
 import { getChartColor, resolveSeriesChartColor } from "../lib/chartColors";
 import { inferTickDigitsFromTicks } from "../lib/analysisChartsUtils";
 import {
@@ -174,6 +174,12 @@ type CanvasTooltipLookup = {
   points: CanvasTooltipPoint[];
 };
 
+type CanvasTooltipLookupEntry = {
+  color: string;
+  lookup: CanvasTooltipLookup;
+  series: PlotSeries;
+};
+
 const LOG_CHART_Y_DATA_KEY = "__chartY";
 const LOG_CHART_SIGN_DATA_KEY = "__chartSign";
 const SIGNED_LOG_Y_DATA_KEY = "ySignedLogPositive";
@@ -197,6 +203,13 @@ const decodeTooltipSeriesName = (
     label: token.slice(0, separatorIndex),
     token,
   };
+};
+
+const formatTooltipBranchSuffix = (branchRaw: unknown): string => {
+  const branch = String(branchRaw ?? "");
+  if (branch === "forward") return " (forward)";
+  if (branch === "reverse") return " (reverse)";
+  return "";
 };
 
 const toLogChartValue = (value: unknown): number | null => {
@@ -796,15 +809,35 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
     };
   }, [chartYDomain, interactiveXDomain, plotRect]);
 
-  const tooltipLookups = useMemo(
-    () =>
-      chartSeriesList.map((series, index) => ({
-        color: resolveSeriesChartColor(series, index),
-        lookup: getCanvasTooltipLookup(series.data ?? [], chartYDataKey, plotYKey),
-        series,
-      })),
-    [chartSeriesList, chartYDataKey, plotYKey],
-  );
+  const tooltipLookups = useMemo<CanvasTooltipLookupEntry[]>(() => {
+    const entries: CanvasTooltipLookupEntry[] = [];
+    chartSeriesList.forEach((series, index) => {
+      const color = resolveSeriesChartColor(series, index);
+      const segments = splitBidirectionalCurvePoints(series.data);
+      if (segments.length <= 1) {
+        entries.push({
+          color,
+          lookup: getCanvasTooltipLookup(series.data ?? [], chartYDataKey, plotYKey),
+          series,
+        });
+        return;
+      }
+      for (const segment of segments) {
+        const suffix = formatTooltipBranchSuffix(segment?.branch);
+        entries.push({
+          color,
+          lookup: getCanvasTooltipLookup(segment?.points ?? [], chartYDataKey, plotYKey),
+          series: {
+            ...series,
+            data: segment?.points ?? [],
+            name: `${decodeTooltipSeriesName(series.tooltipName ?? series.name).label}${suffix}`,
+            tooltipName: `${decodeTooltipSeriesName(series.tooltipName ?? series.name).token}${suffix}`,
+          },
+        });
+      }
+    });
+    return entries;
+  }, [chartSeriesList, chartYDataKey, plotYKey]);
 
   const tooltipXDomain = useMemo<[number, number] | null>(() => {
     let minX = Number.POSITIVE_INFINITY;

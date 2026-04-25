@@ -2477,7 +2477,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
       </ul>);
     }, [activeFile?.fileId, beginLegendLabelEdit, cancelLegendLabelEdit, commitLegendLabelEdit, editingLegendDraft, editingLegendLabel, mainPlotLegendFontSize, plotLegendSeries, resolveDisplayLegendLabel, toggleVisibleSeries, visibleSeriesKeySet]);
     const curveProbeX = useMemo(() => {
-        const raw = Number(curveProbeXInput);
+        const text = String(curveProbeXInput ?? "").trim();
+        if (!text)
+            return null;
+        const raw = Number(text);
         if (!Number.isFinite(raw))
             return null;
         return raw / plotXFactor;
@@ -3433,7 +3436,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     {t("da_chart_ss_diagnostics")}
                   </div>
                   <div ref={diagnosticsChartContainerRef} className="h-[260px] min-h-[260px] flex-shrink-0">
-                    <SsDiagnosticsChart series={visibleSsDiagnosticsSeriesForRender} xDomain={xDomain} xTicks={xTicks} xFactor={plotXFactor} xUnitLabel={resolvedXUnitMeta.label} xLabelInterval={xLabelInterval} xTickDigits={xTickDigitsDisplay} xTooltipDigits={xTooltipDigits} yDomain={ssDiagnosticsYDomain} yTicks={ssDiagnosticsYTicks} overlay={focusedSsOverlay} overlayStyle={ssOverlayStyle} ssReferenceValue={ssSummary?.ss} seriesColor={focusedSeriesColor} rightReservedWidth={MAIN_PLOT_LEGEND_WIDTH + 15}/>
+                    <SsDiagnosticsChart series={visibleSsDiagnosticsSeriesForRender} axisTitleFontSize={mainPlotAxisTitleFontSize} curveProbeX={curveProbeX} tickLabelFontSize={mainPlotTickLabelFontSize} xDomain={xDomain} xTicks={xTicks} xFactor={plotXFactor} xUnitLabel={resolvedXUnitMeta.label} xLabelInterval={xLabelInterval} xTickDigits={xTickDigitsDisplay} xTooltipDigits={xTooltipDigits} yDomain={ssDiagnosticsYDomain} yTicks={ssDiagnosticsYTicks} overlay={focusedSsOverlay} overlayStyle={ssOverlayStyle} ssReferenceValue={ssSummary?.ss} seriesColor={focusedSeriesColor} rightReservedWidth={MAIN_PLOT_LEGEND_WIDTH}/>
                   </div>
                 </div>) : null}
 
@@ -3445,7 +3448,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     {t("da_chart_gm_second_note", { label: gmUi.kindSymbol ?? gmUi.metricSymbol, axisLabel: gmSecondDerivativeAxisLabel })}
                   </div>
                   <div ref={diagnosticsChartContainerRef} className="h-[260px] min-h-[260px] flex-shrink-0">
-                    <GmDiagnosticsChart series={visibleGmDiagnosticsSeriesForRender} xDomain={xDomain} xTicks={xTicks} xFactor={plotXFactor} xUnitLabel={resolvedXUnitMeta.label} xLabelInterval={xLabelInterval} xTickDigits={xTickDigitsDisplay} xTooltipDigits={xTooltipDigits} yDomain={gmDiagnosticsYDomain} yTicks={gmDiagnosticsYTicks} rightReservedWidth={MAIN_PLOT_LEGEND_WIDTH + 15} yAxisLabel={gmSecondDerivativeAxisLabel} valueUnitLabel={gmSecondDerivativeUnitLabel}/>
+                    <GmDiagnosticsChart series={visibleGmDiagnosticsSeriesForRender} axisTitleFontSize={mainPlotAxisTitleFontSize} curveProbeX={curveProbeX} tickLabelFontSize={mainPlotTickLabelFontSize} xDomain={xDomain} xTicks={xTicks} xFactor={plotXFactor} xUnitLabel={resolvedXUnitMeta.label} xLabelInterval={xLabelInterval} xTickDigits={xTickDigitsDisplay} xTooltipDigits={xTooltipDigits} yDomain={gmDiagnosticsYDomain} yTicks={gmDiagnosticsYTicks} rightReservedWidth={MAIN_PLOT_LEGEND_WIDTH} yAxisLabel={gmSecondDerivativeAxisLabel} valueUnitLabel={gmSecondDerivativeUnitLabel}/>
                   </div>
                 </div>) : null}
             </div>) : (<div className="flex items-center justify-center h-[300px] text-text-secondary">
