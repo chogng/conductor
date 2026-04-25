@@ -36,6 +36,7 @@ import GmDiagnosticsChart from "./GmDiagnosticsChart";
 import SsDiagnosticsChart from "./SsDiagnosticsChart";
 import SsSummaryStrip from "./SsSummaryStrip";
 import AnalysisDiagnosticsCard from "./AnalysisDiagnosticsCard";
+import AxisSettingsPane from "./AxisSettingsPane";
 type SsRange = {
     x1: number;
     x2: number;
@@ -2871,7 +2872,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const showCurveProbePanel = effectivePlotType === "gm" && gmDiagnosticsEnabled
         ? visibleGmDiagnosticsSeries.length > 0
         : hasVisiblePlotSeries;
-    const showDiagnosticsPanel = showCurveProbePanel || showSsDiagnosticsPanel || showGmDiagnosticsPanel || showJDiagnosticsPanel || showAxisControls;
+    const showDiagnosticsPanel = showCurveProbePanel || showSsDiagnosticsPanel || showGmDiagnosticsPanel || showJDiagnosticsPanel;
     const diagnosticsHeading = showSsDiagnosticsPanel
         ? "SS Diagnostics"
         : showGmDiagnosticsPanel
@@ -2956,7 +2957,24 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         id="device-analysis-overview-sidebar"
         className="md:min-h-0 flex flex-col h-full"
       >
-        <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} onVisibleFileIdsChange={setOverviewVisibleFileIds} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} originCanvasExportScope={originCanvasExportScope} isSelectionMode={isManualCanvasScope} xUnitFactor={resolvedXUnitMeta.factor} xUnitLabel={resolvedXUnitMeta.label} resolveYUnitForFile={resolveYUnitForFile} resolveYScaleForFile={resolveLinearLogYScaleForFile} resolveYLogCurrentModeForFile={() => yLogCurrentMode}/>
+        {showAxisControls ? (
+          <AxisSettingsPane
+            axis={axis}
+            setAxis={setAxis}
+            effectiveYScale={effectiveYScale}
+            plotYUnitLabel={plotYUnitLabel}
+            yScaleWarning={yScaleWarning}
+            xTooltipDigitsAuto={xTooltipDigitsAuto}
+            onAxisYScaleChange={handleAxisYScaleChange}
+            onClose={() => setShowAxisControls(false)}
+            analysisCompactInputWrapperClass={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS}
+            analysisCompactInputClass={ANALYSIS_COMPACT_INPUT_CLASS}
+            analysisCompactSurfaceFieldClass={ANALYSIS_COMPACT_SURFACE_FIELD_CLASS}
+            t={t}
+          />
+        ) : (
+          <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} onVisibleFileIdsChange={setOverviewVisibleFileIds} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} originCanvasExportScope={originCanvasExportScope} isSelectionMode={isManualCanvasScope} xUnitFactor={resolvedXUnitMeta.factor} xUnitLabel={resolvedXUnitMeta.label} resolveYUnitForFile={resolveYUnitForFile} resolveYScaleForFile={resolveLinearLogYScaleForFile} resolveYLogCurrentModeForFile={() => yLogCurrentMode}/>
+        )}
       </aside>
 
       <ScrollArea className="da-analysis-scroll-area md:min-h-0 min-w-0" axis="y" viewportClassName="flex flex-col min-h-full">
@@ -3245,7 +3263,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 joff: Number.isFinite(focusedAnalysis?.metrics?.joff) ? focusedAnalysis.metrics.joff : null,
             }}
             transferMetricsApplicable={transferMetricsApplicable}
-            showAxisControls={showAxisControls}
+            showAxisControls={false}
             axis={axis}
             setAxis={setAxis}
             effectiveYScale={effectiveYScale}
