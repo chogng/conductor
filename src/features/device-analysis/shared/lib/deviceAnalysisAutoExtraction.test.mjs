@@ -165,7 +165,6 @@ test("infers a fixed legend for single-curve Trans_Br metadata", () => {
     ["TestParameter", "Measurement.Secondary.Count", "1"],
     ["TestParameter", "Measurement.Secondary.Step", "0.2"],
     ["TestParameter", "Output.Graph.XAxis.Data", "Vg"],
-    ["TestParameter", "Output.Graph.YAxis.Data", "Ig", "Ig", "Id"],
     ["DataName", "Vg", "Id", "Ig"],
     ["DataValue", "0", "1e-12", "1e-13"],
     ["DataValue", "0.033", "2e-12", "1e-13"],
@@ -180,8 +179,6 @@ test("infers a fixed legend for single-curve Trans_Br metadata", () => {
 
   assert.equal(result.ok, true);
   assert.equal(result.plan.curveType, "transfer");
-  assert.deepEqual(result.plan.yCols, [3]);
-  assert.equal(result.plan.leftTitle, "Ig");
   assert.equal(result.plan.xPointsPerGroup, 3);
   assert.equal(result.plan.groups, 1);
   assert.equal(result.plan.legendPrefix, "Vd");

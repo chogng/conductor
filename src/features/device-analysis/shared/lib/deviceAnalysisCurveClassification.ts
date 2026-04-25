@@ -41,7 +41,6 @@ export type DeviceAnalysisCurveMetadata = {
   var2Name: string;
   var2NameSource: "channel" | "notes" | "";
   xAxisData: string;
-  yAxisData: string[];
 };
 
 export type DeviceAnalysisCurveClassification = {
@@ -315,7 +314,6 @@ export const extractDeviceAnalysisCurveMetadata = (
 ): DeviceAnalysisCurveMetadata => {
   let setupTitle = "";
   let xAxisData = "";
-  let yAxisData: string[] = [];
   let notesText = "";
   let var1Name = "";
   let var2Name = "";
@@ -343,10 +341,6 @@ export const extractDeviceAnalysisCurveMetadata = (
 
     if (!xAxisData && second === "Output.Graph.XAxis.Data") {
       xAxisData = firstNonEmpty(row.slice(2));
-    }
-
-    if (!yAxisData.length && second === "Output.Graph.YAxis.Data") {
-      yAxisData = row.slice(2).filter(Boolean);
     }
 
     if (!channelFuncs.length && second === "Channel.Func") {
@@ -442,7 +436,6 @@ export const extractDeviceAnalysisCurveMetadata = (
     var2Name,
     var2NameSource,
     xAxisData,
-    yAxisData,
   };
 };
 
@@ -496,7 +489,6 @@ const detectCapacitanceCurveKind = ({
   const metadataLikeTexts = [
     metadata?.setupTitle,
     metadata?.xAxisData,
-    ...(Array.isArray(metadata?.yAxisData) ? metadata.yAxisData : []),
     ...(Array.isArray(metadata?.dataNameColumns) ? metadata.dataNameColumns : []),
   ];
   const labelTexts = [templateXAxisLabel, xAxisLabel];
