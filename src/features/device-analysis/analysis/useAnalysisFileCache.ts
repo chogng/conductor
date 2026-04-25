@@ -30,16 +30,21 @@ const buildRustAnalysisSeriesPayload = (file: any, cache: any) => {
     if (
       cache.gmByMode.x.has(series.id) &&
       cache.ssDiagnosticsBySeriesId.has(series.id) &&
-      cache.ssAutoBySeriesId.has(series.id)
+      cache.ssAutoBySeriesId.has(series.id) &&
+      cache.baseMetricsBySeriesId.has(series.id)
     ) {
       continue;
     }
-    const points = cache.pointsBySeriesId.get(series.id) ?? [];
+    const xArr = Array.isArray(file?.xGroups?.[series.groupIndex])
+      ? file.xGroups[series.groupIndex]
+      : [];
+    const yArr = Array.isArray(series?.y) ? series.y : [];
+    const length = Math.min(xArr.length, yArr.length);
     const x = [];
     const y = [];
-    for (const point of points) {
-      const xv = point?.x;
-      const yv = point?.y;
+    for (let index = 0; index < length; index += 1) {
+      const xv = xArr[index];
+      const yv = yArr[index];
       if (!Number.isFinite(xv) || !Number.isFinite(yv)) continue;
       x.push(xv);
       y.push(yv);
@@ -53,6 +58,16 @@ const buildRustAnalysisSeriesPayload = (file: any, cache: any) => {
     }
   }
   return payload;
+};
+
+const getCachedSeriesPoints = (file: any, cache: any, series: any) => {
+  const existing = cache.pointsBySeriesId.get(series.id);
+  if (existing) return { built: false, points: existing };
+
+  const xArr = file?.xGroups?.[series.groupIndex];
+  const points = buildPoints(xArr, series.y);
+  cache.pointsBySeriesId.set(series.id, points);
+  return { built: true, points };
 };
 
 export const useAnalysisFileCache = ({
@@ -203,20 +218,11 @@ export const useAnalysisFileCache = ({
       const cache = getFileCache(fileId, file);
       if (!cache) return;
 
-      let stageStartedAt = getDeviceAnalysisPerfNow();
-      for (const series of file?.series ?? []) {
-        if (!series?.id || cache.pointsBySeriesId.has(series.id)) continue;
-        const xArr = file?.xGroups?.[series.groupIndex];
-        cache.pointsBySeriesId.set(series.id, buildPoints(xArr, series.y));
-        stageCounts.points += 1;
-      }
-      stageMs.points += getDeviceAnalysisPerfNow() - stageStartedAt;
-
       const rustAnalysisSeries = buildRustAnalysisSeriesPayload(file, cache);
       const rustAnalyze =
         globalThis.window?.desktopImport?.analyzeDeviceAnalysisSeriesBatchWithRust;
       if (rustAnalyze && rustAnalysisSeries.length) {
-        stageStartedAt = getDeviceAnalysisPerfNow();
+        let stageStartedAt = getDeviceAnalysisPerfNow();
         try {
           const response: any = await rustAnalyze({
             fileId,
@@ -268,26 +274,37 @@ export const useAnalysisFileCache = ({
       for (const series of file?.series ?? []) {
         if (!series?.id) continue;
 
-        const points = cache.pointsBySeriesId.get(series.id) ?? [];
+        let points: any[] | null = null;
+        const getPoints = (): any[] => {
+          if (points !== null) return points;
+          const stageStartedAt = getDeviceAnalysisPerfNow();
+          const result = getCachedSeriesPoints(file, cache, series);
+          stageMs.points += getDeviceAnalysisPerfNow() - stageStartedAt;
+          if (result.built) stageCounts.points += 1;
+          const nextPoints = result.points as any[];
+          points = nextPoints;
+          return nextPoints;
+        };
+
         if (!cache.gmByMode.x.has(series.id)) {
-          stageStartedAt = getDeviceAnalysisPerfNow();
-          cache.gmByMode.x.set(series.id, computeCentralDerivative(points));
+          const stageStartedAt = getDeviceAnalysisPerfNow();
+          cache.gmByMode.x.set(series.id, computeCentralDerivative(getPoints()));
           stageMs.gm += getDeviceAnalysisPerfNow() - stageStartedAt;
           stageCounts.gm += 1;
         }
         if (!cache.ssDiagnosticsBySeriesId.has(series.id)) {
-          stageStartedAt = getDeviceAnalysisPerfNow();
+          const stageStartedAt = getDeviceAnalysisPerfNow();
           cache.ssDiagnosticsBySeriesId.set(
             series.id,
-            computeSubthresholdSwing(points),
+            computeSubthresholdSwing(getPoints()),
           );
           stageMs.ss += getDeviceAnalysisPerfNow() - stageStartedAt;
           stageCounts.ss += 1;
         }
         if (!cache.baseMetricsBySeriesId.has(series.id)) {
-          stageStartedAt = getDeviceAnalysisPerfNow();
+          const stageStartedAt = getDeviceAnalysisPerfNow();
           const baseCurrentMetrics = computeBaseCurrentMetrics({
-            points,
+            points: getPoints(),
             sourceFile: file,
           });
           cache.baseMetricsBySeriesId.set(series.id, baseCurrentMetrics);
@@ -296,18 +313,21 @@ export const useAnalysisFileCache = ({
         }
       }
 
-      stageStartedAt = getDeviceAnalysisPerfNow();
       for (const series of file?.series ?? []) {
         if (!series?.id || cache.ssAutoBySeriesId.has(series.id)) continue;
+        const stageStartedAt = getDeviceAnalysisPerfNow();
+        const pointsResult = getCachedSeriesPoints(file, cache, series);
+        stageMs.points += getDeviceAnalysisPerfNow() - stageStartedAt;
+        if (pointsResult.built) stageCounts.points += 1;
+
+        const ssAutoStartedAt = getDeviceAnalysisPerfNow();
         cache.ssAutoBySeriesId.set(
           series.id,
-          computeSubthresholdSwingFitAuto(
-            cache.pointsBySeriesId.get(series.id) ?? [],
-          ),
+          computeSubthresholdSwingFitAuto(pointsResult.points),
         );
+        stageMs.ssAuto += getDeviceAnalysisPerfNow() - ssAutoStartedAt;
         stageCounts.ssAuto += 1;
       }
-      stageMs.ssAuto += getDeviceAnalysisPerfNow() - stageStartedAt;
 
       finishPerf({
         stageCounts,

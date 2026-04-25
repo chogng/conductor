@@ -48,6 +48,7 @@ struct ConvertStats {
 }
 
 struct ConvertResult {
+    assessment: Value,
     index: usize,
     output_path: Option<PathBuf>,
     path: PathBuf,
@@ -2238,6 +2239,23 @@ fn is_numeric_text(value: &str) -> bool {
     !trimmed.is_empty() && trimmed.parse::<f64>().is_ok()
 }
 
+fn build_import_assessment(file_name: &str, rows: Vec<Vec<String>>) -> Value {
+    let dataset = EngineDataset::from_rows(file_name.to_string(), rows);
+    let header_row_index = find_header_row_index(&dataset);
+    let headers = row_trimmed(&dataset, header_row_index);
+    let metadata = extract_auto_metadata(&dataset);
+    let (curve_type, x_axis_role, source, confidence, needs_template) =
+        classify_auto_curve(file_name, &metadata, &headers);
+    json!({
+        "curveType": if curve_type == "unknown" { Value::Null } else { json!(curve_type) },
+        "curveTypeConfidence": confidence,
+        "curveTypeNeedsTemplate": needs_template,
+        "curveTypeReasons": Vec::<String>::new(),
+        "xAxisRole": x_axis_role,
+        "xAxisRoleSource": source,
+    })
+}
+
 fn convert_one(
     index: usize,
     path: &Path,
@@ -2265,6 +2283,7 @@ fn convert_one(
         })?;
 
     let mut output = Vec::<u8>::new();
+    let mut assessment_rows = Vec::<Vec<String>>::new();
     let mut stats = ConvertStats {
         size_bytes,
         ..ConvertStats::default()
@@ -2274,6 +2293,9 @@ fn convert_one(
         let values: Vec<String> = row.iter().map(|cell| cell.to_string()).collect();
         if values.iter().all(|value| value.trim().is_empty()) {
             continue;
+        }
+        if assessment_rows.len() < 512 {
+            assessment_rows.push(values.clone());
         }
 
         if stats.rows > 0 {
@@ -2313,6 +2335,12 @@ fn convert_one(
     };
 
     Ok(ConvertResult {
+        assessment: build_import_assessment(
+            path.file_name()
+                .and_then(|value| value.to_str())
+                .unwrap_or(""),
+            assessment_rows,
+        ),
         index,
         output_path,
         path: path.to_path_buf(),
@@ -2342,6 +2370,7 @@ fn format_bytes(value: u64) -> String {
 fn main() {
     let mut convert_one_input: Option<PathBuf> = None;
     let mut convert_one_output: Option<PathBuf> = None;
+    let mut convert_one_manifest: Option<PathBuf> = None;
     let mut stdio_engine = false;
     let mut threads = 2usize;
     let mut write_dir: Option<PathBuf> = None;
@@ -2362,6 +2391,12 @@ fn main() {
         if arg == "--out" {
             if let Some(value) = args.next() {
                 convert_one_output = Some(PathBuf::from(value));
+            }
+            continue;
+        }
+        if arg == "--manifest" {
+            if let Some(value) = args.next() {
+                convert_one_manifest = Some(PathBuf::from(value));
             }
             continue;
         }
@@ -2398,6 +2433,30 @@ fn main() {
         }
         match convert_one(0, &input, Some(&output)) {
             Ok(result) => {
+                if let Some(manifest_path) = convert_one_manifest.as_deref() {
+                    if let Some(parent) = manifest_path.parent() {
+                        if let Err(error) = fs::create_dir_all(parent) {
+                            eprintln!("[rust-bench] failed to create manifest dir: {}", error);
+                            std::process::exit(1);
+                        }
+                    }
+                    let manifest = json!({
+                        "assessment": result.assessment,
+                        "cells": result.stats.cells,
+                        "convertMs": result.stats.convert_ms,
+                        "csvBytes": result.stats.csv_bytes,
+                        "numericCells": result.stats.numeric_cells,
+                        "rows": result.stats.rows,
+                        "sizeBytes": result.stats.size_bytes,
+                    });
+                    if let Err(error) = fs::write(
+                        manifest_path,
+                        serde_json::to_string(&manifest).unwrap_or_default(),
+                    ) {
+                        eprintln!("[rust-bench] failed to write manifest: {}", error);
+                        std::process::exit(1);
+                    }
+                }
                 println!(
                     "[rust-bench convert-one] rows={} cells={} numeric={} csvBytes={} convertMs={:.3} out={}",
                     result.stats.rows,

@@ -73,7 +73,7 @@ pub fn read_cell_number(
     row_index: usize,
     col_index: usize,
 ) -> Option<f64> {
-    parse_number_strict(dataset.rows.get(row_index)?.get(col_index))
+    dataset.cell_number(row_index, col_index)
 }
 
 pub fn normalize_cell_text(raw: &str) -> String {
@@ -93,10 +93,7 @@ pub fn normalize_header_compact(raw: &str) -> String {
 }
 
 pub fn cell_number(dataset: &EngineDataset, row_index: usize, col_index: usize) -> Option<f64> {
-    dataset
-        .rows
-        .get(row_index)
-        .and_then(|row| parse_number_strict(row.get(col_index)))
+    dataset.cell_number(row_index, col_index)
 }
 
 pub fn column_has_numeric_rows(
@@ -106,8 +103,12 @@ pub fn column_has_numeric_rows(
     minimum_count: usize,
 ) -> bool {
     let mut count = 0usize;
-    for row_index in data_start_row_index..dataset.rows.len() {
-        if cell_number(dataset, row_index, col_index).is_some() {
+    for value in dataset
+        .column_number_values(col_index)
+        .into_iter()
+        .skip(data_start_row_index)
+    {
+        if value.is_some() {
             count += 1;
             if count >= minimum_count {
                 return true;

@@ -1,5 +1,4 @@
 import {
-  assessImportedDeviceAnalysisFile,
   type ImportedDeviceAnalysisCurveAssessment,
 } from "../shared/lib/deviceAnalysisImportFileUtils";
 import {
@@ -10,6 +9,7 @@ import {
 type ImportWorkerPreparedFile = {
   assessment: ImportedDeviceAnalysisCurveAssessment;
   file: File;
+  normalizedCsvPath?: string | null;
   normalizedSizeBytes: number;
   sourcePath?: string | null;
   sourceName: string;
@@ -37,9 +37,12 @@ type PendingRequest = {
 };
 
 type RustExcelConvertResult = {
+  assessment?: ImportedDeviceAnalysisCurveAssessment | null;
   code?: string;
+  csvPath?: string;
   csvText?: string;
   durationMs?: number;
+  manifest?: unknown;
   message?: string;
   ok?: boolean;
   source?: string;
@@ -48,7 +51,11 @@ type RustExcelConvertResult = {
 type DesktopImportBridge = {
   convertExcelFileWithRust?: (payload: {
     path: string;
+    returnCsvText?: boolean;
   }) => Promise<RustExcelConvertResult>;
+  readConvertedCsvFileWithRust?: (payload: {
+    path: string;
+  }) => Promise<{ csvText?: string; ok?: boolean; sizeBytes?: number }>;
   disposeDeviceAnalysisFileWithRust?: (payload: {
     clear?: boolean;
     fileId?: string;
@@ -118,6 +125,14 @@ const importWorkerSlots: ImportWorkerSlot[] = Array.from(
 const isExcelImportFileName = (fileName: unknown): boolean => {
   const normalized = String(fileName ?? "").trim().toLowerCase();
   return normalized.endsWith(".xls") || normalized.endsWith(".xlsx");
+};
+
+const getRustConvertCsvBytes = (manifest: unknown): number | null => {
+  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
+    return null;
+  }
+  const value = Number((manifest as { csvBytes?: unknown }).csvBytes);
+  return Number.isFinite(value) && value >= 0 ? value : null;
 };
 
 declare global {
@@ -260,8 +275,15 @@ const prepareExcelImportFileWithRust = async (
   });
 
   try {
-    const result = await bridge.convertExcelFileWithRust({ path: filePath });
-    if (!result?.ok || typeof result.csvText !== "string") {
+    const result = await bridge.convertExcelFileWithRust({
+      path: filePath,
+      returnCsvText: false,
+    });
+    if (
+      !result?.ok ||
+      (!result.csvPath && typeof result.csvText !== "string") ||
+      !result.assessment
+    ) {
       finishPerf({
         code: result?.code ?? null,
         message: result?.message ?? null,
@@ -271,27 +293,35 @@ const prepareExcelImportFileWithRust = async (
       return null;
     }
 
-    const normalizedFile = new File([result.csvText], file.name, {
-      lastModified: Number.isFinite(file.lastModified)
-        ? file.lastModified
-        : Date.now(),
-      type: "text/csv;charset=utf-8",
-    });
-    const assessment = await assessImportedDeviceAnalysisFile(normalizedFile);
+    const normalizedFile =
+      typeof result.csvText === "string"
+        ? new File([result.csvText], file.name, {
+            lastModified: Number.isFinite(file.lastModified)
+              ? file.lastModified
+              : Date.now(),
+            type: "text/csv;charset=utf-8",
+          })
+        : file;
+    const assessment = result.assessment;
+    const normalizedSizeBytes =
+      getRustConvertCsvBytes(result.manifest) ??
+      (Number((result as any)?.normalizedSizeBytes) || normalizedFile.size);
 
     finishPerf({
       confidence: assessment.curveTypeConfidence,
       curveType: assessment.curveType,
-      normalizedSizeBytes: normalizedFile.size,
+      normalizedCsvPath: result.csvPath ?? null,
+      normalizedSizeBytes,
       rustDurationMs: result.durationMs ?? null,
-      source: result.source ?? "rust",
+      source: result.assessment ? "rust-assessment" : result.source ?? "rust",
       xAxisRole: assessment.xAxisRole,
     });
 
     return {
       assessment,
       file: normalizedFile,
-      normalizedSizeBytes: normalizedFile.size,
+      normalizedCsvPath: result.csvPath ?? null,
+      normalizedSizeBytes,
       sourcePath: filePath,
       sourceName: file.name,
       sourceSizeBytes: file.size,
@@ -302,6 +332,44 @@ const prepareExcelImportFileWithRust = async (
       source: "rust-fallback",
     });
     return null;
+  }
+};
+
+export const loadDeviceAnalysisConvertedCsvFile = async ({
+  fallbackFile,
+  fileName,
+  lastModified,
+  normalizedCsvPath,
+}: {
+  fallbackFile?: unknown;
+  fileName?: unknown;
+  lastModified?: unknown;
+  normalizedCsvPath?: unknown;
+}): Promise<File | null> => {
+  const csvPath =
+    typeof normalizedCsvPath === "string" ? normalizedCsvPath.trim() : "";
+  if (!csvPath) {
+    return fallbackFile instanceof File ? fallbackFile : null;
+  }
+
+  const bridge = globalThis.window?.desktopImport;
+  if (!bridge?.readConvertedCsvFileWithRust) {
+    return fallbackFile instanceof File ? fallbackFile : null;
+  }
+
+  try {
+    const response = await bridge.readConvertedCsvFileWithRust({ path: csvPath });
+    if (!response?.ok || typeof response.csvText !== "string") {
+      return fallbackFile instanceof File ? fallbackFile : null;
+    }
+    return new File([response.csvText], String(fileName || "converted.csv"), {
+      lastModified: Number.isFinite(Number(lastModified))
+        ? Number(lastModified)
+        : Date.now(),
+      type: "text/csv;charset=utf-8",
+    });
+  } catch {
+    return fallbackFile instanceof File ? fallbackFile : null;
   }
 };
 

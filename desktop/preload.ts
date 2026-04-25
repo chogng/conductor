@@ -113,6 +113,9 @@ contextBridge.exposeInMainWorld("desktopImport", {
   async convertExcelFileWithRust(payload) {
     return ipcRenderer.invoke(ipcChannels.excelConvertRust, payload);
   },
+  async readConvertedCsvFileWithRust(payload) {
+    return ipcRenderer.invoke(ipcChannels.excelReadConvertedCsv, payload);
+  },
   async openDeviceAnalysisFileWithRust(payload) {
     return ipcRenderer.invoke(ipcChannels.deviceAnalysisRustEngineOpen, payload);
   },

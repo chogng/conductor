@@ -29,6 +29,7 @@ import type {
   RawDataEntry,
 } from "../shared/lib/sharedTypes";
 import type { LooseTranslateFn as TranslateFn } from "../shared/lib/translateTypes";
+import { loadDeviceAnalysisConvertedCsvFile } from "./deviceAnalysisImportWorkerClient";
 
 type ExtractionErrorEntry = {
   fileName?: string;
@@ -42,6 +43,7 @@ type ProcessingQueueItem = {
   file: unknown;
   fileId: string;
   fileName?: string;
+  normalizedCsvPath?: string | null;
   sourcePath?: string | null;
   curveFilterKey?: string | null;
   curveFilterField?: string | null;
@@ -107,6 +109,8 @@ type RuleBasedExtractionConfig = {
   stopOnError?: unknown;
 };
 
+const RUST_PROCESSING_CONCURRENCY = 2;
+
 const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
 
@@ -162,6 +166,10 @@ const buildProcessingQueue = (
       file: entry.file,
       fileId,
       fileName: entry.fileName,
+      normalizedCsvPath:
+        typeof entry.normalizedCsvPath === "string"
+          ? entry.normalizedCsvPath
+          : null,
       sourcePath:
         typeof entry.sourcePath === "string" ? entry.sourcePath : null,
     });
@@ -169,6 +177,21 @@ const buildProcessingQueue = (
   }
 
   return queue;
+};
+
+const isRustCapableProcessingEntry = (entry: ProcessingQueueItem): boolean =>
+  typeof entry?.sourcePath === "string" && entry.sourcePath.trim().length > 0;
+
+const resolveProcessingFallbackFile = async (
+  entry: ProcessingQueueItem,
+): Promise<File | unknown> => {
+  const loaded = await loadDeviceAnalysisConvertedCsvFile({
+    fallbackFile: entry.file,
+    fileName: entry.fileName,
+    lastModified: entry.file instanceof File ? entry.file.lastModified : null,
+    normalizedCsvPath: entry.normalizedCsvPath,
+  });
+  return loaded ?? entry.file;
 };
 
 const buildProcessedFileIds = (processedData: ProcessedEntry[]): Set<string> =>
@@ -491,36 +514,61 @@ export const useDeviceAnalysisProcessing = ({
         total: workQueue.length,
       });
 
-      const processNext = () => {
-        const nextEntry = processingQueueRef.current.shift();
+      let activeCount = 0;
+      let completedCount = 0;
+      let finishing = false;
 
-        if (!nextEntry) {
-          finishBatchPerf({
-            completedCount: workQueue.length,
-            hasAnyProcessedResult,
-          });
-          finishProcessingJob({
-            hasAnyProcessedResult,
-            setActivePage,
-            setProcessingStatus,
-            worker,
-            workerRef: processingWorkerRef,
-          });
+      const finishIfIdle = () => {
+        if (finishing || activeCount > 0 || processingQueueRef.current.length > 0) {
           return;
         }
-        if (removedQueuedFileIdsRef.current.has(nextEntry.fileId)) {
-          processNext();
-          return;
-        }
+        finishing = true;
+        finishBatchPerf({
+          completedCount,
+          hasAnyProcessedResult,
+        });
+        finishProcessingJob({
+          hasAnyProcessedResult,
+          setActivePage,
+          setProcessingStatus,
+          worker,
+          workerRef: processingWorkerRef,
+        });
+      };
 
-        filePerfFinishers.set(
-          nextEntry.fileId,
-          startDeviceAnalysisPerf("processing:file-roundtrip", {
-            fileId: nextEntry.fileId,
-            fileName: nextEntry.fileName,
-            mode: messageType,
-          }),
-        );
+      const launchNext = () => {
+        if (finishing || jobId !== processingJobIdRef.current) return;
+
+        while (
+          activeCount < RUST_PROCESSING_CONCURRENCY &&
+          processingQueueRef.current.length > 0
+        ) {
+          const candidate = processingQueueRef.current[0];
+          if (
+            activeCount > 0 &&
+            candidate &&
+            !isRustCapableProcessingEntry(candidate)
+          ) {
+            break;
+          }
+          const nextEntry = processingQueueRef.current.shift();
+
+          if (!nextEntry) {
+            break;
+          }
+          if (removedQueuedFileIdsRef.current.has(nextEntry.fileId)) {
+            continue;
+          }
+
+          activeCount += 1;
+          filePerfFinishers.set(
+            nextEntry.fileId,
+            startDeviceAnalysisPerf("processing:file-roundtrip", {
+              fileId: nextEntry.fileId,
+              fileName: nextEntry.fileName,
+              mode: messageType,
+            }),
+          );
 
         void (async () => {
           const rustProcessed = await tryProcessFileWithRust({
@@ -542,7 +590,9 @@ export const useDeviceAnalysisProcessing = ({
                 ...prev,
                 processed: prev.processed + 1,
               }));
-              processNext();
+              completedCount += 1;
+              activeCount = Math.max(0, activeCount - 1);
+              launchNext();
               return;
             }
 
@@ -559,17 +609,20 @@ export const useDeviceAnalysisProcessing = ({
               ...prev,
               processed: prev.processed + 1,
             }));
-            processNext();
+            completedCount += 1;
+            activeCount = Math.max(0, activeCount - 1);
+            launchNext();
             return;
           }
 
+          const fallbackFile = await resolveProcessingFallbackFile(nextEntry);
           worker.postMessage({
             type: messageType,
             payload: {
               config: extractionConfig,
               curveFilterKey: nextEntry.curveFilterKey ?? null,
               curveFilterField: nextEntry.curveFilterField ?? null,
-              file: nextEntry.file,
+              file: fallbackFile,
               fileId: nextEntry.fileId,
               fileName: nextEntry.fileName,
               jobId,
@@ -577,6 +630,9 @@ export const useDeviceAnalysisProcessing = ({
             },
           });
         })();
+        }
+
+        finishIfIdle();
       };
 
       worker.onmessage = (event: MessageEvent<{ payload?: any; type?: string }>) => {
@@ -598,7 +654,9 @@ export const useDeviceAnalysisProcessing = ({
               ...prev,
               processed: prev.processed + 1,
             }));
-            processNext();
+            completedCount += 1;
+            activeCount = Math.max(0, activeCount - 1);
+            launchNext();
             return;
           }
 
@@ -614,7 +672,9 @@ export const useDeviceAnalysisProcessing = ({
             ...prev,
             processed: prev.processed + 1,
           }));
-          processNext();
+          completedCount += 1;
+          activeCount = Math.max(0, activeCount - 1);
+          launchNext();
           return;
         }
 
@@ -635,8 +695,11 @@ export const useDeviceAnalysisProcessing = ({
             ...prev,
             processed: prev.processed + 1,
           }));
+          completedCount += 1;
+          activeCount = Math.max(0, activeCount - 1);
 
           if (processingStopOnErrorRef.current) {
+            processingJobIdRef.current += 1;
             failProcessingJob({
               setProcessingStatus,
               worker,
@@ -645,11 +708,11 @@ export const useDeviceAnalysisProcessing = ({
             return;
           }
 
-          processNext();
+          launchNext();
         }
       };
 
-      processNext();
+      launchNext();
     },
     [
       onExtractionError,
@@ -841,8 +904,15 @@ export const useDeviceAnalysisProcessing = ({
 
       let hasAnyProcessedResult = false;
       let processedCount = 0;
-      let currentGroupIndex = 0;
-      let currentGroupQueue = [...groupedPrepared[0].queue];
+      let activeCount = 0;
+      let finishing = false;
+      const ruleQueue = groupedPrepared.flatMap((group, groupIndex) =>
+        group.queue.map((entry) => ({
+          entry,
+          extractionConfig: group.extractionConfig,
+          groupIndex,
+        })),
+      );
       const finishBatchPerf = startDeviceAnalysisPerf("processing:rule-batch", {
         fileCount: finalQueue.length,
         groupCount: groupedPrepared.length,
@@ -854,16 +924,9 @@ export const useDeviceAnalysisProcessing = ({
         (meta?: Record<string, unknown>) => void
       >();
 
-      const processNext = () => {
-        while (currentGroupIndex < groupedPrepared.length) {
-          if (currentGroupQueue.length > 0) break;
-          currentGroupIndex += 1;
-          if (currentGroupIndex < groupedPrepared.length) {
-            currentGroupQueue = [...groupedPrepared[currentGroupIndex].queue];
-          }
-        }
-
-        if (currentGroupIndex >= groupedPrepared.length) {
+      const finishIfIdle = () => {
+        if (finishing || activeCount > 0 || ruleQueue.length > 0) return;
+        finishing = true;
           finishBatchPerf({
             completedCount: processedCount,
             hasAnyProcessedResult,
@@ -876,81 +939,104 @@ export const useDeviceAnalysisProcessing = ({
             workerRef: processingWorkerRef,
           });
           return;
-        }
+      };
 
-        const nextEntry = currentGroupQueue.shift();
-        if (!nextEntry) {
-          processNext();
-          return;
-        }
-        processingQueueRef.current = processingQueueRef.current.filter(
-          (entry) => entry.fileId !== nextEntry.fileId,
-        );
-        if (removedQueuedFileIdsRef.current.has(nextEntry.fileId)) {
-          processNext();
-          return;
-        }
-        const group = groupedPrepared[currentGroupIndex];
-        filePerfFinishers.set(
-          nextEntry.fileId,
-          startDeviceAnalysisPerf("processing:file-roundtrip", {
-            fileId: nextEntry.fileId,
-            fileName: nextEntry.fileName,
-            mode: "processFile",
-            ruleGroupIndex: currentGroupIndex,
-          }),
-        );
-        void (async () => {
-          const rustProcessed = await tryProcessFileWithRust({
-            entry: nextEntry,
-            extractionConfig: group.extractionConfig,
-            messageType: "processFile",
-          });
-          if (jobId !== processingJobIdRef.current) return;
-          if (rustProcessed) {
-            const nextFileId = rustProcessed.fileId;
-            if (nextFileId && !rawDataByIdRef.current.has(nextFileId)) {
-              filePerfFinishers.get(nextFileId)?.({
-                skipped: "removed-before-result",
-                ...summarizeDeviceAnalysisProcessedFile(rustProcessed),
-                source: "rust-engine",
-              });
-              filePerfFinishers.delete(nextFileId);
-              processedCount += 1;
-              setProcessingStatus((prev) => ({ ...prev, processed: processedCount }));
-              processNext();
-              return;
-            }
-            hasAnyProcessedResult = true;
-            if (nextFileId) {
-              filePerfFinishers.get(nextFileId)?.({
-                ...summarizeDeviceAnalysisProcessedFile(rustProcessed),
-                source: "rust-engine",
-              });
-              filePerfFinishers.delete(nextFileId);
-            }
-            setProcessedData((prev) => [...prev, rustProcessed]);
-            processedCount += 1;
-            setProcessingStatus((prev) => ({ ...prev, processed: processedCount }));
-            processNext();
-            return;
+      const launchNext = () => {
+        if (finishing || jobId !== processingJobIdRef.current) return;
+
+        while (activeCount < RUST_PROCESSING_CONCURRENCY && ruleQueue.length > 0) {
+          const candidate = ruleQueue[0];
+          if (
+            activeCount > 0 &&
+            candidate &&
+            !isRustCapableProcessingEntry(candidate.entry)
+          ) {
+            break;
           }
 
-          worker.postMessage({
-            type: "processFile",
-            payload: {
-              config: group.extractionConfig,
-              curveFilterKey: nextEntry.curveFilterKey ?? null,
-              curveFilterField: nextEntry.curveFilterField ?? null,
-              file: nextEntry.file,
+          const nextTask = ruleQueue.shift();
+          if (!nextTask) break;
+          const { entry: nextEntry, extractionConfig, groupIndex } = nextTask;
+          processingQueueRef.current = processingQueueRef.current.filter(
+            (entry) => entry.fileId !== nextEntry.fileId,
+          );
+          if (removedQueuedFileIdsRef.current.has(nextEntry.fileId)) {
+            continue;
+          }
+
+          activeCount += 1;
+          filePerfFinishers.set(
+            nextEntry.fileId,
+            startDeviceAnalysisPerf("processing:file-roundtrip", {
               fileId: nextEntry.fileId,
               fileName: nextEntry.fileName,
-              jobId,
-              maxPoints: 600,
-              perfEnabled: isDeviceAnalysisPerfEnabled(),
-            },
-          });
-        })();
+              mode: "processFile",
+              ruleGroupIndex: groupIndex,
+            }),
+          );
+          void (async () => {
+            const rustProcessed = await tryProcessFileWithRust({
+              entry: nextEntry,
+              extractionConfig,
+              messageType: "processFile",
+            });
+            if (jobId !== processingJobIdRef.current) return;
+            if (rustProcessed) {
+              const nextFileId = rustProcessed.fileId;
+              if (nextFileId && !rawDataByIdRef.current.has(nextFileId)) {
+                filePerfFinishers.get(nextFileId)?.({
+                  skipped: "removed-before-result",
+                  ...summarizeDeviceAnalysisProcessedFile(rustProcessed),
+                  source: "rust-engine",
+                });
+                filePerfFinishers.delete(nextFileId);
+                processedCount += 1;
+                activeCount = Math.max(0, activeCount - 1);
+                setProcessingStatus((prev) => ({
+                  ...prev,
+                  processed: processedCount,
+                }));
+                launchNext();
+                return;
+              }
+              hasAnyProcessedResult = true;
+              if (nextFileId) {
+                filePerfFinishers.get(nextFileId)?.({
+                  ...summarizeDeviceAnalysisProcessedFile(rustProcessed),
+                  source: "rust-engine",
+                });
+                filePerfFinishers.delete(nextFileId);
+              }
+              setProcessedData((prev) => [...prev, rustProcessed]);
+              processedCount += 1;
+              activeCount = Math.max(0, activeCount - 1);
+              setProcessingStatus((prev) => ({
+                ...prev,
+                processed: processedCount,
+              }));
+              launchNext();
+              return;
+            }
+
+            const fallbackFile = await resolveProcessingFallbackFile(nextEntry);
+            worker.postMessage({
+              type: "processFile",
+              payload: {
+                config: extractionConfig,
+                curveFilterKey: nextEntry.curveFilterKey ?? null,
+                curveFilterField: nextEntry.curveFilterField ?? null,
+                file: fallbackFile,
+                fileId: nextEntry.fileId,
+                fileName: nextEntry.fileName,
+                jobId,
+                maxPoints: 600,
+                perfEnabled: isDeviceAnalysisPerfEnabled(),
+              },
+            });
+          })();
+        }
+
+        finishIfIdle();
       };
 
       worker.onmessage = (event: MessageEvent<{ payload?: any; type?: string }>) => {
@@ -967,8 +1053,9 @@ export const useDeviceAnalysisProcessing = ({
             });
             filePerfFinishers.delete(nextFileId);
             processedCount += 1;
+            activeCount = Math.max(0, activeCount - 1);
             setProcessingStatus((prev) => ({ ...prev, processed: processedCount }));
-            processNext();
+            launchNext();
             return;
           }
           hasAnyProcessedResult = true;
@@ -980,8 +1067,9 @@ export const useDeviceAnalysisProcessing = ({
           }
           setProcessedData((prev) => [...prev, nextProcessed as ProcessedEntry]);
           processedCount += 1;
+          activeCount = Math.max(0, activeCount - 1);
           setProcessingStatus((prev) => ({ ...prev, processed: processedCount }));
-          processNext();
+          launchNext();
           return;
         }
 
@@ -997,9 +1085,11 @@ export const useDeviceAnalysisProcessing = ({
           }
           onExtractionError?.(buildWorkerExtractionError(payload));
           processedCount += 1;
+          activeCount = Math.max(0, activeCount - 1);
           setProcessingStatus((prev) => ({ ...prev, processed: processedCount }));
 
           if (processingStopOnErrorRef.current) {
+            processingJobIdRef.current += 1;
             finishBatchPerf({
               failed: true,
               fileId: payload?.fileId ?? null,
@@ -1012,11 +1102,11 @@ export const useDeviceAnalysisProcessing = ({
             });
             return;
           }
-          processNext();
+          launchNext();
         }
       };
 
-      processNext();
+      launchNext();
       return buildExtractionStartFeedback({
         count: finalQueue.length,
         messageKey: incremental

@@ -1,6 +1,6 @@
 use calamine::{Reader, open_workbook_auto};
 use serde_json::{Value, json};
-use std::path::Path;
+use std::{cell::RefCell, collections::HashMap, path::Path};
 
 #[derive(Clone)]
 pub struct EngineDataset {
@@ -8,9 +8,26 @@ pub struct EngineDataset {
     pub file_name: String,
     pub max_cell_lengths: Vec<usize>,
     pub rows: Vec<Vec<String>>,
+    numeric_column_cache: RefCell<HashMap<usize, Vec<Option<f64>>>>,
 }
 
 impl EngineDataset {
+    pub fn from_rows(file_name: String, rows: Vec<Vec<String>>) -> EngineDataset {
+        let mut column_count = 0usize;
+        let mut max_cell_lengths = Vec::<usize>::new();
+        for row in &rows {
+            update_dataset_meta(row, &mut column_count, &mut max_cell_lengths);
+        }
+
+        EngineDataset {
+            column_count,
+            file_name,
+            max_cell_lengths,
+            numeric_column_cache: RefCell::new(HashMap::new()),
+            rows,
+        }
+    }
+
     pub fn preview_result(&self, file_id: &str, seed_rows: usize) -> Value {
         let seed_count = seed_rows.min(self.rows.len());
         json!({
@@ -40,13 +57,52 @@ impl EngineDataset {
             .get(row_index)
             .ok_or_else(|| "cell row not found".to_string())?;
         let value = row.get(col_index).cloned().unwrap_or_default();
-        let number_value = parse_strict_finite_number(&value);
+        let number_value = self.cell_number(row_index, col_index);
         Ok(json!({
             "rowIndex": row_index,
             "colIndex": col_index,
             "value": value,
             "numberValue": number_value,
         }))
+    }
+
+    pub fn cell_number(&self, row_index: usize, col_index: usize) -> Option<f64> {
+        self.ensure_numeric_column(col_index);
+        self.numeric_column_cache
+            .borrow()
+            .get(&col_index)
+            .and_then(|column| column.get(row_index))
+            .copied()
+            .flatten()
+    }
+
+    pub fn column_number_values(&self, col_index: usize) -> Vec<Option<f64>> {
+        self.ensure_numeric_column(col_index);
+        self.numeric_column_cache
+            .borrow()
+            .get(&col_index)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    fn ensure_numeric_column(&self, col_index: usize) {
+        if self.numeric_column_cache.borrow().contains_key(&col_index) {
+            return;
+        }
+
+        let values = self
+            .rows
+            .iter()
+            .map(|row| {
+                row.get(col_index)
+                    .and_then(|value| parse_strict_finite_number(value))
+            })
+            .collect::<Vec<_>>();
+
+        self.numeric_column_cache
+            .borrow_mut()
+            .entry(col_index)
+            .or_insert(values);
     }
 }
 
@@ -133,18 +189,7 @@ pub fn load_engine_dataset(path: &Path, file_name: &str) -> Result<EngineDataset
         return Err("unsupported file type".to_string());
     };
 
-    let mut column_count = 0usize;
-    let mut max_cell_lengths = Vec::<usize>::new();
-    for row in &rows {
-        update_dataset_meta(row, &mut column_count, &mut max_cell_lengths);
-    }
-
-    Ok(EngineDataset {
-        column_count,
-        file_name: file_name.to_string(),
-        max_cell_lengths,
-        rows,
-    })
+    Ok(EngineDataset::from_rows(file_name.to_string(), rows))
 }
 
 pub fn preview_result(file_id: &str, dataset: &EngineDataset, seed_rows: usize) -> Value {

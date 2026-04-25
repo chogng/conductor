@@ -37,6 +37,7 @@ export type CsvImporterFileEntry = {
   fileId?: string;
   fileName?: string;
   itemKey?: string;
+  normalizedCsvPath?: string | null;
   sourceKey?: string;
   sourcePath?: string | null;
   curveType?: string | null;
@@ -63,6 +64,7 @@ type ImportedFileInfo = {
   file: File;
   size: number;
   lastModified: number;
+  normalizedCsvPath?: string | null;
   sourceKey?: string;
   sourcePath?: string | null;
   curveType?: string | null;
@@ -351,6 +353,7 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
         sourceKey,
       }: PendingImportFile) => {
         let normalizedFile: File;
+        let normalizedCsvPath: string | null = null;
         let curveAssessment: ImportedDeviceAnalysisCurveAssessment;
         let sourcePath: string | null = null;
         try {
@@ -363,6 +366,7 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
           );
           const prepared = await prepareDeviceAnalysisImportFileInWorker(sourceFile);
           normalizedFile = prepared.file;
+          normalizedCsvPath = prepared.normalizedCsvPath ?? null;
           curveAssessment = prepared.assessment;
           sourcePath = prepared.sourcePath ?? null;
           finishWorkerPerf({
@@ -383,6 +387,7 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
           fileId,
           file: normalizedFile,
           itemKey: buildItemKey(normalizedFile),
+          normalizedCsvPath,
           sourceKey,
           sourcePath,
           curveType: curveAssessment.curveType,
@@ -406,6 +411,7 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
           file: normalizedFile,
           size: normalizedFile.size,
           lastModified: normalizedFile.lastModified,
+          normalizedCsvPath,
           sourceKey,
           sourcePath,
           curveType: curveAssessment.curveType,

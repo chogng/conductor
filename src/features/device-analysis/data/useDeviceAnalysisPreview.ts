@@ -35,6 +35,7 @@ import {
   type RustPreviewCellRequest,
 } from "./preview/rustPreviewCells";
 import { usePreviewRowsVersion } from "./usePreviewRowsVersion";
+import { loadDeviceAnalysisConvertedCsvFile } from "./deviceAnalysisImportWorkerClient";
 
 type PreviewResultPayload = {
   requestId: number;
@@ -524,16 +525,24 @@ export const useDeviceAnalysisPreview = ({
       setPreviewStatus({ state: "loading", message: t("da_preview_loading") });
     });
 
-    const postWorkerPreview = () => {
+    const postWorkerPreview = async () => {
       const worker = getOrCreatePreviewWorker();
       if (!worker) return;
+      const fallbackFile =
+        (await loadDeviceAnalysisConvertedCsvFile({
+          fallbackFile: targetFile.file,
+          fileName: targetFile.fileName,
+          lastModified:
+            targetFile.file instanceof File ? targetFile.file.lastModified : null,
+          normalizedCsvPath: targetFile.normalizedCsvPath,
+        })) ?? targetFile.file;
 
       worker.postMessage({
         type: "preview",
         payload: {
           requestId,
           fileId: targetFile.fileId,
-          file: targetFile.file,
+          file: fallbackFile,
           maxPreviewRows: DA_PREVIEW_MAX_CACHED_UI_ROWS_PER_FILE,
         },
       });
@@ -553,7 +562,7 @@ export const useDeviceAnalysisPreview = ({
         .then((response: any) => {
           if (requestId !== previewRequestIdRef.current) return;
           if (!response?.ok || !response?.result) {
-            postWorkerPreview();
+            void postWorkerPreview();
             return;
           }
 
@@ -589,13 +598,13 @@ export const useDeviceAnalysisPreview = ({
         })
         .catch(() => {
           if (requestId === previewRequestIdRef.current) {
-            postWorkerPreview();
+            void postWorkerPreview();
           }
         });
       return;
     }
 
-    postWorkerPreview();
+    void postWorkerPreview();
   }, [
     activatePreviewFileCache,
     clearPreviewState,
@@ -686,50 +695,10 @@ export const useDeviceAnalysisPreview = ({
           .catch(() => requestRowsWithWorker());
       }
 
-      if (
-        rustPreviewFileIdsRef.current.has(fileId) &&
-        bridge?.readDeviceAnalysisCellsWithRust
-      ) {
-        const columnCount = Math.max(
-          0,
-          Math.floor(Number(previewFile?.columnCount) || 0),
-        );
-        const rowIndices: number[] = [];
-        for (let rowIndex = start; rowIndex < end; rowIndex += 1) {
-          rowIndices.push(rowIndex);
-        }
-        const cells = buildRustPreviewCellRequests({
-          columnCount,
-          rowIndices,
-        });
-        if (cells.length > 0) {
-          return bridge
-            .readDeviceAnalysisCellsWithRust({ cells, fileId })
-            .then((response: any) => {
-              if (!response?.ok || !response?.result) {
-                return requestRowsWithWorker();
-              }
-              const rowsByIndex = rowsFromRustPreviewCells({
-                cells: response.result.cells,
-                columnCount,
-              });
-              const rows: unknown[][] = [];
-              for (let rowIndex = start; rowIndex < end; rowIndex += 1) {
-                const row = rowsByIndex.get(rowIndex);
-                if (!row) return requestRowsWithWorker();
-                rows.push(row);
-              }
-              return rows;
-            })
-            .catch(() => requestRowsWithWorker());
-        }
-      }
-
       return requestRowsWithWorker();
     },
     [
       getOrCreatePreviewWorker,
-      previewFile?.columnCount,
       previewRowsRequestIdRef,
       previewRowsRequestsRef,
     ],
