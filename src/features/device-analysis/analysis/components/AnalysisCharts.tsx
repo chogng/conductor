@@ -446,6 +446,14 @@ const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, prim
         ]}
       />);
 });
+
+const clampChartFontSize = (value: unknown, fallback: number): number => {
+    const num = parseOptionalNumber(value);
+    if (num === null)
+        return fallback;
+    return Math.min(32, Math.max(8, Math.round(num)));
+};
+
 const AnalysisCharts = ({ processedData, processingStatus, activeFileId: controlledActiveFileId = undefined, onActiveFileIdChange = undefined, showFileSelect = true, ionIoffMethod = "auto", setIonIoffMethod = () => { }, ionIoffManualTargetsByFileId = {}, setIonIoffManualTargetsByFileId = () => { }, ssMethod = "auto", setSsMethod = () => { }, ssDiagnosticsEnabled = true, setSsDiagnosticsEnabled = () => { }, gmDiagnosticsEnabled = false, setGmDiagnosticsEnabled = () => { }, ssShowFitLine = true, setSsShowFitLine = () => { }, ssManualRanges = {}, setSsManualRanges = () => { }, originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS, }: any) => {
     const { t } = useLanguage();
     const tLoose = React.useCallback<FormatOriginTranslateFn>((key, params) => t(key, params as any), [t]);
@@ -500,6 +508,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         yTickCount: 6,
         yStep: "",
         yDecadeStep: 1,
+        showGrid: true,
+        tickLabelFontSize: 12,
+        axisTitleFontSize: 18,
     });
     const [toast, setToast] = useState<ToastState>({
         isVisible: false,
@@ -888,6 +899,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const hasManualYDecadeStep = Number(axis?.yDecadeStep ?? 1) !== 1;
         const hasManualXTickCount = Number(axis?.xTickCount ?? 6) !== 6;
         const hasManualYTickCount = Number(axis?.yTickCount ?? 6) !== 6;
+        const hasManualGrid = axis?.showGrid === false;
+        const hasManualTickFont = Number(axis?.tickLabelFontSize ?? 12) !== 12;
+        const hasManualTitleFont = Number(axis?.axisTitleFontSize ?? 18) !== 18;
         return hasManualXRange ||
             hasManualYRange ||
             hasManualXTickMode ||
@@ -896,7 +910,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             hasManualYStep ||
             hasManualYDecadeStep ||
             hasManualXTickCount ||
-            hasManualYTickCount;
+            hasManualYTickCount ||
+            hasManualGrid ||
+            hasManualTickFont ||
+            hasManualTitleFont;
     }, [
         axis?.xMax,
         axis?.xMin,
@@ -909,6 +926,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         axis?.yStep,
         axis?.yTickCount,
         axis?.yTicks,
+        axis?.showGrid,
+        axis?.tickLabelFontSize,
+        axis?.axisTitleFontSize,
     ]);
     const {
         clearOriginCanvasSelection,
@@ -2643,6 +2663,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return xTooltipDigitsAuto;
         return Math.max(0, Math.min(20, Math.round(manualDigits)));
     }, [axis?.xTooltipDigits, xTooltipDigitsAuto]);
+    const mainPlotTickLabelFontSize = useMemo(() => clampChartFontSize(axis?.tickLabelFontSize, 12), [axis?.tickLabelFontSize]);
+    const mainPlotAxisTitleFontSize = useMemo(() => clampChartFontSize(axis?.axisTitleFontSize, 18), [axis?.axisTitleFontSize]);
     const xLabelInterval = useMemo(() => computeLabelInterval(xTicks, 7), [xTicks]);
     const isMetricsDetailsPending = detailAnalysisState.key === detailAnalysisKey && detailAnalysisState.pending;
     const metricsRows = useMemo(() => {
@@ -3155,6 +3177,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         onCommit: handleSsOverlayCommit,
                     }
                     : null}
+                    showGrid={axis?.showGrid !== false}
+                    tickLabelFontSize={mainPlotTickLabelFontSize}
+                    axisTitleFontSize={mainPlotAxisTitleFontSize}
                     legendWidth={MAIN_PLOT_LEGEND_WIDTH}
                     legendContent={renderOriginSelectionLegend}
                   />

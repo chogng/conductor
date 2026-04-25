@@ -7,26 +7,9 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  CartesianGrid,
-  Customized,
-  Legend,
-  Line,
-  LineChart,
-  ReferenceArea,
-  ReferenceLine,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-  usePlotArea,
-} from "recharts";
 import { formatNumber } from "../lib/analysisMath";
 import { COLORS } from "../lib/chartColors";
-import {
-  computeLabelInterval,
-  inferTickDigitsFromTicks,
-} from "../lib/analysisChartsUtils";
+import { inferTickDigitsFromTicks } from "../lib/analysisChartsUtils";
 import {
   collectCanvasLineRuns,
   toFiniteCanvasNumber,
@@ -138,6 +121,9 @@ type MainPlotChartProps = {
   interactiveSeriesXs?: number[];
   currentBiasInteraction?: CurrentBiasInteractionConfig | null;
   ssInteraction?: SsInteractionConfig | null;
+  showGrid?: boolean;
+  tickLabelFontSize?: number;
+  axisTitleFontSize?: number;
   legendWidth?: number;
   legendContent?: any;
 };
@@ -276,7 +262,13 @@ const withYAxisUnit = (
   return `${label} (${unit})`;
 };
 
-const CHART_MARGIN = { top: 25, right: 15, left: 45, bottom: 28 } as const;
+const DEFAULT_CHART_MARGIN = { top: 25, right: 15, left: 72, bottom: 46 } as const;
+const GRID_STROKE = "rgba(15,23,42,0.14)";
+const GRID_DASH: [number, number] = [4, 4];
+const PLOT_BORDER_STROKE = "rgba(15,23,42,0.28)";
+const DEFAULT_TICK_LABEL_FONT_SIZE = 12;
+const DEFAULT_AXIS_TITLE_FONT_SIZE = 18;
+const AXIS_LABEL_COLOR = "rgba(55,65,81,0.96)";
 const CURRENT_BIAS_DRAG_TOLERANCE_PX = 22;
 const CURRENT_BIAS_HIT_WIDTH_PX = 28;
 const SS_HANDLE_TOLERANCE_PX = 14;
@@ -291,11 +283,11 @@ type PlotRect = {
   height: number;
 };
 
-type ChartPlotArea = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+type ChartMargin = {
+  top: number;
+  right: number;
+  left: number;
+  bottom: number;
 };
 
 type OverlayDraftState =
@@ -371,53 +363,8 @@ const findNearestSnapX = (
   return Math.abs(right - rawX) < Math.abs(rawX - left) ? right : left;
 };
 
-const normalizePlotArea = (
-  plotArea: ChartPlotArea | null | undefined,
-): PlotRect | null => {
-  const left = Number(plotArea?.x);
-  const top = Number(plotArea?.y);
-  const width = Number(plotArea?.width);
-  const height = Number(plotArea?.height);
-  if (
-    !Number.isFinite(left) ||
-    !Number.isFinite(top) ||
-    !Number.isFinite(width) ||
-    !Number.isFinite(height) ||
-    width <= 0 ||
-    height <= 0
-  ) {
-    return null;
-  }
-  return { left, top, width, height };
-};
-
-const samePlotRect = (a: PlotRect | null, b: PlotRect | null): boolean => {
-  if (a === b) return true;
-  if (!a || !b) return false;
-  return (
-    a.left === b.left &&
-    a.top === b.top &&
-    a.width === b.width &&
-    a.height === b.height
-  );
-};
-
 const plotRectHasArea = (plotRect: PlotRect | null): plotRect is PlotRect =>
   Boolean(plotRect && plotRect.width > 0 && plotRect.height > 0);
-
-const isCanvasMainPlotEnabled = (): boolean => {
-  if (typeof window === "undefined") return false;
-  if ((window as any).__CONDUCTOR_DA_CANVAS_MAIN_PLOT__ === false) return false;
-  if ((window as any).__CONDUCTOR_DA_CANVAS_MAIN_PLOT__ === true) return true;
-  try {
-    const stored = window.localStorage?.getItem("CONDUCTOR_DA_CANVAS_MAIN_PLOT");
-    if (stored === "0") return false;
-    if (stored === "1") return true;
-  } catch {
-    // Keep the optimized default when storage is unavailable.
-  }
-  return true;
-};
 
 const setupCanvas = (
   canvas: HTMLCanvasElement,
@@ -568,18 +515,22 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
   isSsPlot,
   legendContent,
   legendWidth,
+  chartMargin,
   plotType,
   plotXFactor,
   plotXUnitLabel,
   plotYFactor,
   plotYKey,
   plotYUnitLabel,
+  showGrid,
   ssInteraction,
   ssOverlayStyle,
+  tickLabelFontSize,
   xAxisLabel,
   xTickDigits,
   xTicks,
   xTooltipDigits,
+  axisTitleFontSize,
   yAxisLabel,
   yAxisNearZeroEpsilon,
   yTickDigits,
@@ -603,18 +554,22 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
   isSsPlot: boolean;
   legendContent?: any;
   legendWidth: number;
+  chartMargin: ChartMargin;
   plotType?: string;
   plotXFactor: number;
   plotXUnitLabel: string;
   plotYFactor: number;
   plotYKey: PlotYKey;
   plotYUnitLabel: string;
+  showGrid: boolean;
   ssInteraction?: SsInteractionConfig | null;
   ssOverlayStyle: SsOverlayStyle;
+  tickLabelFontSize: number;
   xAxisLabel: string;
   xTickDigits: number;
   xTicks?: number[] | null;
   xTooltipDigits?: number;
+  axisTitleFontSize: number;
   yAxisLabel: string;
   yAxisNearZeroEpsilon: number;
   yTickDigits: number;
@@ -650,16 +605,16 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
   const plotRect = useMemo<PlotRect | null>(() => {
     const legendSpace = Math.max(0, Number(legendWidth) || 0);
     const width = size.width - legendSpace;
-    const plotWidth = width - CHART_MARGIN.left - CHART_MARGIN.right;
-    const plotHeight = size.height - CHART_MARGIN.top - CHART_MARGIN.bottom;
+    const plotWidth = width - chartMargin.left - chartMargin.right;
+    const plotHeight = size.height - chartMargin.top - chartMargin.bottom;
     if (plotWidth <= 0 || plotHeight <= 0) return null;
     return {
-      left: CHART_MARGIN.left,
-      top: CHART_MARGIN.top,
+      left: chartMargin.left,
+      top: chartMargin.top,
       width: plotWidth,
       height: plotHeight,
     };
-  }, [legendWidth, size.height, size.width]);
+  }, [chartMargin, legendWidth, size.height, size.width]);
 
   const scale = useMemo(() => {
     if (!plotRect) return null;
@@ -766,17 +721,37 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
 
     const drawGridAndAxes = () => {
       ctx.save();
-      ctx.strokeStyle = "rgba(51,51,51,0.45)";
       ctx.lineWidth = 1;
-      ctx.strokeRect(plotRect.left, plotRect.top, plotRect.width, plotRect.height);
-      ctx.font = "11px sans-serif";
+      ctx.font = `${tickLabelFontSize}px sans-serif`;
+      if (showGrid) {
+        const plotRight = plotRect.left + plotRect.width;
+        const plotBottom = plotRect.top + plotRect.height;
+        const isInternalXGridLine = (x: number) =>
+          x > plotRect.left + 0.5 && x < plotRight - 0.5;
+        const isInternalYGridLine = (y: number) =>
+          y > plotRect.top + 0.5 && y < plotBottom - 0.5;
+        ctx.setLineDash(GRID_DASH);
+        ctx.strokeStyle = GRID_STROKE;
+        for (const tick of visibleXTicks) {
+          const x = scale.xToPx(tick);
+          if (!isInternalXGridLine(x)) continue;
+          ctx.beginPath();
+          ctx.moveTo(x, plotRect.top);
+          ctx.lineTo(x, plotBottom);
+          ctx.stroke();
+        }
+        for (const tick of visibleYTicks) {
+          const y = scale.yToPx(tick);
+          if (!isInternalYGridLine(y)) continue;
+          ctx.beginPath();
+          ctx.moveTo(plotRect.left, y);
+          ctx.lineTo(plotRight, y);
+          ctx.stroke();
+        }
+        ctx.setLineDash([]);
+      }
       for (const tick of visibleXTicks) {
         const x = scale.xToPx(tick);
-        ctx.strokeStyle = "rgba(51,51,51,0.25)";
-        ctx.beginPath();
-        ctx.moveTo(x, plotRect.top);
-        ctx.lineTo(x, plotRect.top + plotRect.height);
-        ctx.stroke();
         ctx.fillStyle = "rgba(120,120,120,0.92)";
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
@@ -788,11 +763,6 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
       }
       for (const tick of visibleYTicks) {
         const y = scale.yToPx(tick);
-        ctx.strokeStyle = "rgba(51,51,51,0.25)";
-        ctx.beginPath();
-        ctx.moveTo(plotRect.left, y);
-        ctx.lineTo(plotRect.left + plotRect.width, y);
-        ctx.stroke();
         const label = effectiveYScale !== "linear"
           ? formatLogTickLabel(Math.pow(10, tick) * plotYFactor)
           : formatNumber(
@@ -806,16 +776,18 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
         ctx.textBaseline = "middle";
         ctx.fillText(label, plotRect.left - 8, y);
       }
-      ctx.fillStyle = "rgba(80,80,80,0.95)";
-      ctx.font = "16px sans-serif";
+      ctx.strokeStyle = PLOT_BORDER_STROKE;
+      ctx.strokeRect(plotRect.left, plotRect.top, plotRect.width, plotRect.height);
+      ctx.fillStyle = AXIS_LABEL_COLOR;
+      ctx.font = `${axisTitleFontSize}px sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "bottom";
       if (xAxisLabel) {
-        ctx.fillText(xAxisLabel, plotRect.left + plotRect.width / 2, size.height - 2);
+        ctx.fillText(xAxisLabel, plotRect.left + plotRect.width / 2, size.height - 6);
       }
       if (yAxisLabel) {
         ctx.save();
-        ctx.translate(13, plotRect.top + plotRect.height / 2);
+        ctx.translate(16, plotRect.top + plotRect.height / 2);
         ctx.rotate(-Math.PI / 2);
         ctx.fillText(yAxisLabel, 0, 0);
         ctx.restore();
@@ -966,6 +938,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
     focusedSsOverlay,
     highlightOverlays,
     isSsPlot,
+    axisTitleFontSize,
     plotRect,
     plotType,
     plotXFactor,
@@ -973,7 +946,9 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
     scale,
     size.height,
     size.width,
+    showGrid,
     ssOverlayStyle,
+    tickLabelFontSize,
     xAxisLabel,
     xTickDigits,
     xTicks,
@@ -1156,30 +1131,6 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
       ) : null}
     </div>
   );
-});
-
-const ChartPlotAreaReporter = memo(function ChartPlotAreaReporter({
-  onChange,
-}: {
-  onChange: (plotRect: PlotRect | null) => void;
-}) {
-  const plotArea = usePlotArea() as ChartPlotArea | undefined;
-  const normalizedPlotRect = useMemo(
-    () => normalizePlotArea(plotArea ?? null),
-    [plotArea?.height, plotArea?.width, plotArea?.x, plotArea?.y],
-  );
-
-  useEffect(() => {
-    onChange(normalizedPlotRect);
-  }, [
-    normalizedPlotRect?.height,
-    normalizedPlotRect?.left,
-    normalizedPlotRect?.top,
-    normalizedPlotRect?.width,
-    onChange,
-  ]);
-
-  return null;
 });
 
 const ChartInteractionOverlay = memo(function ChartInteractionOverlay({
@@ -1879,7 +1830,6 @@ const MainPlotChart = memo(function MainPlotChart({
   plotXUnitLabel,
   xTickDigits,
   xTooltipDigits,
-  xLabelInterval,
   effectiveYScale,
   yDomain,
   yTicks,
@@ -1897,13 +1847,29 @@ const MainPlotChart = memo(function MainPlotChart({
   interactiveSeriesXs = [],
   currentBiasInteraction = null,
   ssInteraction = null,
+  showGrid = true,
+  tickLabelFontSize = DEFAULT_TICK_LABEL_FONT_SIZE,
+  axisTitleFontSize = DEFAULT_AXIS_TITLE_FONT_SIZE,
   legendWidth = 120,
   legendContent = undefined,
 }: MainPlotChartProps) {
   const renderStartedAt = isDeviceAnalysisPerfEnabled()
     ? getDeviceAnalysisPerfNow()
     : 0;
-  const [chartPlotArea, setChartPlotArea] = useState<PlotRect | null>(null);
+  const chartMargin = useMemo(
+    () => ({
+      ...DEFAULT_CHART_MARGIN,
+      left: Math.max(
+        DEFAULT_CHART_MARGIN.left,
+        Math.ceil(axisTitleFontSize * 2.6 + tickLabelFontSize * 2.2),
+      ),
+      bottom: Math.max(
+        DEFAULT_CHART_MARGIN.bottom,
+        Math.ceil(axisTitleFontSize * 1.7 + tickLabelFontSize * 1.5),
+      ),
+    }),
+    [axisTitleFontSize, tickLabelFontSize],
+  );
   const plotYKey = useMemo<PlotYKey>(() => {
     if (yScaleMode === "logAbs") return "yAbsPositive";
     if (yScaleMode === "log") {
@@ -1946,14 +1912,6 @@ const MainPlotChart = memo(function MainPlotChart({
       seriesCount: chartSeriesList.length,
     });
   });
-
-  const tooltipSeriesOrder = useMemo(() => {
-    const order = new Map<string, number>();
-    chartSeriesList.forEach((series, index) => {
-      order.set(String(series?.tooltipName ?? series?.name ?? ""), index);
-    });
-    return order;
-  }, [chartSeriesList]);
 
   const chartFocusedFitLine = useMemo<PlotPoint[] | null>(() => {
     if (!Array.isArray(focusedFitLine)) return null;
@@ -2009,14 +1967,6 @@ const MainPlotChart = memo(function MainPlotChart({
     return Math.max(1e-18, scaledTickStep * 1e-9);
   }, [effectiveYScale, plotYFactor, yTicks]);
 
-  const yLabelInterval = useMemo(
-    () =>
-      effectiveYScale === "linear"
-        ? computeLabelInterval(yTicks, 7)
-        : computeLabelInterval(chartYTicks, 7),
-    [chartYTicks, effectiveYScale, yTicks],
-  );
-
   const isSsPlot = plotType === "ss";
 
   const yAxisLabel = useMemo(
@@ -2039,296 +1989,47 @@ const MainPlotChart = memo(function MainPlotChart({
     [xDomain, xTicks],
   );
 
-  const handlePlotAreaChange = useCallback((nextPlotRect: PlotRect | null) => {
-    setChartPlotArea((previousPlotRect) =>
-      samePlotRect(previousPlotRect, nextPlotRect)
-        ? previousPlotRect
-        : nextPlotRect,
-    );
-  }, []);
-
-  const shouldUseCanvasMainPlot = isCanvasMainPlotEnabled();
-
-  if (shouldUseCanvasMainPlot) {
-    return (
-      <CanvasMainPlotChart
-        activeFile={activeFile}
-        chartFocusedFitLine={chartFocusedFitLine}
-        chartPointCount={chartPointCount}
-        chartSeriesList={chartSeriesList}
-        chartYDataKey={chartYDataKey}
-        chartYDomain={chartYDomain}
-        chartYTicks={chartYTicks}
-        currentBiasMarkers={currentBiasMarkers}
-        currentBiasInteraction={currentBiasInteraction}
-        effectiveYScale={effectiveYScale}
-        focusedSeriesColor={focusedSeriesColor}
-        focusedSeriesId={focusedSeriesId}
-        focusedSsOverlay={focusedSsOverlay}
-        highlightOverlays={highlightOverlays}
-        interactiveSeriesXs={interactiveSeriesXs}
-        interactiveXDomain={interactiveXDomain}
-        isSsPlot={isSsPlot}
-        legendContent={legendContent}
-        legendWidth={legendWidth}
-        plotType={plotType}
-        plotXFactor={plotXFactor}
-        plotXUnitLabel={plotXUnitLabel}
-        plotYFactor={plotYFactor}
-        plotYKey={plotYKey}
-        plotYUnitLabel={plotYUnitLabel}
-        ssInteraction={ssInteraction}
-        ssOverlayStyle={ssOverlayStyle}
-        xAxisLabel={xAxisLabel}
-        xTickDigits={xTickDigits}
-        xTicks={xTicks}
-        xTooltipDigits={xTooltipDigits}
-        yAxisLabel={yAxisLabel}
-        yAxisNearZeroEpsilon={yAxisNearZeroEpsilon}
-        yTickDigits={yTickDigits}
-      />
-    );
-  }
-
   return (
-    <div className="relative h-full w-full">
-      <ResponsiveContainer
-        width="100%"
-        height="100%"
-        minWidth={1}
-        minHeight={1}
-        className="!outline-none"
-      >
-        <LineChart
-          data={[]}
-          margin={CHART_MARGIN}
-        >
-          <CartesianGrid strokeDasharray="3 3" stroke="#333" opacity={0.2} />
-          <XAxis
-            dataKey="x"
-            type="number"
-            domain={interactiveXDomain}
-            ticks={xTicks ?? undefined}
-            interval={xLabelInterval}
-            label={
-              xAxisLabel
-                ? {
-                    value: xAxisLabel,
-                    position: "insideBottom",
-                    offset: -15,
-                    fill: "currentColor",
-                    opacity: 0.9,
-                    fontSize: 16,
-                    fontWeight: 500,
-                  }
-                : undefined
-            }
-            tickFormatter={(v) => formatNumber(Number(v) * plotXFactor, { digits: xTickDigits })}
-            stroke="currentColor"
-            className="text-text-secondary text-xs"
-            tick={{ fill: "currentColor", opacity: 0.6 }}
-            allowDataOverflow
-          />
-          <YAxis
-            label={
-              yAxisLabel
-                ? {
-                    value: yAxisLabel,
-                    angle: -90,
-                    position: "insideLeft",
-                    offset: -15,
-                    style: { textAnchor: "middle" },
-                    fill: "currentColor",
-                    opacity: 0.9,
-                    fontSize: 16,
-                    fontWeight: 500,
-                  }
-                : undefined
-            }
-            type="number"
-            scale="linear"
-            domain={chartYDomain}
-            ticks={chartYTicks ?? undefined}
-            interval={yLabelInterval}
-            tickFormatter={(v) => {
-              if (effectiveYScale !== "linear") {
-                const raw = Number.isFinite(Number(v)) ? Math.pow(10, Number(v)) : Number.NaN;
-                return formatLogTickLabel(raw * plotYFactor);
-              }
-              const scaled = Number(v) * plotYFactor;
-              const normalized =
-                Math.abs(scaled) <= yAxisNearZeroEpsilon ? 0 : scaled;
-              return formatNumber(normalized, { digits: yTickDigits });
-            }}
-            stroke="currentColor"
-            className="text-text-secondary text-xs"
-            tick={{ fill: "currentColor", opacity: 0.6 }}
-            allowDataOverflow
-          />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: "#1e1e1e",
-              borderColor: "#333",
-              color: "#fff",
-            }}
-            itemStyle={{ color: "#ccc" }}
-            labelFormatter={(label) =>
-              `x=${formatNumber(Number(label) * plotXFactor, {
-                digits: xTooltipDigits ?? xTickDigits,
-              })} ${plotXUnitLabel}`
-            }
-            itemSorter={(entry: any) =>
-              tooltipSeriesOrder.get(String(entry?.name ?? "")) ?? Number.MAX_SAFE_INTEGER
-            }
-            formatter={(value, name, item: any) => {
-              const rawTooltipKey = plotYKey === SIGNED_LOG_Y_DATA_KEY ? "y" : plotYKey;
-              const rawFromPrimary = toFiniteCanvasNumber(item?.payload?.[rawTooltipKey]);
-              const rawFromY = toFiniteCanvasNumber(item?.payload?.y);
-              const strictValue = toFiniteCanvasNumber(value);
-              const rawFromValue =
-                effectiveYScale === "linear"
-                  ? strictValue
-                  : strictValue !== null
-                    ? Math.pow(10, strictValue)
-                    : null;
-              const num = rawFromPrimary !== null
-                ? rawFromPrimary
-                : rawFromY !== null
-                  ? rawFromY
-                  : rawFromValue;
-              const decodedName = decodeTooltipSeriesName(name);
-              return [
-                num !== null
-                  ? `${formatNumber(num * plotYFactor, { digits: yTickDigits })} ${plotYUnitLabel}`
-                  : `- ${plotYUnitLabel}`,
-                decodedName.label,
-              ];
-            }}
-          />
-          <Customized
-            component={<ChartPlotAreaReporter onChange={handlePlotAreaChange} />}
-          />
-
-          {highlightOverlays.map((overlay) => (<Fragment key={overlay.key}>
-              <ReferenceArea
-                x1={Math.min(overlay.x1, overlay.x2)}
-                x2={Math.max(overlay.x1, overlay.x2)}
-                fill={overlay.fill}
-                fillOpacity={overlay.fillOpacity}
-                ifOverflow="hidden"
-              />
-              {!overlay.hideStartLine ? (
-                <ReferenceLine
-                  x={Math.min(overlay.x1, overlay.x2)}
-                  stroke={overlay.stroke}
-                  strokeOpacity={overlay.strokeOpacity}
-                  strokeWidth={overlay.strokeWidth ?? 1.5}
-                  strokeDasharray={overlay.strokeDasharray}
-                  ifOverflow="hidden"
-                />
-              ) : null}
-              {!overlay.hideEndLine ? (
-                <ReferenceLine
-                  x={Math.max(overlay.x1, overlay.x2)}
-                  stroke={overlay.stroke}
-                  strokeOpacity={overlay.strokeOpacity}
-                  strokeWidth={overlay.strokeWidth ?? 1.5}
-                  strokeDasharray={overlay.strokeDasharray}
-                  ifOverflow="hidden"
-                />
-              ) : null}
-            </Fragment>))}
-
-          {currentBiasMarkers.map((marker) => (
-            <ReferenceLine
-              key={marker.key}
-              x={marker.x}
-              stroke={marker.stroke}
-              strokeOpacity={marker.strokeOpacity}
-              strokeWidth={marker.strokeWidth ?? 2}
-              strokeDasharray={marker.strokeDasharray}
-              ifOverflow="hidden"
-            />
-          ))}
-
-          {isSsPlot && focusedSsOverlay ? (
-            <>
-              <ReferenceArea
-                x1={Math.min(focusedSsOverlay.x1, focusedSsOverlay.x2)}
-                x2={Math.max(focusedSsOverlay.x1, focusedSsOverlay.x2)}
-                fill={ssOverlayStyle.fill}
-                fillOpacity={ssOverlayStyle.fillOpacity}
-                ifOverflow="hidden"
-              />
-              <ReferenceLine
-                x={Math.min(focusedSsOverlay.x1, focusedSsOverlay.x2)}
-                stroke={ssOverlayStyle.stroke}
-                strokeOpacity={ssOverlayStyle.strokeOpacity}
-                strokeWidth={2}
-                ifOverflow="hidden"
-              />
-              <ReferenceLine
-                x={Math.max(focusedSsOverlay.x1, focusedSsOverlay.x2)}
-                stroke={ssOverlayStyle.stroke}
-                strokeOpacity={ssOverlayStyle.strokeOpacity}
-                strokeWidth={2}
-                ifOverflow="hidden"
-              />
-            </>
-          ) : null}
-
-          <Legend
-            layout="vertical"
-            verticalAlign="middle"
-            align="right"
-            width={legendWidth}
-            wrapperStyle={{ right: 0, top: 0 }}
-            content={legendContent}
-          />
-
-          {isSsPlot && focusedFitLine ? (
-            <Line
-              data={chartFocusedFitLine ?? undefined}
-              dataKey={chartYDataKey}
-              name="Fit"
-              stroke={focusedSeriesColor}
-              dot={false}
-              isAnimationActive={false}
-              strokeWidth={2}
-              strokeDasharray="6 4"
-              strokeOpacity={0.7}
-            />
-          ) : null}
-
-          {chartSeriesList.map((series, idx) => (
-            <Line
-              key={series.id}
-              data={series.data}
-              dataKey={chartYDataKey}
-              name={series.tooltipName ?? series.name}
-              stroke={String(series.color || COLORS[idx % COLORS.length] || "#8884d8")}
-              dot={false}
-              isAnimationActive={false}
-              strokeWidth={
-                isSsPlot && focusedSeriesId && series.id === focusedSeriesId ? 2.5 : 2
-              }
-              strokeOpacity={
-                isSsPlot && focusedSeriesId && series.id !== focusedSeriesId ? 0.35 : 1
-              }
-            />
-          ))}
-        </LineChart>
-      </ResponsiveContainer>
-      <ChartInteractionOverlay
-        key={`${plotType ?? "plot"}:${focusedSeriesId ?? "series"}:${currentBiasInteraction?.enabled ? "currentBias" : ssInteraction?.enabled ? "ss" : "off"}`}
-        xDomain={interactiveXDomain}
-        plotArea={chartPlotArea}
-        interactiveSeriesXs={interactiveSeriesXs}
-        currentBiasInteraction={currentBiasInteraction}
-        ssInteraction={ssInteraction}
-        ssOverlayStyle={ssOverlayStyle}
-      />
-    </div>
+    <CanvasMainPlotChart
+      activeFile={activeFile}
+      chartFocusedFitLine={chartFocusedFitLine}
+      chartPointCount={chartPointCount}
+      chartSeriesList={chartSeriesList}
+      chartYDataKey={chartYDataKey}
+      chartYDomain={chartYDomain}
+      chartYTicks={chartYTicks}
+      currentBiasMarkers={currentBiasMarkers}
+      currentBiasInteraction={currentBiasInteraction}
+      effectiveYScale={effectiveYScale}
+      focusedSeriesColor={focusedSeriesColor}
+      focusedSeriesId={focusedSeriesId}
+      focusedSsOverlay={focusedSsOverlay}
+      highlightOverlays={highlightOverlays}
+      interactiveSeriesXs={interactiveSeriesXs}
+      interactiveXDomain={interactiveXDomain}
+      isSsPlot={isSsPlot}
+      legendContent={legendContent}
+      legendWidth={legendWidth}
+      chartMargin={chartMargin}
+      plotType={plotType}
+      plotXFactor={plotXFactor}
+      plotXUnitLabel={plotXUnitLabel}
+      plotYFactor={plotYFactor}
+      plotYKey={plotYKey}
+      plotYUnitLabel={plotYUnitLabel}
+      showGrid={showGrid}
+      ssInteraction={ssInteraction}
+      ssOverlayStyle={ssOverlayStyle}
+      tickLabelFontSize={tickLabelFontSize}
+      xAxisLabel={xAxisLabel}
+      xTickDigits={xTickDigits}
+      xTicks={xTicks}
+      xTooltipDigits={xTooltipDigits}
+      axisTitleFontSize={axisTitleFontSize}
+      yAxisLabel={yAxisLabel}
+      yAxisNearZeroEpsilon={yAxisNearZeroEpsilon}
+      yTickDigits={yTickDigits}
+    />
   );
 });
 

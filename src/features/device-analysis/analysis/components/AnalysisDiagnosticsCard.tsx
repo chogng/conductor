@@ -4,6 +4,7 @@ import Button from "../../../../components/ui/Button";
 import Card from "../../../../components/ui/Card";
 import Input from "../../../../components/ui/Input";
 import DropdownField from "../../../../components/ui/DropdownField";
+import Switch from "../../../../components/ui/Switch";
 import type { TranslateFn } from "../../../../context/language";
 
 type AnalysisDiagnosticsCardProps = {
@@ -96,10 +97,10 @@ export default function AnalysisDiagnosticsCard({
 }: AnalysisDiagnosticsCardProps) {
   const formatProbeModeLabel = (kindRaw: unknown): string => {
     const kind = String(kindRaw ?? "");
-    if (kind === "exact") return "命中";
-    if (kind === "interpolated") return "插值";
-    if (kind === "outOfRange") return "超出";
-    return "无法计算";
+    if (kind === "exact") return "\u547d\u4e2d";
+    if (kind === "interpolated") return "\u63d2\u503c";
+    if (kind === "outOfRange") return "\u8d85\u51fa";
+    return "\u65e0\u6cd5\u8ba1\u7b97";
   };
 
   if (!showDiagnosticsPanel) {
@@ -166,8 +167,8 @@ export default function AnalysisDiagnosticsCard({
                   value={curveProbeMode}
                   onChange={(next: any) => setCurveProbeMode(next === "log" ? "log" : "linear")}
                   options={[
-                    { value: "linear", label: "线性" },
-                    { value: "log", label: "对数" },
+                    { value: "linear", label: "\u7ebf\u6027" },
+                    { value: "log", label: "\u5bf9\u6570" },
                   ]}
                   className="w-[96px]"
                 />
@@ -176,17 +177,17 @@ export default function AnalysisDiagnosticsCard({
               </div>
               {!curveProbeXInput.trim() ? (
                 <div className="rounded-lg border border-dashed border-border/70 bg-bg-page/60 px-3 py-2">
-                  输入x后进行诊断
+                  {"\u8f93\u5165 x \u540e\u8fdb\u884c\u8bca\u65ad"}
                 </div>
               ) : (
                 <div className="overflow-x-auto rounded-lg border border-border/60 bg-bg-page/60">
                   <table className="w-full min-w-[520px] table-fixed border-collapse text-xs">
                     <thead>
                       <tr className="border-b border-border text-text-secondary">
-                        <th className="p-2 text-left font-semibold">曲线</th>
-                        <th className="p-2 text-left font-semibold">对应 y</th>
-                        <th className="p-2 text-left font-semibold">备注</th>
-                        <th className="p-2 text-left font-semibold">参考点</th>
+                        <th className="p-2 text-left font-semibold">{"\u66f2\u7ebf"}</th>
+                        <th className="p-2 text-left font-semibold">{"\u5bf9\u5e94 y"}</th>
+                        <th className="p-2 text-left font-semibold">{"\u5907\u6ce8"}</th>
+                        <th className="p-2 text-left font-semibold">{"\u53c2\u8003\u70b9"}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -264,7 +265,7 @@ export default function AnalysisDiagnosticsCard({
         {showAxisControls ? (
           <div className="rounded-lg border border-border/60 bg-bg-surface px-3 py-2">
             <div className="mb-2 flex items-center justify-between gap-2">
-              <div className="text-[11px] font-semibold text-text-primary">Axis Settings</div>
+              <div className="text-[11px] font-semibold text-text-primary">{t("da_chart_axis_settings_title")}</div>
               <Button
                 variant="text"
                 size="sm"
@@ -284,83 +285,142 @@ export default function AnalysisDiagnosticsCard({
                     yTickCount: 6,
                     yStep: "",
                     yDecadeStep: 1,
+                    showGrid: true,
+                    tickLabelFontSize: 12,
+                    axisTitleFontSize: 18,
                   }))
                 }
                 className="h-6 px-2 text-xs text-text-secondary hover:text-text-primary"
               >
-                Reset
+                {t("da_chart_axis_reset")}
               </Button>
             </div>
 
+            <div className="mb-3 overflow-hidden rounded-md border border-border/50 bg-bg-page/50">
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/50 px-3 py-2">
+                <div className="text-xs text-text-secondary">{t("da_chart_axis_grid_lines")}</div>
+                <Switch
+                  id="device-analysis-axis-show-grid"
+                  size="sm"
+                  checked={axis?.showGrid !== false}
+                  onCheckedChange={(checked) =>
+                    setAxis((prev: any) => ({ ...prev, showGrid: checked }))
+                  }
+                  aria-label={t("da_chart_axis_show_grid_title")}
+                />
+              </div>
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/50 px-3 py-2">
+                <div className="text-xs text-text-secondary">{t("da_chart_axis_tick_label_font_size")}</div>
+                <Input
+                  id="device-analysis-axis-tick-label-font-size"
+                  value={axis.tickLabelFontSize}
+                  onChange={(nextValue) =>
+                    setAxis((prev: any) => ({ ...prev, tickLabelFontSize: nextValue }))
+                  }
+                  inputMode="numeric"
+                  placeholder="12"
+                  className={`${analysisCompactInputWrapperClass} w-[96px]`}
+                  fieldClassName={analysisCompactSurfaceFieldClass}
+                  inputClassName={analysisCompactInputClass}
+                  title={t("da_chart_axis_tick_label_font_size_title")}
+                />
+              </div>
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2">
+                <div className="text-xs text-text-secondary">{t("da_chart_axis_title_font_size")}</div>
+                <Input
+                  id="device-analysis-axis-title-font-size"
+                  value={axis.axisTitleFontSize}
+                  onChange={(nextValue) =>
+                    setAxis((prev: any) => ({ ...prev, axisTitleFontSize: nextValue }))
+                  }
+                  inputMode="numeric"
+                  placeholder="18"
+                  className={`${analysisCompactInputWrapperClass} w-[96px]`}
+                  fieldClassName={analysisCompactSurfaceFieldClass}
+                  inputClassName={analysisCompactInputClass}
+                  title={t("da_chart_axis_title_font_size_title")}
+                />
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <div className="text-[11px] font-semibold text-text-secondary">X Axis</div>
-                <div className="grid grid-cols-2 gap-2">
+              <div className="overflow-hidden rounded-md border border-border/50 bg-bg-page/50">
+                <div className="border-b border-border/50 px-3 py-2 text-xs font-semibold text-text-secondary">{t("da_chart_axis_x_title")}</div>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/50 px-3 py-2">
+                  <div className="text-xs text-text-secondary">{t("da_chart_axis_min")}</div>
                   <Input
                     id="device-analysis-axis-x-min"
                     value={axis.xMin}
                     onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, xMin: nextValue }))}
-                    placeholder="min (auto)"
-                    className={analysisCompactInputWrapperClass}
-                    fieldClassName={analysisCompactSurfaceFieldClass}
-                    inputClassName={analysisCompactInputClass}
-                  />
-                  <Input
-                    id="device-analysis-axis-x-max"
-                    value={axis.xMax}
-                    onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, xMax: nextValue }))}
-                    placeholder="max (auto)"
-                    className={analysisCompactInputWrapperClass}
+                    placeholder={t("da_chart_axis_auto")}
+                    className={`${analysisCompactInputWrapperClass} w-[160px]`}
                     fieldClassName={analysisCompactSurfaceFieldClass}
                     inputClassName={analysisCompactInputClass}
                   />
                 </div>
-
-                <div className="grid grid-cols-3 gap-2 items-center">
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/50 px-3 py-2">
+                  <div className="text-xs text-text-secondary">{t("da_chart_axis_max")}</div>
+                  <Input
+                    id="device-analysis-axis-x-max"
+                    value={axis.xMax}
+                    onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, xMax: nextValue }))}
+                    placeholder={t("da_chart_axis_auto")}
+                    className={`${analysisCompactInputWrapperClass} w-[160px]`}
+                    fieldClassName={analysisCompactSurfaceFieldClass}
+                    inputClassName={analysisCompactInputClass}
+                  />
+                </div>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/50 px-3 py-2">
+                  <div className="text-xs text-text-secondary">{t("da_chart_axis_ticks")}</div>
                   <DropdownField
                     size="sm"
                     value={axis.xTicks}
                     onChange={(next: any) => setAxis((prev: any) => ({ ...prev, xTicks: next }))}
                     options={[
-                      { value: "auto", label: "ticks: auto" },
-                      { value: "nice", label: "ticks: nice" },
-                      { value: "step", label: "ticks: step" },
+                      { value: "auto", label: t("da_chart_axis_auto") },
+                      { value: "nice", label: t("da_chart_axis_nice") },
+                      { value: "step", label: t("da_chart_axis_step") },
                     ]}
-                    className="w-full"
+                    className="w-[160px]"
                   />
+                </div>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/50 px-3 py-2">
+                  <div className="text-xs text-text-secondary">{t("da_chart_axis_count")}</div>
                   <Input
                     id="device-analysis-axis-x-tick-count"
                     value={axis.xTickCount}
                     onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, xTickCount: nextValue }))}
                     disabled={axis.xTicks !== "nice"}
-                    placeholder="count"
-                    className={analysisCompactInputWrapperClass}
+                    placeholder="6"
+                    className={`${analysisCompactInputWrapperClass} w-[160px]`}
                     fieldClassName={analysisCompactSurfaceFieldClass}
                     inputClassName={analysisCompactInputClass}
-                    title="Nice tick count"
+                    title={t("da_chart_axis_nice_tick_count_title")}
                   />
+                </div>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/50 px-3 py-2">
+                  <div className="text-xs text-text-secondary">{t("da_chart_axis_step")}</div>
                   <Input
                     id="device-analysis-axis-x-step"
                     value={axis.xStep}
                     onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, xStep: nextValue }))}
                     disabled={axis.xTicks !== "step"}
-                    placeholder="step"
-                    className={analysisCompactInputWrapperClass}
+                    placeholder={t("da_chart_axis_auto")}
+                    className={`${analysisCompactInputWrapperClass} w-[160px]`}
                     fieldClassName={analysisCompactSurfaceFieldClass}
                     inputClassName={analysisCompactInputClass}
-                    title="Step tick increment"
+                    title={t("da_chart_axis_step_tick_increment_title")}
                   />
                 </div>
-
-                <div className="grid grid-cols-3 gap-2 items-center">
-                  <div className="text-[11px] text-text-secondary">{t("da_chart_axis_x_tooltip_digits")}</div>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2">
+                  <div className="text-xs text-text-secondary">{t("da_chart_axis_x_tooltip_digits")}</div>
                   <Input
                     id="device-analysis-axis-x-tooltip-digits"
                     value={axis.xTooltipDigits}
                     onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, xTooltipDigits: nextValue }))}
                     inputMode="numeric"
                     placeholder={t("da_chart_axis_x_tooltip_digits_placeholder", { auto: xTooltipDigitsAuto })}
-                    className={`${analysisCompactInputWrapperClass} col-span-2`}
+                    className={`${analysisCompactInputWrapperClass} w-[160px]`}
                     fieldClassName={analysisCompactSurfaceFieldClass}
                     inputClassName={analysisCompactInputClass}
                     title={t("da_chart_axis_x_tooltip_digits_title")}
@@ -368,42 +428,49 @@ export default function AnalysisDiagnosticsCard({
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <div className="text-[11px] font-semibold text-text-secondary">Y Axis</div>
-                <div className="grid grid-cols-2 gap-2">
+              <div className="overflow-hidden rounded-md border border-border/50 bg-bg-page/50">
+                <div className="border-b border-border/50 px-3 py-2 text-xs font-semibold text-text-secondary">{t("da_chart_axis_y_title")}</div>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/50 px-3 py-2">
+                  <div className="text-xs text-text-secondary">{t("da_chart_axis_min")} ({plotYUnitLabel})</div>
                   <Input
                     id="device-analysis-axis-y-min"
                     value={axis.yMin}
                     onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, yMin: nextValue }))}
-                    placeholder={`min (auto) (${plotYUnitLabel})`}
-                    className={analysisCompactInputWrapperClass}
-                    fieldClassName={analysisCompactSurfaceFieldClass}
-                    inputClassName={analysisCompactInputClass}
-                  />
-                  <Input
-                    id="device-analysis-axis-y-max"
-                    value={axis.yMax}
-                    onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, yMax: nextValue }))}
-                    placeholder={`max (auto) (${plotYUnitLabel})`}
-                    className={analysisCompactInputWrapperClass}
+                    placeholder={t("da_chart_axis_auto")}
+                    className={`${analysisCompactInputWrapperClass} w-[160px]`}
                     fieldClassName={analysisCompactSurfaceFieldClass}
                     inputClassName={analysisCompactInputClass}
                   />
                 </div>
-
-                <div className="grid grid-cols-3 gap-2 items-center">
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/50 px-3 py-2">
+                  <div className="text-xs text-text-secondary">{t("da_chart_axis_max")} ({plotYUnitLabel})</div>
+                  <Input
+                    id="device-analysis-axis-y-max"
+                    value={axis.yMax}
+                    onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, yMax: nextValue }))}
+                    placeholder={t("da_chart_axis_auto")}
+                    className={`${analysisCompactInputWrapperClass} w-[160px]`}
+                    fieldClassName={analysisCompactSurfaceFieldClass}
+                    inputClassName={analysisCompactInputClass}
+                  />
+                </div>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/50 px-3 py-2">
+                  <div className="text-xs text-text-secondary">{t("da_chart_axis_scale")}</div>
                   <DropdownField
                     size="sm"
                     value={axis.yScale}
                     onChange={onAxisYScaleChange}
                     options={[
-                      { value: "linear", label: "scale: linear" },
-                      { value: "log", label: "scale: log" },
-                      { value: "logAbs", label: "scale: log(|y|)" },
+                      { value: "linear", label: "linear" },
+                      { value: "log", label: "log" },
+                      { value: "logAbs", label: "log(|y|)" },
                     ]}
-                    className="w-full"
+                    className="w-[160px]"
                     title="Scale"
                   />
+                </div>
+                <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/50 px-3 py-2">
+                  <div className="text-xs text-text-secondary">{t("da_chart_axis_ticks")}</div>
                   <DropdownField
                     size="sm"
                     value={axis.yTicks}
@@ -411,58 +478,66 @@ export default function AnalysisDiagnosticsCard({
                     options={
                       effectiveYScale === "linear"
                         ? [
-                            { value: "auto", label: "ticks: auto" },
-                            { value: "nice", label: "ticks: nice" },
-                            { value: "step", label: "ticks: step" },
+                            { value: "auto", label: t("da_chart_axis_auto") },
+                            { value: "nice", label: t("da_chart_axis_nice") },
+                            { value: "step", label: t("da_chart_axis_step") },
                           ]
                         : [
-                            { value: "auto", label: "ticks: auto" },
-                            { value: "decades", label: "ticks: decades" },
+                            { value: "auto", label: t("da_chart_axis_auto") },
+                            { value: "decades", label: t("da_chart_axis_decades") },
                           ]
                     }
-                    className="w-full"
+                    className="w-[160px]"
                   />
-                  {effectiveYScale === "linear" ? (
-                    axis.yTicks === "step" ? (
+                </div>
+                {effectiveYScale === "linear" ? (
+                  axis.yTicks === "step" ? (
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2">
+                      <div className="text-xs text-text-secondary">{t("da_chart_axis_step")} ({plotYUnitLabel})</div>
                       <Input
                         id="device-analysis-axis-y-step"
                         value={axis.yStep}
                         onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, yStep: nextValue }))}
-                        placeholder={`step (${plotYUnitLabel})`}
-                        className={analysisCompactInputWrapperClass}
+                        placeholder={t("da_chart_axis_auto")}
+                        className={`${analysisCompactInputWrapperClass} w-[160px]`}
                         fieldClassName={analysisCompactSurfaceFieldClass}
                         inputClassName={analysisCompactInputClass}
-                        title="Major tick increment"
+                        title={t("da_chart_axis_major_tick_increment_title")}
                       />
-                    ) : (
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2">
+                      <div className="text-xs text-text-secondary">{t("da_chart_axis_count")}</div>
                       <Input
                         id="device-analysis-axis-y-tick-count"
                         value={axis.yTickCount}
                         onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, yTickCount: nextValue }))}
                         disabled={axis.yTicks !== "nice"}
-                        placeholder="count"
-                        className={analysisCompactInputWrapperClass}
+                        placeholder="6"
+                        className={`${analysisCompactInputWrapperClass} w-[160px]`}
                         fieldClassName={analysisCompactSurfaceFieldClass}
                         inputClassName={analysisCompactInputClass}
-                        title="Nice tick count"
+                        title={t("da_chart_axis_nice_tick_count_title")}
                       />
-                    )
-                  ) : (
+                    </div>
+                  )
+                ) : (
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2">
+                    <div className="text-xs text-text-secondary">{t("da_chart_axis_decade_step")}</div>
                     <Input
                       id="device-analysis-axis-y-decade-step"
                       value={axis.yDecadeStep}
                       onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, yDecadeStep: nextValue }))}
                       disabled={axis.yTicks !== "decades"}
-                      placeholder="decade step"
-                      className={analysisCompactInputWrapperClass}
+                      placeholder="1"
+                      className={`${analysisCompactInputWrapperClass} w-[160px]`}
                       fieldClassName={analysisCompactSurfaceFieldClass}
                       inputClassName={analysisCompactInputClass}
-                      title="Major tick increment (decades)"
+                      title={t("da_chart_axis_major_tick_increment_decades_title")}
                     />
-                  )}
-                </div>
-
-                {yScaleWarning ? <div className="text-[11px] text-yellow-500">{yScaleWarning}</div> : null}
+                  </div>
+                )}
+                {yScaleWarning ? <div className="border-t border-border/50 px-3 py-2 text-[11px] text-yellow-500">{yScaleWarning}</div> : null}
               </div>
             </div>
           </div>
