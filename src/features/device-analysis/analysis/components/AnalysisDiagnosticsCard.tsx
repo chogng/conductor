@@ -289,6 +289,7 @@ export default function AnalysisDiagnosticsCard({
                     showMajorTicks: true,
                     tickLabelFontSize: "",
                     axisTitleFontSize: "",
+                    legendFontSize: "",
                     originTickLabelOffset: "",
                     originAxisTitleGap: "",
                   }))
@@ -354,6 +355,22 @@ export default function AnalysisDiagnosticsCard({
                   fieldClassName={analysisCompactSurfaceFieldClass}
                   inputClassName={analysisCompactInputClass}
                   title={t("da_chart_axis_title_font_size_title")}
+                />
+              </div>
+              <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2">
+                <div className="text-xs text-text-secondary">{t("da_chart_legend_font_size")}</div>
+                <Input
+                  id="device-analysis-axis-legend-font-size"
+                  value={axis.legendFontSize}
+                  onChange={(nextValue) =>
+                    setAxis((prev: any) => ({ ...prev, legendFontSize: nextValue }))
+                  }
+                  inputMode="numeric"
+                  placeholder={t("da_chart_axis_auto")}
+                  className={`${analysisCompactInputWrapperClass} w-[96px]`}
+                  fieldClassName={analysisCompactSurfaceFieldClass}
+                  inputClassName={analysisCompactInputClass}
+                  title={t("da_chart_legend_font_size_title")}
                 />
               </div>
               <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-t border-border/50 px-3 py-2">

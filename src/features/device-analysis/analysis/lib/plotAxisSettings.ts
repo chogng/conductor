@@ -17,6 +17,7 @@ export type PlotAxisSettings = {
   showMajorTicks: boolean;
   tickLabelFontSize: number | "";
   axisTitleFontSize: number | "";
+  legendFontSize: number | "";
   originTickLabelOffset: string;
   originAxisTitleGap: string;
 };
@@ -40,6 +41,7 @@ export const DEFAULT_PLOT_AXIS_SETTINGS: PlotAxisSettings = Object.freeze({
   showMajorTicks: true,
   tickLabelFontSize: "",
   axisTitleFontSize: "",
+  legendFontSize: "",
   originTickLabelOffset: "",
   originAxisTitleGap: "",
 }) as PlotAxisSettings;
@@ -155,6 +157,12 @@ export const normalizePlotAxisSettings = (
     axisTitleFontSize: normalizeOptionalBoundedInt(
       raw.axisTitleFontSize,
       fallback.axisTitleFontSize,
+      CHART_FONT_SIZE_MIN,
+      CHART_FONT_SIZE_MAX,
+    ),
+    legendFontSize: normalizeOptionalBoundedInt(
+      raw.legendFontSize,
+      fallback.legendFontSize,
       CHART_FONT_SIZE_MIN,
       CHART_FONT_SIZE_MAX,
     ),

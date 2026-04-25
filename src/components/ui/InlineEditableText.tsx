@@ -1,4 +1,4 @@
-import { useEffect, useRef, type FocusEvent, type KeyboardEvent, type RefObject } from "react";
+import { useEffect, useRef, type CSSProperties, type FocusEvent, type KeyboardEvent, type RefObject } from "react";
 import { cx } from "../../utils/cx";
 
 type InlineEditableTextProps = {
@@ -13,6 +13,7 @@ type InlineEditableTextProps = {
   onChange: (nextValue: string) => void;
   onCommit: () => void;
   onStartEdit: () => void;
+  style?: CSSProperties;
   title?: string;
   value: string;
 };
@@ -29,6 +30,7 @@ const InlineEditableText = ({
   onChange,
   onCommit,
   onStartEdit,
+  style,
   title,
   value,
 }: InlineEditableTextProps) => {
@@ -69,7 +71,7 @@ const InlineEditableText = ({
   return (
     <div
       className={cx(
-        "flex h-6 min-w-0 flex-1 items-center rounded-md px-1.5 transition-colors",
+        "flex h-6 min-w-0 max-w-full flex-1 items-center overflow-hidden rounded-md px-1.5 transition-colors",
         editing ? "bg-bg-page" : "bg-transparent",
         className,
         inputFieldClassName,
@@ -95,8 +97,9 @@ const InlineEditableText = ({
           if (!editing) onStartEdit();
         }}
         autoComplete="off"
+        style={style}
         className={cx(
-          "h-full min-w-0 flex-1 bg-transparent border-0 p-0 outline-none focus:outline-none focus:ring-0 text-[11px] leading-4",
+          "h-full min-w-0 w-full flex-1 bg-transparent border-0 p-0 outline-none focus:outline-none focus:ring-0 text-[11px] leading-4",
           editing
             ? "cursor-text text-text-primary"
             : "cursor-text text-text-secondary select-text",

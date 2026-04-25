@@ -71,8 +71,9 @@ const DEVICE_ANALYSIS_DEFAULT_SETTINGS = {
     yDecadeStep: 1,
     showGrid: true,
     showMajorTicks: true,
-    tickLabelFontSize: 12,
-    axisTitleFontSize: 18,
+    tickLabelFontSize: "",
+    axisTitleFontSize: "",
+    legendFontSize: "",
     originTickLabelOffset: "",
     originAxisTitleGap: "",
   },
@@ -99,6 +100,25 @@ function normalizeRoundedBoundedInt(value, fallback, min, max) {
   return Math.min(max, Math.max(min, Math.round(num)));
 }
 
+function normalizeOptionalRoundedBoundedInt(value, fallback, min, max) {
+  if (value === null || value === undefined) return fallback;
+  const text = String(value).trim();
+  if (!text) return "";
+  return normalizeRoundedBoundedInt(text, fallback, min, max);
+}
+
+function isLegacyAutoFontDefaults(raw) {
+  if (!raw || typeof raw !== "object") return false;
+  const tick = Number(raw.tickLabelFontSize);
+  const title = Number(raw.axisTitleFontSize);
+  const legendText =
+    raw.legendFontSize === null || raw.legendFontSize === undefined
+      ? ""
+      : String(raw.legendFontSize).trim();
+  if (legendText) return false;
+  return (tick === 8 && title === 8) || (tick === 12 && title === 18);
+}
+
 function normalizeFiniteNumberText(value) {
   if (value === null || value === undefined) return "";
   const text = String(value).trim();
@@ -115,6 +135,7 @@ function normalizeIntegerText(value, min, max) {
 
 function normalizePlotAxisSettings(value, fallback = DEVICE_ANALYSIS_DEFAULT_SETTINGS.analysisPlotAxisSettings) {
   const raw = value && typeof value === "object" ? value : {};
+  const legacyAutoFontDefaults = isLegacyAutoFontDefaults(raw);
   const yScale = raw.yScale === "log" || raw.yScale === "logAbs" ? raw.yScale : fallback.yScale;
   const xTicks = raw.xTicks === "nice" || raw.xTicks === "step" ? raw.xTicks : "auto";
   const yTicks =
@@ -144,17 +165,23 @@ function normalizePlotAxisSettings(value, fallback = DEVICE_ANALYSIS_DEFAULT_SET
     showGrid: typeof raw.showGrid === "boolean" ? raw.showGrid : fallback.showGrid,
     showMajorTicks:
       typeof raw.showMajorTicks === "boolean" ? raw.showMajorTicks : fallback.showMajorTicks,
-    tickLabelFontSize: normalizeRoundedBoundedInt(
-      raw.tickLabelFontSize,
+    tickLabelFontSize: normalizeOptionalRoundedBoundedInt(
+      legacyAutoFontDefaults ? "" : raw.tickLabelFontSize,
       fallback.tickLabelFontSize,
-      8,
-      32,
+      1,
+      96,
     ),
-    axisTitleFontSize: normalizeRoundedBoundedInt(
-      raw.axisTitleFontSize,
+    axisTitleFontSize: normalizeOptionalRoundedBoundedInt(
+      legacyAutoFontDefaults ? "" : raw.axisTitleFontSize,
       fallback.axisTitleFontSize,
-      8,
-      32,
+      1,
+      96,
+    ),
+    legendFontSize: normalizeOptionalRoundedBoundedInt(
+      raw.legendFontSize,
+      fallback.legendFontSize,
+      1,
+      96,
     ),
     originTickLabelOffset: normalizeFiniteNumberText(
       raw.originTickLabelOffset ?? fallback.originTickLabelOffset,

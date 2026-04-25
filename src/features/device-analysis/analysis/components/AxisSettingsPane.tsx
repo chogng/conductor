@@ -49,6 +49,7 @@ const resetAxisSettings = (setAxis: (value: any) => void) => {
     showMajorTicks: true,
     tickLabelFontSize: "",
     axisTitleFontSize: "",
+    legendFontSize: "",
     originTickLabelOffset: "",
     originAxisTitleGap: "",
   }));
@@ -251,6 +252,23 @@ export default function AxisSettingsPane({
                 fieldClassName={compactInputFieldClass}
                 inputClassName={analysisCompactInputClass}
                 title={t("da_chart_axis_title_font_size_title")}
+              />
+            </div>
+            <div className={settingRowClassName}>
+              <div className="text-xs text-text-secondary">{t("da_chart_legend_font_size")}</div>
+              <Input
+                id="device-analysis-axis-legend-font-size"
+                value={axis.legendFontSize}
+                onChange={(nextValue) =>
+                  setAxis((prev: any) => ({ ...prev, legendFontSize: nextValue }))
+                }
+                onKeyDown={blurInputOnEnter}
+                inputMode="numeric"
+                placeholder={t("da_chart_axis_auto")}
+                className={`${analysisCompactInputWrapperClass} w-[86px]`}
+                fieldClassName={compactInputFieldClass}
+                inputClassName={analysisCompactInputClass}
+                title={t("da_chart_legend_font_size_title")}
               />
             </div>
             <div className={settingRowClassName}>

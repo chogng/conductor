@@ -94,6 +94,7 @@ type EditableLegendItemProps = {
     disabled: boolean;
     isEditing: boolean;
     label: string;
+    fontSize: number;
     onBeginEdit: () => void;
     onCancelEdit: () => void;
     onCommitEdit: () => void;
@@ -109,6 +110,7 @@ const EditableLegendItem = ({
     disabled,
     isEditing,
     label,
+    fontSize,
     onBeginEdit,
     onCancelEdit,
     onCommitEdit,
@@ -116,8 +118,11 @@ const EditableLegendItem = ({
     onToggleVisible,
     draftValue,
     inputRef,
-}: EditableLegendItemProps) => (<li>
-    <div className={`group flex items-center gap-1 py-0 text-[11px] leading-4 ${disabled ? "opacity-60 cursor-default" : "cursor-pointer"}`}>
+}: EditableLegendItemProps) => (<li className="min-w-0 w-full overflow-hidden">
+    <div
+      className={`group flex min-w-0 w-full max-w-full items-center gap-1 overflow-hidden py-0 leading-4 ${disabled ? "opacity-60 cursor-default" : "cursor-pointer"}`}
+      style={{ fontFamily: "Arial, sans-serif", fontSize }}
+    >
       <span className="inline-block h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: color }}/>
       <button type="button" aria-pressed={checked} aria-label={label} disabled={disabled} onClick={onToggleVisible} className={`shrink-0 ${disabled ? "cursor-default" : "cursor-pointer"}`}>
         <span className="clickable-ckb" data-state={checked ? "checked" : "unchecked"}>
@@ -134,6 +139,10 @@ const EditableLegendItem = ({
         onStartEdit={onBeginEdit}
         title={`${label}\n双击可编辑`}
         value={label}
+        className="min-w-0 max-w-full overflow-hidden"
+        displayClassName="!text-black"
+        inputClassName="!w-full !text-black"
+        style={{ fontFamily: "Arial, sans-serif", fontSize, color: "#000" }}
       />
     </div>
   </li>);
@@ -942,6 +951,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const manualTitleFont = parseOptionalNumber(axis?.axisTitleFontSize);
         const hasManualTickFont = manualTickFont !== null && Math.round(manualTickFont) !== 18;
         const hasManualTitleFont = manualTitleFont !== null && Math.round(manualTitleFont) !== 18;
+        const manualLegendFont = parseOptionalNumber(axis?.legendFontSize);
+        const hasManualLegendFont = manualLegendFont !== null && Math.round(manualLegendFont) !== 11;
         const hasManualOriginTickLabelOffset = parseOptionalNumber(axis?.originTickLabelOffset) !== null;
         const hasManualOriginAxisTitleGap = parseOptionalNumber(axis?.originAxisTitleGap) !== null;
         return hasManualXRange ||
@@ -957,6 +968,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             hasManualMajorTicks ||
             hasManualTickFont ||
             hasManualTitleFont ||
+            hasManualLegendFont ||
             hasManualOriginTickLabelOffset ||
             hasManualOriginAxisTitleGap;
     }, [
@@ -975,6 +987,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         axis?.showMajorTicks,
         axis?.tickLabelFontSize,
         axis?.axisTitleFontSize,
+        axis?.legendFontSize,
         axis?.originTickLabelOffset,
         axis?.originAxisTitleGap,
     ]);
@@ -2316,11 +2329,12 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         });
         return computedSeries;
     }, [activeFile?.fileId, activeFile?.fileName, displayPlotSeries, renderMaxPointsPerSeries, yLogCurrentMode, yScaleMode]);
+    const mainPlotLegendFontSize = useMemo(() => clampChartFontSize(axis?.legendFontSize, 11), [axis?.legendFontSize]);
     const renderOriginSelectionLegend = React.useCallback((legendProps: any) => {
         if (!plotLegendSeries.length)
             return null;
         const activeLegendFileId = String(activeFile?.fileId ?? "").trim();
-        return (<ul className="m-0 flex list-none flex-col gap-0.5 p-0">
+        return (<ul className="m-0 flex min-w-0 w-full list-none flex-col gap-0.5 overflow-hidden p-0">
         {plotLegendSeries.map((series: any, idx: number) => {
                 const seriesId = String(series?.id ?? "");
                 const checked = seriesId ? visibleSeriesKeySet.has(seriesId) : false;
@@ -2330,13 +2344,13 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 const isEditing = Boolean(editingLegendLabel &&
                     editingLegendLabel.fileId === activeLegendFileId &&
                     editingLegendLabel.seriesId === seriesId);
-                return (<EditableLegendItem key={seriesId || `${label}-${idx}`} checked={checked} color={color} disabled={disabled} isEditing={isEditing} label={label} onBeginEdit={() => beginLegendLabelEdit(activeLegendFileId, series, idx)} onCancelEdit={cancelLegendLabelEdit} onCommitEdit={commitLegendLabelEdit} onDraftChange={setEditingLegendDraft} onToggleVisible={() => {
+                return (<EditableLegendItem key={seriesId || `${label}-${idx}`} checked={checked} color={color} disabled={disabled} isEditing={isEditing} label={label} fontSize={mainPlotLegendFontSize} onBeginEdit={() => beginLegendLabelEdit(activeLegendFileId, series, idx)} onCancelEdit={cancelLegendLabelEdit} onCommitEdit={commitLegendLabelEdit} onDraftChange={setEditingLegendDraft} onToggleVisible={() => {
                         if (!disabled)
                             toggleVisibleSeries(seriesId);
                     }} draftValue={editingLegendDraft} inputRef={isEditing ? editingLegendInputRef : undefined}/>);
             })}
       </ul>);
-    }, [activeFile?.fileId, beginLegendLabelEdit, cancelLegendLabelEdit, commitLegendLabelEdit, editingLegendDraft, editingLegendLabel, plotLegendSeries, resolveDisplayLegendLabel, toggleVisibleSeries, visibleSeriesKeySet]);
+    }, [activeFile?.fileId, beginLegendLabelEdit, cancelLegendLabelEdit, commitLegendLabelEdit, editingLegendDraft, editingLegendLabel, mainPlotLegendFontSize, plotLegendSeries, resolveDisplayLegendLabel, toggleVisibleSeries, visibleSeriesKeySet]);
     const curveProbeX = useMemo(() => {
         const raw = Number(curveProbeXInput);
         if (!Number.isFinite(raw))
