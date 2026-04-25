@@ -1,7 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { formatNumber } from "../lib/analysisMath";
 import { padLinearDomain, padLogDomain } from "../lib/analysisChartsUtils";
-import { COLORS } from "../lib/chartColors";
+import {
+  applyAlphaToChartColor,
+  resolveSeriesChartColor,
+} from "../lib/chartColors";
 import {
   getDeviceAnalysisPerfNow,
   logDeviceAnalysisPerf,
@@ -222,38 +225,12 @@ const binarySearchNearest = (arr: number[], value: number): number => {
   return d0 <= d1 ? i0 : i1;
 };
 
-const clampAlpha = (alpha: unknown): number => {
-  const a = Number(alpha);
-  if (!Number.isFinite(a)) return 1;
-  return Math.min(1, Math.max(0, a));
-};
-
-const hexToRgb = (hex: unknown): { r: number; g: number; b: number } | null => {
-  const normalized = String(hex || "").trim();
-  const m = /^#?([0-9a-fA-F]{6})$/.exec(normalized);
-  if (!m) return null;
-  const int = Number.parseInt(m[1], 16);
-  return {
-    r: (int >> 16) & 255,
-    g: (int >> 8) & 255,
-    b: int & 255,
-  };
-};
-
-const applyAlphaToHex = (hex: unknown, alpha: unknown): string => {
-  const rgb = hexToRgb(hex);
-  if (!rgb) return String(hex ?? "");
-  const a = clampAlpha(alpha);
-  if (a >= 1) return `rgb(${rgb.r}, ${rgb.g}, ${rgb.b})`;
-  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${a})`;
-};
-
-const colorForSeriesIndex = (seriesIndex: unknown, alpha = 0.28): string => {
-  const idx = Math.floor(Number(seriesIndex) || 0);
-  const paletteSize = Array.isArray(COLORS) ? COLORS.length : 0;
-  const paletteIdx = paletteSize ? ((idx % paletteSize) + paletteSize) % paletteSize : 0;
-  const base = (paletteSize ? COLORS[paletteIdx] : null) ?? "#8884d8";
-  return applyAlphaToHex(base, alpha);
+const colorForSeries = (
+  series: ChartSeries,
+  seriesIndex: unknown,
+  alpha = 0.92,
+): string => {
+  return applyAlphaToChartColor(resolveSeriesChartColor(series, seriesIndex), alpha);
 };
 
 const CanvasMultiLineChart = ({
@@ -294,8 +271,8 @@ const CanvasMultiLineChart = ({
 
     const seriesWithColor: PreparedSeries[] = safeSeries.map((s, idx) => ({
       ...s,
-      _color: colorForSeriesIndex(idx, 0.28),
-      _hoverColor: colorForSeriesIndex(idx, 0.92),
+      _color: colorForSeries(s, idx, 1),
+      _hoverColor: colorForSeries(s, idx, 1),
     }));
 
     const seriesByGroup = new Map<number, PreparedSeries[]>();
@@ -537,7 +514,7 @@ const CanvasMultiLineChart = ({
     if (n < 2) return;
 
     ctx.save();
-    ctx.strokeStyle = s?._hoverColor ?? colorForSeriesIndex(0, 0.92);
+    ctx.strokeStyle = s?._hoverColor ?? colorForSeries({}, 0, 1);
     ctx.lineWidth = 2;
     ctx.beginPath();
     let started = false;

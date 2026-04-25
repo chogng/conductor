@@ -9,6 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { getChartColor } from "../lib/chartColors";
 import { formatNumber } from "../lib/analysisMath";
 import { inferTickDigitsFromTicks } from "../lib/analysisChartsUtils";
 
@@ -67,7 +68,7 @@ const SsDiagnosticsChart = memo(function SsDiagnosticsChart({
   overlay,
   overlayStyle,
   ssReferenceValue = null,
-  seriesColor = "#8884d8",
+  seriesColor = getChartColor(0),
   rightReservedWidth = 135,
 }: SsDiagnosticsChartProps) {
   const yTickDigits = inferTickDigitsFromTicks(yTicks);
@@ -176,7 +177,7 @@ const SsDiagnosticsChart = memo(function SsDiagnosticsChart({
             data={item.data}
             dataKey="y"
             name={item.lineName}
-            stroke={item.color || "#8884d8"}
+            stroke={item.color || getChartColor(0)}
             dot={false}
             isAnimationActive={false}
             strokeWidth={2}

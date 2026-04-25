@@ -9,6 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { getChartColor } from "../lib/chartColors";
 import { formatNumber } from "../lib/analysisMath";
 import { inferTickDigitsFromTicks } from "../lib/analysisChartsUtils";
 
@@ -143,7 +144,7 @@ const GmDiagnosticsChart = memo(function GmDiagnosticsChart({
             data={item.data}
             dataKey="y"
             name={item.lineName}
-            stroke={item.color || "#8884d8"}
+            stroke={item.color || getChartColor(0)}
             dot={false}
             isAnimationActive={false}
             strokeWidth={2}

@@ -10,7 +10,7 @@ import ScrollArea from "../../../../components/ui/ScrollArea";
 import Tabs from "../../../../components/ui/Tabs";
 import Toast from "../../../../components/ui/Toast";
 import { useLanguage } from "../../../../hooks/useLanguage";
-import { COLORS } from "../lib/chartColors";
+import { getChartColor, resolveSeriesChartColor } from "../lib/chartColors";
 import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
   normalizeOriginPlotOptions,
@@ -2081,7 +2081,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             const label = resolveDisplayLegendLabel(activeFile.fileId, series, index);
             return {
                 ...series,
-                color: String(series?.color || COLORS[index % COLORS.length] || "#8884d8"),
+                color: resolveSeriesChartColor(series, index),
                 name: label,
                 tooltipName: buildTooltipSeriesName(label, series?.id),
                 data: pointsBySeriesId.get(series.id) ?? [],
@@ -2095,7 +2095,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     const label = resolveDisplayLegendLabel(activeFile.fileId, series, index);
                     return {
                         ...series,
-                        color: String(series?.color || COLORS[index % COLORS.length] || "#8884d8"),
+                        color: resolveSeriesChartColor(series, index),
                         name: label,
                         tooltipName: buildTooltipSeriesName(label, series?.id),
                         data: getSeriesGm(series),
@@ -2107,7 +2107,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     const label = resolveDisplayLegendLabel(activeFile.fileId, series, index);
                     return {
                         ...series,
-                        color: String(series?.color || COLORS[index % COLORS.length] || "#8884d8"),
+                        color: resolveSeriesChartColor(series, index),
                         name: label,
                         tooltipName: buildTooltipSeriesName(label, series?.id),
                         data: getSeriesJ(series) ?? [],
@@ -2318,8 +2318,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const focusedSeriesColor = useMemo(() => {
         const idx = (plotSeriesByType?.iv ?? []).findIndex((s: any) => s?.id === focusedSeriesId);
         if (idx < 0)
-            return COLORS[0];
-        return COLORS[idx % COLORS.length];
+            return getChartColor(0);
+        return getChartColor(idx);
     }, [focusedSeriesId, plotSeriesByType?.iv]);
     const ssSummary = useMemo(() => {
         if (effectivePlotType !== "ss")
@@ -2464,7 +2464,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 const seriesId = String(series?.id ?? "");
                 const checked = seriesId ? visibleSeriesKeySet.has(seriesId) : false;
                 const label = resolveDisplayLegendLabel(activeLegendFileId, series, idx);
-                const color = String(series?.color || COLORS[idx % COLORS.length] || "#8884d8");
+                const color = resolveSeriesChartColor(series, idx);
                 const disabled = !seriesId;
                 const isEditing = Boolean(editingLegendLabel &&
                     editingLegendLabel.fileId === activeLegendFileId &&
@@ -2486,7 +2486,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         if (!displayPlotSeries.length || curveProbeX === null)
             return [];
         return displayPlotSeries.flatMap((series: any, index: number) => {
-            const color = String(series?.color || COLORS[index % COLORS.length] || "#8884d8");
+            const color = resolveSeriesChartColor(series, index);
             const baseName = String(series?.name ?? `Curve ${index + 1}`);
             const segments = splitBidirectionalCurvePoints(series?.data);
             if (!segments.length) {
@@ -2619,7 +2619,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 return null;
             }
             return {
-                color: String(series?.color || COLORS[index % COLORS.length] || "#8884d8"),
+                color: resolveSeriesChartColor(series, index),
                 data: diagnostics,
                 id: String(series?.id ?? `ss-diag-${index}`),
                 lineName: String(series?.name ?? `Curve ${index + 1}`),
@@ -2648,7 +2648,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             if (!computed.some((point: any) => Number.isFinite(point?.y)))
                 return null;
             return {
-                color: String(series?.color || COLORS[index % COLORS.length] || "#8884d8"),
+                color: resolveSeriesChartColor(series, index),
                 data: computed,
                 id: String(series?.id ?? `gm-second-${index}`),
                 lineName: String(series?.name ?? `Curve ${index + 1}`),
@@ -2665,7 +2665,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             if (!visibleGmDiagnosticsSeries.length || curveProbeX === null)
                 return [];
             return visibleGmDiagnosticsSeries.flatMap((series: any) => splitBidirectionalCurvePoints(series.data).map((segment: any, index: number) => ({
-                color: series.color || "#8884d8",
+                color: resolveSeriesChartColor(series, index),
                 id: `${series.id}-${segment?.branch ?? index}`,
                 name: `${series.lineName}${formatCurveProbeBranchSuffix(segment?.branch)}`,
                 sample: interpolateCurveAtX(segment?.points, curveProbeX, curveProbeMode),

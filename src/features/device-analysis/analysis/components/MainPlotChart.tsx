@@ -9,7 +9,7 @@ import {
 } from "react";
 import Input from "../../../../components/ui/Input";
 import { formatNumber } from "../lib/analysisMath";
-import { COLORS } from "../lib/chartColors";
+import { getChartColor, resolveSeriesChartColor } from "../lib/chartColors";
 import { inferTickDigitsFromTicks } from "../lib/analysisChartsUtils";
 import {
   collectCanvasLineRuns,
@@ -799,7 +799,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
   const tooltipLookups = useMemo(
     () =>
       chartSeriesList.map((series, index) => ({
-        color: String(series.color || COLORS[index % COLORS.length] || "#8884d8"),
+        color: resolveSeriesChartColor(series, index),
         lookup: getCanvasTooltipLookup(series.data ?? [], chartYDataKey, plotYKey),
         series,
       })),
@@ -1199,7 +1199,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
     chartSeriesList.forEach((series, index) => {
       const isFocused = isSsPlot && focusedSeriesId && series.id === focusedSeriesId;
       const dimmed = isSsPlot && focusedSeriesId && series.id !== focusedSeriesId;
-      const color = String(series.color || COLORS[index % COLORS.length] || "#8884d8");
+      const color = resolveSeriesChartColor(series, index);
       const alpha = dimmed ? 0.35 : 1;
       const width = Math.max(0.5, isFocused ? curveLineWidth + 0.5 : curveLineWidth);
       if (curveRenderMode === "line" || curveRenderMode === "lineSymbol") {
@@ -2305,7 +2305,7 @@ const MainPlotChart = memo(function MainPlotChart({
   plotYUnitLabel,
   focusedSeriesId,
   focusedFitLine,
-  focusedSeriesColor = "#8884d8",
+  focusedSeriesColor = getChartColor(0),
   highlightOverlays = [],
   currentBiasMarkers = [],
   focusedSsOverlay,
