@@ -33,6 +33,8 @@ export type IonIoffManualTargets = {
 export type CurrentWindowKind =
   | "lowEnd"
   | "highEnd"
+  | "maxCurrent"
+  | "minCurrent"
   | "zeroBias"
   | "manualIon"
   | "manualIoff";
@@ -214,6 +216,40 @@ const pickExtremeCurrentWindow = (
   }, finiteCandidates[0]);
 };
 
+const buildSlidingExtremeCurrentWindow = ({
+  key,
+  kind,
+  label,
+  points,
+  windowPointCount,
+}: {
+  key: Extract<CurrentWindowKind, "maxCurrent" | "minCurrent">;
+  kind: "max" | "min";
+  label: string;
+  points: FiniteCurrentPoint[];
+  windowPointCount: number;
+}): CurrentWindowMeta | null => {
+  if (!Array.isArray(points) || points.length === 0) return null;
+
+  const resolvedPointCount = clampNumber(
+    Math.floor(windowPointCount),
+    1,
+    points.length,
+  );
+  const windows: CurrentWindowMeta[] = [];
+
+  for (let index = 0; index <= points.length - resolvedPointCount; index += 1) {
+    const window = buildCurrentWindow({
+      key,
+      label,
+      points: points.slice(index, index + resolvedPointCount),
+    });
+    if (window) windows.push(window);
+  }
+
+  return pickExtremeCurrentWindow(windows, kind);
+};
+
 const buildAutoCandidateWindows = (
   finitePoints: FiniteCurrentPoint[],
   branchLabel?: string | null,
@@ -240,10 +276,24 @@ const buildAutoCandidateWindows = (
           pointCount: windowPointCount,
           points: finitePoints,
           targetX: 0,
-        })
-      : null;
+      })
+    : null;
+  const minCurrent = buildSlidingExtremeCurrentWindow({
+    key: "minCurrent",
+    kind: "min",
+    label: `min-current${suffix}`,
+    points: finitePoints,
+    windowPointCount,
+  });
+  const maxCurrent = buildSlidingExtremeCurrentWindow({
+    key: "maxCurrent",
+    kind: "max",
+    label: `max-current${suffix}`,
+    points: finitePoints,
+    windowPointCount,
+  });
 
-  return [lowEnd, highEnd, zeroBias].filter(
+  return [lowEnd, highEnd, zeroBias, minCurrent, maxCurrent].filter(
     (candidate): candidate is CurrentWindowMeta => candidate !== null,
   );
 };

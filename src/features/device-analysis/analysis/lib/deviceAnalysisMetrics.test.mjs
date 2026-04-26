@@ -54,7 +54,7 @@ test("computeBaseCurrentMetrics uses sweep endpoints for n-type transfer curves"
   assert.equal(metrics.ioff, 1e-12);
   assert.equal(metrics.xAtIon, 2);
   assert.equal(metrics.ion, 9e-7);
-  assert.equal(metrics.candidateWindows.length, 3);
+  assert.equal(metrics.candidateWindows.length, 5);
   assert.equal(metrics.ionWindow?.label, "high-end");
   assert.equal(metrics.ioffWindow?.label, "low-end");
 });
@@ -79,6 +79,30 @@ test("computeBaseCurrentMetrics uses zero-bias window when it captures the off s
   assert.equal(metrics.ioffWindow?.key, "zeroBias");
 });
 
+test("computeBaseCurrentMetrics uses the lowest stable window for valley off states", () => {
+  const metrics = computeBaseCurrentMetrics({
+    sourceFile: { xAxisRole: "vg" },
+    points: [
+      { x: -4, y: -1e-3 },
+      { x: -3, y: -8e-4 },
+      { x: -2, y: -1e-4 },
+      { x: -1, y: -1e-5 },
+      { x: 0, y: -2e-7 },
+      { x: 1, y: -2e-8 },
+      { x: 2, y: -3e-8 },
+      { x: 3, y: -2e-7 },
+      { x: 4, y: -1e-6 },
+    ],
+  });
+
+  assert.equal(metrics.method, "auto");
+  assert.equal(metrics.ioffWindow?.key, "minCurrent");
+  assert.equal(metrics.xAtIoff, 1);
+  assert.equal(metrics.ioff, 3e-8);
+  assert.equal(metrics.ionWindow?.key, "lowEnd");
+  assert.equal(metrics.xAtIon, -3);
+});
+
 test("computeBaseCurrentMetrics uses manual bias targets when requested", () => {
   const metrics = computeBaseCurrentMetrics({
     method: "manual",
@@ -101,7 +125,7 @@ test("computeBaseCurrentMetrics uses manual bias targets when requested", () => 
   assert.equal(metrics.xAtIoff, 0);
   assert.equal(metrics.ionWindow?.key, "manualIon");
   assert.equal(metrics.ioffWindow?.key, "manualIoff");
-  assert.equal(metrics.candidateWindows.length, 3);
+  assert.equal(metrics.candidateWindows.length, 5);
 });
 
 test("computeBaseCurrentMetrics keeps Ion and Ioff empty for non-transfer curves", () => {
