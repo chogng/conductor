@@ -194,7 +194,22 @@ function resolveOriginCsvWorkerPath() {
 
   return resolveFirstExistingPath([
     envPath,
+    path.join(
+      getResourcesPath(),
+      "origin",
+      "bin",
+      "origin-csv-worker",
+      "origin-csv-worker.exe",
+    ),
     path.join(getResourcesPath(), "origin", "bin", "origin-csv-worker.exe"),
+    path.join(
+      getResourcesPath(),
+      "app.asar.unpacked",
+      "origin",
+      "bin",
+      "origin-csv-worker",
+      "origin-csv-worker.exe",
+    ),
     path.join(
       getResourcesPath(),
       "app.asar.unpacked",

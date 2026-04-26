@@ -3,7 +3,9 @@ param(
   [string]$DistDir = "",
   [string]$VenvDir = "",
   [string]$PythonVersion = "3.11",
-  [switch]$UsePinnedVersions
+  [string]$PythonExe = "",
+  [switch]$UsePinnedVersions,
+  [switch]$OneFile
 )
 
 $ErrorActionPreference = "Stop"
@@ -96,6 +98,7 @@ if (-not [System.IO.Path]::IsPathRooted($VenvDir)) {
 $BuildWorkDir = Join-Path $DeviceDir "origin-workers\\pyinstaller\\csv\\work"
 $SpecDir = Join-Path $DeviceDir "origin-workers\\pyinstaller\\csv\\spec"
 $BuildInfoPath = Join-Path $DeviceDir "origin-workers\\pyinstaller\\csv\\worker-build-info.json"
+$VersionInfoPath = Join-Path $DeviceDir "origin-workers\\pyinstaller\\csv\\worker-version-info.txt"
 
 New-Item -ItemType Directory -Path $DistDir -Force | Out-Null
 New-Item -ItemType Directory -Path $BuildWorkDir -Force | Out-Null
@@ -130,7 +133,7 @@ try {
 }
 
 $buildInfo = [ordered]@{
-  mode = "packaged-exe"
+  mode = if ($OneFile) { "packaged-exe-onefile" } else { "packaged-exe-onedir" }
   workerVersion = $appVersion
   appVersion = $appVersion
   expectedTag = $expectedTag
@@ -140,11 +143,61 @@ $buildInfo = [ordered]@{
 }
 $buildInfo | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $BuildInfoPath -Encoding UTF8
 
+$versionNumbers = @($appVersion.Split(".") | ForEach-Object {
+  $value = 0
+  if ([int]::TryParse($_, [ref]$value)) { $value } else { 0 }
+})
+while ($versionNumbers.Count -lt 4) {
+  $versionNumbers += 0
+}
+$versionNumbers = $versionNumbers[0..3]
+$versionTuple = $versionNumbers -join ", "
+$versionString = $versionNumbers -join "."
+
+@"
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers=($versionTuple),
+    prodvers=($versionTuple),
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo([
+      StringTable(
+        '040904B0',
+        [
+          StringStruct('CompanyName', 'Conductor'),
+          StringStruct('FileDescription', 'Conductor Origin CSV Worker'),
+          StringStruct('FileVersion', '$versionString'),
+          StringStruct('InternalName', 'origin-csv-worker'),
+          StringStruct('OriginalFilename', 'origin-csv-worker.exe'),
+          StringStruct('ProductName', 'Conductor'),
+          StringStruct('ProductVersion', '$versionString')
+        ]
+      )
+    ]),
+    VarFileInfo([VarStruct('Translation', [1033, 1200])])
+  ]
+)
+"@ | Set-Content -LiteralPath $VersionInfoPath -Encoding ASCII
+
 $uvCmd = Get-Command uv -ErrorAction SilentlyContinue
 $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
 $requiredPy = Get-MajorMinorVersion -VersionValue $PythonVersion
+$explicitPythonExe = if ([string]::IsNullOrWhiteSpace($PythonExe)) { "" } else { $PythonExe.Trim() }
+if ($explicitPythonExe -and -not [System.IO.Path]::IsPathRooted($explicitPythonExe)) {
+  $explicitPythonExe = Join-Path $ProjectRoot $explicitPythonExe
+}
+if ($explicitPythonExe -and -not (Test-Path -LiteralPath $explicitPythonExe)) {
+  throw "PythonExe was provided but does not exist: $explicitPythonExe"
+}
 
-if ($null -eq $uvCmd -and $null -eq $pythonCmd) {
+if (-not $explicitPythonExe -and $null -eq $uvCmd -and $null -eq $pythonCmd) {
   throw "Neither uv nor python is available in PATH. Install Python $requiredPy (python in PATH), or install uv first."
 }
 
@@ -166,7 +219,19 @@ $packages = if ($UsePinnedVersions) {
 
 $venvPython = Join-Path $VenvDir "Scripts\python.exe"
 if (-not (Test-Path -LiteralPath $venvPython)) {
-  if ($null -ne $uvCmd) {
+  if ($explicitPythonExe) {
+    $actualPy = Get-PythonMajorMinorFromExe -PythonExe $explicitPythonExe
+    if ($requiredPy -and $actualPy -and $actualPy -ne $requiredPy) {
+      throw "PythonExe is $actualPy but $requiredPy is required: $explicitPythonExe"
+    }
+
+    $venvArgs = @("-m", "venv", $VenvDir)
+    Write-Host "[build-origin-csv-worker] Running: $explicitPythonExe $($venvArgs -join ' ')"
+    & $explicitPythonExe @venvArgs
+    if ($LASTEXITCODE -ne 0) {
+      throw "PythonExe -m venv failed with exit code $LASTEXITCODE"
+    }
+  } elseif ($null -ne $uvCmd) {
     $venvArgs = @("venv", "--python", $PythonVersion, $VenvDir)
     Write-Host "[build-origin-csv-worker] Running: uv $($venvArgs -join ' ')"
     & $uvCmd.Source @venvArgs
@@ -193,32 +258,24 @@ if (-not (Test-Path -LiteralPath $venvPython)) {
   throw "Venv python executable not found: $venvPython"
 }
 
-if ($null -ne $uvCmd) {
-  $installArgs = @("pip", "install", "--python", $venvPython) + $packages
-  Write-Host "[build-origin-csv-worker] Running: uv $($installArgs -join ' ')"
-  & $uvCmd.Source @installArgs
-  if ($LASTEXITCODE -ne 0) {
-    throw "uv pip install failed with exit code $LASTEXITCODE"
-  }
-} else {
-  $installArgs = @("-m", "pip", "install") + $packages
-  Write-Host "[build-origin-csv-worker] Running: $venvPython $($installArgs -join ' ')"
-  & $venvPython @installArgs
-  if ($LASTEXITCODE -ne 0) {
-    throw "pip install failed with exit code $LASTEXITCODE"
-  }
+$installArgs = @("-m", "pip", "install") + $packages
+Write-Host "[build-origin-csv-worker] Running: $venvPython $($installArgs -join ' ')"
+& $venvPython @installArgs
+if ($LASTEXITCODE -ne 0) {
+  throw "pip install failed with exit code $LASTEXITCODE"
 }
 
 $pyinstallerArgs = @(
   "-m", "PyInstaller",
   "--noconfirm",
   "--clean",
-  "--onefile",
+  "--noupx",
   "--name", "origin-csv-worker",
   "--distpath", $DistDir,
   "--workpath", $BuildWorkDir,
   "--specpath", $SpecDir,
   "--add-data", "$BuildInfoPath;.",
+  "--version-file", $VersionInfoPath,
   "--collect-all", "originpro",
   "--collect-all", "OriginExt",
   "--hidden-import", "pythoncom",
@@ -227,6 +284,25 @@ $pyinstallerArgs = @(
   $EntryScript
 )
 
+$iconPath = Join-Path $ProjectRoot "build\icons\icon.ico"
+if (Test-Path -LiteralPath $iconPath) {
+  $pyinstallerArgs = $pyinstallerArgs[0..10] + @("--icon", $iconPath) + $pyinstallerArgs[11..($pyinstallerArgs.Length - 1)]
+}
+
+if ($OneFile) {
+  $staleDir = Join-Path $DistDir "origin-csv-worker"
+  if (Test-Path -LiteralPath $staleDir) {
+    Remove-Item -LiteralPath $staleDir -Recurse -Force
+  }
+  $pyinstallerArgs = $pyinstallerArgs[0..4] + "--onefile" + $pyinstallerArgs[5..($pyinstallerArgs.Length - 1)]
+} else {
+  $staleOneFileExe = Join-Path $DistDir "origin-csv-worker.exe"
+  if (Test-Path -LiteralPath $staleOneFileExe) {
+    Remove-Item -LiteralPath $staleOneFileExe -Force
+  }
+  $pyinstallerArgs = $pyinstallerArgs[0..4] + "--onedir" + $pyinstallerArgs[5..($pyinstallerArgs.Length - 1)]
+}
+
 Write-Host "[build-origin-csv-worker] Running: $venvPython $($pyinstallerArgs -join ' ')"
 & $venvPython @pyinstallerArgs
 
@@ -234,7 +310,11 @@ if ($LASTEXITCODE -ne 0) {
   throw "PyInstaller failed with exit code $LASTEXITCODE"
 }
 
-$exePath = Join-Path $DistDir "origin-csv-worker.exe"
+$exePath = if ($OneFile) {
+  Join-Path $DistDir "origin-csv-worker.exe"
+} else {
+  Join-Path (Join-Path $DistDir "origin-csv-worker") "origin-csv-worker.exe"
+}
 if (-not (Test-Path -LiteralPath $exePath)) {
   throw "Build finished but executable was not found: $exePath"
 }

@@ -11,6 +11,7 @@ if (!isWin) {
 }
 
 const candidates = [
+  path.join(process.cwd(), "origin", "bin", "origin-csv-worker", "origin-csv-worker.exe"),
   path.join(process.cwd(), "origin", "bin", "origin-csv-worker.exe"),
   path.join(process.cwd(), "origin", "dist", "origin-csv-worker.exe"),
 ];

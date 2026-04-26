@@ -172,7 +172,7 @@ ${productName}-${version}-${os}-${arch}.${ext}
 
 The desktop app ships one offline-native worker:
 
-- `origin/bin/origin-csv-worker.exe`
+- `origin/bin/origin-csv-worker/origin-csv-worker.exe`
 
 Default local worker virtual environment:
 
@@ -195,7 +195,7 @@ npm run verify:origin-worker
 Inspect embedded worker metadata:
 
 ```powershell
-origin/bin/origin-csv-worker.exe --worker-version
+origin/bin/origin-csv-worker/origin-csv-worker.exe --worker-version
 ```
 
 Runner behavior:
@@ -292,3 +292,5 @@ Common variables:
 
 - macOS: `CSC_LINK`, `CSC_KEY_PASSWORD`, optional `CSC_NAME`
 - Windows: `WIN_CSC_LINK`, `WIN_CSC_KEY_PASSWORD`
+
+If Windows downloads are being flagged as unsafe by SmartScreen or Defender, the root fix is to ship signed binaries from a stable certificate. This repository's Windows release workflow reads `WIN_CSC_LINK`, `WIN_CSC_KEY_PASSWORD`, and optional `WIN_CSC_SUBJECT_NAME` from GitHub Actions secrets.

@@ -32,10 +32,18 @@ Optional parameters:
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-origin-csv-worker.ps1 -PythonVersion 3.11 -VenvDir .venv-origin-workers
 ```
 
+The default build uses PyInstaller `--onedir` at
+`origin/bin/origin-csv-worker/origin-csv-worker.exe`. This avoids the
+self-extracting `--onefile` stub, which can fail under antivirus controls when
+extracting bundled DLLs. Use `-OneFile` only when you specifically need a
+single executable for debugging or distribution experiments.
+The build also disables UPX compression, applies the project icon when available, and
+writes Windows version metadata so the worker looks less like an anonymous packed binary.
+
 Release-prep smoke test in dev:
 
 ```powershell
-$env:ORIGIN_CSV_WORKER_PATH = (Resolve-Path .\origin\bin\origin-csv-worker.exe).Path
+$env:ORIGIN_CSV_WORKER_PATH = (Resolve-Path .\origin\bin\origin-csv-worker\origin-csv-worker.exe).Path
 npm run dev:desktop
 ```
 
@@ -48,7 +56,7 @@ npm run verify:origin-worker
 Output path:
 
 ```text
-origin/bin/origin-csv-worker.exe
+origin/bin/origin-csv-worker/origin-csv-worker.exe
 ```
 
 Worker metadata:

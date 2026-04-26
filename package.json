@@ -80,7 +80,7 @@
       "dist/**/*",
       "desktop-dist/**/*",
       "excel/bin/rust-xls-converter.exe",
-      "origin/bin/origin-csv-worker.exe",
+      "origin/bin/**/*",
       "package.json"
     ],
     "extraResources": [
@@ -92,7 +92,7 @@
     "asar": true,
     "asarUnpack": [
       "excel/bin/rust-xls-converter.exe",
-      "origin/bin/origin-csv-worker.exe"
+      "origin/bin/**/*"
     ],
     "publish": [
       {
@@ -113,6 +113,7 @@
     "win": {
       "icon": "build/icons/icon.ico",
       "artifactName": "Conductor-${version}-windows-${arch}-portable.${ext}",
+      "signAndEditExecutable": false,
       "target": [
         "nsis",
         "zip",

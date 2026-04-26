@@ -18,6 +18,9 @@ jobs:
       contents: write
     env:
       GH_TOKEN: ${{ secrets.CONDUCTOR }}
+      WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+      WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+      WIN_CSC_SUBJECT_NAME: ${{ secrets.WIN_CSC_SUBJECT_NAME }}
       UV_CACHE_DIR: ${{ github.workspace }}\\.device\\uv-cache
       UV_PYTHON_INSTALL_DIR: ${{ github.workspace }}\\.device\\uv-python
       PIP_CACHE_DIR: ${{ github.workspace }}\\.device\\pip-cache
@@ -92,6 +95,44 @@ jobs:
       - name: Build desktop artifacts
         run: npm run dist:desktop
 
+      - name: Inspect Windows signatures
+        id: signature_meta
+        shell: pwsh
+        run: |
+          $releaseDir = Join-Path $PWD "release"
+          if (-not (Test-Path -LiteralPath $releaseDir)) {
+            throw "Release directory not found: $releaseDir"
+          }
+
+          $exeArtifacts = Get-ChildItem -Path $releaseDir -File |
+            Where-Object { $_.Extension -eq '.exe' } |
+            Sort-Object Name
+
+          if (-not $exeArtifacts) {
+            throw "No Windows executable artifacts found in release/."
+          }
+
+          $statuses = foreach ($artifact in $exeArtifacts) {
+            $signature = Get-AuthenticodeSignature -FilePath $artifact.FullName
+            [PSCustomObject]@{
+              Name = $artifact.Name
+              Status = [string]$signature.Status
+              Subject = [string]$signature.SignerCertificate.Subject
+            }
+          }
+
+          $allValid = ($statuses | Where-Object { $_.Status -ne 'Valid' }).Count -eq 0
+          $subject = $statuses | Where-Object { $_.Subject } | Select-Object -First 1 -ExpandProperty Subject
+
+          "signed=$($allValid.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "subject=$subject" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+          $statuses |
+            ForEach-Object {
+              "{0}`t{1}`t{2}" -f $_.Name, $_.Status, $_.Subject
+            } |
+            Set-Content -Path "release/WINDOWS-SIGNATURES.txt" -Encoding utf8
+
       - name: Publish updater assets to public update repository
         shell: pwsh
         env:
@@ -147,6 +188,9 @@ jobs:
 
       - name: Generate Windows release checksums
         shell: pwsh
+        env:
+          WINDOWS_BINARIES_SIGNED: ${{ steps.signature_meta.outputs.signed }}
+          WINDOWS_SIGNER_SUBJECT: ${{ steps.signature_meta.outputs.subject }}
         run: |
           $artifacts = Get-ChildItem -Path "release" -File |
             Where-Object { $_.Extension -in '.exe', '.zip', '.7z' } |
@@ -163,23 +207,49 @@ jobs:
 
           Set-Content -Path "release/SHA256SUMS.txt" -Value $checksumLines -Encoding ascii
 
-          $infoLines = @(
-            "conductor Windows downloads"
-            ""
-            "These Windows binaries are unsigned. Microsoft Defender SmartScreen may show an 'Unknown publisher' warning the first time they are opened."
-            ""
-            "Recommended package:"
-            "- Prefer the *-setup.exe installer for normal installs."
-            "- Use the *-portable.zip archive for the broadest compatibility."
-            "- Use the *-portable.7z archive if you prefer a smaller download and already use 7-Zip."
-            ""
-            "How to verify a download in PowerShell:"
-            "1. Download the app file and SHA256SUMS.txt from this release."
-            "2. Run: Get-FileHash .\\<filename> -Algorithm SHA256"
-            "3. Compare the SHA256 value with the matching line in SHA256SUMS.txt."
-            ""
-            "Files in this release:"
-          )
+          if ($env:WINDOWS_BINARIES_SIGNED -eq "true") {
+            $publisher = $env:WINDOWS_SIGNER_SUBJECT
+            if (-not $publisher) {
+              $publisher = "the configured code-signing certificate"
+            }
+
+            $infoLines = @(
+              "conductor Windows downloads"
+              ""
+              "These Windows binaries are Authenticode-signed by $publisher."
+              ""
+              "Recommended package:"
+              "- Prefer the *-setup.exe installer for normal installs."
+              "- Use the *-portable.zip archive for the broadest compatibility."
+              "- Use the *-portable.7z archive if you prefer a smaller download and already use 7-Zip."
+              ""
+              "How to verify a download in PowerShell:"
+              "1. Download the app file and SHA256SUMS.txt from this release."
+              "2. Run: Get-FileHash .\\<filename> -Algorithm SHA256"
+              "3. Compare the SHA256 value with the matching line in SHA256SUMS.txt."
+              "4. Optional: Run Get-AuthenticodeSignature .\\<filename> and confirm Status is Valid."
+              ""
+              "Files in this release:"
+            )
+          } else {
+            $infoLines = @(
+              "conductor Windows downloads"
+              ""
+              "These Windows binaries are unsigned. Microsoft Defender SmartScreen may show an 'Unknown publisher' warning the first time they are opened."
+              ""
+              "Recommended package:"
+              "- Prefer the *-setup.exe installer for normal installs."
+              "- Use the *-portable.zip archive for the broadest compatibility."
+              "- Use the *-portable.7z archive if you prefer a smaller download and already use 7-Zip."
+              ""
+              "How to verify a download in PowerShell:"
+              "1. Download the app file and SHA256SUMS.txt from this release."
+              "2. Run: Get-FileHash .\\<filename> -Algorithm SHA256"
+              "3. Compare the SHA256 value with the matching line in SHA256SUMS.txt."
+              ""
+              "Files in this release:"
+            )
+          }
 
           $infoLines += $artifacts | ForEach-Object { "- $($_.Name)" }
           Set-Content -Path "release/WINDOWS-DOWNLOADS.txt" -Value $infoLines -Encoding utf8
@@ -216,4 +286,13 @@ jobs:
         run: |
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '## Windows release extras'
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '- Public updater repo: uploaded only `latest.yml`, installer (`*-setup.exe`), and matching `.blockmap`.'
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '- Source repo (`chogng/conductor`): mirrored full `release/` assets including `SHA256SUMS.txt` and `WINDOWS-DOWNLOADS.txt`.'
+          if ("${{ steps.signature_meta.outputs.signed }}" -eq "true") {
+            $subject = "${{ steps.signature_meta.outputs.subject }}"
+            if ([string]::IsNullOrWhiteSpace($subject)) {
+              $subject = "configured code-signing certificate"
+            }
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Signing: executable artifacts are Authenticode-signed by $subject."
+          } else {
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '- Signing: executable artifacts are unsigned, so SmartScreen may show an unknown publisher warning.'
+          }
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '- Source repo (`chogng/conductor`): mirrored full `release/` assets including `SHA256SUMS.txt`, `WINDOWS-DOWNLOADS.txt`, and `WINDOWS-SIGNATURES.txt`.'

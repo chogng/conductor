@@ -90,6 +90,21 @@ If you are shipping a closed-source Windows build without a paid code-signing ce
 - These extra files are mirrored to the private source-repo release for traceability.
 - Public updater-repo releases remain minimal and contain only updater-required assets.
 
+This warning is usually caused by missing Authenticode code signing, not by app logic. The practical fix is:
+
+1. provision a Windows code-signing certificate
+2. sign the installer and portable `.exe` files during `electron-builder`
+3. keep publishing from the same certificate so SmartScreen reputation can build
+4. if Defender still flags a fresh signed release, submit the file to Microsoft for false-positive review
+
+This repository's Windows workflow supports the standard Electron Builder signing secrets:
+
+- `WIN_CSC_LINK`
+- `WIN_CSC_KEY_PASSWORD`
+- optional `WIN_CSC_SUBJECT_NAME`
+
+When those secrets are configured, CI signs Windows executables and writes signature results to `WINDOWS-SIGNATURES.txt`.
+
 Users can verify a download in PowerShell:
 
 ```powershell
@@ -97,6 +112,14 @@ Get-FileHash '.\conductor-<version>-windows-x64-setup.exe' -Algorithm SHA256
 ```
 
 Compare the printed SHA256 value with the matching line in `SHA256SUMS.txt` from the same GitHub Release.
+
+They can also verify Authenticode signing:
+
+```powershell
+Get-AuthenticodeSignature '.\conductor-<version>-windows-x64-setup.exe'
+```
+
+Expected result for a correctly signed build: `Status` should be `Valid`.
 
 ## 3. Client behavior
 
