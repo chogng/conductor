@@ -193,7 +193,7 @@ jobs:
           WINDOWS_SIGNER_SUBJECT: ${{ steps.signature_meta.outputs.subject }}
         run: |
           $artifacts = Get-ChildItem -Path "release" -File |
-            Where-Object { $_.Extension -in '.exe', '.zip', '.7z' } |
+            Where-Object { $_.Extension -in '.exe', '.zip' } |
             Sort-Object Name
 
           if (-not $artifacts) {
@@ -221,7 +221,6 @@ jobs:
               "Recommended package:"
               "- Prefer the *-setup.exe installer for normal installs."
               "- Use the *-portable.zip archive for the broadest compatibility."
-              "- Use the *-portable.7z archive if you prefer a smaller download and already use 7-Zip."
               ""
               "How to verify a download in PowerShell:"
               "1. Download the app file and SHA256SUMS.txt from this release."
@@ -240,7 +239,6 @@ jobs:
               "Recommended package:"
               "- Prefer the *-setup.exe installer for normal installs."
               "- Use the *-portable.zip archive for the broadest compatibility."
-              "- Use the *-portable.7z archive if you prefer a smaller download and already use 7-Zip."
               ""
               "How to verify a download in PowerShell:"
               "1. Download the app file and SHA256SUMS.txt from this release."

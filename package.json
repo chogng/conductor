@@ -123,8 +123,7 @@
       "signAndEditExecutable": true,
       "target": [
         "nsis",
-        "zip",
-        "7z"
+        "zip"
       ]
     },
     "nsis": {
