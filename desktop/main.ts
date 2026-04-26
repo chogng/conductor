@@ -21,6 +21,11 @@ import {
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+
+if (!hasSingleInstanceLock) {
+  app.quit();
+}
 
 let autoUpdater = null;
 let originRunnerModulePromise = null;
@@ -2855,7 +2860,17 @@ function handleDesktopAutoUpdateStatusGet(event) {
   event.returnValue = cloneAutoUpdateStatus();
 }
 
-app.whenReady().then(() => {
+if (hasSingleInstanceLock) {
+  app.on("second-instance", () => {
+    if (app.isReady()) {
+      void ensureMainWindowVisible();
+      return;
+    }
+
+    void app.whenReady().then(() => ensureMainWindowVisible());
+  });
+
+  app.whenReady().then(() => {
   logDesktopBoot("app:ready");
   if (isWindows) {
     app.setAppUserModelId(DESKTOP_APP_USER_MODEL_ID);
@@ -2990,3 +3005,4 @@ app.on("will-quit", () => {
   ipcMain.removeHandler(ipcChannels.originRuntimeCleanupRun);
   stopRustDeviceAnalysisEngine();
 });
+}
