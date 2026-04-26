@@ -2232,6 +2232,16 @@ function setAutoUpdateStatus(status, version = null) {
   broadcastAutoUpdateStatus();
 }
 
+function getAutoUpdateFailureDetail(error) {
+  const rawMessage = error?.message || String(error || "");
+  const message = typeof rawMessage === "string" ? rawMessage.trim() : "";
+  if (!message) {
+    return "请稍后重试，或确认当前网络可以访问更新服务器。";
+  }
+
+  return `原因：${message}`;
+}
+
 function stopAutoUpdatePolling() {
   if (autoUpdateTimer) {
     clearInterval(autoUpdateTimer);
@@ -2294,9 +2304,9 @@ async function checkForAutoUpdates({ manual = false } = {}) {
       await dialog.showMessageBox(windowForDialog || undefined, {
         type: "error",
         title: "Conductor",
-        message: "Update check failed.",
-        detail: message,
-        buttons: ["OK"],
+        message: "检查更新失败",
+        detail: `${getAutoUpdateFailureDetail(error)}\n\n请确认网络或代理设置后重试。`,
+        buttons: ["确定"],
         defaultId: 0,
         noLink: true,
       });

@@ -1,7 +1,7 @@
 {
   "name": "conductor",
   "private": true,
-  "version": "0.5.10",
+  "version": "0.5.12",
   "type": "module",
   "main": "desktop-dist/main.js",
   "scripts": {
@@ -35,17 +35,11 @@
     "release:desktop:local": "node scripts/run-powershell.mjs scripts/release-desktop-local.ps1"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.90.16",
-    "electron-updater": "^6.8.3",
-    "jszip": "^3.10.1",
-    "lucide-react": "^0.554.0",
-    "papaparse": "^5.5.3",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "xlsx": "^0.18.5"
+    "electron-updater": "^6.8.3"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@tanstack/react-query": "^5.90.16",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@typescript-eslint/eslint-plugin": "^8.57.0",
@@ -58,10 +52,16 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "jszip": "^3.10.1",
+    "lucide-react": "^0.554.0",
+    "papaparse": "^5.5.3",
     "postcss": "^8.5.6",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.9.3",
-    "vite": "^7.2.4"
+    "vite": "^7.2.4",
+    "xlsx": "^0.18.5"
   },
   "build": {
     "appId": "com.conductor.desktop",
@@ -129,6 +129,12 @@
     },
     "nsis": {
       "artifactName": "Conductor-${version}-windows-${arch}-setup.${ext}",
+      "installerIcon": "build/icons/icon.ico",
+      "uninstallerIcon": "build/icons/icon.ico",
+      "installerHeaderIcon": "build/icons/icon.ico",
+      "installerHeader": "build/installer/header.bmp",
+      "installerSidebar": "build/installer/sidebar.bmp",
+      "uninstallerSidebar": "build/installer/sidebar.bmp",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
     },
