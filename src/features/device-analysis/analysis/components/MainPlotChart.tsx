@@ -309,6 +309,36 @@ const stripAxisUnitSuffix = (labelRaw: string | null | undefined): string => {
   return String(labelRaw ?? "").trim().replace(/\s*\([^()]+\)\s*$/, "").trim();
 };
 
+const normalizeAxisTitleOverrideForDisplay = (
+  value: unknown,
+  defaultEditableLabel: string,
+): string => {
+  let label = String(value ?? "").trim();
+  if (!label) return "";
+
+  const defaultLabel = String(defaultEditableLabel ?? "").trim();
+  if (!defaultLabel) return label;
+
+  const repeatedDefaultSuffix = ` (${defaultLabel})`;
+  while (label.endsWith(repeatedDefaultSuffix)) {
+    label = label.slice(0, -repeatedDefaultSuffix.length).trim();
+  }
+
+  const strippedDefaultLabel = stripAxisUnitSuffix(defaultLabel);
+  if (
+    label === defaultLabel ||
+    (defaultLabel === VTH_Y_AXIS_TITLE &&
+      /^sqrt\s+\(sqrt\(\|[^()]+\|\)\)$/.test(label)) ||
+    (strippedDefaultLabel &&
+      strippedDefaultLabel !== defaultLabel &&
+      label === strippedDefaultLabel)
+  ) {
+    return "";
+  }
+
+  return label;
+};
+
 const DEFAULT_CHART_MARGIN = { top: 25, right: 15, left: 112, bottom: 46 } as const;
 const GRID_DASH: [number, number] = [4, 4];
 const MAJOR_TICK_LENGTH_PX = 6;
@@ -323,6 +353,7 @@ const AXIS_TITLE_EDGE_PADDING_PX = 14;
 const AXIS_TITLE_EDIT_MIN_WIDTH_PX = 64;
 const AXIS_TITLE_EDIT_MAX_WIDTH_PX = 260;
 const Y_AXIS_TITLE_EDIT_X_OFFSET_PX = -12;
+const VTH_Y_AXIS_TITLE = "sqrt(|Id|)";
 const CURRENT_BIAS_DRAG_TOLERANCE_PX = 22;
 const CURRENT_BIAS_HIT_WIDTH_PX = 28;
 const SS_HANDLE_TOLERANCE_PX = 14;
@@ -956,6 +987,13 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
   const commitAxisTitleEdit = useCallback(() => {
     if (!editingAxisTitle) return;
     const nextLabel = stripAxisUnitSuffix(editingAxisTitleDraft);
+    const currentLabel =
+      editingAxisTitle === "x" ? xAxisEditableLabel : yAxisEditableLabel;
+    if (nextLabel === String(currentLabel ?? "").trim()) {
+      setEditingAxisTitle(null);
+      setEditingAxisTitleDraft("");
+      return;
+    }
     if (editingAxisTitle === "x") {
       onXAxisLabelChange?.(nextLabel);
     } else {
@@ -968,6 +1006,8 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
     editingAxisTitleDraft,
     onXAxisLabelChange,
     onYAxisLabelChange,
+    xAxisEditableLabel,
+    yAxisEditableLabel,
   ]);
 
   useEffect(() => {
@@ -2634,7 +2674,7 @@ const MainPlotChart = memo(function MainPlotChart({
       isSsPlot
         ? withYAxisUnit("|Id|", plotYUnitLabel)
         : isVthPlot
-          ? plotYUnitLabel
+          ? VTH_Y_AXIS_TITLE
         : withYAxisUnit(activeFile?.yLabel, plotYUnitLabel),
     [activeFile?.yLabel, isSsPlot, isVthPlot, plotYUnitLabel],
   );
@@ -2642,16 +2682,68 @@ const MainPlotChart = memo(function MainPlotChart({
     () => withYAxisUnit(activeFile?.xLabel, plotXUnitLabel),
     [activeFile?.xLabel, plotXUnitLabel],
   );
+  const defaultXAxisEditableLabel = useMemo(() => {
+    const baseLabel = String(activeFile?.xLabel ?? "").trim();
+    return baseLabel || stripAxisUnitSuffix(defaultXAxisLabel);
+  }, [activeFile?.xLabel, defaultXAxisLabel]);
+  const defaultYAxisEditableLabel = useMemo(() => {
+    if (isSsPlot) return "|Id|";
+    if (isVthPlot) return VTH_Y_AXIS_TITLE;
+    const baseLabel = String(activeFile?.yLabel ?? "").trim();
+    return baseLabel || stripAxisUnitSuffix(defaultYAxisLabel);
+  }, [activeFile?.yLabel, defaultYAxisLabel, isSsPlot, isVthPlot, plotYUnitLabel]);
+  const normalizedXAxisLabelOverride = useMemo(
+    () =>
+      normalizeAxisTitleOverrideForDisplay(
+        xAxisLabelOverride,
+        defaultXAxisEditableLabel,
+      ),
+    [defaultXAxisEditableLabel, xAxisLabelOverride],
+  );
+  const normalizedYAxisLabelOverride = useMemo(
+    () =>
+      normalizeAxisTitleOverrideForDisplay(
+        yAxisLabelOverride,
+        defaultYAxisEditableLabel,
+      ),
+    [defaultYAxisEditableLabel, yAxisLabelOverride],
+  );
   const xAxisLabel = useMemo(() => {
-    const override = String(xAxisLabelOverride ?? "").trim();
+    const override = normalizedXAxisLabelOverride;
     if (override) return withYAxisUnit(override, plotXUnitLabel);
     return defaultXAxisLabel;
-  }, [defaultXAxisLabel, plotXUnitLabel, xAxisLabelOverride]);
+  }, [defaultXAxisLabel, normalizedXAxisLabelOverride, plotXUnitLabel]);
   const yAxisLabel = useMemo(() => {
-    const override = String(yAxisLabelOverride ?? "").trim();
+    const override = normalizedYAxisLabelOverride;
     if (override) return withYAxisUnit(override, plotYUnitLabel);
     return defaultYAxisLabel;
-  }, [defaultYAxisLabel, plotYUnitLabel, yAxisLabelOverride]);
+  }, [defaultYAxisLabel, normalizedYAxisLabelOverride, plotYUnitLabel]);
+  const xAxisEditableLabel = useMemo(() => {
+    const override = normalizedXAxisLabelOverride;
+    return override || defaultXAxisEditableLabel;
+  }, [defaultXAxisEditableLabel, normalizedXAxisLabelOverride]);
+  const yAxisEditableLabel = useMemo(() => {
+    const override = normalizedYAxisLabelOverride;
+    return override || defaultYAxisEditableLabel;
+  }, [defaultYAxisEditableLabel, normalizedYAxisLabelOverride]);
+  const handleXAxisLabelChange = useCallback(
+    (nextLabelRaw: string) => {
+      const nextLabel = String(nextLabelRaw ?? "").trim();
+      onXAxisLabelChange?.(
+        nextLabel === defaultXAxisEditableLabel ? "" : nextLabel,
+      );
+    },
+    [defaultXAxisEditableLabel, onXAxisLabelChange],
+  );
+  const handleYAxisLabelChange = useCallback(
+    (nextLabelRaw: string) => {
+      const nextLabel = String(nextLabelRaw ?? "").trim();
+      onYAxisLabelChange?.(
+        nextLabel === defaultYAxisEditableLabel ? "" : nextLabel,
+      );
+    },
+    [defaultYAxisEditableLabel, onYAxisLabelChange],
+  );
 
   const interactiveXDomain = useMemo<[number, number]>(() => xDomain, [xDomain]);
 
@@ -2696,16 +2788,16 @@ const MainPlotChart = memo(function MainPlotChart({
       tickLabelFontSize={tickLabelFontSize}
       tickLabelOffsetPx={tickLabelOffsetPx}
       xAxisLabel={xAxisLabel}
-      xAxisEditableLabel={stripAxisUnitSuffix(xAxisLabel)}
-      onXAxisLabelChange={onXAxisLabelChange}
+      xAxisEditableLabel={xAxisEditableLabel}
+      onXAxisLabelChange={handleXAxisLabelChange}
       xTickDigits={xTickDigits}
       xTicks={xTicks}
       xTooltipDigits={xTooltipDigits}
       axisTitleFontSize={axisTitleFontSize}
       axisTitleGapPx={axisTitleGapPx}
       yAxisLabel={yAxisLabel}
-      yAxisEditableLabel={stripAxisUnitSuffix(yAxisLabel)}
-      onYAxisLabelChange={onYAxisLabelChange}
+      yAxisEditableLabel={yAxisEditableLabel}
+      onYAxisLabelChange={handleYAxisLabelChange}
       yAxisNearZeroEpsilon={yAxisNearZeroEpsilon}
       yTickDigits={yTickDigits}
     />

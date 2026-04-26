@@ -14,6 +14,15 @@ type DiagnosticsSeries = {
   lineName: string;
 };
 
+type DiagnosticsReferenceLine = {
+  axis: "x" | "y";
+  dash?: number[];
+  opacity?: number;
+  stroke: string;
+  strokeWidth?: number;
+  value: number;
+};
+
 type GmDiagnosticsChartProps = {
   series: DiagnosticsSeries[];
   axisTitleFontSize?: number;
@@ -31,6 +40,7 @@ type GmDiagnosticsChartProps = {
   rightReservedWidth?: number;
   yAxisLabel: string;
   valueUnitLabel?: string;
+  referenceLines?: DiagnosticsReferenceLine[];
 };
 
 const GmDiagnosticsChart = memo(function GmDiagnosticsChart({
@@ -50,6 +60,7 @@ const GmDiagnosticsChart = memo(function GmDiagnosticsChart({
   rightReservedWidth = 135,
   yAxisLabel,
   valueUnitLabel = "",
+  referenceLines: extraReferenceLines = [],
 }: GmDiagnosticsChartProps) {
   const referenceLines = useMemo(
     () => [
@@ -60,8 +71,9 @@ const GmDiagnosticsChart = memo(function GmDiagnosticsChart({
         stroke: "#94a3b8",
         value: 0,
       },
+      ...extraReferenceLines,
     ],
-    [],
+    [extraReferenceLines],
   );
 
   return (

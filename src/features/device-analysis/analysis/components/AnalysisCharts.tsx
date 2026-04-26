@@ -2577,6 +2577,28 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             vth: formatNumber(fit.vth * plotXFactor, { digits: 4 }),
         }));
     }, [effectivePlotType, focusedAnalysis?.metrics, plotXFactor, plotYFactor]);
+    const focusedVthSlopeReferenceLines = useMemo(() => {
+        if (effectivePlotType !== "vth")
+            return [];
+        return focusedVthFitOverlays.flatMap((fit: any) => [
+            {
+                axis: "x" as const,
+                dash: [5, 4],
+                opacity: 0.45,
+                stroke: fit.color,
+                strokeWidth: 1.5,
+                value: fit.x1,
+            },
+            {
+                axis: "x" as const,
+                dash: [5, 4],
+                opacity: 0.45,
+                stroke: fit.color,
+                strokeWidth: 1.5,
+                value: fit.x2,
+            },
+        ]);
+    }, [effectivePlotType, focusedVthFitOverlays]);
     const ssSummary = useMemo(() => {
         if (effectivePlotType !== "ss")
             return null;
@@ -2930,6 +2952,33 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         ...series,
         data: downsamplePointsForDisplay(series.data, MAX_RENDER_SERIES_POINTS),
     })), [visibleGmDiagnosticsSeries]);
+    const visibleVthSlopeDiagnosticsSeries = useMemo(() => {
+        if (effectivePlotType !== "vth")
+            return [];
+        return displayPlotSeries
+            .map((series: any, index: number) => {
+            const sqrtCurve = Array.isArray(series?.data) ? series.data : [];
+            if (sqrtCurve.length < 2)
+                return null;
+            const computed = computeCentralDerivative(sqrtCurve).map((point: any) => ({
+                ...point,
+                y: Number.isFinite(point?.y) ? (Number(point.y) * plotYFactor) / plotXFactor : null,
+            }));
+            if (!computed.some((point: any) => Number.isFinite(point?.y)))
+                return null;
+            return {
+                color: resolveSeriesChartColor(series, index),
+                data: computed,
+                id: String(series?.id ?? `vth-slope-${index}`),
+                lineName: String(series?.name ?? `Curve ${index + 1}`),
+            };
+        })
+            .filter((series: any) => series !== null);
+    }, [displayPlotSeries, effectivePlotType, plotXFactor, plotYFactor]);
+    const visibleVthSlopeDiagnosticsSeriesForRender = useMemo(() => visibleVthSlopeDiagnosticsSeries.map((series: any) => ({
+        ...series,
+        data: downsamplePointsForDisplay(series.data, MAX_RENDER_SERIES_POINTS),
+    })), [visibleVthSlopeDiagnosticsSeries]);
     const activeCurveProbeRows = useMemo(() => {
         if (effectivePlotType === "gm" && gmDiagnosticsEnabled) {
             if (!visibleGmDiagnosticsSeries.length || curveProbeX === null)
@@ -3003,6 +3052,33 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         }
         return gmDiagnosticsBaseYDomain;
     }, [gmDiagnosticsBaseYDomain, gmDiagnosticsYTicks]);
+    const vthSlopeDiagnosticsMinMax = useMemo(() => {
+        if (!visibleVthSlopeDiagnosticsSeries.length)
+            return { minX: null, maxX: null, minY: null, maxY: null };
+        return computeMinMax(visibleVthSlopeDiagnosticsSeries.map((series: any) => ({ data: series.data })));
+    }, [visibleVthSlopeDiagnosticsSeries]);
+    const vthSlopeDiagnosticsBaseYDomain = useMemo(() => {
+        const minY = vthSlopeDiagnosticsMinMax?.minY ?? null;
+        const maxY = vthSlopeDiagnosticsMinMax?.maxY ?? null;
+        if (minY === null || maxY === null)
+            return [-1, 1];
+        return padLinearDomain(Math.min(minY, 0), Math.max(maxY, 0));
+    }, [vthSlopeDiagnosticsMinMax?.maxY, vthSlopeDiagnosticsMinMax?.minY]);
+    const vthSlopeDiagnosticsYTicks = useMemo(() => {
+        return (buildOriginAutoTicks(vthSlopeDiagnosticsBaseYDomain[0], vthSlopeDiagnosticsBaseYDomain[1], 6) ??
+            buildNiceTicks(vthSlopeDiagnosticsBaseYDomain[0], vthSlopeDiagnosticsBaseYDomain[1], 6, {
+                preferTightRange: false,
+            }));
+    }, [vthSlopeDiagnosticsBaseYDomain]);
+    const vthSlopeDiagnosticsYDomain = useMemo(() => {
+        if (Array.isArray(vthSlopeDiagnosticsYTicks) && vthSlopeDiagnosticsYTicks.length >= 2) {
+            return [
+                Number(vthSlopeDiagnosticsYTicks[0]),
+                Number(vthSlopeDiagnosticsYTicks[vthSlopeDiagnosticsYTicks.length - 1]),
+            ];
+        }
+        return vthSlopeDiagnosticsBaseYDomain;
+    }, [vthSlopeDiagnosticsBaseYDomain, vthSlopeDiagnosticsYTicks]);
     const xTicks = useMemo(() => {
         const mode = String(axis?.xTicks ?? "auto");
         if (mode === "auto") {
@@ -3484,7 +3560,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 <div className="flex items-center gap-1">
                   {effectivePlotType === "ss" ? (<span className="text-xs text-text-primary font-mono whitespace-nowrap">
                       log(|I|)
-                    </span>) : (<DropdownField id="device-analysis-y-scale-select" size="sm" value={axis.yScale === "logAbs" ? "log" : axis.yScale} onChange={(next: any) => {
+                    </span>) : effectivePlotType === "vth" ? null : (<DropdownField id="device-analysis-y-scale-select" size="sm" value={axis.yScale === "logAbs" ? "log" : axis.yScale} onChange={(next: any) => {
                 applyLinearLogYScaleForFile(next);
             }} options={[
                 {
@@ -3675,21 +3751,41 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 </div>) : null}
 
               {effectivePlotType === "vth" ? (<div className="mt-3 rounded-lg border border-border bg-bg-page/40 px-3 py-2">
-                  <div className="grid gap-2 text-xs text-text-secondary sm:grid-cols-2 lg:grid-cols-3">
-                    {focusedVthFitRows.length ? focusedVthFitRows.map((row: any) => (<div key={row.branch} className="min-w-0 rounded-md border border-border/70 bg-bg-surface/70 px-3 py-2">
-                        <div className="mb-1 flex items-center justify-between gap-2">
-                          <span className="font-medium text-text-primary capitalize">{row.branch}</span>
-                          <span className="font-mono text-text-primary">Vth={row.vth}</span>
+                  {focusedVthFitRows.length ? (<ScrollArea axis="x" className="min-w-0 w-full">
+                      <div className="min-w-[860px] text-xs">
+                        <div className="grid grid-cols-[96px_132px_190px_140px_160px_92px] items-center gap-x-3 border-b border-border/70 px-2 pb-1 text-text-secondary">
+                          <span>branch</span>
+                          <span className="text-right">Vth</span>
+                          <span className="text-right">fit range</span>
+                          <span className="text-right">slope</span>
+                          <span className="text-right">intercept</span>
+                          <span className="text-right">R²</span>
                         </div>
-                        <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 font-mono">
-                          <span>range</span><span className="text-right text-text-primary">{row.fitRange}</span>
-                          <span>slope</span><span className="text-right text-text-primary">{row.slope}</span>
-                          <span>intercept</span><span className="text-right text-text-primary">{row.intercept}</span>
-                          <span>R²</span><span className="text-right text-text-primary">{row.r2}</span>
+                        <div className="divide-y divide-border/60">
+                          {focusedVthFitRows.map((row: any) => (<div key={row.branch} className="grid grid-cols-[96px_132px_190px_140px_160px_92px] items-center gap-x-3 px-2 py-1.5">
+                              <span className="font-medium text-text-primary capitalize">{row.branch}</span>
+                              <span className="font-mono text-right text-text-primary whitespace-nowrap">{row.vth}</span>
+                              <span className="font-mono text-right text-text-primary whitespace-nowrap">{row.fitRange}</span>
+                              <span className="font-mono text-right text-text-primary whitespace-nowrap">{row.slope}</span>
+                              <span className="font-mono text-right text-text-primary whitespace-nowrap">{row.intercept}</span>
+                              <span className="font-mono text-right text-text-primary whitespace-nowrap">{row.r2}</span>
+                            </div>))}
                         </div>
-                      </div>)) : (<div className="text-sm text-text-secondary">
-                        No stable sqrt(|Id|)-Vg linear branch was found for the focused curve.
-                      </div>)}
+                      </div>
+                    </ScrollArea>) : (<div className="text-sm text-text-secondary">
+                      No stable sqrt(|Id|)-Vg linear branch was found for the focused curve.
+                    </div>)}
+                </div>) : null}
+
+              {effectivePlotType === "vth" && visibleVthSlopeDiagnosticsSeriesForRender.length ? (<div className="mt-4">
+                  <div className="text-xs text-text-secondary mb-2">
+                    Vth slope diagnostics
+                  </div>
+                  <div className="text-[11px] text-text-secondary mb-2">
+                    d√|Id|/dVg should be relatively flat across a reliable linear extrapolation window.
+                  </div>
+                  <div ref={diagnosticsChartContainerRef} className="h-[260px] min-h-[260px] flex-shrink-0">
+                    <GmDiagnosticsChart series={visibleVthSlopeDiagnosticsSeriesForRender} axisTitleFontSize={mainPlotAxisTitleFontSize} curveProbeX={curveProbeX} tickLabelFontSize={mainPlotTickLabelFontSize} xDomain={xDomain} xTicks={xTicks} xFactor={plotXFactor} xUnitLabel={resolvedXUnitMeta.label} xLabelInterval={xLabelInterval} xTickDigits={xTickDigitsDisplay} xTooltipDigits={xTooltipDigits} yDomain={vthSlopeDiagnosticsYDomain} yTicks={vthSlopeDiagnosticsYTicks} referenceLines={focusedVthSlopeReferenceLines} rightReservedWidth={MAIN_PLOT_LEGEND_WIDTH} yAxisLabel="d√|Id|/dVg" valueUnitLabel={`${plotYUnitLabel}/${resolvedXUnitMeta.label || "V"}`}/>
                   </div>
                 </div>) : null}
 
