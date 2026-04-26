@@ -121,7 +121,9 @@
       ]
     },
     "nsis": {
-      "artifactName": "Conductor-${version}-windows-${arch}-setup.${ext}"
+      "artifactName": "Conductor-${version}-windows-${arch}-setup.${ext}",
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
     },
     "linux": {
       "icon": "build/icons/icon.png",

@@ -46,10 +46,34 @@ if ($null -eq $npm) {
   Fail "npm is not installed or not in PATH."
 }
 
-$scriptName = if ($DirOnly) { "pack:desktop" } else { "dist:desktop" }
-Write-Host "[pack-desktop-oneclick] Running: npm run $scriptName"
-& npm.cmd run $scriptName
-Ensure-LastExitCodeZero -Code $LASTEXITCODE -Step "npm run $scriptName"
+if ($DirOnly) {
+  $scriptName = "pack:desktop"
+  Write-Host "[pack-desktop-oneclick] Running: npm run $scriptName"
+  & npm.cmd run $scriptName
+  Ensure-LastExitCodeZero -Code $LASTEXITCODE -Step "npm run $scriptName"
+} else {
+  Write-Host "[pack-desktop-oneclick] Running: npm run build:desktop"
+  & npm.cmd run build:desktop
+  Ensure-LastExitCodeZero -Code $LASTEXITCODE -Step "npm run build:desktop"
+
+  Write-Host "[pack-desktop-oneclick] Running: npm run verify:origin-worker"
+  & npm.cmd run verify:origin-worker
+  Ensure-LastExitCodeZero -Code $LASTEXITCODE -Step "npm run verify:origin-worker"
+
+  $builder = Get-Command npx -ErrorAction SilentlyContinue
+  if ($null -eq $builder) {
+    Fail "npx is not installed or not in PATH."
+  }
+
+  $builderArgs = @(
+    "electron-builder",
+    "--config.nsis.oneClick=true",
+    "--config.nsis.allowToChangeInstallationDirectory=false"
+  )
+  Write-Host "[pack-desktop-oneclick] Running: npx $($builderArgs -join ' ')"
+  & npx.cmd @builderArgs
+  Ensure-LastExitCodeZero -Code $LASTEXITCODE -Step "npx electron-builder"
+}
 
 $releaseDir = Join-Path $projectRoot "release"
 if (Test-Path -LiteralPath $releaseDir) {
@@ -61,4 +85,3 @@ if (Test-Path -LiteralPath $releaseDir) {
 } else {
   Write-Host "[pack-desktop-oneclick] Output directory not found: $releaseDir"
 }
-
