@@ -60,7 +60,7 @@ type SsRange = {
     x2: number;
 };
 type CurrentBiasRole = "ion" | "ioff";
-type PlotTypeOption = "iv" | "gm" | "ss" | "j";
+type PlotTypeOption = "iv" | "gm" | "ss" | "vth" | "j";
 const MAX_RENDER_SERIES_POINTS = 600;
 const MIN_RENDER_SERIES_POINTS = 120;
 const DEFAULT_RENDER_POINT_BUDGET = 12000;
@@ -97,50 +97,134 @@ type LegendEditingState = {
 
 type AxisTitleOverridesByFileId = Record<string, Partial<Record<"x" | "y", string>>>;
 
-const computeThresholdVoltageFromMaxGm = (points: any[]) => {
-    if (!Array.isArray(points))
+type VthBranch = "electron" | "hole";
+type VthFitResult = {
+    branch: VthBranch;
+    intercept: number;
+    r2: number;
+    slope: number;
+    vth: number;
+    x1: number;
+    x2: number;
+    y1: number;
+    y2: number;
+};
+
+const toSqrtCurrentPoints = (points: any[]) => (Array.isArray(points) ? points : [])
+    .map((point: any) => {
+    const x = Number(point?.x);
+    const y = Number(point?.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y))
         return null;
-    let bestAbsGm = -Infinity;
-    let bestThresholdVoltage = null;
-    let bestX = null;
-    let bestCurrent = null;
-    let bestGm = null;
-    const segments = splitBidirectionalCurvePoints(points);
-    for (const segment of segments) {
-        const segmentPoints = Array.isArray(segment?.points) ? segment.points : [];
-        const segmentGm = computeCentralDerivative(segmentPoints);
-        const count = Math.min(segmentPoints.length, segmentGm.length);
-        for (let index = 0; index < count; index += 1) {
-            const point = segmentPoints[index];
-            const gmPoint = segmentGm[index];
-            const x = Number(point?.x);
-            const current = Number(point?.y);
-            const gmValue = Number(gmPoint?.y);
-            if (!Number.isFinite(x) ||
-                !Number.isFinite(current) ||
-                !Number.isFinite(gmValue) ||
-                gmValue === 0) {
+    return {
+        x,
+        y: Math.sqrt(Math.abs(y)),
+        rawCurrent: y,
+    };
+})
+    .filter((point): point is { rawCurrent: number; x: number; y: number } => point !== null && Number.isFinite(point.y));
+
+const fitLinear = (points: Array<{ x: number; y: number }>) => {
+    const n = points.length;
+    if (n < 2)
+        return null;
+    let sx = 0;
+    let sy = 0;
+    let sxx = 0;
+    let sxy = 0;
+    for (const point of points) {
+        sx += point.x;
+        sy += point.y;
+        sxx += point.x * point.x;
+        sxy += point.x * point.y;
+    }
+    const denom = n * sxx - sx * sx;
+    if (!Number.isFinite(denom) || denom === 0)
+        return null;
+    const slope = (n * sxy - sx * sy) / denom;
+    const intercept = (sy - slope * sx) / n;
+    if (!Number.isFinite(slope) || !Number.isFinite(intercept) || slope === 0)
+        return null;
+    const meanY = sy / n;
+    let ssRes = 0;
+    let ssTot = 0;
+    for (const point of points) {
+        const predicted = slope * point.x + intercept;
+        ssRes += (point.y - predicted) ** 2;
+        ssTot += (point.y - meanY) ** 2;
+    }
+    const r2 = ssTot > 0 ? 1 - ssRes / ssTot : 1;
+    return { intercept, r2, slope };
+};
+
+const pickVthLinearFit = (points: Array<{ x: number; y: number }>, branch: VthBranch): VthFitResult | null => {
+    const sorted = points
+        .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y) && point.y > 0)
+        .slice()
+        .sort((a, b) => a.x - b.x);
+    if (sorted.length < 5)
+        return null;
+    const minWindow = Math.min(5, sorted.length);
+    const maxWindow = Math.min(16, sorted.length);
+    const maxY = Math.max(...sorted.map((point) => point.y));
+    let best: (VthFitResult & { score: number }) | null = null;
+    for (let windowSize = minWindow; windowSize <= maxWindow; windowSize += 1) {
+        for (let start = 0; start <= sorted.length - windowSize; start += 1) {
+            const window = sorted.slice(start, start + windowSize);
+            const fit = fitLinear(window);
+            if (!fit)
                 continue;
+            if (branch === "electron" && fit.slope <= 0)
+                continue;
+            if (branch === "hole" && fit.slope >= 0)
+                continue;
+            const ys = window.map((point) => point.y);
+            const ySpan = Math.max(...ys) - Math.min(...ys);
+            if (maxY > 0 && ySpan / maxY < 0.12)
+                continue;
+            const vth = -fit.intercept / fit.slope;
+            if (!Number.isFinite(vth))
+                continue;
+            const x1 = window[0]!.x;
+            const x2 = window[window.length - 1]!.x;
+            const y1 = fit.slope * x1 + fit.intercept;
+            const y2 = fit.slope * x2 + fit.intercept;
+            if (!Number.isFinite(y1) || !Number.isFinite(y2))
+                continue;
+            const score = fit.r2 + Math.min(0.08, ySpan / Math.max(maxY, 1e-300) * 0.08) + windowSize * 0.002;
+            if (!best || score > best.score) {
+                best = {
+                    branch,
+                    intercept: fit.intercept,
+                    r2: fit.r2,
+                    score,
+                    slope: fit.slope,
+                    vth,
+                    x1,
+                    x2,
+                    y1,
+                    y2,
+                };
             }
-            const thresholdVoltage = x - current / gmValue;
-            const absGm = Math.abs(gmValue);
-            if (!Number.isFinite(thresholdVoltage) || absGm <= bestAbsGm)
-                continue;
-            bestAbsGm = absGm;
-            bestThresholdVoltage = thresholdVoltage;
-            bestX = x;
-            bestCurrent = current;
-            bestGm = gmValue;
         }
     }
-    return bestThresholdVoltage === null
-        ? null
-        : {
-            thresholdVoltage: bestThresholdVoltage,
-            thresholdVoltageCurrent: bestCurrent,
-            thresholdVoltageGm: bestGm,
-            xAtThresholdVoltageReference: bestX,
-        };
+    if (!best)
+        return null;
+    const { score: _score, ...fit } = best;
+    return fit;
+};
+
+const computeVthSqrtFits = (points: any[]): VthFitResult[] => {
+    const sqrtPoints = toSqrtCurrentPoints(points);
+    if (sqrtPoints.length < 5)
+        return [];
+    const valley = sqrtPoints.reduce((best, point) => point.y < best.y ? point : best, sqrtPoints[0]!);
+    const holePoints = sqrtPoints.filter((point) => point.x <= valley.x);
+    const electronPoints = sqrtPoints.filter((point) => point.x >= valley.x);
+    return [
+        pickVthLinearFit(holePoints, "hole"),
+        pickVthLinearFit(electronPoints, "electron"),
+    ].filter((fit): fit is VthFitResult => fit !== null);
 };
 
 type EditableLegendItemProps = {
@@ -516,12 +600,13 @@ type ProgressiveAnalysisState = {
     totalCount: number;
     pending: boolean;
 };
-const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, primaryPlotLabel, derivativeLabel, gmApplicable, ssApplicable, areaAvailable, onChange, }: {
+const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, primaryPlotLabel, derivativeLabel, gmApplicable, ssApplicable, vthApplicable, areaAvailable, onChange, }: {
     activePlotType: PlotTypeOption;
     primaryPlotLabel?: string;
     derivativeLabel: string;
     gmApplicable: boolean;
     ssApplicable: boolean;
+    vthApplicable: boolean;
     areaAvailable: boolean;
     onChange: (nextPlotType: PlotTypeOption) => void;
 }) {
@@ -564,6 +649,15 @@ const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, prim
                 disabled: !ssApplicable,
                 title: !ssApplicable
                     ? "SS is available when the selected data has a usable current-vs-bias sweep."
+                    : "",
+            },
+            {
+                value: "vth",
+                label: "Vth",
+                id: "device-analysis-plot-vth-btn",
+                disabled: !vthApplicable,
+                title: !vthApplicable
+                    ? "Vth extraction is available for transfer curves."
                     : "",
             },
             {
@@ -625,7 +719,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         }
         setInternalActiveFileId(nextFileId ?? null);
     }, [isActiveFileControlled, onActiveFileIdChange]);
-    const [plotType, setPlotType] = useState<PlotTypeOption>("iv"); // 'iv' | 'gm' | 'ss' | 'j'
+    const [plotType, setPlotType] = useState<PlotTypeOption>("iv");
     const [focusedSeriesId, setFocusedSeriesId] = useState<string | null>(null);
     const [persistedYUnitByFileId, setPersistedYUnitByFileId] = useState<Record<string, DeviceAnalysisYUnit>>({});
     const [persistedYScaleByFileId, setPersistedYScaleByFileId] = useState<Record<string, "linear" | "log">>({});
@@ -1699,9 +1793,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 gmMetricsCache.set(series.id, gmMetric);
             }
         }
-        const thresholdVoltageMetric = transferMetricsApplicable
-            ? computeThresholdVoltageFromMaxGm(points)
-            : null;
+        const vthFits = transferMetricsApplicable ? computeVthSqrtFits(points) : [];
+        const electronVthFit = vthFits.find((fit) => fit.branch === "electron") ?? null;
+        const holeVthFit = vthFits.find((fit) => fit.branch === "hole") ?? null;
         const strictFit = ssAuto?.strict ?? { ok: false, reason: "common.invalid_points" };
         const suggestedFit = ssAuto?.suggested ?? {
             ok: false,
@@ -1795,10 +1889,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     : null,
                 gmMaxAbs: gmMetric.gmMaxAbs,
                 xAtGmMaxAbs: gmMetric.xAtGmMaxAbs ?? null,
-                thresholdVoltage: thresholdVoltageMetric?.thresholdVoltage ?? null,
-                thresholdVoltageCurrent: thresholdVoltageMetric?.thresholdVoltageCurrent ?? null,
-                thresholdVoltageGm: thresholdVoltageMetric?.thresholdVoltageGm ?? null,
-                xAtThresholdVoltageReference: thresholdVoltageMetric?.xAtThresholdVoltageReference ?? null,
+                thresholdVoltage: electronVthFit?.vth ?? holeVthFit?.vth ?? null,
+                thresholdVoltageElectron: electronVthFit?.vth ?? null,
+                thresholdVoltageHole: holeVthFit?.vth ?? null,
+                vthFits,
                 ss: selectedSs,
                 ssMethod: selected.method,
                 ssConfidence: selected.confidence,
@@ -2084,16 +2178,19 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         return false;
     }, [activeFile?.series, analysisBySeriesId, transferMetricsApplicable]);
     const gmApplicable = useMemo(() => transferMetricsApplicable || outputMetricsApplicable, [outputMetricsApplicable, transferMetricsApplicable]);
+    const vthApplicable = transferMetricsApplicable;
     const ssApplicable = ssHeuristicApplicable || ssComputedApplicable;
     const effectivePlotType = useMemo(() => {
         if (plotType === "j" && !area)
             return "iv";
         if (plotType === "gm" && !gmApplicable)
             return "iv";
+        if (plotType === "vth" && !vthApplicable)
+            return "iv";
         if (plotType === "ss" && !ssApplicable)
             return "iv";
         return plotType;
-    }, [area, gmApplicable, plotType, ssApplicable]);
+    }, [area, gmApplicable, plotType, ssApplicable, vthApplicable]);
     const plotSeriesCacheKey = useMemo(() => `${analysisCacheKey}::plot:${effectivePlotType}::labels:${activeSeriesLegendLabelsSignature}`, [activeSeriesLegendLabelsSignature, analysisCacheKey, effectivePlotType]);
     const currentManualBiasApplicable = transferMetricsApplicable && effectivePlotType === "iv" && ionIoffMethod === "manual" && Boolean(focusedSeriesId);
     const handlePlotTypeChange = React.useCallback((nextPlotType: PlotTypeOption) => {
@@ -2101,7 +2198,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             setPlotType(nextPlotType);
         });
     }, []);
-    const plotYFactor = useMemo(() => resolvedYUnitMeta.factor, [resolvedYUnitMeta.factor]);
+    const plotYFactor = useMemo(() => effectivePlotType === "vth"
+        ? Math.sqrt(Math.max(0, resolvedYUnitMeta.factor))
+        : resolvedYUnitMeta.factor, [effectivePlotType, resolvedYUnitMeta.factor]);
     const plotXFactor = useMemo(() => resolvedXUnitMeta.factor, [resolvedXUnitMeta.factor]);
     const gmSecondDerivativeUnitLabel = useMemo(() => {
         const conductanceUnitLabel = toConductanceUnitLabel(resolvedYUnitMeta.label, gmUi.denomUnit);
@@ -2114,6 +2213,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const plotYUnitLabel = useMemo(() => {
         if (effectivePlotType === "gm")
             return toConductanceUnitLabel(resolvedYUnitMeta.label, gmUi.denomUnit);
+        if (effectivePlotType === "vth")
+            return `sqrt(|${resolvedYUnitMeta.label || "I"}|)`;
         if (effectivePlotType === "j")
             return `${resolvedYUnitMeta.label}/Area`;
         // SS tab main plot is I-V in log(|I|), so keep current unit here.
@@ -2179,7 +2280,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     ]);
     const plotSeriesByType = useMemo(() => {
         if (!activeFile?.fileId || !activeFile?.series?.length) {
-            return { iv: [], gm: [], ss: [], j: [] };
+            return { iv: [], gm: [], ss: [], vth: [], j: [] };
         }
         const cache = getFileCache(activeFile.fileId, activeFile);
         const cached = cache?.plotSeriesByConfigKey?.get(plotSeriesCacheKey);
@@ -2199,6 +2300,18 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const computed = {
             iv: base,
             ss: base,
+            vth: effectivePlotType === "vth"
+                ? activeFile.series.map((series: any, index: number) => {
+                    const label = resolveDisplayLegendLabel(activeFile.fileId, series, index);
+                    return {
+                        ...series,
+                        color: resolveSeriesChartColor(series, index),
+                        name: label,
+                        tooltipName: buildTooltipSeriesName(label, series?.id),
+                        data: toSqrtCurrentPoints(pointsBySeriesId.get(series.id) ?? []),
+                    };
+                })
+                : [],
             gm: effectivePlotType === "gm"
                 ? activeFile.series.map((series: any, index: number) => {
                     const label = resolveDisplayLegendLabel(activeFile.fileId, series, index);
@@ -2430,22 +2543,40 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return getChartColor(0);
         return getChartColor(idx);
     }, [focusedSeriesId, plotSeriesByType?.iv]);
-    const focusedThresholdVoltageOverlay = useMemo(() => {
-        if (effectivePlotType !== "gm")
-            return null;
-        const metrics = focusedAnalysis?.metrics ?? null;
-        const vth = Number(metrics?.thresholdVoltage);
-        const gm = Number(metrics?.thresholdVoltageGm);
-        const xAtGm = Number(metrics?.xAtThresholdVoltageReference);
-        if (!Number.isFinite(vth) || !Number.isFinite(gm) || !Number.isFinite(xAtGm))
-            return null;
-        return {
-            color: focusedSeriesColor,
-            gm,
-            vth,
-            xAtGm,
-        };
-    }, [effectivePlotType, focusedAnalysis?.metrics, focusedSeriesColor]);
+    const focusedVthFitOverlays = useMemo(() => {
+        if (effectivePlotType !== "vth")
+            return [];
+        const fits = Array.isArray(focusedAnalysis?.metrics?.vthFits)
+            ? focusedAnalysis.metrics.vthFits
+            : [];
+        return fits.map((fit: VthFitResult) => ({
+            color: fit.branch === "electron" ? "#22c55e" : "#a855f7",
+            intercept: fit.intercept,
+            label: fit.branch === "electron" ? "Vth,e" : "Vth,h",
+            r2: fit.r2,
+            slope: fit.slope,
+            vth: fit.vth,
+            x1: fit.x1,
+            x2: fit.x2,
+            y1: fit.y1,
+            y2: fit.y2,
+        }));
+    }, [effectivePlotType, focusedAnalysis?.metrics]);
+    const focusedVthFitRows = useMemo(() => {
+        if (effectivePlotType !== "vth")
+            return [];
+        const fits = Array.isArray(focusedAnalysis?.metrics?.vthFits)
+            ? focusedAnalysis.metrics.vthFits
+            : [];
+        return fits.map((fit: VthFitResult) => ({
+            branch: fit.branch,
+            fitRange: `[${formatNumber(fit.x1 * plotXFactor, { digits: 4 })}, ${formatNumber(fit.x2 * plotXFactor, { digits: 4 })}]`,
+            intercept: formatNumber(fit.intercept * plotYFactor, { digits: 4 }),
+            r2: formatNumber(fit.r2, { digits: 4 }),
+            slope: formatNumber((fit.slope * plotYFactor) / plotXFactor, { digits: 4 }),
+            vth: formatNumber(fit.vth * plotXFactor, { digits: 4 }),
+        }));
+    }, [effectivePlotType, focusedAnalysis?.metrics, plotXFactor, plotYFactor]);
     const ssSummary = useMemo(() => {
         if (effectivePlotType !== "ss")
             return null;
@@ -2506,6 +2637,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const byType = plotSeriesByType ?? { iv: [], gm: [], ss: [], j: [] };
         return effectivePlotType === "gm"
             ? byType.gm ?? []
+            : effectivePlotType === "vth"
+                ? byType.vth ?? []
             : effectivePlotType === "j"
                 ? byType.j ?? []
                 : effectivePlotType === "ss"
@@ -2658,6 +2791,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const autoMinY = autoMinMax?.minY ?? null;
     const autoMaxY = autoMinMax?.maxY ?? null;
     const effectiveYScale = useMemo(() => {
+        if (effectivePlotType === "vth")
+            return "linear";
         if (yScaleMode === "linear")
             return "linear";
         if (autoMinY === null || autoMaxY === null)
@@ -2665,7 +2800,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         if (autoMaxY <= 0)
             return "linear";
         return yScaleMode; // 'log' | 'logAbs'
-    }, [autoMaxY, autoMinY, yScaleMode]);
+    }, [autoMaxY, autoMinY, effectivePlotType, yScaleMode]);
     const yScaleWarning = useMemo(() => {
         if (yScaleMode === "linear")
             return "";
@@ -2694,10 +2829,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 return effectiveYScale === "linear" ? [0, 1] : [1e-3, 1];
             }
             if (effectiveYScale === "linear") {
-                const minY = effectivePlotType === "gm"
+                const minY = effectivePlotType === "gm" || effectivePlotType === "vth"
                     ? Math.min(autoMinMax.minY, 0)
                     : autoMinMax.minY;
-                const maxY = effectivePlotType === "gm"
+                const maxY = effectivePlotType === "gm" || effectivePlotType === "vth"
                     ? Math.max(autoMinMax.maxY, 0)
                     : autoMinMax.maxY;
                 return padLinearDomain(minY, maxY);
@@ -3183,14 +3318,25 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const metricsRowElements = useMemo(() => metricsRows.map((row: any) => (<CalculatedParametersRow key={row.id} row={row} isPending={Boolean(row?.isPending)} buildCurrentTooltip={buildCurrentTooltip} buildSsTooltip={buildSsTooltip} showTransferMetrics={calculatedParametersMode === "transfer"}/>)), [buildCurrentTooltip, buildSsTooltip, calculatedParametersMode, metricsRows]);
     const diagnosticsContextBadges = useMemo(() => {
         const focusedLabel = String(focusedSeriesLabel ?? "").trim();
+        const labelKey = (effectivePlotType === "gm" && gmDiagnosticsEnabled) ||
+            (effectivePlotType === "ss" && ssDiagnosticsEnabled)
+            ? "da_chart_diagnostic_curve_label"
+            : "da_chart_selected_curve_label";
         return [
-            { text: "Curve" },
+            { text: t(labelKey) },
             {
                 color: focusedSeriesColor,
                 text: focusedLabel || "current",
             },
         ];
-    }, [focusedSeriesColor, focusedSeriesLabel]);
+    }, [
+        effectivePlotType,
+        focusedSeriesColor,
+        focusedSeriesLabel,
+        gmDiagnosticsEnabled,
+        ssDiagnosticsEnabled,
+        t,
+    ]);
     const showIonIoffControl = transferMetricsApplicable && effectivePlotType === "iv";
     const showSsDiagnosticsPanel = effectivePlotType === "ss";
     const showGmDiagnosticsPanel = effectivePlotType === "gm";
@@ -3302,7 +3448,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
 
           <div className="mb-4 flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-4 flex-wrap">
-              <PlotTypeToggle activePlotType={effectivePlotType} primaryPlotLabel={primaryPlotLabel} derivativeLabel={gmUi.kind === "gds" ? "gds" : "gm"} gmApplicable={gmApplicable} ssApplicable={ssApplicable} areaAvailable={Boolean(area)} onChange={handlePlotTypeChange}/>
+              <PlotTypeToggle activePlotType={effectivePlotType} primaryPlotLabel={primaryPlotLabel} derivativeLabel={gmUi.kind === "gds" ? "gds" : "gm"} gmApplicable={gmApplicable} ssApplicable={ssApplicable} vthApplicable={vthApplicable} areaAvailable={Boolean(area)} onChange={handlePlotTypeChange}/>
 
 
 
@@ -3350,7 +3496,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     label: "Log",
                 },
             ]} aria-label="Y scale" className="w-fit da-neutral-select" stableWidth data-cta="Device Analysis" data-cta-position="y-scale" data-cta-copy="y scale"/>)}
-                  {effectivePlotType !== "ss" && yScaleMode === "log" ? (<DropdownField id="device-analysis-log-current-mode-select" size="sm" value={yLogCurrentMode} onChange={(next: any) => {
+                  {effectivePlotType !== "ss" && effectivePlotType !== "vth" && yScaleMode === "log" ? (<DropdownField id="device-analysis-log-current-mode-select" size="sm" value={yLogCurrentMode} onChange={(next: any) => {
                 const mode = normalizeLogCurrentMode(next);
                 const fileKey = String(effectiveActiveFileId ?? "").trim();
                 userChangedYLogCurrentModeRef.current = true;
@@ -3487,7 +3633,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     plotYUnitLabel={plotYUnitLabel}
                     focusedSeriesId={focusedSeriesId}
                     focusedFitLine={focusedFitLineForRender}
-                    thresholdVoltageOverlay={focusedThresholdVoltageOverlay}
+                    vthFitOverlays={focusedVthFitOverlays}
                     focusedSeriesColor={focusedSeriesColor}
                     highlightOverlays={currentOverlaysForVisiblePlot}
                     currentBiasMarkers={currentBiasMarkersForVisiblePlot}
@@ -3526,6 +3672,25 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
               </div>
               {!hasVisiblePlotSeries ? (<div className="mt-2 rounded-lg border border-dashed border-border/70 bg-bg-page/40 px-3 py-2 text-sm text-text-secondary">
                   No visible curves. Use the legend checkboxes to show one or more series.
+                </div>) : null}
+
+              {effectivePlotType === "vth" ? (<div className="mt-3 rounded-lg border border-border bg-bg-page/40 px-3 py-2">
+                  <div className="grid gap-2 text-xs text-text-secondary sm:grid-cols-2 lg:grid-cols-3">
+                    {focusedVthFitRows.length ? focusedVthFitRows.map((row: any) => (<div key={row.branch} className="min-w-0 rounded-md border border-border/70 bg-bg-surface/70 px-3 py-2">
+                        <div className="mb-1 flex items-center justify-between gap-2">
+                          <span className="font-medium text-text-primary capitalize">{row.branch}</span>
+                          <span className="font-mono text-text-primary">Vth={row.vth}</span>
+                        </div>
+                        <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-1 font-mono">
+                          <span>range</span><span className="text-right text-text-primary">{row.fitRange}</span>
+                          <span>slope</span><span className="text-right text-text-primary">{row.slope}</span>
+                          <span>intercept</span><span className="text-right text-text-primary">{row.intercept}</span>
+                          <span>R²</span><span className="text-right text-text-primary">{row.r2}</span>
+                        </div>
+                      </div>)) : (<div className="text-sm text-text-secondary">
+                        No stable sqrt(|Id|)-Vg linear branch was found for the focused curve.
+                      </div>)}
+                  </div>
                 </div>) : null}
 
               {effectivePlotType === "ss" && visibleSsDiagnosticsSeriesForRender.length ? (<div className="mt-4">

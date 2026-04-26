@@ -17,9 +17,8 @@ type CalculatedParameterRowData = {
   gmMaxAbs: number | null;
   xAtGmMaxAbs: number | null;
   thresholdVoltage: number | null;
-  thresholdVoltageCurrent?: number | null;
-  thresholdVoltageGm?: number | null;
-  xAtThresholdVoltageReference?: number | null;
+  thresholdVoltageElectron?: number | null;
+  thresholdVoltageHole?: number | null;
   ss: number | null;
   ssConfidence: SsConfidence;
   xAtSs: number | null;
@@ -202,7 +201,7 @@ const CalculatedParametersRow = memo(function CalculatedParametersRow({
             title={
               isPending
                 ? ""
-                : `linear extrapolation at max|gm|: x=${row.xAtThresholdVoltageReference ?? "-"}, I=${row.thresholdVoltageCurrent ?? "-"}, gm=${row.thresholdVoltageGm ?? "-"}`
+                : `sqrt(|Id|)-Vg linear extrapolation: Vth,e=${row.thresholdVoltageElectron ?? "-"}, Vth,h=${row.thresholdVoltageHole ?? "-"}`
             }
             value={row.thresholdVoltage}
           />
@@ -256,9 +255,8 @@ function areRowsEqual(
   if (previousRow.gmMaxAbs !== nextRow.gmMaxAbs) return false;
   if (previousRow.xAtGmMaxAbs !== nextRow.xAtGmMaxAbs) return false;
   if (previousRow.thresholdVoltage !== nextRow.thresholdVoltage) return false;
-  if (previousRow.thresholdVoltageCurrent !== nextRow.thresholdVoltageCurrent) return false;
-  if (previousRow.thresholdVoltageGm !== nextRow.thresholdVoltageGm) return false;
-  if (previousRow.xAtThresholdVoltageReference !== nextRow.xAtThresholdVoltageReference) return false;
+  if (previousRow.thresholdVoltageElectron !== nextRow.thresholdVoltageElectron) return false;
+  if (previousRow.thresholdVoltageHole !== nextRow.thresholdVoltageHole) return false;
   if (previousRow.ss !== nextRow.ss) return false;
   if (previousRow.ssConfidence !== nextRow.ssConfidence) return false;
   if (previousRow.xAtSs !== nextRow.xAtSs) return false;
