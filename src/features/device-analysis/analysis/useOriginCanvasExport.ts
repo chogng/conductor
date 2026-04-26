@@ -81,6 +81,9 @@ type UseOriginCanvasExportOptions = {
   resolveYScaleForFile?: (
     file: any,
   ) => DeviceAnalysisOriginYAxisScaleMode;
+  resolveYLogCurrentModeForFile?: (
+    file: any,
+  ) => "all" | "positive";
   resolveCurveLabelForSeries?: (
     file: any,
     series: any,
@@ -236,6 +239,7 @@ export const useOriginCanvasExport = ({
     resolveDeviceAnalysisSeriesLabel(series, index),
   resolveAxisTitleForFile = () => "",
   resolveYScaleForFile = () => "linear",
+  resolveYLogCurrentModeForFile = () => "all",
   resolveYUnitForFile = () => "A",
   showToast,
   t,
@@ -839,6 +843,11 @@ export const useOriginCanvasExport = ({
       (file) => getDeviceAnalysisYUnitMeta(resolveYUnitForFile(file)).label,
       resolveCurveLabelForSeries,
       resolveAxisTitleForFile,
+      (file, y) =>
+        resolveYScaleForFile(file) === "log" &&
+        resolveYLogCurrentModeForFile(file) === "all"
+          ? Math.abs(y)
+          : y,
     );
     if (!plan.payloads.length) {
       throw new Error(t("da_origin_select_curve"));
@@ -849,6 +858,7 @@ export const useOriginCanvasExport = ({
     resolveYScaleForFile,
     resolveCurveLabelForSeries,
     resolveAxisTitleForFile,
+    resolveYLogCurrentModeForFile,
     resolveYUnitForFile,
     resolvedOriginExportMode,
     selectedOriginCanvases,

@@ -490,6 +490,8 @@
     da_calc_group_off_state: '截止态',
     da_calc_group_ratio: '开关比',
     da_calc_group_derivative: '跨导',
+    da_calc_group_threshold_voltage: '阈值电压',
+    da_calc_group_threshold_voltage_hint: 'Vth = x - I/gm，取 max|gm| 处的线性外推截距',
     da_calc_group_ss: '亚阈值',
     da_calc_group_jon: '电流密度',
     da_calc_group_jon_hint: 'J = |I|/Area（仅在有 Area 时）',

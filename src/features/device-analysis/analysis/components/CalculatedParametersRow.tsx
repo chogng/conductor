@@ -16,6 +16,10 @@ type CalculatedParameterRowData = {
   ionIoff: number | null;
   gmMaxAbs: number | null;
   xAtGmMaxAbs: number | null;
+  thresholdVoltage: number | null;
+  thresholdVoltageCurrent?: number | null;
+  thresholdVoltageGm?: number | null;
+  xAtThresholdVoltageReference?: number | null;
   ss: number | null;
   ssConfidence: SsConfidence;
   xAtSs: number | null;
@@ -192,6 +196,16 @@ const CalculatedParametersRow = memo(function CalculatedParametersRow({
       />
       {showTransferMetrics ? (
         <>
+          <NumericMetricCell
+            className="p-2 font-mono text-[14px] text-text-primary whitespace-nowrap text-center border-l border-border bg-violet-500/5"
+            isPending={isPending}
+            title={
+              isPending
+                ? ""
+                : `linear extrapolation at max|gm|: x=${row.xAtThresholdVoltageReference ?? "-"}, I=${row.thresholdVoltageCurrent ?? "-"}, gm=${row.thresholdVoltageGm ?? "-"}`
+            }
+            value={row.thresholdVoltage}
+          />
           <SsMetricCell
             confidence={row.ssConfidence}
             isPending={isPending}
@@ -241,6 +255,10 @@ function areRowsEqual(
   if (previousRow.ionIoff !== nextRow.ionIoff) return false;
   if (previousRow.gmMaxAbs !== nextRow.gmMaxAbs) return false;
   if (previousRow.xAtGmMaxAbs !== nextRow.xAtGmMaxAbs) return false;
+  if (previousRow.thresholdVoltage !== nextRow.thresholdVoltage) return false;
+  if (previousRow.thresholdVoltageCurrent !== nextRow.thresholdVoltageCurrent) return false;
+  if (previousRow.thresholdVoltageGm !== nextRow.thresholdVoltageGm) return false;
+  if (previousRow.xAtThresholdVoltageReference !== nextRow.xAtThresholdVoltageReference) return false;
   if (previousRow.ss !== nextRow.ss) return false;
   if (previousRow.ssConfidence !== nextRow.ssConfidence) return false;
   if (previousRow.xAtSs !== nextRow.xAtSs) return false;

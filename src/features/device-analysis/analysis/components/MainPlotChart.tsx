@@ -90,6 +90,13 @@ type SsInteractionConfig = {
   onCommit?: (range: SsOverlay) => void;
 };
 
+type ThresholdVoltageOverlay = {
+  color: string;
+  gm: number;
+  xAtGm: number;
+  vth: number;
+} | null;
+
 type MainPlotChartProps = {
   plotType?: string;
   curveLineWidth?: number;
@@ -118,6 +125,7 @@ type MainPlotChartProps = {
   plotYUnitLabel: string;
   focusedSeriesId?: string | null;
   focusedFitLine?: PlotPoint[] | null;
+  thresholdVoltageOverlay?: ThresholdVoltageOverlay;
   focusedSeriesColor?: string;
   highlightOverlays?: HighlightOverlay[];
   currentBiasMarkers?: CurrentBiasMarker[];
@@ -649,6 +657,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
   currentBiasInteraction,
   effectiveYScale,
   focusedSeriesColor,
+  thresholdVoltageOverlay,
   focusedSeriesId,
   focusedSsOverlay,
   highlightOverlays,
@@ -700,6 +709,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
   currentBiasInteraction?: CurrentBiasInteractionConfig | null;
   effectiveYScale: MainPlotChartProps["effectiveYScale"];
   focusedSeriesColor: string;
+  thresholdVoltageOverlay?: ThresholdVoltageOverlay;
   focusedSeriesId?: string | null;
   focusedSsOverlay?: SsOverlay | null;
   highlightOverlays: HighlightOverlay[];
@@ -998,6 +1008,71 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
       ctx.stroke();
       ctx.restore();
     };
+    const drawThresholdVoltageOverlay = () => {
+      if (!thresholdVoltageOverlay || effectiveYScale !== "linear") return;
+      const vth = Number(thresholdVoltageOverlay.vth);
+      const xAtGm = Number(thresholdVoltageOverlay.xAtGm);
+      const gm = Number(thresholdVoltageOverlay.gm);
+      if (!Number.isFinite(vth) || !Number.isFinite(xAtGm) || !Number.isFinite(gm)) {
+        return;
+      }
+      const zeroY = 0;
+      if (zeroY < scale.yMin || zeroY > scale.yMax) return;
+      const vthPx = scale.xToPx(vth);
+      const gmXPx = scale.xToPx(xAtGm);
+      const zeroYPx = scale.yToPx(zeroY);
+      const gmYPx = scale.yToPx(gm);
+      const plotRight = plotRect.left + plotRect.width;
+      const plotBottom = plotRect.top + plotRect.height;
+      const intersectsPlot =
+        (vthPx >= plotRect.left && vthPx <= plotRight) ||
+        (gmXPx >= plotRect.left && gmXPx <= plotRight);
+      if (!intersectsPlot) return;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(plotRect.left, plotRect.top, plotRect.width, plotRect.height);
+      ctx.clip();
+      ctx.strokeStyle = thresholdVoltageOverlay.color;
+      ctx.fillStyle = thresholdVoltageOverlay.color;
+      ctx.globalAlpha = 0.85;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([7, 5]);
+      ctx.beginPath();
+      ctx.moveTo(vthPx, zeroYPx);
+      ctx.lineTo(gmXPx, gmYPx);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 0.35;
+      ctx.beginPath();
+      ctx.moveTo(vthPx, plotRect.top);
+      ctx.lineTo(vthPx, plotBottom);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+      for (const point of [
+        { x: vthPx, y: zeroYPx, radius: 4.5 },
+        { x: gmXPx, y: gmYPx, radius: 4 },
+      ]) {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, point.radius + 2, 0, Math.PI * 2);
+        ctx.fillStyle = chartTheme.markerOutline;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, point.radius, 0, Math.PI * 2);
+        ctx.fillStyle = thresholdVoltageOverlay.color;
+        ctx.fill();
+      }
+      ctx.font = `${Math.max(11, tickLabelFontSize - 2)}px ${AXIS_FONT_FAMILY}`;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "bottom";
+      ctx.fillStyle = thresholdVoltageOverlay.color;
+      ctx.fillText(
+        `Vth ${formatNumber(vth * plotXFactor, { digits: xTickDigits })}`,
+        clamp(vthPx + 7, plotRect.left + 4, plotRight - 72),
+        clamp(zeroYPx - 7, plotRect.top + 14, plotBottom - 4),
+      );
+      ctx.restore();
+    };
 
     const xTicksInDomain = filterTicksToDomain(xTicks, scale.xMin, scale.xMax);
     const yTicksInDomain = filterTicksToDomain(chartYTicks, scale.yMin, scale.yMax);
@@ -1241,6 +1316,9 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
     if (isSsPlot && chartFocusedFitLine) {
       drawSeriesLine(chartFocusedFitLine, focusedSeriesColor, 2, 0.7, [6, 4]);
     }
+    if (plotType === "gm") {
+      drawThresholdVoltageOverlay();
+    }
     ctx.restore();
 
     for (const overlay of highlightOverlays) {
@@ -1332,6 +1410,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
     showMinorTicks,
     ssOverlayStyle,
     tickLabelFontSize,
+    thresholdVoltageOverlay,
     tickLabelOffsetPx,
     xAxisLabel,
     xTickDigits,
@@ -2357,6 +2436,7 @@ const MainPlotChart = memo(function MainPlotChart({
   plotYUnitLabel,
   focusedSeriesId,
   focusedFitLine,
+  thresholdVoltageOverlay = null,
   focusedSeriesColor = getChartColor(0),
   highlightOverlays = [],
   currentBiasMarkers = [],
@@ -2581,6 +2661,7 @@ const MainPlotChart = memo(function MainPlotChart({
       currentBiasInteraction={currentBiasInteraction}
       effectiveYScale={effectiveYScale}
       focusedSeriesColor={focusedSeriesColor}
+      thresholdVoltageOverlay={thresholdVoltageOverlay}
       focusedSeriesId={focusedSeriesId}
       focusedSsOverlay={focusedSsOverlay}
       highlightOverlays={highlightOverlays}

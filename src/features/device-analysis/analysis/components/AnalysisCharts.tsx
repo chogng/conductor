@@ -67,7 +67,7 @@ const DEFAULT_RENDER_POINT_BUDGET = 12000;
 const GM_RENDER_POINT_BUDGET = 9000;
 const MAIN_PLOT_LEGEND_WIDTH = 220;
 const TRANSFER_CALCULATED_PARAMETERS_COLUMN_WIDTHS_PX = [
-    92, 128, 88, 128, 88, 120, 168, 88, 104, 88, 120,
+    92, 128, 88, 128, 88, 120, 168, 88, 112, 104, 88, 120,
 ];
 const DERIVATIVE_ONLY_CALCULATED_PARAMETERS_COLUMN_WIDTHS_PX = [92, 168, 88];
 const ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS = "!space-y-0";
@@ -96,6 +96,52 @@ type LegendEditingState = {
 };
 
 type AxisTitleOverridesByFileId = Record<string, Partial<Record<"x" | "y", string>>>;
+
+const computeThresholdVoltageFromMaxGm = (points: any[]) => {
+    if (!Array.isArray(points))
+        return null;
+    let bestAbsGm = -Infinity;
+    let bestThresholdVoltage = null;
+    let bestX = null;
+    let bestCurrent = null;
+    let bestGm = null;
+    const segments = splitBidirectionalCurvePoints(points);
+    for (const segment of segments) {
+        const segmentPoints = Array.isArray(segment?.points) ? segment.points : [];
+        const segmentGm = computeCentralDerivative(segmentPoints);
+        const count = Math.min(segmentPoints.length, segmentGm.length);
+        for (let index = 0; index < count; index += 1) {
+            const point = segmentPoints[index];
+            const gmPoint = segmentGm[index];
+            const x = Number(point?.x);
+            const current = Number(point?.y);
+            const gmValue = Number(gmPoint?.y);
+            if (!Number.isFinite(x) ||
+                !Number.isFinite(current) ||
+                !Number.isFinite(gmValue) ||
+                gmValue === 0) {
+                continue;
+            }
+            const thresholdVoltage = x - current / gmValue;
+            const absGm = Math.abs(gmValue);
+            if (!Number.isFinite(thresholdVoltage) || absGm <= bestAbsGm)
+                continue;
+            bestAbsGm = absGm;
+            bestThresholdVoltage = thresholdVoltage;
+            bestX = x;
+            bestCurrent = current;
+            bestGm = gmValue;
+        }
+    }
+    return bestThresholdVoltage === null
+        ? null
+        : {
+            thresholdVoltage: bestThresholdVoltage,
+            thresholdVoltageCurrent: bestCurrent,
+            thresholdVoltageGm: bestGm,
+            xAtThresholdVoltageReference: bestX,
+        };
+};
 
 type EditableLegendItemProps = {
     checked: boolean;
@@ -266,6 +312,15 @@ const inferUniformTickStep = (ticks: unknown, toleranceRatio = 1e-6): number | n
     if (!deltas.every((delta) => Math.abs(delta - base) <= tolerance))
         return null;
     return Math.abs(base);
+};
+const inferUniformLogTickStep = (ticks: unknown, toleranceRatio = 1e-6): number | null => {
+    if (!Array.isArray(ticks) || ticks.length < 2)
+        return null;
+    const values = ticks
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value) && value > 0)
+        .map((value) => Math.log10(value));
+    return inferUniformTickStep(values, toleranceRatio);
 };
 const resolveAvailableActiveFileId = (processedData: any[], preferredFileId: any): string | null => {
     if (!processedData?.length)
@@ -1203,6 +1258,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         resolveCurveLabelForSeries: (file, series, index) => resolveDisplayLegendLabel(file?.fileId, series, index),
         resolveAxisTitleForFile: resolveAxisTitleForOrigin,
         resolveYScaleForFile: resolveLinearLogYScaleForFile,
+        resolveYLogCurrentModeForFile,
         resolveYUnitForFile,
         showToast,
         t,
@@ -1643,6 +1699,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 gmMetricsCache.set(series.id, gmMetric);
             }
         }
+        const thresholdVoltageMetric = transferMetricsApplicable
+            ? computeThresholdVoltageFromMaxGm(points)
+            : null;
         const strictFit = ssAuto?.strict ?? { ok: false, reason: "common.invalid_points" };
         const suggestedFit = ssAuto?.suggested ?? {
             ok: false,
@@ -1736,6 +1795,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     : null,
                 gmMaxAbs: gmMetric.gmMaxAbs,
                 xAtGmMaxAbs: gmMetric.xAtGmMaxAbs ?? null,
+                thresholdVoltage: thresholdVoltageMetric?.thresholdVoltage ?? null,
+                thresholdVoltageCurrent: thresholdVoltageMetric?.thresholdVoltageCurrent ?? null,
+                thresholdVoltageGm: thresholdVoltageMetric?.thresholdVoltageGm ?? null,
+                xAtThresholdVoltageReference: thresholdVoltageMetric?.xAtThresholdVoltageReference ?? null,
                 ss: selectedSs,
                 ssMethod: selected.method,
                 ssConfidence: selected.confidence,
@@ -2367,6 +2430,22 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return getChartColor(0);
         return getChartColor(idx);
     }, [focusedSeriesId, plotSeriesByType?.iv]);
+    const focusedThresholdVoltageOverlay = useMemo(() => {
+        if (effectivePlotType !== "gm")
+            return null;
+        const metrics = focusedAnalysis?.metrics ?? null;
+        const vth = Number(metrics?.thresholdVoltage);
+        const gm = Number(metrics?.thresholdVoltageGm);
+        const xAtGm = Number(metrics?.xAtThresholdVoltageReference);
+        if (!Number.isFinite(vth) || !Number.isFinite(gm) || !Number.isFinite(xAtGm))
+            return null;
+        return {
+            color: focusedSeriesColor,
+            gm,
+            vth,
+            xAtGm,
+        };
+    }, [effectivePlotType, focusedAnalysis?.metrics, focusedSeriesColor]);
     const ssSummary = useMemo(() => {
         if (effectivePlotType !== "ss")
             return null;
@@ -2615,7 +2694,13 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 return effectiveYScale === "linear" ? [0, 1] : [1e-3, 1];
             }
             if (effectiveYScale === "linear") {
-                return padLinearDomain(autoMinMax.minY, autoMinMax.maxY);
+                const minY = effectivePlotType === "gm"
+                    ? Math.min(autoMinMax.minY, 0)
+                    : autoMinMax.minY;
+                const maxY = effectivePlotType === "gm"
+                    ? Math.max(autoMinMax.maxY, 0)
+                    : autoMinMax.maxY;
+                return padLinearDomain(minY, maxY);
             }
             const logTicks = buildOriginLogAutoTicks(autoMinMax.minY, autoMinMax.maxY, 6);
             if (Array.isArray(logTicks) && logTicks.length >= 2) {
@@ -2652,6 +2737,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         axis?.yMax,
         axis?.yMin,
         effectiveYScale,
+        effectivePlotType,
         plotYFactor,
     ]);
     const visibleSsDiagnosticsSeries = useMemo(() => {
@@ -2867,7 +2953,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const ticks = Array.isArray(yTicks) && yTicks.length >= 2 ? yTicks : null;
         const minCandidateRaw = ticks ? Number(ticks[0]) : Number(yDomain?.[0]);
         const maxCandidateRaw = ticks ? Number(ticks[ticks.length - 1]) : Number(yDomain?.[1]);
-        const stepRaw = effectiveYScale === "linear" ? inferUniformTickStep(ticks) : null;
+        const stepRaw =
+            effectiveYScale === "linear"
+                ? inferUniformTickStep(ticks)
+                : inferUniformLogTickStep(ticks);
         const minCandidate = minCandidateRaw * plotYFactor;
         const maxCandidate = maxCandidateRaw * plotYFactor;
         if (!Number.isFinite(minCandidate) || !Number.isFinite(maxCandidate))
@@ -2879,7 +2968,11 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const mode: "linear" | "log" = effectiveYScale === "linear" ? "linear" : "log";
         if (mode === "log" && (!(min > 0) || !(max > 0)))
             return null;
-        const step = Number.isFinite(stepRaw) ? Number(stepRaw) * plotYFactor : null;
+        const step = Number.isFinite(stepRaw)
+            ? effectiveYScale === "linear"
+                ? Number(stepRaw) * plotYFactor
+                : Number(stepRaw)
+            : null;
         return { mode, min, max, step };
     }, [effectiveYScale, plotYFactor, yDomain, yTicks]);
     useEffect(() => {
@@ -3394,6 +3487,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     plotYUnitLabel={plotYUnitLabel}
                     focusedSeriesId={focusedSeriesId}
                     focusedFitLine={focusedFitLineForRender}
+                    thresholdVoltageOverlay={focusedThresholdVoltageOverlay}
                     focusedSeriesColor={focusedSeriesColor}
                     highlightOverlays={currentOverlaysForVisiblePlot}
                     currentBiasMarkers={currentBiasMarkersForVisiblePlot}
@@ -3545,6 +3639,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         {t("da_calc_group_derivative")}
                       </th>
                       {transferMetricsApplicable ? (<>
+                          <th className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-violet-500/5">
+                            {t("da_calc_group_threshold_voltage")}
+                          </th>
                           <th colSpan={2} className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-rose-500/5">
                             {t("da_calc_group_ss")}
                           </th>
@@ -3581,6 +3678,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         x
                       </th>
                       {transferMetricsApplicable ? (<>
+                          <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-violet-500/5" title={t("da_calc_group_threshold_voltage_hint")}>
+                            Vth
+                          </th>
                           <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-rose-500/5">
                             SS
                           </th>

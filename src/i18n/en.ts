@@ -490,6 +490,8 @@
     da_calc_group_off_state: 'Off-state',
     da_calc_group_ratio: 'On/Off Ratio',
     da_calc_group_derivative: 'Derivative',
+    da_calc_group_threshold_voltage: 'Threshold Voltage',
+    da_calc_group_threshold_voltage_hint: 'Vth = x - I/gm, using the linear extrapolated intercept at max|gm|.',
     da_calc_group_ss: 'Subthreshold',
     da_calc_group_jon: 'Current Density',
     da_calc_group_jon_hint: 'J = |I|/Area (if area is available).',

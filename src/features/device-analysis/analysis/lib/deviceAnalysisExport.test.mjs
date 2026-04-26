@@ -254,6 +254,45 @@ test("buildDeviceAnalysisOriginExportPlan scales exported X/Y data to the active
   assert.equal(rows[1], "1000,0.02");
 });
 
+test("buildDeviceAnalysisOriginExportPlan exports absolute current for log all-I Origin plots", () => {
+  const plan = buildDeviceAnalysisOriginExportPlan(
+    [
+      {
+        fileId: "pmos-file",
+        fileName: "pmos.csv",
+        xGroups: [[0, 1, 2]],
+        series: [
+          {
+            id: "curve-pmos",
+            groupIndex: 0,
+            y: [-1e-9, -2e-8, -3e-7],
+          },
+        ],
+      },
+    ],
+    undefined,
+    "merged",
+    () => "log",
+    () => 1,
+    () => 1,
+    () => "A",
+    undefined,
+    undefined,
+    (file, y) => (String(file?.fileId ?? "") === "pmos-file" ? Math.abs(y) : y),
+  );
+
+  assert.equal(plan.payloads.length, 1);
+  const payload = plan.payloads[0];
+  assert.equal(payload.yScaleMode, "log");
+  assert.equal(payload.yPositiveMin, 1e-9);
+  assert.equal(payload.yPositiveMax, 3e-7);
+  const csvText = payload.csvText.replace(/^\uFEFF/, "");
+  const rows = csvText.split(/\r?\n/);
+  assert.equal(rows[0], "0,1e-9");
+  assert.equal(rows[1], "1,2e-8");
+  assert.equal(rows[2], "2,3e-7");
+});
+
 test("isDeviceAnalysisOriginExportMode accepts workbookBooks as a valid export mode", () => {
   assert.equal(isDeviceAnalysisOriginExportMode("workbookBooks"), true);
 });
