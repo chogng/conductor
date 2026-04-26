@@ -21,6 +21,7 @@ import {
   isDeviceAnalysisPerfEnabled,
   logDeviceAnalysisPerf,
 } from "../../shared/lib/deviceAnalysisPerf";
+import { useCanvasChartTheme } from "../lib/chartCanvasTheme";
 
 type PlotPoint = {
   x?: number;
@@ -295,14 +296,9 @@ const stripAxisUnitSuffix = (labelRaw: string | null | undefined): string => {
 };
 
 const DEFAULT_CHART_MARGIN = { top: 25, right: 15, left: 112, bottom: 46 } as const;
-const GRID_STROKE = "rgba(15,23,42,0.14)";
 const GRID_DASH: [number, number] = [4, 4];
-const PLOT_BORDER_STROKE = "#000000";
 const MAJOR_TICK_LENGTH_PX = 6;
-const MAJOR_TICK_STROKE = "#000000";
 const MINOR_TICK_LENGTH_PX = 3.5;
-const MINOR_TICK_STROKE = "rgba(0,0,0,0.8)";
-const TICK_LABEL_COLOR = "#000000";
 const AXIS_FONT_FAMILY = "Arial, sans-serif";
 const DEFAULT_TICK_LABEL_FONT_SIZE = 18;
 const DEFAULT_AXIS_TITLE_FONT_SIZE = 22;
@@ -310,7 +306,6 @@ const DEFAULT_AXIS_TITLE_GAP_PX = 10;
 const PREVIEW_TICK_LABEL_OFFSET_SCALE = 5;
 const PREVIEW_AXIS_TITLE_GAP_SCALE = 4;
 const AXIS_TITLE_EDGE_PADDING_PX = 14;
-const AXIS_LABEL_COLOR = "#000000";
 const AXIS_TITLE_EDIT_MIN_WIDTH_PX = 64;
 const AXIS_TITLE_EDIT_MAX_WIDTH_PX = 260;
 const Y_AXIS_TITLE_EDIT_X_OFFSET_PX = -12;
@@ -746,6 +741,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const axisTitleInputRef = useRef<HTMLInputElement | null>(null);
+  const chartTheme = useCanvasChartTheme(wrapperRef);
   const [size, setSize] = useState({ height: 0, width: 0 });
   const [tooltip, setTooltip] = useState<CanvasTooltipState>({
     label: "",
@@ -1030,7 +1026,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
         const isInternalYGridLine = (y: number) =>
           y > plotRect.top + 0.5 && y < plotBottom - 0.5;
         ctx.setLineDash(GRID_DASH);
-        ctx.strokeStyle = GRID_STROKE;
+        ctx.strokeStyle = chartTheme.grid;
         for (const tick of visibleXTicks) {
           const x = scale.xToPx(tick);
           if (!isInternalXGridLine(x)) continue;
@@ -1051,10 +1047,10 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
       }
       const plotRight = plotRect.left + plotRect.width;
       const plotBottom = plotRect.top + plotRect.height;
-      ctx.strokeStyle = PLOT_BORDER_STROKE;
+      ctx.strokeStyle = chartTheme.plotBorder;
       ctx.strokeRect(plotRect.left, plotRect.top, plotRect.width, plotRect.height);
       if (showMinorTicks) {
-        ctx.strokeStyle = MINOR_TICK_STROKE;
+        ctx.strokeStyle = chartTheme.minorTick;
         ctx.lineWidth = 1;
         ctx.beginPath();
         for (const tick of visibleXMinorTicks) {
@@ -1072,7 +1068,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
         ctx.stroke();
       }
       if (showMajorTicks) {
-        ctx.strokeStyle = MAJOR_TICK_STROKE;
+        ctx.strokeStyle = chartTheme.majorTick;
         ctx.lineWidth = 1.25;
         ctx.beginPath();
         for (const tick of visibleXTicks) {
@@ -1091,7 +1087,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
       }
       for (const tick of visibleXTicks) {
         const x = scale.xToPx(tick);
-        ctx.fillStyle = TICK_LABEL_COLOR;
+        ctx.fillStyle = chartTheme.textSecondary;
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
         ctx.fillText(
@@ -1110,12 +1106,12 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
                 : tick * plotYFactor,
               { digits: yTickDigits },
             );
-        ctx.fillStyle = TICK_LABEL_COLOR;
+        ctx.fillStyle = chartTheme.textSecondary;
         ctx.textAlign = "right";
         ctx.textBaseline = "middle";
         ctx.fillText(label, plotRect.left - tickLabelOffsetPx, y);
       }
-      ctx.fillStyle = AXIS_LABEL_COLOR;
+      ctx.fillStyle = chartTheme.axisLabel;
       ctx.font = `${axisTitleFontSize}px ${AXIS_FONT_FAMILY}`;
       ctx.textAlign = "center";
       ctx.textBaseline = "bottom";
@@ -1310,6 +1306,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
     chartSeriesList,
     chartYDataKey,
     chartYTicks,
+    chartTheme,
     curveLineWidth,
     curveRenderMode,
     currentBiasMarkers,
@@ -1477,9 +1474,8 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
               size="sm"
               className="h-full w-full"
               fieldClassName="!h-full !rounded-md !border-border !bg-bg-page !px-2"
-              inputClassName="!text-center"
+              inputClassName="!text-center !text-text-primary"
               style={{
-                color: AXIS_LABEL_COLOR,
                 fontFamily: AXIS_FONT_FAMILY,
                 fontSize: axisTitleFontSize,
               }}
@@ -1525,9 +1521,8 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
               size="sm"
               className="h-full w-full"
               fieldClassName="!h-full !rounded-md !border-border !bg-bg-page !px-2"
-              inputClassName="!text-center"
+              inputClassName="!text-center !text-text-primary"
               style={{
-                color: AXIS_LABEL_COLOR,
                 fontFamily: AXIS_FONT_FAMILY,
                 fontSize: axisTitleFontSize,
               }}
@@ -1573,15 +1568,19 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
           }}
         >
           <div
-            className="absolute top-0 bottom-0 border-l border-dashed border-[#111827]/25"
-            style={{ left: tooltip.cursorX - plotRect.left }}
+            className="absolute top-0 bottom-0 border-l border-dashed"
+            style={{
+              borderLeftColor: chartTheme.hoverGuide,
+              left: tooltip.cursorX - plotRect.left,
+            }}
           />
           {tooltip.entries.map((entry, index) => (
             <div
               key={`${entry.seriesName}-${index}`}
-              className="absolute h-2.5 w-2.5 rounded-full border-2 border-white shadow"
+              className="absolute h-2.5 w-2.5 rounded-full border-2 shadow"
               style={{
                 backgroundColor: entry.color,
+                borderColor: chartTheme.markerOutline,
                 left: entry.pointX - plotRect.left,
                 top: entry.pointY - plotRect.top,
                 transform: "translate(-50%, -50%)",
@@ -1602,21 +1601,38 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
       {tooltip.visible ? (
         <div className="absolute z-10 pointer-events-none" style={{ left: tooltip.x, top: tooltip.y }}>
           <div
-            className="bg-[#1e1e1e] border border-[#333] rounded-lg px-2 py-1.5 shadow-xl text-white"
-            style={{ width: 252 }}
+            className="rounded-lg border px-2 py-1.5 shadow-xl"
+            style={{
+              backgroundColor: chartTheme.tooltipBackground,
+              borderColor: chartTheme.tooltipBorder,
+              color: chartTheme.textPrimary,
+              width: 252,
+            }}
           >
-            <div className="border-b border-white/10 pb-1 text-xs font-mono text-[#d7d7d7]">
+            <div
+              className="border-b pb-1 text-xs font-mono"
+              style={{
+                borderBottomColor: chartTheme.tooltipBorder,
+                color: chartTheme.tooltipMuted,
+              }}
+            >
               {tooltip.label}
             </div>
             {tooltip.entries?.map((entry, index) => (
               <div key={`${entry.seriesName}-${index}`} className="mt-1.5">
-                <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 text-xs text-white">
+                <div
+                  className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-1.5 text-xs"
+                  style={{ color: chartTheme.textPrimary }}
+                >
                   <span
                     className="h-2.5 w-2.5 shrink-0 rounded-sm"
                     style={{ backgroundColor: entry.color }}
                   />
                   <span className="truncate font-medium">{entry.seriesName}</span>
-                  <span className="font-mono text-xs text-[#ddd]">
+                  <span
+                    className="font-mono text-xs"
+                    style={{ color: chartTheme.tooltipMuted }}
+                  >
                     {entry.valueLabel}
                   </span>
                 </div>
@@ -1646,6 +1662,8 @@ const ChartInteractionOverlay = memo(function ChartInteractionOverlay({
 }) {
   const dragStateRef = useRef<OverlayDragState | null>(null);
   const draftRef = useRef<OverlayDraftState | null>(null);
+  const overlayRef = useRef<HTMLDivElement | null>(null);
+  const chartTheme = useCanvasChartTheme(overlayRef);
   const [draft, setDraft] = useState<OverlayDraftState | null>(null);
   const [hoverTarget, setHoverTarget] = useState<OverlayHoverTarget | null>(null);
 
@@ -2096,6 +2114,7 @@ const ChartInteractionOverlay = memo(function ChartInteractionOverlay({
 
   return (
     <div
+      ref={overlayRef}
       className="absolute"
       style={{
         left: overlayPlotRect.left,
@@ -2149,12 +2168,12 @@ const ChartInteractionOverlay = memo(function ChartInteractionOverlay({
                   padding: "2px 8px",
                   borderRadius: 999,
                   border: `1px solid ${marker.stroke}`,
-                  backgroundColor: isActive ? marker.stroke : "rgba(255,255,255,0.92)",
-                  color: isActive ? "#ffffff" : marker.stroke,
+                  backgroundColor: isActive ? marker.stroke : chartTheme.overlayBadgeBackground,
+                  color: isActive ? "#ffffff" : chartTheme.overlayBadgeText,
                   fontSize: 11,
                   fontWeight: 700,
                   letterSpacing: "0.01em",
-                  boxShadow: "0 2px 8px rgba(15,23,42,0.12)",
+                  boxShadow: chartTheme.overlayBadgeShadow,
                   display: isActive ? "block" : "none",
                   pointerEvents: "none",
                   userSelect: "none",
@@ -2199,7 +2218,7 @@ const ChartInteractionOverlay = memo(function ChartInteractionOverlay({
                     xToPixel(ssDisplayRange.x2) - xToPixel(ssDisplayRange.x1),
                   ),
                   height: SS_MOVE_BAND_HEIGHT_PX,
-                  backgroundColor: "rgba(255,255,255,0.12)",
+                  backgroundColor: chartTheme.interactionHoverBand,
                   borderRadius: 8,
                   pointerEvents: "none",
                 }}
@@ -2217,14 +2236,14 @@ const ChartInteractionOverlay = memo(function ChartInteractionOverlay({
                 backgroundColor:
                   hoverTarget?.kind === "ss" && hoverTarget.mode === "move"
                     ? ssOverlayStyle.stroke
-                    : "rgba(255,255,255,0.92)",
+                    : chartTheme.overlayBadgeBackground,
                 color:
                   hoverTarget?.kind === "ss" && hoverTarget.mode === "move"
                     ? "#ffffff"
-                    : ssOverlayStyle.stroke,
+                    : chartTheme.overlayBadgeText,
                 fontSize: 11,
                 fontWeight: 700,
-                boxShadow: "0 2px 8px rgba(15,23,42,0.12)",
+                boxShadow: chartTheme.overlayBadgeShadow,
                 display:
                   hoverTarget?.kind === "ss" && hoverTarget.mode === "move"
                     ? "block"
@@ -2266,14 +2285,14 @@ const ChartInteractionOverlay = memo(function ChartInteractionOverlay({
                       border: `1px solid ${ssOverlayStyle.stroke}`,
                       backgroundColor: isActive
                         ? ssOverlayStyle.stroke
-                        : "rgba(255,255,255,0.94)",
+                        : chartTheme.overlayHandleBackground,
                       color: isActive ? "#ffffff" : ssOverlayStyle.stroke,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       fontSize: 11,
                       fontWeight: 700,
-                      boxShadow: "0 2px 8px rgba(15,23,42,0.12)",
+                      boxShadow: chartTheme.overlayBadgeShadow,
                       pointerEvents: "none",
                     }}
                   >
@@ -2289,8 +2308,8 @@ const ChartInteractionOverlay = memo(function ChartInteractionOverlay({
             style={{
               padding: "2px 8px",
               borderRadius: 999,
-              backgroundColor: "rgba(255,255,255,0.9)",
-              color: ssOverlayStyle.stroke,
+              backgroundColor: chartTheme.overlayBadgeBackground,
+              color: chartTheme.overlayBadgeText,
               border: `1px solid ${ssOverlayStyle.stroke}`,
               fontSize: 11,
               fontWeight: 700,
@@ -2306,7 +2325,7 @@ const ChartInteractionOverlay = memo(function ChartInteractionOverlay({
           <div
             className="absolute inset-0"
             style={{
-              outline: "1px dashed rgba(15,23,42,0.14)",
+              outline: `1px dashed ${chartTheme.interactionOutline}`,
               outlineOffset: -1,
               pointerEvents: "none",
             }}

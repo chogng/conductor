@@ -149,9 +149,9 @@ const EditableLegendItem = ({
         title={`${label}\n双击可编辑`}
         value={label}
         className="min-w-0 max-w-full overflow-hidden"
-        displayClassName="!text-black"
-        inputClassName="!w-full !text-black"
-        style={{ fontFamily: "Arial, sans-serif", fontSize, color: "#000" }}
+        displayClassName="!text-text-primary"
+        inputClassName="!w-full !text-text-primary"
+        style={{ fontFamily: "Arial, sans-serif", fontSize }}
       />
     </div>
   </li>);

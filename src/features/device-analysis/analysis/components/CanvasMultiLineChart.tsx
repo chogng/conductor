@@ -9,6 +9,7 @@ import {
   getDeviceAnalysisPerfNow,
   logDeviceAnalysisPerf,
 } from "../../shared/lib/deviceAnalysisPerf";
+import { useCanvasChartTheme } from "../lib/chartCanvasTheme";
 
 type Padding = {
   top: number;
@@ -290,6 +291,7 @@ const CanvasMultiLineChart = ({
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const baseCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const chartTheme = useCanvasChartTheme(wrapperRef);
   const baseCtxRef = useRef<CanvasRenderingContext2D | null>(null);
   const overlayCtxRef = useRef<CanvasRenderingContext2D | null>(null);
   const rafRef = useRef(0);
@@ -536,7 +538,7 @@ const CanvasMultiLineChart = ({
 
     // Vertical cursor line
     ctx.save();
-    ctx.strokeStyle = "rgba(255,255,255,0.18)";
+    ctx.strokeStyle = chartTheme.hoverGuide;
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(hover.cursorX, padding.top);
@@ -595,8 +597,8 @@ const CanvasMultiLineChart = ({
 
     // Highlight point
     ctx.save();
-    ctx.fillStyle = "rgba(255,255,255,0.85)";
-    ctx.strokeStyle = "rgba(0,0,0,0.35)";
+    ctx.fillStyle = chartTheme.textPrimary;
+    ctx.strokeStyle = chartTheme.tooltipBackground;
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.arc(hover.pointX, hover.pointY, 3, 0, Math.PI * 2);
@@ -609,7 +611,7 @@ const CanvasMultiLineChart = ({
     drawBase();
     clearOverlay();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prepared, resolvedDomain, size.width, size.height]);
+  }, [chartTheme, prepared, resolvedDomain, size.width, size.height]);
 
   const scheduleOverlay = () => {
     if (rafRef.current) return;
@@ -759,16 +761,29 @@ const CanvasMultiLineChart = ({
             top: clamp(tooltip.y + 12, 8, Math.max(8, size.height - 90)),
           }}
         >
-          <div className="bg-[#1e1e1e] border border-[#333] rounded-lg px-2 py-1.5 shadow-xl text-white">
+          <div
+            className="rounded-lg border px-2 py-1.5 shadow-xl"
+            style={{
+              backgroundColor: chartTheme.tooltipBackground,
+              borderColor: chartTheme.tooltipBorder,
+              color: chartTheme.textPrimary,
+            }}
+          >
             {title && (
-              <div className="text-[11px] text-[#ccc] mb-1 truncate max-w-[200px]">
+              <div
+                className="mb-1 truncate max-w-[200px] text-[11px]"
+                style={{ color: chartTheme.tooltipMuted }}
+              >
                 {title}
               </div>
             )}
-            <div className="text-xs text-white font-medium truncate max-w-[200px]">
+            <div className="truncate max-w-[200px] text-xs font-medium">
               {tooltip.seriesName}
             </div>
-            <div className="text-[11px] text-[#ccc] font-mono mt-1">
+            <div
+              className="mt-1 font-mono text-[11px]"
+              style={{ color: chartTheme.tooltipMuted }}
+            >
               x={formatNumber(tooltip.xVal * xFactor)}
               {xSuffix} &nbsp; y=
               {formatNumber(tooltip.yVal * yFactor)}

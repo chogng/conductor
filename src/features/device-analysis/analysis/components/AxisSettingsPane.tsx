@@ -73,7 +73,8 @@ export default function AxisSettingsPane({
   const compactInputWidth = "w-[132px]";
   const compactInputFieldClass =
     "!h-8 !gap-0 border border-border px-2 py-1";
-  const sectionClassName = "overflow-hidden rounded-md border border-border/60 bg-white";
+  const sectionClassName =
+    "overflow-hidden rounded-md border border-border/60 bg-bg-surface";
   const sectionHeaderClassName =
     "border-b border-border/50 px-3 py-2 text-xs font-semibold text-text-secondary";
   const settingRowClassName =

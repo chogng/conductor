@@ -6,6 +6,7 @@ import {
   getDeviceAnalysisPerfNow,
   logDeviceAnalysisPerf,
 } from "../../shared/lib/deviceAnalysisPerf";
+import { useCanvasChartTheme } from "../lib/chartCanvasTheme";
 
 type DiagnosticsPoint = {
   x?: number | null;
@@ -100,22 +101,15 @@ type CanvasDiagnosticsChartProps = {
 };
 
 const DEFAULT_CHART_MARGIN: ChartMargin = { top: 25, right: 15, bottom: 46, left: 112 };
-const GRID_STROKE = "rgba(15,23,42,0.14)";
 const GRID_DASH: [number, number] = [4, 4];
-const PLOT_BORDER_STROKE = "#000000";
 const MAJOR_TICK_LENGTH_PX = 6;
-const MAJOR_TICK_STROKE = "#000000";
 const MINOR_TICK_LENGTH_PX = 3.5;
-const MINOR_TICK_STROKE = "rgba(0,0,0,0.8)";
-const TICK_LABEL_COLOR = "#000000";
 const AXIS_FONT_FAMILY = "Arial, sans-serif";
 const DEFAULT_TICK_LABEL_FONT_SIZE = 18;
 const DEFAULT_AXIS_TITLE_FONT_SIZE = 22;
 const AXIS_TITLE_GAP_PX = 10;
 const TICK_LABEL_OFFSET_PX = MAJOR_TICK_LENGTH_PX + 4;
 const AXIS_TITLE_EDGE_PADDING_PX = 14;
-const AXIS_LABEL_COLOR = "#000000";
-const LOCATOR_LINE_STROKE = "rgba(17,24,39,0.25)";
 const LOCATOR_LINE_DASH: [number, number] = [4, 4];
 const LOCATOR_LINE_SNAP_PX = 8;
 const TOOLTIP_WIDTH = 220;
@@ -346,6 +340,7 @@ const CanvasDiagnosticsChart = memo(function CanvasDiagnosticsChart({
 }: CanvasDiagnosticsChartProps) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const chartTheme = useCanvasChartTheme(wrapperRef);
   const [size, setSize] = useState({ height: 0, width: 0 });
   const [tooltip, setTooltip] = useState<TooltipState>({
     color: getChartColor(0),
@@ -484,7 +479,7 @@ const CanvasDiagnosticsChart = memo(function CanvasDiagnosticsChart({
     ctx.lineWidth = 1;
     ctx.font = `${tickLabelFontSize}px ${AXIS_FONT_FAMILY}`;
     setLineDash(ctx, GRID_DASH);
-    ctx.strokeStyle = GRID_STROKE;
+    ctx.strokeStyle = chartTheme.grid;
     for (const tick of visibleXTicks) {
       const x = scale.xToPx(Number(tick));
       if (x <= plotRect.left + 0.5 || x >= plotRight - 0.5) continue;
@@ -503,10 +498,10 @@ const CanvasDiagnosticsChart = memo(function CanvasDiagnosticsChart({
     }
     setLineDash(ctx);
 
-    ctx.strokeStyle = PLOT_BORDER_STROKE;
+    ctx.strokeStyle = chartTheme.plotBorder;
     ctx.strokeRect(plotRect.left, plotRect.top, plotRect.width, plotRect.height);
 
-    ctx.strokeStyle = MINOR_TICK_STROKE;
+    ctx.strokeStyle = chartTheme.minorTick;
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (const tick of visibleXMinorTicks) {
@@ -523,7 +518,7 @@ const CanvasDiagnosticsChart = memo(function CanvasDiagnosticsChart({
     }
     ctx.stroke();
 
-    ctx.strokeStyle = MAJOR_TICK_STROKE;
+    ctx.strokeStyle = chartTheme.majorTick;
     ctx.lineWidth = 1.25;
     ctx.beginPath();
     for (const tick of visibleXTicks) {
@@ -540,7 +535,7 @@ const CanvasDiagnosticsChart = memo(function CanvasDiagnosticsChart({
     }
     ctx.stroke();
 
-    ctx.fillStyle = TICK_LABEL_COLOR;
+    ctx.fillStyle = chartTheme.textSecondary;
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
     visibleXTicks.forEach((tick) => {
@@ -565,7 +560,7 @@ const CanvasDiagnosticsChart = memo(function CanvasDiagnosticsChart({
       );
     }
 
-    ctx.fillStyle = AXIS_LABEL_COLOR;
+    ctx.fillStyle = chartTheme.axisLabel;
     ctx.font = `${axisTitleFontSize}px ${AXIS_FONT_FAMILY}`;
     ctx.textAlign = "center";
     ctx.textBaseline = "bottom";
@@ -616,7 +611,7 @@ const CanvasDiagnosticsChart = memo(function CanvasDiagnosticsChart({
     ) {
       const x = scale.xToPx(locatorValue);
       ctx.save();
-      ctx.strokeStyle = LOCATOR_LINE_STROKE;
+      ctx.strokeStyle = chartTheme.hoverGuide;
       ctx.lineWidth = 1;
       setLineDash(ctx, LOCATOR_LINE_DASH);
       ctx.beginPath();
@@ -668,6 +663,7 @@ const CanvasDiagnosticsChart = memo(function CanvasDiagnosticsChart({
     size.height,
     size.width,
     axisTitleFontSize,
+    chartTheme,
     tickLabelFontSize,
     xFactor,
     xLabelInterval,
@@ -785,9 +781,10 @@ const CanvasDiagnosticsChart = memo(function CanvasDiagnosticsChart({
       {locatorMarkers.map((marker, index) => (
         <div
           key={`locator-marker-${index}`}
-          className="pointer-events-none absolute z-[2] h-2.5 w-2.5 rounded-full border-2 border-white shadow"
+          className="pointer-events-none absolute z-[2] h-2.5 w-2.5 rounded-full border-2 shadow"
           style={{
             backgroundColor: marker.color,
+            borderColor: chartTheme.markerOutline,
             left: marker.x - 5,
             top: marker.y - 5,
           }}
@@ -804,15 +801,19 @@ const CanvasDiagnosticsChart = memo(function CanvasDiagnosticsChart({
           }}
         >
           <div
-            className="absolute top-0 bottom-0 border-l border-dashed border-[#111827]/25"
-            style={{ left: tooltip.cursorX - plotRect.left }}
+            className="absolute top-0 bottom-0 border-l border-dashed"
+            style={{
+              borderLeftColor: chartTheme.hoverGuide,
+              left: tooltip.cursorX - plotRect.left,
+            }}
           />
           {tooltip.markers.map((marker, index) => (
             <div
               key={`tooltip-marker-${index}`}
-              className="absolute h-2.5 w-2.5 rounded-full border-2 border-white shadow"
+              className="absolute h-2.5 w-2.5 rounded-full border-2 shadow"
               style={{
                 backgroundColor: marker.color,
+                borderColor: chartTheme.markerOutline,
                 left: marker.x - plotRect.left - 5,
                 top: marker.y - plotRect.top - 5,
               }}
@@ -825,7 +826,14 @@ const CanvasDiagnosticsChart = memo(function CanvasDiagnosticsChart({
           className="pointer-events-none absolute z-10"
           style={{ left: tooltip.x, top: tooltip.y }}
         >
-          <div className="rounded-lg border border-[#333] bg-[#1e1e1e] px-2 py-1.5 text-white shadow-xl">
+          <div
+            className="rounded-lg border px-2 py-1.5 shadow-xl"
+            style={{
+              backgroundColor: chartTheme.tooltipBackground,
+              borderColor: chartTheme.tooltipBorder,
+              color: chartTheme.textPrimary,
+            }}
+          >
             <div className="flex max-w-[200px] items-center gap-2 truncate text-xs font-medium">
               <span
                 className="h-2.5 w-2.5 shrink-0 rounded-sm"
@@ -833,14 +841,20 @@ const CanvasDiagnosticsChart = memo(function CanvasDiagnosticsChart({
               />
               <span className="truncate">{tooltip.label}</span>
             </div>
-            <div className="mt-1 font-mono text-[11px] text-[#ccc]">
+            <div
+              className="mt-1 font-mono text-[11px]"
+              style={{ color: chartTheme.tooltipMuted }}
+            >
               x=
               {formatNumber(tooltip.xValue * xFactor, {
                 digits: xTooltipDigits,
               })}
               {xSuffix}
             </div>
-            <div className="font-mono text-[11px] text-[#ccc]">
+            <div
+              className="font-mono text-[11px]"
+              style={{ color: chartTheme.tooltipMuted }}
+            >
               y=
               {formatNumber(tooltip.yValue, {
                 digits: yTooltipDigits,
