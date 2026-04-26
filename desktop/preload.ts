@@ -33,6 +33,14 @@ const desktopMeta = (() => {
     return null;
   }
 })();
+const desktopAutoUpdateStatus = (() => {
+  try {
+    return ipcRenderer.sendSync(ipcChannels.desktopAutoUpdateStatusGet);
+  } catch (error) {
+    console.warn("[boot][preload] Failed to get auto-update status:", error);
+    return null;
+  }
+})();
 
 contextBridge.exposeInMainWorld("desktopBootstrap", {
   initialDeviceAnalysisSettings:
@@ -54,6 +62,26 @@ contextBridge.exposeInMainWorld("desktopApp", {
   sendCommand(command, payload) {
     if (typeof command !== "string" || command.trim().length === 0) return;
     ipcRenderer.send("desktop-command", { command, payload });
+  },
+  getAutoUpdateStatus() {
+    return desktopAutoUpdateStatus;
+  },
+  onAutoUpdateStatusChange(listener) {
+    if (typeof listener !== "function") {
+      return () => {};
+    }
+
+    const handleStatusChanged = (_event, status) => {
+      listener(status);
+    };
+
+    ipcRenderer.on(ipcChannels.desktopAutoUpdateStatusChanged, handleStatusChanged);
+    return () => {
+      ipcRenderer.removeListener(
+        ipcChannels.desktopAutoUpdateStatusChanged,
+        handleStatusChanged,
+      );
+    };
   },
 });
 

@@ -1,5 +1,7 @@
 export const ipcChannels = {
   desktopMetaGet: "desktop:meta:get",
+  desktopAutoUpdateStatusGet: "desktop:auto-update-status:get",
+  desktopAutoUpdateStatusChanged: "desktop:auto-update-status:changed",
   desktopBootSettingsGet: "desktop-boot:settings:get",
   desktopBootUiReady: "desktop-boot:ui-ready",
   templatesGet: "device-analysis-store:templates:get",

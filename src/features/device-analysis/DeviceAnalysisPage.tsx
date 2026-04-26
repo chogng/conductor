@@ -130,6 +130,10 @@ const DeviceAnalysisPage = () => {
     desktopMeta?.isDesktop === true && desktopMeta?.platform === "win32";
   const isPackagedWindowsDesktopShell =
     isWindowsDesktopShell && desktopMeta?.isPackaged === true;
+  const isAppUpdatePreviewEnabled =
+    isPackagedWindowsDesktopShell || import.meta.env.DEV;
+  const isDesktopChromePreviewEnabled =
+    isWindowsDesktopShell || import.meta.env.DEV;
 
   const session = useDeviceAnalysisSession();
   const {
@@ -633,8 +637,10 @@ const DeviceAnalysisPage = () => {
   }, []);
 
   const {
+    autoUpdateStatus,
     handleCheckForUpdates,
     handleCloseWindow,
+    handleInstallDownloadedUpdate,
     handleMinimizeWindow,
     handleOpenOriginFromTitleBar,
     handleToggleMaximizeWindow,
@@ -652,6 +658,12 @@ const DeviceAnalysisPage = () => {
       }
     },
   });
+  const handlePreviewCheckForUpdates = useCallback(async () => {
+    await new Promise((resolve) => {
+      setTimeout(resolve, 900);
+    });
+    return true;
+  }, []);
 
   return (
     <DeviceAnalysisWorkspaceShell
@@ -659,11 +671,11 @@ const DeviceAnalysisPage = () => {
       className={`relative w-full h-full min-h-0 overflow-hidden ${
         isResizing ? "cursor-col-resize select-none" : ""
       }`}
-      showDesktopCommandBar={isWindowsDesktopShell}
+      showDesktopCommandBar={isDesktopChromePreviewEnabled}
       showSkeleton={false}
       style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}
       titleBar={
-        isWindowsDesktopShell ? (
+        isDesktopChromePreviewEnabled ? (
           <DesktopCommandBar
             t={t}
             activePage={activePage}
@@ -680,6 +692,14 @@ const DeviceAnalysisPage = () => {
             onMinimizeWindow={handleMinimizeWindow}
             onToggleMaximizeWindow={handleToggleMaximizeWindow}
             onCloseWindow={handleCloseWindow}
+            updateAction={{
+              isVisible: autoUpdateStatus.status === "downloaded",
+              isReadyToInstall: autoUpdateStatus.status === "downloaded",
+              version: autoUpdateStatus.version,
+              onClick: () => {
+                void handleInstallDownloadedUpdate();
+              },
+            }}
             showAnalysisFileSelector={
               isAnalysisPageActive && analysisFileOptions.length > 0
             }
@@ -834,8 +854,10 @@ const DeviceAnalysisPage = () => {
               >
                 <DeviceAnalysisSettingsPanelContainer
                   appUpdateSettings={{
-                    isAvailable: isPackagedWindowsDesktopShell,
-                    onCheckForUpdates: handleCheckForUpdates,
+                    isAvailable: isAppUpdatePreviewEnabled,
+                    onCheckForUpdates: isPackagedWindowsDesktopShell
+                      ? handleCheckForUpdates
+                      : handlePreviewCheckForUpdates,
                   }}
                   deviceAnalysisSettings={deviceAnalysisSettings}
                   deviceAnalysisSettingsLoaded={deviceAnalysisSettingsLoaded}

@@ -198,6 +198,8 @@
     da_menu_window_close: 'Close Window',
     da_menu_window_maximize: 'Maximize / Restore',
     da_menu_window_minimize: 'Minimize Window',
+    da_menu_update_available: 'Update',
+    da_menu_update_install: 'Install',
     da_invalidVarPair: 'Invalid Var1/Var2 configuration',
     da_loadTemplatesFailed: 'Failed to load templates: {error}',
     da_loaded_csv_files: 'Loaded {count} files',

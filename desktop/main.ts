@@ -62,7 +62,10 @@ let startupGatePromise = null;
 let autoUpdateTimer = null;
 let autoUpdateConfiguredFeedUrl = null;
 let isAutoUpdateConfigured = false;
-let isUpdateDownloadedPromptVisible = false;
+let autoUpdateStatus = {
+  status: "idle",
+  version: null,
+};
 let isAppQuitting = false;
 let originDetectionCache = null;
 let originDetectionPromise = null;
@@ -2065,6 +2068,35 @@ function getAutoUpdateDialogWindow() {
   return null;
 }
 
+function cloneAutoUpdateStatus() {
+  return {
+    status:
+      autoUpdateStatus && typeof autoUpdateStatus.status === "string"
+        ? autoUpdateStatus.status
+        : "idle",
+    version:
+      autoUpdateStatus && typeof autoUpdateStatus.version === "string"
+        ? autoUpdateStatus.version
+        : null,
+  };
+}
+
+function broadcastAutoUpdateStatus() {
+  const payload = cloneAutoUpdateStatus();
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (win.isDestroyed()) continue;
+    win.webContents.send(ipcChannels.desktopAutoUpdateStatusChanged, payload);
+  }
+}
+
+function setAutoUpdateStatus(status, version = null) {
+  autoUpdateStatus = {
+    status: typeof status === "string" && status ? status : "idle",
+    version: typeof version === "string" && version.trim() ? version.trim() : null,
+  };
+  broadcastAutoUpdateStatus();
+}
+
 function stopAutoUpdatePolling() {
   if (autoUpdateTimer) {
     clearInterval(autoUpdateTimer);
@@ -2072,32 +2104,14 @@ function stopAutoUpdatePolling() {
   }
 }
 
-async function promptInstallDownloadedUpdate(updateInfo) {
+async function installDownloadedUpdate() {
   const updater = await ensureAutoUpdater();
-  if (!updater) return;
-  if (!autoUpdater) return;
-  if (isUpdateDownloadedPromptVisible) return;
+  if (!updater) return false;
+  if (!autoUpdater) return false;
+  if (autoUpdateStatus?.status !== "downloaded") return false;
 
-  isUpdateDownloadedPromptVisible = true;
-  try {
-    const windowForDialog = getAutoUpdateDialogWindow();
-    const result = await dialog.showMessageBox(windowForDialog || undefined, {
-      type: "info",
-      title: "Conductor",
-      message: "An update has been downloaded.",
-      detail: `Version ${updateInfo?.version || "unknown"} is ready to install.`,
-      buttons: ["Restart and Install", "Later"],
-      defaultId: 0,
-      cancelId: 1,
-      noLink: true,
-    });
-
-    if (result.response === 0) {
-      autoUpdater.quitAndInstall();
-    }
-  } finally {
-    isUpdateDownloadedPromptVisible = false;
-  }
+  autoUpdater.quitAndInstall();
+  return true;
 }
 
 async function checkForAutoUpdates({ manual = false } = {}) {
@@ -2106,6 +2120,7 @@ async function checkForAutoUpdates({ manual = false } = {}) {
   if (!autoUpdater) return null;
 
   if (!isAutoUpdateConfigured) {
+    setAutoUpdateStatus("disabled");
     if (manual) {
       const windowForDialog = getAutoUpdateDialogWindow();
       await dialog.showMessageBox(windowForDialog || undefined, {
@@ -2137,6 +2152,7 @@ async function checkForAutoUpdates({ manual = false } = {}) {
   } catch (error) {
     const message = error?.message || String(error);
     console.warn("[auto-update] Check failed:", message);
+    setAutoUpdateStatus("error");
 
     if (manual) {
       const windowForDialog = getAutoUpdateDialogWindow();
@@ -2158,15 +2174,18 @@ async function setupAutoUpdates() {
   if (!app.isPackaged) return;
   if (!AUTO_UPDATE_SUPPORTED_PLATFORMS.has(process.platform)) {
     console.info("[auto-update] Skipped for unsupported platform:", process.platform);
+    setAutoUpdateStatus("unsupported");
     return;
   }
   const updater = await ensureAutoUpdater();
   if (!updater) {
     console.warn("[auto-update] electron-updater dependency is missing.");
+    setAutoUpdateStatus("disabled");
     return;
   }
   if (!autoUpdater) {
     console.warn("[auto-update] electron-updater dependency is missing.");
+    setAutoUpdateStatus("disabled");
     return;
   }
 
@@ -2187,6 +2206,7 @@ async function setupAutoUpdates() {
     } catch (error) {
       isAutoUpdateConfigured = false;
       autoUpdateConfiguredFeedUrl = null;
+      setAutoUpdateStatus("disabled");
       console.warn("[auto-update] Invalid custom feed URL:", error?.message || error);
       return;
     }
@@ -2195,28 +2215,32 @@ async function setupAutoUpdates() {
   }
 
   autoUpdater.on("checking-for-update", () => {
+    setAutoUpdateStatus("checking");
     console.info("[auto-update] Checking for updates...");
   });
 
   autoUpdater.on("update-available", (info) => {
+    setAutoUpdateStatus("available", info?.version || null);
     console.info(`[auto-update] Update ${info?.version || "unknown"} is available.`);
   });
 
   autoUpdater.on("update-not-available", (info) => {
+    setAutoUpdateStatus("idle", info?.version || null);
     console.info(
       `[auto-update] No update available. Current=${app.getVersion()}, latest=${info?.version || "unknown"}.`,
     );
   });
 
   autoUpdater.on("error", (error) => {
+    setAutoUpdateStatus("error");
     console.warn("[auto-update] Error:", error?.message || error);
   });
 
   autoUpdater.on("update-downloaded", (info) => {
+    setAutoUpdateStatus("downloaded", info?.version || null);
     console.info(
       `[auto-update] Update ${info?.version || "unknown"} downloaded from ${autoUpdateConfiguredFeedUrl}.`,
     );
-    void promptInstallDownloadedUpdate(info);
   });
 
   setTimeout(() => {
@@ -2611,6 +2635,11 @@ function handleDesktopCommand(event, payload) {
     return;
   }
 
+  if (command === "install-downloaded-update") {
+    void installDownloadedUpdate();
+    return;
+  }
+
   if (command === "close-window") {
     if (shouldMinimizeToTrayOnWindowClose()) {
       hideMainWindowToTray(win, { showTrayHint: true });
@@ -2621,6 +2650,10 @@ function handleDesktopCommand(event, payload) {
     isAppQuitting = true;
     app.quit();
   }
+}
+
+function handleDesktopAutoUpdateStatusGet(event) {
+  event.returnValue = cloneAutoUpdateStatus();
 }
 
 app.whenReady().then(() => {
@@ -2637,6 +2670,7 @@ app.whenReady().then(() => {
 
   ipcMain.on("desktop-command", handleDesktopCommand);
   ipcMain.on(ipcChannels.desktopMetaGet, handleDesktopMetaGet);
+  ipcMain.on(ipcChannels.desktopAutoUpdateStatusGet, handleDesktopAutoUpdateStatusGet);
   ipcMain.on(ipcChannels.desktopBootSettingsGet, handleDesktopBootSettingsGet);
   ipcMain.handle(ipcChannels.desktopBootUiReady, handleDesktopBootUiReady);
   ipcMain.handle(ipcChannels.templatesGet, handleDeviceAnalysisTemplatesGet);
@@ -2722,6 +2756,10 @@ app.on("will-quit", () => {
   }
   ipcMain.removeListener("desktop-command", handleDesktopCommand);
   ipcMain.removeListener(ipcChannels.desktopMetaGet, handleDesktopMetaGet);
+  ipcMain.removeListener(
+    ipcChannels.desktopAutoUpdateStatusGet,
+    handleDesktopAutoUpdateStatusGet,
+  );
   ipcMain.removeListener(ipcChannels.desktopBootSettingsGet, handleDesktopBootSettingsGet);
   ipcMain.removeHandler(ipcChannels.desktopBootUiReady);
   ipcMain.removeHandler(ipcChannels.templatesGet);

@@ -1,70 +1,11 @@
 import { type CSSProperties, type ReactNode } from "react";
 import { DEFAULT_DEVICE_ANALYSIS_SIDEBAR_WIDTH_PX } from "./deviceAnalysisLayout";
+import { WorkbenchTitlebarSkeleton } from "../../workbench/browser/parts/titlebar/titlebarSkeleton";
 
 const shouldShowDesktopCommandBarByDefault =
   typeof window !== "undefined" &&
   window.desktopMeta?.isDesktop === true &&
   window.desktopMeta?.platform === "win32";
-
-type DesktopCommandBarShellProps = {
-  className?: string;
-};
-
-export const DesktopCommandBarShell = ({
-  className = "",
-}: DesktopCommandBarShellProps) => (
-  <header className={`da_top_menu_bar ${className}`.trim()} aria-hidden="true">
-    <div className="da_top_menu_brand">
-      <img
-        src="/logo.svg"
-        alt=""
-        aria-hidden="true"
-        className="da_top_menu_brand_icon"
-      />
-      <span>Conductor</span>
-    </div>
-
-    <div className="da_window_controls ml-4">
-      <div className="da_window_icon_btn pointer-events-none">
-        <div className="h-[14px] w-[14px] rounded-full bg-current/15" />
-      </div>
-      <div className="da_window_icon_btn pointer-events-none">
-        <div className="h-[14px] w-[14px] rounded-full bg-current/15" />
-      </div>
-    </div>
-
-    <div className="da_top_menu_center">
-      <div className="h-7 w-44 rounded-full border border-border bg-bg-surface/70" />
-    </div>
-
-      <div className="da_window_controls">
-        <div className="da_window_icon_btn pointer-events-none">
-          <div className="h-[14px] w-[14px] rounded-full bg-current/15" />
-        </div>
-        <div className="da_window_icon_btn pointer-events-none">
-        <div className="h-[14px] w-[14px] rounded-full bg-current/15" />
-      </div>
-      <div className="da_window_icon_btn pointer-events-none">
-        <div className="h-[14px] w-[14px] rounded-full bg-current/15" />
-      </div>
-        <div className="da_window_icon_btn pointer-events-none">
-          <div className="h-[14px] w-[14px] rounded-full bg-current/15" />
-        </div>
-        <div className="da_window_icon_btn pointer-events-none">
-          <div className="h-[14px] w-[14px] rounded-full bg-current/15" />
-        </div>
-        <div className="da_window_control_btn pointer-events-none">
-          <div className="h-[12px] w-[12px] rounded-full bg-current/15" />
-        </div>
-      <div className="da_window_control_btn pointer-events-none">
-        <div className="h-[12px] w-[12px] rounded-full bg-current/15" />
-      </div>
-      <div className="da_window_control_btn da_window_control_btn--close pointer-events-none">
-        <div className="h-[12px] w-[12px] rounded-full bg-current/15" />
-      </div>
-    </div>
-  </header>
-);
 
 type DeviceAnalysisWorkspaceShellProps = {
   children?: ReactNode;
@@ -97,7 +38,7 @@ const DeviceAnalysisWorkspaceShell = ({
       className={`flex h-full min-h-screen flex-col overflow-hidden bg-bg-page ${className}`.trim()}
       style={resolvedStyle}
     >
-      {showDesktopCommandBar ? titleBar ?? <DesktopCommandBarShell /> : null}
+      {showDesktopCommandBar ? titleBar ?? <WorkbenchTitlebarSkeleton /> : null}
 
       <div className="relative flex-1 min-h-0">
         {showSkeleton ? (

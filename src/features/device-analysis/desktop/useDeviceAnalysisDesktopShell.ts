@@ -1,7 +1,23 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type DesktopAppBridge = {
   sendCommand: (command: string) => void;
+  getAutoUpdateStatus?: () => unknown;
+  onAutoUpdateStatusChange?: (
+    listener: (status: unknown) => void,
+  ) => (() => void) | void;
+};
+
+export type DesktopAutoUpdateStatus = {
+  status:
+    | "idle"
+    | "checking"
+    | "available"
+    | "downloaded"
+    | "error"
+    | "disabled"
+    | "unsupported";
+  version: string | null;
 };
 
 type ImporterRefLike = {
@@ -23,12 +39,47 @@ declare global {
   }
 }
 
+const DEFAULT_AUTO_UPDATE_STATUS: DesktopAutoUpdateStatus = {
+  status: "idle",
+  version: null,
+};
+
+const normalizeAutoUpdateStatus = (
+  value: unknown,
+): DesktopAutoUpdateStatus => {
+  if (!value || typeof value !== "object") {
+    return DEFAULT_AUTO_UPDATE_STATUS;
+  }
+
+  const candidate = value as {
+    status?: unknown;
+    version?: unknown;
+  };
+
+  return {
+    status:
+      typeof candidate.status === "string" && candidate.status.trim()
+        ? (candidate.status as DesktopAutoUpdateStatus["status"])
+        : "idle",
+    version:
+      typeof candidate.version === "string" && candidate.version.trim()
+        ? candidate.version.trim()
+        : null,
+  };
+};
+
 export const useDeviceAnalysisDesktopShell = ({
   handleExport,
   importerRef,
   isWindowsDesktopShell = false,
   setActivePage,
 }: UseDeviceAnalysisDesktopShellOptions) => {
+  const [autoUpdateStatus, setAutoUpdateStatus] =
+    useState<DesktopAutoUpdateStatus>(() =>
+      import.meta.env.DEV
+        ? { status: "downloaded", version: "preview" }
+        : DEFAULT_AUTO_UPDATE_STATUS,
+    );
   const sendDesktopCommand = useCallback((command: string): boolean => {
     if (typeof window === "undefined") return false;
 
@@ -83,6 +134,33 @@ export const useDeviceAnalysisDesktopShell = ({
     return sendDesktopCommand("check-for-updates");
   }, [sendDesktopCommand]);
 
+  const handleInstallDownloadedUpdate = useCallback((): boolean => {
+    return sendDesktopCommand("install-downloaded-update");
+  }, [sendDesktopCommand]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const desktopApp = window.desktopApp;
+    if (!desktopApp) return undefined;
+
+    if (typeof desktopApp.getAutoUpdateStatus === "function") {
+      setAutoUpdateStatus(
+        normalizeAutoUpdateStatus(desktopApp.getAutoUpdateStatus()),
+      );
+    }
+
+    if (typeof desktopApp.onAutoUpdateStatusChange !== "function") {
+      return undefined;
+    }
+
+    const unsubscribe = desktopApp.onAutoUpdateStatusChange((status) => {
+      setAutoUpdateStatus(normalizeAutoUpdateStatus(status));
+    });
+
+    return typeof unsubscribe === "function" ? unsubscribe : undefined;
+  }, []);
+
   useEffect(() => {
     if (!isWindowsDesktopShell) return undefined;
 
@@ -128,8 +206,10 @@ export const useDeviceAnalysisDesktopShell = ({
   ]);
 
   return {
+    autoUpdateStatus,
     handleCheckForUpdates,
     handleCloseWindow,
+    handleInstallDownloadedUpdate,
     handleMinimizeWindow,
     handleOpenOriginFromTitleBar,
     handleReloadWindow,

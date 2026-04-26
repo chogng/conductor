@@ -8,19 +8,26 @@ import {
   Square,
   X,
 } from "lucide-react";
-import type { CSSProperties } from "react";
 import originIcon from "../../../assets/icons/origin.svg";
 import DropdownField from "../../../components/ui/DropdownField";
 import type { TranslateFn } from "../../../context/language";
-
-const appIconSrc = "/logo.svg";
-
-type ActivePage = "data" | "analysis" | "settings" | string;
-type AnalysisFileOption = { value: string; label: string };
+import {
+  createWorkbenchTitlebarNavActions,
+  createWorkbenchTitlebarPageActions,
+  createWorkbenchTitlebarWindowActions,
+  getWorkbenchTitlebarUpdateLabel,
+  getWorkbenchTitlebarUpdateTitle,
+  normalizeWorkbenchTitlebarAnalysisFileOptions,
+  WORKBENCH_TITLEBAR_APP_ICON_SRC,
+  WORKBENCH_TITLEBAR_DRAG_REGION_STYLE,
+  type WorkbenchTitlebarActivePage,
+  type WorkbenchTitlebarAnalysisFileOption,
+  type WorkbenchTitlebarUpdateAction,
+} from "../../../workbench/browser/parts/titlebar/titlebarPart";
 
 type DesktopCommandBarProps = {
   t: TranslateFn;
-  activePage: ActivePage;
+  activePage: WorkbenchTitlebarActivePage;
   canNavigateBack?: boolean;
   canNavigateForward?: boolean;
   onAnalysisIntent?: () => void;
@@ -32,8 +39,9 @@ type DesktopCommandBarProps = {
   onCloseWindow?: () => void;
   onOpenSettings?: () => void;
   onOpenOrigin?: () => void;
+  updateAction?: WorkbenchTitlebarUpdateAction;
   showAnalysisFileSelector?: boolean;
-  analysisFileOptions?: AnalysisFileOption[];
+  analysisFileOptions?: WorkbenchTitlebarAnalysisFileOption[];
   analysisActiveFileId?: string | null;
   onAnalysisFileChange?: (fileId: string) => void;
 };
@@ -52,19 +60,26 @@ const DesktopCommandBar = ({
   onCloseWindow,
   onOpenSettings,
   onOpenOrigin,
+  updateAction,
   showAnalysisFileSelector = false,
   analysisFileOptions = [],
   analysisActiveFileId = null,
   onAnalysisFileChange,
 }: DesktopCommandBarProps) => {
-  const dragRegionStyle = { WebkitAppRegion: "drag" } as CSSProperties;
-  const normalizedAnalysisFileOptions = Array.isArray(analysisFileOptions)
-    ? analysisFileOptions.filter(
-        (option) => !!option && typeof option.value === "string",
-      )
-    : [];
+  const normalizedAnalysisFileOptions =
+    normalizeWorkbenchTitlebarAnalysisFileOptions(analysisFileOptions);
   const shouldShowAnalysisFileSelector =
     showAnalysisFileSelector && normalizedAnalysisFileOptions.length > 0;
+  const shouldShowUpdateAction = updateAction?.isVisible === true;
+  const updateActionLabel = getWorkbenchTitlebarUpdateLabel(t);
+  const updateActionTitle = getWorkbenchTitlebarUpdateTitle(t, updateAction);
+  const navActions = createWorkbenchTitlebarNavActions(
+    t,
+    canNavigateBack,
+    canNavigateForward,
+  );
+  const pageActions = createWorkbenchTitlebarPageActions(t, activePage);
+  const windowActions = createWorkbenchTitlebarWindowActions(t);
 
   return (
     <header
@@ -74,7 +89,7 @@ const DesktopCommandBar = ({
     >
       <div className="da_top_menu_brand">
         <img
-          src={appIconSrc}
+          src={WORKBENCH_TITLEBAR_APP_ICON_SRC}
           alt=""
           aria-hidden="true"
           className="da_top_menu_brand_icon"
@@ -83,31 +98,34 @@ const DesktopCommandBar = ({
       </div>
 
       <div className="da_window_controls ml-4">
-        <button
-          id="device-analysis-window-nav-back-btn"
-          type="button"
-          aria-label={t("da_menu_page_back")}
-          title={t("da_menu_page_back")}
-          className="da_window_icon_btn"
-          onClick={onNavigateBack}
-          disabled={!canNavigateBack}
-        >
-          <ArrowLeft size={14} className="opacity-80" />
-        </button>
-        <button
-          id="device-analysis-window-nav-forward-btn"
-          type="button"
-          aria-label={t("da_menu_page_forward")}
-          title={t("da_menu_page_forward")}
-          className="da_window_icon_btn"
-          onClick={onNavigateForward}
-          disabled={!canNavigateForward}
-        >
-          <ArrowRight size={14} className="opacity-80" />
-        </button>
+        {navActions.map((action) => (
+          <button
+            key={action.id}
+            id={action.id}
+            type="button"
+            aria-label={action.title}
+            title={action.title}
+            className="da_window_icon_btn"
+            onClick={
+              action.id === "device-analysis-window-nav-back-btn"
+                ? onNavigateBack
+                : onNavigateForward
+            }
+            disabled={action.isDisabled}
+          >
+            {action.id === "device-analysis-window-nav-back-btn" ? (
+              <ArrowLeft size={14} className="opacity-80" />
+            ) : (
+              <ArrowRight size={14} className="opacity-80" />
+            )}
+          </button>
+        ))}
       </div>
 
-      <div className="da_top_menu_center" style={dragRegionStyle}>
+      <div
+        className="da_top_menu_center"
+        style={WORKBENCH_TITLEBAR_DRAG_REGION_STYLE}
+      >
         {shouldShowAnalysisFileSelector ? (
           <div className="da_top_menu_center_file_select">
             <DropdownField
@@ -129,84 +147,99 @@ const DesktopCommandBar = ({
       </div>
 
       <div className="da_window_controls">
-        <button
-          type="button"
-          aria-label={t("da_tab_data")}
-          title={t("da_tab_data")}
-          className={`da_window_icon_btn ${activePage === "data" ? "da_top_nav_btn--active" : ""}`}
-          onClick={() => onPageChange?.("data")}
-        >
-          <Import size={14} className="opacity-80" />
-        </button>
-        <button
-          type="button"
-          aria-label={t("da_tab_analysis")}
-          title={t("da_tab_analysis")}
-          className={`da_window_icon_btn ${activePage === "analysis" ? "da_top_nav_btn--active" : ""}`}
-          onMouseEnter={onAnalysisIntent}
-          onFocus={onAnalysisIntent}
-          onClick={() => onPageChange?.("analysis")}
-        >
-          <BarChart2 size={14} className="opacity-80" />
-        </button>
+        {shouldShowUpdateAction ? (
+          <button
+            id="device-analysis-window-update-btn"
+            type="button"
+            aria-label={updateActionTitle}
+            title={updateActionTitle}
+            className="da_window_action_btn"
+            onClick={updateAction?.onClick}
+          >
+            <span>{updateActionLabel}</span>
+          </button>
+        ) : null}
+        {pageActions.map((action) => {
+          if (action.id === "origin") {
+            return (
+              <button
+                key={action.id}
+                id="device-analysis-window-origin-btn"
+                type="button"
+                aria-label={action.title}
+                title={action.title}
+                className="da_window_icon_btn"
+                onMouseEnter={onAnalysisIntent}
+                onFocus={onAnalysisIntent}
+                onClick={onOpenOrigin}
+              >
+                <img
+                  src={originIcon}
+                  alt=""
+                  aria-hidden="true"
+                  className="h-[14px] w-[14px] opacity-80 dark:invert"
+                />
+              </button>
+            );
+          }
 
-        <button
-          id="device-analysis-window-origin-btn"
-          type="button"
-          aria-label={t("da_open_in_origin")}
-          title={t("da_open_in_origin")}
-          className="da_window_icon_btn"
-          onMouseEnter={onAnalysisIntent}
-          onFocus={onAnalysisIntent}
-          onClick={onOpenOrigin}
-        >
-          <img
-            src={originIcon}
-            alt=""
-            aria-hidden="true"
-            className="h-[14px] w-[14px] opacity-80 dark:invert"
-          />
-        </button>
-        <button
-          id="device-analysis-window-settings-btn"
-          type="button"
-          aria-label={t("da_settings_title")}
-          title={t("da_settings_title")}
-          className={`da_window_icon_btn ${activePage === "settings" ? "da_top_nav_btn--active" : ""}`}
-          onClick={onOpenSettings}
-        >
-          <Settings size={14} className="opacity-80" />
-        </button>
-        <button
-          id="device-analysis-window-minimize-btn"
-          type="button"
-          aria-label={t("da_menu_window_minimize")}
-          title={t("da_menu_window_minimize")}
-          className="da_window_control_btn"
-          onClick={onMinimizeWindow}
-        >
-          <Minus size={14} />
-        </button>
-        <button
-          id="device-analysis-window-maximize-btn"
-          type="button"
-          aria-label={t("da_menu_window_maximize")}
-          title={t("da_menu_window_maximize")}
-          className="da_window_control_btn"
-          onClick={onToggleMaximizeWindow}
-        >
-          <Square size={12} />
-        </button>
-        <button
-          id="device-analysis-window-close-btn"
-          type="button"
-          aria-label={t("da_menu_window_close")}
-          title={t("da_menu_window_close")}
-          className="da_window_control_btn da_window_control_btn--close"
-          onClick={onCloseWindow}
-        >
-          <X size={14} />
-        </button>
+          return (
+            <button
+              key={action.id}
+              type="button"
+              aria-label={action.title}
+              title={action.title}
+              className={`da_window_icon_btn ${action.isActive ? "da_top_nav_btn--active" : ""}`}
+              onMouseEnter={action.id === "analysis" ? onAnalysisIntent : undefined}
+              onFocus={action.id === "analysis" ? onAnalysisIntent : undefined}
+              onClick={() => {
+                if (action.id === "data" || action.id === "analysis") {
+                  onPageChange?.(action.id);
+                  return;
+                }
+                onOpenSettings?.();
+              }}
+              id={
+                action.id === "settings"
+                  ? "device-analysis-window-settings-btn"
+                  : undefined
+              }
+            >
+              {action.id === "data" ? (
+                <Import size={14} className="opacity-80" />
+              ) : action.id === "analysis" ? (
+                <BarChart2 size={14} className="opacity-80" />
+              ) : (
+                <Settings size={14} className="opacity-80" />
+              )}
+            </button>
+          );
+        })}
+        {windowActions.map((action) => (
+          <button
+            key={action.id}
+            id={`device-analysis-window-${action.id}-btn`}
+            type="button"
+            aria-label={action.title}
+            title={action.title}
+            className={`da_window_control_btn ${action.isDanger ? "da_window_control_btn--close" : ""}`.trim()}
+            onClick={
+              action.id === "minimize"
+                ? onMinimizeWindow
+                : action.id === "maximize"
+                  ? onToggleMaximizeWindow
+                  : onCloseWindow
+            }
+          >
+            {action.id === "minimize" ? (
+              <Minus size={14} />
+            ) : action.id === "maximize" ? (
+              <Square size={12} />
+            ) : (
+              <X size={14} />
+            )}
+          </button>
+        ))}
       </div>
     </header>
   );

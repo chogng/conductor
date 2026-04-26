@@ -198,6 +198,8 @@
     da_menu_window_close: '关闭窗口',
     da_menu_window_maximize: '最大化 / 还原',
     da_menu_window_minimize: '最小化窗口',
+    da_menu_update_available: '更新',
+    da_menu_update_install: '安装',
     da_invalidVarPair: 'Var1/Var2 配置不合法',
     da_loadTemplatesFailed: '模板加载失败：{error}',
     da_loaded_csv_files: '已加载 {count} 个文件',
