@@ -3492,7 +3492,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             analysisCompactPageFieldClass={ANALYSIS_COMPACT_PAGE_FIELD_CLASS}
           />
 
-          {activeFile?.series?.length ? (<Card variant="panel" className="flex min-w-0 flex-col flex-1">
+          {activeFile?.series?.length ? (<Card id="device-analysis-calculated-parameters-card" variant="panel" className="flex min-w-0 flex-col flex-1">
             <div className="mb-3 flex min-w-0 items-center justify-between gap-3 flex-wrap">
               <div className="flex min-w-0 items-center flex-wrap">
                 <Tabs idBase="device-analysis-results-tabs" value={resultsTab} onChange={(next) => setResultsTab(next === "export" ? "export" : "metrics")} size="sm" hoverPreview={false} groupLabel={t("da_analysis_results_tabs_label")} itemClassName="!px-3" options={[

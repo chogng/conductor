@@ -315,11 +315,7 @@ const getAnalysisVirtualSpotlightElement = (
   }
 
   if (target.kind === "analysis-calculated-section") {
-    const headings = Array.from(document.querySelectorAll("h3"));
-    const heading = headings.find(
-      (node) => node.textContent?.trim() === "Calculated Parameters",
-    );
-    return heading?.closest(".flex.flex-col.flex-1") ?? null;
+    return document.getElementById("device-analysis-calculated-parameters-card");
   }
 
   return null;
@@ -1061,8 +1057,9 @@ const DeviceAnalysisOnboarding = ({
     typeof window === "undefined" ? 0 : Math.max(0, window.innerHeight);
   const backdropOpacity = clamp(step.backdropOpacity ?? 0.58, 0, 0.9);
   const backdropFill = `rgba(0,0,0,${backdropOpacity})`;
+  const backdropRects = spotlightRects.length > 0 ? spotlightRects : ringRects;
   const shouldUseFullBackdrop =
-    step.backdropMode === "full" || spotlightRects.length === 0;
+    step.backdropMode === "full" || backdropRects.length === 0;
   const interactionBlockerRects = getInteractionBlockerRects(
     viewportWidth,
     viewportHeight,
@@ -1099,7 +1096,7 @@ const DeviceAnalysisOnboarding = ({
                   height={viewportHeight}
                   fill="white"
                 />
-                {spotlightRects.map((rect, index) => (
+                {backdropRects.map((rect, index) => (
                   <rect
                     key={`${step.id}-mask-${index}`}
                     x={rect.left}
@@ -1124,7 +1121,7 @@ const DeviceAnalysisOnboarding = ({
             />
           </svg>
 
-          {spotlightRects.map((rect, index) => (
+          {backdropRects.map((rect, index) => (
             <div
               key={`${step.id}-spotlight-${index}`}
               className="absolute border border-white/18 bg-white/[0.02] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]"

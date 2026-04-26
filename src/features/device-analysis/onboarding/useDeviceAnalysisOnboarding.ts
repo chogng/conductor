@@ -27,18 +27,6 @@ const DEMO_FILE_PATHS = [
 ] as const;
 const DEMO_TEMPLATE_NAME_FALLBACK = "demo-01";
 
-const TEMPLATE_SAVE_MODE_STEP_IDS = new Set([
-  "template-config",
-  "template-name",
-  "template-x-start",
-  "template-x-end",
-  "template-x-points",
-  "template-select-columns",
-  "template-save",
-]);
-
-const CELL_REFERENCE_PATTERN = /^[A-Za-z]+[1-9]\d*$/;
-
 const clickElementById = (id: string): boolean => {
   if (typeof document === "undefined") return false;
   const element = document.getElementById(id);
@@ -58,31 +46,6 @@ const revealElementById = (id: string): boolean => {
   });
 
   return true;
-};
-
-const isCellReferenceValue = (value: string): boolean =>
-  CELL_REFERENCE_PATTERN.test(String(value ?? "").trim());
-
-const isXDataEndValue = (value: string): boolean => {
-  const trimmed = String(value ?? "").trim();
-  if (!trimmed) return false;
-  if (trimmed.toLowerCase() === "end") return true;
-  return isCellReferenceValue(trimmed);
-};
-
-const getColumnIndexFromCellReference = (value: string): number | null => {
-  const match = String(value ?? "")
-    .trim()
-    .match(/^([A-Za-z]+)[1-9]\d*$/);
-  if (!match) return null;
-
-  let columnIndex = 0;
-  const letters = match[1].toUpperCase();
-  for (const char of letters) {
-    columnIndex = columnIndex * 26 + (char.charCodeAt(0) - 64);
-  }
-
-  return columnIndex > 0 ? columnIndex - 1 : null;
 };
 
 type UseDeviceAnalysisOnboardingOptions = {
@@ -117,7 +80,6 @@ export const useDeviceAnalysisOnboarding = ({
   const [isOpen, setIsOpen] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
   const [launchMode, setLaunchMode] = useState<"auto" | "manual">("manual");
-  const [templateSaveCount, setTemplateSaveCount] = useState(0);
 
   const steps = DEVICE_ANALYSIS_ONBOARDING_STEPS;
 
@@ -137,7 +99,6 @@ export const useDeviceAnalysisOnboarding = ({
       setLaunchMode(mode);
       setStepIndex(0);
       setIsOpen(true);
-      setTemplateSaveCount(0);
       navigateToPage("data");
     },
     [navigateToPage],
@@ -146,7 +107,6 @@ export const useDeviceAnalysisOnboarding = ({
   const close = useCallback(() => {
     setIsOpen(false);
     setStepIndex(0);
-    setTemplateSaveCount(0);
 
     if (launchMode === "auto") {
       void persistState({ onboardingAutoStartDismissed: true });
@@ -156,7 +116,6 @@ export const useDeviceAnalysisOnboarding = ({
   const finish = useCallback(() => {
     setIsOpen(false);
     setStepIndex(0);
-    setTemplateSaveCount(0);
     void persistState({
       onboardingCompleted: true,
       onboardingAutoStartDismissed: true,
@@ -170,7 +129,7 @@ export const useDeviceAnalysisOnboarding = ({
     }
 
     const currentStep = steps[stepIndex];
-    if (currentStep?.id === "template-name") {
+    if (currentStep?.id === "template") {
       const currentTemplateName = String(templateConfig?.name ?? "").trim();
       if (!currentTemplateName) {
         setTemplateConfig((prev) => ({
@@ -190,6 +149,16 @@ export const useDeviceAnalysisOnboarding = ({
       );
     }
 
+    if (isOpen && currentStep?.id === "apply") {
+      const clicked = clickElementById(
+        "device-analysis-template-output-rule-apply-to-all",
+      );
+      if (!clicked) {
+        setStepIndex((prev) => prev + 1);
+      }
+      return;
+    }
+
     setStepIndex((prev) => prev + 1);
   }, [
     finish,
@@ -201,13 +170,8 @@ export const useDeviceAnalysisOnboarding = ({
   ]);
 
   const back = useCallback(() => {
-    const currentStep = steps[stepIndex];
-    if (isOpen && currentStep?.id === "template-config") {
-      clickElementById("device-analysis-template-mode-tab-select");
-    }
-
     setStepIndex((prev) => Math.max(0, prev - 1));
-  }, [isOpen, stepIndex, steps]);
+  }, []);
 
   const importDemoFiles = useCallback(async () => {
     const importedEntries = await Promise.all(
@@ -304,23 +268,6 @@ export const useDeviceAnalysisOnboarding = ({
       if (!(eventTarget instanceof Node)) {
         return;
       }
-      const clickedSaveButton = isClickWithinButton(
-        eventTarget,
-        "device-analysis-template-save-btn",
-      );
-      if (clickedSaveButton) {
-        setTemplateSaveCount((prev) => prev + 1);
-      }
-
-      if (clickedSaveButton) {
-        setStepIndex((prev) => {
-          if (steps[prev]?.id !== "template-save") {
-            return prev;
-          }
-          return Math.min(prev + 1, steps.length - 1);
-        });
-        return;
-      }
 
       const clickedApplyToAllButton = isClickWithinButton(
         eventTarget,
@@ -329,9 +276,6 @@ export const useDeviceAnalysisOnboarding = ({
       if (clickedApplyToAllButton) {
         setStepIndex((prev) => {
           const currentStepId = steps[prev]?.id;
-          if (currentStepId === "template-save") {
-            return Math.min(prev + 2, steps.length - 1);
-          }
           if (currentStepId === "apply") {
             return Math.min(prev + 1, steps.length - 1);
           }
@@ -359,20 +303,38 @@ export const useDeviceAnalysisOnboarding = ({
     if (!currentStep) return;
 
     const timeoutIds: number[] = [];
-    const shouldForceSaveMode =
-      TEMPLATE_SAVE_MODE_STEP_IDS.has(currentStep.id) &&
-      !(currentStep.id === "template-save" && templateSaveCount > 0);
 
-    if (shouldForceSaveMode) {
+    if (currentStep.id === "template") {
+      timeoutIds.push(
+        window.setTimeout(() => {
+          clickElementById("device-analysis-template-mode-tab-select");
+        }, 40),
+      );
+      timeoutIds.push(
+        window.setTimeout(() => {
+          clickElementById("device-analysis-template-dropdown-btn");
+        }, 140),
+      );
+    }
+
+    if (currentStep.id === "template-custom") {
       timeoutIds.push(
         window.setTimeout(() => {
           clickElementById("device-analysis-template-mode-tab-save");
-        }, 120),
+        }, 40),
+      );
+    }
+
+    if (currentStep.id === "apply") {
+      timeoutIds.push(
+        window.setTimeout(() => {
+          clickElementById("device-analysis-template-mode-tab-select");
+        }, 40),
       );
     }
 
     if (currentStep.focusTargetId) {
-      const baseDelay = shouldForceSaveMode ? 220 : 80;
+      const baseDelay = 80;
       timeoutIds.push(
         window.setTimeout(() => {
           revealElementById(currentStep.focusTargetId as string);
@@ -388,7 +350,7 @@ export const useDeviceAnalysisOnboarding = ({
     return () => {
       timeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
     };
-  }, [isOpen, stepIndex, steps, templateSaveCount]);
+  }, [isOpen, stepIndex, steps]);
 
   const canNext = useMemo(() => {
     if (!isOpen) return true;
@@ -399,38 +361,15 @@ export const useDeviceAnalysisOnboarding = ({
     switch (currentStep.id) {
       case "import":
         return rawData.length > 0;
-      case "template-name":
-        return true;
-      case "template-x-start":
-        return isCellReferenceValue(templateConfig?.xDataStart ?? "");
-      case "template-x-end":
-        return isXDataEndValue(templateConfig?.xDataEnd ?? "");
-      case "template-x-points":
-        return true;
-      case "template-select-columns":
-        return Array.isArray(templateConfig?.yColumns)
-          ? templateConfig.yColumns.some(
-              (columnIndex) =>
-                columnIndex !==
-                getColumnIndexFromCellReference(templateConfig?.xDataStart ?? ""),
-            )
-          : false;
-      case "template-save":
-        return templateSaveCount > 0;
-      case "apply":
-        return processingState === "processing" || processedData.length > 0;
       default:
         return true;
     }
   }, [
     isOpen,
-    processedData.length,
-    processingState,
     rawData.length,
     stepIndex,
     steps,
     templateConfig,
-    templateSaveCount,
   ]);
 
   return useMemo(

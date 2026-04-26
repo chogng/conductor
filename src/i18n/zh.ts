@@ -243,7 +243,7 @@
     da_onboarding_import_action: '载入示例文件',
     da_onboarding_template_title: '模板决定如何提取数据',
     da_onboarding_template_body:
-      '选择已有模板、他人分享的模板，或新建一个模板，告诉系统从文件的哪里读取 X/Y 数据、标签和曲线信息。',
+      '选择已有模板、他人分享的模板，或新建一个模板，或使用auto处理曲线信息',
     da_onboarding_template_config_title: '填写模板的核心字段',
     da_onboarding_template_config_body:
       '在进入下一步前，完成以下几个字段是必要的：模板名称、X 的开始/结束/点数，以及 preview 表里 Y 列勾选。它们构成最基础的器件曲线',
@@ -265,9 +265,12 @@
     da_onboarding_template_save_title: '记得完成后保存模板',
     da_onboarding_template_save_body:
       '核心字段填写完成，可保存模板，以应用到数据文件。保存的模板会保存在本地，以直接使用或分享给他人。',
-    da_onboarding_apply_title: '应用模板，生成分析结果',
+    da_onboarding_apply_title: '自定义模板处理各种形状数据',
     da_onboarding_apply_body:
-      '将刚保存的模板应用到全部 demo 文件。开始处理后，系统会自动提取数据，并准备后续图表分析所需结果。',
+      '当auto无法处理时，选择新建模板以使用自定义模板来应用到数据文件，模板通过右侧预览区的单元格构建',
+    da_onboarding_apply_run_title: '应用模板或自动处理',
+    da_onboarding_apply_run_body:
+      '回到选择页后，点击“应用到所有”将当前模板或 Auto 应用到全部数据文件，生成后续曲线预览',
     da_onboarding_analysis_chart_title: '曲线预览区',
     da_onboarding_analysis_chart_body:
       '提取完成后，曲线预览区会显示从数据文件中提取出的曲线。勾选图例以选择需要导入到 Origin 绘制的曲线。',
@@ -279,13 +282,13 @@
       '汇总每条曲线的计算结果，在发送到 Origin 前务必查看这些关键指标。',
     da_onboarding_origin_export_title: '发送到 Origin',
     da_onboarding_origin_export_body:
-      '图表准备好后，点击 Origin 图标，把当前分析结果发送到 Origin。第一次使用前，请先到设置里完成 Origin.exe 配置。',
-    da_onboarding_origin_title: '发送到 Origin 前先完成配置',
+      '点击 Origin 图标，发送当前分析结果发送到 Origin。第一次使用前，请先到设置里完成 Origin.exe 配置',
+    da_onboarding_origin_title: 'Origin 配置',
     da_onboarding_origin_body:
-      '如果你要继续在 Origin 里处理数据，先在这里选择 Origin.exe 路径。配置完成后，就能从桌面标题栏直接发送当前分析结果。',
-    da_onboarding_finish_title: '现在可以开始正式使用了',
+      '如果要继续在 Origin 里处理数据，请先测试 Origin.exe 路径。配置完成后，可直接发送当前分析结果到origin',
+    da_onboarding_finish_title: '结束引导',
     da_onboarding_finish_body:
-      '你之后随时都可以在设置页重新打开这套引导。建议先完整跑通一次：导入文件、应用模板，再确认图表结果是否正确。',
+      '引导可在设置页重新打开，欢迎使用，有意见请及时反馈',
     da_preview_error: '预览加载失败',
     da_preview_error_hint: '请尝试重新选择该文件',
     da_preview_filename_label: '文件名',

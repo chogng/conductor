@@ -265,9 +265,12 @@
     da_onboarding_template_save_title: 'Save this template',
     da_onboarding_template_save_body:
       'Now the key fields are ready, so you can save the template and apply it to your data files. Saved templates stay on this device and can also be shared with others.',
-    da_onboarding_apply_title: 'Apply the template to generate results',
+    da_onboarding_apply_title: 'Custom templates handle varied data shapes',
     da_onboarding_apply_body:
-      'Now apply the saved template to all demo files. Once processing starts, the app will extract the data and prepare the charts automatically.',
+      'When Auto cannot handle a file, create a custom template and apply it to the data files. Custom templates are built from cells in the preview table on the right.',
+    da_onboarding_apply_run_title: 'Apply a template or use Auto',
+    da_onboarding_apply_run_body:
+      'Back on the Select tab, click "Apply to all" to apply the current template or Auto extraction rule to every data file and generate the curve preview.',
     da_onboarding_analysis_chart_title: 'Curve preview area',
     da_onboarding_analysis_chart_body:
       'After extraction finishes, the curve preview area shows the curves extracted from the data files. Check the legend items to choose which curves should be sent to Origin for plotting.',
