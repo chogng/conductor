@@ -65,6 +65,16 @@ type DesktopImportBridge = {
     fileId: string;
     startRow: number;
   }) => Promise<unknown>;
+  getDeviceAnalysisDemoFiles?: () => Promise<{
+    demoDir?: string;
+    files?: Array<{
+      fileName?: string;
+      lastModified?: number;
+      path?: string;
+      size?: number;
+      text?: string;
+    }>;
+  }>;
   getDeviceAnalysisPreviewMetaWithRust?: (payload: {
     fileId: string;
   }) => Promise<unknown>;

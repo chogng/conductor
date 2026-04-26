@@ -5,7 +5,7 @@
   "type": "module",
   "main": "desktop-dist/main.js",
   "scripts": {
-    "make:icons": "bash scripts/make-icons-macos.sh",
+    "make:icons": "node scripts/make-icons.mjs",
     "dev": "vite",
     "dev:desktop": "npm run build:desktop:core && node --experimental-strip-types scripts/dev-desktop.ts",
     "build:origin-csv-worker": "node scripts/run-powershell.mjs scripts/build-origin-csv-worker.ps1",
@@ -76,6 +76,9 @@
       "buildResources": "build",
       "output": "release"
     },
+    "toolsets": {
+      "winCodeSign": "1.1.0"
+    },
     "files": [
       "dist/**/*",
       "desktop-dist/**/*",
@@ -87,6 +90,10 @@
       {
         "from": "build/icons",
         "to": "build/icons"
+      },
+      {
+        "from": "public/demo",
+        "to": "demo"
       }
     ],
     "asar": true,
@@ -113,7 +120,7 @@
     "win": {
       "icon": "build/icons/icon.ico",
       "artifactName": "Conductor-${version}-windows-${arch}-portable.${ext}",
-      "signAndEditExecutable": false,
+      "signAndEditExecutable": true,
       "target": [
         "nsis",
         "zip",

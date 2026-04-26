@@ -27,6 +27,25 @@ const DEMO_FILE_PATHS = [
 ] as const;
 const DEMO_TEMPLATE_NAME_FALLBACK = "demo-01";
 
+type DesktopDemoFileEntry = {
+  fileName?: string;
+  lastModified?: number;
+  path?: string;
+  size?: number;
+  text?: string;
+};
+
+type ImportedDemoRawDataEntry = RawDataEntry & {
+  file: File;
+  fileId: string;
+  fileName: string;
+  itemKey: string;
+  lastModified: number;
+  size: number;
+  sourceKey: string;
+  sourcePath: string | null;
+};
+
 const clickElementById = (id: string): boolean => {
   if (typeof document === "undefined") return false;
   const element = document.getElementById(id);
@@ -174,46 +193,67 @@ export const useDeviceAnalysisOnboarding = ({
   }, []);
 
   const importDemoFiles = useCallback(async () => {
-    const importedEntries = await Promise.all(
-      DEMO_FILE_PATHS.map(async (pathValue, index) => {
-        const response = await fetch(pathValue);
-        if (!response.ok) {
-          throw new Error(`Failed to load demo file: ${pathValue}`);
-        }
+    const desktopDemoFiles =
+      await globalThis.window?.desktopImport?.getDeviceAnalysisDemoFiles?.();
+    const desktopEntries = Array.isArray(desktopDemoFiles?.files)
+      ? desktopDemoFiles.files.filter(
+          (entry): entry is DesktopDemoFileEntry =>
+            typeof entry?.fileName === "string" &&
+            typeof entry?.text === "string",
+        )
+      : [];
+    const demoSources =
+      desktopEntries.length > 0
+        ? desktopEntries.map((entry, index) => ({
+            fileName: entry.fileName || `demo-${index + 1}.csv`,
+            lastModified:
+              Number.isFinite(Number(entry.lastModified))
+                ? Number(entry.lastModified)
+                : Date.UTC(2026, 0, index + 1),
+            sourcePath: typeof entry.path === "string" ? entry.path : null,
+            text: entry.text || "",
+          }))
+        : await Promise.all(
+            DEMO_FILE_PATHS.map(async (pathValue, index) => {
+              const response = await fetch(pathValue);
+              if (!response.ok) {
+                throw new Error(`Failed to load demo file: ${pathValue}`);
+              }
 
-        const blob = await response.blob();
-        const fileName = pathValue.split("/").pop() || `demo-${index + 1}.csv`;
-        const file = new File([blob], fileName, {
-          type: "text/csv;charset=utf-8",
-          lastModified: Date.UTC(2026, 0, index + 1),
-        });
-        const sourceKey = buildFileIdentityKey(file);
-        if (!sourceKey) return null;
+              const text = await response.text();
+              const fileName =
+                pathValue.split("/").pop() || `demo-${index + 1}.csv`;
+              return {
+                fileName,
+                lastModified: Date.UTC(2026, 0, index + 1),
+                sourcePath: null,
+                text,
+              };
+            }),
+          );
 
-        return {
-          file,
-          fileId: createCsvImporterFileId(),
-          fileName,
-          itemKey: buildItemKey(file),
-          sourceKey,
-          size: file.size,
-          lastModified: file.lastModified,
-        };
-      }),
-    );
+    const importedEntries = demoSources.map((source) => {
+      const file = new File([source.text], source.fileName, {
+        type: "text/csv;charset=utf-8",
+        lastModified: source.lastModified,
+      });
+      const sourceKey = buildFileIdentityKey(file);
+      if (!sourceKey) return null;
+
+      return {
+        file,
+        fileId: createCsvImporterFileId(),
+        fileName: source.fileName,
+        itemKey: buildItemKey(file),
+        sourcePath: source.sourcePath,
+        sourceKey,
+        size: file.size,
+        lastModified: file.lastModified,
+      };
+    });
 
     const nextEntries = importedEntries.filter(
-      (
-        entry,
-      ): entry is RawDataEntry & {
-        file: File;
-        fileId: string;
-        fileName: string;
-        itemKey: string;
-        sourceKey: string;
-        size: number;
-        lastModified: number;
-      } => Boolean(entry),
+      (entry): entry is ImportedDemoRawDataEntry => Boolean(entry),
     );
 
     if (nextEntries.length === 0) return;

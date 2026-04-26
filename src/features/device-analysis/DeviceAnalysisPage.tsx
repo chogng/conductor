@@ -593,9 +593,7 @@ const DeviceAnalysisPage = () => {
 
   const hasOnboardingSessionData =
     rawData.length > 0 || processedData.length > 0;
-  const shouldSuppressDesktopAutoOnboarding = desktopMeta?.isDesktop === true;
   const shouldAutoStartOnboarding =
-    !shouldSuppressDesktopAutoOnboarding &&
     Boolean(deviceAnalysisSettings) &&
     !Boolean(deviceAnalysisSettings?.onboardingCompleted) &&
     !Boolean(deviceAnalysisSettings?.onboardingAutoStartDismissed) &&

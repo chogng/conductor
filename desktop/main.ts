@@ -39,7 +39,21 @@ const devUrl =
 const AUTO_UPDATE_INITIAL_DELAY_MS = 15 * 1000;
 const AUTO_UPDATE_INTERVAL_MS = 4 * 60 * 60 * 1000;
 const AUTO_UPDATE_SUPPORTED_PLATFORMS = new Set(["win32"]);
+const PACKAGED_AUTO_UPDATE_CONFIG = {
+  provider: "github",
+  owner: "chogng",
+  repo: "conductor-update",
+  releaseType: "release",
+};
 const DESKTOP_APP_USER_MODEL_ID = "com.conductor.desktop";
+const DEVICE_ANALYSIS_DEMO_FILE_NAMES = [
+  "demo-01.csv",
+  "demo-02.csv",
+  "demo-03.csv",
+  "demo-04.csv",
+  "demo-05.csv",
+  "demo-06.csv",
+];
 const ORIGIN_DETECTION_CACHE_TTL_MS = 60 * 1000;
 const MAIN_WINDOW_BOUNDS = {
   width: 1440,
@@ -655,6 +669,60 @@ function getDeviceAnalysisHomeDir() {
   return path.join(app.getPath("home"), ".device");
 }
 
+function getDeviceAnalysisDemoDir() {
+  return path.join(getDeviceAnalysisHomeDir(), "demo");
+}
+
+function resolveDeviceAnalysisDemoSourceDir() {
+  const candidates = app.isPackaged
+    ? [
+        path.join(getResourcesPath(), "demo"),
+        path.join(getResourcesPath(), "app.asar", "dist", "demo"),
+      ]
+    : [
+        path.join(__dirname, "..", "public", "demo"),
+        path.join(__dirname, "..", "dist", "demo"),
+      ];
+
+  return resolveFirstExistingPath(candidates);
+}
+
+function ensureDeviceAnalysisDemoFiles() {
+  const sourceDir = resolveDeviceAnalysisDemoSourceDir();
+  if (!sourceDir) {
+    console.warn("[demo] Demo source directory was not found.");
+    return { demoDir: getDeviceAnalysisDemoDir(), filePaths: [] };
+  }
+
+  const demoDir = getDeviceAnalysisDemoDir();
+  fs.mkdirSync(demoDir, { recursive: true });
+
+  const filePaths = [];
+  for (const fileName of DEVICE_ANALYSIS_DEMO_FILE_NAMES) {
+    const sourcePath = path.join(sourceDir, fileName);
+    const targetPath = path.join(demoDir, fileName);
+    if (!fs.existsSync(sourcePath)) continue;
+
+    let shouldCopy = true;
+    try {
+      if (fs.existsSync(targetPath)) {
+        const sourceStat = fs.statSync(sourcePath);
+        const targetStat = fs.statSync(targetPath);
+        shouldCopy = sourceStat.size !== targetStat.size;
+      }
+    } catch {
+      shouldCopy = true;
+    }
+
+    if (shouldCopy) {
+      fs.copyFileSync(sourcePath, targetPath);
+    }
+    filePaths.push(targetPath);
+  }
+
+  return { demoDir, filePaths };
+}
+
 function normalizeAbsoluteFilePath(rawPath) {
   const normalized = typeof rawPath === "string" ? rawPath.trim() : "";
   if (!normalized || !path.isAbsolute(normalized)) return "";
@@ -1230,6 +1298,25 @@ function handleDeviceAnalysisTemplatesDelete(_event, id) {
 
 function handleDeviceAnalysisSettingsGet() {
   return deviceAnalysisStore.getDeviceAnalysisSettings();
+}
+
+function handleDeviceAnalysisDemoFilesGet() {
+  const { demoDir, filePaths } = ensureDeviceAnalysisDemoFiles();
+  return {
+    demoDir,
+    files: filePaths
+      .filter((filePath) => fs.existsSync(filePath))
+      .map((filePath) => {
+        const stat = fs.statSync(filePath);
+        return {
+          fileName: path.basename(filePath),
+          path: filePath,
+          text: fs.readFileSync(filePath, "utf8"),
+          size: stat.size,
+          lastModified: stat.mtimeMs,
+        };
+      }),
+  };
 }
 
 function handleDesktopMetaGet(event) {
@@ -2070,6 +2157,39 @@ function resolveAutoUpdateFeedUrl() {
   );
 }
 
+function resolvePackagedAutoUpdateConfig() {
+  try {
+    const packageJson = require("../package.json");
+    const publish = packageJson?.build?.publish;
+    const publishList = Array.isArray(publish) ? publish : publish ? [publish] : [];
+    const githubPublish = publishList.find(
+      (item) =>
+        item &&
+        typeof item === "object" &&
+        String(item.provider || "").trim().toLowerCase() === "github",
+    );
+
+    const owner =
+      typeof githubPublish?.owner === "string" ? githubPublish.owner.trim() : "";
+    const repo =
+      typeof githubPublish?.repo === "string" ? githubPublish.repo.trim() : "";
+    if (!owner || !repo) return { ...PACKAGED_AUTO_UPDATE_CONFIG };
+
+    return {
+      provider: "github",
+      owner,
+      repo,
+      releaseType:
+        typeof githubPublish?.releaseType === "string" && githubPublish.releaseType.trim()
+          ? githubPublish.releaseType.trim()
+          : "release",
+    };
+  } catch (error) {
+    console.warn("[auto-update] Failed to read packaged update config:", error?.message || error);
+    return { ...PACKAGED_AUTO_UPDATE_CONFIG };
+  }
+}
+
 function getAutoUpdateDialogWindow() {
   if (mainWindow && !mainWindow.isDestroyed()) {
     return mainWindow;
@@ -2226,7 +2346,18 @@ async function setupAutoUpdates() {
       return;
     }
   } else {
-    console.info("[auto-update] Using packaged updater provider configuration.");
+    const packagedUpdateConfig = resolvePackagedAutoUpdateConfig();
+    if (!packagedUpdateConfig) {
+      isAutoUpdateConfigured = false;
+      autoUpdateConfiguredFeedUrl = null;
+      setAutoUpdateStatus("disabled");
+      console.warn("[auto-update] Packaged updater provider configuration is missing.");
+      return;
+    }
+
+    autoUpdater.setFeedURL(packagedUpdateConfig);
+    autoUpdateConfiguredFeedUrl = `${packagedUpdateConfig.provider}:${packagedUpdateConfig.owner}/${packagedUpdateConfig.repo}`;
+    console.info("[auto-update] Using packaged GitHub updater provider configuration.");
   }
 
   autoUpdater.on("checking-for-update", () => {
@@ -2681,6 +2812,7 @@ app.whenReady().then(() => {
   }
   configureRuntimeCachePath();
   cleanupRustExcelJobRoot();
+  ensureDeviceAnalysisDemoFiles();
   createAppTray();
 
   ipcMain.on("desktop-command", handleDesktopCommand);
@@ -2698,6 +2830,7 @@ app.whenReady().then(() => {
   ipcMain.handle(ipcChannels.persistencePathChoose, handleDeviceAnalysisPersistencePathChoose);
   ipcMain.handle(ipcChannels.excelConvertRust, handleExcelConvertRust);
   ipcMain.handle(ipcChannels.excelReadConvertedCsv, handleExcelReadConvertedCsv);
+  ipcMain.handle(ipcChannels.deviceAnalysisDemoFilesGet, handleDeviceAnalysisDemoFilesGet);
   ipcMain.handle(
     ipcChannels.deviceAnalysisRustEngineOpen,
     handleDeviceAnalysisRustEngineOpen,
@@ -2787,6 +2920,7 @@ app.on("will-quit", () => {
   ipcMain.removeHandler(ipcChannels.persistencePathChoose);
   ipcMain.removeHandler(ipcChannels.excelConvertRust);
   ipcMain.removeHandler(ipcChannels.excelReadConvertedCsv);
+  ipcMain.removeHandler(ipcChannels.deviceAnalysisDemoFilesGet);
   ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEngineOpen);
   ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEnginePreviewMeta);
   ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEnginePreviewRows);
