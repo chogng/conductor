@@ -76,6 +76,7 @@ let startupGatePromise = null;
 let autoUpdateTimer = null;
 let autoUpdateConfiguredFeedUrl = null;
 let isAutoUpdateConfigured = false;
+let autoUpdateInstallAfterDownloadRequested = false;
 let autoUpdateStatus = {
   status: "idle",
   version: null,
@@ -1330,6 +1331,7 @@ function handleDesktopMetaGet(event) {
     isDesktop: true,
     platform: process.platform,
     isPackaged: app.isPackaged,
+    appVersion: app.getVersion(),
   };
 }
 
@@ -2255,6 +2257,7 @@ async function installDownloadedUpdate() {
   if (!autoUpdater) return false;
   if (autoUpdateStatus?.status !== "downloaded") return false;
 
+  autoUpdateInstallAfterDownloadRequested = false;
   autoUpdater.quitAndInstall();
   return true;
 }
@@ -2313,6 +2316,36 @@ async function checkForAutoUpdates({ manual = false } = {}) {
     }
     return null;
   }
+}
+
+async function checkForAutoUpdatesAndInstall() {
+  if (autoUpdateStatus?.status === "downloaded") {
+    return installDownloadedUpdate();
+  }
+
+  autoUpdateInstallAfterDownloadRequested = true;
+  const result = await checkForAutoUpdates({ manual: true });
+  if (!result || result.isUpdateAvailable === false) {
+    autoUpdateInstallAfterDownloadRequested = false;
+    return false;
+  }
+
+  try {
+    if (result.downloadPromise && typeof result.downloadPromise.then === "function") {
+      await result.downloadPromise;
+    }
+  } catch (error) {
+    autoUpdateInstallAfterDownloadRequested = false;
+    setAutoUpdateStatus("error");
+    console.warn("[auto-update] Download before install failed:", error?.message || error);
+    return false;
+  }
+
+  if (autoUpdateStatus?.status === "downloaded") {
+    return installDownloadedUpdate();
+  }
+
+  return true;
 }
 
 async function setupAutoUpdates() {
@@ -2381,6 +2414,7 @@ async function setupAutoUpdates() {
   });
 
   autoUpdater.on("update-not-available", (info) => {
+    autoUpdateInstallAfterDownloadRequested = false;
     setAutoUpdateStatus("idle", info?.version || null);
     console.info(
       `[auto-update] No update available. Current=${app.getVersion()}, latest=${info?.version || "unknown"}.`,
@@ -2388,6 +2422,7 @@ async function setupAutoUpdates() {
   });
 
   autoUpdater.on("error", (error) => {
+    autoUpdateInstallAfterDownloadRequested = false;
     setAutoUpdateStatus("error");
     console.warn("[auto-update] Error:", error?.message || error);
   });
@@ -2397,6 +2432,9 @@ async function setupAutoUpdates() {
     console.info(
       `[auto-update] Update ${info?.version || "unknown"} downloaded from ${autoUpdateConfiguredFeedUrl}.`,
     );
+    if (autoUpdateInstallAfterDownloadRequested) {
+      void installDownloadedUpdate();
+    }
   });
 
   setTimeout(() => {
@@ -2788,6 +2826,11 @@ function handleDesktopCommand(event, payload) {
 
   if (command === "check-for-updates") {
     void checkForAutoUpdates({ manual: true });
+    return;
+  }
+
+  if (command === "check-for-updates-and-install") {
+    void checkForAutoUpdatesAndInstall();
     return;
   }
 

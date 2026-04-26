@@ -56,6 +56,10 @@ contextBridge.exposeInMainWorld("desktopMeta", {
     desktopMeta && typeof desktopMeta === "object" && "isPackaged" in desktopMeta
       ? desktopMeta.isPackaged === true
       : false,
+  appVersion:
+    desktopMeta && typeof desktopMeta === "object" && typeof desktopMeta.appVersion === "string"
+      ? desktopMeta.appVersion
+      : null,
 });
 
 contextBridge.exposeInMainWorld("desktopApp", {

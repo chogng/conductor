@@ -58,6 +58,7 @@ type StorageSettings = {
 };
 
 type AppUpdateSettings = {
+  currentVersion?: string | null;
   isAvailable: boolean;
   onCheckForUpdates: () => boolean | Promise<boolean>;
 };
@@ -113,6 +114,8 @@ type DeviceAnalysisSettingsPanelProps = {
 
 const feedbackClassName = (type: Feedback["type"]): string =>
   `text-sm ${type === "error" ? "text-red-500" : "text-emerald-600"}`;
+
+type SettingsSectionId = "general" | "origin" | "about";
 
 const DeviceAnalysisSettingsPanel = ({
   appUpdateSettings,
@@ -182,6 +185,8 @@ const DeviceAnalysisSettingsPanel = ({
     String(analysisDefaultSettings.legendFontSize ?? ""),
   );
   const [appUpdateChecking, setAppUpdateChecking] = useState(false);
+  const [activeSettingsSection, setActiveSettingsSection] =
+    useState<SettingsSectionId>("general");
   const [originHealthToast, setOriginHealthToast] = useState<ToastState>({
     isVisible: false,
     message: "",
@@ -200,6 +205,12 @@ const DeviceAnalysisSettingsPanel = ({
   const closeCleanupToast = useCallback(() => {
     setCleanupToast((prev) => ({ ...prev, isVisible: false }));
   }, []);
+
+  const settingsSections: Array<{ id: SettingsSectionId; label: string }> = [
+    { id: "general", label: t("da_settings_nav_general") },
+    { id: "origin", label: t("da_settings_nav_origin") },
+    { id: "about", label: t("da_settings_nav_about") },
+  ];
 
   useEffect(() => {
     setXyPairsDraft(originSettings.plotXyPairs ?? "");
@@ -260,10 +271,37 @@ const DeviceAnalysisSettingsPanel = ({
       aria-label={t("da_settings_section_aria_label")}
       className="relative"
     >
-      <h2 className="section_title">{t("da_settings_title")}</h2>
+      <div className="grid min-h-0 items-start gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <aside
+          aria-label={t("da_settings_nav_aria_label")}
+          className="h-fit w-full min-w-0 rounded-lg border border-border bg-bg-surface p-2"
+        >
+          <nav className="grid grid-cols-3 gap-2 lg:grid-cols-1">
+            {settingsSections.map((section) => {
+              const isActive = activeSettingsSection === section.id;
+              return (
+                <button
+                  key={section.id}
+                  type="button"
+                  className={`h-12 w-full min-w-0 overflow-hidden rounded-md px-3 py-2 text-left text-sm font-medium leading-5 transition-colors ${
+                    isActive
+                      ? "bg-text-primary text-bg-surface"
+                      : "text-text-secondary hover:bg-bg-page hover:text-text-primary"
+                  }`}
+                  aria-current={isActive ? "page" : undefined}
+                  onClick={() => setActiveSettingsSection(section.id)}
+                >
+                  {section.label}
+                </button>
+              );
+            })}
+          </nav>
+        </aside>
 
-      <Card id="device-analysis-settings-card" variant="panel" className="mb-4 overflow-hidden p-0">
-        <div className="divide-y divide-border/60">
+        <Card id="device-analysis-settings-card" variant="panel" className="mb-4 overflow-hidden p-0">
+          <div className="divide-y divide-border/60">
+            {activeSettingsSection === "general" ? (
+              <>
           <div id="device-analysis-settings-language-card" className="p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
@@ -342,43 +380,6 @@ const DeviceAnalysisSettingsPanel = ({
                   stableWidth
                   disabled={windowCloseSettings.isSaving}
                 />
-              </div>
-            </div>
-          </div>
-
-          <div id="device-analysis-settings-app-update-card" className="p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <h3 className="text-base font-semibold text-text-primary">
-                  {t("da_settings_app_update_title")}
-                </h3>
-              </div>
-
-              <div className="w-full sm:w-fit flex justify-end">
-                <Button
-                  id="device-analysis-settings-app-update-check-btn"
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  className="h-[38px] w-full sm:w-auto whitespace-nowrap sm:shrink-0"
-                  onClick={() => {
-                    void (async () => {
-                      setAppUpdateChecking(true);
-                      try {
-                        await appUpdateSettings.onCheckForUpdates();
-                      } catch {
-                        // Update check result is shown by desktop shell dialogs.
-                      } finally {
-                        setAppUpdateChecking(false);
-                      }
-                    })();
-                  }}
-                  disabled={!appUpdateSettings.isAvailable || appUpdateChecking}
-                >
-                  {appUpdateChecking
-                    ? t("da_settings_app_update_checking")
-                    : t("da_settings_app_update_check_btn")}
-                </Button>
               </div>
             </div>
           </div>
@@ -595,7 +596,11 @@ const DeviceAnalysisSettingsPanel = ({
               </p>
             ) : null}
           </div>
+              </>
+            ) : null}
 
+            {activeSettingsSection === "origin" ? (
+              <>
           <div id="device-analysis-settings-origin-path-card" className="p-4 space-y-4">
             <div>
               <h3 className="text-base font-semibold text-text-primary">
@@ -824,8 +829,66 @@ const DeviceAnalysisSettingsPanel = ({
               </p>
             ) : null}
           </div>
-        </div>
-      </Card>
+              </>
+            ) : null}
+
+            {activeSettingsSection === "about" ? (
+              <>
+                <div id="device-analysis-settings-about-version-card" className="p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <h3 className="text-base font-semibold text-text-primary">
+                        {t("da_settings_about_version_title")}
+                      </h3>
+                    </div>
+
+                    <p className="font-mono text-sm text-text-primary">
+                      {appUpdateSettings.currentVersion || t("da_settings_about_version_unknown")}
+                    </p>
+                  </div>
+                </div>
+
+                <div id="device-analysis-settings-app-update-card" className="p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <h3 className="text-base font-semibold text-text-primary">
+                        {t("da_settings_app_update_title")}
+                      </h3>
+                    </div>
+
+                    <div className="w-full sm:w-fit flex justify-end">
+                      <Button
+                        id="device-analysis-settings-app-update-check-btn"
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="h-[38px] w-full sm:w-auto whitespace-nowrap sm:shrink-0"
+                        onClick={() => {
+                          void (async () => {
+                            setAppUpdateChecking(true);
+                            try {
+                              await appUpdateSettings.onCheckForUpdates();
+                            } catch {
+                              // Update check result is shown by desktop shell dialogs.
+                            } finally {
+                              setAppUpdateChecking(false);
+                            }
+                          })();
+                        }}
+                        disabled={!appUpdateSettings.isAvailable || appUpdateChecking}
+                      >
+                        {appUpdateChecking
+                          ? t("da_settings_app_update_checking")
+                          : t("da_settings_app_update_check_btn")}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : null}
+          </div>
+        </Card>
+      </div>
 
       <Toast
         message={originHealthToast.message}

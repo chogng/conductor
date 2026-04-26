@@ -75,6 +75,7 @@ declare global {
       isDesktop?: boolean;
       platform?: string;
       isPackaged?: boolean;
+      appVersion?: string | null;
       [key: string]: unknown;
     };
   }
@@ -636,7 +637,7 @@ const DeviceAnalysisPage = () => {
 
   const {
     autoUpdateStatus,
-    handleCheckForUpdates,
+    handleCheckForUpdatesAndInstall,
     handleCloseWindow,
     handleInstallDownloadedUpdate,
     handleMinimizeWindow,
@@ -853,8 +854,12 @@ const DeviceAnalysisPage = () => {
                 <DeviceAnalysisSettingsPanelContainer
                   appUpdateSettings={{
                     isAvailable: isAppUpdatePreviewEnabled,
+                    currentVersion:
+                      typeof desktopMeta?.appVersion === "string"
+                        ? desktopMeta.appVersion
+                        : null,
                     onCheckForUpdates: isPackagedWindowsDesktopShell
-                      ? handleCheckForUpdates
+                      ? handleCheckForUpdatesAndInstall
                       : handlePreviewCheckForUpdates,
                   }}
                   deviceAnalysisSettings={deviceAnalysisSettings}

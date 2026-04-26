@@ -134,6 +134,10 @@ export const useDeviceAnalysisDesktopShell = ({
     return sendDesktopCommand("check-for-updates");
   }, [sendDesktopCommand]);
 
+  const handleCheckForUpdatesAndInstall = useCallback((): boolean => {
+    return sendDesktopCommand("check-for-updates-and-install");
+  }, [sendDesktopCommand]);
+
   const handleInstallDownloadedUpdate = useCallback((): boolean => {
     return sendDesktopCommand("install-downloaded-update");
   }, [sendDesktopCommand]);
@@ -207,6 +211,7 @@ export const useDeviceAnalysisDesktopShell = ({
 
   return {
     autoUpdateStatus,
+    handleCheckForUpdatesAndInstall,
     handleCheckForUpdates,
     handleCloseWindow,
     handleInstallDownloadedUpdate,

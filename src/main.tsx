@@ -14,6 +14,7 @@ declare global {
       isDesktop?: boolean;
       platform?: string;
       isPackaged?: boolean;
+      appVersion?: string | null;
       [key: string]: unknown;
     };
     desktopBoot?: {

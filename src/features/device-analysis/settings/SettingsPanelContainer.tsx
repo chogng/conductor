@@ -7,6 +7,7 @@ import type { DeviceAnalysisSettings } from "./deviceAnalysisSettingsShared";
 
 type SettingsPanelContainerProps = {
   appUpdateSettings: {
+    currentVersion?: string | null;
     isAvailable: boolean;
     onCheckForUpdates: () => boolean | Promise<boolean>;
   };
