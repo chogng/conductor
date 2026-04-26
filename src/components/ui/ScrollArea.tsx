@@ -392,7 +392,9 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(
       };
 
       viewport.addEventListener("scroll", onScroll, { passive: true });
-      viewport.addEventListener("wheel", onWheel, { passive: false });
+      if (axis === "x") {
+        viewport.addEventListener("wheel", onWheel, { passive: false });
+      }
 
       const ro = new ResizeObserver(() => scheduleMetricsUpdate());
       ro.observe(viewport);
@@ -402,15 +404,15 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(
       const mo = new MutationObserver(() => scheduleMetricsUpdate());
       mo.observe(viewport, {
         childList: true,
-        subtree: true,
-        characterData: true,
       });
 
       scheduleMetricsUpdate();
       window.addEventListener("resize", scheduleMetricsUpdate);
       return () => {
         viewport.removeEventListener("scroll", onScroll);
-        viewport.removeEventListener("wheel", onWheel);
+        if (axis === "x") {
+          viewport.removeEventListener("wheel", onWheel);
+        }
         ro.disconnect();
         mo.disconnect();
         window.removeEventListener("resize", scheduleMetricsUpdate);
