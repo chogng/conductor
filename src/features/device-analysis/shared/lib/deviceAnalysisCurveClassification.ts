@@ -371,6 +371,36 @@ export const extractDeviceAnalysisCurveMetadata = (
     }
   }
 
+  if (!dataNameColumns.length) {
+    for (let rowIndex = 0; rowIndex < rows.length - 1; rowIndex += 1) {
+      const row = Array.isArray(rows[rowIndex])
+        ? (rows[rowIndex] as Array<unknown>).map((value) => normalizeCellText(value))
+        : [];
+      const headers = row.filter(Boolean);
+      if (headers.length < 2) continue;
+      if (headers.includes("CH1 Voltage") && headers.includes("CH2 Voltage")) continue;
+      const hasDeviceHeader = headers.some(
+        (cell) =>
+          detectDeviceAnalysisAxisRole(cell) ||
+          /current|voltage|gate|drain|id|ig/i.test(cell),
+      );
+      if (!hasDeviceHeader) {
+        continue;
+      }
+      const nextRow = Array.isArray(rows[rowIndex + 1])
+        ? (rows[rowIndex + 1] as Array<unknown>)
+        : [];
+      const numericCount = nextRow.reduce<number>(
+        (count, cell) => (parseFiniteNumber(cell) === null ? count : count + 1),
+        0,
+      );
+      if (numericCount >= 2) {
+        dataNameColumns = headers;
+        break;
+      }
+    }
+  }
+
   const strippedSweepVoltageAxis =
     isStrippedChannelSweep && strippedChannelHeaderRowIndex >= 0
       ? collectStrippedSweepShapeStats(rows, strippedChannelHeaderRowIndex)
@@ -564,18 +594,20 @@ const detectPulseVoltageCurveKind = ({
   reason: string;
   source: NonNullable<DeviceAnalysisCurveSource>;
 } | null => {
+  const hasFastIvOrIvtHint = (value: unknown): boolean => {
+    const text = normalizeCellText(value).toLowerCase();
+    const compact = normalizeCompactText(value);
+    return compact.includes("fastiv") || /(^|[^a-z0-9])ivt([^a-z0-9]|$)/i.test(text);
+  };
   const fileNameCompact = normalizeCompactText(fileName);
-  const setupTitleCompact = normalizeCompactText(metadata?.setupTitle);
   const dataNamesCompact = Array.isArray(metadata?.dataNameColumns)
     ? metadata.dataNameColumns.map((value) => normalizeCompactText(value))
     : [];
   const hasPulseFileHint =
     fileNameCompact.includes("pv") ||
-    fileNameCompact.includes("fastiv") ||
-    fileNameCompact.includes("ivt");
+    hasFastIvOrIvtHint(fileName);
   const hasPulseMetadataHint =
-    setupTitleCompact.includes("fastiv") ||
-    setupTitleCompact.includes("ivt") ||
+    hasFastIvOrIvtHint(metadata?.setupTitle) ||
     dataNamesCompact.some((value) => value === "vp" || value === "in" || value === "ipt");
 
   if (!hasPulseFileHint && !hasPulseMetadataHint) return null;

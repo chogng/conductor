@@ -67,11 +67,11 @@ export const resolveCanvasChartTheme = (
 
   return {
     ...fallback,
-    axisLabel: textPrimary,
+    axisLabel: isDark ? textPrimary : "#000000",
     border,
-    plotBorder: border,
+    plotBorder: isDark ? border : "#000000",
     textPrimary,
-    textSecondary,
+    textSecondary: isDark ? textSecondary : "#000000",
     tooltipMuted: textSecondary,
   };
 };

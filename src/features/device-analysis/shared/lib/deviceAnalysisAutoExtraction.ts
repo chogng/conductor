@@ -515,6 +515,19 @@ const currentHeaderLooksLikeDrainCurrent = (header: string): boolean => {
   );
 };
 
+const currentHeaderLooksLikeGateCurrent = (header: string): boolean => {
+  const normalized = normalizeCellText(header).toLowerCase();
+  const compact = normalized.replace(/[\s_\-./()[\]{}:=]+/g, "");
+  return (
+    compact === "ig" ||
+    compact.startsWith("ig") ||
+    compact === "gatecurrent" ||
+    compact === "gatei" ||
+    normalized.includes("gate current") ||
+    (normalized.includes("gate") && normalized.includes("current"))
+  );
+};
+
 // ---------------------------------------------------------------------------
 // Structured column-layout detection
 // This is the main extension point for new CSV layouts such as:
@@ -847,6 +860,7 @@ const inferStructuredSeriesLayout = ({
         normalized === "ig" ||
         currentHeaderLooksLikeDrainCurrent(normalizedHeader),
       isDrainCurrent: currentHeaderLooksLikeDrainCurrent(normalizedHeader),
+      isGateCurrent: currentHeaderLooksLikeGateCurrent(normalizedHeader),
     };
   });
 
@@ -858,6 +872,59 @@ const inferStructuredSeriesLayout = ({
     if (left.suffixAxis !== "x" || right.suffixAxis !== "y") continue;
     if (!left.suffixStem || left.suffixStem !== right.suffixStem) continue;
     pairCandidates.push({ xCol: left.index, yCol: right.index });
+  }
+
+  const adjacentVoltageCurrentPairs: Array<{ xCol: number; yCol: number }> = [];
+  for (let index = 0; index < headerEntries.length - 1; index += 1) {
+    const left = headerEntries[index];
+    const right = headerEntries[index + 1];
+    if (!left.numeric || !right.numeric) continue;
+    if (!left.role) continue;
+    if (!right.isCurrent || right.isGateCurrent || !right.isDrainCurrent) continue;
+    adjacentVoltageCurrentPairs.push({ xCol: left.index, yCol: right.index });
+  }
+
+  if (adjacentVoltageCurrentPairs.length >= 2) {
+    const sharedX = adjacentVoltageCurrentPairs.every((pair) =>
+      columnsShareEquivalentX({
+        rows,
+        dataStartRowIndex,
+        leftCol: adjacentVoltageCurrentPairs[0]?.xCol ?? pair.xCol,
+        rightCol: pair.xCol,
+      }),
+    );
+    const firstX = headerEntries[adjacentVoltageCurrentPairs[0]?.xCol ?? 0] ?? null;
+    const xAxisRole =
+      classification.xAxisRole ??
+      firstX?.role ??
+      (firstX?.normalized.includes("drain") ? "vd" : null) ??
+      (firstX?.normalized.includes("gate") ? "vg" : null);
+
+    if (sharedX && xAxisRole) {
+      return {
+        curveType:
+          classification.curveType !== "unknown"
+            ? classification.curveType
+            : xAxisRole === "vg"
+              ? "transfer"
+              : "output",
+        leftTitle: "Id",
+        legendStartColIndex: adjacentVoltageCurrentPairs[0]?.yCol ?? null,
+        legendStartRowIndex: dataStartRowIndex - 1 >= 0 ? dataStartRowIndex - 1 : null,
+        legendStep:
+          adjacentVoltageCurrentPairs.length >= 2
+            ? adjacentVoltageCurrentPairs[1]!.yCol - adjacentVoltageCurrentPairs[0]!.yCol
+            : 1,
+        legendTarget: "yColumn",
+        reasons: [
+          `Detected ${adjacentVoltageCurrentPairs.length} adjacent voltage/Id column pairs with equivalent X traces; gate-current columns were excluded.`,
+        ],
+        xAxisRole,
+        xAxisRoleSource: classification.xAxisRole ? classification.xAxisRoleSource : "label",
+        xCol: adjacentVoltageCurrentPairs[0]!.xCol,
+        yCols: adjacentVoltageCurrentPairs.map((pair) => pair.yCol),
+      };
+    }
   }
 
   if (pairCandidates.length >= 2) {
@@ -1003,6 +1070,10 @@ const findFirstMatchingColumn = ({
       currentHeaderLooksLikeDrainCurrent(header),
     );
     if (drainCurrentCandidate) return drainCurrentCandidate.index;
+    const nonGateCurrentCandidate = candidates.find(
+      ({ header }) => !currentHeaderLooksLikeGateCurrent(header),
+    );
+    if (!nonGateCurrentCandidate) return null;
   }
 
   if (role) {

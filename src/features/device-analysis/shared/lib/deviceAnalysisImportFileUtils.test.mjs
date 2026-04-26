@@ -120,3 +120,22 @@ test("assessImportedDeviceAnalysisFile infers output from stripped CH1/CH2 data 
   assert.equal(result.xAxisRole, "vd");
   assert.match(result.curveTypeReasons.join(" "), /output-style Id-Vd behavior/i);
 });
+
+test("assessImportedDeviceAnalysisFile treats transient transfer CSV headers as transfer metadata", async () => {
+  const rows = [
+    ["2026-04-21-19-10-07_(MOS_IV_Transient_DC_Sweep)Id", "Ig_vg@ vs=0.0"],
+    ["vg(V)", "id(-0.1)", "vg(V)", "ig(-0.1)", "vg(V)", "id(-1.0)", "vg(V)", "ig(-1.0)"],
+    ["-3.0", "-1.5e-4", "-3.0", "-6.3e-11", "-3.0", "-1.5e-3", "-3.0", "-6.6e-11"],
+    ["-2.94", "-1.5e-4", "-2.94", "-6.0e-11", "-2.94", "-1.5e-3", "-2.94", "-6.3e-11"],
+  ];
+  const file = new File([rows.map((row) => row.join(",")).join("\n")], "1-TRANS.csv", {
+    type: "text/csv;charset=utf-8",
+  });
+
+  const result = await assessImportedDeviceAnalysisFile(file);
+
+  assert.equal(result.curveType, "transfer (vg)");
+  assert.equal(result.curveTypeConfidence, "high");
+  assert.equal(result.curveTypeNeedsTemplate, false);
+  assert.equal(result.xAxisRole, "vg");
+});

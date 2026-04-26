@@ -263,6 +263,50 @@ test("infers one shared X column with multiple Y current columns", () => {
   assert.equal(result.plan.legendStep, 1);
 });
 
+test("does not classify transient transfer exports as pulse-voltage", () => {
+  const rows = [
+    ["2026-04-21-19-10-07_(MOS_IV_Transient_DC_Sweep)Id", "Ig_vg@ vs=0.0"],
+    ["vg(V)", "id(-0.1)", "vg(V)", "ig(-0.1)", "vg(V)", "id(-1.0)", "vg(V)", "ig(-1.0)"],
+    ["-3.0", "-1.5e-4", "-3.0", "-6.3e-11", "-3.0", "-1.5e-3", "-3.0", "-6.6e-11"],
+    ["-2.94", "-1.5e-4", "-2.94", "-6.0e-11", "-2.94", "-1.5e-3", "-2.94", "-6.3e-11"],
+    ["0.0", "-7.1e-9", "0.0", "5.0e-13", "0.0", "-2.0e-7", "0.0", "5.7e-13"],
+  ];
+
+  const result = inferDeviceAnalysisAutoExtraction({
+    fileName: "1-TRANS.csv",
+    rows,
+    totalRowCount: rows.length,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.plan.curveType, "transfer");
+  assert.equal(result.plan.xAxisRole, "vg");
+  assert.equal(result.plan.xCol, 0);
+  assert.deepEqual(result.plan.yCols, [1, 5]);
+  assert.equal(result.plan.legendTarget, "yColumn");
+  assert.equal(result.plan.legendStartColIndex, 1);
+  assert.equal(result.plan.legendStep, 4);
+  assert.match(result.plan.reasons.join(" "), /gate-current columns were excluded/i);
+});
+
+test("does not use gate-current columns as the primary Id series", () => {
+  const rows = [
+    ["vg(V)", "ig(-0.1)", "vg(V)", "ig(-1.0)"],
+    ["-3.0", "-6.3e-11", "-3.0", "-6.6e-11"],
+    ["-2.94", "-6.0e-11", "-2.94", "-6.3e-11"],
+    ["0.0", "5.0e-13", "0.0", "5.7e-13"],
+  ];
+
+  const result = inferDeviceAnalysisAutoExtraction({
+    fileName: "1-TRANS.csv",
+    rows,
+    totalRowCount: rows.length,
+  });
+
+  assert.equal(result.ok, false);
+  assert.match(result.message, /unable to locate|unable to infer/i);
+});
+
 test("returns a failure result when auto extraction cannot infer columns", () => {
   const result = inferDeviceAnalysisAutoExtraction({
     fileName: "unknown.csv",

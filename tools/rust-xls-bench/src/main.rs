@@ -355,6 +355,51 @@ fn extract_auto_metadata(dataset: &EngineDataset) -> AutoMetadata {
         }
     }
 
+    if metadata.data_name_columns.is_empty() {
+        for row_index in 0..dataset.rows.len().saturating_sub(1) {
+            let row = row_trimmed(dataset, row_index);
+            let headers = row
+                .iter()
+                .filter(|value| !value.is_empty())
+                .cloned()
+                .collect::<Vec<_>>();
+            if headers.len() < 2 {
+                continue;
+            }
+            if headers.iter().any(|entry| entry == "CH1 Voltage")
+                && headers.iter().any(|entry| entry == "CH2 Voltage")
+            {
+                continue;
+            }
+            let has_device_header = headers.iter().any(|entry| {
+                let normalized = entry.to_ascii_lowercase();
+                detect_axis_role_text(entry).is_some()
+                    || normalized.contains("current")
+                    || normalized.contains("voltage")
+                    || normalized.contains("gate")
+                    || normalized.contains("drain")
+                    || normalized.contains("id")
+                    || normalized.contains("ig")
+            });
+            if !has_device_header {
+                continue;
+            }
+            let numeric_count = dataset
+                .rows
+                .get(row_index + 1)
+                .map(|row| {
+                    row.iter()
+                        .filter(|cell| parse_number_strict(Some(cell)).is_some())
+                        .count()
+                })
+                .unwrap_or(0);
+            if numeric_count >= 2 {
+                metadata.data_name_columns = headers;
+                break;
+            }
+        }
+    }
+
     if !metadata.notes_text.is_empty() {
         metadata.var1_name = parse_var_name_from_notes(&metadata.notes_text, "VAR1");
         metadata.var2_name = parse_var_name_from_notes(&metadata.notes_text, "VAR2");
@@ -403,13 +448,20 @@ fn classify_auto_curve(
         .map(|value| normalize_header_compact(value))
         .collect();
     let file_compact = normalize_header_compact(file_name);
+    let has_fast_iv_or_ivt_hint = |value: &str| {
+        let text = clean_cell_text(value).to_ascii_lowercase();
+        normalize_header_compact(value).contains("fastiv")
+            || text
+                .split(|ch: char| !ch.is_ascii_alphanumeric())
+                .any(|token| token == "ivt")
+    };
 
     if file_compact.contains("pv")
-        || file_compact.contains("fastiv")
-        || file_compact.contains("ivt")
+        || has_fast_iv_or_ivt_hint(file_name)
         || compact_all
             .iter()
             .any(|value| value.contains("fastiv") || value == "ipt")
+        || all_text.iter().any(|value| has_fast_iv_or_ivt_hint(value))
     {
         return (
             "pv".to_string(),
@@ -541,6 +593,8 @@ fn is_current_like_header(value: &str) -> bool {
         || compact == "ipt"
         || compact == "id"
         || compact == "ig"
+        || compact.starts_with("id")
+        || compact.starts_with("ig")
         || compact.contains("current")
         || compact.starts_with("in")
         || compact.starts_with("ipt")
@@ -557,6 +611,17 @@ fn current_header_looks_like_drain_current(value: &str) -> bool {
         || normalized.contains("drain current")
         || (normalized.contains("drain") && normalized.contains("current"))
         || normalized.contains("totalcurrent")
+}
+
+fn current_header_looks_like_gate_current(value: &str) -> bool {
+    let normalized = clean_cell_text(value).to_lowercase();
+    let compact = normalize_header_compact(value);
+    compact == "ig"
+        || compact.starts_with("ig")
+        || compact == "gatecurrent"
+        || compact == "gatei"
+        || normalized.contains("gate current")
+        || (normalized.contains("gate") && normalized.contains("current"))
 }
 
 fn structured_axis_suffix(header: &str) -> (Option<&'static str>, String) {
@@ -1136,6 +1201,80 @@ fn infer_auto_worker_config(dataset: &EngineDataset) -> Result<Value, String> {
         }
     }
 
+    let mut adjacent_voltage_current_pairs = Vec::<(usize, usize)>::new();
+    for index in 0..headers.len().saturating_sub(1) {
+        let left = &headers[index];
+        let right = &headers[index + 1];
+        if detect_axis_role_text(left).is_none()
+            || !column_has_numeric_rows(dataset, data_start_row_index, index, 2)
+            || !column_has_numeric_rows(dataset, data_start_row_index, index + 1, 2)
+            || !is_current_like_header(right)
+            || current_header_looks_like_gate_current(right)
+            || !current_header_looks_like_drain_current(right)
+        {
+            continue;
+        }
+        adjacent_voltage_current_pairs.push((index, index + 1));
+    }
+
+    if adjacent_voltage_current_pairs.len() >= 2
+        && adjacent_voltage_current_pairs.iter().all(|pair| {
+            columns_share_equivalent_x(
+                dataset,
+                data_start_row_index,
+                adjacent_voltage_current_pairs[0].0,
+                pair.0,
+            )
+        })
+    {
+        let x_col = adjacent_voltage_current_pairs[0].0;
+        let y_cols = adjacent_voltage_current_pairs
+            .iter()
+            .map(|pair| pair.1)
+            .collect::<Vec<_>>();
+        let role = x_axis_role.or_else(|| {
+            detect_axis_role_text(headers.get(x_col).map(String::as_str).unwrap_or(""))
+        });
+        if let Some(role) = role {
+            let inferred_curve = if curve_type != "unknown" {
+                curve_type.as_str()
+            } else if role == "vg" {
+                "transfer"
+            } else {
+                "output"
+            };
+            let y_step = if adjacent_voltage_current_pairs.len() >= 2 {
+                adjacent_voltage_current_pairs[1].1 - adjacent_voltage_current_pairs[0].1
+            } else {
+                1
+            };
+            return Ok(with_auto_curve_type(
+                auto_config_json(
+                    if role == "vg" {
+                        "Vg".to_string()
+                    } else {
+                        "Vd".to_string()
+                    },
+                    "Id".to_string(),
+                    data_start_row_index,
+                    x_col,
+                    y_cols.clone(),
+                    None,
+                    Some(1),
+                    "V",
+                    "A",
+                    String::new(),
+                    Some((header_row_index, y_cols[0])),
+                    None,
+                    Some(y_cols.len()),
+                    Some(y_step as f64),
+                    "yColumn",
+                ),
+                inferred_curve,
+            ));
+        }
+    }
+
     if pair_candidates.len() >= 2
         && pair_candidates.iter().all(|pair| {
             columns_share_equivalent_x(dataset, data_start_row_index, pair_candidates[0].0, pair.0)
@@ -1314,8 +1453,8 @@ fn infer_auto_worker_config(dataset: &EngineDataset) -> Result<Value, String> {
             .find(|(index, header)| {
                 *index != x_col
                     && (current_header_looks_like_drain_current(header)
-                        || normalize_header_compact(header) == "id"
-                        || normalize_header_compact(header) == "ig")
+                        || normalize_header_compact(header) == "id")
+                    && !current_header_looks_like_gate_current(header)
                     && column_has_numeric_rows(dataset, data_start_row_index, *index, 2)
             })
             .map(|(index, _)| vec![index])
