@@ -38,6 +38,7 @@ import OverviewGrid from "./OverviewGrid";
 import CalculatedParametersRow from "./CalculatedParametersRow";
 import { SIGNED_LOG_Y_DATA_KEY, buildLogTicks, buildNiceTicks, buildOriginAutoTicks, buildOriginLogAutoTicks, buildPoints, buildStepTicks, computeLabelInterval, computeMinMax, downsamplePointsForDisplay, inferTickDigitsFromTicks, normalizeFloat, normalizeVarToken, padLinearDomain, padLogDomain, parseOptionalNumber, preserveScrollPosition, varTokenToSymbol, withSignedLogPositivePoints, } from "../lib/analysisChartsUtils";
 import { computeBaseCurrentMetrics, isOutputLikeDeviceAnalysisFile, isTransferLikeDeviceAnalysisFile, } from "../lib/deviceAnalysisMetrics";
+import { ANALYSIS_CACHE_VERSION, canUseCachedBaseCurrent, } from "../lib/analysisCachePolicy";
 import {
   DEVICE_ANALYSIS_CAPACITANCE_Y_UNIT_VALUES,
   DEVICE_ANALYSIS_CURRENT_Y_UNIT_VALUES,
@@ -1622,6 +1623,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             ? String(normalizeFloat(area))
             : "";
         const parts = [
+            `analysis:${ANALYSIS_CACHE_VERSION}`,
             `gm:${gmMode}`,
             `current:${ionIoffMethod}`,
             `ss:${ssMethod}`,
@@ -1746,6 +1748,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const gmMetricsCache = activeFileCache?.gmMetricsByMode?.[gmModeKey] ?? new Map();
         const manualFitCache = activeFileCache?.ssManualFitBySeriesId ?? new Map();
         let base = ionIoffMethod === "auto" ? baseMetricsCache.get(series.id) ?? null : null;
+        if (base && !canUseCachedBaseCurrent(base, transferMetricsApplicable)) {
+            baseMetricsCache.delete(series.id);
+            base = null;
+        }
         if (!base) {
             base = {
                 ...computeBaseCurrentMetrics({

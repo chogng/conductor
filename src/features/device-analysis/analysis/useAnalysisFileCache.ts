@@ -10,6 +10,10 @@ import {
   isTransferLikeDeviceAnalysisFile,
 } from "./lib/deviceAnalysisMetrics";
 import {
+  canUseCachedBaseCurrent,
+  isCompatibleAnalysisCache,
+} from "./lib/analysisCachePolicy";
+import {
   getDeviceAnalysisPerfNow,
   logDeviceAnalysisPerf,
   startDeviceAnalysisPerf,
@@ -33,17 +37,20 @@ const touchAnalysisCacheSourceFile = (file: any) => {
 
 const applyRustAnalysisResultsToCache = ({
   cache,
-  resultBySeriesId,
+  analysisCache,
   seriesList,
   stageCounts,
   supportsSs,
 }: {
   cache: any;
-  resultBySeriesId: any;
+  analysisCache: any;
   seriesList: any[];
   stageCounts: Record<string, number>;
   supportsSs: boolean;
 }) => {
+  if (!isCompatibleAnalysisCache(analysisCache)) return false;
+
+  const resultBySeriesId = analysisCache?.series;
   if (!resultBySeriesId || typeof resultBySeriesId !== "object") return false;
 
   let applied = false;
@@ -73,7 +80,10 @@ const applyRustAnalysisResultsToCache = ({
       stageCounts.ssAuto += 1;
       applied = true;
     }
-    if (result?.baseCurrent && !cache.baseMetricsBySeriesId.has(series.id)) {
+    if (
+      canUseCachedBaseCurrent(result?.baseCurrent, supportsSs) &&
+      !cache.baseMetricsBySeriesId.has(series.id)
+    ) {
       cache.baseMetricsBySeriesId.set(series.id, result.baseCurrent);
       stageCounts.baseCurrent += 1;
       applied = true;
@@ -250,8 +260,8 @@ export const useAnalysisFileCache = ({
       if (!cache) return;
       const supportsSs = isTransferLikeDeviceAnalysisFile(file);
       applyRustAnalysisResultsToCache({
+        analysisCache: file?.analysisCache,
         cache,
-        resultBySeriesId: file?.analysisCache?.series,
         seriesList: Array.isArray(file?.series) ? file.series : [],
         stageCounts,
         supportsSs,

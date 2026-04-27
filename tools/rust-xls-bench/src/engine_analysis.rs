@@ -3,6 +3,8 @@ use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::thread;
 
+pub const ANALYSIS_CACHE_VERSION: u32 = 2;
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AnalysisSeriesRequest {
@@ -558,6 +560,51 @@ fn take_nearest_window(
     build_current_window(key, label, &window_points, Some(target_x))
 }
 
+fn pick_extreme_current_window<'a>(
+    candidates: &'a [CurrentWindow],
+    kind: &str,
+) -> Option<&'a CurrentWindow> {
+    let mut iter = candidates.iter();
+    let mut best = iter.next()?;
+    for candidate in iter {
+        if kind == "max" {
+            if candidate.current > best.current {
+                best = candidate;
+            }
+        } else if candidate.current < best.current {
+            best = candidate;
+        }
+    }
+    Some(best)
+}
+
+fn build_sliding_extreme_current_window(
+    key: &'static str,
+    kind: &str,
+    label: String,
+    points: &[FiniteCurrentPoint],
+    window_point_count: usize,
+) -> Option<CurrentWindow> {
+    if points.is_empty() {
+        return None;
+    }
+
+    let resolved_point_count = window_point_count.clamp(1, points.len());
+    let mut windows = Vec::<CurrentWindow>::new();
+    for index in 0..=points.len().saturating_sub(resolved_point_count) {
+        if let Some(window) = build_current_window(
+            key,
+            label.clone(),
+            &points[index..index + resolved_point_count],
+            None,
+        ) {
+            windows.push(window);
+        }
+    }
+
+    pick_extreme_current_window(&windows, kind).cloned()
+}
+
 fn current_window_json(window: &CurrentWindow) -> Value {
     json!({
         "current": window.current,
@@ -613,25 +660,25 @@ fn build_auto_candidate_windows(
             out.push(window);
         }
     }
-    out
-}
-
-fn pick_extreme_current_window<'a>(
-    candidates: &'a [CurrentWindow],
-    kind: &str,
-) -> Option<&'a CurrentWindow> {
-    let mut iter = candidates.iter();
-    let mut best = iter.next()?;
-    for candidate in iter {
-        if kind == "max" {
-            if candidate.current > best.current {
-                best = candidate;
-            }
-        } else if candidate.current < best.current {
-            best = candidate;
-        }
+    if let Some(window) = build_sliding_extreme_current_window(
+        "minCurrent",
+        "min",
+        format!("min-current{}", suffix),
+        points,
+        window_point_count,
+    ) {
+        out.push(window);
     }
-    Some(best)
+    if let Some(window) = build_sliding_extreme_current_window(
+        "maxCurrent",
+        "max",
+        format!("max-current{}", suffix),
+        points,
+        window_point_count,
+    ) {
+        out.push(window);
+    }
+    out
 }
 
 fn compute_base_current_metrics(
@@ -1311,6 +1358,57 @@ pub fn analyze_series_batch_result(
 ) -> Value {
     json!({
         "fileId": file_id,
+        "version": ANALYSIS_CACHE_VERSION,
         "series": analyze_series_batch(series, x_groups, source_file),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn base_current_uses_sliding_minimum_for_valley_off_states() {
+        let x = [-4.0, -3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0];
+        let y = [
+            -1e-3, -8e-4, -1e-4, -1e-5, -2e-7, -2e-8, -3e-8, -2e-7, -1e-6,
+        ];
+        let source_file = AnalysisSourceFile {
+            x_axis_role: Some("vg".to_string()),
+            ..Default::default()
+        };
+
+        let metrics = compute_base_current_metrics(&x, &y, Some(&source_file));
+
+        assert_eq!(metrics["method"], "auto");
+        assert_eq!(metrics["ioffWindow"]["key"], "minCurrent");
+        assert_eq!(metrics["xAtIoff"], 1.0);
+        assert_eq!(metrics["ioff"], 3e-8);
+        assert_eq!(metrics["ionWindow"]["key"], "lowEnd");
+        assert_eq!(metrics["xAtIon"], -3.0);
+    }
+
+    #[test]
+    fn analysis_batch_cache_is_versioned() {
+        let series = vec![AnalysisSeriesRequest {
+            id: "curve-1".to_string(),
+            x: vec![0.0, 1.0, 2.0],
+            group_index: None,
+            y: vec![1e-12, 1e-9, 1e-6],
+        }];
+        let source_file = AnalysisSourceFile {
+            x_axis_role: Some("vg".to_string()),
+            ..Default::default()
+        };
+
+        let result = analyze_series_batch_result(
+            Some("file-1"),
+            &series,
+            None,
+            Some(&source_file),
+        );
+
+        assert_eq!(result["version"], ANALYSIS_CACHE_VERSION);
+        assert!(result["series"]["curve-1"]["baseCurrent"].is_object());
+    }
 }
