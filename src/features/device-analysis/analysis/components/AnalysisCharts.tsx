@@ -67,9 +67,9 @@ const DEFAULT_RENDER_POINT_BUDGET = 12000;
 const GM_RENDER_POINT_BUDGET = 9000;
 const MAIN_PLOT_LEGEND_WIDTH = 220;
 const TRANSFER_CALCULATED_PARAMETERS_COLUMN_WIDTHS_PX = [
-    92, 128, 88, 128, 88, 120, 168, 88, 112, 104, 88, 120,
+    168, 128, 88, 128, 88, 120, 168, 88, 112, 104, 88, 120,
 ];
-const DERIVATIVE_ONLY_CALCULATED_PARAMETERS_COLUMN_WIDTHS_PX = [92, 168, 88];
+const DERIVATIVE_ONLY_CALCULATED_PARAMETERS_COLUMN_WIDTHS_PX = [168, 168, 88];
 const ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS = "!space-y-0";
 const ANALYSIS_COMPACT_INPUT_CLASS = "text-xs";
 const ANALYSIS_COMPACT_PAGE_FIELD_CLASS =
@@ -704,7 +704,7 @@ const makeStrictLogDomain = (min: unknown, max: unknown): [number, number] | nul
     return [lo, hi];
 };
 
-const AnalysisCharts = ({ processedData, processingStatus, activeFileId: controlledActiveFileId = undefined, onActiveFileIdChange = undefined, showFileSelect = true, ionIoffMethod = "auto", setIonIoffMethod = () => { }, ionIoffManualTargetsByFileId = {}, setIonIoffManualTargetsByFileId = () => { }, ssMethod = "auto", setSsMethod = () => { }, ssDiagnosticsEnabled = true, setSsDiagnosticsEnabled = () => { }, gmDiagnosticsEnabled = false, setGmDiagnosticsEnabled = () => { }, ssShowFitLine = true, setSsShowFitLine = () => { }, ssManualRanges = {}, setSsManualRanges = () => { }, originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS, onOriginOpenPlotOptionsChange = undefined, }: any) => {
+const AnalysisCharts = ({ processedData, processingStatus, activeFileId: controlledActiveFileId = undefined, onActiveFileIdChange = undefined, showFileSelect = true, ionIoffMethod = "auto", setIonIoffMethod = () => { }, ionIoffManualTargetsByFileId = {}, setIonIoffManualTargetsByFileId = () => { }, ssMethod = "auto", setSsMethod = () => { }, ssDiagnosticsEnabled = true, setSsDiagnosticsEnabled = () => { }, vthDiagnosticsEnabled = false, setVthDiagnosticsEnabled = () => { }, gmDiagnosticsEnabled = false, setGmDiagnosticsEnabled = () => { }, ssShowFitLine = true, setSsShowFitLine = () => { }, ssManualRanges = {}, setSsManualRanges = () => { }, originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS, onOriginOpenPlotOptionsChange = undefined, }: any) => {
     const { t } = useLanguage();
     const tLoose = React.useCallback<FormatOriginTranslateFn>((key, params) => t(key, params as any), [t]);
     const [internalActiveFileId, setInternalActiveFileId] = useState(processedData?.[0]?.fileId ?? null);
@@ -3656,6 +3656,20 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     </Button>
                   </div>) : null}
 
+                {effectivePlotType === "vth" ? (<div className="flex items-center gap-1">
+                    <Button variant={vthDiagnosticsEnabled ? "secondary" : "text"} size="sm" onClick={() => {
+                const next = !vthDiagnosticsEnabled;
+                setVthDiagnosticsEnabled(next);
+                apiService
+                    .updateDeviceAnalysisSettings({
+                    vthDiagnosticsEnabled: next,
+                })
+                    .catch(() => { });
+            }} className="h-8 px-2 text-xs" title={t("da_chart_vth_diagnostics_toggle_title")}>
+                      {t("da_chart_vth_diagnostics")}
+                    </Button>
+                  </div>) : null}
+
                 {showIonIoffControl ? (<div className="flex items-center gap-2">
                     <div className="flex items-center gap-1">
                       <span className="text-xs text-text-secondary whitespace-nowrap">
@@ -3777,7 +3791,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     </div>)}
                 </div>) : null}
 
-              {effectivePlotType === "vth" && visibleVthSlopeDiagnosticsSeriesForRender.length ? (<div className="mt-4">
+              {effectivePlotType === "vth" && vthDiagnosticsEnabled && visibleVthSlopeDiagnosticsSeriesForRender.length ? (<div className="mt-4">
                   <div className="text-xs text-text-secondary mb-2">
                     Vth slope diagnostics
                   </div>
@@ -3881,7 +3895,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     <tr className="border-b border-border">
                       <th
                         rowSpan={2}
-                        className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center whitespace-nowrap align-middle"
+                        className="sticky left-0 z-20 p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-left whitespace-nowrap align-middle bg-bg-surface shadow-[1px_0_0_var(--color-border)]"
                       >
                         {t("da_calc_group_series")}
                       </th>

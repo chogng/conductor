@@ -60,7 +60,11 @@ const LabelCell = memo(function LabelCell({
   className,
   value,
 }: LabelCellProps) {
-  return <td className={className}>{value}</td>;
+  return (
+    <td className={className} title={value}>
+      {value}
+    </td>
+  );
 });
 
 const NumericMetricCell = memo(function NumericMetricCell({
@@ -143,9 +147,9 @@ const CalculatedParametersRow = memo(function CalculatedParametersRow({
   const ssTooltip = tooltipOrEmpty(buildSsTooltip, isPending, row);
 
   return (
-    <tr className="hover:bg-bg-page/30">
+    <tr className="group hover:bg-bg-page/30">
       <LabelCell
-        className="p-2 text-[14px] text-text-primary font-medium whitespace-nowrap text-center"
+        className="sticky left-0 z-[1] max-w-0 overflow-hidden text-ellipsis p-2 text-[14px] text-text-primary font-medium whitespace-nowrap text-left bg-bg-surface shadow-[1px_0_0_var(--color-border)] group-hover:bg-bg-page"
         value={row.name}
       />
       {showTransferMetrics ? (
