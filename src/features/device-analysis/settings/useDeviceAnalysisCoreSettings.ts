@@ -28,6 +28,7 @@ type UseDeviceAnalysisCoreSettingsOptions = {
   setTheme: (theme: ThemeMode) => void;
   setGmDiagnosticsEnabled: (enabled: boolean) => void;
   setSsDiagnosticsEnabled: (enabled: boolean) => void;
+  setVthDiagnosticsEnabled: (enabled: boolean) => void;
   setSsMethod: (method: SsMethod) => void;
   setSsShowFitLine: (enabled: boolean) => void;
   t: TranslateFn;
@@ -45,6 +46,7 @@ export const useDeviceAnalysisCoreSettings = ({
   setTheme,
   setGmDiagnosticsEnabled,
   setSsDiagnosticsEnabled,
+  setVthDiagnosticsEnabled,
   setSsMethod,
   setSsShowFitLine,
   t: _t,
@@ -138,6 +140,10 @@ export const useDeviceAnalysisCoreSettings = ({
         setSsDiagnosticsEnabled(settings.ssDiagnosticsEnabled);
       }
 
+      if (typeof settings?.vthDiagnosticsEnabled === "boolean") {
+        setVthDiagnosticsEnabled(settings.vthDiagnosticsEnabled);
+      }
+
       if (typeof settings?.gmDiagnosticsEnabled === "boolean") {
         setGmDiagnosticsEnabled(settings.gmDiagnosticsEnabled);
       }
@@ -183,6 +189,7 @@ export const useDeviceAnalysisCoreSettings = ({
     setLanguage,
     setTheme,
     setSsDiagnosticsEnabled,
+    setVthDiagnosticsEnabled,
     setSsMethod,
     setSsShowFitLine,
   ]);

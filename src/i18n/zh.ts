@@ -487,6 +487,8 @@
     da_chart_selected_curve_label: '当前选择曲线',
     da_chart_ss_diagnostics: 'SS 诊断',
     da_chart_ss_diagnostics_toggle_title: '显示或隐藏 SS 诊断图。',
+    da_chart_vth_diagnostics: 'Vth 诊断',
+    da_chart_vth_diagnostics_toggle_title: '显示或隐藏 Vth 斜率诊断图。',
     da_calc_group_series: '曲线',
     da_calc_group_on_state: '导通态',
     da_calc_group_off_state: '截止态',

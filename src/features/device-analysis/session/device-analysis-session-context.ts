@@ -106,6 +106,8 @@ export type DeviceAnalysisSessionContextValue = {
   setSsMethod: Dispatch<SetStateAction<SsMethod>>;
   ssDiagnosticsEnabled: boolean;
   setSsDiagnosticsEnabled: Dispatch<SetStateAction<boolean>>;
+  vthDiagnosticsEnabled: boolean;
+  setVthDiagnosticsEnabled: Dispatch<SetStateAction<boolean>>;
   gmDiagnosticsEnabled: boolean;
   setGmDiagnosticsEnabled: Dispatch<SetStateAction<boolean>>;
   ssShowFitLine: boolean;

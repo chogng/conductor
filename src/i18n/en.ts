@@ -487,6 +487,8 @@
     da_chart_selected_curve_label: 'Selected curve',
     da_chart_ss_diagnostics: 'SS Diagnostics',
     da_chart_ss_diagnostics_toggle_title: 'Show or hide the SS diagnostics chart.',
+    da_chart_vth_diagnostics: 'Vth Diagnostics',
+    da_chart_vth_diagnostics_toggle_title: 'Show or hide the Vth slope diagnostics chart.',
     da_calc_group_series: 'Series',
     da_calc_group_on_state: 'On-state',
     da_calc_group_off_state: 'Off-state',

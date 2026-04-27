@@ -52,6 +52,7 @@ const DEVICE_ANALYSIS_DEFAULT_SETTINGS = {
   yScaleByFileId: {},
   ssMethodDefault: "auto",
   ssDiagnosticsEnabled: true,
+  vthDiagnosticsEnabled: false,
   ssShowFitLine: true,
   ssIdLow: 1e-11,
   ssIdHigh: 1e-9,
@@ -363,6 +364,11 @@ export function createDeviceAnalysisStore(options) {
         ? next.ssDiagnosticsEnabled
         : DEVICE_ANALYSIS_DEFAULT_SETTINGS.ssDiagnosticsEnabled;
 
+    const vthDiagnosticsEnabled =
+      typeof next.vthDiagnosticsEnabled === "boolean"
+        ? next.vthDiagnosticsEnabled
+        : DEVICE_ANALYSIS_DEFAULT_SETTINGS.vthDiagnosticsEnabled;
+
     const ssShowFitLine =
       typeof next.ssShowFitLine === "boolean"
         ? next.ssShowFitLine
@@ -450,6 +456,7 @@ export function createDeviceAnalysisStore(options) {
       trayMinimizeHintShown,
       ssMethodDefault,
       ssDiagnosticsEnabled,
+      vthDiagnosticsEnabled,
       ssShowFitLine,
       ssIdLow,
       ssIdHigh,
