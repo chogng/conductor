@@ -3799,10 +3799,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
 
               {effectivePlotType === "vth" && vthDiagnosticsEnabled && visibleVthSlopeDiagnosticsSeriesForRender.length ? (<div className="mt-4">
                   <div className="text-xs text-text-secondary mb-2">
-                    Vth slope diagnostics
-                  </div>
-                  <div className="text-[11px] text-text-secondary mb-2">
-                    d√|Id|/dVg should be relatively flat across a reliable linear extrapolation window.
+                    {t("da_chart_vth_diagnostics")}
                   </div>
                   <div ref={diagnosticsChartContainerRef} className="h-[260px] min-h-[260px] flex-shrink-0">
                     <GmDiagnosticsChart series={visibleVthSlopeDiagnosticsSeriesForRender} axisTitleFontSize={mainPlotAxisTitleFontSize} curveProbeX={curveProbeX} tickLabelFontSize={mainPlotTickLabelFontSize} xDomain={xDomain} xTicks={xTicks} xFactor={plotXFactor} xUnitLabel={resolvedXUnitMeta.label} xLabelInterval={xLabelInterval} xTickDigits={xTickDigitsDisplay} xTooltipDigits={xTooltipDigits} yDomain={vthSlopeDiagnosticsYDomain} yTicks={vthSlopeDiagnosticsYTicks} referenceLines={focusedVthSlopeReferenceLines} rightReservedWidth={MAIN_PLOT_LEGEND_WIDTH} yAxisLabel="d√|Id|/dVg" valueUnitLabel={`${plotYUnitLabel}/${resolvedXUnitMeta.label || "V"}`}/>

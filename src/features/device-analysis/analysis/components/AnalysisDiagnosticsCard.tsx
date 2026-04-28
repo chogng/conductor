@@ -72,11 +72,11 @@ export default function AnalysisDiagnosticsCard({
   const renderDiagnosticsContextBadges = () => {
     if (!diagnosticsContextBadges.length) return null;
     return (
-      <div className="flex max-w-full items-center justify-end gap-2 flex-wrap">
+      <div className="flex max-w-full items-center justify-end gap-3 flex-wrap text-xs text-text-secondary">
         {diagnosticsContextBadges.map((badge, index) => (
           <div
             key={`${badge.text}-${index}`}
-            className="max-w-full rounded-md border border-border/70 bg-bg-page/70 px-3 py-1.5 text-xs text-text-secondary"
+            className="max-w-full"
             title={badge.text}
           >
             <span className="flex items-center gap-2.5">
@@ -86,7 +86,9 @@ export default function AnalysisDiagnosticsCard({
                   style={{ backgroundColor: badge.color }}
                 />
               ) : null}
-              <span className="block truncate">{badge.text}</span>
+              <span className="block truncate">
+                {badge.color ? badge.text : `${badge.text}：`}
+              </span>
             </span>
           </div>
         ))}
