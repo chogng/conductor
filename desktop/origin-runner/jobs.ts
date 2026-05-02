@@ -204,6 +204,16 @@ function buildNativeWorkerEnv(workDir: string): NodeJS.ProcessEnv {
   };
 }
 
+function hasSuccessfulOriginHealthCheckLog(logPath: string): boolean {
+  if (!logPath || !fs.existsSync(logPath)) return false;
+  try {
+    const logText = fs.readFileSync(logPath, "utf8");
+    return logText.includes("Origin health check completed successfully.");
+  } catch {
+    return false;
+  }
+}
+
 async function runPythonWorker(
   workerScriptPath: string,
   workerArgs: string[],
@@ -737,6 +747,24 @@ export async function runOriginHealthCheck({
     readWorkerErrorFiles(workDir, parseWorkerErrorPayload);
 
   if (workerResult.code !== 0) {
+    if (!workerErrorRaw && hasSuccessfulOriginHealthCheckLog(logPath)) {
+      return {
+        ok: true,
+        code: "ORIGIN_HEALTH_CHECK_OK",
+        stage: "HEALTH_CHECK",
+        originExePath: normalizedOriginExePath,
+        jobDir,
+        workDir,
+        logPath,
+        errorPath,
+        runner: runnerKind,
+        runnerExecutable,
+        workerExitCode: workerResult.code,
+        warning:
+          "Origin health check completed successfully, but the worker wrapper returned a non-zero exit code.",
+      };
+    }
+
     throw buildWorkerFailureError({
       workerResult,
       logPath,
