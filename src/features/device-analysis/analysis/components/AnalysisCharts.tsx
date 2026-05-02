@@ -632,6 +632,7 @@ const OriginExportContentMenu = ({
     t: OriginExportContentTranslateFn;
 }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const anchorRef = useRef<HTMLDivElement | null>(null);
     const selectedSet = useMemo(() => new Set(selectedKeys), [selectedKeys]);
     const selectedLabels = ORIGIN_EXPORT_CONTENT_OPTIONS
         .filter((option) => selectedSet.has(option.key))
@@ -665,11 +666,11 @@ const OriginExportContentMenu = ({
 
     return (
       <div className="ui-select_warp w-fit da-neutral-select" data-style="select">
-        <Dropdown isOpen={isOpen} onOpenChange={setIsOpen}>
-          {({ anchorRef, setAnchorRef, setContentRef }) => (
+        <Dropdown isOpen={isOpen} onOpenChange={setIsOpen} anchorRef={anchorRef}>
+          {({ setContentRef }) => (
             <>
               <DropdownTrigger
-                fieldRef={setAnchorRef}
+                fieldRef={anchorRef}
                 id="device-analysis-origin-export-content-select"
                 isOpen={isOpen}
                 menuId="device-analysis-origin-export-content-menu"
@@ -691,6 +692,7 @@ const OriginExportContentMenu = ({
                 isOpen={isOpen}
                 align="left"
                 zIndex={80}
+                matchAnchorWidth
                 triggerId="device-analysis-origin-export-content-select"
                 menuId="device-analysis-origin-export-content-menu"
                 anchorRef={anchorRef}
