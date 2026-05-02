@@ -47,7 +47,7 @@ const MenuItem = forwardRef<HTMLDivElement, MenuItemProps>(
         aria-disabled={disabled || undefined}
         onClick={disabled ? undefined : onClick}
         onKeyDown={handleKeyDown}
-        className={cx("select-none outline-none", className)}
+        className={cx("ui-menu__item select-none outline-none", className)}
       >
         {left ?? children}
         {right ?? null}

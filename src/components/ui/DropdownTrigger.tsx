@@ -1,6 +1,7 @@
 import {
   forwardRef,
   type ButtonHTMLAttributes,
+  type Ref,
   type ReactNode,
 } from "react";
 import { ChevronDown } from "lucide-react";
@@ -12,6 +13,7 @@ type DropdownTriggerProps = Omit<
 > & {
   isOpen: boolean;
   menuId?: string;
+  fieldRef?: Ref<HTMLDivElement | null>;
   fieldClassName?: string;
   indicatorClassName?: string;
   indicator?: ReactNode;
@@ -24,6 +26,7 @@ const DropdownTrigger = forwardRef<HTMLButtonElement, DropdownTriggerProps>(
       id,
       isOpen,
       menuId,
+      fieldRef,
       disabled = false,
       className = "",
       fieldClassName = "",
@@ -36,6 +39,7 @@ const DropdownTrigger = forwardRef<HTMLButtonElement, DropdownTriggerProps>(
     ref,
   ) => (
     <div
+      ref={fieldRef}
       className={fieldClassName}
       data-state={disabled ? "disabled" : "enable"}
     >

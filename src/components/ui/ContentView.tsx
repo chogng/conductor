@@ -13,6 +13,7 @@ import { cx } from "../../utils/cx";
 import "./contentview.css";
 
 export type ContentViewAlign = "left" | "center" | "right";
+type ContentViewVariant = "surface" | "menu";
 type ContentViewChildren = ReactNode | (() => ReactNode);
 
 type ContentViewProps = {
@@ -26,6 +27,7 @@ type ContentViewProps = {
   anchorRef?: RefObject<HTMLElement | null>;
   contentRef?: Ref<HTMLDivElement | null>;
   matchAnchorWidth?: boolean;
+  variant?: ContentViewVariant;
   role?: string;
   "aria-orientation"?: "vertical" | "horizontal";
 };
@@ -53,6 +55,7 @@ const ContentView = ({
   anchorRef,
   contentRef,
   matchAnchorWidth = false,
+  variant = "surface",
   role = "menu",
   "aria-orientation": ariaOrientation = "vertical",
 }: ContentViewProps) => {
@@ -82,7 +85,9 @@ const ContentView = ({
       const viewportHeight = window.innerHeight;
       const anchorWidth = Math.max(0, rect.width);
       const maxWidth = Math.max(0, viewportWidth - VIEWPORT_PADDING_PX * 2);
+      const surfaceEl = popupEl.firstElementChild;
       const contentWidth = Math.max(
+        surfaceEl instanceof HTMLElement ? surfaceEl.scrollWidth || 0 : 0,
         popupEl.scrollWidth || 0,
         popupEl.offsetWidth || 0,
       );
@@ -176,6 +181,7 @@ const ContentView = ({
           isOpen
             ? "content-view__surface--open"
             : "content-view__surface--closed",
+          variant === "menu" ? "content-view__surface--menu" : "",
           className,
         )}
       >

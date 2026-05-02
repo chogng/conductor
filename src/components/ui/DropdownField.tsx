@@ -18,6 +18,7 @@ import { cx } from "../../utils/cx";
 import ContentView, { type ContentViewAlign } from "./ContentView";
 import Dropdown from "./Dropdown";
 import DropdownTrigger from "./DropdownTrigger";
+import Menu from "./Menu";
 import MenuItem from "./MenuItem";
 import ScrollArea from "./ScrollArea";
 
@@ -490,6 +491,7 @@ const DropdownField = ({
       <DropdownTrigger
         {...props}
         ref={triggerRef}
+        fieldRef={containerRef}
         id={triggerId}
         isOpen={isOpen}
         menuId={resolvedMenuId}
@@ -545,40 +547,45 @@ const DropdownField = ({
             menuId={resolvedMenuId}
             anchorRef={anchorRef}
             contentRef={setContentRef}
+            variant="menu"
             className={popupClassName}
           >
             {() => (
-              <>
+              <Menu withScrollArea={false}>
                 {title ? <div>{title}</div> : null}
 
                 <ScrollArea
-                  className="ui-select_scroll-area max-h-60 -mr-1 pr-1"
+                  className="ui-menu__scroll-area max-h-60 -mr-1 pr-1"
                   axis="y"
                   viewportClassName="max-h-60"
                   viewportProps={{
                     style: { height: "auto", maxHeight: "15rem" },
                   }}
                 >
-                <div className="ui-select_list">
+                <div className="ui-menu__list">
                   {loading ? (
-                    <div className="ui-select_empty">
+                    <div className="ui-menu__empty">
                       {loadingLabel ?? emptyLabel}
                     </div>
                   ) : null}
 
                   {!loading
                     ? indexedGroups.map(({ group, options: groupOptions }, groupIdx) => (
-                    <div key={group || "default"} role={group ? "group" : undefined}>
+                    <div
+                      key={group || "default"}
+                      role={group ? "group" : undefined}
+                      className="ui-menu__group"
+                    >
                       {group ? (
                         <>
                           {groupIdx > 0 ? (
                             <div
                               role="separator"
                               aria-orientation="horizontal"
-                              className="ui-select_separator"
+                              className="ui-menu__separator"
                             />
                           ) : null}
-                          <div className="ui-select_group">{group}</div>
+                          <div className="ui-menu__group-label">{group}</div>
                         </>
                       ) : null}
 
@@ -603,7 +610,7 @@ const DropdownField = ({
                             }}
                             disabled={option.disabled}
                             className={cx(
-                              "ui-select_item group",
+                              "group",
                               itemSizeClass,
                               option.disabled
                                 ? "cursor-default italic text-text-secondary"
@@ -611,7 +618,7 @@ const DropdownField = ({
                               option.tone === "accent" ? "text-accent" : "",
                             )}
                             left={
-                              <span className="ui-select_item-left">
+                              <span className="ui-menu__item-left">
                                 {Icon ? (
                                   <Icon
                                     style={{ width: "0.9rem", height: "0.9rem" }}
@@ -623,7 +630,7 @@ const DropdownField = ({
                               </span>
                             }
                             right={
-                              <span className="ui-select_item-right">
+                              <span className="ui-menu__item-right">
                                 {ActionIcon && action ? (
                                   <button
                                     type="button"
@@ -661,11 +668,11 @@ const DropdownField = ({
                     : null}
 
                   {!loading && flatOptions.length === 0 ? (
-                    <div className="ui-select_empty">{emptyLabel}</div>
+                    <div className="ui-menu__empty">{emptyLabel}</div>
                   ) : null}
                 </div>
                 </ScrollArea>
-              </>
+              </Menu>
             )}
           </ContentView>
         )}

@@ -1,8 +1,13 @@
 ﻿import React, { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, } from "react";
-import { AlertTriangle, Check, SlidersHorizontal, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, SlidersHorizontal, X } from "lucide-react";
 import { computeCentralDerivative, computeSubthresholdSwing, computeSubthresholdSwingFitAuto, computeSubthresholdSwingFitInRange, classifySsFit, formatNumber, interpolateCurveAtX, resolveAutoSsSelection, splitBidirectionalCurvePoints, } from "../lib/analysisMath";
 import { apiService } from "../services/apiService";
 import DropdownField from "../../../../components/ui/DropdownField";
+import ContentView from "../../../../components/ui/ContentView";
+import Dropdown from "../../../../components/ui/Dropdown";
+import DropdownTrigger from "../../../../components/ui/DropdownTrigger";
+import Menu from "../../../../components/ui/Menu";
+import MenuItem from "../../../../components/ui/MenuItem";
 import Button from "../../../../components/ui/Button";
 import Card from "../../../../components/ui/Card";
 import InlineEditableText from "../../../../components/ui/InlineEditableText";
@@ -62,6 +67,12 @@ type SsRange = {
 };
 type CurrentBiasRole = "ion" | "ioff";
 type PlotTypeOption = "iv" | "gm" | "ss" | "vth" | "j";
+type OriginExportContentKey = "iv" | "metrics" | "gm" | "ss" | "vth";
+type OriginExportContentOption = {
+    group: "basic" | "derived";
+    key: OriginExportContentKey;
+    labelKey: string;
+};
 const MAX_RENDER_SERIES_POINTS = 600;
 const MIN_RENDER_SERIES_POINTS = 120;
 const DEFAULT_RENDER_POINT_BUDGET = 12000;
@@ -76,6 +87,14 @@ const ANALYSIS_COMPACT_INPUT_CLASS = "text-xs";
 const ANALYSIS_COMPACT_PAGE_FIELD_CLASS =
     "!h-8 !gap-0 rounded-lg border border-border bg-bg-page px-2 py-1";
 const TOOLTIP_SERIES_NAME_SEPARATOR = "\u0000";
+const ORIGIN_EXPORT_CONTENT_OPTIONS: OriginExportContentOption[] = [
+    { group: "basic", key: "iv", labelKey: "da_origin_export_content_iv" },
+    { group: "basic", key: "metrics", labelKey: "da_origin_export_content_metrics" },
+    { group: "derived", key: "gm", labelKey: "da_origin_export_content_gm" },
+    { group: "derived", key: "ss", labelKey: "da_origin_export_content_ss" },
+    { group: "derived", key: "vth", labelKey: "da_origin_export_content_vth" },
+];
+const DEFAULT_ORIGIN_EXPORT_CONTENT_KEYS: OriginExportContentKey[] = ["iv"];
 
 type ChartHighlightOverlay = {
     key: string;
@@ -601,6 +620,127 @@ type ProgressiveAnalysisState = {
     totalCount: number;
     pending: boolean;
 };
+type OriginExportContentTranslateFn = (key: string, params?: Record<string, string | number | boolean | null | undefined>) => string;
+const OriginExportContentMenu = ({
+    selectedKeys,
+    setSelectedKeys,
+    t,
+}: {
+    selectedKeys: OriginExportContentKey[];
+    setSelectedKeys: React.Dispatch<React.SetStateAction<OriginExportContentKey[]>>;
+    t: OriginExportContentTranslateFn;
+}) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const selectedSet = useMemo(() => new Set(selectedKeys), [selectedKeys]);
+    const selectedLabels = ORIGIN_EXPORT_CONTENT_OPTIONS
+        .filter((option) => selectedSet.has(option.key))
+        .map((option) => t(option.labelKey));
+    const summary = selectedLabels.join(" + ");
+    const toggleContentKey = (key: OriginExportContentKey) => {
+        setSelectedKeys((prev) => {
+            const current = Array.isArray(prev) && prev.length
+                ? prev
+                : DEFAULT_ORIGIN_EXPORT_CONTENT_KEYS;
+            if (current.includes(key)) {
+                if (current.length <= 1)
+                    return current;
+                return current.filter((item) => item !== key);
+            }
+            return [...current, key];
+        });
+    };
+    const groupedOptions = [
+        {
+            key: "basic",
+            label: t("da_origin_export_content_group_basic"),
+            options: ORIGIN_EXPORT_CONTENT_OPTIONS.filter((option) => option.group === "basic"),
+        },
+        {
+            key: "derived",
+            label: t("da_origin_export_content_group_derived"),
+            options: ORIGIN_EXPORT_CONTENT_OPTIONS.filter((option) => option.group === "derived"),
+        },
+    ];
+
+    return (
+      <div className="ui-select_warp w-fit da-neutral-select" data-style="select">
+        <Dropdown isOpen={isOpen} onOpenChange={setIsOpen}>
+          {({ anchorRef, setAnchorRef, setContentRef }) => (
+            <>
+              <DropdownTrigger
+                fieldRef={setAnchorRef}
+                id="device-analysis-origin-export-content-select"
+                isOpen={isOpen}
+                menuId="device-analysis-origin-export-content-menu"
+                data-size="sm"
+                onClick={() => setIsOpen((prev) => !prev)}
+                fieldClassName="input_field ui-select_field--sm pr-1"
+                className="input_native no-focus-outline p-0 text-left cursor-pointer select-none pr-6"
+                indicatorClassName="absolute right-1 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none"
+                indicator={
+                  <ChevronDown
+                    size={14}
+                    className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+                  />
+                }
+              >
+                <span className="block truncate text-text-primary">{summary}</span>
+              </DropdownTrigger>
+              <ContentView
+                isOpen={isOpen}
+                align="left"
+                zIndex={80}
+                triggerId="device-analysis-origin-export-content-select"
+                menuId="device-analysis-origin-export-content-menu"
+                anchorRef={anchorRef}
+                contentRef={setContentRef}
+                variant="menu"
+              >
+                {() => (
+                  <Menu withScrollArea={false}>
+                    <div className="ui-menu__list">
+                      {groupedOptions.map((group) => (
+                        <div
+                          key={group.key}
+                          role="group"
+                          aria-label={group.label}
+                          className="ui-menu__group"
+                        >
+                          {group.options.map((option) => {
+                            const checked = selectedSet.has(option.key);
+                            return (
+                              <MenuItem
+                                key={option.key}
+                                role="menuitemcheckbox"
+                                aria-checked={checked}
+                                data-selected={checked || undefined}
+                                onClick={() => toggleContentKey(option.key)}
+                                className="group"
+                                left={
+                                  <span className="ui-menu__item-left">
+                                    <span className="whitespace-nowrap">{t(option.labelKey)}</span>
+                                  </span>
+                                }
+                                right={
+                                  <span className="ui-menu__item-right">
+                                    {checked ? <Check size={14} className="text-accent" /> : null}
+                                  </span>
+                                }
+                              />
+                            );
+                          })}
+                        </div>
+                      ))}
+                    </div>
+                  </Menu>
+                )}
+              </ContentView>
+            </>
+          )}
+        </Dropdown>
+      </div>
+    );
+};
 const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, primaryPlotLabel, derivativeLabel, gmApplicable, ssApplicable, vthApplicable, areaAvailable, onChange, }: {
     activePlotType: PlotTypeOption;
     primaryPlotLabel?: string;
@@ -736,6 +876,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const [originExportMode, setOriginExportMode] = useState<DeviceAnalysisOriginExportMode>("merged");
     const [originCanvasExportScope, setOriginCanvasExportScope] = useState<DeviceAnalysisOriginCanvasExportScope>("selected");
     const [originCurveExportMode, setOriginCurveExportMode] = useState<DeviceAnalysisOriginCurveExportMode>("all");
+    const [originExportContentKeys, setOriginExportContentKeys] = useState<OriginExportContentKey[]>(DEFAULT_ORIGIN_EXPORT_CONTENT_KEYS);
     const [originFilteredCanvasKind, setOriginFilteredCanvasKind] = useState<DeviceAnalysisOriginFilteredCanvasKind>("output");
     const [resultsTab, setResultsTab] = useState<"metrics" | "export">("metrics");
     const [overviewVisibleFileIds, setOverviewVisibleFileIds] = useState<string[]>([]);
@@ -4106,6 +4247,14 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         data-cta="Device Analysis"
                         data-cta-position="export-pane"
                         data-cta-copy="origin curve export mode"
+                      />
+                      <span className="text-xs text-text-secondary whitespace-nowrap">
+                        {t("da_origin_export_content_label")}
+                      </span>
+                      <OriginExportContentMenu
+                        selectedKeys={originExportContentKeys}
+                        setSelectedKeys={setOriginExportContentKeys}
+                        t={t}
                       />
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
