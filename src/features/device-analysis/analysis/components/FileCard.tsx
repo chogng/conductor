@@ -143,7 +143,7 @@ const FileCard = memo(function FileCard({
       }}
       className={`flex flex-col w-full text-left rounded-xl border transition-colors overflow-hidden ${
         isActive
-          ? "border-accent/40 bg-accent/5"
+          ? "border-accent-terracotta bg-accent/5"
           : "border-border bg-bg-surface hover:bg-bg-surface-hover"
       }`}
     >
