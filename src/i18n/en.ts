@@ -404,7 +404,7 @@
     da_settings_origin_choose_failed: 'Failed to update Origin executable path: {error}',
     da_settings_origin_check_btn: 'Check Connection',
     da_settings_origin_checking: 'Checking...',
-    da_settings_origin_check_success: 'Origin connection check passed.',
+    da_settings_origin_check_success: 'Origin connection check passed',
     da_settings_origin_check_failed: 'Origin connection check failed: {error}',
     da_settings_origin_batch_desc: 'Batch process all CSV files (including subfolders) in a selected folder and auto-plot in Origin.',
     da_settings_origin_batch_btn: 'Run Folder Batch',

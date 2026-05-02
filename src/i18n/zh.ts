@@ -404,7 +404,7 @@
     da_settings_origin_choose_failed: '更新 Origin 可执行文件路径失败：{error}',
     da_settings_origin_check_btn: '检查连接',
     da_settings_origin_checking: '检查中...',
-    da_settings_origin_check_success: 'Origin 连接检查通过。',
+    da_settings_origin_check_success: 'Origin 连接检查通过',
     da_settings_origin_check_failed: 'Origin 连接检查失败：{error}',
     da_settings_origin_batch_desc: '批量处理所选文件夹（含子目录）下的全部 CSV ，并在 Origin 中自动绘图。',
     da_settings_origin_batch_btn: '运行文件夹批处理',
