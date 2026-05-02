@@ -436,61 +436,58 @@ const resolveAvailableActiveFileId = (processedData: any[], preferredFileId: any
     }
     return processedData[0]?.fileId ?? null;
 };
-const normalizeVisibleSeriesByFileId = (value: unknown): Record<string, string[]> => {
-    const raw = value && typeof value === "object" ? value as Record<string, unknown> : {};
-    const next: Record<string, string[]> = {};
-    for (const [fileId, seriesIds] of Object.entries(raw)) {
+const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object";
+const normalizeByFileIdRecord = <T,>(value: unknown, normalizeEntry: (entry: unknown) => T | null | undefined): Record<string, T> => {
+    const raw = isRecord(value) ? value : {};
+    const next: Record<string, T> = {};
+    for (const [fileId, entry] of Object.entries(raw)) {
         const normalizedFileId = String(fileId ?? "").trim();
-        if (!normalizedFileId || !Array.isArray(seriesIds))
+        if (!normalizedFileId)
             continue;
-        const normalizedSeriesIds = seriesIds
-            .map((seriesId) => String(seriesId ?? "").trim())
-            .filter(Boolean);
-        next[normalizedFileId] = Array.from(new Set(normalizedSeriesIds));
+        const normalizedEntry = normalizeEntry(entry);
+        if (normalizedEntry == null)
+            continue;
+        next[normalizedFileId] = normalizedEntry;
     }
     return next;
 };
+const normalizeVisibleSeriesByFileId = (value: unknown): Record<string, string[]> => {
+    return normalizeByFileIdRecord(value, (seriesIds) => {
+        if (!Array.isArray(seriesIds))
+            return null;
+        return Array.from(new Set(seriesIds
+            .map((seriesId) => String(seriesId ?? "").trim())
+            .filter(Boolean)));
+    });
+};
 const normalizeSeriesLegendLabelsByFileId = (value: unknown): Record<string, Record<string, string>> => {
-    const raw = value && typeof value === "object" ? value as Record<string, unknown> : {};
-    const next: Record<string, Record<string, string>> = {};
-    for (const [fileId, labels] of Object.entries(raw)) {
-        const normalizedFileId = String(fileId ?? "").trim();
-        if (!normalizedFileId || !labels || typeof labels !== "object")
-            continue;
+    return normalizeByFileIdRecord(value, (labels) => {
+        if (!isRecord(labels))
+            return null;
         const nextLabels: Record<string, string> = {};
-        for (const [seriesId, label] of Object.entries(labels as Record<string, unknown>)) {
+        for (const [seriesId, label] of Object.entries(labels)) {
             const normalizedSeriesId = String(seriesId ?? "").trim();
             const normalizedLabel = String(label ?? "").trim();
             if (!normalizedSeriesId || !normalizedLabel)
                 continue;
             nextLabels[normalizedSeriesId] = normalizedLabel;
         }
-        if (Object.keys(nextLabels).length) {
-            next[normalizedFileId] = nextLabels;
-        }
-    }
-    return next;
+        return Object.keys(nextLabels).length ? nextLabels : null;
+    });
 };
 const normalizeAxisTitleOverridesByFileId = (value: unknown): AxisTitleOverridesByFileId => {
-    const raw = value && typeof value === "object" ? value as Record<string, unknown> : {};
-    const next: AxisTitleOverridesByFileId = {};
-    for (const [fileId, labels] of Object.entries(raw)) {
-        const normalizedFileId = String(fileId ?? "").trim();
-        if (!normalizedFileId || !labels || typeof labels !== "object")
-            continue;
-        const rawLabels = labels as Record<string, unknown>;
+    return normalizeByFileIdRecord(value, (labels) => {
+        if (!isRecord(labels))
+            return null;
         const nextLabels: Partial<Record<"x" | "y", string>> = {};
         for (const axisKey of ["x", "y"] as const) {
-            const normalizedLabel = String(rawLabels[axisKey] ?? "").trim();
+            const normalizedLabel = String(labels[axisKey] ?? "").trim();
             if (normalizedLabel) {
                 nextLabels[axisKey] = normalizedLabel;
             }
         }
-        if (Object.keys(nextLabels).length) {
-            next[normalizedFileId] = nextLabels;
-        }
-    }
-    return next;
+        return Object.keys(nextLabels).length ? nextLabels : null;
+    });
 };
 const normalizeLinearLogScale = (value: unknown): "linear" | "log" => String(value ?? "").trim().toLowerCase() === "log" ? "log" : "linear";
 const normalizeChartYScale = (value: unknown): "linear" | "log" | "logAbs" => {
@@ -500,28 +497,8 @@ const normalizeChartYScale = (value: unknown): "linear" | "log" | "logAbs" => {
     return normalizeLinearLogScale(normalized);
 };
 const normalizeLogCurrentMode = (value: unknown): "all" | "positive" => String(value ?? "").trim() === "positive" ? "positive" : "all";
-const normalizeYScaleByFileIdRecord = (value: unknown): Record<string, "linear" | "log"> => {
-    const raw = value && typeof value === "object" ? value as Record<string, unknown> : {};
-    const next: Record<string, "linear" | "log"> = {};
-    for (const [fileId, scale] of Object.entries(raw)) {
-        const normalizedFileId = String(fileId ?? "").trim();
-        if (!normalizedFileId)
-            continue;
-        next[normalizedFileId] = normalizeLinearLogScale(scale);
-    }
-    return next;
-};
-const normalizeYLogCurrentModeByFileIdRecord = (value: unknown): Record<string, "all" | "positive"> => {
-    const raw = value && typeof value === "object" ? value as Record<string, unknown> : {};
-    const next: Record<string, "all" | "positive"> = {};
-    for (const [fileId, mode] of Object.entries(raw)) {
-        const normalizedFileId = String(fileId ?? "").trim();
-        if (!normalizedFileId)
-            continue;
-        next[normalizedFileId] = normalizeLogCurrentMode(mode);
-    }
-    return next;
-};
+const normalizeYScaleByFileIdRecord = (value: unknown): Record<string, "linear" | "log"> => normalizeByFileIdRecord(value, normalizeLinearLogScale);
+const normalizeYLogCurrentModeByFileIdRecord = (value: unknown): Record<string, "all" | "positive"> => normalizeByFileIdRecord(value, normalizeLogCurrentMode);
 const isCapacitanceCurve = (fileLike: any): boolean => {
     const curveType = String(fileLike?.curveType ?? "").trim().toLowerCase();
     return curveType === "cv" || curveType === "cf";
@@ -538,18 +515,10 @@ const isYUnitAllowedForFile = (unit: unknown, fileLike: any): unit is DeviceAnal
     ? isDeviceAnalysisCapacitanceYUnit(unit)
     : isDeviceAnalysisCurrentYUnit(unit);
 const normalizeYUnitByFileIdRecord = (value: unknown): Record<string, DeviceAnalysisYUnit> => {
-    const raw = value && typeof value === "object" ? value as Record<string, unknown> : {};
-    const next: Record<string, DeviceAnalysisYUnit> = {};
-    for (const [fileId, unit] of Object.entries(raw)) {
-        const normalizedFileId = String(fileId ?? "").trim();
-        if (!normalizedFileId)
-            continue;
+    return normalizeByFileIdRecord(value, (unit) => {
         const normalizedUnit = normalizeDeviceAnalysisYUnit(unit, "A");
-        if (!normalizedUnit)
-            continue;
-        next[normalizedFileId] = normalizedUnit;
-    }
-    return next;
+        return normalizedUnit || null;
+    });
 };
 const buildTooltipSeriesName = (label: string, seriesId: unknown): string => `${label}${TOOLTIP_SERIES_NAME_SEPARATOR}${String(seriesId ?? "").trim()}`;
 type FormatOriginTranslateFn = (key: string, params?: Record<string, unknown>) => string;
@@ -846,6 +815,71 @@ const makeStrictLogDomain = (min: unknown, max: unknown): [number, number] | nul
     if (lo === hi)
         return padLogDomain(lo, hi);
     return [lo, hi];
+};
+
+const EMPTY_MIN_MAX = { minX: null, maxX: null, minY: null, maxY: null };
+const computeDiagnosticsMinMax = (seriesList: any[]) => {
+    if (!seriesList.length)
+        return EMPTY_MIN_MAX;
+    return computeMinMax(seriesList.map((series: any) => ({ data: series.data })));
+};
+const resolveDiagnosticsBaseYDomain = (
+    minMax: { minY: number | null; maxY: number | null } | null | undefined,
+    fallback: [number, number],
+    includeZero = false,
+): [number, number] => {
+    const minY = minMax?.minY ?? null;
+    const maxY = minMax?.maxY ?? null;
+    if (minY === null || maxY === null)
+        return fallback;
+    return includeZero
+        ? padLinearDomain(Math.min(minY, 0), Math.max(maxY, 0))
+        : padLinearDomain(minY, maxY);
+};
+const buildDiagnosticsYTicks = (domain: [number, number]) => {
+    return (buildOriginAutoTicks(domain[0], domain[1], 6) ??
+        buildNiceTicks(domain[0], domain[1], 6, {
+            preferTightRange: false,
+        }));
+};
+const downsampleDiagnosticsSeriesForRender = (seriesList: any[]) => seriesList.map((series: any) => ({
+    ...series,
+    data: downsamplePointsForDisplay(series.data, MAX_RENDER_SERIES_POINTS),
+}));
+const resolveTickedDomain = (baseDomain: [number, number], ticks: unknown): [number, number] => {
+    if (Array.isArray(ticks) && ticks.length >= 2) {
+        return [
+            Number(ticks[0]),
+            Number(ticks[ticks.length - 1]),
+        ];
+    }
+    return baseDomain;
+};
+const resolveScaledRangeFromTicks = ({
+    domain,
+    inferStep,
+    scaleFactor,
+    ticks,
+}: {
+    domain: [number, number];
+    inferStep: (ticks: unknown) => number | null;
+    scaleFactor: number;
+    ticks: unknown;
+}) => {
+    const tickList = Array.isArray(ticks) && ticks.length >= 2 ? ticks : null;
+    const minCandidateRaw = tickList ? Number(tickList[0]) : Number(domain?.[0]);
+    const maxCandidateRaw = tickList ? Number(tickList[tickList.length - 1]) : Number(domain?.[1]);
+    const stepRaw = inferStep(tickList);
+    const minCandidate = minCandidateRaw * scaleFactor;
+    const maxCandidate = maxCandidateRaw * scaleFactor;
+    if (!Number.isFinite(minCandidate) || !Number.isFinite(maxCandidate))
+        return null;
+    const min = Math.min(minCandidate, maxCandidate);
+    const max = Math.max(minCandidate, maxCandidate);
+    if (!(max > min))
+        return null;
+    const step = Number.isFinite(stepRaw) ? Number(stepRaw) * scaleFactor : null;
+    return { min, max, step };
 };
 
 const AnalysisCharts = ({ processedData, processingStatus, activeFileId: controlledActiveFileId = undefined, onActiveFileIdChange = undefined, showFileSelect = true, ionIoffMethod = "auto", setIonIoffMethod = () => { }, ionIoffManualTargetsByFileId = {}, setIonIoffManualTargetsByFileId = () => { }, ssMethod = "auto", setSsMethod = () => { }, ssDiagnosticsEnabled = true, setSsDiagnosticsEnabled = () => { }, vthDiagnosticsEnabled = false, setVthDiagnosticsEnabled = () => { }, gmDiagnosticsEnabled = false, setGmDiagnosticsEnabled = () => { }, ssShowFitLine = true, setSsShowFitLine = () => { }, ssManualRanges = {}, setSsManualRanges = () => { }, originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS, onOriginOpenPlotOptionsChange = undefined, }: any) => {
@@ -3070,10 +3104,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         })
             .filter((series: any) => series !== null);
     }, [buildSeriesAnalysisEntry, detailAnalysisBySeriesId, displayPlotSeries, effectivePlotType, ssDiagnosticsEnabled]);
-    const visibleSsDiagnosticsSeriesForRender = useMemo(() => visibleSsDiagnosticsSeries.map((series: any) => ({
-        ...series,
-        data: downsamplePointsForDisplay(series.data, MAX_RENDER_SERIES_POINTS),
-    })), [visibleSsDiagnosticsSeries]);
+    const visibleSsDiagnosticsSeriesForRender = useMemo(() => downsampleDiagnosticsSeriesForRender(visibleSsDiagnosticsSeries), [visibleSsDiagnosticsSeries]);
     const visibleGmDiagnosticsSeries = useMemo(() => {
         if (effectivePlotType !== "gm")
             return [];
@@ -3099,10 +3130,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         })
             .filter((series: any) => series !== null);
     }, [displayPlotSeries, effectivePlotType, gmDiagnosticsEnabled, plotYFactor]);
-    const visibleGmDiagnosticsSeriesForRender = useMemo(() => visibleGmDiagnosticsSeries.map((series: any) => ({
-        ...series,
-        data: downsamplePointsForDisplay(series.data, MAX_RENDER_SERIES_POINTS),
-    })), [visibleGmDiagnosticsSeries]);
+    const visibleGmDiagnosticsSeriesForRender = useMemo(() => downsampleDiagnosticsSeriesForRender(visibleGmDiagnosticsSeries), [visibleGmDiagnosticsSeries]);
     const visibleVthSlopeDiagnosticsSeries = useMemo(() => {
         if (effectivePlotType !== "vth")
             return [];
@@ -3126,10 +3154,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         })
             .filter((series: any) => series !== null);
     }, [displayPlotSeries, effectivePlotType, plotXFactor, plotYFactor]);
-    const visibleVthSlopeDiagnosticsSeriesForRender = useMemo(() => visibleVthSlopeDiagnosticsSeries.map((series: any) => ({
-        ...series,
-        data: downsamplePointsForDisplay(series.data, MAX_RENDER_SERIES_POINTS),
-    })), [visibleVthSlopeDiagnosticsSeries]);
+    const visibleVthSlopeDiagnosticsSeriesForRender = useMemo(() => downsampleDiagnosticsSeriesForRender(visibleVthSlopeDiagnosticsSeries), [visibleVthSlopeDiagnosticsSeries]);
     const activeCurveProbeRows = useMemo(() => {
         if (effectivePlotType === "gm" && gmDiagnosticsEnabled) {
             if (!visibleGmDiagnosticsSeries.length || curveProbeX === null)
@@ -3150,85 +3175,40 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         return plotYUnitLabel;
     }, [effectivePlotType, gmDiagnosticsEnabled, gmSecondDerivativeUnitLabel, plotYUnitLabel]);
     const ssDiagnosticsMinMax = useMemo(() => {
-        if (!visibleSsDiagnosticsSeries.length)
-            return { minX: null, maxX: null, minY: null, maxY: null };
-        return computeMinMax(visibleSsDiagnosticsSeries.map((series: any) => ({ data: series.data })));
+        return computeDiagnosticsMinMax(visibleSsDiagnosticsSeries);
     }, [visibleSsDiagnosticsSeries]);
     const ssDiagnosticsBaseYDomain = useMemo(() => {
-        const minY = ssDiagnosticsMinMax?.minY ?? null;
-        const maxY = ssDiagnosticsMinMax?.maxY ?? null;
-        if (minY === null || maxY === null)
-            return [0, 1];
-        return padLinearDomain(minY, maxY);
-    }, [ssDiagnosticsMinMax?.maxY, ssDiagnosticsMinMax?.minY]);
+        return resolveDiagnosticsBaseYDomain(ssDiagnosticsMinMax, [0, 1]);
+    }, [ssDiagnosticsMinMax]);
     const ssDiagnosticsYTicks = useMemo(() => {
-        return (buildOriginAutoTicks(ssDiagnosticsBaseYDomain[0], ssDiagnosticsBaseYDomain[1], 6) ??
-            buildNiceTicks(ssDiagnosticsBaseYDomain[0], ssDiagnosticsBaseYDomain[1], 6, {
-                preferTightRange: false,
-            }));
+        return buildDiagnosticsYTicks(ssDiagnosticsBaseYDomain);
     }, [ssDiagnosticsBaseYDomain]);
     const ssDiagnosticsYDomain = useMemo(() => {
-        if (Array.isArray(ssDiagnosticsYTicks) && ssDiagnosticsYTicks.length >= 2) {
-            return [
-                Number(ssDiagnosticsYTicks[0]),
-                Number(ssDiagnosticsYTicks[ssDiagnosticsYTicks.length - 1]),
-            ];
-        }
-        return ssDiagnosticsBaseYDomain;
+        return resolveTickedDomain(ssDiagnosticsBaseYDomain, ssDiagnosticsYTicks);
     }, [ssDiagnosticsBaseYDomain, ssDiagnosticsYTicks]);
     const gmDiagnosticsMinMax = useMemo(() => {
-        if (!visibleGmDiagnosticsSeries.length)
-            return { minX: null, maxX: null, minY: null, maxY: null };
-        return computeMinMax(visibleGmDiagnosticsSeries.map((series: any) => ({ data: series.data })));
+        return computeDiagnosticsMinMax(visibleGmDiagnosticsSeries);
     }, [visibleGmDiagnosticsSeries]);
     const gmDiagnosticsBaseYDomain = useMemo(() => {
-        const minY = gmDiagnosticsMinMax?.minY ?? null;
-        const maxY = gmDiagnosticsMinMax?.maxY ?? null;
-        if (minY === null || maxY === null)
-            return [-1, 1];
-        return padLinearDomain(minY, maxY);
-    }, [gmDiagnosticsMinMax?.maxY, gmDiagnosticsMinMax?.minY]);
+        return resolveDiagnosticsBaseYDomain(gmDiagnosticsMinMax, [-1, 1]);
+    }, [gmDiagnosticsMinMax]);
     const gmDiagnosticsYTicks = useMemo(() => {
-        return (buildOriginAutoTicks(gmDiagnosticsBaseYDomain[0], gmDiagnosticsBaseYDomain[1], 6) ??
-            buildNiceTicks(gmDiagnosticsBaseYDomain[0], gmDiagnosticsBaseYDomain[1], 6, {
-                preferTightRange: false,
-            }));
+        return buildDiagnosticsYTicks(gmDiagnosticsBaseYDomain);
     }, [gmDiagnosticsBaseYDomain]);
     const gmDiagnosticsYDomain = useMemo(() => {
-        if (Array.isArray(gmDiagnosticsYTicks) && gmDiagnosticsYTicks.length >= 2) {
-            return [
-                Number(gmDiagnosticsYTicks[0]),
-                Number(gmDiagnosticsYTicks[gmDiagnosticsYTicks.length - 1]),
-            ];
-        }
-        return gmDiagnosticsBaseYDomain;
+        return resolveTickedDomain(gmDiagnosticsBaseYDomain, gmDiagnosticsYTicks);
     }, [gmDiagnosticsBaseYDomain, gmDiagnosticsYTicks]);
     const vthSlopeDiagnosticsMinMax = useMemo(() => {
-        if (!visibleVthSlopeDiagnosticsSeries.length)
-            return { minX: null, maxX: null, minY: null, maxY: null };
-        return computeMinMax(visibleVthSlopeDiagnosticsSeries.map((series: any) => ({ data: series.data })));
+        return computeDiagnosticsMinMax(visibleVthSlopeDiagnosticsSeries);
     }, [visibleVthSlopeDiagnosticsSeries]);
     const vthSlopeDiagnosticsBaseYDomain = useMemo(() => {
-        const minY = vthSlopeDiagnosticsMinMax?.minY ?? null;
-        const maxY = vthSlopeDiagnosticsMinMax?.maxY ?? null;
-        if (minY === null || maxY === null)
-            return [-1, 1];
-        return padLinearDomain(Math.min(minY, 0), Math.max(maxY, 0));
-    }, [vthSlopeDiagnosticsMinMax?.maxY, vthSlopeDiagnosticsMinMax?.minY]);
+        return resolveDiagnosticsBaseYDomain(vthSlopeDiagnosticsMinMax, [-1, 1], true);
+    }, [vthSlopeDiagnosticsMinMax]);
     const vthSlopeDiagnosticsYTicks = useMemo(() => {
-        return (buildOriginAutoTicks(vthSlopeDiagnosticsBaseYDomain[0], vthSlopeDiagnosticsBaseYDomain[1], 6) ??
-            buildNiceTicks(vthSlopeDiagnosticsBaseYDomain[0], vthSlopeDiagnosticsBaseYDomain[1], 6, {
-                preferTightRange: false,
-            }));
+        return buildDiagnosticsYTicks(vthSlopeDiagnosticsBaseYDomain);
     }, [vthSlopeDiagnosticsBaseYDomain]);
     const vthSlopeDiagnosticsYDomain = useMemo(() => {
-        if (Array.isArray(vthSlopeDiagnosticsYTicks) && vthSlopeDiagnosticsYTicks.length >= 2) {
-            return [
-                Number(vthSlopeDiagnosticsYTicks[0]),
-                Number(vthSlopeDiagnosticsYTicks[vthSlopeDiagnosticsYTicks.length - 1]),
-            ];
-        }
-        return vthSlopeDiagnosticsBaseYDomain;
+        return resolveTickedDomain(vthSlopeDiagnosticsBaseYDomain, vthSlopeDiagnosticsYTicks);
     }, [vthSlopeDiagnosticsBaseYDomain, vthSlopeDiagnosticsYTicks]);
     const xTicks = useMemo(() => {
         const mode = String(axis?.xTicks ?? "auto");
@@ -3249,20 +3229,12 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         });
     }, [axis?.xStep, axis?.xTickCount, axis?.xTicks, plotXFactor, xDomain]);
     const originChartXRange = useMemo(() => {
-        const ticks = Array.isArray(xTicks) && xTicks.length >= 2 ? xTicks : null;
-        const minCandidateRaw = ticks ? Number(ticks[0]) : Number(xDomain?.[0]);
-        const maxCandidateRaw = ticks ? Number(ticks[ticks.length - 1]) : Number(xDomain?.[1]);
-        const stepRaw = inferUniformTickStep(ticks);
-        const minCandidate = minCandidateRaw * plotXFactor;
-        const maxCandidate = maxCandidateRaw * plotXFactor;
-        if (!Number.isFinite(minCandidate) || !Number.isFinite(maxCandidate))
-            return null;
-        const min = Math.min(minCandidate, maxCandidate);
-        const max = Math.max(minCandidate, maxCandidate);
-        if (!(max > min))
-            return null;
-        const step = Number.isFinite(stepRaw) ? Number(stepRaw) * plotXFactor : null;
-        return { min, max, step };
+        return resolveScaledRangeFromTicks({
+            domain: xDomain,
+            inferStep: inferUniformTickStep,
+            scaleFactor: plotXFactor,
+            ticks: xTicks,
+        });
     }, [plotXFactor, xDomain, xTicks]);
     useEffect(() => {
         originChartXRangeRef.current = originChartXRange;
@@ -3312,30 +3284,22 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         yDomain,
     ]);
     const originChartYRange = useMemo(() => {
-        const ticks = Array.isArray(yTicks) && yTicks.length >= 2 ? yTicks : null;
-        const minCandidateRaw = ticks ? Number(ticks[0]) : Number(yDomain?.[0]);
-        const maxCandidateRaw = ticks ? Number(ticks[ticks.length - 1]) : Number(yDomain?.[1]);
-        const stepRaw =
-            effectiveYScale === "linear"
-                ? inferUniformTickStep(ticks)
-                : inferUniformLogTickStep(ticks);
-        const minCandidate = minCandidateRaw * plotYFactor;
-        const maxCandidate = maxCandidateRaw * plotYFactor;
-        if (!Number.isFinite(minCandidate) || !Number.isFinite(maxCandidate))
-            return null;
-        const min = Math.min(minCandidate, maxCandidate);
-        const max = Math.max(minCandidate, maxCandidate);
-        if (!(max > min))
+        const range = resolveScaledRangeFromTicks({
+            domain: yDomain,
+            inferStep: effectiveYScale === "linear" ? inferUniformTickStep : inferUniformLogTickStep,
+            scaleFactor: plotYFactor,
+            ticks: yTicks,
+        });
+        if (!range)
             return null;
         const mode: "linear" | "log" = effectiveYScale === "linear" ? "linear" : "log";
-        if (mode === "log" && (!(min > 0) || !(max > 0)))
+        if (mode === "log" && (!(range.min > 0) || !(range.max > 0)))
             return null;
-        const step = Number.isFinite(stepRaw)
-            ? effectiveYScale === "linear"
-                ? Number(stepRaw) * plotYFactor
-                : Number(stepRaw)
-            : null;
-        return { mode, min, max, step };
+        return {
+            ...range,
+            mode,
+            step: mode === "log" && Number.isFinite(range.step) ? Number(range.step) / plotYFactor : range.step,
+        };
     }, [effectiveYScale, plotYFactor, yDomain, yTicks]);
     useEffect(() => {
         originChartYRangeRef.current = originChartYRange;

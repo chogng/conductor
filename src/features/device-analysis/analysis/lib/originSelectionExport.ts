@@ -157,7 +157,7 @@ const sanitizeOriginDisplayName = (
   return raw.length > max ? raw.slice(0, max).trim() : raw;
 };
 
-const ORIGIN_CONTENT_SHEET_NAMES: Record<DeviceAnalysisOriginExportContentKey, string> = {
+const ORIGIN_CONTENT_SHEET_BASE_NAMES: Record<DeviceAnalysisOriginExportContentKey, string> = {
   gds: "gds",
   gm: "gm",
   iv: "IV",
@@ -166,21 +166,44 @@ const ORIGIN_CONTENT_SHEET_NAMES: Record<DeviceAnalysisOriginExportContentKey, s
   vth: "Vth",
 };
 
-const ORIGIN_CONTENT_SHEET_SHORT_NAMES: Record<DeviceAnalysisOriginExportContentKey, string> = {
-  gds: "gds",
-  gm: "gm",
-  iv: "IV",
-  metrics: "Metrics",
-  ss: "SS",
-  vth: "Vth",
-};
+const ORIGIN_EXPORT_CONTENT_KEY_SET = new Set<DeviceAnalysisOriginExportContentKey>([
+  "iv",
+  "metrics",
+  "gm",
+  "gds",
+  "ss",
+  "vth",
+]);
+
+const TRANSFER_METRICS_FIELDS = [
+  "series",
+  "gm_max_abs",
+  "x_at_gm_max_abs",
+  "vth",
+  "vth_electron",
+  "vth_hole",
+  "ss",
+  "ss_x1",
+  "ss_x2",
+  "ion",
+  "x_at_ion",
+  "ioff",
+  "x_at_ioff",
+  "ion_ioff",
+];
+
+const OUTPUT_METRICS_FIELDS = [
+  "series",
+  "gds_max_abs",
+  "x_at_gds_max_abs",
+];
 
 const resolveOriginContentSheetName = (
   contentKey: DeviceAnalysisOriginExportContentKey,
   index: number,
   total: number,
 ): string => {
-  const base = ORIGIN_CONTENT_SHEET_NAMES[contentKey] ?? "Data";
+  const base = ORIGIN_CONTENT_SHEET_BASE_NAMES[contentKey] ?? "Data";
   return total <= 1 ? base : `${base} ${index + 1}`;
 };
 
@@ -189,7 +212,7 @@ const resolveOriginContentSheetShortName = (
   index: number,
   total: number,
 ): string => {
-  const base = ORIGIN_CONTENT_SHEET_SHORT_NAMES[contentKey] ?? "Data";
+  const base = ORIGIN_CONTENT_SHEET_BASE_NAMES[contentKey] ?? "Data";
   return total <= 1 ? base : `${base}${index + 1}`;
 };
 
@@ -450,27 +473,26 @@ const dedupeCurveLabels = (
   });
 };
 
-const buildDeviceAnalysisOriginPairsExpr = (xyPairCount: unknown): string => {
+const buildOriginPairsExpr = (
+  countRaw: unknown,
+  resolvePair: (index: number) => [number, number],
+): string => {
   const pairs: string[] = [];
-  const count = Math.max(1, Number(xyPairCount) || 1);
+  const count = Math.max(1, Number(countRaw) || 1);
 
   for (let index = 0; index < count; index += 1) {
-    pairs.push(`(${index * 2 + 1},${index * 2 + 2})`);
+    const [x, y] = resolvePair(index);
+    pairs.push(`(${x},${y})`);
   }
 
   return `(${pairs.join(",")})`;
 };
 
-const buildDeviceAnalysisOriginSharedXPairsExpr = (curveCountRaw: unknown): string => {
-  const pairs: string[] = [];
-  const count = Math.max(1, Number(curveCountRaw) || 1);
+const buildDeviceAnalysisOriginPairsExpr = (xyPairCount: unknown): string =>
+  buildOriginPairsExpr(xyPairCount, (index) => [index * 2 + 1, index * 2 + 2]);
 
-  for (let index = 0; index < count; index += 1) {
-    pairs.push(`(1,${index + 2})`);
-  }
-
-  return `(${pairs.join(",")})`;
-};
+const buildDeviceAnalysisOriginSharedXPairsExpr = (curveCountRaw: unknown): string =>
+  buildOriginPairsExpr(curveCountRaw, (index) => [1, index + 2]);
 
 const buildDeviceAnalysisOriginPairsExprFromPairs = (
   pairs: Array<[number, number]>,
@@ -997,6 +1019,64 @@ const cloneSeriesWithDerivedY = (
   y,
 });
 
+const buildDerivedSeriesList = (
+  file: ProcessedEntryLike,
+  xGroups: number[][],
+  seriesList: ProcessedSeriesLike[],
+  resolveCurveLabelForSeries: ResolveCurveLabelForSeries,
+  deriveY: (points: Array<{ x: number; y: number }>) => number[],
+  hasUsableY: (values: number[]) => boolean,
+): ProcessedSeriesLike[] =>
+  seriesList
+    .map((series) => {
+      const points = buildPoints(xGroups[Number(series?.groupIndex)], series?.y);
+      const derivedY = deriveY(points);
+      if (!hasUsableY(derivedY)) return null;
+      return cloneSeriesWithDerivedY(
+        {
+          ...series,
+          name: resolveCurveLabelForSeries(file, series, 0),
+        },
+        derivedY,
+      );
+    })
+    .filter((series): series is ProcessedSeriesLike => series !== null);
+
+const hasFiniteValue = (values: number[]): boolean =>
+  values.some((value) => Number.isFinite(value));
+
+const hasPositiveFiniteValue = (values: number[]): boolean =>
+  values.some((value) => Number.isFinite(value) && value > 0);
+
+const withDerivedOriginFileMetadata = (
+  file: ProcessedEntryLike,
+  {
+    baseName,
+    fileSuffix,
+    originExportYUnitLabel,
+    series,
+    yLabel,
+    yUnit,
+  }: {
+    baseName: string;
+    fileSuffix: string;
+    originExportYUnitLabel: string;
+    series: ProcessedSeriesLike[];
+    yLabel: string;
+    yUnit: string;
+  },
+): ProcessedEntryLike => ({
+  ...file,
+  fileName: `${baseName}__${fileSuffix}.csv`,
+  series,
+  yLabel,
+  yUnit,
+  originExportUseCurveYLongNames: true,
+  originExportSkipDisplayRange: true,
+  originExportYScaleFactor: 1,
+  originExportYUnitLabel,
+});
+
 const buildDerivedCurveFile = (
   file: ProcessedEntryLike,
   contentKey: Exclude<DeviceAnalysisOriginExportContentKey, "iv" | "metrics">,
@@ -1014,98 +1094,71 @@ const buildDerivedCurveFile = (
     if (contentKey === "gm" && !isTransfer) return null;
     if (contentKey === "gds" && !isOutput) return null;
     const derivativeLabel = contentKey === "gm" ? "gm" : "gds";
-    const derivedSeries = seriesList
-      .map((series) => {
-        const points = buildPoints(xGroups[Number(series?.groupIndex)], series?.y);
-        const derivative = computeCentralDerivative(points)
-          .map((point: any) => (isFiniteNumber(point?.y) ? point.y : NaN));
-        if (!derivative.some((value) => Number.isFinite(value))) return null;
-        return cloneSeriesWithDerivedY(
-          {
-            ...series,
-            name: resolveCurveLabelForSeries(file, series, 0),
-          },
-          derivative,
-        );
-      })
-      .filter((series): series is ProcessedSeriesLike => series !== null);
+    const derivedSeries = buildDerivedSeriesList(
+      file,
+      xGroups,
+      seriesList,
+      resolveCurveLabelForSeries,
+      (points) => computeCentralDerivative(points)
+        .map((point: any) => (isFiniteNumber(point?.y) ? point.y : NaN)),
+      hasFiniteValue,
+    );
     if (!derivedSeries.length) return null;
     const denom = String(file?.xUnit ?? "V").trim() || "V";
-    return {
-      ...file,
-      fileName: `${baseName}__${derivativeLabel}.csv`,
+    return withDerivedOriginFileMetadata(file, {
+      baseName,
+      fileSuffix: derivativeLabel,
       series: derivedSeries,
       yLabel: derivativeLabel,
       yUnit: `A/${denom}`,
-      originExportUseCurveYLongNames: true,
-      originExportSkipDisplayRange: true,
-      originExportYScaleFactor: 1,
       originExportYUnitLabel: `A/${denom}`,
-    };
+    });
   }
 
   if (contentKey === "ss") {
     if (!isTransfer) return null;
-    const derivedSeries = seriesList
-      .map((series) => {
-        const points = buildPoints(xGroups[Number(series?.groupIndex)], series?.y);
-        const absY = points.map((point) =>
-          isFiniteNumber(point?.y) ? Math.abs(point.y) : NaN,
-        );
-        if (!absY.some((value) => Number.isFinite(value) && value > 0)) return null;
-        return cloneSeriesWithDerivedY(
-          {
-            ...series,
-            name: resolveCurveLabelForSeries(file, series, 0),
-          },
-          absY,
-        );
-      })
-      .filter((series): series is ProcessedSeriesLike => series !== null);
+    const derivedSeries = buildDerivedSeriesList(
+      file,
+      xGroups,
+      seriesList,
+      resolveCurveLabelForSeries,
+      (points) => points.map((point) =>
+        isFiniteNumber(point?.y) ? Math.abs(point.y) : NaN,
+      ),
+      hasPositiveFiniteValue,
+    );
     if (!derivedSeries.length) return null;
-    return {
-      ...file,
-      fileName: `${baseName}__SS.csv`,
+    return withDerivedOriginFileMetadata(file, {
+      baseName,
+      fileSuffix: "SS",
       series: derivedSeries,
       yLabel: "|I|",
       yUnit: String(file?.yUnit ?? "A").trim() || "A",
-      originExportUseCurveYLongNames: true,
-      originExportSkipDisplayRange: true,
-      originExportYScaleFactor: 1,
       originExportYUnitLabel: String(file?.originExportYUnitLabel ?? file?.yUnit ?? "A").trim() || "A",
-    };
+    });
   }
 
   if (contentKey === "vth") {
     if (!isTransfer) return null;
-    const derivedSeries = seriesList
-      .map((series) => {
-        const points = buildPoints(xGroups[Number(series?.groupIndex)], series?.y);
-        const sqrtY = points.map((point) =>
-          isFiniteNumber(point?.y) ? Math.sqrt(Math.abs(point.y)) : NaN,
-        );
-        if (!sqrtY.some((value) => Number.isFinite(value))) return null;
-        return cloneSeriesWithDerivedY(
-          {
-            ...series,
-            name: resolveCurveLabelForSeries(file, series, 0),
-          },
-          sqrtY,
-        );
-      })
-      .filter((series): series is ProcessedSeriesLike => series !== null);
+    const derivedSeries = buildDerivedSeriesList(
+      file,
+      xGroups,
+      seriesList,
+      resolveCurveLabelForSeries,
+      (points) => points.map((point) =>
+        isFiniteNumber(point?.y) ? Math.sqrt(Math.abs(point.y)) : NaN,
+      ),
+      hasFiniteValue,
+    );
     if (!derivedSeries.length) return null;
-    return {
-      ...file,
-      fileName: `${baseName}__Vth.csv`,
+    return withDerivedOriginFileMetadata(file, {
+      baseName,
+      fileSuffix: "Vth",
       series: derivedSeries,
       yLabel: "sqrt(|I|)",
       yUnit: "sqrt(A)",
-      originExportUseCurveYLongNames: true,
-      originExportSkipDisplayRange: true,
-      originExportYScaleFactor: 1,
       originExportYUnitLabel: "sqrt(A)",
-    };
+    });
   }
 
   return null;
@@ -1116,33 +1169,12 @@ const buildMetricsWorksheetExports = (
   selectedSeriesIdsByFile: Record<string, string[] | undefined> | null | undefined,
   resolveCurveLabelForSeries: ResolveCurveLabelForSeries,
 ): DeviceAnalysisOriginSelectionExport[] => {
-  const transferFields = [
-    "series",
-    "gm_max_abs",
-    "x_at_gm_max_abs",
-    "vth",
-    "vth_electron",
-    "vth_hole",
-    "ss",
-    "ss_x1",
-    "ss_x2",
-    "ion",
-    "x_at_ion",
-    "ioff",
-    "x_at_ioff",
-    "ion_ioff",
-  ];
-  const outputFields = [
-    "series",
-    "gds_max_abs",
-    "x_at_gds_max_abs",
-  ];
   return selectedCanvases
     .map((file): DeviceAnalysisOriginSelectionExport | null => {
       const rows: Array<Record<string, number | string>> = [];
     const supportsTransfer = isTransferLikeDeviceAnalysisFile(file as any);
     const supportsOutput = isOutputLikeDeviceAnalysisFile(file as any);
-    const fields = supportsTransfer ? transferFields : supportsOutput ? outputFields : transferFields;
+    const fields = supportsTransfer ? TRANSFER_METRICS_FIELDS : supportsOutput ? OUTPUT_METRICS_FIELDS : TRANSFER_METRICS_FIELDS;
     const selectedSeries = resolveSelectedSeriesForOriginCanvas(
       file,
       selectedSeriesIdsByFile,
@@ -1253,16 +1285,8 @@ const buildMetricsWorksheetExports = (
 const normalizeOriginExportContentKeys = (
   contentKeys?: readonly DeviceAnalysisOriginExportContentKey[] | null,
 ): DeviceAnalysisOriginExportContentKey[] => {
-  const allowed = new Set<DeviceAnalysisOriginExportContentKey>([
-    "iv",
-    "metrics",
-    "gm",
-    "gds",
-    "ss",
-    "vth",
-  ]);
   const keys = (Array.isArray(contentKeys) ? contentKeys : ["iv"])
-    .filter((key): key is DeviceAnalysisOriginExportContentKey => allowed.has(key));
+    .filter((key): key is DeviceAnalysisOriginExportContentKey => ORIGIN_EXPORT_CONTENT_KEY_SET.has(key));
   return keys.length ? Array.from(new Set(keys)) : ["iv"];
 };
 
