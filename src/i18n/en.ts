@@ -494,6 +494,7 @@
     da_chart_derivative_label_generic: 'Derivative',
     da_chart_diagnostic_curve_label: 'Diagnostic curve',
     da_chart_selected_curve_label: 'Selected curve',
+    da_curve_probe_x_placeholder: 'Enter x',
     da_chart_ss_diagnostics: 'SS Diagnostics',
     da_chart_ss_diagnostics_toggle_title: 'Show or hide the SS diagnostics chart.',
     da_chart_vth_diagnostics: 'Vth Diagnostics',

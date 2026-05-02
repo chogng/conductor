@@ -494,6 +494,7 @@
     da_chart_derivative_label_generic: '导数',
     da_chart_diagnostic_curve_label: '当前诊断曲线',
     da_chart_selected_curve_label: '当前选择曲线',
+    da_curve_probe_x_placeholder: '输入x',
     da_chart_ss_diagnostics: 'SS 诊断',
     da_chart_ss_diagnostics_toggle_title: '显示或隐藏 SS 诊断图。',
     da_chart_vth_diagnostics: 'Vth 诊断',

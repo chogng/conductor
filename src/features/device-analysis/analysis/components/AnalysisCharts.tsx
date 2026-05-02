@@ -3984,6 +3984,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             plotYUnitLabel={activeCurveProbeYUnitLabel}
             showCurveProbePanel={showCurveProbePanel}
             plotXFactor={plotXFactor}
+            curveProbeXPlaceholder={t("da_curve_probe_x_placeholder")}
             curveProbeXInput={curveProbeXInput}
             setCurveProbeXInput={setCurveProbeXInput}
             curveProbeMode={curveProbeMode}

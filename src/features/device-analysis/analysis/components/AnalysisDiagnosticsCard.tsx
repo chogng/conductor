@@ -14,6 +14,7 @@ type AnalysisDiagnosticsCardProps = {
   plotYUnitLabel: string;
   showCurveProbePanel: boolean;
   plotXFactor: number;
+  curveProbeXPlaceholder: string;
   curveProbeXInput: string;
   setCurveProbeXInput: (value: string) => void;
   curveProbeMode: "linear" | "log";
@@ -43,6 +44,7 @@ export default function AnalysisDiagnosticsCard({
   plotYUnitLabel,
   showCurveProbePanel,
   plotXFactor,
+  curveProbeXPlaceholder,
   curveProbeXInput,
   setCurveProbeXInput,
   curveProbeMode,
@@ -122,7 +124,7 @@ export default function AnalysisDiagnosticsCard({
                   id="device-analysis-curve-probe-x-input"
                   value={curveProbeXInput}
                   onChange={setCurveProbeXInput}
-                  placeholder=""
+                  placeholder={curveProbeXPlaceholder}
                   className={analysisCompactInputWrapperClass}
                   fieldClassName={`${analysisCompactPageFieldClass} !w-[110px]`}
                   inputClassName={analysisCompactInputClass}
@@ -144,11 +146,7 @@ export default function AnalysisDiagnosticsCard({
               </div>
               {renderDiagnosticsContextBadges()}
             </div>
-            {!curveProbeXInput.trim() ? (
-              <div className="rounded-lg border border-dashed border-border/70 bg-bg-page/60 px-3 py-2">
-                {"\u8f93\u5165 x \u540e\u8fdb\u884c\u8bca\u65ad"}
-              </div>
-            ) : (
+            {curveProbeXInput.trim() ? (
               <div className="overflow-x-auto rounded-lg border border-border/60 bg-bg-page/60">
                 <table className="w-full min-w-[520px] table-fixed border-collapse text-xs">
                   <thead>
@@ -211,7 +209,7 @@ export default function AnalysisDiagnosticsCard({
                   </tbody>
                 </table>
               </div>
-            )}
+            ) : null}
           </div>
         ) : null}
 
