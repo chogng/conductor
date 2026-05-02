@@ -19,6 +19,7 @@ type OriginPlotWorkerOptions = {
   xyPairs?: unknown;
   plotCommand?: unknown;
   postPlotCommands?: unknown;
+  skipPlot?: unknown;
   lineWidth?: unknown;
 };
 
@@ -32,6 +33,7 @@ type OriginCsvWorkerArgsOptions = OriginPlotWorkerOptions & {
   workbookKey?: unknown;
   workbookName?: unknown;
   sheetName?: unknown;
+  sheetShortName?: unknown;
   capabilities?: unknown;
 };
 
@@ -61,7 +63,12 @@ export function appendOriginPlotWorkerArgs(
   const xyPairs = Reflect.get(source, "xyPairs");
   const plotCommand = Reflect.get(source, "plotCommand");
   const postPlotCommands = Reflect.get(source, "postPlotCommands");
+  const skipPlot = Reflect.get(source, "skipPlot");
   const lineWidth = Reflect.get(source, "lineWidth");
+
+  if (skipPlot === true) {
+    args.push("--skip-plot");
+  }
 
   const normalizedPlotType = Number(plotType);
   if (Number.isFinite(normalizedPlotType)) {
@@ -122,10 +129,12 @@ export function buildOriginCsvWorkerArgs({
   workbookKey,
   workbookName,
   sheetName,
+  sheetShortName,
   plotType,
   xyPairs,
   plotCommand,
   postPlotCommands,
+  skipPlot,
   lineWidth,
   capabilities,
 }: OriginCsvWorkerArgsOptions): string[] {
@@ -158,11 +167,16 @@ export function buildOriginCsvWorkerArgs({
     args.push("--sheet-name", sheetName.trim());
   }
 
+  if (typeof sheetShortName === "string" && sheetShortName.trim()) {
+    args.push("--sheet-short-name", sheetShortName.trim());
+  }
+
   const withPlotArgs = appendOriginPlotWorkerArgs(args, {
     plotType,
     xyPairs,
     plotCommand,
     postPlotCommands,
+    skipPlot,
     lineWidth,
   });
   return appendOriginCapabilitiesWorkerArgs(withPlotArgs, capabilities);

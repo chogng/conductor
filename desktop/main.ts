@@ -245,7 +245,7 @@ const ORIGIN_CSV_WORKER_PATH = resolveOriginCsvWorkerPath();
 
 /**
  * @typedef {{
- *   import?: {workbookLongName?: string, columnLabels?: {longNames?: string[], units?: string[]}, preCommands?: string[], postCommands?: string[]},
+ *   import?: {workbookLongName?: string, columnLabels?: {longNames?: string[], units?: string[], comments?: string[], designations?: string[]}, preCommands?: string[], postCommands?: string[]},
  *   plot?: {command?: string, preCommands?: string[], postCommands?: string[]},
  *   graph?: {preCommands?: string[], postCommands?: string[]},
  *   style?: {commands?: string[]},
@@ -365,7 +365,7 @@ function validateOriginCapabilitiesPayload(rawCapabilities) {
   );
   const importColumnLabels = assertOriginCapabilitiesAllowedKeys(
     importSection.columnLabels,
-    ["longNames", "units"],
+    ["longNames", "units", "comments", "designations"],
     "capabilities.import.columnLabels",
   );
   const axisLimits = assertOriginCapabilitiesAllowedKeys(
@@ -390,6 +390,8 @@ function validateOriginCapabilitiesPayload(rawCapabilities) {
   assertOriginCapabilitiesString(plotSection.plotCommand, "capabilities.plot.plotCommand");
   assertOriginCapabilitiesStringList(importColumnLabels.longNames, "capabilities.import.columnLabels.longNames");
   assertOriginCapabilitiesStringList(importColumnLabels.units, "capabilities.import.columnLabels.units");
+  assertOriginCapabilitiesStringList(importColumnLabels.comments, "capabilities.import.columnLabels.comments");
+  assertOriginCapabilitiesStringList(importColumnLabels.designations, "capabilities.import.columnLabels.designations");
   assertOriginCapabilitiesNumber(axisXLimits.from, "capabilities.axis.limits.x.from");
   assertOriginCapabilitiesNumber(axisXLimits.to, "capabilities.axis.limits.x.to");
   assertOriginCapabilitiesNumber(axisXLimits.step, "capabilities.axis.limits.x.step");
@@ -464,6 +466,16 @@ function normalizeOriginCapabilitiesPayload(rawCapabilities) {
     : [];
   const importColumnUnits = Array.isArray(importColumnLabelsRaw.units)
     ? importColumnLabelsRaw.units
+        .filter((item) => typeof item === "string")
+        .map((item) => item.trim())
+    : [];
+  const importColumnComments = Array.isArray(importColumnLabelsRaw.comments)
+    ? importColumnLabelsRaw.comments
+        .filter((item) => typeof item === "string")
+        .map((item) => item.trim())
+    : [];
+  const importColumnDesignations = Array.isArray(importColumnLabelsRaw.designations)
+    ? importColumnLabelsRaw.designations
         .filter((item) => typeof item === "string")
         .map((item) => item.trim())
     : [];
@@ -550,15 +562,19 @@ function normalizeOriginCapabilitiesPayload(rawCapabilities) {
     importWorkbookLongName ||
     importColumnLongNames.length ||
     importColumnUnits.length ||
+    importColumnComments.length ||
+    importColumnDesignations.length ||
     importPreCommands.length ||
     importPostCommands.length
   ) {
     normalized.import = {};
     if (importWorkbookLongName) normalized.import.workbookLongName = importWorkbookLongName;
-    if (importColumnLongNames.length || importColumnUnits.length) {
+    if (importColumnLongNames.length || importColumnUnits.length || importColumnComments.length || importColumnDesignations.length) {
       normalized.import.columnLabels = {};
       if (importColumnLongNames.length) normalized.import.columnLabels.longNames = importColumnLongNames;
       if (importColumnUnits.length) normalized.import.columnLabels.units = importColumnUnits;
+      if (importColumnComments.length) normalized.import.columnLabels.comments = importColumnComments;
+      if (importColumnDesignations.length) normalized.import.columnLabels.designations = importColumnDesignations;
     }
     if (importPreCommands.length) normalized.import.preCommands = importPreCommands;
     if (importPostCommands.length) normalized.import.postCommands = importPostCommands;
@@ -641,6 +657,10 @@ function normalizeOriginCsvPayload(payload, plotDefaults = undefined) {
     raw.sheetName ?? sheet.longName ?? sheet.name,
     "",
   );
+  const sheetShortName = normalizeNonEmptyString(
+    raw.sheetShortName ?? sheet.name,
+    "",
+  );
   const normalizedPlot = normalizeOriginPlotOptions(
     {
       plotCommand: plot.command ?? plot.plotCommand ?? raw.plotCommand,
@@ -651,6 +671,10 @@ function normalizeOriginCsvPayload(payload, plotDefaults = undefined) {
     },
     resolvedPlotDefaults,
   );
+  const rawPlotCommand = plot.command ?? plot.plotCommand ?? raw.plotCommand;
+  if (typeof rawPlotCommand === "string" && rawPlotCommand.trim()) {
+    normalizedPlot.plotCommand = rawPlotCommand.trim();
+  }
 
   return {
     csvName,
@@ -659,7 +683,9 @@ function normalizeOriginCsvPayload(payload, plotDefaults = undefined) {
     workbookKey,
     workbookName,
     sheetName,
+    sheetShortName,
     capabilities,
+    skipPlot: plot.skip === true || plot.skipPlot === true || raw.skipPlot === true,
     ...normalizedPlot,
   };
 }

@@ -7,6 +7,8 @@ class CapabilityPlan:
     workbook_long_name: str = ""
     import_column_long_names: list[str] = field(default_factory=list)
     import_column_units: list[str] = field(default_factory=list)
+    import_column_comments: list[str] = field(default_factory=list)
+    import_column_designations: list[str] = field(default_factory=list)
     axis_limits: dict = field(default_factory=dict)
     plot_command_override: str = ""
     import_pre_commands: list[str] = field(default_factory=list)
@@ -136,7 +138,7 @@ def validate_capabilities_payload(raw_capabilities) -> dict:
     )
     import_column_labels = _assert_allowed_keys(
         import_section.get("columnLabels"),
-        ["longNames", "units"],
+        ["longNames", "units", "comments", "designations"],
         "capabilities.import.columnLabels",
     )
     axis_limits = _assert_allowed_keys(
@@ -166,6 +168,14 @@ def validate_capabilities_payload(raw_capabilities) -> dict:
     _assert_string_list_shape(
         import_column_labels.get("units"),
         "capabilities.import.columnLabels.units",
+    )
+    _assert_string_list_shape(
+        import_column_labels.get("comments"),
+        "capabilities.import.columnLabels.comments",
+    )
+    _assert_string_list_shape(
+        import_column_labels.get("designations"),
+        "capabilities.import.columnLabels.designations",
     )
     _assert_number(axis_x_limits.get("from"), "capabilities.axis.limits.x.from")
     _assert_number(axis_x_limits.get("to"), "capabilities.axis.limits.x.to")
@@ -303,6 +313,8 @@ def resolve_capability_plan(raw_capabilities) -> CapabilityPlan:
     import_column_labels = _as_dict(import_capabilities.get("columnLabels"))
     import_column_long_names = normalize_string_list(import_column_labels.get("longNames"))
     import_column_units = normalize_string_list(import_column_labels.get("units"))
+    import_column_comments = normalize_string_list(import_column_labels.get("comments"))
+    import_column_designations = normalize_string_list(import_column_labels.get("designations"))
     axis_limits = normalize_axis_limit_settings(axis_capabilities.get("limits"))
     plot_command_override_raw = plot_capabilities.get("command")
     plot_command_override = (
@@ -315,6 +327,8 @@ def resolve_capability_plan(raw_capabilities) -> CapabilityPlan:
         workbook_long_name=workbook_long_name,
         import_column_long_names=import_column_long_names,
         import_column_units=import_column_units,
+        import_column_comments=import_column_comments,
+        import_column_designations=import_column_designations,
         axis_limits=axis_limits,
         plot_command_override=plot_command_override,
         import_pre_commands=_pick_commands(import_capabilities, "preCommands", "beforeCommands"),

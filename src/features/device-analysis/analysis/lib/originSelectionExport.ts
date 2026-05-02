@@ -1,4 +1,15 @@
 import Papa from "papaparse";
+import {
+  computeCentralDerivative,
+  computeSubthresholdSwing,
+  computeSubthresholdSwingFitAuto,
+  resolveAutoSsSelection,
+} from "./analysisMath.ts";
+import {
+  computeBaseCurrentMetrics,
+  isOutputLikeDeviceAnalysisFile,
+  isTransferLikeDeviceAnalysisFile,
+} from "./deviceAnalysisMetrics.ts";
 import { resolveOriginLogPositiveMinForRange } from "./originAxisCommands.ts";
 
 type ProcessedSeriesLike = {
@@ -18,7 +29,20 @@ type ProcessedEntryLike = {
   series?: ProcessedSeriesLike[];
   yLabel?: string;
   yUnit?: string;
+  originExportPlotCommand?: string;
+  originExportSkipAxisCommands?: boolean;
+  originExportUseCurveYLongNames?: boolean;
+  originExportYScaleFactor?: number;
+  originExportYUnitLabel?: string;
 };
+
+export type DeviceAnalysisOriginExportContentKey =
+  | "iv"
+  | "metrics"
+  | "gm"
+  | "gds"
+  | "ss"
+  | "vth";
 
 type ResolveYScaleFactorForFile = (
   file: ProcessedEntryLike | null | undefined,
@@ -57,6 +81,7 @@ export type DeviceAnalysisOriginYAxisScaleMode = "linear" | "log";
 
 type DeviceAnalysisOriginCurveEntry = {
   canvasLabel: string;
+  fileId: string;
   label: string;
   rowCount: number;
   xArr: number[];
@@ -69,16 +94,22 @@ type DeviceAnalysisOriginCurveEntry = {
 
 export type DeviceAnalysisOriginSelectionExport = {
   canvasCount: number;
-  columnLayout?: "xy-pairs" | "shared-x";
+  columnLayout?: "xy-pairs" | "shared-x" | "grouped-x";
+  columnComments?: string[];
+  columnDesignations?: string[];
+  columnLongNames?: string[];
+  columnUnits?: string[];
   csvName: string;
   csvText: string;
   curveCount: number;
   curveLabels: string[];
   fileIds: string[];
   importMode: DeviceAnalysisOriginImportMode;
+  sheetShortName?: string;
   sheetName: string;
   workbookName: string;
   xAxisTitle: string;
+  xColumnComments?: string[];
   xColumnLongNames: string[];
   xColumnUnits: string[];
   xMax: number | null;
@@ -93,6 +124,9 @@ export type DeviceAnalysisOriginSelectionExport = {
   yPositiveMax: number | null;
   yPositiveMin: number | null;
   yScaleMode?: DeviceAnalysisOriginYAxisScaleMode;
+  plotCommand?: string;
+  skipPlot?: boolean;
+  skipAxisCommands?: boolean;
 };
 
 export type DeviceAnalysisOriginExportPlan = {
@@ -111,15 +145,86 @@ const sanitizeDeviceAnalysisFilename = (name: unknown): string =>
 
 const sanitizeOriginDisplayName = (
   name: unknown,
-  { max = 180 }: { max?: number } = {},
+  { max = 180, preserveUnderscore = false }: { max?: number; preserveUnderscore?: boolean } = {},
 ): string => {
   const raw = String(name || "")
-    .replace(/[\\_]+/g, " ")
+    .replace(preserveUnderscore ? /[\\]+/g : /[\\_]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
   if (!raw) return "device analysis";
   return raw.length > max ? raw.slice(0, max).trim() : raw;
 };
+
+const ORIGIN_CONTENT_SHEET_NAMES: Record<DeviceAnalysisOriginExportContentKey, string> = {
+  gds: "gds",
+  gm: "gm",
+  iv: "IV",
+  metrics: "Metrics",
+  ss: "SS",
+  vth: "Vth",
+};
+
+const ORIGIN_CONTENT_SHEET_SHORT_NAMES: Record<DeviceAnalysisOriginExportContentKey, string> = {
+  gds: "gds",
+  gm: "gm",
+  iv: "IV",
+  metrics: "Metrics",
+  ss: "SS",
+  vth: "Vth",
+};
+
+const resolveOriginContentSheetName = (
+  contentKey: DeviceAnalysisOriginExportContentKey,
+  index: number,
+  total: number,
+): string => {
+  const base = ORIGIN_CONTENT_SHEET_NAMES[contentKey] ?? "Data";
+  return total <= 1 ? base : `${base} ${index + 1}`;
+};
+
+const resolveOriginContentSheetShortName = (
+  contentKey: DeviceAnalysisOriginExportContentKey,
+  index: number,
+  total: number,
+): string => {
+  const base = ORIGIN_CONTENT_SHEET_SHORT_NAMES[contentKey] ?? "Data";
+  return total <= 1 ? base : `${base}${index + 1}`;
+};
+
+const applyOriginContentSheetName = (
+  payload: DeviceAnalysisOriginSelectionExport,
+  contentKey: DeviceAnalysisOriginExportContentKey,
+  index: number,
+  total: number,
+  workbookName?: string,
+): DeviceAnalysisOriginSelectionExport => ({
+  ...payload,
+  workbookName: workbookName
+    ? sanitizeOriginDisplayName(workbookName, { max: 32 })
+    : payload.workbookName,
+  sheetName: sanitizeOriginDisplayName(
+    resolveOriginContentSheetName(contentKey, index, total),
+    { max: 28 },
+  ),
+  sheetShortName: resolveOriginContentSheetShortName(contentKey, index, total),
+});
+
+const applyOriginSheetDisplayName = (
+  payload: DeviceAnalysisOriginSelectionExport,
+  sheetName: string,
+  sheetShortName: string,
+  workbookName?: string,
+): DeviceAnalysisOriginSelectionExport => ({
+  ...payload,
+  workbookName: workbookName
+    ? sanitizeOriginDisplayName(workbookName, { max: 32 })
+    : payload.workbookName,
+  sheetName: sanitizeOriginDisplayName(sheetName, {
+    max: 28,
+    preserveUnderscore: true,
+  }),
+  sheetShortName,
+});
 
 const resolveCanvasDisplayName = (
   value: unknown,
@@ -172,6 +277,149 @@ const resolveAxisTitleWithUnit = (
   return withAxisUnit(defaultTitle, unit);
 };
 
+const isFiniteNumber = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value);
+
+const buildPoints = (
+  xArr?: number[],
+  yArr?: number[],
+): Array<{ x: number; y: number }> => {
+  if (!xArr || !yArr) return [];
+
+  const count = Math.min(xArr.length ?? 0, yArr.length ?? 0);
+  if (count <= 0) return [];
+
+  const points = new Array<{ x: number; y: number }>(count);
+  for (let index = 0; index < count; index += 1) {
+    points[index] = { x: Number(xArr[index]), y: Number(yArr[index]) };
+  }
+
+  return points;
+};
+
+type VthFitResult = {
+  branch: "electron" | "hole";
+  intercept: number;
+  r2: number;
+  slope: number;
+  vth: number;
+  x1: number;
+  x2: number;
+  y1: number;
+  y2: number;
+};
+
+const toSqrtCurrentPoints = (points: Array<{ x: number; y: number }>) =>
+  (Array.isArray(points) ? points : [])
+    .map((point) => {
+      const x = Number(point?.x);
+      const y = Number(point?.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+      return { x, y: Math.sqrt(Math.abs(y)) };
+    })
+    .filter((point): point is { x: number; y: number } => point !== null);
+
+const linearRegression = (points: Array<{ x: number; y: number }>) => {
+  const n = points.length;
+  if (n < 3) return null;
+  let sumX = 0;
+  let sumY = 0;
+  let sumXX = 0;
+  let sumXY = 0;
+  let sumYY = 0;
+  for (const point of points) {
+    sumX += point.x;
+    sumY += point.y;
+    sumXX += point.x * point.x;
+    sumXY += point.x * point.y;
+    sumYY += point.y * point.y;
+  }
+  const denom = n * sumXX - sumX * sumX;
+  if (!Number.isFinite(denom) || denom === 0) return null;
+  const slope = (n * sumXY - sumX * sumY) / denom;
+  const intercept = (sumY - slope * sumX) / n;
+  const ssTot = sumYY - (sumY * sumY) / n;
+  let ssRes = 0;
+  for (const point of points) {
+    const residual = point.y - (slope * point.x + intercept);
+    ssRes += residual * residual;
+  }
+  const r2 = ssTot > 0 ? 1 - ssRes / ssTot : 1;
+  return { intercept, r2, slope };
+};
+
+const fitLinear = linearRegression;
+
+const pickVthLinearFit = (
+  points: Array<{ x: number; y: number }>,
+  branch: "electron" | "hole",
+): VthFitResult | null => {
+  const sorted = points
+    .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y) && point.y > 0)
+    .slice()
+    .sort((a, b) => a.x - b.x);
+  if (sorted.length < 5) return null;
+  const minWindow = Math.min(5, sorted.length);
+  const maxWindow = Math.min(16, sorted.length);
+  const maxY = Math.max(...sorted.map((point) => point.y));
+  let best: (VthFitResult & { score: number }) | null = null;
+  for (let windowSize = minWindow; windowSize <= maxWindow; windowSize += 1) {
+    for (let start = 0; start <= sorted.length - windowSize; start += 1) {
+      const window = sorted.slice(start, start + windowSize);
+      const fit = fitLinear(window);
+      if (!fit) continue;
+      if (branch === "electron" && fit.slope <= 0) continue;
+      if (branch === "hole" && fit.slope >= 0) continue;
+      const ys = window.map((point) => point.y);
+      const ySpan = Math.max(...ys) - Math.min(...ys);
+      if (maxY > 0 && ySpan / maxY < 0.12) continue;
+      const vth = -fit.intercept / fit.slope;
+      if (!Number.isFinite(vth)) continue;
+      const x1 = window[0]!.x;
+      const x2 = window[window.length - 1]!.x;
+      const y1 = fit.slope * x1 + fit.intercept;
+      const y2 = fit.slope * x2 + fit.intercept;
+      if (!Number.isFinite(y1) || !Number.isFinite(y2)) continue;
+      const score =
+        fit.r2 +
+        Math.min(0.08, ySpan / Math.max(maxY, 1e-300) * 0.08) +
+        windowSize * 0.002;
+      if (!best || score > best.score) {
+        best = {
+          branch,
+          intercept: fit.intercept,
+          r2: fit.r2,
+          score,
+          slope: fit.slope,
+          vth,
+          x1,
+          x2,
+          y1,
+          y2,
+        };
+      }
+    }
+  }
+  if (!best) return null;
+  const { score: _score, ...fit } = best;
+  return fit;
+};
+
+const computeVthSqrtFits = (points: Array<{ x: number; y: number }>): VthFitResult[] => {
+  const sqrtPoints = toSqrtCurrentPoints(points);
+  if (sqrtPoints.length < 5) return [];
+  const valley = sqrtPoints.reduce(
+    (best, point) => point.y < best.y ? point : best,
+    sqrtPoints[0]!,
+  );
+  const holePoints = sqrtPoints.filter((point) => point.x <= valley.x);
+  const electronPoints = sqrtPoints.filter((point) => point.x >= valley.x);
+  return [
+    pickVthLinearFit(holePoints, "hole"),
+    pickVthLinearFit(electronPoints, "electron"),
+  ].filter((fit): fit is VthFitResult => fit !== null);
+};
+
 const dedupeCurveLabels = (
   curveEntries: DeviceAnalysisOriginCurveEntry[],
 ): string[] => {
@@ -219,6 +467,28 @@ const buildDeviceAnalysisOriginSharedXPairsExpr = (curveCountRaw: unknown): stri
 
   return `(${pairs.join(",")})`;
 };
+
+const buildDeviceAnalysisOriginPairsExprFromPairs = (
+  pairs: Array<[number, number]>,
+): string => {
+  const normalizedPairs = pairs.length ? pairs : [[1, 2] as [number, number]];
+  return `(${normalizedPairs.map(([x, y]) => `(${x},${y})`).join(",")})`;
+};
+
+const normalizeOriginXValueForKey = (value: unknown): string => {
+  const numeric = Number(value);
+  if (Number.isFinite(numeric)) return String(Number(numeric.toPrecision(12)));
+  return String(value ?? "");
+};
+
+const buildOriginXGroupKey = (entry: DeviceAnalysisOriginCurveEntry): string =>
+  [
+    entry.fileId,
+    entry.xLongName,
+    entry.xUnits,
+    entry.rowCount,
+    entry.xArr.map(normalizeOriginXValueForKey).join(","),
+  ].join("\u0001");
 
 export const isDeviceAnalysisOriginExportMode = (
   value: unknown,
@@ -289,8 +559,12 @@ const buildOriginCurveEntriesForCanvas = (
   const xScaleFactor =
     Number.isFinite(rawXScaleFactor) && rawXScaleFactor > 0 ? rawXScaleFactor : 1;
   const rawYScaleFactor = Number(resolveYScaleFactorForFile(file));
-  const yScaleFactor =
-    Number.isFinite(rawYScaleFactor) && rawYScaleFactor > 0 ? rawYScaleFactor : 1;
+  const fileYScaleFactor = Number(file?.originExportYScaleFactor);
+  const yScaleFactor = Number.isFinite(fileYScaleFactor) && fileYScaleFactor > 0
+    ? fileYScaleFactor
+    : Number.isFinite(rawYScaleFactor) && rawYScaleFactor > 0
+      ? rawYScaleFactor
+      : 1;
   const xLongName =
     stripAxisUnitSuffix(resolveAxisTitleForFile(file, "x")) ||
     stripAxisUnitSuffix(file?.xLabel) ||
@@ -300,8 +574,11 @@ const buildOriginCurveEntriesForCanvas = (
     stripAxisUnitSuffix(resolveAxisTitleForFile(file, "y")) ||
     stripAxisUnitSuffix(file?.yLabel) ||
     "Y";
-  const yUnits = String(resolveYUnitLabelForFile(file) ?? "").trim();
-  const useCurveLabelAsYLongName = selectedSeries.length > 1;
+  const yUnits = String(
+    file?.originExportYUnitLabel ?? resolveYUnitLabelForFile(file) ?? "",
+  ).trim();
+  const useCurveLabelAsYLongName =
+    selectedSeries.length > 1 || Boolean(file?.originExportUseCurveYLongNames);
   const resolveCurveLabel = (series: ProcessedSeriesLike, index: number): string =>
     resolveCurveLabelForSeries(file, series, index);
 
@@ -319,6 +596,7 @@ const buildOriginCurveEntriesForCanvas = (
       );
       return {
         canvasLabel,
+        fileId: String(file?.fileId ?? canvasLabel),
         label: resolveCurveLabel(series, index),
         rowCount,
         xArr: xScaleFactor === 1 ? xArr : xArr.map((value) => Number(value) * xScaleFactor),
@@ -354,7 +632,23 @@ const buildWorksheetExport = ({
   yAxisTitle: string;
 }): DeviceAnalysisOriginSelectionExport | null => {
   if (!curveEntries.length) return null;
-  const useSharedXLayout = canvases.length === 1 && curveEntries.length > 1;
+  const xGroups: Array<{
+    entries: DeviceAnalysisOriginCurveEntry[];
+    key: string;
+  }> = [];
+  const xGroupByKey = new Map<string, number>();
+  for (const entry of curveEntries) {
+    const key = buildOriginXGroupKey(entry);
+    const groupIndex = xGroupByKey.get(key);
+    if (groupIndex === undefined) {
+      xGroupByKey.set(key, xGroups.length);
+      xGroups.push({ entries: [entry], key });
+    } else {
+      xGroups[groupIndex]!.entries.push(entry);
+    }
+  }
+  const useSharedXLayout = xGroups.length === 1 && curveEntries.length > 1;
+  const useGroupedXLayout = xGroups.length > 1 && xGroups.some((group) => group.entries.length > 1);
 
   let xMin = Number.POSITIVE_INFINITY;
   let xMax = Number.NEGATIVE_INFINITY;
@@ -389,6 +683,31 @@ const buildWorksheetExport = ({
     (max, entry) => Math.max(max, entry.rowCount),
     0,
   );
+  const columnLongNames: string[] = [];
+  const columnUnits: string[] = [];
+  const columnComments: string[] = [];
+  const columnDesignations: string[] = [];
+  const xyPairs: Array<[number, number]> = [];
+  if (useGroupedXLayout) {
+    let columnIndex = 1;
+    for (const group of xGroups) {
+      const sharedXEntry = group.entries[0]!;
+      columnLongNames.push(sharedXEntry.xLongName);
+      columnUnits.push(sharedXEntry.xUnits);
+      columnComments.push(sharedXEntry.canvasLabel);
+      columnDesignations.push("x");
+      const xColumnIndex = columnIndex;
+      columnIndex += 1;
+      for (const entry of group.entries) {
+        columnLongNames.push(entry.yLongName);
+        columnUnits.push(entry.yUnits);
+        columnComments.push("");
+        columnDesignations.push("y");
+        xyPairs.push([xColumnIndex, columnIndex]);
+        columnIndex += 1;
+      }
+    }
+  }
   const rows = new Array<Array<number | string>>(maxRowCount);
   for (let rowIndex = 0; rowIndex < maxRowCount; rowIndex += 1) {
     const row: Array<number | string> = [];
@@ -397,6 +716,14 @@ const buildWorksheetExport = ({
       row.push(rowIndex < sharedXEntry.rowCount ? (sharedXEntry.xArr[rowIndex] ?? "") : "");
       for (const entry of curveEntries) {
         row.push(rowIndex < entry.rowCount ? (entry.yArr[rowIndex] ?? "") : "");
+      }
+    } else if (useGroupedXLayout) {
+      for (const group of xGroups) {
+        const sharedXEntry = group.entries[0]!;
+        row.push(rowIndex < sharedXEntry.rowCount ? (sharedXEntry.xArr[rowIndex] ?? "") : "");
+        for (const entry of group.entries) {
+          row.push(rowIndex < entry.rowCount ? (entry.yArr[rowIndex] ?? "") : "");
+        }
       }
     } else {
       for (const entry of curveEntries) {
@@ -417,7 +744,11 @@ const buildWorksheetExport = ({
 
   return {
     canvasCount: canvases.length,
-    columnLayout: useSharedXLayout ? "shared-x" : "xy-pairs",
+    columnComments: useGroupedXLayout ? columnComments : undefined,
+    columnDesignations: useGroupedXLayout ? columnDesignations : undefined,
+    columnLayout: useSharedXLayout ? "shared-x" : useGroupedXLayout ? "grouped-x" : "xy-pairs",
+    columnLongNames: useGroupedXLayout ? columnLongNames : undefined,
+    columnUnits: useGroupedXLayout ? columnUnits : undefined,
     csvName: `${csvBase}.csv`,
     csvText: "\uFEFF" + Papa.unparse(rows),
     curveCount: curveEntries.length,
@@ -429,16 +760,22 @@ const buildWorksheetExport = ({
     sheetName,
     workbookName,
     xAxisTitle,
-    xColumnLongNames: useSharedXLayout
+    xColumnLongNames: useGroupedXLayout
+      ? xGroups.map((group) => group.entries[0]!.xLongName)
+      : useSharedXLayout
       ? [sharedXEntry.xLongName]
       : curveEntries.map((entry) => entry.xLongName),
-    xColumnUnits: useSharedXLayout
+    xColumnUnits: useGroupedXLayout
+      ? xGroups.map((group) => group.entries[0]!.xUnits)
+      : useSharedXLayout
       ? [sharedXEntry.xUnits]
       : curveEntries.map((entry) => entry.xUnits),
     xMax: Number.isFinite(xMax) ? xMax : null,
     xMin: Number.isFinite(xMin) ? xMin : null,
     xyPairCount: curveEntries.length,
-    xyPairs: useSharedXLayout
+    xyPairs: useGroupedXLayout
+      ? buildDeviceAnalysisOriginPairsExprFromPairs(xyPairs)
+      : useSharedXLayout
       ? buildDeviceAnalysisOriginSharedXPairsExpr(curveEntries.length)
       : buildDeviceAnalysisOriginPairsExpr(curveEntries.length),
     yAxisTitle,
@@ -448,6 +785,12 @@ const buildWorksheetExport = ({
     yLinearMin: Number.isFinite(yLinearMin) ? yLinearMin : null,
     yPositiveMax: Number.isFinite(yPositiveMax) ? yPositiveMax : null,
     yPositiveMin: resolvedPositiveMin,
+    plotCommand: canvases.find((canvas) =>
+      String(canvas?.originExportPlotCommand ?? "").trim(),
+    )?.originExportPlotCommand,
+    skipAxisCommands: canvases.some((canvas) =>
+      Boolean(canvas?.originExportSkipAxisCommands),
+    ),
   };
 };
 
@@ -639,6 +982,326 @@ const buildDeviceAnalysisOriginWorkbookSheetsExports = (
     .filter((item): item is DeviceAnalysisOriginSelectionExport => Boolean(item));
 };
 
+const cloneSeriesWithDerivedY = (
+  series: ProcessedSeriesLike,
+  y: number[],
+): ProcessedSeriesLike => ({
+  ...series,
+  y,
+});
+
+const buildDerivedCurveFile = (
+  file: ProcessedEntryLike,
+  contentKey: Exclude<DeviceAnalysisOriginExportContentKey, "iv" | "metrics">,
+  resolveCurveLabelForSeries: ResolveCurveLabelForSeries,
+): ProcessedEntryLike | null => {
+  const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
+  const seriesList = Array.isArray(file?.series) ? file.series : [];
+  if (!xGroups.length || !seriesList.length) return null;
+
+  const isTransfer = isTransferLikeDeviceAnalysisFile(file as any);
+  const isOutput = isOutputLikeDeviceAnalysisFile(file as any);
+  const baseName = String(file?.fileName ?? "device_analysis").replace(/\.csv$/i, "");
+
+  if (contentKey === "gm" || contentKey === "gds") {
+    if (contentKey === "gm" && !isTransfer) return null;
+    if (contentKey === "gds" && !isOutput) return null;
+    const derivativeLabel = contentKey === "gm" ? "gm" : "gds";
+    const derivedSeries = seriesList
+      .map((series) => {
+        const points = buildPoints(xGroups[Number(series?.groupIndex)], series?.y);
+        const derivative = computeCentralDerivative(points)
+          .map((point: any) => (isFiniteNumber(point?.y) ? point.y : NaN));
+        if (!derivative.some((value) => Number.isFinite(value))) return null;
+        return cloneSeriesWithDerivedY(
+          {
+            ...series,
+            name: resolveCurveLabelForSeries(file, series, 0),
+          },
+          derivative,
+        );
+      })
+      .filter((series): series is ProcessedSeriesLike => series !== null);
+    if (!derivedSeries.length) return null;
+    const denom = String(file?.xUnit ?? "V").trim() || "V";
+    return {
+      ...file,
+      fileName: `${baseName}__${derivativeLabel}.csv`,
+      series: derivedSeries,
+      yLabel: derivativeLabel,
+      yUnit: `A/${denom}`,
+      originExportUseCurveYLongNames: true,
+      originExportYScaleFactor: 1,
+      originExportYUnitLabel: `A/${denom}`,
+    };
+  }
+
+  if (contentKey === "ss") {
+    if (!isTransfer) return null;
+    const derivedSeries = seriesList
+      .map((series) => {
+        const points = buildPoints(xGroups[Number(series?.groupIndex)], series?.y);
+        const ss = computeSubthresholdSwing(points).map((point: any) =>
+          isFiniteNumber(point?.y) ? point.y : NaN,
+        );
+        if (!ss.some((value) => Number.isFinite(value))) return null;
+        return cloneSeriesWithDerivedY(
+          {
+            ...series,
+            name: resolveCurveLabelForSeries(file, series, 0),
+          },
+          ss,
+        );
+      })
+      .filter((series): series is ProcessedSeriesLike => series !== null);
+    if (!derivedSeries.length) return null;
+    return {
+      ...file,
+      fileName: `${baseName}__SS.csv`,
+      series: derivedSeries,
+      yLabel: "SS",
+      yUnit: "mV/dec",
+      originExportUseCurveYLongNames: true,
+      originExportYScaleFactor: 1,
+      originExportYUnitLabel: "mV/dec",
+    };
+  }
+
+  if (contentKey === "vth") {
+    if (!isTransfer) return null;
+    const derivedSeries = seriesList
+      .map((series) => {
+        const points = buildPoints(xGroups[Number(series?.groupIndex)], series?.y);
+        const sqrtY = points.map((point) =>
+          isFiniteNumber(point?.y) ? Math.sqrt(Math.abs(point.y)) : NaN,
+        );
+        if (!sqrtY.some((value) => Number.isFinite(value))) return null;
+        return cloneSeriesWithDerivedY(
+          {
+            ...series,
+            name: resolveCurveLabelForSeries(file, series, 0),
+          },
+          sqrtY,
+        );
+      })
+      .filter((series): series is ProcessedSeriesLike => series !== null);
+    if (!derivedSeries.length) return null;
+    return {
+      ...file,
+      fileName: `${baseName}__Vth.csv`,
+      series: derivedSeries,
+      yLabel: "sqrt(|I|)",
+      yUnit: "sqrt(A)",
+      originExportUseCurveYLongNames: true,
+      originExportYScaleFactor: 1,
+      originExportYUnitLabel: "sqrt(A)",
+    };
+  }
+
+  return null;
+};
+
+const buildMetricsWorksheetExports = (
+  selectedCanvases: ProcessedEntryLike[],
+  selectedSeriesIdsByFile: Record<string, string[] | undefined> | null | undefined,
+  resolveCurveLabelForSeries: ResolveCurveLabelForSeries,
+): DeviceAnalysisOriginSelectionExport[] => {
+  const transferFields = [
+    "series",
+    "gm_max_abs",
+    "x_at_gm_max_abs",
+    "vth",
+    "vth_electron",
+    "vth_hole",
+    "ss",
+    "ss_x1",
+    "ss_x2",
+    "ion",
+    "x_at_ion",
+    "ioff",
+    "x_at_ioff",
+    "ion_ioff",
+  ];
+  const outputFields = [
+    "series",
+    "gds_max_abs",
+    "x_at_gds_max_abs",
+  ];
+  return selectedCanvases
+    .map((file): DeviceAnalysisOriginSelectionExport | null => {
+      const rows: Array<Record<string, number | string>> = [];
+    const supportsTransfer = isTransferLikeDeviceAnalysisFile(file as any);
+    const supportsOutput = isOutputLikeDeviceAnalysisFile(file as any);
+    const fields = supportsTransfer ? transferFields : supportsOutput ? outputFields : transferFields;
+    const selectedSeries = resolveSelectedSeriesForOriginCanvas(
+      file,
+      selectedSeriesIdsByFile,
+    );
+    const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
+    for (const [index, series] of selectedSeries.entries()) {
+      const points = buildPoints(xGroups[Number(series?.groupIndex)], series?.y);
+      if (!points.length) continue;
+      const derivative = computeCentralDerivative(points);
+      let derivativeMaxAbs = Number.NEGATIVE_INFINITY;
+      let xAtDerivativeMaxAbs: number | null = null;
+      for (const point of derivative as any[]) {
+        const y = Number(point?.y);
+        const x = Number(point?.x);
+        if (!Number.isFinite(y) || !Number.isFinite(x)) continue;
+        const abs = Math.abs(y);
+        if (abs > derivativeMaxAbs) {
+          derivativeMaxAbs = abs;
+          xAtDerivativeMaxAbs = x;
+        }
+      }
+      const vthFits = supportsTransfer ? computeVthSqrtFits(points) : [];
+      const electronVth = vthFits.find((fit) => fit.branch === "electron")?.vth ?? null;
+      const holeVth = vthFits.find((fit) => fit.branch === "hole")?.vth ?? null;
+      const ssSelection = supportsTransfer
+        ? resolveAutoSsSelection(computeSubthresholdSwingFitAuto(points) as any)
+        : null;
+      const ssFit = ssSelection?.fit as any;
+      const baseMetrics = computeBaseCurrentMetrics({
+        points,
+        sourceFile: file,
+      } as any) as any;
+      const row: Record<string, number | string> = {
+        ion: isFiniteNumber(baseMetrics?.ion) ? baseMetrics.ion : "",
+        ion_ioff: isFiniteNumber(baseMetrics?.ionIoff) ? baseMetrics.ionIoff : "",
+        ioff: isFiniteNumber(baseMetrics?.ioff) ? baseMetrics.ioff : "",
+        series: resolveCurveLabelForSeries(file, series, index),
+        ss: Boolean(ssSelection?.classification?.ss_ok) && isFiniteNumber(ssFit?.ss)
+          ? ssFit.ss
+          : "",
+        ss_x1: Boolean(ssSelection?.classification?.ss_ok) && isFiniteNumber(ssFit?.x1)
+          ? ssFit.x1
+          : "",
+        ss_x2: Boolean(ssSelection?.classification?.ss_ok) && isFiniteNumber(ssFit?.x2)
+          ? ssFit.x2
+          : "",
+        vth: isFiniteNumber(electronVth) ? electronVth : isFiniteNumber(holeVth) ? holeVth : "",
+        vth_electron: isFiniteNumber(electronVth) ? electronVth : "",
+        vth_hole: isFiniteNumber(holeVth) ? holeVth : "",
+        x_at_ion: isFiniteNumber(baseMetrics?.xAtIon) ? baseMetrics.xAtIon : "",
+        x_at_ioff: isFiniteNumber(baseMetrics?.xAtIoff) ? baseMetrics.xAtIoff : "",
+      };
+      if (supportsOutput && !supportsTransfer) {
+        row.gds_max_abs = Number.isFinite(derivativeMaxAbs) ? derivativeMaxAbs : "";
+        row.x_at_gds_max_abs = isFiniteNumber(xAtDerivativeMaxAbs) ? xAtDerivativeMaxAbs : "";
+      } else {
+        row.gm_max_abs = Number.isFinite(derivativeMaxAbs) ? derivativeMaxAbs : "";
+        row.x_at_gm_max_abs = isFiniteNumber(xAtDerivativeMaxAbs) ? xAtDerivativeMaxAbs : "";
+      }
+      rows.push(row);
+    }
+
+      if (!rows.length) return null;
+      const csvRows = rows.map((row) =>
+        fields.map((field) => row[field] ?? ""),
+      );
+      const csvText = "\uFEFF" + Papa.unparse(csvRows);
+      const fileName = sanitizeDeviceAnalysisFilename(file?.fileName ?? "device_analysis")
+        .replace(/\.csv$/i, "")
+        .trim();
+      const workbookName = sanitizeOriginDisplayName(fileName || "device analysis");
+      const comments = fields.map((_, index) =>
+        index === 0 ? String(file?.fileName ?? "") : "",
+      );
+      return {
+        canvasCount: 1,
+        columnLayout: "xy-pairs",
+        csvName: `${fileName || "device_analysis"}__metrics.csv`,
+        csvText,
+        curveCount: 0,
+        curveLabels: [],
+        fileIds: [String(file?.fileId ?? "")].filter(Boolean),
+        importMode: "new-book",
+        sheetName: "Metrics",
+        skipPlot: true,
+        skipAxisCommands: true,
+        workbookName,
+        xAxisTitle: "",
+        xColumnComments: comments,
+        xColumnLongNames: fields,
+        xColumnUnits: fields.map(() => ""),
+        xMax: null,
+        xMin: null,
+        xyPairCount: 0,
+        xyPairs: "((1,2))",
+        yAxisTitle: "",
+        yColumnLongNames: [],
+        yColumnUnits: [],
+        yLinearMax: null,
+        yLinearMin: null,
+        yPositiveMax: null,
+        yPositiveMin: null,
+      };
+    })
+    .filter((payload): payload is DeviceAnalysisOriginSelectionExport => payload !== null);
+};
+
+const normalizeOriginExportContentKeys = (
+  contentKeys?: readonly DeviceAnalysisOriginExportContentKey[] | null,
+): DeviceAnalysisOriginExportContentKey[] => {
+  const allowed = new Set<DeviceAnalysisOriginExportContentKey>([
+    "iv",
+    "metrics",
+    "gm",
+    "gds",
+    "ss",
+    "vth",
+  ]);
+  const keys = (Array.isArray(contentKeys) ? contentKeys : ["iv"])
+    .filter((key): key is DeviceAnalysisOriginExportContentKey => allowed.has(key));
+  return keys.length ? Array.from(new Set(keys)) : ["iv"];
+};
+
+const buildIvOriginExportGroups = (
+  canvases: ProcessedEntryLike[],
+): Array<{
+  canvases: ProcessedEntryLike[];
+  sheetName: string;
+  sheetShortName: string;
+}> => {
+  const transferCanvases = canvases.filter((canvas) =>
+    isTransferLikeDeviceAnalysisFile(canvas as any),
+  );
+  const outputCanvases = canvases.filter((canvas) =>
+    isOutputLikeDeviceAnalysisFile(canvas as any),
+  );
+  const groupedIds = new Set(
+    [...transferCanvases, ...outputCanvases].map((canvas) => canvas),
+  );
+  const otherCanvases = canvases.filter((canvas) => !groupedIds.has(canvas));
+  const groups: Array<{
+    canvases: ProcessedEntryLike[];
+    sheetName: string;
+    sheetShortName: string;
+  }> = [];
+  if (transferCanvases.length) {
+    groups.push({
+      canvases: transferCanvases,
+      sheetName: "IV_Trans",
+      sheetShortName: "IVTrans",
+    });
+  }
+  if (outputCanvases.length) {
+    groups.push({
+      canvases: outputCanvases,
+      sheetName: "IV_Output",
+      sheetShortName: "IVOutput",
+    });
+  }
+  if (otherCanvases.length) {
+    groups.push({
+      canvases: otherCanvases,
+      sheetName: groups.length ? "IV_Other" : "IV",
+      sheetShortName: groups.length ? "IVOther" : "IV",
+    });
+  }
+  return groups.length ? groups : [{ canvases, sheetName: "IV", sheetShortName: "IV" }];
+};
+
 export const buildDeviceAnalysisOriginExportsByMode = (
   selectedCanvases: ProcessedEntryLike[] = [],
   selectedSeriesIdsByFile:
@@ -737,6 +1400,7 @@ export const buildDeviceAnalysisOriginExportPlan = (
     resolveDeviceAnalysisSeriesLabel(series, index),
   resolveAxisTitleForFile: ResolveAxisTitleForFile = () => "",
   resolveYValueForOriginFile: ResolveYValueForOriginFile = (_file, y) => y,
+  contentKeys: readonly DeviceAnalysisOriginExportContentKey[] = ["iv"],
 ): DeviceAnalysisOriginExportPlan => {
   const liveCanvases = (Array.isArray(selectedCanvases) ? selectedCanvases : []).filter(
     (file): file is ProcessedEntryLike => Boolean(file),
@@ -748,6 +1412,122 @@ export const buildDeviceAnalysisOriginExportPlan = (
       payloads: [],
       totalCanvasCount: 0,
       totalCurveCount: 0,
+    };
+  }
+  const normalizedContentKeys = normalizeOriginExportContentKeys(contentKeys);
+  const ivGroups = buildIvOriginExportGroups(liveCanvases);
+  if (
+    normalizedContentKeys.length > 1 ||
+    normalizedContentKeys[0] !== "iv" ||
+    ivGroups.length > 1
+  ) {
+    const entries: Array<{
+      contentKey: DeviceAnalysisOriginExportContentKey;
+      payload: DeviceAnalysisOriginSelectionExport;
+    }> = [];
+    for (const contentKey of normalizedContentKeys) {
+      if (contentKey === "metrics") {
+        const metricsPayloads = buildMetricsWorksheetExports(
+          liveCanvases,
+          selectedSeriesIdsByFile,
+          resolveCurveLabelForSeries,
+        );
+        entries.push(
+          ...metricsPayloads.map((payload) => ({ contentKey, payload })),
+        );
+        continue;
+      }
+
+      if (contentKey === "iv") {
+        for (const group of ivGroups) {
+          const nextPayloads = buildDeviceAnalysisOriginExportPlan(
+            group.canvases,
+            selectedSeriesIdsByFile,
+            exportMode,
+            resolveYScaleForFile,
+            resolveXScaleFactorForFile,
+            resolveYScaleFactorForFile,
+            resolveYUnitLabelForFile,
+            resolveCurveLabelForSeries,
+            resolveAxisTitleForFile,
+            resolveYValueForOriginFile,
+            ["iv"],
+          ).payloads;
+          entries.push(
+            ...nextPayloads.map((payload) => ({
+              contentKey,
+              payload: applyOriginSheetDisplayName(
+                payload,
+                group.sheetName,
+                group.sheetShortName,
+              ),
+            })),
+          );
+        }
+        continue;
+      }
+
+      const derivedCanvases = liveCanvases
+        .map((canvas) =>
+          buildDerivedCurveFile(canvas, contentKey, resolveCurveLabelForSeries),
+        )
+        .filter((canvas): canvas is ProcessedEntryLike => canvas !== null);
+      if (!derivedCanvases.length) continue;
+      const nextPayloads = buildDeviceAnalysisOriginExportPlan(
+          derivedCanvases,
+          selectedSeriesIdsByFile,
+          exportMode,
+          contentKey === "ss" || contentKey === "vth" ? () => "linear" : resolveYScaleForFile,
+          resolveXScaleFactorForFile,
+          resolveYScaleFactorForFile,
+          resolveYUnitLabelForFile,
+          resolveCurveLabelForSeries,
+          resolveAxisTitleForFile,
+          (_file, y) => y,
+          ["iv"],
+        ).payloads;
+      entries.push(
+        ...nextPayloads.map((payload) => ({ contentKey, payload })),
+      );
+    }
+    const contentCounts = entries.reduce((counts, entry) => {
+      counts.set(entry.contentKey, (counts.get(entry.contentKey) ?? 0) + 1);
+      return counts;
+    }, new Map<DeviceAnalysisOriginExportContentKey, number>());
+    const contentSeen = new Map<DeviceAnalysisOriginExportContentKey, number>();
+    const contentWorkbookName =
+      liveCanvases.length === 1
+        ? "Device Analysis"
+        : `Device Analysis ${liveCanvases.length} files`;
+    const payloads = entries.map((entry) => {
+      if (entry.contentKey === "iv" && entry.payload.sheetShortName) {
+        return applyOriginSheetDisplayName(
+          entry.payload,
+          entry.payload.sheetName,
+          entry.payload.sheetShortName,
+          contentWorkbookName,
+        );
+      }
+      const seen = contentSeen.get(entry.contentKey) ?? 0;
+      contentSeen.set(entry.contentKey, seen + 1);
+      return applyOriginContentSheetName(
+        entry.payload,
+        entry.contentKey,
+        seen,
+        contentCounts.get(entry.contentKey) ?? 1,
+        contentWorkbookName,
+      );
+    });
+
+    return {
+      mixedYScales: false,
+      mode: payloads.length > 1 ? "workbookSheets" : exportMode,
+      payloads,
+      totalCanvasCount: liveCanvases.length,
+      totalCurveCount: payloads.reduce(
+        (sum, payload) => sum + Number(payload?.curveCount ?? 0),
+        0,
+      ),
     };
   }
 

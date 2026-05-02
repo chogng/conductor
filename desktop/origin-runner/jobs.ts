@@ -38,10 +38,12 @@ type OriginCsvJobInput = {
   workbookKey?: string;
   workbookName?: string;
   sheetName?: string;
+  sheetShortName?: string;
   plotType?: unknown;
   xyPairs?: unknown;
   plotCommand?: unknown;
   postPlotCommands?: unknown;
+  skipPlot?: unknown;
   lineWidth?: unknown;
   capabilities?: unknown;
 };
@@ -68,10 +70,12 @@ type NormalizedBatchCsvJob = {
   workbookKey: string;
   workbookName: string;
   sheetName: string;
+  sheetShortName: string;
   plotType: unknown;
   xyPairs: string;
   plotCommand: string;
   postPlotCommands: unknown[];
+  skipPlot: boolean;
   lineWidth: unknown;
   capabilities: Record<string, unknown> | null;
 };
@@ -272,6 +276,8 @@ function normalizeBatchCsvJobs(
         typeof source.workbookName === "string" ? source.workbookName.trim() : "",
       sheetName:
         typeof source.sheetName === "string" ? source.sheetName.trim() : "",
+      sheetShortName:
+        typeof source.sheetShortName === "string" ? source.sheetShortName.trim() : "",
       plotType: source.plotType,
       xyPairs: typeof source.xyPairs === "string" ? source.xyPairs : "",
       plotCommand:
@@ -279,6 +285,7 @@ function normalizeBatchCsvJobs(
       postPlotCommands: Array.isArray(source.postPlotCommands)
         ? source.postPlotCommands
         : [],
+      skipPlot: source.skipPlot === true,
       lineWidth: source.lineWidth,
       capabilities:
         source.capabilities && typeof source.capabilities === "object"
@@ -299,10 +306,12 @@ export async function runOriginCsvJob({
   workbookKey = "",
   workbookName = "",
   sheetName = "",
+  sheetShortName = "",
   plotType,
   xyPairs,
   plotCommand,
   postPlotCommands,
+  skipPlot,
   lineWidth,
   capabilities,
 }: OriginCsvJobInput) {
@@ -350,10 +359,12 @@ export async function runOriginCsvJob({
     workbookKey,
     workbookName,
     sheetName,
+    sheetShortName,
     plotType,
     xyPairs,
     plotCommand,
     postPlotCommands,
+    skipPlot,
     lineWidth,
     capabilities,
   });
@@ -497,10 +508,12 @@ export async function runOriginCsvBatchJob({
       workbookKey: job.workbookKey,
       workbookName: job.workbookName,
       sheetName: job.sheetName,
+      sheetShortName: job.sheetShortName,
       plotType: job.plotType,
       xyPairs: job.xyPairs,
       plotCommand: job.plotCommand,
       postPlotCommands: job.postPlotCommands,
+      skipPlot: job.skipPlot,
       lineWidth: job.lineWidth,
       capabilities: job.capabilities,
     };

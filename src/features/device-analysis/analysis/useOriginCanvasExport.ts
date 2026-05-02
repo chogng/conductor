@@ -14,6 +14,7 @@ import {
   buildDeviceAnalysisOriginExportPlan,
   isDeviceAnalysisOriginExportMode,
   resolveDeviceAnalysisSeriesLabel,
+  type DeviceAnalysisOriginExportContentKey,
   type DeviceAnalysisOriginExportPlan,
   type DeviceAnalysisOriginExportMode,
   type DeviceAnalysisOriginYAxisScaleMode,
@@ -74,6 +75,7 @@ type UseOriginCanvasExportOptions = {
     step?: number | null;
   } | null>;
   originExportMode?: unknown;
+  originExportContentKeys?: DeviceAnalysisOriginExportContentKey[];
   originAxisSettings?: unknown;
   originHasManualAxisOverride?: boolean;
   originOpenPlotOptions: unknown;
@@ -129,18 +131,41 @@ const buildOriginWorkbookKey = (): string => {
 
 const buildOriginImportColumnLabels = (options: {
   columnLayout?: unknown;
+  columnComments?: unknown;
+  columnDesignations?: unknown;
+  columnLongNames?: unknown;
+  columnUnits?: unknown;
   curveLabels?: unknown;
+  xColumnComments?: unknown;
   xColumnLongNames?: unknown;
   xColumnUnits?: unknown;
   yColumnLongNames?: unknown;
   yColumnUnits?: unknown;
-}): { longNames: string[]; units: string[] } | undefined => {
+}): { comments: string[]; longNames: string[]; units: string[] } | undefined => {
   const columnLayout =
-    options.columnLayout === "shared-x" ? "shared-x" : "xy-pairs";
+    options.columnLayout === "shared-x"
+      ? "shared-x"
+      : options.columnLayout === "grouped-x"
+        ? "grouped-x"
+        : "xy-pairs";
+  const columnLongNames = Array.isArray(options.columnLongNames)
+    ? options.columnLongNames
+    : [];
+  const columnUnits = Array.isArray(options.columnUnits)
+    ? options.columnUnits
+    : [];
+  const columnComments = Array.isArray(options.columnComments)
+    ? options.columnComments
+    : [];
+  const columnDesignations = Array.isArray(options.columnDesignations)
+    ? options.columnDesignations
+    : [];
   const curveLabels = Array.isArray(options.curveLabels) ? options.curveLabels : [];
-  if (!curveLabels.length) return undefined;
   const xColumnLongNames = Array.isArray(options.xColumnLongNames)
     ? options.xColumnLongNames
+    : [];
+  const xColumnComments = Array.isArray(options.xColumnComments)
+    ? options.xColumnComments
     : [];
   const xColumnUnits = Array.isArray(options.xColumnUnits)
     ? options.xColumnUnits
@@ -151,29 +176,56 @@ const buildOriginImportColumnLabels = (options: {
   const yColumnUnits = Array.isArray(options.yColumnUnits)
     ? options.yColumnUnits
     : [];
+  if (!curveLabels.length) {
+    const longNames = xColumnLongNames.map((label) => normalizeOriginLabelText(label));
+    if (!longNames.some((label) => label.length > 0)) return undefined;
+    const units = longNames.map((_, index) =>
+      normalizeOriginLabelText(xColumnUnits[index]),
+    );
+    const comments = longNames.map((_, index) =>
+      normalizeOriginLabelText(xColumnComments[index]),
+    );
+    return { comments, longNames, units };
+  }
   const longNames: string[] = [];
   const units: string[] = [];
+  const comments: string[] = [];
+  if (columnLayout === "grouped-x" && columnLongNames.length) {
+    return {
+      comments: columnLongNames.map((_, index) =>
+        normalizeOriginLabelText(columnComments[index]),
+      ),
+      longNames: columnLongNames.map((label) => normalizeOriginLabelText(label)),
+      units: columnLongNames.map((_, index) =>
+        normalizeOriginLabelText(columnUnits[index]),
+      ),
+    };
+  }
   if (columnLayout === "shared-x") {
     longNames.push(normalizeOriginLabelText(xColumnLongNames[0]));
     units.push(normalizeOriginLabelText(xColumnUnits[0]));
+    comments.push(normalizeOriginLabelText(xColumnComments[0]));
     for (let index = 0; index < curveLabels.length; index += 1) {
       longNames.push(
         normalizeOriginLabelText(yColumnLongNames[index] ?? curveLabels[index]),
       );
       units.push(normalizeOriginLabelText(yColumnUnits[index]));
+      comments.push("");
     }
-    return { longNames, units };
+    return { comments, longNames, units };
   }
 
   for (let index = 0; index < curveLabels.length; index += 1) {
     longNames.push(normalizeOriginLabelText(xColumnLongNames[index]));
     units.push(normalizeOriginLabelText(xColumnUnits[index]));
+    comments.push(normalizeOriginLabelText(xColumnComments[index]));
     longNames.push(
       normalizeOriginLabelText(yColumnLongNames[index] ?? curveLabels[index]),
     );
     units.push(normalizeOriginLabelText(yColumnUnits[index]));
+    comments.push("");
   }
-  return { longNames, units };
+  return { comments, longNames, units };
 };
 
 const buildOriginLegendRefreshCommands = (curveLabels: unknown): string[] => {
@@ -231,6 +283,7 @@ export const useOriginCanvasExport = ({
   originChartXRangeRef,
   originChartYRangeRef,
   originExportMode,
+  originExportContentKeys = ["iv"],
   originAxisSettings,
   originHasManualAxisOverride = false,
   originOpenPlotOptions,
@@ -848,6 +901,7 @@ export const useOriginCanvasExport = ({
         resolveYLogCurrentModeForFile(file) === "all"
           ? Math.abs(y)
           : y,
+      originExportContentKeys,
     );
     if (!plan.payloads.length) {
       throw new Error(t("da_origin_select_curve"));
@@ -861,6 +915,7 @@ export const useOriginCanvasExport = ({
     resolveYLogCurrentModeForFile,
     resolveYUnitForFile,
     resolvedOriginExportMode,
+    originExportContentKeys,
     selectedOriginCanvases,
     t,
   ]);
@@ -943,8 +998,13 @@ export const useOriginCanvasExport = ({
       const originCsvJobs = result.payloads.map((payload, index) => {
         const importColumnLabels = buildOriginImportColumnLabels({
           columnLayout: payload.columnLayout,
+          columnComments: payload.columnComments,
+          columnDesignations: payload.columnDesignations,
+          columnLongNames: payload.columnLongNames,
+          columnUnits: payload.columnUnits,
           curveLabels: payload.curveLabels,
           xColumnLongNames: payload.xColumnLongNames,
+          xColumnComments: payload.xColumnComments,
           xColumnUnits: payload.xColumnUnits,
           yColumnLongNames: payload.yColumnLongNames,
           yColumnUnits: payload.yColumnUnits,
@@ -993,14 +1053,18 @@ export const useOriginCanvasExport = ({
               : null,
         });
         const originAxisCommands = [
-          originYAxisTypeCommand,
-          "layer.x.opposite=1",
-          "layer.y.opposite=1",
-          ...displayXRangeCommands,
-          ...displayRangeCommands,
-          ...autoYRangeCommands,
-          ...originAxisTitleCommands,
-          ...originAxisSpacingCommands,
+          ...(payload.skipAxisCommands
+            ? []
+            : [
+                originYAxisTypeCommand,
+                "layer.x.opposite=1",
+                "layer.y.opposite=1",
+                ...displayXRangeCommands,
+                ...displayRangeCommands,
+                ...autoYRangeCommands,
+                ...originAxisTitleCommands,
+                ...originAxisSpacingCommands,
+              ]),
         ];
         const originAxisLimits = {
           x: shouldUseDisplayRange
@@ -1055,11 +1119,13 @@ export const useOriginCanvasExport = ({
             longName: payload.workbookName,
           },
           sheet: {
+            name: payload.sheetShortName ?? payload.sheetName,
             longName: payload.sheetName,
           },
           plot: {
-            command: normalizedPlotOptions.command,
+            command: payload.plotCommand ?? normalizedPlotOptions.command,
             postCommands: normalizedPlotOptions.postCommands,
+            skip: payload.skipPlot === true,
             type: normalizedPlotOptions.type,
             lineWidth: normalizedPlotOptions.lineWidth,
             xyPairs: effectiveXyPairs,
@@ -1067,7 +1133,14 @@ export const useOriginCanvasExport = ({
           capabilities: {
             import: importColumnLabels
               ? {
-                  columnLabels: importColumnLabels,
+                  columnLabels: importColumnLabels
+                    ? {
+                        ...importColumnLabels,
+                        designations: payload.columnDesignations,
+                      }
+                    : payload.columnDesignations
+                      ? { designations: payload.columnDesignations }
+                      : undefined,
                 }
               : undefined,
             plot: legendPostCommands.length

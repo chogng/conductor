@@ -29,6 +29,7 @@ import {
 import {
   isDeviceAnalysisOriginExportMode,
   resolveDeviceAnalysisSeriesLabel,
+  type DeviceAnalysisOriginExportContentKey,
   type DeviceAnalysisOriginExportMode,
 } from "../lib/originSelectionExport";
 import type { ToastState, ToastType } from "../../shared/lib/sharedTypes";
@@ -67,10 +68,9 @@ type SsRange = {
 };
 type CurrentBiasRole = "ion" | "ioff";
 type PlotTypeOption = "iv" | "gm" | "ss" | "vth" | "j";
-type OriginExportContentKey = "iv" | "metrics" | "gm" | "ss" | "vth";
 type OriginExportContentOption = {
     group: "basic" | "derived";
-    key: OriginExportContentKey;
+    key: DeviceAnalysisOriginExportContentKey;
     labelKey: string;
 };
 const MAX_RENDER_SERIES_POINTS = 600;
@@ -91,10 +91,11 @@ const ORIGIN_EXPORT_CONTENT_OPTIONS: OriginExportContentOption[] = [
     { group: "basic", key: "iv", labelKey: "da_origin_export_content_iv" },
     { group: "basic", key: "metrics", labelKey: "da_origin_export_content_metrics" },
     { group: "derived", key: "gm", labelKey: "da_origin_export_content_gm" },
+    { group: "derived", key: "gds", labelKey: "da_origin_export_content_gds" },
     { group: "derived", key: "ss", labelKey: "da_origin_export_content_ss" },
     { group: "derived", key: "vth", labelKey: "da_origin_export_content_vth" },
 ];
-const DEFAULT_ORIGIN_EXPORT_CONTENT_KEYS: OriginExportContentKey[] = ["iv"];
+const DEFAULT_ORIGIN_EXPORT_CONTENT_KEYS: DeviceAnalysisOriginExportContentKey[] = ["iv"];
 
 type ChartHighlightOverlay = {
     key: string;
@@ -626,8 +627,8 @@ const OriginExportContentMenu = ({
     setSelectedKeys,
     t,
 }: {
-    selectedKeys: OriginExportContentKey[];
-    setSelectedKeys: React.Dispatch<React.SetStateAction<OriginExportContentKey[]>>;
+    selectedKeys: DeviceAnalysisOriginExportContentKey[];
+    setSelectedKeys: React.Dispatch<React.SetStateAction<DeviceAnalysisOriginExportContentKey[]>>;
     t: OriginExportContentTranslateFn;
 }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -636,7 +637,7 @@ const OriginExportContentMenu = ({
         .filter((option) => selectedSet.has(option.key))
         .map((option) => t(option.labelKey));
     const summary = selectedLabels.join(" + ");
-    const toggleContentKey = (key: OriginExportContentKey) => {
+    const toggleContentKey = (key: DeviceAnalysisOriginExportContentKey) => {
         setSelectedKeys((prev) => {
             const current = Array.isArray(prev) && prev.length
                 ? prev
@@ -876,7 +877,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const [originExportMode, setOriginExportMode] = useState<DeviceAnalysisOriginExportMode>("merged");
     const [originCanvasExportScope, setOriginCanvasExportScope] = useState<DeviceAnalysisOriginCanvasExportScope>("selected");
     const [originCurveExportMode, setOriginCurveExportMode] = useState<DeviceAnalysisOriginCurveExportMode>("all");
-    const [originExportContentKeys, setOriginExportContentKeys] = useState<OriginExportContentKey[]>(DEFAULT_ORIGIN_EXPORT_CONTENT_KEYS);
+    const [originExportContentKeys, setOriginExportContentKeys] = useState<DeviceAnalysisOriginExportContentKey[]>(DEFAULT_ORIGIN_EXPORT_CONTENT_KEYS);
     const [originFilteredCanvasKind, setOriginFilteredCanvasKind] = useState<DeviceAnalysisOriginFilteredCanvasKind>("output");
     const [resultsTab, setResultsTab] = useState<"metrics" | "export">("metrics");
     const [overviewVisibleFileIds, setOverviewVisibleFileIds] = useState<string[]>([]);
@@ -1487,6 +1488,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         originChartXRangeRef,
         originChartYRangeRef,
         originExportMode,
+        originExportContentKeys,
         originAxisSettings: axis,
         originHasManualAxisOverride: hasManualAxisOverride,
         originOpenPlotOptions,

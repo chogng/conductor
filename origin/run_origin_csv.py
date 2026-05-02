@@ -382,10 +382,12 @@ def load_batch_jobs(batch_jobs_path: Path) -> list[dict]:
                 "workbook_key": _coerce_text(item.get("workbookKey")),
                 "workbook_name": _coerce_text(item.get("workbookName")),
                 "sheet_name": _coerce_text(item.get("sheetName")),
+                "sheet_short_name": _coerce_text(item.get("sheetShortName")),
                 "plot_type": _coerce_int(item.get("plotType"), 202),
                 "xy_pairs": _coerce_text(item.get("xyPairs"), "((1,2))"),
                 "plot_command": _coerce_text(item.get("plotCommand")),
                 "post_plot_commands": _normalize_command_list(item.get("postPlotCommands")),
+                "skip_plot": bool(item.get("skipPlot")),
                 "line_width": _coerce_float(item.get("lineWidth"), 2.0),
                 "capabilities": capabilities,
             }
@@ -401,10 +403,12 @@ def build_single_job_from_args(args, csv_path: Path) -> dict:
         "workbook_key": _coerce_text(args.workbook_key),
         "workbook_name": _coerce_text(args.workbook_name),
         "sheet_name": _coerce_text(args.sheet_name),
+        "sheet_short_name": _coerce_text(args.sheet_short_name),
         "plot_type": _coerce_int(args.plot_type, 202),
         "xy_pairs": _coerce_text(args.xy_pairs, "((1,2))"),
         "plot_command": _coerce_text(args.plot_command),
         "post_plot_commands": _normalize_command_list(args.post_plot_command),
+        "skip_plot": bool(args.skip_plot),
         "line_width": _coerce_float(args.line_width, 2.0),
         "capabilities": _coerce_text(args.capabilities_json),
     }
@@ -445,6 +449,7 @@ def run_csv_job(ctx, op_module, job: dict, job_index: int, job_count: int) -> st
 
     requested_workbook_name = _coerce_text(job.get("workbook_name"))
     requested_sheet_name = _coerce_text(job.get("sheet_name"))
+    requested_sheet_short_name = _coerce_text(job.get("sheet_short_name"))
     effective_workbook_name = capability_plan.workbook_long_name or requested_workbook_name
     plot_command = build_plot_command(
         capability_plan.plot_command_override or _coerce_text(job.get("plot_command")),
@@ -453,14 +458,18 @@ def run_csv_job(ctx, op_module, job: dict, job_index: int, job_count: int) -> st
     )
     extra_post_plot_commands = _normalize_command_list(job.get("post_plot_commands"))
     all_post_plot_commands = extra_post_plot_commands + capability_plan.plot_post_commands
+    skip_plot = bool(job.get("skip_plot"))
 
-    ctx.log(f"{log_prefix} plot command: {plot_command}")
+    ctx.log(f"{log_prefix} plot skipped: {skip_plot}")
+    if not skip_plot:
+        ctx.log(f"{log_prefix} plot command: {plot_command}")
     ctx.log(
         f"{log_prefix} import target: "
         f"mode={_coerce_text(job.get('import_mode'), 'new-book')}, "
         f"workbookKey={_coerce_text(job.get('workbook_key'))!r}, "
         f"workbookName={effective_workbook_name!r}, "
-        f"sheetName={requested_sheet_name!r}"
+        f"sheetName={requested_sheet_name!r}, "
+        f"sheetShortName={requested_sheet_short_name!r}"
     )
     if capabilities:
         ctx.log(f"{log_prefix} capabilities v1 detected.")
@@ -477,9 +486,12 @@ def run_csv_job(ctx, op_module, job: dict, job_index: int, job_count: int) -> st
         import_mode=_coerce_text(job.get("import_mode"), "new-book"),
         workbook_short_name=_coerce_text(job.get("workbook_key")),
         workbook_long_name=effective_workbook_name,
+        sheet_short_name=requested_sheet_short_name,
         sheet_long_name=requested_sheet_name,
         import_column_long_names=capability_plan.import_column_long_names,
         import_column_units=capability_plan.import_column_units,
+        import_column_comments=capability_plan.import_column_comments,
+        import_column_designations=capability_plan.import_column_designations,
         import_pre_commands=capability_plan.import_pre_commands,
         import_post_commands=capability_plan.import_post_commands,
         label_prefix=import_label_prefix,
@@ -487,17 +499,18 @@ def run_csv_job(ctx, op_module, job: dict, job_index: int, job_count: int) -> st
     )
     if actual_workbook_key:
         ctx.log(f"{log_prefix} actual workbook key: {actual_workbook_key!r}")
-    run_plot_pipeline(
-        op_module,
-        plot_command,
-        graph_pre_commands=capability_plan.graph_pre_commands,
-        plot_pre_commands=capability_plan.plot_pre_commands,
-        post_plot_commands=all_post_plot_commands,
-        plot_error_message=f"CSV plot{label_suffix} failed at plotxy",
-        line_width=_coerce_float(job.get("line_width"), 2.0),
-    )
+    if not skip_plot:
+        run_plot_pipeline(
+            op_module,
+            plot_command,
+            graph_pre_commands=capability_plan.graph_pre_commands,
+            plot_pre_commands=capability_plan.plot_pre_commands,
+            post_plot_commands=all_post_plot_commands,
+            plot_error_message=f"CSV plot{label_suffix} failed at plotxy",
+            line_width=_coerce_float(job.get("line_width"), 2.0),
+        )
     axis_commands = ensure_log_y_axis_range_commands(
-        capability_plan.axis_commands,
+        [] if skip_plot else capability_plan.axis_commands,
         csv_path,
         ctx,
     )
@@ -506,14 +519,15 @@ def run_csv_job(ctx, op_module, job: dict, job_index: int, job_count: int) -> st
     if axis_commands:
         ctx.log(f"{log_prefix} axis commands: {axis_commands}")
         _log_axis_command_summary(ctx, log_prefix, axis_commands)
-    apply_style_commands(op_module, capability_plan.style_commands)
-    apply_axis_commands(op_module, axis_commands)
-    apply_axis_limits(op_module, capability_plan.axis_limits, warning_logger=ctx.log)
-    run_command_list(
-        op_module,
-        capability_plan.graph_post_commands,
-        f"Graph post-command{label_suffix}",
-    )
+    if not skip_plot:
+        apply_style_commands(op_module, capability_plan.style_commands)
+        apply_axis_commands(op_module, axis_commands)
+        apply_axis_limits(op_module, capability_plan.axis_limits, warning_logger=ctx.log)
+        run_command_list(
+            op_module,
+            capability_plan.graph_post_commands,
+            f"Graph post-command{label_suffix}",
+        )
     run_command_list(
         op_module,
         capability_plan.global_post_commands,
@@ -537,10 +551,12 @@ def parse_args():
     parser.add_argument("--workbook-key", default="")
     parser.add_argument("--workbook-name", default="")
     parser.add_argument("--sheet-name", default="")
+    parser.add_argument("--sheet-short-name", default="")
     parser.add_argument("--plot-type", type=int, default=202)
     parser.add_argument("--xy-pairs", default="((1,2))")
     parser.add_argument("--plot-command", default="")
     parser.add_argument("--post-plot-command", action="append", default=[])
+    parser.add_argument("--skip-plot", action="store_true")
     parser.add_argument("--line-width", type=float, default=2.0)
     parser.add_argument("--capabilities-json", default="")
     parser.add_argument("--max-com-attempts", type=int, default=8)

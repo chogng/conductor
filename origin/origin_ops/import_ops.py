@@ -95,6 +95,34 @@ def get_origin_sheet(op_module):
         return None
 
 
+def normalize_origin_sheet_short_name(name_value: str, fallback_prefix: str = "S") -> str:
+    return normalize_origin_short_name(name_value, fallback_prefix=fallback_prefix)
+
+
+def get_origin_sheet_short_name(sheet) -> str:
+    if sheet is None:
+        return ""
+
+    try:
+        value = getattr(sheet, "name", "")
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    except Exception:
+        pass
+
+    obj = getattr(sheet, "obj", None)
+    get_name = getattr(obj, "GetName", None) if obj is not None else None
+    if callable(get_name):
+        try:
+            value = get_name()
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        except Exception:
+            pass
+
+    return ""
+
+
 def resolve_active_origin_book_short_name(op_module) -> str:
     return get_origin_book_short_name(get_origin_book(op_module))
 
@@ -184,16 +212,70 @@ def try_set_origin_long_name_via_object(op_module, target: str, value: str) -> b
     return True
 
 
+def try_set_origin_sheet_short_name(
+    op_module,
+    sheet_short_name: str,
+    warning_logger=None,
+    label_prefix: str = "CSV import",
+) -> str:
+    normalized_name = normalize_origin_sheet_short_name(sheet_short_name)
+    if not normalized_name:
+        return ""
+
+    sheet = get_origin_sheet(op_module)
+    if sheet is not None:
+        try:
+            sheet.name = normalized_name
+            actual_name = get_origin_sheet_short_name(sheet) or normalized_name
+            if actual_name != normalized_name:
+                log_origin_warning(
+                    warning_logger,
+                    f"{label_prefix} warning: worksheet short name '{normalized_name}' was adjusted to '{actual_name}'.",
+                )
+            return actual_name
+        except Exception as exc:
+            log_origin_warning(
+                warning_logger,
+                f"{label_prefix} warning: failed to set worksheet short name via originpro object API: {exc!r}",
+            )
+
+    short_name = escape_labtalk_text(normalized_name)
+    try:
+        result = lt_exec(op_module, f'wks.name$="{short_name}";')
+        if result is False:
+            log_origin_warning(
+                warning_logger,
+                f"{label_prefix} warning: LabTalk returned False while setting worksheet short name to '{normalized_name}'.",
+            )
+    except Exception as exc:
+        log_origin_warning(
+            warning_logger,
+            f"{label_prefix} warning: failed to set worksheet short name via LabTalk fallback: {exc!r}",
+        )
+    return get_origin_sheet_short_name(get_origin_sheet(op_module)) or normalized_name
+
+
 def try_apply_origin_column_labels(
     op_module,
     long_names,
     units,
+    comments=None,
+    designations=None,
     warning_logger=None,
     label_prefix: str = "CSV import",
 ) -> None:
     normalized_long_names = [str(item or "").strip() for item in (long_names or [])]
     normalized_units = [str(item or "").strip() for item in (units or [])]
-    if not normalized_long_names and not normalized_units:
+    normalized_comments = [str(item or "").strip() for item in (comments or [])]
+    normalized_designations = [
+        str(item or "").strip().lower()[:1] for item in (designations or [])
+    ]
+    if (
+        not normalized_long_names
+        and not normalized_units
+        and not normalized_comments
+        and not normalized_designations
+    ):
         return
 
     sheet = get_origin_sheet(op_module)
@@ -207,11 +289,26 @@ def try_apply_origin_column_labels(
     header_rows = getattr(sheet, "header_rows", None)
     if callable(header_rows):
         try:
-            header_rows("lu")
+            header_rows("luc")
         except Exception as exc:
             log_origin_warning(
                 warning_logger,
                 f"{label_prefix} warning: failed to show worksheet label rows via originpro API: {exc!r}",
+            )
+
+    valid_axis_tokens = {"x", "y", "z", "e", "l", "n"}
+    designation_spec = "".join(
+        token if token in valid_axis_tokens else "n"
+        for token in normalized_designations
+    )
+    cols_axis = getattr(sheet, "cols_axis", None)
+    if designation_spec and callable(cols_axis):
+        try:
+            cols_axis(designation_spec)
+        except Exception as exc:
+            log_origin_warning(
+                warning_logger,
+                f"{label_prefix} warning: failed to set worksheet column designations via originpro API: {exc!r}",
             )
 
     set_labels = getattr(sheet, "set_labels", None)
@@ -221,6 +318,8 @@ def try_apply_origin_column_labels(
                 set_labels(normalized_long_names, "L")
             if normalized_units:
                 set_labels(normalized_units, "U")
+            if normalized_comments:
+                set_labels(normalized_comments, "C")
             return
         except Exception as exc:
             log_origin_warning(
@@ -237,6 +336,9 @@ def try_apply_origin_column_labels(
             for idx, value in enumerate(normalized_units):
                 if value:
                     set_label(idx, value, "U")
+            for idx, value in enumerate(normalized_comments):
+                if value:
+                    set_label(idx, value, "C")
             return
         except Exception as exc:
             log_origin_warning(
@@ -292,9 +394,12 @@ def run_csv_import(
     import_mode: str = "new-book",
     workbook_short_name: str = "",
     workbook_long_name: str = "",
+    sheet_short_name: str = "",
     sheet_long_name: str = "",
     import_column_long_names=None,
     import_column_units=None,
+    import_column_comments=None,
+    import_column_designations=None,
     import_pre_commands=None,
     import_post_commands=None,
     label_prefix: str = "CSV import",
@@ -354,10 +459,19 @@ def run_csv_import(
             warning_logger=warning_logger,
             label_prefix=label_prefix,
         )
+    if sheet_short_name:
+        try_set_origin_sheet_short_name(
+            op_module,
+            sheet_short_name,
+            warning_logger=warning_logger,
+            label_prefix=label_prefix,
+        )
     try_apply_origin_column_labels(
         op_module,
         import_column_long_names,
         import_column_units,
+        import_column_comments,
+        import_column_designations,
         warning_logger=warning_logger,
         label_prefix=label_prefix,
     )

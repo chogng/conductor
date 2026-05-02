@@ -135,6 +135,45 @@ test("buildDeviceAnalysisOriginSelectionExport merges selected curves from multi
   assert.equal(rows[2], "2,12,,");
 });
 
+test("buildDeviceAnalysisOriginSelectionExport shares X within each source file only", () => {
+  const payload = buildDeviceAnalysisOriginSelectionExport([
+    {
+      fileId: "file-a",
+      fileName: "file_a.csv",
+      xLabel: "Vg",
+      xUnit: "V",
+      xGroups: [[0, 1, 2], [0, 1, 2]],
+      series: [
+        { id: "curve-a1", legendValue: "Vd=0.05", groupIndex: 0, y: [1, 2, 3] },
+        { id: "curve-a2", legendValue: "Vd=1", groupIndex: 1, y: [4, 5, 6] },
+      ],
+    },
+    {
+      fileId: "file-b",
+      fileName: "file_b.csv",
+      xLabel: "Vg",
+      xUnit: "V",
+      xGroups: [[0, 1, 2], [0, 1, 2]],
+      series: [
+        { id: "curve-b1", legendValue: "Vd=0.05", groupIndex: 0, y: [7, 8, 9] },
+        { id: "curve-b2", legendValue: "Vd=1", groupIndex: 1, y: [10, 11, 12] },
+      ],
+    },
+  ]);
+
+  assert.ok(payload);
+  assert.equal(payload.columnLayout, "grouped-x");
+  assert.equal(payload.xyPairs, "((1,2),(1,3),(4,5),(4,6))");
+  assert.deepEqual(payload.columnDesignations, ["x", "y", "y", "x", "y", "y"]);
+  assert.deepEqual(payload.columnLongNames, ["Vg", "Vd=0.05", "Vd=1", "Vg", "Vd=0.05", "Vd=1"]);
+  assert.deepEqual(payload.columnUnits, ["V", "", "", "V", "", ""]);
+  assert.deepEqual(payload.xColumnLongNames, ["Vg", "Vg"]);
+  const rows = payload.csvText.replace(/^\uFEFF/, "").split(/\r?\n/);
+  assert.equal(rows[0], "0,1,4,0,7,10");
+  assert.equal(rows[1], "1,2,5,1,8,11");
+  assert.equal(rows[2], "2,3,6,2,9,12");
+});
+
 test("buildDeviceAnalysisOriginSelectionExport defaults to all live series when no explicit selection is stored", () => {
   const payload = buildDeviceAnalysisOriginSelectionExport([
     {
@@ -291,6 +330,180 @@ test("buildDeviceAnalysisOriginExportPlan exports absolute current for log all-I
   assert.equal(rows[0], "0,1e-9");
   assert.equal(rows[1], "1,2e-8");
   assert.equal(rows[2], "2,3e-7");
+});
+
+test("buildDeviceAnalysisOriginExportPlan includes selected derived Origin export content", () => {
+  const plan = buildDeviceAnalysisOriginExportPlan(
+    [
+      {
+        fileId: "transfer-a",
+        fileName: "transfer_a.csv",
+        curveType: "transfer",
+        xAxisRole: "vg",
+        xGroups: [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]],
+        series: [
+          {
+            id: "curve-a",
+            groupIndex: 0,
+            y: [1e-11, 2e-11, 5e-11, 1e-10, 3e-10, 1e-9, 3e-8, 2e-7, 1e-6, 3e-6],
+          },
+        ],
+        yUnit: "A",
+      },
+      {
+        fileId: "output-a",
+        fileName: "output_a.csv",
+        curveType: "output",
+        xAxisRole: "vd",
+        xGroups: [[0, 1, 2, 3, 4]],
+        series: [
+          {
+            id: "curve-b",
+            groupIndex: 0,
+            y: [0, 1e-6, 3e-6, 6e-6, 1e-5],
+          },
+        ],
+        yUnit: "A",
+      },
+    ],
+    undefined,
+    "merged",
+    () => "linear",
+    () => 1,
+    () => 1,
+    () => "A",
+    undefined,
+    undefined,
+    undefined,
+    ["iv", "metrics", "gm", "gds", "ss", "vth"],
+  );
+
+  assert.equal(plan.mode, "workbookSheets");
+  assert.ok(plan.payloads.some((payload) => /__selected_curves\.csv$/.test(payload.csvName)));
+  assert.equal(plan.payloads.filter((payload) => /__metrics\.csv$/.test(payload.csvName)).length, 2);
+  assert.ok(plan.payloads.some((payload) => /__gm__selected_curves\.csv$/.test(payload.csvName)));
+  assert.ok(plan.payloads.some((payload) => /__gds__selected_curves\.csv$/.test(payload.csvName)));
+  assert.ok(plan.payloads.some((payload) => /__SS__selected_curves\.csv$/.test(payload.csvName)));
+  assert.ok(plan.payloads.some((payload) => /__Vth__selected_curves\.csv$/.test(payload.csvName)));
+  assert.deepEqual(
+    plan.payloads.map((payload) => payload.sheetName),
+    ["IV_Trans", "IV_Output", "Metrics 1", "Metrics 2", "gm", "gds", "SS", "Vth"],
+  );
+  assert.deepEqual(
+    plan.payloads.map((payload) => payload.sheetShortName),
+    ["IVTrans", "IVOutput", "Metrics1", "Metrics2", "gm", "gds", "SS", "Vth"],
+  );
+  assert.deepEqual(
+    Array.from(new Set(plan.payloads.map((payload) => payload.workbookName))),
+    ["Device Analysis 2 files"],
+  );
+  const gdsPayload = plan.payloads.find((payload) => /__gds__selected_curves\.csv$/.test(payload.csvName));
+  assert.ok(gdsPayload);
+  assert.deepEqual(gdsPayload.yColumnLongNames, ["Curve 1"]);
+  const metricsPayloads = plan.payloads.filter((payload) => /__metrics\.csv$/.test(payload.csvName));
+  assert.equal(metricsPayloads.every((payload) => payload.skipPlot === true), true);
+  assert.equal(metricsPayloads.every((payload) => payload.skipAxisCommands === true), true);
+  assert.deepEqual(metricsPayloads[0].xColumnLongNames.slice(0, 4), [
+    "series",
+    "gm_max_abs",
+    "x_at_gm_max_abs",
+    "vth",
+  ]);
+  assert.deepEqual(metricsPayloads[1].xColumnLongNames, [
+    "series",
+    "gds_max_abs",
+    "x_at_gds_max_abs",
+  ]);
+  assert.equal(metricsPayloads[1].xColumnLongNames.includes("vth"), false);
+  assert.equal(metricsPayloads[0].xColumnComments[0], "transfer_a.csv");
+  assert.equal(metricsPayloads[1].xColumnComments[0], "output_a.csv");
+  assert.equal(metricsPayloads[0].csvText.includes("transfer_a.csv"), false);
+  assert.equal(metricsPayloads[1].csvText.includes("output_a.csv"), false);
+  assert.equal(metricsPayloads[0].csvText.includes("file_name,series,gm_max_abs"), false);
+});
+
+test("buildDeviceAnalysisOriginExportPlan splits mixed IV transfer and output sheets", () => {
+  const plan = buildDeviceAnalysisOriginExportPlan(
+    [
+      {
+        fileId: "transfer-a",
+        fileName: "transfer_a.csv",
+        curveType: "transfer",
+        xAxisRole: "vg",
+        xGroups: [[0, 1, 2]],
+        series: [{ id: "curve-a", groupIndex: 0, y: [1e-12, 1e-10, 1e-8] }],
+        yUnit: "A",
+      },
+      {
+        fileId: "output-a",
+        fileName: "output_a.csv",
+        curveType: "output",
+        xAxisRole: "vd",
+        xGroups: [[0, 1, 2]],
+        series: [{ id: "curve-b", groupIndex: 0, y: [0, 1e-6, 2e-6] }],
+        yUnit: "A",
+      },
+    ],
+    undefined,
+    "merged",
+    () => "linear",
+    () => 1,
+    () => 1,
+    () => "A",
+    undefined,
+    undefined,
+    undefined,
+    ["iv"],
+  );
+
+  assert.equal(plan.mode, "workbookSheets");
+  assert.deepEqual(
+    plan.payloads.map((payload) => payload.sheetName),
+    ["IV_Trans", "IV_Output"],
+  );
+  assert.deepEqual(
+    plan.payloads.map((payload) => payload.sheetShortName),
+    ["IVTrans", "IVOutput"],
+  );
+});
+
+test("buildDeviceAnalysisOriginExportPlan exports Vth metrics when transfer fit is available", () => {
+  const plan = buildDeviceAnalysisOriginExportPlan(
+    [
+      {
+        fileId: "transfer-vth",
+        fileName: "transfer_vth.csv",
+        curveType: "transfer",
+        xAxisRole: "vg",
+        xGroups: [[-2, -1, 0, 1, 2, 3, 4]],
+        series: [
+          {
+            id: "curve-vth",
+            groupIndex: 0,
+            y: [9e-12, 4e-12, 1e-12, 1e-11, 1e-10, 4e-10, 9e-10],
+          },
+        ],
+        yUnit: "A",
+      },
+    ],
+    undefined,
+    "merged",
+    () => "linear",
+    () => 1,
+    () => 1,
+    () => "A",
+    undefined,
+    undefined,
+    undefined,
+    ["metrics"],
+  );
+
+  const metricsPayload = plan.payloads.find((payload) => /__metrics\.csv$/.test(payload.csvName));
+  assert.ok(metricsPayload);
+  const vthIndex = metricsPayload.xColumnLongNames.indexOf("vth");
+  assert.ok(vthIndex >= 0);
+  const row = metricsPayload.csvText.replace(/^\uFEFF/, "").trim().split(",");
+  assert.equal(Number.isFinite(Number(row[vthIndex])), true);
 });
 
 test("isDeviceAnalysisOriginExportMode accepts workbookBooks as a valid export mode", () => {
