@@ -79,7 +79,7 @@ const DEFAULT_RENDER_POINT_BUDGET = 12000;
 const GM_RENDER_POINT_BUDGET = 9000;
 const MAIN_PLOT_LEGEND_WIDTH = 220;
 const TRANSFER_CALCULATED_PARAMETERS_COLUMN_WIDTHS_PX = [
-    168, 128, 88, 128, 88, 120, 168, 88, 112, 104, 88, 120,
+    168, 128, 88, 128, 88, 120, 168, 88, 112, 112, 104, 88, 120,
 ];
 const DERIVATIVE_ONLY_CALCULATED_PARAMETERS_COLUMN_WIDTHS_PX = [168, 168, 88];
 const ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS = "!space-y-0";
@@ -4063,7 +4063,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         {t("da_calc_group_derivative")}
                       </th>
                       {transferMetricsApplicable ? (<>
-                          <th className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-violet-500/5">
+                          <th colSpan={2} className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-violet-500/5">
                             {t("da_calc_group_threshold_voltage")}
                           </th>
                           <th colSpan={2} className="p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border bg-rose-500/5">
@@ -4103,7 +4103,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                       </th>
                       {transferMetricsApplicable ? (<>
                           <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-violet-500/5" title={t("da_calc_group_threshold_voltage_hint")}>
-                            Vth
+                            Vth,e
+                          </th>
+                          <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-violet-500/5" title={t("da_calc_group_threshold_voltage_hint")}>
+                            Vth,h
                           </th>
                           <th className="p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border bg-rose-500/5">
                             SS

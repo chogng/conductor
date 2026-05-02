@@ -207,7 +207,17 @@ const CalculatedParametersRow = memo(function CalculatedParametersRow({
                 ? ""
                 : `sqrt(|Id|)-Vg linear extrapolation: Vth,e=${row.thresholdVoltageElectron ?? "-"}, Vth,h=${row.thresholdVoltageHole ?? "-"}`
             }
-            value={row.thresholdVoltage}
+            value={row.thresholdVoltageElectron}
+          />
+          <NumericMetricCell
+            className="p-2 font-mono text-[14px] text-text-primary whitespace-nowrap text-center border-l border-border bg-violet-500/5"
+            isPending={isPending}
+            title={
+              isPending
+                ? ""
+                : `sqrt(|Id|)-Vg linear extrapolation: Vth,e=${row.thresholdVoltageElectron ?? "-"}, Vth,h=${row.thresholdVoltageHole ?? "-"}`
+            }
+            value={row.thresholdVoltageHole}
           />
           <SsMetricCell
             confidence={row.ssConfidence}
