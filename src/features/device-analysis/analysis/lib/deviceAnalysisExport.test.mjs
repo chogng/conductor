@@ -422,6 +422,85 @@ test("buildDeviceAnalysisOriginExportPlan includes selected derived Origin expor
   assert.equal(metricsPayloads[0].csvText.includes("file_name,series,gm_max_abs"), false);
 });
 
+test("buildDeviceAnalysisOriginExportPlan exports SS as absolute current for Origin log plots", () => {
+  const plan = buildDeviceAnalysisOriginExportPlan(
+    [
+      {
+        fileId: "transfer-negative-ss",
+        fileName: "transfer_negative_ss.csv",
+        curveType: "transfer",
+        xAxisRole: "vg",
+        xGroups: [[-1, 0, 1]],
+        series: [
+          {
+            id: "curve-negative",
+            groupIndex: 0,
+            y: [-1e-9, -2e-8, -3e-7],
+          },
+        ],
+        yUnit: "A",
+      },
+    ],
+    undefined,
+    "merged",
+    () => "linear",
+    () => 1,
+    () => 1,
+    () => "A",
+    undefined,
+    undefined,
+    undefined,
+    ["ss"],
+  );
+
+  const payload = plan.payloads.find((item) => /__SS__selected_curves\.csv$/.test(item.csvName));
+  assert.ok(payload);
+  assert.equal(payload.yAxisTitle, "|I| (A)");
+  assert.equal(payload.yPositiveMin, 1e-9);
+  assert.equal(payload.yPositiveMax, 3e-7);
+  assert.equal(payload.skipDisplayRange, true);
+  assert.equal(payload.csvText.replace(/^\uFEFF/, "").trim(), "-1,1e-9\r\n0,2e-8\r\n1,3e-7");
+});
+
+test("buildDeviceAnalysisOriginExportPlan exports Vth as sqrt absolute current", () => {
+  const plan = buildDeviceAnalysisOriginExportPlan(
+    [
+      {
+        fileId: "transfer-negative-vth",
+        fileName: "transfer_negative_vth.csv",
+        curveType: "transfer",
+        xAxisRole: "vg",
+        xGroups: [[-1, 0, 1]],
+        series: [
+          {
+            id: "curve-negative",
+            groupIndex: 0,
+            y: [-1e-10, -4e-10, -9e-10],
+          },
+        ],
+        yUnit: "A",
+      },
+    ],
+    undefined,
+    "merged",
+    () => "linear",
+    () => 1,
+    () => 1,
+    () => "A",
+    undefined,
+    undefined,
+    undefined,
+    ["vth"],
+  );
+
+  const payload = plan.payloads.find((item) => /__Vth__selected_curves\.csv$/.test(item.csvName));
+  assert.ok(payload);
+  assert.equal(payload.yAxisTitle, "sqrt(|I|)");
+  assert.equal(payload.yLinearMin, Math.sqrt(1e-10));
+  assert.equal(payload.yLinearMax, Math.sqrt(9e-10));
+  assert.equal(payload.skipDisplayRange, true);
+});
+
 test("buildDeviceAnalysisOriginExportPlan splits mixed IV transfer and output sheets", () => {
   const plan = buildDeviceAnalysisOriginExportPlan(
     [

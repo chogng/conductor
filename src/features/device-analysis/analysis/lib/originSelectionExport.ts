@@ -30,6 +30,7 @@ type ProcessedEntryLike = {
   yLabel?: string;
   yUnit?: string;
   originExportPlotCommand?: string;
+  originExportSkipDisplayRange?: boolean;
   originExportSkipAxisCommands?: boolean;
   originExportUseCurveYLongNames?: boolean;
   originExportYScaleFactor?: number;
@@ -126,6 +127,7 @@ export type DeviceAnalysisOriginSelectionExport = {
   yScaleMode?: DeviceAnalysisOriginYAxisScaleMode;
   plotCommand?: string;
   skipPlot?: boolean;
+  skipDisplayRange?: boolean;
   skipAxisCommands?: boolean;
 };
 
@@ -258,6 +260,8 @@ const withAxisUnit = (labelRaw: unknown, unitRaw: unknown): string => {
   const unit = String(unitRaw ?? "").trim();
   if (!unit) return label;
   if (!label) return unit;
+  if (label === unit) return label;
+  if (/^[A-Za-z]+\s*\(/.test(label)) return label;
   if (/\([^()]+\)\s*$/.test(label)) {
     return label.replace(/\([^()]+\)\s*$/, `(${unit})`);
   }
@@ -788,6 +792,9 @@ const buildWorksheetExport = ({
     plotCommand: canvases.find((canvas) =>
       String(canvas?.originExportPlotCommand ?? "").trim(),
     )?.originExportPlotCommand,
+    skipDisplayRange: canvases.some((canvas) =>
+      Boolean(canvas?.originExportSkipDisplayRange),
+    ),
     skipAxisCommands: canvases.some((canvas) =>
       Boolean(canvas?.originExportSkipAxisCommands),
     ),
@@ -1031,6 +1038,7 @@ const buildDerivedCurveFile = (
       yLabel: derivativeLabel,
       yUnit: `A/${denom}`,
       originExportUseCurveYLongNames: true,
+      originExportSkipDisplayRange: true,
       originExportYScaleFactor: 1,
       originExportYUnitLabel: `A/${denom}`,
     };
@@ -1041,16 +1049,16 @@ const buildDerivedCurveFile = (
     const derivedSeries = seriesList
       .map((series) => {
         const points = buildPoints(xGroups[Number(series?.groupIndex)], series?.y);
-        const ss = computeSubthresholdSwing(points).map((point: any) =>
-          isFiniteNumber(point?.y) ? point.y : NaN,
+        const absY = points.map((point) =>
+          isFiniteNumber(point?.y) ? Math.abs(point.y) : NaN,
         );
-        if (!ss.some((value) => Number.isFinite(value))) return null;
+        if (!absY.some((value) => Number.isFinite(value) && value > 0)) return null;
         return cloneSeriesWithDerivedY(
           {
             ...series,
             name: resolveCurveLabelForSeries(file, series, 0),
           },
-          ss,
+          absY,
         );
       })
       .filter((series): series is ProcessedSeriesLike => series !== null);
@@ -1059,11 +1067,12 @@ const buildDerivedCurveFile = (
       ...file,
       fileName: `${baseName}__SS.csv`,
       series: derivedSeries,
-      yLabel: "SS",
-      yUnit: "mV/dec",
+      yLabel: "|I|",
+      yUnit: String(file?.yUnit ?? "A").trim() || "A",
       originExportUseCurveYLongNames: true,
+      originExportSkipDisplayRange: true,
       originExportYScaleFactor: 1,
-      originExportYUnitLabel: "mV/dec",
+      originExportYUnitLabel: String(file?.originExportYUnitLabel ?? file?.yUnit ?? "A").trim() || "A",
     };
   }
 
@@ -1093,6 +1102,7 @@ const buildDerivedCurveFile = (
       yLabel: "sqrt(|I|)",
       yUnit: "sqrt(A)",
       originExportUseCurveYLongNames: true,
+      originExportSkipDisplayRange: true,
       originExportYScaleFactor: 1,
       originExportYUnitLabel: "sqrt(A)",
     };

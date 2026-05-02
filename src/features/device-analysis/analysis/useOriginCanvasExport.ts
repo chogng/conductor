@@ -1013,6 +1013,7 @@ export const useOriginCanvasExport = ({
           payload.curveLabels,
         );
         const shouldUseDisplayRange =
+          payload.skipDisplayRange !== true &&
           originHasManualAxisOverride &&
           payload.fileIds.length === 1 &&
           payload.fileIds[0] === String(effectiveActiveFileId ?? "") &&
