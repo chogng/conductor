@@ -40,7 +40,11 @@ export type DeviceAnalysisSettings = {
   ssMethodDefault?: SsMethod;
   ssShowFitLine?: boolean;
   stopOnErrorDefault?: boolean;
+  defaultYScaleForCf?: "linear" | "log";
+  defaultYScaleForCv?: "linear" | "log";
   defaultYScaleForOutput?: "linear" | "log";
+  defaultYScaleForPv?: "linear" | "log";
+  defaultYScaleForSpecial?: "linear" | "log";
   defaultYScaleForTransfer?: "linear" | "log";
   analysisPlotAxisSettings?: Record<string, unknown>;
   yUnitByFileId?: Record<

@@ -79,14 +79,20 @@ type FileNameMatchingSettings = {
 };
 
 type AnalysisDefaultSettings = {
+  defaultYScaleForCf: "linear" | "log";
+  defaultYScaleForCv: "linear" | "log";
   defaultYScaleForOutput: "linear" | "log";
+  defaultYScaleForPv: "linear" | "log";
   defaultYScaleForTransfer: "linear" | "log";
   tickLabelFontSize: number | "";
   axisTitleFontSize: number | "";
   legendFontSize: number | "";
   feedback: Feedback;
   isSaving: boolean;
+  onDefaultYScaleForCfChange: (value: string) => Promise<void> | void;
+  onDefaultYScaleForCvChange: (value: string) => Promise<void> | void;
   onDefaultYScaleForOutputChange: (value: string) => Promise<void> | void;
+  onDefaultYScaleForPvChange: (value: string) => Promise<void> | void;
   onDefaultYScaleForTransferChange: (value: string) => Promise<void> | void;
   onTickLabelFontSizeChange: (value: string | number) => Promise<void> | void;
   onAxisTitleFontSizeChange: (value: string | number) => Promise<void> | void;
@@ -414,7 +420,7 @@ const DeviceAnalysisSettingsPanel = ({
               </h3>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
               <div className="space-y-1">
                 <p className="text-xs text-text-secondary">
                   {t("da_settings_analysis_defaults_transfer_curve")}
@@ -439,6 +445,51 @@ const DeviceAnalysisSettingsPanel = ({
                   value={analysisDefaultSettings.defaultYScaleForOutput}
                   onChange={(value) => {
                     void analysisDefaultSettings.onDefaultYScaleForOutputChange(String(value));
+                  }}
+                  options={yScaleOptions}
+                  disabled={analysisDefaultSettings.isSaving}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-xs text-text-secondary">
+                  {t("da_settings_analysis_defaults_cv_curve")}
+                </p>
+                <DropdownField
+                  id="device-analysis-settings-default-cv-y-scale-select"
+                  value={analysisDefaultSettings.defaultYScaleForCv}
+                  onChange={(value) => {
+                    void analysisDefaultSettings.onDefaultYScaleForCvChange(String(value));
+                  }}
+                  options={yScaleOptions}
+                  disabled={analysisDefaultSettings.isSaving}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-xs text-text-secondary">
+                  {t("da_settings_analysis_defaults_cf_curve")}
+                </p>
+                <DropdownField
+                  id="device-analysis-settings-default-cf-y-scale-select"
+                  value={analysisDefaultSettings.defaultYScaleForCf}
+                  onChange={(value) => {
+                    void analysisDefaultSettings.onDefaultYScaleForCfChange(String(value));
+                  }}
+                  options={yScaleOptions}
+                  disabled={analysisDefaultSettings.isSaving}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <p className="text-xs text-text-secondary">
+                  {t("da_settings_analysis_defaults_pv_curve")}
+                </p>
+                <DropdownField
+                  id="device-analysis-settings-default-pv-y-scale-select"
+                  value={analysisDefaultSettings.defaultYScaleForPv}
+                  onChange={(value) => {
+                    void analysisDefaultSettings.onDefaultYScaleForPvChange(String(value));
                   }}
                   options={yScaleOptions}
                   disabled={analysisDefaultSettings.isSaving}

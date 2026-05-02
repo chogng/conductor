@@ -73,6 +73,11 @@ type OriginExportContentOption = {
     key: DeviceAnalysisOriginExportContentKey;
     labelKey: string;
 };
+type OriginExportContentMenuGroup = {
+    key: OriginExportContentOption["group"];
+    labelKey: string;
+    options: OriginExportContentOption[];
+};
 const MAX_RENDER_SERIES_POINTS = 600;
 const MIN_RENDER_SERIES_POINTS = 120;
 const DEFAULT_RENDER_POINT_BUDGET = 12000;
@@ -96,6 +101,56 @@ const ORIGIN_EXPORT_CONTENT_OPTIONS: OriginExportContentOption[] = [
     { group: "derived", key: "vth", labelKey: "da_origin_export_content_vth" },
 ];
 const DEFAULT_ORIGIN_EXPORT_CONTENT_KEYS: DeviceAnalysisOriginExportContentKey[] = ["iv"];
+const ORIGIN_EXPORT_CONTENT_OPTION_GROUPS: Array<Pick<OriginExportContentMenuGroup, "key" | "labelKey">> = [
+    { key: "basic", labelKey: "da_origin_export_content_group_basic" },
+    { key: "derived", labelKey: "da_origin_export_content_group_derived" },
+];
+const resolvePrimaryExportContentLabelKey = (fileLike: any): string => {
+    const curveType = String(fileLike?.curveType ?? "").trim().toLowerCase();
+    if (curveType === "pv")
+        return "da_origin_export_content_pv";
+    if (curveType === "cv")
+        return "da_origin_export_content_cv";
+    if (curveType === "cf")
+        return "da_origin_export_content_cf";
+    return "da_origin_export_content_iv";
+};
+const resolveOriginExportContentOptionsForFile = (fileLike: any): OriginExportContentOption[] => {
+    const curveType = String(fileLike?.curveType ?? "").trim().toLowerCase();
+    const primaryOption: OriginExportContentOption = {
+        group: "basic",
+        key: "iv",
+        labelKey: resolvePrimaryExportContentLabelKey(fileLike),
+    };
+    if (curveType === "pv" || curveType === "cv" || curveType === "cf")
+        return [primaryOption];
+    if (isTransferLikeDeviceAnalysisFile(fileLike)) {
+        return [
+            primaryOption,
+            { group: "basic", key: "metrics", labelKey: "da_origin_export_content_metrics" },
+            { group: "derived", key: "gm", labelKey: "da_origin_export_content_gm" },
+            { group: "derived", key: "ss", labelKey: "da_origin_export_content_ss" },
+            { group: "derived", key: "vth", labelKey: "da_origin_export_content_vth" },
+        ];
+    }
+    if (isOutputLikeDeviceAnalysisFile(fileLike)) {
+        return [
+            primaryOption,
+            { group: "basic", key: "metrics", labelKey: "da_origin_export_content_metrics" },
+            { group: "derived", key: "gds", labelKey: "da_origin_export_content_gds" },
+        ];
+    }
+    return [primaryOption];
+};
+const normalizeOriginExportContentKeysForOptions = (
+    keys: readonly DeviceAnalysisOriginExportContentKey[] | null | undefined,
+    options: readonly OriginExportContentOption[],
+): DeviceAnalysisOriginExportContentKey[] => {
+    const allowedKeys = new Set(options.map((option) => option.key));
+    const normalized = (Array.isArray(keys) ? keys : DEFAULT_ORIGIN_EXPORT_CONTENT_KEYS)
+        .filter((key): key is DeviceAnalysisOriginExportContentKey => allowedKeys.has(key));
+    return normalized.length ? Array.from(new Set(normalized)) : DEFAULT_ORIGIN_EXPORT_CONTENT_KEYS;
+};
 
 type ChartHighlightOverlay = {
     key: string;
@@ -499,9 +554,27 @@ const normalizeChartYScale = (value: unknown): "linear" | "log" | "logAbs" => {
 const normalizeLogCurrentMode = (value: unknown): "all" | "positive" => String(value ?? "").trim() === "positive" ? "positive" : "all";
 const normalizeYScaleByFileIdRecord = (value: unknown): Record<string, "linear" | "log"> => normalizeByFileIdRecord(value, normalizeLinearLogScale);
 const normalizeYLogCurrentModeByFileIdRecord = (value: unknown): Record<string, "all" | "positive"> => normalizeByFileIdRecord(value, normalizeLogCurrentMode);
+const stripSpecificAxisUnitSuffix = (labelRaw: unknown, unitRaw: unknown): string => {
+    const label = String(labelRaw ?? "").trim();
+    const unit = String(unitRaw ?? "").trim();
+    if (!label || !unit)
+        return label;
+    const suffix = `(${unit})`;
+    return label.endsWith(suffix) ? label.slice(0, -suffix.length).trim() : label;
+};
 const isCapacitanceCurve = (fileLike: any): boolean => {
     const curveType = String(fileLike?.curveType ?? "").trim().toLowerCase();
     return curveType === "cv" || curveType === "cf";
+};
+const isLinearDefaultCurve = (fileLike: any): boolean => {
+    const curveType = String(fileLike?.curveType ?? "").trim().toLowerCase();
+    return curveType === "cv" || curveType === "cf" || curveType === "pv";
+};
+const resolveSpecialCurveType = (fileLike: any): "cv" | "cf" | "pv" | null => {
+    const curveType = String(fileLike?.curveType ?? "").trim().toLowerCase();
+    return curveType === "cv" || curveType === "cf" || curveType === "pv"
+        ? curveType
+        : null;
 };
 const resolveDefaultYUnitForFile = (fileLike: any): DeviceAnalysisYUnit => {
     if (isCapacitanceCurve(fileLike))
@@ -592,10 +665,12 @@ type ProgressiveAnalysisState = {
 };
 type OriginExportContentTranslateFn = (key: string, params?: Record<string, string | number | boolean | null | undefined>) => string;
 const OriginExportContentMenu = ({
+    options,
     selectedKeys,
     setSelectedKeys,
     t,
 }: {
+    options: OriginExportContentOption[];
     selectedKeys: DeviceAnalysisOriginExportContentKey[];
     setSelectedKeys: React.Dispatch<React.SetStateAction<DeviceAnalysisOriginExportContentKey[]>>;
     t: OriginExportContentTranslateFn;
@@ -603,14 +678,14 @@ const OriginExportContentMenu = ({
     const [isOpen, setIsOpen] = useState(false);
     const anchorRef = useRef<HTMLDivElement | null>(null);
     const selectedSet = useMemo(() => new Set(selectedKeys), [selectedKeys]);
-    const selectedLabels = ORIGIN_EXPORT_CONTENT_OPTIONS
+    const selectedLabels = options
         .filter((option) => selectedSet.has(option.key))
         .map((option) => t(option.labelKey));
     const summary = selectedLabels.join(" + ");
     const toggleContentKey = (key: DeviceAnalysisOriginExportContentKey) => {
         setSelectedKeys((prev) => {
             const current = Array.isArray(prev) && prev.length
-                ? prev
+                ? normalizeOriginExportContentKeysForOptions(prev, options)
                 : DEFAULT_ORIGIN_EXPORT_CONTENT_KEYS;
             if (current.includes(key)) {
                 if (current.length <= 1)
@@ -620,18 +695,13 @@ const OriginExportContentMenu = ({
             return [...current, key];
         });
     };
-    const groupedOptions = [
-        {
-            key: "basic",
-            label: t("da_origin_export_content_group_basic"),
-            options: ORIGIN_EXPORT_CONTENT_OPTIONS.filter((option) => option.group === "basic"),
-        },
-        {
-            key: "derived",
-            label: t("da_origin_export_content_group_derived"),
-            options: ORIGIN_EXPORT_CONTENT_OPTIONS.filter((option) => option.group === "derived"),
-        },
-    ];
+    const groupedOptions: OriginExportContentMenuGroup[] = ORIGIN_EXPORT_CONTENT_OPTION_GROUPS
+        .map((group) => ({
+            key: group.key,
+            labelKey: group.labelKey,
+            options: options.filter((option) => option.group === group.key),
+        }))
+        .filter((group) => group.options.length > 0);
 
     return (
       <div className="ui-select_warp w-fit da-neutral-select" data-style="select">
@@ -675,7 +745,7 @@ const OriginExportContentMenu = ({
                         <div
                           key={group.key}
                           role="group"
-                          aria-label={group.label}
+                          aria-label={t(group.labelKey)}
                           className="ui-menu__group"
                         >
                           {group.options.map((option) => {
@@ -905,6 +975,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const [chartYScaleByFileId, setChartYScaleByFileId] = useState<Record<string, "linear" | "log" | "logAbs">>({});
     const [defaultYScaleForTransfer, setDefaultYScaleForTransfer] = useState<"linear" | "log">("log");
     const [defaultYScaleForOutput, setDefaultYScaleForOutput] = useState<"linear" | "log">("linear");
+    const [defaultYScaleForCv, setDefaultYScaleForCv] = useState<"linear" | "log">("linear");
+    const [defaultYScaleForCf, setDefaultYScaleForCf] = useState<"linear" | "log">("linear");
+    const [defaultYScaleForPv, setDefaultYScaleForPv] = useState<"linear" | "log">("linear");
     const userChangedYUnitRef = useRef(false);
     const userChangedYScaleRef = useRef(false);
     const userChangedYLogCurrentModeRef = useRef(false);
@@ -969,7 +1042,11 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 const settings = await apiService.getDeviceAnalysisSettings();
                 const normalizedSettings = settings as {
                     analysisPlotAxisSettings?: unknown;
+                    defaultYScaleForCf?: unknown;
+                    defaultYScaleForCv?: unknown;
                     defaultYScaleForOutput?: unknown;
+                    defaultYScaleForPv?: unknown;
+                    defaultYScaleForSpecial?: unknown;
                     defaultYScaleForTransfer?: unknown;
                     originExportModeDefault?: string;
                     yUnitByFileId?: Record<string, unknown>;
@@ -981,6 +1058,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 const yLogCurrentModeByFileId = normalizeYLogCurrentModeByFileIdRecord(normalizedSettings?.yLogCurrentModeByFileId);
                 const exportDefaultYScaleForTransfer = normalizeLinearLogScale(normalizedSettings?.defaultYScaleForTransfer ?? "log");
                 const exportDefaultYScaleForOutput = normalizeLinearLogScale(normalizedSettings?.defaultYScaleForOutput ?? "linear");
+                const legacyDefaultYScaleForSpecial = normalizeLinearLogScale(normalizedSettings?.defaultYScaleForSpecial ?? "linear");
+                const exportDefaultYScaleForCv = normalizeLinearLogScale(normalizedSettings?.defaultYScaleForCv ?? legacyDefaultYScaleForSpecial);
+                const exportDefaultYScaleForCf = normalizeLinearLogScale(normalizedSettings?.defaultYScaleForCf ?? legacyDefaultYScaleForSpecial);
+                const exportDefaultYScaleForPv = normalizeLinearLogScale(normalizedSettings?.defaultYScaleForPv ?? legacyDefaultYScaleForSpecial);
                 const exportMode = normalizedSettings?.originExportModeDefault;
                 if (cancelled)
                     return;
@@ -992,6 +1073,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 }
                 setDefaultYScaleForTransfer(exportDefaultYScaleForTransfer);
                 setDefaultYScaleForOutput(exportDefaultYScaleForOutput);
+                setDefaultYScaleForCv(exportDefaultYScaleForCv);
+                setDefaultYScaleForCf(exportDefaultYScaleForCf);
+                setDefaultYScaleForPv(exportDefaultYScaleForPv);
                 if (!userChangedYUnitRef.current) {
                     setPersistedYUnitByFileId(yUnitByFileId);
                 }
@@ -1031,24 +1115,37 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     }, []);
     const effectiveActiveFileId = useMemo(() => resolveAvailableActiveFileId(processedData, activeFileId), [activeFileId, processedData]);
     const getDefaultLinearLogYScaleForFile = React.useCallback((fileLike: any): "linear" | "log" => {
+        const specialCurveType = resolveSpecialCurveType(fileLike);
+        if (specialCurveType === "cv")
+            return defaultYScaleForCv;
+        if (specialCurveType === "cf")
+            return defaultYScaleForCf;
+        if (specialCurveType === "pv")
+            return defaultYScaleForPv;
         if (isTransferLikeDeviceAnalysisFile(fileLike))
             return defaultYScaleForTransfer;
         if (isOutputLikeDeviceAnalysisFile(fileLike))
             return defaultYScaleForOutput;
         return "linear";
-    }, [defaultYScaleForOutput, defaultYScaleForTransfer]);
+    }, [defaultYScaleForCf, defaultYScaleForCv, defaultYScaleForOutput, defaultYScaleForPv, defaultYScaleForTransfer]);
     const activePersistedYScale = useMemo(() => {
         const fileKey = String(effectiveActiveFileId ?? "").trim();
         if (!fileKey)
             return "linear";
-        return persistedYScaleByFileId[fileKey] ?? getDefaultLinearLogYScaleForFile(processedData?.find((f: any) => String(f?.fileId ?? "").trim() === fileKey) ?? null);
+        const file = processedData?.find((f: any) => String(f?.fileId ?? "").trim() === fileKey) ?? null;
+        if (isLinearDefaultCurve(file))
+            return getDefaultLinearLogYScaleForFile(file);
+        return persistedYScaleByFileId[fileKey] ?? getDefaultLinearLogYScaleForFile(file);
     }, [effectiveActiveFileId, getDefaultLinearLogYScaleForFile, persistedYScaleByFileId, processedData]);
     const activeChartYScale = useMemo(() => {
         const fileKey = String(effectiveActiveFileId ?? "").trim();
         if (!fileKey)
             return activePersistedYScale;
+        const file = processedData?.find((f: any) => String(f?.fileId ?? "").trim() === fileKey) ?? null;
+        if (isLinearDefaultCurve(file) && chartYScaleByFileId[fileKey] === undefined)
+            return getDefaultLinearLogYScaleForFile(file);
         return normalizeChartYScale(chartYScaleByFileId[fileKey] ?? activePersistedYScale);
-    }, [activePersistedYScale, chartYScaleByFileId, effectiveActiveFileId]);
+    }, [activePersistedYScale, chartYScaleByFileId, effectiveActiveFileId, getDefaultLinearLogYScaleForFile, processedData]);
     const { getFileCache, renderSeriesCacheRef } = useAnalysisFileCache({
         effectiveActiveFileId,
         processedData,
@@ -1369,10 +1466,14 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     }, [axisTitleOverridesByFileId]);
     const resolveLinearLogYScaleForFile = React.useCallback((fileLike: any): "linear" | "log" => {
         const fileKey = String(fileLike?.fileId ?? "").trim();
+        if (isLinearDefaultCurve(fileLike) && chartYScaleByFileId[fileKey] === undefined)
+            return getDefaultLinearLogYScaleForFile(fileLike);
+        if (fileKey && chartYScaleByFileId[fileKey] !== undefined)
+            return normalizeLinearLogScale(chartYScaleByFileId[fileKey]);
         if (!fileKey)
             return getDefaultLinearLogYScaleForFile(fileLike);
         return persistedYScaleByFileId[fileKey] ?? getDefaultLinearLogYScaleForFile(fileLike);
-    }, [getDefaultLinearLogYScaleForFile, persistedYScaleByFileId]);
+    }, [chartYScaleByFileId, getDefaultLinearLogYScaleForFile, persistedYScaleByFileId]);
     const resolveYLogCurrentModeForFile = React.useCallback((fileLike: any): "all" | "positive" => {
         const fileKey = String(fileLike?.fileId ?? "").trim();
         if (fileKey && persistedYLogCurrentModeByFileId[fileKey]) {
@@ -1384,6 +1485,22 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const activeYUnit = useMemo(() => resolveYUnitForFile(activeFile), [activeFile, resolveYUnitForFile]);
     const activeYUnitOptions = useMemo(() => resolveAllowedYUnitsForFile(activeFile), [activeFile]);
     const resolvedYUnitMeta = useMemo(() => getDeviceAnalysisYUnitMeta(activeYUnit), [activeYUnit]);
+    const originExportContentOptions = useMemo(
+        () => resolveOriginExportContentOptionsForFile(activeFile),
+        [activeFile],
+    );
+    const resolvedOriginExportContentKeys = useMemo(
+        () => normalizeOriginExportContentKeysForOptions(originExportContentKeys, originExportContentOptions),
+        [originExportContentKeys, originExportContentOptions],
+    );
+    useEffect(() => {
+        setOriginExportContentKeys((prev) => {
+            const next = normalizeOriginExportContentKeysForOptions(prev, originExportContentOptions);
+            if (prev.length === next.length && prev.every((item, index) => item === next[index]))
+                return prev;
+            return next;
+        });
+    }, [originExportContentOptions]);
     useEffect(() => {
         setAxisState((prev: any) => {
             const isLinearScale = activeChartYScale === "linear";
@@ -1524,7 +1641,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         originChartXRangeRef,
         originChartYRangeRef,
         originExportMode,
-        originExportContentKeys,
+        originExportContentKeys: resolvedOriginExportContentKeys,
         originAxisSettings: axis,
         originHasManualAxisOverride: hasManualAxisOverride,
         originOpenPlotOptions,
@@ -1718,9 +1835,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const kindSymbol = kind === "gm" ? "gm" : kind === "gds" ? "gds" : null;
         const derivSymbol = varTokenToSymbol(derivToken);
         const fixedSymbol = varTokenToSymbol(fixedToken);
+        const xFormulaLabel = stripSpecificAxisUnitSuffix(xDisplay, activeFile?.xUnit);
         const derivShortLabel = derivSymbol
             ? `dI/d${derivSymbol}`
-            : `dI/d${xDisplay}`;
+            : `dI/d${xFormulaLabel}`;
         const formula = (() => {
             if (derivSymbol && fixedSymbol) {
                 const base = `\u2202I/\u2202${derivSymbol} |${fixedSymbol}`;
@@ -1731,7 +1849,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 const base = `\u2202I/\u2202${derivSymbol} |${fixedFallback}`;
                 return kindSymbol ? `${kindSymbol} = ${base}` : base;
             }
-            return `dI/d${xDisplay} (per curve)`;
+            return `dI/d${xFormulaLabel} (per curve)`;
         })();
         const plotLabel = `${kindTitle} (${formula})`;
         const denomUnit = derivSymbol ? "V" : "X";
@@ -1750,6 +1868,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             summaryLabel,
             metricHeader: `max|${metricSymbol}|`,
             xDisplay,
+            xFormulaLabel,
             xSymbol,
         };
     }, [activeFile, t]);
@@ -2392,9 +2511,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         return toSecondDerivativeUnitLabel(conductanceUnitLabel, resolvedXUnitMeta.label);
     }, [gmUi.denomUnit, resolvedXUnitMeta.label, resolvedYUnitMeta.label]);
     const gmSecondDerivativeAxisLabel = useMemo(() => {
-        const xToken = gmUi.xSymbol || gmUi.xDisplay || "x";
+        const xToken = gmUi.xSymbol || gmUi.xFormulaLabel || "x";
         return `d(${gmUi.metricSymbol})/d${xToken}`;
-    }, [gmUi.metricSymbol, gmUi.xDisplay, gmUi.xSymbol]);
+    }, [gmUi.metricSymbol, gmUi.xFormulaLabel, gmUi.xSymbol]);
     const plotYUnitLabel = useMemo(() => {
         if (effectivePlotType === "gm")
             return toConductanceUnitLabel(resolvedYUnitMeta.label, gmUi.denomUnit);
@@ -4224,7 +4343,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         {t("da_origin_export_content_label")}
                       </span>
                       <OriginExportContentMenu
-                        selectedKeys={originExportContentKeys}
+                        options={originExportContentOptions}
+                        selectedKeys={resolvedOriginExportContentKeys}
                         setSelectedKeys={setOriginExportContentKeys}
                         t={t}
                       />

@@ -309,6 +309,20 @@ const stripAxisUnitSuffix = (labelRaw: string | null | undefined): string => {
   return String(labelRaw ?? "").trim().replace(/\s*\([^()]+\)\s*$/, "").trim();
 };
 
+const stripSpecificAxisUnitSuffix = (
+  labelRaw: string | null | undefined,
+  unitRaw: string | null | undefined,
+): string => {
+  const label = String(labelRaw ?? "").trim();
+  const unit = String(unitRaw ?? "").trim();
+  if (!label || !unit) return label;
+
+  const suffix = `(${unit})`;
+  return label.endsWith(suffix)
+    ? label.slice(0, -suffix.length).trim()
+    : label;
+};
+
 const normalizeAxisTitleOverrideForDisplay = (
   value: unknown,
   defaultEditableLabel: string,
@@ -986,7 +1000,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
 
   const commitAxisTitleEdit = useCallback(() => {
     if (!editingAxisTitle) return;
-    const nextLabel = stripAxisUnitSuffix(editingAxisTitleDraft);
+    const nextLabel = String(editingAxisTitleDraft ?? "").trim();
     const currentLabel =
       editingAxisTitle === "x" ? xAxisEditableLabel : yAxisEditableLabel;
     if (nextLabel === String(currentLabel ?? "").trim()) {
@@ -2683,14 +2697,20 @@ const MainPlotChart = memo(function MainPlotChart({
     [activeFile?.xLabel, plotXUnitLabel],
   );
   const defaultXAxisEditableLabel = useMemo(() => {
-    const baseLabel = String(activeFile?.xLabel ?? "").trim();
-    return baseLabel || stripAxisUnitSuffix(defaultXAxisLabel);
-  }, [activeFile?.xLabel, defaultXAxisLabel]);
+    const baseLabel = stripSpecificAxisUnitSuffix(
+      activeFile?.xLabel,
+      plotXUnitLabel,
+    );
+    return baseLabel || stripSpecificAxisUnitSuffix(defaultXAxisLabel, plotXUnitLabel);
+  }, [activeFile?.xLabel, defaultXAxisLabel, plotXUnitLabel]);
   const defaultYAxisEditableLabel = useMemo(() => {
     if (isSsPlot) return "|Id|";
     if (isVthPlot) return VTH_Y_AXIS_TITLE;
-    const baseLabel = String(activeFile?.yLabel ?? "").trim();
-    return baseLabel || stripAxisUnitSuffix(defaultYAxisLabel);
+    const baseLabel = stripSpecificAxisUnitSuffix(
+      activeFile?.yLabel,
+      plotYUnitLabel,
+    );
+    return baseLabel || stripSpecificAxisUnitSuffix(defaultYAxisLabel, plotYUnitLabel);
   }, [activeFile?.yLabel, defaultYAxisLabel, isSsPlot, isVthPlot, plotYUnitLabel]);
   const normalizedXAxisLabelOverride = useMemo(
     () =>

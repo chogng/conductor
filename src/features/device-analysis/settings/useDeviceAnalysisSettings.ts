@@ -134,6 +134,26 @@ export const useDeviceAnalysisSettings = ({
     deviceAnalysisSettings?.defaultYScaleForOutput === "log"
       ? deviceAnalysisSettings.defaultYScaleForOutput
       : "linear";
+  const defaultYScaleForSpecial =
+    deviceAnalysisSettings?.defaultYScaleForSpecial === "linear" ||
+    deviceAnalysisSettings?.defaultYScaleForSpecial === "log"
+      ? deviceAnalysisSettings.defaultYScaleForSpecial
+      : "linear";
+  const defaultYScaleForCv =
+    deviceAnalysisSettings?.defaultYScaleForCv === "linear" ||
+    deviceAnalysisSettings?.defaultYScaleForCv === "log"
+      ? deviceAnalysisSettings.defaultYScaleForCv
+      : defaultYScaleForSpecial;
+  const defaultYScaleForCf =
+    deviceAnalysisSettings?.defaultYScaleForCf === "linear" ||
+    deviceAnalysisSettings?.defaultYScaleForCf === "log"
+      ? deviceAnalysisSettings.defaultYScaleForCf
+      : defaultYScaleForSpecial;
+  const defaultYScaleForPv =
+    deviceAnalysisSettings?.defaultYScaleForPv === "linear" ||
+    deviceAnalysisSettings?.defaultYScaleForPv === "log"
+      ? deviceAnalysisSettings.defaultYScaleForPv
+      : defaultYScaleForSpecial;
   const fileNameFieldSeparators = normalizeFileNameFieldSeparators(
     deviceAnalysisSettings?.fileNameFieldSeparators,
   );
@@ -617,6 +637,33 @@ export const useDeviceAnalysisSettings = ({
     [updateAnalysisDefaultSetting],
   );
 
+  const handleSetDefaultYScaleForCv = useCallback(
+    async (nextValue: unknown) => {
+      await updateAnalysisDefaultSetting({
+        defaultYScaleForCv: nextValue === "log" ? "log" : "linear",
+      });
+    },
+    [updateAnalysisDefaultSetting],
+  );
+
+  const handleSetDefaultYScaleForCf = useCallback(
+    async (nextValue: unknown) => {
+      await updateAnalysisDefaultSetting({
+        defaultYScaleForCf: nextValue === "log" ? "log" : "linear",
+      });
+    },
+    [updateAnalysisDefaultSetting],
+  );
+
+  const handleSetDefaultYScaleForPv = useCallback(
+    async (nextValue: unknown) => {
+      await updateAnalysisDefaultSetting({
+        defaultYScaleForPv: nextValue === "log" ? "log" : "linear",
+      });
+    },
+    [updateAnalysisDefaultSetting],
+  );
+
   const updateAnalysisPlotAxisDefaults = useCallback(
     async (updates: Record<string, unknown>) => {
       const nextAxisSettings = normalizePlotAxisSettings(
@@ -699,14 +746,20 @@ export const useDeviceAnalysisSettings = ({
 
   const analysisDefaultSettings = useMemo(
     () => ({
+      defaultYScaleForCf,
+      defaultYScaleForCv,
       defaultYScaleForOutput,
+      defaultYScaleForPv,
       defaultYScaleForTransfer,
       tickLabelFontSize: analysisPlotAxisConfig.tickLabelFontSize,
       axisTitleFontSize: analysisPlotAxisConfig.axisTitleFontSize,
       legendFontSize: analysisPlotAxisConfig.legendFontSize,
       feedback: analysisDefaultsFeedback,
       isSaving: analysisDefaultsSaving,
+      onDefaultYScaleForCfChange: handleSetDefaultYScaleForCf,
+      onDefaultYScaleForCvChange: handleSetDefaultYScaleForCv,
       onDefaultYScaleForOutputChange: handleSetDefaultYScaleForOutput,
+      onDefaultYScaleForPvChange: handleSetDefaultYScaleForPv,
       onDefaultYScaleForTransferChange: handleSetDefaultYScaleForTransfer,
       onTickLabelFontSizeChange: handleSetDefaultTickLabelFontSize,
       onAxisTitleFontSizeChange: handleSetDefaultAxisTitleFontSize,
@@ -718,10 +771,16 @@ export const useDeviceAnalysisSettings = ({
       analysisPlotAxisConfig.tickLabelFontSize,
       analysisDefaultsFeedback,
       analysisDefaultsSaving,
+      defaultYScaleForCf,
+      defaultYScaleForCv,
       defaultYScaleForOutput,
+      defaultYScaleForPv,
       defaultYScaleForTransfer,
+      handleSetDefaultYScaleForCf,
+      handleSetDefaultYScaleForCv,
       handleSetDefaultAxisTitleFontSize,
       handleSetDefaultYScaleForOutput,
+      handleSetDefaultYScaleForPv,
       handleSetDefaultYScaleForTransfer,
       handleSetDefaultLegendFontSize,
       handleSetDefaultTickLabelFontSize,
