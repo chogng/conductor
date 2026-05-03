@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { execFile, spawn } from "node:child_process";
+import { execFile, execFileSync, spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
@@ -126,6 +126,9 @@ const ensureAutoUpdater = async () => {
 };
 
 function getResourcesPath() {
+  if (!app.isPackaged) {
+    return app.getAppPath();
+  }
   const resourcesPath = Reflect.get(process, "resourcesPath");
   return typeof resourcesPath === "string" ? resourcesPath : process.cwd();
 }
@@ -786,7 +789,7 @@ function resolveRustExcelConverterPath() {
   );
   const candidates = [
     envPath,
-    path.join(getResourcesPath(), "excel", "bin", "rust-xls-converter.exe"),
+    path.join(getResourcesPath(), "excel", "bin", "conductor-engine.exe"),
     isDev
       ? path.join(
           __dirname,
@@ -794,7 +797,7 @@ function resolveRustExcelConverterPath() {
           ".tooling",
           "rust-xls-target",
           "release",
-          "rust-xls-bench.exe",
+          "conductor-engine.exe",
         )
       : "",
     isDev
@@ -805,9 +808,17 @@ function resolveRustExcelConverterPath() {
           "rust-xls-bench",
           "target",
           "release",
-          "rust-xls-bench.exe",
+          "conductor-engine.exe",
         )
       : "",
+    path.join(getResourcesPath(), "excel", "bin", "rust-xls-converter.exe"),
+    path.join(
+      getResourcesPath(),
+      "app.asar.unpacked",
+      "excel",
+      "bin",
+      "conductor-engine.exe",
+    ),
     path.join(
       getResourcesPath(),
       "app.asar.unpacked",
@@ -834,6 +845,25 @@ function rejectPendingRustDeviceAnalysisEngineRequests(error) {
   rustDeviceAnalysisEnginePending.clear();
 }
 
+function forceStopChildProcess(child) {
+  if (!child) return;
+  const pid = Number(child.pid);
+  try {
+    child.kill();
+  } catch {
+    // Fall through to the stronger Windows cleanup below.
+  }
+  if (!isWindows || !Number.isFinite(pid) || pid <= 0) return;
+  try {
+    execFileSync("taskkill.exe", ["/PID", String(pid), "/T", "/F"], {
+      stdio: "ignore",
+      windowsHide: true,
+    });
+  } catch {
+    // The process may already be gone.
+  }
+}
+
 function stopRustDeviceAnalysisEngine() {
   if (!rustDeviceAnalysisEngine) return;
   const child = rustDeviceAnalysisEngine;
@@ -842,11 +872,7 @@ function stopRustDeviceAnalysisEngine() {
   rejectPendingRustDeviceAnalysisEngineRequests(
     new Error("Rust device-analysis engine stopped."),
   );
-  try {
-    child.kill();
-  } catch {
-    // best-effort shutdown
-  }
+  forceStopChildProcess(child);
 }
 
 function handleRustDeviceAnalysisEngineLine(line) {
@@ -991,11 +1017,7 @@ function stopRustDeviceAnalysisEngineSlot(slot) {
     slot,
     new Error(`Rust device-analysis engine stopped (${slot.name}).`),
   );
-  try {
-    child.kill();
-  } catch {
-    // best-effort shutdown
-  }
+  forceStopChildProcess(child);
 }
 
 function handleRustDeviceAnalysisEngineSlotLine(slot, line) {
@@ -1249,6 +1271,11 @@ function stopRustDeviceAnalysisProcessingEngines() {
   }
   rustDeviceAnalysisProcessingSlots.length = 0;
   rustDeviceAnalysisProcessingSlotCursor = 0;
+}
+
+function stopAllRustDeviceAnalysisEngines() {
+  stopRustDeviceAnalysisProcessingEngines();
+  stopRustDeviceAnalysisEngine();
 }
 
 function runRustExcelConverter(executablePath, inputPath, outputPath, manifestPath = null) {
@@ -1886,6 +1913,47 @@ async function handleDeviceAnalysisRustEngineProcessFile(_event, payload) {
       code: "RUST_ENGINE_PROCESS_FAILED",
       durationMs: Date.now() - startedAt,
       message: error?.message || "Rust device-analysis engine failed to process file.",
+    };
+  }
+}
+
+async function handleDeviceAnalysisRustEngineAnalyzeRc(_event, payload) {
+  const devices = Array.isArray(payload?.devices) ? payload.devices : [];
+  const options =
+    payload && typeof payload.options === "object" && !Array.isArray(payload.options)
+      ? payload.options
+      : {};
+
+  if (!devices.length) {
+    return {
+      ok: false,
+      code: "RUST_ENGINE_RC_MISSING_DEVICES",
+      message: "Rc analysis requires at least one device.",
+    };
+  }
+
+  const startedAt = Date.now();
+  try {
+    const result = await sendRustDeviceAnalysisProcessingCommand(
+      "analyzeRc",
+      {
+        rcDevices: devices,
+        rcOptions: options,
+      },
+      120000,
+    );
+    return {
+      ok: true,
+      durationMs: Date.now() - startedAt,
+      result,
+      source: "rust-engine-pool",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      code: "RUST_ENGINE_RC_FAILED",
+      durationMs: Date.now() - startedAt,
+      message: error?.message || "Rust device-analysis engine failed to analyze Rc.",
     };
   }
 }
@@ -2819,6 +2887,7 @@ function updateTrayMenu() {
         label: "退出",
         click: () => {
           isAppQuitting = true;
+          stopAllRustDeviceAnalysisEngines();
           app.quit();
         },
       },
@@ -3120,6 +3189,7 @@ function handleDesktopCommand(event, payload) {
     }
 
     isAppQuitting = true;
+    stopAllRustDeviceAnalysisEngines();
     app.quit();
   }
 }
@@ -3196,6 +3266,10 @@ if (hasSingleInstanceLock) {
     handleDeviceAnalysisRustEngineProcessFile,
   );
   ipcMain.handle(
+    ipcChannels.deviceAnalysisRustEngineAnalyzeRc,
+    handleDeviceAnalysisRustEngineAnalyzeRc,
+  );
+  ipcMain.handle(
     ipcChannels.deviceAnalysisRustEngineExportOriginCsv,
     handleDeviceAnalysisRustEngineExportOriginCsv,
   );
@@ -3232,7 +3306,13 @@ if (hasSingleInstanceLock) {
 app.on("window-all-closed", () => {
   if (process.platform === "darwin") return;
   if (appTray && !isAppQuitting) return;
+  stopAllRustDeviceAnalysisEngines();
   app.quit();
+});
+
+app.on("before-quit", () => {
+  isAppQuitting = true;
+  stopAllRustDeviceAnalysisEngines();
 });
 
 app.on("will-quit", () => {
@@ -3241,7 +3321,7 @@ app.on("will-quit", () => {
   isAutoUpdateConfigured = false;
   autoUpdateConfiguredFeedUrl = null;
   cleanupRustExcelJobRoot();
-  stopRustDeviceAnalysisProcessingEngines();
+  stopAllRustDeviceAnalysisEngines();
   if (appTray) {
     appTray.destroy();
     appTray = null;
@@ -3272,6 +3352,7 @@ app.on("will-quit", () => {
   ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEngineReadCells);
   ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEngineInferAutoExtraction);
   ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEngineProcessFile);
+  ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEngineAnalyzeRc);
   ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEngineDispose);
   ipcMain.removeHandler(ipcChannels.originExeGet);
   ipcMain.removeHandler(ipcChannels.originExeSet);
@@ -3279,6 +3360,5 @@ app.on("will-quit", () => {
   ipcMain.removeHandler(ipcChannels.originHealthCheck);
   ipcMain.removeHandler(ipcChannels.originRunCsv);
   ipcMain.removeHandler(ipcChannels.originRuntimeCleanupRun);
-  stopRustDeviceAnalysisEngine();
 });
 }

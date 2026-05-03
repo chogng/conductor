@@ -18,13 +18,13 @@ const runNpm = (scriptName, extraArgs = []) => {
 };
 
 if (isWin) {
-  // Default desktop release needs the Origin CSV worker and the Rust Excel converter.
+  // Default desktop release needs the Origin CSV worker and the Conductor engine.
   // ZIP/BATCH Origin workers are optional and can be built manually when needed.
   const code = runNpm("build:origin-csv-worker");
   if (code !== 0) process.exit(code);
 
   {
-    const code = runNpm("build:rust-xls-converter");
+    const code = runNpm("build:engine");
     if (code !== 0) process.exit(code);
   }
 } else {

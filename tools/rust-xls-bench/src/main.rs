@@ -3,6 +3,7 @@ mod engine_cells;
 mod engine_dataset;
 mod engine_infer;
 mod engine_legend;
+mod engine_rc;
 mod engine_utils;
 
 use calamine::{Reader, open_workbook_auto};
@@ -14,6 +15,7 @@ use engine_infer::{
     infer_metadata_group_shape, parse_positive_integer_text,
 };
 use engine_legend::{LegendMode, resolve_legend_labels};
+use engine_rc::{RcAnalysisOptions, RcDeviceRequest};
 use engine_utils::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -83,6 +85,8 @@ struct EngineRequest {
     start_row: Option<usize>,
     max_points: Option<usize>,
     output_path: Option<String>,
+    rc_devices: Option<Vec<RcDeviceRequest>>,
+    rc_options: Option<RcAnalysisOptions>,
     sources: Option<Vec<OriginExportSourceRequest>>,
     x_groups: Option<Vec<Vec<f64>>>,
     x_scale_factor: Option<f64>,
@@ -2642,6 +2646,14 @@ fn handle_engine_request(
                 request.x_groups.as_deref(),
                 request.source_file.as_ref(),
             ))
+        }
+        "analyzeRc" => {
+            let devices = request
+                .rc_devices
+                .as_deref()
+                .filter(|devices| !devices.is_empty())
+                .ok_or_else(|| "missing rcDevices".to_string())?;
+            Ok(engine_rc::analyze_rc(devices, request.rc_options.as_ref()))
         }
         "exportOriginCsv" => {
             let file_id = request

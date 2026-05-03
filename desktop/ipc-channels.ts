@@ -29,6 +29,7 @@ export const ipcChannels = {
   deviceAnalysisRustEngineInferAutoExtraction:
     "device-analysis-rust-engine:infer-auto-extraction",
   deviceAnalysisRustEngineProcessFile: "device-analysis-rust-engine:process-file",
+  deviceAnalysisRustEngineAnalyzeRc: "device-analysis-rust-engine:analyze-rc",
   deviceAnalysisRustEngineExportOriginCsv:
     "device-analysis-rust-engine:export-origin-csv",
   deviceAnalysisOriginZipSave: "device-analysis-origin:zip:save",

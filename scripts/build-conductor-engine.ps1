@@ -15,7 +15,7 @@ $CrateDir = Join-Path $ProjectRoot "tools\rust-xls-bench"
 $CargoToml = Join-Path $CrateDir "Cargo.toml"
 
 if (-not (Test-Path -LiteralPath $CargoToml)) {
-  throw "Rust converter Cargo.toml not found: $CargoToml"
+  throw "Conductor engine Cargo.toml not found: $CargoToml"
 }
 
 if ([string]::IsNullOrWhiteSpace($DistDir)) {
@@ -33,7 +33,7 @@ if (-not [System.IO.Path]::IsPathRooted($TargetDir)) {
 
 $cargoCmd = Get-Command cargo -ErrorAction SilentlyContinue
 if ($null -eq $cargoCmd) {
-  throw "cargo is not available in PATH. Install Rust before building the converter."
+  throw "cargo is not available in PATH. Install Rust before building the Conductor engine."
 }
 
 $vsDevCandidates = @(
@@ -48,10 +48,10 @@ Push-Location $CrateDir
 try {
   $isWindows = [System.Environment]::OSVersion.Platform -eq [System.PlatformID]::Win32NT
   if ($isWindows -and $vsDevCmd) {
-    Write-Host "[build-rust-xls-converter] Running cargo build through VsDevCmd."
+    Write-Host "[build-conductor-engine] Running cargo build through VsDevCmd."
     & cmd.exe /d /s /c "call `"$vsDevCmd`" -arch=x64 && cargo build --release --target-dir `"$TargetDir`""
   } else {
-    Write-Host "[build-rust-xls-converter] Running cargo build --release."
+    Write-Host "[build-conductor-engine] Running cargo build --release."
     & $cargoCmd.Source build --release --target-dir $TargetDir
   }
   if ($LASTEXITCODE -ne 0) {
@@ -61,12 +61,20 @@ try {
   Pop-Location
 }
 
-$sourceExe = Join-Path $TargetDir "release\rust-xls-bench.exe"
+$sourceExe = Join-Path $TargetDir "release\conductor-engine.exe"
 if (-not (Test-Path -LiteralPath $sourceExe)) {
-  throw "Built converter executable not found: $sourceExe"
+  throw "Built engine executable not found: $sourceExe"
 }
 
 New-Item -ItemType Directory -Path $DistDir -Force | Out-Null
-$targetExe = Join-Path $DistDir "rust-xls-converter.exe"
-Copy-Item -LiteralPath $sourceExe -Destination $targetExe -Force
-Write-Host "[build-rust-xls-converter] Copied converter to $targetExe"
+$primaryTargetExe = Join-Path $DistDir "conductor-engine.exe"
+$legacyTargetExe = Join-Path $DistDir "rust-xls-converter.exe"
+Copy-Item -LiteralPath $sourceExe -Destination $primaryTargetExe -Force
+Copy-Item -LiteralPath $sourceExe -Destination $legacyTargetExe -Force
+$staleBenchExe = Join-Path $TargetDir "release\rust-xls-bench.exe"
+if (Test-Path -LiteralPath $staleBenchExe) {
+  Remove-Item -LiteralPath $staleBenchExe -Force
+  Write-Host "[build-conductor-engine] Removed stale bench executable $staleBenchExe"
+}
+Write-Host "[build-conductor-engine] Copied engine to $primaryTargetExe"
+Write-Host "[build-conductor-engine] Copied legacy converter alias to $legacyTargetExe"
