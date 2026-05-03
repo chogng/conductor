@@ -1120,7 +1120,7 @@ function createRustDeviceAnalysisOriginExportTempPath(fileId, csvName) {
   const safeCsvName = String(csvName || "device_analysis_origin.csv")
     .replace(/[/\\?%*:|"<>]+/g, "_")
     .trim() || "device_analysis_origin.csv";
-  const root = path.join(getDeviceAnalysisHomeDir(), "origin-stream-jobs");
+  const root = path.join(getDeviceAnalysisHomeDir(), "origin", "stream-jobs");
   fs.mkdirSync(root, { recursive: true });
   const jobDir = fs.mkdtempSync(path.join(root, `${safeFileId}-`));
   return path.join(jobDir, safeCsvName);

@@ -190,6 +190,11 @@ export function runOriginRuntimeCleanup(options: OriginRuntimeCleanupOptions = {
     normalizedPolicy,
     { clearAll },
   );
+  const streamSummary = cleanupOneJobBase(
+    path.join(originRootDir, "stream-jobs"),
+    normalizedPolicy,
+    { clearAll },
+  );
 
   return {
     ok: true,
@@ -198,7 +203,8 @@ export function runOriginRuntimeCleanup(options: OriginRuntimeCleanupOptions = {
     clearAll,
     policy: normalizedPolicy,
     csv: csvSummary,
-    removedTotal: csvSummary.removedJobs,
+    stream: streamSummary,
+    removedTotal: csvSummary.removedJobs + streamSummary.removedJobs,
   };
 }
 
