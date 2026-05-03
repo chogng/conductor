@@ -8,6 +8,7 @@ import ContentView from "../../../../components/ui/ContentView";
 import Dropdown from "../../../../components/ui/Dropdown";
 import DropdownTrigger from "../../../../components/ui/DropdownTrigger";
 import Menu from "../../../../components/ui/Menu";
+import MenuScrollArea from "../../../../components/ui/MenuScrollArea";
 import MenuItem from "../../../../components/ui/MenuItem";
 import Button from "../../../../components/ui/Button";
 import Card from "../../../../components/ui/Card";
@@ -966,12 +967,7 @@ const OriginCurveExportMenu = ({
               >
                 {() => (
                   <Menu withScrollArea={false}>
-                    <ScrollArea
-                      axis="y"
-                      className="max-h-60"
-                      viewportClassName="max-h-60"
-                      viewportProps={{ style: { height: "auto", maxHeight: "15rem" } }}
-                    >
+                    <MenuScrollArea>
                       <div className="ui-menu__list">
                         {curveOptions.map((option) => {
                           const key = String(option?.key ?? "");
@@ -997,7 +993,7 @@ const OriginCurveExportMenu = ({
                           );
                         })}
                       </div>
-                    </ScrollArea>
+                    </MenuScrollArea>
                   </Menu>
                 )}
               </ContentView>

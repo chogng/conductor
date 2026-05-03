@@ -20,7 +20,7 @@ import Dropdown from "./Dropdown";
 import DropdownTrigger from "./DropdownTrigger";
 import Menu from "./Menu";
 import MenuItem from "./MenuItem";
-import ScrollArea from "./ScrollArea";
+import MenuScrollArea from "./MenuScrollArea";
 
 const hasWidthConstraintClass = (className: string): boolean => {
   if (!className.trim()) return false;
@@ -554,14 +554,7 @@ const DropdownField = ({
               <Menu withScrollArea={false}>
                 {title ? <div>{title}</div> : null}
 
-                <ScrollArea
-                  className="ui-menu__scroll-area max-h-60 -mr-1 pr-1"
-                  axis="y"
-                  viewportClassName="max-h-60"
-                  viewportProps={{
-                    style: { height: "auto", maxHeight: "15rem" },
-                  }}
-                >
+                <MenuScrollArea>
                 <div className="ui-menu__list">
                   {loading ? (
                     <div className="ui-menu__empty">
@@ -671,7 +664,7 @@ const DropdownField = ({
                     <div className="ui-menu__empty">{emptyLabel}</div>
                   ) : null}
                 </div>
-                </ScrollArea>
+                </MenuScrollArea>
               </Menu>
             )}
           </ContentView>

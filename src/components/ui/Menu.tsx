@@ -1,6 +1,6 @@
 import { type HTMLAttributes } from "react";
 import { cx } from "../../utils/cx";
-import ScrollArea from "./ScrollArea";
+import MenuScrollArea from "./MenuScrollArea";
 import "./menu.css";
 
 type MenuProps = HTMLAttributes<HTMLDivElement> & {
@@ -15,9 +15,9 @@ const Menu = ({
   ...props
 }: MenuProps) => {
   const content = withScrollArea ? (
-    <ScrollArea className="max-h-60" axis="y">
+    <MenuScrollArea>
       {children}
-    </ScrollArea>
+    </MenuScrollArea>
   ) : (
     children
   );
