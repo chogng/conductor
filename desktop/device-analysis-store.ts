@@ -50,6 +50,8 @@ const DEVICE_ANALYSIS_DEFAULT_SETTINGS = {
   stopOnErrorDefault: false,
   yUnitByFileId: {},
   yScaleByFileId: {},
+  defaultYScaleForTransfer: "log",
+  defaultYScaleForOutput: "linear",
   defaultYScaleForCf: "linear",
   defaultYScaleForCv: "linear",
   defaultYScaleForPv: "linear",
@@ -92,6 +94,20 @@ const DEVICE_ANALYSIS_DEFAULT_SETTINGS = {
     legendFontSize: "",
     originTickLabelOffset: "",
     originAxisTitleGap: "",
+  },
+};
+
+const DEVICE_ANALYSIS_STARTUP_ANALYSIS_DEFAULTS = {
+  defaultYScaleForTransfer: DEVICE_ANALYSIS_DEFAULT_SETTINGS.defaultYScaleForTransfer,
+  defaultYScaleForOutput: DEVICE_ANALYSIS_DEFAULT_SETTINGS.defaultYScaleForOutput,
+  defaultYScaleForCf: DEVICE_ANALYSIS_DEFAULT_SETTINGS.defaultYScaleForCf,
+  defaultYScaleForCv: DEVICE_ANALYSIS_DEFAULT_SETTINGS.defaultYScaleForCv,
+  defaultYScaleForPv: DEVICE_ANALYSIS_DEFAULT_SETTINGS.defaultYScaleForPv,
+  defaultYScaleForSpecial: DEVICE_ANALYSIS_DEFAULT_SETTINGS.defaultYScaleForSpecial,
+  analysisPlotAxisSettings: {
+    tickLabelFontSize: DEVICE_ANALYSIS_DEFAULT_SETTINGS.analysisPlotAxisSettings.tickLabelFontSize,
+    axisTitleFontSize: DEVICE_ANALYSIS_DEFAULT_SETTINGS.analysisPlotAxisSettings.axisTitleFontSize,
+    legendFontSize: DEVICE_ANALYSIS_DEFAULT_SETTINGS.analysisPlotAxisSettings.legendFontSize,
   },
 };
 
@@ -482,6 +498,18 @@ export function createDeviceAnalysisStore(options) {
     return normalizeDeviceAnalysisSettings(settings);
   }
 
+  function applyStartupAnalysisDefaults(settings) {
+    const normalized = normalizeDeviceAnalysisSettings(settings);
+    return normalizeDeviceAnalysisSettings({
+      ...normalized,
+      ...DEVICE_ANALYSIS_STARTUP_ANALYSIS_DEFAULTS,
+      analysisPlotAxisSettings: {
+        ...normalized.analysisPlotAxisSettings,
+        ...DEVICE_ANALYSIS_STARTUP_ANALYSIS_DEFAULTS.analysisPlotAxisSettings,
+      },
+    });
+  }
+
   function clearStoreCache() {
     storeCache = null;
     storeCachePath = null;
@@ -705,7 +733,7 @@ export function createDeviceAnalysisStore(options) {
     try {
       const raw = fs.readFileSync(settingsPath, "utf8");
       const parsed = raw ? JSON.parse(raw) : {};
-      settingsCache = normalizeDeviceAnalysisSettings(parsed);
+      settingsCache = applyStartupAnalysisDefaults(parsed);
       settingsCachePath = settingsPath;
       return cloneDeviceAnalysisSettings(settingsCache);
     } catch {
