@@ -303,6 +303,7 @@ const computeVthSqrtFits = (points: any[]): VthFitResult[] => {
 type EditableLegendItemProps = {
     checked: boolean;
     color: string;
+    editHint: string;
     disabled: boolean;
     isEditing: boolean;
     label: string;
@@ -319,6 +320,7 @@ type EditableLegendItemProps = {
 const EditableLegendItem = ({
     checked,
     color,
+    editHint,
     disabled,
     isEditing,
     label,
@@ -349,7 +351,7 @@ const EditableLegendItem = ({
         onCommit={onCommitEdit}
         onCancel={onCancelEdit}
         onStartEdit={onBeginEdit}
-        title={`${label}\n双击可编辑`}
+        title={`${label}\n${editHint}`}
         value={label}
         className="min-w-0 max-w-full overflow-hidden"
         displayClassName="!text-text-primary"
@@ -376,10 +378,15 @@ const toSecondDerivativeUnitLabel = (conductanceUnitLabel: string, xUnitLabel: s
     const xUnit = String(xUnitLabel ?? "").trim() || "X";
     return `${conductanceUnitLabel}/${xUnit}`;
 };
-const formatCurrentWindowSummary = (window: any, xFactor: number, digits: number): string => {
+const formatCurrentWindowSummary = (window: any, xFactor: number, digits: number, labels?: {
+    notSelected?: string;
+    window?: string;
+}): string => {
+    const notSelectedLabel = String(labels?.notSelected ?? "not selected");
+    const windowLabel = String(labels?.window ?? "window");
     if (!window)
-        return "not selected";
-    const parts = [String(window?.label || "window")];
+        return notSelectedLabel;
+    const parts = [String(window?.label || windowLabel)];
     if (Number.isFinite(window?.targetX)) {
         parts.push(`@ ${formatNumber(Number(window.targetX) * xFactor, { digits })}`);
     }
@@ -392,12 +399,17 @@ const formatCurrentWindowSummary = (window: any, xFactor: number, digits: number
     return parts.join(" | ");
 };
 const formatBiasInputValue = (xRaw: number, xFactor: number): string => String(normalizeFloat(xRaw * xFactor));
-const formatCurveProbeBranchSuffix = (branchRaw: unknown): string => {
+const formatCurveProbeBranchSuffix = (branchRaw: unknown, labels?: {
+    forward?: string;
+    reverse?: string;
+}): string => {
+    const forwardLabel = String(labels?.forward ?? "forward");
+    const reverseLabel = String(labels?.reverse ?? "reverse");
     const branch = String(branchRaw ?? "").trim().toLowerCase();
     if (branch === "forward")
-        return " (forward)";
+        return ` (${forwardLabel})`;
     if (branch === "reverse")
-        return " (reverse)";
+        return ` (${reverseLabel})`;
     return "";
 };
 const toStableNumericToken = (value: unknown): string => {
@@ -672,6 +684,7 @@ const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, prim
     areaAvailable: boolean;
     onChange: (nextPlotType: PlotTypeOption) => void;
 }) {
+    const { t } = useLanguage();
     // Keep the button feedback local so the rest of the panel can update in a transition.
     const [displayedPlotType, setDisplayedPlotType] = useState<PlotTypeOption>(activePlotType);
     useEffect(() => {
@@ -687,7 +700,7 @@ const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, prim
         onChange={(next) => selectPlotType(next as PlotTypeOption)}
         size="sm"
         hoverPreview={false}
-        groupLabel="Plot type"
+        groupLabel={t("da_plot_type_group_label")}
         itemClassName="!px-3"
         options={[
             {
@@ -701,7 +714,7 @@ const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, prim
                 id: "device-analysis-plot-gm-btn",
                 disabled: !gmApplicable,
                 title: !gmApplicable
-                    ? "Only transfer/output curves support derivative plots"
+                    ? t("da_plot_type_gm_unavailable_hint")
                     : "",
             },
             {
@@ -710,7 +723,7 @@ const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, prim
                 id: "device-analysis-plot-ss-btn",
                 disabled: !ssApplicable,
                 title: !ssApplicable
-                    ? "SS is available when the selected data has a usable current-vs-bias sweep."
+                    ? t("da_plot_type_ss_unavailable_hint")
                     : "",
             },
             {
@@ -719,7 +732,7 @@ const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, prim
                 id: "device-analysis-plot-vth-btn",
                 disabled: !vthApplicable,
                 title: !vthApplicable
-                    ? "Vth extraction is available for transfer curves."
+                    ? t("da_plot_type_vth_unavailable_hint")
                     : "",
             },
             {
@@ -727,7 +740,7 @@ const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, prim
                 label: "J",
                 id: "device-analysis-plot-j-btn",
                 disabled: !areaAvailable,
-                title: !areaAvailable ? "Set a positive Area to enable J plot" : "",
+                title: !areaAvailable ? t("da_plot_type_j_unavailable_hint") : "",
             },
         ]}
       />);
@@ -870,6 +883,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     // User-picked curve legend template. File-level checkboxes are derived from this, not the source of truth.
     const [originCurveExportSelectedKeys, setOriginCurveExportSelectedKeys] = useState<string[] | null>(null);
     const [rcBiasSelectionKey, setRcBiasSelectionKey] = useState<string | null>(null);
+    const [rcStatisticSelectedFileIds, setRcStatisticSelectedFileIds] = useState<string[] | null>(null);
     const [resultsTab, setResultsTab] = useState<ResultsTabOption>("metrics");
     const [rcGeometryByFileId, setRcGeometryByFileId] = useState<RcGeometryByFileId>({});
     const [rcAnalyzePending, setRcAnalyzePending] = useState(false);
@@ -1633,18 +1647,41 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         resolvedCurveExportMode,
         scopedOriginCanvasKeySet,
     ]);
+    const rcBiasOptions = useMemo<OriginCurveExportSeriesOption[]>(() => {
+        const optionMap = new Map<string, OriginCurveExportSeriesOption>();
+        for (const file of Array.isArray(processedData) ? processedData : []) {
+            const fileId = String(file?.fileId ?? "").trim();
+            if (!fileId || !isTransferLikeDeviceAnalysisFile(file)) continue;
+            const seriesList = Array.isArray(file?.series) ? file.series : [];
+            for (let index = 0; index < seriesList.length; index += 1) {
+                const series = seriesList[index];
+                const seriesId = String(series?.id ?? "").trim();
+                if (!seriesId) continue;
+                const tokens = resolveOriginSeriesMatchTokens(series);
+                const key = tokens[0] ?? `series:${fileId}:${seriesId}`;
+                if (optionMap.has(key)) continue;
+                optionMap.set(key, {
+                    key,
+                    label: resolveDisplayLegendLabel(fileId, series, index),
+                    sourceFileId: fileId,
+                    sourceSeriesId: seriesId,
+                });
+            }
+        }
+        return Array.from(optionMap.values());
+    }, [processedData, resolveDisplayLegendLabel]);
     const selectedRcBiasKey = useMemo(() => {
-        const availableKeys = new Set(originCurveExportOptions.map((option) => option.key));
+        const availableKeys = new Set(rcBiasOptions.map((option) => option.key));
         if (rcBiasSelectionKey && availableKeys.has(rcBiasSelectionKey))
             return rcBiasSelectionKey;
-        return originCurveExportOptions[0]?.key ?? "";
-    }, [originCurveExportOptions, rcBiasSelectionKey]);
-    const selectedRcSeriesIdSet = useMemo(() => new Set(
-        originCurveExportOptions
-            .filter((option) => option.key === selectedRcBiasKey)
-            .map((option) => option.sourceSeriesId)
-            .filter(Boolean),
-    ), [originCurveExportOptions, selectedRcBiasKey]);
+        return rcBiasOptions[0]?.key ?? "";
+    }, [rcBiasOptions, rcBiasSelectionKey]);
+    const selectedRcStatisticFileIdSet = useMemo(() => {
+        if (Array.isArray(rcStatisticSelectedFileIds)) {
+            return new Set(rcStatisticSelectedFileIds);
+        }
+        return new Set(scopedOriginCanvasIds);
+    }, [rcStatisticSelectedFileIds, scopedOriginCanvasIds]);
     useEffect(() => {
         if (resolvedCurveExportMode !== "select") return;
         if (!Array.isArray(originCurveExportSelectedKeys)) return;
@@ -3040,13 +3077,13 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 const isEditing = Boolean(editingLegendLabel &&
                     editingLegendLabel.fileId === activeLegendFileId &&
                     editingLegendLabel.seriesId === seriesId);
-                return (<EditableLegendItem key={seriesId || `${label}-${idx}`} checked={checked} color={color} disabled={disabled} isEditing={isEditing} label={label} fontSize={mainPlotLegendFontSize} onBeginEdit={() => beginLegendLabelEdit(activeLegendFileId, series, idx)} onCancelEdit={cancelLegendLabelEdit} onCommitEdit={commitLegendLabelEdit} onDraftChange={setEditingLegendDraft} onToggleVisible={() => {
+                return (<EditableLegendItem key={seriesId || `${label}-${idx}`} checked={checked} color={color} editHint={t("da_legend_edit_hint")} disabled={disabled} isEditing={isEditing} label={label} fontSize={mainPlotLegendFontSize} onBeginEdit={() => beginLegendLabelEdit(activeLegendFileId, series, idx)} onCancelEdit={cancelLegendLabelEdit} onCommitEdit={commitLegendLabelEdit} onDraftChange={setEditingLegendDraft} onToggleVisible={() => {
                         if (!disabled)
                             toggleVisibleSeries(seriesId);
                     }} draftValue={editingLegendDraft} inputRef={isEditing ? editingLegendInputRef : undefined}/>);
             })}
       </ul>);
-    }, [activeFile?.fileId, beginLegendLabelEdit, cancelLegendLabelEdit, commitLegendLabelEdit, editingLegendDraft, editingLegendLabel, mainPlotLegendFontSize, plotLegendSeries, resolveDisplayLegendLabel, toggleVisibleSeries, visibleSeriesKeySet]);
+    }, [activeFile?.fileId, beginLegendLabelEdit, cancelLegendLabelEdit, commitLegendLabelEdit, editingLegendDraft, editingLegendLabel, mainPlotLegendFontSize, plotLegendSeries, resolveDisplayLegendLabel, t, toggleVisibleSeries, visibleSeriesKeySet]);
     const curveProbeX = useMemo(() => {
         const text = String(curveProbeXInput ?? "").trim();
         if (!text)
@@ -3074,11 +3111,14 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return segments.map((segment: any, segmentIndex: number) => ({
                 color,
                 id: `${series?.id ?? `curve-${index}`}-${segment?.branch ?? segmentIndex}`,
-                name: `${baseName}${formatCurveProbeBranchSuffix(segment?.branch)}`,
+                name: `${baseName}${formatCurveProbeBranchSuffix(segment?.branch, {
+                    forward: t("da_curve_branch_forward"),
+                    reverse: t("da_curve_branch_reverse"),
+                })}`,
                 sample: interpolateCurveAtX(segment?.points, curveProbeX, curveProbeMode),
             }));
         });
-    }, [curveProbeMode, curveProbeX, displayPlotSeries]);
+    }, [curveProbeMode, curveProbeX, displayPlotSeries, t]);
     const autoMinMax = useMemo(() => {
         const fileId = activeFile?.fileId ?? null;
         const cache = fileId ? getFileCache(fileId, activeFile) : null;
@@ -3119,11 +3159,11 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return "";
         if (effectiveYScale !== yScaleMode) {
             return yLogCurrentMode === "positive"
-                ? "Log I+ requires positive values."
-                : "Log all-I requires non-zero values.";
+                ? t("da_chart_log_positive_warning")
+                : t("da_chart_log_nonzero_warning");
         }
         return "";
-    }, [effectiveYScale, yLogCurrentMode, yScaleMode]);
+    }, [effectiveYScale, t, yLogCurrentMode, yScaleMode]);
     const xDomain = useMemo(() => {
         const auto: [number, number] = autoMinMax.minX === null || autoMinMax.maxX === null
             ? [0, 1]
@@ -3268,12 +3308,15 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return visibleGmDiagnosticsSeries.flatMap((series: any) => splitBidirectionalCurvePoints(series.data).map((segment: any, index: number) => ({
                 color: resolveSeriesChartColor(series, index),
                 id: `${series.id}-${segment?.branch ?? index}`,
-                name: `${series.lineName}${formatCurveProbeBranchSuffix(segment?.branch)}`,
+                name: `${series.lineName}${formatCurveProbeBranchSuffix(segment?.branch, {
+                    forward: t("da_curve_branch_forward"),
+                    reverse: t("da_curve_branch_reverse"),
+                })}`,
                 sample: interpolateCurveAtX(segment?.points, curveProbeX, curveProbeMode),
             })));
         }
         return curveProbeRows;
-    }, [curveProbeMode, curveProbeRows, curveProbeX, effectivePlotType, gmDiagnosticsEnabled, visibleGmDiagnosticsSeries]);
+    }, [curveProbeMode, curveProbeRows, curveProbeX, effectivePlotType, gmDiagnosticsEnabled, t, visibleGmDiagnosticsSeries]);
     const activeCurveProbeYUnitLabel = useMemo(() => {
         if (effectivePlotType === "gm" && gmDiagnosticsEnabled) {
             return gmSecondDerivativeUnitLabel;
@@ -3591,34 +3634,45 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         if (!row)
             return "";
         if (role === "ratio") {
-            const parts = [`method=${row.currentMethod ?? "unavailable"}`];
+            const parts = [`${t("da_current_tooltip_method")}=${row.currentMethod ?? t("da_current_tooltip_unavailable")}`];
             if (row.ionWindow) {
-                parts.push(`Ion ${formatCurrentWindowSummary(row.ionWindow, plotXFactor, xTooltipDigits)}`);
+                parts.push(`${t("da_current_tooltip_ion")} ${formatCurrentWindowSummary(row.ionWindow, plotXFactor, xTooltipDigits, {
+                    notSelected: t("da_current_window_not_selected"),
+                    window: t("da_current_window_label"),
+                })}`);
             }
             if (row.ioffWindow) {
-                parts.push(`Ioff ${formatCurrentWindowSummary(row.ioffWindow, plotXFactor, xTooltipDigits)}`);
+                parts.push(`${t("da_current_tooltip_ioff")} ${formatCurrentWindowSummary(row.ioffWindow, plotXFactor, xTooltipDigits, {
+                    notSelected: t("da_current_window_not_selected"),
+                    window: t("da_current_window_label"),
+                })}`);
             }
             if (Array.isArray(row.currentCandidateWindows) && row.currentCandidateWindows.length) {
-                parts.push(`candidates=${row.currentCandidateWindows
-                    .map((window: any) => formatCurrentWindowSummary(window, plotXFactor, xTooltipDigits))
+                parts.push(`${t("da_current_tooltip_candidates")}=${row.currentCandidateWindows
+                    .map((window: any) => formatCurrentWindowSummary(window, plotXFactor, xTooltipDigits, {
+                    notSelected: t("da_current_window_not_selected"),
+                    window: t("da_current_window_label"),
+                }))
                     .join(" | ")}`);
             }
             return parts.join(" | ");
         }
         const window = role === "ion" ? row.ionWindow : row.ioffWindow;
-        return formatCurrentWindowSummary(window, plotXFactor, xTooltipDigits);
-    }, [plotXFactor, xTooltipDigits]);
+        return formatCurrentWindowSummary(window, plotXFactor, xTooltipDigits, {
+            notSelected: t("da_current_window_not_selected"),
+            window: t("da_current_window_label"),
+        });
+    }, [plotXFactor, t, xTooltipDigits]);
     const calculatedParametersColumnWidths = useMemo(() => calculatedParametersMode === "transfer"
         ? TRANSFER_CALCULATED_PARAMETERS_COLUMN_WIDTHS_PX
         : DERIVATIVE_ONLY_CALCULATED_PARAMETERS_COLUMN_WIDTHS_PX, [calculatedParametersMode]);
     const calculatedParametersTableMinWidth = useMemo(() => calculatedParametersColumnWidths.reduce((total, width) => total + width, 0), [calculatedParametersColumnWidths]);
     const metricsRowElements = useMemo(() => metricsRows.map((row: any) => (<CalculatedParametersRow key={row.id} row={row} isPending={Boolean(row?.isPending)} buildCurrentTooltip={buildCurrentTooltip} buildSsTooltip={buildSsTooltip} showTransferMetrics={calculatedParametersMode === "transfer"}/>)), [buildCurrentTooltip, buildSsTooltip, calculatedParametersMode, metricsRows]);
     const rcStatisticListEntries = useMemo(() => {
-        const scopedIds = scopedOriginCanvasKeySet ?? new Set<string>();
         return (Array.isArray(processedData) ? processedData : [])
             .map((file: any) => {
             const fileId = String(file?.fileId ?? "").trim();
-            if (!fileId || !scopedIds.has(fileId) || !isTransferLikeDeviceAnalysisFile(file))
+            if (!fileId || !isTransferLikeDeviceAnalysisFile(file))
                 return null;
             const series = (Array.isArray(file?.series) ? file.series : [])
                 .map((series: any, index: number) => {
@@ -3627,7 +3681,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     return null;
                 const tokens = resolveOriginSeriesMatchTokens(series);
                 const key = tokens[0] ?? `series:${fileId}:${seriesId}`;
-                const selected = selectedRcSeriesIdSet.has(seriesId);
+                const selected = key === selectedRcBiasKey;
                 return {
                     key,
                     label: resolveDisplayLegendLabel(fileId, series, index),
@@ -3643,9 +3697,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return {
                 fileId,
                 fileName: String(file?.fileName ?? fileId),
-                isCanvasSelected: scopedIds.has(fileId),
+                isCanvasSelected: selectedRcStatisticFileIdSet.has(fileId),
                 selectedCount,
-                allSeriesSelected: series.length > 0 && series.every((item: { selected: boolean }) => item.selected),
+                allSeriesSelected: selectedCount > 0,
                 series,
             };
         })
@@ -3654,8 +3708,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         exportListEntries,
         processedData,
         resolveDisplayLegendLabel,
-        scopedOriginCanvasKeySet,
-        selectedRcSeriesIdSet,
+        selectedRcBiasKey,
+        selectedRcStatisticFileIdSet,
     ]);
     const rcRows = useMemo(() => {
         if (!rcStatisticListEntries.length)
@@ -3669,6 +3723,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         let deviceIndex = 0;
         return rcStatisticListEntries.flatMap((entry: any) => {
             const fileId = String(entry?.fileId ?? "").trim();
+            if (!selectedRcStatisticFileIdSet.has(fileId))
+                return [];
             const file = filesById.get(fileId);
             if (!isTransferLikeDeviceAnalysisFile(file))
                 return [];
@@ -3709,7 +3765,22 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             })
                 .filter(Boolean);
         });
-    }, [processedData, rcGeometryByFileId, rcStatisticListEntries, resolveDisplayLegendLabel]);
+    }, [processedData, rcGeometryByFileId, rcStatisticListEntries, resolveDisplayLegendLabel, selectedRcStatisticFileIdSet]);
+    const toggleRcStatisticFileSelection = React.useCallback((fileIdRaw: string) => {
+        const fileId = String(fileIdRaw ?? "").trim();
+        if (!fileId)
+            return;
+        setRcStatisticSelectedFileIds((prev) => {
+            const current = Array.isArray(prev)
+                ? new Set(prev)
+                : new Set(scopedOriginCanvasIds);
+            if (current.has(fileId))
+                current.delete(fileId);
+            else
+                current.add(fileId);
+            return Array.from(current);
+        });
+    }, [scopedOriginCanvasIds]);
     const updateRcGeometry = React.useCallback((fileIdRaw: string, seriesId: string, patch: Partial<RcGeometryEntry>) => {
         const fileId = String(fileIdRaw ?? "").trim();
         if (!fileId || !seriesId)
@@ -3760,20 +3831,22 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         : null;
     const rcCurveRows = Array.isArray(rcAnalyzeResult?.curve) ? rcAnalyzeResult.curve : [];
     const rcStatusText = rcAnalyzePending
-        ? "Rc running..."
+        ? t("da_rc_status_running")
         : rcAnalyzeError
             ? rcAnalyzeError
             : rcSummary
                 ? `Rc=${formatNumber(rcSummary.rc)} | RcW=${formatNumber(rcSummary.rcw)} | R2=${formatNumber(rcSummary.r2, { digits: 4 })}`
-                : `Rc uses ${rcRows.length} selected statistic curves`;
+                : t("da_rc_status_selected_curves", {
+                    count: rcRows.length,
+                });
     const handleAnalyzeRc = React.useCallback(async () => {
         const bridge = (globalThis.window as any)?.desktopImport;
         if (!bridge?.analyzeDeviceAnalysisRcWithRust) {
-            setRcAnalyzeError("Rust Rc bridge is unavailable.");
+            setRcAnalyzeError(t("da_rc_error_bridge_unavailable"));
             return;
         }
         if (!rcRows.length) {
-            setRcAnalyzeError("No transfer curves are available.");
+            setRcAnalyzeError(t("da_rc_error_no_transfer_curves"));
             return;
         }
         const devices = rcRows
@@ -3798,7 +3871,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 device.x.length >= 2 &&
                 device.y.length >= 2);
         if (devices.length < 2) {
-            setRcAnalyzeError("Rc needs at least two valid devices; three or more is recommended.");
+            setRcAnalyzeError(t("da_rc_error_insufficient_devices"));
             return;
         }
         setRcAnalyzePending(true);
@@ -3815,16 +3888,16 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 },
             });
             if (!response?.ok) {
-                throw new Error(response?.message || "Rc analysis failed.");
+                throw new Error(response?.message || t("da_rc_error_analysis_failed"));
             }
             setRcAnalyzeResult(response.result ?? null);
         } catch (error: any) {
-            setRcAnalyzeError(error?.message || "Rc analysis failed.");
+            setRcAnalyzeError(error?.message || t("da_rc_error_analysis_failed"));
             setRcAnalyzeResult(null);
         } finally {
             setRcAnalyzePending(false);
         }
-    }, [curveProbeX, rcRows]);
+    }, [curveProbeX, rcRows, t]);
     const diagnosticsContextBadges = useMemo(() => {
         const focusedLabel = String(focusedSeriesLabel ?? "").trim();
         const labelKey = (effectivePlotType === "gm" && gmDiagnosticsEnabled) ||
@@ -3835,7 +3908,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             { text: t(labelKey) },
             {
                 color: focusedSeriesColor,
-                text: focusedLabel || "current",
+                text: focusedLabel || t("da_chart_current_curve_label"),
             },
         ];
     }, [
@@ -3856,23 +3929,23 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         : hasVisiblePlotSeries;
     const showDiagnosticsPanel = showCurveProbePanel || showSsDiagnosticsPanel || showGmDiagnosticsPanel || showJDiagnosticsPanel;
     const diagnosticsHeading = showSsDiagnosticsPanel
-        ? "SS Diagnostics"
+        ? t("da_chart_ss_diagnostics")
         : showGmDiagnosticsPanel
-            ? "gm Diagnostics"
+            ? t("da_chart_gm_diagnostics_heading")
             : showJDiagnosticsPanel
-                ? "J Diagnostics"
+                ? t("da_chart_j_diagnostics_heading")
                 : showCurveProbePanel
-                    ? "Curve Probe"
-                    : "Diagnostics";
+                    ? t("da_chart_curve_probe_heading")
+                    : t("da_chart_diagnostics_heading");
     const diagnosticsDescription = showSsDiagnosticsPanel
-        ? "Subthreshold controls and fit configuration for the active curve."
+        ? t("da_chart_ss_diagnostics_desc")
         : showGmDiagnosticsPanel
             ? gmDiagnosticsEnabled
-                ? "Diagnostics now target the second-order transconductance curve; enter x below to inspect the diagnostic trace directly."
-                : "Derivative-focused guidance for gm interpretation. Turn on diagnostics to inspect the second-order transconductance trace."
+                ? t("da_chart_gm_diagnostics_desc_enabled")
+                : t("da_chart_gm_diagnostics_desc_disabled")
             : showJDiagnosticsPanel
-                ? "Current-density controls driven by Area and axis configuration."
-                : "Query any x between measured points and get y by linear interpolation.";
+                ? t("da_chart_j_diagnostics_desc")
+                : t("da_chart_curve_probe_desc");
     const applyLinearLogYScaleForFile = React.useCallback((nextScaleRaw: unknown) => {
         const nextScale = normalizeLinearLogScale(nextScaleRaw);
         const nextTicks = "auto";
@@ -3925,41 +3998,49 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         curveMode = resolvedCurveExportMode,
         entries,
         emptyText,
+        isSelectionMode = isExportListCanvasSelectionMode,
         onClearAllSeriesForFile = clearOriginSeriesSelectionForFile,
+        onToggleFile = toggleOriginCanvasSelection,
         onSelectAllSeriesForFile = selectAllOriginSeriesForFile,
         onSetCurveMode = setOriginCurveExportMode,
         onToggleSeriesForFile = toggleOriginSeriesSelectionForFile,
         renderFileExtra,
+        showRemoveButton = true,
         showSeriesControls = true,
     }: {
         curveMode?: DeviceAnalysisOriginCurveExportMode;
         entries: typeof exportListEntries;
         emptyText: string;
+        isSelectionMode?: boolean;
         onClearAllSeriesForFile?: (fileId: string) => void;
+        onToggleFile?: (fileId: string) => void;
         onSelectAllSeriesForFile?: (fileId: string) => void;
         onSetCurveMode?: (nextMode: DeviceAnalysisOriginCurveExportMode) => void;
         onToggleSeriesForFile?: (fileId: string, seriesKey: string) => void;
         renderFileExtra?: (entry: (typeof exportListEntries)[number]) => React.ReactNode;
+        showRemoveButton?: boolean;
         showSeriesControls?: boolean;
     }) => entries.length ? (<ScrollArea axis="y" className="min-w-0 w-full max-h-[320px]" viewportClassName="pr-2">
         <div className="space-y-2">
-          {entries.map((entry: any) => (<div
+          {entries.map((entry: any) => {
+            const fileExtra = renderFileExtra ? renderFileExtra(entry) : null;
+            return (<div
               key={entry.fileId}
-              className={`rounded-xl border border-border bg-bg-page/40 px-3 py-2.5 ${isExportListCanvasSelectionMode ? "cursor-pointer" : ""}`}
-              onClick={isExportListCanvasSelectionMode
+              className={`rounded-xl border border-border bg-bg-page/40 px-3 py-2.5 ${isSelectionMode ? "cursor-pointer" : ""}`}
+              onClick={isSelectionMode
                 ? () => {
-                    toggleOriginCanvasSelection(entry.fileId);
+                    onToggleFile(entry.fileId);
                   }
                 : undefined}
-              onKeyDown={isExportListCanvasSelectionMode
+              onKeyDown={isSelectionMode
                 ? (event) => {
                     if (event.key !== "Enter" && event.key !== " ") return;
                     event.preventDefault();
-                    toggleOriginCanvasSelection(entry.fileId);
+                    onToggleFile(entry.fileId);
                   }
                 : undefined}
-              role={isExportListCanvasSelectionMode ? "button" : undefined}
-              tabIndex={isExportListCanvasSelectionMode ? 0 : undefined}
+              role={isSelectionMode ? "button" : undefined}
+              tabIndex={isSelectionMode ? 0 : undefined}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
@@ -3979,17 +4060,17 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                             count: entry.selectedCount,
                         })}
                     </span>
-                    {isExportListCanvasSelectionMode && entry.isCanvasSelected ? (<span className="inline-flex items-center rounded-full bg-accent-terracotta/15 px-2 py-0.5 text-accent-terracotta">
+                    {isSelectionMode && entry.isCanvasSelected ? (<span className="inline-flex items-center rounded-full bg-accent-terracotta/15 px-2 py-0.5 text-accent-terracotta">
                         {t("da_origin_export_list_selected_badge")}
                       </span>) : null}
                   </div>
                 </div>
-                <Button variant="icon" size="icon" className="shrink-0 rounded-full text-text-tertiary hover:text-text-primary" onClick={(event) => {
+                {showRemoveButton ? (<Button variant="icon" size="icon" className="shrink-0 rounded-full text-text-tertiary hover:text-text-primary" onClick={(event) => {
                     event.stopPropagation();
                     handleRemoveOriginExportEntry(entry.fileId);
                 }} title={exportEntryActionLabel} aria-label={exportEntryActionLabel}>
                   <X size={14} strokeWidth={2} />
-                </Button>
+                </Button>) : null}
               </div>
               {showSeriesControls ? (<div className="mt-3">
                 <div className="flex flex-wrap items-center gap-1.5">
@@ -4036,14 +4117,15 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     </button>))}
                 </div>
               </div>) : null}
-              {renderFileExtra ? (<div
+              {fileExtra ? (<div
                   className="mt-3"
                   onClick={(event) => event.stopPropagation()}
                   onKeyDown={(event) => event.stopPropagation()}
                 >
-                  {renderFileExtra(entry)}
+                  {fileExtra}
                 </div>) : null}
-            </div>))}
+            </div>);
+          })}
         </div>
       </ScrollArea>) : (<div className="rounded-xl border border-dashed border-border bg-bg-page/40 px-4 py-6 text-sm text-text-secondary">
         {emptyText}
@@ -4090,8 +4172,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
       </aside>
 
       <ScrollArea className="da-analysis-scroll-area md:min-h-0 min-w-0" axis="y" viewportClassName="flex flex-col min-h-full">
-        <section className="flex min-w-0 flex-col flex-1 gap-1 pr-1" aria-label="Device Analysis results">
-          <section aria-label="Device Analysis chart">
+        <section className="flex min-w-0 flex-col flex-1 gap-1 pr-1" aria-label={t("da_analysis_results_aria_label")}>
+          <section aria-label={t("da_analysis_chart_aria_label")}>
         <Card variant="panel" className="flex min-w-0 flex-col">
 
           <div className="mb-4 flex items-center justify-between gap-4 flex-wrap">
@@ -4127,7 +4209,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         }} options={activeYUnitOptions.map((unit) => ({
             value: unit,
             label: unit,
-        }))} aria-label="Y unit" className="w-fit da-neutral-select" stableWidth data-cta="Device Analysis" data-cta-position="y-unit" data-cta-copy="y unit"/>
+        }))} aria-label={t("da_chart_y_unit_aria_label")} className="w-fit da-neutral-select" stableWidth data-cta="Device Analysis" data-cta-position="y-unit" data-cta-copy="y unit"/>
 
                 <div className="flex items-center gap-1">
                   {effectivePlotType === "ss" ? (<span className="text-xs text-text-primary font-mono whitespace-nowrap">
@@ -4137,13 +4219,13 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             }} options={[
                 {
                     value: "linear",
-                    label: "Linear",
+                    label: t("da_settings_y_scale_linear"),
                 },
                 {
                     value: "log",
-                    label: "Log",
+                    label: t("da_settings_y_scale_log"),
                 },
-            ]} aria-label="Y scale" className="w-fit da-neutral-select" stableWidth data-cta="Device Analysis" data-cta-position="y-scale" data-cta-copy="y scale"/>)}
+            ]} aria-label={t("da_chart_y_scale_aria_label")} className="w-fit da-neutral-select" stableWidth data-cta="Device Analysis" data-cta-position="y-scale" data-cta-copy="y scale"/>)}
                   {effectivePlotType !== "ss" && effectivePlotType !== "vth" && yScaleMode === "log" ? (<DropdownField id="device-analysis-log-current-mode-select" size="sm" value={yLogCurrentMode} onChange={(next: any) => {
                 const mode = normalizeLogCurrentMode(next);
                 const fileKey = String(effectiveActiveFileId ?? "").trim();
@@ -4163,13 +4245,13 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             }} options={[
                 {
                     value: "all",
-                    label: "I: 全部",
+                    label: t("da_log_current_mode_all"),
                 },
                 {
                     value: "positive",
-                    label: "I: I+",
+                    label: t("da_log_current_mode_positive"),
                 },
-            ]} aria-label="Log current mode" className="w-fit da-neutral-select" stableWidth data-cta="Device Analysis" data-cta-position="log-current-mode" data-cta-copy="log current mode"/>) : null}
+            ]} aria-label={t("da_log_current_mode_aria_label")} className="w-fit da-neutral-select" stableWidth data-cta="Device Analysis" data-cta-position="log-current-mode" data-cta-copy="log current mode"/>) : null}
                 </div>
 
                 {effectivePlotType === "gm" ? (<div className="flex items-center gap-1">
@@ -4200,8 +4282,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 })
                     .catch(() => { });
             }} options={[
-                { value: "auto", label: "Auto" },
-                { value: "manual", label: "Manual" },
+                { value: "auto", label: t("da_common_auto") },
+                { value: "manual", label: t("da_common_manual") },
             ]} className="w-[100px]"/>
                     </div>
 
@@ -4211,8 +4293,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 apiService
                     .updateDeviceAnalysisSettings({ ssShowFitLine: next })
                     .catch(() => { });
-            }} className="h-8 px-2 text-xs" title="Toggle fit line overlay (focused curve only)">
-                      Fit line
+            }} className="h-8 px-2 text-xs" title={t("da_chart_fit_line_toggle_title")}>
+                      {t("da_chart_fit_line")}
                     </Button>
 
                     <Button variant={ssDiagnosticsEnabled ? "secondary" : "text"} size="sm" onClick={() => {
@@ -4251,8 +4333,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 const method = next === "manual" ? "manual" : "auto";
                 setIonIoffMethod(method);
             }} options={[
-                { value: "auto", label: "auto" },
-                { value: "manual", label: "manual" },
+                { value: "auto", label: t("da_common_auto") },
+                { value: "manual", label: t("da_common_manual") },
             ]} className="w-fit da-neutral-select"/>
                     </div>
                   </div>) : null}
@@ -4260,7 +4342,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 {showFileSelect ? (<DropdownField id="device-analysis-file-select" size="sm" value={effectiveActiveFileId ?? ""} onChange={(val: any) => handleSelectFile(val)} options={processedData.map((f: any) => ({
             value: f.fileId,
             label: f.fileName,
-        }))} className="w-[240px] da-neutral-select" placeholder="Select File" data-cta="Device Analysis" data-cta-position="file-select" data-cta-copy="file select"/>) : null}
+        }))} className="w-[240px] da-neutral-select" placeholder={t("da_select_file_placeholder")} data-cta="Device Analysis" data-cta-position="file-select" data-cta-copy="file select"/>) : null}
                 <Button id="device-analysis-plot-settings-toggle-btn" variant="secondary" size="sm" onClick={() => setShowPlotSettingsPane((v: any) => !v)} title={t("da_chart_plot_settings_title")} aria-pressed={showPlotSettingsPane}>
                   <SlidersHorizontal size={14} strokeWidth={2} />
                   <span>{t("da_chart_plot_settings_title")}</span>
@@ -4333,23 +4415,29 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                   />
               </div>
               {!hasVisiblePlotSeries ? (<div className="mt-2 rounded-lg border border-dashed border-border/70 bg-bg-page/40 px-3 py-2 text-sm text-text-secondary">
-                  No visible curves. Use the legend checkboxes to show one or more series.
+                  {t("da_chart_no_visible_curves")}
                 </div>) : null}
 
               {effectivePlotType === "vth" ? (<div className="mt-3 rounded-lg border border-border bg-bg-page/40 px-3 py-2">
                   {focusedVthFitRows.length ? (<ScrollArea axis="x" className="min-w-0 w-full">
                       <div className="min-w-[860px] text-xs">
                         <div className="grid grid-cols-[96px_132px_190px_140px_160px_92px] items-center gap-x-3 border-b border-border/70 px-2 pb-1 text-text-secondary">
-                          <span>branch</span>
+                          <span>{t("da_vth_table_branch")}</span>
                           <span className="text-right">Vth</span>
-                          <span className="text-right">fit range</span>
-                          <span className="text-right">slope</span>
-                          <span className="text-right">intercept</span>
+                          <span className="text-right">{t("da_vth_table_fit_range")}</span>
+                          <span className="text-right">{t("da_vth_table_slope")}</span>
+                          <span className="text-right">{t("da_vth_table_intercept")}</span>
                           <span className="text-right">R²</span>
                         </div>
                         <div className="divide-y divide-border/60">
                           {focusedVthFitRows.map((row: any) => (<div key={row.branch} className="grid grid-cols-[96px_132px_190px_140px_160px_92px] items-center gap-x-3 px-2 py-1.5">
-                              <span className="font-medium text-text-primary capitalize">{row.branch}</span>
+                              <span className="font-medium text-text-primary capitalize">
+                                {row.branch === "electron"
+                                    ? t("da_vth_branch_electron")
+                                    : row.branch === "hole"
+                                        ? t("da_vth_branch_hole")
+                                        : row.branch}
+                              </span>
                               <span className="font-mono text-right text-text-primary whitespace-nowrap">{row.vth}</span>
                               <span className="font-mono text-right text-text-primary whitespace-nowrap">{row.fitRange}</span>
                               <span className="font-mono text-right text-text-primary whitespace-nowrap">{row.slope}</span>
@@ -4359,7 +4447,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         </div>
                       </div>
                     </ScrollArea>) : (<div className="text-sm text-text-secondary">
-                      No stable sqrt(|Id|)-Vg linear branch was found for the focused curve.
+                      {t("da_vth_no_stable_fit")}
                     </div>)}
                 </div>) : null}
 
@@ -4396,7 +4484,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                   </div>
                 </div>) : null}
             </div>) : (<div className="flex items-center justify-center h-[300px] text-text-secondary">
-              No series data for this file.
+              {t("da_chart_no_series_data")}
             </div>)}
         </Card>
       </section>
@@ -4553,72 +4641,55 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 </table>
               </ScrollArea>) : resultsTab === "rc" ? (<div className="flex min-w-0 flex-col gap-3">
                 <RcAnalysisToolbar
-                  biasOptions={originCurveExportOptions}
+                  biasOptions={rcBiasOptions}
                   isPending={rcAnalyzePending}
                   onAnalyze={handleAnalyzeRc}
                   onBiasChange={setRcBiasSelectionKey}
                   rowCount={rcRows.length}
                   selectedBiasKey={selectedRcBiasKey}
                 />
-                {rcStatisticListEntries.length ? (<ScrollArea axis="y" className="min-w-0 w-full max-h-[320px]" viewportClassName="pr-2">
-                    <div className="space-y-2">
-                      {rcStatisticListEntries.map((entry: any) => {
+                {renderOriginCurveSelectionList({
+                  entries: rcStatisticListEntries,
+                  emptyText: t("da_rc_require_statistic_selection"),
+                  isSelectionMode: true,
+                  onToggleFile: toggleRcStatisticFileSelection,
+                  showRemoveButton: false,
+                  showSeriesControls: false,
+                  renderFileExtra: (entry: any) => {
                         const rows = rcRowsByFileId.get(entry.fileId) ?? [];
                         const firstRow = rows[0];
                         const storedFileGeometry = rcGeometryByFileId[entry.fileId]?.[RC_FILE_GEOMETRY_KEY] ?? {};
                         const length = firstRow?.length ?? storedFileGeometry.length ?? "1";
                         const width = firstRow?.width ?? storedFileGeometry.width ?? "1";
-                        return (<div key={entry.fileId} className="rounded-xl border border-border bg-bg-page/40 px-3 py-2.5">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2 flex-wrap text-[11px] text-text-secondary">
-                                <button
-                                  type="button"
-                                  onClick={() => handleSelectFile(entry.fileId)}
-                                  className="max-w-full truncate rounded-lg p-1 -m-1 text-left text-sm font-medium text-text-primary hover:text-accent"
-                                >
-                                  {entry.fileName}
-                                </button>
-                                <span className="inline-flex items-center rounded-full bg-bg-surface px-2 py-0.5">
-                                  {t("da_origin_collection_file_curves", {
-                                    count: entry.selectedCount,
-                                  })}
-                                </span>
-                              </div>
-                            </div>
-                            <Button variant="icon" size="icon" className="shrink-0 rounded-full text-text-tertiary hover:text-text-primary" onClick={() => {
-                              handleRemoveOriginExportEntry(entry.fileId);
-                            }} title={exportEntryActionLabel} aria-label={exportEntryActionLabel}>
-                              <X size={14} strokeWidth={2} />
-                            </Button>
-                          </div>
-                          <div className="mt-3">
-                            <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-[7rem_7rem]">
+                        return entry.isCanvasSelected ? (<>
+                            <div className="flex min-w-0 flex-wrap items-center gap-2">
                               <Input
                                 label="L"
+                                labelPlacement="inline"
                                 value={length}
                                 onChange={(value: string) => updateRcGeometry(entry.fileId, RC_FILE_GEOMETRY_KEY, { length: value })}
                                 size="sm"
+                                className="!space-y-0"
+                                fieldClassName="w-28"
                                 inputClassName="text-xs"
                               />
                               <Input
                                 label="W"
+                                labelPlacement="inline"
                                 value={width}
                                 onChange={(value: string) => updateRcGeometry(entry.fileId, RC_FILE_GEOMETRY_KEY, { width: value })}
                                 size="sm"
+                                className="!space-y-0"
+                                fieldClassName="w-28"
                                 inputClassName="text-xs"
                               />
                             </div>
                             {!rows.length ? (<div className="text-xs text-text-secondary">
-                                Select at least one transfer curve in this file for Rc.
+                                {t("da_rc_require_curve_in_file")}
                               </div>) : null}
-                          </div>
-                        </div>);
-                      })}
-                    </div>
-                  </ScrollArea>) : (<div className="rounded-xl border border-dashed border-border bg-bg-page/40 px-4 py-6 text-sm text-text-secondary">
-                    Select transfer files and curves in the statistic list first.
-                  </div>)}
+                          </>) : null;
+                    },
+                })}
                 <div className="rounded-xl border border-border bg-bg-page/40 px-4 py-3">
                   {rcSummary ? (
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
@@ -4645,7 +4716,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     </div>
                   ) : (
                     <div className={`text-sm ${rcAnalyzeError ? "text-red-500" : "text-text-secondary"}`}>
-                      {rcAnalyzeError || "No Rc result yet."}
+                      {rcAnalyzeError || t("da_rc_no_result")}
                     </div>
                   )}
                 </div>
@@ -4654,7 +4725,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     <table className="w-full min-w-[720px] table-fixed text-sm border-collapse">
                       <thead className="sticky top-0 bg-bg-surface z-10">
                         <tr className="border-b border-border">
-                          {["Vg", "Rc", "RcW", "Rsh", "R2", "n", "warnings"].map((label) => (
+                          {["Vg", "Rc", "RcW", "Rsh", "R2", "n", t("da_rc_table_warnings")].map((label) => (
                             <th key={label} className="p-2 text-xs font-semibold text-text-secondary text-left border-l border-border first:border-l-0">
                               {label}
                             </th>
