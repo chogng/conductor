@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFile, spawn } from "node:child_process";
 import { createRequire } from "node:module";
+import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell, Tray } from "electron";
 import { createBootSplashWindow } from "./boot-splash.js";
@@ -1126,6 +1127,47 @@ function createRustDeviceAnalysisOriginExportTempPath(fileId, csvName) {
   return path.join(jobDir, safeCsvName);
 }
 
+function sanitizeZipEntryName(name, fallback = "device_analysis_origin.csv") {
+  const raw = String(name || fallback)
+    .replace(/[/\\?%*:|"<>\x00-\x1f]+/g, "_")
+    .replace(/\s+/g, " ")
+    .trim();
+  return raw || fallback;
+}
+
+function dedupeZipEntryName(name, seen) {
+  const safeName = sanitizeZipEntryName(name);
+  const ext = path.extname(safeName);
+  const base = ext ? safeName.slice(0, -ext.length) : safeName;
+  let candidate = safeName;
+  let index = 2;
+  while (seen.has(candidate.toLowerCase())) {
+    candidate = `${base}_${index}${ext}`;
+    index += 1;
+  }
+  seen.add(candidate.toLowerCase());
+  return candidate;
+}
+
+function isPathInsideDirectory(parentDir, targetPath) {
+  const parent = path.resolve(parentDir);
+  const target = path.resolve(targetPath);
+  const relative = path.relative(parent, target);
+  return Boolean(relative) && !relative.startsWith("..") && !path.isAbsolute(relative);
+}
+
+function isReadableOriginStreamExportPath(filePath) {
+  if (!filePath) return false;
+  const streamRoot = path.join(getDeviceAnalysisHomeDir(), "origin", "stream-jobs");
+  if (!isPathInsideDirectory(streamRoot, filePath)) return false;
+  try {
+    const stat = fs.statSync(filePath);
+    return stat.isFile();
+  } catch {
+    return false;
+  }
+}
+
 async function hydrateRustDeviceAnalysisResultRefs(result, tempDir = null) {
   if (!result || typeof result !== "object" || Array.isArray(result)) return result;
 
@@ -1907,6 +1949,97 @@ async function handleDeviceAnalysisRustEngineExportOriginCsv(_event, payload) {
       code: "RUST_ENGINE_EXPORT_FAILED",
       durationMs: Date.now() - startedAt,
       message: error?.message || "Rust device-analysis engine failed to export Origin CSV.",
+    };
+  }
+}
+
+async function handleDeviceAnalysisOriginZipSave(event, payload) {
+  const raw = payload && typeof payload === "object" ? payload : {};
+  const entries = Array.isArray(raw.entries) ? raw.entries : [];
+  if (!entries.length) {
+    return {
+      ok: false,
+      code: "ORIGIN_ZIP_EMPTY",
+      message: "No Origin CSV entries were provided.",
+    };
+  }
+
+  const seenNames = new Set();
+  const normalizedEntries = [];
+  for (const entry of entries) {
+    const rawEntry = entry && typeof entry === "object" ? entry : {};
+    const name = dedupeZipEntryName(rawEntry.name, seenNames);
+    const entryPath = normalizeAbsoluteFilePath(rawEntry.path);
+    const text = typeof rawEntry.text === "string" ? rawEntry.text : "";
+    if (entryPath) {
+      if (!isReadableOriginStreamExportPath(entryPath)) {
+        return {
+          ok: false,
+          code: "ORIGIN_ZIP_INVALID_ENTRY_PATH",
+          message: "Origin ZIP entry path is not readable.",
+        };
+      }
+      normalizedEntries.push({ name, path: entryPath });
+    } else if (text) {
+      normalizedEntries.push({ name, text });
+    } else {
+      return {
+        ok: false,
+        code: "ORIGIN_ZIP_EMPTY_ENTRY",
+        message: "Origin ZIP entry is missing CSV content.",
+      };
+    }
+  }
+
+  const defaultName = sanitizeZipEntryName(raw.defaultName, "device_analysis_origin.zip")
+    .replace(/\.csv$/i, ".zip")
+    .replace(/\.zip$/i, "") + ".zip";
+  const win = BrowserWindow.fromWebContents(event.sender) ?? null;
+  const result = await dialog.showSaveDialog(win || undefined, {
+    title: "Save Origin CSV ZIP",
+    defaultPath: defaultName,
+    buttonLabel: "Save",
+    filters: [
+      { name: "ZIP", extensions: ["zip"] },
+      { name: "All Files", extensions: ["*"] },
+    ],
+    properties: ["createDirectory", "showOverwriteConfirmation"],
+  });
+
+  if (result.canceled || !result.filePath) {
+    return { ok: true, cancelled: true };
+  }
+
+  const zipPath = result.filePath.replace(/\.zip$/i, "") + ".zip";
+  try {
+    const JSZip = require("jszip");
+    const zip = new JSZip();
+    for (const entry of normalizedEntries) {
+      if (entry.path) {
+        zip.file(entry.name, fs.createReadStream(entry.path));
+      } else {
+        zip.file(entry.name, entry.text);
+      }
+    }
+    await pipeline(
+      zip.generateNodeStream({
+        compression: "DEFLATE",
+        compressionOptions: { level: 6 },
+        streamFiles: true,
+        type: "nodebuffer",
+      }),
+      fs.createWriteStream(zipPath),
+    );
+    return {
+      ok: true,
+      entryCount: normalizedEntries.length,
+      zipPath,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      code: "ORIGIN_ZIP_SAVE_FAILED",
+      message: error?.message || "Failed to save Origin CSV ZIP.",
     };
   }
 }
@@ -3052,6 +3185,10 @@ if (hasSingleInstanceLock) {
   ipcMain.handle(
     ipcChannels.deviceAnalysisRustEngineExportOriginCsv,
     handleDeviceAnalysisRustEngineExportOriginCsv,
+  );
+  ipcMain.handle(
+    ipcChannels.deviceAnalysisOriginZipSave,
+    handleDeviceAnalysisOriginZipSave,
   );
   ipcMain.handle(
     ipcChannels.deviceAnalysisRustEngineDispose,

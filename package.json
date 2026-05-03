@@ -35,7 +35,8 @@
     "release:desktop:local": "node scripts/run-powershell.mjs scripts/release-desktop-local.ps1"
   },
   "dependencies": {
-    "electron-updater": "^6.8.3"
+    "electron-updater": "^6.8.3",
+    "jszip": "^3.10.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
@@ -52,7 +53,6 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
-    "jszip": "^3.10.1",
     "lucide-react": "^0.554.0",
     "papaparse": "^5.5.3",
     "postcss": "^8.5.6",

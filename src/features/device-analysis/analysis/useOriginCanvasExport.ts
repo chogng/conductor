@@ -1075,24 +1075,15 @@ export const useOriginCanvasExport = ({
   );
 
   const exportOriginZipFallbackForSelectedCanvases = useCallback(async () => {
-    const result = buildOriginExportPayloadsForSelectedCanvases();
-    const zip = new JSZip();
+    const result = buildOriginExportPayloadsForSelectedCanvases({
+      omitRustEligibleCsvText: true,
+    });
     const sanitizedPayloads = result.payloads.map((payload, index) => ({
       csvName: sanitizeFilename(
         payload?.csvName || `device_analysis_${index + 1}.csv`,
       ),
       payload,
     }));
-
-    sanitizedPayloads.forEach(({ csvName, payload }) => {
-      zip.file(csvName, payload.csvText);
-    });
-
-    const zipBlob = await zip.generateAsync({
-      type: "blob",
-      compression: "DEFLATE",
-      compressionOptions: { level: 6 },
-    });
     const zipBase =
       result.mode === "merged"
         ? sanitizeFilename(
@@ -1112,15 +1103,103 @@ export const useOriginCanvasExport = ({
       /\.zip$/i,
       "",
     )}.zip`;
+    const desktopZipBridge = (globalThis.window as any)?.desktopImport;
+    if (desktopZipBridge?.saveDeviceAnalysisOriginZip) {
+      const entries = sanitizedPayloads.map(({ csvName, payload }) => ({
+        name: csvName,
+        text: payload.csvText,
+      }));
+      if (desktopZipBridge?.exportDeviceAnalysisOriginCsvWithRust) {
+        await Promise.all(
+          entries.map(async (entry, index) => {
+            if (String(entry.text ?? "").trim()) return;
+            const request = buildRustOriginCsvExportRequest(result.payloads[index]);
+            if (!request) return;
+            try {
+              const response =
+                await desktopZipBridge.exportDeviceAnalysisOriginCsvWithRust(request);
+              if (!response?.ok || !response?.csvPath) return;
+              delete (entry as any).text;
+              (entry as any).path = response.csvPath;
+            } catch {
+              // Regenerate only the missing CSV text below.
+            }
+          }),
+        );
+      }
+
+      const missingCsvTextIndexes = entries
+        .map((entry, index) =>
+          !String((entry as any).path ?? "").trim() &&
+          !String(entry.text ?? "").trim()
+            ? index
+            : -1,
+        )
+        .filter((index) => index >= 0);
+      if (missingCsvTextIndexes.length) {
+        const fullResult = buildOriginExportPayloadsForSelectedCanvases();
+        for (const index of missingCsvTextIndexes) {
+          const fullPayload = fullResult.payloads[index];
+          if (!fullPayload) continue;
+          entries[index] = {
+            name: sanitizeFilename(
+              fullPayload?.csvName || `device_analysis_${index + 1}.csv`,
+            ),
+            text: fullPayload.csvText,
+          };
+        }
+      }
+
+      const response = await desktopZipBridge.saveDeviceAnalysisOriginZip({
+        defaultName: zipName,
+        entries,
+      });
+      if (response?.cancelled) return null;
+      if (!response?.ok) {
+        throw new Error(response?.message || "Failed to save Origin ZIP.");
+      }
+      return {
+        canvasCount: result.totalCanvasCount,
+        curveCount: result.totalCurveCount,
+        mixedYScales: result.mixedYScales,
+        mode: result.mode,
+        zipName: response.zipPath || zipName,
+      };
+    }
+
+    const fullResult = result.payloads.some((payload) => !String(payload.csvText ?? "").trim())
+      ? buildOriginExportPayloadsForSelectedCanvases()
+      : result;
+    const zip = new JSZip();
+    const fullSanitizedPayloads = fullResult.payloads.map((payload, index) => ({
+      csvName: sanitizeFilename(
+        payload?.csvName || `device_analysis_${index + 1}.csv`,
+      ),
+      payload,
+    }));
+
+    fullSanitizedPayloads.forEach(({ csvName, payload }) => {
+      zip.file(csvName, payload.csvText);
+    });
+
+    const zipBlob = await zip.generateAsync({
+      type: "blob",
+      compression: "DEFLATE",
+      compressionOptions: { level: 6 },
+    });
     triggerDeviceAnalysisBlobDownload(zipName, zipBlob);
     return {
-      canvasCount: result.totalCanvasCount,
-      curveCount: result.totalCurveCount,
-      mixedYScales: result.mixedYScales,
-      mode: result.mode,
+      canvasCount: fullResult.totalCanvasCount,
+      curveCount: fullResult.totalCurveCount,
+      mixedYScales: fullResult.mixedYScales,
+      mode: fullResult.mode,
       zipName,
     };
-  }, [buildOriginExportPayloadsForSelectedCanvases, resolvedOriginExportMode]);
+  }, [
+    buildOriginExportPayloadsForSelectedCanvases,
+    buildRustOriginCsvExportRequest,
+    resolvedOriginExportMode,
+  ]);
 
   const handleOpenInOrigin = useCallback(async () => {
     if (originBusyRef.current) return;
@@ -1400,6 +1479,7 @@ export const useOriginCanvasExport = ({
             : detail.message || t("unknownError");
         try {
           const fallback = await exportOriginZipFallbackForSelectedCanvases();
+          if (!fallback) return;
           if (fallback.mode === "merged") {
             showToast(
               t("da_open_in_origin_fallback_zip_success_with_reason_and_stats", {
@@ -1468,6 +1548,7 @@ export const useOriginCanvasExport = ({
   const handleExportOriginZip = useCallback(async () => {
     try {
       const exported = await exportOriginZipFallbackForSelectedCanvases();
+      if (!exported) return;
       if (exported.mode === "merged") {
         showToast(
           t("da_origin_zip_export_success", {

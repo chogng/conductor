@@ -31,5 +31,6 @@ export const ipcChannels = {
   deviceAnalysisRustEngineProcessFile: "device-analysis-rust-engine:process-file",
   deviceAnalysisRustEngineExportOriginCsv:
     "device-analysis-rust-engine:export-origin-csv",
+  deviceAnalysisOriginZipSave: "device-analysis-origin:zip:save",
   deviceAnalysisRustEngineDispose: "device-analysis-rust-engine:dispose",
 } as const;

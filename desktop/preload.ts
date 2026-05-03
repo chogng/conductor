@@ -207,6 +207,9 @@ contextBridge.exposeInMainWorld("desktopImport", {
       payload,
     );
   },
+  async saveDeviceAnalysisOriginZip(payload) {
+    return ipcRenderer.invoke(ipcChannels.deviceAnalysisOriginZipSave, payload);
+  },
   async disposeDeviceAnalysisFileWithRust(payload) {
     return ipcRenderer.invoke(
       ipcChannels.deviceAnalysisRustEngineDispose,
