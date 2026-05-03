@@ -570,6 +570,8 @@ const isLinearDefaultCurve = (fileLike: any): boolean => {
     const curveType = String(fileLike?.curveType ?? "").trim().toLowerCase();
     return curveType === "cv" || curveType === "cf" || curveType === "pv";
 };
+const shouldUseStartupDefaultYScale = (fileLike: any): boolean =>
+    isTransferLikeDeviceAnalysisFile(fileLike) || isLinearDefaultCurve(fileLike);
 const resolveSpecialCurveType = (fileLike: any): "cv" | "cf" | "pv" | null => {
     const curveType = String(fileLike?.curveType ?? "").trim().toLowerCase();
     return curveType === "cv" || curveType === "cf" || curveType === "pv"
@@ -1133,7 +1135,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         if (!fileKey)
             return "linear";
         const file = processedData?.find((f: any) => String(f?.fileId ?? "").trim() === fileKey) ?? null;
-        if (isLinearDefaultCurve(file))
+        if (shouldUseStartupDefaultYScale(file))
             return getDefaultLinearLogYScaleForFile(file);
         return persistedYScaleByFileId[fileKey] ?? getDefaultLinearLogYScaleForFile(file);
     }, [effectiveActiveFileId, getDefaultLinearLogYScaleForFile, persistedYScaleByFileId, processedData]);
@@ -1142,7 +1144,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         if (!fileKey)
             return activePersistedYScale;
         const file = processedData?.find((f: any) => String(f?.fileId ?? "").trim() === fileKey) ?? null;
-        if (isLinearDefaultCurve(file) && chartYScaleByFileId[fileKey] === undefined)
+        if (shouldUseStartupDefaultYScale(file) && chartYScaleByFileId[fileKey] === undefined)
             return getDefaultLinearLogYScaleForFile(file);
         return normalizeChartYScale(chartYScaleByFileId[fileKey] ?? activePersistedYScale);
     }, [activePersistedYScale, chartYScaleByFileId, effectiveActiveFileId, getDefaultLinearLogYScaleForFile, processedData]);
@@ -1466,7 +1468,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     }, [axisTitleOverridesByFileId]);
     const resolveLinearLogYScaleForFile = React.useCallback((fileLike: any): "linear" | "log" => {
         const fileKey = String(fileLike?.fileId ?? "").trim();
-        if (isLinearDefaultCurve(fileLike) && chartYScaleByFileId[fileKey] === undefined)
+        if (shouldUseStartupDefaultYScale(fileLike) && chartYScaleByFileId[fileKey] === undefined)
             return getDefaultLinearLogYScaleForFile(fileLike);
         if (fileKey && chartYScaleByFileId[fileKey] !== undefined)
             return normalizeLinearLogScale(chartYScaleByFileId[fileKey]);
@@ -1643,7 +1645,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         originExportMode,
         originExportContentKeys: resolvedOriginExportContentKeys,
         originAxisSettings: axis,
-        originHasManualAxisOverride: hasManualAxisOverride,
         originOpenPlotOptions,
         processedData,
         resolveCurveLabelForSeries: (file, series, index) => resolveDisplayLegendLabel(file?.fileId, series, index),

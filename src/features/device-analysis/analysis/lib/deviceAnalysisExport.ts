@@ -5,6 +5,7 @@ import {
   computeSubthresholdSwingFitInRange,
   resolveAutoSsSelection,
 } from "./analysisMath.ts";
+import { getCachedSsFitAuto } from "./analysisCacheAccess.ts";
 import { isTransferLikeDeviceAnalysisFile } from "./deviceAnalysisMetrics.ts";
 import { getExcelColumnLabel } from "../../shared/lib/deviceAnalysisUtils.ts";
 import type { ProcessedEntry, ProcessedSeries } from "../../shared/lib/sharedTypes";
@@ -187,6 +188,21 @@ const buildPoints = (xArr?: number[], yArr?: number[]): Array<{ x: number; y: nu
   return points;
 };
 
+const getOrComputeSsFitAuto = (
+  file: ProcessedEntry,
+  series: ProcessedSeries,
+  points: Array<{ x: number; y: number }>,
+): Partial<{ strict: SsFit; suggested: SsFit }> | null | undefined => {
+  const cached = getCachedSsFitAuto(file as any, series) as
+    | Partial<{ strict: SsFit; suggested: SsFit }>
+    | null
+    | undefined;
+  return cached ?? (computeSubthresholdSwingFitAuto(points) as
+    | Partial<{ strict: SsFit; suggested: SsFit }>
+    | null
+    | undefined);
+};
+
 export const buildDeviceAnalysisSsMetricsCsv = ({
   processedData = [],
   ssManualRanges,
@@ -262,19 +278,13 @@ export const buildDeviceAnalysisSsMetricsCsv = ({
           ss_reason: "not_transfer_curve",
         };
       } else if (method === "auto") {
-        const autoFit = computeSubthresholdSwingFitAuto(points) as
-          | Partial<{ strict: SsFit; suggested: SsFit }>
-          | null
-          | undefined;
+        const autoFit = getOrComputeSsFitAuto(file, series, points);
         const autoSelection = resolveAutoSsSelection(autoFit);
         fit = autoSelection.fit as SsFit;
         cls = autoSelection.classification as SsClassification;
         rangeSource = autoSelection.source ?? "";
       } else if (method === "manual") {
-        const autoFit = computeSubthresholdSwingFitAuto(points) as
-          | Partial<{ strict: SsFit; suggested: SsFit }>
-          | null
-          | undefined;
+        const autoFit = getOrComputeSsFitAuto(file, series, points);
         const storedRange =
           fileId && seriesId ? manualRanges?.[fileId]?.[seriesId] : null;
         const initialRange = storedRange

@@ -10,6 +10,8 @@ import {
 import {
   buildOriginAxisSpacingCommands,
   buildOriginAxisTitleCommands,
+  buildOriginXAxisRangeCommandsFromDisplayRange,
+  buildOriginYAxisRangeCommandsFromDisplayRange,
 } from "./originAxisCommands.ts";
 
 test("buildDeviceAnalysisSsMetricsCsv does not compute SS for output curves", () => {
@@ -45,6 +47,59 @@ test("buildDeviceAnalysisSsMetricsCsv does not compute SS for output curves", ()
   assert.equal(byHeader.ss_reason, "not_transfer_curve");
 });
 
+test("buildDeviceAnalysisSsMetricsCsv reuses cached Rust SS auto fits", () => {
+  const csv = buildDeviceAnalysisSsMetricsCsv({
+    processedData: [
+      {
+        fileId: "transfer-file",
+        fileName: "transfer.csv",
+        curveType: "transfer",
+        supportsSs: true,
+        xAxisRole: "vg",
+        xGroups: [[0, 1, 2]],
+        series: [
+          {
+            id: "curve-transfer",
+            name: "Vd=1",
+            groupIndex: 0,
+            y: [NaN, NaN, NaN],
+          },
+        ],
+        analysisCache: {
+          version: 2,
+          series: {
+            "curve-transfer": {
+              ssFitAuto: {
+                strict: {
+                  ok: true,
+                  ss: 77,
+                  x1: 0.25,
+                  x2: 1.25,
+                  r2: 0.999,
+                  decadeSpan: 1.4,
+                  n: 12,
+                  reason: "ok",
+                },
+              },
+            },
+          },
+        },
+      },
+    ],
+    ssMethod: "auto",
+  });
+
+  const rows = csv.split(/\r?\n/);
+  const headers = rows[0].split(",");
+  const values = rows[1].split(",");
+  const byHeader = Object.fromEntries(headers.map((header, index) => [header, values[index]]));
+
+  assert.equal(byHeader.ss, "77");
+  assert.equal(byHeader.ss_ok, "true");
+  assert.equal(byHeader.ss_x1, "0.25");
+  assert.equal(byHeader.ss_x2, "1.25");
+});
+
 test("buildOriginAxisSpacingCommands emits LabTalk spacing commands only for provided values", () => {
   assert.deepEqual(buildOriginAxisSpacingCommands(null), []);
   assert.deepEqual(
@@ -72,6 +127,23 @@ test("buildOriginAxisTitleCommands emits explicit Origin axis title commands", (
       "xb.fsize=22;",
       "yl.fsize=22;",
     ],
+  );
+});
+
+test("display-range Origin axis commands keep manual scale limits", () => {
+  assert.deepEqual(
+    buildOriginYAxisRangeCommandsFromDisplayRange("log", {
+      min: 1e-12,
+      max: 1e-6,
+    }),
+    ["layer.y.from=1e-12", "layer.y.to=1e-6", "layer.y.rescale=0"],
+  );
+  assert.deepEqual(
+    buildOriginXAxisRangeCommandsFromDisplayRange({
+      min: -1,
+      max: 1,
+    }),
+    ["layer.x.from=-1", "layer.x.to=1", "layer.x.rescale=0"],
   );
 });
 
@@ -420,6 +492,127 @@ test("buildDeviceAnalysisOriginExportPlan includes selected derived Origin expor
   assert.equal(metricsPayloads[0].csvText.includes("transfer_a.csv"), false);
   assert.equal(metricsPayloads[1].csvText.includes("output_a.csv"), false);
   assert.equal(metricsPayloads[0].csvText.includes("file_name,series,gm_max_abs"), false);
+});
+
+test("buildDeviceAnalysisOriginExportPlan uses grouped IV naming consistently", () => {
+  const file = {
+    fileId: "transfer-single",
+    fileName: "Transfer_DB__TLM_1.csv",
+    curveType: "transfer",
+    xAxisRole: "vg",
+    xGroups: [[0, 1, 2]],
+    series: [{ id: "curve-single", groupIndex: 0, y: [1e-12, 1e-10, 1e-8] }],
+    yUnit: "A",
+  };
+  const ivOnly = buildDeviceAnalysisOriginExportPlan(
+    [file],
+    undefined,
+    "merged",
+    () => "log",
+    () => 1,
+    () => 1,
+    () => "A",
+    undefined,
+    undefined,
+    undefined,
+    ["iv"],
+  );
+  const ivWithMetrics = buildDeviceAnalysisOriginExportPlan(
+    [file],
+    undefined,
+    "merged",
+    () => "log",
+    () => 1,
+    () => 1,
+    () => "A",
+    undefined,
+    undefined,
+    undefined,
+    ["iv", "metrics"],
+  );
+
+  assert.equal(ivOnly.payloads.length, 1);
+  assert.equal(ivWithMetrics.payloads.length, 2);
+  assert.equal(ivWithMetrics.payloads[0].workbookName, ivOnly.payloads[0].workbookName);
+  assert.equal(ivWithMetrics.payloads[0].sheetName, ivOnly.payloads[0].sheetName);
+  assert.equal(ivWithMetrics.payloads[0].workbookName, "Device Analysis");
+  assert.equal(ivWithMetrics.payloads[0].sheetName, "IV_Trans");
+  assert.equal(ivWithMetrics.payloads[0].sheetShortName, "IVTrans");
+});
+
+test("buildDeviceAnalysisOriginExportPlan reuses cached Rust metrics", () => {
+  const plan = buildDeviceAnalysisOriginExportPlan(
+    [
+      {
+        fileId: "transfer-cache",
+        fileName: "transfer_cache.csv",
+        curveType: "transfer",
+        xAxisRole: "vg",
+        xGroups: [[0, 1, 2]],
+        series: [
+          {
+            id: "curve-cache",
+            groupIndex: 0,
+            y: [NaN, NaN, NaN],
+          },
+        ],
+        analysisCache: {
+          version: 2,
+          series: {
+            "curve-cache": {
+              gm: [{ x: 1.5, y: -42 }],
+              ssFitAuto: {
+                strict: {
+                  ok: true,
+                  ss: 88,
+                  x1: 0.4,
+                  x2: 1.4,
+                  r2: 0.998,
+                  decadeSpan: 1.2,
+                  n: 10,
+                  reason: "ok",
+                },
+              },
+              baseCurrent: {
+                candidateWindows: [{ key: "minCurrent" }, { key: "maxCurrent" }],
+                ion: 5e-6,
+                ioff: 1e-9,
+                ionIoff: 5000,
+                xAtIon: 2,
+                xAtIoff: 0,
+              },
+            },
+          },
+        },
+      },
+    ],
+    undefined,
+    "merged",
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    ["metrics"],
+  );
+
+  const payload = plan.payloads.find((item) => /__metrics\.csv$/.test(item.csvName));
+  assert.ok(payload);
+  const values = payload.csvText.replace(/^\uFEFF/, "").trim().split(",");
+  const byHeader = Object.fromEntries(
+    payload.xColumnLongNames.map((header, index) => [header, values[index]]),
+  );
+
+  assert.equal(byHeader.gm_max_abs, "42");
+  assert.equal(byHeader.x_at_gm_max_abs, "1.5");
+  assert.equal(byHeader.ss, "88");
+  assert.equal(byHeader.ss_x1, "0.4");
+  assert.equal(byHeader.ss_x2, "1.4");
+  assert.equal(byHeader.ion, "0.000005");
+  assert.equal(byHeader.ioff, "1e-9");
+  assert.equal(byHeader.ion_ioff, "5000");
 });
 
 test("buildDeviceAnalysisOriginExportPlan exports SS as absolute current for Origin log plots", () => {

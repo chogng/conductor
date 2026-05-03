@@ -10,6 +10,11 @@ import {
   isOutputLikeDeviceAnalysisFile,
   isTransferLikeDeviceAnalysisFile,
 } from "./deviceAnalysisMetrics.ts";
+import {
+  getCachedBaseCurrent,
+  getCachedDerivativePoints,
+  getCachedSsFitAuto,
+} from "./analysisCacheAccess.ts";
 import { resolveOriginLogPositiveMinForRange } from "./originAxisCommands.ts";
 
 type ProcessedSeriesLike = {
@@ -21,6 +26,7 @@ type ProcessedSeriesLike = {
 };
 
 type ProcessedEntryLike = {
+  analysisCache?: unknown;
   fileId?: string;
   fileName?: string;
   xLabel?: string;
@@ -1024,13 +1030,16 @@ const buildDerivedSeriesList = (
   xGroups: number[][],
   seriesList: ProcessedSeriesLike[],
   resolveCurveLabelForSeries: ResolveCurveLabelForSeries,
-  deriveY: (points: Array<{ x: number; y: number }>) => number[],
+  deriveY: (
+    series: ProcessedSeriesLike,
+    points: Array<{ x: number; y: number }>,
+  ) => number[],
   hasUsableY: (values: number[]) => boolean,
 ): ProcessedSeriesLike[] =>
   seriesList
     .map((series) => {
       const points = buildPoints(xGroups[Number(series?.groupIndex)], series?.y);
-      const derivedY = deriveY(points);
+      const derivedY = deriveY(series, points);
       if (!hasUsableY(derivedY)) return null;
       return cloneSeriesWithDerivedY(
         {
@@ -1099,8 +1108,13 @@ const buildDerivedCurveFile = (
       xGroups,
       seriesList,
       resolveCurveLabelForSeries,
-      (points) => computeCentralDerivative(points)
-        .map((point: any) => (isFiniteNumber(point?.y) ? point.y : NaN)),
+      (series, points) => {
+        const cachedDerivative = getCachedDerivativePoints(file, series);
+        const derivative = cachedDerivative ?? computeCentralDerivative(points);
+        return derivative.map((point: any) =>
+          isFiniteNumber(point?.y) ? point.y : NaN,
+        );
+      },
       hasFiniteValue,
     );
     if (!derivedSeries.length) return null;
@@ -1122,7 +1136,7 @@ const buildDerivedCurveFile = (
       xGroups,
       seriesList,
       resolveCurveLabelForSeries,
-      (points) => points.map((point) =>
+      (_series, points) => points.map((point) =>
         isFiniteNumber(point?.y) ? Math.abs(point.y) : NaN,
       ),
       hasPositiveFiniteValue,
@@ -1145,7 +1159,7 @@ const buildDerivedCurveFile = (
       xGroups,
       seriesList,
       resolveCurveLabelForSeries,
-      (points) => points.map((point) =>
+      (_series, points) => points.map((point) =>
         isFiniteNumber(point?.y) ? Math.sqrt(Math.abs(point.y)) : NaN,
       ),
       hasFiniteValue,
@@ -1183,7 +1197,8 @@ const buildMetricsWorksheetExports = (
     for (const [index, series] of selectedSeries.entries()) {
       const points = buildPoints(xGroups[Number(series?.groupIndex)], series?.y);
       if (!points.length) continue;
-      const derivative = computeCentralDerivative(points);
+      const derivative =
+        getCachedDerivativePoints(file, series) ?? computeCentralDerivative(points);
       let derivativeMaxAbs = Number.NEGATIVE_INFINITY;
       let xAtDerivativeMaxAbs: number | null = null;
       for (const point of derivative as any[]) {
@@ -1200,13 +1215,18 @@ const buildMetricsWorksheetExports = (
       const electronVth = vthFits.find((fit) => fit.branch === "electron")?.vth ?? null;
       const holeVth = vthFits.find((fit) => fit.branch === "hole")?.vth ?? null;
       const ssSelection = supportsTransfer
-        ? resolveAutoSsSelection(computeSubthresholdSwingFitAuto(points) as any)
+        ? resolveAutoSsSelection(
+            (getCachedSsFitAuto(file, series) ??
+              computeSubthresholdSwingFitAuto(points)) as any,
+          )
         : null;
       const ssFit = ssSelection?.fit as any;
-      const baseMetrics = computeBaseCurrentMetrics({
-        points,
-        sourceFile: file,
-      } as any) as any;
+      const baseMetrics =
+        (getCachedBaseCurrent(file, series, supportsTransfer) as any) ??
+        (computeBaseCurrentMetrics({
+          points,
+          sourceFile: file,
+        } as any) as any);
       const row: Record<string, number | string> = {
         ion: isFiniteNumber(baseMetrics?.ion) ? baseMetrics.ion : "",
         ion_ioff: isFiniteNumber(baseMetrics?.ionIoff) ? baseMetrics.ionIoff : "",
@@ -1435,6 +1455,7 @@ export const buildDeviceAnalysisOriginExportPlan = (
   resolveAxisTitleForFile: ResolveAxisTitleForFile = () => "",
   resolveYValueForOriginFile: ResolveYValueForOriginFile = (_file, y) => y,
   contentKeys: readonly DeviceAnalysisOriginExportContentKey[] = ["iv"],
+  buildingIvGroup = false,
 ): DeviceAnalysisOriginExportPlan => {
   const liveCanvases = (Array.isArray(selectedCanvases) ? selectedCanvases : []).filter(
     (file): file is ProcessedEntryLike => Boolean(file),
@@ -1453,7 +1474,8 @@ export const buildDeviceAnalysisOriginExportPlan = (
   if (
     normalizedContentKeys.length > 1 ||
     normalizedContentKeys[0] !== "iv" ||
-    ivGroups.length > 1
+    ivGroups.length > 1 ||
+    (!buildingIvGroup && ivGroups.length === 1 && ivGroups[0]?.sheetName !== "IV")
   ) {
     const entries: Array<{
       contentKey: DeviceAnalysisOriginExportContentKey;
@@ -1486,6 +1508,7 @@ export const buildDeviceAnalysisOriginExportPlan = (
             resolveAxisTitleForFile,
             resolveYValueForOriginFile,
             ["iv"],
+            true,
           ).payloads;
           entries.push(
             ...nextPayloads.map((payload) => ({
@@ -1530,9 +1553,9 @@ export const buildDeviceAnalysisOriginExportPlan = (
     }, new Map<DeviceAnalysisOriginExportContentKey, number>());
     const contentSeen = new Map<DeviceAnalysisOriginExportContentKey, number>();
     const contentWorkbookName =
-      liveCanvases.length === 1
+      (liveCanvases.length === 1
         ? "Device Analysis"
-        : `Device Analysis ${liveCanvases.length} files`;
+        : `Device Analysis ${liveCanvases.length} files`);
     const payloads = entries.map((entry) => {
       if (entry.contentKey === "iv" && entry.payload.sheetShortName) {
         return applyOriginSheetDisplayName(

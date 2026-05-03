@@ -451,18 +451,18 @@ def run_csv_import(
             warning_logger=warning_logger,
             label_prefix=label_prefix,
         )
+    if sheet_short_name:
+        try_set_origin_sheet_short_name(
+            op_module,
+            sheet_short_name,
+            warning_logger=warning_logger,
+            label_prefix=label_prefix,
+        )
     if sheet_long_name:
         try_set_origin_long_name(
             op_module,
             "sheet",
             sheet_long_name,
-            warning_logger=warning_logger,
-            label_prefix=label_prefix,
-        )
-    if sheet_short_name:
-        try_set_origin_sheet_short_name(
-            op_module,
-            sheet_short_name,
             warning_logger=warning_logger,
             label_prefix=label_prefix,
         )

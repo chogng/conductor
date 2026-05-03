@@ -77,7 +77,6 @@ type UseOriginCanvasExportOptions = {
   originExportMode?: unknown;
   originExportContentKeys?: DeviceAnalysisOriginExportContentKey[];
   originAxisSettings?: unknown;
-  originHasManualAxisOverride?: boolean;
   originOpenPlotOptions: unknown;
   processedData: any[];
   resolveYScaleForFile?: (
@@ -285,7 +284,6 @@ export const useOriginCanvasExport = ({
   originExportMode,
   originExportContentKeys = ["iv"],
   originAxisSettings,
-  originHasManualAxisOverride = false,
   originOpenPlotOptions,
   processedData,
   resolveCurveLabelForSeries = (_file, series, index) =>
@@ -1014,10 +1012,7 @@ export const useOriginCanvasExport = ({
         );
         const shouldUseDisplayRange =
           payload.skipDisplayRange !== true &&
-          originHasManualAxisOverride &&
-          payload.fileIds.length === 1 &&
-          payload.fileIds[0] === String(effectiveActiveFileId ?? "") &&
-          selectedOriginCanvases.length === 1;
+          Boolean(chartYRange);
         const originYScaleMode: DeviceAnalysisOriginYAxisScaleMode =
           shouldUseDisplayRange && chartYRange?.mode
             ? chartYRange.mode
@@ -1090,22 +1085,6 @@ export const useOriginCanvasExport = ({
                 scale: originYScaleMode,
               },
         };
-        console.info("[origin-export] axis payload", {
-          csvName: payload.csvName,
-          fileIds: payload.fileIds,
-          shouldUseDisplayRange,
-          xRangeSource: shouldUseDisplayRange ? "chart-display" : "payload-data",
-          yRangeSource: displayRangeCommands.length
-            ? "chart-display"
-            : autoYRangeCommands.length
-              ? "payload-auto"
-              : "none",
-          chartXRange,
-          chartYRange,
-          originYScaleMode,
-          axisCommands: originAxisCommands,
-        });
-
         return {
           csv: {
             name: payload.csvName,
@@ -1280,7 +1259,6 @@ export const useOriginCanvasExport = ({
     originChartXRangeRef,
     originChartYRangeRef,
     originAxisSettings,
-    originHasManualAxisOverride,
     originOpenPlotOptions,
     selectedOriginCanvases,
     showToast,
