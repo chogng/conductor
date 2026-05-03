@@ -68,4 +68,3 @@ These paths are intentionally ignored by Git and can be regenerated:
 - Add new long-form implementation notes under `docs/`.
 - Update `README.md`, `README.zh-CN.md`, and this file when a new top-level
   directory or core command is added.
-

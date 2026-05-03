@@ -109,12 +109,12 @@ function buildInstantBootHtml() {
   <div class="boot-pane">
     <div class="boot-pane-content">
       ${logoUrl ? `<img class="boot-pane-logo" src="${logoUrl}" alt="" />` : ""}
-      <h1 class="boot-pane-brand" data-boot-brand="true" data-boot-text="Conductor">Conductor</h1>
+      <h1 class="boot-pane-brand" data-boot-brand="true" data-boot-text="Conductor Studio">Conductor Studio</h1>
     </div>
   </div>
   <script>
     (function () {
-      var finalText = "Conductor";
+      var finalText = "Conductor Studio";
       var chars = "abcdefghijklmnopqrstuvwxyz";
       var frame = 0;
       function nextText() {

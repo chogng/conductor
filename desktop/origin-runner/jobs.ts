@@ -181,9 +181,10 @@ function buildHealthCheckPythonRunnerStartError(
 
 function buildNativeRunnerStartError(
   error: unknown,
-  { logPath, originExe, stage, message, code }: {
+  { logPath, originExe, workerExe, stage, message, code }: {
     logPath: string;
     originExe: string;
+    workerExe?: string | null;
     stage: string;
     message: string;
     code?: string;
@@ -195,6 +196,7 @@ function buildNativeRunnerStartError(
     message: getErrorMessage(error) || message,
     logPath,
     originExe,
+    workerExe,
   });
 }
 
@@ -470,6 +472,7 @@ export async function runOriginCsvJob({
         code: "ORIGIN_CSV_RUNNER_FAILED",
         logPath,
         originExe: normalizedOriginExePath,
+        workerExe: normalizedWorkerExecutablePath,
         stage: "NATIVE_RUNNER",
         message: "Failed to run Origin CSV native worker executable.",
       });
@@ -636,6 +639,7 @@ export async function runOriginCsvBatchJob({
         code: "ORIGIN_CSV_RUNNER_FAILED",
         logPath,
         originExe: normalizedOriginExePath,
+        workerExe: normalizedWorkerExecutablePath,
         stage: "NATIVE_RUNNER",
         message: "Failed to run Origin CSV native worker executable.",
       });
@@ -775,6 +779,7 @@ export async function runOriginHealthCheck({
         code: "ORIGIN_HEALTH_CHECK_RUNNER_FAILED",
         logPath,
         originExe: normalizedOriginExePath,
+        workerExe: normalizedWorkerExecutablePath,
         stage: "HEALTH_CHECK_NATIVE_RUNNER",
         message: "Failed to run Origin health-check native worker executable.",
       });

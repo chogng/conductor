@@ -1,6 +1,6 @@
 !macro customUnInstallSection
-  Section /o "Delete Conductor local data" SEC_DELETE_CONDUCTOR_LOCAL_DATA
-    # Remove the files and folders Conductor creates under app.getPath("home")\.device.
+  Section /o "Delete Conductor Studio local data" SEC_DELETE_CONDUCTOR_LOCAL_DATA
+    # Remove the files and folders Conductor Studio creates under app.getPath("home")\.device.
     Delete "$PROFILE\.device\config.json"
     Delete "$PROFILE\.device\template.json"
     Delete "$PROFILE\.device\store-path.json"

@@ -1,13 +1,13 @@
-# Conductor
+# Conductor Studio
 
 English | [中文](./README.zh-CN.md)
 
-Conductor is a desktop-first analysis tool for semiconductor device test data.
+Conductor Studio is a desktop-first analysis tool for semiconductor device test data.
 It turns folders of raw CSV/Excel measurements into extracted curves,
 diagnostic plots, calculated parameters, and Origin-ready datasets.
 
 It is built for lab workflows where the same measurement format appears again
-and again: import a batch once, teach Conductor where the X/Y data and labels
+and again: import a batch once, teach Conductor Studio where the X/Y data and labels
 live, save that rule as a template, then reuse it across future experiments.
 
 ## What It Helps With
@@ -112,7 +112,9 @@ Build and package:
 
 - `npm run build`: build the Web app
 - `npm run pack:desktop`: build and package desktop output without an installer
-- `npm run dist:desktop`: build desktop installers/artifacts
+- `npm run dist:desktop:store`: build the Microsoft Store AppX package
+- `npm run dist:desktop:exe`: build the legacy Windows installer/zip artifacts
+- `npm run dist:desktop`: alias-compatible legacy desktop installers/artifacts build
 - `npm run pack:desktop:oneclick`: one-click desktop dir packaging
 - `npm run dist:desktop:oneclick`: one-click desktop installer build
 
@@ -158,9 +160,10 @@ release/
 
 Windows naming:
 
-- installer: `conductor-${version}-windows-${arch}-setup.exe`
-- portable zip: `conductor-${version}-windows-${arch}-portable.zip`
-- portable 7z: `conductor-${version}-windows-${arch}-portable.7z`
+- Store package: `Conductor-Studio-${version}-windows-${arch}-store.appx`
+- installer: `Conductor-Studio-${version}-windows-${arch}-setup.exe`
+- portable zip: `Conductor-Studio-${version}-windows-${arch}-portable.zip`
+- portable 7z: `Conductor-Studio-${version}-windows-${arch}-portable.7z`
 
 Other platforms use:
 
@@ -269,6 +272,28 @@ Recommended release flow:
 5. verify the release contains `latest.yml`, installer, and matching blockmap files
 
 Reference: [docs/desktop-auto-update.md](./docs/desktop-auto-update.md)
+
+## Microsoft Store
+
+The preferred Windows distribution path is Microsoft Store AppX/MSIX:
+
+```powershell
+npm run dist:desktop:store
+```
+
+This builds one package that includes the Electron app, the Rust Excel
+converter, and the Origin CSV worker as installed app resources. Store
+submission signs the final package through Microsoft, so this route does not
+require a separate paid code-signing certificate.
+
+Keep the legacy EXE path available for non-Store distribution:
+
+```powershell
+npm run dist:desktop:exe
+```
+
+Before the first Store submission, reserve the app in Partner Center and copy
+the assigned package identity values into `build.appx` in `package.json`.
 
 ## Icons
 

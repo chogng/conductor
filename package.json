@@ -28,6 +28,8 @@
     "build:desktop": "node scripts/build-desktop.mjs",
     "pack:desktop": "npm run build:desktop && npm run verify:origin-worker && electron-builder --dir",
     "dist:desktop": "npm run build:desktop && npm run verify:origin-worker && electron-builder",
+    "dist:desktop:exe": "npm run dist:desktop",
+    "dist:desktop:store": "npm run build:desktop && npm run verify:origin-worker && electron-builder --win appx --publish never --config.win.signAndEditExecutable=false",
     "dist:desktop:oneclick": "node scripts/run-powershell.mjs scripts/pack-desktop-oneclick.ps1",
     "pack:desktop:oneclick": "node scripts/run-powershell.mjs scripts/pack-desktop-oneclick.ps1 -DirOnly",
     "verify:auto-update-config": "node --experimental-strip-types scripts/verify-auto-update-config.ts",
@@ -65,7 +67,7 @@
   },
   "build": {
     "appId": "com.conductor.desktop",
-    "productName": "Conductor",
+    "productName": "Conductor Studio",
     "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "compression": "maximum",
     "electronLanguages": [
@@ -82,11 +84,20 @@
     "files": [
       "dist/**/*",
       "desktop-dist/**/*",
-      "excel/bin/rust-xls-converter.exe",
-      "origin/bin/**/*",
       "package.json"
     ],
     "extraResources": [
+      {
+        "from": "excel/bin",
+        "to": "excel/bin",
+        "filter": [
+          "rust-xls-converter.exe"
+        ]
+      },
+      {
+        "from": "origin/bin",
+        "to": "origin/bin"
+      },
       {
         "from": "build/icons",
         "to": "build/icons"
@@ -97,10 +108,7 @@
       }
     ],
     "asar": true,
-    "asarUnpack": [
-      "excel/bin/rust-xls-converter.exe",
-      "origin/bin/**/*"
-    ],
+    "removePackageScripts": true,
     "publish": [
       {
         "provider": "github",
@@ -119,15 +127,26 @@
     },
     "win": {
       "icon": "build/icons/icon.ico",
-      "artifactName": "Conductor-${version}-windows-${arch}-portable.${ext}",
+      "artifactName": "Conductor-Studio-${version}-windows-${arch}-portable.${ext}",
       "signAndEditExecutable": true,
       "target": [
         "nsis",
         "zip"
       ]
     },
+    "appx": {
+      "artifactName": "Conductor-Studio-${version}-windows-${arch}-store.${ext}",
+      "identityName": "chogng.ConductorStudio",
+      "publisher": "CN=82B0186C-891B-4B58-89CA-F57F45BC1D84",
+      "displayName": "Conductor Studio",
+      "publisherDisplayName": "chogng",
+      "languages": [
+        "en-US",
+        "zh-CN"
+      ]
+    },
     "nsis": {
-      "artifactName": "Conductor-${version}-windows-${arch}-setup.${ext}",
+      "artifactName": "Conductor-Studio-${version}-windows-${arch}-setup.${ext}",
       "installerIcon": "build/icons/icon.ico",
       "uninstallerIcon": "build/icons/icon.ico",
       "installerHeaderIcon": "build/icons/icon.ico",

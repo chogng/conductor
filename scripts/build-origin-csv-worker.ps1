@@ -153,6 +153,12 @@ while ($versionNumbers.Count -lt 4) {
 $versionNumbers = $versionNumbers[0..3]
 $versionTuple = $versionNumbers -join ", "
 $versionString = $versionNumbers -join "."
+$companyName = "chogng"
+$productName = "Conductor Studio"
+$fileDescription = "Conductor Studio OriginPro CSV Import Worker"
+$legalCopyright = "Copyright (c) chogng. All rights reserved."
+$comments = "Runs local OriginPro CSV import and plotting jobs for Conductor Studio. Uses the OriginLab originpro Python package and does not provide network services."
+$specialBuild = "expectedTag=$expectedTag; gitTag=$gitTag; gitCommit=$gitCommit"
 
 @"
 VSVersionInfo(
@@ -171,13 +177,16 @@ VSVersionInfo(
       StringTable(
         '040904B0',
         [
-          StringStruct('CompanyName', 'Conductor'),
-          StringStruct('FileDescription', 'Conductor Origin CSV Worker'),
+          StringStruct('CompanyName', '$companyName'),
+          StringStruct('FileDescription', '$fileDescription'),
           StringStruct('FileVersion', '$versionString'),
           StringStruct('InternalName', 'origin-csv-worker'),
+          StringStruct('LegalCopyright', '$legalCopyright'),
           StringStruct('OriginalFilename', 'origin-csv-worker.exe'),
-          StringStruct('ProductName', 'Conductor'),
-          StringStruct('ProductVersion', '$versionString')
+          StringStruct('ProductName', '$productName'),
+          StringStruct('ProductVersion', '$versionString'),
+          StringStruct('SpecialBuild', '$specialBuild'),
+          StringStruct('Comments', '$comments')
         ]
       )
     ]),
@@ -256,6 +265,11 @@ if (-not (Test-Path -LiteralPath $venvPython)) {
 
 if (-not (Test-Path -LiteralPath $venvPython)) {
   throw "Venv python executable not found: $venvPython"
+}
+
+$venvActualPy = Get-PythonMajorMinorFromExe -PythonExe $venvPython
+if ($requiredPy -and $venvActualPy -and $venvActualPy -ne $requiredPy) {
+  throw "Existing worker venv uses Python $venvActualPy but $requiredPy is required: $VenvDir. Remove the venv and rerun the build, or pass -PythonVersion $venvActualPy intentionally."
 }
 
 $installArgs = @("-m", "pip", "install") + $packages

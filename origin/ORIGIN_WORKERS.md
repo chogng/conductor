@@ -37,6 +37,11 @@ The default build uses PyInstaller `--onedir` at
 self-extracting `--onefile` stub, which can fail under antivirus controls when
 extracting bundled DLLs. Use `-OneFile` only when you specifically need a
 single executable for debugging or distribution experiments.
+
+The packaged worker is launched directly from this fixed resource path. The
+desktop app does not create a PowerShell launcher fallback for the packaged
+worker; if the executable cannot start, the app reports the worker path and
+error so the user or support team can inspect the file directly.
 The build also disables UPX compression, applies the project icon when available, and
 writes Windows version metadata so the worker looks less like an anonymous packed binary.
 

@@ -92,8 +92,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build desktop artifacts
-        run: npm run dist:desktop
+      - name: Build desktop EXE/ZIP artifacts
+        run: npm run dist:desktop:exe
+
+      - name: Build Microsoft Store AppX artifact
+        run: npm run dist:desktop:store
 
       - name: Inspect Windows signatures
         id: signature_meta
@@ -193,7 +196,7 @@ jobs:
           WINDOWS_SIGNER_SUBJECT: ${{ steps.signature_meta.outputs.subject }}
         run: |
           $artifacts = Get-ChildItem -Path "release" -File |
-            Where-Object { $_.Extension -in '.exe', '.zip' } |
+            Where-Object { $_.Extension -in '.exe', '.zip', '.appx', '.msix' } |
             Sort-Object Name
 
           if (-not $artifacts) {
@@ -219,7 +222,8 @@ jobs:
               "These Windows binaries are Authenticode-signed by $publisher."
               ""
               "Recommended package:"
-              "- Prefer the *-setup.exe installer for normal installs."
+              "- Prefer the *-setup.exe installer for non-Store installs."
+              "- Use the *-store.appx package for Microsoft Store submission."
               "- Use the *-portable.zip archive for the broadest compatibility."
               ""
               "How to verify a download in PowerShell:"
@@ -237,7 +241,8 @@ jobs:
               "These Windows binaries are unsigned. Microsoft Defender SmartScreen may show an 'Unknown publisher' warning the first time they are opened."
               ""
               "Recommended package:"
-              "- Prefer the *-setup.exe installer for normal installs."
+              "- Prefer the *-setup.exe installer for non-Store installs."
+              "- Use the *-store.appx package for Microsoft Store submission."
               "- Use the *-portable.zip archive for the broadest compatibility."
               ""
               "How to verify a download in PowerShell:"
@@ -293,4 +298,5 @@ jobs:
           } else {
             Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '- Signing: executable artifacts are unsigned, so SmartScreen may show an unknown publisher warning.'
           }
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '- Microsoft Store: built the `*-store.appx` package and mirrored it to the source repo release for Partner Center upload.'
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '- Source repo (`chogng/conductor`): mirrored full `release/` assets including `SHA256SUMS.txt`, `WINDOWS-DOWNLOADS.txt`, and `WINDOWS-SIGNATURES.txt`.'

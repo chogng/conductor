@@ -108,7 +108,7 @@ When those secrets are configured, CI signs Windows executables and writes signa
 Users can verify a download in PowerShell:
 
 ```powershell
-Get-FileHash '.\conductor-<version>-windows-x64-setup.exe' -Algorithm SHA256
+Get-FileHash '.\Conductor-Studio-<version>-windows-x64-setup.exe' -Algorithm SHA256
 ```
 
 Compare the printed SHA256 value with the matching line in `SHA256SUMS.txt` from the same GitHub Release.
@@ -116,7 +116,7 @@ Compare the printed SHA256 value with the matching line in `SHA256SUMS.txt` from
 They can also verify Authenticode signing:
 
 ```powershell
-Get-AuthenticodeSignature '.\conductor-<version>-windows-x64-setup.exe'
+Get-AuthenticodeSignature '.\Conductor-Studio-<version>-windows-x64-setup.exe'
 ```
 
 Expected result for a correctly signed build: `Status` should be `Valid`.

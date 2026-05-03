@@ -32,6 +32,7 @@ type ParsedOriginBridgeError = {
   hresult: string | null;
   logPath: string | null;
   originExe: string | null;
+  workerExe: string | null;
   message: string;
   rawMessage: string;
 };
@@ -47,6 +48,7 @@ type OriginBridgeErrorPayload = Partial<{
   hresult: string;
   logPath: string;
   originExe: string;
+  workerExe: string;
   message: string;
 }>;
 
@@ -156,6 +158,7 @@ const parseOriginBridgeError = (
       hresult: null,
       logPath: null,
       originExe: null,
+      workerExe: null,
       message: "__ORIGIN_EXE_REQUIRED__",
       rawMessage: messageText,
     };
@@ -169,6 +172,7 @@ const parseOriginBridgeError = (
       hresult: null,
       logPath: null,
       originExe: null,
+      workerExe: null,
       message: messageText || "Unknown error",
       rawMessage: messageText,
     };
@@ -180,6 +184,7 @@ const parseOriginBridgeError = (
     hresult: toTrimmedString(payload.hresult) || null,
     logPath: toTrimmedString(payload.logPath) || null,
     originExe: toTrimmedString(payload.originExe) || null,
+    workerExe: toTrimmedString(payload.workerExe) || null,
     message: toTrimmedString(payload.message) || "Origin worker failed.",
     rawMessage: messageText,
   };
@@ -255,6 +260,9 @@ export const formatOriginBridgeError = (
   }
   if (detail.originExe) {
     chunks.push(t("da_origin_error_origin_exe", { path: detail.originExe }));
+  }
+  if (detail.workerExe) {
+    chunks.push(t("da_origin_error_worker_exe", { path: detail.workerExe }));
   }
   if (suggestionText && suggestionText !== suggestionKey) {
     chunks.push(suggestionText);

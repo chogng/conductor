@@ -53,6 +53,17 @@ type PythonBatchOptions = RunProcessOptions & {
   requiredModule?: unknown;
 };
 
+function getErrorCode(error: unknown): string {
+  const code = Reflect.get(error && typeof error === "object" ? error : {}, "code");
+  return typeof code === "string" ? code : "";
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error && error.message
+    ? error.message
+    : String(error || "Unknown error");
+}
+
 export function appendOriginPlotWorkerArgs(
   baseArgs: string[],
   plotOptions: OriginPlotWorkerOptions = {},
@@ -218,11 +229,21 @@ export async function runNativeCsvWorker(
     throw error;
   }
 
-  const result = await runProcess(workerExecutablePath, workerArgs, options);
-  return {
-    ...result,
-    executable: workerExecutablePath,
-  };
+  try {
+    const result = await runProcess(workerExecutablePath, workerArgs, options);
+    return {
+      ...result,
+      executable: workerExecutablePath,
+    };
+  } catch (error) {
+    const message =
+      `Unable to start bundled Origin CSV worker: ${getErrorMessage(error)}. ` +
+      `Worker: ${workerExecutablePath}.`;
+    const launchError = new Error(message);
+    Reflect.set(launchError, "code", getErrorCode(error));
+    Reflect.set(launchError, "workerExecutablePath", workerExecutablePath);
+    throw launchError;
+  }
 }
 
 function collectPreferredPythonExecutables(): string[] {

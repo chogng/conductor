@@ -7,6 +7,7 @@ export type OriginErrorPayload = {
   hresult?: string | null;
   logPath?: string | null;
   originExe?: string | null;
+  workerExe?: string | null;
 };
 
 export type NormalizedOriginErrorPayload = {
@@ -16,6 +17,7 @@ export type NormalizedOriginErrorPayload = {
   hresult: string | null;
   logPath: string | null;
   originExe: string | null;
+  workerExe: string | null;
 };
 
 function readTrimmedString(source: unknown, key: string): string | null {
@@ -57,6 +59,10 @@ export function normalizeOriginErrorPayload(
     readTrimmedString(rawPayload, "originExe") ||
     readTrimmedString(fallback, "originExe");
 
+  const normalizedWorkerExe =
+    readTrimmedString(rawPayload, "workerExe") ||
+    readTrimmedString(fallback, "workerExe");
+
   return {
     code: normalizedCode,
     stage: normalizedStage,
@@ -64,6 +70,7 @@ export function normalizeOriginErrorPayload(
     hresult: normalizedHResult,
     logPath: normalizedLogPath,
     originExe: normalizedOriginExe,
+    workerExe: normalizedWorkerExe,
   };
 }
 

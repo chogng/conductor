@@ -86,6 +86,98 @@ if (expectedVersion && workerVersion !== expectedVersion) {
   process.exit(1);
 }
 
+const normalizeFileVersion = (value) =>
+  String(value || "")
+    .trim()
+    .split(".")
+    .map((part) => {
+      const parsed = Number.parseInt(part, 10);
+      return Number.isFinite(parsed) ? String(parsed) : "0";
+    })
+    .join(".")
+    .replace(/(?:\.0)+$/, "");
+
+const queryWindowsVersionInfo = (exePath) => {
+  const psExePath = String(exePath).replaceAll("'", "''");
+  const script = [
+    "$ErrorActionPreference = 'Stop'",
+    `$item = Get-Item -LiteralPath '${psExePath}'`,
+    "$v = $item.VersionInfo",
+    "[ordered]@{",
+    "  CompanyName = [string]$v.CompanyName",
+    "  FileDescription = [string]$v.FileDescription",
+    "  FileVersion = [string]$v.FileVersion",
+    "  InternalName = [string]$v.InternalName",
+    "  LegalCopyright = [string]$v.LegalCopyright",
+    "  OriginalFilename = [string]$v.OriginalFilename",
+    "  ProductName = [string]$v.ProductName",
+    "  ProductVersion = [string]$v.ProductVersion",
+    "  Comments = [string]$v.Comments",
+    "  SpecialBuild = [string]$v.SpecialBuild",
+    "} | ConvertTo-Json -Compress",
+  ].join("\n");
+
+  const result = spawnSync(
+    "powershell.exe",
+    ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", script],
+    { encoding: "utf8", windowsHide: true },
+  );
+  if ((result.status ?? 1) !== 0) {
+    const detail = result.stderr?.trim() || result.stdout?.trim() || "unknown error";
+    throw new Error(detail);
+  }
+  return JSON.parse(String(result.stdout || "").trim());
+};
+
+let fileVersionInfo = null;
+try {
+  fileVersionInfo = queryWindowsVersionInfo(existing);
+} catch (error) {
+  console.error("[verify-origin-worker] Failed to query Windows file version metadata.");
+  console.error(`[verify-origin-worker] Path: ${existing}`);
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exit(1);
+}
+
+const requiredVersionInfo = {
+  CompanyName: "chogng",
+  FileDescription: "Conductor Studio OriginPro CSV Import Worker",
+  InternalName: "origin-csv-worker",
+  OriginalFilename: "origin-csv-worker.exe",
+  ProductName: "Conductor Studio",
+};
+for (const [key, expected] of Object.entries(requiredVersionInfo)) {
+  const actual = String(fileVersionInfo?.[key] || "").trim();
+  if (actual !== expected) {
+    console.error(
+      `[verify-origin-worker] Windows VersionInfo mismatch for ${key}. expected=${JSON.stringify(expected)} actual=${JSON.stringify(actual)}.`,
+    );
+    console.error(`[verify-origin-worker] Path: ${existing}`);
+    process.exit(1);
+  }
+}
+
+if (expectedVersion) {
+  const expectedNormalized = normalizeFileVersion(expectedVersion);
+  for (const key of ["FileVersion", "ProductVersion"]) {
+    const actualNormalized = normalizeFileVersion(fileVersionInfo?.[key]);
+    if (actualNormalized !== expectedNormalized) {
+      console.error(
+        `[verify-origin-worker] Windows VersionInfo mismatch for ${key}. expected=${expectedNormalized} actual=${actualNormalized}.`,
+      );
+      console.error(`[verify-origin-worker] Path: ${existing}`);
+      process.exit(1);
+    }
+  }
+}
+
+const comments = String(fileVersionInfo?.Comments || "");
+if (!comments.includes("local OriginPro CSV import") || !comments.includes("does not provide network services")) {
+  console.error("[verify-origin-worker] Windows VersionInfo Comments does not describe the local/no-network worker behavior.");
+  console.error(`[verify-origin-worker] Path: ${existing}`);
+  process.exit(1);
+}
+
 const details = [
   `version=${workerVersion}`,
   metadata?.mode ? `mode=${metadata.mode}` : "",

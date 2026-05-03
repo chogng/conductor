@@ -45,12 +45,15 @@ const devUrl =
 const AUTO_UPDATE_INITIAL_DELAY_MS = 15 * 1000;
 const AUTO_UPDATE_INTERVAL_MS = 4 * 60 * 60 * 1000;
 const AUTO_UPDATE_SUPPORTED_PLATFORMS = new Set(["win32"]);
+const isWindowsStorePackage =
+  process.platform === "win32" && Reflect.get(process, "windowsStore") === true;
 const PACKAGED_AUTO_UPDATE_CONFIG = {
   provider: "github",
   owner: "chogng",
   repo: "conductor-update",
   releaseType: "release",
 };
+const APP_DISPLAY_NAME = "Conductor Studio";
 const DESKTOP_APP_USER_MODEL_ID = "com.conductor.desktop";
 const DEVICE_ANALYSIS_DEMO_FILE_NAMES = [
   "demo-01.csv",
@@ -71,7 +74,10 @@ const BOOT_WINDOW_SETTLE_MS = 80;
 const BOOT_UI_READY_FALLBACK_MS = 3500;
 const DEVICE_ANALYSIS_RUST_PROCESSING_POOL_SIZE = Math.max(
   1,
-  Math.min(4, Number(process.env.CONDUCTOR_RUST_PROCESSING_POOL_SIZE) || 2),
+  Math.min(
+    4,
+    Number(process.env.CONDUCTOR_RUST_PROCESSING_POOL_SIZE) || 2,
+  ),
 );
 let mainWindow = null;
 let splashWindow = null;
@@ -775,7 +781,9 @@ function isSupportedRustDeviceAnalysisInputPath(filePath) {
 }
 
 function resolveRustExcelConverterPath() {
-  const envPath = normalizeAbsoluteFilePath(process.env.CONDUCTOR_RUST_XLS_CONVERTER_PATH);
+  const envPath = normalizeAbsoluteFilePath(
+    process.env.CONDUCTOR_RUST_XLS_CONVERTER_PATH,
+  );
   const candidates = [
     envPath,
     path.join(getResourcesPath(), "excel", "bin", "rust-xls-converter.exe"),
@@ -2533,7 +2541,7 @@ async function checkForAutoUpdates({ manual = false } = {}) {
       const windowForDialog = getAutoUpdateDialogWindow();
       await dialog.showMessageBox(windowForDialog || undefined, {
         type: "info",
-        title: "Conductor",
+        title: APP_DISPLAY_NAME,
         message: "Auto update is not enabled in this build.",
         buttons: ["OK"],
         defaultId: 0,
@@ -2549,7 +2557,7 @@ async function checkForAutoUpdates({ manual = false } = {}) {
       const windowForDialog = getAutoUpdateDialogWindow();
       await dialog.showMessageBox(windowForDialog || undefined, {
         type: "info",
-        title: "Conductor",
+        title: APP_DISPLAY_NAME,
         message: "You are already using the latest version.",
         buttons: ["OK"],
         defaultId: 0,
@@ -2566,7 +2574,7 @@ async function checkForAutoUpdates({ manual = false } = {}) {
       const windowForDialog = getAutoUpdateDialogWindow();
       await dialog.showMessageBox(windowForDialog || undefined, {
         type: "error",
-        title: "Conductor",
+        title: APP_DISPLAY_NAME,
         message: "检查更新失败",
         detail: `${getAutoUpdateFailureDetail(error)}\n\n请确认网络或代理设置后重试。`,
         buttons: ["确定"],
@@ -2610,6 +2618,11 @@ async function checkForAutoUpdatesAndInstall() {
 
 async function setupAutoUpdates() {
   if (!app.isPackaged) return;
+  if (isWindowsStorePackage) {
+    console.info("[auto-update] Skipped for Microsoft Store package.");
+    setAutoUpdateStatus("disabled");
+    return;
+  }
   if (!AUTO_UPDATE_SUPPORTED_PLATFORMS.has(process.platform)) {
     console.info("[auto-update] Skipped for unsupported platform:", process.platform);
     setAutoUpdateStatus("unsupported");
@@ -2749,7 +2762,7 @@ function showTrayHint() {
   if (settings?.trayMinimizeHintShown) return;
 
   appTray.displayBalloon({
-    title: "Conductor",
+    title: APP_DISPLAY_NAME,
     content: "应用仍在后台运行，可从系统托盘恢复或退出。",
     noSound: true,
   });
@@ -2826,7 +2839,7 @@ function createAppTray() {
   }
 
   appTray = new Tray(trayIconPath);
-  appTray.setToolTip("Conductor");
+  appTray.setToolTip(APP_DISPLAY_NAME);
   appTray.on("click", () => {
     void ensureMainWindowVisible();
   });

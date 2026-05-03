@@ -1,10 +1,10 @@
-# Conductor
+# Conductor Studio
 
 [English](./README.md) | 中文
 
-Conductor 是一款面向半导体器件测试数据的桌面优先分析工具。它把成批的 CSV/Excel 原始测试文件整理成可提取的曲线、诊断图、计算参数，以及可以直接交给 Origin 继续出图的数据。
+Conductor Studio 是一款面向半导体器件测试数据的桌面优先分析工具。它把成批的 CSV/Excel 原始测试文件整理成可提取的曲线、诊断图、计算参数，以及可以直接交给 Origin 继续出图的数据。
 
-它适合实验室里反复出现的测试格式：先导入一批文件，告诉 Conductor X/Y 数据、图例和标签在哪里，把这套规则保存成模板，后续同类实验就能直接复用。
+它适合实验室里反复出现的测试格式：先导入一批文件，告诉 Conductor Studio X/Y 数据、图例和标签在哪里，把这套规则保存成模板，后续同类实验就能直接复用。
 
 ## 它解决什么问题
 
@@ -138,9 +138,10 @@ release/
 
 Windows 命名：
 
-- 安装器：`conductor-${version}-windows-${arch}-setup.exe`
-- 便携 zip：`conductor-${version}-windows-${arch}-portable.zip`
-- 便携 7z：`conductor-${version}-windows-${arch}-portable.7z`
+- Store package：`Conductor-Studio-${version}-windows-${arch}-store.appx`
+- 安装器：`Conductor-Studio-${version}-windows-${arch}-setup.exe`
+- 便携 zip：`Conductor-Studio-${version}-windows-${arch}-portable.zip`
+- 便携 7z：`Conductor-Studio-${version}-windows-${arch}-portable.7z`
 
 其他平台使用：
 

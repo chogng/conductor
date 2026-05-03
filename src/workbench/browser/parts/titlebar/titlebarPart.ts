@@ -4,7 +4,7 @@ import type { TranslateFn } from "../../../../context/language";
 
 export const WORKBENCH_TITLEBAR_APP_ICON_SRC =
   "data:image/svg+xml,%3Csvg width='16' height='16' viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='1' y='1' width='14' height='14' rx='2' fill='black'/%3E%3Crect x='9' y='9' width='4' height='4' rx='1' fill='white'/%3E%3Crect x='3' y='3' width='4' height='4' rx='1' fill='white'/%3E%3Crect x='9' y='3' width='4' height='4' rx='1' fill='white'/%3E%3Crect x='3' y='9' width='4' height='4' rx='1' fill='white'/%3E%3Cpath d='M4 12L12 4' stroke='white' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E";
-export const WORKBENCH_TITLEBAR_APP_NAME = "Conductor";
+export const WORKBENCH_TITLEBAR_APP_NAME = "Conductor Studio";
 export const WORKBENCH_TITLEBAR_DRAG_REGION_STYLE = {
   WebkitAppRegion: "drag",
 } as CSSProperties;
