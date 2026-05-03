@@ -3791,18 +3791,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const fileId = String(fileIdRaw ?? "").trim();
         if (!fileId)
             return;
-        const isCurrentlySelected = selectedRcStatisticFileIdSet.has(fileId);
-        if (isCurrentlySelected) {
-            setRcGeometryByFileId((prev) => {
-                if (!prev[fileId])
-                    return prev;
-                const next = { ...prev };
-                delete next[fileId];
-                return next;
-            });
-        }
         toggleRcStatisticFileSelection(fileId);
-    }, [selectedRcStatisticFileIdSet, toggleRcStatisticFileSelection]);
+    }, [toggleRcStatisticFileSelection]);
     const rcListEntries = useMemo(() => {
         const grouped = new Map<string, any>();
         for (const row of rcRows as any[]) {
@@ -4682,12 +4672,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         const rows = rcRowsByFileId.get(entry.fileId) ?? [];
                         const firstRow = rows[0];
                         const storedFileGeometry = rcGeometryByFileId[entry.fileId]?.[RC_FILE_GEOMETRY_KEY] ?? {};
-                        const length = entry.isCanvasSelected
-                            ? firstRow?.length ?? storedFileGeometry.length ?? ""
-                            : "";
-                        const width = entry.isCanvasSelected
-                            ? firstRow?.width ?? storedFileGeometry.width ?? ""
-                            : "";
+                        const length = firstRow?.length ?? storedFileGeometry.length ?? "";
+                        const width = firstRow?.width ?? storedFileGeometry.width ?? "";
                         return (<>
                             <div className="flex min-w-0 flex-wrap items-center gap-2">
                               <Input
