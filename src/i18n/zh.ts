@@ -595,6 +595,7 @@
     da_rc_require_curve_in_file: '请先在该文件中至少选择一条 transfer 曲线用于 Rc。',
     da_rc_require_statistic_selection: '请先在统计列表中选择 transfer 文件与曲线。',
     da_rc_no_result: '暂无 Rc 结果。',
+    da_rc_curve_title: 'Rc 曲线',
     da_rc_table_warnings: '警告',
     da_rc_error_bridge_unavailable: 'Rust Rc 桥接不可用。',
     da_rc_error_no_transfer_curves: '没有可用的 transfer 曲线。',

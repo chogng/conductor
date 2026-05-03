@@ -595,6 +595,7 @@
     da_rc_require_curve_in_file: 'Select at least one transfer curve in this file for Rc.',
     da_rc_require_statistic_selection: 'Select transfer files and curves in the statistic list first.',
     da_rc_no_result: 'No Rc result yet.',
+    da_rc_curve_title: 'Rc Curve',
     da_rc_table_warnings: 'warnings',
     da_rc_error_bridge_unavailable: 'Rust Rc bridge is unavailable.',
     da_rc_error_no_transfer_curves: 'No transfer curves are available.',

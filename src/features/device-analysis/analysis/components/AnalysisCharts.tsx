@@ -61,6 +61,7 @@ import SsDiagnosticsChart from "./SsDiagnosticsChart";
 import SsSummaryStrip from "./SsSummaryStrip";
 import AnalysisDiagnosticsCard from "./AnalysisDiagnosticsCard";
 import AxisSettingsPane from "./AxisSettingsPane";
+import CanvasDiagnosticsChart from "./CanvasDiagnosticsChart";
 import OriginExportToolbar, {
   type OriginCurveExportSeriesOption,
   type OriginExportContentOption,
@@ -3827,6 +3828,76 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         ? rcAnalyzeResult.summary
         : null;
     const rcCurveRows = Array.isArray(rcAnalyzeResult?.curve) ? rcAnalyzeResult.curve : [];
+    const rcCurveChart = useMemo(() => {
+        const points = (Array.isArray(rcCurveRows) ? rcCurveRows : [])
+            .map((row: any) => ({
+            rc: Number(row?.rc),
+            rcw: Number(row?.rcw),
+            rSheet: Number(row?.rSheet),
+            vg: Number(row?.vg),
+        }))
+            .filter((point) => Number.isFinite(point.vg) &&
+            (Number.isFinite(point.rc) ||
+                Number.isFinite(point.rcw) ||
+                Number.isFinite(point.rSheet)))
+            .sort((a, b) => a.vg - b.vg);
+        if (points.length < 2)
+            return null;
+        const yValues: number[] = [];
+        const collectY = (value: number) => {
+            if (Number.isFinite(value))
+                yValues.push(value);
+        };
+        for (const point of points) {
+            collectY(point.rc);
+            collectY(point.rcw);
+            collectY(point.rSheet);
+        }
+        if (!yValues.length)
+            return null;
+        const xValues = points.map((point) => point.vg);
+        const xMin = Math.min(...xValues);
+        const xMax = Math.max(...xValues);
+        const yMin = Math.min(...yValues);
+        const yMax = Math.max(...yValues);
+        const xDomain = padLinearDomain(xMin, xMax);
+        const yDomain = padLinearDomain(yMin, yMax);
+        const series = [
+            {
+                color: getChartColor(0),
+                data: points
+                    .filter((point) => Number.isFinite(point.rc))
+                    .map((point) => ({ x: point.vg, y: point.rc })),
+                id: "rc",
+                lineName: "Rc",
+            },
+            {
+                color: getChartColor(1),
+                data: points
+                    .filter((point) => Number.isFinite(point.rcw))
+                    .map((point) => ({ x: point.vg, y: point.rcw })),
+                id: "rcw",
+                lineName: "RcW",
+            },
+            {
+                color: getChartColor(2),
+                data: points
+                    .filter((point) => Number.isFinite(point.rSheet))
+                    .map((point) => ({ x: point.vg, y: point.rSheet })),
+                id: "rsh",
+                lineName: "Rsh",
+            },
+        ].filter((item) => item.data.length >= 2);
+        if (!series.length)
+            return null;
+        return {
+            series,
+            xDomain,
+            xTicks: buildNiceTicks(xDomain[0], xDomain[1], 6, { preferTightRange: true }),
+            yDomain,
+            yTicks: buildNiceTicks(yDomain[0], yDomain[1], 5, { preferTightRange: true }),
+        };
+    }, [rcCurveRows]);
     const rcStatusText = rcAnalyzePending
         ? t("da_rc_status_running")
         : rcAnalyzeError
@@ -4735,6 +4806,45 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     </div>
                   )}
                 </div>
+                {rcCurveChart ? (
+                  <div className="rounded-xl border border-border bg-bg-page/40 px-3 py-3">
+                    <div className="mb-2 flex min-w-0 flex-wrap items-center justify-between gap-2">
+                      <div className="text-xs font-semibold text-text-secondary">{t("da_rc_curve_title")}</div>
+                      <div className="flex min-w-0 items-center gap-3 text-xs text-text-secondary">
+                        {rcCurveChart.series.map((item: any) => (
+                          <span key={item.id} className="inline-flex items-center gap-1.5">
+                            <span
+                              className="h-2.5 w-2.5 rounded-sm"
+                              style={{ backgroundColor: item.color }}
+                            />
+                            {item.lineName}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="h-[220px] min-w-0">
+                      <CanvasDiagnosticsChart
+                        ariaLabel={t("da_rc_curve_title")}
+                        axisTitleFontSize={12}
+                        locatorX={rcSummary?.vg}
+                        rightReservedWidth={12}
+                        series={rcCurveChart.series}
+                        tickLabelFontSize={11}
+                        valueUnitLabel="Ω"
+                        xDomain={rcCurveChart.xDomain}
+                        xLabelInterval={1}
+                        xTickDigits={inferTickDigitsFromTicks(rcCurveChart.xTicks)}
+                        xTicks={rcCurveChart.xTicks}
+                        xTooltipDigits={inferTickDigitsFromTicks(rcCurveChart.xTicks)}
+                        xUnitLabel="V"
+                        yAxisLabel="Ω"
+                        yDomain={rcCurveChart.yDomain}
+                        yTicks={rcCurveChart.yTicks}
+                        yTooltipMinDigits={3}
+                      />
+                    </div>
+                  </div>
+                ) : null}
                 {rcCurveRows.length ? (
                   <ScrollArea axis="x" className="min-w-0 w-full max-h-[220px]">
                     <table className="w-full min-w-[720px] table-fixed text-sm border-collapse">
