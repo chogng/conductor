@@ -3,6 +3,7 @@ import { Check, SlidersHorizontal, X } from "lucide-react";
 import { computeCentralDerivative, computeSubthresholdSwing, computeSubthresholdSwingFitAuto, computeSubthresholdSwingFitInRange, classifySsFit, formatNumber, interpolateCurveAtX, resolveAutoSsSelection, splitBidirectionalCurvePoints, } from "../lib/analysisMath";
 import { apiService } from "../services/apiService";
 import DropdownField from "../../../../components/ui/DropdownField";
+import Input from "../../../../components/ui/Input";
 import Menu from "../../../../components/ui/Menu";
 import Button from "../../../../components/ui/Button";
 import Card from "../../../../components/ui/Card";
@@ -91,7 +92,6 @@ const ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS = "!space-y-0";
 const ANALYSIS_COMPACT_INPUT_CLASS = "text-xs";
 const ANALYSIS_COMPACT_PAGE_FIELD_CLASS =
     "!h-8 !gap-0 rounded-lg border border-border bg-bg-page px-2 py-1";
-const RC_INPUT_CLASS = "h-7 w-full min-w-0 rounded-md border border-border bg-bg-surface px-2 text-xs text-text-primary outline-none focus:border-accent";
 const TOOLTIP_SERIES_NAME_SEPARATOR = "\u0000";
 const ORIGIN_EXPORT_CONTENT_OPTIONS: OriginExportContentOption[] = [
     { group: "basic", key: "iv", labelKey: "da_origin_export_content_iv" },
@@ -869,8 +869,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const [originFilteredCanvasKind, setOriginFilteredCanvasKind] = useState<DeviceAnalysisOriginFilteredCanvasKind>("output");
     // User-picked curve legend template. File-level checkboxes are derived from this, not the source of truth.
     const [originCurveExportSelectedKeys, setOriginCurveExportSelectedKeys] = useState<string[] | null>(null);
-    const [rcCurveSelectionMode, setRcCurveSelectionMode] = useState<DeviceAnalysisOriginCurveExportMode>("all");
-    const [rcCurveSelectionKeys, setRcCurveSelectionKeys] = useState<string[] | null>(null);
+    const [rcBiasSelectionKey, setRcBiasSelectionKey] = useState<string | null>(null);
     const [resultsTab, setResultsTab] = useState<ResultsTabOption>("metrics");
     const [rcGeometryByFileId, setRcGeometryByFileId] = useState<RcGeometryByFileId>({});
     const [rcAnalyzePending, setRcAnalyzePending] = useState(false);
@@ -1634,35 +1633,18 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         resolvedCurveExportMode,
         scopedOriginCanvasKeySet,
     ]);
-    const resolvedRcCurveSelectionMode: DeviceAnalysisOriginCurveExportMode = rcCurveSelectionMode === "select"
-        ? "select"
-        : "all";
-    const selectedRcCurveOptionKeySet = useMemo(() => {
-        if (resolvedRcCurveSelectionMode === "all") {
-            return new Set(originCurveExportOptions.map((option) => option.key));
-        }
-        if (Array.isArray(rcCurveSelectionKeys)) {
-            return new Set(rcCurveSelectionKeys);
-        }
-        return new Set(originCurveExportOptions.map((option) => option.key));
-    }, [originCurveExportOptions, rcCurveSelectionKeys, resolvedRcCurveSelectionMode]);
-    const selectedRcSeriesIdSet = useMemo(() => {
-        if (resolvedRcCurveSelectionMode === "all") return null;
-        return new Set(
-            originCurveExportOptions
-                .filter((option) => selectedRcCurveOptionKeySet.has(option.key))
-                .map((option) => option.sourceSeriesId)
-                .filter(Boolean),
-        );
-    }, [originCurveExportOptions, resolvedRcCurveSelectionMode, selectedRcCurveOptionKeySet]);
-    const handleRcCurveSelectionKeysChange = React.useCallback((nextKeys: string[]) => {
-        setRcCurveSelectionMode("select");
-        setRcCurveSelectionKeys(nextKeys);
-    }, []);
-    const applyRcCurveSelectionAcrossFiles = React.useCallback(() => ({
-        matchedFileCount: 0,
-        matchedSeriesCount: 0,
-    }), []);
+    const selectedRcBiasKey = useMemo(() => {
+        const availableKeys = new Set(originCurveExportOptions.map((option) => option.key));
+        if (rcBiasSelectionKey && availableKeys.has(rcBiasSelectionKey))
+            return rcBiasSelectionKey;
+        return originCurveExportOptions[0]?.key ?? "";
+    }, [originCurveExportOptions, rcBiasSelectionKey]);
+    const selectedRcSeriesIdSet = useMemo(() => new Set(
+        originCurveExportOptions
+            .filter((option) => option.key === selectedRcBiasKey)
+            .map((option) => option.sourceSeriesId)
+            .filter(Boolean),
+    ), [originCurveExportOptions, selectedRcBiasKey]);
     useEffect(() => {
         if (resolvedCurveExportMode !== "select") return;
         if (!Array.isArray(originCurveExportSelectedKeys)) return;
@@ -3645,7 +3627,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     return null;
                 const tokens = resolveOriginSeriesMatchTokens(series);
                 const key = tokens[0] ?? `series:${fileId}:${seriesId}`;
-                const selected = selectedRcSeriesIdSet === null || selectedRcSeriesIdSet.has(seriesId);
+                const selected = selectedRcSeriesIdSet.has(seriesId);
                 return {
                     key,
                     label: resolveDisplayLegendLabel(fileId, series, index),
@@ -3728,46 +3710,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 .filter(Boolean);
         });
     }, [processedData, rcGeometryByFileId, rcStatisticListEntries, resolveDisplayLegendLabel]);
-    const resolveRcSelectedCurveKeys = React.useCallback(() => {
-        if (resolvedRcCurveSelectionMode === "select" && Array.isArray(rcCurveSelectionKeys)) {
-            return new Set(rcCurveSelectionKeys);
-        }
-        return new Set(originCurveExportOptions.map((option) => option.key));
-    }, [originCurveExportOptions, rcCurveSelectionKeys, resolvedRcCurveSelectionMode]);
-    const selectAllRcSeriesForFile = React.useCallback((fileId: string) => {
-        const entry = rcStatisticListEntries.find((item: any) => item.fileId === fileId);
-        if (!entry)
-            return;
-        const next = resolveRcSelectedCurveKeys();
-        for (const series of entry.series) {
-            next.add(series.key);
-        }
-        setRcCurveSelectionMode("select");
-        setRcCurveSelectionKeys(Array.from(next));
-    }, [rcStatisticListEntries, resolveRcSelectedCurveKeys]);
-    const clearRcSeriesForFile = React.useCallback((fileId: string) => {
-        const entry = rcStatisticListEntries.find((item: any) => item.fileId === fileId);
-        if (!entry)
-            return;
-        const next = resolveRcSelectedCurveKeys();
-        for (const series of entry.series) {
-            next.delete(series.key);
-        }
-        setRcCurveSelectionMode("select");
-        setRcCurveSelectionKeys(Array.from(next));
-    }, [rcStatisticListEntries, resolveRcSelectedCurveKeys]);
-    const toggleRcSeriesForFile = React.useCallback((_fileId: string, seriesKey: string) => {
-        const normalizedKey = String(seriesKey ?? "").trim();
-        if (!normalizedKey)
-            return;
-        const next = resolveRcSelectedCurveKeys();
-        if (next.has(normalizedKey))
-            next.delete(normalizedKey);
-        else
-            next.add(normalizedKey);
-        setRcCurveSelectionMode("select");
-        setRcCurveSelectionKeys(Array.from(next));
-    }, [resolveRcSelectedCurveKeys]);
     const updateRcGeometry = React.useCallback((fileIdRaw: string, seriesId: string, patch: Partial<RcGeometryEntry>) => {
         const fileId = String(fileIdRaw ?? "").trim();
         if (!fileId || !seriesId)
@@ -3988,6 +3930,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         onSetCurveMode = setOriginCurveExportMode,
         onToggleSeriesForFile = toggleOriginSeriesSelectionForFile,
         renderFileExtra,
+        showSeriesControls = true,
     }: {
         curveMode?: DeviceAnalysisOriginCurveExportMode;
         entries: typeof exportListEntries;
@@ -3997,6 +3940,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         onSetCurveMode?: (nextMode: DeviceAnalysisOriginCurveExportMode) => void;
         onToggleSeriesForFile?: (fileId: string, seriesKey: string) => void;
         renderFileExtra?: (entry: (typeof exportListEntries)[number]) => React.ReactNode;
+        showSeriesControls?: boolean;
     }) => entries.length ? (<ScrollArea axis="y" className="min-w-0 w-full max-h-[320px]" viewportClassName="pr-2">
         <div className="space-y-2">
           {entries.map((entry: any) => (<div
@@ -4047,7 +3991,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                   <X size={14} strokeWidth={2} />
                 </Button>
               </div>
-              <div className="mt-3">
+              {showSeriesControls ? (<div className="mt-3">
                 <div className="flex flex-wrap items-center gap-1.5">
                   <button
                     type="button"
@@ -4091,7 +4035,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                       <span className="truncate whitespace-nowrap">{series.label}</span>
                     </button>))}
                 </div>
-              </div>
+              </div>) : null}
               {renderFileExtra ? (<div
                   className="mt-3"
                   onClick={(event) => event.stopPropagation()}
@@ -4609,77 +4553,72 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 </table>
               </ScrollArea>) : resultsTab === "rc" ? (<div className="flex min-w-0 flex-col gap-3">
                 <RcAnalysisToolbar
-                  curveOptions={originCurveExportOptions}
+                  biasOptions={originCurveExportOptions}
                   isPending={rcAnalyzePending}
                   onAnalyze={handleAnalyzeRc}
-                  onSelectedCurveOptionKeysChange={handleRcCurveSelectionKeysChange}
-                  replaceMatchingOriginSeriesAcrossFiles={applyRcCurveSelectionAcrossFiles}
-                  resolvedCurveExportMode={resolvedRcCurveSelectionMode}
+                  onBiasChange={setRcBiasSelectionKey}
                   rowCount={rcRows.length}
-                  scopedFileIds={scopedOriginCanvasIds}
-                  selectedCurveOptionKeySet={selectedRcCurveOptionKeySet}
-                  setResolvedCurveExportMode={setRcCurveSelectionMode}
-                  t={t}
+                  selectedBiasKey={selectedRcBiasKey}
                 />
-                {renderOriginCurveSelectionList({
-                    curveMode: resolvedRcCurveSelectionMode,
-                    entries: rcStatisticListEntries,
-                    emptyText: "Select transfer files and curves in the statistic list first.",
-                    onClearAllSeriesForFile: clearRcSeriesForFile,
-                    onSelectAllSeriesForFile: selectAllRcSeriesForFile,
-                    onSetCurveMode: setRcCurveSelectionMode,
-                    onToggleSeriesForFile: toggleRcSeriesForFile,
-                    renderFileExtra: (entry: any) => {
+                {rcStatisticListEntries.length ? (<ScrollArea axis="y" className="min-w-0 w-full max-h-[320px]" viewportClassName="pr-2">
+                    <div className="space-y-2">
+                      {rcStatisticListEntries.map((entry: any) => {
                         const rows = rcRowsByFileId.get(entry.fileId) ?? [];
                         const firstRow = rows[0];
                         const storedFileGeometry = rcGeometryByFileId[entry.fileId]?.[RC_FILE_GEOMETRY_KEY] ?? {};
                         const length = firstRow?.length ?? storedFileGeometry.length ?? "1";
                         const width = firstRow?.width ?? storedFileGeometry.width ?? "1";
-                        return (<div className="grid gap-3 rounded-lg border border-border bg-bg-surface px-3 py-3">
-                            <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-[7rem_7rem]">
-                              <div className="min-w-0">
-                                <label className="mb-1 block text-[11px] leading-none text-text-secondary">L</label>
-                                <input
-                                  type="text"
-                                  value={length}
-                                  onChange={(event) => updateRcGeometry(entry.fileId, RC_FILE_GEOMETRY_KEY, { length: event.target.value })}
-                                  className={RC_INPUT_CLASS}
-                                />
-                              </div>
-                              <div className="min-w-0">
-                                <label className="mb-1 block text-[11px] leading-none text-text-secondary">W</label>
-                                <input
-                                  type="text"
-                                  value={width}
-                                  onChange={(event) => updateRcGeometry(entry.fileId, RC_FILE_GEOMETRY_KEY, { width: event.target.value })}
-                                  className={RC_INPUT_CLASS}
-                                />
+                        return (<div key={entry.fileId} className="rounded-xl border border-border bg-bg-page/40 px-3 py-2.5">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2 flex-wrap text-[11px] text-text-secondary">
+                                <button
+                                  type="button"
+                                  onClick={() => handleSelectFile(entry.fileId)}
+                                  className="max-w-full truncate rounded-lg p-1 -m-1 text-left text-sm font-medium text-text-primary hover:text-accent"
+                                >
+                                  {entry.fileName}
+                                </button>
+                                <span className="inline-flex items-center rounded-full bg-bg-surface px-2 py-0.5">
+                                  {t("da_origin_collection_file_curves", {
+                                    count: entry.selectedCount,
+                                  })}
+                                </span>
                               </div>
                             </div>
-                            {rows.length ? (<div className="grid gap-2">
-                                {rows.map((row: any) => (<div key={`${row.fileId}:${row.seriesId}`} className="grid min-w-0 grid-cols-1 gap-2 rounded-md border border-border bg-bg-page/40 px-2 py-2 sm:grid-cols-[minmax(0,1fr)_7rem] sm:items-end">
-                                    <div className="min-w-0">
-                                      <label className="mb-1 block text-[11px] leading-none text-text-secondary">Curve</label>
-                                      <div className="truncate text-xs font-medium text-text-primary" title={row.label}>
-                                        {row.label}
-                                      </div>
-                                    </div>
-                                    <div className="min-w-0">
-                                      <label className="mb-1 block text-[11px] leading-none text-text-secondary">Vds</label>
-                                      <input
-                                        type="text"
-                                        value={row.vds}
-                                        onChange={(event) => updateRcGeometry(row.fileId, row.seriesId, { vds: event.target.value })}
-                                        className={RC_INPUT_CLASS}
-                                      />
-                                    </div>
-                                  </div>))}
-                              </div>) : (<div className="text-xs text-text-secondary">
+                            <Button variant="icon" size="icon" className="shrink-0 rounded-full text-text-tertiary hover:text-text-primary" onClick={() => {
+                              handleRemoveOriginExportEntry(entry.fileId);
+                            }} title={exportEntryActionLabel} aria-label={exportEntryActionLabel}>
+                              <X size={14} strokeWidth={2} />
+                            </Button>
+                          </div>
+                          <div className="mt-3">
+                            <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-[7rem_7rem]">
+                              <Input
+                                label="L"
+                                value={length}
+                                onChange={(value: string) => updateRcGeometry(entry.fileId, RC_FILE_GEOMETRY_KEY, { length: value })}
+                                size="sm"
+                                inputClassName="text-xs"
+                              />
+                              <Input
+                                label="W"
+                                value={width}
+                                onChange={(value: string) => updateRcGeometry(entry.fileId, RC_FILE_GEOMETRY_KEY, { width: value })}
+                                size="sm"
+                                inputClassName="text-xs"
+                              />
+                            </div>
+                            {!rows.length ? (<div className="text-xs text-text-secondary">
                                 Select at least one transfer curve in this file for Rc.
-                              </div>)}
-                          </div>);
-                    },
-                })}
+                              </div>) : null}
+                          </div>
+                        </div>);
+                      })}
+                    </div>
+                  </ScrollArea>) : (<div className="rounded-xl border border-dashed border-border bg-bg-page/40 px-4 py-6 text-sm text-text-secondary">
+                    Select transfer files and curves in the statistic list first.
+                  </div>)}
                 <div className="rounded-xl border border-border bg-bg-page/40 px-4 py-3">
                   {rcSummary ? (
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">

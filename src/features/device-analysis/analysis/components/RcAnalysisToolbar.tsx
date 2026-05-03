@@ -1,38 +1,23 @@
 import Button from "../../../../components/ui/Button";
-import {
-  OriginCurveExportMenu,
-  type OriginCurveExportSeriesOption,
-  type OriginExportContentTranslateFn,
-  type ReplaceMatchingOriginSeriesAcrossFilesFn,
-} from "./OriginExportToolbar";
-import type { DeviceAnalysisOriginCurveExportMode } from "../useOriginCanvasExport";
+import DropdownField from "../../../../components/ui/DropdownField";
+import type { OriginCurveExportSeriesOption } from "./OriginExportToolbar";
 
 type RcAnalysisToolbarProps = {
-  curveOptions: OriginCurveExportSeriesOption[];
+  biasOptions: OriginCurveExportSeriesOption[];
   isPending: boolean;
   onAnalyze: () => void | Promise<void>;
-  onSelectedCurveOptionKeysChange: (nextKeys: string[]) => void;
-  replaceMatchingOriginSeriesAcrossFiles: ReplaceMatchingOriginSeriesAcrossFilesFn;
-  resolvedCurveExportMode: DeviceAnalysisOriginCurveExportMode;
+  onBiasChange: (nextKey: string) => void;
   rowCount: number;
-  scopedFileIds: string[];
-  selectedCurveOptionKeySet: Set<string>;
-  setResolvedCurveExportMode: (next: DeviceAnalysisOriginCurveExportMode) => void;
-  t: OriginExportContentTranslateFn;
+  selectedBiasKey: string;
 };
 
 const RcAnalysisToolbar = ({
-  curveOptions,
+  biasOptions,
   isPending,
   onAnalyze,
-  onSelectedCurveOptionKeysChange,
-  replaceMatchingOriginSeriesAcrossFiles,
-  resolvedCurveExportMode,
+  onBiasChange,
   rowCount,
-  scopedFileIds,
-  selectedCurveOptionKeySet,
-  setResolvedCurveExportMode,
-  t,
+  selectedBiasKey,
 }: RcAnalysisToolbarProps) => (
   <div
     role="toolbar"
@@ -42,17 +27,19 @@ const RcAnalysisToolbar = ({
     <div className="flex items-center justify-between gap-3 flex-wrap">
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs text-text-secondary whitespace-nowrap">
-          {t("da_origin_curve_export_mode_label")}
+          偏置电压
         </span>
-        <OriginCurveExportMenu
-          curveOptions={curveOptions}
-          selectedCurveOptionKeySet={selectedCurveOptionKeySet}
-          mode={resolvedCurveExportMode}
-          onSelectedCurveOptionKeysChange={onSelectedCurveOptionKeysChange}
-          scopedFileIds={scopedFileIds}
-          setMode={setResolvedCurveExportMode}
-          replaceMatchingOriginSeriesAcrossFiles={replaceMatchingOriginSeriesAcrossFiles}
-          t={t}
+        <DropdownField
+          id="device-analysis-rc-bias-select"
+          size="sm"
+          value={selectedBiasKey}
+          onChange={(next: any) => onBiasChange(String(next ?? ""))}
+          options={biasOptions.map((option) => ({
+            value: option.key,
+            label: option.label,
+          }))}
+          className="w-fit da-neutral-select"
+          stableWidth
         />
       </div>
       <Button
