@@ -389,6 +389,31 @@ test("buildDeviceAnalysisOriginExportPlan can omit single-canvas IV csv text for
   assert.deepEqual(plan.payloads[0].xColumnLongNames, ["X"]);
 });
 
+test("buildDeviceAnalysisOriginExportPlan can omit merged IV csv text for Rust path export", () => {
+  const plan = buildDeviceAnalysisOriginExportPlan([
+    {
+      fileId: "file-rust-a",
+      fileName: "file_rust_a.csv",
+      originExportOmitIvCsvText: true,
+      xGroups: [[0, 1]],
+      series: [{ id: "curve-a", groupIndex: 0, y: [1, 2] }],
+    },
+    {
+      fileId: "file-rust-b",
+      fileName: "file_rust_b.csv",
+      originExportOmitIvCsvText: true,
+      xGroups: [[0, 1]],
+      series: [{ id: "curve-b", groupIndex: 0, y: [3, 4] }],
+    },
+  ]);
+
+  assert.equal(plan.payloads.length, 1);
+  assert.equal(plan.payloads[0].csvText, "");
+  assert.equal(plan.payloads[0].canvasCount, 2);
+  assert.equal(plan.payloads[0].columnLayout, "xy-pairs");
+  assert.equal(plan.payloads[0].curveCount, 2);
+});
+
 test("buildDeviceAnalysisOriginExportPlan exports absolute current for log all-I Origin plots", () => {
   const plan = buildDeviceAnalysisOriginExportPlan(
     [

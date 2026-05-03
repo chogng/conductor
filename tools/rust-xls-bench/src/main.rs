@@ -83,6 +83,7 @@ struct EngineRequest {
     start_row: Option<usize>,
     max_points: Option<usize>,
     output_path: Option<String>,
+    sources: Option<Vec<OriginExportSourceRequest>>,
     x_groups: Option<Vec<Vec<f64>>>,
     x_scale_factor: Option<f64>,
     y_scale_factor: Option<f64>,
@@ -94,7 +95,21 @@ struct EngineRequest {
 struct OriginExportColumnRequest {
     group_index: usize,
     kind: String,
+    source_index: Option<usize>,
     y_col: Option<usize>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OriginExportSourceRequest {
+    config: Value,
+    file_id: String,
+    file_name: Option<String>,
+    max_points: Option<usize>,
+    path: String,
+    x_scale_factor: Option<f64>,
+    y_scale_factor: Option<f64>,
+    y_transform: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -2235,6 +2250,129 @@ fn export_origin_csv_file(
     }))
 }
 
+struct OriginExportResolvedSource {
+    dataset: EngineDataset,
+    group_size: usize,
+    groups: usize,
+    row_offsets: Vec<usize>,
+    start_row: usize,
+    x_col: usize,
+    x_scale_factor: f64,
+    y_scale_factor: f64,
+    y_transform: String,
+}
+
+fn resolve_origin_export_source(
+    dataset: EngineDataset,
+    config: &Value,
+    max_points_raw: Option<usize>,
+    x_scale_factor_raw: Option<f64>,
+    y_scale_factor_raw: Option<f64>,
+    y_transform_raw: Option<&str>,
+) -> Result<OriginExportResolvedSource, String> {
+    let (x_col, start_row, _end_row, group_size, groups) =
+        resolve_export_group_shape(&dataset, config)?;
+    let max_points = max_points_raw.unwrap_or(600).max(2);
+    let target_points = group_size.min(max_points);
+    let row_offsets = match build_uniform_sample_indices(group_size, target_points) {
+        Some(indices) => indices,
+        None => (0..group_size).collect(),
+    };
+    Ok(OriginExportResolvedSource {
+        dataset,
+        group_size,
+        groups,
+        row_offsets,
+        start_row,
+        x_col,
+        x_scale_factor: x_scale_factor_raw
+            .filter(|value| value.is_finite() && *value > 0.0)
+            .unwrap_or(1.0),
+        y_scale_factor: y_scale_factor_raw
+            .filter(|value| value.is_finite() && *value > 0.0)
+            .unwrap_or(1.0),
+        y_transform: y_transform_raw.unwrap_or("").to_string(),
+    })
+}
+
+fn export_origin_csv_sources(
+    sources: Vec<OriginExportResolvedSource>,
+    columns: &[OriginExportColumnRequest],
+    output_path: &Path,
+) -> Result<Value, String> {
+    if sources.is_empty() {
+        return Err("missing export sources".to_string());
+    }
+    if columns.is_empty() {
+        return Err("missing export columns".to_string());
+    }
+    if let Some(parent) = output_path.parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    let mut writer =
+        BufWriter::new(fs::File::create(output_path).map_err(|error| error.to_string())?);
+    writer
+        .write_all(&[0xEF, 0xBB, 0xBF])
+        .map_err(|error| error.to_string())?;
+    let mut csv_bytes = 3usize;
+    let max_row_count = sources
+        .iter()
+        .map(|source| source.row_offsets.len())
+        .max()
+        .unwrap_or(0);
+
+    for output_row_index in 0..max_row_count {
+        if output_row_index > 0 {
+            writer.write_all(b"\n").map_err(|error| error.to_string())?;
+            csv_bytes += 1;
+        }
+        for (column_index, column) in columns.iter().enumerate() {
+            if column_index > 0 {
+                writer.write_all(b",").map_err(|error| error.to_string())?;
+                csv_bytes += 1;
+            }
+            let source_index = column.source_index.unwrap_or(0);
+            let source = sources
+                .get(source_index)
+                .ok_or_else(|| "export column sourceIndex is out of range".to_string())?;
+            if output_row_index >= source.row_offsets.len() {
+                continue;
+            }
+            if column.group_index >= source.groups {
+                return Err("export column groupIndex is out of range".to_string());
+            }
+            let row_offset = source.row_offsets[output_row_index];
+            let row_index = source.start_row + column.group_index * source.group_size + row_offset;
+            let value = if column.kind == "x" {
+                cell_number(&source.dataset, row_index, source.x_col)
+                    .map(|value| value * source.x_scale_factor)
+            } else if column.kind == "y" {
+                let y_col = column
+                    .y_col
+                    .ok_or_else(|| "export y column is missing yCol".to_string())?;
+                cell_number(&source.dataset, row_index, y_col).map(|value| {
+                    transform_origin_export_y(value, source.y_scale_factor, &source.y_transform)
+                })
+            } else {
+                return Err("unsupported export column kind".to_string());
+            };
+            if let Some(value) = value.filter(|value| value.is_finite()) {
+                let text = value.to_string();
+                csv_bytes +=
+                    write_csv_cell(&text, &mut writer).map_err(|error| error.to_string())?;
+            }
+        }
+    }
+    writer.flush().map_err(|error| error.to_string())?;
+    Ok(json!({
+        "bytes": csv_bytes,
+        "columns": columns.len(),
+        "path": output_path.to_string_lossy(),
+        "rows": max_row_count,
+        "sources": sources.len(),
+    }))
+}
+
 fn handle_engine_request(
     cache: &mut HashMap<String, EngineDataset>,
     request: EngineRequest,
@@ -2545,16 +2683,47 @@ fn handle_engine_request(
                 .filter(|value| !value.trim().is_empty())
                 .map(PathBuf::from)
                 .ok_or_else(|| "missing outputPath".to_string())?;
-            export_origin_csv_file(
-                dataset,
-                config,
-                columns,
-                &output_path,
-                request.max_points,
-                request.x_scale_factor,
-                request.y_scale_factor,
-                request.y_transform.as_deref(),
-            )
+            if let Some(sources) = request.sources.as_deref().filter(|items| !items.is_empty()) {
+                let mut resolved_sources = Vec::<OriginExportResolvedSource>::new();
+                for source in sources {
+                    let path = PathBuf::from(&source.path);
+                    let file_name = source.file_name.clone().unwrap_or_else(|| {
+                        path.file_name()
+                            .and_then(|value| value.to_str())
+                            .unwrap_or("")
+                            .to_string()
+                    });
+                    let dataset = if source.file_id.trim().is_empty() {
+                        load_engine_dataset(&path, &file_name)?
+                    } else if let Some(cached) = cache.get(source.file_id.trim()) {
+                        cached.clone()
+                    } else {
+                        let loaded = load_engine_dataset(&path, &file_name)?;
+                        cache.insert(source.file_id.trim().to_string(), loaded.clone());
+                        loaded
+                    };
+                    resolved_sources.push(resolve_origin_export_source(
+                        dataset,
+                        &source.config,
+                        source.max_points.or(request.max_points),
+                        source.x_scale_factor,
+                        source.y_scale_factor,
+                        source.y_transform.as_deref(),
+                    )?);
+                }
+                export_origin_csv_sources(resolved_sources, columns, &output_path)
+            } else {
+                export_origin_csv_file(
+                    dataset,
+                    config,
+                    columns,
+                    &output_path,
+                    request.max_points,
+                    request.x_scale_factor,
+                    request.y_scale_factor,
+                    request.y_transform.as_deref(),
+                )
+            }
         }
         "dispose" => {
             if let Some(file_id) = request.file_id.as_deref() {

@@ -718,7 +718,8 @@ const buildWorksheetExport = ({
     0,
   );
   const omitCsvText =
-    canvases.length === 1 && Boolean(canvases[0]?.originExportOmitIvCsvText);
+    canvases.length > 0 &&
+    canvases.every((canvas) => Boolean(canvas?.originExportOmitIvCsvText));
   const columnLongNames: string[] = [];
   const columnUnits: string[] = [];
   const columnComments: string[] = [];

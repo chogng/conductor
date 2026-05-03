@@ -134,9 +134,8 @@ const buildOriginXGroupKey = (xArr: unknown): string =>
 const isRustOriginCsvEligiblePayload = (payload: any): boolean => {
   const csvName = String(payload?.csvName ?? "");
   return (
-    payload?.canvasCount === 1 &&
     Array.isArray(payload?.fileIds) &&
-    payload.fileIds.length === 1 &&
+    payload.fileIds.length >= 1 &&
     !/__metrics|__gm__|__gds__|__ss__|__vth__/i.test(csvName)
   );
 };
@@ -949,54 +948,93 @@ export const useOriginCanvasExport = ({
   const buildRustOriginCsvExportRequest = useCallback(
     (payload: any) => {
       if (!isRustOriginCsvEligiblePayload(payload)) return null;
-      const fileId = String(payload?.fileIds?.[0] ?? "");
-      const file = (Array.isArray(processedData) ? processedData : []).find(
-        (item: any) => String(item?.fileId ?? "") === fileId,
+      const payloadFileIds = (Array.isArray(payload?.fileIds) ? payload.fileIds : [])
+        .map((item: any) => String(item ?? ""))
+        .filter(Boolean);
+      const fileIdSet = new Set(payloadFileIds);
+      const files = (Array.isArray(processedData) ? processedData : []).filter((file: any) =>
+        fileIdSet.has(String(file?.fileId ?? "")),
       );
-      const sourcePath = String(file?.originExportSourcePath ?? "").trim();
-      const config = file?.originExportConfig;
-      if (!file || !sourcePath || !config || typeof config !== "object") return null;
+      if (!files.length || files.length !== fileIdSet.size) return null;
 
-      const allSeries = Array.isArray(file?.series) ? file.series : [];
-      const selectedKeys = getSelectedOriginSeriesKeySetForFile(file);
-      const selectedSeries = allSeries.filter((series: any) =>
-        selectedKeys.has(String(series?.id ?? "")),
-      );
-      if (!selectedSeries.length) return null;
-      if (
-        selectedSeries.some(
-          (series: any) =>
+      const sources = files.map((file: any) => {
+        const sourcePath = String(file?.originExportSourcePath ?? "").trim();
+        const config = file?.originExportConfig;
+        if (!sourcePath || !config || typeof config !== "object") return null;
+        return {
+          config,
+          fileId: String(file?.fileId ?? ""),
+          fileName: file?.fileName,
+          maxPoints: Number(file?.x?.sampledPoints) || 600,
+          path: sourcePath,
+          xScaleFactor: getDeviceAnalysisXUnitMeta(file?.xUnit).factor,
+          yScaleFactor: getDeviceAnalysisYUnitMeta(resolveYUnitForFile(file)).factor,
+          yTransform:
+            resolveYScaleForFile(file) === "log" &&
+            resolveYLogCurrentModeForFile(file) === "all"
+              ? "abs"
+              : "none",
+        };
+      });
+      if (sources.some((source) => source === null)) return null;
+
+      const sourceIndexByFileId = new Map<string, number>();
+      files.forEach((file: any, index: number) => {
+        sourceIndexByFileId.set(String(file?.fileId ?? ""), index);
+      });
+      const selectedEntries: Array<{ file: any; series: any; sourceIndex: number }> = [];
+      for (const file of files) {
+        const selectedKeys = getSelectedOriginSeriesKeySetForFile(file);
+        for (const series of Array.isArray(file?.series) ? file.series : []) {
+          if (!selectedKeys.has(String(series?.id ?? ""))) continue;
+          if (
             !Number.isInteger(Number(series?.groupIndex)) ||
-            !Number.isInteger(Number(series?.yCol)),
-        )
-      ) {
-        return null;
+            !Number.isInteger(Number(series?.yCol))
+          ) {
+            return null;
+          }
+          selectedEntries.push({
+            file,
+            series,
+            sourceIndex: sourceIndexByFileId.get(String(file?.fileId ?? "")) ?? 0,
+          });
+        }
       }
+      if (!selectedEntries.length) return null;
 
-      const columns: Array<{ kind: "x" | "y"; groupIndex: number; yCol?: number }> = [];
-      const pushX = (series: any) => {
+      const columns: Array<{
+        kind: "x" | "y";
+        groupIndex: number;
+        sourceIndex: number;
+        yCol?: number;
+      }> = [];
+      const pushX = (entry: { series: any; sourceIndex: number }) => {
         columns.push({
-          groupIndex: Number(series?.groupIndex),
+          groupIndex: Number(entry.series?.groupIndex),
           kind: "x",
+          sourceIndex: entry.sourceIndex,
         });
       };
-      const pushY = (series: any) => {
+      const pushY = (entry: { series: any; sourceIndex: number }) => {
         columns.push({
-          groupIndex: Number(series?.groupIndex),
+          groupIndex: Number(entry.series?.groupIndex),
           kind: "y",
-          yCol: Number(series?.yCol),
+          sourceIndex: entry.sourceIndex,
+          yCol: Number(entry.series?.yCol),
         });
       };
 
       if (payload.columnLayout === "shared-x") {
-        pushX(selectedSeries[0]);
-        selectedSeries.forEach(pushY);
+        pushX(selectedEntries[0]);
+        selectedEntries.forEach(pushY);
       } else if (payload.columnLayout === "grouped-x") {
-        const grouped = new Map<string, any[]>();
-        for (const series of selectedSeries) {
-          const key = buildOriginXGroupKey(file?.xGroups?.[Number(series?.groupIndex)]);
+        const grouped = new Map<string, Array<{ file: any; series: any; sourceIndex: number }>>();
+        for (const entry of selectedEntries) {
+          const key = buildOriginXGroupKey(
+            entry.file?.xGroups?.[Number(entry.series?.groupIndex)],
+          );
           const list = grouped.get(key) ?? [];
-          list.push(series);
+          list.push(entry);
           grouped.set(key, list);
         }
         for (const list of grouped.values()) {
@@ -1005,28 +1043,26 @@ export const useOriginCanvasExport = ({
           list.forEach(pushY);
         }
       } else {
-        for (const series of selectedSeries) {
-          pushX(series);
-          pushY(series);
+        for (const entry of selectedEntries) {
+          pushX(entry);
+          pushY(entry);
         }
       }
 
       if (!columns.length) return null;
+      const firstSource = sources[0] as any;
       return {
         columns,
-        config,
         csvName: payload.csvName,
-        fileId,
-        fileName: file?.fileName,
-        maxPoints: Number(file?.x?.sampledPoints) || 600,
-        path: sourcePath,
-        xScaleFactor: getDeviceAnalysisXUnitMeta(file?.xUnit).factor,
-        yScaleFactor: getDeviceAnalysisYUnitMeta(resolveYUnitForFile(file)).factor,
-        yTransform:
-          resolveYScaleForFile(file) === "log" &&
-          resolveYLogCurrentModeForFile(file) === "all"
-            ? "abs"
-            : "none",
+        config: firstSource.config,
+        fileId: firstSource.fileId,
+        fileName: firstSource.fileName,
+        maxPoints: firstSource.maxPoints,
+        path: firstSource.path,
+        sources,
+        xScaleFactor: firstSource.xScaleFactor,
+        yScaleFactor: firstSource.yScaleFactor,
+        yTransform: firstSource.yTransform,
       };
     },
     [

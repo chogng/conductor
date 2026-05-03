@@ -1856,6 +1856,7 @@ async function handleDeviceAnalysisRustEngineExportOriginCsv(_event, payload) {
       ? payload.csvName.trim()
       : "device_analysis_origin.csv";
   const columns = Array.isArray(payload?.columns) ? payload.columns : [];
+  const sources = Array.isArray(payload?.sources) ? payload.sources : undefined;
 
   if (!fileId || !inputPath || !isSupportedRustDeviceAnalysisInputPath(inputPath)) {
     return {
@@ -1885,6 +1886,7 @@ async function handleDeviceAnalysisRustEngineExportOriginCsv(_event, payload) {
         maxPoints: payload?.maxPoints,
         outputPath,
         path: inputPath,
+        sources,
         xScaleFactor: payload?.xScaleFactor,
         yScaleFactor: payload?.yScaleFactor,
         yTransform: payload?.yTransform,
