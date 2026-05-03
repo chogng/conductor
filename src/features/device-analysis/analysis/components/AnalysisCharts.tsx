@@ -1,15 +1,9 @@
 ﻿import React, { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, } from "react";
-import { AlertTriangle, Check, ChevronDown, ChevronRight, SlidersHorizontal, X } from "lucide-react";
+import { Check, SlidersHorizontal, X } from "lucide-react";
 import { computeCentralDerivative, computeSubthresholdSwing, computeSubthresholdSwingFitAuto, computeSubthresholdSwingFitInRange, classifySsFit, formatNumber, interpolateCurveAtX, resolveAutoSsSelection, splitBidirectionalCurvePoints, } from "../lib/analysisMath";
 import { apiService } from "../services/apiService";
 import DropdownField from "../../../../components/ui/DropdownField";
-import Input from "../../../../components/ui/Input";
-import ContentView from "../../../../components/ui/ContentView";
-import Dropdown from "../../../../components/ui/Dropdown";
-import DropdownTrigger from "../../../../components/ui/DropdownTrigger";
 import Menu from "../../../../components/ui/Menu";
-import MenuScrollArea from "../../../../components/ui/MenuScrollArea";
-import MenuItem from "../../../../components/ui/MenuItem";
 import Button from "../../../../components/ui/Button";
 import Card from "../../../../components/ui/Card";
 import InlineEditableText from "../../../../components/ui/InlineEditableText";
@@ -65,6 +59,11 @@ import SsDiagnosticsChart from "./SsDiagnosticsChart";
 import SsSummaryStrip from "./SsSummaryStrip";
 import AnalysisDiagnosticsCard from "./AnalysisDiagnosticsCard";
 import AxisSettingsPane from "./AxisSettingsPane";
+import OriginExportToolbar, {
+  type OriginCurveExportSeriesOption,
+  type OriginExportContentOption,
+} from "./OriginExportToolbar";
+import RcAnalysisToolbar from "./RcAnalysisToolbar";
 type SsRange = {
     x1: number;
     x2: number;
@@ -73,28 +72,12 @@ type CurrentBiasRole = "ion" | "ioff";
 type PlotTypeOption = "iv" | "gm" | "ss" | "vth" | "j";
 type ResultsTabOption = "metrics" | "export" | "rc";
 type RcGeometryEntry = {
-    include?: boolean;
     length?: string;
     vds?: string;
     width?: string;
 };
 type RcGeometryByFileId = Record<string, Record<string, RcGeometryEntry>>;
-type OriginExportContentOption = {
-    group: "basic" | "derived";
-    key: DeviceAnalysisOriginExportContentKey;
-    labelKey: string;
-};
-type OriginExportContentMenuGroup = {
-    key: OriginExportContentOption["group"];
-    labelKey: string;
-    options: OriginExportContentOption[];
-};
-type OriginCurveExportSeriesOption = {
-    key: string;
-    label: string;
-    sourceFileId: string;
-    sourceSeriesId: string;
-};
+const RC_FILE_GEOMETRY_KEY = "__file__";
 const MAX_RENDER_SERIES_POINTS = 600;
 const MIN_RENDER_SERIES_POINTS = 120;
 const DEFAULT_RENDER_POINT_BUDGET = 12000;
@@ -108,6 +91,7 @@ const ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS = "!space-y-0";
 const ANALYSIS_COMPACT_INPUT_CLASS = "text-xs";
 const ANALYSIS_COMPACT_PAGE_FIELD_CLASS =
     "!h-8 !gap-0 rounded-lg border border-border bg-bg-page px-2 py-1";
+const RC_INPUT_CLASS = "h-7 w-full min-w-0 rounded-md border border-border bg-bg-surface px-2 text-xs text-text-primary outline-none focus:border-accent";
 const TOOLTIP_SERIES_NAME_SEPARATOR = "\u0000";
 const ORIGIN_EXPORT_CONTENT_OPTIONS: OriginExportContentOption[] = [
     { group: "basic", key: "iv", labelKey: "da_origin_export_content_iv" },
@@ -118,10 +102,6 @@ const ORIGIN_EXPORT_CONTENT_OPTIONS: OriginExportContentOption[] = [
     { group: "derived", key: "vth", labelKey: "da_origin_export_content_vth" },
 ];
 const DEFAULT_ORIGIN_EXPORT_CONTENT_KEYS: DeviceAnalysisOriginExportContentKey[] = ["iv"];
-const ORIGIN_EXPORT_CONTENT_OPTION_GROUPS: Array<Pick<OriginExportContentMenuGroup, "key" | "labelKey">> = [
-    { key: "basic", labelKey: "da_origin_export_content_group_basic" },
-    { key: "derived", labelKey: "da_origin_export_content_group_derived" },
-];
 const resolvePrimaryExportContentLabelKey = (fileLike: any): string => {
     const curveType = String(fileLike?.curveType ?? "").trim().toLowerCase();
     if (curveType === "pv")
@@ -682,327 +662,6 @@ type ProgressiveAnalysisState = {
     totalCount: number;
     pending: boolean;
 };
-type OriginExportContentTranslateFn = (key: string, params?: Record<string, string | number | boolean | null | undefined>) => string;
-const OriginExportContentMenu = ({
-    options,
-    selectedKeys,
-    setSelectedKeys,
-    t,
-}: {
-    options: OriginExportContentOption[];
-    selectedKeys: DeviceAnalysisOriginExportContentKey[];
-    setSelectedKeys: React.Dispatch<React.SetStateAction<DeviceAnalysisOriginExportContentKey[]>>;
-    t: OriginExportContentTranslateFn;
-}) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const anchorRef = useRef<HTMLDivElement | null>(null);
-    const selectedSet = useMemo(() => new Set(selectedKeys), [selectedKeys]);
-    const selectedLabels = options
-        .filter((option) => selectedSet.has(option.key))
-        .map((option) => t(option.labelKey));
-    const summary = selectedLabels.join(" + ");
-    const toggleContentKey = (key: DeviceAnalysisOriginExportContentKey) => {
-        setSelectedKeys((prev) => {
-            const current = Array.isArray(prev) && prev.length
-                ? normalizeOriginExportContentKeysForOptions(prev, options)
-                : DEFAULT_ORIGIN_EXPORT_CONTENT_KEYS;
-            if (current.includes(key)) {
-                if (current.length <= 1)
-                    return current;
-                return current.filter((item) => item !== key);
-            }
-            return [...current, key];
-        });
-    };
-    const groupedOptions: OriginExportContentMenuGroup[] = ORIGIN_EXPORT_CONTENT_OPTION_GROUPS
-        .map((group) => ({
-            key: group.key,
-            labelKey: group.labelKey,
-            options: options.filter((option) => option.group === group.key),
-        }))
-        .filter((group) => group.options.length > 0);
-
-    return (
-      <div className="ui-select_warp w-fit da-neutral-select" data-style="select">
-        <Dropdown isOpen={isOpen} onOpenChange={setIsOpen} anchorRef={anchorRef}>
-          {({ setContentRef }) => (
-            <>
-              <DropdownTrigger
-                fieldRef={anchorRef}
-                id="device-analysis-origin-export-content-select"
-                isOpen={isOpen}
-                menuId="device-analysis-origin-export-content-menu"
-                data-size="sm"
-                onClick={() => setIsOpen((prev) => !prev)}
-                fieldClassName="input_field ui-select_field--sm pr-1"
-                className="input_native no-focus-outline p-0 text-left cursor-pointer select-none pr-6"
-                indicatorClassName="absolute right-1 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none"
-                indicator={
-                  <ChevronDown
-                    size={14}
-                    className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
-                  />
-                }
-              >
-                <span className="block truncate text-text-primary">{summary}</span>
-              </DropdownTrigger>
-              <ContentView
-                isOpen={isOpen}
-                align="left"
-                zIndex={80}
-                matchAnchorWidth
-                triggerId="device-analysis-origin-export-content-select"
-                menuId="device-analysis-origin-export-content-menu"
-                anchorRef={anchorRef}
-                contentRef={setContentRef}
-                variant="menu"
-              >
-                {() => (
-                  <Menu withScrollArea={false}>
-                    <div className="ui-menu__list">
-                      {groupedOptions.map((group) => (
-                        <div
-                          key={group.key}
-                          role="group"
-                          aria-label={t(group.labelKey)}
-                          className="ui-menu__group"
-                        >
-                          {group.options.map((option) => {
-                            const checked = selectedSet.has(option.key);
-                            return (
-                              <MenuItem
-                                key={option.key}
-                                role="menuitemcheckbox"
-                                aria-checked={checked}
-                                data-selected={checked || undefined}
-                                onClick={() => toggleContentKey(option.key)}
-                                className="group"
-                                left={
-                                  <span className="ui-menu__item-left">
-                                    <span className="whitespace-nowrap">{t(option.labelKey)}</span>
-                                  </span>
-                                }
-                                right={
-                                  <span className="ui-menu__item-right">
-                                    {checked ? <Check size={14} className="text-accent" /> : null}
-                                  </span>
-                                }
-                              />
-                            );
-                          })}
-                        </div>
-                      ))}
-                    </div>
-                  </Menu>
-                )}
-              </ContentView>
-            </>
-          )}
-        </Dropdown>
-      </div>
-    );
-};
-
-const OriginCurveExportMenu = ({
-    curveOptions,
-    selectedCurveOptionKeySet,
-    mode,
-    onSelectedCurveOptionKeysChange,
-    scopedFileIds,
-    setMode,
-    replaceMatchingOriginSeriesAcrossFiles,
-    t,
-}: {
-    curveOptions: OriginCurveExportSeriesOption[];
-    selectedCurveOptionKeySet: Set<string>;
-    mode: DeviceAnalysisOriginCurveExportMode;
-    onSelectedCurveOptionKeysChange: (nextKeys: string[]) => void;
-    scopedFileIds: string[];
-    setMode: (next: DeviceAnalysisOriginCurveExportMode) => void;
-    replaceMatchingOriginSeriesAcrossFiles: (options: {
-        fileIds?: unknown[];
-        sourceSeriesRefs?: Array<{ fileId?: unknown; seriesId?: unknown }>;
-    }) => { matchedFileCount: number; matchedSeriesCount: number };
-    t: OriginExportContentTranslateFn;
-}) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const [showPicker, setShowPicker] = useState(false);
-    const anchorRef = useRef<HTMLDivElement | null>(null);
-    const menuContentRef = useRef<HTMLDivElement | null>(null);
-    const selectItemRef = useRef<HTMLDivElement | null>(null);
-    const submenuContentRef = useRef<HTMLDivElement | null>(null);
-    const selectedSourceIds = useMemo(() => {
-        if (mode === "all") {
-            return curveOptions.map((option) => option.key).filter(Boolean);
-        }
-        return curveOptions
-            .map((option) => option.key)
-            .filter((key) => selectedCurveOptionKeySet.has(key));
-    }, [curveOptions, mode, selectedCurveOptionKeySet]);
-    const selectedSourceSet = useMemo(() => new Set(selectedSourceIds), [selectedSourceIds]);
-    const displayLabel = mode === "all"
-        ? t("da_origin_curve_export_mode_all")
-        : selectedSourceIds.length
-            ? t("da_origin_curve_export_mode_select_count", { count: selectedSourceIds.length })
-            : t("da_origin_curve_export_mode_select");
-    const applySourceSelection = (sourceIds: string[]) => {
-        setMode("select");
-        onSelectedCurveOptionKeysChange(sourceIds);
-        const selectedKeySet = new Set(sourceIds);
-        replaceMatchingOriginSeriesAcrossFiles({
-            fileIds: scopedFileIds,
-            sourceSeriesRefs: curveOptions
-                .filter((option) => selectedKeySet.has(option.key))
-                .map((option) => ({
-                    fileId: option.sourceFileId,
-                    seriesId: option.sourceSeriesId,
-                })),
-        });
-    };
-    const toggleSourceSeries = (seriesKey: string) => {
-        const next = selectedSourceSet.has(seriesKey)
-            ? selectedSourceIds.filter((item) => item !== seriesKey)
-            : [...selectedSourceIds, seriesKey];
-        applySourceSelection(next);
-    };
-    useEffect(() => {
-        if (!isOpen) return;
-
-        const handleMouseDown = (event: MouseEvent) => {
-            const target = event.target;
-            if (!(target instanceof Node)) return;
-            if (anchorRef.current?.contains(target)) return;
-            if (menuContentRef.current?.contains(target)) return;
-            if (submenuContentRef.current?.contains(target)) return;
-            setIsOpen(false);
-            setShowPicker(false);
-        };
-
-        document.addEventListener("mousedown", handleMouseDown);
-        return () => document.removeEventListener("mousedown", handleMouseDown);
-    }, [isOpen]);
-
-    return (
-      <div className="ui-select_warp w-fit da-neutral-select" data-style="select">
-        <Dropdown isOpen={isOpen} onOpenChange={(next) => {
-            setIsOpen(next);
-            if (next) setShowPicker(mode === "select");
-            else setShowPicker(false);
-        }} anchorRef={anchorRef} closeOnClickOutside={false}>
-          {({ setContentRef }) => (
-            <>
-              <DropdownTrigger
-                fieldRef={anchorRef}
-                id="device-analysis-origin-curve-export-mode-select"
-                isOpen={isOpen}
-                menuId="device-analysis-origin-curve-export-mode-menu"
-                data-size="sm"
-                onClick={() => setIsOpen((prev) => !prev)}
-                fieldClassName="input_field ui-select_field--sm pr-1"
-                className="input_native no-focus-outline p-0 text-left cursor-pointer select-none pr-6"
-                indicatorClassName="absolute right-1 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none"
-                indicator={
-                  <ChevronDown
-                    size={14}
-                    className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
-                  />
-                }
-              >
-                <span className="block truncate text-text-primary">{displayLabel}</span>
-              </DropdownTrigger>
-              <ContentView
-                isOpen={isOpen}
-                align="left"
-                zIndex={80}
-                triggerId="device-analysis-origin-curve-export-mode-select"
-                menuId="device-analysis-origin-curve-export-mode-menu"
-                anchorRef={anchorRef}
-                contentRef={(node) => {
-                    menuContentRef.current = node;
-                    setContentRef(node);
-                }}
-                variant="menu"
-              >
-                {() => (
-                  <Menu withScrollArea={false}>
-                    <div className="ui-menu__list">
-                        <MenuItem
-                          data-selected={mode === "all" || undefined}
-                          onClick={() => {
-                            setMode("all");
-                            setShowPicker(false);
-                            setIsOpen(false);
-                          }}
-                          onMouseEnter={() => setShowPicker(false)}
-                          left={<span className="ui-menu__item-left whitespace-nowrap">{t("da_origin_curve_export_mode_all")}</span>}
-                          right={<span className="ui-menu__item-right">{mode === "all" ? <Check size={14} className="text-accent" /> : null}</span>}
-                        />
-                        <MenuItem
-                          ref={selectItemRef}
-                          data-selected={mode === "select" || undefined}
-                          onClick={() => {
-                            setMode("select");
-                            setShowPicker(true);
-                          }}
-                          onMouseEnter={() => setShowPicker(true)}
-                          left={<span className="ui-menu__item-left whitespace-nowrap">{t("da_origin_curve_export_mode_select")}</span>}
-                          right={<span className="ui-menu__item-right"><ChevronRight size={14} /></span>}
-                        />
-                    </div>
-                  </Menu>
-                )}
-              </ContentView>
-              <ContentView
-                isOpen={isOpen && showPicker}
-                align="left"
-                side="right"
-                zIndex={90}
-                triggerId="device-analysis-origin-curve-export-mode-menu-select"
-                menuId="device-analysis-origin-curve-export-picker-menu"
-                anchorRef={selectItemRef}
-                contentRef={(node) => {
-                    submenuContentRef.current = node;
-                }}
-                variant="menu"
-              >
-                {() => (
-                  <Menu withScrollArea={false}>
-                    <MenuScrollArea>
-                      <div className="ui-menu__list">
-                        {curveOptions.map((option) => {
-                          const key = String(option?.key ?? "");
-                          const checked = selectedSourceSet.has(key);
-                          return (
-                            <MenuItem
-                              key={key}
-                              role="menuitemcheckbox"
-                              aria-checked={checked}
-                              data-selected={checked || undefined}
-                              onClick={() => toggleSourceSeries(key)}
-                              left={
-                                <span className="ui-menu__item-left min-w-0">
-                                  <span className="truncate">{option.label}</span>
-                                </span>
-                              }
-                              right={
-                                <span className="ui-menu__item-right">
-                                  {checked ? <Check size={14} className="text-accent" /> : null}
-                                </span>
-                              }
-                            />
-                          );
-                        })}
-                      </div>
-                    </MenuScrollArea>
-                  </Menu>
-                )}
-              </ContentView>
-            </>
-          )}
-        </Dropdown>
-      </div>
-    );
-};
 const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, primaryPlotLabel, derivativeLabel, gmApplicable, ssApplicable, vthApplicable, areaAvailable, onChange, }: {
     activePlotType: PlotTypeOption;
     primaryPlotLabel?: string;
@@ -1210,6 +869,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const [originFilteredCanvasKind, setOriginFilteredCanvasKind] = useState<DeviceAnalysisOriginFilteredCanvasKind>("output");
     // User-picked curve legend template. File-level checkboxes are derived from this, not the source of truth.
     const [originCurveExportSelectedKeys, setOriginCurveExportSelectedKeys] = useState<string[] | null>(null);
+    const [rcCurveSelectionMode, setRcCurveSelectionMode] = useState<DeviceAnalysisOriginCurveExportMode>("all");
+    const [rcCurveSelectionKeys, setRcCurveSelectionKeys] = useState<string[] | null>(null);
     const [resultsTab, setResultsTab] = useState<ResultsTabOption>("metrics");
     const [rcGeometryByFileId, setRcGeometryByFileId] = useState<RcGeometryByFileId>({});
     const [rcAnalyzePending, setRcAnalyzePending] = useState(false);
@@ -1883,7 +1544,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         visibleOriginCanvasIds: overviewVisibleFileIds,
     });
     const selectedCanvasCount = selectedOriginCanvasKeySet?.size ?? 0;
-    const isExportPaneActive = resultsTab === "export";
+    const isExportPaneActive = resultsTab === "export" || resultsTab === "rc";
     const isManualCanvasScope = isExportPaneActive && originCanvasExportScope === "selected";
     const isExportListCanvasSelectionMode = isManualCanvasScope;
     const showFilteredCanvasKindSelect = originCanvasExportScope === "filtered";
@@ -1973,6 +1634,35 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         resolvedCurveExportMode,
         scopedOriginCanvasKeySet,
     ]);
+    const resolvedRcCurveSelectionMode: DeviceAnalysisOriginCurveExportMode = rcCurveSelectionMode === "select"
+        ? "select"
+        : "all";
+    const selectedRcCurveOptionKeySet = useMemo(() => {
+        if (resolvedRcCurveSelectionMode === "all") {
+            return new Set(originCurveExportOptions.map((option) => option.key));
+        }
+        if (Array.isArray(rcCurveSelectionKeys)) {
+            return new Set(rcCurveSelectionKeys);
+        }
+        return new Set(originCurveExportOptions.map((option) => option.key));
+    }, [originCurveExportOptions, rcCurveSelectionKeys, resolvedRcCurveSelectionMode]);
+    const selectedRcSeriesIdSet = useMemo(() => {
+        if (resolvedRcCurveSelectionMode === "all") return null;
+        return new Set(
+            originCurveExportOptions
+                .filter((option) => selectedRcCurveOptionKeySet.has(option.key))
+                .map((option) => option.sourceSeriesId)
+                .filter(Boolean),
+        );
+    }, [originCurveExportOptions, resolvedRcCurveSelectionMode, selectedRcCurveOptionKeySet]);
+    const handleRcCurveSelectionKeysChange = React.useCallback((nextKeys: string[]) => {
+        setRcCurveSelectionMode("select");
+        setRcCurveSelectionKeys(nextKeys);
+    }, []);
+    const applyRcCurveSelectionAcrossFiles = React.useCallback(() => ({
+        matchedFileCount: 0,
+        matchedSeriesCount: 0,
+    }), []);
     useEffect(() => {
         if (resolvedCurveExportMode !== "select") return;
         if (!Array.isArray(originCurveExportSelectedKeys)) return;
@@ -2117,11 +1807,15 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const transferMetricsApplicable = useMemo(() => isTransferLikeDeviceAnalysisFile(activeFile), [activeFile]);
     const outputMetricsApplicable = useMemo(() => isOutputLikeDeviceAnalysisFile(activeFile), [activeFile]);
     const calculatedParametersMode = useMemo(() => transferMetricsApplicable ? "transfer" : outputMetricsApplicable ? "output" : "generic", [outputMetricsApplicable, transferMetricsApplicable]);
+    const rcTransferAvailable = useMemo(
+        () => (Array.isArray(processedData) ? processedData : []).some((file: any) => isTransferLikeDeviceAnalysisFile(file)),
+        [processedData],
+    );
     useEffect(() => {
-        if (!transferMetricsApplicable && resultsTab === "rc") {
+        if (!rcTransferAvailable && resultsTab === "rc") {
             setResultsTab("metrics");
         }
-    }, [resultsTab, transferMetricsApplicable]);
+    }, [rcTransferAvailable, resultsTab]);
     const ssHeuristicApplicable = transferMetricsApplicable;
     const gmMode = "x";
     const gmUi = useMemo(() => {
@@ -3937,39 +3631,143 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         : DERIVATIVE_ONLY_CALCULATED_PARAMETERS_COLUMN_WIDTHS_PX, [calculatedParametersMode]);
     const calculatedParametersTableMinWidth = useMemo(() => calculatedParametersColumnWidths.reduce((total, width) => total + width, 0), [calculatedParametersColumnWidths]);
     const metricsRowElements = useMemo(() => metricsRows.map((row: any) => (<CalculatedParametersRow key={row.id} row={row} isPending={Boolean(row?.isPending)} buildCurrentTooltip={buildCurrentTooltip} buildSsTooltip={buildSsTooltip} showTransferMetrics={calculatedParametersMode === "transfer"}/>)), [buildCurrentTooltip, buildSsTooltip, calculatedParametersMode, metricsRows]);
+    const rcStatisticListEntries = useMemo(() => {
+        const scopedIds = scopedOriginCanvasKeySet ?? new Set<string>();
+        return (Array.isArray(processedData) ? processedData : [])
+            .map((file: any) => {
+            const fileId = String(file?.fileId ?? "").trim();
+            if (!fileId || !scopedIds.has(fileId) || !isTransferLikeDeviceAnalysisFile(file))
+                return null;
+            const series = (Array.isArray(file?.series) ? file.series : [])
+                .map((series: any, index: number) => {
+                const seriesId = String(series?.id ?? "").trim();
+                if (!seriesId)
+                    return null;
+                const tokens = resolveOriginSeriesMatchTokens(series);
+                const key = tokens[0] ?? `series:${fileId}:${seriesId}`;
+                const selected = selectedRcSeriesIdSet === null || selectedRcSeriesIdSet.has(seriesId);
+                return {
+                    key,
+                    label: resolveDisplayLegendLabel(fileId, series, index),
+                    selected,
+                };
+            })
+                .filter((series: any): series is {
+                key: string;
+                label: string;
+                selected: boolean;
+            } => Boolean(series));
+            const selectedCount = series.filter((item: { selected: boolean }) => item.selected).length;
+            return {
+                fileId,
+                fileName: String(file?.fileName ?? fileId),
+                isCanvasSelected: scopedIds.has(fileId),
+                selectedCount,
+                allSeriesSelected: series.length > 0 && series.every((item: { selected: boolean }) => item.selected),
+                series,
+            };
+        })
+            .filter((entry): entry is (typeof exportListEntries)[number] => Boolean(entry));
+    }, [
+        exportListEntries,
+        processedData,
+        resolveDisplayLegendLabel,
+        scopedOriginCanvasKeySet,
+        selectedRcSeriesIdSet,
+    ]);
     const rcRows = useMemo(() => {
-        if (!Array.isArray(processedData) || !processedData.length)
+        if (!rcStatisticListEntries.length)
             return [];
+        const filesById = new Map<string, any>();
+        for (const file of Array.isArray(processedData) ? processedData : []) {
+            const fileId = String(file?.fileId ?? "").trim();
+            if (fileId)
+                filesById.set(fileId, file);
+        }
         let deviceIndex = 0;
-        return processedData.flatMap((file: any) => {
+        return rcStatisticListEntries.flatMap((entry: any) => {
+            const fileId = String(entry?.fileId ?? "").trim();
+            const file = filesById.get(fileId);
             if (!isTransferLikeDeviceAnalysisFile(file))
                 return [];
-            const fileId = String(file?.fileId ?? "").trim();
             const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
             const seriesList = Array.isArray(file?.series) ? file.series : [];
-            return seriesList.map((series: any, index: number) => {
-                const seriesId = String(series?.id ?? "");
+            const selectedSeriesIds = new Set(
+                (Array.isArray(entry?.series) ? entry.series : [])
+                    .filter((series: any) => series?.selected)
+                    .map((series: any) => String(series?.key ?? "").trim())
+                    .filter(Boolean),
+            );
+            deviceIndex += 1;
+            const defaultLength = String(deviceIndex);
+            return seriesList
+                .map((series: any, index: number) => {
+                const seriesId = String(series?.id ?? "").trim();
+                const tokens = resolveOriginSeriesMatchTokens(series);
+                const seriesKey = tokens[0] ?? `series:${fileId}:${seriesId}`;
+                if (!seriesId || !selectedSeriesIds.has(seriesKey))
+                    return null;
+                const fileGeometry = fileId ? rcGeometryByFileId[fileId]?.[RC_FILE_GEOMETRY_KEY] ?? {} : {};
                 const stored = fileId && seriesId ? rcGeometryByFileId[fileId]?.[seriesId] ?? {} : {};
                 const legendVds = Number(series?.legendValue);
                 const xArr = xGroups[Number(series?.groupIndex ?? 0)] ?? [];
                 const yArr = Array.isArray(series?.y) ? series.y : [];
-                deviceIndex += 1;
                 return {
                     fileId,
                     fileName: String(file?.fileName ?? (fileId || "device")),
-                    include: stored.include ?? true,
                     label: resolveDisplayLegendLabel(fileId, series, index),
-                    length: stored.length ?? String(deviceIndex),
+                    length: fileGeometry.length ?? defaultLength,
                     series,
                     seriesId,
                     vds: stored.vds ?? (Number.isFinite(legendVds) && legendVds !== 0 ? String(legendVds) : "0.1"),
-                    width: stored.width ?? "1",
+                    width: fileGeometry.width ?? "1",
                     x: xArr,
                     y: yArr,
                 };
-            });
+            })
+                .filter(Boolean);
         });
-    }, [processedData, rcGeometryByFileId, resolveDisplayLegendLabel]);
+    }, [processedData, rcGeometryByFileId, rcStatisticListEntries, resolveDisplayLegendLabel]);
+    const resolveRcSelectedCurveKeys = React.useCallback(() => {
+        if (resolvedRcCurveSelectionMode === "select" && Array.isArray(rcCurveSelectionKeys)) {
+            return new Set(rcCurveSelectionKeys);
+        }
+        return new Set(originCurveExportOptions.map((option) => option.key));
+    }, [originCurveExportOptions, rcCurveSelectionKeys, resolvedRcCurveSelectionMode]);
+    const selectAllRcSeriesForFile = React.useCallback((fileId: string) => {
+        const entry = rcStatisticListEntries.find((item: any) => item.fileId === fileId);
+        if (!entry)
+            return;
+        const next = resolveRcSelectedCurveKeys();
+        for (const series of entry.series) {
+            next.add(series.key);
+        }
+        setRcCurveSelectionMode("select");
+        setRcCurveSelectionKeys(Array.from(next));
+    }, [rcStatisticListEntries, resolveRcSelectedCurveKeys]);
+    const clearRcSeriesForFile = React.useCallback((fileId: string) => {
+        const entry = rcStatisticListEntries.find((item: any) => item.fileId === fileId);
+        if (!entry)
+            return;
+        const next = resolveRcSelectedCurveKeys();
+        for (const series of entry.series) {
+            next.delete(series.key);
+        }
+        setRcCurveSelectionMode("select");
+        setRcCurveSelectionKeys(Array.from(next));
+    }, [rcStatisticListEntries, resolveRcSelectedCurveKeys]);
+    const toggleRcSeriesForFile = React.useCallback((_fileId: string, seriesKey: string) => {
+        const normalizedKey = String(seriesKey ?? "").trim();
+        if (!normalizedKey)
+            return;
+        const next = resolveRcSelectedCurveKeys();
+        if (next.has(normalizedKey))
+            next.delete(normalizedKey);
+        else
+            next.add(normalizedKey);
+        setRcCurveSelectionMode("select");
+        setRcCurveSelectionKeys(Array.from(next));
+    }, [resolveRcSelectedCurveKeys]);
     const updateRcGeometry = React.useCallback((fileIdRaw: string, seriesId: string, patch: Partial<RcGeometryEntry>) => {
         const fileId = String(fileIdRaw ?? "").trim();
         if (!fileId || !seriesId)
@@ -3985,6 +3783,36 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             },
         }));
     }, []);
+    const rcListEntries = useMemo(() => {
+        const grouped = new Map<string, any>();
+        for (const row of rcRows as any[]) {
+            const fileId = String(row?.fileId ?? "").trim();
+            if (!fileId)
+                continue;
+            const existing = grouped.get(fileId) ?? {
+                fileId,
+                fileName: row.fileName,
+                length: row.length,
+                rows: [],
+                width: row.width,
+            };
+            existing.rows.push(row);
+            grouped.set(fileId, existing);
+        }
+        return Array.from(grouped.values());
+    }, [rcRows]);
+    const rcRowsByFileId = useMemo(() => {
+        const grouped = new Map<string, any[]>();
+        for (const row of rcRows as any[]) {
+            const fileId = String(row?.fileId ?? "").trim();
+            if (!fileId)
+                continue;
+            const rows = grouped.get(fileId) ?? [];
+            rows.push(row);
+            grouped.set(fileId, rows);
+        }
+        return grouped;
+    }, [rcRows]);
     const rcSummary = rcAnalyzeResult?.summary && typeof rcAnalyzeResult.summary === "object"
         ? rcAnalyzeResult.summary
         : null;
@@ -3995,7 +3823,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             ? rcAnalyzeError
             : rcSummary
                 ? `Rc=${formatNumber(rcSummary.rc)} | RcW=${formatNumber(rcSummary.rcw)} | R2=${formatNumber(rcSummary.r2, { digits: 4 })}`
-                : "Configure L/W/Vds, then run Rc";
+                : `Rc uses ${rcRows.length} selected statistic curves`;
     const handleAnalyzeRc = React.useCallback(async () => {
         const bridge = (globalThis.window as any)?.desktopImport;
         if (!bridge?.analyzeDeviceAnalysisRcWithRust) {
@@ -4007,7 +3835,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return;
         }
         const devices = rcRows
-            .filter((row: any) => row.include)
             .map((row: any) => {
                 return {
                     fileId: row.fileId,
@@ -4152,6 +3979,143 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const metricsProgressText = useMemo(() => isMetricsDetailsPending
         ? `Computing details ${detailAnalysisState.completedCount}/${detailAnalysisState.totalCount}`
         : "", [detailAnalysisState.completedCount, detailAnalysisState.totalCount, isMetricsDetailsPending]);
+    const renderOriginCurveSelectionList = React.useCallback(({
+        curveMode = resolvedCurveExportMode,
+        entries,
+        emptyText,
+        onClearAllSeriesForFile = clearOriginSeriesSelectionForFile,
+        onSelectAllSeriesForFile = selectAllOriginSeriesForFile,
+        onSetCurveMode = setOriginCurveExportMode,
+        onToggleSeriesForFile = toggleOriginSeriesSelectionForFile,
+        renderFileExtra,
+    }: {
+        curveMode?: DeviceAnalysisOriginCurveExportMode;
+        entries: typeof exportListEntries;
+        emptyText: string;
+        onClearAllSeriesForFile?: (fileId: string) => void;
+        onSelectAllSeriesForFile?: (fileId: string) => void;
+        onSetCurveMode?: (nextMode: DeviceAnalysisOriginCurveExportMode) => void;
+        onToggleSeriesForFile?: (fileId: string, seriesKey: string) => void;
+        renderFileExtra?: (entry: (typeof exportListEntries)[number]) => React.ReactNode;
+    }) => entries.length ? (<ScrollArea axis="y" className="min-w-0 w-full max-h-[320px]" viewportClassName="pr-2">
+        <div className="space-y-2">
+          {entries.map((entry: any) => (<div
+              key={entry.fileId}
+              className={`rounded-xl border border-border bg-bg-page/40 px-3 py-2.5 ${isExportListCanvasSelectionMode ? "cursor-pointer" : ""}`}
+              onClick={isExportListCanvasSelectionMode
+                ? () => {
+                    toggleOriginCanvasSelection(entry.fileId);
+                  }
+                : undefined}
+              onKeyDown={isExportListCanvasSelectionMode
+                ? (event) => {
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    event.preventDefault();
+                    toggleOriginCanvasSelection(entry.fileId);
+                  }
+                : undefined}
+              role={isExportListCanvasSelectionMode ? "button" : undefined}
+              tabIndex={isExportListCanvasSelectionMode ? 0 : undefined}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap text-[11px] text-text-secondary">
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        handleSelectFile(entry.fileId);
+                      }}
+                      className="max-w-full truncate rounded-lg p-1 -m-1 text-left text-sm font-medium text-text-primary hover:text-accent"
+                    >
+                      {entry.fileName}
+                    </button>
+                    <span className="inline-flex items-center rounded-full bg-bg-surface px-2 py-0.5">
+                      {t("da_origin_collection_file_curves", {
+                            count: entry.selectedCount,
+                        })}
+                    </span>
+                    {isExportListCanvasSelectionMode && entry.isCanvasSelected ? (<span className="inline-flex items-center rounded-full bg-accent-terracotta/15 px-2 py-0.5 text-accent-terracotta">
+                        {t("da_origin_export_list_selected_badge")}
+                      </span>) : null}
+                  </div>
+                </div>
+                <Button variant="icon" size="icon" className="shrink-0 rounded-full text-text-tertiary hover:text-text-primary" onClick={(event) => {
+                    event.stopPropagation();
+                    handleRemoveOriginExportEntry(entry.fileId);
+                }} title={exportEntryActionLabel} aria-label={exportEntryActionLabel}>
+                  <X size={14} strokeWidth={2} />
+                </Button>
+              </div>
+              <div className="mt-3">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        if (curveMode === "all") {
+                            onSetCurveMode("select");
+                        }
+                        if (entry.allSeriesSelected) {
+                            onClearAllSeriesForFile(entry.fileId);
+                            return;
+                        }
+                        onSelectAllSeriesForFile(entry.fileId);
+                    }}
+                    className="inline-flex min-w-0 items-center gap-1.5 rounded-md border border-border bg-bg-surface px-2 py-1 text-[11px] leading-none text-text-secondary hover:text-text-primary"
+                  >
+                    <span className="clickable-ckb" data-state={entry.allSeriesSelected ? "checked" : "unchecked"}>
+                      {entry.allSeriesSelected ? <Check size={10} className="text-white" strokeWidth={4}/> : null}
+                    </span>
+                    <span className="whitespace-nowrap">{t("da_origin_curve_export_pick_all")}</span>
+                  </button>
+                  {entry.series.map((series: any) => (<button
+                      key={series.key}
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        if (curveMode === "all") {
+                            onSetCurveMode("select");
+                        }
+                        onToggleSeriesForFile(entry.fileId, series.key);
+                    }}
+                      className={`inline-flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] leading-none ${series.selected
+                            ? "border-accent/30 bg-accent/5 text-text-primary"
+                            : "border-border bg-bg-surface text-text-secondary"} ${curveMode === "select"
+                            ? "cursor-pointer"
+                            : "cursor-default"}`}
+                    >
+                      <span className="clickable-ckb shrink-0" data-state={series.selected ? "checked" : "unchecked"}>
+                        {series.selected ? <Check size={10} className="text-white" strokeWidth={4}/> : null}
+                      </span>
+                      <span className="truncate whitespace-nowrap">{series.label}</span>
+                    </button>))}
+                </div>
+              </div>
+              {renderFileExtra ? (<div
+                  className="mt-3"
+                  onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => event.stopPropagation()}
+                >
+                  {renderFileExtra(entry)}
+                </div>) : null}
+            </div>))}
+        </div>
+      </ScrollArea>) : (<div className="rounded-xl border border-dashed border-border bg-bg-page/40 px-4 py-6 text-sm text-text-secondary">
+        {emptyText}
+      </div>), [
+        clearOriginSeriesSelectionForFile,
+        exportEntryActionLabel,
+        handleRemoveOriginExportEntry,
+        handleSelectFile,
+        isExportListCanvasSelectionMode,
+        resolvedCurveExportMode,
+        selectAllOriginSeriesForFile,
+        setOriginCurveExportMode,
+        t,
+        toggleOriginCanvasSelection,
+        toggleOriginSeriesSelectionForFile,
+    ]);
     if (!processedData || processedData.length === 0)
         return null;
     return (<div className="h-full min-h-0 grid grid-cols-1 md:grid-rows-1 md:grid-cols-[var(--analysis-sidebar-width)_minmax(0,1fr)] gap-1 md:gap-1" ref={toastContainerRef} style={{
@@ -4531,7 +4495,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     value: "metrics",
                     label: t("da_analysis_results_tab_metrics"),
                 },
-                ...(transferMetricsApplicable
+                ...(rcTransferAvailable
                     ? [{
                         value: "rc",
                         label: "Rc",
@@ -4644,91 +4608,78 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                   </tbody>
                 </table>
               </ScrollArea>) : resultsTab === "rc" ? (<div className="flex min-w-0 flex-col gap-3">
-                <div className="rounded-xl border border-border bg-bg-page/40 px-4 py-3">
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div className="min-w-0">
-                      <div className="text-sm font-semibold text-text-primary">Contact resistance</div>
-                      <div className="mt-1 text-xs text-text-secondary">
-                        Fits Rtotal * W versus L across selected transfer files and curves.
-                      </div>
-                    </div>
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      onClick={() => {
-                        void handleAnalyzeRc();
-                      }}
-                      disabled={rcAnalyzePending || !rcRows.length}
-                    >
-                      {rcAnalyzePending ? "Running..." : "Run Rc"}
-                    </Button>
-                  </div>
-                </div>
-                <ScrollArea axis="x" className="min-w-0 w-full">
-                  <table className="w-full min-w-[760px] table-fixed text-sm border-collapse">
-                    <colgroup>
-                      <col style={{ width: 72 }}/>
-                      <col style={{ width: 220 }}/>
-                      <col style={{ width: 220 }}/>
-                      <col style={{ width: 140 }}/>
-                      <col style={{ width: 140 }}/>
-                      <col style={{ width: 140 }}/>
-                    </colgroup>
-                    <thead className="sticky top-0 bg-bg-surface z-10">
-                      <tr className="border-b border-border">
-                        <th className="p-2 text-xs font-semibold text-text-secondary text-left">Use</th>
-                        <th className="p-2 text-xs font-semibold text-text-secondary text-left border-l border-border">File</th>
-                        <th className="p-2 text-xs font-semibold text-text-secondary text-left border-l border-border">Series</th>
-                        <th className="p-2 text-xs font-semibold text-text-secondary text-left border-l border-border">L</th>
-                        <th className="p-2 text-xs font-semibold text-text-secondary text-left border-l border-border">W</th>
-                        <th className="p-2 text-xs font-semibold text-text-secondary text-left border-l border-border">Vds</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {rcRows.map((row: any) => (
-                        <tr key={`${row.fileId}:${row.seriesId}`} className="hover:bg-bg-page/30">
-                          <td className="p-2">
-                            <input
-                              type="checkbox"
-                              checked={Boolean(row.include)}
-                              onChange={(event) => updateRcGeometry(row.fileId, row.seriesId, { include: event.target.checked })}
-                            />
-                          </td>
-                          <td className="p-2 border-l border-border truncate text-text-primary" title={row.fileName}>
-                            {row.fileName}
-                          </td>
-                          <td className="p-2 border-l border-border truncate text-text-primary" title={row.label}>
-                            {row.label}
-                          </td>
-                          <td className="p-2 border-l border-border">
-                            <Input
-                              value={row.length}
-                              onChange={(value: string) => updateRcGeometry(row.fileId, row.seriesId, { length: value })}
-                              size="sm"
-                              inputClassName="text-xs"
-                            />
-                          </td>
-                          <td className="p-2 border-l border-border">
-                            <Input
-                              value={row.width}
-                              onChange={(value: string) => updateRcGeometry(row.fileId, row.seriesId, { width: value })}
-                              size="sm"
-                              inputClassName="text-xs"
-                            />
-                          </td>
-                          <td className="p-2 border-l border-border">
-                            <Input
-                              value={row.vds}
-                              onChange={(value: string) => updateRcGeometry(row.fileId, row.seriesId, { vds: value })}
-                              size="sm"
-                              inputClassName="text-xs"
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </ScrollArea>
+                <RcAnalysisToolbar
+                  curveOptions={originCurveExportOptions}
+                  isPending={rcAnalyzePending}
+                  onAnalyze={handleAnalyzeRc}
+                  onSelectedCurveOptionKeysChange={handleRcCurveSelectionKeysChange}
+                  replaceMatchingOriginSeriesAcrossFiles={applyRcCurveSelectionAcrossFiles}
+                  resolvedCurveExportMode={resolvedRcCurveSelectionMode}
+                  rowCount={rcRows.length}
+                  scopedFileIds={scopedOriginCanvasIds}
+                  selectedCurveOptionKeySet={selectedRcCurveOptionKeySet}
+                  setResolvedCurveExportMode={setRcCurveSelectionMode}
+                  t={t}
+                />
+                {renderOriginCurveSelectionList({
+                    curveMode: resolvedRcCurveSelectionMode,
+                    entries: rcStatisticListEntries,
+                    emptyText: "Select transfer files and curves in the statistic list first.",
+                    onClearAllSeriesForFile: clearRcSeriesForFile,
+                    onSelectAllSeriesForFile: selectAllRcSeriesForFile,
+                    onSetCurveMode: setRcCurveSelectionMode,
+                    onToggleSeriesForFile: toggleRcSeriesForFile,
+                    renderFileExtra: (entry: any) => {
+                        const rows = rcRowsByFileId.get(entry.fileId) ?? [];
+                        const firstRow = rows[0];
+                        const storedFileGeometry = rcGeometryByFileId[entry.fileId]?.[RC_FILE_GEOMETRY_KEY] ?? {};
+                        const length = firstRow?.length ?? storedFileGeometry.length ?? "1";
+                        const width = firstRow?.width ?? storedFileGeometry.width ?? "1";
+                        return (<div className="grid gap-3 rounded-lg border border-border bg-bg-surface px-3 py-3">
+                            <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-[7rem_7rem]">
+                              <div className="min-w-0">
+                                <label className="mb-1 block text-[11px] leading-none text-text-secondary">L</label>
+                                <input
+                                  type="text"
+                                  value={length}
+                                  onChange={(event) => updateRcGeometry(entry.fileId, RC_FILE_GEOMETRY_KEY, { length: event.target.value })}
+                                  className={RC_INPUT_CLASS}
+                                />
+                              </div>
+                              <div className="min-w-0">
+                                <label className="mb-1 block text-[11px] leading-none text-text-secondary">W</label>
+                                <input
+                                  type="text"
+                                  value={width}
+                                  onChange={(event) => updateRcGeometry(entry.fileId, RC_FILE_GEOMETRY_KEY, { width: event.target.value })}
+                                  className={RC_INPUT_CLASS}
+                                />
+                              </div>
+                            </div>
+                            {rows.length ? (<div className="grid gap-2">
+                                {rows.map((row: any) => (<div key={`${row.fileId}:${row.seriesId}`} className="grid min-w-0 grid-cols-1 gap-2 rounded-md border border-border bg-bg-page/40 px-2 py-2 sm:grid-cols-[minmax(0,1fr)_7rem] sm:items-end">
+                                    <div className="min-w-0">
+                                      <label className="mb-1 block text-[11px] leading-none text-text-secondary">Curve</label>
+                                      <div className="truncate text-xs font-medium text-text-primary" title={row.label}>
+                                        {row.label}
+                                      </div>
+                                    </div>
+                                    <div className="min-w-0">
+                                      <label className="mb-1 block text-[11px] leading-none text-text-secondary">Vds</label>
+                                      <input
+                                        type="text"
+                                        value={row.vds}
+                                        onChange={(event) => updateRcGeometry(row.fileId, row.seriesId, { vds: event.target.value })}
+                                        className={RC_INPUT_CLASS}
+                                      />
+                                    </div>
+                                  </div>))}
+                              </div>) : (<div className="text-xs text-text-secondary">
+                                Select at least one transfer curve in this file for Rc.
+                              </div>)}
+                          </div>);
+                    },
+                })}
                 <div className="rounded-xl border border-border bg-bg-page/40 px-4 py-3">
                   {rcSummary ? (
                     <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
@@ -4790,265 +4741,33 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                   </ScrollArea>
                 ) : null}
               </div>) : (<div className="flex min-w-0 flex-col gap-3">
-                <div className="rounded-xl border border-border bg-bg-page/40 px-4 py-3">
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs text-text-secondary whitespace-nowrap">
-                        {t("da_origin_export_mode_label")}
-                      </span>
-                      <DropdownField
-                        id="device-analysis-origin-export-mode-select"
-                        size="sm"
-                        value={resolvedOriginExportMode}
-                        onChange={(next: any) => handleOriginExportModeChange(isDeviceAnalysisOriginExportMode(next)
-                            ? next
-                            : "merged")}
-                        options={[
-                        {
-                            value: "merged",
-                            label: t("da_origin_export_mode_merged"),
-                        },
-                        {
-                            value: "workbookSheets",
-                            label: t("da_origin_export_mode_workbook_sheets"),
-                        },
-                        {
-                            value: "workbookBooks",
-                            label: t("da_origin_export_mode_workbook_books"),
-                        },
-                        {
-                            value: "separate",
-                            label: t("da_origin_export_mode_separate"),
-                        },
-                    ]}
-                        className="w-fit da-neutral-select"
-                        stableWidth
-                        data-cta="Device Analysis"
-                        data-cta-position="export-pane"
-                        data-cta-copy="origin export mode"
-                      />
-                      <span className="text-xs text-text-secondary whitespace-nowrap">
-                        {t("da_origin_canvas_scope_label")}
-                      </span>
-                      <DropdownField
-                        id="device-analysis-origin-canvas-scope-select"
-                        size="sm"
-                        value={originCanvasExportScope}
-                        onChange={(next: any) => {
-                        const normalizedScope = next === "current" ||
-                            next === "filtered" ||
-                            next === "selected" ||
-                            next === "all"
-                            ? next
-                            : "selected";
-                        setOriginCanvasExportScope(normalizedScope);
-                    }}
-                        options={[
-                        {
-                            value: "all",
-                            label: t("da_origin_canvas_scope_all"),
-                        },
-                        {
-                            value: "current",
-                            label: t("da_origin_canvas_scope_current"),
-                        },
-                        {
-                            value: "filtered",
-                            label: t("da_origin_canvas_scope_filtered"),
-                        },
-                        {
-                            value: "selected",
-                            label: t("da_origin_canvas_scope_selected"),
-                        },
-                    ]}
-                        className="w-fit da-neutral-select"
-                        stableWidth
-                        data-cta="Device Analysis"
-                        data-cta-position="export-pane"
-                        data-cta-copy="origin canvas export scope"
-                      />
-                      {showFilteredCanvasKindSelect ? (<>
-                          <span className="text-xs text-text-secondary whitespace-nowrap">
-                            {t("da_origin_filtered_canvas_kind_label")}
-                          </span>
-                          <DropdownField
-                            id="device-analysis-origin-filtered-canvas-kind-select"
-                            size="sm"
-                            value={originFilteredCanvasKind}
-                            onChange={(next: any) => {
-                            setOriginFilteredCanvasKind(next === "transfer" ? "transfer" : "output");
-                        }}
-                            options={[
-                            {
-                                value: "transfer",
-                                label: t("da_origin_filtered_canvas_kind_transfer"),
-                            },
-                            {
-                                value: "output",
-                                label: t("da_origin_filtered_canvas_kind_output"),
-                            },
-                        ]}
-                            className="w-fit da-neutral-select"
-                            stableWidth
-                            data-cta="Device Analysis"
-                            data-cta-position="export-pane"
-                            data-cta-copy="origin filtered canvas kind"
-                          />
-                        </>) : null}
-                      <span className="text-xs text-text-secondary whitespace-nowrap">
-                        {t("da_origin_curve_export_mode_label")}
-                      </span>
-                      <OriginCurveExportMenu
-                        curveOptions={originCurveExportOptions}
-                        selectedCurveOptionKeySet={selectedOriginCurveExportOptionKeySet}
-                        mode={resolvedCurveExportMode}
-                        onSelectedCurveOptionKeysChange={setOriginCurveExportSelectedKeys}
-                        scopedFileIds={scopedOriginCanvasIds}
-                        setMode={setOriginCurveExportMode}
-                        replaceMatchingOriginSeriesAcrossFiles={replaceMatchingOriginSeriesAcrossFiles}
-                        t={t}
-                      />
-                      <span className="text-xs text-text-secondary whitespace-nowrap">
-                        {t("da_origin_export_content_label")}
-                      </span>
-                      <OriginExportContentMenu
-                        options={originExportContentOptions}
-                        selectedKeys={resolvedOriginExportContentKeys}
-                        setSelectedKeys={setOriginExportContentKeys}
-                        t={t}
-                      />
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() => {
-                          void handleOpenInOrigin();
-                        }}
-                      >
-                        {t("da_open_in_origin")}
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => {
-                          void handleExportOriginZip();
-                        }}
-                      >
-                        {t("da_export_origin_zip")}
-                      </Button>
-                    </div>
-                  </div>
-                  {resolvedOriginExportMode === "merged" && hasMixedExportYScales ? (
-                  <div className="mt-3 space-y-2">
-                    <div className="rounded-lg border border-border bg-bg-page/60 px-3 py-2 text-xs text-text-secondary">
-                        <div className="flex items-start gap-2">
-                          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden="true"/>
-                          <span>{t("da_origin_export_mode_mixed_y_scale_split_hint")}</span>
-                        </div>
-                      </div>
-                  </div>) : null}
-                </div>
-                {exportListEntries.length ? (<ScrollArea axis="y" className="min-w-0 w-full max-h-[320px]" viewportClassName="pr-2">
-                    <div className="space-y-2">
-                      {exportListEntries.map((entry: any) => (<div
-                          key={entry.fileId}
-                          className={`rounded-xl border border-border bg-bg-page/40 px-3 py-2.5 ${isExportListCanvasSelectionMode ? "cursor-pointer" : ""}`}
-                          onClick={isExportListCanvasSelectionMode
-                            ? () => {
-                                toggleOriginCanvasSelection(entry.fileId);
-                              }
-                            : undefined}
-                          onKeyDown={isExportListCanvasSelectionMode
-                            ? (event) => {
-                                if (event.key !== "Enter" && event.key !== " ") return;
-                                event.preventDefault();
-                                toggleOriginCanvasSelection(entry.fileId);
-                              }
-                            : undefined}
-                          role={isExportListCanvasSelectionMode ? "button" : undefined}
-                          tabIndex={isExportListCanvasSelectionMode ? 0 : undefined}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2 flex-wrap text-[11px] text-text-secondary">
-                                <button
-                                  type="button"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    handleSelectFile(entry.fileId);
-                                  }}
-                                  className="max-w-full truncate rounded-lg p-1 -m-1 text-left text-sm font-medium text-text-primary hover:text-accent"
-                                >
-                                  {entry.fileName}
-                                </button>
-                                <span className="inline-flex items-center rounded-full bg-bg-surface px-2 py-0.5">
-                                  {t("da_origin_collection_file_curves", {
-                                        count: entry.selectedCount,
-                                    })}
-                                </span>
-                                {isExportListCanvasSelectionMode && entry.isCanvasSelected ? (<span className="inline-flex items-center rounded-full bg-accent-terracotta/15 px-2 py-0.5 text-accent-terracotta">
-                                    {t("da_origin_export_list_selected_badge")}
-                                  </span>) : null}
-                              </div>
-                            </div>
-                            <Button variant="icon" size="icon" className="shrink-0 rounded-full text-text-tertiary hover:text-text-primary" onClick={(event) => {
-                    event.stopPropagation();
-                    handleRemoveOriginExportEntry(entry.fileId);
-                }} title={exportEntryActionLabel} aria-label={exportEntryActionLabel}>
-                                <X size={14} strokeWidth={2} />
-                              </Button>
-                          </div>
-                          <div className="mt-3">
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                    event.stopPropagation();
-                    if (resolvedCurveExportMode === "all") {
-                        setOriginCurveExportMode("select");
-                    }
-                    if (entry.allSeriesSelected) {
-                        clearOriginSeriesSelectionForFile(entry.fileId);
-                        return;
-                    }
-                    selectAllOriginSeriesForFile(entry.fileId);
-                }}
-                                className="inline-flex min-w-0 items-center gap-1.5 rounded-md border border-border bg-bg-surface px-2 py-1 text-[11px] leading-none text-text-secondary hover:text-text-primary"
-                              >
-                                <span className="clickable-ckb" data-state={entry.allSeriesSelected ? "checked" : "unchecked"}>
-                                  {entry.allSeriesSelected ? <Check size={10} className="text-white" strokeWidth={4}/> : null}
-                                </span>
-                                <span className="whitespace-nowrap">{t("da_origin_curve_export_pick_all")}</span>
-                              </button>
-                              {entry.series.map((series: any) => (<button
-                                  key={series.key}
-                                  type="button"
-                                  onClick={(event) => {
-                    event.stopPropagation();
-                    if (resolvedCurveExportMode === "all") {
-                        setOriginCurveExportMode("select");
-                    }
-                    toggleOriginSeriesSelectionForFile(entry.fileId, series.key);
-                }}
-                                  className={`inline-flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] leading-none ${series.selected
-                                        ? "border-accent/30 bg-accent/5 text-text-primary"
-                                        : "border-border bg-bg-surface text-text-secondary"} ${resolvedCurveExportMode === "select"
-                                        ? "cursor-pointer"
-                                        : "cursor-default"}`}
-                                >
-                                  <span className="clickable-ckb shrink-0" data-state={series.selected ? "checked" : "unchecked"}>
-                                    {series.selected ? <Check size={10} className="text-white" strokeWidth={4}/> : null}
-                                  </span>
-                                  <span className="truncate whitespace-nowrap">{series.label}</span>
-                                </button>))}
-                            </div>
-                          </div>
-                        </div>))}
-                    </div>
-                  </ScrollArea>) : (<div className="rounded-xl border border-dashed border-border bg-bg-page/40 px-4 py-6 text-sm text-text-secondary">
-                    {exportListEmptyText}
-                  </div>)}
+                <OriginExportToolbar
+                  curveOptions={originCurveExportOptions}
+                  hasMixedExportYScales={hasMixedExportYScales}
+                  mode={resolvedOriginExportMode}
+                  onExportOriginZip={handleExportOriginZip}
+                  onModeChange={handleOriginExportModeChange}
+                  onOpenInOrigin={handleOpenInOrigin}
+                  onSelectedCurveOptionKeysChange={setOriginCurveExportSelectedKeys}
+                  originCanvasExportScope={originCanvasExportScope}
+                  originExportContentOptions={originExportContentOptions}
+                  originFilteredCanvasKind={originFilteredCanvasKind}
+                  replaceMatchingOriginSeriesAcrossFiles={replaceMatchingOriginSeriesAcrossFiles}
+                  resolvedCurveExportMode={resolvedCurveExportMode}
+                  scopedFileIds={scopedOriginCanvasIds}
+                  selectedContentKeys={resolvedOriginExportContentKeys}
+                  selectedCurveOptionKeySet={selectedOriginCurveExportOptionKeySet}
+                  setContentKeys={setOriginExportContentKeys}
+                  setOriginCanvasExportScope={setOriginCanvasExportScope}
+                  setOriginFilteredCanvasKind={setOriginFilteredCanvasKind}
+                  setResolvedCurveExportMode={setOriginCurveExportMode}
+                  showFilteredCanvasKindSelect={showFilteredCanvasKindSelect}
+                  t={t}
+                />
+                {renderOriginCurveSelectionList({
+                    entries: exportListEntries,
+                    emptyText: exportListEmptyText,
+                })}
               </div>)}
           </Card>) : null}
         </section>
