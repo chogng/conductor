@@ -1682,8 +1682,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         toggleFileSelection: toggleRcStatisticFileSelection,
     } = useFileSelectionPool({
         availableFileIds: rcStatisticAvailableFileIds,
-        defaultSelectedFileIds: scopedOriginCanvasIds,
-        fallbackFileId: effectiveActiveFileId,
+        initialSelectedFileIds: scopedOriginCanvasIds,
     });
     const selectedRcBiasKey = useMemo(() => {
         const availableKeys = new Set(rcBiasOptions.map((option) => option.key));

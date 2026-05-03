@@ -343,7 +343,7 @@ export const useOriginCanvasExport = ({
     toggleFileSelection: toggleOriginCanvasSelection,
   } = useFileSelectionPool({
     availableFileIds: originCanvasOptionIds,
-    fallbackFileId: effectiveActiveFileId,
+    initialSelectedFileIds: [effectiveActiveFileId],
   });
 
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const normalizeFileIds = (fileIds: unknown[]): string[] =>
   (Array.isArray(fileIds) ? fileIds : [])
@@ -7,25 +7,22 @@ const normalizeFileIds = (fileIds: unknown[]): string[] =>
 
 type UseFileSelectionPoolOptions = {
   availableFileIds: unknown[];
-  defaultSelectedFileIds?: unknown[];
-  fallbackFileId?: unknown;
+  initialSelectedFileIds?: unknown[];
 };
 
 export const useFileSelectionPool = ({
   availableFileIds,
-  defaultSelectedFileIds = [],
-  fallbackFileId = "",
+  initialSelectedFileIds = [],
 }: UseFileSelectionPoolOptions) => {
   const availableIds = useMemo(() => normalizeFileIds(availableFileIds), [availableFileIds]);
-  const defaultIds = useMemo(() => normalizeFileIds(defaultSelectedFileIds), [defaultSelectedFileIds]);
-  const fallbackId = String(fallbackFileId ?? "").trim();
+  const initialIds = useMemo(() => normalizeFileIds(initialSelectedFileIds), [initialSelectedFileIds]);
+  const didApplyInitialSelectionRef = useRef(false);
 
   const [selectedFileIds, setSelectedFileIds] = useState<string[]>(() => {
     const availableSet = new Set(availableIds);
-    const initial = defaultIds.filter((item) => availableSet.has(item));
+    const initial = initialIds.filter((item) => availableSet.has(item));
     if (initial.length) return initial;
-    if (fallbackId && availableSet.has(fallbackId)) return [fallbackId];
-    return availableIds[0] ? [availableIds[0]] : [];
+    return [];
   });
 
   useEffect(() => {
@@ -34,24 +31,14 @@ export const useFileSelectionPool = ({
 
       const availableSet = new Set(availableIds);
       const filtered = normalizeFileIds(prev).filter((item) => availableSet.has(item));
-      if (filtered.length) {
-        const unchanged =
-          filtered.length === prev.length &&
-          filtered.every((value, index) => value === prev[index]);
-        return unchanged ? prev : filtered;
-      }
-
-      const defaultSelection = defaultIds.filter((item) => availableSet.has(item));
-      const next = defaultSelection.length
-        ? defaultSelection
-        : fallbackId && availableSet.has(fallbackId)
-          ? [fallbackId]
-          : [availableIds[0]];
+      const initial = initialIds.filter((item) => availableSet.has(item));
+      const next = filtered.length || didApplyInitialSelectionRef.current ? filtered : initial;
+      if (initial.length) didApplyInitialSelectionRef.current = true;
       const unchanged =
         next.length === prev.length && next.every((value, index) => value === prev[index]);
       return unchanged ? prev : next;
     });
-  }, [availableIds, defaultIds, fallbackId]);
+  }, [availableIds, initialIds]);
 
   const selectedFileIdSet = useMemo(() => new Set(selectedFileIds), [selectedFileIds]);
 
@@ -59,6 +46,7 @@ export const useFileSelectionPool = ({
     const fileId = String(fileIdRaw ?? "").trim();
     if (!fileId) return;
 
+    didApplyInitialSelectionRef.current = true;
     setSelectedFileIds((prev) => {
       const current = normalizeFileIds(prev);
       if (current.includes(fileId)) {
@@ -69,14 +57,17 @@ export const useFileSelectionPool = ({
   }, []);
 
   const replaceFileSelection = useCallback((fileIds: unknown[]) => {
+    didApplyInitialSelectionRef.current = true;
     setSelectedFileIds(normalizeFileIds(fileIds));
   }, []);
 
   const selectAllFiles = useCallback(() => {
+    didApplyInitialSelectionRef.current = true;
     setSelectedFileIds(availableIds);
   }, [availableIds]);
 
   const clearFileSelection = useCallback(() => {
+    didApplyInitialSelectionRef.current = true;
     setSelectedFileIds([]);
   }, []);
 
