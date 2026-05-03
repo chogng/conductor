@@ -157,6 +157,8 @@
     da_origin_curve_export_mode_label: '导出曲线',
     da_origin_curve_export_mode_all: '全选',
     da_origin_curve_export_mode_select: '选择',
+    da_origin_curve_export_mode_select_count: '已选 {count} 条',
+    da_origin_curve_export_scope_hint: '套用到当前导出范围：{count} 个文件',
     da_origin_export_content_label: '导出内容',
     da_origin_export_content_group_basic: '基础',
     da_origin_export_content_group_derived: '派生分析',

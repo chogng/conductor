@@ -822,6 +822,94 @@ export const useOriginCanvasExport = ({
     ],
   );
 
+  const replaceMatchingOriginSeriesAcrossFiles = useCallback(
+    ({
+      fileIds,
+      sourceSeriesIds,
+    }: {
+      fileIds?: unknown[];
+      sourceSeriesIds?: unknown[];
+    }) => {
+      const sourceKeys = (Array.isArray(sourceSeriesIds) ? sourceSeriesIds : [])
+        .map((item) => String(item ?? "").trim())
+        .filter((item, index, arr) => Boolean(item) && arr.indexOf(item) === index);
+      const activeSeries = Array.isArray(activeFile?.series) ? activeFile.series : [];
+      const sourceSeriesList = activeSeries.filter((series: any) =>
+        sourceKeys.includes(String(series?.id ?? "").trim()),
+      );
+      const sourceTokenGroups = sourceSeriesList
+        .map((series: any) => resolveOriginSeriesMatchTokens(series))
+        .filter((tokens: string[]) => tokens.length > 0);
+      const sourceCurveFamily = resolveOriginFileCurveFamily(activeFile);
+      const requestedFileIds = Array.isArray(fileIds) ? fileIds : [];
+      const fallbackFileIds = (Array.isArray(processedData) ? processedData : []).map((file: any) =>
+        String(file?.fileId ?? ""),
+      );
+      const targetFileIds = (requestedFileIds.length ? requestedFileIds : fallbackFileIds)
+        .map((item) => String(item ?? "").trim())
+        .filter((item, index, arr) => Boolean(item) && arr.indexOf(item) === index);
+
+      let matchedFileCount = 0;
+      let matchedSeriesCount = 0;
+
+      setOriginSelectedSeriesIdsByFile((prev) => {
+        const next: Record<string, string[]> = { ...(prev || {}) };
+        let changed = false;
+
+        for (const fileKey of targetFileIds) {
+          const file = (Array.isArray(processedData) ? processedData : []).find(
+            (item: any) => String(item?.fileId ?? "") === fileKey,
+          );
+          if (
+            sourceCurveFamily &&
+            resolveOriginFileCurveFamily(file) !== sourceCurveFamily
+          ) {
+            continue;
+          }
+
+          const allSeries = Array.isArray(file?.series) ? file.series : [];
+          const selectedIds: string[] = [];
+          for (const tokenGroup of sourceTokenGroups) {
+            const match = allSeries.find((series: any) => {
+              const candidateTokens = resolveOriginSeriesMatchTokens(series);
+              return candidateTokens.some((token) => tokenGroup.includes(token));
+            });
+            const matchId = String(match?.id ?? "").trim();
+            if (matchId && !selectedIds.includes(matchId)) {
+              selectedIds.push(matchId);
+            }
+          }
+
+          matchedFileCount += selectedIds.length ? 1 : 0;
+          matchedSeriesCount += selectedIds.length;
+
+          const prevList = Array.isArray(prev?.[fileKey])
+            ? prev[fileKey].map((item) => String(item ?? "").trim()).filter(Boolean)
+            : [];
+          const unchanged =
+            prevList.length === selectedIds.length &&
+            prevList.every((value, index) => value === selectedIds[index]);
+          if (unchanged) continue;
+
+          if (selectedIds.length) {
+            next[fileKey] = selectedIds;
+          } else {
+            delete next[fileKey];
+          }
+          changed = true;
+        }
+
+        return changed ? next : prev;
+      });
+
+      return {
+        matchedFileCount,
+        matchedSeriesCount,
+      };
+    },
+    [activeFile, processedData],
+  );
+
   const toggleOriginSeriesSelection = useCallback(
     (seriesId: any) => {
       const fileKey = String(activeFile?.fileId ?? "");
@@ -1623,6 +1711,7 @@ export const useOriginCanvasExport = ({
     originCanvasExportScope: canvasExportScope,
     originExportMode: resolvedOriginExportMode,
     replaceOriginCanvasSelection,
+    replaceMatchingOriginSeriesAcrossFiles,
     scopedOriginCanvasKeySet,
     selectAllOriginSeriesForActiveFile,
     selectAllOriginSeriesForFile,

@@ -1,8 +1,9 @@
 ﻿import React, { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, } from "react";
-import { AlertTriangle, Check, ChevronDown, SlidersHorizontal, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronDown, ChevronRight, SlidersHorizontal, X } from "lucide-react";
 import { computeCentralDerivative, computeSubthresholdSwing, computeSubthresholdSwingFitAuto, computeSubthresholdSwingFitInRange, classifySsFit, formatNumber, interpolateCurveAtX, resolveAutoSsSelection, splitBidirectionalCurvePoints, } from "../lib/analysisMath";
 import { apiService } from "../services/apiService";
 import DropdownField from "../../../../components/ui/DropdownField";
+import Input from "../../../../components/ui/Input";
 import ContentView from "../../../../components/ui/ContentView";
 import Dropdown from "../../../../components/ui/Dropdown";
 import DropdownTrigger from "../../../../components/ui/DropdownTrigger";
@@ -68,6 +69,14 @@ type SsRange = {
 };
 type CurrentBiasRole = "ion" | "ioff";
 type PlotTypeOption = "iv" | "gm" | "ss" | "vth" | "j";
+type ResultsTabOption = "metrics" | "export" | "rc";
+type RcGeometryEntry = {
+    include?: boolean;
+    length?: string;
+    vds?: string;
+    width?: string;
+};
+type RcGeometryByFileId = Record<string, Record<string, RcGeometryEntry>>;
 type OriginExportContentOption = {
     group: "basic" | "derived";
     key: DeviceAnalysisOriginExportContentKey;
@@ -785,6 +794,223 @@ const OriginExportContentMenu = ({
       </div>
     );
 };
+
+const OriginCurveExportMenu = ({
+    activeOriginSeries,
+    selectedOriginSeriesKeySet,
+    mode,
+    scopedFileIds,
+    setMode,
+    replaceMatchingOriginSeriesAcrossFiles,
+    resolveSeriesLabel,
+    t,
+}: {
+    activeOriginSeries: Array<{ id?: unknown; key: string; name?: string }>;
+    selectedOriginSeriesKeySet: Set<string>;
+    mode: DeviceAnalysisOriginCurveExportMode;
+    scopedFileIds: string[];
+    setMode: (next: DeviceAnalysisOriginCurveExportMode) => void;
+    replaceMatchingOriginSeriesAcrossFiles: (options: {
+        fileIds?: unknown[];
+        sourceSeriesIds?: unknown[];
+    }) => { matchedFileCount: number; matchedSeriesCount: number };
+    resolveSeriesLabel: (series: any, index: number) => string;
+    t: OriginExportContentTranslateFn;
+}) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [showPicker, setShowPicker] = useState(false);
+    const anchorRef = useRef<HTMLDivElement | null>(null);
+    const menuContentRef = useRef<HTMLDivElement | null>(null);
+    const selectItemRef = useRef<HTMLDivElement | null>(null);
+    const submenuContentRef = useRef<HTMLDivElement | null>(null);
+    const selectedSourceIds = useMemo(() => {
+        if (mode === "all") {
+            return activeOriginSeries.map((series) => series.key).filter(Boolean);
+        }
+        return activeOriginSeries
+            .map((series) => series.key)
+            .filter((key) => selectedOriginSeriesKeySet.has(key));
+    }, [activeOriginSeries, mode, selectedOriginSeriesKeySet]);
+    const selectedSourceSet = useMemo(() => new Set(selectedSourceIds), [selectedSourceIds]);
+    const displayLabel = mode === "all"
+        ? t("da_origin_curve_export_mode_all")
+        : selectedSourceIds.length
+            ? t("da_origin_curve_export_mode_select_count", { count: selectedSourceIds.length })
+            : t("da_origin_curve_export_mode_select");
+    const applySourceSelection = (sourceIds: string[]) => {
+        setMode("select");
+        replaceMatchingOriginSeriesAcrossFiles({
+            fileIds: scopedFileIds,
+            sourceSeriesIds: sourceIds,
+        });
+    };
+    const toggleSourceSeries = (seriesKey: string) => {
+        const next = selectedSourceSet.has(seriesKey)
+            ? selectedSourceIds.filter((item) => item !== seriesKey)
+            : [...selectedSourceIds, seriesKey];
+        applySourceSelection(next);
+    };
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handleMouseDown = (event: MouseEvent) => {
+            const target = event.target;
+            if (!(target instanceof Node)) return;
+            if (anchorRef.current?.contains(target)) return;
+            if (menuContentRef.current?.contains(target)) return;
+            if (submenuContentRef.current?.contains(target)) return;
+            setIsOpen(false);
+            setShowPicker(false);
+        };
+
+        document.addEventListener("mousedown", handleMouseDown);
+        return () => document.removeEventListener("mousedown", handleMouseDown);
+    }, [isOpen]);
+
+    return (
+      <div className="ui-select_warp w-fit da-neutral-select" data-style="select">
+        <Dropdown isOpen={isOpen} onOpenChange={(next) => {
+            setIsOpen(next);
+            if (next) setShowPicker(mode === "select");
+            else setShowPicker(false);
+        }} anchorRef={anchorRef} closeOnClickOutside={false}>
+          {({ setContentRef }) => (
+            <>
+              <DropdownTrigger
+                fieldRef={anchorRef}
+                id="device-analysis-origin-curve-export-mode-select"
+                isOpen={isOpen}
+                menuId="device-analysis-origin-curve-export-mode-menu"
+                data-size="sm"
+                onClick={() => setIsOpen((prev) => !prev)}
+                fieldClassName="input_field ui-select_field--sm pr-1"
+                className="input_native no-focus-outline p-0 text-left cursor-pointer select-none pr-6"
+                indicatorClassName="absolute right-1 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none"
+                indicator={
+                  <ChevronDown
+                    size={14}
+                    className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
+                  />
+                }
+              >
+                <span className="block truncate text-text-primary">{displayLabel}</span>
+              </DropdownTrigger>
+              <ContentView
+                isOpen={isOpen}
+                align="left"
+                zIndex={80}
+                triggerId="device-analysis-origin-curve-export-mode-select"
+                menuId="device-analysis-origin-curve-export-mode-menu"
+                anchorRef={anchorRef}
+                contentRef={(node) => {
+                    menuContentRef.current = node;
+                    setContentRef(node);
+                }}
+                variant="menu"
+                className="min-w-[8rem]"
+              >
+                {() => (
+                  <Menu withScrollArea={false}>
+                    <div className="ui-menu__list min-w-[7rem]">
+                        <MenuItem
+                          data-selected={mode === "all" || undefined}
+                          onClick={() => {
+                            setMode("all");
+                            setShowPicker(false);
+                            setIsOpen(false);
+                          }}
+                          onMouseEnter={() => setShowPicker(false)}
+                          left={<span className="ui-menu__item-left whitespace-nowrap">{t("da_origin_curve_export_mode_all")}</span>}
+                          right={<span className="ui-menu__item-right">{mode === "all" ? <Check size={14} className="text-accent" /> : null}</span>}
+                        />
+                        <MenuItem
+                          ref={selectItemRef}
+                          data-selected={mode === "select" || undefined}
+                          onClick={() => {
+                            setMode("select");
+                            setShowPicker(true);
+                          }}
+                          onMouseEnter={() => setShowPicker(true)}
+                          left={<span className="ui-menu__item-left whitespace-nowrap">{t("da_origin_curve_export_mode_select")}</span>}
+                          right={<span className="ui-menu__item-right">{mode === "select" ? <Check size={14} className="text-accent" /> : null}<ChevronRight size={14} /></span>}
+                        />
+                    </div>
+                  </Menu>
+                )}
+              </ContentView>
+              <ContentView
+                isOpen={isOpen && showPicker}
+                align="left"
+                side="right"
+                zIndex={90}
+                triggerId="device-analysis-origin-curve-export-mode-menu-select"
+                menuId="device-analysis-origin-curve-export-picker-menu"
+                anchorRef={selectItemRef}
+                contentRef={(node) => {
+                    submenuContentRef.current = node;
+                }}
+                variant="menu"
+                className="min-w-[12rem]"
+              >
+                {() => (
+                  <Menu withScrollArea={false}>
+                    <div className="px-2 py-1.5 text-[11px] text-text-tertiary whitespace-nowrap">
+                      {t("da_origin_curve_export_scope_hint", { count: scopedFileIds.length })}
+                    </div>
+                    <ScrollArea
+                      axis="y"
+                      className="max-h-60"
+                      viewportClassName="max-h-60"
+                      viewportProps={{ style: { height: "auto", maxHeight: "15rem" } }}
+                    >
+                      <div className="ui-menu__list">
+                        <MenuItem
+                          onClick={() => applySourceSelection(activeOriginSeries.map((series) => series.key).filter(Boolean))}
+                          left={<span className="ui-menu__item-left whitespace-nowrap">{t("da_origin_curve_export_pick_all")}</span>}
+                          right={
+                            <span className="ui-menu__item-right">
+                              {selectedSourceIds.length === activeOriginSeries.length && activeOriginSeries.length > 0 ? <Check size={14} className="text-accent" /> : null}
+                            </span>
+                          }
+                        />
+                        <MenuItem
+                          onClick={() => applySourceSelection([])}
+                          left={<span className="ui-menu__item-left whitespace-nowrap">{t("da_origin_curve_export_clear")}</span>}
+                        />
+                        {activeOriginSeries.map((series, index) => {
+                          const key = String(series?.key ?? "");
+                          const checked = selectedSourceSet.has(key);
+                          return (
+                            <MenuItem
+                              key={key}
+                              role="menuitemcheckbox"
+                              aria-checked={checked}
+                              data-selected={checked || undefined}
+                              onClick={() => toggleSourceSeries(key)}
+                              left={
+                                <span className="ui-menu__item-left min-w-0">
+                                  <span className="truncate">{resolveSeriesLabel(series, index)}</span>
+                                </span>
+                              }
+                              right={
+                                <span className="ui-menu__item-right">
+                                  {checked ? <Check size={14} className="text-accent" /> : null}
+                                </span>
+                              }
+                            />
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
+                  </Menu>
+                )}
+              </ContentView>
+            </>
+          )}
+        </Dropdown>
+      </div>
+    );
+};
 const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, primaryPlotLabel, derivativeLabel, gmApplicable, ssApplicable, vthApplicable, areaAvailable, onChange, }: {
     activePlotType: PlotTypeOption;
     primaryPlotLabel?: string;
@@ -990,7 +1216,11 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const [originCurveExportMode, setOriginCurveExportMode] = useState<DeviceAnalysisOriginCurveExportMode>("all");
     const [originExportContentKeys, setOriginExportContentKeys] = useState<DeviceAnalysisOriginExportContentKey[]>(DEFAULT_ORIGIN_EXPORT_CONTENT_KEYS);
     const [originFilteredCanvasKind, setOriginFilteredCanvasKind] = useState<DeviceAnalysisOriginFilteredCanvasKind>("output");
-    const [resultsTab, setResultsTab] = useState<"metrics" | "export">("metrics");
+    const [resultsTab, setResultsTab] = useState<ResultsTabOption>("metrics");
+    const [rcGeometryByFileId, setRcGeometryByFileId] = useState<RcGeometryByFileId>({});
+    const [rcAnalyzePending, setRcAnalyzePending] = useState(false);
+    const [rcAnalyzeResult, setRcAnalyzeResult] = useState<any>(null);
+    const [rcAnalyzeError, setRcAnalyzeError] = useState("");
     const [overviewVisibleFileIds, setOverviewVisibleFileIds] = useState<string[]>([]);
     const [visibleSeriesByFileId, setVisibleSeriesByFileId] = useState<Record<string, string[]>>({});
     const [seriesLegendLabelsByFileId, setSeriesLegendLabelsByFileId] = useState<Record<string, Record<string, string>>>({});
@@ -1618,17 +1848,20 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         axis?.originAxisTitleGap,
     ]);
     const {
+        activeOriginSeries,
         clearOriginSeriesSelectionForFile,
         curveExportMode: resolvedCurveExportMode,
         getSelectedOriginSeriesKeySetForFile,
         handleExportOriginZip,
         handleOpenInOrigin,
+        replaceMatchingOriginSeriesAcrossFiles,
         replaceOriginCanvasSelection,
         originExportMode: resolvedOriginExportMode,
         scopedOriginCanvasKeySet,
         selectAllOriginSeriesForFile,
         selectedOriginCanvasKeySet,
         selectedOriginSeriesCountByFile,
+        selectedOriginSeriesKeySet,
         selectedOriginSeriesTotalCount,
         toggleOriginCanvasSelection,
         toggleOriginSeriesSelectionForFile,
@@ -1689,6 +1922,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             files: selectedCanvasCount,
         })
         : separateCanvasScopeSummary;
+    const scopedOriginCanvasIds = useMemo(
+        () => Array.from(scopedOriginCanvasKeySet ?? new Set<string>()),
+        [scopedOriginCanvasKeySet],
+    );
     const selectedExportCanvasFiles = useMemo(() => (Array.isArray(processedData) ? processedData : []).filter((file: any) => {
         const fileId = String(file?.fileId ?? "").trim();
         return Boolean(fileId) && selectedOriginCanvasKeySet.has(fileId);
@@ -1812,6 +2049,11 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const transferMetricsApplicable = useMemo(() => isTransferLikeDeviceAnalysisFile(activeFile), [activeFile]);
     const outputMetricsApplicable = useMemo(() => isOutputLikeDeviceAnalysisFile(activeFile), [activeFile]);
     const calculatedParametersMode = useMemo(() => transferMetricsApplicable ? "transfer" : outputMetricsApplicable ? "output" : "generic", [outputMetricsApplicable, transferMetricsApplicable]);
+    useEffect(() => {
+        if (!transferMetricsApplicable && resultsTab === "rc") {
+            setResultsTab("metrics");
+        }
+    }, [resultsTab, transferMetricsApplicable]);
     const ssHeuristicApplicable = transferMetricsApplicable;
     const gmMode = "x";
     const gmUi = useMemo(() => {
@@ -3627,6 +3869,125 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         : DERIVATIVE_ONLY_CALCULATED_PARAMETERS_COLUMN_WIDTHS_PX, [calculatedParametersMode]);
     const calculatedParametersTableMinWidth = useMemo(() => calculatedParametersColumnWidths.reduce((total, width) => total + width, 0), [calculatedParametersColumnWidths]);
     const metricsRowElements = useMemo(() => metricsRows.map((row: any) => (<CalculatedParametersRow key={row.id} row={row} isPending={Boolean(row?.isPending)} buildCurrentTooltip={buildCurrentTooltip} buildSsTooltip={buildSsTooltip} showTransferMetrics={calculatedParametersMode === "transfer"}/>)), [buildCurrentTooltip, buildSsTooltip, calculatedParametersMode, metricsRows]);
+    const rcRows = useMemo(() => {
+        if (!Array.isArray(processedData) || !processedData.length)
+            return [];
+        let deviceIndex = 0;
+        return processedData.flatMap((file: any) => {
+            if (!isTransferLikeDeviceAnalysisFile(file))
+                return [];
+            const fileId = String(file?.fileId ?? "").trim();
+            const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
+            const seriesList = Array.isArray(file?.series) ? file.series : [];
+            return seriesList.map((series: any, index: number) => {
+                const seriesId = String(series?.id ?? "");
+                const stored = fileId && seriesId ? rcGeometryByFileId[fileId]?.[seriesId] ?? {} : {};
+                const legendVds = Number(series?.legendValue);
+                const xArr = xGroups[Number(series?.groupIndex ?? 0)] ?? [];
+                const yArr = Array.isArray(series?.y) ? series.y : [];
+                deviceIndex += 1;
+                return {
+                    fileId,
+                    fileName: String(file?.fileName ?? (fileId || "device")),
+                    include: stored.include ?? true,
+                    label: resolveDisplayLegendLabel(fileId, series, index),
+                    length: stored.length ?? String(deviceIndex),
+                    series,
+                    seriesId,
+                    vds: stored.vds ?? (Number.isFinite(legendVds) && legendVds !== 0 ? String(legendVds) : "0.1"),
+                    width: stored.width ?? "1",
+                    x: xArr,
+                    y: yArr,
+                };
+            });
+        });
+    }, [processedData, rcGeometryByFileId, resolveDisplayLegendLabel]);
+    const updateRcGeometry = React.useCallback((fileIdRaw: string, seriesId: string, patch: Partial<RcGeometryEntry>) => {
+        const fileId = String(fileIdRaw ?? "").trim();
+        if (!fileId || !seriesId)
+            return;
+        setRcGeometryByFileId((prev) => ({
+            ...prev,
+            [fileId]: {
+                ...(prev[fileId] ?? {}),
+                [seriesId]: {
+                    ...(prev[fileId]?.[seriesId] ?? {}),
+                    ...patch,
+                },
+            },
+        }));
+    }, []);
+    const rcSummary = rcAnalyzeResult?.summary && typeof rcAnalyzeResult.summary === "object"
+        ? rcAnalyzeResult.summary
+        : null;
+    const rcCurveRows = Array.isArray(rcAnalyzeResult?.curve) ? rcAnalyzeResult.curve : [];
+    const rcStatusText = rcAnalyzePending
+        ? "Rc running..."
+        : rcAnalyzeError
+            ? rcAnalyzeError
+            : rcSummary
+                ? `Rc=${formatNumber(rcSummary.rc)} | RcW=${formatNumber(rcSummary.rcw)} | R2=${formatNumber(rcSummary.r2, { digits: 4 })}`
+                : "Configure L/W/Vds, then run Rc";
+    const handleAnalyzeRc = React.useCallback(async () => {
+        const bridge = (globalThis.window as any)?.desktopImport;
+        if (!bridge?.analyzeDeviceAnalysisRcWithRust) {
+            setRcAnalyzeError("Rust Rc bridge is unavailable.");
+            return;
+        }
+        if (!rcRows.length) {
+            setRcAnalyzeError("No transfer curves are available.");
+            return;
+        }
+        const devices = rcRows
+            .filter((row: any) => row.include)
+            .map((row: any) => {
+                return {
+                    fileId: row.fileId,
+                    label: `${row.fileName} / ${row.label}`,
+                    length: Number(row.length),
+                    seriesId: row.seriesId,
+                    vds: Number(row.vds),
+                    width: Number(row.width),
+                    x: (Array.isArray(row.x) ? row.x : []).map((value: any) => Number(value)),
+                    y: (Array.isArray(row.y) ? row.y : []).map((value: any) => Number(value)),
+                };
+            })
+            .filter((device: any) => Number.isFinite(device.length) &&
+                device.length > 0 &&
+                Number.isFinite(device.width) &&
+                device.width > 0 &&
+                Number.isFinite(device.vds) &&
+                device.vds !== 0 &&
+                device.x.length >= 2 &&
+                device.y.length >= 2);
+        if (devices.length < 2) {
+            setRcAnalyzeError("Rc needs at least two valid devices; three or more is recommended.");
+            return;
+        }
+        setRcAnalyzePending(true);
+        setRcAnalyzeError("");
+        try {
+            const response = await bridge.analyzeDeviceAnalysisRcWithRust({
+                devices,
+                options: {
+                    maxGridPoints: 240,
+                    minAbsCurrent: 0,
+                    minDevices: Math.min(3, devices.length),
+                    normalizeByWidth: true,
+                    selectedVg: curveProbeX,
+                },
+            });
+            if (!response?.ok) {
+                throw new Error(response?.message || "Rc analysis failed.");
+            }
+            setRcAnalyzeResult(response.result ?? null);
+        } catch (error: any) {
+            setRcAnalyzeError(error?.message || "Rc analysis failed.");
+            setRcAnalyzeResult(null);
+        } finally {
+            setRcAnalyzePending(false);
+        }
+    }, [curveProbeX, rcRows]);
     const diagnosticsContextBadges = useMemo(() => {
         const focusedLabel = String(focusedSeriesLabel ?? "").trim();
         const labelKey = (effectivePlotType === "gm" && gmDiagnosticsEnabled) ||
@@ -4097,11 +4458,17 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
           {activeFile?.series?.length ? (<Card id="device-analysis-calculated-parameters-card" variant="panel" className="flex min-w-0 flex-col flex-1">
             <div className="mb-3 flex min-w-0 items-center justify-between gap-3 flex-wrap">
               <div className="flex min-w-0 items-center flex-wrap">
-                <Tabs idBase="device-analysis-results-tabs" value={resultsTab} onChange={(next) => setResultsTab(next === "export" ? "export" : "metrics")} size="sm" hoverPreview={false} groupLabel={t("da_analysis_results_tabs_label")} itemClassName="!px-3" options={[
+                <Tabs idBase="device-analysis-results-tabs" value={resultsTab} onChange={(next) => setResultsTab(next === "export" || next === "rc" ? next : "metrics")} size="sm" hoverPreview={false} groupLabel={t("da_analysis_results_tabs_label")} itemClassName="!px-3" options={[
                 {
                     value: "metrics",
                     label: t("da_analysis_results_tab_metrics"),
                 },
+                ...(transferMetricsApplicable
+                    ? [{
+                        value: "rc",
+                        label: "Rc",
+                    }]
+                    : []),
                 {
                     value: "export",
                     label: t("da_analysis_results_tab_export"),
@@ -4110,9 +4477,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
               </div>
               <div
                 className="min-w-0 flex-1 truncate text-right text-xs text-text-secondary"
-                title={resultsTab === "metrics" ? metricsProgressText : exportSelectionSummary}
+                title={resultsTab === "metrics" ? metricsProgressText : resultsTab === "rc" ? rcStatusText : exportSelectionSummary}
               >
-                {resultsTab === "metrics" ? metricsProgressText : exportSelectionSummary}
+                {resultsTab === "metrics" ? metricsProgressText : resultsTab === "rc" ? rcStatusText : exportSelectionSummary}
               </div>
             </div>
 
@@ -4208,7 +4575,153 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     {metricsRowElements}
                   </tbody>
                 </table>
-              </ScrollArea>) : (<div className="flex min-w-0 flex-col gap-3">
+              </ScrollArea>) : resultsTab === "rc" ? (<div className="flex min-w-0 flex-col gap-3">
+                <div className="rounded-xl border border-border bg-bg-page/40 px-4 py-3">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-text-primary">Contact resistance</div>
+                      <div className="mt-1 text-xs text-text-secondary">
+                        Fits Rtotal * W versus L across selected transfer files and curves.
+                      </div>
+                    </div>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => {
+                        void handleAnalyzeRc();
+                      }}
+                      disabled={rcAnalyzePending || !rcRows.length}
+                    >
+                      {rcAnalyzePending ? "Running..." : "Run Rc"}
+                    </Button>
+                  </div>
+                </div>
+                <ScrollArea axis="x" className="min-w-0 w-full">
+                  <table className="w-full min-w-[760px] table-fixed text-sm border-collapse">
+                    <colgroup>
+                      <col style={{ width: 72 }}/>
+                      <col style={{ width: 220 }}/>
+                      <col style={{ width: 220 }}/>
+                      <col style={{ width: 140 }}/>
+                      <col style={{ width: 140 }}/>
+                      <col style={{ width: 140 }}/>
+                    </colgroup>
+                    <thead className="sticky top-0 bg-bg-surface z-10">
+                      <tr className="border-b border-border">
+                        <th className="p-2 text-xs font-semibold text-text-secondary text-left">Use</th>
+                        <th className="p-2 text-xs font-semibold text-text-secondary text-left border-l border-border">File</th>
+                        <th className="p-2 text-xs font-semibold text-text-secondary text-left border-l border-border">Series</th>
+                        <th className="p-2 text-xs font-semibold text-text-secondary text-left border-l border-border">L</th>
+                        <th className="p-2 text-xs font-semibold text-text-secondary text-left border-l border-border">W</th>
+                        <th className="p-2 text-xs font-semibold text-text-secondary text-left border-l border-border">Vds</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {rcRows.map((row: any) => (
+                        <tr key={`${row.fileId}:${row.seriesId}`} className="hover:bg-bg-page/30">
+                          <td className="p-2">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(row.include)}
+                              onChange={(event) => updateRcGeometry(row.fileId, row.seriesId, { include: event.target.checked })}
+                            />
+                          </td>
+                          <td className="p-2 border-l border-border truncate text-text-primary" title={row.fileName}>
+                            {row.fileName}
+                          </td>
+                          <td className="p-2 border-l border-border truncate text-text-primary" title={row.label}>
+                            {row.label}
+                          </td>
+                          <td className="p-2 border-l border-border">
+                            <Input
+                              value={row.length}
+                              onChange={(value: string) => updateRcGeometry(row.fileId, row.seriesId, { length: value })}
+                              size="sm"
+                              inputClassName="text-xs"
+                            />
+                          </td>
+                          <td className="p-2 border-l border-border">
+                            <Input
+                              value={row.width}
+                              onChange={(value: string) => updateRcGeometry(row.fileId, row.seriesId, { width: value })}
+                              size="sm"
+                              inputClassName="text-xs"
+                            />
+                          </td>
+                          <td className="p-2 border-l border-border">
+                            <Input
+                              value={row.vds}
+                              onChange={(value: string) => updateRcGeometry(row.fileId, row.seriesId, { vds: value })}
+                              size="sm"
+                              inputClassName="text-xs"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </ScrollArea>
+                <div className="rounded-xl border border-border bg-bg-page/40 px-4 py-3">
+                  {rcSummary ? (
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
+                      <div>
+                        <div className="text-xs text-text-secondary">Vg</div>
+                        <div className="font-mono text-text-primary">{formatNumber(rcSummary.vg)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-text-secondary">Rc</div>
+                        <div className="font-mono text-text-primary">{formatNumber(rcSummary.rc)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-text-secondary">RcW</div>
+                        <div className="font-mono text-text-primary">{formatNumber(rcSummary.rcw)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-text-secondary">Rsh</div>
+                        <div className="font-mono text-text-primary">{formatNumber(rcSummary.rSheet)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-text-secondary">R2 / n</div>
+                        <div className="font-mono text-text-primary">{formatNumber(rcSummary.r2, { digits: 4 })} / {rcSummary.n ?? "-"}</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className={`text-sm ${rcAnalyzeError ? "text-red-500" : "text-text-secondary"}`}>
+                      {rcAnalyzeError || "No Rc result yet."}
+                    </div>
+                  )}
+                </div>
+                {rcCurveRows.length ? (
+                  <ScrollArea axis="x" className="min-w-0 w-full max-h-[220px]">
+                    <table className="w-full min-w-[720px] table-fixed text-sm border-collapse">
+                      <thead className="sticky top-0 bg-bg-surface z-10">
+                        <tr className="border-b border-border">
+                          {["Vg", "Rc", "RcW", "Rsh", "R2", "n", "warnings"].map((label) => (
+                            <th key={label} className="p-2 text-xs font-semibold text-text-secondary text-left border-l border-border first:border-l-0">
+                              {label}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        {rcCurveRows.slice(0, 80).map((row: any, index: number) => (
+                          <tr key={`${row.vg}-${index}`} className="hover:bg-bg-page/30">
+                            <td className="p-2 font-mono text-text-primary">{formatNumber(row.vg)}</td>
+                            <td className="p-2 font-mono text-text-primary border-l border-border">{formatNumber(row.rc)}</td>
+                            <td className="p-2 font-mono text-text-primary border-l border-border">{formatNumber(row.rcw)}</td>
+                            <td className="p-2 font-mono text-text-primary border-l border-border">{formatNumber(row.rSheet)}</td>
+                            <td className="p-2 font-mono text-text-primary border-l border-border">{formatNumber(row.r2, { digits: 4 })}</td>
+                            <td className="p-2 font-mono text-text-primary border-l border-border">{row.n ?? "-"}</td>
+                            <td className="p-2 text-xs text-text-secondary border-l border-border truncate">
+                              {Array.isArray(row.warnings) && row.warnings.length ? row.warnings.join(", ") : "-"}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </ScrollArea>
+                ) : null}
+              </div>) : (<div className="flex min-w-0 flex-col gap-3">
                 <div className="rounded-xl border border-border bg-bg-page/40 px-4 py-3">
                   <div className="flex items-center justify-between gap-3 flex-wrap">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -4317,28 +4830,15 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                       <span className="text-xs text-text-secondary whitespace-nowrap">
                         {t("da_origin_curve_export_mode_label")}
                       </span>
-                      <DropdownField
-                        id="device-analysis-origin-curve-export-mode-select"
-                        size="sm"
-                        value={resolvedCurveExportMode}
-                        onChange={(next: any) => {
-                        setOriginCurveExportMode(next === "select" ? "select" : "all");
-                    }}
-                        options={[
-                        {
-                            value: "all",
-                            label: t("da_origin_curve_export_mode_all"),
-                        },
-                        {
-                            value: "select",
-                            label: t("da_origin_curve_export_mode_select"),
-                        },
-                    ]}
-                        className="w-fit da-neutral-select"
-                        stableWidth
-                        data-cta="Device Analysis"
-                        data-cta-position="export-pane"
-                        data-cta-copy="origin curve export mode"
+                      <OriginCurveExportMenu
+                        activeOriginSeries={activeOriginSeries as Array<{ id?: unknown; key: string; name?: string }>}
+                        selectedOriginSeriesKeySet={selectedOriginSeriesKeySet as Set<string>}
+                        mode={resolvedCurveExportMode}
+                        scopedFileIds={scopedOriginCanvasIds}
+                        setMode={setOriginCurveExportMode}
+                        replaceMatchingOriginSeriesAcrossFiles={replaceMatchingOriginSeriesAcrossFiles}
+                        resolveSeriesLabel={(series, index) => resolveDisplayLegendLabel(activeFile?.fileId, series, index)}
+                        t={t}
                       />
                       <span className="text-xs text-text-secondary whitespace-nowrap">
                         {t("da_origin_export_content_label")}

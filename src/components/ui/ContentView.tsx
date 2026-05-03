@@ -13,6 +13,8 @@ import { cx } from "../../utils/cx";
 import "./contentview.css";
 
 export type ContentViewAlign = "left" | "center" | "right";
+export type ContentViewSide = "bottom" | "right";
+type ResolvedContentViewSide = "top" | "bottom" | "right" | "left";
 type ContentViewVariant = "surface" | "menu";
 type ContentViewChildren = ReactNode | (() => ReactNode);
 
@@ -27,6 +29,7 @@ type ContentViewProps = {
   anchorRef?: RefObject<HTMLElement | null>;
   contentRef?: Ref<HTMLDivElement | null>;
   matchAnchorWidth?: boolean;
+  side?: ContentViewSide;
   variant?: ContentViewVariant;
   role?: string;
   "aria-orientation"?: "vertical" | "horizontal";
@@ -55,13 +58,14 @@ const ContentView = ({
   anchorRef,
   contentRef,
   matchAnchorWidth = false,
+  side: preferredSide = "bottom",
   variant = "surface",
   role = "menu",
   "aria-orientation": ariaOrientation = "vertical",
 }: ContentViewProps) => {
   const popupRef = useRef<HTMLDivElement | null>(null);
   const [portalStyle, setPortalStyle] = useState<CSSProperties | null>(null);
-  const [side, setSide] = useState<"top" | "bottom">("bottom");
+  const [side, setSide] = useState<ResolvedContentViewSide>("bottom");
 
   const setPopupNode = (node: HTMLDivElement | null) => {
     popupRef.current = node;
@@ -100,35 +104,65 @@ const ContentView = ({
       const popupHeight = popupEl.offsetHeight || 0;
 
       let left = rect.left;
-      if (align === "center") {
-        left = rect.left + rect.width / 2 - popupWidth / 2;
-      } else if (align === "right") {
-        left = rect.right - popupWidth;
+      let top = rect.bottom + POPUP_GAP_PX;
+      let nextSide: ResolvedContentViewSide = "bottom";
+
+      if (preferredSide === "right") {
+        const preferredLeft = rect.right + POPUP_GAP_PX;
+        const leftIfFlipped = rect.left - POPUP_GAP_PX - popupWidth;
+        const canOpenRight =
+          preferredLeft + popupWidth <= viewportWidth - VIEWPORT_PADDING_PX;
+        const canOpenLeft = leftIfFlipped >= VIEWPORT_PADDING_PX;
+        left = canOpenRight
+          ? preferredLeft
+          : canOpenLeft
+            ? leftIfFlipped
+            : Math.min(
+                Math.max(VIEWPORT_PADDING_PX, preferredLeft),
+                Math.max(
+                  VIEWPORT_PADDING_PX,
+                  viewportWidth - VIEWPORT_PADDING_PX - popupWidth,
+                ),
+              );
+        top = Math.min(
+          Math.max(VIEWPORT_PADDING_PX, rect.top),
+          Math.max(
+            VIEWPORT_PADDING_PX,
+            viewportHeight - VIEWPORT_PADDING_PX - popupHeight,
+          ),
+        );
+        nextSide = canOpenRight || !canOpenLeft ? "right" : "left";
+      } else {
+        if (align === "center") {
+          left = rect.left + rect.width / 2 - popupWidth / 2;
+        } else if (align === "right") {
+          left = rect.right - popupWidth;
+        }
+
+        const maxLeft = Math.max(
+          VIEWPORT_PADDING_PX,
+          viewportWidth - VIEWPORT_PADDING_PX - popupWidth,
+        );
+        left = Math.min(Math.max(left, VIEWPORT_PADDING_PX), maxLeft);
+
+        const preferredTop = rect.bottom + POPUP_GAP_PX;
+        const topIfFlipped = rect.top - POPUP_GAP_PX - popupHeight;
+        const canOpenDown =
+          preferredTop + popupHeight <= viewportHeight - VIEWPORT_PADDING_PX;
+        const canOpenUp = topIfFlipped >= VIEWPORT_PADDING_PX;
+        top = canOpenDown
+          ? preferredTop
+          : canOpenUp
+            ? topIfFlipped
+            : Math.min(
+                Math.max(VIEWPORT_PADDING_PX, preferredTop),
+                Math.max(
+                  VIEWPORT_PADDING_PX,
+                  viewportHeight - VIEWPORT_PADDING_PX - popupHeight,
+                ),
+              );
+        nextSide = canOpenDown || !canOpenUp ? "bottom" : "top";
       }
-
-      const maxLeft = Math.max(
-        VIEWPORT_PADDING_PX,
-        viewportWidth - VIEWPORT_PADDING_PX - popupWidth,
-      );
-      left = Math.min(Math.max(left, VIEWPORT_PADDING_PX), maxLeft);
-
-      const preferredTop = rect.bottom + POPUP_GAP_PX;
-      const topIfFlipped = rect.top - POPUP_GAP_PX - popupHeight;
-      const canOpenDown =
-        preferredTop + popupHeight <= viewportHeight - VIEWPORT_PADDING_PX;
-      const canOpenUp = topIfFlipped >= VIEWPORT_PADDING_PX;
-      const top = canOpenDown
-        ? preferredTop
-        : canOpenUp
-          ? topIfFlipped
-          : Math.min(
-              Math.max(VIEWPORT_PADDING_PX, preferredTop),
-              Math.max(
-                VIEWPORT_PADDING_PX,
-                viewportHeight - VIEWPORT_PADDING_PX - popupHeight,
-              ),
-            );
-      const nextSide = canOpenDown || !canOpenUp ? "bottom" : "top";
 
       setPortalStyle({
         position: "fixed",
@@ -150,7 +184,7 @@ const ContentView = ({
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
     };
-  }, [align, anchorRef, isOpen, matchAnchorWidth, zIndex]);
+  }, [align, anchorRef, isOpen, matchAnchorWidth, preferredSide, zIndex]);
 
   const resolvedChildren =
     typeof children === "function" ? (isOpen ? children() : null) : children;
