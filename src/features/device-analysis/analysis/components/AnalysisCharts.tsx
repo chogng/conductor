@@ -93,6 +93,7 @@ const ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS = "!space-y-0";
 const ANALYSIS_COMPACT_INPUT_CLASS = "text-xs";
 const ANALYSIS_COMPACT_PAGE_FIELD_CLASS =
     "!h-8 !gap-0 rounded-lg border border-border bg-bg-page px-2 py-1";
+const ORIGIN_CURVE_SELECTION_DETAIL_ROW_CLASS = "mt-2.5";
 const TOOLTIP_SERIES_NAME_SEPARATOR = "\u0000";
 const ORIGIN_EXPORT_CONTENT_OPTIONS: OriginExportContentOption[] = [
     { group: "basic", key: "iv", labelKey: "da_origin_export_content_iv" },
@@ -4078,7 +4079,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                   <X size={14} strokeWidth={2} />
                 </Button>) : null}
               </div>
-              {showSeriesControls ? (<div className="mt-3">
+              {showSeriesControls ? (<div className={ORIGIN_CURVE_SELECTION_DETAIL_ROW_CLASS}>
                 <div className="flex flex-wrap items-center gap-1.5">
                   <button
                     type="button"
@@ -4124,9 +4125,25 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 </div>
               </div>) : null}
               {fileExtra ? (<div
-                  className="mt-3"
-                  onClick={(event) => event.stopPropagation()}
-                  onKeyDown={(event) => event.stopPropagation()}
+                  className={ORIGIN_CURVE_SELECTION_DETAIL_ROW_CLASS}
+                  onClick={(event) => {
+                    const target = event.target;
+                    const interactiveTarget = target instanceof Element
+                        ? target.closest("a, button, input, label, select, textarea, [contenteditable='true'], [data-style='input'], [role='button'], [role='textbox'], [data-prevent-selection-toggle='true']")
+                        : null;
+                    if (interactiveTarget && event.currentTarget.contains(interactiveTarget)) {
+                        event.stopPropagation();
+                    }
+                  }}
+                  onKeyDown={(event) => {
+                    const target = event.target;
+                    const interactiveTarget = target instanceof Element
+                        ? target.closest("a, button, input, label, select, textarea, [contenteditable='true'], [data-style='input'], [role='button'], [role='textbox'], [data-prevent-selection-toggle='true']")
+                        : null;
+                    if (interactiveTarget && event.currentTarget.contains(interactiveTarget)) {
+                        event.stopPropagation();
+                    }
+                  }}
                 >
                   {fileExtra}
                 </div>) : null}
