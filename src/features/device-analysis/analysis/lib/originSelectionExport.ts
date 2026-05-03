@@ -147,6 +147,57 @@ export type DeviceAnalysisOriginExportPlan = {
   totalCurveCount: number;
 };
 
+export const getRustOriginCsvDerivedContentKey = (
+  payload: Pick<DeviceAnalysisOriginSelectionExport, "csvName"> | null | undefined,
+): "gm" | "gds" | "ss" | "vth" | null => {
+  const csvName = String(payload?.csvName ?? "");
+  if (/__gm__selected_curves\.csv$/i.test(csvName)) return "gm";
+  if (/__gds__selected_curves\.csv$/i.test(csvName)) return "gds";
+  if (/__SS__selected_curves\.csv$/i.test(csvName)) return "ss";
+  if (/__Vth__selected_curves\.csv$/i.test(csvName)) return "vth";
+  return null;
+};
+
+export const isRustOriginCsvEligiblePayload = (
+  payload:
+    | Pick<DeviceAnalysisOriginSelectionExport, "csvName" | "fileIds" | "xColumnLongNames">
+    | null
+    | undefined,
+): boolean => {
+  const csvName = String(payload?.csvName ?? "");
+  if (/__metrics\.csv$/i.test(csvName)) {
+    return (
+      Array.isArray(payload?.fileIds) &&
+      payload.fileIds.length === 1 &&
+      Array.isArray(payload?.xColumnLongNames) &&
+      ((payload.xColumnLongNames.length === OUTPUT_METRICS_FIELDS.length &&
+        OUTPUT_METRICS_FIELDS.every(
+          (field, index) => payload.xColumnLongNames?.[index] === field,
+        )) ||
+        (payload.xColumnLongNames.length === TRANSFER_METRICS_FIELDS.length &&
+          TRANSFER_METRICS_FIELDS.every(
+            (field, index) => payload.xColumnLongNames?.[index] === field,
+          )))
+    );
+  }
+  return (
+    Array.isArray(payload?.fileIds) &&
+    payload.fileIds.length >= 1 &&
+    !/__metrics/i.test(csvName)
+  );
+};
+
+export const resolveRustOriginCsvYTransformForPayload = (
+  payload: Pick<DeviceAnalysisOriginSelectionExport, "csvName"> | null | undefined,
+  fallbackTransform: "abs" | "none",
+): "abs" | "derivative" | "sqrtAbs" | "none" => {
+  const derivedContentKey = getRustOriginCsvDerivedContentKey(payload);
+  if (derivedContentKey === "gm" || derivedContentKey === "gds") return "derivative";
+  if (derivedContentKey === "ss") return "abs";
+  if (derivedContentKey === "vth") return "sqrtAbs";
+  return fallbackTransform;
+};
+
 const sanitizeDeviceAnalysisFilename = (name: unknown): string =>
   String(name || "export")
     .replace(/[/\\?%*:|"<>]/g, "_")
@@ -1070,6 +1121,7 @@ const withDerivedOriginFileMetadata = (
     baseName,
     fileSuffix,
     originExportYUnitLabel,
+    omitCsvText = false,
     series,
     yLabel,
     yUnit,
@@ -1077,6 +1129,7 @@ const withDerivedOriginFileMetadata = (
     baseName: string;
     fileSuffix: string;
     originExportYUnitLabel: string;
+    omitCsvText?: boolean;
     series: ProcessedSeriesLike[];
     yLabel: string;
     yUnit: string;
@@ -1087,7 +1140,7 @@ const withDerivedOriginFileMetadata = (
   series,
   yLabel,
   yUnit,
-  originExportOmitIvCsvText: false,
+  originExportOmitIvCsvText: omitCsvText,
   originExportUseCurveYLongNames: true,
   originExportSkipDisplayRange: true,
   originExportYScaleFactor: 1,
@@ -1130,6 +1183,7 @@ const buildDerivedCurveFile = (
     return withDerivedOriginFileMetadata(file, {
       baseName,
       fileSuffix: derivativeLabel,
+      omitCsvText: Boolean(file?.originExportOmitIvCsvText),
       series: derivedSeries,
       yLabel: derivativeLabel,
       yUnit: `A/${denom}`,
@@ -1153,6 +1207,7 @@ const buildDerivedCurveFile = (
     return withDerivedOriginFileMetadata(file, {
       baseName,
       fileSuffix: "SS",
+      omitCsvText: Boolean(file?.originExportOmitIvCsvText),
       series: derivedSeries,
       yLabel: "|I|",
       yUnit: String(file?.yUnit ?? "A").trim() || "A",
@@ -1176,6 +1231,7 @@ const buildDerivedCurveFile = (
     return withDerivedOriginFileMetadata(file, {
       baseName,
       fileSuffix: "Vth",
+      omitCsvText: Boolean(file?.originExportOmitIvCsvText),
       series: derivedSeries,
       yLabel: "sqrt(|I|)",
       yUnit: "sqrt(A)",
@@ -1269,7 +1325,10 @@ const buildMetricsWorksheetExports = (
       const csvRows = rows.map((row) =>
         fields.map((field) => row[field] ?? ""),
       );
-      const csvText = "\uFEFF" + Papa.unparse(csvRows);
+      const omitCsvText =
+        (supportsOutput || supportsTransfer) &&
+        Boolean(file?.originExportOmitIvCsvText);
+      const csvText = omitCsvText ? "" : "\uFEFF" + Papa.unparse(csvRows);
       const fileName = sanitizeDeviceAnalysisFilename(file?.fileName ?? "device_analysis")
         .replace(/\.csv$/i, "")
         .trim();
@@ -1283,7 +1342,7 @@ const buildMetricsWorksheetExports = (
         csvName: `${fileName || "device_analysis"}__metrics.csv`,
         csvText,
         curveCount: 0,
-        curveLabels: [],
+        curveLabels: rows.map((row) => String(row.series ?? "")),
         fileIds: [String(file?.fileId ?? "")].filter(Boolean),
         importMode: "new-book",
         sheetName: "Metrics",

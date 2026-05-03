@@ -12,8 +12,11 @@ import {
 } from "./lib/deviceAnalysisExport";
 import {
   buildDeviceAnalysisOriginExportPlan,
+  getRustOriginCsvDerivedContentKey,
+  isRustOriginCsvEligiblePayload,
   isDeviceAnalysisOriginExportMode,
   resolveDeviceAnalysisSeriesLabel,
+  resolveRustOriginCsvYTransformForPayload,
   type DeviceAnalysisOriginExportContentKey,
   type DeviceAnalysisOriginExportPlan,
   type DeviceAnalysisOriginExportMode,
@@ -131,15 +134,6 @@ const buildOriginWorkbookKey = (): string => {
 
 const buildOriginXGroupKey = (xArr: unknown): string =>
   Array.isArray(xArr) ? xArr.map((value) => String(Number(value))).join(",") : "";
-
-const isRustOriginCsvEligiblePayload = (payload: any): boolean => {
-  const csvName = String(payload?.csvName ?? "");
-  return (
-    Array.isArray(payload?.fileIds) &&
-    payload.fileIds.length >= 1 &&
-    !/__metrics|__gm__|__gds__|__ss__|__vth__/i.test(csvName)
-  );
-};
 
 const buildOriginImportColumnLabels = (options: {
   columnLayout?: unknown;
@@ -999,11 +993,17 @@ export const useOriginCanvasExport = ({
         fileIdSet.has(String(file?.fileId ?? "")),
       );
       if (!files.length || files.length !== fileIdSet.size) return null;
+      const derivedContentKey = getRustOriginCsvDerivedContentKey(payload);
 
       const sources = files.map((file: any) => {
         const sourcePath = String(file?.originExportSourcePath ?? "").trim();
         const config = file?.originExportConfig;
         if (!sourcePath || !config || typeof config !== "object") return null;
+        const fallbackYTransform =
+          resolveYScaleForFile(file) === "log" &&
+          resolveYLogCurrentModeForFile(file) === "all"
+            ? "abs"
+            : "none";
         return {
           config,
           fileId: String(file?.fileId ?? ""),
@@ -1011,12 +1011,17 @@ export const useOriginCanvasExport = ({
           maxPoints: Number(file?.x?.sampledPoints) || 600,
           path: sourcePath,
           xScaleFactor: getDeviceAnalysisXUnitMeta(file?.xUnit).factor,
-          yScaleFactor: getDeviceAnalysisYUnitMeta(resolveYUnitForFile(file)).factor,
-          yTransform:
-            resolveYScaleForFile(file) === "log" &&
-            resolveYLogCurrentModeForFile(file) === "all"
-              ? "abs"
-              : "none",
+          yScaleFactor:
+            derivedContentKey === "gm" ||
+            derivedContentKey === "gds" ||
+            derivedContentKey === "ss" ||
+            derivedContentKey === "vth"
+              ? 1
+              : getDeviceAnalysisYUnitMeta(resolveYUnitForFile(file)).factor,
+          yTransform: resolveRustOriginCsvYTransformForPayload(
+            payload,
+            fallbackYTransform,
+          ),
         };
       });
       if (sources.some((source) => source === null)) return null;
@@ -1044,6 +1049,49 @@ export const useOriginCanvasExport = ({
         }
       }
       if (!selectedEntries.length) return null;
+
+      if (/__metrics\.csv$/i.test(String(payload?.csvName ?? ""))) {
+        if (
+          files.length !== 1 ||
+          !Array.isArray(payload?.xColumnLongNames) ||
+          !(
+            (payload.xColumnLongNames.length === 3 &&
+              payload.xColumnLongNames[0] === "series" &&
+              payload.xColumnLongNames[1] === "gds_max_abs" &&
+              payload.xColumnLongNames[2] === "x_at_gds_max_abs") ||
+            (payload.xColumnLongNames.length === 14 &&
+              payload.xColumnLongNames[0] === "series" &&
+              payload.xColumnLongNames[1] === "gm_max_abs" &&
+              payload.xColumnLongNames[2] === "x_at_gm_max_abs")
+          )
+        ) {
+          return null;
+        }
+        const firstSource = sources[0] as any;
+        const metricKind = payload.xColumnLongNames.length === 14 ? "transfer" : "output";
+        return {
+          csvName: payload.csvName,
+          config: firstSource.config,
+          fileId: firstSource.fileId,
+          fileName: firstSource.fileName,
+          maxPoints: firstSource.maxPoints,
+          metricKind,
+          metricSeries: selectedEntries.map((entry, index) => ({
+            groupIndex: Number(entry.series?.groupIndex),
+            label: String(payload?.curveLabels?.[index] ?? entry.series?.name ?? ""),
+            sourceIndex: entry.sourceIndex,
+            yCol: Number(entry.series?.yCol),
+          })),
+          sourceFile: {
+            curveType: files[0]?.curveType ?? null,
+            supportsSs: files[0]?.supportsSs ?? null,
+            xAxisRole: files[0]?.xAxisRole ?? null,
+            xLabel: files[0]?.xLabel ?? null,
+          },
+          path: firstSource.path,
+          sources,
+        };
+      }
 
       const columns: Array<{
         kind: "x" | "y";

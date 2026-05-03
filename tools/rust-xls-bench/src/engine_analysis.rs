@@ -348,7 +348,7 @@ fn compute_central_derivative_segment(x: &[f64], y: &[f64], indices: &[usize]) -
     out
 }
 
-fn compute_central_derivative(x: &[f64], y: &[f64]) -> Vec<Value> {
+pub(crate) fn compute_central_derivative(x: &[f64], y: &[f64]) -> Vec<Value> {
     let n = x.len().min(y.len());
     if n < 2 {
         return Vec::new();
@@ -454,7 +454,7 @@ fn is_non_iv_special_curve_type(curve_type: &str) -> bool {
     matches!(curve_type, "pv" | "cv" | "cf")
 }
 
-fn is_transfer_like_source_file(source_file: Option<&AnalysisSourceFile>) -> bool {
+pub(crate) fn is_transfer_like_source_file(source_file: Option<&AnalysisSourceFile>) -> bool {
     let Some(source_file) = source_file else {
         return false;
     };
@@ -681,7 +681,7 @@ fn build_auto_candidate_windows(
     out
 }
 
-fn compute_base_current_metrics(
+pub(crate) fn compute_base_current_metrics(
     x: &[f64],
     y: &[f64],
     source_file: Option<&AnalysisSourceFile>,

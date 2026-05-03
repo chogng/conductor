@@ -1974,6 +1974,13 @@ async function handleDeviceAnalysisRustEngineExportOriginCsv(_event, payload) {
       ? payload.csvName.trim()
       : "device_analysis_origin.csv";
   const columns = Array.isArray(payload?.columns) ? payload.columns : [];
+  const metricKind =
+    typeof payload?.metricKind === "string" ? payload.metricKind.trim() : "";
+  const metricSeries = Array.isArray(payload?.metricSeries) ? payload.metricSeries : [];
+  const sourceFile =
+    payload?.sourceFile && typeof payload.sourceFile === "object" && !Array.isArray(payload.sourceFile)
+      ? payload.sourceFile
+      : undefined;
   const sources = Array.isArray(payload?.sources) ? payload.sources : undefined;
 
   if (!fileId || !inputPath || !isSupportedRustDeviceAnalysisInputPath(inputPath)) {
@@ -1983,7 +1990,11 @@ async function handleDeviceAnalysisRustEngineExportOriginCsv(_event, payload) {
       message: "Invalid device-analysis file path.",
     };
   }
-  if (!isRustProcessFileConfigSupported(config) || !columns.length) {
+  if (
+    !isRustProcessFileConfigSupported(config) ||
+    (!columns.length &&
+      !((metricKind === "output" || metricKind === "transfer") && metricSeries.length))
+  ) {
     return {
       ok: false,
       code: "RUST_ENGINE_EXPORT_UNSUPPORTED_CONFIG",
@@ -2002,8 +2013,11 @@ async function handleDeviceAnalysisRustEngineExportOriginCsv(_event, payload) {
         fileId,
         fileName: fileName || path.basename(inputPath),
         maxPoints: payload?.maxPoints,
+        metricKind,
+        metricSeries,
         outputPath,
         path: inputPath,
+        sourceFile,
         sources,
         xScaleFactor: payload?.xScaleFactor,
         yScaleFactor: payload?.yScaleFactor,

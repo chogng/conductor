@@ -5,7 +5,9 @@ import {
   buildDeviceAnalysisOriginExportPlan,
   buildDeviceAnalysisOriginExportsByMode,
   buildDeviceAnalysisOriginSelectionExport,
+  isRustOriginCsvEligiblePayload,
   isDeviceAnalysisOriginExportMode,
+  resolveRustOriginCsvYTransformForPayload,
 } from "./originSelectionExport.ts";
 import {
   buildOriginAxisSpacingCommands,
@@ -541,6 +543,163 @@ test("buildDeviceAnalysisOriginExportPlan includes selected derived Origin expor
   assert.equal(metricsPayloads[0].csvText.includes("transfer_a.csv"), false);
   assert.equal(metricsPayloads[1].csvText.includes("output_a.csv"), false);
   assert.equal(metricsPayloads[0].csvText.includes("file_name,series,gm_max_abs"), false);
+});
+
+test("single-file transfer gm, SS and Vth Origin payloads can omit csv text for Rust export", () => {
+  const plan = buildDeviceAnalysisOriginExportPlan(
+    [
+      {
+        fileId: "transfer-rust-derived",
+        fileName: "transfer_rust_derived.csv",
+        curveType: "transfer",
+        xAxisRole: "vg",
+        originExportOmitIvCsvText: true,
+        originExportConfig: {
+          xColumn: 0,
+          xEnd: 3,
+          xStart: 1,
+          yColumns: [1],
+        },
+        originExportSourcePath: "C:\\data\\transfer_rust_derived.csv",
+        xGroups: [[0, 1, 2]],
+        series: [
+          {
+            id: "curve-transfer",
+            groupIndex: 0,
+            y: [-1e-12, -4e-12, -9e-12],
+            yCol: 1,
+          },
+        ],
+        yUnit: "A",
+      },
+    ],
+    undefined,
+    "merged",
+    () => "linear",
+    () => 1,
+    () => 1,
+    () => "A",
+    undefined,
+    undefined,
+    undefined,
+    ["gm", "ss", "vth"],
+  );
+
+  const gmPayload = plan.payloads.find((payload) => /__gm__selected_curves\.csv$/.test(payload.csvName));
+  const ssPayload = plan.payloads.find((payload) => /__SS__selected_curves\.csv$/.test(payload.csvName));
+  const vthPayload = plan.payloads.find((payload) => /__Vth__selected_curves\.csv$/.test(payload.csvName));
+
+  assert.ok(gmPayload);
+  assert.ok(ssPayload);
+  assert.ok(vthPayload);
+  assert.equal(gmPayload.csvText, "");
+  assert.equal(ssPayload.csvText, "");
+  assert.equal(vthPayload.csvText, "");
+  assert.equal(isRustOriginCsvEligiblePayload(gmPayload), true);
+  assert.equal(isRustOriginCsvEligiblePayload(ssPayload), true);
+  assert.equal(isRustOriginCsvEligiblePayload(vthPayload), true);
+  assert.equal(resolveRustOriginCsvYTransformForPayload(gmPayload, "none"), "derivative");
+  assert.equal(resolveRustOriginCsvYTransformForPayload(ssPayload, "none"), "abs");
+  assert.equal(resolveRustOriginCsvYTransformForPayload(vthPayload, "none"), "sqrtAbs");
+});
+
+test("single-file output metrics and gds can omit csv text for Rust export", () => {
+  const plan = buildDeviceAnalysisOriginExportPlan(
+    [
+      {
+        fileId: "output-rust-derived",
+        fileName: "output_rust_derived.csv",
+        curveType: "output",
+        xAxisRole: "vd",
+        originExportOmitIvCsvText: true,
+        originExportConfig: {
+          xColumn: 0,
+          xEnd: 4,
+          xStart: 1,
+          yColumns: [1],
+        },
+        originExportSourcePath: "C:\\data\\output_rust_derived.csv",
+        xGroups: [[0, 1, 2, 3]],
+        series: [
+          {
+            id: "curve-output",
+            groupIndex: 0,
+            y: [0, 1e-6, 4e-6, 9e-6],
+            yCol: 1,
+          },
+        ],
+        yUnit: "A",
+      },
+    ],
+    undefined,
+    "merged",
+    () => "linear",
+    () => 1,
+    () => 1,
+    () => "A",
+    undefined,
+    undefined,
+    undefined,
+    ["metrics", "gds"],
+  );
+
+  const metricsPayload = plan.payloads.find((payload) => /__metrics\.csv$/.test(payload.csvName));
+  const gdsPayload = plan.payloads.find((payload) => /__gds__selected_curves\.csv$/.test(payload.csvName));
+
+  assert.ok(metricsPayload);
+  assert.ok(gdsPayload);
+  assert.equal(metricsPayload.csvText, "");
+  assert.equal(gdsPayload.csvText, "");
+  assert.equal(isRustOriginCsvEligiblePayload(metricsPayload), true);
+  assert.equal(isRustOriginCsvEligiblePayload(gdsPayload), true);
+  assert.equal(resolveRustOriginCsvYTransformForPayload(gdsPayload, "none"), "derivative");
+});
+
+test("single-file transfer metrics can omit csv text for Rust export", () => {
+  const plan = buildDeviceAnalysisOriginExportPlan(
+    [
+      {
+        fileId: "transfer-metrics-js",
+        fileName: "transfer_metrics_js.csv",
+        curveType: "transfer",
+        xAxisRole: "vg",
+        originExportOmitIvCsvText: true,
+        originExportConfig: {
+          xColumn: 0,
+          xEnd: 5,
+          xStart: 1,
+          yColumns: [1],
+        },
+        originExportSourcePath: "C:\\data\\transfer_metrics_js.csv",
+        xGroups: [[-2, -1, 0, 1, 2]],
+        series: [
+          {
+            id: "curve-transfer",
+            groupIndex: 0,
+            y: [9e-12, 4e-12, 1e-12, 4e-11, 9e-10],
+            yCol: 1,
+          },
+        ],
+        yUnit: "A",
+      },
+    ],
+    undefined,
+    "merged",
+    () => "linear",
+    () => 1,
+    () => 1,
+    () => "A",
+    undefined,
+    undefined,
+    undefined,
+    ["metrics"],
+  );
+
+  const metricsPayload = plan.payloads.find((payload) => /__metrics\.csv$/.test(payload.csvName));
+
+  assert.ok(metricsPayload);
+  assert.equal(metricsPayload.csvText, "");
+  assert.equal(isRustOriginCsvEligiblePayload(metricsPayload), true);
 });
 
 test("buildDeviceAnalysisOriginExportPlan uses grouped IV naming consistently", () => {

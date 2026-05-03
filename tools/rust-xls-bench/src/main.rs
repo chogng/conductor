@@ -7,7 +7,7 @@ mod engine_rc;
 mod engine_utils;
 
 use calamine::{Reader, open_workbook_auto};
-use engine_analysis::{AnalysisSeriesRequest, AnalysisSourceFile};
+use engine_analysis::{AnalysisSeriesRequest, AnalysisSourceFile, compute_central_derivative};
 use engine_cells::EngineCellRequest;
 use engine_dataset::{EngineDataset, is_excel_path, load_engine_dataset};
 use engine_infer::{
@@ -84,6 +84,8 @@ struct EngineRequest {
     source_file: Option<AnalysisSourceFile>,
     start_row: Option<usize>,
     max_points: Option<usize>,
+    metric_kind: Option<String>,
+    metric_series: Option<Vec<OriginExportMetricSeriesRequest>>,
     output_path: Option<String>,
     rc_devices: Option<Vec<RcDeviceRequest>>,
     rc_options: Option<RcAnalysisOptions>,
@@ -114,6 +116,15 @@ struct OriginExportSourceRequest {
     x_scale_factor: Option<f64>,
     y_scale_factor: Option<f64>,
     y_transform: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OriginExportMetricSeriesRequest {
+    group_index: usize,
+    label: String,
+    source_index: Option<usize>,
+    y_col: usize,
 }
 
 #[derive(Serialize)]
@@ -2174,6 +2185,28 @@ fn transform_origin_export_y(value: f64, scale_factor: f64, transform: &str) -> 
     }
 }
 
+fn compute_origin_export_derivative_values(
+    dataset: &EngineDataset,
+    start_row: usize,
+    group_size: usize,
+    group_index: usize,
+    x_col: usize,
+    y_col: usize,
+    row_offsets: &[usize],
+) -> Vec<Option<f64>> {
+    let mut x_values = Vec::<f64>::with_capacity(row_offsets.len());
+    let mut y_values = Vec::<f64>::with_capacity(row_offsets.len());
+    for row_offset in row_offsets {
+        let row_index = start_row + group_index * group_size + *row_offset;
+        x_values.push(cell_number(dataset, row_index, x_col).unwrap_or(f64::NAN));
+        y_values.push(cell_number(dataset, row_index, y_col).unwrap_or(f64::NAN));
+    }
+    compute_central_derivative(&x_values, &y_values)
+        .into_iter()
+        .map(|point| point.get("y").and_then(Value::as_f64).filter(|value| value.is_finite()))
+        .collect()
+}
+
 fn export_origin_csv_file(
     dataset: &EngineDataset,
     config: &Value,
@@ -2205,6 +2238,7 @@ fn export_origin_csv_file(
     if let Some(parent) = output_path.parent() {
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
     }
+    let mut derivative_cache = HashMap::<(usize, usize), Vec<Option<f64>>>::new();
     let mut writer =
         BufWriter::new(fs::File::create(output_path).map_err(|error| error.to_string())?);
     writer
@@ -2232,8 +2266,23 @@ fn export_origin_csv_file(
                 let y_col = column
                     .y_col
                     .ok_or_else(|| "export y column is missing yCol".to_string())?;
-                cell_number(dataset, row_index, y_col)
-                    .map(|value| transform_origin_export_y(value, y_scale_factor, y_transform))
+                if y_transform == "derivative" {
+                    let values = derivative_cache.entry((column.group_index, y_col)).or_insert_with(|| {
+                        compute_origin_export_derivative_values(
+                            dataset,
+                            start_row,
+                            group_size,
+                            column.group_index,
+                            x_col,
+                            y_col,
+                            &row_offsets,
+                        )
+                    });
+                    values.get(output_row_index).copied().flatten()
+                } else {
+                    cell_number(dataset, row_index, y_col)
+                        .map(|value| transform_origin_export_y(value, y_scale_factor, y_transform))
+                }
             } else {
                 return Err("unsupported export column kind".to_string());
             };
@@ -2264,6 +2313,12 @@ struct OriginExportResolvedSource {
     x_scale_factor: f64,
     y_scale_factor: f64,
     y_transform: String,
+}
+
+#[derive(Clone)]
+struct OriginExportVthFit {
+    branch: &'static str,
+    vth: f64,
 }
 
 fn resolve_origin_export_source(
@@ -2324,6 +2379,7 @@ fn export_origin_csv_sources(
         .map(|source| source.row_offsets.len())
         .max()
         .unwrap_or(0);
+    let mut derivative_cache = HashMap::<(usize, usize, usize), Vec<Option<f64>>>::new();
 
     for output_row_index in 0..max_row_count {
         if output_row_index > 0 {
@@ -2354,9 +2410,26 @@ fn export_origin_csv_sources(
                 let y_col = column
                     .y_col
                     .ok_or_else(|| "export y column is missing yCol".to_string())?;
-                cell_number(&source.dataset, row_index, y_col).map(|value| {
-                    transform_origin_export_y(value, source.y_scale_factor, &source.y_transform)
-                })
+                if source.y_transform == "derivative" {
+                    let values = derivative_cache
+                        .entry((source_index, column.group_index, y_col))
+                        .or_insert_with(|| {
+                            compute_origin_export_derivative_values(
+                                &source.dataset,
+                                source.start_row,
+                                source.group_size,
+                                column.group_index,
+                                source.x_col,
+                                y_col,
+                                &source.row_offsets,
+                            )
+                        });
+                    values.get(output_row_index).copied().flatten()
+                } else {
+                    cell_number(&source.dataset, row_index, y_col).map(|value| {
+                        transform_origin_export_y(value, source.y_scale_factor, &source.y_transform)
+                    })
+                }
             } else {
                 return Err("unsupported export column kind".to_string());
             };
@@ -2373,6 +2446,337 @@ fn export_origin_csv_sources(
         "columns": columns.len(),
         "path": output_path.to_string_lossy(),
         "rows": max_row_count,
+        "sources": sources.len(),
+    }))
+}
+
+fn compute_origin_metric_series_points(
+    source: &OriginExportResolvedSource,
+    group_index: usize,
+    y_col: usize,
+) -> Vec<(f64, f64)> {
+    source
+        .row_offsets
+        .iter()
+        .filter_map(|row_offset| {
+            let row_index = source.start_row + group_index * source.group_size + *row_offset;
+            let x = cell_number(&source.dataset, row_index, source.x_col)?;
+            let y = cell_number(&source.dataset, row_index, y_col)?;
+            if x.is_finite() && y.is_finite() {
+                Some((x, y))
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
+fn linear_regression_xy(points: &[(f64, f64)]) -> Option<(f64, f64, f64)> {
+    let n = points.len();
+    if n < 3 {
+        return None;
+    }
+    let mut sum_x = 0.0;
+    let mut sum_y = 0.0;
+    let mut sum_xx = 0.0;
+    let mut sum_xy = 0.0;
+    let mut sum_yy = 0.0;
+    for (x, y) in points {
+        sum_x += *x;
+        sum_y += *y;
+        sum_xx += *x * *x;
+        sum_xy += *x * *y;
+        sum_yy += *y * *y;
+    }
+    let n_f = n as f64;
+    let denom = n_f * sum_xx - sum_x * sum_x;
+    if !denom.is_finite() || denom == 0.0 {
+        return None;
+    }
+    let slope = (n_f * sum_xy - sum_x * sum_y) / denom;
+    let intercept = (sum_y - slope * sum_x) / n_f;
+    let ss_tot = sum_yy - (sum_y * sum_y) / n_f;
+    let mut ss_res = 0.0;
+    for (x, y) in points {
+        let residual = *y - (slope * *x + intercept);
+        ss_res += residual * residual;
+    }
+    let r2 = if ss_tot > 0.0 { 1.0 - ss_res / ss_tot } else { 1.0 };
+    Some((slope, intercept, r2))
+}
+
+fn pick_origin_vth_linear_fit(
+    points: &[(f64, f64)],
+    branch: &'static str,
+) -> Option<OriginExportVthFit> {
+    let mut sorted = points
+        .iter()
+        .copied()
+        .filter(|(x, y)| x.is_finite() && y.is_finite() && *y > 0.0)
+        .collect::<Vec<_>>();
+    sorted.sort_by(|a, b| a.0.total_cmp(&b.0));
+    if sorted.len() < 5 {
+        return None;
+    }
+    let min_window = 5usize.min(sorted.len());
+    let max_window = 16usize.min(sorted.len());
+    let max_y = sorted.iter().map(|(_, y)| *y).fold(f64::NEG_INFINITY, f64::max);
+    let mut best: Option<(OriginExportVthFit, f64)> = None;
+    for window_size in min_window..=max_window {
+        for start in 0..=sorted.len().saturating_sub(window_size) {
+            let window = &sorted[start..start + window_size];
+            let Some((slope, intercept, r2)) = linear_regression_xy(window) else {
+                continue;
+            };
+            if branch == "electron" && slope <= 0.0 {
+                continue;
+            }
+            if branch == "hole" && slope >= 0.0 {
+                continue;
+            }
+            let y_min = window.iter().map(|(_, y)| *y).fold(f64::INFINITY, f64::min);
+            let y_max = window.iter().map(|(_, y)| *y).fold(f64::NEG_INFINITY, f64::max);
+            let y_span = y_max - y_min;
+            if max_y > 0.0 && y_span / max_y < 0.12 {
+                continue;
+            }
+            let vth = -intercept / slope;
+            if !vth.is_finite() {
+                continue;
+            }
+            let x1 = window[0].0;
+            let x2 = window[window.len() - 1].0;
+            let y1 = slope * x1 + intercept;
+            let y2 = slope * x2 + intercept;
+            if !y1.is_finite() || !y2.is_finite() {
+                continue;
+            }
+            let score = r2 + 0.08f64.min(y_span / max_y.max(1e-300) * 0.08) + window_size as f64 * 0.002;
+            if best.as_ref().map(|(_, best_score)| score > *best_score).unwrap_or(true) {
+                best = Some((OriginExportVthFit { branch, vth }, score));
+            }
+        }
+    }
+    best.map(|(fit, _)| fit)
+}
+
+fn compute_origin_vth_sqrt_fits(points: &[(f64, f64)]) -> Vec<OriginExportVthFit> {
+    let sqrt_points = points
+        .iter()
+        .filter_map(|(x, y)| {
+            if x.is_finite() && y.is_finite() {
+                Some((*x, y.abs().sqrt()))
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+    if sqrt_points.len() < 5 {
+        return Vec::new();
+    }
+    let Some((valley_x, _)) = sqrt_points
+        .iter()
+        .copied()
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+    else {
+        return Vec::new();
+    };
+    let hole_points = sqrt_points
+        .iter()
+        .copied()
+        .filter(|(x, _)| *x <= valley_x)
+        .collect::<Vec<_>>();
+    let electron_points = sqrt_points
+        .iter()
+        .copied()
+        .filter(|(x, _)| *x >= valley_x)
+        .collect::<Vec<_>>();
+    [
+        pick_origin_vth_linear_fit(&hole_points, "hole"),
+        pick_origin_vth_linear_fit(&electron_points, "electron"),
+    ]
+    .into_iter()
+    .flatten()
+    .collect()
+}
+
+fn origin_json_number(value: &Value, key: &str) -> String {
+    value
+        .get(key)
+        .and_then(Value::as_f64)
+        .filter(|value| value.is_finite())
+        .map(|value| value.to_string())
+        .unwrap_or_default()
+}
+
+fn origin_ss_fit_value(value: &Value, key: &str) -> String {
+    let strict_ok = value
+        .get("strict")
+        .and_then(|strict| strict.get("ok"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let suggested_ok = value
+        .get("suggested")
+        .and_then(|suggested| suggested.get("ok"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    let source = if strict_ok {
+        value.get("strict")
+    } else if suggested_ok {
+        value.get("suggested")
+    } else {
+        None
+    };
+    source
+        .and_then(|fit| fit.get(key))
+        .and_then(Value::as_f64)
+        .filter(|value| value.is_finite())
+        .map(|value| value.to_string())
+        .unwrap_or_default()
+}
+
+fn export_origin_metrics_csv_sources(
+    sources: &[OriginExportResolvedSource],
+    metric_series: &[OriginExportMetricSeriesRequest],
+    metric_kind: &str,
+    source_file: Option<&AnalysisSourceFile>,
+    output_path: &Path,
+) -> Result<Value, String> {
+    if sources.is_empty() {
+        return Err("missing export sources".to_string());
+    }
+    if metric_series.is_empty() {
+        return Err("missing export metric series".to_string());
+    }
+    if let Some(parent) = output_path.parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    let mut writer =
+        BufWriter::new(fs::File::create(output_path).map_err(|error| error.to_string())?);
+    writer
+        .write_all(&[0xEF, 0xBB, 0xBF])
+        .map_err(|error| error.to_string())?;
+    let mut csv_bytes = 3usize;
+
+    for (row_index, series) in metric_series.iter().enumerate() {
+        if row_index > 0 {
+            writer.write_all(b"\n").map_err(|error| error.to_string())?;
+            csv_bytes += 1;
+        }
+        let source_index = series.source_index.unwrap_or(0);
+        let source = sources
+            .get(source_index)
+            .ok_or_else(|| "export metric sourceIndex is out of range".to_string())?;
+        if series.group_index >= source.groups {
+            return Err("export metric groupIndex is out of range".to_string());
+        }
+        let derivative = compute_origin_export_derivative_values(
+            &source.dataset,
+            source.start_row,
+            source.group_size,
+            series.group_index,
+            source.x_col,
+            series.y_col,
+            &source.row_offsets,
+        );
+        let mut max_abs = f64::NEG_INFINITY;
+        let mut x_at_max: Option<f64> = None;
+        for (index, value) in derivative.iter().enumerate() {
+            let Some(y) = value else {
+                continue;
+            };
+            let abs = y.abs();
+            if abs > max_abs {
+                max_abs = abs;
+                let row_offset = source.row_offsets[index];
+                let source_row =
+                    source.start_row + series.group_index * source.group_size + row_offset;
+                x_at_max = cell_number(&source.dataset, source_row, source.x_col);
+            }
+        }
+        let supports_transfer_metrics = metric_kind == "transfer"
+            && engine_analysis::is_transfer_like_source_file(source_file);
+        let cells = if metric_kind == "transfer" {
+            let points = compute_origin_metric_series_points(source, series.group_index, series.y_col);
+            let x_values = points.iter().map(|(x, _)| *x).collect::<Vec<_>>();
+            let y_values = points.iter().map(|(_, y)| *y).collect::<Vec<_>>();
+            let base = if supports_transfer_metrics {
+                engine_analysis::compute_base_current_metrics(&x_values, &y_values, source_file)
+            } else {
+                Value::Null
+            };
+            let ss_fit = if supports_transfer_metrics {
+                engine_analysis::compute_subthreshold_swing_fit_auto(&x_values, &y_values)
+            } else {
+                Value::Null
+            };
+            let vth_fits = if supports_transfer_metrics {
+                compute_origin_vth_sqrt_fits(&points)
+            } else {
+                Vec::new()
+            };
+            let electron_vth = vth_fits
+                .iter()
+                .find(|fit| fit.branch == "electron")
+                .map(|fit| fit.vth);
+            let hole_vth = vth_fits
+                .iter()
+                .find(|fit| fit.branch == "hole")
+                .map(|fit| fit.vth);
+            vec![
+                series.label.clone(),
+                if max_abs.is_finite() { max_abs.to_string() } else { String::new() },
+                x_at_max
+                    .filter(|value| value.is_finite())
+                    .map(|value| value.to_string())
+                    .unwrap_or_default(),
+                electron_vth
+                    .or(hole_vth)
+                    .filter(|value| value.is_finite())
+                    .map(|value| value.to_string())
+                    .unwrap_or_default(),
+                electron_vth
+                    .filter(|value| value.is_finite())
+                    .map(|value| value.to_string())
+                    .unwrap_or_default(),
+                hole_vth
+                    .filter(|value| value.is_finite())
+                    .map(|value| value.to_string())
+                    .unwrap_or_default(),
+                origin_ss_fit_value(&ss_fit, "ss"),
+                origin_ss_fit_value(&ss_fit, "x1"),
+                origin_ss_fit_value(&ss_fit, "x2"),
+                origin_json_number(&base, "ion"),
+                origin_json_number(&base, "xAtIon"),
+                origin_json_number(&base, "ioff"),
+                origin_json_number(&base, "xAtIoff"),
+                origin_json_number(&base, "ionIoff"),
+            ]
+        } else {
+            vec![
+                series.label.clone(),
+                if max_abs.is_finite() { max_abs.to_string() } else { String::new() },
+                x_at_max
+                    .filter(|value| value.is_finite())
+                    .map(|value| value.to_string())
+                    .unwrap_or_default(),
+            ]
+        };
+        for (col_index, value) in cells.iter().enumerate() {
+            if col_index > 0 {
+                writer.write_all(b",").map_err(|error| error.to_string())?;
+                csv_bytes += 1;
+            }
+            csv_bytes += write_csv_cell(value, &mut writer).map_err(|error| error.to_string())?;
+        }
+    }
+    writer.flush().map_err(|error| error.to_string())?;
+    Ok(json!({
+        "bytes": csv_bytes,
+        "columns": if metric_kind == "transfer" { 14 } else { 3 },
+        "metricKind": metric_kind,
+        "path": output_path.to_string_lossy(),
+        "rows": metric_series.len(),
         "sources": sources.len(),
     }))
 }
@@ -2687,8 +3091,7 @@ fn handle_engine_request(
             let columns = request
                 .columns
                 .as_deref()
-                .filter(|columns| !columns.is_empty())
-                .ok_or_else(|| "missing export columns".to_string())?;
+                .unwrap_or(&[]);
             let output_path = request
                 .output_path
                 .as_deref()
@@ -2723,7 +3126,22 @@ fn handle_engine_request(
                         source.y_transform.as_deref(),
                     )?);
                 }
-                export_origin_csv_sources(resolved_sources, columns, &output_path)
+                if matches!(request.metric_kind.as_deref(), Some("output" | "transfer")) {
+                    let metric_series = request
+                        .metric_series
+                        .as_deref()
+                        .filter(|items| !items.is_empty())
+                        .ok_or_else(|| "missing export metric series".to_string())?;
+                    export_origin_metrics_csv_sources(
+                        &resolved_sources,
+                        metric_series,
+                        request.metric_kind.as_deref().unwrap_or("output"),
+                        request.source_file.as_ref(),
+                        &output_path,
+                    )
+                } else {
+                    export_origin_csv_sources(resolved_sources, columns, &output_path)
+                }
             } else {
                 export_origin_csv_file(
                     dataset,
