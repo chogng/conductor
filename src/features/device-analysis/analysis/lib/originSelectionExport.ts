@@ -38,6 +38,7 @@ type ProcessedEntryLike = {
   originExportPlotCommand?: string;
   originExportSkipDisplayRange?: boolean;
   originExportSkipAxisCommands?: boolean;
+  originExportOmitIvCsvText?: boolean;
   originExportUseCurveYLongNames?: boolean;
   originExportYScaleFactor?: number;
   originExportYUnitLabel?: string;
@@ -716,6 +717,8 @@ const buildWorksheetExport = ({
     (max, entry) => Math.max(max, entry.rowCount),
     0,
   );
+  const omitCsvText =
+    canvases.length === 1 && Boolean(canvases[0]?.originExportOmitIvCsvText);
   const columnLongNames: string[] = [];
   const columnUnits: string[] = [];
   const columnComments: string[] = [];
@@ -741,32 +744,34 @@ const buildWorksheetExport = ({
       }
     }
   }
-  const rows = new Array<Array<number | string>>(maxRowCount);
-  for (let rowIndex = 0; rowIndex < maxRowCount; rowIndex += 1) {
-    const row: Array<number | string> = [];
-    if (useSharedXLayout) {
-      const sharedXEntry = curveEntries[0];
-      row.push(rowIndex < sharedXEntry.rowCount ? (sharedXEntry.xArr[rowIndex] ?? "") : "");
-      for (const entry of curveEntries) {
-        row.push(rowIndex < entry.rowCount ? (entry.yArr[rowIndex] ?? "") : "");
-      }
-    } else if (useGroupedXLayout) {
-      for (const group of xGroups) {
-        const sharedXEntry = group.entries[0]!;
+  const rows = omitCsvText ? [] : new Array<Array<number | string>>(maxRowCount);
+  if (!omitCsvText) {
+    for (let rowIndex = 0; rowIndex < maxRowCount; rowIndex += 1) {
+      const row: Array<number | string> = [];
+      if (useSharedXLayout) {
+        const sharedXEntry = curveEntries[0];
         row.push(rowIndex < sharedXEntry.rowCount ? (sharedXEntry.xArr[rowIndex] ?? "") : "");
-        for (const entry of group.entries) {
+        for (const entry of curveEntries) {
           row.push(rowIndex < entry.rowCount ? (entry.yArr[rowIndex] ?? "") : "");
         }
+      } else if (useGroupedXLayout) {
+        for (const group of xGroups) {
+          const sharedXEntry = group.entries[0]!;
+          row.push(rowIndex < sharedXEntry.rowCount ? (sharedXEntry.xArr[rowIndex] ?? "") : "");
+          for (const entry of group.entries) {
+            row.push(rowIndex < entry.rowCount ? (entry.yArr[rowIndex] ?? "") : "");
+          }
+        }
+      } else {
+        for (const entry of curveEntries) {
+          row.push(
+            rowIndex < entry.rowCount ? (entry.xArr[rowIndex] ?? "") : "",
+            rowIndex < entry.rowCount ? (entry.yArr[rowIndex] ?? "") : "",
+          );
+        }
       }
-    } else {
-      for (const entry of curveEntries) {
-        row.push(
-          rowIndex < entry.rowCount ? (entry.xArr[rowIndex] ?? "") : "",
-          rowIndex < entry.rowCount ? (entry.yArr[rowIndex] ?? "") : "",
-        );
-      }
+      rows[rowIndex] = row;
     }
-    rows[rowIndex] = row;
   }
 
   const resolvedPositiveMin = Number.isFinite(yPositiveMin)
@@ -783,7 +788,7 @@ const buildWorksheetExport = ({
     columnLongNames: useGroupedXLayout ? columnLongNames : undefined,
     columnUnits: useGroupedXLayout ? columnUnits : undefined,
     csvName: `${csvBase}.csv`,
-    csvText: "\uFEFF" + Papa.unparse(rows),
+    csvText: omitCsvText ? "" : "\uFEFF" + Papa.unparse(rows),
     curveCount: curveEntries.length,
     curveLabels,
     fileIds: canvases
@@ -1081,6 +1086,7 @@ const withDerivedOriginFileMetadata = (
   series,
   yLabel,
   yUnit,
+  originExportOmitIvCsvText: false,
   originExportUseCurveYLongNames: true,
   originExportSkipDisplayRange: true,
   originExportYScaleFactor: 1,

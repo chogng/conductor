@@ -892,13 +892,28 @@ export const useOriginCanvasExport = ({
     [processedData],
   );
 
-  const buildOriginExportPayloadsForSelectedCanvases = useCallback((): DeviceAnalysisOriginExportPlan => {
+  const buildOriginExportPayloadsForSelectedCanvases = useCallback(({
+    omitRustEligibleCsvText = false,
+  }: { omitRustEligibleCsvText?: boolean } = {}): DeviceAnalysisOriginExportPlan => {
     if (!selectedOriginCanvases.length) {
       throw new Error(t("da_origin_select_canvas"));
     }
+    const exportCanvases = omitRustEligibleCsvText
+      ? selectedOriginCanvases.map((canvas: any) => {
+          const canUseRustCsv =
+            canvas &&
+            typeof canvas === "object" &&
+            String(canvas?.originExportSourcePath ?? "").trim() &&
+            canvas?.originExportConfig &&
+            typeof canvas.originExportConfig === "object";
+          return canUseRustCsv
+            ? { ...canvas, originExportOmitIvCsvText: true }
+            : canvas;
+        })
+      : selectedOriginCanvases;
 
     const plan = buildDeviceAnalysisOriginExportPlan(
-      selectedOriginCanvases,
+      exportCanvases,
       originSelectedSeriesIdsByFile,
       resolvedOriginExportMode,
       resolveYScaleForFile,
@@ -1081,7 +1096,9 @@ export const useOriginCanvasExport = ({
         throw new Error(t("da_origin_pick_exe_required"));
       }
 
-      const result = buildOriginExportPayloadsForSelectedCanvases();
+      const result = buildOriginExportPayloadsForSelectedCanvases({
+        omitRustEligibleCsvText: true,
+      });
       const normalizedPlotOptions = normalizeOriginPlotOptions(
         originOpenPlotOptions,
         DEFAULT_ORIGIN_PLOT_OPTIONS,
@@ -1260,6 +1277,25 @@ export const useOriginCanvasExport = ({
             }
           }),
         );
+      }
+      const missingCsvTextIndexes = originCsvJobs
+        .map((job: any, index: number) =>
+          !String(job?.csv?.path ?? "").trim() &&
+          !String(job?.csv?.text ?? "").trim()
+            ? index
+            : -1,
+        )
+        .filter((index: number) => index >= 0);
+      if (missingCsvTextIndexes.length) {
+        const fullResult = buildOriginExportPayloadsForSelectedCanvases();
+        for (const index of missingCsvTextIndexes) {
+          const fullPayload = fullResult.payloads[index];
+          if (!fullPayload) continue;
+          originCsvJobs[index].csv = {
+            name: fullPayload.csvName,
+            text: fullPayload.csvText,
+          };
+        }
       }
 
       if (shouldBatchOriginCsvJobs && originCsvJobs.length > 1) {

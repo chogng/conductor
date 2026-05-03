@@ -365,6 +365,30 @@ test("buildDeviceAnalysisOriginExportPlan scales exported X/Y data to the active
   assert.equal(rows[1], "1000,0.02");
 });
 
+test("buildDeviceAnalysisOriginExportPlan can omit single-canvas IV csv text for Rust path export", () => {
+  const plan = buildDeviceAnalysisOriginExportPlan([
+    {
+      fileId: "file-rust-export",
+      fileName: "file_rust_export.csv",
+      originExportOmitIvCsvText: true,
+      xGroups: [[0, 1, 2]],
+      series: [
+        {
+          id: "curve-a",
+          groupIndex: 0,
+          y: [1, 2, 3],
+        },
+      ],
+    },
+  ]);
+
+  assert.equal(plan.payloads.length, 1);
+  assert.equal(plan.payloads[0].csvText, "");
+  assert.equal(plan.payloads[0].csvName, "file_rust_export__selected_curves.csv");
+  assert.equal(plan.payloads[0].curveCount, 1);
+  assert.deepEqual(plan.payloads[0].xColumnLongNames, ["X"]);
+});
+
 test("buildDeviceAnalysisOriginExportPlan exports absolute current for log all-I Origin plots", () => {
   const plan = buildDeviceAnalysisOriginExportPlan(
     [
