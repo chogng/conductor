@@ -34,6 +34,7 @@ import {
   getDeviceAnalysisXUnitMeta,
   getDeviceAnalysisYUnitMeta,
 } from "./lib/deviceAnalysisUnits";
+import { useFileSelectionPool } from "./useFileSelectionPool";
 
 const ORIGIN_CSV_AUTO_ZIP_FALLBACK_CODES = new Set([
   "ORIGIN_ORIGINPRO_IMPORT_FAILED",
@@ -312,12 +313,6 @@ export const useOriginCanvasExport = ({
   const originBusyRef = useRef(false);
   const [originSelectedSeriesIdsByFile, setOriginSelectedSeriesIdsByFile] =
     useState<Record<string, string[]>>({});
-  const [originSelectedCanvasIds, setOriginSelectedCanvasIds] = useState<string[]>(
-    () => {
-      const firstFileId = String(processedData?.[0]?.fileId ?? "");
-      return firstFileId ? [firstFileId] : [];
-    },
-  );
   const resolvedOriginExportMode: DeviceAnalysisOriginExportMode =
     isDeviceAnalysisOriginExportMode(originExportMode) ? originExportMode : "merged";
 
@@ -335,41 +330,21 @@ export const useOriginCanvasExport = ({
       })
       .filter(Boolean);
   }, [processedData]);
+  const originCanvasOptionIds = useMemo(
+    () => originCanvasOptions.map((item: any) => item?.key),
+    [originCanvasOptions],
+  );
 
-  useEffect(() => {
-    setOriginSelectedCanvasIds((prev) => {
-      const liveKeys = originCanvasOptions
-        .map((item: any) => String(item?.key ?? ""))
-        .filter(Boolean);
-      if (!liveKeys.length) {
-        return prev.length ? [] : prev;
-      }
-
-      const liveKeySet = new Set(liveKeys);
-      const prevList = Array.isArray(prev) ? prev : [];
-      const filtered = prevList
-        .map((item) => String(item ?? ""))
-        .filter(
-          (item, idx, arr) =>
-            Boolean(item) && liveKeySet.has(item) && arr.indexOf(item) === idx,
-        );
-
-      if (filtered.length) {
-        const unchanged =
-          filtered.length === prevList.length &&
-          filtered.every((value, idx) => value === prevList[idx]);
-        return unchanged ? prev : filtered;
-      }
-
-      const fallbackKey = String(effectiveActiveFileId ?? "");
-      const next =
-        fallbackKey && liveKeySet.has(fallbackKey) ? [fallbackKey] : [liveKeys[0]];
-      const unchanged =
-        next.length === prevList.length &&
-        next.every((value, idx) => value === prevList[idx]);
-      return unchanged ? prev : next;
-    });
-  }, [effectiveActiveFileId, originCanvasOptions]);
+  const {
+    clearFileSelection: clearOriginCanvasSelection,
+    replaceFileSelection: replaceOriginCanvasSelection,
+    selectAllFiles: selectAllOriginCanvases,
+    selectedFileIds: originSelectedCanvasIds,
+    toggleFileSelection: toggleOriginCanvasSelection,
+  } = useFileSelectionPool({
+    availableFileIds: originCanvasOptionIds,
+    fallbackFileId: effectiveActiveFileId,
+  });
 
   useEffect(() => {
     setOriginSelectedSeriesIdsByFile((prev) => {
@@ -604,39 +579,6 @@ export const useOriginCanvasExport = ({
       .filter((item: any) => selectedOriginCanvasKeySet.has(item.key))
       .map((item: any) => item.file);
   }, [originCanvasOptions, selectedOriginCanvasKeySet]);
-
-  const toggleOriginCanvasSelection = useCallback((fileId: any) => {
-    const targetKey = String(fileId ?? "");
-    if (!targetKey) return;
-
-    setOriginSelectedCanvasIds((prev) => {
-      const current = Array.isArray(prev)
-        ? prev.map((item) => String(item ?? "")).filter(Boolean)
-        : [];
-      if (current.includes(targetKey)) {
-        return current.filter((item) => item !== targetKey);
-      }
-      return [...current, targetKey];
-    });
-  }, []);
-
-  const selectAllOriginCanvases = useCallback(() => {
-    const allKeys = originCanvasOptions
-      .map((item: any) => String(item?.key ?? ""))
-      .filter(Boolean);
-    setOriginSelectedCanvasIds(allKeys);
-  }, [originCanvasOptions]);
-
-  const clearOriginCanvasSelection = useCallback(() => {
-    setOriginSelectedCanvasIds([]);
-  }, []);
-
-  const replaceOriginCanvasSelection = useCallback((fileIds: unknown[]) => {
-    const normalized = (Array.isArray(fileIds) ? fileIds : [])
-      .map((item) => String(item ?? "").trim())
-      .filter((item, index, arr) => Boolean(item) && arr.indexOf(item) === index);
-    setOriginSelectedCanvasIds(normalized);
-  }, []);
 
   const selectAllOriginSeriesForFile = useCallback(
     (fileId: any) => {

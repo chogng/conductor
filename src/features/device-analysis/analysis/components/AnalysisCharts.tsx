@@ -38,6 +38,7 @@ import {
   type DeviceAnalysisOriginCanvasExportScope,
   type DeviceAnalysisOriginCurveExportMode,
 } from "../useOriginCanvasExport";
+import { useFileSelectionPool } from "../useFileSelectionPool";
 import OverviewGrid from "./OverviewGrid";
 import CalculatedParametersRow from "./CalculatedParametersRow";
 import { SIGNED_LOG_Y_DATA_KEY, buildLogTicks, buildNiceTicks, buildOriginAutoTicks, buildOriginLogAutoTicks, buildPoints, buildStepTicks, computeLabelInterval, computeMinMax, downsamplePointsForDisplay, inferTickDigitsFromTicks, normalizeFloat, normalizeVarToken, padLinearDomain, padLogDomain, parseOptionalNumber, preserveScrollPosition, varTokenToSymbol, withSignedLogPositivePoints, } from "../lib/analysisChartsUtils";
@@ -883,7 +884,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     // User-picked curve legend template. File-level checkboxes are derived from this, not the source of truth.
     const [originCurveExportSelectedKeys, setOriginCurveExportSelectedKeys] = useState<string[] | null>(null);
     const [rcBiasSelectionKey, setRcBiasSelectionKey] = useState<string | null>(null);
-    const [rcStatisticSelectedFileIds, setRcStatisticSelectedFileIds] = useState<string[] | null>(null);
     const [resultsTab, setResultsTab] = useState<ResultsTabOption>("metrics");
     const [rcGeometryByFileId, setRcGeometryByFileId] = useState<RcGeometryByFileId>({});
     const [rcAnalyzePending, setRcAnalyzePending] = useState(false);
@@ -1670,18 +1670,27 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         }
         return Array.from(optionMap.values());
     }, [processedData, resolveDisplayLegendLabel]);
+    const rcStatisticAvailableFileIds = useMemo(
+        () => (Array.isArray(processedData) ? processedData : [])
+            .filter((file: any) => isTransferLikeDeviceAnalysisFile(file))
+            .map((file: any) => String(file?.fileId ?? "").trim())
+            .filter(Boolean),
+        [processedData],
+    );
+    const {
+        selectedFileIdSet: selectedRcStatisticFileIdSet,
+        toggleFileSelection: toggleRcStatisticFileSelection,
+    } = useFileSelectionPool({
+        availableFileIds: rcStatisticAvailableFileIds,
+        defaultSelectedFileIds: scopedOriginCanvasIds,
+        fallbackFileId: effectiveActiveFileId,
+    });
     const selectedRcBiasKey = useMemo(() => {
         const availableKeys = new Set(rcBiasOptions.map((option) => option.key));
         if (rcBiasSelectionKey && availableKeys.has(rcBiasSelectionKey))
             return rcBiasSelectionKey;
         return rcBiasOptions[0]?.key ?? "";
     }, [rcBiasOptions, rcBiasSelectionKey]);
-    const selectedRcStatisticFileIdSet = useMemo(() => {
-        if (Array.isArray(rcStatisticSelectedFileIds)) {
-            return new Set(rcStatisticSelectedFileIds);
-        }
-        return new Set(scopedOriginCanvasIds);
-    }, [rcStatisticSelectedFileIds, scopedOriginCanvasIds]);
     useEffect(() => {
         if (resolvedCurveExportMode !== "select") return;
         if (!Array.isArray(originCurveExportSelectedKeys)) return;
@@ -3720,7 +3729,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             if (fileId)
                 filesById.set(fileId, file);
         }
-        let deviceIndex = 0;
         return rcStatisticListEntries.flatMap((entry: any) => {
             const fileId = String(entry?.fileId ?? "").trim();
             if (!selectedRcStatisticFileIdSet.has(fileId))
@@ -3736,8 +3744,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     .map((series: any) => String(series?.key ?? "").trim())
                     .filter(Boolean),
             );
-            deviceIndex += 1;
-            const defaultLength = String(deviceIndex);
             return seriesList
                 .map((series: any, index: number) => {
                 const seriesId = String(series?.id ?? "").trim();
@@ -3754,11 +3760,11 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     fileId,
                     fileName: String(file?.fileName ?? (fileId || "device")),
                     label: resolveDisplayLegendLabel(fileId, series, index),
-                    length: fileGeometry.length ?? defaultLength,
+                    length: fileGeometry.length ?? "",
                     series,
                     seriesId,
                     vds: stored.vds ?? (Number.isFinite(legendVds) && legendVds !== 0 ? String(legendVds) : "0.1"),
-                    width: fileGeometry.width ?? "1",
+                    width: fileGeometry.width ?? "",
                     x: xArr,
                     y: yArr,
                 };
@@ -3766,21 +3772,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 .filter(Boolean);
         });
     }, [processedData, rcGeometryByFileId, rcStatisticListEntries, resolveDisplayLegendLabel, selectedRcStatisticFileIdSet]);
-    const toggleRcStatisticFileSelection = React.useCallback((fileIdRaw: string) => {
-        const fileId = String(fileIdRaw ?? "").trim();
-        if (!fileId)
-            return;
-        setRcStatisticSelectedFileIds((prev) => {
-            const current = Array.isArray(prev)
-                ? new Set(prev)
-                : new Set(scopedOriginCanvasIds);
-            if (current.has(fileId))
-                current.delete(fileId);
-            else
-                current.add(fileId);
-            return Array.from(current);
-        });
-    }, [scopedOriginCanvasIds]);
     const updateRcGeometry = React.useCallback((fileIdRaw: string, seriesId: string, patch: Partial<RcGeometryEntry>) => {
         const fileId = String(fileIdRaw ?? "").trim();
         if (!fileId || !seriesId)
@@ -3796,6 +3787,22 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             },
         }));
     }, []);
+    const toggleRcStatisticFileSelectionForRc = React.useCallback((fileIdRaw: string) => {
+        const fileId = String(fileIdRaw ?? "").trim();
+        if (!fileId)
+            return;
+        const isCurrentlySelected = selectedRcStatisticFileIdSet.has(fileId);
+        if (isCurrentlySelected) {
+            setRcGeometryByFileId((prev) => {
+                if (!prev[fileId])
+                    return prev;
+                const next = { ...prev };
+                delete next[fileId];
+                return next;
+            });
+        }
+        toggleRcStatisticFileSelection(fileId);
+    }, [selectedRcStatisticFileIdSet, toggleRcStatisticFileSelection]);
     const rcListEntries = useMemo(() => {
         const grouped = new Map<string, any>();
         for (const row of rcRows as any[]) {
@@ -4652,16 +4659,20 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                   entries: rcStatisticListEntries,
                   emptyText: t("da_rc_require_statistic_selection"),
                   isSelectionMode: true,
-                  onToggleFile: toggleRcStatisticFileSelection,
+                  onToggleFile: toggleRcStatisticFileSelectionForRc,
                   showRemoveButton: false,
                   showSeriesControls: false,
                   renderFileExtra: (entry: any) => {
                         const rows = rcRowsByFileId.get(entry.fileId) ?? [];
                         const firstRow = rows[0];
                         const storedFileGeometry = rcGeometryByFileId[entry.fileId]?.[RC_FILE_GEOMETRY_KEY] ?? {};
-                        const length = firstRow?.length ?? storedFileGeometry.length ?? "1";
-                        const width = firstRow?.width ?? storedFileGeometry.width ?? "1";
-                        return entry.isCanvasSelected ? (<>
+                        const length = entry.isCanvasSelected
+                            ? firstRow?.length ?? storedFileGeometry.length ?? ""
+                            : "";
+                        const width = entry.isCanvasSelected
+                            ? firstRow?.width ?? storedFileGeometry.width ?? ""
+                            : "";
+                        return (<>
                             <div className="flex min-w-0 flex-wrap items-center gap-2">
                               <Input
                                 label="L"
@@ -4669,6 +4680,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                                 value={length}
                                 onChange={(value: string) => updateRcGeometry(entry.fileId, RC_FILE_GEOMETRY_KEY, { length: value })}
                                 size="sm"
+                                disabled={!entry.isCanvasSelected}
                                 className="!space-y-0"
                                 fieldClassName="w-28"
                                 inputClassName="text-xs"
@@ -4679,15 +4691,16 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                                 value={width}
                                 onChange={(value: string) => updateRcGeometry(entry.fileId, RC_FILE_GEOMETRY_KEY, { width: value })}
                                 size="sm"
+                                disabled={!entry.isCanvasSelected}
                                 className="!space-y-0"
                                 fieldClassName="w-28"
                                 inputClassName="text-xs"
                               />
                             </div>
-                            {!rows.length ? (<div className="text-xs text-text-secondary">
+                            {entry.isCanvasSelected && !rows.length ? (<div className="text-xs text-text-secondary">
                                 {t("da_rc_require_curve_in_file")}
                               </div>) : null}
-                          </>) : null;
+                          </>);
                     },
                 })}
                 <div className="rounded-xl border border-border bg-bg-page/40 px-4 py-3">
