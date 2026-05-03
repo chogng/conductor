@@ -37,6 +37,7 @@ import type { ToastState, ToastType } from "../../shared/lib/sharedTypes";
 import { useAnalysisFileCache } from "../useAnalysisFileCache";
 import {
   useOriginCanvasExport,
+  resolveOriginSeriesMatchTokens,
   type DeviceAnalysisOriginFilteredCanvasKind,
   type DeviceAnalysisOriginCanvasExportScope,
   type DeviceAnalysisOriginCurveExportMode,
@@ -86,6 +87,12 @@ type OriginExportContentMenuGroup = {
     key: OriginExportContentOption["group"];
     labelKey: string;
     options: OriginExportContentOption[];
+};
+type OriginCurveExportSeriesOption = {
+    key: string;
+    label: string;
+    sourceFileId: string;
+    sourceSeriesId: string;
 };
 const MAX_RENDER_SERIES_POINTS = 600;
 const MIN_RENDER_SERIES_POINTS = 120;
@@ -796,25 +803,25 @@ const OriginExportContentMenu = ({
 };
 
 const OriginCurveExportMenu = ({
-    activeOriginSeries,
-    selectedOriginSeriesKeySet,
+    curveOptions,
+    selectedCurveOptionKeySet,
     mode,
+    onSelectedCurveOptionKeysChange,
     scopedFileIds,
     setMode,
     replaceMatchingOriginSeriesAcrossFiles,
-    resolveSeriesLabel,
     t,
 }: {
-    activeOriginSeries: Array<{ id?: unknown; key: string; name?: string }>;
-    selectedOriginSeriesKeySet: Set<string>;
+    curveOptions: OriginCurveExportSeriesOption[];
+    selectedCurveOptionKeySet: Set<string>;
     mode: DeviceAnalysisOriginCurveExportMode;
+    onSelectedCurveOptionKeysChange: (nextKeys: string[]) => void;
     scopedFileIds: string[];
     setMode: (next: DeviceAnalysisOriginCurveExportMode) => void;
     replaceMatchingOriginSeriesAcrossFiles: (options: {
         fileIds?: unknown[];
-        sourceSeriesIds?: unknown[];
+        sourceSeriesRefs?: Array<{ fileId?: unknown; seriesId?: unknown }>;
     }) => { matchedFileCount: number; matchedSeriesCount: number };
-    resolveSeriesLabel: (series: any, index: number) => string;
     t: OriginExportContentTranslateFn;
 }) => {
     const [isOpen, setIsOpen] = useState(false);
@@ -825,12 +832,12 @@ const OriginCurveExportMenu = ({
     const submenuContentRef = useRef<HTMLDivElement | null>(null);
     const selectedSourceIds = useMemo(() => {
         if (mode === "all") {
-            return activeOriginSeries.map((series) => series.key).filter(Boolean);
+            return curveOptions.map((option) => option.key).filter(Boolean);
         }
-        return activeOriginSeries
-            .map((series) => series.key)
-            .filter((key) => selectedOriginSeriesKeySet.has(key));
-    }, [activeOriginSeries, mode, selectedOriginSeriesKeySet]);
+        return curveOptions
+            .map((option) => option.key)
+            .filter((key) => selectedCurveOptionKeySet.has(key));
+    }, [curveOptions, mode, selectedCurveOptionKeySet]);
     const selectedSourceSet = useMemo(() => new Set(selectedSourceIds), [selectedSourceIds]);
     const displayLabel = mode === "all"
         ? t("da_origin_curve_export_mode_all")
@@ -839,9 +846,16 @@ const OriginCurveExportMenu = ({
             : t("da_origin_curve_export_mode_select");
     const applySourceSelection = (sourceIds: string[]) => {
         setMode("select");
+        onSelectedCurveOptionKeysChange(sourceIds);
+        const selectedKeySet = new Set(sourceIds);
         replaceMatchingOriginSeriesAcrossFiles({
             fileIds: scopedFileIds,
-            sourceSeriesIds: sourceIds,
+            sourceSeriesRefs: curveOptions
+                .filter((option) => selectedKeySet.has(option.key))
+                .map((option) => ({
+                    fileId: option.sourceFileId,
+                    seriesId: option.sourceSeriesId,
+                })),
         });
     };
     const toggleSourceSeries = (seriesKey: string) => {
@@ -907,11 +921,10 @@ const OriginCurveExportMenu = ({
                     setContentRef(node);
                 }}
                 variant="menu"
-                className="min-w-[8rem]"
               >
                 {() => (
                   <Menu withScrollArea={false}>
-                    <div className="ui-menu__list min-w-[7rem]">
+                    <div className="ui-menu__list">
                         <MenuItem
                           data-selected={mode === "all" || undefined}
                           onClick={() => {
@@ -932,7 +945,7 @@ const OriginCurveExportMenu = ({
                           }}
                           onMouseEnter={() => setShowPicker(true)}
                           left={<span className="ui-menu__item-left whitespace-nowrap">{t("da_origin_curve_export_mode_select")}</span>}
-                          right={<span className="ui-menu__item-right">{mode === "select" ? <Check size={14} className="text-accent" /> : null}<ChevronRight size={14} /></span>}
+                          right={<span className="ui-menu__item-right"><ChevronRight size={14} /></span>}
                         />
                     </div>
                   </Menu>
@@ -950,13 +963,9 @@ const OriginCurveExportMenu = ({
                     submenuContentRef.current = node;
                 }}
                 variant="menu"
-                className="min-w-[12rem]"
               >
                 {() => (
                   <Menu withScrollArea={false}>
-                    <div className="px-2 py-1.5 text-[11px] text-text-tertiary whitespace-nowrap">
-                      {t("da_origin_curve_export_scope_hint", { count: scopedFileIds.length })}
-                    </div>
                     <ScrollArea
                       axis="y"
                       className="max-h-60"
@@ -964,21 +973,8 @@ const OriginCurveExportMenu = ({
                       viewportProps={{ style: { height: "auto", maxHeight: "15rem" } }}
                     >
                       <div className="ui-menu__list">
-                        <MenuItem
-                          onClick={() => applySourceSelection(activeOriginSeries.map((series) => series.key).filter(Boolean))}
-                          left={<span className="ui-menu__item-left whitespace-nowrap">{t("da_origin_curve_export_pick_all")}</span>}
-                          right={
-                            <span className="ui-menu__item-right">
-                              {selectedSourceIds.length === activeOriginSeries.length && activeOriginSeries.length > 0 ? <Check size={14} className="text-accent" /> : null}
-                            </span>
-                          }
-                        />
-                        <MenuItem
-                          onClick={() => applySourceSelection([])}
-                          left={<span className="ui-menu__item-left whitespace-nowrap">{t("da_origin_curve_export_clear")}</span>}
-                        />
-                        {activeOriginSeries.map((series, index) => {
-                          const key = String(series?.key ?? "");
+                        {curveOptions.map((option) => {
+                          const key = String(option?.key ?? "");
                           const checked = selectedSourceSet.has(key);
                           return (
                             <MenuItem
@@ -989,7 +985,7 @@ const OriginCurveExportMenu = ({
                               onClick={() => toggleSourceSeries(key)}
                               left={
                                 <span className="ui-menu__item-left min-w-0">
-                                  <span className="truncate">{resolveSeriesLabel(series, index)}</span>
+                                  <span className="truncate">{option.label}</span>
                                 </span>
                               }
                               right={
@@ -1216,6 +1212,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const [originCurveExportMode, setOriginCurveExportMode] = useState<DeviceAnalysisOriginCurveExportMode>("all");
     const [originExportContentKeys, setOriginExportContentKeys] = useState<DeviceAnalysisOriginExportContentKey[]>(DEFAULT_ORIGIN_EXPORT_CONTENT_KEYS);
     const [originFilteredCanvasKind, setOriginFilteredCanvasKind] = useState<DeviceAnalysisOriginFilteredCanvasKind>("output");
+    // User-picked curve legend template. File-level checkboxes are derived from this, not the source of truth.
+    const [originCurveExportSelectedKeys, setOriginCurveExportSelectedKeys] = useState<string[] | null>(null);
     const [resultsTab, setResultsTab] = useState<ResultsTabOption>("metrics");
     const [rcGeometryByFileId, setRcGeometryByFileId] = useState<RcGeometryByFileId>({});
     const [rcAnalyzePending, setRcAnalyzePending] = useState(false);
@@ -1848,7 +1846,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         axis?.originAxisTitleGap,
     ]);
     const {
-        activeOriginSeries,
         clearOriginSeriesSelectionForFile,
         curveExportMode: resolvedCurveExportMode,
         getSelectedOriginSeriesKeySetForFile,
@@ -1861,7 +1858,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         selectAllOriginSeriesForFile,
         selectedOriginCanvasKeySet,
         selectedOriginSeriesCountByFile,
-        selectedOriginSeriesKeySet,
         selectedOriginSeriesTotalCount,
         toggleOriginCanvasSelection,
         toggleOriginSeriesSelectionForFile,
@@ -1926,6 +1922,82 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         () => Array.from(scopedOriginCanvasKeySet ?? new Set<string>()),
         [scopedOriginCanvasKeySet],
     );
+    const originCurveExportOptions = useMemo<OriginCurveExportSeriesOption[]>(() => {
+        // Curve candidates come from the current export scope, so adding files can add matching legends.
+        const scopedIds = scopedOriginCanvasKeySet ?? new Set<string>();
+        const optionMap = new Map<string, OriginCurveExportSeriesOption>();
+        for (const file of Array.isArray(processedData) ? processedData : []) {
+            const fileId = String(file?.fileId ?? "").trim();
+            if (!fileId || !scopedIds.has(fileId)) continue;
+            const seriesList = Array.isArray(file?.series) ? file.series : [];
+            for (let index = 0; index < seriesList.length; index += 1) {
+                const series = seriesList[index];
+                const seriesId = String(series?.id ?? "").trim();
+                if (!seriesId) continue;
+                const tokens = resolveOriginSeriesMatchTokens(series);
+                const key = tokens[0] ?? `series:${fileId}:${seriesId}`;
+                if (optionMap.has(key)) continue;
+                optionMap.set(key, {
+                    key,
+                    label: resolveDisplayLegendLabel(fileId, series, index),
+                    sourceFileId: fileId,
+                    sourceSeriesId: seriesId,
+                });
+            }
+        }
+        return Array.from(optionMap.values());
+    }, [processedData, resolveDisplayLegendLabel, scopedOriginCanvasKeySet]);
+    const selectedOriginCurveExportOptionKeySet = useMemo(() => {
+        if (resolvedCurveExportMode === "all") {
+            return new Set(originCurveExportOptions.map((option) => option.key));
+        }
+        if (Array.isArray(originCurveExportSelectedKeys)) {
+            return new Set(originCurveExportSelectedKeys);
+        }
+        const scopedIds = scopedOriginCanvasKeySet ?? new Set<string>();
+        const selectedKeys = new Set<string>();
+        for (const file of Array.isArray(processedData) ? processedData : []) {
+            const fileId = String(file?.fileId ?? "").trim();
+            if (!fileId || !scopedIds.has(fileId)) continue;
+            const selectedSeriesKeys = getSelectedOriginSeriesKeySetForFile(file);
+            const seriesList = Array.isArray(file?.series) ? file.series : [];
+            for (const series of seriesList) {
+                const seriesId = String(series?.id ?? "").trim();
+                if (!seriesId || !selectedSeriesKeys.has(seriesId)) continue;
+                const tokens = resolveOriginSeriesMatchTokens(series);
+                selectedKeys.add(tokens[0] ?? `series:${fileId}:${seriesId}`);
+            }
+        }
+        return selectedKeys;
+    }, [
+        getSelectedOriginSeriesKeySetForFile,
+        originCurveExportSelectedKeys,
+        originCurveExportOptions,
+        processedData,
+        resolvedCurveExportMode,
+        scopedOriginCanvasKeySet,
+    ]);
+    useEffect(() => {
+        if (resolvedCurveExportMode !== "select") return;
+        if (!Array.isArray(originCurveExportSelectedKeys)) return;
+        // Keep sync one-way: legend template -> files in export scope -> per-file curve checkboxes.
+        const selectedKeySet = new Set(originCurveExportSelectedKeys);
+        replaceMatchingOriginSeriesAcrossFiles({
+            fileIds: scopedOriginCanvasIds,
+            sourceSeriesRefs: originCurveExportOptions
+                .filter((option) => selectedKeySet.has(option.key))
+                .map((option) => ({
+                    fileId: option.sourceFileId,
+                    seriesId: option.sourceSeriesId,
+                })),
+        });
+    }, [
+        originCurveExportOptions,
+        originCurveExportSelectedKeys,
+        replaceMatchingOriginSeriesAcrossFiles,
+        resolvedCurveExportMode,
+        scopedOriginCanvasIds,
+    ]);
     const selectedExportCanvasFiles = useMemo(() => (Array.isArray(processedData) ? processedData : []).filter((file: any) => {
         const fileId = String(file?.fileId ?? "").trim();
         return Boolean(fileId) && selectedOriginCanvasKeySet.has(fileId);
@@ -4831,13 +4903,13 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                         {t("da_origin_curve_export_mode_label")}
                       </span>
                       <OriginCurveExportMenu
-                        activeOriginSeries={activeOriginSeries as Array<{ id?: unknown; key: string; name?: string }>}
-                        selectedOriginSeriesKeySet={selectedOriginSeriesKeySet as Set<string>}
+                        curveOptions={originCurveExportOptions}
+                        selectedCurveOptionKeySet={selectedOriginCurveExportOptionKeySet}
                         mode={resolvedCurveExportMode}
+                        onSelectedCurveOptionKeysChange={setOriginCurveExportSelectedKeys}
                         scopedFileIds={scopedOriginCanvasIds}
                         setMode={setOriginCurveExportMode}
                         replaceMatchingOriginSeriesAcrossFiles={replaceMatchingOriginSeriesAcrossFiles}
-                        resolveSeriesLabel={(series, index) => resolveDisplayLegendLabel(activeFile?.fileId, series, index)}
                         t={t}
                       />
                       <span className="text-xs text-text-secondary whitespace-nowrap">

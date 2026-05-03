@@ -158,7 +158,6 @@
     da_origin_curve_export_mode_all: 'All',
     da_origin_curve_export_mode_select: 'Select',
     da_origin_curve_export_mode_select_count: '{count} selected',
-    da_origin_curve_export_scope_hint: 'Apply to current export scope: {count} file(s)',
     da_origin_export_content_label: 'Export content',
     da_origin_export_content_group_basic: 'Basic',
     da_origin_export_content_group_derived: 'Derived analysis',

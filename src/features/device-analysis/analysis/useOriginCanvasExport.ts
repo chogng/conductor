@@ -246,7 +246,7 @@ const buildOriginLegendRefreshCommands = (curveLabels: unknown): string[] => {
     : [];
 };
 
-const normalizeOriginSeriesToken = (value: unknown): string | null => {
+export const normalizeOriginSeriesToken = (value: unknown): string | null => {
   if (typeof value === "number" && Number.isFinite(value)) {
     return `num:${Number(Number(value).toPrecision(12))}`;
   }
@@ -259,7 +259,7 @@ const normalizeOriginSeriesToken = (value: unknown): string | null => {
   return `txt:${text.toLowerCase()}`;
 };
 
-const resolveOriginSeriesMatchTokens = (series: any): string[] => {
+export const resolveOriginSeriesMatchTokens = (series: any): string[] => {
   const legendToken = normalizeOriginSeriesToken(series?.legendValue);
   if (legendToken) return [`legend:${legendToken}`];
 
@@ -825,18 +825,31 @@ export const useOriginCanvasExport = ({
   const replaceMatchingOriginSeriesAcrossFiles = useCallback(
     ({
       fileIds,
-      sourceSeriesIds,
+      sourceSeriesRefs,
     }: {
       fileIds?: unknown[];
-      sourceSeriesIds?: unknown[];
+      sourceSeriesRefs?: Array<{ fileId?: unknown; seriesId?: unknown }>;
     }) => {
-      const sourceKeys = (Array.isArray(sourceSeriesIds) ? sourceSeriesIds : [])
-        .map((item) => String(item ?? "").trim())
-        .filter((item, index, arr) => Boolean(item) && arr.indexOf(item) === index);
-      const activeSeries = Array.isArray(activeFile?.series) ? activeFile.series : [];
-      const sourceSeriesList = activeSeries.filter((series: any) =>
-        sourceKeys.includes(String(series?.id ?? "").trim()),
-      );
+      const normalizedRefs = (Array.isArray(sourceSeriesRefs) ? sourceSeriesRefs : [])
+        .map((ref) => ({
+          fileId: String(ref?.fileId ?? "").trim(),
+          seriesId: String(ref?.seriesId ?? "").trim(),
+        }))
+        .filter((ref, index, arr) =>
+          Boolean(ref.fileId) &&
+          Boolean(ref.seriesId) &&
+          arr.findIndex((item) => item.fileId === ref.fileId && item.seriesId === ref.seriesId) === index,
+        );
+      const sourceSeriesList = normalizedRefs
+        .map((ref) => {
+          const file = (Array.isArray(processedData) ? processedData : []).find(
+            (item: any) => String(item?.fileId ?? "").trim() === ref.fileId,
+          );
+          return (Array.isArray(file?.series) ? file.series : []).find(
+            (series: any) => String(series?.id ?? "").trim() === ref.seriesId,
+          );
+        })
+        .filter(Boolean);
       const sourceTokenGroups = sourceSeriesList
         .map((series: any) => resolveOriginSeriesMatchTokens(series))
         .filter((tokens: string[]) => tokens.length > 0);
@@ -907,7 +920,7 @@ export const useOriginCanvasExport = ({
         matchedSeriesCount,
       };
     },
-    [activeFile, processedData],
+    [processedData],
   );
 
   const toggleOriginSeriesSelection = useCallback(
