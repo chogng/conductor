@@ -107,6 +107,7 @@ export type DeviceAnalysisOriginSelectionExport = {
   columnLongNames?: string[];
   columnUnits?: string[];
   csvName: string;
+  csvPath?: string;
   csvText: string;
   curveCount: number;
   curveLabels: string[];

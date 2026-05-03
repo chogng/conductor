@@ -201,6 +201,12 @@ contextBridge.exposeInMainWorld("desktopImport", {
       payload,
     );
   },
+  async exportDeviceAnalysisOriginCsvWithRust(payload) {
+    return ipcRenderer.invoke(
+      ipcChannels.deviceAnalysisRustEngineExportOriginCsv,
+      payload,
+    );
+  },
   async disposeDeviceAnalysisFileWithRust(payload) {
     return ipcRenderer.invoke(
       ipcChannels.deviceAnalysisRustEngineDispose,

@@ -1296,10 +1296,7 @@ fn analyze_one_series(
             compute_subthreshold_swing_fit_auto(&item.x, &item.y),
         );
     }
-    (
-        item.id.to_string(),
-        Value::Object(result),
-    )
+    (item.id.to_string(), Value::Object(result))
 }
 
 pub fn analyze_series_batch(
@@ -1401,12 +1398,7 @@ mod tests {
             ..Default::default()
         };
 
-        let result = analyze_series_batch_result(
-            Some("file-1"),
-            &series,
-            None,
-            Some(&source_file),
-        );
+        let result = analyze_series_batch_result(Some("file-1"), &series, None, Some(&source_file));
 
         assert_eq!(result["version"], ANALYSIS_CACHE_VERSION);
         assert!(result["series"]["curve-1"]["baseCurrent"].is_object());

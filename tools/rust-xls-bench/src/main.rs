@@ -21,7 +21,7 @@ use std::{
     collections::HashMap,
     collections::VecDeque,
     env, fs,
-    io::{self, BufRead, Write},
+    io::{self, BufRead, BufWriter, Write},
     path::{Path, PathBuf},
     sync::{
         Arc, Mutex,
@@ -66,6 +66,7 @@ struct EngineRequest {
     analysis_cache_path: Option<String>,
     cells: Option<Vec<EngineCellRequest>>,
     col_index: Option<usize>,
+    columns: Option<Vec<OriginExportColumnRequest>>,
     config: Option<Value>,
     command: String,
     curve_filter_field: Option<String>,
@@ -81,7 +82,19 @@ struct EngineRequest {
     source_file: Option<AnalysisSourceFile>,
     start_row: Option<usize>,
     max_points: Option<usize>,
+    output_path: Option<String>,
     x_groups: Option<Vec<Vec<f64>>>,
+    x_scale_factor: Option<f64>,
+    y_scale_factor: Option<f64>,
+    y_transform: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OriginExportColumnRequest {
+    group_index: usize,
+    kind: String,
+    y_col: Option<usize>,
 }
 
 #[derive(Serialize)]
@@ -2041,6 +2054,187 @@ fn process_engine_file(
     }))
 }
 
+fn resolve_export_group_shape(
+    dataset: &EngineDataset,
+    config: &Value,
+) -> Result<(usize, usize, usize, usize, usize), String> {
+    let segmentation_mode = json_string(config.get("xSegmentationMode")).to_ascii_lowercase();
+    let x_col = json_usize(config.get("xCol")).ok_or_else(|| "Invalid config: xCol".to_string())?;
+    let start_row =
+        json_usize(config.get("startRow")).ok_or_else(|| "Invalid config: startRow".to_string())?;
+    let end_row = match config.get("endRow") {
+        Some(Value::String(text)) if text.trim().eq_ignore_ascii_case("end") => dataset
+            .rows
+            .len()
+            .checked_sub(1)
+            .ok_or_else(|| "file has no rows".to_string())?,
+        value => json_usize(value).ok_or_else(|| "Invalid config: endRow".to_string())?,
+    };
+    if end_row < start_row || start_row >= dataset.rows.len() {
+        return Err("Invalid config: row range".to_string());
+    }
+
+    let expected_total = end_row - start_row + 1;
+    let segment_count = json_usize(config.get("segmentCount"));
+    let mut group_size = json_usize(config.get("groupSize"));
+    let mut groups = json_usize(config.get("groups"));
+    if let Some((cell_row, cell_col)) = json_cell_ref(config.get("groupSizeCell")) {
+        let points = read_cell_number(dataset, cell_row, cell_col).and_then(|value| {
+            if value > 0.0 && value.fract().abs() <= f64::EPSILON {
+                Some(value as usize)
+            } else {
+                None
+            }
+        });
+        let points = points.ok_or_else(|| {
+            format!(
+                "{}: Points cell {}{} must contain a positive integer.",
+                dataset.file_name,
+                excel_column_label(cell_col),
+                cell_row + 1
+            )
+        })?;
+        if points > expected_total || expected_total % points != 0 {
+            return Err("Invalid config: group size cell does not divide row range".to_string());
+        }
+        group_size = Some(points);
+        groups = Some(expected_total / points);
+    } else if segmentation_mode == "auto" {
+        if let Some((meta_group_size, meta_groups)) = infer_metadata_group_shape(dataset, start_row)
+        {
+            group_size = Some(meta_group_size);
+            groups = Some(meta_groups);
+        } else {
+            let mut x_values = Vec::<f64>::with_capacity(expected_total);
+            for row_index in start_row..=end_row {
+                let x_value = cell_number(dataset, row_index, x_col).ok_or_else(|| {
+                    format!(
+                        "{}: Invalid X at {}{}.",
+                        dataset.file_name,
+                        excel_column_label(x_col),
+                        row_index + 1
+                    )
+                })?;
+                x_values.push(x_value);
+            }
+            if let Some((inferred_group_size, inferred_groups)) =
+                infer_auto_segmentation_from_x_values(&x_values, expected_total)
+            {
+                group_size = Some(inferred_group_size);
+                groups = Some(inferred_groups);
+            } else {
+                group_size = Some(expected_total);
+                groups = Some(1);
+            }
+        }
+    } else if let Some(segments) = segment_count.filter(|value| *value > 0) {
+        if expected_total % segments != 0 {
+            return Err("Invalid config: segment count does not divide row range".to_string());
+        }
+        groups = Some(segments);
+        group_size = Some(expected_total / segments);
+    }
+    let group_size = group_size.unwrap_or(expected_total);
+    if group_size == 0 || expected_total % group_size != 0 {
+        return Err("Invalid config: group size does not divide row range".to_string());
+    }
+    let groups = groups.unwrap_or(expected_total / group_size);
+    if groups == 0 || groups * group_size != expected_total {
+        return Err("Invalid config: groups do not match row range".to_string());
+    }
+
+    Ok((x_col, start_row, end_row, group_size, groups))
+}
+
+fn transform_origin_export_y(value: f64, scale_factor: f64, transform: &str) -> f64 {
+    let scaled = value * scale_factor;
+    match transform {
+        "abs" => scaled.abs(),
+        "sqrtAbs" => scaled.abs().sqrt(),
+        _ => scaled,
+    }
+}
+
+fn export_origin_csv_file(
+    dataset: &EngineDataset,
+    config: &Value,
+    columns: &[OriginExportColumnRequest],
+    output_path: &Path,
+    max_points_raw: Option<usize>,
+    x_scale_factor_raw: Option<f64>,
+    y_scale_factor_raw: Option<f64>,
+    y_transform_raw: Option<&str>,
+) -> Result<Value, String> {
+    if columns.is_empty() {
+        return Err("missing export columns".to_string());
+    }
+    let (x_col, start_row, _end_row, group_size, groups) =
+        resolve_export_group_shape(dataset, config)?;
+    let x_scale_factor = x_scale_factor_raw
+        .filter(|value| value.is_finite() && *value > 0.0)
+        .unwrap_or(1.0);
+    let y_scale_factor = y_scale_factor_raw
+        .filter(|value| value.is_finite() && *value > 0.0)
+        .unwrap_or(1.0);
+    let y_transform = y_transform_raw.unwrap_or("");
+    let max_points = max_points_raw.unwrap_or(600).max(2);
+    let target_points = group_size.min(max_points);
+    let row_offsets: Vec<usize> = match build_uniform_sample_indices(group_size, target_points) {
+        Some(indices) => indices,
+        None => (0..group_size).collect(),
+    };
+    if let Some(parent) = output_path.parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    let mut writer =
+        BufWriter::new(fs::File::create(output_path).map_err(|error| error.to_string())?);
+    writer
+        .write_all(&[0xEF, 0xBB, 0xBF])
+        .map_err(|error| error.to_string())?;
+    let mut csv_bytes = 3usize;
+
+    for (output_row_index, row_offset) in row_offsets.iter().enumerate() {
+        if output_row_index > 0 {
+            writer.write_all(b"\n").map_err(|error| error.to_string())?;
+            csv_bytes += 1;
+        }
+        for (column_index, column) in columns.iter().enumerate() {
+            if column_index > 0 {
+                writer.write_all(b",").map_err(|error| error.to_string())?;
+                csv_bytes += 1;
+            }
+            if column.group_index >= groups {
+                return Err("export column groupIndex is out of range".to_string());
+            }
+            let row_index = start_row + column.group_index * group_size + *row_offset;
+            let value = if column.kind == "x" {
+                cell_number(dataset, row_index, x_col).map(|value| value * x_scale_factor)
+            } else if column.kind == "y" {
+                let y_col = column
+                    .y_col
+                    .ok_or_else(|| "export y column is missing yCol".to_string())?;
+                cell_number(dataset, row_index, y_col)
+                    .map(|value| transform_origin_export_y(value, y_scale_factor, y_transform))
+            } else {
+                return Err("unsupported export column kind".to_string());
+            };
+            if let Some(value) = value.filter(|value| value.is_finite()) {
+                let text = value.to_string();
+                csv_bytes +=
+                    write_csv_cell(&text, &mut writer).map_err(|error| error.to_string())?;
+            }
+        }
+    }
+    writer.flush().map_err(|error| error.to_string())?;
+    Ok(json!({
+        "bytes": csv_bytes,
+        "columns": columns.len(),
+        "path": output_path.to_string_lossy(),
+        "rows": group_size,
+        "sampledRows": row_offsets.len(),
+    }))
+}
+
 fn handle_engine_request(
     cache: &mut HashMap<String, EngineDataset>,
     request: EngineRequest,
@@ -2311,6 +2505,57 @@ fn handle_engine_request(
                 request.source_file.as_ref(),
             ))
         }
+        "exportOriginCsv" => {
+            let file_id = request
+                .file_id
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+                .ok_or_else(|| "missing fileId".to_string())?;
+            if !cache.contains_key(file_id) {
+                let path_text = request
+                    .path
+                    .as_deref()
+                    .filter(|value| !value.trim().is_empty())
+                    .ok_or_else(|| "file is not open in engine".to_string())?;
+                let path = PathBuf::from(path_text);
+                let file_name = request.file_name.clone().unwrap_or_else(|| {
+                    path.file_name()
+                        .and_then(|value| value.to_str())
+                        .unwrap_or("")
+                        .to_string()
+                });
+                let dataset = load_engine_dataset(&path, &file_name)?;
+                cache.insert(file_id.to_string(), dataset);
+            }
+            let dataset = cache
+                .get(file_id)
+                .ok_or_else(|| "file is not open in engine".to_string())?;
+            let config = request
+                .config
+                .as_ref()
+                .ok_or_else(|| "missing config".to_string())?;
+            let columns = request
+                .columns
+                .as_deref()
+                .filter(|columns| !columns.is_empty())
+                .ok_or_else(|| "missing export columns".to_string())?;
+            let output_path = request
+                .output_path
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+                .map(PathBuf::from)
+                .ok_or_else(|| "missing outputPath".to_string())?;
+            export_origin_csv_file(
+                dataset,
+                config,
+                columns,
+                &output_path,
+                request.max_points,
+                request.x_scale_factor,
+                request.y_scale_factor,
+                request.y_transform.as_deref(),
+            )
+        }
         "dispose" => {
             if let Some(file_id) = request.file_id.as_deref() {
                 cache.remove(file_id);
@@ -2404,24 +2649,28 @@ fn collect_excel_files(root: &Path, output: &mut Vec<PathBuf>) {
     }
 }
 
-fn escape_csv_cell(value: &str, output: &mut Vec<u8>) {
+fn write_csv_cell<W: Write + ?Sized>(value: &str, output: &mut W) -> io::Result<usize> {
     let needs_quotes = value
         .bytes()
         .any(|byte| matches!(byte, b',' | b'"' | b'\n' | b'\r'));
     if !needs_quotes {
-        output.extend_from_slice(value.as_bytes());
-        return;
+        output.write_all(value.as_bytes())?;
+        return Ok(value.len());
     }
 
-    output.push(b'"');
+    let mut written = 2usize;
+    output.write_all(b"\"")?;
     for byte in value.bytes() {
         if byte == b'"' {
-            output.extend_from_slice(b"\"\"");
+            output.write_all(b"\"\"")?;
+            written += 2;
         } else {
-            output.push(byte);
+            output.write_all(&[byte])?;
+            written += 1;
         }
     }
-    output.push(b'"');
+    output.write_all(b"\"")?;
+    Ok(written)
 }
 
 fn is_numeric_text(value: &str) -> bool {
@@ -2472,7 +2721,22 @@ fn convert_one(
             path: path.to_path_buf(),
         })?;
 
-    let mut output = Vec::<u8>::new();
+    let mut output_writer: Box<dyn Write> = if let Some(csv_path) = output_path {
+        if let Some(parent) = csv_path.parent() {
+            fs::create_dir_all(parent).map_err(|error| ConvertFailure {
+                message: error.to_string(),
+                path: path.to_path_buf(),
+            })?;
+        }
+        Box::new(BufWriter::new(fs::File::create(csv_path).map_err(
+            |error| ConvertFailure {
+                message: error.to_string(),
+                path: path.to_path_buf(),
+            },
+        )?))
+    } else {
+        Box::new(io::sink())
+    };
     let mut assessment_rows = Vec::<Vec<String>>::new();
     let mut stats = ConvertStats {
         size_bytes,
@@ -2489,40 +2753,45 @@ fn convert_one(
         }
 
         if stats.rows > 0 {
-            output.push(b'\n');
+            output_writer
+                .write_all(b"\n")
+                .map_err(|error| ConvertFailure {
+                    message: error.to_string(),
+                    path: path.to_path_buf(),
+                })?;
+            stats.csv_bytes += 1;
         }
 
         for (index, value) in values.iter().enumerate() {
             if index > 0 {
-                output.push(b',');
+                output_writer
+                    .write_all(b",")
+                    .map_err(|error| ConvertFailure {
+                        message: error.to_string(),
+                        path: path.to_path_buf(),
+                    })?;
+                stats.csv_bytes += 1;
             }
             if is_numeric_text(value) {
                 stats.numeric_cells += 1;
             }
-            escape_csv_cell(value, &mut output);
+            stats.csv_bytes +=
+                write_csv_cell(value, output_writer.as_mut()).map_err(|error| ConvertFailure {
+                    message: error.to_string(),
+                    path: path.to_path_buf(),
+                })?;
         }
 
         stats.rows += 1;
         stats.cells += values.len();
     }
 
-    stats.csv_bytes = output.len();
+    output_writer.flush().map_err(|error| ConvertFailure {
+        message: error.to_string(),
+        path: path.to_path_buf(),
+    })?;
     stats.convert_ms = start.elapsed().as_secs_f64() * 1000.0;
-    let output_path = if let Some(csv_path) = output_path {
-        if let Some(parent) = csv_path.parent() {
-            fs::create_dir_all(parent).map_err(|error| ConvertFailure {
-                message: error.to_string(),
-                path: path.to_path_buf(),
-            })?;
-        }
-        fs::write(&csv_path, &output).map_err(|error| ConvertFailure {
-            message: error.to_string(),
-            path: path.to_path_buf(),
-        })?;
-        Some(csv_path.to_path_buf())
-    } else {
-        None
-    };
+    let output_path = output_path.map(|csv_path| csv_path.to_path_buf());
 
     Ok(ConvertResult {
         assessment: build_import_assessment(

@@ -635,6 +635,7 @@ function normalizeOriginCsvPayload(payload, plotDefaults = undefined) {
     raw.csvName ?? csv.name,
     "device_analysis_origin.csv",
   );
+  const csvPath = normalizeOriginExePath(raw.csvPath ?? csv.path);
   const csvText =
     typeof raw.csvText === "string"
       ? raw.csvText
@@ -678,6 +679,7 @@ function normalizeOriginCsvPayload(payload, plotDefaults = undefined) {
 
   return {
     csvName,
+    csvPath,
     csvText,
     importMode,
     workbookKey,
@@ -1111,6 +1113,17 @@ function createRustDeviceAnalysisResultTempDir(fileId) {
   const root = path.join(app.getPath("temp"), "conductor-device-analysis");
   fs.mkdirSync(root, { recursive: true });
   return fs.mkdtempSync(path.join(root, `${safeFileId}-`));
+}
+
+function createRustDeviceAnalysisOriginExportTempPath(fileId, csvName) {
+  const safeFileId = String(fileId || "file").replace(/[^a-zA-Z0-9._-]+/g, "_");
+  const safeCsvName = String(csvName || "device_analysis_origin.csv")
+    .replace(/[/\\?%*:|"<>]+/g, "_")
+    .trim() || "device_analysis_origin.csv";
+  const root = path.join(getDeviceAnalysisHomeDir(), "origin-stream-jobs");
+  fs.mkdirSync(root, { recursive: true });
+  const jobDir = fs.mkdtempSync(path.join(root, `${safeFileId}-`));
+  return path.join(jobDir, safeCsvName);
 }
 
 async function hydrateRustDeviceAnalysisResultRefs(result, tempDir = null) {
@@ -1801,6 +1814,14 @@ async function handleDeviceAnalysisRustEngineProcessFile(_event, payload) {
       },
     );
     await hydrateRustDeviceAnalysisResultRefs(result, tempDir);
+    if (result && typeof result === "object" && !Array.isArray(result)) {
+      const resultObject = result as any;
+      resultObject.originExportSourcePath = inputPath;
+      resultObject.originExportConfig =
+        auto && resultObject.autoConfig && typeof resultObject.autoConfig === "object"
+          ? resultObject.autoConfig
+          : config;
+    }
     void disposeRustDeviceAnalysisProcessingFile(fileId);
     return {
       ok: true,
@@ -1815,6 +1836,75 @@ async function handleDeviceAnalysisRustEngineProcessFile(_event, payload) {
       code: "RUST_ENGINE_PROCESS_FAILED",
       durationMs: Date.now() - startedAt,
       message: error?.message || "Rust device-analysis engine failed to process file.",
+    };
+  }
+}
+
+async function handleDeviceAnalysisRustEngineExportOriginCsv(_event, payload) {
+  const rawPath = payload && typeof payload === "object" ? payload.path : "";
+  const inputPath = normalizeAbsoluteFilePath(rawPath);
+  const fileId =
+    payload && typeof payload.fileId === "string" ? payload.fileId.trim() : "";
+  const fileName =
+    payload && typeof payload.fileName === "string" ? payload.fileName.trim() : "";
+  const config =
+    payload && typeof payload.config === "object" && !Array.isArray(payload.config)
+      ? payload.config
+      : null;
+  const csvName =
+    typeof payload?.csvName === "string" && payload.csvName.trim()
+      ? payload.csvName.trim()
+      : "device_analysis_origin.csv";
+  const columns = Array.isArray(payload?.columns) ? payload.columns : [];
+
+  if (!fileId || !inputPath || !isSupportedRustDeviceAnalysisInputPath(inputPath)) {
+    return {
+      ok: false,
+      code: "INVALID_DEVICE_ANALYSIS_PATH",
+      message: "Invalid device-analysis file path.",
+    };
+  }
+  if (!isRustProcessFileConfigSupported(config) || !columns.length) {
+    return {
+      ok: false,
+      code: "RUST_ENGINE_EXPORT_UNSUPPORTED_CONFIG",
+      message: "Rust engine does not support this Origin export plan yet.",
+    };
+  }
+
+  const startedAt = Date.now();
+  const outputPath = createRustDeviceAnalysisOriginExportTempPath(fileId, csvName);
+  try {
+    const result = await sendRustDeviceAnalysisProcessingCommand(
+      "exportOriginCsv",
+      {
+        columns,
+        config,
+        fileId,
+        fileName: fileName || path.basename(inputPath),
+        maxPoints: payload?.maxPoints,
+        outputPath,
+        path: inputPath,
+        xScaleFactor: payload?.xScaleFactor,
+        yScaleFactor: payload?.yScaleFactor,
+        yTransform: payload?.yTransform,
+      },
+      120000,
+    );
+    return {
+      ok: true,
+      csvPath: outputPath,
+      durationMs: Date.now() - startedAt,
+      result,
+      source: "rust-engine-pool",
+    };
+  } catch (error) {
+    void fs.promises.rm(path.dirname(outputPath), { force: true, recursive: true }).catch(() => {});
+    return {
+      ok: false,
+      code: "RUST_ENGINE_EXPORT_FAILED",
+      durationMs: Date.now() - startedAt,
+      message: error?.message || "Rust device-analysis engine failed to export Origin CSV.",
     };
   }
 }
@@ -2111,6 +2201,7 @@ async function handleOriginRunCsv(event, payload) {
 
     const {
       csvName,
+      csvPath,
       csvText,
       importMode,
       workbookKey,
@@ -2126,12 +2217,13 @@ async function handleOriginRunCsv(event, payload) {
     } =
       normalizedPayload;
 
-    if (!csvText.trim()) {
+    if (!csvPath && !csvText.trim()) {
       throw new Error("CSV payload is missing.");
     }
 
     return await runOriginCsvJob({
       csvName,
+      csvPath,
       csvText,
       importMode,
       workbookKey,
@@ -2954,6 +3046,10 @@ if (hasSingleInstanceLock) {
   ipcMain.handle(
     ipcChannels.deviceAnalysisRustEngineProcessFile,
     handleDeviceAnalysisRustEngineProcessFile,
+  );
+  ipcMain.handle(
+    ipcChannels.deviceAnalysisRustEngineExportOriginCsv,
+    handleDeviceAnalysisRustEngineExportOriginCsv,
   );
   ipcMain.handle(
     ipcChannels.deviceAnalysisRustEngineDispose,

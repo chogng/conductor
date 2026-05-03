@@ -29,6 +29,7 @@ type OriginRunnerResult = RunProcessResult & {
 
 type OriginCsvJobInput = {
   csvName?: unknown;
+  csvPath?: unknown;
   csvText?: unknown;
   originExePath: unknown;
   workerScriptPath?: string | null;
@@ -65,6 +66,7 @@ type OriginHealthCheckInput = {
 
 type NormalizedBatchCsvJob = {
   csvName: string;
+  csvPath: string;
   csvText: string;
   importMode: string;
   workbookKey: string;
@@ -242,6 +244,37 @@ function createUniqueCsvFileName(
   return candidate;
 }
 
+function normalizeReadableCsvPath(csvPath: unknown, originExePath: string): string {
+  const normalized = normalizeOriginExePath(csvPath);
+  if (!normalized) return "";
+  if (!path.isAbsolute(normalized)) {
+    throw toStructuredOriginError({
+      code: "ORIGIN_CSV_PATH_INVALID",
+      stage: "PRECHECK",
+      message: "CSV path must be absolute.",
+      originExe: originExePath,
+    });
+  }
+  if (!fs.existsSync(normalized)) {
+    throw toStructuredOriginError({
+      code: "ORIGIN_CSV_PATH_NOT_FOUND",
+      stage: "PRECHECK",
+      message: `CSV file was not found: ${normalized}`,
+      originExe: originExePath,
+    });
+  }
+  const stat = fs.statSync(normalized);
+  if (!stat.isFile() || stat.size <= 0) {
+    throw toStructuredOriginError({
+      code: "ORIGIN_CSV_PATH_INVALID",
+      stage: "PRECHECK",
+      message: `CSV path is not a readable file: ${normalized}`,
+      originExe: originExePath,
+    });
+  }
+  return normalized;
+}
+
 function normalizeBatchCsvJobs(
   jobs: unknown,
   originExePath: string,
@@ -262,9 +295,13 @@ function normalizeBatchCsvJobs(
       typeof source.csvName === "string" && source.csvName.trim()
         ? source.csvName.trim()
         : `device_analysis_origin_${index + 1}.csv`;
+    const csvPath = normalizeReadableCsvPath(
+      Reflect.get(source, "csvPath"),
+      originExePath,
+    );
     const csvText =
       typeof source.csvText === "string" ? source.csvText : String(source.csvText || "");
-    if (!csvText.trim()) {
+    if (!csvPath && !csvText.trim()) {
       throw toStructuredOriginError({
         code: "ORIGIN_CSV_EMPTY",
         stage: "PRECHECK",
@@ -275,6 +312,7 @@ function normalizeBatchCsvJobs(
 
     return {
       csvName,
+      csvPath,
       csvText,
       importMode:
         typeof source.importMode === "string" && source.importMode.trim()
@@ -307,6 +345,7 @@ function normalizeBatchCsvJobs(
 
 export async function runOriginCsvJob({
   csvName,
+  csvPath,
   csvText,
   originExePath,
   workerScriptPath,
@@ -344,8 +383,9 @@ export async function runOriginCsvJob({
     });
   }
 
+  const normalizedCsvPath = normalizeReadableCsvPath(csvPath, normalizedOriginExePath);
   const normalizedCsvText = typeof csvText === "string" ? csvText : String(csvText || "");
-  if (!normalizedCsvText.trim()) {
+  if (!normalizedCsvPath && !normalizedCsvText.trim()) {
     throw toStructuredOriginError({
       code: "ORIGIN_CSV_EMPTY",
       stage: "PRECHECK",
@@ -354,14 +394,23 @@ export async function runOriginCsvJob({
     });
   }
 
-  const { jobDir, workDir, csvPath, logPath, errorPath } = createCsvJobPaths(csvName, {
+  const {
+    jobDir,
+    workDir,
+    csvPath: jobCsvPath,
+    logPath,
+    errorPath,
+  } = createCsvJobPaths(csvName, {
     runtimeRootDir,
   });
-  fs.writeFileSync(csvPath, normalizedCsvText, "utf8");
+  const workerCsvPath = normalizedCsvPath || jobCsvPath;
+  if (!normalizedCsvPath) {
+    fs.writeFileSync(workerCsvPath, normalizedCsvText, "utf8");
+  }
 
   const workerArgs = buildOriginCsvWorkerArgs({
     workDir,
-    csvPath,
+    csvPath: workerCsvPath,
     originExePath: normalizedOriginExePath,
     logPath,
     errorPath,
@@ -466,7 +515,7 @@ export async function runOriginCsvJob({
     workDir,
     logPath,
     errorPath,
-    csvPath,
+    csvPath: workerCsvPath,
     runner: runnerKind,
     runnerExecutable,
     pythonExecutable: runnerKind === "python" ? runnerExecutable : null,
@@ -511,9 +560,12 @@ export async function runOriginCsvBatchJob({
   const manifestJobs = normalizedJobs.map((job, index) => {
     const csvFileName = createUniqueCsvFileName(job.csvName, usedCsvNames, index);
     const csvPath = path.join(jobDir, csvFileName);
-    fs.writeFileSync(csvPath, job.csvText, "utf8");
+    const workerCsvPath = job.csvPath || csvPath;
+    if (!job.csvPath) {
+      fs.writeFileSync(workerCsvPath, job.csvText, "utf8");
+    }
     return {
-      csvPath,
+      csvPath: workerCsvPath,
       importMode: job.importMode,
       workbookKey: job.workbookKey,
       workbookName: job.workbookName,

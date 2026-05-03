@@ -128,6 +128,19 @@ const buildOriginWorkbookKey = (): string => {
   return `CDX${timeToken}${randomToken}`.slice(0, 18);
 };
 
+const buildOriginXGroupKey = (xArr: unknown): string =>
+  Array.isArray(xArr) ? xArr.map((value) => String(Number(value))).join(",") : "";
+
+const isRustOriginCsvEligiblePayload = (payload: any): boolean => {
+  const csvName = String(payload?.csvName ?? "");
+  return (
+    payload?.canvasCount === 1 &&
+    Array.isArray(payload?.fileIds) &&
+    payload.fileIds.length === 1 &&
+    !/__metrics|__gm__|__gds__|__ss__|__vth__/i.test(csvName)
+  );
+};
+
 const buildOriginImportColumnLabels = (options: {
   columnLayout?: unknown;
   columnComments?: unknown;
@@ -918,6 +931,98 @@ export const useOriginCanvasExport = ({
     t,
   ]);
 
+  const buildRustOriginCsvExportRequest = useCallback(
+    (payload: any) => {
+      if (!isRustOriginCsvEligiblePayload(payload)) return null;
+      const fileId = String(payload?.fileIds?.[0] ?? "");
+      const file = (Array.isArray(processedData) ? processedData : []).find(
+        (item: any) => String(item?.fileId ?? "") === fileId,
+      );
+      const sourcePath = String(file?.originExportSourcePath ?? "").trim();
+      const config = file?.originExportConfig;
+      if (!file || !sourcePath || !config || typeof config !== "object") return null;
+
+      const allSeries = Array.isArray(file?.series) ? file.series : [];
+      const selectedKeys = getSelectedOriginSeriesKeySetForFile(file);
+      const selectedSeries = allSeries.filter((series: any) =>
+        selectedKeys.has(String(series?.id ?? "")),
+      );
+      if (!selectedSeries.length) return null;
+      if (
+        selectedSeries.some(
+          (series: any) =>
+            !Number.isInteger(Number(series?.groupIndex)) ||
+            !Number.isInteger(Number(series?.yCol)),
+        )
+      ) {
+        return null;
+      }
+
+      const columns: Array<{ kind: "x" | "y"; groupIndex: number; yCol?: number }> = [];
+      const pushX = (series: any) => {
+        columns.push({
+          groupIndex: Number(series?.groupIndex),
+          kind: "x",
+        });
+      };
+      const pushY = (series: any) => {
+        columns.push({
+          groupIndex: Number(series?.groupIndex),
+          kind: "y",
+          yCol: Number(series?.yCol),
+        });
+      };
+
+      if (payload.columnLayout === "shared-x") {
+        pushX(selectedSeries[0]);
+        selectedSeries.forEach(pushY);
+      } else if (payload.columnLayout === "grouped-x") {
+        const grouped = new Map<string, any[]>();
+        for (const series of selectedSeries) {
+          const key = buildOriginXGroupKey(file?.xGroups?.[Number(series?.groupIndex)]);
+          const list = grouped.get(key) ?? [];
+          list.push(series);
+          grouped.set(key, list);
+        }
+        for (const list of grouped.values()) {
+          if (!list.length) continue;
+          pushX(list[0]);
+          list.forEach(pushY);
+        }
+      } else {
+        for (const series of selectedSeries) {
+          pushX(series);
+          pushY(series);
+        }
+      }
+
+      if (!columns.length) return null;
+      return {
+        columns,
+        config,
+        csvName: payload.csvName,
+        fileId,
+        fileName: file?.fileName,
+        maxPoints: Number(file?.x?.sampledPoints) || 600,
+        path: sourcePath,
+        xScaleFactor: getDeviceAnalysisXUnitMeta(file?.xUnit).factor,
+        yScaleFactor: getDeviceAnalysisYUnitMeta(resolveYUnitForFile(file)).factor,
+        yTransform:
+          resolveYScaleForFile(file) === "log" &&
+          resolveYLogCurrentModeForFile(file) === "all"
+            ? "abs"
+            : "none",
+      };
+    },
+    [
+      getSelectedOriginSeriesKeySetForFile,
+      processedData,
+      resolveYLogCurrentModeForFile,
+      resolveYScaleForFile,
+      resolveYUnitForFile,
+    ],
+  );
+
   const exportOriginZipFallbackForSelectedCanvases = useCallback(async () => {
     const result = buildOriginExportPayloadsForSelectedCanvases();
     const zip = new JSZip();
@@ -1136,6 +1241,27 @@ export const useOriginCanvasExport = ({
         };
       });
 
+      const rustExportBridge = (globalThis.window as any)?.desktopImport;
+      if (rustExportBridge?.exportDeviceAnalysisOriginCsvWithRust) {
+        await Promise.all(
+          originCsvJobs.map(async (job: any, index: number) => {
+            const request = buildRustOriginCsvExportRequest(result.payloads[index]);
+            if (!request) return;
+            try {
+              const response =
+                await rustExportBridge.exportDeviceAnalysisOriginCsvWithRust(request);
+              if (!response?.ok || !response?.csvPath) return;
+              job.csv = {
+                name: result.payloads[index]?.csvName,
+                path: response.csvPath,
+              };
+            } catch {
+              // Keep the existing in-memory CSV path as a compatibility fallback.
+            }
+          }),
+        );
+      }
+
       if (shouldBatchOriginCsvJobs && originCsvJobs.length > 1) {
         await originBridge.runOriginCsv({
           jobs: originCsvJobs,
@@ -1253,6 +1379,7 @@ export const useOriginCanvasExport = ({
     }
   }, [
     buildOriginExportPayloadsForSelectedCanvases,
+    buildRustOriginCsvExportRequest,
     effectiveActiveFileId,
     exportOriginZipFallbackForSelectedCanvases,
     getDesktopOriginBridge,
