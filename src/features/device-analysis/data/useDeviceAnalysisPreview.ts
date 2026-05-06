@@ -329,17 +329,27 @@ export const useDeviceAnalysisPreview = ({
     ],
   );
 
-  const activatePreviewFileCache = useCallback(
-    (fileId: string | null) => {
+  const touchPreviewFileCache = useCallback(
+    ({
+      activateCurrent = false,
+      fileId,
+    }: {
+      activateCurrent?: boolean;
+      fileId: string | null;
+    }) => {
       if (!fileId) {
-        previewCacheFileLruRef.current = new Set();
-        assignCurrentPreviewCache();
+        if (activateCurrent) {
+          previewCacheFileLruRef.current = new Set();
+          assignCurrentPreviewCache();
+        }
         return;
       }
 
       const { loadedChunks, rowCache } = getOrCreatePreviewFileCaches(fileId);
 
-      assignCurrentPreviewCache({ fileId, loadedChunks, rowCache });
+      if (activateCurrent) {
+        assignCurrentPreviewCache({ fileId, loadedChunks, rowCache });
+      }
 
       const fileLru = previewCacheFileLruRef.current;
       fileLru.delete(fileId);
@@ -347,7 +357,7 @@ export const useDeviceAnalysisPreview = ({
 
       while (fileLru.size > DA_PREVIEW_MAX_CACHED_FILES) {
         const oldestFileId = fileLru.values().next().value as string | undefined;
-        if (!oldestFileId || oldestFileId === fileId) break;
+        if (!oldestFileId || (activateCurrent && oldestFileId === fileId)) break;
 
         disposePreviewFileCache(oldestFileId);
       }
@@ -358,6 +368,13 @@ export const useDeviceAnalysisPreview = ({
       getOrCreatePreviewFileCaches,
       previewCacheFileLruRef,
     ],
+  );
+
+  const activatePreviewFileCache = useCallback(
+    (fileId: string | null) => {
+      touchPreviewFileCache({ activateCurrent: true, fileId });
+    },
+    [touchPreviewFileCache],
   );
 
   const handlePreviewWorkerMessage = useCallback(
@@ -503,6 +520,14 @@ export const useDeviceAnalysisPreview = ({
   }, [cancelPendingPreviewRowRequests, previewWorkerRef]);
 
   useEffect(() => {
+    return () => {
+      invalidatePreviewRequests();
+      clearAllPreviewCaches();
+      resetPreviewWorker();
+    };
+  }, [clearAllPreviewCaches, invalidatePreviewRequests, resetPreviewWorker]);
+
+  useEffect(() => {
     if (!rawData.length) {
       invalidatePreviewRequests();
       clearPreviewState({ clearSelection: true });
@@ -560,8 +585,8 @@ export const useDeviceAnalysisPreview = ({
           seedRows: DA_PREVIEW_MAX_CACHED_UI_ROWS_PER_FILE,
         })
         .then((response: any) => {
-          if (requestId !== previewRequestIdRef.current) return;
           if (!response?.ok || !response?.result) {
+            if (requestId !== previewRequestIdRef.current) return;
             void postWorkerPreview();
             return;
           }
@@ -571,9 +596,7 @@ export const useDeviceAnalysisPreview = ({
             typeof previewPayload.fileId === "string" ? previewPayload.fileId : null;
           if (fileId) {
             rustPreviewFileIdsRef.current.add(fileId);
-          }
-          activatePreviewFileCache(fileId);
-          if (fileId) {
+            touchPreviewFileCache({ fileId });
             mergePreviewSeedRows(
               fileId,
               Number(previewPayload.seedStartRow) || 0,
@@ -582,6 +605,11 @@ export const useDeviceAnalysisPreview = ({
                 : [],
             );
           }
+          if (requestId !== previewRequestIdRef.current) {
+            return;
+          }
+
+          activatePreviewFileCache(fileId);
 
           startTransition(() => {
             setPreviewFile({
@@ -618,6 +646,7 @@ export const useDeviceAnalysisPreview = ({
     rawDataById,
     setPreviewStatus,
     t,
+    touchPreviewFileCache,
   ]);
 
   const getPreviewRow = useCallback(

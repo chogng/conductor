@@ -1907,6 +1907,7 @@ async function handleDeviceAnalysisRustEngineProcessFile(_event, payload) {
       source: "rust-engine-pool",
     };
   } catch (error) {
+    void disposeRustDeviceAnalysisProcessingFile(fileId);
     void fs.promises.rm(tempDir, { force: true, recursive: true }).catch(() => {});
     return {
       ok: false,
@@ -1982,6 +1983,24 @@ async function handleDeviceAnalysisRustEngineExportOriginCsv(_event, payload) {
       ? payload.sourceFile
       : undefined;
   const sources = Array.isArray(payload?.sources) ? payload.sources : undefined;
+  const disposeFileIds = Array.from(
+    new Set(
+      [
+        fileId,
+        ...(Array.isArray(sources)
+          ? sources.map((source) =>
+              source && typeof source === "object"
+                ? typeof source.fileId === "string"
+                  ? source.fileId.trim()
+                  : typeof source.file_id === "string"
+                    ? source.file_id.trim()
+                    : ""
+                : "",
+            )
+          : []),
+      ].filter((value) => typeof value === "string" && value.length > 0),
+    ),
+  );
 
   if (!fileId || !inputPath || !isSupportedRustDeviceAnalysisInputPath(inputPath)) {
     return {
@@ -2040,6 +2059,12 @@ async function handleDeviceAnalysisRustEngineExportOriginCsv(_event, payload) {
       durationMs: Date.now() - startedAt,
       message: error?.message || "Rust device-analysis engine failed to export Origin CSV.",
     };
+  } finally {
+    void Promise.allSettled(
+      disposeFileIds.map((cachedFileId) =>
+        disposeRustDeviceAnalysisProcessingFile(cachedFileId),
+      ),
+    );
   }
 }
 
@@ -2120,6 +2145,11 @@ async function handleDeviceAnalysisOriginZipSave(event, payload) {
       }),
       fs.createWriteStream(zipPath),
     );
+    try {
+      await tryRunOriginRuntimeCleanup();
+    } catch (cleanupError) {
+      console.warn("[origin-cleanup] ZIP cleanup failed:", cleanupError);
+    }
     return {
       ok: true,
       entryCount: normalizedEntries.length,

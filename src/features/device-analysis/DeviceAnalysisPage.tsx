@@ -228,6 +228,7 @@ const DeviceAnalysisPage = () => {
   const [analysisActiveFileId, setAnalysisActiveFileId] = useState<
     string | null
   >(null);
+  const [analysisPanelSessionKey, setAnalysisPanelSessionKey] = useState(0);
   const [extractionErrorToast, setExtractionErrorToast] = useState<{
     isVisible: boolean;
     message: string;
@@ -597,11 +598,24 @@ const DeviceAnalysisPage = () => {
 
   const hasOnboardingSessionData =
     rawData.length > 0 || processedData.length > 0;
+  const hadOnboardingSessionDataRef = useRef(hasOnboardingSessionData);
   const shouldAutoStartOnboarding =
     Boolean(deviceAnalysisSettings) &&
     !Boolean(deviceAnalysisSettings?.onboardingCompleted) &&
     !Boolean(deviceAnalysisSettings?.onboardingAutoStartDismissed) &&
     !hasOnboardingSessionData;
+
+  useEffect(() => {
+    const hadOnboardingSessionData = hadOnboardingSessionDataRef.current;
+    hadOnboardingSessionDataRef.current = hasOnboardingSessionData;
+    if (!hadOnboardingSessionData || hasOnboardingSessionData) {
+      return;
+    }
+
+    setAnalysisPanelSessionKey((prev) => prev + 1);
+    setAnalysisActiveFileId(null);
+    setHasVisitedAnalysisPage(false);
+  }, [hasOnboardingSessionData]);
 
   useEffect(() => {
     if (!shouldAutoStartOnboarding || onboarding.isOpen) return undefined;
@@ -802,6 +816,7 @@ const DeviceAnalysisPage = () => {
                 fallback={<DeferredPanelFallback label={t("da_analysis_loading")} />}
               >
                 <DeviceAnalysisAnalysisPanel
+                  key={`analysis-panel-session-${analysisPanelSessionKey}`}
                   processedData={processedData}
                   processingStatus={processingStatus}
                   activeFileId={analysisActiveFileId}
