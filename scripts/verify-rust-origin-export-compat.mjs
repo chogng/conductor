@@ -19,7 +19,6 @@ const CRATE_DIR = path.join(ROOT, "tools", "conductor-engine");
 const ENGINE_CANDIDATES = [
   path.join(ROOT, "excel", "bin", "conductor-engine.exe"),
   path.join(CRATE_DIR, "target", "release", "conductor-engine.exe"),
-  path.join(ROOT, "excel", "bin", "rust-xls-converter.exe"),
 ];
 const SUPPORTED_EXTENSIONS = new Set([".csv", ".xls", ".xlsx"]);
 const CONTENT_KEYS = ["iv", "metrics", "gm", "gds", "ss", "vth"];

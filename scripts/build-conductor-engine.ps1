@@ -68,8 +68,5 @@ if (-not (Test-Path -LiteralPath $sourceExe)) {
 
 New-Item -ItemType Directory -Path $DistDir -Force | Out-Null
 $primaryTargetExe = Join-Path $DistDir "conductor-engine.exe"
-$legacyTargetExe = Join-Path $DistDir "rust-xls-converter.exe"
 Copy-Item -LiteralPath $sourceExe -Destination $primaryTargetExe -Force
-Copy-Item -LiteralPath $sourceExe -Destination $legacyTargetExe -Force
 Write-Host "[build-conductor-engine] Copied engine to $primaryTargetExe"
-Write-Host "[build-conductor-engine] Copied legacy converter alias to $legacyTargetExe"

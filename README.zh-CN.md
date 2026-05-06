@@ -30,11 +30,6 @@ Conductor Studio 是一款面向半导体器件测试数据的桌面优先分析
 - 打包版本内置 Rust Excel converter 和 Python Origin CSV worker。
 - 支持 Electron Builder 打包、Windows 发布产物和自动更新。
 
-## 项目地图
-
-目录职责、生成产物边界和常用入口说明见
-[docs/project-structure.md](./docs/project-structure.md)。
-
 ## 环境要求
 
 - Node.js 22+
@@ -241,6 +236,8 @@ origin/bin/origin-csv-worker.exe --worker-version
 
 Windows 桌面版支持 `electron-updater`。
 
+启动后会先检查更新，之后每 4 小时检查一次；下载在后台完成，准备好后提示重启安装。
+
 推荐发布流程：
 
 1. 更新 `package.json.version`
@@ -249,7 +246,29 @@ Windows 桌面版支持 `electron-updater`。
 4. 运行 `npm run dist:desktop:publish`
 5. 确认 release 中包含 `latest.yml`、安装器和对应的 blockmap 文件
 
-参考：[docs/desktop-auto-update.md](./docs/desktop-auto-update.md)
+本地发布流程会把桌面端产物构建到 `release/`，创建或更新 GitHub Release，并只上传 updater 需要的文件：`latest.yml`、安装器和对应的 `.blockmap`。
+
+GitHub Actions 发布会走同样的 tag 流程，并把完整的 `release/` 目录镜像到源仓库 release 里，便于追溯。
+
+## Microsoft Store
+
+首选的 Windows 分发路径是 Microsoft Store AppX/MSIX：
+
+```powershell
+npm run dist:desktop:store
+```
+
+这个命令会生成一个包含 Electron 应用、Rust Excel converter 和 Origin CSV worker 的包。Store 提交由 Microsoft 完成最终签名，因此这条路径不需要单独的付费代码签名证书。
+
+Store 包会直接从已安装的应用资源中解析 sidecar 可执行文件，运行在 Store 模式时不会走 GitHub updater 路径。
+
+保留传统 EXE 路径用于非 Store 分发：
+
+```powershell
+npm run dist:desktop:exe
+```
+
+首次提交 Store 之前，先在 Partner Center 里保留应用名，并把分配到的 package identity 值填到 `package.json` 的 `build.appx` 中。
 
 ## 图标
 

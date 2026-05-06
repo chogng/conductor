@@ -46,11 +46,6 @@ live, save that rule as a template, then reuse it across future experiments.
 - Bundled Rust Excel converter and Python Origin CSV worker in packaged builds.
 - Electron Builder packaging, Windows release artifacts, and auto-update support for desktop distribution.
 
-## Project Map
-
-For a directory-by-directory guide to source areas, generated artifacts, and
-common entrypoints, see [docs/project-structure.md](./docs/project-structure.md).
-
 ## Requirements
 
 - Node.js 22+
@@ -263,6 +258,9 @@ If a custom config path is used, for example `D:\DeviceAnalysis\config.json`, th
 
 Windows desktop releases support `electron-updater`.
 
+Update checks run shortly after startup and then every 4 hours. Downloads happen in
+the background, and the app prompts for restart once the update is ready.
+
 Recommended distribution flow:
 
 1. bump `package.json.version`
@@ -271,11 +269,12 @@ Recommended distribution flow:
 4. run `npm run dist:desktop:publish`
 5. verify the release contains `latest.yml`, installer, and matching blockmap files
 
-Reference: [docs/desktop-auto-update.md](./docs/desktop-auto-update.md)
+The local publish flow builds desktop artifacts into `release/`, creates or updates
+the GitHub Release, and uploads only updater assets: `latest.yml`, the installer,
+and matching `.blockmap` files.
 
-Release process and commit/release note conventions:
-
-- [docs/engineering-release-notes.md](./docs/engineering-release-notes.md)
+GitHub Actions releases use the same tag flow and also mirror the full `release/`
+folder to the source repository release for traceability.
 
 Issue reporting:
 
@@ -301,6 +300,9 @@ This builds one package that includes the Electron app, the Rust Excel
 converter, and the Origin CSV worker as installed app resources. Store
 submission signs the final package through Microsoft, so this route does not
 require a separate paid code-signing certificate.
+
+Store packages resolve the sidecar executables from installed app resources and
+do not use the GitHub updater path while running as a Store app.
 
 Keep the legacy EXE path available for non-Store distribution:
 

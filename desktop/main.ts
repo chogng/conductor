@@ -812,20 +812,12 @@ function resolveRustExcelConverterPath() {
           "conductor-engine.exe",
         )
       : "",
-    path.join(getResourcesPath(), "excel", "bin", "rust-xls-converter.exe"),
     path.join(
       getResourcesPath(),
       "app.asar.unpacked",
       "excel",
       "bin",
       "conductor-engine.exe",
-    ),
-    path.join(
-      getResourcesPath(),
-      "app.asar.unpacked",
-      "excel",
-      "bin",
-      "rust-xls-converter.exe",
     ),
   ].filter(Boolean);
 

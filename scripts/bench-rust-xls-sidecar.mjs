@@ -21,7 +21,6 @@ const DEFAULT_EXE_CANDIDATES = [
     "release",
     "conductor-engine.exe",
   ),
-  path.join(ROOT, "excel", "bin", "rust-xls-converter.exe"),
 ];
 
 const formatMs = (value) => `${Math.round(value)}ms`;

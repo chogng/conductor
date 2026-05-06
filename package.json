@@ -10,7 +10,6 @@
     "dev:desktop": "npm run build:desktop:core && node --experimental-strip-types scripts/dev-desktop.ts",
     "build:origin-csv-worker": "node scripts/run-powershell.mjs scripts/build-origin-csv-worker.ps1",
     "build:engine": "node scripts/run-powershell.mjs scripts/build-conductor-engine.ps1",
-    "build:rust-xls-converter": "node scripts/run-powershell.mjs scripts/build-conductor-engine.ps1",
     "verify:origin-worker": "node scripts/verify-origin-csv-worker.mjs",
     "verify:rust-auto-extraction": "node --experimental-strip-types scripts/verify-rust-auto-extraction-compat.mjs prepare && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify-rust-auto-extraction-compat.ps1 && node --experimental-strip-types scripts/verify-rust-auto-extraction-compat.mjs compare",
     "verify:rust-analysis": "npm run verify:rust-ss-auto",
@@ -93,8 +92,7 @@
         "from": "excel/bin",
         "to": "excel/bin",
         "filter": [
-          "conductor-engine.exe",
-          "rust-xls-converter.exe"
+          "conductor-engine.exe"
         ]
       },
       {
