@@ -47,6 +47,7 @@ mcp-claude-hover-snippet.js
 
 # Origin batch worker local build artifacts
 origin/bin/
+workers/rs/
 origin/.pyi_build/
 origin/.pyi_spec/
 origin/.pyi_zip_build/
