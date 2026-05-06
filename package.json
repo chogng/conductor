@@ -6,6 +6,7 @@
   "main": "desktop-dist/main.js",
   "scripts": {
     "make:icons": "node scripts/make-icons.mjs",
+    "verify:icons": "node scripts/verify-icons.mjs",
     "dev": "vite",
     "dev:desktop": "npm run build:desktop:core && node --experimental-strip-types scripts/dev-desktop.ts",
     "build:origin-csv-worker": "node scripts/run-powershell.mjs scripts/build-origin-csv-worker.ps1",
