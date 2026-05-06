@@ -138,14 +138,14 @@ test("display-range Origin axis commands keep manual scale limits", () => {
       min: 1e-12,
       max: 1e-6,
     }),
-    ["layer.y.from=1e-12", "layer.y.to=1e-6", "layer.y.rescale=0"],
+    ["layer.y.from=1e-12", "layer.y.to=1e-6", "layer.y.rescale=1"],
   );
   assert.deepEqual(
     buildOriginXAxisRangeCommandsFromDisplayRange({
       min: -1,
       max: 1,
     }),
-    ["layer.x.from=-1", "layer.x.to=1", "layer.x.rescale=0"],
+    ["layer.x.from=-1", "layer.x.to=1", "layer.x.rescale=1"],
   );
 });
 

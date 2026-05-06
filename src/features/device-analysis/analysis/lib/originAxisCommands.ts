@@ -205,7 +205,7 @@ export const buildOriginYAxisRangeCommandsFromDisplayRange = (
   const toText = toOriginAxisCommandNumber(yScaleMode, max);
   if (!fromText || !toText) return [];
 
-  return [`layer.y.from=${fromText}`, `layer.y.to=${toText}`, "layer.y.rescale=0"];
+  return [`layer.y.from=${fromText}`, `layer.y.to=${toText}`, "layer.y.rescale=1"];
 };
 
 export const buildOriginXAxisRangeCommandsFromDisplayRange = (
@@ -223,7 +223,7 @@ export const buildOriginXAxisRangeCommandsFromDisplayRange = (
   const toText = toOriginCommandNumber(max);
   if (!fromText || !toText) return [];
 
-  return [`layer.x.from=${fromText}`, `layer.x.to=${toText}`, "layer.x.rescale=0"];
+  return [`layer.x.from=${fromText}`, `layer.x.to=${toText}`, "layer.x.rescale=1"];
 };
 
 export const buildOriginAxisSpacingCommands = (
