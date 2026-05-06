@@ -38,6 +38,11 @@ if (isWin) {
 }
 
 {
+  const code = runNpm("verify:icons");
+  if (code !== 0) process.exit(code);
+}
+
+{
   const code = runNpm("build:desktop:core");
   if (code !== 0) process.exit(code);
 }
