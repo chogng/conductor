@@ -12,13 +12,13 @@ const DEFAULT_ROOTS = [
 const EXCEL_EXTENSIONS = new Set([".xls", ".xlsx"]);
 const ROOT = process.cwd();
 const DEFAULT_EXE_CANDIDATES = [
-  path.join(ROOT, "excel", "bin", "worker.exe"),
+  path.join(ROOT, "excel", "bin", "rs-worker.exe"),
   path.join(
     ROOT,
     "conductor-rs",
     "target",
     "release",
-    "worker.exe",
+    "rs-worker.exe",
   ),
 ];
 
@@ -63,9 +63,10 @@ const walkExcelFiles = async (root) => {
   return files;
 };
 
-const findConverterExe = async () => {
+const findRsWorkerExe = async () => {
   const fromEnv = String(
-    process.env.CONDUCTOR_ENGINE_PATH
+    process.env.CONDUCTOR_RS_WORKER_PATH
+      ?? process.env.CONDUCTOR_ENGINE_PATH
       ?? process.env.CONDUCTOR_RUST_XLS_CONVERTER_PATH
       ?? "",
   ).trim();
@@ -78,7 +79,7 @@ const findConverterExe = async () => {
       // try next candidate
     }
   }
-  throw new Error(`Rust engine executable was not found: ${candidates.join(", ")}`);
+  throw new Error(`rs-worker executable was not found: ${candidates.join(", ")}`);
 };
 
 const convertOne = async (exePath, filePath, outputPath) => {
@@ -136,8 +137,8 @@ for (const root of selectedRoots) {
 }
 allFiles.sort((a, b) => a.localeCompare(b));
 
-const exePath = await findConverterExe();
-const tempRoot = path.join(ROOT, ".tooling", "rust-xls-sidecar-bench");
+const exePath = await findRsWorkerExe();
+const tempRoot = path.join(ROOT, ".tooling", "rs-worker-xls-sidecar-bench");
 await fs.rm(tempRoot, { force: true, recursive: true });
 await fs.mkdir(tempRoot, { recursive: true });
 
@@ -165,7 +166,7 @@ const runPool = async (poolSize) => {
       }
       completed += 1;
       if (completed % 25 === 0 || completed === allFiles.length) {
-        console.log(`[rust-sidecar pool=${poolSize}] processed ${completed}/${allFiles.length}`);
+        console.log(`[rs-worker-xls-sidecar pool=${poolSize}] processed ${completed}/${allFiles.length}`);
       }
     }
   };
@@ -187,7 +188,7 @@ const runPool = async (poolSize) => {
   );
 
   const wallMs = performance.now() - start;
-  console.log(`\n[rust-sidecar pool=${poolSize}]`);
+  console.log(`\n[rs-worker-xls-sidecar pool=${poolSize}]`);
   console.log(`files=${results.length} failed=${failed.length}`);
   console.log(`source=${formatBytes(summary.sizeBytes)} csvText=${formatBytes(summary.csvBytes)}`);
   console.log(`sumProcess=${formatMs(summary.convertMs)} wall=${formatMs(wallMs)}`);
@@ -208,8 +209,8 @@ const runPool = async (poolSize) => {
   }
 };
 
-console.log(`[rust-sidecar bench] exe=${exePath}`);
-console.log(`[rust-sidecar bench] excelFiles=${allFiles.length}`);
+console.log(`[rs-worker-xls-sidecar bench] exe=${exePath}`);
+console.log(`[rs-worker-xls-sidecar bench] excelFiles=${allFiles.length}`);
 await runPool(1);
 await runPool(2);
 await fs.rm(tempRoot, { force: true, recursive: true });

@@ -22,7 +22,7 @@ if ($RequestSet -eq "analysis") {
   $ResultsPath = Join-Path $BenchDir "rust-results.jsonl"
   $TimingPath = Join-Path $BenchDir "rust-process-timing.json"
 }
-$EngineExe = Join-Path $ProjectRoot "conductor-rs\target\release\worker.exe"
+$RsWorkerExe = Join-Path $ProjectRoot "conductor-rs\target\release\rs-worker.exe"
 
 if (-not (Test-Path -LiteralPath $RequestsPath)) {
   throw "Phase 3 benchmark requests were not prepared: $RequestsPath"
@@ -35,7 +35,7 @@ try {
     throw "Phase 3 Rust release build failed with exit code $LASTEXITCODE"
   }
   $startedAt = [System.Diagnostics.Stopwatch]::StartNew()
-  $results = Get-Content -LiteralPath $RequestsPath -Raw | & $EngineExe --stdio-worker
+  $results = Get-Content -LiteralPath $RequestsPath -Raw | & $RsWorkerExe --stdio-worker
   $startedAt.Stop()
   if ($LASTEXITCODE -ne 0) {
     throw "Phase 3 Rust processing run failed with exit code $LASTEXITCODE"

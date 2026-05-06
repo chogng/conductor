@@ -5,7 +5,7 @@ import path from "node:path";
 import { performance } from "node:perf_hooks";
 
 const ROOT = process.cwd();
-const EXE_PATH = path.join(ROOT, "excel", "bin", "worker.exe");
+const EXE_PATH = path.join(ROOT, "excel", "bin", "rs-worker.exe");
 const DEFAULT_ROOT = "C:/Users/lanxi/Desktop/ZC";
 const SUPPORTED_EXTENSIONS = new Set([".csv", ".xls", ".xlsx"]);
 const SINGLE_FILE_BUDGET_BYTES = 32 * 1024 * 1024;
@@ -52,7 +52,7 @@ const walkFiles = async (root) => {
   return files;
 };
 
-const createEngine = () => {
+const createRsWorker = () => {
   const child = spawn(EXE_PATH, ["--stdio-worker"], {
     stdio: ["pipe", "pipe", "pipe"],
     windowsHide: true,
@@ -79,7 +79,7 @@ const createEngine = () => {
       if (message.ok) {
         entry.resolve(message.result);
       } else {
-        entry.reject(new Error(message.error?.message || "engine failed"));
+        entry.reject(new Error(message.error?.message || "rs-worker failed"));
       }
     }
   });
@@ -91,7 +91,7 @@ const createEngine = () => {
 
   child.on("exit", (code, signal) => {
     for (const entry of pending.values()) {
-      entry.reject(new Error(`engine exited code=${code} signal=${signal}`));
+      entry.reject(new Error(`rs-worker exited code=${code} signal=${signal}`));
     }
     pending.clear();
   });
@@ -207,7 +207,7 @@ const simulateBudget = (items) => {
 
 const root = process.argv[2] || DEFAULT_ROOT;
 const files = await walkFiles(root);
-const engine = createEngine();
+const rsWorker = createRsWorker();
 const started = performance.now();
 const failures = [];
 const successes = [];
@@ -219,7 +219,7 @@ try {
       path.join(os.tmpdir(), "conductor-analysis-cache-bench-"),
     );
     try {
-      const result = await engine.send("processFileAuto", {
+      const result = await rsWorker.send("processFileAuto", {
         analysisCachePath: path.join(tempDir, "analysis-cache.json"),
         fileId: `analysis-cache-${index}`,
         fileName: path.basename(filePath),
@@ -253,7 +253,7 @@ try {
     }
   }
 } finally {
-  engine.close();
+  rsWorker.close();
 }
 
 const totals = successes.reduce(

@@ -10,14 +10,14 @@ const DEFAULT_RUST_EXE = path.join(
   ROOT,
   "excel",
   "bin",
-  "worker.exe",
+  "rs-worker.exe",
 );
 const LEGACY_RUST_EXE = path.join(
   ROOT,
   "conductor-rs",
   "target",
   "release",
-  "worker.exe",
+  "rs-worker.exe",
 );
 const OUTPUT_DIR = path.join(ROOT, ".tooling", "rust-xls-compat");
 const RUST_CSV_DIR = path.join(OUTPUT_DIR, "rust-csv");
@@ -156,29 +156,29 @@ const assessCsvText = async (csvText, fileName) => {
 
 const main = async () => {
   const rustExe = process.env.RUST_XLS_BENCH_EXE || DEFAULT_RUST_EXE;
-  const engineExe = fs.existsSync(LEGACY_RUST_EXE) ? LEGACY_RUST_EXE : rustExe;
-  if (!fs.existsSync(engineExe)) {
-    throw new Error(`Rust engine executable not found: ${rustExe} or ${LEGACY_RUST_EXE}`);
+  const rsWorkerExe = fs.existsSync(LEGACY_RUST_EXE) ? LEGACY_RUST_EXE : rustExe;
+  if (!fs.existsSync(rsWorkerExe)) {
+    throw new Error(`rs-worker executable not found: ${rustExe} or ${LEGACY_RUST_EXE}`);
   }
 
   fs.rmSync(OUTPUT_DIR, { force: true, recursive: true });
   fs.mkdirSync(RUST_CSV_DIR, { recursive: true });
 
-  const commandLine = [engineExe, "--threads", "2", "--write-dir", RUST_CSV_DIR]
+  const commandLine = [rsWorkerExe, "--threads", "2", "--write-dir", RUST_CSV_DIR]
     .map((value) => {
       const text = String(value ?? "");
       return /[\s"]/u.test(text) ? `"${text.replace(/"/g, '\\"')}"` : text;
     })
     .join(" ");
   const rustRun = spawnSync("cmd.exe", ["/d", "/s", "/c", commandLine], {
-    cwd: path.dirname(engineExe),
+    cwd: path.dirname(rsWorkerExe),
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
   process.stdout.write(rustRun.stdout ?? "");
   process.stderr.write(rustRun.stderr ?? "");
   if (rustRun.status !== 0) {
-    throw new Error(`Rust engine failed with exit code ${rustRun.status}`);
+    throw new Error(`rs-worker failed with exit code ${rustRun.status}`);
   }
 
   const manifestPath = path.join(RUST_CSV_DIR, "manifest.tsv");

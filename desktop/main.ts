@@ -786,12 +786,13 @@ function isSupportedRustDeviceAnalysisInputPath(filePath) {
 function resolveRustExcelConverterPath() {
   const envPath = normalizeAbsoluteFilePath(
     process.env.CONDUCTOR_WORKER_PATH
+      || process.env.CONDUCTOR_RS_WORKER_PATH
       || process.env.CONDUCTOR_ENGINE_PATH
       || process.env.CONDUCTOR_RUST_XLS_CONVERTER_PATH,
   );
   const candidates = [
     envPath,
-    path.join(getResourcesPath(), "excel", "bin", "worker.exe"),
+    path.join(getResourcesPath(), "excel", "bin", "rs-worker.exe"),
     isDev
       ? path.join(
           __dirname,
@@ -799,7 +800,7 @@ function resolveRustExcelConverterPath() {
           ".tooling",
           "conductor-rs-target",
           "release",
-          "worker.exe",
+          "rs-worker.exe",
         )
       : "",
     isDev
@@ -809,7 +810,7 @@ function resolveRustExcelConverterPath() {
           "conductor-rs",
           "target",
           "release",
-          "worker.exe",
+          "rs-worker.exe",
         )
       : "",
     path.join(
@@ -817,7 +818,7 @@ function resolveRustExcelConverterPath() {
       "app.asar.unpacked",
       "excel",
       "bin",
-      "worker.exe",
+      "rs-worker.exe",
     ),
   ].filter(Boolean);
 
@@ -863,7 +864,7 @@ function stopRustDeviceAnalysisEngine() {
   rustDeviceAnalysisEngine = null;
   rustDeviceAnalysisEngineStdoutBuffer = "";
   rejectPendingRustDeviceAnalysisEngineRequests(
-    new Error("Rust device-analysis engine stopped."),
+    new Error("rs-worker stopped."),
   );
   forceStopChildProcess(child);
 }
@@ -876,7 +877,7 @@ function handleRustDeviceAnalysisEngineLine(line) {
   try {
     message = JSON.parse(text);
   } catch (error) {
-    console.warn("[device-analysis-rust] invalid engine JSON:", error?.message || error);
+    console.warn("[device-analysis-rust] invalid rs-worker JSON:", error?.message || error);
     return;
   }
 
@@ -896,7 +897,7 @@ function handleRustDeviceAnalysisEngineLine(line) {
   const errorMessage =
     typeof message?.error?.message === "string" && message.error.message.trim()
       ? message.error.message
-      : "Rust device-analysis engine failed.";
+      : "rs-worker failed.";
   pending.reject(new Error(errorMessage));
 }
 
@@ -907,7 +908,7 @@ function ensureRustDeviceAnalysisEngine() {
 
   const executablePath = resolveRustExcelConverterPath();
   if (!executablePath) {
-    throw new Error("Rust device-analysis engine was not found.");
+    throw new Error("rs-worker was not found.");
   }
 
   const child = spawn(executablePath, ["--stdio-worker"], {
@@ -945,7 +946,7 @@ function ensureRustDeviceAnalysisEngine() {
     if (rustDeviceAnalysisEngine === child) rustDeviceAnalysisEngine = null;
     rejectPendingRustDeviceAnalysisEngineRequests(
       new Error(
-        `Rust device-analysis engine exited (code=${code ?? "null"} signal=${signal ?? "null"}).`,
+        `rs-worker exited (code=${code ?? "null"} signal=${signal ?? "null"}).`,
       ),
     );
   });
@@ -961,7 +962,7 @@ function sendRustDeviceAnalysisEngineCommand(command, payload = {}, timeoutMs = 
   return new Promise((resolve, reject) => {
     const timeoutId = setTimeout(() => {
       rustDeviceAnalysisEnginePending.delete(id);
-      reject(new Error(`Rust device-analysis engine command timed out: ${command}`));
+      reject(new Error(`rs-worker command timed out: ${command}`));
     }, timeoutMs);
 
     rustDeviceAnalysisEnginePending.set(id, { reject, resolve, timeoutId });
@@ -1008,7 +1009,7 @@ function stopRustDeviceAnalysisEngineSlot(slot) {
   slot.stdoutBuffer = "";
   rejectPendingRustDeviceAnalysisEngineSlotRequests(
     slot,
-    new Error(`Rust device-analysis engine stopped (${slot.name}).`),
+    new Error(`rs-worker stopped (${slot.name}).`),
   );
   forceStopChildProcess(child);
 }
@@ -1022,7 +1023,7 @@ function handleRustDeviceAnalysisEngineSlotLine(slot, line) {
     message = JSON.parse(text);
   } catch (error) {
     console.warn(
-      `[device-analysis-rust:${slot.name}] invalid engine JSON:`,
+      `[device-analysis-rust:${slot.name}] invalid rs-worker JSON:`,
       error?.message || error,
     );
     return;
@@ -1045,7 +1046,7 @@ function handleRustDeviceAnalysisEngineSlotLine(slot, line) {
   const errorMessage =
     typeof message?.error?.message === "string" && message.error.message.trim()
       ? message.error.message
-      : "Rust device-analysis engine failed.";
+      : "rs-worker failed.";
   pending.reject(new Error(errorMessage));
 }
 
@@ -1056,7 +1057,7 @@ function ensureRustDeviceAnalysisEngineSlot(slot) {
 
   const executablePath = resolveRustExcelConverterPath();
   if (!executablePath) {
-    throw new Error("Rust device-analysis engine was not found.");
+    throw new Error("rs-worker was not found.");
   }
 
   const child = spawn(executablePath, ["--stdio-worker"], {
@@ -1094,7 +1095,7 @@ function ensureRustDeviceAnalysisEngineSlot(slot) {
     rejectPendingRustDeviceAnalysisEngineSlotRequests(
       slot,
       new Error(
-        `Rust device-analysis engine exited (${slot.name}, code=${code ?? "null"} signal=${signal ?? "null"}).`,
+        `rs-worker exited (${slot.name}, code=${code ?? "null"} signal=${signal ?? "null"}).`,
       ),
     );
   });
@@ -1226,7 +1227,7 @@ function sendRustDeviceAnalysisEngineSlotCommand(
     const timeoutId = setTimeout(() => {
       slot.pending.delete(id);
       slot.busyCount = Math.max(0, slot.busyCount - 1);
-      reject(new Error(`Rust device-analysis engine command timed out: ${command}`));
+      reject(new Error(`rs-worker command timed out: ${command}`));
     }, timeoutMs);
 
     slot.pending.set(id, { reject, resolve, timeoutId });
@@ -1623,7 +1624,7 @@ async function handleDeviceAnalysisRustEngineOpen(_event, payload) {
       ok: false,
       code: "RUST_ENGINE_OPEN_FAILED",
       durationMs: Date.now() - startedAt,
-      message: error?.message || "Rust device-analysis engine failed to open file.",
+      message: error?.message || "rs-worker failed to open file.",
     };
   }
 }
@@ -1661,7 +1662,7 @@ async function handleDeviceAnalysisRustEnginePreviewRows(_event, payload) {
       code: "RUST_ENGINE_PREVIEW_ROWS_FAILED",
       durationMs: Date.now() - startedAt,
       message:
-        error?.message || "Rust device-analysis engine failed to read preview rows.",
+        error?.message || "rs-worker failed to read preview rows.",
     };
   }
 }
@@ -1695,7 +1696,7 @@ async function handleDeviceAnalysisRustEnginePreviewMeta(_event, payload) {
       code: "RUST_ENGINE_PREVIEW_META_FAILED",
       durationMs: Date.now() - startedAt,
       message:
-        error?.message || "Rust device-analysis engine failed to read preview metadata.",
+        error?.message || "rs-worker failed to read preview metadata.",
     };
   }
 }
@@ -1737,7 +1738,7 @@ async function handleDeviceAnalysisRustEngineReadCell(_event, payload) {
       ok: false,
       code: "RUST_ENGINE_READ_CELL_FAILED",
       durationMs: Date.now() - startedAt,
-      message: error?.message || "Rust device-analysis engine failed to read cell.",
+      message: error?.message || "rs-worker failed to read cell.",
     };
   }
 }
@@ -1779,7 +1780,7 @@ async function handleDeviceAnalysisRustEngineReadCells(_event, payload) {
       ok: false,
       code: "RUST_ENGINE_READ_CELLS_FAILED",
       durationMs: Date.now() - startedAt,
-      message: error?.message || "Rust device-analysis engine failed to read cells.",
+      message: error?.message || "rs-worker failed to read cells.",
     };
   }
 }
@@ -1820,7 +1821,7 @@ async function handleDeviceAnalysisRustEngineInferAutoExtraction(_event, payload
       durationMs: Date.now() - startedAt,
       message:
         error?.message ||
-        "Rust device-analysis engine failed to infer auto extraction.",
+        "rs-worker failed to infer auto extraction.",
     };
   }
 }
@@ -1860,7 +1861,7 @@ async function handleDeviceAnalysisRustEngineProcessFile(_event, payload) {
     return {
       ok: false,
       code: "RUST_ENGINE_PROCESS_UNSUPPORTED_CONFIG",
-      message: "Rust engine does not support this extraction config yet.",
+      message: "rs-worker does not support this extraction config yet.",
     };
   }
 
@@ -1906,7 +1907,7 @@ async function handleDeviceAnalysisRustEngineProcessFile(_event, payload) {
       ok: false,
       code: "RUST_ENGINE_PROCESS_FAILED",
       durationMs: Date.now() - startedAt,
-      message: error?.message || "Rust device-analysis engine failed to process file.",
+      message: error?.message || "rs-worker failed to process file.",
     };
   }
 }
@@ -1947,7 +1948,7 @@ async function handleDeviceAnalysisRustEngineAnalyzeRc(_event, payload) {
       ok: false,
       code: "RUST_ENGINE_RC_FAILED",
       durationMs: Date.now() - startedAt,
-      message: error?.message || "Rust device-analysis engine failed to analyze Rc.",
+      message: error?.message || "rs-worker failed to analyze Rc.",
     };
   }
 }
@@ -2010,7 +2011,7 @@ async function handleDeviceAnalysisRustEngineExportOriginCsv(_event, payload) {
     return {
       ok: false,
       code: "RUST_ENGINE_EXPORT_UNSUPPORTED_CONFIG",
-      message: "Rust engine does not support this Origin export plan yet.",
+      message: "rs-worker does not support this Origin export plan yet.",
     };
   }
 
@@ -2050,7 +2051,7 @@ async function handleDeviceAnalysisRustEngineExportOriginCsv(_event, payload) {
       ok: false,
       code: "RUST_ENGINE_EXPORT_FAILED",
       durationMs: Date.now() - startedAt,
-      message: error?.message || "Rust device-analysis engine failed to export Origin CSV.",
+      message: error?.message || "rs-worker failed to export Origin CSV.",
     };
   } finally {
     void Promise.allSettled(
@@ -2174,7 +2175,7 @@ async function handleDeviceAnalysisRustEngineDispose(_event, payload) {
     return {
       ok: false,
       code: "RUST_ENGINE_DISPOSE_FAILED",
-      message: error?.message || "Rust device-analysis engine dispose failed.",
+      message: error?.message || "rs-worker dispose failed.",
     };
   }
 }

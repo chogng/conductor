@@ -12,8 +12,8 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 $CrateDir = Join-Path $ProjectRoot "conductor-rs\worker"
-$EngineExe = Join-Path $ProjectRoot "conductor-rs\target\release\worker.exe"
-$PackagedEngineExe = Join-Path $ProjectRoot "excel\bin\worker.exe"
+$RsWorkerExe = Join-Path $ProjectRoot "conductor-rs\target\release\rs-worker.exe"
+$PackagedRsWorkerExe = Join-Path $ProjectRoot "excel\bin\rs-worker.exe"
 $BenchDir = Join-Path $ProjectRoot ".tooling\rust-origin-export-compat"
 $FilesPath = Join-Path $BenchDir "files.json"
 $ProcessRequestsPath = Join-Path $BenchDir "process-requests.jsonl"
@@ -31,8 +31,8 @@ try {
   if ($LASTEXITCODE -ne 0) {
     throw "Rust origin-export release build failed with exit code $LASTEXITCODE"
   }
-  if (-not (Test-Path -LiteralPath $EngineExe)) {
-    $EngineExe = $PackagedEngineExe
+  if (-not (Test-Path -LiteralPath $RsWorkerExe)) {
+    $RsWorkerExe = $PackagedRsWorkerExe
   }
   if ($Mode -eq "process") {
     if (-not (Test-Path -LiteralPath $FilesPath)) {
@@ -54,14 +54,14 @@ try {
     $requestsText = ($requests | ForEach-Object { $_ | ConvertTo-Json -Compress }) -join "`n"
     $requestsText = "$requestsText`n"
     $requestsText | Set-Content -LiteralPath $ProcessRequestsPath -Encoding UTF8
-    $results = $requestsText | & $EngineExe --stdio-worker
+    $results = $requestsText | & $RsWorkerExe --stdio-worker
     if ($LASTEXITCODE -ne 0) {
       throw "Rust origin-export process run failed with exit code $LASTEXITCODE"
     }
     $results | Set-Content -LiteralPath $ProcessResultsPath -Encoding UTF8
     Write-Host "[rust-origin-export-compat] wrote process results to $ProcessResultsPath"
   } else {
-    $results = Get-Content -LiteralPath $ExportRequestsPath -Raw | & $EngineExe --stdio-worker
+    $results = Get-Content -LiteralPath $ExportRequestsPath -Raw | & $RsWorkerExe --stdio-worker
     if ($LASTEXITCODE -ne 0) {
       throw "Rust origin-export export run failed with exit code $LASTEXITCODE"
     }

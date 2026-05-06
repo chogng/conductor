@@ -33,7 +33,7 @@ if (-not [System.IO.Path]::IsPathRooted($TargetDir)) {
 
 $cargoCmd = Get-Command cargo -ErrorAction SilentlyContinue
 if ($null -eq $cargoCmd) {
-  throw "cargo is not available in PATH. Install Rust before building the Conductor engine."
+  throw "cargo is not available in PATH. Install Rust before building the rs-worker."
 }
 
 $vsDevCandidates = @(
@@ -48,10 +48,10 @@ Push-Location $CrateDir
 try {
   $isWindows = [System.Environment]::OSVersion.Platform -eq [System.PlatformID]::Win32NT
   if ($isWindows -and $vsDevCmd) {
-    Write-Host "[build-conductor-engine] Running cargo build through VsDevCmd."
+    Write-Host "[build-rs-worker] Running cargo build through VsDevCmd."
     & cmd.exe /d /s /c "call `"$vsDevCmd`" -arch=x64 && cargo build --release -p worker --target-dir `"$TargetDir`""
   } else {
-    Write-Host "[build-conductor-engine] Running cargo build --release."
+    Write-Host "[build-rs-worker] Running cargo build --release."
     & $cargoCmd.Source build --release -p worker --target-dir $TargetDir
   }
   if ($LASTEXITCODE -ne 0) {
@@ -61,12 +61,12 @@ try {
   Pop-Location
 }
 
-$sourceExe = Join-Path $TargetDir "release\worker.exe"
+$sourceExe = Join-Path $TargetDir "release\rs-worker.exe"
 if (-not (Test-Path -LiteralPath $sourceExe)) {
-  throw "Built engine executable not found: $sourceExe"
+  throw "Built rs-worker executable not found: $sourceExe"
 }
 
 New-Item -ItemType Directory -Path $DistDir -Force | Out-Null
-$primaryTargetExe = Join-Path $DistDir "worker.exe"
+$primaryTargetExe = Join-Path $DistDir "rs-worker.exe"
 Copy-Item -LiteralPath $sourceExe -Destination $primaryTargetExe -Force
-Write-Host "[build-conductor-engine] Copied engine to $primaryTargetExe"
+Write-Host "[build-rs-worker] Copied rs-worker to $primaryTargetExe"

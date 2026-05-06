@@ -12,8 +12,8 @@ $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 $CrateDir = Join-Path $ProjectRoot "conductor-rs\worker"
 $RequestsPath = Join-Path $ProjectRoot ".tooling\rust-ss-auto-compat\requests.jsonl"
 $ResultsPath = Join-Path $ProjectRoot ".tooling\rust-ss-auto-compat\rust-results.jsonl"
-$EngineExe = Join-Path $ProjectRoot "conductor-rs\target\release\worker.exe"
-$PackagedEngineExe = Join-Path $ProjectRoot "excel\bin\worker.exe"
+$RsWorkerExe = Join-Path $ProjectRoot "conductor-rs\target\release\rs-worker.exe"
+$PackagedRsWorkerExe = Join-Path $ProjectRoot "excel\bin\rs-worker.exe"
 
 if (-not (Test-Path -LiteralPath $RequestsPath)) {
   throw "Rust SS auto compatibility requests were not prepared: $RequestsPath"
@@ -26,10 +26,10 @@ try {
     throw "Rust SS auto release build failed with exit code $LASTEXITCODE"
   }
   $startedAt = [System.Diagnostics.Stopwatch]::StartNew()
-  if (-not (Test-Path -LiteralPath $EngineExe)) {
-    $EngineExe = $PackagedEngineExe
+  if (-not (Test-Path -LiteralPath $RsWorkerExe)) {
+    $RsWorkerExe = $PackagedRsWorkerExe
   }
-  $results = Get-Content -LiteralPath $RequestsPath -Raw | & $EngineExe --stdio-worker
+  $results = Get-Content -LiteralPath $RequestsPath -Raw | & $RsWorkerExe --stdio-worker
   $startedAt.Stop()
   if ($LASTEXITCODE -ne 0) {
     throw "Rust SS auto compatibility run failed with exit code $LASTEXITCODE"

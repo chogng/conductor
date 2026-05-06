@@ -11,7 +11,7 @@ const DEFAULT_ROOTS = [
 
 const SUPPORTED_EXTENSIONS = new Set([".csv", ".xls", ".xlsx"]);
 const ROOT = process.cwd();
-const EXE_PATH = path.join(ROOT, "excel", "bin", "worker.exe");
+const EXE_PATH = path.join(ROOT, "excel", "bin", "rs-worker.exe");
 
 const formatMs = (value) => `${Math.round(value)}ms`;
 const formatBytes = (value) => {
@@ -51,7 +51,7 @@ const walkFiles = async (root) => {
   return files;
 };
 
-const createEngine = () => {
+const createRsWorker = () => {
   const child = spawn(EXE_PATH, ["--stdio-worker"], {
     stdio: ["pipe", "pipe", "pipe"],
     windowsHide: true,
@@ -77,7 +77,7 @@ const createEngine = () => {
       if (message.ok) {
         entry.resolve(message.result);
       } else {
-        entry.reject(new Error(message.error?.message || "engine failed"));
+        entry.reject(new Error(message.error?.message || "rs-worker failed"));
       }
     }
   });
@@ -112,7 +112,7 @@ for (const root of selectedRoots) {
 }
 files.sort((a, b) => a.localeCompare(b));
 
-const engine = createEngine();
+const rsWorker = createRsWorker();
 const started = performance.now();
 let rows = 0;
 let cells = 0;
@@ -125,7 +125,7 @@ try {
     const fileId = `bench-${index}`;
     const stat = await fs.stat(filePath);
     sourceBytes += stat.size;
-    const openResult = await engine.send("open", {
+    const openResult = await rsWorker.send("open", {
       fileId,
       fileName: path.basename(filePath),
       path: filePath,
@@ -135,23 +135,23 @@ try {
     cells +=
       (Number(openResult.rowCount) || 0) *
       Math.max(0, Number(openResult.columnCount) || 0);
-    const rowsResult = await engine.send("previewRows", {
+    const rowsResult = await rsWorker.send("previewRows", {
       endRow: Math.min(24, Number(openResult.rowCount) || 0),
       fileId,
       startRow: 0,
     });
     previewRows += Array.isArray(rowsResult.rows) ? rowsResult.rows.length : 0;
     if ((index + 1) % 25 === 0 || index + 1 === files.length) {
-      console.log(`[rust-engine-preview] opened ${index + 1}/${files.length}`);
+      console.log(`[rs-worker-preview] opened ${index + 1}/${files.length}`);
     }
   }
 
-  console.log("\n[rust-engine-preview summary]");
+  console.log("\n[rs-worker-preview summary]");
   console.log(`files=${files.length}`);
   console.log(`source=${formatBytes(sourceBytes)}`);
   console.log(`rows=${rows} approxCells=${cells} previewRows=${previewRows}`);
   console.log(`wall=${formatMs(performance.now() - started)}`);
   console.log(`nodeRss=${formatBytes(process.memoryUsage().rss)}`);
 } finally {
-  engine.close();
+  rsWorker.close();
 }

@@ -5,7 +5,7 @@ edition = "2024"
 autobins = false
 
 [[bin]]
-name = "worker"
+name = "rs-worker"
 path = "src/main.rs"
 
 [dependencies]
