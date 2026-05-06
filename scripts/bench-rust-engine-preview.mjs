@@ -11,7 +11,7 @@ const DEFAULT_ROOTS = [
 
 const SUPPORTED_EXTENSIONS = new Set([".csv", ".xls", ".xlsx"]);
 const ROOT = process.cwd();
-const EXE_PATH = path.join(ROOT, "excel", "bin", "rust-xls-converter.exe");
+const EXE_PATH = path.join(ROOT, "excel", "bin", "conductor-engine.exe");
 
 const formatMs = (value) => `${Math.round(value)}ms`;
 const formatBytes = (value) => {

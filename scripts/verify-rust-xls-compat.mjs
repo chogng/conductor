@@ -8,11 +8,17 @@ import { assessImportedDeviceAnalysisFile } from "../src/features/device-analysi
 const ROOT = process.cwd();
 const DEFAULT_RUST_EXE = path.join(
   ROOT,
+  "excel",
+  "bin",
+  "conductor-engine.exe",
+);
+const LEGACY_RUST_EXE = path.join(
+  ROOT,
   "tools",
-  "rust-xls-bench",
+  "conductor-engine",
   "target",
   "release",
-  "rust-xls-bench.exe",
+  "conductor-engine.exe",
 );
 const OUTPUT_DIR = path.join(ROOT, ".tooling", "rust-xls-compat");
 const RUST_CSV_DIR = path.join(OUTPUT_DIR, "rust-csv");
@@ -151,22 +157,23 @@ const assessCsvText = async (csvText, fileName) => {
 
 const main = async () => {
   const rustExe = process.env.RUST_XLS_BENCH_EXE || DEFAULT_RUST_EXE;
-  if (!fs.existsSync(rustExe)) {
-    throw new Error(`Rust benchmark executable not found: ${rustExe}`);
+  const engineExe = fs.existsSync(rustExe) ? rustExe : LEGACY_RUST_EXE;
+  if (!fs.existsSync(engineExe)) {
+    throw new Error(`Rust engine executable not found: ${rustExe} or ${LEGACY_RUST_EXE}`);
   }
 
   fs.rmSync(OUTPUT_DIR, { force: true, recursive: true });
   fs.mkdirSync(RUST_CSV_DIR, { recursive: true });
 
-  const rustRun = spawnSync(rustExe, ["--threads", "2", "--write-dir", RUST_CSV_DIR], {
-    cwd: path.dirname(rustExe),
+  const rustRun = spawnSync(engineExe, ["--threads", "2", "--write-dir", RUST_CSV_DIR], {
+    cwd: path.dirname(engineExe),
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
   process.stdout.write(rustRun.stdout ?? "");
   process.stderr.write(rustRun.stderr ?? "");
   if (rustRun.status !== 0) {
-    throw new Error(`Rust converter failed with exit code ${rustRun.status}`);
+    throw new Error(`Rust engine failed with exit code ${rustRun.status}`);
   }
 
   const manifestPath = path.join(RUST_CSV_DIR, "manifest.tsv");

@@ -11,7 +11,7 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 }
 
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
-$CrateDir = Join-Path $ProjectRoot "tools\rust-xls-bench"
+$CrateDir = Join-Path $ProjectRoot "tools\conductor-engine"
 $BenchDir = Join-Path $ProjectRoot ".tooling\device-analysis-phase3-bench"
 if ($RequestSet -eq "analysis") {
   $RequestsPath = Join-Path $BenchDir "analysis-requests.jsonl"
@@ -22,7 +22,7 @@ if ($RequestSet -eq "analysis") {
   $ResultsPath = Join-Path $BenchDir "rust-results.jsonl"
   $TimingPath = Join-Path $BenchDir "rust-process-timing.json"
 }
-$EngineExe = Join-Path $CrateDir "target\release\rust-xls-bench.exe"
+$EngineExe = Join-Path $CrateDir "target\release\conductor-engine.exe"
 
 if (-not (Test-Path -LiteralPath $RequestsPath)) {
   throw "Phase 3 benchmark requests were not prepared: $RequestsPath"

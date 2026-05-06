@@ -15,11 +15,10 @@ const DEFAULT_ROOT = "C:/Users/lanxi/Desktop/293K";
 const OUTPUT_DIR = path.join(ROOT, ".tooling", "rust-origin-export-compat");
 const RUST_CSV_DIR = path.join(OUTPUT_DIR, "rust-csv");
 const REPORT_PATH = path.join(OUTPUT_DIR, "report.json");
-const CRATE_DIR = path.join(ROOT, "tools", "rust-xls-bench");
+const CRATE_DIR = path.join(ROOT, "tools", "conductor-engine");
 const ENGINE_CANDIDATES = [
-  path.join(CRATE_DIR, "target", "release", "rust-xls-bench.exe"),
-  path.join(CRATE_DIR, "target", "release", "conductor-engine.exe"),
   path.join(ROOT, "excel", "bin", "conductor-engine.exe"),
+  path.join(CRATE_DIR, "target", "release", "conductor-engine.exe"),
   path.join(ROOT, "excel", "bin", "rust-xls-converter.exe"),
 ];
 const SUPPORTED_EXTENSIONS = new Set([".csv", ".xls", ".xlsx"]);

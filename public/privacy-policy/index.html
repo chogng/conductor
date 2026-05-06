@@ -101,6 +101,11 @@
         font-size: 0.95rem;
       }
 
+      .meta {
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
       @media (max-width: 640px) {
         main {
           padding: 20px 12px 40px;
@@ -118,25 +123,71 @@
       <article class="card">
         <p class="eyebrow">Privacy Policy</p>
         <h1>Conductor Studio</h1>
+        <p class="meta">Last updated: May 6, 2026</p>
 
         <p>
-          Conductor Studio does not collect, store, or sell personal information.
+          Conductor Studio is a desktop-first analysis tool. We do not sell
+          personal information, run advertising trackers, or collect analytics
+          telemetry about how you use the app.
         </p>
 
-        <p>
-          The application may access network resources for:
-        </p>
+        <div class="section">
+          <p class="note">Information handled locally</p>
+          <p>
+            Conductor Studio is designed to process your device-analysis files
+            on your own machine. Files you open in the app, generated results,
+            templates, app settings, and local workspace preferences are stored
+            locally on the device you control unless you explicitly export or
+            upload them yourself.
+          </p>
+        </div>
 
-        <ul>
-          <li>software updates</li>
-          <li>online documentation</li>
-          <li>AI-related features explicitly initiated by the user</li>
-        </ul>
+        <div class="section">
+          <p class="note">Network access</p>
+          <p>The application may access network resources for:</p>
 
-        <p>
-          No personal data is shared with third parties except services directly
-          requested by the user.
-        </p>
+          <ul>
+            <li>checking for and downloading software updates</li>
+            <li>opening online documentation or support pages</li>
+            <li>AI-related or cloud-connected features explicitly initiated by the user</li>
+          </ul>
+
+          <p>
+            Outside of these cases, Conductor Studio is intended to work
+            primarily with local files and local application data.
+          </p>
+        </div>
+
+        <div class="section">
+          <p class="note">Information sharing</p>
+          <p>
+            We do not share your files or personal information with third
+            parties for advertising or profiling. If you choose to use a
+            third-party or cloud-connected feature, only the information needed
+            for that action is sent to the service you selected.
+          </p>
+        </div>
+
+        <div class="section">
+          <p class="note">Updates and diagnostics</p>
+          <p>
+            Desktop releases may contact GitHub-hosted update endpoints to check
+            whether a newer version of the app is available. This update check
+            is used only to deliver software updates.
+          </p>
+          <p>
+            Conductor Studio does not intentionally include advertising SDKs or
+            usage analytics telemetry in its normal desktop workflow.
+          </p>
+        </div>
+
+        <div class="section">
+          <p class="note">Policy changes</p>
+          <p>
+            If this privacy policy changes, the updated version will be posted
+            on this page with a revised "Last updated" date.
+          </p>
+        </div>
 
         <div class="section">
           <p class="note">Contact</p>

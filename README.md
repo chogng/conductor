@@ -44,7 +44,7 @@ live, save that rule as a template, then reuse it across future experiments.
 - Persistent local templates, app settings, Origin path settings, and custom
   storage location support.
 - Bundled Rust Excel converter and Python Origin CSV worker in packaged builds.
-- Electron Builder packaging, Windows release artifacts, and auto-update support.
+- Electron Builder packaging, Windows release artifacts, and auto-update support for desktop distribution.
 
 ## Project Map
 
@@ -118,13 +118,13 @@ Build and package:
 - `npm run pack:desktop:oneclick`: one-click desktop dir packaging
 - `npm run dist:desktop:oneclick`: one-click desktop installer build
 
-Release and verification:
+Supporting release and verification:
 
 - `npm run verify:auto-update-config`: verify updater configuration
 - `npm run build:origin-csv-worker`: build the Origin worker EXE
 - `npm run verify:origin-worker`: verify the Origin worker EXE and embedded version metadata
-- `npm run dist:desktop:publish`: local desktop release publishing flow
-- `npm run release:desktop:local`: explicit local release entrypoint
+- `npm run dist:desktop:publish`: local desktop release publishing flow when preparing a build
+- `npm run release:desktop:local`: explicit local release entrypoint for distribution work
 
 Packaging note:
 
@@ -263,7 +263,7 @@ If a custom config path is used, for example `D:\DeviceAnalysis\config.json`, th
 
 Windows desktop releases support `electron-updater`.
 
-Recommended release flow:
+Recommended distribution flow:
 
 1. bump `package.json.version`
 2. push the matching code and tag, usually `v<version>`
@@ -272,6 +272,22 @@ Recommended release flow:
 5. verify the release contains `latest.yml`, installer, and matching blockmap files
 
 Reference: [docs/desktop-auto-update.md](./docs/desktop-auto-update.md)
+
+Release process and commit/release note conventions:
+
+- [docs/engineering-release-notes.md](./docs/engineering-release-notes.md)
+
+Issue reporting:
+
+- Use the GitHub issue templates for bugs, feature requests, and documentation issues so labels and release-note intent stay structured.
+
+Workflow structure:
+
+- Fast checks run in `ci.yml`.
+- Desktop packaging checks run in `desktop-ci.yml`.
+- Rust-sidecar checks run in `rust-ci.yml`.
+- Python Origin worker checks run in `python-worker-ci.yml`.
+- GitHub Pages deployment in `pages.yml` publishes the static privacy policy site from `public/`.
 
 ## Microsoft Store
 
@@ -303,10 +319,10 @@ Project icons:
 - `build/icons/icon.icns`
 - `build/icons/icon.ico`
 
-Regenerate from `public/logo.svg`:
+These files are treated as checked-in build assets. Verify them with:
 
 ```bash
-npm run make:icons
+npm run verify:icons
 ```
 
 ## Code Signing

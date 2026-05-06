@@ -1,0 +1,33 @@
+name: Labels Audit
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Verify labels catalog exists
+        run: |
+          set -euo pipefail
+          test -f .github/labels.yml
+          echo "Found .github/labels.yml"
+
+      - name: Summarize labels catalog
+        run: |
+          set -euo pipefail
+          echo "## Repository label catalog" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          awk '
+            /^- name:/ {name=$3}
+            /^  description:/ {
+              sub(/^  description: /, "", $0)
+              printf "- `%s`: %s\n", name, $0
+            }
+          ' .github/labels.yml >> "$GITHUB_STEP_SUMMARY"

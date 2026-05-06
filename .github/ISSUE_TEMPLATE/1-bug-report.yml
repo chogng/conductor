@@ -1,0 +1,60 @@
+name: Bug Report
+description: Report a reproducible defect in Conductor Studio
+title: "fix: "
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Affected area
+      description: Pick the main product surface involved in this bug.
+      options:
+        - device-analysis
+        - origin
+        - desktop
+        - electron
+        - release
+        - docs
+        - ci
+        - pages
+    validations:
+      required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the bug clearly and concretely.
+      placeholder: Importing a saved template causes the curve order to reset.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Import ...
+        3. Apply ...
+        4. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: The saved curve ordering should remain unchanged after reload.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include app version, OS, and any relevant file or workflow context.
+      placeholder: Conductor Studio 0.5.17, Windows 11, desktop package, Origin installed.
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context
+      description: Screenshots, logs, sample file notes, or related issues.

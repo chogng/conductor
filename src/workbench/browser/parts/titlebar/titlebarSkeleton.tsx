@@ -1,6 +1,5 @@
 import {
   WORKBENCH_TITLEBAR_APP_ICON_SRC,
-  WORKBENCH_TITLEBAR_APP_NAME,
 } from "./titlebarPart";
 
 type WorkbenchTitlebarSkeletonProps = {
@@ -34,7 +33,6 @@ export const WorkbenchTitlebarSkeleton = ({
         aria-hidden="true"
         className="da_top_menu_brand_icon"
       />
-      <span>{WORKBENCH_TITLEBAR_APP_NAME}</span>
     </div>
 
     <div className="da_window_controls ml-4">

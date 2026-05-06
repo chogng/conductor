@@ -259,10 +259,10 @@ Windows 桌面版支持 `electron-updater`。
 - `build/icons/icon.icns`
 - `build/icons/icon.ico`
 
-从 `public/logo.svg` 重新生成：
+这些文件作为仓库内置的构建资源直接使用，可通过下面命令校验：
 
 ```bash
-npm run make:icons
+npm run verify:icons
 ```
 
 ## 代码签名

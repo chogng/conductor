@@ -1,0 +1,31 @@
+name: Setup Windows Node and Python
+description: Prepare the common Windows CI environment for Conductor workflows.
+
+inputs:
+  node-version:
+    description: Node.js version to install
+    required: false
+    default: "22"
+  python-version:
+    description: Python version to install
+    required: false
+    default: "3.11"
+
+runs:
+  using: composite
+  steps:
+    - name: Configure Windows CI cache environment
+      shell: pwsh
+      run: |
+        & (Join-Path $env:GITHUB_WORKSPACE ".github\scripts\install-windows-env.ps1")
+
+    - name: Setup Node
+      uses: actions/setup-node@v6
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: npm
+
+    - name: Setup Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ inputs.python-version }}

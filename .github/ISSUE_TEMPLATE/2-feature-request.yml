@@ -1,0 +1,46 @@
+name: Feature Request
+description: Suggest a new capability or user-experience improvement
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Target area
+      description: Pick the main product surface for this request.
+      options:
+        - device-analysis
+        - origin
+        - desktop
+        - electron
+        - release
+        - docs
+        - ci
+        - pages
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      placeholder: Repeated batch imports require reconfiguring the same chart export settings.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to happen?
+      placeholder: Add a saved export preset that can be applied during batch analysis.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What alternatives have you considered?
+      placeholder: We currently duplicate prior sessions manually and edit settings file-by-file.
+  - type: textarea
+    id: release_note
+    attributes:
+      label: If shipped, how should this read in release notes?
+      description: One short user-facing sentence.
+      placeholder: Users can now apply saved export presets during batch analysis.

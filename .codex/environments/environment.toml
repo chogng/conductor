@@ -1,0 +1,10 @@
+version = 1
+name = "conductor"
+
+[setup]
+script = ""
+
+[[actions]]
+name = "Run Desktop"
+icon = "run"
+command = "npm run dev:desktop"

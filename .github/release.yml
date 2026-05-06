@@ -1,0 +1,39 @@
+changelog:
+  categories:
+    - title: New Features
+      labels:
+        - feat
+        - feature
+        - enhancement
+    - title: Bug Fixes
+      labels:
+        - fix
+        - bug
+        - bugfix
+    - title: Documentation
+      labels:
+        - docs
+        - documentation
+    - title: Performance
+      labels:
+        - perf
+        - performance
+    - title: Refactors
+      labels:
+        - refactor
+    - title: Testing
+      labels:
+        - test
+        - tests
+    - title: Chores
+      labels:
+        - chore
+        - build
+        - ci
+        - deps
+        - dependencies
+  exclude:
+    labels:
+      - skip-changelog
+      - duplicate
+      - invalid

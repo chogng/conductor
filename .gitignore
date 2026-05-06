@@ -42,6 +42,7 @@ server/.tmp/
 
 # Local debug snippets
 mcp-claude-hover-snippet.js
+.codex-artifacts/
 
 
 # Origin batch worker local build artifacts

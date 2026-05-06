@@ -1,0 +1,71 @@
+- name: feat
+  color: "0e8a16"
+  description: User-facing features and new capabilities
+
+- name: fix
+  color: "d73a4a"
+  description: Bug fixes and regressions
+
+- name: docs
+  color: "0052cc"
+  description: Documentation-only changes
+
+- name: chore
+  color: "6f42c1"
+  description: Maintenance, cleanup, or dependency work
+
+- name: refactor
+  color: "fbca04"
+  description: Internal restructuring without intended behavior change
+
+- name: perf
+  color: "c2e0c6"
+  description: Performance improvements
+
+- name: test
+  color: "bfd4f2"
+  description: Test-only changes or verification coverage
+
+- name: enhancement
+  color: "84b6eb"
+  description: Requested improvements or new UX capabilities
+
+- name: bug
+  color: "d73a4a"
+  description: Reproducible defects in the product
+
+- name: documentation
+  color: "0e8a16"
+  description: Documentation issues reported from GitHub issues
+
+- name: ci
+  color: "5319e7"
+  description: Continuous integration or workflow-related work
+
+- name: release
+  color: "1d76db"
+  description: Release workflow, artifacts, and publishing changes
+
+- name: desktop
+  color: "c5def5"
+  description: Desktop application or packaging surface
+
+- name: electron
+  color: "bfdadc"
+  description: Electron runtime and shell behavior
+
+- name: origin
+  color: "f9d0c4"
+  description: Origin integration and export pipeline
+
+- name: device-analysis
+  color: "fef2c0"
+  description: Device analysis workflow, charts, extraction, and metrics
+
+- name: pages
+  color: "006b75"
+  description: Static site or GitHub Pages related changes
+
+- name: skip-changelog
+  color: "ededed"
+  description: Exclude this PR from generated release notes

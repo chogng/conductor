@@ -1,0 +1,43 @@
+name: Desktop CI
+
+on:
+  pull_request:
+    paths:
+      - "desktop/**"
+      - "src/**"
+      - "public/**"
+      - "build/**"
+      - "scripts/build-desktop.mjs"
+      - "scripts/verify-auto-update-config.ts"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.desktop.json"
+      - "vite.config.js"
+      - ".github/workflows/desktop-ci.yml"
+      - ".github/workflows/release-windows.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  desktop-validate:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup shared Windows toolchain
+        uses: ./.github/actions/setup-windows-node-python
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify auto-update config
+        run: npm run verify:auto-update-config
+
+      - name: Build desktop artifacts
+        run: npm run build:desktop
+
+      - name: Validate desktop packaging
+        run: npx electron-builder --publish never

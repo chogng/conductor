@@ -57,6 +57,14 @@ Recommended flow:
 3. The workflow runs on that tag and:
    - uploads updater-only assets (`latest.yml`, installer, blockmap) to the public update repository
    - mirrors full `release/` artifacts to the private source repository release
+   - lets GitHub generate release notes for the private source repository release using `.github/release.yml`
+
+To keep generated release notes readable, prefer semantic PR titles / squash commits such as:
+
+- `feat: add automatic origin export retry`
+- `fix: preserve template curve ordering after reload`
+- `docs: clarify Windows release verification steps`
+- `chore: clean up desktop packaging scripts`
 
 ## 2.2 One-command local release (without Actions)
 
@@ -71,6 +79,7 @@ What it does:
 - validates updater publish config in `package.json`
 - builds desktop artifacts into `release/`
 - creates or updates GitHub Release `v<package.json version>`
+- generates GitHub release notes by default, using `.github/release.yml`
 - uploads only updater-required files: `latest.yml`, `*-setup.exe`, and matching `*.blockmap` (with overwrite on existing assets)
 
 Requirements:
@@ -79,13 +88,16 @@ Requirements:
 - repository access permission for creating/editing Releases
 - `package.json` version bumped before running
 
+If needed, you can still override generated notes by calling the PowerShell script
+directly and passing `-GenerateNotes:$false -Notes "..."`.
+
 ## 2.3 Closed-source Windows release notes
 
 If you are shipping a closed-source Windows build without a paid code-signing certificate:
 
 - Windows may show a Microsoft Defender SmartScreen warning that the publisher is unknown.
 - This repo's GitHub Actions workflow uploads two extra assets to each Windows release:
-  - `SHA256SUMS.txt` for `.exe`, `.zip`, and `.7z` artifacts
+  - `SHA256SUMS.txt` for `.exe`, `.zip`, `.appx`, and `.msix` artifacts
   - `WINDOWS-DOWNLOADS.txt` with verification and SmartScreen guidance
 - These extra files are mirrored to the private source-repo release for traceability.
 - Public updater-repo releases remain minimal and contain only updater-required assets.

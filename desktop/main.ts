@@ -785,7 +785,8 @@ function isSupportedRustDeviceAnalysisInputPath(filePath) {
 
 function resolveRustExcelConverterPath() {
   const envPath = normalizeAbsoluteFilePath(
-    process.env.CONDUCTOR_RUST_XLS_CONVERTER_PATH,
+    process.env.CONDUCTOR_ENGINE_PATH
+      || process.env.CONDUCTOR_RUST_XLS_CONVERTER_PATH,
   );
   const candidates = [
     envPath,
@@ -795,7 +796,7 @@ function resolveRustExcelConverterPath() {
           __dirname,
           "..",
           ".tooling",
-          "rust-xls-target",
+          "conductor-engine-target",
           "release",
           "conductor-engine.exe",
         )
@@ -805,7 +806,7 @@ function resolveRustExcelConverterPath() {
           __dirname,
           "..",
           "tools",
-          "rust-xls-bench",
+          "conductor-engine",
           "target",
           "release",
           "conductor-engine.exe",

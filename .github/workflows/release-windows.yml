@@ -21,13 +21,6 @@ jobs:
       WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
       WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
       WIN_CSC_SUBJECT_NAME: ${{ secrets.WIN_CSC_SUBJECT_NAME }}
-      UV_CACHE_DIR: ${{ github.workspace }}\\.device\\uv-cache
-      UV_PYTHON_INSTALL_DIR: ${{ github.workspace }}\\.device\\uv-python
-      PIP_CACHE_DIR: ${{ github.workspace }}\\.device\\pip-cache
-      PYINSTALLER_CONFIG_DIR: ${{ github.workspace }}\\.device\\pyinstaller-cache
-      ELECTRON_CACHE: ${{ github.workspace }}\\.device\\electron-cache
-      ELECTRON_BUILDER_CACHE: ${{ github.workspace }}\\.device\\electron-builder-cache
-      npm_config_cache: ${{ github.workspace }}\\.device\\npm-cache
     steps:
       - name: Checkout (tag push)
         if: github.event_name != 'workflow_dispatch'
@@ -42,21 +35,8 @@ jobs:
           fetch-depth: 0
           ref: ${{ inputs.tag }}
 
-      - name: Ensure .device cache dir
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path ".device" | Out-Null
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: "22"
-          cache: "npm"
-
-      - name: Setup Python 3.11
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.11"
+      - name: Setup shared Windows toolchain
+        uses: ./.github/actions/setup-windows-node-python
 
       - name: Resolve release tag
         id: release_meta
@@ -72,22 +52,12 @@ jobs:
       - name: Guard source repository
         shell: pwsh
         run: |
-          # Safety rail: this workflow must run from the private source repository.
-          if ($env:GITHUB_REPOSITORY -eq "chogng/conductor-update") {
-            throw "This workflow must run in the private source repository, not in chogng/conductor-update."
-          }
+          & .github\scripts\verify-source-repository.ps1
 
       - name: Verify tag matches package.json version
-        shell: bash
+        shell: pwsh
         run: |
-          TAG="${GITHUB_REF_NAME}"
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG="${{ inputs.tag }}"
-          fi
-
-          node --input-type=module -e "import fs from 'node:fs'; const pkg=JSON.parse(fs.readFileSync('package.json','utf8')); const expected='v'+String(pkg.version||'').trim(); const tag=String(process.env.TAG||'').trim(); if (!tag) { console.error('Missing tag'); process.exit(1); } if (tag!==expected) { console.error('Tag/version mismatch: tag='+tag+' expected='+expected); process.exit(1); } console.log('OK: '+tag+' matches package.json version '+pkg.version);"
-        env:
-          TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          & .github\scripts\verify-release-tag.ps1 -Tag "${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
 
       - name: Install dependencies
         run: npm ci
@@ -98,164 +68,14 @@ jobs:
       - name: Build Microsoft Store AppX artifact
         run: npm run dist:desktop:store
 
-      - name: Inspect Windows signatures
-        id: signature_meta
-        shell: pwsh
-        run: |
-          $releaseDir = Join-Path $PWD "release"
-          if (-not (Test-Path -LiteralPath $releaseDir)) {
-            throw "Release directory not found: $releaseDir"
-          }
-
-          $exeArtifacts = Get-ChildItem -Path $releaseDir -File |
-            Where-Object { $_.Extension -eq '.exe' } |
-            Sort-Object Name
-
-          if (-not $exeArtifacts) {
-            throw "No Windows executable artifacts found in release/."
-          }
-
-          $statuses = foreach ($artifact in $exeArtifacts) {
-            $signature = Get-AuthenticodeSignature -FilePath $artifact.FullName
-            [PSCustomObject]@{
-              Name = $artifact.Name
-              Status = [string]$signature.Status
-              Subject = [string]$signature.SignerCertificate.Subject
-            }
-          }
-
-          $allValid = ($statuses | Where-Object { $_.Status -ne 'Valid' }).Count -eq 0
-          $subject = $statuses | Where-Object { $_.Subject } | Select-Object -First 1 -ExpandProperty Subject
-
-          "signed=$($allValid.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          "subject=$subject" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-
-          $statuses |
-            ForEach-Object {
-              "{0}`t{1}`t{2}" -f $_.Name, $_.Status, $_.Subject
-            } |
-            Set-Content -Path "release/WINDOWS-SIGNATURES.txt" -Encoding utf8
+      - name: Prepare Windows release assets
+        id: release_assets
+        uses: ./.github/actions/prepare-windows-release-assets
 
       - name: Publish updater assets to public update repository
-        shell: pwsh
-        env:
-          RELEASE_TAG: ${{ steps.release_meta.outputs.tag }}
-          UPDATE_REPO: chogng/conductor-update
-        run: |
-          # Public repo is updater-only: keep uploads to minimum auto-update files.
-          $releaseDir = Join-Path $PWD "release"
-          if (-not (Test-Path -LiteralPath $releaseDir)) {
-            throw "Release directory not found: $releaseDir"
-          }
-
-          $latestYmlPath = Join-Path $releaseDir "latest.yml"
-          if (-not (Test-Path -LiteralPath $latestYmlPath)) {
-            throw "Missing latest.yml in release/."
-          }
-
-          $setupAssets = Get-ChildItem -Path $releaseDir -File |
-            Where-Object { $_.Name -like "*-setup.exe" } |
-            Sort-Object Name
-
-          if (-not $setupAssets) {
-            throw "No installer assets (*-setup.exe) found in release/."
-          }
-
-          # Required by electron-updater on Windows: latest.yml + setup.exe + setup.exe.blockmap.
-          $updaterAssets = @((Get-Item -LiteralPath $latestYmlPath))
-          foreach ($setup in $setupAssets) {
-            $blockmapPath = "$($setup.FullName).blockmap"
-            if (-not (Test-Path -LiteralPath $blockmapPath)) {
-              throw "Missing blockmap for $($setup.Name): $blockmapPath"
-            }
-
-            $updaterAssets += $setup
-            $updaterAssets += Get-Item -LiteralPath $blockmapPath
-          }
-
-          $updaterAssets = $updaterAssets | Sort-Object FullName -Unique
-          $assetPaths = $updaterAssets | ForEach-Object { $_.FullName }
-
-          gh release view $env:RELEASE_TAG -R $env:UPDATE_REPO *> $null
-          if ($LASTEXITCODE -ne 0) {
-            gh release create $env:RELEASE_TAG --title $env:RELEASE_TAG --notes "Public updater channel assets only." -R $env:UPDATE_REPO
-            if ($LASTEXITCODE -ne 0) {
-              throw "Failed to create release $env:RELEASE_TAG in $env:UPDATE_REPO."
-            }
-          }
-
-          gh release upload $env:RELEASE_TAG $assetPaths --clobber -R $env:UPDATE_REPO
-          if ($LASTEXITCODE -ne 0) {
-            throw "Failed to upload updater assets to $env:UPDATE_REPO."
-          }
-
-      - name: Generate Windows release checksums
-        shell: pwsh
-        env:
-          WINDOWS_BINARIES_SIGNED: ${{ steps.signature_meta.outputs.signed }}
-          WINDOWS_SIGNER_SUBJECT: ${{ steps.signature_meta.outputs.subject }}
-        run: |
-          $artifacts = Get-ChildItem -Path "release" -File |
-            Where-Object { $_.Extension -in '.exe', '.zip', '.appx', '.msix' } |
-            Sort-Object Name
-
-          if (-not $artifacts) {
-            throw "No Windows release artifacts found in release/."
-          }
-
-          $checksumLines = foreach ($artifact in $artifacts) {
-            $hash = (Get-FileHash -Path $artifact.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-            "{0}  {1}" -f $hash, $artifact.Name
-          }
-
-          Set-Content -Path "release/SHA256SUMS.txt" -Value $checksumLines -Encoding ascii
-
-          if ($env:WINDOWS_BINARIES_SIGNED -eq "true") {
-            $publisher = $env:WINDOWS_SIGNER_SUBJECT
-            if (-not $publisher) {
-              $publisher = "the configured code-signing certificate"
-            }
-
-            $infoLines = @(
-              "conductor Windows downloads"
-              ""
-              "These Windows binaries are Authenticode-signed by $publisher."
-              ""
-              "Recommended package:"
-              "- Prefer the *-setup.exe installer for non-Store installs."
-              "- Use the *-store.appx package for Microsoft Store submission."
-              "- Use the *-portable.zip archive for the broadest compatibility."
-              ""
-              "How to verify a download in PowerShell:"
-              "1. Download the app file and SHA256SUMS.txt from this release."
-              "2. Run: Get-FileHash .\\<filename> -Algorithm SHA256"
-              "3. Compare the SHA256 value with the matching line in SHA256SUMS.txt."
-              "4. Optional: Run Get-AuthenticodeSignature .\\<filename> and confirm Status is Valid."
-              ""
-              "Files in this release:"
-            )
-          } else {
-            $infoLines = @(
-              "conductor Windows downloads"
-              ""
-              "These Windows binaries are unsigned. Microsoft Defender SmartScreen may show an 'Unknown publisher' warning the first time they are opened."
-              ""
-              "Recommended package:"
-              "- Prefer the *-setup.exe installer for non-Store installs."
-              "- Use the *-store.appx package for Microsoft Store submission."
-              "- Use the *-portable.zip archive for the broadest compatibility."
-              ""
-              "How to verify a download in PowerShell:"
-              "1. Download the app file and SHA256SUMS.txt from this release."
-              "2. Run: Get-FileHash .\\<filename> -Algorithm SHA256"
-              "3. Compare the SHA256 value with the matching line in SHA256SUMS.txt."
-              ""
-              "Files in this release:"
-            )
-          }
-
-          $infoLines += $artifacts | ForEach-Object { "- $($_.Name)" }
-          Set-Content -Path "release/WINDOWS-DOWNLOADS.txt" -Value $infoLines -Encoding utf8
+        uses: ./.github/actions/publish-windows-updater-assets
+        with:
+          release-tag: ${{ steps.release_meta.outputs.tag }}
 
       - name: Mirror release assets to source repository
         shell: pwsh
@@ -272,7 +92,7 @@ jobs:
 
           gh release view $env:RELEASE_TAG -R $env:SOURCE_REPO *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $env:RELEASE_TAG --title $env:RELEASE_TAG --notes "Automated release artifacts from CI." -R $env:SOURCE_REPO
+            gh release create $env:RELEASE_TAG --title $env:RELEASE_TAG --generate-notes -R $env:SOURCE_REPO
             if ($LASTEXITCODE -ne 0) {
               throw "Failed to create release $env:RELEASE_TAG in $env:SOURCE_REPO."
             }
@@ -289,8 +109,8 @@ jobs:
         run: |
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '## Windows release extras'
           Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '- Public updater repo: uploaded only `latest.yml`, installer (`*-setup.exe`), and matching `.blockmap`.'
-          if ("${{ steps.signature_meta.outputs.signed }}" -eq "true") {
-            $subject = "${{ steps.signature_meta.outputs.subject }}"
+          if ("${{ steps.release_assets.outputs.signed }}" -eq "true") {
+            $subject = "${{ steps.release_assets.outputs.subject }}"
             if ([string]::IsNullOrWhiteSpace($subject)) {
               $subject = "configured code-signing certificate"
             }

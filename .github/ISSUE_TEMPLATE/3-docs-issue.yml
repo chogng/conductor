@@ -1,0 +1,35 @@
+name: Documentation Issue
+description: Report missing, incorrect, or confusing documentation
+title: "docs: "
+labels: ["docs"]
+body:
+  - type: dropdown
+    id: issue_type
+    attributes:
+      label: Documentation issue type
+      options:
+        - Missing documentation
+        - Incorrect documentation
+        - Confusing documentation
+    validations:
+      required: true
+  - type: input
+    id: location
+    attributes:
+      label: Where is the issue?
+      description: Link or file path if known.
+      placeholder: docs/desktop-auto-update.md
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is unclear or wrong?
+      placeholder: The release flow does not explain how generated GitHub release notes are categorized.
+    validations:
+      required: true
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested improvement
+      placeholder: Add a short section that explains semantic PR titles and .github/release.yml.

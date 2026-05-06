@@ -33,11 +33,6 @@ if (isWin) {
 }
 
 {
-  const code = runNpm("make:icons");
-  if (code !== 0) process.exit(code);
-}
-
-{
   const code = runNpm("verify:icons");
   if (code !== 0) process.exit(code);
 }

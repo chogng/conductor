@@ -1,8 +1,9 @@
 param(
   [string]$Tag = "",
-  [string]$Notes = "Automated local desktop release.",
+  [string]$Notes = "",
   [switch]$Draft,
   [switch]$PreRelease,
+  [switch]$GenerateNotes,
   [switch]$SkipVerify,
   [switch]$SkipBuild
 )
@@ -45,6 +46,10 @@ if ([string]::IsNullOrWhiteSpace($version)) {
 
 if ([string]::IsNullOrWhiteSpace($Tag)) {
   $Tag = "v$version"
+}
+
+if (-not $PSBoundParameters.ContainsKey("GenerateNotes")) {
+  $GenerateNotes = $true
 }
 
 $publishRaw = $packageJson.build.publish
@@ -136,7 +141,13 @@ foreach ($asset in $assetFiles) {
 $releaseExists = $LASTEXITCODE -eq 0
 
 if (-not $releaseExists) {
-  $createArgs = @("release", "create", $Tag, "--repo", $repoSlug, "--title", $Tag, "--notes", $Notes) + $assetPaths
+  $createArgs = @("release", "create", $Tag, "--repo", $repoSlug, "--title", $Tag)
+  if ($GenerateNotes) {
+    $createArgs += "--generate-notes"
+  } elseif (-not [string]::IsNullOrWhiteSpace($Notes)) {
+    $createArgs += @("--notes", $Notes)
+  }
+  $createArgs += $assetPaths
   if ($Draft) {
     $createArgs += "--draft"
   }
@@ -153,7 +164,11 @@ if (-not $releaseExists) {
   & $gh.Source @uploadArgs
   Ensure-LastExitCodeZero -Code $LASTEXITCODE -Step "gh release upload"
 
-  if (-not [string]::IsNullOrWhiteSpace($Notes)) {
+  if ($GenerateNotes) {
+    Write-Host "[release-desktop-local] Regenerating release notes..."
+    & $gh.Source release edit $Tag --repo $repoSlug --generate-notes
+    Ensure-LastExitCodeZero -Code $LASTEXITCODE -Step "gh release edit --generate-notes"
+  } elseif (-not [string]::IsNullOrWhiteSpace($Notes)) {
     Write-Host "[release-desktop-local] Updating release notes..."
     & $gh.Source release edit $Tag --repo $repoSlug --notes $Notes
     Ensure-LastExitCodeZero -Code $LASTEXITCODE -Step "gh release edit"

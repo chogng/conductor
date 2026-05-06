@@ -94,7 +94,6 @@ const DesktopCommandBar = ({
           aria-hidden="true"
           className="da_top_menu_brand_icon"
         />
-        <span>{t("da_menu_app")}</span>
       </div>
 
       <div className="da_window_controls ml-4">

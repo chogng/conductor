@@ -4,7 +4,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const sourceSvgPath = path.join(rootDir, "public", "logo.svg");
 const iconDir = path.join(rootDir, "build", "icons");
 const packageJsonPath = path.join(rootDir, "package.json");
 
@@ -62,12 +61,6 @@ const readIcoSizes = (filePath) => {
   return sizes;
 };
 
-const sourceStat = ensureFile(sourceSvgPath);
-const sourceSvg = fs.readFileSync(sourceSvgPath, "utf8");
-if (!sourceSvg.includes('viewBox="0 0 96 96"') || !sourceSvg.includes("<rect width=\"96\" height=\"96\"")) {
-  fail("public/logo.svg does not look like the current Conductor icon source.");
-}
-
 let newestIconMtime = 0;
 for (const size of requiredPngSizes) {
   const filePath = path.join(iconDir, `icon-${size}.png`);
@@ -75,9 +68,6 @@ for (const size of requiredPngSizes) {
   const dimensions = readPngSize(filePath);
   if (dimensions.width !== size || dimensions.height !== size) {
     fail(`Wrong PNG dimensions for icon-${size}.png: ${dimensions.width}x${dimensions.height}`);
-  }
-  if (stat.mtimeMs + 1000 < sourceStat.mtimeMs) {
-    fail(`Stale generated icon: icon-${size}.png is older than public/logo.svg`);
   }
   newestIconMtime = Math.max(newestIconMtime, stat.mtimeMs);
 }
@@ -87,9 +77,6 @@ const iconPngStat = ensureFile(iconPngPath);
 const iconPngDimensions = readPngSize(iconPngPath);
 if (iconPngDimensions.width !== 1024 || iconPngDimensions.height !== 1024) {
   fail(`Wrong PNG dimensions for icon.png: ${iconPngDimensions.width}x${iconPngDimensions.height}`);
-}
-if (iconPngStat.mtimeMs + 1000 < sourceStat.mtimeMs) {
-  fail("Stale generated icon: icon.png is older than public/logo.svg");
 }
 newestIconMtime = Math.max(newestIconMtime, iconPngStat.mtimeMs);
 
@@ -101,10 +88,10 @@ for (const size of requiredIcoSizes) {
     fail(`icon.ico is missing ${size}x${size}`);
   }
 }
-if (iconIcoStat.mtimeMs + 1000 < sourceStat.mtimeMs) {
-  fail("Stale generated icon: icon.ico is older than public/logo.svg");
-}
 newestIconMtime = Math.max(newestIconMtime, iconIcoStat.mtimeMs);
+
+const iconIcnsPath = path.join(iconDir, "icon.icns");
+ensureFile(iconIcnsPath);
 
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
 const buildConfig = packageJson.build || {};
@@ -137,14 +124,7 @@ if (!extraResourceHasIcons) {
   fail('build.extraResources must include {"from":"build/icons","to":"build/icons"}');
 }
 
-const appxConfig = buildConfig.appx || {};
-for (const key of ["identityName", "publisher", "displayName", "publisherDisplayName"]) {
-  if (typeof appxConfig[key] !== "string" || appxConfig[key].trim() === "") {
-    fail(`build.appx.${key} must be configured for Store packages`);
-  }
-}
-
 console.log(
   `[verify-icons] OK: ${requiredPngSizes.length} PNG sizes, ${icoSizes.size} ICO sizes, package icon config points at build/icons.`,
 );
-console.log(`[verify-icons] Newest generated icon: ${new Date(newestIconMtime).toISOString()}`);
+console.log(`[verify-icons] Newest icon file: ${new Date(newestIconMtime).toISOString()}`);

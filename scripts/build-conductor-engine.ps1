@@ -11,7 +11,7 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 }
 
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
-$CrateDir = Join-Path $ProjectRoot "tools\rust-xls-bench"
+$CrateDir = Join-Path $ProjectRoot "tools\conductor-engine"
 $CargoToml = Join-Path $CrateDir "Cargo.toml"
 
 if (-not (Test-Path -LiteralPath $CargoToml)) {
@@ -25,7 +25,7 @@ if (-not [System.IO.Path]::IsPathRooted($DistDir)) {
   $DistDir = Join-Path $ProjectRoot $DistDir
 }
 if ([string]::IsNullOrWhiteSpace($TargetDir)) {
-  $TargetDir = Join-Path $ProjectRoot ".tooling\rust-xls-target"
+  $TargetDir = Join-Path $ProjectRoot ".tooling\conductor-engine-target"
 }
 if (-not [System.IO.Path]::IsPathRooted($TargetDir)) {
   $TargetDir = Join-Path $ProjectRoot $TargetDir
@@ -71,10 +71,5 @@ $primaryTargetExe = Join-Path $DistDir "conductor-engine.exe"
 $legacyTargetExe = Join-Path $DistDir "rust-xls-converter.exe"
 Copy-Item -LiteralPath $sourceExe -Destination $primaryTargetExe -Force
 Copy-Item -LiteralPath $sourceExe -Destination $legacyTargetExe -Force
-$staleBenchExe = Join-Path $TargetDir "release\rust-xls-bench.exe"
-if (Test-Path -LiteralPath $staleBenchExe) {
-  Remove-Item -LiteralPath $staleBenchExe -Force
-  Write-Host "[build-conductor-engine] Removed stale bench executable $staleBenchExe"
-}
 Write-Host "[build-conductor-engine] Copied engine to $primaryTargetExe"
 Write-Host "[build-conductor-engine] Copied legacy converter alias to $legacyTargetExe"

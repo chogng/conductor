@@ -14,7 +14,7 @@ keeping generated files separate from source files.
 - `desktop/`: Electron main process, preload, IPC channels, persistence, and
   Origin runner integration.
 - `origin/`: Python Origin CSV worker source and runtime helpers.
-- `tools/rust-xls-bench/`: Rust XLS/analysis sidecar benchmark and engine code.
+- `tools/conductor-engine/`: Rust XLS/analysis engine code.
 - `scripts/`: build, release, benchmark, and verification scripts.
 - `public/`: static assets and demo CSV files.
 - `build/`: packaged app resources such as icons.
@@ -45,7 +45,7 @@ These paths are intentionally ignored by Git and can be regenerated:
 - `desktop/preload.ts`: renderer preload bridge.
 - `desktop/ipc-channels.ts`: shared IPC channel names.
 - `origin/run_origin_csv.py`: development Origin worker entry.
-- `tools/rust-xls-bench/src/main.rs`: Rust sidecar benchmark entry.
+- `tools/conductor-engine/src/main.rs`: Rust engine entry.
 
 ## Common Commands
 

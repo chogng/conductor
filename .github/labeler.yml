@@ -1,0 +1,72 @@
+docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "docs/**"
+          - "*.md"
+          - ".github/*.md"
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/workflows/**"
+          - ".github/actions/**"
+
+chore:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "package.json"
+          - "package-lock.json"
+          - ".editorconfig"
+          - ".gitattributes"
+          - ".gitignore"
+
+desktop:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "desktop/**"
+          - "desktop-dist/**"
+          - "build/**"
+
+electron:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "desktop/**"
+          - "scripts/build-desktop.mjs"
+          - "scripts/release-desktop-local.ps1"
+          - "package.json"
+
+origin:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "origin/**"
+          - "scripts/build-origin-csv-worker.ps1"
+          - "scripts/verify-origin-csv-worker.mjs"
+          - "scripts/origin-runner.test.mjs"
+
+device-analysis:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/features/device-analysis/**"
+          - "excel/**"
+
+release:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "release/**"
+          - "scripts/release-*.ps1"
+          - "docs/desktop-auto-update.md"
+          - ".github/release.yml"
+          - ".github/workflows/release-*.yml"
+
+pages:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/workflows/pages.yml"
+          - "public/**"
+
+test:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.test.*"
+          - "scripts/verify-*.mjs"
+          - "scripts/bench-*.mjs"

@@ -23,7 +23,7 @@ release/Conductor-Studio-<version>-windows-x64-store.appx
 The Store package includes the sidecar executables as app resources:
 
 ```text
-resources/excel/bin/rust-xls-converter.exe
+resources/excel/bin/conductor-engine.exe
 resources/origin/bin/origin-csv-worker/origin-csv-worker.exe
 ```
 

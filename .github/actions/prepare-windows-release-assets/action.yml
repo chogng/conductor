@@ -1,0 +1,25 @@
+name: Prepare Windows Release Assets
+description: Inspect Windows release artifacts and generate verification files.
+
+inputs:
+  release-dir:
+    description: Directory that contains built Windows release artifacts
+    required: false
+    default: release
+
+outputs:
+  signed:
+    description: Whether all Windows executable artifacts have valid Authenticode signatures
+    value: ${{ steps.signature.outputs.signed }}
+  subject:
+    description: First detected Authenticode signer subject
+    value: ${{ steps.signature.outputs.subject }}
+
+runs:
+  using: composite
+  steps:
+    - name: Prepare Windows release assets
+      id: signature
+      shell: pwsh
+      run: |
+        & (Join-Path $env:GITHUB_WORKSPACE ".github\scripts\build-windows-release-assets.ps1") -ReleaseDir "${{ inputs.release-dir }}"

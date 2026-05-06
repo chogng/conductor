@@ -5,7 +5,6 @@
   "type": "module",
   "main": "desktop-dist/main.js",
   "scripts": {
-    "make:icons": "node scripts/make-icons.mjs",
     "verify:icons": "node scripts/verify-icons.mjs",
     "dev": "vite",
     "dev:desktop": "npm run build:desktop:core && node --experimental-strip-types scripts/dev-desktop.ts",

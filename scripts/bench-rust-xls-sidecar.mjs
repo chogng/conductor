@@ -12,15 +12,16 @@ const DEFAULT_ROOTS = [
 const EXCEL_EXTENSIONS = new Set([".xls", ".xlsx"]);
 const ROOT = process.cwd();
 const DEFAULT_EXE_CANDIDATES = [
-  path.join(ROOT, "excel", "bin", "rust-xls-converter.exe"),
+  path.join(ROOT, "excel", "bin", "conductor-engine.exe"),
   path.join(
     ROOT,
     "tools",
-    "rust-xls-bench",
+    "conductor-engine",
     "target",
     "release",
-    "rust-xls-bench.exe",
+    "conductor-engine.exe",
   ),
+  path.join(ROOT, "excel", "bin", "rust-xls-converter.exe"),
 ];
 
 const formatMs = (value) => `${Math.round(value)}ms`;
@@ -65,7 +66,11 @@ const walkExcelFiles = async (root) => {
 };
 
 const findConverterExe = async () => {
-  const fromEnv = String(process.env.CONDUCTOR_RUST_XLS_CONVERTER_PATH ?? "").trim();
+  const fromEnv = String(
+    process.env.CONDUCTOR_ENGINE_PATH
+      ?? process.env.CONDUCTOR_RUST_XLS_CONVERTER_PATH
+      ?? "",
+  ).trim();
   const candidates = fromEnv ? [fromEnv, ...DEFAULT_EXE_CANDIDATES] : DEFAULT_EXE_CANDIDATES;
   for (const candidate of candidates) {
     try {
@@ -75,7 +80,7 @@ const findConverterExe = async () => {
       // try next candidate
     }
   }
-  throw new Error(`Rust converter executable was not found: ${candidates.join(", ")}`);
+  throw new Error(`Rust engine executable was not found: ${candidates.join(", ")}`);
 };
 
 const convertOne = async (exePath, filePath, outputPath) => {
