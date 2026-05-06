@@ -1,11 +1,11 @@
 [package]
-name = "conductor-engine"
+name = "worker"
 version = "0.1.0"
 edition = "2024"
 autobins = false
 
 [[bin]]
-name = "conductor-engine"
+name = "worker"
 path = "src/main.rs"
 
 [dependencies]

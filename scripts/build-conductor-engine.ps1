@@ -11,11 +11,11 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 }
 
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
-$CrateDir = Join-Path $ProjectRoot "tools\conductor-engine"
+$CrateDir = Join-Path $ProjectRoot "conductor-rs\worker"
 $CargoToml = Join-Path $CrateDir "Cargo.toml"
 
 if (-not (Test-Path -LiteralPath $CargoToml)) {
-  throw "Conductor engine Cargo.toml not found: $CargoToml"
+  throw "Conductor worker Cargo.toml not found: $CargoToml"
 }
 
 if ([string]::IsNullOrWhiteSpace($DistDir)) {
@@ -25,7 +25,7 @@ if (-not [System.IO.Path]::IsPathRooted($DistDir)) {
   $DistDir = Join-Path $ProjectRoot $DistDir
 }
 if ([string]::IsNullOrWhiteSpace($TargetDir)) {
-  $TargetDir = Join-Path $ProjectRoot ".tooling\conductor-engine-target"
+  $TargetDir = Join-Path $ProjectRoot ".tooling\conductor-rs-target"
 }
 if (-not [System.IO.Path]::IsPathRooted($TargetDir)) {
   $TargetDir = Join-Path $ProjectRoot $TargetDir
@@ -49,10 +49,10 @@ try {
   $isWindows = [System.Environment]::OSVersion.Platform -eq [System.PlatformID]::Win32NT
   if ($isWindows -and $vsDevCmd) {
     Write-Host "[build-conductor-engine] Running cargo build through VsDevCmd."
-    & cmd.exe /d /s /c "call `"$vsDevCmd`" -arch=x64 && cargo build --release --target-dir `"$TargetDir`""
+    & cmd.exe /d /s /c "call `"$vsDevCmd`" -arch=x64 && cargo build --release -p worker --target-dir `"$TargetDir`""
   } else {
     Write-Host "[build-conductor-engine] Running cargo build --release."
-    & $cargoCmd.Source build --release --target-dir $TargetDir
+    & $cargoCmd.Source build --release -p worker --target-dir $TargetDir
   }
   if ($LASTEXITCODE -ne 0) {
     throw "cargo build failed with exit code $LASTEXITCODE"
@@ -61,12 +61,12 @@ try {
   Pop-Location
 }
 
-$sourceExe = Join-Path $TargetDir "release\conductor-engine.exe"
+$sourceExe = Join-Path $TargetDir "release\worker.exe"
 if (-not (Test-Path -LiteralPath $sourceExe)) {
   throw "Built engine executable not found: $sourceExe"
 }
 
 New-Item -ItemType Directory -Path $DistDir -Force | Out-Null
-$primaryTargetExe = Join-Path $DistDir "conductor-engine.exe"
+$primaryTargetExe = Join-Path $DistDir "worker.exe"
 Copy-Item -LiteralPath $sourceExe -Destination $primaryTargetExe -Force
 Write-Host "[build-conductor-engine] Copied engine to $primaryTargetExe"

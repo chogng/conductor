@@ -10,15 +10,14 @@ const DEFAULT_RUST_EXE = path.join(
   ROOT,
   "excel",
   "bin",
-  "conductor-engine.exe",
+  "worker.exe",
 );
 const LEGACY_RUST_EXE = path.join(
   ROOT,
-  "tools",
-  "conductor-engine",
+  "conductor-rs",
   "target",
   "release",
-  "conductor-engine.exe",
+  "worker.exe",
 );
 const OUTPUT_DIR = path.join(ROOT, ".tooling", "rust-xls-compat");
 const RUST_CSV_DIR = path.join(OUTPUT_DIR, "rust-csv");
@@ -157,7 +156,7 @@ const assessCsvText = async (csvText, fileName) => {
 
 const main = async () => {
   const rustExe = process.env.RUST_XLS_BENCH_EXE || DEFAULT_RUST_EXE;
-  const engineExe = fs.existsSync(rustExe) ? rustExe : LEGACY_RUST_EXE;
+  const engineExe = fs.existsSync(LEGACY_RUST_EXE) ? LEGACY_RUST_EXE : rustExe;
   if (!fs.existsSync(engineExe)) {
     throw new Error(`Rust engine executable not found: ${rustExe} or ${LEGACY_RUST_EXE}`);
   }
@@ -165,7 +164,13 @@ const main = async () => {
   fs.rmSync(OUTPUT_DIR, { force: true, recursive: true });
   fs.mkdirSync(RUST_CSV_DIR, { recursive: true });
 
-  const rustRun = spawnSync(engineExe, ["--threads", "2", "--write-dir", RUST_CSV_DIR], {
+  const commandLine = [engineExe, "--threads", "2", "--write-dir", RUST_CSV_DIR]
+    .map((value) => {
+      const text = String(value ?? "");
+      return /[\s"]/u.test(text) ? `"${text.replace(/"/g, '\\"')}"` : text;
+    })
+    .join(" ");
+  const rustRun = spawnSync("cmd.exe", ["/d", "/s", "/c", commandLine], {
     cwd: path.dirname(engineExe),
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],

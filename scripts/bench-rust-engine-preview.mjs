@@ -11,7 +11,7 @@ const DEFAULT_ROOTS = [
 
 const SUPPORTED_EXTENSIONS = new Set([".csv", ".xls", ".xlsx"]);
 const ROOT = process.cwd();
-const EXE_PATH = path.join(ROOT, "excel", "bin", "conductor-engine.exe");
+const EXE_PATH = path.join(ROOT, "excel", "bin", "worker.exe");
 
 const formatMs = (value) => `${Math.round(value)}ms`;
 const formatBytes = (value) => {
@@ -52,7 +52,7 @@ const walkFiles = async (root) => {
 };
 
 const createEngine = () => {
-  const child = spawn(EXE_PATH, ["--stdio-engine"], {
+  const child = spawn(EXE_PATH, ["--stdio-worker"], {
     stdio: ["pipe", "pipe", "pipe"],
     windowsHide: true,
   });

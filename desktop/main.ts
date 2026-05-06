@@ -785,31 +785,31 @@ function isSupportedRustDeviceAnalysisInputPath(filePath) {
 
 function resolveRustExcelConverterPath() {
   const envPath = normalizeAbsoluteFilePath(
-    process.env.CONDUCTOR_ENGINE_PATH
+    process.env.CONDUCTOR_WORKER_PATH
+      || process.env.CONDUCTOR_ENGINE_PATH
       || process.env.CONDUCTOR_RUST_XLS_CONVERTER_PATH,
   );
   const candidates = [
     envPath,
-    path.join(getResourcesPath(), "excel", "bin", "conductor-engine.exe"),
+    path.join(getResourcesPath(), "excel", "bin", "worker.exe"),
     isDev
       ? path.join(
           __dirname,
           "..",
           ".tooling",
-          "conductor-engine-target",
+          "conductor-rs-target",
           "release",
-          "conductor-engine.exe",
+          "worker.exe",
         )
       : "",
     isDev
       ? path.join(
           __dirname,
           "..",
-          "tools",
-          "conductor-engine",
+          "conductor-rs",
           "target",
           "release",
-          "conductor-engine.exe",
+          "worker.exe",
         )
       : "",
     path.join(
@@ -817,7 +817,7 @@ function resolveRustExcelConverterPath() {
       "app.asar.unpacked",
       "excel",
       "bin",
-      "conductor-engine.exe",
+      "worker.exe",
     ),
   ].filter(Boolean);
 
@@ -910,7 +910,7 @@ function ensureRustDeviceAnalysisEngine() {
     throw new Error("Rust device-analysis engine was not found.");
   }
 
-  const child = spawn(executablePath, ["--stdio-engine"], {
+  const child = spawn(executablePath, ["--stdio-worker"], {
     stdio: ["pipe", "pipe", "pipe"],
     windowsHide: true,
   });
@@ -1059,7 +1059,7 @@ function ensureRustDeviceAnalysisEngineSlot(slot) {
     throw new Error("Rust device-analysis engine was not found.");
   }
 
-  const child = spawn(executablePath, ["--stdio-engine"], {
+  const child = spawn(executablePath, ["--stdio-worker"], {
     stdio: ["pipe", "pipe", "pipe"],
     windowsHide: true,
   });

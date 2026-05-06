@@ -1,5 +1,5 @@
-use crate::engine_dataset::EngineDataset;
-use crate::engine_utils::{approx_equal, normalize_cell_text, parse_number_strict};
+use crate::dataset::EngineDataset;
+use crate::utils::{approx_equal, normalize_cell_text, parse_number_strict};
 
 pub fn parse_positive_integer_text(raw: &str) -> Option<usize> {
     let mut digits = String::new();

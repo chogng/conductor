@@ -1,22 +1,22 @@
-mod engine_analysis;
-mod engine_cells;
-mod engine_dataset;
-mod engine_infer;
-mod engine_legend;
-mod engine_rc;
-mod engine_utils;
+mod analysis;
+mod cells;
+mod dataset;
+mod infer;
+mod legend;
+mod rc;
+mod utils;
 
 use calamine::{Reader, open_workbook_auto};
-use engine_analysis::{AnalysisSeriesRequest, AnalysisSourceFile, compute_central_derivative};
-use engine_cells::EngineCellRequest;
-use engine_dataset::{EngineDataset, is_excel_path, load_engine_dataset};
-use engine_infer::{
+use analysis::{AnalysisSeriesRequest, AnalysisSourceFile, compute_central_derivative};
+use cells::EngineCellRequest;
+use dataset::{EngineDataset, is_excel_path, load_dataset};
+use infer::{
     find_metadata_positive_integer, infer_auto_segmentation_from_x_values,
     infer_metadata_group_shape, parse_positive_integer_text,
 };
-use engine_legend::{LegendMode, resolve_legend_labels};
-use engine_rc::{RcAnalysisOptions, RcDeviceRequest};
-use engine_utils::*;
+use legend::{LegendMode, resolve_legend_labels};
+use rc::{RcAnalysisOptions, RcDeviceRequest};
+use utils::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{
@@ -1669,7 +1669,7 @@ fn detect_axis_role(text: &str) -> (Option<&'static str>, &'static str) {
     (None, "metadata")
 }
 
-fn process_engine_file(
+fn process_file(
     file_id: &str,
     dataset: &EngineDataset,
     config: &Value,
@@ -2003,7 +2003,7 @@ fn process_engine_file(
     let analysis_cache = if !analysis_series.is_empty() {
         Some(json!({
             "source": "rust-process-precompute",
-            "series": engine_analysis::analyze_series_batch(
+            "series": analysis::analyze_series_batch(
                 &analysis_series,
                 Some(&x_groups),
                 Some(&AnalysisSourceFile {
@@ -2695,18 +2695,18 @@ fn export_origin_metrics_csv_sources(
             }
         }
         let supports_transfer_metrics = metric_kind == "transfer"
-            && engine_analysis::is_transfer_like_source_file(source_file);
+            && analysis::is_transfer_like_source_file(source_file);
         let cells = if metric_kind == "transfer" {
             let points = compute_origin_metric_series_points(source, series.group_index, series.y_col);
             let x_values = points.iter().map(|(x, _)| *x).collect::<Vec<_>>();
             let y_values = points.iter().map(|(_, y)| *y).collect::<Vec<_>>();
             let base = if supports_transfer_metrics {
-                engine_analysis::compute_base_current_metrics(&x_values, &y_values, source_file)
+                analysis::compute_base_current_metrics(&x_values, &y_values, source_file)
             } else {
                 Value::Null
             };
             let ss_fit = if supports_transfer_metrics {
-                engine_analysis::compute_subthreshold_swing_fit_auto(&x_values, &y_values)
+                analysis::compute_subthreshold_swing_fit_auto(&x_values, &y_values)
             } else {
                 Value::Null
             };
@@ -2781,7 +2781,7 @@ fn export_origin_metrics_csv_sources(
     }))
 }
 
-fn handle_engine_request(
+fn handle_request(
     cache: &mut HashMap<String, EngineDataset>,
     request: EngineRequest,
 ) -> EngineResponse {
@@ -2807,12 +2807,8 @@ fn handle_engine_request(
                             .unwrap_or("")
                             .to_string()
                     });
-                    let dataset = load_engine_dataset(&path, &file_name)?;
-                    let result = engine_dataset::preview_result(
-                        file_id,
-                        &dataset,
-                        request.seed_rows.unwrap_or(400),
-                    );
+                    let dataset = load_dataset(&path, &file_name)?;
+                    let result = dataset.preview_result(file_id, request.seed_rows.unwrap_or(400));
                     cache.insert(file_id.to_string(), dataset);
                     Ok(result)
                 }
@@ -2914,7 +2910,7 @@ fn handle_engine_request(
                         .unwrap_or("")
                         .to_string()
                 });
-                let dataset = load_engine_dataset(&path, &file_name)?;
+                let dataset = load_dataset(&path, &file_name)?;
                 cache.insert(file_id.to_string(), dataset);
             }
             let dataset = cache
@@ -2946,7 +2942,7 @@ fn handle_engine_request(
                         .unwrap_or("")
                         .to_string()
                 });
-                let dataset = load_engine_dataset(&path, &file_name)?;
+                let dataset = load_dataset(&path, &file_name)?;
                 cache.insert(file_id.to_string(), dataset);
             }
             let dataset = cache
@@ -2978,7 +2974,7 @@ fn handle_engine_request(
                         .unwrap_or("")
                         .to_string()
                 });
-                let dataset = load_engine_dataset(&path, &file_name)?;
+                let dataset = load_dataset(&path, &file_name)?;
                 cache.insert(file_id.to_string(), dataset);
             }
             let dataset = cache
@@ -2988,7 +2984,7 @@ fn handle_engine_request(
                 .config
                 .as_ref()
                 .ok_or_else(|| "missing config".to_string())?;
-            process_engine_file(
+            process_file(
                 file_id,
                 dataset,
                 config,
@@ -3017,14 +3013,14 @@ fn handle_engine_request(
                         .unwrap_or("")
                         .to_string()
                 });
-                let dataset = load_engine_dataset(&path, &file_name)?;
+                let dataset = load_dataset(&path, &file_name)?;
                 cache.insert(file_id.to_string(), dataset);
             }
             let dataset = cache
                 .get(file_id)
                 .ok_or_else(|| "file is not open in engine".to_string())?;
             let config = infer_auto_worker_config(dataset)?;
-            let mut processed = process_engine_file(
+            let mut processed = process_file(
                 file_id,
                 dataset,
                 &config,
@@ -3044,7 +3040,7 @@ fn handle_engine_request(
                 .as_deref()
                 .filter(|series| !series.is_empty())
                 .ok_or_else(|| "missing series".to_string())?;
-            Ok(engine_analysis::analyze_series_batch_result(
+            Ok(analysis::analyze_series_batch_result(
                 request.file_id.as_deref(),
                 series,
                 request.x_groups.as_deref(),
@@ -3057,7 +3053,7 @@ fn handle_engine_request(
                 .as_deref()
                 .filter(|devices| !devices.is_empty())
                 .ok_or_else(|| "missing rcDevices".to_string())?;
-            Ok(engine_rc::analyze_rc(devices, request.rc_options.as_ref()))
+            Ok(rc::analyze_rc(devices, request.rc_options.as_ref()))
         }
         "exportOriginCsv" => {
             let file_id = request
@@ -3078,7 +3074,7 @@ fn handle_engine_request(
                         .unwrap_or("")
                         .to_string()
                 });
-                let dataset = load_engine_dataset(&path, &file_name)?;
+                let dataset = load_dataset(&path, &file_name)?;
                 cache.insert(file_id.to_string(), dataset);
             }
             let dataset = cache
@@ -3109,11 +3105,11 @@ fn handle_engine_request(
                             .to_string()
                     });
                     let dataset = if source.file_id.trim().is_empty() {
-                        load_engine_dataset(&path, &file_name)?
+                        load_dataset(&path, &file_name)?
                     } else if let Some(cached) = cache.get(source.file_id.trim()) {
                         cached.clone()
                     } else {
-                        let loaded = load_engine_dataset(&path, &file_name)?;
+                        let loaded = load_dataset(&path, &file_name)?;
                         cache.insert(source.file_id.trim().to_string(), loaded.clone());
                         loaded
                     };
@@ -3215,7 +3211,7 @@ fn run_stdio_engine() {
         }
 
         let response = match serde_json::from_str::<EngineRequest>(&line) {
-            Ok(request) => handle_engine_request(&mut cache, request),
+            Ok(request) => handle_request(&mut cache, request),
             Err(error) => EngineResponse {
                 id: 0,
                 ok: false,
@@ -3436,7 +3432,7 @@ fn main() {
     let mut args = env::args().skip(1).peekable();
 
     while let Some(arg) = args.next() {
-        if arg == "--stdio-engine" {
+        if arg == "--stdio-worker" || arg == "--stdio-engine" {
             stdio_engine = true;
             continue;
         }

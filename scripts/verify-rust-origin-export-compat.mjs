@@ -1,9 +1,8 @@
 #!/usr/bin/env node
-import { spawnSync } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { performance } from "node:perf_hooks";
 import Papa from "papaparse";
+import { performance } from "node:perf_hooks";
 import {
   buildDeviceAnalysisOriginExportPlan,
   isRustOriginCsvEligiblePayload,
@@ -14,19 +13,19 @@ const ROOT = process.cwd();
 const DEFAULT_ROOT = "C:/Users/lanxi/Desktop/293K";
 const OUTPUT_DIR = path.join(ROOT, ".tooling", "rust-origin-export-compat");
 const RUST_CSV_DIR = path.join(OUTPUT_DIR, "rust-csv");
+const EXPECTED_DIR = path.join(OUTPUT_DIR, "expected");
+const FILES_PATH = path.join(OUTPUT_DIR, "files.json");
+const MANIFEST_PATH = path.join(OUTPUT_DIR, "manifest.json");
+const PROCESS_REQUESTS_PATH = path.join(OUTPUT_DIR, "process-requests.jsonl");
+const PROCESS_RESULTS_PATH = path.join(OUTPUT_DIR, "process-results.jsonl");
+const EXPORT_REQUESTS_PATH = path.join(OUTPUT_DIR, "export-requests.jsonl");
+const EXPORT_RESULTS_PATH = path.join(OUTPUT_DIR, "export-results.jsonl");
 const REPORT_PATH = path.join(OUTPUT_DIR, "report.json");
-const CRATE_DIR = path.join(ROOT, "tools", "conductor-engine");
-const ENGINE_CANDIDATES = [
-  path.join(ROOT, "excel", "bin", "conductor-engine.exe"),
-  path.join(CRATE_DIR, "target", "release", "conductor-engine.exe"),
-];
-const SUPPORTED_EXTENSIONS = new Set([".csv", ".xls", ".xlsx"]);
 const CONTENT_KEYS = ["iv", "metrics", "gm", "gds", "ss", "vth"];
 const MAX_POINTS = 600;
 const ABS_TOLERANCE = 1e-12;
 const REL_TOLERANCE = 1e-9;
-
-const now = () => performance.now();
+const SUPPORTED_EXTENSIONS = new Set([".csv", ".xls", ".xlsx"]);
 
 const sanitizeFilename = (value) =>
   String(value || "export")
@@ -61,118 +60,83 @@ const walkFiles = async (root) => {
   return files;
 };
 
-const run = (command, args, options = {}) => {
-  const result = spawnSync(command, args, {
-    cwd: options.cwd ?? ROOT,
-    encoding: "utf8",
-    input: options.input,
-    maxBuffer: options.maxBuffer ?? 1024 * 1024 * 512,
-    windowsHide: true,
-  });
-  if (result.error) {
-    throw result.error;
-  }
-  if ((result.status ?? 1) !== 0) {
-    const detail = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
-    throw new Error(`${command} ${args.join(" ")} failed${detail ? `:\n${detail}` : ""}`);
-  }
-  return result.stdout;
-};
-
-const fileExists = async (filePath) => {
-  try {
-    const stat = await fs.stat(filePath);
-    return stat.isFile();
-  } catch {
-    return false;
-  }
-};
-
-let engineExe = "";
-
-const resolveEngineExe = async () => {
-  for (const candidate of ENGINE_CANDIDATES) {
-    if (await fileExists(candidate)) return candidate;
-  }
-  return "";
-};
-
-const ensureEngine = async () => {
-  try {
-    run("cargo", ["build", "--quiet", "--release"], { cwd: CRATE_DIR });
-  } catch (error) {
-    engineExe = await resolveEngineExe();
-    if (engineExe) {
-      console.warn(
-        `[rust-origin-export-compat] cargo build skipped, using existing engine: ${error instanceof Error ? error.message : String(error)}`,
-      );
-      return;
-    }
-    throw error;
-  }
-  engineExe = await resolveEngineExe();
-  if (!engineExe) {
-    throw new Error(`Rust engine executable not found. Checked: ${ENGINE_CANDIDATES.join(", ")}`);
-  }
-};
-
-const sendEngineRequests = (requests) => {
-  if (!requests.length) return [];
-  const input = `${requests.map((request) => JSON.stringify(request)).join("\n")}\n`;
-  return run(engineExe, ["--stdio-engine"], { input })
+const readJsonLines = async (filePath) => {
+  const text = await fs.readFile(filePath, "utf8");
+  return text
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => JSON.parse(line));
 };
 
-const processFiles = (files) => {
-  const requests = files.map((filePath, index) => ({
-    command: "processFileAuto",
-    fileId: `origin-export-${index}`,
-    fileName: path.basename(filePath),
-    id: index + 1,
-    maxPoints: MAX_POINTS,
-    path: filePath,
-  }));
-  const responses = sendEngineRequests(requests);
-  const processed = [];
-  const failed = [];
-  for (const [index, response] of responses.entries()) {
-    if (response?.ok && response?.result?.series?.length) {
-      processed.push({
-        file: augmentProcessedFileForOriginExport(response.result, files[index]),
-        path: files[index],
-      });
-    } else {
-      failed.push({
-        file: files[index],
-        message: response?.error?.message ?? response?.result?.message ?? "no series",
-      });
+const writeJsonLines = async (filePath, values) => {
+  await fs.writeFile(
+    filePath,
+    `${values.map((value) => JSON.stringify(value)).join("\n")}\n`,
+    "utf8",
+  );
+};
+
+const compareCell = (expectedRaw, actualRaw) => {
+  const expected = String(expectedRaw ?? "").trim();
+  const actual = String(actualRaw ?? "").trim();
+  if (!expected && !actual) return null;
+  const expectedNumber = Number(expected);
+  const actualNumber = Number(actual);
+  if (Number.isFinite(expectedNumber) && Number.isFinite(actualNumber)) {
+    const diff = Math.abs(expectedNumber - actualNumber);
+    const scale = Math.max(1, Math.abs(expectedNumber), Math.abs(actualNumber));
+    if (diff <= ABS_TOLERANCE || diff / scale <= REL_TOLERANCE) return null;
+    return `numeric mismatch expected=${expected} actual=${actual} diff=${diff}`;
+  }
+  return expected === actual ? null : `text mismatch expected=${expected} actual=${actual}`;
+};
+
+const parseCsv = (text) =>
+  Papa.parse(String(text ?? "").replace(/^\uFEFF/, "").trimEnd(), {
+    dynamicTyping: false,
+    skipEmptyLines: false,
+  }).data;
+
+const compareCsv = (expectedText, actualText) => {
+  const expected = parseCsv(expectedText);
+  const actual = parseCsv(actualText);
+  if (expected.length !== actual.length) {
+    return [`row count expected=${expected.length} actual=${actual.length}`];
+  }
+  const failures = [];
+  for (let row = 0; row < expected.length; row += 1) {
+    const expectedRow = expected[row] ?? [];
+    const actualRow = actual[row] ?? [];
+    if (expectedRow.length !== actualRow.length) {
+      failures.push(`row ${row + 1} column count expected=${expectedRow.length} actual=${actualRow.length}`);
+      if (failures.length >= 5) return failures;
+      continue;
+    }
+    for (let col = 0; col < expectedRow.length; col += 1) {
+      const mismatch = compareCell(expectedRow[col], actualRow[col]);
+      if (mismatch) {
+        failures.push(`R${row + 1}C${col + 1}: ${mismatch}`);
+        if (failures.length >= 5) return failures;
+      }
     }
   }
-  return { failed, processed };
+  return failures;
 };
 
 const augmentProcessedFileForOriginExport = (file, filePath) => {
   const x = file?.x ?? {};
   const y = file?.y ?? {};
-  const xCol = Number(x.col);
-  const startRow = Number(x.startRow) - 1;
-  const endRow = Number(x.endRow) - 1;
-  const groupSize = Number(x.points);
-  const groups = Number(x.groups);
-  const yCols = Array.isArray(y.columns) ? y.columns.map((item) => Number(item)) : [];
   return {
     ...file,
     originExportConfig: {
-      endRow,
-      groupSize,
-      groups,
-      startRow,
-      xCol,
+      endRow: Number(x.endRow) - 1,
+      groupSize: Number(x.points),
+      groups: Number(x.groups),
+      startRow: Number(x.startRow) - 1,
+      xCol: Number(x.col),
       xSegmentationMode: "points",
-      yCols,
+      yCols: Array.isArray(y.columns) ? y.columns.map((item) => Number(item)) : [],
     },
     originExportSourcePath: filePath,
   };
@@ -306,72 +270,49 @@ const buildRustExportRequest = ({ file, outputPath, payload }) => {
   };
 };
 
-const parseCsv = (text) =>
-  Papa.parse(String(text ?? "").replace(/^\uFEFF/, "").trimEnd(), {
-    dynamicTyping: false,
-    skipEmptyLines: false,
-  }).data;
-
-const compareCell = (expectedRaw, actualRaw) => {
-  const expected = String(expectedRaw ?? "").trim();
-  const actual = String(actualRaw ?? "").trim();
-  if (!expected && !actual) return null;
-  const expectedNumber = Number(expected);
-  const actualNumber = Number(actual);
-  if (Number.isFinite(expectedNumber) && Number.isFinite(actualNumber)) {
-    const diff = Math.abs(expectedNumber - actualNumber);
-    const scale = Math.max(1, Math.abs(expectedNumber), Math.abs(actualNumber));
-    if (diff <= ABS_TOLERANCE || diff / scale <= REL_TOLERANCE) return null;
-    return `numeric mismatch expected=${expected} actual=${actual} diff=${diff}`;
-  }
-  return expected === actual ? null : `text mismatch expected=${expected} actual=${actual}`;
-};
-
-const compareCsv = (expectedText, actualText) => {
-  const expected = parseCsv(expectedText);
-  const actual = parseCsv(actualText);
-  if (expected.length !== actual.length) {
-    return [`row count expected=${expected.length} actual=${actual.length}`];
-  }
-  const failures = [];
-  for (let row = 0; row < expected.length; row += 1) {
-    const expectedRow = expected[row] ?? [];
-    const actualRow = actual[row] ?? [];
-    if (expectedRow.length !== actualRow.length) {
-      failures.push(`row ${row + 1} column count expected=${expectedRow.length} actual=${actualRow.length}`);
-      if (failures.length >= 5) return failures;
-      continue;
-    }
-    for (let col = 0; col < expectedRow.length; col += 1) {
-      const mismatch = compareCell(expectedRow[col], actualRow[col]);
-      if (mismatch) {
-        failures.push(`R${row + 1}C${col + 1}: ${mismatch}`);
-        if (failures.length >= 5) return failures;
-      }
+const buildProcessedFiles = (files, processResponses) => {
+  const processed = [];
+  const failed = [];
+  for (const [index, response] of processResponses.entries()) {
+    if (response?.ok && response?.result?.series?.length) {
+      processed.push({
+        file: augmentProcessedFileForOriginExport(response.result, files[index]),
+        path: files[index],
+      });
+    } else {
+      failed.push({
+        file: files[index],
+        message: response?.error?.message ?? response?.result?.message ?? "no series",
+      });
     }
   }
-  return failures;
+  return { failed, processed };
 };
 
-const verify = async (rootArg) => {
-  const selectedRoot = rootArg || DEFAULT_ROOT;
-  const startedAt = now();
-  await fs.rm(OUTPUT_DIR, { force: true, recursive: true });
-  await fs.mkdir(RUST_CSV_DIR, { recursive: true });
-  await ensureEngine();
-
+const prepare = async (selectedRoot) => {
   const files = await walkFiles(selectedRoot);
-  console.log(`[rust-origin-export-compat] files=${files.length} root=${selectedRoot}`);
-  const { failed: processFailures, processed } = processFiles(files);
+  await fs.mkdir(OUTPUT_DIR, { recursive: true });
+  await fs.writeFile(FILES_PATH, `${JSON.stringify({ root: selectedRoot, files }, null, 2)}\n`, "utf8");
+  console.log(`[rust-origin-export-compat] prepared files=${files.length} root=${selectedRoot}`);
+};
 
-  let compared = 0;
+const plan = async () => {
+  const { files } = JSON.parse(await fs.readFile(FILES_PATH, "utf8"));
+  const processResponses = await readJsonLines(PROCESS_RESULTS_PATH);
+  const { failed: processFailures, processed } = buildProcessedFiles(files, processResponses);
+
+  await fs.rm(RUST_CSV_DIR, { force: true, recursive: true });
+  await fs.rm(EXPECTED_DIR, { force: true, recursive: true });
+  await fs.mkdir(RUST_CSV_DIR, { recursive: true });
+  await fs.mkdir(EXPECTED_DIR, { recursive: true });
+
+  const manifest = [];
+  const exportRequests = [];
   let skipped = 0;
-  const failures = [];
-  const byContent = {};
 
   for (const [fileIndex, item] of processed.entries()) {
     const file = item.file;
-    const plan = buildDeviceAnalysisOriginExportPlan(
+    const planResult = buildDeviceAnalysisOriginExportPlan(
       [file],
       undefined,
       "merged",
@@ -385,7 +326,7 @@ const verify = async (rootArg) => {
       CONTENT_KEYS,
     );
 
-    for (const [payloadIndex, payload] of plan.payloads.entries()) {
+    for (const [payloadIndex, payload] of planResult.payloads.entries()) {
       if (!isRustOriginCsvEligiblePayload(payload)) {
         skipped += 1;
         continue;
@@ -394,66 +335,103 @@ const verify = async (rootArg) => {
         RUST_CSV_DIR,
         `${String(fileIndex).padStart(4, "0")}-${String(payloadIndex).padStart(2, "0")}-${sanitizeFilename(payload.csvName)}`,
       );
+      const expectedPath = path.join(
+        EXPECTED_DIR,
+        `${String(fileIndex).padStart(4, "0")}-${String(payloadIndex).padStart(2, "0")}-${sanitizeFilename(payload.csvName)}`,
+      );
       const request = buildRustExportRequest({ file, outputPath, payload });
       if (!request) {
         skipped += 1;
         continue;
       }
-      const [response] = sendEngineRequests([request]);
-      if (!response?.ok) {
-        failures.push({
-          csvName: payload.csvName,
-          file: item.path,
-          message: response?.error?.message ?? "Rust export failed",
-        });
-        continue;
-      }
-      const actualText = await fs.readFile(outputPath, "utf8");
-      const mismatches = compareCsv(payload.csvText, actualText);
-      if (mismatches.length) {
-        failures.push({
-          csvName: payload.csvName,
-          file: item.path,
-          mismatches,
-        });
-        continue;
-      }
-      compared += 1;
-      const key = resolveRustOriginCsvYTransformForPayload(payload, "none");
-      byContent[key] = (byContent[key] ?? 0) + 1;
+      manifest.push({
+        csvName: payload.csvName,
+        expectedPath,
+        file: item.path,
+        outputPath,
+      });
+      exportRequests.push(request);
+      await fs.writeFile(expectedPath, payload.csvText, "utf8");
     }
+  }
 
-    if ((fileIndex + 1) % 25 === 0) {
-      console.log(`[rust-origin-export-compat] checked files=${fileIndex + 1}/${processed.length} payloads=${compared}`);
+  await fs.writeFile(
+    MANIFEST_PATH,
+    `${JSON.stringify({ manifest, processFailures, processedFiles: processed.length, skipped }, null, 2)}\n`,
+    "utf8",
+  );
+  await writeJsonLines(EXPORT_REQUESTS_PATH, exportRequests);
+  console.log(`[rust-origin-export-compat] planned exportRequests=${exportRequests.length} skipped=${skipped} processFailed=${processFailures.length}`);
+};
+
+const compare = async () => {
+  const { manifest, processFailures, processedFiles, skipped } = JSON.parse(await fs.readFile(MANIFEST_PATH, "utf8"));
+  const exportResponses = await readJsonLines(EXPORT_RESULTS_PATH);
+  const failures = [];
+  const byContent = {};
+  let compared = 0;
+
+  for (const [index, item] of manifest.entries()) {
+    const response = exportResponses[index];
+    if (!response?.ok) {
+      failures.push({
+        csvName: item.csvName,
+        file: item.file,
+        message: response?.error?.message ?? "Rust export failed",
+      });
+      continue;
     }
+    const actualText = await fs.readFile(item.outputPath, "utf8");
+    const expectedText = await fs.readFile(item.expectedPath, "utf8");
+    const mismatches = compareCsv(expectedText, actualText);
+    if (mismatches.length) {
+      failures.push({
+        csvName: item.csvName,
+        file: item.file,
+        mismatches,
+      });
+      continue;
+    }
+    compared += 1;
+    const key = resolveRustOriginCsvYTransformForPayload({ yTransform: "none" }, "none");
+    byContent[key] = (byContent[key] ?? 0) + 1;
   }
 
   const report = {
     byContent,
     compared,
-    durationMs: Math.round(now() - startedAt),
+    durationMs: 0,
     failures: failures.slice(0, 50),
-    processedFiles: processed.length,
-    processFailures: processFailures.slice(0, 50),
+    manifestCount: manifest.length,
     processFailureCount: processFailures.length,
-    root: selectedRoot,
+    processFailures: processFailures.slice(0, 50),
+    processedFiles,
+    root: DEFAULT_ROOT,
     skipped,
     status: failures.length ? "failed" : "passed",
-    totalFiles: files.length,
   };
   await fs.writeFile(REPORT_PATH, `${JSON.stringify(report, null, 2)}\n`, "utf8");
 
-  console.log(
-    `[rust-origin-export-compat] compared=${compared} skipped=${skipped} processFailed=${processFailures.length} duration=${report.durationMs}ms`,
-  );
-  console.log(`[rust-origin-export-compat] byContent=${JSON.stringify(byContent)} report=${REPORT_PATH}`);
+  console.log(`[rust-origin-export-compat] compared=${compared} skipped=${skipped} processFailed=${processFailures.length}`);
+  console.log(`[rust-origin-export-compat] report=${REPORT_PATH}`);
   if (failures.length) {
     console.error(`[rust-origin-export-compat] failed=${failures.length}`);
     for (const failure of failures.slice(0, 10)) {
       console.error(`- ${failure.file} :: ${failure.csvName} :: ${(failure.mismatches ?? [failure.message]).join(" | ")}`);
     }
     process.exitCode = 1;
+  } else {
+    console.log(`[rust-origin-export-compat] all ${compared} exports matched`);
   }
 };
 
-await verify(process.argv[2]);
+const command = process.argv[2] ?? "prepare";
+if (command === "prepare") {
+  await prepare(process.argv[3] ?? DEFAULT_ROOT);
+} else if (command === "plan") {
+  await plan();
+} else if (command === "compare") {
+  await compare();
+} else {
+  throw new Error(`unknown command: ${command}`);
+}

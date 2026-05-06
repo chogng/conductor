@@ -203,7 +203,7 @@ fn load_csv_rows(path: &Path) -> Result<Vec<Vec<String>>, String> {
     Ok(rows)
 }
 
-pub fn load_engine_dataset(path: &Path, file_name: &str) -> Result<EngineDataset, String> {
+pub fn load_dataset(path: &Path, file_name: &str) -> Result<EngineDataset, String> {
     let rows = if is_excel_path(path) {
         load_excel_rows(path)?
     } else if is_csv_path(path) {
@@ -213,10 +213,6 @@ pub fn load_engine_dataset(path: &Path, file_name: &str) -> Result<EngineDataset
     };
 
     Ok(EngineDataset::from_rows(file_name.to_string(), rows))
-}
-
-pub fn preview_result(file_id: &str, dataset: &EngineDataset, seed_rows: usize) -> Value {
-    dataset.preview_result(file_id, seed_rows)
 }
 
 fn parse_strict_finite_number(value: &str) -> Option<f64> {

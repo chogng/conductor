@@ -11,7 +11,7 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 }
 
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
-$CrateDir = Join-Path $ProjectRoot "tools\conductor-engine"
+$CrateDir = Join-Path $ProjectRoot "conductor-rs\worker"
 $BenchDir = Join-Path $ProjectRoot ".tooling\device-analysis-phase3-bench"
 if ($RequestSet -eq "analysis") {
   $RequestsPath = Join-Path $BenchDir "analysis-requests.jsonl"
@@ -22,7 +22,7 @@ if ($RequestSet -eq "analysis") {
   $ResultsPath = Join-Path $BenchDir "rust-results.jsonl"
   $TimingPath = Join-Path $BenchDir "rust-process-timing.json"
 }
-$EngineExe = Join-Path $CrateDir "target\release\conductor-engine.exe"
+$EngineExe = Join-Path $ProjectRoot "conductor-rs\target\release\worker.exe"
 
 if (-not (Test-Path -LiteralPath $RequestsPath)) {
   throw "Phase 3 benchmark requests were not prepared: $RequestsPath"
@@ -35,7 +35,7 @@ try {
     throw "Phase 3 Rust release build failed with exit code $LASTEXITCODE"
   }
   $startedAt = [System.Diagnostics.Stopwatch]::StartNew()
-  $results = Get-Content -LiteralPath $RequestsPath -Raw | & $EngineExe --stdio-engine
+  $results = Get-Content -LiteralPath $RequestsPath -Raw | & $EngineExe --stdio-worker
   $startedAt.Stop()
   if ($LASTEXITCODE -ne 0) {
     throw "Phase 3 Rust processing run failed with exit code $LASTEXITCODE"

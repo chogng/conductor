@@ -5,7 +5,7 @@ import path from "node:path";
 import { performance } from "node:perf_hooks";
 
 const ROOT = process.cwd();
-const EXE_PATH = path.join(ROOT, "excel", "bin", "conductor-engine.exe");
+const EXE_PATH = path.join(ROOT, "excel", "bin", "worker.exe");
 const DEFAULT_ROOT = "C:/Users/lanxi/Desktop/ZC";
 const SUPPORTED_EXTENSIONS = new Set([".csv", ".xls", ".xlsx"]);
 const SINGLE_FILE_BUDGET_BYTES = 32 * 1024 * 1024;
@@ -53,7 +53,7 @@ const walkFiles = async (root) => {
 };
 
 const createEngine = () => {
-  const child = spawn(EXE_PATH, ["--stdio-engine"], {
+  const child = spawn(EXE_PATH, ["--stdio-worker"], {
     stdio: ["pipe", "pipe", "pipe"],
     windowsHide: true,
   });

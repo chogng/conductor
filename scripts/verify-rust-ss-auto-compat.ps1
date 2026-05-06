@@ -9,11 +9,11 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 }
 
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
-$CrateDir = Join-Path $ProjectRoot "tools\conductor-engine"
+$CrateDir = Join-Path $ProjectRoot "conductor-rs\worker"
 $RequestsPath = Join-Path $ProjectRoot ".tooling\rust-ss-auto-compat\requests.jsonl"
 $ResultsPath = Join-Path $ProjectRoot ".tooling\rust-ss-auto-compat\rust-results.jsonl"
-$EngineExe = Join-Path $CrateDir "target\release\conductor-engine.exe"
-$PackagedEngineExe = Join-Path $ProjectRoot "excel\bin\conductor-engine.exe"
+$EngineExe = Join-Path $ProjectRoot "conductor-rs\target\release\worker.exe"
+$PackagedEngineExe = Join-Path $ProjectRoot "excel\bin\worker.exe"
 
 if (-not (Test-Path -LiteralPath $RequestsPath)) {
   throw "Rust SS auto compatibility requests were not prepared: $RequestsPath"
@@ -29,7 +29,7 @@ try {
   if (-not (Test-Path -LiteralPath $EngineExe)) {
     $EngineExe = $PackagedEngineExe
   }
-  $results = Get-Content -LiteralPath $RequestsPath -Raw | & $EngineExe --stdio-engine
+  $results = Get-Content -LiteralPath $RequestsPath -Raw | & $EngineExe --stdio-worker
   $startedAt.Stop()
   if ($LASTEXITCODE -ne 0) {
     throw "Rust SS auto compatibility run failed with exit code $LASTEXITCODE"

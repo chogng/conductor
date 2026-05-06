@@ -9,12 +9,13 @@
     "dev": "vite",
     "dev:desktop": "npm run build:desktop:core && node --experimental-strip-types scripts/dev-desktop.ts",
     "build:origin-csv-worker": "node scripts/run-powershell.mjs scripts/build-origin-csv-worker.ps1",
-    "build:engine": "node scripts/run-powershell.mjs scripts/build-conductor-engine.ps1",
+    "build:worker": "node scripts/run-powershell.mjs scripts/build-conductor-engine.ps1",
+    "build:engine": "npm run build:worker",
     "verify:origin-worker": "node scripts/verify-origin-csv-worker.mjs",
     "verify:rust-auto-extraction": "node --experimental-strip-types scripts/verify-rust-auto-extraction-compat.mjs prepare && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify-rust-auto-extraction-compat.ps1 && node --experimental-strip-types scripts/verify-rust-auto-extraction-compat.mjs compare",
     "verify:rust-analysis": "npm run verify:rust-ss-auto",
     "verify:rust-ss-auto": "node --experimental-strip-types scripts/bench-device-analysis-phase3.mjs prepare && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/bench-device-analysis-phase3.ps1 && node --experimental-strip-types scripts/verify-rust-ss-auto-compat.mjs prepare && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify-rust-ss-auto-compat.ps1 && node --experimental-strip-types scripts/verify-rust-ss-auto-compat.mjs compare",
-    "verify:rust-origin-export": "node --experimental-strip-types scripts/verify-rust-origin-export-compat.mjs",
+    "verify:rust-origin-export": "node --experimental-strip-types scripts/verify-rust-origin-export-compat.mjs prepare && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify-rust-origin-export-worker.ps1 -Mode process && node --experimental-strip-types scripts/verify-rust-origin-export-compat.mjs plan && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify-rust-origin-export-worker.ps1 -Mode export && node --experimental-strip-types scripts/verify-rust-origin-export-compat.mjs compare",
     "bench:analysis-cache": "node scripts/bench-analysis-cache-budget.mjs",
     "bench:phase3": "node --experimental-strip-types scripts/bench-device-analysis-phase3.mjs prepare && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/bench-device-analysis-phase3.ps1 -RequestSet process && node --experimental-strip-types scripts/bench-device-analysis-phase3.mjs prepare-rust-analysis && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/bench-device-analysis-phase3.ps1 -RequestSet analysis && node --experimental-strip-types scripts/bench-device-analysis-phase3.mjs analyze",
     "build:desktop:core": "tsc -p tsconfig.desktop.json",
@@ -92,7 +93,7 @@
         "from": "excel/bin",
         "to": "excel/bin",
         "filter": [
-          "conductor-engine.exe"
+          "worker.exe"
         ]
       },
       {

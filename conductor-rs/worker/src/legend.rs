@@ -1,5 +1,5 @@
-use crate::engine_dataset::EngineDataset;
-use crate::engine_utils::{json_cell_ref, json_number, json_string, read_cell_number};
+use crate::dataset::EngineDataset;
+use crate::utils::{json_cell_ref, json_number, json_string, read_cell_number};
 use serde_json::Value;
 
 fn trim_compact_exponent(text: String) -> String {

@@ -9,11 +9,11 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 }
 
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
-$CrateDir = Join-Path $ProjectRoot "tools\conductor-engine"
+$CrateDir = Join-Path $ProjectRoot "conductor-rs\worker"
 $RequestsPath = Join-Path $ProjectRoot ".tooling\rust-auto-extraction-compat\requests.jsonl"
 $ResultsPath = Join-Path $ProjectRoot ".tooling\rust-auto-extraction-compat\rust-results.jsonl"
-$EngineExe = Join-Path $CrateDir "target\release\conductor-engine.exe"
-$PackagedEngineExe = Join-Path $ProjectRoot "excel\bin\conductor-engine.exe"
+$EngineExe = Join-Path $ProjectRoot "conductor-rs\target\release\worker.exe"
+$PackagedEngineExe = Join-Path $ProjectRoot "excel\bin\worker.exe"
 
 if (-not (Test-Path -LiteralPath $RequestsPath)) {
   throw "Rust auto extraction requests were not prepared: $RequestsPath"
@@ -28,7 +28,7 @@ try {
   if (-not (Test-Path -LiteralPath $EngineExe)) {
     $EngineExe = $PackagedEngineExe
   }
-  $results = Get-Content -LiteralPath $RequestsPath -Raw | & $EngineExe --stdio-engine
+  $results = Get-Content -LiteralPath $RequestsPath -Raw | & $EngineExe --stdio-worker
   if ($LASTEXITCODE -ne 0) {
     throw "Rust auto extraction compatibility run failed with exit code $LASTEXITCODE"
   }
