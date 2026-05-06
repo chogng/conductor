@@ -2,7 +2,7 @@ import {
   computeSpan,
   normalizeCellText,
   parseFiniteNumber,
-} from "./deviceAnalysisSharedUtils.js";
+} from "./deviceAnalysisSharedUtils.ts";
 
 export type DeviceAnalysisAxisRole = "vg" | "vd";
 

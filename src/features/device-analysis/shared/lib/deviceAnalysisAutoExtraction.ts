@@ -7,14 +7,14 @@ import {
   type DeviceAnalysisCurveConfidence,
   type DeviceAnalysisCurveKind,
   type DeviceAnalysisCurveSource,
-} from "./deviceAnalysisCurveClassification.js";
+} from "./deviceAnalysisCurveClassification.ts";
 import {
   approxEqual,
   computeSpan,
   normalizeCellText,
   parseFiniteNumber,
-} from "./deviceAnalysisSharedUtils.js";
-import { getExcelColumnLabel } from "./deviceAnalysisUtils.js";
+} from "./deviceAnalysisSharedUtils.ts";
+import { getExcelColumnLabel } from "./deviceAnalysisUtils.ts";
 
 export const DEVICE_ANALYSIS_AUTO_TEMPLATE_ID = "__auto__";
 

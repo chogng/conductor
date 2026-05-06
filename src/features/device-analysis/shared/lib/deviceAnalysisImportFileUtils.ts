@@ -3,7 +3,7 @@ import {
   classifyDeviceAnalysisCurve,
   extractDeviceAnalysisCurveMetadata,
   type DeviceAnalysisCurveClassification,
-} from "./deviceAnalysisCurveClassification.js";
+} from "./deviceAnalysisCurveClassification.ts";
 
 export const DEVICE_ANALYSIS_DATA_IMPORT_EXTENSIONS = [
   ".csv",
