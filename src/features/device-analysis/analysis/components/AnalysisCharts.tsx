@@ -1,5 +1,5 @@
 ﻿import React, { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, } from "react";
-import { Check, SlidersHorizontal, X } from "lucide-react";
+import { SlidersHorizontal, X } from "lucide-react";
 import { computeCentralDerivative, computeSubthresholdSwing, computeSubthresholdSwingFitAuto, computeSubthresholdSwingFitInRange, classifySsFit, formatNumber, interpolateCurveAtX, resolveAutoSsSelection, splitBidirectionalCurvePoints, } from "../lib/analysisMath";
 import { apiService } from "../services/apiService";
 import DropdownField from "../../../../components/ui/DropdownField";
@@ -7,6 +7,7 @@ import Input from "../../../../components/ui/Input";
 import Menu from "../../../../components/ui/Menu";
 import Button from "../../../../components/ui/Button";
 import Card from "../../../../components/ui/Card";
+import Checkbox from "../../../../components/ui/Checkbox";
 import InlineEditableText from "../../../../components/ui/InlineEditableText";
 import ScrollArea from "../../../../components/ui/ScrollArea";
 import Tabs from "../../../../components/ui/Tabs";
@@ -151,6 +152,247 @@ const normalizeOriginExportContentKeysForOptions = (
         .filter((key): key is DeviceAnalysisOriginExportContentKey => allowedKeys.has(key));
     return normalized.length ? Array.from(new Set(normalized)) : DEFAULT_ORIGIN_EXPORT_CONTENT_KEYS;
 };
+
+type OriginCurveSelectionSeriesEntry = {
+    key: string;
+    label: string;
+    selected: boolean;
+};
+
+type OriginCurveSelectionEntry = {
+    allSeriesSelected: boolean;
+    fileId: string;
+    fileName: string;
+    isCanvasSelected?: boolean;
+    selectedCount: number;
+    series: OriginCurveSelectionSeriesEntry[];
+};
+
+const areOriginCurveSelectionSeriesEqual = (
+    prev: OriginCurveSelectionSeriesEntry,
+    next: OriginCurveSelectionSeriesEntry,
+) => prev.key === next.key && prev.label === next.label && prev.selected === next.selected;
+
+const OriginCurveSelectionSeriesChip = React.memo(function OriginCurveSelectionSeriesChip({
+    curveMode,
+    fileId,
+    onSetCurveMode,
+    onToggleSeriesForFile,
+    series,
+}: {
+    curveMode: DeviceAnalysisOriginCurveExportMode;
+    fileId: string;
+    onSetCurveMode: (nextMode: DeviceAnalysisOriginCurveExportMode) => void;
+    onToggleSeriesForFile: (fileId: string, seriesKey: string) => void;
+    series: OriginCurveSelectionSeriesEntry;
+}) {
+    const handleClick = React.useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
+        event.stopPropagation();
+        if (curveMode === "all") {
+            onSetCurveMode("select");
+        }
+        onToggleSeriesForFile(fileId, series.key);
+    }, [curveMode, fileId, onSetCurveMode, onToggleSeriesForFile, series.key]);
+
+    return (
+        <button
+          type="button"
+          onClick={handleClick}
+          className={`inline-flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] leading-none ${series.selected
+                ? "border-accent/30 bg-accent/5 text-text-primary"
+                : "border-border bg-bg-surface text-text-secondary"} ${curveMode === "select"
+                ? "cursor-pointer"
+                : "cursor-default"}`}
+        >
+          <Checkbox checked={series.selected} size="sm" className="shrink-0" />
+          <span className="truncate whitespace-nowrap">{series.label}</span>
+        </button>
+    );
+}, (prev, next) =>
+    prev.curveMode === next.curveMode &&
+    prev.fileId === next.fileId &&
+    prev.onSetCurveMode === next.onSetCurveMode &&
+    prev.onToggleSeriesForFile === next.onToggleSeriesForFile &&
+    areOriginCurveSelectionSeriesEqual(prev.series, next.series));
+
+const areOriginCurveSelectionEntriesEqual = (
+    prev: OriginCurveSelectionEntry,
+    next: OriginCurveSelectionEntry,
+) => {
+    if (
+        prev.allSeriesSelected !== next.allSeriesSelected ||
+        prev.fileId !== next.fileId ||
+        prev.fileName !== next.fileName ||
+        prev.isCanvasSelected !== next.isCanvasSelected ||
+        prev.selectedCount !== next.selectedCount ||
+        prev.series.length !== next.series.length
+    ) {
+        return false;
+    }
+    return prev.series.every((series, index) => areOriginCurveSelectionSeriesEqual(series, next.series[index]));
+};
+
+const OriginCurveSelectionEntryRow = React.memo(function OriginCurveSelectionEntryRow({
+    curveMode,
+    entry,
+    exportEntryActionLabel,
+    fileCurvesLabel,
+    isSelectionMode,
+    onClearAllSeriesForFile,
+    onRemoveEntry,
+    onSelectAllSeriesForFile,
+    onSelectFile,
+    onSetCurveMode,
+    onToggleFile,
+    onToggleSeriesForFile,
+    pickAllLabel,
+    renderFileExtra,
+    selectedBadgeLabel,
+    showRemoveButton,
+    showSeriesControls,
+}: {
+    curveMode: DeviceAnalysisOriginCurveExportMode;
+    entry: OriginCurveSelectionEntry;
+    exportEntryActionLabel: string;
+    fileCurvesLabel: string;
+    isSelectionMode: boolean;
+    onClearAllSeriesForFile: (fileId: string) => void;
+    onRemoveEntry: (fileId: string) => void;
+    onSelectAllSeriesForFile: (fileId: string) => void;
+    onSelectFile: (fileId: string) => void;
+    onSetCurveMode: (nextMode: DeviceAnalysisOriginCurveExportMode) => void;
+    onToggleFile: (fileId: string) => void;
+    onToggleSeriesForFile: (fileId: string, seriesKey: string) => void;
+    pickAllLabel: string;
+    renderFileExtra?: (entry: OriginCurveSelectionEntry) => React.ReactNode;
+    selectedBadgeLabel: string;
+    showRemoveButton: boolean;
+    showSeriesControls: boolean;
+}) {
+    const fileExtra = renderFileExtra ? renderFileExtra(entry) : null;
+    const handleToggleFile = React.useCallback(() => {
+        onToggleFile(entry.fileId);
+    }, [entry.fileId, onToggleFile]);
+    const handleKeyDown = React.useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        onToggleFile(entry.fileId);
+    }, [entry.fileId, onToggleFile]);
+    const handleSelectFile = React.useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
+        event.stopPropagation();
+        onSelectFile(entry.fileId);
+    }, [entry.fileId, onSelectFile]);
+    const handleRemove = React.useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
+        event.stopPropagation();
+        onRemoveEntry(entry.fileId);
+    }, [entry.fileId, onRemoveEntry]);
+    const handleToggleAllSeries = React.useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
+        event.stopPropagation();
+        if (curveMode === "all") {
+            onSetCurveMode("select");
+        }
+        if (entry.allSeriesSelected) {
+            onClearAllSeriesForFile(entry.fileId);
+            return;
+        }
+        onSelectAllSeriesForFile(entry.fileId);
+    }, [
+        curveMode,
+        entry.allSeriesSelected,
+        entry.fileId,
+        onClearAllSeriesForFile,
+        onSelectAllSeriesForFile,
+        onSetCurveMode,
+    ]);
+    const stopFileExtraEvent = React.useCallback((event: React.MouseEvent<HTMLDivElement> | React.KeyboardEvent<HTMLDivElement>) => {
+        const target = event.target;
+        const interactiveTarget = target instanceof Element
+            ? target.closest("a, button, input, label, select, textarea, [contenteditable='true'], [data-style='input'], [role='button'], [role='textbox'], [data-prevent-selection-toggle='true']")
+            : null;
+        if (interactiveTarget && event.currentTarget.contains(interactiveTarget)) {
+            event.stopPropagation();
+        }
+    }, []);
+
+    return (
+        <div
+          className={`rounded-xl border border-border bg-bg-page/40 px-3 py-2.5 ${isSelectionMode ? "cursor-pointer" : ""}`}
+          onClick={isSelectionMode ? handleToggleFile : undefined}
+          onKeyDown={isSelectionMode ? handleKeyDown : undefined}
+          role={isSelectionMode ? "button" : undefined}
+          tabIndex={isSelectionMode ? 0 : undefined}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap text-[11px] text-text-secondary">
+                <button
+                  type="button"
+                  onClick={handleSelectFile}
+                  className="max-w-full truncate rounded-lg p-1 -m-1 text-left text-sm font-medium text-text-primary hover:text-accent"
+                >
+                  {entry.fileName}
+                </button>
+                <span className="inline-flex items-center rounded-full bg-bg-surface px-2 py-0.5">
+                  {fileCurvesLabel}
+                </span>
+                {isSelectionMode && entry.isCanvasSelected ? (<span className="inline-flex items-center rounded-full bg-accent-terracotta/15 px-2 py-0.5 text-accent-terracotta">
+                    {selectedBadgeLabel}
+                  </span>) : null}
+              </div>
+            </div>
+            {showRemoveButton ? (<Button variant="icon" size="icon" className="shrink-0 rounded-full text-text-tertiary hover:text-text-primary" onClick={handleRemove} title={exportEntryActionLabel} aria-label={exportEntryActionLabel}>
+              <X size={14} strokeWidth={2} />
+            </Button>) : null}
+          </div>
+          {showSeriesControls ? (<div className={ORIGIN_CURVE_SELECTION_DETAIL_ROW_CLASS}>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={handleToggleAllSeries}
+                className="inline-flex min-w-0 items-center gap-1.5 rounded-md border border-border bg-bg-surface px-2 py-1 text-[11px] leading-none text-text-secondary hover:text-text-primary"
+              >
+                <Checkbox checked={entry.allSeriesSelected} size="sm" />
+                <span className="whitespace-nowrap">{pickAllLabel}</span>
+              </button>
+              {entry.series.map((series) => (
+                <OriginCurveSelectionSeriesChip
+                  key={series.key}
+                  curveMode={curveMode}
+                  fileId={entry.fileId}
+                  onSetCurveMode={onSetCurveMode}
+                  onToggleSeriesForFile={onToggleSeriesForFile}
+                  series={series}
+                />
+              ))}
+            </div>
+          </div>) : null}
+          {fileExtra ? (<div
+              className={ORIGIN_CURVE_SELECTION_DETAIL_ROW_CLASS}
+              onClick={stopFileExtraEvent}
+              onKeyDown={stopFileExtraEvent}
+            >
+              {fileExtra}
+            </div>) : null}
+        </div>
+    );
+}, (prev, next) =>
+    prev.curveMode === next.curveMode &&
+    prev.exportEntryActionLabel === next.exportEntryActionLabel &&
+    prev.fileCurvesLabel === next.fileCurvesLabel &&
+    prev.isSelectionMode === next.isSelectionMode &&
+    prev.onClearAllSeriesForFile === next.onClearAllSeriesForFile &&
+    prev.onRemoveEntry === next.onRemoveEntry &&
+    prev.onSelectAllSeriesForFile === next.onSelectAllSeriesForFile &&
+    prev.onSelectFile === next.onSelectFile &&
+    prev.onSetCurveMode === next.onSetCurveMode &&
+    prev.onToggleFile === next.onToggleFile &&
+    prev.onToggleSeriesForFile === next.onToggleSeriesForFile &&
+    prev.pickAllLabel === next.pickAllLabel &&
+    prev.renderFileExtra === next.renderFileExtra &&
+    prev.selectedBadgeLabel === next.selectedBadgeLabel &&
+    prev.showRemoveButton === next.showRemoveButton &&
+    prev.showSeriesControls === next.showSeriesControls &&
+    areOriginCurveSelectionEntriesEqual(prev.entry, next.entry));
 
 type ChartHighlightOverlay = {
     key: string;
@@ -341,9 +583,7 @@ const EditableLegendItem = ({
       style={{ fontFamily: "Arial, sans-serif", fontSize }}
     >
       <button type="button" aria-pressed={checked} aria-label={label} disabled={disabled} onClick={onToggleVisible} className={`shrink-0 ${disabled ? "cursor-default" : "cursor-pointer"}`}>
-        <span className="clickable-ckb" data-state={checked ? "checked" : "unchecked"}>
-          {checked ? <Check size={10} className="text-white" strokeWidth={4}/> : null}
-        </span>
+        <Checkbox checked={checked} />
       </button>
       <span className="inline-block h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: color }}/>
       <InlineEditableText
@@ -4090,126 +4330,30 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         showSeriesControls?: boolean;
     }) => entries.length ? (<ScrollArea axis="y" className="min-w-0 w-full max-h-[320px]" viewportClassName="pr-2">
         <div className="space-y-2">
-          {entries.map((entry: any) => {
-            const fileExtra = renderFileExtra ? renderFileExtra(entry) : null;
-            return (<div
+          {entries.map((entry: any) => (
+            <OriginCurveSelectionEntryRow
               key={entry.fileId}
-              className={`rounded-xl border border-border bg-bg-page/40 px-3 py-2.5 ${isSelectionMode ? "cursor-pointer" : ""}`}
-              onClick={isSelectionMode
-                ? () => {
-                    onToggleFile(entry.fileId);
-                  }
-                : undefined}
-              onKeyDown={isSelectionMode
-                ? (event) => {
-                    if (event.key !== "Enter" && event.key !== " ") return;
-                    event.preventDefault();
-                    onToggleFile(entry.fileId);
-                  }
-                : undefined}
-              role={isSelectionMode ? "button" : undefined}
-              tabIndex={isSelectionMode ? 0 : undefined}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap text-[11px] text-text-secondary">
-                    <button
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        handleSelectFile(entry.fileId);
-                      }}
-                      className="max-w-full truncate rounded-lg p-1 -m-1 text-left text-sm font-medium text-text-primary hover:text-accent"
-                    >
-                      {entry.fileName}
-                    </button>
-                    <span className="inline-flex items-center rounded-full bg-bg-surface px-2 py-0.5">
-                      {t("da_origin_collection_file_curves", {
-                            count: entry.selectedCount,
-                        })}
-                    </span>
-                    {isSelectionMode && entry.isCanvasSelected ? (<span className="inline-flex items-center rounded-full bg-accent-terracotta/15 px-2 py-0.5 text-accent-terracotta">
-                        {t("da_origin_export_list_selected_badge")}
-                      </span>) : null}
-                  </div>
-                </div>
-                {showRemoveButton ? (<Button variant="icon" size="icon" className="shrink-0 rounded-full text-text-tertiary hover:text-text-primary" onClick={(event) => {
-                    event.stopPropagation();
-                    handleRemoveOriginExportEntry(entry.fileId);
-                }} title={exportEntryActionLabel} aria-label={exportEntryActionLabel}>
-                  <X size={14} strokeWidth={2} />
-                </Button>) : null}
-              </div>
-              {showSeriesControls ? (<div className={ORIGIN_CURVE_SELECTION_DETAIL_ROW_CLASS}>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                        event.stopPropagation();
-                        if (curveMode === "all") {
-                            onSetCurveMode("select");
-                        }
-                        if (entry.allSeriesSelected) {
-                            onClearAllSeriesForFile(entry.fileId);
-                            return;
-                        }
-                        onSelectAllSeriesForFile(entry.fileId);
-                    }}
-                    className="inline-flex min-w-0 items-center gap-1.5 rounded-md border border-border bg-bg-surface px-2 py-1 text-[11px] leading-none text-text-secondary hover:text-text-primary"
-                  >
-                    <span className="clickable-ckb" data-state={entry.allSeriesSelected ? "checked" : "unchecked"}>
-                      {entry.allSeriesSelected ? <Check size={10} className="text-white" strokeWidth={4}/> : null}
-                    </span>
-                    <span className="whitespace-nowrap">{t("da_origin_curve_export_pick_all")}</span>
-                  </button>
-                  {entry.series.map((series: any) => (<button
-                      key={series.key}
-                      type="button"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        if (curveMode === "all") {
-                            onSetCurveMode("select");
-                        }
-                        onToggleSeriesForFile(entry.fileId, series.key);
-                    }}
-                      className={`inline-flex min-w-0 items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] leading-none ${series.selected
-                            ? "border-accent/30 bg-accent/5 text-text-primary"
-                            : "border-border bg-bg-surface text-text-secondary"} ${curveMode === "select"
-                            ? "cursor-pointer"
-                            : "cursor-default"}`}
-                    >
-                      <span className="clickable-ckb shrink-0" data-state={series.selected ? "checked" : "unchecked"}>
-                        {series.selected ? <Check size={10} className="text-white" strokeWidth={4}/> : null}
-                      </span>
-                      <span className="truncate whitespace-nowrap">{series.label}</span>
-                    </button>))}
-                </div>
-              </div>) : null}
-              {fileExtra ? (<div
-                  className={ORIGIN_CURVE_SELECTION_DETAIL_ROW_CLASS}
-                  onClick={(event) => {
-                    const target = event.target;
-                    const interactiveTarget = target instanceof Element
-                        ? target.closest("a, button, input, label, select, textarea, [contenteditable='true'], [data-style='input'], [role='button'], [role='textbox'], [data-prevent-selection-toggle='true']")
-                        : null;
-                    if (interactiveTarget && event.currentTarget.contains(interactiveTarget)) {
-                        event.stopPropagation();
-                    }
-                  }}
-                  onKeyDown={(event) => {
-                    const target = event.target;
-                    const interactiveTarget = target instanceof Element
-                        ? target.closest("a, button, input, label, select, textarea, [contenteditable='true'], [data-style='input'], [role='button'], [role='textbox'], [data-prevent-selection-toggle='true']")
-                        : null;
-                    if (interactiveTarget && event.currentTarget.contains(interactiveTarget)) {
-                        event.stopPropagation();
-                    }
-                  }}
-                >
-                  {fileExtra}
-                </div>) : null}
-            </div>);
-          })}
+              curveMode={curveMode}
+              entry={entry}
+              exportEntryActionLabel={exportEntryActionLabel}
+              fileCurvesLabel={t("da_origin_collection_file_curves", {
+                count: entry.selectedCount,
+              })}
+              isSelectionMode={isSelectionMode}
+              onClearAllSeriesForFile={onClearAllSeriesForFile}
+              onRemoveEntry={handleRemoveOriginExportEntry}
+              onSelectAllSeriesForFile={onSelectAllSeriesForFile}
+              onSelectFile={handleSelectFile}
+              onSetCurveMode={onSetCurveMode}
+              onToggleFile={onToggleFile}
+              onToggleSeriesForFile={onToggleSeriesForFile}
+              pickAllLabel={t("da_origin_curve_export_pick_all")}
+              renderFileExtra={renderFileExtra as ((entry: OriginCurveSelectionEntry) => React.ReactNode) | undefined}
+              selectedBadgeLabel={t("da_origin_export_list_selected_badge")}
+              showRemoveButton={showRemoveButton}
+              showSeriesControls={showSeriesControls}
+            />
+          ))}
         </div>
       </ScrollArea>) : (<div className="rounded-xl border border-dashed border-border bg-bg-page/40 px-4 py-6 text-sm text-text-secondary">
         {emptyText}

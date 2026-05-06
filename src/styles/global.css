@@ -316,22 +316,6 @@ body {
     @apply text-sm text-text-secondary font-medium;
   }
 
-  .clickable-ckb {
-    @apply w-[16px] h-[16px] rounded border-2 flex items-center justify-center transition-all;
-  }
-
-  .clickable-ckb[data-state="checked"] {
-    @apply bg-accent-terracotta border-accent-terracotta;
-  }
-
-  .clickable-ckb[data-state="unchecked"] {
-    @apply bg-bg-surface border-border-200;
-  }
-
-  .group:hover .clickable-ckb[data-state="unchecked"] {
-    @apply border-accent-terracotta/50;
-  }
-
   /* Select (input-like single-select) */
   .ui-select_warp {
     @apply relative;

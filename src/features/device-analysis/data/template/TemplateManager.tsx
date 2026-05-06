@@ -13,7 +13,6 @@ import {
   List,
   Save,
   Plus,
-  Check,
   Download,
   Upload,
   X,
@@ -27,6 +26,7 @@ import DropdownField from "../../../../components/ui/DropdownField";
 import Tabs from "../../../../components/ui/Tabs";
 import Card from "../../../../components/ui/Card";
 import Button from "../../../../components/ui/Button";
+import Checkbox from "../../../../components/ui/Checkbox";
 import Modal from "../../../../components/ui/Modal";
 import ScrollArea from "../../../../components/ui/ScrollArea";
 import {
@@ -2379,11 +2379,9 @@ const TemplateManager = ({
           className="flex items-center gap-2 text-sm text-text-secondary select-none cursor-pointer group w-fit"
         >
           {config.stopOnError ? (
-            <div className="clickable-ckb" data-state="checked">
-              <Check size={14} className="text-white" strokeWidth={3} />
-            </div>
+            <Checkbox checked as="div" size="md" iconSize={12} iconStrokeWidth={3} />
           ) : (
-            <div className="clickable-ckb" data-state="unchecked" />
+            <Checkbox as="div" size="md" />
           )}
           <span>{t("da_stop_on_first_invalid_file")}</span>
         </div>
@@ -2405,11 +2403,9 @@ const TemplateManager = ({
           className="flex items-center gap-2 text-sm text-text-secondary select-none cursor-pointer group w-fit"
         >
           {config.fileNameMatchCaseSensitive ? (
-            <div className="clickable-ckb" data-state="checked">
-              <Check size={14} className="text-white" strokeWidth={3} />
-            </div>
+            <Checkbox checked as="div" size="md" iconSize={12} iconStrokeWidth={3} />
           ) : (
-            <div className="clickable-ckb" data-state="unchecked" />
+            <Checkbox as="div" size="md" />
           )}
           <span>{t("da_match_field_case_sensitive")}</span>
         </div>
