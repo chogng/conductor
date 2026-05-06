@@ -79,8 +79,4 @@ if (-not $releaseExists) {
   Write-Host "[publish-windows-updater-assets] Release already exists. Uploading assets with --clobber..."
   & $gh.Source release upload $ReleaseTag --repo $UpdateRepo --clobber $assetPaths
   Ensure-LastExitCodeZero -Code $LASTEXITCODE -Step "gh release upload"
-
-  Write-Host "[publish-windows-updater-assets] Regenerating release notes..."
-  & $gh.Source release edit $ReleaseTag --repo $UpdateRepo --generate-notes
-  Ensure-LastExitCodeZero -Code $LASTEXITCODE -Step "gh release edit --generate-notes"
 }
