@@ -28,7 +28,6 @@ New-Item -ItemType Directory -Force -Path $deviceDir | Out-Null
 # Keep all build caches/temp under .device/ (avoids %TEMP% / user profile caches).
 $env:UV_CACHE_DIR = Join-Path $deviceDir "uv-cache"
 $env:UV_PYTHON_INSTALL_DIR = Join-Path $deviceDir "uv-python"
-$env:PIP_CACHE_DIR = Join-Path $deviceDir "pip-cache"
 $env:ELECTRON_CACHE = Join-Path $deviceDir "electron-cache"
 $env:ELECTRON_BUILDER_CACHE = Join-Path $deviceDir "electron-builder-cache"
 $env:npm_config_cache = Join-Path $deviceDir "npm-cache"
@@ -36,7 +35,6 @@ $env:npm_config_cache = Join-Path $deviceDir "npm-cache"
 New-Item -ItemType Directory -Force -Path `
   $env:UV_CACHE_DIR, `
   $env:UV_PYTHON_INSTALL_DIR, `
-  $env:PIP_CACHE_DIR, `
   $env:ELECTRON_CACHE, `
   $env:ELECTRON_BUILDER_CACHE, `
   $env:npm_config_cache | Out-Null

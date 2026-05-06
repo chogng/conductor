@@ -12,6 +12,11 @@ Worker dependencies are installed into a project-local virtual environment by de
 
 - `.venv-py-workers/` (gitignored)
 
+The Python worker build requires `uv`. It selects the requested Python version
+through `uv`, stores managed Python builds under `.device/uv-python/`, and
+installs worker packages with `uv pip` instead of relying on `pip` inside the
+virtual environment.
+
 ## Build Worker EXEs (Dev Machine)
 
 From repository root:
@@ -35,8 +40,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-py-worker.ps1 
 The default build uses PyInstaller `--onedir` at
 `workers/py/origin-csv-worker/origin-csv-worker.exe`. This avoids the
 self-extracting `--onefile` stub, which can fail under antivirus controls when
-extracting bundled DLLs. Use `-OneFile` only when you specifically need a
-single executable for debugging or distribution experiments.
+extracting bundled DLLs.
 
 The packaged worker is launched directly from this fixed resource path. The
 desktop app does not create a PowerShell launcher fallback for the packaged
