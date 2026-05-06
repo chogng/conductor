@@ -20,7 +20,7 @@ const runNpm = (scriptName, extraArgs = []) => {
 if (isWin) {
   // Default desktop release needs the Origin CSV worker and the Rust worker.
   // ZIP/BATCH Origin workers are optional and can be built manually when needed.
-  const code = runNpm("build:origin-csv-worker");
+  const code = runNpm("build:py-worker");
   if (code !== 0) process.exit(code);
 
   {

@@ -116,8 +116,8 @@ Build and package:
 Supporting release and verification:
 
 - `npm run verify:auto-update-config`: verify updater configuration
-- `npm run build:origin-csv-worker`: build the Origin worker EXE
-- `npm run verify:origin-worker`: verify the Origin worker EXE and embedded version metadata
+- `npm run build:py-worker`: build the Python Origin worker EXE
+- `npm run verify:py-worker`: verify the Python worker EXE and embedded version metadata
 - `npm run dist:desktop:publish`: local desktop release publishing flow when preparing a build
 - `npm run release:desktop:local`: explicit local release entrypoint for distribution work
 
@@ -170,39 +170,39 @@ ${productName}-${version}-${os}-${arch}.${ext}
 
 The desktop app ships one offline-native worker:
 
-- `origin/bin/origin-csv-worker/origin-csv-worker.exe`
+- `workers/py/origin-csv-worker/origin-csv-worker.exe`
 
 Default local worker virtual environment:
 
 ```text
-.venv-origin-workers/
+.venv-py-workers/
 ```
 
 Build the worker:
 
 ```powershell
-npm run build:origin-csv-worker
+npm run build:py-worker
 ```
 
 Verify the worker:
 
 ```powershell
-npm run verify:origin-worker
+npm run verify:py-worker
 ```
 
 Inspect embedded worker metadata:
 
 ```powershell
-origin/bin/origin-csv-worker/origin-csv-worker.exe --worker-version
+workers/py/origin-csv-worker/origin-csv-worker.exe --worker-version
 ```
 
 Runner behavior:
 
-- dev mode defaults to `origin/run_origin_csv.py`
+- dev mode defaults to `conductor-py/run_origin_csv.py`
 - `ORIGIN_CSV_WORKER_PATH` can be set explicitly for EXE smoke testing
 - packaged desktop builds use the bundled worker EXE
 
-More details: [origin/ORIGIN_WORKERS.md](./origin/ORIGIN_WORKERS.md)
+More details: [conductor-py/ORIGIN_WORKERS.md](./conductor-py/ORIGIN_WORKERS.md)
 
 ## Device Analysis Origin Export Modes
 

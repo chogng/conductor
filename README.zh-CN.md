@@ -97,8 +97,8 @@ npm run test:unit
 发布和验证：
 
 - `npm run verify:auto-update-config`：验证自动更新配置
-- `npm run build:origin-csv-worker`：构建 Origin worker EXE
-- `npm run verify:origin-worker`：验证 Origin worker EXE 及其嵌入版本信息
+- `npm run build:py-worker`：构建 Python Origin worker EXE
+- `npm run verify:py-worker`：验证 Python worker EXE 及其嵌入版本信息
 - `npm run dist:desktop:publish`：本地桌面端发布流程
 - `npm run release:desktop:local`：显式本地发布入口
 
@@ -148,39 +148,39 @@ ${productName}-${version}-${os}-${arch}.${ext}
 
 桌面应用内置一个离线 worker：
 
-- `origin/bin/origin-csv-worker.exe`
+- `workers/py/origin-csv-worker/origin-csv-worker.exe`
 
 默认本地 worker 虚拟环境：
 
 ```text
-.venv-origin-workers/
+.venv-py-workers/
 ```
 
 构建 worker：
 
 ```powershell
-npm run build:origin-csv-worker
+npm run build:py-worker
 ```
 
 验证 worker：
 
 ```powershell
-npm run verify:origin-worker
+npm run verify:py-worker
 ```
 
 查看嵌入的 worker 元数据：
 
 ```powershell
-origin/bin/origin-csv-worker.exe --worker-version
+workers/py/origin-csv-worker/origin-csv-worker.exe --worker-version
 ```
 
 运行行为：
 
-- 开发模式默认使用 `origin/run_origin_csv.py`
+- 开发模式默认使用 `conductor-py/run_origin_csv.py`
 - 可通过 `ORIGIN_CSV_WORKER_PATH` 指定 EXE 路径进行冒烟测试
 - 打包后的桌面版使用内置 worker EXE
 
-更多说明：[origin/ORIGIN_WORKERS.md](./origin/ORIGIN_WORKERS.md)
+更多说明：[conductor-py/ORIGIN_WORKERS.md](./conductor-py/ORIGIN_WORKERS.md)
 
 ## Device Analysis Origin 导出模式
 

@@ -248,8 +248,8 @@ export async function runNativeCsvWorker(
 
 function collectPreferredPythonExecutables(): string[] {
   const candidates = [
-    path.join(process.cwd(), ".venv-origin-workers", "Scripts", "python.exe"),
-    path.join(__dirname, "..", "..", ".venv-origin-workers", "Scripts", "python.exe"),
+    path.join(process.cwd(), ".venv-py-workers", "Scripts", "python.exe"),
+    path.join(__dirname, "..", "..", ".venv-py-workers", "Scripts", "python.exe"),
   ];
 
   const seen = new Set<string>();

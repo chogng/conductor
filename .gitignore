@@ -45,14 +45,13 @@ mcp-claude-hover-snippet.js
 .codex-artifacts/
 
 
-# Origin batch worker local build artifacts
-origin/bin/
-workers/rs/
-origin/.pyi_build/
-origin/.pyi_spec/
-origin/.pyi_zip_build/
-origin/.pyi_zip_spec/
-.venv-origin-workers/
+# Python worker local build artifacts
+workers/
+conductor-py/.pyi_build/
+conductor-py/.pyi_spec/
+conductor-py/.pyi_zip_build/
+conductor-py/.pyi_zip_spec/
+.venv-py-workers/
 
 # Project-local tooling env (conda/node caches)
 .tooling/

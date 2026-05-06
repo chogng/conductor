@@ -9,10 +9,10 @@
     "verify:rs-worker-artifacts": "node scripts/verify-rs-worker-artifacts.mjs",
     "dev": "vite",
     "dev:desktop": "npm run build:desktop:core && node --experimental-strip-types scripts/dev-desktop.ts",
-    "build:origin-csv-worker": "node scripts/run-powershell.mjs scripts/build-origin-csv-worker.ps1",
+    "build:py-worker": "node scripts/run-powershell.mjs scripts/build-py-worker.ps1",
     "build:rs-worker": "node scripts/run-powershell.mjs scripts/build-rs-worker.ps1",
-    "build:worker": "npm run build:rs-worker",
-    "verify:origin-worker": "node scripts/verify-origin-csv-worker.mjs",
+    "build:worker": "npm run build:py-worker && npm run build:rs-worker",
+    "verify:py-worker": "node scripts/verify-py-worker.mjs",
     "verify:rust-auto-extraction": "node --experimental-strip-types scripts/verify-rust-auto-extraction-compat.mjs prepare && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify-rust-auto-extraction-compat.ps1 && node --experimental-strip-types scripts/verify-rust-auto-extraction-compat.mjs compare",
     "verify:rust-analysis": "npm run verify:rust-ss-auto",
     "verify:rust-ss-auto": "node --experimental-strip-types scripts/bench-device-analysis-phase3.mjs prepare && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/bench-device-analysis-phase3.ps1 && node --experimental-strip-types scripts/verify-rust-ss-auto-compat.mjs prepare && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify-rust-ss-auto-compat.ps1 && node --experimental-strip-types scripts/verify-rust-ss-auto-compat.mjs compare",
@@ -29,10 +29,10 @@
     "typecheck": "tsc --noEmit && tsc -p tsconfig.desktop.json --noEmit && tsc -p tsconfig.scripts.json --noEmit && npm run verify:rs-worker-artifacts",
     "preview": "vite preview",
     "build:desktop": "node scripts/build-desktop.mjs",
-    "pack:desktop": "npm run build:desktop && npm run verify:origin-worker && electron-builder --dir",
-    "dist:desktop": "npm run build:desktop && npm run verify:origin-worker && electron-builder",
+    "pack:desktop": "npm run build:desktop && npm run verify:py-worker && electron-builder --dir",
+    "dist:desktop": "npm run build:desktop && npm run verify:py-worker && electron-builder",
     "dist:desktop:exe": "npm run dist:desktop",
-    "dist:desktop:store": "npm run build:desktop && npm run verify:origin-worker && electron-builder --win appx --publish never --config.win.signAndEditExecutable=false",
+    "dist:desktop:store": "npm run build:desktop && npm run verify:py-worker && electron-builder --win appx --publish never --config.win.signAndEditExecutable=false",
     "dist:desktop:oneclick": "node scripts/run-powershell.mjs scripts/pack-desktop-oneclick.ps1",
     "pack:desktop:oneclick": "node scripts/run-powershell.mjs scripts/pack-desktop-oneclick.ps1 -DirOnly",
     "verify:auto-update-config": "node --experimental-strip-types scripts/verify-auto-update-config.ts",
@@ -98,8 +98,8 @@
         ]
       },
       {
-        "from": "origin/bin",
-        "to": "origin/bin"
+        "from": "workers/py",
+        "to": "workers/py"
       },
       {
         "from": "build/icons",

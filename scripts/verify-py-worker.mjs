@@ -6,23 +6,22 @@ import path from "node:path";
 
 const isWin = process.platform === "win32";
 if (!isWin) {
-  console.log("[verify-origin-worker] Skipped (Windows-only).");
+  console.log("[verify-py-worker] Skipped (Windows-only).");
   process.exit(0);
 }
 
 const candidates = [
-  path.join(process.cwd(), "origin", "bin", "origin-csv-worker", "origin-csv-worker.exe"),
-  path.join(process.cwd(), "origin", "bin", "origin-csv-worker.exe"),
-  path.join(process.cwd(), "origin", "dist", "origin-csv-worker.exe"),
+  path.join(process.cwd(), "workers", "py", "origin-csv-worker", "origin-csv-worker.exe"),
+  path.join(process.cwd(), "workers", "py", "origin-csv-worker.exe"),
 ];
 
 const existing = candidates.find((p) => existsSync(p)) || "";
 if (!existing) {
-  console.error("[verify-origin-worker] origin-csv-worker.exe is missing.");
-  console.error("[verify-origin-worker] Expected one of:");
+  console.error("[verify-py-worker] origin-csv-worker.exe is missing.");
+  console.error("[verify-py-worker] Expected one of:");
   for (const c of candidates) console.error(`  - ${c}`);
-  console.error("[verify-origin-worker] Fix:");
-  console.error("  - Run: npm run build:origin-csv-worker");
+  console.error("[verify-py-worker] Fix:");
+  console.error("  - Run: npm run build:py-worker");
   process.exit(1);
 }
 
@@ -33,8 +32,8 @@ try {
   // ignore
 }
 if (!Number.isFinite(size) || size <= 0) {
-  console.error(`[verify-origin-worker] origin-csv-worker.exe exists but looks invalid (size=${size}).`);
-  console.error(`[verify-origin-worker] Path: ${existing}`);
+  console.error(`[verify-py-worker] origin-csv-worker.exe exists but looks invalid (size=${size}).`);
+  console.error(`[verify-py-worker] Path: ${existing}`);
   process.exit(1);
 }
 
@@ -53,8 +52,8 @@ const versionResult = spawnSync(existing, ["--worker-version-json"], {
   windowsHide: true,
 });
 if ((versionResult.status ?? 1) !== 0) {
-  console.error("[verify-origin-worker] Failed to query worker version metadata.");
-  console.error(`[verify-origin-worker] Path: ${existing}`);
+  console.error("[verify-py-worker] Failed to query worker version metadata.");
+  console.error(`[verify-py-worker] Path: ${existing}`);
   if (versionResult.stderr?.trim()) {
     console.error(versionResult.stderr.trim());
   }
@@ -65,24 +64,24 @@ let metadata = null;
 try {
   metadata = JSON.parse(String(versionResult.stdout || "").trim());
 } catch {
-  console.error("[verify-origin-worker] Worker version metadata is not valid JSON.");
-  console.error(`[verify-origin-worker] Path: ${existing}`);
+  console.error("[verify-py-worker] Worker version metadata is not valid JSON.");
+  console.error(`[verify-py-worker] Path: ${existing}`);
   process.exit(1);
 }
 
 const workerVersion =
   typeof metadata?.workerVersion === "string" ? metadata.workerVersion.trim() : "";
 if (!workerVersion) {
-  console.error("[verify-origin-worker] Worker metadata does not include workerVersion.");
-  console.error(`[verify-origin-worker] Path: ${existing}`);
+  console.error("[verify-py-worker] Worker metadata does not include workerVersion.");
+  console.error(`[verify-py-worker] Path: ${existing}`);
   process.exit(1);
 }
 
 if (expectedVersion && workerVersion !== expectedVersion) {
   console.error(
-    `[verify-origin-worker] Version mismatch. package.json=${expectedVersion}, exe=${workerVersion}.`,
+    `[verify-py-worker] Version mismatch. package.json=${expectedVersion}, exe=${workerVersion}.`,
   );
-  console.error(`[verify-origin-worker] Path: ${existing}`);
+  console.error(`[verify-py-worker] Path: ${existing}`);
   process.exit(1);
 }
 
@@ -133,8 +132,8 @@ let fileVersionInfo = null;
 try {
   fileVersionInfo = queryWindowsVersionInfo(existing);
 } catch (error) {
-  console.error("[verify-origin-worker] Failed to query Windows file version metadata.");
-  console.error(`[verify-origin-worker] Path: ${existing}`);
+  console.error("[verify-py-worker] Failed to query Windows file version metadata.");
+  console.error(`[verify-py-worker] Path: ${existing}`);
   console.error(error instanceof Error ? error.message : String(error));
   process.exit(1);
 }
@@ -150,9 +149,9 @@ for (const [key, expected] of Object.entries(requiredVersionInfo)) {
   const actual = String(fileVersionInfo?.[key] || "").trim();
   if (actual !== expected) {
     console.error(
-      `[verify-origin-worker] Windows VersionInfo mismatch for ${key}. expected=${JSON.stringify(expected)} actual=${JSON.stringify(actual)}.`,
+      `[verify-py-worker] Windows VersionInfo mismatch for ${key}. expected=${JSON.stringify(expected)} actual=${JSON.stringify(actual)}.`,
     );
-    console.error(`[verify-origin-worker] Path: ${existing}`);
+    console.error(`[verify-py-worker] Path: ${existing}`);
     process.exit(1);
   }
 }
@@ -163,9 +162,9 @@ if (expectedVersion) {
     const actualNormalized = normalizeFileVersion(fileVersionInfo?.[key]);
     if (actualNormalized !== expectedNormalized) {
       console.error(
-        `[verify-origin-worker] Windows VersionInfo mismatch for ${key}. expected=${expectedNormalized} actual=${actualNormalized}.`,
+        `[verify-py-worker] Windows VersionInfo mismatch for ${key}. expected=${expectedNormalized} actual=${actualNormalized}.`,
       );
-      console.error(`[verify-origin-worker] Path: ${existing}`);
+      console.error(`[verify-py-worker] Path: ${existing}`);
       process.exit(1);
     }
   }
@@ -173,8 +172,8 @@ if (expectedVersion) {
 
 const comments = String(fileVersionInfo?.Comments || "");
 if (!comments.includes("local OriginPro CSV import") || !comments.includes("does not provide network services")) {
-  console.error("[verify-origin-worker] Windows VersionInfo Comments does not describe the local/no-network worker behavior.");
-  console.error(`[verify-origin-worker] Path: ${existing}`);
+  console.error("[verify-py-worker] Windows VersionInfo Comments does not describe the local/no-network worker behavior.");
+  console.error(`[verify-py-worker] Path: ${existing}`);
   process.exit(1);
 }
 
@@ -188,5 +187,5 @@ const details = [
   .filter(Boolean)
   .join(" ");
 
-console.log(`[verify-origin-worker] OK: ${existing} (${size} bytes) ${details}`);
+console.log(`[verify-py-worker] OK: ${existing} (${size} bytes) ${details}`);
 

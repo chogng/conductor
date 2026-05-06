@@ -10,30 +10,30 @@ Python script remains available as the default dev worker:
 
 Worker dependencies are installed into a project-local virtual environment by default:
 
-- `.venv-origin-workers/` (gitignored)
+- `.venv-py-workers/` (gitignored)
 
 ## Build Worker EXEs (Dev Machine)
 
 From repository root:
 
 ```powershell
-npm run build:origin-csv-worker
+npm run build:py-worker
 ```
 
 Direct scripts:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-origin-csv-worker.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-py-worker.ps1
 ```
 
 Optional parameters:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-origin-csv-worker.ps1 -PythonVersion 3.11 -VenvDir .venv-origin-workers
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-py-worker.ps1 -PythonVersion 3.11 -VenvDir .venv-py-workers
 ```
 
 The default build uses PyInstaller `--onedir` at
-`origin/bin/origin-csv-worker/origin-csv-worker.exe`. This avoids the
+`workers/py/origin-csv-worker/origin-csv-worker.exe`. This avoids the
 self-extracting `--onefile` stub, which can fail under antivirus controls when
 extracting bundled DLLs. Use `-OneFile` only when you specifically need a
 single executable for debugging or distribution experiments.
@@ -48,20 +48,20 @@ writes Windows version metadata so the worker looks less like an anonymous packe
 Release-prep smoke test in dev:
 
 ```powershell
-$env:ORIGIN_CSV_WORKER_PATH = (Resolve-Path .\origin\bin\origin-csv-worker\origin-csv-worker.exe).Path
+$env:ORIGIN_CSV_WORKER_PATH = (Resolve-Path .\workers\py\origin-csv-worker\origin-csv-worker.exe).Path
 npm run dev:desktop
 ```
 
 Release-prep verification:
 
 ```powershell
-npm run verify:origin-worker
+npm run verify:py-worker
 ```
 
 Output path:
 
 ```text
-origin/bin/origin-csv-worker/origin-csv-worker.exe
+workers/py/origin-csv-worker/origin-csv-worker.exe
 ```
 
 Worker metadata:
@@ -75,7 +75,7 @@ The same runner-selection rule applies to both CSV jobs (`device-analysis-origin
 
 Dev (`npm run dev:desktop`):
 
-1. `origin/run_origin_csv.py`
+1. `conductor-py/run_origin_csv.py`
 2. `ORIGIN_CSV_WORKER_PATH` only when explicitly set for EXE smoke testing
 
 Packaged app:

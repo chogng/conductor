@@ -182,13 +182,13 @@ function prepareStartupGate() {
 
 function resolveOriginCsvScriptPath() {
   if (!app.isPackaged) {
-    return path.join(__dirname, "..", "origin", "run_origin_csv.py");
+    return path.join(__dirname, "..", "conductor-py", "run_origin_csv.py");
   }
 
   const unpackedPath = path.join(
     getResourcesPath(),
     "app.asar.unpacked",
-    "origin",
+    "conductor-py",
     "run_origin_csv.py",
   );
   if (fs.existsSync(unpackedPath)) {
@@ -198,7 +198,7 @@ function resolveOriginCsvScriptPath() {
   return path.join(
     getResourcesPath(),
     "app.asar",
-    "origin",
+    "conductor-py",
     "run_origin_csv.py",
   );
 }
@@ -226,25 +226,25 @@ function resolveOriginCsvWorkerPath() {
     envPath,
     path.join(
       getResourcesPath(),
-      "origin",
-      "bin",
+      "workers",
+      "py",
       "origin-csv-worker",
       "origin-csv-worker.exe",
     ),
-    path.join(getResourcesPath(), "origin", "bin", "origin-csv-worker.exe"),
+    path.join(getResourcesPath(), "workers", "py", "origin-csv-worker.exe"),
     path.join(
       getResourcesPath(),
       "app.asar.unpacked",
-      "origin",
-      "bin",
+      "workers",
+      "py",
       "origin-csv-worker",
       "origin-csv-worker.exe",
     ),
     path.join(
       getResourcesPath(),
       "app.asar.unpacked",
-      "origin",
-      "bin",
+      "workers",
+      "py",
       "origin-csv-worker.exe",
     ),
   ]);

@@ -75,8 +75,8 @@ New-Item -ItemType Directory -Force -Path `
   $env:PYINSTALLER_CONFIG_DIR, `
   $tempDir | Out-Null
 
-$OriginDir = Join-Path $ProjectRoot "origin"
-$EntryScript = Join-Path $OriginDir "run_origin_csv.py"
+$PythonWorkerDir = Join-Path $ProjectRoot "conductor-py"
+$EntryScript = Join-Path $PythonWorkerDir "run_origin_csv.py"
 $PackageJsonPath = Join-Path $ProjectRoot "package.json"
 
 if (-not (Test-Path -LiteralPath $EntryScript)) {
@@ -86,19 +86,19 @@ if (-not (Test-Path -LiteralPath $PackageJsonPath)) {
   throw "package.json not found: $PackageJsonPath"
 }
 
-$DistDir = Resolve-PathOrDefault -Value $DistDir -Fallback (Join-Path $OriginDir "bin")
+$DistDir = Resolve-PathOrDefault -Value $DistDir -Fallback (Join-Path $ProjectRoot "workers\py")
 $DistDir = $DistDir.Trim()
 if (-not [System.IO.Path]::IsPathRooted($DistDir)) {
   $DistDir = Join-Path $ProjectRoot $DistDir
 }
-$VenvDir = Resolve-PathOrDefault -Value $VenvDir -Fallback (Join-Path $ProjectRoot ".venv-origin-workers")
+$VenvDir = Resolve-PathOrDefault -Value $VenvDir -Fallback (Join-Path $ProjectRoot ".venv-py-workers")
 if (-not [System.IO.Path]::IsPathRooted($VenvDir)) {
   $VenvDir = Join-Path $ProjectRoot $VenvDir
 }
-$BuildWorkDir = Join-Path $DeviceDir "origin-workers\\pyinstaller\\csv\\work"
-$SpecDir = Join-Path $DeviceDir "origin-workers\\pyinstaller\\csv\\spec"
-$BuildInfoPath = Join-Path $DeviceDir "origin-workers\\pyinstaller\\csv\\worker-build-info.json"
-$VersionInfoPath = Join-Path $DeviceDir "origin-workers\\pyinstaller\\csv\\worker-version-info.txt"
+$BuildWorkDir = Join-Path $DeviceDir "py-workers\\pyinstaller\\csv\\work"
+$SpecDir = Join-Path $DeviceDir "py-workers\\pyinstaller\\csv\\spec"
+$BuildInfoPath = Join-Path $DeviceDir "py-workers\\pyinstaller\\csv\\worker-build-info.json"
+$VersionInfoPath = Join-Path $DeviceDir "py-workers\\pyinstaller\\csv\\worker-version-info.txt"
 
 New-Item -ItemType Directory -Path $DistDir -Force | Out-Null
 New-Item -ItemType Directory -Path $BuildWorkDir -Force | Out-Null
@@ -235,14 +235,14 @@ if (-not (Test-Path -LiteralPath $venvPython)) {
     }
 
     $venvArgs = @("-m", "venv", $VenvDir)
-    Write-Host "[build-origin-csv-worker] Running: $explicitPythonExe $($venvArgs -join ' ')"
+    Write-Host "[build-py-worker] Running: $explicitPythonExe $($venvArgs -join ' ')"
     & $explicitPythonExe @venvArgs
     if ($LASTEXITCODE -ne 0) {
       throw "PythonExe -m venv failed with exit code $LASTEXITCODE"
     }
   } elseif ($null -ne $uvCmd) {
     $venvArgs = @("venv", "--python", $PythonVersion, $VenvDir)
-    Write-Host "[build-origin-csv-worker] Running: uv $($venvArgs -join ' ')"
+    Write-Host "[build-py-worker] Running: uv $($venvArgs -join ' ')"
     & $uvCmd.Source @venvArgs
     if ($LASTEXITCODE -ne 0) {
       throw "uv venv failed with exit code $LASTEXITCODE"
@@ -255,7 +255,7 @@ if (-not (Test-Path -LiteralPath $venvPython)) {
     }
 
     $venvArgs = @("-m", "venv", $VenvDir)
-    Write-Host "[build-origin-csv-worker] Running: $pythonExe $($venvArgs -join ' ')"
+    Write-Host "[build-py-worker] Running: $pythonExe $($venvArgs -join ' ')"
     & $pythonExe @venvArgs
     if ($LASTEXITCODE -ne 0) {
       throw "python -m venv failed with exit code $LASTEXITCODE"
@@ -273,7 +273,7 @@ if ($requiredPy -and $venvActualPy -and $venvActualPy -ne $requiredPy) {
 }
 
 $installArgs = @("-m", "pip", "install") + $packages
-Write-Host "[build-origin-csv-worker] Running: $venvPython $($installArgs -join ' ')"
+Write-Host "[build-py-worker] Running: $venvPython $($installArgs -join ' ')"
 & $venvPython @installArgs
 if ($LASTEXITCODE -ne 0) {
   throw "pip install failed with exit code $LASTEXITCODE"
@@ -317,7 +317,7 @@ if ($OneFile) {
   $pyinstallerArgs = $pyinstallerArgs[0..4] + "--onedir" + $pyinstallerArgs[5..($pyinstallerArgs.Length - 1)]
 }
 
-Write-Host "[build-origin-csv-worker] Running: $venvPython $($pyinstallerArgs -join ' ')"
+Write-Host "[build-py-worker] Running: $venvPython $($pyinstallerArgs -join ' ')"
 & $venvPython @pyinstallerArgs
 
 if ($LASTEXITCODE -ne 0) {
@@ -333,9 +333,9 @@ if (-not (Test-Path -LiteralPath $exePath)) {
   throw "Build finished but executable was not found: $exePath"
 }
 
-Write-Host "[build-origin-csv-worker] OK: $exePath"
-Write-Host "[build-origin-csv-worker] Metadata: version=$appVersion expectedTag=$expectedTag gitTag=$gitTag gitCommit=$gitCommit"
-Write-Host "[build-origin-csv-worker] Smoke test: $exePath --worker-version"
+Write-Host "[build-py-worker] OK: $exePath"
+Write-Host "[build-py-worker] Metadata: version=$appVersion expectedTag=$expectedTag gitTag=$gitTag gitCommit=$gitCommit"
+Write-Host "[build-py-worker] Smoke test: $exePath --worker-version"
 $smokeExitCode = 0
 try {
   & $exePath --worker-version
@@ -344,6 +344,6 @@ try {
   $smokeExitCode = -1
 }
 if ($smokeExitCode -ne 0) {
-  Write-Warning "[build-origin-csv-worker] Smoke test failed with exit code $smokeExitCode (continuing)."
+  Write-Warning "[build-py-worker] Smoke test failed with exit code $smokeExitCode (continuing)."
   $global:LASTEXITCODE = 0
 }

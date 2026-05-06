@@ -56,9 +56,9 @@ if ($DirOnly) {
   & npm.cmd run build:desktop
   Ensure-LastExitCodeZero -Code $LASTEXITCODE -Step "npm run build:desktop"
 
-  Write-Host "[pack-desktop-oneclick] Running: npm run verify:origin-worker"
-  & npm.cmd run verify:origin-worker
-  Ensure-LastExitCodeZero -Code $LASTEXITCODE -Step "npm run verify:origin-worker"
+  Write-Host "[pack-desktop-oneclick] Running: npm run verify:py-worker"
+  & npm.cmd run verify:py-worker
+  Ensure-LastExitCodeZero -Code $LASTEXITCODE -Step "npm run verify:py-worker"
 
   $builder = Get-Command npx -ErrorAction SilentlyContinue
   if ($null -eq $builder) {
