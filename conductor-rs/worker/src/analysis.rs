@@ -1,5 +1,6 @@
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::json;
+use serde_json::Value;
 use std::collections::HashMap;
 use std::thread;
 
@@ -155,6 +156,7 @@ fn detect_bidirectional_split_index(xs: &[f64]) -> Option<usize> {
     if xs.len() < 5 {
         return None;
     }
+    // Split once at the sweep turnaround so later calculations stay branch-local.
     let mut first_dir = 0i32;
     for index in 1..xs.len() {
         let prev = xs[index - 1];
@@ -362,6 +364,7 @@ pub(crate) fn compute_central_derivative(x: &[f64], y: &[f64]) -> Vec<Value> {
     let mut out = Vec::<Value>::new();
     for (index, segment) in segments.iter().enumerate() {
         let computed = compute_central_derivative_segment(x, y, &segment.indices);
+        // Both branches include the turnaround sample; skip it on the second branch.
         if index == 0 {
             out.extend(computed);
         } else {
@@ -435,6 +438,7 @@ fn compute_subthreshold_swing(x: &[f64], y: &[f64]) -> Vec<Value> {
     let mut out = Vec::<Value>::new();
     for (index, segment) in segments.iter().enumerate() {
         let computed = compute_subthreshold_swing_segment(x, y, &segment.indices);
+        // Both branches include the turnaround sample; skip it on the second branch.
         if index == 0 {
             out.extend(computed);
         } else {
@@ -504,6 +508,7 @@ fn resolve_current_window_point_count(point_count: usize) -> usize {
     if point_count == 0 {
         return 1;
     }
+    // Use a small, bounded window so the median still tracks local leakage/current.
     let max_window_points = 1usize.max(7usize.min(point_count / 3));
     let min_window_points = 3usize.min(max_window_points);
     let preferred_window_points = ((point_count as f64) * 0.1).round() as usize;
@@ -669,6 +674,8 @@ fn build_auto_candidate_windows(
     ) {
         out.push(window);
     }
+    // Keep both endpoint windows and sliding extrema; some curves bury Ioff away
+    // from the endpoints even when the sweep order is clean.
     if let Some(window) = build_sliding_extreme_current_window(
         "maxCurrent",
         "max",
@@ -795,6 +802,7 @@ fn estimate_log_current_floor(values: &[f64]) -> Option<f64> {
     valid.sort_by(|a, b| a.total_cmp(b));
     let q = FLOOR_QUANTILE.clamp(0.01, 0.5);
     let n_floor = 3usize.max((valid.len() as f64 * q).ceil() as usize);
+    // Treat the lower tail as background/leakage so SS fitting starts above noise.
     median(&valid[..n_floor.min(valid.len())])
 }
 
@@ -816,6 +824,7 @@ fn build_candidate_window_sizes(seg_len: usize, min_points: usize, preferred: us
     }
     let mut probe = dense_upper;
     while probe < seg_len {
+        // Dense around the preferred span, then progressively widen the search.
         let next = seg_len.min((probe as f64 * 1.35).round() as usize);
         if next <= probe {
             break;
@@ -937,6 +946,7 @@ fn compute_slope_stability(x: &[f64], y: &[f64], l: usize, r: usize) -> Option<f
         return None;
     }
     let mdev = mad(&slopes, m)?;
+    // A normalized MAD catches local jaggedness that a plain R2 score can miss.
     if mdev.is_finite() {
         Some(mdev / m)
     } else {
@@ -1003,6 +1013,7 @@ fn run_auto_search(segment: &LogSegment) -> Option<SearchResult> {
     let mut best_strict: Option<Candidate> = None;
     let mut max_above_count = 0usize;
 
+    // Try the strict profile first, then a looser suggestion profile for borderline curves.
     for floor_margin_dec in FLOOR_TRY {
         let above = segment
             .y

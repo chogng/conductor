@@ -6,32 +6,44 @@ mod legend;
 mod rc;
 mod utils;
 
-use calamine::{Reader, open_workbook_auto};
-use analysis::{AnalysisSeriesRequest, AnalysisSourceFile, compute_central_derivative};
+use analysis::compute_central_derivative;
+use analysis::AnalysisSeriesRequest;
+use analysis::AnalysisSourceFile;
+use calamine::open_workbook_auto;
+use calamine::Reader;
 use cells::EngineCellRequest;
-use dataset::{EngineDataset, is_excel_path, load_dataset};
-use infer::{
-    find_metadata_positive_integer, infer_auto_segmentation_from_x_values,
-    infer_metadata_group_shape, parse_positive_integer_text,
-};
-use legend::{LegendMode, resolve_legend_labels};
-use rc::{RcAnalysisOptions, RcDeviceRequest};
+use dataset::is_excel_path;
+use dataset::load_dataset;
+use dataset::EngineDataset;
+use infer::find_metadata_positive_integer;
+use infer::infer_auto_segmentation_from_x_values;
+use infer::infer_metadata_group_shape;
+use infer::parse_positive_integer_text;
+use legend::resolve_legend_labels;
+use legend::LegendMode;
+use rc::RcAnalysisOptions;
+use rc::RcDeviceRequest;
+use serde::Deserialize;
+use serde::Serialize;
+use serde_json::json;
+use serde_json::Value;
+use std::collections::HashMap;
+use std::collections::VecDeque;
+use std::env;
+use std::fs;
+use std::io;
+use std::io::BufRead;
+use std::io::BufWriter;
+use std::io::Write;
+use std::path::Path;
+use std::path::PathBuf;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::thread;
+use std::time::Instant;
 use utils::*;
-use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
-use std::{
-    collections::HashMap,
-    collections::VecDeque,
-    env, fs,
-    io::{self, BufRead, BufWriter, Write},
-    path::{Path, PathBuf},
-    sync::{
-        Arc, Mutex,
-        atomic::{AtomicUsize, Ordering},
-    },
-    thread,
-    time::Instant,
-};
 
 const DEFAULT_ROOTS: [&str; 3] = [
     "C:/Users/lanxi/Desktop/ZC",
@@ -151,6 +163,8 @@ fn row_trimmed(dataset: &EngineDataset, row_index: usize) -> Vec<String> {
 }
 
 fn find_header_row_index(dataset: &EngineDataset) -> usize {
+    // Prefer explicit instrument headers, then fall back to generic header-looking
+    // rows that are followed by numeric data.
     for row_index in 0..dataset.rows.len() {
         let row = row_trimmed(dataset, row_index);
         if row.iter().any(|entry| entry == "CH1 Voltage")
@@ -337,6 +351,8 @@ fn extract_auto_metadata(dataset: &EngineDataset) -> AutoMetadata {
     let mut channel_vnames = Vec::<String>::new();
     let mut stripped_header_row_index: Option<usize> = None;
 
+    // Source sheets mix metadata tables and data blocks, so collect the fields
+    // needed by classification in one pass over the whole sheet.
     for (row_index, row_raw) in dataset.rows.iter().enumerate() {
         let row: Vec<String> = row_raw.iter().map(|value| clean_cell_text(value)).collect();
         if row.is_empty() {
@@ -499,6 +515,8 @@ fn classify_auto_curve(
                 .any(|token| token == "ivt")
     };
 
+    // Non-IV families are detected first because they may still contain voltage
+    // or current tokens that would otherwise look like regular IV data.
     if file_compact.contains("pv")
         || has_fast_iv_or_ivt_hint(file_name)
         || compact_all
@@ -544,6 +562,7 @@ fn classify_auto_curve(
 
     let mut vg_score = 0i32;
     let mut vd_score = 0i32;
+    // Direct metadata outweighs filenames, which often include loose batch labels.
     for (value, weight) in [
         (metadata.x_axis_data.as_str(), 18),
         (metadata.var1_name.as_str(), 16),
@@ -2203,7 +2222,12 @@ fn compute_origin_export_derivative_values(
     }
     compute_central_derivative(&x_values, &y_values)
         .into_iter()
-        .map(|point| point.get("y").and_then(Value::as_f64).filter(|value| value.is_finite()))
+        .map(|point| {
+            point
+                .get("y")
+                .and_then(Value::as_f64)
+                .filter(|value| value.is_finite())
+        })
         .collect()
 }
 
@@ -2267,17 +2291,19 @@ fn export_origin_csv_file(
                     .y_col
                     .ok_or_else(|| "export y column is missing yCol".to_string())?;
                 if y_transform == "derivative" {
-                    let values = derivative_cache.entry((column.group_index, y_col)).or_insert_with(|| {
-                        compute_origin_export_derivative_values(
-                            dataset,
-                            start_row,
-                            group_size,
-                            column.group_index,
-                            x_col,
-                            y_col,
-                            &row_offsets,
-                        )
-                    });
+                    let values = derivative_cache
+                        .entry((column.group_index, y_col))
+                        .or_insert_with(|| {
+                            compute_origin_export_derivative_values(
+                                dataset,
+                                start_row,
+                                group_size,
+                                column.group_index,
+                                x_col,
+                                y_col,
+                                &row_offsets,
+                            )
+                        });
                     values.get(output_row_index).copied().flatten()
                 } else {
                     cell_number(dataset, row_index, y_col)
@@ -2337,6 +2363,8 @@ fn resolve_origin_export_source(
         Some(indices) => indices,
         None => (0..group_size).collect(),
     };
+    // Resolve export geometry once per source so writers can stream rows without
+    // repeatedly interpreting spreadsheet layout and sampling settings.
     Ok(OriginExportResolvedSource {
         dataset,
         group_size,
@@ -2381,6 +2409,7 @@ fn export_origin_csv_sources(
         .unwrap_or(0);
     let mut derivative_cache = HashMap::<(usize, usize, usize), Vec<Option<f64>>>::new();
 
+    // Multiple export columns may ask for gm from the same source/group/Y column.
     for output_row_index in 0..max_row_count {
         if output_row_index > 0 {
             writer.write_all(b"\n").map_err(|error| error.to_string())?;
@@ -2501,7 +2530,11 @@ fn linear_regression_xy(points: &[(f64, f64)]) -> Option<(f64, f64, f64)> {
         let residual = *y - (slope * *x + intercept);
         ss_res += residual * residual;
     }
-    let r2 = if ss_tot > 0.0 { 1.0 - ss_res / ss_tot } else { 1.0 };
+    let r2 = if ss_tot > 0.0 {
+        1.0 - ss_res / ss_tot
+    } else {
+        1.0
+    };
     Some((slope, intercept, r2))
 }
 
@@ -2520,7 +2553,10 @@ fn pick_origin_vth_linear_fit(
     }
     let min_window = 5usize.min(sorted.len());
     let max_window = 16usize.min(sorted.len());
-    let max_y = sorted.iter().map(|(_, y)| *y).fold(f64::NEG_INFINITY, f64::max);
+    let max_y = sorted
+        .iter()
+        .map(|(_, y)| *y)
+        .fold(f64::NEG_INFINITY, f64::max);
     let mut best: Option<(OriginExportVthFit, f64)> = None;
     for window_size in min_window..=max_window {
         for start in 0..=sorted.len().saturating_sub(window_size) {
@@ -2535,7 +2571,10 @@ fn pick_origin_vth_linear_fit(
                 continue;
             }
             let y_min = window.iter().map(|(_, y)| *y).fold(f64::INFINITY, f64::min);
-            let y_max = window.iter().map(|(_, y)| *y).fold(f64::NEG_INFINITY, f64::max);
+            let y_max = window
+                .iter()
+                .map(|(_, y)| *y)
+                .fold(f64::NEG_INFINITY, f64::max);
             let y_span = y_max - y_min;
             if max_y > 0.0 && y_span / max_y < 0.12 {
                 continue;
@@ -2551,8 +2590,13 @@ fn pick_origin_vth_linear_fit(
             if !y1.is_finite() || !y2.is_finite() {
                 continue;
             }
-            let score = r2 + 0.08f64.min(y_span / max_y.max(1e-300) * 0.08) + window_size as f64 * 0.002;
-            if best.as_ref().map(|(_, best_score)| score > *best_score).unwrap_or(true) {
+            let score =
+                r2 + 0.08f64.min(y_span / max_y.max(1e-300) * 0.08) + window_size as f64 * 0.002;
+            if best
+                .as_ref()
+                .map(|(_, best_score)| score > *best_score)
+                .unwrap_or(true)
+            {
                 best = Some((OriginExportVthFit { branch, vth }, score));
             }
         }
@@ -2658,6 +2702,8 @@ fn export_origin_metrics_csv_sources(
         .map_err(|error| error.to_string())?;
     let mut csv_bytes = 3usize;
 
+    // Metrics exports are one row per selected series, computed from the same
+    // resolved source data used by regular chart CSV export.
     for (row_index, series) in metric_series.iter().enumerate() {
         if row_index > 0 {
             writer.write_all(b"\n").map_err(|error| error.to_string())?;
@@ -2694,10 +2740,11 @@ fn export_origin_metrics_csv_sources(
                 x_at_max = cell_number(&source.dataset, source_row, source.x_col);
             }
         }
-        let supports_transfer_metrics = metric_kind == "transfer"
-            && analysis::is_transfer_like_source_file(source_file);
+        let supports_transfer_metrics =
+            metric_kind == "transfer" && analysis::is_transfer_like_source_file(source_file);
         let cells = if metric_kind == "transfer" {
-            let points = compute_origin_metric_series_points(source, series.group_index, series.y_col);
+            let points =
+                compute_origin_metric_series_points(source, series.group_index, series.y_col);
             let x_values = points.iter().map(|(x, _)| *x).collect::<Vec<_>>();
             let y_values = points.iter().map(|(_, y)| *y).collect::<Vec<_>>();
             let base = if supports_transfer_metrics {
@@ -2725,7 +2772,11 @@ fn export_origin_metrics_csv_sources(
                 .map(|fit| fit.vth);
             vec![
                 series.label.clone(),
-                if max_abs.is_finite() { max_abs.to_string() } else { String::new() },
+                if max_abs.is_finite() {
+                    max_abs.to_string()
+                } else {
+                    String::new()
+                },
                 x_at_max
                     .filter(|value| value.is_finite())
                     .map(|value| value.to_string())
@@ -2755,7 +2806,11 @@ fn export_origin_metrics_csv_sources(
         } else {
             vec![
                 series.label.clone(),
-                if max_abs.is_finite() { max_abs.to_string() } else { String::new() },
+                if max_abs.is_finite() {
+                    max_abs.to_string()
+                } else {
+                    String::new()
+                },
                 x_at_max
                     .filter(|value| value.is_finite())
                     .map(|value| value.to_string())
@@ -3084,10 +3139,7 @@ fn handle_request(
                 .config
                 .as_ref()
                 .ok_or_else(|| "missing config".to_string())?;
-            let columns = request
-                .columns
-                .as_deref()
-                .unwrap_or(&[]);
+            let columns = request.columns.as_deref().unwrap_or(&[]);
             let output_path = request
                 .output_path
                 .as_deref()
@@ -3185,6 +3237,8 @@ fn run_stdio_engine() {
     let mut stdout = io::stdout();
     let mut cache = HashMap::<String, EngineDataset>::new();
 
+    // The JS caller uses newline-delimited JSON; each input line gets exactly one
+    // response line so a single worker process can handle many requests.
     for line in stdin.lock().lines() {
         let line = match line {
             Ok(value) => value,
@@ -3338,6 +3392,8 @@ fn convert_one(
         ..ConvertStats::default()
     };
 
+    // Retain only a prefix for import assessment while streaming the full sheet to
+    // CSV, keeping benchmark conversions bounded in memory.
     for row in range.rows() {
         let values: Vec<String> = row.iter().map(|cell| cell.to_string()).collect();
         if values.iter().all(|value| value.trim().is_empty()) {

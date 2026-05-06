@@ -154,6 +154,7 @@ pub fn normalize_file_name_field_separators(value: &str) -> String {
             result.push(ch);
         }
     }
+    // Default to the separators users commonly type around wafer/device labels.
     if result.is_empty() {
         "_- .()[]{}".to_string()
     } else {
@@ -246,6 +247,8 @@ fn collect_file_name_candidates(file_name: &str, separators: &str) -> Vec<String
     let mut candidates = Vec::<String>::new();
     push_file_name_candidate(&mut candidates, trim_match_token(&base_name));
 
+    // Build several normalized views so fuzzy matching works across bracketed
+    // labels, underscore-delimited names, and digit/letter boundaries.
     for raw_chunk in base_name.split(|ch| ",[]{};".contains(ch)) {
         for sub_chunk in raw_chunk.split('_') {
             let trimmed = trim_match_token(sub_chunk);

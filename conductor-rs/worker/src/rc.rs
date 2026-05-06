@@ -1,5 +1,6 @@
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::json;
+use serde_json::Value;
 
 pub const RC_ANALYSIS_VERSION: u32 = 1;
 
@@ -81,6 +82,8 @@ fn sanitize_device(input: &RcDeviceRequest) -> Option<RcDevice> {
     if raw.len() < 2 {
         return None;
     }
+    // Collapse duplicate X samples before interpolation so the L-dependent fit
+    // sees one current value per bias point.
     raw.sort_by(|left, right| left.0.total_cmp(&right.0));
 
     let mut points = Vec::<(f64, f64)>::new();
@@ -176,6 +179,8 @@ fn build_grid(devices: &[RcDevice], max_points: usize) -> Vec<f64> {
     if values.len() <= max_points.max(2) {
         return values;
     }
+    // Sample the shared VG domain rather than every raw point to keep the fit
+    // grid stable when devices were recorded with slightly different sweeps.
     let target = max_points.max(2);
     (0..target)
         .map(|index| {
@@ -311,6 +316,8 @@ pub fn analyze_rc(devices_raw: &[RcDeviceRequest], options: Option<&RcAnalysisOp
                     length: device.length,
                     resistance,
                     width: device.width,
+                    // Width-normalize before the linear fit when requested; this
+                    // makes the intercept directly comparable across devices.
                     y_fit: if normalize_by_width {
                         resistance * device.width
                     } else {

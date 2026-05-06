@@ -1,5 +1,7 @@
 use crate::dataset::EngineDataset;
-use crate::utils::{approx_equal, normalize_cell_text, parse_number_strict};
+use crate::utils::approx_equal;
+use crate::utils::normalize_cell_text;
+use crate::utils::parse_number_strict;
 
 pub fn parse_positive_integer_text(raw: &str) -> Option<usize> {
     let mut digits = String::new();
@@ -50,6 +52,8 @@ pub fn find_metadata_positive_integer(
                 continue;
             }
         }
+        // Metadata rows often put the numeric value in the first non-label cell,
+        // but exported files may include units or notes before the usable count.
         let value_start = if expected_second.is_some() { 2 } else { 1 };
         if let Some(value) =
             parse_positive_integer_from_cells(row.get(value_start..).unwrap_or(&[]))
@@ -76,6 +80,8 @@ fn resolve_group_shape_from_counts(
     let normalized_group_size = group_size.filter(|value| *value >= 2);
     let normalized_groups = groups.filter(|value| *value >= 1);
 
+    // Accept metadata only when it exactly partitions the data rows; partial
+    // matches are more likely stale headers than valid grouping instructions.
     match (normalized_group_size, normalized_groups) {
         (Some(group_size), Some(groups)) => {
             if group_size * groups == data_rows {
@@ -148,6 +154,7 @@ pub fn infer_auto_segmentation_from_x_values(
     let tolerance = (max - min).abs().mul_add(1e-4, 0.0).max(1e-9);
     let max_index = values.len().saturating_sub(1).min(4000);
     let mut candidates = Vec::<usize>::new();
+    // Candidate group sizes are where the X sweep appears to restart.
     for group_size in MIN_GROUP_SIZE..=max_index {
         if total % group_size != 0 {
             continue;
@@ -186,6 +193,8 @@ pub fn infer_auto_segmentation_from_x_values(
             best_group_size = candidate;
         }
     }
+    // Require most of the following sweep to match the first one before trusting
+    // implicit segmentation from numeric data alone.
     if best_group_size == 0 || best_score < REPEAT_THRESHOLD {
         return None;
     }

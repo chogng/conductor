@@ -1,10 +1,11 @@
-use calamine::{Reader, open_workbook_auto};
-use serde_json::{Value, json};
-use std::{
-    cell::{Ref, RefCell},
-    collections::HashMap,
-    path::Path,
-};
+use calamine::open_workbook_auto;
+use calamine::Reader;
+use serde_json::json;
+use serde_json::Value;
+use std::cell::Ref;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::path::Path;
 
 #[derive(Clone)]
 pub struct EngineDataset {
@@ -71,6 +72,8 @@ impl EngineDataset {
     }
 
     pub fn cell_number(&self, row_index: usize, col_index: usize) -> Option<f64> {
+        // Numeric values are cached per column because many analyses scan the same
+        // column repeatedly while searching for metadata or segment boundaries.
         self.ensure_numeric_column(col_index);
         self.numeric_column_cache
             .borrow()
@@ -113,6 +116,7 @@ impl EngineDataset {
             return;
         }
 
+        // Parse once and store an aligned optional numeric view of the whole column.
         let values = self
             .rows
             .iter()

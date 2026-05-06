@@ -1,5 +1,8 @@
 use crate::dataset::EngineDataset;
-use crate::utils::{json_cell_ref, json_number, json_string, read_cell_number};
+use crate::utils::json_cell_ref;
+use crate::utils::json_number;
+use crate::utils::json_string;
+use crate::utils::read_cell_number;
 use serde_json::Value;
 
 fn trim_compact_exponent(text: String) -> String {
@@ -124,6 +127,8 @@ fn resolve_legend_layout(
         _ => None,
     };
 
+    // When the UI does not specify a target, infer whether labels vary by Y column
+    // or by group from the requested count and available dimensions.
     let (mode, count) = if let Some(mode) = preferred {
         let fallback = if mode == LegendMode::Group {
             group_count
@@ -190,6 +195,8 @@ pub fn resolve_legend_labels(
         } else {
             None
         };
+        // Fractional steps mean "generate numeric labels"; integer steps mean
+        // "walk cells" because spreadsheet label grids are row/column indexed.
         let cell_step = if generate_step.is_some() {
             default_step
         } else {
