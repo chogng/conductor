@@ -19,7 +19,7 @@ if (-not (Test-Path -LiteralPath $CargoToml)) {
 }
 
 if ([string]::IsNullOrWhiteSpace($DistDir)) {
-  $DistDir = Join-Path $ProjectRoot "excel\bin"
+  $DistDir = Join-Path $ProjectRoot "workers\rs"
 }
 if (-not [System.IO.Path]::IsPathRooted($DistDir)) {
   $DistDir = Join-Path $ProjectRoot $DistDir

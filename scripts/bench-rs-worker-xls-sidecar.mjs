@@ -12,7 +12,7 @@ const DEFAULT_ROOTS = [
 const EXCEL_EXTENSIONS = new Set([".xls", ".xlsx"]);
 const ROOT = process.cwd();
 const DEFAULT_EXE_CANDIDATES = [
-  path.join(ROOT, "excel", "bin", "rs-worker.exe"),
+  path.join(ROOT, "workers", "rs", "rs-worker.exe"),
   path.join(
     ROOT,
     "conductor-rs",

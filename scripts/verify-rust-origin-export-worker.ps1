@@ -13,7 +13,7 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 $ProjectRoot = (Resolve-Path -LiteralPath $ProjectRoot).Path
 $CrateDir = Join-Path $ProjectRoot "conductor-rs\worker"
 $RsWorkerExe = Join-Path $ProjectRoot "conductor-rs\target\release\rs-worker.exe"
-$PackagedRsWorkerExe = Join-Path $ProjectRoot "excel\bin\rs-worker.exe"
+$PackagedRsWorkerExe = Join-Path $ProjectRoot "workers\rs\rs-worker.exe"
 $BenchDir = Join-Path $ProjectRoot ".tooling\rust-origin-export-compat"
 $FilesPath = Join-Path $BenchDir "files.json"
 $ProcessRequestsPath = Join-Path $BenchDir "process-requests.jsonl"

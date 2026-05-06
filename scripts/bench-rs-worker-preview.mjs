@@ -11,7 +11,7 @@ const DEFAULT_ROOTS = [
 
 const SUPPORTED_EXTENSIONS = new Set([".csv", ".xls", ".xlsx"]);
 const ROOT = process.cwd();
-const EXE_PATH = path.join(ROOT, "excel", "bin", "rs-worker.exe");
+const EXE_PATH = path.join(ROOT, "workers", "rs", "rs-worker.exe");
 
 const formatMs = (value) => `${Math.round(value)}ms`;
 const formatBytes = (value) => {

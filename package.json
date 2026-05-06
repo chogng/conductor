@@ -90,8 +90,8 @@
     ],
     "extraResources": [
       {
-        "from": "excel/bin",
-        "to": "excel/bin",
+        "from": "workers/rs",
+        "to": "workers/rs",
         "filter": [
           "rs-worker.exe"
         ]

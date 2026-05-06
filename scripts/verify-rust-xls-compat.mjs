@@ -8,8 +8,8 @@ import { assessImportedDeviceAnalysisFile } from "../src/features/device-analysi
 const ROOT = process.cwd();
 const DEFAULT_RUST_EXE = path.join(
   ROOT,
-  "excel",
-  "bin",
+  "workers",
+  "rs",
   "rs-worker.exe",
 );
 const LEGACY_RUST_EXE = path.join(

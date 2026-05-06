@@ -13,7 +13,7 @@ $CrateDir = Join-Path $ProjectRoot "conductor-rs\worker"
 $RequestsPath = Join-Path $ProjectRoot ".tooling\rust-ss-auto-compat\requests.jsonl"
 $ResultsPath = Join-Path $ProjectRoot ".tooling\rust-ss-auto-compat\rust-results.jsonl"
 $RsWorkerExe = Join-Path $ProjectRoot "conductor-rs\target\release\rs-worker.exe"
-$PackagedRsWorkerExe = Join-Path $ProjectRoot "excel\bin\rs-worker.exe"
+$PackagedRsWorkerExe = Join-Path $ProjectRoot "workers\rs\rs-worker.exe"
 
 if (-not (Test-Path -LiteralPath $RequestsPath)) {
   throw "Rust SS auto compatibility requests were not prepared: $RequestsPath"

@@ -792,7 +792,7 @@ function resolveRustExcelConverterPath() {
   );
   const candidates = [
     envPath,
-    path.join(getResourcesPath(), "excel", "bin", "rs-worker.exe"),
+    path.join(getResourcesPath(), "workers", "rs", "rs-worker.exe"),
     isDev
       ? path.join(
           __dirname,
@@ -816,8 +816,8 @@ function resolveRustExcelConverterPath() {
     path.join(
       getResourcesPath(),
       "app.asar.unpacked",
-      "excel",
-      "bin",
+      "workers",
+      "rs",
       "rs-worker.exe",
     ),
   ].filter(Boolean);
