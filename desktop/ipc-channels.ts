@@ -1,4 +1,4 @@
-export const ipcChannels = {
+﻿export const ipcChannels = {
   desktopMetaGet: "desktop:meta:get",
   desktopAutoUpdateStatusGet: "desktop:auto-update-status:get",
   desktopAutoUpdateStatusChanged: "desktop:auto-update-status:changed",
@@ -20,18 +20,18 @@ export const ipcChannels = {
   originRuntimeCleanupRun: "device-analysis-origin:runtime-cleanup:run",
   excelConvertRust: "device-analysis-excel:convert-rust",
   excelReadConvertedCsv: "device-analysis-excel:read-converted-csv",
-  deviceAnalysisDemoFilesGet: "device-analysis-demo:files:get",
-  deviceAnalysisRustEngineOpen: "device-analysis-rust-engine:open",
-  deviceAnalysisRustEnginePreviewMeta: "device-analysis-rust-engine:preview-meta",
-  deviceAnalysisRustEnginePreviewRows: "device-analysis-rust-engine:preview-rows",
-  deviceAnalysisRustEngineReadCell: "device-analysis-rust-engine:read-cell",
-  deviceAnalysisRustEngineReadCells: "device-analysis-rust-engine:read-cells",
-  deviceAnalysisRustEngineInferAutoExtraction:
+  analysisDemoFilesGet: "device-analysis-demo:files:get",
+  analysisRustEngineOpen: "device-analysis-rust-engine:open",
+  analysisRustEnginePreviewMeta: "device-analysis-rust-engine:preview-meta",
+  analysisRustEnginePreviewRows: "device-analysis-rust-engine:preview-rows",
+  analysisRustEngineReadCell: "device-analysis-rust-engine:read-cell",
+  analysisRustEngineReadCells: "device-analysis-rust-engine:read-cells",
+  analysisRustEngineInferAutoExtraction:
     "device-analysis-rust-engine:infer-auto-extraction",
-  deviceAnalysisRustEngineProcessFile: "device-analysis-rust-engine:process-file",
-  deviceAnalysisRustEngineAnalyzeRc: "device-analysis-rust-engine:analyze-rc",
-  deviceAnalysisRustEngineExportOriginCsv:
+  analysisRustEngineProcessFile: "device-analysis-rust-engine:process-file",
+  analysisRustEngineAnalyzeRc: "device-analysis-rust-engine:analyze-rc",
+  analysisRustEngineExportOriginCsv:
     "device-analysis-rust-engine:export-origin-csv",
-  deviceAnalysisOriginZipSave: "device-analysis-origin:zip:save",
-  deviceAnalysisRustEngineDispose: "device-analysis-rust-engine:dispose",
+  analysisOriginZipSave: "device-analysis-origin:zip:save",
+  analysisRustEngineDispose: "device-analysis-rust-engine:dispose",
 } as const;

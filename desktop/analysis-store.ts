@@ -1,20 +1,20 @@
-import fs from "node:fs";
+﻿import fs from "node:fs";
 import path from "node:path";
 import { normalizeOriginPlotOptions } from "./origin-plot-options.js";
 import { normalizeOriginExePath } from "./origin-runner/core.js";
 
-const DEVICE_ANALYSIS_TEMPLATE_FILENAME = "template.json";
-const DEVICE_ANALYSIS_SETTINGS_FILENAME = "config.json";
-const DEVICE_ANALYSIS_STORE_CONFIG_FILENAME = "store-path.json";
-const DEVICE_ANALYSIS_LEGACY_SETTINGS_FILENAME_SUFFIX = ".settings.json";
-const DEVICE_ANALYSIS_SS_METHODS = new Set(["auto", "manual", "idWindow", "legacy"]);
-const DEVICE_ANALYSIS_ORIGIN_EXPORT_MODES = new Set([
+const ANALYSIS_TEMPLATE_FILENAME = "template.json";
+const ANALYSIS_SETTINGS_FILENAME = "config.json";
+const ANALYSIS_STORE_CONFIG_FILENAME = "store-path.json";
+const ANALYSIS_LEGACY_SETTINGS_FILENAME_SUFFIX = ".settings.json";
+const ANALYSIS_SS_METHODS = new Set(["auto", "manual", "idWindow", "legacy"]);
+const ANALYSIS_ORIGIN_EXPORT_MODES = new Set([
   "merged",
   "workbookBooks",
   "workbookSheets",
   "separate",
 ]);
-const DEVICE_ANALYSIS_Y_UNITS = new Set([
+const ANALYSIS_Y_UNITS = new Set([
   "A",
   "mA",
   "uA",
@@ -26,20 +26,20 @@ const DEVICE_ANALYSIS_Y_UNITS = new Set([
   "nF",
   "pF",
 ]);
-const DEVICE_ANALYSIS_Y_SCALES = new Set(["linear", "log"]);
-const DEVICE_ANALYSIS_DEFAULT_Y_SCALE = "linear";
-const DEVICE_ANALYSIS_THEMES = new Set(["system", "light", "dark"]);
-const DEVICE_ANALYSIS_WINDOW_CLOSE_BEHAVIORS = new Set([
+const ANALYSIS_Y_SCALES = new Set(["linear", "log"]);
+const ANALYSIS_DEFAULT_Y_SCALE = "linear";
+const ANALYSIS_THEMES = new Set(["system", "light", "dark"]);
+const ANALYSIS_WINDOW_CLOSE_BEHAVIORS = new Set([
   "minimizeToTray",
   "quit",
 ]);
-const DEVICE_ANALYSIS_X_SEGMENTATION_MODES = new Set([
+const ANALYSIS_X_SEGMENTATION_MODES = new Set([
   "auto",
   "points",
   "segments",
 ]);
 
-const DEVICE_ANALYSIS_DEFAULT_SETTINGS = {
+const ANALYSIS_DEFAULT_SETTINGS = {
   defaultTemplate: null,
   lastTemplateId: null,
   theme: "system",
@@ -97,17 +97,17 @@ const DEVICE_ANALYSIS_DEFAULT_SETTINGS = {
   },
 };
 
-const DEVICE_ANALYSIS_STARTUP_ANALYSIS_DEFAULTS = {
-  defaultYScaleForTransfer: DEVICE_ANALYSIS_DEFAULT_SETTINGS.defaultYScaleForTransfer,
-  defaultYScaleForOutput: DEVICE_ANALYSIS_DEFAULT_SETTINGS.defaultYScaleForOutput,
-  defaultYScaleForCf: DEVICE_ANALYSIS_DEFAULT_SETTINGS.defaultYScaleForCf,
-  defaultYScaleForCv: DEVICE_ANALYSIS_DEFAULT_SETTINGS.defaultYScaleForCv,
-  defaultYScaleForPv: DEVICE_ANALYSIS_DEFAULT_SETTINGS.defaultYScaleForPv,
-  defaultYScaleForSpecial: DEVICE_ANALYSIS_DEFAULT_SETTINGS.defaultYScaleForSpecial,
+const ANALYSIS_STARTUP_ANALYSIS_DEFAULTS = {
+  defaultYScaleForTransfer: ANALYSIS_DEFAULT_SETTINGS.defaultYScaleForTransfer,
+  defaultYScaleForOutput: ANALYSIS_DEFAULT_SETTINGS.defaultYScaleForOutput,
+  defaultYScaleForCf: ANALYSIS_DEFAULT_SETTINGS.defaultYScaleForCf,
+  defaultYScaleForCv: ANALYSIS_DEFAULT_SETTINGS.defaultYScaleForCv,
+  defaultYScaleForPv: ANALYSIS_DEFAULT_SETTINGS.defaultYScaleForPv,
+  defaultYScaleForSpecial: ANALYSIS_DEFAULT_SETTINGS.defaultYScaleForSpecial,
   analysisPlotAxisSettings: {
-    tickLabelFontSize: DEVICE_ANALYSIS_DEFAULT_SETTINGS.analysisPlotAxisSettings.tickLabelFontSize,
-    axisTitleFontSize: DEVICE_ANALYSIS_DEFAULT_SETTINGS.analysisPlotAxisSettings.axisTitleFontSize,
-    legendFontSize: DEVICE_ANALYSIS_DEFAULT_SETTINGS.analysisPlotAxisSettings.legendFontSize,
+    tickLabelFontSize: ANALYSIS_DEFAULT_SETTINGS.analysisPlotAxisSettings.tickLabelFontSize,
+    axisTitleFontSize: ANALYSIS_DEFAULT_SETTINGS.analysisPlotAxisSettings.axisTitleFontSize,
+    legendFontSize: ANALYSIS_DEFAULT_SETTINGS.analysisPlotAxisSettings.legendFontSize,
   },
 };
 
@@ -165,7 +165,7 @@ function normalizeIntegerText(value, min, max) {
   return String(normalizeRoundedBoundedInt(text, min, min, max));
 }
 
-function normalizePlotAxisSettings(value, fallback = DEVICE_ANALYSIS_DEFAULT_SETTINGS.analysisPlotAxisSettings) {
+function normalizePlotAxisSettings(value, fallback = ANALYSIS_DEFAULT_SETTINGS.analysisPlotAxisSettings) {
   const raw = value && typeof value === "object" ? value : {};
   const legacyAutoFontDefaults = isLegacyAutoFontDefaults(raw);
   const yScale = raw.yScale === "log" || raw.yScale === "logAbs" ? raw.yScale : fallback.yScale;
@@ -238,12 +238,12 @@ function normalizeYScaleByFileIdMap(value) {
       typeof fileId === "string" && fileId.trim() ? fileId.trim() : "";
     if (!normalizedFileId) continue;
     const normalizedScale =
-      typeof scale === "string" && DEVICE_ANALYSIS_Y_SCALES.has(scale)
+      typeof scale === "string" && ANALYSIS_Y_SCALES.has(scale)
         ? scale
-        : DEVICE_ANALYSIS_DEFAULT_Y_SCALE;
+        : ANALYSIS_DEFAULT_Y_SCALE;
     next[normalizedFileId] = normalizedScale
       ? normalizedScale
-      : DEVICE_ANALYSIS_DEFAULT_Y_SCALE;
+      : ANALYSIS_DEFAULT_Y_SCALE;
   }
 
   return next;
@@ -258,7 +258,7 @@ function normalizeYUnitByFileIdMap(value) {
       typeof fileId === "string" && fileId.trim() ? fileId.trim() : "";
     if (!normalizedFileId) continue;
     next[normalizedFileId] =
-      typeof unit === "string" && DEVICE_ANALYSIS_Y_UNITS.has(unit)
+      typeof unit === "string" && ANALYSIS_Y_UNITS.has(unit)
         ? unit
         : "A";
   }
@@ -269,14 +269,14 @@ function normalizeYUnitByFileIdMap(value) {
 function normalizeXSegmentationMode(mode) {
   const normalizedMode =
     typeof mode === "string" ? mode.trim().toLowerCase() : "";
-  if (DEVICE_ANALYSIS_X_SEGMENTATION_MODES.has(normalizedMode)) {
+  if (ANALYSIS_X_SEGMENTATION_MODES.has(normalizedMode)) {
     return normalizedMode;
   }
 
   return "auto";
 }
 
-function normalizeDeviceAnalysisTemplate(template) {
+function normalizeAnalysisTemplate(template) {
   if (!template || typeof template !== "object") return null;
 
   return {
@@ -292,11 +292,11 @@ function normalizeDeviceAnalysisTemplate(template) {
   };
 }
 
-function normalizeDeviceAnalysisTemplates(templates) {
+function normalizeAnalysisTemplates(templates) {
   if (!Array.isArray(templates)) return [];
 
   return templates
-    .map((template) => normalizeDeviceAnalysisTemplate(template))
+    .map((template) => normalizeAnalysisTemplate(template))
     .filter(Boolean)
     .map((template, index) => ({
       ...template,
@@ -317,7 +317,7 @@ function buildDefaultStoreData() {
 function normalizeStoreData(raw) {
   const next = raw && typeof raw === "object" ? raw : {};
   return {
-    templates: normalizeDeviceAnalysisTemplates(next.templates),
+    templates: normalizeAnalysisTemplates(next.templates),
   };
 }
 
@@ -331,7 +331,7 @@ function normalizeStoreConfig(raw) {
   return { customStorePath };
 }
 
-export function createDeviceAnalysisStore(options) {
+export function createAnalysisStore(options) {
   const input = options && typeof options === "object" ? options : {};
   const getHomeDir =
     typeof input.getHomeDir === "function" ? input.getHomeDir : null;
@@ -354,82 +354,82 @@ export function createDeviceAnalysisStore(options) {
     return normalizeStoreData(store);
   }
 
-  function normalizeDeviceAnalysisSettings(raw) {
+  function normalizeAnalysisSettings(raw) {
     const next = raw && typeof raw === "object" ? { ...raw } : {};
     const { yUnit: _legacyGlobalYUnit, yScale: _legacyGlobalYScale, ...nextWithoutLegacyAxes } = next;
 
-    const ssMethodDefault = DEVICE_ANALYSIS_SS_METHODS.has(next.ssMethodDefault)
+    const ssMethodDefault = ANALYSIS_SS_METHODS.has(next.ssMethodDefault)
       ? next.ssMethodDefault
-      : DEVICE_ANALYSIS_SS_METHODS.has(next.ssMethod)
+      : ANALYSIS_SS_METHODS.has(next.ssMethod)
         ? next.ssMethod
-        : DEVICE_ANALYSIS_DEFAULT_SETTINGS.ssMethodDefault;
+        : ANALYSIS_DEFAULT_SETTINGS.ssMethodDefault;
 
     const yUnitByFileId = normalizeYUnitByFileIdMap(next.yUnitByFileId);
     const yScaleByFileId = normalizeYScaleByFileIdMap(next.yScaleByFileId);
-    const theme = DEVICE_ANALYSIS_THEMES.has(next.theme)
+    const theme = ANALYSIS_THEMES.has(next.theme)
       ? next.theme
-      : DEVICE_ANALYSIS_DEFAULT_SETTINGS.theme;
-    const windowCloseBehavior = DEVICE_ANALYSIS_WINDOW_CLOSE_BEHAVIORS.has(
+      : ANALYSIS_DEFAULT_SETTINGS.theme;
+    const windowCloseBehavior = ANALYSIS_WINDOW_CLOSE_BEHAVIORS.has(
       next.windowCloseBehavior,
     )
       ? next.windowCloseBehavior
-      : DEVICE_ANALYSIS_DEFAULT_SETTINGS.windowCloseBehavior;
+      : ANALYSIS_DEFAULT_SETTINGS.windowCloseBehavior;
     const trayMinimizeHintShown = normalizeBoolean(
       next.trayMinimizeHintShown,
-      DEVICE_ANALYSIS_DEFAULT_SETTINGS.trayMinimizeHintShown,
+      ANALYSIS_DEFAULT_SETTINGS.trayMinimizeHintShown,
     );
 
     const ssDiagnosticsEnabled =
       typeof next.ssDiagnosticsEnabled === "boolean"
         ? next.ssDiagnosticsEnabled
-        : DEVICE_ANALYSIS_DEFAULT_SETTINGS.ssDiagnosticsEnabled;
+        : ANALYSIS_DEFAULT_SETTINGS.ssDiagnosticsEnabled;
 
     const vthDiagnosticsEnabled =
       typeof next.vthDiagnosticsEnabled === "boolean"
         ? next.vthDiagnosticsEnabled
-        : DEVICE_ANALYSIS_DEFAULT_SETTINGS.vthDiagnosticsEnabled;
+        : ANALYSIS_DEFAULT_SETTINGS.vthDiagnosticsEnabled;
 
     const ssShowFitLine =
       typeof next.ssShowFitLine === "boolean"
         ? next.ssShowFitLine
-        : DEVICE_ANALYSIS_DEFAULT_SETTINGS.ssShowFitLine;
+        : ANALYSIS_DEFAULT_SETTINGS.ssShowFitLine;
 
     const stopOnErrorDefault =
       normalizeBoolean(
         next.stopOnErrorDefault,
-        DEVICE_ANALYSIS_DEFAULT_SETTINGS.stopOnErrorDefault,
+        ANALYSIS_DEFAULT_SETTINGS.stopOnErrorDefault,
       );
     const onboardingCompleted = normalizeBoolean(
       next.onboardingCompleted,
-      DEVICE_ANALYSIS_DEFAULT_SETTINGS.onboardingCompleted,
+      ANALYSIS_DEFAULT_SETTINGS.onboardingCompleted,
     );
     const onboardingAutoStartDismissed = normalizeBoolean(
       next.onboardingAutoStartDismissed,
-      DEVICE_ANALYSIS_DEFAULT_SETTINGS.onboardingAutoStartDismissed,
+      ANALYSIS_DEFAULT_SETTINGS.onboardingAutoStartDismissed,
     );
 
     const ssIdLow = normalizePositiveNumber(
       next.ssIdLow ?? next.ssIdWindowLow,
-      DEVICE_ANALYSIS_DEFAULT_SETTINGS.ssIdLow,
+      ANALYSIS_DEFAULT_SETTINGS.ssIdLow,
     );
     const ssIdHigh = normalizePositiveNumber(
       next.ssIdHigh ?? next.ssIdWindowHigh,
-      DEVICE_ANALYSIS_DEFAULT_SETTINGS.ssIdHigh,
+      ANALYSIS_DEFAULT_SETTINGS.ssIdHigh,
     );
     const originExePath = normalizeOriginExePath(next.originExePath);
-    const originExportModeDefault = DEVICE_ANALYSIS_ORIGIN_EXPORT_MODES.has(
+    const originExportModeDefault = ANALYSIS_ORIGIN_EXPORT_MODES.has(
       next.originExportModeDefault,
     )
       ? next.originExportModeDefault
-      : DEVICE_ANALYSIS_ORIGIN_EXPORT_MODES.has(next.originExportMode)
+      : ANALYSIS_ORIGIN_EXPORT_MODES.has(next.originExportMode)
         ? next.originExportMode
-        : DEVICE_ANALYSIS_DEFAULT_SETTINGS.originExportModeDefault;
+        : ANALYSIS_DEFAULT_SETTINGS.originExportModeDefault;
     const originPlotDefaults = normalizeOriginPlotOptions({
-      plotCommand: DEVICE_ANALYSIS_DEFAULT_SETTINGS.originPlotCommandDefault,
-      plotType: DEVICE_ANALYSIS_DEFAULT_SETTINGS.originPlotTypeDefault,
-      postPlotCommands: DEVICE_ANALYSIS_DEFAULT_SETTINGS.originPlotPostCommandsDefault,
-      lineWidth: DEVICE_ANALYSIS_DEFAULT_SETTINGS.originPlotLineWidthDefault,
-      xyPairs: DEVICE_ANALYSIS_DEFAULT_SETTINGS.originPlotXyPairsDefault,
+      plotCommand: ANALYSIS_DEFAULT_SETTINGS.originPlotCommandDefault,
+      plotType: ANALYSIS_DEFAULT_SETTINGS.originPlotTypeDefault,
+      postPlotCommands: ANALYSIS_DEFAULT_SETTINGS.originPlotPostCommandsDefault,
+      lineWidth: ANALYSIS_DEFAULT_SETTINGS.originPlotLineWidthDefault,
+      xyPairs: ANALYSIS_DEFAULT_SETTINGS.originPlotXyPairsDefault,
     });
     const originPlotSettings = normalizeOriginPlotOptions(
       {
@@ -444,16 +444,16 @@ export function createDeviceAnalysisStore(options) {
     const originRuntimeCleanupEnabled =
       typeof next.originRuntimeCleanupEnabled === "boolean"
         ? next.originRuntimeCleanupEnabled
-        : DEVICE_ANALYSIS_DEFAULT_SETTINGS.originRuntimeCleanupEnabled;
+        : ANALYSIS_DEFAULT_SETTINGS.originRuntimeCleanupEnabled;
     const originRuntimeKeepSuccessJobs = normalizeBoundedInt(
       next.originRuntimeKeepSuccessJobs,
-      DEVICE_ANALYSIS_DEFAULT_SETTINGS.originRuntimeKeepSuccessJobs,
+      ANALYSIS_DEFAULT_SETTINGS.originRuntimeKeepSuccessJobs,
       0,
       100,
     );
     const originRuntimeFailedRetentionDays = normalizeBoundedInt(
       next.originRuntimeFailedRetentionDays,
-      DEVICE_ANALYSIS_DEFAULT_SETTINGS.originRuntimeFailedRetentionDays,
+      ANALYSIS_DEFAULT_SETTINGS.originRuntimeFailedRetentionDays,
       1,
       365,
     );
@@ -462,7 +462,7 @@ export function createDeviceAnalysisStore(options) {
     );
 
     return {
-      ...DEVICE_ANALYSIS_DEFAULT_SETTINGS,
+      ...ANALYSIS_DEFAULT_SETTINGS,
       ...nextWithoutLegacyAxes,
       defaultTemplate: next.defaultTemplate ?? null,
       lastTemplateId: next.lastTemplateId ?? null,
@@ -494,18 +494,18 @@ export function createDeviceAnalysisStore(options) {
     };
   }
 
-  function cloneDeviceAnalysisSettings(settings) {
-    return normalizeDeviceAnalysisSettings(settings);
+  function cloneAnalysisSettings(settings) {
+    return normalizeAnalysisSettings(settings);
   }
 
   function applyStartupAnalysisDefaults(settings) {
-    const normalized = normalizeDeviceAnalysisSettings(settings);
-    return normalizeDeviceAnalysisSettings({
+    const normalized = normalizeAnalysisSettings(settings);
+    return normalizeAnalysisSettings({
       ...normalized,
-      ...DEVICE_ANALYSIS_STARTUP_ANALYSIS_DEFAULTS,
+      ...ANALYSIS_STARTUP_ANALYSIS_DEFAULTS,
       analysisPlotAxisSettings: {
         ...normalized.analysisPlotAxisSettings,
-        ...DEVICE_ANALYSIS_STARTUP_ANALYSIS_DEFAULTS.analysisPlotAxisSettings,
+        ...ANALYSIS_STARTUP_ANALYSIS_DEFAULTS.analysisPlotAxisSettings,
       },
     });
   }
@@ -521,11 +521,11 @@ export function createDeviceAnalysisStore(options) {
   }
 
   function getDefaultStorePath() {
-    return path.join(getHomeDir(), DEVICE_ANALYSIS_SETTINGS_FILENAME);
+    return path.join(getHomeDir(), ANALYSIS_SETTINGS_FILENAME);
   }
 
   function getStoreConfigPath() {
-    return path.join(getHomeDir(), DEVICE_ANALYSIS_STORE_CONFIG_FILENAME);
+    return path.join(getHomeDir(), ANALYSIS_STORE_CONFIG_FILENAME);
   }
 
   function readStoreConfig() {
@@ -586,13 +586,13 @@ export function createDeviceAnalysisStore(options) {
 
   function getTemplatePath() {
     const settingsPath = getStorePath();
-    return path.join(path.dirname(settingsPath), DEVICE_ANALYSIS_TEMPLATE_FILENAME);
+    return path.join(path.dirname(settingsPath), ANALYSIS_TEMPLATE_FILENAME);
   }
 
   function getLegacySettingsPath() {
     const settingsPath = getStorePath();
     const parsed = path.parse(settingsPath);
-    return path.join(parsed.dir, `${parsed.name}${DEVICE_ANALYSIS_LEGACY_SETTINGS_FILENAME_SUFFIX}`);
+    return path.join(parsed.dir, `${parsed.name}${ANALYSIS_LEGACY_SETTINGS_FILENAME_SUFFIX}`);
   }
 
   function tryReadJsonFile(filePath) {
@@ -650,17 +650,17 @@ export function createDeviceAnalysisStore(options) {
     }
 
     if (legacySettingsRaw) {
-      writeJsonFile(settingsPath, normalizeDeviceAnalysisSettings(legacySettingsRaw));
+      writeJsonFile(settingsPath, normalizeAnalysisSettings(legacySettingsRaw));
       removeFileIfExists(legacySettingsPath);
       clearSettingsCache();
     } else if (currentSettingsHasTemplates) {
       writeJsonFile(
         settingsPath,
-        normalizeDeviceAnalysisSettings(extractLegacySettings(currentSettingsRaw)),
+        normalizeAnalysisSettings(extractLegacySettings(currentSettingsRaw)),
       );
       clearSettingsCache();
     } else if (currentSettingsRaw && typeof currentSettingsRaw === "object") {
-      const normalizedCurrentSettings = normalizeDeviceAnalysisSettings(
+      const normalizedCurrentSettings = normalizeAnalysisSettings(
         currentSettingsRaw,
       );
       const rawSerialized = JSON.stringify(currentSettingsRaw);
@@ -723,7 +723,7 @@ export function createDeviceAnalysisStore(options) {
 
     const settingsPath = getStorePath();
     if (settingsCache && settingsCachePath === settingsPath) {
-      return cloneDeviceAnalysisSettings(settingsCache);
+      return cloneAnalysisSettings(settingsCache);
     }
 
     if (!fs.existsSync(settingsPath)) {
@@ -735,7 +735,7 @@ export function createDeviceAnalysisStore(options) {
       const parsed = raw ? JSON.parse(raw) : {};
       settingsCache = applyStartupAnalysisDefaults(parsed);
       settingsCachePath = settingsPath;
-      return cloneDeviceAnalysisSettings(settingsCache);
+      return cloneAnalysisSettings(settingsCache);
     } catch {
       return null;
     }
@@ -750,39 +750,39 @@ export function createDeviceAnalysisStore(options) {
       fs.mkdirSync(settingsDir, { recursive: true });
     }
 
-    const normalized = normalizeDeviceAnalysisSettings(nextSettings);
+    const normalized = normalizeAnalysisSettings(nextSettings);
     fs.writeFileSync(settingsPath, JSON.stringify(normalized, null, 2), "utf8");
     settingsCache = normalized;
     settingsCachePath = settingsPath;
-    return cloneDeviceAnalysisSettings(normalized);
+    return cloneAnalysisSettings(normalized);
   }
 
-  function getDeviceAnalysisSettings() {
+  function getAnalysisSettings() {
     const direct = tryReadSettingsFile();
     if (direct) return direct;
 
-    const defaults = normalizeDeviceAnalysisSettings(DEVICE_ANALYSIS_DEFAULT_SETTINGS);
+    const defaults = normalizeAnalysisSettings(ANALYSIS_DEFAULT_SETTINGS);
     settingsCache = defaults;
     settingsCachePath = getStorePath();
-    return cloneDeviceAnalysisSettings(defaults);
+    return cloneAnalysisSettings(defaults);
   }
 
-  function patchDeviceAnalysisSettings(updates) {
+  function patchAnalysisSettings(updates) {
     const patch = updates && typeof updates === "object" ? updates : {};
-    const nextSettings = normalizeDeviceAnalysisSettings({
-      ...getDeviceAnalysisSettings(),
+    const nextSettings = normalizeAnalysisSettings({
+      ...getAnalysisSettings(),
       ...patch,
     });
     writeSettings(nextSettings);
     return nextSettings;
   }
 
-  function getDeviceAnalysisTemplates() {
+  function getAnalysisTemplates() {
     return readStore().templates;
   }
 
-  function upsertDeviceAnalysisTemplate(payload) {
-    const input = normalizeDeviceAnalysisTemplate(payload);
+  function upsertAnalysisTemplate(payload) {
+    const input = normalizeAnalysisTemplate(payload);
     if (!input) throw new Error("Invalid template payload.");
 
     const inputNameKey = toTemplateNameKey(input.name);
@@ -805,7 +805,7 @@ export function createDeviceAnalysisStore(options) {
       id: existingMatch?.id || input.id || `tpl_${Date.now()}`,
     };
     const savedId = String(saved.id || "");
-    store.templates = normalizeDeviceAnalysisTemplates([
+    store.templates = normalizeAnalysisTemplates([
       saved,
       ...existingTemplates.filter((tpl) => {
         const nameKey = toTemplateNameKey(tpl?.name);
@@ -817,7 +817,7 @@ export function createDeviceAnalysisStore(options) {
     return saved;
   }
 
-  function deleteDeviceAnalysisTemplate(id) {
+  function deleteAnalysisTemplate(id) {
     const templateId = String(id || "").trim();
     if (!templateId) throw new Error("Invalid template id.");
 
@@ -886,11 +886,11 @@ export function createDeviceAnalysisStore(options) {
   return {
     getHomeDir,
     getStorePersistenceInfo,
-    getDeviceAnalysisSettings,
-    patchDeviceAnalysisSettings,
-    getDeviceAnalysisTemplates,
-    upsertDeviceAnalysisTemplate,
-    deleteDeviceAnalysisTemplate,
+    getAnalysisSettings,
+    patchAnalysisSettings,
+    getAnalysisTemplates,
+    upsertAnalysisTemplate,
+    deleteAnalysisTemplate,
     setPersistencePath,
   };
 }

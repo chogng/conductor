@@ -1,14 +1,14 @@
 import {
-  DEVICE_ANALYSIS_DESKTOP_STORE_UNAVAILABLE,
-  type DeviceAnalysisDesktopStore,
+  DESKTOP_STORE_UNAVAILABLE,
+  type AnalysisDesktopStore,
   getDesktopStore,
   getDesktopStoreMethod,
-} from "../desktop/deviceAnalysisDesktopStore";
+} from "../desktop/desktopStore";
 
 const wrapSettingsStoreError = (error: unknown): never => {
   if (
     error instanceof Error &&
-    error.message === DEVICE_ANALYSIS_DESKTOP_STORE_UNAVAILABLE
+    error.message === DESKTOP_STORE_UNAVAILABLE
   ) {
     throw new Error(
       "Desktop store bridge unavailable. Device Analysis settings are persisted only via desktop config.json.",
@@ -18,7 +18,7 @@ const wrapSettingsStoreError = (error: unknown): never => {
   throw error;
 };
 
-const requireDesktopSettingsStore = (): DeviceAnalysisDesktopStore => {
+const requireDesktopSettingsStore = (): AnalysisDesktopStore => {
   const store = getDesktopStore();
   if (!store) {
     throw new Error(
@@ -35,6 +35,7 @@ export const getDeviceAnalysisSettings = async (): Promise<unknown> => {
   try {
     return await getDesktopStoreMethod(
       store,
+      "getAnalysisSettings",
       "getDeviceAnalysisSettings",
     )();
   } catch (error) {
@@ -50,6 +51,7 @@ export const updateDeviceAnalysisSettings = async (
   try {
     return await getDesktopStoreMethod(
       store,
+      "updateAnalysisSettings",
       "updateDeviceAnalysisSettings",
     )(updates);
   } catch (error) {

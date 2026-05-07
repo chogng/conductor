@@ -1,67 +1,67 @@
 import {
-  requestDeviceAnalysisDesktopStore,
-  DEVICE_ANALYSIS_DESKTOP_STORE_UNAVAILABLE,
-} from "../../desktop/deviceAnalysisDesktopStore";
+  DESKTOP_STORE_UNAVAILABLE,
+  requestAnalysisDesktopStore,
+} from "../../desktop/desktopStore";
 
 const isDesktopStoreUnavailableError = (error: unknown): boolean =>
   error instanceof Error &&
-  error.message === DEVICE_ANALYSIS_DESKTOP_STORE_UNAVAILABLE;
+  error.message === DESKTOP_STORE_UNAVAILABLE;
 
 class ApiService {
   async getDeviceAnalysisTemplates(): Promise<unknown> {
-    return this._requestDeviceAnalysisStore("/device-analysis/templates");
+    return this._requestAnalysisStore("/analysis/templates");
   }
 
   async createDeviceAnalysisTemplate(template: unknown): Promise<unknown> {
-    return this._requestDeviceAnalysisStore("/device-analysis/templates", {
+    return this._requestAnalysisStore("/analysis/templates", {
       method: "POST",
       body: JSON.stringify(template),
     });
   }
 
   async deleteDeviceAnalysisTemplate(id: string): Promise<unknown> {
-    return this._requestDeviceAnalysisStore(`/device-analysis/templates/${id}`, {
+    return this._requestAnalysisStore(`/analysis/templates/${id}`, {
       method: "DELETE",
     });
   }
 
   async getDeviceAnalysisSettings(): Promise<unknown> {
-    return this._requestDeviceAnalysisStore("/device-analysis/settings");
+    return this._requestAnalysisStore("/analysis/settings");
   }
 
   async updateDeviceAnalysisSettings(updates: unknown): Promise<unknown> {
-    return this._requestDeviceAnalysisStore("/device-analysis/settings", {
+    return this._requestAnalysisStore("/analysis/settings", {
       method: "PATCH",
       body: JSON.stringify(updates),
     });
   }
 
   async getDeviceAnalysisPersistencePath(): Promise<unknown> {
-    return this._requestDeviceAnalysisStore("/device-analysis/persistence-path");
+    return this._requestAnalysisStore("/analysis/persistence-path");
   }
 
   async updateDeviceAnalysisPersistencePath(pathValue: unknown): Promise<unknown> {
-    return this._requestDeviceAnalysisStore("/device-analysis/persistence-path", {
+    return this._requestAnalysisStore("/analysis/persistence-path", {
       method: "PATCH",
       body: JSON.stringify({ path: pathValue ?? "" }),
     });
   }
 
   async chooseDeviceAnalysisPersistencePath(): Promise<unknown> {
-    return this._requestDeviceAnalysisStore(
-      "/device-analysis/persistence-path/choose",
+    return this._requestAnalysisStore(
+      "/analysis/persistence-path/choose",
       {
         method: "POST",
       },
     );
   }
 
-  async _requestDeviceAnalysisStore<T = unknown>(
+  async _requestAnalysisStore<T = unknown>(
     endpoint: string,
     options: RequestInit = {},
   ): Promise<T> {
     try {
-      return (await requestDeviceAnalysisDesktopStore(endpoint, options)) as T;
+      return (await requestAnalysisDesktopStore(endpoint, options)) as T;
     } catch (error) {
       if (isDesktopStoreUnavailableError(error)) {
         throw new Error(

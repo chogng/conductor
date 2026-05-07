@@ -1,4 +1,4 @@
-import fs from "node:fs";
+﻿import fs from "node:fs";
 import path from "node:path";
 import { execFile, execFileSync, spawn } from "node:child_process";
 import { createRequire } from "node:module";
@@ -6,7 +6,7 @@ import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell, Tray } from "electron";
 import { createBootSplashWindow } from "./boot-splash.js";
-import { createDeviceAnalysisStore } from "./device-analysis-store.js";
+import { createAnalysisStore } from "./analysis-store.js";
 import {
   assertOriginExePath,
   normalizeOriginExePath,
@@ -30,12 +30,12 @@ if (!hasSingleInstanceLock) {
 
 let autoUpdater = null;
 let originRunnerModulePromise = null;
-let rustDeviceAnalysisEngine = null;
-let rustDeviceAnalysisEngineStdoutBuffer = "";
-let rustDeviceAnalysisEngineRequestId = 0;
-const rustDeviceAnalysisEnginePending = new Map();
-const rustDeviceAnalysisProcessingSlots = [];
-let rustDeviceAnalysisProcessingSlotCursor = 0;
+let rustAnalysisEngine = null;
+let rustAnalysisEngineStdoutBuffer = "";
+let rustAnalysisEngineRequestId = 0;
+const rustAnalysisEnginePending = new Map();
+const rustAnalysisProcessingSlots = [];
+let rustAnalysisProcessingSlotCursor = 0;
 
 const isDev = !app.isPackaged;
 const isWindows = process.platform === "win32";
@@ -55,7 +55,7 @@ const PACKAGED_AUTO_UPDATE_CONFIG = {
 };
 const APP_DISPLAY_NAME = "Conductor Studio";
 const DESKTOP_APP_USER_MODEL_ID = "com.conductor.desktop";
-const DEVICE_ANALYSIS_DEMO_FILE_NAMES = [
+const ANALYSIS_DEMO_FILE_NAMES = [
   "demo-01.csv",
   "demo-02.csv",
   "demo-03.csv",
@@ -72,7 +72,7 @@ const MAIN_WINDOW_BOUNDS = {
 };
 const BOOT_WINDOW_SETTLE_MS = 80;
 const BOOT_UI_READY_FALLBACK_MS = 3500;
-const DEVICE_ANALYSIS_RUST_PROCESSING_POOL_SIZE = Math.max(
+const ANALYSIS_RUST_PROCESSING_POOL_SIZE = Math.max(
   1,
   Math.min(
     4,
@@ -709,27 +709,27 @@ function normalizeOriginCsvBatchPayload(payload, plotDefaults = undefined) {
   return jobs.map((job) => normalizeOriginCsvPayload(job, plotDefaults));
 }
 
-function getDeviceAnalysisHomeDir() {
+function getAnalysisHomeDir() {
   return path.join(app.getPath("home"), ".device");
 }
 
-function getDeviceAnalysisTempRootDir() {
+function getAnalysisTempRootDir() {
   return path.join(app.getPath("temp"), "conductor");
 }
 
 function getOriginRuntimeRootDir() {
-  return getDeviceAnalysisTempRootDir();
+  return getAnalysisTempRootDir();
 }
 
 function getOriginRuntimeStorageDir() {
   return path.join(getOriginRuntimeRootDir(), "origin");
 }
 
-function getDeviceAnalysisDemoDir() {
-  return path.join(getDeviceAnalysisHomeDir(), "demo");
+function getAnalysisDemoDir() {
+  return path.join(getAnalysisHomeDir(), "demo");
 }
 
-function resolveDeviceAnalysisDemoSourceDir() {
+function resolveAnalysisDemoSourceDir() {
   const candidates = app.isPackaged
     ? [
         path.join(getResourcesPath(), "demo"),
@@ -743,18 +743,18 @@ function resolveDeviceAnalysisDemoSourceDir() {
   return resolveFirstExistingPath(candidates);
 }
 
-function ensureDeviceAnalysisDemoFiles() {
-  const sourceDir = resolveDeviceAnalysisDemoSourceDir();
+function ensureAnalysisDemoFiles() {
+  const sourceDir = resolveAnalysisDemoSourceDir();
   if (!sourceDir) {
     console.warn("[demo] Demo source directory was not found.");
-    return { demoDir: getDeviceAnalysisDemoDir(), filePaths: [] };
+    return { demoDir: getAnalysisDemoDir(), filePaths: [] };
   }
 
-  const demoDir = getDeviceAnalysisDemoDir();
+  const demoDir = getAnalysisDemoDir();
   fs.mkdirSync(demoDir, { recursive: true });
 
   const filePaths = [];
-  for (const fileName of DEVICE_ANALYSIS_DEMO_FILE_NAMES) {
+  for (const fileName of ANALYSIS_DEMO_FILE_NAMES) {
     const sourcePath = path.join(sourceDir, fileName);
     const targetPath = path.join(demoDir, fileName);
     if (!fs.existsSync(sourcePath)) continue;
@@ -790,7 +790,7 @@ function isSupportedRustExcelInputPath(filePath) {
   return ext === ".xls" || ext === ".xlsx";
 }
 
-function isSupportedRustDeviceAnalysisInputPath(filePath) {
+function isSupportedRustAnalysisInputPath(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   return ext === ".csv" || ext === ".xls" || ext === ".xlsx";
 }
@@ -843,12 +843,12 @@ function resolveRustExcelConverterPath() {
   }) ?? null;
 }
 
-function rejectPendingRustDeviceAnalysisEngineRequests(error) {
-  for (const pending of rustDeviceAnalysisEnginePending.values()) {
+function rejectPendingRustAnalysisEngineRequests(error) {
+  for (const pending of rustAnalysisEnginePending.values()) {
     clearTimeout(pending.timeoutId);
     pending.reject(error);
   }
-  rustDeviceAnalysisEnginePending.clear();
+  rustAnalysisEnginePending.clear();
 }
 
 function forceStopChildProcess(child) {
@@ -870,18 +870,18 @@ function forceStopChildProcess(child) {
   }
 }
 
-function stopRustDeviceAnalysisEngine() {
-  if (!rustDeviceAnalysisEngine) return;
-  const child = rustDeviceAnalysisEngine;
-  rustDeviceAnalysisEngine = null;
-  rustDeviceAnalysisEngineStdoutBuffer = "";
-  rejectPendingRustDeviceAnalysisEngineRequests(
+function stopRustAnalysisEngine() {
+  if (!rustAnalysisEngine) return;
+  const child = rustAnalysisEngine;
+  rustAnalysisEngine = null;
+  rustAnalysisEngineStdoutBuffer = "";
+  rejectPendingRustAnalysisEngineRequests(
     new Error("rs-worker stopped."),
   );
   forceStopChildProcess(child);
 }
 
-function handleRustDeviceAnalysisEngineLine(line) {
+function handleRustAnalysisEngineLine(line) {
   const text = String(line ?? "").trim();
   if (!text) return;
 
@@ -895,10 +895,10 @@ function handleRustDeviceAnalysisEngineLine(line) {
 
   const id = Number(message?.id);
   if (!Number.isFinite(id)) return;
-  const pending = rustDeviceAnalysisEnginePending.get(id);
+  const pending = rustAnalysisEnginePending.get(id);
   if (!pending) return;
 
-  rustDeviceAnalysisEnginePending.delete(id);
+  rustAnalysisEnginePending.delete(id);
   clearTimeout(pending.timeoutId);
 
   if (message?.ok === true) {
@@ -913,9 +913,9 @@ function handleRustDeviceAnalysisEngineLine(line) {
   pending.reject(new Error(errorMessage));
 }
 
-function ensureRustDeviceAnalysisEngine() {
-  if (rustDeviceAnalysisEngine && !rustDeviceAnalysisEngine.killed) {
-    return rustDeviceAnalysisEngine;
+function ensureRustAnalysisEngine() {
+  if (rustAnalysisEngine && !rustAnalysisEngine.killed) {
+    return rustAnalysisEngine;
   }
 
   const executablePath = resolveRustExcelConverterPath();
@@ -927,19 +927,19 @@ function ensureRustDeviceAnalysisEngine() {
     stdio: ["pipe", "pipe", "pipe"],
     windowsHide: true,
   });
-  rustDeviceAnalysisEngine = child;
-  rustDeviceAnalysisEngineStdoutBuffer = "";
+  rustAnalysisEngine = child;
+  rustAnalysisEngineStdoutBuffer = "";
 
   child.stdout?.setEncoding("utf8");
   child.stdout?.on("data", (chunk) => {
-    rustDeviceAnalysisEngineStdoutBuffer += String(chunk ?? "");
+    rustAnalysisEngineStdoutBuffer += String(chunk ?? "");
     while (true) {
-      const newlineIndex = rustDeviceAnalysisEngineStdoutBuffer.indexOf("\n");
+      const newlineIndex = rustAnalysisEngineStdoutBuffer.indexOf("\n");
       if (newlineIndex < 0) break;
-      const line = rustDeviceAnalysisEngineStdoutBuffer.slice(0, newlineIndex);
-      rustDeviceAnalysisEngineStdoutBuffer =
-        rustDeviceAnalysisEngineStdoutBuffer.slice(newlineIndex + 1);
-      handleRustDeviceAnalysisEngineLine(line);
+      const line = rustAnalysisEngineStdoutBuffer.slice(0, newlineIndex);
+      rustAnalysisEngineStdoutBuffer =
+        rustAnalysisEngineStdoutBuffer.slice(newlineIndex + 1);
+      handleRustAnalysisEngineLine(line);
     }
   });
 
@@ -950,13 +950,13 @@ function ensureRustDeviceAnalysisEngine() {
   });
 
   child.on("error", (error) => {
-    if (rustDeviceAnalysisEngine === child) rustDeviceAnalysisEngine = null;
-    rejectPendingRustDeviceAnalysisEngineRequests(error);
+    if (rustAnalysisEngine === child) rustAnalysisEngine = null;
+    rejectPendingRustAnalysisEngineRequests(error);
   });
 
   child.on("exit", (code, signal) => {
-    if (rustDeviceAnalysisEngine === child) rustDeviceAnalysisEngine = null;
-    rejectPendingRustDeviceAnalysisEngineRequests(
+    if (rustAnalysisEngine === child) rustAnalysisEngine = null;
+    rejectPendingRustAnalysisEngineRequests(
       new Error(
         `rs-worker exited (code=${code ?? "null"} signal=${signal ?? "null"}).`,
       ),
@@ -966,35 +966,35 @@ function ensureRustDeviceAnalysisEngine() {
   return child;
 }
 
-function sendRustDeviceAnalysisEngineCommand(command, payload = {}, timeoutMs = 120000) {
-  const child = ensureRustDeviceAnalysisEngine();
-  const id = (rustDeviceAnalysisEngineRequestId += 1);
+function sendRustAnalysisEngineCommand(command, payload = {}, timeoutMs = 120000) {
+  const child = ensureRustAnalysisEngine();
+  const id = (rustAnalysisEngineRequestId += 1);
   const message = JSON.stringify({ id, command, ...payload });
 
   return new Promise((resolve, reject) => {
     const timeoutId = setTimeout(() => {
-      rustDeviceAnalysisEnginePending.delete(id);
+      rustAnalysisEnginePending.delete(id);
       reject(new Error(`rs-worker command timed out: ${command}`));
     }, timeoutMs);
 
-    rustDeviceAnalysisEnginePending.set(id, { reject, resolve, timeoutId });
+    rustAnalysisEnginePending.set(id, { reject, resolve, timeoutId });
 
     try {
       child.stdin.write(`${message}\n`, "utf8", (error) => {
         if (!error) return;
-        rustDeviceAnalysisEnginePending.delete(id);
+        rustAnalysisEnginePending.delete(id);
         clearTimeout(timeoutId);
         reject(error);
       });
     } catch (error) {
-      rustDeviceAnalysisEnginePending.delete(id);
+      rustAnalysisEnginePending.delete(id);
       clearTimeout(timeoutId);
       reject(error);
     }
   });
 }
 
-function createRustDeviceAnalysisEngineSlot(name) {
+function createRustAnalysisEngineSlot(name) {
   return {
     busyCount: 0,
     child: null,
@@ -1005,7 +1005,7 @@ function createRustDeviceAnalysisEngineSlot(name) {
   };
 }
 
-function rejectPendingRustDeviceAnalysisEngineSlotRequests(slot, error) {
+function rejectPendingRustAnalysisEngineSlotRequests(slot, error) {
   for (const pending of slot.pending.values()) {
     clearTimeout(pending.timeoutId);
     pending.reject(error);
@@ -1014,19 +1014,19 @@ function rejectPendingRustDeviceAnalysisEngineSlotRequests(slot, error) {
   slot.busyCount = 0;
 }
 
-function stopRustDeviceAnalysisEngineSlot(slot) {
+function stopRustAnalysisEngineSlot(slot) {
   if (!slot?.child) return;
   const child = slot.child;
   slot.child = null;
   slot.stdoutBuffer = "";
-  rejectPendingRustDeviceAnalysisEngineSlotRequests(
+  rejectPendingRustAnalysisEngineSlotRequests(
     slot,
     new Error(`rs-worker stopped (${slot.name}).`),
   );
   forceStopChildProcess(child);
 }
 
-function handleRustDeviceAnalysisEngineSlotLine(slot, line) {
+function handleRustAnalysisEngineSlotLine(slot, line) {
   const text = String(line ?? "").trim();
   if (!text) return;
 
@@ -1062,7 +1062,7 @@ function handleRustDeviceAnalysisEngineSlotLine(slot, line) {
   pending.reject(new Error(errorMessage));
 }
 
-function ensureRustDeviceAnalysisEngineSlot(slot) {
+function ensureRustAnalysisEngineSlot(slot) {
   if (slot.child && !slot.child.killed) {
     return slot.child;
   }
@@ -1087,7 +1087,7 @@ function ensureRustDeviceAnalysisEngineSlot(slot) {
       if (newlineIndex < 0) break;
       const line = slot.stdoutBuffer.slice(0, newlineIndex);
       slot.stdoutBuffer = slot.stdoutBuffer.slice(newlineIndex + 1);
-      handleRustDeviceAnalysisEngineSlotLine(slot, line);
+      handleRustAnalysisEngineSlotLine(slot, line);
     }
   });
 
@@ -1099,12 +1099,12 @@ function ensureRustDeviceAnalysisEngineSlot(slot) {
 
   child.on("error", (error) => {
     if (slot.child === child) slot.child = null;
-    rejectPendingRustDeviceAnalysisEngineSlotRequests(slot, error);
+    rejectPendingRustAnalysisEngineSlotRequests(slot, error);
   });
 
   child.on("exit", (code, signal) => {
     if (slot.child === child) slot.child = null;
-    rejectPendingRustDeviceAnalysisEngineSlotRequests(
+    rejectPendingRustAnalysisEngineSlotRequests(
       slot,
       new Error(
         `rs-worker exited (${slot.name}, code=${code ?? "null"} signal=${signal ?? "null"}).`,
@@ -1115,44 +1115,44 @@ function ensureRustDeviceAnalysisEngineSlot(slot) {
   return child;
 }
 
-function getRustDeviceAnalysisProcessingSlot() {
-  while (rustDeviceAnalysisProcessingSlots.length < DEVICE_ANALYSIS_RUST_PROCESSING_POOL_SIZE) {
-    rustDeviceAnalysisProcessingSlots.push(
-      createRustDeviceAnalysisEngineSlot(
-        `process-${rustDeviceAnalysisProcessingSlots.length + 1}`,
+function getRustAnalysisProcessingSlot() {
+  while (rustAnalysisProcessingSlots.length < ANALYSIS_RUST_PROCESSING_POOL_SIZE) {
+    rustAnalysisProcessingSlots.push(
+      createRustAnalysisEngineSlot(
+        `process-${rustAnalysisProcessingSlots.length + 1}`,
       ),
     );
   }
 
-  let selected = rustDeviceAnalysisProcessingSlots[0];
-  for (let offset = 0; offset < rustDeviceAnalysisProcessingSlots.length; offset += 1) {
+  let selected = rustAnalysisProcessingSlots[0];
+  for (let offset = 0; offset < rustAnalysisProcessingSlots.length; offset += 1) {
     const index =
-      (rustDeviceAnalysisProcessingSlotCursor + offset) %
-      rustDeviceAnalysisProcessingSlots.length;
-    const slot = rustDeviceAnalysisProcessingSlots[index];
+      (rustAnalysisProcessingSlotCursor + offset) %
+      rustAnalysisProcessingSlots.length;
+    const slot = rustAnalysisProcessingSlots[index];
     if (slot.busyCount < selected.busyCount) {
       selected = slot;
     }
   }
-  rustDeviceAnalysisProcessingSlotCursor =
-    (rustDeviceAnalysisProcessingSlots.indexOf(selected) + 1) %
-    rustDeviceAnalysisProcessingSlots.length;
+  rustAnalysisProcessingSlotCursor =
+    (rustAnalysisProcessingSlots.indexOf(selected) + 1) %
+    rustAnalysisProcessingSlots.length;
   return selected;
 }
 
-function sendRustDeviceAnalysisProcessingCommand(command, payload = {}, timeoutMs = 120000) {
-  const slot = getRustDeviceAnalysisProcessingSlot();
-  return sendRustDeviceAnalysisEngineSlotCommand(slot, command, payload, timeoutMs);
+function sendRustAnalysisProcessingCommand(command, payload = {}, timeoutMs = 120000) {
+  const slot = getRustAnalysisProcessingSlot();
+  return sendRustAnalysisEngineSlotCommand(slot, command, payload, timeoutMs);
 }
 
-function createRustDeviceAnalysisResultTempDir(fileId) {
+function createRustAnalysisResultTempDir(fileId) {
   const safeFileId = String(fileId || "file").replace(/[^a-zA-Z0-9._-]+/g, "_");
-  const root = getDeviceAnalysisTempRootDir();
+  const root = getAnalysisTempRootDir();
   fs.mkdirSync(root, { recursive: true });
   return fs.mkdtempSync(path.join(root, `${safeFileId}-`));
 }
 
-function createRustDeviceAnalysisOriginExportTempPath(fileId, csvName) {
+function createRustAnalysisOriginExportTempPath(fileId, csvName) {
   const safeFileId = String(fileId || "file").replace(/[^a-zA-Z0-9._-]+/g, "_");
   const safeCsvName = String(csvName || "device_analysis_origin.csv")
     .replace(/[/\\?%*:|"<>]+/g, "_")
@@ -1204,7 +1204,7 @@ function isReadableOriginStreamExportPath(filePath) {
   }
 }
 
-async function hydrateRustDeviceAnalysisResultRefs(result, tempDir = null) {
+async function hydrateRustAnalysisResultRefs(result, tempDir = null) {
   if (!result || typeof result !== "object" || Array.isArray(result)) return result;
 
   const ref = result.analysisCacheRef;
@@ -1224,13 +1224,13 @@ async function hydrateRustDeviceAnalysisResultRefs(result, tempDir = null) {
   return result;
 }
 
-function sendRustDeviceAnalysisEngineSlotCommand(
+function sendRustAnalysisEngineSlotCommand(
   slot,
   command,
   payload = {},
   timeoutMs = 120000,
 ) {
-  const child = ensureRustDeviceAnalysisEngineSlot(slot);
+  const child = ensureRustAnalysisEngineSlot(slot);
   const id = (slot.requestId += 1);
   const message = JSON.stringify({ id, command, ...payload });
   slot.busyCount += 1;
@@ -1261,27 +1261,27 @@ function sendRustDeviceAnalysisEngineSlotCommand(
   });
 }
 
-async function disposeRustDeviceAnalysisProcessingFile(fileId) {
+async function disposeRustAnalysisProcessingFile(fileId) {
   if (!fileId) return;
-  const disposals = rustDeviceAnalysisProcessingSlots
+  const disposals = rustAnalysisProcessingSlots
     .filter((slot) => slot.child && !slot.child.killed)
     .map((slot) =>
-      sendRustDeviceAnalysisEngineSlotCommand(slot, "dispose", { fileId }, 30000),
+      sendRustAnalysisEngineSlotCommand(slot, "dispose", { fileId }, 30000),
     );
   await Promise.allSettled(disposals);
 }
 
-function stopRustDeviceAnalysisProcessingEngines() {
-  for (const slot of rustDeviceAnalysisProcessingSlots) {
-    stopRustDeviceAnalysisEngineSlot(slot);
+function stopRustAnalysisProcessingEngines() {
+  for (const slot of rustAnalysisProcessingSlots) {
+    stopRustAnalysisEngineSlot(slot);
   }
-  rustDeviceAnalysisProcessingSlots.length = 0;
-  rustDeviceAnalysisProcessingSlotCursor = 0;
+  rustAnalysisProcessingSlots.length = 0;
+  rustAnalysisProcessingSlotCursor = 0;
 }
 
-function stopAllRustDeviceAnalysisEngines() {
-  stopRustDeviceAnalysisProcessingEngines();
-  stopRustDeviceAnalysisEngine();
+function stopAllRustAnalysisEngines() {
+  stopRustAnalysisProcessingEngines();
+  stopRustAnalysisEngine();
 }
 
 function runRustExcelConverter(executablePath, inputPath, outputPath, manifestPath = null) {
@@ -1355,7 +1355,7 @@ function readRustExcelConvertManifest(manifestPath) {
 function isRustConvertedCsvPath(filePath) {
   const normalized = normalizeAbsoluteFilePath(filePath);
   if (!normalized || path.extname(normalized).toLowerCase() !== ".csv") return false;
-  const root = path.normalize(path.join(getDeviceAnalysisHomeDir(), "rust-xls-jobs"));
+  const root = path.normalize(path.join(getAnalysisHomeDir(), "rust-xls-jobs"));
   const relative = path.relative(root, normalized);
   return Boolean(relative) && !relative.startsWith("..") && !path.isAbsolute(relative);
 }
@@ -1395,12 +1395,12 @@ async function handleExcelReadConvertedCsv(_event, payload) {
   }
 }
 
-const deviceAnalysisStore = createDeviceAnalysisStore({
-  getHomeDir: getDeviceAnalysisHomeDir,
+const analysisStore = createAnalysisStore({
+  getHomeDir: getAnalysisHomeDir,
 });
 
 function configureRuntimeCachePath() {
-  const cacheDir = path.join(getDeviceAnalysisHomeDir(), "cache");
+  const cacheDir = path.join(getAnalysisHomeDir(), "cache");
   if (!fs.existsSync(cacheDir)) {
     fs.mkdirSync(cacheDir, { recursive: true });
   }
@@ -1412,24 +1412,24 @@ function configureRuntimeCachePath() {
   }
 }
 
-function handleDeviceAnalysisTemplatesGet() {
-  return deviceAnalysisStore.getDeviceAnalysisTemplates();
+function handleAnalysisTemplatesGet() {
+  return analysisStore.getAnalysisTemplates();
 }
 
-function handleDeviceAnalysisTemplatesCreate(_event, payload) {
-  return deviceAnalysisStore.upsertDeviceAnalysisTemplate(payload);
+function handleAnalysisTemplatesCreate(_event, payload) {
+  return analysisStore.upsertAnalysisTemplate(payload);
 }
 
-function handleDeviceAnalysisTemplatesDelete(_event, id) {
-  return deviceAnalysisStore.deleteDeviceAnalysisTemplate(id);
+function handleAnalysisTemplatesDelete(_event, id) {
+  return analysisStore.deleteAnalysisTemplate(id);
 }
 
-function handleDeviceAnalysisSettingsGet() {
-  return deviceAnalysisStore.getDeviceAnalysisSettings();
+function handleAnalysisSettingsGet() {
+  return analysisStore.getAnalysisSettings();
 }
 
-function handleDeviceAnalysisDemoFilesGet() {
-  const { demoDir, filePaths } = ensureDeviceAnalysisDemoFiles();
+function handleAnalysisDemoFilesGet() {
+  const { demoDir, filePaths } = ensureAnalysisDemoFiles();
   return {
     demoDir,
     files: filePaths
@@ -1470,7 +1470,7 @@ function handleDesktopBootSettingsGet(event) {
   }
 
   try {
-    event.returnValue = deviceAnalysisStore.getDeviceAnalysisSettings();
+    event.returnValue = analysisStore.getAnalysisSettings();
   } catch (error) {
     console.warn("[boot] Failed to load initial desktop settings:", error?.message || error);
     event.returnValue = null;
@@ -1478,7 +1478,7 @@ function handleDesktopBootSettingsGet(event) {
 }
 
 function cleanupRustExcelJobRoot() {
-  const jobRoot = path.join(getDeviceAnalysisHomeDir(), "rust-xls-jobs");
+  const jobRoot = path.join(getAnalysisHomeDir(), "rust-xls-jobs");
   try {
     if (fs.existsSync(jobRoot)) {
       fs.rmSync(jobRoot, { recursive: true, force: true });
@@ -1500,17 +1500,17 @@ function cleanupOriginRuntimeTempRoot() {
 }
 
 function ensureRustExcelJobRoot() {
-  const jobRoot = path.join(getDeviceAnalysisHomeDir(), "rust-xls-jobs");
+  const jobRoot = path.join(getAnalysisHomeDir(), "rust-xls-jobs");
   fs.mkdirSync(jobRoot, { recursive: true });
   return jobRoot;
 }
 
-function handleDeviceAnalysisSettingsPatch(_event, updates) {
-  return deviceAnalysisStore.patchDeviceAnalysisSettings(updates);
+function handleAnalysisSettingsPatch(_event, updates) {
+  return analysisStore.patchAnalysisSettings(updates);
 }
 
-function handleDeviceAnalysisPersistencePathGet() {
-  return deviceAnalysisStore.getStorePersistenceInfo();
+function handleAnalysisPersistencePathGet() {
+  return analysisStore.getStorePersistenceInfo();
 }
 
 async function handleExcelConvertRust(_event, payload) {
@@ -1591,7 +1591,7 @@ async function handleExcelConvertRust(_event, payload) {
   }
 }
 
-async function handleDeviceAnalysisRustEngineOpen(_event, payload) {
+async function handleAnalysisRustEngineOpen(_event, payload) {
   const rawPath = payload && typeof payload === "object" ? payload.path : "";
   const inputPath = normalizeAbsoluteFilePath(rawPath);
   const fileId =
@@ -1603,7 +1603,7 @@ async function handleDeviceAnalysisRustEngineOpen(_event, payload) {
     Math.min(5000, Math.floor(Number(payload?.seedRows) || 0)),
   );
 
-  if (!fileId || !inputPath || !isSupportedRustDeviceAnalysisInputPath(inputPath)) {
+  if (!fileId || !inputPath || !isSupportedRustAnalysisInputPath(inputPath)) {
     return {
       ok: false,
       code: "INVALID_DEVICE_ANALYSIS_PATH",
@@ -1630,7 +1630,7 @@ async function handleDeviceAnalysisRustEngineOpen(_event, payload) {
 
   const startedAt = Date.now();
   try {
-    const result = await sendRustDeviceAnalysisEngineCommand("open", {
+    const result = await sendRustAnalysisEngineCommand("open", {
       fileId,
       fileName: fileName || path.basename(inputPath),
       path: inputPath,
@@ -1652,7 +1652,7 @@ async function handleDeviceAnalysisRustEngineOpen(_event, payload) {
   }
 }
 
-async function handleDeviceAnalysisRustEnginePreviewRows(_event, payload) {
+async function handleAnalysisRustEnginePreviewRows(_event, payload) {
   const fileId =
     payload && typeof payload.fileId === "string" ? payload.fileId.trim() : "";
   const startRow = Math.max(0, Math.floor(Number(payload?.startRow) || 0));
@@ -1668,7 +1668,7 @@ async function handleDeviceAnalysisRustEnginePreviewRows(_event, payload) {
 
   const startedAt = Date.now();
   try {
-    const result = await sendRustDeviceAnalysisEngineCommand("previewRows", {
+    const result = await sendRustAnalysisEngineCommand("previewRows", {
       endRow,
       fileId,
       startRow,
@@ -1690,7 +1690,7 @@ async function handleDeviceAnalysisRustEnginePreviewRows(_event, payload) {
   }
 }
 
-async function handleDeviceAnalysisRustEnginePreviewMeta(_event, payload) {
+async function handleAnalysisRustEnginePreviewMeta(_event, payload) {
   const fileId =
     payload && typeof payload.fileId === "string" ? payload.fileId.trim() : "";
 
@@ -1704,7 +1704,7 @@ async function handleDeviceAnalysisRustEnginePreviewMeta(_event, payload) {
 
   const startedAt = Date.now();
   try {
-    const result = await sendRustDeviceAnalysisEngineCommand("previewMeta", {
+    const result = await sendRustAnalysisEngineCommand("previewMeta", {
       fileId,
     });
     return {
@@ -1724,16 +1724,16 @@ async function handleDeviceAnalysisRustEnginePreviewMeta(_event, payload) {
   }
 }
 
-function normalizeDeviceAnalysisCellIndex(value) {
+function normalizeAnalysisCellIndex(value) {
   const index = Math.floor(Number(value));
   return Number.isInteger(index) && index >= 0 ? index : null;
 }
 
-async function handleDeviceAnalysisRustEngineReadCell(_event, payload) {
+async function handleAnalysisRustEngineReadCell(_event, payload) {
   const fileId =
     payload && typeof payload.fileId === "string" ? payload.fileId.trim() : "";
-  const rowIndex = normalizeDeviceAnalysisCellIndex(payload?.rowIndex);
-  const colIndex = normalizeDeviceAnalysisCellIndex(payload?.colIndex);
+  const rowIndex = normalizeAnalysisCellIndex(payload?.rowIndex);
+  const colIndex = normalizeAnalysisCellIndex(payload?.colIndex);
 
   if (!fileId || rowIndex === null || colIndex === null) {
     return {
@@ -1745,7 +1745,7 @@ async function handleDeviceAnalysisRustEngineReadCell(_event, payload) {
 
   const startedAt = Date.now();
   try {
-    const result = await sendRustDeviceAnalysisEngineCommand("readCell", {
+    const result = await sendRustAnalysisEngineCommand("readCell", {
       colIndex,
       fileId,
       rowIndex,
@@ -1766,14 +1766,14 @@ async function handleDeviceAnalysisRustEngineReadCell(_event, payload) {
   }
 }
 
-async function handleDeviceAnalysisRustEngineReadCells(_event, payload) {
+async function handleAnalysisRustEngineReadCells(_event, payload) {
   const fileId =
     payload && typeof payload.fileId === "string" ? payload.fileId.trim() : "";
   const rawCells = Array.isArray(payload?.cells) ? payload.cells : [];
   const cells = rawCells
     .map((cell) => ({
-      colIndex: normalizeDeviceAnalysisCellIndex(cell?.colIndex),
-      rowIndex: normalizeDeviceAnalysisCellIndex(cell?.rowIndex),
+      colIndex: normalizeAnalysisCellIndex(cell?.colIndex),
+      rowIndex: normalizeAnalysisCellIndex(cell?.rowIndex),
     }))
     .filter((cell) => cell.rowIndex !== null && cell.colIndex !== null)
     .slice(0, 5000);
@@ -1788,7 +1788,7 @@ async function handleDeviceAnalysisRustEngineReadCells(_event, payload) {
 
   const startedAt = Date.now();
   try {
-    const result = await sendRustDeviceAnalysisEngineCommand("readCells", {
+    const result = await sendRustAnalysisEngineCommand("readCells", {
       cells,
       fileId,
     });
@@ -1808,7 +1808,7 @@ async function handleDeviceAnalysisRustEngineReadCells(_event, payload) {
   }
 }
 
-async function handleDeviceAnalysisRustEngineInferAutoExtraction(_event, payload) {
+async function handleAnalysisRustEngineInferAutoExtraction(_event, payload) {
   const rawPath = payload && typeof payload === "object" ? payload.path : "";
   const inputPath = normalizeAbsoluteFilePath(rawPath);
   const fileId =
@@ -1816,7 +1816,7 @@ async function handleDeviceAnalysisRustEngineInferAutoExtraction(_event, payload
   const fileName =
     payload && typeof payload.fileName === "string" ? payload.fileName.trim() : "";
 
-  if (!fileId || !inputPath || !isSupportedRustDeviceAnalysisInputPath(inputPath)) {
+  if (!fileId || !inputPath || !isSupportedRustAnalysisInputPath(inputPath)) {
     return {
       ok: false,
       code: "INVALID_DEVICE_ANALYSIS_PATH",
@@ -1826,7 +1826,7 @@ async function handleDeviceAnalysisRustEngineInferAutoExtraction(_event, payload
 
   const startedAt = Date.now();
   try {
-    const result = await sendRustDeviceAnalysisEngineCommand("inferAutoExtraction", {
+    const result = await sendRustAnalysisEngineCommand("inferAutoExtraction", {
       fileId,
       fileName: fileName || path.basename(inputPath),
       path: inputPath,
@@ -1859,7 +1859,7 @@ function isRustProcessFileConfigSupported(config) {
   return true;
 }
 
-async function handleDeviceAnalysisRustEngineProcessFile(_event, payload) {
+async function handleAnalysisRustEngineProcessFile(_event, payload) {
   const rawPath = payload && typeof payload === "object" ? payload.path : "";
   const inputPath = normalizeAbsoluteFilePath(rawPath);
   const fileId =
@@ -1873,7 +1873,7 @@ async function handleDeviceAnalysisRustEngineProcessFile(_event, payload) {
   const maxPoints = Math.max(2, Math.floor(Number(payload?.maxPoints) || 600));
   const auto = payload?.auto === true;
 
-  if (!fileId || !inputPath || !isSupportedRustDeviceAnalysisInputPath(inputPath)) {
+  if (!fileId || !inputPath || !isSupportedRustAnalysisInputPath(inputPath)) {
     return {
       ok: false,
       code: "INVALID_DEVICE_ANALYSIS_PATH",
@@ -1889,10 +1889,10 @@ async function handleDeviceAnalysisRustEngineProcessFile(_event, payload) {
   }
 
   const startedAt = Date.now();
-  const tempDir = createRustDeviceAnalysisResultTempDir(fileId);
+  const tempDir = createRustAnalysisResultTempDir(fileId);
   const analysisCachePath = path.join(tempDir, "analysis-cache.json");
   try {
-    const result = await sendRustDeviceAnalysisProcessingCommand(
+    const result = await sendRustAnalysisProcessingCommand(
       auto ? "processFileAuto" : "processFile",
       {
         analysisCachePath,
@@ -1907,7 +1907,7 @@ async function handleDeviceAnalysisRustEngineProcessFile(_event, payload) {
         path: inputPath,
       },
     );
-    await hydrateRustDeviceAnalysisResultRefs(result, tempDir);
+    await hydrateRustAnalysisResultRefs(result, tempDir);
     if (result && typeof result === "object" && !Array.isArray(result)) {
       const resultObject = result as any;
       resultObject.originExportSourcePath = inputPath;
@@ -1916,7 +1916,7 @@ async function handleDeviceAnalysisRustEngineProcessFile(_event, payload) {
           ? resultObject.autoConfig
           : config;
     }
-    void disposeRustDeviceAnalysisProcessingFile(fileId);
+    void disposeRustAnalysisProcessingFile(fileId);
     return {
       ok: true,
       durationMs: Date.now() - startedAt,
@@ -1924,7 +1924,7 @@ async function handleDeviceAnalysisRustEngineProcessFile(_event, payload) {
       source: "rust-engine-pool",
     };
   } catch (error) {
-    void disposeRustDeviceAnalysisProcessingFile(fileId);
+    void disposeRustAnalysisProcessingFile(fileId);
     void fs.promises.rm(tempDir, { force: true, recursive: true }).catch(() => {});
     return {
       ok: false,
@@ -1935,7 +1935,7 @@ async function handleDeviceAnalysisRustEngineProcessFile(_event, payload) {
   }
 }
 
-async function handleDeviceAnalysisRustEngineAnalyzeRc(_event, payload) {
+async function handleAnalysisRustEngineAnalyzeRc(_event, payload) {
   const devices = Array.isArray(payload?.devices) ? payload.devices : [];
   const options =
     payload && typeof payload.options === "object" && !Array.isArray(payload.options)
@@ -1952,7 +1952,7 @@ async function handleDeviceAnalysisRustEngineAnalyzeRc(_event, payload) {
 
   const startedAt = Date.now();
   try {
-    const result = await sendRustDeviceAnalysisProcessingCommand(
+    const result = await sendRustAnalysisProcessingCommand(
       "analyzeRc",
       {
         rcDevices: devices,
@@ -1976,7 +1976,7 @@ async function handleDeviceAnalysisRustEngineAnalyzeRc(_event, payload) {
   }
 }
 
-async function handleDeviceAnalysisRustEngineExportOriginCsv(_event, payload) {
+async function handleAnalysisRustEngineExportOriginCsv(_event, payload) {
   const rawPath = payload && typeof payload === "object" ? payload.path : "";
   const inputPath = normalizeAbsoluteFilePath(rawPath);
   const fileId =
@@ -2019,7 +2019,7 @@ async function handleDeviceAnalysisRustEngineExportOriginCsv(_event, payload) {
     ),
   );
 
-  if (!fileId || !inputPath || !isSupportedRustDeviceAnalysisInputPath(inputPath)) {
+  if (!fileId || !inputPath || !isSupportedRustAnalysisInputPath(inputPath)) {
     return {
       ok: false,
       code: "INVALID_DEVICE_ANALYSIS_PATH",
@@ -2039,9 +2039,9 @@ async function handleDeviceAnalysisRustEngineExportOriginCsv(_event, payload) {
   }
 
   const startedAt = Date.now();
-  const outputPath = createRustDeviceAnalysisOriginExportTempPath(fileId, csvName);
+  const outputPath = createRustAnalysisOriginExportTempPath(fileId, csvName);
   try {
-    const result = await sendRustDeviceAnalysisProcessingCommand(
+    const result = await sendRustAnalysisProcessingCommand(
       "exportOriginCsv",
       {
         columns,
@@ -2079,13 +2079,13 @@ async function handleDeviceAnalysisRustEngineExportOriginCsv(_event, payload) {
   } finally {
     void Promise.allSettled(
       disposeFileIds.map((cachedFileId) =>
-        disposeRustDeviceAnalysisProcessingFile(cachedFileId),
+        disposeRustAnalysisProcessingFile(cachedFileId),
       ),
     );
   }
 }
 
-async function handleDeviceAnalysisOriginZipSave(event, payload) {
+async function handleAnalysisOriginZipSave(event, payload) {
   const raw = payload && typeof payload === "object" ? payload : {};
   const entries = Array.isArray(raw.entries) ? raw.entries : [];
   if (!entries.length) {
@@ -2181,17 +2181,17 @@ async function handleDeviceAnalysisOriginZipSave(event, payload) {
   }
 }
 
-async function handleDeviceAnalysisRustEngineDispose(_event, payload) {
+async function handleAnalysisRustEngineDispose(_event, payload) {
   const fileId =
     payload && typeof payload.fileId === "string" ? payload.fileId.trim() : "";
 
   try {
     if (payload?.clear === true) {
-      await sendRustDeviceAnalysisEngineCommand("clear", {}, 30000);
+      await sendRustAnalysisEngineCommand("clear", {}, 30000);
       return { ok: true, source: "rust-engine" };
     }
     if (fileId) {
-      await sendRustDeviceAnalysisEngineCommand("dispose", { fileId }, 30000);
+      await sendRustAnalysisEngineCommand("dispose", { fileId }, 30000);
     }
     return { ok: true, source: "rust-engine" };
   } catch (error) {
@@ -2203,14 +2203,14 @@ async function handleDeviceAnalysisRustEngineDispose(_event, payload) {
   }
 }
 
-function handleDeviceAnalysisPersistencePathSet(_event, payload) {
+function handleAnalysisPersistencePathSet(_event, payload) {
   const rawPath =
     payload && typeof payload === "object" ? payload.path : payload;
-  return deviceAnalysisStore.setPersistencePath(rawPath);
+  return analysisStore.setPersistencePath(rawPath);
 }
 
-async function handleDeviceAnalysisPersistencePathChoose(event) {
-  const currentInfo = deviceAnalysisStore.getStorePersistenceInfo();
+async function handleAnalysisPersistencePathChoose(event) {
+  const currentInfo = analysisStore.getStorePersistenceInfo();
   const win = BrowserWindow.fromWebContents(event.sender) ?? null;
 
   const result = await dialog.showSaveDialog(win || undefined, {
@@ -2228,12 +2228,12 @@ async function handleDeviceAnalysisPersistencePathChoose(event) {
     return { ...currentInfo, cancelled: true };
   }
 
-  const updated = deviceAnalysisStore.setPersistencePath(result.filePath);
+  const updated = analysisStore.setPersistencePath(result.filePath);
   return { ...updated, cancelled: false };
 }
 
 function getOriginExePathFromSettings() {
-  const settings = deviceAnalysisStore.getDeviceAnalysisSettings();
+  const settings = analysisStore.getAnalysisSettings();
   return normalizeOriginExePath(settings?.originExePath);
 }
 
@@ -2241,14 +2241,14 @@ function saveOriginExePathToSettings(originExePath) {
   originDetectionCache = null;
   originDetectionPromise = null;
   const normalizedPath = normalizeOriginExePath(originExePath);
-  const settings = deviceAnalysisStore.patchDeviceAnalysisSettings({
+  const settings = analysisStore.patchAnalysisSettings({
     originExePath: normalizedPath,
   });
   return settings.originExePath ?? null;
 }
 
 function getOriginRuntimeCleanupPolicyFromSettings() {
-  const settings = deviceAnalysisStore.getDeviceAnalysisSettings();
+  const settings = analysisStore.getAnalysisSettings();
   return {
     enabled: Boolean(settings?.originRuntimeCleanupEnabled),
     keepSuccessJobs: Number(settings?.originRuntimeKeepSuccessJobs),
@@ -2257,7 +2257,7 @@ function getOriginRuntimeCleanupPolicyFromSettings() {
 }
 
 function getOriginPlotOptionsFromSettings() {
-  const settings = deviceAnalysisStore.getDeviceAnalysisSettings();
+  const settings = analysisStore.getAnalysisSettings();
   return normalizeOriginPlotOptions({
     plotCommand: settings?.originPlotCommandDefault,
     plotType: settings?.originPlotTypeDefault,
@@ -2887,7 +2887,7 @@ async function revealMainWindow(win) {
 function showTrayHint() {
   if (!isWindows || !appTray) return;
   if (typeof appTray.displayBalloon !== "function") return;
-  const settings = deviceAnalysisStore.getDeviceAnalysisSettings();
+  const settings = analysisStore.getAnalysisSettings();
   if (settings?.trayMinimizeHintShown) return;
 
   appTray.displayBalloon({
@@ -2895,13 +2895,13 @@ function showTrayHint() {
     content: "应用仍在后台运行，可从系统托盘恢复或退出。",
     noSound: true,
   });
-  deviceAnalysisStore.patchDeviceAnalysisSettings({
+  analysisStore.patchAnalysisSettings({
     trayMinimizeHintShown: true,
   });
 }
 
 function getWindowCloseBehaviorFromSettings() {
-  const settings = deviceAnalysisStore.getDeviceAnalysisSettings();
+  const settings = analysisStore.getAnalysisSettings();
   return settings?.windowCloseBehavior === "quit" ? "quit" : "minimizeToTray";
 }
 
@@ -2948,7 +2948,7 @@ function updateTrayMenu() {
         label: "退出",
         click: () => {
           isAppQuitting = true;
-          stopAllRustDeviceAnalysisEngines();
+          stopAllRustAnalysisEngines();
           app.quit();
         },
       },
@@ -3250,7 +3250,7 @@ function handleDesktopCommand(event, payload) {
     }
 
     isAppQuitting = true;
-    stopAllRustDeviceAnalysisEngines();
+    stopAllRustAnalysisEngines();
     app.quit();
   }
 }
@@ -3280,7 +3280,7 @@ if (hasSingleInstanceLock) {
   configureRuntimeCachePath();
   cleanupOriginRuntimeTempRoot();
   cleanupRustExcelJobRoot();
-  ensureDeviceAnalysisDemoFiles();
+  ensureAnalysisDemoFiles();
   createAppTray();
 
   ipcMain.on("desktop-command", handleDesktopCommand);
@@ -3288,60 +3288,60 @@ if (hasSingleInstanceLock) {
   ipcMain.on(ipcChannels.desktopAutoUpdateStatusGet, handleDesktopAutoUpdateStatusGet);
   ipcMain.on(ipcChannels.desktopBootSettingsGet, handleDesktopBootSettingsGet);
   ipcMain.handle(ipcChannels.desktopBootUiReady, handleDesktopBootUiReady);
-  ipcMain.handle(ipcChannels.templatesGet, handleDeviceAnalysisTemplatesGet);
-  ipcMain.handle(ipcChannels.templatesCreate, handleDeviceAnalysisTemplatesCreate);
-  ipcMain.handle(ipcChannels.templatesDelete, handleDeviceAnalysisTemplatesDelete);
-  ipcMain.handle(ipcChannels.settingsGet, handleDeviceAnalysisSettingsGet);
-  ipcMain.handle(ipcChannels.settingsPatch, handleDeviceAnalysisSettingsPatch);
-  ipcMain.handle(ipcChannels.persistencePathGet, handleDeviceAnalysisPersistencePathGet);
-  ipcMain.handle(ipcChannels.persistencePathSet, handleDeviceAnalysisPersistencePathSet);
-  ipcMain.handle(ipcChannels.persistencePathChoose, handleDeviceAnalysisPersistencePathChoose);
+  ipcMain.handle(ipcChannels.templatesGet, handleAnalysisTemplatesGet);
+  ipcMain.handle(ipcChannels.templatesCreate, handleAnalysisTemplatesCreate);
+  ipcMain.handle(ipcChannels.templatesDelete, handleAnalysisTemplatesDelete);
+  ipcMain.handle(ipcChannels.settingsGet, handleAnalysisSettingsGet);
+  ipcMain.handle(ipcChannels.settingsPatch, handleAnalysisSettingsPatch);
+  ipcMain.handle(ipcChannels.persistencePathGet, handleAnalysisPersistencePathGet);
+  ipcMain.handle(ipcChannels.persistencePathSet, handleAnalysisPersistencePathSet);
+  ipcMain.handle(ipcChannels.persistencePathChoose, handleAnalysisPersistencePathChoose);
   ipcMain.handle(ipcChannels.excelConvertRust, handleExcelConvertRust);
   ipcMain.handle(ipcChannels.excelReadConvertedCsv, handleExcelReadConvertedCsv);
-  ipcMain.handle(ipcChannels.deviceAnalysisDemoFilesGet, handleDeviceAnalysisDemoFilesGet);
+  ipcMain.handle(ipcChannels.analysisDemoFilesGet, handleAnalysisDemoFilesGet);
   ipcMain.handle(
-    ipcChannels.deviceAnalysisRustEngineOpen,
-    handleDeviceAnalysisRustEngineOpen,
+    ipcChannels.analysisRustEngineOpen,
+    handleAnalysisRustEngineOpen,
   );
   ipcMain.handle(
-    ipcChannels.deviceAnalysisRustEnginePreviewMeta,
-    handleDeviceAnalysisRustEnginePreviewMeta,
+    ipcChannels.analysisRustEnginePreviewMeta,
+    handleAnalysisRustEnginePreviewMeta,
   );
   ipcMain.handle(
-    ipcChannels.deviceAnalysisRustEnginePreviewRows,
-    handleDeviceAnalysisRustEnginePreviewRows,
+    ipcChannels.analysisRustEnginePreviewRows,
+    handleAnalysisRustEnginePreviewRows,
   );
   ipcMain.handle(
-    ipcChannels.deviceAnalysisRustEngineReadCell,
-    handleDeviceAnalysisRustEngineReadCell,
+    ipcChannels.analysisRustEngineReadCell,
+    handleAnalysisRustEngineReadCell,
   );
   ipcMain.handle(
-    ipcChannels.deviceAnalysisRustEngineReadCells,
-    handleDeviceAnalysisRustEngineReadCells,
+    ipcChannels.analysisRustEngineReadCells,
+    handleAnalysisRustEngineReadCells,
   );
   ipcMain.handle(
-    ipcChannels.deviceAnalysisRustEngineInferAutoExtraction,
-    handleDeviceAnalysisRustEngineInferAutoExtraction,
+    ipcChannels.analysisRustEngineInferAutoExtraction,
+    handleAnalysisRustEngineInferAutoExtraction,
   );
   ipcMain.handle(
-    ipcChannels.deviceAnalysisRustEngineProcessFile,
-    handleDeviceAnalysisRustEngineProcessFile,
+    ipcChannels.analysisRustEngineProcessFile,
+    handleAnalysisRustEngineProcessFile,
   );
   ipcMain.handle(
-    ipcChannels.deviceAnalysisRustEngineAnalyzeRc,
-    handleDeviceAnalysisRustEngineAnalyzeRc,
+    ipcChannels.analysisRustEngineAnalyzeRc,
+    handleAnalysisRustEngineAnalyzeRc,
   );
   ipcMain.handle(
-    ipcChannels.deviceAnalysisRustEngineExportOriginCsv,
-    handleDeviceAnalysisRustEngineExportOriginCsv,
+    ipcChannels.analysisRustEngineExportOriginCsv,
+    handleAnalysisRustEngineExportOriginCsv,
   );
   ipcMain.handle(
-    ipcChannels.deviceAnalysisOriginZipSave,
-    handleDeviceAnalysisOriginZipSave,
+    ipcChannels.analysisOriginZipSave,
+    handleAnalysisOriginZipSave,
   );
   ipcMain.handle(
-    ipcChannels.deviceAnalysisRustEngineDispose,
-    handleDeviceAnalysisRustEngineDispose,
+    ipcChannels.analysisRustEngineDispose,
+    handleAnalysisRustEngineDispose,
   );
   ipcMain.handle(ipcChannels.originExeGet, handleOriginExeGet);
   ipcMain.handle(ipcChannels.originExeSet, handleOriginExeSet);
@@ -3368,13 +3368,13 @@ if (hasSingleInstanceLock) {
 app.on("window-all-closed", () => {
   if (process.platform === "darwin") return;
   if (appTray && !isAppQuitting) return;
-  stopAllRustDeviceAnalysisEngines();
+  stopAllRustAnalysisEngines();
   app.quit();
 });
 
 app.on("before-quit", () => {
   isAppQuitting = true;
-  stopAllRustDeviceAnalysisEngines();
+  stopAllRustAnalysisEngines();
 });
 
 app.on("will-quit", () => {
@@ -3384,7 +3384,7 @@ app.on("will-quit", () => {
   autoUpdateConfiguredFeedUrl = null;
   cleanupRustExcelJobRoot();
   cleanupOriginRuntimeTempRoot();
-  stopAllRustDeviceAnalysisEngines();
+  stopAllRustAnalysisEngines();
   if (appTray) {
     appTray.destroy();
     appTray = null;
@@ -3407,16 +3407,16 @@ app.on("will-quit", () => {
   ipcMain.removeHandler(ipcChannels.persistencePathChoose);
   ipcMain.removeHandler(ipcChannels.excelConvertRust);
   ipcMain.removeHandler(ipcChannels.excelReadConvertedCsv);
-  ipcMain.removeHandler(ipcChannels.deviceAnalysisDemoFilesGet);
-  ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEngineOpen);
-  ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEnginePreviewMeta);
-  ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEnginePreviewRows);
-  ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEngineReadCell);
-  ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEngineReadCells);
-  ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEngineInferAutoExtraction);
-  ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEngineProcessFile);
-  ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEngineAnalyzeRc);
-  ipcMain.removeHandler(ipcChannels.deviceAnalysisRustEngineDispose);
+  ipcMain.removeHandler(ipcChannels.analysisDemoFilesGet);
+  ipcMain.removeHandler(ipcChannels.analysisRustEngineOpen);
+  ipcMain.removeHandler(ipcChannels.analysisRustEnginePreviewMeta);
+  ipcMain.removeHandler(ipcChannels.analysisRustEnginePreviewRows);
+  ipcMain.removeHandler(ipcChannels.analysisRustEngineReadCell);
+  ipcMain.removeHandler(ipcChannels.analysisRustEngineReadCells);
+  ipcMain.removeHandler(ipcChannels.analysisRustEngineInferAutoExtraction);
+  ipcMain.removeHandler(ipcChannels.analysisRustEngineProcessFile);
+  ipcMain.removeHandler(ipcChannels.analysisRustEngineAnalyzeRc);
+  ipcMain.removeHandler(ipcChannels.analysisRustEngineDispose);
   ipcMain.removeHandler(ipcChannels.originExeGet);
   ipcMain.removeHandler(ipcChannels.originExeSet);
   ipcMain.removeHandler(ipcChannels.originExePick);
