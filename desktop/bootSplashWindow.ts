@@ -1,11 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { app, BrowserWindow } from "electron";
 import type { ThemeSnapshot } from "../src/cs/platform/theme/electron-main/themeMainService.js";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const SPLASH_WINDOW_BOUNDS = {
   width: 440,
@@ -14,9 +10,8 @@ const SPLASH_WINDOW_BOUNDS = {
   minHeight: 240,
 };
 
-function getResourcesPath() {
-  const resourcesPath = Reflect.get(process, "resourcesPath");
-  return typeof resourcesPath === "string" ? resourcesPath : process.cwd();
+function getAppRootPath() {
+  return app.getAppPath();
 }
 
 function resolveFirstExistingPath(candidates) {
@@ -33,11 +28,10 @@ function resolveFirstExistingPath(candidates) {
 function resolveDesktopBootLogoDataUrl() {
   const candidates = app.isPackaged
     ? [
-        path.join(__dirname, "../dist/logo.svg"),
-        path.join(getResourcesPath(), "dist", "logo.svg"),
+        path.join(getAppRootPath(), "dist", "logo.svg"),
       ]
     : [
-        path.join(__dirname, "..", "public", "logo.svg"),
+        path.join(getAppRootPath(), "public", "logo.svg"),
         path.join(process.cwd(), "public", "logo.svg"),
       ];
   const logoPath = resolveFirstExistingPath(candidates);

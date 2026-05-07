@@ -206,6 +206,10 @@ function getResourcesPath() {
   return typeof resourcesPath === "string" ? resourcesPath : process.cwd();
 }
 
+function getAppRootPath() {
+  return app.getAppPath();
+}
+
 function resolveDesktopWindowIconPath() {
   const iconFileName =
     process.platform === "win32"
@@ -214,12 +218,13 @@ function resolveDesktopWindowIconPath() {
         ? "icon.icns"
         : "icon.png";
 
+  const resourcesPath = getResourcesPath();
   const candidates = app.isPackaged
     ? [
-        path.join(getResourcesPath(), "build", "icons", iconFileName),
-        path.join(getResourcesPath(), "app.asar.unpacked", "build", "icons", iconFileName),
+        path.join(resourcesPath, "build", "icons", iconFileName),
+        path.join(resourcesPath, "app.asar.unpacked", "build", "icons", iconFileName),
       ]
-    : [path.join(__dirname, "..", "build", "icons", iconFileName)];
+    : [path.join(resourcesPath, "build", "icons", iconFileName)];
 
   return resolveFirstExistingPath(candidates) ?? undefined;
 }
@@ -232,12 +237,13 @@ function resolveTrayIconPath() {
         ? "icon.icns"
         : "icon.png";
 
+  const resourcesPath = getResourcesPath();
   const candidates = app.isPackaged
     ? [
-        path.join(getResourcesPath(), "build", "icons", iconFileName),
-        path.join(getResourcesPath(), "app.asar.unpacked", "build", "icons", iconFileName),
+        path.join(resourcesPath, "build", "icons", iconFileName),
+        path.join(resourcesPath, "app.asar.unpacked", "build", "icons", iconFileName),
       ]
-    : [path.join(__dirname, "..", "build", "icons", iconFileName)];
+    : [path.join(resourcesPath, "build", "icons", iconFileName)];
 
   return resolveFirstExistingPath(candidates) ?? resolveDesktopWindowIconPath();
 }
@@ -255,7 +261,7 @@ function prepareStartupGate() {
 
 function resolveOriginCsvScriptPath() {
   if (!app.isPackaged) {
-    return path.join(__dirname, "..", "conductor-py", "run_origin_csv.py");
+    return path.join(getAppRootPath(), "conductor-py", "run_origin_csv.py");
   }
 
   const unpackedPath = path.join(
@@ -803,14 +809,15 @@ function getAnalysisDemoDir() {
 }
 
 function resolveAnalysisDemoSourceDir() {
+  const appRootPath = getAppRootPath();
   const candidates = app.isPackaged
     ? [
         path.join(getResourcesPath(), "demo"),
-        path.join(getResourcesPath(), "app.asar", "dist", "demo"),
+        path.join(appRootPath, "dist", "demo"),
       ]
     : [
-        path.join(__dirname, "..", "public", "demo"),
-        path.join(__dirname, "..", "dist", "demo"),
+        path.join(appRootPath, "public", "demo"),
+        path.join(appRootPath, "dist", "demo"),
       ];
 
   return resolveFirstExistingPath(candidates);
@@ -3293,7 +3300,7 @@ function createMainWindow() {
   }
 
   logDesktopBoot("load-file", "(prod: dist/desktop/workbench.html)");
-  void win.loadFile(path.join(__dirname, "../dist/desktop/workbench.html"));
+  void win.loadFile(path.join(getAppRootPath(), "dist", "desktop", "workbench.html"));
   return win;
 }
 
