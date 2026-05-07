@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { workbenchThemeService } from "src/cs/workbench/services/themes/browser/themeService";
-import AnalysisApp from "./cs/workbench/contrib/deviceAnalysis/browser/App";
+import AnalysisApp from "./cs/workbench/contrib/deviceAnalysis/App";
 
 workbenchThemeService.start();
 

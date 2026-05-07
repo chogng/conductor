@@ -32,7 +32,7 @@ Rust worker 有两种运行方式：
 
 前端/桌面边界：
 
-- `src/cs/workbench/contrib/deviceAnalysis/browser/data/importWorkerClient.ts` 优先走 Rust Excel 转换。
+- `src/cs/workbench/contrib/deviceAnalysis/data/importWorkerClient.ts` 优先走 Rust Excel 转换。
 - 如果 Rust 不可用或失败，仍会回退到 TypeScript/worker 路径。
 - 如果请求 `returnCsvText=false`，桌面端会保留转换后的 CSV 临时路径，后续可再读取。
 
@@ -71,8 +71,8 @@ Rust worker 有两种运行方式：
 
 前端使用：
 
-- `src/cs/workbench/contrib/deviceAnalysis/browser/data/usePreview.ts`
-- `src/cs/workbench/contrib/deviceAnalysis/browser/data/preview/rustPreviewCells.ts`
+- `src/cs/workbench/contrib/deviceAnalysis/data/usePreview.ts`
+- `src/cs/workbench/contrib/deviceAnalysis/data/preview/rustPreviewCells.ts`
 
 ### 4. 自动提取推断
 
