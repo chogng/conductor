@@ -20,6 +20,7 @@ const devServerWarmupPaths = [
   "/src/App.tsx",
   "/src/cs/platform/language/browser/languageService.ts",
   "/src/cs/workbench/services/themes/browser/themeService.ts",
+  "/src/cs/workbench/contrib/splash/browser/partsSplash.ts",
   "/src/styles/global.css",
   "/src/styles/variables.css",
   "/src/cs/workbench/common/theme.ts",

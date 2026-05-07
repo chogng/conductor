@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow } from "electron";
+import type { ThemeSnapshot } from "./themeMainService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -51,7 +52,7 @@ function resolveDesktopBootLogoDataUrl() {
   }
 }
 
-function buildInstantBootHtml() {
+function buildInstantBootHtml(themeSnapshot: ThemeSnapshot) {
   const logoUrl = resolveDesktopBootLogoDataUrl();
   return `<!doctype html>
 <html>
@@ -64,8 +65,8 @@ function buildInstantBootHtml() {
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background: #f5f4ef;
-      color: #222222;
+      background: ${themeSnapshot.backgroundColor};
+      color: ${themeSnapshot.foregroundColor};
       font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
     .boot-pane {
@@ -73,7 +74,7 @@ function buildInstantBootHtml() {
       height: 100%;
       align-items: center;
       justify-content: center;
-      background: #f5f4ef;
+      background: ${themeSnapshot.backgroundColor};
       user-select: none;
     }
     .boot-pane-content {
@@ -92,16 +93,11 @@ function buildInstantBootHtml() {
     }
     .boot-pane-brand {
       margin: 0;
-      color: #222222;
+      color: ${themeSnapshot.foregroundColor};
       font-size: 21px;
       font-weight: 650;
       line-height: 1.1;
       letter-spacing: 0;
-    }
-    @media (prefers-color-scheme: dark) {
-      html, body { background: #0b0b0c; color: #f5f4ef; }
-      .boot-pane { background: #0b0b0c; }
-      .boot-pane-brand { color: #f5f4ef; }
     }
   </style>
 </head>
@@ -141,8 +137,25 @@ function buildInstantBootHtml() {
 </html>`;
 }
 
-export function createBootSplashWindow({ icon, logDesktopBoot }) {
+export function createBootSplashWindow({
+  icon,
+  logDesktopBoot,
+  themeSnapshot,
+}: {
+  icon?: string;
+  logDesktopBoot: (stage: string, extra?: string) => void;
+  themeSnapshot?: ThemeSnapshot;
+}) {
   logDesktopBoot("create-splash-window:start");
+  const snapshot: ThemeSnapshot =
+    themeSnapshot && typeof themeSnapshot === "object"
+      ? themeSnapshot
+      : {
+          themeMode: "system",
+          resolvedThemeMode: "light",
+          backgroundColor: "#f5f4ef",
+          foregroundColor: "#222222",
+        };
 
   const win = new BrowserWindow({
     width: SPLASH_WINDOW_BOUNDS.width,
@@ -150,7 +163,7 @@ export function createBootSplashWindow({ icon, logDesktopBoot }) {
     minWidth: SPLASH_WINDOW_BOUNDS.minWidth,
     minHeight: SPLASH_WINDOW_BOUNDS.minHeight,
     icon,
-    backgroundColor: "#f5f4ef",
+    backgroundColor: snapshot.backgroundColor,
     autoHideMenuBar: true,
     center: true,
     frame: false,
@@ -181,7 +194,7 @@ export function createBootSplashWindow({ icon, logDesktopBoot }) {
 
   logDesktopBoot("splash-window:load-data-url");
   void win.loadURL(
-    `data:text/html;charset=utf-8,${encodeURIComponent(buildInstantBootHtml())}`,
+    `data:text/html;charset=utf-8,${encodeURIComponent(buildInstantBootHtml(snapshot))}`,
   );
 
   return win;

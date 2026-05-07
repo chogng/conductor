@@ -4,8 +4,21 @@ import { execFile, execFileSync, spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell, Tray } from "electron";
-import { createBootSplashWindow } from "./boot-splash.js";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  Menu,
+  nativeTheme,
+  shell,
+  Tray,
+} from "electron";
+import { createBootSplashWindow } from "./bootSplashWindow.js";
+import {
+  applyWindowThemeSnapshot,
+  getCurrentBootThemeSnapshot,
+} from "./windowImpl.js";
 import { createAnalysisStore } from "./analysis-store.js";
 import {
   assertOriginExePath,
@@ -140,6 +153,18 @@ function formatDiagnosticValue(value) {
   } catch {
     return String(value);
   }
+}
+
+function getThemeSnapshotFromStore() {
+  const settings = analysisStore.getAnalysisSettings();
+  return getCurrentBootThemeSnapshot(settings?.theme);
+}
+
+function syncBootWindowTheme() {
+  const snapshot = getThemeSnapshotFromStore();
+  applyWindowThemeSnapshot(mainWindow, snapshot);
+  applyWindowThemeSnapshot(splashWindow, snapshot);
+  return snapshot;
 }
 
 function logDesktopDiagnostic(stage: string, payload: unknown = "") {
@@ -1554,7 +1579,15 @@ function ensureRustExcelJobRoot() {
 }
 
 function handleAnalysisSettingsPatch(_event, updates) {
-  return analysisStore.patchAnalysisSettings(updates);
+  const updated = analysisStore.patchAnalysisSettings(updates);
+  if (
+    updates &&
+    typeof updates === "object" &&
+    "theme" in updates
+  ) {
+    syncBootWindowTheme();
+  }
+  return updated;
 }
 
 function handleAnalysisPersistencePathGet() {
@@ -2898,9 +2931,11 @@ async function setupAutoUpdates() {
 }
 
 function createSplashWindow() {
+  const themeSnapshot = syncBootWindowTheme();
   const win = createBootSplashWindow({
     icon: resolveDesktopWindowIconPath(),
     logDesktopBoot,
+    themeSnapshot,
   });
 
   splashWindow = win;
@@ -3049,6 +3084,7 @@ function createMainWindow() {
   logDesktopBoot("create-window:start");
   const windowIcon = resolveDesktopWindowIconPath();
   mainWindowBootShown = false;
+  const themeSnapshot = syncBootWindowTheme();
 
   const win = new BrowserWindow({
     width: MAIN_WINDOW_BOUNDS.width,
@@ -3056,7 +3092,7 @@ function createMainWindow() {
     minWidth: MAIN_WINDOW_BOUNDS.minWidth,
     minHeight: MAIN_WINDOW_BOUNDS.minHeight,
     icon: windowIcon,
-    backgroundColor: "#f5f4ef",
+    backgroundColor: themeSnapshot.backgroundColor,
     autoHideMenuBar: true,
     center: true,
     frame: !isWindows,
@@ -3095,6 +3131,7 @@ function createMainWindow() {
   });
 
   mainWindow = win;
+  applyWindowThemeSnapshot(mainWindow, themeSnapshot);
   win.on("close", (event) => {
     if (isAppQuitting) return;
     if (process.platform === "darwin") return;
@@ -3467,6 +3504,7 @@ if (hasSingleInstanceLock) {
     ipcChannels.originRuntimeCleanupRun,
     handleOriginRuntimeCleanupRun,
   );
+  nativeTheme.on("updated", syncBootWindowTheme);
   createSplashWindow();
   void prepareStartupGate();
   const window = createMainWindow();
@@ -3497,6 +3535,7 @@ app.on("will-quit", () => {
   stopAutoUpdatePolling();
   isAutoUpdateConfigured = false;
   autoUpdateConfiguredFeedUrl = null;
+  nativeTheme.removeListener("updated", syncBootWindowTheme);
   cleanupRustExcelJobRoot();
   cleanupOriginRuntimeTempRoot();
   stopAllRustAnalysisEngines();
