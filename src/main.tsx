@@ -33,6 +33,23 @@ const logRendererBoot = (stage: string, extra = '') => {
   window.__CONDUCTOR_BOOT_LOG__?.(stage, extra);
 };
 
+const formatBootError = (error: unknown) => {
+  if (error instanceof Error) {
+    return `(message=${error.message} stack=${String(error.stack ?? '').slice(0, 1200)})`;
+  }
+
+  return `(message=${String(error)})`;
+};
+
+window.addEventListener('error', (event) => {
+  const message = event.error ? formatBootError(event.error) : `(message=${event.message})`;
+  logRendererBoot('window:error', message);
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  logRendererBoot('window:unhandledrejection', formatBootError(event.reason));
+});
+
 const isDesktopRenderer = window.desktopMeta?.isDesktop === true;
 const RootMode =
   import.meta.env.DEV && isDesktopRenderer ? Fragment : StrictMode;
@@ -42,6 +59,10 @@ if (!rootElement) {
 }
 
 logRendererBoot('main:module-evaluated');
+logRendererBoot(
+  'main:environment',
+  `(href=${window.location.href} desktop=${isDesktopRenderer ? 'yes' : 'no'} dev=${import.meta.env.DEV ? 'yes' : 'no'} rootChildren=${rootElement.childElementCount})`,
+);
 logRendererBoot('app:module-requested');
 
 const workbenchAppPromise = loadWorkbenchApp();
@@ -61,9 +82,24 @@ createRoot(rootElement).render(
 logRendererBoot('react-root:render-called');
 
 window.requestAnimationFrame(() => {
-  logRendererBoot('raf:1');
+  logRendererBoot(
+    'raf:1',
+    `(rootChildren=${rootElement.childElementCount} textLength=${(rootElement.textContent ?? '').length})`,
+  );
 });
 
 window.requestAnimationFrame(() => {
-  logRendererBoot('raf:2');
+  const rect = rootElement.getBoundingClientRect();
+  logRendererBoot(
+    'raf:2',
+    `(rootChildren=${rootElement.childElementCount} textLength=${(rootElement.textContent ?? '').length} rootRect=${Math.round(rect.width)}x${Math.round(rect.height)})`,
+  );
 });
+
+window.setTimeout(() => {
+  const rect = rootElement.getBoundingClientRect();
+  logRendererBoot(
+    'timeout:1000',
+    `(rootChildren=${rootElement.childElementCount} textLength=${(rootElement.textContent ?? '').length} rootRect=${Math.round(rect.width)}x${Math.round(rect.height)})`,
+  );
+}, 1000);

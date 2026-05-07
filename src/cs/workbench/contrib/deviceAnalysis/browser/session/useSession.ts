@@ -1,4 +1,4 @@
-﻿import { useContext } from "react";
+import { useContext } from "react";
 import { SessionContext } from "./analysis-session-context";
 import type { SessionContextValue } from "./analysis-session-context";
 

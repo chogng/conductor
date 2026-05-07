@@ -9,7 +9,7 @@ import React, {
   useEffect,
 } from "react";
 import { Import, FileText, X, AlertCircle } from "lucide-react";
-import { cx } from "../../../utils/cx";
+import { cx } from "src/utils/cx";
 import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
 import Avatar from "cs/base/browser/ui/Avatar/Avatar";
 import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";

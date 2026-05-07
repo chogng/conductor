@@ -1,4 +1,4 @@
-﻿import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import {
   SessionContext,
   type SessionContextValue,

@@ -1,4 +1,4 @@
-import { stableItemKey } from "../../../../utils/stableKey";
+import { stableItemKey } from "src/utils/stableKey";
 
 export const buildFileIdentityKey = (file: File | null | undefined): string =>
   file ? `${file.name}::${file.size}::${file.lastModified}` : "";

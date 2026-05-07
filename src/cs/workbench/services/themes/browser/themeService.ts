@@ -8,10 +8,14 @@ export type ThemeServiceSnapshot = {
 class WorkbenchThemeService {
   private theme: ThemeMode = this.getInitialTheme();
   private readonly listeners = new Set<() => void>();
-  private snapshot: ThemeServiceSnapshot = this.createSnapshot();
   private mediaQuery: MediaQueryList | null = null;
   private darkThemeStylesPromise: Promise<unknown> | null = null;
   private started = false;
+  private snapshot: ThemeServiceSnapshot;
+
+  constructor() {
+    this.snapshot = this.createSnapshot();
+  }
 
   getSnapshot = (): ThemeServiceSnapshot => {
     this.start();

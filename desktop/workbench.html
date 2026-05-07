@@ -60,6 +60,10 @@
       const isThemeMode = (value) =>
         value === 'light' || value === 'dark' || value === 'system';
       const resolveBootProfileEnabled = () => {
+        if (window.desktopMeta && window.desktopMeta.isDesktop === true) {
+          return true;
+        }
+
         try {
           const params = new URLSearchParams(window.location.search);
           const searchValue = params.get('bootProfile');
@@ -226,6 +230,19 @@
       window.__CONDUCTOR_BOOT_PROFILE_ENABLED__ = resolveBootProfileEnabled();
       window.__CONDUCTOR_BOOT_LOG__ = logBoot;
       window.__CONDUCTOR_BOOT_MARK_UI_READY__ = markBootUiReady;
+
+      window.addEventListener('error', (event) => {
+        const message = event.error && event.error.message ? event.error.message : event.message;
+        const stack = event.error && event.error.stack ? String(event.error.stack).slice(0, 1200) : '';
+        logBoot('window:error:early', `(message=${message || 'unknown'} stack=${stack})`);
+      });
+
+      window.addEventListener('unhandledrejection', (event) => {
+        const reason = event.reason;
+        const message = reason && reason.message ? reason.message : String(reason);
+        const stack = reason && reason.stack ? String(reason.stack).slice(0, 1200) : '';
+        logBoot('window:unhandledrejection:early', `(message=${message || 'unknown'} stack=${stack})`);
+      });
 
       applyDocumentTheme(initialTheme);
       applyBootSidebarWidth();

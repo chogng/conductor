@@ -101,7 +101,55 @@ const desktopProcessStartMs = Date.now();
 function logDesktopBoot(stage, extra = "") {
   const elapsedMs = Date.now() - desktopProcessStartMs;
   const suffix = extra ? ` ${extra}` : "";
-  console.info(`[boot][main] +${elapsedMs}ms ${stage}${suffix}`);
+  const message = `[boot][main] +${elapsedMs}ms ${stage}${suffix}`;
+  console.info(message);
+  appendDesktopDiagnosticLog(message);
+}
+
+function appendDesktopDiagnosticLog(message) {
+  const timestamp = new Date().toISOString();
+  const line = `${timestamp} ${message}\n`;
+  const candidateDirs = [
+    path.join(process.cwd(), ".device"),
+  ];
+
+  try {
+    if (app?.isReady?.()) {
+      candidateDirs.push(app.getPath("userData"));
+    }
+  } catch {
+    // Ignore logging path failures.
+  }
+
+  for (const dir of candidateDirs) {
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      fs.appendFileSync(path.join(dir, "desktop-renderer.log"), line, "utf8");
+    } catch {
+      // Logging must never block app startup.
+    }
+  }
+}
+
+function formatDiagnosticValue(value) {
+  if (value == null) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function logDesktopDiagnostic(stage: string, payload: unknown = "") {
+  const normalizedPayload =
+    typeof payload === "string" ? payload : formatDiagnosticValue(payload);
+  const message = `[desktop-diagnostic] ${stage}${
+    normalizedPayload ? ` ${normalizedPayload}` : ""
+  }`;
+  console.info(message);
+  appendDesktopDiagnosticLog(message);
 }
 
 const loadOriginRunnerModule = async () => {
@@ -3023,6 +3071,13 @@ function createMainWindow() {
         : { v8CacheOptions: "bypassHeatCheckAndEagerCompile" }),
     },
   });
+  logDesktopDiagnostic("window:create", {
+    isDev,
+    isPackaged: app.isPackaged,
+    preload: path.join(__dirname, "preload.js"),
+    cwd: process.cwd(),
+    dirname: __dirname,
+  });
 
   if (process.platform !== "darwin") {
     win.removeMenu();
@@ -3073,6 +3128,9 @@ function createMainWindow() {
 
   win.webContents.once("dom-ready", () => {
     logDesktopBoot("window:dom-ready");
+    logDesktopDiagnostic("window:dom-ready", {
+      url: win.webContents.getURL(),
+    });
   });
 
   win.webContents.on("did-start-navigation", (_event, navigationUrl, isInPlace, isMainFrame) => {
@@ -3085,10 +3143,16 @@ function createMainWindow() {
 
   win.webContents.on("did-start-loading", () => {
     logDesktopBoot("window:did-start-loading");
+    logDesktopDiagnostic("window:did-start-loading", {
+      url: win.webContents.getURL(),
+    });
   });
 
   win.webContents.once("did-finish-load", () => {
     logDesktopBoot("window:did-finish-load");
+    logDesktopDiagnostic("window:did-finish-load", {
+      url: win.webContents.getURL(),
+    });
     setTimeout(() => {
       if (!win.isDestroyed() && !win.isVisible()) {
         logDesktopBoot(
@@ -3103,6 +3167,12 @@ function createMainWindow() {
   win.webContents.once(
     "did-fail-load",
     (_event, errorCode, errorDescription, validatedUrl, isMainFrame) => {
+      logDesktopDiagnostic("window:did-fail-load", {
+        errorCode,
+        errorDescription,
+        validatedUrl,
+        isMainFrame,
+      });
       if (!isMainFrame) return;
       logDesktopBoot(
         "window:did-fail-load",
@@ -3112,19 +3182,64 @@ function createMainWindow() {
     },
   );
 
+  win.webContents.on(
+    "did-fail-provisional-load",
+    (_event, errorCode, errorDescription, validatedUrl, isMainFrame) => {
+      logDesktopDiagnostic("window:did-fail-provisional-load", {
+        errorCode,
+        errorDescription,
+        validatedUrl,
+        isMainFrame,
+      });
+    },
+  );
+
   win.webContents.on("did-stop-loading", () => {
     logDesktopBoot("window:did-stop-loading");
+    logDesktopDiagnostic("window:did-stop-loading", {
+      url: win.webContents.getURL(),
+    });
+  });
+
+  win.webContents.on("preload-error", (_event, preloadPath, error) => {
+    logDesktopDiagnostic("window:preload-error", {
+      preloadPath,
+      message: error?.message,
+      stack: error?.stack,
+    });
+  });
+
+  win.webContents.on("render-process-gone", (_event, details) => {
+    logDesktopDiagnostic("window:render-process-gone", details);
+  });
+
+  win.webContents.on("unresponsive", () => {
+    logDesktopDiagnostic("window:unresponsive", {
+      url: win.webContents.getURL(),
+    });
+  });
+
+  win.webContents.on("responsive", () => {
+    logDesktopDiagnostic("window:responsive", {
+      url: win.webContents.getURL(),
+    });
   });
 
   win.webContents.on("console-message", (event) => {
     const message = typeof event.message === "string" ? event.message : "";
-    if (typeof message !== "string" || !message.startsWith("[boot]")) return;
     const levelLabel =
       event.level === "warning"
         ? "warn"
         : event.level === "error"
           ? "error"
           : "info";
+    logDesktopDiagnostic("renderer-console", {
+      level: levelLabel,
+      line: event.lineNumber,
+      sourceId: event.sourceId,
+      message,
+    });
+    if (typeof message !== "string" || !message.startsWith("[boot]")) return;
     const logger =
       levelLabel === "warn"
         ? console.warn

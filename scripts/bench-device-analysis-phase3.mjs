@@ -5,15 +5,15 @@ import {
   computeCentralDerivative,
   computeSubthresholdSwing,
   computeSubthresholdSwingFitAuto,
-} from "../src/features/device-analysis/analysis/lib/analysisMath.ts";
+} from "../src/cs/workbench/contrib/deviceAnalysis/browser/analysis/lib/analysisMath.ts";
 import {
   buildPoints,
   downsamplePointsForDisplay,
-} from "../src/features/device-analysis/analysis/lib/analysisChartsUtils.ts";
+} from "../src/cs/workbench/contrib/deviceAnalysis/browser/analysis/lib/analysisChartsUtils.ts";
 import {
   computeBaseCurrentMetrics,
   isTransferLikeFile,
-} from "../src/features/device-analysis/analysis/lib/metrics.ts";
+} from "../src/cs/workbench/contrib/deviceAnalysis/browser/analysis/lib/metrics.ts";
 
 const ROOT = process.cwd();
 const OUTPUT_DIR = path.join(ROOT, ".tooling", "device-analysis-phase3-bench");

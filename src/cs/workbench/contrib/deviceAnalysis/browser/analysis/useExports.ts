@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import type JSZip from "jszip";
 import type {
   SsManualRanges,

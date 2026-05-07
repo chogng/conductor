@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import Papa from "papaparse";
 import * as xlsx from "xlsx";
-import { assessImportedFile } from "../src/features/device-analysis/shared/lib/importFileUtils.ts";
+import { assessImportedFile } from "../src/cs/workbench/contrib/deviceAnalysis/browser/shared/lib/importFileUtils.ts";
 
 const ROOT = process.cwd();
 const DEFAULT_RUST_EXE = path.join(

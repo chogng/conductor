@@ -1,13 +1,14 @@
 let workbenchAppPromise: Promise<typeof import("./App")> | null = null;
 let appPromise:
-  | Promise<typeof import("./features/analysis/App")>
+  | Promise<typeof import("./cs/workbench/contrib/deviceAnalysis/browser/App")>
   | null = null;
 
 let workbenchImportStartedAtMs = 0;
 let importStartedAtMs = 0;
 
 const isBootProfileEnabled = () =>
-  import.meta.env.DEV && window.__CONDUCTOR_BOOT_PROFILE_ENABLED__ === true;
+  window.desktopMeta?.isDesktop === true ||
+  (import.meta.env.DEV && window.__CONDUCTOR_BOOT_PROFILE_ENABLED__ === true);
 
 const getBootNowMs = () => {
   if (typeof performance !== "undefined" && typeof performance.now === "function") {
@@ -70,7 +71,7 @@ export const loadApp = () => {
 
   importStartedAtMs = getBootNowMs();
   logRendererBoot("analysis:import-started");
-  appPromise = import("./features/analysis/App")
+  appPromise = import("./cs/workbench/contrib/deviceAnalysis/browser/App")
     .then((module) => {
       logRendererBoot(
         "analysis:import-resolved",

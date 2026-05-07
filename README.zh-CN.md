@@ -203,12 +203,12 @@ workers/py/origin-csv-worker/origin-csv-worker.exe --worker-version
 
 相关代码：
 
-- `src/features/device-analysis/analysis/lib/analysisChartsUtils.ts`
+- `src/cs/workbench/contrib/deviceAnalysis/browser/analysis/lib/analysisChartsUtils.ts`
   - `buildOriginAutoTicks`
   - `buildOriginLogAutoTicks`
   - `padLinearDomain`
   - `padLogDomain`
-- `src/features/device-analysis/analysis/components/AnalysisCharts.tsx`
+- `src/cs/workbench/contrib/deviceAnalysis/browser/analysis/components/AnalysisCharts.tsx`
   - `xDomain`
   - `yDomain`
   - `xTicks`

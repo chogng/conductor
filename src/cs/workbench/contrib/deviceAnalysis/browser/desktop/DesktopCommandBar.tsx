@@ -8,7 +8,7 @@ import {
   Square,
   X,
 } from "lucide-react";
-import originIcon from "../../../assets/icons/origin.svg";
+import originIcon from "src/assets/icons/origin.svg";
 import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import {

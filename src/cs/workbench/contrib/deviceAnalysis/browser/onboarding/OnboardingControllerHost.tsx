@@ -1,4 +1,4 @@
-﻿import { useEffect } from "react";
+import { useEffect } from "react";
 import type {
   TemplateConfig,
 } from "../session/analysis-session-context";

@@ -7,7 +7,7 @@ import {
   buildOriginExportPlan,
   isRustOriginCsvEligiblePayload,
   resolveRustOriginCsvYTransformForPayload,
-} from "../src/features/device-analysis/analysis/lib/originSelectionExport.ts";
+} from "../src/cs/workbench/contrib/deviceAnalysis/browser/analysis/lib/originSelectionExport.ts";
 
 const ROOT = process.cwd();
 const OUTPUT_DIR = path.join(ROOT, ".tooling", "rust-origin-export-compat");

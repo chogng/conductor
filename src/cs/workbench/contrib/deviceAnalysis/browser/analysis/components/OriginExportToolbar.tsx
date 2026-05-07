@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Check, ChevronDown, ChevronRight } from "lucide-react";
 import Button from "cs/base/browser/ui/Button/Button";
 import ContentView from "cs/base/browser/ui/ContentView/ContentView";

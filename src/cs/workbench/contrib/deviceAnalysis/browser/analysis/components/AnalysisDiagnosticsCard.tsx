@@ -1,4 +1,4 @@
-﻿import { formatNumber } from "../lib/analysisMath";
+import { formatNumber } from "../lib/analysisMath";
 import Card from "cs/base/browser/ui/Card/Card";
 import Input from "cs/base/browser/ui/Input/Input";
 import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
