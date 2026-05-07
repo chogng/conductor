@@ -1,0 +1,59 @@
+/* Toast */
+
+.toast {
+  @apply z-[60] flex min-w-[340px] max-w-[420px] items-center gap-3 rounded-2xl border border-border-subtle/60 bg-bg-surface/90 py-3 pl-4 pr-3 backdrop-blur-xl;
+
+  box-shadow: 0 8px 30px rgb(0 0 0 / 0.12);
+}
+
+.toast--opening {
+  @apply animate-slide-up;
+}
+
+.toast--closing {
+  @apply animate-slide-down;
+}
+
+.toast--fixed {
+  @apply fixed bottom-8 left-1/2;
+}
+
+.toast--absolute {
+  @apply absolute bottom-0 left-1/2;
+}
+
+.toast__icon {
+  @apply shrink-0;
+}
+
+.toast[data-type="success"] .toast__icon {
+  @apply text-green-500;
+}
+
+.toast[data-type="error"] .toast__icon {
+  @apply text-red-500;
+}
+
+.toast[data-type="warning"] .toast__icon {
+  @apply text-amber-500;
+}
+
+.toast[data-type="info"] .toast__icon {
+  @apply text-blue-500;
+}
+
+.toast__message {
+  @apply flex-1 text-sm font-medium leading-snug text-text-primary;
+}
+
+.toast__controls {
+  @apply flex items-center gap-3 border-l border-border-subtle/60 pl-3;
+}
+
+.toast__action {
+  @apply whitespace-nowrap text-sm font-semibold text-accent transition-colors hover:text-accent-hover;
+}
+
+.toast__close {
+  @apply rounded-full p-1 text-text-tertiary transition-all hover:bg-bg-surface-hover/60 hover:text-text-primary;
+}

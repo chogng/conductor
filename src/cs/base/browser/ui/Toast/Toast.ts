@@ -1,6 +1,8 @@
 import { jsx } from "react/jsx-runtime";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FocusEvent, type ReactNode, type RefObject, } from "react";
 import { AlertCircle, CheckCircle2, Info, X } from "lucide-react";
+import { cx } from "src/utils/cx";
+import "./toast.css";
 
 type ToastType = "success" | "error" | "warning" | "info";
 type ToastPosition = "absolute" | "fixed";
@@ -159,25 +161,21 @@ const Toast = ({ message, type = "success", actionText, onAction, onClose, isVis
             case "success":
                 return (jsx(CheckCircle2, {
                     size: 20,
-                    className: "text-green-500",
                     "aria-hidden": "true"
                 }));
             case "error":
                 return (jsx(AlertCircle, {
                     size: 20,
-                    className: "text-red-500",
                     "aria-hidden": "true"
                 }));
             case "warning":
                 return (jsx(AlertCircle, {
                     size: 20,
-                    className: "text-amber-500",
                     "aria-hidden": "true"
                 }));
             default:
                 return jsx(Info, {
                     size: 20,
-                    className: "text-blue-500",
                     "aria-hidden": "true"
                 });
         }
@@ -201,33 +199,25 @@ const Toast = ({ message, type = "success", actionText, onAction, onClose, isVis
         "data-type": type,
         "data-state": state,
         "data-ui": uiMarker,
-        className: `
-        transform -translate-x-1/2 z-[60]
-        flex items-center gap-3
-        bg-bg-surface/90 backdrop-blur-xl
-        border border-border-subtle/60 shadow-[0_8px_30px_rgb(0,0,0,0.12)]
-        pl-4 pr-3 py-3 rounded-2xl min-w-[340px] max-w-[420px]
-        ${isClosing ? "animate-slide-down" : "animate-slide-up"}
-        ${Object.keys(positionStyle).length === 0 ? (position === "fixed" ? "fixed bottom-8 left-1/2" : "absolute bottom-0 left-1/2") : ""}
-      `,
+        className: cx("toast", isClosing ? "toast--closing" : "toast--opening", Object.keys(positionStyle).length === 0 && (position === "fixed" ? "toast--fixed" : "toast--absolute")),
         style: positionStyle,
         children: [
             jsx("div", {
-                className: "shrink-0",
+                className: "toast__icon",
                 children: getIcon()
             }),
             jsx("span", {
-                className: "text-sm font-medium text-text-primary flex-1 leading-snug",
+                className: "toast__message",
                 children: message
             }),
             jsx("div", {
-                className: "flex items-center gap-3 pl-3 border-l border-border-subtle/60",
+                className: "toast__controls",
                 children: [
                     actionText && onAction ? (jsx("button", {
                         type: "button",
                         onClick: onAction,
                         "data-ui": uiMarker ? `${uiMarker}-action` : undefined,
-                        className: "text-accent text-sm font-semibold hover:text-accent-hover transition-colors whitespace-nowrap",
+                        className: "toast__action",
                         children: actionText
                     })) : null,
                     jsx("button", {
@@ -235,7 +225,7 @@ const Toast = ({ message, type = "success", actionText, onAction, onClose, isVis
                         onClick: onClose,
                         "aria-label": "Close toast",
                         "data-ui": uiMarker ? `${uiMarker}-close` : undefined,
-                        className: "text-text-tertiary hover:text-text-primary hover:bg-bg-surface-hover/60 rounded-full p-1 transition-all",
+                        className: "toast__close",
                         children: jsx(X, {
                             size: 16,
                             "aria-hidden": "true"
