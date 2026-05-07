@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { runProcess } from "../desktop-dist/origin-runner/core.js";
+import { runProcess } from "../desktop-dist/desktop/origin-runner/core.js";
 import {
   appendOriginCapabilitiesWorkerArgs,
   appendOriginPlotWorkerArgs,
   buildOriginCsvWorkerArgs,
-} from "../desktop-dist/origin-runner/runners.js";
+} from "../desktop-dist/desktop/origin-runner/runners.js";
 
 test("runProcess resolves process output and exit code", async () => {
   const result = await runProcess(

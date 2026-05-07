@@ -4,11 +4,14 @@
     "lib": ["ES2022"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "rootDir": "desktop",
+    "rootDir": ".",
     "outDir": "desktop-dist",
     "types": ["node"],
     "strict": false,
     "skipLibCheck": true
   },
-  "include": ["desktop/**/*.ts"]
+  "include": [
+    "desktop/**/*.ts",
+    "src/cs/platform/theme/electron-main/**/*.ts"
+  ]
 }

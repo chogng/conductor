@@ -2,7 +2,7 @@ import type { BrowserWindow } from "electron";
 import {
   getThemeSnapshot,
   type ThemeSnapshot,
-} from "./themeMainService.js";
+} from "../src/cs/platform/theme/electron-main/themeMainService.js";
 
 export const getCurrentBootThemeSnapshot = (
   themeMode: unknown,

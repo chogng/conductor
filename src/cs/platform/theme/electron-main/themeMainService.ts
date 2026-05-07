@@ -9,7 +9,7 @@ export type ThemeSnapshot = {
   foregroundColor: string;
 };
 
-const BOOT_THEME_COLORS = {
+const THEME_COLORS = {
   light: {
     backgroundColor: "#f5f4ef",
     foregroundColor: "#222222",
@@ -20,21 +20,21 @@ const BOOT_THEME_COLORS = {
   },
 } as const;
 
-export const resolveBootThemeMode = (themeMode: unknown): ThemeMode => {
+export const resolveThemeMode = (themeMode: unknown): ThemeMode => {
   return themeMode === "light" || themeMode === "dark" || themeMode === "system"
     ? themeMode
     : "system";
 };
 
 export const getThemeSnapshot = (themeMode: unknown): ThemeSnapshot => {
-  const normalizedThemeMode = resolveBootThemeMode(themeMode);
+  const normalizedThemeMode = resolveThemeMode(themeMode);
   const resolvedThemeMode =
     normalizedThemeMode === "system"
       ? nativeTheme.shouldUseDarkColors
         ? "dark"
         : "light"
       : normalizedThemeMode;
-  const palette = BOOT_THEME_COLORS[resolvedThemeMode];
+  const palette = THEME_COLORS[resolvedThemeMode];
 
   return {
     themeMode: normalizedThemeMode,

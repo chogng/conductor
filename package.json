@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.5.19",
   "type": "module",
-  "main": "desktop-dist/main.js",
+  "main": "desktop-dist/desktop/main.js",
   "scripts": {
     "verify:icons": "node scripts/verify-icons.mjs",
     "verify:rs-worker-artifacts": "node scripts/verify-rs-worker-artifacts.mjs",
