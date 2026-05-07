@@ -42,7 +42,7 @@ const logSlowScriptResources = () => {
         /^https?:\/\/[^/]+/i,
         "",
       );
-      return normalizedPath.includes("/features/device-analysis/") && entry.duration >= 8;
+      return normalizedPath.includes("/features/analysis/") && entry.duration >= 8;
     })
     .sort((a, b) => b.duration - a.duration)
     .slice(0, 12);

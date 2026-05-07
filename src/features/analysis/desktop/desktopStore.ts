@@ -108,10 +108,9 @@ export const requestAnalysisDesktopStore = async (
 
   const method = String(options.method || "GET").toUpperCase();
   const isAnalysisEndpoint = (name: string) =>
-    endpoint === `/analysis/${name}` || endpoint === `/device-analysis/${name}`;
+    endpoint === `/analysis/${name}`;
   const isAnalysisTemplateItemEndpoint =
-    endpoint.startsWith("/analysis/templates/") ||
-    endpoint.startsWith("/device-analysis/templates/");
+    endpoint.startsWith("/analysis/templates/");
 
   if (isAnalysisEndpoint("templates") && method === "GET") {
     return getDesktopStoreMethod(
@@ -179,8 +178,7 @@ export const requestAnalysisDesktopStore = async (
   }
 
   if (
-    (endpoint === "/analysis/persistence-path/choose" ||
-      endpoint === "/device-analysis/persistence-path/choose") &&
+    endpoint === "/analysis/persistence-path/choose" &&
     method === "POST"
   ) {
     const info = await getDesktopStoreMethod(

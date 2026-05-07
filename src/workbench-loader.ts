@@ -1,6 +1,6 @@
 let workbenchAppPromise: Promise<typeof import("./App")> | null = null;
 let appPromise:
-  | Promise<typeof import("./features/device-analysis/App")>
+  | Promise<typeof import("./features/analysis/App")>
   | null = null;
 
 let workbenchImportStartedAtMs = 0;
@@ -70,7 +70,7 @@ export const loadApp = () => {
 
   importStartedAtMs = getBootNowMs();
   logRendererBoot("analysis:import-started");
-  appPromise = import("./features/device-analysis/App")
+  appPromise = import("./features/analysis/App")
     .then((module) => {
       logRendererBoot(
         "analysis:import-resolved",

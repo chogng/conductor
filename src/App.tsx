@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "./context/theme-provider";
 import { LanguageProvider } from "./context/language-provider";
-import AnalysisApp from "./features/device-analysis/App";
+import AnalysisApp from "./features/analysis/App";
 
 const isUnauthorizedError = (error: unknown) => {
   if (typeof error !== "object" || error === null || !("status" in error)) {
