@@ -1,4 +1,4 @@
-import React, { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, } from "react";
+﻿import React, { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
 import { computeCentralDerivative, computeSubthresholdSwing, computeSubthresholdSwingFitAuto, computeSubthresholdSwingFitInRange, classifySsFit, formatNumber, interpolateCurveAtX, resolveAutoSsSelection, splitBidirectionalCurvePoints, } from "../lib/analysisMath";
 import { apiService } from "../services/apiService";
@@ -938,7 +938,7 @@ const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, prim
         onChange(nextPlotType);
     }, [onChange]);
     return (<Tabs
-        idBase="device-analysis-plot-type-tabs"
+        idBase="analysis-plot-type-tabs"
         value={displayedPlotType}
         onChange={(next) => selectPlotType(next as PlotTypeOption)}
         size="sm"
@@ -949,12 +949,12 @@ const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, prim
             {
                 value: "iv",
                 label: primaryPlotLabel || "I-V",
-                id: "device-analysis-plot-iv-btn",
+                id: "analysis-plot-iv-btn",
             },
             {
                 value: "gm",
                 label: derivativeLabel,
-                id: "device-analysis-plot-gm-btn",
+                id: "analysis-plot-gm-btn",
                 disabled: !gmApplicable,
                 title: !gmApplicable
                     ? t("da_plot_type_gm_unavailable_hint")
@@ -963,7 +963,7 @@ const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, prim
             {
                 value: "ss",
                 label: "SS",
-                id: "device-analysis-plot-ss-btn",
+                id: "analysis-plot-ss-btn",
                 disabled: !ssApplicable,
                 title: !ssApplicable
                     ? t("da_plot_type_ss_unavailable_hint")
@@ -972,7 +972,7 @@ const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, prim
             {
                 value: "vth",
                 label: "Vth",
-                id: "device-analysis-plot-vth-btn",
+                id: "analysis-plot-vth-btn",
                 disabled: !vthApplicable,
                 title: !vthApplicable
                     ? t("da_plot_type_vth_unavailable_hint")
@@ -981,7 +981,7 @@ const PlotTypeToggle = React.memo(function PlotTypeToggle({ activePlotType, prim
             {
                 value: "j",
                 label: "J",
-                id: "device-analysis-plot-j-btn",
+                id: "analysis-plot-j-btn",
                 disabled: !areaAvailable,
                 title: !areaAvailable ? t("da_plot_type_j_unavailable_hint") : "",
             },
@@ -4376,7 +4376,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             "--analysis-sidebar-width": "clamp(240px, var(--sidebar-width), 420px)",
         } as CSSProperties}>
       <aside
-        id="device-analysis-overview-sidebar"
+        id="analysis-overview-sidebar"
         className="md:min-h-0 flex flex-col h-full"
       >
         {showPlotSettingsPane ? (
@@ -4411,7 +4411,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
 
 
               <div className="flex items-center gap-2">
-                <DropdownField id="device-analysis-y-unit-select" size="sm" value={activeYUnit} onChange={(next: any) => {
+                <DropdownField id="analysis-y-unit-select" size="sm" value={activeYUnit} onChange={(next: any) => {
             const nextUnitRaw = normalizeYUnit(next, activeYUnit);
             const nextUnit = isYUnitAllowedForFile(nextUnitRaw, activeFile)
                 ? nextUnitRaw
@@ -4442,7 +4442,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 <div className="flex items-center gap-1">
                   {effectivePlotType === "ss" ? (<span className="text-xs text-text-primary font-mono whitespace-nowrap">
                       log(|I|)
-                    </span>) : effectivePlotType === "vth" ? null : (<DropdownField id="device-analysis-y-scale-select" size="sm" value={axis.yScale === "logAbs" ? "log" : axis.yScale} onChange={(next: any) => {
+                    </span>) : effectivePlotType === "vth" ? null : (<DropdownField id="analysis-y-scale-select" size="sm" value={axis.yScale === "logAbs" ? "log" : axis.yScale} onChange={(next: any) => {
                 applyLinearLogYScaleForFile(next);
             }} options={[
                 {
@@ -4454,7 +4454,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     label: t("da_settings_y_scale_log"),
                 },
             ]} aria-label={t("da_chart_y_scale_aria_label")} className="w-fit da-neutral-select" stableWidth data-cta="Device Analysis" data-cta-position="y-scale" data-cta-copy="y scale"/>)}
-                  {effectivePlotType !== "ss" && effectivePlotType !== "vth" && yScaleMode === "log" ? (<DropdownField id="device-analysis-log-current-mode-select" size="sm" value={yLogCurrentMode} onChange={(next: any) => {
+                  {effectivePlotType !== "ss" && effectivePlotType !== "vth" && yScaleMode === "log" ? (<DropdownField id="analysis-log-current-mode-select" size="sm" value={yLogCurrentMode} onChange={(next: any) => {
                 const mode = normalizeLogCurrentMode(next);
                 const fileKey = String(effectiveActiveFileId ?? "").trim();
                 userChangedYLogCurrentModeRef.current = true;
@@ -4501,7 +4501,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                       <span className="text-xs text-text-secondary whitespace-nowrap">
                         SS:
                       </span>
-                      <DropdownField id="device-analysis-ss-method-select" size="sm" value={ssMethod} onChange={(next: any) => {
+                      <DropdownField id="analysis-ss-method-select" size="sm" value={ssMethod} onChange={(next: any) => {
                 const method = next === "auto" || next === "manual" ? next : "auto";
                 setSsMethod(method);
                 apiService
@@ -4557,7 +4557,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                       <span className="text-xs text-text-secondary whitespace-nowrap">
                         Ion/Ioff:
                       </span>
-                      <DropdownField id="device-analysis-current-method-select" size="sm" value={ionIoffMethod} onChange={(next: any) => {
+                      <DropdownField id="analysis-current-method-select" size="sm" value={ionIoffMethod} onChange={(next: any) => {
                 const method = next === "manual" ? "manual" : "auto";
                 setIonIoffMethod(method);
             }} options={[
@@ -4567,11 +4567,11 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     </div>
                   </div>) : null}
 
-                {showFileSelect ? (<DropdownField id="device-analysis-file-select" size="sm" value={effectiveActiveFileId ?? ""} onChange={(val: any) => handleSelectFile(val)} options={processedData.map((f: any) => ({
+                {showFileSelect ? (<DropdownField id="analysis-file-select" size="sm" value={effectiveActiveFileId ?? ""} onChange={(val: any) => handleSelectFile(val)} options={processedData.map((f: any) => ({
             value: f.fileId,
             label: f.fileName,
         }))} className="w-[240px] da-neutral-select" placeholder={t("da_select_file_placeholder")} data-cta="Device Analysis" data-cta-position="file-select" data-cta-copy="file select"/>) : null}
-                <Button id="device-analysis-plot-settings-toggle-btn" variant="secondary" size="sm" onClick={() => setShowPlotSettingsPane((v: any) => !v)} title={t("da_chart_plot_settings_title")} aria-pressed={showPlotSettingsPane}>
+                <Button id="analysis-plot-settings-toggle-btn" variant="secondary" size="sm" onClick={() => setShowPlotSettingsPane((v: any) => !v)} title={t("da_chart_plot_settings_title")} aria-pressed={showPlotSettingsPane}>
                   <SlidersHorizontal size={14} strokeWidth={2} />
                   <span>{t("da_chart_plot_settings_title")}</span>
                 </Button>
@@ -4747,10 +4747,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             analysisCompactPageFieldClass={ANALYSIS_COMPACT_PAGE_FIELD_CLASS}
           />
 
-          {activeFile?.series?.length ? (<Card id="device-analysis-calculated-parameters-card" variant="panel" className="flex min-w-0 flex-col flex-1">
+          {activeFile?.series?.length ? (<Card id="analysis-calculated-parameters-card" variant="panel" className="flex min-w-0 flex-col flex-1">
             <div className="mb-3 flex min-w-0 items-center justify-between gap-3 flex-wrap">
               <div className="flex min-w-0 items-center flex-wrap">
-                <Tabs idBase="device-analysis-results-tabs" value={resultsTab} onChange={(next) => setResultsTab(next === "export" || next === "rc" ? next : "metrics")} size="sm" hoverPreview={false} groupLabel={t("da_analysis_results_tabs_label")} itemClassName="!px-3" options={[
+                <Tabs idBase="analysis-results-tabs" value={resultsTab} onChange={(next) => setResultsTab(next === "export" || next === "rc" ? next : "metrics")} size="sm" hoverPreview={false} groupLabel={t("da_analysis_results_tabs_label")} itemClassName="!px-3" options={[
                 {
                     value: "metrics",
                     label: t("da_analysis_results_tab_metrics"),

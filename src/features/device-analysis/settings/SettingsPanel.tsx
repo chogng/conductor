@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useRef, useState } from "react";
 import Card from "cs/base/browser/ui/Card/Card";
 import Button from "cs/base/browser/ui/Button/Button";
 import Input from "cs/base/browser/ui/Input/Input";
@@ -304,11 +304,11 @@ const SettingsPanel = ({
           </nav>
         </aside>
 
-        <Card id="device-analysis-settings-card" variant="panel" className="mb-4 overflow-hidden p-0">
+        <Card id="analysis-settings-card" variant="panel" className="mb-4 overflow-hidden p-0">
           <div className="divide-y divide-border/60">
             {activeSettingsSection === "general" ? (
               <>
-          <div id="device-analysis-settings-language-card" className="p-4">
+          <div id="analysis-settings-language-card" className="p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <h3 className="text-base font-semibold text-text-primary">
@@ -318,8 +318,8 @@ const SettingsPanel = ({
 
               <div className="w-full sm:w-fit">
                 <DropdownField
-                  id="device-analysis-settings-language-dropdown"
-                  menuId="device-analysis-settings-language-dropdown-menu"
+                  id="analysis-settings-language-dropdown"
+                  menuId="analysis-settings-language-dropdown-menu"
                   value={language}
                   onChange={(value) => {
                     if (value === "zh" || value === "en") {
@@ -337,7 +337,7 @@ const SettingsPanel = ({
             </div>
           </div>
 
-          <div id="device-analysis-settings-theme-card" className="p-4">
+          <div id="analysis-settings-theme-card" className="p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <h3 className="text-base font-semibold text-text-primary">
@@ -347,8 +347,8 @@ const SettingsPanel = ({
 
               <div className="w-full sm:w-fit">
                 <DropdownField
-                  id="device-analysis-settings-theme-dropdown"
-                  menuId="device-analysis-settings-theme-dropdown-menu"
+                  id="analysis-settings-theme-dropdown"
+                  menuId="analysis-settings-theme-dropdown-menu"
                   value={theme}
                   onChange={(value) => {
                     if (value === "system" || value === "light" || value === "dark") {
@@ -363,7 +363,7 @@ const SettingsPanel = ({
             </div>
           </div>
 
-          <div id="device-analysis-settings-close-behavior-card" className="p-4">
+          <div id="analysis-settings-close-behavior-card" className="p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <h3 className="text-base font-semibold text-text-primary">
@@ -373,8 +373,8 @@ const SettingsPanel = ({
 
               <div className="w-full sm:w-fit">
                 <DropdownField
-                  id="device-analysis-settings-close-behavior-dropdown"
-                  menuId="device-analysis-settings-close-behavior-dropdown-menu"
+                  id="analysis-settings-close-behavior-dropdown"
+                  menuId="analysis-settings-close-behavior-dropdown-menu"
                   value={windowCloseSettings.behavior}
                   onChange={(value) => {
                     if (value === "minimizeToTray" || value === "quit") {
@@ -390,7 +390,7 @@ const SettingsPanel = ({
             </div>
           </div>
 
-          <div id="device-analysis-settings-onboarding-card" className="p-4">
+          <div id="analysis-settings-onboarding-card" className="p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <h3 className="text-base font-semibold text-text-primary">
@@ -400,7 +400,7 @@ const SettingsPanel = ({
 
               <div className="w-full sm:w-fit flex justify-end">
                 <Button
-                  id="device-analysis-settings-onboarding-open-btn"
+                  id="analysis-settings-onboarding-open-btn"
                   type="button"
                   variant="secondary"
                   size="sm"
@@ -413,7 +413,7 @@ const SettingsPanel = ({
             </div>
           </div>
 
-          <div id="device-analysis-settings-analysis-defaults-card" className="p-4 space-y-4">
+          <div id="analysis-settings-analysis-defaults-card" className="p-4 space-y-4">
             <div>
               <h3 className="text-base font-semibold text-text-primary">
                 {t("da_settings_analysis_defaults_title")}
@@ -426,7 +426,7 @@ const SettingsPanel = ({
                   {t("da_settings_analysis_defaults_transfer_curve")}
                 </p>
                 <DropdownField
-                  id="device-analysis-settings-default-transfer-y-scale-select"
+                  id="analysis-settings-default-transfer-y-scale-select"
                   value={analysisDefaultSettings.defaultYScaleForTransfer}
                   onChange={(value) => {
                     void analysisDefaultSettings.onDefaultYScaleForTransferChange(String(value));
@@ -441,7 +441,7 @@ const SettingsPanel = ({
                   {t("da_settings_analysis_defaults_output_curve")}
                 </p>
                 <DropdownField
-                  id="device-analysis-settings-default-output-y-scale-select"
+                  id="analysis-settings-default-output-y-scale-select"
                   value={analysisDefaultSettings.defaultYScaleForOutput}
                   onChange={(value) => {
                     void analysisDefaultSettings.onDefaultYScaleForOutputChange(String(value));
@@ -456,7 +456,7 @@ const SettingsPanel = ({
                   {t("da_settings_analysis_defaults_cv_curve")}
                 </p>
                 <DropdownField
-                  id="device-analysis-settings-default-cv-y-scale-select"
+                  id="analysis-settings-default-cv-y-scale-select"
                   value={analysisDefaultSettings.defaultYScaleForCv}
                   onChange={(value) => {
                     void analysisDefaultSettings.onDefaultYScaleForCvChange(String(value));
@@ -471,7 +471,7 @@ const SettingsPanel = ({
                   {t("da_settings_analysis_defaults_cf_curve")}
                 </p>
                 <DropdownField
-                  id="device-analysis-settings-default-cf-y-scale-select"
+                  id="analysis-settings-default-cf-y-scale-select"
                   value={analysisDefaultSettings.defaultYScaleForCf}
                   onChange={(value) => {
                     void analysisDefaultSettings.onDefaultYScaleForCfChange(String(value));
@@ -486,7 +486,7 @@ const SettingsPanel = ({
                   {t("da_settings_analysis_defaults_pv_curve")}
                 </p>
                 <DropdownField
-                  id="device-analysis-settings-default-pv-y-scale-select"
+                  id="analysis-settings-default-pv-y-scale-select"
                   value={analysisDefaultSettings.defaultYScaleForPv}
                   onChange={(value) => {
                     void analysisDefaultSettings.onDefaultYScaleForPvChange(String(value));
@@ -504,7 +504,7 @@ const SettingsPanel = ({
             ) : null}
           </div>
 
-          <div id="device-analysis-settings-chart-defaults-card" className="p-4 space-y-4">
+          <div id="analysis-settings-chart-defaults-card" className="p-4 space-y-4">
             <div>
               <h3 className="text-base font-semibold text-text-primary">
                 {t("da_settings_chart_defaults_title")}
@@ -517,7 +517,7 @@ const SettingsPanel = ({
                   {t("da_settings_chart_defaults_legend")}
                 </p>
                 <Input
-                  id="device-analysis-settings-default-legend-font-size-input"
+                  id="analysis-settings-default-legend-font-size-input"
                   value={legendFontSizeDraft}
                   onChange={setLegendFontSizeDraft}
                   onBlur={() => {
@@ -533,7 +533,7 @@ const SettingsPanel = ({
                   {t("da_settings_chart_defaults_title_size")}
                 </p>
                 <Input
-                  id="device-analysis-settings-default-title-font-size-input"
+                  id="analysis-settings-default-title-font-size-input"
                   value={axisTitleFontSizeDraft}
                   onChange={setAxisTitleFontSizeDraft}
                   onBlur={() => {
@@ -549,7 +549,7 @@ const SettingsPanel = ({
                   {t("da_settings_chart_defaults_tick_label")}
                 </p>
                 <Input
-                  id="device-analysis-settings-default-tick-label-font-size-input"
+                  id="analysis-settings-default-tick-label-font-size-input"
                   value={tickLabelFontSizeDraft}
                   onChange={setTickLabelFontSizeDraft}
                   onBlur={() => {
@@ -563,7 +563,7 @@ const SettingsPanel = ({
             </div>
           </div>
 
-          <div id="device-analysis-settings-storage-card" className="p-4 space-y-4">
+          <div id="analysis-settings-storage-card" className="p-4 space-y-4">
             <div>
               <h3 className="text-base font-semibold text-text-primary">
                 {t("da_settings_storage_title")}
@@ -574,7 +574,7 @@ const SettingsPanel = ({
             </div>
 
             <div
-              id="device-analysis-settings-origin-path-controls"
+              id="analysis-settings-origin-path-controls"
               className="flex items-center gap-2"
             >
               <div className="flex-1 min-w-0 rounded-lg border border-border bg-bg-page px-3 py-2 flex items-center h-[38px]">
@@ -589,7 +589,7 @@ const SettingsPanel = ({
               </div>
 
               <Button
-                id="device-analysis-settings-persistence-path-choose-btn"
+                id="analysis-settings-persistence-path-choose-btn"
                 type="button"
                 variant="primary"
                 size="sm"
@@ -608,7 +608,7 @@ const SettingsPanel = ({
             ) : null}
           </div>
 
-          <div id="device-analysis-settings-filename-matching-card" className="p-4 space-y-4">
+          <div id="analysis-settings-filename-matching-card" className="p-4 space-y-4">
             <div>
               <h3 className="text-base font-semibold text-text-primary">
                 {t("da_settings_filename_matching_title")}
@@ -623,7 +623,7 @@ const SettingsPanel = ({
                 {t("da_settings_filename_matching_label")}
               </p>
               <Input
-                id="device-analysis-settings-filename-separators-input"
+                id="analysis-settings-filename-separators-input"
                 value={fileNameFieldSeparatorsDraft}
                 onChange={setFileNameFieldSeparatorsDraft}
                 onBlur={() => {
@@ -652,7 +652,7 @@ const SettingsPanel = ({
 
             {activeSettingsSection === "origin" ? (
               <>
-          <div id="device-analysis-settings-origin-path-card" className="p-4 space-y-4">
+          <div id="analysis-settings-origin-path-card" className="p-4 space-y-4">
             <div>
               <h3 className="text-base font-semibold text-text-primary">
                 {t("da_settings_origin_title")}
@@ -673,7 +673,7 @@ const SettingsPanel = ({
               </div>
 
               <Button
-                id="device-analysis-settings-origin-path-choose-btn"
+                id="analysis-settings-origin-path-choose-btn"
                 type="button"
                 variant="primary"
                 size="sm"
@@ -687,7 +687,7 @@ const SettingsPanel = ({
               </Button>
 
               <Button
-                id="device-analysis-settings-origin-health-check-btn"
+                id="analysis-settings-origin-health-check-btn"
                 type="button"
                 variant="secondary"
                 size="sm"
@@ -715,7 +715,7 @@ const SettingsPanel = ({
             ) : null}
           </div>
 
-          <div id="device-analysis-settings-origin-cleanup-card" className="p-4 space-y-4">
+          <div id="analysis-settings-origin-cleanup-card" className="p-4 space-y-4">
             <div>
               <h3 className="text-base font-semibold text-text-primary">
                 {t("da_settings_origin_cleanup_title")}
@@ -731,8 +731,8 @@ const SettingsPanel = ({
                   {t("da_settings_origin_cleanup_enable_label")}
                 </p>
                 <DropdownField
-                  id="device-analysis-settings-origin-cleanup-enabled-select"
-                  menuId="device-analysis-settings-origin-cleanup-enabled-menu"
+                  id="analysis-settings-origin-cleanup-enabled-select"
+                  menuId="analysis-settings-origin-cleanup-enabled-menu"
                   value={String(Boolean(originSettings.cleanupEnabled))}
                   onChange={(value) => {
                     void originSettings.onCleanupEnabledChange(value === "true");
@@ -747,8 +747,8 @@ const SettingsPanel = ({
                   {t("da_settings_origin_cleanup_keep_success_label")}
                 </p>
                 <DropdownField
-                  id="device-analysis-settings-origin-cleanup-keep-success-select"
-                  menuId="device-analysis-settings-origin-cleanup-keep-success-menu"
+                  id="analysis-settings-origin-cleanup-keep-success-select"
+                  menuId="analysis-settings-origin-cleanup-keep-success-menu"
                   value={String(originSettings.cleanupKeepSuccessJobs ?? 0)}
                   onChange={(value) => {
                     void originSettings.onCleanupKeepSuccessJobsChange(value);
@@ -763,8 +763,8 @@ const SettingsPanel = ({
                   {t("da_settings_origin_cleanup_failed_days_label")}
                 </p>
                 <DropdownField
-                  id="device-analysis-settings-origin-cleanup-failed-days-select"
-                  menuId="device-analysis-settings-origin-cleanup-failed-days-menu"
+                  id="analysis-settings-origin-cleanup-failed-days-select"
+                  menuId="analysis-settings-origin-cleanup-failed-days-menu"
                   value={String(originSettings.cleanupFailedRetentionDays ?? 7)}
                   onChange={(value) => {
                     void originSettings.onCleanupFailedRetentionDaysChange(value);
@@ -777,7 +777,7 @@ const SettingsPanel = ({
 
             <div className="flex justify-end">
               <Button
-                id="device-analysis-settings-origin-cleanup-run-btn"
+                id="analysis-settings-origin-cleanup-run-btn"
                 type="button"
                 variant="secondary"
                 size="sm"
@@ -798,7 +798,7 @@ const SettingsPanel = ({
             </div>
           </div>
 
-          <div id="device-analysis-settings-origin-plot-card" className="p-4 space-y-4">
+          <div id="analysis-settings-origin-plot-card" className="p-4 space-y-4">
             <div>
               <h3 className="text-base font-semibold text-text-primary">
                 {t("da_settings_origin_plot_title")}
@@ -814,7 +814,7 @@ const SettingsPanel = ({
                   {t("da_settings_origin_plot_xy_pairs_label")}
                 </p>
                 <Input
-                  id="device-analysis-settings-origin-plot-xy-pairs-input"
+                  id="analysis-settings-origin-plot-xy-pairs-input"
                   value={xyPairsDraft}
                   onChange={setXyPairsDraft}
                   onBlur={() => {
@@ -835,7 +835,7 @@ const SettingsPanel = ({
                 {t("da_settings_origin_plot_command_label")}
               </p>
               <Input
-                id="device-analysis-settings-origin-plot-command-input"
+                id="analysis-settings-origin-plot-command-input"
                 value={plotCommandDraft}
                 onChange={setPlotCommandDraft}
                 onBlur={() => {
@@ -855,7 +855,7 @@ const SettingsPanel = ({
                 {t("da_settings_origin_plot_post_commands_label")}
               </p>
               <textarea
-                id="device-analysis-settings-origin-plot-post-commands-input"
+                id="analysis-settings-origin-plot-post-commands-input"
                 className="w-full min-h-[96px] rounded-lg border border-border bg-bg-surface px-3 py-2 text-sm text-text-primary font-mono resize-y"
                 value={postCommandsDraft}
                 onChange={(event) => {
@@ -885,7 +885,7 @@ const SettingsPanel = ({
 
             {activeSettingsSection === "about" ? (
               <>
-                <div id="device-analysis-settings-about-version-card" className="p-4">
+                <div id="analysis-settings-about-version-card" className="p-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <h3 className="text-base font-semibold text-text-primary">
@@ -899,7 +899,7 @@ const SettingsPanel = ({
                   </div>
                 </div>
 
-                <div id="device-analysis-settings-app-update-card" className="p-4">
+                <div id="analysis-settings-app-update-card" className="p-4">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <h3 className="text-base font-semibold text-text-primary">
@@ -909,7 +909,7 @@ const SettingsPanel = ({
 
                     <div className="w-full sm:w-fit flex justify-end">
                       <Button
-                        id="device-analysis-settings-app-update-check-btn"
+                        id="analysis-settings-app-update-check-btn"
                         type="button"
                         variant="secondary"
                         size="sm"
@@ -948,7 +948,7 @@ const SettingsPanel = ({
         type={originHealthToast.type}
         containerRef={settingsSectionRef}
         position="absolute"
-        dataUi="device-analysis-settings-origin-health-toast"
+        dataUi="analysis-settings-origin-health-toast"
       />
 
       <Toast
@@ -958,7 +958,7 @@ const SettingsPanel = ({
         type={cleanupToast.type}
         containerRef={settingsSectionRef}
         position="absolute"
-        dataUi="device-analysis-settings-origin-cleanup-toast"
+        dataUi="analysis-settings-origin-cleanup-toast"
       />
     </section>
   );

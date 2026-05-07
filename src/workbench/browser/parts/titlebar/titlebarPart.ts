@@ -1,4 +1,4 @@
-import "./media/titlebar.css";
+﻿import "./media/titlebar.css";
 import type { CSSProperties } from "react";
 import type { TranslateFn } from "../../../../context/language";
 
@@ -64,12 +64,12 @@ export const createWorkbenchTitlebarNavActions = (
   canNavigateForward: boolean,
 ): WorkbenchTitlebarNavAction[] => [
   {
-    id: "device-analysis-window-nav-back-btn",
+    id: "analysis-window-nav-back-btn",
     title: t("da_menu_page_back"),
     isDisabled: !canNavigateBack,
   },
   {
-    id: "device-analysis-window-nav-forward-btn",
+    id: "analysis-window-nav-forward-btn",
     title: t("da_menu_page_forward"),
     isDisabled: !canNavigateForward,
   },

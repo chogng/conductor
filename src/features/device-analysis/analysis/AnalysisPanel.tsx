@@ -1,4 +1,4 @@
-import {
+﻿import {
   lazy,
   Suspense,
   type ComponentType,
@@ -13,7 +13,7 @@ import type {
   IonIoffMethod,
   SsManualRanges,
   SsMethod,
-} from "../session/device-analysis-session-context";
+} from "../session/analysis-session-context";
 import type { OriginPlotOptions } from "./lib/originPlotOptions";
 import type { ProcessedEntry, ProcessingStatus } from "../shared/lib/sharedTypes";
 import { loadAnalysisCharts } from "./loadAnalysisCharts";
@@ -51,7 +51,7 @@ const AnalysisCharts = lazy(loadAnalysisCharts) as ComponentType<AnalysisChartsL
 const AnalysisChartsLoadingFallback = ({ t }: { t: TranslateFn }) => {
   return (
     <Card
-      id="device-analysis-analysis-loading-card"
+      id="analysis-analysis-loading-card"
       variant="fill"
       cta="Device analysis"
       ctaPosition="analysis"
@@ -135,7 +135,7 @@ const AnalysisPanel = ({
         ) : null
       ) : isProcessing ? (
         <Card
-          id="device-analysis-processing-card"
+          id="analysis-processing-card"
           variant="fill"
           cta="Device analysis"
           ctaPosition="analysis"
@@ -184,7 +184,7 @@ const AnalysisPanel = ({
         </Card>
       ) : (
         <Card
-          id="device-analysis-empty-processed-data-card"
+          id="analysis-empty-processed-data-card"
           variant="fill"
           cta="Device analysis"
           ctaPosition="analysis"

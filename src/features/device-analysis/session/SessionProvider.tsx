@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from "react";
+﻿import { useMemo, useRef, useState, type ReactNode } from "react";
 import {
   SessionContext,
   type SessionContextValue,
@@ -9,7 +9,7 @@ import {
   type SsManualRanges,
   type SsMethod,
   type TemplateMode,
-} from "./device-analysis-session-context";
+} from "./analysis-session-context";
 import type {
   PreviewFile,
   PreviewRowsRequest,

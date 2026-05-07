@@ -1,4 +1,4 @@
-import {
+﻿import {
   useCallback,
   useEffect,
   lazy,
@@ -683,7 +683,7 @@ const Page = () => {
 
   return (
     <WorkspaceShell
-      id="device-analysis-page"
+      id="analysis-page"
       className={`relative w-full h-full min-h-0 overflow-hidden ${
         isResizing ? "cursor-col-resize select-none" : ""
       }`}
@@ -751,9 +751,9 @@ const Page = () => {
 
       <div className="relative flex-1 min-h-0">
         <section
-          id="device-analysis-tabpanel-data"
+          id="analysis-tabpanel-data"
           role="tabpanel"
-          aria-labelledby="device-analysis-tab-data"
+          aria-labelledby="analysis-tab-data"
           aria-hidden={!isDataPageActive}
           inert={!isDataPageActive ? true : undefined}
           className={`absolute inset-0 min-h-0 transition-opacity duration-150 ${
@@ -799,9 +799,9 @@ const Page = () => {
         </section>
 
         <section
-          id="device-analysis-tabpanel-analysis"
+          id="analysis-tabpanel-analysis"
           role="tabpanel"
-          aria-labelledby="device-analysis-tab-analysis"
+          aria-labelledby="analysis-tab-analysis"
           aria-hidden={!isAnalysisPageActive}
           inert={!isAnalysisPageActive ? true : undefined}
           className={`absolute inset-0 min-h-0 transition-opacity duration-150 ${
@@ -851,9 +851,9 @@ const Page = () => {
         </section>
 
         <section
-          id="device-analysis-tabpanel-settings"
+          id="analysis-tabpanel-settings"
           role="tabpanel"
-          aria-labelledby="device-analysis-window-settings-btn"
+          aria-labelledby="analysis-window-settings-btn"
           aria-hidden={!isSettingsPageActive}
           inert={!isSettingsPageActive ? true : undefined}
           className={`absolute inset-0 min-h-0 transition-opacity duration-150 ${
@@ -912,7 +912,7 @@ const Page = () => {
         }
         type={extractionErrorToast.type}
         position="fixed"
-        dataUi="device-analysis-extraction-error-toast"
+        dataUi="analysis-extraction-error-toast"
       />
 
       {onboarding.isOpen ? (

@@ -1,6 +1,6 @@
-import { useContext } from "react";
-import { SessionContext } from "./device-analysis-session-context";
-import type { SessionContextValue } from "./device-analysis-session-context";
+﻿import { useContext } from "react";
+import { SessionContext } from "./analysis-session-context";
+import type { SessionContextValue } from "./analysis-session-context";
 
 export const useSession = (): SessionContextValue => {
   const context = useContext(SessionContext);

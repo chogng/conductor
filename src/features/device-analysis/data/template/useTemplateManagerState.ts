@@ -1,10 +1,10 @@
-import {
+﻿import {
   useCallback,
   useEffect,
   useRef,
   useState,
 } from "react";
-import type { PreviewStatus as SessionPreviewStatus } from "../../session/device-analysis-session-context";
+import type { PreviewStatus as SessionPreviewStatus } from "../../session/analysis-session-context";
 import type { PreviewFileLike } from "../../shared/lib/sharedTypes";
 import type { LooseTranslateFn as TranslateFn } from "../../shared/lib/translateTypes";
 import { apiService } from "../../analysis/services/apiService";
@@ -20,7 +20,7 @@ import {
 import { normalizeYUnit } from "../../analysis/lib/units";
 import { resolveXSegmentationMode } from "../../shared/lib/XSegmentation";
 import { AUTO_TEMPLATE_ID } from "../../shared/lib/autoExtraction";
-import { DEVICE_ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT } from "../../onboarding/onboardingEvents";
+import { ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT } from "../../onboarding/onboardingEvents";
 import {
   validateTemplateForApply,
   validateTemplateForSave,
@@ -964,13 +964,13 @@ export const useTemplateManagerState = ({
     };
 
     window.addEventListener(
-      DEVICE_ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT,
+      ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT,
       handleOnboardingCreateTemplate,
     );
 
     return () => {
       window.removeEventListener(
-        DEVICE_ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT,
+        ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT,
         handleOnboardingCreateTemplate,
       );
     };

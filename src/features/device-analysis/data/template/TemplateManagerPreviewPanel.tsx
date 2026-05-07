@@ -1,4 +1,4 @@
-import React, {
+﻿import React, {
   useCallback,
   useEffect,
   useMemo,
@@ -9,7 +9,7 @@ import React, {
 import { Check, Minus, Plus } from "lucide-react";
 import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
 import type { TranslateFn } from "../../../../context/language";
-import type { PreviewStatus as SessionPreviewStatus } from "../../session/device-analysis-session-context";
+import type { PreviewStatus as SessionPreviewStatus } from "../../session/analysis-session-context";
 import type { PreviewFileLike } from "../../shared/lib/sharedTypes";
 import {
   TemplateManagerPreviewEmptyState,
@@ -1303,7 +1303,7 @@ const CanvasPreviewGrid = React.memo(
         style={{ height: stageHeightPx, width: canvasWidthPx }}
       >
         <canvas
-          id="device-analysis-preview-canvas-grid"
+          id="analysis-preview-canvas-grid"
           ref={canvasRef}
           className="absolute left-0"
           style={{ top: canvasTopPx }}
@@ -1403,7 +1403,7 @@ const PreviewHeader = React.memo(
 
     return (
       <thead className="bg-bg-surface sticky top-0 z-30 shadow-sm">
-        <tr id="device-analysis-preview-column-selector-row">
+        <tr id="analysis-preview-column-selector-row">
           <th
             className="border-b border-r border-border bg-bg-surface text-center font-bold text-text-secondary select-none sticky left-0 top-0 z-40"
             style={{
@@ -1955,7 +1955,7 @@ const TemplateManagerPreviewPanel = ({
         />
       ) : previewFile ? (
         <ScrollArea
-          id="device-analysis-preview-scroll-area"
+          id="analysis-preview-scroll-area"
           ref={previewScrollRef}
           axis="both"
           className={`da-preview-scroll-area flex-1 min-h-0 border border-border rounded ${isColumnResizing ? "cursor-col-resize select-none" : ""

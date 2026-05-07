@@ -1,4 +1,4 @@
-import type { LanguageCode } from "../../../context/language";
+﻿import type { LanguageCode } from "../../../context/language";
 import type { ThemeMode } from "../../../context/theme";
 import type { Feedback } from "../shared/lib/sharedTypes";
 import type { LooseTranslateFn as TranslateFn } from "../shared/lib/translateTypes";
@@ -6,7 +6,7 @@ import type {
   IonIoffManualTargetsByFileId,
   IonIoffMethod,
   SsMethod,
-} from "../session/device-analysis-session-context";
+} from "../session/analysis-session-context";
 
 export type AnalysisSettings = {
   fileNameFieldSeparators?: string;

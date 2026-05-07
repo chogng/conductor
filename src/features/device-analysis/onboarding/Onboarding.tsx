@@ -1,4 +1,4 @@
-import {
+﻿import {
   useEffect,
   useId,
   useMemo,
@@ -244,7 +244,7 @@ const getVirtualRingTargetRects = (
     if (target.kind !== "preview-cell") continue;
 
     const previewCell = document.querySelector<HTMLElement>(
-      `#device-analysis-preview-scroll-area td[data-row="${target.rowIndex}"][data-col="${target.colIndex}"]`,
+      `#analysis-preview-scroll-area td[data-row="${target.rowIndex}"][data-col="${target.colIndex}"]`,
     );
     if (previewCell) {
       const cellRect = previewCell.getBoundingClientRect();
@@ -266,7 +266,7 @@ const getVirtualRingTargetRects = (
 
     const anchor = document.getElementById(target.anchorId);
     const headerCell = document.querySelector<HTMLElement>(
-      `#device-analysis-preview-column-selector-row [data-column-index="${target.colIndex}"]`,
+      `#analysis-preview-column-selector-row [data-column-index="${target.colIndex}"]`,
     );
     if (!anchor || !headerCell) continue;
 
@@ -305,17 +305,17 @@ const getAnalysisVirtualSpotlightElement = (
   target: OnboardingVirtualSpotlightTarget,
 ): HTMLElement | null => {
   if (target.kind === "analysis-overview-section") {
-    return document.getElementById("device-analysis-overview-sidebar");
+    return document.getElementById("analysis-overview-sidebar");
   }
 
   if (target.kind === "analysis-chart-section") {
     return document.querySelector<HTMLElement>(
-      '#device-analysis-tabpanel-analysis section[aria-label="Device Analysis chart"]',
+      '#analysis-tabpanel-analysis section[aria-label="Device Analysis chart"]',
     );
   }
 
   if (target.kind === "analysis-calculated-section") {
-    return document.getElementById("device-analysis-calculated-parameters-card");
+    return document.getElementById("analysis-calculated-parameters-card");
   }
 
   return null;
@@ -449,11 +449,11 @@ const collectHighlightElements = ({
   if (Array.isArray(ringVirtualTargets) && ringVirtualTargets.length > 0) {
     addHighlightElement(
       elements,
-      document.getElementById("device-analysis-preview-scroll-area"),
+      document.getElementById("analysis-preview-scroll-area"),
     );
     addHighlightElement(
       elements,
-      document.getElementById("device-analysis-preview-column-selector-row"),
+      document.getElementById("analysis-preview-column-selector-row"),
     );
   }
 
@@ -464,13 +464,13 @@ const collectHighlightElements = ({
     addHighlightElement(
       elements,
       document.querySelector<HTMLElement>(
-        `#device-analysis-preview-scroll-area td[data-row="${target.rowIndex}"][data-col="${target.colIndex}"]`,
+        `#analysis-preview-scroll-area td[data-row="${target.rowIndex}"][data-col="${target.colIndex}"]`,
       ),
     );
     addHighlightElement(
       elements,
       document.querySelector<HTMLElement>(
-        `#device-analysis-preview-column-selector-row [data-column-index="${target.colIndex}"]`,
+        `#analysis-preview-column-selector-row [data-column-index="${target.colIndex}"]`,
       ),
     );
   }
@@ -1148,7 +1148,7 @@ const Onboarding = ({
       {ringRects.map((rect, index) => (
         <div
           key={`${step.id}-ring-${index}`}
-          className="device-analysis-onboarding-ring absolute border-2 border-accent-terracotta"
+          className="analysis-onboarding-ring absolute border-2 border-accent-terracotta"
           style={{
             ...rect,
             borderRadius: `${rect.radius}px`,
@@ -1166,7 +1166,7 @@ const Onboarding = ({
         }}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="device-analysis-onboarding-title"
+        aria-labelledby="analysis-onboarding-title"
       >
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="text-xs font-medium uppercase tracking-[0.18em] text-text-secondary">
@@ -1185,7 +1185,7 @@ const Onboarding = ({
         </div>
 
         <h3
-          id="device-analysis-onboarding-title"
+          id="analysis-onboarding-title"
           className="text-lg font-semibold text-text-primary"
         >
           {t(step.titleKey)}

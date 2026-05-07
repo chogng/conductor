@@ -1,4 +1,4 @@
-import Button from "cs/base/browser/ui/Button/Button";
+﻿import Button from "cs/base/browser/ui/Button/Button";
 import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
 import { useLanguage } from "../../../../hooks/useLanguage";
 import type { OriginCurveExportSeriesOption } from "./OriginExportToolbar";
@@ -34,7 +34,7 @@ const RcAnalysisToolbar = ({
             {t("da_rc_bias_label")}
           </span>
           <DropdownField
-            id="device-analysis-rc-bias-select"
+            id="analysis-rc-bias-select"
             size="sm"
             value={selectedBiasKey}
             onChange={(next: any) => onBiasChange(String(next ?? ""))}

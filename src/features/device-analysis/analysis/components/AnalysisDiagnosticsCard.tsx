@@ -1,4 +1,4 @@
-import { formatNumber } from "../lib/analysisMath";
+﻿import { formatNumber } from "../lib/analysisMath";
 import Card from "cs/base/browser/ui/Card/Card";
 import Input from "cs/base/browser/ui/Input/Input";
 import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
@@ -121,7 +121,7 @@ export default function AnalysisDiagnosticsCard({
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="whitespace-nowrap">x:</span>
                 <Input
-                  id="device-analysis-curve-probe-x-input"
+                  id="analysis-curve-probe-x-input"
                   value={curveProbeXInput}
                   onChange={setCurveProbeXInput}
                   placeholder={curveProbeXPlaceholder}
@@ -131,7 +131,7 @@ export default function AnalysisDiagnosticsCard({
                 />
                 <span className="whitespace-nowrap">{"\u63d2\u503c:"}</span>
                 <DropdownField
-                  id="device-analysis-curve-probe-mode-select"
+                  id="analysis-curve-probe-mode-select"
                   size="sm"
                   value={curveProbeMode}
                   onChange={(next: any) =>
@@ -221,7 +221,7 @@ export default function AnalysisDiagnosticsCard({
             <div className="flex items-center gap-2 text-xs text-text-secondary flex-wrap">
               <span className="whitespace-nowrap">Area (for J = |I|/Area):</span>
               <Input
-                id="device-analysis-area-input"
+                id="analysis-area-input"
                 value={areaInput}
                 onChange={setAreaInput}
                 placeholder="e.g. 1e-4"

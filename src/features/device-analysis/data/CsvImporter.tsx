@@ -1,4 +1,4 @@
-import React, {
+﻿import React, {
   startTransition,
   useCallback,
   useOptimistic,
@@ -517,7 +517,7 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
         <ScrollArea
           ref={containerRef}
           axis="y"
-          id="device-analysis-csv-dropzone"
+          id="analysis-csv-dropzone"
           aria-label={t("da_import_section")}
           data-state={files.length === 0 ? "empty" : "filled"}
           className={cx(
@@ -535,7 +535,7 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
           }
         >
           <input
-            id="device-analysis-csv-file-input"
+            id="analysis-csv-file-input"
             type="file"
             multiple
             accept={DEVICE_ANALYSIS_DATA_IMPORT_ACCEPT}
@@ -548,7 +548,7 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
 
           {files.length === 0 ? (
             <div
-              id="device-analysis-csv-empty"
+              id="analysis-csv-empty"
               data-slot="empty"
               className={styles.empty}
             >
@@ -562,7 +562,7 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
             </div>
           ) : (
             <div
-              id="device-analysis-import-scroll"
+              id="analysis-import-scroll"
               data-slot="filled"
               className="w-full min-h-full flex flex-col p-3"
             >

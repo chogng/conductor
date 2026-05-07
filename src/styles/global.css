@@ -1,4 +1,4 @@
-@tailwind base;
+﻿@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
@@ -531,7 +531,7 @@ textarea {
     animation: float-slow 30s ease-in-out infinite reverse;
   }
 
-  .device-analysis-onboarding-ring {
+  .analysis-onboarding-ring {
     box-shadow: 0 0 0 4px rgba(var(--accent-terracotta), 0.18),
       0 0 26px rgba(var(--accent-terracotta), 0.38);
     animation: da-onboarding-ring-breathe 1.45s cubic-bezier(0.4, 0, 0.2, 1) infinite;
@@ -540,7 +540,7 @@ textarea {
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .device-analysis-onboarding-ring {
+    .analysis-onboarding-ring {
       animation: none;
     }
   }

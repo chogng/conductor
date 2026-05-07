@@ -1,7 +1,7 @@
-import { useEffect } from "react";
+﻿import { useEffect } from "react";
 import type {
   TemplateConfig,
-} from "../session/device-analysis-session-context";
+} from "../session/analysis-session-context";
 import type { ProcessedEntry, RawDataEntry } from "../shared/lib/sharedTypes";
 import { useOnboarding } from "./useOnboarding";
 import { loadOnboarding } from "./loadOnboarding";

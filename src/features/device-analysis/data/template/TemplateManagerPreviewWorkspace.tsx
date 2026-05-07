@@ -1,4 +1,4 @@
-import React, {
+﻿import React, {
   type Dispatch,
   type MutableRefObject,
   type SetStateAction,
@@ -6,7 +6,7 @@ import React, {
   useState,
 } from "react";
 import type { TranslateFn } from "../../../../context/language";
-import type { PreviewStatus as SessionPreviewStatus } from "../../session/device-analysis-session-context";
+import type { PreviewStatus as SessionPreviewStatus } from "../../session/analysis-session-context";
 import type { PreviewFileLike } from "../../shared/lib/sharedTypes";
 import TemplateManagerPreviewPanel from "./TemplateManagerPreviewPanel";
 import {

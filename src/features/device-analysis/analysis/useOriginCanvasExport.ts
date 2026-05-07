@@ -1691,13 +1691,8 @@ export const useOriginCanvasExport = ({
       void handleExportOriginZip();
     };
     window.addEventListener("analysis:open-origin", handleOpenOriginRequest);
-    window.addEventListener("device-analysis:open-origin", handleOpenOriginRequest);
     window.addEventListener(
       "analysis:export-origin-zip",
-      handleExportOriginZipRequest,
-    );
-    window.addEventListener(
-      "device-analysis:export-origin-zip",
       handleExportOriginZipRequest,
     );
     return () => {
@@ -1706,15 +1701,7 @@ export const useOriginCanvasExport = ({
         handleOpenOriginRequest,
       );
       window.removeEventListener(
-        "device-analysis:open-origin",
-        handleOpenOriginRequest,
-      );
-      window.removeEventListener(
         "analysis:export-origin-zip",
-        handleExportOriginZipRequest,
-      );
-      window.removeEventListener(
-        "device-analysis:export-origin-zip",
         handleExportOriginZipRequest,
       );
     };

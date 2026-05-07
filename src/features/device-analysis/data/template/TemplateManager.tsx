@@ -1,4 +1,4 @@
-import React, {
+﻿import React, {
   useCallback,
   useEffect,
   useMemo,
@@ -65,7 +65,7 @@ import {
   resolveXSegmentationMode,
 } from "../../shared/lib/XSegmentation";
 import { shouldStackTemplateTransferButtons } from "../../layout";
-import type { PreviewStatus as SessionPreviewStatus } from "../../session/device-analysis-session-context";
+import type { PreviewStatus as SessionPreviewStatus } from "../../session/analysis-session-context";
 import { useSession } from "../../session/useSession";
 import type {
   PreviewFileLike,
@@ -127,7 +127,7 @@ const TemplateManagerPreviewFallback = ({
       t={t}
     >
       <TemplateManagerPreviewEmptyState
-        id="device-analysis-template-preview-fallback"
+        id="analysis-template-preview-fallback"
         title={title}
         hint={hint}
       />
@@ -1341,7 +1341,7 @@ const TemplateManager = ({
               <Input
                 id={
                   includeIds
-                    ? "device-analysis-template-x-data-start"
+                    ? "analysis-template-x-data-start"
                     : undefined
                 }
                 name="xDataStart"
@@ -1357,7 +1357,7 @@ const TemplateManager = ({
             <div>
               <Input
                 id={
-                  includeIds ? "device-analysis-template-x-data-end" : undefined
+                  includeIds ? "analysis-template-x-data-end" : undefined
                 }
                 name="xDataEnd"
                 value={config.xDataEnd}
@@ -1387,7 +1387,7 @@ const TemplateManager = ({
             <div>
               <Input
                 id={
-                  includeIds ? "device-analysis-template-x-points" : undefined
+                  includeIds ? "analysis-template-x-points" : undefined
                 }
                 name={isXSegmentsMode ? "xSegmentCount" : "xPointsPerGroup"}
                 value={xSegmentationInputValue}
@@ -1410,12 +1410,12 @@ const TemplateManager = ({
               <DropdownField
                 id={
                   includeIds
-                    ? "device-analysis-template-x-segmentation-mode"
+                    ? "analysis-template-x-segmentation-mode"
                     : undefined
                 }
                 menuId={
                   includeIds
-                    ? "device-analysis-template-x-segmentation-mode-menu"
+                    ? "analysis-template-x-segmentation-mode-menu"
                     : undefined
                 }
                 size="md"
@@ -1437,9 +1437,9 @@ const TemplateManager = ({
             </div>
             <div className="sm:col-span-2 relative min-w-0">
               <DropdownField
-                id={includeIds ? "device-analysis-template-x-unit" : undefined}
+                id={includeIds ? "analysis-template-x-unit" : undefined}
                 menuId={
-                  includeIds ? "device-analysis-template-x-unit-menu" : undefined
+                  includeIds ? "analysis-template-x-unit-menu" : undefined
                 }
                 size="md"
                 className="w-full"
@@ -1471,7 +1471,7 @@ const TemplateManager = ({
                 <Input
                   id={
                     includeIds
-                      ? "device-analysis-template-y-columns"
+                      ? "analysis-template-y-columns"
                       : undefined
                   }
                   value={
@@ -1500,7 +1500,7 @@ const TemplateManager = ({
                 <Input
                   id={
                     includeIds
-                      ? "device-analysis-template-legend-start"
+                      ? "analysis-template-legend-start"
                       : undefined
                   }
                   value={config.yLegendStart}
@@ -1519,7 +1519,7 @@ const TemplateManager = ({
               <div className="min-w-0">
                 <Input
                   id={
-                    includeIds ? "device-analysis-template-legend-count" : undefined
+                    includeIds ? "analysis-template-legend-count" : undefined
                   }
                   value={config.yLegendCount}
                   name="yLegendCount"
@@ -1535,7 +1535,7 @@ const TemplateManager = ({
               <div className="min-w-0">
                 <Input
                   id={
-                    includeIds ? "device-analysis-template-legend-step" : undefined
+                    includeIds ? "analysis-template-legend-step" : undefined
                   }
                   value={config.yLegendStep}
                   name="yLegendStep"
@@ -1552,12 +1552,12 @@ const TemplateManager = ({
                 <DropdownField
                   id={
                     includeIds
-                      ? "device-analysis-template-legend-mapping"
+                      ? "analysis-template-legend-mapping"
                       : undefined
                   }
                   menuId={
                     includeIds
-                      ? "device-analysis-template-legend-mapping-menu"
+                      ? "analysis-template-legend-mapping-menu"
                       : undefined
                   }
                   size="md"
@@ -1584,7 +1584,7 @@ const TemplateManager = ({
                 <Input
                   id={
                     includeIds
-                      ? "device-analysis-template-legend-prefix"
+                      ? "analysis-template-legend-prefix"
                       : undefined
                   }
                   value={config.legendPrefix || ""}
@@ -1600,9 +1600,9 @@ const TemplateManager = ({
               </div>
               <div className="min-w-0 relative">
                 <DropdownField
-                  id={includeIds ? "device-analysis-template-y-unit" : undefined}
+                  id={includeIds ? "analysis-template-y-unit" : undefined}
                   menuId={
-                    includeIds ? "device-analysis-template-y-unit-menu" : undefined
+                    includeIds ? "analysis-template-y-unit-menu" : undefined
                   }
                   size="md"
                   className="w-full"
@@ -1629,7 +1629,7 @@ const TemplateManager = ({
           <Input
             id={
               includeIds
-                ? "device-analysis-template-var1-bottom-title"
+                ? "analysis-template-var1-bottom-title"
                 : undefined
             }
             label={t("da_save_curve_type")}
@@ -1649,7 +1649,7 @@ const TemplateManager = ({
           <Input
             id={
               includeIds
-                ? "device-analysis-template-var3-left-title"
+                ? "analysis-template-var3-left-title"
                 : undefined
             }
             label={t("da_save_left_title")}
@@ -1676,7 +1676,7 @@ const TemplateManager = ({
           {t("da_general_template")}
         </label>
         <div
-          id={includeIds ? "device-analysis-template-name-row" : undefined}
+          id={includeIds ? "analysis-template-name-row" : undefined}
           className="relative flex-1 min-w-0"
         >
           <div
@@ -1685,7 +1685,7 @@ const TemplateManager = ({
           >
             <div className="relative flex items-center w-full h-full">
               <input
-                id={includeIds ? "device-analysis-template-name" : undefined}
+                id={includeIds ? "analysis-template-name" : undefined}
                 type="text"
                 name="templateName"
                 autoComplete="off"
@@ -1702,7 +1702,7 @@ const TemplateManager = ({
               />
               <Button
                 id={
-                  includeIds ? "device-analysis-template-save-btn" : undefined
+                  includeIds ? "analysis-template-save-btn" : undefined
                 }
                 type="button"
                 onClick={handleSaveTemplate}
@@ -1728,7 +1728,7 @@ const TemplateManager = ({
     measureOnly = false,
   } = {}) => {
     const resolvedInputId = includeIds
-      ? "device-analysis-template-dropdown-btn"
+      ? "analysis-template-dropdown-btn"
       : undefined;
     const displayName = isAutoTemplateSelected
       ? t("da_auto_template")
@@ -1972,7 +1972,7 @@ const TemplateManager = ({
               size="md"
               menuId={
                 includeIds
-                  ? "device-analysis-template-dropdown-menu"
+                  ? "analysis-template-dropdown-menu"
                   : undefined
               }
               value={
@@ -2022,7 +2022,7 @@ const TemplateManager = ({
         <div className={transferButtonsContainerClassName}>
           <Button
             id={
-              includeIds ? "device-analysis-template-export-config" : undefined
+              includeIds ? "analysis-template-export-config" : undefined
             }
             variant="secondary"
             size="sm"
@@ -2039,7 +2039,7 @@ const TemplateManager = ({
           </Button>
           <Button
             id={
-              includeIds ? "device-analysis-template-import-config" : undefined
+              includeIds ? "analysis-template-import-config" : undefined
             }
             variant="secondary"
             size="sm"
@@ -2057,7 +2057,7 @@ const TemplateManager = ({
         </div>
         {includeIds && !measureOnly ? (
           <input
-            id="device-analysis-template-import-file-input"
+            id="analysis-template-import-file-input"
             ref={importFileInputRef}
             type="file"
             accept="application/json,.json"
@@ -2072,7 +2072,7 @@ const TemplateManager = ({
               <Button
                 id={
                   includeIds
-                    ? "device-analysis-template-output-rule-apply-to-all"
+                    ? "analysis-template-output-rule-apply-to-all"
                     : undefined
                 }
                 variant="primary"
@@ -2090,7 +2090,7 @@ const TemplateManager = ({
               <Button
                 id={
                   includeIds
-                    ? "device-analysis-template-output-rule-apply-to-new"
+                    ? "analysis-template-output-rule-apply-to-new"
                     : undefined
                 }
                 variant="secondary"
@@ -2117,7 +2117,7 @@ const TemplateManager = ({
                 {t("da_match_by_file_name")}
               </label>
               <Button
-                id={includeIds ? "device-analysis-template-add-rule" : undefined}
+                id={includeIds ? "analysis-template-add-rule" : undefined}
                 variant="secondary"
                 size="md"
                 className="min-w-0 max-w-full"
@@ -2154,7 +2154,7 @@ const TemplateManager = ({
                       <Button
                         id={
                           includeIds
-                            ? `device-analysis-template-remove-rule-${index + 1}`
+                            ? `analysis-template-remove-rule-${index + 1}`
                             : undefined
                         }
                         variant="icon"
@@ -2175,7 +2175,7 @@ const TemplateManager = ({
                     <DropdownField
                       id={
                         includeIds
-                          ? `device-analysis-template-rule-mode-${index + 1}`
+                          ? `analysis-template-rule-mode-${index + 1}`
                           : undefined
                       }
                       size="md"
@@ -2198,7 +2198,7 @@ const TemplateManager = ({
                           <Input
                             id={
                               includeIds
-                                ? `device-analysis-template-rule-phrase-${index + 1}`
+                                ? `analysis-template-rule-phrase-${index + 1}`
                                 : undefined
                             }
                             value={rule.pattern}
@@ -2249,7 +2249,7 @@ const TemplateManager = ({
                           <DropdownField
                             id={
                               includeIds
-                                ? `device-analysis-template-rule-suggestions-${index + 1}`
+                                ? `analysis-template-rule-suggestions-${index + 1}`
                                 : undefined
                             }
                             size="md"
@@ -2280,7 +2280,7 @@ const TemplateManager = ({
                     <DropdownField
                       id={
                         includeIds
-                          ? `device-analysis-template-rule-template-${index + 1}`
+                          ? `analysis-template-rule-template-${index + 1}`
                           : undefined
                       }
                       size="md"
@@ -2305,7 +2305,7 @@ const TemplateManager = ({
               <Button
                 id={
                   includeIds
-                    ? "device-analysis-template-output-rule-apply-to-all"
+                    ? "analysis-template-output-rule-apply-to-all"
                     : undefined
                 }
                 variant="primary"
@@ -2327,7 +2327,7 @@ const TemplateManager = ({
               <Button
                 id={
                   includeIds
-                    ? "device-analysis-template-output-rule-apply-to-new"
+                    ? "analysis-template-output-rule-apply-to-new"
                     : undefined
                 }
                 variant="secondary"
@@ -2356,7 +2356,7 @@ const TemplateManager = ({
         <div
           id={
             includeIds
-              ? "device-analysis-stop-on-first-invalid-toggle"
+              ? "analysis-stop-on-first-invalid-toggle"
               : undefined
           }
           onClick={
@@ -2388,7 +2388,7 @@ const TemplateManager = ({
         <div
           id={
             includeIds
-              ? "device-analysis-rule-case-sensitive-toggle"
+              ? "analysis-rule-case-sensitive-toggle"
               : undefined
           }
           onClick={
@@ -2426,7 +2426,7 @@ const TemplateManager = ({
     >
       <Card
         ref={containerRef}
-        id="device-analysis-template-manager"
+        id="analysis-template-manager"
         className="pt-4 pr-4 pb-4 pl-0 flex flex-col flex-1 min-h-0 min-[1200px]:h-full"
         style={
           {
@@ -2441,7 +2441,7 @@ const TemplateManager = ({
           >
             <div
               className="flex flex-col gap-3 flex-1 min-h-0 pl-4"
-              id="device-analysis-template-config-panel-content"
+              id="analysis-template-config-panel-content"
             >
               <div className="pb-2 shrink-0">
                 <div className="flex items-center justify-start gap-3">
@@ -2450,7 +2450,7 @@ const TemplateManager = ({
                     onChange={handleTemplateModeChange}
                     size="sm"
                     controlsPanels
-                    idBase="device-analysis-template-mode"
+                    idBase="analysis-template-mode"
                     groupLabel={t("da_template_mode")}
                     options={[
                       {
@@ -2475,9 +2475,9 @@ const TemplateManager = ({
               </div>
 
               <div
-                id="device-analysis-template-mode-panel-select"
+                id="analysis-template-mode-panel-select"
                 role="tabpanel"
-                aria-labelledby="device-analysis-template-mode-tab-select"
+                aria-labelledby="analysis-template-mode-tab-select"
                 hidden={templateMode !== "select"}
                 className="flex-1 min-h-0"
               >
@@ -2493,9 +2493,9 @@ const TemplateManager = ({
               </div>
 
               <div
-                id="device-analysis-template-mode-panel-save"
+                id="analysis-template-mode-panel-save"
                 role="tabpanel"
-                aria-labelledby="device-analysis-template-mode-tab-save"
+                aria-labelledby="analysis-template-mode-tab-save"
                 hidden={templateMode !== "save"}
                 className="flex-1 min-h-0"
               >
@@ -2549,19 +2549,19 @@ const TemplateManager = ({
         <Modal
           isOpen={isDiscardConfirmOpen}
           onClose={closeDiscardConfirm}
-          idBase="device-analysis-template-discard-confirm"
+          idBase="analysis-template-discard-confirm"
           title={t("da_template_discard_changes_title")}
           footer={
             <>
               <Button
-                id="device-analysis-template-discard-confirm-keep-editing"
+                id="analysis-template-discard-confirm-keep-editing"
                 variant="ghost"
                 onClick={closeDiscardConfirm}
               >
                 {t("da_template_discard_changes_keep_editing")}
               </Button>
               <Button
-                id="device-analysis-template-discard-confirm-discard"
+                id="analysis-template-discard-confirm-discard"
                 variant="primary"
                 onClick={confirmDiscardAndSwitch}
               >

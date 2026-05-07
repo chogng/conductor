@@ -1,4 +1,4 @@
-import { Import, Trash2 } from "lucide-react";
+﻿import { Import, Trash2 } from "lucide-react";
 import {
   useEffect,
   useRef,
@@ -116,7 +116,7 @@ const DataPanel = ({
           className="flex-1 flex flex-col min-h-0"
         >
           <Card
-            id="device-analysis-import-card"
+            id="analysis-import-card"
             cta="Device analysis"
             ctaPosition="data-import"
             ctaCopy="csv importer"
@@ -125,7 +125,7 @@ const DataPanel = ({
             <div className="flex flex-col gap-2 mb-4">
               <div className="flex items-center justify-between gap-1 w-full">
                 <Button
-                  id="device-analysis-import-csv-btn"
+                  id="analysis-import-csv-btn"
                   type="button"
                   variant="primary"
                   size="sm"
@@ -148,7 +148,7 @@ const DataPanel = ({
                 </Button>
 
                 <Button
-                  id="device-analysis-clear-session-btn"
+                  id="analysis-clear-session-btn"
                   type="button"
                   variant="danger"
                   size="iconSm"
@@ -204,7 +204,7 @@ const DataPanel = ({
       </aside>
 
       <section
-        id="device-analysis-template-panel"
+        id="analysis-template-panel"
         aria-label={t("da_data_extraction_template")}
         className="min-[1200px]:min-h-0 flex flex-col h-full"
       >

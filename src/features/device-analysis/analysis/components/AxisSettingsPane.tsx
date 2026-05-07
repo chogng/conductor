@@ -1,4 +1,4 @@
-import { useEffect, useState, type KeyboardEvent } from "react";
+﻿import { useEffect, useState, type KeyboardEvent } from "react";
 import { ArrowLeft } from "lucide-react";
 import Button from "cs/base/browser/ui/Button/Button";
 import Card from "cs/base/browser/ui/Card/Card";
@@ -181,8 +181,8 @@ export default function AxisSettingsPane({
             <div className={settingRowClassName}>
               <div className="text-xs text-text-secondary">{t("da_chart_curve_type_label")}</div>
               <DropdownField
-                id="device-analysis-plot-type-select"
-                menuId="device-analysis-plot-type-menu"
+                id="analysis-plot-type-select"
+                menuId="analysis-plot-type-menu"
                 size="sm"
                 value={String(normalizedOriginPlotOptions.type)}
                 onChange={(next: any) => {
@@ -201,7 +201,7 @@ export default function AxisSettingsPane({
                 {t("da_settings_origin_plot_line_width_label")}
               </div>
               <Input
-                id="device-analysis-plot-line-width-input"
+                id="analysis-plot-line-width-input"
                 value={lineWidthDraft}
                 onChange={setLineWidthDraft}
                 onBlur={(event) => commitLineWidthDraft(event.currentTarget.value)}
@@ -220,7 +220,7 @@ export default function AxisSettingsPane({
             <div className={settingRowClassName}>
               <div className="text-xs text-text-secondary">{t("da_chart_axis_grid_lines")}</div>
               <Switch
-                id="device-analysis-axis-show-grid"
+                id="analysis-axis-show-grid"
                 size="sm"
                 checked={axis?.showGrid !== false}
                 onCheckedChange={(checked) =>
@@ -232,7 +232,7 @@ export default function AxisSettingsPane({
             <div className={settingRowClassName}>
               <div className="text-xs text-text-secondary">{t("da_chart_axis_major_ticks")}</div>
               <Switch
-                id="device-analysis-axis-show-major-ticks"
+                id="analysis-axis-show-major-ticks"
                 size="sm"
                 checked={axis?.showMajorTicks !== false}
                 onCheckedChange={(checked) =>
@@ -244,7 +244,7 @@ export default function AxisSettingsPane({
             <div className={settingRowClassName}>
               <div className="text-xs text-text-secondary">{t("da_chart_axis_minor_ticks")}</div>
               <Switch
-                id="device-analysis-axis-show-minor-ticks"
+                id="analysis-axis-show-minor-ticks"
                 size="sm"
                 checked={minorTicksEnabled}
                 onCheckedChange={(checked) =>
@@ -256,7 +256,7 @@ export default function AxisSettingsPane({
             <div className={settingRowClassName}>
               <div className="text-xs text-text-secondary">{t("da_chart_axis_minor_tick_count")}</div>
               <Input
-                id="device-analysis-axis-minor-tick-count"
+                id="analysis-axis-minor-tick-count"
                 value={axis.minorTickCount}
                 onChange={(nextValue) =>
                   setAxis((prev: any) => ({ ...prev, minorTickCount: nextValue }))
@@ -274,7 +274,7 @@ export default function AxisSettingsPane({
             <div className={settingRowClassName}>
               <div className="text-xs text-text-secondary">{t("da_chart_axis_tick_label_font_size")}</div>
               <Input
-                id="device-analysis-axis-tick-label-font-size"
+                id="analysis-axis-tick-label-font-size"
                 value={axis.tickLabelFontSize}
                 onChange={(nextValue) =>
                   setAxis((prev: any) => ({ ...prev, tickLabelFontSize: nextValue }))
@@ -291,7 +291,7 @@ export default function AxisSettingsPane({
             <div className={settingRowClassName}>
               <div className="text-xs text-text-secondary">{t("da_chart_axis_title_font_size")}</div>
               <Input
-                id="device-analysis-axis-title-font-size"
+                id="analysis-axis-title-font-size"
                 value={axis.axisTitleFontSize}
                 onChange={(nextValue) =>
                   setAxis((prev: any) => ({ ...prev, axisTitleFontSize: nextValue }))
@@ -308,7 +308,7 @@ export default function AxisSettingsPane({
             <div className={settingRowClassName}>
               <div className="text-xs text-text-secondary">{t("da_chart_legend_font_size")}</div>
               <Input
-                id="device-analysis-axis-legend-font-size"
+                id="analysis-axis-legend-font-size"
                 value={axis.legendFontSize}
                 onChange={(nextValue) =>
                   setAxis((prev: any) => ({ ...prev, legendFontSize: nextValue }))
@@ -325,7 +325,7 @@ export default function AxisSettingsPane({
             <div className={settingRowClassName}>
               <div className="text-xs text-text-secondary">{t("da_chart_axis_origin_tick_label_offset")}</div>
               <Input
-                id="device-analysis-axis-origin-tick-label-offset"
+                id="analysis-axis-origin-tick-label-offset"
                 value={axis.originTickLabelOffset}
                 onChange={(nextValue) =>
                   setAxis((prev: any) => ({ ...prev, originTickLabelOffset: nextValue }))
@@ -342,7 +342,7 @@ export default function AxisSettingsPane({
             <div className={settingRowClassName}>
               <div className="text-xs text-text-secondary">{t("da_chart_axis_origin_title_gap")}</div>
               <Input
-                id="device-analysis-axis-origin-title-gap"
+                id="analysis-axis-origin-title-gap"
                 value={axis.originAxisTitleGap}
                 onChange={(nextValue) =>
                   setAxis((prev: any) => ({ ...prev, originAxisTitleGap: nextValue }))
@@ -365,7 +365,7 @@ export default function AxisSettingsPane({
             <div className={settingRowClassName}>
               <div className="text-xs text-text-secondary">{t("da_chart_axis_min")}</div>
               <Input
-                id="device-analysis-axis-x-min"
+                id="analysis-axis-x-min"
                 value={axis.xMin}
                 onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, xMin: nextValue }))}
                 onKeyDown={blurInputOnEnter}
@@ -378,7 +378,7 @@ export default function AxisSettingsPane({
             <div className={settingRowClassName}>
               <div className="text-xs text-text-secondary">{t("da_chart_axis_max")}</div>
               <Input
-                id="device-analysis-axis-x-max"
+                id="analysis-axis-x-max"
                 value={axis.xMax}
                 onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, xMax: nextValue }))}
                 onKeyDown={blurInputOnEnter}
@@ -405,7 +405,7 @@ export default function AxisSettingsPane({
             <div className={settingRowClassName}>
               <div className="text-xs text-text-secondary">{t("da_chart_axis_count")}</div>
               <Input
-                id="device-analysis-axis-x-tick-count"
+                id="analysis-axis-x-tick-count"
                 value={axis.xTicks === "nice" ? axis.xTickCount : ""}
                 onChange={(nextValue) =>
                   setAxis((prev: any) => ({ ...prev, xTickCount: nextValue }))
@@ -422,7 +422,7 @@ export default function AxisSettingsPane({
             <div className={settingRowClassName}>
               <div className="text-xs text-text-secondary">{t("da_chart_axis_step")}</div>
               <Input
-                id="device-analysis-axis-x-step"
+                id="analysis-axis-x-step"
                 value={axis.xTicks === "step" ? axis.xStep : ""}
                 onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, xStep: nextValue }))}
                 onKeyDown={blurInputOnEnter}
@@ -437,7 +437,7 @@ export default function AxisSettingsPane({
             <div className={settingRowClassName}>
               <div className="text-xs text-text-secondary">{t("da_chart_axis_x_tooltip_digits")}</div>
               <Input
-                id="device-analysis-axis-x-tooltip-digits"
+                id="analysis-axis-x-tooltip-digits"
                 value={axis.xTooltipDigits}
                 onChange={(nextValue) =>
                   setAxis((prev: any) => ({ ...prev, xTooltipDigits: nextValue }))
@@ -464,7 +464,7 @@ export default function AxisSettingsPane({
                 {t("da_chart_axis_min")} ({plotYUnitLabel})
               </div>
               <Input
-                id="device-analysis-axis-y-min"
+                id="analysis-axis-y-min"
                 value={axis.yMin}
                 onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, yMin: nextValue }))}
                 onKeyDown={blurInputOnEnter}
@@ -479,7 +479,7 @@ export default function AxisSettingsPane({
                 {t("da_chart_axis_max")} ({plotYUnitLabel})
               </div>
               <Input
-                id="device-analysis-axis-y-max"
+                id="analysis-axis-y-max"
                 value={axis.yMax}
                 onChange={(nextValue) => setAxis((prev: any) => ({ ...prev, yMax: nextValue }))}
                 onKeyDown={blurInputOnEnter}
@@ -517,7 +517,7 @@ export default function AxisSettingsPane({
                     {t("da_chart_axis_step")} ({plotYUnitLabel})
                   </div>
                   <Input
-                    id="device-analysis-axis-y-step"
+                    id="analysis-axis-y-step"
                     value={axis.yTicks === "step" ? axis.yStep : ""}
                     onChange={(nextValue) =>
                       setAxis((prev: any) => ({ ...prev, yStep: nextValue }))
@@ -534,7 +534,7 @@ export default function AxisSettingsPane({
                 <div className={settingRowClassName}>
                   <div className="text-xs text-text-secondary">{t("da_chart_axis_count")}</div>
                   <Input
-                    id="device-analysis-axis-y-tick-count"
+                    id="analysis-axis-y-tick-count"
                     value={axis.yTicks === "nice" ? axis.yTickCount : ""}
                     onChange={(nextValue) =>
                       setAxis((prev: any) => ({ ...prev, yTickCount: nextValue }))
@@ -553,7 +553,7 @@ export default function AxisSettingsPane({
               <div className={settingRowClassName}>
                 <div className="text-xs text-text-secondary">{t("da_chart_axis_decade_step")}</div>
                 <Input
-                  id="device-analysis-axis-y-decade-step"
+                  id="analysis-axis-y-decade-step"
                   value={axis.yTicks === "decades" ? axis.yDecadeStep : ""}
                   onChange={(nextValue) =>
                     setAxis((prev: any) => ({ ...prev, yDecadeStep: nextValue }))

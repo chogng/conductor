@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+﻿import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Check, ChevronDown, ChevronRight } from "lucide-react";
 import Button from "cs/base/browser/ui/Button/Button";
 import ContentView from "cs/base/browser/ui/ContentView/ContentView";
@@ -135,9 +135,9 @@ const OriginExportContentMenu = ({
           <>
             <DropdownTrigger
               fieldRef={anchorRef}
-              id="device-analysis-origin-export-content-select"
+              id="analysis-origin-export-content-select"
               isOpen={isOpen}
-              menuId="device-analysis-origin-export-content-menu"
+              menuId="analysis-origin-export-content-menu"
               data-size="sm"
               onClick={() => setIsOpen((prev) => !prev)}
               fieldClassName="input_field ui-select_field--sm pr-1"
@@ -157,8 +157,8 @@ const OriginExportContentMenu = ({
               align="left"
               zIndex={80}
               matchAnchorWidth
-              triggerId="device-analysis-origin-export-content-select"
-              menuId="device-analysis-origin-export-content-menu"
+              triggerId="analysis-origin-export-content-select"
+              menuId="analysis-origin-export-content-menu"
               anchorRef={anchorRef}
               contentRef={setContentRef}
               variant="menu"
@@ -302,9 +302,9 @@ export const OriginCurveExportMenu = ({
           <>
             <DropdownTrigger
               fieldRef={anchorRef}
-              id="device-analysis-origin-curve-export-mode-select"
+              id="analysis-origin-curve-export-mode-select"
               isOpen={isOpen}
-              menuId="device-analysis-origin-curve-export-mode-menu"
+              menuId="analysis-origin-curve-export-mode-menu"
               data-size="sm"
               onClick={() => setIsOpen((prev) => !prev)}
               fieldClassName="input_field ui-select_field--sm pr-1"
@@ -323,8 +323,8 @@ export const OriginCurveExportMenu = ({
               isOpen={isOpen}
               align="left"
               zIndex={80}
-              triggerId="device-analysis-origin-curve-export-mode-select"
-              menuId="device-analysis-origin-curve-export-mode-menu"
+              triggerId="analysis-origin-curve-export-mode-select"
+              menuId="analysis-origin-curve-export-mode-menu"
               anchorRef={anchorRef}
               contentRef={(node) => {
                 menuContentRef.current = node;
@@ -383,8 +383,8 @@ export const OriginCurveExportMenu = ({
                 align="left"
                 side="right"
                 zIndex={90}
-                triggerId="device-analysis-origin-curve-export-mode-menu-select"
-                menuId="device-analysis-origin-curve-export-picker-menu"
+                triggerId="analysis-origin-curve-export-mode-menu-select"
+                menuId="analysis-origin-curve-export-picker-menu"
                 anchorRef={selectItemRef}
                 contentRef={(node) => {
                   submenuContentRef.current = node;
@@ -465,7 +465,7 @@ const OriginExportToolbar = ({
           {t("da_origin_export_mode_label")}
         </span>
         <DropdownField
-          id="device-analysis-origin-export-mode-select"
+          id="analysis-origin-export-mode-select"
           size="sm"
           value={mode}
           onChange={(next: any) => onModeChange(isOriginExportMode(next) ? next : "merged")}
@@ -497,7 +497,7 @@ const OriginExportToolbar = ({
           {t("da_origin_canvas_scope_label")}
         </span>
         <DropdownField
-          id="device-analysis-origin-canvas-scope-select"
+          id="analysis-origin-canvas-scope-select"
           size="sm"
           value={originCanvasExportScope}
           onChange={(next: any) => {
@@ -537,7 +537,7 @@ const OriginExportToolbar = ({
               {t("da_origin_filtered_canvas_kind_label")}
             </span>
             <DropdownField
-              id="device-analysis-origin-filtered-canvas-kind-select"
+              id="analysis-origin-filtered-canvas-kind-select"
               size="sm"
               value={originFilteredCanvasKind}
               onChange={(next: any) => {

@@ -53,7 +53,7 @@ const logSlowScriptResources = () => {
       "",
     );
     const durationMs = Math.round(entry.duration);
-    logRendererBoot("device-analysis:script-resource", `(dur=${durationMs}ms path=${normalizedPath})`);
+    logRendererBoot("analysis:script-resource", `(dur=${durationMs}ms path=${normalizedPath})`);
   }
 };
 

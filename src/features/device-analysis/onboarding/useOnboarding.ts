@@ -1,4 +1,4 @@
-import {
+﻿import {
   type Dispatch,
   useCallback,
   useEffect,
@@ -12,9 +12,9 @@ import {
   buildItemKey,
   createCsvImporterFileId,
 } from "../data/preview/csvImportUtils";
-import type { TemplateConfig } from "../session/device-analysis-session-context";
+import type { TemplateConfig } from "../session/analysis-session-context";
 import type { ProcessedEntry, RawDataEntry } from "../shared/lib/sharedTypes";
-import { DEVICE_ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT } from "./onboardingEvents";
+import { ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT } from "./onboardingEvents";
 import { ONBOARDING_STEPS } from "./onboardingSteps";
 
 const DEMO_FILE_PATHS = [
@@ -164,13 +164,13 @@ export const useOnboarding = ({
       typeof window !== "undefined"
     ) {
       window.dispatchEvent(
-        new CustomEvent(DEVICE_ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT),
+        new CustomEvent(ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT),
       );
     }
 
     if (isOpen && currentStep?.id === "apply") {
       const clicked = clickElementById(
-        "device-analysis-template-output-rule-apply-to-all",
+        "analysis-template-output-rule-apply-to-all",
       );
       if (!clicked) {
         setStepIndex((prev) => prev + 1);
@@ -311,7 +311,7 @@ export const useOnboarding = ({
 
       const clickedApplyToAllButton = isClickWithinButton(
         eventTarget,
-        "device-analysis-template-output-rule-apply-to-all",
+        "analysis-template-output-rule-apply-to-all",
       );
       if (clickedApplyToAllButton) {
         setStepIndex((prev) => {
@@ -347,12 +347,12 @@ export const useOnboarding = ({
     if (currentStep.id === "template") {
       timeoutIds.push(
         window.setTimeout(() => {
-          clickElementById("device-analysis-template-mode-tab-select");
+          clickElementById("analysis-template-mode-tab-select");
         }, 40),
       );
       timeoutIds.push(
         window.setTimeout(() => {
-          clickElementById("device-analysis-template-dropdown-btn");
+          clickElementById("analysis-template-dropdown-btn");
         }, 140),
       );
     }
@@ -360,7 +360,7 @@ export const useOnboarding = ({
     if (currentStep.id === "template-custom") {
       timeoutIds.push(
         window.setTimeout(() => {
-          clickElementById("device-analysis-template-mode-tab-save");
+          clickElementById("analysis-template-mode-tab-save");
         }, 40),
       );
     }
@@ -368,7 +368,7 @@ export const useOnboarding = ({
     if (currentStep.id === "apply") {
       timeoutIds.push(
         window.setTimeout(() => {
-          clickElementById("device-analysis-template-mode-tab-select");
+          clickElementById("analysis-template-mode-tab-select");
         }, 40),
       );
     }

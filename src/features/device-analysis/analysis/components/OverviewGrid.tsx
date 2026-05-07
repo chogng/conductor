@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState } from "react";
+﻿import { memo, useEffect, useMemo, useState } from "react";
 import Card from "cs/base/browser/ui/Card/Card";
 import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
 import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
@@ -175,14 +175,14 @@ const OverviewGrid = memo(function OverviewGrid({
           <div className="flex items-center gap-3 flex-wrap">
           <div className="relative flex items-center gap-2">
             <label
-              htmlFor="device-analysis-overview-curve-filter-btn"
+              htmlFor="analysis-overview-curve-filter-btn"
               className="sr-only"
             >
               {t("da_overview_curve_filter_label")}
             </label>
             <DropdownField
-              id="device-analysis-overview-curve-filter-btn"
-              menuId="device-analysis-overview-curve-filter-menu"
+              id="analysis-overview-curve-filter-btn"
+              menuId="analysis-overview-curve-filter-menu"
               size="sm"
               value={curveFilter}
               onChange={(next) => {

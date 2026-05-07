@@ -1,4 +1,4 @@
-import {
+﻿import {
   ArrowLeft,
   ArrowRight,
   BarChart2,
@@ -83,7 +83,7 @@ const DesktopCommandBar = ({
 
   return (
     <header
-      id="device-analysis-desktop-command-bar"
+      id="analysis-desktop-command-bar"
       className="da_top_menu_bar"
       onContextMenu={(event) => event.preventDefault()}
     >
@@ -106,13 +106,13 @@ const DesktopCommandBar = ({
             title={action.title}
             className="da_window_icon_btn"
             onClick={
-              action.id === "device-analysis-window-nav-back-btn"
+              action.id === "analysis-window-nav-back-btn"
                 ? onNavigateBack
                 : onNavigateForward
             }
             disabled={action.isDisabled}
           >
-            {action.id === "device-analysis-window-nav-back-btn" ? (
+            {action.id === "analysis-window-nav-back-btn" ? (
               <ArrowLeft size={14} className="opacity-80" />
             ) : (
               <ArrowRight size={14} className="opacity-80" />
@@ -128,7 +128,7 @@ const DesktopCommandBar = ({
         {shouldShowAnalysisFileSelector ? (
           <div className="da_top_menu_center_file_select">
             <DropdownField
-              id="device-analysis-window-file-select"
+              id="analysis-window-file-select"
               size="md"
               value={analysisActiveFileId ?? ""}
               onChange={(next) => onAnalysisFileChange?.(String(next))}
@@ -148,7 +148,7 @@ const DesktopCommandBar = ({
       <div className="da_window_controls">
         {shouldShowUpdateAction ? (
           <button
-            id="device-analysis-window-update-btn"
+            id="analysis-window-update-btn"
             type="button"
             aria-label={updateActionTitle}
             title={updateActionTitle}
@@ -163,7 +163,7 @@ const DesktopCommandBar = ({
             return (
               <button
                 key={action.id}
-                id="device-analysis-window-origin-btn"
+                id="analysis-window-origin-btn"
                 type="button"
                 aria-label={action.title}
                 title={action.title}
@@ -200,7 +200,7 @@ const DesktopCommandBar = ({
               }}
               id={
                 action.id === "settings"
-                  ? "device-analysis-window-settings-btn"
+                  ? "analysis-window-settings-btn"
                   : undefined
               }
             >
@@ -217,7 +217,7 @@ const DesktopCommandBar = ({
         {windowActions.map((action) => (
           <button
             key={action.id}
-            id={`device-analysis-window-${action.id}-btn`}
+            id={`analysis-window-${action.id}-btn`}
             type="button"
             aria-label={action.title}
             title={action.title}

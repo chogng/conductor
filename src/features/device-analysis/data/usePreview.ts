@@ -1,4 +1,4 @@
-import {
+﻿import {
   startTransition,
   useCallback,
   useDeferredValue,
@@ -10,7 +10,7 @@ import {
   type SetStateAction,
 } from "react";
 import type { TranslateFn } from "../../../context/language";
-import type { PreviewStatus } from "../session/device-analysis-session-context";
+import type { PreviewStatus } from "../session/analysis-session-context";
 import {
   DA_PREVIEW_MAX_CACHED_FILES,
   DA_PREVIEW_MAX_CACHED_UI_ROWS_PER_FILE,
