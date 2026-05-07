@@ -8,13 +8,13 @@ import {
   isRustOriginCsvEligiblePayload,
   isOriginExportMode,
   resolveRustOriginCsvYTransformForPayload,
-} from "./originSelectionExport.ts";
+} from "./origin/originSelectionExport.ts";
 import {
   buildOriginAxisSpacingCommands,
   buildOriginAxisTitleCommands,
   buildOriginXAxisRangeCommandsFromDisplayRange,
   buildOriginYAxisRangeCommandsFromDisplayRange,
-} from "./originAxisCommands.ts";
+} from "./origin/originAxisCommands.ts";
 
 test("buildSsMetricsCsv does not compute SS for output curves", () => {
   const csv = buildSsMetricsCsv({

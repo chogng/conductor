@@ -18,7 +18,7 @@ import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
   normalizeOriginPlotOptions,
   type OriginPlotOptions,
-} from "../lib/originPlotOptions";
+} from "../lib/origin/originPlotOptions";
 import {
   DEFAULT_PLOT_AXIS_SETTINGS,
   normalizePlotAxisSettings,
@@ -29,7 +29,7 @@ import {
   resolveSeriesLabel,
   type OriginExportContentKey,
   type OriginExportMode,
-} from "../lib/originSelectionExport";
+} from "../lib/origin/originSelectionExport";
 import type { ToastState, ToastType } from "../../shared/lib/sharedTypes";
 import { useAnalysisFileCache } from "../useAnalysisFileCache";
 import {

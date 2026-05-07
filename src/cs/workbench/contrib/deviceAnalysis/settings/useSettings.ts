@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { formatOriginBridgeError } from "../analysis/lib/originBridgeError";
+import { formatOriginBridgeError } from "../analysis/lib/origin/originBridgeError";
 import { apiService } from "../analysis/services/apiService";
 import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
   normalizeOriginPlotOptions,
   normalizeOriginPostCommands,
   originPostCommandsToMultiline,
-} from "../analysis/lib/originPlotOptions";
+} from "../analysis/lib/origin/originPlotOptions";
 import { normalizePlotAxisSettings } from "../analysis/lib/plotAxisSettings";
 import type { Feedback } from "../shared/lib/sharedTypes";
 import type { LooseTranslateFn as TranslateFn } from "../shared/lib/translateTypes";

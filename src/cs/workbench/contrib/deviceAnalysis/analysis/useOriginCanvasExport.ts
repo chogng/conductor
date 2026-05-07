@@ -21,19 +21,19 @@ import {
   type OriginExportPlan,
   type OriginExportMode,
   type OriginYAxisScaleMode,
-} from "./lib/originSelectionExport";
+} from "./lib/origin/originSelectionExport";
 import {
   buildOriginAxisTitleCommands,
   buildOriginAxisSpacingCommands,
   buildOriginXAxisRangeCommandsFromDisplayRange,
   buildOriginYAxisRangeCommands,
   buildOriginYAxisRangeCommandsFromDisplayRange,
-} from "./lib/originAxisCommands";
-import { formatOriginBridgeError } from "./lib/originBridgeError";
+} from "./lib/origin/originAxisCommands";
+import { formatOriginBridgeError } from "./lib/origin/originBridgeError";
 import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
   normalizeOriginPlotOptions,
-} from "./lib/originPlotOptions";
+} from "./lib/origin/originPlotOptions";
 import {
   getXUnitMeta,
   getYUnitMeta,

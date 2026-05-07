@@ -14,7 +14,7 @@ import type {
   SsManualRanges,
   SsMethod,
 } from "../session/analysis-session-context";
-import type { OriginPlotOptions } from "./lib/originPlotOptions";
+import type { OriginPlotOptions } from "./lib/origin/originPlotOptions";
 import type { ProcessedEntry, ProcessingStatus } from "../shared/lib/sharedTypes";
 import { loadAnalysisCharts } from "./loadAnalysisCharts";
 

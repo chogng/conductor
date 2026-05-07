@@ -4,17 +4,17 @@ import {
   computeSubthresholdSwing,
   computeSubthresholdSwingFitAuto,
   resolveAutoSsSelection,
-} from "./analysisMath.ts";
+} from "../analysisMath.ts";
 import {
   computeBaseCurrentMetrics,
   isOutputLikeFile,
   isTransferLikeFile,
-} from "./metrics.ts";
+} from "../metrics.ts";
 import {
   getCachedBaseCurrent,
   getCachedDerivativePoints,
   getCachedSsFitAuto,
-} from "./analysisCacheAccess.ts";
+} from "../analysisCacheAccess.ts";
 import { resolveOriginLogPositiveMinForRange } from "./originAxisCommands.ts";
 
 type ProcessedSeriesLike = {

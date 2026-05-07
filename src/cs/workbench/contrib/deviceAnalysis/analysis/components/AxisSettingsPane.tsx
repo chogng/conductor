@@ -11,7 +11,7 @@ import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
   normalizeOriginPlotOptions,
   type OriginPlotOptions,
-} from "../lib/originPlotOptions";
+} from "../lib/origin/originPlotOptions";
 
 type AxisSettingsPaneProps = {
   axis: any;

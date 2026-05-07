@@ -12,13 +12,13 @@ import type { ProcessedEntry, ProcessedSeries } from "../../shared/lib/sharedTyp
 export type {
   OriginExportMode,
   OriginSelectionExport,
-} from "./originSelectionExport.ts";
+} from "./origin/originSelectionExport.ts";
 export {
   buildOriginCanvasExport,
   buildOriginExportsByMode,
   buildOriginSelectionExport,
   isOriginExportMode,
-} from "./originSelectionExport.ts";
+} from "./origin/originSelectionExport.ts";
 
 type SsManualRangeEntry = {
   x1?: number;

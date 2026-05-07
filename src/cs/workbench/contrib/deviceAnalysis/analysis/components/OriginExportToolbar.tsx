@@ -12,7 +12,7 @@ import {
   isOriginExportMode,
   type OriginExportContentKey,
   type OriginExportMode,
-} from "../lib/originSelectionExport";
+} from "../lib/origin/originSelectionExport";
 import type {
   OriginCanvasExportScope,
   OriginCurveExportMode,

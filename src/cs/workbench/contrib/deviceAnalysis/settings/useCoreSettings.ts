@@ -4,7 +4,7 @@ import type { ThemeMode } from "src/cs/workbench/common/theme";
 import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
   normalizeOriginPlotOptions,
-} from "../analysis/lib/originPlotOptions";
+} from "../analysis/lib/origin/originPlotOptions";
 import type {
   IonIoffMethod,
   SsMethod,

@@ -1,4 +1,4 @@
-import type { LooseTranslateFn as TranslateFn } from "../../shared/lib/translateTypes";
+import type { LooseTranslateFn as TranslateFn } from "../../../shared/lib/translateTypes";
 
 const ORIGIN_BRIDGE_ERROR_PREFIX = "__ORIGIN_ERROR__:";
 
