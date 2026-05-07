@@ -1,5 +1,5 @@
-﻿import type { LanguageCode } from "../../../context/language";
-import type { ThemeMode } from "../../../context/theme";
+import type { LanguageCode } from "src/cs/platform/language/common/language";
+import type { ThemeMode } from "src/cs/workbench/common/theme";
 import type { Feedback } from "../shared/lib/sharedTypes";
 import type { LooseTranslateFn as TranslateFn } from "../shared/lib/translateTypes";
 import type {

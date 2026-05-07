@@ -1,4 +1,4 @@
-﻿import {
+import {
   lazy,
   Suspense,
   type ComponentType,
@@ -7,7 +7,7 @@
 } from "react";
 import { BarChart2 } from "lucide-react";
 import Card from "cs/base/browser/ui/Card/Card";
-import type { TranslateFn } from "../../../context/language";
+import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type {
   IonIoffManualTargetsByFileId,
   IonIoffMethod,

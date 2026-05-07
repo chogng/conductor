@@ -1,4 +1,4 @@
-﻿import React, {
+import React, {
   startTransition,
   useCallback,
   useOptimistic,
@@ -10,7 +10,7 @@
 } from "react";
 import { Import, FileText, X, AlertCircle } from "lucide-react";
 import { cx } from "../../../utils/cx";
-import { useLanguage } from "../../../hooks/useLanguage";
+import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
 import Avatar from "cs/base/browser/ui/Avatar/Avatar";
 import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
 import {

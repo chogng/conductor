@@ -1,4 +1,4 @@
-﻿import {
+import {
   startTransition,
   useCallback,
   useDeferredValue,
@@ -9,7 +9,7 @@
   type MutableRefObject,
   type SetStateAction,
 } from "react";
-import type { TranslateFn } from "../../../context/language";
+import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { PreviewStatus } from "../session/analysis-session-context";
 import {
   DA_PREVIEW_MAX_CACHED_FILES,

@@ -1,4 +1,4 @@
-﻿import {
+import {
   ArrowLeft,
   ArrowRight,
   BarChart2,
@@ -10,7 +10,7 @@
 } from "lucide-react";
 import originIcon from "../../../assets/icons/origin.svg";
 import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
-import type { TranslateFn } from "../../../context/language";
+import type { TranslateFn } from "src/cs/platform/language/common/language";
 import {
   createWorkbenchTitlebarNavActions,
   createWorkbenchTitlebarPageActions,
@@ -23,7 +23,7 @@ import {
   type WorkbenchTitlebarActivePage,
   type WorkbenchTitlebarAnalysisFileOption,
   type WorkbenchTitlebarUpdateAction,
-} from "../../../workbench/browser/parts/titlebar/titlebarPart";
+} from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
 
 type DesktopCommandBarProps = {
   t: TranslateFn;
@@ -245,4 +245,3 @@ const DesktopCommandBar = ({
 };
 
 export default DesktopCommandBar;
-

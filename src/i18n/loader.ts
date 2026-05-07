@@ -2,7 +2,7 @@ import {
   DEFAULT_LANGUAGE,
   isLanguageCode,
   type LanguageCode,
-} from '../config/language';
+} from 'src/cs/platform/language/common/language';
 import enMessages from './en';
 import zhMessages from './zh';
 

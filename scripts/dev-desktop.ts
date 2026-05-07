@@ -18,17 +18,17 @@ const devServerWarmupPaths = [
   "/src/main.tsx",
   "/src/workbench-loader.ts",
   "/src/App.tsx",
-  "/src/context/language-provider.tsx",
-  "/src/context/theme-provider.tsx",
+  "/src/cs/platform/language/browser/languageService.ts",
+  "/src/cs/workbench/services/themes/browser/themeService.ts",
   "/src/styles/global.css",
   "/src/styles/variables.css",
-  "/src/config/theme.ts",
-  "/src/config/language.ts",
+  "/src/cs/workbench/common/theme.ts",
+  "/src/cs/platform/language/common/language.ts",
   "/src/i18n/loader.ts",
   "/src/i18n/en.ts",
   "/src/i18n/zh.ts",
-  "/src/context/language.ts",
-  "/src/context/theme.ts",
+  "/src/cs/workbench/browser/hooks/useLanguage.ts",
+  "/src/cs/workbench/browser/hooks/useTheme.ts",
 ];
 
 const isWin = process.platform === "win32";

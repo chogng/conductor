@@ -1,11 +1,12 @@
-﻿import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Card from "cs/base/browser/ui/Card/Card";
 import Button from "cs/base/browser/ui/Button/Button";
 import Input from "cs/base/browser/ui/Input/Input";
 import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
 import Toast from "cs/base/browser/ui/Toast/Toast";
-import type { LanguageCode, TranslateFn } from "../../../context/language";
-import type { ThemeMode } from "../../../context/theme";
+import type { LanguageCode } from "src/cs/platform/language/common/language";
+import type { TranslateFn } from "src/cs/platform/language/common/language";
+import type { ThemeMode } from "src/cs/workbench/common/theme";
 import type { Feedback, ToastState } from "../shared/lib/sharedTypes";
 import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "../shared/lib/fileNameFieldMatching";
 

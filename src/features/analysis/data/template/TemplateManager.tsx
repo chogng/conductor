@@ -1,4 +1,4 @@
-﻿import React, {
+import React, {
   useCallback,
   useEffect,
   useMemo,
@@ -18,8 +18,8 @@ import {
   X,
   AlertTriangle,
 } from "lucide-react";
-import { useLanguage } from "../../../../hooks/useLanguage";
-import type { TranslateFn, TranslationVars } from "../../../../context/language";
+import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
+import type { TranslateFn, TranslationVars } from "src/cs/platform/language/common/language";
 import Toast from "cs/base/browser/ui/Toast/Toast";
 import Input from "cs/base/browser/ui/Input/Input";
 import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";

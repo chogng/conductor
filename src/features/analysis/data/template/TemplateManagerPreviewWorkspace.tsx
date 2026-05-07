@@ -1,11 +1,11 @@
-﻿import React, {
+import React, {
   type Dispatch,
   type MutableRefObject,
   type SetStateAction,
   useCallback,
   useState,
 } from "react";
-import type { TranslateFn } from "../../../../context/language";
+import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { PreviewStatus as SessionPreviewStatus } from "../../session/analysis-session-context";
 import type { PreviewFileLike } from "../../shared/lib/sharedTypes";
 import TemplateManagerPreviewPanel from "./TemplateManagerPreviewPanel";

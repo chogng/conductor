@@ -1,6 +1,6 @@
 import { type CSSProperties, type ReactNode } from "react";
 import { DEFAULT_SIDEBAR_WIDTH_PX } from "./layout";
-import { WorkbenchTitlebarSkeleton } from "../../workbench/browser/parts/titlebar/titlebarSkeleton";
+import { WorkbenchTitlebarSkeleton } from "src/cs/workbench/browser/parts/titlebar/titlebarSkeleton";
 
 const shouldShowDesktopCommandBarByDefault =
   typeof window !== "undefined" &&

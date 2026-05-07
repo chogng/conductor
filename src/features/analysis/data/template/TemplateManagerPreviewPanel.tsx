@@ -1,4 +1,4 @@
-﻿import React, {
+import React, {
   useCallback,
   useEffect,
   useMemo,
@@ -8,7 +8,7 @@
 } from "react";
 import { Check, Minus, Plus } from "lucide-react";
 import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
-import type { TranslateFn } from "../../../../context/language";
+import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { PreviewStatus as SessionPreviewStatus } from "../../session/analysis-session-context";
 import type { PreviewFileLike } from "../../shared/lib/sharedTypes";
 import {

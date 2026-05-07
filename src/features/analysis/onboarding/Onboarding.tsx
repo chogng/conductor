@@ -1,4 +1,4 @@
-﻿import {
+import {
   useEffect,
   useId,
   useMemo,
@@ -7,7 +7,7 @@
   type CSSProperties,
 } from "react";
 import Button from "cs/base/browser/ui/Button/Button";
-import type { TranslateFn } from "../../../context/language";
+import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type {
   OnboardingCardAnchor,
   OnboardingStep,

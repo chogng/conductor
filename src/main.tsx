@@ -1,7 +1,7 @@
 import { Fragment, lazy, StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
-import type { LanguageCode } from './config/language';
-import type { ThemeMode } from './config/theme';
+import type { LanguageCode } from 'src/cs/platform/language/common/language';
+import type { ThemeMode } from 'src/cs/workbench/common/theme';
 import { loadWorkbenchApp } from './workbench-loader';
 
 declare global {

@@ -1,4 +1,4 @@
-﻿import {
+import {
   useCallback,
   useEffect,
   lazy,
@@ -13,12 +13,12 @@ import DataPanel from "./data/DataPanel";
 import type { CsvImporterRef } from "./data/CsvImporter";
 import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
 import Toast from "cs/base/browser/ui/Toast/Toast";
-import type { TranslationVars } from "../../context/language";
+import type { TranslationVars } from "src/cs/platform/language/common/language";
 import { loadAnalysisCharts } from "./analysis/loadAnalysisCharts";
 import { getExtractionErrorMessage } from "./shared/lib/utils";
 import WorkspaceShell from "./WorkspaceShell";
-import { useLanguage } from "../../hooks/useLanguage";
-import { useTheme } from "../../hooks/useTheme";
+import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
+import { useTheme } from "src/cs/workbench/browser/hooks/useTheme";
 import type { ToastType } from "./shared/lib/sharedTypes";
 import DesktopCommandBar from "./desktop/DesktopCommandBar";
 import { useDesktopShell } from "./desktop/useDesktopShell";

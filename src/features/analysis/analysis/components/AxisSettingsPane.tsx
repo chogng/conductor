@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, type KeyboardEvent } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import { ArrowLeft } from "lucide-react";
 import Button from "cs/base/browser/ui/Button/Button";
 import Card from "cs/base/browser/ui/Card/Card";
@@ -6,7 +6,7 @@ import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
 import Input from "cs/base/browser/ui/Input/Input";
 import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
 import Switch from "cs/base/browser/ui/Switch/Switch";
-import type { TranslateFn } from "../../../../context/language";
+import type { TranslateFn } from "src/cs/platform/language/common/language";
 import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
   normalizeOriginPlotOptions,

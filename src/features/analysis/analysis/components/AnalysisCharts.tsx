@@ -1,4 +1,4 @@
-﻿import React, { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, } from "react";
+import React, { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
 import { computeCentralDerivative, computeSubthresholdSwing, computeSubthresholdSwingFitAuto, computeSubthresholdSwingFitInRange, classifySsFit, formatNumber, interpolateCurveAtX, resolveAutoSsSelection, splitBidirectionalCurvePoints, } from "../lib/analysisMath";
 import { apiService } from "../services/apiService";
@@ -12,7 +12,7 @@ import InlineEditableText from "cs/base/browser/ui/InlineEditableText/InlineEdit
 import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
 import Tabs from "cs/base/browser/ui/Tabs/Tabs";
 import Toast from "cs/base/browser/ui/Toast/Toast";
-import { useLanguage } from "../../../../hooks/useLanguage";
+import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
 import { getChartColor, resolveSeriesChartColor } from "../lib/chartColors";
 import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,

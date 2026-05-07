@@ -1,4 +1,4 @@
-﻿import { Import, Trash2 } from "lucide-react";
+import { Import, Trash2 } from "lucide-react";
 import {
   useEffect,
   useRef,
@@ -8,7 +8,7 @@ import {
 } from "react";
 import Card from "cs/base/browser/ui/Card/Card";
 import Button from "cs/base/browser/ui/Button/Button";
-import type { TranslateFn } from "../../../context/language";
+import type { TranslateFn } from "src/cs/platform/language/common/language";
 import CsvImporter from "./CsvImporter";
 import type {
   CsvImporterProps,

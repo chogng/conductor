@@ -1,8 +1,8 @@
-﻿import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import Card from "cs/base/browser/ui/Card/Card";
 import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
 import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
-import { useLanguage } from "../../../../hooks/useLanguage";
+import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
 import { getYUnitMeta } from "../lib/units";
 import type { OriginCanvasExportScope } from "../useOriginCanvasExport";
 import type { ProcessingStatus } from "../../shared/lib/sharedTypes";
