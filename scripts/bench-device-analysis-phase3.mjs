@@ -24,7 +24,6 @@ const RUST_ANALYSIS_RESULTS_PATH = path.join(OUTPUT_DIR, "rust-analysis-results.
 const PROCESS_TIMING_PATH = path.join(OUTPUT_DIR, "rust-process-timing.json");
 const ANALYSIS_TIMING_PATH = path.join(OUTPUT_DIR, "rust-analysis-timing.json");
 const REPORT_PATH = path.join(OUTPUT_DIR, "report.json");
-const DEFAULT_ROOT = "C:/Users/lanxi/Desktop/293K";
 const SUPPORTED_EXTENSIONS = new Set([".csv", ".xls", ".xlsx"]);
 const DEFAULT_RENDER_POINT_BUDGET = 12000;
 const GM_RENDER_POINT_BUDGET = 9000;
@@ -262,7 +261,12 @@ const analyzeProcessedFile = (file) => {
 };
 
 const prepare = async (rootArg) => {
-  const selectedRoot = rootArg || DEFAULT_ROOT;
+  const selectedRoot = rootArg || process.env.CONDUCTOR_BENCH_ROOT;
+  if (!selectedRoot) {
+    throw new Error(
+      "Usage: node scripts/bench-device-analysis-phase3.mjs prepare <data-root> or set CONDUCTOR_BENCH_ROOT.",
+    );
+  }
   await fs.rm(OUTPUT_DIR, { force: true, recursive: true });
   await fs.mkdir(OUTPUT_DIR, { recursive: true });
   const files = await walkFiles(selectedRoot);

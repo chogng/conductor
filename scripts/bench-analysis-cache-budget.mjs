@@ -6,7 +6,6 @@ import { performance } from "node:perf_hooks";
 
 const ROOT = process.cwd();
 const EXE_PATH = path.join(ROOT, "workers", "rs", "rs-worker.exe");
-const DEFAULT_ROOT = "C:/Users/lanxi/Desktop/ZC";
 const SUPPORTED_EXTENSIONS = new Set([".csv", ".xls", ".xlsx"]);
 const SINGLE_FILE_BUDGET_BYTES = 32 * 1024 * 1024;
 const TOTAL_BUDGET_BYTES = 64 * 1024 * 1024;
@@ -205,7 +204,12 @@ const simulateBudget = (items) => {
   };
 };
 
-const root = process.argv[2] || DEFAULT_ROOT;
+const root = process.argv[2] || process.env.CONDUCTOR_BENCH_ROOT;
+if (!root) {
+  throw new Error(
+    "Usage: node scripts/bench-analysis-cache-budget.mjs <data-root> or set CONDUCTOR_BENCH_ROOT.",
+  );
+}
 const files = await walkFiles(root);
 const rsWorker = createRsWorker();
 const started = performance.now();

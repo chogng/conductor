@@ -3,12 +3,6 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 
-const DEFAULT_ROOTS = [
-  "C:/Users/lanxi/Desktop/ZC",
-  "C:/Users/lanxi/Desktop/20251221device",
-  "C:/Users/lanxi/Desktop/293K",
-];
-
 const EXCEL_EXTENSIONS = new Set([".xls", ".xlsx"]);
 const ROOT = process.cwd();
 const DEFAULT_EXE_CANDIDATES = [
@@ -21,6 +15,12 @@ const DEFAULT_EXE_CANDIDATES = [
     "rs-worker.exe",
   ),
 ];
+
+const rootsFromEnv = () =>
+  String(process.env.CONDUCTOR_BENCH_ROOTS ?? "")
+    .split(path.delimiter)
+    .map((value) => value.trim())
+    .filter(Boolean);
 
 const formatMs = (value) => `${Math.round(value)}ms`;
 const formatBytes = (value) => {
@@ -130,7 +130,12 @@ const convertOne = async (exePath, filePath, outputPath) => {
 };
 
 const roots = process.argv.slice(2).filter((arg) => !arg.startsWith("--"));
-const selectedRoots = roots.length ? roots : DEFAULT_ROOTS;
+const selectedRoots = roots.length ? roots : rootsFromEnv();
+if (!selectedRoots.length) {
+  throw new Error(
+    "Usage: node scripts/bench-rs-worker-xls-sidecar.mjs <data-root...> or set CONDUCTOR_BENCH_ROOTS.",
+  );
+}
 const allFiles = [];
 for (const root of selectedRoots) {
   allFiles.push(...(await walkExcelFiles(root)));

@@ -10,7 +10,6 @@ import {
 } from "../src/features/device-analysis/analysis/lib/originSelectionExport.ts";
 
 const ROOT = process.cwd();
-const DEFAULT_ROOT = "C:/Users/lanxi/Desktop/293K";
 const OUTPUT_DIR = path.join(ROOT, ".tooling", "rust-origin-export-compat");
 const RUST_CSV_DIR = path.join(OUTPUT_DIR, "rust-csv");
 const EXPECTED_DIR = path.join(OUTPUT_DIR, "expected");
@@ -366,6 +365,7 @@ const plan = async () => {
 
 const compare = async () => {
   const { manifest, processFailures, processedFiles, skipped } = JSON.parse(await fs.readFile(MANIFEST_PATH, "utf8"));
+  const filesInfo = JSON.parse(await fs.readFile(FILES_PATH, "utf8"));
   const exportResponses = await readJsonLines(EXPORT_RESULTS_PATH);
   const failures = [];
   const byContent = {};
@@ -406,7 +406,7 @@ const compare = async () => {
     processFailureCount: processFailures.length,
     processFailures: processFailures.slice(0, 50),
     processedFiles,
-    root: DEFAULT_ROOT,
+    root: filesInfo.root ?? null,
     skipped,
     status: failures.length ? "failed" : "passed",
   };
@@ -427,7 +427,13 @@ const compare = async () => {
 
 const command = process.argv[2] ?? "prepare";
 if (command === "prepare") {
-  await prepare(process.argv[3] ?? DEFAULT_ROOT);
+  const selectedRoot = process.argv[3] ?? process.env.CONDUCTOR_BENCH_ROOT;
+  if (!selectedRoot) {
+    throw new Error(
+      "Usage: node scripts/verify-rust-origin-export-compat.mjs prepare <data-root> or set CONDUCTOR_BENCH_ROOT.",
+    );
+  }
+  await prepare(selectedRoot);
 } else if (command === "plan") {
   await plan();
 } else if (command === "compare") {

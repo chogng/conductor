@@ -45,12 +45,6 @@ use std::thread;
 use std::time::Instant;
 use utils::*;
 
-const DEFAULT_ROOTS: [&str; 3] = [
-    "C:/Users/lanxi/Desktop/ZC",
-    "C:/Users/lanxi/Desktop/20251221device",
-    "C:/Users/lanxi/Desktop/293K",
-];
-
 #[derive(Default, Clone)]
 struct ConvertStats {
     cells: usize,
@@ -3586,10 +3580,20 @@ fn main() {
     }
 
     if roots.is_empty() {
-        roots = DEFAULT_ROOTS
-            .iter()
-            .map(|value| value.to_string())
-            .collect();
+        roots = env::var("CONDUCTOR_BENCH_ROOTS")
+            .ok()
+            .map(|value| {
+                value
+                    .split(if cfg!(windows) { ';' } else { ':' })
+                    .map(|item| item.trim().to_string())
+                    .filter(|item| !item.is_empty())
+                    .collect::<Vec<String>>()
+            })
+            .unwrap_or_default();
+    }
+    if roots.is_empty() {
+        eprintln!("[rust-bench] provide data roots as arguments or set CONDUCTOR_BENCH_ROOTS");
+        std::process::exit(2);
     }
 
     let mut files = Vec::<PathBuf>::new();

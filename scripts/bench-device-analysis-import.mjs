@@ -4,15 +4,15 @@ import { performance } from "node:perf_hooks";
 import Papa from "papaparse";
 import * as xlsx from "xlsx";
 
-const DEFAULT_ROOTS = [
-  "C:/Users/lanxi/Desktop/ZC",
-  "C:/Users/lanxi/Desktop/20251221device",
-  "C:/Users/lanxi/Desktop/293K",
-];
-
 const SUPPORTED_EXTENSIONS = new Set([".csv", ".xls", ".xlsx"]);
 const PREVIEW_BYTES = 128 * 1024;
 const PREVIEW_ROWS = 256;
+
+const rootsFromEnv = () =>
+  String(process.env.CONDUCTOR_BENCH_ROOTS ?? "")
+    .split(path.delimiter)
+    .map((value) => value.trim())
+    .filter(Boolean);
 
 const now = () => performance.now();
 const formatMs = (value) => `${Math.round(value)}ms`;
@@ -219,7 +219,12 @@ const printSummary = (label, summary) => {
 
 const main = async () => {
   const roots = process.argv.slice(2);
-  const selectedRoots = roots.length ? roots : DEFAULT_ROOTS;
+  const selectedRoots = roots.length ? roots : rootsFromEnv();
+  if (!selectedRoots.length) {
+    throw new Error(
+      "Usage: node scripts/bench-device-analysis-import.mjs <data-root...> or set CONDUCTOR_BENCH_ROOTS.",
+    );
+  }
   const allFiles = [];
 
   for (const root of selectedRoots) {

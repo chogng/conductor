@@ -3,12 +3,6 @@ import path from "node:path";
 import { performance } from "node:perf_hooks";
 import * as xlsx from "xlsx";
 
-const DEFAULT_FILES = [
-  "C:/Users/lanxi/Desktop/ZC/SI-SIO2-W-HZO-W-12NM-SUZHOU/350/SI-SIO2-W-HZO-W-12NM-PV D100-4V-WAKE UP_2026-01-15-21-45-23.xls",
-  "C:/Users/lanxi/Desktop/ZC/SI-SIO2-W-HZO-W-12NM-SUZHOU/380/SI-SIO2-W-HZO-W-12NM-PV D100-4V-WAKE UP2_2026-01-15-21-37-09.xls",
-  "C:/Users/lanxi/Desktop/ZC/Ti-Pt-Ti-AOHZOAO-PtTiPt-W/600C/Ti-Pt-Ti-AOHZOAO-PtTiPt-W-PV-D100-CYCLING-50_2026-01-15-19-16-01.xls",
-];
-
 const cases = [
   {
     name: "current raw:false",
@@ -59,7 +53,17 @@ const benchOne = (filePath, testCase) => {
 
 const main = () => {
   const files = process.argv.slice(2);
-  const selected = files.length ? files : DEFAULT_FILES;
+  const selected = files.length
+    ? files
+    : String(process.env.CONDUCTOR_BENCH_FILES ?? "")
+        .split(path.delimiter)
+        .map((value) => value.trim())
+        .filter(Boolean);
+  if (!selected.length) {
+    throw new Error(
+      "Usage: node scripts/bench-xlsx-options.mjs <file...> or set CONDUCTOR_BENCH_FILES.",
+    );
+  }
 
   for (const filePath of selected) {
     console.log(`\n[file] ${filePath}`);
