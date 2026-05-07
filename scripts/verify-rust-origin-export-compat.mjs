@@ -4,7 +4,7 @@ import path from "node:path";
 import Papa from "papaparse";
 import { performance } from "node:perf_hooks";
 import {
-  buildDeviceAnalysisOriginExportPlan,
+  buildOriginExportPlan,
   isRustOriginCsvEligiblePayload,
   resolveRustOriginCsvYTransformForPayload,
 } from "../src/features/device-analysis/analysis/lib/originSelectionExport.ts";
@@ -312,7 +312,7 @@ const plan = async () => {
 
   for (const [fileIndex, item] of processed.entries()) {
     const file = item.file;
-    const planResult = buildDeviceAnalysisOriginExportPlan(
+    const planResult = buildOriginExportPlan(
       [file],
       undefined,
       "merged",

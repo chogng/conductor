@@ -12,8 +12,8 @@ import {
 } from "../src/features/device-analysis/analysis/lib/analysisChartsUtils.ts";
 import {
   computeBaseCurrentMetrics,
-  isTransferLikeDeviceAnalysisFile,
-} from "../src/features/device-analysis/analysis/lib/deviceAnalysisMetrics.ts";
+  isTransferLikeFile,
+} from "../src/features/device-analysis/analysis/lib/metrics.ts";
 
 const ROOT = process.cwd();
 const OUTPUT_DIR = path.join(ROOT, ".tooling", "device-analysis-phase3-bench");
@@ -167,7 +167,7 @@ const analyzeProcessedFile = (file) => {
   const xGroups = safeArray(file?.xGroups);
   const pointsBySeriesId = new Map();
   const gmBySeriesId = new Map();
-  const supportsSs = isTransferLikeDeviceAnalysisFile(file);
+  const supportsSs = isTransferLikeFile(file);
   let sourcePointCount = 0;
 
   measure(stageMs, "points", () => {

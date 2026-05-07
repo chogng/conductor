@@ -65,12 +65,12 @@ const AnalysisChartsLoadingFallback = ({ t }: { t: TranslateFn }) => {
   );
 };
 
-type DeviceAnalysisAnalysisPanelProps = AnalysisChartsLazyProps & {
+type AnalysisPanelProps = AnalysisChartsLazyProps & {
   shouldMountCharts?: boolean;
   t: TranslateFn;
 };
 
-const DeviceAnalysisAnalysisPanel = ({
+const AnalysisPanel = ({
   processedData = [],
   processingStatus,
   activeFileId,
@@ -96,7 +96,7 @@ const DeviceAnalysisAnalysisPanel = ({
   originOpenPlotOptions,
   onOriginOpenPlotOptionsChange,
   t,
-}: DeviceAnalysisAnalysisPanelProps) => {
+}: AnalysisPanelProps) => {
   const hasProcessedData = processedData.length > 0;
   const isProcessing = processingStatus?.state === "processing";
   const shouldRenderCharts = hasProcessedData && shouldMountCharts;
@@ -200,4 +200,4 @@ const DeviceAnalysisAnalysisPanel = ({
   );
 };
 
-export default DeviceAnalysisAnalysisPanel;
+export default AnalysisPanel;

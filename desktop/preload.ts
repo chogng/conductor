@@ -123,13 +123,13 @@ contextBridge.exposeInMainWorld("desktopStore", {
   async getAnalysisSettings() {
     return ipcRenderer.invoke(ipcChannels.settingsGet);
   },
-  async getDeviceAnalysisSettings() {
+  async getSettings() {
     return ipcRenderer.invoke(ipcChannels.settingsGet);
   },
   async updateAnalysisSettings(updates) {
     return ipcRenderer.invoke(ipcChannels.settingsPatch, updates);
   },
-  async updateDeviceAnalysisSettings(updates) {
+  async updateSettings(updates) {
     return ipcRenderer.invoke(ipcChannels.settingsPatch, updates);
   },
   async getAnalysisPersistencePath() {

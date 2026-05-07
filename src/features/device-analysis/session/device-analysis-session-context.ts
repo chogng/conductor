@@ -15,7 +15,7 @@ export type TemplateMode = "select" | "save";
 export type PreviewStatusState = "idle" | "loading" | "ready" | "error";
 export type SsMethod = "auto" | "manual";
 
-export type DeviceAnalysisTemplateConfig = {
+export type TemplateConfig = {
   name: string;
   xDataStart: string;
   xDataEnd: string;
@@ -67,7 +67,7 @@ export type SsManualRange = {
 
 export type SsManualRanges = Record<string, Record<string, SsManualRange>>;
 
-export type DeviceAnalysisSessionContextValue = {
+export type SessionContextValue = {
   rawData: RawDataEntry[];
   setRawData: Dispatch<SetStateAction<RawDataEntry[]>>;
   selectedPreviewFileId: string | null;
@@ -78,8 +78,8 @@ export type DeviceAnalysisSessionContextValue = {
   setTemplateMode: Dispatch<SetStateAction<TemplateMode>>;
   selectedTemplateId: string | null;
   setSelectedTemplateId: Dispatch<SetStateAction<string | null>>;
-  templateConfig: DeviceAnalysisTemplateConfig;
-  setTemplateConfig: Dispatch<SetStateAction<DeviceAnalysisTemplateConfig>>;
+  templateConfig: TemplateConfig;
+  setTemplateConfig: Dispatch<SetStateAction<TemplateConfig>>;
   previewFile: PreviewFile | null;
   setPreviewFile: Dispatch<SetStateAction<PreviewFile | null>>;
   previewStatus: PreviewStatus;
@@ -116,6 +116,6 @@ export type DeviceAnalysisSessionContextValue = {
   setSsManualRanges: Dispatch<SetStateAction<SsManualRanges>>;
 };
 
-export const DeviceAnalysisSessionContext =
-  createContext<DeviceAnalysisSessionContextValue | null>(null);
+export const SessionContext =
+  createContext<SessionContextValue | null>(null);
 

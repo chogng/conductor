@@ -1,10 +1,10 @@
 let workbenchAppPromise: Promise<typeof import("./App")> | null = null;
-let deviceAnalysisAppPromise:
-  | Promise<typeof import("./features/device-analysis/DeviceAnalysisApp")>
+let appPromise:
+  | Promise<typeof import("./features/device-analysis/App")>
   | null = null;
 
 let workbenchImportStartedAtMs = 0;
-let deviceAnalysisImportStartedAtMs = 0;
+let importStartedAtMs = 0;
 
 const isBootProfileEnabled = () =>
   import.meta.env.DEV && window.__CONDUCTOR_BOOT_PROFILE_ENABLED__ === true;
@@ -59,32 +59,32 @@ export const loadWorkbenchApp = () => {
   return workbenchAppPromise;
 };
 
-export const loadDeviceAnalysisApp = () => {
-  if (deviceAnalysisAppPromise) {
+export const loadApp = () => {
+  if (appPromise) {
     logRendererBoot(
       "device-analysis:import-hit-cache",
-      formatWaitSince(deviceAnalysisImportStartedAtMs, "sinceFirstImport"),
+      formatWaitSince(importStartedAtMs, "sinceFirstImport"),
     );
-    return deviceAnalysisAppPromise;
+    return appPromise;
   }
 
-  deviceAnalysisImportStartedAtMs = getBootNowMs();
+  importStartedAtMs = getBootNowMs();
   logRendererBoot("device-analysis:import-started");
-  deviceAnalysisAppPromise = import("./features/device-analysis/DeviceAnalysisApp")
+  appPromise = import("./features/device-analysis/App")
     .then((module) => {
       logRendererBoot(
         "device-analysis:import-resolved",
-        formatWaitSince(deviceAnalysisImportStartedAtMs),
+        formatWaitSince(importStartedAtMs),
       );
       return module;
     })
     .catch((error) => {
       logRendererBoot(
         "device-analysis:import-failed",
-        `${formatWaitSince(deviceAnalysisImportStartedAtMs)} (message=${error instanceof Error ? error.message : String(error)})`,
+        `${formatWaitSince(importStartedAtMs)} (message=${error instanceof Error ? error.message : String(error)})`,
       );
       throw error;
     });
 
-  return deviceAnalysisAppPromise;
+  return appPromise;
 };

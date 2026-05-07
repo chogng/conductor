@@ -8,7 +8,7 @@ import type { PreviewStatus as SessionPreviewStatus } from "../../session/device
 import type { PreviewFileLike } from "../../shared/lib/sharedTypes";
 import type { LooseTranslateFn as TranslateFn } from "../../shared/lib/translateTypes";
 import { apiService } from "../../analysis/services/apiService";
-import { useDeviceAnalysisSession } from "../../session/useDeviceAnalysisSession";
+import { useSession } from "../../session/useSession";
 import {
   cloneTemplateConfig,
   createEmptyTemplateConfig,
@@ -17,15 +17,15 @@ import {
   toTemplateNameKey,
   type TemplateConfig,
 } from "./templateManagerUtils";
-import { normalizeDeviceAnalysisYUnit } from "../../analysis/lib/deviceAnalysisUnits";
+import { normalizeYUnit } from "../../analysis/lib/units";
 import { resolveXSegmentationMode } from "../../shared/lib/XSegmentation";
-import { DEVICE_ANALYSIS_AUTO_TEMPLATE_ID } from "../../shared/lib/deviceAnalysisAutoExtraction";
+import { AUTO_TEMPLATE_ID } from "../../shared/lib/autoExtraction";
 import { DEVICE_ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT } from "../../onboarding/onboardingEvents";
 import {
   validateTemplateForApply,
   validateTemplateForSave,
 } from "./templateValidation";
-import { stableStringify } from "../../shared/lib/deviceAnalysisUtils";
+import { stableStringify } from "../../shared/lib/utils";
 import { normalizeFileNameFieldSeparators } from "../../shared/lib/fileNameFieldMatching";
 
 type TemplateMode = "select" | "save";
@@ -39,7 +39,7 @@ type TemplateRecord = Partial<TemplateConfig> &
     [key: string]: unknown;
   };
 
-type DeviceAnalysisSettings = Partial<{
+type AnalysisSettings = Partial<{
   lastTemplateId: string | null;
   stopOnErrorDefault: boolean;
 }> &
@@ -71,7 +71,7 @@ type TemplateTransferPayload = TemplateRecord & {
 const toTemplateTransferRecord = (template: TemplateRecord): TemplateRecord => ({
   ...normalizeTemplateConfigRecord(template),
   xUnit: normalizeTemplateXUnit(template?.xUnit),
-  yUnit: normalizeDeviceAnalysisYUnit(template?.yUnit, "A"),
+  yUnit: normalizeYUnit(template?.yUnit, "A"),
 });
 
 const mergeTemplatesByIdentity = (
@@ -148,10 +148,10 @@ const createUniqueTemplateName = (
 };
 
 type UseTemplateManagerStateOptions = {
-  deviceAnalysisSettings?: DeviceAnalysisSettings | null;
+  analysisSettings?: AnalysisSettings | null;
   onTemplateApplied?: (config: Record<string, unknown>) => unknown;
   onTemplateAppliedIncremental?: (config: Record<string, unknown>) => unknown;
-  onUpdateDeviceAnalysisSettings?: (
+  onUpdateSettings?: (
     updates: Record<string, unknown>,
   ) => Promise<unknown> | unknown;
   previewFile?: PreviewFileLike | null;
@@ -161,10 +161,10 @@ type UseTemplateManagerStateOptions = {
 };
 
 export const useTemplateManagerState = ({
-  deviceAnalysisSettings,
+  analysisSettings,
   onTemplateApplied,
   onTemplateAppliedIncremental,
-  onUpdateDeviceAnalysisSettings,
+  onUpdateSettings,
   previewFile,
   previewStatus,
   showToast,
@@ -177,7 +177,7 @@ export const useTemplateManagerState = ({
     setTemplateConfig: setConfig,
     templateMode,
     setTemplateMode,
-  } = useDeviceAnalysisSession();
+  } = useSession();
 
   const [templates, setTemplates] = useState<TemplateRecord[]>([]);
   const [templatesLoaded, setTemplatesLoaded] = useState(false);
@@ -198,12 +198,12 @@ export const useTemplateManagerState = ({
 
   useEffect(() => {
     if (didInitConfigFromSettingsRef.current) return;
-    if (!deviceAnalysisSettings) return;
+    if (!analysisSettings) return;
 
     didInitConfigFromSettingsRef.current = true;
-    const nextStopOnError = Boolean(deviceAnalysisSettings?.stopOnErrorDefault);
+    const nextStopOnError = Boolean(analysisSettings?.stopOnErrorDefault);
     setConfig((prev) => ({ ...prev, stopOnError: nextStopOnError }));
-  }, [deviceAnalysisSettings, setConfig]);
+  }, [analysisSettings, setConfig]);
 
   const markFieldSource = useCallback((field: unknown, source: unknown) => {
     if (typeof field !== "string" || !field.trim()) return;
@@ -262,12 +262,12 @@ export const useTemplateManagerState = ({
 
   useEffect(() => {
     if (!isSelectMode) return;
-    if (!deviceAnalysisSettings?.lastTemplateId) return;
+    if (!analysisSettings?.lastTemplateId) return;
     if (templatesLoaded) return;
 
     void ensureTemplatesLoaded().catch(() => {});
   }, [
-    deviceAnalysisSettings?.lastTemplateId,
+    analysisSettings?.lastTemplateId,
     ensureTemplatesLoaded,
     isSelectMode,
     templatesLoaded,
@@ -302,7 +302,7 @@ export const useTemplateManagerState = ({
         ...template,
         xSegmentationMode: resolveXSegmentationMode(template?.xSegmentationMode),
         xUnit: normalizeTemplateXUnit(template?.xUnit),
-        yUnit: normalizeDeviceAnalysisYUnit(template?.yUnit, "A"),
+        yUnit: normalizeYUnit(template?.yUnit, "A"),
       });
 
       const templateId = normalizeTemplateId(template?.id);
@@ -315,14 +315,14 @@ export const useTemplateManagerState = ({
       setSelectedTemplateId(templateId);
       setIsDropdownOpen(false);
 
-      if (persist !== false && typeof onUpdateDeviceAnalysisSettings === "function") {
-        void onUpdateDeviceAnalysisSettings({
+      if (persist !== false && typeof onUpdateSettings === "function") {
+        void onUpdateSettings({
           lastTemplateId: templateId,
           stopOnErrorDefault: Boolean(template?.stopOnError),
         });
       }
     },
-    [onUpdateDeviceAnalysisSettings, setConfig, setSelectedTemplateId],
+    [onUpdateSettings, setConfig, setSelectedTemplateId],
   );
 
   const handleSaveTemplate = useCallback(async () => {
@@ -402,8 +402,8 @@ export const useTemplateManagerState = ({
         if (selectedTemplateId === id) {
           setSelectedTemplateId(null);
           setConfig((prev) => ({ ...prev, name: "" }));
-          if (typeof onUpdateDeviceAnalysisSettings === "function") {
-            void onUpdateDeviceAnalysisSettings({ lastTemplateId: null });
+          if (typeof onUpdateSettings === "function") {
+            void onUpdateSettings({ lastTemplateId: null });
           }
         }
       } catch (error) {
@@ -414,7 +414,7 @@ export const useTemplateManagerState = ({
       }
     },
     [
-      onUpdateDeviceAnalysisSettings,
+      onUpdateSettings,
       selectedTemplateId,
       setConfig,
       setSelectedTemplateId,
@@ -644,7 +644,7 @@ export const useTemplateManagerState = ({
   useEffect(() => {
     if (!isSelectMode) return;
 
-    const lastId = deviceAnalysisSettings?.lastTemplateId;
+    const lastId = analysisSettings?.lastTemplateId;
     if (!lastId) return;
     if (!Array.isArray(templates) || templates.length === 0) return;
     if (selectedTemplateId) return;
@@ -669,7 +669,7 @@ export const useTemplateManagerState = ({
       cancelled = true;
     };
   }, [
-    deviceAnalysisSettings?.lastTemplateId,
+    analysisSettings?.lastTemplateId,
     isSelectMode,
     loadTemplate,
     selectedTemplateId,
@@ -731,7 +731,7 @@ export const useTemplateManagerState = ({
       const normalizedForApply = {
         ...normalized,
         fileNameFieldSeparators: normalizeFileNameFieldSeparators(
-          deviceAnalysisSettings?.fileNameFieldSeparators,
+          analysisSettings?.fileNameFieldSeparators,
         ),
       };
       const shouldSyncConfig = options.syncConfig !== false;
@@ -771,7 +771,7 @@ export const useTemplateManagerState = ({
     },
     [
       config,
-      deviceAnalysisSettings?.fileNameFieldSeparators,
+      analysisSettings?.fileNameFieldSeparators,
       setConfig,
       showToast,
       t,
@@ -855,28 +855,28 @@ export const useTemplateManagerState = ({
       saveDraftBaseConfigRef.current = null;
       setIsDropdownOpen(false);
       setInputSources({});
-      setSelectedTemplateId(DEVICE_ANALYSIS_AUTO_TEMPLATE_ID);
+      setSelectedTemplateId(AUTO_TEMPLATE_ID);
       setConfig((prev) =>
         createEmptyTemplateConfig({
           fileNameMatchCaseSensitive: Boolean(prev?.fileNameMatchCaseSensitive),
           stopOnError: Boolean(
-            prev?.stopOnError ?? deviceAnalysisSettings?.stopOnErrorDefault,
+            prev?.stopOnError ?? analysisSettings?.stopOnErrorDefault,
           ),
         }),
       );
 
       if (
         shouldPersist &&
-        typeof onUpdateDeviceAnalysisSettings === "function"
+        typeof onUpdateSettings === "function"
       ) {
-        void onUpdateDeviceAnalysisSettings({
+        void onUpdateSettings({
           lastTemplateId: null,
         });
       }
     },
     [
-      deviceAnalysisSettings?.stopOnErrorDefault,
-      onUpdateDeviceAnalysisSettings,
+      analysisSettings?.stopOnErrorDefault,
+      onUpdateSettings,
       setConfig,
       setSelectedTemplateId,
     ],
@@ -888,11 +888,11 @@ export const useTemplateManagerState = ({
 
   useEffect(() => {
     if (!isSelectMode) return;
-    if (deviceAnalysisSettings === undefined) return;
+    if (analysisSettings === undefined) return;
     if (selectedTemplateId) return;
 
     const rememberedTemplateId = String(
-      deviceAnalysisSettings?.lastTemplateId ?? "",
+      analysisSettings?.lastTemplateId ?? "",
     ).trim();
     if (rememberedTemplateId) {
       if (!templatesLoaded) return;
@@ -922,7 +922,7 @@ export const useTemplateManagerState = ({
     };
   }, [
     activateAutoTemplate,
-    deviceAnalysisSettings,
+    analysisSettings,
     isSelectMode,
     selectedTemplateId,
     templates,
@@ -931,7 +931,7 @@ export const useTemplateManagerState = ({
 
   const handleCreateNewTemplate = useCallback(() => {
     const nextConfig = createEmptyTemplateConfig({
-      stopOnError: Boolean(deviceAnalysisSettings?.stopOnErrorDefault),
+      stopOnError: Boolean(analysisSettings?.stopOnErrorDefault),
     });
 
     saveDraftTouchedRef.current = false;
@@ -940,8 +940,8 @@ export const useTemplateManagerState = ({
     setIsDropdownOpen(false);
     setSelectedTemplateId(null);
 
-    if (typeof onUpdateDeviceAnalysisSettings === "function") {
-      void onUpdateDeviceAnalysisSettings({
+    if (typeof onUpdateSettings === "function") {
+      void onUpdateSettings({
         lastTemplateId: null,
       });
     }
@@ -949,8 +949,8 @@ export const useTemplateManagerState = ({
     setInputSources({});
     setConfig(nextConfig);
   }, [
-    deviceAnalysisSettings?.stopOnErrorDefault,
-    onUpdateDeviceAnalysisSettings,
+    analysisSettings?.stopOnErrorDefault,
+    onUpdateSettings,
     setConfig,
     setSelectedTemplateId,
     setTemplateMode,

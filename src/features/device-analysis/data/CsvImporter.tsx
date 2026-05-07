@@ -16,10 +16,10 @@ import ScrollArea from "../../../components/ui/ScrollArea";
 import {
   DEVICE_ANALYSIS_DATA_IMPORT_ACCEPT,
   isSupportedDataImportFileName,
-  type ImportedDeviceAnalysisCurveAssessment,
-} from "../shared/lib/deviceAnalysisImportFileUtils";
-import { startDeviceAnalysisPerf } from "../shared/lib/deviceAnalysisPerf";
-import { prepareDeviceAnalysisImportFileInWorker } from "./deviceAnalysisImportWorkerClient";
+  type ImportedCurveAssessment,
+} from "../shared/lib/importFileUtils";
+import { startPerf } from "../shared/lib/perf";
+import { prepareImportFileInWorker } from "./importWorkerClient";
 import { useCsvImporterVirtualization } from "./useCsvImporterVirtualization";
 import { collectDroppedImportFiles } from "./preview/csvDropTraversal";
 import {
@@ -292,7 +292,7 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
     };
 
     const processFiles = useCallback(async (newFiles: File[]) => {
-      const finishBatchPerf = startDeviceAnalysisPerf("import:add-files", {
+      const finishBatchPerf = startPerf("import:add-files", {
         currentCount: files.length,
         incomingCount: newFiles.length,
       });
@@ -320,7 +320,7 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
       const pendingImports: PendingImportFile[] = [];
 
       for (const sourceFile of uniqueFiles) {
-        const finishFilePerf = startDeviceAnalysisPerf("import:prepare-file", {
+        const finishFilePerf = startPerf("import:prepare-file", {
           fileName: sourceFile.name,
           sizeBytes: sourceFile.size,
         });
@@ -354,17 +354,17 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
       }: PendingImportFile) => {
         let normalizedFile: File;
         let normalizedCsvPath: string | null = null;
-        let curveAssessment: ImportedDeviceAnalysisCurveAssessment;
+        let curveAssessment: ImportedCurveAssessment;
         let sourcePath: string | null = null;
         try {
-          const finishWorkerPerf = startDeviceAnalysisPerf(
+          const finishWorkerPerf = startPerf(
             "import:worker-prepare-file",
             {
               fileName: sourceFile.name,
               sizeBytes: sourceFile.size,
             },
           );
-          const prepared = await prepareDeviceAnalysisImportFileInWorker(sourceFile);
+          const prepared = await prepareImportFileInWorker(sourceFile);
           normalizedFile = prepared.file;
           normalizedCsvPath = prepared.normalizedCsvPath ?? null;
           curveAssessment = prepared.assessment;

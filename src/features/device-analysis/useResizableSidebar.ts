@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  DEFAULT_DEVICE_ANALYSIS_SIDEBAR_WIDTH_PX,
+  DEFAULT_SIDEBAR_WIDTH_PX,
   MAX_DEVICE_ANALYSIS_SIDEBAR_WIDTH_PX,
   MIN_DEVICE_ANALYSIS_SIDEBAR_WIDTH_PX,
-} from "./deviceAnalysisLayout";
+} from "./layout";
 
 export const useResizableSidebar = () => {
   const [sidebarWidth, setSidebarWidth] = useState<number>(
-    DEFAULT_DEVICE_ANALYSIS_SIDEBAR_WIDTH_PX,
+    DEFAULT_SIDEBAR_WIDTH_PX,
   );
 
   const [isResizing, setIsResizing] = useState(false);

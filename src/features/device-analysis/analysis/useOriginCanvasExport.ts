@@ -8,19 +8,19 @@ import {
 } from "react";
 import JSZip from "jszip";
 import {
-  triggerDeviceAnalysisBlobDownload,
-} from "./lib/deviceAnalysisExport";
+  triggerBlobDownload,
+} from "./lib/export";
 import {
-  buildDeviceAnalysisOriginExportPlan,
+  buildOriginExportPlan,
   getRustOriginCsvDerivedContentKey,
   isRustOriginCsvEligiblePayload,
-  isDeviceAnalysisOriginExportMode,
-  resolveDeviceAnalysisSeriesLabel,
+  isOriginExportMode,
+  resolveSeriesLabel,
   resolveRustOriginCsvYTransformForPayload,
-  type DeviceAnalysisOriginExportContentKey,
-  type DeviceAnalysisOriginExportPlan,
-  type DeviceAnalysisOriginExportMode,
-  type DeviceAnalysisOriginYAxisScaleMode,
+  type OriginExportContentKey,
+  type OriginExportPlan,
+  type OriginExportMode,
+  type OriginYAxisScaleMode,
 } from "./lib/originSelectionExport";
 import {
   buildOriginAxisTitleCommands,
@@ -35,9 +35,9 @@ import {
   normalizeOriginPlotOptions,
 } from "./lib/originPlotOptions";
 import {
-  getDeviceAnalysisXUnitMeta,
-  getDeviceAnalysisYUnitMeta,
-} from "./lib/deviceAnalysisUnits";
+  getXUnitMeta,
+  getYUnitMeta,
+} from "./lib/units";
 import { useFileSelectionPool } from "./useFileSelectionPool";
 
 const ORIGIN_CSV_AUTO_ZIP_FALLBACK_CODES = new Set([
@@ -49,14 +49,14 @@ const ORIGIN_CSV_AUTO_ZIP_FALLBACK_CODES = new Set([
   "ORIGIN_CSV_IMPORT_FAILED",
 ]);
 
-export type DeviceAnalysisOriginCanvasExportScope =
+export type OriginCanvasExportScope =
   | "current"
   | "filtered"
   | "selected"
   | "all";
 
-export type DeviceAnalysisOriginFilteredCanvasKind = "transfer" | "output";
-export type DeviceAnalysisOriginCurveExportMode = "all" | "select";
+export type OriginFilteredCanvasKind = "transfer" | "output";
+export type OriginCurveExportMode = "all" | "select";
 
 type OriginDisplayRange = {
   min: number;
@@ -66,9 +66,9 @@ type OriginDisplayRange = {
 
 type UseOriginCanvasExportOptions = {
   activeFile: any;
-  canvasExportScope?: DeviceAnalysisOriginCanvasExportScope;
-  curveExportMode?: DeviceAnalysisOriginCurveExportMode;
-  filteredCanvasKind?: DeviceAnalysisOriginFilteredCanvasKind;
+  canvasExportScope?: OriginCanvasExportScope;
+  curveExportMode?: OriginCurveExportMode;
+  filteredCanvasKind?: OriginFilteredCanvasKind;
   effectiveActiveFileId: unknown;
   getDesktopOriginBridge: () => any;
   isWindowsDesktopShell: boolean;
@@ -80,13 +80,13 @@ type UseOriginCanvasExportOptions = {
     step?: number | null;
   } | null>;
   originExportMode?: unknown;
-  originExportContentKeys?: DeviceAnalysisOriginExportContentKey[];
+  originExportContentKeys?: OriginExportContentKey[];
   originAxisSettings?: unknown;
   originOpenPlotOptions: unknown;
   processedData: any[];
   resolveYScaleForFile?: (
     file: any,
-  ) => DeviceAnalysisOriginYAxisScaleMode;
+  ) => OriginYAxisScaleMode;
   resolveYLogCurrentModeForFile?: (
     file: any,
   ) => "all" | "positive";
@@ -295,7 +295,7 @@ export const useOriginCanvasExport = ({
   originOpenPlotOptions,
   processedData,
   resolveCurveLabelForSeries = (_file, series, index) =>
-    resolveDeviceAnalysisSeriesLabel(series, index),
+    resolveSeriesLabel(series, index),
   resolveAxisTitleForFile = () => "",
   resolveYScaleForFile = () => "linear",
   resolveYLogCurrentModeForFile = () => "all",
@@ -308,8 +308,8 @@ export const useOriginCanvasExport = ({
   const originBusyRef = useRef(false);
   const [originSelectedSeriesIdsByFile, setOriginSelectedSeriesIdsByFile] =
     useState<Record<string, string[]>>({});
-  const resolvedOriginExportMode: DeviceAnalysisOriginExportMode =
-    isDeviceAnalysisOriginExportMode(originExportMode) ? originExportMode : "merged";
+  const resolvedOriginExportMode: OriginExportMode =
+    isOriginExportMode(originExportMode) ? originExportMode : "merged";
 
   const originCanvasOptions = useMemo(() => {
     const list = Array.isArray(processedData) ? processedData : [];
@@ -931,7 +931,7 @@ export const useOriginCanvasExport = ({
 
   const buildOriginExportPayloadsForSelectedCanvases = useCallback(({
     omitRustEligibleCsvText = false,
-  }: { omitRustEligibleCsvText?: boolean } = {}): DeviceAnalysisOriginExportPlan => {
+  }: { omitRustEligibleCsvText?: boolean } = {}): OriginExportPlan => {
     if (!selectedOriginCanvases.length) {
       throw new Error(t("da_origin_select_canvas"));
     }
@@ -949,14 +949,14 @@ export const useOriginCanvasExport = ({
         })
       : selectedOriginCanvases;
 
-    const plan = buildDeviceAnalysisOriginExportPlan(
+    const plan = buildOriginExportPlan(
       exportCanvases,
       originSelectedSeriesIdsByFile,
       resolvedOriginExportMode,
       resolveYScaleForFile,
-      (file) => getDeviceAnalysisXUnitMeta(file?.xUnit).factor,
-      (file) => getDeviceAnalysisYUnitMeta(resolveYUnitForFile(file)).factor,
-      (file) => getDeviceAnalysisYUnitMeta(resolveYUnitForFile(file)).label,
+      (file) => getXUnitMeta(file?.xUnit).factor,
+      (file) => getYUnitMeta(resolveYUnitForFile(file)).factor,
+      (file) => getYUnitMeta(resolveYUnitForFile(file)).label,
       resolveCurveLabelForSeries,
       resolveAxisTitleForFile,
       (file, y) =>
@@ -1011,14 +1011,14 @@ export const useOriginCanvasExport = ({
           fileName: file?.fileName,
           maxPoints: Number(file?.x?.sampledPoints) || 600,
           path: sourcePath,
-          xScaleFactor: getDeviceAnalysisXUnitMeta(file?.xUnit).factor,
+          xScaleFactor: getXUnitMeta(file?.xUnit).factor,
           yScaleFactor:
             derivedContentKey === "gm" ||
             derivedContentKey === "gds" ||
             derivedContentKey === "ss" ||
             derivedContentKey === "vth"
               ? 1
-              : getDeviceAnalysisYUnitMeta(resolveYUnitForFile(file)).factor,
+              : getYUnitMeta(resolveYUnitForFile(file)).factor,
           yTransform: resolveRustOriginCsvYTransformForPayload(
             payload,
             fallbackYTransform,
@@ -1279,7 +1279,7 @@ export const useOriginCanvasExport = ({
       compression: "DEFLATE",
       compressionOptions: { level: 6 },
     });
-    triggerDeviceAnalysisBlobDownload(zipName, zipBlob);
+    triggerBlobDownload(zipName, zipBlob);
     return {
       canvasCount: fullResult.totalCanvasCount,
       curveCount: fullResult.totalCurveCount,
@@ -1339,7 +1339,7 @@ export const useOriginCanvasExport = ({
         const legendPostCommands = buildOriginLegendRefreshCommands(
           payload.curveLabels,
         );
-        const payloadYScaleMode: DeviceAnalysisOriginYAxisScaleMode =
+        const payloadYScaleMode: OriginYAxisScaleMode =
           payload.yScaleMode === "log" ? "log" : "linear";
         const shouldUseXDisplayRange =
           payload.skipDisplayRange !== true &&
@@ -1348,7 +1348,7 @@ export const useOriginCanvasExport = ({
           payload.skipDisplayRange !== true &&
           Boolean(chartYRange) &&
           chartYRange?.mode === payloadYScaleMode;
-        const originYScaleMode: DeviceAnalysisOriginYAxisScaleMode =
+        const originYScaleMode: OriginYAxisScaleMode =
           shouldUseYDisplayRange && chartYRange?.mode
             ? chartYRange.mode
             : payloadYScaleMode;

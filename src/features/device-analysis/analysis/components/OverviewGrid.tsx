@@ -3,8 +3,8 @@ import Card from "../../../../components/ui/Card";
 import DropdownField from "../../../../components/ui/DropdownField";
 import ScrollArea from "../../../../components/ui/ScrollArea";
 import { useLanguage } from "../../../../hooks/useLanguage";
-import { getDeviceAnalysisYUnitMeta } from "../lib/deviceAnalysisUnits";
-import type { DeviceAnalysisOriginCanvasExportScope } from "../useOriginCanvasExport";
+import { getYUnitMeta } from "../lib/units";
+import type { OriginCanvasExportScope } from "../useOriginCanvasExport";
 import type { ProcessingStatus } from "../../shared/lib/sharedTypes";
 import FileCard, { type ProcessedFileLike } from "./FileCard";
 
@@ -16,7 +16,7 @@ type OverviewGridProps = {
   onVisibleFileIdsChange?: (fileIds: string[]) => void;
   selectedOriginCanvasKeySet?: Set<string>;
   onToggleOriginCanvasSelection?: (fileId: string | undefined) => void;
-  originCanvasExportScope?: DeviceAnalysisOriginCanvasExportScope;
+  originCanvasExportScope?: OriginCanvasExportScope;
   isSelectionMode?: boolean;
   xUnitFactor?: number;
   xUnitLabel?: string;
@@ -232,7 +232,7 @@ const OverviewGrid = memo(function OverviewGrid({
         <div className="grid grid-cols-1 auto-rows-max gap-2.5 content-start">
           {filteredData.map((file) => (
             (() => {
-              const yUnitMeta = getDeviceAnalysisYUnitMeta(
+              const yUnitMeta = getYUnitMeta(
                 resolveYUnitForFile?.(file) ?? file?.yUnit ?? "A",
               );
               return (

@@ -1,4 +1,4 @@
-import { approxEqual, parseFiniteNumber } from "./deviceAnalysisSharedUtils.ts";
+import { approxEqual, parseFiniteNumber } from "./sharedUtils.ts";
 
 export type XSegmentationMode = "auto" | "points" | "segments";
 

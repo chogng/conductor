@@ -3,9 +3,9 @@ import { formatNumber } from "../lib/analysisMath";
 import { getChartColor } from "../lib/chartColors";
 import { inferTickDigitsFromTicks } from "../lib/analysisChartsUtils";
 import {
-  getDeviceAnalysisPerfNow,
-  logDeviceAnalysisPerf,
-} from "../../shared/lib/deviceAnalysisPerf";
+  getPerfNow,
+  logPerf,
+} from "../../shared/lib/perf";
 import { useCanvasChartTheme } from "../lib/chartCanvasTheme";
 
 type DiagnosticsPoint = {
@@ -452,7 +452,7 @@ const CanvasDiagnosticsChart = memo(function CanvasDiagnosticsChart({
     const ctx = setupCanvas(canvas, size.width, size.height);
     if (!ctx) return;
 
-    const startedAt = getDeviceAnalysisPerfNow();
+    const startedAt = getPerfNow();
     let pointCount = 0;
     ctx.clearRect(0, 0, size.width, size.height);
 
@@ -644,9 +644,9 @@ const CanvasDiagnosticsChart = memo(function CanvasDiagnosticsChart({
     }
     ctx.restore();
 
-    const durationMs = getDeviceAnalysisPerfNow() - startedAt;
+    const durationMs = getPerfNow() - startedAt;
     if (durationMs >= 8 || preparedSeries.length >= 8 || pointCount >= 3000) {
-      logDeviceAnalysisPerf("render:diagnostics-canvas", {
+      logPerf("render:diagnostics-canvas", {
         durationMs,
         height: size.height,
         pointCount,

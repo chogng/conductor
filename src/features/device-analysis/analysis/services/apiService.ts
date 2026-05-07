@@ -25,11 +25,11 @@ class ApiService {
     });
   }
 
-  async getDeviceAnalysisSettings(): Promise<unknown> {
+  async getSettings(): Promise<unknown> {
     return this._requestAnalysisStore("/analysis/settings");
   }
 
-  async updateDeviceAnalysisSettings(updates: unknown): Promise<unknown> {
+  async updateSettings(updates: unknown): Promise<unknown> {
     return this._requestAnalysisStore("/analysis/settings", {
       method: "PATCH",
       body: JSON.stringify(updates),

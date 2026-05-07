@@ -1,9 +1,9 @@
 import SettingsPanel from "./SettingsPanel";
-import { useDeviceAnalysisSettings } from "./useDeviceAnalysisSettings";
+import { useSettings } from "./useSettings";
 import type { LanguageCode } from "../../../context/language";
 import type { ThemeMode } from "../../../context/theme";
 import type { LooseTranslateFn } from "../shared/lib/translateTypes";
-import type { DeviceAnalysisSettings } from "./deviceAnalysisSettingsShared";
+import type { AnalysisSettings } from "./settingsShared";
 
 type SettingsPanelContainerProps = {
   appUpdateSettings: {
@@ -11,17 +11,17 @@ type SettingsPanelContainerProps = {
     isAvailable: boolean;
     onCheckForUpdates: () => boolean | Promise<boolean>;
   };
-  deviceAnalysisSettings: DeviceAnalysisSettings | null;
-  deviceAnalysisSettingsLoaded: boolean;
+  analysisSettings: AnalysisSettings | null;
+  analysisSettingsLoaded: boolean;
   handleLanguageChange: (language: LanguageCode) => Promise<void> | void;
   handleThemeChange: (theme: ThemeMode) => Promise<void> | void;
-  handleUpdateDeviceAnalysisSettings: (
+  handleUpdateAnalysisSettings: (
     updates: unknown,
-  ) => Promise<DeviceAnalysisSettings | null>;
+  ) => Promise<AnalysisSettings | null>;
   isWindowsDesktopShell: boolean;
   language: LanguageCode;
-  mergeDeviceAnalysisSettings: (
-    nextSettings: DeviceAnalysisSettings | null,
+  mergeAnalysisSettings: (
+    nextSettings: AnalysisSettings | null,
   ) => void;
   onboardingSettings: {
     onOpenGuide: () => void;
@@ -32,14 +32,14 @@ type SettingsPanelContainerProps = {
 
 const SettingsPanelContainer = ({
   appUpdateSettings,
-  deviceAnalysisSettings,
-  deviceAnalysisSettingsLoaded,
+  analysisSettings,
+  analysisSettingsLoaded,
   handleLanguageChange,
   handleThemeChange,
-  handleUpdateDeviceAnalysisSettings,
+  handleUpdateAnalysisSettings,
   isWindowsDesktopShell,
   language,
-  mergeDeviceAnalysisSettings,
+  mergeAnalysisSettings,
   onboardingSettings,
   t,
   theme,
@@ -51,12 +51,12 @@ const SettingsPanelContainer = ({
     storageSettings,
     windowCloseSettings,
   } =
-    useDeviceAnalysisSettings({
-    deviceAnalysisSettings,
-    deviceAnalysisSettingsLoaded,
-    handleUpdateDeviceAnalysisSettings,
+    useSettings({
+    analysisSettings,
+    analysisSettingsLoaded,
+    handleUpdateAnalysisSettings,
     isWindowsDesktopShell,
-    mergeDeviceAnalysisSettings,
+    mergeAnalysisSettings,
     t,
   });
 

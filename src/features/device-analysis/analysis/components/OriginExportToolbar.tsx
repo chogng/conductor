@@ -9,19 +9,19 @@ import Menu from "../../../../components/ui/Menu";
 import MenuItem from "../../../../components/ui/MenuItem";
 import MenuScrollArea from "../../../../components/ui/MenuScrollArea";
 import {
-  isDeviceAnalysisOriginExportMode,
-  type DeviceAnalysisOriginExportContentKey,
-  type DeviceAnalysisOriginExportMode,
+  isOriginExportMode,
+  type OriginExportContentKey,
+  type OriginExportMode,
 } from "../lib/originSelectionExport";
 import type {
-  DeviceAnalysisOriginCanvasExportScope,
-  DeviceAnalysisOriginCurveExportMode,
-  DeviceAnalysisOriginFilteredCanvasKind,
+  OriginCanvasExportScope,
+  OriginCurveExportMode,
+  OriginFilteredCanvasKind,
 } from "../useOriginCanvasExport";
 
 export type OriginExportContentOption = {
   group: "basic" | "derived";
-  key: DeviceAnalysisOriginExportContentKey;
+  key: OriginExportContentKey;
   labelKey: string;
 };
 
@@ -51,40 +51,40 @@ export type ReplaceMatchingOriginSeriesAcrossFilesFn = (options: {
 type OriginExportToolbarProps = {
   curveOptions: OriginCurveExportSeriesOption[];
   hasMixedExportYScales: boolean;
-  mode: DeviceAnalysisOriginExportMode;
+  mode: OriginExportMode;
   onExportOriginZip: () => void | Promise<void>;
-  onModeChange: (next: DeviceAnalysisOriginExportMode) => void;
+  onModeChange: (next: OriginExportMode) => void;
   onOpenInOrigin: () => void | Promise<void>;
   onSelectedCurveOptionKeysChange: (nextKeys: string[]) => void;
-  originCanvasExportScope: DeviceAnalysisOriginCanvasExportScope;
+  originCanvasExportScope: OriginCanvasExportScope;
   originExportContentOptions: OriginExportContentOption[];
-  originFilteredCanvasKind: DeviceAnalysisOriginFilteredCanvasKind;
+  originFilteredCanvasKind: OriginFilteredCanvasKind;
   replaceMatchingOriginSeriesAcrossFiles: ReplaceMatchingOriginSeriesAcrossFilesFn;
-  resolvedCurveExportMode: DeviceAnalysisOriginCurveExportMode;
+  resolvedCurveExportMode: OriginCurveExportMode;
   scopedFileIds: string[];
-  selectedContentKeys: DeviceAnalysisOriginExportContentKey[];
+  selectedContentKeys: OriginExportContentKey[];
   selectedCurveOptionKeySet: Set<string>;
-  setContentKeys: React.Dispatch<React.SetStateAction<DeviceAnalysisOriginExportContentKey[]>>;
-  setOriginCanvasExportScope: React.Dispatch<React.SetStateAction<DeviceAnalysisOriginCanvasExportScope>>;
-  setOriginFilteredCanvasKind: React.Dispatch<React.SetStateAction<DeviceAnalysisOriginFilteredCanvasKind>>;
-  setResolvedCurveExportMode: (next: DeviceAnalysisOriginCurveExportMode) => void;
+  setContentKeys: React.Dispatch<React.SetStateAction<OriginExportContentKey[]>>;
+  setOriginCanvasExportScope: React.Dispatch<React.SetStateAction<OriginCanvasExportScope>>;
+  setOriginFilteredCanvasKind: React.Dispatch<React.SetStateAction<OriginFilteredCanvasKind>>;
+  setResolvedCurveExportMode: (next: OriginCurveExportMode) => void;
   showFilteredCanvasKindSelect: boolean;
   t: OriginExportContentTranslateFn;
 };
 
-const DEFAULT_ORIGIN_EXPORT_CONTENT_KEYS: DeviceAnalysisOriginExportContentKey[] = ["iv"];
+const DEFAULT_ORIGIN_EXPORT_CONTENT_KEYS: OriginExportContentKey[] = ["iv"];
 const ORIGIN_EXPORT_CONTENT_OPTION_GROUPS: Array<Pick<OriginExportContentMenuGroup, "key" | "labelKey">> = [
   { key: "basic", labelKey: "da_origin_export_content_group_basic" },
   { key: "derived", labelKey: "da_origin_export_content_group_derived" },
 ];
 
 const normalizeOriginExportContentKeysForOptions = (
-  keys: readonly DeviceAnalysisOriginExportContentKey[] | null | undefined,
+  keys: readonly OriginExportContentKey[] | null | undefined,
   options: readonly OriginExportContentOption[],
-): DeviceAnalysisOriginExportContentKey[] => {
+): OriginExportContentKey[] => {
   const allowedKeys = new Set(options.map((option) => option.key));
   const normalized = (Array.isArray(keys) ? keys : DEFAULT_ORIGIN_EXPORT_CONTENT_KEYS).filter(
-    (key): key is DeviceAnalysisOriginExportContentKey => allowedKeys.has(key),
+    (key): key is OriginExportContentKey => allowedKeys.has(key),
   );
   return normalized.length ? Array.from(new Set(normalized)) : DEFAULT_ORIGIN_EXPORT_CONTENT_KEYS;
 };
@@ -96,8 +96,8 @@ const OriginExportContentMenu = ({
   t,
 }: {
   options: OriginExportContentOption[];
-  selectedKeys: DeviceAnalysisOriginExportContentKey[];
-  setSelectedKeys: React.Dispatch<React.SetStateAction<DeviceAnalysisOriginExportContentKey[]>>;
+  selectedKeys: OriginExportContentKey[];
+  setSelectedKeys: React.Dispatch<React.SetStateAction<OriginExportContentKey[]>>;
   t: OriginExportContentTranslateFn;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -107,7 +107,7 @@ const OriginExportContentMenu = ({
     .filter((option) => selectedSet.has(option.key))
     .map((option) => t(option.labelKey));
   const summary = selectedLabels.join(" + ");
-  const toggleContentKey = (key: DeviceAnalysisOriginExportContentKey) => {
+  const toggleContentKey = (key: OriginExportContentKey) => {
     setSelectedKeys((prev) => {
       const current =
         Array.isArray(prev) && prev.length
@@ -221,10 +221,10 @@ export const OriginCurveExportMenu = ({
 }: {
   curveOptions: OriginCurveExportSeriesOption[];
   selectedCurveOptionKeySet: Set<string>;
-  mode: DeviceAnalysisOriginCurveExportMode;
+  mode: OriginCurveExportMode;
   onSelectedCurveOptionKeysChange: (nextKeys: string[]) => void;
   scopedFileIds: string[];
-  setMode: (next: DeviceAnalysisOriginCurveExportMode) => void;
+  setMode: (next: OriginCurveExportMode) => void;
   replaceMatchingOriginSeriesAcrossFiles: ReplaceMatchingOriginSeriesAcrossFilesFn;
   t: OriginExportContentTranslateFn;
 }) => {
@@ -468,7 +468,7 @@ const OriginExportToolbar = ({
           id="device-analysis-origin-export-mode-select"
           size="sm"
           value={mode}
-          onChange={(next: any) => onModeChange(isDeviceAnalysisOriginExportMode(next) ? next : "merged")}
+          onChange={(next: any) => onModeChange(isOriginExportMode(next) ? next : "merged")}
           options={[
             {
               value: "merged",

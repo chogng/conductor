@@ -7,9 +7,9 @@ import {
 } from "./analysisMath.ts";
 import {
   computeBaseCurrentMetrics,
-  isOutputLikeDeviceAnalysisFile,
-  isTransferLikeDeviceAnalysisFile,
-} from "./deviceAnalysisMetrics.ts";
+  isOutputLikeFile,
+  isTransferLikeFile,
+} from "./metrics.ts";
 import {
   getCachedBaseCurrent,
   getCachedDerivativePoints,
@@ -44,7 +44,7 @@ type ProcessedEntryLike = {
   originExportYUnitLabel?: string;
 };
 
-export type DeviceAnalysisOriginExportContentKey =
+export type OriginExportContentKey =
   | "iv"
   | "metrics"
   | "gm"
@@ -75,19 +75,19 @@ type ResolveYValueForOriginFile = (
   y: number,
 ) => number;
 
-export type DeviceAnalysisOriginExportMode =
+export type OriginExportMode =
   | "merged"
   | "workbookBooks"
   | "workbookSheets"
   | "separate";
 
-export type DeviceAnalysisOriginImportMode =
+export type OriginImportMode =
   | "new-book"
   | "existing-book-new-sheet";
 
-export type DeviceAnalysisOriginYAxisScaleMode = "linear" | "log";
+export type OriginYAxisScaleMode = "linear" | "log";
 
-type DeviceAnalysisOriginCurveEntry = {
+type OriginCurveEntry = {
   canvasLabel: string;
   fileId: string;
   label: string;
@@ -100,7 +100,7 @@ type DeviceAnalysisOriginCurveEntry = {
   yUnits: string;
 };
 
-export type DeviceAnalysisOriginSelectionExport = {
+export type OriginSelectionExport = {
   canvasCount: number;
   columnLayout?: "xy-pairs" | "shared-x" | "grouped-x";
   columnComments?: string[];
@@ -113,7 +113,7 @@ export type DeviceAnalysisOriginSelectionExport = {
   curveCount: number;
   curveLabels: string[];
   fileIds: string[];
-  importMode: DeviceAnalysisOriginImportMode;
+  importMode: OriginImportMode;
   sheetShortName?: string;
   sheetName: string;
   workbookName: string;
@@ -132,23 +132,23 @@ export type DeviceAnalysisOriginSelectionExport = {
   yLinearMin: number | null;
   yPositiveMax: number | null;
   yPositiveMin: number | null;
-  yScaleMode?: DeviceAnalysisOriginYAxisScaleMode;
+  yScaleMode?: OriginYAxisScaleMode;
   plotCommand?: string;
   skipPlot?: boolean;
   skipDisplayRange?: boolean;
   skipAxisCommands?: boolean;
 };
 
-export type DeviceAnalysisOriginExportPlan = {
+export type OriginExportPlan = {
   mixedYScales: boolean;
-  mode: DeviceAnalysisOriginExportMode;
-  payloads: DeviceAnalysisOriginSelectionExport[];
+  mode: OriginExportMode;
+  payloads: OriginSelectionExport[];
   totalCanvasCount: number;
   totalCurveCount: number;
 };
 
 export const getRustOriginCsvDerivedContentKey = (
-  payload: Pick<DeviceAnalysisOriginSelectionExport, "csvName"> | null | undefined,
+  payload: Pick<OriginSelectionExport, "csvName"> | null | undefined,
 ): "gm" | "gds" | "ss" | "vth" | null => {
   const csvName = String(payload?.csvName ?? "");
   if (/__gm__selected_curves\.csv$/i.test(csvName)) return "gm";
@@ -160,7 +160,7 @@ export const getRustOriginCsvDerivedContentKey = (
 
 export const isRustOriginCsvEligiblePayload = (
   payload:
-    | Pick<DeviceAnalysisOriginSelectionExport, "csvName" | "fileIds" | "xColumnLongNames">
+    | Pick<OriginSelectionExport, "csvName" | "fileIds" | "xColumnLongNames">
     | null
     | undefined,
 ): boolean => {
@@ -188,7 +188,7 @@ export const isRustOriginCsvEligiblePayload = (
 };
 
 export const resolveRustOriginCsvYTransformForPayload = (
-  payload: Pick<DeviceAnalysisOriginSelectionExport, "csvName"> | null | undefined,
+  payload: Pick<OriginSelectionExport, "csvName"> | null | undefined,
   fallbackTransform: "abs" | "none",
 ): "abs" | "derivative" | "sqrtAbs" | "none" => {
   const derivedContentKey = getRustOriginCsvDerivedContentKey(payload);
@@ -198,7 +198,7 @@ export const resolveRustOriginCsvYTransformForPayload = (
   return fallbackTransform;
 };
 
-const sanitizeDeviceAnalysisFilename = (name: unknown): string =>
+const sanitizeAnalysisFilename = (name: unknown): string =>
   String(name || "export")
     .replace(/[/\\?%*:|"<>]/g, "_")
     .replace(/\s+/g, " ")
@@ -216,7 +216,7 @@ const sanitizeOriginDisplayName = (
   return raw.length > max ? raw.slice(0, max).trim() : raw;
 };
 
-const ORIGIN_CONTENT_SHEET_BASE_NAMES: Record<DeviceAnalysisOriginExportContentKey, string> = {
+const ORIGIN_CONTENT_SHEET_BASE_NAMES: Record<OriginExportContentKey, string> = {
   gds: "gds",
   gm: "gm",
   iv: "IV",
@@ -225,7 +225,7 @@ const ORIGIN_CONTENT_SHEET_BASE_NAMES: Record<DeviceAnalysisOriginExportContentK
   vth: "Vth",
 };
 
-const ORIGIN_EXPORT_CONTENT_KEY_SET = new Set<DeviceAnalysisOriginExportContentKey>([
+const ORIGIN_EXPORT_CONTENT_KEY_SET = new Set<OriginExportContentKey>([
   "iv",
   "metrics",
   "gm",
@@ -258,7 +258,7 @@ const OUTPUT_METRICS_FIELDS = [
 ];
 
 const resolveOriginContentSheetName = (
-  contentKey: DeviceAnalysisOriginExportContentKey,
+  contentKey: OriginExportContentKey,
   index: number,
   total: number,
 ): string => {
@@ -267,7 +267,7 @@ const resolveOriginContentSheetName = (
 };
 
 const resolveOriginContentSheetShortName = (
-  contentKey: DeviceAnalysisOriginExportContentKey,
+  contentKey: OriginExportContentKey,
   index: number,
   total: number,
 ): string => {
@@ -276,12 +276,12 @@ const resolveOriginContentSheetShortName = (
 };
 
 const applyOriginContentSheetName = (
-  payload: DeviceAnalysisOriginSelectionExport,
-  contentKey: DeviceAnalysisOriginExportContentKey,
+  payload: OriginSelectionExport,
+  contentKey: OriginExportContentKey,
   index: number,
   total: number,
   workbookName?: string,
-): DeviceAnalysisOriginSelectionExport => ({
+): OriginSelectionExport => ({
   ...payload,
   workbookName: workbookName
     ? sanitizeOriginDisplayName(workbookName, { max: 32 })
@@ -294,11 +294,11 @@ const applyOriginContentSheetName = (
 });
 
 const applyOriginSheetDisplayName = (
-  payload: DeviceAnalysisOriginSelectionExport,
+  payload: OriginSelectionExport,
   sheetName: string,
   sheetShortName: string,
   workbookName?: string,
-): DeviceAnalysisOriginSelectionExport => ({
+): OriginSelectionExport => ({
   ...payload,
   workbookName: workbookName
     ? sanitizeOriginDisplayName(workbookName, { max: 32 })
@@ -316,7 +316,7 @@ const resolveCanvasDisplayName = (
 ): string =>
   sanitizeOriginDisplayName(String(value ?? "").replace(/\.csv$/i, ""), { max });
 
-export const resolveDeviceAnalysisSeriesLabel = (
+export const resolveSeriesLabel = (
   series: ProcessedSeriesLike | null | undefined,
   index: number,
 ): string => {
@@ -507,7 +507,7 @@ const computeVthSqrtFits = (points: Array<{ x: number; y: number }>): VthFitResu
 };
 
 const dedupeCurveLabels = (
-  curveEntries: DeviceAnalysisOriginCurveEntry[],
+  curveEntries: OriginCurveEntry[],
 ): string[] => {
   const normalizedLabels = curveEntries.map((entry, index) => {
     const label = sanitizeOriginDisplayName(entry?.label ?? "", { max: 120 });
@@ -532,7 +532,7 @@ const dedupeCurveLabels = (
   });
 };
 
-const buildOriginPairsExpr = (
+const buildOriginPairGroupsExpr = (
   countRaw: unknown,
   resolvePair: (index: number) => [number, number],
 ): string => {
@@ -547,13 +547,13 @@ const buildOriginPairsExpr = (
   return `(${pairs.join(",")})`;
 };
 
-const buildDeviceAnalysisOriginPairsExpr = (xyPairCount: unknown): string =>
-  buildOriginPairsExpr(xyPairCount, (index) => [index * 2 + 1, index * 2 + 2]);
+const buildOriginPairsExpr = (xyPairCount: unknown): string =>
+  buildOriginPairGroupsExpr(xyPairCount, (index) => [index * 2 + 1, index * 2 + 2]);
 
-const buildDeviceAnalysisOriginSharedXPairsExpr = (curveCountRaw: unknown): string =>
-  buildOriginPairsExpr(curveCountRaw, (index) => [1, index + 2]);
+const buildOriginSharedXPairsExpr = (curveCountRaw: unknown): string =>
+  buildOriginPairGroupsExpr(curveCountRaw, (index) => [1, index + 2]);
 
-const buildDeviceAnalysisOriginPairsExprFromPairs = (
+const buildOriginPairsExprFromPairs = (
   pairs: Array<[number, number]>,
 ): string => {
   const normalizedPairs = pairs.length ? pairs : [[1, 2] as [number, number]];
@@ -566,7 +566,7 @@ const normalizeOriginXValueForKey = (value: unknown): string => {
   return String(value ?? "");
 };
 
-const buildOriginXGroupKey = (entry: DeviceAnalysisOriginCurveEntry): string =>
+const buildOriginXGroupKey = (entry: OriginCurveEntry): string =>
   [
     entry.fileId,
     entry.xLongName,
@@ -575,9 +575,9 @@ const buildOriginXGroupKey = (entry: DeviceAnalysisOriginCurveEntry): string =>
     entry.xArr.map(normalizeOriginXValueForKey).join(","),
   ].join("\u0001");
 
-export const isDeviceAnalysisOriginExportMode = (
+export const isOriginExportMode = (
   value: unknown,
-): value is DeviceAnalysisOriginExportMode =>
+): value is OriginExportMode =>
   value === "merged" ||
   value === "workbookBooks" ||
   value === "workbookSheets" ||
@@ -630,10 +630,10 @@ const buildOriginCurveEntriesForCanvas = (
   resolveYUnitLabelForFile: ResolveYUnitLabelForFile = (source) =>
     String(source?.yUnit ?? "").trim(),
   resolveCurveLabelForSeries: ResolveCurveLabelForSeries = (_file, series, index) =>
-    resolveDeviceAnalysisSeriesLabel(series, index),
+    resolveSeriesLabel(series, index),
   resolveAxisTitleForFile: ResolveAxisTitleForFile = () => "",
   resolveYValueForOriginFile: ResolveYValueForOriginFile = (_file, y) => y,
-): DeviceAnalysisOriginCurveEntry[] => {
+): OriginCurveEntry[] => {
   const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
   const selectedSeries = resolveSelectedSeriesForOriginCanvas(
     file,
@@ -694,7 +694,7 @@ const buildOriginCurveEntriesForCanvas = (
         yUnits,
       };
     })
-    .filter((entry): entry is DeviceAnalysisOriginCurveEntry => Boolean(entry));
+    .filter((entry): entry is OriginCurveEntry => Boolean(entry));
 };
 
 const buildWorksheetExport = ({
@@ -708,17 +708,17 @@ const buildWorksheetExport = ({
   yAxisTitle,
 }: {
   canvases: ProcessedEntryLike[];
-  curveEntries: DeviceAnalysisOriginCurveEntry[];
+  curveEntries: OriginCurveEntry[];
   csvBase: string;
-  importMode?: DeviceAnalysisOriginImportMode;
+  importMode?: OriginImportMode;
   sheetName: string;
   workbookName: string;
   xAxisTitle: string;
   yAxisTitle: string;
-}): DeviceAnalysisOriginSelectionExport | null => {
+}): OriginSelectionExport | null => {
   if (!curveEntries.length) return null;
   const xGroups: Array<{
-    entries: DeviceAnalysisOriginCurveEntry[];
+    entries: OriginCurveEntry[];
     key: string;
   }> = [];
   const xGroupByKey = new Map<string, number>();
@@ -864,10 +864,10 @@ const buildWorksheetExport = ({
     xMin: Number.isFinite(xMin) ? xMin : null,
     xyPairCount: curveEntries.length,
     xyPairs: useGroupedXLayout
-      ? buildDeviceAnalysisOriginPairsExprFromPairs(xyPairs)
+      ? buildOriginPairsExprFromPairs(xyPairs)
       : useSharedXLayout
-      ? buildDeviceAnalysisOriginSharedXPairsExpr(curveEntries.length)
-      : buildDeviceAnalysisOriginPairsExpr(curveEntries.length),
+      ? buildOriginSharedXPairsExpr(curveEntries.length)
+      : buildOriginPairsExpr(curveEntries.length),
     yAxisTitle,
     yColumnLongNames: curveEntries.map((entry) => entry.yLongName),
     yColumnUnits: curveEntries.map((entry) => entry.yUnits),
@@ -887,7 +887,7 @@ const buildWorksheetExport = ({
   };
 };
 
-export const buildDeviceAnalysisOriginCanvasExport = (
+export const buildOriginCanvasExport = (
   canvas: ProcessedEntryLike | null | undefined,
   selectedSeriesIdsByFile:
     | Record<string, string[] | undefined>
@@ -898,10 +898,10 @@ export const buildDeviceAnalysisOriginCanvasExport = (
   resolveYUnitLabelForFile: ResolveYUnitLabelForFile = (source) =>
     String(source?.yUnit ?? "").trim(),
   resolveCurveLabelForSeries: ResolveCurveLabelForSeries = (_file, series, index) =>
-    resolveDeviceAnalysisSeriesLabel(series, index),
+    resolveSeriesLabel(series, index),
   resolveAxisTitleForFile: ResolveAxisTitleForFile = () => "",
   resolveYValueForOriginFile: ResolveYValueForOriginFile = (_file, y) => y,
-): DeviceAnalysisOriginSelectionExport | null => {
+): OriginSelectionExport | null => {
   if (!canvas) return null;
 
   const curveEntries = buildOriginCurveEntriesForCanvas(
@@ -917,7 +917,7 @@ export const buildDeviceAnalysisOriginCanvasExport = (
   if (!curveEntries.length) return null;
 
   const canvasName = String(canvas?.fileName ?? "device_analysis");
-  const csvBase = `${sanitizeDeviceAnalysisFilename(canvasName)
+  const csvBase = `${sanitizeAnalysisFilename(canvasName)
     .replace(/\.csv$/i, "")
     .trim() || "device_analysis"}__selected_curves`;
   const xAxisTitle = resolveAxisTitleWithUnit(
@@ -944,7 +944,7 @@ export const buildDeviceAnalysisOriginCanvasExport = (
   });
 };
 
-export const buildDeviceAnalysisOriginSelectionExport = (
+export const buildOriginSelectionExport = (
   selectedCanvases: ProcessedEntryLike[] = [],
   selectedSeriesIdsByFile:
     | Record<string, string[] | undefined>
@@ -955,10 +955,10 @@ export const buildDeviceAnalysisOriginSelectionExport = (
   resolveYUnitLabelForFile: ResolveYUnitLabelForFile = (source) =>
     String(source?.yUnit ?? "").trim(),
   resolveCurveLabelForSeries: ResolveCurveLabelForSeries = (_file, series, index) =>
-    resolveDeviceAnalysisSeriesLabel(series, index),
+    resolveSeriesLabel(series, index),
   resolveAxisTitleForFile: ResolveAxisTitleForFile = () => "",
   resolveYValueForOriginFile: ResolveYValueForOriginFile = (_file, y) => y,
-): DeviceAnalysisOriginSelectionExport | null => {
+): OriginSelectionExport | null => {
   const liveCanvases = (Array.isArray(selectedCanvases) ? selectedCanvases : []).filter(
     (file): file is ProcessedEntryLike => Boolean(file),
   );
@@ -979,7 +979,7 @@ export const buildDeviceAnalysisOriginSelectionExport = (
   if (!curveEntries.length) return null;
 
   const firstCanvasName = String(liveCanvases[0]?.fileName ?? "device_analysis");
-  const sanitizedFirstBase = sanitizeDeviceAnalysisFilename(firstCanvasName)
+  const sanitizedFirstBase = sanitizeAnalysisFilename(firstCanvasName)
     .replace(/\.csv$/i, "")
     .trim();
   const canvasCount = liveCanvases.length;
@@ -1019,7 +1019,7 @@ export const buildDeviceAnalysisOriginSelectionExport = (
   });
 };
 
-const buildDeviceAnalysisOriginWorkbookSheetsExports = (
+const buildOriginWorkbookSheetsExports = (
   selectedCanvases: ProcessedEntryLike[] = [],
   selectedSeriesIdsByFile:
     | Record<string, string[] | undefined>
@@ -1030,17 +1030,17 @@ const buildDeviceAnalysisOriginWorkbookSheetsExports = (
   resolveYUnitLabelForFile: ResolveYUnitLabelForFile = (source) =>
     String(source?.yUnit ?? "").trim(),
   resolveCurveLabelForSeries: ResolveCurveLabelForSeries = (_file, series, index) =>
-    resolveDeviceAnalysisSeriesLabel(series, index),
+    resolveSeriesLabel(series, index),
   resolveAxisTitleForFile: ResolveAxisTitleForFile = () => "",
   resolveYValueForOriginFile: ResolveYValueForOriginFile = (_file, y) => y,
-): DeviceAnalysisOriginSelectionExport[] => {
+): OriginSelectionExport[] => {
   const liveCanvases = (Array.isArray(selectedCanvases) ? selectedCanvases : []).filter(
     (file): file is ProcessedEntryLike => Boolean(file),
   );
   if (!liveCanvases.length) return [];
 
   const firstCanvasName = String(liveCanvases[0]?.fileName ?? "device_analysis");
-  const sanitizedFirstBase = sanitizeDeviceAnalysisFilename(firstCanvasName)
+  const sanitizedFirstBase = sanitizeAnalysisFilename(firstCanvasName)
     .replace(/\.csv$/i, "")
     .trim();
   const workbookName =
@@ -1051,8 +1051,8 @@ const buildDeviceAnalysisOriginWorkbookSheetsExports = (
         );
 
   return liveCanvases
-    .map((canvas): DeviceAnalysisOriginSelectionExport | null => {
-      const exportPayload = buildDeviceAnalysisOriginCanvasExport(
+    .map((canvas): OriginSelectionExport | null => {
+      const exportPayload = buildOriginCanvasExport(
         canvas,
         selectedSeriesIdsByFile,
         resolveXScaleFactorForFile,
@@ -1072,7 +1072,7 @@ const buildDeviceAnalysisOriginWorkbookSheetsExports = (
         workbookName,
       };
     })
-    .filter((item): item is DeviceAnalysisOriginSelectionExport => Boolean(item));
+    .filter((item): item is OriginSelectionExport => Boolean(item));
 };
 
 const cloneSeriesWithDerivedY = (
@@ -1149,15 +1149,15 @@ const withDerivedOriginFileMetadata = (
 
 const buildDerivedCurveFile = (
   file: ProcessedEntryLike,
-  contentKey: Exclude<DeviceAnalysisOriginExportContentKey, "iv" | "metrics">,
+  contentKey: Exclude<OriginExportContentKey, "iv" | "metrics">,
   resolveCurveLabelForSeries: ResolveCurveLabelForSeries,
 ): ProcessedEntryLike | null => {
   const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
   const seriesList = Array.isArray(file?.series) ? file.series : [];
   if (!xGroups.length || !seriesList.length) return null;
 
-  const isTransfer = isTransferLikeDeviceAnalysisFile(file as any);
-  const isOutput = isOutputLikeDeviceAnalysisFile(file as any);
+  const isTransfer = isTransferLikeFile(file as any);
+  const isOutput = isOutputLikeFile(file as any);
   const baseName = String(file?.fileName ?? "device_analysis").replace(/\.csv$/i, "");
 
   if (contentKey === "gm" || contentKey === "gds") {
@@ -1246,12 +1246,12 @@ const buildMetricsWorksheetExports = (
   selectedCanvases: ProcessedEntryLike[],
   selectedSeriesIdsByFile: Record<string, string[] | undefined> | null | undefined,
   resolveCurveLabelForSeries: ResolveCurveLabelForSeries,
-): DeviceAnalysisOriginSelectionExport[] => {
+): OriginSelectionExport[] => {
   return selectedCanvases
-    .map((file): DeviceAnalysisOriginSelectionExport | null => {
+    .map((file): OriginSelectionExport | null => {
       const rows: Array<Record<string, number | string>> = [];
-    const supportsTransfer = isTransferLikeDeviceAnalysisFile(file as any);
-    const supportsOutput = isOutputLikeDeviceAnalysisFile(file as any);
+    const supportsTransfer = isTransferLikeFile(file as any);
+    const supportsOutput = isOutputLikeFile(file as any);
     const fields = supportsTransfer ? TRANSFER_METRICS_FIELDS : supportsOutput ? OUTPUT_METRICS_FIELDS : TRANSFER_METRICS_FIELDS;
     const selectedSeries = resolveSelectedSeriesForOriginCanvas(
       file,
@@ -1329,7 +1329,7 @@ const buildMetricsWorksheetExports = (
         (supportsOutput || supportsTransfer) &&
         Boolean(file?.originExportOmitIvCsvText);
       const csvText = omitCsvText ? "" : "\uFEFF" + Papa.unparse(csvRows);
-      const fileName = sanitizeDeviceAnalysisFilename(file?.fileName ?? "device_analysis")
+      const fileName = sanitizeAnalysisFilename(file?.fileName ?? "device_analysis")
         .replace(/\.csv$/i, "")
         .trim();
       const workbookName = sanitizeOriginDisplayName(fileName || "device analysis");
@@ -1366,14 +1366,14 @@ const buildMetricsWorksheetExports = (
         yPositiveMin: null,
       };
     })
-    .filter((payload): payload is DeviceAnalysisOriginSelectionExport => payload !== null);
+    .filter((payload): payload is OriginSelectionExport => payload !== null);
 };
 
 const normalizeOriginExportContentKeys = (
-  contentKeys?: readonly DeviceAnalysisOriginExportContentKey[] | null,
-): DeviceAnalysisOriginExportContentKey[] => {
+  contentKeys?: readonly OriginExportContentKey[] | null,
+): OriginExportContentKey[] => {
   const keys = (Array.isArray(contentKeys) ? contentKeys : ["iv"])
-    .filter((key): key is DeviceAnalysisOriginExportContentKey => ORIGIN_EXPORT_CONTENT_KEY_SET.has(key));
+    .filter((key): key is OriginExportContentKey => ORIGIN_EXPORT_CONTENT_KEY_SET.has(key));
   return keys.length ? Array.from(new Set(keys)) : ["iv"];
 };
 
@@ -1385,10 +1385,10 @@ const buildIvOriginExportGroups = (
   sheetShortName: string;
 }> => {
   const transferCanvases = canvases.filter((canvas) =>
-    isTransferLikeDeviceAnalysisFile(canvas as any),
+    isTransferLikeFile(canvas as any),
   );
   const outputCanvases = canvases.filter((canvas) =>
-    isOutputLikeDeviceAnalysisFile(canvas as any),
+    isOutputLikeFile(canvas as any),
   );
   const groupedIds = new Set(
     [...transferCanvases, ...outputCanvases].map((canvas) => canvas),
@@ -1423,29 +1423,29 @@ const buildIvOriginExportGroups = (
   return groups.length ? groups : [{ canvases, sheetName: "IV", sheetShortName: "IV" }];
 };
 
-export const buildDeviceAnalysisOriginExportsByMode = (
+export const buildOriginExportsByMode = (
   selectedCanvases: ProcessedEntryLike[] = [],
   selectedSeriesIdsByFile:
     | Record<string, string[] | undefined>
     | null
     | undefined = {},
-  exportMode: DeviceAnalysisOriginExportMode = "merged",
+  exportMode: OriginExportMode = "merged",
   resolveXScaleFactorForFile: ResolveXScaleFactorForFile = () => 1,
   resolveYScaleFactorForFile: ResolveYScaleFactorForFile = () => 1,
   resolveYUnitLabelForFile: ResolveYUnitLabelForFile = (source) =>
     String(source?.yUnit ?? "").trim(),
   resolveCurveLabelForSeries: ResolveCurveLabelForSeries = (_file, series, index) =>
-    resolveDeviceAnalysisSeriesLabel(series, index),
+    resolveSeriesLabel(series, index),
   resolveAxisTitleForFile: ResolveAxisTitleForFile = () => "",
   resolveYValueForOriginFile: ResolveYValueForOriginFile = (_file, y) => y,
-): DeviceAnalysisOriginSelectionExport[] => {
+): OriginSelectionExport[] => {
   const liveCanvases = (Array.isArray(selectedCanvases) ? selectedCanvases : []).filter(
     (file): file is ProcessedEntryLike => Boolean(file),
   );
   if (!liveCanvases.length) return [];
 
   if (exportMode === "workbookSheets") {
-    return buildDeviceAnalysisOriginWorkbookSheetsExports(
+    return buildOriginWorkbookSheetsExports(
       liveCanvases,
       selectedSeriesIdsByFile,
       resolveXScaleFactorForFile,
@@ -1460,7 +1460,7 @@ export const buildDeviceAnalysisOriginExportsByMode = (
   if (exportMode === "workbookBooks" || exportMode === "separate") {
     return liveCanvases
       .map((canvas) =>
-        buildDeviceAnalysisOriginCanvasExport(
+        buildOriginCanvasExport(
           canvas,
           selectedSeriesIdsByFile,
           resolveXScaleFactorForFile,
@@ -1471,10 +1471,10 @@ export const buildDeviceAnalysisOriginExportsByMode = (
           resolveYValueForOriginFile,
         ),
       )
-      .filter((item): item is DeviceAnalysisOriginSelectionExport => Boolean(item));
+      .filter((item): item is OriginSelectionExport => Boolean(item));
   }
 
-  const merged = buildDeviceAnalysisOriginSelectionExport(
+  const merged = buildOriginSelectionExport(
     liveCanvases,
     selectedSeriesIdsByFile,
     resolveXScaleFactorForFile,
@@ -1489,12 +1489,12 @@ export const buildDeviceAnalysisOriginExportsByMode = (
 
 const resolveNormalizedOriginYScale = (
   value: unknown,
-): DeviceAnalysisOriginYAxisScaleMode =>
+): OriginYAxisScaleMode =>
   String(value ?? "").trim().toLowerCase() === "log" ? "log" : "linear";
 
 const appendOriginScaleSuffix = (
   value: unknown,
-  scaleMode: DeviceAnalysisOriginYAxisScaleMode,
+  scaleMode: OriginYAxisScaleMode,
 ): string => {
   const base = sanitizeOriginDisplayName(value, { max: 140 });
   const suffix = scaleMode === "log" ? "Log" : "Linear";
@@ -1503,27 +1503,27 @@ const appendOriginScaleSuffix = (
   });
 };
 
-export const buildDeviceAnalysisOriginExportPlan = (
+export const buildOriginExportPlan = (
   selectedCanvases: ProcessedEntryLike[] = [],
   selectedSeriesIdsByFile:
     | Record<string, string[] | undefined>
     | null
     | undefined = {},
-  exportMode: DeviceAnalysisOriginExportMode = "merged",
+  exportMode: OriginExportMode = "merged",
   resolveYScaleForFile: (
     file: ProcessedEntryLike | null | undefined,
-  ) => DeviceAnalysisOriginYAxisScaleMode = () => "linear",
+  ) => OriginYAxisScaleMode = () => "linear",
   resolveXScaleFactorForFile: ResolveXScaleFactorForFile = () => 1,
   resolveYScaleFactorForFile: ResolveYScaleFactorForFile = () => 1,
   resolveYUnitLabelForFile: ResolveYUnitLabelForFile = (source) =>
     String(source?.yUnit ?? "").trim(),
   resolveCurveLabelForSeries: ResolveCurveLabelForSeries = (_file, series, index) =>
-    resolveDeviceAnalysisSeriesLabel(series, index),
+    resolveSeriesLabel(series, index),
   resolveAxisTitleForFile: ResolveAxisTitleForFile = () => "",
   resolveYValueForOriginFile: ResolveYValueForOriginFile = (_file, y) => y,
-  contentKeys: readonly DeviceAnalysisOriginExportContentKey[] = ["iv"],
+  contentKeys: readonly OriginExportContentKey[] = ["iv"],
   buildingIvGroup = false,
-): DeviceAnalysisOriginExportPlan => {
+): OriginExportPlan => {
   const liveCanvases = (Array.isArray(selectedCanvases) ? selectedCanvases : []).filter(
     (file): file is ProcessedEntryLike => Boolean(file),
   );
@@ -1545,8 +1545,8 @@ export const buildDeviceAnalysisOriginExportPlan = (
     (!buildingIvGroup && ivGroups.length === 1 && ivGroups[0]?.sheetName !== "IV")
   ) {
     const entries: Array<{
-      contentKey: DeviceAnalysisOriginExportContentKey;
-      payload: DeviceAnalysisOriginSelectionExport;
+      contentKey: OriginExportContentKey;
+      payload: OriginSelectionExport;
     }> = [];
     for (const contentKey of normalizedContentKeys) {
       if (contentKey === "metrics") {
@@ -1563,7 +1563,7 @@ export const buildDeviceAnalysisOriginExportPlan = (
 
       if (contentKey === "iv") {
         for (const group of ivGroups) {
-          const nextPayloads = buildDeviceAnalysisOriginExportPlan(
+          const nextPayloads = buildOriginExportPlan(
             group.canvases,
             selectedSeriesIdsByFile,
             exportMode,
@@ -1597,7 +1597,7 @@ export const buildDeviceAnalysisOriginExportPlan = (
         )
         .filter((canvas): canvas is ProcessedEntryLike => canvas !== null);
       if (!derivedCanvases.length) continue;
-      const nextPayloads = buildDeviceAnalysisOriginExportPlan(
+      const nextPayloads = buildOriginExportPlan(
           derivedCanvases,
           selectedSeriesIdsByFile,
           exportMode,
@@ -1617,8 +1617,8 @@ export const buildDeviceAnalysisOriginExportPlan = (
     const contentCounts = entries.reduce((counts, entry) => {
       counts.set(entry.contentKey, (counts.get(entry.contentKey) ?? 0) + 1);
       return counts;
-    }, new Map<DeviceAnalysisOriginExportContentKey, number>());
-    const contentSeen = new Map<DeviceAnalysisOriginExportContentKey, number>();
+    }, new Map<OriginExportContentKey, number>());
+    const contentSeen = new Map<OriginExportContentKey, number>();
     const contentWorkbookName =
       (liveCanvases.length === 1
         ? "Device Analysis"
@@ -1656,7 +1656,7 @@ export const buildDeviceAnalysisOriginExportPlan = (
   }
 
   if (exportMode !== "merged") {
-    const payloads = buildDeviceAnalysisOriginExportsByMode(
+    const payloads = buildOriginExportsByMode(
       liveCanvases,
       selectedSeriesIdsByFile,
       exportMode,
@@ -1689,7 +1689,7 @@ export const buildDeviceAnalysisOriginExportPlan = (
   }
 
   const groupedCanvases = new Map<
-    DeviceAnalysisOriginYAxisScaleMode,
+    OriginYAxisScaleMode,
     ProcessedEntryLike[]
   >();
   for (const canvas of liveCanvases) {
@@ -1703,7 +1703,7 @@ export const buildDeviceAnalysisOriginExportPlan = (
   }
 
   if (groupedCanvases.size <= 1) {
-    const payloads = buildDeviceAnalysisOriginExportsByMode(
+    const payloads = buildOriginExportsByMode(
       liveCanvases,
       selectedSeriesIdsByFile,
       "merged",
@@ -1731,12 +1731,12 @@ export const buildDeviceAnalysisOriginExportPlan = (
 
   const firstCanvasName = String(liveCanvases[0]?.fileName ?? "device_analysis");
   const workbookName = sanitizeOriginDisplayName(
-    `Mixed-scale export ${sanitizeDeviceAnalysisFilename(firstCanvasName).replace(/\.csv$/i, "").trim() || "device analysis"}`,
+    `Mixed-scale export ${sanitizeAnalysisFilename(firstCanvasName).replace(/\.csv$/i, "").trim() || "device analysis"}`,
   );
   const payloads = Array.from(groupedCanvases.entries())
     .sort(([left], [right]) => left.localeCompare(right))
-    .map(([scaleMode, canvases]): DeviceAnalysisOriginSelectionExport | null => {
-      const payload = buildDeviceAnalysisOriginSelectionExport(
+    .map(([scaleMode, canvases]): OriginSelectionExport | null => {
+      const payload = buildOriginSelectionExport(
         canvases,
         selectedSeriesIdsByFile,
         resolveXScaleFactorForFile,
@@ -1756,7 +1756,7 @@ export const buildDeviceAnalysisOriginExportPlan = (
         yScaleMode: scaleMode,
       };
     })
-    .filter((payload): payload is DeviceAnalysisOriginSelectionExport => payload !== null);
+    .filter((payload): payload is OriginSelectionExport => payload !== null);
 
   return {
     mixedYScales: true,

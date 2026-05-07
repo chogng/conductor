@@ -13,8 +13,8 @@ const LEGACY_ANALYSIS_STORE_METHODS = [
   "getDeviceAnalysisTemplates",
   "createDeviceAnalysisTemplate",
   "deleteDeviceAnalysisTemplate",
-  "getDeviceAnalysisSettings",
-  "updateDeviceAnalysisSettings",
+  "getSettings",
+  "updateSettings",
   "getDeviceAnalysisPersistencePath",
   "updateDeviceAnalysisPersistencePath",
   "chooseDeviceAnalysisPersistencePath",
@@ -30,7 +30,7 @@ export type AnalysisDesktopStore = {
   ) => unknown;
 };
 
-export type DeviceAnalysisDesktopStore = AnalysisDesktopStore;
+export type DesktopStore = AnalysisDesktopStore;
 
 type JsonRecord = Record<string, unknown>;
 type PersistencePathInfo = JsonRecord & { isConfigurable?: boolean };
@@ -144,7 +144,7 @@ export const requestAnalysisDesktopStore = async (
     return getDesktopStoreMethod(
       store,
       "getAnalysisSettings",
-      "getDeviceAnalysisSettings",
+      "getSettings",
     )();
   }
 
@@ -152,7 +152,7 @@ export const requestAnalysisDesktopStore = async (
     return getDesktopStoreMethod(
       store,
       "updateAnalysisSettings",
-      "updateDeviceAnalysisSettings",
+      "updateSettings",
     )(
       parseJsonBody(options.body) || {},
     );
@@ -194,4 +194,4 @@ export const requestAnalysisDesktopStore = async (
   throw new Error(`Desktop store endpoint not implemented: ${method} ${endpoint}`);
 };
 
-export const requestDeviceAnalysisDesktopStore = requestAnalysisDesktopStore;
+export const requestDesktopStore = requestAnalysisDesktopStore;

@@ -103,7 +103,7 @@ type OnboardingSettings = {
   onOpenGuide: () => void;
 };
 
-type DeviceAnalysisSettingsPanelProps = {
+type SettingsPanelProps = {
   appUpdateSettings: AppUpdateSettings;
   analysisDefaultSettings: AnalysisDefaultSettings;
   fileNameMatchingSettings: FileNameMatchingSettings;
@@ -123,7 +123,7 @@ const feedbackClassName = (type: Feedback["type"]): string =>
 
 type SettingsSectionId = "general" | "origin" | "about";
 
-const DeviceAnalysisSettingsPanel = ({
+const SettingsPanel = ({
   appUpdateSettings,
   analysisDefaultSettings,
   fileNameMatchingSettings,
@@ -136,7 +136,7 @@ const DeviceAnalysisSettingsPanel = ({
   storageSettings,
   windowCloseSettings,
   t,
-}: DeviceAnalysisSettingsPanelProps) => {
+}: SettingsPanelProps) => {
   const settingsSectionRef = useRef<HTMLElement | null>(null);
   const cleanupEnabledOptions = [
     { value: "true", label: t("da_settings_origin_cleanup_enable_on") },
@@ -964,5 +964,5 @@ const DeviceAnalysisSettingsPanel = ({
   );
 };
 
-export default DeviceAnalysisSettingsPanel;
+export default SettingsPanel;
 

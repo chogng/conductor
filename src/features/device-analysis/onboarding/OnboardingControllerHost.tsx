@@ -1,10 +1,10 @@
 import { useEffect } from "react";
 import type {
-  DeviceAnalysisTemplateConfig,
+  TemplateConfig,
 } from "../session/device-analysis-session-context";
 import type { ProcessedEntry, RawDataEntry } from "../shared/lib/sharedTypes";
-import { useDeviceAnalysisOnboarding } from "./useDeviceAnalysisOnboarding";
-import { loadDeviceAnalysisOnboarding } from "./loadDeviceAnalysisOnboarding";
+import { useOnboarding } from "./useOnboarding";
+import { loadOnboarding } from "./loadOnboarding";
 
 type OnboardingPage = "data" | "analysis" | "settings";
 
@@ -18,7 +18,7 @@ type OnboardingControllerState = {
   next: () => void;
   open: (mode: "auto" | "manual") => void;
   stepIndex: number;
-  steps: ReturnType<typeof useDeviceAnalysisOnboarding>["steps"];
+  steps: ReturnType<typeof useOnboarding>["steps"];
 };
 
 type OnboardingControllerHostProps = {
@@ -37,9 +37,9 @@ type OnboardingControllerHostProps = {
     React.SetStateAction<string | null>
   >;
   setTemplateConfig: React.Dispatch<
-    React.SetStateAction<DeviceAnalysisTemplateConfig>
+    React.SetStateAction<TemplateConfig>
   >;
-  templateConfig: DeviceAnalysisTemplateConfig;
+  templateConfig: TemplateConfig;
   updateSettings: (updates: Record<string, unknown>) => Promise<unknown> | unknown;
 };
 
@@ -60,7 +60,7 @@ const OnboardingControllerHost = ({
   templateConfig,
   updateSettings,
 }: OnboardingControllerHostProps) => {
-  const onboarding = useDeviceAnalysisOnboarding({
+  const onboarding = useOnboarding({
     clearPreviewState,
     importerRef,
     navigateToPage,
@@ -85,7 +85,7 @@ const OnboardingControllerHost = ({
   useEffect(() => {
     if (!isRequestedOpen || onboarding.isOpen) return;
 
-    void loadDeviceAnalysisOnboarding();
+    void loadOnboarding();
     onboarding.open(openMode);
   }, [isRequestedOpen, onboarding, openMode]);
 

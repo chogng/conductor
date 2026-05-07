@@ -8,8 +8,8 @@ import {
 } from "../src/features/device-analysis/analysis/lib/analysisMath.ts";
 import {
   computeBaseCurrentMetrics,
-  isTransferLikeDeviceAnalysisFile,
-} from "../src/features/device-analysis/analysis/lib/deviceAnalysisMetrics.ts";
+  isTransferLikeFile,
+} from "../src/features/device-analysis/analysis/lib/metrics.ts";
 import { buildPoints } from "../src/features/device-analysis/analysis/lib/analysisChartsUtils.ts";
 
 const ROOT = process.cwd();
@@ -68,7 +68,7 @@ const prepare = async () => {
   for (const entry of entries) {
     if (!entry?.ok || !entry?.result) continue;
     const file = entry.result;
-    if (!isTransferLikeDeviceAnalysisFile(file)) continue;
+    if (!isTransferLikeFile(file)) continue;
     const xGroups = safeArray(file.xGroups);
     const rustSeries = [];
     for (const item of safeArray(file.series)) {

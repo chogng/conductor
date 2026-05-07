@@ -43,14 +43,14 @@ import {
   normalizeTemplateConfigRecord,
   type TemplateConfig,
 } from "./templateManagerUtils";
-import { DEVICE_ANALYSIS_Y_UNIT_VALUES } from "../../analysis/lib/deviceAnalysisUnits";
+import { Y_UNIT_VALUES } from "../../analysis/lib/units";
 import {
-  buildDeviceAnalysisAutoTemplateConfig,
-  inferDeviceAnalysisAutoExtraction,
-  DEVICE_ANALYSIS_AUTO_TEMPLATE_ID,
-  type DeviceAnalysisAutoExtractionResult,
-} from "../../shared/lib/deviceAnalysisAutoExtraction";
-import { stableStringify } from "../../shared/lib/deviceAnalysisUtils";
+  buildAutoTemplateConfig,
+  inferAutoExtraction,
+  AUTO_TEMPLATE_ID,
+  type AutoExtractionResult,
+} from "../../shared/lib/autoExtraction";
+import { stableStringify } from "../../shared/lib/utils";
 import {
   deriveFileNameFieldSuggestions,
   joinFileNameMatchInput,
@@ -64,9 +64,9 @@ import {
   resolveXRangeForPreview,
   resolveXSegmentationMode,
 } from "../../shared/lib/XSegmentation";
-import { shouldStackTemplateTransferButtons } from "../../deviceAnalysisLayout";
+import { shouldStackTemplateTransferButtons } from "../../layout";
 import type { PreviewStatus as SessionPreviewStatus } from "../../session/device-analysis-session-context";
-import { useDeviceAnalysisSession } from "../../session/useDeviceAnalysisSession";
+import { useSession } from "../../session/useSession";
 import type {
   PreviewFileLike,
   RawDataEntry,
@@ -92,8 +92,8 @@ export type TemplateManagerProps = {
   onTemplateAppliedIncremental?: (config: Record<string, unknown>) => unknown;
   subscribePreviewRowsVersion?: (onStoreChange: () => void) => () => void;
   getPreviewRowsVersion?: () => number;
-  deviceAnalysisSettings?: Record<string, unknown> | null;
-  onUpdateDeviceAnalysisSettings?: (
+  analysisSettings?: Record<string, unknown> | null;
+  onUpdateSettings?: (
     updates: Record<string, unknown>,
   ) => Promise<unknown> | unknown;
 };
@@ -186,8 +186,8 @@ const TemplateManager = ({
   onTemplateAppliedIncremental,
   subscribePreviewRowsVersion,
   getPreviewRowsVersion,
-  deviceAnalysisSettings,
-  onUpdateDeviceAnalysisSettings,
+  analysisSettings,
+  onUpdateSettings,
 }: TemplateManagerProps) => {
   const { t } = useLanguage();
   const {
@@ -196,7 +196,7 @@ const TemplateManager = ({
     setSelectedTemplateId,
     selectedPreviewFileId,
     setSelectedPreviewFileId,
-  } = useDeviceAnalysisSession();
+  } = useSession();
   const tLoose = useCallback(
     (key: string, params?: Record<string, unknown>) =>
       t(key, params as TranslationVars | undefined),
@@ -240,7 +240,7 @@ const TemplateManager = ({
   const containerRef = useRef<HTMLElement | null>(null);
   const yUnitOptions = useMemo(
     () =>
-      DEVICE_ANALYSIS_Y_UNIT_VALUES.map((unit) => ({
+      Y_UNIT_VALUES.map((unit) => ({
         label: unit,
         value: unit,
       })),
@@ -304,10 +304,10 @@ const TemplateManager = ({
     writeFieldFromPreview,
     selectAutoTemplate,
   } = useTemplateManagerState({
-    deviceAnalysisSettings,
+    analysisSettings,
     onTemplateApplied,
     onTemplateAppliedIncremental,
-    onUpdateDeviceAnalysisSettings,
+    onUpdateSettings,
     previewFile,
     previewStatus: previewStatus ?? undefined,
     showToast,
@@ -336,9 +336,9 @@ const TemplateManager = ({
   const resolvedFileNameFieldSeparators = useMemo(
     () =>
       normalizeFileNameFieldSeparators(
-        deviceAnalysisSettings?.fileNameFieldSeparators,
+        analysisSettings?.fileNameFieldSeparators,
       ),
-    [deviceAnalysisSettings?.fileNameFieldSeparators],
+    [analysisSettings?.fileNameFieldSeparators],
   );
   const fileNameFieldSuggestions = useMemo(
     () =>
@@ -460,7 +460,7 @@ const TemplateManager = ({
     [t],
   );
   const isAutoTemplateSelected =
-    selectedTemplateId === DEVICE_ANALYSIS_AUTO_TEMPLATE_ID;
+    selectedTemplateId === AUTO_TEMPLATE_ID;
   const resolveTemplateByName = useCallback(
     (name: string) => {
       const target = String(name ?? "").trim();
@@ -1002,12 +1002,12 @@ const TemplateManager = ({
     previewRowsVersionSnapshot,
   ]);
 
-  const autoExtractionPreviewResult = useMemo<DeviceAnalysisAutoExtractionResult | null>(
+  const autoExtractionPreviewResult = useMemo<AutoExtractionResult | null>(
     () => {
       if (!isAutoTemplateSelected) return null;
       if (!autoPreviewRows.length) return null;
 
-      return inferDeviceAnalysisAutoExtraction({
+      return inferAutoExtraction({
         fileName: previewFile?.fileName || previewFile?.fileId || "preview",
         rows: autoPreviewRows,
         totalRowCount: previewFile?.rowCount,
@@ -1036,7 +1036,7 @@ const TemplateManager = ({
 
     return normalizeTemplateConfigRecord({
       ...baseConfig,
-      ...buildDeviceAnalysisAutoTemplateConfig(autoExtractionPreviewResult.plan),
+      ...buildAutoTemplateConfig(autoExtractionPreviewResult.plan),
     });
   }, [
     autoExtractionPreviewResult,
@@ -1133,7 +1133,7 @@ const TemplateManager = ({
   );
 
   const resolveAutoLegendSummary = useCallback(
-    (result: DeviceAnalysisAutoExtractionResult | null) => {
+    (result: AutoExtractionResult | null) => {
       if (!result?.ok) {
         return t("da_auto_template_summary_none");
       }
@@ -1227,7 +1227,7 @@ const TemplateManager = ({
 
   const handleSelectAutoTemplate = useCallback(() => {
     selectAutoTemplate();
-    setSelectedTemplateId(DEVICE_ANALYSIS_AUTO_TEMPLATE_ID);
+    setSelectedTemplateId(AUTO_TEMPLATE_ID);
   }, [selectAutoTemplate, setSelectedTemplateId]);
 
   const toastVarPairIfInvalid = useCallback(() => {
@@ -1737,7 +1737,7 @@ const TemplateManager = ({
     const templateSelectOptions = [
       {
         label: t("da_auto_template"),
-        value: DEVICE_ANALYSIS_AUTO_TEMPLATE_ID,
+        value: AUTO_TEMPLATE_ID,
         onSelect: handleSelectAutoTemplate,
       },
       {
@@ -1977,7 +1977,7 @@ const TemplateManager = ({
               }
               value={
                 isAutoTemplateSelected
-                  ? DEVICE_ANALYSIS_AUTO_TEMPLATE_ID
+                  ? AUTO_TEMPLATE_ID
                   : selectedTemplateId ?? ""
               }
               options={templateSelectOptions}
@@ -2365,8 +2365,8 @@ const TemplateManager = ({
               : () =>
                   setConfig((prev) => {
                     const nextStopOnError = !prev.stopOnError;
-                    if (typeof onUpdateDeviceAnalysisSettings === "function") {
-                      void onUpdateDeviceAnalysisSettings({
+                    if (typeof onUpdateSettings === "function") {
+                      void onUpdateSettings({
                         stopOnErrorDefault: nextStopOnError,
                       });
                     }

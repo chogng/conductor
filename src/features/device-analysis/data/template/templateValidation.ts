@@ -1,6 +1,6 @@
 import type { TemplateConfig } from "./templateManagerUtils";
 import type { LooseTranslateFn as TranslateFn } from "../../shared/lib/translateTypes";
-import { normalizeDeviceAnalysisYUnit } from "../../analysis/lib/deviceAnalysisUnits";
+import { normalizeYUnit } from "../../analysis/lib/units";
 import {
   joinFileNameMatchInput,
   splitFileNameMatchInput,
@@ -175,7 +175,7 @@ export function validateTemplateForSave<T extends ValidationConfig>(
       bottomTitle: varPair.vg,
       legendPrefix: varPair.vd,
       xUnit: normalizeAxisUnit(config?.xUnit),
-      yUnit: normalizeDeviceAnalysisYUnit(config?.yUnit, "A"),
+      yUnit: normalizeYUnit(config?.yUnit, "A"),
       fileNameVgKeywords: curveTagging.fileNameVgKeywords,
       fileNameVdKeywords: curveTagging.fileNameVdKeywords,
     },
@@ -203,7 +203,7 @@ export function validateTemplateForApply<T extends ValidationConfig>(
       leftTitle: config?.leftTitle ?? "",
       legendPrefix: varPair.vd,
       xUnit: normalizeAxisUnit(config?.xUnit),
-      yUnit: normalizeDeviceAnalysisYUnit(config?.yUnit, "A"),
+      yUnit: normalizeYUnit(config?.yUnit, "A"),
       fileNameVgKeywords: curveTagging.fileNameVgKeywords,
       fileNameVdKeywords: curveTagging.fileNameVdKeywords,
     },

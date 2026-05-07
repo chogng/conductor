@@ -6,9 +6,9 @@ import {
   resolveSeriesChartColor,
 } from "../lib/chartColors";
 import {
-  getDeviceAnalysisPerfNow,
-  logDeviceAnalysisPerf,
-} from "../../shared/lib/deviceAnalysisPerf";
+  getPerfNow,
+  logPerf,
+} from "../../shared/lib/perf";
 import { useCanvasChartTheme } from "../lib/chartCanvasTheme";
 
 type Padding = {
@@ -434,7 +434,7 @@ const CanvasMultiLineChart = ({
     const ctx = baseCtxRef.current;
     if (!ctx) return;
     if (size.width <= 0 || size.height <= 0) return;
-    const startedAt = getDeviceAnalysisPerfNow();
+    const startedAt = getPerfNow();
     let pointCount = 0;
 
     ctx.clearRect(0, 0, size.width, size.height);
@@ -504,9 +504,9 @@ const CanvasMultiLineChart = ({
       }
       if (started) ctx.stroke();
     }
-    const durationMs = getDeviceAnalysisPerfNow() - startedAt;
+    const durationMs = getPerfNow() - startedAt;
     if (durationMs >= 8 || prepared.series.length >= 8 || pointCount >= 3000) {
-      logDeviceAnalysisPerf("render:canvas-preview", {
+      logPerf("render:canvas-preview", {
         durationMs,
         height: size.height,
         pointCount,

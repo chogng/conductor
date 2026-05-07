@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { inferDeviceAnalysisAutoExtraction } from "../src/features/device-analysis/shared/lib/deviceAnalysisAutoExtraction.ts";
+import { inferAutoExtraction } from "../src/features/device-analysis/shared/lib/autoExtraction.ts";
 
 const ROOT = process.cwd();
 const OUTPUT_DIR = path.join(ROOT, ".tooling", "rust-auto-extraction-compat");
@@ -172,7 +172,7 @@ const prepare = async () => {
     baseline.push({
       fileName: fixture.fileName,
       name: fixture.name,
-      plan: normalizePlan(inferDeviceAnalysisAutoExtraction({
+      plan: normalizePlan(inferAutoExtraction({
         fileName: fixture.fileName,
         rows: fixture.rows,
         totalRowCount: fixture.rows.length,

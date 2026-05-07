@@ -17,10 +17,10 @@ import {
   valueToCanvasY,
 } from "../lib/canvasPlotUtils";
 import {
-  getDeviceAnalysisPerfNow,
-  isDeviceAnalysisPerfEnabled,
-  logDeviceAnalysisPerf,
-} from "../../shared/lib/deviceAnalysisPerf";
+  getPerfNow,
+  isPerfEnabled,
+  logPerf,
+} from "../../shared/lib/perf";
 import { useCanvasChartTheme } from "../lib/chartCanvasTheme";
 
 type PlotPoint = {
@@ -1029,7 +1029,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
     if (!canvas || !plotRect || !scale || size.width <= 0 || size.height <= 0) return;
     const ctx = setupCanvas(canvas, size.width, size.height);
     if (!ctx) return;
-    const startedAt = isDeviceAnalysisPerfEnabled() ? getDeviceAnalysisPerfNow() : 0;
+    const startedAt = isPerfEnabled() ? getPerfNow() : 0;
     ctx.clearRect(0, 0, size.width, size.height);
 
     const drawVerticalBand = (x1Raw: number, x2Raw: number, fill: string, opacity: number) => {
@@ -1423,9 +1423,9 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({
     }
 
     if (startedAt) {
-      const durationMs = getDeviceAnalysisPerfNow() - startedAt;
+      const durationMs = getPerfNow() - startedAt;
       if (durationMs >= 8 || chartSeriesList.length >= 8 || chartPointCount >= 3000) {
-        logDeviceAnalysisPerf("render:main-plot-canvas", {
+        logPerf("render:main-plot-canvas", {
           chartPointCount,
           durationMs,
           effectiveYScale,
@@ -2520,8 +2520,8 @@ const MainPlotChart = memo(function MainPlotChart({
   onXAxisLabelChange,
   onYAxisLabelChange,
 }: MainPlotChartProps) {
-  const renderStartedAt = isDeviceAnalysisPerfEnabled()
-    ? getDeviceAnalysisPerfNow()
+  const renderStartedAt = isPerfEnabled()
+    ? getPerfNow()
     : 0;
   const tickLabelOffsetPx = useMemo(() => {
     const axisTickLength = showMajorTicks
@@ -2608,11 +2608,11 @@ const MainPlotChart = memo(function MainPlotChart({
 
   useEffect(() => {
     if (!renderStartedAt) return;
-    const durationMs = getDeviceAnalysisPerfNow() - renderStartedAt;
+    const durationMs = getPerfNow() - renderStartedAt;
     if (durationMs < 12 && chartSeriesList.length < 8 && chartPointCount < 3000) {
       return;
     }
-    logDeviceAnalysisPerf("render:main-plot-commit", {
+    logPerf("render:main-plot-commit", {
       chartPointCount,
       durationMs,
       effectiveYScale,

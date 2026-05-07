@@ -25,37 +25,37 @@ import {
   type PlotAxisSettings,
 } from "../lib/plotAxisSettings";
 import {
-  isDeviceAnalysisOriginExportMode,
-  resolveDeviceAnalysisSeriesLabel,
-  type DeviceAnalysisOriginExportContentKey,
-  type DeviceAnalysisOriginExportMode,
+  isOriginExportMode,
+  resolveSeriesLabel,
+  type OriginExportContentKey,
+  type OriginExportMode,
 } from "../lib/originSelectionExport";
 import type { ToastState, ToastType } from "../../shared/lib/sharedTypes";
 import { useAnalysisFileCache } from "../useAnalysisFileCache";
 import {
   useOriginCanvasExport,
   resolveOriginSeriesMatchTokens,
-  type DeviceAnalysisOriginFilteredCanvasKind,
-  type DeviceAnalysisOriginCanvasExportScope,
-  type DeviceAnalysisOriginCurveExportMode,
+  type OriginFilteredCanvasKind,
+  type OriginCanvasExportScope,
+  type OriginCurveExportMode,
 } from "../useOriginCanvasExport";
 import { useFileSelectionPool } from "../useFileSelectionPool";
 import OverviewGrid from "./OverviewGrid";
 import CalculatedParametersRow from "./CalculatedParametersRow";
 import { SIGNED_LOG_Y_DATA_KEY, buildLogTicks, buildNiceTicks, buildOriginAutoTicks, buildOriginLogAutoTicks, buildPoints, buildStepTicks, computeLabelInterval, computeMinMax, downsamplePointsForDisplay, inferTickDigitsFromTicks, normalizeFloat, normalizeVarToken, padLinearDomain, padLogDomain, parseOptionalNumber, preserveScrollPosition, varTokenToSymbol, withSignedLogPositivePoints, } from "../lib/analysisChartsUtils";
-import { computeBaseCurrentMetrics, isOutputLikeDeviceAnalysisFile, isTransferLikeDeviceAnalysisFile, } from "../lib/deviceAnalysisMetrics";
+import { computeBaseCurrentMetrics, isOutputLikeFile, isTransferLikeFile, } from "../lib/metrics";
 import { ANALYSIS_CACHE_VERSION, canUseCachedBaseCurrent, } from "../lib/analysisCachePolicy";
 import {
   DEVICE_ANALYSIS_CAPACITANCE_Y_UNIT_VALUES,
   DEVICE_ANALYSIS_CURRENT_Y_UNIT_VALUES,
-  getDeviceAnalysisXUnitMeta,
-  getDeviceAnalysisYUnitMeta,
-  isDeviceAnalysisCapacitanceYUnit,
-  isDeviceAnalysisCurrentYUnit,
-  normalizeDeviceAnalysisYUnit,
-  type DeviceAnalysisYUnit,
-} from "../lib/deviceAnalysisUnits";
-import { getDeviceAnalysisPerfNow, logDeviceAnalysisPerf, startDeviceAnalysisPerf } from "../../shared/lib/deviceAnalysisPerf";
+  getXUnitMeta,
+  getYUnitMeta,
+  isCapacitanceYUnit,
+  isCurrentYUnit,
+  normalizeYUnit,
+  type YUnit,
+} from "../lib/units";
+import { getPerfNow, logPerf, startPerf } from "../../shared/lib/perf";
 import MainPlotChart from "./MainPlotChart";
 import GmDiagnosticsChart from "./GmDiagnosticsChart";
 import SsDiagnosticsChart from "./SsDiagnosticsChart";
@@ -105,7 +105,7 @@ const ORIGIN_EXPORT_CONTENT_OPTIONS: OriginExportContentOption[] = [
     { group: "derived", key: "ss", labelKey: "da_origin_export_content_ss" },
     { group: "derived", key: "vth", labelKey: "da_origin_export_content_vth" },
 ];
-const DEFAULT_ORIGIN_EXPORT_CONTENT_KEYS: DeviceAnalysisOriginExportContentKey[] = ["iv"];
+const DEFAULT_ORIGIN_EXPORT_CONTENT_KEYS: OriginExportContentKey[] = ["iv"];
 const resolvePrimaryExportContentLabelKey = (fileLike: any): string => {
     const curveType = String(fileLike?.curveType ?? "").trim().toLowerCase();
     if (curveType === "pv")
@@ -125,7 +125,7 @@ const resolveOriginExportContentOptionsForFile = (fileLike: any): OriginExportCo
     };
     if (curveType === "pv" || curveType === "cv" || curveType === "cf")
         return [primaryOption];
-    if (isTransferLikeDeviceAnalysisFile(fileLike)) {
+    if (isTransferLikeFile(fileLike)) {
         return [
             primaryOption,
             { group: "basic", key: "metrics", labelKey: "da_origin_export_content_metrics" },
@@ -134,7 +134,7 @@ const resolveOriginExportContentOptionsForFile = (fileLike: any): OriginExportCo
             { group: "derived", key: "vth", labelKey: "da_origin_export_content_vth" },
         ];
     }
-    if (isOutputLikeDeviceAnalysisFile(fileLike)) {
+    if (isOutputLikeFile(fileLike)) {
         return [
             primaryOption,
             { group: "basic", key: "metrics", labelKey: "da_origin_export_content_metrics" },
@@ -144,12 +144,12 @@ const resolveOriginExportContentOptionsForFile = (fileLike: any): OriginExportCo
     return [primaryOption];
 };
 const normalizeOriginExportContentKeysForOptions = (
-    keys: readonly DeviceAnalysisOriginExportContentKey[] | null | undefined,
+    keys: readonly OriginExportContentKey[] | null | undefined,
     options: readonly OriginExportContentOption[],
-): DeviceAnalysisOriginExportContentKey[] => {
+): OriginExportContentKey[] => {
     const allowedKeys = new Set(options.map((option) => option.key));
     const normalized = (Array.isArray(keys) ? keys : DEFAULT_ORIGIN_EXPORT_CONTENT_KEYS)
-        .filter((key): key is DeviceAnalysisOriginExportContentKey => allowedKeys.has(key));
+        .filter((key): key is OriginExportContentKey => allowedKeys.has(key));
     return normalized.length ? Array.from(new Set(normalized)) : DEFAULT_ORIGIN_EXPORT_CONTENT_KEYS;
 };
 
@@ -180,9 +180,9 @@ const OriginCurveSelectionSeriesChip = React.memo(function OriginCurveSelectionS
     onToggleSeriesForFile,
     series,
 }: {
-    curveMode: DeviceAnalysisOriginCurveExportMode;
+    curveMode: OriginCurveExportMode;
     fileId: string;
-    onSetCurveMode: (nextMode: DeviceAnalysisOriginCurveExportMode) => void;
+    onSetCurveMode: (nextMode: OriginCurveExportMode) => void;
     onToggleSeriesForFile: (fileId: string, seriesKey: string) => void;
     series: OriginCurveSelectionSeriesEntry;
 }) {
@@ -251,7 +251,7 @@ const OriginCurveSelectionEntryRow = React.memo(function OriginCurveSelectionEnt
     showRemoveButton,
     showSeriesControls,
 }: {
-    curveMode: DeviceAnalysisOriginCurveExportMode;
+    curveMode: OriginCurveExportMode;
     entry: OriginCurveSelectionEntry;
     exportEntryActionLabel: string;
     fileCurvesLabel: string;
@@ -260,7 +260,7 @@ const OriginCurveSelectionEntryRow = React.memo(function OriginCurveSelectionEnt
     onRemoveEntry: (fileId: string) => void;
     onSelectAllSeriesForFile: (fileId: string) => void;
     onSelectFile: (fileId: string) => void;
-    onSetCurveMode: (nextMode: DeviceAnalysisOriginCurveExportMode) => void;
+    onSetCurveMode: (nextMode: OriginCurveExportMode) => void;
     onToggleFile: (fileId: string) => void;
     onToggleSeriesForFile: (fileId: string, seriesKey: string) => void;
     pickAllLabel: string;
@@ -823,27 +823,27 @@ const isLinearDefaultCurve = (fileLike: any): boolean => {
     return curveType === "cv" || curveType === "cf" || curveType === "pv";
 };
 const shouldUseStartupDefaultYScale = (fileLike: any): boolean =>
-    isTransferLikeDeviceAnalysisFile(fileLike) || isLinearDefaultCurve(fileLike);
+    isTransferLikeFile(fileLike) || isLinearDefaultCurve(fileLike);
 const resolveSpecialCurveType = (fileLike: any): "cv" | "cf" | "pv" | null => {
     const curveType = String(fileLike?.curveType ?? "").trim().toLowerCase();
     return curveType === "cv" || curveType === "cf" || curveType === "pv"
         ? curveType
         : null;
 };
-const resolveDefaultYUnitForFile = (fileLike: any): DeviceAnalysisYUnit => {
+const resolveDefaultYUnitForFile = (fileLike: any): YUnit => {
     if (isCapacitanceCurve(fileLike))
         return "pF";
-    return normalizeDeviceAnalysisYUnit(fileLike?.yUnit, "A") || "A";
+    return normalizeYUnit(fileLike?.yUnit, "A") || "A";
 };
-const resolveAllowedYUnitsForFile = (fileLike: any): readonly DeviceAnalysisYUnit[] => isCapacitanceCurve(fileLike)
+const resolveAllowedYUnitsForFile = (fileLike: any): readonly YUnit[] => isCapacitanceCurve(fileLike)
     ? DEVICE_ANALYSIS_CAPACITANCE_Y_UNIT_VALUES
     : DEVICE_ANALYSIS_CURRENT_Y_UNIT_VALUES;
-const isYUnitAllowedForFile = (unit: unknown, fileLike: any): unit is DeviceAnalysisYUnit => isCapacitanceCurve(fileLike)
-    ? isDeviceAnalysisCapacitanceYUnit(unit)
-    : isDeviceAnalysisCurrentYUnit(unit);
-const normalizeYUnitByFileIdRecord = (value: unknown): Record<string, DeviceAnalysisYUnit> => {
+const isYUnitAllowedForFile = (unit: unknown, fileLike: any): unit is YUnit => isCapacitanceCurve(fileLike)
+    ? isCapacitanceYUnit(unit)
+    : isCurrentYUnit(unit);
+const normalizeYUnitByFileIdRecord = (value: unknown): Record<string, YUnit> => {
     return normalizeByFileIdRecord(value, (unit) => {
-        const normalizedUnit = normalizeDeviceAnalysisYUnit(unit, "A");
+        const normalizedUnit = normalizeYUnit(unit, "A");
         return normalizedUnit || null;
     });
 };
@@ -1104,7 +1104,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     }, [isActiveFileControlled, onActiveFileIdChange]);
     const [plotType, setPlotType] = useState<PlotTypeOption>("iv");
     const [focusedSeriesId, setFocusedSeriesId] = useState<string | null>(null);
-    const [persistedYUnitByFileId, setPersistedYUnitByFileId] = useState<Record<string, DeviceAnalysisYUnit>>({});
+    const [persistedYUnitByFileId, setPersistedYUnitByFileId] = useState<Record<string, YUnit>>({});
     const [persistedYScaleByFileId, setPersistedYScaleByFileId] = useState<Record<string, "linear" | "log">>({});
     const [persistedYLogCurrentModeByFileId, setPersistedYLogCurrentModeByFileId] = useState<Record<string, "all" | "positive">>({});
     const [chartYScaleByFileId, setChartYScaleByFileId] = useState<Record<string, "linear" | "log" | "logAbs">>({});
@@ -1118,11 +1118,11 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const userChangedYLogCurrentModeRef = useRef(false);
     const [areaInput, setAreaInput] = useState("");
     const [showPlotSettingsPane, setShowPlotSettingsPane] = useState(false);
-    const [originExportMode, setOriginExportMode] = useState<DeviceAnalysisOriginExportMode>("merged");
-    const [originCanvasExportScope, setOriginCanvasExportScope] = useState<DeviceAnalysisOriginCanvasExportScope>("selected");
-    const [originCurveExportMode, setOriginCurveExportMode] = useState<DeviceAnalysisOriginCurveExportMode>("all");
-    const [originExportContentKeys, setOriginExportContentKeys] = useState<DeviceAnalysisOriginExportContentKey[]>(DEFAULT_ORIGIN_EXPORT_CONTENT_KEYS);
-    const [originFilteredCanvasKind, setOriginFilteredCanvasKind] = useState<DeviceAnalysisOriginFilteredCanvasKind>("output");
+    const [originExportMode, setOriginExportMode] = useState<OriginExportMode>("merged");
+    const [originCanvasExportScope, setOriginCanvasExportScope] = useState<OriginCanvasExportScope>("selected");
+    const [originCurveExportMode, setOriginCurveExportMode] = useState<OriginCurveExportMode>("all");
+    const [originExportContentKeys, setOriginExportContentKeys] = useState<OriginExportContentKey[]>(DEFAULT_ORIGIN_EXPORT_CONTENT_KEYS);
+    const [originFilteredCanvasKind, setOriginFilteredCanvasKind] = useState<OriginFilteredCanvasKind>("output");
     // User-picked curve legend template. File-level checkboxes are derived from this, not the source of truth.
     const [originCurveExportSelectedKeys, setOriginCurveExportSelectedKeys] = useState<string[] | null>(null);
     const [rcBiasSelectionKey, setRcBiasSelectionKey] = useState<string | null>(null);
@@ -1181,7 +1181,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         let cancelled = false;
         (async () => {
             try {
-                const settings = await apiService.getDeviceAnalysisSettings();
+                const settings = await apiService.getSettings();
                 const normalizedSettings = settings as {
                     analysisPlotAxisSettings?: unknown;
                     defaultYScaleForCf?: unknown;
@@ -1224,7 +1224,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 if (!userChangedYLogCurrentModeRef.current) {
                     setPersistedYLogCurrentModeByFileId(yLogCurrentModeByFileId);
                 }
-                if (isDeviceAnalysisOriginExportMode(exportMode)) {
+                if (isOriginExportMode(exportMode)) {
                     setOriginExportMode(exportMode);
                 }
                 if (!userChangedYScaleRef.current) {
@@ -1264,9 +1264,9 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return defaultYScaleForCf;
         if (specialCurveType === "pv")
             return defaultYScaleForPv;
-        if (isTransferLikeDeviceAnalysisFile(fileLike))
+        if (isTransferLikeFile(fileLike))
             return defaultYScaleForTransfer;
-        if (isOutputLikeDeviceAnalysisFile(fileLike))
+        if (isOutputLikeFile(fileLike))
             return defaultYScaleForOutput;
         return "linear";
     }, [defaultYScaleForCf, defaultYScaleForCv, defaultYScaleForOutput, defaultYScaleForPv, defaultYScaleForTransfer]);
@@ -1398,7 +1398,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         editingLegendInputRef.current?.focus();
         editingLegendInputRef.current?.select();
     }, [editingLegendLabel]);
-    const resolveYUnitForFile = React.useCallback((fileLike: any): DeviceAnalysisYUnit => {
+    const resolveYUnitForFile = React.useCallback((fileLike: any): YUnit => {
         const fileKey = String(fileLike?.fileId ?? "").trim();
         const fallbackUnit = resolveDefaultYUnitForFile(fileLike);
         if (!fileKey)
@@ -1524,7 +1524,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             : "";
         if (customLabel)
             return customLabel;
-        return resolveDeviceAnalysisSeriesLabel(series, index);
+        return resolveSeriesLabel(series, index);
     }, [seriesLegendLabelsByFileId]);
     const beginLegendLabelEdit = React.useCallback((fileId: unknown, series: any, index: number) => {
         const normalizedFileId = String(fileId ?? "").trim();
@@ -1623,10 +1623,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         }
         return normalizeLogCurrentMode(axis?.yLogCurrentMode);
     }, [axis?.yLogCurrentMode, persistedYLogCurrentModeByFileId]);
-    const resolvedXUnitMeta = useMemo(() => getDeviceAnalysisXUnitMeta(activeFile?.xUnit), [activeFile?.xUnit]);
+    const resolvedXUnitMeta = useMemo(() => getXUnitMeta(activeFile?.xUnit), [activeFile?.xUnit]);
     const activeYUnit = useMemo(() => resolveYUnitForFile(activeFile), [activeFile, resolveYUnitForFile]);
     const activeYUnitOptions = useMemo(() => resolveAllowedYUnitsForFile(activeFile), [activeFile]);
-    const resolvedYUnitMeta = useMemo(() => getDeviceAnalysisYUnitMeta(activeYUnit), [activeYUnit]);
+    const resolvedYUnitMeta = useMemo(() => getYUnitMeta(activeYUnit), [activeYUnit]);
     const originExportContentOptions = useMemo(
         () => resolveOriginExportContentOptionsForFile(activeFile),
         [activeFile],
@@ -1678,7 +1678,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         persistedPlotAxisSettingsRef.current = serialized;
         const timeoutId = window.setTimeout(() => {
             apiService
-                .updateDeviceAnalysisSettings({
+                .updateSettings({
                     analysisPlotAxisSettings: normalized,
                 })
                 .catch(() => { });
@@ -1893,7 +1893,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const optionMap = new Map<string, OriginCurveExportSeriesOption>();
         for (const file of Array.isArray(processedData) ? processedData : []) {
             const fileId = String(file?.fileId ?? "").trim();
-            if (!fileId || !isTransferLikeDeviceAnalysisFile(file)) continue;
+            if (!fileId || !isTransferLikeFile(file)) continue;
             const seriesList = Array.isArray(file?.series) ? file.series : [];
             for (let index = 0; index < seriesList.length; index += 1) {
                 const series = seriesList[index];
@@ -1914,7 +1914,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     }, [processedData, resolveDisplayLegendLabel]);
     const rcStatisticAvailableFileIds = useMemo(
         () => (Array.isArray(processedData) ? processedData : [])
-            .filter((file: any) => isTransferLikeDeviceAnalysisFile(file))
+            .filter((file: any) => isTransferLikeFile(file))
             .map((file: any) => String(file?.fileId ?? "").trim())
             .filter(Boolean),
         [processedData],
@@ -2054,10 +2054,10 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         scopedOriginCanvasKeySet,
         toggleOriginCanvasSelection,
     ]);
-    const handleOriginExportModeChange = React.useCallback((nextMode: DeviceAnalysisOriginExportMode) => {
+    const handleOriginExportModeChange = React.useCallback((nextMode: OriginExportMode) => {
         setOriginExportMode(nextMode);
         apiService
-            .updateDeviceAnalysisSettings({
+            .updateSettings({
             originExportModeDefault: nextMode,
         })
             .catch(() => { });
@@ -2073,11 +2073,11 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return null;
         return num;
     }, [areaInput]);
-    const transferMetricsApplicable = useMemo(() => isTransferLikeDeviceAnalysisFile(activeFile), [activeFile]);
-    const outputMetricsApplicable = useMemo(() => isOutputLikeDeviceAnalysisFile(activeFile), [activeFile]);
+    const transferMetricsApplicable = useMemo(() => isTransferLikeFile(activeFile), [activeFile]);
+    const outputMetricsApplicable = useMemo(() => isOutputLikeFile(activeFile), [activeFile]);
     const calculatedParametersMode = useMemo(() => transferMetricsApplicable ? "transfer" : outputMetricsApplicable ? "output" : "generic", [outputMetricsApplicable, transferMetricsApplicable]);
     const rcTransferAvailable = useMemo(
-        () => (Array.isArray(processedData) ? processedData : []).some((file: any) => isTransferLikeDeviceAnalysisFile(file)),
+        () => (Array.isArray(processedData) ? processedData : []).some((file: any) => isTransferLikeFile(file)),
         [processedData],
     );
     useEffect(() => {
@@ -2159,7 +2159,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const pointsBySeriesId = useMemo(() => {
         if (!activeFile?.fileId || !activeFile?.series?.length)
             return new Map();
-        const startedAt = getDeviceAnalysisPerfNow();
+        const startedAt = getPerfNow();
         const cache = getFileCache(activeFile.fileId, activeFile);
         if (!cache)
             return new Map();
@@ -2176,12 +2176,12 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             map.set(s.id, points);
         }
         if (builtSeriesCount > 0) {
-            logDeviceAnalysisPerf("analysis:active-points", {
+            logPerf("analysis:active-points", {
                 fileId: activeFile.fileId,
                 fileName: activeFile.fileName ?? null,
                 builtPointCount,
                 builtSeriesCount,
-                durationMs: getDeviceAnalysisPerfNow() - startedAt,
+                durationMs: getPerfNow() - startedAt,
                 totalSeriesCount: activeFile.series.length,
             });
         }
@@ -2533,7 +2533,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             return cancelScheduled;
         }
         const totalCount = activeFile.series.length;
-        const finishAnalysisPerf = startDeviceAnalysisPerf("analysis:detail-file", {
+        const finishAnalysisPerf = startPerf("analysis:detail-file", {
             fileId: activeFile?.fileId ?? null,
             fileName: activeFile?.fileName ?? null,
             seriesCount: totalCount,
@@ -2572,7 +2572,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         const run = (_deadline?: IdleDeadline) => {
             if (progressiveAnalysisJobIdRef.current !== jobId)
                 return;
-            const chunkStartedAt = getDeviceAnalysisPerfNow();
+            const chunkStartedAt = getPerfNow();
             let processed = 0;
             while (queue.length) {
                 if (_deadline) {
@@ -2592,11 +2592,11 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 processed += 1;
             }
             if (processed > 0) {
-                logDeviceAnalysisPerf("analysis:detail-chunk", {
+                logPerf("analysis:detail-chunk", {
                     fileId: activeFile?.fileId ?? null,
                     fileName: activeFile?.fileName ?? null,
                     completedCount: workingMap.size,
-                    durationMs: getDeviceAnalysisPerfNow() - chunkStartedAt,
+                    durationMs: getPerfNow() - chunkStartedAt,
                     pendingCount: queue.length,
                     processedCount: processed,
                     totalCount,
@@ -3270,7 +3270,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const renderPlotSeries = useMemo(() => {
         if (!displayPlotSeries.length)
             return displayPlotSeries;
-        const finishPerf = startDeviceAnalysisPerf("render:plot-series", {
+        const finishPerf = startPerf("render:plot-series", {
             fileId: activeFile?.fileId ?? null,
             fileName: activeFile?.fileName ?? null,
             maxPointsPerSeries: renderMaxPointsPerSeries,
@@ -3922,7 +3922,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         return (Array.isArray(processedData) ? processedData : [])
             .map((file: any) => {
             const fileId = String(file?.fileId ?? "").trim();
-            if (!fileId || !isTransferLikeDeviceAnalysisFile(file))
+            if (!fileId || !isTransferLikeFile(file))
                 return null;
             const series = (Array.isArray(file?.series) ? file.series : [])
                 .map((series: any, index: number) => {
@@ -3975,7 +3975,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             if (!selectedRcStatisticFileIdSet.has(fileId))
                 return [];
             const file = filesById.get(fileId);
-            if (!isTransferLikeDeviceAnalysisFile(file))
+            if (!isTransferLikeFile(file))
                 return [];
             const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
             const seriesList = Array.isArray(file?.series) ? file.series : [];
@@ -4275,7 +4275,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             }));
         }
         apiService
-            .updateDeviceAnalysisSettings(fileKey
+            .updateSettings(fileKey
             ? {
                 yScaleByFileId: {
                     ...persistedYScaleByFileId,
@@ -4316,14 +4316,14 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         showRemoveButton = true,
         showSeriesControls = true,
     }: {
-        curveMode?: DeviceAnalysisOriginCurveExportMode;
+        curveMode?: OriginCurveExportMode;
         entries: typeof exportListEntries;
         emptyText: string;
         isSelectionMode?: boolean;
         onClearAllSeriesForFile?: (fileId: string) => void;
         onToggleFile?: (fileId: string) => void;
         onSelectAllSeriesForFile?: (fileId: string) => void;
-        onSetCurveMode?: (nextMode: DeviceAnalysisOriginCurveExportMode) => void;
+        onSetCurveMode?: (nextMode: OriginCurveExportMode) => void;
         onToggleSeriesForFile?: (fileId: string, seriesKey: string) => void;
         renderFileExtra?: (entry: (typeof exportListEntries)[number]) => React.ReactNode;
         showRemoveButton?: boolean;
@@ -4412,7 +4412,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
 
               <div className="flex items-center gap-2">
                 <DropdownField id="device-analysis-y-unit-select" size="sm" value={activeYUnit} onChange={(next: any) => {
-            const nextUnitRaw = normalizeDeviceAnalysisYUnit(next, activeYUnit);
+            const nextUnitRaw = normalizeYUnit(next, activeYUnit);
             const nextUnit = isYUnitAllowedForFile(nextUnitRaw, activeFile)
                 ? nextUnitRaw
                 : resolveDefaultYUnitForFile(activeFile);
@@ -4425,7 +4425,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 }));
             }
             apiService
-                .updateDeviceAnalysisSettings(fileKey && nextUnit
+                .updateSettings(fileKey && nextUnit
                 ? {
                     yUnitByFileId: {
                         ...persistedYUnitByFileId,
@@ -4465,7 +4465,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     };
                     setPersistedYLogCurrentModeByFileId(nextByFileId);
                     apiService
-                        .updateDeviceAnalysisSettings({
+                        .updateSettings({
                         yLogCurrentModeByFileId: nextByFileId,
                     })
                         .catch(() => { });
@@ -4487,7 +4487,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 const next = !gmDiagnosticsEnabled;
                 setGmDiagnosticsEnabled(next);
                 apiService
-                    .updateDeviceAnalysisSettings({
+                    .updateSettings({
                     gmDiagnosticsEnabled: next,
                 })
                     .catch(() => { });
@@ -4505,7 +4505,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 const method = next === "auto" || next === "manual" ? next : "auto";
                 setSsMethod(method);
                 apiService
-                    .updateDeviceAnalysisSettings({
+                    .updateSettings({
                     ssMethodDefault: method,
                 })
                     .catch(() => { });
@@ -4519,7 +4519,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 const next = !ssShowFitLine;
                 setSsShowFitLine(next);
                 apiService
-                    .updateDeviceAnalysisSettings({ ssShowFitLine: next })
+                    .updateSettings({ ssShowFitLine: next })
                     .catch(() => { });
             }} className="h-8 px-2 text-xs" title={t("da_chart_fit_line_toggle_title")}>
                       {t("da_chart_fit_line")}
@@ -4529,7 +4529,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 const next = !ssDiagnosticsEnabled;
                 setSsDiagnosticsEnabled(next);
                 apiService
-                    .updateDeviceAnalysisSettings({
+                    .updateSettings({
                     ssDiagnosticsEnabled: next,
                 })
                     .catch(() => { });
@@ -4543,7 +4543,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 const next = !vthDiagnosticsEnabled;
                 setVthDiagnosticsEnabled(next);
                 apiService
-                    .updateDeviceAnalysisSettings({
+                    .updateSettings({
                     vthDiagnosticsEnabled: next,
                 })
                     .catch(() => { });

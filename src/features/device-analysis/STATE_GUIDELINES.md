@@ -30,7 +30,7 @@ Examples:
 - Current analysis selections for the live session
 
 Preferred storage:
-- `DeviceAnalysisSessionProvider`
+- `SessionProvider`
 
 Rule:
 - Session state may be long-lived within the mounted feature tree, but it is still not persisted storage.

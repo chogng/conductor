@@ -1,4 +1,4 @@
-import { isSupportedDataImportFileName } from "../../shared/lib/deviceAnalysisImportFileUtils";
+import { isSupportedDataImportFileName } from "../../shared/lib/importFileUtils";
 
 type FileSystemEntryLike = {
   isFile: boolean;

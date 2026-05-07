@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import Papa from "papaparse";
 import * as xlsx from "xlsx";
-import { assessImportedDeviceAnalysisFile } from "../src/features/device-analysis/shared/lib/deviceAnalysisImportFileUtils.ts";
+import { assessImportedFile } from "../src/features/device-analysis/shared/lib/importFileUtils.ts";
 
 const ROOT = process.cwd();
 const DEFAULT_RUST_EXE = path.join(
@@ -151,7 +151,7 @@ const assessCsvText = async (csvText, fileName) => {
   const file = new File([csvText], fileName, {
     type: "text/csv;charset=utf-8",
   });
-  return await assessImportedDeviceAnalysisFile(file);
+  return await assessImportedFile(file);
 };
 
 const main = async () => {

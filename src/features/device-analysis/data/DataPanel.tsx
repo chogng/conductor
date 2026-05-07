@@ -19,7 +19,7 @@ import TemplateManager, {
 } from "./template/TemplateManager";
 
 type DataPanelProps = {
-  deviceAnalysisSettings?: TemplateManagerProps["deviceAnalysisSettings"];
+  analysisSettings?: TemplateManagerProps["analysisSettings"];
   ensurePreviewCells?: TemplateManagerProps["ensurePreviewCells"];
   ensurePreviewRows?: TemplateManagerProps["ensurePreviewRows"];
   getPreviewRow?: TemplateManagerProps["getPreviewRow"];
@@ -35,7 +35,7 @@ type DataPanelProps = {
   onStartResizing?: (event: ReactMouseEvent<HTMLDivElement>) => void;
   onTemplateApplied?: TemplateManagerProps["onTemplateApplied"];
   onTemplateAppliedIncremental?: TemplateManagerProps["onTemplateAppliedIncremental"];
-  onUpdateDeviceAnalysisSettings?: TemplateManagerProps["onUpdateDeviceAnalysisSettings"];
+  onUpdateSettings?: TemplateManagerProps["onUpdateSettings"];
   previewFile?: TemplateManagerProps["previewFile"];
   previewStatus?: TemplateManagerProps["previewStatus"];
   rawData?: CsvImporterProps["files"];
@@ -45,8 +45,8 @@ type DataPanelProps = {
   t: TranslateFn;
 };
 
-const DeviceAnalysisDataPanel = ({
-  deviceAnalysisSettings,
+const DataPanel = ({
+  analysisSettings,
   ensurePreviewCells,
   ensurePreviewRows,
   getPreviewRow,
@@ -62,7 +62,7 @@ const DeviceAnalysisDataPanel = ({
   onStartResizing,
   onTemplateApplied,
   onTemplateAppliedIncremental,
-  onUpdateDeviceAnalysisSettings,
+  onUpdateSettings,
   previewFile,
   previewStatus,
   rawData = [],
@@ -220,12 +220,12 @@ const DeviceAnalysisDataPanel = ({
           onTemplateAppliedIncremental={onTemplateAppliedIncremental}
           subscribePreviewRowsVersion={subscribePreviewRowsVersion}
           getPreviewRowsVersion={getPreviewRowsVersion}
-          deviceAnalysisSettings={deviceAnalysisSettings}
-          onUpdateDeviceAnalysisSettings={onUpdateDeviceAnalysisSettings}
+          analysisSettings={analysisSettings}
+          onUpdateSettings={onUpdateSettings}
         />
       </section>
     </div>
   );
 };
 
-export default DeviceAnalysisDataPanel;
+export default DataPanel;
