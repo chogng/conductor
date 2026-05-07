@@ -2,6 +2,7 @@ import { jsx } from "react/jsx-runtime";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type HTMLAttributes, type MouseEvent as ReactMouseEvent, type ReactNode, } from "react";
 import { cx } from "src/utils/cx";
 import "./scrollbar.css";
+
 const MIN_THUMB_SIZE = 24;
 const WHEEL_LINE_DELTA_PX = 40;
 const HORIZONTAL_WHEEL_SMOOTHING = 0.24;

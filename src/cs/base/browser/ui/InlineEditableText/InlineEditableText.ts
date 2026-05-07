@@ -1,6 +1,7 @@
 import { jsx } from "react/jsx-runtime";
 import { useEffect, useRef, type CSSProperties, type ChangeEvent, type FocusEvent, type KeyboardEvent, type RefObject } from "react";
 import { cx } from "src/utils/cx";
+
 type InlineEditableTextProps = {
     className?: string;
     displayClassName?: string;

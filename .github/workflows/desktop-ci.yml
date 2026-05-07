@@ -8,6 +8,7 @@ on:
       - "public/**"
       - "build/**"
       - "scripts/build-desktop.mjs"
+      - "scripts/verify-icons.mjs"
       - "scripts/verify-auto-update-config.ts"
       - "package.json"
       - "package-lock.json"
