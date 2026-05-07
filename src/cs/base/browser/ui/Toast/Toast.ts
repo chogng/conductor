@@ -199,25 +199,25 @@ const Toast = ({ message, type = "success", actionText, onAction, onClose, isVis
         "data-type": type,
         "data-state": state,
         "data-ui": uiMarker,
-        className: cx("toast", isClosing ? "toast--closing" : "toast--opening", Object.keys(positionStyle).length === 0 && (position === "fixed" ? "toast--fixed" : "toast--absolute")),
+        className: cx("conductor-toast", isClosing ? "conductor-toast-closing" : "conductor-toast-opening", Object.keys(positionStyle).length === 0 && (position === "fixed" ? "conductor-toast-fixed" : "conductor-toast-absolute")),
         style: positionStyle,
         children: [
             jsx("div", {
-                className: "toast__icon",
+                className: "conductor-toast-icon",
                 children: getIcon()
             }),
             jsx("span", {
-                className: "toast__message",
+                className: "conductor-toast-message",
                 children: message
             }),
             jsx("div", {
-                className: "toast__controls",
+                className: "conductor-toast-controls",
                 children: [
                     actionText && onAction ? (jsx("button", {
                         type: "button",
                         onClick: onAction,
                         "data-ui": uiMarker ? `${uiMarker}-action` : undefined,
-                        className: "toast__action",
+                        className: "conductor-toast-action",
                         children: actionText
                     })) : null,
                     jsx("button", {
@@ -225,7 +225,7 @@ const Toast = ({ message, type = "success", actionText, onAction, onClose, isVis
                         onClick: onClose,
                         "aria-label": "Close toast",
                         "data-ui": uiMarker ? `${uiMarker}-close` : undefined,
-                        className: "toast__close",
+                        className: "conductor-toast-close",
                         children: jsx(X, {
                             size: 16,
                             "aria-hidden": "true"
