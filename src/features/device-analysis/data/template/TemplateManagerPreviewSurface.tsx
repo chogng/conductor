@@ -1,6 +1,6 @@
 import { FileSpreadsheet } from "lucide-react";
 import type { ReactNode } from "react";
-import Avatar from "../../../../components/ui/Avatar";
+import Avatar from "cs/base/browser/ui/Avatar/Avatar";
 import type { TranslateFn } from "../../../../context/language";
 import type { PreviewStatus as SessionPreviewStatus } from "../../session/device-analysis-session-context";
 import type { PreviewFileLike } from "../../shared/lib/sharedTypes";

@@ -1,11 +1,11 @@
 import { useEffect, useState, type KeyboardEvent } from "react";
 import { ArrowLeft } from "lucide-react";
-import Button from "../../../../components/ui/Button";
-import Card from "../../../../components/ui/Card";
-import DropdownField from "../../../../components/ui/DropdownField";
-import Input from "../../../../components/ui/Input";
-import ScrollArea from "../../../../components/ui/ScrollArea";
-import Switch from "../../../../components/ui/Switch";
+import Button from "cs/base/browser/ui/Button/Button";
+import Card from "cs/base/browser/ui/Card/Card";
+import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
+import Input from "cs/base/browser/ui/Input/Input";
+import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
+import Switch from "cs/base/browser/ui/Switch/Switch";
 import type { TranslateFn } from "../../../../context/language";
 import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,

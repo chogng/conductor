@@ -1,0 +1,94 @@
+/* ====================================================================== */
+/* Form Controls: Input / Textarea                                         */
+/* ====================================================================== */
+.input_warp {
+  @apply space-y-2;
+}
+
+.input_label {
+  @apply text-sm font-medium text-text-secondary;
+}
+
+.input_field {
+  @apply relative flex items-center gap-2 px-3 py-2 rounded-lg transition-all bg-bg-page;
+}
+
+.input_field--sm {
+  @apply h-6 text-xs;
+}
+
+.input_field--md {
+  @apply h-[38px] text-sm;
+}
+
+.input_field--lg {
+  @apply h-[42px] text-sm;
+}
+
+.input_field--xl {
+  @apply h-[47.6px] text-sm;
+}
+
+.input_field[data-state="enable"] {
+  @apply border-transparent;
+}
+
+/* Keyboard focus ring (component-level outer ring).
+   Note: native outlines are disabled globally; keep a visible keyboard focus indicator here. */
+html[data-nav="keyboard"] .input_field[data-state="enable"]::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: calc(0.5rem + 6px);
+  /* rounded-lg + offset */
+  @apply border-2 border-transparent;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease, border-color 120ms ease;
+}
+
+html[data-nav="keyboard"] .input_field[data-state="enable"]:focus-within::after {
+  @apply border-accent-terracotta;
+  opacity: 0.5;
+}
+
+.input_field[data-state="error"] {
+  @apply border-red-500 ring-1 ring-red-500/10;
+}
+
+.input_field[data-state="disabled"] {
+  @apply opacity-60 cursor-not-allowed;
+}
+
+.input_icon {
+  @apply text-text-tertiary inline-flex;
+}
+
+.input_native {
+  @apply flex-1 min-w-0 bg-transparent border-0 outline-none text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-0;
+}
+
+.input_native:disabled {
+  cursor: not-allowed;
+}
+
+.ui-textarea_native,
+.textarea_native {
+  @apply w-full min-w-0 flex-1 bg-transparent text-text-primary placeholder:text-text-tertiary text-sm resize-y;
+}
+
+.input_right {
+  @apply inline-flex items-center;
+}
+
+.input_error {
+  @apply text-xs text-red-600;
+}
+
+.input_hint {
+  @apply text-xs text-text-tertiary;
+}
+
+/* ====================================================================== */
+/* End Form Controls: Input / Textarea                                     */
+/* ====================================================================== */

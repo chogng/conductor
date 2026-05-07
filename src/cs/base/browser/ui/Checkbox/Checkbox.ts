@@ -1,7 +1,7 @@
 import { forwardRef, type HTMLAttributes, type ReactNode } from "react";
 import { jsx } from "react/jsx-runtime";
 import { Check } from "lucide-react";
-import { cx } from "../../utils/cx";
+import { cx } from "src/utils/cx";
 import "./checkbox.css";
 
 type CheckboxTag = "span" | "div";

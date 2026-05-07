@@ -11,8 +11,8 @@ import React, {
 import { Import, FileText, X, AlertCircle } from "lucide-react";
 import { cx } from "../../../utils/cx";
 import { useLanguage } from "../../../hooks/useLanguage";
-import Avatar from "../../../components/ui/Avatar";
-import ScrollArea from "../../../components/ui/ScrollArea";
+import Avatar from "cs/base/browser/ui/Avatar/Avatar";
+import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
 import {
   DEVICE_ANALYSIS_DATA_IMPORT_ACCEPT,
   isSupportedDataImportFileName,

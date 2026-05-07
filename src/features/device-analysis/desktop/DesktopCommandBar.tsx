@@ -9,7 +9,7 @@ import {
   X,
 } from "lucide-react";
 import originIcon from "../../../assets/icons/origin.svg";
-import DropdownField from "../../../components/ui/DropdownField";
+import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
 import type { TranslateFn } from "../../../context/language";
 import {
   createWorkbenchTitlebarNavActions,

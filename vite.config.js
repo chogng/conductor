@@ -10,6 +10,12 @@ const desktopWorkbenchHtmlPath = fileURLToPath(
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react({ fastRefresh: process.env.CONDUCTOR_DESKTOP_DEV !== "1" })],
+  resolve: {
+    alias: {
+      cs: fileURLToPath(new URL("./src/cs", import.meta.url)),
+      src: fileURLToPath(new URL("./src", import.meta.url)),
+    },
+  },
   worker: {
     format: "es",
   },

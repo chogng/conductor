@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import Card from "../../../components/ui/Card";
-import Button from "../../../components/ui/Button";
-import Input from "../../../components/ui/Input";
-import DropdownField from "../../../components/ui/DropdownField";
-import Toast from "../../../components/ui/Toast";
+import Card from "cs/base/browser/ui/Card/Card";
+import Button from "cs/base/browser/ui/Button/Button";
+import Input from "cs/base/browser/ui/Input/Input";
+import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
+import Toast from "cs/base/browser/ui/Toast/Toast";
 import type { LanguageCode, TranslateFn } from "../../../context/language";
 import type { ThemeMode } from "../../../context/theme";
 import type { Feedback, ToastState } from "../shared/lib/sharedTypes";

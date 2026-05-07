@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Check, ChevronDown, ChevronRight } from "lucide-react";
-import Button from "../../../../components/ui/Button";
-import ContentView from "../../../../components/ui/ContentView";
-import Dropdown from "../../../../components/ui/Dropdown";
-import DropdownField from "../../../../components/ui/DropdownField";
-import DropdownTrigger from "../../../../components/ui/DropdownTrigger";
-import Menu from "../../../../components/ui/Menu";
-import MenuItem from "../../../../components/ui/MenuItem";
-import MenuScrollArea from "../../../../components/ui/MenuScrollArea";
+import Button from "cs/base/browser/ui/Button/Button";
+import ContentView from "cs/base/browser/ui/ContentView/ContentView";
+import Dropdown from "cs/base/browser/ui/Dropdown/Dropdown";
+import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
+import DropdownTrigger from "cs/base/browser/ui/DropdownTrigger/DropdownTrigger";
+import Menu from "cs/base/browser/ui/Menu/Menu";
+import MenuItem from "cs/base/browser/ui/MenuItem/MenuItem";
+import MenuScrollArea from "cs/base/browser/ui/MenuScrollArea/MenuScrollArea";
 import {
   isOriginExportMode,
   type OriginExportContentKey,

@@ -1,4 +1,4 @@
-﻿const messages = {
+const messages = {
     common_clear: '清除',
     da_analysis_visualization: '分析与可视化',
     da_apply_to_all_files: '应用到所有',

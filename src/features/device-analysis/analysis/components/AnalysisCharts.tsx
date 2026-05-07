@@ -1,17 +1,17 @@
-﻿import React, { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, } from "react";
+import React, { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
 import { computeCentralDerivative, computeSubthresholdSwing, computeSubthresholdSwingFitAuto, computeSubthresholdSwingFitInRange, classifySsFit, formatNumber, interpolateCurveAtX, resolveAutoSsSelection, splitBidirectionalCurvePoints, } from "../lib/analysisMath";
 import { apiService } from "../services/apiService";
-import DropdownField from "../../../../components/ui/DropdownField";
-import Input from "../../../../components/ui/Input";
-import Menu from "../../../../components/ui/Menu";
-import Button from "../../../../components/ui/Button";
-import Card from "../../../../components/ui/Card";
-import Checkbox from "../../../../components/ui/Checkbox";
-import InlineEditableText from "../../../../components/ui/InlineEditableText";
-import ScrollArea from "../../../../components/ui/ScrollArea";
-import Tabs from "../../../../components/ui/Tabs";
-import Toast from "../../../../components/ui/Toast";
+import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
+import Input from "cs/base/browser/ui/Input/Input";
+import Menu from "cs/base/browser/ui/Menu/Menu";
+import Button from "cs/base/browser/ui/Button/Button";
+import Card from "cs/base/browser/ui/Card/Card";
+import Checkbox from "cs/base/browser/ui/Checkbox/Checkbox";
+import InlineEditableText from "cs/base/browser/ui/InlineEditableText/InlineEditableText";
+import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
+import Tabs from "cs/base/browser/ui/Tabs/Tabs";
+import Toast from "cs/base/browser/ui/Toast/Toast";
 import { useLanguage } from "../../../../hooks/useLanguage";
 import { getChartColor, resolveSeriesChartColor } from "../lib/chartColors";
 import {

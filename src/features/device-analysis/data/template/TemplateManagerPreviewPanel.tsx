@@ -7,7 +7,7 @@ import React, {
   useSyncExternalStore,
 } from "react";
 import { Check, Minus, Plus } from "lucide-react";
-import ScrollArea from "../../../../components/ui/ScrollArea";
+import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
 import type { TranslateFn } from "../../../../context/language";
 import type { PreviewStatus as SessionPreviewStatus } from "../../session/device-analysis-session-context";
 import type { PreviewFileLike } from "../../shared/lib/sharedTypes";

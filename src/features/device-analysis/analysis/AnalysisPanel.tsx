@@ -6,7 +6,7 @@ import {
   type SetStateAction,
 } from "react";
 import { BarChart2 } from "lucide-react";
-import Card from "../../../components/ui/Card";
+import Card from "cs/base/browser/ui/Card/Card";
 import type { TranslateFn } from "../../../context/language";
 import type {
   IonIoffManualTargetsByFileId,

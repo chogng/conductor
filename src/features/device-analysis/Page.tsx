@@ -11,8 +11,8 @@ import {
 } from "react";
 import DataPanel from "./data/DataPanel";
 import type { CsvImporterRef } from "./data/CsvImporter";
-import ScrollArea from "../../components/ui/ScrollArea";
-import Toast from "../../components/ui/Toast";
+import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
+import Toast from "cs/base/browser/ui/Toast/Toast";
 import type { TranslationVars } from "../../context/language";
 import { loadAnalysisCharts } from "./analysis/loadAnalysisCharts";
 import { getExtractionErrorMessage } from "./shared/lib/utils";

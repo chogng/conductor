@@ -1,5 +1,5 @@
-import Button from "../../../../components/ui/Button";
-import DropdownField from "../../../../components/ui/DropdownField";
+import Button from "cs/base/browser/ui/Button/Button";
+import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
 import { useLanguage } from "../../../../hooks/useLanguage";
 import type { OriginCurveExportSeriesOption } from "./OriginExportToolbar";
 

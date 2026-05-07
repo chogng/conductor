@@ -6,7 +6,7 @@ import {
   useState,
   type CSSProperties,
 } from "react";
-import Button from "../../../components/ui/Button";
+import Button from "cs/base/browser/ui/Button/Button";
 import type { TranslateFn } from "../../../context/language";
 import type {
   OnboardingCardAnchor,

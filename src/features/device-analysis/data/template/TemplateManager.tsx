@@ -20,15 +20,15 @@ import {
 } from "lucide-react";
 import { useLanguage } from "../../../../hooks/useLanguage";
 import type { TranslateFn, TranslationVars } from "../../../../context/language";
-import Toast from "../../../../components/ui/Toast";
-import Input from "../../../../components/ui/Input";
-import DropdownField from "../../../../components/ui/DropdownField";
-import Tabs from "../../../../components/ui/Tabs";
-import Card from "../../../../components/ui/Card";
-import Button from "../../../../components/ui/Button";
-import Checkbox from "../../../../components/ui/Checkbox";
-import Modal from "../../../../components/ui/Modal";
-import ScrollArea from "../../../../components/ui/ScrollArea";
+import Toast from "cs/base/browser/ui/Toast/Toast";
+import Input from "cs/base/browser/ui/Input/Input";
+import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
+import Tabs from "cs/base/browser/ui/Tabs/Tabs";
+import Card from "cs/base/browser/ui/Card/Card";
+import Button from "cs/base/browser/ui/Button/Button";
+import Checkbox from "cs/base/browser/ui/Checkbox/Checkbox";
+import Modal from "cs/base/browser/ui/Modal/Modal";
+import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
 import {
   TemplateManagerPreviewEmptyState,
   TemplateManagerPreviewSurface,

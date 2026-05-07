@@ -1,4 +1,4 @@
-﻿const messages = {
+const messages = {
     common_clear: 'Clear',
     da_analysis_visualization: 'Analysis & Visualization',
     da_apply_to_all_files: 'Apply to All',

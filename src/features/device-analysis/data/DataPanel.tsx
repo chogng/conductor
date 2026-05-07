@@ -6,8 +6,8 @@ import {
   type MutableRefObject,
   useState,
 } from "react";
-import Card from "../../../components/ui/Card";
-import Button from "../../../components/ui/Button";
+import Card from "cs/base/browser/ui/Card/Card";
+import Button from "cs/base/browser/ui/Button/Button";
 import type { TranslateFn } from "../../../context/language";
 import CsvImporter from "./CsvImporter";
 import type {

@@ -1,7 +1,7 @@
 import { formatNumber } from "../lib/analysisMath";
-import Card from "../../../../components/ui/Card";
-import Input from "../../../../components/ui/Input";
-import DropdownField from "../../../../components/ui/DropdownField";
+import Card from "cs/base/browser/ui/Card/Card";
+import Input from "cs/base/browser/ui/Input/Input";
+import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
 
 type AnalysisDiagnosticsCardProps = {
   showDiagnosticsPanel: boolean;
