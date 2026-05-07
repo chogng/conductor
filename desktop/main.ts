@@ -18,7 +18,7 @@ import { createBootSplashWindow } from "./bootSplashWindow.js";
 import {
   applyWindowThemeSnapshot,
   getCurrentBootThemeSnapshot,
-} from "./windowImpl.js";
+} from "../src/cs/platform/windows/electron-main/windowImpl.js";
 import { createAnalysisStore } from "./analysis-store.js";
 import {
   assertOriginExePath,
