@@ -713,6 +713,18 @@ function getDeviceAnalysisHomeDir() {
   return path.join(app.getPath("home"), ".device");
 }
 
+function getDeviceAnalysisTempRootDir() {
+  return path.join(app.getPath("temp"), "conductor");
+}
+
+function getOriginRuntimeRootDir() {
+  return getDeviceAnalysisTempRootDir();
+}
+
+function getOriginRuntimeStorageDir() {
+  return path.join(getOriginRuntimeRootDir(), "origin");
+}
+
 function getDeviceAnalysisDemoDir() {
   return path.join(getDeviceAnalysisHomeDir(), "demo");
 }
@@ -1135,7 +1147,7 @@ function sendRustDeviceAnalysisProcessingCommand(command, payload = {}, timeoutM
 
 function createRustDeviceAnalysisResultTempDir(fileId) {
   const safeFileId = String(fileId || "file").replace(/[^a-zA-Z0-9._-]+/g, "_");
-  const root = path.join(app.getPath("temp"), "conductor-device-analysis");
+  const root = getDeviceAnalysisTempRootDir();
   fs.mkdirSync(root, { recursive: true });
   return fs.mkdtempSync(path.join(root, `${safeFileId}-`));
 }
@@ -1145,7 +1157,7 @@ function createRustDeviceAnalysisOriginExportTempPath(fileId, csvName) {
   const safeCsvName = String(csvName || "device_analysis_origin.csv")
     .replace(/[/\\?%*:|"<>]+/g, "_")
     .trim() || "device_analysis_origin.csv";
-  const root = path.join(getDeviceAnalysisHomeDir(), "origin", "stream-jobs");
+  const root = path.join(getOriginRuntimeStorageDir(), "stream-jobs");
   fs.mkdirSync(root, { recursive: true });
   const jobDir = fs.mkdtempSync(path.join(root, `${safeFileId}-`));
   return path.join(jobDir, safeCsvName);
@@ -1182,7 +1194,7 @@ function isPathInsideDirectory(parentDir, targetPath) {
 
 function isReadableOriginStreamExportPath(filePath) {
   if (!filePath) return false;
-  const streamRoot = path.join(getDeviceAnalysisHomeDir(), "origin", "stream-jobs");
+  const streamRoot = path.join(getOriginRuntimeStorageDir(), "stream-jobs");
   if (!isPathInsideDirectory(streamRoot, filePath)) return false;
   try {
     const stat = fs.statSync(filePath);
@@ -1473,6 +1485,17 @@ function cleanupRustExcelJobRoot() {
     }
   } catch (error) {
     console.warn("[device-analysis] Failed to clean Rust Excel jobs:", error?.message || error);
+  }
+}
+
+function cleanupOriginRuntimeTempRoot() {
+  const runtimeRoot = getOriginRuntimeStorageDir();
+  try {
+    if (fs.existsSync(runtimeRoot)) {
+      fs.rmSync(runtimeRoot, { recursive: true, force: true });
+    }
+  } catch (error) {
+    console.warn("[origin-cleanup] Failed to clean Origin temp runtime:", error?.message || error);
   }
 }
 
@@ -2306,7 +2329,7 @@ async function detectOriginExecutablePathCached() {
 async function tryRunOriginRuntimeCleanup({ force = false, clearAll = false } = {}) {
   const { runOriginRuntimeCleanup } = await loadOriginRunnerModule();
   return runOriginRuntimeCleanup({
-    runtimeRootDir: getDeviceAnalysisHomeDir(),
+    runtimeRootDir: getOriginRuntimeRootDir(),
     policy: getOriginRuntimeCleanupPolicyFromSettings(),
     force,
     clearAll,
@@ -2408,7 +2431,7 @@ async function handleOriginHealthCheck(event, payload) {
       originExePath,
       workerScriptPath: ORIGIN_CSV_SCRIPT_PATH,
       workerExecutablePath: ORIGIN_CSV_WORKER_PATH,
-      runtimeRootDir: getDeviceAnalysisHomeDir(),
+      runtimeRootDir: getOriginRuntimeRootDir(),
     });
   } finally {
     try {
@@ -2444,7 +2467,7 @@ async function handleOriginRunCsv(event, payload) {
         originExePath,
         workerScriptPath: ORIGIN_CSV_SCRIPT_PATH,
         workerExecutablePath: ORIGIN_CSV_WORKER_PATH,
-        runtimeRootDir: getDeviceAnalysisHomeDir(),
+        runtimeRootDir: getOriginRuntimeRootDir(),
       });
     }
 
@@ -2488,7 +2511,7 @@ async function handleOriginRunCsv(event, payload) {
       originExePath,
       workerScriptPath: ORIGIN_CSV_SCRIPT_PATH,
       workerExecutablePath: ORIGIN_CSV_WORKER_PATH,
-      runtimeRootDir: getDeviceAnalysisHomeDir(),
+      runtimeRootDir: getOriginRuntimeRootDir(),
     });
   } finally {
     try {
@@ -3255,6 +3278,7 @@ if (hasSingleInstanceLock) {
     Menu.setApplicationMenu(null);
   }
   configureRuntimeCachePath();
+  cleanupOriginRuntimeTempRoot();
   cleanupRustExcelJobRoot();
   ensureDeviceAnalysisDemoFiles();
   createAppTray();
@@ -3359,6 +3383,7 @@ app.on("will-quit", () => {
   isAutoUpdateConfigured = false;
   autoUpdateConfiguredFeedUrl = null;
   cleanupRustExcelJobRoot();
+  cleanupOriginRuntimeTempRoot();
   stopAllRustDeviceAnalysisEngines();
   if (appTray) {
     appTray.destroy();

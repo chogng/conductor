@@ -1,3 +1,4 @@
+import os from "node:os";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -24,7 +25,7 @@ type OriginRuntimeCleanupOptions = {
 
 function resolveRuntimeRootDir(runtimeRootDir: unknown): string {
   const normalized = normalizeOriginExePath(runtimeRootDir);
-  const fallback = path.join(process.cwd(), ".device");
+  const fallback = path.join(os.tmpdir(), "conductor");
   const candidate = normalized
     ? path.isAbsolute(normalized)
       ? normalized
@@ -239,4 +240,3 @@ export function createCsvJobPaths(
     ...getOriginBridgeFilePaths(workDir),
   };
 }
-

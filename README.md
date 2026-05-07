@@ -46,6 +46,19 @@ live, save that rule as a template, then reuse it across future experiments.
 - Bundled Rust Excel converter and Python Origin CSV worker in packaged builds.
 - Electron Builder packaging, Windows release artifacts, and auto-update support for desktop distribution.
 
+## Local Data And Temporary Files
+
+- Persistent app data, including templates, settings, and the configured Origin
+  executable path, is stored under the user data home used by Conductor Studio.
+- Origin runtime job files are treated as sensitive temporary handoff data. CSV
+  intermediates and Origin worker logs are written under the system Temp root at
+  `conductor/origin` instead of the persistent user data directory.
+- The desktop app clears the Origin runtime Temp root on startup and during
+  normal shutdown. This limits how long exported CSV intermediates can remain on
+  disk, while still allowing templates and settings to persist.
+- Because an OS crash or force-kill can skip shutdown cleanup, startup cleanup is
+  part of the privacy model and should be kept if the runtime location changes.
+
 ## Requirements
 
 - Node.js 22+
