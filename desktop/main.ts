@@ -14,7 +14,6 @@ import {
   shell,
   Tray,
 } from "electron";
-import { createBootSplashWindow } from "./bootSplashWindow.js";
 import {
   applyWindowThemeSnapshot,
   getCurrentBootThemeSnapshot,
@@ -93,7 +92,6 @@ const ANALYSIS_RUST_PROCESSING_POOL_SIZE = Math.max(
   ),
 );
 let mainWindow = null;
-let splashWindow = null;
 let appTray = null;
 let mainWindowBootExpansionPromise = null;
 let mainWindowBootShown = false;
@@ -163,7 +161,6 @@ function getThemeSnapshotFromStore() {
 function syncBootWindowTheme() {
   const snapshot = getThemeSnapshotFromStore();
   applyWindowThemeSnapshot(mainWindow, snapshot);
-  applyWindowThemeSnapshot(splashWindow, snapshot);
   return snapshot;
 }
 
@@ -2937,24 +2934,6 @@ async function setupAutoUpdates() {
   }, AUTO_UPDATE_INTERVAL_MS);
 }
 
-function createSplashWindow() {
-  const themeSnapshot = syncBootWindowTheme();
-  const win = createBootSplashWindow({
-    icon: resolveDesktopWindowIconPath(),
-    logDesktopBoot,
-    themeSnapshot,
-  });
-
-  splashWindow = win;
-  win.on("closed", () => {
-    if (splashWindow === win) {
-      splashWindow = null;
-    }
-  });
-
-  return win;
-}
-
 async function revealMainWindow(win) {
   if (!win || win.isDestroyed()) return;
 
@@ -3077,10 +3056,6 @@ async function ensureMainWindowVisible() {
     return mainWindow;
   }
 
-  if (!splashWindow || splashWindow.isDestroyed()) {
-    createSplashWindow();
-  }
-
   const win = createMainWindow();
   await revealMainWindow(win);
   updateTrayMenu();
@@ -3165,9 +3140,6 @@ function createMainWindow() {
       mainWindow = null;
       mainWindowBootExpansionPromise = null;
     }
-    if (splashWindow && !splashWindow.isDestroyed()) {
-      splashWindow.close();
-    }
   });
 
   win.webContents.once("dom-ready", () => {
@@ -3197,6 +3169,7 @@ function createMainWindow() {
     logDesktopDiagnostic("window:did-finish-load", {
       url: win.webContents.getURL(),
     });
+    void showMainWindowAfterBoot(win);
     setTimeout(() => {
       if (!win.isDestroyed() && !win.isVisible()) {
         logDesktopBoot(
@@ -3316,11 +3289,6 @@ async function showMainWindowAfterBoot(win) {
   if (!win.isVisible()) {
     win.show();
   }
-
-  if (splashWindow && !splashWindow.isDestroyed()) {
-    splashWindow.close();
-  }
-  splashWindow = null;
 
   if (!win.isFocused()) {
     win.focus();
@@ -3512,7 +3480,6 @@ if (hasSingleInstanceLock) {
     handleOriginRuntimeCleanupRun,
   );
   nativeTheme.on("updated", syncBootWindowTheme);
-  createSplashWindow();
   void prepareStartupGate();
   const window = createMainWindow();
   window.webContents.once("did-finish-load", () => {

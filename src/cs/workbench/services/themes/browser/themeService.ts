@@ -9,7 +9,6 @@ class WorkbenchThemeService {
   private theme: ThemeMode = this.getInitialTheme();
   private readonly listeners = new Set<() => void>();
   private mediaQuery: MediaQueryList | null = null;
-  private darkThemeStylesPromise: Promise<unknown> | null = null;
   private started = false;
   private snapshot: ThemeServiceSnapshot;
 
@@ -63,18 +62,10 @@ class WorkbenchThemeService {
     return this.mediaQuery?.matches ? 'dark' : 'light';
   }
 
-  private async ensureDarkThemeStyles() {
-    this.darkThemeStylesPromise ??= import('src/styles/variables-dark.css');
-    await this.darkThemeStylesPromise;
-  }
-
   private async applyTheme(nextTheme: ThemeMode) {
     if (typeof window === 'undefined') return;
 
     const resolvedTheme = this.resolveTheme(nextTheme);
-    if (resolvedTheme === 'dark') {
-      await this.ensureDarkThemeStyles();
-    }
 
     const root = window.document.documentElement;
     root.classList.remove('dark');
