@@ -26,6 +26,7 @@ import {
   buildOriginAxisTitleCommands,
   buildOriginAxisSpacingCommands,
   buildOriginXAxisRangeCommandsFromDisplayRange,
+  buildOriginYAxisRangeCommands,
   buildOriginYAxisRangeCommandsFromDisplayRange,
 } from "./lib/originAxisCommands";
 import { formatOriginBridgeError } from "./lib/originBridgeError";
@@ -1338,31 +1339,37 @@ export const useOriginCanvasExport = ({
         const legendPostCommands = buildOriginLegendRefreshCommands(
           payload.curveLabels,
         );
-        const shouldUseDisplayRange =
+        const payloadYScaleMode: DeviceAnalysisOriginYAxisScaleMode =
+          payload.yScaleMode === "log" ? "log" : "linear";
+        const shouldUseXDisplayRange =
           payload.skipDisplayRange !== true &&
-          Boolean(chartYRange);
+          Boolean(chartXRange);
+        const shouldUseYDisplayRange =
+          payload.skipDisplayRange !== true &&
+          Boolean(chartYRange) &&
+          chartYRange?.mode === payloadYScaleMode;
         const originYScaleMode: DeviceAnalysisOriginYAxisScaleMode =
-          shouldUseDisplayRange && chartYRange?.mode
+          shouldUseYDisplayRange && chartYRange?.mode
             ? chartYRange.mode
-            : payload.yScaleMode === "log"
-              ? "log"
-              : "linear";
+            : payloadYScaleMode;
         const originYAxisTypeCommand =
           originYScaleMode === "log" ? "layer.y.type=2" : "layer.y.type=1";
         const effectiveXyPairs =
           !hasCustomPlotCommand && !hasCustomXyPairs
             ? payload.xyPairs
             : normalizedPlotOptions.xyPairs;
-        const displayXRangeCommands = shouldUseDisplayRange
+        const displayXRangeCommands = shouldUseXDisplayRange
           ? buildOriginXAxisRangeCommandsFromDisplayRange(chartXRange)
           : [];
-        const displayRangeCommands = shouldUseDisplayRange
+        const displayRangeCommands = shouldUseYDisplayRange
           ? buildOriginYAxisRangeCommandsFromDisplayRange(
               originYScaleMode,
               chartYRange,
             )
           : [];
-        const autoYRangeCommands: string[] = [];
+        const autoYRangeCommands = shouldUseYDisplayRange
+          ? []
+          : buildOriginYAxisRangeCommands(originYScaleMode, payload);
         const originAxisSpacingCommands = buildOriginAxisSpacingCommands(
           originAxisSettings && typeof originAxisSettings === "object"
             ? (originAxisSettings as any)
@@ -1391,7 +1398,7 @@ export const useOriginCanvasExport = ({
               ]),
         ];
         const originAxisLimits = {
-          x: shouldUseDisplayRange
+          x: shouldUseXDisplayRange
             ? {
                 from: chartXRange?.min,
                 to: chartXRange?.max,
@@ -1399,7 +1406,7 @@ export const useOriginCanvasExport = ({
                 scale: "linear",
               }
             : undefined,
-          y: shouldUseDisplayRange
+          y: shouldUseYDisplayRange
             ? {
                 from: chartYRange?.min,
                 to: chartYRange?.max,
