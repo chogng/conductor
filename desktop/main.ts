@@ -889,7 +889,7 @@ function handleRustAnalysisEngineLine(line) {
   try {
     message = JSON.parse(text);
   } catch (error) {
-    console.warn("[device-analysis-rust] invalid rs-worker JSON:", error?.message || error);
+    console.warn("[rust] invalid rs-worker JSON:", error?.message || error);
     return;
   }
 
@@ -946,7 +946,7 @@ function ensureRustAnalysisEngine() {
   child.stderr?.setEncoding("utf8");
   child.stderr?.on("data", (chunk) => {
     const text = String(chunk ?? "").trim();
-    if (text) console.warn("[device-analysis-rust]", text);
+    if (text) console.warn("[rust]", text);
   });
 
   child.on("error", (error) => {
@@ -1035,7 +1035,7 @@ function handleRustAnalysisEngineSlotLine(slot, line) {
     message = JSON.parse(text);
   } catch (error) {
     console.warn(
-      `[device-analysis-rust:${slot.name}] invalid rs-worker JSON:`,
+      `[rust:${slot.name}] invalid rs-worker JSON:`,
       error?.message || error,
     );
     return;
@@ -1094,7 +1094,7 @@ function ensureRustAnalysisEngineSlot(slot) {
   child.stderr?.setEncoding("utf8");
   child.stderr?.on("data", (chunk) => {
     const text = String(chunk ?? "").trim();
-    if (text) console.warn(`[device-analysis-rust:${slot.name}]`, text);
+    if (text) console.warn(`[rust:${slot.name}]`, text);
   });
 
   child.on("error", (error) => {
@@ -1484,7 +1484,7 @@ function cleanupRustExcelJobRoot() {
       fs.rmSync(jobRoot, { recursive: true, force: true });
     }
   } catch (error) {
-    console.warn("[device-analysis] Failed to clean Rust Excel jobs:", error?.message || error);
+    console.warn("[analysis] Failed to clean Rust Excel jobs:", error?.message || error);
   }
 }
 
@@ -1607,7 +1607,7 @@ async function handleAnalysisRustEngineOpen(_event, payload) {
     return {
       ok: false,
       code: "INVALID_DEVICE_ANALYSIS_PATH",
-      message: "Invalid device-analysis file path.",
+      message: "Invalid analysis file path.",
     };
   }
 
@@ -1617,14 +1617,14 @@ async function handleAnalysisRustEngineOpen(_event, payload) {
       return {
         ok: false,
         code: "INVALID_DEVICE_ANALYSIS_PATH",
-        message: "Device-analysis path is not a file.",
+        message: "Analysis path is not a file.",
       };
     }
   } catch (error) {
     return {
       ok: false,
       code: "DEVICE_ANALYSIS_FILE_NOT_FOUND",
-      message: error?.message || "Device-analysis file not found.",
+      message: error?.message || "Analysis file not found.",
     };
   }
 
@@ -1640,7 +1640,7 @@ async function handleAnalysisRustEngineOpen(_event, payload) {
       ok: true,
       durationMs: Date.now() - startedAt,
       result,
-      source: "rust-engine",
+      source: "rust",
     };
   } catch (error) {
     return {
@@ -1677,7 +1677,7 @@ async function handleAnalysisRustEnginePreviewRows(_event, payload) {
       ok: true,
       durationMs: Date.now() - startedAt,
       result,
-      source: "rust-engine",
+      source: "rust",
     };
   } catch (error) {
     return {
@@ -1711,7 +1711,7 @@ async function handleAnalysisRustEnginePreviewMeta(_event, payload) {
       ok: true,
       durationMs: Date.now() - startedAt,
       result,
-      source: "rust-engine",
+      source: "rust",
     };
   } catch (error) {
     return {
@@ -1739,7 +1739,7 @@ async function handleAnalysisRustEngineReadCell(_event, payload) {
     return {
       ok: false,
       code: "INVALID_DEVICE_ANALYSIS_CELL",
-      message: "Invalid device-analysis cell request.",
+      message: "Invalid analysis cell request.",
     };
   }
 
@@ -1754,7 +1754,7 @@ async function handleAnalysisRustEngineReadCell(_event, payload) {
       ok: true,
       durationMs: Date.now() - startedAt,
       result,
-      source: "rust-engine",
+      source: "rust",
     };
   } catch (error) {
     return {
@@ -1782,7 +1782,7 @@ async function handleAnalysisRustEngineReadCells(_event, payload) {
     return {
       ok: false,
       code: "INVALID_DEVICE_ANALYSIS_CELLS",
-      message: "Invalid device-analysis cells request.",
+      message: "Invalid analysis cells request.",
     };
   }
 
@@ -1796,7 +1796,7 @@ async function handleAnalysisRustEngineReadCells(_event, payload) {
       ok: true,
       durationMs: Date.now() - startedAt,
       result,
-      source: "rust-engine",
+      source: "rust",
     };
   } catch (error) {
     return {
@@ -1820,7 +1820,7 @@ async function handleAnalysisRustEngineInferAutoExtraction(_event, payload) {
     return {
       ok: false,
       code: "INVALID_DEVICE_ANALYSIS_PATH",
-      message: "Invalid device-analysis file path.",
+      message: "Invalid analysis file path.",
     };
   }
 
@@ -1835,7 +1835,7 @@ async function handleAnalysisRustEngineInferAutoExtraction(_event, payload) {
       ok: true,
       durationMs: Date.now() - startedAt,
       result,
-      source: "rust-engine",
+      source: "rust",
     };
   } catch (error) {
     return {
@@ -1877,7 +1877,7 @@ async function handleAnalysisRustEngineProcessFile(_event, payload) {
     return {
       ok: false,
       code: "INVALID_DEVICE_ANALYSIS_PATH",
-      message: "Invalid device-analysis file path.",
+      message: "Invalid analysis file path.",
     };
   }
   if (!auto && !isRustProcessFileConfigSupported(config)) {
@@ -1921,7 +1921,7 @@ async function handleAnalysisRustEngineProcessFile(_event, payload) {
       ok: true,
       durationMs: Date.now() - startedAt,
       result,
-      source: "rust-engine-pool",
+      source: "rust-pool",
     };
   } catch (error) {
     void disposeRustAnalysisProcessingFile(fileId);
@@ -1964,7 +1964,7 @@ async function handleAnalysisRustEngineAnalyzeRc(_event, payload) {
       ok: true,
       durationMs: Date.now() - startedAt,
       result,
-      source: "rust-engine-pool",
+      source: "rust-pool",
     };
   } catch (error) {
     return {
@@ -2023,7 +2023,7 @@ async function handleAnalysisRustEngineExportOriginCsv(_event, payload) {
     return {
       ok: false,
       code: "INVALID_DEVICE_ANALYSIS_PATH",
-      message: "Invalid device-analysis file path.",
+      message: "Invalid analysis file path.",
     };
   }
   if (
@@ -2066,7 +2066,7 @@ async function handleAnalysisRustEngineExportOriginCsv(_event, payload) {
       csvPath: outputPath,
       durationMs: Date.now() - startedAt,
       result,
-      source: "rust-engine-pool",
+      source: "rust-pool",
     };
   } catch (error) {
     void fs.promises.rm(path.dirname(outputPath), { force: true, recursive: true }).catch(() => {});
@@ -2188,12 +2188,12 @@ async function handleAnalysisRustEngineDispose(_event, payload) {
   try {
     if (payload?.clear === true) {
       await sendRustAnalysisEngineCommand("clear", {}, 30000);
-      return { ok: true, source: "rust-engine" };
+      return { ok: true, source: "rust" };
     }
     if (fileId) {
       await sendRustAnalysisEngineCommand("dispose", { fileId }, 30000);
     }
-    return { ok: true, source: "rust-engine" };
+    return { ok: true, source: "rust" };
   } catch (error) {
     return {
       ok: false,

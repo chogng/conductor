@@ -62,25 +62,25 @@ export const loadWorkbenchApp = () => {
 export const loadApp = () => {
   if (appPromise) {
     logRendererBoot(
-      "device-analysis:import-hit-cache",
+      "analysis:import-hit-cache",
       formatWaitSince(importStartedAtMs, "sinceFirstImport"),
     );
     return appPromise;
   }
 
   importStartedAtMs = getBootNowMs();
-  logRendererBoot("device-analysis:import-started");
+  logRendererBoot("analysis:import-started");
   appPromise = import("./features/device-analysis/App")
     .then((module) => {
       logRendererBoot(
-        "device-analysis:import-resolved",
+        "analysis:import-resolved",
         formatWaitSince(importStartedAtMs),
       );
       return module;
     })
     .catch((error) => {
       logRendererBoot(
-        "device-analysis:import-failed",
+        "analysis:import-failed",
         `${formatWaitSince(importStartedAtMs)} (message=${error instanceof Error ? error.message : String(error)})`,
       );
       throw error;

@@ -45,7 +45,7 @@ export const logPerf = (
     ? ` ${Math.round(duration)}ms`
     : "";
 
-  console.info(`[perf][device-analysis] ${stage}${durationText}`, meta);
+  console.info(`[perf][analysis] ${stage}${durationText}`, meta);
 };
 
 export const startPerf = (

@@ -721,7 +721,7 @@ export const useProcessing = ({
               filePerfFinishers.get(nextFileId)?.({
                 skipped: "removed-before-result",
                 ...summarizeProcessedFile(rustProcessed),
-                source: "rust-engine",
+                source: "rust",
               });
               filePerfFinishers.delete(nextFileId);
               setProcessingStatus((prev) => ({
@@ -738,7 +738,7 @@ export const useProcessing = ({
             if (nextFileId) {
               filePerfFinishers.get(nextFileId)?.({
                 ...summarizeProcessedFile(rustProcessed),
-                source: "rust-engine",
+                source: "rust",
               });
               filePerfFinishers.delete(nextFileId);
             }
@@ -1133,7 +1133,7 @@ export const useProcessing = ({
                 filePerfFinishers.get(nextFileId)?.({
                   skipped: "removed-before-result",
                   ...summarizeProcessedFile(rustProcessed),
-                  source: "rust-engine",
+                  source: "rust",
                 });
                 filePerfFinishers.delete(nextFileId);
                 processedCount += 1;
@@ -1149,7 +1149,7 @@ export const useProcessing = ({
               if (nextFileId) {
                 filePerfFinishers.get(nextFileId)?.({
                   ...summarizeProcessedFile(rustProcessed),
-                  source: "rust-engine",
+                  source: "rust",
                 });
                 filePerfFinishers.delete(nextFileId);
               }

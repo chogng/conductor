@@ -102,7 +102,7 @@ export const useDesktopShell = ({
     if (typeof window === "undefined") return;
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        window.dispatchEvent(new Event("device-analysis:open-origin"));
+        window.dispatchEvent(new Event("analysis:open-origin"));
       });
     });
   }, [setActivePage]);

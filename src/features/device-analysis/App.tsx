@@ -65,7 +65,7 @@ const App = () => {
     }
 
     const frameId = window.requestAnimationFrame(() => {
-      markBootUiReady("device-analysis-app");
+      markBootUiReady("analysis-app");
     });
 
     return () => {
