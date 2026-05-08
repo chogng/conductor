@@ -3,7 +3,7 @@ import {
   type AnalysisDesktopStore,
   getDesktopStore,
   getDesktopStoreMethod,
-} from "../desktop/desktopStore";
+} from "src/cs/workbench/services/storage/electron-sandbox/storageService";
 
 const wrapSettingsStoreError = (error: unknown): never => {
   if (

@@ -1,7 +1,7 @@
 import {
   DESKTOP_STORE_UNAVAILABLE,
   requestAnalysisDesktopStore,
-} from "../../desktop/desktopStore";
+} from "src/cs/workbench/services/storage/electron-sandbox/storageService";
 
 const isDesktopStoreUnavailableError = (error: unknown): boolean =>
   error instanceof Error &&
