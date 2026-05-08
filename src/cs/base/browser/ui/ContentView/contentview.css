@@ -1,5 +1,6 @@
 .content-view__portal--open {
   pointer-events: auto;
+  width: max-content;
 }
 
 .content-view__portal--closed {
@@ -7,6 +8,9 @@
 }
 
 .content-view__surface {
+  box-sizing: border-box;
+  min-width: 100%;
+  max-width: inherit;
   border: 1px solid rgb(var(--border-subtle) / 1);
   border-radius: 0.75rem;
   background-color: rgb(var(--bg-surface) / 0.8);
@@ -21,6 +25,7 @@
 .content-view__surface--menu {
   overflow: hidden;
   padding: 0;
+  width: max-content;
 }
 
 .content-view__surface--open {

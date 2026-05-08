@@ -24,7 +24,7 @@ type ContentViewProps = {
     role?: string;
     "aria-orientation"?: "vertical" | "horizontal";
 };
-const POPUP_GAP_PX = 8;
+const CONTENT_VIEW_GAP_PX = 8;
 const VIEWPORT_PADDING_PX = 8;
 const assignRef = <T,>(ref: Ref<T> | undefined, value: T) => {
     if (!ref)
@@ -36,11 +36,11 @@ const assignRef = <T,>(ref: Ref<T> | undefined, value: T) => {
     (ref as MutableRefObject<T>).current = value;
 };
 const ContentView = ({ isOpen, align = "left", zIndex = 20, className = "", children, triggerId, menuId, anchorRef, contentRef, matchAnchorWidth = false, side: preferredSide = "bottom", variant = "surface", role = "menu", "aria-orientation": ariaOrientation = "vertical", }: ContentViewProps) => {
-    const popupRef = useRef<HTMLDivElement | null>(null);
+    const contentViewRef = useRef<HTMLDivElement | null>(null);
     const [portalStyle, setPortalStyle] = useState<CSSProperties | null>(null);
     const [side, setSide] = useState<ResolvedContentViewSide>("bottom");
-    const setPopupNode = (node: HTMLDivElement | null) => {
-        popupRef.current = node;
+    const setContentViewNode = (node: HTMLDivElement | null) => {
+        contentViewRef.current = node;
         assignRef(contentRef, node);
     };
     useLayoutEffect(() => {
@@ -51,64 +51,64 @@ const ContentView = ({ isOpen, align = "left", zIndex = 20, className = "", chil
         }
         const updatePosition = () => {
             const anchorEl = anchorRef?.current;
-            const popupEl = popupRef.current;
-            if (!anchorEl || !popupEl)
+            const contentViewEl = contentViewRef.current;
+            if (!anchorEl || !contentViewEl)
                 return;
             const rect = anchorEl.getBoundingClientRect();
             const viewportWidth = window.innerWidth;
             const viewportHeight = window.innerHeight;
             const anchorWidth = Math.max(0, rect.width);
             const maxWidth = Math.max(0, viewportWidth - VIEWPORT_PADDING_PX * 2);
-            const surfaceEl = popupEl.firstElementChild;
-            const contentWidth = Math.max(surfaceEl instanceof HTMLElement ? surfaceEl.scrollWidth || 0 : 0, popupEl.scrollWidth || 0, popupEl.offsetWidth || 0);
-            const popupWidth = matchAnchorWidth
+            const surfaceEl = contentViewEl.firstElementChild;
+            const contentWidth = Math.max(surfaceEl instanceof HTMLElement ? surfaceEl.scrollWidth || 0 : 0, contentViewEl.scrollWidth || 0, contentViewEl.offsetWidth || 0);
+            const contentViewWidth = matchAnchorWidth
                 ? Math.min(Math.max(contentWidth, anchorWidth), maxWidth)
                 : Math.min(contentWidth, maxWidth);
             const minWidth = matchAnchorWidth
                 ? Math.min(anchorWidth, maxWidth)
                 : undefined;
-            const popupHeight = popupEl.offsetHeight || 0;
+            const contentViewHeight = contentViewEl.offsetHeight || 0;
             let left = rect.left;
-            let top = rect.bottom + POPUP_GAP_PX;
+            let top = rect.bottom + CONTENT_VIEW_GAP_PX;
             let nextSide: ResolvedContentViewSide = "bottom";
             if (preferredSide === "right") {
-                const preferredLeft = rect.right + POPUP_GAP_PX;
-                const leftIfFlipped = rect.left - POPUP_GAP_PX - popupWidth;
-                const canOpenRight = preferredLeft + popupWidth <= viewportWidth - VIEWPORT_PADDING_PX;
+                const preferredLeft = rect.right + CONTENT_VIEW_GAP_PX;
+                const leftIfFlipped = rect.left - CONTENT_VIEW_GAP_PX - contentViewWidth;
+                const canOpenRight = preferredLeft + contentViewWidth <= viewportWidth - VIEWPORT_PADDING_PX;
                 const canOpenLeft = leftIfFlipped >= VIEWPORT_PADDING_PX;
                 left = canOpenRight
                     ? preferredLeft
                     : canOpenLeft
                         ? leftIfFlipped
-                        : Math.min(Math.max(VIEWPORT_PADDING_PX, preferredLeft), Math.max(VIEWPORT_PADDING_PX, viewportWidth - VIEWPORT_PADDING_PX - popupWidth));
-                top = Math.min(Math.max(VIEWPORT_PADDING_PX, rect.top), Math.max(VIEWPORT_PADDING_PX, viewportHeight - VIEWPORT_PADDING_PX - popupHeight));
+                        : Math.min(Math.max(VIEWPORT_PADDING_PX, preferredLeft), Math.max(VIEWPORT_PADDING_PX, viewportWidth - VIEWPORT_PADDING_PX - contentViewWidth));
+                top = Math.min(Math.max(VIEWPORT_PADDING_PX, rect.top), Math.max(VIEWPORT_PADDING_PX, viewportHeight - VIEWPORT_PADDING_PX - contentViewHeight));
                 nextSide = canOpenRight || !canOpenLeft ? "right" : "left";
             }
             else {
                 if (align === "center") {
-                    left = rect.left + rect.width / 2 - popupWidth / 2;
+                    left = rect.left + rect.width / 2 - contentViewWidth / 2;
                 }
                 else if (align === "right") {
-                    left = rect.right - popupWidth;
+                    left = rect.right - contentViewWidth;
                 }
-                const maxLeft = Math.max(VIEWPORT_PADDING_PX, viewportWidth - VIEWPORT_PADDING_PX - popupWidth);
+                const maxLeft = Math.max(VIEWPORT_PADDING_PX, viewportWidth - VIEWPORT_PADDING_PX - contentViewWidth);
                 left = Math.min(Math.max(left, VIEWPORT_PADDING_PX), maxLeft);
-                const preferredTop = rect.bottom + POPUP_GAP_PX;
-                const topIfFlipped = rect.top - POPUP_GAP_PX - popupHeight;
-                const canOpenDown = preferredTop + popupHeight <= viewportHeight - VIEWPORT_PADDING_PX;
+                const preferredTop = rect.bottom + CONTENT_VIEW_GAP_PX;
+                const topIfFlipped = rect.top - CONTENT_VIEW_GAP_PX - contentViewHeight;
+                const canOpenDown = preferredTop + contentViewHeight <= viewportHeight - VIEWPORT_PADDING_PX;
                 const canOpenUp = topIfFlipped >= VIEWPORT_PADDING_PX;
                 top = canOpenDown
                     ? preferredTop
                     : canOpenUp
                         ? topIfFlipped
-                        : Math.min(Math.max(VIEWPORT_PADDING_PX, preferredTop), Math.max(VIEWPORT_PADDING_PX, viewportHeight - VIEWPORT_PADDING_PX - popupHeight));
+                        : Math.min(Math.max(VIEWPORT_PADDING_PX, preferredTop), Math.max(VIEWPORT_PADDING_PX, viewportHeight - VIEWPORT_PADDING_PX - contentViewHeight));
                 nextSide = canOpenDown || !canOpenUp ? "bottom" : "top";
             }
             setPortalStyle({
                 position: "fixed",
                 top,
                 left,
-                width: popupWidth,
+                width: contentViewWidth,
                 minWidth,
                 maxWidth,
                 zIndex,
@@ -127,13 +127,13 @@ const ContentView = ({ isOpen, align = "left", zIndex = 20, className = "", chil
     if (typeof document === "undefined")
         return null;
     return createPortal(jsx("div", {
-        ref: setPopupNode,
+        ref: setContentViewNode,
         id: menuId,
         role: role,
         "aria-orientation": ariaOrientation,
         "aria-labelledby": triggerId,
         "aria-hidden": isOpen ? undefined : true,
-        "data-style": "popup",
+        "data-style": "contentview",
         "data-state": isOpen ? "open" : "closed",
         "data-side": side,
         "data-align": align,

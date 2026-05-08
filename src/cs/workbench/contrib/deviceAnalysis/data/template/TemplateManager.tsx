@@ -1985,7 +1985,7 @@ const TemplateManager = ({
               placeholder={t("da_template_name")}
               aria-label={includeIds ? t("da_template_name") : undefined}
               className="w-full"
-              popupClassName="min-w-full !bg-bg-surface !backdrop-blur-none"
+              contentViewClassName="min-w-full !bg-bg-surface !backdrop-blur-none"
               triggerClassName="pr-8"
               disabled={measureOnly}
               emptyLabel={t("da_no_saved_templates")}
@@ -2190,7 +2190,7 @@ const TemplateManager = ({
                       placeholder={t("da_match_mode_label")}
                       disabled={measureOnly}
                       stableWidth={false}
-                      popupClassName="min-w-full !bg-bg-surface !backdrop-blur-none"
+                      contentViewClassName="min-w-full !bg-bg-surface !backdrop-blur-none"
                     />
                     <div className="space-y-2">
                       {isPhraseMode ? (
@@ -2265,7 +2265,7 @@ const TemplateManager = ({
                             }
                             disabled={measureOnly || suggestionOptions.length === 0}
                             stableWidth={false}
-                            popupClassName="min-w-full !bg-bg-surface !backdrop-blur-none"
+                            contentViewClassName="min-w-full !bg-bg-surface !backdrop-blur-none"
                           />
                         </>
                       )}
@@ -2294,7 +2294,7 @@ const TemplateManager = ({
                       placeholder={t("da_template_name")}
                       disabled={measureOnly || templatesLoading}
                       stableWidth={false}
-                      popupClassName="min-w-full !bg-bg-surface !backdrop-blur-none"
+                      contentViewClassName="min-w-full !bg-bg-surface !backdrop-blur-none"
                     />
                   </div>
                 );
@@ -2581,7 +2581,6 @@ const TemplateManager = ({
 };
 
 export default React.memo(TemplateManager);
-
 
 
 

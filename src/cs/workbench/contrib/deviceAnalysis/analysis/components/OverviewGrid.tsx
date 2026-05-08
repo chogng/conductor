@@ -208,7 +208,7 @@ const OverviewGrid = memo(function OverviewGrid({
               aria-label={t("da_overview_curve_filter_label")}
               className="w-fit da-neutral-select"
               stableWidth
-              popupClassName="w-max min-w-max !bg-bg-surface !backdrop-blur-none"
+              contentViewClassName="w-max min-w-max !bg-bg-surface !backdrop-blur-none"
               data-cta="Device Analysis"
               data-cta-position="overview-grid"
               data-cta-copy="curve filter"
@@ -269,4 +269,3 @@ const OverviewGrid = memo(function OverviewGrid({
 OverviewGrid.displayName = "OverviewGrid";
 
 export default OverviewGrid;
-

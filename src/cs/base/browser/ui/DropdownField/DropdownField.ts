@@ -2,12 +2,12 @@ import { Fragment, jsx } from "react/jsx-runtime";
 import { isValidElement, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ComponentType, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type RefCallback, type RefObject, } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { cx } from "src/utils/cx";
-import ContentView, { type ContentViewAlign } from "cs/base/browser/ui/ContentView/ContentView";
-import Dropdown from "cs/base/browser/ui/Dropdown/Dropdown";
-import DropdownTrigger from "cs/base/browser/ui/DropdownTrigger/DropdownTrigger";
-import Menu from "cs/base/browser/ui/Menu/Menu";
-import MenuItem from "cs/base/browser/ui/MenuItem/MenuItem";
-import MenuScrollArea from "cs/base/browser/ui/MenuScrollArea/MenuScrollArea";
+import ContentView, { type ContentViewAlign } from "src/cs/base/browser/ui/ContentView/ContentView";
+import Dropdown from "src/cs/base/browser/ui/Dropdown/Dropdown";
+import DropdownTrigger from "src/cs/base/browser/ui/DropdownTrigger/DropdownTrigger";
+import Menu from "src/cs/base/browser/ui/Menu/Menu";
+import MenuItem from "src/cs/base/browser/ui/MenuItem/MenuItem";
+import MenuScrollArea from "src/cs/base/browser/ui/MenuScrollArea/MenuScrollArea";
 const hasWidthConstraintClass = (className: string): boolean => {
     if (!className.trim())
         return false;
@@ -77,7 +77,7 @@ type DropdownFieldProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onChang
     zIndex?: number;
     id?: string;
     menuId?: string;
-    popupClassName?: string;
+    contentViewClassName?: string;
     triggerClassName?: string;
     testId?: string;
     stableWidth?: boolean;
@@ -119,7 +119,7 @@ const getNodePlainText = (node: ReactNode): string => {
     }
     return "";
 };
-const DropdownField = ({ options = [], value, onChange, placeholder, title, disabled = false, size = "md", className = "", formatDisplay, align = "left", zIndex = 20, id, menuId, popupClassName = "min-w-full", triggerClassName = "", testId, stableWidth, hideChevron = false, loading = false, loadingLabel, emptyLabel = "No options", onOpenChange, ...props }: DropdownFieldProps) => {
+const DropdownField = ({ options = [], value, onChange, placeholder, title, disabled = false, size = "md", className = "", formatDisplay, align = "left", zIndex = 20, id, menuId, contentViewClassName, triggerClassName = "", testId, stableWidth, hideChevron = false, loading = false, loadingLabel, emptyLabel = "No options", onOpenChange, ...props }: DropdownFieldProps) => {
     const [isOpen, setIsOpen] = useState(false);
     const [highlightedIndex, setHighlightedIndex] = useState(-1);
     const containerRef = useRef<HTMLDivElement | null>(null);
@@ -141,6 +141,7 @@ const DropdownField = ({ options = [], value, onChange, placeholder, title, disa
     const selectableOptions = useMemo(() => (Array.isArray(options) ? options.filter(isSelectableOption) : []), [options]);
     const selected = useMemo(() => selectableOptions.find((opt) => opt.value === value) ?? null, [selectableOptions, value]);
     const shouldStabilizeWidth = useMemo(() => stableWidth ?? !hasWidthConstraintClass(className), [stableWidth, className]);
+    const resolvedContentViewClassName = contentViewClassName ?? "";
     const displayNode = useMemo(() => {
         if (typeof formatDisplay === "function") {
             const formatted = formatDisplay(selected);
@@ -426,7 +427,7 @@ const DropdownField = ({ options = [], value, onChange, placeholder, title, disa
                     anchorRef: anchorRef,
                     contentRef: setContentRef,
                     variant: "menu",
-                    className: popupClassName,
+                    className: resolvedContentViewClassName,
                     children: () => (jsx(Menu, {
                         withScrollArea: false,
                         children: [
