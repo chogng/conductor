@@ -1,0 +1,255 @@
+param(
+  [string]$SourceIcon = "",
+  [string]$Version = ""
+)
+
+$ErrorActionPreference = "Stop"
+
+function Fail {
+  param([string]$Message)
+  throw "[generate-icons] $Message"
+}
+
+function Resolve-ProjectPath {
+  param([string]$RelativePath)
+  return Join-Path $projectRoot $RelativePath
+}
+
+function New-ResizedBitmap {
+  param(
+    [System.Drawing.Bitmap]$Source,
+    [int]$Size
+  )
+
+  $bitmap = New-Object System.Drawing.Bitmap $Size, $Size, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+  $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+  $graphics.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
+  $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+  $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+  $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+  $graphics.Clear([System.Drawing.Color]::Transparent)
+  $graphics.DrawImage($Source, 0, 0, $Size, $Size)
+  $graphics.Dispose()
+  return $bitmap
+}
+
+function Save-ResizedPng {
+  param(
+    [System.Drawing.Bitmap]$Source,
+    [int]$Size,
+    [string]$OutputPath
+  )
+
+  $bitmap = New-ResizedBitmap -Source $Source -Size $Size
+  try {
+    $bitmap.Save($OutputPath, [System.Drawing.Imaging.ImageFormat]::Png)
+  } finally {
+    $bitmap.Dispose()
+  }
+}
+
+function Write-MultiSizeIco {
+  param(
+    [System.Drawing.Bitmap]$Source,
+    [string]$OutputPath
+  )
+
+  $icoSizes = @(16, 20, 24, 32, 40, 48, 64, 128, 256)
+  $entries = @()
+
+  foreach ($size in $icoSizes) {
+    $bitmap = New-ResizedBitmap -Source $Source -Size $size
+    $stream = New-Object System.IO.MemoryStream
+    try {
+      $bitmap.Save($stream, [System.Drawing.Imaging.ImageFormat]::Png)
+      $entries += [PSCustomObject]@{
+        Size = $size
+        Bytes = $stream.ToArray()
+      }
+    } finally {
+      $stream.Dispose()
+      $bitmap.Dispose()
+    }
+  }
+
+  $fileStream = [System.IO.File]::Create($OutputPath)
+  $writer = New-Object System.IO.BinaryWriter $fileStream
+  try {
+    $writer.Write([UInt16]0)
+    $writer.Write([UInt16]1)
+    $writer.Write([UInt16]$entries.Count)
+
+    $offset = 6 + ($entries.Count * 16)
+    foreach ($entry in $entries) {
+      $widthByte = if ($entry.Size -eq 256) { 0 } else { $entry.Size }
+      $writer.Write([byte]$widthByte)
+      $writer.Write([byte]$widthByte)
+      $writer.Write([byte]0)
+      $writer.Write([byte]0)
+      $writer.Write([UInt16]1)
+      $writer.Write([UInt16]32)
+      $writer.Write([UInt32]$entry.Bytes.Length)
+      $writer.Write([UInt32]$offset)
+      $offset += $entry.Bytes.Length
+    }
+
+    foreach ($entry in $entries) {
+      $writer.Write($entry.Bytes)
+    }
+  } finally {
+    $writer.Dispose()
+    $fileStream.Dispose()
+  }
+}
+
+function Draw-CenteredText {
+  param(
+    [System.Drawing.Graphics]$Graphics,
+    [string]$Text,
+    [System.Drawing.Font]$Font,
+    [System.Drawing.Brush]$Brush,
+    [float]$Y,
+    [float]$Width,
+    [float]$Height = 24
+  )
+
+  $format = New-Object System.Drawing.StringFormat
+  try {
+    $format.Alignment = [System.Drawing.StringAlignment]::Center
+    $format.LineAlignment = [System.Drawing.StringAlignment]::Near
+    $rect = New-Object System.Drawing.RectangleF 0, $Y, $Width, $Height
+    $Graphics.DrawString($Text, $Font, $Brush, $rect, $format)
+  } finally {
+    $format.Dispose()
+  }
+}
+
+function Write-InstallerHeader {
+  param(
+    [System.Drawing.Bitmap]$Source,
+    [string]$OutputPath
+  )
+
+  $header = New-Object System.Drawing.Bitmap 150, 57, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+  $graphics = [System.Drawing.Graphics]::FromImage($header)
+  $logo = New-ResizedBitmap -Source $Source -Size 128
+  $titleFont = New-Object System.Drawing.Font "Segoe UI", 8.5, ([System.Drawing.FontStyle]::Bold), ([System.Drawing.GraphicsUnit]::Point)
+  $captionFont = New-Object System.Drawing.Font "Segoe UI", 6.5, ([System.Drawing.FontStyle]::Regular), ([System.Drawing.GraphicsUnit]::Point)
+  $textBrush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(34, 34, 34))
+  $mutedBrush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(92, 90, 84))
+
+  try {
+    $graphics.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
+    $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+    $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+    $graphics.Clear([System.Drawing.Color]::FromArgb(245, 244, 239))
+    $graphics.DrawImage($logo, 12, 12, 32, 32)
+    $graphics.DrawString("Conductor Studio", $titleFont, $textBrush, 52, 14)
+    $graphics.DrawString("Setup", $captionFont, $mutedBrush, 53, 31)
+    $header.Save($OutputPath, [System.Drawing.Imaging.ImageFormat]::Bmp)
+  } finally {
+    $mutedBrush.Dispose()
+    $textBrush.Dispose()
+    $captionFont.Dispose()
+    $titleFont.Dispose()
+    $logo.Dispose()
+    $graphics.Dispose()
+    $header.Dispose()
+  }
+}
+
+function Write-InstallerSidebar {
+  param(
+    [System.Drawing.Bitmap]$Source,
+    [string]$OutputPath,
+    [string]$DisplayVersion
+  )
+
+  $sidebar = New-Object System.Drawing.Bitmap 164, 314, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+  $graphics = [System.Drawing.Graphics]::FromImage($sidebar)
+  $rect = New-Object System.Drawing.Rectangle 0, 0, 164, 314
+  $gradient = New-Object System.Drawing.Drawing2D.LinearGradientBrush $rect, ([System.Drawing.Color]::FromArgb(15, 15, 18)), ([System.Drawing.Color]::FromArgb(36, 35, 42)), ([System.Drawing.Drawing2D.LinearGradientMode]::Vertical)
+  $logo = New-ResizedBitmap -Source $Source -Size 128
+  $whiteBrush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(250, 249, 245))
+  $softBrush = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(212, 208, 226))
+  $linePen = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(95, 91, 118)), 1
+  $titleFont = New-Object System.Drawing.Font "Segoe UI", 10, ([System.Drawing.FontStyle]::Bold), ([System.Drawing.GraphicsUnit]::Point)
+  $captionFont = New-Object System.Drawing.Font "Segoe UI", 7, ([System.Drawing.FontStyle]::Regular), ([System.Drawing.GraphicsUnit]::Point)
+
+  try {
+    $graphics.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
+    $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+    $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+    $graphics.FillRectangle($gradient, $rect)
+    $graphics.DrawImage($logo, 43, 42, 78, 78)
+    Draw-CenteredText -Graphics $graphics -Text "Conductor Studio" -Font $titleFont -Brush $whiteBrush -Y 138 -Width 164
+    Draw-CenteredText -Graphics $graphics -Text "Device Analysis Studio" -Font $captionFont -Brush $softBrush -Y 163 -Width 164
+    $graphics.DrawLine($linePen, 38, 220, 126, 220)
+    Draw-CenteredText -Graphics $graphics -Text $DisplayVersion -Font $captionFont -Brush $softBrush -Y 238 -Width 164
+    $sidebar.Save($OutputPath, [System.Drawing.Imaging.ImageFormat]::Bmp)
+  } finally {
+    $captionFont.Dispose()
+    $titleFont.Dispose()
+    $linePen.Dispose()
+    $softBrush.Dispose()
+    $whiteBrush.Dispose()
+    $logo.Dispose()
+    $gradient.Dispose()
+    $graphics.Dispose()
+    $sidebar.Dispose()
+  }
+}
+
+$projectRoot = Split-Path -Parent $PSScriptRoot
+$iconDir = Resolve-ProjectPath "build\icons"
+$installerDir = Resolve-ProjectPath "build\installer"
+$packageJsonPath = Resolve-ProjectPath "package.json"
+
+if (-not (Test-Path -LiteralPath $packageJsonPath)) {
+  Fail "package.json not found at $packageJsonPath"
+}
+
+if ([string]::IsNullOrWhiteSpace($SourceIcon)) {
+  $SourceIcon = Resolve-ProjectPath "build\icons\icon-2160.png"
+} elseif (-not [System.IO.Path]::IsPathRooted($SourceIcon)) {
+  $SourceIcon = Resolve-ProjectPath $SourceIcon
+}
+
+if (-not (Test-Path -LiteralPath $SourceIcon)) {
+  Fail "source icon not found at $SourceIcon"
+}
+
+if ([string]::IsNullOrWhiteSpace($Version)) {
+  try {
+    $packageJson = Get-Content -LiteralPath $packageJsonPath -Raw -Encoding UTF8 | ConvertFrom-Json
+  } catch {
+    Fail "failed to parse package.json: $($_.Exception.Message)"
+  }
+  $Version = [string]$packageJson.version
+}
+
+if ([string]::IsNullOrWhiteSpace($Version)) {
+  Fail "version is empty"
+}
+
+New-Item -ItemType Directory -Force -Path $iconDir, $installerDir | Out-Null
+Add-Type -AssemblyName System.Drawing
+
+$source = [System.Drawing.Bitmap]::FromFile($SourceIcon)
+try {
+  $pngSizes = @(16, 20, 24, 32, 40, 48, 64, 70, 71, 128, 150, 256, 300, 512, 1024, 1080)
+  foreach ($size in $pngSizes) {
+    Save-ResizedPng -Source $source -Size $size -OutputPath (Join-Path $iconDir "icon-$size.png")
+  }
+
+  Save-ResizedPng -Source $source -Size 1024 -OutputPath (Join-Path $iconDir "icon.png")
+  Write-MultiSizeIco -Source $source -OutputPath (Join-Path $iconDir "icon.ico")
+  Write-InstallerHeader -Source $source -OutputPath (Join-Path $installerDir "header.bmp")
+  Write-InstallerSidebar -Source $source -OutputPath (Join-Path $installerDir "sidebar.bmp") -DisplayVersion $Version
+} finally {
+  $source.Dispose()
+}
+
+Write-Host "[generate-icons] Source: $SourceIcon"
+Write-Host "[generate-icons] Version: $Version"
+Write-Host "[generate-icons] Updated build/icons and build/installer assets."

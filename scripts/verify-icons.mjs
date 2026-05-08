@@ -7,7 +7,7 @@ const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 const iconDir = path.join(rootDir, "build", "icons");
 const packageJsonPath = path.join(rootDir, "package.json");
 
-const requiredPngSizes = [16, 20, 24, 32, 40, 48, 64, 70, 128, 150, 256, 300, 512, 1024];
+const requiredPngSizes = [16, 20, 24, 32, 40, 48, 64, 70, 71, 128, 150, 256, 300, 512, 1024, 1080, 2160];
 const requiredIcoSizes = [16, 20, 24, 32, 40, 48, 64, 128, 256];
 
 const fail = (message) => {
@@ -61,6 +61,17 @@ const readIcoSizes = (filePath) => {
   return sizes;
 };
 
+const readBmpSize = (filePath) => {
+  const buffer = fs.readFileSync(filePath);
+  if (buffer.length < 26 || buffer.toString("ascii", 0, 2) !== "BM") {
+    fail(`Not a valid BMP file: ${path.relative(rootDir, filePath)}`);
+  }
+  return {
+    width: buffer.readInt32LE(18),
+    height: Math.abs(buffer.readInt32LE(22)),
+  };
+};
+
 let newestIconMtime = 0;
 for (const size of requiredPngSizes) {
   const filePath = path.join(iconDir, `icon-${size}.png`);
@@ -80,6 +91,14 @@ if (iconPngDimensions.width !== 1024 || iconPngDimensions.height !== 1024) {
 }
 newestIconMtime = Math.max(newestIconMtime, iconPngStat.mtimeMs);
 
+const sourceIconPath = path.join(iconDir, "icon-2160.png");
+const sourceIconStat = ensureFile(sourceIconPath);
+const sourceIconDimensions = readPngSize(sourceIconPath);
+if (sourceIconDimensions.width !== 2160 || sourceIconDimensions.height !== 2160) {
+  fail(`Wrong PNG dimensions for icon-2160.png: ${sourceIconDimensions.width}x${sourceIconDimensions.height}`);
+}
+newestIconMtime = Math.max(newestIconMtime, sourceIconStat.mtimeMs);
+
 const iconIcoPath = path.join(iconDir, "icon.ico");
 const iconIcoStat = ensureFile(iconIcoPath);
 const icoSizes = readIcoSizes(iconIcoPath);
@@ -93,6 +112,20 @@ newestIconMtime = Math.max(newestIconMtime, iconIcoStat.mtimeMs);
 const iconIcnsPath = path.join(iconDir, "icon.icns");
 ensureFile(iconIcnsPath);
 
+const installerHeaderPath = path.join(rootDir, "build", "installer", "header.bmp");
+const installerSidebarPath = path.join(rootDir, "build", "installer", "sidebar.bmp");
+const installerHeaderStat = ensureFile(installerHeaderPath);
+const installerSidebarStat = ensureFile(installerSidebarPath);
+const installerHeaderSize = readBmpSize(installerHeaderPath);
+const installerSidebarSize = readBmpSize(installerSidebarPath);
+if (installerHeaderSize.width !== 150 || installerHeaderSize.height !== 57) {
+  fail(`Wrong BMP dimensions for build/installer/header.bmp: ${installerHeaderSize.width}x${installerHeaderSize.height}`);
+}
+if (installerSidebarSize.width !== 164 || installerSidebarSize.height !== 314) {
+  fail(`Wrong BMP dimensions for build/installer/sidebar.bmp: ${installerSidebarSize.width}x${installerSidebarSize.height}`);
+}
+newestIconMtime = Math.max(newestIconMtime, installerHeaderStat.mtimeMs, installerSidebarStat.mtimeMs);
+
 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
 const buildConfig = packageJson.build || {};
 const expectedIco = "build/icons/icon.ico";
@@ -104,6 +137,9 @@ const expectedPackagePaths = {
   "build.nsis.installerIcon": expectedIco,
   "build.nsis.uninstallerIcon": expectedIco,
   "build.nsis.installerHeaderIcon": expectedIco,
+  "build.nsis.installerHeader": "build/installer/header.bmp",
+  "build.nsis.installerSidebar": "build/installer/sidebar.bmp",
+  "build.nsis.uninstallerSidebar": "build/installer/sidebar.bmp",
   "build.linux.icon": expectedPng,
   "build.mac.icon": expectedIcns,
 };
@@ -125,6 +161,6 @@ if (!extraResourceHasIcons) {
 }
 
 console.log(
-  `[verify-icons] OK: ${requiredPngSizes.length} PNG sizes, ${icoSizes.size} ICO sizes, package icon config points at build/icons.`,
+  `[verify-icons] OK: ${requiredPngSizes.length} PNG sizes, ${icoSizes.size} ICO sizes, installer bitmaps and package icon config are aligned.`,
 );
 console.log(`[verify-icons] Newest icon file: ${new Date(newestIconMtime).toISOString()}`);

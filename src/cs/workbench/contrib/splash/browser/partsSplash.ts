@@ -1,3 +1,5 @@
+import workbenchLogoUrl from "src/cs/workbench/contrib/splash/browser/logo.svg";
+
 export type DesktopBootstrapSettings = {
   initialDeviceAnalysisSettings?: {
     theme?: unknown;
@@ -88,7 +90,7 @@ const createSplashContent = (theme: "light" | "dark") => {
   splash.dataset.theme = theme;
 
   const logo = document.createElement("img");
-  logo.src = "../logo.svg";
+  logo.src = workbenchLogoUrl;
   logo.alt = "";
 
   const brand = document.createElement("div");

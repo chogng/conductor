@@ -53,7 +53,7 @@ const isDev = !app.isPackaged;
 const isWindows = process.platform === "win32";
 const devUrl =
   process.env.ELECTRON_START_URL ||
-  "http://127.0.0.1:5174/desktop/workbench.html";
+  "http://127.0.0.1:5174/src/cs/code/electron-sandbox/workbench/workbench.html";
 const AUTO_UPDATE_INITIAL_DELAY_MS = 15 * 1000;
 const AUTO_UPDATE_INTERVAL_MS = 4 * 60 * 60 * 1000;
 const AUTO_UPDATE_SUPPORTED_PLATFORMS = new Set(["win32"]);
@@ -3272,8 +3272,22 @@ function createMainWindow() {
     return win;
   }
 
-  logDesktopBoot("load-file", "(prod: dist/desktop/workbench.html)");
-  void win.loadFile(path.join(getAppRootPath(), "dist", "desktop", "workbench.html"));
+  logDesktopBoot(
+    "load-file",
+    "(prod: dist/src/cs/code/electron-sandbox/workbench/workbench.html)",
+  );
+  void win.loadFile(
+    path.join(
+      getAppRootPath(),
+      "dist",
+      "src",
+      "cs",
+      "code",
+      "electron-sandbox",
+      "workbench",
+      "workbench.html",
+    ),
+  );
   return win;
 }
 

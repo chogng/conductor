@@ -4,7 +4,7 @@ import react from "@vitejs/plugin-react";
 
 const indexHtmlPath = fileURLToPath(new URL("./index.html", import.meta.url));
 const desktopWorkbenchHtmlPath = fileURLToPath(
-  new URL("./desktop/workbench.html", import.meta.url),
+  new URL("./src/cs/code/electron-sandbox/workbench/workbench.html", import.meta.url),
 );
 
 // https://vite.dev/config/

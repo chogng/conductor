@@ -9,7 +9,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 
 const host = process.env.DEV_HOST || "127.0.0.1";
 const port = Number(process.env.DEV_PORT || 5174);
-const devWorkbenchPath = "/desktop/workbench.html";
+const devWorkbenchPath = "/src/cs/code/electron-sandbox/workbench/workbench.html";
 const devUrl = `http://${host}:${port}${devWorkbenchPath}`;
 const devStartupStartMs = Date.now();
 const devServerWarmupPaths = [

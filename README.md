@@ -104,7 +104,7 @@ Useful scripts:
 - `npm run build:desktop:core`: build Electron main/preload only
 - `npm run build:web:desktop`: build the desktop-targeted web bundle
 - `npm run build:desktop`: build the Origin CSV worker, Rust Excel converter,
-  Electron main/preload code, and desktop web bundle
+  Electron main/preload code, desktop web bundle, and generated desktop icon assets
 
 ## Common Scripts
 
@@ -121,8 +121,7 @@ Build and package:
 - `npm run build`: build the Web app
 - `npm run pack:desktop`: build and package desktop output without an installer
 - `npm run dist:desktop:store`: build the Microsoft Store AppX package
-- `npm run dist:desktop:exe`: build the legacy Windows installer/zip artifacts
-- `npm run dist:desktop`: alias-compatible legacy desktop installers/artifacts build
+- `npm run dist:desktop`: build the Windows installer/zip artifacts
 - `npm run pack:desktop:oneclick`: one-click desktop dir packaging
 - `npm run dist:desktop:oneclick`: one-click desktop installer build
 
@@ -138,7 +137,7 @@ Packaging note:
 
 - On Windows, `npm run build:desktop`, `npm run pack:desktop`, and
   `npm run dist:desktop` automatically build the Python Origin CSV worker and
-  Rust Excel converter before Electron Builder packages the app.
+  Rust Excel converter before packaging the app.
 - After a clean workspace, run `npm install` first because `node_modules/` is
   required for the build scripts.
 
@@ -317,10 +316,10 @@ require a separate paid code-signing certificate.
 Store packages resolve the sidecar executables from installed app resources and
 do not use the GitHub updater path while running as a Store app.
 
-Keep the legacy EXE path available for non-Store distribution:
+Use the guided installer for non-Store distribution:
 
 ```powershell
-npm run dist:desktop:exe
+npm run dist:desktop
 ```
 
 Before the first Store submission, reserve the app in Partner Center and copy
@@ -330,6 +329,7 @@ the assigned package identity values into `build.appx` in `package.json`.
 
 Project icons:
 
+- `build/icons/icon-2160.png` (source for generated desktop assets)
 - `build/icons/icon.png`
 - `build/icons/icon.icns`
 - `build/icons/icon.ico`
@@ -337,6 +337,7 @@ Project icons:
 These files are treated as checked-in build assets. Verify them with:
 
 ```bash
+npm run generate:icons
 npm run verify:icons
 ```
 
