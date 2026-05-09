@@ -6,27 +6,28 @@ mod legend;
 mod rc;
 mod utils;
 
-use analysis::compute_central_derivative;
 use analysis::AnalysisSeriesRequest;
 use analysis::AnalysisSourceFile;
-use calamine::open_workbook_auto;
+use analysis::compute_central_derivative;
 use calamine::Reader;
+use calamine::open_workbook_auto;
 use cells::EngineCellRequest;
+use dataset::EngineDataset;
 use dataset::is_excel_path;
 use dataset::load_dataset;
-use dataset::EngineDataset;
 use infer::find_metadata_positive_integer;
 use infer::infer_auto_segmentation_from_x_values;
 use infer::infer_metadata_group_shape;
+use infer::infer_metadata_group_shape_with_total;
 use infer::parse_positive_integer_text;
-use legend::resolve_legend_labels;
 use legend::LegendMode;
+use legend::resolve_legend_labels;
 use rc::RcAnalysisOptions;
 use rc::RcDeviceRequest;
 use serde::Deserialize;
 use serde::Serialize;
-use serde_json::json;
 use serde_json::Value;
+use serde_json::json;
 use std::collections::HashMap;
 use std::collections::VecDeque;
 use std::env;
@@ -37,10 +38,10 @@ use std::io::BufWriter;
 use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Instant;
 use utils::*;
@@ -89,6 +90,7 @@ struct EngineRequest {
     series: Option<Vec<AnalysisSeriesRequest>>,
     source_file: Option<AnalysisSourceFile>,
     start_row: Option<usize>,
+    total_row_count: Option<usize>,
     max_points: Option<usize>,
     metric_kind: Option<String>,
     metric_series: Option<Vec<OriginExportMetricSeriesRequest>>,
@@ -511,17 +513,26 @@ fn classify_auto_curve(
 
     // Non-IV families are detected first because they may still contain voltage
     // or current tokens that would otherwise look like regular IV data.
-    if file_compact.contains("pv")
-        || has_fast_iv_or_ivt_hint(file_name)
+    let metadata_has_fast_iv_or_ivt = all_text
+        .iter()
+        .skip(1)
+        .any(|value| has_fast_iv_or_ivt_hint(value))
         || compact_all
             .iter()
-            .any(|value| value.contains("fastiv") || value == "ipt")
-        || all_text.iter().any(|value| has_fast_iv_or_ivt_hint(value))
+            .skip(1)
+            .any(|value| value.contains("fastiv") || value == "ipt");
+    if file_compact.contains("pv")
+        || has_fast_iv_or_ivt_hint(file_name)
+        || metadata_has_fast_iv_or_ivt
     {
         return (
             "pv".to_string(),
             None,
-            "filename",
+            if metadata_has_fast_iv_or_ivt {
+                "metadata"
+            } else {
+                "filename"
+            },
             "medium".to_string(),
             false,
         );
@@ -934,8 +945,11 @@ fn resolve_auto_group_shape_full(
     x_col: usize,
     point_col_index: Option<usize>,
     var2_col_index: Option<usize>,
+    total_row_count: usize,
 ) -> (Option<usize>, Option<usize>) {
-    if let Some(shape) = infer_metadata_group_shape(dataset, data_start_row_index) {
+    if let Some(shape) =
+        infer_metadata_group_shape_with_total(dataset, data_start_row_index, total_row_count)
+    {
         return (Some(shape.0), Some(shape.1));
     }
     let explicit = detect_first_group_length(
@@ -949,7 +963,7 @@ fn resolve_auto_group_shape_full(
             collect_column_numbers(dataset, data_start_row_index, x_col, dataset.rows.len());
         infer_auto_segmentation_from_x_values(
             &values,
-            dataset.rows.len().saturating_sub(data_start_row_index),
+            total_row_count.saturating_sub(data_start_row_index),
         )
         .map(|shape| shape.0)
     } else {
@@ -958,6 +972,9 @@ fn resolve_auto_group_shape_full(
     let group_size = explicit.or(repeated);
     let groups = group_size.and_then(|size| {
         let data_rows = dataset.rows.len().saturating_sub(data_start_row_index);
+        let data_rows = total_row_count
+            .saturating_sub(data_start_row_index)
+            .max(data_rows);
         if size > 0 && data_rows % size == 0 {
             Some(data_rows / size)
         } else {
@@ -1016,9 +1033,44 @@ fn auto_config_json(
     })
 }
 
-fn with_auto_curve_type(mut config: Value, curve_type: &str) -> Value {
+fn build_auto_curve_type_label(curve_type: &str, x_axis_role: Option<&str>) -> Value {
+    match curve_type {
+        "transfer" => {
+            if x_axis_role == Some("vg") {
+                json!("transfer (vg)")
+            } else {
+                json!("transfer")
+            }
+        }
+        "output" => {
+            if x_axis_role == Some("vd") {
+                json!("output (vd)")
+            } else {
+                json!("output")
+            }
+        }
+        "pv" | "cv" | "cf" => json!(curve_type),
+        _ => json!("unknown"),
+    }
+}
+
+fn with_auto_curve_info(
+    mut config: Value,
+    curve_type: &str,
+    x_axis_role: Option<&str>,
+    x_axis_role_source: &str,
+    confidence: &str,
+    needs_template: bool,
+) -> Value {
     if let Some(object) = config.as_object_mut() {
         object.insert("autoCurveType".to_string(), json!(curve_type));
+        object.insert(
+            "autoCurveTypeLabel".to_string(),
+            build_auto_curve_type_label(curve_type, x_axis_role),
+        );
+        object.insert("autoCurveConfidence".to_string(), json!(confidence));
+        object.insert("autoCurveNeedsTemplate".to_string(), json!(needs_template));
+        object.insert("autoXAxisRoleSource".to_string(), json!(x_axis_role_source));
     }
     config
 }
@@ -1069,17 +1121,43 @@ fn infer_auto_extraction_plan_from_config(config: &Value) -> Value {
             None
         }
     });
-    let groups = if group_size.is_some() || legend_target != "yColumn" {
+    let groups = if group_size.is_some()
+        || legend_target != "yColumn"
+        || matches!(curve_type.as_str(), "cv" | "cf" | "pv")
+    {
         json_usize(config.get("groups"))
     } else {
         None
     };
+    let confidence = {
+        let value = json_string(config.get("autoCurveConfidence"));
+        if value.is_empty() {
+            if curve_type == "unknown" {
+                "low".to_string()
+            } else {
+                "medium".to_string()
+            }
+        } else {
+            value
+        }
+    };
+    let x_axis_role_source = {
+        let value = json_string(config.get("autoXAxisRoleSource"));
+        if value.is_empty() {
+            "metadata".to_string()
+        } else {
+            value
+        }
+    };
 
     json!({
         "bottomTitle": bottom_title,
-        "confidence": if curve_type == "unknown" { "low" } else { "medium" },
+        "confidence": confidence,
         "curveType": curve_type,
-        "curveTypeLabel": Value::Null,
+        "curveTypeLabel": config
+            .get("autoCurveTypeLabel")
+            .cloned()
+            .unwrap_or_else(|| build_auto_curve_type_label(&curve_type, x_axis_role.as_str())),
         "dataStartRowIndex": start_row,
         "groups": groups,
         "leftTitle": left_title,
@@ -1090,10 +1168,13 @@ fn infer_auto_extraction_plan_from_config(config: &Value) -> Value {
         "legendCount": legend_count,
         "legendStep": legend_step,
         "legendTarget": legend_target,
-        "needsTemplate": curve_type == "unknown",
+        "needsTemplate": config
+            .get("autoCurveNeedsTemplate")
+            .and_then(Value::as_bool)
+            .unwrap_or(curve_type == "unknown"),
         "reasons": Vec::<String>::new(),
         "xAxisRole": x_axis_role,
-        "xAxisRoleSource": "metadata",
+        "xAxisRoleSource": x_axis_role_source,
         "xCol": json_usize(config.get("xCol")).unwrap_or(0),
         "xPointsPerGroup": group_size,
         "xSegmentationMode": json_string(config.get("xSegmentationMode")),
@@ -1103,8 +1184,8 @@ fn infer_auto_extraction_plan_from_config(config: &Value) -> Value {
     })
 }
 
-fn infer_auto_extraction_result(dataset: &EngineDataset) -> Value {
-    match infer_auto_worker_config(dataset) {
+fn infer_auto_extraction_result(dataset: &EngineDataset, total_row_count: Option<usize>) -> Value {
+    match infer_auto_worker_config(dataset, total_row_count) {
         Ok(config) => json!({
             "ok": true,
             "config": config,
@@ -1118,7 +1199,10 @@ fn infer_auto_extraction_result(dataset: &EngineDataset) -> Value {
     }
 }
 
-fn infer_auto_worker_config(dataset: &EngineDataset) -> Result<Value, String> {
+fn infer_auto_worker_config(
+    dataset: &EngineDataset,
+    total_row_count: Option<usize>,
+) -> Result<Value, String> {
     if dataset.rows.is_empty() {
         return Err(format!(
             "{}: no rows available for auto extraction.",
@@ -1128,8 +1212,11 @@ fn infer_auto_worker_config(dataset: &EngineDataset) -> Result<Value, String> {
     let header_row_index = find_header_row_index(dataset);
     let headers = row_trimmed(dataset, header_row_index);
     let data_start_row_index = (header_row_index + 1).min(dataset.rows.len());
+    let total_row_count = total_row_count
+        .filter(|value| *value >= dataset.rows.len())
+        .unwrap_or(dataset.rows.len());
     let metadata = extract_auto_metadata(dataset);
-    let (curve_type, x_axis_role, _source, _confidence, _needs_template) =
+    let (curve_type, x_axis_role, x_axis_role_source, confidence, needs_template) =
         classify_auto_curve(&dataset.file_name, &metadata, &headers);
 
     if metadata.is_stripped_channel_sweep {
@@ -1190,6 +1277,7 @@ fn infer_auto_worker_config(dataset: &EngineDataset) -> Result<Value, String> {
             x_col,
             point_col,
             var2_col,
+            total_row_count,
         );
         let grouped = group_size.is_some() && groups.unwrap_or(1) > 1;
         let fixed_value = if grouped {
@@ -1200,7 +1288,7 @@ fn infer_auto_worker_config(dataset: &EngineDataset) -> Result<Value, String> {
                 .map(format_compact_number)
         };
         let bias_role = if role == "vg" { "Vd" } else { "Vg" };
-        return Ok(with_auto_curve_type(
+        return Ok(with_auto_curve_info(
             auto_config_json(
                 if role == "vg" {
                     "Vg".to_string()
@@ -1239,6 +1327,10 @@ fn infer_auto_worker_config(dataset: &EngineDataset) -> Result<Value, String> {
                 },
             ),
             &curve_type,
+            Some(role),
+            "shape",
+            &confidence,
+            needs_template,
         ));
     }
 
@@ -1288,9 +1380,19 @@ fn infer_auto_worker_config(dataset: &EngineDataset) -> Result<Value, String> {
             .iter()
             .map(|pair| pair.1)
             .collect::<Vec<_>>();
-        let role = x_axis_role.or_else(|| {
-            detect_axis_role_text(headers.get(x_col).map(String::as_str).unwrap_or(""))
-        });
+        let first_x_header = headers.get(x_col).map(String::as_str).unwrap_or("");
+        let first_x_header_normalized = first_x_header.to_ascii_lowercase();
+        let role = x_axis_role
+            .or_else(|| detect_axis_role_text(first_x_header))
+            .or_else(|| {
+                if first_x_header_normalized.contains("drain") {
+                    Some("vd")
+                } else if first_x_header_normalized.contains("gate") {
+                    Some("vg")
+                } else {
+                    None
+                }
+            });
         if let Some(role) = role {
             let inferred_curve = if curve_type != "unknown" {
                 curve_type.as_str()
@@ -1304,7 +1406,7 @@ fn infer_auto_worker_config(dataset: &EngineDataset) -> Result<Value, String> {
             } else {
                 1
             };
-            return Ok(with_auto_curve_type(
+            return Ok(with_auto_curve_info(
                 auto_config_json(
                     if role == "vg" {
                         "Vg".to_string()
@@ -1327,6 +1429,10 @@ fn infer_auto_worker_config(dataset: &EngineDataset) -> Result<Value, String> {
                     "yColumn",
                 ),
                 inferred_curve,
+                Some(role),
+                x_axis_role_source,
+                &confidence,
+                needs_template,
             ));
         }
     }
@@ -1371,17 +1477,31 @@ fn infer_auto_worker_config(dataset: &EngineDataset) -> Result<Value, String> {
             ),
             _ => ("V", "A", "Id".to_string()),
         };
-        let y_step = if pair_candidates.len() >= 2 {
+        let y_step = if matches!(inferred_curve, "cv" | "cf" | "pv") {
+            1
+        } else if pair_candidates.len() >= 2 {
             pair_candidates[1].1 - pair_candidates[0].1
         } else {
             1
         };
-        return Ok(with_auto_curve_type(
+        let bottom_title = if role == Some("vg") {
+            "Vg".to_string()
+        } else if role == Some("vd") {
+            "Vd".to_string()
+        } else {
+            headers
+                .get(x_col)
+                .cloned()
+                .unwrap_or_else(|| "X".to_string())
+        };
+        let role_source = if matches!(inferred_curve, "cv" | "cf" | "pv") && role.is_none() {
+            "label"
+        } else {
+            x_axis_role_source
+        };
+        return Ok(with_auto_curve_info(
             auto_config_json(
-                headers
-                    .get(x_col)
-                    .cloned()
-                    .unwrap_or_else(|| "X".to_string()),
+                bottom_title,
                 left_title,
                 data_start_row_index,
                 x_col,
@@ -1398,6 +1518,10 @@ fn infer_auto_worker_config(dataset: &EngineDataset) -> Result<Value, String> {
                 "yColumn",
             ),
             inferred_curve,
+            role,
+            role_source,
+            &confidence,
+            needs_template,
         ));
     }
 
@@ -1437,7 +1561,7 @@ fn infer_auto_worker_config(dataset: &EngineDataset) -> Result<Value, String> {
             } else {
                 y_cols
             };
-            return Ok(with_auto_curve_type(
+            return Ok(with_auto_curve_info(
                 auto_config_json(
                     headers
                         .get(x_col)
@@ -1470,6 +1594,10 @@ fn infer_auto_worker_config(dataset: &EngineDataset) -> Result<Value, String> {
                     if y_cols.len() > 1 { "yColumn" } else { "auto" },
                 ),
                 &curve_type,
+                x_axis_role,
+                x_axis_role_source,
+                &confidence,
+                needs_template,
             ));
         }
     }
@@ -1528,8 +1656,14 @@ fn infer_auto_worker_config(dataset: &EngineDataset) -> Result<Value, String> {
     let var2_col = headers
         .iter()
         .position(|entry| clean_cell_text(entry) == "VAR2");
-    let (group_size, groups) =
-        resolve_auto_group_shape_full(dataset, data_start_row_index, x_col, point_col, var2_col);
+    let (group_size, groups) = resolve_auto_group_shape_full(
+        dataset,
+        data_start_row_index,
+        x_col,
+        point_col,
+        var2_col,
+        total_row_count,
+    );
     let bias_role = if x_axis_role == Some("vg") {
         "vd"
     } else {
@@ -1562,7 +1696,7 @@ fn infer_auto_worker_config(dataset: &EngineDataset) -> Result<Value, String> {
     let generated_count = generated.as_ref().and_then(|value| value.0);
     let generated_step = generated.as_ref().and_then(|value| value.2);
 
-    Ok(with_auto_curve_type(
+    Ok(with_auto_curve_info(
         auto_config_json(
             if x_axis_role == Some("vg") {
                 "Vg".to_string()
@@ -1641,6 +1775,10 @@ fn infer_auto_worker_config(dataset: &EngineDataset) -> Result<Value, String> {
             },
         ),
         &curve_type,
+        x_axis_role,
+        x_axis_role_source,
+        &confidence,
+        needs_template,
     ))
 }
 
@@ -2965,7 +3103,7 @@ fn handle_request(
             let dataset = cache
                 .get(file_id)
                 .ok_or_else(|| "file is not open in engine".to_string())?;
-            let config = infer_auto_worker_config(dataset)?;
+            let config = infer_auto_worker_config(dataset, request.total_row_count)?;
             Ok(json!({
                 "fileId": file_id,
                 "fileName": dataset.file_name,
@@ -2997,7 +3135,7 @@ fn handle_request(
             let dataset = cache
                 .get(file_id)
                 .ok_or_else(|| "file is not open in engine".to_string())?;
-            let mut result = infer_auto_extraction_result(dataset);
+            let mut result = infer_auto_extraction_result(dataset, request.total_row_count);
             if let Some(object) = result.as_object_mut() {
                 object.insert("fileId".to_string(), json!(file_id));
                 object.insert("fileName".to_string(), json!(dataset.file_name));
@@ -3068,7 +3206,7 @@ fn handle_request(
             let dataset = cache
                 .get(file_id)
                 .ok_or_else(|| "file is not open in engine".to_string())?;
-            let config = infer_auto_worker_config(dataset)?;
+            let config = infer_auto_worker_config(dataset, request.total_row_count)?;
             let mut processed = process_file(
                 file_id,
                 dataset,

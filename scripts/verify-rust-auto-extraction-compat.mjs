@@ -57,6 +57,45 @@ const fixtures = [
     ],
   },
   {
+    name: "truncated-preview-metadata",
+    fileName: "Transfer_DB [truncated-preview].csv",
+    totalRowCount: 814,
+    rows: [
+      ["SetupTitle", "Transfer_DB"],
+      ["TestParameter", "Channel.VName", "Vg", "Vd", "Vs"],
+      ["TestParameter", "Channel.Func", "VAR1", "VAR2", "CONST"],
+      ["TestParameter", "Output.Graph.XAxis.Data", "Vg"],
+      ["TestParameter", "Measurement.Secondary.Start", "0.05"],
+      ["TestParameter", "Measurement.Secondary.Count", "2"],
+      ["TestParameter", "Measurement.Secondary.Step", "0.95"],
+      ["Dimension1", "402", "402", "402"],
+      ["Dimension2", "2", "2", "2"],
+      ["DataName", "Vg", "Id", "Ig"],
+      ["DataValue", "-1", "1e-13", "1e-12"],
+      ["DataValue", "-0.975", "2e-13", "1e-12"],
+      ["DataValue", "-0.95", "3e-13", "1e-12"],
+      ["DataValue", "-0.925", "4e-13", "1e-12"],
+      ["DataValue", "-0.9", "5e-13", "1e-12"],
+    ],
+  },
+  {
+    name: "single-curve-fixed-legend",
+    fileName: "Trans_Br [sample, Vbr=4.6V].csv",
+    rows: [
+      ["SetupTitle", "Trans_Br"],
+      ["TestParameter", "Channel.VName", "Vg", "Vd", "Vs"],
+      ["TestParameter", "Channel.Func", "VAR1", "VAR2", "CONST"],
+      ["TestParameter", "Measurement.Secondary.Start", "0.05"],
+      ["TestParameter", "Measurement.Secondary.Count", "1"],
+      ["TestParameter", "Measurement.Secondary.Step", "0.2"],
+      ["TestParameter", "Output.Graph.XAxis.Data", "Vg"],
+      ["DataName", "Vg", "Id", "Ig"],
+      ["DataValue", "0", "1e-12", "1e-13"],
+      ["DataValue", "0.033", "2e-12", "1e-13"],
+      ["DataValue", "0.066", "3e-12", "1e-13"],
+    ],
+  },
+  {
     name: "adjacent-xy-shared-x",
     fileName: "30020 SLVT IVlin.csv",
     rows: [
@@ -85,6 +124,27 @@ const fixtures = [
     ],
   },
   {
+    name: "transient-transfer-not-pv",
+    fileName: "1-TRANS.csv",
+    rows: [
+      ["2026-04-21-19-10-07_(MOS_IV_Transient_DC_Sweep)Id", "Ig_vg@ vs=0.0"],
+      ["vg(V)", "id(-0.1)", "vg(V)", "ig(-0.1)", "vg(V)", "id(-1.0)", "vg(V)", "ig(-1.0)"],
+      ["-3.0", "-1.5e-4", "-3.0", "-6.3e-11", "-3.0", "-1.5e-3", "-3.0", "-6.6e-11"],
+      ["-2.94", "-1.5e-4", "-2.94", "-6.0e-11", "-2.94", "-1.5e-3", "-2.94", "-6.3e-11"],
+      ["0.0", "-7.1e-9", "0.0", "5.0e-13", "0.0", "-2.0e-7", "0.0", "5.7e-13"],
+    ],
+  },
+  {
+    name: "gate-current-only",
+    fileName: "1-TRANS.csv",
+    rows: [
+      ["vg(V)", "ig(-0.1)", "vg(V)", "ig(-1.0)"],
+      ["-3.0", "-6.3e-11", "-3.0", "-6.6e-11"],
+      ["-2.94", "-6.0e-11", "-2.94", "-6.3e-11"],
+      ["0.0", "5.0e-13", "0.0", "5.7e-13"],
+    ],
+  },
+  {
     name: "cv-two-column",
     fileName: "#CV-60um-5,10kHz_2026-01-09-10-09-59.xls",
     rows: [
@@ -108,6 +168,27 @@ const fixtures = [
       ["11000", "1.34488e-12"],
       ["21000", "1.33745e-12"],
       ["31000", "1.33642e-12"],
+    ],
+  },
+  {
+    name: "cv-adjacent-pairs",
+    fileName: "300Cgg.csv",
+    rows: [
+      [
+        "c(g:g)(CV_n256_ac_des) X",
+        "c(g:g)(CV_n256_ac_des) Y",
+        "c(g:g)(CV_n350_ac_des) X",
+        "c(g:g)(CV_n350_ac_des) Y",
+        "c(g:g)(CV_n356_ac_des) X",
+        "c(g:g)(CV_n356_ac_des) Y",
+        "c(g:g)(CV_n362_ac_des) X",
+        "c(g:g)(CV_n362_ac_des) Y",
+        "c(g:g)(CV_n368_ac_des) X",
+        "c(g:g)(CV_n368_ac_des) Y",
+      ],
+      ["-0.5", "9.8493571e-16", "-0.5", "9.8777813e-16", "-0.5", "9.9085634e-16", "-0.5", "9.9417108e-16", "-0.5", "9.9767852e-16"],
+      ["-0.49", "9.8525372e-16", "-0.49", "9.8812868e-16", "-0.49", "9.9124231e-16", "-0.49", "9.9458988e-16", "-0.49", "9.9812284e-16"],
+      ["-0.48", "9.8557594e-16", "-0.48", "9.8848412e-16", "-0.48", "9.9163325e-16", "-0.48", "9.9501303e-16", "-0.48", "9.9857063e-16"],
     ],
   },
   {
@@ -142,18 +223,29 @@ const normalizePlan = (result) => {
   const plan = result.plan;
   return {
     ok: true,
+    bottomTitle: plan.bottomTitle ?? "",
+    confidence: plan.confidence ?? null,
     curveType: plan.curveType,
+    curveTypeLabel: plan.curveTypeLabel ?? null,
+    dataStartRowIndex: plan.dataStartRowIndex,
     groups: plan.groups ?? null,
+    leftTitle: plan.leftTitle ?? "",
+    legendPrefix: plan.legendPrefix ?? "",
     legendCount: plan.legendCount ?? null,
     legendStartColIndex: plan.legendStartColIndex ?? null,
     legendStartRowIndex: plan.legendStartRowIndex ?? null,
     legendStartValue: plan.legendStartValue ?? null,
     legendStep: Number.isFinite(plan.legendStep) ? Number(plan.legendStep.toPrecision(12)) : null,
     legendTarget: plan.legendTarget ?? "auto",
+    needsTemplate: plan.needsTemplate ?? false,
     xAxisRole: plan.xAxisRole ?? null,
+    xAxisRoleSource: plan.xAxisRoleSource ?? null,
     xCol: plan.xCol,
     xPointsPerGroup: plan.xPointsPerGroup ?? null,
+    xSegmentationMode: plan.xSegmentationMode ?? "auto",
+    xUnit: plan.xUnit ?? "",
     yCols: plan.yCols,
+    yUnit: plan.yUnit ?? "",
   };
 };
 
@@ -175,7 +267,7 @@ const prepare = async () => {
       plan: normalizePlan(inferAutoExtraction({
         fileName: fixture.fileName,
         rows: fixture.rows,
-        totalRowCount: fixture.rows.length,
+        totalRowCount: fixture.totalRowCount ?? fixture.rows.length,
       })),
     });
 
@@ -185,6 +277,7 @@ const prepare = async () => {
       fileName: fixture.fileName,
       id: index + 1,
       path: filePath,
+      totalRowCount: fixture.totalRowCount ?? fixture.rows.length,
     }));
   }
 

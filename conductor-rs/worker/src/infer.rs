@@ -117,11 +117,19 @@ pub fn infer_metadata_group_shape(
     dataset: &EngineDataset,
     start_row: usize,
 ) -> Option<(usize, usize)> {
+    infer_metadata_group_shape_with_total(dataset, start_row, dataset.rows.len())
+}
+
+pub fn infer_metadata_group_shape_with_total(
+    dataset: &EngineDataset,
+    start_row: usize,
+    total_row_count: usize,
+) -> Option<(usize, usize)> {
     let dimension_shape = resolve_group_shape_from_counts(
         start_row,
         find_metadata_positive_integer(dataset, "Dimension1", None),
         find_metadata_positive_integer(dataset, "Dimension2", None),
-        dataset.rows.len(),
+        total_row_count,
     );
     if dimension_shape.is_some() {
         return dimension_shape;
@@ -134,7 +142,7 @@ pub fn infer_metadata_group_shape(
             "TestParameter",
             Some("Measurement.Secondary.Count"),
         ),
-        dataset.rows.len(),
+        total_row_count,
     )
 }
 
