@@ -1,6 +1,7 @@
+import { lxChevronDown } from "cogicon";
 import { jsx } from "react/jsx-runtime";
 import { forwardRef, type ButtonHTMLAttributes, type Ref, type ReactNode, } from "react";
-import { ChevronDown } from "lucide-react";
+import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
 import { cx } from "src/utils/cx";
 type DropdownTriggerProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "type"> & {
     isOpen: boolean;
@@ -31,7 +32,8 @@ const DropdownTrigger = forwardRef<HTMLButtonElement, DropdownTriggerProps>(({ i
         }),
         !hideIndicator ? (jsx("span", {
             className: indicatorClassName,
-            children: indicator ?? (jsx(ChevronDown, {
+            children: indicator ?? (jsx(CogIcon, {
+                icon: lxChevronDown,
                 size: 16,
                 className: cx("transition-transform duration-200", isOpen ? "rotate-180" : "")
             }))

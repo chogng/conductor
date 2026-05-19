@@ -1,7 +1,8 @@
+import { lxArrowLeft } from "cogicon";
 import { useEffect, useState, type KeyboardEvent } from "react";
-import { ArrowLeft } from "lucide-react";
 import Button from "cs/base/browser/ui/Button/Button";
 import Card from "cs/base/browser/ui/Card/Card";
+import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
 import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
 import Input from "cs/base/browser/ui/Input/Input";
 import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
@@ -154,7 +155,7 @@ export default function AxisSettingsPane({
             title={t("da_chart_plot_settings_title")}
             aria-label={t("da_chart_plot_settings_title")}
           >
-            <ArrowLeft size={16} />
+            <CogIcon icon={lxArrowLeft} size={16} />
           </Button>
           <div className="min-w-0 flex-1">
             <div className="truncate text-xs font-semibold text-text-primary">

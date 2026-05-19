@@ -144,16 +144,10 @@ const DataPanel = ({
     <div className="grid min-h-full h-full grid-cols-[var(--sidebar-width)_minmax(0,1fr)] gap-1">
       <WorkbenchSidebar
         ariaLabel={t("da_import_section")}
-        badge={{
-          text: String(rawData.length),
-          tone: rawData.length > 0 ? "accent" : "default",
-        }}
-        description={t("da_loaded_csv_files", { count: rawData.length })}
         headerActions={headerActions}
         isResizing={isResizing}
         onAction={handleSidebarAction}
         onStartResizing={onStartResizing}
-        title={t("da_import_section")}
       >
         <section
           className="flex-1 flex flex-col min-h-0"

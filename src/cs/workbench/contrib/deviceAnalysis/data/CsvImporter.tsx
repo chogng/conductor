@@ -8,7 +8,11 @@ import React, {
   forwardRef,
   useEffect,
 } from "react";
-import { Import, FileText, X, AlertCircle } from "lucide-react";
+import { lxClose, lxDownloadTray, lxFileText } from "cogicon";
+import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
+import {
+  lxAlertCircle,
+} from "src/cs/base/browser/ui/CogIcon/icons";
 import { cx } from "src/utils/cx";
 import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
 import Avatar from "cs/base/browser/ui/Avatar/Avatar";
@@ -31,6 +35,10 @@ import {
   toDomIdToken,
 } from "./preview/csvImportUtils";
 import styles from "./CsvImporter.module.css";
+
+const CsvImporterEmptyStateIcon = ({ className }: { className?: string }) => (
+  <CogIcon icon={lxDownloadTray} size="100%" className={className} />
+);
 
 export type CsvImporterFileEntry = {
   file?: unknown;
@@ -144,7 +152,7 @@ const CsvFileItem = React.memo(
       >
         <div className={styles.fileContent}>
           <div className={styles.fileIcon}>
-            <FileText size={16} />
+            <CogIcon icon={lxFileText} size={16} />
           </div>
           <div className={styles.fileText}>
             <span className={styles.fileName}>{fileName}</span>
@@ -176,7 +184,7 @@ const CsvFileItem = React.memo(
             }}
             className={styles.fileRemove}
           >
-            <X size={16} />
+            <CogIcon icon={lxClose} size={16} />
           </button>
         </div>
       </div>
@@ -552,7 +560,7 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
               data-slot="empty"
               className={styles.empty}
             >
-              <Avatar icon={Import} size="lg" variant="empty" />
+              <Avatar icon={CsvImporterEmptyStateIcon} size="lg" variant="empty" />
               <p className={styles.emptySubtitle}>
                 {t("da_csv_empty_subtitle_prefix")}{" "}
                 <span className={styles.emptyBrowse}>
@@ -608,7 +616,7 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
 
         {error && (
           <div className="flex items-center gap-2 p-3 text-sm text-red-500 bg-red-500/10 rounded-lg mt-4 whitespace-pre-wrap">
-            <AlertCircle size={16} />
+            <CogIcon icon={lxAlertCircle} size={16} />
             {error}
           </div>
         )}

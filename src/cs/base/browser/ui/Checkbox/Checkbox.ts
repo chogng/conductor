@@ -1,6 +1,7 @@
+import { lxCheck } from "cogicon";
 import { forwardRef, type HTMLAttributes, type ReactNode } from "react";
 import { jsx } from "react/jsx-runtime";
-import { Check } from "lucide-react";
+import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
 import { cx } from "src/utils/cx";
 import "./checkbox.css";
 
@@ -35,7 +36,6 @@ const Checkbox = forwardRef<HTMLElement, CheckboxProps>(
     ref,
   ) => {
     const resolvedIconSize = iconSize ?? (size === "lg" ? 11 : 10);
-    const resolvedIconStrokeWidth = iconStrokeWidth ?? (size === "lg" ? 3.5 : 4);
     const ariaProps = decorative
       ? { "aria-hidden": true as const }
       : {
@@ -46,10 +46,10 @@ const Checkbox = forwardRef<HTMLElement, CheckboxProps>(
     const icon =
       children ??
       (checked
-        ? jsx(Check, {
+        ? jsx(CogIcon, {
+            icon: lxCheck,
             size: resolvedIconSize,
             className: iconClassName,
-            strokeWidth: resolvedIconStrokeWidth,
           })
         : null);
 

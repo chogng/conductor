@@ -8,16 +8,20 @@ import React, {
   type SetStateAction,
 } from "react";
 import {
-  Trash2,
-  ArrowUp,
-  List,
-  Save,
-  Plus,
-  Download,
-  Upload,
-  X,
-  AlertTriangle,
-} from "lucide-react";
+  lxAddSmall,
+  lxArrowUp,
+  lxClose,
+  lxDownloadTray,
+  lxExportTray,
+  lxListUnordered,
+  lxSave,
+  lxTrash,
+} from "cogicon";
+import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
+import {
+  createCogIconComponent,
+  lxAlertTriangle,
+} from "src/cs/base/browser/ui/CogIcon/icons";
 import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
 import type { TranslateFn, TranslationVars } from "src/cs/platform/language/common/language";
 import Toast from "cs/base/browser/ui/Toast/Toast";
@@ -72,6 +76,11 @@ import type {
   RawDataEntry,
   ToastType,
 } from "../../shared/lib/sharedTypes";
+
+const TemplateModeSelectIcon = createCogIconComponent(lxListUnordered);
+const TemplateModeSaveIcon = createCogIconComponent(lxSave);
+const TemplateOptionAddIcon = createCogIconComponent(lxAddSmall);
+const TemplateOptionTrashIcon = createCogIconComponent(lxTrash);
 
 export type TemplateManagerProps = {
   previewFile?: PreviewFileLike | null;
@@ -1727,7 +1736,7 @@ const TemplateManager = ({
                 title={t("da_save_template")}
               >
                 {t("da_template_mode_save")}
-                <ArrowUp size={16} />
+                <CogIcon icon={lxArrowUp} size={16} />
               </Button>
             </div>
           </div>
@@ -1763,7 +1772,7 @@ const TemplateManager = ({
         secondaryAction: {
           ariaLabel: t("da_new_template"),
           title: t("da_new_template"),
-          icon: Plus,
+          icon: TemplateOptionAddIcon,
           visible: "hover" as const,
           onClick: () => handleCreateNewTemplate(),
         },
@@ -1788,7 +1797,7 @@ const TemplateManager = ({
                   ? {
                       ariaLabel: t("da_delete_template"),
                       title: t("da_delete_template"),
-                      icon: Trash2,
+                      icon: TemplateOptionTrashIcon,
                       visible: "hover" as const,
                       onClick: () => handleDeleteTemplate(templateId),
                     }
@@ -1810,7 +1819,8 @@ const TemplateManager = ({
         className="rounded-xl border border-border-200 px-3 py-3 text-sm"
       >
         <div className="flex items-start gap-2">
-          <AlertTriangle
+          <CogIcon
+            icon={lxAlertTriangle}
             size={16}
             className="mt-0.5 shrink-0 text-amber-500"
             aria-hidden="true"
@@ -2056,7 +2066,7 @@ const TemplateManager = ({
             title={t("da_template_export_btn")}
             aria-label={t("da_template_export_btn")}
           >
-            <Upload size={14} className="shrink-0" />
+            <CogIcon icon={lxExportTray} size={14} className="shrink-0" />
             {!shouldCollapseTemplateTransferButtons ? (
               <span className="block min-w-0 flex-1 truncate text-left">
                 {t("da_template_export_btn")}
@@ -2084,7 +2094,7 @@ const TemplateManager = ({
             title={t("da_template_import_btn")}
             aria-label={t("da_template_import_btn")}
           >
-            <Download size={14} className="shrink-0" />
+            <CogIcon icon={lxDownloadTray} size={14} className="shrink-0" />
             {!shouldCollapseTemplateTransferButtons ? (
               <span className="block min-w-0 flex-1 truncate text-left">
                 {t("da_template_import_btn")}
@@ -2170,7 +2180,7 @@ const TemplateManager = ({
                 <span className="block min-w-0 flex-1 truncate text-left">
                   {t("da_add_rule")}
                 </span>
-                <Plus size={14} className="shrink-0" />
+                <CogIcon icon={lxAddSmall} size={14} className="shrink-0" />
               </Button>
             </div>
             <div className="mt-3 space-y-3">
@@ -2210,7 +2220,7 @@ const TemplateManager = ({
                         disabled={measureOnly}
                         className="hover:text-red-500 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus:opacity-100 focus:pointer-events-auto"
                       >
-                        <Trash2 size={14} />
+                        <CogIcon icon={lxTrash} size={14} />
                       </Button>
                     </div>
                     <DropdownField
@@ -2277,7 +2287,7 @@ const TemplateManager = ({
                                     aria-label={t("da_remove_rule")}
                                     title={t("da_remove_rule")}
                                   >
-                                    <X size={12} />
+                                    <CogIcon icon={lxClose} size={12} />
                                   </button>
                                 </span>
                               ))
@@ -2514,7 +2524,7 @@ const TemplateManager = ({
                         label: t("da_template_mode_select"),
                         ariaLabel: t("da_template_mode_select"),
                         title: t("da_template_mode_select"),
-                        icon: List,
+                        icon: TemplateModeSelectIcon,
                         cta: "Device Analysis",
                         ctaPosition: "template-mode",
                         ctaCopy: "select",
@@ -2524,7 +2534,7 @@ const TemplateManager = ({
                         label: t("da_template_mode_save"),
                         ariaLabel: t("da_template_mode_save"),
                         title: t("da_template_mode_save"),
-                        icon: Save,
+                        icon: TemplateModeSaveIcon,
                         cta: "Device Analysis",
                         ctaPosition: "template-mode",
                         ctaCopy: "save",

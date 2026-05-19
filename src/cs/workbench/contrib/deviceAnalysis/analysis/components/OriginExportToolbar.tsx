@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Check, ChevronDown, ChevronRight } from "lucide-react";
+import { lxCheck, lxChevronDown, lxChevronRight } from "cogicon";
 import Button from "cs/base/browser/ui/Button/Button";
+import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
+import { lxAlertTriangle } from "src/cs/base/browser/ui/CogIcon/icons";
 import ContentView from "cs/base/browser/ui/ContentView/ContentView";
 import Dropdown from "cs/base/browser/ui/Dropdown/Dropdown";
 import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
@@ -144,7 +146,8 @@ const OriginExportContentMenu = ({
               className="input_native no-focus-outline p-0 text-left cursor-pointer select-none pr-6"
               indicatorClassName="absolute right-1 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none"
               indicator={
-                <ChevronDown
+                <CogIcon
+                  icon={lxChevronDown}
                   size={14}
                   className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
                 />
@@ -190,7 +193,7 @@ const OriginExportContentMenu = ({
                               }
                               right={
                                 <span className="ui-menu__item-right">
-                                  {checked ? <Check size={14} className="text-accent" /> : null}
+                                  {checked ? <CogIcon icon={lxCheck} size={14} className="text-accent" /> : null}
                                 </span>
                               }
                             />
@@ -311,7 +314,8 @@ export const OriginCurveExportMenu = ({
               className="input_native no-focus-outline p-0 text-left cursor-pointer select-none pr-6"
               indicatorClassName="absolute right-1 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none"
               indicator={
-                <ChevronDown
+                <CogIcon
+                  icon={lxChevronDown}
                   size={14}
                   className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
                 />
@@ -350,7 +354,7 @@ export const OriginCurveExportMenu = ({
                       }
                       right={
                         <span className="ui-menu__item-right">
-                          {mode === "all" ? <Check size={14} className="text-accent" /> : null}
+                          {mode === "all" ? <CogIcon icon={lxCheck} size={14} className="text-accent" /> : null}
                         </span>
                       }
                     />
@@ -369,7 +373,7 @@ export const OriginCurveExportMenu = ({
                       }
                       right={
                         <span className="ui-menu__item-right">
-                          <ChevronRight size={14} />
+                          <CogIcon icon={lxChevronRight} size={14} />
                         </span>
                       }
                     />
@@ -412,7 +416,7 @@ export const OriginCurveExportMenu = ({
                               }
                               right={
                                 <span className="ui-menu__item-right">
-                                  {checked ? <Check size={14} className="text-accent" /> : null}
+                                  {checked ? <CogIcon icon={lxCheck} size={14} className="text-accent" /> : null}
                                 </span>
                               }
                             />
@@ -609,7 +613,7 @@ const OriginExportToolbar = ({
       <div className="mt-3 space-y-2">
         <div className="rounded-lg border border-border bg-bg-page/60 px-3 py-2 text-xs text-text-secondary">
           <div className="flex items-start gap-2">
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden="true" />
+            <CogIcon icon={lxAlertTriangle} size={14} className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden="true" />
             <span>{t("da_origin_export_mode_mixed_y_scale_split_hint")}</span>
           </div>
         </div>

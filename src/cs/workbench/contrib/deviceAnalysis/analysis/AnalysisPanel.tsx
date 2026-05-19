@@ -1,3 +1,4 @@
+import { lxAnalysis } from "cogicon";
 import {
   lazy,
   Suspense,
@@ -5,8 +6,8 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import { BarChart2 } from "lucide-react";
 import Card from "cs/base/browser/ui/Card/Card";
+import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type {
   IonIoffManualTargetsByFileId,
@@ -58,7 +59,7 @@ const AnalysisChartsLoadingFallback = ({ t }: { t: TranslateFn }) => {
       ctaCopy="loading analysis charts"
       className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-border bg-bg-surface/50 text-text-secondary"
     >
-      <BarChart2 size={48} className="mb-4 opacity-20 animate-pulse" />
+      <CogIcon icon={lxAnalysis} size={48} className="mb-4 opacity-20 animate-pulse" />
       <p className="text-lg font-medium">{t("da_analysis_loading")}</p>
       <p className="text-sm">{t("da_analysis_loading_hint")}</p>
     </Card>
@@ -142,7 +143,7 @@ const AnalysisPanel = ({
           ctaCopy="processing analysis data"
           className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-border bg-bg-surface/50 text-text-secondary"
         >
-          <BarChart2 size={48} className="mb-4 opacity-20 animate-pulse" />
+          <CogIcon icon={lxAnalysis} size={48} className="mb-4 opacity-20 animate-pulse" />
           <p className="text-lg font-medium">{t("da_analysis_processing")}</p>
           <p className="text-sm">{t("da_analysis_processing_hint")}</p>
           <div className="mt-4 w-full max-w-sm">
@@ -191,7 +192,7 @@ const AnalysisPanel = ({
           ctaCopy="empty processed data"
           className="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-border bg-bg-surface/50 text-text-secondary"
         >
-          <BarChart2 size={48} className="mb-4 opacity-20" />
+          <CogIcon icon={lxAnalysis} size={48} className="mb-4 opacity-20" />
           <p className="text-lg font-medium">{t("da_no_processed_data")}</p>
           <p className="text-sm">{t("da_no_processed_data_hint")}</p>
         </Card>

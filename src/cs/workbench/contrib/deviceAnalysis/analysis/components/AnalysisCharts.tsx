@@ -1,5 +1,5 @@
 import React, { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, } from "react";
-import { SlidersHorizontal, X } from "lucide-react";
+import { lxClose } from "cogicon";
 import { computeCentralDerivative, computeSubthresholdSwing, computeSubthresholdSwingFitAuto, computeSubthresholdSwingFitInRange, classifySsFit, formatNumber, interpolateCurveAtX, resolveAutoSsSelection, splitBidirectionalCurvePoints, } from "../lib/analysisMath";
 import { apiService } from "../services/apiService";
 import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
@@ -12,6 +12,8 @@ import InlineEditableText from "cs/base/browser/ui/InlineEditableText/InlineEdit
 import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
 import Tabs from "cs/base/browser/ui/Tabs/Tabs";
 import Toast from "cs/base/browser/ui/Toast/Toast";
+import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
+import { lxSlidersHorizontal } from "src/cs/base/browser/ui/CogIcon/icons";
 import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
 import { getChartColor, resolveSeriesChartColor } from "../lib/chartColors";
 import {
@@ -341,7 +343,7 @@ const OriginCurveSelectionEntryRow = React.memo(function OriginCurveSelectionEnt
               </div>
             </div>
             {showRemoveButton ? (<Button variant="icon" size="icon" className="shrink-0 rounded-full text-text-tertiary hover:text-text-primary" onClick={handleRemove} title={exportEntryActionLabel} aria-label={exportEntryActionLabel}>
-              <X size={14} strokeWidth={2} />
+              <CogIcon icon={lxClose} size={14} />
             </Button>) : null}
           </div>
           {showSeriesControls ? (<div className={ORIGIN_CURVE_SELECTION_DETAIL_ROW_CLASS}>
@@ -4572,7 +4574,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             label: f.fileName,
         }))} className="w-[240px] da-neutral-select" placeholder={t("da_select_file_placeholder")} data-cta="Device Analysis" data-cta-position="file-select" data-cta-copy="file select"/>) : null}
                 <Button id="analysis-plot-settings-toggle-btn" variant="secondary" size="sm" onClick={() => setShowPlotSettingsPane((v: any) => !v)} title={t("da_chart_plot_settings_title")} aria-pressed={showPlotSettingsPane}>
-                  <SlidersHorizontal size={14} strokeWidth={2} />
+                  <CogIcon icon={lxSlidersHorizontal} size={14} />
                   <span>{t("da_chart_plot_settings_title")}</span>
                 </Button>
               </div>

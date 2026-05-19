@@ -45,10 +45,6 @@ export default defineConfig({
             return "data-vendor";
           }
 
-          if (id.includes("lucide-react")) {
-            return "icons-vendor";
-          }
-
           return "vendor";
         },
       },

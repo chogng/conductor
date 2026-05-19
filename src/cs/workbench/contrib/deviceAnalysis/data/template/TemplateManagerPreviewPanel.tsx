@@ -1,3 +1,4 @@
+import { lxAddSmall, lxCheck, lxRemoveSmall } from "cogicon";
 import React, {
   useCallback,
   useEffect,
@@ -7,7 +8,7 @@ import React, {
   useState,
   useSyncExternalStore,
 } from "react";
-import { Check, Minus, Plus } from "lucide-react";
+import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
 import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { PreviewStatus as SessionPreviewStatus } from "../../session/analysis-session-context";
@@ -1511,10 +1512,10 @@ const PreviewHeader = React.memo(
                             width: checkboxSizePx,
                           }}
                         >
-                          <Check
+                          <CogIcon
+                            icon={lxCheck}
                             size={checkIconSizePx}
                             className="text-white"
-                            strokeWidth={4}
                           />
                         </div>
                       ) : (
@@ -1952,7 +1953,7 @@ const TemplateManagerPreviewPanel = ({
                 className="inline-flex h-8 w-8 items-center justify-center rounded-l-md text-text-secondary transition-colors hover:bg-bg-page hover:text-text-primary disabled:opacity-45"
                 title={zoomOutTitle}
               >
-                <Minus size={14} />
+                <CogIcon icon={lxRemoveSmall} size={14} />
               </button>
               <button
                 type="button"
@@ -1969,7 +1970,7 @@ const TemplateManagerPreviewPanel = ({
                 className="inline-flex h-8 w-8 items-center justify-center rounded-r-md text-text-secondary transition-colors hover:bg-bg-page hover:text-text-primary disabled:opacity-45"
                 title={zoomInTitle}
               >
-                <Plus size={14} />
+                <CogIcon icon={lxAddSmall} size={14} />
               </button>
             </div>
           </div>

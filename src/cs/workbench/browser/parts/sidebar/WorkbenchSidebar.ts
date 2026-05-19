@@ -1,5 +1,6 @@
 import { jsx, jsxs } from "react/jsx-runtime";
 import { type CSSProperties, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
+import Button from "src/cs/base/browser/ui/Button/Button";
 import {
   getWorkbenchSidebarActionClassName,
   normalizeWorkbenchSidebarHeaderActions,
@@ -38,8 +39,48 @@ const renderSidebarAction = (
   action: WorkbenchSidebarAction,
   onAction: WorkbenchSidebarActionHandler | undefined,
   kind?: WorkbenchSidebarHeaderAction["kind"],
-) =>
-  jsxs("button", {
+) => {
+  if (kind) {
+    if (kind === "icon") {
+      return jsx(Button, {
+        id: action.id,
+        variant: "ghost",
+        size: "iconSm",
+        className: "workbench_sidebar_header_icon_btn",
+        disabled: action.isDisabled,
+        onClick: () => onAction?.(action),
+        title: action.title,
+        "aria-label": action.title,
+        children: action.icon,
+      });
+    }
+
+    return jsx(Button, {
+      id: action.id,
+      variant: kind === "primary" ? "primary" : "ghost",
+      size: "sm",
+      className: "workbench_sidebar_header_btn",
+      disabled: action.isDisabled,
+      onClick: () => onAction?.(action),
+      title: action.title,
+      dataIcon: action.icon ? "with" : undefined,
+      children: [
+        action.icon
+          ? jsx("span", {
+              className: "shrink-0",
+              "aria-hidden": "true",
+              children: action.icon,
+            })
+          : null,
+        jsx("span", {
+          className: "min-w-0 truncate text-left",
+          children: action.title,
+        }),
+      ],
+    });
+  }
+
+  return jsxs("button", {
     id: action.id,
     type: "button",
     className: getWorkbenchSidebarActionClassName(action),
@@ -62,6 +103,7 @@ const renderSidebarAction = (
       renderSidebarBadge(action.badge),
     ],
   });
+};
 
 const WorkbenchSidebar = ({
   ariaLabel,
@@ -84,6 +126,7 @@ const WorkbenchSidebar = ({
   const normalizedHeaderActions =
     normalizeWorkbenchSidebarHeaderActions(headerActions);
   const normalizedSections = normalizeWorkbenchSidebarSections(sections);
+  const hasHeaderContent = Boolean(title || description || badge);
   const resolvedStyle =
     widthStyle || style
       ? {
@@ -100,9 +143,9 @@ const WorkbenchSidebar = ({
     "data-resizing": isResizing ? "true" : "false",
     style: resolvedStyle,
     children: [
-      title || description || badge || normalizedHeaderActions.length > 0
+      hasHeaderContent || normalizedHeaderActions.length > 0
         ? jsx("div", {
-            className: "workbench_sidebar_header",
+            className: `workbench_sidebar_header ${!hasHeaderContent ? "workbench_sidebar_header--actions-only" : ""}`.trim(),
             children: [
               title || description
                 ? jsxs("div", {

@@ -1,6 +1,8 @@
 import { jsx } from "react/jsx-runtime";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FocusEvent, type ReactNode, type RefObject, } from "react";
-import { AlertCircle, CheckCircle2, Info, X } from "lucide-react";
+import { lxClose } from "cogicon";
+import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
+import { lxAlertCircle, lxCheckCircle, lxInfoCircle } from "src/cs/base/browser/ui/CogIcon/icons";
 import { getDomRect } from "src/cs/base/browser/dom";
 import { addDisposableListener, EventType } from "src/cs/base/browser/event";
 import { TimeoutTimer } from "src/cs/base/common/async";
@@ -163,22 +165,26 @@ const Toast = ({ message, type = "success", actionText, onAction, onClose, isVis
     const getIcon = () => {
         switch (type) {
             case "success":
-                return (jsx(CheckCircle2, {
+                return jsx(CogIcon, {
+                    icon: lxCheckCircle,
                     size: 20,
                     "aria-hidden": "true"
-                }));
+                });
             case "error":
-                return (jsx(AlertCircle, {
+                return jsx(CogIcon, {
+                    icon: lxAlertCircle,
                     size: 20,
                     "aria-hidden": "true"
-                }));
+                });
             case "warning":
-                return (jsx(AlertCircle, {
+                return jsx(CogIcon, {
+                    icon: lxAlertCircle,
                     size: 20,
                     "aria-hidden": "true"
-                }));
+                });
             default:
-                return jsx(Info, {
+                return jsx(CogIcon, {
+                    icon: lxInfoCircle,
                     size: 20,
                     "aria-hidden": "true"
                 });
@@ -230,7 +236,8 @@ const Toast = ({ message, type = "success", actionText, onAction, onClose, isVis
                         "aria-label": "Close toast",
                         "data-ui": uiMarker ? `${uiMarker}-close` : undefined,
                         className: "conductor-toast-close",
-                        children: jsx(X, {
+                        children: jsx(CogIcon, {
+                            icon: lxClose,
                             size: 16,
                             "aria-hidden": "true"
                         })

@@ -1,9 +1,14 @@
-import { FileSpreadsheet } from "lucide-react";
+import { lxPreview } from "cogicon";
 import type { ReactNode } from "react";
 import Avatar from "cs/base/browser/ui/Avatar/Avatar";
+import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { PreviewStatus as SessionPreviewStatus } from "../../session/analysis-session-context";
 import type { PreviewFileLike } from "../../shared/lib/sharedTypes";
+
+const TemplateManagerPreviewEmptyIcon = ({ className }: { className?: string }) => (
+  <CogIcon icon={lxPreview} size="100%" className={className} />
+);
 
 type PreviewStatus = Partial<SessionPreviewStatus>;
 
@@ -82,7 +87,7 @@ export const TemplateManagerPreviewEmptyState = ({
     id={id}
     className="flex flex-1 min-h-0 flex-col items-center justify-center gap-2 px-6 py-8 text-center"
   >
-    <Avatar icon={FileSpreadsheet} size="lg" variant="empty" />
+    <Avatar icon={TemplateManagerPreviewEmptyIcon} size="lg" variant="empty" />
     {title ? <p className="text-sm font-medium text-text-primary">{title}</p> : null}
     {hint ? <p className="max-w-md text-sm text-text-secondary">{hint}</p> : null}
   </div>

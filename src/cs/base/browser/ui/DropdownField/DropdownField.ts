@@ -1,7 +1,8 @@
+import { lxCheck, lxChevronDown } from "cogicon";
 import { Fragment, jsx } from "react/jsx-runtime";
 import { isValidElement, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ComponentType, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type RefCallback, type RefObject, } from "react";
-import { Check, ChevronDown } from "lucide-react";
 import { cx } from "src/utils/cx";
+import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
 import ContentView, { type ContentViewAlign } from "src/cs/base/browser/ui/ContentView/ContentView";
 import Dropdown from "src/cs/base/browser/ui/Dropdown/Dropdown";
 import DropdownTrigger from "src/cs/base/browser/ui/DropdownTrigger/DropdownTrigger";
@@ -401,7 +402,8 @@ const DropdownField = ({ options = [], value, onChange, placeholder, title, disa
                 className: cx("input_native no-focus-outline p-0 text-left cursor-pointer select-none", hideChevron ? "pr-0" : "pr-6", triggerClassName),
                 hideIndicator: hideChevron,
                 indicatorClassName: "absolute right-1 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none",
-                indicator: jsx(ChevronDown, {
+                indicator: jsx(CogIcon, {
+                    icon: lxChevronDown,
                     size: chevronIconSizePx,
                     className: cx("transition-transform duration-200", isOpen ? "rotate-180" : "")
                 }),
@@ -510,7 +512,8 @@ const DropdownField = ({ options = [], value, onChange, placeholder, title, disa
                                                                     children: jsx(ActionIcon, {
                                                                         style: { width: "0.875rem", height: "0.875rem" }
                                                                     })
-                                                                })) : isSelected ? (jsx(Check, {
+                                                                })) : isSelected ? (jsx(CogIcon, {
+                                                                    icon: lxCheck,
                                                                     size: checkIconSizePx,
                                                                     className: "text-accent"
                                                                 })) : null
