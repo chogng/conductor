@@ -18,7 +18,7 @@ import {
   applyWindowThemeSnapshot,
   getCurrentBootThemeSnapshot,
 } from "../src/cs/platform/windows/electron-main/windowImpl.js";
-import { createAnalysisStore } from "./analysis-store.js";
+import { createAnalysisStorageMainService } from "../src/cs/workbench/services/storage/electron-main/analysisStorageMainService.js";
 import {
   assertOriginExePath,
   normalizeOriginExePath,
@@ -1472,7 +1472,7 @@ async function handleExcelReadConvertedCsv(_event, payload) {
   }
 }
 
-const analysisStore = createAnalysisStore({
+const analysisStore = createAnalysisStorageMainService({
   getHomeDir: getAnalysisHomeDir,
 });
 
