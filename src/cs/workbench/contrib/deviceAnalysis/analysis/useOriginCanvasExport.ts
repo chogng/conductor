@@ -1684,28 +1684,20 @@ export const useOriginCanvasExport = ({
       return undefined;
     }
 
-    const handleOpenOriginRequest = () => {
-      void handleOpenInOrigin();
-    };
     const handleExportOriginZipRequest = () => {
       void handleExportOriginZip();
     };
-    window.addEventListener("analysis:open-origin", handleOpenOriginRequest);
     window.addEventListener(
       "analysis:export-origin-zip",
       handleExportOriginZipRequest,
     );
     return () => {
       window.removeEventListener(
-        "analysis:open-origin",
-        handleOpenOriginRequest,
-      );
-      window.removeEventListener(
         "analysis:export-origin-zip",
         handleExportOriginZipRequest,
       );
     };
-  }, [handleExportOriginZip, handleOpenInOrigin, isWindowsDesktopShell]);
+  }, [handleExportOriginZip, isWindowsDesktopShell]);
 
   return {
     activeOriginSeries,

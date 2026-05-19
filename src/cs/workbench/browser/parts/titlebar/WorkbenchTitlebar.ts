@@ -2,8 +2,8 @@ import {
   lxAnalysis,
   lxArrowLeft,
   lxArrowRight,
+  lxDownloadTray,
   lxGear,
-  lxListUnordered,
 } from "cogicon";
 import {
   normalizeCogIconSvgMarkup,
@@ -32,7 +32,6 @@ export type WorkbenchTitlebarProps = {
   analysisFileOptions?: WorkbenchTitlebarAnalysisFileOption[];
   canNavigateBack?: boolean;
   canNavigateForward?: boolean;
-  createPageActionIcon?: (action: WorkbenchTitlebarPageAction) => HTMLElement | null | undefined;
   id?: string;
   onAnalysisFileChange?: (fileId: string) => void;
   onAnalysisIntent?: () => void;
@@ -40,7 +39,6 @@ export type WorkbenchTitlebarProps = {
   onMinimizeWindow?: () => void;
   onNavigateBack?: () => void;
   onNavigateForward?: () => void;
-  onOpenOrigin?: () => void;
   onOpenSettings?: () => void;
   onPageChange?: (page: "data" | "analysis") => void;
   onToggleMaximizeWindow?: () => void;
@@ -147,7 +145,7 @@ const createDefaultPageActionIcon = (
   action: WorkbenchTitlebarPageAction,
 ): SVGSVGElement => {
   if (action.id === "data") {
-    return createCogIcon(lxListUnordered, 14, "opacity-80");
+    return createCogIcon(lxDownloadTray, 14, "opacity-80");
   }
 
   if (action.id === "analysis") {
@@ -222,7 +220,6 @@ export const createWorkbenchTitlebarElement = ({
   analysisFileOptions = [],
   canNavigateBack = false,
   canNavigateForward = false,
-  createPageActionIcon,
   id = "workbench-titlebar",
   onAnalysisFileChange,
   onAnalysisIntent,
@@ -230,7 +227,6 @@ export const createWorkbenchTitlebarElement = ({
   onMinimizeWindow,
   onNavigateBack,
   onNavigateForward,
-  onOpenOrigin,
   onOpenSettings,
   onPageChange,
   onToggleMaximizeWindow,
@@ -318,17 +314,18 @@ export const createWorkbenchTitlebarElement = ({
   }
 
   for (const action of pageActions) {
-    const pageActionIcon =
-      createPageActionIcon?.(action) ?? createDefaultPageActionIcon(action);
+    const pageActionIcon = createDefaultPageActionIcon(action);
     const className = `da_window_icon_btn ${
       action.isActive ? "da_top_nav_btn--active" : ""
     }`.trim();
     const button = createIconButton(
       {
         id:
-          action.id === "origin"
-            ? "analysis-window-origin-btn"
-            : action.id === "settings"
+          action.id === "data"
+            ? "analysis-window-data-btn"
+            : action.id === "analysis"
+              ? "analysis-window-analysis-btn"
+              : action.id === "settings"
               ? "analysis-window-settings-btn"
               : undefined,
         "aria-label": action.title,
@@ -342,16 +339,11 @@ export const createWorkbenchTitlebarElement = ({
           return;
         }
 
-        if (action.id === "origin") {
-          onOpenOrigin?.();
-          return;
-        }
-
         onOpenSettings?.();
       },
     );
 
-    if (action.id === "analysis" || action.id === "origin") {
+    if (action.id === "analysis") {
       button.addEventListener("mouseenter", () => onAnalysisIntent?.());
       button.addEventListener("focus", () => onAnalysisIntent?.());
     }

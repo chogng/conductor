@@ -52,11 +52,6 @@ export const createWorkbenchTitlebarPageActions = (
     isActive: activePage === "analysis",
   },
   {
-    id: "origin",
-    title: t("da_open_in_origin"),
-    isActive: false,
-  },
-  {
     id: "settings",
     title: t("da_settings_title"),
     isActive: activePage === "settings",

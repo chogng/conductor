@@ -7,11 +7,9 @@ import {
   Suspense,
   type CSSProperties,
 } from "react";
-import originIcon from "src/assets/icons/origin.svg";
 import ScrollArea from "src/cs/base/browser/ui/ScrollArea/ScrollArea";
 import Toast from "src/cs/base/browser/ui/Toast/Toast";
 import { getWorkbenchSidebarWidthStyle } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
-import type { WorkbenchTitlebarPageAction } from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
 import type { TranslationVars } from "src/cs/platform/language/common/language";
 import { loadAnalysisCharts } from "src/cs/workbench/contrib/deviceAnalysis/analysis/loadAnalysisCharts";
 import { getExtractionErrorMessage } from "src/cs/workbench/contrib/deviceAnalysis/shared/lib/utils";
@@ -73,28 +71,11 @@ const OnboardingControllerHost = lazy(
   loadOnboardingController,
 );
 const Onboarding = lazy(loadOnboarding);
-
 const DeferredPanelFallback = ({ label }: { label: string }) => (
   <div className="flex h-full w-full items-center justify-center rounded-[20px] border border-border bg-bg-surface/60 text-sm text-text-secondary">
     {label}
   </div>
 );
-
-const createDeviceAnalysisTitlebarPageIcon = (
-  action: WorkbenchTitlebarPageAction,
-): HTMLElement | null => {
-  if (action.id !== "origin") {
-    return null;
-  }
-
-  const icon = document.createElement("img");
-  icon.src = originIcon;
-  icon.alt = "";
-  icon.setAttribute("aria-hidden", "true");
-  icon.className = "h-[14px] w-[14px] opacity-80 dark:invert";
-
-  return icon;
-};
 
 const Page = () => {
   const { t, language, setLanguage } = useLanguage();
@@ -475,17 +456,11 @@ const Page = () => {
     handleCloseWindow,
     handleInstallDownloadedUpdate,
     handleMinimizeWindow,
-    handleOpenOriginFromTitleBar,
     handleToggleMaximizeWindow,
   } = useDesktopShell({
     handleExport,
     importerRef,
     isWindowsDesktopShell,
-    setActivePage: (nextPage: string) => {
-      if (isPageTab(nextPage)) {
-        navigateToPage(nextPage);
-      }
-    },
   });
   const handlePreviewCheckForUpdates = useCallback(async () => {
     await new Promise((resolve) => {
@@ -513,14 +488,10 @@ const Page = () => {
               activePage,
               canNavigateBack: layoutState.canNavigateBack,
               canNavigateForward: layoutState.canNavigateForward,
-              createPageActionIcon: createDeviceAnalysisTitlebarPageIcon,
               onAnalysisIntent: handleAnalysisIntent,
               onNavigateBack: handleNavigateBack,
               onNavigateForward: handleNavigateForward,
               onPageChange: handlePageTabSelect,
-              onOpenOrigin: () => {
-                onboarding.handleOpenOrigin(handleOpenOriginFromTitleBar);
-              },
               onOpenSettings: () => handlePageTabSelect("settings"),
               onMinimizeWindow: handleMinimizeWindow,
               onToggleMaximizeWindow: handleToggleMaximizeWindow,

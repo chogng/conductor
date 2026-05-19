@@ -34,7 +34,7 @@ export type WorkbenchTitlebarNavAction = {
 };
 
 export type WorkbenchTitlebarPageAction = {
-  id: "data" | "analysis" | "origin" | "settings";
+  id: "data" | "analysis" | "settings";
   title: string;
   isActive: boolean;
 };

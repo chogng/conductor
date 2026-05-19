@@ -590,6 +590,7 @@ const OriginExportToolbar = ({
       </div>
       <div className="flex items-center gap-2 flex-wrap">
         <Button
+          id="analysis-origin-open-btn"
           variant="primary"
           size="sm"
           onClick={() => {

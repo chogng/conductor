@@ -101,7 +101,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
     id: "origin-export",
     page: "analysis",
     placement: "left",
-    spotlightTargetIds: ["analysis-window-origin-btn"],
+    spotlightTargetIds: ["analysis-origin-open-btn"],
     spotlightPadding: 2,
     cardOffsetY: 28,
     titleKey: "da_onboarding_origin_export_title",

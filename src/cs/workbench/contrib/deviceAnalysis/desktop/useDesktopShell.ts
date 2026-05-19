@@ -30,7 +30,6 @@ type UseDesktopShellOptions = {
   handleExport: () => Promise<unknown> | unknown;
   importerRef: ImporterRefLike;
   isWindowsDesktopShell?: boolean;
-  setActivePage: (nextPage: string) => void;
 };
 
 declare global {
@@ -72,7 +71,6 @@ export const useDesktopShell = ({
   handleExport,
   importerRef,
   isWindowsDesktopShell = false,
-  setActivePage,
 }: UseDesktopShellOptions) => {
   const [autoUpdateStatus, setAutoUpdateStatus] =
     useState<DesktopAutoUpdateStatus>(() =>
@@ -95,17 +93,6 @@ export const useDesktopShell = ({
     desktopApp.sendCommand(command);
     return true;
   }, []);
-
-  const handleOpenOriginFromTitleBar = useCallback(() => {
-    setActivePage("analysis");
-
-    if (typeof window === "undefined") return;
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        window.dispatchEvent(new Event("analysis:open-origin"));
-      });
-    });
-  }, [setActivePage]);
 
   const handleToggleDevTools = useCallback(() => {
     sendDesktopCommand("toggle-devtools");
@@ -216,7 +203,6 @@ export const useDesktopShell = ({
     handleCloseWindow,
     handleInstallDownloadedUpdate,
     handleMinimizeWindow,
-    handleOpenOriginFromTitleBar,
     handleReloadWindow,
     handleToggleDevTools,
     handleToggleMaximizeWindow,
