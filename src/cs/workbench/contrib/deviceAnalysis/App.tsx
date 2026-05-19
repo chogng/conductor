@@ -1,61 +1,12 @@
 import { useEffect } from "react";
-import Page from "./Page";
-import { SessionProvider } from "./session/SessionProvider";
-
-const isBootProfileEnabled = () =>
-  import.meta.env.DEV && window.__CONDUCTOR_BOOT_PROFILE_ENABLED__ === true;
-
-const logRendererBoot = (stage: string, extra = "") => {
-  if (!isBootProfileEnabled()) {
-    return;
-  }
-
-  window.__CONDUCTOR_BOOT_LOG__?.(stage, extra);
-};
-
-const markBootUiReady = (source: string) => {
-  window.__CONDUCTOR_BOOT_MARK_UI_READY__?.(source);
-};
-
-const logSlowScriptResources = () => {
-  if (
-    !isBootProfileEnabled() ||
-    typeof performance === "undefined" ||
-    typeof performance.getEntriesByType !== "function"
-  ) {
-    return;
-  }
-
-  const entries = (performance.getEntriesByType(
-    "resource",
-  ) as PerformanceResourceTiming[])
-    .filter((entry) => {
-      if (!entry || typeof entry.duration !== "number") {
-        return false;
-      }
-
-      if (entry.initiatorType !== "script") {
-        return false;
-      }
-
-      const normalizedPath = String(entry.name ?? "").replace(
-        /^https?:\/\/[^/]+/i,
-        "",
-      );
-      return normalizedPath.includes("/cs/workbench/contrib/deviceanalysis/") && entry.duration >= 8;
-    })
-    .sort((a, b) => b.duration - a.duration)
-    .slice(0, 12);
-
-  for (const entry of entries) {
-    const normalizedPath = String(entry.name ?? "").replace(
-      /^https?:\/\/[^/]+/i,
-      "",
-    );
-    const durationMs = Math.round(entry.duration);
-    logRendererBoot("analysis:script-resource", `(dur=${durationMs}ms path=${normalizedPath})`);
-  }
-};
+import {
+  isBootProfileEnabled,
+  logRendererBoot,
+  logSlowScriptResources,
+  markBootUiReady,
+} from "src/cs/workbench/contrib/deviceAnalysis/appBoot";
+import Page from "src/cs/workbench/contrib/deviceAnalysis/Page";
+import { SessionProvider } from "src/cs/workbench/contrib/deviceAnalysis/session/SessionProvider";
 
 const App = () => {
   useEffect(() => {

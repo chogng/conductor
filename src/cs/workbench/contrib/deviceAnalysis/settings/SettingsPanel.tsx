@@ -1,128 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import Card from "cs/base/browser/ui/Card/Card";
-import Button from "cs/base/browser/ui/Button/Button";
-import Input from "cs/base/browser/ui/Input/Input";
-import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
-import Toast from "cs/base/browser/ui/Toast/Toast";
-import type { LanguageCode } from "src/cs/platform/language/common/language";
-import type { TranslateFn } from "src/cs/platform/language/common/language";
-import type { ThemeMode } from "src/cs/workbench/common/theme";
-import type { Feedback, ToastState } from "../shared/lib/sharedTypes";
+import { useRef } from "react";
+import Button from "src/cs/base/browser/ui/Button/Button";
+import Card from "src/cs/base/browser/ui/Card/Card";
+import DropdownField from "src/cs/base/browser/ui/DropdownField/DropdownField";
+import Input from "src/cs/base/browser/ui/Input/Input";
+import Toast from "src/cs/base/browser/ui/Toast/Toast";
+import type { Feedback } from "src/cs/workbench/contrib/deviceAnalysis/shared/lib/sharedTypes";
 import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "../shared/lib/fileNameFieldMatching";
-
-type OriginSettings = {
-  currentPath: string;
-  cleanupEnabled: boolean;
-  cleanupFailedRetentionDays: number;
-  cleanupFeedback?: Feedback;
-  cleanupKeepSuccessJobs: number;
-  cleanupRunning: boolean;
-  cleanupSaving: boolean;
-  feedback: Feedback;
-  isConfigurable: boolean;
-  isHealthCheckAvailable: boolean;
-  isCleanupAvailable: boolean;
-  isHealthChecking: boolean;
-  isLoading: boolean;
-  plotCommand: string;
-  plotFeedback?: Feedback;
-  plotPostCommandsText: string;
-  plotSaving: boolean;
-  plotType: number;
-  plotLineWidth: number;
-  plotXyPairs: string;
-  isSaving: boolean;
-  onCheckHealth: () => Promise<void> | void;
-  onChoosePath: () => Promise<void> | void;
-  onCleanupEnabledChange: (enabled: boolean) => Promise<void> | void;
-  onCleanupFailedRetentionDaysChange: (
-    value: string | number,
-  ) => Promise<void> | void;
-  onCleanupKeepSuccessJobsChange: (
-    value: string | number,
-  ) => Promise<void> | void;
-  onPlotCommandChange: (value: string) => Promise<void> | void;
-  onPlotPostCommandsChange: (value: string) => Promise<void> | void;
-  onPlotTypeChange: (value: string | number) => Promise<void> | void;
-  onPlotLineWidthChange: (value: string | number) => Promise<void> | void;
-  onPlotXyPairsChange: (value: string) => Promise<void> | void;
-  onRunCleanupNow: () => Promise<void> | void;
-};
-
-type StorageSettings = {
-  currentPath: string;
-  feedback: Feedback;
-  isLoading: boolean;
-  isConfigurable: boolean;
-  isSaving: boolean;
-  onChoosePath: () => Promise<void> | void;
-};
-
-type AppUpdateSettings = {
-  currentVersion?: string | null;
-  isAvailable: boolean;
-  onCheckForUpdates: () => boolean | Promise<boolean>;
-};
-
-type WindowCloseSettings = {
-  behavior: "minimizeToTray" | "quit";
-  isSaving: boolean;
-  onBehaviorChange: (
-    behavior: "minimizeToTray" | "quit",
-  ) => Promise<void> | void;
-};
-
-type FileNameMatchingSettings = {
-  feedback: Feedback;
-  fieldSeparators: string;
-  isSaving: boolean;
-  onFieldSeparatorsChange: (value: string) => Promise<void> | void;
-};
-
-type AnalysisDefaultSettings = {
-  defaultYScaleForCf: "linear" | "log";
-  defaultYScaleForCv: "linear" | "log";
-  defaultYScaleForOutput: "linear" | "log";
-  defaultYScaleForPv: "linear" | "log";
-  defaultYScaleForTransfer: "linear" | "log";
-  tickLabelFontSize: number | "";
-  axisTitleFontSize: number | "";
-  legendFontSize: number | "";
-  feedback: Feedback;
-  isSaving: boolean;
-  onDefaultYScaleForCfChange: (value: string) => Promise<void> | void;
-  onDefaultYScaleForCvChange: (value: string) => Promise<void> | void;
-  onDefaultYScaleForOutputChange: (value: string) => Promise<void> | void;
-  onDefaultYScaleForPvChange: (value: string) => Promise<void> | void;
-  onDefaultYScaleForTransferChange: (value: string) => Promise<void> | void;
-  onTickLabelFontSizeChange: (value: string | number) => Promise<void> | void;
-  onAxisTitleFontSizeChange: (value: string | number) => Promise<void> | void;
-  onLegendFontSizeChange: (value: string | number) => Promise<void> | void;
-};
-
-type OnboardingSettings = {
-  onOpenGuide: () => void;
-};
-
-type SettingsPanelProps = {
-  appUpdateSettings: AppUpdateSettings;
-  analysisDefaultSettings: AnalysisDefaultSettings;
-  fileNameMatchingSettings: FileNameMatchingSettings;
-  language: LanguageCode;
-  onLanguageChange: (language: LanguageCode) => Promise<void> | void;
-  onboardingSettings: OnboardingSettings;
-  theme: ThemeMode;
-  onThemeChange: (theme: ThemeMode) => Promise<void> | void;
-  originSettings: OriginSettings;
-  storageSettings: StorageSettings;
-  windowCloseSettings: WindowCloseSettings;
-  t: TranslateFn;
-};
+import type {
+  SettingsPanelProps,
+} from "src/cs/workbench/contrib/deviceAnalysis/settings/settingsPanelTypes";
+import { useSettingsPanelState } from "src/cs/workbench/contrib/deviceAnalysis/settings/useSettingsPanelState";
 
 const feedbackClassName = (type: Feedback["type"]): string =>
   `text-sm ${type === "error" ? "text-red-500" : "text-emerald-600"}`;
-
-type SettingsSectionId = "general" | "origin" | "about";
 
 const SettingsPanel = ({
   appUpdateSettings,
@@ -139,138 +29,43 @@ const SettingsPanel = ({
   t,
 }: SettingsPanelProps) => {
   const settingsSectionRef = useRef<HTMLElement | null>(null);
-  const cleanupEnabledOptions = [
-    { value: "true", label: t("da_settings_origin_cleanup_enable_on") },
-    { value: "false", label: t("da_settings_origin_cleanup_enable_off") },
-  ];
-  const cleanupKeepSuccessOptions = [
-    { value: "0", label: `0 (${t("common_clear")})` },
-    { value: "1", label: "1" },
-    { value: "3", label: "3" },
-    { value: "5", label: "5" },
-    { value: "10", label: "10" },
-  ];
-  const cleanupFailedDaysOptions = [
-    { value: "1", label: "1" },
-    { value: "3", label: "3" },
-    { value: "7", label: "7" },
-    { value: "14", label: "14" },
-    { value: "30", label: "30" },
-  ];
-  const themeModeOptions = [
-    { value: "system", label: t("da_settings_theme_system") },
-    { value: "light", label: t("da_settings_theme_light") },
-    { value: "dark", label: t("da_settings_theme_dark") },
-  ];
-  const windowCloseBehaviorOptions = [
-    {
-      value: "minimizeToTray",
-      label: t("da_settings_close_behavior_minimize_to_tray"),
-    },
-    { value: "quit", label: t("da_settings_close_behavior_quit") },
-  ];
-  const yScaleOptions = [
-    { value: "linear", label: t("da_settings_y_scale_linear") },
-    { value: "log", label: t("da_settings_y_scale_log") },
-  ];
-  const [xyPairsDraft, setXyPairsDraft] = useState(originSettings.plotXyPairs ?? "");
-  const [plotCommandDraft, setPlotCommandDraft] = useState(
-    originSettings.plotCommand ?? "",
-  );
-  const [postCommandsDraft, setPostCommandsDraft] = useState(
-    originSettings.plotPostCommandsText ?? "",
-  );
-  const [fileNameFieldSeparatorsDraft, setFileNameFieldSeparatorsDraft] =
-    useState(fileNameMatchingSettings.fieldSeparators ?? "");
-  const [tickLabelFontSizeDraft, setTickLabelFontSizeDraft] = useState(
-    String(analysisDefaultSettings.tickLabelFontSize ?? ""),
-  );
-  const [axisTitleFontSizeDraft, setAxisTitleFontSizeDraft] = useState(
-    String(analysisDefaultSettings.axisTitleFontSize ?? ""),
-  );
-  const [legendFontSizeDraft, setLegendFontSizeDraft] = useState(
-    String(analysisDefaultSettings.legendFontSize ?? ""),
-  );
-  const [appUpdateChecking, setAppUpdateChecking] = useState(false);
-  const [activeSettingsSection, setActiveSettingsSection] =
-    useState<SettingsSectionId>("general");
-  const [originHealthToast, setOriginHealthToast] = useState<ToastState>({
-    isVisible: false,
-    message: "",
-    type: "success",
+  const {
+    activeSettingsSection,
+    appUpdateChecking,
+    axisTitleFontSizeDraft,
+    cleanupEnabledOptions,
+    cleanupFailedDaysOptions,
+    cleanupKeepSuccessOptions,
+    cleanupToast,
+    closeCleanupToast,
+    closeOriginHealthToast,
+    fileNameFieldSeparatorsDraft,
+    handleCheckForUpdates,
+    legendFontSizeDraft,
+    originHealthToast,
+    plotCommandDraft,
+    postCommandsDraft,
+    setActiveSettingsSection,
+    setAxisTitleFontSizeDraft,
+    setFileNameFieldSeparatorsDraft,
+    setLegendFontSizeDraft,
+    setPlotCommandDraft,
+    setPostCommandsDraft,
+    setTickLabelFontSizeDraft,
+    setXyPairsDraft,
+    settingsSections,
+    themeModeOptions,
+    tickLabelFontSizeDraft,
+    windowCloseBehaviorOptions,
+    xyPairsDraft,
+    yScaleOptions,
+  } = useSettingsPanelState({
+    analysisDefaultSettings,
+    appUpdateSettings,
+    fileNameMatchingSettings,
+    originSettings,
+    t,
   });
-  const [cleanupToast, setCleanupToast] = useState<ToastState>({
-    isVisible: false,
-    message: "",
-    type: "success",
-  });
-
-  const closeOriginHealthToast = useCallback(() => {
-    setOriginHealthToast((prev) => ({ ...prev, isVisible: false }));
-  }, []);
-
-  const closeCleanupToast = useCallback(() => {
-    setCleanupToast((prev) => ({ ...prev, isVisible: false }));
-  }, []);
-
-  const settingsSections: Array<{ id: SettingsSectionId; label: string }> = [
-    { id: "general", label: t("da_settings_nav_general") },
-    { id: "origin", label: t("da_settings_nav_origin") },
-    { id: "about", label: t("da_settings_nav_about") },
-  ];
-
-  useEffect(() => {
-    setXyPairsDraft(originSettings.plotXyPairs ?? "");
-  }, [originSettings.plotXyPairs]);
-
-  useEffect(() => {
-    setPlotCommandDraft(originSettings.plotCommand ?? "");
-  }, [originSettings.plotCommand]);
-
-  useEffect(() => {
-    setPostCommandsDraft(originSettings.plotPostCommandsText ?? "");
-  }, [originSettings.plotPostCommandsText]);
-
-  useEffect(() => {
-    setFileNameFieldSeparatorsDraft(fileNameMatchingSettings.fieldSeparators ?? "");
-  }, [fileNameMatchingSettings.fieldSeparators]);
-
-  useEffect(() => {
-    setTickLabelFontSizeDraft(String(analysisDefaultSettings.tickLabelFontSize ?? ""));
-  }, [analysisDefaultSettings.tickLabelFontSize]);
-
-  useEffect(() => {
-    setAxisTitleFontSizeDraft(String(analysisDefaultSettings.axisTitleFontSize ?? ""));
-  }, [analysisDefaultSettings.axisTitleFontSize]);
-
-  useEffect(() => {
-    setLegendFontSizeDraft(String(analysisDefaultSettings.legendFontSize ?? ""));
-  }, [analysisDefaultSettings.legendFontSize]);
-
-  useEffect(() => {
-    const feedback = originSettings.feedback;
-    if (!feedback?.message || feedback.type === "idle") return;
-
-    setOriginHealthToast({
-      isVisible: true,
-      message: feedback.message,
-      type: feedback.type === "error" ? "error" : "success",
-    });
-  }, [originSettings.feedback?.message, originSettings.feedback?.type]);
-
-  useEffect(() => {
-    const feedback = originSettings.cleanupFeedback;
-    if (!feedback?.message || feedback.type === "idle") return;
-
-    setCleanupToast({
-      isVisible: true,
-      message: feedback.message,
-      type: feedback.type === "error" ? "error" : "success",
-    });
-  }, [
-    originSettings.cleanupFeedback?.message,
-    originSettings.cleanupFeedback?.type,
-  ]);
 
   return (
     <section
@@ -915,18 +710,7 @@ const SettingsPanel = ({
                         variant="secondary"
                         size="sm"
                         className="h-[38px] whitespace-nowrap"
-                        onClick={() => {
-                          void (async () => {
-                            setAppUpdateChecking(true);
-                            try {
-                              await appUpdateSettings.onCheckForUpdates();
-                            } catch {
-                              // Update check result is shown by desktop shell dialogs.
-                            } finally {
-                              setAppUpdateChecking(false);
-                            }
-                          })();
-                        }}
+                        onClick={handleCheckForUpdates}
                         disabled={!appUpdateSettings.isAvailable || appUpdateChecking}
                       >
                         {appUpdateChecking

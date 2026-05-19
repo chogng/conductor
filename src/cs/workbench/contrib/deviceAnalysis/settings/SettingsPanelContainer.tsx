@@ -3,14 +3,14 @@ import { useSettings } from "./useSettings";
 import type { LanguageCode } from "src/cs/platform/language/common/language";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import type { LooseTranslateFn } from "../shared/lib/translateTypes";
+import type {
+  AppUpdateSettings,
+  OnboardingSettings,
+} from "src/cs/workbench/contrib/deviceAnalysis/settings/settingsPanelTypes";
 import type { AnalysisSettings } from "./settingsShared";
 
 type SettingsPanelContainerProps = {
-  appUpdateSettings: {
-    currentVersion?: string | null;
-    isAvailable: boolean;
-    onCheckForUpdates: () => boolean | Promise<boolean>;
-  };
+  appUpdateSettings: AppUpdateSettings;
   analysisSettings: AnalysisSettings | null;
   analysisSettingsLoaded: boolean;
   handleLanguageChange: (language: LanguageCode) => Promise<void> | void;
@@ -23,9 +23,7 @@ type SettingsPanelContainerProps = {
   mergeAnalysisSettings: (
     nextSettings: AnalysisSettings | null,
   ) => void;
-  onboardingSettings: {
-    onOpenGuide: () => void;
-  };
+  onboardingSettings: OnboardingSettings;
   t: LooseTranslateFn;
   theme: ThemeMode;
 };

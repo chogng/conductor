@@ -1,11 +1,9 @@
 import { type CSSProperties, type ReactNode } from "react";
-import { DEFAULT_SIDEBAR_WIDTH_PX } from "./layout";
 import { WorkbenchTitlebarSkeleton } from "src/cs/workbench/browser/parts/titlebar/titlebarSkeleton";
-
-const shouldShowDesktopCommandBarByDefault =
-  typeof window !== "undefined" &&
-  window.desktopMeta?.isDesktop === true &&
-  window.desktopMeta?.platform === "win32";
+import {
+  getWorkspaceShellStyle,
+  shouldShowDesktopCommandBarByDefault,
+} from "src/cs/workbench/contrib/deviceAnalysis/workspaceShellLayout";
 
 type WorkspaceShellProps = {
   children?: ReactNode;
@@ -26,11 +24,7 @@ const WorkspaceShell = ({
   style,
   titleBar,
 }: WorkspaceShellProps) => {
-  const resolvedStyle = {
-    "--sidebar-width": `${DEFAULT_SIDEBAR_WIDTH_PX}px`,
-    "--da-template-stack-panel-h": "clamp(24rem, 52dvh, 40rem)",
-    ...(style ?? {}),
-  } as CSSProperties;
+  const resolvedStyle = getWorkspaceShellStyle(style);
 
   return (
     <div

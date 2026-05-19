@@ -2,72 +2,48 @@ import {
   useCallback,
   useEffect,
   lazy,
-  useMemo,
   useRef,
   useState,
   Suspense,
   type CSSProperties,
-  type MutableRefObject,
 } from "react";
-import DataPanel from "./data/DataPanel";
-import type { CsvImporterRef } from "./data/CsvImporter";
-import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
-import Toast from "cs/base/browser/ui/Toast/Toast";
+import ScrollArea from "src/cs/base/browser/ui/ScrollArea/ScrollArea";
+import Toast from "src/cs/base/browser/ui/Toast/Toast";
 import type { TranslationVars } from "src/cs/platform/language/common/language";
-import { loadAnalysisCharts } from "./analysis/loadAnalysisCharts";
-import { getExtractionErrorMessage } from "./shared/lib/utils";
-import WorkspaceShell from "./WorkspaceShell";
+import { loadAnalysisCharts } from "src/cs/workbench/contrib/deviceAnalysis/analysis/loadAnalysisCharts";
+import { getExtractionErrorMessage } from "src/cs/workbench/contrib/deviceAnalysis/shared/lib/utils";
+import DataPanel from "src/cs/workbench/contrib/deviceAnalysis/data/DataPanel";
+import type { CsvImporterRef } from "src/cs/workbench/contrib/deviceAnalysis/data/CsvImporter";
+import WorkspaceShell from "src/cs/workbench/contrib/deviceAnalysis/WorkspaceShell";
 import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
 import { useTheme } from "src/cs/workbench/browser/hooks/useTheme";
-import type { ToastType } from "./shared/lib/sharedTypes";
-import DesktopCommandBar from "./desktop/DesktopCommandBar";
-import { useDesktopShell } from "./desktop/useDesktopShell";
-import { useExports } from "./analysis/useExports";
-import { usePreview } from "./data/usePreview";
-import { useProcessing } from "./data/useProcessing";
-import { loadOnboarding } from "./onboarding/loadOnboarding";
-import { loadOnboardingController } from "./onboarding/loadOnboardingController";
-import type { OnboardingStep } from "./onboarding/onboardingTypes";
-import { useSession } from "./session/useSession";
-import { useSessionActions } from "./session/useSessionActions";
-import { useCoreSettings } from "./settings/useCoreSettings";
-import { useResizableSidebar } from "./useResizableSidebar";
-
-type PageTab = "data" | "analysis" | "settings";
-type PageNavigationState = {
-  activePage: PageTab;
-  history: PageTab[];
-  historyIndex: number;
-};
-
-type ProcessingExtractionError = {
-  fileName?: string;
-  message: string;
-  messageKey?: string | null;
-  messageParams?: Record<string, unknown> | null;
-  [key: string]: unknown;
-};
-
-type OnboardingLaunchMode = "auto" | "manual";
-type OnboardingControllerState = {
-  back: () => void;
-  canNext: boolean;
-  close: () => void;
-  handleImportTrigger: () => void;
-  handleOpenOrigin: (openOrigin: () => void) => void;
-  isOpen: boolean;
-  next: () => void;
-  open: (mode: OnboardingLaunchMode) => void;
-  stepIndex: number;
-  steps: OnboardingStep[];
-};
-
-const stripCsvExtension = (fileName: string): string => {
-  const normalized = String(fileName ?? "").trim();
-  if (!normalized) return normalized;
-  const withoutCsv = normalized.replace(/\.csv$/i, "");
-  return withoutCsv.length > 0 ? withoutCsv : normalized;
-};
+import type { ToastType } from "src/cs/workbench/contrib/deviceAnalysis/shared/lib/sharedTypes";
+import { useExports } from "src/cs/workbench/contrib/deviceAnalysis/analysis/useExports";
+import DesktopCommandBar from "src/cs/workbench/contrib/deviceAnalysis/desktop/DesktopCommandBar";
+import { useDesktopShell } from "src/cs/workbench/contrib/deviceAnalysis/desktop/useDesktopShell";
+import {
+  createIdleOnboardingState,
+  getAnalysisShellFlags,
+  INITIAL_PAGE_NAVIGATION_STATE,
+  isPageTab,
+  navigateBackPageNavigation,
+  navigateForwardPageNavigation,
+  navigatePageNavigation,
+  type OnboardingControllerState,
+  type PageTab,
+  type PageNavigationState,
+  type ProcessingExtractionError,
+} from "src/cs/workbench/contrib/deviceAnalysis/pageState";
+import { usePreview } from "src/cs/workbench/contrib/deviceAnalysis/data/usePreview";
+import { useProcessing } from "src/cs/workbench/contrib/deviceAnalysis/data/useProcessing";
+import { loadOnboarding } from "src/cs/workbench/contrib/deviceAnalysis/onboarding/loadOnboarding";
+import { loadOnboardingController } from "src/cs/workbench/contrib/deviceAnalysis/onboarding/loadOnboardingController";
+import { useAnalysisSelectionState } from "src/cs/workbench/contrib/deviceAnalysis/useAnalysisSelectionState";
+import { useOnboardingLauncher } from "src/cs/workbench/contrib/deviceAnalysis/useOnboardingLauncher";
+import { useSession } from "src/cs/workbench/contrib/deviceAnalysis/session/useSession";
+import { useSessionActions } from "src/cs/workbench/contrib/deviceAnalysis/session/useSessionActions";
+import { useCoreSettings } from "src/cs/workbench/contrib/deviceAnalysis/settings/useCoreSettings";
+import { useResizableSidebar } from "src/cs/workbench/contrib/deviceAnalysis/useResizableSidebar";
 
 declare global {
   interface Window {
@@ -98,25 +74,6 @@ const DeferredPanelFallback = ({ label }: { label: string }) => (
   </div>
 );
 
-const createIdleOnboardingState = (
-  importerRef: MutableRefObject<CsvImporterRef | null>,
-): OnboardingControllerState => ({
-  back: () => {},
-  canNext: true,
-  close: () => {},
-  handleImportTrigger: () => {
-    importerRef.current?.openFileDialog?.();
-  },
-  handleOpenOrigin: (openOrigin) => {
-    openOrigin();
-  },
-  isOpen: false,
-  next: () => {},
-  open: () => {},
-  stepIndex: 0,
-  steps: [],
-});
-
 const Page = () => {
   const { t, language, setLanguage } = useLanguage();
   const { theme, setTheme } = useTheme();
@@ -125,16 +82,13 @@ const Page = () => {
       t(key, vars as TranslationVars | undefined),
     [t],
   );
-  const desktopMeta =
-    typeof window !== "undefined" ? window.desktopMeta ?? null : null;
-  const isWindowsDesktopShell =
-    desktopMeta?.isDesktop === true && desktopMeta?.platform === "win32";
-  const isPackagedWindowsDesktopShell =
-    isWindowsDesktopShell && desktopMeta?.isPackaged === true;
-  const isAppUpdatePreviewEnabled =
-    isPackagedWindowsDesktopShell || import.meta.env.DEV;
-  const isDesktopChromePreviewEnabled =
-    isWindowsDesktopShell || import.meta.env.DEV;
+  const {
+    desktopMeta,
+    isAppUpdatePreviewEnabled,
+    isDesktopChromePreviewEnabled,
+    isPackagedWindowsDesktopShell,
+    isWindowsDesktopShell,
+  } = getAnalysisShellFlags();
 
   const session = useSession();
   const {
@@ -179,10 +133,6 @@ const Page = () => {
   } = session;
 
   const importerRef = useRef<CsvImporterRef | null>(null);
-  const [shouldMountOnboardingController, setShouldMountOnboardingController] =
-    useState(false);
-  const [pendingOnboardingOpenMode, setPendingOnboardingOpenMode] =
-    useState<OnboardingLaunchMode | null>(null);
   const [onboarding, setOnboarding] = useState<OnboardingControllerState>(() =>
     createIdleOnboardingState(importerRef),
   );
@@ -218,16 +168,11 @@ const Page = () => {
     },
     [handleOnboardingStateChange],
   );
-  const [pageNavigation, setPageNavigation] = useState<PageNavigationState>({
-    activePage: "data",
-    history: ["data"],
-    historyIndex: 0,
-  });
+  const [pageNavigation, setPageNavigation] = useState<PageNavigationState>(
+    INITIAL_PAGE_NAVIGATION_STATE,
+  );
   const [hasVisitedAnalysisPage, setHasVisitedAnalysisPage] = useState(false);
   const [hasVisitedSettingsPage, setHasVisitedSettingsPage] = useState(false);
-  const [analysisActiveFileId, setAnalysisActiveFileId] = useState<
-    string | null
-  >(null);
   const [analysisPanelSessionKey, setAnalysisPanelSessionKey] = useState(0);
   const [extractionErrorToast, setExtractionErrorToast] = useState<{
     isVisible: boolean;
@@ -262,53 +207,17 @@ const Page = () => {
   }, [activePage]);
 
   const navigateToPage = useCallback((nextPage: PageTab) => {
-    setPageNavigation((prevState) => {
-      if (prevState.activePage === nextPage) {
-        return prevState;
-      }
-
-      const truncatedHistory = prevState.history.slice(
-        0,
-        prevState.historyIndex + 1,
-      );
-      const nextHistory = [...truncatedHistory, nextPage];
-
-      return {
-        activePage: nextPage,
-        history: nextHistory,
-        historyIndex: nextHistory.length - 1,
-      };
-    });
+    setPageNavigation((prevState) =>
+      navigatePageNavigation(prevState, nextPage),
+    );
   }, []);
 
   const handleNavigateBack = useCallback(() => {
-    setPageNavigation((prevState) => {
-      if (prevState.historyIndex <= 0) {
-        return prevState;
-      }
-
-      const nextIndex = prevState.historyIndex - 1;
-      return {
-        ...prevState,
-        activePage: prevState.history[nextIndex],
-        historyIndex: nextIndex,
-      };
-    });
+    setPageNavigation((prevState) => navigateBackPageNavigation(prevState));
   }, []);
 
   const handleNavigateForward = useCallback(() => {
-    setPageNavigation((prevState) => {
-      if (prevState.historyIndex >= prevState.history.length - 1) {
-        return prevState;
-      }
-
-      const nextIndex = prevState.historyIndex + 1;
-      return {
-        ...prevState,
-        activePage: prevState.history[nextIndex],
-        historyIndex: nextIndex,
-      };
-    });
+    setPageNavigation((prevState) => navigateForwardPageNavigation(prevState));
   }, []);
 
   const handleAnalysisIntent = useCallback(() => {
@@ -423,6 +332,36 @@ const Page = () => {
     setSsShowFitLine,
     t: tLoose,
   });
+  const prefetchOnboarding = useCallback(() => {
+    void loadOnboardingController();
+    void loadOnboarding();
+  }, []);
+  const {
+    analysisActiveFileId,
+    analysisFileOptions,
+    handleAnalysisFileChange,
+    setAnalysisActiveFileId,
+  } = useAnalysisSelectionState({
+    analysisSettings,
+    analysisSettingsLoaded,
+    handleUpdateAnalysisSettings,
+    ionIoffManualTargetsByFileId,
+    processedData,
+    setIonIoffManualTargetsByFileId,
+  });
+  const {
+    handleOpenOnboardingGuide,
+    hasOnboardingSessionData,
+    pendingOnboardingOpenMode,
+    setPendingOnboardingOpenMode,
+    shouldMountOnboardingController,
+  } = useOnboardingLauncher({
+    analysisSettings,
+    onboardingIsOpen: onboarding.isOpen,
+    prefetchOnboarding,
+    processedDataCount: processedData.length,
+    rawDataCount: rawData.length,
+  });
   const {
     handleTemplateApplied,
     handleTemplateAppliedIncremental,
@@ -475,6 +414,7 @@ const Page = () => {
     setIonIoffManualTargetsByFileId,
     setSsManualRanges,
   });
+  const hadOnboardingSessionDataRef = useRef(hasOnboardingSessionData);
 
   const isDataPageActive = activePage === "data";
   const isAnalysisPageActive = activePage === "analysis";
@@ -486,124 +426,14 @@ const Page = () => {
   const canNavigateBack = pageNavigation.historyIndex > 0;
   const canNavigateForward =
     pageNavigation.historyIndex < pageNavigation.history.length - 1;
-  const analysisFileOptions = useMemo(
-    () =>
-      (Array.isArray(processedData) ? processedData : [])
-        .map((entry) => {
-          const fileId =
-            typeof entry?.fileId === "string" ? entry.fileId : String(entry?.fileId ?? "");
-          const fileNameRaw = entry?.fileName;
-          const fileName =
-            typeof fileNameRaw === "string" && fileNameRaw.trim().length > 0
-              ? fileNameRaw
-              : fileId;
-          const displayName = stripCsvExtension(fileName);
-          if (!fileId) return null;
-          return { value: fileId, label: displayName };
-        })
-        .filter((entry): entry is { value: string; label: string } => !!entry),
-    [processedData],
-  );
-
-  useEffect(() => {
-    setAnalysisActiveFileId((prev) => {
-      if (!analysisFileOptions.length) {
-        return prev === null ? prev : null;
-      }
-      if (
-        prev &&
-        analysisFileOptions.some((option) => option.value === prev)
-      ) {
-        return prev;
-      }
-      return analysisFileOptions[0].value;
-    });
-  }, [analysisFileOptions]);
-
-  const handleAnalysisFileChange = useCallback((nextFileId: string | null) => {
-    setAnalysisActiveFileId(nextFileId ?? null);
-  }, []);
-
-  useEffect(() => {
-    const fileId = String(analysisActiveFileId ?? "").trim();
-    if (!fileId) return;
-    const activeFile = processedData.find((entry) => entry?.fileId === fileId) ?? null;
-    const defaultSeriesId = String(activeFile?.series?.[0]?.id ?? "").trim();
-    if (!defaultSeriesId) return;
-    if (ionIoffManualTargetsByFileId[fileId]?.[defaultSeriesId]) return;
-
-    const fallbackIonX = analysisSettings?.ionIoffManualIonX;
-    const fallbackIoffX = analysisSettings?.ionIoffManualIoffX;
-    if (
-      (fallbackIonX === undefined || fallbackIonX === null || fallbackIonX === "") &&
-      (fallbackIoffX === undefined || fallbackIoffX === null || fallbackIoffX === "")
-    ) {
-      return;
-    }
-
-    setIonIoffManualTargetsByFileId((prev) => {
-      if (prev?.[fileId]?.[defaultSeriesId]) return prev;
-      return {
-        ...(prev || {}),
-        [fileId]: {
-          ...(prev?.[fileId] ?? {}),
-          [defaultSeriesId]: {
-            ionX:
-              fallbackIonX === undefined || fallbackIonX === null || fallbackIonX === ""
-                ? ""
-                : String(fallbackIonX),
-            ioffX:
-              fallbackIoffX === undefined || fallbackIoffX === null || fallbackIoffX === ""
-                ? ""
-                : String(fallbackIoffX),
-          },
-        },
-      };
-    });
-  }, [
-    analysisActiveFileId,
-    analysisSettings?.ionIoffManualIoffX,
-    analysisSettings?.ionIoffManualIonX,
-    ionIoffManualTargetsByFileId,
-    processedData,
-    setIonIoffManualTargetsByFileId,
-  ]);
-
-  const persistedIonIoffTargetsRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!analysisSettingsLoaded) return;
-    const serializedTargets = JSON.stringify(ionIoffManualTargetsByFileId);
-    if (persistedIonIoffTargetsRef.current === serializedTargets) return;
-    persistedIonIoffTargetsRef.current = serializedTargets;
-    handleUpdateAnalysisSettings({
-      ionIoffManualTargetsByFileId,
-    }).catch(() => {});
-  }, [
-    analysisSettingsLoaded,
-    handleUpdateAnalysisSettings,
-    ionIoffManualTargetsByFileId,
-  ]);
 
   const handlePageTabSelect = useCallback((nextPage: string) => {
-    if (
-      nextPage !== "data" &&
-      nextPage !== "analysis" &&
-      nextPage !== "settings"
-    ) {
+    if (!isPageTab(nextPage)) {
       return;
     }
 
     navigateToPage(nextPage);
   }, [navigateToPage]);
-
-  const hasOnboardingSessionData =
-    rawData.length > 0 || processedData.length > 0;
-  const hadOnboardingSessionDataRef = useRef(hasOnboardingSessionData);
-  const shouldAutoStartOnboarding =
-    Boolean(analysisSettings) &&
-    !Boolean(analysisSettings?.onboardingCompleted) &&
-    !Boolean(analysisSettings?.onboardingAutoStartDismissed) &&
-    !hasOnboardingSessionData;
 
   useEffect(() => {
     const hadOnboardingSessionData = hadOnboardingSessionDataRef.current;
@@ -615,42 +445,7 @@ const Page = () => {
     setAnalysisPanelSessionKey((prev) => prev + 1);
     setAnalysisActiveFileId(null);
     setHasVisitedAnalysisPage(false);
-  }, [hasOnboardingSessionData]);
-
-  useEffect(() => {
-    if (!shouldAutoStartOnboarding || onboarding.isOpen) return undefined;
-
-    const scheduleAutoOpen = () => {
-      setShouldMountOnboardingController(true);
-      setPendingOnboardingOpenMode("auto");
-      void loadOnboardingController();
-      void loadOnboarding();
-    };
-
-    if (
-      typeof window !== "undefined" &&
-      typeof window.requestIdleCallback === "function"
-    ) {
-      const idleId = window.requestIdleCallback(scheduleAutoOpen, {
-        timeout: 1200,
-      });
-      return () => {
-        if (typeof window.cancelIdleCallback === "function") {
-          window.cancelIdleCallback(idleId);
-        }
-      };
-    }
-
-    const timeoutId = window.setTimeout(scheduleAutoOpen, 320);
-    return () => window.clearTimeout(timeoutId);
-  }, [onboarding.isOpen, shouldAutoStartOnboarding]);
-
-  const handleOpenOnboardingGuide = useCallback(() => {
-    setShouldMountOnboardingController(true);
-    setPendingOnboardingOpenMode("manual");
-    void loadOnboardingController();
-    void loadOnboarding();
-  }, []);
+  }, [hasOnboardingSessionData, setAnalysisActiveFileId]);
 
   const {
     autoUpdateStatus,
@@ -665,11 +460,7 @@ const Page = () => {
     importerRef,
     isWindowsDesktopShell,
     setActivePage: (nextPage: string) => {
-      if (
-        nextPage === "data" ||
-        nextPage === "analysis" ||
-        nextPage === "settings"
-      ) {
+      if (isPageTab(nextPage)) {
         navigateToPage(nextPage);
       }
     },
@@ -894,9 +685,9 @@ const Page = () => {
                   }}
                   mergeAnalysisSettings={mergeAnalysisSettings}
                   theme={theme}
-                  handleThemeChange={handleThemeChange}
-                  t={tLoose}
-                />
+      handleThemeChange={handleThemeChange}
+      t={tLoose}
+    />
               </Suspense>
             </ScrollArea>
           ) : null}
