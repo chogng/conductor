@@ -8,7 +8,7 @@ import type { PreviewFileLike } from "../../shared/lib/sharedTypes";
 type PreviewStatus = Partial<SessionPreviewStatus>;
 
 export const TEMPLATE_MANAGER_PREVIEW_PANEL_ITEM_CLASS =
-  "lg:col-span-3 self-start min-[1200px]:self-stretch flex min-h-0 h-[var(--da-template-stack-panel-h)] min-[1200px]:h-full";
+  "col-span-3 flex h-full min-h-0 self-stretch";
 
 export const TEMPLATE_MANAGER_PREVIEW_PANEL_FRAME_CLASS =
   "flex flex-1 min-h-0 flex-col overflow-hidden rounded-[16px] border border-border bg-bg-page/75 p-4";

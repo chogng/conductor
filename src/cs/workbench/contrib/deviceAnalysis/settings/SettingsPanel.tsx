@@ -278,12 +278,12 @@ const SettingsPanel = ({
       aria-label={t("da_settings_section_aria_label")}
       className="relative"
     >
-      <div className="grid min-h-0 items-start gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+      <div className="grid min-h-0 grid-cols-[220px_minmax(0,1fr)] items-start gap-4">
         <aside
           aria-label={t("da_settings_nav_aria_label")}
           className="h-fit w-full min-w-0 rounded-lg border border-border bg-bg-surface p-2"
         >
-          <nav className="grid grid-cols-3 gap-2 lg:grid-cols-1">
+          <nav className="grid grid-cols-1 gap-2">
             {settingsSections.map((section) => {
               const isActive = activeSettingsSection === section.id;
               return (
@@ -310,14 +310,14 @@ const SettingsPanel = ({
             {activeSettingsSection === "general" ? (
               <>
           <div id="analysis-settings-language-card" className="p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h3 className="text-base font-semibold text-text-primary">
               {t("da_settings_language_title")}
             </h3>
           </div>
 
-              <div className="w-full sm:w-fit">
+              <div className="w-fit">
                 <DropdownField
                   id="analysis-settings-language-dropdown"
                   menuId="analysis-settings-language-dropdown-menu"
@@ -331,7 +331,7 @@ const SettingsPanel = ({
                     { value: "zh", label: t("da_settings_language_zh") },
                     { value: "en", label: t("da_settings_language_en") },
                   ]}
-                  className="w-full sm:w-fit da-neutral-select"
+                  className="w-fit da-neutral-select"
                   stableWidth
                 />
               </div>
@@ -339,14 +339,14 @@ const SettingsPanel = ({
           </div>
 
           <div id="analysis-settings-theme-card" className="p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <h3 className="text-base font-semibold text-text-primary">
                   {t("da_settings_theme_title")}
                 </h3>
               </div>
 
-              <div className="w-full sm:w-fit">
+              <div className="w-fit">
                 <DropdownField
                   id="analysis-settings-theme-dropdown"
                   menuId="analysis-settings-theme-dropdown-menu"
@@ -357,7 +357,7 @@ const SettingsPanel = ({
                     }
                   }}
                   options={themeModeOptions}
-                  className="w-full sm:w-fit da-neutral-select"
+                  className="w-fit da-neutral-select"
                   stableWidth
                 />
               </div>
@@ -365,14 +365,14 @@ const SettingsPanel = ({
           </div>
 
           <div id="analysis-settings-close-behavior-card" className="p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <h3 className="text-base font-semibold text-text-primary">
                   {t("da_settings_close_behavior_title")}
                 </h3>
               </div>
 
-              <div className="w-full sm:w-fit">
+              <div className="w-fit">
                 <DropdownField
                   id="analysis-settings-close-behavior-dropdown"
                   menuId="analysis-settings-close-behavior-dropdown-menu"
@@ -383,7 +383,7 @@ const SettingsPanel = ({
                     }
                   }}
                   options={windowCloseBehaviorOptions}
-                  className="w-full sm:w-fit da-neutral-select"
+                  className="w-fit da-neutral-select"
                   stableWidth
                   disabled={windowCloseSettings.isSaving}
                 />
@@ -392,20 +392,20 @@ const SettingsPanel = ({
           </div>
 
           <div id="analysis-settings-onboarding-card" className="p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <h3 className="text-base font-semibold text-text-primary">
                   {t("da_settings_onboarding_title")}
                 </h3>
               </div>
 
-              <div className="w-full sm:w-fit flex justify-end">
+              <div className="flex w-fit justify-end">
                 <Button
                   id="analysis-settings-onboarding-open-btn"
                   type="button"
                   variant="secondary"
                   size="sm"
-                  className="h-[38px] w-full sm:w-auto whitespace-nowrap sm:shrink-0"
+                  className="h-[38px] whitespace-nowrap"
                   onClick={onboardingSettings.onOpenGuide}
                 >
                   {t("da_settings_onboarding_open_btn")}
@@ -421,7 +421,7 @@ const SettingsPanel = ({
               </h3>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+            <div className="grid grid-cols-5 gap-3">
               <div className="space-y-1">
                 <p className="text-xs text-text-secondary">
                   {t("da_settings_analysis_defaults_transfer_curve")}
@@ -512,7 +512,7 @@ const SettingsPanel = ({
               </h3>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1">
                 <p className="text-xs text-text-secondary">
                   {t("da_settings_chart_defaults_legend")}
@@ -726,7 +726,7 @@ const SettingsPanel = ({
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1">
                 <p className="text-xs text-text-secondary">
                   {t("da_settings_origin_cleanup_enable_label")}
@@ -887,7 +887,7 @@ const SettingsPanel = ({
             {activeSettingsSection === "about" ? (
               <>
                 <div id="analysis-settings-about-version-card" className="p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <h3 className="text-base font-semibold text-text-primary">
                         {t("da_settings_about_version_title")}
@@ -901,20 +901,20 @@ const SettingsPanel = ({
                 </div>
 
                 <div id="analysis-settings-app-update-card" className="p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <h3 className="text-base font-semibold text-text-primary">
                         {t("da_settings_app_update_title")}
                       </h3>
                     </div>
 
-                    <div className="w-full sm:w-fit flex justify-end">
+                    <div className="flex w-fit justify-end">
                       <Button
                         id="analysis-settings-app-update-check-btn"
                         type="button"
                         variant="secondary"
                         size="sm"
-                        className="h-[38px] w-full sm:w-auto whitespace-nowrap sm:shrink-0"
+                        className="h-[38px] whitespace-nowrap"
                         onClick={() => {
                           void (async () => {
                             setAppUpdateChecking(true);
@@ -966,4 +966,3 @@ const SettingsPanel = ({
 };
 
 export default SettingsPanel;
-

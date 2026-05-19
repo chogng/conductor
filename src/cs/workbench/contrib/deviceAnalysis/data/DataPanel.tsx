@@ -39,7 +39,6 @@ type DataPanelProps = {
   previewFile?: TemplateManagerProps["previewFile"];
   previewStatus?: TemplateManagerProps["previewStatus"];
   rawData?: CsvImporterProps["files"];
-  sidebarWidth?: number;
   selectedPreviewFileId?: CsvImporterProps["selectedFileId"];
   subscribePreviewRowsVersion?: TemplateManagerProps["subscribePreviewRowsVersion"];
   t: TranslateFn;
@@ -66,7 +65,6 @@ const DataPanel = ({
   previewFile,
   previewStatus,
   rawData = [],
-  sidebarWidth,
   selectedPreviewFileId,
   subscribePreviewRowsVersion,
   t,
@@ -109,8 +107,8 @@ const DataPanel = ({
   }, [importerRef, pendingImporterOpen]);
 
   return (
-    <div className="min-h-full grid grid-cols-1 min-[1200px]:grid-cols-[var(--sidebar-width)_minmax(0,1fr)] gap-1 min-[1200px]:gap-1 min-[1200px]:h-full">
-      <aside className="min-[1200px]:min-h-0 flex flex-col h-full relative group/sidebar">
+    <div className="grid min-h-full h-full grid-cols-[var(--sidebar-width)_minmax(0,1fr)] gap-1">
+      <aside className="relative flex h-full min-h-0 flex-col group/sidebar">
         <section
           aria-label={t("da_import_section")}
           className="flex-1 flex flex-col min-h-0"
@@ -184,7 +182,7 @@ const DataPanel = ({
         </section>
 
         <div
-          className="hidden min-[1200px]:block absolute -right-[7px] top-0 bottom-0 w-[10px] cursor-col-resize z-50 group/sash"
+          className="absolute -right-[7px] top-0 bottom-0 z-50 w-[10px] cursor-col-resize group/sash"
           onMouseDown={onStartResizing}
         >
           <div
@@ -206,12 +204,11 @@ const DataPanel = ({
       <section
         id="analysis-template-panel"
         aria-label={t("da_data_extraction_template")}
-        className="min-[1200px]:min-h-0 flex flex-col h-full"
+        className="flex h-full min-h-0 flex-col"
       >
         <TemplateManager
           previewFile={previewFile}
           previewStatus={previewStatus}
-          sidebarWidth={sidebarWidth}
           rawData={rawData}
           getPreviewRow={getPreviewRow}
           ensurePreviewCells={ensurePreviewCells}

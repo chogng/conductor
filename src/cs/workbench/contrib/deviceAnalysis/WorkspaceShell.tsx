@@ -52,7 +52,7 @@ const WorkspaceShell = ({
               }`}
             >
               <div
-                className="grid h-full min-h-0 grid-cols-1 gap-1 min-[1200px]:grid-cols-[var(--sidebar-width,280px)_minmax(0,1fr)]"
+                className="grid h-full min-h-0 grid-cols-[var(--sidebar-width,280px)_minmax(0,1fr)] gap-1"
               >
                 <div className="rounded-[20px] border border-border bg-bg-surface/70 p-4 flex min-h-0 flex-col">
                   <div className="mb-4 flex items-center justify-between gap-2">

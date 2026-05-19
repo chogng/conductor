@@ -193,6 +193,18 @@ body {
     @apply inline-flex;
   }
 
+  .da-template-mode-tabs--icon-only .tab_btn {
+    @apply gap-0 px-2;
+  }
+
+  .da-template-mode-tabs--icon-only .tab_btn_text {
+    display: none;
+  }
+
+  .da-template-mode-tabs--icon-only .da-template-mode-tabs__item {
+    min-width: 2rem;
+  }
+
   .da_bottom_tabs {
     width: max-content !important;
     max-width: calc(100vw - 2rem);

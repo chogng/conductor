@@ -64,7 +64,7 @@ import {
   resolveXRangeForPreview,
   resolveXSegmentationMode,
 } from "../../shared/lib/XSegmentation";
-import { shouldStackTemplateTransferButtons } from "../../layout";
+import { DEVICE_ANALYSIS_TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX } from "../../layout";
 import type { PreviewStatus as SessionPreviewStatus } from "../../session/analysis-session-context";
 import { useSession } from "../../session/useSession";
 import type {
@@ -76,7 +76,6 @@ import type {
 export type TemplateManagerProps = {
   previewFile?: PreviewFileLike | null;
   previewStatus?: Partial<SessionPreviewStatus> | null;
-  sidebarWidth?: number;
   rawData?: RawDataEntry[];
   getPreviewRow?: (rowIndex: number) => unknown;
   ensurePreviewCells?: (
@@ -177,7 +176,6 @@ type FileNameTemplateRulePayload = {
 const TemplateManager = ({
   previewFile,
   previewStatus,
-  sidebarWidth,
   rawData = [],
   getPreviewRow,
   ensurePreviewCells,
@@ -189,7 +187,7 @@ const TemplateManager = ({
   analysisSettings,
   onUpdateSettings,
 }: TemplateManagerProps) => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const {
     processedData,
     selectedTemplateId,
@@ -226,18 +224,35 @@ const TemplateManager = ({
   const closeToast = useCallback(() => {
     setToast((prev) => ({ ...prev, isVisible: false }));
   }, []);
-  const shouldStackTransferButtons =
-    shouldStackTemplateTransferButtons(sidebarWidth);
-  const transferButtonsContainerClassName = shouldStackTransferButtons
-    ? "flex flex-col gap-3"
-    : "flex items-center gap-3";
-  const transferButtonClassName = shouldStackTransferButtons
-    ? "w-full min-w-0"
-    : "flex-1 min-w-0";
-  const applyButtonsContainerClassName = shouldStackTransferButtons
-    ? "grid grid-cols-1 gap-3 mt-3"
-    : "grid grid-cols-2 gap-3 mt-3";
+  const configPanelRef = useRef<HTMLDivElement | null>(null);
+  const [configPanelWidth, setConfigPanelWidth] = useState<number>(0);
+  const shouldCollapseTemplateModeTabs =
+    configPanelWidth > 0 &&
+    configPanelWidth < DEVICE_ANALYSIS_TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX;
+  const shouldCollapseTemplateTransferButtons = shouldCollapseTemplateModeTabs;
+  const applyToAllShortLabel = language === "zh" ? "应用" : "Apply";
+  const applyToNewShortLabel = language === "zh" ? "新增" : "New";
   const containerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const panelEl = configPanelRef.current;
+    if (!panelEl || typeof ResizeObserver === "undefined") return undefined;
+
+    const updateWidth = () => {
+      setConfigPanelWidth(panelEl.getBoundingClientRect().width);
+    };
+
+    updateWidth();
+
+    const observer = new ResizeObserver(() => {
+      updateWidth();
+    });
+    observer.observe(panelEl);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
   const yUnitOptions = useMemo(
     () =>
       Y_UNIT_VALUES.map((unit) => ({
@@ -1336,7 +1351,7 @@ const TemplateManager = ({
               {xAutoSuggestionText}
             </span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <Input
                 id={
@@ -1435,7 +1450,7 @@ const TemplateManager = ({
                 stableWidth={false}
               />
             </div>
-            <div className="sm:col-span-2 relative min-w-0">
+            <div className="col-span-2 relative min-w-0">
               <DropdownField
                 id={includeIds ? "analysis-template-x-unit" : undefined}
                 menuId={
@@ -1495,7 +1510,7 @@ const TemplateManager = ({
                 {t("da_save_curve_legend_label")}
               </label>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-4">
               <div className="min-w-0">
                 <Input
                   id={
@@ -2019,23 +2034,34 @@ const TemplateManager = ({
           </div>
         </div>
 
-        <div className={transferButtonsContainerClassName}>
+        <div className="flex items-center gap-3">
           <Button
             id={
               includeIds ? "analysis-template-export-config" : undefined
             }
             variant="secondary"
             size="sm"
-            className={transferButtonClassName}
-            contentClassName="w-full min-w-0 justify-between"
+            className={
+              shouldCollapseTemplateTransferButtons
+                ? "min-w-0 px-2"
+                : "flex-1 min-w-0"
+            }
+            contentClassName={
+              shouldCollapseTemplateTransferButtons
+                ? "w-full min-w-0 justify-center"
+                : "w-full min-w-0 justify-between"
+            }
             onClick={measureOnly ? undefined : handleExportTemplates}
             disabled={templateTransferBusy}
             title={t("da_template_export_btn")}
+            aria-label={t("da_template_export_btn")}
           >
             <Upload size={14} className="shrink-0" />
-            <span className="block min-w-0 flex-1 truncate text-left">
-              {t("da_template_export_btn")}
-            </span>
+            {!shouldCollapseTemplateTransferButtons ? (
+              <span className="block min-w-0 flex-1 truncate text-left">
+                {t("da_template_export_btn")}
+              </span>
+            ) : null}
           </Button>
           <Button
             id={
@@ -2043,16 +2069,27 @@ const TemplateManager = ({
             }
             variant="secondary"
             size="sm"
-            className={transferButtonClassName}
-            contentClassName="w-full min-w-0 justify-between"
+            className={
+              shouldCollapseTemplateTransferButtons
+                ? "min-w-0 px-2"
+                : "flex-1 min-w-0"
+            }
+            contentClassName={
+              shouldCollapseTemplateTransferButtons
+                ? "w-full min-w-0 justify-center"
+                : "w-full min-w-0 justify-between"
+            }
             onClick={measureOnly ? undefined : handleImportTemplatesClick}
             disabled={templateTransferBusy}
             title={t("da_template_import_btn")}
+            aria-label={t("da_template_import_btn")}
           >
             <Download size={14} className="shrink-0" />
-            <span className="block min-w-0 flex-1 truncate text-left">
-              {t("da_template_import_btn")}
-            </span>
+            {!shouldCollapseTemplateTransferButtons ? (
+              <span className="block min-w-0 flex-1 truncate text-left">
+                {t("da_template_import_btn")}
+              </span>
+            ) : null}
           </Button>
         </div>
         {includeIds && !measureOnly ? (
@@ -2068,7 +2105,7 @@ const TemplateManager = ({
 
         {isAutoTemplateSelected ? (
           <div className="space-y-3">
-            <div className={applyButtonsContainerClassName}>
+            <div className="mt-3 grid grid-cols-2 gap-3">
               <Button
                 id={
                   includeIds
@@ -2084,7 +2121,9 @@ const TemplateManager = ({
                 title={t("da_apply_to_all_files")}
               >
                 <span className="block min-w-0 truncate">
-                  {t("da_apply_to_all_files")}
+                  {shouldCollapseTemplateTransferButtons
+                    ? applyToAllShortLabel
+                    : t("da_apply_to_all_files")}
                 </span>
               </Button>
               <Button
@@ -2105,7 +2144,9 @@ const TemplateManager = ({
                 title={t("da_apply_to_new_files")}
               >
                 <span className="block min-w-0 truncate">
-                  {t("da_apply_to_new_files")}
+                  {shouldCollapseTemplateTransferButtons
+                    ? applyToNewShortLabel
+                    : t("da_apply_to_new_files")}
                 </span>
               </Button>
             </div>
@@ -2301,7 +2342,7 @@ const TemplateManager = ({
               })}
             </div>
 
-            <div className={applyButtonsContainerClassName}>
+            <div className="mt-3 grid grid-cols-2 gap-3">
               <Button
                 id={
                   includeIds
@@ -2321,7 +2362,9 @@ const TemplateManager = ({
                 title={t("da_apply_to_all_files")}
               >
                 <span className="block min-w-0 truncate">
-                  {t("da_apply_to_all_files")}
+                  {shouldCollapseTemplateTransferButtons
+                    ? applyToAllShortLabel
+                    : t("da_apply_to_all_files")}
                 </span>
               </Button>
               <Button
@@ -2346,7 +2389,9 @@ const TemplateManager = ({
                 title={t("da_apply_to_new_files")}
               >
                 <span className="block min-w-0 truncate">
-                  {t("da_apply_to_new_files")}
+                  {shouldCollapseTemplateTransferButtons
+                    ? applyToNewShortLabel
+                    : t("da_apply_to_new_files")}
                 </span>
               </Button>
             </div>
@@ -2427,17 +2472,18 @@ const TemplateManager = ({
       <Card
         ref={containerRef}
         id="analysis-template-manager"
-        className="pt-4 pr-4 pb-4 pl-0 flex flex-col flex-1 min-h-0 min-[1200px]:h-full"
+        className="flex h-full flex-1 min-h-0 flex-col pt-4 pr-4 pb-4 pl-0"
         style={
           {
             "--da-template-stack-panel-h": "clamp(24rem, 52dvh, 40rem)",
           } as CSSProperties
         }
       >
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 flex-1 min-h-0 items-start min-[1200px]:items-stretch">
+        <div className="grid flex-1 min-h-0 grid-cols-4 items-stretch gap-4">
           {/* Configuration Panel */}
           <div
-            className="lg:col-span-1 self-start min-[1200px]:self-stretch flex flex-col min-h-0 h-[var(--da-template-stack-panel-h)] min-[1200px]:h-full overflow-hidden"
+            ref={configPanelRef}
+            className="col-span-1 flex h-full min-h-0 flex-col self-stretch overflow-hidden"
           >
             <div
               className="flex flex-col gap-3 flex-1 min-h-0 pl-4"
@@ -2449,6 +2495,16 @@ const TemplateManager = ({
                     value={templateMode}
                     onChange={handleTemplateModeChange}
                     size="sm"
+                    className={
+                      shouldCollapseTemplateModeTabs
+                        ? "da-template-mode-tabs da-template-mode-tabs--icon-only"
+                        : "da-template-mode-tabs"
+                    }
+                    itemClassName={
+                      shouldCollapseTemplateModeTabs
+                        ? "da-template-mode-tabs__item"
+                        : ""
+                    }
                     controlsPanels
                     idBase="analysis-template-mode"
                     groupLabel={t("da_template_mode")}
@@ -2456,6 +2512,8 @@ const TemplateManager = ({
                       {
                         value: "select",
                         label: t("da_template_mode_select"),
+                        ariaLabel: t("da_template_mode_select"),
+                        title: t("da_template_mode_select"),
                         icon: List,
                         cta: "Device Analysis",
                         ctaPosition: "template-mode",
@@ -2464,6 +2522,8 @@ const TemplateManager = ({
                       {
                         value: "save",
                         label: t("da_template_mode_save"),
+                        ariaLabel: t("da_template_mode_save"),
+                        title: t("da_template_mode_save"),
                         icon: Save,
                         cta: "Device Analysis",
                         ctaPosition: "template-mode",
@@ -2581,8 +2641,3 @@ const TemplateManager = ({
 };
 
 export default React.memo(TemplateManager);
-
-
-
-
-

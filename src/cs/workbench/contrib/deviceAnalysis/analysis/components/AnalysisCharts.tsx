@@ -4372,12 +4372,12 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     ]);
     if (!processedData || processedData.length === 0)
         return null;
-    return (<div className="h-full min-h-0 grid grid-cols-1 md:grid-rows-1 md:grid-cols-[var(--analysis-sidebar-width)_minmax(0,1fr)] gap-1 md:gap-1" ref={toastContainerRef} style={{
+    return (<div className="grid h-full min-h-0 grid-cols-[var(--analysis-sidebar-width)_minmax(0,1fr)] gap-1" ref={toastContainerRef} style={{
             "--analysis-sidebar-width": "clamp(240px, var(--sidebar-width), 420px)",
         } as CSSProperties}>
       <aside
         id="analysis-overview-sidebar"
-        className="md:min-h-0 flex flex-col h-full"
+        className="flex h-full min-h-0 flex-col"
       >
         {showPlotSettingsPane ? (
           <AxisSettingsPane
@@ -4399,7 +4399,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         )}
       </aside>
 
-      <ScrollArea className="da-analysis-scroll-area md:min-h-0 min-w-0" axis="y" viewportClassName="flex flex-col min-h-full">
+      <ScrollArea className="da-analysis-scroll-area min-w-0 min-h-0" axis="y" viewportClassName="flex flex-col min-h-full">
         <section className="flex min-w-0 flex-col flex-1 gap-1 pr-1" aria-label={t("da_analysis_results_aria_label")}>
           <section aria-label={t("da_analysis_chart_aria_label")}>
         <Card variant="panel" className="flex min-w-0 flex-col">
@@ -4922,7 +4922,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 })}
                 <div className="rounded-xl border border-border bg-bg-page/40 px-4 py-3">
                   {rcSummary ? (
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
+                    <div className="grid grid-cols-5 gap-3 text-sm">
                       <div>
                         <div className="text-xs text-text-secondary">Vg</div>
                         <div className="font-mono text-text-primary">{formatNumber(rcSummary.vg)}</div>

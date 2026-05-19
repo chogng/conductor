@@ -764,7 +764,7 @@ const Page = () => {
         >
           <ScrollArea
             className="da_page_scroll h-full min-h-0"
-            viewportClassName="p-1 pt-0 min-[1200px]:!overflow-hidden"
+            viewportClassName="p-1 pt-0 !overflow-hidden"
             axis="y"
           >
             <DataPanel
@@ -790,7 +790,6 @@ const Page = () => {
               previewFile={previewFile}
               previewStatus={previewStatus}
               rawData={rawData}
-              sidebarWidth={sidebarWidth}
               selectedPreviewFileId={selectedPreviewFileId}
               subscribePreviewRowsVersion={subscribePreviewRowsVersion}
               t={t}
