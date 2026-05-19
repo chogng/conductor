@@ -504,18 +504,67 @@ export const usePreviewColumnLayout = ({ autoColumnWidthsPx, columnCount, column
         resizeMaxWidthPx,
         resizeMinWidthPx,
     ]);
-    const previewColumnGeometry = useMemo(() => buildPreviewColumnGeometry({
-        columnCount,
-        columnWidthsPx,
-        rowIndexWidthPx,
-        scrollLeft: previewScrollLeft,
-        viewportWidth: previewViewportWidth,
-        overscanPx,
-        minColumnWidthPx,
-    }), [
-        columnCount,
-        columnWidthsPx,
-        minColumnWidthPx,
+    const columnMetrics = useMemo(() => {
+        const safeColumnCount = Math.max(0, Math.floor(Number(columnCount) || 0));
+        const widthsPx = new Array(safeColumnCount);
+        const startOffsetsPx = new Array(safeColumnCount + 1);
+        let totalDataWidthPx = 0;
+        startOffsetsPx[0] = 0;
+        for (let i = 0; i < safeColumnCount; i++) {
+            const width = Number(columnWidthsPx?.[i]);
+            const resolvedWidth = Number.isFinite(width) && width > 0 ? width : minColumnWidthPx;
+            widthsPx[i] = resolvedWidth;
+            totalDataWidthPx += resolvedWidth;
+            startOffsetsPx[i + 1] = totalDataWidthPx;
+        }
+        return {
+            columnCount: safeColumnCount,
+            widthsPx,
+            startOffsetsPx,
+            totalDataWidthPx,
+            tableWidthPx: rowIndexWidthPx + totalDataWidthPx,
+        };
+    }, [columnCount, columnWidthsPx, minColumnWidthPx, rowIndexWidthPx]);
+    const previewColumnGeometry = useMemo(() => {
+        const window = buildPreviewColumnWindow({
+            columnCount: columnMetrics.columnCount,
+            scrollLeft: previewScrollLeft,
+            viewportWidth: previewViewportWidth,
+            rowIndexWidthPx,
+            overscanPx,
+            startOffsetsPx: columnMetrics.startOffsetsPx,
+            totalDataWidthPx: columnMetrics.totalDataWidthPx,
+        });
+        const startCol = Math.max(0, Math.min(columnMetrics.columnCount, Math.floor(Number(window.startCol) || 0)));
+        const endCol = Math.max(startCol, Math.min(columnMetrics.columnCount, Math.floor(Number(window.endCol) || 0)));
+        const visibleColumnIndices = Array.from({ length: Math.max(0, endCol - startCol) }, (_, i) => startCol + i);
+        const hasLeftSpacer = window.leftSpacerPx > 0;
+        const hasRightSpacer = window.rightSpacerPx > 0;
+        return {
+            columnCount: columnMetrics.columnCount,
+            widthsPx: columnMetrics.widthsPx,
+            startOffsetsPx: columnMetrics.startOffsetsPx,
+            totalDataWidthPx: columnMetrics.totalDataWidthPx,
+            tableWidthPx: columnMetrics.tableWidthPx,
+            scrollLeft: window.scrollLeft,
+            viewportWidth: window.viewportWidth,
+            dataViewportWidth: window.dataViewportWidth,
+            overscanPx: window.overscanPx,
+            window: {
+                ...window,
+                startCol,
+                endCol,
+            },
+            visibleColumnIndices,
+            hasLeftSpacer,
+            hasRightSpacer,
+            renderColCount: 1 +
+                (hasLeftSpacer ? 1 : 0) +
+                visibleColumnIndices.length +
+                (hasRightSpacer ? 1 : 0),
+        };
+    }, [
+        columnMetrics,
         overscanPx,
         previewScrollLeft,
         previewViewportWidth,
@@ -554,8 +603,8 @@ export const usePreviewColumnLayout = ({ autoColumnWidthsPx, columnCount, column
         columnCount,
         liveColumnLayoutRef,
         minColumnWidthPx,
+        columnWidthsPx,
         previewColumnGeometry.tableWidthPx,
-        previewColumnGeometry.widthsPx,
         previewFileId,
         previewTableRef,
     ]);

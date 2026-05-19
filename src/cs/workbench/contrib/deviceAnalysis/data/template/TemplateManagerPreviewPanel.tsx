@@ -612,12 +612,12 @@ const CanvasPreviewGrid = React.memo(
       0,
       previewWindow.endRow - previewWindow.startRow,
     );
-    const canvasWidthPx = Math.max(
+    const canvasHeightPx = Math.max(1, visibleRowCount * rowHeightPx);
+    const canvasTopPx = Math.max(0, previewWindow.startRow * rowHeightPx);
+    const canvasStageWidthPx = Math.max(
       1,
       Math.ceil(Number(columnGeometry?.tableWidthPx) || 1),
     );
-    const canvasHeightPx = Math.max(1, visibleRowCount * rowHeightPx);
-    const canvasTopPx = Math.max(0, previewWindow.startRow * rowHeightPx);
     const stageHeightPx = Math.max(rowHeightPx, totalRows * rowHeightPx);
     const visibleColumns = Array.isArray(columnGeometry?.visibleColumnIndices)
       ? columnGeometry.visibleColumnIndices
@@ -628,6 +628,29 @@ const CanvasPreviewGrid = React.memo(
     const widths = Array.isArray(columnGeometry?.widthsPx)
       ? columnGeometry.widthsPx
       : [];
+    const firstVisibleCol = visibleColumns[0] ?? 0;
+    const lastVisibleCol = visibleColumns[visibleColumns.length - 1] ?? firstVisibleCol;
+    const firstVisibleDataOffsetPx = Math.max(
+      0,
+      Number(startOffsets[firstVisibleCol]) || 0,
+    );
+    const lastVisibleDataEndPx = Math.max(
+      firstVisibleDataOffsetPx,
+      Number(startOffsets[lastVisibleCol + 1]) ||
+        firstVisibleDataOffsetPx + (Number(widths[lastVisibleCol]) || 0),
+    );
+    const visibleDataWidthPx = Math.max(
+      1,
+      Math.ceil(lastVisibleDataEndPx - firstVisibleDataOffsetPx),
+    );
+    const shouldRenderRowHeader = firstVisibleDataOffsetPx <= 0.5;
+    const canvasLeftPx = shouldRenderRowHeader
+      ? 0
+      : previewRowIndexWidthPx + firstVisibleDataOffsetPx;
+    const canvasContentOffsetXPx = canvasLeftPx;
+    const canvasWidthPx = shouldRenderRowHeader
+      ? Math.max(1, Math.ceil(previewRowIndexWidthPx + visibleDataWidthPx))
+      : visibleDataWidthPx;
     const dragStateRef = useRef<{
       isDragging: boolean;
       pointerId: number;
@@ -747,11 +770,12 @@ const CanvasPreviewGrid = React.memo(
 
         x = Math.min(canvasWidthPx - 0.001, Math.max(0, x));
         y = Math.min(canvasHeightPx - 0.001, Math.max(0, y));
+        const contentX = x + canvasContentOffsetXPx;
 
         const clampRowHeaderToFirstCol = Boolean(
           options?.clampRowHeaderToFirstCol,
         );
-        if (x < previewRowIndexWidthPx && !clampRowHeaderToFirstCol) {
+        if (contentX < previewRowIndexWidthPx && !clampRowHeaderToFirstCol) {
           return null;
         }
 
@@ -760,15 +784,13 @@ const CanvasPreviewGrid = React.memo(
           Math.min(visibleRowCount - 1, Math.floor(y / rowHeightPx)),
         );
         const rowIndex = previewWindow.startRow + rowSlot;
-        const firstVisibleCol = visibleColumns[0];
-        const lastVisibleCol = visibleColumns[visibleColumns.length - 1];
         const dataColumnCount = Math.max(
           0,
           Math.floor(Number(previewFile?.columnCount) || 0),
         );
 
         let colIndex = -1;
-        if (x < previewRowIndexWidthPx) {
+        if (contentX < previewRowIndexWidthPx) {
           colIndex = firstVisibleCol;
         } else {
           for (const visibleColIndex of visibleColumns) {
@@ -779,7 +801,7 @@ const CanvasPreviewGrid = React.memo(
             );
             const colLeft = previewRowIndexWidthPx + startOffset;
             const colRight = colLeft + colWidth;
-            if (x >= colLeft && x < colRight) {
+            if (contentX >= colLeft && contentX < colRight) {
               colIndex = visibleColIndex;
               break;
             }
@@ -787,7 +809,8 @@ const CanvasPreviewGrid = React.memo(
         }
 
         if (colIndex < 0) {
-          colIndex = x < previewRowIndexWidthPx ? firstVisibleCol : lastVisibleCol;
+          colIndex =
+            contentX < previewRowIndexWidthPx ? firstVisibleCol : lastVisibleCol;
         }
         if (
           !Number.isFinite(colIndex) ||
@@ -801,6 +824,7 @@ const CanvasPreviewGrid = React.memo(
       [
         canvasHeightPx,
         canvasWidthPx,
+        canvasContentOffsetXPx,
         previewColumnMinWidthPx,
         previewFile?.columnCount,
         previewRowIndexWidthPx,
@@ -1179,15 +1203,17 @@ const CanvasPreviewGrid = React.memo(
           : EMPTY_ARRAY;
         const isRowLoaded = Array.isArray(rowCellsRaw);
 
-        context.fillStyle = background;
-        context.fillRect(0, rowTop, previewRowIndexWidthPx, rowHeightPx);
-        context.fillStyle = textSecondary;
-        context.textAlign = "center";
-        context.fillText(
-          String(rowIndex + 1),
-          previewRowIndexWidthPx / 2,
-          rowTop + rowHeightPx / 2,
-        );
+        if (shouldRenderRowHeader) {
+          context.fillStyle = background;
+          context.fillRect(0, rowTop, previewRowIndexWidthPx, rowHeightPx);
+          context.fillStyle = textSecondary;
+          context.textAlign = "center";
+          context.fillText(
+            String(rowIndex + 1),
+            previewRowIndexWidthPx / 2,
+            rowTop + rowHeightPx / 2,
+          );
+        }
 
         for (const columnMetric of visibleColumnMetrics) {
           const {
@@ -1199,9 +1225,10 @@ const CanvasPreviewGrid = React.memo(
             placeholderMaxWidth,
             textMaxWidth,
           } = columnMetric;
+          const localColLeft = colLeft - canvasContentOffsetXPx;
           if (isYColumn) {
             context.fillStyle = accentCellBackground;
-            context.fillRect(colLeft, rowTop, colWidth, rowHeightPx);
+            context.fillRect(localColLeft, rowTop, colWidth, rowHeightPx);
           }
 
           const display = isRowLoaded && !isPlaceholder
@@ -1210,7 +1237,7 @@ const CanvasPreviewGrid = React.memo(
           context.save();
           context.beginPath();
           context.rect(
-            colLeft + 1,
+            localColLeft + 1,
             rowTop + 1,
             Math.max(0, colWidth - 2),
             Math.max(0, rowHeightPx - 2),
@@ -1224,7 +1251,7 @@ const CanvasPreviewGrid = React.memo(
             context.textAlign = "left";
             context.fillText(
               display,
-              colLeft + cellPaddingXPx,
+              localColLeft + cellPaddingXPx,
               rowTop + rowHeightPx / 2,
               textMaxWidth,
             );
@@ -1244,7 +1271,7 @@ const CanvasPreviewGrid = React.memo(
             );
             context.fillStyle = placeholderFill;
             context.fillRect(
-              colLeft + cellPaddingXPx,
+              localColLeft + cellPaddingXPx,
               rowTop +
                 Math.max(
                   3,
@@ -1268,16 +1295,20 @@ const CanvasPreviewGrid = React.memo(
       }
       for (const columnMetric of visibleColumnMetrics) {
         const { colLeft, colWidth } = columnMetric;
-        context.moveTo(colLeft - 0.5, 0);
-        context.lineTo(colLeft - 0.5, canvasHeightPx);
-        const colRight = colLeft + colWidth;
+        const localColLeft = colLeft - canvasContentOffsetXPx;
+        context.moveTo(localColLeft - 0.5, 0);
+        context.lineTo(localColLeft - 0.5, canvasHeightPx);
+        const colRight = localColLeft + colWidth;
         context.moveTo(colRight - 0.5, 0);
         context.lineTo(colRight - 0.5, canvasHeightPx);
       }
-      context.moveTo(previewRowIndexWidthPx - 0.5, 0);
-      context.lineTo(previewRowIndexWidthPx - 0.5, canvasHeightPx);
+      if (shouldRenderRowHeader) {
+        context.moveTo(previewRowIndexWidthPx - 0.5, 0);
+        context.lineTo(previewRowIndexWidthPx - 0.5, canvasHeightPx);
+      }
       context.stroke();
     }, [
+      canvasContentOffsetXPx,
       canvasHeightPx,
       canvasWidthPx,
       canvasThemeVersion,
@@ -1293,6 +1324,7 @@ const CanvasPreviewGrid = React.memo(
       previewWindow.endRow,
       previewWindow.startRow,
       rowHeightPx,
+      shouldRenderRowHeader,
       visibleColumnMetrics,
       visibleRowCount,
     ]);
@@ -1300,13 +1332,13 @@ const CanvasPreviewGrid = React.memo(
     return (
       <div
         className="relative min-w-full align-top select-none"
-        style={{ height: stageHeightPx, width: canvasWidthPx }}
+        style={{ height: stageHeightPx, width: canvasStageWidthPx }}
       >
         <canvas
           id="analysis-preview-canvas-grid"
           ref={canvasRef}
           className="absolute left-0"
-          style={{ top: canvasTopPx }}
+          style={{ left: canvasLeftPx, top: canvasTopPx }}
           onPointerDown={handleCanvasPointerDown}
           onPointerMove={handleCanvasPointerMove}
           onPointerUp={handleCanvasPointerUp}
@@ -2105,5 +2137,4 @@ const TemplateManagerPreviewPanel = ({
 };
 
 export default React.memo(TemplateManagerPreviewPanel);
-
 
