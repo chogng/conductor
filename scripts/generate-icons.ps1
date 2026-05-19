@@ -48,6 +48,36 @@ function Save-ResizedPng {
   }
 }
 
+function Save-AppxPng {
+  param(
+    [System.Drawing.Bitmap]$Source,
+    [int]$Width,
+    [int]$Height,
+    [int]$IconSize,
+    [string]$OutputPath
+  )
+
+  $bitmap = New-Object System.Drawing.Bitmap $Width, $Height, ([System.Drawing.Imaging.PixelFormat]::Format32bppArgb)
+  $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+  $logo = New-ResizedBitmap -Source $Source -Size $IconSize
+  try {
+    $graphics.CompositingQuality = [System.Drawing.Drawing2D.CompositingQuality]::HighQuality
+    $graphics.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+    $graphics.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::HighQuality
+    $graphics.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+    $graphics.Clear([System.Drawing.Color]::Transparent)
+
+    $x = [int](($Width - $IconSize) / 2)
+    $y = [int](($Height - $IconSize) / 2)
+    $graphics.DrawImage($logo, $x, $y, $IconSize, $IconSize)
+    $bitmap.Save($OutputPath, [System.Drawing.Imaging.ImageFormat]::Png)
+  } finally {
+    $logo.Dispose()
+    $graphics.Dispose()
+    $bitmap.Dispose()
+  }
+}
+
 function Write-MultiSizeIco {
   param(
     [System.Drawing.Bitmap]$Source,
@@ -202,6 +232,7 @@ function Write-InstallerSidebar {
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $iconDir = Resolve-ProjectPath "build\icons"
+$appxDir = Resolve-ProjectPath "build\appx"
 $installerDir = Resolve-ProjectPath "build\installer"
 $packageJsonPath = Resolve-ProjectPath "package.json"
 
@@ -232,7 +263,7 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
   Fail "version is empty"
 }
 
-New-Item -ItemType Directory -Force -Path $iconDir, $installerDir | Out-Null
+New-Item -ItemType Directory -Force -Path $iconDir, $appxDir, $installerDir | Out-Null
 Add-Type -AssemblyName System.Drawing
 
 $source = [System.Drawing.Bitmap]::FromFile($SourceIcon)
@@ -244,6 +275,12 @@ try {
 
   Save-ResizedPng -Source $source -Size 1024 -OutputPath (Join-Path $iconDir "icon.png")
   Write-MultiSizeIco -Source $source -OutputPath (Join-Path $iconDir "icon.ico")
+  Save-AppxPng -Source $source -Width 44 -Height 44 -IconSize 44 -OutputPath (Join-Path $appxDir "Square44x44Logo.png")
+  Save-AppxPng -Source $source -Width 50 -Height 50 -IconSize 50 -OutputPath (Join-Path $appxDir "StoreLogo.png")
+  Save-AppxPng -Source $source -Width 71 -Height 71 -IconSize 71 -OutputPath (Join-Path $appxDir "SmallTile.png")
+  Save-AppxPng -Source $source -Width 150 -Height 150 -IconSize 150 -OutputPath (Join-Path $appxDir "Square150x150Logo.png")
+  Save-AppxPng -Source $source -Width 310 -Height 150 -IconSize 150 -OutputPath (Join-Path $appxDir "Wide310x150Logo.png")
+  Save-AppxPng -Source $source -Width 310 -Height 310 -IconSize 310 -OutputPath (Join-Path $appxDir "LargeTile.png")
   Write-InstallerHeader -Source $source -OutputPath (Join-Path $installerDir "header.bmp")
   Write-InstallerSidebar -Source $source -OutputPath (Join-Path $installerDir "sidebar.bmp") -DisplayVersion $Version
 } finally {
@@ -252,4 +289,4 @@ try {
 
 Write-Host "[generate-icons] Source: $SourceIcon"
 Write-Host "[generate-icons] Version: $Version"
-Write-Host "[generate-icons] Updated build/icons and build/installer assets."
+Write-Host "[generate-icons] Updated build/icons, build/appx and build/installer assets."

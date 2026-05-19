@@ -277,6 +277,7 @@ npm run dist:desktop:exe
 - `build/icons/icon.png`
 - `build/icons/icon.icns`
 - `build/icons/icon.ico`
+- `build/appx/*.png`（Microsoft Store/AppX manifest 使用的磁贴和 logo 资源）
 
 这些文件作为仓库内置的构建资源直接使用，可通过下面命令校验：
 

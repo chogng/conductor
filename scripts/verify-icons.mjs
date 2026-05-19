@@ -5,10 +5,19 @@ import { fileURLToPath } from "node:url";
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const iconDir = path.join(rootDir, "build", "icons");
+const appxDir = path.join(rootDir, "build", "appx");
 const packageJsonPath = path.join(rootDir, "package.json");
 
 const requiredPngSizes = [16, 20, 24, 32, 40, 48, 64, 70, 71, 128, 150, 256, 300, 512, 1024, 1080, 2160];
 const requiredIcoSizes = [16, 20, 24, 32, 40, 48, 64, 128, 256];
+const requiredAppxAssets = {
+  "StoreLogo.png": [50, 50],
+  "Square44x44Logo.png": [44, 44],
+  "Square150x150Logo.png": [150, 150],
+  "Wide310x150Logo.png": [310, 150],
+  "SmallTile.png": [71, 71],
+  "LargeTile.png": [310, 310],
+};
 
 const fail = (message) => {
   console.error(`[verify-icons] ${message}`);
@@ -112,6 +121,16 @@ newestIconMtime = Math.max(newestIconMtime, iconIcoStat.mtimeMs);
 const iconIcnsPath = path.join(iconDir, "icon.icns");
 ensureFile(iconIcnsPath);
 
+for (const [name, [width, height]] of Object.entries(requiredAppxAssets)) {
+  const filePath = path.join(appxDir, name);
+  const stat = ensureFile(filePath);
+  const dimensions = readPngSize(filePath);
+  if (dimensions.width !== width || dimensions.height !== height) {
+    fail(`Wrong AppX asset dimensions for build/appx/${name}: ${dimensions.width}x${dimensions.height}`);
+  }
+  newestIconMtime = Math.max(newestIconMtime, stat.mtimeMs);
+}
+
 const installerHeaderPath = path.join(rootDir, "build", "installer", "header.bmp");
 const installerSidebarPath = path.join(rootDir, "build", "installer", "sidebar.bmp");
 const installerHeaderStat = ensureFile(installerHeaderPath);
@@ -161,6 +180,6 @@ if (!extraResourceHasIcons) {
 }
 
 console.log(
-  `[verify-icons] OK: ${requiredPngSizes.length} PNG sizes, ${icoSizes.size} ICO sizes, installer bitmaps and package icon config are aligned.`,
+  `[verify-icons] OK: ${requiredPngSizes.length} PNG sizes, ${icoSizes.size} ICO sizes, AppX assets, installer bitmaps and package icon config are aligned.`,
 );
 console.log(`[verify-icons] Newest icon file: ${new Date(newestIconMtime).toISOString()}`);

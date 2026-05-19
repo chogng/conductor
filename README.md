@@ -333,6 +333,7 @@ Project icons:
 - `build/icons/icon.png`
 - `build/icons/icon.icns`
 - `build/icons/icon.ico`
+- `build/appx/*.png` (Microsoft Store/AppX manifest tile and logo assets)
 
 These files are treated as checked-in build assets. Verify them with:
 
