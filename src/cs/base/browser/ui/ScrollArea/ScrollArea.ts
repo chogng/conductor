@@ -1,5 +1,8 @@
 import { jsx } from "react/jsx-runtime";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type HTMLAttributes, type MouseEvent as ReactMouseEvent, type ReactNode, } from "react";
+import { addDisposableListener, combinedDisposable, EventType } from "src/cs/base/browser/event";
+import { DisposableResizeObserver, getDomRect, getScrollDimensions, getScrollPosition, observeMutations, scheduleAtNextAnimationFrame } from "src/cs/base/browser/dom";
+import { StandardMouseEvent } from "src/cs/base/browser/mouseEvent";
 import { cx } from "src/utils/cx";
 import "./scrollbar.css";
 
@@ -78,9 +81,9 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(({ childre
     const yThumbRef = useRef<HTMLDivElement | null>(null);
     const xThumbRef = useRef<HTMLDivElement | null>(null);
     const dragRef = useRef<DragState | null>(null);
-    const metricsRafRef = useRef<number | null>(null);
-    const thumbOffsetsRafRef = useRef<number | null>(null);
-    const horizontalWheelRafRef = useRef<number | null>(null);
+    const metricsRafRef = useRef<{ dispose(): void } | null>(null);
+    const thumbOffsetsRafRef = useRef<{ dispose(): void } | null>(null);
+    const horizontalWheelRafRef = useRef<{ dispose(): void } | null>(null);
     const thumbOffsetRef = useRef({ x: 0, y: 0 });
     const horizontalWheelTargetRef = useRef(0);
     const wheelClassifierRef = useRef(new WheelClassifier());
@@ -105,7 +108,8 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(({ childre
         if (!viewport)
             return;
         const nextMetrics = metricsRef.current;
-        const { scrollHeight, clientHeight, scrollTop, scrollWidth, clientWidth, scrollLeft, } = viewport;
+        const { scrollHeight, clientHeight, scrollWidth, clientWidth } = getScrollDimensions(viewport);
+        const { scrollTop, scrollLeft } = getScrollPosition(viewport);
         if (nextMetrics.showY && nextMetrics.yThumbSize > 0) {
             const yMaxOffset = Math.max(0, clientHeight - nextMetrics.yThumbSize);
             const yScrollMax = Math.max(1, scrollHeight - clientHeight);
@@ -146,14 +150,14 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(({ childre
             return delta * WHEEL_LINE_DELTA_PX;
         }
         if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
-            return delta * Math.max(1, viewportRef.current?.clientWidth ?? 1);
+            return delta * Math.max(1, viewportRef.current ? getScrollDimensions(viewportRef.current).clientWidth : 1);
         }
         return delta;
     }, []);
     const cancelHorizontalWheelAnimation = useCallback(() => {
         if (horizontalWheelRafRef.current == null)
             return;
-        cancelAnimationFrame(horizontalWheelRafRef.current);
+        horizontalWheelRafRef.current.dispose();
         horizontalWheelRafRef.current = null;
     }, []);
     const scrollHorizontalNow = useCallback((scrollLeft: number) => {
@@ -178,7 +182,7 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(({ childre
                 return;
             }
             const target = horizontalWheelTargetRef.current;
-            const delta = target - nextViewport.scrollLeft;
+            const delta = target - getScrollPosition(nextViewport).scrollLeft;
             if (Math.abs(delta) <= HORIZONTAL_WHEEL_STOP_THRESHOLD_PX) {
                 nextViewport.scrollLeft = target;
                 horizontalWheelRafRef.current = null;
@@ -186,15 +190,15 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(({ childre
             }
             nextViewport.scrollLeft =
                 nextViewport.scrollLeft + delta * HORIZONTAL_WHEEL_SMOOTHING;
-            horizontalWheelRafRef.current = requestAnimationFrame(tick);
+            horizontalWheelRafRef.current = scheduleAtNextAnimationFrame(window, tick);
         };
-        horizontalWheelRafRef.current = requestAnimationFrame(tick);
+        horizontalWheelRafRef.current = scheduleAtNextAnimationFrame(window, tick);
     }, []);
     const updateMetrics = useCallback(() => {
         const viewport = viewportRef.current;
         if (!viewport)
             return;
-        const { scrollHeight, clientHeight, scrollWidth, clientWidth, } = viewport;
+        const { scrollHeight, clientHeight, scrollWidth, clientWidth } = getScrollDimensions(viewport);
         const canScrollY = allowY && scrollHeight > clientHeight + 1;
         const canScrollX = allowX && scrollWidth > clientWidth + 1;
         const yThumbSize = canScrollY
@@ -222,7 +226,7 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(({ childre
     const scheduleMetricsUpdate = useCallback(() => {
         if (metricsRafRef.current != null)
             return;
-        metricsRafRef.current = requestAnimationFrame(() => {
+        metricsRafRef.current = scheduleAtNextAnimationFrame(window, () => {
             metricsRafRef.current = null;
             updateMetrics();
         });
@@ -230,7 +234,7 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(({ childre
     const scheduleThumbOffsetsUpdate = useCallback(() => {
         if (thumbOffsetsRafRef.current != null)
             return;
-        thumbOffsetsRafRef.current = requestAnimationFrame(() => {
+        thumbOffsetsRafRef.current = scheduleAtNextAnimationFrame(window, () => {
             thumbOffsetsRafRef.current = null;
             updateThumbOffsets();
         });
@@ -240,11 +244,11 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(({ childre
         scheduleMetricsUpdate();
         return () => {
             if (metricsRafRef.current != null) {
-                cancelAnimationFrame(metricsRafRef.current);
+                metricsRafRef.current.dispose();
                 metricsRafRef.current = null;
             }
             if (thumbOffsetsRafRef.current != null) {
-                cancelAnimationFrame(thumbOffsetsRafRef.current);
+                thumbOffsetsRafRef.current.dispose();
                 thumbOffsetsRafRef.current = null;
             }
         };
@@ -273,7 +277,8 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(({ childre
         const onWheel = (event: WheelEvent) => {
             if (event.defaultPrevented || axis !== "x")
                 return;
-            const maxScrollLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+            const { scrollWidth, clientWidth } = getScrollDimensions(viewport);
+            const maxScrollLeft = Math.max(0, scrollWidth - clientWidth);
             if (maxScrollLeft <= 0)
                 return;
             let deltaY = normalizeWheelDelta(event, event.deltaY);
@@ -291,10 +296,10 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(({ childre
             if (Math.abs(deltaX) < 0.5)
                 return;
             const currentOrTargetScrollLeft = horizontalWheelRafRef.current == null
-                ? viewport.scrollLeft
+                ? getScrollPosition(viewport).scrollLeft
                 : horizontalWheelTargetRef.current;
             const nextScrollLeft = Math.max(0, Math.min(maxScrollLeft, currentOrTargetScrollLeft + deltaX));
-            if (Math.abs(nextScrollLeft - viewport.scrollLeft) < 0.5)
+            if (Math.abs(nextScrollLeft - getScrollPosition(viewport).scrollLeft) < 0.5)
                 return;
             event.preventDefault();
             event.stopPropagation();
@@ -305,35 +310,34 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(({ childre
                 scrollHorizontalNow(nextScrollLeft);
             }
         };
-        viewport.addEventListener("scroll", onScroll, { passive: true });
+        const scrollDisposable = addDisposableListener(viewport, EventType.SCROLL, onScroll, { passive: true });
+        let wheelDisposable: { dispose(): void } | undefined;
         if (axis === "x") {
-            viewport.addEventListener("wheel", onWheel, { passive: false });
+            wheelDisposable = addDisposableListener(viewport, EventType.WHEEL, onWheel, { passive: false });
         }
-        const ro = new ResizeObserver(() => scheduleMetricsUpdate());
-        ro.observe(viewport);
+        const ro = new DisposableResizeObserver(window, () => scheduleMetricsUpdate());
+        const viewportResizeDisposable = ro.observe(viewport);
         const contentEl = viewport.firstElementChild;
         if (contentEl)
             ro.observe(contentEl);
-        const mo = new MutationObserver(() => scheduleMetricsUpdate());
-        mo.observe(viewport, {
+        const mo = observeMutations(viewport, () => scheduleMetricsUpdate(), {
             childList: true,
         });
         scheduleMetricsUpdate();
-        window.addEventListener("resize", scheduleMetricsUpdate);
+        const resizeDisposable = addDisposableListener(window, EventType.RESIZE, scheduleMetricsUpdate);
         return () => {
-            viewport.removeEventListener("scroll", onScroll);
-            if (axis === "x") {
-                viewport.removeEventListener("wheel", onWheel);
-            }
-            ro.disconnect();
-            mo.disconnect();
-            window.removeEventListener("resize", scheduleMetricsUpdate);
+            scrollDisposable.dispose();
+            wheelDisposable?.dispose();
+            viewportResizeDisposable.dispose();
+            ro.dispose();
+            mo.dispose();
+            resizeDisposable.dispose();
             if (metricsRafRef.current != null) {
-                cancelAnimationFrame(metricsRafRef.current);
+                metricsRafRef.current.dispose();
                 metricsRafRef.current = null;
             }
             if (thumbOffsetsRafRef.current != null) {
-                cancelAnimationFrame(thumbOffsetsRafRef.current);
+                thumbOffsetsRafRef.current.dispose();
                 thumbOffsetsRafRef.current = null;
             }
             cancelHorizontalWheelAnimation();
@@ -349,32 +353,33 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(({ childre
     ]);
     useEffect(() => {
         const onMouseMove = (event: MouseEvent) => {
+            const mouseEvent = new StandardMouseEvent(window, event);
             const drag = dragRef.current;
             const viewport = viewportRef.current;
             if (!drag || !viewport)
                 return;
             if (drag.axis === "y") {
-                const delta = event.clientY - drag.startPointer;
-                const trackRange = Math.max(1, viewport.clientHeight - drag.thumbSize);
-                const scrollRange = Math.max(1, viewport.scrollHeight - viewport.clientHeight);
+                const delta = mouseEvent.clientY - drag.startPointer;
+                const { clientHeight, scrollHeight } = getScrollDimensions(viewport);
+                const trackRange = Math.max(1, clientHeight - drag.thumbSize);
+                const scrollRange = Math.max(1, scrollHeight - clientHeight);
                 viewport.scrollTop = drag.startScroll + (delta * scrollRange) / trackRange;
             }
             else {
-                const delta = event.clientX - drag.startPointer;
-                const trackRange = Math.max(1, viewport.clientWidth - drag.thumbSize);
-                const scrollRange = Math.max(1, viewport.scrollWidth - viewport.clientWidth);
+                const delta = mouseEvent.clientX - drag.startPointer;
+                const { clientWidth, scrollWidth } = getScrollDimensions(viewport);
+                const trackRange = Math.max(1, clientWidth - drag.thumbSize);
+                const scrollRange = Math.max(1, scrollWidth - clientWidth);
                 scrollHorizontalNow(drag.startScroll + (delta * scrollRange) / trackRange);
             }
         };
         const onMouseUp = () => {
             dragRef.current = null;
         };
-        window.addEventListener("mousemove", onMouseMove);
-        window.addEventListener("mouseup", onMouseUp);
-        return () => {
-            window.removeEventListener("mousemove", onMouseMove);
-            window.removeEventListener("mouseup", onMouseUp);
-        };
+        return combinedDisposable(
+            addDisposableListener(window, EventType.MOUSE_MOVE, onMouseMove),
+            addDisposableListener(window, EventType.MOUSE_UP, onMouseUp),
+        ).dispose;
     }, [scrollHorizontalNow]);
     const startDrag = (dragAxis: "x" | "y", event: ReactMouseEvent<HTMLDivElement>) => {
         const viewport = viewportRef.current;
@@ -387,13 +392,13 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(({ childre
                 ? {
                     axis: "y",
                     startPointer: event.clientY,
-                    startScroll: viewport.scrollTop,
+                    startScroll: getScrollPosition(viewport).scrollTop,
                     thumbSize: metricsRef.current.yThumbSize,
                 }
                 : {
                     axis: "x",
                     startPointer: event.clientX,
-                    startScroll: viewport.scrollLeft,
+                    startScroll: getScrollPosition(viewport).scrollLeft,
                     thumbSize: metricsRef.current.xThumbSize,
                 };
     };
@@ -403,21 +408,23 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(({ childre
         const viewport = viewportRef.current;
         if (!viewport)
             return;
-        const rect = event.currentTarget.getBoundingClientRect();
+        const rect = getDomRect(event.currentTarget);
         if (trackAxis === "y") {
             const yThumbSize = metricsRef.current.yThumbSize;
             const clickOffset = event.clientY - rect.top;
-            const maxThumbTravel = Math.max(1, viewport.clientHeight - yThumbSize);
+            const { clientHeight, scrollHeight } = getScrollDimensions(viewport);
+            const maxThumbTravel = Math.max(1, clientHeight - yThumbSize);
             const ratio = Math.max(0, Math.min(1, (clickOffset - yThumbSize / 2) / maxThumbTravel));
             viewport.scrollTop =
-                ratio * Math.max(0, viewport.scrollHeight - viewport.clientHeight);
+                ratio * Math.max(0, scrollHeight - clientHeight);
         }
         else {
             const xThumbSize = metricsRef.current.xThumbSize;
             const clickOffset = event.clientX - rect.left;
-            const maxThumbTravel = Math.max(1, viewport.clientWidth - xThumbSize);
+            const { clientWidth, scrollWidth } = getScrollDimensions(viewport);
+            const maxThumbTravel = Math.max(1, clientWidth - xThumbSize);
             const ratio = Math.max(0, Math.min(1, (clickOffset - xThumbSize / 2) / maxThumbTravel));
-            scrollHorizontalNow(ratio * Math.max(0, viewport.scrollWidth - viewport.clientWidth));
+            scrollHorizontalNow(ratio * Math.max(0, scrollWidth - clientWidth));
         }
     };
     return (jsx("div", {

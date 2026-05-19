@@ -1,4 +1,5 @@
 import { useEffect, useRef, type MutableRefObject, type ReactNode, type Ref, type RefCallback, type RefObject, } from "react";
+import { addDisposableListener, EventType } from "src/cs/base/browser/event";
 type DropdownRenderProps = {
     isOpen: boolean;
     open: () => void;
@@ -48,8 +49,7 @@ const Dropdown = ({ isOpen, onOpenChange, anchorRef, closeOnClickOutside = true,
             if (event.key === "Escape")
                 close();
         };
-        document.addEventListener("keydown", handleKeyDown);
-        return () => document.removeEventListener("keydown", handleKeyDown);
+        return addDisposableListener(document, EventType.KEY_DOWN, handleKeyDown).dispose;
     }, [closeOnEscape, isOpen]);
     useEffect(() => {
         if (!isOpen || !closeOnClickOutside)
@@ -66,8 +66,7 @@ const Dropdown = ({ isOpen, onOpenChange, anchorRef, closeOnClickOutside = true,
                 return;
             close();
         };
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
+        return addDisposableListener(document, EventType.MOUSE_DOWN, handleClickOutside).dispose;
     }, [closeOnClickOutside, isOpen, resolvedAnchorRef]);
     const renderProps: DropdownRenderProps = {
         isOpen,

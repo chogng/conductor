@@ -1,6 +1,8 @@
 import { jsx } from "react/jsx-runtime";
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { runAtThisOrScheduleAtNextAnimationFrame } from "src/cs/base/browser/dom";
+import { addDisposableListener, EventType } from "src/cs/base/browser/event";
 import { normalizeCtaName, normalizeCtaToken } from "src/utils/cta";
 import { cx } from "src/utils/cx";
 const MODAL_OVERLAY_CLASS = "modal-overlay";
@@ -54,16 +56,17 @@ const Modal = ({ isOpen, onClose, idBase, title, headerRight, children, footer, 
             if (event.key === "Escape")
                 onClose();
         };
-        let focusHandle: number | null = null;
+        let focusHandle: { dispose(): void } | null = null;
+        let keydownDisposable: { dispose(): void } | null = null;
         if (isOpen) {
-            document.addEventListener("keydown", handleEscape);
+            keydownDisposable = addDisposableListener(document, EventType.KEY_DOWN, handleEscape);
             previouslyFocusedRef.current =
                 document.activeElement instanceof HTMLElement
                     ? document.activeElement
                     : null;
             previousBodyOverflowRef.current = document.body.style.overflow;
             document.body.style.overflow = "hidden";
-            focusHandle = requestAnimationFrame(() => {
+            focusHandle = runAtThisOrScheduleAtNextAnimationFrame(window, () => {
                 const dialog = dialogRef.current;
                 if (!dialog)
                     return;
@@ -79,10 +82,8 @@ const Modal = ({ isOpen, onClose, idBase, title, headerRight, children, footer, 
             });
         }
         return () => {
-            document.removeEventListener("keydown", handleEscape);
-            if (focusHandle != null) {
-                cancelAnimationFrame(focusHandle);
-            }
+            keydownDisposable?.dispose();
+            focusHandle?.dispose();
             if (!isOpen)
                 return;
             document.body.style.overflow = previousBodyOverflowRef.current ?? "";

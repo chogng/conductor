@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { disposableTimeout } from "src/cs/base/common/async";
 import type { AnalysisSettings } from "src/cs/workbench/contrib/deviceAnalysis/settings/settingsShared";
 import type { OnboardingLaunchMode } from "src/cs/workbench/contrib/deviceAnalysis/pageState";
 
@@ -55,8 +56,7 @@ export const useOnboardingLauncher = ({
       };
     }
 
-    const timeoutId = window.setTimeout(scheduleAutoOpen, 320);
-    return () => window.clearTimeout(timeoutId);
+    return disposableTimeout(scheduleAutoOpen, 320).dispose;
   }, [onboardingIsOpen, prefetchOnboarding, shouldAutoStartOnboarding]);
 
   const handleOpenOnboardingGuide = useCallback(() => {

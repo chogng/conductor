@@ -1,3 +1,14 @@
+import {
+  lxAnalysis,
+  lxArrowLeft,
+  lxArrowRight,
+  lxGear,
+  lxListUnordered,
+} from "cogicon";
+import {
+  normalizeCogIconSvgMarkup,
+  type CogIconRenderer,
+} from "src/cs/base/browser/ui/CogIcon/cogicon";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import {
   createWorkbenchTitlebarNavActions,
@@ -109,23 +120,42 @@ const createSvgIcon = (
   return svg;
 };
 
+const createCogIcon = (
+  icon: CogIconRenderer,
+  size: number,
+  className = "",
+): SVGSVGElement => {
+  const container = document.createElement("div");
+  container.innerHTML = normalizeCogIconSvgMarkup(icon);
+  const svg = container.firstElementChild;
+
+  if (!(svg instanceof SVGSVGElement)) {
+    return createSvgIcon(size, "", className);
+  }
+
+  svg.setAttribute("width", String(size));
+  svg.setAttribute("height", String(size));
+
+  if (className) {
+    svg.setAttribute("class", className);
+  }
+
+  return svg;
+};
+
 const createDefaultPageActionIcon = (
   action: WorkbenchTitlebarPageAction,
 ): SVGSVGElement => {
   if (action.id === "data") {
-    return createSvgIcon(
-      14,
-      "M12 3v12|m7-7-7 7-7-7|M5 21h14",
-      "opacity-80",
-    );
+    return createCogIcon(lxListUnordered, 14, "opacity-80");
   }
 
   if (action.id === "analysis") {
-    return createSvgIcon(
-      14,
-      "M18 20V10|M12 20V4|M6 20v-6",
-      "opacity-80",
-    );
+    return createCogIcon(lxAnalysis, 14, "opacity-80");
+  }
+
+  if (action.id === "settings") {
+    return createCogIcon(lxGear, 14, "opacity-80");
   }
 
   return createSvgIcon(
@@ -250,11 +280,7 @@ export const createWorkbenchTitlebarElement = ({
           className: "da_window_icon_btn",
           disabled: action.isDisabled,
         },
-        createSvgIcon(
-          14,
-          isBack ? "M19 12H5|m12 7-7-7 7-7" : "M5 12h14|m-7-7 7 7-7 7",
-          "opacity-80",
-        ),
+        createCogIcon(isBack ? lxArrowLeft : lxArrowRight, 14, "opacity-80"),
         isBack ? onNavigateBack : onNavigateForward,
       ),
     );

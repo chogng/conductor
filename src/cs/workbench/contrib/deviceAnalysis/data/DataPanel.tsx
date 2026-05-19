@@ -1,14 +1,15 @@
-import { Import, Trash2 } from "lucide-react";
+import { lxDownloadTray, lxTrash } from "cogicon";
 import {
   useEffect,
   useRef,
-  type MouseEvent as ReactMouseEvent,
   type MutableRefObject,
   useState,
 } from "react";
 import Card from "cs/base/browser/ui/Card/Card";
-import Button from "cs/base/browser/ui/Button/Button";
+import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
+import WorkbenchSidebar, { type WorkbenchSidebarProps } from "src/cs/workbench/browser/parts/sidebar/WorkbenchSidebar";
+import type { WorkbenchSidebarHeaderAction } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import CsvImporter from "./CsvImporter";
 import type {
   CsvImporterProps,
@@ -32,7 +33,7 @@ type DataPanelProps = {
   onDataRemoved?: CsvImporterProps["onDataRemoved"];
   onImportTrigger?: () => void;
   onFileSelected?: CsvImporterProps["onFileSelected"];
-  onStartResizing?: (event: ReactMouseEvent<HTMLDivElement>) => void;
+  onStartResizing?: WorkbenchSidebarProps["onStartResizing"];
   onTemplateApplied?: TemplateManagerProps["onTemplateApplied"];
   onTemplateAppliedIncremental?: TemplateManagerProps["onTemplateAppliedIncremental"];
   onUpdateSettings?: TemplateManagerProps["onUpdateSettings"];
@@ -106,11 +107,55 @@ const DataPanel = ({
     importerRef.current.openFileDialog();
   }, [importerRef, pendingImporterOpen]);
 
+  const headerActions: WorkbenchSidebarHeaderAction[] = [
+    {
+      id: "analysis-import-csv-btn",
+      title: t("da_import_csv"),
+      kind: "primary",
+      icon: <CogIcon icon={lxDownloadTray} size={16} />,
+    },
+    {
+      id: "analysis-clear-session-btn",
+      title: t("da_reset_session"),
+      kind: "icon",
+      icon: <CogIcon icon={lxTrash} size={16} />,
+      isDanger: true,
+      isDisabled: !hasSessionData,
+    },
+  ];
+
+  const handleSidebarAction: WorkbenchSidebarProps["onAction"] = (action) => {
+    if (action.id === "analysis-import-csv-btn") {
+      if (onImportTrigger) {
+        onImportTrigger();
+        return;
+      }
+
+      importerRef.current?.openFileDialog?.();
+      return;
+    }
+
+    if (action.id === "analysis-clear-session-btn") {
+      onClearSession?.();
+    }
+  };
+
   return (
     <div className="grid min-h-full h-full grid-cols-[var(--sidebar-width)_minmax(0,1fr)] gap-1">
-      <aside className="relative flex h-full min-h-0 flex-col group/sidebar">
+      <WorkbenchSidebar
+        ariaLabel={t("da_import_section")}
+        badge={{
+          text: String(rawData.length),
+          tone: rawData.length > 0 ? "accent" : "default",
+        }}
+        description={t("da_loaded_csv_files", { count: rawData.length })}
+        headerActions={headerActions}
+        isResizing={isResizing}
+        onAction={handleSidebarAction}
+        onStartResizing={onStartResizing}
+        title={t("da_import_section")}
+      >
         <section
-          aria-label={t("da_import_section")}
           className="flex-1 flex flex-col min-h-0"
         >
           <Card
@@ -120,56 +165,6 @@ const DataPanel = ({
             ctaCopy="csv importer"
             className="p-4 flex flex-col flex-1 min-h-0"
           >
-            <div className="flex flex-col gap-2 mb-4">
-              <div className="flex items-center justify-between gap-1 w-full">
-                <Button
-                  id="analysis-import-csv-btn"
-                  type="button"
-                  variant="primary"
-                  size="sm"
-                  dataIcon="with"
-                  cta="Device analysis"
-                  ctaPosition="data-import"
-                  ctaCopy="import csv"
-                  aria-label={t("da_import_csv")}
-                  onClick={() => {
-                    if (onImportTrigger) {
-                      onImportTrigger();
-                      return;
-                    }
-
-                    importerRef.current?.openFileDialog?.();
-                  }}
-                >
-                  <Import size={16} />
-                  {t("da_import_csv")}
-                </Button>
-
-                <Button
-                  id="analysis-clear-session-btn"
-                  type="button"
-                  variant="danger"
-                  size="iconSm"
-                  dataIcon="with"
-                  cta="Device analysis"
-                  ctaPosition="data-import"
-                  ctaCopy="reset session"
-                  aria-label={t("da_reset_session")}
-                  title={t("da_reset_session")}
-                  onClick={onClearSession}
-                  disabled={!hasSessionData}
-                >
-                  <Trash2 size={16} />
-                </Button>
-              </div>
-
-              <div className="px-1">
-                <span className="meta_text whitespace-nowrap">
-                  {t("da_loaded_csv_files", { count: rawData.length })}
-                </span>
-              </div>
-            </div>
-
             <CsvImporter
               ref={importerRef}
               files={rawData}
@@ -180,26 +175,7 @@ const DataPanel = ({
             />
           </Card>
         </section>
-
-        <div
-          className="absolute -right-[7px] top-0 bottom-0 z-50 w-[10px] cursor-col-resize group/sash"
-          onMouseDown={onStartResizing}
-        >
-          <div
-            className={`absolute left-1/2 top-4 bottom-4 w-[2px] -translate-x-1/2 rounded-full transition-all duration-500 bg-accent/0 group-hover/sash:bg-accent/30 group-hover/sash:delay-300 group-hover/sash:shadow-[0_0_12px_rgba(var(--color-accent-rgb),0.5)] ${
-              isResizing
-                ? "bg-accent/60 shadow-[0_0_16px_rgba(var(--color-accent-rgb),0.6)]"
-                : ""
-            }`}
-          />
-
-          <div
-            className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[4px] h-[24px] rounded-full bg-accent opacity-0 transition-all duration-300 scale-y-50 group-hover/sash:opacity-100 group-hover/sash:scale-y-100 group-hover/sash:delay-500 ${
-              isResizing ? "opacity-100 scale-y-125" : ""
-            }`}
-          />
-        </div>
-      </aside>
+      </WorkbenchSidebar>
 
       <section
         id="analysis-template-panel"

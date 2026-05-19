@@ -1,0 +1,202 @@
+import { jsx, jsxs } from "react/jsx-runtime";
+import { type CSSProperties, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
+import {
+  getWorkbenchSidebarActionClassName,
+  normalizeWorkbenchSidebarHeaderActions,
+  normalizeWorkbenchSidebarSections,
+} from "src/cs/workbench/browser/parts/sidebar/sidebarActions";
+import {
+  getWorkbenchSidebarWidthStyle,
+  type WorkbenchSidebarAction,
+  type WorkbenchSidebarActionHandler,
+  type WorkbenchSidebarBadge,
+  type WorkbenchSidebarHeaderAction,
+  type WorkbenchSidebarPartState,
+} from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
+
+export type WorkbenchSidebarProps = WorkbenchSidebarPartState & {
+  ariaLabel?: string;
+  children?: ReactNode;
+  onAction?: WorkbenchSidebarActionHandler;
+  onStartResizing?: (event: ReactMouseEvent<HTMLDivElement>) => void;
+  style?: CSSProperties;
+};
+
+const renderSidebarBadge = (badge: WorkbenchSidebarBadge | undefined) => {
+  if (!badge) {
+    return null;
+  }
+
+  return jsx("span", {
+    className: "workbench_sidebar_badge",
+    "data-tone": badge.tone ?? "default",
+    children: badge.text,
+  });
+};
+
+const renderSidebarAction = (
+  action: WorkbenchSidebarAction,
+  onAction: WorkbenchSidebarActionHandler | undefined,
+  kind?: WorkbenchSidebarHeaderAction["kind"],
+) =>
+  jsxs("button", {
+    id: action.id,
+    type: "button",
+    className: getWorkbenchSidebarActionClassName(action),
+    "data-kind": kind,
+    disabled: action.isDisabled,
+    onClick: () => onAction?.(action),
+    title: action.title,
+    children: [
+      action.icon
+        ? jsx("span", {
+            className: "shrink-0",
+            "aria-hidden": "true",
+            children: action.icon,
+          })
+        : null,
+      jsx("span", {
+        className: "min-w-0 truncate text-left",
+        children: action.title,
+      }),
+      renderSidebarBadge(action.badge),
+    ],
+  });
+
+const WorkbenchSidebar = ({
+  ariaLabel,
+  badge,
+  children,
+  className = "",
+  description,
+  headerActions,
+  id,
+  isResizing = false,
+  labelledBy,
+  onAction,
+  onStartResizing,
+  sections,
+  style,
+  title,
+  widthPx,
+}: WorkbenchSidebarProps) => {
+  const widthStyle = getWorkbenchSidebarWidthStyle(widthPx);
+  const normalizedHeaderActions =
+    normalizeWorkbenchSidebarHeaderActions(headerActions);
+  const normalizedSections = normalizeWorkbenchSidebarSections(sections);
+  const resolvedStyle =
+    widthStyle || style
+      ? {
+          ...widthStyle,
+          ...style,
+        }
+      : undefined;
+
+  return jsxs("aside", {
+    id,
+    "aria-label": ariaLabel,
+    "aria-labelledby": labelledBy,
+    className: `workbench_sidebar_part ${className}`.trim(),
+    "data-resizing": isResizing ? "true" : "false",
+    style: resolvedStyle,
+    children: [
+      title || description || badge || normalizedHeaderActions.length > 0
+        ? jsx("div", {
+            className: "workbench_sidebar_header",
+            children: [
+              title || description
+                ? jsxs("div", {
+                    className: "workbench_sidebar_header_main",
+                    children: [
+                      title
+                        ? jsx("h2", {
+                            className: "workbench_sidebar_title",
+                            children: title,
+                          })
+                        : null,
+                      description
+                        ? jsx("p", {
+                            className: "workbench_sidebar_description",
+                            children: description,
+                          })
+                        : null,
+                    ],
+                  })
+                : null,
+              badge
+                ? jsx("div", {
+                    className: "shrink-0 self-start",
+                    children: renderSidebarBadge(badge),
+                  })
+                : null,
+              normalizedHeaderActions.length > 0
+                ? jsx("div", {
+                    className: "workbench_sidebar_header_actions",
+                    children: normalizedHeaderActions.map((action) =>
+                      renderSidebarAction(action, onAction, action.kind),
+                    ),
+                  })
+                : null,
+            ],
+          })
+        : null,
+      normalizedSections.map((section) =>
+        jsxs(
+          "section",
+          {
+            className: "workbench_sidebar_section",
+            children: [
+              jsxs("div", {
+                className: "flex items-start justify-between gap-2",
+                children: [
+                  jsxs("div", {
+                    className: "workbench_sidebar_header_main",
+                    children: [
+                      jsx("h2", {
+                        className: "workbench_sidebar_title",
+                        children: section.title,
+                      }),
+                      section.description
+                        ? jsx("p", {
+                            className: "workbench_sidebar_description",
+                            children: section.description,
+                          })
+                        : null,
+                    ],
+                  }),
+                  renderSidebarBadge(section.badge),
+                ],
+              }),
+              section.actions?.length
+                ? jsx("div", {
+                    className: "flex flex-col gap-1",
+                    children: section.actions.map((action) =>
+                      renderSidebarAction(action, onAction),
+                    ),
+                  })
+                : null,
+            ],
+          },
+          section.id,
+        ),
+      ),
+      children,
+      onStartResizing
+        ? jsxs("div", {
+            className: "workbench_sidebar_sash",
+            onMouseDown: onStartResizing,
+            children: [
+              jsx("div", {
+                className: "workbench_sidebar_sash_track",
+              }),
+              jsx("div", {
+                className: "workbench_sidebar_sash_handle",
+              }),
+            ],
+          })
+        : null,
+    ],
+  });
+};
+
+export default WorkbenchSidebar;

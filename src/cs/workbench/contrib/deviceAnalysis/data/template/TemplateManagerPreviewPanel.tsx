@@ -1,6 +1,7 @@
 import React, {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -1152,7 +1153,7 @@ const CanvasPreviewGrid = React.memo(
       };
     }, [previewFile?.fileId]);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
       const canvas = canvasRef.current;
       if (!canvas) return;
       const context = canvas.getContext("2d");
@@ -2137,4 +2138,3 @@ const TemplateManagerPreviewPanel = ({
 };
 
 export default React.memo(TemplateManagerPreviewPanel);
-

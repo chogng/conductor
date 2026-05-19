@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { addDisposableListener, combinedDisposable, EventType } from "src/cs/base/browser/event";
 import {
   DEFAULT_SIDEBAR_WIDTH_PX,
   MAX_DEVICE_ANALYSIS_SIDEBAR_WIDTH_PX,
@@ -38,13 +39,10 @@ export const useResizableSidebar = () => {
   useEffect(() => {
     if (!isResizing) return undefined;
 
-    window.addEventListener("mousemove", resize);
-    window.addEventListener("mouseup", stopResizing);
-
-    return () => {
-      window.removeEventListener("mousemove", resize);
-      window.removeEventListener("mouseup", stopResizing);
-    };
+    return combinedDisposable(
+      addDisposableListener(window, EventType.MOUSE_MOVE, resize),
+      addDisposableListener(window, EventType.MOUSE_UP, stopResizing),
+    ).dispose;
   }, [isResizing, resize, stopResizing]);
 
   return {

@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { scheduleAtNextAnimationFrame } from "src/cs/base/browser/dom";
 import {
   isBootProfileEnabled,
   logRendererBoot,
@@ -15,12 +16,12 @@ const App = () => {
       logSlowScriptResources();
     }
 
-    const frameId = window.requestAnimationFrame(() => {
+    const frame = scheduleAtNextAnimationFrame(window, () => {
       markBootUiReady("analysis-app");
     });
 
     return () => {
-      window.cancelAnimationFrame(frameId);
+      frame.dispose();
     };
   }, []);
 

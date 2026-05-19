@@ -10,6 +10,7 @@ import {
 import originIcon from "src/assets/icons/origin.svg";
 import ScrollArea from "src/cs/base/browser/ui/ScrollArea/ScrollArea";
 import Toast from "src/cs/base/browser/ui/Toast/Toast";
+import { getWorkbenchSidebarWidthStyle } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import type { WorkbenchTitlebarPageAction } from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
 import type { TranslationVars } from "src/cs/platform/language/common/language";
 import { loadAnalysisCharts } from "src/cs/workbench/contrib/deviceAnalysis/analysis/loadAnalysisCharts";
@@ -501,7 +502,9 @@ const Page = () => {
       }`}
       showDesktopCommandBar={isDesktopChromePreviewEnabled}
       showSkeleton={false}
-      style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}
+      style={{
+        ...getWorkbenchSidebarWidthStyle(sidebarWidth),
+      } as CSSProperties}
       titlebarState={
         isDesktopChromePreviewEnabled
           ? {

@@ -1,6 +1,9 @@
 import { jsx } from "react/jsx-runtime";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FocusEvent, type ReactNode, type RefObject, } from "react";
 import { AlertCircle, CheckCircle2, Info, X } from "lucide-react";
+import { getDomRect } from "src/cs/base/browser/dom";
+import { addDisposableListener, EventType } from "src/cs/base/browser/event";
+import { TimeoutTimer } from "src/cs/base/common/async";
 import { cx } from "src/utils/cx";
 import "./toast.css";
 
@@ -26,15 +29,15 @@ const Toast = ({ message, type = "success", actionText, onAction, onClose, isVis
     useEffect(() => {
         closeFnRef.current = onClose;
     }, [onClose]);
-    const autoCloseTimeoutIdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const autoCloseTimerRef = useRef(new TimeoutTimer());
+    const openTimerRef = useRef(new TimeoutTimer());
+    const closeTimerRef = useRef(new TimeoutTimer());
+    const hideTimerRef = useRef(new TimeoutTimer());
     const autoCloseStartedAtRef = useRef<number | null>(null);
     const autoCloseRemainingMsRef = useRef(duration);
     const isAutoClosePausedRef = useRef(false);
     const clearAutoCloseTimeout = () => {
-        if (autoCloseTimeoutIdRef.current != null) {
-            clearTimeout(autoCloseTimeoutIdRef.current);
-            autoCloseTimeoutIdRef.current = null;
-        }
+        autoCloseTimerRef.current.cancel();
     };
     const startAutoCloseTimeout = () => {
         if (!isVisible)
@@ -47,8 +50,7 @@ const Toast = ({ message, type = "success", actionText, onAction, onClose, isVis
             return;
         clearAutoCloseTimeout();
         autoCloseStartedAtRef.current = Date.now();
-        autoCloseTimeoutIdRef.current = setTimeout(() => {
-            autoCloseTimeoutIdRef.current = null;
+        autoCloseTimerRef.current.cancelAndSet(() => {
             closeFnRef.current?.();
         }, autoCloseRemainingMsRef.current);
     };
@@ -98,7 +100,7 @@ const Toast = ({ message, type = "success", actionText, onAction, onClose, isVis
     useLayoutEffect(() => {
         const updatePosition = () => {
             if (containerRef?.current && position === "absolute") {
-                const rect = containerRef.current.getBoundingClientRect();
+                const rect = getDomRect(containerRef.current);
                 const center = rect.left + rect.width / 2;
                 setPositionStyle({
                     position: "fixed",
@@ -117,38 +119,40 @@ const Toast = ({ message, type = "success", actionText, onAction, onClose, isVis
         };
         if (isVisible) {
             updatePosition();
-            window.addEventListener("resize", updatePosition);
-            return () => window.removeEventListener("resize", updatePosition);
+            return addDisposableListener(window, EventType.RESIZE, updatePosition).dispose;
         }
     }, [containerRef, isVisible, position]);
     useEffect(() => {
-        let openTimer: ReturnType<typeof setTimeout> | null = null;
-        let closeTimer: ReturnType<typeof setTimeout> | null = null;
-        let hideTimer: ReturnType<typeof setTimeout> | null = null;
+        openTimerRef.current.cancel();
+        closeTimerRef.current.cancel();
+        hideTimerRef.current.cancel();
         if (isVisible) {
-            openTimer = setTimeout(() => {
+            openTimerRef.current.cancelAndSet(() => {
                 setShouldRender(true);
                 setIsClosing(false);
             }, 0);
         }
         else if (shouldRender) {
-            closeTimer = setTimeout(() => {
+            closeTimerRef.current.cancelAndSet(() => {
                 setIsClosing(true);
-                hideTimer = setTimeout(() => {
+                hideTimerRef.current.cancelAndSet(() => {
                     setShouldRender(false);
                     setIsClosing(false);
                 }, 300);
             }, 0);
         }
         return () => {
-            if (openTimer != null)
-                clearTimeout(openTimer);
-            if (closeTimer != null)
-                clearTimeout(closeTimer);
-            if (hideTimer != null)
-                clearTimeout(hideTimer);
+            openTimerRef.current.cancel();
+            closeTimerRef.current.cancel();
+            hideTimerRef.current.cancel();
         };
     }, [isVisible, shouldRender]);
+    useEffect(() => () => {
+        autoCloseTimerRef.current.dispose();
+        openTimerRef.current.dispose();
+        closeTimerRef.current.dispose();
+        hideTimerRef.current.dispose();
+    }, []);
     if (!shouldRender)
         return null;
     const uiMarker = typeof dataUi === "string" && dataUi.trim() ? dataUi.trim() : undefined;

@@ -6,6 +6,14 @@ import {
   useState,
   type RefObject,
 } from "react";
+import {
+  addDisposableListener,
+  DisposableResizeObserver,
+  EventType,
+  getClientArea,
+  getScrollPosition,
+  scheduleAtNextAnimationFrame,
+} from "src/cs/base/browser/dom";
 
 type UseCsvImporterVirtualizationOptions<T> = {
   containerRef: RefObject<HTMLDivElement | null>;
@@ -53,13 +61,13 @@ export const useCsvImporterVirtualization = <T>({
 }: UseCsvImporterVirtualizationOptions<T>): CsvImporterVirtualizationResult<T> => {
   const [scrollRowIndex, setScrollRowIndex] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
-  const scrollRafRef = useRef(0);
+  const scrollRafRef = useRef<{ dispose(): void } | null>(null);
 
   useEffect(() => {
     return () => {
       if (scrollRafRef.current) {
-        cancelAnimationFrame(scrollRafRef.current);
-        scrollRafRef.current = 0;
+        scrollRafRef.current.dispose();
+        scrollRafRef.current = null;
       }
     };
   }, []);
@@ -73,19 +81,21 @@ export const useCsvImporterVirtualization = <T>({
     const measure = () => {
       const target = containerRef.current;
       if (!target) return;
-      setViewportHeight(target.clientHeight);
+      setViewportHeight(getClientArea(target).height);
     };
 
     measure();
 
     if (typeof ResizeObserver === "undefined") {
-      window.addEventListener("resize", measure);
-      return () => window.removeEventListener("resize", measure);
+      return addDisposableListener(window, EventType.RESIZE, measure).dispose;
     }
 
-    const ro = new ResizeObserver(() => measure());
-    ro.observe(el);
-    return () => ro.disconnect();
+    const ro = new DisposableResizeObserver(window, () => measure());
+    const observed = ro.observe(el);
+    return () => {
+      observed.dispose();
+      ro.dispose();
+    };
   }, [containerRef]);
 
   useEffect(() => {
@@ -94,10 +104,10 @@ export const useCsvImporterVirtualization = <T>({
 
     const handleScroll = () => {
       if (scrollRafRef.current) return;
-      scrollRafRef.current = requestAnimationFrame(() => {
-        scrollRafRef.current = 0;
+      scrollRafRef.current = scheduleAtNextAnimationFrame(window, () => {
+        scrollRafRef.current = null;
         const target = containerRef.current;
-        const scrollTop = target ? target.scrollTop : 0;
+        const scrollTop = target ? getScrollPosition(target).scrollTop : 0;
         const rowStep = rowHeight + gap;
         const nextRowIndex = Math.max(
           0,
@@ -113,8 +123,9 @@ export const useCsvImporterVirtualization = <T>({
       });
     };
 
-    el.addEventListener("scroll", handleScroll, { passive: true });
-    return () => el.removeEventListener("scroll", handleScroll);
+    return addDisposableListener(el, EventType.SCROLL, handleScroll, {
+      passive: true,
+    }).dispose;
   }, [containerRef, gap, paddingY, rowHeight]);
 
   return useMemo(() => {
