@@ -20,6 +20,7 @@ export const AUTO_TEMPLATE_ID = "__auto__";
 
 export type AutoExtractionPlan = {
   bottomTitle: string;
+  blocks?: AutoExtractionBlock[];
   confidence: CurveConfidence;
   curveType: CurveKind;
   curveTypeLabel: string | null;
@@ -43,6 +44,19 @@ export type AutoExtractionPlan = {
   xUnit: string;
   yCols: number[];
   yUnit: string;
+};
+
+export type AutoExtractionBlock = {
+  bottomTitle: string;
+  endCol: number;
+  legendStartColIndex: number | null;
+  legendStartRowIndex: number | null;
+  legendStep: number | null;
+  legendTarget: "auto" | "group" | "yColumn";
+  startCol: number;
+  xAxisRole: AxisRole | null;
+  xCol: number;
+  yCols: number[];
 };
 
 const findGenericNumericColumns = ({
@@ -101,6 +115,7 @@ type ResolvedGroupShape = {
 };
 
 type StructuredSeriesLayout = {
+  blocks?: AutoExtractionBlock[];
   curveType: CurveKind;
   leftTitle: string;
   legendStartColIndex: number | null;
@@ -707,6 +722,152 @@ const chooseBestSemanticPair = ({
   };
 };
 
+type StructuredHeaderEntry = {
+  header: string;
+  index: number;
+  isDrainCurrent: boolean;
+  normalized: string;
+  numeric: boolean;
+  role: AxisRole | null;
+  suffixAxis: "x" | "y" | null;
+};
+
+const entryLooksLikeBlockX = (
+  entry: StructuredHeaderEntry,
+  classification: CurveClassification,
+): boolean =>
+  entry.numeric &&
+  !entry.isDrainCurrent &&
+  (entry.suffixAxis === "x" ||
+    entry.role === classification.xAxisRole ||
+    entry.role !== null ||
+    entry.normalized.includes("voltage"));
+
+const createSharedXBlock = ({
+  bottomTitle,
+  dataStartRowIndex,
+  xAxisRole,
+  xCol,
+  yCols,
+}: {
+  bottomTitle: string;
+  dataStartRowIndex: number;
+  xAxisRole: AxisRole | null;
+  xCol: number;
+  yCols: number[];
+}): AutoExtractionBlock => {
+  const sortedYCols = [...yCols].sort((a, b) => a - b);
+  const firstYCol = sortedYCols[0] ?? null;
+  const legendStep =
+    sortedYCols.length >= 2 ? sortedYCols[1]! - sortedYCols[0]! : 1;
+
+  return {
+    bottomTitle: bottomTitle || "X",
+    endCol: Math.max(xCol, ...sortedYCols),
+    legendStartColIndex: firstYCol,
+    legendStartRowIndex:
+      firstYCol !== null && dataStartRowIndex - 1 >= 0
+        ? dataStartRowIndex - 1
+        : null,
+    legendStep,
+    legendTarget: sortedYCols.length > 1 ? "yColumn" : "auto",
+    startCol: Math.min(xCol, ...sortedYCols),
+    xAxisRole,
+    xCol,
+    yCols: sortedYCols,
+  };
+};
+
+const buildStructuredLayoutFromBlocks = ({
+  blocks,
+  classification,
+  curveType,
+  leftTitle,
+  reasons,
+  xAxisRole,
+}: {
+  blocks: AutoExtractionBlock[];
+  classification: CurveClassification;
+  curveType: CurveKind;
+  leftTitle: string;
+  reasons: string[];
+  xAxisRole: AxisRole | null;
+}): StructuredSeriesLayout | null => {
+  const firstBlock = blocks[0] ?? null;
+  if (!firstBlock) return null;
+  const yCols = blocks.flatMap((block) => block.yCols);
+  if (!yCols.length) return null;
+
+  return {
+    blocks,
+    curveType,
+    leftTitle,
+    legendStartColIndex: firstBlock.legendStartColIndex,
+    legendStartRowIndex: firstBlock.legendStartRowIndex,
+    legendStep: firstBlock.legendStep,
+    legendTarget: firstBlock.legendTarget,
+    reasons,
+    xAxisRole,
+    xAxisRoleSource: classification.xAxisRole ? classification.xAxisRoleSource : "label",
+    xCol: firstBlock.xCol,
+    yCols,
+  };
+};
+
+const inferSeparatedSharedXBlocks = ({
+  classification,
+  dataStartRowIndex,
+  entries,
+}: {
+  classification: CurveClassification;
+  dataStartRowIndex: number;
+  entries: StructuredHeaderEntry[];
+}): AutoExtractionBlock[] => {
+  const blocks: AutoExtractionBlock[] = [];
+
+  for (let index = 0; index < entries.length; index += 1) {
+    const xEntry = entries[index];
+    if (!xEntry || !entryLooksLikeBlockX(xEntry, classification)) continue;
+
+    const yCols: number[] = [];
+    let scanIndex = index + 1;
+    let endCol = xEntry.index;
+    while (scanIndex < entries.length) {
+      const candidate = entries[scanIndex];
+      if (!candidate) break;
+      if (entryLooksLikeBlockX(candidate, classification)) break;
+      if (candidate.numeric && candidate.isDrainCurrent) {
+        yCols.push(candidate.index);
+        endCol = candidate.index;
+      }
+      scanIndex += 1;
+    }
+
+    if (yCols.length > 0) {
+      const xAxisRole =
+        classification.xAxisRole ??
+        xEntry.role ??
+        (xEntry.normalized.includes("drain") ? "vd" : null) ??
+        (xEntry.normalized.includes("gate") ? "vg" : null);
+      blocks.push({
+        ...createSharedXBlock({
+          bottomTitle: xEntry.header || "X",
+          dataStartRowIndex,
+          xAxisRole,
+          xCol: xEntry.index,
+          yCols,
+        }),
+        xAxisRole,
+        endCol,
+        startCol: xEntry.index,
+      });
+      index = Math.max(index, scanIndex - 1);
+    }
+  }
+
+  return blocks.length >= 2 ? blocks : [];
+};
+
 const inferSpecializedGenericLayout = ({
   curveType,
   dataStartRowIndex,
@@ -864,6 +1025,39 @@ const inferStructuredSeriesLayout = ({
     };
   });
 
+  const separatedBlocks = inferSeparatedSharedXBlocks({
+    classification,
+    dataStartRowIndex,
+    entries: headerEntries,
+  });
+  const hasSeparatedBlockSignal =
+    separatedBlocks.some((block) => block.yCols.length > 1);
+  if (separatedBlocks.length >= 2 && hasSeparatedBlockSignal) {
+    const firstBlock = separatedBlocks[0]!;
+    const xAxisRole =
+      classification.xAxisRole ??
+      firstBlock.xAxisRole ??
+      (headers[firstBlock.xCol]?.toLowerCase().includes("drain") ? "vd" : null) ??
+      (headers[firstBlock.xCol]?.toLowerCase().includes("gate") ? "vg" : null);
+    return buildStructuredLayoutFromBlocks({
+      blocks: separatedBlocks,
+      classification,
+      curveType:
+        classification.curveType !== "unknown"
+          ? classification.curveType
+          : xAxisRole === "vg"
+            ? "transfer"
+            : xAxisRole === "vd"
+              ? "output"
+              : "unknown",
+      leftTitle: "Id",
+      reasons: [
+        `Detected ${separatedBlocks.length} separated X/Y column blocks with ${separatedBlocks.flatMap((block) => block.yCols).length} total Y column(s).`,
+      ],
+      xAxisRole,
+    });
+  }
+
   const pairCandidates: Array<{ xCol: number; yCol: number }> = [];
   for (let index = 0; index < headerEntries.length - 1; index += 1) {
     const left = headerEntries[index];
@@ -901,7 +1095,18 @@ const inferStructuredSeriesLayout = ({
       (firstX?.normalized.includes("gate") ? "vg" : null);
 
     if (sharedX && xAxisRole) {
-      return {
+      const yCols = adjacentVoltageCurrentPairs.map((pair) => pair.yCol);
+      return buildStructuredLayoutFromBlocks({
+        blocks: [
+          createSharedXBlock({
+            bottomTitle: headers[adjacentVoltageCurrentPairs[0]!.xCol] || "X",
+            dataStartRowIndex,
+            xAxisRole,
+            xCol: adjacentVoltageCurrentPairs[0]!.xCol,
+            yCols,
+          }),
+        ],
+        classification,
         curveType:
           classification.curveType !== "unknown"
             ? classification.curveType
@@ -909,21 +1114,11 @@ const inferStructuredSeriesLayout = ({
               ? "transfer"
               : "output",
         leftTitle: "Id",
-        legendStartColIndex: adjacentVoltageCurrentPairs[0]?.yCol ?? null,
-        legendStartRowIndex: dataStartRowIndex - 1 >= 0 ? dataStartRowIndex - 1 : null,
-        legendStep:
-          adjacentVoltageCurrentPairs.length >= 2
-            ? adjacentVoltageCurrentPairs[1]!.yCol - adjacentVoltageCurrentPairs[0]!.yCol
-            : 1,
-        legendTarget: "yColumn",
         reasons: [
           `Detected ${adjacentVoltageCurrentPairs.length} adjacent voltage/Id column pairs with equivalent X traces; gate-current columns were excluded.`,
         ],
         xAxisRole,
-        xAxisRoleSource: classification.xAxisRole ? classification.xAxisRoleSource : "label",
-        xCol: adjacentVoltageCurrentPairs[0]!.xCol,
-        yCols: adjacentVoltageCurrentPairs.map((pair) => pair.yCol),
-      };
+      });
     }
   }
 
@@ -947,7 +1142,18 @@ const inferStructuredSeriesLayout = ({
         (normalizeCellText(firstXHeader).toLowerCase().includes("drain") ? "vd" : null) ??
         (normalizeCellText(firstXHeader).toLowerCase().includes("gate") ? "vg" : null);
 
-      return {
+      const yCols = pairCandidates.map((pair) => pair.yCol);
+      return buildStructuredLayoutFromBlocks({
+        blocks: [
+          createSharedXBlock({
+            bottomTitle: firstXHeader,
+            dataStartRowIndex,
+            xAxisRole,
+            xCol: pairCandidates[0]!.xCol,
+            yCols,
+          }),
+        ],
+        classification,
         curveType:
           classification.curveType !== "unknown"
             ? classification.curveType
@@ -957,21 +1163,11 @@ const inferStructuredSeriesLayout = ({
                 ? "output"
                 : "unknown",
         leftTitle: "Id",
-        legendStartColIndex: pairCandidates[0]?.yCol ?? null,
-        legendStartRowIndex: dataStartRowIndex - 1 >= 0 ? dataStartRowIndex - 1 : null,
-        legendStep:
-          pairCandidates.length >= 2
-            ? pairCandidates[1]!.yCol - pairCandidates[0]!.yCol
-            : 1,
-        legendTarget: "yColumn",
         reasons: [
           `Detected ${pairCandidates.length} adjacent X/Y column pairs with equivalent X traces.`,
         ],
         xAxisRole,
-        xAxisRoleSource: classification.xAxisRole ? classification.xAxisRoleSource : "label",
-        xCol: pairCandidates[0]!.xCol,
-        yCols: pairCandidates.map((pair) => pair.yCol),
-      };
+      });
     }
   }
 
@@ -1007,7 +1203,21 @@ const inferStructuredSeriesLayout = ({
     (primaryX.normalized.includes("drain") ? "vd" : null) ??
     (primaryX.normalized.includes("gate") ? "vg" : null);
 
-  return {
+  const yCols = yCandidates.map((entry) => entry.index);
+  return buildStructuredLayoutFromBlocks({
+    blocks: [
+      {
+        ...createSharedXBlock({
+          bottomTitle: primaryX.header || "X",
+          dataStartRowIndex,
+          xAxisRole,
+          xCol: primaryX.index,
+          yCols,
+        }),
+        legendStep: uniformYStep ? yStep : 1,
+      },
+    ],
+    classification,
     curveType:
       classification.curveType !== "unknown"
         ? classification.curveType
@@ -1017,18 +1227,11 @@ const inferStructuredSeriesLayout = ({
             ? "output"
             : "unknown",
     leftTitle: "Id",
-    legendStartColIndex: yCandidates[0]!.index,
-    legendStartRowIndex: dataStartRowIndex - 1 >= 0 ? dataStartRowIndex - 1 : null,
-    legendStep: uniformYStep ? yStep : 1,
-    legendTarget: "yColumn",
     reasons: [
       `Detected one shared X column with ${yCandidates.length} numeric Y columns.`,
     ],
     xAxisRole,
-    xAxisRoleSource: classification.xAxisRole ? classification.xAxisRoleSource : "label",
-    xCol: primaryX.index,
-    yCols: yCandidates.map((entry) => entry.index),
-  };
+  });
 };
 
 // ---------------------------------------------------------------------------
@@ -1693,6 +1896,7 @@ const inferGenericPlan = ({
     ok: true,
     plan: {
       bottomTitle: resolveLabelForRole(effectiveXAxisRole, headers[xCol] || "X"),
+      blocks: structuredLayout?.blocks,
       confidence: effectiveConfidence,
       curveType: effectiveCurveType,
       curveTypeLabel:
@@ -1879,6 +2083,25 @@ export const buildAutoWorkerConfig = (
       : null;
   return {
     autoDetectCurveType: true,
+    blocks: Array.isArray(plan.blocks)
+      ? plan.blocks.map((block) => ({
+          bottomTitle: block.bottomTitle,
+          endCol: block.endCol,
+          legendStartCell:
+            block.legendStartColIndex !== null && block.legendStartRowIndex !== null
+              ? {
+                  colIndex: block.legendStartColIndex,
+                  rowIndex: block.legendStartRowIndex,
+                }
+              : null,
+          legendStep: block.legendStep,
+          legendTarget: block.legendTarget,
+          startCol: block.startCol,
+          xAxisRole: block.xAxisRole,
+          xCol: block.xCol,
+          yCols: [...block.yCols],
+        }))
+      : undefined,
     bottomTitle: plan.bottomTitle,
     endRow: "end",
     fileNameVdKeywords: "",

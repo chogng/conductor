@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   buildAutoTemplateConfig,
+  buildAutoWorkerConfig,
   inferAutoExtraction,
 } from "./autoExtraction.ts";
 
@@ -261,6 +262,36 @@ test("infers one shared X column with multiple Y current columns", () => {
   assert.equal(result.plan.legendStartRowIndex, 0);
   assert.equal(result.plan.legendCount, 3);
   assert.equal(result.plan.legendStep, 1);
+});
+
+test("infers separated shared-X blocks in one table", () => {
+  const rows = [
+    ["Vd block 1", "Id @ Vg=0.5", "Id @ Vg=1.0", "", "", "Vd block 2", "Id @ Vg=1.5", "Id @ Vg=2.0"],
+    ["0.0", "1e-9", "2e-9", "", "", "0.0", "3e-9", "4e-9"],
+    ["0.5", "1e-6", "2e-6", "", "", "0.25", "3e-6", "4e-6"],
+    ["1.0", "2e-5", "2.5e-5", "", "", "0.75", "3.2e-5", "4.2e-5"],
+  ];
+
+  const result = inferAutoExtraction({
+    fileName: "merged_output_blocks.csv",
+    rows,
+    totalRowCount: rows.length,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.plan.curveType, "output");
+  assert.equal(result.plan.xCol, 0);
+  assert.deepEqual(result.plan.yCols, [1, 2, 6, 7]);
+  assert.equal(result.plan.blocks.length, 2);
+  assert.equal(result.plan.blocks[0].xCol, 0);
+  assert.deepEqual(result.plan.blocks[0].yCols, [1, 2]);
+  assert.equal(result.plan.blocks[1].xCol, 5);
+  assert.deepEqual(result.plan.blocks[1].yCols, [6, 7]);
+
+  const workerConfig = buildAutoWorkerConfig(result.plan);
+  assert.equal(workerConfig.blocks.length, 2);
+  assert.equal(workerConfig.blocks[1].xCol, 5);
+  assert.deepEqual(workerConfig.blocks[1].yCols, [6, 7]);
 });
 
 test("does not classify transient transfer exports as pulse-voltage", () => {

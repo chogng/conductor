@@ -20,6 +20,9 @@ live, save that rule as a template, then reuse it across future experiments.
 - **Automatic extraction when possible**: infer columns, grouping, and
   transfer/output-like curve roles for supported files, while keeping manual
   templates available for messy real-world data.
+- **Block-aware auto layouts**: detect merged tables that contain multiple
+  independent `X + Y...` column blocks in one CSV/XLSX, then process each block
+  with its own X column while preserving older single-block extraction behavior.
 - **Curve review and parameter checks**: compare processed files in one analysis
   workspace with overview thumbnails, focused plots, calculated metrics, gm
   diagnostics, SS diagnostics, and Ion/Ioff summaries.

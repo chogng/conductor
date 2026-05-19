@@ -1033,6 +1033,48 @@ fn auto_config_json(
     })
 }
 
+fn add_auto_blocks_to_config(mut config: Value, blocks: Vec<Value>) -> Value {
+    if let Some(object) = config.as_object_mut() {
+        object.insert("blocks".to_string(), json!(blocks));
+    }
+    config
+}
+
+fn auto_shared_x_block_json(
+    headers: &[String],
+    header_row_index: usize,
+    x_col: usize,
+    y_cols: &[usize],
+    x_axis_role: Option<&str>,
+) -> Value {
+    let first_y_col = y_cols.first().copied();
+    let legend_step = if y_cols.len() >= 2 {
+        y_cols[1].saturating_sub(y_cols[0])
+    } else {
+        1
+    };
+    let start_col = y_cols.iter().copied().fold(x_col, usize::min);
+    let end_col = y_cols.iter().copied().fold(x_col, usize::max);
+
+    json!({
+        "bottomTitle": headers.get(x_col).map(String::as_str).unwrap_or("X"),
+        "endCol": end_col,
+        "legendStartCell": if y_cols.len() > 1 {
+            first_y_col
+                .map(|col| json!({ "rowIndex": header_row_index, "colIndex": col }))
+                .unwrap_or(Value::Null)
+        } else {
+            Value::Null
+        },
+        "legendStep": if y_cols.len() > 1 { json!(legend_step) } else { Value::Null },
+        "legendTarget": if y_cols.len() > 1 { "yColumn" } else { "auto" },
+        "startCol": start_col,
+        "xAxisRole": x_axis_role,
+        "xCol": x_col,
+        "yCols": y_cols,
+    })
+}
+
 fn build_auto_curve_type_label(curve_type: &str, x_axis_role: Option<&str>) -> Value {
     match curve_type {
         "transfer" => {
@@ -1334,6 +1376,150 @@ fn infer_auto_worker_config(
         ));
     }
 
+    let mut separated_blocks = Vec::<Value>::new();
+    let mut separated_y_cols = Vec::<usize>::new();
+    let mut index = 0usize;
+    while index < headers.len() {
+        let header = headers.get(index).map(String::as_str).unwrap_or("");
+        let (suffix_axis, _) = structured_axis_suffix(header);
+        let role = detect_axis_role_text(header);
+        let normalized = header.to_ascii_lowercase();
+        let looks_like_x = column_has_numeric_rows(dataset, data_start_row_index, index, 2)
+            && !current_header_looks_like_drain_current(header)
+            && (suffix_axis == Some("x")
+                || role == x_axis_role
+                || role.is_some()
+                || normalized.contains("voltage"));
+        if !looks_like_x {
+            index += 1;
+            continue;
+        }
+
+        let mut y_cols = Vec::<usize>::new();
+        let mut scan = index + 1;
+        let mut end_col = index;
+        while scan < headers.len() {
+            let candidate = headers.get(scan).map(String::as_str).unwrap_or("");
+            let (candidate_suffix_axis, _) = structured_axis_suffix(candidate);
+            let candidate_role = detect_axis_role_text(candidate);
+            let candidate_normalized = candidate.to_ascii_lowercase();
+            let candidate_looks_like_x =
+                column_has_numeric_rows(dataset, data_start_row_index, scan, 2)
+                    && !current_header_looks_like_drain_current(candidate)
+                    && (candidate_suffix_axis == Some("x")
+                        || candidate_role == x_axis_role
+                        || candidate_role.is_some()
+                        || candidate_normalized.contains("voltage"));
+            if candidate_looks_like_x {
+                break;
+            }
+            if current_header_looks_like_drain_current(candidate)
+                && column_has_numeric_rows(dataset, data_start_row_index, scan, 2)
+            {
+                y_cols.push(scan);
+                end_col = scan;
+            }
+            scan += 1;
+        }
+
+        if !y_cols.is_empty() {
+            let block_role = x_axis_role.or(role).or_else(|| {
+                if normalized.contains("drain") {
+                    Some("vd")
+                } else if normalized.contains("gate") {
+                    Some("vg")
+                } else {
+                    None
+                }
+            });
+            separated_y_cols.extend(y_cols.iter().copied());
+            separated_blocks.push(json!({
+                "bottomTitle": if header.trim().is_empty() { "X" } else { header },
+                "endCol": end_col,
+                "legendStartCell": if y_cols.len() > 1 { json!({ "rowIndex": header_row_index, "colIndex": y_cols[0] }) } else { Value::Null },
+                "legendStep": if y_cols.len() > 1 { json!(if y_cols.len() >= 2 { y_cols[1] - y_cols[0] } else { 1 }) } else { Value::Null },
+                "legendTarget": if y_cols.len() > 1 { "yColumn" } else { "auto" },
+                "startCol": index,
+                "xAxisRole": block_role,
+                "xCol": index,
+                "yCols": y_cols,
+            }));
+            index = scan.max(index + 1);
+        } else {
+            index += 1;
+        }
+    }
+    if separated_blocks.len() >= 2
+        && separated_blocks.iter().any(|block| {
+            block
+                .get("yCols")
+                .and_then(Value::as_array)
+                .map(|items| items.len() > 1)
+                .unwrap_or(false)
+        })
+    {
+        let first_block = &separated_blocks[0];
+        let x_col = first_block.get("xCol").and_then(Value::as_u64).unwrap_or(0) as usize;
+        let role = x_axis_role
+            .or_else(|| detect_axis_role_text(headers.get(x_col).map(String::as_str).unwrap_or("")))
+            .or_else(|| {
+                let normalized = headers
+                    .get(x_col)
+                    .map(|value| value.to_ascii_lowercase())
+                    .unwrap_or_default();
+                if normalized.contains("drain") {
+                    Some("vd")
+                } else if normalized.contains("gate") {
+                    Some("vg")
+                } else {
+                    None
+                }
+            });
+        let inferred_curve = if curve_type != "unknown" {
+            curve_type.as_str()
+        } else if role == Some("vg") {
+            "transfer"
+        } else if role == Some("vd") {
+            "output"
+        } else {
+            "unknown"
+        };
+        let config = auto_config_json(
+            if role == Some("vg") {
+                "Vg".to_string()
+            } else if role == Some("vd") {
+                "Vd".to_string()
+            } else {
+                headers
+                    .get(x_col)
+                    .cloned()
+                    .unwrap_or_else(|| "X".to_string())
+            },
+            "Id".to_string(),
+            data_start_row_index,
+            x_col,
+            separated_y_cols.clone(),
+            None,
+            Some(1),
+            "V",
+            "A",
+            String::new(),
+            Some((header_row_index, separated_y_cols[0])),
+            None,
+            Some(separated_y_cols.len()),
+            Some(1.0),
+            "yColumn",
+        );
+        return Ok(with_auto_curve_info(
+            add_auto_blocks_to_config(config, separated_blocks),
+            inferred_curve,
+            role,
+            x_axis_role_source,
+            &confidence,
+            needs_template,
+        ));
+    }
+
     let mut pair_candidates = Vec::<(usize, usize)>::new();
     for index in 0..headers.len().saturating_sub(1) {
         let (left_axis, left_stem) = structured_axis_suffix(&headers[index]);
@@ -1406,27 +1592,37 @@ fn infer_auto_worker_config(
             } else {
                 1
             };
+            let config = auto_config_json(
+                if role == "vg" {
+                    "Vg".to_string()
+                } else {
+                    "Vd".to_string()
+                },
+                "Id".to_string(),
+                data_start_row_index,
+                x_col,
+                y_cols.clone(),
+                None,
+                Some(1),
+                "V",
+                "A",
+                String::new(),
+                Some((header_row_index, y_cols[0])),
+                None,
+                Some(y_cols.len()),
+                Some(y_step as f64),
+                "yColumn",
+            );
             return Ok(with_auto_curve_info(
-                auto_config_json(
-                    if role == "vg" {
-                        "Vg".to_string()
-                    } else {
-                        "Vd".to_string()
-                    },
-                    "Id".to_string(),
-                    data_start_row_index,
-                    x_col,
-                    y_cols.clone(),
-                    None,
-                    Some(1),
-                    "V",
-                    "A",
-                    String::new(),
-                    Some((header_row_index, y_cols[0])),
-                    None,
-                    Some(y_cols.len()),
-                    Some(y_step as f64),
-                    "yColumn",
+                add_auto_blocks_to_config(
+                    config,
+                    vec![auto_shared_x_block_json(
+                        &headers,
+                        header_row_index,
+                        x_col,
+                        &y_cols,
+                        Some(role),
+                    )],
                 ),
                 inferred_curve,
                 Some(role),
@@ -1499,23 +1695,33 @@ fn infer_auto_worker_config(
         } else {
             x_axis_role_source
         };
+        let config = auto_config_json(
+            bottom_title,
+            left_title,
+            data_start_row_index,
+            x_col,
+            y_cols.clone(),
+            None,
+            Some(1),
+            x_unit,
+            y_unit,
+            String::new(),
+            Some((header_row_index, pair_candidates[0].1)),
+            None,
+            Some(pair_candidates.len()),
+            Some(y_step as f64),
+            "yColumn",
+        );
         return Ok(with_auto_curve_info(
-            auto_config_json(
-                bottom_title,
-                left_title,
-                data_start_row_index,
-                x_col,
-                y_cols,
-                None,
-                Some(1),
-                x_unit,
-                y_unit,
-                String::new(),
-                Some((header_row_index, pair_candidates[0].1)),
-                None,
-                Some(pair_candidates.len()),
-                Some(y_step as f64),
-                "yColumn",
+            add_auto_blocks_to_config(
+                config,
+                vec![auto_shared_x_block_json(
+                    &headers,
+                    header_row_index,
+                    x_col,
+                    &y_cols,
+                    role,
+                )],
             ),
             inferred_curve,
             role,
@@ -1561,37 +1767,47 @@ fn infer_auto_worker_config(
             } else {
                 y_cols
             };
+            let config = auto_config_json(
+                headers
+                    .get(x_col)
+                    .cloned()
+                    .unwrap_or_else(|| "X".to_string()),
+                headers
+                    .get(*y_cols.last().unwrap_or(&y_col))
+                    .cloned()
+                    .unwrap_or_else(|| "Y".to_string()),
+                data_start_row_index,
+                x_col,
+                y_cols.clone(),
+                None,
+                Some(1),
+                if curve_type == "cf" { "Hz" } else { "V" },
+                if curve_type == "pv" { "A" } else { "F" },
+                String::new(),
+                if y_cols.len() > 1 {
+                    Some((header_row_index, y_cols[0]))
+                } else {
+                    None
+                },
+                None,
+                if y_cols.len() > 1 {
+                    Some(y_cols.len())
+                } else {
+                    None
+                },
+                if y_cols.len() > 1 { Some(1.0) } else { None },
+                if y_cols.len() > 1 { "yColumn" } else { "auto" },
+            );
             return Ok(with_auto_curve_info(
-                auto_config_json(
-                    headers
-                        .get(x_col)
-                        .cloned()
-                        .unwrap_or_else(|| "X".to_string()),
-                    headers
-                        .get(*y_cols.last().unwrap_or(&y_col))
-                        .cloned()
-                        .unwrap_or_else(|| "Y".to_string()),
-                    data_start_row_index,
-                    x_col,
-                    y_cols.clone(),
-                    None,
-                    Some(1),
-                    if curve_type == "cf" { "Hz" } else { "V" },
-                    if curve_type == "pv" { "A" } else { "F" },
-                    String::new(),
-                    if y_cols.len() > 1 {
-                        Some((header_row_index, y_cols[0]))
-                    } else {
-                        None
-                    },
-                    None,
-                    if y_cols.len() > 1 {
-                        Some(y_cols.len())
-                    } else {
-                        None
-                    },
-                    if y_cols.len() > 1 { Some(1.0) } else { None },
-                    if y_cols.len() > 1 { "yColumn" } else { "auto" },
+                add_auto_blocks_to_config(
+                    config,
+                    vec![auto_shared_x_block_json(
+                        &headers,
+                        header_row_index,
+                        x_col,
+                        &y_cols,
+                        x_axis_role,
+                    )],
                 ),
                 &curve_type,
                 x_axis_role,
@@ -1696,83 +1912,93 @@ fn infer_auto_worker_config(
     let generated_count = generated.as_ref().and_then(|value| value.0);
     let generated_step = generated.as_ref().and_then(|value| value.2);
 
-    Ok(with_auto_curve_info(
-        auto_config_json(
-            if x_axis_role == Some("vg") {
-                "Vg".to_string()
-            } else if x_axis_role == Some("vd") {
-                "Vd".to_string()
-            } else {
-                headers
-                    .get(x_col)
-                    .cloned()
-                    .unwrap_or_else(|| "X".to_string())
-            },
-            if headers
+    let config = auto_config_json(
+        if x_axis_role == Some("vg") {
+            "Vg".to_string()
+        } else if x_axis_role == Some("vd") {
+            "Vd".to_string()
+        } else {
+            headers
+                .get(x_col)
+                .cloned()
+                .unwrap_or_else(|| "X".to_string())
+        },
+        if headers
+            .get(y_cols[0])
+            .map(|value| current_header_looks_like_drain_current(value))
+            .unwrap_or(false)
+        {
+            "Id".to_string()
+        } else {
+            headers
                 .get(y_cols[0])
-                .map(|value| current_header_looks_like_drain_current(value))
-                .unwrap_or(false)
-            {
-                "Id".to_string()
-            } else {
-                headers
-                    .get(y_cols[0])
-                    .cloned()
-                    .unwrap_or_else(|| "Y".to_string())
-            },
-            data_start_row_index,
-            x_col,
-            y_cols.clone(),
-            group_size,
-            groups,
-            "V",
-            "A",
-            if y_cols.len() > 1 {
-                String::new()
-            } else if bias_role == "vd" {
-                "Vd".to_string()
-            } else {
-                "Vg".to_string()
-            },
-            if grouped {
-                legend_col.map(|col| (data_start_row_index, col))
-            } else if y_cols.len() > 1 {
-                Some((header_row_index, y_cols[0]))
-            } else {
-                None
-            },
-            if grouped && legend_col.is_none() {
-                generated_start.clone()
-            } else if single_generated {
-                generated_start
-            } else {
-                None
-            },
-            if y_cols.len() > 1 {
-                Some(y_cols.len())
-            } else if grouped && legend_col.is_none() {
-                generated_count
-            } else if single_generated {
-                Some(1)
-            } else {
-                None
-            },
-            if y_cols.len() > 1 {
-                Some(1.0)
-            } else if grouped && legend_col.is_none() {
-                generated_step
-            } else {
-                None
-            },
-            if y_cols.len() > 1 {
-                "yColumn"
-            } else if grouped {
-                "group"
-            } else if single_generated {
-                "yColumn"
-            } else {
-                "auto"
-            },
+                .cloned()
+                .unwrap_or_else(|| "Y".to_string())
+        },
+        data_start_row_index,
+        x_col,
+        y_cols.clone(),
+        group_size,
+        groups,
+        "V",
+        "A",
+        if y_cols.len() > 1 {
+            String::new()
+        } else if bias_role == "vd" {
+            "Vd".to_string()
+        } else {
+            "Vg".to_string()
+        },
+        if grouped {
+            legend_col.map(|col| (data_start_row_index, col))
+        } else if y_cols.len() > 1 {
+            Some((header_row_index, y_cols[0]))
+        } else {
+            None
+        },
+        if grouped && legend_col.is_none() {
+            generated_start.clone()
+        } else if single_generated {
+            generated_start
+        } else {
+            None
+        },
+        if y_cols.len() > 1 {
+            Some(y_cols.len())
+        } else if grouped && legend_col.is_none() {
+            generated_count
+        } else if single_generated {
+            Some(1)
+        } else {
+            None
+        },
+        if y_cols.len() > 1 {
+            Some(1.0)
+        } else if grouped && legend_col.is_none() {
+            generated_step
+        } else {
+            None
+        },
+        if y_cols.len() > 1 {
+            "yColumn"
+        } else if grouped {
+            "group"
+        } else if single_generated {
+            "yColumn"
+        } else {
+            "auto"
+        },
+    );
+    Ok(with_auto_curve_info(
+        add_auto_blocks_to_config(
+            config,
+            vec![auto_shared_x_block_json(
+                &headers,
+                header_row_index,
+                x_col,
+                &y_cols,
+                x_axis_role,
+            )],
         ),
         &curve_type,
         x_axis_role,
@@ -2233,6 +2459,191 @@ fn process_file(
         "analysisCacheRef": analysis_cache_ref,
         "source": "rust-engine",
     }))
+}
+
+fn process_auto_configured_file(
+    file_id: &str,
+    dataset: &EngineDataset,
+    config: &Value,
+    curve_filter_key: Option<&str>,
+    curve_filter_field: Option<&str>,
+    max_points_raw: Option<usize>,
+    analysis_cache_path: Option<&str>,
+) -> Result<Value, String> {
+    let blocks = config
+        .get("blocks")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    if blocks.len() <= 1 {
+        return process_file(
+            file_id,
+            dataset,
+            config,
+            curve_filter_key,
+            curve_filter_field,
+            max_points_raw,
+            analysis_cache_path,
+        );
+    }
+
+    let mut processed_blocks = Vec::<(usize, Value, Value)>::new();
+    for (block_index, block) in blocks.iter().enumerate() {
+        let mut block_config = config.clone();
+        if let Some(object) = block_config.as_object_mut() {
+            object.remove("blocks");
+            if let Some(value) = block.get("bottomTitle") {
+                object.insert("bottomTitle".to_string(), value.clone());
+            }
+            if let Some(value) = block.get("xCol") {
+                object.insert("xCol".to_string(), value.clone());
+            }
+            if let Some(value) = block.get("yCols") {
+                object.insert("yCols".to_string(), value.clone());
+            }
+            object.insert(
+                "yLegendStartCell".to_string(),
+                block.get("legendStartCell").cloned().unwrap_or(Value::Null),
+            );
+            object.insert(
+                "yLegendTarget".to_string(),
+                block
+                    .get("legendTarget")
+                    .cloned()
+                    .unwrap_or_else(|| json!("auto")),
+            );
+            object.insert(
+                "yLegendStep".to_string(),
+                block.get("legendStep").cloned().unwrap_or(Value::Null),
+            );
+            let legend_count = block
+                .get("yCols")
+                .and_then(Value::as_array)
+                .map(|items| items.len());
+            object.insert("yLegendCount".to_string(), json!(legend_count));
+        }
+        let processed = process_file(
+            file_id,
+            dataset,
+            &block_config,
+            curve_filter_key,
+            curve_filter_field,
+            max_points_raw,
+            None,
+        )?;
+        processed_blocks.push((block_index, block.clone(), processed));
+    }
+
+    let mut merged = processed_blocks
+        .first()
+        .map(|(_, _, processed)| processed.clone())
+        .ok_or_else(|| "auto blocks produced no processed data".to_string())?;
+    let mut x_groups = Vec::<Value>::new();
+    let mut series = Vec::<Value>::new();
+    let mut y_columns = Vec::<Value>::new();
+    let mut y_column_labels = Vec::<Value>::new();
+    let mut min_x = f64::INFINITY;
+    let mut max_x = f64::NEG_INFINITY;
+    let mut min_y = f64::INFINITY;
+    let mut max_y = f64::NEG_INFINITY;
+
+    for (block_index, _, processed) in &processed_blocks {
+        let group_offset = x_groups.len();
+        if let Some(items) = processed.get("xGroups").and_then(Value::as_array) {
+            for item in items {
+                if let Some(values) = item.as_array() {
+                    for value in values.iter().filter_map(Value::as_f64) {
+                        min_x = min_x.min(value);
+                        max_x = max_x.max(value);
+                    }
+                }
+                x_groups.push(item.clone());
+            }
+        }
+        if let Some(items) = processed
+            .get("y")
+            .and_then(|value| value.get("columns"))
+            .and_then(Value::as_array)
+        {
+            y_columns.extend(items.iter().cloned());
+        }
+        if let Some(items) = processed
+            .get("y")
+            .and_then(|value| value.get("columnLabels"))
+            .and_then(Value::as_array)
+        {
+            y_column_labels.extend(items.iter().cloned());
+        }
+        if let Some(items) = processed.get("series").and_then(Value::as_array) {
+            for item in items {
+                let mut next = item.clone();
+                if let Some(object) = next.as_object_mut() {
+                    let group_index = object
+                        .get("groupIndex")
+                        .and_then(Value::as_u64)
+                        .unwrap_or(0) as usize;
+                    object.insert("groupIndex".to_string(), json!(group_index + group_offset));
+                    object.insert("blockIndex".to_string(), json!(block_index));
+                    if let Some(id) = object.get("id").and_then(Value::as_str) {
+                        object.insert(
+                            "id".to_string(),
+                            json!(format!("{}_block{}", id, block_index)),
+                        );
+                    }
+                    if let Some(name) = object.get("name").and_then(Value::as_str) {
+                        object.insert(
+                            "name".to_string(),
+                            json!(format!("{} [block {}]", name, block_index + 1)),
+                        );
+                    }
+                    if let Some(values) = object.get("y").and_then(Value::as_array) {
+                        for value in values.iter().filter_map(Value::as_f64) {
+                            min_y = min_y.min(value);
+                            max_y = max_y.max(value);
+                        }
+                    }
+                }
+                series.push(next);
+            }
+        }
+    }
+
+    if let Some(object) = merged.as_object_mut() {
+        object.insert(
+            "autoBlocks".to_string(),
+            json!(
+                processed_blocks
+                    .iter()
+                    .map(|(_, block, _)| block)
+                    .collect::<Vec<_>>()
+            ),
+        );
+        object.insert("legend".to_string(), Value::Null);
+        object.insert("xGroups".to_string(), json!(x_groups));
+        object.insert("series".to_string(), json!(series));
+        object.insert(
+            "y".to_string(),
+            json!({
+                "columns": y_columns,
+                "columnLabels": y_column_labels,
+            }),
+        );
+        object.insert(
+            "domain".to_string(),
+            json!({
+                "x": pad_domain(min_x, max_x),
+                "y": pad_domain(min_y, max_y),
+            }),
+        );
+        object.insert("analysisCache".to_string(), Value::Null);
+        object.insert("analysisCacheRef".to_string(), Value::Null);
+    }
+
+    if analysis_cache_path.is_some() {
+        // The merged block result intentionally skips writing a partial per-block
+        // analysis cache; chart analysis can be rebuilt from the merged series.
+    }
+    Ok(merged)
 }
 
 fn resolve_export_group_shape(
@@ -3207,7 +3618,7 @@ fn handle_request(
                 .get(file_id)
                 .ok_or_else(|| "file is not open in engine".to_string())?;
             let config = infer_auto_worker_config(dataset, request.total_row_count)?;
-            let mut processed = process_file(
+            let mut processed = process_auto_configured_file(
                 file_id,
                 dataset,
                 &config,
