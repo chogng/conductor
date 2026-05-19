@@ -1,4 +1,4 @@
-上游1：C:\Users\lanxi\Desktop\code
+上游1：C:\Users\lanxi\Desktop\vscode
 上游2：C:\Users\lanxi\Desktop\codex
 测试数据：C:\Users\lanxi\Desktop\293K
 
@@ -14,3 +14,5 @@ PowerShell 规则：
 - 导入项目内文件时优先使用从 `src/` 开始的完整路径，例如 `src/cs/base/browser/ui/Button/Button`；不要使用多层 `../../../` 形式。
 - UI 组件的样式优先跟随上游的 CSS-first 思路：结构只表达语义和必要交互，纯视觉层级、装饰、状态呈现优先放进 CSS，用类名、属性选择器、伪元素等承接。
 - 不为了样式效果手写额外 DOM；确实需要 DOM 的场景必须是语义、可访问性、交互或测量布局需要。
+
+新功能不要再去写tsx，直接写ts

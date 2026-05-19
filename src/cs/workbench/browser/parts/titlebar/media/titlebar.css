@@ -4,6 +4,10 @@
     -webkit-app-region: drag;
   }
 
+  .workbench_titlebar_part {
+    display: contents;
+  }
+
   .dark .da_top_menu_bar {
     @apply bg-bg-page;
   }
@@ -51,6 +55,17 @@
   .da_top_menu_center_file_select .input_field[data-state="enable"]:hover,
   .da_top_menu_center_file_select .input_field[data-state="enable"]:focus-within {
     @apply bg-bg-200/50 text-text-primary;
+  }
+
+  .da_top_menu_file_select_native {
+    @apply h-7 max-w-[36rem] rounded-lg border border-transparent bg-transparent px-2 text-sm text-text-primary outline-none transition-colors;
+    width: fit-content;
+    -webkit-app-region: no-drag;
+  }
+
+  .da_top_menu_file_select_native:hover,
+  .da_top_menu_file_select_native:focus {
+    @apply bg-bg-200/50;
   }
 
   .da_window_controls {

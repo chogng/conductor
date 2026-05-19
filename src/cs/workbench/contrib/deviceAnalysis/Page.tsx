@@ -7,19 +7,24 @@ import {
   Suspense,
   type CSSProperties,
 } from "react";
+import originIcon from "src/assets/icons/origin.svg";
 import ScrollArea from "src/cs/base/browser/ui/ScrollArea/ScrollArea";
 import Toast from "src/cs/base/browser/ui/Toast/Toast";
+import type { WorkbenchTitlebarPageAction } from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
 import type { TranslationVars } from "src/cs/platform/language/common/language";
 import { loadAnalysisCharts } from "src/cs/workbench/contrib/deviceAnalysis/analysis/loadAnalysisCharts";
 import { getExtractionErrorMessage } from "src/cs/workbench/contrib/deviceAnalysis/shared/lib/utils";
 import DataPanel from "src/cs/workbench/contrib/deviceAnalysis/data/DataPanel";
 import type { CsvImporterRef } from "src/cs/workbench/contrib/deviceAnalysis/data/CsvImporter";
+import {
+  getDeviceAnalysisLayoutState,
+  getViewPaneClassName,
+} from "src/cs/workbench/contrib/deviceAnalysis/layoutPolicy";
 import WorkspaceShell from "src/cs/workbench/contrib/deviceAnalysis/WorkspaceShell";
 import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
 import { useTheme } from "src/cs/workbench/browser/hooks/useTheme";
 import type { ToastType } from "src/cs/workbench/contrib/deviceAnalysis/shared/lib/sharedTypes";
 import { useExports } from "src/cs/workbench/contrib/deviceAnalysis/analysis/useExports";
-import DesktopCommandBar from "src/cs/workbench/contrib/deviceAnalysis/desktop/DesktopCommandBar";
 import { useDesktopShell } from "src/cs/workbench/contrib/deviceAnalysis/desktop/useDesktopShell";
 import {
   createIdleOnboardingState,
@@ -73,6 +78,22 @@ const DeferredPanelFallback = ({ label }: { label: string }) => (
     {label}
   </div>
 );
+
+const createDeviceAnalysisTitlebarPageIcon = (
+  action: WorkbenchTitlebarPageAction,
+): HTMLElement | null => {
+  if (action.id !== "origin") {
+    return null;
+  }
+
+  const icon = document.createElement("img");
+  icon.src = originIcon;
+  icon.alt = "";
+  icon.setAttribute("aria-hidden", "true");
+  icon.className = "h-[14px] w-[14px] opacity-80 dark:invert";
+
+  return icon;
+};
 
 const Page = () => {
   const { t, language, setLanguage } = useLanguage();
@@ -416,16 +437,16 @@ const Page = () => {
   });
   const hadOnboardingSessionDataRef = useRef(hasOnboardingSessionData);
 
-  const isDataPageActive = activePage === "data";
-  const isAnalysisPageActive = activePage === "analysis";
-  const isSettingsPageActive = activePage === "settings";
-  // Defer non-data tab trees until first visit to reduce cold-start mount work.
-  const shouldMountAnalysisPanel = isAnalysisPageActive || hasVisitedAnalysisPage;
-  const shouldMountSettingsPanel =
-    isSettingsPageActive || hasVisitedSettingsPage;
-  const canNavigateBack = pageNavigation.historyIndex > 0;
-  const canNavigateForward =
-    pageNavigation.historyIndex < pageNavigation.history.length - 1;
+  const layoutState = getDeviceAnalysisLayoutState({
+    activeView: activePage,
+    hasVisitedAnalysisView: hasVisitedAnalysisPage,
+    hasVisitedSettingsView: hasVisitedSettingsPage,
+    historyIndex: pageNavigation.historyIndex,
+    historyLength: pageNavigation.history.length,
+  });
+  const dataPane = layoutState.panes.data;
+  const analysisPane = layoutState.panes.analysis;
+  const settingsPane = layoutState.panes.settings;
 
   const handlePageTabSelect = useCallback((nextPage: string) => {
     if (!isPageTab(nextPage)) {
@@ -481,40 +502,41 @@ const Page = () => {
       showDesktopCommandBar={isDesktopChromePreviewEnabled}
       showSkeleton={false}
       style={{ "--sidebar-width": `${sidebarWidth}px` } as CSSProperties}
-      titleBar={
-        isDesktopChromePreviewEnabled ? (
-          <DesktopCommandBar
-            t={t}
-            activePage={activePage}
-            canNavigateBack={canNavigateBack}
-            canNavigateForward={canNavigateForward}
-            onAnalysisIntent={handleAnalysisIntent}
-            onNavigateBack={handleNavigateBack}
-            onNavigateForward={handleNavigateForward}
-            onPageChange={handlePageTabSelect}
-            onOpenOrigin={() => {
-              onboarding.handleOpenOrigin(handleOpenOriginFromTitleBar);
-            }}
-            onOpenSettings={() => handlePageTabSelect("settings")}
-            onMinimizeWindow={handleMinimizeWindow}
-            onToggleMaximizeWindow={handleToggleMaximizeWindow}
-            onCloseWindow={handleCloseWindow}
-            updateAction={{
-              isVisible: autoUpdateStatus.status === "downloaded",
-              isReadyToInstall: autoUpdateStatus.status === "downloaded",
-              version: autoUpdateStatus.version,
-              onClick: () => {
-                void handleInstallDownloadedUpdate();
+      titlebarState={
+        isDesktopChromePreviewEnabled
+          ? {
+              id: "analysis-desktop-command-bar",
+              t,
+              activePage,
+              canNavigateBack: layoutState.canNavigateBack,
+              canNavigateForward: layoutState.canNavigateForward,
+              createPageActionIcon: createDeviceAnalysisTitlebarPageIcon,
+              onAnalysisIntent: handleAnalysisIntent,
+              onNavigateBack: handleNavigateBack,
+              onNavigateForward: handleNavigateForward,
+              onPageChange: handlePageTabSelect,
+              onOpenOrigin: () => {
+                onboarding.handleOpenOrigin(handleOpenOriginFromTitleBar);
               },
-            }}
-            showAnalysisFileSelector={
-              isAnalysisPageActive && analysisFileOptions.length > 0
+              onOpenSettings: () => handlePageTabSelect("settings"),
+              onMinimizeWindow: handleMinimizeWindow,
+              onToggleMaximizeWindow: handleToggleMaximizeWindow,
+              onCloseWindow: handleCloseWindow,
+              updateAction: {
+                isVisible: autoUpdateStatus.status === "downloaded",
+                isReadyToInstall: autoUpdateStatus.status === "downloaded",
+                version: autoUpdateStatus.version,
+                onClick: () => {
+                  void handleInstallDownloadedUpdate();
+                },
+              },
+              showAnalysisFileSelector:
+                analysisPane.isActive && analysisFileOptions.length > 0,
+              analysisFileOptions,
+              analysisActiveFileId,
+              onAnalysisFileChange: handleAnalysisFileChange,
             }
-            analysisFileOptions={analysisFileOptions}
-            analysisActiveFileId={analysisActiveFileId}
-            onAnalysisFileChange={handleAnalysisFileChange}
-          />
-        ) : null
+          : undefined
       }
     >
       <div className="relative flex flex-1 min-h-0 flex-col">
@@ -542,16 +564,12 @@ const Page = () => {
 
       <div className="relative flex-1 min-h-0">
         <section
-          id="analysis-tabpanel-data"
-          role="tabpanel"
-          aria-labelledby="analysis-tab-data"
-          aria-hidden={!isDataPageActive}
-          inert={!isDataPageActive ? true : undefined}
-          className={`absolute inset-0 min-h-0 transition-opacity duration-150 ${
-            isDataPageActive
-              ? "pointer-events-auto opacity-100"
-              : "pointer-events-none opacity-0"
-          }`}
+          id={dataPane.paneId}
+          role="region"
+          aria-labelledby={dataPane.labelledBy}
+          aria-hidden={!dataPane.isActive}
+          inert={!dataPane.isActive ? true : undefined}
+          className={getViewPaneClassName(dataPane.isActive)}
         >
           <ScrollArea
             className="da_page_scroll h-full min-h-0"
@@ -589,19 +607,15 @@ const Page = () => {
         </section>
 
         <section
-          id="analysis-tabpanel-analysis"
-          role="tabpanel"
-          aria-labelledby="analysis-tab-analysis"
-          aria-hidden={!isAnalysisPageActive}
-          inert={!isAnalysisPageActive ? true : undefined}
-          className={`absolute inset-0 min-h-0 transition-opacity duration-150 ${
-            isAnalysisPageActive
-              ? "pointer-events-auto opacity-100"
-              : "pointer-events-none opacity-0"
-          }`}
+          id={analysisPane.paneId}
+          role="region"
+          aria-labelledby={analysisPane.labelledBy}
+          aria-hidden={!analysisPane.isActive}
+          inert={!analysisPane.isActive ? true : undefined}
+          className={getViewPaneClassName(analysisPane.isActive)}
         >
           <div className="da_page_scroll h-full min-h-0 overflow-hidden p-1 pt-0">
-            {shouldMountAnalysisPanel ? (
+            {analysisPane.shouldMount ? (
               <Suspense
                 fallback={<DeferredPanelFallback label={t("da_analysis_loading")} />}
               >
@@ -613,7 +627,7 @@ const Page = () => {
                   onActiveFileIdChange={handleAnalysisFileChange}
                   showFileSelect={!isWindowsDesktopShell}
                   shouldMountCharts={
-                    isAnalysisPageActive || hasVisitedAnalysisPage
+                    analysisPane.isActive || hasVisitedAnalysisPage
                   }
                   setSsDiagnosticsEnabled={setSsDiagnosticsEnabled}
                   setVthDiagnosticsEnabled={setVthDiagnosticsEnabled}
@@ -641,18 +655,14 @@ const Page = () => {
         </section>
 
         <section
-          id="analysis-tabpanel-settings"
-          role="tabpanel"
-          aria-labelledby="analysis-window-settings-btn"
-          aria-hidden={!isSettingsPageActive}
-          inert={!isSettingsPageActive ? true : undefined}
-          className={`absolute inset-0 min-h-0 transition-opacity duration-150 ${
-            isSettingsPageActive
-              ? "pointer-events-auto opacity-100"
-              : "pointer-events-none opacity-0"
-          }`}
+          id={settingsPane.paneId}
+          role="region"
+          aria-labelledby={settingsPane.labelledBy}
+          aria-hidden={!settingsPane.isActive}
+          inert={!settingsPane.isActive ? true : undefined}
+          className={getViewPaneClassName(settingsPane.isActive)}
         >
-          {shouldMountSettingsPanel ? (
+          {settingsPane.shouldMount ? (
             <ScrollArea
               className="da_page_scroll h-full min-h-0"
               viewportClassName="p-1 pt-0"
@@ -674,9 +684,7 @@ const Page = () => {
                   }}
                   analysisSettings={analysisSettings}
                   analysisSettingsLoaded={analysisSettingsLoaded}
-                  handleUpdateAnalysisSettings={
-                    handleUpdateAnalysisSettings
-                  }
+                  handleUpdateAnalysisSettings={handleUpdateAnalysisSettings}
                   isWindowsDesktopShell={isWindowsDesktopShell}
                   language={language}
                   handleLanguageChange={handleLanguageChange}
@@ -685,9 +693,9 @@ const Page = () => {
                   }}
                   mergeAnalysisSettings={mergeAnalysisSettings}
                   theme={theme}
-      handleThemeChange={handleThemeChange}
-      t={tLoose}
-    />
+                  handleThemeChange={handleThemeChange}
+                  t={tLoose}
+                />
               </Suspense>
             </ScrollArea>
           ) : null}

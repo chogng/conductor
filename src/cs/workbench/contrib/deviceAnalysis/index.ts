@@ -10,7 +10,6 @@ export { useSessionActions } from "./session/useSessionActions";
 export { useCoreSettings } from "./settings/useCoreSettings";
 export { useSettings } from "./settings/useSettings";
 export { useResizableSidebar } from "./useResizableSidebar";
-export { default as DesktopCommandBar } from "./desktop/DesktopCommandBar";
 export { default as AnalysisPanel } from "./analysis/AnalysisPanel";
 export { default as DataPanel } from "./data/DataPanel";
 export { default as SettingsPanel } from "./settings/SettingsPanel";

@@ -1,5 +1,9 @@
-import { type CSSProperties, type ReactNode } from "react";
-import { WorkbenchTitlebarSkeleton } from "src/cs/workbench/browser/parts/titlebar/titlebarSkeleton";
+import { useLayoutEffect, useRef, type CSSProperties, type ReactNode } from "react";
+import {
+  WorkbenchTitlebarPart,
+  type WorkbenchTitlebarProps,
+} from "src/cs/workbench/browser/parts/titlebar/WorkbenchTitlebar";
+import { renderWorkbenchTitlebarSkeleton } from "src/cs/workbench/browser/parts/titlebar/titlebarSkeleton";
 import {
   getWorkspaceShellStyle,
   shouldShowDesktopCommandBarByDefault,
@@ -12,7 +16,62 @@ type WorkspaceShellProps = {
   showDesktopCommandBar?: boolean;
   showSkeleton?: boolean;
   style?: CSSProperties;
-  titleBar?: ReactNode;
+  titlebarState?: WorkbenchTitlebarProps;
+};
+
+const WorkbenchTitlebarHost = ({
+  titlebarState,
+}: {
+  titlebarState: WorkbenchTitlebarProps;
+}) => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const titlebarPartRef = useRef<WorkbenchTitlebarPart | null>(null);
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    const titlebarPart = new WorkbenchTitlebarPart(container);
+    titlebarPart.createContentArea();
+    titlebarPartRef.current = titlebarPart;
+
+    return () => {
+      titlebarPartRef.current = null;
+      titlebarPart.dispose();
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    const titlebarPart = titlebarPartRef.current;
+
+    if (!titlebarPart) {
+      return;
+    }
+
+    titlebarPart.update(titlebarState);
+    titlebarPart.layout();
+  }, [titlebarState]);
+
+  return <div ref={containerRef} style={{ display: "contents" }} />;
+};
+
+const WorkbenchTitlebarSkeletonHost = () => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    return renderWorkbenchTitlebarSkeleton(container);
+  }, []);
+
+  return <div ref={containerRef} style={{ display: "contents" }} />;
 };
 
 const WorkspaceShell = ({
@@ -22,7 +81,7 @@ const WorkspaceShell = ({
   showDesktopCommandBar = shouldShowDesktopCommandBarByDefault,
   showSkeleton = true,
   style,
-  titleBar,
+  titlebarState,
 }: WorkspaceShellProps) => {
   const resolvedStyle = getWorkspaceShellStyle(style);
 
@@ -32,7 +91,13 @@ const WorkspaceShell = ({
       className={`flex h-full min-h-screen flex-col overflow-hidden bg-bg-page ${className}`.trim()}
       style={resolvedStyle}
     >
-      {showDesktopCommandBar ? titleBar ?? <WorkbenchTitlebarSkeleton /> : null}
+      {showDesktopCommandBar ? (
+        titlebarState ? (
+          <WorkbenchTitlebarHost titlebarState={titlebarState} />
+        ) : (
+          <WorkbenchTitlebarSkeletonHost />
+        )
+      ) : null}
 
       <div className="relative flex-1 min-h-0">
         {showSkeleton ? (
