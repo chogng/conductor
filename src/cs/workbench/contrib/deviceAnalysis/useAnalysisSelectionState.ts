@@ -10,7 +10,7 @@ import {
 import { getAnalysisFileOptions } from "src/cs/workbench/contrib/deviceAnalysis/pageState";
 import type { IonIoffManualTargetsByFileId } from "src/cs/workbench/contrib/deviceAnalysis/session/analysis-session-context";
 import type { AnalysisSettings } from "src/cs/workbench/contrib/deviceAnalysis/settings/settingsShared";
-import type { ProcessedEntry } from "src/cs/workbench/contrib/deviceAnalysis/shared/lib/sharedTypes";
+import type { ProcessedEntry } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 
 type UseAnalysisSelectionStateParams = {
   analysisSettings: AnalysisSettings | null;

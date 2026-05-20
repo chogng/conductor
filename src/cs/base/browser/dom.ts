@@ -144,7 +144,7 @@ class DomListener implements IDisposable {
         this.node.addEventListener(this.type, this.handler, this.options);
     }
 
-    public dispose(): void {
+    public dispose = (): void => {
         if (this.disposed) {
             return;
         }
@@ -153,7 +153,7 @@ class DomListener implements IDisposable {
         this.node.removeEventListener(this.type, this.handler, this.options);
         this.node = undefined as unknown as EventTarget;
         this.handler = undefined as unknown as EventListener;
-    }
+    };
 }
 
 export function addDisposableListener<K extends keyof WindowEventMap>(

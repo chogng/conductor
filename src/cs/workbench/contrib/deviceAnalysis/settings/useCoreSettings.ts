@@ -4,12 +4,12 @@ import type { ThemeMode } from "src/cs/workbench/common/theme";
 import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
   normalizeOriginPlotOptions,
-} from "../analysis/lib/origin/originPlotOptions";
+} from "src/cs/workbench/contrib/chartPreview/lib/origin/originPlotOptions";
 import type {
   IonIoffMethod,
   SsMethod,
-} from "../session/analysis-session-context";
-import type { LooseTranslateFn as TranslateFn } from "../shared/lib/translateTypes";
+} from "src/cs/workbench/contrib/deviceAnalysis/session/analysis-session-context";
+import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/deviceAnalysis/translateTypes";
 import {
   getSettings,
   updateSettings,

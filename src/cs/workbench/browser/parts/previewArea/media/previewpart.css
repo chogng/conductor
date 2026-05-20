@@ -1,0 +1,87 @@
+.workbench_preview_area_part {
+  @apply flex h-full min-h-0 min-w-0 flex-col;
+}
+
+.workbench_preview_area_part[aria-busy="true"] {
+  @apply cursor-progress;
+}
+
+.workbench_preview_area_header {
+  @apply flex shrink-0 items-start justify-between gap-3 pb-3;
+}
+
+.workbench_preview_area_header--actions-only {
+  @apply pb-2;
+}
+
+.workbench_preview_area_header_main {
+  @apply flex min-w-0 flex-1 items-center gap-2;
+}
+
+.workbench_preview_area_header_actions {
+  @apply flex items-center gap-2;
+}
+
+.workbench_preview_area_header--actions-only .workbench_preview_area_header_actions {
+  @apply w-full;
+}
+
+.workbench_preview_area_header_btn,
+.workbench_preview_area_header_icon_btn {
+  @apply shrink-0;
+}
+
+.workbench_preview_area_title {
+  @apply text-sm font-semibold text-text-primary;
+}
+
+.workbench_preview_area_description {
+  @apply text-xs text-text-secondary;
+}
+
+.workbench_preview_area_action {
+  @apply inline-flex items-center justify-between gap-2 rounded-xl border border-transparent px-3 py-2 text-sm text-text-secondary transition-colors;
+  background: transparent;
+}
+
+.workbench_preview_area_action:hover {
+  @apply bg-bg-200/50 text-text-primary;
+}
+
+.workbench_preview_area_action--active {
+  @apply bg-bg-200/60 text-text-primary;
+}
+
+.workbench_preview_area_action--danger:hover {
+  @apply text-text-danger;
+}
+
+.workbench_preview_area_badge {
+  @apply inline-flex min-w-[1.5rem] items-center justify-center rounded-full px-1.5 py-0.5 text-[11px] font-medium;
+  background: rgb(var(--bg-200) / 0.8);
+  color: rgb(var(--text-secondary));
+}
+
+.workbench_preview_area_badge[data-tone="accent"] {
+  background: rgb(var(--accent) / 0.16);
+  color: rgb(var(--accent));
+}
+
+.workbench_preview_area_badge[data-tone="success"] {
+  background: rgb(var(--status-approved-rgb) / 0.16);
+  color: rgb(var(--status-approved-rgb));
+}
+
+.workbench_preview_area_badge[data-tone="warning"] {
+  background: rgb(var(--status-pending-rgb) / 0.16);
+  color: rgb(var(--status-pending-rgb));
+}
+
+.workbench_preview_area_badge[data-tone="danger"] {
+  background: rgb(var(--status-rejected-rgb) / 0.16);
+  color: rgb(var(--status-rejected-rgb));
+}
+
+.workbench_preview_area_content {
+  @apply flex min-h-0 min-w-0 flex-1 flex-col;
+}

@@ -12,7 +12,7 @@ import type {
   ProcessedEntry,
   ProcessingStatus,
   RawDataEntry,
-} from "../shared/lib/sharedTypes";
+} from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 
 type UseSessionActionsOptions = {
   clearPreviewState: (options?: { clearSelection?: boolean }) => void;

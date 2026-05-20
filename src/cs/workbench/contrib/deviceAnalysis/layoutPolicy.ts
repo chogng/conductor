@@ -1,18 +1,18 @@
 import {
-  DEVICE_ANALYSIS_VIEW_PANES,
-  type DeviceAnalysisLayoutView,
-  type DeviceAnalysisViewPaneDefinition,
+  VIEW_PANES,
+  type LayoutView,
+  type ViewPaneDefinition,
 } from "src/cs/workbench/contrib/deviceAnalysis/layout";
 
-export type DeviceAnalysisLayoutStateInput = {
-  activeView: DeviceAnalysisLayoutView;
+export type LayoutStateInput = {
+  activeView: LayoutView;
   hasVisitedAnalysisView: boolean;
   hasVisitedSettingsView: boolean;
   historyIndex: number;
   historyLength: number;
 };
 
-export type DeviceAnalysisViewPaneState = DeviceAnalysisViewPaneDefinition & {
+export type ViewPaneState = ViewPaneDefinition & {
   isActive: boolean;
   shouldMount: boolean;
 };
@@ -24,13 +24,13 @@ export const getViewPaneClassName = (isActive: boolean): string =>
       : "pointer-events-none opacity-0"
   }`;
 
-export const getDeviceAnalysisLayoutState = ({
+export const getLayoutState = ({
   activeView,
   hasVisitedAnalysisView,
   hasVisitedSettingsView,
   historyIndex,
   historyLength,
-}: DeviceAnalysisLayoutStateInput) => {
+}: LayoutStateInput) => {
   const isDataActive = activeView === "data";
   const isAnalysisActive = activeView === "analysis";
   const isSettingsActive = activeView === "settings";
@@ -41,17 +41,17 @@ export const getDeviceAnalysisLayoutState = ({
     canNavigateForward: historyIndex < historyLength - 1,
     panes: {
       data: {
-        ...DEVICE_ANALYSIS_VIEW_PANES.data,
+        ...VIEW_PANES.data,
         isActive: isDataActive,
         shouldMount: true,
       },
       analysis: {
-        ...DEVICE_ANALYSIS_VIEW_PANES.analysis,
+        ...VIEW_PANES.analysis,
         isActive: isAnalysisActive,
         shouldMount: isAnalysisActive || hasVisitedAnalysisView,
       },
       settings: {
-        ...DEVICE_ANALYSIS_VIEW_PANES.settings,
+        ...VIEW_PANES.settings,
         isActive: isSettingsActive,
         shouldMount: isSettingsActive || hasVisitedSettingsView,
       },

@@ -8,12 +8,12 @@ import {
   logPerf,
   startPerf,
   summarizeProcessedFile,
-} from "../shared/lib/perf";
+} from "src/cs/workbench/common/deviceAnalysis/perf";
 import type {
   ProcessedEntry,
   ProcessingStatus,
-} from "../shared/lib/sharedTypes";
-import { loadConvertedCsvFile } from "./importWorkerClient";
+} from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
+import { loadConvertedCsvFile } from "src/cs/workbench/contrib/dataImport/importWorkerClient";
 
 // Owns asynchronous execution for device-analysis processing jobs.
 // This module handles worker lifetime, queue draining, progress updates, cancellation,

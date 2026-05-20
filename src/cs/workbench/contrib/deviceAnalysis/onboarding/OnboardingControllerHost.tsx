@@ -1,8 +1,8 @@
 import { useEffect } from "react";
 import type {
   TemplateConfig,
-} from "../session/analysis-session-context";
-import type { ProcessedEntry, RawDataEntry } from "../shared/lib/sharedTypes";
+} from "src/cs/workbench/contrib/deviceAnalysis/session/analysis-session-context";
+import type { ProcessedEntry, RawDataEntry } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import { useOnboarding } from "./useOnboarding";
 import { loadOnboarding } from "./loadOnboarding";
 

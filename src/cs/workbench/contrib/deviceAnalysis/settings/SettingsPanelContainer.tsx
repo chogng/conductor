@@ -2,7 +2,7 @@ import SettingsPanel from "./SettingsPanel";
 import { useSettings } from "./useSettings";
 import type { LanguageCode } from "src/cs/platform/language/common/language";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
-import type { LooseTranslateFn } from "../shared/lib/translateTypes";
+import type { LooseTranslateFn } from "src/cs/workbench/common/deviceAnalysis/translateTypes";
 import type {
   AppUpdateSettings,
   OnboardingSettings,

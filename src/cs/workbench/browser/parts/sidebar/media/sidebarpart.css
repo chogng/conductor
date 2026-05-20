@@ -95,39 +95,5 @@
 }
 
 .workbench_sidebar_sash {
-  @apply absolute top-0 bottom-0 z-50 w-[10px] cursor-col-resize;
   right: -7px;
-}
-
-.workbench_sidebar_sash_track {
-  @apply absolute left-1/2 top-4 bottom-4 w-[2px] -translate-x-1/2 rounded-full transition-all duration-300;
-  background: rgb(var(--accent) / 0);
-}
-
-.workbench_sidebar_sash_handle {
-  @apply absolute left-1/2 top-1/2 h-[24px] w-[4px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent opacity-0 transition-all duration-300;
-  transform-origin: center;
-  scale: 1 0.5;
-}
-
-.workbench_sidebar_part:hover .workbench_sidebar_sash_track,
-.workbench_sidebar_sash:hover .workbench_sidebar_sash_track {
-  background: rgb(var(--accent) / 0.3);
-  box-shadow: 0 0 12px rgb(var(--accent) / 0.5);
-}
-
-.workbench_sidebar_part:hover .workbench_sidebar_sash_handle,
-.workbench_sidebar_sash:hover .workbench_sidebar_sash_handle {
-  opacity: 1;
-  scale: 1 1;
-}
-
-.workbench_sidebar_part[data-resizing="true"] .workbench_sidebar_sash_track {
-  background: rgb(var(--accent) / 0.6);
-  box-shadow: 0 0 16px rgb(var(--accent) / 0.6);
-}
-
-.workbench_sidebar_part[data-resizing="true"] .workbench_sidebar_sash_handle {
-  opacity: 1;
-  scale: 1 1.25;
 }

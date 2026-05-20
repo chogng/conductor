@@ -1,5 +1,5 @@
 import type { MutableRefObject } from "react";
-import type { CsvImporterRef } from "src/cs/workbench/contrib/deviceAnalysis/data/CsvImporter";
+import type { CsvImporterRef } from "src/cs/workbench/contrib/dataImport/CsvImporter";
 import type { OnboardingStep } from "src/cs/workbench/contrib/deviceAnalysis/onboarding/onboardingTypes";
 
 export type PageTab = "data" | "analysis" | "settings";

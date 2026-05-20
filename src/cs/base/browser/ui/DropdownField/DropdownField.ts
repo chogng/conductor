@@ -401,7 +401,7 @@ const DropdownField = ({ options = [], value, onChange, placeholder, title, disa
                 fieldClassName: cx("input_field", sizeClass, hideChevron ? "pr-2" : "pr-1"),
                 className: cx("input_native no-focus-outline p-0 text-left cursor-pointer select-none", hideChevron ? "pr-0" : "pr-6", triggerClassName),
                 hideIndicator: hideChevron,
-                indicatorClassName: "absolute right-1 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none",
+                indicatorClassName: "absolute right-2 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none",
                 indicator: jsx(CogIcon, {
                     icon: lxChevronDown,
                     size: chevronIconSizePx,

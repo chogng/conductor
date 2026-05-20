@@ -5,25 +5,23 @@ import {
   useRef,
   useState,
   Suspense,
-  type CSSProperties,
 } from "react";
 import ScrollArea from "src/cs/base/browser/ui/ScrollArea/ScrollArea";
 import Toast from "src/cs/base/browser/ui/Toast/Toast";
-import { getWorkbenchSidebarWidthStyle } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import type { TranslationVars } from "src/cs/platform/language/common/language";
-import { loadAnalysisCharts } from "src/cs/workbench/contrib/deviceAnalysis/analysis/loadAnalysisCharts";
-import { getExtractionErrorMessage } from "src/cs/workbench/contrib/deviceAnalysis/shared/lib/utils";
-import DataPanel from "src/cs/workbench/contrib/deviceAnalysis/data/DataPanel";
-import type { CsvImporterRef } from "src/cs/workbench/contrib/deviceAnalysis/data/CsvImporter";
+import { loadAnalysisCharts } from "src/cs/workbench/contrib/chartPreview/loadAnalysisCharts";
+import { getExtractionErrorMessage } from "src/cs/workbench/common/deviceAnalysis/utils";
+import DataPart from "src/cs/workbench/contrib/deviceAnalysis/data/DataPart";
+import type { CsvImporterRef } from "src/cs/workbench/contrib/dataImport/CsvImporter";
 import {
-  getDeviceAnalysisLayoutState,
+  getLayoutState,
   getViewPaneClassName,
 } from "src/cs/workbench/contrib/deviceAnalysis/layoutPolicy";
 import WorkspaceShell from "src/cs/workbench/contrib/deviceAnalysis/WorkspaceShell";
 import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
 import { useTheme } from "src/cs/workbench/browser/hooks/useTheme";
-import type { ToastType } from "src/cs/workbench/contrib/deviceAnalysis/shared/lib/sharedTypes";
-import { useExports } from "src/cs/workbench/contrib/deviceAnalysis/analysis/useExports";
+import type { ToastType } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
+import { useExports } from "src/cs/workbench/contrib/dataExport/useExports";
 import { useDesktopShell } from "src/cs/workbench/contrib/deviceAnalysis/desktop/useDesktopShell";
 import {
   createIdleOnboardingState,
@@ -38,7 +36,7 @@ import {
   type PageNavigationState,
   type ProcessingExtractionError,
 } from "src/cs/workbench/contrib/deviceAnalysis/pageState";
-import { usePreview } from "src/cs/workbench/contrib/deviceAnalysis/data/usePreview";
+import { usePreview } from "src/cs/workbench/contrib/tablePreview/usePreview";
 import { useProcessing } from "src/cs/workbench/contrib/deviceAnalysis/data/useProcessing";
 import { loadOnboarding } from "src/cs/workbench/contrib/deviceAnalysis/onboarding/loadOnboarding";
 import { loadOnboardingController } from "src/cs/workbench/contrib/deviceAnalysis/onboarding/loadOnboardingController";
@@ -47,7 +45,6 @@ import { useOnboardingLauncher } from "src/cs/workbench/contrib/deviceAnalysis/u
 import { useSession } from "src/cs/workbench/contrib/deviceAnalysis/session/useSession";
 import { useSessionActions } from "src/cs/workbench/contrib/deviceAnalysis/session/useSessionActions";
 import { useCoreSettings } from "src/cs/workbench/contrib/deviceAnalysis/settings/useCoreSettings";
-import { useResizableSidebar } from "src/cs/workbench/contrib/deviceAnalysis/useResizableSidebar";
 
 declare global {
   interface Window {
@@ -62,7 +59,7 @@ declare global {
 }
 
 const AnalysisPanel = lazy(
-  () => import("./analysis/AnalysisPanel"),
+  () => import("src/cs/workbench/contrib/chartPreview/AnalysisPanel"),
 );
 const SettingsPanelContainer = lazy(
   () => import("./settings/SettingsPanelContainer"),
@@ -186,7 +183,6 @@ const Page = () => {
     message: "",
     type: "error",
   });
-  const { isResizing, sidebarWidth, startResizing } = useResizableSidebar();
   const activePage = pageNavigation.activePage;
 
   useEffect(() => {
@@ -419,7 +415,7 @@ const Page = () => {
   });
   const hadOnboardingSessionDataRef = useRef(hasOnboardingSessionData);
 
-  const layoutState = getDeviceAnalysisLayoutState({
+  const layoutState = getLayoutState({
     activeView: activePage,
     hasVisitedAnalysisView: hasVisitedAnalysisPage,
     hasVisitedSettingsView: hasVisitedSettingsPage,
@@ -472,14 +468,9 @@ const Page = () => {
   return (
     <WorkspaceShell
       id="analysis-page"
-      className={`relative w-full h-full min-h-0 overflow-hidden ${
-        isResizing ? "cursor-col-resize select-none" : ""
-      }`}
+      className="relative w-full h-full min-h-0 overflow-hidden"
       showDesktopCommandBar={isDesktopChromePreviewEnabled}
       showSkeleton={false}
-      style={{
-        ...getWorkbenchSidebarWidthStyle(sidebarWidth),
-      } as CSSProperties}
       titlebarState={
         isDesktopChromePreviewEnabled
           ? {
@@ -550,7 +541,7 @@ const Page = () => {
             viewportClassName="p-1 pt-0 !overflow-hidden"
             axis="y"
           >
-            <DataPanel
+            <DataPart
               analysisSettings={analysisSettings}
               ensurePreviewCells={ensurePreviewCells}
               ensurePreviewRows={ensurePreviewRows}
@@ -558,7 +549,6 @@ const Page = () => {
               getPreviewRowsVersion={getPreviewRowsVersion}
               hasSessionData={hasSessionData}
               importerRef={importerRef}
-              isResizing={isResizing}
               onClearSession={handleClearSession}
               onDataImported={handleDataImported}
               onDataRemoved={handleDataRemoved}
@@ -566,7 +556,6 @@ const Page = () => {
                 onboarding.handleImportTrigger();
               }}
               onFileSelected={handlePreviewFileSelected}
-              onStartResizing={startResizing}
               onTemplateApplied={handleTemplateApplied}
               onTemplateAppliedIncremental={handleTemplateAppliedIncremental}
               onUpdateSettings={handleUpdateAnalysisSettings}

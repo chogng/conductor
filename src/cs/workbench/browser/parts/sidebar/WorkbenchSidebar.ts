@@ -1,6 +1,7 @@
 import { jsx, jsxs } from "react/jsx-runtime";
-import { type CSSProperties, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
+import { type CSSProperties, type ReactNode } from "react";
 import Button from "src/cs/base/browser/ui/Button/Button";
+import Sash, { type SashDragEvent } from "src/cs/base/browser/ui/sash/sash";
 import {
   getWorkbenchSidebarActionClassName,
   normalizeWorkbenchSidebarHeaderActions,
@@ -19,7 +20,7 @@ export type WorkbenchSidebarProps = WorkbenchSidebarPartState & {
   ariaLabel?: string;
   children?: ReactNode;
   onAction?: WorkbenchSidebarActionHandler;
-  onStartResizing?: (event: ReactMouseEvent<HTMLDivElement>) => void;
+  onStartResizing?: (event: SashDragEvent) => void;
   style?: CSSProperties;
 };
 
@@ -225,17 +226,11 @@ const WorkbenchSidebar = ({
       ),
       children,
       onStartResizing
-        ? jsxs("div", {
+        ? jsx(Sash, {
             className: "workbench_sidebar_sash",
-            onMouseDown: onStartResizing,
-            children: [
-              jsx("div", {
-                className: "workbench_sidebar_sash_track",
-              }),
-              jsx("div", {
-                className: "workbench_sidebar_sash_handle",
-              }),
-            ],
+            edge: "right",
+            active: isResizing,
+            onDidStart: onStartResizing,
           })
         : null,
     ],

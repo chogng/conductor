@@ -7,23 +7,23 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from "react";
-import { prepareExtraction } from "../shared/lib/extractionValidation";
+import { prepareExtraction } from "src/cs/workbench/contrib/deviceAnalysis/data/extractionValidation";
 import {
   parseOlderExtractionError,
   stableStringify,
-} from "../shared/lib/utils";
+} from "src/cs/workbench/common/deviceAnalysis/utils";
 import {
   matchFileNameAgainstPhrase,
   matchFileNameAgainstPatternTokens,
   normalizeFileNameFieldSeparators,
   splitFileNameMatchInput,
-} from "../shared/lib/fileNameFieldMatching";
+} from "src/cs/workbench/common/deviceAnalysis/fileNameFieldMatching";
 import type {
   ProcessedEntry,
   ProcessingStatus,
   RawDataEntry,
-} from "../shared/lib/sharedTypes";
-import type { LooseTranslateFn as TranslateFn } from "../shared/lib/translateTypes";
+} from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
+import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/deviceAnalysis/translateTypes";
 import {
   startProcessingJob,
   startRuleProcessingJob,

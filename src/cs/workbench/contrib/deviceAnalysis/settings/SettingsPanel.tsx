@@ -4,7 +4,7 @@ import Card from "src/cs/base/browser/ui/Card/Card";
 import DropdownField from "src/cs/base/browser/ui/DropdownField/DropdownField";
 import Input from "src/cs/base/browser/ui/Input/Input";
 import Toast from "src/cs/base/browser/ui/Toast/Toast";
-import type { Feedback } from "src/cs/workbench/contrib/deviceAnalysis/shared/lib/sharedTypes";
+import type { Feedback } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import { AboutSettingsSection } from "src/cs/workbench/contrib/deviceAnalysis/settings/AboutSettingsSection";
 import { GeneralSettingsSection } from "src/cs/workbench/contrib/deviceAnalysis/settings/GeneralSettingsSection";
 import { OriginSettingsSection } from "src/cs/workbench/contrib/deviceAnalysis/settings/OriginSettingsSection";

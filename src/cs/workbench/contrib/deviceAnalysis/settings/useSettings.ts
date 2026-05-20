@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { formatOriginBridgeError } from "../analysis/lib/origin/originBridgeError";
-import { apiService } from "../analysis/services/apiService";
+import { formatOriginBridgeError } from "src/cs/workbench/contrib/chartPreview/lib/origin/originBridgeError";
+import { apiService } from "src/cs/workbench/contrib/chartPreview/services/apiService";
 import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
   normalizeOriginPlotOptions,
   normalizeOriginPostCommands,
   originPostCommandsToMultiline,
-} from "../analysis/lib/origin/originPlotOptions";
-import { normalizePlotAxisSettings } from "../analysis/lib/plotAxisSettings";
-import type { Feedback } from "../shared/lib/sharedTypes";
-import type { LooseTranslateFn as TranslateFn } from "../shared/lib/translateTypes";
+} from "src/cs/workbench/contrib/chartPreview/lib/origin/originPlotOptions";
+import { normalizePlotAxisSettings } from "src/cs/workbench/contrib/chartPreview/lib/plotAxisSettings";
+import type { Feedback } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
+import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/deviceAnalysis/translateTypes";
 import {
   getDesktopOriginBridge,
   getErrorMessage,
@@ -23,7 +23,7 @@ import {
 } from "./settingsShared";
 import {
   normalizeFileNameFieldSeparators,
-} from "../shared/lib/fileNameFieldMatching";
+} from "src/cs/workbench/common/deviceAnalysis/fileNameFieldMatching";
 
 type UseSettingsOptions = {
   analysisSettings: AnalysisSettings | null;

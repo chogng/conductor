@@ -1,0 +1,23 @@
+.ui-grid-view {
+  @apply grid h-full w-full min-h-0 min-w-0;
+}
+
+.ui-grid-view[data-orientation="horizontal"] {
+  grid-auto-flow: column;
+}
+
+.ui-grid-view[data-orientation="vertical"] {
+  grid-auto-flow: row;
+}
+
+.ui-grid-view__item {
+  @apply relative min-h-0 min-w-0 overflow-hidden;
+}
+
+.ui-grid-view[data-orientation="horizontal"] .ui-grid-view__item {
+  @apply h-full;
+}
+
+.ui-grid-view[data-orientation="vertical"] .ui-grid-view__item {
+  @apply w-full;
+}

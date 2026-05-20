@@ -1,12 +1,12 @@
 import type { LanguageCode } from "src/cs/platform/language/common/language";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
-import type { Feedback } from "../shared/lib/sharedTypes";
-import type { LooseTranslateFn as TranslateFn } from "../shared/lib/translateTypes";
+import type { Feedback } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
+import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/deviceAnalysis/translateTypes";
 import type {
   IonIoffManualTargetsByFileId,
   IonIoffMethod,
   SsMethod,
-} from "../session/analysis-session-context";
+} from "src/cs/workbench/contrib/deviceAnalysis/session/analysis-session-context";
 
 export type AnalysisSettings = {
   fileNameFieldSeparators?: string;

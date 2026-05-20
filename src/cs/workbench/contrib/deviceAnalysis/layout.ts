@@ -1,20 +1,17 @@
-export const DEFAULT_SIDEBAR_WIDTH_PX = 280;
-export const MIN_DEVICE_ANALYSIS_SIDEBAR_WIDTH_PX = 200;
-export const MAX_DEVICE_ANALYSIS_SIDEBAR_WIDTH_PX = 600;
-export const DEVICE_ANALYSIS_TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX = 250;
+export const SIDEBAR_DEFAULT_WIDTH_PX = 280;
+export const SIDEBAR_MIN_WIDTH_PX = 235;
+export const SIDEBAR_MAX_WIDTH_PX = 600;
+export const TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX = 250;
 
-export type DeviceAnalysisLayoutView = "data" | "analysis" | "settings";
+export type LayoutView = "data" | "analysis" | "settings";
 
-export type DeviceAnalysisViewPaneDefinition = {
+export type ViewPaneDefinition = {
   labelledBy: string;
   paneId: string;
-  view: DeviceAnalysisLayoutView;
+  view: LayoutView;
 };
 
-export const DEVICE_ANALYSIS_VIEW_PANES: Record<
-  DeviceAnalysisLayoutView,
-  DeviceAnalysisViewPaneDefinition
-> = {
+export const VIEW_PANES: Record<LayoutView, ViewPaneDefinition> = {
   data: {
     labelledBy: "analysis-tab-data",
     paneId: "analysis-viewpane-data",

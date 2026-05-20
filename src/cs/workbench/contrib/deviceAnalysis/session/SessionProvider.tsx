@@ -15,7 +15,7 @@ import type {
   PreviewRowsRequest,
   ProcessedEntry,
   RawDataEntry,
-} from "../shared/lib/sharedTypes";
+} from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 
 type SessionProviderProps = {
   children: ReactNode;

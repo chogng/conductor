@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ToastState } from "src/cs/workbench/contrib/deviceAnalysis/shared/lib/sharedTypes";
+import type { ToastState } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import type {
   AnalysisDefaultSettings,
   AppUpdateSettings,

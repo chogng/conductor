@@ -1,6 +1,6 @@
 import type { LanguageCode, TranslateFn } from "src/cs/platform/language/common/language";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
-import type { Feedback } from "src/cs/workbench/contrib/deviceAnalysis/shared/lib/sharedTypes";
+import type { Feedback } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 
 export type OriginSettings = {
   currentPath: string;
