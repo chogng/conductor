@@ -1,29 +1,25 @@
-import { jsx } from "react/jsx-runtime";
-import {
-  useEffect,
-  useRef,
-  useState,
-  type MutableRefObject,
-} from "react";
-import Card from "cs/base/browser/ui/Card/Card";
+import { normalizeCogIconSvgMarkup } from "src/cs/base/browser/ui/CogIcon/cogicon";
+import type { IDisposable } from "src/cs/base/common/lifecycle";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
-import SidebarPart, {
-  type SidebarPartProps,
-} from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
-import ImporterView, {
-  type ImporterRef,
-  type ImporterViewProps,
-} from "src/cs/workbench/contrib/import/browser/importerView";
 import {
   createImporterHeaderActions,
   importerClearSessionActionId,
   importerImportActionId,
+  type ImporterHeaderAction,
 } from "src/cs/workbench/contrib/import/browser/importerActions";
+import {
+  ImporterViewController,
+  type ImporterRef,
+  type ImporterViewProps,
+} from "src/cs/workbench/contrib/import/browser/importerView";
 import "src/cs/workbench/contrib/import/browser/media/importerViewlet.css";
+import "src/cs/workbench/browser/parts/sidebar/media/sidebarpart.css";
+import "src/cs/base/browser/ui/Button/button.css";
+import { normalizeCtaName, normalizeCtaToken } from "src/utils/cta";
 
 export type ImporterViewletProps = {
   readonly hasSessionData: boolean;
-  readonly importerRef: MutableRefObject<ImporterRef | null>;
+  readonly importerRef: { current: ImporterRef | null };
   readonly onClearSession?: () => void;
   readonly onDataImported?: ImporterViewProps["onDataImported"];
   readonly onDataRemoved?: ImporterViewProps["onDataRemoved"];
@@ -34,101 +30,190 @@ export type ImporterViewletProps = {
   readonly t: TranslateFn;
 };
 
-const ImporterViewlet = ({
-  hasSessionData,
-  importerRef,
-  onClearSession,
-  onDataImported,
-  onDataRemoved,
-  onFileSelected,
-  onImportTrigger,
-  rawData = [],
-  selectedPreviewFileId,
-  t,
-}: ImporterViewletProps) => {
-  const [pendingImporterOpen, setPendingImporterOpen] = useState(false);
-  const fallbackImporterHandleRef = useRef<ImporterRef>({
-    openFileDialog: () => {
-      setPendingImporterOpen(true);
-    },
-    get hasFiles() {
-      return false;
-    },
-  });
+export class ImporterViewletView implements IDisposable {
+  private readonly host: HTMLElement;
+  private readonly root: HTMLDivElement;
+  private readonly headerActionsRoot: HTMLDivElement;
+  private readonly cardRoot: HTMLDivElement;
+  private readonly importerHost: HTMLDivElement;
+  private readonly importerView: ImporterViewController;
+  private props: ImporterViewletProps;
+  private disposed = false;
 
-  useEffect(() => {
-    Object.defineProperty(fallbackImporterHandleRef.current, "hasFiles", {
-      configurable: true,
-      enumerable: true,
-      get: () => rawData.length > 0,
+  constructor(host: HTMLElement, props: ImporterViewletProps) {
+    this.host = host;
+    this.props = props;
+
+    this.root = document.createElement("div");
+    this.root.className = "workbench_sidebar_part";
+    this.root.setAttribute("aria-label", props.t("da_import_section"));
+
+    const header = document.createElement("header");
+    header.className =
+      "workbench_sidebar_header workbench_sidebar_header--actions-only";
+    this.headerActionsRoot = document.createElement("div");
+    this.headerActionsRoot.className = "workbench_sidebar_header_actions";
+    header.appendChild(this.headerActionsRoot);
+
+    const section = document.createElement("section");
+    section.className = "flex-1 flex flex-col min-h-0";
+
+    this.cardRoot = document.createElement("div");
+    this.cardRoot.id = "analysis-import-card";
+    this.cardRoot.className = "card card--flat p-0 flex flex-col flex-1 min-h-0";
+    this.cardRoot.dataset.cta = normalizeCtaName("Device analysis") ?? "";
+    this.cardRoot.dataset.ctaPosition =
+      normalizeCtaToken("data-import") ?? "";
+    this.cardRoot.dataset.ctaCopy = normalizeCtaToken("csv importer") ?? "";
+
+    this.importerHost = document.createElement("div");
+    this.importerHost.className = "flex flex-col flex-1 min-h-0";
+    this.cardRoot.appendChild(this.importerHost);
+    section.appendChild(this.cardRoot);
+    this.root.append(header, section);
+    this.host.appendChild(this.root);
+
+    this.importerView = new ImporterViewController(this.importerHost, {
+      files: props.rawData,
+      onDataImported: props.onDataImported,
+      onDataRemoved: props.onDataRemoved,
+      onFileSelected: props.onFileSelected,
+      selectedFileId: props.selectedPreviewFileId,
+      t: props.t,
     });
 
-    if (importerRef.current === null) {
-      importerRef.current = fallbackImporterHandleRef.current;
-    }
+    props.importerRef.current = this.importerView;
+    this.render();
+  }
 
-    return () => {
-      if (importerRef.current === fallbackImporterHandleRef.current) {
-        importerRef.current = null;
-      }
-    };
-  }, [importerRef, rawData.length]);
+  setProps(nextProps: ImporterViewletProps): void {
+    this.props = nextProps;
+    nextProps.importerRef.current = this.importerView;
+    this.importerView.setProps({
+      files: nextProps.rawData,
+      onDataImported: nextProps.onDataImported,
+      onDataRemoved: nextProps.onDataRemoved,
+      onFileSelected: nextProps.onFileSelected,
+      selectedFileId: nextProps.selectedPreviewFileId,
+      t: nextProps.t,
+    });
+    this.render();
+  }
 
-  useEffect(() => {
-    if (!pendingImporterOpen) return;
-    if (importerRef.current === fallbackImporterHandleRef.current) return;
-    if (!importerRef.current?.openFileDialog) return;
-
-    setPendingImporterOpen(false);
-    importerRef.current.openFileDialog();
-  }, [importerRef, pendingImporterOpen]);
-
-  const headerActions = createImporterHeaderActions({
-    fileCount: rawData.length,
-    hasSessionData,
-    t,
-  });
-
-  const handleSidebarAction: SidebarPartProps["onAction"] = (action) => {
-    if (action.id === importerImportActionId) {
-      if (onImportTrigger) {
-        onImportTrigger();
-        return;
-      }
-
-      importerRef.current?.openFileDialog?.();
+  dispose(): void {
+    if (this.disposed) {
       return;
     }
 
-    if (action.id === importerClearSessionActionId) {
-      onClearSession?.();
+    this.disposed = true;
+    if (this.props.importerRef.current === this.importerView) {
+      this.props.importerRef.current = null;
     }
-  };
+    this.importerView.dispose();
+    this.root.remove();
+  }
 
-  return jsx(SidebarPart, {
-    ariaLabel: t("da_import_section"),
-    headerActions,
-    onAction: handleSidebarAction,
-    children: jsx("section", {
-      className: "flex-1 flex flex-col min-h-0",
-      children: jsx(Card, {
-        id: "analysis-import-card",
-        cta: "Device analysis",
-        ctaPosition: "data-import",
-        ctaCopy: "csv importer",
-        variant: "flat",
-        className: "p-0 flex flex-col flex-1 min-h-0",
-        children: jsx(ImporterView, {
-          ref: importerRef,
-          files: rawData,
-          onDataImported,
-          onDataRemoved,
-          onFileSelected,
-          selectedFileId: selectedPreviewFileId,
-        }),
-      }),
-    }),
-  });
-};
+  private render(): void {
+    if (this.disposed) {
+      return;
+    }
 
-export default ImporterViewlet;
+    this.root.setAttribute("aria-label", this.props.t("da_import_section"));
+    this.renderHeaderActions();
+  }
+
+  private renderHeaderActions(): void {
+    this.headerActionsRoot.replaceChildren();
+
+    const actions = createImporterHeaderActions({
+      fileCount: this.props.rawData?.length ?? 0,
+      hasSessionData: this.props.hasSessionData,
+      t: this.props.t,
+    });
+
+    for (const action of actions) {
+      this.headerActionsRoot.appendChild(this.renderHeaderAction(action));
+    }
+  }
+
+  private renderHeaderAction(action: ImporterHeaderAction): HTMLElement {
+    if (action.kind === "statusBadge") {
+      const badge = document.createElement("span");
+      badge.id = action.id;
+      badge.className = "workbench_sidebar_header_status_badge";
+      badge.setAttribute("role", "status");
+      badge.setAttribute("aria-live", "polite");
+      badge.setAttribute("aria-label", action.title);
+      badge.title = action.title;
+
+      const digits = document.createElement("span");
+      digits.className = "workbench_sidebar_header_status_badge_digits";
+      const digitViewport = document.createElement("span");
+      digitViewport.className = "workbench_sidebar_header_status_badge_digit_viewport";
+      const digit = document.createElement("span");
+      digit.className = "workbench_sidebar_header_status_badge_digit";
+      digit.textContent = action.badgeText ?? "";
+      digitViewport.appendChild(digit);
+      digits.appendChild(digitViewport);
+      badge.appendChild(digits);
+      return badge;
+    }
+
+    const button = document.createElement("button");
+    button.id = action.id;
+    button.type = "button";
+    button.disabled = Boolean(action.isDisabled);
+    button.title = action.title;
+    button.setAttribute("aria-label", action.title);
+
+    if (action.kind === "icon") {
+      button.className =
+        "action-btn action-btn--icon-sm action-btn--ghost workbench_sidebar_header_icon_btn";
+    } else {
+      button.className = `action-btn action-btn--sm ${
+        action.kind === "primary" ? "action-btn--primary" : "action-btn--ghost"
+      } workbench_sidebar_header_btn`;
+      if (action.icon) {
+        button.dataset.icon = "with";
+      }
+    }
+
+    const content = document.createElement("span");
+    content.className = "action-btn__content";
+
+    if (action.icon) {
+      const icon = document.createElement("span");
+      icon.className = "shrink-0";
+      icon.setAttribute("aria-hidden", "true");
+      icon.innerHTML = normalizeCogIconSvgMarkup(action.icon);
+      content.appendChild(icon);
+    }
+
+    if (action.kind !== "icon") {
+      const label = document.createElement("span");
+      label.className = "min-w-0 truncate text-left";
+      label.textContent = action.title;
+      content.appendChild(label);
+    }
+
+    button.appendChild(content);
+    button.addEventListener("click", () => this.handleHeaderAction(action.id));
+    return button;
+  }
+
+  private handleHeaderAction(actionId: string): void {
+    if (actionId === importerImportActionId) {
+      if (this.props.onImportTrigger) {
+        this.props.onImportTrigger();
+        return;
+      }
+
+      this.props.importerRef.current?.openFileDialog?.();
+      return;
+    }
+
+    if (actionId === importerClearSessionActionId) {
+      this.props.onClearSession?.();
+    }
+  }
+}

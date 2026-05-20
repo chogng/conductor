@@ -1,14 +1,5 @@
-import {
-  forwardRef,
-  startTransition,
-  useEffect,
-  useImperativeHandle,
-  useRef,
-} from "react";
-import { jsx } from "react/jsx-runtime";
 import type { ListHandle } from "src/cs/base/browser/ui/list/list";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
-import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
 import { startPerf } from "src/cs/workbench/common/deviceAnalysis/perf";
 import type { ImportedCurveAssessment } from "src/cs/workbench/common/deviceAnalysis/importFileUtils";
 import { collectDroppedImportFiles } from "src/cs/workbench/contrib/import/browser/csvDropTraversal";
@@ -222,9 +213,7 @@ export class ImporterViewController implements ImporterRef, IDisposable {
 
     this.optimisticSelectedFileId = next;
     if (this.props.onFileSelected) {
-      startTransition(() => {
-        this.props.onFileSelected?.(next);
-      });
+      this.props.onFileSelected(next);
     }
     this.syncView();
   };
@@ -237,9 +226,7 @@ export class ImporterViewController implements ImporterRef, IDisposable {
     if (this.optimisticSelectedFileId === fileId) {
       this.optimisticSelectedFileId = null;
       if (this.props.onFileSelected) {
-        startTransition(() => {
-          this.props.onFileSelected?.(null);
-        });
+        this.props.onFileSelected(null);
       }
     }
 
@@ -428,63 +415,3 @@ export class ImporterViewController implements ImporterRef, IDisposable {
     });
   }
 }
-
-const ImporterView = forwardRef<ImporterRef, ImporterViewProps>((props, ref) => {
-  const { t } = useLanguage();
-  const hostRef = useRef<HTMLDivElement | null>(null);
-  const controllerRef = useRef<ImporterViewController | null>(null);
-
-  useImperativeHandle(
-    ref,
-    () => ({
-      openFileDialog: () => controllerRef.current?.openFileDialog(),
-      get hasFiles() {
-        return controllerRef.current?.hasFiles ?? false;
-      },
-    }),
-    [],
-  );
-
-  useEffect(() => {
-    const host = hostRef.current;
-    if (!host) {
-      return;
-    }
-
-    const controller = new ImporterViewController(host, {
-      ...props,
-      t,
-    });
-    controllerRef.current = controller;
-
-    return () => {
-      if (controllerRef.current === controller) {
-        controllerRef.current = null;
-      }
-      controller.dispose();
-    };
-  }, []);
-
-  useEffect(() => {
-    controllerRef.current?.setProps({
-      ...props,
-      t,
-    });
-  }, [
-    props.files,
-    props.onDataImported,
-    props.onDataRemoved,
-    props.onFileSelected,
-    props.selectedFileId,
-    t,
-  ]);
-
-  return jsx("div", {
-    ref: hostRef,
-    className: "flex flex-col flex-1 min-h-0",
-  });
-});
-
-ImporterView.displayName = "ImporterView";
-
-export default ImporterView;
