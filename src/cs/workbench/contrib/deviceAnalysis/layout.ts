@@ -1,3 +1,5 @@
+import { useCallback, useState } from "react";
+
 export const SIDEBAR_DEFAULT_WIDTH_PX = 280;
 export const SIDEBAR_MIN_WIDTH_PX = 235;
 export const SIDEBAR_MAX_WIDTH_PX = 600;
@@ -27,4 +29,22 @@ export const VIEW_PANES: Record<LayoutView, ViewPaneDefinition> = {
     paneId: "analysis-viewpane-settings",
     view: "settings",
   },
+};
+
+export const clampSidebarWidth = (width: number): number =>
+  Math.max(
+    SIDEBAR_MIN_WIDTH_PX,
+    Math.min(SIDEBAR_MAX_WIDTH_PX, Math.round(width)),
+  );
+
+export const useDeviceAnalysisSidebarLayout = () => {
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH_PX);
+  const handleSidebarResize = useCallback((width: number) => {
+    setSidebarWidth(clampSidebarWidth(width));
+  }, []);
+
+  return {
+    handleSidebarResize,
+    sidebarWidth,
+  };
 };

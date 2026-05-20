@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   isExcelDataImportFileName,
   isSupportedDataImportFileName,
-} from "../../contrib/import/importFileConversion.ts";
+} from "./types.ts";
 import {
   assessImportedFile,
 } from "./importFileUtils.ts";

@@ -1,6 +1,8 @@
 import { jsx } from "react/jsx-runtime";
 import type { MutableRefObject } from "react";
-import SplitView from "src/cs/base/browser/ui/splitview/splitview";
+import SplitView, {
+  type SplitViewResizeEvent,
+} from "src/cs/base/browser/ui/splitview/splitview";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import PreviewPart from "src/cs/workbench/browser/parts/previewArea/previewPart";
 import {
@@ -30,6 +32,7 @@ type DataPartProps = {
   readonly onDataRemoved?: CsvImporterProps["onDataRemoved"];
   readonly onFileSelected?: CsvImporterProps["onFileSelected"];
   readonly onImportTrigger?: () => void;
+  readonly onSidebarResize?: (width: number) => void;
   readonly onTemplateApplied?: TemplateManagerProps["onTemplateApplied"];
   readonly onTemplateAppliedIncremental?: TemplateManagerProps["onTemplateAppliedIncremental"];
   readonly onUpdateSettings?: TemplateManagerProps["onUpdateSettings"];
@@ -37,6 +40,7 @@ type DataPartProps = {
   readonly previewStatus?: TemplateManagerProps["previewStatus"];
   readonly rawData?: CsvImporterProps["files"];
   readonly selectedPreviewFileId?: CsvImporterProps["selectedFileId"];
+  readonly sidebarWidth?: number;
   readonly subscribePreviewRowsVersion?: TemplateManagerProps["subscribePreviewRowsVersion"];
   readonly t: TranslateFn;
 };
@@ -54,6 +58,7 @@ const DataPart = ({
   onDataRemoved,
   onFileSelected,
   onImportTrigger,
+  onSidebarResize,
   onTemplateApplied,
   onTemplateAppliedIncremental,
   onUpdateSettings,
@@ -61,12 +66,19 @@ const DataPart = ({
   previewStatus,
   rawData = [],
   selectedPreviewFileId,
+  sidebarWidth,
   subscribePreviewRowsVersion,
   t,
 }: DataPartProps) =>
   jsx(SplitView, {
     className: "min-h-full h-full",
     gap: 4,
+    onDidResizeEnd: ({ sizes }: SplitViewResizeEvent) => {
+      const nextWidth = sizes[0];
+      if (Number.isFinite(nextWidth)) {
+        onSidebarResize?.(nextWidth);
+      }
+    },
     orientation: "horizontal",
     panes: [
       {
@@ -86,6 +98,7 @@ const DataPart = ({
         defaultSize: SIDEBAR_DEFAULT_WIDTH_PX,
         minSize: SIDEBAR_MIN_WIDTH_PX,
         maxSize: SIDEBAR_MAX_WIDTH_PX,
+        size: sidebarWidth,
       },
       {
         id: "preview-area",

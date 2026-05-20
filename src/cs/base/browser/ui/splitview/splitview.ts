@@ -38,6 +38,7 @@ export type SplitViewResizeEvent = {
 export type SplitViewProps = HTMLAttributes<HTMLDivElement> & {
   readonly gap?: number;
   readonly onDidResize?: (event: SplitViewResizeEvent) => void;
+  readonly onDidResizeEnd?: (event: SplitViewResizeEvent) => void;
   readonly orientation?: SplitViewOrientation;
   readonly panes: readonly SplitViewPane[];
 };
@@ -155,6 +156,7 @@ const SplitView = forwardRef<HTMLDivElement, SplitViewProps>(
       className = "",
       gap = 0,
       onDidResize,
+      onDidResizeEnd,
       orientation = "horizontal",
       panes,
       style,
@@ -165,6 +167,7 @@ const SplitView = forwardRef<HTMLDivElement, SplitViewProps>(
     const containerRef = useRef<HTMLDivElement | null>(null);
     const dragRef = useRef<{
       readonly paneIndex: number;
+      lastSizes?: readonly number[];
       readonly sizes: readonly number[];
     } | null>(null);
     const [containerSize, setContainerSize] = useState(0);
@@ -244,6 +247,7 @@ const SplitView = forwardRef<HTMLDivElement, SplitViewProps>(
       const delta = orientation === "horizontal" ? event.deltaX : event.deltaY;
       const nextSizes = resizeAdjacentPanes(panes, drag.sizes, drag.paneIndex, delta);
 
+      drag.lastSizes = nextSizes;
       setSizes(nextSizes);
       onDidResize?.({
         paneIndex: drag.paneIndex,
@@ -252,6 +256,15 @@ const SplitView = forwardRef<HTMLDivElement, SplitViewProps>(
     };
 
     const endResize = () => {
+      const drag = dragRef.current;
+
+      if (drag?.lastSizes) {
+        onDidResizeEnd?.({
+          paneIndex: drag.paneIndex,
+          sizes: drag.lastSizes,
+        });
+      }
+
       dragRef.current = null;
       setResizingPaneIndex(null);
     };

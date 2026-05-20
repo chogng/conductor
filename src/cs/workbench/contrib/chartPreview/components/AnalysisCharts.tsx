@@ -1,4 +1,4 @@
-import React, { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, } from "react";
+import React, { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, } from "react";
 import { lxClose } from "cogicon";
 import { computeCentralDerivative, computeSubthresholdSwing, computeSubthresholdSwingFitAuto, computeSubthresholdSwingFitInRange, classifySsFit, formatNumber, interpolateCurveAtX, resolveAutoSsSelection, splitBidirectionalCurvePoints, } from "../lib/analysisMath";
 import { apiService } from "../services/apiService";
@@ -12,6 +12,9 @@ import InlineEditableText from "cs/base/browser/ui/InlineEditableText/InlineEdit
 import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
 import Tabs from "cs/base/browser/ui/Tabs/Tabs";
 import Toast from "cs/base/browser/ui/Toast/Toast";
+import SplitView, {
+  type SplitViewResizeEvent,
+} from "src/cs/base/browser/ui/splitview/splitview";
 import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
 import { lxSlidersHorizontal } from "src/cs/base/browser/ui/CogIcon/icons";
 import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
@@ -42,6 +45,11 @@ import {
   type OriginCurveExportMode,
 } from "../useOriginCanvasExport";
 import { useFileSelectionPool } from "../useFileSelectionPool";
+import {
+  SIDEBAR_DEFAULT_WIDTH_PX,
+  SIDEBAR_MAX_WIDTH_PX,
+  SIDEBAR_MIN_WIDTH_PX,
+} from "src/cs/workbench/contrib/deviceAnalysis/layout";
 import OverviewGrid from "./OverviewGrid";
 import CalculatedParametersRow from "src/cs/workbench/contrib/parameters/CalculatedParametersRow";
 import { SIGNED_LOG_Y_DATA_KEY, buildLogTicks, buildNiceTicks, buildOriginAutoTicks, buildOriginLogAutoTicks, buildPoints, buildStepTicks, computeLabelInterval, computeMinMax, downsamplePointsForDisplay, inferTickDigitsFromTicks, normalizeFloat, normalizeVarToken, padLinearDomain, padLogDomain, parseOptionalNumber, preserveScrollPosition, varTokenToSymbol, withSignedLogPositivePoints, } from "../lib/analysisChartsUtils";
@@ -1089,7 +1097,7 @@ const resolveScaledRangeFromTicks = ({
     return { min, max, step };
 };
 
-const AnalysisCharts = ({ processedData, processingStatus, activeFileId: controlledActiveFileId = undefined, onActiveFileIdChange = undefined, showFileSelect = true, ionIoffMethod = "auto", setIonIoffMethod = () => { }, ionIoffManualTargetsByFileId = {}, setIonIoffManualTargetsByFileId = () => { }, ssMethod = "auto", setSsMethod = () => { }, ssDiagnosticsEnabled = true, setSsDiagnosticsEnabled = () => { }, vthDiagnosticsEnabled = false, setVthDiagnosticsEnabled = () => { }, gmDiagnosticsEnabled = false, setGmDiagnosticsEnabled = () => { }, ssShowFitLine = true, setSsShowFitLine = () => { }, ssManualRanges = {}, setSsManualRanges = () => { }, originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS, onOriginOpenPlotOptionsChange = undefined, }: any) => {
+const AnalysisCharts = ({ processedData, processingStatus, activeFileId: controlledActiveFileId = undefined, onActiveFileIdChange = undefined, onSidebarResize = undefined, showFileSelect = true, sidebarWidth = undefined, ionIoffMethod = "auto", setIonIoffMethod = () => { }, ionIoffManualTargetsByFileId = {}, setIonIoffManualTargetsByFileId = () => { }, ssMethod = "auto", setSsMethod = () => { }, ssDiagnosticsEnabled = true, setSsDiagnosticsEnabled = () => { }, vthDiagnosticsEnabled = false, setVthDiagnosticsEnabled = () => { }, gmDiagnosticsEnabled = false, setGmDiagnosticsEnabled = () => { }, ssShowFitLine = true, setSsShowFitLine = () => { }, ssManualRanges = {}, setSsManualRanges = () => { }, originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS, onOriginOpenPlotOptionsChange = undefined, }: any) => {
     const { t } = useLanguage();
     const tLoose = React.useCallback<FormatOriginTranslateFn>((key, params) => t(key, params as any), [t]);
     const [internalActiveFileId, setInternalActiveFileId] = useState(processedData?.[0]?.fileId ?? null);
@@ -4374,36 +4382,66 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     ]);
     if (!processedData || processedData.length === 0)
         return null;
-    return (<div className="grid h-full min-h-0 grid-cols-[var(--analysis-sidebar-width)_minmax(0,1fr)] gap-1" ref={toastContainerRef} style={{
-            "--analysis-sidebar-width": "clamp(240px, var(--sidebar-width), 420px)",
-        } as CSSProperties}>
-      <aside
-        id="analysis-overview-sidebar"
-        className="flex h-full min-h-0 flex-col"
-      >
-        {showPlotSettingsPane ? (
-          <AxisSettingsPane
-            axis={axis}
-            setAxis={setAxis}
-            effectiveYScale={effectiveYScale}
-            plotYUnitLabel={plotYUnitLabel}
-            yScaleWarning={yScaleWarning}
-            xTooltipDigitsAuto={xTooltipDigitsAuto}
-            originOpenPlotOptions={normalizedOriginOpenPlotOptions}
-            onOriginOpenPlotOptionsChange={handleOriginOpenPlotOptionsChange}
-            onClose={() => setShowPlotSettingsPane(false)}
-            analysisCompactInputWrapperClass={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS}
-            analysisCompactInputClass={ANALYSIS_COMPACT_INPUT_CLASS}
-            t={t}
-          />
-        ) : (
-          <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} onVisibleFileIdsChange={setOverviewVisibleFileIds} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} originCanvasExportScope={originCanvasExportScope} isSelectionMode={isManualCanvasScope} xUnitFactor={resolvedXUnitMeta.factor} xUnitLabel={resolvedXUnitMeta.label} resolveYUnitForFile={resolveYUnitForFile} resolveYScaleForFile={resolveLinearLogYScaleForFile} resolveYLogCurrentModeForFile={resolveYLogCurrentModeForFile}/>
-        )}
-      </aside>
-
-      <ScrollArea className="da-analysis-scroll-area min-w-0 min-h-0" axis="y" viewportClassName="flex flex-col min-h-full">
-        <section className="flex min-w-0 flex-col flex-1 gap-1 pr-1" aria-label={t("da_analysis_results_aria_label")}>
-          <section aria-label={t("da_analysis_chart_aria_label")}>
+    return (<div className="relative h-full min-h-0" ref={toastContainerRef}>
+      <SplitView
+        className="h-full min-h-0"
+        gap={4}
+        onDidResizeEnd={({ sizes }: SplitViewResizeEvent) => {
+          const nextWidth = sizes[0];
+          if (Number.isFinite(nextWidth)) {
+            onSidebarResize?.(nextWidth);
+          }
+        }}
+        orientation="horizontal"
+        panes={[
+          {
+            id: "analysis-sidebar",
+            defaultSize: SIDEBAR_DEFAULT_WIDTH_PX,
+            minSize: SIDEBAR_MIN_WIDTH_PX,
+            maxSize: SIDEBAR_MAX_WIDTH_PX,
+            size: sidebarWidth,
+            children: (
+              <aside
+                id="analysis-overview-sidebar"
+                className="flex h-full min-h-0 flex-col"
+              >
+                {showPlotSettingsPane ? (
+                  <AxisSettingsPane
+                    axis={axis}
+                    setAxis={setAxis}
+                    effectiveYScale={effectiveYScale}
+                    plotYUnitLabel={plotYUnitLabel}
+                    yScaleWarning={yScaleWarning}
+                    xTooltipDigitsAuto={xTooltipDigitsAuto}
+                    originOpenPlotOptions={normalizedOriginOpenPlotOptions}
+                    onOriginOpenPlotOptionsChange={handleOriginOpenPlotOptionsChange}
+                    onClose={() => setShowPlotSettingsPane(false)}
+                    analysisCompactInputWrapperClass={ANALYSIS_COMPACT_INPUT_WRAPPER_CLASS}
+                    analysisCompactInputClass={ANALYSIS_COMPACT_INPUT_CLASS}
+                    t={t}
+                  />
+                ) : (
+                  <OverviewGrid processedData={processedData} processingStatus={processingStatus} activeFileId={effectiveActiveFileId} onSelectFile={handleSelectFile} onVisibleFileIdsChange={setOverviewVisibleFileIds} selectedOriginCanvasKeySet={selectedOriginCanvasKeySet} onToggleOriginCanvasSelection={toggleOriginCanvasSelection} originCanvasExportScope={originCanvasExportScope} isSelectionMode={isManualCanvasScope} xUnitFactor={resolvedXUnitMeta.factor} xUnitLabel={resolvedXUnitMeta.label} resolveYUnitForFile={resolveYUnitForFile} resolveYScaleForFile={resolveLinearLogYScaleForFile} resolveYLogCurrentModeForFile={resolveYLogCurrentModeForFile}/>
+                )}
+              </aside>
+            ),
+          },
+          {
+            id: "analysis-workspace",
+            minSize: 640,
+            children: (
+              <SplitView
+                className="h-full min-h-0"
+                gap={4}
+                orientation="vertical"
+                panes={[
+                  {
+                    id: "analysis-chart-pane",
+                    defaultSize: 620,
+                    minSize: 320,
+                    children: (
+                      <ScrollArea className="da-analysis-scroll-area min-w-0 min-h-0" axis="y" viewportClassName="pr-1">
+                        <section className="flex min-w-0 flex-col" aria-label={t("da_analysis_chart_aria_label")}>
         <Card variant="panel" className="flex min-w-0 flex-col">
 
           <div className="mb-4 flex items-center justify-between gap-4 flex-wrap">
@@ -4717,8 +4755,17 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
               {t("da_chart_no_series_data")}
             </div>)}
         </Card>
-      </section>
-
+                      </section>
+                    </ScrollArea>
+                  ),
+                },
+                {
+                  id: "analysis-diagnostics-pane",
+                  defaultSize: 260,
+                  minSize: 160,
+                  children: (
+                    <ScrollArea className="da-analysis-scroll-area min-w-0 min-h-0" axis="y" viewportClassName="pr-1">
+                      <section className="flex min-w-0 flex-col">
           <AnalysisDiagnosticsCard
             showDiagnosticsPanel={showDiagnosticsPanel}
             diagnosticsHeading={diagnosticsHeading}
@@ -4748,7 +4795,17 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
             analysisCompactInputClass={ANALYSIS_COMPACT_INPUT_CLASS}
             analysisCompactPageFieldClass={ANALYSIS_COMPACT_PAGE_FIELD_CLASS}
           />
-
+                      </section>
+                    </ScrollArea>
+                  ),
+                },
+                {
+                  id: "analysis-results-pane",
+                  defaultSize: 360,
+                  minSize: 180,
+                  children: (
+                    <ScrollArea className="da-analysis-scroll-area min-w-0 min-h-0" axis="y" viewportClassName="pr-1">
+                      <section className="flex min-w-0 flex-col">
           {activeFile?.series?.length ? (<Card id="analysis-calculated-parameters-card" variant="panel" className="flex min-w-0 flex-col flex-1">
             <div className="mb-3 flex min-w-0 items-center justify-between gap-3 flex-wrap">
               <div className="flex min-w-0 items-center flex-wrap">
@@ -5051,8 +5108,16 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 })}
               </div>)}
           </Card>) : null}
-        </section>
-      </ScrollArea>
+                      </section>
+                    </ScrollArea>
+                  ),
+                },
+              ]}
+            />
+          ),
+        },
+      ]}
+    />
 
       <Toast message={toast.message} isVisible={toast.isVisible} onClose={closeToast} type={toast.type} containerRef={toastContainerRef} position="absolute"/>
     </div>);

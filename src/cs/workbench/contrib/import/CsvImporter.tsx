@@ -18,10 +18,10 @@ import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
 import {
   DATA_IMPORT_ACCEPT,
   isSupportedDataImportFileName,
-} from "src/cs/workbench/contrib/import/importFileConversion";
+} from "src/cs/workbench/common/deviceAnalysis/types";
 import type { ImportedCurveAssessment } from "src/cs/workbench/common/deviceAnalysis/importFileUtils";
 import { startPerf } from "src/cs/workbench/common/deviceAnalysis/perf";
-import { prepareImportFileInWorker } from "./importWorkerClient";
+import { prepareImportFileInWorker } from "./rustClient";
 import { useCsvImporterVirtualization } from "./useCsvImporterVirtualization";
 import { collectDroppedImportFiles } from "./preview/csvDropTraversal";
 import {

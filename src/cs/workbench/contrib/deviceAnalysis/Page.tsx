@@ -17,6 +17,9 @@ import {
   getLayoutState,
   getViewPaneClassName,
 } from "src/cs/workbench/contrib/deviceAnalysis/layoutPolicy";
+import {
+  useDeviceAnalysisSidebarLayout,
+} from "src/cs/workbench/contrib/deviceAnalysis/layout";
 import WorkspaceShell from "src/cs/workbench/contrib/deviceAnalysis/WorkspaceShell";
 import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
 import { useTheme } from "src/cs/workbench/browser/hooks/useTheme";
@@ -173,6 +176,8 @@ const Page = () => {
   );
   const [hasVisitedAnalysisPage, setHasVisitedAnalysisPage] = useState(false);
   const [hasVisitedSettingsPage, setHasVisitedSettingsPage] = useState(false);
+  const { handleSidebarResize, sidebarWidth } =
+    useDeviceAnalysisSidebarLayout();
   const [analysisPanelSessionKey, setAnalysisPanelSessionKey] = useState(0);
   const [extractionErrorToast, setExtractionErrorToast] = useState<{
     isVisible: boolean;
@@ -556,6 +561,7 @@ const Page = () => {
                 onboarding.handleImportTrigger();
               }}
               onFileSelected={handlePreviewFileSelected}
+              onSidebarResize={handleSidebarResize}
               onTemplateApplied={handleTemplateApplied}
               onTemplateAppliedIncremental={handleTemplateAppliedIncremental}
               onUpdateSettings={handleUpdateAnalysisSettings}
@@ -563,6 +569,7 @@ const Page = () => {
               previewStatus={previewStatus}
               rawData={rawData}
               selectedPreviewFileId={selectedPreviewFileId}
+              sidebarWidth={sidebarWidth}
               subscribePreviewRowsVersion={subscribePreviewRowsVersion}
               t={t}
             />
@@ -588,7 +595,9 @@ const Page = () => {
                   processingStatus={processingStatus}
                   activeFileId={analysisActiveFileId}
                   onActiveFileIdChange={handleAnalysisFileChange}
+                  onSidebarResize={handleSidebarResize}
                   showFileSelect={!isWindowsDesktopShell}
+                  sidebarWidth={sidebarWidth}
                   shouldMountCharts={
                     analysisPane.isActive || hasVisitedAnalysisPage
                   }
