@@ -1,5 +1,5 @@
 import type { MutableRefObject } from "react";
-import type { CsvImporterRef } from "src/cs/workbench/contrib/import/CsvImporter";
+import type { ImporterRef } from "src/cs/workbench/contrib/import/browser/importerView";
 import type { OnboardingStep } from "src/cs/workbench/contrib/deviceAnalysis/onboarding/onboardingTypes";
 
 export type PageTab = "data" | "analysis" | "settings";
@@ -55,7 +55,7 @@ export const stripCsvExtension = (fileName: string): string => {
 };
 
 export const createIdleOnboardingState = (
-  importerRef: MutableRefObject<CsvImporterRef | null>,
+  importerRef: MutableRefObject<ImporterRef | null>,
 ): OnboardingControllerState => ({
   back: () => {},
   canNext: true,

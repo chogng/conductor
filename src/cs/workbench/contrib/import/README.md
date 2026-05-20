@@ -18,6 +18,11 @@ browser/views/emptyView.ts 是空工作区时显示的替代视图。
 browser/views/media 只给相对独立的子 view 使用，例如 openEditorsView.ts 引入 browser/views/media/openeditors.css。
 对应到 import contrib，sidebar import 主区域的样式放 browser/media/importerViewlet.css；只有后续出现独立子 view，才放 browser/views/media/*.css。
 
+# 这次重构的落点
+`src/cs/base/browser/ui/list/list.ts` 是基础虚拟列表，负责滚动窗口、选中、聚焦、键盘导航和必要时的虚拟化。
+`src/cs/base/browser/ui/tree/tree.ts` 负责把层级数据折叠成线性行，再交给 `List` 渲染。
+`src/cs/workbench/contrib/import/browser/importerView.ts` 现在只做 importer 业务编排，把文件条目接到 `List` 上，不再自己算虚拟窗口。
+
 # 服务层
 explorerService.ts:1 是 Explorer 的状态和操作中心，管 workspace roots、刷新、选中、批量文件操作、响应文件事件。
 browser/explorerDecorationsProvider.ts 给文件树提供装饰信息，比如错误、修改、git 相关标记。

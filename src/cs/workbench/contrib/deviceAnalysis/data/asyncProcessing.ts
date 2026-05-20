@@ -13,7 +13,7 @@ import type {
   ProcessedEntry,
   ProcessingStatus,
 } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
-import { loadConvertedCsvFile } from "src/cs/workbench/contrib/import/rustClient";
+import { loadConvertedCsvFile } from "src/cs/workbench/contrib/import/browser/rustClient";
 
 // Owns asynchronous execution for device-analysis processing jobs.
 // This module handles worker lifetime, queue draining, progress updates, cancellation,

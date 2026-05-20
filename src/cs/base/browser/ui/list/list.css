@@ -1,0 +1,29 @@
+.ui-list {
+  position: relative;
+  min-height: 0;
+}
+
+.ui-list__viewport {
+  min-height: 0;
+  outline: none;
+}
+
+.ui-list__stage {
+  position: relative;
+  width: 100%;
+}
+
+.ui-list__row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  box-sizing: border-box;
+}
+
+.ui-list__row--selected {
+  z-index: 1;
+}
+
+.ui-list__row--focused {
+  z-index: 2;
+}

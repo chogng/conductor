@@ -78,12 +78,10 @@
   @apply text-text-secondary hover:text-red-500 transition-colors opacity-100 hover:bg-bg-page p-1 rounded shrink-0;
 }
 
-.import-viewer-file-grid {
-  @apply grid gap-3 text-left w-full min-w-0;
-  grid-template-columns: 1fr;
-  box-sizing: border-box;
+.import-viewer-file-list {
+  @apply flex-1 min-h-0 w-full;
 }
 
-.import-viewer-virtual-stage {
-  position: relative;
+.import-viewer-file-list-viewport {
+  @apply min-h-0;
 }

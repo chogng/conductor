@@ -32,3 +32,12 @@ browser.ts文件可以理解成“浏览器环境能力和状态的入口”。
 统一管理每个窗口的浏览器状态，比如缩放、全屏
 提供环境判断，比如是不是 Chrome、Firefox、Electron、Safari
 处理浏览器特有能力，比如 PWA、WCO、MonacoEnvironment
+
+- List 是“基础显示引擎”。它负责把一串元素按当前滚动窗口画出来，做虚拟滚动、复用行、滚动定位、选择、焦点、拖拽、键盘导航这些通用能力。它本质上不关心父子层级，只关心“当前该显示哪些行”。你可以看 listView.ts:281 和 listWidget.ts:1395。
+- Tree 是“层级语义 + 展开折叠”。它建立在 List 之上，额外负责父子关系、展开/收起、懒加载子节点、过滤、压缩节点、树状态保存，以及把“树模型”转换成“可渲染的线性行列表”。你可以看 tree.ts:120 和 abstractTree.ts:2593。
+- AsyncDataTree 是 Tree 的一个异步数据版本：它接收数据源，等子节点异步返回，再交给底层 Tree/List 去渲染。它本身不是渲染器，而是把“异步树数据”接到基础树控件上。见 asyncDataTree.ts:530。
+- WorkbenchCompressibleAsyncDataTree 是 workbench 层的包装，给 Tree 加上 VS Code 里常用的上下文、配置、样式和资源导航能力。见 listService.ts:1037。
+一句话总结：
+
+List 解决“怎么高效画一串行”
+Tree 解决“怎么把层级结构变成这串行并支持展开折叠”

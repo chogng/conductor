@@ -70,7 +70,7 @@ const DeviceAnalysisWorkspace = ({
       });
 
   return jsx(DeviceAnalysisSidebarPortalContext.Provider, {
-    value: sidebarContainer,
+    value: activeView === "analysis" ? sidebarContainer : null,
     children: workspaceContent,
   });
 };

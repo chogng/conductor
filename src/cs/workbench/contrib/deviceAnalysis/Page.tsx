@@ -13,8 +13,8 @@ import { loadAnalysisCharts } from "src/cs/workbench/contrib/chartPreview/loadAn
 import { getExtractionErrorMessage } from "src/cs/workbench/common/deviceAnalysis/utils";
 import DeviceAnalysisWorkspace from "src/cs/workbench/contrib/deviceAnalysis/DeviceAnalysisWorkspace";
 import DataPart from "src/cs/workbench/contrib/deviceAnalysis/data/DataPart";
-import ImportSidebar from "src/cs/workbench/contrib/deviceAnalysis/data/ImportSidebar";
-import type { CsvImporterRef } from "src/cs/workbench/contrib/import/CsvImporter";
+import ImporterViewlet from "src/cs/workbench/contrib/import/browser/importerViewlet";
+import type { ImporterRef } from "src/cs/workbench/contrib/import/browser/importerView";
 import {
   getLayoutState,
   getViewPaneClassName,
@@ -134,7 +134,7 @@ const Page = () => {
     previewCacheFileLruRef,
   } = session;
 
-  const importerRef = useRef<CsvImporterRef | null>(null);
+  const importerRef = useRef<ImporterRef | null>(null);
   const [onboarding, setOnboarding] = useState<OnboardingControllerState>(() =>
     createIdleOnboardingState(importerRef),
   );
@@ -529,10 +529,10 @@ const Page = () => {
           </Suspense>
         ) : null}
 
-      <DeviceAnalysisWorkspace
-        activeView={activePage}
+        <DeviceAnalysisWorkspace
+          activeView={activePage}
         dataSidebar={
-          <ImportSidebar
+          <ImporterViewlet
             hasSessionData={hasSessionData}
             importerRef={importerRef}
             onClearSession={handleClearSession}

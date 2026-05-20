@@ -1,0 +1,31 @@
+.ui-tree {
+  position: relative;
+  min-height: 0;
+}
+
+.ui-tree__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.ui-tree__disclosure {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.ui-tree__label {
+  min-width: 0;
+  flex: 1;
+}
