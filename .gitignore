@@ -63,3 +63,4 @@ conductor-py/.pyi_zip_spec/
 # Python bytecode cache
 __pycache__/
 *.pyc
+.playwright-mcp
