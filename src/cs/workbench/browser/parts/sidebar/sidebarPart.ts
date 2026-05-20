@@ -1,6 +1,12 @@
 import { jsx, jsxs } from "react/jsx-runtime";
 import "./media/sidebarpart.css";
-import { type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import Button from "src/cs/base/browser/ui/Button/Button";
 import Sash, { type SashDragEvent } from "src/cs/base/browser/ui/sash/sash";
 import {
@@ -27,7 +33,7 @@ export type WorkbenchSidebarAction = {
 };
 
 export type WorkbenchSidebarHeaderAction = WorkbenchSidebarAction & {
-  kind?: "primary" | "secondary" | "icon";
+  kind?: "primary" | "secondary" | "icon" | "statusBadge";
 };
 
 export type WorkbenchSidebarSection = {
@@ -87,12 +93,177 @@ const renderSidebarBadge = (badge: WorkbenchSidebarBadge | undefined) => {
   });
 };
 
+const prefersReducedMotion = (): boolean => {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return false;
+  }
+
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+};
+
+const getRollingDirection = (
+  previousValue: string,
+  nextValue: string,
+): "up" | "down" => {
+  const previousNumber = Number(previousValue);
+  const nextNumber = Number(nextValue);
+
+  if (Number.isFinite(previousNumber) && Number.isFinite(nextNumber)) {
+    return nextNumber >= previousNumber ? "up" : "down";
+  }
+
+  return "up";
+};
+
+const padRollingValue = (value: string, length: number): string =>
+  value.padStart(length, " ");
+
+const renderRollingDigitColumn = ({
+  direction,
+  index,
+  nextChar,
+  onAnimationEnd,
+  previousChar,
+}: {
+  readonly direction: "up" | "down";
+  readonly index: number;
+  readonly nextChar: string;
+  readonly onAnimationEnd: () => void;
+  readonly previousChar: string;
+}) => {
+  const hasChanged = previousChar !== nextChar;
+  const renderChar = (char: string) => (char === " " ? "" : char);
+
+  if (!hasChanged) {
+    return jsx(
+      "span",
+      {
+        className: "workbench_sidebar_header_status_badge_digit_viewport",
+        children: jsx("span", {
+          className: "workbench_sidebar_header_status_badge_digit",
+          children: renderChar(nextChar),
+        }),
+      },
+      `static-${index}-${nextChar}`,
+    );
+  }
+
+  return jsx(
+    "span",
+    {
+      className: "workbench_sidebar_header_status_badge_digit_viewport",
+      children: jsxs("span", {
+        className:
+          "workbench_sidebar_header_status_badge_digit workbench_sidebar_header_status_badge_digit--rolling",
+        "data-direction": direction,
+        onAnimationEnd,
+        children:
+          direction === "up"
+            ? [
+                jsx("span", { children: renderChar(previousChar) }, "previous"),
+                jsx("span", { children: renderChar(nextChar) }, "next"),
+              ]
+            : [
+                jsx("span", { children: renderChar(nextChar) }, "next"),
+                jsx("span", { children: renderChar(previousChar) }, "previous"),
+              ],
+      }),
+    },
+    `rolling-${index}-${previousChar}-${nextChar}`,
+  );
+};
+
+const renderRollingDigits = ({
+  direction,
+  nextValue,
+  onAnimationEnd,
+  previousValue,
+}: {
+  readonly direction: "up" | "down";
+  readonly nextValue: string;
+  readonly onAnimationEnd: () => void;
+  readonly previousValue: string | null;
+}) => {
+  const length = Math.max(previousValue?.length ?? 0, nextValue.length);
+  const next = padRollingValue(nextValue, length);
+  const previous =
+    previousValue === null ? next : padRollingValue(previousValue, length);
+
+  return jsx("span", {
+    "aria-hidden": "true",
+    className: "workbench_sidebar_header_status_badge_digits",
+    children: Array.from({ length }, (_, index) =>
+      renderRollingDigitColumn({
+        direction,
+        index,
+        nextChar: next[index] ?? " ",
+        onAnimationEnd,
+        previousChar: previous[index] ?? " ",
+      }),
+    ),
+  });
+};
+
+const SidebarHeaderStatusBadge = ({
+  id,
+  label,
+  value,
+}: {
+  readonly id: string;
+  readonly label: string;
+  readonly value: string;
+}) => {
+  const [displayValue, setDisplayValue] = useState(value);
+  const [previousValue, setPreviousValue] = useState<string | null>(null);
+  const [direction, setDirection] = useState<"up" | "down">("up");
+  const displayValueRef = useRef(value);
+
+  useEffect(() => {
+    if (value === displayValueRef.current) return;
+
+    const previous = displayValueRef.current;
+    displayValueRef.current = value;
+    setDisplayValue(value);
+
+    if (prefersReducedMotion()) {
+      setPreviousValue(null);
+      return;
+    }
+
+    setDirection(getRollingDirection(previous, value));
+    setPreviousValue(previous);
+  }, [value]);
+
+  return jsx("span", {
+    id,
+    className: "workbench_sidebar_header_status_badge",
+    role: "status",
+    "aria-live": "polite",
+    "aria-label": label,
+    title: label,
+    children: renderRollingDigits({
+      direction,
+      nextValue: displayValue,
+      onAnimationEnd: () => setPreviousValue(null),
+      previousValue,
+    }),
+  });
+};
+
 const renderSidebarAction = (
   action: WorkbenchSidebarAction,
   onAction: WorkbenchSidebarActionHandler | undefined,
   kind?: WorkbenchSidebarHeaderAction["kind"],
 ) => {
   if (kind) {
+    if (kind === "statusBadge") {
+      return jsx(SidebarHeaderStatusBadge, {
+        id: action.id,
+        label: action.title,
+        value: action.badge?.text ?? action.title,
+      });
+    }
+
     if (kind === "icon") {
       return jsx(Button, {
         id: action.id,

@@ -84,6 +84,7 @@ const ImporterViewlet = ({
   }, [importerRef, pendingImporterOpen]);
 
   const headerActions = createImporterHeaderActions({
+    fileCount: rawData.length,
     hasSessionData,
     t,
   });

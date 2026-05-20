@@ -31,6 +31,74 @@
   @apply shrink-0;
 }
 
+.workbench_sidebar_header_status_badge {
+  @apply inline-flex h-6 min-w-6 shrink-0 items-center justify-center overflow-hidden rounded-full border px-2 text-[11px] font-medium leading-none tabular-nums;
+  background: rgb(var(--accent) / 0.08);
+  border-color: rgb(var(--accent) / 0.18);
+  color: rgb(var(--accent));
+}
+
+.workbench_sidebar_header_status_badge_digits {
+  @apply inline-flex items-center justify-center;
+  height: 1em;
+}
+
+.workbench_sidebar_header_status_badge_digit_viewport {
+  @apply relative block overflow-hidden;
+  width: 1ch;
+  height: 1em;
+}
+
+.workbench_sidebar_header_status_badge_digit {
+  @apply block text-center;
+  height: 1em;
+}
+
+.workbench_sidebar_header_status_badge_digit > span {
+  @apply block text-center;
+  height: 1em;
+}
+
+.workbench_sidebar_header_status_badge_digit--rolling {
+  animation-duration: 180ms;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.workbench_sidebar_header_status_badge_digit--rolling[data-direction="up"] {
+  animation-name: workbench-sidebar-status-badge-roll-up;
+}
+
+.workbench_sidebar_header_status_badge_digit--rolling[data-direction="down"] {
+  animation-name: workbench-sidebar-status-badge-roll-down;
+}
+
+@keyframes workbench-sidebar-status-badge-roll-up {
+  from {
+    transform: translateY(0);
+  }
+
+  to {
+    transform: translateY(-1em);
+  }
+}
+
+@keyframes workbench-sidebar-status-badge-roll-down {
+  from {
+    transform: translateY(-1em);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workbench_sidebar_header_status_badge_digit--rolling {
+    animation: none;
+  }
+}
+
 .workbench_sidebar_header_icon_btn {
   @apply ml-auto shrink-0;
 }
