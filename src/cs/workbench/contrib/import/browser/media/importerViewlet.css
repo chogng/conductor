@@ -1,5 +1,6 @@
 .import-viewer-dropzone {
   @apply border-2 border-dashed rounded-xl p-0 transition-all duration-300 relative overflow-visible flex-1;
+  height: 100%;
   min-height: 300px;
 }
 
@@ -8,8 +9,23 @@
 }
 
 .import-viewer-dropzone-viewport {
+  @apply flex flex-col;
+  height: 100%;
   min-height: 100%;
   overscroll-behavior: contain;
+}
+
+.import-viewer-filled {
+  @apply w-full flex flex-col flex-1 min-h-0;
+}
+
+.import-viewer-empty-root {
+  @apply w-full flex-1 min-h-0;
+}
+
+.import-viewer-list-host {
+  @apply w-full flex-1 min-h-0;
+  height: 100%;
 }
 
 .import-viewer-dropzone.dragging {
@@ -22,6 +38,10 @@
 
 .import-viewer-empty {
   @apply flex flex-col items-center justify-center h-full gap-3 py-6 px-6 text-center cursor-pointer;
+}
+
+.import-viewer-empty-avatar {
+  @apply w-10 h-10 rounded-full bg-bg-page border border-border flex items-center justify-center text-text-secondary;
 }
 
 .import-viewer-empty-title {
@@ -81,9 +101,11 @@
 
 .import-viewer-file-list {
   @apply flex-1 min-h-0 w-full;
+  height: 100%;
 }
 
 .import-viewer-file-list-viewport {
   @apply min-h-0;
+  height: 100%;
   padding-inline: 10px;
 }

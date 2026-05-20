@@ -1,47 +1,35 @@
-import { jsx, jsxs } from "react/jsx-runtime";
 import { lxDownloadTray } from "cogicon";
-import Avatar from "cs/base/browser/ui/Avatar/Avatar";
-import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
+import { normalizeCogIconSvgMarkup } from "src/cs/base/browser/ui/CogIcon/cogicon";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 
-export type ImportEmptyViewProps = {
-  readonly t: TranslateFn;
+const appendEmptyViewIcon = (container: HTMLElement): void => {
+  const iconSpan = document.createElement("span");
+  iconSpan.className = "ui-cogicon";
+  iconSpan.style.width = "20px";
+  iconSpan.style.height = "20px";
+  iconSpan.innerHTML = normalizeCogIconSvgMarkup(lxDownloadTray);
+  container.appendChild(iconSpan);
 };
 
-const ImportEmptyViewIcon = ({ className }: { className?: string }) =>
-  jsx(CogIcon, {
-    icon: lxDownloadTray,
-    size: "100%",
-    className,
-  });
+export const createImportEmptyView = (t: TranslateFn): HTMLDivElement => {
+  const empty = document.createElement("div");
+  empty.id = "analysis-csv-empty";
+  empty.dataset.slot = "empty";
+  empty.className = "import-viewer-empty";
 
-const ImportEmptyView = ({ t }: ImportEmptyViewProps) =>
-  jsxs(
-    "div",
-    {
-      id: "analysis-csv-empty",
-      "data-slot": "empty",
-      className: "import-viewer-empty",
-      children: [
-        jsx(Avatar, {
-          icon: ImportEmptyViewIcon,
-          size: "md",
-          variant: "empty",
-        }),
-        jsxs("p", {
-          className: "import-viewer-empty-subtitle",
-          children: [
-            t("da_csv_empty_subtitle_prefix"),
-            " ",
-            jsx("span", {
-              className: "import-viewer-empty-browse",
-              children: t("da_csv_empty_browse"),
-            }),
-          ],
-        }),
-      ],
-    },
-    "empty",
-  );
+  const avatar = document.createElement("div");
+  avatar.className = "import-viewer-empty-avatar";
+  appendEmptyViewIcon(avatar);
 
-export default ImportEmptyView;
+  const subtitle = document.createElement("p");
+  subtitle.className = "import-viewer-empty-subtitle";
+
+  const prefix = document.createTextNode(`${t("da_csv_empty_subtitle_prefix")} `);
+  const browse = document.createElement("span");
+  browse.className = "import-viewer-empty-browse";
+  browse.textContent = t("da_csv_empty_browse");
+
+  subtitle.append(prefix, browse);
+  empty.append(avatar, subtitle);
+  return empty;
+};

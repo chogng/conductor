@@ -34,7 +34,7 @@ export const createImporterHeaderActions = ({
           kind: "statusBadge" as const,
           badge: {
             text: String(fileCount),
-            tone: "accent",
+            tone: "accent" as const,
           },
         },
       ]
