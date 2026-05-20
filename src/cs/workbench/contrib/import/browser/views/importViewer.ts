@@ -5,8 +5,6 @@ import type {
   RefObject,
 } from "react";
 import { Fragment, jsx, jsxs } from "react/jsx-runtime";
-import { lxDownloadTray } from "cogicon";
-import Avatar from "cs/base/browser/ui/Avatar/Avatar";
 import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
 import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
 import { lxAlertCircle } from "src/cs/base/browser/ui/CogIcon/icons";
@@ -15,6 +13,7 @@ import type { TranslateFn } from "src/cs/platform/language/common/language";
 import { cx } from "src/utils/cx";
 import { DATA_IMPORT_ACCEPT } from "src/cs/workbench/contrib/import/common/constants";
 import type { ImporterFileEntry } from "src/cs/workbench/contrib/import/common/types";
+import ImportEmptyView from "src/cs/workbench/contrib/import/browser/views/emptyView";
 import ImportViewerItem from "src/cs/workbench/contrib/import/browser/views/importViewerItem";
 
 export type ImportViewerProps = {
@@ -33,13 +32,6 @@ export type ImportViewerProps = {
   readonly onSelectFile: (fileId: string | null) => void;
   readonly t: TranslateFn;
 };
-
-const ImportViewerEmptyStateIcon = ({ className }: { className?: string }) =>
-  jsx(CogIcon, {
-    icon: lxDownloadTray,
-    size: "100%",
-    className,
-  });
 
 const ImportViewer = ({
   effectiveSelectedFileId,
@@ -94,33 +86,7 @@ const ImportViewer = ({
             "input",
           ),
           files.length === 0
-            ? jsxs(
-                "div",
-                {
-                  id: "analysis-csv-empty",
-                  "data-slot": "empty",
-                  className: "import-viewer-empty",
-                  children: [
-                    jsx(Avatar, {
-                      icon: ImportViewerEmptyStateIcon,
-                      size: "md",
-                      variant: "empty",
-                    }),
-                    jsxs("p", {
-                      className: "import-viewer-empty-subtitle",
-                      children: [
-                        t("da_csv_empty_subtitle_prefix"),
-                        " ",
-                        jsx("span", {
-                          className: "import-viewer-empty-browse",
-                          children: t("da_csv_empty_browse"),
-                        }),
-                      ],
-                    }),
-                  ],
-                },
-                "empty",
-              )
+            ? jsx(ImportEmptyView, { t })
             : jsx(
                 "div",
                 {
