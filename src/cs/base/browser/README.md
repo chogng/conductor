@@ -42,6 +42,12 @@ browser.ts文件可以理解成“浏览器环境能力和状态的入口”。
 List 解决“怎么高效画一串行”
 Tree 解决“怎么把层级结构变成这串行并支持展开折叠”
 
-list.ts (line 13) 主要放契约、类型、事件模型、拖拽协议和少量可复用抽象，比如 IListVirtualDelegate、IListRenderer、IListDragAndDrop、ListError、CachedListVirtualDelegate。
-listView.ts (line 231) 是低层实现，负责虚拟滚动、DOM 渲染、测量、滚动、拖拽、可访问性等，ListView 本体也在这里。
-listWidget.ts (line 1409) 是更高一层的封装，List<T> 把 ListView 组装起来，再叠加选择、聚焦、键盘导航等行为。
+list.ts 主要放当前列表公共契约，比如 ListProps、ListHandle、ListRenderState。
+listView.ts 是低层 DOM 实现，负责虚拟滚动、测量、滚动定位、聚焦、选中和键盘导航。
+listReact.ts 是过渡期 React 适配层，只负责把 ReactNode 挂到 listView 提供的 DOM row 上；后续退 React 时优先绕开它。
+list.css 是基础样式。List/ListView 的 DOM 结构、滚动视口和行样式都依赖它。
+如果把这几层串起来看，就是：
+
+list.ts = 接口和约定
+listView.ts = 虚拟滚动引擎
+listReact.ts = 迁移期 React 适配
