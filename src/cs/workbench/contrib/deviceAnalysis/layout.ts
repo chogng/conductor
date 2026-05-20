@@ -1,4 +1,9 @@
-import { useCallback, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useState,
+} from "react";
 
 export const SIDEBAR_DEFAULT_WIDTH_PX = 280;
 export const SIDEBAR_MIN_WIDTH_PX = 235;
@@ -48,3 +53,9 @@ export const useDeviceAnalysisSidebarLayout = () => {
     sidebarWidth,
   };
 };
+
+export const DeviceAnalysisSidebarPortalContext =
+  createContext<HTMLElement | null>(null);
+
+export const useDeviceAnalysisSidebarPortal = () =>
+  useContext(DeviceAnalysisSidebarPortalContext);

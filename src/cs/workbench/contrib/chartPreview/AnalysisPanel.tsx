@@ -26,9 +26,7 @@ type AnalysisChartsLazyProps = {
   ionIoffMethod?: IonIoffMethod;
   ionIoffManualTargetsByFileId?: IonIoffManualTargetsByFileId;
   onActiveFileIdChange?: (nextFileId: string | null) => void;
-  onSidebarResize?: (width: number) => void;
   showFileSelect?: boolean;
-  sidebarWidth?: number;
   setIonIoffMethod?: (next: IonIoffMethod) => void;
   setIonIoffManualTargetsByFileId?: Dispatch<
     SetStateAction<IonIoffManualTargetsByFileId>
@@ -80,9 +78,7 @@ const AnalysisPanel = ({
   ionIoffMethod,
   ionIoffManualTargetsByFileId,
   onActiveFileIdChange,
-  onSidebarResize,
   showFileSelect = true,
-  sidebarWidth,
   shouldMountCharts = false,
   setIonIoffMethod,
   setIonIoffManualTargetsByFileId,
@@ -118,9 +114,7 @@ const AnalysisPanel = ({
               ionIoffMethod={ionIoffMethod}
               ionIoffManualTargetsByFileId={ionIoffManualTargetsByFileId}
               onActiveFileIdChange={onActiveFileIdChange}
-              onSidebarResize={onSidebarResize}
               showFileSelect={showFileSelect}
-              sidebarWidth={sidebarWidth}
               setIonIoffMethod={setIonIoffMethod}
               setIonIoffManualTargetsByFileId={setIonIoffManualTargetsByFileId}
               ssMethod={ssMethod}

@@ -11,15 +11,14 @@ import Toast from "src/cs/base/browser/ui/Toast/Toast";
 import type { TranslationVars } from "src/cs/platform/language/common/language";
 import { loadAnalysisCharts } from "src/cs/workbench/contrib/chartPreview/loadAnalysisCharts";
 import { getExtractionErrorMessage } from "src/cs/workbench/common/deviceAnalysis/utils";
+import DeviceAnalysisWorkspace from "src/cs/workbench/contrib/deviceAnalysis/DeviceAnalysisWorkspace";
 import DataPart from "src/cs/workbench/contrib/deviceAnalysis/data/DataPart";
+import ImportSidebar from "src/cs/workbench/contrib/deviceAnalysis/data/ImportSidebar";
 import type { CsvImporterRef } from "src/cs/workbench/contrib/import/CsvImporter";
 import {
   getLayoutState,
   getViewPaneClassName,
 } from "src/cs/workbench/contrib/deviceAnalysis/layoutPolicy";
-import {
-  useDeviceAnalysisSidebarLayout,
-} from "src/cs/workbench/contrib/deviceAnalysis/layout";
 import WorkspaceShell from "src/cs/workbench/contrib/deviceAnalysis/WorkspaceShell";
 import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
 import { useTheme } from "src/cs/workbench/browser/hooks/useTheme";
@@ -176,8 +175,6 @@ const Page = () => {
   );
   const [hasVisitedAnalysisPage, setHasVisitedAnalysisPage] = useState(false);
   const [hasVisitedSettingsPage, setHasVisitedSettingsPage] = useState(false);
-  const { handleSidebarResize, sidebarWidth } =
-    useDeviceAnalysisSidebarLayout();
   const [analysisPanelSessionKey, setAnalysisPanelSessionKey] = useState(0);
   const [extractionErrorToast, setExtractionErrorToast] = useState<{
     isVisible: boolean;
@@ -532,7 +529,26 @@ const Page = () => {
           </Suspense>
         ) : null}
 
-      <div className="relative flex-1 min-h-0">
+      <DeviceAnalysisWorkspace
+        activeView={activePage}
+        dataSidebar={
+          <ImportSidebar
+            hasSessionData={hasSessionData}
+            importerRef={importerRef}
+            onClearSession={handleClearSession}
+            onDataImported={handleDataImported}
+            onDataRemoved={handleDataRemoved}
+            onFileSelected={handlePreviewFileSelected}
+            onImportTrigger={() => {
+              onboarding.handleImportTrigger();
+            }}
+            rawData={rawData}
+            selectedPreviewFileId={selectedPreviewFileId}
+            t={t}
+          />
+        }
+      >
+      <div className="relative h-full min-h-0">
         <section
           id={dataPane.paneId}
           role="region"
@@ -552,24 +568,12 @@ const Page = () => {
               ensurePreviewRows={ensurePreviewRows}
               getPreviewRow={getPreviewRow}
               getPreviewRowsVersion={getPreviewRowsVersion}
-              hasSessionData={hasSessionData}
-              importerRef={importerRef}
-              onClearSession={handleClearSession}
-              onDataImported={handleDataImported}
-              onDataRemoved={handleDataRemoved}
-              onImportTrigger={() => {
-                onboarding.handleImportTrigger();
-              }}
-              onFileSelected={handlePreviewFileSelected}
-              onSidebarResize={handleSidebarResize}
               onTemplateApplied={handleTemplateApplied}
               onTemplateAppliedIncremental={handleTemplateAppliedIncremental}
               onUpdateSettings={handleUpdateAnalysisSettings}
               previewFile={previewFile}
               previewStatus={previewStatus}
               rawData={rawData}
-              selectedPreviewFileId={selectedPreviewFileId}
-              sidebarWidth={sidebarWidth}
               subscribePreviewRowsVersion={subscribePreviewRowsVersion}
               t={t}
             />
@@ -595,9 +599,7 @@ const Page = () => {
                   processingStatus={processingStatus}
                   activeFileId={analysisActiveFileId}
                   onActiveFileIdChange={handleAnalysisFileChange}
-                  onSidebarResize={handleSidebarResize}
                   showFileSelect={!isWindowsDesktopShell}
-                  sidebarWidth={sidebarWidth}
                   shouldMountCharts={
                     analysisPane.isActive || hasVisitedAnalysisPage
                   }
@@ -673,6 +675,7 @@ const Page = () => {
           ) : null}
         </section>
       </div>
+      </DeviceAnalysisWorkspace>
 
       <Toast
         message={extractionErrorToast.message}
