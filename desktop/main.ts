@@ -869,7 +869,7 @@ function isSupportedRustExcelInputPath(filePath) {
 
 function isSupportedRustAnalysisInputPath(filePath) {
   const ext = path.extname(filePath).toLowerCase();
-  return ext === ".csv" || ext === ".xls" || ext === ".xlsx";
+  return ext === ".csv";
 }
 
 function resolveRustExcelConverterPath() {

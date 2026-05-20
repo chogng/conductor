@@ -1,5 +1,3 @@
-use calamine::open_workbook_auto;
-use calamine::Reader;
 use serde_json::json;
 use serde_json::Value;
 use std::cell::Ref;
@@ -133,16 +131,6 @@ impl EngineDataset {
     }
 }
 
-pub fn is_excel_path(path: &Path) -> bool {
-    match path.extension().and_then(|value| value.to_str()) {
-        Some(ext) => {
-            let lower = ext.to_ascii_lowercase();
-            lower == "xls" || lower == "xlsx"
-        }
-        None => false,
-    }
-}
-
 fn is_csv_path(path: &Path) -> bool {
     match path.extension().and_then(|value| value.to_str()) {
         Some(ext) => ext.eq_ignore_ascii_case("csv"),
@@ -167,28 +155,6 @@ fn update_dataset_meta(
     }
 }
 
-fn load_excel_rows(path: &Path) -> Result<Vec<Vec<String>>, String> {
-    let mut workbook = open_workbook_auto(path).map_err(|error| error.to_string())?;
-    let sheet_name = workbook
-        .sheet_names()
-        .first()
-        .cloned()
-        .ok_or_else(|| "workbook has no sheet".to_string())?;
-    let range = workbook
-        .worksheet_range(&sheet_name)
-        .map_err(|error| error.to_string())?;
-
-    let mut rows = Vec::<Vec<String>>::new();
-    for row in range.rows() {
-        let values: Vec<String> = row.iter().map(|cell| cell.to_string()).collect();
-        if values.iter().all(|value| value.trim().is_empty()) {
-            continue;
-        }
-        rows.push(values);
-    }
-    Ok(rows)
-}
-
 fn load_csv_rows(path: &Path) -> Result<Vec<Vec<String>>, String> {
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(false)
@@ -208,12 +174,10 @@ fn load_csv_rows(path: &Path) -> Result<Vec<Vec<String>>, String> {
 }
 
 pub fn load_dataset(path: &Path, file_name: &str) -> Result<EngineDataset, String> {
-    let rows = if is_excel_path(path) {
-        load_excel_rows(path)?
-    } else if is_csv_path(path) {
+    let rows = if is_csv_path(path) {
         load_csv_rows(path)?
     } else {
-        return Err("unsupported file type".to_string());
+        return Err("analysis dataset only supports CSV input".to_string());
     };
 
     Ok(EngineDataset::from_rows(file_name.to_string(), rows))

@@ -1,5 +1,6 @@
 mod analysis;
 mod cells;
+mod converter;
 mod dataset;
 mod infer;
 mod legend;
@@ -9,11 +10,14 @@ mod utils;
 use analysis::AnalysisSeriesRequest;
 use analysis::AnalysisSourceFile;
 use analysis::compute_central_derivative;
-use calamine::Reader;
-use calamine::open_workbook_auto;
 use cells::EngineCellRequest;
+use converter::ConvertFailure;
+use converter::ConvertResult;
+use converter::ConvertStats;
+use converter::collect_excel_files;
+use converter::convert_one;
+use converter::write_csv_cell;
 use dataset::EngineDataset;
-use dataset::is_excel_path;
 use dataset::load_dataset;
 use infer::find_metadata_positive_integer;
 use infer::infer_auto_segmentation_from_x_values;
@@ -45,29 +49,6 @@ use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Instant;
 use utils::*;
-
-#[derive(Default, Clone)]
-struct ConvertStats {
-    cells: usize,
-    convert_ms: f64,
-    csv_bytes: usize,
-    numeric_cells: usize,
-    rows: usize,
-    size_bytes: u64,
-}
-
-struct ConvertResult {
-    assessment: Value,
-    index: usize,
-    output_path: Option<PathBuf>,
-    path: PathBuf,
-    stats: ConvertStats,
-}
-
-struct ConvertFailure {
-    message: String,
-    path: PathBuf,
-}
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -3826,50 +3807,6 @@ fn run_stdio_engine() {
     }
 }
 
-fn collect_excel_files(root: &Path, output: &mut Vec<PathBuf>) {
-    let Ok(entries) = fs::read_dir(root) else {
-        return;
-    };
-
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            collect_excel_files(&path, output);
-        } else if path.is_file() && is_excel_path(&path) {
-            output.push(path);
-        }
-    }
-}
-
-fn write_csv_cell<W: Write + ?Sized>(value: &str, output: &mut W) -> io::Result<usize> {
-    let needs_quotes = value
-        .bytes()
-        .any(|byte| matches!(byte, b',' | b'"' | b'\n' | b'\r'));
-    if !needs_quotes {
-        output.write_all(value.as_bytes())?;
-        return Ok(value.len());
-    }
-
-    let mut written = 2usize;
-    output.write_all(b"\"")?;
-    for byte in value.bytes() {
-        if byte == b'"' {
-            output.write_all(b"\"\"")?;
-            written += 2;
-        } else {
-            output.write_all(&[byte])?;
-            written += 1;
-        }
-    }
-    output.write_all(b"\"")?;
-    Ok(written)
-}
-
-fn is_numeric_text(value: &str) -> bool {
-    let trimmed = value.trim();
-    !trimmed.is_empty() && trimmed.parse::<f64>().is_ok()
-}
-
 fn build_import_assessment(file_name: &str, rows: Vec<Vec<String>>) -> Value {
     let dataset = EngineDataset::from_rows(file_name.to_string(), rows);
     let header_row_index = find_header_row_index(&dataset);
@@ -3884,120 +3821,6 @@ fn build_import_assessment(file_name: &str, rows: Vec<Vec<String>>) -> Value {
         "curveTypeReasons": Vec::<String>::new(),
         "xAxisRole": x_axis_role,
         "xAxisRoleSource": source,
-    })
-}
-
-fn convert_one(
-    index: usize,
-    path: &Path,
-    output_path: Option<&Path>,
-) -> Result<ConvertResult, ConvertFailure> {
-    let start = Instant::now();
-    let size_bytes = fs::metadata(path).map(|meta| meta.len()).unwrap_or(0);
-    let mut workbook = open_workbook_auto(path).map_err(|error| ConvertFailure {
-        message: error.to_string(),
-        path: path.to_path_buf(),
-    })?;
-    let sheet_name = workbook
-        .sheet_names()
-        .first()
-        .cloned()
-        .ok_or_else(|| ConvertFailure {
-            message: "workbook has no sheet".to_string(),
-            path: path.to_path_buf(),
-        })?;
-    let range = workbook
-        .worksheet_range(&sheet_name)
-        .map_err(|error| ConvertFailure {
-            message: error.to_string(),
-            path: path.to_path_buf(),
-        })?;
-
-    let mut output_writer: Box<dyn Write> = if let Some(csv_path) = output_path {
-        if let Some(parent) = csv_path.parent() {
-            fs::create_dir_all(parent).map_err(|error| ConvertFailure {
-                message: error.to_string(),
-                path: path.to_path_buf(),
-            })?;
-        }
-        Box::new(BufWriter::new(fs::File::create(csv_path).map_err(
-            |error| ConvertFailure {
-                message: error.to_string(),
-                path: path.to_path_buf(),
-            },
-        )?))
-    } else {
-        Box::new(io::sink())
-    };
-    let mut assessment_rows = Vec::<Vec<String>>::new();
-    let mut stats = ConvertStats {
-        size_bytes,
-        ..ConvertStats::default()
-    };
-
-    // Retain only a prefix for import assessment while streaming the full sheet to
-    // CSV, keeping benchmark conversions bounded in memory.
-    for row in range.rows() {
-        let values: Vec<String> = row.iter().map(|cell| cell.to_string()).collect();
-        if values.iter().all(|value| value.trim().is_empty()) {
-            continue;
-        }
-        if assessment_rows.len() < 512 {
-            assessment_rows.push(values.clone());
-        }
-
-        if stats.rows > 0 {
-            output_writer
-                .write_all(b"\n")
-                .map_err(|error| ConvertFailure {
-                    message: error.to_string(),
-                    path: path.to_path_buf(),
-                })?;
-            stats.csv_bytes += 1;
-        }
-
-        for (index, value) in values.iter().enumerate() {
-            if index > 0 {
-                output_writer
-                    .write_all(b",")
-                    .map_err(|error| ConvertFailure {
-                        message: error.to_string(),
-                        path: path.to_path_buf(),
-                    })?;
-                stats.csv_bytes += 1;
-            }
-            if is_numeric_text(value) {
-                stats.numeric_cells += 1;
-            }
-            stats.csv_bytes +=
-                write_csv_cell(value, output_writer.as_mut()).map_err(|error| ConvertFailure {
-                    message: error.to_string(),
-                    path: path.to_path_buf(),
-                })?;
-        }
-
-        stats.rows += 1;
-        stats.cells += values.len();
-    }
-
-    output_writer.flush().map_err(|error| ConvertFailure {
-        message: error.to_string(),
-        path: path.to_path_buf(),
-    })?;
-    stats.convert_ms = start.elapsed().as_secs_f64() * 1000.0;
-    let output_path = output_path.map(|csv_path| csv_path.to_path_buf());
-
-    Ok(ConvertResult {
-        assessment: build_import_assessment(
-            path.file_name()
-                .and_then(|value| value.to_str())
-                .unwrap_or(""),
-            assessment_rows,
-        ),
-        index,
-        output_path,
-        path: path.to_path_buf(),
-        stats,
     })
 }
 
@@ -4093,8 +3916,16 @@ fn main() {
                             std::process::exit(1);
                         }
                     }
+                    let assessment = build_import_assessment(
+                        result
+                            .path
+                            .file_name()
+                            .and_then(|value| value.to_str())
+                            .unwrap_or(""),
+                        result.assessment_rows.clone(),
+                    );
                     let manifest = json!({
-                        "assessment": result.assessment,
+                        "assessment": assessment,
                         "cells": result.stats.cells,
                         "convertMs": result.stats.convert_ms,
                         "csvBytes": result.stats.csv_bytes,

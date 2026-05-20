@@ -573,21 +573,28 @@ export const usePreview = ({
       });
     };
 
-    const sourcePath =
-      typeof targetFile.sourcePath === "string" ? targetFile.sourcePath : "";
     const bridge = (globalThis.window as any)?.desktopImport;
-    if (sourcePath && bridge?.openDeviceAnalysisFileWithRust) {
+    const rustInputPath =
+      typeof targetFile.normalizedCsvPath === "string" &&
+      targetFile.normalizedCsvPath.trim()
+        ? targetFile.normalizedCsvPath.trim()
+        : typeof targetFile.sourcePath === "string" &&
+            targetFile.sourcePath.trim().toLowerCase().endsWith(".csv")
+          ? targetFile.sourcePath.trim()
+          : null;
+    if (rustInputPath && bridge?.openDeviceAnalysisFileWithRust) {
       void bridge
         .openDeviceAnalysisFileWithRust({
           fileId: targetFile.fileId,
           fileName: targetFile.fileName ?? "",
-          path: sourcePath,
+          path: rustInputPath,
           seedRows: DA_PREVIEW_MAX_CACHED_UI_ROWS_PER_FILE,
         })
         .then((response: any) => {
           if (!response?.ok || !response?.result) {
-            if (requestId !== previewRequestIdRef.current) return;
-            void postWorkerPreview();
+            if (requestId === previewRequestIdRef.current) {
+              void postWorkerPreview();
+            }
             return;
           }
 

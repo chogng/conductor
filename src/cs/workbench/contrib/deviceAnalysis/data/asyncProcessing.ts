@@ -84,7 +84,12 @@ const ANALYSIS_CACHE_SINGLE_FILE_BUDGET_BYTES = 32 * 1024 * 1024;
 const ANALYSIS_CACHE_TOTAL_BUDGET_BYTES = 64 * 1024 * 1024;
 
 const isRustCapableProcessingEntry = (entry: ProcessingQueueItem): boolean =>
-  typeof entry?.sourcePath === "string" && entry.sourcePath.trim().length > 0;
+  Boolean(
+    (typeof entry?.normalizedCsvPath === "string" &&
+      entry.normalizedCsvPath.trim()) ||
+      (typeof entry?.sourcePath === "string" &&
+        entry.sourcePath.trim().toLowerCase().endsWith(".csv")),
+  );
 
 const resolveProcessingFallbackFile = async (
   entry: ProcessingQueueItem,

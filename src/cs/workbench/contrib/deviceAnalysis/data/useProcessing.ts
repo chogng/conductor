@@ -358,9 +358,15 @@ export const useProcessing = ({
       extractionConfig: unknown;
       messageType: "processFile" | "processFileAuto";
     }): Promise<ProcessedEntry | null> => {
-      const sourcePath =
-        typeof entry.sourcePath === "string" ? entry.sourcePath.trim() : "";
-      if (!sourcePath) return null;
+      const inputPath =
+        typeof entry.normalizedCsvPath === "string" &&
+        entry.normalizedCsvPath.trim()
+          ? entry.normalizedCsvPath.trim()
+          : typeof entry.sourcePath === "string" &&
+              entry.sourcePath.trim().toLowerCase().endsWith(".csv")
+            ? entry.sourcePath.trim()
+            : null;
+      if (!inputPath) return null;
 
       const bridge = (globalThis.window as any)?.desktopImport;
       if (!bridge?.processDeviceAnalysisFileWithRust) return null;
@@ -375,7 +381,7 @@ export const useProcessing = ({
             fileId: entry.fileId,
             fileName: entry.fileName ?? "",
             maxPoints: 600,
-            path: sourcePath,
+            path: inputPath,
           });
           if (!response?.ok || !response?.result) return null;
           return response.result as ProcessedEntry;
@@ -390,7 +396,7 @@ export const useProcessing = ({
           fileId: entry.fileId,
           fileName: entry.fileName ?? "",
           maxPoints: 600,
-          path: sourcePath,
+          path: inputPath,
         });
         if (!response?.ok || !response?.result) return null;
         return response.result as ProcessedEntry;
