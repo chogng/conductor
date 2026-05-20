@@ -5,7 +5,7 @@
 
 /* Offset the custom Y scrollbar track to align flush with the outer card's border */
 .dropzone :global(.scroll-area__track--y) {
-  right: -14px !important;
+  right: -1px !important;
 }
 
 .dropzoneViewport {

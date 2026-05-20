@@ -66,7 +66,7 @@ const DataPart = ({
 }: DataPartProps) =>
   jsx(SplitView, {
     className: "min-h-full h-full",
-    gap: 8,
+    gap: 4,
     orientation: "horizontal",
     panes: [
       {
