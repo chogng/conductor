@@ -45,12 +45,16 @@ Tree 解决“怎么把层级结构变成这串行并支持展开折叠”
 list.ts 主要放当前列表公共契约，比如 ListProps、ListHandle、ListRenderState。
 listView.ts 是低层 DOM 实现，负责虚拟滚动、测量、滚动定位、聚焦、选中和键盘导航。
 listWidget.ts 是对 listView 的上层封装，负责把 DOM 列表能力接成更好用的组件入口。
+rowCache.ts 负责行 DOM 的复用和事务化回收，减少虚拟列表滚动时的创建销毁抖动。
+splice.ts 是把同一段 splice 同步广播给多个目标的小工具。
 list.css 是基础样式。List/ListView 的 DOM 结构、滚动视口和行样式都依赖它。
 如果把这几层串起来看，就是：
 
 list.ts = 接口和约定
 listView.ts = 虚拟滚动引擎
 listWidget.ts = 组件入口封装
+rowCache.ts = 行复用缓存
+splice.ts = splice 同步器
 listWidget.ts 是更高一层的 List 组件。它把 listView.ts 包起来，补上选择、焦点、键盘导航、类型搜索、可访问性等“列表产品层”能力。你一般直接用它，而不是直接碰 ListView。
 listPaging.ts 是分页列表的适配层。它把一个按页懒加载的模型接到 List 上，未解析的项先显示占位，等数据回来再替换。
 rangeMap.ts 是索引和像素位置的映射工具。它负责算某个元素在第几行、顶部偏移多少、可见范围对应哪些 index。
