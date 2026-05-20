@@ -3394,6 +3394,30 @@ fn handle_request(
                 (Err(error), _) | (_, Err(error)) => Err(error),
             }
         }
+        "assessImport" => {
+            let path_text = request
+                .path
+                .as_deref()
+                .filter(|value| !value.trim().is_empty())
+                .ok_or_else(|| "missing path".to_string())?;
+            let path = PathBuf::from(path_text);
+            let file_name = request.file_name.clone().unwrap_or_else(|| {
+                path.file_name()
+                    .and_then(|value| value.to_str())
+                    .unwrap_or("")
+                    .to_string()
+            });
+            let dataset = load_dataset(&path, &file_name)?;
+            Ok(json!({
+                "assessment": build_import_assessment(
+                    &file_name,
+                    dataset.rows.iter().take(512).cloned().collect(),
+                ),
+                "columnCount": dataset.column_count,
+                "fileName": file_name,
+                "rowCount": dataset.rows.len(),
+            }))
+        }
         "previewRows" => {
             let file_id = request
                 .file_id

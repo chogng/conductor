@@ -18,6 +18,7 @@
   originHealthCheck: "origin:health-check",
   originRunCsv: "origin:run-csv",
   originRuntimeCleanupRun: "origin:runtime-cleanup:run",
+  importPrepareRust: "import:prepare-rust",
   excelConvertRust: "excel:convert-rust",
   excelReadConvertedCsv: "excel:read-converted-csv",
   analysisDemoFilesGet: "demo:files:get",

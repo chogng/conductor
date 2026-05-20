@@ -1676,6 +1676,114 @@ async function handleExcelConvertRust(_event, payload) {
   }
 }
 
+async function handleImportPrepareRust(_event, payload) {
+  const rawPath = payload && typeof payload === "object" ? payload.path : payload;
+  const inputPath = normalizeAbsoluteFilePath(rawPath);
+  const fileName =
+    payload && typeof payload.fileName === "string" && payload.fileName.trim()
+      ? payload.fileName.trim()
+      : inputPath
+        ? path.basename(inputPath)
+        : "";
+
+  if (!inputPath) {
+    return {
+      ok: false,
+      code: "INVALID_IMPORT_PATH",
+      message: "Invalid import file path.",
+    };
+  }
+
+  let stat;
+  try {
+    stat = fs.statSync(inputPath);
+    if (!stat.isFile()) {
+      return {
+        ok: false,
+        code: "INVALID_IMPORT_PATH",
+        message: "Import path is not a file.",
+      };
+    }
+  } catch (error) {
+    return {
+      ok: false,
+      code: "IMPORT_FILE_NOT_FOUND",
+      message: error?.message || "Import file not found.",
+    };
+  }
+
+  const startedAt = Date.now();
+  if (isSupportedRustExcelInputPath(inputPath)) {
+    const conversion = await handleExcelConvertRust(_event, {
+      path: inputPath,
+      returnCsvText: false,
+    });
+    if (!conversion?.ok || !conversion.assessment) {
+      return {
+        ok: false,
+        code: conversion?.code || "RUST_IMPORT_PREPARE_FAILED",
+        durationMs: Date.now() - startedAt,
+        message: conversion?.message || "Rust import preparation failed.",
+      };
+    }
+    return {
+      ok: true,
+      assessment: conversion.assessment,
+      durationMs: Date.now() - startedAt,
+      manifest: conversion.manifest,
+      normalizedCsvPath: conversion.csvPath ?? null,
+      normalizedSizeBytes: conversion.normalizedSizeBytes,
+      sourceName: fileName,
+      sourcePath: inputPath,
+      sourceSizeBytes: stat.size,
+      source: "rust",
+    };
+  }
+
+  if (!isSupportedRustAnalysisInputPath(inputPath)) {
+    return {
+      ok: false,
+      code: "UNSUPPORTED_IMPORT_FORMAT",
+      durationMs: Date.now() - startedAt,
+      message: "Unsupported import file format.",
+    };
+  }
+
+  try {
+    const result = await sendRustAnalysisEngineCommand("assessImport", {
+      fileName,
+      path: inputPath,
+    }) as { assessment?: unknown };
+    const assessment = normalizeRustImportAssessment(result.assessment);
+    if (!assessment) {
+      return {
+        ok: false,
+        code: "RUST_IMPORT_ASSESSMENT_FAILED",
+        durationMs: Date.now() - startedAt,
+        message: "Rust import assessment failed.",
+      };
+    }
+    return {
+      ok: true,
+      assessment,
+      durationMs: Date.now() - startedAt,
+      normalizedCsvPath: null,
+      normalizedSizeBytes: stat.size,
+      sourceName: fileName,
+      sourcePath: inputPath,
+      sourceSizeBytes: stat.size,
+      source: "rust",
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      code: "RUST_IMPORT_PREPARE_FAILED",
+      durationMs: Date.now() - startedAt,
+      message: error?.message || "Rust import preparation failed.",
+    };
+  }
+}
+
 async function handleAnalysisRustEngineOpen(_event, payload) {
   const rawPath = payload && typeof payload === "object" ? payload.path : "";
   const inputPath = normalizeAbsoluteFilePath(rawPath);
@@ -3437,6 +3545,7 @@ if (hasSingleInstanceLock) {
   ipcMain.handle(ipcChannels.persistencePathGet, handleAnalysisPersistencePathGet);
   ipcMain.handle(ipcChannels.persistencePathSet, handleAnalysisPersistencePathSet);
   ipcMain.handle(ipcChannels.persistencePathChoose, handleAnalysisPersistencePathChoose);
+  ipcMain.handle(ipcChannels.importPrepareRust, handleImportPrepareRust);
   ipcMain.handle(ipcChannels.excelConvertRust, handleExcelConvertRust);
   ipcMain.handle(ipcChannels.excelReadConvertedCsv, handleExcelReadConvertedCsv);
   ipcMain.handle(ipcChannels.analysisDemoFilesGet, handleAnalysisDemoFilesGet);
@@ -3547,6 +3656,7 @@ app.on("will-quit", () => {
   ipcMain.removeHandler(ipcChannels.persistencePathGet);
   ipcMain.removeHandler(ipcChannels.persistencePathSet);
   ipcMain.removeHandler(ipcChannels.persistencePathChoose);
+  ipcMain.removeHandler(ipcChannels.importPrepareRust);
   ipcMain.removeHandler(ipcChannels.excelConvertRust);
   ipcMain.removeHandler(ipcChannels.excelReadConvertedCsv);
   ipcMain.removeHandler(ipcChannels.analysisDemoFilesGet);
