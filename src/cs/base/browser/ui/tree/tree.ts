@@ -6,7 +6,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
-import List from "src/cs/base/browser/ui/list/listReact";
+import List from "src/cs/base/browser/ui/list/listWidget";
 import type { ListRenderState } from "src/cs/base/browser/ui/list/list";
 import { cx } from "src/utils/cx";
 import "./tree.css";

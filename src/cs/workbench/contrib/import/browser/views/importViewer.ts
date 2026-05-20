@@ -9,7 +9,7 @@ import { lxClose, lxFileText } from "cogicon";
 import ScrollArea from "src/cs/base/browser/ui/ScrollArea/ScrollArea";
 import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
 import { lxAlertCircle } from "src/cs/base/browser/ui/CogIcon/icons";
-import List from "src/cs/base/browser/ui/list/listReact";
+import List from "src/cs/base/browser/ui/list/listWidget";
 import type { ListHandle } from "src/cs/base/browser/ui/list/list";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import { cx } from "src/utils/cx";

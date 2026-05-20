@@ -19,7 +19,7 @@ browser/views/media 只给相对独立的子 view 使用，例如 openEditorsVie
 对应到 import contrib，sidebar import 主区域的样式放 browser/media/importerViewlet.css；只有后续出现独立子 view，才放 browser/views/media/*.css。
 
 # 这次重构的落点
-`src/cs/base/browser/ui/list/list.ts` 是列表契约层，`src/cs/base/browser/ui/list/listView.ts` 是基础虚拟列表实现，负责滚动窗口、选中、聚焦、键盘导航和必要时的虚拟化。
+`src/cs/base/browser/ui/list/list.ts` 是列表契约层，`src/cs/base/browser/ui/list/listView.ts` 是基础虚拟列表实现，负责滚动窗口、选中、聚焦、键盘导航和必要时的虚拟化，`src/cs/base/browser/ui/list/listWidget.ts` 是它的组件入口封装。
 `src/cs/base/browser/ui/tree/tree.ts` 负责把层级数据折叠成线性行，再交给 `List` 渲染。
 `src/cs/workbench/contrib/import/browser/importerView.ts` 现在只做 importer 业务编排，把文件条目接到 `List` 上，不再自己算虚拟窗口。
 

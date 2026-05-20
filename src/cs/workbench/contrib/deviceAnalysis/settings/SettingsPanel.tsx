@@ -3,7 +3,7 @@ import Button from "src/cs/base/browser/ui/Button/Button";
 import Card from "src/cs/base/browser/ui/Card/Card";
 import DropdownField from "src/cs/base/browser/ui/DropdownField/DropdownField";
 import Input from "src/cs/base/browser/ui/Input/Input";
-import Toast from "src/cs/base/browser/ui/Toast/Toast";
+import Toast from "src/cs/base/browser/ui/toast/toast";
 import type { Feedback } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import { AboutSettingsSection } from "src/cs/workbench/contrib/deviceAnalysis/settings/AboutSettingsSection";
 import { GeneralSettingsSection } from "src/cs/workbench/contrib/deviceAnalysis/settings/GeneralSettingsSection";

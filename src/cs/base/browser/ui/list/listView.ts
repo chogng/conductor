@@ -10,6 +10,7 @@ import {
   type IDisposable,
 } from "src/cs/base/common/lifecycle";
 import type { ListRenderState } from "src/cs/base/browser/ui/list/list";
+import { RowCache, type RowCacheRow } from "src/cs/base/browser/ui/list/rowCache";
 import "./list.css";
 
 export type ListViewItemRenderer<T> = (
@@ -49,11 +50,10 @@ export type ListViewOptions<T> = {
 };
 
 type RowEntry<T> = {
-  container: HTMLDivElement;
   index: number;
   item: T;
   key: string;
-  mount: HTMLDivElement;
+  row: RowCacheRow;
 };
 
 const DEFAULT_MIN_VIRTUAL_COUNT = 80;
@@ -69,6 +69,7 @@ export class ListView<T> implements IDisposable {
   private readonly stage: HTMLDivElement;
   private readonly emptyContainer: HTMLDivElement;
   private readonly rows = new Map<string, RowEntry<T>>();
+  private readonly rowCache = new RowCache(() => this.createRow());
   private props: ListViewOptions<T>;
   private viewportHeight = 0;
   private scrollTop = 0;
@@ -178,6 +179,7 @@ export class ListView<T> implements IDisposable {
       this.props.disposeEmpty?.(this.emptyContainer);
     }
     this.disposeAllRows();
+    this.rowCache.dispose();
     this.disposables.dispose();
     this.root.remove();
   }
@@ -332,68 +334,82 @@ export class ListView<T> implements IDisposable {
 
     this.stage.style.height = `${totalHeight}px`;
 
-    const visibleKeys = new Set<string>();
+    this.rowCache.transact(() => {
+      const visibleKeys = new Set<string>();
 
-    for (let visibleIndex = 0; visibleIndex < endIndex - startIndex; visibleIndex += 1) {
-      const index = startIndex + visibleIndex;
-      const item = items[index];
-      if (!item) continue;
+      for (
+        let visibleIndex = 0;
+        visibleIndex < endIndex - startIndex;
+        visibleIndex += 1
+      ) {
+        const index = startIndex + visibleIndex;
+        const item = items[index];
+        if (!item) continue;
 
-      const key = getKey(item, index);
-      visibleKeys.add(key);
+        const key = getKey(item, index);
+        visibleKeys.add(key);
 
-      let entry = this.rows.get(key);
-      if (!entry) {
-        entry = this.createRowEntry(item, index, key);
-        this.rows.set(key, entry);
-        this.stage.appendChild(entry.container);
+        let entry = this.rows.get(key);
+        if (!entry) {
+          const { row } = this.rowCache.alloc("default");
+          entry = {
+            index,
+            item,
+            key,
+            row,
+          };
+          this.rows.set(key, entry);
+          if (row.domNode.parentElement !== this.stage) {
+            this.stage.appendChild(row.domNode);
+          }
+        }
+
+        entry.index = index;
+        entry.item = item;
+        entry.row.domNode.style.top = `${index * rowStep}px`;
+        entry.row.domNode.style.height = `${this.rowHeight}px`;
+        entry.row.domNode.setAttribute("data-index", String(index));
+        entry.row.domNode.setAttribute("data-key", key);
+        entry.row.domNode.setAttribute("role", rowRole ?? "option");
+
+        const selected = selectedKey === key;
+        const focused = index === this.focusedIndex;
+
+        if (selected) {
+          entry.row.domNode.setAttribute("aria-selected", "true");
+        } else {
+          entry.row.domNode.removeAttribute("aria-selected");
+        }
+
+        entry.row.domNode.classList.toggle("ui-list__row--selected", selected);
+        entry.row.domNode.classList.toggle("ui-list__row--focused", focused);
+
+        renderItem(item, index, { focused, index, selected }, entry.row.mount);
       }
 
-      entry.index = index;
-      entry.item = item;
-      entry.container.style.top = `${index * rowStep}px`;
-      entry.container.style.height = `${this.rowHeight}px`;
-      entry.container.setAttribute("data-index", String(index));
-      entry.container.setAttribute("data-key", key);
-      entry.container.setAttribute("role", rowRole ?? "option");
+      for (const [key, entry] of this.rows) {
+        if (visibleKeys.has(key)) {
+          continue;
+        }
 
-      const selected = selectedKey === key;
-      const focused = index === this.focusedIndex;
-
-      if (selected) {
-        entry.container.setAttribute("aria-selected", "true");
-      } else {
-        entry.container.removeAttribute("aria-selected");
+        disposeItem?.(entry.item, entry.index, entry.row.mount);
+        this.rowCache.release(entry.row);
+        this.rows.delete(key);
       }
-
-      entry.container.classList.toggle("ui-list__row--selected", selected);
-      entry.container.classList.toggle("ui-list__row--focused", focused);
-
-      renderItem(item, index, { focused, index, selected }, entry.mount);
-    }
-
-    for (const [key, entry] of this.rows) {
-      if (visibleKeys.has(key)) {
-        continue;
-      }
-
-      disposeItem?.(entry.item, entry.index, entry.mount);
-      entry.container.remove();
-      this.rows.delete(key);
-    }
+    });
   }
 
-  private createRowEntry(item: T, index: number, key: string): RowEntry<T> {
-    const container = document.createElement("div");
-    container.className = "ui-list__row";
+  private createRow(): RowCacheRow {
+    const domNode = document.createElement("div");
+    domNode.className = "ui-list__row";
 
     const mount = document.createElement("div");
     mount.className = "ui-list__row-content";
 
-    container.appendChild(mount);
+    domNode.appendChild(mount);
 
-    container.addEventListener("click", () => {
-      const nextIndex = Number(container.dataset.index);
+    domNode.addEventListener("click", () => {
+      const nextIndex = Number(domNode.dataset.index);
       const nextItem = this.props.items[nextIndex];
       if (Number.isNaN(nextIndex) || typeof nextItem === "undefined") return;
 
@@ -403,18 +419,16 @@ export class ListView<T> implements IDisposable {
     });
 
     return {
-      container,
-      index,
-      item,
-      key,
+      domNode,
       mount,
+      templateId: "default",
     };
   }
 
   private disposeAllRows(): void {
     for (const entry of this.rows.values()) {
-      this.props.disposeItem?.(entry.item, entry.index, entry.mount);
-      entry.container.remove();
+      this.props.disposeItem?.(entry.item, entry.index, entry.row.mount);
+      this.rowCache.release(entry.row);
     }
     this.rows.clear();
   }

@@ -12,7 +12,7 @@ import Checkbox from "cs/base/browser/ui/Checkbox/Checkbox";
 import InlineEditableText from "cs/base/browser/ui/InlineEditableText/InlineEditableText";
 import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
 import Tabs from "cs/base/browser/ui/Tabs/Tabs";
-import Toast from "cs/base/browser/ui/Toast/Toast";
+import Toast from "cs/base/browser/ui/toast/toast";
 import SplitView from "src/cs/base/browser/ui/splitview/splitview";
 import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
 import { lxSlidersHorizontal } from "src/cs/base/browser/ui/CogIcon/icons";

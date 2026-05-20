@@ -24,7 +24,7 @@ import {
 } from "src/cs/base/browser/ui/CogIcon/icons";
 import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
 import type { TranslateFn, TranslationVars } from "src/cs/platform/language/common/language";
-import Toast from "cs/base/browser/ui/Toast/Toast";
+import Toast from "cs/base/browser/ui/toast/toast";
 import Input from "cs/base/browser/ui/Input/Input";
 import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
 import Tabs from "cs/base/browser/ui/Tabs/Tabs";

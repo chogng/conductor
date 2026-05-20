@@ -44,10 +44,74 @@ Tree 解决“怎么把层级结构变成这串行并支持展开折叠”
 
 list.ts 主要放当前列表公共契约，比如 ListProps、ListHandle、ListRenderState。
 listView.ts 是低层 DOM 实现，负责虚拟滚动、测量、滚动定位、聚焦、选中和键盘导航。
-listReact.ts 是过渡期 React 适配层，只负责把 ReactNode 挂到 listView 提供的 DOM row 上；后续退 React 时优先绕开它。
+listWidget.ts 是对 listView 的上层封装，负责把 DOM 列表能力接成更好用的组件入口。
 list.css 是基础样式。List/ListView 的 DOM 结构、滚动视口和行样式都依赖它。
 如果把这几层串起来看，就是：
 
 list.ts = 接口和约定
 listView.ts = 虚拟滚动引擎
-listReact.ts = 迁移期 React 适配
+listWidget.ts = 组件入口封装
+listWidget.ts 是更高一层的 List 组件。它把 listView.ts 包起来，补上选择、焦点、键盘导航、类型搜索、可访问性等“列表产品层”能力。你一般直接用它，而不是直接碰 ListView。
+listPaging.ts 是分页列表的适配层。它把一个按页懒加载的模型接到 List 上，未解析的项先显示占位，等数据回来再替换。
+rangeMap.ts 是索引和像素位置的映射工具。它负责算某个元素在第几行、顶部偏移多少、可见范围对应哪些 index。
+rowCache.ts 是行模板缓存。它复用 DOM row，避免频繁创建和销毁，虚拟滚动性能主要靠它省下来的。
+
+# splice.ts 是 splice 组合器工具。它让多个可 splice 的对象同步接收同一段增删改。
+
+list.css 是基础样式。List/ListView 的 DOM 结构、滚动条、拖拽态、行样式等都依赖它。
+如果把这几层串起来看，就是：
+
+list.ts = 接口和约定
+listView.ts = 虚拟滚动引擎
+rowCache.ts = 行复用
+rangeMap.ts = 索引与像素映射
+listWidget.ts = 面向 workbench 的完整列表组件
+
+listPaging.ts 不是“分页逻辑的业务层”，它更像一个适配器：把一个按页、可异步解析的数据模型，包装成普通的 List 来用。真正的虚拟滚动还是 listView.ts 那套在做；listPaging 只是让 List 能接住 “先有索引、后补数据” 这种模型。
+
+你可以把它理解成三步：
+
+先把模型长度塞给 List，List 先显示一堆索引位
+某个索引如果还没解析出来，就先画占位内容
+等 model.resolve(index) 完成后，再把占位替换成真实内容
+对应到代码里，核心就是 listPaging.ts 里的这些思路：
+
+PagedList 内部还是 new List(...)
+PagedRenderer 负责：已解析就 renderElement，未解析就 renderPlaceholder
+model.onDidIncrementLength 会把新页追加到列表里
+能滚动和可见区渲染的，还是 listView.ts。
+
+所以它的重要性体现在：
+
+它让 List 能接分页数据
+它负责占位和解析后的替换
+它把“分页模型”接入了统一的列表体系
+
+rowCache.ts 是 ListView 的行复用缓存，核心作用就是少创建、少销毁 DOM row。
+
+它做的事很直接：
+
+alloc(templateId)：拿一个可复用的 row；如果没有缓存，就创建新的 row 和模板数据
+release(row)：把 row 放回缓存，等下次同模板再复用
+transact(...)：把一批 splice 里的删除和插入包起来，避免刚删掉又立刻插回来的 row 真的从 DOM 里移除再重建
+它重要的原因是：虚拟列表滚动时，元素会不断进出视口，如果每次都重新创建 DOM，性能会很差。RowCache 就是专门配合 listView.ts 做这个优化的。
+
+所以你可以把它理解成：
+
+listView.ts 负责“哪些行该显示”
+rowCache.ts 负责“这些行能不能复用，不要老重建”
+
+RowCache 之所以和 splice 配合，是为了让列表在插入、删除、滚动时尽量复用已经创建过的行 DOM，而不是每次都销毁重建。
+
+它的关键点在 rowCache.ts：
+
+alloc(templateId) 会优先从缓存里拿同模板的 row
+release(row) 会把 row 放回缓存，供下次复用
+transact(...) 会把一批变更包起来，延迟真正移除 DOM 的动作
+这个设计和 listView.ts 里的 splice 很配合。ListView 在更新一段元素时，常见情况是某些行刚被删除、紧接着又在新的位置插回来了。没有 transact 的话，这些 row 会先从 DOM 里移除，再马上创建回来，抖动和开销都更大。transact 的作用就是把这种“先删后插”的中间态吞掉，减少真实 DOM 操作。
+
+所以你可以这么理解：
+
+listView.ts 决定哪些元素该进出视口
+rowCache.ts 决定这些行能不能复用
+splice.ts 提供把多个可 splice 对象同步更新的工具

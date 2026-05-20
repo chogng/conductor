@@ -150,10 +150,10 @@ const Toast = ({ message, type = "success", actionText, onAction, onClose, isVis
         };
     }, [isVisible, shouldRender]);
     useEffect(() => () => {
-        autoCloseTimerRef.current.dispose();
-        openTimerRef.current.dispose();
-        closeTimerRef.current.dispose();
-        hideTimerRef.current.dispose();
+        autoCloseTimerRef.current.cancel();
+        openTimerRef.current.cancel();
+        closeTimerRef.current.cancel();
+        hideTimerRef.current.cancel();
     }, []);
     if (!shouldRender)
         return null;

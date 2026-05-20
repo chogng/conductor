@@ -7,7 +7,7 @@ import {
   Suspense,
 } from "react";
 import ScrollArea from "src/cs/base/browser/ui/ScrollArea/ScrollArea";
-import Toast from "src/cs/base/browser/ui/Toast/Toast";
+import Toast from "src/cs/base/browser/ui/toast/toast";
 import type { TranslationVars } from "src/cs/platform/language/common/language";
 import { loadAnalysisCharts } from "src/cs/workbench/contrib/chartPreview/loadAnalysisCharts";
 import { getExtractionErrorMessage } from "src/cs/workbench/common/deviceAnalysis/utils";
