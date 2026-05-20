@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, type CSSProperties, type ReactNode } from "rea
 import {
   WorkbenchTitlebarPart,
   type WorkbenchTitlebarProps,
-} from "src/cs/workbench/browser/parts/titlebar/WorkbenchTitlebar";
+} from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
 import { renderWorkbenchTitlebarSkeleton } from "src/cs/workbench/browser/parts/titlebar/titlebarSkeleton";
 import {
   getWorkspaceShellStyle,

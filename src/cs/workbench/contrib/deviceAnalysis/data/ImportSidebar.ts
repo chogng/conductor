@@ -9,8 +9,10 @@ import {
 import Card from "cs/base/browser/ui/Card/Card";
 import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
-import WorkbenchSidebar, { type WorkbenchSidebarProps } from "src/cs/workbench/browser/parts/sidebar/WorkbenchSidebar";
-import type { WorkbenchSidebarHeaderAction } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
+import SidebarPart, {
+  type SidebarPartProps,
+  type WorkbenchSidebarHeaderAction,
+} from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import CsvImporter, {
   type CsvImporterProps,
   type CsvImporterRef,
@@ -101,7 +103,7 @@ const ImportSidebar = ({
     },
   ];
 
-  const handleSidebarAction: WorkbenchSidebarProps["onAction"] = (action) => {
+  const handleSidebarAction: SidebarPartProps["onAction"] = (action) => {
     if (action.id === "analysis-import-csv-btn") {
       if (onImportTrigger) {
         onImportTrigger();
@@ -117,7 +119,7 @@ const ImportSidebar = ({
     }
   };
 
-  return jsx(WorkbenchSidebar, {
+  return jsx(SidebarPart, {
     ariaLabel: t("da_import_section"),
     headerActions,
     onAction: handleSidebarAction,
