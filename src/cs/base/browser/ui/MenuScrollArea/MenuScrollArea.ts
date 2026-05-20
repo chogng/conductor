@@ -1,7 +1,7 @@
 import { jsx } from "react/jsx-runtime";
 import { type ComponentProps } from "react";
 import { cx } from "src/utils/cx";
-import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
+import ScrollArea from "cs/base/browser/ui/scrollArea/scrollArea";
 
 type MenuScrollAreaProps = Omit<ComponentProps<typeof ScrollArea>, "axis">;
 const MenuScrollArea = ({ className = "", viewportClassName = "", viewportProps, ...props }: MenuScrollAreaProps) => (jsx(ScrollArea, {

@@ -2,15 +2,17 @@ import type {
   ChangeEvent,
   DragEvent,
   MouseEvent,
+  MutableRefObject,
   RefObject,
 } from "react";
 import { Fragment, jsx, jsxs } from "react/jsx-runtime";
+import { useEffect, useMemo, useRef } from "react";
 import { lxClose, lxFileText } from "cogicon";
-import ScrollArea from "src/cs/base/browser/ui/ScrollArea/ScrollArea";
-import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
-import { lxAlertCircle } from "src/cs/base/browser/ui/CogIcon/icons";
-import List from "src/cs/base/browser/ui/list/listWidget";
+import ScrollArea from "src/cs/base/browser/ui/scrollArea/scrollArea";
+import { normalizeCogIconSvgMarkup } from "src/cs/base/browser/ui/CogIcon/cogicon";
+import Toast from "src/cs/base/browser/ui/toast/toast";
 import type { ListHandle } from "src/cs/base/browser/ui/list/list";
+import { ListView, type ListViewOptions } from "src/cs/base/browser/ui/list/listView";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import { cx } from "src/utils/cx";
 import { DATA_IMPORT_ACCEPT } from "src/cs/workbench/contrib/import/common/constants";
@@ -25,6 +27,7 @@ export type ImportViewerProps = {
   readonly files: ImporterFileEntry[];
   readonly isDragging: boolean;
   readonly listRef: RefObject<ListHandle | null>;
+  readonly onClearError: () => void;
   readonly onDragLeave: () => void;
   readonly onDragOver: (event: DragEvent<HTMLDivElement>) => void;
   readonly onDrop: (event: DragEvent<HTMLDivElement>) => void;
@@ -42,10 +45,24 @@ const getImportViewerFileName = (fileEntry: ImporterFileEntry): string =>
     ? String(fileEntry.file.name ?? "")
     : String(fileEntry?.fileName ?? "");
 
+const appendIcon = (
+  container: HTMLElement,
+  icon: () => string,
+  size = 16,
+) => {
+  const iconSpan = document.createElement("span");
+  iconSpan.className = "ui-cogicon";
+  iconSpan.style.width = `${size}px`;
+  iconSpan.style.height = `${size}px`;
+  iconSpan.innerHTML = normalizeCogIconSvgMarkup(icon);
+  container.appendChild(iconSpan);
+};
+
 const renderImportViewerFileItem = (
   fileEntry: ImporterFileEntry,
   isSelected: boolean,
   onRemove: (fileId: string | null) => void,
+  container: HTMLElement,
 ) => {
   const fileName = getImportViewerFileName(fileEntry);
   const needsReview =
@@ -59,86 +76,65 @@ const renderImportViewerFileItem = (
       }`
     : "";
 
-  return jsxs("div", {
-    "aria-label": "csv-file-item",
-    id: fileEntry?.itemKey
-      ? `csv-file-item-${toDomIdToken(fileEntry.itemKey)}`
-      : undefined,
-    "data-item-key": fileEntry?.itemKey || undefined,
-    "data-selected": isSelected ? "true" : undefined,
-    title: fileName,
-    className: cx("import-viewer-file-item", "group", isSelected && "selected"),
-    children: [
-      jsxs(
-        "div",
-        {
-          className: "import-viewer-file-content",
-          children: [
-            jsx(
-              "div",
-              {
-                className: "import-viewer-file-icon",
-                children: jsx(CogIcon, { icon: lxFileText, size: 16 }),
-              },
-              "icon",
-            ),
-            jsxs(
-              "div",
-              {
-                className: "import-viewer-file-text",
-                children: [
-                  jsx(
-                    "span",
-                    {
-                      className: "import-viewer-file-name",
-                      children: fileName,
-                    },
-                    "name",
-                  ),
-                  autoSummary
-                    ? jsx(
-                        "span",
-                        {
-                          className: cx(
-                            "import-viewer-file-meta",
-                            needsReview && "warning",
-                          ),
-                          children: autoSummary,
-                        },
-                        "meta",
-                      )
-                    : null,
-                ],
-              },
-              "text",
-            ),
-          ],
-        },
-        "content",
-      ),
-      jsx(
-        "div",
-        {
-          className: "import-viewer-file-actions",
-          children: jsx("button", {
-            type: "button",
-            "aria-label": "Remove CSV file",
-            id: fileEntry?.itemKey
-              ? `csv-file-remove-${toDomIdToken(fileEntry.itemKey)}`
-              : undefined,
-            "data-item-key": fileEntry?.itemKey || undefined,
-            onClick: (event: MouseEvent<HTMLButtonElement>) => {
-              event.stopPropagation();
-              onRemove(fileEntry.fileId ?? null);
-            },
-            className: "import-viewer-file-remove",
-            children: jsx(CogIcon, { icon: lxClose, size: 16 }),
-          }),
-        },
-        "actions",
-      ),
-    ],
+  container.replaceChildren();
+  container.className = cx("import-viewer-file-item", "group", isSelected && "selected");
+  container.setAttribute("aria-label", "csv-file-item");
+  container.title = fileName;
+  container.dataset.selected = isSelected ? "true" : undefined;
+
+  if (fileEntry?.itemKey) {
+    container.id = `csv-file-item-${toDomIdToken(fileEntry.itemKey)}`;
+    container.dataset.itemKey = fileEntry.itemKey;
+  } else {
+    container.removeAttribute("id");
+    delete container.dataset.itemKey;
+  }
+
+  const content = document.createElement("div");
+  content.className = "import-viewer-file-content";
+
+  const icon = document.createElement("div");
+  icon.className = "import-viewer-file-icon";
+  appendIcon(icon, lxFileText);
+
+  const text = document.createElement("div");
+  text.className = "import-viewer-file-text";
+
+  const name = document.createElement("span");
+  name.className = "import-viewer-file-name";
+  name.textContent = fileName;
+  text.appendChild(name);
+
+  if (autoSummary) {
+    const meta = document.createElement("span");
+    meta.className = cx("import-viewer-file-meta", needsReview && "warning");
+    meta.textContent = autoSummary;
+    text.appendChild(meta);
+  }
+
+  content.append(icon, text);
+
+  const actions = document.createElement("div");
+  actions.className = "import-viewer-file-actions";
+
+  const removeButton = document.createElement("button");
+  removeButton.type = "button";
+  removeButton.className = "import-viewer-file-remove";
+  removeButton.setAttribute("aria-label", "Remove CSV file");
+
+  if (fileEntry?.itemKey) {
+    removeButton.id = `csv-file-remove-${toDomIdToken(fileEntry.itemKey)}`;
+    removeButton.dataset.itemKey = fileEntry.itemKey;
+  }
+
+  removeButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    onRemove(fileEntry.fileId ?? null);
   });
+  appendIcon(removeButton, lxClose);
+
+  actions.appendChild(removeButton);
+  container.append(content, actions);
 };
 
 const ImportViewer = ({
@@ -148,6 +144,7 @@ const ImportViewer = ({
   files,
   isDragging,
   listRef,
+  onClearError,
   onDragLeave,
   onDragOver,
   onDrop,
@@ -156,8 +153,95 @@ const ImportViewer = ({
   onRemoveFile,
   onSelectFile,
   t,
-}: ImportViewerProps) =>
-  jsxs(Fragment, {
+}: ImportViewerProps) => {
+  const listHostRef = useRef<HTMLDivElement | null>(null);
+  const listViewRef = useRef<ListView<ImporterFileEntry> | null>(null);
+  const toastRef = useRef<Toast | null>(null);
+
+  const listOptions = useMemo<ListViewOptions<ImporterFileEntry>>(
+    () => ({
+      className: "import-viewer-file-list",
+      getKey: (fileEntry, index) =>
+        fileEntry.fileId ?? fileEntry.itemKey ?? String(index),
+      gap: 12,
+      items: files,
+      minVirtualCount: 200,
+      onScroll: onListScroll,
+      onSelect: (fileEntry) => onSelectFile(fileEntry.fileId ?? null),
+      renderItem: (fileEntry, _index, _state, container) => {
+        renderImportViewerFileItem(
+          fileEntry,
+          effectiveSelectedFileId === fileEntry.fileId,
+          onRemoveFile,
+          container,
+        );
+      },
+      disposeItem: (_fileEntry, _index, container) => {
+        container.replaceChildren();
+      },
+      rowHeight: 64,
+      selectedKey: effectiveSelectedFileId ?? null,
+      viewportClassName: "import-viewer-file-list-viewport",
+    }),
+    [
+      effectiveSelectedFileId,
+      files,
+      onListScroll,
+      onRemoveFile,
+      onSelectFile,
+    ],
+  );
+
+  useEffect(() => {
+    const host = listHostRef.current;
+    if (!host) return;
+
+    const listView = new ListView<ImporterFileEntry>(host, listOptions);
+    listViewRef.current = listView;
+    (listRef as MutableRefObject<ListHandle | null>).current = listView;
+
+    return () => {
+      listView.dispose();
+      listViewRef.current = null;
+      if ((listRef as MutableRefObject<ListHandle | null>).current === listView) {
+        (listRef as MutableRefObject<ListHandle | null>).current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    listViewRef.current?.setProps(listOptions);
+  }, [listOptions]);
+
+  useEffect(() => {
+    const toast = new Toast();
+    toastRef.current = toast;
+
+    return () => {
+      toastRef.current = null;
+      toast.dispose();
+    };
+  }, []);
+
+  useEffect(() => {
+    const toast = toastRef.current;
+    if (!toast) return;
+
+    if (!error) {
+      toast.hide();
+      return;
+    }
+
+    toast.show({
+      dataUi: "analysis-import-error-toast",
+      message: error,
+      onClose: onClearError,
+      position: "fixed",
+      type: "error",
+    });
+  }, [error, onClearError]);
+
+  return jsxs(Fragment, {
     children: [
       jsxs(ScrollArea, {
         axis: "y",
@@ -201,43 +285,17 @@ const ImportViewer = ({
                   id: "analysis-import-scroll",
                   "data-slot": "filled",
                   className: "w-full min-h-full flex flex-col",
-                  children: jsx(List, {
-                    ref: listRef,
-                    className: "import-viewer-file-list",
-                    viewportClassName: "import-viewer-file-list-viewport",
-                    items: files,
-                    getKey: (fileEntry: ImporterFileEntry, index: number) =>
-                      fileEntry.fileId ?? fileEntry.itemKey ?? String(index),
-                    gap: 12,
-                    minVirtualCount: 200,
-                    onScroll: onListScroll,
-                    onSelect: (fileEntry: ImporterFileEntry) =>
-                      onSelectFile(fileEntry.fileId ?? null),
-                    renderItem: (fileEntry: ImporterFileEntry) =>
-                      renderImportViewerFileItem(
-                        fileEntry,
-                        effectiveSelectedFileId === fileEntry.fileId,
-                        onRemoveFile,
-                      ),
-                    rowHeight: 64,
-                    selectedKey: effectiveSelectedFileId ?? null,
+                  children: jsx("div", {
+                    ref: listHostRef,
+                    className: "w-full min-h-full",
                   }),
                 },
                 "filled",
               ),
         ],
       }),
-      error
-        ? jsxs("div", {
-            className:
-              "flex items-center gap-2 p-3 text-sm text-red-500 bg-red-500/10 rounded-lg mt-4 whitespace-pre-wrap",
-            children: [
-              jsx(CogIcon, { icon: lxAlertCircle, size: 16 }),
-              error,
-            ],
-          })
-        : null,
     ],
   });
+};
 
 export default ImportViewer;

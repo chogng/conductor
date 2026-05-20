@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import Button from "src/cs/base/browser/ui/Button/Button";
 import Card from "src/cs/base/browser/ui/Card/Card";
 import DropdownField from "src/cs/base/browser/ui/DropdownField/DropdownField";
@@ -31,6 +31,8 @@ const SettingsPanel = ({
   t,
 }: SettingsPanelProps) => {
   const settingsSectionRef = useRef<HTMLElement | null>(null);
+  const originHealthToastRef = useRef<Toast | null>(null);
+  const cleanupToastRef = useRef<Toast | null>(null);
   const {
     activeSettingsSection,
     appUpdateChecking,
@@ -68,6 +70,68 @@ const SettingsPanel = ({
     originSettings,
     t,
   });
+
+  useEffect(() => {
+    const originHealthToast = new Toast();
+    const cleanupToast = new Toast();
+    originHealthToastRef.current = originHealthToast;
+    cleanupToastRef.current = cleanupToast;
+
+    return () => {
+      originHealthToastRef.current = null;
+      cleanupToastRef.current = null;
+      originHealthToast.dispose();
+      cleanupToast.dispose();
+    };
+  }, []);
+
+  useEffect(() => {
+    const toast = originHealthToastRef.current;
+    if (!toast) return;
+
+    if (!originHealthToast.isVisible) {
+      toast.hide();
+      return;
+    }
+
+    toast.show({
+      container: settingsSectionRef.current,
+      dataUi: "analysis-settings-origin-health-toast",
+      message: originHealthToast.message,
+      onClose: closeOriginHealthToast,
+      position: "absolute",
+      type: originHealthToast.type,
+    });
+  }, [
+    closeOriginHealthToast,
+    originHealthToast.isVisible,
+    originHealthToast.message,
+    originHealthToast.type,
+  ]);
+
+  useEffect(() => {
+    const toast = cleanupToastRef.current;
+    if (!toast) return;
+
+    if (!cleanupToast.isVisible) {
+      toast.hide();
+      return;
+    }
+
+    toast.show({
+      container: settingsSectionRef.current,
+      dataUi: "analysis-settings-origin-cleanup-toast",
+      message: cleanupToast.message,
+      onClose: closeCleanupToast,
+      position: "absolute",
+      type: cleanupToast.type,
+    });
+  }, [
+    cleanupToast.isVisible,
+    cleanupToast.message,
+    cleanupToast.type,
+    closeCleanupToast,
+  ]);
 
   return (
     <section
@@ -160,25 +224,6 @@ const SettingsPanel = ({
         </Card>
       </div>
 
-      <Toast
-        message={originHealthToast.message}
-        isVisible={originHealthToast.isVisible}
-        onClose={closeOriginHealthToast}
-        type={originHealthToast.type}
-        containerRef={settingsSectionRef}
-        position="absolute"
-        dataUi="analysis-settings-origin-health-toast"
-      />
-
-      <Toast
-        message={cleanupToast.message}
-        isVisible={cleanupToast.isVisible}
-        onClose={closeCleanupToast}
-        type={cleanupToast.type}
-        containerRef={settingsSectionRef}
-        position="absolute"
-        dataUi="analysis-settings-origin-cleanup-toast"
-      />
     </section>
   );
 };

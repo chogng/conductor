@@ -372,6 +372,7 @@ const ImporterView = forwardRef<ImporterRef, ImporterViewProps>(
       files,
       isDragging,
       listRef,
+      onClearError: () => setError(null),
       onDragLeave: handleDragLeave,
       onDragOver: handleDragOver,
       onDrop: handleDrop,

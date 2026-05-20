@@ -9,7 +9,7 @@ import React, {
   useSyncExternalStore,
 } from "react";
 import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
-import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
+import ScrollArea from "cs/base/browser/ui/scrollArea/scrollArea";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/deviceAnalysis/session/analysis-session-context";
 import type { PreviewFileLike } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";

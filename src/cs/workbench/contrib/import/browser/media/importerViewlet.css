@@ -3,7 +3,7 @@
   min-height: 300px;
 }
 
-.import-viewer-dropzone :global(.scroll-area__track--y) {
+.import-viewer-dropzone :global(.scrollAreaTrackY) {
   right: -1px !important;
 }
 

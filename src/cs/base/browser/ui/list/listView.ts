@@ -74,6 +74,8 @@ export class ListView<T> implements IDisposable {
   private viewportHeight = 0;
   private scrollTop = 0;
   private focusedIndex = -1;
+  private pendingScrollTop = 0;
+  private scrollRaf: number | null = null;
   private disposed = false;
 
   constructor(host: HTMLElement, options: ListViewOptions<T>) {
@@ -175,6 +177,11 @@ export class ListView<T> implements IDisposable {
     if (this.disposed) return;
     this.disposed = true;
 
+    if (this.scrollRaf !== null) {
+      window.cancelAnimationFrame(this.scrollRaf);
+      this.scrollRaf = null;
+    }
+
     if (!this.emptyContainer.hidden) {
       this.props.disposeEmpty?.(this.emptyContainer);
     }
@@ -241,12 +248,25 @@ export class ListView<T> implements IDisposable {
 
   private onScroll = (event: Event): void => {
     const nextScrollTop = getScrollPosition(this.viewport).scrollTop;
-    if (nextScrollTop !== this.scrollTop) {
-      this.scrollTop = nextScrollTop;
-      this.render();
-    }
+    this.scheduleScrollTop(nextScrollTop);
     this.props.onScroll?.(event);
   };
+
+  private scheduleScrollTop(nextScrollTop: number): void {
+    this.pendingScrollTop = nextScrollTop;
+
+    if (this.scrollRaf !== null) {
+      return;
+    }
+
+    this.scrollRaf = window.requestAnimationFrame(() => {
+      this.scrollRaf = null;
+      if (this.scrollTop !== this.pendingScrollTop) {
+        this.scrollTop = this.pendingScrollTop;
+        this.render();
+      }
+    });
+  }
 
   private onKeyDown = (event: KeyboardEvent): void => {
     const { items, onKeyDown, onSelect } = this.props;

@@ -1,5 +1,3 @@
-import type { KeyboardEvent, ReactNode } from "react";
-
 export type ListRenderState = {
   focused: boolean;
   index: number;
@@ -16,17 +14,28 @@ export type ListHandle = {
 
 export type ListProps<T> = {
   readonly className?: string;
-  readonly empty?: ReactNode;
+  readonly empty?: (container: HTMLElement) => void;
+  readonly disposeEmpty?: (container: HTMLElement) => void;
   readonly getKey: (item: T, index: number) => string;
   readonly gap?: number;
   readonly items: T[];
   readonly minVirtualCount?: number;
-  readonly onKeyDown?: (event: KeyboardEvent<HTMLDivElement>) => void;
+  readonly onKeyDown?: (event: KeyboardEvent) => void;
   readonly onScroll?: (event: Event) => void;
   readonly onSelect?: (item: T, index: number) => void;
   readonly overscanRows?: number;
   readonly role?: string;
-  readonly renderItem: (item: T, index: number, state: ListRenderState) => ReactNode;
+  readonly renderItem: (
+    item: T,
+    index: number,
+    state: ListRenderState,
+    container: HTMLElement,
+  ) => void;
+  readonly disposeItem?: (
+    item: T,
+    index: number,
+    container: HTMLElement,
+  ) => void;
   readonly rowHeight?: number;
   readonly rowRole?: string;
   readonly selectedKey?: string | null;

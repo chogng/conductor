@@ -10,7 +10,7 @@ import Button from "cs/base/browser/ui/Button/Button";
 import Card from "cs/base/browser/ui/Card/Card";
 import Checkbox from "cs/base/browser/ui/Checkbox/Checkbox";
 import InlineEditableText from "cs/base/browser/ui/InlineEditableText/InlineEditableText";
-import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
+import ScrollArea from "cs/base/browser/ui/scrollArea/scrollArea";
 import Tabs from "cs/base/browser/ui/Tabs/Tabs";
 import Toast from "cs/base/browser/ui/toast/toast";
 import SplitView from "src/cs/base/browser/ui/splitview/splitview";
@@ -1167,6 +1167,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         type: "success",
     });
     const toastContainerRef = useRef<HTMLDivElement | null>(null);
+    const toastRef = useRef<Toast | null>(null);
     const mainChartContainerRef = useRef<HTMLDivElement | null>(null);
     const diagnosticsChartContainerRef = useRef<HTMLDivElement | null>(null);
     const desktopMeta = typeof window !== "undefined" ? window.desktopMeta ?? null : null;
@@ -1185,6 +1186,29 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const closeToast = React.useCallback(() => {
         setToast((prev) => ({ ...prev, isVisible: false }));
     }, []);
+    useEffect(() => {
+        const toastController = new Toast();
+        toastRef.current = toastController;
+        return () => {
+            toastRef.current = null;
+            toastController.dispose();
+        };
+    }, []);
+    useEffect(() => {
+        const toastController = toastRef.current;
+        if (!toastController) return;
+        if (!toast.isVisible) {
+            toastController.hide();
+            return;
+        }
+        toastController.show({
+            container: toastContainerRef.current,
+            message: toast.message,
+            onClose: closeToast,
+            position: "absolute",
+            type: toast.type,
+        });
+    }, [closeToast, toast.isVisible, toast.message, toast.type]);
     useEffect(() => {
         let cancelled = false;
         (async () => {
@@ -5091,8 +5115,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 },
               ]}
             />
-
-      <Toast message={toast.message} isVisible={toast.isVisible} onClose={closeToast} type={toast.type} containerRef={toastContainerRef} position="absolute"/>
     </div>);
 };
 export default React.memo(AnalysisCharts);

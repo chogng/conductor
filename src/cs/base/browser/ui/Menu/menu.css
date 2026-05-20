@@ -110,7 +110,7 @@
   overflow: hidden;
 }
 
-.ui-menu__scroll-area .scroll-area__track--y {
+.ui-menu__scroll-area .scrollAreaTrackY {
   right: 0;
   width: 6px;
 }

@@ -18,6 +18,7 @@ type ScrollAreaProps = HTMLAttributes<HTMLDivElement> & {
     children?: ReactNode;
     viewportClassName?: string;
     axis?: ScrollAxis;
+    observeContentMutations?: boolean;
     viewportProps?: ViewportProps;
 };
 type ScrollMetrics = {
@@ -76,7 +77,7 @@ class WheelClassifier {
         return Math.abs(Math.round(value) - value) < 0.01;
     }
 }
-const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(({ children, className = "", viewportClassName = "", axis = "y", viewportProps = {}, ...props }, ref) => {
+const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(({ children, className = "", viewportClassName = "", axis = "y", observeContentMutations = true, viewportProps = {}, ...props }, ref) => {
     const viewportRef = useRef<HTMLDivElement | null>(null);
     const yThumbRef = useRef<HTMLDivElement | null>(null);
     const xThumbRef = useRef<HTMLDivElement | null>(null);
@@ -320,9 +321,11 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(({ childre
         const contentEl = viewport.firstElementChild;
         if (contentEl)
             ro.observe(contentEl);
-        const mo = observeMutations(viewport, () => scheduleMetricsUpdate(), {
-            childList: true,
-        });
+        const mo = observeContentMutations
+            ? observeMutations(viewport, () => scheduleMetricsUpdate(), {
+                childList: true,
+            })
+            : undefined;
         scheduleMetricsUpdate();
         const resizeDisposable = addDisposableListener(window, EventType.RESIZE, scheduleMetricsUpdate);
         return () => {
@@ -330,7 +333,7 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(({ childre
             wheelDisposable?.dispose();
             viewportResizeDisposable.dispose();
             ro.dispose();
-            mo.dispose();
+            mo?.dispose();
             resizeDisposable.dispose();
             if (metricsRafRef.current != null) {
                 metricsRafRef.current.dispose();
@@ -346,6 +349,7 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(({ childre
         axis,
         cancelHorizontalWheelAnimation,
         normalizeWheelDelta,
+        observeContentMutations,
         scheduleMetricsUpdate,
         scheduleThumbOffsetsUpdate,
         scrollHorizontalNow,
@@ -429,39 +433,39 @@ const ScrollArea = forwardRef<HTMLDivElement | null, ScrollAreaProps>(({ childre
     };
     return (jsx("div", {
         ...props,
-        className: cx("scroll-area", className),
+        className: cx("scrollArea", className),
         children: [
             jsx("div", {
                 ref: viewportRef,
-                className: cx("scroll-area__viewport", viewportClassName, viewportPropsClassName),
+                className: cx("scrollAreaViewport", viewportClassName, viewportPropsClassName),
                 "data-axis": axis,
                 ...restViewportProps,
                 children: children
-            }),
+            }, "viewport"),
             metrics.showY ? (jsx("div", {
-                className: "scroll-area__track scroll-area__track--y",
+                className: "scrollAreaTrack scrollAreaTrackY",
                 onMouseDown: (event: ReactMouseEvent<HTMLDivElement>) => jumpToTrackPosition("y", event),
                 children: jsx("div", {
                     ref: yThumbRef,
-                    className: "scroll-area__thumb scroll-area__thumb--y",
+                    className: "scrollAreaThumb scrollAreaThumbY",
                     style: {
                         height: `${metrics.yThumbSize}px`,
                     },
                     onMouseDown: (event: ReactMouseEvent<HTMLDivElement>) => startDrag("y", event)
                 })
-            })) : null,
+            }, "track-y")) : null,
             metrics.showX ? (jsx("div", {
-                className: "scroll-area__track scroll-area__track--x",
+                className: "scrollAreaTrack scrollAreaTrackX",
                 onMouseDown: (event: ReactMouseEvent<HTMLDivElement>) => jumpToTrackPosition("x", event),
                 children: jsx("div", {
                     ref: xThumbRef,
-                    className: "scroll-area__thumb scroll-area__thumb--x",
+                    className: "scrollAreaThumb scrollAreaThumbX",
                     style: {
                         width: `${metrics.xThumbSize}px`,
                     },
                     onMouseDown: (event: ReactMouseEvent<HTMLDivElement>) => startDrag("x", event)
                 })
-            })) : null
+            }, "track-x")) : null
         ]
     }));
 });

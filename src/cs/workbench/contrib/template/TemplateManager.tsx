@@ -32,7 +32,7 @@ import Card from "cs/base/browser/ui/Card/Card";
 import Button from "cs/base/browser/ui/Button/Button";
 import Checkbox from "cs/base/browser/ui/Checkbox/Checkbox";
 import Modal from "cs/base/browser/ui/Modal/Modal";
-import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
+import ScrollArea from "cs/base/browser/ui/scrollArea/scrollArea";
 import DataPreviewArea from "src/cs/workbench/contrib/deviceAnalysis/data/DataPreviewArea";
 import {
   TemplateManagerPreviewEmptyState,
@@ -243,6 +243,35 @@ const TemplateManager = ({
   const applyToAllShortLabel = language === "zh" ? "应用" : "Apply";
   const applyToNewShortLabel = language === "zh" ? "新增" : "New";
   const containerRef = useRef<HTMLElement | null>(null);
+  const toastRef = useRef<Toast | null>(null);
+
+  useEffect(() => {
+    const toastController = new Toast();
+    toastRef.current = toastController;
+
+    return () => {
+      toastRef.current = null;
+      toastController.dispose();
+    };
+  }, []);
+
+  useEffect(() => {
+    const toastController = toastRef.current;
+    if (!toastController) return;
+
+    if (!toast.isVisible) {
+      toastController.hide();
+      return;
+    }
+
+    toastController.show({
+      container: containerRef.current,
+      message: toast.message,
+      onClose: closeToast,
+      position: "absolute",
+      type: toast.type,
+    });
+  }, [closeToast, toast.isVisible, toast.message, toast.type]);
 
   useEffect(() => {
     const panelEl = configPanelRef.current;
@@ -2606,15 +2635,6 @@ const TemplateManager = ({
               previewWorkspaceFallback
             )
           }
-        />
-
-        <Toast
-          message={toast.message}
-          isVisible={toast.isVisible}
-          onClose={closeToast}
-          type={toast.type}
-          containerRef={containerRef}
-          position="absolute"
         />
 
         <Modal

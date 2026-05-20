@@ -5,7 +5,7 @@ import Card from "cs/base/browser/ui/Card/Card";
 import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
 import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
 import Input from "cs/base/browser/ui/Input/Input";
-import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
+import ScrollArea from "cs/base/browser/ui/scrollArea/scrollArea";
 import Switch from "cs/base/browser/ui/Switch/Switch";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import {

@@ -1,250 +1,309 @@
-import { jsx } from "react/jsx-runtime";
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FocusEvent, type ReactNode, type RefObject, } from "react";
 import { lxClose } from "cogicon";
-import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
-import { lxAlertCircle, lxCheckCircle, lxInfoCircle } from "src/cs/base/browser/ui/CogIcon/icons";
-import { getDomRect } from "src/cs/base/browser/dom";
-import { addDisposableListener, EventType } from "src/cs/base/browser/event";
 import { TimeoutTimer } from "src/cs/base/common/async";
+import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
+import { getDomRect } from "src/cs/base/browser/dom";
+import {
+  normalizeCogIconSvgMarkup,
+  type CogIconRenderer,
+} from "src/cs/base/browser/ui/CogIcon/cogicon";
+import {
+  lxAlertCircle,
+  lxCheckCircle,
+  lxInfoCircle,
+} from "src/cs/base/browser/ui/CogIcon/icons";
 import { cx } from "src/utils/cx";
 import "./toast.css";
 
-type ToastType = "success" | "error" | "warning" | "info";
-type ToastPosition = "absolute" | "fixed";
-type ToastProps = {
-    message: ReactNode;
-    type?: ToastType;
-    actionText?: string;
-    onAction?: () => void;
-    onClose?: () => void;
-    isVisible: boolean;
-    containerRef?: RefObject<HTMLElement | null>;
-    position?: ToastPosition;
-    duration?: number;
-    dataUi?: string;
+export type ToastType = "success" | "error" | "warning" | "info";
+export type ToastPosition = "absolute" | "fixed";
+
+export type ToastOptions = {
+  readonly actionText?: string;
+  readonly container?: HTMLElement | null;
+  readonly dataUi?: string;
+  readonly duration?: number;
+  readonly message: string;
+  readonly onAction?: () => void;
+  readonly onClose?: () => void;
+  readonly position?: ToastPosition;
+  readonly type?: ToastType;
 };
-const Toast = ({ message, type = "success", actionText, onAction, onClose, isVisible, containerRef, position = "absolute", duration = 5000, dataUi, }: ToastProps) => {
-    const [positionStyle, setPositionStyle] = useState<CSSProperties>({});
-    const [shouldRender, setShouldRender] = useState(isVisible);
-    const [isClosing, setIsClosing] = useState(false);
-    const closeFnRef = useRef<(() => void) | undefined>(onClose);
-    useEffect(() => {
-        closeFnRef.current = onClose;
-    }, [onClose]);
-    const autoCloseTimerRef = useRef(new TimeoutTimer());
-    const openTimerRef = useRef(new TimeoutTimer());
-    const closeTimerRef = useRef(new TimeoutTimer());
-    const hideTimerRef = useRef(new TimeoutTimer());
-    const autoCloseStartedAtRef = useRef<number | null>(null);
-    const autoCloseRemainingMsRef = useRef(duration);
-    const isAutoClosePausedRef = useRef(false);
-    const clearAutoCloseTimeout = () => {
-        autoCloseTimerRef.current.cancel();
-    };
-    const startAutoCloseTimeout = () => {
-        if (!isVisible)
-            return;
-        if (duration == null || duration === Number.POSITIVE_INFINITY)
-            return;
-        if (isAutoClosePausedRef.current)
-            return;
-        if (autoCloseRemainingMsRef.current <= 0)
-            return;
-        clearAutoCloseTimeout();
-        autoCloseStartedAtRef.current = Date.now();
-        autoCloseTimerRef.current.cancelAndSet(() => {
-            closeFnRef.current?.();
-        }, autoCloseRemainingMsRef.current);
-    };
-    const pauseAutoClose = () => {
-        if (!isVisible)
-            return;
-        if (duration == null || duration === Number.POSITIVE_INFINITY)
-            return;
-        if (isAutoClosePausedRef.current)
-            return;
-        isAutoClosePausedRef.current = true;
-        if (autoCloseStartedAtRef.current != null) {
-            const elapsed = Date.now() - autoCloseStartedAtRef.current;
-            autoCloseRemainingMsRef.current = Math.max(0, autoCloseRemainingMsRef.current - elapsed);
-        }
-        clearAutoCloseTimeout();
-    };
-    const resumeAutoClose = () => {
-        if (!isVisible)
-            return;
-        if (duration == null || duration === Number.POSITIVE_INFINITY)
-            return;
-        if (!isAutoClosePausedRef.current)
-            return;
-        isAutoClosePausedRef.current = false;
-        startAutoCloseTimeout();
-    };
-    // Handle auto-close (paused on hover/focus, resumes on leave/blur)
-    useEffect(() => {
-        if (!isVisible) {
-            clearAutoCloseTimeout();
-            isAutoClosePausedRef.current = false;
-            autoCloseStartedAtRef.current = null;
-            autoCloseRemainingMsRef.current = duration;
-            return;
-        }
-        isAutoClosePausedRef.current = false;
-        autoCloseStartedAtRef.current = null;
-        autoCloseRemainingMsRef.current = duration;
-        startAutoCloseTimeout();
-        return () => {
-            clearAutoCloseTimeout();
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [actionText, duration, isVisible, message, onAction, type]);
-    // Calculate position if containerRef is provided.
-    useLayoutEffect(() => {
-        const updatePosition = () => {
-            if (containerRef?.current && position === "absolute") {
-                const rect = getDomRect(containerRef.current);
-                const center = rect.left + rect.width / 2;
-                setPositionStyle({
-                    position: "fixed",
-                    bottom: "32px",
-                    left: `${center}px`,
-                });
-            }
-            else if (position === "fixed") {
-                setPositionStyle({
-                    position: "fixed",
-                    bottom: "32px",
-                    left: "50%",
-                    transform: "translateX(-50%)",
-                });
-            }
-        };
-        if (isVisible) {
-            updatePosition();
-            return addDisposableListener(window, EventType.RESIZE, updatePosition).dispose;
-        }
-    }, [containerRef, isVisible, position]);
-    useEffect(() => {
-        openTimerRef.current.cancel();
-        closeTimerRef.current.cancel();
-        hideTimerRef.current.cancel();
-        if (isVisible) {
-            openTimerRef.current.cancelAndSet(() => {
-                setShouldRender(true);
-                setIsClosing(false);
-            }, 0);
-        }
-        else if (shouldRender) {
-            closeTimerRef.current.cancelAndSet(() => {
-                setIsClosing(true);
-                hideTimerRef.current.cancelAndSet(() => {
-                    setShouldRender(false);
-                    setIsClosing(false);
-                }, 300);
-            }, 0);
-        }
-        return () => {
-            openTimerRef.current.cancel();
-            closeTimerRef.current.cancel();
-            hideTimerRef.current.cancel();
-        };
-    }, [isVisible, shouldRender]);
-    useEffect(() => () => {
-        autoCloseTimerRef.current.cancel();
-        openTimerRef.current.cancel();
-        closeTimerRef.current.cancel();
-        hideTimerRef.current.cancel();
-    }, []);
-    if (!shouldRender)
-        return null;
-    const uiMarker = typeof dataUi === "string" && dataUi.trim() ? dataUi.trim() : undefined;
+
+const DEFAULT_TOAST_DURATION = 5000;
+const TOAST_CLOSE_ANIMATION_MS = 300;
+
+const appendIcon = (
+  container: HTMLElement,
+  icon: CogIconRenderer,
+  size: number,
+) => {
+  const iconElement = document.createElement("span");
+  iconElement.className = "ui-cogicon";
+  iconElement.style.width = `${size}px`;
+  iconElement.style.height = `${size}px`;
+  iconElement.innerHTML = normalizeCogIconSvgMarkup(icon);
+  container.appendChild(iconElement);
+};
+
+const getToastIcon = (type: ToastType): CogIconRenderer => {
+  if (type === "success") return lxCheckCircle;
+  if (type === "info") return lxInfoCircle;
+  return lxAlertCircle;
+};
+
+export class Toast implements IDisposable {
+  private readonly disposables = new DisposableStore();
+  private readonly root: HTMLDivElement;
+  private readonly iconContainer: HTMLDivElement;
+  private readonly messageElement: HTMLSpanElement;
+  private readonly controls: HTMLDivElement;
+  private readonly actionButton: HTMLButtonElement;
+  private readonly closeButton: HTMLButtonElement;
+  private readonly autoCloseTimer = new TimeoutTimer();
+  private readonly closeTimer = new TimeoutTimer();
+  private readonly hideTimer = new TimeoutTimer();
+  private autoCloseRemainingMs = DEFAULT_TOAST_DURATION;
+  private autoCloseStartedAt: number | null = null;
+  private isAutoClosePaused = false;
+  private isDisposed = false;
+  private isVisible = false;
+  private options: ToastOptions | null = null;
+
+  public constructor(private readonly host: HTMLElement = document.body) {
+    this.root = document.createElement("div");
+    this.iconContainer = document.createElement("div");
+    this.messageElement = document.createElement("span");
+    this.controls = document.createElement("div");
+    this.actionButton = document.createElement("button");
+    this.closeButton = document.createElement("button");
+
+    this.iconContainer.className = "conductor-toast-icon";
+    this.messageElement.className = "conductor-toast-message";
+    this.controls.className = "conductor-toast-controls";
+    this.actionButton.type = "button";
+    this.actionButton.className = "conductor-toast-action";
+    this.closeButton.type = "button";
+    this.closeButton.className = "conductor-toast-close";
+    this.closeButton.setAttribute("aria-label", "Close toast");
+    appendIcon(this.closeButton, lxClose, 16);
+
+    this.controls.append(this.actionButton, this.closeButton);
+    this.root.append(this.iconContainer, this.messageElement, this.controls);
+
+    this.root.addEventListener("mouseenter", this.pauseAutoClose);
+    this.root.addEventListener("mouseleave", this.resumeAutoClose);
+    this.root.addEventListener("focusin", this.pauseAutoClose);
+    this.root.addEventListener("focusout", this.handleFocusOut);
+    this.actionButton.addEventListener("click", this.handleAction);
+    this.closeButton.addEventListener("click", this.handleClose);
+    window.addEventListener("resize", this.updatePosition);
+
+    this.disposables.add(this.autoCloseTimer);
+    this.disposables.add(this.closeTimer);
+    this.disposables.add(this.hideTimer);
+  }
+
+  public show(options: ToastOptions): void {
+    if (this.isDisposed) return;
+
+    this.options = options;
+    this.isVisible = true;
+    this.closeTimer.cancel();
+    this.hideTimer.cancel();
+    this.updateContent(options);
+    this.updatePosition();
+
+    if (!this.root.parentElement) {
+      this.host.appendChild(this.root);
+    }
+
+    this.root.className = this.getClassName(options, false);
+    this.root.dataset.state = "open";
+    this.startAutoClose(options.duration ?? DEFAULT_TOAST_DURATION);
+  }
+
+  public hide(): void {
+    if (this.isDisposed || !this.root.parentElement) {
+      this.isVisible = false;
+      return;
+    }
+
+    this.isVisible = false;
+    this.autoCloseTimer.cancel();
+    this.closeTimer.cancelAndSet(() => {
+      if (!this.options) return;
+      this.root.className = this.getClassName(this.options, true);
+      this.root.dataset.state = "closing";
+      this.hideTimer.cancelAndSet(() => {
+        this.root.remove();
+        this.root.dataset.state = "closed";
+      }, TOAST_CLOSE_ANIMATION_MS);
+    }, 0);
+  }
+
+  public dispose(): void {
+    this.isDisposed = true;
+    this.root.removeEventListener("mouseenter", this.pauseAutoClose);
+    this.root.removeEventListener("mouseleave", this.resumeAutoClose);
+    this.root.removeEventListener("focusin", this.pauseAutoClose);
+    this.root.removeEventListener("focusout", this.handleFocusOut);
+    this.actionButton.removeEventListener("click", this.handleAction);
+    this.closeButton.removeEventListener("click", this.handleClose);
+    window.removeEventListener("resize", this.updatePosition);
+    this.root.remove();
+    this.disposables.dispose();
+  }
+
+  private updateContent(options: ToastOptions): void {
+    const type = options.type ?? "success";
+    const uiMarker =
+      typeof options.dataUi === "string" && options.dataUi.trim()
+        ? options.dataUi.trim()
+        : undefined;
     const isUrgent = type === "error" || type === "warning";
-    const a11yRole = isUrgent ? "alert" : "status";
-    const ariaLive = isUrgent ? "assertive" : "polite";
-    const state = isVisible ? "open" : isClosing ? "closing" : "closed";
-    const getIcon = () => {
-        switch (type) {
-            case "success":
-                return jsx(CogIcon, {
-                    icon: lxCheckCircle,
-                    size: 20,
-                    "aria-hidden": "true"
-                });
-            case "error":
-                return jsx(CogIcon, {
-                    icon: lxAlertCircle,
-                    size: 20,
-                    "aria-hidden": "true"
-                });
-            case "warning":
-                return jsx(CogIcon, {
-                    icon: lxAlertCircle,
-                    size: 20,
-                    "aria-hidden": "true"
-                });
-            default:
-                return jsx(CogIcon, {
-                    icon: lxInfoCircle,
-                    size: 20,
-                    "aria-hidden": "true"
-                });
-        }
-    };
-    return (jsx("div", {
-        onMouseEnter: pauseAutoClose,
-        onMouseLeave: resumeAutoClose,
-        onFocusCapture: pauseAutoClose,
-        onBlurCapture: (event: FocusEvent<HTMLDivElement>) => {
-            const relatedTarget = event.relatedTarget;
-            if (relatedTarget instanceof Node &&
-                event.currentTarget.contains(relatedTarget)) {
-                return;
-            }
-            resumeAutoClose();
-        },
-        role: a11yRole,
-        "aria-live": ariaLive,
-        "aria-atomic": "true",
-        "data-style": "toast",
-        "data-type": type,
-        "data-state": state,
-        "data-ui": uiMarker,
-        className: cx("conductor-toast", isClosing ? "conductor-toast-closing" : "conductor-toast-opening", Object.keys(positionStyle).length === 0 && (position === "fixed" ? "conductor-toast-fixed" : "conductor-toast-absolute")),
-        style: positionStyle,
-        children: [
-            jsx("div", {
-                className: "conductor-toast-icon",
-                children: getIcon()
-            }),
-            jsx("span", {
-                className: "conductor-toast-message",
-                children: message
-            }),
-            jsx("div", {
-                className: "conductor-toast-controls",
-                children: [
-                    actionText && onAction ? (jsx("button", {
-                        type: "button",
-                        onClick: onAction,
-                        "data-ui": uiMarker ? `${uiMarker}-action` : undefined,
-                        className: "conductor-toast-action",
-                        children: actionText
-                    })) : null,
-                    jsx("button", {
-                        type: "button",
-                        onClick: onClose,
-                        "aria-label": "Close toast",
-                        "data-ui": uiMarker ? `${uiMarker}-close` : undefined,
-                        className: "conductor-toast-close",
-                        children: jsx(CogIcon, {
-                            icon: lxClose,
-                            size: 16,
-                            "aria-hidden": "true"
-                        })
-                    })
-                ]
-            })
-        ]
-    }));
-};
+
+    this.root.setAttribute("role", isUrgent ? "alert" : "status");
+    this.root.setAttribute("aria-live", isUrgent ? "assertive" : "polite");
+    this.root.setAttribute("aria-atomic", "true");
+    this.root.setAttribute("data-style", "toast");
+    this.root.setAttribute("data-type", type);
+
+    if (uiMarker) {
+      this.root.setAttribute("data-ui", uiMarker);
+      this.closeButton.setAttribute("data-ui", `${uiMarker}-close`);
+    } else {
+      this.root.removeAttribute("data-ui");
+      this.closeButton.removeAttribute("data-ui");
+    }
+
+    this.iconContainer.replaceChildren();
+    appendIcon(this.iconContainer, getToastIcon(type), 20);
+    this.messageElement.textContent = options.message;
+
+    if (options.actionText && options.onAction) {
+      this.actionButton.hidden = false;
+      this.actionButton.textContent = options.actionText;
+      if (uiMarker) {
+        this.actionButton.setAttribute("data-ui", `${uiMarker}-action`);
+      } else {
+        this.actionButton.removeAttribute("data-ui");
+      }
+    } else {
+      this.actionButton.hidden = true;
+      this.actionButton.textContent = "";
+      this.actionButton.removeAttribute("data-ui");
+    }
+  }
+
+  private getClassName(options: ToastOptions, isClosing: boolean): string {
+    const position = options.position ?? "absolute";
+    const positionClass = position === "fixed" || options.container
+      ? "conductor-toast-fixed"
+      : "conductor-toast-absolute";
+
+    return cx(
+      "conductor-toast",
+      isClosing ? "conductor-toast-closing" : "conductor-toast-opening",
+      positionClass,
+    );
+  }
+
+  private readonly updatePosition = (): void => {
+    if (!this.options) return;
+
+    const position = this.options.position ?? "absolute";
+    const container = this.options.container;
+
+    this.root.style.position = "";
+    this.root.style.bottom = "";
+    this.root.style.left = "";
+    this.root.style.transform = "";
+
+    if (container && position === "absolute") {
+      const rect = getDomRect(container);
+      const center = rect.left + rect.width / 2;
+      this.root.style.position = "fixed";
+      this.root.style.bottom = "32px";
+      this.root.style.left = `${center}px`;
+      return;
+    }
+
+    if (position === "fixed") {
+      this.root.style.position = "fixed";
+      this.root.style.bottom = "32px";
+      this.root.style.left = "50%";
+      this.root.style.transform = "translateX(-50%)";
+    }
+  };
+
+  private startAutoClose(duration: number): void {
+    this.autoCloseTimer.cancel();
+    this.isAutoClosePaused = false;
+    this.autoCloseStartedAt = null;
+    this.autoCloseRemainingMs = duration;
+
+    if (duration === Number.POSITIVE_INFINITY || duration <= 0) return;
+
+    this.autoCloseStartedAt = Date.now();
+    this.autoCloseTimer.cancelAndSet(() => {
+      this.options?.onClose?.();
+      this.hide();
+    }, duration);
+  }
+
+  private readonly pauseAutoClose = (): void => {
+    const duration = this.options?.duration ?? DEFAULT_TOAST_DURATION;
+    if (
+      !this.isVisible ||
+      this.isAutoClosePaused ||
+      duration === Number.POSITIVE_INFINITY
+    ) {
+      return;
+    }
+
+    this.isAutoClosePaused = true;
+    if (this.autoCloseStartedAt != null) {
+      const elapsed = Date.now() - this.autoCloseStartedAt;
+      this.autoCloseRemainingMs = Math.max(0, this.autoCloseRemainingMs - elapsed);
+    }
+    this.autoCloseTimer.cancel();
+  };
+
+  private readonly resumeAutoClose = (): void => {
+    const duration = this.options?.duration ?? DEFAULT_TOAST_DURATION;
+    if (
+      !this.isVisible ||
+      !this.isAutoClosePaused ||
+      duration === Number.POSITIVE_INFINITY
+    ) {
+      return;
+    }
+
+    this.isAutoClosePaused = false;
+    if (this.autoCloseRemainingMs <= 0) return;
+    this.autoCloseStartedAt = Date.now();
+    this.autoCloseTimer.cancelAndSet(() => {
+      this.options?.onClose?.();
+      this.hide();
+    }, this.autoCloseRemainingMs);
+  };
+
+  private readonly handleFocusOut = (event: FocusEvent): void => {
+    const relatedTarget = event.relatedTarget;
+    if (relatedTarget instanceof Node && this.root.contains(relatedTarget)) {
+      return;
+    }
+    this.resumeAutoClose();
+  };
+
+  private readonly handleAction = (): void => {
+    this.options?.onAction?.();
+  };
+
+  private readonly handleClose = (): void => {
+    this.options?.onClose?.();
+    this.hide();
+  };
+}
+
 export default Toast;

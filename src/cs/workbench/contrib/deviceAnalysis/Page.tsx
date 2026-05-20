@@ -6,7 +6,7 @@ import {
   useState,
   Suspense,
 } from "react";
-import ScrollArea from "src/cs/base/browser/ui/ScrollArea/ScrollArea";
+import ScrollArea from "src/cs/base/browser/ui/scrollArea/scrollArea";
 import Toast from "src/cs/base/browser/ui/toast/toast";
 import type { TranslationVars } from "src/cs/platform/language/common/language";
 import { loadAnalysisCharts } from "src/cs/workbench/contrib/chartPreview/loadAnalysisCharts";
@@ -185,7 +185,41 @@ const Page = () => {
     message: "",
     type: "error",
   });
+  const extractionErrorToastRef = useRef<Toast | null>(null);
   const activePage = pageNavigation.activePage;
+
+  useEffect(() => {
+    const toast = new Toast();
+    extractionErrorToastRef.current = toast;
+
+    return () => {
+      extractionErrorToastRef.current = null;
+      toast.dispose();
+    };
+  }, []);
+
+  useEffect(() => {
+    const toast = extractionErrorToastRef.current;
+    if (!toast) return;
+
+    if (!extractionErrorToast.isVisible) {
+      toast.hide();
+      return;
+    }
+
+    toast.show({
+      dataUi: "analysis-extraction-error-toast",
+      message: extractionErrorToast.message,
+      onClose: () =>
+        setExtractionErrorToast((prev) => ({ ...prev, isVisible: false })),
+      position: "fixed",
+      type: extractionErrorToast.type,
+    });
+  }, [
+    extractionErrorToast.isVisible,
+    extractionErrorToast.message,
+    extractionErrorToast.type,
+  ]);
 
   useEffect(() => {
     if (activePage === "analysis") {
@@ -676,17 +710,6 @@ const Page = () => {
         </section>
       </div>
       </DeviceAnalysisWorkspace>
-
-      <Toast
-        message={extractionErrorToast.message}
-        isVisible={extractionErrorToast.isVisible}
-        onClose={() =>
-          setExtractionErrorToast((prev) => ({ ...prev, isVisible: false }))
-        }
-        type={extractionErrorToast.type}
-        position="fixed"
-        dataUi="analysis-extraction-error-toast"
-      />
 
       {onboarding.isOpen ? (
         <Suspense fallback={null}>

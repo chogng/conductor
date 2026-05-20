@@ -1,11 +1,11 @@
 /* ScrollArea base and shared scrollbar primitives */
-.scroll-area {
+.scrollArea {
   position: relative;
   min-height: 0;
   overflow: hidden;
 }
 
-.scroll-area__viewport {
+.scrollAreaViewport {
   width: 100%;
   height: 100%;
   min-height: 0;
@@ -14,27 +14,27 @@
   -ms-overflow-style: none;
 }
 
-.scroll-area__viewport[data-axis="y"] {
+.scrollAreaViewport[data-axis="y"] {
   overflow-y: auto;
   overflow-x: hidden;
 }
 
-.scroll-area__viewport[data-axis="x"] {
+.scrollAreaViewport[data-axis="x"] {
   overflow-x: auto;
   overflow-y: hidden;
 }
 
-.scroll-area__viewport[data-axis="both"] {
+.scrollAreaViewport[data-axis="both"] {
   overflow: auto;
 }
 
-.scroll-area__viewport::-webkit-scrollbar {
+.scrollAreaViewport::-webkit-scrollbar {
   width: 0 !important;
   height: 0 !important;
   display: none !important;
 }
 
-.scroll-area__track {
+.scrollAreaTrack {
   position: absolute;
   border-radius: 9999px;
   background: transparent;
@@ -44,32 +44,32 @@
   user-select: none;
 }
 
-.scroll-area:hover > .scroll-area__track {
+.scrollArea:hover > .scrollAreaTrack {
   opacity: 1;
   pointer-events: auto;
 }
 
-.scroll-area__track:active,
-.scroll-area__track:focus-within {
+.scrollAreaTrack:active,
+.scrollAreaTrack:focus-within {
   opacity: 1;
   pointer-events: auto;
 }
 
-.scroll-area__track--y {
+.scrollAreaTrackY {
   top: 4px;
   bottom: 4px;
   right: 2px;
   width: 6px;
 }
 
-.scroll-area__track--x {
+.scrollAreaTrackX {
   left: 4px;
   right: 4px;
   bottom: 2px;
   height: 6px;
 }
 
-.scroll-area__thumb {
+.scrollAreaThumb {
   position: absolute;
   border-radius: 9999px;
   background-color: rgba(148, 163, 184, 0.42);
@@ -78,19 +78,19 @@
   will-change: transform;
 }
 
-.scroll-area__thumb--y {
+.scrollAreaThumbY {
   top: 0;
   left: 0;
   right: 0;
 }
 
-.scroll-area__thumb--x {
+.scrollAreaThumbX {
   left: 0;
   top: 0;
   bottom: 0;
 }
 
-.dark .scroll-area__thumb {
+.dark .scrollAreaThumb {
   background-color: rgba(255, 255, 255, 0.28);
 }
 
@@ -99,7 +99,7 @@
   overflow: visible;
 }
 
-.da-calculated-parameters-scroll-area .scroll-area__track--x {
+.da-calculated-parameters-scroll-area .scrollAreaTrackX {
   left: 0;
   right: 0;
   bottom: -14px;
@@ -109,11 +109,11 @@
   overflow: visible;
 }
 
-.da-preview-scroll-area .scroll-area__track--y {
+.da-preview-scroll-area .scrollAreaTrackY {
   right: -14px;
 }
 
-.da-preview-scroll-area .scroll-area__track--x {
+.da-preview-scroll-area .scrollAreaTrackX {
   left: -12px;
   right: -12px;
   bottom: -14px;
@@ -123,7 +123,7 @@
   overflow: visible;
 }
 
-.da-analysis-scroll-area > .scroll-area__track--y {
+.da-analysis-scroll-area > .scrollAreaTrackY {
   right: -2px;
 }
 
@@ -132,7 +132,7 @@
   padding-right: 4px;
 }
 
-.da-template-config-scroll-area > .scroll-area__track--y {
+.da-template-config-scroll-area > .scrollAreaTrackY {
   right: 0;
 }
 
