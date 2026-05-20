@@ -1,6 +1,7 @@
 import {
   type ImportedCurveAssessment,
 } from "src/cs/workbench/common/deviceAnalysis/importFileUtils";
+import { isExcelDataImportFileName } from "src/cs/workbench/contrib/import/importFileConversion";
 import {
   isPerfEnabled,
   startPerf,
@@ -122,11 +123,6 @@ const importWorkerSlots: ImportWorkerSlot[] = Array.from(
   }),
 );
 
-const isExcelImportFileName = (fileName: unknown): boolean => {
-  const normalized = String(fileName ?? "").trim().toLowerCase();
-  return normalized.endsWith(".xls") || normalized.endsWith(".xlsx");
-};
-
 const getRustConvertCsvBytes = (manifest: unknown): number | null => {
   if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
     return null;
@@ -160,7 +156,7 @@ const createImportWorkerForSlot = (slot: ImportWorkerSlot) => {
   if (slot.worker) return slot.worker;
 
   const worker = new Worker(
-    new URL("../workers/import.worker.ts", import.meta.url),
+    new URL("./import.worker.ts", import.meta.url),
     { type: "module" },
   );
   slot.worker = worker;
@@ -189,7 +185,7 @@ const createImportWorkerForSlot = (slot: ImportWorkerSlot) => {
         sourceName: payload.sourceName,
         sourceSizeBytes: payload.sourceSizeBytes,
       });
-      if (isExcelImportFileName(payload.sourceName)) {
+      if (isExcelDataImportFileName(payload.sourceName)) {
         slot.excelRequestsSinceRecycle += 1;
       }
       if (
@@ -261,7 +257,7 @@ const prepareImportFileWithJsWorker = (
 const prepareExcelImportFileWithRust = async (
   file: File,
 ): Promise<ImportWorkerPreparedFile | null> => {
-  if (!isExcelImportFileName(file.name)) return null;
+  if (!isExcelDataImportFileName(file.name)) return null;
 
   const bridge = globalThis.window?.desktopImport;
   if (!bridge?.getFilePath || !bridge?.convertExcelFileWithRust) return null;

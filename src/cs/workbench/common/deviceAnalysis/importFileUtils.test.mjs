@@ -2,10 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as XLSX from "xlsx";
 import {
-  assessImportedFile,
   isExcelDataImportFileName,
   isSupportedDataImportFileName,
   toCsvCompatibleDataFile,
+} from "../../contrib/import/importFileConversion.ts";
+import {
+  assessImportedFile,
 } from "./importFileUtils.ts";
 
 test("isSupportedDataImportFileName accepts csv/xls/xlsx with case-insensitive suffixes", () => {

@@ -1,4 +1,4 @@
-import { isSupportedDataImportFileName } from "src/cs/workbench/common/deviceAnalysis/importFileUtils";
+import { isSupportedDataImportFileName } from "src/cs/workbench/contrib/import/importFileConversion";
 
 type FileSystemEntryLike = {
   isFile: boolean;

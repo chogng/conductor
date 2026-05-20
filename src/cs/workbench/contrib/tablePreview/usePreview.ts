@@ -35,7 +35,7 @@ import {
   type RustPreviewCellRequest,
 } from "./preview/rustPreviewCells";
 import { usePreviewRowsVersion } from "./usePreviewRowsVersion";
-import { loadConvertedCsvFile } from "src/cs/workbench/contrib/dataImport/importWorkerClient";
+import { loadConvertedCsvFile } from "src/cs/workbench/contrib/import/importWorkerClient";
 
 type PreviewResultPayload = {
   requestId: number;

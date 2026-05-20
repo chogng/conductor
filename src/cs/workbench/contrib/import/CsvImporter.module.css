@@ -3,7 +3,6 @@
   min-height: 300px;
 }
 
-/* Offset the custom Y scrollbar track to align flush with the outer card's border */
 .dropzone :global(.scroll-area__track--y) {
   right: -1px !important;
 }
@@ -39,7 +38,6 @@
 
 .fileItem {
   @apply flex items-center justify-between p-3 bg-bg-surface border border-border rounded-lg transition-colors cursor-pointer relative w-full min-w-0;
-  /* Limit layout/paint scope during scroll to improve perceived smoothness. */
   contain: content;
   box-sizing: border-box;
 }

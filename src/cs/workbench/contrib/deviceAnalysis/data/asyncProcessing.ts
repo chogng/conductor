@@ -13,7 +13,7 @@ import type {
   ProcessedEntry,
   ProcessingStatus,
 } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
-import { loadConvertedCsvFile } from "src/cs/workbench/contrib/dataImport/importWorkerClient";
+import { loadConvertedCsvFile } from "src/cs/workbench/contrib/import/importWorkerClient";
 
 // Owns asynchronous execution for device-analysis processing jobs.
 // This module handles worker lifetime, queue draining, progress updates, cancellation,

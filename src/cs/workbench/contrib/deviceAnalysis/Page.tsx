@@ -12,7 +12,7 @@ import type { TranslationVars } from "src/cs/platform/language/common/language";
 import { loadAnalysisCharts } from "src/cs/workbench/contrib/chartPreview/loadAnalysisCharts";
 import { getExtractionErrorMessage } from "src/cs/workbench/common/deviceAnalysis/utils";
 import DataPart from "src/cs/workbench/contrib/deviceAnalysis/data/DataPart";
-import type { CsvImporterRef } from "src/cs/workbench/contrib/dataImport/CsvImporter";
+import type { CsvImporterRef } from "src/cs/workbench/contrib/import/CsvImporter";
 import {
   getLayoutState,
   getViewPaneClassName,

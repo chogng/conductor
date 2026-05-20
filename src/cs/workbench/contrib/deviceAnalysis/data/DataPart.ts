@@ -11,7 +11,7 @@ import {
 import type {
   CsvImporterProps,
   CsvImporterRef,
-} from "src/cs/workbench/contrib/dataImport/CsvImporter";
+} from "src/cs/workbench/contrib/import/CsvImporter";
 import ImportSidebar from "src/cs/workbench/contrib/deviceAnalysis/data/ImportSidebar";
 import TemplateManager, {
   type TemplateManagerProps,

@@ -11,7 +11,7 @@ import {
   buildFileIdentityKey,
   buildItemKey,
   createCsvImporterFileId,
-} from "src/cs/workbench/contrib/dataImport/preview/csvImportUtils";
+} from "src/cs/workbench/contrib/import/preview/csvImportUtils";
 import type { TemplateConfig } from "src/cs/workbench/contrib/deviceAnalysis/session/analysis-session-context";
 import type { ProcessedEntry, RawDataEntry } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import { ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT } from "./onboardingEvents";

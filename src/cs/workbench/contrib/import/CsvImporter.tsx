@@ -10,9 +10,7 @@ import React, {
 } from "react";
 import { lxClose, lxDownloadTray, lxFileText } from "cogicon";
 import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
-import {
-  lxAlertCircle,
-} from "src/cs/base/browser/ui/CogIcon/icons";
+import { lxAlertCircle } from "src/cs/base/browser/ui/CogIcon/icons";
 import { cx } from "src/utils/cx";
 import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
 import Avatar from "cs/base/browser/ui/Avatar/Avatar";
@@ -20,8 +18,8 @@ import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
 import {
   DATA_IMPORT_ACCEPT,
   isSupportedDataImportFileName,
-  type ImportedCurveAssessment,
-} from "src/cs/workbench/common/deviceAnalysis/importFileUtils";
+} from "src/cs/workbench/contrib/import/importFileConversion";
+import type { ImportedCurveAssessment } from "src/cs/workbench/common/deviceAnalysis/importFileUtils";
 import { startPerf } from "src/cs/workbench/common/deviceAnalysis/perf";
 import { prepareImportFileInWorker } from "./importWorkerClient";
 import { useCsvImporterVirtualization } from "./useCsvImporterVirtualization";
@@ -295,7 +293,6 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
       const selectedFiles = Array.from(event.target.files ?? []);
       void processFiles(selectedFiles);
-      // Reset input value to allow selecting same files again if needed
       event.target.value = "";
     };
 
@@ -509,7 +506,6 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
       if (setFiles) {
         setFiles((prev) => prev.filter((entry) => entry.fileId !== fileId));
       }
-      // Notify parent to remove data
       if (onDataRemoved) {
         onDataRemoved(fileId);
       }

@@ -16,7 +16,7 @@ import SidebarPart, {
 import CsvImporter, {
   type CsvImporterProps,
   type CsvImporterRef,
-} from "src/cs/workbench/contrib/dataImport/CsvImporter";
+} from "src/cs/workbench/contrib/import/CsvImporter";
 
 export type ImportSidebarProps = {
   readonly hasSessionData: boolean;
