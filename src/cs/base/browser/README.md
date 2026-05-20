@@ -41,3 +41,7 @@ browser.ts文件可以理解成“浏览器环境能力和状态的入口”。
 
 List 解决“怎么高效画一串行”
 Tree 解决“怎么把层级结构变成这串行并支持展开折叠”
+
+list.ts (line 13) 主要放契约、类型、事件模型、拖拽协议和少量可复用抽象，比如 IListVirtualDelegate、IListRenderer、IListDragAndDrop、ListError、CachedListVirtualDelegate。
+listView.ts (line 231) 是低层实现，负责虚拟滚动、DOM 渲染、测量、滚动、拖拽、可访问性等，ListView 本体也在这里。
+listWidget.ts (line 1409) 是更高一层的封装，List<T> 把 ListView 组装起来，再叠加选择、聚焦、键盘导航等行为。

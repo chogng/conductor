@@ -5,7 +5,8 @@ import type {
   RefObject,
 } from "react";
 import { Fragment, jsx, jsxs } from "react/jsx-runtime";
-import ScrollArea from "cs/base/browser/ui/ScrollArea/ScrollArea";
+import { lxClose, lxFileText } from "cogicon";
+import ScrollArea from "src/cs/base/browser/ui/ScrollArea/ScrollArea";
 import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
 import { lxAlertCircle } from "src/cs/base/browser/ui/CogIcon/icons";
 import List, { type ListHandle } from "src/cs/base/browser/ui/list/list";
@@ -13,8 +14,8 @@ import type { TranslateFn } from "src/cs/platform/language/common/language";
 import { cx } from "src/utils/cx";
 import { DATA_IMPORT_ACCEPT } from "src/cs/workbench/contrib/import/common/constants";
 import type { ImporterFileEntry } from "src/cs/workbench/contrib/import/common/types";
+import { toDomIdToken } from "src/cs/workbench/contrib/import/common/utils";
 import ImportEmptyView from "src/cs/workbench/contrib/import/browser/views/emptyView";
-import ImportViewerItem from "src/cs/workbench/contrib/import/browser/views/importViewerItem";
 
 export type ImportViewerProps = {
   readonly effectiveSelectedFileId?: string | null;
@@ -31,6 +32,112 @@ export type ImportViewerProps = {
   readonly onRemoveFile: (fileId: string | null) => void;
   readonly onSelectFile: (fileId: string | null) => void;
   readonly t: TranslateFn;
+};
+
+const getImportViewerFileName = (fileEntry: ImporterFileEntry): string =>
+  fileEntry?.file &&
+  typeof fileEntry.file === "object" &&
+  "name" in fileEntry.file
+    ? String(fileEntry.file.name ?? "")
+    : String(fileEntry?.fileName ?? "");
+
+const renderImportViewerFileItem = (
+  fileEntry: ImporterFileEntry,
+  isSelected: boolean,
+  onRemove: (fileId: string | null) => void,
+) => {
+  const fileName = getImportViewerFileName(fileEntry);
+  const needsReview =
+    fileEntry?.curveTypeNeedsTemplate === true ||
+    fileEntry?.curveTypeConfidence === "low";
+  const autoSummary = fileEntry?.curveType
+    ? `Auto: ${String(fileEntry.curveType).trim()}${
+        fileEntry?.curveTypeConfidence
+          ? ` (${String(fileEntry.curveTypeConfidence).trim()})`
+          : ""
+      }`
+    : "";
+
+  return jsxs("div", {
+    "aria-label": "csv-file-item",
+    id: fileEntry?.itemKey
+      ? `csv-file-item-${toDomIdToken(fileEntry.itemKey)}`
+      : undefined,
+    "data-item-key": fileEntry?.itemKey || undefined,
+    "data-selected": isSelected ? "true" : undefined,
+    title: fileName,
+    className: cx("import-viewer-file-item", "group", isSelected && "selected"),
+    children: [
+      jsxs(
+        "div",
+        {
+          className: "import-viewer-file-content",
+          children: [
+            jsx(
+              "div",
+              {
+                className: "import-viewer-file-icon",
+                children: jsx(CogIcon, { icon: lxFileText, size: 16 }),
+              },
+              "icon",
+            ),
+            jsxs(
+              "div",
+              {
+                className: "import-viewer-file-text",
+                children: [
+                  jsx(
+                    "span",
+                    {
+                      className: "import-viewer-file-name",
+                      children: fileName,
+                    },
+                    "name",
+                  ),
+                  autoSummary
+                    ? jsx(
+                        "span",
+                        {
+                          className: cx(
+                            "import-viewer-file-meta",
+                            needsReview && "warning",
+                          ),
+                          children: autoSummary,
+                        },
+                        "meta",
+                      )
+                    : null,
+                ],
+              },
+              "text",
+            ),
+          ],
+        },
+        "content",
+      ),
+      jsx(
+        "div",
+        {
+          className: "import-viewer-file-actions",
+          children: jsx("button", {
+            type: "button",
+            "aria-label": "Remove CSV file",
+            id: fileEntry?.itemKey
+              ? `csv-file-remove-${toDomIdToken(fileEntry.itemKey)}`
+              : undefined,
+            "data-item-key": fileEntry?.itemKey || undefined,
+            onClick: (event: MouseEvent<HTMLButtonElement>) => {
+              event.stopPropagation();
+              onRemove(fileEntry.fileId ?? null);
+            },
+            className: "import-viewer-file-remove",
+            children: jsx(CogIcon, { icon: lxClose, size: 16 }),
+          }),
+        },
+        "actions",
+      ),
+    ],
+  });
 };
 
 const ImportViewer = ({
@@ -106,13 +213,12 @@ const ImportViewer = ({
                     onSelect: (fileEntry: ImporterFileEntry) =>
                       onSelectFile(fileEntry.fileId ?? null),
                     renderItem: (fileEntry: ImporterFileEntry) =>
-                      jsx(ImportViewerItem, {
+                      renderImportViewerFileItem(
                         fileEntry,
-                        isSelected:
-                          effectiveSelectedFileId === fileEntry.fileId,
-                        onRemove: onRemoveFile,
-                      }),
-                    rowHeight: 56,
+                        effectiveSelectedFileId === fileEntry.fileId,
+                        onRemoveFile,
+                      ),
+                    rowHeight: 64,
                     selectedKey: effectiveSelectedFileId ?? null,
                   }),
                 },

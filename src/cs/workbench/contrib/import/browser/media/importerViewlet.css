@@ -38,6 +38,7 @@
 
 .import-viewer-file-item {
   @apply flex items-center justify-between p-3 bg-bg-surface border border-border rounded-lg transition-colors cursor-pointer relative w-full min-w-0;
+  min-height: 64px;
   contain: content;
   box-sizing: border-box;
 }

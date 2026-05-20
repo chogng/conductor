@@ -263,7 +263,10 @@ function ListInner<T>(
     ? Math.max(0, Math.floor(scrollTop / rowStep) - overscanRows)
     : 0;
   const endIndex = virtualized
-    ? Math.min(items.length, Math.ceil((scrollTop + viewportHeight) / rowStep) + overscanRows)
+    ? Math.min(
+        items.length,
+        Math.ceil((scrollTop + viewportHeight) / rowStep) + overscanRows,
+      )
     : items.length;
   const visibleItems = useMemo(
     () => items.slice(startIndex, endIndex),
@@ -282,12 +285,12 @@ function ListInner<T>(
     axis: "y",
     className: cx("ui-list", className),
     viewportClassName: cx("ui-list__viewport", viewportClassName),
-      viewportProps: {
-        onKeyDown: handleKeyDown,
-        onScroll: handleScroll,
-        tabIndex: 0,
-        role,
-      },
+    viewportProps: {
+      onKeyDown: handleKeyDown,
+      onScroll: handleScroll,
+      tabIndex: 0,
+      role,
+    },
     children: jsx("div", {
       className: "ui-list__stage",
       style: { height: `${totalHeight}px` },
