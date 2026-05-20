@@ -10,6 +10,7 @@ import {
   type IDisposable,
 } from "src/cs/base/common/lifecycle";
 import type { ListRenderState } from "src/cs/base/browser/ui/list/list";
+import "./list.css";
 
 export type ListViewItemRenderer<T> = (
   item: T,
@@ -225,6 +226,8 @@ export class ListView<T> implements IDisposable {
       if (nextIndex >= 0) {
         this.focusedIndex = nextIndex;
         this.scrollToIndex(nextIndex, "auto");
+      } else if (this.focusedIndex >= items.length) {
+        this.focusedIndex = items.length - 1;
       }
       return;
     }
