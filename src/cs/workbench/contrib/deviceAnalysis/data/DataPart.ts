@@ -2,7 +2,7 @@ import { jsx } from "react/jsx-runtime";
 import type { MutableRefObject } from "react";
 import SplitView from "src/cs/base/browser/ui/splitview/splitview";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
-import WorkbenchPreviewArea from "src/cs/workbench/browser/parts/previewArea/WorkbenchPreviewArea";
+import PreviewPart from "src/cs/workbench/browser/parts/previewArea/previewPart";
 import {
   SIDEBAR_DEFAULT_WIDTH_PX,
   SIDEBAR_MAX_WIDTH_PX,
@@ -89,7 +89,7 @@ const DataPart = ({
       },
       {
         id: "preview-area",
-        children: jsx(WorkbenchPreviewArea, {
+        children: jsx(PreviewPart, {
           id: "analysis-template-workspace",
           ariaLabel: t("da_data_extraction_template"),
           className: "flex h-full min-h-0 flex-col",
