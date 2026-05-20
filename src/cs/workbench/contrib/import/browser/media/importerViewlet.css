@@ -1,89 +1,89 @@
-.dropzone {
+.import-viewer-dropzone {
   @apply border-2 border-dashed rounded-xl p-0 transition-all duration-300 relative overflow-visible flex-1;
   min-height: 300px;
 }
 
-.dropzone :global(.scroll-area__track--y) {
+.import-viewer-dropzone :global(.scroll-area__track--y) {
   right: -1px !important;
 }
 
-.dropzoneViewport {
+.import-viewer-dropzone-viewport {
   min-height: 100%;
   overscroll-behavior: contain;
 }
 
-.dropzoneDragging {
+.import-viewer-dropzone.dragging {
   @apply border-accent bg-accent/5;
 }
 
-.dropzoneIdle {
+.import-viewer-dropzone.idle {
   @apply border-text-secondary/40 hover:border-text-secondary;
 }
 
-.empty {
+.import-viewer-empty {
   @apply flex flex-col items-center justify-center h-full gap-3 py-6 px-6 text-center cursor-pointer;
 }
 
-.emptyTitle {
+.import-viewer-empty-title {
   @apply text-sm font-medium text-text-secondary;
 }
 
-.emptySubtitle {
+.import-viewer-empty-subtitle {
   @apply text-sm text-text-tertiary;
 }
 
-.emptyBrowse {
+.import-viewer-empty-browse {
   @apply text-accent hover:underline;
 }
 
-.fileItem {
+.import-viewer-file-item {
   @apply flex items-center justify-between p-3 bg-bg-surface border border-border rounded-lg transition-colors cursor-pointer relative w-full min-w-0;
   contain: content;
   box-sizing: border-box;
 }
 
-.fileItemSelected {
+.import-viewer-file-item.selected {
   @apply border-accent;
 }
 
-.fileContent {
+.import-viewer-file-content {
   @apply flex items-center gap-3 overflow-hidden min-w-0 flex-1;
 }
 
-.fileText {
+.import-viewer-file-text {
   @apply flex flex-col min-w-0 flex-1;
 }
 
-.fileIcon {
+.import-viewer-file-icon {
   @apply w-8 h-8 rounded bg-green-500/10 flex items-center justify-center text-green-500 shrink-0;
 }
 
-.fileName {
+.import-viewer-file-name {
   @apply text-sm text-text-primary truncate flex-1 min-w-0;
 }
 
-.fileMeta {
+.import-viewer-file-meta {
   @apply mt-0.5 text-[11px] text-text-secondary truncate;
 }
 
-.fileMetaWarning {
+.import-viewer-file-meta.warning {
   @apply text-amber-600 dark:text-amber-400;
 }
 
-.fileActions {
+.import-viewer-file-actions {
   @apply flex items-center gap-2 shrink-0 pl-2;
 }
 
-.fileRemove {
+.import-viewer-file-remove {
   @apply text-text-secondary hover:text-red-500 transition-colors opacity-100 hover:bg-bg-page p-1 rounded shrink-0;
 }
 
-.fileGrid {
+.import-viewer-file-grid {
   @apply grid gap-3 text-left w-full min-w-0;
   grid-template-columns: 1fr;
   box-sizing: border-box;
 }
 
-.virtualStage {
+.import-viewer-virtual-stage {
   position: relative;
 }

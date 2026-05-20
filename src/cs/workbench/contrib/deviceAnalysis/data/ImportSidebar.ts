@@ -1,4 +1,3 @@
-import { lxDownloadTray, lxTrash } from "cogicon";
 import { jsx } from "react/jsx-runtime";
 import {
   useEffect,
@@ -7,12 +6,15 @@ import {
   type MutableRefObject,
 } from "react";
 import Card from "cs/base/browser/ui/Card/Card";
-import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import SidebarPart, {
   type SidebarPartProps,
-  type WorkbenchSidebarHeaderAction,
 } from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
+import {
+  createImporterHeaderActions,
+  importerClearSessionActionId,
+  importerImportActionId,
+} from "src/cs/workbench/contrib/import/browser/importerActions";
 import CsvImporter, {
   type CsvImporterProps,
   type CsvImporterRef,
@@ -80,31 +82,13 @@ const ImportSidebar = ({
     importerRef.current.openFileDialog();
   }, [importerRef, pendingImporterOpen]);
 
-  const headerActions: WorkbenchSidebarHeaderAction[] = [
-    {
-      id: "analysis-import-csv-btn",
-      title: t("da_import_csv"),
-      kind: "primary",
-      icon: jsx(CogIcon, {
-        icon: lxDownloadTray,
-        size: 16,
-      }),
-    },
-    {
-      id: "analysis-clear-session-btn",
-      title: t("da_reset_session"),
-      kind: "icon",
-      icon: jsx(CogIcon, {
-        icon: lxTrash,
-        size: 16,
-      }),
-      isDanger: true,
-      isDisabled: !hasSessionData,
-    },
-  ];
+  const headerActions = createImporterHeaderActions({
+    hasSessionData,
+    t,
+  });
 
   const handleSidebarAction: SidebarPartProps["onAction"] = (action) => {
-    if (action.id === "analysis-import-csv-btn") {
+    if (action.id === importerImportActionId) {
       if (onImportTrigger) {
         onImportTrigger();
         return;
@@ -114,7 +98,7 @@ const ImportSidebar = ({
       return;
     }
 
-    if (action.id === "analysis-clear-session-btn") {
+    if (action.id === importerClearSessionActionId) {
       onClearSession?.();
     }
   };

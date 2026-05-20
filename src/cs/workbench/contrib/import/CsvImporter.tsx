@@ -32,7 +32,7 @@ import {
   filterUniqueCsvFiles,
   toDomIdToken,
 } from "./preview/csvImportUtils";
-import styles from "./CsvImporter.module.css";
+import "./browser/media/importerViewlet.css";
 
 const CsvImporterEmptyStateIcon = ({ className }: { className?: string }) => (
   <CogIcon icon={lxDownloadTray} size="100%" className={className} />
@@ -143,22 +143,22 @@ const CsvFileItem = React.memo(
         title={fileName}
         onClick={() => onSelect?.(fileEntry?.fileId ?? null)}
         className={cx(
-          styles.fileItem,
+          "import-viewer-file-item",
           "group",
-          isSelected && styles.fileItemSelected,
+          isSelected && "selected",
         )}
       >
-        <div className={styles.fileContent}>
-          <div className={styles.fileIcon}>
+        <div className="import-viewer-file-content">
+          <div className="import-viewer-file-icon">
             <CogIcon icon={lxFileText} size={16} />
           </div>
-          <div className={styles.fileText}>
-            <span className={styles.fileName}>{fileName}</span>
+          <div className="import-viewer-file-text">
+            <span className="import-viewer-file-name">{fileName}</span>
             {autoSummary ? (
               <span
                 className={cx(
-                  styles.fileMeta,
-                  needsReview && styles.fileMetaWarning,
+                  "import-viewer-file-meta",
+                  needsReview && "warning",
                 )}
               >
                 {autoSummary}
@@ -166,7 +166,7 @@ const CsvFileItem = React.memo(
             ) : null}
           </div>
         </div>
-        <div className={styles.fileActions}>
+        <div className="import-viewer-file-actions">
           <button
             type="button"
             aria-label="Remove CSV file"
@@ -180,7 +180,7 @@ const CsvFileItem = React.memo(
               e.stopPropagation();
               onRemove?.(fileEntry.fileId ?? null);
             }}
-            className={styles.fileRemove}
+            className="import-viewer-file-remove"
           >
             <CogIcon icon={lxClose} size={16} />
           </button>
@@ -525,10 +525,10 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
           aria-label={t("da_import_section")}
           data-state={files.length === 0 ? "empty" : "filled"}
           className={cx(
-            styles.dropzone,
-            isDragging ? styles.dropzoneDragging : styles.dropzoneIdle,
+            "import-viewer-dropzone",
+            isDragging ? "dragging" : "idle",
           )}
-          viewportClassName={styles.dropzoneViewport}
+          viewportClassName="import-viewer-dropzone-viewport"
           viewportProps={{
             onDragOver: handleDragOver,
             onDragLeave: handleDragLeave,
@@ -554,12 +554,12 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
             <div
               id="analysis-csv-empty"
               data-slot="empty"
-              className={styles.empty}
+              className="import-viewer-empty"
             >
               <Avatar icon={CsvImporterEmptyStateIcon} size="md" variant="empty" />
-              <p className={styles.emptySubtitle}>
+              <p className="import-viewer-empty-subtitle">
                 {t("da_csv_empty_subtitle_prefix")}{" "}
-                <span className={styles.emptyBrowse}>
+                <span className="import-viewer-empty-browse">
                   {t("da_csv_empty_browse")}
                 </span>
               </p>
@@ -571,9 +571,9 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
               className="w-full min-h-full flex flex-col p-3"
             >
               {virtual.enabled ? (
-                <div className={styles.virtualStage} style={virtual.stageStyle}>
+                <div className="import-viewer-virtual-stage" style={virtual.stageStyle}>
                   <div
-                    className={styles.fileGrid}
+                    className="import-viewer-file-grid"
                     style={{
                       ...virtual.gridStyle,
                       position: "absolute",
@@ -594,7 +594,7 @@ const CsvImporter = forwardRef<CsvImporterRef, CsvImporterProps>(
                   </div>
                 </div>
               ) : (
-                <div className={styles.fileGrid}>
+                <div className="import-viewer-file-grid">
                   {virtual.visibleFiles.map((fileEntry) => (
                     <CsvFileItem
                       key={fileEntry.fileId}
