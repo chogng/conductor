@@ -7,10 +7,47 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import { getAnalysisFileOptions } from "src/cs/workbench/contrib/deviceAnalysis/pageState";
 import type { IonIoffManualTargetsByFileId } from "src/cs/workbench/contrib/deviceAnalysis/session/analysis-session-context";
 import type { AnalysisSettings } from "src/cs/workbench/contrib/deviceAnalysis/settings/settingsShared";
 import type { ProcessedEntry } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
+
+export type AnalysisFileOption = {
+  label: string;
+  value: string;
+};
+
+const stripCsvExtension = (fileName: string): string => {
+  const normalized = String(fileName ?? "").trim();
+  if (!normalized) {
+    return normalized;
+  }
+
+  const withoutCsv = normalized.replace(/\.csv$/i, "");
+  return withoutCsv.length > 0 ? withoutCsv : normalized;
+};
+
+const getAnalysisFileOptions = (
+  processedData: ProcessedEntry[] | null | undefined,
+): AnalysisFileOption[] =>
+  (Array.isArray(processedData) ? processedData : [])
+    .map((entry) => {
+      const fileId =
+        typeof entry?.fileId === "string"
+          ? entry.fileId
+          : String(entry?.fileId ?? "");
+      const fileNameRaw = entry?.fileName;
+      const fileName =
+        typeof fileNameRaw === "string" && fileNameRaw.trim().length > 0
+          ? fileNameRaw
+          : fileId;
+      const displayName = stripCsvExtension(fileName);
+      if (!fileId) {
+        return null;
+      }
+
+      return { value: fileId, label: displayName };
+    })
+    .filter((entry): entry is AnalysisFileOption => !!entry);
 
 type UseAnalysisSelectionStateParams = {
   analysisSettings: AnalysisSettings | null;

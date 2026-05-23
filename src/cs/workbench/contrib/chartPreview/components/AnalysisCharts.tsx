@@ -46,7 +46,7 @@ import {
 import { useFileSelectionPool } from "../useFileSelectionPool";
 import {
   useDeviceAnalysisSidebarPortal,
-} from "src/cs/workbench/contrib/deviceAnalysis/layout";
+} from "src/cs/workbench/browser/layout";
 import OverviewGrid from "./OverviewGrid";
 import CalculatedParametersRow from "src/cs/workbench/contrib/parameters/CalculatedParametersRow";
 import { SIGNED_LOG_Y_DATA_KEY, buildLogTicks, buildNiceTicks, buildOriginAutoTicks, buildOriginLogAutoTicks, buildPoints, buildStepTicks, computeLabelInterval, computeMinMax, downsamplePointsForDisplay, inferTickDigitsFromTicks, normalizeFloat, normalizeVarToken, padLinearDomain, padLogDomain, parseOptionalNumber, preserveScrollPosition, varTokenToSymbol, withSignedLogPositivePoints, } from "../lib/analysisChartsUtils";

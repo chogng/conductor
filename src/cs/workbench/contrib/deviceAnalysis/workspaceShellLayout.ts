@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { SIDEBAR_DEFAULT_WIDTH_PX } from "src/cs/workbench/contrib/deviceAnalysis/layout";
+import { SIDEBAR_DEFAULT_WIDTH_PX } from "src/cs/workbench/browser/layout";
 
 export const shouldShowDesktopCommandBarByDefault =
   typeof window !== "undefined" &&

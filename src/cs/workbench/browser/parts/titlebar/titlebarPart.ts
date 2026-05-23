@@ -2,6 +2,7 @@ import "./media/titlebar.css";
 import { lxAnalysis, lxArrowLeft, lxArrowRight, lxDownloadTray, lxGear } from "cogicon";
 import { normalizeCogIconSvgMarkup, type CogIconRenderer } from "src/cs/base/browser/ui/CogIcon/cogicon";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
+import { layoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import {
   createWorkbenchTitlebarNavActions,
   createWorkbenchTitlebarPageActions,
@@ -332,7 +333,7 @@ export const createWorkbenchTitlebarElement = ({
 
   if (updateAction?.isVisible === true) {
     const updateButton = createElement("button", {
-      id: "analysis-window-update-btn",
+      id: layoutService.elements.titlebarUpdateButton,
       type: "button",
       "aria-label": getWorkbenchTitlebarUpdateTitle(t, updateAction),
       title: getWorkbenchTitlebarUpdateTitle(t, updateAction),
@@ -352,11 +353,11 @@ export const createWorkbenchTitlebarElement = ({
       {
         id:
           action.id === "data"
-            ? "analysis-window-data-btn"
+            ? layoutService.elements.dataViewSwitch
             : action.id === "analysis"
-              ? "analysis-window-analysis-btn"
+              ? layoutService.elements.analysisViewSwitch
               : action.id === "settings"
-                ? "analysis-window-settings-btn"
+                ? layoutService.elements.settingsViewSwitch
                 : undefined,
         "aria-label": action.title,
         title: action.title,

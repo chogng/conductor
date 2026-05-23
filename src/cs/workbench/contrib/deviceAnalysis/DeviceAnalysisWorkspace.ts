@@ -10,7 +10,7 @@ import {
   SIDEBAR_MIN_WIDTH_PX,
   type LayoutView,
   useDeviceAnalysisSidebarLayout,
-} from "src/cs/workbench/contrib/deviceAnalysis/layout";
+} from "src/cs/workbench/browser/layout";
 
 type DeviceAnalysisWorkspaceProps = {
   readonly activeView: LayoutView;

@@ -69,7 +69,7 @@ import {
   resolveXRangeForPreview,
   resolveXSegmentationMode,
 } from "src/cs/workbench/common/deviceAnalysis/XSegmentation";
-import { TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX } from "src/cs/workbench/contrib/deviceAnalysis/layout";
+import { TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX } from "src/cs/workbench/browser/layout";
 import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/deviceAnalysis/session/analysis-session-context";
 import { useSession } from "src/cs/workbench/contrib/deviceAnalysis/session/useSession";
 import type {

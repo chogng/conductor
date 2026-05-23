@@ -6,20 +6,24 @@ import {
   useState,
   Suspense,
 } from "react";
-import ScrollArea from "src/cs/base/browser/ui/scrollArea/scrollArea";
+import { jsxs } from "react/jsx-runtime";
 import Toast from "src/cs/base/browser/ui/toast/toast";
 import type { TranslationVars } from "src/cs/platform/language/common/language";
 import { loadAnalysisCharts } from "src/cs/workbench/contrib/chartPreview/loadAnalysisCharts";
 import { getExtractionErrorMessage } from "src/cs/workbench/common/deviceAnalysis/utils";
-import DeviceAnalysisWorkspace from "src/cs/workbench/contrib/deviceAnalysis/DeviceAnalysisWorkspace";
 import DataPart from "src/cs/workbench/contrib/deviceAnalysis/data/DataPart";
 import type { ImporterRef } from "src/cs/workbench/contrib/import/browser/importerView";
 import ImporterViewletHost from "src/cs/workbench/contrib/deviceAnalysis/ImporterViewletHost";
 import {
-  getLayoutState,
-  getViewPaneClassName,
-} from "src/cs/workbench/contrib/deviceAnalysis/layoutPolicy";
-import WorkspaceShell from "src/cs/workbench/contrib/deviceAnalysis/WorkspaceShell";
+  useWorkbenchLayoutNavigation,
+} from "src/cs/workbench/browser/layout";
+import {
+  buildDeviceAnalysisOptionalPart,
+  buildDeviceAnalysisPageParts,
+  buildDeviceAnalysisPanePart,
+  buildDeviceAnalysisSidebarPart,
+  buildDeviceAnalysisScrollPanePart,
+} from "src/cs/workbench/browser/parts";
 import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
 import { useTheme } from "src/cs/workbench/browser/hooks/useTheme";
 import type { ToastType } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
@@ -27,17 +31,8 @@ import { useExports } from "src/cs/workbench/contrib/dataExport/useExports";
 import { useDesktopShell } from "src/cs/workbench/contrib/deviceAnalysis/desktop/useDesktopShell";
 import {
   createIdleOnboardingState,
-  getAnalysisShellFlags,
-  INITIAL_PAGE_NAVIGATION_STATE,
-  isPageTab,
-  navigateBackPageNavigation,
-  navigateForwardPageNavigation,
-  navigatePageNavigation,
   type OnboardingControllerState,
-  type PageTab,
-  type PageNavigationState,
-  type ProcessingExtractionError,
-} from "src/cs/workbench/contrib/deviceAnalysis/pageState";
+} from "src/cs/workbench/contrib/deviceAnalysis/onboarding/onboardingState";
 import { usePreview } from "src/cs/workbench/contrib/tablePreview/usePreview";
 import { useProcessing } from "src/cs/workbench/contrib/deviceAnalysis/data/useProcessing";
 import { loadOnboarding } from "src/cs/workbench/contrib/deviceAnalysis/onboarding/loadOnboarding";
@@ -47,18 +42,18 @@ import { useOnboardingLauncher } from "src/cs/workbench/contrib/deviceAnalysis/u
 import { useSession } from "src/cs/workbench/contrib/deviceAnalysis/session/useSession";
 import { useSessionActions } from "src/cs/workbench/contrib/deviceAnalysis/session/useSessionActions";
 import { useCoreSettings } from "src/cs/workbench/contrib/deviceAnalysis/settings/useCoreSettings";
+import DeviceAnalysisWorkbench, {
+  getWorkbenchShellFlags,
+  type DeviceAnalysisWorkbenchTitlebarState,
+} from "src/cs/workbench/browser/workbench";
 
-declare global {
-  interface Window {
-    desktopMeta?: {
-      isDesktop?: boolean;
-      platform?: string;
-      isPackaged?: boolean;
-      appVersion?: string | null;
-      [key: string]: unknown;
-    };
-  }
-}
+type ProcessingExtractionError = {
+  fileName?: string;
+  message: string;
+  messageKey?: string | null;
+  messageParams?: Record<string, unknown> | null;
+  [key: string]: unknown;
+};
 
 const AnalysisPanel = lazy(
   () => import("src/cs/workbench/contrib/chartPreview/AnalysisPanel"),
@@ -90,7 +85,7 @@ const Page = () => {
     isDesktopChromePreviewEnabled,
     isPackagedWindowsDesktopShell,
     isWindowsDesktopShell,
-  } = getAnalysisShellFlags();
+  } = getWorkbenchShellFlags();
 
   const session = useSession();
   const {
@@ -170,11 +165,6 @@ const Page = () => {
     },
     [handleOnboardingStateChange],
   );
-  const [pageNavigation, setPageNavigation] = useState<PageNavigationState>(
-    INITIAL_PAGE_NAVIGATION_STATE,
-  );
-  const [hasVisitedAnalysisPage, setHasVisitedAnalysisPage] = useState(false);
-  const [hasVisitedSettingsPage, setHasVisitedSettingsPage] = useState(false);
   const [analysisPanelSessionKey, setAnalysisPanelSessionKey] = useState(0);
   const [extractionErrorToast, setExtractionErrorToast] = useState<{
     isVisible: boolean;
@@ -186,7 +176,16 @@ const Page = () => {
     type: "error",
   });
   const extractionErrorToastRef = useRef<Toast | null>(null);
-  const activePage = pageNavigation.activePage;
+  const {
+    activeView,
+    layoutState,
+    navigateBack,
+    navigateForward,
+    navigateToView,
+    resetAnalysisViewVisit,
+    selectView,
+    visitedViews,
+  } = useWorkbenchLayoutNavigation();
 
   useEffect(() => {
     const toast = new Toast();
@@ -221,46 +220,12 @@ const Page = () => {
     extractionErrorToast.type,
   ]);
 
-  useEffect(() => {
-    if (activePage === "analysis") {
-      setHasVisitedAnalysisPage(true);
-    }
-    if (activePage === "settings") {
-      setHasVisitedSettingsPage(true);
-    }
-
-    if (typeof document !== "undefined") {
-      const activeElement = document.activeElement;
-      if (
-        activeElement &&
-        activeElement instanceof HTMLElement &&
-        typeof activeElement.blur === "function"
-      ) {
-        activeElement.blur();
-      }
-    }
-  }, [activePage]);
-
-  const navigateToPage = useCallback((nextPage: PageTab) => {
-    setPageNavigation((prevState) =>
-      navigatePageNavigation(prevState, nextPage),
-    );
-  }, []);
-
-  const handleNavigateBack = useCallback(() => {
-    setPageNavigation((prevState) => navigateBackPageNavigation(prevState));
-  }, []);
-
-  const handleNavigateForward = useCallback(() => {
-    setPageNavigation((prevState) => navigateForwardPageNavigation(prevState));
-  }, []);
-
   const handleAnalysisIntent = useCallback(() => {
     void loadAnalysisCharts();
   }, []);
 
   useEffect(() => {
-    if (hasVisitedAnalysisPage || processedData.length === 0) return undefined;
+    if (visitedViews.hasVisitedAnalysisView || processedData.length === 0) return undefined;
 
     const prefetch = () => {
       void loadAnalysisCharts();
@@ -280,7 +245,7 @@ const Page = () => {
 
     const timeoutId = window.setTimeout(prefetch, 300);
     return () => window.clearTimeout(timeoutId);
-  }, [hasVisitedAnalysisPage, processedData.length]);
+  }, [processedData.length, visitedViews.hasVisitedAnalysisView]);
 
   const getProcessingExtractionErrorMessage = useCallback(
     (error: ProcessingExtractionError) =>
@@ -413,7 +378,7 @@ const Page = () => {
     onExtractionError: handleProcessingExtractionError,
     setActivePage: (page: string) => {
       if (page === "data" || page === "analysis" || page === "settings") {
-        navigateToPage(page);
+        navigateToView(page);
       }
     },
     setProcessedData,
@@ -451,24 +416,9 @@ const Page = () => {
   });
   const hadOnboardingSessionDataRef = useRef(hasOnboardingSessionData);
 
-  const layoutState = getLayoutState({
-    activeView: activePage,
-    hasVisitedAnalysisView: hasVisitedAnalysisPage,
-    hasVisitedSettingsView: hasVisitedSettingsPage,
-    historyIndex: pageNavigation.historyIndex,
-    historyLength: pageNavigation.history.length,
-  });
   const dataPane = layoutState.panes.data;
   const analysisPane = layoutState.panes.analysis;
   const settingsPane = layoutState.panes.settings;
-
-  const handlePageTabSelect = useCallback((nextPage: string) => {
-    if (!isPageTab(nextPage)) {
-      return;
-    }
-
-    navigateToPage(nextPage);
-  }, [navigateToPage]);
 
   useEffect(() => {
     const hadOnboardingSessionData = hadOnboardingSessionDataRef.current;
@@ -479,8 +429,8 @@ const Page = () => {
 
     setAnalysisPanelSessionKey((prev) => prev + 1);
     setAnalysisActiveFileId(null);
-    setHasVisitedAnalysisPage(false);
-  }, [hasOnboardingSessionData, setAnalysisActiveFileId]);
+    resetAnalysisViewVisit();
+  }, [hasOnboardingSessionData, resetAnalysisViewVisit, setAnalysisActiveFileId]);
 
   const {
     autoUpdateStatus,
@@ -501,232 +451,221 @@ const Page = () => {
     return true;
   }, []);
 
+  const onboardingControllerPart = buildDeviceAnalysisOptionalPart({
+    content: shouldMountOnboardingController ? (
+      <Suspense fallback={null}>
+        <OnboardingControllerHost
+          clearPreviewState={clearPreviewState}
+          importerRef={importerRef}
+          isRequestedOpen={pendingOnboardingOpenMode !== null}
+          openMode={pendingOnboardingOpenMode ?? "manual"}
+          navigateToPage={navigateToView}
+          onStateChange={handleOnboardingControllerStateChange}
+          processingState={processingStatus?.state}
+          processedData={processedData}
+          rawData={rawData}
+          setProcessedData={setProcessedData}
+          setRawData={setRawData}
+          setSelectedPreviewFileId={setSelectedPreviewFileId}
+          setTemplateConfig={setTemplateConfig}
+          templateConfig={templateConfig}
+          updateSettings={handleUpdateAnalysisSettings}
+        />
+      </Suspense>
+    ) : null,
+  });
+
+  const dataSidebarPart = buildDeviceAnalysisSidebarPart({
+    sidebar: (
+      <ImporterViewletHost
+        hasSessionData={hasSessionData}
+        importerRef={importerRef}
+        onClearSession={handleClearSession}
+        onDataImported={handleDataImported}
+        onDataRemoved={handleDataRemoved}
+        onFileSelected={handlePreviewFileSelected}
+        onImportTrigger={() => {
+          onboarding.handleImportTrigger();
+        }}
+        rawData={rawData}
+        selectedPreviewFileId={selectedPreviewFileId}
+        t={t}
+      />
+    ),
+  });
+
+  const dataPanelPart = buildDeviceAnalysisScrollPanePart({
+    isActive: dataPane.isActive,
+    labelledBy: dataPane.labelledBy,
+    paneId: dataPane.paneId,
+    viewportClassName: "p-1 pt-0 !overflow-hidden",
+    children: (
+      <DataPart
+        analysisSettings={analysisSettings}
+        ensurePreviewCells={ensurePreviewCells}
+        ensurePreviewRows={ensurePreviewRows}
+        getPreviewRow={getPreviewRow}
+        getPreviewRowsVersion={getPreviewRowsVersion}
+        onTemplateApplied={handleTemplateApplied}
+        onTemplateAppliedIncremental={handleTemplateAppliedIncremental}
+        onUpdateSettings={handleUpdateAnalysisSettings}
+        previewFile={previewFile}
+        previewStatus={previewStatus}
+        rawData={rawData}
+        subscribePreviewRowsVersion={subscribePreviewRowsVersion}
+        t={t}
+      />
+    ),
+  });
+
+  const analysisPanelPart = buildDeviceAnalysisPanePart({
+    isActive: analysisPane.isActive,
+    labelledBy: analysisPane.labelledBy,
+    paneId: analysisPane.paneId,
+    children: (
+      <div className="da_page_scroll h-full min-h-0 overflow-hidden p-1 pt-0">
+        {analysisPane.shouldMount ? (
+          <Suspense
+            fallback={<DeferredPanelFallback label={t("da_analysis_loading")} />}
+          >
+            <AnalysisPanel
+              key={`analysis-panel-session-${analysisPanelSessionKey}`}
+              processedData={processedData}
+              processingStatus={processingStatus}
+              activeFileId={analysisActiveFileId}
+              onActiveFileIdChange={handleAnalysisFileChange}
+              showFileSelect={!isWindowsDesktopShell}
+              shouldMountCharts={
+                analysisPane.isActive || visitedViews.hasVisitedAnalysisView
+              }
+              setSsDiagnosticsEnabled={setSsDiagnosticsEnabled}
+              setVthDiagnosticsEnabled={setVthDiagnosticsEnabled}
+              setGmDiagnosticsEnabled={setGmDiagnosticsEnabled}
+              ionIoffMethod={ionIoffMethod}
+              ionIoffManualTargetsByFileId={ionIoffManualTargetsByFileId}
+              setIonIoffMethod={setIonIoffMethod}
+              setIonIoffManualTargetsByFileId={setIonIoffManualTargetsByFileId}
+              setSsManualRanges={setSsManualRanges}
+              setSsMethod={setSsMethod}
+              setSsShowFitLine={setSsShowFitLine}
+              gmDiagnosticsEnabled={gmDiagnosticsEnabled}
+              ssDiagnosticsEnabled={ssDiagnosticsEnabled}
+              vthDiagnosticsEnabled={vthDiagnosticsEnabled}
+              ssManualRanges={ssManualRanges}
+              ssMethod={ssMethod}
+              ssShowFitLine={ssShowFitLine}
+              originOpenPlotOptions={originOpenPlotOptions}
+              onOriginOpenPlotOptionsChange={handleUpdateAnalysisSettings}
+              t={tLoose}
+            />
+          </Suspense>
+        ) : null}
+      </div>
+    ),
+  });
+
+  const settingsPanelPart = buildDeviceAnalysisScrollPanePart({
+    isActive: settingsPane.isActive,
+    labelledBy: settingsPane.labelledBy,
+    paneId: settingsPane.paneId,
+    viewportClassName: "p-1 pt-0",
+    children: settingsPane.shouldMount ? (
+      <Suspense
+        fallback={<DeferredPanelFallback label={t("da_settings_title")} />}
+      >
+        <SettingsPanelContainer
+          appUpdateSettings={{
+            isAvailable: isAppUpdatePreviewEnabled,
+            currentVersion:
+              typeof desktopMeta?.appVersion === "string"
+                ? desktopMeta.appVersion
+                : null,
+            onCheckForUpdates: isPackagedWindowsDesktopShell
+              ? handleCheckForUpdatesAndInstall
+              : handlePreviewCheckForUpdates,
+          }}
+          analysisSettings={analysisSettings}
+          analysisSettingsLoaded={analysisSettingsLoaded}
+          handleUpdateAnalysisSettings={handleUpdateAnalysisSettings}
+          isWindowsDesktopShell={isWindowsDesktopShell}
+          language={language}
+          handleLanguageChange={handleLanguageChange}
+          onboardingSettings={{
+            onOpenGuide: handleOpenOnboardingGuide,
+          }}
+          mergeAnalysisSettings={mergeAnalysisSettings}
+          theme={theme}
+          handleThemeChange={handleThemeChange}
+          t={tLoose}
+        />
+      </Suspense>
+    ) : null,
+  });
+
+  const onboardingOverlayPart = buildDeviceAnalysisOptionalPart({
+    content: onboarding.isOpen ? (
+      <Suspense fallback={null}>
+        <Onboarding
+          isOpen={onboarding.isOpen}
+          stepIndex={onboarding.stepIndex}
+          steps={onboarding.steps}
+          t={t}
+          canNext={onboarding.canNext}
+          onBack={onboarding.back}
+          onClose={onboarding.close}
+          onNext={onboarding.next}
+        />
+      </Suspense>
+    ) : null,
+  });
+
+  const pageParts = buildDeviceAnalysisPageParts({
+    AnalysisPanel: jsxs("div", {
+      children: [analysisPanelPart, settingsPanelPart],
+    }),
+    DataPanel: dataPanelPart,
+    ImportSidebar: dataSidebarPart,
+    OnboardingController: onboardingControllerPart,
+    OnboardingOverlay: onboardingOverlayPart,
+  });
+
+  const titlebarState: DeviceAnalysisWorkbenchTitlebarState | undefined =
+    {
+      enabled: isDesktopChromePreviewEnabled,
+      activePage: activeView,
+      t,
+      canNavigateBack: layoutState.canNavigateBack,
+      canNavigateForward: layoutState.canNavigateForward,
+      onAnalysisIntent: handleAnalysisIntent,
+      onNavigateBack: navigateBack,
+      onNavigateForward: navigateForward,
+      onPageChange: selectView,
+      onOpenSettings: () => selectView("settings"),
+      onMinimizeWindow: handleMinimizeWindow,
+      onToggleMaximizeWindow: handleToggleMaximizeWindow,
+      onCloseWindow: handleCloseWindow,
+      isUpdateReadyToInstall: autoUpdateStatus.status === "downloaded",
+      updateVersion: autoUpdateStatus.version,
+      showAnalysisFileSelector:
+        analysisPane.isActive && analysisFileOptions.length > 0,
+      onInstallUpdate: () => {
+        void handleInstallDownloadedUpdate();
+      },
+      analysisFileOptions,
+      analysisActiveFileId,
+      onAnalysisFileChange: handleAnalysisFileChange,
+    };
+
   return (
-    <WorkspaceShell
+    <DeviceAnalysisWorkbench
       id="analysis-page"
       className="relative w-full h-full min-h-0 overflow-hidden"
       showDesktopCommandBar={isDesktopChromePreviewEnabled}
       showSkeleton={false}
-      titlebarState={
-        isDesktopChromePreviewEnabled
-          ? {
-              id: "analysis-desktop-command-bar",
-              t,
-              activePage,
-              canNavigateBack: layoutState.canNavigateBack,
-              canNavigateForward: layoutState.canNavigateForward,
-              onAnalysisIntent: handleAnalysisIntent,
-              onNavigateBack: handleNavigateBack,
-              onNavigateForward: handleNavigateForward,
-              onPageChange: handlePageTabSelect,
-              onOpenSettings: () => handlePageTabSelect("settings"),
-              onMinimizeWindow: handleMinimizeWindow,
-              onToggleMaximizeWindow: handleToggleMaximizeWindow,
-              onCloseWindow: handleCloseWindow,
-              updateAction: {
-                isVisible: autoUpdateStatus.status === "downloaded",
-                isReadyToInstall: autoUpdateStatus.status === "downloaded",
-                version: autoUpdateStatus.version,
-                onClick: () => {
-                  void handleInstallDownloadedUpdate();
-                },
-              },
-              showAnalysisFileSelector:
-                analysisPane.isActive && analysisFileOptions.length > 0,
-              analysisFileOptions,
-              analysisActiveFileId,
-              onAnalysisFileChange: handleAnalysisFileChange,
-            }
-          : undefined
-      }
-    >
-      <div className="relative flex flex-1 min-h-0 flex-col">
-        {shouldMountOnboardingController ? (
-          <Suspense fallback={null}>
-            <OnboardingControllerHost
-              clearPreviewState={clearPreviewState}
-              importerRef={importerRef}
-              isRequestedOpen={pendingOnboardingOpenMode !== null}
-              openMode={pendingOnboardingOpenMode ?? "manual"}
-              navigateToPage={navigateToPage}
-              onStateChange={handleOnboardingControllerStateChange}
-              processingState={processingStatus?.state}
-              processedData={processedData}
-              rawData={rawData}
-              setProcessedData={setProcessedData}
-              setRawData={setRawData}
-              setSelectedPreviewFileId={setSelectedPreviewFileId}
-              setTemplateConfig={setTemplateConfig}
-              templateConfig={templateConfig}
-              updateSettings={handleUpdateAnalysisSettings}
-            />
-          </Suspense>
-        ) : null}
-
-        <DeviceAnalysisWorkspace
-          activeView={activePage}
-        dataSidebar={
-          <ImporterViewletHost
-            hasSessionData={hasSessionData}
-            importerRef={importerRef}
-            onClearSession={handleClearSession}
-            onDataImported={handleDataImported}
-            onDataRemoved={handleDataRemoved}
-            onFileSelected={handlePreviewFileSelected}
-            onImportTrigger={() => {
-              onboarding.handleImportTrigger();
-            }}
-            rawData={rawData}
-            selectedPreviewFileId={selectedPreviewFileId}
-            t={t}
-          />
-        }
-      >
-      <div className="relative h-full min-h-0">
-        <section
-          id={dataPane.paneId}
-          role="region"
-          aria-labelledby={dataPane.labelledBy}
-          aria-hidden={!dataPane.isActive}
-          inert={!dataPane.isActive ? true : undefined}
-          className={getViewPaneClassName(dataPane.isActive)}
-        >
-          <ScrollArea
-            className="da_page_scroll h-full min-h-0"
-            viewportClassName="p-1 pt-0 !overflow-hidden"
-            axis="y"
-          >
-            <DataPart
-              analysisSettings={analysisSettings}
-              ensurePreviewCells={ensurePreviewCells}
-              ensurePreviewRows={ensurePreviewRows}
-              getPreviewRow={getPreviewRow}
-              getPreviewRowsVersion={getPreviewRowsVersion}
-              onTemplateApplied={handleTemplateApplied}
-              onTemplateAppliedIncremental={handleTemplateAppliedIncremental}
-              onUpdateSettings={handleUpdateAnalysisSettings}
-              previewFile={previewFile}
-              previewStatus={previewStatus}
-              rawData={rawData}
-              subscribePreviewRowsVersion={subscribePreviewRowsVersion}
-              t={t}
-            />
-          </ScrollArea>
-        </section>
-
-        <section
-          id={analysisPane.paneId}
-          role="region"
-          aria-labelledby={analysisPane.labelledBy}
-          aria-hidden={!analysisPane.isActive}
-          inert={!analysisPane.isActive ? true : undefined}
-          className={getViewPaneClassName(analysisPane.isActive)}
-        >
-          <div className="da_page_scroll h-full min-h-0 overflow-hidden p-1 pt-0">
-            {analysisPane.shouldMount ? (
-              <Suspense
-                fallback={<DeferredPanelFallback label={t("da_analysis_loading")} />}
-              >
-                <AnalysisPanel
-                  key={`analysis-panel-session-${analysisPanelSessionKey}`}
-                  processedData={processedData}
-                  processingStatus={processingStatus}
-                  activeFileId={analysisActiveFileId}
-                  onActiveFileIdChange={handleAnalysisFileChange}
-                  showFileSelect={!isWindowsDesktopShell}
-                  shouldMountCharts={
-                    analysisPane.isActive || hasVisitedAnalysisPage
-                  }
-                  setSsDiagnosticsEnabled={setSsDiagnosticsEnabled}
-                  setVthDiagnosticsEnabled={setVthDiagnosticsEnabled}
-                  setGmDiagnosticsEnabled={setGmDiagnosticsEnabled}
-                  ionIoffMethod={ionIoffMethod}
-                  ionIoffManualTargetsByFileId={ionIoffManualTargetsByFileId}
-                  setIonIoffMethod={setIonIoffMethod}
-                  setIonIoffManualTargetsByFileId={setIonIoffManualTargetsByFileId}
-                  setSsManualRanges={setSsManualRanges}
-                  setSsMethod={setSsMethod}
-                  setSsShowFitLine={setSsShowFitLine}
-                  gmDiagnosticsEnabled={gmDiagnosticsEnabled}
-                  ssDiagnosticsEnabled={ssDiagnosticsEnabled}
-                  vthDiagnosticsEnabled={vthDiagnosticsEnabled}
-                  ssManualRanges={ssManualRanges}
-                  ssMethod={ssMethod}
-                  ssShowFitLine={ssShowFitLine}
-                  originOpenPlotOptions={originOpenPlotOptions}
-                  onOriginOpenPlotOptionsChange={handleUpdateAnalysisSettings}
-                  t={tLoose}
-                />
-              </Suspense>
-            ) : null}
-          </div>
-        </section>
-
-        <section
-          id={settingsPane.paneId}
-          role="region"
-          aria-labelledby={settingsPane.labelledBy}
-          aria-hidden={!settingsPane.isActive}
-          inert={!settingsPane.isActive ? true : undefined}
-          className={getViewPaneClassName(settingsPane.isActive)}
-        >
-          {settingsPane.shouldMount ? (
-            <ScrollArea
-              className="da_page_scroll h-full min-h-0"
-              viewportClassName="p-1 pt-0"
-              axis="y"
-            >
-              <Suspense
-                fallback={<DeferredPanelFallback label={t("da_settings_title")} />}
-              >
-                <SettingsPanelContainer
-                  appUpdateSettings={{
-                    isAvailable: isAppUpdatePreviewEnabled,
-                    currentVersion:
-                      typeof desktopMeta?.appVersion === "string"
-                        ? desktopMeta.appVersion
-                        : null,
-                    onCheckForUpdates: isPackagedWindowsDesktopShell
-                      ? handleCheckForUpdatesAndInstall
-                      : handlePreviewCheckForUpdates,
-                  }}
-                  analysisSettings={analysisSettings}
-                  analysisSettingsLoaded={analysisSettingsLoaded}
-                  handleUpdateAnalysisSettings={handleUpdateAnalysisSettings}
-                  isWindowsDesktopShell={isWindowsDesktopShell}
-                  language={language}
-                  handleLanguageChange={handleLanguageChange}
-                  onboardingSettings={{
-                    onOpenGuide: handleOpenOnboardingGuide,
-                  }}
-                  mergeAnalysisSettings={mergeAnalysisSettings}
-                  theme={theme}
-                  handleThemeChange={handleThemeChange}
-                  t={tLoose}
-                />
-              </Suspense>
-            </ScrollArea>
-          ) : null}
-        </section>
-      </div>
-      </DeviceAnalysisWorkspace>
-
-      {onboarding.isOpen ? (
-        <Suspense fallback={null}>
-          <Onboarding
-            isOpen={onboarding.isOpen}
-            stepIndex={onboarding.stepIndex}
-            steps={onboarding.steps}
-            t={t}
-            canNext={onboarding.canNext}
-            onBack={onboarding.back}
-            onClose={onboarding.close}
-            onNext={onboarding.next}
-          />
-        </Suspense>
-      ) : null}
-      </div>
-    </WorkspaceShell>
+      titlebarState={titlebarState}
+      activeView={activeView}
+      parts={pageParts}
+    />
   );
 };
 

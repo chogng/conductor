@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { disposableTimeout } from "src/cs/base/common/async";
 import type { AnalysisSettings } from "src/cs/workbench/contrib/deviceAnalysis/settings/settingsShared";
-import type { OnboardingLaunchMode } from "src/cs/workbench/contrib/deviceAnalysis/pageState";
+import type { OnboardingLaunchMode } from "src/cs/workbench/contrib/deviceAnalysis/onboarding/onboardingState";
 
 type UseOnboardingLauncherParams = {
   analysisSettings: AnalysisSettings | null;
