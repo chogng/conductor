@@ -1,9 +1,9 @@
-import { spawnSync } from "node:child_process";
+﻿import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import Papa from "papaparse";
 import * as xlsx from "xlsx";
-import { assessImportedFile } from "../src/cs/workbench/contrib/deviceAnalysis/shared/lib/importFileUtils.ts";
+import { assessImportedFile } from "../src/cs/workbench/common/deviceAnalysis/importFileUtils.ts";
 
 const ROOT = process.cwd();
 const DEFAULT_RUST_EXE = path.join(

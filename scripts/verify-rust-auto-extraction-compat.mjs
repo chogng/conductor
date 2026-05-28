@@ -1,6 +1,6 @@
-import fs from "node:fs/promises";
+﻿import fs from "node:fs/promises";
 import path from "node:path";
-import { inferAutoExtraction } from "../src/cs/workbench/contrib/deviceAnalysis/shared/lib/autoExtraction.ts";
+import { inferAutoExtraction } from "../src/cs/workbench/common/deviceAnalysis/autoExtraction.ts";
 
 const ROOT = process.cwd();
 const OUTPUT_DIR = path.join(ROOT, ".tooling", "rust-auto-extraction-compat");

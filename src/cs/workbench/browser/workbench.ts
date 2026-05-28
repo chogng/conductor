@@ -1,12 +1,12 @@
-import { jsx, jsxs } from "react/jsx-runtime";
+﻿import { jsx, jsxs } from "react/jsx-runtime";
 import type { CSSProperties } from "react";
 import { layoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { LayoutView } from "src/cs/workbench/browser/layout";
 import type { DeviceAnalysisPageParts } from "src/cs/workbench/browser/parts";
 import type { WorkbenchTitlebarProps } from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
-import DeviceAnalysisWorkspace from "src/cs/workbench/contrib/deviceAnalysis/DeviceAnalysisWorkspace";
-import WorkspaceShell from "src/cs/workbench/contrib/deviceAnalysis/WorkspaceShell";
+import WorkbenchWorkspace from "src/cs/workbench/contrib/workspace/WorkbenchWorkspace";
+import WorkspaceShell from "src/cs/workbench/contrib/workspace/WorkspaceShell";
 
 declare global {
   interface Window {
@@ -124,7 +124,7 @@ const DeviceAnalysisWorkbench = ({
       className: "relative flex flex-1 min-h-0 flex-col",
       children: [
         parts.controller ?? null,
-        jsx(DeviceAnalysisWorkspace, {
+        jsx(WorkbenchWorkspace, {
           activeView,
           dataSidebar: parts.dataSidebar,
           children: parts.workspace,

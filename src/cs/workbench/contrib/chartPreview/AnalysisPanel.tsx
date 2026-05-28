@@ -1,4 +1,4 @@
-import { lxAnalysis } from "cogicon";
+﻿import { lxAnalysis } from "cogicon";
 import {
   lazy,
   Suspense,
@@ -14,7 +14,7 @@ import type {
   IonIoffMethod,
   SsManualRanges,
   SsMethod,
-} from "src/cs/workbench/contrib/deviceAnalysis/session/analysis-session-context";
+} from "src/cs/workbench/contrib/session/analysis-session-context";
 import type { OriginPlotOptions } from "./lib/origin/originPlotOptions";
 import type { ProcessedEntry, ProcessingStatus } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import { loadAnalysisCharts } from "./loadAnalysisCharts";

@@ -1,4 +1,4 @@
-import {
+﻿import {
   type Dispatch,
   useCallback,
   useEffect,
@@ -7,52 +7,19 @@ import {
   useState,
   type MutableRefObject,
 } from "react";
-import {
-  buildFileIdentityKey,
-  buildItemKey,
-  createCsvImporterFileId,
-} from "src/cs/workbench/contrib/import/preview/csvImportUtils";
-import type { TemplateConfig } from "src/cs/workbench/contrib/deviceAnalysis/session/analysis-session-context";
+import type { TemplateConfig } from "src/cs/workbench/contrib/session/analysis-session-context";
 import type { ProcessedEntry, RawDataEntry } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
-import { ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT } from "./onboardingEvents";
-import { ONBOARDING_STEPS } from "./onboardingSteps";
+import { importDemoRawDataEntries } from "src/cs/workbench/contrib/data/demoDataImport";
+import {
+  applyTemplateToAllForOnboarding,
+  createTemplateForOnboarding,
+  openTemplateDropdownForOnboarding,
+  openTemplateSaveModeForOnboarding,
+  openTemplateSelectModeForOnboarding,
+} from "src/cs/workbench/contrib/template/templateOnboardingActions";
+import { ONBOARDING_STEPS } from "src/cs/workbench/contrib/onboarding/onboardingSteps";
 
-const DEMO_FILE_PATHS = [
-  "/demo/demo-01.csv",
-  "/demo/demo-02.csv",
-  "/demo/demo-03.csv",
-  "/demo/demo-04.csv",
-  "/demo/demo-05.csv",
-  "/demo/demo-06.csv",
-] as const;
 const DEMO_TEMPLATE_NAME_FALLBACK = "demo-01";
-
-type DesktopDemoFileEntry = {
-  fileName?: string;
-  lastModified?: number;
-  path?: string;
-  size?: number;
-  text?: string;
-};
-
-type ImportedDemoRawDataEntry = RawDataEntry & {
-  file: File;
-  fileId: string;
-  fileName: string;
-  itemKey: string;
-  lastModified: number;
-  size: number;
-  sourceKey: string;
-  sourcePath: string | null;
-};
-
-const clickElementById = (id: string): boolean => {
-  if (typeof document === "undefined") return false;
-  const element = document.getElementById(id);
-  if (!element || !(element instanceof HTMLElement)) return false;
-  element.click();
-  return true;
-};
 
 const revealElementById = (id: string): boolean => {
   if (typeof document === "undefined") return false;
@@ -158,20 +125,12 @@ export const useOnboarding = ({
       }
     }
 
-    if (
-      isOpen &&
-      currentStep?.id === "template" &&
-      typeof window !== "undefined"
-    ) {
-      window.dispatchEvent(
-        new CustomEvent(ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT),
-      );
+    if (isOpen && currentStep?.id === "template") {
+      createTemplateForOnboarding();
     }
 
     if (isOpen && currentStep?.id === "apply") {
-      const clicked = clickElementById(
-        "analysis-template-output-rule-apply-to-all",
-      );
+      const clicked = applyTemplateToAllForOnboarding();
       if (!clicked) {
         setStepIndex((prev) => prev + 1);
       }
@@ -193,69 +152,7 @@ export const useOnboarding = ({
   }, []);
 
   const importDemoFiles = useCallback(async () => {
-    const desktopDemoFiles =
-      await globalThis.window?.desktopImport?.getDeviceAnalysisDemoFiles?.();
-    const desktopEntries = Array.isArray(desktopDemoFiles?.files)
-      ? desktopDemoFiles.files.filter(
-          (entry): entry is DesktopDemoFileEntry =>
-            typeof entry?.fileName === "string" &&
-            typeof entry?.text === "string",
-        )
-      : [];
-    const demoSources =
-      desktopEntries.length > 0
-        ? desktopEntries.map((entry, index) => ({
-            fileName: entry.fileName || `demo-${index + 1}.csv`,
-            lastModified:
-              Number.isFinite(Number(entry.lastModified))
-                ? Number(entry.lastModified)
-                : Date.UTC(2026, 0, index + 1),
-            sourcePath: typeof entry.path === "string" ? entry.path : null,
-            text: entry.text || "",
-          }))
-        : await Promise.all(
-            DEMO_FILE_PATHS.map(async (pathValue, index) => {
-              const response = await fetch(pathValue);
-              if (!response.ok) {
-                throw new Error(`Failed to load demo file: ${pathValue}`);
-              }
-
-              const text = await response.text();
-              const fileName =
-                pathValue.split("/").pop() || `demo-${index + 1}.csv`;
-              return {
-                fileName,
-                lastModified: Date.UTC(2026, 0, index + 1),
-                sourcePath: null,
-                text,
-              };
-            }),
-          );
-
-    const importedEntries = demoSources.map((source) => {
-      const file = new File([source.text], source.fileName, {
-        type: "text/csv;charset=utf-8",
-        lastModified: source.lastModified,
-      });
-      const sourceKey = buildFileIdentityKey(file);
-      if (!sourceKey) return null;
-
-      return {
-        file,
-        fileId: createCsvImporterFileId(),
-        fileName: source.fileName,
-        itemKey: buildItemKey(file),
-        sourcePath: source.sourcePath,
-        sourceKey,
-        size: file.size,
-        lastModified: file.lastModified,
-      };
-    });
-
-    const nextEntries = importedEntries.filter(
-      (entry): entry is ImportedDemoRawDataEntry => Boolean(entry),
-    );
-
+    const nextEntries = await importDemoRawDataEntries();
     if (nextEntries.length === 0) return;
 
     setRawData(nextEntries);
@@ -347,12 +244,12 @@ export const useOnboarding = ({
     if (currentStep.id === "template") {
       timeoutIds.push(
         window.setTimeout(() => {
-          clickElementById("analysis-template-mode-tab-select");
+          openTemplateSelectModeForOnboarding();
         }, 40),
       );
       timeoutIds.push(
         window.setTimeout(() => {
-          clickElementById("analysis-template-dropdown-btn");
+          openTemplateDropdownForOnboarding();
         }, 140),
       );
     }
@@ -360,7 +257,7 @@ export const useOnboarding = ({
     if (currentStep.id === "template-custom") {
       timeoutIds.push(
         window.setTimeout(() => {
-          clickElementById("analysis-template-mode-tab-save");
+          openTemplateSaveModeForOnboarding();
         }, 40),
       );
     }
@@ -368,7 +265,7 @@ export const useOnboarding = ({
     if (currentStep.id === "apply") {
       timeoutIds.push(
         window.setTimeout(() => {
-          clickElementById("analysis-template-mode-tab-select");
+          openTemplateSelectModeForOnboarding();
         }, 40),
       );
     }

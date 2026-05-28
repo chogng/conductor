@@ -1,4 +1,4 @@
-import React, {
+﻿import React, {
   useCallback,
   useEffect,
   useMemo,
@@ -33,7 +33,7 @@ import Button from "cs/base/browser/ui/Button/Button";
 import Checkbox from "cs/base/browser/ui/Checkbox/Checkbox";
 import Modal from "cs/base/browser/ui/Modal/Modal";
 import ScrollArea from "cs/base/browser/ui/scrollArea/scrollArea";
-import DataPreviewArea from "src/cs/workbench/contrib/deviceAnalysis/data/DataPreviewArea";
+import DataPreviewArea from "src/cs/workbench/contrib/data/DataPreviewArea";
 import {
   TemplateManagerPreviewEmptyState,
   TemplateManagerPreviewSurface,
@@ -70,8 +70,8 @@ import {
   resolveXSegmentationMode,
 } from "src/cs/workbench/common/deviceAnalysis/XSegmentation";
 import { TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX } from "src/cs/workbench/browser/layout";
-import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/deviceAnalysis/session/analysis-session-context";
-import { useSession } from "src/cs/workbench/contrib/deviceAnalysis/session/useSession";
+import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
+import { useSession } from "src/cs/workbench/contrib/session/useSession";
 import type {
   PreviewFileLike,
   RawDataEntry,

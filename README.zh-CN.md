@@ -1,4 +1,4 @@
-# Conductor Studio
+﻿# Conductor Studio
 
 [English](./README.md) | 中文
 
@@ -204,12 +204,12 @@ workers/py/origin-csv-worker/origin-csv-worker.exe --worker-version
 
 相关代码：
 
-- `src/cs/workbench/contrib/deviceAnalysis/analysis/lib/analysisChartsUtils.ts`
+- `src/cs/workbench/contrib/chartPreview/lib/analysisChartsUtils.ts`
   - `buildOriginAutoTicks`
   - `buildOriginLogAutoTicks`
   - `padLinearDomain`
   - `padLogDomain`
-- `src/cs/workbench/contrib/deviceAnalysis/analysis/components/AnalysisCharts.tsx`
+- `src/cs/workbench/contrib/chartPreview/components/AnalysisCharts.tsx`
   - `xDomain`
   - `yDomain`
   - `xTicks`

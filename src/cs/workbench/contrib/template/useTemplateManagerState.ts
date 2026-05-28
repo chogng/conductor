@@ -1,14 +1,14 @@
-import {
+﻿import {
   useCallback,
   useEffect,
   useRef,
   useState,
 } from "react";
-import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/deviceAnalysis/session/analysis-session-context";
+import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
 import type { PreviewFileLike } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/deviceAnalysis/translateTypes";
 import { apiService } from "src/cs/workbench/contrib/chartPreview/services/apiService";
-import { useSession } from "src/cs/workbench/contrib/deviceAnalysis/session/useSession";
+import { useSession } from "src/cs/workbench/contrib/session/useSession";
 import {
   cloneTemplateConfig,
   createEmptyTemplateConfig,
@@ -20,7 +20,7 @@ import {
 import { normalizeYUnit } from "src/cs/workbench/contrib/chartPreview/lib/units";
 import { resolveXSegmentationMode } from "src/cs/workbench/common/deviceAnalysis/XSegmentation";
 import { AUTO_TEMPLATE_ID } from "src/cs/workbench/common/deviceAnalysis/autoExtraction";
-import { ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT } from "src/cs/workbench/contrib/deviceAnalysis/onboarding/onboardingEvents";
+import { ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT } from "src/cs/workbench/contrib/template/templateEvents";
 import {
   validateTemplateForApply,
   validateTemplateForSave,

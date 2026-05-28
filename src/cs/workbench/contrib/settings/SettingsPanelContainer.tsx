@@ -1,4 +1,4 @@
-import SettingsPanel from "./SettingsPanel";
+﻿import SettingsPanel from "./SettingsPanel";
 import { useSettings } from "./useSettings";
 import type { LanguageCode } from "src/cs/platform/language/common/language";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
@@ -6,7 +6,7 @@ import type { LooseTranslateFn } from "src/cs/workbench/common/deviceAnalysis/tr
 import type {
   AppUpdateSettings,
   OnboardingSettings,
-} from "src/cs/workbench/contrib/deviceAnalysis/settings/settingsPanelTypes";
+} from "src/cs/workbench/contrib/settings/settingsPanelTypes";
 import type { AnalysisSettings } from "./settingsShared";
 
 type SettingsPanelContainerProps = {

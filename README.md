@@ -1,4 +1,4 @@
-# Conductor Studio
+﻿# Conductor Studio
 
 English | [中文](./README.zh-CN.md)
 
@@ -240,12 +240,12 @@ In-app chart auto ranges should follow an Origin-like strategy:
 
 Relevant code:
 
-- `src/cs/workbench/contrib/deviceAnalysis/analysis/lib/analysisChartsUtils.ts`
+- `src/cs/workbench/contrib/chartPreview/lib/analysisChartsUtils.ts`
   - `buildOriginAutoTicks`
   - `buildOriginLogAutoTicks`
   - `padLinearDomain`
   - `padLogDomain`
-- `src/cs/workbench/contrib/deviceAnalysis/analysis/components/AnalysisCharts.tsx`
+- `src/cs/workbench/contrib/chartPreview/components/AnalysisCharts.tsx`
   - `xDomain`
   - `yDomain`
   - `xTicks`

@@ -1,9 +1,9 @@
-import { useCallback, useEffect } from "react";
+﻿import { useCallback, useEffect } from "react";
 import type JSZip from "jszip";
 import type {
   SsManualRanges,
   SsMethod,
-} from "src/cs/workbench/contrib/deviceAnalysis/session/analysis-session-context";
+} from "src/cs/workbench/contrib/session/analysis-session-context";
 import type { ProcessedEntry } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 
 type ExportModule = typeof import("./export");

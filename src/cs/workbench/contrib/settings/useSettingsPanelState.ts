@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ToastState } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import type {
   AnalysisDefaultSettings,
@@ -6,7 +6,7 @@ import type {
   FileNameMatchingSettings,
   OriginSettings,
   SettingsSectionId,
-} from "src/cs/workbench/contrib/deviceAnalysis/settings/settingsPanelTypes";
+} from "src/cs/workbench/contrib/settings/settingsPanelTypes";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 
 type UseSettingsPanelStateParams = {

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, type CSSProperties, type ReactNode } from "react";
+﻿import { useLayoutEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import {
   WorkbenchTitlebarPart,
   type WorkbenchTitlebarProps,
@@ -7,7 +7,7 @@ import { renderWorkbenchTitlebarSkeleton } from "src/cs/workbench/browser/parts/
 import {
   getWorkspaceShellStyle,
   shouldShowDesktopCommandBarByDefault,
-} from "src/cs/workbench/contrib/deviceAnalysis/workspaceShellLayout";
+} from "src/cs/workbench/contrib/workspace/workspaceShellLayout";
 
 type WorkspaceShellProps = {
   children?: ReactNode;

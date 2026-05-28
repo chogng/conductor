@@ -1,4 +1,4 @@
-import {
+﻿import {
   useCallback,
   useEffect,
   lazy,
@@ -11,9 +11,9 @@ import Toast from "src/cs/base/browser/ui/toast/toast";
 import type { TranslationVars } from "src/cs/platform/language/common/language";
 import { loadAnalysisCharts } from "src/cs/workbench/contrib/chartPreview/loadAnalysisCharts";
 import { getExtractionErrorMessage } from "src/cs/workbench/common/deviceAnalysis/utils";
-import DataPart from "src/cs/workbench/contrib/deviceAnalysis/data/DataPart";
+import DataPart from "src/cs/workbench/contrib/data/DataPart";
 import type { ImporterRef } from "src/cs/workbench/contrib/import/browser/importerView";
-import ImporterViewletHost from "src/cs/workbench/contrib/deviceAnalysis/ImporterViewletHost";
+import ImporterViewletHost from "src/cs/workbench/contrib/workspace/ImporterViewletHost";
 import {
   useWorkbenchLayoutNavigation,
 } from "src/cs/workbench/browser/layout";
@@ -28,20 +28,22 @@ import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
 import { useTheme } from "src/cs/workbench/browser/hooks/useTheme";
 import type { ToastType } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import { useExports } from "src/cs/workbench/contrib/dataExport/useExports";
-import { useDesktopShell } from "src/cs/workbench/contrib/deviceAnalysis/desktop/useDesktopShell";
+import { useDesktopShell } from "src/cs/workbench/contrib/desktop/useDesktopShell";
 import {
   createIdleOnboardingState,
   type OnboardingControllerState,
-} from "src/cs/workbench/contrib/deviceAnalysis/onboarding/onboardingState";
+} from "src/cs/workbench/contrib/onboarding/onboardingState";
 import { usePreview } from "src/cs/workbench/contrib/tablePreview/usePreview";
-import { useProcessing } from "src/cs/workbench/contrib/deviceAnalysis/data/useProcessing";
-import { loadOnboarding } from "src/cs/workbench/contrib/deviceAnalysis/onboarding/loadOnboarding";
-import { loadOnboardingController } from "src/cs/workbench/contrib/deviceAnalysis/onboarding/loadOnboardingController";
-import { useAnalysisSelectionState } from "src/cs/workbench/contrib/deviceAnalysis/useAnalysisSelectionState";
-import { useOnboardingLauncher } from "src/cs/workbench/contrib/deviceAnalysis/useOnboardingLauncher";
-import { useSession } from "src/cs/workbench/contrib/deviceAnalysis/session/useSession";
-import { useSessionActions } from "src/cs/workbench/contrib/deviceAnalysis/session/useSessionActions";
-import { useCoreSettings } from "src/cs/workbench/contrib/deviceAnalysis/settings/useCoreSettings";
+import { useProcessing } from "src/cs/workbench/contrib/data/useProcessing";
+import {
+  loadOnboarding,
+  loadOnboardingController,
+} from "src/cs/workbench/contrib/onboarding/onboardingLoader";
+import { useAnalysisSelectionState } from "src/cs/workbench/contrib/workspace/useAnalysisSelectionState";
+import { useOnboardingLauncher } from "src/cs/workbench/contrib/onboarding/useOnboardingLauncher";
+import { useSession } from "src/cs/workbench/contrib/session/useSession";
+import { useSessionActions } from "src/cs/workbench/contrib/session/useSessionActions";
+import { useCoreSettings } from "src/cs/workbench/contrib/settings/useCoreSettings";
 import DeviceAnalysisWorkbench, {
   getWorkbenchShellFlags,
   type DeviceAnalysisWorkbenchTitlebarState,
@@ -59,7 +61,7 @@ const AnalysisPanel = lazy(
   () => import("src/cs/workbench/contrib/chartPreview/AnalysisPanel"),
 );
 const SettingsPanelContainer = lazy(
-  () => import("./settings/SettingsPanelContainer"),
+  () => import("src/cs/workbench/contrib/settings/SettingsPanelContainer"),
 );
 const OnboardingControllerHost = lazy(
   loadOnboardingController,

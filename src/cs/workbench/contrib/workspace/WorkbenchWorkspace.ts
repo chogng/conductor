@@ -12,17 +12,17 @@ import {
   useDeviceAnalysisSidebarLayout,
 } from "src/cs/workbench/browser/layout";
 
-type DeviceAnalysisWorkspaceProps = {
+type WorkbenchWorkspaceProps = {
   readonly activeView: LayoutView;
   readonly children: ReactNode;
   readonly dataSidebar: ReactNode;
 };
 
-const DeviceAnalysisWorkspace = ({
+const WorkbenchWorkspace = ({
   activeView,
   children,
   dataSidebar,
-}: DeviceAnalysisWorkspaceProps) => {
+}: WorkbenchWorkspaceProps) => {
   const sidebarContainerRef = useRef<HTMLDivElement | null>(null);
   const [sidebarContainer, setSidebarContainer] = useState<HTMLDivElement | null>(null);
   const { handleSidebarResize, sidebarWidth } =
@@ -75,4 +75,4 @@ const DeviceAnalysisWorkspace = ({
   });
 };
 
-export default DeviceAnalysisWorkspace;
+export default WorkbenchWorkspace;

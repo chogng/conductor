@@ -1,4 +1,4 @@
-import { lxAddSmall, lxCheck, lxRemoveSmall } from "cogicon";
+﻿import { lxAddSmall, lxCheck, lxRemoveSmall } from "cogicon";
 import React, {
   useCallback,
   useEffect,
@@ -11,7 +11,7 @@ import React, {
 import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
 import ScrollArea from "cs/base/browser/ui/scrollArea/scrollArea";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
-import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/deviceAnalysis/session/analysis-session-context";
+import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
 import type { PreviewFileLike } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import {
   TemplateManagerPreviewEmptyState,

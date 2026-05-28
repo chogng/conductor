@@ -1,13 +1,13 @@
-import { useEffect } from "react";
+﻿import { useEffect } from "react";
 import { scheduleAtNextAnimationFrame } from "src/cs/base/browser/dom";
 import {
   isBootProfileEnabled,
   logRendererBoot,
   logSlowScriptResources,
   markBootUiReady,
-} from "src/cs/workbench/contrib/deviceAnalysis/appBoot";
-import Page from "src/cs/workbench/contrib/deviceAnalysis/Page";
-import { SessionProvider } from "src/cs/workbench/contrib/deviceAnalysis/session/SessionProvider";
+} from "src/cs/workbench/contrib/workspace/appBoot";
+import Page from "src/cs/workbench/contrib/workspace/Page";
+import { SessionProvider } from "src/cs/workbench/contrib/session/SessionProvider";
 
 const App = () => {
   useEffect(() => {

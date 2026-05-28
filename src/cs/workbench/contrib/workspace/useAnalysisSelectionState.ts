@@ -1,4 +1,4 @@
-import {
+﻿import {
   useCallback,
   useEffect,
   useMemo,
@@ -7,8 +7,8 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import type { IonIoffManualTargetsByFileId } from "src/cs/workbench/contrib/deviceAnalysis/session/analysis-session-context";
-import type { AnalysisSettings } from "src/cs/workbench/contrib/deviceAnalysis/settings/settingsShared";
+import type { IonIoffManualTargetsByFileId } from "src/cs/workbench/contrib/session/analysis-session-context";
+import type { AnalysisSettings } from "src/cs/workbench/contrib/settings/settingsShared";
 import type { ProcessedEntry } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 
 export type AnalysisFileOption = {

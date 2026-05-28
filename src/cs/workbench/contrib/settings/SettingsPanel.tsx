@@ -1,17 +1,17 @@
-import { useEffect, useRef } from "react";
+﻿import { useEffect, useRef } from "react";
 import Button from "src/cs/base/browser/ui/Button/Button";
 import Card from "src/cs/base/browser/ui/Card/Card";
 import DropdownField from "src/cs/base/browser/ui/DropdownField/DropdownField";
 import Input from "src/cs/base/browser/ui/Input/Input";
 import Toast from "src/cs/base/browser/ui/toast/toast";
 import type { Feedback } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
-import { AboutSettingsSection } from "src/cs/workbench/contrib/deviceAnalysis/settings/AboutSettingsSection";
-import { GeneralSettingsSection } from "src/cs/workbench/contrib/deviceAnalysis/settings/GeneralSettingsSection";
-import { OriginSettingsSection } from "src/cs/workbench/contrib/deviceAnalysis/settings/OriginSettingsSection";
+import { AboutSettingsSection } from "src/cs/workbench/contrib/settings/AboutSettingsSection";
+import { GeneralSettingsSection } from "src/cs/workbench/contrib/settings/GeneralSettingsSection";
+import { OriginSettingsSection } from "src/cs/workbench/contrib/settings/OriginSettingsSection";
 import type {
   SettingsPanelProps,
-} from "src/cs/workbench/contrib/deviceAnalysis/settings/settingsPanelTypes";
-import { useSettingsPanelState } from "src/cs/workbench/contrib/deviceAnalysis/settings/useSettingsPanelState";
+} from "src/cs/workbench/contrib/settings/settingsPanelTypes";
+import { useSettingsPanelState } from "src/cs/workbench/contrib/settings/useSettingsPanelState";
 
 const feedbackClassName = (type: Feedback["type"]): string =>
   `text-sm ${type === "error" ? "text-red-500" : "text-emerald-600"}`;

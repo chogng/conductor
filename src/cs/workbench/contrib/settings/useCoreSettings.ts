@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import type { LanguageCode } from "src/cs/platform/language/common/language";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import {
@@ -8,7 +8,7 @@ import {
 import type {
   IonIoffMethod,
   SsMethod,
-} from "src/cs/workbench/contrib/deviceAnalysis/session/analysis-session-context";
+} from "src/cs/workbench/contrib/session/analysis-session-context";
 import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/deviceAnalysis/translateTypes";
 import {
   getSettings,

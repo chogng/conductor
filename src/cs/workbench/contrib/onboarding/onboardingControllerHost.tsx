@@ -1,44 +1,34 @@
-import { useEffect } from "react";
-import type {
-  TemplateConfig,
-} from "src/cs/workbench/contrib/deviceAnalysis/session/analysis-session-context";
+﻿import {
+  useEffect,
+  type Dispatch,
+  type MutableRefObject,
+  type SetStateAction,
+} from "react";
 import type { ProcessedEntry, RawDataEntry } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
-import { useOnboarding } from "./useOnboarding";
-import { loadOnboarding } from "./loadOnboarding";
+import type { TemplateConfig } from "src/cs/workbench/contrib/session/analysis-session-context";
+import type {
+  OnboardingControllerState,
+  OnboardingLaunchMode,
+} from "src/cs/workbench/contrib/onboarding/onboardingState";
+import { useOnboarding } from "src/cs/workbench/contrib/onboarding/useOnboarding";
+import { loadOnboarding } from "src/cs/workbench/contrib/onboarding/onboardingLoader";
 
 type OnboardingPage = "data" | "analysis" | "settings";
 
-type OnboardingControllerState = {
-  back: () => void;
-  canNext: boolean;
-  close: () => void;
-  handleImportTrigger: () => void;
-  handleOpenOrigin: (openOrigin: () => void) => void;
-  isOpen: boolean;
-  next: () => void;
-  open: (mode: "auto" | "manual") => void;
-  stepIndex: number;
-  steps: ReturnType<typeof useOnboarding>["steps"];
-};
-
 type OnboardingControllerHostProps = {
   clearPreviewState: (options?: { clearSelection?: boolean }) => void;
-  importerRef: React.MutableRefObject<{ openFileDialog?: () => void } | null>;
+  importerRef: MutableRefObject<{ openFileDialog?: () => void } | null>;
   isRequestedOpen: boolean;
-  openMode: "auto" | "manual";
+  openMode: OnboardingLaunchMode;
   navigateToPage: (page: OnboardingPage) => void;
   onStateChange: (state: OnboardingControllerState) => void;
   processingState?: string;
   processedData: ProcessedEntry[];
   rawData: RawDataEntry[];
-  setProcessedData: React.Dispatch<React.SetStateAction<ProcessedEntry[]>>;
-  setRawData: React.Dispatch<React.SetStateAction<RawDataEntry[]>>;
-  setSelectedPreviewFileId: React.Dispatch<
-    React.SetStateAction<string | null>
-  >;
-  setTemplateConfig: React.Dispatch<
-    React.SetStateAction<TemplateConfig>
-  >;
+  setProcessedData: Dispatch<SetStateAction<ProcessedEntry[]>>;
+  setRawData: Dispatch<SetStateAction<RawDataEntry[]>>;
+  setSelectedPreviewFileId: Dispatch<SetStateAction<string | null>>;
+  setTemplateConfig: Dispatch<SetStateAction<TemplateConfig>>;
   templateConfig: TemplateConfig;
   updateSettings: (updates: Record<string, unknown>) => Promise<unknown> | unknown;
 };
@@ -76,10 +66,7 @@ const OnboardingControllerHost = ({
   });
 
   useEffect(() => {
-    onStateChange({
-      ...onboarding,
-      open: onboarding.open,
-    });
+    onStateChange(onboarding);
   }, [onStateChange, onboarding]);
 
   useEffect(() => {

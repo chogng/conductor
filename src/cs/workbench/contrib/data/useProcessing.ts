@@ -1,4 +1,4 @@
-import {
+﻿import {
   useCallback,
   useEffect,
   useRef,
@@ -7,7 +7,7 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from "react";
-import { prepareExtraction } from "src/cs/workbench/contrib/deviceAnalysis/data/extractionValidation";
+import { prepareExtraction } from "src/cs/workbench/contrib/data/extractionValidation";
 import {
   parseOlderExtractionError,
   stableStringify,

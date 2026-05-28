@@ -1,4 +1,4 @@
-import {
+﻿import {
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -9,7 +9,7 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from "react";
-import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/deviceAnalysis/session/analysis-session-context";
+import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
 import type { PreviewFileLike } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import type { TemplateConfig } from "./templateManagerUtils";
 import {

@@ -1,0 +1,4 @@
+export const SIDEBAR_DEFAULT_WIDTH_PX = 280;
+export const SIDEBAR_MIN_WIDTH_PX = 235;
+export const SIDEBAR_MAX_WIDTH_PX = 600;
+export const TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX = 250;

@@ -1,6 +1,6 @@
-import type { MutableRefObject } from "react";
+﻿import type { MutableRefObject } from "react";
 import type { ImporterRef } from "src/cs/workbench/contrib/import/browser/importerView";
-import type { OnboardingStep } from "src/cs/workbench/contrib/deviceAnalysis/onboarding/onboardingTypes";
+import type { OnboardingStep } from "src/cs/workbench/contrib/onboarding/onboardingTypes";
 
 export type OnboardingLaunchMode = "auto" | "manual";
 

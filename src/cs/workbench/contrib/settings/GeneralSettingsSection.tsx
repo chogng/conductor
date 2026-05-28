@@ -1,4 +1,4 @@
-import Button from "src/cs/base/browser/ui/Button/Button";
+﻿import Button from "src/cs/base/browser/ui/Button/Button";
 import DropdownField from "src/cs/base/browser/ui/DropdownField/DropdownField";
 import Input from "src/cs/base/browser/ui/Input/Input";
 import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "src/cs/workbench/common/deviceAnalysis/fileNameFieldMatching";
@@ -9,7 +9,7 @@ import type {
   SettingsPanelProps,
   StorageSettings,
   WindowCloseSettings,
-} from "src/cs/workbench/contrib/deviceAnalysis/settings/settingsPanelTypes";
+} from "src/cs/workbench/contrib/settings/settingsPanelTypes";
 
 type SelectOption = {
   label: string;

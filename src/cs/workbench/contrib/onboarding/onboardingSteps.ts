@@ -1,4 +1,4 @@
-import type { OnboardingStep } from "./onboardingTypes";
+﻿import type { OnboardingStep } from "src/cs/workbench/contrib/onboarding/onboardingTypes";
 
 const TEMPLATE_CONFIG_SPOTLIGHT_TARGET_IDS = [
   "analysis-template-manager",

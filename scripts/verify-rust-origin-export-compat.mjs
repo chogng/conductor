@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 import fs from "node:fs/promises";
 import path from "node:path";
 import Papa from "papaparse";
@@ -7,7 +7,7 @@ import {
   buildOriginExportPlan,
   isRustOriginCsvEligiblePayload,
   resolveRustOriginCsvYTransformForPayload,
-} from "../src/cs/workbench/contrib/deviceAnalysis/analysis/lib/origin/originSelectionExport.ts";
+} from "../src/cs/workbench/contrib/chartPreview/lib/origin/originSelectionExport.ts";
 
 const ROOT = process.cwd();
 const OUTPUT_DIR = path.join(ROOT, ".tooling", "rust-origin-export-compat");

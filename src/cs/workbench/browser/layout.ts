@@ -14,12 +14,19 @@ import {
   resetVisitedAnalysisLayoutView,
   resolveLayoutView,
 } from "src/cs/workbench/browser/actions/layoutActions";
+import {
+  SIDEBAR_DEFAULT_WIDTH_PX,
+  SIDEBAR_MAX_WIDTH_PX,
+  SIDEBAR_MIN_WIDTH_PX,
+} from "src/cs/workbench/browser/layoutConstants";
 import { layoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 
-export const SIDEBAR_DEFAULT_WIDTH_PX = 280;
-export const SIDEBAR_MIN_WIDTH_PX = 235;
-export const SIDEBAR_MAX_WIDTH_PX = 600;
-export const TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX = 250;
+export {
+  SIDEBAR_DEFAULT_WIDTH_PX,
+  SIDEBAR_MAX_WIDTH_PX,
+  SIDEBAR_MIN_WIDTH_PX,
+  TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX,
+} from "src/cs/workbench/browser/layoutConstants";
 
 export type LayoutView = "data" | "analysis" | "settings";
 

@@ -1,8 +1,8 @@
-import Button from "src/cs/base/browser/ui/Button/Button";
+﻿import Button from "src/cs/base/browser/ui/Button/Button";
 import type {
   AppUpdateSettings,
   SettingsPanelProps,
-} from "src/cs/workbench/contrib/deviceAnalysis/settings/settingsPanelTypes";
+} from "src/cs/workbench/contrib/settings/settingsPanelTypes";
 
 type AboutSettingsSectionProps = {
   appUpdateChecking: boolean;

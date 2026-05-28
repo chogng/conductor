@@ -1,19 +1,19 @@
-import fs from "node:fs/promises";
+﻿import fs from "node:fs/promises";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import {
   computeCentralDerivative,
   computeSubthresholdSwing,
   computeSubthresholdSwingFitAuto,
-} from "../src/cs/workbench/contrib/deviceAnalysis/analysis/lib/analysisMath.ts";
+} from "../src/cs/workbench/contrib/chartPreview/lib/analysisMath.ts";
 import {
   buildPoints,
   downsamplePointsForDisplay,
-} from "../src/cs/workbench/contrib/deviceAnalysis/analysis/lib/analysisChartsUtils.ts";
+} from "../src/cs/workbench/contrib/chartPreview/lib/analysisChartsUtils.ts";
 import {
   computeBaseCurrentMetrics,
   isTransferLikeFile,
-} from "../src/cs/workbench/contrib/deviceAnalysis/analysis/lib/metrics.ts";
+} from "../src/cs/workbench/contrib/chartPreview/lib/metrics.ts";
 
 const ROOT = process.cwd();
 const OUTPUT_DIR = path.join(ROOT, ".tooling", "device-analysis-phase3-bench");

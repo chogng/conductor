@@ -1,9 +1,9 @@
-import { lxPreview } from "cogicon";
+﻿import { lxPreview } from "cogicon";
 import type { ReactNode } from "react";
 import Avatar from "cs/base/browser/ui/Avatar/Avatar";
 import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
-import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/deviceAnalysis/session/analysis-session-context";
+import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
 import type { PreviewFileLike } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 
 const TemplateManagerPreviewEmptyIcon = ({ className }: { className?: string }) => (
