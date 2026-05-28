@@ -500,7 +500,7 @@ const Page = () => {
     isActive: dataPane.isActive,
     labelledBy: dataPane.labelledBy,
     paneId: dataPane.paneId,
-    viewportClassName: "p-1 pt-0 !overflow-hidden",
+    viewportClassName: "pl-1 pt-0 pr-0 pb-0 !overflow-hidden",
     children: (
       <DataPart
         analysisSettings={analysisSettings}

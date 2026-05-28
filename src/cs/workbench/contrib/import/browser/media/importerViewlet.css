@@ -1,3 +1,13 @@
+.importer-viewlet-host {
+  @apply flex min-h-0 flex-col;
+  height: 100%;
+}
+
+.importer-viewlet-root {
+  @apply flex-1 min-h-0;
+  height: 100%;
+}
+
 .import-viewer-dropzone {
   @apply border-2 border-dashed rounded-xl p-0 transition-all duration-300 relative overflow-visible flex-1;
   height: 100%;

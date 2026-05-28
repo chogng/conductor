@@ -2512,7 +2512,7 @@ const TemplateManager = ({
       <Card
         ref={containerRef}
         id="analysis-template-manager"
-        className="flex h-full flex-1 min-h-0 flex-col pt-4 pr-4 pb-4 pl-0"
+        className="flex h-full flex-1 min-h-0 flex-col rounded-br-none pt-4 pr-4 pb-4 pl-0"
         style={
           {
             "--da-template-stack-panel-h": "clamp(24rem, 52dvh, 40rem)",

@@ -43,9 +43,10 @@ export class ImporterViewletView implements IDisposable {
   constructor(host: HTMLElement, props: ImporterViewletProps) {
     this.host = host;
     this.props = props;
+    this.host.classList.add("importer-viewlet-host");
 
     this.root = document.createElement("div");
-    this.root.className = "workbench_sidebar_part";
+    this.root.className = "importer-viewlet-root workbench_sidebar_part";
     this.root.setAttribute("aria-label", props.t("da_import_section"));
 
     const header = document.createElement("header");
@@ -110,6 +111,7 @@ export class ImporterViewletView implements IDisposable {
       this.props.importerRef.current = null;
     }
     this.importerView.dispose();
+    this.host.classList.remove("importer-viewlet-host");
     this.root.remove();
   }
 
@@ -183,7 +185,9 @@ export class ImporterViewletView implements IDisposable {
 
     if (action.icon) {
       const icon = document.createElement("span");
-      icon.className = "shrink-0";
+      icon.className = "ui-cogicon shrink-0";
+      icon.style.width = "16px";
+      icon.style.height = "16px";
       icon.setAttribute("aria-hidden", "true");
       icon.innerHTML = normalizeCogIconSvgMarkup(action.icon);
       content.appendChild(icon);

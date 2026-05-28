@@ -16,7 +16,7 @@ export const TEMPLATE_MANAGER_PREVIEW_PANEL_ITEM_CLASS =
   "flex h-full min-h-0 self-stretch";
 
 export const TEMPLATE_MANAGER_PREVIEW_PANEL_FRAME_CLASS =
-  "flex flex-1 min-h-0 flex-col overflow-hidden rounded-[16px] border border-border bg-bg-page/75 p-4";
+  "flex flex-1 min-h-0 flex-col overflow-hidden rounded-[16px] rounded-br-none border border-border bg-bg-page/75 p-4";
 
 type TemplateManagerPreviewSurfaceProps = {
   actions?: ReactNode;
