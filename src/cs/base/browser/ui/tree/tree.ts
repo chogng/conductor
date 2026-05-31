@@ -2,6 +2,8 @@ import { ListView } from "src/cs/base/browser/ui/list/listView";
 import type { ListRenderState } from "src/cs/base/browser/ui/list/list";
 import { cx } from "src/utils/cx";
 
+import "src/cs/base/browser/ui/tree/tree.css";
+
 export type TreeNode<T> = {
   children?: T[];
   data: T;

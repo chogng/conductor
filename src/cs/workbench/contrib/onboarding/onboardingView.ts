@@ -6,7 +6,10 @@ import {
   useRef,
   useState
 } from "react";
-import Button from "cs/base/browser/ui/button/button";
+import {
+  getButtonClassName,
+  getButtonContentClassName,
+} from "cs/base/browser/ui/button/button";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { OnboardingStep } from "src/cs/workbench/contrib/onboarding/onboardingTypes";
 import {
@@ -409,16 +412,12 @@ const Onboarding = ({
               ),
               /* @__PURE__ */ jsx("div", { className: "mt-2 min-h-0 flex-1 overflow-y-auto pr-1", children: /* @__PURE__ */ jsx("p", { className: "text-sm leading-6 text-text-secondary", children: t(step.bodyKey) }) }),
               /* @__PURE__ */ jsxs("div", { className: "mt-4 flex items-center justify-between gap-3", children: [
-                /* @__PURE__ */ jsx("div", { className: "flex items-center gap-2", children: /* @__PURE__ */ jsx(
-                  Button,
-                  {
-                    variant: "ghost",
-                    size: "sm",
-                    onClick: onBack,
-                    disabled: stepIndex === 0,
-                    children: t("da_onboarding_back")
-                  }
-                ) }),
+                /* @__PURE__ */ jsx("div", { className: "flex items-center gap-2", children: renderOnboardingButton({
+                  disabled: stepIndex === 0,
+                  label: t("da_onboarding_back"),
+                  onClick: onBack,
+                  variant: "ghost"
+                }) }),
                 /* @__PURE__ */ jsx("div", { className: "flex items-center gap-2", children: progressStepIds.map((progressId, index) => /* @__PURE__ */ jsx(
                   "span",
                   {
@@ -427,16 +426,12 @@ const Onboarding = ({
                   },
                   progressId
                 )) }),
-                /* @__PURE__ */ jsx(
-                  Button,
-                  {
-                    variant: "primary",
-                    size: "sm",
-                    onClick: onNext,
-                    disabled: !canNext,
-                    children: isLastStep ? t("da_onboarding_finish") : t("da_onboarding_next")
-                  }
-                )
+                renderOnboardingButton({
+                  disabled: !canNext,
+                  label: isLastStep ? t("da_onboarding_finish") : t("da_onboarding_next"),
+                  onClick: onNext,
+                  variant: "primary"
+                })
               ] })
             ]
           }
@@ -447,3 +442,29 @@ const Onboarding = ({
 };
 
 export default Onboarding;
+
+const renderOnboardingButton = ({
+  disabled,
+  label,
+  onClick,
+  variant,
+}: {
+  readonly disabled?: boolean;
+  readonly label: string;
+  readonly onClick: () => void;
+  readonly variant: "ghost" | "primary";
+}) =>
+  jsx("button", {
+    type: "button",
+    className: getButtonClassName({
+      disabled,
+      size: "sm",
+      variant,
+    }),
+    disabled,
+    onClick,
+    children: jsx("span", {
+      className: getButtonContentClassName(),
+      children: label,
+    }),
+  });

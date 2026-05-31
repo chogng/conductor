@@ -1,5 +1,3 @@
-/* Button / action-btn* */
-
 /* Base */
 .action-btn {
   @apply relative inline-flex min-w-0 items-center justify-center px-4 rounded-lg text-sm font-medium transition-all;

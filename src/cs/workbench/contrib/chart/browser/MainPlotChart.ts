@@ -1,6 +1,6 @@
 ﻿import { Fragment, jsx, jsxs } from "react/jsx-runtime";
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import Input from "cs/base/browser/ui/input/input";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent, type InputHTMLAttributes, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type Ref } from "react";
+import { getInputDataAttributes, getInputFieldClassName, getInputFieldState, getInputNativeClassName, getInputWrapperClassName, mergeSpaceSeparatedIds, slugifyInputId, type InputSize, type LabelPlacement } from "cs/base/browser/ui/input/input";
 import { splitBidirectionalCurvePoints } from "src/cs/workbench/contrib/diagnostics/common/analysisMath";
 import { formatNumber } from "src/cs/workbench/contrib/diagnostics/common/numberFormat";
 import { getChartColor, resolveSeriesChartColor } from "src/cs/workbench/contrib/chart/browser/chartColors";
@@ -176,6 +176,64 @@ const TOOLTIP_SERIES_NAME_SEPARATOR = "\u0000";
 const logChartSeriesListCache = new WeakMap<object, Map<string, PlotSeries[]>>();
 const logChartSeriesDataCache = new WeakMap<object, Map<string, PlotPoint[]>>();
 const canvasTooltipLookupCache = new WeakMap<PlotPoint[], Map<string, CanvasTooltipLookup>>();
+type LocalInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "size" | "value" | "onChange"> & {
+    error?: ReactNode;
+    fieldClassName?: string;
+    hideSpinner?: boolean;
+    hint?: ReactNode;
+    idBase?: string;
+    inputClassName?: string;
+    label?: ReactNode;
+    labelPlacement?: LabelPlacement;
+    allowAutoComplete?: boolean;
+    onChange?: (nextValue: string) => void;
+    ref?: Ref<HTMLInputElement>;
+    rightSlot?: ReactNode;
+    size?: InputSize;
+    value?: string | number;
+};
+const renderLocalInput = ({ allowAutoComplete = false, autoComplete, className = "", disabled = false, error, fieldClassName = "", hideSpinner = false, hint, id, idBase, inputClassName = "", label, labelPlacement = "stack", onChange, ref, rightSlot, size = "md", type = "text", value, ...props }: LocalInputProps) => {
+    const inputId = id ?? (idBase ? slugifyInputId(idBase) : undefined);
+    const errorId = inputId ? `${inputId}-error` : undefined;
+    const hintId = inputId ? `${inputId}-hint` : undefined;
+    const describedBy = mergeSpaceSeparatedIds(props["aria-describedby"], error ? errorId : hint ? hintId : undefined);
+    const labelNode = label ? jsx("label", {
+        htmlFor: inputId,
+        className: "input_label",
+        children: label
+    }) : null;
+    const fieldNode = jsx("div", {
+        className: getInputFieldClassName({ fieldClassName, size }),
+        "data-icon": "without",
+        "data-state": getInputFieldState({ disabled, error: Boolean(error) }),
+        ...getInputDataAttributes({}),
+        children: [
+            jsx("input", {
+                ...props,
+                ref,
+                id: inputId,
+                type,
+                value: value ?? "",
+                onChange: (event: ChangeEvent<HTMLInputElement>) => onChange?.(event.currentTarget.value),
+                disabled,
+                "aria-invalid": Boolean(error),
+                "aria-describedby": describedBy,
+                autoComplete: allowAutoComplete ? autoComplete : "off",
+                className: getInputNativeClassName({ hideSpinner, inputClassName })
+            }),
+            rightSlot ? jsx("div", { className: "input_right", children: rightSlot }) : null
+        ]
+    });
+    return jsx("div", {
+        className: getInputWrapperClassName(className),
+        "data-style": "input",
+        children: [
+            label && labelPlacement === "inline" ? jsx("div", { className: "flex items-center gap-2", children: [labelNode, fieldNode] }) : [labelNode, fieldNode],
+            error ? jsx("div", { id: errorId, className: "input_error", children: error }) : null,
+            !error && hint ? jsx("div", { id: hintId, className: "input_hint", children: hint }) : null
+        ]
+    });
+};
 const decodeTooltipSeriesName = (value: unknown): {
     label: string;
     token: string;
@@ -1368,7 +1426,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({ activeFile, char
                 },
                 title: `${xAxisLabel}\n双击可编辑`,
                 onDoubleClick: () => beginAxisTitleEdit("x"),
-                children: editingAxisTitle === "x" ? (jsx(Input, {
+                children: editingAxisTitle === "x" ? (renderLocalInput( {
                     ref: axisTitleInputRef,
                     size: "sm",
                     className: "h-full w-full",
@@ -1408,7 +1466,7 @@ const CanvasMainPlotChart = memo(function CanvasMainPlotChart({ activeFile, char
                 },
                 title: `${yAxisLabel}\n双击可编辑`,
                 onDoubleClick: () => beginAxisTitleEdit("y"),
-                children: editingAxisTitle === "y" ? (jsx(Input, {
+                children: editingAxisTitle === "y" ? (renderLocalInput( {
                     ref: axisTitleInputRef,
                     size: "sm",
                     className: "h-full w-full",
@@ -2360,5 +2418,6 @@ const MainPlotChart = memo(function MainPlotChart({ plotType, curveLineWidth = 2
 });
 MainPlotChart.displayName = "MainPlotChart";
 export default MainPlotChart;
+
 
 

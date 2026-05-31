@@ -22,6 +22,8 @@ import type {
 } from "src/cs/base/browser/ui/scrollbar/scrollbarOptions";
 import { ScrollbarState } from "src/cs/base/browser/ui/scrollbar/scrollbarState";
 
+import "src/cs/base/browser/ui/scrollbar/media/scrollbar.css";
+
 const WHEEL_LINE_DELTA_PX = 40;
 const HORIZONTAL_WHEEL_SMOOTHING = 0.24;
 const HORIZONTAL_WHEEL_STOP_THRESHOLD_PX = 0.5;

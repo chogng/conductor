@@ -1,4 +1,5 @@
 import { append, reset } from "src/cs/base/browser/dom";
+import { createButton as createActionButton } from "src/cs/base/browser/ui/button/button";
 import Toast from "src/cs/base/browser/ui/toast/toast";
 import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "src/cs/workbench/common/deviceAnalysis/fileNameFieldMatching";
 import type { ToastState } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
@@ -522,15 +523,14 @@ export class SettingsView {
     onClick: () => void;
     variant: "primary" | "secondary";
   }): HTMLButtonElement {
-    const button = document.createElement("button");
-    button.id = options.id;
-    button.type = "button";
-    button.className = cx("settings-button action-btn action-btn--sm", options.variant === "primary" ? "action-btn--primary" : "action-btn--secondary");
-    button.disabled = options.disabled === true;
-    const content = document.createElement("span");
-    content.className = "action-btn__content";
-    content.textContent = options.label;
-    button.appendChild(content);
+    const button = createActionButton({
+      className: "settings-button",
+      disabled: options.disabled === true,
+      id: options.id,
+      label: options.label,
+      size: "sm",
+      variant: options.variant,
+    });
     button.addEventListener("click", options.onClick);
     return button;
   }

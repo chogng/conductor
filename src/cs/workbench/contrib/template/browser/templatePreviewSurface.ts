@@ -1,9 +1,9 @@
-import { lxPreview } from "cogicon";
+﻿import { lxPreview } from "cogicon";
 import { jsx, jsxs } from "react/jsx-runtime";
 import type { ReactNode } from "react";
 
-import Avatar from "cs/base/browser/ui/avatar/avatar";
-import CogIcon from "src/cs/base/browser/ui/cogIcon/cogIcon";
+import { getAvatarClassName, getAvatarDataAttributes } from "cs/base/browser/ui/avatar/avatar";
+import { getCogIconClassName, getCogIconMarkup, getCogIconStyle, type CogIconRenderer, type CogIconStyle } from "src/cs/base/browser/ui/cogIcon/cogIcon";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { PreviewFileLike } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
@@ -14,8 +14,32 @@ type IconProps = {
   className?: string;
 };
 
+type LocalCogIconProps = {
+  className?: string;
+  icon: CogIconRenderer;
+  size?: number | string;
+  style?: CogIconStyle;
+  [key: string]: unknown;
+};
+
+const renderLocalCogIcon = ({
+  className,
+  icon,
+  size = 16,
+  style,
+  ...props
+}: LocalCogIconProps) =>
+  jsx("span", {
+    ...props,
+    className: getCogIconClassName(className),
+    style: getCogIconStyle({ size, style }),
+    dangerouslySetInnerHTML: {
+      __html: getCogIconMarkup(icon),
+    },
+  });
+
 const TemplateManagerPreviewEmptyIcon = ({ className }: IconProps) =>
-  jsx(CogIcon, {
+  renderLocalCogIcon({
     className,
     icon: lxPreview,
     size: "100%",
@@ -107,10 +131,12 @@ export const TemplateManagerPreviewEmptyState = ({
       "flex flex-1 min-h-0 flex-col items-center justify-center gap-2 px-6 py-8 text-center",
     id,
     children: [
-      jsx(Avatar, {
-        icon: TemplateManagerPreviewEmptyIcon,
-        size: "md",
-        variant: "empty",
+      jsx("div", {
+        className: getAvatarClassName({ size: "md", variant: "empty" }),
+        ...getAvatarDataAttributes({ mode: "icon" }),
+        children: jsx(TemplateManagerPreviewEmptyIcon, {
+          className: "w-[60%] h-[60%]",
+        }),
       }),
       title
         ? jsx("p", {
@@ -126,3 +152,4 @@ export const TemplateManagerPreviewEmptyState = ({
         : null,
     ],
   });
+

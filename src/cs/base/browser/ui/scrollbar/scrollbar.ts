@@ -1,94 +1,63 @@
-import { jsx } from "react/jsx-runtime";
-import {
-  forwardRef,
-  useEffect,
-  useImperativeHandle,
-  useLayoutEffect,
-  useRef,
-  type HTMLAttributes,
-  type ReactNode,
-} from "react";
 import { cx } from "src/utils/cx";
 import { ScrollbarController } from "src/cs/base/browser/ui/scrollbar/scrollbarController";
 import type { ScrollbarAxis } from "src/cs/base/browser/ui/scrollbar/scrollbarOptions";
 
-type ViewportProps = Omit<HTMLAttributes<HTMLDivElement>, "onScroll"> & {
-  onScroll?: (event: Event) => void;
+export type ScrollbarOptions = {
+  readonly axis?: ScrollbarAxis;
+  readonly className?: string;
+  readonly observeContentMutations?: boolean;
+  readonly onScroll?: (event: Event) => void;
+  readonly viewportClassName?: string;
 };
 
-export type ScrollbarProps = HTMLAttributes<HTMLDivElement> & {
-  children?: ReactNode;
-  viewportClassName?: string;
-  axis?: ScrollbarAxis;
-  observeContentMutations?: boolean;
-  viewportProps?: ViewportProps;
-};
+export class Scrollbar {
+  public readonly element: HTMLDivElement;
+  public readonly viewport: HTMLDivElement;
 
-const Scrollbar = forwardRef<HTMLDivElement | null, ScrollbarProps>(({
-  children,
-  className = "",
-  viewportClassName = "",
-  axis = "y",
-  observeContentMutations = true,
-  viewportProps = {},
-  ...props
-}, ref) => {
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const viewportRef = useRef<HTMLDivElement | null>(null);
-  const controllerRef = useRef<ScrollbarController | null>(null);
-  const { onScroll, className: viewportPropsClassName, ...restViewportProps } = viewportProps;
+  private readonly controller: ScrollbarController;
 
-  useImperativeHandle(ref, () => viewportRef.current as HTMLDivElement, []);
+  public constructor(options: ScrollbarOptions = {}) {
+    this.element = document.createElement("div");
+    this.viewport = document.createElement("div");
+    this.element.append(this.viewport);
 
-  useLayoutEffect(() => {
-    const root = rootRef.current;
-    const viewport = viewportRef.current;
-    if (!root || !viewport) {
-      return;
-    }
-
-    const controller = new ScrollbarController({
-      axis,
-      observeContentMutations,
-      onScroll,
-      root,
-      viewport,
+    this.applyOptions(options);
+    this.controller = new ScrollbarController({
+      axis: options.axis ?? "y",
+      observeContentMutations: options.observeContentMutations ?? true,
+      onScroll: options.onScroll,
+      root: this.element,
+      viewport: this.viewport,
     });
-    controllerRef.current = controller;
+  }
 
-    return () => {
-      controller.dispose();
-      controllerRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    controllerRef.current?.setOptions({
-      axis,
-      observeContentMutations,
-      onScroll,
+  public update(options: ScrollbarOptions = {}): void {
+    this.applyOptions(options);
+    this.controller.setOptions({
+      axis: options.axis ?? "y",
+      observeContentMutations: options.observeContentMutations ?? true,
+      onScroll: options.onScroll,
     });
-  }, [axis, observeContentMutations, onScroll]);
+    this.controller.update();
+  }
 
-  useLayoutEffect(() => {
-    controllerRef.current?.update();
-  }, [children]);
+  public layout(): void {
+    this.controller.update();
+  }
 
-  return jsx("div", {
-    ...props,
-    ref: rootRef,
-    className: cx("scrollArea", className),
-    children: jsx("div", {
-      ref: viewportRef,
-      className: cx("scrollAreaViewport", viewportClassName, viewportPropsClassName),
-      "data-axis": axis,
-      ...restViewportProps,
-      children,
-    }),
-  });
-});
+  public dispose(): void {
+    this.controller.dispose();
+  }
 
-Scrollbar.displayName = "Scrollbar";
+  private applyOptions({
+    axis = "y",
+    className = "",
+    viewportClassName = "",
+  }: ScrollbarOptions): void {
+    this.element.className = cx("scrollArea", className);
+    this.viewport.className = cx("scrollAreaViewport", viewportClassName);
+    this.viewport.dataset.axis = axis;
+  }
+}
 
 export default Scrollbar;
-

@@ -1,89 +1,157 @@
-import { jsx } from "react/jsx-runtime";
-import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { normalizeCtaName, normalizeCtaToken } from "src/utils/cta";
 import { cx } from "src/utils/cx";
 
-type ButtonVariant = "primary" | "secondary" | "ghost" | "text" | "icon" | "danger";
-type ButtonSize = "sm" | "md" | "lg" | "control" | "icon" | "iconSm";
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-    children?: ReactNode;
-    variant?: ButtonVariant;
-    size?: ButtonSize;
-    fx?: boolean;
-    fullWidth?: boolean;
-    contentClassName?: string;
-    testId?: string;
-    dataIcon?: string;
-    cta?: string;
-    ctaPosition?: string;
-    ctaCopy?: string;
+import "src/cs/base/browser/ui/button/button.css";
+
+export type ButtonVariant =
+  | "primary"
+  | "secondary"
+  | "ghost"
+  | "text"
+  | "icon"
+  | "danger";
+
+export type ButtonSize = "sm" | "md" | "lg" | "control" | "icon" | "iconSm";
+
+export type ButtonContent = string | Node | readonly Node[];
+
+export type ButtonOptions = {
+  readonly ariaLabel?: string;
+  readonly className?: string;
+  readonly content?: ButtonContent;
+  readonly contentClassName?: string;
+  readonly cta?: string;
+  readonly ctaCopy?: string;
+  readonly ctaPosition?: string;
+  readonly dataIcon?: string;
+  readonly disabled?: boolean;
+  readonly fullWidth?: boolean;
+  readonly fx?: boolean;
+  readonly id?: string;
+  readonly label?: string;
+  readonly size?: ButtonSize;
+  readonly testId?: string;
+  readonly title?: string;
+  readonly type?: "button" | "submit" | "reset";
+  readonly variant?: ButtonVariant;
 };
-/**
- * Button (UI)
- * - Matches `action-btn*` classes in `src/cs/base/browser/ui/button/button.css`
- * - Defaults `type="button"` to avoid accidental submits
- */
-const Button = forwardRef<HTMLButtonElement, ButtonProps>(({ children, type = "button", variant = "primary", size = "md", fx = false, fullWidth = false, contentClassName = "", className = "", disabled = false, testId, dataIcon, cta, ctaPosition, ctaCopy, ...props }, ref) => {
-    const isDisabled = Boolean(disabled);
-    const devTestId = import.meta.env.DEV && testId ? testId : undefined;
-    const resolvedVariant = (() => {
-        if (variant === "icon" && isDisabled)
-            return "icon-disabled";
-        if (variant === "icon")
-            return "icon";
-        if (isDisabled)
-            return "disabled";
-        if (variant === "ghost")
-            return "ghost";
-        return variant;
-    })();
-    const variantClass = (() => {
-        if (resolvedVariant === "disabled")
-            return "action-btn--disabled";
-        if (resolvedVariant === "secondary")
-            return "action-btn--secondary";
-        if (resolvedVariant === "ghost")
-            return "action-btn--ghost";
-        if (resolvedVariant === "text")
-            return "action-btn--text";
-        if (resolvedVariant === "icon")
-            return "action-btn--icon";
-        if (resolvedVariant === "icon-disabled")
-            return "action-btn--icon-disabled";
-        if (resolvedVariant === "danger")
-            return "action-btn--danger";
-        return "action-btn--primary";
-    })();
-    const sizeClass = (() => {
-        if (size === "sm")
-            return "action-btn--sm";
-        if (size === "lg")
-            return "action-btn--lg";
-        if (size === "control")
-            return "action-btn--control";
-        if (size === "iconSm")
-            return "action-btn--icon-sm";
-        if (size === "icon")
-            return "action-btn--icon-size";
-        return "action-btn--md";
-    })();
-    return (jsx("button", {
-        ref: ref,
-        type: type,
-        disabled: isDisabled,
-        "data-icon": dataIcon,
-        "data-fx": fx ? "on" : undefined,
-        "data-testid": devTestId,
-        "data-cta": normalizeCtaName(cta),
-        "data-cta-position": normalizeCtaToken(ctaPosition),
-        "data-cta-copy": normalizeCtaToken(ctaCopy),
-        className: cx("action-btn", sizeClass, variantClass, fullWidth && "w-full", className),
-        ...props,
-        children: jsx("span", {
-            className: cx("action-btn__content", contentClassName),
-            children: children
-        })
-    }));
+
+export const getButtonClassName = ({
+  className = "",
+  disabled = false,
+  fullWidth = false,
+  size = "md",
+  variant = "primary",
+}: Pick<
+  ButtonOptions,
+  "className" | "disabled" | "fullWidth" | "size" | "variant"
+>): string => {
+  const variantClass = getButtonVariantClassName(variant, disabled);
+  const sizeClass = getButtonSizeClassName(size);
+
+  return cx("action-btn", sizeClass, variantClass, fullWidth && "w-full", className);
+};
+
+export const getButtonContentClassName = (className = ""): string =>
+  cx("action-btn__content", className);
+
+export const getButtonDataAttributes = ({
+  cta,
+  ctaCopy,
+  ctaPosition,
+  dataIcon,
+  fx = false,
+  testId,
+}: Pick<
+  ButtonOptions,
+  "cta" | "ctaCopy" | "ctaPosition" | "dataIcon" | "fx" | "testId"
+>): Record<string, string | undefined> => ({
+  "data-icon": dataIcon,
+  "data-fx": fx ? "on" : undefined,
+  "data-testid": import.meta.env.DEV && testId ? testId : undefined,
+  "data-cta": normalizeCtaName(cta),
+  "data-cta-position": normalizeCtaToken(ctaPosition),
+  "data-cta-copy": normalizeCtaToken(ctaCopy),
 });
-Button.displayName = "Button";
-export default Button;
+
+export const createButton = (options: ButtonOptions): HTMLButtonElement => {
+  const button = document.createElement("button");
+  button.type = options.type ?? "button";
+  updateButton(button, options);
+  return button;
+};
+
+export const updateButton = (
+  button: HTMLButtonElement,
+  options: ButtonOptions,
+): void => {
+  if (options.id !== undefined) {
+    button.id = options.id;
+  }
+  button.type = options.type ?? button.type ?? "button";
+  button.disabled = options.disabled === true;
+  button.className = getButtonClassName(options);
+
+  if (options.title !== undefined) {
+    button.title = options.title;
+  }
+
+  if (options.ariaLabel !== undefined) {
+    button.setAttribute("aria-label", options.ariaLabel);
+  } else {
+    button.removeAttribute("aria-label");
+  }
+
+  for (const [name, value] of Object.entries(getButtonDataAttributes(options))) {
+    if (value === undefined) {
+      button.removeAttribute(name);
+    } else {
+      button.setAttribute(name, value);
+    }
+  }
+
+  const content = document.createElement("span");
+  content.className = getButtonContentClassName(options.contentClassName);
+  appendButtonContent(content, options.content ?? options.label ?? "");
+  button.replaceChildren(content);
+};
+
+const getButtonVariantClassName = (
+  variant: ButtonVariant,
+  isDisabled: boolean,
+): string => {
+  if (variant === "icon" && isDisabled) return "action-btn--icon-disabled";
+  if (variant === "icon") return "action-btn--icon";
+  if (isDisabled) return "action-btn--disabled";
+  if (variant === "secondary") return "action-btn--secondary";
+  if (variant === "ghost") return "action-btn--ghost";
+  if (variant === "text") return "action-btn--text";
+  if (variant === "danger") return "action-btn--danger";
+  return "action-btn--primary";
+};
+
+const getButtonSizeClassName = (size: ButtonSize): string => {
+  if (size === "sm") return "action-btn--sm";
+  if (size === "lg") return "action-btn--lg";
+  if (size === "control") return "action-btn--control";
+  if (size === "iconSm") return "action-btn--icon-sm";
+  if (size === "icon") return "action-btn--icon-size";
+  return "action-btn--md";
+};
+
+const appendButtonContent = (
+  container: HTMLElement,
+  content: ButtonContent,
+): void => {
+  if (typeof content === "string") {
+    container.textContent = content;
+    return;
+  }
+
+  if (content instanceof Node) {
+    container.appendChild(content);
+    return;
+  }
+
+  container.append(...content);
+};

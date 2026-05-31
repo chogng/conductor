@@ -5,13 +5,15 @@ import { getDomRect } from "src/cs/base/browser/dom";
 import {
   normalizeCogIconSvgMarkup,
   type CogIconRenderer,
-} from "src/cs/base/browser/ui/cogIcon/cogIcon";
+} from "src/cs/base/browser/ui/cogIcon/cogIconMarkup";
 import {
   lxAlertCircle,
   lxCheckCircle,
   lxInfoCircle,
 } from "src/cs/base/browser/ui/cogIcon/icons";
 import { cx } from "src/utils/cx";
+
+import "src/cs/base/browser/ui/toast/toast.css";
 
 export type ToastType = "success" | "error" | "warning" | "info";
 export type ToastPosition = "absolute" | "fixed";

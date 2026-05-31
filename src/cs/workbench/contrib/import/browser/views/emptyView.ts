@@ -1,5 +1,5 @@
 import { lxDownloadTray } from "cogicon";
-import { normalizeCogIconSvgMarkup } from "src/cs/base/browser/ui/cogIcon/cogIcon";
+import { normalizeCogIconSvgMarkup } from "src/cs/base/browser/ui/cogIcon/cogIconMarkup";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 
 const appendEmptyViewIcon = (container: HTMLElement): void => {

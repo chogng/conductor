@@ -1,6 +1,6 @@
-import { jsx, jsxs } from "react/jsx-runtime";
+﻿import { jsx, jsxs } from "react/jsx-runtime";
 import type { ReactNode } from "react";
-import ScrollArea from "src/cs/base/browser/ui/scrollArea/scrollArea";
+import ScrollArea from "src/cs/workbench/browser/components/ScrollArea";
 
 export type WorkbenchParts = {
   readonly controller?: ReactNode;
@@ -80,3 +80,4 @@ export const createScrollPanePart = ({
       children,
     }),
   });
+

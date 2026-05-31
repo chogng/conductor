@@ -1,8 +1,8 @@
-import { jsx } from "react/jsx-runtime";
+﻿import { jsx } from "react/jsx-runtime";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import SplitView, {
   type SplitViewResizeEvent,
-} from "src/cs/base/browser/ui/splitview/splitview";
+} from "src/cs/workbench/browser/components/SplitView";
 import {
   SIDEBAR_DEFAULT_WIDTH_PX,
   SIDEBAR_MAX_WIDTH_PX,
@@ -79,3 +79,4 @@ const WorkbenchLayout = ({
 };
 
 export default WorkbenchLayout;
+

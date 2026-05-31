@@ -1,368 +1,154 @@
-import { jsx } from "react/jsx-runtime";
-import { useEffect, useId, useMemo, useRef, useState, type ComponentType, type HTMLAttributes, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, } from "react";
 import { normalizeCtaName, normalizeCtaToken } from "src/utils/cta";
 import { cx } from "src/utils/cx";
 
+import "src/cs/base/browser/ui/tabs/tabs.css";
 
-const slugify = (input: unknown): string => String(input ?? "")
+export type TabValue = string | number;
+export type TabSize = "sm" | "md";
+export type KeyboardActivation = "auto" | "manual";
+export type PanelIdMode = "scoped" | "short";
+
+export type TabOptionBase = {
+  value?: TabValue;
+  ariaLabel?: string;
+  title?: string;
+  disabled?: boolean;
+  testId?: string;
+  id?: string;
+  panelId?: string;
+  cta?: string;
+  ctaPosition?: string;
+  ctaCopy?: string;
+};
+
+export type NormalizedTabOption<T extends TabOptionBase = TabOptionBase> = T & {
+  __index: number;
+  __key: string;
+  __tabId: string;
+  __panelId?: string;
+  __token: string;
+  __disabled: boolean;
+};
+
+export type NormalizeTabsOptions<T extends TabOptionBase> = {
+  controlsPanels?: boolean;
+  idBase?: string;
+  instanceId: string;
+  options: readonly T[];
+  panelIdBase?: string;
+  panelIdMode?: PanelIdMode;
+  shouldLinkPanels?: boolean;
+};
+
+export const slugifyTabToken = (input: unknown): string =>
+  String(input ?? "")
     .toLowerCase()
     .trim()
     .replace(/[^a-z0-9_-]+/g, "-")
     .replace(/^-+|-+$/g, "");
-type TabValue = string | number;
-type TabSize = "sm" | "md";
-type KeyboardActivation = "auto" | "manual";
-type PanelIdMode = "scoped" | "short";
-type TabIconComponent = ComponentType<{
-    size?: number;
-}>;
-type TabOption = {
-    value?: TabValue;
-    label: ReactNode;
-    icon?: TabIconComponent;
-    ariaLabel?: string;
-    title?: string;
-    disabled?: boolean;
-    testId?: string;
-    id?: string;
-    panelId?: string;
-    cta?: string;
-    ctaPosition?: string;
-    ctaCopy?: string;
+
+export const getTabsInstanceId = (idBase: string | undefined, fallbackId: string): string => {
+  const explicitId = typeof idBase === "string" && idBase.trim();
+  return explicitId ? slugifyTabToken(idBase) : `tabs-${fallbackId}`;
 };
-type NormalizedTabOption = TabOption & {
-    __index: number;
-    __key: string;
-    __tabId: string;
-    __panelId?: string;
-    __token: string;
-    __disabled: boolean;
-};
-type TabsProps = Omit<HTMLAttributes<HTMLDivElement>, "onChange"> & {
-    options?: TabOption[];
-    value?: TabValue;
-    onChange?: (nextValue: TabValue) => void;
-    itemClassName?: string;
-    keyboardActivation?: KeyboardActivation;
-    hoverPreview?: boolean;
-    controlsPanels?: boolean;
-    groupLabel?: string;
-    dataUi?: string;
-    testId?: string;
-    idBase?: string;
-    panelIdBase?: string;
-    panelIdMode?: PanelIdMode;
-    renderPanel?: (option: NormalizedTabOption, context: {
-        index: number;
-        isSelected: boolean;
-    }) => ReactNode;
-    keepMounted?: boolean;
-    size?: TabSize;
-};
-const Tabs = ({ options = [], value, onChange, className = "", itemClassName = "", keyboardActivation = "auto", hoverPreview = true, controlsPanels = false, groupLabel, dataUi, testId, idBase, panelIdBase, panelIdMode = "scoped", renderPanel, keepMounted = false, size = "md", ...restProps }: TabsProps) => {
-    const safeOptions = useMemo(() => (Array.isArray(options) ? options : []), [options]);
-    const reactId = useId();
-    const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
-    const [hoveredValue, setHoveredValue] = useState<TabValue | null>(null);
-    const uiMarker = typeof dataUi === "string" && dataUi.trim() ? dataUi.trim() : undefined;
-    const devTestId = import.meta.env.DEV && testId ? testId : undefined;
-    if (import.meta.env.DEV && dataUi != null) {
-        console.warn("[Tabs] Prefer `idBase` + stable `id` / `data-cta*` / `aria-*` for new usage.");
+
+export const getTabsUiMarker = (dataUi: string | undefined): string | undefined =>
+  typeof dataUi === "string" && dataUi.trim() ? dataUi.trim() : undefined;
+
+export const getTabsDevTestId = (testId: string | undefined): string | undefined =>
+  import.meta.env.DEV && testId ? testId : undefined;
+
+export const getTabsMenuClassName = (className = ""): string =>
+  cx("tab_menu", className);
+
+export const getTabsButtonSizeClassName = (size: TabSize = "md"): string =>
+  size === "sm" ? "tab_btn--sm" : "tab_btn--md";
+
+export const getTabsButtonClassName = ({
+  className = "",
+  isActive,
+  size = "md",
+}: {
+  className?: string;
+  isActive: boolean;
+  size?: TabSize;
+}): string =>
+  cx(
+    "tab_btn",
+    getTabsButtonSizeClassName(size),
+    isActive ? "tab_btn--active" : "tab_btn--inactive",
+    className,
+  );
+
+export const getTabDataAttributes = ({
+  cta,
+  ctaCopy,
+  ctaPosition,
+}: Pick<TabOptionBase, "cta" | "ctaCopy" | "ctaPosition">): Record<string, string | undefined> => ({
+  "data-cta": normalizeCtaName(cta),
+  "data-cta-position": normalizeCtaToken(ctaPosition),
+  "data-cta-copy": normalizeCtaToken(ctaCopy),
+});
+
+export const normalizeTabsOptions = <T extends TabOptionBase>({
+  idBase,
+  instanceId,
+  options,
+  panelIdBase,
+  panelIdMode = "scoped",
+  shouldLinkPanels,
+}: NormalizeTabsOptions<T>): NormalizedTabOption<T>[] => {
+  const seenValues = new Set<TabValue>();
+  const usedTokens = new Set<string>();
+  const hasExplicitIdBase = typeof idBase === "string" && idBase.trim();
+  const panelPrefix = typeof panelIdBase === "string" && panelIdBase.trim()
+    ? panelIdBase.trim()
+    : `${instanceId}-panel`;
+  const shortPanelPrefix = typeof panelIdBase === "string" && panelIdBase.trim()
+    ? slugifyTabToken(panelIdBase)
+    : "";
+
+  return options.map((option, index) => {
+    const optionValue = option.value;
+    let token = slugifyTabToken(optionValue ?? `item-${index}`);
+    if (!token) {
+      token = `item-${index}`;
     }
-    const hasExplicitIdBase = typeof idBase === "string" && idBase.trim();
-    const instanceId = hasExplicitIdBase ? slugify(idBase) : `tabs-${reactId}`;
-    const panelPrefix = typeof panelIdBase === "string" && panelIdBase.trim()
-        ? panelIdBase.trim()
-        : `${instanceId}-panel`;
-    const shortPanelPrefix = typeof panelIdBase === "string" && panelIdBase.trim()
-        ? slugify(panelIdBase)
-        : "";
-    const sizeClass = size === "sm" ? "tab_btn--sm" : "tab_btn--md";
-    const resolvedHoverPreview = Boolean(hoverPreview);
-    const shouldLinkPanels = typeof renderPanel === "function" || Boolean(controlsPanels);
-    const normalizedOptions = useMemo<NormalizedTabOption[]>(() => {
-        const seenValues = new Set<TabValue>();
-        const usedTokens = new Set<string>();
-        return safeOptions.map((option, index) => {
-            const optionValue = option.value;
-            const baseTokenRaw = optionValue !== undefined
-                ? optionValue
-                : option.label != null
-                    ? option.label
-                    : `item-${index}`;
-            let token = slugify(baseTokenRaw);
-            if (!token)
-                token = `item-${index}`;
-            if (usedTokens.has(token))
-                token = `${token}-${index}`;
-            usedTokens.add(token);
-            const tabId = option.id ?? `${instanceId}-tab-${token}`;
-            const panelId = shouldLinkPanels
-                ? panelIdMode === "short"
-                    ? option.panelId ??
-                        (shortPanelPrefix ? `${shortPanelPrefix}-${token}` : token)
-                    : option.panelId ?? `${panelPrefix}-${token}`
-                : undefined;
-            if (import.meta.env.DEV) {
-                if (optionValue === undefined) {
-                    console.warn("[Tabs] option.value is undefined; this tab cannot be selected reliably.", option);
-                }
-                else if (seenValues.has(optionValue)) {
-                    console.warn("[Tabs] duplicate option.value detected; selection/keepMounted may be ambiguous.", optionValue, safeOptions);
-                }
-                if (shouldLinkPanels && hasExplicitIdBase && option.panelId) {
-                    console.warn("[Tabs] option.panelId overrides the derived panel id; prefer panelIdBase/panelIdMode for consistency.", { idBase, option });
-                }
-            }
-            if (optionValue !== undefined)
-                seenValues.add(optionValue);
-            return {
-                ...option,
-                __index: index,
-                __key: tabId,
-                __tabId: tabId,
-                __panelId: panelId,
-                __token: token,
-                __disabled: Boolean(option.disabled),
-            };
-        });
-    }, [
-        hasExplicitIdBase,
-        idBase,
-        instanceId,
-        panelIdMode,
-        panelPrefix,
-        safeOptions,
-        shortPanelPrefix,
-        shouldLinkPanels,
-    ]);
-    const selectedIndex = useMemo(() => normalizedOptions.findIndex((option) => option.value === value), [normalizedOptions, value]);
-    const hasSelectedValue = selectedIndex >= 0;
-    const firstEnabledIndex = useMemo(() => normalizedOptions.findIndex((option) => !option.__disabled), [normalizedOptions]);
-    const focusIndex = useMemo(() => {
-        if (hasSelectedValue &&
-            normalizedOptions[selectedIndex] &&
-            !normalizedOptions[selectedIndex].__disabled) {
-            return selectedIndex;
-        }
-        return firstEnabledIndex;
-    }, [firstEnabledIndex, hasSelectedValue, normalizedOptions, selectedIndex]);
-    const [mountedValues, setMountedValues] = useState<Set<TabValue>>(() => new Set());
-    useEffect(() => {
-        if (!keepMounted || typeof renderPanel !== "function")
-            return;
-        if (value === undefined)
-            return;
-        setMountedValues((prev) => {
-            if (prev.has(value))
-                return prev;
-            const next = new Set(prev);
-            next.add(value);
-            return next;
-        });
-    }, [keepMounted, renderPanel, value]);
-    const noteMounted = (nextValue?: TabValue) => {
-        if (!keepMounted || typeof renderPanel !== "function")
-            return;
-        setMountedValues((prev) => {
-            const next = new Set(prev);
-            if (value !== undefined)
-                next.add(value);
-            if (nextValue !== undefined)
-                next.add(nextValue);
-            return next.size === prev.size ? prev : next;
-        });
+    if (usedTokens.has(token)) {
+      token = `${token}-${index}`;
+    }
+    usedTokens.add(token);
+
+    const tabId = option.id ?? `${instanceId}-tab-${token}`;
+    const panelId = shouldLinkPanels
+      ? panelIdMode === "short"
+        ? option.panelId ?? (shortPanelPrefix ? `${shortPanelPrefix}-${token}` : token)
+        : option.panelId ?? `${panelPrefix}-${token}`
+      : undefined;
+
+    if (import.meta.env.DEV) {
+      if (optionValue === undefined) {
+        console.warn("[Tabs] option.value is undefined; this tab cannot be selected reliably.", option);
+      } else if (seenValues.has(optionValue)) {
+        console.warn("[Tabs] duplicate option.value detected; selection may be ambiguous.", optionValue, options);
+      }
+      if (shouldLinkPanels && hasExplicitIdBase && option.panelId) {
+        console.warn("[Tabs] option.panelId overrides the derived panel id; prefer panelIdBase/panelIdMode for consistency.", { idBase, option });
+      }
+    }
+
+    if (optionValue !== undefined) {
+      seenValues.add(optionValue);
+    }
+
+    return {
+      ...option,
+      __index: index,
+      __key: tabId,
+      __tabId: tabId,
+      __panelId: panelId,
+      __token: token,
+      __disabled: Boolean(option.disabled),
     };
-    const focusAtIndex = (idx: number) => {
-        const el = buttonRefs.current[idx];
-        if (el && typeof el.focus === "function")
-            el.focus();
-    };
-    const findNextEnabledIndex = (fromIndex: number, dir: -1 | 1): number => {
-        const len = normalizedOptions.length;
-        if (len <= 0)
-            return -1;
-        for (let i = 0; i < len; i++) {
-            const nextIndex = (fromIndex + dir * (i + 1) + len) % len;
-            if (!normalizedOptions[nextIndex]?.__disabled)
-                return nextIndex;
-        }
-        return -1;
-    };
-    const moveSelection = (currentIndex: number, dir: -1 | 1) => {
-        const nextIndex = findNextEnabledIndex(currentIndex, dir);
-        if (nextIndex < 0)
-            return;
-        focusAtIndex(nextIndex);
-        const shouldActivate = keyboardActivation !== "manual";
-        if (!shouldActivate)
-            return;
-        const nextValue = normalizedOptions[nextIndex]?.value;
-        if (nextValue !== undefined) {
-            noteMounted(nextValue);
-            onChange?.(nextValue);
-            setHoveredValue(null);
-        }
-    };
-    const activateAtIndex = (idx: number) => {
-        const option = normalizedOptions[idx];
-        if (!option || option.__disabled)
-            return;
-        if (option.value === undefined)
-            return;
-        noteMounted(option.value);
-        onChange?.(option.value);
-        setHoveredValue(null);
-    };
-    const firstEnabled = () => firstEnabledIndex;
-    const lastEnabled = () => {
-        for (let i = normalizedOptions.length - 1; i >= 0; i--) {
-            if (!normalizedOptions[i]?.__disabled)
-                return i;
-        }
-        return -1;
-    };
-    if (normalizedOptions.length === 0)
-        return null;
-    const menu = (jsx("div", {
-        role: "tablist",
-        "aria-label": groupLabel,
-        "data-tabs": "menu",
-        "data-ui": uiMarker,
-        "data-testid": devTestId,
-        className: cx("tab_menu", className),
-        ...restProps,
-        children: normalizedOptions.map((option, index) => {
-            const Icon = option.icon;
-            const isSelected = value === option.value;
-            const resolvedVisualValue = resolvedHoverPreview && hoveredValue !== null ? hoveredValue : value;
-            const isVisuallyActive = option.value !== undefined && resolvedVisualValue === option.value;
-            const optionTestId = import.meta.env.DEV && option.testId ? option.testId : undefined;
-            const tabId = option.__tabId;
-            const panelId = option.__panelId;
-            const token = option.__token;
-            const isDisabled = option.__disabled;
-            const tabIndex = index === focusIndex ? 0 : -1;
-            return (jsx("button", {
-                type: "button",
-                role: "tab",
-                id: tabId,
-                "aria-label": option.ariaLabel,
-                title: option.title,
-                "aria-selected": isSelected,
-                "aria-controls": panelId,
-                tabIndex: tabIndex,
-                disabled: isDisabled,
-                "data-icon": Icon ? "with" : "without",
-                "data-tabs": "tab",
-                "data-ui": uiMarker ? `${uiMarker}-tab-${token}` : undefined,
-                "data-cta": normalizeCtaName(option.cta),
-                "data-cta-position": normalizeCtaToken(option.ctaPosition),
-                "data-cta-copy": normalizeCtaToken(option.ctaCopy),
-                "data-testid": optionTestId,
-                className: cx("tab_btn", sizeClass, isVisuallyActive ? "tab_btn--active" : "tab_btn--inactive", itemClassName),
-                ref: (el: HTMLButtonElement | null) => {
-                    buttonRefs.current[index] = el;
-                },
-                onClick: () => {
-                    if (isDisabled)
-                        return;
-                    if (option.value === undefined)
-                        return;
-                    noteMounted(option.value);
-                    onChange?.(option.value);
-                    setHoveredValue(null);
-                },
-                onMouseEnter: () => {
-                    if (isDisabled)
-                        return;
-                    if (resolvedHoverPreview) {
-                        setHoveredValue(option.value ?? null);
-                    }
-                },
-                onMouseLeave: () => {
-                    if (resolvedHoverPreview)
-                        setHoveredValue(null);
-                },
-                onKeyDown: (event: ReactKeyboardEvent<HTMLButtonElement>) => {
-                    if (event.key === "ArrowLeft") {
-                        event.preventDefault();
-                        moveSelection(index, -1);
-                    }
-                    else if (event.key === "ArrowRight") {
-                        event.preventDefault();
-                        moveSelection(index, 1);
-                    }
-                    else if (event.key === "Home") {
-                        event.preventDefault();
-                        const idx = firstEnabled();
-                        if (idx < 0)
-                            return;
-                        focusAtIndex(idx);
-                        if (keyboardActivation !== "manual")
-                            activateAtIndex(idx);
-                    }
-                    else if (event.key === "End") {
-                        event.preventDefault();
-                        const idx = lastEnabled();
-                        if (idx < 0)
-                            return;
-                        focusAtIndex(idx);
-                        if (keyboardActivation !== "manual")
-                            activateAtIndex(idx);
-                    }
-                    else if (keyboardActivation === "manual") {
-                        if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            activateAtIndex(index);
-                        }
-                    }
-                },
-                children: [
-                    Icon ? (jsx("span", {
-                        className: "tab_btn_icon",
-                        children: jsx(Icon, {
-                            size: 16
-                        })
-                    }, "icon")) : null,
-                    jsx("span", {
-                        className: "tab_btn_text",
-                        children: option.label
-                    }, "label")
-                ]
-            }, option.__key));
-        })
-    }, "menu"));
-    if (typeof renderPanel !== "function")
-        return menu;
-    return (jsx("div", {
-        className: "w-full",
-        children: [
-            menu,
-            jsx("div", {
-                className: "w-full",
-                children: normalizedOptions.map((option, index) => {
-                    const tabId = option.__tabId;
-                    const panelId = option.__panelId;
-                    const token = option.__token;
-                    const isSelected = value === option.value;
-                    const isMountedValue = option.value !== undefined && mountedValues.has(option.value);
-                    const shouldRender = keepMounted ? isSelected || isMountedValue : isSelected;
-                    if (!shouldRender)
-                        return null;
-                    return (jsx("div", {
-                        role: "tabpanel",
-                        id: panelId,
-                        "aria-labelledby": tabId,
-                        hidden: !isSelected,
-                        tabIndex: 0,
-                        "data-tabs": "panel",
-                        "data-ui": uiMarker ? `${uiMarker}-panel-${token}` : undefined,
-                        children: renderPanel(option, { index, isSelected })
-                    }, `${option.__key}-panel`));
-                })
-            }, "panels")
-        ]
-    }));
+  });
 };
-export default Tabs;

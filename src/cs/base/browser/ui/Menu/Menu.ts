@@ -2,6 +2,8 @@ import { append } from "src/cs/base/browser/dom";
 import { MenuScrollArea } from "src/cs/base/browser/ui/menuScrollArea/menuScrollArea";
 import { cx } from "src/utils/cx";
 
+import "src/cs/base/browser/ui/menu/menu.css";
+
 export type MenuOptions = {
     className?: string;
     role?: string;

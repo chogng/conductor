@@ -1,8 +1,10 @@
-import { jsx, jsxs } from "react/jsx-runtime";
+﻿import { jsx, jsxs } from "react/jsx-runtime";
+import type React from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 import { formatNumber } from "src/cs/workbench/contrib/diagnostics/common/numberFormat";
-import Card from "cs/base/browser/ui/card/card";
-import Input from "cs/base/browser/ui/input/input";
-import DropdownField from "cs/base/browser/ui/dropdownField/dropdownField";
+import { getCardClassName, getCardDataAttributes, type CardVariant } from "cs/base/browser/ui/card/card";
+import { getInputDataAttributes, getInputFieldClassName, getInputFieldState, getInputNativeClassName, getInputWrapperClassName } from "cs/base/browser/ui/input/input";
+import DropdownField from "src/cs/workbench/browser/components/DropdownField";
 type AnalysisDiagnosticsCardProps = {
     showDiagnosticsPanel: boolean;
     diagnosticsHeading: string;
@@ -35,6 +37,54 @@ type AnalysisDiagnosticsCardProps = {
     analysisCompactInputClass: string;
     analysisCompactPageFieldClass: string;
 };
+type LocalCardProps = Omit<HTMLAttributes<HTMLElement>, "children"> & {
+    children?: ReactNode;
+    cta?: string;
+    ctaCopy?: string;
+    ctaPosition?: string;
+    variant?: CardVariant;
+};
+const renderLocalCard = ({ children, className = "", cta, ctaCopy, ctaPosition, variant = "default", ...props }: LocalCardProps) => jsx("div", {
+    ...props,
+    ...getCardDataAttributes({ cta, ctaCopy, ctaPosition }),
+    className: getCardClassName({ className, variant }),
+    children
+});
+const renderLocalInput = ({
+    className = "",
+    fieldClassName = "",
+    id,
+    inputClassName = "",
+    onChange,
+    placeholder,
+    value,
+}: {
+    readonly className?: string;
+    readonly fieldClassName?: string;
+    readonly id: string;
+    readonly inputClassName?: string;
+    readonly onChange: (nextValue: string) => void;
+    readonly placeholder?: string;
+    readonly value?: string | number;
+}) => jsx("div", {
+    className: getInputWrapperClassName(className),
+    "data-style": "input",
+    children: jsx("div", {
+        className: getInputFieldClassName({ fieldClassName, size: "md" }),
+        "data-icon": "without",
+        "data-state": getInputFieldState(),
+        ...getInputDataAttributes({}),
+        children: jsx("input", {
+            id,
+            type: "text",
+            value: value ?? "",
+            onChange: (event: React.ChangeEvent<HTMLInputElement>) => onChange(event.currentTarget.value),
+            placeholder,
+            autoComplete: "off",
+            className: getInputNativeClassName({ inputClassName }),
+        }),
+    }),
+});
 export default function AnalysisDiagnosticsCard({ showDiagnosticsPanel, diagnosticsHeading, diagnosticsDescription, diagnosticsContextBadges = [], plotYUnitLabel, showCurveProbePanel, plotXFactor, curveProbeXPlaceholder, curveProbeXInput, setCurveProbeXInput, curveProbeMode, setCurveProbeMode, curveProbeRows, xTooltipDigits, resolvedXUnitLabel, showAreaDiagnosticsControls, areaInput, setAreaInput, areaDiagnosticsSummary, transferMetricsApplicable, analysisCompactInputWrapperClass, analysisCompactInputClass, analysisCompactPageFieldClass, }: AnalysisDiagnosticsCardProps) {
     const formatProbeModeLabel = (kindRaw: unknown): string => {
         const kind = String(kindRaw ?? "");
@@ -73,7 +123,7 @@ export default function AnalysisDiagnosticsCard({ showDiagnosticsPanel, diagnost
             })))
         }));
     };
-    return (jsxs(Card, {
+    return (renderLocalCard( {
         variant: "panel",
         className: "flex min-w-0 flex-col",
         children: [
@@ -111,7 +161,7 @@ export default function AnalysisDiagnosticsCard({ showDiagnosticsPanel, diagnost
                                                 className: "whitespace-nowrap",
                                                 children: "x:"
                                             }),
-                                            jsx(Input, {
+                                            renderLocalInput({
                                                 id: "analysis-curve-probe-x-input",
                                                 value: curveProbeXInput,
                                                 onChange: setCurveProbeXInput,
@@ -240,7 +290,7 @@ export default function AnalysisDiagnosticsCard({ showDiagnosticsPanel, diagnost
                                         className: "whitespace-nowrap",
                                         children: "Area (for J = |I|/Area):"
                                     }),
-                                    jsx(Input, {
+                                    renderLocalInput({
                                         id: "analysis-area-input",
                                         value: areaInput,
                                         onChange: setAreaInput,
@@ -299,3 +349,5 @@ export default function AnalysisDiagnosticsCard({ showDiagnosticsPanel, diagnost
         ]
     }));
 }
+
+

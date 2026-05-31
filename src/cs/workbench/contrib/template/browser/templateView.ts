@@ -1,20 +1,23 @@
 ﻿import { jsx, jsxs, Fragment } from "react/jsx-runtime";
-import React, { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement, } from "react";
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState, type ButtonHTMLAttributes, type ChangeEvent, type CSSProperties, type HTMLAttributes, type InputHTMLAttributes, type ReactElement, type ReactNode, type Ref, } from "react";
+import { createPortal } from "react-dom";
 import { lxAddSmall, lxArrowUp, lxClose, lxDownloadTray, lxExportTray, lxListUnordered, lxSave, lxTrash, } from "cogicon";
-import CogIcon from "src/cs/base/browser/ui/cogIcon/cogIcon";
-import { createCogIconComponent, lxAlertTriangle, } from "src/cs/base/browser/ui/cogIcon/icons";
+import { getCogIconClassName, getCogIconMarkup, getCogIconStyle, type CogIconRenderer, type CogIconStyle } from "src/cs/base/browser/ui/cogIcon/cogIcon";
+import { lxAlertTriangle, } from "src/cs/base/browser/ui/cogIcon/icons";
 import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
 import type { TranslateFn, TranslationVars } from "src/cs/platform/language/common/language";
 import type { StateSetter } from "src/cs/workbench/contrib/session/analysis-session-context";
 import Toast from "cs/base/browser/ui/toast/toast";
-import Input from "cs/base/browser/ui/input/input";
-import DropdownField from "cs/base/browser/ui/dropdownField/dropdownField";
-import Tabs from "cs/base/browser/ui/tabs/tabs";
-import Card from "cs/base/browser/ui/card/card";
-import Button from "cs/base/browser/ui/button/button";
-import Checkbox from "cs/base/browser/ui/checkbox/checkbox";
-import Modal from "cs/base/browser/ui/modal/modal";
-import ScrollArea from "cs/base/browser/ui/scrollArea/scrollArea";
+import { getInputDataAttributes, getInputFieldClassName, getInputFieldState, getInputNativeClassName, getInputWrapperClassName, mergeSpaceSeparatedIds, slugifyInputId, type InputSize, type LabelPlacement } from "cs/base/browser/ui/input/input";
+import DropdownField from "src/cs/workbench/browser/components/DropdownField";
+import { getTabDataAttributes, getTabsDevTestId, getTabsInstanceId, getTabsMenuClassName, getTabsButtonClassName, getTabsUiMarker, normalizeTabsOptions, type KeyboardActivation, type NormalizedTabOption, type PanelIdMode, type TabOptionBase, type TabSize, type TabValue } from "cs/base/browser/ui/tabs/tabs";
+import { getCardClassName, getCardDataAttributes, type CardVariant } from "cs/base/browser/ui/card/card";
+import { getButtonClassName, getButtonContentClassName, getButtonDataAttributes, type ButtonSize, type ButtonVariant, } from "cs/base/browser/ui/button/button";
+import { getCheckboxAriaAttributes, getCheckboxClassName, getCheckboxIconMarkup, type CheckboxSize } from "cs/base/browser/ui/checkbox/checkbox";
+import { MODAL_BACKDROP_CLASS, MODAL_OVERLAY_CLASS, getModalDataAttributes, getModalDialogClassName, getModalDialogId, getModalTitleId, getModalUiMarker, type ModalInitialFocus, type ModalSize, type ModalVariant } from "cs/base/browser/ui/modal/modal";
+import ScrollArea from "src/cs/workbench/browser/components/ScrollArea";
+import { runAtThisOrScheduleAtNextAnimationFrame } from "src/cs/base/browser/dom";
+import { addDisposableListener, EventType } from "src/cs/base/browser/event";
 import DataPreviewArea from "src/cs/workbench/contrib/data/DataPreviewArea";
 import { TemplateManagerPreviewEmptyState, TemplateManagerPreviewSurface, } from "./templatePreviewSurface";
 import TemplateManagerPreviewWorkspace from "./templatePreviewWorkspace";
@@ -32,10 +35,428 @@ import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/con
 import { useSession } from "src/cs/workbench/contrib/session/useSession";
 import type { PreviewFileLike, RawDataEntry, ToastType, } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import { BrowserTemplateService } from "src/cs/workbench/contrib/template/browser/templateService";
-const TemplateModeSelectIcon = createCogIconComponent(lxListUnordered);
-const TemplateModeSaveIcon = createCogIconComponent(lxSave);
-const TemplateOptionAddIcon = createCogIconComponent(lxAddSmall);
-const TemplateOptionTrashIcon = createCogIconComponent(lxTrash);
+type LocalCogIconProps = {
+    className?: string;
+    icon: CogIconRenderer;
+    size?: number | string;
+    style?: CogIconStyle;
+    [key: string]: unknown;
+};
+type LocalCogIconComponentProps = Pick<LocalCogIconProps, "className" | "size" | "style">;
+const renderLocalCogIcon = ({ className, icon, size = 16, style, ...props }: LocalCogIconProps) => jsx("span", {
+    ...props,
+    className: getCogIconClassName(className),
+    style: getCogIconStyle({ size, style }),
+    dangerouslySetInnerHTML: {
+        __html: getCogIconMarkup(icon)
+    }
+});
+const TemplateModeSelectIcon = ({ className, size = 16, style }: LocalCogIconComponentProps) => renderLocalCogIcon({ className, icon: lxListUnordered, size, style });
+const TemplateModeSaveIcon = ({ className, size = 16, style }: LocalCogIconComponentProps) => renderLocalCogIcon({ className, icon: lxSave, size, style });
+const TemplateOptionAddIcon = ({ className, size = 16, style }: LocalCogIconComponentProps) => renderLocalCogIcon({ className, icon: lxAddSmall, size, style });
+const TemplateOptionTrashIcon = ({ className, size = 16, style }: LocalCogIconComponentProps) => renderLocalCogIcon({ className, icon: lxTrash, size, style });
+type LocalModalProps = {
+    children?: ReactNode;
+    className?: string;
+    cta?: string;
+    ctaCopy?: string;
+    ctaPosition?: string;
+    dataUi?: string;
+    footer?: ReactNode;
+    headerRight?: ReactNode;
+    idBase?: string;
+    initialFocus?: ModalInitialFocus;
+    isOpen: boolean;
+    onClose: () => void;
+    size?: ModalSize;
+    title?: ReactNode;
+    variant?: ModalVariant;
+};
+const Modal = ({ children, className = "", cta, ctaCopy, ctaPosition, dataUi, footer, headerRight, idBase, initialFocus = "dialog", isOpen, onClose, size = "md", title, variant = "primary", }: LocalModalProps) => {
+    const reactId = useId();
+    const titleId = getModalTitleId(idBase, reactId);
+    const uiMarker = getModalUiMarker(dataUi);
+    const dialogRef = useRef<HTMLDivElement | null>(null);
+    const previouslyFocusedRef = useRef<HTMLElement | null>(null);
+    const previousBodyOverflowRef = useRef<string | null>(null);
+    useEffect(() => {
+        const handleEscape = (event: KeyboardEvent) => {
+            if (event.key === "Escape")
+                onClose();
+        };
+        let focusHandle: { dispose(): void } | null = null;
+        let keydownDisposable: { dispose(): void } | null = null;
+        if (isOpen) {
+            keydownDisposable = addDisposableListener(document, EventType.KEY_DOWN, handleEscape);
+            previouslyFocusedRef.current =
+                document.activeElement instanceof HTMLElement
+                    ? document.activeElement
+                    : null;
+            previousBodyOverflowRef.current = document.body.style.overflow;
+            document.body.style.overflow = "hidden";
+            focusHandle = runAtThisOrScheduleAtNextAnimationFrame(window, () => {
+                const dialog = dialogRef.current;
+                if (!dialog)
+                    return;
+                const autoFocusTarget = dialog.querySelector("[data-autofocus], [autofocus]");
+                const focusable = initialFocus === "first"
+                    ? dialog.querySelector('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')
+                    : null;
+                const target = (autoFocusTarget instanceof HTMLElement && autoFocusTarget) ||
+                    (focusable instanceof HTMLElement && focusable) ||
+                    dialog;
+                target.focus();
+            });
+        }
+        return () => {
+            keydownDisposable?.dispose();
+            focusHandle?.dispose();
+            if (!isOpen)
+                return;
+            document.body.style.overflow = previousBodyOverflowRef.current ?? "";
+            const previousFocused = previouslyFocusedRef.current;
+            if (previousFocused && typeof previousFocused.focus === "function") {
+                try {
+                    previousFocused.focus();
+                }
+                catch {
+                    // Element may have been removed while the modal was open.
+                }
+            }
+        };
+    }, [initialFocus, isOpen, onClose]);
+    if (!isOpen)
+        return null;
+    const hasHeader = title != null || headerRight != null;
+    return createPortal(jsx("div", {
+        className: MODAL_OVERLAY_CLASS,
+        "data-style": "modal",
+        "data-ui": uiMarker,
+        children: [
+            jsx("div", {
+                className: MODAL_BACKDROP_CLASS,
+                onClick: onClose,
+                "data-ui": uiMarker ? `${uiMarker}-backdrop` : undefined
+            }),
+            jsx("div", {
+                ...getModalDataAttributes({ cta, ctaCopy, ctaPosition }),
+                className: getModalDialogClassName({ className, size, variant }),
+                id: getModalDialogId(idBase),
+                role: "dialog",
+                "aria-modal": "true",
+                "aria-labelledby": title != null ? titleId : undefined,
+                tabIndex: -1,
+                ref: dialogRef,
+                "data-ui": uiMarker ? `${uiMarker}-dialog` : undefined,
+                children: [
+                    hasHeader ? jsx("div", {
+                        className: `modal_header${headerRight ? " justify-between gap-4" : ""}`,
+                        children: [
+                            title != null ? jsx("h3", {
+                                id: titleId,
+                                className: "modal_title",
+                                children: title
+                            }) : null,
+                            headerRight != null ? jsx("div", {
+                                className: "modal_headerRight",
+                                children: headerRight
+                            }) : null
+                        ]
+                    }) : null,
+                    jsx("div", {
+                        className: "modal_body",
+                        children
+                    }),
+                    footer ? jsx("div", {
+                        className: "modal_footer",
+                        children: footer
+                    }) : null
+                ]
+            })
+        ]
+    }), document.body);
+};
+type LocalTabOption = TabOptionBase & {
+    ariaLabel?: string;
+    icon?: (props: { size?: number }) => ReactNode;
+    label: ReactNode;
+};
+type LocalTabsProps = Omit<HTMLAttributes<HTMLDivElement>, "onChange"> & {
+    className?: string;
+    controlsPanels?: boolean;
+    dataUi?: string;
+    groupLabel?: string;
+    hoverPreview?: boolean;
+    idBase?: string;
+    itemClassName?: string;
+    keyboardActivation?: KeyboardActivation;
+    onChange?: (nextValue: TabValue) => void;
+    options?: LocalTabOption[];
+    panelIdBase?: string;
+    panelIdMode?: PanelIdMode;
+    size?: TabSize;
+    testId?: string;
+    value?: TabValue;
+};
+const Tabs = ({ className = "", controlsPanels = false, dataUi, groupLabel, hoverPreview = true, idBase, itemClassName = "", keyboardActivation = "auto", onChange, options = [], panelIdBase, panelIdMode = "scoped", size = "md", testId, value, ...restProps }: LocalTabsProps) => {
+    const reactId = useId();
+    const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
+    const [hoveredValue, setHoveredValue] = useState<TabValue | null>(null);
+    const safeOptions = useMemo(() => (Array.isArray(options) ? options : []), [options]);
+    const instanceId = getTabsInstanceId(idBase, reactId);
+    const uiMarker = getTabsUiMarker(dataUi);
+    const normalizedOptions = useMemo<NormalizedTabOption<LocalTabOption>[]>(() => normalizeTabsOptions({
+        idBase,
+        instanceId,
+        options: safeOptions,
+        panelIdBase,
+        panelIdMode,
+        shouldLinkPanels: controlsPanels,
+    }), [controlsPanels, idBase, instanceId, panelIdBase, panelIdMode, safeOptions]);
+    const selectedIndex = useMemo(() => normalizedOptions.findIndex((option) => option.value === value), [normalizedOptions, value]);
+    const firstEnabledIndex = useMemo(() => normalizedOptions.findIndex((option) => !option.__disabled), [normalizedOptions]);
+    const focusIndex = selectedIndex >= 0 && !normalizedOptions[selectedIndex]?.__disabled ? selectedIndex : firstEnabledIndex;
+    const focusAtIndex = (index: number) => buttonRefs.current[index]?.focus();
+    const findNextEnabledIndex = (fromIndex: number, direction: -1 | 1): number => {
+        const length = normalizedOptions.length;
+        if (length <= 0)
+            return -1;
+        for (let index = 0; index < length; index++) {
+            const nextIndex = (fromIndex + direction * (index + 1) + length) % length;
+            if (!normalizedOptions[nextIndex]?.__disabled)
+                return nextIndex;
+        }
+        return -1;
+    };
+    const activateAtIndex = (index: number) => {
+        const option = normalizedOptions[index];
+        if (!option || option.__disabled || option.value === undefined)
+            return;
+        onChange?.(option.value);
+        setHoveredValue(null);
+    };
+    const moveSelection = (index: number, direction: -1 | 1) => {
+        const nextIndex = findNextEnabledIndex(index, direction);
+        if (nextIndex < 0)
+            return;
+        focusAtIndex(nextIndex);
+        if (keyboardActivation !== "manual")
+            activateAtIndex(nextIndex);
+    };
+    if (normalizedOptions.length === 0)
+        return null;
+    return jsx("div", {
+        role: "tablist",
+        "aria-label": groupLabel,
+        "data-tabs": "menu",
+        "data-ui": uiMarker,
+        "data-testid": getTabsDevTestId(testId),
+        className: getTabsMenuClassName(className),
+        ...restProps,
+        children: normalizedOptions.map((option, index) => {
+            const Icon = option.icon;
+            const isSelected = value === option.value;
+            const visualValue = hoverPreview && hoveredValue !== null ? hoveredValue : value;
+            const isVisuallyActive = option.value !== undefined && visualValue === option.value;
+            const isDisabled = option.__disabled;
+            return jsx("button", {
+                ...getTabDataAttributes(option),
+                type: "button",
+                role: "tab",
+                id: option.__tabId,
+                "aria-label": option.ariaLabel,
+                title: option.title,
+                "aria-selected": isSelected,
+                "aria-controls": option.__panelId,
+                tabIndex: index === focusIndex ? 0 : -1,
+                disabled: isDisabled,
+                "data-icon": Icon ? "with" : "without",
+                "data-tabs": "tab",
+                "data-ui": uiMarker ? `${uiMarker}-tab-${option.__token}` : undefined,
+                "data-testid": getTabsDevTestId(option.testId),
+                className: getTabsButtonClassName({ className: itemClassName, isActive: isVisuallyActive, size }),
+                ref: (element: HTMLButtonElement | null) => {
+                    buttonRefs.current[index] = element;
+                },
+                onClick: () => activateAtIndex(index),
+                onMouseEnter: () => {
+                    if (!isDisabled && hoverPreview)
+                        setHoveredValue(option.value ?? null);
+                },
+                onMouseLeave: () => {
+                    if (hoverPreview)
+                        setHoveredValue(null);
+                },
+                onKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => {
+                    if (event.key === "ArrowLeft") {
+                        event.preventDefault();
+                        moveSelection(index, -1);
+                    }
+                    else if (event.key === "ArrowRight") {
+                        event.preventDefault();
+                        moveSelection(index, 1);
+                    }
+                    else if (event.key === "Home") {
+                        event.preventDefault();
+                        const nextIndex = firstEnabledIndex;
+                        if (nextIndex >= 0) {
+                            focusAtIndex(nextIndex);
+                            if (keyboardActivation !== "manual")
+                                activateAtIndex(nextIndex);
+                        }
+                    }
+                    else if (event.key === "End") {
+                        event.preventDefault();
+                        let nextIndex = -1;
+                        for (let candidateIndex = normalizedOptions.length - 1; candidateIndex >= 0; candidateIndex--) {
+                            if (!normalizedOptions[candidateIndex]?.__disabled) {
+                                nextIndex = candidateIndex;
+                                break;
+                            }
+                        }
+                        if (nextIndex >= 0) {
+                            focusAtIndex(nextIndex);
+                            if (keyboardActivation !== "manual")
+                                activateAtIndex(nextIndex);
+                        }
+                    }
+                    else if (keyboardActivation === "manual" && (event.key === "Enter" || event.key === " ")) {
+                        event.preventDefault();
+                        activateAtIndex(index);
+                    }
+                },
+                children: [
+                    Icon ? jsx("span", {
+                        className: "tab_btn_icon",
+                        children: jsx(Icon, { size: 16 })
+                    }, "icon") : null,
+                    jsx("span", {
+                        className: "tab_btn_text",
+                        children: option.label
+                    }, "label")
+                ]
+            }, option.__key);
+        })
+    });
+};
+type LocalButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> & {
+    children?: ReactNode;
+    contentClassName?: string;
+    cta?: string;
+    ctaCopy?: string;
+    ctaPosition?: string;
+    dataIcon?: string;
+    fullWidth?: boolean;
+    fx?: boolean;
+    size?: ButtonSize;
+    testId?: string;
+    variant?: ButtonVariant;
+};
+const renderLocalButton = ({ children, className = "", contentClassName = "", cta, ctaCopy, ctaPosition, dataIcon, disabled = false, fullWidth = false, fx = false, size = "md", testId, type = "button", variant = "primary", ...props }: LocalButtonProps) => jsx("button", {
+    ...props,
+    ...getButtonDataAttributes({ cta, ctaCopy, ctaPosition, dataIcon, fx, testId }),
+    type,
+    disabled,
+    className: getButtonClassName({ className, disabled, fullWidth, size, variant }),
+    children: jsx("span", {
+        className: getButtonContentClassName(contentClassName),
+        children
+    })
+});
+type LocalCardProps = Omit<HTMLAttributes<HTMLElement>, "children"> & {
+    children?: ReactNode;
+    cta?: string;
+    ctaCopy?: string;
+    ctaPosition?: string;
+    ref?: Ref<HTMLElement>;
+    variant?: CardVariant;
+};
+const renderLocalCard = ({ children, className = "", cta, ctaCopy, ctaPosition, variant = "default", ...props }: LocalCardProps) => jsx("div", {
+    ...props,
+    ...getCardDataAttributes({ cta, ctaCopy, ctaPosition }),
+    className: getCardClassName({ className, variant }),
+    children
+});
+const renderLocalCheckbox = ({
+    as = "span",
+    checked = false,
+    className = "",
+    decorative = true,
+    iconSize,
+    iconStrokeWidth: _iconStrokeWidth,
+    size = "sm",
+}: {
+    readonly as?: "span" | "div";
+    readonly checked?: boolean;
+    readonly className?: string;
+    readonly decorative?: boolean;
+    readonly iconSize?: number;
+    readonly iconStrokeWidth?: number;
+    readonly size?: CheckboxSize;
+}) => jsx(as, {
+    ...getCheckboxAriaAttributes({ checked, decorative }),
+    className: getCheckboxClassName({ checked, className, size }),
+    dangerouslySetInnerHTML: {
+        __html: getCheckboxIconMarkup({ checked, iconSize, size }),
+    },
+});
+type LocalInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "size" | "value" | "onChange"> & {
+    allowAutoComplete?: boolean;
+    error?: ReactNode;
+    fieldClassName?: string;
+    hideSpinner?: boolean;
+    hint?: ReactNode;
+    idBase?: string;
+    inputClassName?: string;
+    label?: ReactNode;
+    labelPlacement?: LabelPlacement;
+    onChange?: (nextValue: string) => void;
+    ref?: Ref<HTMLInputElement>;
+    rightSlot?: ReactNode;
+    size?: InputSize;
+    value?: string | number;
+};
+const renderLocalInput = ({ allowAutoComplete = false, autoComplete, className = "", disabled = false, error, fieldClassName = "", hideSpinner = false, hint, id, idBase, inputClassName = "", label, labelPlacement = "stack", onChange, ref, rightSlot, size = "md", value, ...props }: LocalInputProps) => {
+    const inputId = id ?? (idBase ? slugifyInputId(idBase) : undefined);
+    const errorId = inputId ? `${inputId}-error` : undefined;
+    const hintId = inputId ? `${inputId}-hint` : undefined;
+    const describedBy = mergeSpaceSeparatedIds(props["aria-describedby"], error ? errorId : hint ? hintId : undefined);
+    const labelNode = label ? jsx("label", {
+        htmlFor: inputId,
+        className: "input_label",
+        children: label
+    }) : null;
+    const fieldNode = jsx("div", {
+        className: getInputFieldClassName({ fieldClassName, size }),
+        "data-icon": "without",
+        "data-state": getInputFieldState({ disabled, error: Boolean(error) }),
+        ...getInputDataAttributes({}),
+        children: [
+            jsx("input", {
+                ...props,
+                ref,
+                id: inputId,
+                value: value ?? "",
+                onChange: (event: ChangeEvent<HTMLInputElement>) => onChange?.(event.currentTarget.value),
+                disabled,
+                "aria-invalid": Boolean(error),
+                "aria-describedby": describedBy,
+                autoComplete: allowAutoComplete ? autoComplete : "off",
+                className: getInputNativeClassName({ hideSpinner, inputClassName })
+            }),
+            rightSlot ? jsx("div", { className: "input_right", children: rightSlot }) : null
+        ]
+    });
+    return jsx("div", {
+        className: getInputWrapperClassName(className),
+        "data-style": "input",
+        children: [
+            label && labelPlacement === "inline" ? jsx("div", { className: "flex items-center gap-2", children: [labelNode, fieldNode] }) : [labelNode, fieldNode],
+            error ? jsx("div", { id: errorId, className: "input_error", children: error }) : null,
+            !error && hint ? jsx("div", { id: hintId, className: "input_hint", children: hint }) : null
+        ]
+    });
+};
 export type TemplateManagerProps = {
     previewFile?: PreviewFileLike | null;
     previewStatus?: Partial<SessionPreviewStatus> | null;
@@ -1022,7 +1443,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                             className: "grid grid-cols-2 gap-4",
                             children: [
                                 jsx("div", {
-                                    children: jsx(Input, {
+                                    children: renderLocalInput( {
                                         id: includeIds
                                             ? "analysis-template-x-data-start"
                                             : undefined,
@@ -1037,7 +1458,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                                     })
                                 }),
                                 jsx("div", {
-                                    children: jsx(Input, {
+                                    children: renderLocalInput( {
                                         id: includeIds ? "analysis-template-x-data-end" : undefined,
                                         name: "xDataEnd",
                                         value: config.xDataEnd,
@@ -1065,7 +1486,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                                     })
                                 }),
                                 jsx("div", {
-                                    children: jsx(Input, {
+                                    children: renderLocalInput( {
                                         id: includeIds ? "analysis-template-x-points" : undefined,
                                         name: isXSegmentsMode ? "xSegmentCount" : "xPointsPerGroup",
                                         value: xSegmentationInputValue,
@@ -1149,7 +1570,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                                     className: "grid grid-cols-1 gap-4",
                                     children: jsx("div", {
                                         className: "min-w-0",
-                                        children: jsx(Input, {
+                                        children: renderLocalInput( {
                                             id: includeIds
                                                 ? "analysis-template-y-columns"
                                                 : undefined,
@@ -1177,7 +1598,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                                     children: [
                                         jsx("div", {
                                             className: "min-w-0",
-                                            children: jsx(Input, {
+                                            children: renderLocalInput( {
                                                 id: includeIds
                                                     ? "analysis-template-legend-start"
                                                     : undefined,
@@ -1196,7 +1617,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                                         }),
                                         jsx("div", {
                                             className: "min-w-0",
-                                            children: jsx(Input, {
+                                            children: renderLocalInput( {
                                                 id: includeIds ? "analysis-template-legend-count" : undefined,
                                                 value: config.yLegendCount,
                                                 name: "yLegendCount",
@@ -1211,7 +1632,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                                         }),
                                         jsx("div", {
                                             className: "min-w-0",
-                                            children: jsx(Input, {
+                                            children: renderLocalInput( {
                                                 id: includeIds ? "analysis-template-legend-step" : undefined,
                                                 value: config.yLegendStep,
                                                 name: "yLegendStep",
@@ -1254,7 +1675,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                                         }),
                                         jsx("div", {
                                             className: "min-w-0",
-                                            children: jsx(Input, {
+                                            children: renderLocalInput( {
                                                 id: includeIds
                                                     ? "analysis-template-legend-prefix"
                                                     : undefined,
@@ -1297,7 +1718,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                     ]
                 }),
                 jsx("div", {
-                    children: jsx(Input, {
+                    children: renderLocalInput( {
                         id: includeIds
                             ? "analysis-template-var1-bottom-title"
                             : undefined,
@@ -1314,7 +1735,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                 }),
                 jsx("div", {
                     className: "min-w-0",
-                    children: jsx(Input, {
+                    children: renderLocalInput( {
                         id: includeIds
                             ? "analysis-template-var3-left-title"
                             : undefined,
@@ -1365,7 +1786,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                                         placeholder: t("da_template_name"),
                                         className: "input_native no-focus-outline"
                                     }),
-                                    jsxs(Button, {
+                                    renderLocalButton( {
                                         id: includeIds ? "analysis-template-save-btn" : undefined,
                                         type: "button",
                                         onClick: handleSaveTemplate,
@@ -1375,7 +1796,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                                         title: t("da_save_template"),
                                         children: [
                                             t("da_template_mode_save"),
-                                            jsx(CogIcon, {
+                                            renderLocalCogIcon({
                                                 icon: lxArrowUp,
                                                 size: 16
                                             })
@@ -1458,7 +1879,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
             children: jsxs("div", {
                 className: "flex items-start gap-2",
                 children: [
-                    jsx(CogIcon, {
+                    renderLocalCogIcon({
                         icon: lxAlertTriangle,
                         size: 16,
                         className: "mt-0.5 shrink-0 text-amber-500",
@@ -1497,7 +1918,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                             jsxs("div", {
                                 className: "mt-3 flex flex-wrap gap-2",
                                 children: [
-                                    jsx(Button, {
+                                    renderLocalButton( {
                                         variant: "secondary",
                                         size: "sm",
                                         onClick: handleReviewLowConfidenceFile,
@@ -1506,7 +1927,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                                         ctaCopy: "review file",
                                         children: t("da_low_confidence_review_in_save_mode")
                                     }),
-                                    lowConfidenceReviewFiles.length > 1 ? (jsx(Button, {
+                                    lowConfidenceReviewFiles.length > 1 ? (renderLocalButton( {
                                         variant: "ghost",
                                         size: "sm",
                                         onClick: handleFocusNextLowConfidenceFile,
@@ -1704,7 +2125,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                 jsxs("div", {
                     className: "flex items-center gap-3",
                     children: [
-                        jsxs(Button, {
+                        renderLocalButton( {
                             id: includeIds ? "analysis-template-export-config" : undefined,
                             variant: "secondary",
                             size: "sm",
@@ -1719,7 +2140,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                             title: t("da_template_export_btn"),
                             "aria-label": t("da_template_export_btn"),
                             children: [
-                                jsx(CogIcon, {
+                                renderLocalCogIcon({
                                     icon: lxExportTray,
                                     size: 14,
                                     className: "shrink-0"
@@ -1730,7 +2151,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                                 })) : null
                             ]
                         }),
-                        jsxs(Button, {
+                        renderLocalButton( {
                             id: includeIds ? "analysis-template-import-config" : undefined,
                             variant: "secondary",
                             size: "sm",
@@ -1745,7 +2166,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                             title: t("da_template_import_btn"),
                             "aria-label": t("da_template_import_btn"),
                             children: [
-                                jsx(CogIcon, {
+                                renderLocalCogIcon({
                                     icon: lxDownloadTray,
                                     size: 14,
                                     className: "shrink-0"
@@ -1771,7 +2192,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                     children: jsxs("div", {
                         className: "mt-3 grid grid-cols-2 gap-3",
                         children: [
-                            jsx(Button, {
+                            renderLocalButton( {
                                 id: includeIds
                                     ? "analysis-template-output-rule-apply-to-all"
                                     : undefined,
@@ -1789,7 +2210,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                                         : t("da_apply_to_all_files")
                                 })
                             }),
-                            jsx(Button, {
+                            renderLocalButton( {
                                 id: includeIds
                                     ? "analysis-template-output-rule-apply-to-new"
                                     : undefined,
@@ -1819,7 +2240,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                                     className: "block text-sm font-medium text-text-secondary",
                                     children: t("da_match_by_file_name")
                                 }),
-                                jsxs(Button, {
+                                renderLocalButton( {
                                     id: includeIds ? "analysis-template-add-rule" : undefined,
                                     variant: "secondary",
                                     size: "md",
@@ -1833,7 +2254,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                                             className: "block min-w-0 flex-1 truncate text-left",
                                             children: t("da_add_rule")
                                         }),
-                                        jsx(CogIcon, {
+                                        renderLocalCogIcon({
                                             icon: lxAddSmall,
                                             size: 14,
                                             className: "shrink-0"
@@ -1863,7 +2284,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                                                     className: "text-xs text-text-secondary",
                                                     children: t("da_rule_item_index", { index: index + 1 })
                                                 }),
-                                                jsx(Button, {
+                                                renderLocalButton( {
                                                     id: includeIds
                                                         ? `analysis-template-remove-rule-${index + 1}`
                                                         : undefined,
@@ -1876,7 +2297,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                                                         : () => removeFileNameTemplateRule(rule.id),
                                                     disabled: measureOnly,
                                                     className: "hover:text-red-500 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus:opacity-100 focus:pointer-events-auto",
-                                                    children: jsx(CogIcon, {
+                                                    children: renderLocalCogIcon({
                                                         icon: lxTrash,
                                                         size: 14
                                                     })
@@ -1904,7 +2325,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                                             className: "space-y-2",
                                             children: isPhraseMode ? (jsxs(Fragment, {
                                                 children: [
-                                                    jsx(Input, {
+                                                    renderLocalInput( {
                                                         id: includeIds
                                                             ? `analysis-template-rule-phrase-${index + 1}`
                                                             : undefined,
@@ -1941,7 +2362,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                                                                     disabled: measureOnly,
                                                                     "aria-label": t("da_remove_rule"),
                                                                     title: t("da_remove_rule"),
-                                                                    children: jsx(CogIcon, {
+                                                                    children: renderLocalCogIcon({
                                                                         icon: lxClose,
                                                                         size: 12
                                                                     })
@@ -2002,7 +2423,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                         jsxs("div", {
                             className: "mt-3 grid grid-cols-2 gap-3",
                             children: [
-                                jsx(Button, {
+                                renderLocalButton( {
                                     id: includeIds
                                         ? "analysis-template-output-rule-apply-to-all"
                                         : undefined,
@@ -2022,7 +2443,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                                             : t("da_apply_to_all_files")
                                     })
                                 }),
-                                jsx(Button, {
+                                renderLocalButton( {
                                     id: includeIds
                                         ? "analysis-template-output-rule-apply-to-new"
                                         : undefined,
@@ -2067,13 +2488,13 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                         }),
                     className: "flex items-center gap-2 text-sm text-text-secondary select-none cursor-pointer group w-fit",
                     children: [
-                        config.stopOnError ? (jsx(Checkbox, {
+                        config.stopOnError ? (renderLocalCheckbox( {
                             checked: true,
                             as: "div",
                             size: "md",
                             iconSize: 12,
                             iconStrokeWidth: 3
-                        })) : (jsx(Checkbox, {
+                        })) : (renderLocalCheckbox( {
                             as: "div",
                             size: "md"
                         })),
@@ -2094,13 +2515,13 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                         })),
                     className: "flex items-center gap-2 text-sm text-text-secondary select-none cursor-pointer group w-fit",
                     children: [
-                        config.fileNameMatchCaseSensitive ? (jsx(Checkbox, {
+                        config.fileNameMatchCaseSensitive ? (renderLocalCheckbox( {
                             checked: true,
                             as: "div",
                             size: "md",
                             iconSize: 12,
                             iconStrokeWidth: 3
-                        })) : (jsx(Checkbox, {
+                        })) : (renderLocalCheckbox( {
                             as: "div",
                             size: "md"
                         })),
@@ -2120,7 +2541,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
     return (jsx("section", {
         "aria-label": t("da_data_extraction_template"),
         className: "flex flex-col flex-1 w-full h-full min-h-0",
-        children: jsxs(Card, {
+        children: renderLocalCard( {
             ref: containerRef,
             id: "analysis-template-manager",
             className: "flex h-full flex-1 min-h-0 flex-col pt-4 pr-4 pb-4 pl-0",
@@ -2232,13 +2653,13 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
                     title: t("da_template_discard_changes_title"),
                     footer: jsxs(Fragment, {
                         children: [
-                            jsx(Button, {
+                            renderLocalButton( {
                                 id: "analysis-template-discard-confirm-keep-editing",
                                 variant: "ghost",
                                 onClick: closeDiscardConfirm,
                                 children: t("da_template_discard_changes_keep_editing")
                             }),
-                            jsx(Button, {
+                            renderLocalButton( {
                                 id: "analysis-template-discard-confirm-discard",
                                 variant: "primary",
                                 onClick: confirmDiscardAndSwitch,
@@ -2257,5 +2678,11 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
     }));
 };
 export default React.memo(TemplateManager);
+
+
+
+
+
+
 
 

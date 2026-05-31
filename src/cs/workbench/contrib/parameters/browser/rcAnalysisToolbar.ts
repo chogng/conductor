@@ -1,3 +1,4 @@
+import { createButton } from "src/cs/base/browser/ui/button/button";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { OriginCurveExportSeriesOption } from "src/cs/workbench/contrib/export/browser/OriginExportToolbar";
 
@@ -56,11 +57,12 @@ export const renderRcAnalysisToolbar = (
     select.appendChild(item);
   }
 
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "action-btn action-btn--primary action-btn--sm";
-  button.disabled = isPending || !rowCount;
-  button.textContent = isPending ? t("da_rc_run_pending") : t("da_rc_run_button");
+  const button = createButton({
+    disabled: isPending || !rowCount,
+    label: isPending ? t("da_rc_run_pending") : t("da_rc_run_button"),
+    size: "sm",
+    variant: "primary",
+  });
 
   const onSelectChange = () => onBiasChange(String(select.value ?? ""));
   const onButtonClick = () => {

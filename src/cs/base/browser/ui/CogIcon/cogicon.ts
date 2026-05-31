@@ -1,46 +1,52 @@
-import { jsx } from "react/jsx-runtime";
-import type { CSSProperties, HTMLAttributes } from "react";
 import {
   normalizeCogIconSvgMarkup,
   type CogIconRenderer,
 } from "src/cs/base/browser/ui/cogIcon/cogIconMarkup";
 import { cx } from "src/utils/cx";
 
-type CogIconProps = Omit<HTMLAttributes<HTMLSpanElement>, "children"> & {
+import "src/cs/base/browser/ui/cogIcon/cogIcon.css";
+
+export type CogIconStyle = Record<string, string | number | undefined>;
+
+export type CogIconOptions = {
+  className?: string;
   icon: CogIconRenderer;
   size?: number | string;
+  style?: CogIconStyle;
 };
 
-const CogIcon = ({
+export const getCogIconClassName = (className?: string): string =>
+  cx("ui-cogicon", className);
+
+const normalizeCogIconSize = (size: number | string): string =>
+  typeof size === "number" ? `${size}px` : size;
+
+export const getCogIconStyle = ({
+  size = 16,
+  style,
+}: Pick<CogIconOptions, "size" | "style">): CogIconStyle => {
+  const normalizedSize = normalizeCogIconSize(size);
+  return {
+    width: normalizedSize,
+    height: normalizedSize,
+    ...style,
+  };
+};
+
+export const getCogIconMarkup = (icon: CogIconRenderer): string =>
+  normalizeCogIconSvgMarkup(icon);
+
+export const createCogIcon = ({
   className,
   icon,
   size = 16,
   style,
-  ...props
-}: CogIconProps) => {
-  const iconStyle: CSSProperties =
-    typeof size === "number"
-      ? {
-          width: `${size}px`,
-          height: `${size}px`,
-          ...style,
-        }
-      : {
-          width: size,
-          height: size,
-          ...style,
-        };
-
-  return jsx("span", {
-    ...props,
-    className: cx("ui-cogicon", className),
-    style: iconStyle,
-    dangerouslySetInnerHTML: {
-      __html: normalizeCogIconSvgMarkup(icon),
-    },
-  });
+}: CogIconOptions): HTMLSpanElement => {
+  const element = document.createElement("span");
+  element.className = getCogIconClassName(className);
+  Object.assign(element.style, getCogIconStyle({ size, style }));
+  element.innerHTML = getCogIconMarkup(icon);
+  return element;
 };
-
-export default CogIcon;
 
 export { normalizeCogIconSvgMarkup, type CogIconRenderer };

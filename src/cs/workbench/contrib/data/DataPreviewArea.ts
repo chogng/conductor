@@ -1,6 +1,6 @@
-import { jsx } from "react/jsx-runtime";
+﻿import { jsx } from "react/jsx-runtime";
 import type { ReactNode } from "react";
-import SplitView from "src/cs/base/browser/ui/splitview/splitview";
+import SplitView from "src/cs/workbench/browser/components/SplitView";
 
 export type DataPreviewAreaProps = {
   readonly tabPanel: ReactNode;
@@ -29,3 +29,4 @@ const DataPreviewArea = ({ tabPanel, tablePreview }: DataPreviewAreaProps) =>
   });
 
 export default DataPreviewArea;
+

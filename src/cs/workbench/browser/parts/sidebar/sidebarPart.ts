@@ -6,8 +6,11 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import Button from "src/cs/base/browser/ui/button/button";
-import Sash, { type SashDragEvent } from "src/cs/base/browser/ui/sash/sash";
+import {
+  getButtonClassName,
+  getButtonContentClassName,
+} from "src/cs/base/browser/ui/button/button";
+import Sash, { type SashDragEvent, type SashOptions } from "src/cs/base/browser/ui/sash/sash";
 import {
   getWorkbenchSidebarActionClassName,
   normalizeWorkbenchSidebarHeaderActions,
@@ -33,6 +36,34 @@ export type WorkbenchSidebarAction = {
 
 export type WorkbenchSidebarHeaderAction = WorkbenchSidebarAction & {
   kind?: "primary" | "secondary" | "icon" | "statusBadge";
+};
+
+const SashHost = (props: SashOptions) => {
+  const hostRef = useRef<HTMLDivElement | null>(null);
+  const sashRef = useRef<Sash | null>(null);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) {
+      return;
+    }
+
+    sashRef.current = new Sash(props);
+    host.replaceChildren(sashRef.current.element);
+
+    return () => {
+      sashRef.current?.dispose();
+      sashRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    sashRef.current?.update(props);
+  }, [props.active, props.className, props.disabled, props.edge, props.onDidChange, props.onDidEnd, props.onDidStart, props.orientation, props.role, props.style]);
+
+  return jsx("div", {
+    ref: hostRef,
+  });
 };
 
 export type WorkbenchSidebarSection = {
@@ -264,29 +295,42 @@ const renderSidebarAction = (
     }
 
     if (kind === "icon") {
-      return jsx(Button, {
+      return jsx("button", {
         id: action.id,
-        variant: "ghost",
-        size: "iconSm",
-        className: "workbench_sidebar_header_icon_btn",
+        type: "button",
+        className: getButtonClassName({
+          className: "workbench_sidebar_header_icon_btn",
+          disabled: action.isDisabled,
+          size: "iconSm",
+          variant: "ghost",
+        }),
         disabled: action.isDisabled,
         onClick: () => onAction?.(action),
         title: action.title,
         "aria-label": action.title,
-        children: action.icon,
+        children: jsx("span", {
+          className: getButtonContentClassName(),
+          children: action.icon,
+        }),
       });
     }
 
-    return jsx(Button, {
+    return jsx("button", {
       id: action.id,
-      variant: kind === "primary" ? "primary" : "ghost",
-      size: "sm",
-      className: "workbench_sidebar_header_btn",
+      type: "button",
+      className: getButtonClassName({
+        className: "workbench_sidebar_header_btn",
+        disabled: action.isDisabled,
+        size: "sm",
+        variant: kind === "primary" ? "primary" : "ghost",
+      }),
       disabled: action.isDisabled,
       onClick: () => onAction?.(action),
       title: action.title,
-      dataIcon: action.icon ? "with" : undefined,
-      children: [
+      "data-icon": action.icon ? "with" : undefined,
+      children: jsx("span", {
+        className: getButtonContentClassName(),
+        children: [
         action.icon
           ? jsx("span", {
               className: "shrink-0",
@@ -299,6 +343,7 @@ const renderSidebarAction = (
           children: action.title,
         }),
       ],
+      }),
     });
   }
 
@@ -447,7 +492,7 @@ const SidebarPart = ({
       ),
       children,
       onStartResizing
-        ? jsx(Sash, {
+        ? jsx(SashHost, {
             className: "workbench_sidebar_sash",
             edge: "right",
             active: isResizing,

@@ -1,8 +1,5 @@
-import Scrollbar, {
-  type ScrollbarProps,
+export {
+  Scrollbar as ScrollArea,
+  Scrollbar as default,
+  type ScrollbarOptions as ScrollAreaOptions,
 } from "src/cs/base/browser/ui/scrollbar/scrollbar";
-
-export type ScrollAreaProps = ScrollbarProps;
-
-export default Scrollbar;
-

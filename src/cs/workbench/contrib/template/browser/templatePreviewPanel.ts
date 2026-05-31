@@ -1,9 +1,9 @@
-import { jsx, jsxs, Fragment } from "react/jsx-runtime";
+﻿import { jsx, jsxs, Fragment } from "react/jsx-runtime";
 import { lxAddSmall, lxCheck, lxRemoveSmall } from "cogicon";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactElement, } from "react";
 import type { MutableRef } from "src/cs/base/common/ref";
-import CogIcon from "src/cs/base/browser/ui/cogIcon/cogIcon";
-import ScrollArea from "cs/base/browser/ui/scrollArea/scrollArea";
+import { getCogIconClassName, getCogIconMarkup, getCogIconStyle, type CogIconRenderer, type CogIconStyle } from "src/cs/base/browser/ui/cogIcon/cogIcon";
+import ScrollArea from "src/cs/workbench/browser/components/ScrollArea";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
 import type { PreviewFileLike } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
@@ -12,6 +12,21 @@ import { formatNumber } from "src/cs/workbench/contrib/diagnostics/common/number
 import { getExcelColumnLabel } from "src/cs/workbench/contrib/template/common/templateColumnLabel";
 import { computeNextPreviewCell, computePreviewPageRows, getSelectionFocusCell, getSelectionModeFromPointerEvent, isPreviewNavigationKey, resolveSelectionDragStart, } from "src/cs/workbench/contrib/tablePreview/preview/previewSelectionNavigation";
 import { PREVIEW_ZOOM_DEFAULT_PERCENT, PREVIEW_ZOOM_MAX_PERCENT, PREVIEW_ZOOM_MIN_PERCENT, } from "./templateManagerPreviewZoom";
+type LocalCogIconProps = {
+    className?: string;
+    icon: CogIconRenderer;
+    size?: number | string;
+    style?: CogIconStyle;
+    [key: string]: unknown;
+};
+const renderLocalCogIcon = ({ className, icon, size = 16, style, ...props }: LocalCogIconProps) => jsx("span", {
+    ...props,
+    className: getCogIconClassName(className),
+    style: getCogIconStyle({ size, style }),
+    dangerouslySetInnerHTML: {
+        __html: getCogIconMarkup(icon)
+    }
+});
 type PreviewStatus = Partial<SessionPreviewStatus>;
 type PreviewWindow = {
     startRow: number;
@@ -1102,7 +1117,7 @@ const PreviewHeader = React.memo(({ density, handleColumnResizeStart, dataColumn
                                                 height: checkboxSizePx,
                                                 width: checkboxSizePx,
                                             },
-                                            children: jsx(CogIcon, {
+                                            children: renderLocalCogIcon({
                                                 icon: lxCheck,
                                                 size: checkIconSizePx,
                                                 className: "text-white"
@@ -1419,7 +1434,7 @@ const TemplateManagerPreviewPanel = ({ activeCellRect, adjustPreviewZoom, copySe
                         disabled: !canZoomOut,
                         className: "inline-flex h-8 w-8 items-center justify-center rounded-l-md text-text-secondary transition-colors hover:bg-bg-page hover:text-text-primary disabled:opacity-45",
                         title: zoomOutTitle,
-                        children: jsx(CogIcon, {
+                        children: renderLocalCogIcon({
                             icon: lxRemoveSmall,
                             size: 14
                         })
@@ -1440,7 +1455,7 @@ const TemplateManagerPreviewPanel = ({ activeCellRect, adjustPreviewZoom, copySe
                         disabled: !canZoomIn,
                         className: "inline-flex h-8 w-8 items-center justify-center rounded-r-md text-text-secondary transition-colors hover:bg-bg-page hover:text-text-primary disabled:opacity-45",
                         title: zoomInTitle,
-                        children: jsx(CogIcon, {
+                        children: renderLocalCogIcon({
                             icon: lxAddSmall,
                             size: 14
                         })
@@ -1600,3 +1615,5 @@ const TemplateManagerPreviewPanel = ({ activeCellRect, adjustPreviewZoom, copySe
     }));
 };
 export default React.memo(TemplateManagerPreviewPanel);
+
+

@@ -3,6 +3,8 @@ import { anchoredLayout, rectFromDomRect } from "src/cs/base/common/layout";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { cx } from "src/utils/cx";
 
+import "src/cs/base/browser/ui/contentView/contentView.css";
+
 export type ContentViewAlign = "left" | "center" | "right";
 export type ContentViewSide = "bottom" | "right";
 type ResolvedContentViewSide = "top" | "bottom" | "right" | "left";

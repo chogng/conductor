@@ -1,13 +1,28 @@
-import { jsx, jsxs } from "react/jsx-runtime";
+﻿import { jsx, jsxs } from "react/jsx-runtime";
 import { lxAnalysis } from "cogicon";
-import { lazy, Suspense, type ComponentType, type Dispatch, type SetStateAction, } from "react";
-import Card from "cs/base/browser/ui/card/card";
-import CogIcon from "src/cs/base/browser/ui/cogIcon/cogIcon";
+import { lazy, Suspense, type ComponentType, type Dispatch, type HTMLAttributes, type ReactNode, type SetStateAction, } from "react";
+import { getCardClassName, getCardDataAttributes, type CardVariant } from "cs/base/browser/ui/card/card";
+import { getCogIconClassName, getCogIconMarkup, getCogIconStyle, type CogIconRenderer, type CogIconStyle } from "src/cs/base/browser/ui/cogIcon/cogIcon";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { IonIoffManualTargetsByFileId, IonIoffMethod, SsManualRanges, SsMethod, } from "src/cs/workbench/contrib/session/analysis-session-context";
 import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
 import type { ProcessedEntry, ProcessingStatus } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import { loadAnalysisCharts } from "./loadAnalysisCharts";
+type LocalCogIconProps = {
+    className?: string;
+    icon: CogIconRenderer;
+    size?: number | string;
+    style?: CogIconStyle;
+    [key: string]: unknown;
+};
+const renderLocalCogIcon = ({ className, icon, size = 16, style, ...props }: LocalCogIconProps) => jsx("span", {
+    ...props,
+    className: getCogIconClassName(className),
+    style: getCogIconStyle({ size, style }),
+    dangerouslySetInnerHTML: {
+        __html: getCogIconMarkup(icon)
+    }
+});
 type AnalysisChartsLazyProps = {
     processedData: ProcessedEntry[];
     processingStatus?: Partial<ProcessingStatus>;
@@ -34,10 +49,23 @@ type AnalysisChartsLazyProps = {
     onOriginOpenPlotOptionsChange?: (updates: unknown) => Promise<unknown> | void;
 };
 const AnalysisCharts = lazy(loadAnalysisCharts) as ComponentType<AnalysisChartsLazyProps>;
+type LocalCardProps = Omit<HTMLAttributes<HTMLElement>, "children"> & {
+    children?: ReactNode;
+    cta?: string;
+    ctaCopy?: string;
+    ctaPosition?: string;
+    variant?: CardVariant;
+};
+const renderLocalCard = ({ children, className = "", cta, ctaCopy, ctaPosition, variant = "default", ...props }: LocalCardProps) => jsx("div", {
+    ...props,
+    ...getCardDataAttributes({ cta, ctaCopy, ctaPosition }),
+    className: getCardClassName({ className, variant }),
+    children
+});
 const AnalysisChartsLoadingFallback = ({ t }: {
     t: TranslateFn;
 }) => {
-    return (jsxs(Card, {
+    return (renderLocalCard( {
         id: "analysis-analysis-loading-card",
         variant: "fill",
         cta: "Device analysis",
@@ -45,7 +73,7 @@ const AnalysisChartsLoadingFallback = ({ t }: {
         ctaCopy: "loading analysis charts",
         className: "flex-1 flex flex-col items-center justify-center border-2 border-dashed border-border bg-bg-surface/50 text-text-secondary",
         children: [
-            jsx(CogIcon, {
+            renderLocalCogIcon({
                 icon: lxAnalysis,
                 size: 48,
                 className: "mb-4 opacity-20 animate-pulse"
@@ -101,7 +129,7 @@ const AnalysisPanel = ({ processedData = [], processingStatus, activeFileId, ion
                 originOpenPlotOptions: originOpenPlotOptions,
                 onOriginOpenPlotOptionsChange: onOriginOpenPlotOptionsChange
             })
-        })) : null) : isProcessing ? (jsxs(Card, {
+        })) : null) : isProcessing ? (renderLocalCard( {
             id: "analysis-processing-card",
             variant: "fill",
             cta: "Device analysis",
@@ -109,7 +137,7 @@ const AnalysisPanel = ({ processedData = [], processingStatus, activeFileId, ion
             ctaCopy: "processing analysis data",
             className: "flex-1 flex flex-col items-center justify-center border-2 border-dashed border-border bg-bg-surface/50 text-text-secondary",
             children: [
-                jsx(CogIcon, {
+                renderLocalCogIcon({
                     icon: lxAnalysis,
                     size: 48,
                     className: "mb-4 opacity-20 animate-pulse"
@@ -158,7 +186,7 @@ const AnalysisPanel = ({ processedData = [], processingStatus, activeFileId, ion
                     ]
                 })
             ]
-        })) : (jsxs(Card, {
+        })) : (renderLocalCard( {
             id: "analysis-empty-processed-data-card",
             variant: "fill",
             cta: "Device analysis",
@@ -166,7 +194,7 @@ const AnalysisPanel = ({ processedData = [], processingStatus, activeFileId, ion
             ctaCopy: "empty processed data",
             className: "flex-1 flex flex-col items-center justify-center border-2 border-dashed border-border bg-bg-surface/50 text-text-secondary",
             children: [
-                jsx(CogIcon, {
+                renderLocalCogIcon({
                     icon: lxAnalysis,
                     size: 48,
                     className: "mb-4 opacity-20"
@@ -184,3 +212,5 @@ const AnalysisPanel = ({ processedData = [], processingStatus, activeFileId, ion
     }));
 };
 export default AnalysisPanel;
+
+

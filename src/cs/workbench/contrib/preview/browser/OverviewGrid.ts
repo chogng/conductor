@@ -1,8 +1,8 @@
 ﻿import { jsx, jsxs } from "react/jsx-runtime";
-import { memo, useEffect, useMemo, useState } from "react";
-import Card from "cs/base/browser/ui/card/card";
-import DropdownField from "cs/base/browser/ui/dropdownField/dropdownField";
-import ScrollArea from "cs/base/browser/ui/scrollArea/scrollArea";
+import { memo, useEffect, useMemo, useState, type HTMLAttributes, type ReactNode } from "react";
+import { getCardClassName, getCardDataAttributes, type CardVariant } from "cs/base/browser/ui/card/card";
+import DropdownField from "src/cs/workbench/browser/components/DropdownField";
+import ScrollArea from "src/cs/workbench/browser/components/ScrollArea";
 import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
 import { getYUnitMeta } from "src/cs/workbench/contrib/chart/common/units";
 import type { OriginCanvasExportScope } from "src/cs/workbench/contrib/export/browser/originCanvasExport";
@@ -26,6 +26,19 @@ type OverviewGridProps = {
     resolveYScaleForFile?: (file: ProcessedFileLike | null | undefined) => string;
     resolveYLogCurrentModeForFile?: (file: ProcessedFileLike | null | undefined) => "all" | "positive";
 };
+type LocalCardProps = Omit<HTMLAttributes<HTMLElement>, "children"> & {
+    children?: ReactNode;
+    cta?: string;
+    ctaCopy?: string;
+    ctaPosition?: string;
+    variant?: CardVariant;
+};
+const renderLocalCard = ({ children, className = "", cta, ctaCopy, ctaPosition, variant = "default", ...props }: LocalCardProps) => jsx("div", {
+    ...props,
+    ...getCardDataAttributes({ cta, ctaCopy, ctaPosition }),
+    className: getCardClassName({ className, variant }),
+    children
+});
 type CurveFilter = string;
 const OverviewGrid = memo(function OverviewGrid({ processedData = [], processingStatus, activeFileId, onSelectFile, onVisibleFileIdsChange, selectedOriginCanvasKeySet, onToggleOriginCanvasSelection, originCanvasExportScope = "selected", isSelectionMode = false, xUnitFactor, xUnitLabel, resolveYUnitForFile, resolveYScaleForFile, resolveYLogCurrentModeForFile, }: OverviewGridProps) {
     const { t } = useLanguage();
@@ -66,7 +79,7 @@ const OverviewGrid = memo(function OverviewGrid({ processedData = [], processing
     const isManualCanvasScope = isSelectionMode && originCanvasExportScope === "selected";
     if (!processedData.length)
         return null;
-    return (jsxs(Card, {
+    return (renderLocalCard( {
         variant: "panel",
         className: "h-full min-h-0 flex flex-col !pr-0",
         children: [
@@ -166,4 +179,7 @@ const OverviewGrid = memo(function OverviewGrid({ processedData = [], processing
 });
 OverviewGrid.displayName = "OverviewGrid";
 export default OverviewGrid;
+
+
+
 

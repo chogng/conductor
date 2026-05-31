@@ -3,15 +3,30 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, type Butt
 import { createPortal } from "react-dom";
 import type { MutableRef } from "src/cs/base/common/ref";
 import { lxCheck, lxChevronDown, lxChevronRight } from "cogicon";
-import Button from "cs/base/browser/ui/button/button";
-import CogIcon from "src/cs/base/browser/ui/cogIcon/cogIcon";
+import { getButtonClassName, getButtonContentClassName } from "cs/base/browser/ui/button/button";
+import { getCogIconClassName, getCogIconMarkup, getCogIconStyle, type CogIconRenderer, type CogIconStyle } from "src/cs/base/browser/ui/cogIcon/cogIcon";
 import { lxAlertTriangle } from "src/cs/base/browser/ui/cogIcon/icons";
 import { getClientArea, getContentWidth, getDomRect, getElementSize } from "src/cs/base/browser/dom";
 import { addDisposableListener, combinedDisposable, EventType } from "src/cs/base/browser/event";
 import { anchoredLayout, rectFromDomRect } from "src/cs/base/common/layout";
-import DropdownField from "cs/base/browser/ui/dropdownField/dropdownField";
+import DropdownField from "src/cs/workbench/browser/components/DropdownField";
 import { isOriginExportMode, type OriginExportContentKey, type OriginExportMode, } from "src/cs/workbench/contrib/export/common/originSelectionExport";
 import type { OriginCanvasExportScope, OriginCurveExportMode, OriginFilteredCanvasKind, } from "src/cs/workbench/contrib/export/browser/originCanvasExport";
+type LocalCogIconProps = {
+    className?: string;
+    icon: CogIconRenderer;
+    size?: number | string;
+    style?: CogIconStyle;
+    [key: string]: unknown;
+};
+const renderLocalCogIcon = ({ className, icon, size = 16, style, ...props }: LocalCogIconProps) => jsx("span", {
+    ...props,
+    className: getCogIconClassName(className),
+    style: getCogIconStyle({ size, style }),
+    dangerouslySetInnerHTML: {
+        __html: getCogIconMarkup(icon)
+    }
+});
 export type OriginExportContentOption = {
     group: "basic" | "derived";
     key: OriginExportContentKey;
@@ -194,7 +209,7 @@ const DropdownTrigger = React.forwardRef<HTMLButtonElement, DropdownTriggerProps
         }),
         !hideIndicator ? (jsx("span", {
             className: indicatorClassName,
-            children: indicator ?? (jsx(CogIcon, {
+            children: indicator ?? (renderLocalCogIcon({
                 icon: lxChevronDown,
                 size: 16,
                 className: cx("transition-transform duration-200", isOpen && "rotate-180")
@@ -392,7 +407,7 @@ const OriginExportContentMenu = ({ options, selectedKeys, setSelectedKeys, t, }:
                         fieldClassName: "input_field ui-select_field--sm pr-1",
                         className: "input_native no-focus-outline p-0 text-left cursor-pointer select-none pr-6",
                         indicatorClassName: "absolute right-1 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none",
-                        indicator: jsx(CogIcon, {
+                        indicator: renderLocalCogIcon({
                             icon: lxChevronDown,
                             size: 14,
                             className: `transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`
@@ -439,7 +454,7 @@ const OriginExportContentMenu = ({ options, selectedKeys, setSelectedKeys, t, }:
                                             }),
                                             right: jsx("span", {
                                                 className: "ui-menu__item-right",
-                                                children: checked ? jsx(CogIcon, {
+                                                children: checked ? renderLocalCogIcon({
                                                     icon: lxCheck,
                                                     size: 14,
                                                     className: "text-accent"
@@ -551,7 +566,7 @@ export const OriginCurveExportMenu = ({ curveOptions, selectedCurveOptionKeySet,
                         fieldClassName: "input_field ui-select_field--sm pr-1",
                         className: "input_native no-focus-outline p-0 text-left cursor-pointer select-none pr-6",
                         indicatorClassName: "absolute right-1 top-1/2 -translate-y-1/2 text-text-secondary pointer-events-none",
-                        indicator: jsx(CogIcon, {
+                        indicator: renderLocalCogIcon({
                             icon: lxChevronDown,
                             size: 14,
                             className: `transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`
@@ -592,7 +607,7 @@ export const OriginCurveExportMenu = ({ curveOptions, selectedCurveOptionKeySet,
                                         }),
                                         right: jsx("span", {
                                             className: "ui-menu__item-right",
-                                            children: mode === "all" ? jsx(CogIcon, {
+                                            children: mode === "all" ? renderLocalCogIcon({
                                                 icon: lxCheck,
                                                 size: 14,
                                                 className: "text-accent"
@@ -613,7 +628,7 @@ export const OriginCurveExportMenu = ({ curveOptions, selectedCurveOptionKeySet,
                                         }),
                                         right: jsx("span", {
                                             className: "ui-menu__item-right",
-                                            children: jsx(CogIcon, {
+                                            children: renderLocalCogIcon({
                                                 icon: lxChevronRight,
                                                 size: 14
                                             })
@@ -658,7 +673,7 @@ export const OriginCurveExportMenu = ({ curveOptions, selectedCurveOptionKeySet,
                                             }),
                                             right: jsx("span", {
                                                 className: "ui-menu__item-right",
-                                                children: checked ? jsx(CogIcon, {
+                                                children: checked ? renderLocalCogIcon({
                                                     icon: lxCheck,
                                                     size: 14,
                                                     className: "text-accent"
@@ -817,22 +832,20 @@ const OriginExportToolbar = ({ curveOptions, hasMixedExportYScales, mode, onExpo
                 jsxs("div", {
                     className: "flex items-center gap-2 flex-wrap",
                     children: [
-                        jsx(Button, {
+                        renderToolbarButton({
                             id: "analysis-origin-open-btn",
                             variant: "primary",
-                            size: "sm",
                             onClick: () => {
                                 void onOpenInOrigin();
                             },
-                            children: t("da_open_in_origin")
+                            label: t("da_open_in_origin")
                         }),
-                        jsx(Button, {
+                        renderToolbarButton({
                             variant: "secondary",
-                            size: "sm",
                             onClick: () => {
                                 void onExportOriginZip();
                             },
-                            children: t("da_export_origin_zip")
+                            label: t("da_export_origin_zip")
                         })
                     ]
                 })
@@ -845,7 +858,7 @@ const OriginExportToolbar = ({ curveOptions, hasMixedExportYScales, mode, onExpo
                 children: jsxs("div", {
                     className: "flex items-start gap-2",
                     children: [
-                        jsx(CogIcon, {
+                        renderLocalCogIcon({
                             icon: lxAlertTriangle,
                             size: 14,
                             className: "mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500",
@@ -861,4 +874,29 @@ const OriginExportToolbar = ({ curveOptions, hasMixedExportYScales, mode, onExpo
     ]
 }));
 export default OriginExportToolbar;
+
+const renderToolbarButton = ({
+    id,
+    label,
+    onClick,
+    variant,
+}: {
+    readonly id?: string;
+    readonly label: string;
+    readonly onClick: () => void;
+    readonly variant: "primary" | "secondary";
+}) => jsx("button", {
+    id,
+    type: "button",
+    className: getButtonClassName({
+        size: "sm",
+        variant,
+    }),
+    onClick,
+    children: jsx("span", {
+        className: getButtonContentClassName(),
+        children: label
+    })
+});
+
 

@@ -1,4 +1,5 @@
-import { normalizeCogIconSvgMarkup } from "src/cs/base/browser/ui/cogIcon/cogIcon";
+import { normalizeCogIconSvgMarkup } from "src/cs/base/browser/ui/cogIcon/cogIconMarkup";
+import { createButton } from "src/cs/base/browser/ui/button/button";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import {
@@ -158,27 +159,7 @@ export class ImporterViewletView implements IDisposable {
       return badge;
     }
 
-    const button = document.createElement("button");
-    button.id = action.id;
-    button.type = "button";
-    button.disabled = Boolean(action.isDisabled);
-    button.title = action.title;
-    button.setAttribute("aria-label", action.title);
-
-    if (action.kind === "icon") {
-      button.className =
-        "action-btn action-btn--icon-sm action-btn--ghost workbench_sidebar_header_icon_btn";
-    } else {
-      button.className = `action-btn action-btn--sm ${
-        action.kind === "primary" ? "action-btn--primary" : "action-btn--ghost"
-      } workbench_sidebar_header_btn`;
-      if (action.icon) {
-        button.dataset.icon = "with";
-      }
-    }
-
-    const content = document.createElement("span");
-    content.className = "action-btn__content";
+    const content: Node[] = [];
 
     if (action.icon) {
       const icon = document.createElement("span");
@@ -187,17 +168,29 @@ export class ImporterViewletView implements IDisposable {
       icon.style.height = "16px";
       icon.setAttribute("aria-hidden", "true");
       icon.innerHTML = normalizeCogIconSvgMarkup(action.icon);
-      content.appendChild(icon);
+      content.push(icon);
     }
 
     if (action.kind !== "icon") {
       const label = document.createElement("span");
       label.className = "min-w-0 truncate text-left";
       label.textContent = action.title;
-      content.appendChild(label);
+      content.push(label);
     }
 
-    button.appendChild(content);
+    const button = createButton({
+      id: action.id,
+      ariaLabel: action.title,
+      className: action.kind === "icon"
+        ? "workbench_sidebar_header_icon_btn"
+        : "workbench_sidebar_header_btn",
+      content,
+      dataIcon: action.icon && action.kind !== "icon" ? "with" : undefined,
+      disabled: Boolean(action.isDisabled),
+      size: action.kind === "icon" ? "iconSm" : "sm",
+      title: action.title,
+      variant: action.kind === "primary" ? "primary" : "ghost",
+    });
     button.addEventListener("click", () => this.handleHeaderAction(action.id));
     return button;
   }

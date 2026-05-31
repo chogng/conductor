@@ -1,15 +1,30 @@
 ﻿import { jsx, jsxs } from "react/jsx-runtime";
 import { lxArrowLeft } from "cogicon";
-import { useEffect, useState, type FocusEvent, type KeyboardEvent } from "react";
-import Button from "cs/base/browser/ui/button/button";
-import Card from "cs/base/browser/ui/card/card";
-import CogIcon from "src/cs/base/browser/ui/cogIcon/cogIcon";
-import DropdownField from "cs/base/browser/ui/dropdownField/dropdownField";
-import Input from "cs/base/browser/ui/input/input";
-import ScrollArea from "cs/base/browser/ui/scrollArea/scrollArea";
-import Switch from "cs/base/browser/ui/switch/switch";
+import { useEffect, useState, type ChangeEvent, type FocusEvent, type HTMLAttributes, type InputHTMLAttributes, type KeyboardEvent, type ReactNode, type Ref } from "react";
+import { getButtonClassName, getButtonContentClassName } from "cs/base/browser/ui/button/button";
+import { getCardClassName, getCardDataAttributes, type CardVariant } from "cs/base/browser/ui/card/card";
+import { getCogIconClassName, getCogIconMarkup, getCogIconStyle, type CogIconRenderer, type CogIconStyle } from "src/cs/base/browser/ui/cogIcon/cogIcon";
+import DropdownField from "src/cs/workbench/browser/components/DropdownField";
+import { getInputDataAttributes, getInputFieldClassName, getInputFieldState, getInputNativeClassName, getInputWrapperClassName, mergeSpaceSeparatedIds, slugifyInputId, type InputSize, type LabelPlacement } from "cs/base/browser/ui/input/input";
+import ScrollArea from "src/cs/workbench/browser/components/ScrollArea";
+import { getSwitchClassName, getSwitchDataAttributes, getSwitchStyle, type SwitchSize } from "cs/base/browser/ui/switch/switch";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import { DEFAULT_ORIGIN_PLOT_OPTIONS, normalizeOriginPlotOptions, type OriginPlotOptions, } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
+type LocalCogIconProps = {
+    className?: string;
+    icon: CogIconRenderer;
+    size?: number | string;
+    style?: CogIconStyle;
+    [key: string]: unknown;
+};
+const renderLocalCogIcon = ({ className, icon, size = 16, style, ...props }: LocalCogIconProps) => jsx("span", {
+    ...props,
+    className: getCogIconClassName(className),
+    style: getCogIconStyle({ size, style }),
+    dangerouslySetInnerHTML: {
+        __html: getCogIconMarkup(icon)
+    }
+});
 type AxisSettingsPaneProps = {
     axis: any;
     effectiveYScale: string;
@@ -23,6 +38,112 @@ type AxisSettingsPaneProps = {
     analysisCompactInputWrapperClass: string;
     analysisCompactInputClass: string;
     t: TranslateFn;
+};
+type LocalCardProps = Omit<HTMLAttributes<HTMLElement>, "children"> & {
+    children?: ReactNode;
+    cta?: string;
+    ctaCopy?: string;
+    ctaPosition?: string;
+    variant?: CardVariant;
+};
+const renderLocalCard = ({ children, className = "", cta, ctaCopy, ctaPosition, variant = "default", ...props }: LocalCardProps) => jsx("div", {
+    ...props,
+    ...getCardDataAttributes({ cta, ctaCopy, ctaPosition }),
+    className: getCardClassName({ className, variant }),
+    children
+});
+const renderLocalSwitch = ({
+    checked = false,
+    className = "",
+    disabled = false,
+    id,
+    onCheckedChange,
+    size = "md",
+    ...props
+}: {
+    readonly checked?: boolean;
+    readonly className?: string;
+    readonly disabled?: boolean;
+    readonly id?: string;
+    readonly onCheckedChange?: (checked: boolean) => void;
+    readonly size?: SwitchSize;
+    readonly [key: string]: unknown;
+}) => jsx("button", {
+    ...props,
+    ...getSwitchDataAttributes({ checked, size }),
+    id,
+    type: "button",
+    role: "switch",
+    "aria-checked": checked,
+    disabled,
+    className: getSwitchClassName({ className }),
+    style: getSwitchStyle({ size }),
+    onClick: () => {
+        if (!disabled) {
+            onCheckedChange?.(!checked);
+        }
+    },
+    children: jsx("span", {
+        className: "ui-switch__thumb",
+        "aria-hidden": "true"
+    })
+});
+type LocalInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "size" | "value" | "onChange"> & {
+    error?: ReactNode;
+    fieldClassName?: string;
+    hideSpinner?: boolean;
+    hint?: ReactNode;
+    idBase?: string;
+    inputClassName?: string;
+    label?: ReactNode;
+    labelPlacement?: LabelPlacement;
+    allowAutoComplete?: boolean;
+    onChange?: (nextValue: string) => void;
+    ref?: Ref<HTMLInputElement>;
+    rightSlot?: ReactNode;
+    size?: InputSize;
+    value?: string | number;
+};
+const renderLocalInput = ({ allowAutoComplete = false, autoComplete, className = "", disabled = false, error, fieldClassName = "", hideSpinner = false, hint, id, idBase, inputClassName = "", label, labelPlacement = "stack", onChange, ref, rightSlot, size = "md", value, ...props }: LocalInputProps) => {
+    const inputId = id ?? (idBase ? slugifyInputId(idBase) : undefined);
+    const errorId = inputId ? `${inputId}-error` : undefined;
+    const hintId = inputId ? `${inputId}-hint` : undefined;
+    const describedBy = mergeSpaceSeparatedIds(props["aria-describedby"], error ? errorId : hint ? hintId : undefined);
+    const labelNode = label ? jsx("label", {
+        htmlFor: inputId,
+        className: "input_label",
+        children: label
+    }) : null;
+    const fieldNode = jsx("div", {
+        className: getInputFieldClassName({ fieldClassName, size }),
+        "data-icon": "without",
+        "data-state": getInputFieldState({ disabled, error: Boolean(error) }),
+        ...getInputDataAttributes({}),
+        children: [
+            jsx("input", {
+                ...props,
+                ref,
+                id: inputId,
+                value: value ?? "",
+                onChange: (event: ChangeEvent<HTMLInputElement>) => onChange?.(event.currentTarget.value),
+                disabled,
+                "aria-invalid": Boolean(error),
+                "aria-describedby": describedBy,
+                autoComplete: allowAutoComplete ? autoComplete : "off",
+                className: getInputNativeClassName({ hideSpinner, inputClassName })
+            }),
+            rightSlot ? jsx("div", { className: "input_right", children: rightSlot }) : null
+        ]
+    });
+    return jsx("div", {
+        className: getInputWrapperClassName(className),
+        "data-style": "input",
+        children: [
+            label && labelPlacement === "inline" ? jsx("div", { className: "flex items-center gap-2", children: [labelNode, fieldNode] }) : [labelNode, fieldNode],
+            error ? jsx("div", { id: errorId, className: "input_error", children: error }) : null,
+            !error && hint ? jsx("div", { id: hintId, className: "input_hint", children: hint }) : null
+        ]
+    });
 };
 const resetAxisSettings = (setAxis: (value: any) => void) => {
     setAxis((prev: any) => ({
@@ -107,7 +228,7 @@ export default function AxisSettingsPane({ axis, effectiveYScale, plotYUnitLabel
         commitLineWidthDraft(event.currentTarget.value);
         event.currentTarget.blur();
     };
-    return (jsxs(Card, {
+    return (renderLocalCard( {
         variant: "panel",
         className: "h-full min-h-0 flex flex-col !pr-0",
         children: [
@@ -116,16 +237,22 @@ export default function AxisSettingsPane({ axis, effectiveYScale, plotYUnitLabel
                 children: jsxs("div", {
                     className: "flex items-center justify-between gap-2",
                     children: [
-                        jsx(Button, {
-                            variant: "icon",
-                            size: "icon",
+                        jsx("button", {
+                            type: "button",
                             onClick: onClose,
-                            className: "h-8 w-8 rounded-full text-text-secondary hover:text-text-primary",
+                            className: getButtonClassName({
+                                className: "h-8 w-8 rounded-full text-text-secondary hover:text-text-primary",
+                                size: "icon",
+                                variant: "icon",
+                            }),
                             title: t("da_chart_plot_settings_title"),
                             "aria-label": t("da_chart_plot_settings_title"),
-                            children: jsx(CogIcon, {
-                                icon: lxArrowLeft,
-                                size: 16
+                            children: jsx("span", {
+                                className: getButtonContentClassName(),
+                                children: renderLocalCogIcon({
+                                    icon: lxArrowLeft,
+                                    size: 16
+                                })
                             })
                         }),
                         jsx("div", {
@@ -135,12 +262,18 @@ export default function AxisSettingsPane({ axis, effectiveYScale, plotYUnitLabel
                                 children: t("da_chart_plot_settings_title")
                             })
                         }),
-                        jsx(Button, {
-                            variant: "text",
-                            size: "sm",
+                        jsx("button", {
+                            type: "button",
                             onClick: () => resetAxisSettings(setAxis),
-                            className: "h-7 px-2 text-xs text-text-secondary hover:text-text-primary",
-                            children: t("da_chart_axis_reset")
+                            className: getButtonClassName({
+                                className: "h-7 px-2 text-xs text-text-secondary hover:text-text-primary",
+                                size: "sm",
+                                variant: "text",
+                            }),
+                            children: jsx("span", {
+                                className: getButtonContentClassName(),
+                                children: t("da_chart_axis_reset")
+                            })
                         })
                     ]
                 })
@@ -187,7 +320,7 @@ export default function AxisSettingsPane({ axis, effectiveYScale, plotYUnitLabel
                                             className: "text-xs text-text-secondary",
                                             children: t("da_settings_origin_plot_line_width_label")
                                         }),
-                                        jsx(Input, {
+                                        renderLocalInput( {
                                             id: "analysis-plot-line-width-input",
                                             value: lineWidthDraft,
                                             onChange: setLineWidthDraft,
@@ -214,7 +347,7 @@ export default function AxisSettingsPane({ axis, effectiveYScale, plotYUnitLabel
                                             className: "text-xs text-text-secondary",
                                             children: t("da_chart_axis_grid_lines")
                                         }),
-                                        jsx(Switch, {
+                                        renderLocalSwitch({
                                             id: "analysis-axis-show-grid",
                                             size: "sm",
                                             checked: axis?.showGrid !== false,
@@ -230,7 +363,7 @@ export default function AxisSettingsPane({ axis, effectiveYScale, plotYUnitLabel
                                             className: "text-xs text-text-secondary",
                                             children: t("da_chart_axis_major_ticks")
                                         }),
-                                        jsx(Switch, {
+                                        renderLocalSwitch({
                                             id: "analysis-axis-show-major-ticks",
                                             size: "sm",
                                             checked: axis?.showMajorTicks !== false,
@@ -246,7 +379,7 @@ export default function AxisSettingsPane({ axis, effectiveYScale, plotYUnitLabel
                                             className: "text-xs text-text-secondary",
                                             children: t("da_chart_axis_minor_ticks")
                                         }),
-                                        jsx(Switch, {
+                                        renderLocalSwitch({
                                             id: "analysis-axis-show-minor-ticks",
                                             size: "sm",
                                             checked: minorTicksEnabled,
@@ -262,7 +395,7 @@ export default function AxisSettingsPane({ axis, effectiveYScale, plotYUnitLabel
                                             className: "text-xs text-text-secondary",
                                             children: t("da_chart_axis_minor_tick_count")
                                         }),
-                                        jsx(Input, {
+                                        renderLocalInput( {
                                             id: "analysis-axis-minor-tick-count",
                                             value: axis.minorTickCount,
                                             onChange: (nextValue: string) => setAxis((prev: any) => ({ ...prev, minorTickCount: nextValue })),
@@ -284,7 +417,7 @@ export default function AxisSettingsPane({ axis, effectiveYScale, plotYUnitLabel
                                             className: "text-xs text-text-secondary",
                                             children: t("da_chart_axis_tick_label_font_size")
                                         }),
-                                        jsx(Input, {
+                                        renderLocalInput( {
                                             id: "analysis-axis-tick-label-font-size",
                                             value: axis.tickLabelFontSize,
                                             onChange: (nextValue: string) => setAxis((prev: any) => ({ ...prev, tickLabelFontSize: nextValue })),
@@ -305,7 +438,7 @@ export default function AxisSettingsPane({ axis, effectiveYScale, plotYUnitLabel
                                             className: "text-xs text-text-secondary",
                                             children: t("da_chart_axis_title_font_size")
                                         }),
-                                        jsx(Input, {
+                                        renderLocalInput( {
                                             id: "analysis-axis-title-font-size",
                                             value: axis.axisTitleFontSize,
                                             onChange: (nextValue: string) => setAxis((prev: any) => ({ ...prev, axisTitleFontSize: nextValue })),
@@ -326,7 +459,7 @@ export default function AxisSettingsPane({ axis, effectiveYScale, plotYUnitLabel
                                             className: "text-xs text-text-secondary",
                                             children: t("da_chart_legend_font_size")
                                         }),
-                                        jsx(Input, {
+                                        renderLocalInput( {
                                             id: "analysis-axis-legend-font-size",
                                             value: axis.legendFontSize,
                                             onChange: (nextValue: string) => setAxis((prev: any) => ({ ...prev, legendFontSize: nextValue })),
@@ -347,7 +480,7 @@ export default function AxisSettingsPane({ axis, effectiveYScale, plotYUnitLabel
                                             className: "text-xs text-text-secondary",
                                             children: t("da_chart_axis_origin_tick_label_offset")
                                         }),
-                                        jsx(Input, {
+                                        renderLocalInput( {
                                             id: "analysis-axis-origin-tick-label-offset",
                                             value: axis.originTickLabelOffset,
                                             onChange: (nextValue: string) => setAxis((prev: any) => ({ ...prev, originTickLabelOffset: nextValue })),
@@ -368,7 +501,7 @@ export default function AxisSettingsPane({ axis, effectiveYScale, plotYUnitLabel
                                             className: "text-xs text-text-secondary",
                                             children: t("da_chart_axis_origin_title_gap")
                                         }),
-                                        jsx(Input, {
+                                        renderLocalInput( {
                                             id: "analysis-axis-origin-title-gap",
                                             value: axis.originAxisTitleGap,
                                             onChange: (nextValue: string) => setAxis((prev: any) => ({ ...prev, originAxisTitleGap: nextValue })),
@@ -398,7 +531,7 @@ export default function AxisSettingsPane({ axis, effectiveYScale, plotYUnitLabel
                                             className: "text-xs text-text-secondary",
                                             children: t("da_chart_axis_min")
                                         }),
-                                        jsx(Input, {
+                                        renderLocalInput( {
                                             id: "analysis-axis-x-min",
                                             value: axis.xMin,
                                             onChange: (nextValue: string) => setAxis((prev: any) => ({ ...prev, xMin: nextValue })),
@@ -417,7 +550,7 @@ export default function AxisSettingsPane({ axis, effectiveYScale, plotYUnitLabel
                                             className: "text-xs text-text-secondary",
                                             children: t("da_chart_axis_max")
                                         }),
-                                        jsx(Input, {
+                                        renderLocalInput( {
                                             id: "analysis-axis-x-max",
                                             value: axis.xMax,
                                             onChange: (nextValue: string) => setAxis((prev: any) => ({ ...prev, xMax: nextValue })),
@@ -456,7 +589,7 @@ export default function AxisSettingsPane({ axis, effectiveYScale, plotYUnitLabel
                                             className: "text-xs text-text-secondary",
                                             children: t("da_chart_axis_count")
                                         }),
-                                        jsx(Input, {
+                                        renderLocalInput( {
                                             id: "analysis-axis-x-tick-count",
                                             value: axis.xTicks === "nice" ? axis.xTickCount : "",
                                             onChange: (nextValue: string) => setAxis((prev: any) => ({ ...prev, xTickCount: nextValue })),
@@ -477,7 +610,7 @@ export default function AxisSettingsPane({ axis, effectiveYScale, plotYUnitLabel
                                             className: "text-xs text-text-secondary",
                                             children: t("da_chart_axis_step")
                                         }),
-                                        jsx(Input, {
+                                        renderLocalInput( {
                                             id: "analysis-axis-x-step",
                                             value: axis.xTicks === "step" ? axis.xStep : "",
                                             onChange: (nextValue: string) => setAxis((prev: any) => ({ ...prev, xStep: nextValue })),
@@ -498,7 +631,7 @@ export default function AxisSettingsPane({ axis, effectiveYScale, plotYUnitLabel
                                             className: "text-xs text-text-secondary",
                                             children: t("da_chart_axis_x_tooltip_digits")
                                         }),
-                                        jsx(Input, {
+                                        renderLocalInput( {
                                             id: "analysis-axis-x-tooltip-digits",
                                             value: axis.xTooltipDigits,
                                             onChange: (nextValue: string) => setAxis((prev: any) => ({ ...prev, xTooltipDigits: nextValue })),
@@ -535,7 +668,7 @@ export default function AxisSettingsPane({ axis, effectiveYScale, plotYUnitLabel
                                                 ")"
                                             ]
                                         }),
-                                        jsx(Input, {
+                                        renderLocalInput( {
                                             id: "analysis-axis-y-min",
                                             value: axis.yMin,
                                             onChange: (nextValue: string) => setAxis((prev: any) => ({ ...prev, yMin: nextValue })),
@@ -559,7 +692,7 @@ export default function AxisSettingsPane({ axis, effectiveYScale, plotYUnitLabel
                                                 ")"
                                             ]
                                         }),
-                                        jsx(Input, {
+                                        renderLocalInput( {
                                             id: "analysis-axis-y-max",
                                             value: axis.yMax,
                                             onChange: (nextValue: string) => setAxis((prev: any) => ({ ...prev, yMax: nextValue })),
@@ -608,7 +741,7 @@ export default function AxisSettingsPane({ axis, effectiveYScale, plotYUnitLabel
                                                 ")"
                                             ]
                                         }),
-                                        jsx(Input, {
+                                        renderLocalInput( {
                                             id: "analysis-axis-y-step",
                                             value: axis.yTicks === "step" ? axis.yStep : "",
                                             onChange: (nextValue: string) => setAxis((prev: any) => ({ ...prev, yStep: nextValue })),
@@ -627,7 +760,7 @@ export default function AxisSettingsPane({ axis, effectiveYScale, plotYUnitLabel
                                             className: "text-xs text-text-secondary",
                                             children: t("da_chart_axis_count")
                                         }),
-                                        jsx(Input, {
+                                        renderLocalInput( {
                                             id: "analysis-axis-y-tick-count",
                                             value: axis.yTicks === "nice" ? axis.yTickCount : "",
                                             onChange: (nextValue: string) => setAxis((prev: any) => ({ ...prev, yTickCount: nextValue })),
@@ -647,7 +780,7 @@ export default function AxisSettingsPane({ axis, effectiveYScale, plotYUnitLabel
                                             className: "text-xs text-text-secondary",
                                             children: t("da_chart_axis_decade_step")
                                         }),
-                                        jsx(Input, {
+                                        renderLocalInput( {
                                             id: "analysis-axis-y-decade-step",
                                             value: axis.yTicks === "decades" ? axis.yDecadeStep : "",
                                             onChange: (nextValue: string) => setAxis((prev: any) => ({ ...prev, yDecadeStep: nextValue })),
@@ -673,4 +806,8 @@ export default function AxisSettingsPane({ axis, effectiveYScale, plotYUnitLabel
         ]
     }));
 }
+
+
+
+
 

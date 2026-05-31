@@ -20,12 +20,6 @@ import "src/cs/workbench/services/origin/browser/originService";
 
 //#endregion
 
-//#region --- base browser styles
-
-import "src/cs/base/browser/browser.main";
-
-//#endregion
-
 //#region --- workbench browser
 
 import "src/cs/workbench/browser/style";

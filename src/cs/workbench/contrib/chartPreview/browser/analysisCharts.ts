@@ -1,22 +1,22 @@
-import { jsx, jsxs, Fragment } from "react/jsx-runtime";
-import React, { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, } from "react";
+﻿import { jsx, jsxs, Fragment } from "react/jsx-runtime";
+import React, { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type ChangeEvent, type HTMLAttributes, type InputHTMLAttributes, type ReactNode, type Ref, } from "react";
 import { createPortal } from "react-dom";
 import { lxClose } from "cogicon";
 import { computeCentralDerivative, computeSubthresholdSwing, computeSubthresholdSwingFitAuto, computeSubthresholdSwingFitInRange, classifySsFit, interpolateCurveAtX, resolveAutoSsSelection, splitBidirectionalCurvePoints, } from "../../diagnostics/common/analysisMath";
 import { formatNumber } from "../../diagnostics/common/numberFormat";
 import { computeVthSqrtFits, createVthSqrtPoints, type VthFitResult } from "../../diagnostics/common/vth";
 import { apiService } from "src/cs/workbench/contrib/desktop/browser/apiService";
-import DropdownField from "cs/base/browser/ui/dropdownField/dropdownField";
-import Input from "cs/base/browser/ui/input/input";
-import Button from "cs/base/browser/ui/button/button";
-import Card from "cs/base/browser/ui/card/card";
-import Checkbox from "cs/base/browser/ui/checkbox/checkbox";
-import InlineEditableText from "cs/base/browser/ui/inlineEditableText/inlineEditableText";
-import ScrollArea from "cs/base/browser/ui/scrollArea/scrollArea";
-import Tabs from "cs/base/browser/ui/tabs/tabs";
+import DropdownField from "src/cs/workbench/browser/components/DropdownField";
+import { getInputDataAttributes, getInputFieldClassName, getInputFieldState, getInputNativeClassName, getInputWrapperClassName, mergeSpaceSeparatedIds, slugifyInputId, type InputSize, type LabelPlacement } from "cs/base/browser/ui/input/input";
+import { getButtonClassName, getButtonContentClassName, getButtonDataAttributes, type ButtonSize, type ButtonVariant, } from "cs/base/browser/ui/button/button";
+import { getCardClassName, getCardDataAttributes, type CardVariant } from "cs/base/browser/ui/card/card";
+import { getCheckboxAriaAttributes, getCheckboxClassName, getCheckboxIconMarkup, type CheckboxSize } from "cs/base/browser/ui/checkbox/checkbox";
+import InlineEditableTextWidget, { type InlineEditableTextWidgetOptions } from "cs/base/browser/ui/inlineEditableText/inlineEditableTextWidget";
+import ScrollArea from "src/cs/workbench/browser/components/ScrollArea";
+import { getTabDataAttributes, getTabsDevTestId, getTabsInstanceId, getTabsMenuClassName, getTabsButtonClassName, getTabsUiMarker, normalizeTabsOptions, type KeyboardActivation, type NormalizedTabOption, type PanelIdMode, type TabOptionBase, type TabSize, type TabValue } from "cs/base/browser/ui/tabs/tabs";
 import Toast from "cs/base/browser/ui/toast/toast";
-import SplitView from "src/cs/base/browser/ui/splitview/splitview";
-import CogIcon from "src/cs/base/browser/ui/cogIcon/cogIcon";
+import SplitView from "src/cs/workbench/browser/components/SplitView";
+import { getCogIconClassName, getCogIconMarkup, getCogIconStyle, type CogIconRenderer, type CogIconStyle } from "src/cs/base/browser/ui/cogIcon/cogIcon";
 import { lxSlidersHorizontal } from "src/cs/base/browser/ui/cogIcon/icons";
 import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
 import { getChartColor, resolveSeriesChartColor } from "src/cs/workbench/contrib/chart/browser/chartColors";
@@ -33,6 +33,184 @@ import { useWorkbenchSidebarPortal, } from "src/cs/workbench/browser/layout";
 import OverviewGrid from "src/cs/workbench/contrib/preview/browser/OverviewGrid";
 import { createRcCurveChart, getRcStatusText, } from "src/cs/workbench/contrib/parameters/browser/rcAnalysisModel";
 import { BrowserParametersService } from "src/cs/workbench/contrib/parameters/browser/parametersService";
+type LocalCogIconProps = {
+    className?: string;
+    icon: CogIconRenderer;
+    size?: number | string;
+    style?: CogIconStyle;
+    [key: string]: unknown;
+};
+const renderLocalCogIcon = ({ className, icon, size = 16, style, ...props }: LocalCogIconProps) => jsx("span", {
+    ...props,
+    className: getCogIconClassName(className),
+    style: getCogIconStyle({ size, style }),
+    dangerouslySetInnerHTML: {
+        __html: getCogIconMarkup(icon)
+    }
+});
+type LocalTabOption = TabOptionBase & {
+    ariaLabel?: string;
+    icon?: (props: { size?: number }) => ReactNode;
+    label: ReactNode;
+};
+type LocalTabsProps = Omit<HTMLAttributes<HTMLDivElement>, "onChange"> & {
+    className?: string;
+    controlsPanels?: boolean;
+    dataUi?: string;
+    groupLabel?: string;
+    hoverPreview?: boolean;
+    idBase?: string;
+    itemClassName?: string;
+    keyboardActivation?: KeyboardActivation;
+    onChange?: (nextValue: TabValue) => void;
+    options?: LocalTabOption[];
+    panelIdBase?: string;
+    panelIdMode?: PanelIdMode;
+    size?: TabSize;
+    testId?: string;
+    value?: TabValue;
+};
+const Tabs = ({ className = "", controlsPanels = false, dataUi, groupLabel, hoverPreview = true, idBase, itemClassName = "", keyboardActivation = "auto", onChange, options = [], panelIdBase, panelIdMode = "scoped", size = "md", testId, value, ...restProps }: LocalTabsProps) => {
+    const reactId = React.useId();
+    const buttonRefs = useRef<Array<HTMLButtonElement | null>>([]);
+    const [hoveredValue, setHoveredValue] = useState<TabValue | null>(null);
+    const safeOptions = useMemo(() => (Array.isArray(options) ? options : []), [options]);
+    const instanceId = getTabsInstanceId(idBase, reactId);
+    const uiMarker = getTabsUiMarker(dataUi);
+    const normalizedOptions = useMemo<NormalizedTabOption<LocalTabOption>[]>(() => normalizeTabsOptions({
+        idBase,
+        instanceId,
+        options: safeOptions,
+        panelIdBase,
+        panelIdMode,
+        shouldLinkPanels: controlsPanels,
+    }), [controlsPanels, idBase, instanceId, panelIdBase, panelIdMode, safeOptions]);
+    const selectedIndex = useMemo(() => normalizedOptions.findIndex((option) => option.value === value), [normalizedOptions, value]);
+    const firstEnabledIndex = useMemo(() => normalizedOptions.findIndex((option) => !option.__disabled), [normalizedOptions]);
+    const focusIndex = selectedIndex >= 0 && !normalizedOptions[selectedIndex]?.__disabled ? selectedIndex : firstEnabledIndex;
+    const focusAtIndex = (index: number) => buttonRefs.current[index]?.focus();
+    const findNextEnabledIndex = (fromIndex: number, direction: -1 | 1): number => {
+        const length = normalizedOptions.length;
+        if (length <= 0)
+            return -1;
+        for (let index = 0; index < length; index++) {
+            const nextIndex = (fromIndex + direction * (index + 1) + length) % length;
+            if (!normalizedOptions[nextIndex]?.__disabled)
+                return nextIndex;
+        }
+        return -1;
+    };
+    const activateAtIndex = (index: number) => {
+        const option = normalizedOptions[index];
+        if (!option || option.__disabled || option.value === undefined)
+            return;
+        onChange?.(option.value);
+        setHoveredValue(null);
+    };
+    const moveSelection = (index: number, direction: -1 | 1) => {
+        const nextIndex = findNextEnabledIndex(index, direction);
+        if (nextIndex < 0)
+            return;
+        focusAtIndex(nextIndex);
+        if (keyboardActivation !== "manual")
+            activateAtIndex(nextIndex);
+    };
+    if (normalizedOptions.length === 0)
+        return null;
+    return jsx("div", {
+        role: "tablist",
+        "aria-label": groupLabel,
+        "data-tabs": "menu",
+        "data-ui": uiMarker,
+        "data-testid": getTabsDevTestId(testId),
+        className: getTabsMenuClassName(className),
+        ...restProps,
+        children: normalizedOptions.map((option, index) => {
+            const Icon = option.icon;
+            const isSelected = value === option.value;
+            const visualValue = hoverPreview && hoveredValue !== null ? hoveredValue : value;
+            const isVisuallyActive = option.value !== undefined && visualValue === option.value;
+            const isDisabled = option.__disabled;
+            return jsx("button", {
+                ...getTabDataAttributes(option),
+                type: "button",
+                role: "tab",
+                id: option.__tabId,
+                "aria-label": option.ariaLabel,
+                title: option.title,
+                "aria-selected": isSelected,
+                "aria-controls": option.__panelId,
+                tabIndex: index === focusIndex ? 0 : -1,
+                disabled: isDisabled,
+                "data-icon": Icon ? "with" : "without",
+                "data-tabs": "tab",
+                "data-ui": uiMarker ? `${uiMarker}-tab-${option.__token}` : undefined,
+                "data-testid": getTabsDevTestId(option.testId),
+                className: getTabsButtonClassName({ className: itemClassName, isActive: isVisuallyActive, size }),
+                ref: (element: HTMLButtonElement | null) => {
+                    buttonRefs.current[index] = element;
+                },
+                onClick: () => activateAtIndex(index),
+                onMouseEnter: () => {
+                    if (!isDisabled && hoverPreview)
+                        setHoveredValue(option.value ?? null);
+                },
+                onMouseLeave: () => {
+                    if (hoverPreview)
+                        setHoveredValue(null);
+                },
+                onKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => {
+                    if (event.key === "ArrowLeft") {
+                        event.preventDefault();
+                        moveSelection(index, -1);
+                    }
+                    else if (event.key === "ArrowRight") {
+                        event.preventDefault();
+                        moveSelection(index, 1);
+                    }
+                    else if (event.key === "Home") {
+                        event.preventDefault();
+                        const nextIndex = firstEnabledIndex;
+                        if (nextIndex >= 0) {
+                            focusAtIndex(nextIndex);
+                            if (keyboardActivation !== "manual")
+                                activateAtIndex(nextIndex);
+                        }
+                    }
+                    else if (event.key === "End") {
+                        event.preventDefault();
+                        let nextIndex = -1;
+                        for (let candidateIndex = normalizedOptions.length - 1; candidateIndex >= 0; candidateIndex--) {
+                            if (!normalizedOptions[candidateIndex]?.__disabled) {
+                                nextIndex = candidateIndex;
+                                break;
+                            }
+                        }
+                        if (nextIndex >= 0) {
+                            focusAtIndex(nextIndex);
+                            if (keyboardActivation !== "manual")
+                                activateAtIndex(nextIndex);
+                        }
+                    }
+                    else if (keyboardActivation === "manual" && (event.key === "Enter" || event.key === " ")) {
+                        event.preventDefault();
+                        activateAtIndex(index);
+                    }
+                },
+                children: [
+                    Icon ? jsx("span", {
+                        className: "tab_btn_icon",
+                        children: jsx(Icon, { size: 16 })
+                    }, "icon") : null,
+                    jsx("span", {
+                        className: "tab_btn_text",
+                        children: option.label
+                    }, "label")
+                ]
+            }, option.__key);
+        })
+    });
+};
 import { SIGNED_LOG_Y_DATA_KEY, buildLogTicks, buildNiceTicks, buildOriginAutoTicks, buildOriginLogAutoTicks, buildPoints, buildStepTicks, computeLabelInterval, computeMinMax, downsamplePointsForDisplay, inferTickDigitsFromTicks, normalizeFloat, normalizeVarToken, padLinearDomain, padLogDomain, parseOptionalNumber, preserveScrollPosition, varTokenToSymbol, } from "src/cs/workbench/contrib/chart/browser/chartViewModel";
 import { getDisplayPlotSeries, getPlotLegendSeries, getRenderMaxPointsPerSeries, getRenderPointBudget, } from "src/cs/workbench/contrib/chart/browser/chartView";
 import { createChartAxisTitleChangeEvent } from "src/cs/workbench/contrib/chart/browser/chartViewPane";
@@ -54,6 +232,121 @@ import CanvasDiagnosticsChart from "src/cs/workbench/contrib/diagnostics/browser
 import OriginExportToolbar, { type OriginCurveExportSeriesOption, type OriginExportContentOption, } from "src/cs/workbench/contrib/export/browser/OriginExportToolbar";
 import { renderRcAnalysisToolbar } from "src/cs/workbench/contrib/parameters/browser/rcAnalysisToolbar";
 import { ParametersViewPane } from "src/cs/workbench/contrib/parameters/browser/parametersViewPane";
+type LocalButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> & {
+    children?: ReactNode;
+    contentClassName?: string;
+    cta?: string;
+    ctaCopy?: string;
+    ctaPosition?: string;
+    dataIcon?: string;
+    fullWidth?: boolean;
+    fx?: boolean;
+    size?: ButtonSize;
+    testId?: string;
+    variant?: ButtonVariant;
+};
+const renderLocalButton = ({ children, className = "", contentClassName = "", cta, ctaCopy, ctaPosition, dataIcon, disabled = false, fullWidth = false, fx = false, size = "md", testId, type = "button", variant = "primary", ...props }: LocalButtonProps) => jsx("button", {
+    ...props,
+    ...getButtonDataAttributes({ cta, ctaCopy, ctaPosition, dataIcon, fx, testId }),
+    type,
+    disabled,
+    className: getButtonClassName({ className, disabled, fullWidth, size, variant }),
+    children: jsx("span", {
+        className: getButtonContentClassName(contentClassName),
+        children
+    })
+});
+type LocalCardProps = Omit<HTMLAttributes<HTMLElement>, "children"> & {
+    children?: ReactNode;
+    cta?: string;
+    ctaCopy?: string;
+    ctaPosition?: string;
+    variant?: CardVariant;
+};
+const renderLocalCard = ({ children, className = "", cta, ctaCopy, ctaPosition, variant = "default", ...props }: LocalCardProps) => jsx("div", {
+    ...props,
+    ...getCardDataAttributes({ cta, ctaCopy, ctaPosition }),
+    className: getCardClassName({ className, variant }),
+    children
+});
+const renderLocalCheckbox = ({
+    as = "span",
+    checked = false,
+    className = "",
+    decorative = true,
+    iconSize,
+    size = "sm",
+}: {
+    readonly as?: "span" | "div";
+    readonly checked?: boolean;
+    readonly className?: string;
+    readonly decorative?: boolean;
+    readonly iconSize?: number;
+    readonly size?: CheckboxSize;
+}) => jsx(as, {
+    ...getCheckboxAriaAttributes({ checked, decorative }),
+    className: getCheckboxClassName({ checked, className, size }),
+    dangerouslySetInnerHTML: {
+        __html: getCheckboxIconMarkup({ checked, iconSize, size }),
+    },
+});
+type LocalInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "size" | "value" | "onChange"> & {
+    allowAutoComplete?: boolean;
+    error?: ReactNode;
+    fieldClassName?: string;
+    hideSpinner?: boolean;
+    hint?: ReactNode;
+    idBase?: string;
+    inputClassName?: string;
+    label?: ReactNode;
+    labelPlacement?: LabelPlacement;
+    onChange?: (nextValue: string) => void;
+    ref?: Ref<HTMLInputElement>;
+    rightSlot?: ReactNode;
+    size?: InputSize;
+    value?: string | number;
+};
+const renderLocalInput = ({ allowAutoComplete = false, autoComplete, className = "", disabled = false, error, fieldClassName = "", hideSpinner = false, hint, id, idBase, inputClassName = "", label, labelPlacement = "stack", onChange, ref, rightSlot, size = "md", value, ...props }: LocalInputProps) => {
+    const inputId = id ?? (idBase ? slugifyInputId(idBase) : undefined);
+    const errorId = inputId ? `${inputId}-error` : undefined;
+    const hintId = inputId ? `${inputId}-hint` : undefined;
+    const describedBy = mergeSpaceSeparatedIds(props["aria-describedby"], error ? errorId : hint ? hintId : undefined);
+    const labelNode = label ? jsx("label", {
+        htmlFor: inputId,
+        className: "input_label",
+        children: label
+    }) : null;
+    const fieldNode = jsx("div", {
+        className: getInputFieldClassName({ fieldClassName, size }),
+        "data-icon": "without",
+        "data-state": getInputFieldState({ disabled, error: Boolean(error) }),
+        ...getInputDataAttributes({}),
+        children: [
+            jsx("input", {
+                ...props,
+                ref,
+                id: inputId,
+                value: value ?? "",
+                onChange: (event: ChangeEvent<HTMLInputElement>) => onChange?.(event.currentTarget.value),
+                disabled,
+                "aria-invalid": Boolean(error),
+                "aria-describedby": describedBy,
+                autoComplete: allowAutoComplete ? autoComplete : "off",
+                className: getInputNativeClassName({ hideSpinner, inputClassName })
+            }),
+            rightSlot ? jsx("div", { className: "input_right", children: rightSlot }) : null
+        ]
+    });
+    return jsx("div", {
+        className: getInputWrapperClassName(className),
+        "data-style": "input",
+        children: [
+            label && labelPlacement === "inline" ? jsx("div", { className: "flex items-center gap-2", children: [labelNode, fieldNode] }) : [labelNode, fieldNode],
+            error ? jsx("div", { id: errorId, className: "input_error", children: error }) : null,
+            !error && hint ? jsx("div", { id: hintId, className: "input_hint", children: hint }) : null
+        ]
+    });
+};
 type SsRange = {
     x1: number;
     x2: number;
@@ -167,7 +460,7 @@ const OriginCurveSelectionSeriesChip = React.memo(function OriginCurveSelectionS
             ? "cursor-pointer"
             : "cursor-default"}`,
         children: [
-            jsx(Checkbox, {
+            renderLocalCheckbox( {
                 checked: series.selected,
                 size: "sm",
                 className: "shrink-0"
@@ -290,14 +583,14 @@ const OriginCurveSelectionEntryRow = React.memo(function OriginCurveSelectionEnt
                             ]
                         })
                     }),
-                    showRemoveButton ? (jsx(Button, {
+                    showRemoveButton ? (renderLocalButton( {
                         variant: "icon",
                         size: "icon",
                         className: "shrink-0 rounded-full text-text-tertiary hover:text-text-primary",
                         onClick: handleRemove,
                         title: exportEntryActionLabel,
                         "aria-label": exportEntryActionLabel,
-                        children: jsx(CogIcon, {
+                        children: renderLocalCogIcon({
                             icon: lxClose,
                             size: 14
                         })
@@ -314,7 +607,7 @@ const OriginCurveSelectionEntryRow = React.memo(function OriginCurveSelectionEnt
                             onClick: handleToggleAllSeries,
                             className: "inline-flex min-w-0 items-center gap-1.5 rounded-md border border-border bg-bg-surface px-2 py-1 text-[11px] leading-none text-text-secondary hover:text-text-primary",
                             children: [
-                                jsx(Checkbox, {
+                                renderLocalCheckbox( {
                                     checked: entry.allSeriesSelected,
                                     size: "sm"
                                 }),
@@ -393,6 +686,74 @@ type EditableLegendItemProps = {
     draftValue: string;
     inputRef?: React.RefObject<HTMLInputElement | null>;
 };
+type LocalInlineEditableTextProps = {
+    className?: string;
+    displayClassName?: string;
+    inputClassName?: string;
+    draftValue: string;
+    editing: boolean;
+    inputRef?: React.RefObject<HTMLInputElement | null>;
+    onBeginEdit: () => void;
+    onCancelEdit: () => void;
+    onCommitEdit: () => void;
+    onDraftChange: (nextValue: string) => void;
+    style?: InlineEditableTextWidgetOptions["style"];
+    title?: string;
+    value: string;
+};
+const renderLocalInlineEditableText = ({ className, displayClassName = "", draftValue, editing, inputClassName = "", inputRef, onCancelEdit, onCommitEdit, onBeginEdit, onDraftChange, style, title, value, }: LocalInlineEditableTextProps) => {
+    const hostRef = useRef<HTMLDivElement | null>(null);
+    const widgetRef = useRef<InlineEditableTextWidget | null>(null);
+    useEffect(() => {
+        const host = hostRef.current;
+        if (!host)
+            return;
+        widgetRef.current = new InlineEditableTextWidget({
+            className,
+            displayClassName,
+            draftValue,
+            editing,
+            inputClassName,
+            onCancel: onCancelEdit,
+            onChange: onDraftChange,
+            onCommit: onCommitEdit,
+            onStartEdit: onBeginEdit,
+            style,
+            title,
+            value,
+        });
+        host.replaceChildren(widgetRef.current.element);
+        if (inputRef) {
+            inputRef.current = widgetRef.current.inputElement;
+        }
+        return () => {
+            if (inputRef) {
+                inputRef.current = null;
+            }
+            widgetRef.current?.dispose();
+            widgetRef.current = null;
+        };
+    }, []);
+    useEffect(() => {
+        widgetRef.current?.update({
+            className,
+            displayClassName,
+            draftValue,
+            editing,
+            inputClassName,
+            onCancel: onCancelEdit,
+            onChange: onDraftChange,
+            onCommit: onCommitEdit,
+            onStartEdit: onBeginEdit,
+            style,
+            title,
+            value,
+        });
+    }, [className, displayClassName, draftValue, editing, inputClassName, onBeginEdit, onCancelEdit, onCommitEdit, onDraftChange, style, title, value]);
+    return jsx("div", {
+        ref: hostRef
+    });
+};
 const EditableLegendItem = ({ checked, color, editHint, disabled, isEditing, label, fontSize, onBeginEdit, onCancelEdit, onCommitEdit, onDraftChange, onToggleVisible, draftValue, inputRef, }: EditableLegendItemProps) => (jsx("li", {
     className: "min-w-0 w-full overflow-hidden",
     children: jsxs("div", {
@@ -406,7 +767,7 @@ const EditableLegendItem = ({ checked, color, editHint, disabled, isEditing, lab
                 disabled: disabled,
                 onClick: onToggleVisible,
                 className: `shrink-0 ${disabled ? "cursor-default" : "cursor-pointer"}`,
-                children: jsx(Checkbox, {
+                children: renderLocalCheckbox( {
                     checked: checked
                 })
             }),
@@ -414,20 +775,20 @@ const EditableLegendItem = ({ checked, color, editHint, disabled, isEditing, lab
                 className: "inline-block h-2.5 w-2.5 rounded-sm shrink-0",
                 style: { backgroundColor: color }
             }),
-            jsx(InlineEditableText, {
+            renderLocalInlineEditableText({
                 editing: isEditing,
                 draftValue: draftValue,
                 inputRef: inputRef,
-                onChange: onDraftChange,
-                onCommit: onCommitEdit,
-                onCancel: onCancelEdit,
-                onStartEdit: onBeginEdit,
+                onDraftChange: onDraftChange,
+                onCommitEdit: onCommitEdit,
+                onCancelEdit: onCancelEdit,
+                onBeginEdit: onBeginEdit,
                 title: `${label}\n${editHint}`,
                 value: label,
                 className: "min-w-0 max-w-full overflow-hidden",
                 displayClassName: "!text-text-primary",
                 inputClassName: "!w-full !text-text-primary",
-                style: { fontFamily: "Arial, sans-serif", fontSize }
+                style: { fontFamily: "Arial, sans-serif", fontSize: `${fontSize}px` }
             })
         ]
     })
@@ -4104,7 +4465,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                             children: jsx("section", {
                                 className: "flex min-w-0 flex-col",
                                 "aria-label": t("da_analysis_chart_aria_label"),
-                                children: jsxs(Card, {
+                                children: renderLocalCard( {
                                     variant: "panel",
                                     className: "flex min-w-0 flex-col",
                                     children: [
@@ -4237,7 +4598,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                                                             }),
                                                             effectivePlotType === "gm" ? (jsx("div", {
                                                                 className: "flex items-center gap-1",
-                                                                children: jsx(Button, {
+                                                                children: renderLocalButton( {
                                                                     variant: gmDiagnosticsEnabled ? "secondary" : "text",
                                                                     size: "sm",
                                                                     onClick: () => {
@@ -4285,7 +4646,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                                                                             })
                                                                         ]
                                                                     }),
-                                                                    jsx(Button, {
+                                                                    renderLocalButton( {
                                                                         variant: ssShowFitLine ? "secondary" : "text",
                                                                         size: "sm",
                                                                         onClick: () => {
@@ -4299,7 +4660,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                                                                         title: t("da_chart_fit_line_toggle_title"),
                                                                         children: t("da_chart_fit_line")
                                                                     }),
-                                                                    jsx(Button, {
+                                                                    renderLocalButton( {
                                                                         variant: ssDiagnosticsEnabled ? "secondary" : "text",
                                                                         size: "sm",
                                                                         onClick: () => {
@@ -4319,7 +4680,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                                                             })) : null,
                                                             effectivePlotType === "vth" ? (jsx("div", {
                                                                 className: "flex items-center gap-1",
-                                                                children: jsx(Button, {
+                                                                children: renderLocalButton( {
                                                                     variant: vthDiagnosticsEnabled ? "secondary" : "text",
                                                                     size: "sm",
                                                                     onClick: () => {
@@ -4377,7 +4738,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                                                                 "data-cta-position": "file-select",
                                                                 "data-cta-copy": "file select"
                                                             })) : null,
-                                                            jsxs(Button, {
+                                                            renderLocalButton( {
                                                                 id: "analysis-plot-settings-toggle-btn",
                                                                 variant: "secondary",
                                                                 size: "sm",
@@ -4385,7 +4746,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                                                                 title: t("da_chart_plot_settings_title"),
                                                                 "aria-pressed": showPlotSettingsPane,
                                                                 children: [
-                                                                    jsx(CogIcon, {
+                                                                    renderLocalCogIcon({
                                                                         icon: lxSlidersHorizontal,
                                                                         size: 14
                                                                     }),
@@ -4723,7 +5084,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                             viewportClassName: "pr-1",
                             children: jsx("section", {
                                 className: "flex min-w-0 flex-col",
-                                children: activeFile?.series?.length ? (jsxs(Card, {
+                                children: activeFile?.series?.length ? (renderLocalCard( {
                                     id: "analysis-calculated-parameters-card",
                                     variant: "panel",
                                     className: "flex min-w-0 flex-col flex-1",
@@ -4796,7 +5157,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                                                                 jsxs("div", {
                                                                     className: "flex min-w-0 flex-wrap items-center gap-2",
                                                                     children: [
-                                                                        jsx(Input, {
+                                                                        renderLocalInput( {
                                                                             label: "L",
                                                                             labelPlacement: "inline",
                                                                             value: length,
@@ -4807,7 +5168,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                                                                             fieldClassName: "w-28",
                                                                             inputClassName: "text-xs"
                                                                         }),
-                                                                        jsx(Input, {
+                                                                        renderLocalInput( {
                                                                             label: "W",
                                                                             labelPlacement: "inline",
                                                                             value: width,
@@ -4908,3 +5269,12 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     }));
 };
 export default React.memo(AnalysisCharts);
+
+
+
+
+
+
+
+
+

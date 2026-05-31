@@ -1,31 +1,4 @@
-import { jsx } from "react/jsx-runtime";
-import type { CSSProperties, ComponentType } from "react";
-import CogIcon, { type CogIconRenderer } from "src/cs/base/browser/ui/cogIcon/cogIcon";
-
-type CogIconComponentProps = {
-  className?: string;
-  size?: number;
-  style?: CSSProperties;
-};
-
-export const createCogIconComponent = (
-  icon: CogIconRenderer,
-  defaultSize = 16,
-): ComponentType<CogIconComponentProps> => {
-  const IconComponent = ({
-    className,
-    size = defaultSize,
-    style,
-  }: CogIconComponentProps) =>
-    jsx(CogIcon, {
-      icon,
-      size,
-      className,
-      style,
-    });
-
-  return IconComponent;
-};
+import type { CogIconRenderer } from "src/cs/base/browser/ui/cogIcon/cogIconMarkup";
 
 export const lxAlertCircle: CogIconRenderer = () =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" stroke="#000"/><path stroke="#000" stroke-linecap="round" d="M8 4.75v3.5"/><circle cx="8" cy="11.25" r=".75" fill="#000"/></svg>`;
