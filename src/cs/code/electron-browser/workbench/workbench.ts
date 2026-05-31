@@ -1,7 +1,9 @@
-import {
-  installSplashContribution,
-  removeSplashContribution,
-} from "../../../workbench/contrib/splash/electron-sandbox/splash.contribution";
+import "../../../workbench/contrib/splash/electron-sandbox/splash.contribution";
+import { InstantiationService } from "src/cs/platform/instantiation/common/instantiationService";
+import { ServiceCollection } from "src/cs/platform/instantiation/common/serviceCollection";
+import { Registry } from "src/cs/platform/registry/common/platform";
+import { Extensions, type IWorkbenchContributionsRegistry } from "src/cs/workbench/common/contributions";
+import { ILifecycleService, LifecyclePhase, LifecycleService } from "src/cs/workbench/services/lifecycle/common/lifecycle";
 import type { LanguageCode } from "src/cs/platform/language/common/language";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 
@@ -52,8 +54,15 @@ const logBoot = (stage: string, extra = "") => {
   console.info(`[boot][renderer] +${elapsedMs}ms ${stage}${suffix}`);
 };
 
-// This entry runs before the React workbench so the first paint has stable shell colors/layout.
-installSplashContribution();
+const lifecycleService = new LifecycleService();
+const serviceCollection = new ServiceCollection([ILifecycleService, lifecycleService]);
+const instantiationService = new InstantiationService(serviceCollection);
+
+const contributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
+instantiationService.invokeFunction(accessor => contributionsRegistry.start(accessor));
+lifecycleService.setPhase(LifecyclePhase.Ready);
+window.setTimeout(() => lifecycleService.setPhase(LifecyclePhase.Restored), 0);
+window.setTimeout(() => lifecycleService.setPhase(LifecyclePhase.Eventually), 3000);
 
 const isLanguageCode = (value: unknown): value is LanguageCode =>
   value === "en" || value === "zh";
@@ -159,7 +168,7 @@ const logTopResources = () => {
 
 // Main process keeps the window hidden during boot; this callback releases that gate.
 const markBootUiReady = (source = "unknown") => {
-  removeSplashContribution();
+  lifecycleService.shutdown();
   logBoot("boot-ui:ready", `(source=${source})`);
   logNavigationTiming();
   logTopResources();

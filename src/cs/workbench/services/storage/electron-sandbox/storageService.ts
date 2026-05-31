@@ -1,3 +1,5 @@
+import { desktopIpcChannels } from "src/cs/workbench/services/desktop/common/desktopIpcChannels";
+
 const REQUIRED_ANALYSIS_STORE_METHODS = [
   "getAnalysisTemplates",
   "createAnalysisTemplate",
@@ -24,20 +26,19 @@ type AnalysisStoreMethod = (typeof REQUIRED_ANALYSIS_STORE_METHODS)[number];
 type LegacyAnalysisStoreMethod =
   (typeof LEGACY_ANALYSIS_STORE_METHODS)[number];
 
-export type AnalysisDesktopStore = {
-  [K in AnalysisStoreMethod | LegacyAnalysisStoreMethod]?: (
-    ...args: unknown[]
-  ) => unknown;
-};
-
-export type DesktopStore = AnalysisDesktopStore;
-
 type JsonRecord = Record<string, unknown>;
 type PersistencePathInfo = JsonRecord & { isConfigurable?: boolean };
+export type AnalysisDesktopStore = {
+  invoke(channel: string, ...args: unknown[]): Promise<unknown>;
+};
+export type DesktopStore = AnalysisDesktopStore;
 
 declare global {
   interface Window {
-    desktopStore?: AnalysisDesktopStore;
+    conductor?: {
+      ipcRenderer?: unknown;
+      webUtils?: unknown;
+    };
   }
 }
 
@@ -68,29 +69,56 @@ const parseJsonBody = (body: unknown): JsonRecord | null => {
 export const getDesktopStore = (): AnalysisDesktopStore | null => {
   if (typeof window === "undefined") return null;
 
-  const store = window.desktopStore;
-  if (!store || typeof store !== "object") return null;
+  const ipcRenderer = window.conductor?.ipcRenderer as AnalysisDesktopStore | undefined;
+  if (!ipcRenderer || typeof ipcRenderer.invoke !== "function") return null;
 
-  return store;
+  return ipcRenderer;
 };
 
 export const getDesktopStoreMethod = (
-  store: AnalysisDesktopStore,
+  ipcRenderer: AnalysisDesktopStore,
   method: AnalysisStoreMethod,
   legacyMethod?: LegacyAnalysisStoreMethod,
 ): ((...args: unknown[]) => unknown) => {
-  const fn = store?.[method];
-  if (typeof fn === "function") {
-    return fn;
-  }
+  const channel = resolveStoreChannel(method, legacyMethod);
+  return (...args: unknown[]) => {
+    if (channel.wrapPath) {
+      return ipcRenderer.invoke(channel.name, { path: args[0] });
+    }
 
-  const legacyFn = legacyMethod ? store?.[legacyMethod] : null;
-  if (typeof legacyFn === "function") {
-    return legacyFn;
-  }
-
-  throw new Error(DESKTOP_STORE_UNAVAILABLE);
+    return ipcRenderer.invoke(channel.name, ...args);
+  };
 };
+
+function resolveStoreChannel(
+  method: AnalysisStoreMethod,
+  legacyMethod?: LegacyAnalysisStoreMethod,
+): { name: string; wrapPath?: boolean } {
+  switch (method) {
+    case "getAnalysisTemplates":
+      return { name: desktopIpcChannels.templatesGet };
+    case "createAnalysisTemplate":
+      return { name: desktopIpcChannels.templatesCreate };
+    case "deleteAnalysisTemplate":
+      return { name: desktopIpcChannels.templatesDelete };
+    case "getAnalysisSettings":
+      return { name: desktopIpcChannels.settingsGet };
+    case "updateAnalysisSettings":
+      return { name: desktopIpcChannels.settingsPatch };
+    case "getAnalysisPersistencePath":
+      return { name: desktopIpcChannels.persistencePathGet };
+    case "updateAnalysisPersistencePath":
+      return { name: desktopIpcChannels.persistencePathSet, wrapPath: true };
+    case "chooseAnalysisPersistencePath":
+      return { name: desktopIpcChannels.persistencePathChoose };
+  }
+
+  throw new Error(
+    legacyMethod
+      ? `${DESKTOP_STORE_UNAVAILABLE} (${method}/${legacyMethod})`
+      : `${DESKTOP_STORE_UNAVAILABLE} (${method})`,
+  );
+}
 
 const normalizePersistencePathInfo = (info: unknown): PersistencePathInfo => ({
   ...(info || {}),

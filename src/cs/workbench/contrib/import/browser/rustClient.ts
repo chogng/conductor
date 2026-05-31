@@ -61,7 +61,6 @@ type DesktopImportBridge = {
   getDeviceAnalysisPreviewMetaWithRust?: (payload: {
     fileId: string;
   }) => Promise<unknown>;
-  getFilePath?: (file: File) => string;
   openDeviceAnalysisFileWithRust?: (payload: {
     fileId: string;
     fileName: string;
@@ -84,9 +83,17 @@ type DesktopImportBridge = {
   }) => Promise<unknown>;
 };
 
+type ConductorWebUtilsBridge = {
+  getPathForFile?: (file: File) => string;
+};
+
 declare global {
   interface Window {
     desktopImport?: DesktopImportBridge;
+    conductor?: {
+      ipcRenderer?: unknown;
+      webUtils?: unknown;
+    };
   }
 }
 
@@ -140,11 +147,12 @@ export const prepareImportFileInWorker = async (
   file: File,
 ): Promise<ImportWorkerPreparedFile> => {
   const bridge = globalThis.window?.desktopImport;
-  if (!bridge?.getFilePath || !bridge?.prepareImportFileWithRust) {
+  if (!bridge?.prepareImportFileWithRust) {
     throw new Error("Rust import preparation is not available.");
   }
 
-  const filePath = bridge.getFilePath(file);
+  const webUtils = globalThis.window?.conductor?.webUtils as ConductorWebUtilsBridge | undefined;
+  const filePath = webUtils?.getPathForFile?.(file) ?? "";
   if (!filePath) {
     throw new Error(`Unable to resolve file path for ${file.name}.`);
   }
