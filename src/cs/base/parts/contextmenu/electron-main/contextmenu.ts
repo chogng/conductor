@@ -1,7 +1,7 @@
 import { Menu, MenuItem, type IpcMainEvent } from "electron";
 
-import { CONTEXT_MENU_CHANNEL, CONTEXT_MENU_CLOSE_CHANNEL, type IPopupOptions, type ISerializableContextMenuItem } from "src/cs/base/parts/contextmenu/common/contextmenu";
-import { validatedIpcMain } from "src/cs/base/parts/ipc/electron-main/ipcMain";
+import { CONTEXT_MENU_CHANNEL, CONTEXT_MENU_CLOSE_CHANNEL, type IPopupOptions, type ISerializableContextMenuItem } from "../common/contextmenu.js";
+import { validatedIpcMain } from "../../ipc/electron-main/ipcMain.js";
 
 export function registerContextMenuListener(): void {
     validatedIpcMain.on(CONTEXT_MENU_CHANNEL, (event: IpcMainEvent, contextMenuId: unknown, items: unknown, onClickChannel: unknown, options?: unknown) => {

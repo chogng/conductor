@@ -16,15 +16,18 @@ export function popup(items: IContextMenuItem[], options?: IPopupOptions, onHide
         processedItems[itemId]?.click?.(context as IContextMenuEvent);
     };
 
-    ipcRenderer.once(onClickChannel, onClickChannelHandler);
-    ipcRenderer.once(CONTEXT_MENU_CLOSE_CHANNEL, (_event: unknown, closedContextMenuId: unknown) => {
+    const onCloseChannelHandler = (_event: unknown, closedContextMenuId: unknown) => {
         if (closedContextMenuId !== contextMenuId) {
             return;
         }
 
+        ipcRenderer.removeListener(CONTEXT_MENU_CLOSE_CHANNEL, onCloseChannelHandler);
         ipcRenderer.removeListener(onClickChannel, onClickChannelHandler);
         onHide?.();
-    });
+    };
+
+    ipcRenderer.once(onClickChannel, onClickChannelHandler);
+    ipcRenderer.on(CONTEXT_MENU_CLOSE_CHANNEL, onCloseChannelHandler);
 
     ipcRenderer.send(CONTEXT_MENU_CHANNEL, contextMenuId, items.map(item => createItem(item, processedItems)), onClickChannel, options);
 }

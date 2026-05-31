@@ -35,6 +35,7 @@ import {
   runSharedProcessStartupContributions,
 } from "../electron-utility/sharedProcess/sharedProcessMain.js";
 import { Win32UpdateService } from "../../platform/update/electron-main/updateService.win32.js";
+import { registerContextMenuListener } from "../../base/parts/contextmenu/electron-main/contextmenu.js";
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
@@ -3254,6 +3255,7 @@ if (hasSingleInstanceLock) {
   updateService = createUpdateService();
 
   ipcMain.on("desktop-command", handleDesktopCommand);
+  registerContextMenuListener();
   ipcMain.on(ipcChannels.desktopMetaGet, handleDesktopMetaGet);
   ipcMain.on(ipcChannels.desktopAutoUpdateStatusGet, handleDesktopAutoUpdateStatusGet);
   ipcMain.on(ipcChannels.desktopBootSettingsGet, handleDesktopBootSettingsGet);

@@ -1,4 +1,6 @@
 import "../../../workbench/contrib/splash/electron-sandbox/splash.contribution";
+import "src/cs/platform/contextkey/browser/contextKeyService";
+import "src/cs/workbench/services/contextmenu/electron-browser/contextmenuService";
 import { InstantiationService } from "src/cs/platform/instantiation/common/instantiationService";
 import { ServiceCollection } from "src/cs/platform/instantiation/common/serviceCollection";
 import { Registry } from "src/cs/platform/registry/common/platform";
@@ -19,9 +21,6 @@ declare global {
       isPackaged?: boolean;
       appVersion?: string | null;
       [key: string]: unknown;
-    };
-    desktopBoot?: {
-      markUiReady?: (source?: string) => Promise<unknown>;
     };
     __CONDUCTOR_BOOT_LOG__?: (stage: string, extra?: string) => void;
     __CONDUCTOR_BOOT_MARK_UI_READY__?: (source?: string) => void;
