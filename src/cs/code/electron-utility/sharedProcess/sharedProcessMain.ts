@@ -1,9 +1,11 @@
 import { cleanSharedProcessLogs } from "./contrib/logsDataCleaner.js";
 import { updateLocalizations } from "./contrib/localizationsUpdater.js";
-import { cleanOriginRuntimeStorage, cleanRustExcelJobs } from "./contrib/runtimeDataCleaner.js";
+import { cleanOriginRuntimeStorage } from "./contrib/originRuntimeStorageCleaner.js";
+import { cleanRustExcelJobs } from "./contrib/rustExcelJobCleaner.js";
 
 export interface SharedProcessContributionContext {
   readonly analysisHomeDir: string;
+  readonly analysisTempRootDir: string;
   readonly originRuntimeStorageDir: string;
   readonly rustExcelJobRootDir: string;
   readonly log: (message: string) => void;
@@ -26,15 +28,14 @@ const contributions: readonly SharedProcessContribution[] = [
     startup: cleanSharedProcessLogs,
   },
   {
-    id: "runtimeDataCleaner",
-    startup: (context) => {
-      cleanOriginRuntimeStorage(context);
-      cleanRustExcelJobs(context);
-    },
-    shutdown: (context) => {
-      cleanOriginRuntimeStorage(context);
-      cleanRustExcelJobs(context);
-    },
+    id: "originRuntimeStorageCleaner",
+    startup: cleanOriginRuntimeStorage,
+    shutdown: cleanOriginRuntimeStorage,
+  },
+  {
+    id: "rustExcelJobCleaner",
+    startup: cleanRustExcelJobs,
+    shutdown: cleanRustExcelJobs,
   },
 ];
 

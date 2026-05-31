@@ -1,3 +1,5 @@
+import { hideWorkbenchSplash } from "src/cs/workbench/contrib/splash/browser/partsSplash";
+
 const ANALYSIS_SCRIPT_PATH_SEGMENT = "/cs/workbench/contrib/deviceanalysis/";
 
 export const isBootProfileEnabled = () =>
@@ -12,6 +14,7 @@ export const logRendererBoot = (stage: string, extra = "") => {
 };
 
 export const markBootUiReady = (source: string) => {
+  hideWorkbenchSplash();
   window.__CONDUCTOR_BOOT_MARK_UI_READY__?.(source);
 };
 

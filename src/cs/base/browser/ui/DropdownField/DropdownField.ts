@@ -437,7 +437,7 @@ const DropdownField = ({ options = [], value, onChange, placeholder, title, disa
                         children: [
                             title ? jsx("div", {
                                 children: title
-                            }) : null,
+                            }, "title") : null,
                             jsx(MenuScrollArea, {
                                 children: jsx("div", {
                                     className: "ui-menu__list",
@@ -445,10 +445,9 @@ const DropdownField = ({ options = [], value, onChange, placeholder, title, disa
                                         loading ? (jsx("div", {
                                             className: "ui-menu__empty",
                                             children: loadingLabel ?? emptyLabel
-                                        })) : null,
+                                        }, "loading")) : null,
                                         !loading
                                             ? indexedGroups.map(({ group, options: groupOptions }, groupIdx) => (jsx("div", {
-                                                key: group || "default",
                                                 role: group ? "group" : undefined,
                                                 className: "ui-menu__group",
                                                 children: [
@@ -458,13 +457,13 @@ const DropdownField = ({ options = [], value, onChange, placeholder, title, disa
                                                                 role: "separator",
                                                                 "aria-orientation": "horizontal",
                                                                 className: "ui-menu__separator"
-                                                            })) : null,
+                                                            }, "separator")) : null,
                                                             jsx("div", {
                                                                 className: "ui-menu__group-label",
                                                                 children: group
-                                                            })
+                                                            }, "label")
                                                         ]
-                                                    })) : null,
+                                                    }, "group-label")) : null,
                                                     groupOptions.map(({ option, index: currentIndex }) => {
                                                         const isHighlighted = !option.disabled && highlightedIndex === currentIndex;
                                                         const isSelected = value === option.value;
@@ -472,7 +471,6 @@ const DropdownField = ({ options = [], value, onChange, placeholder, title, disa
                                                         const action = option.secondaryAction;
                                                         const ActionIcon = action?.icon;
                                                         return (jsx(MenuItem, {
-                                                            key: String(option.value),
                                                             tabIndex: -1,
                                                             "data-highlighted": isHighlighted || undefined,
                                                             "data-selected": isSelected || undefined,
@@ -491,11 +489,11 @@ const DropdownField = ({ options = [], value, onChange, placeholder, title, disa
                                                                 children: [
                                                                     Icon ? (jsx(Icon, {
                                                                         style: { width: "0.9rem", height: "0.9rem" }
-                                                                    })) : null,
+                                                                    }, "icon")) : null,
                                                                     jsx("span", {
                                                                         className: "truncate",
                                                                         children: option.label ?? String(option.value)
-                                                                    })
+                                                                    }, "label")
                                                                 ]
                                                             }),
                                                             right: jsx("span", {
@@ -520,18 +518,18 @@ const DropdownField = ({ options = [], value, onChange, placeholder, title, disa
                                                                     className: "text-accent"
                                                                 })) : null
                                                             })
-                                                        }));
+                                                        }, String(option.value)));
                                                     })
                                                 ]
-                                            })))
+                                            }, group || "default")))
                                             : null,
                                         !loading && flatOptions.length === 0 ? (jsx("div", {
                                             className: "ui-menu__empty",
                                             children: emptyLabel
-                                        })) : null
+                                        }, "empty")) : null
                                     ]
                                 })
-                            })
+                            }, "scroll")
                         ]
                     }))
                 }))

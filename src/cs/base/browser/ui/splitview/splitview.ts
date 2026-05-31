@@ -286,7 +286,7 @@ const SplitView = forwardRef<HTMLDivElement, SplitViewProps>(
           })),
           orientation,
           sizes,
-        }),
+        }, "grid"),
         offsets.map((offset, index) => {
           const sashStyle: CSSProperties = orientation === "horizontal"
             ? {

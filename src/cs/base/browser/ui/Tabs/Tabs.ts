@@ -245,7 +245,6 @@ const Tabs = ({ options = [], value, onChange, className = "", itemClassName = "
             const isDisabled = option.__disabled;
             const tabIndex = index === focusIndex ? 0 : -1;
             return (jsx("button", {
-                key: option.__key,
                 type: "button",
                 role: "tab",
                 id: tabId,
@@ -326,15 +325,15 @@ const Tabs = ({ options = [], value, onChange, className = "", itemClassName = "
                         children: jsx(Icon, {
                             size: 16
                         })
-                    })) : null,
+                    }, "icon")) : null,
                     jsx("span", {
                         className: "tab_btn_text",
                         children: option.label
-                    })
+                    }, "label")
                 ]
-            }));
+            }, option.__key));
         })
-    }));
+    }, "menu"));
     if (typeof renderPanel !== "function")
         return menu;
     return (jsx("div", {
@@ -353,7 +352,6 @@ const Tabs = ({ options = [], value, onChange, className = "", itemClassName = "
                     if (!shouldRender)
                         return null;
                     return (jsx("div", {
-                        key: `${option.__key}-panel`,
                         role: "tabpanel",
                         id: panelId,
                         "aria-labelledby": tabId,
@@ -362,9 +360,9 @@ const Tabs = ({ options = [], value, onChange, className = "", itemClassName = "
                         "data-tabs": "panel",
                         "data-ui": uiMarker ? `${uiMarker}-panel-${token}` : undefined,
                         children: renderPanel(option, { index, isSelected })
-                    }));
+                    }, `${option.__key}-panel`));
                 })
-            })
+            }, "panels")
         ]
     }));
 };

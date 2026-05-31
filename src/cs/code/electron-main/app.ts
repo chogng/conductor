@@ -1552,6 +1552,7 @@ function handleWorkbenchBootstrapSettingsGet(event) {
 function createSharedProcessContributionContext() {
   return {
     analysisHomeDir: getAnalysisHomeDir(),
+    analysisTempRootDir: getAnalysisTempRootDir(),
     originRuntimeStorageDir: getOriginRuntimeStorageDir(),
     rustExcelJobRootDir: getRustExcelJobRootDir(),
     log: (message: string) => {

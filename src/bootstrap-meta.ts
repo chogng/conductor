@@ -19,7 +19,14 @@ export interface IProductConfiguration {
   readonly version: string;
 }
 
-export const pkg = require("../package.json") as IPackageConfiguration;
+let pkgObj: IPackageConfiguration & { BUILD_INSERT_PACKAGE_CONFIGURATION?: string } = {
+  BUILD_INSERT_PACKAGE_CONFIGURATION: "BUILD_INSERT_PACKAGE_CONFIGURATION",
+};
+if (pkgObj.BUILD_INSERT_PACKAGE_CONFIGURATION) {
+  pkgObj = require("../package.json") as IPackageConfiguration;
+}
+
+export const pkg = pkgObj;
 
 export const product: IProductConfiguration = {
   applicationName: pkg.name ?? "conductor",

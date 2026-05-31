@@ -18,6 +18,8 @@ const truncateLargeDesktopLog = (
   context: SharedProcessContributionContext,
   logPath: string,
 ) => {
+  if (!fs.existsSync(logPath)) return;
+
   try {
     const stats = fs.statSync(logPath);
     if (!stats.isFile() || stats.size <= MAX_DESKTOP_LOG_BYTES) return;

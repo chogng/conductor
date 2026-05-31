@@ -20,7 +20,7 @@
     "verify:rust-origin-export": "node --experimental-strip-types scripts/verify-rust-origin-export-compat.mjs prepare && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify-rust-origin-export-worker.ps1 -Mode process && node --experimental-strip-types scripts/verify-rust-origin-export-compat.mjs plan && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify-rust-origin-export-worker.ps1 -Mode export && node --experimental-strip-types scripts/verify-rust-origin-export-compat.mjs compare",
     "bench:analysis-cache": "node scripts/bench-analysis-cache-budget.mjs",
     "bench:phase3": "node --experimental-strip-types scripts/bench-device-analysis-phase3.mjs prepare && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/bench-device-analysis-phase3.ps1 -RequestSet process && node --experimental-strip-types scripts/bench-device-analysis-phase3.mjs prepare-rust-analysis && powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/bench-device-analysis-phase3.ps1 -RequestSet analysis && node --experimental-strip-types scripts/bench-device-analysis-phase3.mjs analyze",
-    "build:desktop:core": "tsc -p tsconfig.desktop.json",
+    "build:desktop:core": "node scripts/build-desktop-core.mjs",
     "build:web:desktop": "vite build --base ./",
     "build": "vite build --base ./",
     "lint": "eslint .",
