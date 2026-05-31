@@ -9,7 +9,9 @@ import { setTimeout as sleep } from "node:timers/promises";
 
 const host = process.env.DEV_HOST || "127.0.0.1";
 const port = Number(process.env.DEV_PORT || 5174);
-const devWorkbenchPath = "/src/cs/code/electron-sandbox/workbench/workbench.html";
+// Keep the development URL aligned with VS Code's desktop renderer entry:
+// code/electron-browser owns Electron workbench bootstrapping.
+const devWorkbenchPath = "/src/cs/code/electron-browser/workbench/workbench.html";
 const devUrl = `http://${host}:${port}${devWorkbenchPath}`;
 const devStartupStartMs = Date.now();
 const devServerWarmupPaths = [
@@ -18,7 +20,7 @@ const devServerWarmupPaths = [
   "/src/main.tsx",
   "/src/workbench-loader.ts",
   "/src/App.tsx",
-  "/src/cs/code/electron-sandbox/workbench/workbench.js",
+  "/src/cs/code/electron-browser/workbench/workbench.ts",
   "/src/cs/platform/language/browser/languageService.ts",
   "/src/cs/workbench/services/themes/browser/themeService.ts",
   "/src/cs/workbench/contrib/splash/browser/partsSplash.ts",

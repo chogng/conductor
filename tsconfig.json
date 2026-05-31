@@ -19,5 +19,6 @@
       "src/*": ["./src/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": ["src/cs/code/electron-main"]
 }

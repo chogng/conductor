@@ -1,39 +1,68 @@
-// @ts-nocheck
 import {
   installSplashContribution,
   removeSplashContribution,
 } from "../../../workbench/contrib/splash/electron-sandbox/splash.contribution";
+import type { LanguageCode } from "src/cs/platform/language/common/language";
+import type { ThemeMode } from "src/cs/workbench/common/theme";
 
-const DEFAULT_LANGUAGE = "zh";
-const DEFAULT_THEME = "system";
+declare global {
+  interface Window {
+    desktopBootstrap?: {
+      initialDeviceAnalysisSettings?: Record<string, unknown> | null;
+      [key: string]: unknown;
+    };
+    desktopMeta?: {
+      isDesktop?: boolean;
+      platform?: string;
+      isPackaged?: boolean;
+      appVersion?: string | null;
+      [key: string]: unknown;
+    };
+    desktopBoot?: {
+      markUiReady?: (source?: string) => Promise<unknown>;
+    };
+    __CONDUCTOR_BOOT_LOG__?: (stage: string, extra?: string) => void;
+    __CONDUCTOR_BOOT_MARK_UI_READY__?: (source?: string) => void;
+    __CONDUCTOR_BOOT_PROFILE_ENABLED__?: boolean;
+    __CONDUCTOR_INITIAL_DEVICE_ANALYSIS_SETTINGS__?: Record<string, unknown> | null;
+    __CONDUCTOR_INITIAL_LANGUAGE__?: LanguageCode;
+    __CONDUCTOR_INITIAL_THEME__?: ThemeMode;
+    __CONDUCTOR_NAV_MODE_INIT__?: boolean;
+  }
+}
+
+const DEFAULT_LANGUAGE: LanguageCode = "zh";
+const DEFAULT_THEME: ThemeMode = "system";
 const DEFAULT_SIDEBAR_WIDTH = 280;
 const MIN_SIDEBAR_WIDTH = 200;
 const MAX_SIDEBAR_WIDTH = 600;
 const SIDEBAR_STORAGE_KEY = "da-sidebar-width";
-const startMs =
+const startMs = typeof performance !== "undefined" && typeof performance.now === "function"
+  ? performance.now()
+  : Date.now();
+
+const getBootNowMs = () =>
   typeof performance !== "undefined" && typeof performance.now === "function"
     ? performance.now()
     : Date.now();
 
-const logBoot = (stage, extra = "") => {
-  const nowMs =
-    typeof performance !== "undefined" && typeof performance.now === "function"
-      ? performance.now()
-      : Date.now();
-  const elapsedMs = Math.round(nowMs - startMs);
+const logBoot = (stage: string, extra = "") => {
+  const elapsedMs = Math.round(getBootNowMs() - startMs);
   const suffix = extra ? ` ${extra}` : "";
   console.info(`[boot][renderer] +${elapsedMs}ms ${stage}${suffix}`);
 };
 
+// This entry runs before the React workbench so the first paint has stable shell colors/layout.
 installSplashContribution();
 
-const isLanguageCode = (value) => value === "en" || value === "zh";
+const isLanguageCode = (value: unknown): value is LanguageCode =>
+  value === "en" || value === "zh";
 
-const isThemeMode = (value) =>
+const isThemeMode = (value: unknown): value is ThemeMode =>
   value === "light" || value === "dark" || value === "system";
 
 const resolveBootProfileEnabled = () => {
-  if (window.desktopMeta && window.desktopMeta.isDesktop === true) {
+  if (window.desktopMeta?.isDesktop === true) {
     return true;
   }
 
@@ -49,7 +78,7 @@ const resolveBootProfileEnabled = () => {
       return false;
     }
   } catch {
-    // Ignore query parsing failures.
+    // Query/local storage failures should not block desktop startup.
   }
 
   try {
@@ -73,7 +102,7 @@ const applyBootSidebarWidth = () => {
       width = parsed;
     }
   } catch {
-    // Ignore storage failures.
+    // Storage can be unavailable in unusual webviews; the default width is good enough for boot.
   }
 
   document.documentElement.style.setProperty("--boot-sidebar-width", `${width}px`);
@@ -89,17 +118,18 @@ const logNavigationTiming = () => {
 
   const entry = performance.getEntriesByType("navigation")[0];
   if (!entry || !("redirectEnd" in entry)) return;
+  const timing = entry as PerformanceNavigationTiming;
 
   const summary = [
-    `type=${entry.type}`,
-    `redirect=${Math.round(entry.redirectEnd - entry.redirectStart)}ms`,
-    `dns=${Math.round(entry.domainLookupEnd - entry.domainLookupStart)}ms`,
-    `connect=${Math.round(entry.connectEnd - entry.connectStart)}ms`,
-    `request=${Math.round(entry.responseStart - entry.requestStart)}ms`,
-    `response=${Math.round(entry.responseEnd - entry.responseStart)}ms`,
-    `domInteractive=${Math.round(entry.domInteractive)}ms`,
-    `domContentLoaded=${Math.round(entry.domContentLoadedEventEnd - entry.startTime)}ms`,
-    `load=${Math.round(entry.loadEventEnd - entry.startTime)}ms`,
+    `type=${timing.type}`,
+    `redirect=${Math.round(timing.redirectEnd - timing.redirectStart)}ms`,
+    `dns=${Math.round(timing.domainLookupEnd - timing.domainLookupStart)}ms`,
+    `connect=${Math.round(timing.connectEnd - timing.connectStart)}ms`,
+    `request=${Math.round(timing.responseStart - timing.requestStart)}ms`,
+    `response=${Math.round(timing.responseEnd - timing.responseStart)}ms`,
+    `domInteractive=${Math.round(timing.domInteractive)}ms`,
+    `domContentLoaded=${Math.round(timing.domContentLoadedEventEnd - timing.startTime)}ms`,
+    `load=${Math.round(timing.loadEventEnd - timing.startTime)}ms`,
   ].join(" ");
 
   console.info(`[boot][renderer] nav ${summary}`);
@@ -115,7 +145,7 @@ const logTopResources = () => {
 
   const resources = performance
     .getEntriesByType("resource")
-    .filter((entry) => entry instanceof PerformanceResourceTiming)
+    .filter((entry): entry is PerformanceResourceTiming => entry instanceof PerformanceResourceTiming)
     .sort((a, b) => b.duration - a.duration)
     .slice(0, 8);
 
@@ -127,17 +157,18 @@ const logTopResources = () => {
   }
 };
 
+// Main process keeps the window hidden during boot; this callback releases that gate.
 const markBootUiReady = (source = "unknown") => {
   removeSplashContribution();
   logBoot("boot-ui:ready", `(source=${source})`);
   logNavigationTiming();
   logTopResources();
-  if (!window.desktopBoot || typeof window.desktopBoot.markUiReady !== "function") {
+  if (typeof window.desktopBoot?.markUiReady !== "function") {
     return;
   }
 
-  Promise.resolve(window.desktopBoot.markUiReady(source)).catch((error) => {
-    const message = error && error.message ? error.message : String(error);
+  Promise.resolve(window.desktopBoot.markUiReady(source)).catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
     logBoot("boot-window:show-failed", `(message=${message})`);
   });
 };
@@ -153,8 +184,7 @@ if (!window.__CONDUCTOR_NAV_MODE_INIT__) {
   window.__CONDUCTOR_NAV_MODE_INIT__ = true;
 
   const root = document.documentElement;
-  const setMode = (mode) => {
-    if (!root) return;
+  const setMode = (mode: "keyboard" | "pointer") => {
     root.dataset.nav = mode;
   };
 
@@ -191,16 +221,16 @@ window.__CONDUCTOR_BOOT_LOG__ = logBoot;
 window.__CONDUCTOR_BOOT_MARK_UI_READY__ = markBootUiReady;
 
 window.addEventListener("error", (event) => {
-  const message = event.error && event.error.message ? event.error.message : event.message;
+  const message = event.error instanceof Error ? event.error.message : event.message;
   const stack =
-    event.error && event.error.stack ? String(event.error.stack).slice(0, 1200) : "";
+    event.error instanceof Error ? String(event.error.stack ?? "").slice(0, 1200) : "";
   logBoot("window:error:early", `(message=${message || "unknown"} stack=${stack})`);
 });
 
 window.addEventListener("unhandledrejection", (event) => {
   const reason = event.reason;
-  const message = reason && reason.message ? reason.message : String(reason);
-  const stack = reason && reason.stack ? String(reason.stack).slice(0, 1200) : "";
+  const message = reason instanceof Error ? reason.message : String(reason);
+  const stack = reason instanceof Error ? String(reason.stack ?? "").slice(0, 1200) : "";
   logBoot(
     "window:unhandledrejection:early",
     `(message=${message || "unknown"} stack=${stack})`,

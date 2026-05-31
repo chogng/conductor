@@ -2,9 +2,11 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-const indexHtmlPath = fileURLToPath(new URL("./index.html", import.meta.url));
+const browserWorkbenchHtmlPath = fileURLToPath(
+  new URL("./src/cs/code/browser/workbench/workbench.html", import.meta.url),
+);
 const desktopWorkbenchHtmlPath = fileURLToPath(
-  new URL("./src/cs/code/electron-sandbox/workbench/workbench.html", import.meta.url),
+  new URL("./src/cs/code/electron-browser/workbench/workbench.html", import.meta.url),
 );
 
 // https://vite.dev/config/
@@ -22,7 +24,7 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        app: indexHtmlPath,
+        app: browserWorkbenchHtmlPath,
         workbench: desktopWorkbenchHtmlPath,
       },
       output: {
@@ -57,7 +59,8 @@ export default defineConfig({
         "./src/main.tsx",
         "./src/workbench-loader.ts",
         "./src/App.tsx",
-        "./src/cs/code/electron-sandbox/workbench/workbench.js",
+        "./src/cs/code/browser/workbench/workbench.ts",
+        "./src/cs/code/electron-browser/workbench/workbench.ts",
         "./src/cs/platform/language/browser/languageService.ts",
         "./src/cs/workbench/services/themes/browser/themeService.ts",
         "./src/cs/workbench/contrib/splash/browser/partsSplash.ts",

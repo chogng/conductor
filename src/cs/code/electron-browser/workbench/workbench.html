@@ -37,15 +37,21 @@
   <link rel="stylesheet" href="../../../../styles/variables.css" />
   <link rel="stylesheet" href="../../../../styles/variables-dark.css" />
   <link rel="stylesheet" href="../../../../styles/global.css" />
+  <!--
+    Electron renderer bootstrap, mirroring VS Code's code/electron-browser/workbench entry.
+    This script owns pre-React boot state such as splash, initial settings, language/theme,
+    and the desktop "UI is ready" signal back to the main process.
+  -->
   <script
     type="module"
     blocking="render"
-    src="./workbench.js"
+    src="./workbench.ts"
   ></script>
 </head>
 
 <body>
   <div id="root"></div>
+  <!-- React is still the current workbench renderer; it is intentionally isolated from the shell bootstrap above. -->
   <script type="module" src="../../../../main.tsx"></script>
 </body>
 

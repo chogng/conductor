@@ -1,0 +1,102 @@
+import type { LanguageCode } from "src/cs/platform/language/common/language";
+import type { ThemeMode } from "src/cs/workbench/common/theme";
+
+declare global {
+  interface Window {
+    desktopMeta?: {
+      isDesktop?: boolean;
+      platform?: string;
+      isPackaged?: boolean;
+      appVersion?: string | null;
+      [key: string]: unknown;
+    };
+    __CONDUCTOR_BOOT_LOG__?: (stage: string, extra?: string) => void;
+    __CONDUCTOR_BOOT_MARK_UI_READY__?: (source?: string) => void;
+    __CONDUCTOR_BOOT_PROFILE_ENABLED__?: boolean;
+    __CONDUCTOR_INITIAL_LANGUAGE__?: LanguageCode;
+    __CONDUCTOR_INITIAL_THEME__?: ThemeMode;
+    __CONDUCTOR_NAV_MODE_INIT__?: boolean;
+  }
+}
+
+const DEFAULT_LANGUAGE: LanguageCode = "zh";
+const DEFAULT_THEME: ThemeMode = "system";
+const startMs = typeof performance !== "undefined" && typeof performance.now === "function"
+  ? performance.now()
+  : Date.now();
+
+const getBootNowMs = () =>
+  typeof performance !== "undefined" && typeof performance.now === "function"
+    ? performance.now()
+    : Date.now();
+
+const resolveBootProfileEnabled = () => {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const searchValue = params.get("bootProfile");
+    if (searchValue === "1" || searchValue === "true") {
+      window.localStorage?.setItem("conductor.bootProfile", "1");
+      return true;
+    }
+    if (searchValue === "0" || searchValue === "false") {
+      window.localStorage?.removeItem("conductor.bootProfile");
+      return false;
+    }
+  } catch {
+    // Browser boot profiling is optional; query/storage failures should not block startup.
+  }
+
+  try {
+    return window.localStorage?.getItem("conductor.bootProfile") === "1";
+  } catch {
+    return false;
+  }
+};
+
+const isBootProfileEnabled = resolveBootProfileEnabled();
+
+const logBoot = (stage: string, extra = "") => {
+  if (!isBootProfileEnabled) return;
+  const elapsedMs = Math.round(getBootNowMs() - startMs);
+  const suffix = extra ? ` ${extra}` : "";
+  console.info(`[boot][browser] +${elapsedMs}ms ${stage}${suffix}`);
+};
+
+// Browser workbench defaults are intentionally local and lightweight.
+// Desktop-specific initial settings are provided by code/electron-browser/workbench.
+window.__CONDUCTOR_INITIAL_LANGUAGE__ = DEFAULT_LANGUAGE;
+window.__CONDUCTOR_INITIAL_THEME__ = DEFAULT_THEME;
+window.__CONDUCTOR_BOOT_PROFILE_ENABLED__ = isBootProfileEnabled;
+window.__CONDUCTOR_BOOT_LOG__ = logBoot;
+window.__CONDUCTOR_BOOT_MARK_UI_READY__ = (source = "browser") => {
+  logBoot("boot-ui:ready", `(source=${source})`);
+};
+
+if (!window.__CONDUCTOR_NAV_MODE_INIT__) {
+  window.__CONDUCTOR_NAV_MODE_INIT__ = true;
+
+  const root = document.documentElement;
+  const setMode = (mode: "keyboard" | "pointer") => {
+    root.dataset.nav = mode;
+  };
+
+  window.addEventListener(
+    "keydown",
+    (event) => {
+      if (event.key === "Tab") setMode("keyboard");
+    },
+    true,
+  );
+
+  window.addEventListener(
+    "pointerdown",
+    () => {
+      setMode("pointer");
+    },
+    true,
+  );
+}
+
+logBoot("bootstrap:script-evaluated");
+logBoot("language:resolved", `(language=${DEFAULT_LANGUAGE})`);
+logBoot("theme:applied", `(theme=${DEFAULT_THEME})`);
