@@ -4,10 +4,13 @@ import { mainWindow } from "src/cs/base/browser/window";
 import { InstantiationService } from "src/cs/platform/instantiation/common/instantiationService";
 import { ServiceCollection } from "src/cs/platform/instantiation/common/serviceCollection";
 import { Registry } from "src/cs/platform/registry/common/platform";
-import { startBrowserWorkbenchBoot } from "src/cs/code/browser/workbench/browserBoot";
 import {
   createBootLogger,
+  DEFAULT_LANGUAGE,
+  DEFAULT_THEME,
   getBootNowMs,
+  installNavigationModeListeners,
+  type BootLogger,
   resolveBootProfileEnabled,
 } from "src/cs/code/browser/workbench/boot";
 import {
@@ -19,6 +22,25 @@ import {
   LifecyclePhase,
   type ILifecycleService as ILifecycleServiceType,
 } from "src/cs/workbench/services/lifecycle/common/lifecycle";
+
+function startBrowserWorkbenchBoot(
+  logBoot: BootLogger,
+  isBootProfileEnabled: boolean,
+): void {
+  window.__CONDUCTOR_INITIAL_LANGUAGE__ = DEFAULT_LANGUAGE;
+  window.__CONDUCTOR_INITIAL_THEME__ = DEFAULT_THEME;
+  window.__CONDUCTOR_BOOT_PROFILE_ENABLED__ = isBootProfileEnabled;
+  window.__CONDUCTOR_BOOT_LOG__ = logBoot;
+  window.__CONDUCTOR_BOOT_MARK_UI_READY__ = (source = "browser") => {
+    logBoot("boot-ui:ready", `(source=${source})`);
+  };
+
+  installNavigationModeListeners();
+
+  logBoot("bootstrap:script-evaluated");
+  logBoot("language:resolved", `(language=${DEFAULT_LANGUAGE})`);
+  logBoot("theme:applied", `(theme=${DEFAULT_THEME})`);
+}
 
 function startWorkbench(): void {
   const serviceCollection = new ServiceCollection();
@@ -44,5 +66,5 @@ const startMs = getBootNowMs();
 const isBootProfileEnabled = resolveBootProfileEnabled();
 const logBoot = createBootLogger("browser", startMs, () => isBootProfileEnabled);
 
-startWorkbench();
 startBrowserWorkbenchBoot(logBoot, isBootProfileEnabled);
+startWorkbench();

@@ -97,26 +97,3 @@ export const isLanguageCode = (value: unknown): value is LanguageCode =>
 
 export const isThemeMode = (value: unknown): value is ThemeMode =>
   value === "light" || value === "dark" || value === "system";
-
-export const loadRendererMain = () => {
-  const load = () => {
-    void import("src/cs/code/browser/workbench/renderer");
-  };
-
-  if (document.readyState === "loading") {
-    window.addEventListener("DOMContentLoaded", load, { once: true });
-    return;
-  }
-
-  load();
-};
-
-export const startThemeThenLoadRenderer = () => {
-  void import("src/cs/workbench/services/themes/browser/theme.contribution")
-    .then(({ startWorkbenchThemeContribution }) => {
-      startWorkbenchThemeContribution();
-    })
-    .finally(() => {
-      loadRendererMain();
-    });
-};

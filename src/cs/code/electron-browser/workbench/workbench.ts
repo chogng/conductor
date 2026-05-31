@@ -44,5 +44,5 @@ function startWorkbench(): void {
 const startMs = getBootNowMs();
 const logBoot = createBootLogger("renderer", startMs);
 
-startWorkbench();
 startDesktopWorkbenchBoot(logBoot);
+startWorkbench();

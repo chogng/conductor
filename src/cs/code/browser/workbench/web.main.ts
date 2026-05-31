@@ -12,10 +12,10 @@ import "src/cs/code/browser/workbench/workbench";
 
 //#endregion
 
-//#region --- renderer
+//#region --- theme
 
-import { startThemeThenLoadRenderer } from "src/cs/code/browser/workbench/boot";
+import { startWorkbenchThemeContribution } from "src/cs/workbench/services/themes/browser/theme.contribution";
 
-startThemeThenLoadRenderer();
+startWorkbenchThemeContribution();
 
 //#endregion

@@ -50,10 +50,6 @@ export default defineConfig({
     host: true,
     warmup: {
       clientFiles: [
-        "./src/cs/code/browser/workbench/renderer.ts",
-        "./src/cs/code/browser/workbench/rendererLoader.ts",
-        "./src/cs/workbench/browser/legacyReactWorkbench.ts",
-        "./src/cs/code/browser/workbench/browserBoot.ts",
         "./src/cs/code/browser/workbench/web.main.ts",
         "./src/cs/code/electron-browser/workbench/desktopBoot.ts",
         "./src/cs/code/electron-browser/workbench/desktop.main.ts",
