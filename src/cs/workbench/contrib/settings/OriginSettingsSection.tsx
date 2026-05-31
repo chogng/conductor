@@ -1,6 +1,6 @@
-﻿import Button from "src/cs/base/browser/ui/Button/Button";
-import DropdownField from "src/cs/base/browser/ui/DropdownField/DropdownField";
-import Input from "src/cs/base/browser/ui/Input/Input";
+﻿import Button from "src/cs/base/browser/ui/button/button";
+import DropdownField from "src/cs/base/browser/ui/dropdownField/dropdownField";
+import Input from "src/cs/base/browser/ui/input/input";
 import type {
   OriginSettings,
   SettingsPanelProps,

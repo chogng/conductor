@@ -5,7 +5,7 @@
   useRef,
   useState,
 } from "react";
-import Button from "cs/base/browser/ui/Button/Button";
+import Button from "cs/base/browser/ui/button/button";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type {
   OnboardingStep,

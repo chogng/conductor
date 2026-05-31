@@ -1,6 +1,6 @@
 import { jsx, jsxs } from "react/jsx-runtime";
 import type { ReactNode } from "react";
-import Button from "src/cs/base/browser/ui/Button/Button";
+import Button from "src/cs/base/browser/ui/button/button";
 import {
   getWorkbenchPreviewAreaActionClassName,
   normalizeWorkbenchPreviewAreaHeaderActions,

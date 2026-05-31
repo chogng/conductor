@@ -1,7 +1,7 @@
 ﻿import { lxPreview } from "cogicon";
 import type { ReactNode } from "react";
-import Avatar from "cs/base/browser/ui/Avatar/Avatar";
-import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
+import Avatar from "cs/base/browser/ui/avatar/avatar";
+import CogIcon from "src/cs/base/browser/ui/cogIcon/cogIcon";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
 import type { PreviewFileLike } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
@@ -16,7 +16,7 @@ export const TEMPLATE_MANAGER_PREVIEW_PANEL_ITEM_CLASS =
   "flex h-full min-h-0 self-stretch";
 
 export const TEMPLATE_MANAGER_PREVIEW_PANEL_FRAME_CLASS =
-  "flex flex-1 min-h-0 flex-col overflow-hidden rounded-[16px] rounded-br-none border border-border bg-bg-page/75 p-4";
+  "flex flex-1 min-h-0 flex-col overflow-hidden rounded-[inherit] border border-border bg-bg-page/75 p-4";
 
 type TemplateManagerPreviewSurfaceProps = {
   actions?: ReactNode;

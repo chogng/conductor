@@ -1,5 +1,5 @@
 import { lxAnalysis, lxArrowLeft, lxArrowRight, lxDownloadTray, lxGear } from "cogicon";
-import { normalizeCogIconSvgMarkup, type CogIconRenderer } from "src/cs/base/browser/ui/CogIcon/cogicon";
+import { normalizeCogIconSvgMarkup, type CogIconRenderer } from "src/cs/base/browser/ui/cogIcon/cogIcon";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import { layoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import {

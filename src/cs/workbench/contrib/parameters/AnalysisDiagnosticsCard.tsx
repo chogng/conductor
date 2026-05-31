@@ -1,7 +1,7 @@
 import { formatNumber } from "src/cs/workbench/contrib/chartPreview/lib/analysisMath";
-import Card from "cs/base/browser/ui/Card/Card";
-import Input from "cs/base/browser/ui/Input/Input";
-import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
+import Card from "cs/base/browser/ui/card/card";
+import Input from "cs/base/browser/ui/input/input";
+import DropdownField from "cs/base/browser/ui/dropdownField/dropdownField";
 
 type AnalysisDiagnosticsCardProps = {
   showDiagnosticsPanel: boolean;

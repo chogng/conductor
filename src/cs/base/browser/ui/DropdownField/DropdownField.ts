@@ -2,13 +2,13 @@ import { lxCheck, lxChevronDown } from "cogicon";
 import { Fragment, jsx } from "react/jsx-runtime";
 import { isValidElement, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ComponentType, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type RefCallback, type RefObject, } from "react";
 import { cx } from "src/utils/cx";
-import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
-import ContentView, { type ContentViewAlign } from "src/cs/base/browser/ui/ContentView/ContentView";
-import Dropdown from "src/cs/base/browser/ui/Dropdown/Dropdown";
-import DropdownTrigger from "src/cs/base/browser/ui/DropdownTrigger/DropdownTrigger";
-import Menu from "src/cs/base/browser/ui/Menu/Menu";
-import MenuItem from "src/cs/base/browser/ui/MenuItem/MenuItem";
-import MenuScrollArea from "src/cs/base/browser/ui/MenuScrollArea/MenuScrollArea";
+import CogIcon from "src/cs/base/browser/ui/cogIcon/cogIcon";
+import ContentView, { type ContentViewAlign } from "src/cs/base/browser/ui/contentView/contentView";
+import Dropdown from "src/cs/base/browser/ui/dropdown/dropdown";
+import DropdownTrigger from "src/cs/base/browser/ui/dropdownTrigger/dropdownTrigger";
+import Menu from "src/cs/base/browser/ui/menu/menu";
+import MenuItem from "src/cs/base/browser/ui/menuItem/menuItem";
+import MenuScrollArea from "src/cs/base/browser/ui/menuScrollArea/menuScrollArea";
 
 
 const hasWidthConstraintClass = (className: string): boolean => {

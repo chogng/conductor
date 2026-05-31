@@ -17,20 +17,20 @@ import {
   lxSave,
   lxTrash,
 } from "cogicon";
-import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
+import CogIcon from "src/cs/base/browser/ui/cogIcon/cogIcon";
 import {
   createCogIconComponent,
   lxAlertTriangle,
-} from "src/cs/base/browser/ui/CogIcon/icons";
+} from "src/cs/base/browser/ui/cogIcon/icons";
 import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
 import type { TranslateFn, TranslationVars } from "src/cs/platform/language/common/language";
 import Toast from "cs/base/browser/ui/toast/toast";
-import Input from "cs/base/browser/ui/Input/Input";
-import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
+import Input from "cs/base/browser/ui/input/input";
+import DropdownField from "cs/base/browser/ui/dropdownField/dropdownField";
 import Tabs from "cs/base/browser/ui/tabs/tabs";
-import Card from "cs/base/browser/ui/Card/Card";
-import Button from "cs/base/browser/ui/Button/Button";
-import Checkbox from "cs/base/browser/ui/Checkbox/Checkbox";
+import Card from "cs/base/browser/ui/card/card";
+import Button from "cs/base/browser/ui/button/button";
+import Checkbox from "cs/base/browser/ui/checkbox/checkbox";
 import Modal from "cs/base/browser/ui/modal/modal";
 import ScrollArea from "cs/base/browser/ui/scrollArea/scrollArea";
 import DataPreviewArea from "src/cs/workbench/contrib/data/DataPreviewArea";
@@ -2512,7 +2512,7 @@ const TemplateManager = ({
       <Card
         ref={containerRef}
         id="analysis-template-manager"
-        className="flex h-full flex-1 min-h-0 flex-col rounded-br-none pt-4 pr-4 pb-4 pl-0"
+        className="flex h-full flex-1 min-h-0 flex-col pt-4 pr-4 pb-4 pl-0"
         style={
           {
             "--da-template-stack-panel-h": "clamp(24rem, 52dvh, 40rem)",

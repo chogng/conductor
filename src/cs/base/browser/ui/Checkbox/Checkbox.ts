@@ -1,7 +1,7 @@
 import { lxCheck } from "cogicon";
 import { forwardRef, type HTMLAttributes, type ReactNode } from "react";
 import { jsx } from "react/jsx-runtime";
-import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
+import CogIcon from "src/cs/base/browser/ui/cogIcon/cogIcon";
 import { cx } from "src/utils/cx";
 
 type CheckboxTag = "span" | "div";

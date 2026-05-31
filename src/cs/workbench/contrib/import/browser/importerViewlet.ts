@@ -1,4 +1,4 @@
-import { normalizeCogIconSvgMarkup } from "src/cs/base/browser/ui/CogIcon/cogicon";
+import { normalizeCogIconSvgMarkup } from "src/cs/base/browser/ui/cogIcon/cogIcon";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import {

@@ -1,12 +1,12 @@
 import { lxArrowLeft } from "cogicon";
 import { useEffect, useState, type KeyboardEvent } from "react";
-import Button from "cs/base/browser/ui/Button/Button";
-import Card from "cs/base/browser/ui/Card/Card";
-import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
-import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
-import Input from "cs/base/browser/ui/Input/Input";
+import Button from "cs/base/browser/ui/button/button";
+import Card from "cs/base/browser/ui/card/card";
+import CogIcon from "src/cs/base/browser/ui/cogIcon/cogIcon";
+import DropdownField from "cs/base/browser/ui/dropdownField/dropdownField";
+import Input from "cs/base/browser/ui/input/input";
 import ScrollArea from "cs/base/browser/ui/scrollArea/scrollArea";
-import Switch from "cs/base/browser/ui/Switch/Switch";
+import Switch from "cs/base/browser/ui/switch/switch";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,

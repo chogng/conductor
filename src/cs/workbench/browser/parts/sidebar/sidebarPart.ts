@@ -6,7 +6,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import Button from "src/cs/base/browser/ui/Button/Button";
+import Button from "src/cs/base/browser/ui/button/button";
 import Sash, { type SashDragEvent } from "src/cs/base/browser/ui/sash/sash";
 import {
   getWorkbenchSidebarActionClassName,

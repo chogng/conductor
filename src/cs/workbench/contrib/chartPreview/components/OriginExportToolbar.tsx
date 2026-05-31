@@ -1,15 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { lxCheck, lxChevronDown, lxChevronRight } from "cogicon";
-import Button from "cs/base/browser/ui/Button/Button";
-import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
-import { lxAlertTriangle } from "src/cs/base/browser/ui/CogIcon/icons";
-import ContentView from "cs/base/browser/ui/ContentView/ContentView";
-import Dropdown from "cs/base/browser/ui/Dropdown/Dropdown";
-import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
-import DropdownTrigger from "cs/base/browser/ui/DropdownTrigger/DropdownTrigger";
-import Menu from "cs/base/browser/ui/Menu/Menu";
-import MenuItem from "cs/base/browser/ui/MenuItem/MenuItem";
-import MenuScrollArea from "cs/base/browser/ui/MenuScrollArea/MenuScrollArea";
+import Button from "cs/base/browser/ui/button/button";
+import CogIcon from "src/cs/base/browser/ui/cogIcon/cogIcon";
+import { lxAlertTriangle } from "src/cs/base/browser/ui/cogIcon/icons";
+import ContentView from "cs/base/browser/ui/contentView/contentView";
+import Dropdown from "cs/base/browser/ui/dropdown/dropdown";
+import DropdownField from "cs/base/browser/ui/dropdownField/dropdownField";
+import DropdownTrigger from "cs/base/browser/ui/dropdownTrigger/dropdownTrigger";
+import Menu from "cs/base/browser/ui/menu/menu";
+import MenuItem from "cs/base/browser/ui/menuItem/menuItem";
+import MenuScrollArea from "cs/base/browser/ui/menuScrollArea/menuScrollArea";
 import {
   isOriginExportMode,
   type OriginExportContentKey,

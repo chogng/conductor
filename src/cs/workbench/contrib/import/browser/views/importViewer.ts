@@ -2,7 +2,7 @@ import { lxClose, lxFileText } from "cogicon";
 import Toast from "src/cs/base/browser/ui/toast/toast";
 import type { ListHandle } from "src/cs/base/browser/ui/list/list";
 import { ListView, type ListViewOptions } from "src/cs/base/browser/ui/list/listView";
-import { normalizeCogIconSvgMarkup } from "src/cs/base/browser/ui/CogIcon/cogicon";
+import { normalizeCogIconSvgMarkup } from "src/cs/base/browser/ui/cogIcon/cogIcon";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import { cx } from "src/utils/cx";

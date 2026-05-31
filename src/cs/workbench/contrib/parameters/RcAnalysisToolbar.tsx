@@ -1,5 +1,5 @@
-import Button from "cs/base/browser/ui/Button/Button";
-import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
+import Button from "cs/base/browser/ui/button/button";
+import DropdownField from "cs/base/browser/ui/dropdownField/dropdownField";
 import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
 import type { OriginCurveExportSeriesOption } from "src/cs/workbench/contrib/chartPreview/components/OriginExportToolbar";
 

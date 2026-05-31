@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import Input from "cs/base/browser/ui/Input/Input";
+import Input from "cs/base/browser/ui/input/input";
 import { formatNumber, splitBidirectionalCurvePoints } from "../lib/analysisMath";
 import { getChartColor, resolveSeriesChartColor } from "../lib/chartColors";
 import { inferTickDigitsFromTicks } from "../lib/analysisChartsUtils";

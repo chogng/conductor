@@ -20,7 +20,7 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 /**
  * Button (UI)
- * - Matches `action-btn*` classes in `src/cs/base/browser/ui/Button/button.css`
+ * - Matches `action-btn*` classes in `src/cs/base/browser/ui/button/button.css`
  * - Defaults `type="button"` to avoid accidental submits
  */
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(({ children, type = "button", variant = "primary", size = "md", fx = false, fullWidth = false, contentClassName = "", className = "", disabled = false, testId, dataIcon, cta, ctaPosition, ctaCopy, ...props }, ref) => {

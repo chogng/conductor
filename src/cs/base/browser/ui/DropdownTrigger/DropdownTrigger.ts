@@ -1,7 +1,7 @@
 import { lxChevronDown } from "cogicon";
 import { jsx } from "react/jsx-runtime";
 import { forwardRef, type ButtonHTMLAttributes, type Ref, type ReactNode, } from "react";
-import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
+import CogIcon from "src/cs/base/browser/ui/cogIcon/cogIcon";
 import { cx } from "src/utils/cx";
 type DropdownTriggerProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "type"> & {
     isOpen: boolean;

@@ -5,12 +5,12 @@ import { getDomRect } from "src/cs/base/browser/dom";
 import {
   normalizeCogIconSvgMarkup,
   type CogIconRenderer,
-} from "src/cs/base/browser/ui/CogIcon/cogicon";
+} from "src/cs/base/browser/ui/cogIcon/cogIcon";
 import {
   lxAlertCircle,
   lxCheckCircle,
   lxInfoCircle,
-} from "src/cs/base/browser/ui/CogIcon/icons";
+} from "src/cs/base/browser/ui/cogIcon/icons";
 import { cx } from "src/utils/cx";
 
 export type ToastType = "success" | "error" | "warning" | "info";

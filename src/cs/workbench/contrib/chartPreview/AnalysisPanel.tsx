@@ -6,8 +6,8 @@ import {
   type Dispatch,
   type SetStateAction,
 } from "react";
-import Card from "cs/base/browser/ui/Card/Card";
-import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
+import Card from "cs/base/browser/ui/card/card";
+import CogIcon from "src/cs/base/browser/ui/cogIcon/cogIcon";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type {
   IonIoffManualTargetsByFileId,

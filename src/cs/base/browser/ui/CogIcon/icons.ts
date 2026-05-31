@@ -1,6 +1,6 @@
 import { jsx } from "react/jsx-runtime";
 import type { CSSProperties, ComponentType } from "react";
-import CogIcon, { type CogIconRenderer } from "src/cs/base/browser/ui/CogIcon/cogicon";
+import CogIcon, { type CogIconRenderer } from "src/cs/base/browser/ui/cogIcon/cogIcon";
 
 type CogIconComponentProps = {
   className?: string;
