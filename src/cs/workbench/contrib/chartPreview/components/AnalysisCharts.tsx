@@ -64,6 +64,8 @@ import {
 } from "../lib/units";
 import { getPerfNow, logPerf, startPerf } from "src/cs/workbench/common/deviceAnalysis/perf";
 import { getWorkbenchEnvironment } from "src/cs/workbench/services/environment/browser/environmentService";
+import { importService } from "src/cs/workbench/services/import/browser/importService";
+import { originService } from "src/cs/workbench/services/origin/browser/originService";
 import MainPlotChart from "./MainPlotChart";
 import GmDiagnosticsChart from "./GmDiagnosticsChart";
 import SsDiagnosticsChart from "./SsDiagnosticsChart";
@@ -1176,10 +1178,11 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const getDesktopOriginBridge = React.useCallback((): OriginCsvBridge | null => {
         if (typeof window === "undefined")
             return null;
-        const bridge = window.desktopOrigin as OriginCsvBridge | undefined;
-        if (!bridge || typeof bridge.runOriginCsv !== "function")
+        if (!originService.canRunCsv())
             return null;
-        return bridge;
+        return {
+            runOriginCsv: (payload) => originService.runCsv(payload),
+        };
     }, []);
     const showToast = React.useCallback((message: string, type: ToastType = "info") => {
         setToast({ isVisible: true, message, type });
@@ -4181,8 +4184,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                     count: rcRows.length,
                 });
     const handleAnalyzeRc = React.useCallback(async () => {
-        const bridge = (globalThis.window as any)?.desktopImport;
-        if (!bridge?.analyzeDeviceAnalysisRcWithRust) {
+        if (!importService.canAnalyzeRc()) {
             setRcAnalyzeError(t("da_rc_error_bridge_unavailable"));
             return;
         }
@@ -4218,7 +4220,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         setRcAnalyzePending(true);
         setRcAnalyzeError("");
         try {
-            const response = await bridge.analyzeDeviceAnalysisRcWithRust({
+            const response = await importService.analyzeRc({
                 devices,
                 options: {
                     maxGridPoints: 240,

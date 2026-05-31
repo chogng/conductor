@@ -37,7 +37,7 @@
 
 它负责：
 
-- 从 `desktopImport.getDeviceAnalysisDemoFiles` 读取桌面 demo 文件。
+- 通过 `IImportService` / `importService.getDemoFiles()` 读取桌面 demo 文件。
 - 浏览器 fallback 到 `/demo/demo-01.csv` 等静态文件。
 - 构造 `File`、`fileId`、`itemKey`、`sourceKey`、`sourcePath`。
 - 返回标准化后的 raw data entries。
@@ -52,7 +52,7 @@
 验收点：
 
 - `useOnboarding.ts` 不再直接引用 `buildFileIdentityKey`、`buildItemKey`、`createCsvImporterFileId`。
-- demo 文件路径、desktop bridge 类型和 fallback 逻辑集中在 data/import 侧。
+- demo 文件路径、import service 调用和 fallback 逻辑集中在 data/import 侧。
 - 点击导览导入步骤仍能导入 demo 数据。
 
 ## 阶段 2：迁出跨模块 onboarding event
@@ -169,7 +169,7 @@ export const ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT =
 - [ ] 新增 `src/cs/workbench/contrib/data/demoDataImport.ts`。
 - [ ] 把 `DEMO_FILE_PATHS` 和 `DEMO_TEMPLATE_NAME_FALLBACK` 中的数据导入相关常量迁出；模板默认名是否迁出可按实际调用点判断。
 - [ ] 把 `DesktopDemoFileEntry`、`ImportedDemoRawDataEntry` 等 demo 导入类型迁出。
-- [ ] 把 desktop bridge 读取逻辑迁出。
+- [ ] 把桌面 demo 文件读取逻辑迁到 import service 边界后面。
 - [ ] 把 `/demo/demo-*.csv` fallback 读取逻辑迁出。
 - [ ] 把 `File`、`fileId`、`itemKey`、`sourceKey` 构造逻辑迁出。
 - [ ] `useOnboarding.ts` 改为调用 data/import helper。

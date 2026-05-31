@@ -36,6 +36,7 @@ import {
 } from "./preview/rustPreviewCells";
 import { usePreviewRowsVersion } from "./usePreviewRowsVersion";
 import { loadConvertedCsvFile } from "src/cs/workbench/contrib/import/browser/rustClient";
+import { importService } from "src/cs/workbench/services/import/browser/importService";
 
 type PreviewResultPayload = {
   requestId: number;
@@ -248,9 +249,9 @@ export const usePreview = ({
         payload: { fileId },
       });
       rustPreviewFileIdsRef.current.delete(fileId);
-      void (globalThis.window as any)?.desktopImport?.disposeDeviceAnalysisFileWithRust?.({
-        fileId,
-      });
+      if (importService.canDisposeFile()) {
+        void importService.disposeFile({ fileId });
+      }
     },
     [previewWorkerRef],
   );
@@ -266,9 +267,9 @@ export const usePreview = ({
     previewCacheFileLruRef.current = new Set();
     previewPendingChunksByFileIdRef.current = new Map();
     rustPreviewFileIdsRef.current = new Set();
-    void (globalThis.window as any)?.desktopImport?.disposeDeviceAnalysisFileWithRust?.({
-      clear: true,
-    });
+    if (importService.canDisposeFile()) {
+      void importService.disposeFile({ clear: true });
+    }
     assignCurrentPreviewCache();
     notifyPreviewRowsCacheChanged();
   }, [
@@ -573,7 +574,6 @@ export const usePreview = ({
       });
     };
 
-    const bridge = (globalThis.window as any)?.desktopImport;
     const rustInputPath =
       typeof targetFile.normalizedCsvPath === "string" &&
       targetFile.normalizedCsvPath.trim()
@@ -582,9 +582,9 @@ export const usePreview = ({
             targetFile.sourcePath.trim().toLowerCase().endsWith(".csv")
           ? targetFile.sourcePath.trim()
           : null;
-    if (rustInputPath && bridge?.openDeviceAnalysisFileWithRust) {
-      void bridge
-        .openDeviceAnalysisFileWithRust({
+    if (rustInputPath && importService.canOpenFile()) {
+      void importService
+        .openFile({
           fileId: targetFile.fileId,
           fileName: targetFile.fileName ?? "",
           path: rustInputPath,
@@ -675,7 +675,6 @@ export const usePreview = ({
       const start = Math.max(0, Math.floor(Number(startRow) || 0));
       const end = Math.max(start, Math.floor(Number(endRow) || start));
 
-      const bridge = (globalThis.window as any)?.desktopImport;
       const requestRowsWithWorker = () => {
         const worker = getOrCreatePreviewWorker();
         if (!worker) return Promise.resolve([]);
@@ -702,10 +701,10 @@ export const usePreview = ({
 
       if (
         rustPreviewFileIdsRef.current.has(fileId) &&
-        bridge?.getDeviceAnalysisPreviewRowsWithRust
+        importService.canGetPreviewRows()
       ) {
-        return bridge
-          .getDeviceAnalysisPreviewRowsWithRust({
+        return importService
+          .getPreviewRows({
             endRow: end,
             fileId,
             startRow: start,
@@ -773,10 +772,9 @@ export const usePreview = ({
       }
       if (!requestedRows.size) return;
 
-      const bridge = (globalThis.window as any)?.desktopImport;
       if (
         rustPreviewFileIdsRef.current.has(fileId) &&
-        bridge?.readDeviceAnalysisCellsWithRust
+        importService.canReadCells()
       ) {
         const requestCells = buildRustPreviewCellRequests({
           columnCount,
@@ -784,13 +782,14 @@ export const usePreview = ({
         });
         if (requestCells.length > 0) {
           try {
-            const response = await bridge.readDeviceAnalysisCellsWithRust({
+            const response = await importService.readCells({
               cells: requestCells,
               fileId,
             });
             if (response?.ok && response?.result) {
+              const result = response.result as { cells?: unknown };
               const rowsByIndex = rowsFromRustPreviewCells({
-                cells: response.result.cells,
+                cells: result.cells,
                 columnCount,
               });
               if (rowsByIndex.size === requestedRows.size) {

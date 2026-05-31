@@ -7,6 +7,7 @@ import type {
   IonIoffMethod,
   SsMethod,
 } from "src/cs/workbench/contrib/session/analysis-session-context";
+import { originService } from "src/cs/workbench/services/origin/browser/originService";
 
 export type AnalysisSettings = {
   fileNameFieldSeparators?: string;
@@ -84,7 +85,6 @@ export type OriginBridge = {
 declare global {
   interface Window {
     __CONDUCTOR_INITIAL_DEVICE_ANALYSIS_SETTINGS__?: Record<string, unknown> | null;
-    desktopOrigin?: OriginBridge;
   }
 }
 
@@ -175,10 +175,18 @@ export const getOriginExePathWithTimeout = async (
 export const getDesktopOriginBridge = (): OriginBridge | null => {
   if (typeof window === "undefined") return null;
 
-  const bridge = window.desktopOrigin;
-  if (!bridge || typeof bridge !== "object") return null;
-  if (typeof bridge.getOriginExePath !== "function") return null;
-  if (typeof bridge.pickOriginExePath !== "function") return null;
+  if (!originService.canManageExePath()) return null;
 
-  return bridge;
+  return {
+    checkOriginHealth:
+      originService.canCheckHealth()
+        ? (options) => originService.checkHealth(options)
+        : undefined,
+    getOriginExePath: () => originService.getExePath(),
+    pickOriginExePath: () => originService.pickExePath(),
+    runOriginRuntimeCleanup:
+      originService.canRunRuntimeCleanup()
+        ? () => originService.runRuntimeCleanup()
+        : undefined,
+  };
 };

@@ -1,8 +1,4 @@
-import "../../../workbench/contrib/splash/electron-sandbox/splash.contribution";
-import "src/cs/platform/contextkey/browser/contextKeyService";
-import "src/cs/platform/native/electron-browser/nativeHostService";
-import "src/cs/workbench/services/contextmenu/electron-browser/contextmenuService";
-import "src/cs/workbench/services/environment/electron-browser/environmentService";
+import "src/cs/workbench/workbench.desktop.main";
 import { ipcRenderer } from "src/cs/base/parts/sandbox/electron-browser/globals";
 import { InstantiationService } from "src/cs/platform/instantiation/common/instantiationService";
 import { ServiceCollection } from "src/cs/platform/instantiation/common/serviceCollection";

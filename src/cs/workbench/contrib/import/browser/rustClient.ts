@@ -4,6 +4,7 @@ import {
 import {
   startPerf,
 } from "src/cs/workbench/common/deviceAnalysis/perf";
+import { importService } from "src/cs/workbench/services/import/browser/importService";
 
 type ImportWorkerPreparedFile = {
   assessment: ImportedCurveAssessment;
@@ -14,84 +15,6 @@ type ImportWorkerPreparedFile = {
   sourceName: string;
   sourceSizeBytes: number;
 };
-
-type RustImportPrepareResult = {
-  assessment?: ImportedCurveAssessment | null;
-  code?: string;
-  csvText?: string;
-  durationMs?: number;
-  manifest?: unknown;
-  message?: string;
-  normalizedCsvPath?: string | null;
-  normalizedSizeBytes?: number;
-  ok?: boolean;
-  source?: string;
-  sourceName?: string;
-  sourcePath?: string;
-  sourceSizeBytes?: number;
-};
-
-type DesktopImportBridge = {
-  prepareImportFileWithRust?: (payload: {
-    fileName: string;
-    path: string;
-  }) => Promise<RustImportPrepareResult>;
-  readConvertedCsvFileWithRust?: (payload: {
-    path: string;
-  }) => Promise<{ csvText?: string; ok?: boolean; sizeBytes?: number }>;
-  disposeDeviceAnalysisFileWithRust?: (payload: {
-    clear?: boolean;
-    fileId?: string;
-  }) => Promise<unknown>;
-  getDeviceAnalysisPreviewRowsWithRust?: (payload: {
-    endRow: number;
-    fileId: string;
-    startRow: number;
-  }) => Promise<unknown>;
-  getDeviceAnalysisDemoFiles?: () => Promise<{
-    demoDir?: string;
-    files?: Array<{
-      fileName?: string;
-      lastModified?: number;
-      path?: string;
-      size?: number;
-      text?: string;
-    }>;
-  }>;
-  getDeviceAnalysisPreviewMetaWithRust?: (payload: {
-    fileId: string;
-  }) => Promise<unknown>;
-  openDeviceAnalysisFileWithRust?: (payload: {
-    fileId: string;
-    fileName: string;
-    path: string;
-    seedRows?: number;
-  }) => Promise<unknown>;
-  readDeviceAnalysisCellWithRust?: (payload: {
-    colIndex: number;
-    fileId: string;
-    rowIndex: number;
-  }) => Promise<unknown>;
-  readDeviceAnalysisCellsWithRust?: (payload: {
-    cells: Array<{ colIndex: number; rowIndex: number }>;
-    fileId: string;
-  }) => Promise<unknown>;
-  inferDeviceAnalysisAutoExtractionWithRust?: (payload: {
-    fileId: string;
-    fileName: string;
-    path: string;
-  }) => Promise<unknown>;
-};
-
-type ConductorWebUtilsBridge = {
-  getPathForFile?: (file: File) => string;
-};
-
-declare global {
-  interface Window {
-    desktopImport?: DesktopImportBridge;
-  }
-}
 
 const getRustConvertCsvBytes = (manifest: unknown): number | null => {
   if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
@@ -118,13 +41,12 @@ export const loadConvertedCsvFile = async ({
     return fallbackFile instanceof File ? fallbackFile : null;
   }
 
-  const bridge = globalThis.window?.desktopImport;
-  if (!bridge?.readConvertedCsvFileWithRust) {
+  if (!importService.canReadConvertedCsv()) {
     return fallbackFile instanceof File ? fallbackFile : null;
   }
 
   try {
-    const response = await bridge.readConvertedCsvFileWithRust({ path: csvPath });
+    const response = await importService.readConvertedCsv({ path: csvPath });
     if (!response?.ok || typeof response.csvText !== "string") {
       return fallbackFile instanceof File ? fallbackFile : null;
     }
@@ -142,13 +64,11 @@ export const loadConvertedCsvFile = async ({
 export const prepareImportFileInWorker = async (
   file: File,
 ): Promise<ImportWorkerPreparedFile> => {
-  const bridge = globalThis.window?.desktopImport;
-  if (!bridge?.prepareImportFileWithRust) {
+  if (!importService.canPrepareFile()) {
     throw new Error("Rust import preparation is not available.");
   }
 
-  const webUtils = globalThis.window?.conductor?.webUtils as ConductorWebUtilsBridge | undefined;
-  const filePath = webUtils?.getPathForFile?.(file) ?? "";
+  const filePath = importService.getFilePath(file);
   if (!filePath) {
     throw new Error(`Unable to resolve file path for ${file.name}.`);
   }
@@ -159,7 +79,7 @@ export const prepareImportFileInWorker = async (
   });
 
   try {
-    const result = await bridge.prepareImportFileWithRust({
+    const result = await importService.prepareFile({
       fileName: file.name,
       path: filePath,
     });

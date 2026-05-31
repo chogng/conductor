@@ -10,6 +10,7 @@ import JSZip from "jszip";
 import {
   triggerBlobDownload,
 } from "src/cs/workbench/contrib/dataExport/export";
+import { importService } from "src/cs/workbench/services/import/browser/importService";
 import {
   buildOriginExportPlan,
   getRustOriginCsvDerivedContentKey,
@@ -1195,21 +1196,19 @@ export const useOriginCanvasExport = ({
       /\.zip$/i,
       "",
     )}.zip`;
-    const desktopZipBridge = (globalThis.window as any)?.desktopImport;
-    if (desktopZipBridge?.saveDeviceAnalysisOriginZip) {
+    if (importService.canSaveOriginZip()) {
       const entries = sanitizedPayloads.map(({ csvName, payload }) => ({
         name: csvName,
         text: payload.csvText,
       }));
-      if (desktopZipBridge?.exportDeviceAnalysisOriginCsvWithRust) {
+      if (importService.canExportOriginCsv()) {
         await Promise.all(
           entries.map(async (entry, index) => {
             if (String(entry.text ?? "").trim()) return;
             const request = buildRustOriginCsvExportRequest(result.payloads[index]);
             if (!request) return;
             try {
-              const response =
-                await desktopZipBridge.exportDeviceAnalysisOriginCsvWithRust(request);
+              const response = await importService.exportOriginCsv(request);
               if (!response?.ok || !response?.csvPath) return;
               delete (entry as any).text;
               (entry as any).path = response.csvPath;
@@ -1242,7 +1241,7 @@ export const useOriginCanvasExport = ({
         }
       }
 
-      const response = await desktopZipBridge.saveDeviceAnalysisOriginZip({
+      const response = await importService.saveOriginZip({
         defaultName: zipName,
         entries,
       });
@@ -1471,15 +1470,13 @@ export const useOriginCanvasExport = ({
         };
       });
 
-      const rustExportBridge = (globalThis.window as any)?.desktopImport;
-      if (rustExportBridge?.exportDeviceAnalysisOriginCsvWithRust) {
+      if (importService.canExportOriginCsv()) {
         await Promise.all(
           originCsvJobs.map(async (job: any, index: number) => {
             const request = buildRustOriginCsvExportRequest(result.payloads[index]);
             if (!request) return;
             try {
-              const response =
-                await rustExportBridge.exportDeviceAnalysisOriginCsvWithRust(request);
+              const response = await importService.exportOriginCsv(request);
               if (!response?.ok || !response?.csvPath) return;
               job.csv = {
                 name: result.payloads[index]?.csvName,

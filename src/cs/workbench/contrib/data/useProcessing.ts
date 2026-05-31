@@ -30,6 +30,7 @@ import {
   terminateProcessingWorker,
   type ProcessingQueueItem,
 } from "./asyncProcessing";
+import { importService } from "src/cs/workbench/services/import/browser/importService";
 
 // Orchestrates validation and queue building for the device-analysis apply flow.
 // The async execution details live in asyncProcessing.ts so this hook stays focused on inputs.
@@ -368,13 +369,12 @@ export const useProcessing = ({
             : null;
       if (!inputPath) return null;
 
-      const bridge = (globalThis.window as any)?.desktopImport;
-      if (!bridge?.processDeviceAnalysisFileWithRust) return null;
+      if (!importService.canProcessFile()) return null;
 
       try {
         let finalExtractionConfig = extractionConfig;
         if (messageType === "processFileAuto") {
-          const response = await bridge.processDeviceAnalysisFileWithRust({
+          const response = await importService.processFile({
             auto: true,
             curveFilterField: entry.curveFilterField ?? null,
             curveFilterKey: entry.curveFilterKey ?? null,
@@ -389,7 +389,7 @@ export const useProcessing = ({
           return null;
         }
 
-        const response = await bridge.processDeviceAnalysisFileWithRust({
+        const response = await importService.processFile({
           config: finalExtractionConfig,
           curveFilterField: entry.curveFilterField ?? null,
           curveFilterKey: entry.curveFilterKey ?? null,

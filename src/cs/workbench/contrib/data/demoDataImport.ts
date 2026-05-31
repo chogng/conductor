@@ -4,6 +4,7 @@ import {
   buildItemKey,
   createCsvImporterFileId,
 } from "src/cs/workbench/contrib/import/preview/csvImportUtils";
+import { importService } from "src/cs/workbench/services/import/browser/importService";
 
 const DEMO_FILE_PATHS = [
   "/demo/demo-01.csv",
@@ -53,8 +54,11 @@ const normalizeDesktopDemoFile = (
 });
 
 const readDesktopDemoFiles = async (): Promise<DemoFileSource[]> => {
-  const desktopDemoFiles =
-    await globalThis.window?.desktopImport?.getDeviceAnalysisDemoFiles?.();
+  if (!importService.canGetDemoFiles()) {
+    return [];
+  }
+
+  const desktopDemoFiles = await importService.getDemoFiles();
   const desktopEntries = Array.isArray(desktopDemoFiles?.files)
     ? desktopDemoFiles.files.filter(
         (entry): entry is DesktopDemoFileEntry =>
