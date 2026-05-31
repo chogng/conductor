@@ -87,7 +87,7 @@ export const clampSidebarWidth = (width: number): number =>
     Math.min(SIDEBAR_MAX_WIDTH_PX, Math.round(width)),
   );
 
-export const useDeviceAnalysisSidebarLayout = () => {
+export const useWorkbenchSidebarLayout = () => {
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH_PX);
   const handleSidebarResize = useCallback((width: number) => {
     setSidebarWidth(clampSidebarWidth(width));
@@ -99,11 +99,11 @@ export const useDeviceAnalysisSidebarLayout = () => {
   };
 };
 
-export const DeviceAnalysisSidebarPortalContext =
+export const WorkbenchSidebarPortalContext =
   createContext<HTMLElement | null>(null);
 
-export const useDeviceAnalysisSidebarPortal = () =>
-  useContext(DeviceAnalysisSidebarPortalContext);
+export const useWorkbenchSidebarPortal = () =>
+  useContext(WorkbenchSidebarPortalContext);
 
 export const getLayoutState = ({
   activeView,

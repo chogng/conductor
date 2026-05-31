@@ -1,15 +1,13 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type MutableRefObject, type ReactNode, type Ref, type RefCallback, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import { lxCheck, lxChevronDown, lxChevronRight } from "cogicon";
 import Button from "cs/base/browser/ui/button/button";
 import CogIcon from "src/cs/base/browser/ui/cogIcon/cogIcon";
 import { lxAlertTriangle } from "src/cs/base/browser/ui/cogIcon/icons";
-import ContentView from "cs/base/browser/ui/contentView/contentView";
-import Dropdown from "cs/base/browser/ui/dropdown/dropdown";
+import { getClientArea, getContentWidth, getDomRect, getElementSize } from "src/cs/base/browser/dom";
+import { addDisposableListener, combinedDisposable, EventType } from "src/cs/base/browser/event";
+import { anchoredLayout, rectFromDomRect } from "src/cs/base/common/layout";
 import DropdownField from "cs/base/browser/ui/dropdownField/dropdownField";
-import DropdownTrigger from "cs/base/browser/ui/dropdownTrigger/dropdownTrigger";
-import Menu from "cs/base/browser/ui/menu/menu";
-import MenuItem from "cs/base/browser/ui/menuItem/menuItem";
-import MenuScrollArea from "cs/base/browser/ui/menuScrollArea/menuScrollArea";
 import {
   isOriginExportMode,
   type OriginExportContentKey,
@@ -79,6 +77,317 @@ const ORIGIN_EXPORT_CONTENT_OPTION_GROUPS: Array<Pick<OriginExportContentMenuGro
   { key: "basic", labelKey: "da_origin_export_content_group_basic" },
   { key: "derived", labelKey: "da_origin_export_content_group_derived" },
 ];
+type ContentViewAlign = "left" | "center" | "right";
+type ResolvedContentViewSide = "top" | "bottom" | "right" | "left";
+type LocalContentViewProps = {
+  align?: ContentViewAlign;
+  anchorRef?: RefObject<HTMLElement | null>;
+  children?: ReactNode | (() => ReactNode);
+  contentRef?: RefCallback<HTMLDivElement | null>;
+  isOpen: boolean;
+  matchAnchorWidth?: boolean;
+  menuId?: string;
+  role?: string;
+  side?: "bottom" | "right";
+  triggerId?: string;
+  variant?: "surface" | "menu";
+  zIndex?: number;
+};
+type DropdownRenderProps = {
+  isOpen: boolean;
+  open: () => void;
+  close: () => void;
+  toggle: () => void;
+  anchorRef: RefObject<HTMLElement | null>;
+  setAnchorRef: RefCallback<HTMLElement | null>;
+  contentRef: RefObject<HTMLDivElement | null>;
+  setContentRef: RefCallback<HTMLDivElement | null>;
+};
+type DropdownProps = {
+  anchorRef?: RefObject<HTMLElement | null>;
+  children: ReactNode | ((props: DropdownRenderProps) => ReactNode);
+  closeOnClickOutside?: boolean;
+  closeOnEscape?: boolean;
+  isOpen: boolean;
+  onOpenChange: (nextOpen: boolean) => void;
+};
+type DropdownTriggerProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "type"> & {
+  fieldClassName?: string;
+  fieldRef?: Ref<HTMLDivElement | null>;
+  hideIndicator?: boolean;
+  indicator?: ReactNode;
+  indicatorClassName?: string;
+  isOpen: boolean;
+  menuId?: string;
+};
+
+const CONTENT_VIEW_GAP_PX = 8;
+const VIEWPORT_PADDING_PX = 8;
+
+const cx = (...parts: Array<string | false | null | undefined>) => parts.filter(Boolean).join(" ");
+
+const assignRef = <T,>(ref: Ref<T> | undefined, value: T) => {
+  if (!ref) return;
+  if (typeof ref === "function") {
+    ref(value);
+    return;
+  }
+  (ref as MutableRefObject<T>).current = value;
+};
+
+const Dropdown = ({ anchorRef, children, closeOnClickOutside = true, closeOnEscape = true, isOpen, onOpenChange }: DropdownProps) => {
+  const internalAnchorRef = useRef<HTMLElement | null>(null);
+  const internalContentRef = useRef<HTMLDivElement | null>(null);
+  const resolvedAnchorRef = anchorRef ?? internalAnchorRef;
+  const open = () => onOpenChange(true);
+  const close = () => onOpenChange(false);
+  const toggle = () => onOpenChange(!isOpen);
+  const setAnchorRef: RefCallback<HTMLElement | null> = (node) => {
+    assignRef(internalAnchorRef, node);
+    if (anchorRef) assignRef(anchorRef, node);
+  };
+  const setContentRef: RefCallback<HTMLDivElement | null> = (node) => {
+    assignRef(internalContentRef, node);
+  };
+
+  useEffect(() => {
+    if (!isOpen || !closeOnEscape) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") close();
+    };
+    return addDisposableListener(document, EventType.KEY_DOWN, handleKeyDown).dispose;
+  }, [closeOnEscape, isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !closeOnClickOutside) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (resolvedAnchorRef.current?.contains(target)) return;
+      if (internalContentRef.current?.contains(target)) return;
+      close();
+    };
+    return addDisposableListener(document, EventType.MOUSE_DOWN, handleClickOutside).dispose;
+  }, [closeOnClickOutside, isOpen, resolvedAnchorRef]);
+
+  const renderProps: DropdownRenderProps = {
+    isOpen,
+    open,
+    close,
+    toggle,
+    anchorRef: resolvedAnchorRef,
+    setAnchorRef,
+    contentRef: internalContentRef,
+    setContentRef,
+  };
+
+  return typeof children === "function" ? children(renderProps) : children;
+};
+
+const DropdownTrigger = React.forwardRef<HTMLButtonElement, DropdownTriggerProps>(({
+  children,
+  className = "",
+  disabled = false,
+  fieldClassName = "",
+  fieldRef,
+  hideIndicator = false,
+  id,
+  indicator,
+  indicatorClassName = "",
+  isOpen,
+  menuId,
+  ...props
+}, ref) => (
+  <div ref={fieldRef} className={fieldClassName} data-state={disabled ? "disabled" : "enable"}>
+    <button
+      {...props}
+      ref={ref}
+      id={id}
+      type="button"
+      aria-haspopup="menu"
+      aria-expanded={isOpen}
+      aria-controls={menuId}
+      disabled={disabled}
+      data-state={isOpen ? "open" : "closed"}
+      className={className}
+    >
+      {children}
+    </button>
+    {!hideIndicator ? (
+      <span className={indicatorClassName}>
+        {indicator ?? (
+          <CogIcon
+            icon={lxChevronDown}
+            size={16}
+            className={cx("transition-transform duration-200", isOpen && "rotate-180")}
+          />
+        )}
+      </span>
+    ) : null}
+  </div>
+));
+
+const ContentView = ({
+  align = "left",
+  anchorRef,
+  children,
+  contentRef,
+  isOpen,
+  matchAnchorWidth = false,
+  menuId,
+  role = "menu",
+  side: preferredSide = "bottom",
+  triggerId,
+  variant = "surface",
+  zIndex = 20,
+}: LocalContentViewProps) => {
+  const contentViewRef = useRef<HTMLDivElement | null>(null);
+  const [portalStyle, setPortalStyle] = useState<CSSProperties | null>(null);
+  const [side, setSide] = useState<ResolvedContentViewSide>("bottom");
+  const setContentViewNode = (node: HTMLDivElement | null) => {
+    contentViewRef.current = node;
+    contentRef?.(node);
+  };
+
+  useLayoutEffect(() => {
+    if (!isOpen) {
+      setPortalStyle(null);
+      setSide("bottom");
+      return;
+    }
+
+    const updatePosition = () => {
+      const anchorEl = anchorRef?.current;
+      const contentViewEl = contentViewRef.current;
+      if (!anchorEl || !contentViewEl) return;
+
+      const anchorRect = rectFromDomRect(getDomRect(anchorEl));
+      const anchorWidth = Math.max(0, anchorRect.width);
+      const viewportDimension = getClientArea(window);
+      const maxWidth = Math.max(0, viewportDimension.width - VIEWPORT_PADDING_PX * 2);
+      const surfaceEl = contentViewEl.firstElementChild;
+      const contentViewSize = getElementSize(contentViewEl);
+      const contentWidth = Math.max(
+        surfaceEl instanceof HTMLElement ? getContentWidth(surfaceEl) || 0 : 0,
+        contentViewEl.scrollWidth || 0,
+        contentViewEl.offsetWidth || 0,
+      );
+      const contentViewWidth = matchAnchorWidth
+        ? Math.min(Math.max(contentWidth, anchorWidth), maxWidth)
+        : Math.min(contentWidth, maxWidth);
+      const layout = anchoredLayout({
+        viewport: {
+          top: 0,
+          left: 0,
+          width: viewportDimension.width,
+          height: viewportDimension.height,
+        },
+        anchor: anchorRect,
+        view: {
+          width: contentViewWidth,
+          height: contentViewSize.height,
+        },
+        gap: CONTENT_VIEW_GAP_PX,
+        padding: VIEWPORT_PADDING_PX,
+        align,
+        side: preferredSide,
+      });
+
+      setPortalStyle({
+        position: "fixed",
+        top: layout.top,
+        left: layout.left,
+        width: layout.width,
+        minWidth: matchAnchorWidth ? Math.min(anchorWidth, maxWidth) : undefined,
+        maxWidth: layout.maxWidth,
+        zIndex,
+      });
+      setSide(layout.side);
+    };
+
+    updatePosition();
+    return combinedDisposable(
+      addDisposableListener(window, EventType.RESIZE, updatePosition),
+      addDisposableListener(window, EventType.SCROLL, updatePosition, true),
+    ).dispose;
+  }, [align, anchorRef, isOpen, matchAnchorWidth, preferredSide, zIndex]);
+
+  if (typeof document === "undefined") return null;
+
+  const content = typeof children === "function" ? (isOpen ? children() : null) : children;
+  return createPortal(
+    <div
+      ref={setContentViewNode}
+      id={menuId}
+      role={role}
+      aria-orientation="vertical"
+      aria-labelledby={triggerId}
+      aria-hidden={isOpen ? undefined : true}
+      data-style="contentview"
+      data-state={isOpen ? "open" : "closed"}
+      data-side={side}
+      data-align={align}
+      tabIndex={-1}
+      className={isOpen ? "content-view__portal--open" : "content-view__portal--closed"}
+      style={portalStyle ?? { position: "fixed", zIndex }}
+    >
+      <div
+        className={cx(
+          "content-view__surface",
+          isOpen ? "content-view__surface--open" : "content-view__surface--closed",
+          variant === "menu" && "content-view__surface--menu",
+        )}
+      >
+        {content}
+      </div>
+    </div>,
+    document.body,
+  );
+};
+
+const MenuScrollArea = ({ children }: { children?: ReactNode }) => (
+  <div className="ui-menu__scroll-area max-h-60 -mr-1 pr-1">
+    <div className="max-h-60" style={{ height: "auto", maxHeight: "15rem", overflowY: "auto" }}>
+      {children}
+    </div>
+  </div>
+);
+
+const Menu = ({ children, role = "menu", withScrollArea = true }: { children?: ReactNode; role?: string; withScrollArea?: boolean }) => (
+  <div role={role} className="ui-menu">
+    {withScrollArea ? <MenuScrollArea>{children}</MenuScrollArea> : children}
+  </div>
+);
+
+const MenuItem = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement> & {
+  disabled?: boolean;
+  left?: ReactNode;
+  right?: ReactNode;
+}>(({ className = "", left, right, children, disabled = false, role = "menuitem", tabIndex = -1, onClick, onKeyDown, ...props }, ref) => {
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    onKeyDown?.(event);
+    if (event.defaultPrevented || disabled) return;
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    onClick?.(event as unknown as React.MouseEvent<HTMLDivElement>);
+  };
+
+  return (
+    <div
+      {...props}
+      ref={ref}
+      role={role}
+      tabIndex={disabled ? undefined : tabIndex}
+      aria-disabled={disabled || undefined}
+      onClick={disabled ? undefined : onClick}
+      onKeyDown={handleKeyDown}
+      className={cx("ui-menu__item select-none outline-none", className)}
+    >
+      {left ?? children}
+      {right ?? null}
+    </div>
+  );
+});
 
 const normalizeOriginExportContentKeysForOptions = (
   keys: readonly OriginExportContentKey[] | null | undefined,

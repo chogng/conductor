@@ -1,14 +1,13 @@
-import { lxCheck, lxChevronDown } from "cogicon";
+﻿import { lxCheck, lxChevronDown } from "cogicon";
 import { Fragment, jsx } from "react/jsx-runtime";
-import { isValidElement, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ComponentType, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type ReactNode, type RefCallback, type RefObject, } from "react";
+import { forwardRef, isValidElement, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ComponentType, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent, type MutableRefObject, type ReactNode, type Ref, type RefCallback, type RefObject, } from "react";
+import { createPortal } from "react-dom";
+import { getClientArea, getContentWidth, getDomRect, getElementSize } from "src/cs/base/browser/dom";
+import { addDisposableListener, combinedDisposable, EventType } from "src/cs/base/browser/event";
+import { anchoredLayout, rectFromDomRect } from "src/cs/base/common/layout";
 import { cx } from "src/utils/cx";
 import CogIcon from "src/cs/base/browser/ui/cogIcon/cogIcon";
-import ContentView, { type ContentViewAlign } from "src/cs/base/browser/ui/contentView/contentView";
-import Dropdown from "src/cs/base/browser/ui/dropdown/dropdown";
-import DropdownTrigger from "src/cs/base/browser/ui/dropdownTrigger/dropdownTrigger";
-import Menu from "src/cs/base/browser/ui/menu/menu";
-import MenuItem from "src/cs/base/browser/ui/menuItem/menuItem";
-import MenuScrollArea from "src/cs/base/browser/ui/menuScrollArea/menuScrollArea";
+import { type ContentViewAlign } from "src/cs/base/browser/ui/contentView/contentView";
 
 
 const hasWidthConstraintClass = (className: string): boolean => {
@@ -89,6 +88,305 @@ type DropdownFieldProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onChang
     loadingLabel?: ReactNode;
     emptyLabel?: ReactNode;
     onOpenChange?: (nextOpen: boolean) => void;
+};
+type ResolvedContentViewSide = "top" | "bottom" | "right" | "left";
+type ContentViewChildren = ReactNode | (() => ReactNode);
+type LegacyContentViewProps = {
+    isOpen: boolean;
+    align?: ContentViewAlign;
+    zIndex?: number;
+    className?: string;
+    children?: ContentViewChildren;
+    triggerId?: string;
+    menuId?: string;
+    anchorRef?: RefObject<HTMLElement | null>;
+    contentRef?: RefCallback<HTMLDivElement | null>;
+    matchAnchorWidth?: boolean;
+    side?: "bottom" | "right";
+    variant?: "surface" | "menu";
+    role?: string;
+    "aria-orientation"?: "vertical" | "horizontal";
+};
+type LegacyMenuProps = {
+    children?: ReactNode;
+    className?: string;
+    role?: string;
+    withScrollArea?: boolean;
+};
+type LegacyMenuItemProps = {
+    ["aria-checked"]?: boolean;
+    ["data-highlighted"]?: boolean;
+    ["data-selected"]?: boolean;
+    ["data-value"]?: string;
+    children?: ReactNode;
+    className?: string;
+    disabled?: boolean;
+    left?: ReactNode;
+    onClick?: (event: ReactMouseEvent<HTMLDivElement>) => void;
+    onKeyDown?: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
+    onMouseEnter?: (event: ReactMouseEvent<HTMLDivElement>) => void;
+    right?: ReactNode;
+    role?: string;
+    tabIndex?: number;
+};
+type LegacyDropdownRenderProps = {
+    isOpen: boolean;
+    open: () => void;
+    close: () => void;
+    toggle: () => void;
+    anchorRef: RefObject<HTMLElement | null>;
+    setAnchorRef: RefCallback<HTMLElement | null>;
+    contentRef: RefObject<HTMLDivElement | null>;
+    setContentRef: RefCallback<HTMLDivElement | null>;
+};
+type LegacyDropdownProps = {
+    isOpen: boolean;
+    onOpenChange: (nextOpen: boolean) => void;
+    anchorRef?: RefObject<HTMLElement | null>;
+    closeOnClickOutside?: boolean;
+    closeOnEscape?: boolean;
+    children: ReactNode | ((props: LegacyDropdownRenderProps) => ReactNode);
+};
+type LegacyDropdownTriggerProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "type"> & {
+    isOpen: boolean;
+    menuId?: string;
+    fieldRef?: Ref<HTMLDivElement | null>;
+    fieldClassName?: string;
+    indicatorClassName?: string;
+    indicator?: ReactNode;
+    hideIndicator?: boolean;
+};
+
+const CONTENT_VIEW_GAP_PX = 8;
+const VIEWPORT_PADDING_PX = 8;
+
+const assignRef = <T,>(ref: Ref<T> | undefined, value: T) => {
+    if (!ref)
+        return;
+    if (typeof ref === "function") {
+        ref(value);
+        return;
+    }
+    (ref as MutableRefObject<T>).current = value;
+};
+
+const LegacyDropdown = ({ isOpen, onOpenChange, anchorRef, closeOnClickOutside = true, closeOnEscape = true, children, }: LegacyDropdownProps) => {
+    const internalAnchorRef = useRef<HTMLElement | null>(null);
+    const internalContentRef = useRef<HTMLDivElement | null>(null);
+    const resolvedAnchorRef = anchorRef ?? internalAnchorRef;
+    const open = () => onOpenChange(true);
+    const close = () => onOpenChange(false);
+    const toggle = () => onOpenChange(!isOpen);
+    const setAnchorRef: RefCallback<HTMLElement | null> = (node) => {
+        assignRef(internalAnchorRef, node);
+        if (anchorRef)
+            assignRef(anchorRef, node);
+    };
+    const setContentRef: RefCallback<HTMLDivElement | null> = (node) => {
+        assignRef(internalContentRef, node);
+    };
+    useEffect(() => {
+        if (!isOpen || !closeOnEscape)
+            return;
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === "Escape")
+                close();
+        };
+        return addDisposableListener(document, EventType.KEY_DOWN, handleKeyDown).dispose;
+    }, [closeOnEscape, isOpen]);
+    useEffect(() => {
+        if (!isOpen || !closeOnClickOutside)
+            return;
+        const handleClickOutside = (event: MouseEvent) => {
+            const anchorEl = resolvedAnchorRef.current;
+            const target = event.target;
+            if (!(target instanceof Node))
+                return;
+            if (anchorEl?.contains(target))
+                return;
+            const popupEl = internalContentRef.current;
+            if (popupEl?.contains(target))
+                return;
+            close();
+        };
+        return addDisposableListener(document, EventType.MOUSE_DOWN, handleClickOutside).dispose;
+    }, [closeOnClickOutside, isOpen, resolvedAnchorRef]);
+    const renderProps: LegacyDropdownRenderProps = {
+        isOpen,
+        open,
+        close,
+        toggle,
+        anchorRef: resolvedAnchorRef,
+        setAnchorRef,
+        contentRef: internalContentRef,
+        setContentRef,
+    };
+    return typeof children === "function" ? children(renderProps) : children;
+};
+
+const LegacyDropdownTrigger = forwardRef<HTMLButtonElement, LegacyDropdownTriggerProps>(({ id, isOpen, menuId, fieldRef, disabled = false, className = "", fieldClassName = "", indicatorClassName = "", indicator, hideIndicator = false, children, ...props }, ref) => jsx("div", {
+    ref: fieldRef,
+    className: fieldClassName,
+    "data-state": disabled ? "disabled" : "enable",
+    children: [
+        jsx("button", {
+            ...props,
+            ref,
+            id,
+            type: "button",
+            "aria-haspopup": "menu",
+            "aria-expanded": isOpen,
+            "aria-controls": menuId,
+            disabled,
+            "data-state": isOpen ? "open" : "closed",
+            className,
+            children
+        }),
+        !hideIndicator ? jsx("span", {
+            className: indicatorClassName,
+            children: indicator ?? jsx(CogIcon, {
+                icon: lxChevronDown,
+                size: 16,
+                className: cx("transition-transform duration-200", isOpen ? "rotate-180" : "")
+            })
+        }) : null
+    ]
+}));
+
+const LegacyContentView = ({ isOpen, align = "left", zIndex = 20, className = "", children, triggerId, menuId, anchorRef, contentRef, matchAnchorWidth = false, side: preferredSide = "bottom", variant = "surface", role = "menu", "aria-orientation": ariaOrientation = "vertical", }: LegacyContentViewProps) => {
+    const contentViewRef = useRef<HTMLDivElement | null>(null);
+    const [portalStyle, setPortalStyle] = useState<CSSProperties | null>(null);
+    const [side, setSide] = useState<ResolvedContentViewSide>("bottom");
+    const setContentViewNode = (node: HTMLDivElement | null) => {
+        contentViewRef.current = node;
+        contentRef?.(node);
+    };
+
+    useLayoutEffect(() => {
+        if (!isOpen) {
+            setPortalStyle(null);
+            setSide("bottom");
+            return;
+        }
+
+        const updatePosition = () => {
+            const anchorEl = anchorRef?.current;
+            const contentViewEl = contentViewRef.current;
+            if (!anchorEl || !contentViewEl)
+                return;
+            const anchorRect = rectFromDomRect(getDomRect(anchorEl));
+            const anchorWidth = Math.max(0, anchorRect.width);
+            const viewportDimension = getClientArea(window);
+            const maxWidth = Math.max(0, viewportDimension.width - VIEWPORT_PADDING_PX * 2);
+            const surfaceEl = contentViewEl.firstElementChild;
+            const contentViewSize = getElementSize(contentViewEl);
+            const contentWidth = Math.max(surfaceEl instanceof HTMLElement ? getContentWidth(surfaceEl) || 0 : 0, contentViewEl.scrollWidth || 0, contentViewEl.offsetWidth || 0);
+            const contentViewWidth = matchAnchorWidth
+                ? Math.min(Math.max(contentWidth, anchorWidth), maxWidth)
+                : Math.min(contentWidth, maxWidth);
+            const minWidth = matchAnchorWidth
+                ? Math.min(anchorWidth, maxWidth)
+                : undefined;
+            const layout = anchoredLayout({
+                viewport: {
+                    top: 0,
+                    left: 0,
+                    width: viewportDimension.width,
+                    height: viewportDimension.height,
+                },
+                anchor: anchorRect,
+                view: {
+                    width: contentViewWidth,
+                    height: contentViewSize.height,
+                },
+                gap: CONTENT_VIEW_GAP_PX,
+                padding: VIEWPORT_PADDING_PX,
+                align,
+                side: preferredSide,
+            });
+            setPortalStyle({
+                position: "fixed",
+                top: layout.top,
+                left: layout.left,
+                width: layout.width,
+                minWidth,
+                maxWidth: layout.maxWidth,
+                zIndex,
+            });
+            setSide(layout.side);
+        };
+        updatePosition();
+        return combinedDisposable(
+            addDisposableListener(window, EventType.RESIZE, updatePosition),
+            addDisposableListener(window, EventType.SCROLL, updatePosition, true),
+        ).dispose;
+    }, [align, anchorRef, isOpen, matchAnchorWidth, preferredSide, zIndex]);
+
+    if (typeof document === "undefined")
+        return null;
+    const resolvedChildren = typeof children === "function" ? (isOpen ? children() : null) : children;
+    return createPortal(jsx("div", {
+        ref: setContentViewNode,
+        id: menuId,
+        role: role,
+        "aria-orientation": ariaOrientation,
+        "aria-labelledby": triggerId,
+        "aria-hidden": isOpen ? undefined : true,
+        "data-style": "contentview",
+        "data-state": isOpen ? "open" : "closed",
+        "data-side": side,
+        "data-align": align,
+        tabIndex: -1,
+        className: isOpen ? "content-view__portal--open" : "content-view__portal--closed",
+        style: portalStyle ?? { position: "fixed", zIndex },
+        children: jsx("div", {
+            className: cx("content-view__surface", isOpen
+                ? "content-view__surface--open"
+                : "content-view__surface--closed", variant === "menu" ? "content-view__surface--menu" : "", className),
+            children: resolvedChildren
+        })
+    }), document.body);
+};
+const LegacyMenuScrollArea = ({ children }: { children?: ReactNode }) => jsx("div", {
+    className: "ui-menu__scroll-area max-h-60 -mr-1 pr-1",
+    children: jsx("div", {
+        className: "max-h-60",
+        style: {
+            height: "auto",
+            maxHeight: "15rem",
+            overflowY: "auto",
+        },
+        children
+    })
+});
+const LegacyMenu = ({ role = "menu", className = "", children, withScrollArea = true }: LegacyMenuProps) => jsx("div", {
+    role,
+    className: cx("ui-menu", className),
+    children: withScrollArea ? jsx(LegacyMenuScrollArea, { children }) : children
+});
+const LegacyMenuItem = ({ className = "", left, right, children, disabled = false, role = "menuitem", tabIndex = -1, onClick, onKeyDown, ...props }: LegacyMenuItemProps) => {
+    const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+        onKeyDown?.(event);
+        if (event.defaultPrevented || disabled)
+            return;
+        if (event.key !== "Enter" && event.key !== " ")
+            return;
+        event.preventDefault();
+        onClick?.(event as unknown as ReactMouseEvent<HTMLDivElement>);
+    };
+    return jsx("div", {
+        ...props,
+        role,
+        tabIndex: disabled ? undefined : tabIndex,
+        "aria-disabled": disabled || undefined,
+        onClick: disabled ? undefined : onClick,
+        onKeyDown: handleKeyDown,
+        className: cx("ui-menu__item select-none outline-none", className),
+        children: [
+            left ?? children,
+            right ?? null
+        ]
+    });
 };
 const isSelectableOption = (opt: unknown): opt is DropdownFieldOption => {
     if (!opt || typeof opt !== "object")
@@ -388,7 +686,7 @@ const DropdownField = ({ options = [], value, onChange, placeholder, title, disa
         "data-style": "select",
         "data-disabled": disabled || undefined,
         children: [
-            jsx(DropdownTrigger, {
+            jsx(LegacyDropdownTrigger, {
                 ...props,
                 ref: triggerRef,
                 fieldRef: containerRef,
@@ -414,14 +712,14 @@ const DropdownField = ({ options = [], value, onChange, placeholder, title, disa
                     children: hasDisplayValue ? displayNode : placeholder ?? ""
                 })
             }),
-            jsx(Dropdown, {
+            jsx(LegacyDropdown, {
                 isOpen: isOpen,
                 onOpenChange: handleDropdownOpenChange,
                 anchorRef: containerRef,
                 children: ({ anchorRef, setContentRef }: {
                     anchorRef: RefObject<HTMLElement | null>;
                     setContentRef: RefCallback<HTMLDivElement | null>;
-                }) => (jsx(ContentView, {
+                }) => (jsx(LegacyContentView, {
                     isOpen: isOpen,
                     align: align,
                     zIndex: zIndex,
@@ -432,13 +730,13 @@ const DropdownField = ({ options = [], value, onChange, placeholder, title, disa
                     contentRef: setContentRef,
                     variant: "menu",
                     className: resolvedContentViewClassName,
-                    children: () => (jsx(Menu, {
+                    children: () => (jsx(LegacyMenu, {
                         withScrollArea: false,
                         children: [
                             title ? jsx("div", {
                                 children: title
                             }, "title") : null,
-                            jsx(MenuScrollArea, {
+                            jsx(LegacyMenuScrollArea, {
                                 children: jsx("div", {
                                     className: "ui-menu__list",
                                     children: [
@@ -470,7 +768,7 @@ const DropdownField = ({ options = [], value, onChange, placeholder, title, disa
                                                         const Icon = option.icon;
                                                         const action = option.secondaryAction;
                                                         const ActionIcon = action?.icon;
-                                                        return (jsx(MenuItem, {
+                                                        return (jsx(LegacyMenuItem, {
                                                             tabIndex: -1,
                                                             "data-highlighted": isHighlighted || undefined,
                                                             "data-selected": isSelected || undefined,

@@ -43,6 +43,7 @@ export type SplitViewProps = HTMLAttributes<HTMLDivElement> & {
 };
 
 const DEFAULT_PANE_MIN_SIZE = 0;
+const SASH_SIZE = 10;
 
 const assignRef = <T,>(ref: ForwardedRef<T>, value: T | null) => {
   if (typeof ref === "function") {
@@ -290,10 +291,10 @@ const SplitView = forwardRef<HTMLDivElement, SplitViewProps>(
         offsets.map((offset, index) => {
           const sashStyle: CSSProperties = orientation === "horizontal"
             ? {
-                left: `${offset - 5}px`,
+                left: `${offset - SASH_SIZE / 2}px`,
               }
             : {
-                top: `${offset - 5}px`,
+                top: `${offset - SASH_SIZE / 2}px`,
               };
 
           return jsx(Sash, {

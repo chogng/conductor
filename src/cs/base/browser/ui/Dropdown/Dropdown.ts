@@ -1,83 +1,123 @@
-import { useEffect, useRef, type MutableRefObject, type ReactNode, type Ref, type RefCallback, type RefObject, } from "react";
-import { addDisposableListener, EventType } from "src/cs/base/browser/event";
-type DropdownRenderProps = {
-    isOpen: boolean;
-    open: () => void;
-    close: () => void;
-    toggle: () => void;
-    anchorRef: RefObject<HTMLElement | null>;
-    setAnchorRef: RefCallback<HTMLElement | null>;
-    contentRef: RefObject<HTMLDivElement | null>;
-    setContentRef: RefCallback<HTMLDivElement | null>;
-};
-type DropdownProps = {
-    isOpen: boolean;
-    onOpenChange: (nextOpen: boolean) => void;
-    anchorRef?: RefObject<HTMLElement | null>;
+import { addDisposableListener } from "src/cs/base/browser/dom";
+import { Emitter } from "src/cs/base/common/event";
+import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
+
+export type DropdownOptions = {
+    anchor?: HTMLElement | null;
     closeOnClickOutside?: boolean;
     closeOnEscape?: boolean;
-    children: ReactNode | ((props: DropdownRenderProps) => ReactNode);
+    content?: HTMLElement | null;
+    onDidChangeVisibility?: (visible: boolean) => void;
 };
-const assignRef = <T,>(ref: Ref<T> | undefined, value: T) => {
-    if (!ref)
-        return;
-    if (typeof ref === "function") {
-        ref(value);
-        return;
+
+export class Dropdown implements IDisposable {
+    private readonly disposables = new DisposableStore();
+    private readonly visibilityEmitter = new Emitter<boolean>();
+    private anchor: HTMLElement | null;
+    private content: HTMLElement | null;
+    private visible = false;
+    private options: Required<Pick<DropdownOptions, "closeOnClickOutside" | "closeOnEscape">>;
+
+    public readonly onDidChangeVisibility = this.visibilityEmitter.event;
+
+    constructor(options: DropdownOptions = {}) {
+        this.anchor = options.anchor ?? null;
+        this.content = options.content ?? null;
+        this.options = {
+            closeOnClickOutside: options.closeOnClickOutside ?? true,
+            closeOnEscape: options.closeOnEscape ?? true,
+        };
+
+        if (options.onDidChangeVisibility) {
+            this.disposables.add(this.onDidChangeVisibility(options.onDidChangeVisibility));
+        }
     }
-    (ref as MutableRefObject<T>).current = value;
-};
-const Dropdown = ({ isOpen, onOpenChange, anchorRef, closeOnClickOutside = true, closeOnEscape = true, children, }: DropdownProps) => {
-    const internalAnchorRef = useRef<HTMLElement | null>(null);
-    const internalContentRef = useRef<HTMLDivElement | null>(null);
-    const resolvedAnchorRef = anchorRef ?? internalAnchorRef;
-    const open = () => onOpenChange(true);
-    const close = () => onOpenChange(false);
-    const toggle = () => onOpenChange(!isOpen);
-    const setAnchorRef: RefCallback<HTMLElement | null> = (node) => {
-        assignRef(internalAnchorRef, node);
-        if (anchorRef)
-            assignRef(anchorRef, node);
-    };
-    const setContentRef: RefCallback<HTMLDivElement | null> = (node) => {
-        assignRef(internalContentRef, node);
-    };
-    useEffect(() => {
-        if (!isOpen || !closeOnEscape)
-            return;
-        const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === "Escape")
-                close();
+
+    public setAnchor(anchor: HTMLElement | null): void {
+        this.anchor = anchor;
+    }
+
+    public setContent(content: HTMLElement | null): void {
+        this.content = content;
+    }
+
+    public updateOptions(options: Pick<DropdownOptions, "closeOnClickOutside" | "closeOnEscape">): void {
+        this.options = {
+            closeOnClickOutside: options.closeOnClickOutside ?? this.options.closeOnClickOutside,
+            closeOnEscape: options.closeOnEscape ?? this.options.closeOnEscape,
         };
-        return addDisposableListener(document, EventType.KEY_DOWN, handleKeyDown).dispose;
-    }, [closeOnEscape, isOpen]);
-    useEffect(() => {
-        if (!isOpen || !closeOnClickOutside)
+
+        if (this.visible) {
+            this.installListeners();
+        }
+    }
+
+    public show(): void {
+        if (this.visible) {
             return;
-        const handleClickOutside = (event: MouseEvent) => {
-            const anchorEl = resolvedAnchorRef.current;
-            const target = event.target;
-            if (!(target instanceof Node))
-                return;
-            if (anchorEl?.contains(target))
-                return;
-            const popupEl = internalContentRef.current;
-            if (popupEl?.contains(target))
-                return;
-            close();
-        };
-        return addDisposableListener(document, EventType.MOUSE_DOWN, handleClickOutside).dispose;
-    }, [closeOnClickOutside, isOpen, resolvedAnchorRef]);
-    const renderProps: DropdownRenderProps = {
-        isOpen,
-        open,
-        close,
-        toggle,
-        anchorRef: resolvedAnchorRef,
-        setAnchorRef,
-        contentRef: internalContentRef,
-        setContentRef,
-    };
-    return typeof children === "function" ? children(renderProps) : children;
-};
+        }
+
+        this.visible = true;
+        this.installListeners();
+        this.visibilityEmitter.fire(true);
+    }
+
+    public hide(): void {
+        if (!this.visible) {
+            return;
+        }
+
+        this.visible = false;
+        this.disposables.clear();
+        this.visibilityEmitter.fire(false);
+    }
+
+    public toggle(): void {
+        if (this.visible) {
+            this.hide();
+            return;
+        }
+
+        this.show();
+    }
+
+    public isVisible(): boolean {
+        return this.visible;
+    }
+
+    public dispose(): void {
+        this.hide();
+        this.visibilityEmitter.dispose();
+    }
+
+    private installListeners(): void {
+        this.disposables.clear();
+
+        if (this.options.closeOnEscape) {
+            this.disposables.add(addDisposableListener(document, "keydown", event => {
+                if (event.key === "Escape") {
+                    this.hide();
+                }
+            }));
+        }
+
+        if (this.options.closeOnClickOutside) {
+            this.disposables.add(addDisposableListener(document, "mousedown", event => {
+                const target = event.target;
+                if (!(target instanceof Node)) {
+                    return;
+                }
+                if (this.anchor?.contains(target)) {
+                    return;
+                }
+                if (this.content?.contains(target)) {
+                    return;
+                }
+
+                this.hide();
+            }));
+        }
+    }
+}
+
 export default Dropdown;

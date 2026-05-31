@@ -1,4 +1,5 @@
-﻿import { useEffect } from "react";
+import { useEffect } from "react";
+import { jsx } from "react/jsx-runtime";
 import { scheduleAtNextAnimationFrame } from "src/cs/base/browser/dom";
 import {
   isBootProfileEnabled,
@@ -25,11 +26,9 @@ const App = () => {
     };
   }, []);
 
-  return (
-    <SessionProvider>
-      <Page />
-    </SessionProvider>
-  );
+  return jsx(SessionProvider, {
+    children: jsx(Page, {}),
+  });
 };
 
 export default App;

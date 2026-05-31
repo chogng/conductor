@@ -5,7 +5,6 @@ import { computeCentralDerivative, computeSubthresholdSwing, computeSubthreshold
 import { apiService } from "../services/apiService";
 import DropdownField from "cs/base/browser/ui/dropdownField/dropdownField";
 import Input from "cs/base/browser/ui/input/input";
-import Menu from "cs/base/browser/ui/menu/menu";
 import Button from "cs/base/browser/ui/button/button";
 import Card from "cs/base/browser/ui/card/card";
 import Checkbox from "cs/base/browser/ui/checkbox/checkbox";
@@ -45,7 +44,7 @@ import {
 } from "../useOriginCanvasExport";
 import { useFileSelectionPool } from "../useFileSelectionPool";
 import {
-  useDeviceAnalysisSidebarPortal,
+  useWorkbenchSidebarPortal,
 } from "src/cs/workbench/browser/layout";
 import OverviewGrid from "./OverviewGrid";
 import CalculatedParametersRow from "src/cs/workbench/contrib/parameters/CalculatedParametersRow";
@@ -1045,7 +1044,7 @@ const resolveScaledRangeFromTicks = ({
 
 const AnalysisCharts = ({ processedData, processingStatus, activeFileId: controlledActiveFileId = undefined, onActiveFileIdChange = undefined, showFileSelect = true, ionIoffMethod = "auto", setIonIoffMethod = () => { }, ionIoffManualTargetsByFileId = {}, setIonIoffManualTargetsByFileId = () => { }, ssMethod = "auto", setSsMethod = () => { }, ssDiagnosticsEnabled = true, setSsDiagnosticsEnabled = () => { }, vthDiagnosticsEnabled = false, setVthDiagnosticsEnabled = () => { }, gmDiagnosticsEnabled = false, setGmDiagnosticsEnabled = () => { }, ssShowFitLine = true, setSsShowFitLine = () => { }, ssManualRanges = {}, setSsManualRanges = () => { }, originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS, onOriginOpenPlotOptionsChange = undefined, }: any) => {
     const { t } = useLanguage();
-    const sidebarPortal = useDeviceAnalysisSidebarPortal();
+    const sidebarPortal = useWorkbenchSidebarPortal();
     const tLoose = React.useCallback<FormatOriginTranslateFn>((key, params) => t(key, params as any), [t]);
     const [internalActiveFileId, setInternalActiveFileId] = useState(processedData?.[0]?.fileId ?? null);
     const isActiveFileControlled = controlledActiveFileId !== undefined;

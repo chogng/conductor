@@ -1,131 +1,255 @@
-import { jsx } from "react/jsx-runtime";
-import { useLayoutEffect, useRef, useState, type CSSProperties, type MutableRefObject, type ReactNode, type Ref, type RefObject, } from "react";
-import { createPortal } from "react-dom";
-import { getClientArea, getContentWidth, getDomRect, getElementSize } from "src/cs/base/browser/dom";
+import { addDisposableListener, getClientArea, getContentWidth, getDomRect, getElementSize, reset } from "src/cs/base/browser/dom";
 import { anchoredLayout, rectFromDomRect } from "src/cs/base/common/layout";
-import { addDisposableListener, combinedDisposable, EventType } from "src/cs/base/browser/event";
+import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { cx } from "src/utils/cx";
+
 export type ContentViewAlign = "left" | "center" | "right";
 export type ContentViewSide = "bottom" | "right";
 type ResolvedContentViewSide = "top" | "bottom" | "right" | "left";
 type ContentViewVariant = "surface" | "menu";
-type ContentViewChildren = ReactNode | (() => ReactNode);
-type ContentViewProps = {
-    isOpen: boolean;
-    align?: ContentViewAlign;
-    zIndex?: number;
-    className?: string;
-    children?: ContentViewChildren;
-    triggerId?: string;
-    menuId?: string;
-    anchorRef?: RefObject<HTMLElement | null>;
-    contentRef?: Ref<HTMLDivElement | null>;
-    matchAnchorWidth?: boolean;
-    side?: ContentViewSide;
-    variant?: ContentViewVariant;
-    role?: string;
-    "aria-orientation"?: "vertical" | "horizontal";
+
+export type ContentViewProvider = {
+    showContextView(delegate: ContentViewDelegate, container?: HTMLElement): ContentViewHandle;
+    hideContextView(data?: unknown): void;
+    layout(): void;
 };
+
+export type ContentViewHandle = {
+    close(): void;
+};
+
+export type ContentViewDelegate = {
+    canRelayout?: boolean;
+    getAnchor(): HTMLElement;
+    render(container: HTMLElement): IDisposable | null;
+    focus?(): void;
+    onHide?(data?: unknown): void;
+};
+
+export type ContentViewOptions = {
+    align?: ContentViewAlign;
+    anchor: HTMLElement;
+    ariaOrientation?: "vertical" | "horizontal";
+    className?: string;
+    contextViewProvider?: ContentViewProvider;
+    host?: HTMLElement;
+    matchAnchorWidth?: boolean;
+    menuId?: string;
+    render: (container: HTMLElement) => void;
+    role?: string;
+    side?: ContentViewSide;
+    triggerId?: string;
+    variant?: ContentViewVariant;
+    zIndex?: number;
+};
+
 const CONTENT_VIEW_GAP_PX = 8;
 const VIEWPORT_PADDING_PX = 8;
-const assignRef = <T,>(ref: Ref<T> | undefined, value: T) => {
-    if (!ref)
-        return;
-    if (typeof ref === "function") {
-        ref(value);
-        return;
+
+export class ContentView implements IDisposable {
+    private readonly disposables = new DisposableStore();
+    private readonly element: HTMLDivElement;
+    private readonly surface: HTMLDivElement;
+    private readonly host: HTMLElement;
+    private options: ContentViewOptions;
+    private providerHandle: ContentViewHandle | undefined;
+    private isOpen = false;
+    private side: ResolvedContentViewSide = "bottom";
+
+    constructor(options: ContentViewOptions) {
+        this.options = options;
+        this.host = options.host ?? document.body;
+
+        this.element = document.createElement("div");
+        this.element.tabIndex = -1;
+        this.element.dataset.style = "contentview";
+
+        this.surface = document.createElement("div");
+        this.element.appendChild(this.surface);
+        this.applyOptions();
     }
-    (ref as MutableRefObject<T>).current = value;
-};
-const ContentView = ({ isOpen, align = "left", zIndex = 20, className = "", children, triggerId, menuId, anchorRef, contentRef, matchAnchorWidth = false, side: preferredSide = "bottom", variant = "surface", role = "menu", "aria-orientation": ariaOrientation = "vertical", }: ContentViewProps) => {
-    const contentViewRef = useRef<HTMLDivElement | null>(null);
-    const [portalStyle, setPortalStyle] = useState<CSSProperties | null>(null);
-    const [side, setSide] = useState<ResolvedContentViewSide>("bottom");
-    const setContentViewNode = (node: HTMLDivElement | null) => {
-        contentViewRef.current = node;
-        assignRef(contentRef, node);
-    };
-    useLayoutEffect(() => {
-        if (!isOpen) {
-            setPortalStyle(null);
-            setSide("bottom");
+
+    public get domNode(): HTMLDivElement {
+        return this.element;
+    }
+
+    public show(): void {
+        if (this.isOpen) {
+            this.layout();
             return;
         }
-        const updatePosition = () => {
-            const anchorEl = anchorRef?.current;
-            const contentViewEl = contentViewRef.current;
-            if (!anchorEl || !contentViewEl)
-                return;
-            const anchorRect = rectFromDomRect(getDomRect(anchorEl));
-            const anchorWidth = Math.max(0, anchorRect.width);
-            const viewportDimension = getClientArea(window);
-            const maxWidth = Math.max(0, viewportDimension.width - VIEWPORT_PADDING_PX * 2);
-            const surfaceEl = contentViewEl.firstElementChild;
-            const contentViewSize = getElementSize(contentViewEl);
-            const contentWidth = Math.max(surfaceEl instanceof HTMLElement ? getContentWidth(surfaceEl) || 0 : 0, contentViewEl.scrollWidth || 0, contentViewEl.offsetWidth || 0);
-            const contentViewWidth = matchAnchorWidth
-                ? Math.min(Math.max(contentWidth, anchorWidth), maxWidth)
-                : Math.min(contentWidth, maxWidth);
-            const minWidth = matchAnchorWidth
-                ? Math.min(anchorWidth, maxWidth)
-                : undefined;
-            const layout = anchoredLayout({
-                viewport: {
-                    top: 0,
-                    left: 0,
-                    width: viewportDimension.width,
-                    height: viewportDimension.height,
+
+        this.isOpen = true;
+        const provider = this.options.contextViewProvider;
+        if (provider) {
+            this.providerHandle = provider.showContextView({
+                canRelayout: true,
+                getAnchor: () => this.options.anchor,
+                render: container => {
+                    container.appendChild(this.element);
+                    this.render();
+                    this.applyState();
+                    this.layout();
+                    return { dispose: () => this.element.remove() };
                 },
-                anchor: anchorRect,
-                view: {
-                    width: contentViewWidth,
-                    height: contentViewSize.height,
+                onHide: () => {
+                    this.isOpen = false;
+                    this.providerHandle = undefined;
+                    this.applyState();
                 },
-                gap: CONTENT_VIEW_GAP_PX,
-                padding: VIEWPORT_PADDING_PX,
-                align,
-                side: preferredSide,
-            });
-            setPortalStyle({
-                position: "fixed",
-                top: layout.top,
-                left: layout.left,
-                width: layout.width,
-                minWidth,
-                maxWidth: layout.maxWidth,
-                zIndex,
-            });
-            setSide(layout.side);
-        };
-        updatePosition();
-        return combinedDisposable(
-            addDisposableListener(window, EventType.RESIZE, updatePosition),
-            addDisposableListener(window, EventType.SCROLL, updatePosition, true),
-        ).dispose;
-    }, [align, anchorRef, isOpen, matchAnchorWidth, preferredSide, zIndex]);
-    const resolvedChildren = typeof children === "function" ? (isOpen ? children() : null) : children;
-    if (typeof document === "undefined")
-        return null;
-    return createPortal(jsx("div", {
-        ref: setContentViewNode,
-        id: menuId,
-        role: role,
-        "aria-orientation": ariaOrientation,
-        "aria-labelledby": triggerId,
-        "aria-hidden": isOpen ? undefined : true,
-        "data-style": "contentview",
-        "data-state": isOpen ? "open" : "closed",
-        "data-side": side,
-        "data-align": align,
-        tabIndex: -1,
-        className: isOpen ? "content-view__portal--open" : "content-view__portal--closed",
-        style: portalStyle ?? { position: "fixed", zIndex },
-        children: jsx("div", {
-            className: cx("content-view__surface", isOpen
-                ? "content-view__surface--open"
-                : "content-view__surface--closed", variant === "menu" ? "content-view__surface--menu" : "", className),
-            children: resolvedChildren
-        })
-    }), document.body);
-};
+            }, this.host);
+            return;
+        }
+
+        this.host.appendChild(this.element);
+        this.render();
+        this.applyState();
+        this.layout();
+        this.disposables.add(addDisposableListener(window, "resize", this.layout));
+        this.disposables.add(addDisposableListener(window, "scroll", this.layout, true));
+    }
+
+    public hide(): void {
+        if (!this.isOpen) {
+            return;
+        }
+
+        this.isOpen = false;
+        this.disposables.clear();
+        if (this.providerHandle) {
+            const handle = this.providerHandle;
+            this.providerHandle = undefined;
+            handle.close();
+        }
+        this.applyState();
+        this.element.remove();
+    }
+
+    public update(options: Partial<ContentViewOptions>): void {
+        this.options = { ...this.options, ...options };
+        this.applyOptions();
+
+        if (this.isOpen) {
+            if (this.options.contextViewProvider) {
+                this.options.contextViewProvider.layout();
+            }
+            this.render();
+            this.layout();
+        }
+    }
+
+    public dispose(): void {
+        this.hide();
+        reset(this.surface);
+    }
+
+    private readonly layout = (): void => {
+        if (!this.isOpen) {
+            return;
+        }
+
+        const anchorRect = rectFromDomRect(getDomRect(this.options.anchor));
+        const anchorWidth = Math.max(0, anchorRect.width);
+        const viewportDimension = getClientArea(window);
+        const maxWidth = Math.max(0, viewportDimension.width - VIEWPORT_PADDING_PX * 2);
+        const contentViewSize = getElementSize(this.element);
+        const contentWidth = Math.max(
+            getContentWidth(this.surface) || 0,
+            this.element.scrollWidth || 0,
+            this.element.offsetWidth || 0,
+        );
+        const contentViewWidth = this.options.matchAnchorWidth
+            ? Math.min(Math.max(contentWidth, anchorWidth), maxWidth)
+            : Math.min(contentWidth, maxWidth);
+
+        const layout = anchoredLayout({
+            viewport: {
+                top: 0,
+                left: 0,
+                width: viewportDimension.width,
+                height: viewportDimension.height,
+            },
+            anchor: anchorRect,
+            view: {
+                width: contentViewWidth,
+                height: contentViewSize.height,
+            },
+            gap: CONTENT_VIEW_GAP_PX,
+            padding: VIEWPORT_PADDING_PX,
+            align: this.options.align ?? "left",
+            side: this.options.side ?? "bottom",
+        });
+
+        this.side = layout.side;
+        if (this.options.contextViewProvider) {
+            this.element.style.position = "static";
+            this.element.style.removeProperty("top");
+            this.element.style.removeProperty("left");
+            this.element.style.width = `${layout.width}px`;
+            this.element.style.maxWidth = `${layout.maxWidth}px`;
+            this.element.style.zIndex = String(this.options.zIndex ?? 20);
+            if (this.options.matchAnchorWidth) {
+                this.element.style.minWidth = `${Math.min(anchorWidth, maxWidth)}px`;
+            }
+            else {
+                this.element.style.removeProperty("min-width");
+            }
+            this.element.dataset.side = this.side;
+            return;
+        }
+
+        this.element.style.position = "fixed";
+        this.element.style.top = `${layout.top}px`;
+        this.element.style.left = `${layout.left}px`;
+        this.element.style.width = `${layout.width}px`;
+        this.element.style.maxWidth = `${layout.maxWidth}px`;
+        this.element.style.zIndex = String(this.options.zIndex ?? 20);
+
+        if (this.options.matchAnchorWidth) {
+            this.element.style.minWidth = `${Math.min(anchorWidth, maxWidth)}px`;
+        }
+        else {
+            this.element.style.removeProperty("min-width");
+        }
+
+        this.element.dataset.side = this.side;
+    };
+
+    private applyOptions(): void {
+        const { align = "left", ariaOrientation = "vertical", menuId, role = "menu", triggerId } = this.options;
+
+        this.element.id = menuId ?? "";
+        this.element.setAttribute("role", role);
+        this.element.setAttribute("aria-orientation", ariaOrientation);
+        this.element.dataset.align = align;
+
+        if (triggerId) {
+            this.element.setAttribute("aria-labelledby", triggerId);
+        }
+        else {
+            this.element.removeAttribute("aria-labelledby");
+        }
+
+        this.surface.className = cx(
+            "content-view__surface",
+            this.options.variant === "menu" ? "content-view__surface--menu" : "",
+            this.options.className,
+        );
+        this.applyState();
+    }
+
+    private applyState(): void {
+        this.element.dataset.state = this.isOpen ? "open" : "closed";
+        this.element.setAttribute("aria-hidden", this.isOpen ? "false" : "true");
+        this.element.className = this.isOpen ? "content-view__portal--open" : "content-view__portal--closed";
+        this.surface.classList.toggle("content-view__surface--open", this.isOpen);
+        this.surface.classList.toggle("content-view__surface--closed", !this.isOpen);
+    }
+
+    private render(): void {
+        reset(this.surface);
+        this.options.render(this.surface);
+    }
+}
+
 export default ContentView;

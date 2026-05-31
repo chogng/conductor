@@ -1,21 +1,43 @@
-import { jsx } from "react/jsx-runtime";
-import { type ComponentProps } from "react";
+import { append } from "src/cs/base/browser/dom";
 import { cx } from "src/utils/cx";
-import ScrollArea from "cs/base/browser/ui/scrollArea/scrollArea";
 
-type MenuScrollAreaProps = Omit<ComponentProps<typeof ScrollArea>, "axis">;
-const MenuScrollArea = ({ className = "", viewportClassName = "", viewportProps, ...props }: MenuScrollAreaProps) => (jsx(ScrollArea, {
-    ...props,
-    axis: "y",
-    className: cx("ui-menu__scroll-area max-h-60 -mr-1 pr-1", className),
-    viewportClassName: cx("max-h-60", viewportClassName),
-    viewportProps: {
-        ...viewportProps,
-        style: {
-            height: "auto",
-            maxHeight: "15rem",
-            ...viewportProps?.style,
-        },
+export type MenuScrollAreaOptions = {
+    className?: string;
+    viewportClassName?: string;
+};
+
+export class MenuScrollArea {
+    private readonly element: HTMLDivElement;
+    private readonly viewport: HTMLDivElement;
+
+    constructor(options: MenuScrollAreaOptions = {}) {
+        this.element = document.createElement("div");
+        this.element.className = cx("ui-menu__scroll-area max-h-60 -mr-1 pr-1", options.className);
+
+        this.viewport = document.createElement("div");
+        this.viewport.className = cx("max-h-60", options.viewportClassName);
+        this.viewport.style.height = "auto";
+        this.viewport.style.maxHeight = "15rem";
+        this.viewport.style.overflowY = "auto";
+
+        this.element.appendChild(this.viewport);
     }
-}));
+
+    public get domNode(): HTMLDivElement {
+        return this.element;
+    }
+
+    public get contentNode(): HTMLDivElement {
+        return this.viewport;
+    }
+
+    public append(...children: Array<Node | string>): void {
+        append(this.viewport, ...children);
+    }
+}
+
+export function createMenuScrollArea(options?: MenuScrollAreaOptions): MenuScrollArea {
+    return new MenuScrollArea(options);
+}
+
 export default MenuScrollArea;

@@ -26,12 +26,9 @@ import "src/cs/base/browser/browser.main";
 
 //#endregion
 
-//#region --- workbench browser styles
+//#region --- workbench browser
 
-import "src/cs/workbench/browser/media/style.css";
-import "src/cs/workbench/browser/parts/previewArea/media/previewpart.css";
-import "src/cs/workbench/browser/parts/sidebar/media/sidebarpart.css";
-import "src/cs/workbench/browser/parts/titlebar/media/titlebar.css";
+import "src/cs/workbench/browser/style";
 
 //#endregion
 

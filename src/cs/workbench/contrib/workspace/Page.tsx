@@ -1,11 +1,14 @@
 ﻿import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   lazy,
+  useMemo,
   useRef,
   useState,
   Suspense,
 } from "react";
+import { createPortal } from "react-dom";
 import { jsxs } from "react/jsx-runtime";
 import Toast from "src/cs/base/browser/ui/toast/toast";
 import type { TranslationVars } from "src/cs/platform/language/common/language";
@@ -18,12 +21,10 @@ import {
   useWorkbenchLayoutNavigation,
 } from "src/cs/workbench/browser/layout";
 import {
-  buildDeviceAnalysisOptionalPart,
-  buildDeviceAnalysisPageParts,
-  buildDeviceAnalysisPanePart,
-  buildDeviceAnalysisSidebarPart,
-  buildDeviceAnalysisScrollPanePart,
-} from "src/cs/workbench/browser/parts";
+  createPanePart,
+  createScrollPanePart,
+  createWorkbenchParts,
+} from "src/cs/workbench/browser/part";
 import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
 import { useTheme } from "src/cs/workbench/browser/hooks/useTheme";
 import type { ToastType } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
@@ -43,11 +44,17 @@ import { useAnalysisSelectionState } from "src/cs/workbench/contrib/workspace/us
 import { useOnboardingLauncher } from "src/cs/workbench/contrib/onboarding/useOnboardingLauncher";
 import { useSession } from "src/cs/workbench/contrib/session/useSession";
 import { useSessionActions } from "src/cs/workbench/contrib/session/useSessionActions";
-import { useCoreSettings } from "src/cs/workbench/contrib/settings/useCoreSettings";
-import DeviceAnalysisWorkbench, {
-  getWorkbenchShellFlags,
-  type DeviceAnalysisWorkbenchTitlebarState,
+import {
+  CoreSettingsController,
+  createCoreSettingsState,
+  type CoreSettingsControllerOptions,
+} from "src/cs/workbench/contrib/settings/browser/coreSettingsController";
+import WorkbenchLayout from "src/cs/workbench/browser/layout/workbenchLayout";
+import {
+  Workbench,
+  type WorkbenchTitlebarState,
 } from "src/cs/workbench/browser/workbench";
+import { getWorkbenchWindowState } from "src/cs/workbench/browser/window";
 
 type ProcessingExtractionError = {
   fileName?: string;
@@ -60,8 +67,8 @@ type ProcessingExtractionError = {
 const AnalysisPanel = lazy(
   () => import("src/cs/workbench/contrib/chartPreview/AnalysisPanel"),
 );
-const SettingsPanelContainer = lazy(
-  () => import("src/cs/workbench/contrib/settings/SettingsPanelContainer"),
+const SettingsViewPane = lazy(
+  () => import("src/cs/workbench/contrib/settings/browser/settingsViewPane"),
 );
 const OnboardingControllerHost = lazy(
   loadOnboardingController,
@@ -87,7 +94,7 @@ const Page = () => {
     isDesktopChromePreviewEnabled,
     isPackagedWindowsDesktopShell,
     isWindowsDesktopShell,
-  } = getWorkbenchShellFlags();
+  } = getWorkbenchWindowState();
 
   const session = useSession();
   const {
@@ -313,15 +320,7 @@ const Page = () => {
     t: tLoose,
   });
 
-  const {
-    analysisSettings,
-    analysisSettingsLoaded,
-    handleLanguageChange,
-    handleThemeChange,
-    handleUpdateAnalysisSettings,
-    mergeAnalysisSettings,
-    originOpenPlotOptions,
-  } = useCoreSettings({
+  const coreSettingsOptions = useMemo<CoreSettingsControllerOptions>(() => ({
     language,
     setIonIoffMethod,
     setLanguage,
@@ -332,8 +331,50 @@ const Page = () => {
     setVthDiagnosticsEnabled,
     setSsMethod,
     setSsShowFitLine,
-    t: tLoose,
-  });
+  }), [
+    language,
+    setIonIoffMethod,
+    setLanguage,
+    theme,
+    setTheme,
+    setGmDiagnosticsEnabled,
+    setSsDiagnosticsEnabled,
+    setVthDiagnosticsEnabled,
+    setSsMethod,
+    setSsShowFitLine,
+  ]);
+  const coreSettingsControllerRef =
+    useRef<CoreSettingsController | null>(null);
+  const [coreSettingsState, setCoreSettingsState] =
+    useState(createCoreSettingsState);
+
+  useLayoutEffect(() => {
+    const controller = new CoreSettingsController(coreSettingsOptions);
+    coreSettingsControllerRef.current = controller;
+
+    const listener = controller.onDidChangeState(setCoreSettingsState);
+    setCoreSettingsState(controller.getState());
+
+    return () => {
+      coreSettingsControllerRef.current = null;
+      listener.dispose();
+      controller.dispose();
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    coreSettingsControllerRef.current?.update(coreSettingsOptions);
+  }, [coreSettingsOptions]);
+
+  const {
+    analysisSettings,
+    analysisSettingsLoaded,
+    handleLanguageChange,
+    handleThemeChange,
+    handleUpdateAnalysisSettings,
+    mergeAnalysisSettings,
+    originOpenPlotOptions,
+  } = coreSettingsState;
   const prefetchOnboarding = useCallback(() => {
     void loadOnboardingController();
     void loadOnboarding();
@@ -453,54 +494,50 @@ const Page = () => {
     return true;
   }, []);
 
-  const onboardingControllerPart = buildDeviceAnalysisOptionalPart({
-    content: shouldMountOnboardingController ? (
-      <Suspense fallback={null}>
-        <OnboardingControllerHost
-          clearPreviewState={clearPreviewState}
-          importerRef={importerRef}
-          isRequestedOpen={pendingOnboardingOpenMode !== null}
-          openMode={pendingOnboardingOpenMode ?? "manual"}
-          navigateToPage={navigateToView}
-          onStateChange={handleOnboardingControllerStateChange}
-          processingState={processingStatus?.state}
-          processedData={processedData}
-          rawData={rawData}
-          setProcessedData={setProcessedData}
-          setRawData={setRawData}
-          setSelectedPreviewFileId={setSelectedPreviewFileId}
-          setTemplateConfig={setTemplateConfig}
-          templateConfig={templateConfig}
-          updateSettings={handleUpdateAnalysisSettings}
-        />
-      </Suspense>
-    ) : null,
-  });
-
-  const dataSidebarPart = buildDeviceAnalysisSidebarPart({
-    sidebar: (
-      <ImporterViewletHost
-        hasSessionData={hasSessionData}
+  const onboardingControllerPart = shouldMountOnboardingController ? (
+    <Suspense fallback={null}>
+      <OnboardingControllerHost
+        clearPreviewState={clearPreviewState}
         importerRef={importerRef}
-        onClearSession={handleClearSession}
-        onDataImported={handleDataImported}
-        onDataRemoved={handleDataRemoved}
-        onFileSelected={handlePreviewFileSelected}
-        onImportTrigger={() => {
-          onboarding.handleImportTrigger();
-        }}
+        isRequestedOpen={pendingOnboardingOpenMode !== null}
+        openMode={pendingOnboardingOpenMode ?? "manual"}
+        navigateToPage={navigateToView}
+        onStateChange={handleOnboardingControllerStateChange}
+        processingState={processingStatus?.state}
+        processedData={processedData}
         rawData={rawData}
-        selectedPreviewFileId={selectedPreviewFileId}
-        t={t}
+        setProcessedData={setProcessedData}
+        setRawData={setRawData}
+        setSelectedPreviewFileId={setSelectedPreviewFileId}
+        setTemplateConfig={setTemplateConfig}
+        templateConfig={templateConfig}
+        updateSettings={handleUpdateAnalysisSettings}
       />
-    ),
-  });
+    </Suspense>
+  ) : null;
 
-  const dataPanelPart = buildDeviceAnalysisScrollPanePart({
+  const dataSidebarPart = (
+    <ImporterViewletHost
+      hasSessionData={hasSessionData}
+      importerRef={importerRef}
+      onClearSession={handleClearSession}
+      onDataImported={handleDataImported}
+      onDataRemoved={handleDataRemoved}
+      onFileSelected={handlePreviewFileSelected}
+      onImportTrigger={() => {
+        onboarding.handleImportTrigger();
+      }}
+      rawData={rawData}
+      selectedPreviewFileId={selectedPreviewFileId}
+      t={t}
+    />
+  );
+
+  const dataPanelPart = createScrollPanePart({
     isActive: dataPane.isActive,
     labelledBy: dataPane.labelledBy,
     paneId: dataPane.paneId,
-    viewportClassName: "pl-1 pt-0 pr-0 pb-0 !overflow-hidden",
+    viewportClassName: "pl-0 pt-0 pr-0 pb-0 !overflow-hidden",
     children: (
       <DataPart
         analysisSettings={analysisSettings}
@@ -520,7 +557,7 @@ const Page = () => {
     ),
   });
 
-  const analysisPanelPart = buildDeviceAnalysisPanePart({
+  const analysisPanelPart = createPanePart({
     isActive: analysisPane.isActive,
     labelledBy: analysisPane.labelledBy,
     paneId: analysisPane.paneId,
@@ -566,7 +603,7 @@ const Page = () => {
     ),
   });
 
-  const settingsPanelPart = buildDeviceAnalysisScrollPanePart({
+  const settingsViewPanePart = createScrollPanePart({
     isActive: settingsPane.isActive,
     labelledBy: settingsPane.labelledBy,
     paneId: settingsPane.paneId,
@@ -575,7 +612,7 @@ const Page = () => {
       <Suspense
         fallback={<DeferredPanelFallback label={t("da_settings_title")} />}
       >
-        <SettingsPanelContainer
+        <SettingsViewPane
           appUpdateSettings={{
             isAvailable: isAppUpdatePreviewEnabled,
             currentVersion:
@@ -604,34 +641,32 @@ const Page = () => {
     ) : null,
   });
 
-  const onboardingOverlayPart = buildDeviceAnalysisOptionalPart({
-    content: onboarding.isOpen ? (
-      <Suspense fallback={null}>
-        <Onboarding
-          isOpen={onboarding.isOpen}
-          stepIndex={onboarding.stepIndex}
-          steps={onboarding.steps}
-          t={t}
-          canNext={onboarding.canNext}
-          onBack={onboarding.back}
-          onClose={onboarding.close}
-          onNext={onboarding.next}
-        />
-      </Suspense>
-    ) : null,
-  });
+  const onboardingOverlayPart = onboarding.isOpen ? (
+    <Suspense fallback={null}>
+      <Onboarding
+        isOpen={onboarding.isOpen}
+        stepIndex={onboarding.stepIndex}
+        steps={onboarding.steps}
+        t={t}
+        canNext={onboarding.canNext}
+        onBack={onboarding.back}
+        onClose={onboarding.close}
+        onNext={onboarding.next}
+      />
+    </Suspense>
+  ) : null;
 
-  const pageParts = buildDeviceAnalysisPageParts({
-    AnalysisPanel: jsxs("div", {
-      children: [analysisPanelPart, settingsPanelPart],
+  const pageParts = createWorkbenchParts({
+    analysis: jsxs("div", {
+      children: [analysisPanelPart, settingsViewPanePart],
     }),
-    DataPanel: dataPanelPart,
-    ImportSidebar: dataSidebarPart,
-    OnboardingController: onboardingControllerPart,
-    OnboardingOverlay: onboardingOverlayPart,
+    controller: onboardingControllerPart,
+    data: dataPanelPart,
+    overlay: onboardingOverlayPart,
+    sidebar: dataSidebarPart,
   });
 
-  const titlebarState: DeviceAnalysisWorkbenchTitlebarState | undefined =
+  const titlebarState: WorkbenchTitlebarState | undefined =
     {
       enabled: isDesktopChromePreviewEnabled,
       activePage: activeView,
@@ -658,16 +693,64 @@ const Page = () => {
       onAnalysisFileChange: handleAnalysisFileChange,
     };
 
+  const workbenchContainerRef = useRef<HTMLDivElement | null>(null);
+  const workbenchRef = useRef<Workbench | null>(null);
+  const [workbenchContentElement, setWorkbenchContentElement] =
+    useState<HTMLElement | null>(null);
+
+  useLayoutEffect(() => {
+    const container = workbenchContainerRef.current;
+
+    if (!container) {
+      return undefined;
+    }
+
+    const workbench = new Workbench(container, {
+      id: "analysis-page",
+      className: "relative w-full h-full min-h-0 overflow-hidden",
+      showDesktopCommandBar: isDesktopChromePreviewEnabled,
+      showSkeleton: false,
+      titlebarState,
+    });
+    workbenchRef.current = workbench;
+    setWorkbenchContentElement(workbench.contentElement);
+
+    return () => {
+      workbenchRef.current = null;
+      setWorkbenchContentElement(null);
+      workbench.dispose();
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    workbenchRef.current?.update({
+      id: "analysis-page",
+      className: "relative w-full h-full min-h-0 overflow-hidden",
+      showDesktopCommandBar: isDesktopChromePreviewEnabled,
+      showSkeleton: false,
+      titlebarState,
+    });
+  }, [isDesktopChromePreviewEnabled, titlebarState]);
+
+  const workbenchContent = (
+    <div className="relative flex flex-1 min-h-0 flex-col">
+      {pageParts.controller ?? null}
+      <WorkbenchLayout
+        activeView={activeView}
+        dataSidebar={pageParts.sidebar}
+      >
+        {pageParts.main}
+      </WorkbenchLayout>
+      {pageParts.overlay ?? null}
+    </div>
+  );
+
   return (
-    <DeviceAnalysisWorkbench
-      id="analysis-page"
-      className="relative w-full h-full min-h-0 overflow-hidden"
-      showDesktopCommandBar={isDesktopChromePreviewEnabled}
-      showSkeleton={false}
-      titlebarState={titlebarState}
-      activeView={activeView}
-      parts={pageParts}
-    />
+    <div ref={workbenchContainerRef}>
+      {workbenchContentElement
+        ? createPortal(workbenchContent, workbenchContentElement)
+        : null}
+    </div>
   );
 };
 

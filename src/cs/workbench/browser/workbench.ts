@@ -1,15 +1,12 @@
-﻿import { jsx, jsxs } from "react/jsx-runtime";
-import type { CSSProperties } from "react";
+import { Disposable } from "src/cs/base/common/lifecycle";
 import { layoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { LayoutView } from "src/cs/workbench/browser/layout";
-import type { DeviceAnalysisPageParts } from "src/cs/workbench/browser/parts";
 import type { WorkbenchTitlebarProps } from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
-import WorkbenchWorkspace from "src/cs/workbench/contrib/workspace/WorkbenchWorkspace";
-import WorkspaceShell from "src/cs/workbench/contrib/workspace/WorkspaceShell";
-import { getWorkbenchEnvironment } from "src/cs/workbench/services/environment/browser/environmentService";
+import type { WorkbenchStyle } from "src/cs/workbench/browser/style";
+import { WorkbenchWindow } from "src/cs/workbench/browser/window";
 
-export type DeviceAnalysisWorkbenchTitlebarState = {
+export type WorkbenchTitlebarState = {
   readonly enabled?: boolean;
   readonly activePage: LayoutView;
   readonly analysisActiveFileId?: string | null;
@@ -32,36 +29,17 @@ export type DeviceAnalysisWorkbenchTitlebarState = {
   readonly onInstallUpdate?: () => void;
 };
 
-export const getWorkbenchShellFlags = () => {
-  const environment = getWorkbenchEnvironment();
-  const isWindowsDesktopShell =
-    environment?.isDesktop === true && environment?.platform === "win32";
-  const isPackagedWindowsDesktopShell =
-    isWindowsDesktopShell && environment?.isPackaged === true;
-
-  return {
-    environment,
-    isAppUpdatePreviewEnabled:
-      isPackagedWindowsDesktopShell || import.meta.env.DEV,
-    isDesktopChromePreviewEnabled: isWindowsDesktopShell || import.meta.env.DEV,
-    isPackagedWindowsDesktopShell,
-    isWindowsDesktopShell,
-  };
-};
-
-type DeviceAnalysisWorkbenchProps = {
-  readonly activeView: LayoutView;
+export type WorkbenchOptions = {
   readonly className?: string;
   readonly id?: string;
-  readonly parts: DeviceAnalysisPageParts;
   readonly showDesktopCommandBar?: boolean;
   readonly showSkeleton?: boolean;
-  readonly style?: CSSProperties;
-  readonly titlebarState?: DeviceAnalysisWorkbenchTitlebarState;
+  readonly style?: WorkbenchStyle;
+  readonly titlebarState?: WorkbenchTitlebarState;
 };
 
-export const buildDeviceAnalysisWorkbenchTitlebarState = (
-  state: DeviceAnalysisWorkbenchTitlebarState | undefined,
+export const createTitlebarState = (
+  state: WorkbenchTitlebarState | undefined,
 ): WorkbenchTitlebarProps | undefined =>
   state && state.enabled !== false
     ? {
@@ -91,35 +69,26 @@ export const buildDeviceAnalysisWorkbenchTitlebarState = (
       }
     : undefined;
 
-const DeviceAnalysisWorkbench = ({
-  activeView,
-  className,
-  id,
-  parts,
-  showDesktopCommandBar,
-  showSkeleton,
-  style,
-  titlebarState,
-}: DeviceAnalysisWorkbenchProps) =>
-  jsx(WorkspaceShell, {
-    id,
-    className,
-    showDesktopCommandBar,
-    showSkeleton,
-    style,
-    titlebarState: buildDeviceAnalysisWorkbenchTitlebarState(titlebarState),
-    children: jsxs("div", {
-      className: "relative flex flex-1 min-h-0 flex-col",
-      children: [
-        parts.controller ?? null,
-        jsx(WorkbenchWorkspace, {
-          activeView,
-          dataSidebar: parts.dataSidebar,
-          children: parts.workspace,
-        }),
-        parts.overlay ?? null,
-      ],
-    }),
-  });
+export class Workbench extends Disposable {
+  private readonly window: WorkbenchWindow;
 
-export default DeviceAnalysisWorkbench;
+  public get contentElement(): HTMLElement {
+    return this.window.contentElement;
+  }
+
+  constructor(parent: HTMLElement, options: WorkbenchOptions = {}) {
+    super();
+
+    this.window = this._register(new WorkbenchWindow(parent, {
+      ...options,
+      titlebarState: createTitlebarState(options.titlebarState),
+    }));
+  }
+
+  update(options: WorkbenchOptions = {}): void {
+    this.window.update({
+      ...options,
+      titlebarState: createTitlebarState(options.titlebarState),
+    });
+  }
+}

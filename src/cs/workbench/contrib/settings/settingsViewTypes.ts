@@ -96,7 +96,7 @@ export type OnboardingSettings = {
   onOpenGuide: () => void;
 };
 
-export type SettingsPanelProps = {
+export type SettingsViewProps = {
   appUpdateSettings: AppUpdateSettings;
   analysisDefaultSettings: AnalysisDefaultSettings;
   fileNameMatchingSettings: FileNameMatchingSettings;

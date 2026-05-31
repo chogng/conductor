@@ -41,6 +41,8 @@ PowerShell 规则：
 - 命名优先短、准、贴近上游；如果上游叫 `model`、`view`、`service`、`entry`、`item`，本项目不要发明更长的复合词。
 - 处在业务目录内时，名字不要重复业务前缀。例如 `deviceAnalysis` 目录里不要再写 `DeviceAnalysisDataView`、`deviceAnalysisState`，优先写 `DataView`、`dataState`、`selectionModel`。
 - 类名写架构角色：`DataView`、`DataModel`、`ImportController`、`SelectionService`、`PreviewPane`。不要写含糊的 `Manager`、`Helper`、`Util`、`Common`，除非上游对应模块就是这么命名。
+- workbench UI 命名优先使用 `View`、`Views`、`Viewlet`、`ViewPane`、`Pane`、`Widget` 这组角色：`View` 表示具体 UI，`Views` 表示一组 view 的组织或注册，`Viewlet` 表示一个较完整的 workbench 区域入口，`ViewPane`/`Pane` 表示接入 workbench pane/view 体系的承载类，`Widget` 表示局部可复用控件。
+- 不把长期架构角色命名为 `Container`，除非现有上游同类 API 明确要求或只是迁移期 React 包装层；迁移期 `*Container` 后续要收敛为 `*View`、`*ViewPane`、`*Viewlet` 或删除。
 - 函数名写动作和结果：`parseCsvRows`、`createPreviewModel`、`resolveColumnMapping`、`renderEmptyState`。不要写 `handleData`、`doImport`、`processResult`。
 - 布尔值必须能直接读成判断句：`hasHeaderRow`、`isPreviewVisible`、`canImport`、`shouldReuseSession`。不要写 `flag`、`status`、`isData`、`check`。
 - 类型名不要加无意义后缀：优先 `ColumnMapping`、`ImportSession`，避免 `ColumnMappingType`、`ImportSessionInfoData`。
@@ -113,7 +115,12 @@ Service、IPC 和依赖注入：
 
 Contribution、Command、Context Key、Configuration：
 - 新功能入口优先找上游同层 contribution、registry、command、action、menu、keybinding 接入方式；不要在应用启动主流程或已有 view 构造函数里硬编码初始化。
+- workbench contrib 新功能必须有明确入口层：注册 command、action、menu、keybinding、view、context key、workbench contribution 的代码放在对应运行环境的 `<feature>.contribution.ts`，例如 `browser/settings.contribution.ts`；不要把注册入口散落到 view、container、service 或 `Page.tsx`。
 - 需要随 workbench 启动注册的能力，优先写成 contribution；contribution 只负责注册、监听生命周期和协调 service，不承载大量业务逻辑。
+- view、model、service、controller 只承担各自角色；需要被 workbench 发现、启动或挂载时，通过同 feature 的 `.contribution.ts` 接入。
+- contribution 是 workbench 级入口，不是 UI 容器实现：它负责把 feature 登记到 workbench；具体 DOM、pane 结构、事件绑定、焦点、ARIA 和 CSS 状态由 `*View`、`*ViewPane`、`*Viewlet` 或 `*Widget` 承担。
+- contrib 目录按功能域收拢，域内再按运行环境拆分：`common` 放 id、context key、command id、view id、配置 key、协议类型和常量；`browser` 放 `.contribution.ts`、view/viewlet/viewPane、controller、browser service 和 CSS；`electron-main`、`node`、`worker` 只放对应运行环境能力。
+- 一个 feature 的推荐长期形态是：`common/<feature>.ts` 定义边界常量和类型，`browser/<feature>.contribution.ts` 注册入口，`browser/<feature>Viewlet.ts` 或 `browser/<feature>ViewPane.ts` 承接 workbench UI 容器，`browser/<feature>View.ts` 实现具体 UI，必要时再有 `*Controller`、`*Service`、`*Model`；不要用 `views/` 这类横向目录收纳多个业务 feature。
 - 命令 id、action id、view id、context key 名称集中定义在靠近功能的 `common` 或同层 constants 文件；不要把字符串 id 散落在 view、service、CSS 和测试里。
 - UI 按钮、菜单项、快捷键触发同一个 command/action；不要按钮一套逻辑、菜单一套逻辑、快捷键再写一套逻辑。
 - menu、keybinding、command palette 的注册放在 browser/workbench 侧对应注册文件中；electron-main 不注册 UI 命令。

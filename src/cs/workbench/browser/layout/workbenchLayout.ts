@@ -4,30 +4,33 @@ import SplitView, {
   type SplitViewResizeEvent,
 } from "src/cs/base/browser/ui/splitview/splitview";
 import {
-  DeviceAnalysisSidebarPortalContext,
   SIDEBAR_DEFAULT_WIDTH_PX,
   SIDEBAR_MAX_WIDTH_PX,
   SIDEBAR_MIN_WIDTH_PX,
+  WorkbenchSidebarPortalContext,
   type LayoutView,
-  useDeviceAnalysisSidebarLayout,
+  useWorkbenchSidebarLayout,
 } from "src/cs/workbench/browser/layout";
 
-type WorkbenchWorkspaceProps = {
+type WorkbenchLayoutProps = {
   readonly activeView: LayoutView;
   readonly children: ReactNode;
   readonly dataSidebar: ReactNode;
 };
 
-const WorkbenchWorkspace = ({
+const hasWorkbenchSidebar = (activeView: LayoutView) =>
+  activeView === "data" || activeView === "analysis";
+
+const WorkbenchLayout = ({
   activeView,
   children,
   dataSidebar,
-}: WorkbenchWorkspaceProps) => {
+}: WorkbenchLayoutProps) => {
   const sidebarContainerRef = useRef<HTMLDivElement | null>(null);
-  const [sidebarContainer, setSidebarContainer] = useState<HTMLDivElement | null>(null);
-  const { handleSidebarResize, sidebarWidth } =
-    useDeviceAnalysisSidebarLayout();
-  const hasSidebar = activeView === "data" || activeView === "analysis";
+  const [sidebarContainer, setSidebarContainer] =
+    useState<HTMLDivElement | null>(null);
+  const { handleSidebarResize, sidebarWidth } = useWorkbenchSidebarLayout();
+  const hasSidebar = hasWorkbenchSidebar(activeView);
 
   useLayoutEffect(() => {
     setSidebarContainer(sidebarContainerRef.current);
@@ -36,7 +39,7 @@ const WorkbenchWorkspace = ({
   const workspaceContent = hasSidebar
     ? jsx(SplitView, {
         className: "h-full min-h-0",
-        gap: 4,
+        gap: 2,
         onDidResizeEnd: ({ sizes }: SplitViewResizeEvent) => {
           const nextWidth = sizes[0];
           if (Number.isFinite(nextWidth)) {
@@ -46,7 +49,7 @@ const WorkbenchWorkspace = ({
         orientation: "horizontal",
         panes: [
           {
-            id: "device-analysis-sidebar",
+            id: "workbench-sidebar",
             children: jsx("div", {
               ref: sidebarContainerRef,
               className: "h-full min-h-0",
@@ -58,7 +61,7 @@ const WorkbenchWorkspace = ({
             size: sidebarWidth,
           },
           {
-            id: "device-analysis-workspace",
+            id: "workbench-main",
             children,
             minSize: 520,
           },
@@ -69,10 +72,10 @@ const WorkbenchWorkspace = ({
         children,
       });
 
-  return jsx(DeviceAnalysisSidebarPortalContext.Provider, {
+  return jsx(WorkbenchSidebarPortalContext.Provider, {
     value: activeView === "analysis" ? sidebarContainer : null,
     children: workspaceContent,
   });
 };
 
-export default WorkbenchWorkspace;
+export default WorkbenchLayout;
