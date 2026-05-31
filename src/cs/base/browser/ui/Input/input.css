@@ -72,6 +72,22 @@ html[data-nav="keyboard"] .input_field[data-state="enable"]:focus-within::after 
   cursor: not-allowed;
 }
 
+.input_native--no-spinner::-webkit-outer-spin-button,
+.input_native--no-spinner::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.input_native--no-spinner {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.input_native.no-focus-outline:focus,
+.input_native.no-focus-outline:focus-visible {
+  outline: none !important;
+}
+
 .ui-textarea_native,
 .textarea_native {
   @apply w-full min-w-0 flex-1 bg-transparent text-text-primary placeholder:text-text-tertiary text-sm resize-y;

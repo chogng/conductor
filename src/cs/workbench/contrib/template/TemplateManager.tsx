@@ -27,11 +27,11 @@ import type { TranslateFn, TranslationVars } from "src/cs/platform/language/comm
 import Toast from "cs/base/browser/ui/toast/toast";
 import Input from "cs/base/browser/ui/Input/Input";
 import DropdownField from "cs/base/browser/ui/DropdownField/DropdownField";
-import Tabs from "cs/base/browser/ui/Tabs/Tabs";
+import Tabs from "cs/base/browser/ui/tabs/tabs";
 import Card from "cs/base/browser/ui/Card/Card";
 import Button from "cs/base/browser/ui/Button/Button";
 import Checkbox from "cs/base/browser/ui/Checkbox/Checkbox";
-import Modal from "cs/base/browser/ui/Modal/Modal";
+import Modal from "cs/base/browser/ui/modal/modal";
 import ScrollArea from "cs/base/browser/ui/scrollArea/scrollArea";
 import DataPreviewArea from "src/cs/workbench/contrib/data/DataPreviewArea";
 import {
@@ -1457,7 +1457,7 @@ const TemplateManager = ({
                   markFieldSource("xPointsPerGroup", "manual");
                 }}
                 placeholder={xSegmentationInputPlaceholder}
-                inputClassName="no-spinner"
+                hideSpinner
               />
             </div>
             <div className="relative min-w-0">
@@ -1583,7 +1583,7 @@ const TemplateManager = ({
                     markFieldSource("yLegendCount", "manual");
                   }}
                   placeholder={t("da_save_count")}
-                  inputClassName="no-spinner"
+                  hideSpinner
                 />
               </div>
               <div className="min-w-0">
@@ -1599,7 +1599,7 @@ const TemplateManager = ({
                     markFieldSource("yLegendStep", "manual");
                   }}
                   placeholder={t("da_save_step")}
-                  inputClassName="no-spinner"
+                  hideSpinner
                 />
               </div>
               <div className="min-w-0 relative">

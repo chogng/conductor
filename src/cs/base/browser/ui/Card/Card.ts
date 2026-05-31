@@ -1,6 +1,9 @@
 import { createElement, forwardRef, type ElementType, type HTMLAttributes, } from "react";
 import { normalizeCtaName, normalizeCtaToken } from "src/utils/cta";
 import { cx } from "src/utils/cx";
+
+import "./card.css";
+
 type CardVariant = "default" | "panel" | "glass" | "flat" | "fill";
 type CardProps = HTMLAttributes<HTMLElement> & {
     as?: ElementType;

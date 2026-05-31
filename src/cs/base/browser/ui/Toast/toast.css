@@ -4,11 +4,11 @@
 }
 
 .conductor-toast-opening {
-  @apply animate-fade-in;
+  animation: conductor-toast-fade-in 0.8s ease-out forwards;
 }
 
 .conductor-toast-closing {
-  @apply animate-fade-out;
+  animation: conductor-toast-fade-out 0.85s ease-in forwards;
 }
 
 .conductor-toast-fixed {
@@ -37,4 +37,24 @@
 
 .conductor-toast-close {
   @apply inline-flex h-7 w-7 items-center justify-center rounded-md text-text-secondary transition-colors hover:bg-bg-page hover:text-text-primary;
+}
+
+@keyframes conductor-toast-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes conductor-toast-fade-out {
+  from {
+    opacity: 1;
+  }
+
+  to {
+    opacity: 0;
+  }
 }

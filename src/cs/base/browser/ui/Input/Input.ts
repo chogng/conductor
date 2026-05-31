@@ -42,6 +42,7 @@ type InputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "size" | "value" |
     hint?: ReactNode;
     fieldClassName?: string;
     inputClassName?: string;
+    hideSpinner?: boolean;
     cta?: string;
     ctaPosition?: string;
     ctaCopy?: string;
@@ -51,7 +52,7 @@ type InputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "size" | "value" |
  * - Controlled: value + onChange(nextValue)
  * - Stable markers: data-style/data-state
  */
-const Input = forwardRef<HTMLInputElement, InputProps>(({ label, labelPlacement = "stack", id, idBase, name, type = "text", value, onChange, disabled = false, placeholder, autoComplete, allowAutoComplete = false, size = "md", leftIcon: LeftIcon, rightSlot, error, hint, className = "", fieldClassName = "", inputClassName = "", cta, ctaPosition, ctaCopy, ...props }, ref) => {
+const Input = forwardRef<HTMLInputElement, InputProps>(({ label, labelPlacement = "stack", id, idBase, name, type = "text", value, onChange, disabled = false, placeholder, autoComplete, allowAutoComplete = false, size = "md", leftIcon: LeftIcon, rightSlot, error, hint, className = "", fieldClassName = "", inputClassName = "", hideSpinner = false, cta, ctaPosition, ctaCopy, ...props }, ref) => {
     const { ["aria-describedby"]: describedByFromProps, ...inputProps } = props;
     const reactId = useId();
     const idBasePrefix = typeof idBase === "string" && idBase.trim() ? slugify(idBase) : "input";
@@ -104,7 +105,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({ label, labelPlacement 
                 autoComplete: resolvedAutoComplete,
                 "aria-invalid": Boolean(error),
                 "aria-describedby": ariaDescribedBy,
-                className: cx("input_native", inputClassName)
+                className: cx("input_native", hideSpinner && "input_native--no-spinner", inputClassName)
             }),
             rightSlot ? jsx("div", {
                 className: "input_right",

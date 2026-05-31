@@ -3,6 +3,8 @@ import type { ComponentType, HTMLAttributes } from "react";
 import { normalizeCtaName, normalizeCtaToken } from "src/utils/cta";
 import { cx } from "src/utils/cx";
 
+import "./avatar.css";
+
 type AvatarSize = "sm" | "md" | "lg" | "xl";
 type AvatarVariant = "default" | "empty";
 type AvatarProps = HTMLAttributes<HTMLDivElement> & {

@@ -1,0 +1,6 @@
+@media (max-width: 640px) {
+  .da_page_scroll {
+    padding-bottom: env(safe-area-inset-bottom);
+    scroll-padding-bottom: env(safe-area-inset-bottom);
+  }
+}

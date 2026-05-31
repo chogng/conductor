@@ -5,6 +5,9 @@ import { runAtThisOrScheduleAtNextAnimationFrame } from "src/cs/base/browser/dom
 import { addDisposableListener, EventType } from "src/cs/base/browser/event";
 import { normalizeCtaName, normalizeCtaToken } from "src/utils/cta";
 import { cx } from "src/utils/cx";
+
+import "./modal.css";
+
 const MODAL_OVERLAY_CLASS = "modal-overlay";
 const MODAL_BACKDROP_CLASS = "modal-backdrop";
 const MODAL_DIALOG_BASE_CLASS = "modal";

@@ -1,0 +1,33 @@
+.card {
+  @apply bg-bg-surface border border-border rounded-xl p-4 shadow-sm;
+}
+
+.card--panel {
+  @apply p-4 shadow-none;
+}
+
+.card--flat {
+  @apply border-transparent;
+}
+
+.card--glass {
+  background: linear-gradient(135deg,
+      rgba(255, 255, 255, 0.45) 0%,
+      rgba(255, 255, 255, 0.25) 100%);
+  backdrop-filter: blur(40px) saturate(210%);
+  -webkit-backdrop-filter: blur(40px) saturate(210%);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.08),
+    inset 0 0 0 1px var(--color-highlight);
+}
+
+.dark .card--glass {
+  background: linear-gradient(135deg,
+      rgba(28, 28, 30, 0.4) 0%,
+      rgba(28, 28, 30, 0.2) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.card--fill {
+  @apply p-0 overflow-hidden flex-1 min-h-0 flex flex-col;
+}
