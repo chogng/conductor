@@ -5,7 +5,7 @@ import {
   SIDEBAR_MAX_WIDTH_PX,
   SIDEBAR_MIN_WIDTH_PX,
   TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX,
-} from "../../browser/layoutConstants.ts";
+} from "./layoutConstants.ts";
 
 test("sidebar width constants remain in a valid order", () => {
   assert.ok(SIDEBAR_MIN_WIDTH_PX < SIDEBAR_DEFAULT_WIDTH_PX);

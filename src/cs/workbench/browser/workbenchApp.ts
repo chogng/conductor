@@ -6,8 +6,8 @@ import {
   logRendererBoot,
   logSlowScriptResources,
   markBootUiReady,
-} from "src/cs/workbench/contrib/workspace/appBoot";
-import Page from "src/cs/workbench/contrib/workspace/Page";
+} from "src/cs/workbench/browser/workbenchBoot";
+import Page from "src/cs/workbench/browser/workbenchPage";
 import { SessionProvider } from "src/cs/workbench/contrib/session/SessionProvider";
 
 const App = () => {

@@ -3,7 +3,7 @@ import { getWorkbenchEnvironment } from "src/cs/workbench/services/environment/b
 
 let workbenchAppPromise: Promise<typeof import("src/cs/code/browser/workbench/app")> | null = null;
 let appPromise:
-  | Promise<typeof import("src/cs/workbench/contrib/workspace/App")>
+  | Promise<typeof import("src/cs/workbench/browser/workbenchApp")>
   | null = null;
 
 let workbenchImportStartedAtMs = 0;
@@ -66,7 +66,7 @@ export const loadApp = () => {
 
   importStartedAtMs = getBootNowMs();
   logRendererBoot("analysis:import-started");
-  appPromise = import("src/cs/workbench/contrib/workspace/App")
+  appPromise = import("src/cs/workbench/browser/workbenchApp")
     .then((module) => {
       logRendererBoot(
         "analysis:import-resolved",

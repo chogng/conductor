@@ -460,8 +460,8 @@ Migration direction:
 
 Known TSX retirement areas:
 
-- `workspace/Page.tsx`
-- `workspace/ImporterViewletHost.tsx`
+- `workbench/browser/workbenchPage.ts`
+- `import/browser/importerViewletHost.ts`
 - `session/SessionProvider.tsx`
 - `template/TemplateManager.tsx`
 - `template/TemplateManagerPreviewPanel.tsx`

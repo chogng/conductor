@@ -7,7 +7,7 @@ import { loadAnalysisCharts } from "src/cs/workbench/contrib/chartPreview/browse
 import { getExtractionErrorMessage } from "src/cs/workbench/common/deviceAnalysis/utils";
 import DataViewPane from "src/cs/workbench/contrib/data/browser/dataViewPane";
 import type { ImporterRef } from "src/cs/workbench/contrib/import/browser/importerView";
-import ImporterViewletHost from "src/cs/workbench/contrib/workspace/ImporterViewletHost";
+import ImporterViewletHost from "src/cs/workbench/contrib/import/browser/importerViewletHost";
 import { useWorkbenchLayoutNavigation, } from "src/cs/workbench/browser/layout";
 import { createPanePart, createScrollPanePart, createWorkbenchParts, } from "src/cs/workbench/browser/part";
 import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
@@ -19,7 +19,7 @@ import { createIdleOnboardingState, type OnboardingControllerState, } from "src/
 import { usePreview } from "src/cs/workbench/contrib/tablePreview/usePreview";
 import { useProcessing } from "src/cs/workbench/contrib/data/useProcessing";
 import { loadOnboarding, loadOnboardingController, } from "src/cs/workbench/contrib/onboarding/onboardingLoader";
-import { useAnalysisSelectionState } from "src/cs/workbench/contrib/workspace/useAnalysisSelectionState";
+import { useAnalysisSelectionState } from "src/cs/workbench/contrib/chartPreview/browser/useAnalysisSelectionState";
 import { useOnboardingLauncher } from "src/cs/workbench/contrib/onboarding/useOnboardingLauncher";
 import { useSession } from "src/cs/workbench/contrib/session/useSession";
 import { useSessionActions } from "src/cs/workbench/contrib/session/useSessionActions";
