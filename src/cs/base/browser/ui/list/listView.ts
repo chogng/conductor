@@ -11,7 +11,6 @@ import {
 import type { ListRenderState } from "src/cs/base/browser/ui/list/list";
 import { RowCache, type RowCacheRow } from "src/cs/base/browser/ui/list/rowCache";
 import { ScrollbarController } from "src/cs/base/browser/ui/scrollbar/scrollbarController";
-import "./list.css";
 
 export type ListViewItemRenderer<T> = (
   item: T,

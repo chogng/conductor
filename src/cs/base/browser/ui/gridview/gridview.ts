@@ -1,7 +1,6 @@
 import { jsx } from "react/jsx-runtime";
 import { useMemo, type CSSProperties, type ReactNode } from "react";
 import { cx } from "src/utils/cx";
-import "./gridview.css";
 
 export type GridViewOrientation = "horizontal" | "vertical";
 

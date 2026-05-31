@@ -6,7 +6,6 @@ import { addDisposableListener, EventType } from "src/cs/base/browser/event";
 import { normalizeCtaName, normalizeCtaToken } from "src/utils/cta";
 import { cx } from "src/utils/cx";
 
-import "./modal.css";
 
 const MODAL_OVERLAY_CLASS = "modal-overlay";
 const MODAL_BACKDROP_CLASS = "modal-backdrop";

@@ -12,7 +12,6 @@ import {
   lxInfoCircle,
 } from "src/cs/base/browser/ui/CogIcon/icons";
 import { cx } from "src/utils/cx";
-import "./toast.css";
 
 export type ToastType = "success" | "error" | "warning" | "info";
 export type ToastPosition = "absolute" | "fixed";

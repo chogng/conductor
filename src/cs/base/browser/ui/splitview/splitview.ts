@@ -16,7 +16,6 @@ import { DisposableResizeObserver, getWindow } from "src/cs/base/browser/dom";
 import GridView from "src/cs/base/browser/ui/gridview/gridview";
 import Sash, { type SashDragEvent } from "src/cs/base/browser/ui/sash/sash";
 import { cx } from "src/utils/cx";
-import "./splitview.css";
 
 export type SplitViewOrientation = "horizontal" | "vertical";
 

@@ -10,8 +10,6 @@ import Menu from "src/cs/base/browser/ui/Menu/Menu";
 import MenuItem from "src/cs/base/browser/ui/MenuItem/MenuItem";
 import MenuScrollArea from "src/cs/base/browser/ui/MenuScrollArea/MenuScrollArea";
 
-import "src/cs/base/browser/ui/Input/input.css";
-import "./dropdownField.css";
 
 const hasWidthConstraintClass = (className: string): boolean => {
     if (!className.trim())

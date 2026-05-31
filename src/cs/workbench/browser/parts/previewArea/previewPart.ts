@@ -1,5 +1,4 @@
 import { jsx, jsxs } from "react/jsx-runtime";
-import "./media/previewpart.css";
 import type { ReactNode } from "react";
 import Button from "src/cs/base/browser/ui/Button/Button";
 import {

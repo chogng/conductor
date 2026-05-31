@@ -3,7 +3,6 @@ import { useEffect, useId, useMemo, useRef, useState, type ComponentType, type H
 import { normalizeCtaName, normalizeCtaToken } from "src/utils/cta";
 import { cx } from "src/utils/cx";
 
-import "./tabs.css";
 
 const slugify = (input: unknown): string => String(input ?? "")
     .toLowerCase()

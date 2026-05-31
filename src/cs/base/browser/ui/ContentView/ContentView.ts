@@ -5,7 +5,6 @@ import { getClientArea, getContentWidth, getDomRect, getElementSize } from "src/
 import { anchoredLayout, rectFromDomRect } from "src/cs/base/common/layout";
 import { addDisposableListener, combinedDisposable, EventType } from "src/cs/base/browser/event";
 import { cx } from "src/utils/cx";
-import "./contentview.css";
 export type ContentViewAlign = "left" | "center" | "right";
 export type ContentViewSide = "bottom" | "right";
 type ResolvedContentViewSide = "top" | "bottom" | "right" | "left";

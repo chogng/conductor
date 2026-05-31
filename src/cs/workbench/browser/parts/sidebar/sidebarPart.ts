@@ -1,5 +1,4 @@
 import { jsx, jsxs } from "react/jsx-runtime";
-import "./media/sidebarpart.css";
 import {
   useEffect,
   useRef,

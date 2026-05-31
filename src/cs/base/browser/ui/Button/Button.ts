@@ -2,7 +2,6 @@ import { jsx } from "react/jsx-runtime";
 import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
 import { normalizeCtaName, normalizeCtaToken } from "src/utils/cta";
 import { cx } from "src/utils/cx";
-import "./button.css";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "text" | "icon" | "danger";
 type ButtonSize = "sm" | "md" | "lg" | "control" | "icon" | "iconSm";

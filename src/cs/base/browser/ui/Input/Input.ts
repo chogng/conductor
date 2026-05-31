@@ -2,7 +2,6 @@ import { Fragment, jsx } from "react/jsx-runtime";
 import { forwardRef, useId, type ChangeEvent, type ComponentType, type InputHTMLAttributes, type ReactNode, } from "react";
 import { normalizeCtaName, normalizeCtaToken } from "src/utils/cta";
 import { cx } from "src/utils/cx";
-import "./input.css";
 
 const slugify = (input: unknown): string => String(input ?? "")
     .toLowerCase()

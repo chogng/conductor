@@ -2,7 +2,6 @@ import { jsx } from "react/jsx-runtime";
 import { type HTMLAttributes } from "react";
 import { cx } from "src/utils/cx";
 import MenuScrollArea from "cs/base/browser/ui/MenuScrollArea/MenuScrollArea";
-import "./menu.css";
 
 type MenuProps = HTMLAttributes<HTMLDivElement> & {
     withScrollArea?: boolean;

@@ -11,7 +11,6 @@ import {
 import { addDisposableListener, getWindow } from "src/cs/base/browser/dom";
 import { combinedDisposable } from "src/cs/base/common/lifecycle";
 import { cx } from "src/utils/cx";
-import "./sash.css";
 
 export type SashOrientation = "vertical" | "horizontal";
 export type SashEdge = "left" | "right" | "top" | "bottom";

@@ -1,7 +1,6 @@
 import { jsx } from "react/jsx-runtime";
 import type { CSSProperties, HTMLAttributes } from "react";
 import { cx } from "src/utils/cx";
-import "./cogicon.css";
 
 export type CogIconRenderer = () => string;
 

@@ -3,7 +3,6 @@ import { forwardRef, type HTMLAttributes, type ReactNode } from "react";
 import { jsx } from "react/jsx-runtime";
 import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
 import { cx } from "src/utils/cx";
-import "./checkbox.css";
 
 type CheckboxTag = "span" | "div";
 type CheckboxSize = "sm" | "md" | "lg";

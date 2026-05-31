@@ -1,7 +1,6 @@
 import { jsx } from "react/jsx-runtime";
 import { forwardRef, useState, type ButtonHTMLAttributes, type CSSProperties, type MouseEvent, } from "react";
 import { cx } from "src/utils/cx";
-import "./Switch.css";
 
 type SwitchSize = "sm" | "md" | "lg";
 type SwitchStyleVars = CSSProperties & {
