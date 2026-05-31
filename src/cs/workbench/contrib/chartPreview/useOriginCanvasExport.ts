@@ -6,11 +6,16 @@ import {
   useState,
   type MutableRefObject,
 } from "react";
-import JSZip from "jszip";
 import {
-  triggerBlobDownload,
-} from "src/cs/workbench/contrib/dataExport/export";
-import { importService } from "src/cs/workbench/services/import/browser/importService";
+  ORIGIN_CSV_AUTO_ZIP_FALLBACK_CODES,
+  attachOriginCsvPaths,
+  buildOriginCsvJobs,
+  canRunOriginCsv,
+  exportOriginZip,
+  fillMissingOriginCsvText,
+  runOriginCsvJobs,
+  type OriginDisplayRange,
+} from "src/cs/workbench/contrib/origin/browser/originController";
 import {
   buildOriginExportPlan,
   getRustOriginCsvDerivedContentKey,
@@ -23,32 +28,12 @@ import {
   type OriginExportMode,
   type OriginYAxisScaleMode,
 } from "./lib/origin/originSelectionExport";
-import {
-  buildOriginAxisTitleCommands,
-  buildOriginAxisSpacingCommands,
-  buildOriginXAxisRangeCommandsFromDisplayRange,
-  buildOriginYAxisRangeCommands,
-  buildOriginYAxisRangeCommandsFromDisplayRange,
-} from "./lib/origin/originAxisCommands";
 import { formatOriginBridgeError } from "./lib/origin/originBridgeError";
-import {
-  DEFAULT_ORIGIN_PLOT_OPTIONS,
-  normalizeOriginPlotOptions,
-} from "./lib/origin/originPlotOptions";
 import {
   getXUnitMeta,
   getYUnitMeta,
 } from "./lib/units";
 import { useFileSelectionPool } from "./useFileSelectionPool";
-
-const ORIGIN_CSV_AUTO_ZIP_FALLBACK_CODES = new Set([
-  "ORIGIN_ORIGINPRO_IMPORT_FAILED",
-  "ORIGIN_PYTHON_NOT_FOUND",
-  "ORIGIN_CSV_RUNNER_NOT_FOUND",
-  "ORIGIN_CSV_RUNNER_FAILED",
-  "ORIGIN_CSV_FAILED",
-  "ORIGIN_CSV_IMPORT_FAILED",
-]);
 
 export type OriginCanvasExportScope =
   | "current"
@@ -59,19 +44,12 @@ export type OriginCanvasExportScope =
 export type OriginFilteredCanvasKind = "transfer" | "output";
 export type OriginCurveExportMode = "all" | "select";
 
-type OriginDisplayRange = {
-  min: number;
-  max: number;
-  step?: number | null;
-};
-
 type UseOriginCanvasExportOptions = {
   activeFile: any;
   canvasExportScope?: OriginCanvasExportScope;
   curveExportMode?: OriginCurveExportMode;
   filteredCanvasKind?: OriginFilteredCanvasKind;
   effectiveActiveFileId: unknown;
-  getDesktopOriginBridge: () => any;
   isWindowsDesktopShell: boolean;
   originChartXRangeRef: MutableRefObject<OriginDisplayRange | null>;
   originChartYRangeRef: MutableRefObject<{
@@ -107,141 +85,8 @@ type UseOriginCanvasExportOptions = {
   visibleOriginCanvasIds?: string[];
 };
 
-const sanitizeFilename = (name: any, { max = 180 }: any = {}) => {
-  const raw = String(name || "export")
-    .replace(/[/\\?%*:|"<>]/g, "_")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!raw) return "export";
-  return raw.length > max ? raw.slice(0, max) : raw;
-};
-
-const normalizeOriginLabelText = (
-  value: unknown,
-  { max = 160 }: { max?: number } = {},
-): string => {
-  const raw = String(value ?? "")
-    .replace(/[\\_]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  if (!raw) return "";
-  return raw.length > max ? raw.slice(0, max).trim() : raw;
-};
-
-const buildOriginWorkbookKey = (): string => {
-  const timeToken = Date.now().toString(36).toUpperCase().slice(-6);
-  const randomToken = Math.random().toString(36).slice(2, 5).toUpperCase();
-  return `CDX${timeToken}${randomToken}`.slice(0, 18);
-};
-
 const buildOriginXGroupKey = (xArr: unknown): string =>
   Array.isArray(xArr) ? xArr.map((value) => String(Number(value))).join(",") : "";
-
-const buildOriginImportColumnLabels = (options: {
-  columnLayout?: unknown;
-  columnComments?: unknown;
-  columnDesignations?: unknown;
-  columnLongNames?: unknown;
-  columnUnits?: unknown;
-  curveLabels?: unknown;
-  xColumnComments?: unknown;
-  xColumnLongNames?: unknown;
-  xColumnUnits?: unknown;
-  yColumnLongNames?: unknown;
-  yColumnUnits?: unknown;
-}): { comments: string[]; longNames: string[]; units: string[] } | undefined => {
-  const columnLayout =
-    options.columnLayout === "shared-x"
-      ? "shared-x"
-      : options.columnLayout === "grouped-x"
-        ? "grouped-x"
-        : "xy-pairs";
-  const columnLongNames = Array.isArray(options.columnLongNames)
-    ? options.columnLongNames
-    : [];
-  const columnUnits = Array.isArray(options.columnUnits)
-    ? options.columnUnits
-    : [];
-  const columnComments = Array.isArray(options.columnComments)
-    ? options.columnComments
-    : [];
-  const columnDesignations = Array.isArray(options.columnDesignations)
-    ? options.columnDesignations
-    : [];
-  const curveLabels = Array.isArray(options.curveLabels) ? options.curveLabels : [];
-  const xColumnLongNames = Array.isArray(options.xColumnLongNames)
-    ? options.xColumnLongNames
-    : [];
-  const xColumnComments = Array.isArray(options.xColumnComments)
-    ? options.xColumnComments
-    : [];
-  const xColumnUnits = Array.isArray(options.xColumnUnits)
-    ? options.xColumnUnits
-    : [];
-  const yColumnLongNames = Array.isArray(options.yColumnLongNames)
-    ? options.yColumnLongNames
-    : [];
-  const yColumnUnits = Array.isArray(options.yColumnUnits)
-    ? options.yColumnUnits
-    : [];
-  if (!curveLabels.length) {
-    const longNames = xColumnLongNames.map((label) => normalizeOriginLabelText(label));
-    if (!longNames.some((label) => label.length > 0)) return undefined;
-    const units = longNames.map((_, index) =>
-      normalizeOriginLabelText(xColumnUnits[index]),
-    );
-    const comments = longNames.map((_, index) =>
-      normalizeOriginLabelText(xColumnComments[index]),
-    );
-    return { comments, longNames, units };
-  }
-  const longNames: string[] = [];
-  const units: string[] = [];
-  const comments: string[] = [];
-  if (columnLayout === "grouped-x" && columnLongNames.length) {
-    return {
-      comments: columnLongNames.map((_, index) =>
-        normalizeOriginLabelText(columnComments[index]),
-      ),
-      longNames: columnLongNames.map((label) => normalizeOriginLabelText(label)),
-      units: columnLongNames.map((_, index) =>
-        normalizeOriginLabelText(columnUnits[index]),
-      ),
-    };
-  }
-  if (columnLayout === "shared-x") {
-    longNames.push(normalizeOriginLabelText(xColumnLongNames[0]));
-    units.push(normalizeOriginLabelText(xColumnUnits[0]));
-    comments.push(normalizeOriginLabelText(xColumnComments[0]));
-    for (let index = 0; index < curveLabels.length; index += 1) {
-      longNames.push(
-        normalizeOriginLabelText(yColumnLongNames[index] ?? curveLabels[index]),
-      );
-      units.push(normalizeOriginLabelText(yColumnUnits[index]));
-      comments.push("");
-    }
-    return { comments, longNames, units };
-  }
-
-  for (let index = 0; index < curveLabels.length; index += 1) {
-    longNames.push(normalizeOriginLabelText(xColumnLongNames[index]));
-    units.push(normalizeOriginLabelText(xColumnUnits[index]));
-    comments.push(normalizeOriginLabelText(xColumnComments[index]));
-    longNames.push(
-      normalizeOriginLabelText(yColumnLongNames[index] ?? curveLabels[index]),
-    );
-    units.push(normalizeOriginLabelText(yColumnUnits[index]));
-    comments.push("");
-  }
-  return { comments, longNames, units };
-};
-
-const buildOriginLegendRefreshCommands = (curveLabels: unknown): string[] => {
-  const labels = Array.isArray(curveLabels) ? curveLabels : [];
-  return labels.some((label) => normalizeOriginLabelText(label).length > 0)
-    ? ["legend -r;"]
-    : [];
-};
 
 export const normalizeOriginSeriesToken = (value: unknown): string | null => {
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -286,7 +131,6 @@ export const useOriginCanvasExport = ({
   curveExportMode = "all",
   filteredCanvasKind = "output",
   effectiveActiveFileId,
-  getDesktopOriginBridge,
   isWindowsDesktopShell,
   originChartXRangeRef,
   originChartYRangeRef,
@@ -1168,128 +1012,13 @@ export const useOriginCanvasExport = ({
   );
 
   const exportOriginZipFallbackForSelectedCanvases = useCallback(async () => {
-    const result = buildOriginExportPayloadsForSelectedCanvases({
-      omitRustEligibleCsvText: true,
+    return exportOriginZip({
+      buildCsvExportRequest: buildRustOriginCsvExportRequest,
+      buildPayloads: buildOriginExportPayloadsForSelectedCanvases,
     });
-    const sanitizedPayloads = result.payloads.map((payload, index) => ({
-      csvName: sanitizeFilename(
-        payload?.csvName || `device_analysis_${index + 1}.csv`,
-      ),
-      payload,
-    }));
-    const zipBase =
-      result.mode === "merged"
-        ? sanitizeFilename(
-            String(result.payloads[0]?.csvName || "device_analysis").replace(
-              /\.csv$/i,
-              "",
-            ),
-          )
-        : result.mode === "workbookSheets"
-          ? sanitizeFilename(
-              String(result.payloads[0]?.workbookName || "device_analysis_workbook"),
-            )
-        : sanitizeFilename(
-            `device_analysis_batch_${result.totalCanvasCount}_canvases`,
-          );
-    const zipName = `${String(zipBase || "device_analysis").replace(
-      /\.zip$/i,
-      "",
-    )}.zip`;
-    if (importService.canSaveOriginZip()) {
-      const entries = sanitizedPayloads.map(({ csvName, payload }) => ({
-        name: csvName,
-        text: payload.csvText,
-      }));
-      if (importService.canExportOriginCsv()) {
-        await Promise.all(
-          entries.map(async (entry, index) => {
-            if (String(entry.text ?? "").trim()) return;
-            const request = buildRustOriginCsvExportRequest(result.payloads[index]);
-            if (!request) return;
-            try {
-              const response = await importService.exportOriginCsv(request);
-              if (!response?.ok || !response?.csvPath) return;
-              delete (entry as any).text;
-              (entry as any).path = response.csvPath;
-            } catch {
-              // Regenerate only the missing CSV text below.
-            }
-          }),
-        );
-      }
-
-      const missingCsvTextIndexes = entries
-        .map((entry, index) =>
-          !String((entry as any).path ?? "").trim() &&
-          !String(entry.text ?? "").trim()
-            ? index
-            : -1,
-        )
-        .filter((index) => index >= 0);
-      if (missingCsvTextIndexes.length) {
-        const fullResult = buildOriginExportPayloadsForSelectedCanvases();
-        for (const index of missingCsvTextIndexes) {
-          const fullPayload = fullResult.payloads[index];
-          if (!fullPayload) continue;
-          entries[index] = {
-            name: sanitizeFilename(
-              fullPayload?.csvName || `device_analysis_${index + 1}.csv`,
-            ),
-            text: fullPayload.csvText,
-          };
-        }
-      }
-
-      const response = await importService.saveOriginZip({
-        defaultName: zipName,
-        entries,
-      });
-      if (response?.cancelled) return null;
-      if (!response?.ok) {
-        throw new Error(response?.message || "Failed to save Origin ZIP.");
-      }
-      return {
-        canvasCount: result.totalCanvasCount,
-        curveCount: result.totalCurveCount,
-        mixedYScales: result.mixedYScales,
-        mode: result.mode,
-        zipName: response.zipPath || zipName,
-      };
-    }
-
-    const fullResult = result.payloads.some((payload) => !String(payload.csvText ?? "").trim())
-      ? buildOriginExportPayloadsForSelectedCanvases()
-      : result;
-    const zip = new JSZip();
-    const fullSanitizedPayloads = fullResult.payloads.map((payload, index) => ({
-      csvName: sanitizeFilename(
-        payload?.csvName || `device_analysis_${index + 1}.csv`,
-      ),
-      payload,
-    }));
-
-    fullSanitizedPayloads.forEach(({ csvName, payload }) => {
-      zip.file(csvName, payload.csvText);
-    });
-
-    const zipBlob = await zip.generateAsync({
-      type: "blob",
-      compression: "DEFLATE",
-      compressionOptions: { level: 6 },
-    });
-    triggerBlobDownload(zipName, zipBlob);
-    return {
-      canvasCount: fullResult.totalCanvasCount,
-      curveCount: fullResult.totalCurveCount,
-      mixedYScales: fullResult.mixedYScales,
-      mode: fullResult.mode,
-      zipName,
-    };
   }, [
     buildOriginExportPayloadsForSelectedCanvases,
     buildRustOriginCsvExportRequest,
-    resolvedOriginExportMode,
   ]);
 
   const handleOpenInOrigin = useCallback(async () => {
@@ -1297,226 +1026,38 @@ export const useOriginCanvasExport = ({
 
     try {
       originBusyRef.current = true;
-      const originBridge = getDesktopOriginBridge();
-      if (!originBridge) {
+      if (!canRunOriginCsv()) {
         throw new Error(t("da_origin_pick_exe_required"));
       }
 
       const result = buildOriginExportPayloadsForSelectedCanvases({
         omitRustEligibleCsvText: true,
       });
-      const normalizedPlotOptions = normalizeOriginPlotOptions(
-        originOpenPlotOptions,
-        DEFAULT_ORIGIN_PLOT_OPTIONS,
-      );
-      const hasCustomPlotCommand =
-        typeof normalizedPlotOptions.command === "string" &&
-        normalizedPlotOptions.command.trim().length > 0;
-      const hasCustomXyPairs =
-        String(normalizedPlotOptions.xyPairs || "").trim() !==
-        DEFAULT_ORIGIN_PLOT_OPTIONS.xyPairs;
       const chartXRange = originChartXRangeRef.current;
       const chartYRange = originChartYRangeRef.current;
       const shouldBatchOriginCsvJobs =
         result.mode === "workbookBooks" || result.mode === "workbookSheets";
-      const sharedWorkbookKey =
-        result.mode === "workbookSheets" ? buildOriginWorkbookKey() : "";
-      const originCsvJobs = result.payloads.map((payload, index) => {
-        const importColumnLabels = buildOriginImportColumnLabels({
-          columnLayout: payload.columnLayout,
-          columnComments: payload.columnComments,
-          columnDesignations: payload.columnDesignations,
-          columnLongNames: payload.columnLongNames,
-          columnUnits: payload.columnUnits,
-          curveLabels: payload.curveLabels,
-          xColumnLongNames: payload.xColumnLongNames,
-          xColumnComments: payload.xColumnComments,
-          xColumnUnits: payload.xColumnUnits,
-          yColumnLongNames: payload.yColumnLongNames,
-          yColumnUnits: payload.yColumnUnits,
-        });
-        const legendPostCommands = buildOriginLegendRefreshCommands(
-          payload.curveLabels,
-        );
-        const payloadYScaleMode: OriginYAxisScaleMode =
-          payload.yScaleMode === "log" ? "log" : "linear";
-        const shouldUseXDisplayRange =
-          payload.skipDisplayRange !== true &&
-          Boolean(chartXRange);
-        const shouldUseYDisplayRange =
-          payload.skipDisplayRange !== true &&
-          Boolean(chartYRange) &&
-          chartYRange?.mode === payloadYScaleMode;
-        const originYScaleMode: OriginYAxisScaleMode =
-          shouldUseYDisplayRange && chartYRange?.mode
-            ? chartYRange.mode
-            : payloadYScaleMode;
-        const originYAxisTypeCommand =
-          originYScaleMode === "log" ? "layer.y.type=2" : "layer.y.type=1";
-        const effectiveXyPairs =
-          !hasCustomPlotCommand && !hasCustomXyPairs
-            ? payload.xyPairs
-            : normalizedPlotOptions.xyPairs;
-        const displayXRangeCommands = shouldUseXDisplayRange
-          ? buildOriginXAxisRangeCommandsFromDisplayRange(chartXRange)
-          : [];
-        const displayRangeCommands = shouldUseYDisplayRange
-          ? buildOriginYAxisRangeCommandsFromDisplayRange(
-              originYScaleMode,
-              chartYRange,
-            )
-          : [];
-        const autoYRangeCommands = shouldUseYDisplayRange
-          ? []
-          : buildOriginYAxisRangeCommands(originYScaleMode, payload);
-        const originAxisSpacingCommands = buildOriginAxisSpacingCommands(
-          originAxisSettings && typeof originAxisSettings === "object"
-            ? (originAxisSettings as any)
-            : null,
-        );
-        const originAxisTitleCommands = buildOriginAxisTitleCommands({
-          xAxisTitle: payload.xAxisTitle,
-          yAxisTitle: payload.yAxisTitle,
-          axisTitleFontSize:
-            originAxisSettings && typeof originAxisSettings === "object"
-              ? (originAxisSettings as any).axisTitleFontSize
-              : null,
-        });
-        const originAxisCommands = [
-          ...(payload.skipAxisCommands
-            ? []
-            : [
-                originYAxisTypeCommand,
-                "layer.x.opposite=1",
-                "layer.y.opposite=1",
-                ...displayXRangeCommands,
-                ...displayRangeCommands,
-                ...autoYRangeCommands,
-                ...originAxisTitleCommands,
-                ...originAxisSpacingCommands,
-              ]),
-        ];
-        const originAxisLimits = {
-          x: shouldUseXDisplayRange
-            ? {
-                from: chartXRange?.min,
-                to: chartXRange?.max,
-                step: chartXRange?.step ?? undefined,
-                scale: "linear",
-              }
-            : undefined,
-          y: shouldUseYDisplayRange
-            ? {
-                from: chartYRange?.min,
-                to: chartYRange?.max,
-                step:
-                  originYScaleMode === "linear"
-                    ? chartYRange?.step ?? undefined
-                    : undefined,
-                scale: originYScaleMode,
-              }
-            : {
-                scale: originYScaleMode,
-              },
-        };
-        return {
-          csv: {
-            name: payload.csvName,
-            text: payload.csvText,
-          },
-          importMode:
-            result.mode === "workbookSheets" && index > 0
-              ? "existing-book-new-sheet"
-              : "new-book",
-          workbook: {
-            key: sharedWorkbookKey || undefined,
-            longName: payload.workbookName,
-          },
-          sheet: {
-            name: payload.sheetShortName ?? payload.sheetName,
-            longName: payload.sheetName,
-          },
-          plot: {
-            command: payload.plotCommand ?? normalizedPlotOptions.command,
-            postCommands: normalizedPlotOptions.postCommands,
-            skip: payload.skipPlot === true,
-            type: normalizedPlotOptions.type,
-            lineWidth: normalizedPlotOptions.lineWidth,
-            xyPairs: effectiveXyPairs,
-          },
-          capabilities: {
-            import: importColumnLabels
-              ? {
-                  columnLabels: importColumnLabels
-                    ? {
-                        ...importColumnLabels,
-                        designations: payload.columnDesignations,
-                      }
-                    : payload.columnDesignations
-                      ? { designations: payload.columnDesignations }
-                      : undefined,
-                }
-              : undefined,
-            plot: legendPostCommands.length
-              ? {
-                  postCommands: legendPostCommands,
-                }
-              : undefined,
-            axis: {
-              limits: originAxisLimits,
-              commands: originAxisCommands,
-            },
-          },
-        };
+      const originCsvJobs = buildOriginCsvJobs({
+        axisSettings: originAxisSettings,
+        chartXRange,
+        chartYRange,
+        plan: result,
+        plotOptions: originOpenPlotOptions,
       });
 
-      if (importService.canExportOriginCsv()) {
-        await Promise.all(
-          originCsvJobs.map(async (job: any, index: number) => {
-            const request = buildRustOriginCsvExportRequest(result.payloads[index]);
-            if (!request) return;
-            try {
-              const response = await importService.exportOriginCsv(request);
-              if (!response?.ok || !response?.csvPath) return;
-              job.csv = {
-                name: result.payloads[index]?.csvName,
-                path: response.csvPath,
-              };
-            } catch {
-              // Keep the existing in-memory CSV path as a compatibility fallback.
-            }
-          }),
-        );
-      }
-      const missingCsvTextIndexes = originCsvJobs
-        .map((job: any, index: number) =>
-          !String(job?.csv?.path ?? "").trim() &&
-          !String(job?.csv?.text ?? "").trim()
-            ? index
-            : -1,
-        )
-        .filter((index: number) => index >= 0);
-      if (missingCsvTextIndexes.length) {
-        const fullResult = buildOriginExportPayloadsForSelectedCanvases();
-        for (const index of missingCsvTextIndexes) {
-          const fullPayload = fullResult.payloads[index];
-          if (!fullPayload) continue;
-          originCsvJobs[index].csv = {
-            name: fullPayload.csvName,
-            text: fullPayload.csvText,
-          };
-        }
-      }
-
-      if (shouldBatchOriginCsvJobs && originCsvJobs.length > 1) {
-        await originBridge.runOriginCsv({
-          jobs: originCsvJobs,
-        });
-      } else {
-        for (const job of originCsvJobs) {
-          await originBridge.runOriginCsv(job);
-        }
-      }
+      await attachOriginCsvPaths({
+        buildCsvExportRequest: buildRustOriginCsvExportRequest,
+        jobs: originCsvJobs,
+        payloads: result.payloads,
+      });
+      fillMissingOriginCsvText({
+        buildPayloads: buildOriginExportPayloadsForSelectedCanvases,
+        jobs: originCsvJobs,
+      });
+      await runOriginCsvJobs({
+        jobs: originCsvJobs,
+        shouldBatch: shouldBatchOriginCsvJobs,
+      });
 
       if (result.mode === "merged" && result.totalCanvasCount > 1) {
         showToast(
@@ -1629,7 +1170,6 @@ export const useOriginCanvasExport = ({
     buildRustOriginCsvExportRequest,
     effectiveActiveFileId,
     exportOriginZipFallbackForSelectedCanvases,
-    getDesktopOriginBridge,
     originChartXRangeRef,
     originChartYRangeRef,
     originAxisSettings,

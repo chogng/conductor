@@ -36,21 +36,6 @@ export type ImportDemoFiles = {
   }>;
 };
 
-export type ImportOriginCsvExportResult = {
-  csvPath?: string;
-  message?: string;
-  ok?: boolean;
-  [key: string]: unknown;
-};
-
-export type ImportOriginZipSaveResult = {
-  cancelled?: boolean;
-  message?: string;
-  ok?: boolean;
-  zipPath?: string;
-  [key: string]: unknown;
-};
-
 export type ImportRcAnalysisResult = {
   message?: string;
   ok?: boolean;
@@ -71,7 +56,6 @@ export interface IImportService {
   analyzeRc(payload: unknown): Promise<ImportRcAnalysisResult>;
   canAnalyzeRc(): boolean;
   canDisposeFile(): boolean;
-  canExportOriginCsv(): boolean;
   canGetDemoFiles(): boolean;
   canGetPreviewRows(): boolean;
   canOpenFile(): boolean;
@@ -79,9 +63,7 @@ export interface IImportService {
   canProcessFile(): boolean;
   canReadConvertedCsv(): boolean;
   canReadCells(): boolean;
-  canSaveOriginZip(): boolean;
   disposeFile(payload: unknown): Promise<unknown>;
-  exportOriginCsv(payload: unknown): Promise<ImportOriginCsvExportResult>;
   getDemoFiles(): Promise<ImportDemoFiles>;
   getFilePath(file: File): string;
   getPreviewMeta(payload: unknown): Promise<ImportResultPayload>;
@@ -93,5 +75,4 @@ export interface IImportService {
   readCell(payload: unknown): Promise<unknown>;
   readCells(payload: unknown): Promise<ImportResultPayload>;
   readConvertedCsv(payload: { path: string }): Promise<ImportConvertedCsv>;
-  saveOriginZip(payload: unknown): Promise<ImportOriginZipSaveResult>;
 }

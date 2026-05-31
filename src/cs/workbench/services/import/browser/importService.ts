@@ -5,8 +5,6 @@ import {
   type IImportService as IImportServiceType,
   type ImportConvertedCsv,
   type ImportDemoFiles,
-  type ImportOriginCsvExportResult,
-  type ImportOriginZipSaveResult,
   type ImportPreparedFile,
   type ImportRcAnalysisResult,
   type ImportResultPayload,
@@ -15,7 +13,6 @@ import {
 type ImportBridge = {
   analyzeDeviceAnalysisRcWithRust?: (payload: unknown) => Promise<ImportRcAnalysisResult>;
   disposeDeviceAnalysisFileWithRust?: (payload: unknown) => Promise<unknown>;
-  exportDeviceAnalysisOriginCsvWithRust?: (payload: unknown) => Promise<ImportOriginCsvExportResult>;
   getDeviceAnalysisDemoFiles?: () => Promise<ImportDemoFiles>;
   getDeviceAnalysisPreviewMetaWithRust?: (payload: unknown) => Promise<ImportResultPayload>;
   getDeviceAnalysisPreviewRowsWithRust?: (payload: unknown) => Promise<ImportResultPayload>;
@@ -26,7 +23,6 @@ type ImportBridge = {
   readConvertedCsvFileWithRust?: (payload: { path: string }) => Promise<ImportConvertedCsv>;
   readDeviceAnalysisCellWithRust?: (payload: unknown) => Promise<unknown>;
   readDeviceAnalysisCellsWithRust?: (payload: unknown) => Promise<ImportResultPayload>;
-  saveDeviceAnalysisOriginZip?: (payload: unknown) => Promise<ImportOriginZipSaveResult>;
 };
 
 type WebUtilsBridge = {
@@ -82,10 +78,6 @@ export class ImportService extends Disposable implements IImportServiceType {
     return hasBridgeMethod("disposeDeviceAnalysisFileWithRust");
   }
 
-  public canExportOriginCsv(): boolean {
-    return hasBridgeMethod("exportDeviceAnalysisOriginCsvWithRust");
-  }
-
   public canGetDemoFiles(): boolean {
     return hasBridgeMethod("getDeviceAnalysisDemoFiles");
   }
@@ -114,18 +106,9 @@ export class ImportService extends Disposable implements IImportServiceType {
     return hasBridgeMethod("readDeviceAnalysisCellsWithRust");
   }
 
-  public canSaveOriginZip(): boolean {
-    return hasBridgeMethod("saveDeviceAnalysisOriginZip");
-  }
-
   public disposeFile(payload: unknown): Promise<unknown> {
     const bridge = getBridge();
     return getBridgeMethod(bridge, "disposeDeviceAnalysisFileWithRust")(payload);
-  }
-
-  public exportOriginCsv(payload: unknown): Promise<ImportOriginCsvExportResult> {
-    const bridge = getBridge();
-    return getBridgeMethod(bridge, "exportDeviceAnalysisOriginCsvWithRust")(payload);
   }
 
   public getDemoFiles(): Promise<ImportDemoFiles> {
@@ -181,11 +164,6 @@ export class ImportService extends Disposable implements IImportServiceType {
   public readConvertedCsv(payload: { path: string }): Promise<ImportConvertedCsv> {
     const bridge = getBridge();
     return getBridgeMethod(bridge, "readConvertedCsvFileWithRust")(payload);
-  }
-
-  public saveOriginZip(payload: unknown): Promise<ImportOriginZipSaveResult> {
-    const bridge = getBridge();
-    return getBridgeMethod(bridge, "saveDeviceAnalysisOriginZip")(payload);
   }
 }
 

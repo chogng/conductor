@@ -13,17 +13,36 @@ export type OriginCleanupResult = {
   [key: string]: unknown;
 };
 
+export type OriginCsvExportResult = {
+  csvPath?: string;
+  message?: string;
+  ok?: boolean;
+  [key: string]: unknown;
+};
+
+export type OriginZipSaveResult = {
+  cancelled?: boolean;
+  message?: string;
+  ok?: boolean;
+  zipPath?: string;
+  [key: string]: unknown;
+};
+
 export interface IOriginService {
   readonly _serviceBrand: undefined;
 
   canCheckHealth(): boolean;
+  canExportCsv(): boolean;
   canManageExePath(): boolean;
   canRunCsv(): boolean;
   canRunRuntimeCleanup(): boolean;
+  canSaveZip(): boolean;
   checkHealth(options: { path?: string }): Promise<OriginHealthResult>;
+  exportCsv(payload: unknown): Promise<OriginCsvExportResult>;
   getExePath(): Promise<string>;
   pickExePath(): Promise<string>;
   runCsv(payload: unknown): Promise<unknown>;
   runRuntimeCleanup(payload?: unknown): Promise<OriginCleanupResult>;
+  saveZip(payload: unknown): Promise<OriginZipSaveResult>;
   setExePath(path: string): Promise<unknown>;
 }

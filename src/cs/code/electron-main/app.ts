@@ -3410,6 +3410,8 @@ app.on("will-quit", () => {
   ipcMain.removeHandler(ipcChannels.analysisRustEngineInferAutoExtraction);
   ipcMain.removeHandler(ipcChannels.analysisRustEngineProcessFile);
   ipcMain.removeHandler(ipcChannels.analysisRustEngineAnalyzeRc);
+  ipcMain.removeHandler(ipcChannels.analysisRustEngineExportOriginCsv);
+  ipcMain.removeHandler(ipcChannels.analysisOriginZipSave);
   ipcMain.removeHandler(ipcChannels.analysisRustEngineDispose);
   ipcMain.removeHandler(ipcChannels.originExeGet);
   ipcMain.removeHandler(ipcChannels.originExeSet);

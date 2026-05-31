@@ -859,60 +859,6 @@ const normalizeYUnitByFileIdRecord = (value: unknown): Record<string, YUnit> => 
 };
 const buildTooltipSeriesName = (label: string, seriesId: unknown): string => `${label}${TOOLTIP_SERIES_NAME_SEPARATOR}${String(seriesId ?? "").trim()}`;
 type FormatOriginTranslateFn = (key: string, params?: Record<string, unknown>) => string;
-type OriginCsvBridge = {
-    runOriginCsv: (payload: {
-        csv: {
-            name: string;
-            text: string;
-        };
-        importMode?: string;
-        workbook?: {
-            key?: string;
-            longName?: string;
-        };
-        sheet?: {
-            longName?: string;
-        };
-        plot?: {
-            command?: string;
-            postCommands?: string[];
-            type?: number;
-            lineWidth?: number;
-            xyPairs?: string;
-        };
-        capabilities?: {
-            import?: {
-                longName?: string;
-                workbookLongName?: string;
-                columnLabels?: {
-                    longNames?: string[];
-                    units?: string[];
-                };
-                postCommands?: string[];
-            };
-            plot?: {
-                postCommands?: string[];
-            };
-            axis?: {
-                limits?: {
-                    x?: {
-                        from?: number;
-                        to?: number;
-                        step?: number;
-                        scale?: string;
-                    };
-                    y?: {
-                        from?: number;
-                        to?: number;
-                        step?: number;
-                        scale?: string;
-                    };
-                };
-                commands?: string[];
-            };
-        };
-    }) => Promise<unknown>;
-};
 type ProgressiveAnalysisHandle = {
     type: "idle";
     id: number;
@@ -1175,15 +1121,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const diagnosticsChartContainerRef = useRef<HTMLDivElement | null>(null);
     const environment = getWorkbenchEnvironment();
     const isWindowsDesktopShell = environment?.isDesktop === true && environment?.platform === "win32";
-    const getDesktopOriginBridge = React.useCallback((): OriginCsvBridge | null => {
-        if (typeof window === "undefined")
-            return null;
-        if (!originService.canRunCsv())
-            return null;
-        return {
-            runOriginCsv: (payload) => originService.runCsv(payload),
-        };
-    }, []);
     const showToast = React.useCallback((message: string, type: ToastType = "info") => {
         setToast({ isVisible: true, message, type });
     }, []);
@@ -1815,7 +1752,6 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         curveExportMode: originCurveExportMode,
         filteredCanvasKind: originFilteredCanvasKind,
         effectiveActiveFileId,
-        getDesktopOriginBridge,
         isWindowsDesktopShell,
         originChartXRangeRef,
         originChartYRangeRef,

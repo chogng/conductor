@@ -12,9 +12,6 @@ import {
   type ImporterRef,
   type ImporterViewProps,
 } from "src/cs/workbench/contrib/import/browser/importerView";
-import "src/cs/workbench/contrib/import/browser/media/importerViewlet.css";
-import "src/cs/workbench/browser/parts/sidebar/media/sidebarpart.css";
-import "src/cs/base/browser/ui/Button/button.css";
 import { normalizeCtaName, normalizeCtaToken } from "src/utils/cta";
 
 export type ImporterViewletProps = {
