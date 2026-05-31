@@ -3,6 +3,9 @@ import { useCallback, useEffect, useState } from "react";
 type DesktopAppBridge = {
   sendCommand: (command: string) => void;
   getAutoUpdateStatus?: () => unknown;
+  checkForUpdates?: () => Promise<unknown>;
+  checkForUpdatesAndInstall?: () => Promise<unknown>;
+  installDownloadedUpdate?: () => Promise<unknown>;
   onAutoUpdateStatusChange?: (
     listener: (status: unknown) => void,
   ) => (() => void) | void;
@@ -18,6 +21,9 @@ export type DesktopAutoUpdateStatus = {
     | "disabled"
     | "unsupported";
   version: string | null;
+  channel?: "github" | "generic" | "store" | "none" | "unsupported";
+  isStoreManaged?: boolean;
+  message?: string | null;
 };
 
 type ImporterRefLike = {
@@ -63,6 +69,17 @@ const normalizeAutoUpdateStatus = (
     version:
       typeof candidate.version === "string" && candidate.version.trim()
         ? candidate.version.trim()
+        : null,
+    channel:
+      typeof (candidate as { channel?: unknown }).channel === "string"
+        ? ((candidate as { channel: DesktopAutoUpdateStatus["channel"] }).channel)
+        : "none",
+    isStoreManaged:
+      (candidate as { isStoreManaged?: unknown }).isStoreManaged === true,
+    message:
+      typeof (candidate as { message?: unknown }).message === "string" &&
+      (candidate as { message: string }).message.trim()
+        ? (candidate as { message: string }).message.trim()
         : null,
   };
 };
@@ -118,14 +135,29 @@ export const useDesktopShell = ({
   }, [sendDesktopCommand]);
 
   const handleCheckForUpdates = useCallback((): boolean => {
+    const desktopApp = typeof window !== "undefined" ? window.desktopApp : undefined;
+    if (typeof desktopApp?.checkForUpdates === "function") {
+      void desktopApp.checkForUpdates();
+      return true;
+    }
     return sendDesktopCommand("check-for-updates");
   }, [sendDesktopCommand]);
 
   const handleCheckForUpdatesAndInstall = useCallback((): boolean => {
+    const desktopApp = typeof window !== "undefined" ? window.desktopApp : undefined;
+    if (typeof desktopApp?.checkForUpdatesAndInstall === "function") {
+      void desktopApp.checkForUpdatesAndInstall();
+      return true;
+    }
     return sendDesktopCommand("check-for-updates-and-install");
   }, [sendDesktopCommand]);
 
   const handleInstallDownloadedUpdate = useCallback((): boolean => {
+    const desktopApp = typeof window !== "undefined" ? window.desktopApp : undefined;
+    if (typeof desktopApp?.installDownloadedUpdate === "function") {
+      void desktopApp.installDownloadedUpdate();
+      return true;
+    }
     return sendDesktopCommand("install-downloaded-update");
   }, [sendDesktopCommand]);
 

@@ -72,7 +72,21 @@ contextBridge.exposeInMainWorld("desktopApp", {
     ipcRenderer.send("desktop-command", { command, payload });
   },
   getAutoUpdateStatus() {
-    return desktopAutoUpdateStatus;
+    try {
+      return ipcRenderer.sendSync(ipcChannels.desktopAutoUpdateStatusGet);
+    } catch (error) {
+      console.warn("[boot][preload] Failed to refresh auto-update status:", error);
+      return desktopAutoUpdateStatus;
+    }
+  },
+  async checkForUpdates() {
+    return ipcRenderer.invoke(ipcChannels.desktopAutoUpdateCheck);
+  },
+  async checkForUpdatesAndInstall() {
+    return ipcRenderer.invoke(ipcChannels.desktopAutoUpdateCheckAndInstall);
+  },
+  async installDownloadedUpdate() {
+    return ipcRenderer.invoke(ipcChannels.desktopAutoUpdateInstallDownloaded);
   },
   onAutoUpdateStatusChange(listener) {
     if (typeof listener !== "function") {

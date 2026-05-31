@@ -20,5 +20,5 @@
     }
   },
   "include": ["src"],
-  "exclude": ["src/cs/code/electron-main"]
+  "exclude": ["src/cs/code/electron-main", "src/cs/code/electron-utility"]
 }

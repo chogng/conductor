@@ -30,6 +30,11 @@ import {
   normalizeOriginCommandList,
   normalizeOriginPlotOptions,
 } from "../../../../desktop/origin-plot-options.js";
+import {
+  runSharedProcessShutdownContributions,
+  runSharedProcessStartupContributions,
+} from "../electron-utility/sharedProcess/sharedProcessMain.js";
+import { Win32UpdateService } from "../../platform/update/electron-main/updateService.win32.js";
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
@@ -47,7 +52,6 @@ if (!hasSingleInstanceLock) {
   app.quit();
 }
 
-let autoUpdater = null;
 let originRunnerModulePromise = null;
 let rustAnalysisEngine = null;
 let rustAnalysisEngineStdoutBuffer = "";
@@ -63,17 +67,8 @@ const isWindows = process.platform === "win32";
 const devUrl =
   process.env.ELECTRON_START_URL ||
   "http://127.0.0.1:5174/src/cs/code/electron-browser/workbench/workbench.html";
-const AUTO_UPDATE_INITIAL_DELAY_MS = 15 * 1000;
-const AUTO_UPDATE_INTERVAL_MS = 4 * 60 * 60 * 1000;
-const AUTO_UPDATE_SUPPORTED_PLATFORMS = new Set(["win32"]);
 const isWindowsStorePackage =
   process.platform === "win32" && Reflect.get(process, "windowsStore") === true;
-const PACKAGED_AUTO_UPDATE_CONFIG = {
-  provider: "github",
-  owner: "chogng",
-  repo: "conductor-update",
-  releaseType: "release",
-};
 const APP_DISPLAY_NAME = "Conductor Studio";
 const DESKTOP_APP_USER_MODEL_ID = "com.conductor.desktop";
 const ANALYSIS_DEMO_FILE_NAMES = [
@@ -105,14 +100,7 @@ let appTray = null;
 let mainWindowBootExpansionPromise = null;
 let mainWindowBootShown = false;
 let startupGatePromise = null;
-let autoUpdateTimer = null;
-let autoUpdateConfiguredFeedUrl = null;
-let isAutoUpdateConfigured = false;
-let autoUpdateInstallAfterDownloadRequested = false;
-let autoUpdateStatus = {
-  status: "idle",
-  version: null,
-};
+let updateService: Win32UpdateService | null = null;
 let isAppQuitting = false;
 let originDetectionCache = null;
 let originDetectionPromise = null;
@@ -189,19 +177,6 @@ const loadOriginRunnerModule = async () => {
   }
 
   return originRunnerModulePromise;
-};
-
-const ensureAutoUpdater = async () => {
-  if (autoUpdater) return autoUpdater;
-
-  try {
-    ({ autoUpdater } = require("electron-updater"));
-  } catch (error) {
-    console.warn("[auto-update] electron-updater is unavailable:", error?.message || error);
-    autoUpdater = null;
-  }
-
-  return autoUpdater;
 };
 
 function getResourcesPath() {
@@ -808,6 +783,10 @@ function getOriginRuntimeRootDir() {
 
 function getOriginRuntimeStorageDir() {
   return path.join(getOriginRuntimeRootDir(), "origin");
+}
+
+function getRustExcelJobRootDir() {
+  return path.join(getAnalysisHomeDir(), "rust-xls-jobs");
 }
 
 function getAnalysisDemoDir() {
@@ -1563,30 +1542,26 @@ function handleDesktopBootSettingsGet(event) {
   }
 }
 
-function cleanupRustExcelJobRoot() {
-  const jobRoot = path.join(getAnalysisHomeDir(), "rust-xls-jobs");
-  try {
-    if (fs.existsSync(jobRoot)) {
-      fs.rmSync(jobRoot, { recursive: true, force: true });
-    }
-  } catch (error) {
-    console.warn("[analysis] Failed to clean Rust Excel jobs:", error?.message || error);
-  }
-}
-
-function cleanupOriginRuntimeTempRoot() {
-  const runtimeRoot = getOriginRuntimeStorageDir();
-  try {
-    if (fs.existsSync(runtimeRoot)) {
-      fs.rmSync(runtimeRoot, { recursive: true, force: true });
-    }
-  } catch (error) {
-    console.warn("[origin-cleanup] Failed to clean Origin temp runtime:", error?.message || error);
-  }
+function createSharedProcessContributionContext() {
+  return {
+    analysisHomeDir: getAnalysisHomeDir(),
+    originRuntimeStorageDir: getOriginRuntimeStorageDir(),
+    rustExcelJobRootDir: getRustExcelJobRootDir(),
+    log: (message: string) => {
+      console.info(message);
+      appendDesktopDiagnosticLog(message);
+    },
+    warn: (message: string, error?: unknown) => {
+      console.warn(message, error);
+      appendDesktopDiagnosticLog(
+        `${message}${error instanceof Error ? ` ${error.message}` : ""}`,
+      );
+    },
+  };
 }
 
 function ensureRustExcelJobRoot() {
-  const jobRoot = path.join(getAnalysisHomeDir(), "rust-xls-jobs");
+  const jobRoot = getRustExcelJobRootDir();
   fs.mkdirSync(jobRoot, { recursive: true });
   return jobRoot;
 }
@@ -2732,65 +2707,6 @@ async function handleOriginRuntimeCleanupRun() {
   return tryRunOriginRuntimeCleanup({ force: true, clearAll: true });
 }
 
-function normalizeAutoUpdateUrl(value) {
-  if (typeof value !== "string") return null;
-
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-
-  try {
-    const parsed = new URL(trimmed);
-    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-      return null;
-    }
-    return parsed.toString().replace(/\/+$/, "");
-  } catch {
-    return null;
-  }
-}
-
-function resolveAutoUpdateFeedUrl() {
-  return normalizeAutoUpdateUrl(
-    process.env.CONDUCTOR_UPDATE_URL ||
-      process.env.DEVICE_ANALYSIS_UPDATE_URL ||
-      process.env.APP_UPDATE_URL ||
-      null,
-  );
-}
-
-function resolvePackagedAutoUpdateConfig() {
-  try {
-    const packageJson = require("../package.json");
-    const publish = packageJson?.build?.publish;
-    const publishList = Array.isArray(publish) ? publish : publish ? [publish] : [];
-    const githubPublish = publishList.find(
-      (item) =>
-        item &&
-        typeof item === "object" &&
-        String(item.provider || "").trim().toLowerCase() === "github",
-    );
-
-    const owner =
-      typeof githubPublish?.owner === "string" ? githubPublish.owner.trim() : "";
-    const repo =
-      typeof githubPublish?.repo === "string" ? githubPublish.repo.trim() : "";
-    if (!owner || !repo) return { ...PACKAGED_AUTO_UPDATE_CONFIG };
-
-    return {
-      provider: "github",
-      owner,
-      repo,
-      releaseType:
-        typeof githubPublish?.releaseType === "string" && githubPublish.releaseType.trim()
-          ? githubPublish.releaseType.trim()
-          : "release",
-    };
-  } catch (error) {
-    console.warn("[auto-update] Failed to read packaged update config:", error?.message || error);
-    return { ...PACKAGED_AUTO_UPDATE_CONFIG };
-  }
-}
-
 function getAutoUpdateDialogWindow() {
   if (mainWindow && !mainWindow.isDestroyed()) {
     return mainWindow;
@@ -2804,251 +2720,40 @@ function getAutoUpdateDialogWindow() {
   return null;
 }
 
-function cloneAutoUpdateStatus() {
-  return {
-    status:
-      autoUpdateStatus && typeof autoUpdateStatus.status === "string"
-        ? autoUpdateStatus.status
-        : "idle",
-    version:
-      autoUpdateStatus && typeof autoUpdateStatus.version === "string"
-        ? autoUpdateStatus.version
-        : null,
-  };
-}
-
 function broadcastAutoUpdateStatus() {
-  const payload = cloneAutoUpdateStatus();
+  const payload = updateService?.getStatus() ?? {
+    status: "idle",
+    version: null,
+    channel: "none",
+    isStoreManaged: false,
+    message: null,
+  };
   for (const win of BrowserWindow.getAllWindows()) {
     if (win.isDestroyed()) continue;
     win.webContents.send(ipcChannels.desktopAutoUpdateStatusChanged, payload);
   }
 }
 
-function setAutoUpdateStatus(status, version = null) {
-  autoUpdateStatus = {
-    status: typeof status === "string" && status ? status : "idle",
-    version: typeof version === "string" && version.trim() ? version.trim() : null,
-  };
-  broadcastAutoUpdateStatus();
-}
-
-function getAutoUpdateFailureDetail(error) {
-  const rawMessage = error?.message || String(error || "");
-  const message = typeof rawMessage === "string" ? rawMessage.trim() : "";
-  if (!message) {
-    return "请稍后重试，或确认当前网络可以访问更新服务器。";
-  }
-
-  return `原因：${message}`;
-}
-
-function stopAutoUpdatePolling() {
-  if (autoUpdateTimer) {
-    clearInterval(autoUpdateTimer);
-    autoUpdateTimer = null;
-  }
-}
-
-async function installDownloadedUpdate() {
-  const updater = await ensureAutoUpdater();
-  if (!updater) return false;
-  if (!autoUpdater) return false;
-  if (autoUpdateStatus?.status !== "downloaded") return false;
-
-  autoUpdateInstallAfterDownloadRequested = false;
-  autoUpdater.quitAndInstall();
-  return true;
-}
-
-async function checkForAutoUpdates({ manual = false } = {}) {
-  const updater = await ensureAutoUpdater();
-  if (!updater) return null;
-  if (!autoUpdater) return null;
-
-  if (!isAutoUpdateConfigured) {
-    setAutoUpdateStatus("disabled");
-    if (manual) {
-      const windowForDialog = getAutoUpdateDialogWindow();
-      await dialog.showMessageBox(windowForDialog || undefined, {
-        type: "info",
-        title: APP_DISPLAY_NAME,
-        message: "Auto update is not enabled in this build.",
-        buttons: ["OK"],
-        defaultId: 0,
-        noLink: true,
-      });
-    }
-    return null;
-  }
-
-  try {
-    const result = await autoUpdater.checkForUpdates();
-    if (manual && result && result.isUpdateAvailable === false) {
-      const windowForDialog = getAutoUpdateDialogWindow();
-      await dialog.showMessageBox(windowForDialog || undefined, {
-        type: "info",
-        title: APP_DISPLAY_NAME,
-        message: "You are already using the latest version.",
-        buttons: ["OK"],
-        defaultId: 0,
-        noLink: true,
-      });
-    }
-    return result;
-  } catch (error) {
-    const message = error?.message || String(error);
-    console.warn("[auto-update] Check failed:", message);
-    setAutoUpdateStatus("error");
-
-    if (manual) {
-      const windowForDialog = getAutoUpdateDialogWindow();
-      await dialog.showMessageBox(windowForDialog || undefined, {
-        type: "error",
-        title: APP_DISPLAY_NAME,
-        message: "检查更新失败",
-        detail: `${getAutoUpdateFailureDetail(error)}\n\n请确认网络或代理设置后重试。`,
-        buttons: ["确定"],
-        defaultId: 0,
-        noLink: true,
-      });
-    }
-    return null;
-  }
-}
-
-async function checkForAutoUpdatesAndInstall() {
-  if (autoUpdateStatus?.status === "downloaded") {
-    return installDownloadedUpdate();
-  }
-
-  autoUpdateInstallAfterDownloadRequested = true;
-  const result = await checkForAutoUpdates({ manual: true });
-  if (!result || result.isUpdateAvailable === false) {
-    autoUpdateInstallAfterDownloadRequested = false;
-    return false;
-  }
-
-  try {
-    if (result.downloadPromise && typeof result.downloadPromise.then === "function") {
-      await result.downloadPromise;
-    }
-  } catch (error) {
-    autoUpdateInstallAfterDownloadRequested = false;
-    setAutoUpdateStatus("error");
-    console.warn("[auto-update] Download before install failed:", error?.message || error);
-    return false;
-  }
-
-  if (autoUpdateStatus?.status === "downloaded") {
-    return installDownloadedUpdate();
-  }
-
-  return true;
-}
-
-async function setupAutoUpdates() {
-  if (!app.isPackaged) return;
-  if (isWindowsStorePackage) {
-    console.info("[auto-update] Skipped for Microsoft Store package.");
-    setAutoUpdateStatus("disabled");
-    return;
-  }
-  if (!AUTO_UPDATE_SUPPORTED_PLATFORMS.has(process.platform)) {
-    console.info("[auto-update] Skipped for unsupported platform:", process.platform);
-    setAutoUpdateStatus("unsupported");
-    return;
-  }
-  const updater = await ensureAutoUpdater();
-  if (!updater) {
-    console.warn("[auto-update] electron-updater dependency is missing.");
-    setAutoUpdateStatus("disabled");
-    return;
-  }
-  if (!autoUpdater) {
-    console.warn("[auto-update] electron-updater dependency is missing.");
-    setAutoUpdateStatus("disabled");
-    return;
-  }
-
-  const feedUrl = resolveAutoUpdateFeedUrl();
-  isAutoUpdateConfigured = true;
-  autoUpdateConfiguredFeedUrl = feedUrl || "github-release";
-
-  autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
-
-  if (feedUrl) {
-    try {
-      autoUpdater.setFeedURL({
-        provider: "generic",
-        url: feedUrl,
-      });
-      console.info(`[auto-update] Using custom generic feed URL: ${feedUrl}`);
-    } catch (error) {
-      isAutoUpdateConfigured = false;
-      autoUpdateConfiguredFeedUrl = null;
-      setAutoUpdateStatus("disabled");
-      console.warn("[auto-update] Invalid custom feed URL:", error?.message || error);
-      return;
-    }
-  } else {
-    const packagedUpdateConfig = resolvePackagedAutoUpdateConfig();
-    if (!packagedUpdateConfig) {
-      isAutoUpdateConfigured = false;
-      autoUpdateConfiguredFeedUrl = null;
-      setAutoUpdateStatus("disabled");
-      console.warn("[auto-update] Packaged updater provider configuration is missing.");
-      return;
-    }
-
-    autoUpdater.setFeedURL(packagedUpdateConfig);
-    autoUpdateConfiguredFeedUrl = `${packagedUpdateConfig.provider}:${packagedUpdateConfig.owner}/${packagedUpdateConfig.repo}`;
-    console.info("[auto-update] Using packaged GitHub updater provider configuration.");
-  }
-
-  autoUpdater.on("checking-for-update", () => {
-    setAutoUpdateStatus("checking");
-    console.info("[auto-update] Checking for updates...");
+function createUpdateService() {
+  return new Win32UpdateService({
+    app,
+    appDisplayName: APP_DISPLAY_NAME,
+    dialog,
+    getDialogWindow: getAutoUpdateDialogWindow,
+    isWindowsStorePackage,
+    packageJsonPath: path.join(getAppRootPath(), "package.json"),
+    onStatusChange: broadcastAutoUpdateStatus,
+    log: (message: string) => {
+      console.info(message);
+      appendDesktopDiagnosticLog(message);
+    },
+    warn: (message: string, error?: unknown) => {
+      console.warn(message, error);
+      appendDesktopDiagnosticLog(
+        `${message}${error instanceof Error ? ` ${error.message}` : ""}`,
+      );
+    },
   });
-
-  autoUpdater.on("update-available", (info) => {
-    setAutoUpdateStatus("available", info?.version || null);
-    console.info(`[auto-update] Update ${info?.version || "unknown"} is available.`);
-  });
-
-  autoUpdater.on("update-not-available", (info) => {
-    autoUpdateInstallAfterDownloadRequested = false;
-    setAutoUpdateStatus("idle", info?.version || null);
-    console.info(
-      `[auto-update] No update available. Current=${app.getVersion()}, latest=${info?.version || "unknown"}.`,
-    );
-  });
-
-  autoUpdater.on("error", (error) => {
-    autoUpdateInstallAfterDownloadRequested = false;
-    setAutoUpdateStatus("error");
-    console.warn("[auto-update] Error:", error?.message || error);
-  });
-
-  autoUpdater.on("update-downloaded", (info) => {
-    setAutoUpdateStatus("downloaded", info?.version || null);
-    console.info(
-      `[auto-update] Update ${info?.version || "unknown"} downloaded from ${autoUpdateConfiguredFeedUrl}.`,
-    );
-    if (autoUpdateInstallAfterDownloadRequested) {
-      void installDownloadedUpdate();
-    }
-  });
-
-  setTimeout(() => {
-    void checkForAutoUpdates();
-  }, AUTO_UPDATE_INITIAL_DELAY_MS);
-
-  stopAutoUpdatePolling();
-  autoUpdateTimer = setInterval(() => {
-    void checkForAutoUpdates();
-  }, AUTO_UPDATE_INTERVAL_MS);
 }
 
 async function revealMainWindow(win) {
@@ -3126,7 +2831,7 @@ function updateTrayMenu() {
       {
         label: "检查更新",
         click: () => {
-          void checkForAutoUpdates({ manual: true });
+          void updateService?.checkForUpdates({ manual: true });
         },
       },
       { type: "separator" },
@@ -3487,17 +3192,17 @@ function handleDesktopCommand(event, payload) {
   }
 
   if (command === "check-for-updates") {
-    void checkForAutoUpdates({ manual: true });
+    void updateService?.checkForUpdates({ manual: true });
     return;
   }
 
   if (command === "check-for-updates-and-install") {
-    void checkForAutoUpdatesAndInstall();
+    void updateService?.checkForUpdatesAndInstall();
     return;
   }
 
   if (command === "install-downloaded-update") {
-    void installDownloadedUpdate();
+    void updateService?.installDownloadedUpdate();
     return;
   }
 
@@ -3515,7 +3220,13 @@ function handleDesktopCommand(event, payload) {
 }
 
 function handleDesktopAutoUpdateStatusGet(event) {
-  event.returnValue = cloneAutoUpdateStatus();
+  event.returnValue = updateService?.getStatus() ?? {
+    status: "idle",
+    version: null,
+    channel: "none",
+    isStoreManaged: false,
+    message: null,
+  };
 }
 
 if (hasSingleInstanceLock) {
@@ -3537,16 +3248,25 @@ if (hasSingleInstanceLock) {
     Menu.setApplicationMenu(null);
   }
   configureRuntimeCachePath();
-  cleanupOriginRuntimeTempRoot();
-  cleanupRustExcelJobRoot();
+  runSharedProcessStartupContributions(createSharedProcessContributionContext());
   ensureAnalysisDemoFiles();
   createAppTray();
+  updateService = createUpdateService();
 
   ipcMain.on("desktop-command", handleDesktopCommand);
   ipcMain.on(ipcChannels.desktopMetaGet, handleDesktopMetaGet);
   ipcMain.on(ipcChannels.desktopAutoUpdateStatusGet, handleDesktopAutoUpdateStatusGet);
   ipcMain.on(ipcChannels.desktopBootSettingsGet, handleDesktopBootSettingsGet);
   ipcMain.handle(ipcChannels.desktopBootUiReady, handleDesktopBootUiReady);
+  ipcMain.handle(ipcChannels.desktopAutoUpdateCheck, () =>
+    updateService?.checkForUpdates({ manual: true }),
+  );
+  ipcMain.handle(ipcChannels.desktopAutoUpdateCheckAndInstall, () =>
+    updateService?.checkForUpdatesAndInstall(),
+  );
+  ipcMain.handle(ipcChannels.desktopAutoUpdateInstallDownloaded, () =>
+    updateService?.installDownloadedUpdate(),
+  );
   ipcMain.handle(ipcChannels.templatesGet, handleAnalysisTemplatesGet);
   ipcMain.handle(ipcChannels.templatesCreate, handleAnalysisTemplatesCreate);
   ipcMain.handle(ipcChannels.templatesDelete, handleAnalysisTemplatesDelete);
@@ -3617,7 +3337,7 @@ if (hasSingleInstanceLock) {
   const window = createMainWindow();
   window.webContents.once("did-finish-load", () => {
     logDesktopBoot("post-load:auto-updates:init");
-    void setupAutoUpdates();
+    void updateService?.setup();
   });
 
   app.on("activate", () => {
@@ -3639,12 +3359,9 @@ app.on("before-quit", () => {
 
 app.on("will-quit", () => {
   isAppQuitting = true;
-  stopAutoUpdatePolling();
-  isAutoUpdateConfigured = false;
-  autoUpdateConfiguredFeedUrl = null;
+  updateService?.stopPolling();
   nativeTheme.removeListener("updated", syncBootWindowTheme);
-  cleanupRustExcelJobRoot();
-  cleanupOriginRuntimeTempRoot();
+  runSharedProcessShutdownContributions(createSharedProcessContributionContext());
   stopAllRustAnalysisEngines();
   if (appTray) {
     appTray.destroy();
@@ -3658,6 +3375,9 @@ app.on("will-quit", () => {
   );
   ipcMain.removeListener(ipcChannels.desktopBootSettingsGet, handleDesktopBootSettingsGet);
   ipcMain.removeHandler(ipcChannels.desktopBootUiReady);
+  ipcMain.removeHandler(ipcChannels.desktopAutoUpdateCheck);
+  ipcMain.removeHandler(ipcChannels.desktopAutoUpdateCheckAndInstall);
+  ipcMain.removeHandler(ipcChannels.desktopAutoUpdateInstallDownloaded);
   ipcMain.removeHandler(ipcChannels.templatesGet);
   ipcMain.removeHandler(ipcChannels.templatesCreate);
   ipcMain.removeHandler(ipcChannels.templatesDelete);
