@@ -10,4 +10,5 @@ export interface ISandboxConfiguration {
         readonly language: string | undefined;
     };
     readonly cssModules?: string[];
+    readonly initialWorkbenchSettings?: Record<string, unknown> | null;
 }

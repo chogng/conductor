@@ -2,24 +2,11 @@ import { Fragment, lazy, StrictMode, Suspense } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { LanguageCode } from 'src/cs/platform/language/common/language';
 import type { ThemeMode } from 'src/cs/workbench/common/theme';
+import { getWorkbenchEnvironment } from 'src/cs/workbench/services/environment/browser/environmentService';
 import { loadWorkbenchApp } from './workbench-loader';
 
 declare global {
   interface Window {
-    desktopBootstrap?: {
-      initialDeviceAnalysisSettings?: Record<string, unknown> | null;
-      [key: string]: unknown;
-    };
-    desktopMeta?: {
-      isDesktop?: boolean;
-      platform?: string;
-      isPackaged?: boolean;
-      appVersion?: string | null;
-      [key: string]: unknown;
-    };
-    desktopBoot?: {
-      markUiReady?: (source?: string) => Promise<unknown>;
-    };
     __CONDUCTOR_NAV_MODE_INIT__?: boolean;
     __CONDUCTOR_INITIAL_DEVICE_ANALYSIS_SETTINGS__?: Record<string, unknown> | null;
     __CONDUCTOR_INITIAL_LANGUAGE__?: LanguageCode;
@@ -50,7 +37,8 @@ window.addEventListener('unhandledrejection', (event) => {
   logRendererBoot('window:unhandledrejection', formatBootError(event.reason));
 });
 
-const isDesktopRenderer = window.desktopMeta?.isDesktop === true;
+const isDesktopRenderer =
+  getWorkbenchEnvironment()?.isDesktop === true;
 const RootMode =
   import.meta.env.DEV && isDesktopRenderer ? Fragment : StrictMode;
 const rootElement = document.getElementById('root');

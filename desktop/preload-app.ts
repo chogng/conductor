@@ -1,11 +1,17 @@
 import type { IpcRenderer } from "electron";
 
-import { ipcChannels } from "./ipc-channels.js";
+import { desktopIpcChannels } from "../src/cs/workbench/services/desktop/common/desktopIpcChannels.js";
 
-export function createDesktopAppBridge(
-  ipcRenderer: IpcRenderer,
-  initialAutoUpdateStatus: unknown,
-) {
+function readAutoUpdateStatus(ipcRenderer: IpcRenderer): unknown {
+  try {
+    return ipcRenderer.sendSync(desktopIpcChannels.desktopAutoUpdateStatusGet);
+  } catch (error) {
+    console.warn("[boot][preload] Failed to refresh auto-update status:", error);
+    return null;
+  }
+}
+
+export function createDesktopAppBridge(ipcRenderer: IpcRenderer) {
   return {
     sendCommand(command: unknown, payload: unknown) {
       if (typeof command !== "string" || command.trim().length === 0) {
@@ -16,24 +22,19 @@ export function createDesktopAppBridge(
     },
 
     getAutoUpdateStatus() {
-      try {
-        return ipcRenderer.sendSync(ipcChannels.desktopAutoUpdateStatusGet);
-      } catch (error) {
-        console.warn("[boot][preload] Failed to refresh auto-update status:", error);
-        return initialAutoUpdateStatus;
-      }
+      return readAutoUpdateStatus(ipcRenderer);
     },
 
     async checkForUpdates() {
-      return ipcRenderer.invoke(ipcChannels.desktopAutoUpdateCheck);
+      return ipcRenderer.invoke(desktopIpcChannels.desktopAutoUpdateCheck);
     },
 
     async checkForUpdatesAndInstall() {
-      return ipcRenderer.invoke(ipcChannels.desktopAutoUpdateCheckAndInstall);
+      return ipcRenderer.invoke(desktopIpcChannels.desktopAutoUpdateCheckAndInstall);
     },
 
     async installDownloadedUpdate() {
-      return ipcRenderer.invoke(ipcChannels.desktopAutoUpdateInstallDownloaded);
+      return ipcRenderer.invoke(desktopIpcChannels.desktopAutoUpdateInstallDownloaded);
     },
 
     onAutoUpdateStatusChange(listener: unknown) {
@@ -45,8 +46,8 @@ export function createDesktopAppBridge(
         listener(status);
       };
 
-      ipcRenderer.on(ipcChannels.desktopAutoUpdateStatusChanged, handleStatusChanged);
-      return () => ipcRenderer.removeListener(ipcChannels.desktopAutoUpdateStatusChanged, handleStatusChanged);
+      ipcRenderer.on(desktopIpcChannels.desktopAutoUpdateStatusChanged, handleStatusChanged);
+      return () => ipcRenderer.removeListener(desktopIpcChannels.desktopAutoUpdateStatusChanged, handleStatusChanged);
     },
   };
 }

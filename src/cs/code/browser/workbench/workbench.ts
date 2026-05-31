@@ -3,13 +3,6 @@ import type { ThemeMode } from "src/cs/workbench/common/theme";
 
 declare global {
   interface Window {
-    desktopMeta?: {
-      isDesktop?: boolean;
-      platform?: string;
-      isPackaged?: boolean;
-      appVersion?: string | null;
-      [key: string]: unknown;
-    };
     __CONDUCTOR_BOOT_LOG__?: (stage: string, extra?: string) => void;
     __CONDUCTOR_BOOT_MARK_UI_READY__?: (source?: string) => void;
     __CONDUCTOR_BOOT_PROFILE_ENABLED__?: boolean;

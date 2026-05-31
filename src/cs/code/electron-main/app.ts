@@ -14,6 +14,7 @@ import {
   shell,
   Tray,
 } from "electron";
+import { product } from "../../../bootstrap-meta.js";
 import {
   applyWindowThemeSnapshot,
   getCurrentBootThemeSnapshot,
@@ -23,7 +24,7 @@ import {
   assertOriginExePath,
   normalizeOriginExePath,
 } from "../../../../desktop/origin-runner/core.js";
-import { ipcChannels } from "../../../../desktop/ipc-channels.js";
+import { desktopIpcChannels as ipcChannels } from "../../workbench/services/desktop/common/desktopIpcChannels.js";
 import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
   normalizeNonEmptyString,
@@ -36,6 +37,8 @@ import {
 } from "../electron-utility/sharedProcess/sharedProcessMain.js";
 import { Win32UpdateService } from "../../platform/update/electron-main/updateService.win32.js";
 import { registerContextMenuListener } from "../../base/parts/contextmenu/electron-main/contextmenu.js";
+import { workbenchBootstrapIpcChannels } from "../common/workbenchBootstrapIpc.js";
+import { nativeHostIpcChannels } from "../../platform/native/common/nativeIpc.js";
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
@@ -70,8 +73,8 @@ const devUrl =
   "http://127.0.0.1:5174/src/cs/code/electron-browser/workbench/workbench.html";
 const isWindowsStorePackage =
   process.platform === "win32" && Reflect.get(process, "windowsStore") === true;
-const APP_DISPLAY_NAME = "Conductor Studio";
-const DESKTOP_APP_USER_MODEL_ID = "com.conductor.desktop";
+const APP_DISPLAY_NAME = product.nameLong;
+const APP_USER_MODEL_ID = product.appId;
 const ANALYSIS_DEMO_FILE_NAMES = [
   "demo-01.csv",
   "demo-02.csv",
@@ -1513,14 +1516,13 @@ function handleAnalysisDemoFilesGet() {
   };
 }
 
-function handleDesktopMetaGet(event) {
-  const win = BrowserWindow.fromWebContents(event.sender);
+function resolveNativeHostEnvironment(sender) {
+  const win = BrowserWindow.fromWebContents(sender);
   if (!win || win.isDestroyed()) {
-    event.returnValue = null;
-    return;
+    return null;
   }
 
-  event.returnValue = {
+  return {
     isDesktop: true,
     platform: process.platform,
     isPackaged: app.isPackaged,
@@ -1528,7 +1530,11 @@ function handleDesktopMetaGet(event) {
   };
 }
 
-function handleDesktopBootSettingsGet(event) {
+function handleNativeHostEnvironmentGet(event) {
+  event.returnValue = resolveNativeHostEnvironment(event.sender);
+}
+
+function handleWorkbenchBootstrapSettingsGet(event) {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win || win.isDestroyed()) {
     event.returnValue = null;
@@ -3136,7 +3142,7 @@ async function showMainWindowAfterBoot(win) {
   logDesktopBoot("main-window:show:done");
 }
 
-function handleDesktopBootUiReady(event, payload) {
+function handleWorkbenchBootstrapUiReady(event, payload) {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (!win || win.isDestroyed() || win !== mainWindow) {
     return null;
@@ -3243,7 +3249,7 @@ if (hasSingleInstanceLock) {
   app.whenReady().then(() => {
   logDesktopBoot("app:ready");
   if (isWindows) {
-    app.setAppUserModelId(DESKTOP_APP_USER_MODEL_ID);
+    app.setAppUserModelId(APP_USER_MODEL_ID);
   }
   if (process.platform !== "darwin") {
     Menu.setApplicationMenu(null);
@@ -3256,10 +3262,13 @@ if (hasSingleInstanceLock) {
 
   ipcMain.on("desktop-command", handleDesktopCommand);
   registerContextMenuListener();
-  ipcMain.on(ipcChannels.desktopMetaGet, handleDesktopMetaGet);
+  ipcMain.handle(nativeHostIpcChannels.environmentGet, event =>
+    resolveNativeHostEnvironment(event.sender),
+  );
+  ipcMain.on(nativeHostIpcChannels.environmentGet, handleNativeHostEnvironmentGet);
   ipcMain.on(ipcChannels.desktopAutoUpdateStatusGet, handleDesktopAutoUpdateStatusGet);
-  ipcMain.on(ipcChannels.desktopBootSettingsGet, handleDesktopBootSettingsGet);
-  ipcMain.handle(ipcChannels.desktopBootUiReady, handleDesktopBootUiReady);
+  ipcMain.on(workbenchBootstrapIpcChannels.settingsGet, handleWorkbenchBootstrapSettingsGet);
+  ipcMain.handle(workbenchBootstrapIpcChannels.uiReady, handleWorkbenchBootstrapUiReady);
   ipcMain.handle(ipcChannels.desktopAutoUpdateCheck, () =>
     updateService?.checkForUpdates({ manual: true }),
   );
@@ -3370,13 +3379,14 @@ app.on("will-quit", () => {
     appTray = null;
   }
   ipcMain.removeListener("desktop-command", handleDesktopCommand);
-  ipcMain.removeListener(ipcChannels.desktopMetaGet, handleDesktopMetaGet);
+  ipcMain.removeHandler(nativeHostIpcChannels.environmentGet);
+  ipcMain.removeListener(nativeHostIpcChannels.environmentGet, handleNativeHostEnvironmentGet);
   ipcMain.removeListener(
     ipcChannels.desktopAutoUpdateStatusGet,
     handleDesktopAutoUpdateStatusGet,
   );
-  ipcMain.removeListener(ipcChannels.desktopBootSettingsGet, handleDesktopBootSettingsGet);
-  ipcMain.removeHandler(ipcChannels.desktopBootUiReady);
+  ipcMain.removeListener(workbenchBootstrapIpcChannels.settingsGet, handleWorkbenchBootstrapSettingsGet);
+  ipcMain.removeHandler(workbenchBootstrapIpcChannels.uiReady);
   ipcMain.removeHandler(ipcChannels.desktopAutoUpdateCheck);
   ipcMain.removeHandler(ipcChannels.desktopAutoUpdateCheckAndInstall);
   ipcMain.removeHandler(ipcChannels.desktopAutoUpdateInstallDownloaded);

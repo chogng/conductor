@@ -1,10 +1,15 @@
 import type { ContextBridge, IpcRenderer, WebUtils } from "electron";
 
+import type { ISandboxConfiguration } from "../src/cs/base/parts/sandbox/common/sandboxTypes.js";
+import { workbenchBootstrapIpcChannels } from "../src/cs/code/common/workbenchBootstrapIpc.js";
+import { nativeHostIpcChannels } from "../src/cs/platform/native/common/nativeIpc.js";
 import { desktopIpcChannels } from "../src/cs/workbench/services/desktop/common/desktopIpcChannels.js";
 
 type IpcListener = (event: Electron.IpcRendererEvent, ...args: unknown[]) => void;
 
 const allowedChannels = new Set<string>([
+  ...Object.values(workbenchBootstrapIpcChannels),
+  ...Object.values(nativeHostIpcChannels),
   ...Object.values(desktopIpcChannels),
   "desktop-command",
 ]);
@@ -21,6 +26,7 @@ export function exposeConductorGlobals(
   contextBridge: ContextBridge,
   ipcRenderer: IpcRenderer,
   webUtils: WebUtils,
+  configuration: ISandboxConfiguration,
 ): void {
   contextBridge.exposeInMainWorld("conductor", {
     ipcRenderer: {
@@ -56,6 +62,15 @@ export function exposeConductorGlobals(
         } catch {
           return "";
         }
+      },
+    },
+    context: {
+      configuration(): ISandboxConfiguration {
+        return configuration;
+      },
+
+      async resolveConfiguration(): Promise<ISandboxConfiguration> {
+        return configuration;
       },
     },
   });

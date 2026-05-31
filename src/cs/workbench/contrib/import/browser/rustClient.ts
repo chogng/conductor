@@ -90,10 +90,6 @@ type ConductorWebUtilsBridge = {
 declare global {
   interface Window {
     desktopImport?: DesktopImportBridge;
-    conductor?: {
-      ipcRenderer?: unknown;
-      webUtils?: unknown;
-    };
   }
 }
 

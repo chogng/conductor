@@ -11,7 +11,7 @@ import Card from "cs/base/browser/ui/Card/Card";
 import Checkbox from "cs/base/browser/ui/Checkbox/Checkbox";
 import InlineEditableText from "cs/base/browser/ui/InlineEditableText/InlineEditableText";
 import ScrollArea from "cs/base/browser/ui/scrollArea/scrollArea";
-import Tabs from "cs/base/browser/ui/Tabs/Tabs";
+import Tabs from "cs/base/browser/ui/tabs/tabs";
 import Toast from "cs/base/browser/ui/toast/toast";
 import SplitView from "src/cs/base/browser/ui/splitview/splitview";
 import CogIcon from "src/cs/base/browser/ui/CogIcon/cogicon";
@@ -63,6 +63,7 @@ import {
   type YUnit,
 } from "../lib/units";
 import { getPerfNow, logPerf, startPerf } from "src/cs/workbench/common/deviceAnalysis/perf";
+import { getWorkbenchEnvironment } from "src/cs/workbench/services/environment/browser/environmentService";
 import MainPlotChart from "./MainPlotChart";
 import GmDiagnosticsChart from "./GmDiagnosticsChart";
 import SsDiagnosticsChart from "./SsDiagnosticsChart";
@@ -1170,8 +1171,8 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
     const toastRef = useRef<Toast | null>(null);
     const mainChartContainerRef = useRef<HTMLDivElement | null>(null);
     const diagnosticsChartContainerRef = useRef<HTMLDivElement | null>(null);
-    const desktopMeta = typeof window !== "undefined" ? window.desktopMeta ?? null : null;
-    const isWindowsDesktopShell = desktopMeta?.isDesktop === true && desktopMeta?.platform === "win32";
+    const environment = getWorkbenchEnvironment();
+    const isWindowsDesktopShell = environment?.isDesktop === true && environment?.platform === "win32";
     const getDesktopOriginBridge = React.useCallback((): OriginCsvBridge | null => {
         if (typeof window === "undefined")
             return null;

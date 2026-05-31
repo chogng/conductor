@@ -7,18 +7,7 @@ import type { DeviceAnalysisPageParts } from "src/cs/workbench/browser/parts";
 import type { WorkbenchTitlebarProps } from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
 import WorkbenchWorkspace from "src/cs/workbench/contrib/workspace/WorkbenchWorkspace";
 import WorkspaceShell from "src/cs/workbench/contrib/workspace/WorkspaceShell";
-
-declare global {
-  interface Window {
-    desktopMeta?: {
-      isDesktop?: boolean;
-      platform?: string;
-      isPackaged?: boolean;
-      appVersion?: string | null;
-      [key: string]: unknown;
-    };
-  }
-}
+import { getWorkbenchEnvironment } from "src/cs/workbench/services/environment/browser/environmentService";
 
 export type DeviceAnalysisWorkbenchTitlebarState = {
   readonly enabled?: boolean;
@@ -44,15 +33,14 @@ export type DeviceAnalysisWorkbenchTitlebarState = {
 };
 
 export const getWorkbenchShellFlags = () => {
-  const desktopMeta =
-    typeof window !== "undefined" ? window.desktopMeta ?? null : null;
+  const environment = getWorkbenchEnvironment();
   const isWindowsDesktopShell =
-    desktopMeta?.isDesktop === true && desktopMeta?.platform === "win32";
+    environment?.isDesktop === true && environment?.platform === "win32";
   const isPackagedWindowsDesktopShell =
-    isWindowsDesktopShell && desktopMeta?.isPackaged === true;
+    isWindowsDesktopShell && environment?.isPackaged === true;
 
   return {
-    desktopMeta,
+    environment,
     isAppUpdatePreviewEnabled:
       isPackagedWindowsDesktopShell || import.meta.env.DEV,
     isDesktopChromePreviewEnabled: isWindowsDesktopShell || import.meta.env.DEV,

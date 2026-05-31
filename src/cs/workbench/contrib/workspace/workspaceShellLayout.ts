@@ -1,10 +1,14 @@
 import type { CSSProperties } from "react";
 import { SIDEBAR_DEFAULT_WIDTH_PX } from "src/cs/workbench/browser/layout";
+import { getWorkbenchEnvironment } from "src/cs/workbench/services/environment/browser/environmentService";
+
+const desktopEnvironment = () =>
+  getWorkbenchEnvironment();
 
 export const shouldShowDesktopCommandBarByDefault =
   typeof window !== "undefined" &&
-  window.desktopMeta?.isDesktop === true &&
-  window.desktopMeta?.platform === "win32";
+  desktopEnvironment()?.isDesktop === true &&
+  desktopEnvironment()?.platform === "win32";
 
 export const getWorkspaceShellStyle = (
   style?: CSSProperties,

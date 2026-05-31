@@ -33,15 +33,6 @@ export type AnalysisDesktopStore = {
 };
 export type DesktopStore = AnalysisDesktopStore;
 
-declare global {
-  interface Window {
-    conductor?: {
-      ipcRenderer?: unknown;
-      webUtils?: unknown;
-    };
-  }
-}
-
 export const DESKTOP_STORE_UNAVAILABLE =
   "Desktop store bridge unavailable.";
 export const DEVICE_ANALYSIS_DESKTOP_STORE_UNAVAILABLE =

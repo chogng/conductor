@@ -1,4 +1,6 @@
-﻿let workbenchAppPromise: Promise<typeof import("./App")> | null = null;
+﻿import { getWorkbenchEnvironment } from "src/cs/workbench/services/environment/browser/environmentService";
+
+let workbenchAppPromise: Promise<typeof import("./App")> | null = null;
 let appPromise:
   | Promise<typeof import("./cs/workbench/contrib/workspace/App")>
   | null = null;
@@ -7,7 +9,7 @@ let workbenchImportStartedAtMs = 0;
 let importStartedAtMs = 0;
 
 const isBootProfileEnabled = () =>
-  window.desktopMeta?.isDesktop === true ||
+  getWorkbenchEnvironment()?.isDesktop === true ||
   (import.meta.env.DEV && window.__CONDUCTOR_BOOT_PROFILE_ENABLED__ === true);
 
 const getBootNowMs = () => {

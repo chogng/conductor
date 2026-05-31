@@ -1,14 +1,18 @@
 import workbenchLogoUrl from "src/cs/workbench/contrib/splash/browser/logo.svg";
 
 export type DesktopBootstrapSettings = {
-  initialDeviceAnalysisSettings?: {
+  initialWorkbenchSettings?: {
     theme?: unknown;
     [key: string]: unknown;
   } | null;
 };
 
 type DesktopBootstrapWindow = Window & {
-  desktopBootstrap?: DesktopBootstrapSettings;
+  conductor?: {
+    context?: {
+      configuration?: () => DesktopBootstrapSettings | undefined;
+    };
+  };
 };
 
 const resolveTheme = (theme: unknown) => {
@@ -23,7 +27,7 @@ const resolveTheme = (theme: unknown) => {
 
 export const bootstrapWorkbenchTheme = () => {
   const bootstrapWindow = window as DesktopBootstrapWindow;
-  const initialTheme = bootstrapWindow.desktopBootstrap?.initialDeviceAnalysisSettings?.theme;
+  const initialTheme = bootstrapWindow.conductor?.context?.configuration?.()?.initialWorkbenchSettings?.theme;
   const resolvedTheme = resolveTheme(initialTheme);
   const root = document.documentElement;
 

@@ -1,12 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 
+import { createSandboxConfiguration } from "../src/cs/base/parts/sandbox/electron-browser/sandboxConfiguration.js";
 import { createDesktopAppBridge } from "./preload-app.js";
-import {
-  exposeDesktopBootGlobals,
-  readDesktopAutoUpdateStatus,
-  readDesktopBootstrap,
-  readDesktopMeta,
-} from "./preload-boot.js";
 import { exposeConductorGlobals } from "./preload-conductor.js";
 import { createDesktopImportBridge } from "./preload-import.js";
 import { createDesktopOriginBridge } from "./preload-origin.js";
@@ -28,12 +23,9 @@ function logPreloadBoot(stage: string, extra = ""): void {
 
 logPreloadBoot("bootstrap:ready");
 
-const desktopBootstrap = readDesktopBootstrap(ipcRenderer);
-const desktopMeta = readDesktopMeta(ipcRenderer);
-const desktopAutoUpdateStatus = readDesktopAutoUpdateStatus(ipcRenderer);
+const sandboxConfiguration = createSandboxConfiguration(ipcRenderer);
 
-exposeDesktopBootGlobals(contextBridge, ipcRenderer, desktopBootstrap, desktopMeta);
-contextBridge.exposeInMainWorld("desktopApp", createDesktopAppBridge(ipcRenderer, desktopAutoUpdateStatus));
+contextBridge.exposeInMainWorld("desktopApp", createDesktopAppBridge(ipcRenderer));
 contextBridge.exposeInMainWorld("desktopOrigin", createDesktopOriginBridge(ipcRenderer));
 contextBridge.exposeInMainWorld("desktopImport", createDesktopImportBridge(ipcRenderer));
-exposeConductorGlobals(contextBridge, ipcRenderer, webUtils);
+exposeConductorGlobals(contextBridge, ipcRenderer, webUtils, sandboxConfiguration);

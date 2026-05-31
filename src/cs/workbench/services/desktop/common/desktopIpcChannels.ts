@@ -1,12 +1,9 @@
 export const desktopIpcChannels = {
-  desktopMetaGet: "desktop:meta:get",
   desktopAutoUpdateStatusGet: "desktop:auto-update-status:get",
   desktopAutoUpdateStatusChanged: "desktop:auto-update-status:changed",
   desktopAutoUpdateCheck: "desktop:auto-update:check",
   desktopAutoUpdateCheckAndInstall: "desktop:auto-update:check-and-install",
   desktopAutoUpdateInstallDownloaded: "desktop:auto-update:install-downloaded",
-  desktopBootSettingsGet: "desktop-boot:settings:get",
-  desktopBootUiReady: "desktop-boot:ui-ready",
   templatesGet: "store:templates:get",
   templatesCreate: "store:templates:create",
   templatesDelete: "store:templates:delete",

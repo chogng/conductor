@@ -12,6 +12,7 @@
   },
   "include": [
     "desktop/**/*.ts",
+    "src/bootstrap-*.ts",
     "src/cs/code/electron-main/**/*.ts",
     "src/cs/code/electron-utility/**/*.ts",
     "src/cs/platform/storage/electron-main/**/*.ts",

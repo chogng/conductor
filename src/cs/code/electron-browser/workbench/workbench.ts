@@ -1,27 +1,22 @@
 import "../../../workbench/contrib/splash/electron-sandbox/splash.contribution";
 import "src/cs/platform/contextkey/browser/contextKeyService";
+import "src/cs/platform/native/electron-browser/nativeHostService";
 import "src/cs/workbench/services/contextmenu/electron-browser/contextmenuService";
+import "src/cs/workbench/services/environment/electron-browser/environmentService";
+import { ipcRenderer } from "src/cs/base/parts/sandbox/electron-browser/globals";
 import { InstantiationService } from "src/cs/platform/instantiation/common/instantiationService";
 import { ServiceCollection } from "src/cs/platform/instantiation/common/serviceCollection";
 import { Registry } from "src/cs/platform/registry/common/platform";
+import { workbenchBootstrapIpcChannels } from "src/cs/code/common/workbenchBootstrapIpc";
 import { Extensions, type IWorkbenchContributionsRegistry } from "src/cs/workbench/common/contributions";
+import { getWorkbenchEnvironment } from "src/cs/workbench/services/environment/browser/environmentService";
+import { IWorkbenchEnvironmentService } from "src/cs/workbench/services/environment/common/environmentService";
 import { ILifecycleService, LifecyclePhase, LifecycleService } from "src/cs/workbench/services/lifecycle/common/lifecycle";
 import type { LanguageCode } from "src/cs/platform/language/common/language";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 
 declare global {
   interface Window {
-    desktopBootstrap?: {
-      initialDeviceAnalysisSettings?: Record<string, unknown> | null;
-      [key: string]: unknown;
-    };
-    desktopMeta?: {
-      isDesktop?: boolean;
-      platform?: string;
-      isPackaged?: boolean;
-      appVersion?: string | null;
-      [key: string]: unknown;
-    };
     __CONDUCTOR_BOOT_LOG__?: (stage: string, extra?: string) => void;
     __CONDUCTOR_BOOT_MARK_UI_READY__?: (source?: string) => void;
     __CONDUCTOR_BOOT_PROFILE_ENABLED__?: boolean;
@@ -57,6 +52,7 @@ const lifecycleService = new LifecycleService();
 const serviceCollection = new ServiceCollection([ILifecycleService, lifecycleService]);
 const instantiationService = new InstantiationService(serviceCollection);
 
+instantiationService.invokeFunction(accessor => accessor.get(IWorkbenchEnvironmentService));
 const contributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);
 instantiationService.invokeFunction(accessor => contributionsRegistry.start(accessor));
 lifecycleService.setPhase(LifecyclePhase.Ready);
@@ -70,7 +66,7 @@ const isThemeMode = (value: unknown): value is ThemeMode =>
   value === "light" || value === "dark" || value === "system";
 
 const resolveBootProfileEnabled = () => {
-  if (window.desktopMeta?.isDesktop === true) {
+  if (getWorkbenchEnvironment()?.isDesktop === true) {
     return true;
   }
 
@@ -171,18 +167,16 @@ const markBootUiReady = (source = "unknown") => {
   logBoot("boot-ui:ready", `(source=${source})`);
   logNavigationTiming();
   logTopResources();
-  if (typeof window.desktopBoot?.markUiReady !== "function") {
-    return;
-  }
-
-  Promise.resolve(window.desktopBoot.markUiReady(source)).catch((error: unknown) => {
+  Promise.resolve(ipcRenderer.invoke(workbenchBootstrapIpcChannels.uiReady, {
+    source,
+  })).catch((error: unknown) => {
     const message = error instanceof Error ? error.message : String(error);
     logBoot("boot-window:show-failed", `(message=${message})`);
   });
 };
 
 const resolveInitialSettings = () => {
-  const settings = window.desktopBootstrap?.initialDeviceAnalysisSettings;
+  const settings = window.conductor?.context?.configuration?.()?.initialWorkbenchSettings;
   return settings && typeof settings === "object" && !Array.isArray(settings)
     ? settings
     : null;

@@ -82,7 +82,7 @@ const Page = () => {
     [t],
   );
   const {
-    desktopMeta,
+    environment,
     isAppUpdatePreviewEnabled,
     isDesktopChromePreviewEnabled,
     isPackagedWindowsDesktopShell,
@@ -579,8 +579,8 @@ const Page = () => {
           appUpdateSettings={{
             isAvailable: isAppUpdatePreviewEnabled,
             currentVersion:
-              typeof desktopMeta?.appVersion === "string"
-                ? desktopMeta.appVersion
+              typeof environment?.appVersion === "string"
+                ? environment.appVersion
                 : null,
             onCheckForUpdates: isPackagedWindowsDesktopShell
               ? handleCheckForUpdatesAndInstall

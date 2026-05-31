@@ -1,31 +1,31 @@
 import type { IpcRenderer } from "electron";
 
-import { ipcChannels } from "./ipc-channels.js";
+import { desktopIpcChannels } from "../src/cs/workbench/services/desktop/common/desktopIpcChannels.js";
 
 export function createDesktopOriginBridge(ipcRenderer: IpcRenderer) {
   return {
     async getOriginExePath() {
-      return ipcRenderer.invoke(ipcChannels.originExeGet);
+      return ipcRenderer.invoke(desktopIpcChannels.originExeGet);
     },
 
     async setOriginExePath(path: unknown) {
-      return ipcRenderer.invoke(ipcChannels.originExeSet, { path });
+      return ipcRenderer.invoke(desktopIpcChannels.originExeSet, { path });
     },
 
     async pickOriginExePath() {
-      return ipcRenderer.invoke(ipcChannels.originExePick);
+      return ipcRenderer.invoke(desktopIpcChannels.originExePick);
     },
 
     async checkOriginHealth(payload: unknown) {
-      return ipcRenderer.invoke(ipcChannels.originHealthCheck, payload);
+      return ipcRenderer.invoke(desktopIpcChannels.originHealthCheck, payload);
     },
 
     async runOriginCsv(payload: unknown) {
-      return ipcRenderer.invoke(ipcChannels.originRunCsv, payload);
+      return ipcRenderer.invoke(desktopIpcChannels.originRunCsv, payload);
     },
 
     async runOriginRuntimeCleanup(payload: unknown) {
-      return ipcRenderer.invoke(ipcChannels.originRuntimeCleanupRun, payload);
+      return ipcRenderer.invoke(desktopIpcChannels.originRuntimeCleanupRun, payload);
     },
   };
 }
