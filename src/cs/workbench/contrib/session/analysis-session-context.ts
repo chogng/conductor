@@ -1,9 +1,5 @@
-import {
-  createContext,
-  type Dispatch,
-  type MutableRefObject,
-  type SetStateAction,
-} from "react";
+import { createContext } from "react";
+import type { MutableRef } from "src/cs/base/common/ref";
 import type {
   PreviewFile,
   PreviewRowsRequest,
@@ -67,55 +63,54 @@ export type SsManualRange = {
 
 export type SsManualRanges = Record<string, Record<string, SsManualRange>>;
 
+export type StateSetter<T> = (value: T | ((previous: T) => T)) => void;
+
 export type SessionContextValue = {
   rawData: RawDataEntry[];
-  setRawData: Dispatch<SetStateAction<RawDataEntry[]>>;
+  setRawData: StateSetter<RawDataEntry[]>;
   selectedPreviewFileId: string | null;
-  setSelectedPreviewFileId: Dispatch<SetStateAction<string | null>>;
+  setSelectedPreviewFileId: StateSetter<string | null>;
   processedData: ProcessedEntry[];
-  setProcessedData: Dispatch<SetStateAction<ProcessedEntry[]>>;
+  setProcessedData: StateSetter<ProcessedEntry[]>;
   templateMode: TemplateMode;
-  setTemplateMode: Dispatch<SetStateAction<TemplateMode>>;
+  setTemplateMode: StateSetter<TemplateMode>;
   selectedTemplateId: string | null;
-  setSelectedTemplateId: Dispatch<SetStateAction<string | null>>;
+  setSelectedTemplateId: StateSetter<string | null>;
   templateConfig: TemplateConfig;
-  setTemplateConfig: Dispatch<SetStateAction<TemplateConfig>>;
+  setTemplateConfig: StateSetter<TemplateConfig>;
   previewFile: PreviewFile | null;
-  setPreviewFile: Dispatch<SetStateAction<PreviewFile | null>>;
+  setPreviewFile: StateSetter<PreviewFile | null>;
   previewStatus: PreviewStatus;
-  setPreviewStatus: Dispatch<SetStateAction<PreviewStatus>>;
-  previewWorkerRef: MutableRefObject<Worker | null>;
-  previewRequestIdRef: MutableRefObject<number>;
-  previewRowsRequestIdRef: MutableRefObject<number>;
-  previewRowsRequestsRef: MutableRefObject<Map<number, PreviewRowsRequest>>;
-  previewRowsCacheByFileIdRef: MutableRefObject<
+  setPreviewStatus: StateSetter<PreviewStatus>;
+  previewWorkerRef: MutableRef<Worker | null>;
+  previewRequestIdRef: MutableRef<number>;
+  previewRowsRequestIdRef: MutableRef<number>;
+  previewRowsRequestsRef: MutableRef<Map<number, PreviewRowsRequest>>;
+  previewRowsCacheByFileIdRef: MutableRef<
     Map<string, Map<number, unknown[]>>
   >;
-  previewLoadedChunksByFileIdRef: MutableRefObject<Map<string, Set<number>>>;
-  previewRowsCacheRef: MutableRefObject<Map<number, unknown[]>>;
-  previewLoadedChunksRef: MutableRefObject<Set<number>>;
-  previewCacheFileIdRef: MutableRefObject<string | null>;
-  previewCacheFileLruRef: MutableRefObject<Set<string>>;
+  previewLoadedChunksByFileIdRef: MutableRef<Map<string, Set<number>>>;
+  previewRowsCacheRef: MutableRef<Map<number, unknown[]>>;
+  previewLoadedChunksRef: MutableRef<Set<number>>;
+  previewCacheFileIdRef: MutableRef<string | null>;
+  previewCacheFileLruRef: MutableRef<Set<string>>;
   ionIoffMethod: IonIoffMethod;
-  setIonIoffMethod: Dispatch<SetStateAction<IonIoffMethod>>;
+  setIonIoffMethod: StateSetter<IonIoffMethod>;
   ionIoffManualTargetsByFileId: IonIoffManualTargetsByFileId;
-  setIonIoffManualTargetsByFileId: Dispatch<
-    SetStateAction<IonIoffManualTargetsByFileId>
-  >;
+  setIonIoffManualTargetsByFileId: StateSetter<IonIoffManualTargetsByFileId>;
   ssMethod: SsMethod;
-  setSsMethod: Dispatch<SetStateAction<SsMethod>>;
+  setSsMethod: StateSetter<SsMethod>;
   ssDiagnosticsEnabled: boolean;
-  setSsDiagnosticsEnabled: Dispatch<SetStateAction<boolean>>;
+  setSsDiagnosticsEnabled: StateSetter<boolean>;
   vthDiagnosticsEnabled: boolean;
-  setVthDiagnosticsEnabled: Dispatch<SetStateAction<boolean>>;
+  setVthDiagnosticsEnabled: StateSetter<boolean>;
   gmDiagnosticsEnabled: boolean;
-  setGmDiagnosticsEnabled: Dispatch<SetStateAction<boolean>>;
+  setGmDiagnosticsEnabled: StateSetter<boolean>;
   ssShowFitLine: boolean;
-  setSsShowFitLine: Dispatch<SetStateAction<boolean>>;
+  setSsShowFitLine: StateSetter<boolean>;
   ssManualRanges: SsManualRanges;
-  setSsManualRanges: Dispatch<SetStateAction<SsManualRanges>>;
+  setSsManualRanges: StateSetter<SsManualRanges>;
 };
 
 export const SessionContext =
   createContext<SessionContextValue | null>(null);
-

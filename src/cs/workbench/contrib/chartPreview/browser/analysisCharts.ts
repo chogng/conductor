@@ -1,5 +1,5 @@
 import { jsx, jsxs, Fragment } from "react/jsx-runtime";
-import React, { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, } from "react";
+import React, { startTransition, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, } from "react";
 import { createPortal } from "react-dom";
 import { lxClose } from "cogicon";
 import { computeCentralDerivative, computeSubthresholdSwing, computeSubthresholdSwingFitAuto, computeSubthresholdSwingFitInRange, classifySsFit, interpolateCurveAtX, resolveAutoSsSelection, splitBidirectionalCurvePoints, } from "../../diagnostics/common/analysisMath";
@@ -208,7 +208,7 @@ const OriginCurveSelectionEntryRow = React.memo(function OriginCurveSelectionEnt
     onToggleFile: (fileId: string) => void;
     onToggleSeriesForFile: (fileId: string, seriesKey: string) => void;
     pickAllLabel: string;
-    renderFileExtra?: (entry: OriginCurveSelectionEntry) => React.ReactNode;
+    renderFileExtra?: (entry: OriginCurveSelectionEntry) => ReactNode;
     selectedBadgeLabel: string;
     showRemoveButton: boolean;
     showSeriesControls: boolean;
@@ -4000,7 +4000,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
         onSelectAllSeriesForFile?: (fileId: string) => void;
         onSetCurveMode?: (nextMode: OriginCurveExportMode) => void;
         onToggleSeriesForFile?: (fileId: string, seriesKey: string) => void;
-        renderFileExtra?: (entry: (typeof exportListEntries)[number]) => React.ReactNode;
+        renderFileExtra?: (entry: (typeof exportListEntries)[number]) => ReactNode;
         showRemoveButton?: boolean;
         showSeriesControls?: boolean;
     }) => entries.length ? (jsx(ScrollArea, {
@@ -4026,7 +4026,7 @@ const AnalysisCharts = ({ processedData, processingStatus, activeFileId: control
                 onToggleFile: onToggleFile,
                 onToggleSeriesForFile: onToggleSeriesForFile,
                 pickAllLabel: t("da_origin_curve_export_pick_all"),
-                renderFileExtra: renderFileExtra as ((entry: OriginCurveSelectionEntry) => React.ReactNode) | undefined,
+                renderFileExtra: renderFileExtra as ((entry: OriginCurveSelectionEntry) => ReactNode) | undefined,
                 selectedBadgeLabel: t("da_origin_export_list_selected_badge"),
                 showRemoveButton: showRemoveButton,
                 showSeriesControls: showSeriesControls

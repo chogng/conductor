@@ -1,6 +1,5 @@
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
 
 const browserWorkbenchHtmlPath = fileURLToPath(
   new URL("./src/cs/code/browser/workbench/workbench.html", import.meta.url),
@@ -11,7 +10,6 @@ const desktopWorkbenchHtmlPath = fileURLToPath(
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react({ fastRefresh: process.env.CONDUCTOR_DESKTOP_DEV !== "1" })],
   resolve: {
     alias: {
       cs: fileURLToPath(new URL("./src/cs", import.meta.url)),
@@ -39,10 +37,6 @@ export default defineConfig({
             return "react-vendor";
           }
 
-          if (id.includes("@tanstack/react-query")) {
-            return "app-vendor";
-          }
-
           if (id.includes("papaparse") || id.includes("jszip")) {
             return "data-vendor";
           }
@@ -56,9 +50,9 @@ export default defineConfig({
     host: true,
     warmup: {
       clientFiles: [
-        "./src/cs/code/browser/workbench/renderer.tsx",
+        "./src/cs/code/browser/workbench/renderer.ts",
         "./src/cs/code/browser/workbench/rendererLoader.ts",
-        "./src/cs/code/browser/workbench/app.tsx",
+        "./src/cs/workbench/browser/legacyReactWorkbench.ts",
         "./src/cs/code/browser/workbench/browserBoot.ts",
         "./src/cs/code/browser/workbench/web.main.ts",
         "./src/cs/code/electron-browser/workbench/desktopBoot.ts",

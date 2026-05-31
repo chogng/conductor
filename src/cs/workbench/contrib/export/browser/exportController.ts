@@ -1,5 +1,4 @@
-import type { MutableRefObject } from "react";
-
+import type { MutableRef } from "src/cs/base/common/ref";
 import {
   ORIGIN_CSV_AUTO_ZIP_FALLBACK_CODES,
   attachOriginCsvPaths,
@@ -21,9 +20,9 @@ export type OriginControllerOptions = {
   buildPayloads: (options?: { omitRustEligibleCsvText?: boolean }) => OriginExportPlan;
   exportOriginZipFallback: () => Promise<OriginZipExportResult | null | undefined>;
   originAxisSettings: unknown;
-  originBusyRef: MutableRefObject<boolean>;
-  originChartXRangeRef: MutableRefObject<OriginDisplayRange | null>;
-  originChartYRangeRef: MutableRefObject<{
+  originBusyRef: MutableRef<boolean>;
+  originChartXRangeRef: MutableRef<OriginDisplayRange | null>;
+  originChartYRangeRef: MutableRef<{
     max: number;
     min: number;
     mode: "linear" | "log";

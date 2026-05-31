@@ -1,13 +1,11 @@
 ﻿import {
-  type Dispatch,
   useCallback,
   useEffect,
   useMemo,
-  type SetStateAction,
   useState,
-  type MutableRefObject,
 } from "react";
-import type { TemplateConfig } from "src/cs/workbench/contrib/session/analysis-session-context";
+import type { MutableRef } from "src/cs/base/common/ref";
+import type { StateSetter, TemplateConfig } from "src/cs/workbench/contrib/session/analysis-session-context";
 import type { ProcessedEntry, RawDataEntry } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import { importDemoRawDataEntries } from "src/cs/workbench/contrib/data/demoDataImport";
 import {
@@ -36,15 +34,15 @@ const revealElementById = (id: string): boolean => {
 
 type UseOnboardingOptions = {
   clearPreviewState: (options?: { clearSelection?: boolean }) => void;
-  importerRef: MutableRefObject<{ openFileDialog?: () => void } | null>;
+  importerRef: MutableRef<{ openFileDialog?: () => void } | null>;
   navigateToPage: (page: "data" | "analysis" | "settings") => void;
   processingState?: string;
   processedData: ProcessedEntry[];
   rawData: RawDataEntry[];
-  setProcessedData: Dispatch<SetStateAction<ProcessedEntry[]>>;
-  setRawData: Dispatch<SetStateAction<RawDataEntry[]>>;
-  setSelectedPreviewFileId: Dispatch<SetStateAction<string | null>>;
-  setTemplateConfig: Dispatch<SetStateAction<TemplateConfig>>;
+  setProcessedData: StateSetter<ProcessedEntry[]>;
+  setRawData: StateSetter<RawDataEntry[]>;
+  setSelectedPreviewFileId: StateSetter<string | null>;
+  setTemplateConfig: StateSetter<TemplateConfig>;
   templateConfig: TemplateConfig;
   updateSettings: (updates: Record<string, unknown>) => Promise<unknown> | unknown;
 };
@@ -336,3 +334,6 @@ export const useOnboarding = ({
     ],
   );
 };
+
+
+

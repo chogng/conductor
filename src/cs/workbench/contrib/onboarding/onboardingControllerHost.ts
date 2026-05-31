@@ -1,11 +1,7 @@
-﻿import {
-  useEffect,
-  type Dispatch,
-  type MutableRefObject,
-  type SetStateAction,
-} from "react";
+﻿import { useEffect } from "react";
+import type { MutableRef } from "src/cs/base/common/ref";
 import type { ProcessedEntry, RawDataEntry } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
-import type { TemplateConfig } from "src/cs/workbench/contrib/session/analysis-session-context";
+import type { StateSetter, TemplateConfig } from "src/cs/workbench/contrib/session/analysis-session-context";
 import type {
   OnboardingControllerState,
   OnboardingLaunchMode,
@@ -17,7 +13,7 @@ type OnboardingPage = "data" | "analysis" | "settings";
 
 type OnboardingControllerHostProps = {
   clearPreviewState: (options?: { clearSelection?: boolean }) => void;
-  importerRef: MutableRefObject<{ openFileDialog?: () => void } | null>;
+  importerRef: MutableRef<{ openFileDialog?: () => void } | null>;
   isRequestedOpen: boolean;
   openMode: OnboardingLaunchMode;
   navigateToPage: (page: OnboardingPage) => void;
@@ -25,10 +21,10 @@ type OnboardingControllerHostProps = {
   processingState?: string;
   processedData: ProcessedEntry[];
   rawData: RawDataEntry[];
-  setProcessedData: Dispatch<SetStateAction<ProcessedEntry[]>>;
-  setRawData: Dispatch<SetStateAction<RawDataEntry[]>>;
-  setSelectedPreviewFileId: Dispatch<SetStateAction<string | null>>;
-  setTemplateConfig: Dispatch<SetStateAction<TemplateConfig>>;
+  setProcessedData: StateSetter<ProcessedEntry[]>;
+  setRawData: StateSetter<RawDataEntry[]>;
+  setSelectedPreviewFileId: StateSetter<string | null>;
+  setTemplateConfig: StateSetter<TemplateConfig>;
   templateConfig: TemplateConfig;
   updateSettings: (updates: Record<string, unknown>) => Promise<unknown> | unknown;
 };
@@ -80,3 +76,6 @@ const OnboardingControllerHost = ({
 };
 
 export default OnboardingControllerHost;
+
+
+

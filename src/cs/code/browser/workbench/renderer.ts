@@ -1,6 +1,4 @@
-import { Fragment, lazy, StrictMode, Suspense } from "react";
-import { createRoot } from "react-dom/client";
-import { loadWorkbenchApp } from "src/cs/code/browser/workbench/rendererLoader";
+import { loadLegacyWorkbench } from "src/cs/code/browser/workbench/rendererLoader";
 import { getWorkbenchEnvironment } from "src/cs/workbench/services/environment/browser/environmentService";
 
 const logRendererBoot = (stage: string, extra = "") => {
@@ -25,7 +23,6 @@ window.addEventListener("unhandledrejection", (event) => {
 });
 
 const isDesktopRenderer = getWorkbenchEnvironment()?.isDesktop === true;
-const RootMode = import.meta.env.DEV && isDesktopRenderer ? Fragment : StrictMode;
 const rootElement = document.getElementById("root");
 if (!rootElement) {
   throw new Error('Root element with id "root" was not found.');
@@ -36,23 +33,17 @@ logRendererBoot(
   "main:environment",
   `(href=${window.location.href} desktop=${isDesktopRenderer ? "yes" : "no"} dev=${import.meta.env.DEV ? "yes" : "no"} rootChildren=${rootElement.childElementCount})`,
 );
-logRendererBoot("app:module-requested");
+logRendererBoot("legacy-workbench:module-requested");
 
-const workbenchAppPromise = loadWorkbenchApp();
-const LazyApp = lazy(async () => {
-  const module = await workbenchAppPromise;
-  logRendererBoot("app:module-resolved");
-  return { default: module.default };
+const legacyWorkbenchPromise = loadLegacyWorkbench();
+void legacyWorkbenchPromise.then((module) => {
+  logRendererBoot("legacy-workbench:module-resolved");
+  module.mountLegacyReactWorkbench(
+    rootElement,
+    import.meta.env.DEV && isDesktopRenderer ? "plain" : "strict",
+  );
+  logRendererBoot("legacy-root:render-called");
 });
-
-createRoot(rootElement).render(
-  <RootMode>
-    <Suspense fallback={null}>
-      <LazyApp />
-    </Suspense>
-  </RootMode>,
-);
-logRendererBoot("react-root:render-called");
 
 window.requestAnimationFrame(() => {
   logRendererBoot(
@@ -76,4 +67,3 @@ window.setTimeout(() => {
     `(rootChildren=${rootElement.childElementCount} textLength=${(rootElement.textContent ?? "").length} rootRect=${Math.round(rect.width)}x${Math.round(rect.height)})`,
   );
 }, 1000);
-

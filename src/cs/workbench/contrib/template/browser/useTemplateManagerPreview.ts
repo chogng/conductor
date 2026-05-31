@@ -5,10 +5,9 @@
   useMemo,
   useRef,
   useState,
-  type Dispatch,
-  type MutableRefObject,
-  type SetStateAction,
 } from "react";
+import type { MutableRef } from "src/cs/base/common/ref";
+import type { StateSetter } from "src/cs/workbench/contrib/session/analysis-session-context";
 import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
 import type { PreviewFileLike } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import type { TemplateConfig } from "src/cs/workbench/contrib/template/common/templateManagerUtils";
@@ -167,7 +166,7 @@ type PendingColumnResize = {
 };
 
 type UseTemplateManagerPreviewOptions = {
-  containerRef?: MutableRefObject<HTMLElement | null>;
+  containerRef?: MutableRef<HTMLElement | null>;
   config: TemplateConfig;
   ensurePreviewRows?: (
     fileId: string,
@@ -179,7 +178,7 @@ type UseTemplateManagerPreviewOptions = {
   previewFile?: PreviewFileLike | null;
   previewStatus?: PreviewStatus | null;
   previewZoomPercent?: number;
-  setConfig: Dispatch<SetStateAction<TemplateConfig>>;
+  setConfig: StateSetter<TemplateConfig>;
   writeFieldFromPreview: (field: string, value: string) => void;
 };
 
@@ -952,3 +951,6 @@ export const useTemplateManagerPreview = ({
     toggleColumn,
   };
 };
+
+
+

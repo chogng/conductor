@@ -242,7 +242,7 @@ const binarySearchNearest = (arr: number[], value: number): number => {
 const colorForSeries = (series: ChartSeries, seriesIndex: unknown, alpha = 0.92): string => {
     return applyAlphaToChartColor(resolveSeriesChartColor(series, seriesIndex), alpha);
 };
-const CanvasMultiLineChart = ({ xGroups, series, domain, xScaleFactor = 1, xUnitLabel = "V", yScaleFactor = 1, yScaleType = "linear", yLogCurrentMode = "all", yUnitLabel = "", padding = DEFAULT_PADDING, title, className, }: CanvasMultiLineChartProps): React.JSX.Element => {
+const CanvasMultiLineChart = ({ xGroups, series, domain, xScaleFactor = 1, xUnitLabel = "V", yScaleFactor = 1, yScaleType = "linear", yLogCurrentMode = "all", yUnitLabel = "", padding = DEFAULT_PADDING, title, className, }: CanvasMultiLineChartProps) => {
     const wrapperRef = useRef<HTMLDivElement | null>(null);
     const baseCanvasRef = useRef<HTMLCanvasElement | null>(null);
     const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -540,7 +540,6 @@ const CanvasMultiLineChart = ({ xGroups, series, domain, xScaleFactor = 1, xUnit
     useEffect(() => {
         drawBase();
         clearOverlay();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [chartTheme, prepared, resolvedDomain, size.width, size.height]);
     const scheduleOverlay = () => {
         if (rafRef.current)

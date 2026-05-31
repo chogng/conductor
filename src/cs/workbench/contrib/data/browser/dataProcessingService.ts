@@ -1,5 +1,4 @@
-import type { MutableRefObject } from "react";
-
+import type { MutableRef } from "src/cs/base/common/ref";
 import {
   startProcessingJob,
   startRuleProcessingJob,
@@ -13,7 +12,7 @@ export class BrowserDataProcessingService
   implements IDataProcessingService<
     ProcessingJobOptions,
     RuleProcessingJobOptions,
-    MutableRefObject<Worker | null>,
+    MutableRef<Worker | null>,
     Worker | null
   >
 {
@@ -26,7 +25,7 @@ export class BrowserDataProcessingService
   }
 
   terminateProcessingWorker(
-    workerRef: MutableRefObject<Worker | null>,
+    workerRef: MutableRef<Worker | null>,
     worker?: Worker | null,
   ): void {
     terminateProcessingWorker(workerRef, worker);

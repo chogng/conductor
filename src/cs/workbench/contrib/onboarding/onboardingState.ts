@@ -1,4 +1,4 @@
-﻿import type { MutableRefObject } from "react";
+import type { MutableRef } from "src/cs/base/common/ref";
 import type { ImporterRef } from "src/cs/workbench/contrib/import/browser/importerView";
 import type { OnboardingStep } from "src/cs/workbench/contrib/onboarding/onboardingTypes";
 
@@ -18,7 +18,7 @@ export type OnboardingControllerState = {
 };
 
 export const createIdleOnboardingState = (
-  importerRef: MutableRefObject<ImporterRef | null>,
+  importerRef: MutableRef<ImporterRef | null>,
 ): OnboardingControllerState => ({
   back: () => {},
   canNext: true,

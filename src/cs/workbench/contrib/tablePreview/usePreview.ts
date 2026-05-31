@@ -6,9 +6,9 @@
   useMemo,
   useRef,
   type Dispatch,
-  type MutableRefObject,
   type SetStateAction,
 } from "react";
+import type { MutableRef } from "src/cs/base/common/ref";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { PreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
 import {
@@ -74,16 +74,16 @@ type UsePreviewOptions = {
   previewFile?: PreviewFile | null;
   setPreviewFile?: Dispatch<SetStateAction<PreviewFile | null>>;
   setPreviewStatus?: Dispatch<SetStateAction<PreviewStatus>>;
-  previewWorkerRef?: MutableRefObject<Worker | null>;
-  previewRequestIdRef?: MutableRefObject<number>;
-  previewRowsRequestIdRef?: MutableRefObject<number>;
-  previewRowsRequestsRef?: MutableRefObject<Map<number, PreviewRowsRequest>>;
-  previewRowsCacheByFileIdRef?: MutableRefObject<Map<string, Map<number, unknown[]>>>;
-  previewLoadedChunksByFileIdRef?: MutableRefObject<Map<string, Set<number>>>;
-  previewRowsCacheRef?: MutableRefObject<Map<number, unknown[]>>;
-  previewLoadedChunksRef?: MutableRefObject<Set<number>>;
-  previewCacheFileIdRef?: MutableRefObject<string | null>;
-  previewCacheFileLruRef?: MutableRefObject<Set<string>>;
+  previewWorkerRef?: MutableRef<Worker | null>;
+  previewRequestIdRef?: MutableRef<number>;
+  previewRowsRequestIdRef?: MutableRef<number>;
+  previewRowsRequestsRef?: MutableRef<Map<number, PreviewRowsRequest>>;
+  previewRowsCacheByFileIdRef?: MutableRef<Map<string, Map<number, unknown[]>>>;
+  previewLoadedChunksByFileIdRef?: MutableRef<Map<string, Set<number>>>;
+  previewRowsCacheRef?: MutableRef<Map<number, unknown[]>>;
+  previewLoadedChunksRef?: MutableRef<Set<number>>;
+  previewCacheFileIdRef?: MutableRef<string | null>;
+  previewCacheFileLruRef?: MutableRef<Set<string>>;
   t: TranslateFn;
 };
 

@@ -1,10 +1,11 @@
-import { jsx, jsxs, Fragment } from "react/jsx-runtime";
-import React, { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type SetStateAction, } from "react";
+﻿import { jsx, jsxs, Fragment } from "react/jsx-runtime";
+import React, { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactElement, } from "react";
 import { lxAddSmall, lxArrowUp, lxClose, lxDownloadTray, lxExportTray, lxListUnordered, lxSave, lxTrash, } from "cogicon";
 import CogIcon from "src/cs/base/browser/ui/cogIcon/cogIcon";
 import { createCogIconComponent, lxAlertTriangle, } from "src/cs/base/browser/ui/cogIcon/icons";
 import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
 import type { TranslateFn, TranslationVars } from "src/cs/platform/language/common/language";
+import type { StateSetter } from "src/cs/workbench/contrib/session/analysis-session-context";
 import Toast from "cs/base/browser/ui/toast/toast";
 import Input from "cs/base/browser/ui/input/input";
 import DropdownField from "cs/base/browser/ui/dropdownField/dropdownField";
@@ -514,7 +515,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
         const normalizedPatternTokens = new Set(splitFileNameMatchInput(rule.pattern, caseSensitive));
         const rankedSuggestions = fileNameFieldSuggestions.reduce<Array<{
             count: number;
-            label: React.ReactElement;
+            label: ReactElement;
             score: number;
             value: string;
         }>>((entries, suggestion) => {
@@ -983,7 +984,7 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
     }, [importTemplatesFromPayload, showToast, t, templateService]);
     const renderSavePanel = ({ includeIds = true, selectModeForDisabled = false, } = {}) => {
         const saveIsSelectMode = Boolean(selectModeForDisabled);
-        const setConfigFromSave = (updater: SetStateAction<TemplateConfig>) => {
+        const setConfigFromSave = (updater: Parameters<StateSetter<TemplateConfig>>[0]) => {
             markSaveDraftTouched();
             setConfig(updater);
         };
@@ -2256,3 +2257,5 @@ const TemplateManager = ({ previewFile, previewStatus, rawData = [], getPreviewR
     }));
 };
 export default React.memo(TemplateManager);
+
+

@@ -1,11 +1,10 @@
 import {
   useCallback,
   useMemo,
-  type Dispatch,
-  type SetStateAction,
 } from "react";
 import type {
   IonIoffManualTargetsByFileId,
+  StateSetter,
   SsManualRanges,
 } from "./analysis-session-context";
 import type {
@@ -26,13 +25,11 @@ type UseSessionActionsOptions = {
   resetPreviewWorker: () => void;
   resetProcessingWorker: () => void;
   selectedPreviewFileId?: string | null;
-  setProcessedData: Dispatch<SetStateAction<ProcessedEntry[]>>;
-  setRawData: Dispatch<SetStateAction<RawDataEntry[]>>;
-  setSelectedPreviewFileId: Dispatch<SetStateAction<string | null>>;
-  setIonIoffManualTargetsByFileId: Dispatch<
-    SetStateAction<IonIoffManualTargetsByFileId>
-  >;
-  setSsManualRanges: Dispatch<SetStateAction<SsManualRanges>>;
+  setProcessedData: StateSetter<ProcessedEntry[]>;
+  setRawData: StateSetter<RawDataEntry[]>;
+  setSelectedPreviewFileId: StateSetter<string | null>;
+  setIonIoffManualTargetsByFileId: StateSetter<IonIoffManualTargetsByFileId>;
+  setSsManualRanges: StateSetter<SsManualRanges>;
 };
 
 export const useSessionActions = ({

@@ -17,9 +17,9 @@ const devStartupStartMs = Date.now();
 const devServerWarmupPaths = [
   devWorkbenchPath,
   "/@vite/client",
-  "/src/cs/code/browser/workbench/renderer.tsx",
+  "/src/cs/code/browser/workbench/renderer.ts",
   "/src/cs/code/browser/workbench/rendererLoader.ts",
-  "/src/cs/code/browser/workbench/app.tsx",
+  "/src/cs/workbench/browser/legacyReactWorkbench.ts",
   "/src/cs/code/browser/workbench/browserBoot.ts",
   "/src/cs/code/electron-browser/workbench/desktopBoot.ts",
   "/src/cs/code/electron-browser/workbench/desktop.main.ts",

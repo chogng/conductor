@@ -1,6 +1,7 @@
 import { jsx, jsxs, Fragment } from "react/jsx-runtime";
 import { lxAddSmall, lxCheck, lxRemoveSmall } from "cogicon";
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactElement, } from "react";
+import type { MutableRef } from "src/cs/base/common/ref";
 import CogIcon from "src/cs/base/browser/ui/cogIcon/cogIcon";
 import ScrollArea from "cs/base/browser/ui/scrollArea/scrollArea";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
@@ -116,7 +117,7 @@ type CanvasPreviewGridProps = {
     previewWindow: PreviewWindow;
     columnGeometry: PreviewColumnGeometry;
     previewColumnMinWidthPx: number;
-    previewScrollRef?: React.MutableRefObject<HTMLDivElement | null>;
+    previewScrollRef?: MutableRef<HTMLDivElement | null>;
     yColumnsSet: Set<number>;
     getPreviewRow?: (rowIndex: number) => unknown;
     selections?: SelectionItem[];
@@ -138,10 +139,10 @@ type TemplateManagerPreviewPanelProps = {
     activeCellRect?: DOMRect | Record<string, number> | null;
     adjustPreviewZoom: (deltaSteps: number) => void;
     copySelection?: () => Promise<void> | void;
-    dragOverlayRef: React.MutableRefObject<HTMLDivElement | null>;
+    dragOverlayRef: MutableRef<HTMLDivElement | null>;
     getPreviewRow?: (rowIndex: number) => unknown;
     getPreviewRowsVersion?: () => number;
-    gridRef: React.MutableRefObject<HTMLDivElement | null>;
+    gridRef: MutableRef<HTMLDivElement | null>;
     handleCellMouseDown?: (event: React.MouseEvent<HTMLTableCellElement>) => void;
     handleColumnResizeStart: (event: React.PointerEvent<HTMLDivElement>, colIndex: number) => void;
     handlePreviewPick?: (payload: {
@@ -157,9 +158,9 @@ type TemplateManagerPreviewPanelProps = {
     previewFile?: PreviewFileLike | null;
     previewRowHeightPx: number;
     previewRowIndexWidthPx: number;
-    previewScrollRef: React.MutableRefObject<HTMLDivElement | null>;
+    previewScrollRef: MutableRef<HTMLDivElement | null>;
     previewStatus?: PreviewStatus | null;
-    previewTableRef: React.MutableRefObject<HTMLTableElement | null>;
+    previewTableRef: MutableRef<HTMLTableElement | null>;
     previewWindow: PreviewWindow;
     previewZoomPercent: number;
     resetPreviewZoom: () => void;
@@ -371,7 +372,7 @@ const PreviewTbody = React.memo(({ subscribePreviewRowsVersion, getPreviewRowsVe
     const previewRenderColCount = columnGeometry?.renderColCount ?? 1;
     const previewRowsVersion = useSyncExternalStore(previewRowsSubscribe, previewRowsGetSnapshot, previewRowsGetSnapshot);
     const rows = useMemo(() => {
-        const nextRows: React.JSX.Element[] = [];
+        const nextRows: ReactElement[] = [];
         const visibleRowCount = Math.max(0, previewWindow.endRow - previewWindow.startRow);
         for (let slot = 0; slot < visibleRowCount; slot += 1) {
             const rowIndex = previewWindow.startRow + slot;

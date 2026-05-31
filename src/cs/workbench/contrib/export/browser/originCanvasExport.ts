@@ -3,8 +3,8 @@ import {
   useEffect,
   useMemo,
   useState,
-  type MutableRefObject,
 } from "react";
+import type { MutableRef } from "src/cs/base/common/ref";
 import {
   exportOriginZip,
   type OriginDisplayRange,
@@ -46,8 +46,8 @@ type UseOriginCanvasExportOptions = {
   filteredCanvasKind?: OriginFilteredCanvasKind;
   effectiveActiveFileId: unknown;
   isWindowsDesktopShell: boolean;
-  originChartXRangeRef: MutableRefObject<OriginDisplayRange | null>;
-  originChartYRangeRef: MutableRefObject<{
+  originChartXRangeRef: MutableRef<OriginDisplayRange | null>;
+  originChartYRangeRef: MutableRef<{
     mode: "linear" | "log";
     min: number;
     max: number;

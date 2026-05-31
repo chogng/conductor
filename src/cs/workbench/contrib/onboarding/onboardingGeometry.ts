@@ -1,5 +1,6 @@
-﻿import type { CSSProperties } from "react";
-import type { OnboardingCardAnchor, OnboardingStep } from "src/cs/workbench/contrib/onboarding/onboardingTypes";
+﻿import type { OnboardingCardAnchor, OnboardingStep } from "src/cs/workbench/contrib/onboarding/onboardingTypes";
+
+export type OnboardingStyle = Record<string, string | number | undefined>;
 
 export type RectLike = {
   top: number;
@@ -265,7 +266,7 @@ export const computeCardPosition = (
   cardSize: CardSize,
   offsetX = 0,
   offsetY = 0,
-): CSSProperties => {
+): OnboardingStyle => {
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
   const maxLeft = Math.max(
@@ -358,7 +359,7 @@ export const computeAnchoredCardPosition = (
   cardSize: CardSize,
   offsetX = 0,
   offsetY = 0,
-): CSSProperties => {
+): OnboardingStyle => {
   const viewportWidth = window.innerWidth;
   const viewportHeight = window.innerHeight;
   const maxLeft = Math.max(
@@ -400,3 +401,9 @@ export const computeAnchoredCardPosition = (
     width: cardSize.width,
   };
 };
+
+
+
+
+
+

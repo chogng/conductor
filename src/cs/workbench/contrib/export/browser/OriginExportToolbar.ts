@@ -1,6 +1,7 @@
 ﻿import { Fragment, jsx, jsxs } from "react/jsx-runtime";
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type MutableRefObject, type ReactNode, type Ref, type RefCallback, type RefObject } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type CSSProperties, type ReactNode, type Ref, type RefCallback, type RefObject } from "react";
 import { createPortal } from "react-dom";
+import type { MutableRef } from "src/cs/base/common/ref";
 import { lxCheck, lxChevronDown, lxChevronRight } from "cogicon";
 import Button from "cs/base/browser/ui/button/button";
 import CogIcon from "src/cs/base/browser/ui/cogIcon/cogIcon";
@@ -28,6 +29,7 @@ type OriginExportContentMenuGroup = {
     labelKey: string;
     options: OriginExportContentOption[];
 };
+type StateSetter<T> = (value: T | ((previous: T) => T)) => void;
 export type ReplaceMatchingOriginSeriesAcrossFilesFn = (options: {
     fileIds?: unknown[];
     sourceSeriesRefs?: Array<{
@@ -54,9 +56,9 @@ type OriginExportToolbarProps = {
     scopedFileIds: string[];
     selectedContentKeys: OriginExportContentKey[];
     selectedCurveOptionKeySet: Set<string>;
-    setContentKeys: React.Dispatch<React.SetStateAction<OriginExportContentKey[]>>;
-    setOriginCanvasExportScope: React.Dispatch<React.SetStateAction<OriginCanvasExportScope>>;
-    setOriginFilteredCanvasKind: React.Dispatch<React.SetStateAction<OriginFilteredCanvasKind>>;
+    setContentKeys: StateSetter<OriginExportContentKey[]>;
+    setOriginCanvasExportScope: StateSetter<OriginCanvasExportScope>;
+    setOriginFilteredCanvasKind: StateSetter<OriginFilteredCanvasKind>;
     setResolvedCurveExportMode: (next: OriginCurveExportMode) => void;
     showFilteredCanvasKindSelect: boolean;
     t: OriginExportContentTranslateFn;
@@ -119,7 +121,7 @@ const assignRef = <T,>(ref: Ref<T> | undefined, value: T) => {
         ref(value);
         return;
     }
-    (ref as MutableRefObject<T>).current = value;
+    (ref as MutableRef<T>).current = value;
 };
 const Dropdown = ({ anchorRef, children, closeOnClickOutside = true, closeOnEscape = true, isOpen, onOpenChange }: DropdownProps) => {
     const internalAnchorRef = useRef<HTMLElement | null>(null);
@@ -341,7 +343,7 @@ const normalizeOriginExportContentKeysForOptions = (keys: readonly OriginExportC
 const OriginExportContentMenu = ({ options, selectedKeys, setSelectedKeys, t, }: {
     options: OriginExportContentOption[];
     selectedKeys: OriginExportContentKey[];
-    setSelectedKeys: React.Dispatch<React.SetStateAction<OriginExportContentKey[]>>;
+    setSelectedKeys: StateSetter<OriginExportContentKey[]>;
     t: OriginExportContentTranslateFn;
 }) => {
     const [isOpen, setIsOpen] = useState(false);

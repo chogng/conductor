@@ -153,7 +153,6 @@ const Tabs = ({ options = [], value, onChange, className = "", itemClassName = "
             return;
         if (value === undefined)
             return;
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setMountedValues((prev) => {
             if (prev.has(value))
                 return prev;

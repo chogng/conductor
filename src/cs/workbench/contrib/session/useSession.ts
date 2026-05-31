@@ -6,10 +6,9 @@ export const useSession = (): SessionContextValue => {
   const context = useContext(SessionContext);
   if (!context) {
     throw new Error(
-      "useSession must be used within SessionProvider.",
+      "useSession must be used within a session context.",
     );
   }
 
   return context;
 };
-

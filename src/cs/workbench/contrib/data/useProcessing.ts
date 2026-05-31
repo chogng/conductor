@@ -4,10 +4,9 @@
   useMemo,
   useRef,
   useState,
-  type Dispatch,
-  type MutableRefObject,
-  type SetStateAction,
 } from "react";
+import type { MutableRef } from "src/cs/base/common/ref";
+import type { StateSetter } from "src/cs/workbench/contrib/session/analysis-session-context";
 import { prepareExtraction } from "src/cs/workbench/contrib/data/extractionValidation";
 import {
   parseOlderExtractionError,
@@ -81,10 +80,10 @@ type UseProcessingOptions = {
   previewFile: unknown;
   processedData?: ProcessedEntry[];
   rawData?: RawDataEntry[];
-  rawDataByIdRef: MutableRefObject<Map<string, unknown>>;
+  rawDataByIdRef: MutableRef<Map<string, unknown>>;
   onExtractionError?: (error: ExtractionErrorEntry) => void;
   setActivePage: (page: string) => void;
-  setProcessedData: Dispatch<SetStateAction<ProcessedEntry[]>>;
+  setProcessedData: StateSetter<ProcessedEntry[]>;
   t: TranslateFn;
 };
 
