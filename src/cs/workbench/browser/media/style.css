@@ -1,9 +1,153 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
+  /* Theme tokens (RGB triplets): Tailwind colors read from these variables. */
   color-scheme: light;
+  --bg-page: 245 244 239;
+  --bg-surface: 255 255 255;
+  --bg-surface-hover: 250 249 245;
+  --bg-ghost: 250 249 245;
+  --bg-primary: 34 34 34;
+  --bg-subtle: 240 240 240;
+  --bg-0: 250 249 245;
+  --bg-100: 240 238 230;
+  --bg-200: 227 223 210;
+  --bg-300: 214 209 194;
+  --bg-400: 199 193 175;
+  --bg-500: 189 182 162;
+
+  --border: 229 229 229;
+  --border-subtle: 229 229 229;
+  --border-100: 229 229 229;
+  --border-200: 209 209 209;
+  --border-300: 48 48 46;
+  --border-400: 153 153 153;
+
+  --text-primary: 34 34 34;
+  --text-secondary: 102 102 102;
+  --text-tertiary: 153 153 153;
+  --text-danger: 239 68 68;
+  --text-0: 34 34 34;
+  --text-100: 51 51 51;
+  --text-200: 85 85 85;
+  --text-300: 119 119 119;
+  --text-400: 115 114 108;
+  --text-500: 176 176 176;
+
+  --accent: 34 34 34;
+  --accent-hover: 0 0 0;
+  --accent-focus: 44 132 219;
+  --accent-terracotta: 217 119 87;
+
+  --color-bg: rgb(var(--bg-page) / 1);
+  --color-surface: rgb(var(--bg-surface) / 0.55);
+  --color-text-primary: rgb(var(--text-primary) / 1);
+  --color-text-secondary: rgb(var(--text-secondary) / 1);
+  --color-accent: rgb(var(--accent) / 1);
+  --color-accent-hover: rgb(var(--accent-hover) / 1);
+  --color-accent-soft: rgb(var(--accent) / 0.08);
+  --color-border: rgb(var(--border) / 0.35);
+  --color-divider: rgb(var(--border) / 0.2);
+  --color-highlight: rgb(var(--bg-surface) / 0.8);
+
+  /* Status Colors */
+  --color-success: #10B981;
+  --color-warning: #F59E0B;
+  --color-error: #EF4444;
+
+  /* Semantic status colors (RGB triplets for Tailwind alpha support) */
+  --status-approved-rgb: 16 185 129; /* emerald-500 */
+  --status-pending-rgb: 245 158 11; /* amber-500 */
+  --status-rejected-rgb: 239 68 68; /* red-500 */
+
+  /* Typography */
+  --font-family-base: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Spacing */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+  --spacing-2xl: 3rem;
+
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.08);
+  --shadow-glass: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+  --shadow-premium: 0 20px 40px rgba(0, 0, 0, 0.1);
+
+  /* Transitions */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .dark {
   color-scheme: dark;
+  --bg-page: 11 11 12;
+  --bg-surface: 18 18 20;
+  --bg-surface-hover: 26 26 29;
+  --bg-ghost: 20 20 22;
+  --bg-primary: 217 119 87;
+  --bg-subtle: 26 26 29;
+  --bg-0: 18 18 20;
+  --bg-100: 24 24 27;
+  --bg-200: 33 33 37;
+  --bg-300: 45 45 50;
+  --bg-400: 60 60 66;
+  --bg-500: 78 78 86;
+
+  --border: 48 48 54;
+  --border-subtle: 40 40 46;
+  --border-100: 48 48 54;
+  --border-200: 70 70 78;
+  --border-300: 95 95 105;
+  --border-400: 130 130 145;
+
+  --text-primary: 245 244 239;
+  --text-secondary: 203 200 191;
+  --text-tertiary: 162 156 145;
+  --text-danger: 248 113 113;
+  --text-0: 245 244 239;
+  --text-100: 236 233 224;
+  --text-200: 221 216 205;
+  --text-300: 200 194 182;
+  --text-400: 176 169 156;
+  --text-500: 145 140 130;
+
+  --accent: 217 119 87;
+  --accent-hover: 202 101 73;
+  --accent-focus: 44 132 219;
+  --accent-terracotta: 217 119 87;
+
+  --color-bg: rgb(var(--bg-page) / 1);
+  --color-surface: rgb(var(--bg-surface) / 0.6);
+  --color-text-primary: rgb(var(--text-primary) / 1);
+  --color-text-secondary: rgb(var(--text-secondary) / 1);
+  --color-accent: rgb(var(--accent) / 1);
+  --color-accent-hover: rgb(var(--accent-hover) / 1);
+  --color-accent-soft: rgb(var(--accent) / 0.12);
+  --color-border: rgb(var(--border) / 0.6);
+  --color-divider: rgb(var(--border) / 0.45);
+  --color-highlight: rgb(var(--bg-surface-hover) / 0.35);
 }
 
 html {

@@ -1,8 +1,9 @@
-﻿import { getWorkbenchEnvironment } from "src/cs/workbench/services/environment/browser/environmentService";
+import { getBootNowMs } from "src/cs/code/browser/workbench/boot";
+import { getWorkbenchEnvironment } from "src/cs/workbench/services/environment/browser/environmentService";
 
-let workbenchAppPromise: Promise<typeof import("./App")> | null = null;
+let workbenchAppPromise: Promise<typeof import("src/cs/code/browser/workbench/app")> | null = null;
 let appPromise:
-  | Promise<typeof import("./cs/workbench/contrib/workspace/App")>
+  | Promise<typeof import("src/cs/workbench/contrib/workspace/App")>
   | null = null;
 
 let workbenchImportStartedAtMs = 0;
@@ -11,14 +12,6 @@ let importStartedAtMs = 0;
 const isBootProfileEnabled = () =>
   getWorkbenchEnvironment()?.isDesktop === true ||
   (import.meta.env.DEV && window.__CONDUCTOR_BOOT_PROFILE_ENABLED__ === true);
-
-const getBootNowMs = () => {
-  if (typeof performance !== "undefined" && typeof performance.now === "function") {
-    return performance.now();
-  }
-
-  return Date.now();
-};
 
 const formatWaitSince = (startedAtMs: number, label = "wait") => {
   const elapsedMs = Math.max(0, Math.round(getBootNowMs() - startedAtMs));
@@ -44,7 +37,7 @@ export const loadWorkbenchApp = () => {
 
   workbenchImportStartedAtMs = getBootNowMs();
   logRendererBoot("app:import-started");
-  workbenchAppPromise = import("./App")
+  workbenchAppPromise = import("src/cs/code/browser/workbench/app")
     .then((module) => {
       logRendererBoot(
         "app:import-resolved",
@@ -73,7 +66,7 @@ export const loadApp = () => {
 
   importStartedAtMs = getBootNowMs();
   logRendererBoot("analysis:import-started");
-  appPromise = import("./cs/workbench/contrib/workspace/App")
+  appPromise = import("src/cs/workbench/contrib/workspace/App")
     .then((module) => {
       logRendererBoot(
         "analysis:import-resolved",

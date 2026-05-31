@@ -1,8 +1,5 @@
-﻿import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { workbenchThemeService } from "src/cs/workbench/services/themes/browser/themeService";
-import AnalysisApp from "./cs/workbench/contrib/workspace/App";
-
-workbenchThemeService.start();
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import AnalysisApp from "src/cs/workbench/contrib/workspace/App";
 
 const isUnauthorizedError = (error: unknown) => {
   if (typeof error !== "object" || error === null || !("status" in error)) {
@@ -38,3 +35,4 @@ function App() {
 }
 
 export default App;
+

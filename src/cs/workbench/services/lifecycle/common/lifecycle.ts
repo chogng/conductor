@@ -1,6 +1,6 @@
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-import { Emitter, type Event } from "src/cs/base/common/event";
-import { Disposable } from "src/cs/base/common/lifecycle";
+import type { Event } from "src/cs/base/common/event";
+import type { CancellationToken } from "src/cs/base/common/async";
 
 export const enum LifecyclePhase {
   Starting = 1,
@@ -9,58 +9,74 @@ export const enum LifecyclePhase {
   Eventually = 4,
 }
 
+export function LifecyclePhaseToString(phase: LifecyclePhase): string {
+  switch (phase) {
+    case LifecyclePhase.Starting:
+      return "Starting";
+    case LifecyclePhase.Ready:
+      return "Ready";
+    case LifecyclePhase.Restored:
+      return "Restored";
+    case LifecyclePhase.Eventually:
+      return "Eventually";
+  }
+}
+
+export const enum ShutdownReason {
+  Close = 1,
+  Quit = 2,
+  Reload = 3,
+  Load = 4,
+}
+
+export const enum StartupKind {
+  NewWindow = 1,
+  ReloadedWindow = 3,
+  ReopenedWindow = 4,
+}
+
+export interface BeforeShutdownEvent {
+  readonly reason: ShutdownReason;
+  veto(value: boolean | Promise<boolean>, id: string): void;
+}
+
+export interface BeforeShutdownErrorEvent {
+  readonly reason: ShutdownReason;
+  readonly error: Error;
+}
+
+export const enum WillShutdownJoinerOrder {
+  Default = 1,
+  Last = 2,
+}
+
+export interface IWillShutdownEventJoiner {
+  readonly id: string;
+  readonly label: string;
+  readonly order?: WillShutdownJoinerOrder;
+}
+
+export interface WillShutdownEvent {
+  readonly reason: ShutdownReason;
+  readonly token: CancellationToken;
+  join(promise: Promise<void>, joiner: IWillShutdownEventJoiner): void;
+  join(promiseFn: () => Promise<void>, joiner: IWillShutdownEventJoiner & { readonly order: WillShutdownJoinerOrder.Last }): void;
+  joiners(): IWillShutdownEventJoiner[];
+  force(): void;
+}
+
 export const ILifecycleService = createDecorator<ILifecycleService>("lifecycleService");
 
 export interface ILifecycleService {
   readonly _serviceBrand: undefined;
-  readonly phase: LifecyclePhase;
+  readonly startupKind: StartupKind;
+  phase: LifecyclePhase;
+  readonly onBeforeShutdown: Event<BeforeShutdownEvent>;
+  readonly onShutdownVeto: Event<void>;
+  readonly onBeforeShutdownError: Event<BeforeShutdownErrorEvent>;
+  readonly onWillShutdown: Event<WillShutdownEvent>;
+  readonly willShutdown: boolean;
   readonly onDidShutdown: Event<void>;
   when(phase: LifecyclePhase): Promise<void>;
-}
-
-export class LifecycleService extends Disposable implements ILifecycleService {
-  public declare readonly _serviceBrand: undefined;
-
-  private currentPhase = LifecyclePhase.Starting;
-  private readonly onDidShutdownEmitter = this._register(new Emitter<void>());
-  private readonly pendingPhases = new Map<LifecyclePhase, Array<() => void>>();
-
-  public readonly onDidShutdown = this.onDidShutdownEmitter.event;
-
-  public get phase(): LifecyclePhase {
-    return this.currentPhase;
-  }
-
-  public setPhase(phase: LifecyclePhase): void {
-    if (phase <= this.currentPhase) {
-      return;
-    }
-
-    this.currentPhase = phase;
-
-    for (const [pendingPhase, callbacks] of Array.from(this.pendingPhases)) {
-      if (pendingPhase <= phase) {
-        this.pendingPhases.delete(pendingPhase);
-        for (const callback of callbacks) {
-          callback();
-        }
-      }
-    }
-  }
-
-  public when(phase: LifecyclePhase): Promise<void> {
-    if (this.currentPhase >= phase) {
-      return Promise.resolve();
-    }
-
-    return new Promise(resolve => {
-      const callbacks = this.pendingPhases.get(phase) ?? [];
-      callbacks.push(resolve);
-      this.pendingPhases.set(phase, callbacks);
-    });
-  }
-
-  public shutdown(): void {
-    this.onDidShutdownEmitter.fire();
-  }
+  shutdown(): Promise<void>;
 }
