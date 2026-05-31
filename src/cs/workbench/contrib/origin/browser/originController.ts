@@ -1,6 +1,6 @@
 import JSZip from "jszip";
 
-import { triggerBlobDownload } from "src/cs/workbench/contrib/dataExport/export";
+import { triggerBlobDownload } from "src/cs/workbench/contrib/export/browser/export";
 import {
   buildOriginAxisSpacingCommands,
   buildOriginAxisTitleCommands,
@@ -8,11 +8,11 @@ import {
   buildOriginYAxisRangeCommands,
   buildOriginYAxisRangeCommandsFromDisplayRange,
   type OriginAxisScaleMode,
-} from "src/cs/workbench/contrib/chartPreview/lib/origin/originAxisCommands";
+} from "src/cs/workbench/contrib/origin/common/originAxisCommands";
 import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
   normalizeOriginPlotOptions,
-} from "src/cs/workbench/contrib/chartPreview/lib/origin/originPlotOptions";
+} from "src/cs/workbench/contrib/origin/common/originPlotOptions";
 import { originService } from "src/cs/workbench/services/origin/browser/originService";
 
 export const ORIGIN_CSV_AUTO_ZIP_FALLBACK_CODES = new Set([

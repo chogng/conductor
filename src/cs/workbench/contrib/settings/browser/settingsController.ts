@@ -3,8 +3,8 @@ import {
   normalizeOriginPlotOptions,
   normalizeOriginPostCommands,
   originPostCommandsToMultiline,
-} from "src/cs/workbench/contrib/chartPreview/lib/origin/originPlotOptions";
-import { normalizePlotAxisSettings } from "src/cs/workbench/contrib/chartPreview/lib/plotAxisSettings";
+} from "src/cs/workbench/contrib/origin/common/originPlotOptions";
+import { normalizePlotAxisSettings } from "src/cs/workbench/contrib/chart/common/plotAxisSettings";
 import { normalizeFileNameFieldSeparators } from "src/cs/workbench/common/deviceAnalysis/fileNameFieldMatching";
 import type { Feedback, ToastState } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import type { LanguageCode } from "src/cs/platform/language/common/language";

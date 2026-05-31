@@ -1,4 +1,4 @@
-import { validateTemplateForApply } from "src/cs/workbench/contrib/template/templateValidation";
+import { validateTemplateForApply } from "src/cs/workbench/contrib/template/common/templateValidation";
 import {
   inferXSegmentationSuggestionFromPreview,
   resolveXSegmentationMode,

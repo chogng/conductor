@@ -1,6 +1,7 @@
 ﻿import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type Dispatch,
@@ -25,11 +26,9 @@ import type {
 } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/deviceAnalysis/translateTypes";
 import {
-  startProcessingJob,
-  startRuleProcessingJob,
-  terminateProcessingWorker,
   type ProcessingQueueItem,
 } from "./asyncProcessing";
+import { BrowserDataProcessingService } from "src/cs/workbench/contrib/data/browser/dataProcessingService";
 import { importService } from "src/cs/workbench/services/import/browser/importService";
 
 // Orchestrates validation and queue building for the device-analysis apply flow.
@@ -267,6 +266,7 @@ export const useProcessing = ({
   setProcessedData,
   t,
 }: UseProcessingOptions) => {
+  const dataProcessingService = useMemo(() => new BrowserDataProcessingService(), []);
   const [processingStatus, setProcessingStatus] = useState<ProcessingStatus>({
     state: "idle",
     processed: 0,
@@ -286,14 +286,14 @@ export const useProcessing = ({
     processingStopOnErrorRef.current = false;
     removedQueuedFileIdsRef.current = new Set();
 
-    terminateProcessingWorker(processingWorkerRef);
+    dataProcessingService.terminateProcessingWorker(processingWorkerRef);
 
     setProcessingStatus({
       state: "idle",
       processed: 0,
       total: 0,
     });
-  }, []);
+  }, [dataProcessingService]);
 
   const removeQueuedProcessingFile = useCallback(
     (fileId: string) => {
@@ -318,9 +318,9 @@ export const useProcessing = ({
 
   useEffect(() => {
     return () => {
-      terminateProcessingWorker(processingWorkerRef);
+      dataProcessingService.terminateProcessingWorker(processingWorkerRef);
     };
-  }, []);
+  }, [dataProcessingService]);
 
   const prepareExtractionRun = useCallback(
     (config: Record<string, unknown>): PreparedExtractionResult => {
@@ -415,7 +415,7 @@ export const useProcessing = ({
       resetProcessedData,
       stopOnError,
     }: StartExtractionJobOptions) => {
-      startProcessingJob({
+      dataProcessingService.startProcessingJob({
         activeFileId,
         extractionConfig,
         messageType,
@@ -439,6 +439,7 @@ export const useProcessing = ({
     },
     [
       activeFileId,
+      dataProcessingService,
       onExtractionError,
       processingJobIdRef,
       processingQueueRef,
@@ -612,7 +613,7 @@ export const useProcessing = ({
       }
 
       lastAppliedTemplateConfigFingerprintRef.current = stableStringify(config);
-      startRuleProcessingJob({
+      dataProcessingService.startRuleProcessingJob({
         activeFileId,
         finalQueue,
         groupedPrepared,
@@ -645,6 +646,7 @@ export const useProcessing = ({
     },
     [
       activeFileId,
+      dataProcessingService,
       onExtractionError,
       prepareExtractionRun,
       processedData,

@@ -16,7 +16,7 @@ import {
   openTemplateDropdownForOnboarding,
   openTemplateSaveModeForOnboarding,
   openTemplateSelectModeForOnboarding,
-} from "src/cs/workbench/contrib/template/templateOnboardingActions";
+} from "src/cs/workbench/contrib/template/browser/templateOnboardingActions";
 import { ONBOARDING_STEPS } from "src/cs/workbench/contrib/onboarding/onboardingSteps";
 
 const DEMO_TEMPLATE_NAME_FALLBACK = "demo-01";

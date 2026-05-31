@@ -2,11 +2,10 @@ export { SessionProvider } from "src/cs/workbench/contrib/session/SessionProvide
 export { default as App } from "./App";
 export { default as Page } from "./Page";
 export { useDesktopShell } from "src/cs/workbench/contrib/desktop/useDesktopShell";
-export { useExports } from "src/cs/workbench/contrib/dataExport/useExports";
+export { useExports } from "src/cs/workbench/contrib/export/browser/useExports";
 export { usePreview } from "src/cs/workbench/contrib/tablePreview/usePreview";
 export { useProcessing } from "src/cs/workbench/contrib/data/useProcessing";
 export { useSession } from "src/cs/workbench/contrib/session/useSession";
 export { useSessionActions } from "src/cs/workbench/contrib/session/useSessionActions";
-export { default as AnalysisPanel } from "src/cs/workbench/contrib/chartPreview/AnalysisPanel";
-export { default as DataPart } from "src/cs/workbench/contrib/data/DataPart";
+export { default as DataViewPane } from "src/cs/workbench/contrib/data/browser/dataViewPane";
 export { default as SettingsViewPane } from "src/cs/workbench/contrib/settings/browser/settingsViewPane";

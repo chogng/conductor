@@ -58,7 +58,7 @@ type SchedulerCallbacks = {
   setProcessingStatus: Dispatch<SetStateAction<ProcessingStatus>>;
 };
 
-type ProcessingJobOptions = SchedulerRefs &
+export type ProcessingJobOptions = SchedulerRefs &
   SchedulerCallbacks & {
     activeFileId?: unknown;
     extractionConfig: unknown;
@@ -69,7 +69,7 @@ type ProcessingJobOptions = SchedulerRefs &
     tryProcessFileWithRust: TryProcessFileWithRust;
   };
 
-type RuleProcessingJobOptions = SchedulerRefs &
+export type RuleProcessingJobOptions = SchedulerRefs &
   SchedulerCallbacks & {
     activeFileId?: unknown;
     finalQueue: ProcessingQueueItem[];

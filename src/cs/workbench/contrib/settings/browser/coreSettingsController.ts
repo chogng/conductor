@@ -6,7 +6,7 @@ import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
   normalizeOriginPlotOptions,
   type OriginPlotOptions,
-} from "src/cs/workbench/contrib/chartPreview/lib/origin/originPlotOptions";
+} from "src/cs/workbench/contrib/origin/common/originPlotOptions";
 import type {
   IonIoffMethod,
   SsMethod,

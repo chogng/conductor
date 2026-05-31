@@ -1,5 +1,5 @@
 ﻿type OnboardingModule =
-  typeof import("src/cs/workbench/contrib/onboarding/Onboarding");
+  typeof import("src/cs/workbench/contrib/onboarding/onboardingView");
 type OnboardingControllerModule =
   typeof import("src/cs/workbench/contrib/onboarding/onboardingControllerHost");
 
@@ -10,7 +10,7 @@ let onboardingControllerPromise: Promise<OnboardingControllerModule> | null =
 export const loadOnboarding = (): Promise<OnboardingModule> => {
   if (!onboardingModulePromise) {
     onboardingModulePromise = import(
-      "src/cs/workbench/contrib/onboarding/Onboarding"
+      "src/cs/workbench/contrib/onboarding/onboardingView"
     );
   }
 

@@ -1,5 +1,5 @@
-import { formatOriginBridgeError } from "src/cs/workbench/contrib/chartPreview/lib/origin/originBridgeError";
-import { apiService } from "src/cs/workbench/contrib/chartPreview/services/apiService";
+import { formatOriginBridgeError } from "src/cs/workbench/contrib/origin/common/originBridgeError";
+import { apiService } from "src/cs/workbench/contrib/desktop/browser/apiService";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
   getDesktopOriginBridge,
