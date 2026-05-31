@@ -1,0 +1,122 @@
+.settings-view {
+  position: relative;
+}
+
+.settings-view-layout {
+  @apply grid min-h-0 items-start gap-4;
+  grid-template-columns: 220px minmax(0, 1fr);
+}
+
+.settings-view-nav {
+  @apply h-fit w-full min-w-0 rounded-lg border border-border bg-bg-surface p-2;
+}
+
+.settings-view-nav-list {
+  @apply grid grid-cols-1 gap-2;
+}
+
+.settings-view-nav-item {
+  @apply h-12 w-full min-w-0 overflow-hidden rounded-md px-3 py-2 text-left text-sm font-medium leading-5 text-text-secondary transition-colors;
+}
+
+.settings-view-nav-item:hover {
+  @apply bg-bg-page text-text-primary;
+}
+
+.settings-view-nav-item[data-selected="true"] {
+  @apply bg-text-primary text-bg-surface;
+}
+
+.settings-view-content {
+  @apply min-w-0 space-y-4;
+}
+
+.settings-card {
+  @apply rounded-lg border border-border bg-bg-surface;
+}
+
+.settings-card-block {
+  @apply p-4 space-y-4;
+}
+
+.settings-card-row {
+  @apply p-4;
+}
+
+.settings-row {
+  @apply flex items-center justify-between gap-3;
+}
+
+.settings-row-control {
+  @apply w-fit;
+}
+
+.settings-heading .settings-description {
+  @apply mt-1;
+}
+
+.settings-description {
+  @apply text-sm text-text-secondary;
+}
+
+.settings-grid {
+  @apply grid gap-3;
+}
+
+.settings-grid--three {
+  @apply grid-cols-3;
+}
+
+.settings-grid--five {
+  @apply grid-cols-5;
+}
+
+.settings-field {
+  @apply space-y-1;
+}
+
+.settings-path-controls {
+  @apply flex items-center gap-2;
+}
+
+.settings-path-value {
+  @apply flex h-[38px] min-w-0 flex-1 items-center rounded-lg border border-border bg-bg-page px-3 py-2;
+}
+
+.settings-textarea {
+  @apply min-h-[96px] w-full resize-y rounded-lg border border-border bg-bg-surface px-3 py-2 font-mono text-sm text-text-primary;
+}
+
+.settings-button {
+  @apply h-[38px] whitespace-nowrap;
+}
+
+.settings-actions-end {
+  @apply flex justify-end;
+}
+
+@media (max-width: 900px) {
+  .settings-view-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-view-nav-list {
+    @apply grid-cols-3;
+  }
+
+  .settings-grid--three,
+  .settings-grid--five {
+    @apply grid-cols-1;
+  }
+
+  .settings-path-controls,
+  .settings-row {
+    @apply items-stretch;
+    flex-direction: column;
+  }
+
+  .settings-row-control,
+  .settings-path-controls .settings-button {
+    @apply w-full;
+  }
+}

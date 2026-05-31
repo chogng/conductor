@@ -14,6 +14,7 @@ import type {
   WindowCloseSettings,
 } from "src/cs/workbench/contrib/settings/settingsViewTypes";
 import { cx } from "src/utils/cx";
+import "src/cs/workbench/contrib/settings/browser/media/settingsView.css";
 
 type SelectOption = {
   label: string;
@@ -83,7 +84,7 @@ export class SettingsView {
 
   constructor(container: HTMLElement, options: SettingsViewOptions) {
     this.root = document.createElement("section");
-    this.root.className = "relative";
+    this.root.className = "settings-view";
     this.root.setAttribute("aria-label", options.t("da_settings_section_aria_label"));
     container.appendChild(this.root);
     this.options = options;
@@ -109,26 +110,24 @@ export class SettingsView {
   }
 
   private createLayout(): HTMLElement {
-    const layout = div("grid min-h-0 grid-cols-[220px_minmax(0,1fr)] items-start gap-4");
+    const layout = div("settings-view-layout");
     layout.append(this.createNav(), this.createContent());
     return layout;
   }
 
   private createNav(): HTMLElement {
     const aside = document.createElement("aside");
-    aside.className = "h-fit w-full min-w-0 rounded-lg border border-border bg-bg-surface p-2";
+    aside.className = "settings-view-nav";
     aside.setAttribute("aria-label", this.options.t("da_settings_nav_aria_label"));
 
     const nav = document.createElement("nav");
-    nav.className = "grid grid-cols-1 gap-2";
+    nav.className = "settings-view-nav-list";
     for (const section of this.options.settingsSections) {
       const isActive = this.options.activeSettingsSection === section.id;
       const button = document.createElement("button");
       button.type = "button";
-      button.className = cx(
-        "h-12 w-full min-w-0 overflow-hidden rounded-md px-3 py-2 text-left text-sm font-medium leading-5 transition-colors",
-        isActive ? "bg-text-primary text-bg-surface" : "text-text-secondary hover:bg-bg-page hover:text-text-primary",
-      );
+      button.className = "settings-view-nav-item";
+      button.dataset.selected = String(isActive);
       if (isActive) {
         button.setAttribute("aria-current", "page");
       }
@@ -142,7 +141,7 @@ export class SettingsView {
   }
 
   private createContent(): HTMLElement {
-    const content = div("min-w-0 space-y-4");
+    const content = div("settings-view-content");
     if (this.options.activeSettingsSection === "origin") {
       this.renderOrigin(content);
     }
@@ -210,7 +209,7 @@ export class SettingsView {
 
   private renderOrigin(container: HTMLElement): void {
     const { originSettings, t } = this.options;
-    const pathCard = card("analysis-settings-origin-path-card", "p-4 space-y-4");
+    const pathCard = card("analysis-settings-origin-path-card", "settings-card-block");
     pathCard.append(
       headingBlock(t("da_settings_origin_title"), t("da_settings_origin_desc")),
       this.createPathControls(originSettings),
@@ -220,11 +219,11 @@ export class SettingsView {
     }
     container.appendChild(pathCard);
 
-    const cleanupCard = card("analysis-settings-origin-cleanup-card", "p-4 space-y-4");
+    const cleanupCard = card("analysis-settings-origin-cleanup-card", "settings-card-block");
     cleanupCard.append(
       headingBlock(t("da_settings_origin_cleanup_title"), t("da_settings_origin_cleanup_desc")),
       this.createOriginCleanupGrid(originSettings),
-      div("flex justify-end", this.createButton({
+      div("settings-actions-end", this.createButton({
         id: "analysis-settings-origin-cleanup-run-btn",
         label: originSettings.cleanupRunning ? t("da_settings_origin_cleanup_running") : t("da_settings_origin_cleanup_run_btn"),
         onClick: () => void originSettings.onRunCleanupNow(),
@@ -253,9 +252,9 @@ export class SettingsView {
 
   private createAnalysisDefaults(settings: AnalysisDefaultSettings): HTMLElement {
     const { t } = this.options;
-    const container = card("analysis-settings-analysis-defaults-card", "p-4 space-y-4");
+    const container = card("analysis-settings-analysis-defaults-card", "settings-card-block");
     container.appendChild(title(t("da_settings_analysis_defaults_title")));
-    const grid = div("grid grid-cols-5 gap-3");
+    const grid = div("settings-grid settings-grid--five");
     const fields: Array<[string, string, keyof Pick<AnalysisDefaultSettings, "defaultYScaleForTransfer" | "defaultYScaleForOutput" | "defaultYScaleForCv" | "defaultYScaleForCf" | "defaultYScaleForPv">, (value: string) => void]> = [
       ["analysis-settings-default-transfer-y-scale-select", t("da_settings_analysis_defaults_transfer_curve"), "defaultYScaleForTransfer", value => void settings.onDefaultYScaleForTransferChange(value)],
       ["analysis-settings-default-output-y-scale-select", t("da_settings_analysis_defaults_output_curve"), "defaultYScaleForOutput", value => void settings.onDefaultYScaleForOutputChange(value)],
@@ -279,9 +278,9 @@ export class SettingsView {
 
   private createChartDefaults(settings: AnalysisDefaultSettings): HTMLElement {
     const { t } = this.options;
-    const container = card("analysis-settings-chart-defaults-card", "p-4 space-y-4");
+    const container = card("analysis-settings-chart-defaults-card", "settings-card-block");
     container.appendChild(title(t("da_settings_chart_defaults_title")));
-    const grid = div("grid grid-cols-3 gap-3");
+    const grid = div("settings-grid settings-grid--three");
     grid.append(
       field(t("da_settings_chart_defaults_legend"), this.createInput({
         id: "analysis-settings-default-legend-font-size-input",
@@ -326,12 +325,12 @@ export class SettingsView {
 
   private createStorage(settings: StorageSettings): HTMLElement {
     const { t } = this.options;
-    const container = card("analysis-settings-storage-card", "p-4 space-y-4");
+    const container = card("analysis-settings-storage-card", "settings-card-block");
     container.appendChild(headingBlock(t("da_settings_storage_title"), t("da_settings_storage_desc")));
-    const controls = div("flex items-center gap-2");
+    const controls = div("settings-path-controls");
     controls.id = "analysis-settings-origin-path-controls";
     controls.append(
-      div("flex h-[38px] min-w-0 flex-1 items-center rounded-lg border border-border bg-bg-page px-3 py-2",
+      div("settings-path-value",
         text("p", "truncate font-mono text-xs text-text-primary", settings.currentPath || (settings.isLoading ? t("da_settings_storage_loading") : settings.isConfigurable ? t("da_settings_storage_unavailable") : t("da_settings_storage_not_configurable_hint"))),
       ),
       this.createButton({
@@ -349,9 +348,9 @@ export class SettingsView {
 
   private createFileNameMatching(settings: FileNameMatchingSettings): HTMLElement {
     const { t } = this.options;
-    const container = card("analysis-settings-filename-matching-card", "p-4 space-y-4");
+    const container = card("analysis-settings-filename-matching-card", "settings-card-block");
     container.appendChild(headingBlock(t("da_settings_filename_matching_title"), t("da_settings_filename_matching_desc")));
-    const body = div("space-y-1");
+    const body = div("settings-field");
     body.append(
       label(t("da_settings_filename_matching_label")),
       this.createInput({
@@ -375,9 +374,9 @@ export class SettingsView {
 
   private createPathControls(settings: OriginSettings): HTMLElement {
     const { t } = this.options;
-    const controls = div("flex items-center gap-2");
+    const controls = div("settings-path-controls");
     controls.append(
-      div("flex h-[38px] min-w-0 flex-1 items-center rounded-lg border border-border bg-bg-page px-3 py-2",
+      div("settings-path-value",
         text("p", "truncate font-mono text-xs text-text-primary", settings.currentPath || (settings.isLoading ? t("da_settings_origin_loading") : t("da_settings_origin_not_configurable_hint"))),
       ),
       this.createButton({
@@ -400,7 +399,7 @@ export class SettingsView {
 
   private createOriginCleanupGrid(settings: OriginSettings): HTMLElement {
     const { t } = this.options;
-    const grid = div("grid grid-cols-3 gap-3");
+    const grid = div("settings-grid settings-grid--three");
     grid.append(
       field(t("da_settings_origin_cleanup_enable_label"), this.createSelect({
         id: "analysis-settings-origin-cleanup-enabled-select",
@@ -429,7 +428,7 @@ export class SettingsView {
 
   private createOriginPlot(settings: OriginSettings): HTMLElement {
     const { t } = this.options;
-    const container = card("analysis-settings-origin-plot-card", "p-4 space-y-4");
+    const container = card("analysis-settings-origin-plot-card", "settings-card-block");
     container.appendChild(headingBlock(t("da_settings_origin_plot_title"), t("da_settings_origin_plot_desc")));
     container.append(
       field(t("da_settings_origin_plot_xy_pairs_label"), this.createInput({
@@ -464,10 +463,10 @@ export class SettingsView {
 
   private createPostCommandsField(settings: OriginSettings): HTMLElement {
     const { t } = this.options;
-    const container = div("space-y-1");
+    const container = div("settings-field");
     const textarea = document.createElement("textarea");
     textarea.id = "analysis-settings-origin-plot-post-commands-input";
-    textarea.className = "min-h-[96px] w-full resize-y rounded-lg border border-border bg-bg-surface px-3 py-2 font-mono text-sm text-text-primary";
+    textarea.className = "settings-textarea";
     textarea.value = this.options.postCommandsDraft;
     textarea.disabled = settings.plotSaving || !settings.isConfigurable;
     textarea.addEventListener("input", () => this.options.setPostCommandsDraft(textarea.value));
@@ -526,7 +525,7 @@ export class SettingsView {
     const button = document.createElement("button");
     button.id = options.id;
     button.type = "button";
-    button.className = cx("action-btn action-btn--sm h-[38px] whitespace-nowrap", options.variant === "primary" ? "action-btn--primary" : "action-btn--secondary");
+    button.className = cx("settings-button action-btn action-btn--sm", options.variant === "primary" ? "action-btn--primary" : "action-btn--secondary");
     button.disabled = options.disabled === true;
     const content = document.createElement("span");
     content.className = "action-btn__content";
@@ -566,16 +565,16 @@ function div(className: string, ...children: Array<Node | string>): HTMLDivEleme
 }
 
 function card(id: string, className: string): HTMLDivElement {
-  const element = div(className);
+  const element = div(cx("settings-card", className));
   element.id = id;
   return element;
 }
 
 function cardRow(id: string, titleText: string, control: Node): HTMLElement {
-  const element = card(id, "p-4");
-  element.appendChild(div("flex items-center justify-between gap-3",
+  const element = card(id, "settings-card-row");
+  element.appendChild(div("settings-row",
     div("min-w-0", title(titleText)),
-    div("w-fit", control),
+    div("settings-row-control", control),
   ));
   return element;
 }
@@ -585,11 +584,11 @@ function title(value: string): HTMLElement {
 }
 
 function headingBlock(titleText: string, description: string): HTMLElement {
-  return div("", title(titleText), text("p", "mt-1 text-sm text-text-secondary", description));
+  return div("settings-heading", title(titleText), text("p", "settings-description", description));
 }
 
 function field(labelText: string, control: Node, hint?: string): HTMLElement {
-  const element = div("space-y-1");
+  const element = div("settings-field");
   element.append(label(labelText), control);
   if (hint) {
     element.appendChild(text("p", "text-xs text-text-secondary", hint));
