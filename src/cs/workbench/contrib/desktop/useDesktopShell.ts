@@ -1,5 +1,3 @@
-import { useCallback, useEffect, useState } from "react";
-
 type DesktopAppBridge = {
   sendCommand: (command: string) => void;
   getAutoUpdateStatus?: () => unknown;
@@ -72,7 +70,7 @@ const normalizeAutoUpdateStatus = (
         : null,
     channel:
       typeof (candidate as { channel?: unknown }).channel === "string"
-        ? ((candidate as { channel: DesktopAutoUpdateStatus["channel"] }).channel)
+        ? (candidate as { channel: DesktopAutoUpdateStatus["channel"] }).channel
         : "none",
     isStoreManaged:
       (candidate as { isStoreManaged?: unknown }).isStoreManaged === true,
@@ -84,18 +82,22 @@ const normalizeAutoUpdateStatus = (
   };
 };
 
-export const useDesktopShell = ({
+const readAutoUpdateStatus = (): DesktopAutoUpdateStatus => {
+  if (import.meta.env.DEV) {
+    return { status: "downloaded", version: "preview" };
+  }
+  const desktopApp = typeof window !== "undefined" ? window.desktopApp : undefined;
+  return normalizeAutoUpdateStatus(desktopApp?.getAutoUpdateStatus?.());
+};
+
+export const createDesktopShell = ({
   handleExport,
   importerRef,
   isWindowsDesktopShell = false,
 }: UseDesktopShellOptions) => {
-  const [autoUpdateStatus, setAutoUpdateStatus] =
-    useState<DesktopAutoUpdateStatus>(() =>
-      import.meta.env.DEV
-        ? { status: "downloaded", version: "preview" }
-        : DEFAULT_AUTO_UPDATE_STATUS,
-    );
-  const sendDesktopCommand = useCallback((command: string): boolean => {
+  let autoUpdateStatus = readAutoUpdateStatus();
+
+  const sendDesktopCommand = (command: string): boolean => {
     if (typeof window === "undefined") return false;
 
     const desktopApp = window.desktopApp;
@@ -109,127 +111,105 @@ export const useDesktopShell = ({
 
     desktopApp.sendCommand(command);
     return true;
-  }, []);
+  };
 
-  const handleToggleDevTools = useCallback(() => {
+  const handleToggleDevTools = () => {
     sendDesktopCommand("toggle-devtools");
-  }, [sendDesktopCommand]);
+  };
 
-  const handleReloadWindow = useCallback(() => {
+  const handleReloadWindow = () => {
     if (sendDesktopCommand("reload-window")) return;
     if (typeof window !== "undefined") {
       window.location.reload();
     }
-  }, [sendDesktopCommand]);
+  };
 
-  const handleMinimizeWindow = useCallback(() => {
+  const handleMinimizeWindow = () => {
     sendDesktopCommand("minimize-window");
-  }, [sendDesktopCommand]);
+  };
 
-  const handleToggleMaximizeWindow = useCallback(() => {
+  const handleToggleMaximizeWindow = () => {
     sendDesktopCommand("toggle-maximize-window");
-  }, [sendDesktopCommand]);
+  };
 
-  const handleCloseWindow = useCallback(() => {
+  const handleCloseWindow = () => {
     sendDesktopCommand("close-window");
-  }, [sendDesktopCommand]);
+  };
 
-  const handleCheckForUpdates = useCallback((): boolean => {
+  const handleCheckForUpdates = (): boolean => {
     const desktopApp = typeof window !== "undefined" ? window.desktopApp : undefined;
     if (typeof desktopApp?.checkForUpdates === "function") {
       void desktopApp.checkForUpdates();
       return true;
     }
     return sendDesktopCommand("check-for-updates");
-  }, [sendDesktopCommand]);
+  };
 
-  const handleCheckForUpdatesAndInstall = useCallback((): boolean => {
+  const handleCheckForUpdatesAndInstall = (): boolean => {
     const desktopApp = typeof window !== "undefined" ? window.desktopApp : undefined;
     if (typeof desktopApp?.checkForUpdatesAndInstall === "function") {
       void desktopApp.checkForUpdatesAndInstall();
       return true;
     }
     return sendDesktopCommand("check-for-updates-and-install");
-  }, [sendDesktopCommand]);
+  };
 
-  const handleInstallDownloadedUpdate = useCallback((): boolean => {
+  const handleInstallDownloadedUpdate = (): boolean => {
     const desktopApp = typeof window !== "undefined" ? window.desktopApp : undefined;
     if (typeof desktopApp?.installDownloadedUpdate === "function") {
       void desktopApp.installDownloadedUpdate();
       return true;
     }
     return sendDesktopCommand("install-downloaded-update");
-  }, [sendDesktopCommand]);
+  };
 
-  useEffect(() => {
-    if (typeof window === "undefined") return undefined;
-
-    const desktopApp = window.desktopApp;
-    if (!desktopApp) return undefined;
-
-    if (typeof desktopApp.getAutoUpdateStatus === "function") {
-      setAutoUpdateStatus(
-        normalizeAutoUpdateStatus(desktopApp.getAutoUpdateStatus()),
-      );
-    }
-
-    if (typeof desktopApp.onAutoUpdateStatusChange !== "function") {
-      return undefined;
-    }
-
-    const unsubscribe = desktopApp.onAutoUpdateStatusChange((status) => {
-      setAutoUpdateStatus(normalizeAutoUpdateStatus(status));
+  const desktopApp = typeof window !== "undefined" ? window.desktopApp : undefined;
+  if (desktopApp?.onAutoUpdateStatusChange) {
+    desktopApp.onAutoUpdateStatusChange((status) => {
+      autoUpdateStatus = normalizeAutoUpdateStatus(status);
     });
+  }
 
-    return typeof unsubscribe === "function" ? unsubscribe : undefined;
-  }, []);
+  if (typeof window !== "undefined" && isWindowsDesktopShell) {
+    const existingListenerFlag = "__conductorDesktopShellShortcuts";
+    const state = window as unknown as Record<string, unknown>;
+    if (!state[existingListenerFlag]) {
+      state[existingListenerFlag] = true;
+      window.addEventListener("keydown", (event) => {
+        if (event.defaultPrevented || event.metaKey || event.altKey) return;
 
-  useEffect(() => {
-    if (!isWindowsDesktopShell) return undefined;
+        const key = String(event.key || "").toLowerCase();
 
-    const handleDesktopShortcuts = (event: KeyboardEvent) => {
-      if (event.defaultPrevented || event.metaKey || event.altKey) return;
+        if (event.ctrlKey && !event.shiftKey && key === "o") {
+          event.preventDefault();
+          importerRef.current?.openFileDialog?.();
+          return;
+        }
 
-      const key = String(event.key || "").toLowerCase();
+        if (event.ctrlKey && event.shiftKey && key === "e") {
+          event.preventDefault();
+          void handleExport();
+          return;
+        }
 
-      if (event.ctrlKey && !event.shiftKey && key === "o") {
-        event.preventDefault();
-        importerRef.current?.openFileDialog?.();
-        return;
-      }
+        if (key === "f5") {
+          event.preventDefault();
+          handleReloadWindow();
+          return;
+        }
 
-      if (event.ctrlKey && event.shiftKey && key === "e") {
-        event.preventDefault();
-        void handleExport();
-        return;
-      }
-
-      if (key === "f5") {
-        event.preventDefault();
-        handleReloadWindow();
-        return;
-      }
-
-      if (key === "f12") {
-        event.preventDefault();
-        handleToggleDevTools();
-      }
-    };
-
-    window.addEventListener("keydown", handleDesktopShortcuts);
-    return () => {
-      window.removeEventListener("keydown", handleDesktopShortcuts);
-    };
-  }, [
-    handleExport,
-    handleReloadWindow,
-    handleToggleDevTools,
-    importerRef,
-    isWindowsDesktopShell,
-  ]);
+        if (key === "f12") {
+          event.preventDefault();
+          handleToggleDevTools();
+        }
+      });
+    }
+  }
 
   return {
-    autoUpdateStatus,
+    get autoUpdateStatus() {
+      return autoUpdateStatus;
+    },
     handleCheckForUpdatesAndInstall,
     handleCheckForUpdates,
     handleCloseWindow,
@@ -240,3 +220,5 @@ export const useDesktopShell = ({
     handleToggleMaximizeWindow,
   };
 };
+
+export const useDesktopShell = createDesktopShell;

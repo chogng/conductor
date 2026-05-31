@@ -1,49 +1,19 @@
-﻿import { lxPreview } from "cogicon";
-import { jsx, jsxs } from "react/jsx-runtime";
-import type { ReactNode } from "react";
+import { lxPreview } from "cogicon";
 
-import { getAvatarClassName, getAvatarDataAttributes } from "cs/base/browser/ui/avatar/avatar";
-import { getCogIconClassName, getCogIconMarkup, getCogIconStyle, type CogIconRenderer, type CogIconStyle } from "src/cs/base/browser/ui/cogIcon/cogIcon";
+import {
+  getAvatarClassName,
+  getAvatarDataAttributes,
+} from "cs/base/browser/ui/avatar/avatar";
+import {
+  getCogIconClassName,
+  getCogIconMarkup,
+  getCogIconStyle,
+} from "src/cs/base/browser/ui/cogIcon/cogIcon";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { PreviewFileLike } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
 
 type PreviewStatus = Partial<SessionPreviewStatus>;
-
-type IconProps = {
-  className?: string;
-};
-
-type LocalCogIconProps = {
-  className?: string;
-  icon: CogIconRenderer;
-  size?: number | string;
-  style?: CogIconStyle;
-  [key: string]: unknown;
-};
-
-const renderLocalCogIcon = ({
-  className,
-  icon,
-  size = 16,
-  style,
-  ...props
-}: LocalCogIconProps) =>
-  jsx("span", {
-    ...props,
-    className: getCogIconClassName(className),
-    style: getCogIconStyle({ size, style }),
-    dangerouslySetInnerHTML: {
-      __html: getCogIconMarkup(icon),
-    },
-  });
-
-const TemplateManagerPreviewEmptyIcon = ({ className }: IconProps) =>
-  renderLocalCogIcon({
-    className,
-    icon: lxPreview,
-    size: "100%",
-  });
 
 export const TEMPLATE_MANAGER_PREVIEW_PANEL_ITEM_CLASS =
   "flex h-full min-h-0 self-stretch";
@@ -52,8 +22,8 @@ export const TEMPLATE_MANAGER_PREVIEW_PANEL_FRAME_CLASS =
   "flex flex-1 min-h-0 flex-col overflow-hidden rounded-[inherit] border border-border bg-bg-page/75 p-4";
 
 type TemplateManagerPreviewSurfaceProps = {
-  actions?: ReactNode;
-  children?: ReactNode;
+  actions?: Node | null;
+  children?: Node | null;
   previewFile?: PreviewFileLike | null;
   previewStatus?: PreviewStatus | null;
   t: TranslateFn;
@@ -65,7 +35,7 @@ export const TemplateManagerPreviewSurface = ({
   previewFile,
   previewStatus,
   t,
-}: TemplateManagerPreviewSurfaceProps) => {
+}: TemplateManagerPreviewSurfaceProps): any => {
   const fileName = previewFile
     ? String(previewFile.fileName || "").replace(/\.csv$/i, "")
     : "";
@@ -79,40 +49,40 @@ export const TemplateManagerPreviewSurface = ({
     previewStatus?.state === "error"
       ? "text-xs text-red-500"
       : "text-xs text-text-secondary";
-  const shouldRenderMeta = Boolean(statusMessage) || Boolean(actions);
 
-  return jsx("div", {
-    className: TEMPLATE_MANAGER_PREVIEW_PANEL_ITEM_CLASS,
-    children: jsxs("div", {
-      className: TEMPLATE_MANAGER_PREVIEW_PANEL_FRAME_CLASS,
-      children: [
-        jsxs("div", {
-          className: "mb-3 flex shrink-0 items-center justify-between gap-3",
-          children: [
-            jsxs("span", {
-              className: "min-w-0 truncate text-sm font-medium text-text-secondary",
-              children: [t("da_preview_filename_label"), ": ", fileName],
-            }),
-            shouldRenderMeta
-              ? jsxs("div", {
-                  className: "flex shrink-0 items-center gap-2",
-                  children: [
-                    statusMessage
-                      ? jsx("span", {
-                          className: statusClassName,
-                          children: statusMessage,
-                        })
-                      : null,
-                    actions,
-                  ],
-                })
-              : null,
-          ],
-        }),
-        children,
-      ],
-    }),
-  });
+  const root = document.createElement("div");
+  root.className = TEMPLATE_MANAGER_PREVIEW_PANEL_ITEM_CLASS;
+  const frame = document.createElement("div");
+  frame.className = TEMPLATE_MANAGER_PREVIEW_PANEL_FRAME_CLASS;
+
+  const header = document.createElement("div");
+  header.className = "mb-3 flex shrink-0 items-center justify-between gap-3";
+  const title = document.createElement("span");
+  title.className = "min-w-0 truncate text-sm font-medium text-text-secondary";
+  title.textContent = `${t("da_preview_filename_label")}: ${fileName}`;
+  header.append(title);
+
+  if (statusMessage || actions) {
+    const meta = document.createElement("div");
+    meta.className = "flex shrink-0 items-center gap-2";
+    if (statusMessage) {
+      const status = document.createElement("span");
+      status.className = statusClassName;
+      status.textContent = statusMessage;
+      meta.append(status);
+    }
+    if (actions) {
+      meta.append(actions);
+    }
+    header.append(meta);
+  }
+
+  frame.append(header);
+  if (children) {
+    frame.append(children);
+  }
+  root.append(frame);
+  return root;
 };
 
 type TemplateManagerPreviewEmptyStateProps = {
@@ -125,31 +95,39 @@ export const TemplateManagerPreviewEmptyState = ({
   hint,
   id = "analysis-preview-placeholder",
   title,
-}: TemplateManagerPreviewEmptyStateProps) =>
-  jsxs("div", {
-    className:
-      "flex flex-1 min-h-0 flex-col items-center justify-center gap-2 px-6 py-8 text-center",
-    id,
-    children: [
-      jsx("div", {
-        className: getAvatarClassName({ size: "md", variant: "empty" }),
-        ...getAvatarDataAttributes({ mode: "icon" }),
-        children: jsx(TemplateManagerPreviewEmptyIcon, {
-          className: "w-[60%] h-[60%]",
-        }),
-      }),
-      title
-        ? jsx("p", {
-            className: "text-sm font-medium text-text-primary",
-            children: title,
-          })
-        : null,
-      hint
-        ? jsx("p", {
-            className: "max-w-md text-sm text-text-secondary",
-            children: hint,
-          })
-        : null,
-    ],
-  });
+}: TemplateManagerPreviewEmptyStateProps): any => {
+  const root = document.createElement("div");
+  root.className =
+    "flex flex-1 min-h-0 flex-col items-center justify-center gap-2 px-6 py-8 text-center";
+  root.id = id;
 
+  const avatar = document.createElement("div");
+  avatar.className = getAvatarClassName({ size: "md", variant: "empty" });
+  for (const [name, value] of Object.entries(
+    getAvatarDataAttributes({ mode: "icon" }),
+  )) {
+    if (value !== undefined) {
+      avatar.setAttribute(name, String(value));
+    }
+  }
+  const icon = document.createElement("span");
+  icon.className = getCogIconClassName("w-[60%] h-[60%]");
+  Object.assign(icon.style, getCogIconStyle({ size: "100%" }));
+  icon.innerHTML = getCogIconMarkup(lxPreview);
+  avatar.append(icon);
+  root.append(avatar);
+
+  if (title) {
+    const titleElement = document.createElement("p");
+    titleElement.className = "text-sm font-medium text-text-primary";
+    titleElement.textContent = title;
+    root.append(titleElement);
+  }
+  if (hint) {
+    const hintElement = document.createElement("p");
+    hintElement.className = "max-w-md text-sm text-text-secondary";
+    hintElement.textContent = hint;
+    root.append(hintElement);
+  }
+  return root;
+};

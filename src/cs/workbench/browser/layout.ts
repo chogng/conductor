@@ -1,10 +1,9 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
+import { Emitter } from "src/cs/base/common/event";
+import { Disposable, MutableDisposable } from "src/cs/base/common/lifecycle";
+import SplitViewWidget, {
+  type SplitViewPane,
+} from "src/cs/base/browser/ui/splitview/splitviewWidget";
+import type { SplitViewResizeEvent } from "src/cs/base/browser/ui/splitview/splitview";
 import {
   INITIAL_VISITED_VIEWS_STATE,
   markVisitedLayoutView,
@@ -13,6 +12,7 @@ import {
   navigateToLayoutPage,
   resetVisitedAnalysisLayoutView,
   resolveLayoutView,
+  type VisitedLayoutViewsState,
 } from "src/cs/workbench/browser/actions/layoutActions";
 import {
   SIDEBAR_DEFAULT_WIDTH_PX,
@@ -27,6 +27,15 @@ export {
   SIDEBAR_MIN_WIDTH_PX,
   TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX,
 } from "src/cs/workbench/browser/layoutConstants";
+
+export type LayoutParts = {
+  readonly controller?: Node | null;
+  readonly data?: Node | null;
+  readonly analysis?: Node | null;
+  readonly settings?: Node | null;
+  readonly overlay?: Node | null;
+  readonly sidebar?: Node | null;
+};
 
 export type LayoutView = "data" | "analysis" | "settings";
 
@@ -87,23 +96,230 @@ export const clampSidebarWidth = (width: number): number =>
     Math.min(SIDEBAR_MAX_WIDTH_PX, Math.round(width)),
   );
 
-export const useWorkbenchSidebarLayout = () => {
-  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH_PX);
-  const handleSidebarResize = useCallback((width: number) => {
-    setSidebarWidth(clampSidebarWidth(width));
-  }, []);
+export class WorkbenchSidebarLayout {
+  private _sidebarWidth = SIDEBAR_DEFAULT_WIDTH_PX;
+  private readonly onDidChangeWidthEmitter = new Emitter<number>();
 
-  return {
-    handleSidebarResize,
-    sidebarWidth,
-  };
+  public readonly onDidChangeWidth = this.onDidChangeWidthEmitter.event;
+
+  public get sidebarWidth(): number {
+    return this._sidebarWidth;
+  }
+
+  public resize(width: number): void {
+    const nextWidth = clampSidebarWidth(width);
+    if (nextWidth === this._sidebarWidth) {
+      return;
+    }
+    this._sidebarWidth = nextWidth;
+    this.onDidChangeWidthEmitter.fire(nextWidth);
+  }
+
+  public dispose(): void {
+    this.onDidChangeWidthEmitter.dispose();
+  }
+}
+
+let workbenchSidebarPortal: HTMLElement | null = null;
+
+export const setWorkbenchSidebarPortal = (
+  element: HTMLElement | null,
+): void => {
+  workbenchSidebarPortal = element;
 };
 
-export const WorkbenchSidebarPortalContext =
-  createContext<HTMLElement | null>(null);
+export const useWorkbenchSidebarPortal = (): HTMLElement | null =>
+  workbenchSidebarPortal;
 
-export const useWorkbenchSidebarPortal = () =>
-  useContext(WorkbenchSidebarPortalContext);
+const hasSidebar = (activeView: LayoutView): boolean =>
+  activeView === "data" || activeView === "analysis";
+
+export class Layout extends Disposable {
+  private readonly navigation = this._register(new WorkbenchLayoutNavigation());
+  private readonly sidebarLayout = this._register(new WorkbenchSidebarLayout());
+  private readonly splitView = this._register(new MutableDisposable<SplitViewWidget>());
+  private readonly main = document.createElement("div");
+  private readonly sidebar = document.createElement("div");
+  private readonly overlay = document.createElement("div");
+  private readonly controller = document.createElement("div");
+  private parts: LayoutParts = {};
+
+  public readonly element = document.createElement("div");
+
+  constructor(parent?: HTMLElement) {
+    super();
+
+    this.element.className = "relative flex h-full min-h-0 flex-1 flex-col";
+    if (parent) {
+      this.mount(parent);
+    }
+
+    this._register(this.navigation.onDidChangeState(() => this.render()));
+    this._register(this.sidebarLayout.onDidChangeWidth(() => this.render()));
+  }
+
+  public mount(parent: HTMLElement): void {
+    parent.replaceChildren(this.element);
+  }
+
+  public get activeView(): LayoutView {
+    return this.navigation.getState().activeView;
+  }
+
+  public get state(): WorkbenchLayoutNavigationState {
+    return this.navigation.getState();
+  }
+
+  public navigateBack(): void {
+    this.navigation.navigateBack();
+  }
+
+  public navigateForward(): void {
+    this.navigation.navigateForward();
+  }
+
+  public navigateToView(view: LayoutView): void {
+    this.navigation.navigateToView(view);
+  }
+
+  public selectView(view: string): void {
+    this.navigation.selectView(view);
+  }
+
+  public resetAnalysisViewVisit(): void {
+    this.navigation.resetAnalysisViewVisit();
+  }
+
+  public setParts(parts: LayoutParts): void {
+    this.parts = parts;
+    this.render();
+  }
+
+  private render(): void {
+    this.controller.replaceChildren();
+    this.main.replaceChildren();
+    this.sidebar.replaceChildren();
+    this.overlay.replaceChildren();
+
+    appendIfPresent(this.controller, this.parts.controller);
+    this.renderMain();
+    appendIfPresent(this.overlay, this.parts.overlay);
+
+    if (hasSidebar(this.activeView)) {
+      appendIfPresent(this.sidebar, this.activeView === "data"
+        ? this.parts.sidebar
+        : null);
+      this.renderSplit();
+      setWorkbenchSidebarPortal(this.activeView === "analysis" ? this.sidebar : null);
+    } else {
+      this.splitView.clear();
+      setWorkbenchSidebarPortal(null);
+      this.element.replaceChildren(this.controller, this.main, this.overlay);
+    }
+
+    this.onDidRenderLayout();
+  }
+
+  protected onDidRenderLayout(): void {}
+
+  private renderMain(): void {
+    const state = this.navigation.getState().layoutState;
+    const dataPane = state.panes.data;
+    const analysisPane = state.panes.analysis;
+    const settingsPane = state.panes.settings;
+
+    appendIfPresent(
+      this.main,
+      createPane({
+        children: this.parts.data,
+        isActive: dataPane.isActive,
+        labelledBy: dataPane.labelledBy,
+        paneId: dataPane.paneId,
+      }),
+    );
+    if (analysisPane.shouldMount) {
+      appendIfPresent(
+        this.main,
+        createPane({
+          children: this.parts.analysis,
+          isActive: analysisPane.isActive,
+          labelledBy: analysisPane.labelledBy,
+          paneId: analysisPane.paneId,
+        }),
+      );
+    }
+    if (settingsPane.shouldMount) {
+      appendIfPresent(
+        this.main,
+        createPane({
+          children: this.parts.settings,
+          isActive: settingsPane.isActive,
+          labelledBy: settingsPane.labelledBy,
+          paneId: settingsPane.paneId,
+        }),
+      );
+    }
+  }
+
+  private renderSplit(): void {
+    const panes = this.getSplitPanes();
+
+    if (!this.splitView.current) {
+      this.splitView.current = new SplitViewWidget({
+        className: "h-full min-h-0",
+        gap: 2,
+        onDidResizeEnd: (event) => this.handleResizeEnd(event),
+        orientation: "horizontal",
+        panes,
+      });
+    } else {
+      this.splitView.current.update({
+        className: "h-full min-h-0",
+        gap: 2,
+        onDidResizeEnd: (event) => this.handleResizeEnd(event),
+        orientation: "horizontal",
+        panes,
+      });
+    }
+
+    const splitView = this.splitView.current;
+    splitView.getPaneElement("workbench-sidebar")?.replaceChildren(this.sidebar);
+    splitView.getPaneElement("workbench-main")?.replaceChildren(this.main);
+    this.element.replaceChildren(
+      this.controller,
+      splitView.element,
+      this.overlay,
+    );
+  }
+
+  private getSplitPanes(): readonly SplitViewPane[] {
+    return [
+      {
+        id: "workbench-sidebar",
+        defaultSize: SIDEBAR_DEFAULT_WIDTH_PX,
+        minSize: SIDEBAR_MIN_WIDTH_PX,
+        maxSize: SIDEBAR_MAX_WIDTH_PX,
+        size: this.sidebarLayout.sidebarWidth,
+      },
+      {
+        id: "workbench-main",
+        minSize: 520,
+      },
+    ];
+  }
+
+  private handleResizeEnd({ sizes }: SplitViewResizeEvent): void {
+    const nextWidth = sizes[0];
+    if (Number.isFinite(nextWidth)) {
+      this.sidebarLayout.resize(nextWidth);
+    }
+  }
+
+  override dispose(): void {
+    setWorkbenchSidebarPortal(null);
+    super.dispose();
+  }
+}
 
 export const getLayoutState = ({
   activeView,
@@ -140,70 +356,131 @@ export const getLayoutState = ({
   };
 };
 
-export const useWorkbenchLayoutNavigation = () => {
-  const [navigation, setNavigation] = useState<LayoutNavigationState>(
-    INITIAL_LAYOUT_NAVIGATION_STATE,
+export class WorkbenchLayoutNavigation extends Disposable {
+  private navigation = INITIAL_LAYOUT_NAVIGATION_STATE;
+  private visitedViews = INITIAL_VISITED_VIEWS_STATE;
+  private readonly onDidChangeStateEmitter = this._register(
+    new Emitter<WorkbenchLayoutNavigationState>(),
   );
-  const [visitedViews, setVisitedViews] = useState(
-    INITIAL_VISITED_VIEWS_STATE,
-  );
-  const activeView = navigation.activeView;
 
-  useEffect(() => {
-    setVisitedViews((prevState) => markVisitedLayoutView(prevState, activeView));
+  public readonly onDidChangeState = this.onDidChangeStateEmitter.event;
 
-    if (typeof document !== "undefined") {
-      const activeElement = document.activeElement;
-      if (
-        activeElement &&
-        activeElement instanceof HTMLElement &&
-        typeof activeElement.blur === "function"
-      ) {
-        activeElement.blur();
-      }
+  constructor() {
+    super();
+    this.markActiveViewVisited();
+  }
+
+  public getState(): WorkbenchLayoutNavigationState {
+    return this.createState();
+  }
+
+  public navigateToView(nextView: LayoutView): void {
+    this.setNavigation(navigateToLayoutPage(this.navigation, nextView));
+  }
+
+  public navigateBack(): void {
+    this.setNavigation(navigateLayoutBack(this.navigation));
+  }
+
+  public navigateForward(): void {
+    this.setNavigation(navigateLayoutForward(this.navigation));
+  }
+
+  public selectView(nextView: string): void {
+    const resolvedView = resolveLayoutView(nextView);
+    if (resolvedView) {
+      this.navigateToView(resolvedView);
     }
-  }, [activeView]);
+  }
 
-  const navigateToView = useCallback((nextView: LayoutView) => {
-    setNavigation((prevState) => navigateToLayoutPage(prevState, nextView));
-  }, []);
+  public resetAnalysisViewVisit(): void {
+    this.visitedViews = resetVisitedAnalysisLayoutView(this.visitedViews);
+    this.fireStateChange();
+  }
 
-  const navigateBack = useCallback(() => {
-    setNavigation((prevState) => navigateLayoutBack(prevState));
-  }, []);
+  private setNavigation(nextNavigation: LayoutNavigationState): void {
+    if (nextNavigation === this.navigation) {
+      return;
+    }
+    this.navigation = nextNavigation;
+    this.markActiveViewVisited();
+    this.blurActiveElement();
+    this.fireStateChange();
+  }
 
-  const navigateForward = useCallback(() => {
-    setNavigation((prevState) => navigateLayoutForward(prevState));
-  }, []);
+  private markActiveViewVisited(): void {
+    this.visitedViews = markVisitedLayoutView(
+      this.visitedViews,
+      this.navigation.activeView,
+    );
+  }
 
-  const selectView = useCallback(
-    (nextView: string) => {
-      const resolvedView = resolveLayoutView(nextView);
-      if (resolvedView) {
-        navigateToView(resolvedView);
-      }
-    },
-    [navigateToView],
-  );
-
-  const resetAnalysisViewVisit = useCallback(() => {
-    setVisitedViews((prevState) => resetVisitedAnalysisLayoutView(prevState));
-  }, []);
-
-  return {
-    activeView,
-    layoutState: getLayoutState({
+  private createState(): WorkbenchLayoutNavigationState {
+    const activeView = this.navigation.activeView;
+    return {
       activeView,
-      hasVisitedAnalysisView: visitedViews.hasVisitedAnalysisView,
-      hasVisitedSettingsView: visitedViews.hasVisitedSettingsView,
-      historyIndex: navigation.historyIndex,
-      historyLength: navigation.history.length,
-    }),
-    navigateBack,
-    navigateForward,
-    navigateToView,
-    resetAnalysisViewVisit,
-    selectView,
-    visitedViews,
-  };
+      layoutState: getLayoutState({
+        activeView,
+        hasVisitedAnalysisView: this.visitedViews.hasVisitedAnalysisView,
+        hasVisitedSettingsView: this.visitedViews.hasVisitedSettingsView,
+        historyIndex: this.navigation.historyIndex,
+        historyLength: this.navigation.history.length,
+      }),
+      visitedViews: this.visitedViews,
+    };
+  }
+
+  private fireStateChange(): void {
+    this.onDidChangeStateEmitter.fire(this.createState());
+  }
+
+  private blurActiveElement(): void {
+    const activeElement = document.activeElement;
+    if (
+      activeElement &&
+      activeElement instanceof HTMLElement &&
+      typeof activeElement.blur === "function"
+    ) {
+      activeElement.blur();
+    }
+  }
+}
+
+export type WorkbenchLayoutNavigationState = {
+  activeView: LayoutView;
+  layoutState: LayoutState;
+  visitedViews: VisitedLayoutViewsState;
+};
+
+const createPane = ({
+  children,
+  isActive,
+  labelledBy,
+  paneId,
+}: {
+  readonly children?: Node | null;
+  readonly isActive: boolean;
+  readonly labelledBy: string;
+  readonly paneId: string;
+}): HTMLElement => {
+  const section = document.createElement("section");
+  section.id = paneId;
+  section.role = "region";
+  section.setAttribute("aria-labelledby", labelledBy);
+  section.setAttribute("aria-hidden", String(!isActive));
+  section.className = isActive ? "h-full min-h-0" : "hidden h-full min-h-0";
+  if (!isActive) {
+    section.inert = true;
+  }
+  appendIfPresent(section, children);
+  return section;
+};
+
+const appendIfPresent = (
+  parent: HTMLElement,
+  child: Node | null | undefined,
+): void => {
+  if (child) {
+    parent.append(child);
+  }
 };

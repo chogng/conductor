@@ -1,5 +1,3 @@
-import { jsx, jsxs } from "react/jsx-runtime";
-import type { ReactNode } from "react";
 import {
   getButtonClassName,
   getButtonContentClassName,
@@ -20,7 +18,7 @@ export type WorkbenchPreviewAreaAction = {
   isActive?: boolean;
   isDisabled?: boolean;
   isDanger?: boolean;
-  icon?: ReactNode;
+  icon?: Node | string | null;
   badge?: WorkbenchPreviewAreaBadge;
 };
 
@@ -43,108 +41,13 @@ export type WorkbenchPreviewAreaActionHandler = (
   action: WorkbenchPreviewAreaAction,
 ) => void;
 
-export type PreviewPartProps = WorkbenchPreviewAreaPartState & {
+export type PreviewPartOptions = WorkbenchPreviewAreaPartState & {
   ariaLabel?: string;
-  children?: ReactNode;
+  children?: Node | null;
   onAction?: WorkbenchPreviewAreaActionHandler;
 };
 
-const renderPreviewAreaBadge = (badge: WorkbenchPreviewAreaBadge | undefined) => {
-  if (!badge) {
-    return null;
-  }
-
-  return jsx("span", {
-    className: "workbench_preview_area_badge",
-    "data-tone": badge.tone ?? "default",
-    children: badge.text,
-  });
-};
-
-const renderPreviewAreaAction = (
-  action: WorkbenchPreviewAreaAction,
-  onAction: WorkbenchPreviewAreaActionHandler | undefined,
-  kind?: WorkbenchPreviewAreaHeaderAction["kind"],
-) => {
-  if (kind === "icon") {
-    return jsx("button", {
-      id: action.id,
-      type: "button",
-      className: getButtonClassName({
-        className: "workbench_preview_area_header_icon_btn",
-        disabled: action.isDisabled,
-        size: "iconSm",
-        variant: "ghost",
-      }),
-      disabled: action.isDisabled,
-      onClick: () => onAction?.(action),
-      title: action.title,
-      "aria-label": action.title,
-      children: jsx("span", {
-        className: getButtonContentClassName(),
-        children: action.icon,
-      }),
-    });
-  }
-
-  if (kind) {
-    return jsx("button", {
-      id: action.id,
-      type: "button",
-      className: getButtonClassName({
-        className: "workbench_preview_area_header_btn",
-        disabled: action.isDisabled,
-        size: "sm",
-        variant: kind === "primary" ? "primary" : "ghost",
-      }),
-      disabled: action.isDisabled,
-      onClick: () => onAction?.(action),
-      title: action.title,
-      "data-icon": action.icon ? "with" : undefined,
-      children: jsx("span", {
-        className: getButtonContentClassName(),
-        children: [
-        action.icon
-          ? jsx("span", {
-              className: "shrink-0",
-              "aria-hidden": "true",
-              children: action.icon,
-            })
-          : null,
-        jsx("span", {
-          className: "min-w-0 truncate text-left",
-          children: action.title,
-        }),
-      ],
-      }),
-    });
-  }
-
-  return jsxs("button", {
-    id: action.id,
-    type: "button",
-    className: getWorkbenchPreviewAreaActionClassName(action),
-    disabled: action.isDisabled,
-    onClick: () => onAction?.(action),
-    title: action.title,
-    children: [
-      action.icon
-        ? jsx("span", {
-            className: "shrink-0",
-            "aria-hidden": "true",
-            children: action.icon,
-          })
-        : null,
-      jsx("span", {
-        className: "min-w-0 truncate text-left",
-        children: action.title,
-      }),
-      renderPreviewAreaBadge(action.badge),
-    ],
-  });
-};
-
-const PreviewPart = ({
+export const createPreviewPart = ({
   ariaLabel,
   badge,
   children,
@@ -156,59 +59,206 @@ const PreviewPart = ({
   labelledBy,
   onAction,
   title,
-}: PreviewPartProps) => {
+}: PreviewPartOptions): HTMLElement => {
+  const root = document.createElement("section");
+  if (id) {
+    root.id = id;
+  }
+  if (isBusy) {
+    root.setAttribute("aria-busy", "true");
+  }
+  setOptionalAttribute(root, "aria-label", ariaLabel);
+  setOptionalAttribute(root, "aria-labelledby", labelledBy);
+  root.className = `workbench_preview_area_part ${className}`.trim();
+
   const normalizedHeaderActions =
     normalizeWorkbenchPreviewAreaHeaderActions(headerActions);
   const hasHeaderContent = Boolean(title || description || badge);
 
-  return jsxs("section", {
-    id,
-    "aria-busy": isBusy ? "true" : undefined,
-    "aria-label": ariaLabel,
-    "aria-labelledby": labelledBy,
-    className: `workbench_preview_area_part ${className}`.trim(),
-    children: [
-      hasHeaderContent || normalizedHeaderActions.length > 0
-        ? jsxs("div", {
-            className: `workbench_preview_area_header ${!hasHeaderContent ? "workbench_preview_area_header--actions-only" : ""}`.trim(),
-            children: [
-              title || description || badge
-                ? jsxs("div", {
-                    className: "workbench_preview_area_header_main",
-                    children: [
-                      title
-                        ? jsx("h2", {
-                            className: "workbench_preview_area_title",
-                            children: title,
-                          })
-                        : null,
-                      description
-                        ? jsx("p", {
-                            className: "workbench_preview_area_description",
-                            children: description,
-                          })
-                        : null,
-                      renderPreviewAreaBadge(badge),
-                    ],
-                  })
-                : null,
-              normalizedHeaderActions.length > 0
-                ? jsx("div", {
-                    className: "workbench_preview_area_header_actions",
-                    children: normalizedHeaderActions.map((action) =>
-                      renderPreviewAreaAction(action, onAction, action.kind),
-                    ),
-                  })
-                : null,
-            ],
-          })
-        : null,
-      jsx("div", {
-        className: "workbench_preview_area_content",
-        children,
+  if (hasHeaderContent || normalizedHeaderActions.length > 0) {
+    root.append(
+      createPreviewHeader({
+        badge,
+        description,
+        hasHeaderContent,
+        normalizedHeaderActions,
+        onAction,
+        title,
       }),
-    ],
-  });
+    );
+  }
+
+  const content = document.createElement("div");
+  content.className = "workbench_preview_area_content";
+  if (children) {
+    content.append(children);
+  }
+  root.append(content);
+
+  return root;
 };
 
-export default PreviewPart;
+const createPreviewHeader = ({
+  badge,
+  description,
+  hasHeaderContent,
+  normalizedHeaderActions,
+  onAction,
+  title,
+}: {
+  readonly badge?: WorkbenchPreviewAreaBadge;
+  readonly description?: string;
+  readonly hasHeaderContent: boolean;
+  readonly normalizedHeaderActions: WorkbenchPreviewAreaHeaderAction[];
+  readonly onAction?: WorkbenchPreviewAreaActionHandler;
+  readonly title?: string;
+}): HTMLElement => {
+  const header = document.createElement("div");
+  header.className = `workbench_preview_area_header ${!hasHeaderContent ? "workbench_preview_area_header--actions-only" : ""}`.trim();
+
+  if (title || description || badge) {
+    const main = document.createElement("div");
+    main.className = "workbench_preview_area_header_main";
+    if (title) {
+      const heading = document.createElement("h2");
+      heading.className = "workbench_preview_area_title";
+      heading.textContent = title;
+      main.append(heading);
+    }
+    if (description) {
+      const text = document.createElement("p");
+      text.className = "workbench_preview_area_description";
+      text.textContent = description;
+      main.append(text);
+    }
+    const badgeElement = createPreviewBadge(badge);
+    if (badgeElement) {
+      main.append(badgeElement);
+    }
+    header.append(main);
+  }
+
+  if (normalizedHeaderActions.length > 0) {
+    const actions = document.createElement("div");
+    actions.className = "workbench_preview_area_header_actions";
+    for (const action of normalizedHeaderActions) {
+      actions.append(createPreviewAction(action, onAction, action.kind));
+    }
+    header.append(actions);
+  }
+
+  return header;
+};
+
+const createPreviewBadge = (
+  badge: WorkbenchPreviewAreaBadge | undefined,
+): HTMLElement | null => {
+  if (!badge) {
+    return null;
+  }
+
+  const element = document.createElement("span");
+  element.className = "workbench_preview_area_badge";
+  element.dataset.tone = badge.tone ?? "default";
+  element.textContent = badge.text;
+  return element;
+};
+
+const createPreviewAction = (
+  action: WorkbenchPreviewAreaAction,
+  onAction: WorkbenchPreviewAreaActionHandler | undefined,
+  kind?: WorkbenchPreviewAreaHeaderAction["kind"],
+): HTMLButtonElement => {
+  const button = document.createElement("button");
+  button.id = action.id;
+  button.type = "button";
+  button.disabled = Boolean(action.isDisabled);
+  button.title = action.title;
+  button.addEventListener("click", () => onAction?.(action));
+
+  if (kind === "icon") {
+    button.className = getButtonClassName({
+      className: "workbench_preview_area_header_icon_btn",
+      disabled: action.isDisabled,
+      size: "iconSm",
+      variant: "ghost",
+    });
+    button.setAttribute("aria-label", action.title);
+    button.append(createButtonContent(action.icon));
+    return button;
+  }
+
+  if (kind) {
+    button.className = getButtonClassName({
+      className: "workbench_preview_area_header_btn",
+      disabled: action.isDisabled,
+      size: "sm",
+      variant: kind === "primary" ? "primary" : "ghost",
+    });
+    if (action.icon) {
+      button.dataset.icon = "with";
+    }
+    button.append(createButtonContent(action.icon, action.title));
+    return button;
+  }
+
+  button.className = getWorkbenchPreviewAreaActionClassName(action);
+  appendIcon(button, action.icon);
+  button.append(createTextSpan(action.title));
+  const badge = createPreviewBadge(action.badge);
+  if (badge) {
+    button.append(badge);
+  }
+  return button;
+};
+
+const createButtonContent = (
+  icon: Node | string | null | undefined,
+  label?: string,
+): HTMLSpanElement => {
+  const content = document.createElement("span");
+  content.className = getButtonContentClassName();
+  appendIcon(content, icon);
+  if (label) {
+    content.append(createTextSpan(label));
+  }
+  return content;
+};
+
+const appendIcon = (
+  parent: HTMLElement,
+  icon: Node | string | null | undefined,
+): void => {
+  if (!icon) {
+    return;
+  }
+
+  const wrapper = document.createElement("span");
+  wrapper.className = "shrink-0";
+  wrapper.setAttribute("aria-hidden", "true");
+  if (typeof icon === "string") {
+    wrapper.innerHTML = icon;
+  } else {
+    wrapper.append(icon.cloneNode(true));
+  }
+  parent.append(wrapper);
+};
+
+const createTextSpan = (text: string): HTMLSpanElement => {
+  const span = document.createElement("span");
+  span.className = "min-w-0 truncate text-left";
+  span.textContent = text;
+  return span;
+};
+
+const setOptionalAttribute = (
+  element: HTMLElement,
+  name: string,
+  value: string | undefined,
+): void => {
+  if (value) {
+    element.setAttribute(name, value);
+  }
+};
+
+export default createPreviewPart;

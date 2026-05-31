@@ -1,13 +1,13 @@
 ﻿# Onboarding Relocation Plan
 
-本文档记录 `src/cs/workbench/contrib/onboarding` 的整理方案。目标不是一次性删除导览能力，而是把当前混在 onboarding 目录里的数据导入、模板联动、页面挂载和导览展示职责拆开，让后续从 React/tsx 迁移到上游式 TypeScript 组件时边界更清楚。
+本文档记录 `src/cs/workbench/contrib/onboarding` 的整理方案。目标不是一次性删除导览能力，而是把当前混在 onboarding 目录里的数据导入、模板联动、页面挂载和导览展示职责拆开，让后续从 旧 UI 框架 迁移到上游式 TypeScript 组件时边界更清楚。
 
 ## 当前问题
 
 `onboarding` 目录目前包含三类不同职责：
 
-- 导览 UI 和高亮测量：`Onboarding.tsx`、`onboardingTypes.ts`、`onboardingSteps.ts`。
-- 导览状态机和业务动作：`useOnboarding.ts`、`onboardingState.ts`、`OnboardingControllerHost.tsx`。
+- 导览 UI 和高亮测量：`Onboarding.旧视图`、`onboardingTypes.ts`、`onboardingSteps.ts`。
+- 导览状态机和业务动作：`useOnboarding.ts`、`onboardingState.ts`、`OnboardingControllerHost.旧视图`。
 - 跨模块联动和懒加载胶水：`onboardingEvents.ts`、`loadOnboarding.ts`、`loadOnboardingController.ts`。
 
 主要风险是 `useOnboarding.ts` 过重。它不仅管理 step/open/close，还直接读取 demo 文件、构造导入数据、写 session state、点击模板 DOM、派发 template 事件、切换页面。这样会让 onboarding 成为多个模块的隐式协调中心，后续改 data/template/page 任意一处都容易牵动导览逻辑。
@@ -16,7 +16,7 @@
 
 整理后，`onboarding` 目录只保留导览自己的东西：
 
-- `Onboarding.tsx` 短期作为导览 overlay 展示层保留，后续单独迁移为 `.ts` 实现。
+- `Onboarding.旧视图` 短期作为导览 overlay 展示层保留，后续单独迁移为 `.ts` 实现。
 - `onboardingSteps.ts` 保留导览流程配置。
 - `onboardingTypes.ts` 保留导览配置和高亮目标类型。
 - `useOnboarding.ts` 只保留导览状态机：打开、关闭、上一步、下一步、完成、当前 step、是否允许下一步。
@@ -110,43 +110,43 @@ export const ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT =
 `loadOnboarding.ts` 和 `loadOnboardingController.ts` 都是很薄的懒加载缓存。建议二选一：
 
 - 合并为 `src/cs/workbench/contrib/onboarding/onboardingLoader.ts`。
-- 或迁到 `Page.tsx` 附近，作为页面级加载策略。
+- 或迁到 `Page.旧视图` 附近，作为页面级加载策略。
 
-`OnboardingControllerHost.tsx` 的职责是让 `useOnboarding` 在 lazy component 中运行，然后把状态回传给 `Page.tsx`。它更像页面 integration，而不是导览 UI 本体。中期可以迁为：
+`OnboardingControllerHost.旧视图` 的职责是让 `useOnboarding` 在 lazy component 中运行，然后把状态回传给 `Page.旧视图`。它更像页面 integration，而不是导览 UI 本体。中期可以迁为：
 
 - `src/cs/workbench/contrib/onboarding/useOnboardingController.ts`
-- 或 `src/cs/workbench/contrib/onboarding/onboardingControllerHost.tsx`
+- 或 `src/cs/workbench/contrib/onboarding/onboardingControllerHost.旧视图`
 
 验收点：
 
 - onboarding 目录不再同时承担 overlay、状态机、页面挂载桥接三层职责。
-- `Page.tsx` 的懒加载边界仍然清晰，首次打开页面不会同步加载大 overlay。
+- `Page.旧视图` 的懒加载边界仍然清晰，首次打开页面不会同步加载大 overlay。
 - 自动导览和手动打开导览行为一致。
 
-## 阶段 5：拆分 `Onboarding.tsx`
+## 阶段 5：拆分 `Onboarding.旧视图`
 
-`Onboarding.tsx` 目前体量很大，包含：
+`Onboarding.旧视图` 目前体量很大，包含：
 
 - DOM target 解析。
 - rect 测量。
 - spotlight/ring 计算。
 - card 定位。
-- React 渲染。
+- 旧 UI 框架 渲染。
 
 短期不建议在前四个阶段里同时重写它，避免行为回归。等职责边界稳定后，再拆成：
 
 - `onboardingGeometry.ts`：纯计算和 rect 工具。
 - `onboardingTargets.ts`：DOM target 解析和 virtual target 解析。
-- `Onboarding.tsx`：只保留展示和事件绑定。
+- `Onboarding.旧视图`：只保留展示和事件绑定。
 
-后续从 React 迁移到 `.ts` 时，再把展示层替换为上游式 DOM 组件。
+后续从 旧 UI 框架 迁移到 `.ts` 时，再把展示层替换为上游式 DOM 组件。
 
 验收点：
 
 - 几何计算可独立测试。
-- `Onboarding.tsx` 明显变薄。
+- `Onboarding.旧视图` 明显变薄。
 - 不新增 `index.ts` 入口文件。
-- 新增导览相关代码优先 `.ts`，不继续扩张 `.tsx`。
+- 新增导览相关代码优先 `.ts`，不继续扩张 `.旧视图`。
 
 ## 推荐执行顺序
 
@@ -162,7 +162,7 @@ export const ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT =
 - [ ] 记录当前 `src/cs/workbench/contrib/onboarding` 文件列表。
 - [ ] 用 `rg` 确认所有 onboarding 相关引用位置。
 - [ ] 手动跑一遍当前 onboarding 主流程，作为行为基线。
-- [ ] 确认本次改动不混入视觉重构或 React 迁移。
+- [ ] 确认本次改动不混入视觉重构或 旧 UI 框架 迁移。
 
 ### 阶段 1：抽出 Demo 数据导入
 
@@ -200,24 +200,24 @@ export const ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT =
 
 ### 阶段 4：整理懒加载和 Controller Host
 
-- [ ] 决定 loader 方案：合并成 `onboardingLoader.ts`，或迁到 `Page.tsx` 附近。
+- [ ] 决定 loader 方案：合并成 `onboardingLoader.ts`，或迁到 `Page.旧视图` 附近。
 - [ ] 合并或迁移 `loadOnboarding.ts`。
 - [ ] 合并或迁移 `loadOnboardingController.ts`。
-- [ ] 更新 `Page.tsx` 中 lazy import。
-- [ ] 评估 `OnboardingControllerHost.tsx` 是否迁到页面 integration 层。
+- [ ] 更新 `Page.旧视图` 中 lazy import。
+- [ ] 评估 `OnboardingControllerHost.旧视图` 是否迁到页面 integration 层。
 - [ ] 如果迁移 host，更新所有类型引用，避免重复定义 `OnboardingControllerState`。
 - [ ] 验证首次进入页面不会同步加载大 overlay。
 - [ ] 验证手动打开导览仍正常 lazy load。
 
-### 阶段 5：拆分 `Onboarding.tsx`
+### 阶段 5：拆分 `Onboarding.旧视图`
 
 - [ ] 先只移动纯 helper，不改视觉行为。
 - [ ] 抽出 rect/geometry 计算到 `.ts` 文件。
 - [ ] 抽出 DOM target 解析到 `.ts` 文件。
-- [ ] 保持 `Onboarding.tsx` 只负责 React 展示、状态订阅和事件绑定。
+- [ ] 保持 `Onboarding.旧视图` 只负责 旧 UI 框架 展示、状态订阅和事件绑定。
 - [ ] 为纯计算 helper 补轻量测试，至少覆盖 clamp、shadow outset、card placement、target rect 合并。
 - [ ] 手动验证 spotlight/ring/card 定位没有明显回归。
-- [ ] 单独评估后续 `.tsx` 到 `.ts` 的迁移，不和本阶段混做。
+- [ ] 单独评估后续 `.旧视图` 到 `.ts` 的迁移，不和本阶段混做。
 
 ### 收尾检查
 
@@ -247,7 +247,8 @@ export const ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT =
 ## 注意事项
 
 - 不要新增 `index.ts` 入口文件。
-- 新代码优先 `.ts`，不要继续扩张 `.tsx`。
+- 新代码优先 `.ts`，不要继续扩张 `.旧视图`。
 - 项目内导入优先使用 `src/...` 完整路径。
 - 不继续引入 `deviceAnalysis` 命名前缀作为新抽象的默认前缀。
-- 移动文件时分小 PR/小提交处理，避免和视觉重构、React 迁移混在一起。
+- 移动文件时分小 PR/小提交处理，避免和视觉重构、旧 UI 框架 迁移混在一起。
+

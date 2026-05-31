@@ -1,10 +1,24 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, } from "react";
-import {
+﻿import {
   getSelectionFocusCell,
   getSelectionModeFromPointerEvent,
   resolveSelectionDragStart,
 } from "src/cs/workbench/contrib/tablePreview/preview/previewSelectionNavigation";
-import { getExcelColumnLabel } from "src/cs/workbench/contrib/template/common/templateColumnLabel";
+import { getExcelColumnLabel } from "src/cs/workbench/contrib/template/common/templateColumnLabel";type MutableRef<T> = { current: T };
+type StateSetter<T> = (next: T | ((previous: T) => T)) => void;
+const useCallback = <T extends (...args: any[]) => any>(callback: T, _deps?: unknown[]): T => callback;
+const useEffect = (effect: () => void | (() => void), _deps?: unknown[]): void => {
+    effect();
+};
+const useLayoutEffect = useEffect;
+const useMemo = <T,>(factory: () => T, _deps?: unknown[]): T => factory();
+const useRef = <T,>(current: T): MutableRef<T> => ({ current });
+const useState = <T,>(initial: T | (() => T)): [T, StateSetter<T>] => {
+    let value = typeof initial === "function" ? (initial as () => T)() : initial;
+    const setValue: StateSetter<T> = (next) => {
+        value = typeof next === "function" ? (next as (previous: T) => T)(value) : next;
+    };
+    return [value, setValue];
+};
 const clampNumber = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const sameRect = (a: any, b: any) => (!a && !b) ||
     Boolean(a &&
@@ -1529,3 +1543,5 @@ export const usePreviewSelectionOverlay = ({ dragOverlayRef, gridRef, previewCol
         getRectFromCells,
     };
 };
+
+

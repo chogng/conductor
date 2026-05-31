@@ -1,7 +1,3 @@
-import {
-  useCallback,
-  useMemo,
-} from "react";
 import type {
   IonIoffManualTargetsByFileId,
   StateSetter,
@@ -32,7 +28,7 @@ type UseSessionActionsOptions = {
   setSsManualRanges: StateSetter<SsManualRanges>;
 };
 
-export const useSessionActions = ({
+export const createSessionActions = ({
   clearPreviewState,
   disposePreviewFileCache,
   invalidatePreviewRequests,
@@ -50,15 +46,12 @@ export const useSessionActions = ({
   setIonIoffManualTargetsByFileId,
   setSsManualRanges,
 }: UseSessionActionsOptions) => {
-  const hasSessionData = useMemo(
-    () =>
-      rawData.length > 0 ||
-      processedData.length > 0 ||
-      previewFile !== null,
-    [previewFile, processedData.length, rawData.length],
-  );
+  const hasSessionData =
+    rawData.length > 0 ||
+    processedData.length > 0 ||
+    previewFile !== null;
 
-  const handleClearSession = useCallback(() => {
+  const handleClearSession = () => {
     if (!hasSessionData) return;
 
     resetProcessingWorker();
@@ -70,70 +63,42 @@ export const useSessionActions = ({
     setIonIoffManualTargetsByFileId({});
     setSsManualRanges({});
     resetPreviewWorker();
-  }, [
-    clearPreviewState,
-    hasSessionData,
-    invalidatePreviewRequests,
-    resetPreviewWorker,
-    resetProcessingWorker,
-    setIonIoffManualTargetsByFileId,
-    setProcessedData,
-    setRawData,
-    setSsManualRanges,
-  ]);
+  };
 
-  const handleDataImported = useCallback(
-    (fileInfo: RawDataEntry) => {
-      setRawData((prev) => [...prev, fileInfo]);
-      if (fileInfo?.fileId) {
-        setSelectedPreviewFileId((currentFileId) => currentFileId ?? fileInfo.fileId ?? null);
-      }
-    },
-    [setRawData, setSelectedPreviewFileId],
-  );
+  const handleDataImported = (fileInfo: RawDataEntry) => {
+    setRawData((prev) => [...prev, fileInfo]);
+    if (fileInfo?.fileId) {
+      setSelectedPreviewFileId((currentFileId) => currentFileId ?? fileInfo.fileId ?? null);
+    }
+  };
 
-  const handleDataRemoved = useCallback(
-    (fileId: string) => {
-      if (selectedPreviewFileId === fileId) {
-        const remainingFiles = rawData.filter((entry) => entry.fileId !== fileId);
-        setSelectedPreviewFileId(remainingFiles[0]?.fileId ?? null);
-      }
+  const handleDataRemoved = (fileId: string) => {
+    if (selectedPreviewFileId === fileId) {
+      const remainingFiles = rawData.filter((entry) => entry.fileId !== fileId);
+      setSelectedPreviewFileId(remainingFiles[0]?.fileId ?? null);
+    }
 
-      setRawData((prev) => prev.filter((entry) => entry.fileId !== fileId));
-      setProcessedData((prev) =>
-        (Array.isArray(prev) ? prev : []).filter((entry) => entry?.fileId !== fileId),
-      );
-      setIonIoffManualTargetsByFileId((prev) => {
-        if (!prev?.[fileId]) return prev;
-        const next = { ...prev };
-        delete next[fileId];
-        return next;
-      });
+    setRawData((prev) => prev.filter((entry) => entry.fileId !== fileId));
+    setProcessedData((prev) =>
+      (Array.isArray(prev) ? prev : []).filter((entry) => entry?.fileId !== fileId),
+    );
+    setIonIoffManualTargetsByFileId((prev) => {
+      if (!prev?.[fileId]) return prev;
+      const next = { ...prev };
+      delete next[fileId];
+      return next;
+    });
 
-      if (processingStatus.state === "processing") {
-        removeQueuedProcessingFile(fileId);
-      }
+    if (processingStatus.state === "processing") {
+      removeQueuedProcessingFile(fileId);
+    }
 
-      if (previewFile?.fileId === fileId) {
-        clearPreviewState();
-      }
+    if (previewFile?.fileId === fileId) {
+      clearPreviewState();
+    }
 
-      disposePreviewFileCache(fileId);
-    },
-    [
-      clearPreviewState,
-      disposePreviewFileCache,
-      previewFile,
-      processingStatus.state,
-      rawData,
-      removeQueuedProcessingFile,
-      selectedPreviewFileId,
-      setIonIoffManualTargetsByFileId,
-      setProcessedData,
-      setRawData,
-      setSelectedPreviewFileId,
-    ],
-  );
+    disposePreviewFileCache(fileId);
+  };
 
   return {
     handleClearSession,
@@ -142,3 +107,5 @@ export const useSessionActions = ({
     hasSessionData,
   };
 };
+
+export const useSessionActions = createSessionActions;

@@ -245,7 +245,7 @@ Relevant code:
   - `buildOriginLogAutoTicks`
   - `padLinearDomain`
   - `padLogDomain`
-- `src/cs/workbench/contrib/chartPreview/components/AnalysisCharts.tsx`
+- `src/cs/workbench/contrib/chartPreview/browser/analysisCharts.ts`
   - `xDomain`
   - `yDomain`
   - `xTicks`

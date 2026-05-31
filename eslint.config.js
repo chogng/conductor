@@ -36,9 +36,9 @@ export default defineConfig([
     },
   },
   {
-    // Desktop main-process/source is TypeScript. Lint it, but do not lint TS/TSX
-    // under src/ yet (the project historically linted JS only).
-    files: ['desktop/**/*.{ts,tsx}'],
+    // Desktop main-process/source is TypeScript. Lint it, but do not lint src/
+    // yet (the project historically linted JS only).
+    files: ['desktop/**/*.ts'],
     languageOptions: {
       parser: tsParser,
       ecmaVersion: 'latest',

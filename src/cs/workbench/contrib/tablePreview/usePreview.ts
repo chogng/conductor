@@ -1,14 +1,4 @@
-﻿import {
-  startTransition,
-  useCallback,
-  useDeferredValue,
-  useEffect,
-  useMemo,
-  useRef,
-  type Dispatch,
-  type SetStateAction,
-} from "react";
-import type { MutableRef } from "src/cs/base/common/ref";
+﻿import type { MutableRef } from "src/cs/base/common/ref";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { PreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
 import {
@@ -37,6 +27,18 @@ import {
 import { usePreviewRowsVersion } from "./usePreviewRowsVersion";
 import { loadConvertedCsvFile } from "src/cs/workbench/contrib/import/browser/rustClient";
 import { importService } from "src/cs/workbench/services/import/browser/importService";
+
+type SetStateAction<T> = T | ((previous: T) => T);
+type Dispatch<T> = (value: T) => void;
+
+const startTransition = (callback: () => void): void => callback();
+const useCallback = <T extends (...args: any[]) => any>(callback: T, _deps?: unknown[]): T => callback;
+const useDeferredValue = <T,>(value: T): T => value;
+const useEffect = (effect: () => void | (() => void), _deps?: unknown[]): void => {
+  effect();
+};
+const useMemo = <T,>(factory: () => T, _deps?: unknown[]): T => factory();
+const useRef = <T,>(current: T): MutableRef<T> => ({ current });
 
 type PreviewResultPayload = {
   requestId: number;
@@ -995,3 +997,4 @@ export const usePreview = ({
     subscribePreviewRowsVersion,
   };
 };
+

@@ -1,14 +1,9 @@
-import { useContext } from "react";
-import { SessionContext } from "./analysis-session-context";
+import { SessionModel } from "src/cs/workbench/contrib/session/sessionModel";
 import type { SessionContextValue } from "./analysis-session-context";
 
-export const useSession = (): SessionContextValue => {
-  const context = useContext(SessionContext);
-  if (!context) {
-    throw new Error(
-      "useSession must be used within a session context.",
-    );
-  }
+const defaultSessionModel = new SessionModel();
 
-  return context;
-};
+export const getSession = (): SessionContextValue =>
+  defaultSessionModel.createContextValue(defaultSessionModel.getSnapshot());
+
+export const useSession = getSession;

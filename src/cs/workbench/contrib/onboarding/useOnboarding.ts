@@ -1,9 +1,3 @@
-﻿import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
 import type { MutableRef } from "src/cs/base/common/ref";
 import type { StateSetter, TemplateConfig } from "src/cs/workbench/contrib/session/analysis-session-context";
 import type { ProcessedEntry, RawDataEntry } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
@@ -47,11 +41,35 @@ type UseOnboardingOptions = {
   updateSettings: (updates: Record<string, unknown>) => Promise<unknown> | unknown;
 };
 
-export const useOnboarding = ({
+const scheduleStepEffects = (
+  stepIndex: number,
+): void => {
+  const currentStep = ONBOARDING_STEPS[stepIndex];
+  if (!currentStep || typeof window === "undefined") return;
+
+  if (currentStep.id === "template") {
+    window.setTimeout(openTemplateSelectModeForOnboarding, 40);
+    window.setTimeout(openTemplateDropdownForOnboarding, 140);
+  }
+
+  if (currentStep.id === "template-custom") {
+    window.setTimeout(openTemplateSaveModeForOnboarding, 40);
+  }
+
+  if (currentStep.id === "apply") {
+    window.setTimeout(openTemplateSelectModeForOnboarding, 40);
+  }
+
+  if (currentStep.focusTargetId) {
+    window.setTimeout(() => revealElementById(currentStep.focusTargetId as string), 80);
+    window.setTimeout(() => revealElementById(currentStep.focusTargetId as string), 260);
+  }
+};
+
+export const createOnboarding = ({
   clearPreviewState,
   importerRef,
   navigateToPage,
-  processingState,
   processedData,
   rawData,
   setProcessedData,
@@ -61,58 +79,60 @@ export const useOnboarding = ({
   templateConfig,
   updateSettings,
 }: UseOnboardingOptions) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [stepIndex, setStepIndex] = useState(0);
-  const [launchMode, setLaunchMode] = useState<"auto" | "manual">("manual");
+  let isOpen = false;
+  let stepIndex = 0;
+  let launchMode: "auto" | "manual" = "manual";
 
-  const steps = ONBOARDING_STEPS;
+  const persistState = async (updates: Record<string, unknown>) => {
+    try {
+      await updateSettings(updates);
+    } catch {
+      // Onboarding persistence is non-blocking.
+    }
+  };
 
-  const persistState = useCallback(
-    async (updates: Record<string, unknown>) => {
-      try {
-        await updateSettings(updates);
-      } catch {
-        // Non-blocking
-      }
-    },
-    [updateSettings],
-  );
+  const open = (mode: "auto" | "manual") => {
+    launchMode = mode;
+    stepIndex = 0;
+    isOpen = true;
+    navigateToPage("data");
+    scheduleStepEffects(stepIndex);
+  };
 
-  const open = useCallback(
-    (mode: "auto" | "manual") => {
-      setLaunchMode(mode);
-      setStepIndex(0);
-      setIsOpen(true);
-      navigateToPage("data");
-    },
-    [navigateToPage],
-  );
-
-  const close = useCallback(() => {
-    setIsOpen(false);
-    setStepIndex(0);
+  const close = () => {
+    isOpen = false;
+    stepIndex = 0;
 
     if (launchMode === "auto") {
       void persistState({ onboardingAutoStartDismissed: true });
     }
-  }, [launchMode, persistState]);
+  };
 
-  const finish = useCallback(() => {
-    setIsOpen(false);
-    setStepIndex(0);
+  const finish = () => {
+    isOpen = false;
+    stepIndex = 0;
     void persistState({
       onboardingCompleted: true,
       onboardingAutoStartDismissed: true,
     });
-  }, [persistState]);
+  };
 
-  const next = useCallback(() => {
-    if (stepIndex >= steps.length - 1) {
+  const setStep = (nextIndex: number) => {
+    stepIndex = Math.max(0, Math.min(nextIndex, ONBOARDING_STEPS.length - 1));
+    const currentStep = ONBOARDING_STEPS[stepIndex];
+    if (isOpen && currentStep) {
+      navigateToPage(currentStep.page);
+      scheduleStepEffects(stepIndex);
+    }
+  };
+
+  const next = () => {
+    if (stepIndex >= ONBOARDING_STEPS.length - 1) {
       finish();
       return;
     }
 
-    const currentStep = steps[stepIndex];
+    const currentStep = ONBOARDING_STEPS[stepIndex];
     if (currentStep?.id === "template") {
       const currentTemplateName = String(templateConfig?.name ?? "").trim();
       if (!currentTemplateName) {
@@ -121,35 +141,27 @@ export const useOnboarding = ({
           name: DEMO_TEMPLATE_NAME_FALLBACK,
         }));
       }
-    }
-
-    if (isOpen && currentStep?.id === "template") {
-      createTemplateForOnboarding();
+      if (isOpen) {
+        createTemplateForOnboarding();
+      }
     }
 
     if (isOpen && currentStep?.id === "apply") {
       const clicked = applyTemplateToAllForOnboarding();
       if (!clicked) {
-        setStepIndex((prev) => prev + 1);
+        setStep(stepIndex + 1);
       }
       return;
     }
 
-    setStepIndex((prev) => prev + 1);
-  }, [
-    finish,
-    isOpen,
-    setTemplateConfig,
-    stepIndex,
-    steps,
-    templateConfig?.name,
-  ]);
+    setStep(stepIndex + 1);
+  };
 
-  const back = useCallback(() => {
-    setStepIndex((prev) => Math.max(0, prev - 1));
-  }, []);
+  const back = () => {
+    setStep(stepIndex - 1);
+  };
 
-  const importDemoFiles = useCallback(async () => {
+  const importDemoFiles = async () => {
     const nextEntries = await importDemoRawDataEntries();
     if (nextEntries.length === 0) return;
 
@@ -157,15 +169,10 @@ export const useOnboarding = ({
     setProcessedData([]);
     clearPreviewState({ clearSelection: true });
     setSelectedPreviewFileId(nextEntries[0].fileId as string);
-  }, [
-    clearPreviewState,
-    setProcessedData,
-    setRawData,
-    setSelectedPreviewFileId,
-  ]);
+  };
 
-  const handleImportTrigger = useCallback(() => {
-    const currentStep = steps[stepIndex];
+  const handleImportTrigger = () => {
+    const currentStep = ONBOARDING_STEPS[stepIndex];
     const isGuidedImportStep = isOpen && currentStep?.id === "import";
 
     if (isGuidedImportStep) {
@@ -174,166 +181,49 @@ export const useOnboarding = ({
     }
 
     importerRef.current?.openFileDialog?.();
-  }, [importDemoFiles, importerRef, isOpen, stepIndex, steps]);
+  };
 
-  const handleOpenOrigin = useCallback((openOrigin: () => void) => {
-    const currentStep = steps[stepIndex];
+  const handleOpenOrigin = (openOrigin: () => void) => {
+    const currentStep = ONBOARDING_STEPS[stepIndex];
     openOrigin();
     if (isOpen && currentStep?.id === "origin-export") {
-      setStepIndex((prev) => Math.min(prev + 1, steps.length - 1));
+      setStep(stepIndex + 1);
     }
-  }, [isOpen, stepIndex, steps]);
+  };
 
-  useEffect(() => {
-    if (!isOpen || typeof document === "undefined") return undefined;
-
-    const isClickWithinButton = (
-      eventTarget: Node,
-      buttonId: string,
-    ): boolean => {
-      const button = document.getElementById(buttonId);
-      if (!(button instanceof HTMLElement)) {
-        return false;
+  if (typeof document !== "undefined") {
+    document.addEventListener("click", (event) => {
+      if (!isOpen) return;
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      const button = document.getElementById("analysis-template-output-rule-apply-to-all");
+      if (!(button instanceof HTMLElement)) return;
+      if (target !== button && !button.contains(target)) return;
+      if (ONBOARDING_STEPS[stepIndex]?.id === "apply") {
+        setStep(stepIndex + 1);
       }
-      return eventTarget === button || button.contains(eventTarget);
-    };
+    }, true);
+  }
 
-    const handleTemplateSaveClick = (event: MouseEvent) => {
-      const eventTarget = event.target;
-      if (!(eventTarget instanceof Node)) {
-        return;
-      }
-
-      const clickedApplyToAllButton = isClickWithinButton(
-        eventTarget,
-        "analysis-template-output-rule-apply-to-all",
-      );
-      if (clickedApplyToAllButton) {
-        setStepIndex((prev) => {
-          const currentStepId = steps[prev]?.id;
-          if (currentStepId === "apply") {
-            return Math.min(prev + 1, steps.length - 1);
-          }
-          return prev;
-        });
-      }
-    };
-
-    document.addEventListener("click", handleTemplateSaveClick, true);
-    return () => {
-      document.removeEventListener("click", handleTemplateSaveClick, true);
-    };
-  }, [isOpen, steps]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const currentStep = steps[stepIndex];
-    if (!currentStep) return;
-    navigateToPage(currentStep.page);
-  }, [isOpen, navigateToPage, stepIndex, steps]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const currentStep = steps[stepIndex];
-    if (!currentStep) return;
-
-    const timeoutIds: number[] = [];
-
-    if (currentStep.id === "template") {
-      timeoutIds.push(
-        window.setTimeout(() => {
-          openTemplateSelectModeForOnboarding();
-        }, 40),
-      );
-      timeoutIds.push(
-        window.setTimeout(() => {
-          openTemplateDropdownForOnboarding();
-        }, 140),
-      );
-    }
-
-    if (currentStep.id === "template-custom") {
-      timeoutIds.push(
-        window.setTimeout(() => {
-          openTemplateSaveModeForOnboarding();
-        }, 40),
-      );
-    }
-
-    if (currentStep.id === "apply") {
-      timeoutIds.push(
-        window.setTimeout(() => {
-          openTemplateSelectModeForOnboarding();
-        }, 40),
-      );
-    }
-
-    if (currentStep.focusTargetId) {
-      const baseDelay = 80;
-      timeoutIds.push(
-        window.setTimeout(() => {
-          revealElementById(currentStep.focusTargetId as string);
-        }, baseDelay),
-      );
-      timeoutIds.push(
-        window.setTimeout(() => {
-          revealElementById(currentStep.focusTargetId as string);
-        }, baseDelay + 180),
-      );
-    }
-
-    return () => {
-      timeoutIds.forEach((timeoutId) => window.clearTimeout(timeoutId));
-    };
-  }, [isOpen, stepIndex, steps]);
-
-  const canNext = useMemo(() => {
-    if (!isOpen) return true;
-
-    const currentStep = steps[stepIndex];
-    if (!currentStep) return true;
-
-    switch (currentStep.id) {
-      case "import":
-        return rawData.length > 0;
-      default:
-        return true;
-    }
-  }, [
-    isOpen,
-    rawData.length,
-    stepIndex,
-    steps,
-    templateConfig,
-  ]);
-
-  return useMemo(
-    () => ({
-      canNext,
-      close,
-      handleImportTrigger,
-      handleOpenOrigin,
-      isOpen,
-      next,
-      open,
-      stepIndex,
-      steps,
-      back,
-    }),
-    [
-      back,
-      canNext,
-      close,
-      handleImportTrigger,
-      handleOpenOrigin,
-      isOpen,
-      next,
-      open,
-      stepIndex,
-      steps,
-    ],
-  );
+  return {
+    get canNext() {
+      const currentStep = ONBOARDING_STEPS[stepIndex];
+      return currentStep?.id === "import" ? rawData.length > 0 : true;
+    },
+    close,
+    handleImportTrigger,
+    handleOpenOrigin,
+    get isOpen() {
+      return isOpen;
+    },
+    next,
+    open,
+    get stepIndex() {
+      return stepIndex;
+    },
+    steps: ONBOARDING_STEPS,
+    back,
+  };
 };
 
-
-
+export const useOnboarding = createOnboarding;

@@ -1,43 +1,11 @@
-import { Fragment, jsx, jsxs } from "react/jsx-runtime";
-import {
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState
-} from "react";
 import {
   getButtonClassName,
   getButtonContentClassName,
 } from "cs/base/browser/ui/button/button";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { OnboardingStep } from "src/cs/workbench/contrib/onboarding/onboardingTypes";
-import {
-  areHighlightRectsEqual,
-  areRectLikesEqual,
-  CARD_HEIGHT,
-  CARD_WIDTH,
-  clamp,
-  computeAnchoredCardPosition,
-  computeCardPosition,
-  getBoundingRect,
-  getInteractionBlockerRects,
-  RING_PADDING,
-  SPOTLIGHT_PADDING,
-  type CardSize,
-  type HighlightRect,
-  type RectLike
-} from "src/cs/workbench/contrib/onboarding/onboardingGeometry";
-import {
-  collectHighlightElements,
-  getResolvedRingTargetIds,
-  getResolvedRingVirtualTargets,
-  getSpotlightTargetIds,
-  getTargetRects,
-  getVirtualRingTargetRects,
-  getVirtualSpotlightTargetRects,
-  resolveHighlightElement
-} from "src/cs/workbench/contrib/onboarding/onboardingTargets";
+import { CARD_HEIGHT } from "src/cs/workbench/contrib/onboarding/onboardingGeometry";
+
 type OnboardingProps = {
   isOpen: boolean;
   stepIndex: number;
@@ -48,402 +16,189 @@ type OnboardingProps = {
   onClose: () => void;
   onNext: () => void;
 };
-const Onboarding = ({
+
+const Onboarding = (props: OnboardingProps): any => createOnboardingView(props);
+
+export const createOnboardingView = ({
+  canNext = true,
   isOpen,
+  onBack,
+  onClose,
+  onNext,
   stepIndex,
   steps,
   t,
-  canNext = true,
-  onBack,
-  onClose,
-  onNext
-}: OnboardingProps) => {
+}: OnboardingProps): HTMLElement | null => {
   const step = steps[stepIndex] ?? null;
-  const cardRef = useRef<HTMLDivElement | null>(null);
-  const maskId = useId();
-  const [cardSize, setCardSize] = useState<CardSize>({
-    width: CARD_WIDTH,
-    height: CARD_HEIGHT
-  });
-  const [ringRects, setRingRects] = useState<HighlightRect[]>([]);
-  const [spotlightRects, setSpotlightRects] = useState<HighlightRect[]>([]);
-  const [cardTargetRect, setCardTargetRect] = useState<RectLike | null>(null);
-  const [isRingActivated, setIsRingActivated] = useState(false);
-  useEffect(() => {
-    setIsRingActivated(false);
-  }, [isOpen, step?.id]);
-  useEffect(() => {
-    if (!isOpen) return void 0;
-    const element = cardRef.current;
-    if (!element) return void 0;
-    const updateCardSize = () => {
-      const rect = element.getBoundingClientRect();
-      if (rect.width <= 0 || rect.height <= 0) return;
-      setCardSize({
-        width: rect.width,
-        height: rect.height
-      });
-    };
-    updateCardSize();
-    if (typeof ResizeObserver === "undefined") return void 0;
-    const observer = new ResizeObserver(() => updateCardSize());
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [isOpen, stepIndex]);
-  useEffect(() => {
-    if (!isOpen || !step || typeof document === "undefined") return void 0;
-    const activationTargetIds = step.ringActivationTargetIds;
-    if (!Array.isArray(activationTargetIds) || activationTargetIds.length === 0) {
-      return void 0;
-    }
-    const handleClick = (event: MouseEvent) => {
-      const eventTarget = event.target;
-      if (!(eventTarget instanceof Node)) {
-        return;
-      }
-      const shouldActivate = activationTargetIds.some((id) => {
-        const rawElement = document.getElementById(id);
-        if (!(rawElement instanceof HTMLElement)) {
-          return false;
-        }
-        const resolvedElement = resolveHighlightElement(rawElement);
-        return rawElement === eventTarget || resolvedElement === eventTarget || rawElement.contains(eventTarget) || resolvedElement.contains(eventTarget);
-      });
-      if (shouldActivate) {
-        setIsRingActivated(true);
-      }
-    };
-    document.addEventListener("click", handleClick, true);
-    return () => {
-      document.removeEventListener("click", handleClick, true);
-    };
-  }, [isOpen, step]);
-  useEffect(() => {
-    if (!isOpen || !step || typeof window === "undefined") return void 0;
-    const ringTargetIds = getResolvedRingTargetIds(step, isRingActivated);
-    const ringVirtualTargets = getResolvedRingVirtualTargets(step, isRingActivated);
-    const spotlightTargetIds = getSpotlightTargetIds(step);
-    const spotlightVirtualTargets = step.spotlightVirtualTargets;
-    const cardTargetIds = step.cardTargetIds;
-    const ringPadding = step.ringPadding ?? RING_PADDING;
-    const spotlightPadding = step.spotlightPadding ?? SPOTLIGHT_PADDING;
-    const cardTargetPadding = step.cardTargetPadding ?? 0;
-    const updateRect = () => {
-      const nextRingRects = [
-        ...getTargetRects(ringTargetIds, ringPadding),
-        ...getVirtualRingTargetRects(ringVirtualTargets, ringPadding)
-      ];
-      const nextSpotlightRects = getTargetRects(
-        spotlightTargetIds,
-        spotlightPadding
-      ).concat(
-        getVirtualSpotlightTargetRects(spotlightVirtualTargets, spotlightPadding)
-      );
-      const nextCardTargetRects = getTargetRects(cardTargetIds, cardTargetPadding);
-      setRingRects(
-        (currentRects) => areHighlightRectsEqual(currentRects, nextRingRects) ? currentRects : nextRingRects
-      );
-      setSpotlightRects(
-        (currentRects) => areHighlightRectsEqual(currentRects, nextSpotlightRects) ? currentRects : nextSpotlightRects
-      );
-      setCardTargetRect((currentRect) => {
-        const nextCardTargetRect = getBoundingRect(nextCardTargetRects);
-        return areRectLikesEqual(currentRect, nextCardTargetRect) ? currentRect : nextCardTargetRect;
-      });
-    };
-    let frameId: number | null = null;
-    let needsObserverRefresh = false;
-    const scheduleRectUpdate = () => {
-      if (frameId != null) return;
-      frameId = window.requestAnimationFrame(() => {
-        frameId = null;
-        if (needsObserverRefresh) {
-          observeHighlightElements();
-          needsObserverRefresh = false;
-        }
-        updateRect();
-      });
-    };
-    const resizeObserver = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => {
-      scheduleRectUpdate();
-    });
-    const observeHighlightElements = () => {
-      if (!resizeObserver) return;
-      resizeObserver.disconnect();
-      collectHighlightElements({
-        cardTargetIds,
-        ringTargetIds,
-        ringVirtualTargets,
-        spotlightTargetIds,
-        spotlightVirtualTargets
-      }).forEach((element) => {
-        resizeObserver.observe(element);
-      });
-    };
-    observeHighlightElements();
-    updateRect();
-    const handleWindowChange = () => scheduleRectUpdate();
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-    const mutationObserver = typeof MutationObserver === "undefined" || !document.body ? null : new MutationObserver(() => {
-      needsObserverRefresh = true;
-      scheduleRectUpdate();
-    });
-    mutationObserver?.observe(document.body, {
-      attributeFilter: [
-        "class",
-        "style",
-        "hidden",
-        "aria-hidden",
-        "data-row",
-        "data-col",
-        "data-column-index"
-      ],
-      attributes: true,
-      childList: true,
-      subtree: true
-    });
-    window.addEventListener("resize", handleWindowChange);
-    window.addEventListener("scroll", handleWindowChange, true);
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      if (frameId != null) {
-        window.cancelAnimationFrame(frameId);
-      }
-      resizeObserver?.disconnect();
-      mutationObserver?.disconnect();
-      window.removeEventListener("resize", handleWindowChange);
-      window.removeEventListener("scroll", handleWindowChange, true);
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isOpen, isRingActivated, onClose, step]);
-  const spotlightBounds = useMemo(
-    () => getBoundingRect(spotlightRects),
-    [spotlightRects]
-  );
-  const progressStepIds = useMemo(() => {
-    const next: string[] = [];
-    for (const entry of steps) {
-      const progressId = entry.progressGroupId ?? entry.id;
-      if (!next.includes(progressId)) {
-        next.push(progressId);
-      }
-    }
-    return next;
-  }, [steps]);
-  const anchorRect = useMemo(
-    () => ringRects[0] ?? spotlightBounds ?? null,
-    [ringRects, spotlightBounds]
-  );
-  const cardStyle = useMemo(() => {
-    if (!isOpen || !step || typeof window === "undefined") return void 0;
-    if (cardTargetRect && step.cardAnchor) {
-      return computeAnchoredCardPosition(
-        cardTargetRect,
-        step.cardAnchor,
-        cardSize,
-        step.cardOffsetX ?? 0,
-        step.cardOffsetY ?? 0
-      );
-    }
-    return computeCardPosition(
-      anchorRect,
-      step.placement ?? "bottom",
-      cardSize,
-      step.cardOffsetX ?? 0,
-      step.cardOffsetY ?? 0
-    );
-  }, [anchorRect, cardSize, cardTargetRect, isOpen, step]);
-  if (!isOpen || !step) return null;
+  if (!isOpen || !step) {
+    return null;
+  }
+
   const totalSteps = steps.length;
   const isLastStep = stepIndex >= totalSteps - 1;
+  const progressStepIds = getProgressStepIds(steps);
   const currentProgressStepId = step.progressGroupId ?? step.id;
   const resolvedProgressStepIndex = progressStepIds.indexOf(currentProgressStepId);
-  const progressStepIndex = resolvedProgressStepIndex >= 0 ? resolvedProgressStepIndex : stepIndex;
+  const progressStepIndex =
+    resolvedProgressStepIndex >= 0 ? resolvedProgressStepIndex : stepIndex;
   const totalProgressSteps = progressStepIds.length || totalSteps;
-  const viewportWidth = typeof window === "undefined" ? 0 : Math.max(0, window.innerWidth);
-  const viewportHeight = typeof window === "undefined" ? 0 : Math.max(0, window.innerHeight);
-  const backdropOpacity = clamp(step.backdropOpacity ?? 0.58, 0, 0.9);
-  const backdropFill = `rgba(0,0,0,${backdropOpacity})`;
-  const backdropRects = spotlightRects.length > 0 ? spotlightRects : ringRects;
-  const shouldUseFullBackdrop = step.backdropMode === "full" || backdropRects.length === 0;
-  const interactionBlockerRects = getInteractionBlockerRects(
-    viewportWidth,
-    viewportHeight,
-    ringRects
+
+  const root = document.createElement("div");
+  root.className = "pointer-events-none fixed inset-0 z-[120] text-text-primary";
+  root.setAttribute("aria-live", "polite");
+
+  const backdrop = document.createElement("div");
+  backdrop.className = "absolute inset-0";
+  backdrop.style.background = `rgba(0,0,0,${step.backdropOpacity ?? 0.58})`;
+  root.append(backdrop);
+
+  const card = document.createElement("div");
+  card.className =
+    "pointer-events-auto fixed left-1/2 top-1/2 flex flex-col overflow-hidden rounded-[24px] border border-border bg-bg-surface p-6 shadow-[0_24px_80px_rgba(0,0,0,0.35)]";
+  card.style.width = "min(420px, calc(100vw - 32px))";
+  card.style.height = `${CARD_HEIGHT}px`;
+  card.style.transform = "translate(-50%, -50%)";
+  card.role = "dialog";
+  card.setAttribute("aria-modal", "true");
+  card.setAttribute("aria-labelledby", "analysis-onboarding-title");
+
+  card.append(
+    createHeader({
+      current: progressStepIndex + 1,
+      onClose,
+      t,
+      total: totalProgressSteps,
+    }),
+    createBody({
+      body: t(step.bodyKey),
+      title: t(step.titleKey),
+    }),
+    createFooter({
+      canNext,
+      isFirstStep: stepIndex === 0,
+      isLastStep,
+      onBack,
+      onNext,
+      progressStepIds,
+      progressStepIndex,
+      t,
+    }),
   );
-  return /* @__PURE__ */ jsxs(
-    "div",
-    {
-      className: "pointer-events-none fixed inset-0 z-[120] text-text-primary",
-      "aria-live": "polite",
-      children: [
-        !shouldUseFullBackdrop ? /* @__PURE__ */ jsxs(Fragment, { children: [
-          /* @__PURE__ */ jsxs(
-            "svg",
-            {
-              className: "absolute inset-0 h-full w-full",
-              "aria-hidden": "true",
-              viewBox: `0 0 ${viewportWidth} ${viewportHeight}`,
-              preserveAspectRatio: "none",
-              children: [
-                /* @__PURE__ */ jsx("defs", { children: /* @__PURE__ */ jsxs(
-                  "mask",
-                  {
-                    id: maskId,
-                    x: "0",
-                    y: "0",
-                    width: viewportWidth,
-                    height: viewportHeight,
-                    maskUnits: "userSpaceOnUse",
-                    maskContentUnits: "userSpaceOnUse",
-                    children: [
-                      /* @__PURE__ */ jsx(
-                        "rect",
-                        {
-                          x: "0",
-                          y: "0",
-                          width: viewportWidth,
-                          height: viewportHeight,
-                          fill: "white"
-                        }
-                      ),
-                      backdropRects.map((rect, index) => /* @__PURE__ */ jsx(
-                        "rect",
-                        {
-                          x: rect.left,
-                          y: rect.top,
-                          width: rect.width,
-                          height: rect.height,
-                          rx: rect.radius,
-                          ry: rect.radius,
-                          fill: "black"
-                        },
-                        `${step.id}-mask-${index}`
-                      ))
-                    ]
-                  }
-                ) }),
-                /* @__PURE__ */ jsx(
-                  "rect",
-                  {
-                    x: "0",
-                    y: "0",
-                    width: viewportWidth,
-                    height: viewportHeight,
-                    fill: backdropFill,
-                    mask: `url(#${maskId})`
-                  }
-                )
-              ]
-            }
-          ),
-          backdropRects.map((rect, index) => /* @__PURE__ */ jsx(
-            "div",
-            {
-              className: "absolute border border-white/18 bg-white/[0.02] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]",
-              style: {
-                ...rect,
-                borderRadius: `${rect.radius}px`
-              }
-            },
-            `${step.id}-spotlight-${index}`
-          ))
-        ] }) : /* @__PURE__ */ jsx("div", { className: "absolute inset-0", style: { background: backdropFill } }),
-        interactionBlockerRects.map((rect, index) => /* @__PURE__ */ jsx(
-          "div",
-          {
-            "aria-hidden": "true",
-            className: "pointer-events-auto absolute",
-            style: rect
-          },
-          `${step.id}-interaction-blocker-${index}`
-        )),
-        ringRects.map((rect, index) => /* @__PURE__ */ jsx(
-          "div",
-          {
-            className: "analysis-onboarding-ring absolute border-2 border-accent-terracotta",
-            style: {
-              ...rect,
-              borderRadius: `${rect.radius}px`,
-              background: "rgba(255,255,255,0.03)"
-            }
-          },
-          `${step.id}-ring-${index}`
-        )),
-        /* @__PURE__ */ jsxs(
-          "div",
-          {
-            ref: cardRef,
-            className: "pointer-events-auto fixed flex flex-col overflow-hidden rounded-[24px] border border-border bg-bg-surface p-6 shadow-[0_24px_80px_rgba(0,0,0,0.35)]",
-            style: {
-              ...cardStyle,
-              height: CARD_HEIGHT
-            },
-            role: "dialog",
-            "aria-modal": "true",
-            "aria-labelledby": "analysis-onboarding-title",
-            children: [
-              /* @__PURE__ */ jsxs("div", { className: "mb-3 flex items-center justify-between gap-3", children: [
-                /* @__PURE__ */ jsx("div", { className: "text-xs font-medium uppercase tracking-[0.18em] text-text-secondary", children: t("da_onboarding_progress", {
-                  current: progressStepIndex + 1,
-                  total: totalProgressSteps
-                }) }),
-                /* @__PURE__ */ jsx(
-                  "button",
-                  {
-                    type: "button",
-                    className: "rounded-full px-2 py-1 text-sm text-text-secondary transition hover:bg-bg-page hover:text-text-primary",
-                    onClick: onClose,
-                    children: t("da_onboarding_skip")
-                  }
-                )
-              ] }),
-              /* @__PURE__ */ jsx(
-                "h3",
-                {
-                  id: "analysis-onboarding-title",
-                  className: "text-lg font-semibold text-text-primary",
-                  children: t(step.titleKey)
-                }
-              ),
-              /* @__PURE__ */ jsx("div", { className: "mt-2 min-h-0 flex-1 overflow-y-auto pr-1", children: /* @__PURE__ */ jsx("p", { className: "text-sm leading-6 text-text-secondary", children: t(step.bodyKey) }) }),
-              /* @__PURE__ */ jsxs("div", { className: "mt-4 flex items-center justify-between gap-3", children: [
-                /* @__PURE__ */ jsx("div", { className: "flex items-center gap-2", children: renderOnboardingButton({
-                  disabled: stepIndex === 0,
-                  label: t("da_onboarding_back"),
-                  onClick: onBack,
-                  variant: "ghost"
-                }) }),
-                /* @__PURE__ */ jsx("div", { className: "flex items-center gap-2", children: progressStepIds.map((progressId, index) => /* @__PURE__ */ jsx(
-                  "span",
-                  {
-                    className: `h-2 rounded-full transition-all ${index === progressStepIndex ? "w-6 bg-[#222222]" : "w-2 bg-border"}`,
-                    "aria-hidden": "true"
-                  },
-                  progressId
-                )) }),
-                renderOnboardingButton({
-                  disabled: !canNext,
-                  label: isLastStep ? t("da_onboarding_finish") : t("da_onboarding_next"),
-                  onClick: onNext,
-                  variant: "primary"
-                })
-              ] })
-            ]
-          }
-        )
-      ]
-    }
-  );
+  root.append(card);
+  return root;
 };
 
-export default Onboarding;
+const createHeader = ({
+  current,
+  onClose,
+  t,
+  total,
+}: {
+  readonly current: number;
+  readonly onClose: () => void;
+  readonly t: TranslateFn;
+  readonly total: number;
+}): HTMLElement => {
+  const header = document.createElement("div");
+  header.className = "mb-3 flex items-center justify-between gap-3";
 
-const renderOnboardingButton = ({
+  const progress = document.createElement("div");
+  progress.className =
+    "text-xs font-medium uppercase tracking-[0.18em] text-text-secondary";
+  progress.textContent = t("da_onboarding_progress", { current, total });
+
+  const skip = document.createElement("button");
+  skip.type = "button";
+  skip.className =
+    "rounded-full px-2 py-1 text-sm text-text-secondary transition hover:bg-bg-page hover:text-text-primary";
+  skip.textContent = t("da_onboarding_skip");
+  skip.addEventListener("click", onClose);
+  header.append(progress, skip);
+  return header;
+};
+
+const createBody = ({
+  body,
+  title,
+}: {
+  readonly body: string;
+  readonly title: string;
+}): HTMLElement => {
+  const fragment = document.createElement("div");
+  const heading = document.createElement("h3");
+  heading.id = "analysis-onboarding-title";
+  heading.className = "text-lg font-semibold text-text-primary";
+  heading.textContent = title;
+
+  const bodyWrap = document.createElement("div");
+  bodyWrap.className = "mt-2 min-h-0 flex-1 overflow-y-auto pr-1";
+  const paragraph = document.createElement("p");
+  paragraph.className = "text-sm leading-6 text-text-secondary";
+  paragraph.textContent = body;
+  bodyWrap.append(paragraph);
+  fragment.append(heading, bodyWrap);
+  return fragment;
+};
+
+const createFooter = ({
+  canNext,
+  isFirstStep,
+  isLastStep,
+  onBack,
+  onNext,
+  progressStepIds,
+  progressStepIndex,
+  t,
+}: {
+  readonly canNext: boolean;
+  readonly isFirstStep: boolean;
+  readonly isLastStep: boolean;
+  readonly onBack: () => void;
+  readonly onNext: () => void;
+  readonly progressStepIds: string[];
+  readonly progressStepIndex: number;
+  readonly t: TranslateFn;
+}): HTMLElement => {
+  const footer = document.createElement("div");
+  footer.className = "mt-4 flex items-center justify-between gap-3";
+
+  const left = document.createElement("div");
+  left.className = "flex items-center gap-2";
+  left.append(
+    createButton({
+      disabled: isFirstStep,
+      label: t("da_onboarding_back"),
+      onClick: onBack,
+      variant: "ghost",
+    }),
+  );
+
+  const dots = document.createElement("div");
+  dots.className = "flex items-center gap-2";
+  progressStepIds.forEach((progressId, index) => {
+    const dot = document.createElement("span");
+    dot.className = `h-2 rounded-full transition-all ${
+      index === progressStepIndex ? "w-6 bg-[#222222]" : "w-2 bg-border"
+    }`;
+    dot.setAttribute("aria-hidden", "true");
+    dot.dataset.progressId = progressId;
+    dots.append(dot);
+  });
+
+  footer.append(
+    left,
+    dots,
+    createButton({
+      disabled: !canNext,
+      label: isLastStep ? t("da_onboarding_finish") : t("da_onboarding_next"),
+      onClick: onNext,
+      variant: "primary",
+    }),
+  );
+  return footer;
+};
+
+const createButton = ({
   disabled,
   label,
   onClick,
@@ -453,18 +208,32 @@ const renderOnboardingButton = ({
   readonly label: string;
   readonly onClick: () => void;
   readonly variant: "ghost" | "primary";
-}) =>
-  jsx("button", {
-    type: "button",
-    className: getButtonClassName({
-      disabled,
-      size: "sm",
-      variant,
-    }),
+}): HTMLButtonElement => {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = getButtonClassName({
     disabled,
-    onClick,
-    children: jsx("span", {
-      className: getButtonContentClassName(),
-      children: label,
-    }),
+    size: "sm",
+    variant,
   });
+  button.disabled = Boolean(disabled);
+  button.addEventListener("click", onClick);
+  const content = document.createElement("span");
+  content.className = getButtonContentClassName();
+  content.textContent = label;
+  button.append(content);
+  return button;
+};
+
+const getProgressStepIds = (steps: OnboardingStep[]): string[] => {
+  const ids: string[] = [];
+  for (const entry of steps) {
+    const progressId = entry.progressGroupId ?? entry.id;
+    if (!ids.includes(progressId)) {
+      ids.push(progressId);
+    }
+  }
+  return ids;
+};
+
+export default Onboarding;

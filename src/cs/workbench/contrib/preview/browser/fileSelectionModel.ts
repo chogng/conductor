@@ -1,82 +1,94 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-
 const normalizeFileIds = (fileIds: unknown[]): string[] =>
   (Array.isArray(fileIds) ? fileIds : [])
     .map((item) => String(item ?? "").trim())
     .filter((item, index, arr) => Boolean(item) && arr.indexOf(item) === index);
 
-type UseFileSelectionPoolOptions = {
+type FileSelectionPoolOptions = {
   availableFileIds: unknown[];
   initialSelectedFileIds?: unknown[];
 };
 
-export const useFileSelectionPool = ({
-  availableFileIds,
-  initialSelectedFileIds = [],
-}: UseFileSelectionPoolOptions) => {
-  const availableIds = useMemo(() => normalizeFileIds(availableFileIds), [availableFileIds]);
-  const initialIds = useMemo(() => normalizeFileIds(initialSelectedFileIds), [initialSelectedFileIds]);
-  const didApplyInitialSelectionRef = useRef(false);
+export class FileSelectionPool {
+  private availableIds: string[];
+  private didApplyInitialSelection = false;
+  private selectedIds: string[];
 
-  const [selectedFileIds, setSelectedFileIds] = useState<string[]>(() => {
-    const availableSet = new Set(availableIds);
-    const initial = initialIds.filter((item) => availableSet.has(item));
-    if (initial.length) return initial;
-    return [];
-  });
+  constructor({
+    availableFileIds,
+    initialSelectedFileIds = [],
+  }: FileSelectionPoolOptions) {
+    this.availableIds = normalizeFileIds(availableFileIds);
+    const availableSet = new Set(this.availableIds);
+    this.selectedIds = normalizeFileIds(initialSelectedFileIds)
+      .filter((item) => availableSet.has(item));
+    this.didApplyInitialSelection = this.selectedIds.length > 0;
+  }
 
-  useEffect(() => {
-    setSelectedFileIds((prev) => {
-      if (!availableIds.length) return prev.length ? [] : prev;
+  get selectedFileIds(): string[] {
+    return [...this.selectedIds];
+  }
 
-      const availableSet = new Set(availableIds);
-      const filtered = normalizeFileIds(prev).filter((item) => availableSet.has(item));
-      const initial = initialIds.filter((item) => availableSet.has(item));
-      const next = filtered.length || didApplyInitialSelectionRef.current ? filtered : initial;
-      if (initial.length) didApplyInitialSelectionRef.current = true;
-      const unchanged =
-        next.length === prev.length && next.every((value, index) => value === prev[index]);
-      return unchanged ? prev : next;
-    });
-  }, [availableIds, initialIds]);
+  get selectedFileIdSet(): Set<string> {
+    return new Set(this.selectedIds);
+  }
 
-  const selectedFileIdSet = useMemo(() => new Set(selectedFileIds), [selectedFileIds]);
+  updateAvailableFiles(fileIds: unknown[], initialSelectedFileIds: unknown[] = []): void {
+    this.availableIds = normalizeFileIds(fileIds);
+    if (!this.availableIds.length) {
+      this.selectedIds = [];
+      return;
+    }
 
-  const toggleFileSelection = useCallback((fileIdRaw: unknown) => {
+    const availableSet = new Set(this.availableIds);
+    const filtered = normalizeFileIds(this.selectedIds).filter((item) => availableSet.has(item));
+    const initial = normalizeFileIds(initialSelectedFileIds).filter((item) => availableSet.has(item));
+    this.selectedIds = filtered.length || this.didApplyInitialSelection ? filtered : initial;
+    if (initial.length) {
+      this.didApplyInitialSelection = true;
+    }
+  }
+
+  toggleFileSelection = (fileIdRaw: unknown): void => {
     const fileId = String(fileIdRaw ?? "").trim();
     if (!fileId) return;
 
-    didApplyInitialSelectionRef.current = true;
-    setSelectedFileIds((prev) => {
-      const current = normalizeFileIds(prev);
-      if (current.includes(fileId)) {
-        return current.filter((item) => item !== fileId);
-      }
-      return [...current, fileId];
-    });
-  }, []);
+    this.didApplyInitialSelection = true;
+    const current = normalizeFileIds(this.selectedIds);
+    this.selectedIds = current.includes(fileId)
+      ? current.filter((item) => item !== fileId)
+      : [...current, fileId];
+  };
 
-  const replaceFileSelection = useCallback((fileIds: unknown[]) => {
-    didApplyInitialSelectionRef.current = true;
-    setSelectedFileIds(normalizeFileIds(fileIds));
-  }, []);
+  replaceFileSelection = (fileIds: unknown[]): void => {
+    this.didApplyInitialSelection = true;
+    this.selectedIds = normalizeFileIds(fileIds);
+  };
 
-  const selectAllFiles = useCallback(() => {
-    didApplyInitialSelectionRef.current = true;
-    setSelectedFileIds(availableIds);
-  }, [availableIds]);
+  selectAllFiles = (): void => {
+    this.didApplyInitialSelection = true;
+    this.selectedIds = [...this.availableIds];
+  };
 
-  const clearFileSelection = useCallback(() => {
-    didApplyInitialSelectionRef.current = true;
-    setSelectedFileIds([]);
-  }, []);
+  clearFileSelection = (): void => {
+    this.didApplyInitialSelection = true;
+    this.selectedIds = [];
+  };
+}
 
+export const createFileSelectionPool = (options: FileSelectionPoolOptions) => {
+  const model = new FileSelectionPool(options);
   return {
-    clearFileSelection,
-    replaceFileSelection,
-    selectAllFiles,
-    selectedFileIds,
-    selectedFileIdSet,
-    toggleFileSelection,
+    clearFileSelection: model.clearFileSelection,
+    replaceFileSelection: model.replaceFileSelection,
+    selectAllFiles: model.selectAllFiles,
+    get selectedFileIds() {
+      return model.selectedFileIds;
+    },
+    get selectedFileIdSet() {
+      return model.selectedFileIdSet;
+    },
+    toggleFileSelection: model.toggleFileSelection,
   };
 };
+
+export const useFileSelectionPool = createFileSelectionPool;

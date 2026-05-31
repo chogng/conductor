@@ -1,46 +1,40 @@
-import { useCallback, useRef } from "react";
+export const createPreviewRowsVersion = () => {
+  let previewRowsVersion = 0;
+  let previewRowsNotifyRaf = 0;
+  const previewRowsSubscribers = new Set<() => void>();
 
-export const usePreviewRowsVersion = () => {
-  const previewRowsVersionRef = useRef(0);
-  const previewRowsSubscribersRef = useRef<Set<() => void>>(new Set());
-  const previewRowsNotifyRafRef = useRef(0);
+  const getPreviewRowsVersion = () => previewRowsVersion;
 
-  const getPreviewRowsVersion = useCallback(
-    () => previewRowsVersionRef.current,
-    [],
-  );
+  const subscribePreviewRowsVersion = (callback: () => void) => {
+    previewRowsSubscribers.add(callback);
+    return () => previewRowsSubscribers.delete(callback);
+  };
 
-  const subscribePreviewRowsVersion = useCallback((callback: () => void) => {
-    const subscribers = previewRowsSubscribersRef.current;
-    subscribers.add(callback);
-    return () => subscribers.delete(callback);
-  }, []);
-
-  const cancelPreviewRowsVersionNotification = useCallback(() => {
+  const cancelPreviewRowsVersionNotification = () => {
     if (typeof window === "undefined") return;
-    if (!previewRowsNotifyRafRef.current) return;
+    if (!previewRowsNotifyRaf) return;
 
-    cancelAnimationFrame(previewRowsNotifyRafRef.current);
-    previewRowsNotifyRafRef.current = 0;
-  }, []);
+    cancelAnimationFrame(previewRowsNotifyRaf);
+    previewRowsNotifyRaf = 0;
+  };
 
-  const notifyPreviewRowsVersion = useCallback(() => {
+  const notifyPreviewRowsVersion = () => {
     if (typeof window === "undefined") return;
-    if (previewRowsNotifyRafRef.current) return;
+    if (previewRowsNotifyRaf) return;
 
-    previewRowsNotifyRafRef.current = requestAnimationFrame(() => {
-      previewRowsNotifyRafRef.current = 0;
-      previewRowsVersionRef.current += 1;
+    previewRowsNotifyRaf = requestAnimationFrame(() => {
+      previewRowsNotifyRaf = 0;
+      previewRowsVersion += 1;
 
-      for (const callback of Array.from(previewRowsSubscribersRef.current)) {
+      for (const callback of Array.from(previewRowsSubscribers)) {
         try {
           callback();
         } catch {
-          // ignore subscriber errors
+          // A broken listener must not prevent the preview cache from advancing.
         }
       }
     });
-  }, []);
+  };
 
   return {
     cancelPreviewRowsVersionNotification,
@@ -49,3 +43,5 @@ export const usePreviewRowsVersion = () => {
     subscribePreviewRowsVersion,
   };
 };
+
+export const usePreviewRowsVersion = createPreviewRowsVersion;

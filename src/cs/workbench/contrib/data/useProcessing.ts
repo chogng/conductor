@@ -1,11 +1,4 @@
-﻿import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import type { MutableRef } from "src/cs/base/common/ref";
+﻿import type { MutableRef } from "src/cs/base/common/ref";
 import type { StateSetter } from "src/cs/workbench/contrib/session/analysis-session-context";
 import { prepareExtraction } from "src/cs/workbench/contrib/data/extractionValidation";
 import {
@@ -32,6 +25,20 @@ import { importService } from "src/cs/workbench/services/import/browser/importSe
 
 // Orchestrates validation and queue building for the device-analysis apply flow.
 // The async execution details live in asyncProcessing.ts so this hook stays focused on inputs.
+
+const useCallback = <T extends (...args: any[]) => any>(callback: T, _deps?: unknown[]): T => callback;
+const useEffect = (effect: () => void | (() => void), _deps?: unknown[]): void => {
+  effect();
+};
+const useMemo = <T,>(factory: () => T, _deps?: unknown[]): T => factory();
+const useRef = <T,>(current: T): MutableRef<T> => ({ current });
+const useState = <T,>(initial: T | (() => T)): [T, StateSetter<T>] => {
+  let value = typeof initial === "function" ? (initial as () => T)() : initial;
+  const setValue: StateSetter<T> = (next) => {
+    value = typeof next === "function" ? (next as (previous: T) => T)(value) : next;
+  };
+  return [value, setValue];
+};
 
 type ExtractionErrorEntry = {
   fileName?: string;
@@ -843,5 +850,6 @@ export const useProcessing = ({
     resetProcessingWorker,
   };
 };
+
 
 

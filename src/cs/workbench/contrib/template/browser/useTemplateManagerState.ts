@@ -1,10 +1,4 @@
-﻿import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
-import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
+﻿import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
 import type { PreviewFileLike } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/deviceAnalysis/translateTypes";
 import { apiService } from "src/cs/workbench/contrib/desktop/browser/apiService";
@@ -27,6 +21,21 @@ import {
 } from "src/cs/workbench/contrib/template/common/templateValidation";
 import { stableStringify } from "src/cs/workbench/common/deviceAnalysis/utils";
 import { normalizeFileNameFieldSeparators } from "src/cs/workbench/common/deviceAnalysis/fileNameFieldMatching";
+
+type LocalStateSetter<T> = (next: T | ((previous: T) => T)) => void;
+
+const useCallback = <T extends (...args: any[]) => any>(callback: T, _deps?: unknown[]): T => callback;
+const useEffect = (effect: () => void | (() => void), _deps?: unknown[]): void => {
+  effect();
+};
+const useRef = <T,>(current: T) => ({ current });
+const useState = <T,>(initial: T | (() => T)): [T, LocalStateSetter<T>] => {
+  let value = typeof initial === "function" ? (initial as () => T)() : initial;
+  const setValue: LocalStateSetter<T> = (next) => {
+    value = typeof next === "function" ? (next as (previous: T) => T)(value) : next;
+  };
+  return [value, setValue];
+};
 
 type TemplateMode = "select" | "save";
 type InputSource = "manual" | "picked";
@@ -1011,3 +1020,4 @@ export const useTemplateManagerState = ({
     writeFieldFromPreview,
   };
 };
+

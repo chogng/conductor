@@ -29,14 +29,6 @@ export default defineConfig({
         manualChunks(id) {
           if (!id.includes("node_modules")) return undefined;
 
-          if (
-            id.includes("/react/") ||
-            id.includes("/react-dom/") ||
-            id.includes("/scheduler/")
-          ) {
-            return "react-vendor";
-          }
-
           if (id.includes("papaparse") || id.includes("jszip")) {
             return "data-vendor";
           }
@@ -51,11 +43,10 @@ export default defineConfig({
     warmup: {
       clientFiles: [
         "./src/cs/code/browser/workbench/web.main.ts",
-        "./src/cs/code/electron-browser/workbench/desktopBoot.ts",
+        "./src/cs/code/electron-browser/workbench/workbench.ts",
         "./src/cs/code/electron-browser/workbench/desktop.main.ts",
         "./src/cs/platform/platform.browser.main.ts",
         "./src/cs/platform/platform.desktop.main.ts",
-        "./src/cs/base/browser/browser.main.ts",
         "./src/cs/workbench/workbench.common.main.ts",
         "./src/cs/workbench/workbench.browser.main.ts",
         "./src/cs/workbench/workbench.desktop.main.ts",

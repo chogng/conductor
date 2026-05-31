@@ -1,4 +1,3 @@
-﻿import { useCallback, useEffect, useState } from "react";
 import { disposableTimeout } from "src/cs/base/common/async";
 import type { AnalysisSettings } from "src/cs/workbench/contrib/settings/settingsShared";
 import type { OnboardingLaunchMode } from "src/cs/workbench/contrib/onboarding/onboardingState";
@@ -11,17 +10,15 @@ type UseOnboardingLauncherParams = {
   rawDataCount: number;
 };
 
-export const useOnboardingLauncher = ({
+export const createOnboardingLauncher = ({
   analysisSettings,
   onboardingIsOpen,
   prefetchOnboarding,
   processedDataCount,
   rawDataCount,
 }: UseOnboardingLauncherParams) => {
-  const [shouldMountOnboardingController, setShouldMountOnboardingController] =
-    useState(false);
-  const [pendingOnboardingOpenMode, setPendingOnboardingOpenMode] =
-    useState<OnboardingLaunchMode | null>(null);
+  let shouldMountOnboardingController = false;
+  let pendingOnboardingOpenMode: OnboardingLaunchMode | null = null;
 
   const hasOnboardingSessionData =
     rawDataCount > 0 || processedDataCount > 0;
@@ -31,45 +28,41 @@ export const useOnboardingLauncher = ({
     !Boolean(analysisSettings?.onboardingAutoStartDismissed) &&
     !hasOnboardingSessionData;
 
-  useEffect(() => {
-    if (!shouldAutoStartOnboarding || onboardingIsOpen) {
-      return undefined;
-    }
+  const open = (mode: OnboardingLaunchMode) => {
+    shouldMountOnboardingController = true;
+    pendingOnboardingOpenMode = mode;
+    prefetchOnboarding();
+  };
 
-    const scheduleAutoOpen = () => {
-      setShouldMountOnboardingController(true);
-      setPendingOnboardingOpenMode("auto");
-      prefetchOnboarding();
-    };
-
+  if (shouldAutoStartOnboarding && !onboardingIsOpen) {
+    const scheduleAutoOpen = () => open("auto");
     if (
       typeof window !== "undefined" &&
       typeof window.requestIdleCallback === "function"
     ) {
-      const idleId = window.requestIdleCallback(scheduleAutoOpen, {
-        timeout: 1200,
-      });
-      return () => {
-        if (typeof window.cancelIdleCallback === "function") {
-          window.cancelIdleCallback(idleId);
-        }
-      };
+      window.requestIdleCallback(scheduleAutoOpen, { timeout: 1200 });
+    } else {
+      disposableTimeout(scheduleAutoOpen, 320);
     }
+  }
 
-    return disposableTimeout(scheduleAutoOpen, 320).dispose;
-  }, [onboardingIsOpen, prefetchOnboarding, shouldAutoStartOnboarding]);
+  const handleOpenOnboardingGuide = () => open("manual");
 
-  const handleOpenOnboardingGuide = useCallback(() => {
-    setShouldMountOnboardingController(true);
-    setPendingOnboardingOpenMode("manual");
-    prefetchOnboarding();
-  }, [prefetchOnboarding]);
+  const setPendingOnboardingOpenMode = (mode: OnboardingLaunchMode | null) => {
+    pendingOnboardingOpenMode = mode;
+  };
 
   return {
     handleOpenOnboardingGuide,
     hasOnboardingSessionData,
-    pendingOnboardingOpenMode,
+    get pendingOnboardingOpenMode() {
+      return pendingOnboardingOpenMode;
+    },
     setPendingOnboardingOpenMode,
-    shouldMountOnboardingController,
+    get shouldMountOnboardingController() {
+      return shouldMountOnboardingController;
+    },
   };
 };
+
+export const useOnboardingLauncher = createOnboardingLauncher;

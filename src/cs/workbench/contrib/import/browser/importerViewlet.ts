@@ -15,6 +15,8 @@ import {
 } from "src/cs/workbench/contrib/import/browser/importerView";
 import { normalizeCtaName, normalizeCtaToken } from "src/utils/cta";
 
+import "src/cs/workbench/contrib/import/browser/media/importerViewlet.css";
+
 export type ImporterViewletProps = {
   readonly hasSessionData: boolean;
   readonly importerRef: { current: ImporterRef | null };

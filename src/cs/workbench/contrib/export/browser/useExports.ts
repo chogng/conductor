@@ -1,4 +1,3 @@
-﻿import { useCallback, useEffect } from "react";
 import type JSZip from "jszip";
 import type {
   SsManualRanges,
@@ -26,29 +25,29 @@ declare global {
   }
 }
 
-export const useExports = ({
+const loadExportDependencies = async () => {
+  const [jsZipModule, exportModule] = await Promise.all([
+    import("jszip") as Promise<{ default: typeof JSZip }>,
+    import("./export"),
+  ]);
+
+  return {
+    JSZip: jsZipModule.default,
+    buildCsvExports:
+      exportModule.buildCsvExports as ExportModule["buildCsvExports"],
+    buildSsMetricsCsv:
+      exportModule.buildSsMetricsCsv as ExportModule["buildSsMetricsCsv"],
+    triggerBlobDownload:
+      exportModule.triggerBlobDownload as ExportModule["triggerBlobDownload"],
+  };
+};
+
+export const createExports = ({
   processedData = [],
   ssManualRanges,
   ssMethod,
 }: UseExportsOptions) => {
-  const loadExportDependencies = useCallback(async () => {
-    const [jsZipModule, exportModule] = await Promise.all([
-      import("jszip") as Promise<{ default: typeof JSZip }>,
-      import("./export"),
-    ]);
-
-    return {
-      JSZip: jsZipModule.default,
-      buildCsvExports:
-        exportModule.buildCsvExports as ExportModule["buildCsvExports"],
-      buildSsMetricsCsv:
-        exportModule.buildSsMetricsCsv as ExportModule["buildSsMetricsCsv"],
-      triggerBlobDownload:
-        exportModule.triggerBlobDownload as ExportModule["triggerBlobDownload"],
-    };
-  }, []);
-
-  const handleExport = useCallback(async () => {
+  const handleExport = async () => {
     if (processedData.length === 0) return;
 
     const {
@@ -83,9 +82,9 @@ export const useExports = ({
     });
 
     triggerBlobDownload("device_analysis_export.zip", zipBlob);
-  }, [loadExportDependencies, processedData, ssManualRanges, ssMethod]);
+  };
 
-  const handleExportOrigin = useCallback(async () => {
+  const handleExportOrigin = async () => {
     if (processedData.length === 0) return;
 
     const {
@@ -98,7 +97,6 @@ export const useExports = ({
     if (exports.length === 0) return;
 
     const zip = new JSZip();
-
     for (const item of exports) {
       zip.file(item.filename, "\uFEFF" + item.csvText);
     }
@@ -110,26 +108,20 @@ export const useExports = ({
     });
 
     triggerBlobDownload("device_analysis.zip", zipBlob);
-  }, [loadExportDependencies, processedData]);
+  };
 
-  useEffect(() => {
-    if (!import.meta.env.DEV) return undefined;
-
+  if (typeof window !== "undefined" && import.meta.env.DEV) {
     window.__conductorDebug = window.__conductorDebug || {};
     window.__conductorDebug.deviceAnalysis = {
       exportOriginZip: handleExportOrigin,
       exportZip: handleExport,
     };
-
-    return () => {
-      if (window.__conductorDebug?.deviceAnalysis) {
-        delete window.__conductorDebug.deviceAnalysis;
-      }
-    };
-  }, [handleExport, handleExportOrigin]);
+  }
 
   return {
     handleExport,
     handleExportOrigin,
   };
 };
+
+export const useExports = createExports;

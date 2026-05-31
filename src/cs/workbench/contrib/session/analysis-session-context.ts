@@ -1,4 +1,3 @@
-import { createContext } from "react";
 import type { MutableRef } from "src/cs/base/common/ref";
 import type {
   PreviewFile,
@@ -111,6 +110,3 @@ export type SessionContextValue = {
   ssManualRanges: SsManualRanges;
   setSsManualRanges: StateSetter<SsManualRanges>;
 };
-
-export const SessionContext =
-  createContext<SessionContextValue | null>(null);

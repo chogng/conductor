@@ -1,16 +1,9 @@
-import { jsx, jsxs } from "react/jsx-runtime";
-import {
-  useEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type ReactNode,
-} from "react";
 import {
   getButtonClassName,
   getButtonContentClassName,
 } from "src/cs/base/browser/ui/button/button";
-import Sash, { type SashDragEvent, type SashOptions } from "src/cs/base/browser/ui/sash/sash";
+import Sash, { type SashDragEvent } from "src/cs/base/browser/ui/sash/sash";
+import { DisposableStore } from "src/cs/base/common/lifecycle";
 import {
   getWorkbenchSidebarActionClassName,
   normalizeWorkbenchSidebarHeaderActions,
@@ -30,40 +23,12 @@ export type WorkbenchSidebarAction = {
   isActive?: boolean;
   isDisabled?: boolean;
   isDanger?: boolean;
-  icon?: ReactNode;
+  icon?: Node | string | null;
   badge?: WorkbenchSidebarBadge;
 };
 
 export type WorkbenchSidebarHeaderAction = WorkbenchSidebarAction & {
   kind?: "primary" | "secondary" | "icon" | "statusBadge";
-};
-
-const SashHost = (props: SashOptions) => {
-  const hostRef = useRef<HTMLDivElement | null>(null);
-  const sashRef = useRef<Sash | null>(null);
-
-  useEffect(() => {
-    const host = hostRef.current;
-    if (!host) {
-      return;
-    }
-
-    sashRef.current = new Sash(props);
-    host.replaceChildren(sashRef.current.element);
-
-    return () => {
-      sashRef.current?.dispose();
-      sashRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    sashRef.current?.update(props);
-  }, [props.active, props.className, props.disabled, props.edge, props.onDidChange, props.onDidEnd, props.onDidStart, props.orientation, props.role, props.style]);
-
-  return jsx("div", {
-    ref: hostRef,
-  });
 };
 
 export type WorkbenchSidebarSection = {
@@ -91,6 +56,14 @@ export type WorkbenchSidebarActionHandler = (
   action: WorkbenchSidebarAction,
 ) => void;
 
+export type SidebarPartOptions = WorkbenchSidebarPartState & {
+  ariaLabel?: string;
+  children?: Node | null;
+  onAction?: WorkbenchSidebarActionHandler;
+  onStartResizing?: (event: SashDragEvent) => void;
+  style?: Partial<CSSStyleDeclaration> | Record<string, string>;
+};
+
 export const getWorkbenchSidebarWidthStyle = (
   widthPx: number | undefined,
 ): Record<string, string> | undefined => {
@@ -103,24 +76,294 @@ export const getWorkbenchSidebarWidthStyle = (
   };
 };
 
-export type SidebarPartProps = WorkbenchSidebarPartState & {
-  ariaLabel?: string;
-  children?: ReactNode;
-  onAction?: WorkbenchSidebarActionHandler;
-  onStartResizing?: (event: SashDragEvent) => void;
-  style?: CSSProperties;
+export class SidebarPart {
+  public readonly element: HTMLElement;
+  private readonly disposables = new DisposableStore();
+  private sash: Sash | null = null;
+
+  constructor(options: SidebarPartOptions) {
+    this.element = document.createElement("aside");
+    this.update(options);
+  }
+
+  public update(options: SidebarPartOptions): void {
+    this.disposables.clear();
+    this.sash?.dispose();
+    this.sash = null;
+
+    this.element.replaceChildren();
+    applySidebarAttributes(this.element, options);
+
+    const normalizedHeaderActions = normalizeWorkbenchSidebarHeaderActions(
+      options.headerActions,
+    );
+    const normalizedSections = normalizeWorkbenchSidebarSections(options.sections);
+    const hasHeaderContent = Boolean(
+      options.title || options.description || options.badge,
+    );
+
+    if (hasHeaderContent || normalizedHeaderActions.length > 0) {
+      this.element.append(
+        createSidebarHeader({
+          badge: options.badge,
+          description: options.description,
+          hasHeaderContent,
+          normalizedHeaderActions,
+          onAction: options.onAction,
+          title: options.title,
+        }),
+      );
+    }
+
+    for (const section of normalizedSections) {
+      this.element.append(createSidebarSection(section, options.onAction));
+    }
+
+    if (options.children) {
+      this.element.append(options.children);
+    }
+
+    if (options.onStartResizing) {
+      this.sash = new Sash({
+        className: "workbench_sidebar_sash",
+        edge: "right",
+        active: options.isResizing,
+        onDidStart: options.onStartResizing,
+      });
+      this.element.append(this.sash.element);
+    }
+  }
+
+  public dispose(): void {
+    this.disposables.dispose();
+    this.sash?.dispose();
+    this.sash = null;
+  }
+}
+
+const applySidebarAttributes = (
+  element: HTMLElement,
+  options: SidebarPartOptions,
+): void => {
+  element.removeAttribute("id");
+  element.removeAttribute("aria-label");
+  element.removeAttribute("aria-labelledby");
+
+  if (options.id) {
+    element.id = options.id;
+  }
+  setOptionalAttribute(element, "aria-label", options.ariaLabel);
+  setOptionalAttribute(element, "aria-labelledby", options.labelledBy);
+  element.className = `workbench_sidebar_part ${options.className ?? ""}`.trim();
+  element.dataset.resizing = options.isResizing ? "true" : "false";
+
+  element.removeAttribute("style");
+  const widthStyle = getWorkbenchSidebarWidthStyle(options.widthPx);
+  applyStyle(element, widthStyle);
+  applyStyle(element, options.style);
 };
 
-const renderSidebarBadge = (badge: WorkbenchSidebarBadge | undefined) => {
+const createSidebarHeader = ({
+  badge,
+  description,
+  hasHeaderContent,
+  normalizedHeaderActions,
+  onAction,
+  title,
+}: {
+  readonly badge?: WorkbenchSidebarBadge;
+  readonly description?: string;
+  readonly hasHeaderContent: boolean;
+  readonly normalizedHeaderActions: WorkbenchSidebarHeaderAction[];
+  readonly onAction?: WorkbenchSidebarActionHandler;
+  readonly title?: string;
+}): HTMLElement => {
+  const header = document.createElement("div");
+  header.className = `workbench_sidebar_header ${!hasHeaderContent ? "workbench_sidebar_header--actions-only" : ""}`.trim();
+
+  if (title || description) {
+    header.append(createSidebarHeaderMain(title, description));
+  }
+
+  const badgeElement = createSidebarBadge(badge);
+  if (badgeElement) {
+    const badgeWrapper = document.createElement("div");
+    badgeWrapper.className = "shrink-0 self-start";
+    badgeWrapper.append(badgeElement);
+    header.append(badgeWrapper);
+  }
+
+  if (normalizedHeaderActions.length > 0) {
+    const actions = document.createElement("div");
+    actions.className = "workbench_sidebar_header_actions";
+    for (const action of normalizedHeaderActions) {
+      actions.append(createSidebarAction(action, onAction, action.kind));
+    }
+    header.append(actions);
+  }
+
+  return header;
+};
+
+const createSidebarHeaderMain = (
+  title: string | undefined,
+  description: string | undefined,
+): HTMLElement => {
+  const main = document.createElement("div");
+  main.className = "workbench_sidebar_header_main";
+  if (title) {
+    const heading = document.createElement("h2");
+    heading.className = "workbench_sidebar_title";
+    heading.textContent = title;
+    main.append(heading);
+  }
+  if (description) {
+    const text = document.createElement("p");
+    text.className = "workbench_sidebar_description";
+    text.textContent = description;
+    main.append(text);
+  }
+  return main;
+};
+
+const createSidebarSection = (
+  section: WorkbenchSidebarSection,
+  onAction: WorkbenchSidebarActionHandler | undefined,
+): HTMLElement => {
+  const root = document.createElement("section");
+  root.className = "workbench_sidebar_section";
+
+  const header = document.createElement("div");
+  header.className = "flex items-start justify-between gap-2";
+  header.append(createSidebarHeaderMain(section.title, section.description));
+  const badge = createSidebarBadge(section.badge);
+  if (badge) {
+    header.append(badge);
+  }
+  root.append(header);
+
+  if (section.actions?.length) {
+    const actions = document.createElement("div");
+    actions.className = "flex flex-col gap-1";
+    for (const action of section.actions) {
+      actions.append(createSidebarAction(action, onAction));
+    }
+    root.append(actions);
+  }
+
+  return root;
+};
+
+const createSidebarAction = (
+  action: WorkbenchSidebarAction,
+  onAction: WorkbenchSidebarActionHandler | undefined,
+  kind?: WorkbenchSidebarHeaderAction["kind"],
+): HTMLElement => {
+  if (kind === "statusBadge") {
+    return new SidebarHeaderStatusBadge(
+      action.id,
+      action.title,
+      action.badge?.text ?? action.title,
+    ).element;
+  }
+
+  const button = document.createElement("button");
+  button.id = action.id;
+  button.type = "button";
+  button.disabled = Boolean(action.isDisabled);
+  button.title = action.title;
+  button.addEventListener("click", () => onAction?.(action));
+
+  if (kind === "icon") {
+    button.className = getButtonClassName({
+      className: "workbench_sidebar_header_icon_btn",
+      disabled: action.isDisabled,
+      size: "iconSm",
+      variant: "ghost",
+    });
+    button.setAttribute("aria-label", action.title);
+    button.append(createButtonContent(action.icon));
+    return button;
+  }
+
+  if (kind) {
+    button.className = getButtonClassName({
+      className: "workbench_sidebar_header_btn",
+      disabled: action.isDisabled,
+      size: "sm",
+      variant: kind === "primary" ? "primary" : "ghost",
+    });
+    if (action.icon) {
+      button.dataset.icon = "with";
+    }
+    button.append(createButtonContent(action.icon, action.title));
+    return button;
+  }
+
+  button.className = getWorkbenchSidebarActionClassName(action);
+  button.dataset.kind = kind;
+  appendIcon(button, action.icon);
+  button.append(createTextSpan(action.title));
+  const badge = createSidebarBadge(action.badge);
+  if (badge) {
+    button.append(badge);
+  }
+  return button;
+};
+
+class SidebarHeaderStatusBadge {
+  public readonly element: HTMLElement;
+  private value: string;
+
+  constructor(id: string, label: string, value: string) {
+    this.value = value;
+    this.element = document.createElement("span");
+    this.element.id = id;
+    this.element.className = "workbench_sidebar_header_status_badge";
+    this.element.role = "status";
+    this.element.setAttribute("aria-live", "polite");
+    this.element.setAttribute("aria-label", label);
+    this.element.title = label;
+    this.render(value, null, "up");
+  }
+
+  public update(value: string): void {
+    if (value === this.value) {
+      return;
+    }
+    const previous = this.value;
+    this.value = value;
+    const direction = getRollingDirection(previous, value);
+    this.render(value, prefersReducedMotion() ? null : previous, direction);
+  }
+
+  private render(
+    nextValue: string,
+    previousValue: string | null,
+    direction: "up" | "down",
+  ): void {
+    const digits = createRollingDigits({
+      direction,
+      nextValue,
+      onAnimationEnd: () => this.render(this.value, null, direction),
+      previousValue,
+    });
+    this.element.replaceChildren(digits);
+  }
+}
+
+const createSidebarBadge = (
+  badge: WorkbenchSidebarBadge | undefined,
+): HTMLElement | null => {
   if (!badge) {
     return null;
   }
 
-  return jsx("span", {
-    className: "workbench_sidebar_badge",
-    "data-tone": badge.tone ?? "default",
-    children: badge.text,
-  });
+  const element = document.createElement("span");
+  element.className = "workbench_sidebar_badge";
+  element.dataset.tone = badge.tone ?? "default";
+  element.textContent = badge.text;
+  return element;
 };
 
 const prefersReducedMotion = (): boolean => {
@@ -137,18 +380,48 @@ const getRollingDirection = (
 ): "up" | "down" => {
   const previousNumber = Number(previousValue);
   const nextNumber = Number(nextValue);
-
   if (Number.isFinite(previousNumber) && Number.isFinite(nextNumber)) {
     return nextNumber >= previousNumber ? "up" : "down";
   }
-
   return "up";
 };
 
-const padRollingValue = (value: string, length: number): string =>
-  value.padStart(length, " ");
+const createRollingDigits = ({
+  direction,
+  nextValue,
+  onAnimationEnd,
+  previousValue,
+}: {
+  readonly direction: "up" | "down";
+  readonly nextValue: string;
+  readonly onAnimationEnd: () => void;
+  readonly previousValue: string | null;
+}): HTMLElement => {
+  const length = Math.max(previousValue?.length ?? 0, nextValue.length);
+  const next = nextValue.padStart(length, " ");
+  const previous =
+    previousValue === null ? next : previousValue.padStart(length, " ");
 
-const renderRollingDigitColumn = ({
+  const root = document.createElement("span");
+  root.setAttribute("aria-hidden", "true");
+  root.className = "workbench_sidebar_header_status_badge_digits";
+
+  for (let index = 0; index < length; index++) {
+    root.append(
+      createRollingDigitColumn({
+        direction,
+        index,
+        nextChar: next[index] ?? " ",
+        onAnimationEnd,
+        previousChar: previous[index] ?? " ",
+      }),
+    );
+  }
+
+  return root;
+};
+
+const createRollingDigitColumn = ({
   direction,
   index,
   nextChar,
@@ -160,347 +433,102 @@ const renderRollingDigitColumn = ({
   readonly nextChar: string;
   readonly onAnimationEnd: () => void;
   readonly previousChar: string;
-}) => {
-  const hasChanged = previousChar !== nextChar;
-  const renderChar = (char: string) => (char === " " ? "" : char);
+}): HTMLElement => {
+  const viewport = document.createElement("span");
+  viewport.className = "workbench_sidebar_header_status_badge_digit_viewport";
 
-  if (!hasChanged) {
-    return jsx(
-      "span",
-      {
-        className: "workbench_sidebar_header_status_badge_digit_viewport",
-        children: jsx("span", {
-          className: "workbench_sidebar_header_status_badge_digit",
-          children: renderChar(nextChar),
-        }),
-      },
-      `static-${index}-${nextChar}`,
-    );
+  const digit = document.createElement("span");
+  digit.className = "workbench_sidebar_header_status_badge_digit";
+
+  if (previousChar === nextChar) {
+    digit.textContent = renderRollingChar(nextChar);
+    viewport.append(digit);
+    return viewport;
   }
 
-  return jsx(
-    "span",
-    {
-      className: "workbench_sidebar_header_status_badge_digit_viewport",
-      children: jsxs("span", {
-        className:
-          "workbench_sidebar_header_status_badge_digit workbench_sidebar_header_status_badge_digit--rolling",
-        "data-direction": direction,
-        onAnimationEnd,
-        children:
-          direction === "up"
-            ? [
-                jsx("span", { children: renderChar(previousChar) }, "previous"),
-                jsx("span", { children: renderChar(nextChar) }, "next"),
-              ]
-            : [
-                jsx("span", { children: renderChar(nextChar) }, "next"),
-                jsx("span", { children: renderChar(previousChar) }, "previous"),
-              ],
-      }),
-    },
-    `rolling-${index}-${previousChar}-${nextChar}`,
-  );
+  digit.className += " workbench_sidebar_header_status_badge_digit--rolling";
+  digit.dataset.direction = direction;
+  digit.addEventListener("animationend", onAnimationEnd, { once: true });
+  const first = document.createElement("span");
+  const second = document.createElement("span");
+  first.textContent =
+    direction === "up"
+      ? renderRollingChar(previousChar)
+      : renderRollingChar(nextChar);
+  second.textContent =
+    direction === "up"
+      ? renderRollingChar(nextChar)
+      : renderRollingChar(previousChar);
+  first.dataset.index = String(index);
+  digit.append(first, second);
+  viewport.append(digit);
+  return viewport;
 };
 
-const renderRollingDigits = ({
-  direction,
-  nextValue,
-  onAnimationEnd,
-  previousValue,
-}: {
-  readonly direction: "up" | "down";
-  readonly nextValue: string;
-  readonly onAnimationEnd: () => void;
-  readonly previousValue: string | null;
-}) => {
-  const length = Math.max(previousValue?.length ?? 0, nextValue.length);
-  const next = padRollingValue(nextValue, length);
-  const previous =
-    previousValue === null ? next : padRollingValue(previousValue, length);
+const renderRollingChar = (char: string): string => (char === " " ? "" : char);
 
-  return jsx("span", {
-    "aria-hidden": "true",
-    className: "workbench_sidebar_header_status_badge_digits",
-    children: Array.from({ length }, (_, index) =>
-      renderRollingDigitColumn({
-        direction,
-        index,
-        nextChar: next[index] ?? " ",
-        onAnimationEnd,
-        previousChar: previous[index] ?? " ",
-      }),
-    ),
-  });
+const createButtonContent = (
+  icon: Node | string | null | undefined,
+  label?: string,
+): HTMLSpanElement => {
+  const content = document.createElement("span");
+  content.className = getButtonContentClassName();
+  appendIcon(content, icon);
+  if (label) {
+    content.append(createTextSpan(label));
+  }
+  return content;
 };
 
-const SidebarHeaderStatusBadge = ({
-  id,
-  label,
-  value,
-}: {
-  readonly id: string;
-  readonly label: string;
-  readonly value: string;
-}) => {
-  const [displayValue, setDisplayValue] = useState(value);
-  const [previousValue, setPreviousValue] = useState<string | null>(null);
-  const [direction, setDirection] = useState<"up" | "down">("up");
-  const displayValueRef = useRef(value);
-
-  useEffect(() => {
-    if (value === displayValueRef.current) return;
-
-    const previous = displayValueRef.current;
-    displayValueRef.current = value;
-    setDisplayValue(value);
-
-    if (prefersReducedMotion()) {
-      setPreviousValue(null);
-      return;
-    }
-
-    setDirection(getRollingDirection(previous, value));
-    setPreviousValue(previous);
-  }, [value]);
-
-  return jsx("span", {
-    id,
-    className: "workbench_sidebar_header_status_badge",
-    role: "status",
-    "aria-live": "polite",
-    "aria-label": label,
-    title: label,
-    children: renderRollingDigits({
-      direction,
-      nextValue: displayValue,
-      onAnimationEnd: () => setPreviousValue(null),
-      previousValue,
-    }),
-  });
-};
-
-const renderSidebarAction = (
-  action: WorkbenchSidebarAction,
-  onAction: WorkbenchSidebarActionHandler | undefined,
-  kind?: WorkbenchSidebarHeaderAction["kind"],
-) => {
-  if (kind) {
-    if (kind === "statusBadge") {
-      return jsx(SidebarHeaderStatusBadge, {
-        id: action.id,
-        label: action.title,
-        value: action.badge?.text ?? action.title,
-      });
-    }
-
-    if (kind === "icon") {
-      return jsx("button", {
-        id: action.id,
-        type: "button",
-        className: getButtonClassName({
-          className: "workbench_sidebar_header_icon_btn",
-          disabled: action.isDisabled,
-          size: "iconSm",
-          variant: "ghost",
-        }),
-        disabled: action.isDisabled,
-        onClick: () => onAction?.(action),
-        title: action.title,
-        "aria-label": action.title,
-        children: jsx("span", {
-          className: getButtonContentClassName(),
-          children: action.icon,
-        }),
-      });
-    }
-
-    return jsx("button", {
-      id: action.id,
-      type: "button",
-      className: getButtonClassName({
-        className: "workbench_sidebar_header_btn",
-        disabled: action.isDisabled,
-        size: "sm",
-        variant: kind === "primary" ? "primary" : "ghost",
-      }),
-      disabled: action.isDisabled,
-      onClick: () => onAction?.(action),
-      title: action.title,
-      "data-icon": action.icon ? "with" : undefined,
-      children: jsx("span", {
-        className: getButtonContentClassName(),
-        children: [
-        action.icon
-          ? jsx("span", {
-              className: "shrink-0",
-              "aria-hidden": "true",
-              children: action.icon,
-            })
-          : null,
-        jsx("span", {
-          className: "min-w-0 truncate text-left",
-          children: action.title,
-        }),
-      ],
-      }),
-    });
+const appendIcon = (
+  parent: HTMLElement,
+  icon: Node | string | null | undefined,
+): void => {
+  if (!icon) {
+    return;
   }
 
-  return jsxs("button", {
-    id: action.id,
-    type: "button",
-    className: getWorkbenchSidebarActionClassName(action),
-    "data-kind": kind,
-    disabled: action.isDisabled,
-    onClick: () => onAction?.(action),
-    title: action.title,
-    children: [
-      action.icon
-        ? jsx("span", {
-            className: "shrink-0",
-            "aria-hidden": "true",
-            children: action.icon,
-          })
-        : null,
-      jsx("span", {
-        className: "min-w-0 truncate text-left",
-        children: action.title,
-      }),
-      renderSidebarBadge(action.badge),
-    ],
-  });
+  const wrapper = document.createElement("span");
+  wrapper.className = "shrink-0";
+  wrapper.setAttribute("aria-hidden", "true");
+  if (typeof icon === "string") {
+    wrapper.innerHTML = icon;
+  } else {
+    wrapper.append(icon.cloneNode(true));
+  }
+  parent.append(wrapper);
 };
 
-const SidebarPart = ({
-  ariaLabel,
-  badge,
-  children,
-  className = "",
-  description,
-  headerActions,
-  id,
-  isResizing = false,
-  labelledBy,
-  onAction,
-  onStartResizing,
-  sections,
-  style,
-  title,
-  widthPx,
-}: SidebarPartProps) => {
-  const widthStyle = getWorkbenchSidebarWidthStyle(widthPx);
-  const normalizedHeaderActions =
-    normalizeWorkbenchSidebarHeaderActions(headerActions);
-  const normalizedSections = normalizeWorkbenchSidebarSections(sections);
-  const hasHeaderContent = Boolean(title || description || badge);
-  const resolvedStyle =
-    widthStyle || style
-      ? {
-          ...widthStyle,
-          ...style,
-        }
-      : undefined;
+const createTextSpan = (text: string): HTMLSpanElement => {
+  const span = document.createElement("span");
+  span.className = "min-w-0 truncate text-left";
+  span.textContent = text;
+  return span;
+};
 
-  return jsxs("aside", {
-    id,
-    "aria-label": ariaLabel,
-    "aria-labelledby": labelledBy,
-    className: `workbench_sidebar_part ${className}`.trim(),
-    "data-resizing": isResizing ? "true" : "false",
-    style: resolvedStyle,
-    children: [
-      hasHeaderContent || normalizedHeaderActions.length > 0
-        ? jsx("div", {
-            className: `workbench_sidebar_header ${!hasHeaderContent ? "workbench_sidebar_header--actions-only" : ""}`.trim(),
-            children: [
-              title || description
-                ? jsxs("div", {
-                    className: "workbench_sidebar_header_main",
-                    children: [
-                      title
-                        ? jsx("h2", {
-                            className: "workbench_sidebar_title",
-                            children: title,
-                          })
-                        : null,
-                      description
-                        ? jsx("p", {
-                            className: "workbench_sidebar_description",
-                            children: description,
-                          })
-                        : null,
-                    ],
-                  })
-                : null,
-              badge
-                ? jsx("div", {
-                    className: "shrink-0 self-start",
-                    children: renderSidebarBadge(badge),
-                  })
-                : null,
-              normalizedHeaderActions.length > 0
-                ? jsx("div", {
-                    className: "workbench_sidebar_header_actions",
-                    children: normalizedHeaderActions.map((action) =>
-                      renderSidebarAction(action, onAction, action.kind),
-                    ),
-                  })
-                : null,
-            ],
-          })
-        : null,
-      normalizedSections.map((section) =>
-        jsxs(
-          "section",
-          {
-            className: "workbench_sidebar_section",
-            children: [
-              jsxs("div", {
-                className: "flex items-start justify-between gap-2",
-                children: [
-                  jsxs("div", {
-                    className: "workbench_sidebar_header_main",
-                    children: [
-                      jsx("h2", {
-                        className: "workbench_sidebar_title",
-                        children: section.title,
-                      }),
-                      section.description
-                        ? jsx("p", {
-                            className: "workbench_sidebar_description",
-                            children: section.description,
-                          })
-                        : null,
-                    ],
-                  }),
-                  renderSidebarBadge(section.badge),
-                ],
-              }),
-              section.actions?.length
-                ? jsx("div", {
-                    className: "flex flex-col gap-1",
-                    children: section.actions.map((action) =>
-                      renderSidebarAction(action, onAction),
-                    ),
-                  })
-                : null,
-            ],
-          },
-          section.id,
-        ),
-      ),
-      children,
-      onStartResizing
-        ? jsx(SashHost, {
-            className: "workbench_sidebar_sash",
-            edge: "right",
-            active: isResizing,
-            onDidStart: onStartResizing,
-          })
-        : null,
-    ],
-  });
+const setOptionalAttribute = (
+  element: HTMLElement,
+  name: string,
+  value: string | undefined,
+): void => {
+  if (value) {
+    element.setAttribute(name, value);
+  }
+};
+
+const applyStyle = (
+  element: HTMLElement,
+  style: Partial<CSSStyleDeclaration> | Record<string, string> | undefined,
+): void => {
+  if (!style) {
+    return;
+  }
+
+  for (const [key, value] of Object.entries(style)) {
+    if (typeof value === "string" && value) {
+      element.style.setProperty(key, value);
+    }
+  }
 };
 
 export default SidebarPart;

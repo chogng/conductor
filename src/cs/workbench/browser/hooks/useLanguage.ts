@@ -1,9 +1,7 @@
-﻿import { useSyncExternalStore } from 'react';
-import { languageService } from 'src/cs/platform/language/browser/languageService';
+import { languageService } from "src/cs/platform/language/browser/languageService";
 
-export const useLanguage = () =>
-  useSyncExternalStore(
-    languageService.subscribe,
-    languageService.getSnapshot,
-    languageService.getSnapshot,
-  );
+export const getLanguageState = () => languageService.getSnapshot();
+
+export const onDidChangeLanguageState = languageService.subscribe;
+
+export const useLanguage = getLanguageState;

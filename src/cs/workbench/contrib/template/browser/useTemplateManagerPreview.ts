@@ -1,12 +1,4 @@
-﻿import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import type { MutableRef } from "src/cs/base/common/ref";
+﻿import type { MutableRef } from "src/cs/base/common/ref";
 import type { StateSetter } from "src/cs/workbench/contrib/session/analysis-session-context";
 import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
 import type { PreviewFileLike } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
@@ -27,6 +19,21 @@ import {
   toBasePreviewMeasurement,
 } from "./templateManagerPreviewZoom";
 import { resolvePreviewRenderColumnCount } from "src/cs/workbench/contrib/template/common/previewRenderColumns";
+
+const useCallback = <T extends (...args: any[]) => any>(callback: T, _deps?: unknown[]): T => callback;
+const useEffect = (effect: () => void | (() => void), _deps?: unknown[]): void => {
+  effect();
+};
+const useLayoutEffect = useEffect;
+const useMemo = <T,>(factory: () => T, _deps?: unknown[]): T => factory();
+const useRef = <T,>(current: T): MutableRef<T> => ({ current });
+const useState = <T,>(initial: T | (() => T)): [T, StateSetter<T>] => {
+  let value = typeof initial === "function" ? (initial as () => T)() : initial;
+  const setValue: StateSetter<T> = (next) => {
+    value = typeof next === "function" ? (next as (previous: T) => T)(value) : next;
+  };
+  return [value, setValue];
+};
 
 const PREVIEW_ROW_HEIGHT_BASE_PX = 28;
 const PREVIEW_OVERSCAN_ROWS = 12;
@@ -951,6 +958,7 @@ export const useTemplateManagerPreview = ({
     toggleColumn,
   };
 };
+
 
 
 

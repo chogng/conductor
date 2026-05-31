@@ -1,4 +1,3 @@
-﻿import { useEffect } from "react";
 import type { MutableRef } from "src/cs/base/common/ref";
 import type { ProcessedEntry, RawDataEntry } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import type { StateSetter, TemplateConfig } from "src/cs/workbench/contrib/session/analysis-session-context";
@@ -6,7 +5,7 @@ import type {
   OnboardingControllerState,
   OnboardingLaunchMode,
 } from "src/cs/workbench/contrib/onboarding/onboardingState";
-import { useOnboarding } from "src/cs/workbench/contrib/onboarding/useOnboarding";
+import { createOnboarding } from "src/cs/workbench/contrib/onboarding/useOnboarding";
 import { loadOnboarding } from "src/cs/workbench/contrib/onboarding/onboardingLoader";
 
 type OnboardingPage = "data" | "analysis" | "settings";
@@ -45,8 +44,8 @@ const OnboardingControllerHost = ({
   setTemplateConfig,
   templateConfig,
   updateSettings,
-}: OnboardingControllerHostProps) => {
-  const onboarding = useOnboarding({
+}: OnboardingControllerHostProps): any => {
+  const onboarding = createOnboarding({
     clearPreviewState,
     importerRef,
     navigateToPage,
@@ -61,21 +60,14 @@ const OnboardingControllerHost = ({
     updateSettings,
   });
 
-  useEffect(() => {
-    onStateChange(onboarding);
-  }, [onStateChange, onboarding]);
+  onStateChange(onboarding);
 
-  useEffect(() => {
-    if (!isRequestedOpen || onboarding.isOpen) return;
-
+  if (isRequestedOpen && !onboarding.isOpen) {
     void loadOnboarding();
     onboarding.open(openMode);
-  }, [isRequestedOpen, onboarding, openMode]);
+  }
 
   return null;
 };
 
 export default OnboardingControllerHost;
-
-
-

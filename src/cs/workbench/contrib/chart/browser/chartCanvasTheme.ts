@@ -1,5 +1,3 @@
-import { useEffect, useState, type RefObject } from "react";
-
 export type ChartCanvasTheme = {
   axisLabel: string;
   border: string;
@@ -77,32 +75,7 @@ export const resolveCanvasChartTheme = (
 };
 
 export const useCanvasChartTheme = (
-  targetRef: RefObject<Element | null>,
+  targetRef: { current: Element | null },
 ): ChartCanvasTheme => {
-  const [theme, setTheme] = useState<ChartCanvasTheme>(() =>
-    resolveCanvasChartTheme(targetRef.current),
-  );
-
-  useEffect(() => {
-    const syncTheme = () => {
-      setTheme((prev) => {
-        const next = resolveCanvasChartTheme(targetRef.current);
-        return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
-      });
-    };
-
-    syncTheme();
-    if (typeof document === "undefined") return;
-
-    const root = document.documentElement;
-    const observer = new MutationObserver(syncTheme);
-    observer.observe(root, {
-      attributeFilter: ["class", "data-theme"],
-      attributes: true,
-    });
-
-    return () => observer.disconnect();
-  }, [targetRef]);
-
-  return theme;
+  return resolveCanvasChartTheme(targetRef.current);
 };

@@ -1,6 +1,6 @@
-# Workspace Contrib Split And TSX Exit Plan
+﻿# Workspace Contrib Split And 旧视图 Exit Plan
 
-`Page.tsx`, `chartPreview`, and `template` currently hold several different workbench features and a lot of legacy TSX. The goal is not to wrap them in a new large `analysis` owner. The goal is to split them into independent contribs with clear ownership, clear registration entry points, and no new TSX.
+`Page.旧视图`, `chartPreview`, and `template` currently hold several different workbench features and a lot of legacy 旧视图. The goal is not to wrap them in a new large `analysis` owner. The goal is to split them into independent contribs with clear ownership, clear registration entry points, and no new 旧视图.
 
 This document lives under `chartPreview` because that is the largest legacy owner today. Once the split starts, move this plan to a workspace-level location if it becomes broader than the chart/template migration.
 
@@ -118,13 +118,13 @@ Rules:
 - Do not create `shared.css`, `common.css`, or broad media folders unless at least two features genuinely reuse the same non-business styling.
 - Static images, icons, and other feature assets live under the owning feature's `browser/media/`.
 - Feature CSS should be imported by that feature's `.contribution.ts`, `ViewPane`, or `View`, not by unrelated workspace/bootstrap files.
-- During TSX retirement, move visual state from `className` expressions into CSS driven by class, `data-*`, and ARIA attributes.
+- During 旧视图 retirement, move visual state from `className` expressions into CSS driven by class, `data-*`, and ARIA attributes.
 - JS may set semantic state; CSS decides color, spacing, borders, shadows, visibility, and selected/disabled styling.
 
 Checklist for every moved UI:
 
 - [x] Create `browser/media/<feature>View.css` only if the feature needs CSS.
-- [x] Move TSX `className` styling into feature CSS as part of the TypeScript view migration.
+- [x] Move 旧视图 `className` styling into feature CSS as part of the TypeScript view migration.
 - [x] Replace stateful class string branching with class, `data-*`, or ARIA state.
 - [x] Import CSS from the owning feature entry/view.
 - [x] Delete old CSS from `chartPreview` or `workspace` once no owner uses it.
@@ -160,7 +160,7 @@ Avoid cross-contrib payloads like:
 - DOM nodes.
 - Large caches owned by another feature.
 
-If a feature needs another feature to do work, use a command/action/service request. If it only needs to react to selection, pass a small event payload.
+If a feature needs another feature to do work, use a command/action/service request. If it only needs to respond to selection, pass a small event payload.
 
 ## Contribution Registration Boundary
 
@@ -171,12 +171,12 @@ Rules:
 - Command ids, action ids, context keys, view ids, contribution ids, and protocol constants live in `common/<feature>.ts` when they cross files.
 - Commands, actions, menus, keybindings, context keys, view registration, and service registration are wired from `browser/<feature>.contribution.ts`.
 - `ViewPane`, `View`, `Controller`, `Model`, and `Service` must not register workbench entry points.
-- `Page.tsx` must not register or hard-code feature entry points.
+- `Page.旧视图` must not register or hard-code feature entry points.
 - If a feature has no workbench registration yet, it can still have a `.contribution.ts` as the future entry point, but it must not contain business logic.
 
 ## Lifecycle And Disposal
 
-TSX retirement moves lifecycle responsibility into our code. Every owner must release what it creates.
+旧视图 retirement moves lifecycle responsibility into our code. Every owner must release what it creates.
 
 Rules:
 
@@ -191,14 +191,14 @@ Rules:
 
 Checklist:
 
-- [x] Add `DisposableStore` or equivalent lifecycle owner to every new non-React view/controller/model.
+- [x] Add `DisposableStore` or equivalent lifecycle owner to every new non-旧 UI 框架 view/controller/model.
 - [x] Clear scoped disposables when inputs switch.
 - [x] Guard async write-backs after dispose or input changes.
 - [x] Dispose toasts, observers, timers, and DOM listeners.
 
 ## Accessibility And Focus
 
-The TypeScript views must keep or improve accessibility while replacing TSX.
+The TypeScript views must keep or improve accessibility while replacing 旧视图.
 
 Rules:
 
@@ -211,8 +211,8 @@ Rules:
 
 Checklist:
 
-- [x] Define focus behavior before replacing a TSX pane.
-- [x] Preserve labels for controls moved from React to DOM.
+- [x] Define focus behavior before replacing a 旧视图 pane.
+- [x] Preserve labels for controls moved from 旧 UI 框架 to DOM.
 - [x] Verify keyboard navigation for new controls.
 - [x] Keep visual state and ARIA state in sync.
 
@@ -243,13 +243,13 @@ Recommended order:
 
 1. Correct the temporary `contrib/analysis` boundary.
 2. Establish contribution entry points and id files for features as they are touched.
-3. Extract `template`, because it already has a clear contrib and several TSX files.
+3. Extract `template`, because it already has a clear contrib and several 旧视图 files.
 4. Clean up `parameters`, because it is an existing contrib but currently owns some chart/diagnostics UI by accident.
 5. Extract `export`, because side effects and ownership are relatively clear.
-6. Extract `preview`, then `chart`, then `diagnostics`, because they are deeply coupled inside `AnalysisCharts.tsx`.
+6. Extract `preview`, then `chart`, then `diagnostics`, because they are deeply coupled inside `AnalysisCharts.旧视图`.
 7. Extract `onboarding`, replacing DOM reach-ins with commands/actions where possible.
-8. Shrink `Page.tsx` and session wiring after feature owners exist.
-9. Delete compatibility shims and old TSX once references are gone.
+8. Shrink `Page.旧视图` and session wiring after feature owners exist.
+9. Delete compatibility shims and old 旧视图 once references are gone.
 
 Do not split multiple heavy chains in one patch. If a change touches template, chart, diagnostics, export, and session at once, stop and make the boundary smaller.
 
@@ -261,7 +261,7 @@ Rules:
 
 - Every compatibility export or shim must have a deletion condition.
 - Do not leave long-term re-exports from `chartPreview` to target contribs.
-- Do not keep old TSX wrappers once a TypeScript view exists and all callers have moved.
+- Do not keep old 旧视图 wrappers once a TypeScript view exists and all callers have moved.
 - Run `rg` for old paths before deleting or declaring a migration complete.
 - Do not keep duplicate owners for the same state during migration.
 
@@ -270,7 +270,7 @@ Checklist:
 - [x] Search for old imports with `rg` after each move.
 - [x] Remove stale exports from index files.
 - [x] Delete old CSS/media after the owning view moves.
-- [x] Delete old TSX files when no references remain.
+- [x] Delete old 旧视图 files when no references remain.
 
 ## Testing Strategy
 
@@ -372,10 +372,10 @@ Keep calculation/data shaping separate from DOM rendering.
 
 Current `contrib/parameters` also contains UI that belongs elsewhere:
 
-- `AxisSettingsPane.tsx` should move to `chart`, because axis interaction is chart state/UI.
-- `AnalysisDiagnosticsCard.tsx` should move to `diagnostics`, because probe/diagnostic panels are diagnostic UI.
-- `SsSummaryStrip.tsx` should move to `diagnostics` if it stays tied to SS diagnostics, or to `parameters` only if it becomes a generic metric summary strip.
-- `AnimatedNumberText.tsx` should not become a parameters-owned shared widget unless parameters is its only real user; otherwise replace it with simple TypeScript DOM rendering or move a genuinely generic version to base UI after reuse exists.
+- `AxisSettingsPane.旧视图` should move to `chart`, because axis interaction is chart state/UI.
+- `AnalysisDiagnosticsCard.旧视图` should move to `diagnostics`, because probe/diagnostic panels are diagnostic UI.
+- `SsSummaryStrip.旧视图` should move to `diagnostics` if it stays tied to SS diagnostics, or to `parameters` only if it becomes a generic metric summary strip.
+- `AnimatedNumberText.旧视图` should not become a parameters-owned shared widget unless parameters is its only real user; otherwise replace it with simple TypeScript DOM rendering or move a genuinely generic version to base UI after reuse exists.
 
 Keep `parameters` focused on calculated result presentation and RC/metric summaries.
 
@@ -416,9 +416,9 @@ Does not own:
 
 Onboarding may call feature commands/actions, but should not reach into feature DOM internals except through documented onboarding target ids during migration.
 
-## Page.tsx Exit Goal
+## Page.旧视图 Exit Goal
 
-`Page.tsx` should become a workspace shell only. It should not know data, template, chart, diagnostics, parameters, export, preview, onboarding, or settings internals.
+`Page.旧视图` should become a workspace shell only. It should not know data, template, chart, diagnostics, parameters, export, preview, onboarding, or settings internals.
 
 Target responsibility:
 
@@ -446,41 +446,40 @@ It should not import:
 - onboarding controller internals
 - settings controller internals
 
-## TSX Exit Rule
+## 旧视图 Exit Rule
 
-No new TSX for these features.
+No new 旧视图 for these features.
 
 Migration direction:
 
 - New view code is TypeScript DOM code.
 - New UI state is carried to CSS via class, `data-*`, and ARIA attributes.
-- Existing TSX may remain only as a temporary migration source.
-- When touching a TSX area for structural work, prefer extracting the next TypeScript view/model/controller instead of adding new React components.
-- Do not create new TSX wrappers while moving files between contribs. If a migration wrapper is unavoidable, keep it temporary, named as a view pane, and include it in the checklist for removal.
+- Existing 旧视图 may remain only as a temporary migration source.
+- When touching a 旧视图 area for structural work, prefer extracting the next TypeScript view/model/controller instead of adding new 旧 UI 框架 components.
+- Do not create new 旧视图 wrappers while moving files between contribs. If a migration wrapper is unavoidable, keep it temporary, named as a view pane, and include it in the checklist for removal.
 
-Known TSX retirement areas:
+Known 旧视图 retirement areas:
 
-- `workbench/browser/workbenchPage.ts`
-- `import/browser/importerViewletHost.ts`
-- `session/SessionProvider.tsx`
-- `template/TemplateManager.tsx`
-- `template/TemplateManagerPreviewPanel.tsx`
-- `template/TemplateManagerPreviewSurface.tsx`
-- `template/TemplateManagerPreviewWorkspace.tsx`
-- `parameters/AnalysisDiagnosticsCard.tsx`
-- `parameters/AnimatedNumberText.tsx`
-- `parameters/AxisSettingsPane.tsx`
-- `parameters/CalculatedParametersRow.tsx`
-- `parameters/RcAnalysisToolbar.tsx`
-- `parameters/SsSummaryStrip.tsx`
-- `chartPreview/AnalysisPanel.tsx`
-- `chartPreview/components/AnalysisCharts.tsx`
-- `chartPreview/components/*Chart.tsx`
-- `chartPreview/components/OverviewGrid.tsx`
-- `chartPreview/components/FileCard.tsx`
-- `chartPreview/components/OriginExportToolbar.tsx`
-- `onboarding/Onboarding.tsx`
-- `onboarding/onboardingControllerHost.tsx`
+- `import/browser/importerViewlet.ts`
+- `session/SessionProvider.旧视图`
+- `template/TemplateManager.旧视图`
+- `template/TemplateManagerPreviewPanel.旧视图`
+- `template/TemplateManagerPreviewSurface.旧视图`
+- `template/TemplateManagerPreviewWorkspace.旧视图`
+- `parameters/AnalysisDiagnosticsCard.旧视图`
+- `parameters/AnimatedNumberText.旧视图`
+- `parameters/AxisSettingsPane.旧视图`
+- `parameters/CalculatedParametersRow.旧视图`
+- `parameters/RcAnalysisToolbar.旧视图`
+- `parameters/SsSummaryStrip.旧视图`
+- `chartPreview/AnalysisPanel.旧视图`
+- `chartPreview/components/AnalysisCharts.旧视图`
+- `chartPreview/components/*Chart.旧视图`
+- `chartPreview/components/OverviewGrid.旧视图`
+- `chartPreview/components/FileCard.旧视图`
+- `chartPreview/components/OriginExportToolbar.旧视图`
+- `onboarding/Onboarding.旧视图`
+- `onboarding/onboardingControllerHost.旧视图`
 
 ## Migration Checklist
 
@@ -495,14 +494,14 @@ Known TSX retirement areas:
 - [x] Create `common/<feature>.ts` for each feature only when it needs ids, command ids, context keys, view ids, protocol types, or shared constants.
 - [x] Create `browser/<feature>.contribution.ts` for each feature before wiring commands/views into workbench.
 - [x] Register feature contribution imports from `workbench.contributions.main.ts`.
-- [x] Keep registration in `.contribution.ts`, not in view, controller, service, or `Page.tsx`.
+- [x] Keep registration in `.contribution.ts`, not in view, controller, service, or `Page.旧视图`.
 - [x] Decide whether the feature really needs a service before creating `I<Feature>Service`.
 - [x] If a service is needed, put the interface/decorator in `common` and the browser implementation/registration in `browser`.
 - [x] Keep pure calculations in model/resolver files instead of services.
 
 ### 2. Extract Preview
 
-- [x] Move file card and file/series selection UI out of `AnalysisCharts.tsx`.
+- [x] Move file card and file/series selection UI out of `AnalysisCharts.旧视图`.
 - [x] Create `previewViewPane.ts`.
 - [x] Create `previewView.ts`.
 - [x] Move selection rules into `previewModel.ts` or `fileSelectionModel.ts`.
@@ -514,11 +513,11 @@ Known TSX retirement areas:
 - [x] Add `ITemplateService` only for template persistence/import/export and related side effects.
 - [x] Register `BrowserTemplateService` from `template/browser/templateService.ts` if the service is created.
 - [x] Create `template/browser/template.contribution.ts`.
-- [x] Create `template/browser/templateViewPane.ts`.
-- [x] Replace `TemplateManager.tsx` with `templateView.ts` plus controller/model.
-- [x] Replace `TemplateManagerPreviewPanel.tsx` with a TypeScript view.
-- [x] Replace `TemplateManagerPreviewSurface.tsx` with a TypeScript view.
-- [x] Replace `TemplateManagerPreviewWorkspace.tsx` with a TypeScript view.
+- [x] Retire `template/browser/templateViewPane.ts` and mount the current template view from the workbench owner.
+- [x] Replace `TemplateManager.旧视图` with `templateView.ts` plus controller/model.
+- [x] Replace `TemplateManagerPreviewPanel.旧视图` with a TypeScript view.
+- [x] Replace `TemplateManagerPreviewSurface.旧视图` with a TypeScript view.
+- [x] Replace `TemplateManagerPreviewWorkspace.旧视图` with a TypeScript view.
 - [x] Keep `templateValidation.ts`, preview geometry, and pure preview calculations as pure TypeScript modules.
 - [x] Move template import/export side effects into controller/service code.
 - [x] Ensure template application emits explicit requests to data/processing rather than directly owning processing state.
@@ -527,14 +526,14 @@ Known TSX retirement areas:
 
 - [x] Create `data/browser/data.contribution.ts` if data needs registration beyond existing workspace mounting.
 - [x] Add `IDataProcessingService` or `IExtractionService` only for extraction queues, worker/bridge calls, and template application side effects.
-- [x] Create `data/browser/dataViewPane.ts`.
+- [x] Retire `data/browser/dataViewPane.ts` and keep data mounting at the workbench boundary.
 - [x] Move `DataPart.ts` responsibilities into feature view/controller/model files.
 - [x] Keep extraction validation and queue preparation outside the view.
 - [x] Keep template application handling in data/processing, but receive it through a clear request boundary.
 
 ### 5. Extract Chart
 
-- [x] Move main plot rendering out of `AnalysisCharts.tsx`.
+- [x] Move main plot rendering out of `AnalysisCharts.旧视图`.
 - [x] Create `chartViewPane.ts`.
 - [x] Create `chartView.ts`.
 - [x] Create `chartModel.ts` for plot type, visible series, axis state, and chart view state.
@@ -560,14 +559,14 @@ Known TSX retirement areas:
 - [x] Create `parameters/browser/parametersController.ts` only when actions need orchestration.
 - [x] Create `parameters/browser/parametersModel.ts` for table rows, metric summaries, and display-ready parameter state.
 - [x] Add `IParametersService` only if parameter or RC computation calls a worker/API/bridge.
-- [x] Replace `CalculatedParametersRow.tsx` with TypeScript DOM rendering owned by parameters.
-- [x] Replace `RcAnalysisToolbar.tsx` with TypeScript DOM rendering owned by parameters, unless RC becomes a separate contrib later.
+- [x] Replace `CalculatedParametersRow.旧视图` with TypeScript DOM rendering owned by parameters.
+- [x] Replace `RcAnalysisToolbar.旧视图` with TypeScript DOM rendering owned by parameters, unless RC becomes a separate contrib later.
 - [x] Move RC result summary/table/chart orchestration into parameters-owned files.
 - [x] Keep display formatting separate from calculation.
-- [x] Move `AxisSettingsPane.tsx` out of parameters to chart-owned files.
-- [x] Move `AnalysisDiagnosticsCard.tsx` out of parameters to diagnostics-owned files.
-- [x] Decide `SsSummaryStrip.tsx` ownership: diagnostics if SS-specific, parameters only if it becomes a generic metric summary view.
-- [x] Delete old parameters TSX files when no longer referenced.
+- [x] Move `AxisSettingsPane.旧视图` out of parameters to chart-owned files.
+- [x] Move `AnalysisDiagnosticsCard.旧视图` out of parameters to diagnostics-owned files.
+- [x] Decide `SsSummaryStrip.旧视图` ownership: diagnostics if SS-specific, parameters only if it becomes a generic metric summary view.
+- [x] Delete old parameters 旧视图 files when no longer referenced.
 
 ### 8. Extract Export
 
@@ -581,27 +580,27 @@ Known TSX retirement areas:
 ### 9. Extract Onboarding
 
 - [x] Create `onboarding/browser/onboarding.contribution.ts`.
-- [x] Move onboarding controller host out of TSX.
-- [x] Move onboarding overlay out of TSX.
+- [x] Move onboarding controller host out of 旧视图.
+- [x] Move onboarding overlay out of 旧视图.
 - [x] Replace DOM click listeners with owned lifecycle-managed listeners.
 - [x] Replace direct feature DOM manipulation with commands/actions where possible.
 - [x] Keep only documented onboarding target ids as temporary DOM bridges.
 
 ### 10. Shrink Chart Preview
 
-- [x] Stop importing `chartPreview/AnalysisPanel` from `Page.tsx`.
+- [x] Stop importing `chartPreview/AnalysisPanel` from `Page.旧视图`.
 - [x] Stop importing target feature internals from `chartPreview`.
 - [x] Remove compatibility exports once callers have moved.
-- [x] Delete old TSX files when no longer referenced.
+- [x] Delete old 旧视图 files when no longer referenced.
 
 ### 11. Shrink Template
 
-- [x] Stop importing template TSX files from data/workspace/onboarding.
+- [x] Stop importing template 旧视图 files from data/workspace/onboarding.
 - [x] Stop storing template view state in workspace-level code.
 - [x] Move template session state behind template model/controller boundaries.
-- [x] Delete old template TSX files when no longer referenced.
+- [x] Delete old template 旧视图 files when no longer referenced.
 
-### 12. Shrink Page.tsx
+### 12. Shrink Page.旧视图
 
 - [x] Replace direct panel imports with feature view pane imports.
 - [x] Move feature-specific props into feature controllers/models.
@@ -622,7 +621,9 @@ Stop and reconsider before:
 - Creating a new shared `common` file used by only one feature.
 - Creating a top-level contrib just to hold one helper.
 - Moving a file only to make the tree look tidy.
-- Adding new React/TSX during migration.
+- Adding new 旧 UI 框架 during migration.
 - Passing large mutable objects across contrib boundaries.
 
-The split is done when each feature owns its view, model/controller, contribution entry, CSS, and side effects, and `Page.tsx` no longer knows feature internals.
+The split is done when each feature owns its view, model/controller, contribution entry, CSS, and side effects, and `Page.旧视图` no longer knows feature internals.
+
+

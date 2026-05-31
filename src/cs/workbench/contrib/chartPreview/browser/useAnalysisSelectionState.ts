@@ -1,12 +1,3 @@
-﻿import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type Dispatch,
-  type SetStateAction,
-} from "react";
 import type { IonIoffManualTargetsByFileId } from "src/cs/workbench/contrib/session/analysis-session-context";
 import type { AnalysisSettings } from "src/cs/workbench/contrib/settings/settingsShared";
 import type { ProcessedEntry } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
@@ -15,6 +6,8 @@ export type AnalysisFileOption = {
   label: string;
   value: string;
 };
+
+type StateSetter<T> = (value: T | ((previous: T) => T)) => void;
 
 const stripCsvExtension = (fileName: string): string => {
   const normalized = String(fileName ?? "").trim();
@@ -57,12 +50,10 @@ type UseAnalysisSelectionStateParams = {
   ) => Promise<AnalysisSettings | null>;
   ionIoffManualTargetsByFileId: IonIoffManualTargetsByFileId;
   processedData: ProcessedEntry[];
-  setIonIoffManualTargetsByFileId: Dispatch<
-    SetStateAction<IonIoffManualTargetsByFileId>
-  >;
+  setIonIoffManualTargetsByFileId: StateSetter<IonIoffManualTargetsByFileId>;
 };
 
-export const useAnalysisSelectionState = ({
+export const createAnalysisSelectionState = ({
   analysisSettings,
   analysisSettingsLoaded,
   handleUpdateAnalysisSettings,
@@ -70,123 +61,85 @@ export const useAnalysisSelectionState = ({
   processedData,
   setIonIoffManualTargetsByFileId,
 }: UseAnalysisSelectionStateParams) => {
-  const [analysisActiveFileId, setAnalysisActiveFileId] = useState<
-    string | null
-  >(null);
+  const analysisFileOptions = getAnalysisFileOptions(processedData);
+  let analysisActiveFileId: string | null = analysisFileOptions[0]?.value ?? null;
 
-  const analysisFileOptions = useMemo(
-    () => getAnalysisFileOptions(processedData),
-    [processedData],
-  );
+  const setAnalysisActiveFileId: StateSetter<string | null> = (value) => {
+    analysisActiveFileId =
+      typeof value === "function"
+        ? value(analysisActiveFileId)
+        : value;
+  };
 
-  useEffect(() => {
-    setAnalysisActiveFileId((prev) => {
-      if (!analysisFileOptions.length) {
-        return prev === null ? prev : null;
-      }
-
-      if (prev && analysisFileOptions.some((option) => option.value === prev)) {
-        return prev;
-      }
-
-      return analysisFileOptions[0].value;
-    });
-  }, [analysisFileOptions]);
-
-  const handleAnalysisFileChange = useCallback((nextFileId: string | null) => {
+  const handleAnalysisFileChange = (nextFileId: string | null) => {
     setAnalysisActiveFileId(nextFileId ?? null);
-  }, []);
+  };
 
-  useEffect(() => {
-    const fileId = String(analysisActiveFileId ?? "").trim();
-    if (!fileId) {
-      return;
-    }
-
+  const fileId = String(analysisActiveFileId ?? "").trim();
+  if (fileId) {
     const activeFile =
       processedData.find((entry) => entry?.fileId === fileId) ?? null;
     const defaultSeriesId = String(activeFile?.series?.[0]?.id ?? "").trim();
-    if (!defaultSeriesId) {
-      return;
-    }
-
-    if (ionIoffManualTargetsByFileId[fileId]?.[defaultSeriesId]) {
-      return;
-    }
-
     const fallbackIonX = analysisSettings?.ionIoffManualIonX;
     const fallbackIoffX = analysisSettings?.ionIoffManualIoffX;
+
     if (
-      (fallbackIonX === undefined ||
-        fallbackIonX === null ||
-        fallbackIonX === "") &&
-      (fallbackIoffX === undefined ||
-        fallbackIoffX === null ||
-        fallbackIoffX === "")
+      defaultSeriesId &&
+      !ionIoffManualTargetsByFileId[fileId]?.[defaultSeriesId] &&
+      !(
+        (fallbackIonX === undefined ||
+          fallbackIonX === null ||
+          fallbackIonX === "") &&
+        (fallbackIoffX === undefined ||
+          fallbackIoffX === null ||
+          fallbackIoffX === "")
+      )
     ) {
-      return;
-    }
+      setIonIoffManualTargetsByFileId((prev) => {
+        if (prev?.[fileId]?.[defaultSeriesId]) {
+          return prev;
+        }
 
-    setIonIoffManualTargetsByFileId((prev) => {
-      if (prev?.[fileId]?.[defaultSeriesId]) {
-        return prev;
-      }
-
-      return {
-        ...(prev || {}),
-        [fileId]: {
-          ...(prev?.[fileId] ?? {}),
-          [defaultSeriesId]: {
-            ionX:
-              fallbackIonX === undefined ||
-              fallbackIonX === null ||
-              fallbackIonX === ""
-                ? ""
-                : String(fallbackIonX),
-            ioffX:
-              fallbackIoffX === undefined ||
-              fallbackIoffX === null ||
-              fallbackIoffX === ""
-                ? ""
-                : String(fallbackIoffX),
+        return {
+          ...(prev || {}),
+          [fileId]: {
+            ...(prev?.[fileId] ?? {}),
+            [defaultSeriesId]: {
+              ionX:
+                fallbackIonX === undefined ||
+                fallbackIonX === null ||
+                fallbackIonX === ""
+                  ? ""
+                  : String(fallbackIonX),
+              ioffX:
+                fallbackIoffX === undefined ||
+                fallbackIoffX === null ||
+                fallbackIoffX === ""
+                  ? ""
+                  : String(fallbackIoffX),
+            },
           },
-        },
-      };
-    });
-  }, [
-    analysisActiveFileId,
-    analysisSettings?.ionIoffManualIoffX,
-    analysisSettings?.ionIoffManualIonX,
-    ionIoffManualTargetsByFileId,
-    processedData,
-    setIonIoffManualTargetsByFileId,
-  ]);
-
-  const persistedIonIoffTargetsRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!analysisSettingsLoaded) {
-      return;
+        };
+      });
     }
+  }
 
-    const serializedTargets = JSON.stringify(ionIoffManualTargetsByFileId);
-    if (persistedIonIoffTargetsRef.current === serializedTargets) {
-      return;
-    }
-
-    persistedIonIoffTargetsRef.current = serializedTargets;
-    handleUpdateAnalysisSettings({
+  if (analysisSettingsLoaded) {
+    void handleUpdateAnalysisSettings({
       ionIoffManualTargetsByFileId,
-    }).catch(() => {});
-  }, [
-    analysisSettingsLoaded,
-    handleUpdateAnalysisSettings,
-    ionIoffManualTargetsByFileId,
-  ]);
+    }).catch(() => {
+      // Settings persistence is non-blocking for selection state.
+    });
+  }
 
   return {
-    analysisActiveFileId,
+    get analysisActiveFileId() {
+      return analysisActiveFileId;
+    },
     analysisFileOptions,
     handleAnalysisFileChange,
     setAnalysisActiveFileId,
   };
 };
+
+export const useAnalysisSelectionState = createAnalysisSelectionState;
