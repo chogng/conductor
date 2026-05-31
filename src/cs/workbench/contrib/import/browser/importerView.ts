@@ -169,6 +169,19 @@ export class ImporterViewController implements ImporterRef, IDisposable {
   };
 
   private readonly handleListScroll = (event: Event): void => {
+    const detail = event instanceof CustomEvent ? event.detail : null;
+    if (
+      detail &&
+      typeof detail.scrollHeight === "number" &&
+      typeof detail.clientHeight === "number" &&
+      typeof detail.scrollTop === "number"
+    ) {
+      const distanceToBottom =
+        detail.scrollHeight - detail.clientHeight - detail.scrollTop;
+      this.shouldAutoScrollToBottomRef.current = distanceToBottom <= 24;
+      return;
+    }
+
     const viewport = event.currentTarget;
     if (!(viewport instanceof HTMLElement)) {
       return;

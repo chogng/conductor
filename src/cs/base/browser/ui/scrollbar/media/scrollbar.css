@@ -1,4 +1,4 @@
-/* ScrollArea base and shared scrollbar primitives */
+/* Scrollbar base and shared primitives */
 .scrollArea {
   position: relative;
   min-height: 0;
@@ -28,6 +28,10 @@
   overflow: auto;
 }
 
+.scrollAreaViewport[data-scrollbar-mode="virtual"] {
+  overflow: hidden;
+}
+
 .scrollAreaViewport::-webkit-scrollbar {
   width: 0 !important;
   height: 0 !important;
@@ -44,7 +48,8 @@
   user-select: none;
 }
 
-.scrollArea:hover > .scrollAreaTrack {
+.scrollArea:hover > .scrollAreaTrack,
+.scrollArea[data-scrollbar-active="true"] > .scrollAreaTrack {
   opacity: 1;
   pointer-events: auto;
 }

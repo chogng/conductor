@@ -8,6 +8,10 @@
   height: 100%;
 }
 
+#analysis-import-card {
+  @apply p-4;
+}
+
 .import-viewer-dropzone {
   @apply border-2 border-dashed rounded-xl p-0 transition-all duration-300 relative overflow-visible flex-1;
   height: 100%;

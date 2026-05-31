@@ -2,7 +2,6 @@ import {
   addDisposableListener,
   DisposableResizeObserver,
   getClientArea,
-  getScrollPosition,
 } from "src/cs/base/browser/dom";
 import { cx } from "src/utils/cx";
 import {
@@ -11,6 +10,7 @@ import {
 } from "src/cs/base/common/lifecycle";
 import type { ListRenderState } from "src/cs/base/browser/ui/list/list";
 import { RowCache, type RowCacheRow } from "src/cs/base/browser/ui/list/rowCache";
+import { ScrollbarController } from "src/cs/base/browser/ui/scrollbar/scrollbarController";
 import "./list.css";
 
 export type ListViewItemRenderer<T> = (
@@ -50,9 +50,19 @@ export type ListViewOptions<T> = {
 };
 
 type RowEntry<T> = {
+  appliedFocused?: boolean;
+  appliedIndex?: number;
+  appliedKey?: string;
+  appliedRole?: string;
+  appliedRowHeight?: number;
+  appliedSelected?: boolean;
   index: number;
   item: T;
   key: string;
+  renderedFocused?: boolean;
+  renderedIndex?: number;
+  renderedItem?: T;
+  renderedSelected?: boolean;
   row: RowCacheRow;
 };
 
@@ -68,14 +78,17 @@ export class ListView<T> implements IDisposable {
   private readonly viewport: HTMLDivElement;
   private readonly stage: HTMLDivElement;
   private readonly emptyContainer: HTMLDivElement;
+  private readonly scrollbar: ScrollbarController;
   private readonly rows = new Map<string, RowEntry<T>>();
   private readonly rowCache = new RowCache(() => this.createRow());
   private props: ListViewOptions<T>;
   private viewportHeight = 0;
   private scrollTop = 0;
+  private scrollHeight = 0;
   private focusedIndex = -1;
   private pendingScrollTop = 0;
   private scrollRaf: number | null = null;
+  private scrollbarContentHeight = -1;
   private disposed = false;
 
   constructor(host: HTMLElement, options: ListViewOptions<T>) {
@@ -100,9 +113,16 @@ export class ListView<T> implements IDisposable {
     this.root.append(this.emptyContainer, this.viewport);
     this.host.appendChild(this.root);
 
-    this.disposables.add(
-      addDisposableListener(this.viewport, "scroll", this.onScroll),
-    );
+    this.scrollbar = this.disposables.add(new ScrollbarController({
+      axis: "y",
+      getScrollDimensions: this.getScrollDimensions,
+      getScrollPosition: this.getScrollPosition,
+      handleMouseWheel: true,
+      observeContentMutations: false,
+      root: this.root,
+      setScrollPosition: this.setScrollPosition,
+      viewport: this.viewport,
+    }));
     this.disposables.add(
       addDisposableListener(this.viewport, "keydown", this.onKeyDown),
     );
@@ -142,14 +162,14 @@ export class ListView<T> implements IDisposable {
   }
 
   scrollToStart(behavior: ScrollBehavior = "auto"): void {
-    this.viewport.scrollTo({ top: 0, behavior });
+    this.setScrollTop(0, behavior);
   }
 
   scrollToEnd(behavior: ScrollBehavior = "smooth"): void {
-    this.viewport.scrollTo({
-      top: Math.max(0, this.viewport.scrollHeight - this.viewport.clientHeight),
+    this.setScrollTop(
+      Math.max(0, this.scrollHeight - this.viewportHeight),
       behavior,
-    });
+    );
   }
 
   scrollToIndex(index: number, behavior: ScrollBehavior = "smooth"): void {
@@ -158,8 +178,8 @@ export class ListView<T> implements IDisposable {
     const rowHeight = this.rowHeight;
     const gap = this.gap;
     const rowStep = rowHeight + gap;
-    const currentTop = getScrollPosition(this.viewport).scrollTop;
-    const currentBottom = currentTop + getClientArea(this.viewport).height;
+    const currentTop = this.scrollTop;
+    const currentBottom = currentTop + this.viewportHeight;
     const rowTop = index * rowStep;
     const rowBottom = rowTop + rowHeight;
 
@@ -167,10 +187,7 @@ export class ListView<T> implements IDisposable {
       return;
     }
 
-    this.viewport.scrollTo({
-      top: Math.max(0, rowTop - rowStep),
-      behavior,
-    });
+    this.setScrollTop(Math.max(0, rowTop - rowStep), behavior);
   }
 
   dispose(): void {
@@ -208,8 +225,14 @@ export class ListView<T> implements IDisposable {
   }
 
   private updateClasses(): void {
-    this.root.className = cx("ui-list", this.props.className);
-    this.viewport.className = cx("ui-list__viewport", this.props.viewportClassName);
+    this.root.className = cx("ui-list", "scrollArea", this.props.className);
+    this.viewport.className = cx(
+      "ui-list__viewport",
+      "scrollAreaViewport",
+      this.props.viewportClassName,
+    );
+    this.viewport.dataset.axis = "y";
+    this.viewport.dataset.scrollbarMode = "virtual";
     this.viewport.setAttribute("role", this.props.role ?? "listbox");
   }
 
@@ -217,6 +240,7 @@ export class ListView<T> implements IDisposable {
     this.viewportHeight = this.viewport.isConnected
       ? getClientArea(this.viewport).height
       : 0;
+    this.scrollbarContentHeight = -1;
     this.render();
   }
 
@@ -246,14 +270,8 @@ export class ListView<T> implements IDisposable {
     }
   }
 
-  private onScroll = (event: Event): void => {
-    const nextScrollTop = getScrollPosition(this.viewport).scrollTop;
-    this.scheduleScrollTop(nextScrollTop);
-    this.props.onScroll?.(event);
-  };
-
   private scheduleScrollTop(nextScrollTop: number): void {
-    this.pendingScrollTop = nextScrollTop;
+    this.pendingScrollTop = this.clampScrollTop(nextScrollTop);
 
     if (this.scrollRaf !== null) {
       return;
@@ -264,6 +282,14 @@ export class ListView<T> implements IDisposable {
       if (this.scrollTop !== this.pendingScrollTop) {
         this.scrollTop = this.pendingScrollTop;
         this.render();
+        this.scrollbar.updateScrollPosition();
+        this.props.onScroll?.(new CustomEvent("scroll", {
+          detail: {
+            clientHeight: this.viewportHeight,
+            scrollHeight: this.scrollHeight,
+            scrollTop: this.scrollTop,
+          },
+        }));
       }
     });
   }
@@ -325,8 +351,12 @@ export class ListView<T> implements IDisposable {
       this.viewport.hidden = true;
       this.emptyContainer.hidden = false;
       this.stage.style.height = "0px";
+      this.stage.style.top = "0px";
+      this.scrollHeight = 0;
+      this.scrollTop = 0;
       this.disposeAllRows();
       empty?.(this.emptyContainer);
+      this.updateScrollbarMetrics(0);
       return;
     }
 
@@ -340,6 +370,8 @@ export class ListView<T> implements IDisposable {
 
     const rowStep = this.rowHeight + this.gap;
     const totalHeight = items.length > 0 ? items.length * rowStep - this.gap : 0;
+    this.scrollHeight = totalHeight;
+    this.scrollTop = this.clampScrollTop(this.scrollTop);
     const virtualized = items.length >= this.minVirtualCount;
     const startIndex = virtualized
       ? Math.max(0, Math.floor(this.scrollTop / rowStep) - this.overscanRows)
@@ -353,6 +385,8 @@ export class ListView<T> implements IDisposable {
       : items.length;
 
     this.stage.style.height = `${totalHeight}px`;
+    this.stage.style.top = `${-this.scrollTop}px`;
+    this.updateScrollbarMetrics(totalHeight);
 
     this.rowCache.transact(() => {
       const visibleKeys = new Set<string>();
@@ -386,25 +420,26 @@ export class ListView<T> implements IDisposable {
 
         entry.index = index;
         entry.item = item;
-        entry.row.domNode.style.top = `${index * rowStep}px`;
-        entry.row.domNode.style.height = `${this.rowHeight}px`;
-        entry.row.domNode.setAttribute("data-index", String(index));
-        entry.row.domNode.setAttribute("data-key", key);
-        entry.row.domNode.setAttribute("role", rowRole ?? "option");
 
         const selected = selectedKey === key;
         const focused = index === this.focusedIndex;
+        this.updateRowShellIfNeeded(entry, {
+          focused,
+          index,
+          key,
+          rowHeight: this.rowHeight,
+          rowRole: rowRole ?? "option",
+          rowStep,
+          selected,
+        });
 
-        if (selected) {
-          entry.row.domNode.setAttribute("aria-selected", "true");
-        } else {
-          entry.row.domNode.removeAttribute("aria-selected");
-        }
-
-        entry.row.domNode.classList.toggle("ui-list__row--selected", selected);
-        entry.row.domNode.classList.toggle("ui-list__row--focused", focused);
-
-        renderItem(item, index, { focused, index, selected }, entry.row.mount);
+        this.renderRowItemIfNeeded(entry, {
+          focused,
+          index,
+          item,
+          renderItem,
+          selected,
+        });
       }
 
       for (const [key, entry] of this.rows) {
@@ -417,6 +452,135 @@ export class ListView<T> implements IDisposable {
         this.rows.delete(key);
       }
     });
+
+  }
+
+  private updateScrollbarMetrics(contentHeight: number): void {
+    if (this.scrollbarContentHeight === contentHeight) {
+      return;
+    }
+
+    this.scrollbarContentHeight = contentHeight;
+    this.scrollbar.update();
+  }
+
+  private readonly getScrollDimensions = () => ({
+    clientHeight: this.viewportHeight,
+    clientWidth: this.viewport.clientWidth,
+    scrollHeight: this.scrollHeight,
+    scrollWidth: this.viewport.clientWidth,
+  });
+
+  private readonly getScrollPosition = () => ({
+    scrollLeft: 0,
+    scrollTop: this.scrollTop,
+  });
+
+  private readonly setScrollPosition = (position: {
+    scrollLeft?: number;
+    scrollTop?: number;
+  }): void => {
+    if (typeof position.scrollTop === "number") {
+      this.setScrollTop(position.scrollTop, "auto");
+    }
+  };
+
+  private setScrollTop(scrollTop: number, _behavior: ScrollBehavior): void {
+    const nextScrollTop = this.clampScrollTop(scrollTop);
+    this.scheduleScrollTop(nextScrollTop);
+  }
+
+  private clampScrollTop(scrollTop: number): number {
+    return Math.max(0, Math.min(scrollTop, Math.max(0, this.scrollHeight - this.viewportHeight)));
+  }
+
+  private renderRowItemIfNeeded(
+    entry: RowEntry<T>,
+    options: {
+      focused: boolean;
+      index: number;
+      item: T;
+      renderItem: ListViewItemRenderer<T>;
+      selected: boolean;
+    },
+  ): void {
+    const shouldRender =
+      entry.renderedFocused !== options.focused ||
+      entry.renderedIndex !== options.index ||
+      entry.renderedItem !== options.item ||
+      entry.renderedSelected !== options.selected;
+
+    if (!shouldRender) {
+      return;
+    }
+
+    options.renderItem(
+      options.item,
+      options.index,
+      {
+        focused: options.focused,
+        index: options.index,
+        selected: options.selected,
+      },
+      entry.row.mount,
+    );
+
+    entry.renderedFocused = options.focused;
+    entry.renderedIndex = options.index;
+    entry.renderedItem = options.item;
+    entry.renderedSelected = options.selected;
+  }
+
+  private updateRowShellIfNeeded(
+    entry: RowEntry<T>,
+    options: {
+      focused: boolean;
+      index: number;
+      key: string;
+      rowHeight: number;
+      rowRole: string;
+      rowStep: number;
+      selected: boolean;
+    },
+  ): void {
+    const domNode = entry.row.domNode;
+
+    if (entry.appliedIndex !== options.index) {
+      domNode.style.top = `${options.index * options.rowStep}px`;
+      domNode.setAttribute("data-index", String(options.index));
+      entry.appliedIndex = options.index;
+    }
+
+    if (entry.appliedRowHeight !== options.rowHeight) {
+      domNode.style.height = `${options.rowHeight}px`;
+      entry.appliedRowHeight = options.rowHeight;
+    }
+
+    if (entry.appliedKey !== options.key) {
+      domNode.setAttribute("data-key", options.key);
+      entry.appliedKey = options.key;
+    }
+
+    if (entry.appliedRole !== options.rowRole) {
+      domNode.setAttribute("role", options.rowRole);
+      entry.appliedRole = options.rowRole;
+    }
+
+    if (entry.appliedSelected !== options.selected) {
+      if (options.selected) {
+        domNode.setAttribute("aria-selected", "true");
+      } else {
+        domNode.removeAttribute("aria-selected");
+      }
+
+      domNode.classList.toggle("ui-list__row--selected", options.selected);
+      entry.appliedSelected = options.selected;
+    }
+
+    if (entry.appliedFocused !== options.focused) {
+      domNode.classList.toggle("ui-list__row--focused", options.focused);
+      entry.appliedFocused = options.focused;
+    }
   }
 
   private createRow(): RowCacheRow {
