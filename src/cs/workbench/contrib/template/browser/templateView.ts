@@ -1,4 +1,4 @@
-import { lxAdd, lxArrowDown, lxEdit } from "@chogng/lxicon";
+import { lxAdd, lxChevronDown, lxEdit } from "@chogng/lxicon";
 
 import { createButton } from "src/cs/base/browser/ui/button/button";
 import { getCardClassName } from "src/cs/base/browser/ui/card/card";
@@ -15,6 +15,7 @@ import {
   getInputNativeClassName,
 } from "src/cs/base/browser/ui/input/input";
 import {
+  createSwitch as createBaseSwitch,
   getSwitchClassName,
   getSwitchDataAttributes,
   getSwitchStyle,
@@ -105,28 +106,25 @@ const createField = ({
   return wrapper;
 };
 
-const createSwitch = (
+const createToggleSwitch = (
   checked: boolean,
   onCheckedChange: (checked: boolean) => void,
 ): HTMLButtonElement => {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.role = "switch";
-  button.setAttribute("aria-checked", String(checked));
-  for (const [name, value] of Object.entries(
-    getSwitchDataAttributes({ checked, size: "sm" }),
-  )) {
-    if (value !== undefined) {
-      button.setAttribute(name, String(value));
+  const button = createBaseSwitch({
+    checked,
+    size: "sm",
+  });
+  button.className = getSwitchClassName({});
+  button.removeAttribute("style");
+  Object.assign(button.style, getSwitchStyle({ size: "sm" }));
+  for (const [name, value] of Object.entries(getSwitchDataAttributes({ checked, size: "sm" }))) {
+    if (value === undefined) {
+      button.removeAttribute(name);
+    } else {
+      button.setAttribute(name, value);
     }
   }
-  button.className = getSwitchClassName({});
-  Object.assign(button.style, getSwitchStyle({ size: "sm" }));
   button.addEventListener("click", () => onCheckedChange(!checked));
-  const thumb = document.createElement("span");
-  thumb.className = "ui-switch__thumb";
-  thumb.setAttribute("aria-hidden", "true");
-  button.append(thumb);
   return button;
 };
 
@@ -285,7 +283,7 @@ export const createTemplateManager = ({
     dropdownRow.append(dropdownLabel);
 
     const selectContainer = document.createElement("div");
-    selectContainer.className = "flex items-center gap-2";
+    selectContainer.className = "template_button_row template_select_actions";
 
     const selectedTemplateLabel = (() => {
       if (!selectedTemplateId || selectedTemplateId === AUTO_TEMPLATE_ID) {
@@ -398,7 +396,7 @@ export const createTemplateManager = ({
       items: createTemplateActions,
       menuClassName: "template_select_menu",
       surfaceClassName: "template_select_menu_surface",
-      triggerIcon: () => createLxIcon({ icon: lxArrowDown, size: 14 }),
+      triggerIcon: () => createLxIcon({ icon: lxChevronDown, size: 14 }),
     });
 
     selectContainer.append(templateSelectMenu.domNode);
@@ -410,7 +408,7 @@ export const createTemplateManager = ({
         size: "sm",
         variant: "secondary",
       });
-      deleteBtn.className = `${deleteBtn.className} border border-border px-3 h-[36px] rounded-lg`;
+      deleteBtn.className = `${deleteBtn.className} template_button`;
       deleteBtn.addEventListener("click", async () => {
         if (!selectedTemplateId) return;
         const confirmMsg = localize("da_template_delete_confirm", "Delete template \"{name}\"?", { name: config.name });
@@ -439,16 +437,61 @@ export const createTemplateManager = ({
     dropdownRow.append(selectContainer);
     leftContent.append(dropdownRow);
 
+    // Apply Buttons
+    const applyActions = document.createElement("div");
+    applyActions.className = "template_apply_actions";
+
+    const applyAllBtn = createButton({
+      label: localize("da_apply_template", "Apply Template"),
+      size: "md",
+      variant: "primary",
+    });
+    applyAllBtn.className = `${applyAllBtn.className} template_button`;
+    applyAllBtn.addEventListener("click", () => {
+      if (selectedTemplateId === AUTO_TEMPLATE_ID || !selectedTemplateId) {
+        onTemplateApplied?.({ ...config, autoExtractionMode: true });
+      } else {
+        const validation = validateTemplateForApply(config, t as any);
+        if (!validation.ok || !validation.normalized) {
+          showToast(validation.message || localize("da_template_invalid_configuration", "Invalid configuration"), "warning");
+          return;
+        }
+        onTemplateApplied?.({ ...validation.normalized });
+      }
+    });
+
+    const applyNewBtn = createButton({
+      label: localize("da_apply_new_files", "Apply New Files"),
+      size: "md",
+      variant: "secondary",
+    });
+    applyNewBtn.className = `${applyNewBtn.className} template_button`;
+    applyNewBtn.addEventListener("click", () => {
+      if (selectedTemplateId === AUTO_TEMPLATE_ID || !selectedTemplateId) {
+        onTemplateAppliedIncremental?.({ ...config, autoExtractionMode: true });
+      } else {
+        const validation = validateTemplateForApply(config, t as any);
+        if (!validation.ok || !validation.normalized) {
+          showToast(validation.message || localize("da_template_invalid_configuration", "Invalid configuration"), "warning");
+          return;
+        }
+        onTemplateAppliedIncremental?.({ ...validation.normalized });
+      }
+    });
+
+    applyActions.append(applyAllBtn, applyNewBtn);
+    leftContent.append(applyActions);
+
     // Import/Export template buttons
     const importExportRow = document.createElement("div");
-    importExportRow.className = "flex items-center gap-2";
+    importExportRow.className = "template_button_row template_button_row--inset";
 
     const importBtn = createButton({
       label: localize("da_template_import_btn", "Import templates"),
       size: "sm",
       variant: "secondary",
     });
-    importBtn.className = `${importBtn.className} flex-1 border border-border h-[36px] rounded-lg`;
+    importBtn.className = `${importBtn.className} template_button`;
     
     const fileInput = document.createElement("input");
     fileInput.type = "file";
@@ -472,7 +515,7 @@ export const createTemplateManager = ({
       size: "sm",
       variant: "secondary",
     });
-    exportBtn.className = `${exportBtn.className} flex-1 border border-border h-[36px] rounded-lg`;
+    exportBtn.className = `${exportBtn.className} template_button`;
     exportBtn.disabled = !config.name;
     exportBtn.addEventListener("click", () => {
       exportTemplate(config);
@@ -495,7 +538,7 @@ export const createTemplateManager = ({
       row.className = "flex items-center justify-between gap-3 text-xs text-text-secondary py-1";
       const lbl = document.createElement("span");
       lbl.textContent = labelText;
-      const sw = createSwitch(checked, onToggle);
+      const sw = createToggleSwitch(checked, onToggle);
       row.append(lbl, sw);
       return row;
     };
@@ -540,51 +583,6 @@ export const createTemplateManager = ({
     const spacer = document.createElement("div");
     spacer.className = "flex-1";
     leftContent.append(spacer);
-
-    // Apply Buttons
-    const applyActions = document.createElement("div");
-    applyActions.className = "template_apply_actions";
-
-    const applyAllBtn = createButton({
-      label: localize("da_apply_template", "Apply Template"),
-      size: "md",
-      variant: "primary",
-    });
-    applyAllBtn.className = `${applyAllBtn.className} template_apply_button`;
-    applyAllBtn.addEventListener("click", () => {
-      if (selectedTemplateId === AUTO_TEMPLATE_ID || !selectedTemplateId) {
-        onTemplateApplied?.({ ...config, autoExtractionMode: true });
-      } else {
-        const validation = validateTemplateForApply(config, t as any);
-        if (!validation.ok || !validation.normalized) {
-          showToast(validation.message || localize("da_template_invalid_configuration", "Invalid configuration"), "warning");
-          return;
-        }
-        onTemplateApplied?.({ ...validation.normalized });
-      }
-    });
-
-    const applyNewBtn = createButton({
-      label: localize("da_apply_new_files", "Apply New Files"),
-      size: "md",
-      variant: "secondary",
-    });
-    applyNewBtn.className = `${applyNewBtn.className} template_apply_button template_apply_button--secondary`;
-    applyNewBtn.addEventListener("click", () => {
-      if (selectedTemplateId === AUTO_TEMPLATE_ID || !selectedTemplateId) {
-        onTemplateAppliedIncremental?.({ ...config, autoExtractionMode: true });
-      } else {
-        const validation = validateTemplateForApply(config, t as any);
-        if (!validation.ok || !validation.normalized) {
-          showToast(validation.message || localize("da_template_invalid_configuration", "Invalid configuration"), "warning");
-          return;
-        }
-        onTemplateAppliedIncremental?.({ ...validation.normalized });
-      }
-    });
-
-    applyActions.append(applyAllBtn, applyNewBtn);
-    leftContent.append(applyActions);
     } else {
     // Save Mode Form UI
     const form = document.createElement("div");
