@@ -2371,7 +2371,13 @@ async function handleAnalysisRustEngineDispose(_event, payload) {
       return { ok: true, source: "rust" };
     }
     if (fileId) {
-      await sendRustAnalysisEngineCommand("dispose", { fileId }, 30000);
+      const [previewDispose] = await Promise.allSettled([
+        sendRustAnalysisEngineCommand("dispose", { fileId }, 30000),
+        disposeRustAnalysisProcessingFile(fileId),
+      ]);
+      if (previewDispose.status === "rejected") {
+        throw previewDispose.reason;
+      }
     }
     return { ok: true, source: "rust" };
   } catch (error) {

@@ -10,3 +10,4 @@ import "src/cs/workbench/contrib/parameters/browser/parameters.contribution";
 import "src/cs/workbench/contrib/preview/browser/preview.contribution";
 import "src/cs/workbench/contrib/settings/browser/settings.contribution";
 import "src/cs/workbench/contrib/template/browser/template.contribution";
+import "src/cs/workbench/services/import/browser/import.contribution";

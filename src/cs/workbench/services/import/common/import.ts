@@ -2,6 +2,7 @@ import type { ImportedCurveAssessment } from "src/cs/workbench/common/deviceAnal
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 
 export const IImportService = createDecorator<IImportService>("importService");
+export const ImportLifecycleContributionId = "workbench.contrib.importLifecycle";
 
 export type ImportPreparedFile = {
   assessment: ImportedCurveAssessment;
