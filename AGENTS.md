@@ -1,5 +1,4 @@
-上游1：C:\Users\lanxi\Desktop\vscode
-上游2：C:\Users\lanxi\Desktop\codex
+上游：C:\Users\lanxi\Desktop\vscode
 测试数据：C:\Users\lanxi\Desktop\293K
 
 总原则：

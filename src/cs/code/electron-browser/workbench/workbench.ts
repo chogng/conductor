@@ -25,6 +25,7 @@ import {
   applyWorkbenchAppearance,
   normalizeWorkbenchAppearance,
 } from "src/cs/workbench/browser/appearance";
+import { installWindowDeveloperKeybindings } from "src/cs/workbench/browser/actions/windowActions";
 
 declare global {
   interface Window {
@@ -259,6 +260,7 @@ const logInitialRenderDiagnostics = (logBoot: BootLogger) => {
 
 const prepareWorkbench = (logBoot: BootLogger) => {
   installNavigationModeListeners();
+  installWindowDeveloperKeybindings();
 
   const initialSettings = resolveInitialSettings();
   const initialLanguage = isLanguageCode(initialSettings?.language)

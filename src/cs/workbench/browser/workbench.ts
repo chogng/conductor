@@ -39,8 +39,11 @@ import {
 } from "src/cs/workbench/contrib/settings/browser/coreSettingsController";
 import { SettingsViewPane } from "src/cs/workbench/contrib/settings/browser/settingsViewPane";
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
-import type { ICommandService } from "src/cs/workbench/services/commands/common/commands";
-import { WindowCommandIds } from "src/cs/workbench/common/windowCommands";
+import {
+  closeWindow,
+  minimizeWindow,
+  toggleWindowMaximized,
+} from "src/cs/workbench/browser/actions/windowActions";
 
 export type WorkbenchTitlebarState = {
   readonly enabled?: boolean;
@@ -67,7 +70,6 @@ export type WorkbenchTitlebarState = {
 
 export type WorkbenchOptions = {
   readonly className?: string;
-  readonly commandService?: ICommandService;
   readonly id?: string;
   readonly showDesktopCommandBar?: boolean;
   readonly showSkeleton?: boolean;
@@ -124,7 +126,6 @@ export class Workbench extends Layout {
   private readonly data: DataViewPane;
   private readonly analysis: ChartPreviewViewPane;
   private readonly settings: SettingsViewPane;
-  private readonly commandService?: ICommandService;
   private readonly tableService: ITableService;
   private readonly coreSettingsController: CoreSettingsController;
   private coreSettingsState: CoreSettingsState = createCoreSettingsState();
@@ -152,7 +153,6 @@ export class Workbench extends Layout {
     if (!options.tableService) {
       throw new Error("Workbench requires ITableService.");
     }
-    this.commandService = options.commandService;
     this.tableService = options.tableService;
     this.importer = this._register(new ImporterViewletHost(this.getImporterProps()));
     this.data = this._register(new DataViewPane(this.getDataProps()));
@@ -228,19 +228,15 @@ export class Workbench extends Layout {
       canNavigateBack: state.layoutState.canNavigateBack,
       canNavigateForward: state.layoutState.canNavigateForward,
       enabled: getWorkbenchWindowState().isDesktopChromePreviewEnabled,
-      onCloseWindow: () => this.executeCommand(WindowCommandIds.closeWindow),
-      onMinimizeWindow: () => this.executeCommand(WindowCommandIds.minimizeWindow),
+      onCloseWindow: () => closeWindow(),
+      onMinimizeWindow: () => minimizeWindow(),
       onNavigateBack: () => this.navigateBack(),
       onNavigateForward: () => this.navigateForward(),
       onOpenSettings: () => this.navigateToView("settings"),
       onPageChange: (page) => this.navigateToView(page),
-      onToggleMaximizeWindow: () => this.executeCommand(WindowCommandIds.toggleWindowMaximized),
+      onToggleMaximizeWindow: () => toggleWindowMaximized(),
       t: this.t,
     };
-  }
-
-  private executeCommand(command: string): void {
-    this.commandService?.executeCommand(command);
   }
 
   private getImporterProps(

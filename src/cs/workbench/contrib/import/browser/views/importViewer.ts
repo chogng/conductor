@@ -332,7 +332,7 @@ export class ImportViewerView implements IDisposable {
           container.replaceChildren();
         },
       },
-      rowHeight: 28,
+      rowHeight: 26,
       selectedKey: this.props.effectiveSelectedFileId ?? null,
       viewportClassName: "import-viewer-file-tree-viewport",
     };
