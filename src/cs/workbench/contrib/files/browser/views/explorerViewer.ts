@@ -10,6 +10,7 @@ import {
 } from "src/cs/base/browser/ui/tree/objectTree";
 import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
+import { localize } from "src/cs/nls";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { FileEntry } from "src/cs/workbench/contrib/files/common/files";
 import {
@@ -43,11 +44,14 @@ const getFileItemMeta = (fileEntry: FileEntry): FileItemMeta | null => {
     return null;
   }
 
-  const summary = `Auto: ${String(fileEntry.curveType).trim()}${
-    fileEntry?.curveTypeConfidence
-      ? ` (${String(fileEntry.curveTypeConfidence).trim()})`
-      : ""
-  }`;
+  const curveType = String(fileEntry.curveType).trim();
+  const confidence = fileEntry?.curveTypeConfidence
+    ? ` (${String(fileEntry.curveTypeConfidence).trim()})`
+    : "";
+  const summary = localize("files.autoSummary", "自动识别：{curveType}{confidence}", {
+    curveType,
+    confidence,
+  });
 
   return {
     isWarning:
