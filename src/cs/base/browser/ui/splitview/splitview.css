@@ -27,7 +27,7 @@
 }
 
 .ui-split-view[data-orientation="horizontal"] > .ui-split-view__viewport {
-  overflow-x: auto;
+  overflow-x: hidden;
   overflow-y: hidden;
 }
 

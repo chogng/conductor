@@ -56,6 +56,24 @@ export const getPaneMaxSize = (pane: SplitViewPaneLayout): number =>
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(Math.max(value, min), max);
 
+const getNormalizeResizeOrder = (
+  panes: readonly SplitViewPaneLayout[],
+): number[] => {
+  const flexibleIndexes: number[] = [];
+  const fixedIndexes: number[] = [];
+
+  for (let index = panes.length - 1; index >= 0; index -= 1) {
+    const pane = panes[index];
+    if (pane.size === undefined && pane.defaultSize === undefined) {
+      flexibleIndexes.push(index);
+    } else {
+      fixedIndexes.push(index);
+    }
+  }
+
+  return [...flexibleIndexes, ...fixedIndexes];
+};
+
 export const normalizeSplitViewSizes = (
   panes: readonly SplitViewPaneLayout[],
   previousSizes: readonly number[],
@@ -80,8 +98,13 @@ export const normalizeSplitViewSizes = (
   }
 
   const direction = delta > 0 ? 1 : -1;
+  const resizeOrder = getNormalizeResizeOrder(panes);
   for (let pass = 0; pass < panes.length && Math.abs(delta) >= 0.5; pass += 1) {
-    for (let index = panes.length - 1; index >= 0 && Math.abs(delta) >= 0.5; index -= 1) {
+    for (const index of resizeOrder) {
+      if (Math.abs(delta) < 0.5) {
+        break;
+      }
+
       const pane = panes[index];
       const limit = direction > 0
         ? getPaneMaxSize(pane) - sizes[index]
