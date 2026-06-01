@@ -1,0 +1,56 @@
+.monaco-dropdown {
+    height: 100%;
+    padding: 0;
+}
+
+.monaco-dropdown > .dropdown-label {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    border-radius: 6px;
+    color: rgb(var(--text-secondary) / 1);
+    transition:
+        background-color 120ms ease,
+        color 120ms ease;
+}
+
+.monaco-dropdown > .dropdown-label > .action-label.disabled {
+    cursor: default;
+}
+
+.monaco-dropdown:not(.active) > .dropdown-label:hover {
+    background-color: rgb(var(--bg-surface-hover) / 0.72);
+    color: rgb(var(--text-primary) / 1);
+}
+
+.monaco-dropdown.active > .dropdown-label {
+    background-color: rgb(var(--accent) / 0.12);
+    color: rgb(var(--accent) / 1);
+}
+
+.monaco-dropdown-with-primary {
+    display: flex !important;
+    flex-direction: row;
+    border-radius: 5px;
+}
+
+.monaco-dropdown-with-primary > .action-container > .action-label {
+    margin-right: 0;
+}
+
+.monaco-dropdown-with-primary > .dropdown-action-container > .monaco-dropdown > .dropdown-label .codicon[class*='codicon-'] {
+    padding-right: 0;
+    padding-left: 0;
+    margin-left: -3px;
+    font-size: 12px;
+    line-height: 16px;
+}
+
+.monaco-dropdown-with-primary > .dropdown-action-container > .monaco-dropdown > .dropdown-label > .action-label {
+    display: block;
+    background-repeat: no-repeat;
+    background-position: center center;
+    background-size: 16px;
+}

@@ -1,0 +1,17 @@
+.context-view {
+    position: absolute;
+    box-sizing: border-box;
+    pointer-events: auto;
+    isolation: isolate;
+}
+
+.context-view.fixed {
+    all: initial;
+    box-sizing: border-box;
+    position: fixed;
+    color: inherit;
+    font-family: inherit;
+    font-size: 13px;
+    pointer-events: auto;
+    isolation: isolate;
+}

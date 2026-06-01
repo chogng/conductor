@@ -10,6 +10,8 @@ import {
     type IOpenContextView,
 } from "src/cs/platform/contextview/browser/contextView";
 
+import "src/cs/platform/contextview/browser/contextView.css";
+
 export class ContextViewService extends Disposable implements IContextViewServiceType {
     public declare readonly _serviceBrand: undefined;
 
@@ -23,8 +25,7 @@ export class ContextViewService extends Disposable implements IContextViewServic
     constructor() {
         super();
         this.element = document.createElement("div");
-        this.element.className = "context-view";
-        this.element.style.position = "fixed";
+        this.element.className = "context-view fixed";
         this.element.style.display = "none";
         this.element.style.top = "0";
         this.element.style.left = "0";
