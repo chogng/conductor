@@ -8,7 +8,6 @@ export type KeyboardActivation = "auto" | "manual";
 export type PanelIdMode = "scoped" | "short";
 
 export type TabOptionBase = {
-  value?: TabValue;
   ariaLabel?: string;
   title?: string;
   disabled?: boolean;
@@ -20,7 +19,11 @@ export type TabOptionBase = {
   ctaCopy?: string;
 };
 
-export type NormalizedTabOption<T extends TabOptionBase = TabOptionBase> = T & {
+type TabOptionWithValue<T extends TabOptionBase = TabOptionBase> = T & {
+  readonly value: TabValue;
+};
+
+export type NormalizedTabOption<T extends TabOptionBase = TabOptionBase> = TabOptionWithValue<T> & {
   __index: number;
   __key: string;
   __tabId: string;
@@ -33,7 +36,7 @@ export type NormalizeTabsOptions<T extends TabOptionBase> = {
   controlsPanels?: boolean;
   idBase?: string;
   instanceId: string;
-  options: readonly T[];
+  options: readonly TabOptionWithValue<T>[];
   panelIdBase?: string;
   panelIdMode?: PanelIdMode;
   shouldLinkPanels?: boolean;
@@ -129,9 +132,7 @@ export const normalizeTabsOptions = <T extends TabOptionBase>({
       : undefined;
 
     if (import.meta.env.DEV) {
-      if (optionValue === undefined) {
-        console.warn("[Tabs] option.value is undefined; this tab cannot be selected reliably.", option);
-      } else if (seenValues.has(optionValue)) {
+      if (seenValues.has(optionValue)) {
         console.warn("[Tabs] duplicate option.value detected; selection may be ambiguous.", optionValue, options);
       }
       if (shouldLinkPanels && hasExplicitIdBase && option.panelId) {
@@ -139,9 +140,7 @@ export const normalizeTabsOptions = <T extends TabOptionBase>({
       }
     }
 
-    if (optionValue !== undefined) {
-      seenValues.add(optionValue);
-    }
+    seenValues.add(optionValue);
 
     return {
       ...option,

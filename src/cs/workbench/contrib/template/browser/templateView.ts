@@ -1,4 +1,7 @@
+import { lxListUnordered, lxSave } from "cogicon";
+
 import { createButton } from "src/cs/base/browser/ui/button/button";
+import { createCogIcon } from "src/cs/base/browser/ui/cogIcon/cogIcon";
 import {
   getInputFieldClassName,
   getInputFieldState,
@@ -643,10 +646,12 @@ export const createTemplateManager = ({
     tabListClassName: "template_tab_container",
     tabs: [
       {
+        icon: () => createCogIcon({ icon: lxListUnordered, size: 14 }),
         id: "select",
         label: t("da_template_select_mode") || "选择",
       },
       {
+        icon: () => createCogIcon({ icon: lxSave, size: 14 }),
         id: "save",
         label: t("da_template_save_mode") || "保存",
       },

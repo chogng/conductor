@@ -10,26 +10,6 @@
   @apply flex h-full min-h-0 min-w-0 flex-col gap-3;
 }
 
-.template_manager_header {
-  @apply flex shrink-0 items-center justify-between gap-3;
-}
-
-.template_manager_actions {
-  @apply flex items-center gap-1 bg-bg-100 p-0.5 border border-border rounded-full;
-}
-
-.template_manager_actions .action-btn {
-  @apply rounded-full border-transparent shadow-none !important;
-}
-
-.template_manager_actions .action-btn--secondary {
-  @apply text-text-secondary bg-transparent hover:text-text-primary;
-}
-
-.template_section_title {
-  @apply text-sm font-medium text-text-primary;
-}
-
 .template_form {
   @apply grid gap-3;
 }
@@ -48,10 +28,6 @@
 
 .template_config_panel {
   @apply flex h-full min-h-0 min-w-0 flex-col gap-3 overflow-auto p-3;
-}
-
-.data_preview_area {
-  @apply flex-1 min-h-0 min-w-0;
 }
 
 .template_preview_workspace {
@@ -187,31 +163,19 @@
 }
 
 .template_tab_container {
-  @apply flex shrink-0 flex-wrap items-center gap-0.5 rounded-lg border border-border/60 bg-bg-100/80 p-0.5;
-}
-
-.template_tab_btn {
-  @apply min-w-0 flex-1 px-3 py-1 text-xs font-medium text-text-secondary rounded-md transition-all duration-150 outline-none border-none cursor-pointer;
-}
-
-.template_tab_btn[data-active="true"] {
-  @apply bg-bg-page text-text-primary shadow-sm font-semibold;
-}
-
-.template_tab_btn:hover:not([data-active="true"]) {
-  @apply text-text-primary bg-bg-page/40;
+  @apply flex w-max shrink-0 items-center gap-0.5 rounded-lg border border-border/60 bg-bg-100/80 p-1;
 }
 
 .template_tab_container.tab_menu {
-  @apply w-full bg-bg-100/80 border-border/60 p-0.5;
+  @apply w-max bg-bg-100/80 border-border/60 p-1;
 }
 
 .template_tab_container .tab_btn {
-  @apply min-w-0 flex-1 basis-0 px-3 py-1 text-xs font-medium rounded-md transition-all duration-150 outline-none border-none cursor-pointer;
+  @apply min-w-0 gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md transition-all duration-150 outline-none border-none cursor-pointer;
 }
 
 .template_tab_container .tab_btn--sm {
-  @apply h-auto;
+  @apply h-7;
 }
 
 .template_tab_container .tab_btn--active {
@@ -219,7 +183,15 @@
 }
 
 .template_tab_container .tab_btn--inactive {
-  @apply text-text-secondary hover:text-text-primary hover:bg-bg-page/40;
+  @apply bg-transparent text-text-secondary hover:text-text-primary hover:bg-bg-page/40;
+}
+
+.template_tab_container .tab_btn_icon {
+  @apply opacity-80;
+}
+
+.template_tab_container .tab_btn_text {
+  @apply leading-none;
 }
 
 @media (max-width: 980px) {

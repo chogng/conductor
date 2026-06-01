@@ -16,7 +16,8 @@ export type TabViewContent = IDisposable & {
   layout?(): void;
 };
 
-export type TabViewTab<TTabId extends string> = TabOptionBase & {
+export type TabViewTab<TTabId extends string> = Omit<TabOptionBase, "id" | "value"> & {
+  readonly icon?: () => HTMLElement;
   readonly id: TTabId;
   readonly label: string;
 };
@@ -68,7 +69,10 @@ export abstract class TabView<TTabId extends string> extends Disposable {
       controlsPanels: true,
       idBase: options.idBase,
       instanceId: getTabsInstanceId(options.idBase, "tab-view"),
-      options: options.tabs,
+      options: options.tabs.map((tab) => ({
+        ...tab,
+        value: tab.id,
+      })),
       shouldLinkPanels: true,
     });
     this.renderTabs();
@@ -105,7 +109,7 @@ export abstract class TabView<TTabId extends string> extends Disposable {
       });
       button.disabled = tab.__disabled;
       button.tabIndex = isActive ? 0 : -1;
-      button.textContent = tab.label;
+      button.replaceChildren(...createTabButtonContent(tab));
       button.setAttribute("aria-selected", String(isActive));
       if (tab.title) {
         button.title = tab.title;
@@ -195,6 +199,24 @@ export abstract class TabView<TTabId extends string> extends Disposable {
     return this.normalizedTabs.find((tab) => tab.id === tabId);
   }
 }
+
+const createTabButtonContent = <TTabId extends string>(
+  tab: NormalizedTabOption<TabViewTab<TTabId>>,
+): Node[] => {
+  const content: Node[] = [];
+  const icon = tab.icon?.();
+  if (icon) {
+    icon.classList.add("tab_btn_icon");
+    icon.setAttribute("aria-hidden", "true");
+    content.push(icon);
+  }
+
+  const text = document.createElement("span");
+  text.className = "tab_btn_text";
+  text.textContent = tab.label;
+  content.push(text);
+  return content;
+};
 
 const getTabViewClassName = (className = ""): string =>
   className ? `tab_view ${className}` : "tab_view";

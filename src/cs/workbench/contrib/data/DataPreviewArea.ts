@@ -4,6 +4,8 @@ import SplitView, {
 } from "src/cs/base/browser/ui/splitview/splitview";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 
+import "src/cs/workbench/contrib/data/DataPreviewArea.css";
+
 export type DataPreviewAreaProps = {
   readonly importPanel?: Node | null;
   readonly tablePreview?: Node | null;

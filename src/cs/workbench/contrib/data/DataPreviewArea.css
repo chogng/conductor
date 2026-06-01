@@ -1,0 +1,3 @@
+.data_preview_area {
+  @apply flex-1 min-h-0 min-w-0;
+}
