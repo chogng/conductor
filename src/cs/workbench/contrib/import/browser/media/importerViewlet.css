@@ -136,15 +136,28 @@
   @apply text-text-secondary hover:text-red-500 transition-colors opacity-100 hover:bg-bg-page p-1 rounded shrink-0;
 }
 
-.import-viewer-file-list {
+.import-viewer-file-tree {
   @apply flex-1 min-h-0 w-full;
   height: 100%;
 }
 
-.import-viewer-file-list-viewport {
+.import-viewer-file-tree-viewport {
   @apply min-h-0;
   height: 100%;
   padding-inline: 10px;
+}
+
+.import-viewer-folder-item {
+  @apply flex items-center justify-between text-sm text-text-secondary min-w-0 w-full;
+  height: 100%;
+}
+
+.import-viewer-folder-name {
+  @apply truncate min-w-0;
+}
+
+.import-viewer-folder-count {
+  @apply shrink-0 text-[11px] text-text-tertiary pl-2;
 }
 
 @media (max-width: 980px) {

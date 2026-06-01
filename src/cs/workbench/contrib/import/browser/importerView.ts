@@ -3,6 +3,7 @@ import type { IDisposable } from "src/cs/base/common/lifecycle";
 import { startPerf } from "src/cs/workbench/common/deviceAnalysis/perf";
 import type { ImportedCurveAssessment } from "src/cs/workbench/common/deviceAnalysis/importFileUtils";
 import { collectDroppedImportFiles } from "src/cs/workbench/contrib/import/browser/csvDropTraversal";
+import type { ImportSourceFile } from "src/cs/workbench/contrib/import/browser/importSourceFile";
 import { prepareImportFileInWorker } from "src/cs/workbench/contrib/import/browser/rustClient";
 import {
   ImportViewerView,
@@ -32,6 +33,7 @@ type CsvFileEntry = ImporterFileEntry & {
 
 type PendingImportFile = {
   finishFilePerf: (meta?: Record<string, unknown>) => void;
+  relativePath: string | null;
   sourceFile: File;
   sourceKey: string;
 };
@@ -192,7 +194,7 @@ export class ImporterViewController implements ImporterRef, IDisposable {
     this.shouldAutoScrollToBottomRef.current = distanceToBottom <= 24;
   };
 
-  private readonly handleSelectFiles = (selectedFiles: File[]): void => {
+  private readonly handleSelectFiles = (selectedFiles: ImportSourceFile[]): void => {
     this.isDragging = false;
     void this.processFiles(selectedFiles);
   };
@@ -252,7 +254,7 @@ export class ImporterViewController implements ImporterRef, IDisposable {
     this.syncView();
   };
 
-  private async processFiles(newFiles: File[]): Promise<void> {
+  private async processFiles(newFiles: ImportSourceFile[]): Promise<void> {
     const finishBatchPerf = startPerf("import:add-files", {
       currentCount: this.files.length,
       incomingCount: newFiles.length,
@@ -282,12 +284,14 @@ export class ImporterViewController implements ImporterRef, IDisposable {
     let unsupportedCount = 0;
     const pendingImports: PendingImportFile[] = [];
 
-    for (const sourceFile of uniqueFiles) {
+    for (const source of uniqueFiles) {
+      const sourceFile = source.file;
+      const relativePath = source.relativePath?.trim() || null;
       const finishFilePerf = startPerf("import:prepare-file", {
         fileName: sourceFile.name,
         sizeBytes: sourceFile.size,
       });
-      const sourceKey = buildFileIdentityKey(sourceFile);
+      const sourceKey = buildFileIdentityKey(sourceFile, relativePath);
       if (!sourceKey || seenSourceKeys.has(sourceKey)) {
         duplicateCount += 1;
         finishFilePerf({ skipped: "duplicate" });
@@ -304,6 +308,7 @@ export class ImporterViewController implements ImporterRef, IDisposable {
 
       pendingImports.push({
         finishFilePerf,
+        relativePath,
         sourceFile,
         sourceKey,
       });
@@ -312,6 +317,7 @@ export class ImporterViewController implements ImporterRef, IDisposable {
     let nextImportIndex = 0;
     const prepareOneFile = async ({
       finishFilePerf,
+      relativePath,
       sourceFile,
       sourceKey,
     }: PendingImportFile) => {
@@ -347,8 +353,9 @@ export class ImporterViewController implements ImporterRef, IDisposable {
       const fileEntry: CsvFileEntry = {
         fileId,
         file: normalizedFile,
-        itemKey: buildItemKey(normalizedFile),
+        itemKey: buildItemKey(normalizedFile, relativePath),
         normalizedCsvPath,
+        relativePath,
         sourceKey,
         sourcePath,
         curveType: curveAssessment.curveType,
@@ -373,6 +380,7 @@ export class ImporterViewController implements ImporterRef, IDisposable {
         size: normalizedFile.size,
         lastModified: normalizedFile.lastModified,
         normalizedCsvPath,
+        relativePath,
         sourceKey,
         sourcePath,
         curveType: curveAssessment.curveType,

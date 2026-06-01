@@ -1,4 +1,5 @@
 import { isSupportedDataImportFileName } from "src/cs/workbench/contrib/import/common/constants";
+import type { ImportSourceFile } from "src/cs/workbench/contrib/import/browser/importSourceFile";
 
 type FileSystemEntryLike = {
   isFile: boolean;
@@ -44,14 +45,17 @@ const readAllDirectoryEntries = async (
 
 const traverseImportEntry = async (
   entry: FileSystemEntryLike | null | undefined,
-  importFiles: File[],
+  importFiles: ImportSourceFile[],
+  parentPath = "",
 ): Promise<void> => {
   if (!entry) return;
+
+  const relativePath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
 
   if (entry.isFile) {
     if (!isSupportedDataImportFileName(entry.name)) return;
     const file = await readEntryFile(entry as FileSystemFileEntryLike);
-    importFiles.push(file);
+    importFiles.push({ file, relativePath });
     return;
   }
 
@@ -61,15 +65,15 @@ const traverseImportEntry = async (
     entry as FileSystemDirectoryEntryLike,
   );
   for (const child of entries) {
-    await traverseImportEntry(child, importFiles);
+    await traverseImportEntry(child, importFiles, relativePath);
   }
 };
 
 export const collectDroppedImportFiles = async (
   dataTransfer: DataTransfer,
-): Promise<File[]> => {
+): Promise<ImportSourceFile[]> => {
   const items = Array.from(dataTransfer.items) as DataTransferItemWithWebkit[];
-  const importFiles: File[] = [];
+  const importFiles: ImportSourceFile[] = [];
 
   const pendingTraversals = items.map(async (item) => {
     const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
@@ -80,7 +84,7 @@ export const collectDroppedImportFiles = async (
 
     const file = item.getAsFile();
     if (file && isSupportedDataImportFileName(file.name)) {
-      importFiles.push(file);
+      importFiles.push({ file, relativePath: null });
     }
   });
 

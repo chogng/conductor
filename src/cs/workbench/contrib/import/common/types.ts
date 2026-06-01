@@ -14,6 +14,7 @@ export type ImporterFileEntry = {
   fileName?: string;
   itemKey?: string;
   normalizedCsvPath?: string | null;
+  relativePath?: string | null;
   sourceKey?: string;
   sourcePath?: string | null;
   curveType?: string | null;
@@ -29,6 +30,7 @@ export type ImportedFileInfo = {
   size: number;
   lastModified: number;
   normalizedCsvPath?: string | null;
+  relativePath?: string | null;
   sourceKey?: string;
   sourcePath?: string | null;
   curveType?: string | null;

@@ -3,6 +3,7 @@ export type RawDataEntry = {
   fileId?: string;
   fileName?: string;
   normalizedCsvPath?: string | null;
+  relativePath?: string | null;
   sourcePath?: string | null;
   curveType?: string | null;
   curveTypeConfidence?: "high" | "medium" | "low";

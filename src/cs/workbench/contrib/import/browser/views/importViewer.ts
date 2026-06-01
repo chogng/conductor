@@ -1,7 +1,12 @@
 import { lxClose, lxFileText } from "cogicon";
 import Toast from "src/cs/base/browser/ui/toast/toast";
 import type { ListHandle } from "src/cs/base/browser/ui/list/list";
-import { ListView, type ListViewOptions } from "src/cs/base/browser/ui/list/listView";
+import {
+  ObjectTree,
+  type IObjectTreeOptions,
+  type ITreeElementRenderDetails,
+  type ITreeNode,
+} from "src/cs/base/browser/ui/tree/objectTree";
 import { normalizeCogIconSvgMarkup } from "src/cs/base/browser/ui/cogIcon/cogIconMarkup";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
@@ -9,7 +14,17 @@ import { cx } from "src/utils/cx";
 import { DATA_IMPORT_ACCEPT } from "src/cs/workbench/contrib/import/common/constants";
 import type { ImporterFileEntry } from "src/cs/workbench/contrib/import/common/types";
 import { toDomIdToken } from "src/cs/workbench/contrib/import/common/utils";
+import {
+  createImportSourceFile,
+  type ImportSourceFile,
+} from "src/cs/workbench/contrib/import/browser/importSourceFile";
 import { createImportEmptyView } from "src/cs/workbench/contrib/import/browser/views/emptyView";
+import {
+  buildImportTree,
+  collectImportTreeFolderKeys,
+  getImportTreeFileName,
+  type ImportTreeNode,
+} from "src/cs/workbench/contrib/import/browser/views/importTreeModel";
 
 export type ImportViewerProps = {
   readonly effectiveSelectedFileId?: string | null;
@@ -22,16 +37,11 @@ export type ImportViewerProps = {
   readonly onListScroll: (event: Event) => void;
   readonly onRemoveFile: (fileId: string | null) => void;
   readonly onSelectFile: (fileId: string | null) => void;
-  readonly onSelectFiles: (files: File[]) => void;
+  readonly onSelectFiles: (files: ImportSourceFile[]) => void;
   readonly t: TranslateFn;
 };
 
-const getImportViewerFileName = (fileEntry: ImporterFileEntry): string =>
-  fileEntry?.file &&
-  typeof fileEntry.file === "object" &&
-  "name" in fileEntry.file
-    ? String(fileEntry.file.name ?? "")
-    : String(fileEntry?.fileName ?? "");
+const getImportViewerFileName = getImportTreeFileName;
 
 const appendIcon = (
   container: HTMLElement,
@@ -125,6 +135,27 @@ const renderImportViewerFileItem = (
   container.append(content, actions);
 };
 
+const renderImportViewerFolderItem = (
+  node: ImportTreeNode,
+  isExpanded: boolean,
+  container: HTMLElement,
+) => {
+  container.replaceChildren();
+  container.className = "import-viewer-folder-item";
+  container.title = node.name;
+
+  const name = document.createElement("span");
+  name.className = "import-viewer-folder-name";
+  name.textContent = node.name;
+
+  const count = document.createElement("span");
+  count.className = "import-viewer-folder-count";
+  count.textContent = String(node.children?.length ?? 0);
+
+  container.dataset.expanded = isExpanded ? "true" : "false";
+  container.append(name, count);
+};
+
 export class ImportViewerView implements IDisposable {
   private readonly host: HTMLElement;
   private readonly root: HTMLDivElement;
@@ -133,9 +164,11 @@ export class ImportViewerView implements IDisposable {
   private readonly emptyRoot: HTMLDivElement;
   private readonly filledRoot: HTMLDivElement;
   private readonly listHost: HTMLDivElement;
-  private readonly listView: ListView<ImporterFileEntry>;
+  private readonly treeView: ObjectTree<ImportTreeNode>;
   private readonly toast: Toast;
   private readonly listeners: Array<() => void> = [];
+  private expandedKeys: string[] = [];
+  private knownFolderKeys = new Set<string>();
   private props: ImportViewerProps;
   private disposed = false;
 
@@ -154,6 +187,8 @@ export class ImportViewerView implements IDisposable {
     this.fileInput.multiple = true;
     this.fileInput.accept = DATA_IMPORT_ACCEPT;
     this.fileInput.className = "import-viewer-file-input";
+    this.fileInput.setAttribute("webkitdirectory", "");
+    this.fileInput.setAttribute("directory", "");
 
     this.viewport = document.createElement("div");
     this.viewport.className = "import-viewer-dropzone-viewport";
@@ -169,9 +204,9 @@ export class ImportViewerView implements IDisposable {
     this.listHost.className = "import-viewer-list-host";
     this.filledRoot.appendChild(this.listHost);
 
-    this.listView = new ListView<ImporterFileEntry>(
+    this.treeView = new ObjectTree<ImportTreeNode>(
       this.listHost,
-      this.createListOptions(),
+      this.createTreeOptions(),
     );
     this.toast = new Toast();
 
@@ -184,7 +219,7 @@ export class ImportViewerView implements IDisposable {
   }
 
   getListHandle(): ListHandle {
-    return this.listView;
+    return this.treeView;
   }
 
   openFileDialog(): void {
@@ -203,7 +238,7 @@ export class ImportViewerView implements IDisposable {
 
     this.disposed = true;
     this.toast.dispose();
-    this.listView.dispose();
+    this.treeView.dispose();
     for (const dispose of this.listeners) {
       dispose();
     }
@@ -211,30 +246,66 @@ export class ImportViewerView implements IDisposable {
     this.root.remove();
   }
 
-  private createListOptions(): ListViewOptions<ImporterFileEntry> {
+  private createTreeOptions(): IObjectTreeOptions<ImportTreeNode> {
+    const items = buildImportTree(this.props.files);
+    const folderKeys = collectImportTreeFolderKeys(items);
+    const expandedKeys = new Set(this.expandedKeys);
+    for (const key of folderKeys) {
+      if (!this.knownFolderKeys.has(key)) {
+        expandedKeys.add(key);
+      }
+    }
+    this.knownFolderKeys = new Set(folderKeys);
+    this.expandedKeys = [...expandedKeys];
+
     return {
-      className: "import-viewer-file-list",
-      getKey: (fileEntry, index) =>
-        fileEntry.fileId ?? fileEntry.itemKey ?? String(index),
-      gap: 12,
-      items: this.props.files,
+      className: "import-viewer-file-tree",
+      getChildren: (node: ImportTreeNode) => node.children,
+      getKey: (node: ImportTreeNode) => node.key,
+      gap: 6,
+      collapsedKeys: folderKeys.filter((key) => !expandedKeys.has(key)),
+      items,
       minVirtualCount: 200,
-      onScroll: (event) => this.props.onListScroll(event),
-      onSelect: (fileEntry) => this.props.onSelectFile(fileEntry.fileId ?? null),
-      renderItem: (fileEntry, _index, _state, container) => {
-        renderImportViewerFileItem(
-          fileEntry,
-          this.props.effectiveSelectedFileId === fileEntry.fileId,
-          this.props.onRemoveFile,
-          container,
-        );
+      onDidChangeCollapseState: (collapsedKeys) => {
+        const collapsed = new Set(collapsedKeys);
+        this.expandedKeys = folderKeys.filter((key) => !collapsed.has(key));
       },
-      disposeItem: (_fileEntry, _index, container) => {
-        container.replaceChildren();
+      onScroll: (event) => this.props.onListScroll(event),
+      onSelect: ({ element }) => {
+        if (element.kind === "folder") {
+          return;
+        }
+        this.props.onSelectFile(element.entry?.fileId ?? null);
+      },
+      renderer: {
+        renderElement: (
+          node: ITreeNode<ImportTreeNode>,
+          _index: number,
+          container: HTMLElement,
+          details: ITreeElementRenderDetails,
+        ) => {
+          const element = node.element;
+          if (element.kind === "folder") {
+            renderImportViewerFolderItem(element, !details.collapsed, container);
+            return;
+          }
+
+          if (element.entry) {
+            renderImportViewerFileItem(
+              element.entry,
+              this.props.effectiveSelectedFileId === element.entry.fileId,
+              this.props.onRemoveFile,
+              container,
+            );
+          }
+        },
+        disposeElement: (_node, _index, container) => {
+          container.replaceChildren();
+        },
       },
       rowHeight: 64,
       selectedKey: this.props.effectiveSelectedFileId ?? null,
-      viewportClassName: "import-viewer-file-list-viewport",
+      viewportClassName: "import-viewer-file-tree-viewport",
     };
   }
 
@@ -263,7 +334,7 @@ export class ImportViewerView implements IDisposable {
   }
 
   private readonly handleFileInputChange = (): void => {
-    const files = Array.from(this.fileInput.files ?? []);
+    const files = Array.from(this.fileInput.files ?? []).map(createImportSourceFile);
     this.props.onSelectFiles(files);
     this.fileInput.value = "";
   };
@@ -322,7 +393,7 @@ export class ImportViewerView implements IDisposable {
     this.emptyRoot.hidden = hasFiles;
     this.filledRoot.hidden = !hasFiles;
 
-    this.listView.setProps(this.createListOptions());
+    this.treeView.update(this.createTreeOptions());
 
     if (!error) {
       this.toast.hide();
