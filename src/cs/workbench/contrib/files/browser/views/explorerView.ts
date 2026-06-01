@@ -204,7 +204,7 @@ export class ExplorerView implements IDisposable {
     this.root.classList.toggle("idle", !isDragging);
     this.fileInput.setAttribute(
       "aria-label",
-      localize("files.importFolderAriaLabel", "Import folder"),
+      localize("files.importFolderAriaLabel", "导入文件夹"),
     );
 
     this.explorerViewer.setProps(this.createViewerProps());

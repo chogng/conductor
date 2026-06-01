@@ -33,24 +33,24 @@ export const createEmptyView = ({
   subtitle.className = "file-list-empty-subtitle";
 
   const prefix = document.createTextNode(
-    `${localize("files.emptySubtitlePrefix", "Drag a folder here or")} `,
+    `${localize("files.emptySubtitlePrefix", "拖拽文件夹到这里，或")} `,
   );
   const browse = document.createElement("span");
   browse.className = "file-list-empty-browse";
-  browse.textContent = localize("files.emptyBrowse", "browse folders");
+  browse.textContent = localize("files.emptyBrowse", "浏览文件夹");
 
   subtitle.append(prefix, browse);
   content.append(avatar, subtitle);
 
   const importButton = createButton({
-    ariaLabel: localize("files.importFolderButton", "Import folder"),
+    ariaLabel: localize("files.importFolderButton", "导入文件夹"),
     className: "file-list-empty-import-button",
     content: [
       createEmptyIcon("file-list-empty-import-icon"),
-      document.createTextNode(localize("files.importFolderButton", "Import folder")),
+      document.createTextNode(localize("files.importFolderButton", "导入文件夹")),
     ],
     size: "sm",
-    title: localize("files.importFolderButton", "Import folder"),
+    title: localize("files.importFolderButton", "导入文件夹"),
     variant: "primary",
   });
   importButton.addEventListener("click", onImportFiles);

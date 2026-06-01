@@ -43,14 +43,14 @@ export class DataViewPane {
     this.element = createPreviewPart({
       id: "analysis-template-workspace",
       ariaLabel: props.t("da_data_extraction_template"),
-      className: "template_view_pane",
+      className: "template_view_pane template_view_pane--joined_sidebar",
       children: this.previewContent,
     });
 
     this.sidebarPart = new SidebarPart({
       ariaLabel: props.t("da_data_extraction_template"),
       children: this.templateView.sidebarElement,
-      className: "template_sidebar_part",
+      className: "template_sidebar_part template_sidebar_part--joined_preview",
       title: props.t("da_data_extraction_template"),
     });
     this.sidebarElement = this.sidebarPart.element;
@@ -61,7 +61,7 @@ export class DataViewPane {
     this.sidebarPart.update({
       ariaLabel: props.t("da_data_extraction_template"),
       children: this.templateView.sidebarElement,
-      className: "template_sidebar_part",
+      className: "template_sidebar_part template_sidebar_part--joined_preview",
       title: props.t("da_data_extraction_template"),
     });
   }

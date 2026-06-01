@@ -99,6 +99,19 @@
   overflow: hidden;
 }
 
+.workbench_layout_shell:not(.workbench_layout_shell--stacked) .template_view_pane--joined_sidebar .template_table_card {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right-width: 0;
+  box-shadow: none;
+}
+
+.workbench_layout_shell:not(.workbench_layout_shell--stacked) .template_sidebar_part--joined_preview {
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  box-shadow: none;
+}
+
 .template_config_panel_content {
   display: flex;
   min-width: 0;
