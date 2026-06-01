@@ -9,6 +9,12 @@
   flex-direction: column;
 }
 
+.table_view_pane {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  overflow: hidden;
+}
+
 .table_view_body {
   min-width: 0;
   min-height: 0;

@@ -97,7 +97,9 @@
 .workbench_layout_shell:not(.workbench_layout_shell--stacked) .template_sidebar_part--joined_preview {
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
+  border-left-width: 0;
   box-shadow: none;
+  overflow: hidden;
 }
 
 .template_config_panel_content {
