@@ -1,27 +1,108 @@
 .avatar {
-  @apply relative inline-flex items-center justify-center rounded-full shrink-0 overflow-hidden bg-bg-subtle text-text-primary font-medium transition-colors group-hover:bg-accent/10 group-hover:text-accent;
+
+    position: relative;
+
+    display: inline-flex;
+
+    flex-shrink: 0;
+
+    align-items: center;
+
+    justify-content: center;
+
+    overflow: hidden;
+
+    border-radius: 9999px;
+
+    --tw-bg-opacity: 1;
+
+    background-color: rgb(var(--bg-subtle) / var(--tw-bg-opacity, 1));
+
+    font-weight: 500;
+
+    --tw-text-opacity: 1;
+
+    color: rgb(var(--text-primary) / var(--tw-text-opacity, 1));
+
+    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+
+    transition-duration: 150ms
+}
+
+.group:hover .avatar {
+
+    background-color: rgb(var(--accent) / 0.1);
+
+    --tw-text-opacity: 1;
+
+    color: rgb(var(--accent) / var(--tw-text-opacity, 1))
 }
 
 .avatar--sm {
-  @apply w-8 h-8 text-xs;
+
+    height: 2rem;
+
+    width: 2rem;
+
+    font-size: 0.75rem;
+
+    line-height: 1rem
 }
 
 .avatar--md {
-  @apply w-10 h-10 text-sm;
+
+    height: 2.5rem;
+
+    width: 2.5rem;
+
+    font-size: 0.875rem;
+
+    line-height: 1.25rem
 }
 
 .avatar--lg {
-  @apply w-12 h-12 text-base;
+
+    height: 3rem;
+
+    width: 3rem;
+
+    font-size: 1rem;
+
+    line-height: 1.5rem
 }
 
 .avatar--xl {
-  @apply w-16 h-16 text-2xl;
+
+    height: 4rem;
+
+    width: 4rem;
+
+    font-size: 1.5rem;
+
+    line-height: 2rem
 }
 
 .avatar--empty {
-  @apply bg-bg-200/50 text-text-tertiary group-hover:bg-bg-200/50 group-hover:text-text-tertiary;
+
+    background-color: rgb(var(--bg-200) / 0.5);
+
+    --tw-text-opacity: 1;
+
+    color: rgb(var(--text-tertiary) / var(--tw-text-opacity, 1))
+}
+
+.group:hover .avatar--empty {
+
+    background-color: rgb(var(--bg-200) / 0.5);
+
+    --tw-text-opacity: 1;
+
+    color: rgb(var(--text-tertiary) / var(--tw-text-opacity, 1))
 }
 
 .avatar--image {
-  @apply bg-transparent;
+
+    background-color: transparent
 }

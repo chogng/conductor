@@ -1,5 +1,14 @@
 .data_preview_area {
-  @apply flex-1 min-h-0 min-w-0;
+  min-height: 0px;
+  min-width: 0px;
+  flex: 1 1 0%;
+}
+
+.data_preview_area:not(.data_preview_area--stacked) .data_preview_area_import_pane > .workbench_sidebar_part {
+  border-right: 0;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  box-shadow: none;
 }
 
 .data_preview_area--joined_cards .data_preview_area_table_pane {

@@ -1,13 +1,5 @@
-import { normalizeCogIconSvgMarkup } from "src/cs/base/browser/ui/cogIcon/cogIconMarkup";
-import { createButton } from "src/cs/base/browser/ui/button/button";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
-import {
-  createImporterHeaderActions,
-  importerClearSessionActionId,
-  importerImportActionId,
-  type ImporterHeaderAction,
-} from "src/cs/workbench/contrib/import/browser/importerActions";
 import {
   ImporterViewController,
   type ImporterRef,
@@ -18,13 +10,10 @@ import { normalizeCtaName, normalizeCtaToken } from "src/utils/cta";
 import "src/cs/workbench/contrib/import/browser/media/importerViewlet.css";
 
 export type ImporterViewletProps = {
-  readonly hasSessionData: boolean;
   readonly importerRef: { current: ImporterRef | null };
-  readonly onClearSession?: () => void;
   readonly onDataImported?: ImporterViewProps["onDataImported"];
   readonly onDataRemoved?: ImporterViewProps["onDataRemoved"];
   readonly onFileSelected?: ImporterViewProps["onFileSelected"];
-  readonly onImportTrigger?: () => void;
   readonly rawData?: ImporterViewProps["files"];
   readonly selectedPreviewFileId?: ImporterViewProps["selectedFileId"];
   readonly t: TranslateFn;
@@ -33,7 +22,6 @@ export type ImporterViewletProps = {
 export class ImporterViewletView implements IDisposable {
   private readonly host: HTMLElement;
   private readonly root: HTMLDivElement;
-  private readonly headerActionsRoot: HTMLDivElement;
   private readonly cardRoot: HTMLDivElement;
   private readonly importerHost: HTMLDivElement;
   private readonly importerView: ImporterViewController;
@@ -48,13 +36,6 @@ export class ImporterViewletView implements IDisposable {
     this.root = document.createElement("div");
     this.root.className = "importer-viewlet-root workbench_sidebar_part";
     this.root.setAttribute("aria-label", props.t("da_import_section"));
-
-    const header = document.createElement("header");
-    header.className =
-      "workbench_sidebar_header workbench_sidebar_header--actions-only";
-    this.headerActionsRoot = document.createElement("div");
-    this.headerActionsRoot.className = "workbench_sidebar_header_actions";
-    header.appendChild(this.headerActionsRoot);
 
     const section = document.createElement("section");
     section.className = "importer-viewlet-section";
@@ -71,7 +52,7 @@ export class ImporterViewletView implements IDisposable {
     this.importerHost.className = "importer-viewlet-importer-host";
     this.cardRoot.appendChild(this.importerHost);
     section.appendChild(this.cardRoot);
-    this.root.append(header, section);
+    this.root.append(section);
     this.host.appendChild(this.root);
 
     this.importerView = new ImporterViewController(this.importerHost, {
@@ -121,95 +102,5 @@ export class ImporterViewletView implements IDisposable {
     }
 
     this.root.setAttribute("aria-label", this.props.t("da_import_section"));
-    this.renderHeaderActions();
-  }
-
-  private renderHeaderActions(): void {
-    this.headerActionsRoot.replaceChildren();
-
-    const actions = createImporterHeaderActions({
-      fileCount: this.props.rawData?.length ?? 0,
-      hasSessionData: this.props.hasSessionData,
-      t: this.props.t,
-    });
-
-    for (const action of actions) {
-      this.headerActionsRoot.appendChild(this.renderHeaderAction(action));
-    }
-  }
-
-  private renderHeaderAction(action: ImporterHeaderAction): HTMLElement {
-    if (action.kind === "statusBadge") {
-      const badge = document.createElement("span");
-      badge.id = action.id;
-      badge.className = "workbench_sidebar_header_status_badge";
-      badge.setAttribute("role", "status");
-      badge.setAttribute("aria-live", "polite");
-      badge.setAttribute("aria-label", action.title);
-      badge.title = action.title;
-
-      const digits = document.createElement("span");
-      digits.className = "workbench_sidebar_header_status_badge_digits";
-      const digitViewport = document.createElement("span");
-      digitViewport.className = "workbench_sidebar_header_status_badge_digit_viewport";
-      const digit = document.createElement("span");
-      digit.className = "workbench_sidebar_header_status_badge_digit";
-      digit.textContent = action.badgeText ?? "";
-      digitViewport.appendChild(digit);
-      digits.appendChild(digitViewport);
-      badge.appendChild(digits);
-      return badge;
-    }
-
-    const content: Node[] = [];
-
-    if (action.icon) {
-      const icon = document.createElement("span");
-      icon.className = "ui-cogicon importer-viewlet-action-icon";
-      icon.style.width = "16px";
-      icon.style.height = "16px";
-      icon.setAttribute("aria-hidden", "true");
-      icon.innerHTML = normalizeCogIconSvgMarkup(action.icon);
-      content.push(icon);
-    }
-
-    if (action.kind !== "icon") {
-      const label = document.createElement("span");
-      label.className = "importer-viewlet-action-label";
-      label.textContent = action.title;
-      content.push(label);
-    }
-
-    const button = createButton({
-      id: action.id,
-      ariaLabel: action.title,
-      className: action.kind === "icon"
-        ? "workbench_sidebar_header_icon_btn"
-        : "workbench_sidebar_header_btn",
-      content,
-      dataIcon: action.icon && action.kind !== "icon" ? "with" : undefined,
-      disabled: Boolean(action.isDisabled),
-      size: action.kind === "icon" ? "iconSm" : "sm",
-      title: action.title,
-      variant: action.kind === "primary" ? "primary" : "ghost",
-    });
-    button.addEventListener("click", () => this.handleHeaderAction(action.id));
-    return button;
-  }
-
-  private handleHeaderAction(actionId: string): void {
-    if (actionId === importerImportActionId) {
-      if (this.props.onImportTrigger) {
-        this.props.onImportTrigger();
-        return;
-      }
-
-      this.props.importerRef.current?.openFileDialog?.();
-      return;
-    }
-
-    if (actionId === importerClearSessionActionId) {
-      this.props.onClearSession?.();
-    }
   }
 }

@@ -1,13 +1,25 @@
 .card {
-  @apply bg-bg-surface border border-border rounded-xl p-4 shadow-sm;
+  border-radius: 0.75rem;
+  border-width: 1px;
+  --tw-border-opacity: 1;
+  border-color: rgb(var(--border) / var(--tw-border-opacity, 1));
+  --tw-bg-opacity: 1;
+  background-color: rgb(var(--bg-surface) / var(--tw-bg-opacity, 1));
+  padding: 1rem;
+  --tw-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --tw-shadow-colored: 0 1px 2px 0 var(--tw-shadow-color);
+  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
 }
 
 .card--panel {
-  @apply p-4 shadow-none;
+  padding: 1rem;
+  --tw-shadow: 0 0 #0000;
+  --tw-shadow-colored: 0 0 #0000;
+  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
 }
 
 .card--flat {
-  @apply border-transparent;
+  border-color: transparent;
 }
 
 .card--glass {
@@ -29,5 +41,10 @@
 }
 
 .card--fill {
-  @apply p-0 overflow-hidden flex-1 min-h-0 flex flex-col;
+  display: flex;
+  min-height: 0px;
+  flex: 1 1 0%;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0px;
 }

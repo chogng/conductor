@@ -1,64 +1,113 @@
 .modal-overlay {
-  @apply fixed inset-0 z-50 flex items-center justify-center p-4;
+  position: fixed;
+  inset: 0px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
 }
 
 .modal-backdrop {
-  @apply absolute inset-0 bg-black/20 backdrop-blur-sm transition-opacity;
+  position: absolute;
+  inset: 0px;
+  background-color: rgb(0 0 0 / 0.2);
+  --tw-backdrop-blur: blur(4px);
+  -webkit-backdrop-filter: var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);
+  backdrop-filter: var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);
+  transition-property: opacity;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
 }
 
 .modal {
-  @apply relative w-full rounded-xl flex flex-col;
+  position: relative;
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  border-radius: 0.75rem;
   animation: modal-fade-in 160ms ease-out;
 }
 
 .modal--primary {
-  @apply bg-bg-surface/80 backdrop-blur-xl border border-border-subtle/60;
+  border-width: 1px;
+  border-color: rgb(var(--border-subtle) / 0.6);
+  background-color: rgb(var(--bg-surface) / 0.8);
+  --tw-backdrop-blur: blur(24px);
+  -webkit-backdrop-filter: var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);
+  backdrop-filter: var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);
   box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
 }
 
 .modal--solid {
-  @apply bg-bg-surface border border-border-subtle;
+  border-width: 1px;
+  --tw-border-opacity: 1;
+  border-color: rgb(var(--border-subtle) / var(--tw-border-opacity, 1));
+  --tw-bg-opacity: 1;
+  background-color: rgb(var(--bg-surface) / var(--tw-bg-opacity, 1));
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.12);
 }
 
 .modal--flat {
-  @apply bg-bg-surface/80 backdrop-blur-xl;
+  background-color: rgb(var(--bg-surface) / 0.8);
+  --tw-backdrop-blur: blur(24px);
+  -webkit-backdrop-filter: var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);
+  backdrop-filter: var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia);
 }
 
 .modal--sm {
-  @apply max-w-sm;
+  max-width: 24rem;
 }
 
 .modal--md {
-  @apply max-w-md;
+  max-width: 28rem;
 }
 
 .modal--lg {
-  @apply max-w-lg;
+  max-width: 32rem;
 }
 
 .modal--xl {
-  @apply max-w-xl;
+  max-width: 36rem;
 }
 
 .modal_header {
-  @apply flex items-center pt-4 px-4 pb-0;
+  display: flex;
+  align-items: center;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 1rem;
+  padding-bottom: 0px;
 }
 
 .modal_title {
-  @apply text-xl font-serif font-medium text-text-primary;
+  font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  font-weight: 500;
+  --tw-text-opacity: 1;
+  color: rgb(var(--text-primary) / var(--tw-text-opacity, 1));
 }
 
 .modal_headerRight {
-  @apply shrink-0;
+  flex-shrink: 0;
 }
 
 .modal_body {
-  @apply py-2 px-4;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
 }
 
 .modal_footer {
-  @apply pt-0 px-4 pb-4 flex justify-end gap-3;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 0px;
+  padding-bottom: 1rem;
 }
 
 @media (prefers-reduced-motion: reduce) {

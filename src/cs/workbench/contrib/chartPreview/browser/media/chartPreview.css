@@ -1,107 +1,350 @@
 .chart_preview_view_pane {
-  @apply h-full min-h-0 overflow-hidden p-1 pt-0;
+
+    height: 100%;
+
+    min-height: 0px;
+
+    overflow: hidden;
+
+    padding: 0.25rem;
+
+    padding-top: 0px
 }
 
 .analysis_panel {
-  @apply flex h-full flex-col;
+
+    display: flex;
+
+    height: 100%;
+
+    flex-direction: column
 }
 
 .analysis_status_card {
-  @apply flex flex-1 flex-col items-center justify-center border-2 border-dashed border-border bg-bg-surface/50 text-text-secondary;
+
+    display: flex;
+
+    flex: 1 1 0%;
+
+    flex-direction: column;
+
+    align-items: center;
+
+    justify-content: center;
+
+    border-width: 2px;
+
+    border-style: dashed;
+
+    --tw-border-opacity: 1;
+
+    border-color: rgb(var(--border) / var(--tw-border-opacity, 1));
+
+    background-color: rgb(var(--bg-surface) / 0.5);
+
+    --tw-text-opacity: 1;
+
+    color: rgb(var(--text-secondary) / var(--tw-text-opacity, 1))
 }
 
 .analysis_status_icon {
-  @apply mb-4;
+
+    margin-bottom: 1rem
 }
 
 .analysis_status_icon--muted {
-  @apply opacity-20;
+
+    opacity: 0.2
+}
+
+@keyframes pulse {
+
+    50% {
+
+        opacity: .5
+    }
 }
 
 .analysis_status_icon--pulse {
-  @apply animate-pulse;
+
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite
 }
 
 .analysis_processing_progress {
-  @apply mt-4 w-full max-w-sm;
+
+    margin-top: 1rem;
+
+    width: 100%;
+
+    max-width: 24rem
 }
 
 .analysis_status_message {
-  @apply text-lg font-medium;
+
+    font-size: 1.125rem;
+
+    line-height: 1.75rem;
+
+    font-weight: 500
 }
 
 .analysis_status_hint {
-  @apply text-sm;
+
+    font-size: 0.875rem;
+
+    line-height: 1.25rem
 }
 
 .analysis_processing_progress_label {
-  @apply mb-2 flex items-center justify-between text-xs text-text-secondary;
+
+    margin-bottom: 0.5rem;
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    font-size: 0.75rem;
+
+    line-height: 1rem;
+
+    --tw-text-opacity: 1;
+
+    color: rgb(var(--text-secondary) / var(--tw-text-opacity, 1))
 }
 
 .analysis_processing_progress_track {
-  @apply h-2 overflow-hidden rounded-full bg-bg-page;
+
+    height: 0.5rem;
+
+    overflow: hidden;
+
+    border-radius: 9999px;
+
+    --tw-bg-opacity: 1;
+
+    background-color: rgb(var(--bg-page) / var(--tw-bg-opacity, 1))
 }
 
 .analysis_processing_progress_bar {
-  @apply h-full rounded-full bg-accent transition-[width] duration-200;
+
+    height: 100%;
+
+    border-radius: 9999px;
+
+    --tw-bg-opacity: 1;
+
+    background-color: rgb(var(--accent) / var(--tw-bg-opacity, 1));
+
+    transition-property: width;
+
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+
+    transition-duration: 200ms
 }
 
 .analysis_file_select {
-  @apply w-fit;
+
+    width: fit-content
 }
 
 .analysis_empty {
-  @apply flex h-full min-h-0 flex-col items-center justify-center gap-2 text-center;
+
+    display: flex;
+
+    height: 100%;
+
+    min-height: 0px;
+
+    flex-direction: column;
+
+    align-items: center;
+
+    justify-content: center;
+
+    gap: 0.5rem;
+
+    text-align: center
 }
 
 .analysis_empty_title {
-  @apply text-sm font-medium text-text-primary;
+
+    font-size: 0.875rem;
+
+    line-height: 1.25rem;
+
+    font-weight: 500;
+
+    --tw-text-opacity: 1;
+
+    color: rgb(var(--text-primary) / var(--tw-text-opacity, 1))
 }
 
 .analysis_empty_hint {
-  @apply text-sm text-text-secondary;
+
+    font-size: 0.875rem;
+
+    line-height: 1.25rem;
+
+    --tw-text-opacity: 1;
+
+    color: rgb(var(--text-secondary) / var(--tw-text-opacity, 1))
 }
 
 .analysis_charts {
-  @apply flex h-full min-h-0 flex-col gap-3;
+
+    display: flex;
+
+    height: 100%;
+
+    min-height: 0px;
+
+    flex-direction: column;
+
+    gap: 0.75rem
 }
 
 .analysis_charts_header {
-  @apply flex shrink-0 items-center justify-between gap-3;
+
+    display: flex;
+
+    flex-shrink: 0;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: 0.75rem
 }
 
 .analysis_charts_title {
-  @apply min-w-0;
+
+    min-width: 0px
 }
 
 .analysis_charts_heading {
-  @apply truncate text-sm font-medium text-text-primary;
+
+    overflow: hidden;
+
+    text-overflow: ellipsis;
+
+    white-space: nowrap;
+
+    font-size: 0.875rem;
+
+    line-height: 1.25rem;
+
+    font-weight: 500;
+
+    --tw-text-opacity: 1;
+
+    color: rgb(var(--text-primary) / var(--tw-text-opacity, 1))
 }
 
 .analysis_charts_subtitle {
-  @apply text-xs text-text-secondary;
+
+    font-size: 0.75rem;
+
+    line-height: 1rem;
+
+    --tw-text-opacity: 1;
+
+    color: rgb(var(--text-secondary) / var(--tw-text-opacity, 1))
 }
 
 .analysis_charts_controls {
-  @apply flex shrink-0 flex-wrap items-center gap-2;
+
+    display: flex;
+
+    flex-shrink: 0;
+
+    flex-wrap: wrap;
+
+    align-items: center;
+
+    gap: 0.5rem
 }
 
 .analysis_summary_grid {
-  @apply grid shrink-0 grid-cols-2 gap-2 md:grid-cols-4;
+
+    display: grid;
+
+    flex-shrink: 0;
+
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    gap: 0.5rem
+}
+
+@media (min-width: 768px) {
+
+    .analysis_summary_grid {
+
+        grid-template-columns: repeat(4, minmax(0, 1fr))
+    }
 }
 
 .analysis_stat {
-  @apply rounded-md border border-border bg-bg-page/50 px-3 py-2;
+
+    border-radius: 0.375rem;
+
+    border-width: 1px;
+
+    --tw-border-opacity: 1;
+
+    border-color: rgb(var(--border) / var(--tw-border-opacity, 1));
+
+    background-color: rgb(var(--bg-page) / 0.5);
+
+    padding-left: 0.75rem;
+
+    padding-right: 0.75rem;
+
+    padding-top: 0.5rem;
+
+    padding-bottom: 0.5rem
 }
 
 .analysis_stat_label {
-  @apply text-xs text-text-secondary;
+
+    font-size: 0.75rem;
+
+    line-height: 1rem;
+
+    --tw-text-opacity: 1;
+
+    color: rgb(var(--text-secondary) / var(--tw-text-opacity, 1))
 }
 
 .analysis_stat_value {
-  @apply text-sm font-medium text-text-primary;
+
+    font-size: 0.875rem;
+
+    line-height: 1.25rem;
+
+    font-weight: 500;
+
+    --tw-text-opacity: 1;
+
+    color: rgb(var(--text-primary) / var(--tw-text-opacity, 1))
 }
 
 .analysis_chart_host {
-  @apply min-h-[360px] flex-1 rounded-lg border border-border bg-bg-page/40 p-3;
+
+    min-height: 360px;
+
+    flex: 1 1 0%;
+
+    border-radius: 0.5rem;
+
+    border-width: 1px;
+
+    --tw-border-opacity: 1;
+
+    border-color: rgb(var(--border) / var(--tw-border-opacity, 1));
+
+    background-color: rgb(var(--bg-page) / 0.4);
+
+    padding: 0.75rem
 }

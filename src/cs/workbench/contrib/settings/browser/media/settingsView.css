@@ -3,167 +3,327 @@
 }
 
 .settings-view-layout {
-  @apply grid min-h-0 items-start gap-4;
+  display: grid;
+  min-height: 0px;
+  align-items: flex-start;
+  gap: 1rem;
   grid-template-columns: 220px minmax(0, 1fr);
 }
 
 .settings-view-nav {
-  @apply h-fit w-full min-w-0 rounded-lg border border-border bg-bg-surface p-2;
+  height: fit-content;
+  width: 100%;
+  min-width: 0px;
+  border-radius: 0.5rem;
+  border-width: 1px;
+  --tw-border-opacity: 1;
+  border-color: rgb(var(--border) / var(--tw-border-opacity, 1));
+  --tw-bg-opacity: 1;
+  background-color: rgb(var(--bg-surface) / var(--tw-bg-opacity, 1));
+  padding: 0.5rem;
 }
 
 .settings-view-nav-list {
-  @apply grid grid-cols-1 gap-2;
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: 0.5rem;
 }
 
 .settings-view-nav-item {
-  @apply h-12 w-full min-w-0 overflow-hidden rounded-md px-3 py-2 text-left text-sm font-medium leading-5 text-text-secondary transition-colors;
+  height: 3rem;
+  width: 100%;
+  min-width: 0px;
+  overflow: hidden;
+  border-radius: 0.375rem;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  text-align: left;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.25rem;
+  --tw-text-opacity: 1;
+  color: rgb(var(--text-secondary) / var(--tw-text-opacity, 1));
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
 }
 
 .settings-view-nav-item:hover {
-  @apply bg-bg-page text-text-primary;
+  --tw-bg-opacity: 1;
+  background-color: rgb(var(--bg-page) / var(--tw-bg-opacity, 1));
+  --tw-text-opacity: 1;
+  color: rgb(var(--text-primary) / var(--tw-text-opacity, 1));
 }
 
 .settings-view-nav-item[data-selected="true"] {
-  @apply bg-text-primary text-bg-surface;
+  --tw-bg-opacity: 1;
+  background-color: rgb(var(--text-primary) / var(--tw-bg-opacity, 1));
+  --tw-text-opacity: 1;
+  color: rgb(var(--bg-surface) / var(--tw-text-opacity, 1));
 }
 
 .settings-view-content {
-  @apply min-w-0 space-y-4;
+  min-width: 0px;
+}
+
+.settings-view-content > :not([hidden]) ~ :not([hidden]) {
+  --tw-space-y-reverse: 0;
+  margin-top: calc(1rem * calc(1 - var(--tw-space-y-reverse)));
+  margin-bottom: calc(1rem * var(--tw-space-y-reverse));
 }
 
 .settings-card {
-  @apply rounded-lg border border-border bg-bg-surface;
+  border-radius: 0.5rem;
+  border-width: 1px;
+  --tw-border-opacity: 1;
+  border-color: rgb(var(--border) / var(--tw-border-opacity, 1));
+  --tw-bg-opacity: 1;
+  background-color: rgb(var(--bg-surface) / var(--tw-bg-opacity, 1));
+}
+
+.settings-card-block > :not([hidden]) ~ :not([hidden]) {
+  --tw-space-y-reverse: 0;
+  margin-top: calc(1rem * calc(1 - var(--tw-space-y-reverse)));
+  margin-bottom: calc(1rem * var(--tw-space-y-reverse));
 }
 
 .settings-card-block {
-  @apply p-4 space-y-4;
+  padding: 1rem;
 }
 
 .settings-card-row {
-  @apply p-4;
+  padding: 1rem;
 }
 
 .settings-row {
-  @apply flex items-center justify-between gap-3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
 .settings-row-title {
-  @apply min-w-0;
+  min-width: 0px;
 }
 
 .settings-row-control {
-  @apply w-fit;
+  width: fit-content;
 }
 
 .settings-heading .settings-description {
-  @apply mt-1;
+  margin-top: 0.25rem;
 }
 
 .settings-description {
-  @apply text-sm text-text-secondary;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  --tw-text-opacity: 1;
+  color: rgb(var(--text-secondary) / var(--tw-text-opacity, 1));
 }
 
 .settings-title {
-  @apply text-base font-semibold text-text-primary;
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 600;
+  --tw-text-opacity: 1;
+  color: rgb(var(--text-primary) / var(--tw-text-opacity, 1));
 }
 
 .settings-label,
 .settings-hint {
-  @apply text-xs text-text-secondary;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  --tw-text-opacity: 1;
+  color: rgb(var(--text-secondary) / var(--tw-text-opacity, 1));
 }
 
 .settings-code-value {
-  @apply font-mono text-sm text-text-primary;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  --tw-text-opacity: 1;
+  color: rgb(var(--text-primary) / var(--tw-text-opacity, 1));
 }
 
 .settings-path-text {
-  @apply truncate font-mono text-xs text-text-primary;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  --tw-text-opacity: 1;
+  color: rgb(var(--text-primary) / var(--tw-text-opacity, 1));
 }
 
 .settings-grid {
-  @apply grid gap-3;
+  display: grid;
+  gap: 0.75rem;
 }
 
 .settings-grid--three {
-  @apply grid-cols-3;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .settings-grid--five {
-  @apply grid-cols-5;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
-.settings-field {
-  @apply space-y-1;
+.settings-field > :not([hidden]) ~ :not([hidden]) {
+  --tw-space-y-reverse: 0;
+  margin-top: calc(0.25rem * calc(1 - var(--tw-space-y-reverse)));
+  margin-bottom: calc(0.25rem * var(--tw-space-y-reverse));
 }
 
 .settings-path-controls {
-  @apply flex items-center gap-2;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .settings-path-value {
-  @apply flex h-[38px] min-w-0 flex-1 items-center rounded-lg border border-border bg-bg-page px-3 py-2;
+  display: flex;
+  height: 38px;
+  min-width: 0px;
+  flex: 1 1 0%;
+  align-items: center;
+  border-radius: 0.5rem;
+  border-width: 1px;
+  --tw-border-opacity: 1;
+  border-color: rgb(var(--border) / var(--tw-border-opacity, 1));
+  --tw-bg-opacity: 1;
+  background-color: rgb(var(--bg-page) / var(--tw-bg-opacity, 1));
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
 }
 
 .settings-textarea {
-  @apply min-h-[96px] w-full resize-y rounded-lg border border-border bg-bg-surface px-3 py-2 font-mono text-sm text-text-primary;
+  min-height: 96px;
+  width: 100%;
+  resize: vertical;
+  border-radius: 0.5rem;
+  border-width: 1px;
+  --tw-border-opacity: 1;
+  border-color: rgb(var(--border) / var(--tw-border-opacity, 1));
+  --tw-bg-opacity: 1;
+  background-color: rgb(var(--bg-surface) / var(--tw-bg-opacity, 1));
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  --tw-text-opacity: 1;
+  color: rgb(var(--text-primary) / var(--tw-text-opacity, 1));
 }
 
 .settings-select {
-  @apply w-full;
+  width: 100%;
 }
 
 .settings-feedback {
-  @apply text-sm;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
 }
 
 .settings-feedback--error {
-  @apply text-red-500;
+  --tw-text-opacity: 1;
+  color: rgb(239 68 68 / var(--tw-text-opacity, 1));
 }
 
 .settings-feedback--success {
-  @apply text-emerald-600;
+  --tw-text-opacity: 1;
+  color: rgb(5 150 105 / var(--tw-text-opacity, 1));
 }
 
 .settings-button {
-  @apply h-[38px] whitespace-nowrap;
+  height: 38px;
+  white-space: nowrap;
 }
 
 .settings-color-controls {
-  @apply flex flex-wrap items-center gap-3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
 }
 
 .settings-color-input {
-  @apply h-[38px] w-[52px] rounded-lg border border-border bg-bg-page p-1;
+  height: 38px;
+  width: 52px;
+  border-radius: 0.5rem;
+  border-width: 1px;
+  --tw-border-opacity: 1;
+  border-color: rgb(var(--border) / var(--tw-border-opacity, 1));
+  --tw-bg-opacity: 1;
+  background-color: rgb(var(--bg-page) / var(--tw-bg-opacity, 1));
+  padding: 0.25rem;
 }
 
 .settings-color-swatches {
-  @apply flex flex-wrap items-center gap-2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .settings-color-swatch {
-  @apply h-8 w-8 rounded-md border border-border transition-colors;
+  height: 2rem;
+  width: 2rem;
+  border-radius: 0.375rem;
+  border-width: 1px;
+  --tw-border-opacity: 1;
+  border-color: rgb(var(--border) / var(--tw-border-opacity, 1));
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
   background: var(--settings-swatch-color);
 }
 
 .settings-color-swatch[data-selected="true"] {
-  @apply border-text-primary;
+  --tw-border-opacity: 1;
+  border-color: rgb(var(--text-primary) / var(--tw-border-opacity, 1));
   box-shadow: 0 0 0 2px rgb(var(--bg-surface)), 0 0 0 4px rgb(var(--text-primary) / 0.22);
 }
 
 .settings-toggle {
-  @apply inline-flex h-[38px] items-center gap-2 rounded-lg border border-border bg-bg-page px-3 py-2 text-sm text-text-primary;
+  display: inline-flex;
+  height: 38px;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  border-width: 1px;
+  --tw-border-opacity: 1;
+  border-color: rgb(var(--border) / var(--tw-border-opacity, 1));
+  --tw-bg-opacity: 1;
+  background-color: rgb(var(--bg-page) / var(--tw-bg-opacity, 1));
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  --tw-text-opacity: 1;
+  color: rgb(var(--text-primary) / var(--tw-text-opacity, 1));
 }
 
 .settings-toggle input {
-  @apply h-4 w-4;
+  height: 1rem;
+  width: 1rem;
 }
 
 .settings-toggle-label {
-  @apply whitespace-nowrap;
+  white-space: nowrap;
 }
 
 .settings-actions-end {
-  @apply flex justify-end;
+  display: flex;
+  justify-content: flex-end;
 }
 
 @media (max-width: 900px) {
@@ -172,23 +332,23 @@
   }
 
   .settings-view-nav-list {
-    @apply grid-cols-3;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .settings-grid--three,
   .settings-grid--five {
-    @apply grid-cols-1;
+    grid-template-columns: repeat(1, minmax(0, 1fr));
   }
 
   .settings-path-controls,
   .settings-row {
-    @apply items-stretch;
+    align-items: stretch;
     flex-direction: column;
   }
 
   .settings-row-control,
   .settings-color-controls,
   .settings-path-controls .settings-button {
-    @apply w-full;
+    width: 100%;
   }
 }

@@ -1,4 +1,4 @@
-import { lxClose, lxFileText } from "cogicon";
+import { lxClose, lxCsvGreen } from "cogicon";
 import Toast from "src/cs/base/browser/ui/toast/toast";
 import type { ListHandle } from "src/cs/base/browser/ui/list/list";
 import {
@@ -93,7 +93,7 @@ const renderImportViewerFileItem = (
 
   const icon = document.createElement("div");
   icon.className = "import-viewer-file-icon";
-  appendIcon(icon, lxFileText);
+  appendIcon(icon, lxCsvGreen);
 
   const text = document.createElement("div");
   text.className = "import-viewer-file-text";

@@ -1,5 +1,8 @@
 .ui-cogicon {
-  @apply inline-flex shrink-0 items-center justify-center;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
   color: currentColor;
   line-height: 0;
 }

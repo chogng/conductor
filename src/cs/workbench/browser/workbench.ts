@@ -263,13 +263,10 @@ export class Workbench extends Layout {
     });
 
     return {
-      hasSessionData: sessionActions.hasSessionData,
       importerRef: this.importerRef,
-      onClearSession: sessionActions.handleClearSession,
       onDataImported: sessionActions.handleDataImported,
       onDataRemoved: sessionActions.handleDataRemoved,
       onFileSelected: previewBindings.handlePreviewFileSelected,
-      onImportTrigger: () => this.importerRef.current?.openFileDialog(),
       rawData: snapshot.rawData,
       selectedPreviewFileId: snapshot.selectedPreviewFileId,
       t: this.t,

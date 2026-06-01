@@ -1,5 +1,7 @@
+import { lxChevronRight } from "cogicon";
 import { ListView } from "src/cs/base/browser/ui/list/listView";
 import type { ListHandle, ListRenderState } from "src/cs/base/browser/ui/list/list";
+import { normalizeCogIconSvgMarkup } from "src/cs/base/browser/ui/cogIcon/cogIconMarkup";
 import {
   ObjectTreeModel,
   type FlattenedObjectTreeNode,
@@ -16,6 +18,15 @@ import "src/cs/base/browser/ui/tree/media/tree.css";
 
 const classNames = (...names: Array<string | undefined>): string =>
   names.filter(Boolean).join(" ");
+
+const renderChevron = (collapsed: boolean): HTMLSpanElement => {
+  const icon = document.createElement("span");
+  icon.className = "ui-tree__disclosure-icon";
+  icon.setAttribute("aria-hidden", "true");
+  icon.dataset.collapsed = collapsed ? "true" : "false";
+  icon.innerHTML = normalizeCogIconSvgMarkup(lxChevronRight);
+  return icon;
+};
 
 export class ObjectTree<T> implements ListHandle {
   private readonly root: HTMLDivElement;
@@ -182,10 +193,11 @@ export class ObjectTree<T> implements ListHandle {
     disclosure.type = "button";
     disclosure.className = "ui-tree__disclosure";
     disclosure.disabled = !entry.expandable;
-    disclosure.textContent = entry.expandable ? (collapsed ? "▸" : "▾") : "";
+    disclosure.replaceChildren();
     if (entry.expandable) {
       disclosure.setAttribute("aria-label", collapsed ? "Expand" : "Collapse");
       disclosure.setAttribute("aria-expanded", String(!collapsed));
+      disclosure.appendChild(renderChevron(collapsed));
     }
 
     disclosure.addEventListener("click", (event) => {

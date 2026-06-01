@@ -24,7 +24,7 @@ export class DataPreviewAreaView {
     this.props = props;
     this.widget = new SplitView({
       className: "data_preview_area",
-      gap: 12,
+      gap: 0,
       orientation: "horizontal",
       panes: getPanes(false),
     });
@@ -62,7 +62,7 @@ export class DataPreviewAreaView {
     }
     this.widget.update({
       className: classNames.join(" "),
-      gap: joinsTableAndTemplate ? 0 : 12,
+      gap: 0,
       orientation,
       panes: getPanes(this.isStacked, hasImportPanel),
     });
