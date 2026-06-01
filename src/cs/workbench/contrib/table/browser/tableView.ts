@@ -1,3 +1,4 @@
+import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollbar";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { PreviewFile } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import type { PreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
@@ -13,11 +14,17 @@ export type TableViewProps = {
   readonly previewStatus?: PreviewStatus;
   readonly selectedFileId?: string | null;
   readonly t: TranslateFn;
+  readonly zoomPercent: number;
 };
 
 export class TableView {
   public readonly element: HTMLElement;
   private readonly body = document.createElement("div");
+  private readonly preview = new Scrollbar({
+    axis: "both",
+    className: "table_view_scroll_area",
+    viewportClassName: "table_view_preview",
+  });
   private disposeSelectionListener: (() => void) | null = null;
   private disposeRowsVersionListener: (() => void) | null = null;
   private props: TableViewProps;
@@ -27,6 +34,7 @@ export class TableView {
     this.element = document.createElement("div");
     this.element.className = "table_view";
     this.body.className = "table_view_body";
+    this.body.append(this.preview.element);
     this.element.append(this.body);
     this.bindTableState(props.previewBindings);
     this.render();
@@ -46,6 +54,7 @@ export class TableView {
     this.disposeSelectionListener = null;
     this.disposeRowsVersionListener?.();
     this.disposeRowsVersionListener = null;
+    this.preview.dispose();
     this.element.replaceChildren();
     this.element.remove();
   }
@@ -63,31 +72,35 @@ export class TableView {
 
   private render(): void {
     const { previewFile, previewStatus, selectedFileId, t } = this.props;
-    this.body.replaceChildren();
+    this.preview.viewport.replaceChildren();
     this.element.dataset.state = previewStatus?.state ?? "idle";
 
     if (!selectedFileId || !previewFile) {
-      this.body.append(createEmptyView({
+      this.preview.viewport.append(createEmptyView({
         description: t("preview_empty_hint"),
       }));
+      this.preview.layout();
       return;
     }
 
     if (previewStatus?.state === "loading") {
-      this.body.append(createEmptyView({
+      this.preview.viewport.append(createEmptyView({
         title: t("preview_loading"),
         description: previewStatus.message || t("preview_loading_hint"),
       }));
+      this.preview.layout();
       return;
     }
 
-    this.body.append(this.createTablePreview());
+    this.preview.viewport.append(this.createTablePreview());
+    this.preview.layout();
   }
 
   private createTablePreview(): HTMLElement {
-    const { previewBindings, previewFile, t } = this.props;
+    const { previewBindings, previewFile, t, zoomPercent } = this.props;
     const root = document.createElement("div");
-    root.className = "table_view_preview";
+    root.className = "table_view_content";
+    root.style.setProperty("--table-view-zoom", String(zoomPercent / 100));
 
     const table = document.createElement("table");
     table.className = "table_view_grid";
