@@ -1,4 +1,5 @@
 import { Disposable } from "src/cs/base/common/lifecycle";
+import { isNative, isWindows } from "src/cs/base/common/platform";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { NativeHostService } from "src/cs/platform/native/electron-browser/nativeHostService";
 import { getWorkbenchEnvironment, setWorkbenchEnvironment } from "src/cs/workbench/services/environment/browser/environmentService";
@@ -28,7 +29,11 @@ export class WorkbenchEnvironmentService extends Disposable implements IWorkbenc
     }
 
     public get isWindowsDesktop(): boolean {
-        return this.environment?.isDesktop === true && this.environment.platform === "win32";
+        if (this.environment) {
+            return this.environment.isDesktop === true && this.environment.platform === "win32";
+        }
+
+        return isNative && isWindows;
     }
 
     public get isPackaged(): boolean {

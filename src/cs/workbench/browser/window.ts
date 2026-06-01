@@ -1,4 +1,5 @@
 import { Disposable } from "src/cs/base/common/lifecycle";
+import { isNative, isWindows } from "src/cs/base/common/platform";
 import {
   WorkbenchTitlebarPart,
   type WorkbenchTitlebarProps,
@@ -36,7 +37,11 @@ const snapshotEnvironmentService: IWorkbenchEnvironmentService = {
     return this.environment?.isDesktop === true;
   },
   get isWindowsDesktop() {
-    return this.environment?.isDesktop === true && this.environment.platform === "win32";
+    if (this.environment) {
+      return this.environment.isDesktop === true && this.environment.platform === "win32";
+    }
+
+    return isNative && isWindows;
   },
   get isPackaged() {
     return this.environment?.isPackaged === true;
