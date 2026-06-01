@@ -10,9 +10,11 @@ import type {
 import { originService } from "src/cs/workbench/services/origin/browser/originService";
 
 export type AnalysisSettings = {
+  backgroundColor?: string;
   fileNameFieldSeparators?: string;
   language?: LanguageCode;
   theme?: ThemeMode;
+  transparentChrome?: boolean;
   windowCloseBehavior?: "minimizeToTray" | "quit";
   trayMinimizeHintShown?: boolean;
   originExePath?: string;

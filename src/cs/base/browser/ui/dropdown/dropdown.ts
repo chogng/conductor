@@ -196,16 +196,18 @@ export type DropdownOptions = {
     closeOnClickOutside?: boolean;
     closeOnEscape?: boolean;
     content?: HTMLElement | null;
+    focusAnchorOnEscape?: boolean;
     onDidChangeVisibility?: (visible: boolean) => void;
 };
 
 export class Dropdown implements IDisposable {
     private readonly disposables = new DisposableStore();
+    private readonly closeDisposables = new DisposableStore();
     private readonly visibilityEmitter = new Emitter<boolean>();
     private anchor: HTMLElement | null;
     private content: HTMLElement | null;
     private visible = false;
-    private options: Required<Pick<DropdownOptions, "closeOnClickOutside" | "closeOnEscape">>;
+    private options: Required<Pick<DropdownOptions, "closeOnClickOutside" | "closeOnEscape" | "focusAnchorOnEscape">>;
 
     public readonly onDidChangeVisibility = this.visibilityEmitter.event;
 
@@ -215,25 +217,33 @@ export class Dropdown implements IDisposable {
         this.options = {
             closeOnClickOutside: options.closeOnClickOutside ?? true,
             closeOnEscape: options.closeOnEscape ?? true,
+            focusAnchorOnEscape: options.focusAnchorOnEscape ?? true,
         };
+
+        this.disposables.add(this.closeDisposables);
 
         if (options.onDidChangeVisibility) {
             this.disposables.add(this.onDidChangeVisibility(options.onDidChangeVisibility));
         }
+
+        this.applyAnchorState();
     }
 
     public setAnchor(anchor: HTMLElement | null): void {
         this.anchor = anchor;
+        this.applyAnchorState();
     }
 
     public setContent(content: HTMLElement | null): void {
         this.content = content;
+        this.applyContentState();
     }
 
-    public updateOptions(options: Pick<DropdownOptions, "closeOnClickOutside" | "closeOnEscape">): void {
+    public updateOptions(options: Pick<DropdownOptions, "closeOnClickOutside" | "closeOnEscape" | "focusAnchorOnEscape">): void {
         this.options = {
             closeOnClickOutside: options.closeOnClickOutside ?? this.options.closeOnClickOutside,
             closeOnEscape: options.closeOnEscape ?? this.options.closeOnEscape,
+            focusAnchorOnEscape: options.focusAnchorOnEscape ?? this.options.focusAnchorOnEscape,
         };
 
         if (this.visible) {
@@ -247,6 +257,8 @@ export class Dropdown implements IDisposable {
         }
 
         this.visible = true;
+        this.applyAnchorState();
+        this.applyContentState();
         this.installListeners();
         this.visibilityEmitter.fire(true);
     }
@@ -257,7 +269,9 @@ export class Dropdown implements IDisposable {
         }
 
         this.visible = false;
-        this.disposables.clear();
+        this.closeDisposables.clear();
+        this.applyAnchorState();
+        this.applyContentState();
         this.visibilityEmitter.fire(false);
     }
 
@@ -276,22 +290,27 @@ export class Dropdown implements IDisposable {
 
     public dispose(): void {
         this.hide();
+        this.disposables.dispose();
         this.visibilityEmitter.dispose();
     }
 
     private installListeners(): void {
-        this.disposables.clear();
+        this.closeDisposables.clear();
 
         if (this.options.closeOnEscape) {
-            this.disposables.add(addDisposableListener(document, "keydown", event => {
+            this.closeDisposables.add(addDisposableListener(document, "keydown", event => {
                 if (event.key === "Escape") {
+                    event.preventDefault();
                     this.hide();
+                    if (this.options.focusAnchorOnEscape) {
+                        this.anchor?.focus();
+                    }
                 }
             }));
         }
 
         if (this.options.closeOnClickOutside) {
-            this.disposables.add(addDisposableListener(document, "mousedown", event => {
+            this.closeDisposables.add(addDisposableListener(document, "mousedown", event => {
                 const target = event.target;
                 if (!(target instanceof Node)) {
                     return;
@@ -306,6 +325,25 @@ export class Dropdown implements IDisposable {
                 this.hide();
             }));
         }
+    }
+
+    private applyAnchorState(): void {
+        if (!this.anchor) {
+            return;
+        }
+
+        this.anchor.classList.toggle("active", this.visible);
+        this.anchor.setAttribute("aria-expanded", `${this.visible}`);
+    }
+
+    private applyContentState(): void {
+        if (!this.content) {
+            return;
+        }
+
+        this.content.hidden = !this.visible;
+        this.content.dataset.state = this.visible ? "open" : "closed";
+        this.content.setAttribute("aria-hidden", this.visible ? "false" : "true");
     }
 }
 

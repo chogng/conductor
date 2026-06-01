@@ -166,6 +166,49 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+html[data-transparent-chrome="true"] body,
+html[data-transparent-chrome="true"] .workbench_window {
+  background: transparent;
+}
+
+html[data-transparent-chrome="true"] .titlebar-root,
+html[data-transparent-chrome="true"].dark .titlebar-root {
+  background: transparent;
+}
+
+html[data-transparent-chrome="true"] .workbench_sidebar_part,
+html[data-transparent-chrome="true"] .workbench_preview_area_part,
+html[data-transparent-chrome="true"] .settings-view-nav,
+html[data-transparent-chrome="true"] .settings-card,
+html[data-transparent-chrome="true"] .import-viewer-file-item,
+html[data-transparent-chrome="true"] .template_preview_grid,
+html[data-transparent-chrome="true"] .template_tab_container,
+html[data-transparent-chrome="true"] .template_tab_container.tab_menu {
+  background: rgb(var(--bg-surface) / 0.58);
+  backdrop-filter: blur(18px);
+}
+
+html[data-transparent-chrome="true"] .workbench_sidebar_part,
+html[data-transparent-chrome="true"] .workbench_preview_area_part,
+html[data-transparent-chrome="true"] .settings-view-nav,
+html[data-transparent-chrome="true"] .settings-card {
+  box-shadow: none;
+}
+
+html[data-transparent-chrome="true"] .workbench_layout_shell,
+html[data-transparent-chrome="true"] .template_preview_frame,
+html[data-transparent-chrome="true"] .template_config_panel,
+html[data-transparent-chrome="true"] .workbench_window_content {
+  background: transparent;
+}
+
+html[data-transparent-chrome="true"] .template_preview_column_header,
+html[data-transparent-chrome="true"] .template_preview_corner,
+html[data-transparent-chrome="true"] .template_preview_row_header {
+  background: rgb(var(--bg-page) / 0.82);
+  backdrop-filter: blur(12px);
+}
+
 .workbench_root {
   position: relative;
   height: 100%;
@@ -186,11 +229,6 @@ body {
 .workbench_layout_shell {
   height: 100%;
   min-height: 0;
-  padding: 0.75rem;
-}
-
-.workbench_layout_shell--stacked {
-  padding: 0.5rem;
 }
 
 .workbench_layout_split {

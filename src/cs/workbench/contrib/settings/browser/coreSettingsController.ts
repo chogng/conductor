@@ -17,9 +17,14 @@ import {
   toAnalysisSettings,
   type AnalysisSettings,
 } from "src/cs/workbench/contrib/settings/settingsShared";
+import {
+  normalizeWorkbenchAppearance,
+  type WorkbenchAppearance,
+} from "src/cs/workbench/browser/appearance";
 
 export type CoreSettingsControllerOptions = {
   language: LanguageCode;
+  setAppearance: (appearance: WorkbenchAppearance) => void;
   setIonIoffMethod: (method: IonIoffMethod) => void;
   setLanguage: (language: LanguageCode) => void;
   theme: ThemeMode;
@@ -131,6 +136,7 @@ export class CoreSettingsController extends Disposable {
     this.analysisSettings = nextSettings
       ? { ...(this.analysisSettings || {}), ...nextSettings }
       : this.analysisSettings ?? null;
+    this.applySettings(this.analysisSettings);
     this.fireState();
   };
 
@@ -207,6 +213,8 @@ export class CoreSettingsController extends Disposable {
     if (nextTheme === "system" || nextTheme === "light" || nextTheme === "dark") {
       this.options.setTheme(nextTheme);
     }
+
+    this.options.setAppearance(normalizeWorkbenchAppearance(settings));
 
     const ssMethodDefault = settings?.ssMethodDefault;
     if (ssMethodDefault === "auto" || ssMethodDefault === "manual") {

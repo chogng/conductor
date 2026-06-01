@@ -11,6 +11,7 @@ import type { LanguageCode } from "src/cs/platform/language/common/language";
 import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/deviceAnalysis/translateTypes";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import type {
+  AppearanceSettings,
   AnalysisDefaultSettings,
   AppUpdateSettings,
   FileNameMatchingSettings,
@@ -29,6 +30,11 @@ import {
 } from "src/cs/workbench/contrib/settings/settingsShared";
 import type { ISettingsService, SettingsServiceOptions } from "src/cs/workbench/contrib/settings/common/settings";
 import { SettingsView, type SettingsViewOptions } from "src/cs/workbench/contrib/settings/browser/settingsView";
+import {
+  DEFAULT_WORKBENCH_BACKGROUND_COLOR,
+  normalizeWorkbenchAppearance,
+  normalizeWorkbenchBackgroundColor,
+} from "src/cs/workbench/browser/appearance";
 
 export type SettingsControllerOptions = {
   appUpdateSettings: AppUpdateSettings;
@@ -88,6 +94,7 @@ export class SettingsController {
   private fileNameMatchingFeedback: Feedback = IDLE_FEEDBACK;
   private analysisDefaultsSaving = false;
   private analysisDefaultsFeedback: Feedback = IDLE_FEEDBACK;
+  private appearanceSaving = false;
   private windowCloseSaving = false;
   private drafts: SettingsDraftState;
   private options: SettingsControllerOptions;
@@ -249,6 +256,7 @@ export class SettingsController {
   private createViewOptions(): SettingsViewOptions {
     return {
       activeSettingsSection: this.drafts.activeSettingsSection,
+      appearanceSettings: this.appearanceSettings,
       appUpdateChecking: this.drafts.appUpdateChecking,
       appUpdateSettings: this.options.appUpdateSettings,
       analysisDefaultSettings: this.analysisDefaultSettings,
@@ -411,6 +419,31 @@ export class SettingsController {
     };
   }
 
+  private get appearanceSettings(): AppearanceSettings {
+    const appearance = normalizeWorkbenchAppearance(this.settings);
+    return {
+      backgroundColor: appearance.backgroundColor,
+      backgroundColorDefault: DEFAULT_WORKBENCH_BACKGROUND_COLOR,
+      backgroundColorOptions: [
+        DEFAULT_WORKBENCH_BACKGROUND_COLOR,
+        "#f5f4ef",
+        "#ffffff",
+        "#111827",
+      ],
+      isSaving: this.appearanceSaving,
+      transparentChrome: appearance.transparentChrome,
+      onBackgroundColorChange: value => this.updateAppearance({
+        backgroundColor: normalizeWorkbenchBackgroundColor(value),
+      }),
+      onBackgroundColorReset: () => this.updateAppearance({
+        backgroundColor: DEFAULT_WORKBENCH_BACKGROUND_COLOR,
+      }),
+      onTransparentChromeChange: value => this.updateAppearance({
+        transparentChrome: Boolean(value),
+      }),
+    };
+  }
+
   private get originSettings(): OriginSettings {
     const cleanupConfig = this.cleanupConfig;
     const originPlotConfig = this.originPlotConfig;
@@ -501,10 +534,16 @@ export class SettingsController {
 
   private get settingsSections() {
     return [
-      { id: "general" as const, label: this.options.t("da_settings_nav_general") },
-      { id: "origin" as const, label: this.options.t("da_settings_nav_origin") },
-      { id: "about" as const, label: this.options.t("da_settings_nav_about") },
+      { id: "general" as const, label: this.label("da_settings_nav_general", "General") },
+      { id: "appearance" as const, label: this.label("da_settings_nav_appearance", "Appearance") },
+      { id: "origin" as const, label: this.label("da_settings_nav_origin", "Origin") },
+      { id: "about" as const, label: this.label("da_settings_nav_about", "About") },
     ];
+  }
+
+  private label(key: string, fallback: string): string {
+    const value = this.options.t(key);
+    return value === key ? fallback : value;
   }
 
   private async choosePersistencePath(): Promise<void> {
@@ -719,6 +758,18 @@ export class SettingsController {
         ...updates,
       }, this.axisSettings),
     });
+  }
+
+  private async updateAppearance(updates: Record<string, unknown>): Promise<void> {
+    this.appearanceSaving = true;
+    this.render();
+    try {
+      await this.service.updateSettings(updates);
+    }
+    finally {
+      this.appearanceSaving = false;
+      this.render();
+    }
   }
 
   private async setWindowCloseBehavior(behavior: "minimizeToTray" | "quit"): Promise<void> {

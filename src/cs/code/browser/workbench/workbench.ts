@@ -17,6 +17,10 @@ import {
   type ILifecycleService as ILifecycleServiceType,
 } from "src/cs/workbench/services/lifecycle/common/lifecycle";
 import { startWorkbenchThemeContribution } from "src/cs/workbench/services/themes/browser/theme.contribution";
+import {
+  applyWorkbenchAppearance,
+  normalizeWorkbenchAppearance,
+} from "src/cs/workbench/browser/appearance";
 
 declare global {
   interface Window {
@@ -109,6 +113,7 @@ function startBrowserWorkbenchBoot(
   isBootProfileEnabled: boolean,
 ): void {
   window.__CONDUCTOR_INITIAL_LANGUAGE__ = DEFAULT_LANGUAGE;
+  applyWorkbenchAppearance(normalizeWorkbenchAppearance(null));
   setNLSConfiguration(createNLSConfiguration(DEFAULT_LANGUAGE));
   document.documentElement.setAttribute("lang", "en");
   window.__CONDUCTOR_INITIAL_THEME__ = DEFAULT_THEME;

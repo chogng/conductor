@@ -285,7 +285,7 @@ export class Layout extends Disposable {
     if (!this.splitView.current) {
       this.splitView.current = new SplitView({
         className: "workbench_layout_split",
-        gap: 12,
+        gap: 0,
         onDidResizeEnd: (event) => this.handleResizeEnd(event),
         orientation,
         panes,
@@ -293,7 +293,7 @@ export class Layout extends Disposable {
     } else {
       this.splitView.current.update({
         className: "workbench_layout_split",
-        gap: 12,
+        gap: 0,
         onDidResizeEnd: (event) => this.handleResizeEnd(event),
         orientation,
         panes,

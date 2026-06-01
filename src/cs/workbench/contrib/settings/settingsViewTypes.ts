@@ -64,6 +64,17 @@ export type WindowCloseSettings = {
   ) => Promise<void> | void;
 };
 
+export type AppearanceSettings = {
+  backgroundColor: string;
+  backgroundColorDefault: string;
+  backgroundColorOptions: readonly string[];
+  isSaving: boolean;
+  transparentChrome: boolean;
+  onBackgroundColorChange: (value: string) => Promise<void> | void;
+  onBackgroundColorReset: () => Promise<void> | void;
+  onTransparentChromeChange: (enabled: boolean) => Promise<void> | void;
+};
+
 export type FileNameMatchingSettings = {
   feedback: Feedback;
   fieldSeparators: string;
@@ -93,6 +104,7 @@ export type AnalysisDefaultSettings = {
 };
 
 export type SettingsViewProps = {
+  appearanceSettings: AppearanceSettings;
   appUpdateSettings: AppUpdateSettings;
   analysisDefaultSettings: AnalysisDefaultSettings;
   fileNameMatchingSettings: FileNameMatchingSettings;
@@ -106,4 +118,4 @@ export type SettingsViewProps = {
   t: TranslateFn;
 };
 
-export type SettingsSectionId = "general" | "origin" | "about";
+export type SettingsSectionId = "general" | "appearance" | "origin" | "about";

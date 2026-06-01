@@ -1,8 +1,13 @@
-import { lxListUnordered, lxSave } from "cogicon";
+import { lxAdd, lxArrowDown, lxEdit } from "cogicon";
 
 import { createButton } from "src/cs/base/browser/ui/button/button";
 import { getCardClassName } from "src/cs/base/browser/ui/card/card";
 import { createCogIcon } from "src/cs/base/browser/ui/cogIcon/cogIcon";
+import {
+  createMenuButton,
+  createMenuItemLabel,
+  type MenuEntry,
+} from "src/cs/base/browser/ui/menu/menu";
 import {
   getInputFieldClassName,
   getInputFieldState,
@@ -13,7 +18,6 @@ import {
   getSwitchDataAttributes,
   getSwitchStyle,
 } from "src/cs/base/browser/ui/switch/switch";
-import { TabView, type TabViewContent } from "src/cs/base/browser/ui/tab/tabView";
 import { localize } from "src/cs/nls";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
@@ -282,43 +286,115 @@ export const createTemplateManager = ({
     const selectContainer = document.createElement("div");
     selectContainer.className = "flex items-center gap-2";
 
-    const select = document.createElement("select");
-    select.className = "dropdown-field dropdown-field--sm flex-1 h-[36px] rounded-lg border border-border px-2 text-sm bg-bg-page text-text-primary";
-    
-    const autoOption = document.createElement("option");
-    autoOption.value = AUTO_TEMPLATE_ID;
-    autoOption.textContent = localize("da_template_auto_extraction", "Auto extraction");
-    select.append(autoOption);
-
-    if (cachedTemplates) {
-      for (const tRec of cachedTemplates) {
-        const opt = document.createElement("option");
-        opt.value = tRec.id || "";
-        opt.textContent = tRec.name || "";
-        select.append(opt);
+    const selectedTemplateLabel = (() => {
+      if (!selectedTemplateId || selectedTemplateId === AUTO_TEMPLATE_ID) {
+        return localize("da_template_auto_extraction", "Auto extraction");
       }
-    }
 
-    select.value = selectedTemplateId || AUTO_TEMPLATE_ID;
-    select.addEventListener("change", () => {
-      const val = select.value;
-      if (val === AUTO_TEMPLATE_ID) {
+      const found = cachedTemplates?.find((template: any) => template.id === selectedTemplateId);
+      return found?.name || selectedTemplateId;
+    })();
+
+    const createTemplate = () => {
+      session.setSelectedTemplateId(null);
+      session.setTemplateConfig(createEmptyTemplateConfig({
+        stopOnError: config.stopOnError,
+        fileNameMatchCaseSensitive: config.fileNameMatchCaseSensitive,
+      }));
+      session.setTemplateMode("save");
+      defaultSessionModel.emitChange();
+    };
+
+    const editTemplate = (template: Partial<TemplateConfig> & { readonly id?: string }) => {
+      const templateId = String(template.id ?? "");
+      if (!templateId) {
+        return;
+      }
+
+      session.setSelectedTemplateId(templateId);
+      session.setTemplateConfig(cloneTemplateConfig(template));
+      session.setTemplateMode("save");
+      defaultSessionModel.emitChange();
+    };
+
+    const selectTemplate = (templateId: string) => {
+      if (templateId === AUTO_TEMPLATE_ID) {
         session.setSelectedTemplateId(AUTO_TEMPLATE_ID);
         session.setTemplateConfig(createEmptyTemplateConfig({
           stopOnError: config.stopOnError,
           fileNameMatchCaseSensitive: config.fileNameMatchCaseSensitive,
         }));
       } else {
-        const found = cachedTemplates?.find((r: any) => r.id === val);
+        const found = cachedTemplates?.find((r: any) => r.id === templateId);
         if (found) {
           session.setSelectedTemplateId(found.id);
           session.setTemplateConfig(cloneTemplateConfig(found));
         }
       }
       defaultSessionModel.emitChange();
+    };
+
+    const createTemplateEntries = (): MenuEntry[] => {
+      const entries: MenuEntry[] = [
+        {
+          left: createMenuItemLabel(localize("da_template_auto_extraction", "Auto extraction")),
+          onClick: () => selectTemplate(AUTO_TEMPLATE_ID),
+          selected: (selectedTemplateId || AUTO_TEMPLATE_ID) === AUTO_TEMPLATE_ID,
+          tabIndex: 0,
+          value: AUTO_TEMPLATE_ID,
+        },
+      ];
+
+      const templates = cachedTemplates ?? [];
+      if (templates.length > 0) {
+        entries.push({ kind: "separator" });
+      }
+
+      for (const template of templates) {
+        const templateId = String(template.id ?? "");
+        if (!templateId) {
+          continue;
+        }
+
+        entries.push({
+          left: createMenuItemLabel(template.name || templateId),
+          onClick: () => selectTemplate(templateId),
+          rightAction: {
+            icon: () => createCogIcon({ icon: lxEdit, size: 14 }),
+            label: localize("da_template_edit", "Edit template"),
+            onClick: () => editTemplate(template),
+          },
+          selected: selectedTemplateId === templateId,
+          tabIndex: 0,
+          value: templateId,
+        });
+      }
+
+      entries.push(
+        { kind: "separator" },
+        {
+          className: "template_select_menu_create",
+          left: createMenuItemLabel(
+            localize("da_template_create_new", "Create new template..."),
+            () => createCogIcon({ icon: lxAdd, size: 14 }),
+          ),
+          onClick: createTemplate,
+          tabIndex: 0,
+        },
+      );
+
+      return entries;
+    };
+
+    const templateSelectMenu = createMenuButton({
+      label: selectedTemplateLabel,
+      items: createTemplateEntries,
+      menuClassName: "template_select_menu",
+      surfaceClassName: "template_select_menu_surface",
+      triggerIcon: () => createCogIcon({ icon: lxArrowDown, size: 14 }),
     });
 
-    selectContainer.append(select);
+    selectContainer.append(templateSelectMenu.domNode);
 
     const isCustomTemplate = selectedTemplateId && selectedTemplateId !== AUTO_TEMPLATE_ID;
     if (isCustomTemplate) {
@@ -632,51 +708,12 @@ export const createTemplateManager = ({
     return leftContent;
   };
 
-  class TemplateModeTabView extends TabView<"select" | "save"> {
-    protected createView(tabId: "select" | "save"): TabViewContent {
-      return {
-        element: createModeContent(tabId),
-        dispose() {},
-      };
-    }
-  }
-
-  const modeTabs = new TemplateModeTabView({
-    activeTabId: templateMode,
-    className: "template_mode_tab_view",
-    idBase: "template-mode",
-    onDidChangeActiveTab: (tabId) => {
-      session.setTemplateMode(tabId);
-      if (tabId === "save" && (!selectedTemplateId || selectedTemplateId === AUTO_TEMPLATE_ID)) {
-        session.setSelectedTemplateId(null);
-        session.setTemplateConfig(createEmptyTemplateConfig({
-          stopOnError: config.stopOnError,
-          fileNameMatchCaseSensitive: config.fileNameMatchCaseSensitive,
-        }));
-      }
-    },
-    size: "sm",
-    tabListClassName: "template_tab_container",
-    tabs: [
-      {
-        icon: () => createCogIcon({ icon: lxListUnordered, size: 14 }),
-        id: "select",
-        label: localize("da_template_mode_select", "Select"),
-      },
-      {
-        icon: () => createCogIcon({ icon: lxSave, size: 14 }),
-        id: "save",
-        label: localize("da_template_mode_save", "Save"),
-      },
-    ],
-  });
-
   const left = document.createElement("div");
   left.className = getCardClassName({
     className: "template_panel_card template_config_panel",
     variant: "fill",
   });
-  left.append(modeTabs.element);
+  left.append(createModeContent(templateMode));
 
   const preview = TemplateManagerPreviewWorkspace({
     containerRef,

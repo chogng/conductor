@@ -145,6 +145,9 @@ export class SettingsView {
     if (this.options.activeSettingsSection === "origin") {
       this.renderOrigin(content);
     }
+    else if (this.options.activeSettingsSection === "appearance") {
+      this.renderAppearance(content);
+    }
     else if (this.options.activeSettingsSection === "about") {
       this.renderAbout(content);
     }
@@ -170,16 +173,6 @@ export class SettingsView {
           { value: "en", label: t("da_settings_language_en") },
         ],
       })),
-      cardRow("analysis-settings-theme-card", t("da_settings_theme_title"), this.createSelect({
-        id: "analysis-settings-theme-dropdown",
-        value: this.options.theme,
-        onChange: value => {
-          if (value === "system" || value === "light" || value === "dark") {
-            void this.options.onThemeChange(value);
-          }
-        },
-        options: this.options.themeModeOptions,
-      })),
       cardRow("analysis-settings-close-behavior-card", t("da_settings_close_behavior_title"), this.createSelect({
         id: "analysis-settings-close-behavior-dropdown",
         value: this.options.windowCloseSettings.behavior,
@@ -198,6 +191,81 @@ export class SettingsView {
       this.createChartDefaults(this.options.analysisDefaultSettings),
       this.createStorage(this.options.storageSettings),
       this.createFileNameMatching(this.options.fileNameMatchingSettings),
+    );
+  }
+
+  private renderAppearance(container: HTMLElement): void {
+    const { appearanceSettings, t } = this.options;
+
+    container.append(
+      cardRow("analysis-settings-theme-card", displayText(t("da_settings_theme_title"), "Theme"), this.createSelect({
+        id: "analysis-settings-theme-dropdown",
+        value: this.options.theme,
+        onChange: value => {
+          if (value === "system" || value === "light" || value === "dark") {
+            void this.options.onThemeChange(value);
+          }
+        },
+        options: this.options.themeModeOptions,
+      })),
+    );
+
+    const backgroundCard = card("analysis-settings-background-card", "settings-card-block");
+    const colorInput = document.createElement("input");
+    colorInput.id = "analysis-settings-background-color-input";
+    colorInput.className = "settings-color-input";
+    colorInput.type = "color";
+    colorInput.value = appearanceSettings.backgroundColor;
+    colorInput.disabled = appearanceSettings.isSaving;
+    colorInput.addEventListener("change", () => {
+      void appearanceSettings.onBackgroundColorChange(colorInput.value);
+    });
+
+    const swatches = div("settings-color-swatches");
+    for (const color of appearanceSettings.backgroundColorOptions) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "settings-color-swatch";
+      button.disabled = appearanceSettings.isSaving;
+      button.dataset.selected = String(color === appearanceSettings.backgroundColor);
+      button.style.setProperty("--settings-swatch-color", color);
+      button.setAttribute("aria-label", color);
+      button.title = color;
+      button.addEventListener("click", () => {
+        void appearanceSettings.onBackgroundColorChange(color);
+      });
+      swatches.append(button);
+    }
+
+    backgroundCard.append(
+      headingBlock(
+        displayText(t("da_settings_background_title"), "Background"),
+        displayText(t("da_settings_background_desc"), "Choose the workbench page background color."),
+      ),
+      div("settings-color-controls", colorInput, swatches, this.createButton({
+        id: "analysis-settings-background-reset-btn",
+        label: displayText(t("da_settings_background_reset"), "Reset"),
+        onClick: () => void appearanceSettings.onBackgroundColorReset(),
+        disabled:
+          appearanceSettings.isSaving ||
+          appearanceSettings.backgroundColor === appearanceSettings.backgroundColorDefault,
+        variant: "secondary",
+      })),
+    );
+    container.append(backgroundCard);
+
+    container.append(
+      cardRow(
+        "analysis-settings-transparent-chrome-card",
+        displayText(t("da_settings_transparent_chrome_title"), "Transparent page"),
+        this.createToggle({
+          checked: appearanceSettings.transparentChrome,
+          disabled: appearanceSettings.isSaving,
+          id: "analysis-settings-transparent-chrome-toggle",
+          label: displayText(t("da_settings_transparent_chrome_toggle"), "Use Mica/transparent page"),
+          onChange: checked => void appearanceSettings.onTransparentChromeChange(checked),
+        }),
+      ),
     );
   }
 
@@ -509,6 +577,28 @@ export class SettingsView {
     return input;
   }
 
+  private createToggle(options: {
+    checked: boolean;
+    disabled?: boolean;
+    id: string;
+    label: string;
+    onChange: (checked: boolean) => void;
+  }): HTMLLabelElement {
+    const labelElement = document.createElement("label");
+    labelElement.className = "settings-toggle";
+    const input = document.createElement("input");
+    input.id = options.id;
+    input.type = "checkbox";
+    input.checked = options.checked;
+    input.disabled = options.disabled === true;
+    input.addEventListener("change", () => options.onChange(input.checked));
+    labelElement.append(
+      input,
+      text("span", "settings-toggle-label", options.label),
+    );
+    return labelElement;
+  }
+
   private createButton(options: {
     disabled?: boolean;
     id: string;
@@ -598,6 +688,10 @@ function text<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, 
   element.className = className;
   element.textContent = value;
   return element;
+}
+
+function displayText(value: string, fallback: string): string {
+  return value.includes("_") ? fallback : value;
 }
 
 function appendFeedback(container: HTMLElement, feedback: { type: "idle" | "success" | "error"; message: string } | undefined): void {

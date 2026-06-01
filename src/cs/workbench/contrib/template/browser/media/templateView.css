@@ -62,6 +62,18 @@
   overflow: hidden;
 }
 
+.template_select_menu_surface {
+  min-width: 14rem;
+}
+
+.template_select_menu {
+  width: 100%;
+}
+
+.template_select_menu_create {
+  color: rgb(var(--text-primary) / 1);
+}
+
 .template_apply_actions {
   display: grid;
   flex-shrink: 0;
@@ -223,38 +235,6 @@
 
 .template_preview_active_cell {
   @apply absolute border-2 border-accent;
-}
-
-.template_tab_container {
-  @apply flex w-max shrink-0 items-center gap-0.5 rounded-lg border border-border/60 bg-bg-100/80 p-1;
-}
-
-.template_tab_container.tab_menu {
-  @apply w-max bg-bg-100/80 border-border/60 p-1;
-}
-
-.template_tab_container .tab_btn {
-  @apply min-w-0 gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md transition-all duration-150 outline-none border-none cursor-pointer;
-}
-
-.template_tab_container .tab_btn--sm {
-  @apply h-7;
-}
-
-.template_tab_container .tab_btn--active {
-  @apply bg-bg-page text-text-primary shadow-sm font-semibold;
-}
-
-.template_tab_container .tab_btn--inactive {
-  @apply bg-transparent text-text-secondary hover:text-text-primary hover:bg-bg-page/40;
-}
-
-.template_tab_container .tab_btn_icon {
-  @apply opacity-80;
-}
-
-.template_tab_container .tab_btn_text {
-  @apply leading-none;
 }
 
 @media (max-width: 980px) {

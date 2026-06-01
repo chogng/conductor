@@ -4,6 +4,7 @@ export const desktopIpcChannels = {
   desktopAutoUpdateCheck: "desktop:auto-update:check",
   desktopAutoUpdateCheckAndInstall: "desktop:auto-update:check-and-install",
   desktopAutoUpdateInstallDownloaded: "desktop:auto-update:install-downloaded",
+  desktopAppearanceSet: "conductor:desktop:appearance:set",
   templatesGet: "store:templates:get",
   templatesCreate: "store:templates:create",
   templatesDelete: "store:templates:delete",

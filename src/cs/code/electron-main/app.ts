@@ -76,6 +76,8 @@ const isWindowsStorePackage =
   process.platform === "win32" && Reflect.get(process, "windowsStore") === true;
 const APP_DISPLAY_NAME = product.nameLong;
 const APP_USER_MODEL_ID = product.appId;
+const DEFAULT_WORKBENCH_BACKGROUND_COLOR = "#f3f4f6";
+const WORKBENCH_BACKGROUND_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
 const ANALYSIS_DEMO_FILE_NAMES = [
   "demo-01.csv",
   "demo-02.csv",
@@ -157,7 +159,47 @@ function getThemeSnapshotFromStore() {
 function syncBootWindowTheme() {
   const snapshot = getThemeSnapshotFromStore();
   applyWindowThemeSnapshot(mainWindow, snapshot);
+  applyDesktopAppearanceToWindow(mainWindow, getAppearanceFromStore());
   return snapshot;
+}
+
+function normalizeWorkbenchBackgroundColor(value) {
+  if (typeof value !== "string") {
+    return DEFAULT_WORKBENCH_BACKGROUND_COLOR;
+  }
+
+  const normalized = value.trim();
+  return WORKBENCH_BACKGROUND_COLOR_PATTERN.test(normalized)
+    ? normalized.toLowerCase()
+    : DEFAULT_WORKBENCH_BACKGROUND_COLOR;
+}
+
+function getAppearanceFromStore() {
+  const settings = analysisStore.getAnalysisSettings();
+  return {
+    backgroundColor: normalizeWorkbenchBackgroundColor(settings?.backgroundColor),
+    transparentChrome: settings?.transparentChrome === true,
+  };
+}
+
+function applyDesktopAppearanceToWindow(win, appearance) {
+  if (!win || win.isDestroyed()) return;
+
+  const backgroundColor = normalizeWorkbenchBackgroundColor(appearance?.backgroundColor);
+  const transparentChrome = appearance?.transparentChrome === true;
+  const canSetMaterial =
+    process.platform === "win32" &&
+    typeof win.setBackgroundMaterial === "function";
+
+  if (canSetMaterial) {
+    try {
+      win.setBackgroundMaterial(transparentChrome ? "mica" : "none");
+    } catch {
+      // Native material is best-effort; CSS transparency remains available.
+    }
+  }
+
+  win.setBackgroundColor(transparentChrome ? "#00000000" : backgroundColor);
 }
 
 function logDesktopDiagnostic(stage: string, payload: unknown = "") {
@@ -1578,7 +1620,35 @@ function handleAnalysisSettingsPatch(_event, updates) {
   ) {
     syncBootWindowTheme();
   }
+  if (
+    updates &&
+    typeof updates === "object" &&
+    ("backgroundColor" in updates || "transparentChrome" in updates)
+  ) {
+    applyDesktopAppearanceToWindow(mainWindow, {
+      backgroundColor: updated?.backgroundColor,
+      transparentChrome: updated?.transparentChrome,
+    });
+  }
   return updated;
+}
+
+function handleDesktopAppearanceSet(event, payload) {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed()) {
+    return null;
+  }
+
+  applyDesktopAppearanceToWindow(win, {
+    backgroundColor:
+      payload && typeof payload === "object"
+        ? payload.backgroundColor
+        : undefined,
+    transparentChrome:
+      payload && typeof payload === "object" && payload.transparentChrome === true,
+  });
+
+  return { ok: true };
 }
 
 function handleAnalysisPersistencePathGet() {
@@ -2932,6 +3002,7 @@ function createMainWindow() {
 
   mainWindow = win;
   applyWindowThemeSnapshot(mainWindow, themeSnapshot);
+  applyDesktopAppearanceToWindow(mainWindow, getAppearanceFromStore());
   win.on("close", (event) => {
     if (isAppQuitting) return;
     if (process.platform === "darwin") return;
@@ -3266,6 +3337,7 @@ if (hasSingleInstanceLock) {
   ipcMain.handle(ipcChannels.desktopAutoUpdateInstallDownloaded, () =>
     updateService?.installDownloadedUpdate(),
   );
+  ipcMain.handle(ipcChannels.desktopAppearanceSet, handleDesktopAppearanceSet);
   ipcMain.handle(ipcChannels.templatesGet, handleAnalysisTemplatesGet);
   ipcMain.handle(ipcChannels.templatesCreate, handleAnalysisTemplatesCreate);
   ipcMain.handle(ipcChannels.templatesDelete, handleAnalysisTemplatesDelete);
@@ -3378,6 +3450,7 @@ app.on("will-quit", () => {
   ipcMain.removeHandler(ipcChannels.desktopAutoUpdateCheck);
   ipcMain.removeHandler(ipcChannels.desktopAutoUpdateCheckAndInstall);
   ipcMain.removeHandler(ipcChannels.desktopAutoUpdateInstallDownloaded);
+  ipcMain.removeHandler(ipcChannels.desktopAppearanceSet);
   ipcMain.removeHandler(ipcChannels.templatesGet);
   ipcMain.removeHandler(ipcChannels.templatesCreate);
   ipcMain.removeHandler(ipcChannels.templatesDelete);

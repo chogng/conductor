@@ -15,6 +15,11 @@ import { Layout, type LayoutView } from "src/cs/workbench/browser/layout";
 import type { WorkbenchTitlebarProps } from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
 import type { WorkbenchStyle } from "src/cs/workbench/browser/style";
 import {
+  applyWorkbenchAppearance,
+  normalizeWorkbenchAppearance,
+  type WorkbenchAppearance,
+} from "src/cs/workbench/browser/appearance";
+import {
   getWorkbenchWindowState,
   WorkbenchWindow,
 } from "src/cs/workbench/browser/window";
@@ -33,6 +38,7 @@ import {
   type CoreSettingsState,
 } from "src/cs/workbench/contrib/settings/browser/coreSettingsController";
 import { SettingsViewPane } from "src/cs/workbench/contrib/settings/browser/settingsViewPane";
+import { desktopIpcChannels } from "src/cs/workbench/services/desktop/common/desktopIpcChannels";
 
 export type WorkbenchTitlebarState = {
   readonly enabled?: boolean;
@@ -380,6 +386,7 @@ export class Workbench extends Layout {
     return {
       language: this.language,
       setGmDiagnosticsEnabled: () => undefined,
+      setAppearance: this.setAppearance,
       setIonIoffMethod: () => undefined,
       setLanguage: this.setLanguage,
       setSsDiagnosticsEnabled: () => undefined,
@@ -434,6 +441,23 @@ export class Workbench extends Layout {
     applyThemeMode(theme);
     this.coreSettingsController?.update(this.getCoreSettingsOptions());
     this.renderWorkbench();
+  };
+
+  private readonly setAppearance = (appearance: WorkbenchAppearance): void => {
+    const normalizedAppearance = normalizeWorkbenchAppearance(appearance);
+    applyWorkbenchAppearance(normalizedAppearance);
+    const ipcRenderer = window.conductor?.ipcRenderer as
+      | { invoke?: (channel: string, ...args: unknown[]) => Promise<unknown> }
+      | undefined;
+    if (typeof ipcRenderer?.invoke === "function") {
+      try {
+        void ipcRenderer.invoke(desktopIpcChannels.desktopAppearanceSet, normalizedAppearance).catch(() => {
+          // Web and older desktop shells fall back to CSS-only appearance.
+        });
+      } catch {
+        // Web and older desktop shells fall back to CSS-only appearance.
+      }
+    }
   };
 }
 
