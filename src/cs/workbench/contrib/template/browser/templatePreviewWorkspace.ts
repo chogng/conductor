@@ -1,7 +1,7 @@
-import type { MutableRef } from "src/cs/base/common/ref";
-import type { TranslateFn } from "src/cs/platform/language/common/language";
+﻿import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { PreviewFileLike } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import type {
+  MutableState,
   PreviewStatus as SessionPreviewStatus,
   StateSetter,
 } from "src/cs/workbench/contrib/session/analysis-session-context";
@@ -18,7 +18,7 @@ import {
 type PreviewStatus = Partial<SessionPreviewStatus>;
 
 type TemplateManagerPreviewWorkspaceProps = {
-  containerRef: MutableRef<HTMLElement | null>;
+  containerRef: MutableState<HTMLElement | null>;
   config: TemplateConfig;
   ensurePreviewRows?: (
     fileId: string,

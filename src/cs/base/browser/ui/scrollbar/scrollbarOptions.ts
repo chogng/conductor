@@ -1,4 +1,5 @@
 import type { IDisposable } from "src/cs/base/common/lifecycle";
+import type { ScrollEvent } from "src/cs/base/common/scrollable";
 
 export type ScrollbarAxis = "x" | "y" | "both";
 export type ScrollbarOrientation = "x" | "y";
@@ -22,7 +23,7 @@ export type ScrollbarControllerOptions = {
   readonly getScrollPosition?: () => ScrollbarScrollPosition;
   readonly setScrollPosition?: (position: Partial<ScrollbarScrollPosition>) => void;
   readonly handleMouseWheel?: boolean;
-  readonly onScroll?: (event: Event) => void;
+  readonly onScroll?: (event: ScrollEvent) => void;
   readonly onScrollPositionChange?: (position: ScrollbarScrollPosition) => void;
 };
 

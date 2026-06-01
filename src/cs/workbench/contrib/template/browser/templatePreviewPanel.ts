@@ -1,8 +1,7 @@
-import { createButton } from "src/cs/base/browser/ui/button/button";
-import type { MutableRef } from "src/cs/base/common/ref";
+﻿import { createButton } from "src/cs/base/browser/ui/button/button";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { PreviewFileLike } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
-import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
+import type { MutableState, PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
 import { formatNumber } from "src/cs/workbench/contrib/diagnostics/common/numberFormat";
 import { getExcelColumnLabel } from "src/cs/workbench/contrib/template/common/templateColumnLabel";
 import {
@@ -78,10 +77,10 @@ type TemplateManagerPreviewPanelProps = {
   activeCellRect?: DOMRect | Record<string, number> | null;
   adjustPreviewZoom: (deltaSteps: number) => void;
   copySelection?: () => Promise<void> | void;
-  dragOverlayRef: MutableRef<HTMLDivElement | null>;
+  dragOverlayRef: MutableState<HTMLDivElement | null>;
   getPreviewRow?: (rowIndex: number) => unknown;
   getPreviewRowsVersion?: () => number;
-  gridRef: MutableRef<HTMLDivElement | null>;
+  gridRef: MutableState<HTMLDivElement | null>;
   handleCellMouseDown?: (event: any) => void;
   handleColumnResizeStart: (event: any, colIndex: number) => void;
   handlePreviewPick?: (payload: {
@@ -97,9 +96,9 @@ type TemplateManagerPreviewPanelProps = {
   previewFile?: PreviewFileLike | null;
   previewRowHeightPx: number;
   previewRowIndexWidthPx: number;
-  previewScrollRef: MutableRef<HTMLDivElement | null>;
+  previewScrollRef: MutableState<HTMLDivElement | null>;
   previewStatus?: PreviewStatus | null;
-  previewTableRef: MutableRef<HTMLTableElement | null>;
+  previewTableRef: MutableState<HTMLTableElement | null>;
   previewWindow: PreviewWindow;
   previewZoomPercent: number;
   resetPreviewZoom: () => void;
@@ -139,7 +138,7 @@ const readRectNumber = (
   key: "height" | "left" | "top" | "width",
 ): number => Number(rect?.[key]) || 0;
 
-const assignRef = <T,>(ref: MutableRef<T | null> | undefined, value: T | null): void => {
+const assignRef = <T,>(ref: MutableState<T | null> | undefined, value: T | null): void => {
   if (ref) {
     ref.current = value;
   }

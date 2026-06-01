@@ -1,5 +1,4 @@
-import type { MutableRef } from "src/cs/base/common/ref";
-import type {
+﻿import type {
   PreviewFile,
   PreviewRowsRequest,
   ProcessedEntry,
@@ -8,6 +7,7 @@ import type {
 import type {
   IonIoffManualTargetsByFileId,
   IonIoffMethod,
+  MutableState,
   PreviewStatus,
   SessionContextValue,
   SsManualRanges,
@@ -36,7 +36,7 @@ type SessionSnapshot = {
   readonly ssManualRanges: SsManualRanges;
 };
 
-const createRef = <T,>(current: T): MutableRef<T> => ({ current });
+const createRef = <T,>(current: T): MutableState<T> => ({ current });
 
 const createTemplateConfig = (): TemplateConfig => ({
   name: "",

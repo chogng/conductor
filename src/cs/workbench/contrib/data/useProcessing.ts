@@ -1,5 +1,4 @@
-﻿import type { MutableRef } from "src/cs/base/common/ref";
-import type { StateSetter } from "src/cs/workbench/contrib/session/analysis-session-context";
+﻿import type { MutableState, StateSetter } from "src/cs/workbench/contrib/session/analysis-session-context";
 import { prepareExtraction } from "src/cs/workbench/contrib/data/extractionValidation";
 import {
   parseOlderExtractionError,
@@ -26,13 +25,13 @@ import { importService } from "src/cs/workbench/services/import/browser/importSe
 // Orchestrates validation and queue building for the device-analysis apply flow.
 // The async execution details live in asyncProcessing.ts so this hook stays focused on inputs.
 
-const useCallback = <T extends (...args: any[]) => any>(callback: T, _deps?: unknown[]): T => callback;
-const useEffect = (effect: () => void | (() => void), _deps?: unknown[]): void => {
+const memoCallback = <T extends (...args: any[]) => any>(callback: T, _deps?: unknown[]): T => callback;
+const runEffect = (effect: () => void | (() => void), _deps?: unknown[]): void => {
   effect();
 };
-const useMemo = <T,>(factory: () => T, _deps?: unknown[]): T => factory();
-const useRef = <T,>(current: T): MutableRef<T> => ({ current });
-const useState = <T,>(initial: T | (() => T)): [T, StateSetter<T>] => {
+const memoValue = <T,>(factory: () => T, _deps?: unknown[]): T => factory();
+const getMutableState = <T,>(current: T): MutableState<T> => ({ current });
+const createLocalState = <T,>(initial: T | (() => T)): [T, StateSetter<T>] => {
   let value = typeof initial === "function" ? (initial as () => T)() : initial;
   const setValue: StateSetter<T> = (next) => {
     value = typeof next === "function" ? (next as (previous: T) => T)(value) : next;
@@ -87,7 +86,7 @@ type UseProcessingOptions = {
   previewFile: unknown;
   processedData?: ProcessedEntry[];
   rawData?: RawDataEntry[];
-  rawDataByIdRef: MutableRef<Map<string, unknown>>;
+  rawDataByIdRef: MutableState<Map<string, unknown>>;
   onExtractionError?: (error: ExtractionErrorEntry) => void;
   setActivePage: (page: string) => void;
   setProcessedData: StateSetter<ProcessedEntry[]>;
@@ -272,21 +271,21 @@ export const useProcessing = ({
   setProcessedData,
   t,
 }: UseProcessingOptions) => {
-  const dataProcessingService = useMemo(() => new BrowserDataProcessingService(), []);
-  const [processingStatus, setProcessingStatus] = useState<ProcessingStatus>({
+  const dataProcessingService = memoValue(() => new BrowserDataProcessingService(), []);
+  const [processingStatus, setProcessingStatus] = createLocalState<ProcessingStatus>({
     state: "idle",
     processed: 0,
     total: 0,
   });
 
-  const processingWorkerRef = useRef<Worker | null>(null);
-  const processingJobIdRef = useRef(0);
-  const processingQueueRef = useRef<ProcessingQueueItem[]>([]);
-  const processingStopOnErrorRef = useRef(false);
-  const removedQueuedFileIdsRef = useRef<Set<string>>(new Set());
-  const lastAppliedTemplateConfigFingerprintRef = useRef<string | null>(null);
+  const processingWorkerRef = getMutableState<Worker | null>(null);
+  const processingJobIdRef = getMutableState(0);
+  const processingQueueRef = getMutableState<ProcessingQueueItem[]>([]);
+  const processingStopOnErrorRef = getMutableState(false);
+  const removedQueuedFileIdsRef = getMutableState<Set<string>>(new Set());
+  const lastAppliedTemplateConfigFingerprintRef = getMutableState<string | null>(null);
 
-  const resetProcessingWorker = useCallback(() => {
+  const resetProcessingWorker = memoCallback(() => {
     processingJobIdRef.current += 1;
     processingQueueRef.current = [];
     processingStopOnErrorRef.current = false;
@@ -301,7 +300,7 @@ export const useProcessing = ({
     });
   }, [dataProcessingService]);
 
-  const removeQueuedProcessingFile = useCallback(
+  const removeQueuedProcessingFile = memoCallback(
     (fileId: string) => {
       if (processingStatus.state !== "processing") return;
 
@@ -322,13 +321,13 @@ export const useProcessing = ({
     [processingStatus.state],
   );
 
-  useEffect(() => {
+  runEffect(() => {
     return () => {
       dataProcessingService.terminateProcessingWorker(processingWorkerRef);
     };
   }, [dataProcessingService]);
 
-  const prepareExtractionRun = useCallback(
+  const prepareExtractionRun = memoCallback(
     (config: Record<string, unknown>): PreparedExtractionResult => {
       const prepared = prepareExtraction({
         config,
@@ -355,7 +354,7 @@ export const useProcessing = ({
     [getPreviewRow, previewFile, rawData, t],
   );
 
-  const tryProcessFileWithRust = useCallback(
+  const tryProcessFileWithRust = memoCallback(
     async ({
       entry,
       extractionConfig,
@@ -413,7 +412,7 @@ export const useProcessing = ({
     [],
   );
 
-  const startExtractionJob = useCallback(
+  const startExtractionJob = memoCallback(
     ({
       extractionConfig,
       messageType = "processFile",
@@ -459,7 +458,7 @@ export const useProcessing = ({
       tryProcessFileWithRust,
     ],
   );
-  const handleRuleBasedTemplateApplied = useCallback(
+  const handleRuleBasedTemplateApplied = memoCallback(
     (
       config: RuleBasedExtractionConfig,
       incremental: boolean,
@@ -665,7 +664,7 @@ export const useProcessing = ({
       tryProcessFileWithRust,
     ],
   );
-  const handleTemplateApplied = useCallback(
+  const handleTemplateApplied = memoCallback(
     (config: Record<string, unknown>) => {
         if (Array.isArray((config as RuleBasedExtractionConfig)?.fileNameTemplateRules)) {
           return handleRuleBasedTemplateApplied(
@@ -717,7 +716,7 @@ export const useProcessing = ({
     [handleRuleBasedTemplateApplied, prepareExtractionRun, rawData, startExtractionJob, t],
   );
 
-  const handleTemplateAppliedIncremental = useCallback(
+  const handleTemplateAppliedIncremental = memoCallback(
     (config: Record<string, unknown>) => {
       if (Array.isArray((config as RuleBasedExtractionConfig)?.fileNameTemplateRules)) {
         return handleRuleBasedTemplateApplied(

@@ -1,4 +1,4 @@
-import type { MutableRef } from "src/cs/base/common/ref";
+﻿import type { MutableState } from "src/cs/workbench/contrib/session/analysis-session-context";
 import {
   startProcessingJob,
   startRuleProcessingJob,
@@ -12,7 +12,7 @@ export class BrowserDataProcessingService
   implements IDataProcessingService<
     ProcessingJobOptions,
     RuleProcessingJobOptions,
-    MutableRef<Worker | null>,
+    MutableState<Worker | null>,
     Worker | null
   >
 {
@@ -25,7 +25,7 @@ export class BrowserDataProcessingService
   }
 
   terminateProcessingWorker(
-    workerRef: MutableRef<Worker | null>,
+    workerRef: MutableState<Worker | null>,
     worker?: Worker | null,
   ): void {
     terminateProcessingWorker(workerRef, worker);

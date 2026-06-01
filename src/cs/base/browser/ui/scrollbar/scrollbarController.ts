@@ -13,6 +13,7 @@ import {
   DisposableStore,
   type IDisposable,
 } from "src/cs/base/common/lifecycle";
+import { ScrollState, type ScrollEvent } from "src/cs/base/common/scrollable";
 import { ScrollbarAssembler } from "src/cs/base/browser/ui/scrollbar/scrollbarAssembler";
 import type {
   ScrollbarAxis,
@@ -102,8 +103,9 @@ export class ScrollbarController implements ScrollbarHandle {
   private axis: ScrollbarAxis;
   private observeContentMutations: boolean;
   private handleMouseWheel: boolean;
-  private onScroll?: (event: Event) => void;
+  private onScroll?: (event: ScrollEvent) => void;
   private onScrollPositionChange?: ScrollbarControllerOptions["onScrollPositionChange"];
+  private scrollState = new ScrollState(false, 0, 0, 0, 0, 0, 0);
   private metricsRaf: IDisposable | null = null;
   private thumbRaf: IDisposable | null = null;
   private horizontalWheelRaf: IDisposable | null = null;
@@ -239,10 +241,10 @@ export class ScrollbarController implements ScrollbarHandle {
     }
   }
 
-  private readonly handleScroll = (event: Event): void => {
+  private readonly handleScroll = (): void => {
     this.onScrollPositionChange?.(this.readScrollPosition());
     this.scheduleThumbOffsetsUpdate();
-    this.onScroll?.(event);
+    this.emitScrollEvent(false);
   };
 
   private readonly handleWheel = (event: WheelEvent): void => {
@@ -518,5 +520,25 @@ export class ScrollbarController implements ScrollbarHandle {
 
     this.onScrollPositionChange?.(this.readScrollPosition());
     this.scheduleThumbOffsetsUpdate();
+  }
+
+  private emitScrollEvent(inSmoothScrolling: boolean): void {
+    const previous = this.scrollState;
+    const dimensions = this.readScrollDimensions();
+    const position = this.readScrollPosition();
+    const next = new ScrollState(
+      false,
+      dimensions.clientWidth,
+      dimensions.scrollWidth,
+      position.scrollLeft,
+      dimensions.clientHeight,
+      dimensions.scrollHeight,
+      position.scrollTop,
+    );
+
+    this.scrollState = next;
+    if (!next.equals(previous)) {
+      this.onScroll?.(next.createScrollEvent(previous, inSmoothScrolling));
+    }
   }
 }

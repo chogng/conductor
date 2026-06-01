@@ -23,12 +23,12 @@ import { normalizeFileNameFieldSeparators } from "src/cs/workbench/common/device
 
 type LocalStateSetter<T> = (next: T | ((previous: T) => T)) => void;
 
-const useCallback = <T extends (...args: any[]) => any>(callback: T, _deps?: unknown[]): T => callback;
-const useEffect = (effect: () => void | (() => void), _deps?: unknown[]): void => {
+const memoCallback = <T extends (...args: any[]) => any>(callback: T, _deps?: unknown[]): T => callback;
+const runEffect = (effect: () => void | (() => void), _deps?: unknown[]): void => {
   effect();
 };
-const useRef = <T,>(current: T) => ({ current });
-const useState = <T,>(initial: T | (() => T)): [T, LocalStateSetter<T>] => {
+const createMutableState = <T,>(current: T) => ({ current });
+const createLocalState = <T,>(initial: T | (() => T)): [T, LocalStateSetter<T>] => {
   let value = typeof initial === "function" ? (initial as () => T)() : initial;
   const setValue: LocalStateSetter<T> = (next) => {
     value = typeof next === "function" ? (next as (previous: T) => T)(value) : next;
@@ -187,24 +187,24 @@ export const useTemplateManagerState = ({
     setTemplateMode,
   } = useSession();
 
-  const [templates, setTemplates] = useState<TemplateRecord[]>([]);
-  const [templatesLoaded, setTemplatesLoaded] = useState(false);
-  const [templatesLoading, setTemplatesLoading] = useState(false);
-  const [templateTransferBusy, setTemplateTransferBusy] = useState(false);
-  const templatesRequestRef = useRef<Promise<TemplateRecord[]> | null>(null);
-  const [inputSources, setInputSources] = useState<Record<string, InputSource>>(
+  const [templates, setTemplates] = createLocalState<TemplateRecord[]>([]);
+  const [templatesLoaded, setTemplatesLoaded] = createLocalState(false);
+  const [templatesLoading, setTemplatesLoading] = createLocalState(false);
+  const [templateTransferBusy, setTemplateTransferBusy] = createLocalState(false);
+  const templatesRequestRef = createMutableState<Promise<TemplateRecord[]> | null>(null);
+  const [inputSources, setInputSources] = createLocalState<Record<string, InputSource>>(
     {},
   );
-  const didInitConfigFromSettingsRef = useRef(false);
-  const saveDraftTouchedRef = useRef(false);
-  const saveDraftBaseConfigRef = useRef<TemplateConfig | null>(null);
-  const [isDiscardConfirmOpen, setIsDiscardConfirmOpen] = useState(false);
+  const didInitConfigFromSettingsRef = createMutableState(false);
+  const saveDraftTouchedRef = createMutableState(false);
+  const saveDraftBaseConfigRef = createMutableState<TemplateConfig | null>(null);
+  const [isDiscardConfirmOpen, setIsDiscardConfirmOpen] = createLocalState(false);
   const [pendingTemplateMode, setPendingTemplateMode] =
-    useState<TemplateMode | null>(null);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    createLocalState<TemplateMode | null>(null);
+  const [isDropdownOpen, setIsDropdownOpen] = createLocalState(false);
   const isSelectMode = templateMode === "select";
 
-  useEffect(() => {
+  runEffect(() => {
     if (didInitConfigFromSettingsRef.current) return;
     if (!analysisSettings) return;
 
@@ -213,7 +213,7 @@ export const useTemplateManagerState = ({
     setConfig((prev) => ({ ...prev, stopOnError: nextStopOnError }));
   }, [analysisSettings, setConfig]);
 
-  const markFieldSource = useCallback((field: unknown, source: unknown) => {
+  const markFieldSource = memoCallback((field: unknown, source: unknown) => {
     if (typeof field !== "string" || !field.trim()) return;
     if (source !== "manual" && source !== "picked") return;
     setInputSources((prev) => ({
@@ -222,11 +222,11 @@ export const useTemplateManagerState = ({
     }));
   }, []);
 
-  const markSaveDraftTouched = useCallback(() => {
+  const markSaveDraftTouched = memoCallback(() => {
     saveDraftTouchedRef.current = true;
   }, []);
 
-  const writeFieldFromPreview = useCallback(
+  const writeFieldFromPreview = memoCallback(
     (field: string, value: string) => {
       setConfig((prev) => ({ ...prev, [field]: value } as TemplateConfig));
       markFieldSource(field, "picked");
@@ -234,7 +234,7 @@ export const useTemplateManagerState = ({
     [markFieldSource, setConfig],
   );
 
-  const ensureTemplatesLoaded = useCallback(async (): Promise<TemplateRecord[]> => {
+  const ensureTemplatesLoaded = memoCallback(async (): Promise<TemplateRecord[]> => {
     if (templatesLoaded) return templates;
     if (templatesRequestRef.current) {
       return templatesRequestRef.current;
@@ -268,7 +268,7 @@ export const useTemplateManagerState = ({
     return request;
   }, [showToast, t, templates, templatesLoaded]);
 
-  useEffect(() => {
+  runEffect(() => {
     if (!isSelectMode) return;
     if (!analysisSettings?.lastTemplateId) return;
     if (templatesLoaded) return;
@@ -281,18 +281,18 @@ export const useTemplateManagerState = ({
     templatesLoaded,
   ]);
 
-  const closeTemplateDropdown = useCallback(() => {
+  const closeTemplateDropdown = memoCallback(() => {
     setIsDropdownOpen(false);
   }, []);
 
-  const openTemplateDropdown = useCallback(() => {
+  const openTemplateDropdown = memoCallback(() => {
     if (!isDropdownOpen) {
       void ensureTemplatesLoaded().catch(() => {});
     }
     setIsDropdownOpen(true);
   }, [ensureTemplatesLoaded, isDropdownOpen]);
 
-  const toggleTemplateDropdown = useCallback(() => {
+  const toggleTemplateDropdown = memoCallback(() => {
     if (isDropdownOpen) {
       setIsDropdownOpen(false);
       return;
@@ -302,7 +302,7 @@ export const useTemplateManagerState = ({
     setIsDropdownOpen(true);
   }, [ensureTemplatesLoaded, isDropdownOpen]);
 
-  const loadTemplate = useCallback(
+  const loadTemplate = memoCallback(
     (template: TemplateRecord, options: { persist?: boolean } = {}) => {
       const { persist } = options;
       setInputSources({});
@@ -333,7 +333,7 @@ export const useTemplateManagerState = ({
     [onUpdateSettings, setConfig, setSelectedTemplateId],
   );
 
-  const handleSaveTemplate = useCallback(async () => {
+  const handleSaveTemplate = memoCallback(async () => {
     const name = config.name.trim();
     if (!name) return;
 
@@ -400,7 +400,7 @@ export const useTemplateManagerState = ({
     t,
   ]);
 
-  const handleDeleteTemplate = useCallback(
+  const handleDeleteTemplate = memoCallback(
     async (id: string) => {
       try {
         await apiService.deleteDeviceAnalysisTemplate(id);
@@ -431,7 +431,7 @@ export const useTemplateManagerState = ({
   );
 
   const createTemplateExportBundle =
-    useCallback(async (): Promise<TemplateTransferPayload | null> => {
+    memoCallback(async (): Promise<TemplateTransferPayload | null> => {
       setTemplateTransferBusy(true);
 
       try {
@@ -480,7 +480,7 @@ export const useTemplateManagerState = ({
       }
     }, [config?.name, ensureTemplatesLoaded, selectedTemplateId, showToast, t]);
 
-  const importTemplatesFromPayload = useCallback(
+  const importTemplatesFromPayload = memoCallback(
     async (
       payload: unknown,
       options: Partial<{
@@ -600,7 +600,7 @@ export const useTemplateManagerState = ({
     [ensureTemplatesLoaded, loadTemplate, showToast, t],
   );
 
-  useEffect(() => {
+  runEffect(() => {
     const startCell = String(config.xDataStart ?? "").trim();
     const endValue = normalizeXDataEndValue(config.xDataEnd);
     const endSource = inputSources?.xDataEnd;
@@ -617,7 +617,7 @@ export const useTemplateManagerState = ({
     }
   }, [config.xDataEnd, config.xDataStart, inputSources?.xDataEnd, setConfig]);
 
-  const discardUnsavedSaveEdits = useCallback(() => {
+  const discardUnsavedSaveEdits = memoCallback(() => {
     if (!saveDraftTouchedRef.current) return;
     saveDraftTouchedRef.current = false;
 
@@ -636,12 +636,12 @@ export const useTemplateManagerState = ({
     loadTemplate(found, { persist: false });
   }, [loadTemplate, selectedTemplateId, setConfig, templates]);
 
-  const closeDiscardConfirm = useCallback(() => {
+  const closeDiscardConfirm = memoCallback(() => {
     setIsDiscardConfirmOpen(false);
     setPendingTemplateMode(null);
   }, []);
 
-  const confirmDiscardAndSwitch = useCallback(() => {
+  const confirmDiscardAndSwitch = memoCallback(() => {
     discardUnsavedSaveEdits();
     saveDraftBaseConfigRef.current = null;
     setIsDiscardConfirmOpen(false);
@@ -649,7 +649,7 @@ export const useTemplateManagerState = ({
     setPendingTemplateMode(null);
   }, [discardUnsavedSaveEdits, pendingTemplateMode, setTemplateMode]);
 
-  useEffect(() => {
+  runEffect(() => {
     if (!isSelectMode) return;
 
     const lastId = analysisSettings?.lastTemplateId;
@@ -684,7 +684,7 @@ export const useTemplateManagerState = ({
     templates,
   ]);
 
-  const applyWithHandler = useCallback(
+  const applyWithHandler = memoCallback(
     (
       handler: ((nextConfig: Record<string, unknown>) => unknown) | undefined,
       sourceConfig: Record<string, unknown> = config,
@@ -786,36 +786,36 @@ export const useTemplateManagerState = ({
     ],
   );
 
-  const applyConfiguration = useCallback(() => {
+  const applyConfiguration = memoCallback(() => {
     applyWithHandler(onTemplateApplied);
   }, [applyWithHandler, onTemplateApplied]);
 
-  const applyNewFilesConfiguration = useCallback(() => {
+  const applyNewFilesConfiguration = memoCallback(() => {
     applyWithHandler(onTemplateAppliedIncremental);
   }, [applyWithHandler, onTemplateAppliedIncremental]);
 
-  const applyConfigurationWithConfig = useCallback(
+  const applyConfigurationWithConfig = memoCallback(
     (nextConfig: Record<string, unknown>) => {
       applyWithHandler(onTemplateApplied, nextConfig);
     },
     [applyWithHandler, onTemplateApplied],
   );
 
-  const applyNewFilesConfigurationWithConfig = useCallback(
+  const applyNewFilesConfigurationWithConfig = memoCallback(
     (nextConfig: Record<string, unknown>) => {
       applyWithHandler(onTemplateAppliedIncremental, nextConfig);
     },
     [applyWithHandler, onTemplateAppliedIncremental],
   );
 
-  const applyConfigurationWithExternalConfig = useCallback(
+  const applyConfigurationWithExternalConfig = memoCallback(
     (nextConfig: Record<string, unknown>) => {
       applyWithHandler(onTemplateApplied, nextConfig, { syncConfig: false });
     },
     [applyWithHandler, onTemplateApplied],
   );
 
-  const applyNewFilesConfigurationWithExternalConfig = useCallback(
+  const applyNewFilesConfigurationWithExternalConfig = memoCallback(
     (nextConfig: Record<string, unknown>) => {
       applyWithHandler(onTemplateAppliedIncremental, nextConfig, {
         syncConfig: false,
@@ -824,7 +824,7 @@ export const useTemplateManagerState = ({
     [applyWithHandler, onTemplateAppliedIncremental],
   );
 
-  const handleTemplateModeChange = useCallback(
+  const handleTemplateModeChange = memoCallback(
     (nextMode: unknown) => {
       if (nextMode !== "select" && nextMode !== "save") {
         return;
@@ -855,7 +855,7 @@ export const useTemplateManagerState = ({
     [config, setTemplateMode, templateMode],
   );
 
-  const activateAutoTemplate = useCallback(
+  const activateAutoTemplate = memoCallback(
     (options: { persist?: boolean } = {}) => {
       const shouldPersist = options.persist !== false;
 
@@ -890,11 +890,11 @@ export const useTemplateManagerState = ({
     ],
   );
 
-  const selectAutoTemplate = useCallback(() => {
+  const selectAutoTemplate = memoCallback(() => {
     activateAutoTemplate();
   }, [activateAutoTemplate]);
 
-  useEffect(() => {
+  runEffect(() => {
     if (!isSelectMode) return;
     if (analysisSettings === undefined) return;
     if (selectedTemplateId) return;
@@ -937,7 +937,7 @@ export const useTemplateManagerState = ({
     templatesLoaded,
   ]);
 
-  const handleCreateNewTemplate = useCallback(() => {
+  const handleCreateNewTemplate = memoCallback(() => {
     const nextConfig = createEmptyTemplateConfig({
       stopOnError: Boolean(analysisSettings?.stopOnErrorDefault),
     });

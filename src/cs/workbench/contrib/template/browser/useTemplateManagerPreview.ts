@@ -1,6 +1,4 @@
-﻿import type { MutableRef } from "src/cs/base/common/ref";
-import type { StateSetter } from "src/cs/workbench/contrib/session/analysis-session-context";
-import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
+﻿import type { MutableState, PreviewStatus as SessionPreviewStatus, StateSetter } from "src/cs/workbench/contrib/session/analysis-session-context";
 import type { PreviewFileLike } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import type { TemplateConfig } from "src/cs/workbench/contrib/template/common/templateManagerUtils";
 import {
@@ -20,14 +18,14 @@ import {
 } from "./templateManagerPreviewZoom";
 import { resolvePreviewRenderColumnCount } from "src/cs/workbench/contrib/template/common/previewRenderColumns";
 
-const useCallback = <T extends (...args: any[]) => any>(callback: T, _deps?: unknown[]): T => callback;
-const useEffect = (effect: () => void | (() => void), _deps?: unknown[]): void => {
+const memoCallback = <T extends (...args: any[]) => any>(callback: T, _deps?: unknown[]): T => callback;
+const runEffect = (effect: () => void | (() => void), _deps?: unknown[]): void => {
   effect();
 };
-const useLayoutEffect = useEffect;
-const useMemo = <T,>(factory: () => T, _deps?: unknown[]): T => factory();
-const useRef = <T,>(current: T): MutableRef<T> => ({ current });
-const useState = <T,>(initial: T | (() => T)): [T, StateSetter<T>] => {
+const runLayoutEffect = runEffect;
+const memoValue = <T,>(factory: () => T, _deps?: unknown[]): T => factory();
+const getMutableState = <T,>(current: T): MutableState<T> => ({ current });
+const createLocalState = <T,>(initial: T | (() => T)): [T, StateSetter<T>] => {
   let value = typeof initial === "function" ? (initial as () => T)() : initial;
   const setValue: StateSetter<T> = (next) => {
     value = typeof next === "function" ? (next as (previous: T) => T)(value) : next;
@@ -173,7 +171,7 @@ type PendingColumnResize = {
 };
 
 type UseTemplateManagerPreviewOptions = {
-  containerRef?: MutableRef<HTMLElement | null>;
+  containerRef?: MutableState<HTMLElement | null>;
   config: TemplateConfig;
   ensurePreviewRows?: (
     fileId: string,
@@ -212,28 +210,28 @@ export const useTemplateManagerPreview = ({
   setConfig,
   writeFieldFromPreview,
 }: UseTemplateManagerPreviewOptions) => {
-  const [selections, setSelections] = useState<SelectionItem[]>([]);
-  const gridRef = useRef<HTMLDivElement | null>(null);
-  const previewScrollRef = useRef<HTMLDivElement | null>(null);
-  const previewTableRef = useRef<HTMLTableElement | null>(null);
-  const dragOverlayRef = useRef<HTMLDivElement | null>(null);
-  const internalContainerRef = useRef<HTMLElement | null>(null);
+  const [selections, setSelections] = createLocalState<SelectionItem[]>([]);
+  const gridRef = getMutableState<HTMLDivElement | null>(null);
+  const previewScrollRef = getMutableState<HTMLDivElement | null>(null);
+  const previewTableRef = getMutableState<HTMLTableElement | null>(null);
+  const dragOverlayRef = getMutableState<HTMLDivElement | null>(null);
+  const internalContainerRef = getMutableState<HTMLElement | null>(null);
   const containerRef = externalContainerRef ?? internalContainerRef;
 
-  const [isColumnResizing, setIsColumnResizing] = useState(false);
+  const [isColumnResizing, setIsColumnResizing] = createLocalState(false);
   const [columnWidthOverridesByFile, setColumnWidthOverridesByFile] =
-    useState<ColumnWidthOverridesByFile>({});
-  const columnResizeRafRef = useRef(0);
-  const pendingColumnResizeRef = useRef<PendingColumnResize | null>(null);
-  const liveColumnLayoutRef = useRef<LiveColumnLayout>(
+    createLocalState<ColumnWidthOverridesByFile>({});
+  const columnResizeRafRef = getMutableState(0);
+  const pendingColumnResizeRef = getMutableState<PendingColumnResize | null>(null);
+  const liveColumnLayoutRef = getMutableState<LiveColumnLayout>(
     createEmptyLiveColumnLayout() as LiveColumnLayout,
   );
-  const previousPreviewZoomPercentRef = useRef(
+  const previousPreviewZoomPercentRef = getMutableState(
     clampPreviewZoomPercent(previewZoomPercent),
   );
 
   const normalizedPreviewZoomPercent = clampPreviewZoomPercent(previewZoomPercent);
-  const previewRowHeightPx = useMemo(
+  const previewRowHeightPx = memoValue(
     () =>
       scalePreviewMeasurement(
         PREVIEW_ROW_HEIGHT_BASE_PX,
@@ -242,7 +240,7 @@ export const useTemplateManagerPreview = ({
       ),
     [normalizedPreviewZoomPercent],
   );
-  const previewRowIndexWidthPx = useMemo(
+  const previewRowIndexWidthPx = memoValue(
     () =>
       scalePreviewMeasurement(
         PREVIEW_ROW_INDEX_COL_BASE_PX,
@@ -251,7 +249,7 @@ export const useTemplateManagerPreview = ({
       ),
     [normalizedPreviewZoomPercent],
   );
-  const previewColumnMinWidthPx = useMemo(
+  const previewColumnMinWidthPx = memoValue(
     () =>
       scalePreviewMeasurement(
         PREVIEW_COL_MIN_BASE_PX,
@@ -260,7 +258,7 @@ export const useTemplateManagerPreview = ({
       ),
     [normalizedPreviewZoomPercent],
   );
-  const previewColumnMaxWidthPx = useMemo(
+  const previewColumnMaxWidthPx = memoValue(
     () =>
       scalePreviewMeasurement(
         PREVIEW_COL_MAX_BASE_PX,
@@ -269,7 +267,7 @@ export const useTemplateManagerPreview = ({
       ),
     [normalizedPreviewZoomPercent, previewColumnMinWidthPx],
   );
-  const previewResizeMinWidthPx = useMemo(
+  const previewResizeMinWidthPx = memoValue(
     () =>
       scalePreviewMeasurement(
         PREVIEW_COL_RESIZE_MIN_BASE_PX,
@@ -278,7 +276,7 @@ export const useTemplateManagerPreview = ({
       ),
     [normalizedPreviewZoomPercent],
   );
-  const previewResizeMaxWidthPx = useMemo(
+  const previewResizeMaxWidthPx = memoValue(
     () =>
       scalePreviewMeasurement(
         PREVIEW_COL_RESIZE_MAX_BASE_PX,
@@ -288,7 +286,7 @@ export const useTemplateManagerPreview = ({
     [normalizedPreviewZoomPercent, previewResizeMinWidthPx],
   );
 
-  const warmPreviewRowsForScrollFrame = useCallback(
+  const warmPreviewRowsForScrollFrame = memoCallback(
     ({
       scrollTop,
       verticalDirection,
@@ -361,7 +359,7 @@ export const useTemplateManagerPreview = ({
     ],
   );
 
-  const resolvePreviewHorizontalScrollCommitThresholdPx = useCallback(
+  const resolvePreviewHorizontalScrollCommitThresholdPx = memoCallback(
     ({
       horizontalVelocityTier,
       viewportWidth,
@@ -411,7 +409,7 @@ export const useTemplateManagerPreview = ({
     previewViewportWidth: number;
   };
 
-  const previewColumnOverscanPx = useMemo(
+  const previewColumnOverscanPx = memoValue(
     () =>
       resolvePreviewHorizontalOverscanPx({
         horizontalVelocityTier: previewHorizontalScrollVelocityTier,
@@ -431,7 +429,7 @@ export const useTemplateManagerPreview = ({
   }) => boolean;
   const handlePreviewPick = interactive ? previewPickHandler : undefined;
 
-  useEffect(() => {
+  runEffect(() => {
     return () => {
       if (columnResizeRafRef.current) {
         cancelAnimationFrame(columnResizeRafRef.current);
@@ -439,7 +437,7 @@ export const useTemplateManagerPreview = ({
     };
   }, []);
 
-  const dataColumnCount = useMemo(() => {
+  const dataColumnCount = memoValue(() => {
     if (Number.isFinite(previewFile?.columnCount)) {
       return Number(previewFile?.columnCount);
     }
@@ -451,7 +449,7 @@ export const useTemplateManagerPreview = ({
 
     return 0;
   }, [previewFile]);
-  const columnCount = useMemo(() => {
+  const columnCount = memoValue(() => {
     return resolvePreviewRenderColumnCount({
       dataColumnCount,
       minColumnWidthPx: previewColumnMinWidthPx,
@@ -465,7 +463,7 @@ export const useTemplateManagerPreview = ({
     previewViewportWidth,
   ]);
 
-  const yColumnsSet = useMemo(
+  const yColumnsSet = memoValue(
     () =>
       new Set(
         Array.isArray(config?.yColumns) ? config.yColumns : [],
@@ -473,7 +471,7 @@ export const useTemplateManagerPreview = ({
     [config?.yColumns],
   );
 
-  const previewVisibleRows = useMemo(
+  const previewVisibleRows = memoValue(
     () =>
       Math.max(
         1,
@@ -482,7 +480,7 @@ export const useTemplateManagerPreview = ({
     [previewRowHeightPx, previewViewportHeight],
   );
 
-  const renderOverscanRows = useMemo(
+  const renderOverscanRows = memoValue(
     () =>
       Math.max(
         PREVIEW_OVERSCAN_ROWS + 10,
@@ -491,7 +489,7 @@ export const useTemplateManagerPreview = ({
     [previewVisibleRows],
   );
 
-  const { prefetchRowsAfter, prefetchRowsBefore } = useMemo(() => {
+  const { prefetchRowsAfter, prefetchRowsBefore } = memoValue(() => {
     const lookBehindRows = Math.max(
       renderOverscanRows + 8,
       Math.round(previewVisibleRows * 1.5),
@@ -529,7 +527,7 @@ export const useTemplateManagerPreview = ({
     renderOverscanRows,
   ]);
 
-  const previewWindowShiftStrideRows = useMemo(
+  const previewWindowShiftStrideRows = memoValue(
     () =>
       Math.max(
         renderOverscanRows,
@@ -538,7 +536,7 @@ export const useTemplateManagerPreview = ({
     [previewVisibleRows, renderOverscanRows],
   );
 
-  const setSelectionRange = useCallback(
+  const setSelectionRange = memoCallback(
     (range?: SelectionRange | null, options?: SetSelectionRangeOptions) => {
       const mode: SelectionSetMode = options?.mode || "replace";
       const normalized = normalizeSelectionRange(range);
@@ -585,7 +583,7 @@ export const useTemplateManagerPreview = ({
     [setSelections],
   );
 
-  const autoColumnWidthsBasePx = useMemo(() => {
+  const autoColumnWidthsBasePx = memoValue(() => {
     const maxLens = Array.isArray(previewFile?.maxCellLengths)
       ? previewFile.maxCellLengths
       : [];
@@ -605,7 +603,7 @@ export const useTemplateManagerPreview = ({
     return widths;
   }, [previewFile]);
 
-  const autoColumnWidthsPx = useMemo(
+  const autoColumnWidthsPx = memoValue(
     () =>
       autoColumnWidthsBasePx.map((width) =>
         scalePreviewMeasurement(width, normalizedPreviewZoomPercent, {
@@ -621,7 +619,7 @@ export const useTemplateManagerPreview = ({
     ],
   );
 
-  const scaledColumnWidthOverridesByFile = useMemo(() => {
+  const scaledColumnWidthOverridesByFile = memoValue(() => {
     const fileId = previewFile?.fileId;
     if (!fileId) return {};
 
@@ -680,7 +678,7 @@ export const useTemplateManagerPreview = ({
     applyColumnWidthToDom: (fileId: string, colIndex: number, width: number) => void;
   };
 
-  const flushPendingColumnResize = useCallback(() => {
+  const flushPendingColumnResize = memoCallback(() => {
     const pending = pendingColumnResizeRef.current;
     pendingColumnResizeRef.current = null;
     if (!pending) return null;
@@ -689,7 +687,7 @@ export const useTemplateManagerPreview = ({
     return pending;
   }, [applyColumnWidthToDom]);
 
-  const scheduleColumnResizeDomUpdate = useCallback(
+  const scheduleColumnResizeDomUpdate = memoCallback(
     (fileId: string, colIndex: number, width: number) => {
       pendingColumnResizeRef.current = { fileId, colIndex, width };
       if (columnResizeRafRef.current) return;
@@ -702,7 +700,7 @@ export const useTemplateManagerPreview = ({
     [flushPendingColumnResize],
   );
 
-  const resetColumnWidth = useCallback(
+  const resetColumnWidth = memoCallback(
     (fileId: string, colIndex: number) => {
       const auto = autoColumnWidthsPx[colIndex] ?? previewColumnMinWidthPx;
       applyColumnWidthToDom(fileId, colIndex, auto);
@@ -719,7 +717,7 @@ export const useTemplateManagerPreview = ({
     [applyColumnWidthToDom, autoColumnWidthsPx, previewColumnMinWidthPx],
   );
 
-  const handleColumnResizeStart = useCallback(
+  const handleColumnResizeStart = memoCallback(
     (event: ResizeStartEvent, colIndex: number) => {
       const fileId = previewFile?.fileId;
       if (!fileId) return;
@@ -819,7 +817,7 @@ export const useTemplateManagerPreview = ({
     ],
   );
 
-  useLayoutEffect(() => {
+  runLayoutEffect(() => {
     const viewport = previewScrollRef.current;
     const previousZoomPercent = previousPreviewZoomPercentRef.current;
     previousPreviewZoomPercentRef.current = normalizedPreviewZoomPercent;
@@ -870,7 +868,7 @@ export const useTemplateManagerPreview = ({
     windowShiftStrideRows: previewWindowShiftStrideRows,
   }) as PreviewWindow;
 
-  const toggleColumn = useCallback(
+  const toggleColumn = memoCallback(
     (index: number) => {
       if (!interactive) return;
       if (index < 0 || index >= dataColumnCount) return;

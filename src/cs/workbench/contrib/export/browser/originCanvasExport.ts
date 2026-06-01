@@ -1,4 +1,4 @@
-import type { MutableRef } from "src/cs/base/common/ref";
+﻿import type { MutableState } from "src/cs/workbench/contrib/session/analysis-session-context";
 import {
   exportOriginZip,
   type OriginDisplayRange,
@@ -40,8 +40,8 @@ type UseOriginCanvasExportOptions = {
   filteredCanvasKind?: OriginFilteredCanvasKind;
   effectiveActiveFileId: unknown;
   isWindowsDesktopShell: boolean;
-  originChartXRangeRef: MutableRef<OriginDisplayRange | null>;
-  originChartYRangeRef: MutableRef<{
+  originChartXRangeRef: MutableState<OriginDisplayRange | null>;
+  originChartYRangeRef: MutableState<{
     mode: "linear" | "log";
     min: number;
     max: number;

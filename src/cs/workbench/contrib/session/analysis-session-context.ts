@@ -1,10 +1,13 @@
-import type { MutableRef } from "src/cs/base/common/ref";
-import type {
+﻿import type {
   PreviewFile,
   PreviewRowsRequest,
   ProcessedEntry,
   RawDataEntry,
 } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
+
+export type MutableState<T> = {
+  current: T;
+};
 
 export type TemplateMode = "select" | "save";
 export type PreviewStatusState = "idle" | "loading" | "ready" | "error";
@@ -81,18 +84,18 @@ export type SessionContextValue = {
   setPreviewFile: StateSetter<PreviewFile | null>;
   previewStatus: PreviewStatus;
   setPreviewStatus: StateSetter<PreviewStatus>;
-  previewWorkerRef: MutableRef<Worker | null>;
-  previewRequestIdRef: MutableRef<number>;
-  previewRowsRequestIdRef: MutableRef<number>;
-  previewRowsRequestsRef: MutableRef<Map<number, PreviewRowsRequest>>;
-  previewRowsCacheByFileIdRef: MutableRef<
+  previewWorkerRef: MutableState<Worker | null>;
+  previewRequestIdRef: MutableState<number>;
+  previewRowsRequestIdRef: MutableState<number>;
+  previewRowsRequestsRef: MutableState<Map<number, PreviewRowsRequest>>;
+  previewRowsCacheByFileIdRef: MutableState<
     Map<string, Map<number, unknown[]>>
   >;
-  previewLoadedChunksByFileIdRef: MutableRef<Map<string, Set<number>>>;
-  previewRowsCacheRef: MutableRef<Map<number, unknown[]>>;
-  previewLoadedChunksRef: MutableRef<Set<number>>;
-  previewCacheFileIdRef: MutableRef<string | null>;
-  previewCacheFileLruRef: MutableRef<Set<string>>;
+  previewLoadedChunksByFileIdRef: MutableState<Map<string, Set<number>>>;
+  previewRowsCacheRef: MutableState<Map<number, unknown[]>>;
+  previewLoadedChunksRef: MutableState<Set<number>>;
+  previewCacheFileIdRef: MutableState<string | null>;
+  previewCacheFileLruRef: MutableState<Set<string>>;
   ionIoffMethod: IonIoffMethod;
   setIonIoffMethod: StateSetter<IonIoffMethod>;
   ionIoffManualTargetsByFileId: IonIoffManualTargetsByFileId;

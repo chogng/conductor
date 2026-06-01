@@ -1,3 +1,12 @@
+import { Range } from "src/cs/base/common/range";
+
+export interface IAnchor {
+    x: number;
+    y: number;
+    width?: number;
+    height?: number;
+}
+
 export interface IPosition {
     readonly top: number;
     readonly left: number;
@@ -156,7 +165,7 @@ export function layout2d(viewport: IRect, view: ISize, anchor: IRect, options?: 
             anchorPosition = anchorPosition === AnchorPosition.BELOW ? AnchorPosition.ABOVE : AnchorPosition.BELOW;
         }
 
-        if (intersects(top, top + view.height, anchor.top, anchor.top + anchor.height)) {
+        if (Range.intersects({ start: top, end: top + view.height }, { start: anchor.top, end: anchor.top + anchor.height })) {
             horizontalAnchor.mode = LayoutAnchorMode.AVOID;
         }
 
@@ -187,7 +196,7 @@ export function layout2d(viewport: IRect, view: ISize, anchor: IRect, options?: 
             anchorPosition = anchorPosition === AnchorPosition.RIGHT ? AnchorPosition.LEFT : AnchorPosition.RIGHT;
         }
 
-        if (intersects(left, left + view.width, anchor.left, anchor.left + anchor.width)) {
+        if (Range.intersects({ start: left, end: left + view.width }, { start: anchor.left, end: anchor.left + anchor.width })) {
             verticalAnchor.mode = LayoutAnchorMode.AVOID;
         }
 
@@ -263,8 +272,4 @@ export function anchoredLayout(options: IAnchoredLayoutOptions): IAnchoredLayout
         maxWidth,
         side: canOpenDown || !canOpenUp ? "bottom" : "top",
     };
-}
-
-function intersects(start: number, end: number, otherStart: number, otherEnd: number): boolean {
-    return start < otherEnd && otherStart < end;
 }

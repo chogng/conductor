@@ -1,0 +1,59 @@
+.ui-actionbar {
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.ui-actionbar__items {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.ui-actionbar--vertical .ui-actionbar__items {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.ui-actionbar__item {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.ui-actionbar__item.disabled {
+  cursor: default;
+}
+
+.ui-actionbar__label {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.ui-actionbar__label:disabled,
+.ui-actionbar__label[aria-disabled="true"] {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.ui-actionbar__label.checked {
+  color: rgb(var(--accent) / 1);
+}
+
+.ui-actionbar__separator {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 1rem;
+  background-color: rgb(var(--border) / 0.72);
+}
+
+.ui-actionbar--vertical .ui-actionbar__separator {
+  width: auto;
+  height: 1px;
+}

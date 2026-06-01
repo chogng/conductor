@@ -1,4 +1,4 @@
-import type { MutableRef } from "src/cs/base/common/ref";
+﻿import type { MutableState } from "src/cs/workbench/contrib/session/analysis-session-context";
 import {
   isPerfEnabled,
   logPerf,
@@ -39,18 +39,18 @@ export type TryProcessFileWithRust = (input: {
 }) => Promise<ProcessedEntry | null>;
 
 type SchedulerRefs = {
-  processingJobIdRef: MutableRef<number>;
-  processingQueueRef: MutableRef<ProcessingQueueItem[]>;
-  processingStopOnErrorRef: MutableRef<boolean>;
-  processingWorkerRef: MutableRef<Worker | null>;
-  removedQueuedFileIdsRef: MutableRef<Set<string>>;
+  processingJobIdRef: MutableState<number>;
+  processingQueueRef: MutableState<ProcessingQueueItem[]>;
+  processingStopOnErrorRef: MutableState<boolean>;
+  processingWorkerRef: MutableState<Worker | null>;
+  removedQueuedFileIdsRef: MutableState<Set<string>>;
 };
 
 type StateSetter<T> = (value: T | ((previous: T) => T)) => void;
 
 type SchedulerCallbacks = {
   onWorkerErrorPayload?: (payload: unknown) => void;
-  rawDataByIdRef: MutableRef<Map<string, unknown>>;
+  rawDataByIdRef: MutableState<Map<string, unknown>>;
   setActivePage: (page: string) => void;
   setProcessedData: StateSetter<ProcessedEntry[]>;
   setProcessingStatus: StateSetter<ProcessingStatus>;
@@ -240,7 +240,7 @@ const createProcessingWorker = () =>
   });
 
 export const terminateProcessingWorker = (
-  workerRef: MutableRef<Worker | null>,
+  workerRef: MutableState<Worker | null>,
   worker: Worker | null = workerRef.current,
 ) => {
   if (!worker) return;
@@ -261,7 +261,7 @@ const finishProcessingJob = ({
   setActivePage: (page: string) => void;
   setProcessingStatus: StateSetter<ProcessingStatus>;
   worker: Worker;
-  workerRef: MutableRef<Worker | null>;
+  workerRef: MutableState<Worker | null>;
 }) => {
   setProcessingStatus((prev) => ({ ...prev, state: "done" }));
   if (hasAnyProcessedResult) {
@@ -277,7 +277,7 @@ const failProcessingJob = ({
 }: {
   setProcessingStatus: StateSetter<ProcessingStatus>;
   worker: Worker;
-  workerRef: MutableRef<Worker | null>;
+  workerRef: MutableState<Worker | null>;
 }) => {
   setProcessingStatus((prev) => ({ ...prev, state: "error" }));
   terminateProcessingWorker(workerRef, worker);

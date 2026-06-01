@@ -1,12 +1,13 @@
 import { cx } from "src/utils/cx";
 import { ScrollbarController } from "src/cs/base/browser/ui/scrollbar/scrollbarController";
 import type { ScrollbarAxis } from "src/cs/base/browser/ui/scrollbar/scrollbarOptions";
+import type { ScrollEvent } from "src/cs/base/common/scrollable";
 
 export type ScrollbarOptions = {
   readonly axis?: ScrollbarAxis;
   readonly className?: string;
   readonly observeContentMutations?: boolean;
-  readonly onScroll?: (event: Event) => void;
+  readonly onScroll?: (event: ScrollEvent) => void;
   readonly viewportClassName?: string;
 };
 

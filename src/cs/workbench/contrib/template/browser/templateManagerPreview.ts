@@ -3,16 +3,16 @@
   getSelectionModeFromPointerEvent,
   resolveSelectionDragStart,
 } from "src/cs/workbench/services/table/browser/preview/previewSelectionNavigation";
-import { getExcelColumnLabel } from "src/cs/workbench/contrib/template/common/templateColumnLabel";type MutableRef<T> = { current: T };
+import { getExcelColumnLabel } from "src/cs/workbench/contrib/template/common/templateColumnLabel";type MutableState<T> = { current: T };
 type StateSetter<T> = (next: T | ((previous: T) => T)) => void;
-const useCallback = <T extends (...args: any[]) => any>(callback: T, _deps?: unknown[]): T => callback;
-const useEffect = (effect: () => void | (() => void), _deps?: unknown[]): void => {
+const memoCallback = <T extends (...args: any[]) => any>(callback: T, _deps?: unknown[]): T => callback;
+const runEffect = (effect: () => void | (() => void), _deps?: unknown[]): void => {
     effect();
 };
-const useLayoutEffect = useEffect;
-const useMemo = <T,>(factory: () => T, _deps?: unknown[]): T => factory();
-const useRef = <T,>(current: T): MutableRef<T> => ({ current });
-const useState = <T,>(initial: T | (() => T)): [T, StateSetter<T>] => {
+const runLayoutEffect = runEffect;
+const memoValue = <T,>(factory: () => T, _deps?: unknown[]): T => factory();
+const getMutableState = <T,>(current: T): MutableState<T> => ({ current });
+const createLocalState = <T,>(initial: T | (() => T)): [T, StateSetter<T>] => {
     let value = typeof initial === "function" ? (initial as () => T)() : initial;
     const setValue: StateSetter<T> = (next) => {
         value = typeof next === "function" ? (next as (previous: T) => T)(value) : next;
@@ -70,8 +70,8 @@ const normalizePreviewRange = (range: SelectionRange | null | undefined): Select
     return { startRow, endRow, startCol, endCol };
 };
 export const usePreviewPickHandler = ({ containerRef, writeFieldFromPreview, }: any) => {
-    const focusedInputNameRef = useRef("");
-    useEffect(() => {
+    const focusedInputNameRef = getMutableState("");
+    runEffect(() => {
         const root = containerRef.current;
         if (!root)
             return undefined;
@@ -104,7 +104,7 @@ export const usePreviewPickHandler = ({ containerRef, writeFieldFromPreview, }: 
             root.removeEventListener("focusout", handleFocusOut);
         };
     }, [containerRef]);
-    const resolvePreviewPickFieldName = useCallback(() => {
+    const resolvePreviewPickFieldName = memoCallback(() => {
         const activeName = (document.activeElement as
             | HTMLInputElement
             | null
@@ -116,7 +116,7 @@ export const usePreviewPickHandler = ({ containerRef, writeFieldFromPreview, }: 
             return fallbackName;
         return "";
     }, []);
-    const handlePreviewPick = useCallback(({ event, rowIndex, colIndex }: any) => {
+    const handlePreviewPick = memoCallback(({ event, rowIndex, colIndex }: any) => {
         const fieldName = resolvePreviewPickFieldName();
         const configField = PREVIEW_PICK_FIELD_TO_CONFIG_FIELD[fieldName as keyof typeof PREVIEW_PICK_FIELD_TO_CONFIG_FIELD];
         if (!configField)
@@ -494,12 +494,12 @@ export const buildPreviewColumnGeometry = ({ columnCount, columnWidthsPx, rowInd
     };
 };
 export const usePreviewColumnLayout = ({ autoColumnWidthsPx, columnCount, columnWidthOverridesByFile, liveColumnLayoutRef, minColumnWidthPx, overscanPx, previewFileId, previewScrollLeft, previewTableRef, previewViewportWidth, resizeMaxWidthPx, resizeMinWidthPx, rowIndexWidthPx, }: UsePreviewColumnLayoutArgs) => {
-    const columnWidthOverrides = useMemo(() => {
+    const columnWidthOverrides = memoValue(() => {
         if (!previewFileId)
             return {};
         return columnWidthOverridesByFile[previewFileId] ?? {};
     }, [columnWidthOverridesByFile, previewFileId]);
-    const columnWidthsPx = useMemo(() => {
+    const columnWidthsPx = memoValue(() => {
         const widths = new Array(columnCount);
         for (let i = 0; i < columnCount; i++) {
             const override = Number(columnWidthOverrides?.[i]);
@@ -518,7 +518,7 @@ export const usePreviewColumnLayout = ({ autoColumnWidthsPx, columnCount, column
         resizeMaxWidthPx,
         resizeMinWidthPx,
     ]);
-    const columnMetrics = useMemo(() => {
+    const columnMetrics = memoValue(() => {
         const safeColumnCount = Math.max(0, Math.floor(Number(columnCount) || 0));
         const widthsPx = new Array(safeColumnCount);
         const startOffsetsPx = new Array(safeColumnCount + 1);
@@ -539,7 +539,7 @@ export const usePreviewColumnLayout = ({ autoColumnWidthsPx, columnCount, column
             tableWidthPx: rowIndexWidthPx + totalDataWidthPx,
         };
     }, [columnCount, columnWidthsPx, minColumnWidthPx, rowIndexWidthPx]);
-    const previewColumnGeometry = useMemo(() => {
+    const previewColumnGeometry = memoValue(() => {
         const window = buildPreviewColumnWindow({
             columnCount: columnMetrics.columnCount,
             scrollLeft: previewScrollLeft,
@@ -584,7 +584,7 @@ export const usePreviewColumnLayout = ({ autoColumnWidthsPx, columnCount, column
         previewViewportWidth,
         rowIndexWidthPx,
     ]);
-    useLayoutEffect(() => {
+    runLayoutEffect(() => {
         const previousAppliedWidthVarCount = Number(liveColumnLayoutRef.current?.appliedWidthVarCount) || 0;
         const nextWidths = previewColumnGeometry.widthsPx.slice(0, columnCount);
         const nextTableWidth = previewColumnGeometry.tableWidthPx;
@@ -622,8 +622,8 @@ export const usePreviewColumnLayout = ({ autoColumnWidthsPx, columnCount, column
         previewFileId,
         previewTableRef,
     ]);
-    const getColumnWidthPx = useCallback((colIndex: number) => previewColumnGeometry.widthsPx[colIndex] ?? minColumnWidthPx, [minColumnWidthPx, previewColumnGeometry.widthsPx]);
-    const initLiveColumnLayout = useCallback((fileId?: string | null) => {
+    const getColumnWidthPx = memoCallback((colIndex: number) => previewColumnGeometry.widthsPx[colIndex] ?? minColumnWidthPx, [minColumnWidthPx, previewColumnGeometry.widthsPx]);
+    const initLiveColumnLayout = memoCallback((fileId?: string | null) => {
         if (!fileId) {
             liveColumnLayoutRef.current = createEmptyLiveColumnLayout();
             return liveColumnLayoutRef.current;
@@ -644,7 +644,7 @@ export const usePreviewColumnLayout = ({ autoColumnWidthsPx, columnCount, column
         previewColumnGeometry.tableWidthPx,
         previewColumnGeometry.widthsPx,
     ]);
-    const applyColumnWidthToDom = useCallback((fileId: string, colIndex: number, width: number) => {
+    const applyColumnWidthToDom = memoCallback((fileId: string, colIndex: number, width: number) => {
         if (!fileId)
             return;
         const live = liveColumnLayoutRef.current;
@@ -687,35 +687,35 @@ export const usePreviewColumnLayout = ({ autoColumnWidthsPx, columnCount, column
     };
 };
 export const usePreviewViewportSync = ({ onPreviewScrollFrame, previewFileId, previewRowHeightPx = 1, previewScrollRef, previewStatusState, resolvePreviewHorizontalScrollCommitThresholdPx, }: UsePreviewViewportSyncArgs): UsePreviewViewportSyncResult => {
-    const previewScrollTopRef = useRef(0);
-    const previewScrollLeftRef = useRef(0);
-    const previewCommittedScrollLeftRef = useRef(0);
-    const previousPreviewFileIdRef = useRef<string | null>(null);
-    const previewScrollCommitRafRef = useRef(0);
-    const previewScrollVelocityResetTimerRef = useRef(0);
-    const pendingPreviewScrollRef = useRef({
+    const previewScrollTopRef = getMutableState(0);
+    const previewScrollLeftRef = getMutableState(0);
+    const previewCommittedScrollLeftRef = getMutableState(0);
+    const previousPreviewFileIdRef = getMutableState<string | null>(null);
+    const previewScrollCommitRafRef = getMutableState(0);
+    const previewScrollVelocityResetTimerRef = getMutableState(0);
+    const pendingPreviewScrollRef = getMutableState({
         left: 0,
         top: 0,
     });
-    const previewScrollVelocitySampleRef = useRef({
+    const previewScrollVelocitySampleRef = getMutableState({
         left: 0,
         time: 0,
         top: 0,
     });
-    const [previewScrollTop, setPreviewScrollTop] = useState(0);
-    const [previewScrollLeft, setPreviewScrollLeft] = useState(0);
-    const [previewViewportHeight, setPreviewViewportHeight] = useState(0);
-    const [previewViewportWidth, setPreviewViewportWidth] = useState(0);
-    const [previewHorizontalScrollVelocityTier, setPreviewHorizontalScrollVelocityTier] = useState(0);
-    const [previewVerticalScrollVelocityTier, setPreviewVerticalScrollVelocityTier] = useState(0);
-    const [previewHorizontalScrollDirection, setPreviewHorizontalScrollDirection] = useState(0);
-    const [previewVerticalScrollDirection, setPreviewVerticalScrollDirection] = useState(0);
+    const [previewScrollTop, setPreviewScrollTop] = createLocalState(0);
+    const [previewScrollLeft, setPreviewScrollLeft] = createLocalState(0);
+    const [previewViewportHeight, setPreviewViewportHeight] = createLocalState(0);
+    const [previewViewportWidth, setPreviewViewportWidth] = createLocalState(0);
+    const [previewHorizontalScrollVelocityTier, setPreviewHorizontalScrollVelocityTier] = createLocalState(0);
+    const [previewVerticalScrollVelocityTier, setPreviewVerticalScrollVelocityTier] = createLocalState(0);
+    const [previewHorizontalScrollDirection, setPreviewHorizontalScrollDirection] = createLocalState(0);
+    const [previewVerticalScrollDirection, setPreviewVerticalScrollDirection] = createLocalState(0);
     const normalizedPreviewRowHeight = Math.max(1, Math.floor(Number(previewRowHeightPx) || 0));
-    const quantizeScrollTop = useCallback((scrollTop: number) => {
+    const quantizeScrollTop = memoCallback((scrollTop: number) => {
         const normalized = Math.max(0, Number(scrollTop) || 0);
         return Math.floor(normalized / normalizedPreviewRowHeight) * normalizedPreviewRowHeight;
     }, [normalizedPreviewRowHeight]);
-    const resolveScrollVelocityTier = useCallback((deltaPxPerSecond: number) => {
+    const resolveScrollVelocityTier = memoCallback((deltaPxPerSecond: number) => {
         const speed = Math.max(0, Number(deltaPxPerSecond) || 0);
         if (speed >= 1600)
             return 2;
@@ -723,7 +723,7 @@ export const usePreviewViewportSync = ({ onPreviewScrollFrame, previewFileId, pr
             return 1;
         return 0;
     }, []);
-    const scheduleScrollVelocityIdleReset = useCallback(() => {
+    const scheduleScrollVelocityIdleReset = memoCallback(() => {
         if (typeof window === "undefined")
             return;
         if (previewScrollVelocityResetTimerRef.current) {
@@ -737,7 +737,7 @@ export const usePreviewViewportSync = ({ onPreviewScrollFrame, previewFileId, pr
             setPreviewVerticalScrollDirection((prev) => (prev === 0 ? prev : 0));
         }, 140);
     }, []);
-    const commitPreviewScroll = useCallback(() => {
+    const commitPreviewScroll = memoCallback(() => {
         previewScrollCommitRafRef.current = 0;
         const pendingScroll = pendingPreviewScrollRef.current;
         const rawScrollTop = Number(pendingScroll.top) || 0;
@@ -805,7 +805,7 @@ export const usePreviewViewportSync = ({ onPreviewScrollFrame, previewFileId, pr
         resolveScrollVelocityTier,
         scheduleScrollVelocityIdleReset,
     ]);
-    const schedulePreviewScrollCommit = useCallback(() => {
+    const schedulePreviewScrollCommit = memoCallback(() => {
         if (typeof window === "undefined") {
             commitPreviewScroll();
             return;
@@ -816,14 +816,14 @@ export const usePreviewViewportSync = ({ onPreviewScrollFrame, previewFileId, pr
             commitPreviewScroll();
         });
     }, [commitPreviewScroll]);
-    const handlePreviewScroll = useCallback((scrollTop: number, scrollLeft: number) => {
+    const handlePreviewScroll = memoCallback((scrollTop: number, scrollLeft: number) => {
         pendingPreviewScrollRef.current = {
             left: Math.max(0, Number(scrollLeft) || 0),
             top: Math.max(0, Number(scrollTop) || 0),
         };
         schedulePreviewScrollCommit();
     }, [schedulePreviewScrollCommit]);
-    useEffect(() => {
+    runEffect(() => {
         const el = previewScrollRef.current;
         if (!el)
             return undefined;
@@ -895,7 +895,7 @@ export const usePreviewViewportSync = ({ onPreviewScrollFrame, previewFileId, pr
                 cancelAnimationFrame(retryMeasureRafId);
         };
     }, [previewFileId, previewScrollRef, previewStatusState]);
-    useEffect(() => {
+    runEffect(() => {
         return () => {
             if (typeof window !== "undefined" &&
                 previewScrollVelocityResetTimerRef.current) {
@@ -908,7 +908,7 @@ export const usePreviewViewportSync = ({ onPreviewScrollFrame, previewFileId, pr
             }
         };
     }, []);
-    useEffect(() => {
+    runEffect(() => {
         // File switch must reset viewport to top-left; otherwise virtualization
         // starts from previous file's scroll offset and appears to "drop" top rows.
         const el = previewScrollRef.current;
@@ -1019,7 +1019,7 @@ export const buildPreviewRowWindow = ({ overscanRows, rowCount, rowHeightPx, scr
 };
 export const usePreviewRowWindow = ({ ensurePreviewRows, overscanRows, prefetchRowsAfter, prefetchRowsBefore, previewFileId, previewRowCount, previewScrollTop, previewViewportHeight, rowHeightPx, windowShiftStrideRows, }: UsePreviewRowWindowArgs): PreviewRowWindow => {
     const resolvedWindowShiftStrideRows = Math.max(1, Math.floor(Number(windowShiftStrideRows) || Number(overscanRows) || 1));
-    const previewWindow = useMemo(() => buildPreviewRowWindow({
+    const previewWindow = memoValue(() => buildPreviewRowWindow({
         overscanRows,
         rowCount: previewRowCount,
         rowHeightPx,
@@ -1034,7 +1034,7 @@ export const usePreviewRowWindow = ({ ensurePreviewRows, overscanRows, prefetchR
         rowHeightPx,
         resolvedWindowShiftStrideRows,
     ]);
-    const previewPrefetchRange = useMemo(() => {
+    const previewPrefetchRange = memoValue(() => {
         return buildPreviewPrefetchRangeFromWindow({
             prefetchRowsAfter,
             prefetchRowsBefore,
@@ -1047,7 +1047,7 @@ export const usePreviewRowWindow = ({ ensurePreviewRows, overscanRows, prefetchR
         previewRowCount,
         previewWindow,
     ]);
-    useEffect(() => {
+    runEffect(() => {
         if (!previewFileId)
             return;
         if (typeof ensurePreviewRows !== "function")
@@ -1063,14 +1063,14 @@ export const usePreviewRowWindow = ({ ensurePreviewRows, overscanRows, prefetchR
     return previewWindow;
 };
 export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewRow, gridRef, handlePreviewPick, hideDragOverlay, previewFileId, previewScrollRef, renderDragOverlay, selections, setSelectionRange, setSelections, }: UsePreviewSelectionInteractionsArgs) => {
-    const dragRef = useRef<SelectionDragState>(createEmptySelectionDragState());
-    const selectionAnchorRef = useRef<SelectionPoint | null>(null);
-    const isDraggingRef = useRef(false);
-    const rafRef = useRef(0);
-    const autoScrollRafRef = useRef(0);
-    const pendingPointRef = useRef<PointerPoint | null>(null);
-    const lastPointerRef = useRef<PointerPoint | null>(null);
-    const computeEdgeScrollDelta = useCallback((pointer: number, edgeStart: number, edgeEnd: number) => {
+    const dragRef = getMutableState<SelectionDragState>(createEmptySelectionDragState());
+    const selectionAnchorRef = getMutableState<SelectionPoint | null>(null);
+    const isDraggingRef = getMutableState(false);
+    const rafRef = getMutableState(0);
+    const autoScrollRafRef = getMutableState(0);
+    const pendingPointRef = getMutableState<PointerPoint | null>(null);
+    const lastPointerRef = getMutableState<PointerPoint | null>(null);
+    const computeEdgeScrollDelta = memoCallback((pointer: number, edgeStart: number, edgeEnd: number) => {
         if (!Number.isFinite(pointer))
             return 0;
         const zone = PREVIEW_DRAG_EDGE_SCROLL_ZONE_PX;
@@ -1084,7 +1084,7 @@ export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewR
         }
         return 0;
     }, []);
-    const clearSelection = useCallback(() => {
+    const clearSelection = memoCallback(() => {
         if (typeof setSelectionRange === "function") {
             setSelectionRange(null, { mode: "replace" });
         }
@@ -1106,7 +1106,7 @@ export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewR
         lastPointerRef.current = null;
         hideDragOverlay();
     }, [hideDragOverlay, setSelectionRange, setSelections]);
-        const handleCellMouseDown = useCallback((event: any) => {
+        const handleCellMouseDown = memoCallback((event: any) => {
         if (event.button !== 0)
             return;
         if (event.target?.tagName === "INPUT")
@@ -1165,7 +1165,7 @@ export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewR
         lastPointerRef.current = { x: event.clientX, y: event.clientY };
         renderDragOverlay(cellEl, cellEl);
     }, [handlePreviewPick, renderDragOverlay, setSelectionRange, setSelections]);
-    useEffect(() => {
+    runEffect(() => {
         const last = Array.isArray(selections) ? selections[selections.length - 1] : null;
         const range = last?.range;
         if (!range) {
@@ -1177,7 +1177,7 @@ export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewR
             colIndex: Math.max(0, Math.floor(Number(range.startCol) || 0)),
         };
     }, [previewFileId, selections]);
-    useEffect(() => {
+    runEffect(() => {
         const updateDragFromPoint = (clientX: number, clientY: number) => {
             if (!isDraggingRef.current)
                 return;
@@ -1339,13 +1339,13 @@ export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewR
             }
         };
     }, [computeEdgeScrollDelta, gridRef, hideDragOverlay, previewScrollRef, renderDragOverlay, setSelectionRange, setSelections]);
-    useEffect(() => {
+    runEffect(() => {
         const timeout = window.setTimeout(() => {
             clearSelection();
         }, 0);
         return () => window.clearTimeout(timeout);
     }, [clearSelection, previewFileId]);
-    const buildSelectionTsv = useCallback(() => {
+    const buildSelectionTsv = memoCallback(() => {
         if (!previewFileId || selections.length === 0)
             return "";
         if (typeof getPreviewRow !== "function")
@@ -1368,7 +1368,7 @@ export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewR
         });
         return blocks.join("\n\n");
     }, [getPreviewRow, previewFileId, selections]);
-    const copySelection = useCallback(async () => {
+    const copySelection = memoCallback(async () => {
         if (!previewFileId)
             return;
         if (typeof ensurePreviewRows === "function") {
@@ -1399,9 +1399,9 @@ export const usePreviewSelectionInteractions = ({ ensurePreviewRows, getPreviewR
     };
 };
 export const usePreviewSelectionOverlay = ({ dragOverlayRef, gridRef, previewColumnGeometry, previewFileId, previewTableRef, previewWindow, rowHeightPx, rowIndexWidthPx, selections, }: UsePreviewSelectionOverlayArgs) => {
-    const [selectionRects, setSelectionRects] = useState<SelectionRect[]>([]);
-    const [activeCellRect, setActiveCellRect] = useState<RectLike | null>(null);
-    const hideDragOverlay = useCallback(() => {
+    const [selectionRects, setSelectionRects] = createLocalState<SelectionRect[]>([]);
+    const [activeCellRect, setActiveCellRect] = createLocalState<RectLike | null>(null);
+    const hideDragOverlay = memoCallback(() => {
         const overlay = dragOverlayRef.current;
         if (!overlay)
             return;
@@ -1410,7 +1410,7 @@ export const usePreviewSelectionOverlay = ({ dragOverlayRef, gridRef, previewCol
         overlay.style.height = "0px";
         overlay.style.transform = "translate3d(0px, 0px, 0)";
     }, [dragOverlayRef]);
-    const getRectFromCells = useCallback((startCellEl: Element | null, endCellEl: Element | null): RectLike | null => {
+    const getRectFromCells = memoCallback((startCellEl: Element | null, endCellEl: Element | null): RectLike | null => {
         const gridEl = gridRef.current;
         if (!gridEl || !startCellEl || !endCellEl)
             return null;
@@ -1428,7 +1428,7 @@ export const usePreviewSelectionOverlay = ({ dragOverlayRef, gridRef, previewCol
             height: bottom - top,
         };
     }, [gridRef]);
-    const getRectFromRange = useCallback((range: SelectionRange | null | undefined): RectLike | null => {
+    const getRectFromRange = memoCallback((range: SelectionRange | null | undefined): RectLike | null => {
         if (!range)
             return null;
         const startRow = Number(range.startRow);
@@ -1476,7 +1476,7 @@ export const usePreviewSelectionOverlay = ({ dragOverlayRef, gridRef, previewCol
         rowHeightPx,
         rowIndexWidthPx,
     ]);
-    useLayoutEffect(() => {
+    runLayoutEffect(() => {
         const next: SelectionRect[] = [];
         for (const selection of Array.isArray(selections) ? selections : []) {
             if (!selection?.id)
@@ -1525,7 +1525,7 @@ export const usePreviewSelectionOverlay = ({ dragOverlayRef, gridRef, previewCol
         previewWindow.startRow,
         selections,
     ]);
-    const renderDragOverlay = useCallback((startCellEl: Element, endCellEl: Element) => {
+    const renderDragOverlay = memoCallback((startCellEl: Element, endCellEl: Element) => {
         const overlay = dragOverlayRef.current;
         const rect = getRectFromCells(startCellEl, endCellEl);
         if (!overlay || !rect)
