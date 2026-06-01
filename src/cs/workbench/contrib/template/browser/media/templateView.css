@@ -24,14 +24,23 @@
   gap: 0.75rem;
 }
 
+.template_form--save {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.template_field_label {
+  margin-bottom: 0.25rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: rgb(var(--text-secondary) / 1);
+}
+
 .template_field {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  font-size: 0.75rem;
-  line-height: 1rem;
-  --tw-text-opacity: 1;
-  color: rgb(var(--text-secondary) / var(--tw-text-opacity, 1));
 }
 
 .template_field_input {
@@ -42,6 +51,7 @@
 }
 
 .template_meta {
+  margin-top: 0.25rem;
   font-size: 0.75rem;
   line-height: 1rem;
   --tw-text-opacity: 1;
@@ -95,6 +105,10 @@
   overflow: visible;
 }
 
+.template_spacer {
+  flex: 1 1 0%;
+}
+
 .template_select_menu_surface {
   min-width: 14rem;
 }
@@ -103,12 +117,19 @@
   width: 100%;
 }
 
+.template_select_field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
 .template_select_actions {
   overflow: visible;
 }
 
 .template_select_actions .ui-menu-button {
   height: 32px;
+  font-weight: 500;
 }
 
 .template_select_menu_create {
@@ -132,6 +153,9 @@
   min-width: 0;
   height: 32px;
   border-radius: 0.5rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
 }
 
 .template_apply_actions {
@@ -141,6 +165,85 @@
   gap: 0.375rem;
   padding-top: 0.25rem;
   overflow: visible;
+}
+
+.template_divider {
+  height: 1px;
+  margin: 0.25rem 0;
+  background-color: rgb(var(--border) / 1);
+}
+
+.template_toggle_rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.template_toggle_row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 2rem;
+  padding: 0.25rem 0;
+}
+
+.template_toggle_title {
+  min-width: 0;
+  flex: 1 1 0%;
+}
+
+.template_toggle_label {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: rgb(var(--text-secondary) / 1);
+}
+
+.template_toggle_control {
+  display: inline-flex;
+  align-items: center;
+}
+
+.template_auto_card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  border: 1px dashed rgb(var(--border) / 1);
+  border-radius: 0.5rem;
+  background-color: rgb(var(--bg-page) / 1);
+  padding: 0.75rem;
+}
+
+.template_auto_card_title {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 600;
+  color: rgb(var(--text-primary) / 1);
+}
+
+.template_auto_card_description {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: rgb(var(--text-secondary) / 1);
+}
+
+.template_save_actions {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 0.5rem;
+  padding-top: 0.5rem;
+}
+
+.template_save_button {
+  height: 38px;
+  border-radius: 0.5rem;
+}
+
+.template_save_button--secondary {
+  border: 1px solid rgb(var(--border) / 1);
 }
 
 .data_preview_area--joined_cards .template_table_card {

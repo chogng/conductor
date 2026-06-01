@@ -5,6 +5,8 @@
   --switch-thumb-size: calc(var(--switch-height) - (var(--switch-padding) * 2));
   --switch-off: rgb(var(--bg-300) / 1);
   --switch-off-hover: rgb(var(--bg-400) / 1);
+  --switch-on: #168a63;
+  --switch-on-hover: #0f7a56;
   --switch-thumb: rgb(var(--bg-surface) / 1);
 
   position: relative;

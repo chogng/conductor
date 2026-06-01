@@ -2,7 +2,7 @@ import type { RawDataEntry } from "src/cs/workbench/common/deviceAnalysis/shared
 import {
   buildFileIdentityKey,
   buildItemKey,
-  createCsvImporterFileId,
+  createImportFileId,
 } from "src/cs/workbench/contrib/import/preview/csvImportUtils";
 import { importService } from "src/cs/workbench/services/import/browser/importService";
 
@@ -100,7 +100,7 @@ const createDemoRawDataEntry = (
 
   return {
     file,
-    fileId: createCsvImporterFileId(),
+    fileId: createImportFileId(),
     fileName: source.fileName,
     itemKey: buildItemKey(file),
     sourcePath: source.sourcePath,

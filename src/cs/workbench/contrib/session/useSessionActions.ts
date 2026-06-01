@@ -100,10 +100,33 @@ export const createSessionActions = ({
     disposePreviewFileCache(fileId);
   };
 
+  const handleFileSelected = (fileId: string | null) => {
+    if (!fileId) {
+      setSelectedPreviewFileId(null);
+      return;
+    }
+
+    const hasMatchingFile = rawData.some((entry) => entry?.fileId === fileId);
+    if (!hasMatchingFile) {
+      return;
+    }
+
+    const isSelectionChanging = selectedPreviewFileId !== fileId;
+    if (isSelectionChanging) {
+      invalidatePreviewRequests();
+      if (previewFile?.fileId && previewFile.fileId !== fileId) {
+        clearPreviewState();
+      }
+    }
+
+    setSelectedPreviewFileId(fileId);
+  };
+
   return {
     handleClearSession,
     handleDataImported,
     handleDataRemoved,
+    handleFileSelected,
     hasSessionData,
   };
 };

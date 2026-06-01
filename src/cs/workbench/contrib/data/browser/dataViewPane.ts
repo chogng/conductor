@@ -1,5 +1,5 @@
 import type { TranslateFn } from "src/cs/platform/language/common/language";
-import type { ImporterViewProps } from "src/cs/workbench/contrib/import/browser/importerView";
+import type { RawDataEntry } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import TemplateViewPane, {
   type TemplateViewPaneProps,
 } from "src/cs/workbench/contrib/template/browser/templateViewPane";
@@ -11,13 +11,13 @@ export type DataViewPaneProps = {
   readonly ensurePreviewRows?: TemplateViewPaneProps["ensurePreviewRows"];
   readonly getPreviewRow?: TemplateViewPaneProps["getPreviewRow"];
   readonly getPreviewRowsVersion?: TemplateViewPaneProps["getPreviewRowsVersion"];
-  readonly importerElement?: HTMLElement | null;
+  readonly importSessionElement?: HTMLElement | null;
   readonly onTemplateApplied?: TemplateViewPaneProps["onTemplateApplied"];
   readonly onTemplateAppliedIncremental?: TemplateViewPaneProps["onTemplateAppliedIncremental"];
   readonly onUpdateSettings?: TemplateViewPaneProps["onUpdateSettings"];
   readonly previewFile?: TemplateViewPaneProps["previewFile"];
   readonly previewStatus?: TemplateViewPaneProps["previewStatus"];
-  readonly rawData?: ImporterViewProps["files"];
+  readonly rawData?: RawDataEntry[];
   readonly subscribePreviewRowsVersion?: TemplateViewPaneProps["subscribePreviewRowsVersion"];
   readonly t: TranslateFn;
 };
@@ -41,13 +41,13 @@ export class DataViewPane {
 }
 
 const toTemplateProps = ({
-  importerElement: _importerElement,
+  importSessionElement: _importSessionElement,
   rawData = [],
   ...props
 }: DataViewPaneProps): TemplateViewPaneProps => ({
   ...props,
   rawData,
-  importerElement: _importerElement ?? null,
+  importSessionElement: _importSessionElement ?? null,
 });
 
 export default DataViewPane;

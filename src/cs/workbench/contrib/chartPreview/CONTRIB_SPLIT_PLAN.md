@@ -460,7 +460,7 @@ Migration direction:
 
 Known 旧视图 retirement areas:
 
-- `import/browser/importerViewlet.ts`
+- `import/browser/importSessionViewlet.ts`
 - `session/SessionProvider.旧视图`
 - `template/TemplateManager.旧视图`
 - `template/TemplateManagerPreviewPanel.旧视图`

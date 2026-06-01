@@ -5,13 +5,13 @@ import type { ImportSourceFile } from "src/cs/workbench/contrib/import/browser/i
 import { prepareImportFileInWorker } from "src/cs/workbench/contrib/import/browser/rustClient";
 import { isSupportedDataImportFileName } from "src/cs/workbench/contrib/import/common/constants";
 import type {
-  ImportedFileInfo,
+  ImportSessionFileInfo,
 } from "src/cs/workbench/contrib/import/common/types";
 import {
   buildEntrySourceKey,
   buildFileIdentityKey,
   buildItemKey,
-  createCsvImporterFileId,
+  createImportFileId,
 } from "src/cs/workbench/contrib/import/common/utils";
 
 export type SessionFileEntry = FileEntry & {
@@ -37,7 +37,7 @@ export type PendingImportsResult = {
 
 export type PreparedImportFile = {
   readonly fileEntry: SessionFileEntry;
-  readonly fileInfo: ImportedFileInfo;
+  readonly fileInfo: ImportSessionFileInfo;
 };
 
 export const collectPendingImports = (
@@ -127,7 +127,7 @@ export const prepareImportFile = async (
     return null;
   }
 
-  const fileId = createCsvImporterFileId();
+  const fileId = createImportFileId();
   const fileEntry: SessionFileEntry = {
     fileId,
     file: normalizedFile,
@@ -141,7 +141,7 @@ export const prepareImportFile = async (
     curveTypeNeedsTemplate: curveAssessment.curveTypeNeedsTemplate,
     curveTypeReasons: curveAssessment.curveTypeReasons,
   };
-  const fileInfo: ImportedFileInfo = {
+  const fileInfo: ImportSessionFileInfo = {
     fileId,
     fileName: sourceFile.name,
     file: normalizedFile,

@@ -15,8 +15,8 @@ import {
 } from "src/cs/workbench/contrib/files/browser/fileListView";
 import type { FileEntry } from "src/cs/workbench/contrib/files/common/files";
 import {
-  type ImportedFileInfo,
-  type ImporterRef,
+  type ImportSessionFileInfo,
+  type ImportSessionRef,
 } from "src/cs/workbench/contrib/import/common/types";
 import {
   buildEntrySourceKey,
@@ -24,27 +24,27 @@ import {
 } from "src/cs/workbench/contrib/import/common/utils";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 
-export type ImporterViewProps = {
+export type ImportSessionProps = {
   files?: FileEntry[];
-  onDataImported?: (fileInfo: ImportedFileInfo) => void;
+  onDataImported?: (fileInfo: ImportSessionFileInfo) => void;
   onDataRemoved?: (fileId: string) => void;
   onFileSelected?: (fileId: string | null) => void;
   selectedFileId?: string | null;
 };
 
-export type ImporterViewControllerProps = ImporterViewProps & {
+export type ImportSessionControllerProps = ImportSessionProps & {
   readonly t: TranslateFn;
 };
 
-export type { ImportedFileInfo, ImporterRef };
+export type { ImportSessionFileInfo, ImportSessionRef };
 
 const IMPORT_PREPARE_CONCURRENCY = 2;
 
-export class ImporterViewController implements ImporterRef, IDisposable {
+export class ImportSessionController implements ImportSessionRef, IDisposable {
   private readonly listRef: { current: ListHandle | null } = { current: null };
   private readonly shouldAutoScrollToBottomRef = { current: true };
   private fileListView: FileListView | null = null;
-  private props: ImporterViewControllerProps;
+  private props: ImportSessionControllerProps;
   private internalFiles: SessionFileEntry[] = [];
   private error: string | null = null;
   private isDragging = false;
@@ -52,7 +52,7 @@ export class ImporterViewController implements ImporterRef, IDisposable {
   private prevFileCount = 0;
   private disposed = false;
 
-  constructor(host: HTMLElement, props: ImporterViewControllerProps) {
+  constructor(host: HTMLElement, props: ImportSessionControllerProps) {
     this.props = props;
     this.prevFileCount = this.files.length;
     this.optimisticSelectedFileId = props.selectedFileId ?? null;
@@ -71,7 +71,7 @@ export class ImporterViewController implements ImporterRef, IDisposable {
     this.fileListView?.openFileDialog();
   }
 
-  setProps(nextProps: ImporterViewControllerProps): void {
+  setProps(nextProps: ImportSessionControllerProps): void {
     const previousSelectedFileId = this.props.selectedFileId ?? null;
     this.props = nextProps;
 

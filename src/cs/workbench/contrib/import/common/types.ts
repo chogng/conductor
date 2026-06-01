@@ -1,3 +1,4 @@
+import type { RawDataEntry } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import type { FileEntry } from "src/cs/workbench/contrib/files/common/files";
 
 export type ImportAxisRole = "vg" | "vd" | null;
@@ -10,9 +11,9 @@ export type ImportAxisRoleSource =
   | "shape"
   | null;
 
-export type ImporterFileEntry = FileEntry;
+export type ImportSessionFileEntry = FileEntry;
 
-export type ImportedFileInfo = {
+export type ImportSessionFileInfo = RawDataEntry & {
   fileId: string;
   fileName: string;
   file: File;
@@ -30,7 +31,7 @@ export type ImportedFileInfo = {
   xAxisRoleSource?: ImportAxisRoleSource;
 };
 
-export type ImporterRef = {
+export type ImportSessionRef = {
   openFileDialog: () => void;
   hasFiles: boolean;
 };

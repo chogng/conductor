@@ -17,11 +17,6 @@ export type SwitchOptions = {
   readonly testId?: string;
 };
 
-const DEFAULT_SWITCH_STYLE = {
-  "--switch-on": "#168a63",
-  "--switch-on-hover": "#0f7a56",
-} satisfies SwitchStyleVars;
-
 const getSwitchClassName = ({
   className = "",
 }: Pick<SwitchOptions, "className"> = {}): string => {
@@ -34,10 +29,7 @@ const getSwitchClassName = ({
 
 const getSwitchStyle = ({
   style,
-}: Pick<SwitchOptions, "style"> = {}): SwitchStyleVars => ({
-  ...DEFAULT_SWITCH_STYLE,
-  ...style,
-});
+}: Pick<SwitchOptions, "style"> = {}): SwitchStyleVars => style ?? {};
 
 const getSwitchDataAttributes = ({
   checked = false,

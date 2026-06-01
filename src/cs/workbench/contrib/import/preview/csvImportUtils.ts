@@ -30,7 +30,7 @@ export const toDomIdToken = (value: unknown): string =>
     .replace(/[^a-zA-Z0-9_-]/g, "_")
     .slice(0, 120);
 
-export const createCsvImporterFileId = (): string => {
+export const createImportFileId = (): string => {
   if (
     typeof crypto !== "undefined" &&
     typeof crypto.randomUUID === "function"

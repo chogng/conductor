@@ -25,8 +25,8 @@ import {
 } from "src/cs/workbench/browser/window";
 import ChartPreviewViewPane from "src/cs/workbench/contrib/chartPreview/browser/chartPreviewViewPane";
 import DataViewPane from "src/cs/workbench/contrib/data/browser/dataViewPane";
-import { ImporterViewletHost } from "src/cs/workbench/contrib/import/browser/importerViewletHost";
-import type { ImporterRef } from "src/cs/workbench/contrib/import/common/types";
+import { ImportSessionViewletHost } from "src/cs/workbench/contrib/import/browser/importSessionViewletHost";
+import type { ImportSessionRef } from "src/cs/workbench/contrib/import/common/types";
 import { useProcessing } from "src/cs/workbench/contrib/data/useProcessing";
 import { SessionModel } from "src/cs/workbench/contrib/session/sessionModel";
 import { defaultSessionModel } from "src/cs/workbench/contrib/session/useSession";
@@ -120,9 +120,9 @@ const createTranslator = (): TranslateFn => {
 export class Workbench extends Layout {
   private readonly window: WorkbenchWindow;
   private t = createTranslator();
-  private readonly importerRef: { current: ImporterRef | null } = { current: null };
+  private readonly importSessionRef: { current: ImportSessionRef | null } = { current: null };
   private readonly session = defaultSessionModel;
-  private readonly importer: ImporterViewletHost;
+  private readonly importSession: ImportSessionViewletHost;
   private readonly data: DataViewPane;
   private readonly analysis: ChartPreviewViewPane;
   private readonly settings: SettingsViewPane;
@@ -154,7 +154,7 @@ export class Workbench extends Layout {
       throw new Error("Workbench requires ITableService.");
     }
     this.tableService = options.tableService;
-    this.importer = this._register(new ImporterViewletHost(this.getImporterProps()));
+    this.importSession = this._register(new ImportSessionViewletHost(this.getImportSessionProps()));
     this.data = this._register(new DataViewPane(this.getDataProps()));
     this.analysis = this._register(new ChartPreviewViewPane(this.getAnalysisProps()));
     this.settings = this._register(new SettingsViewPane(this.getSettingsProps()));
@@ -184,7 +184,7 @@ export class Workbench extends Layout {
     const previewBindings = this.getPreviewBindings(snapshot);
     const processingBindings = this.getProcessingBindings(snapshot, previewBindings);
 
-    this.importer.update(this.getImporterProps(
+    this.importSession.update(this.getImportSessionProps(
       snapshot,
       previewBindings,
       processingBindings,
@@ -197,7 +197,7 @@ export class Workbench extends Layout {
     this.analysis.update(this.getAnalysisProps(snapshot, processingBindings));
     this.settings.update(this.getSettingsProps());
     this.setParts({
-      sidebar: this.importer.element,
+      sidebar: this.importSession.element,
       data: this.data.element,
       analysis: this.analysis.element,
       settings: this.settings.element,
@@ -239,7 +239,7 @@ export class Workbench extends Layout {
     };
   }
 
-  private getImporterProps(
+  private getImportSessionProps(
     snapshot = this.session.getSnapshot(),
     previewBindings = this.getPreviewBindings(snapshot),
     processingBindings = this.getProcessingBindings(snapshot, previewBindings),
@@ -264,12 +264,12 @@ export class Workbench extends Layout {
     });
 
     return {
-      importerRef: this.importerRef,
+      importSessionRef: this.importSessionRef,
+      importedFiles: snapshot.rawData,
       onDataImported: sessionActions.handleDataImported,
       onDataRemoved: sessionActions.handleDataRemoved,
-      onFileSelected: previewBindings.handlePreviewFileSelected,
-      rawData: snapshot.rawData,
-      selectedPreviewFileId: snapshot.selectedPreviewFileId,
+      onFileSelected: sessionActions.handleFileSelected,
+      selectedFileId: snapshot.selectedPreviewFileId,
       t: this.t,
     };
   }
@@ -285,7 +285,7 @@ export class Workbench extends Layout {
       ensurePreviewRows: previewBindings.ensurePreviewRows,
       getPreviewRow: previewBindings.getPreviewRow,
       getPreviewRowsVersion: previewBindings.getPreviewRowsVersion,
-      importerElement: null,
+      importSessionElement: null,
       onTemplateApplied: processingBindings.handleTemplateApplied,
       onTemplateAppliedIncremental: processingBindings.handleTemplateAppliedIncremental,
       onUpdateSettings: this.coreSettingsState.handleUpdateAnalysisSettings,

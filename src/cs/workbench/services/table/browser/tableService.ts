@@ -1226,15 +1226,6 @@ const createPreviewBindings = ({
     ],
   );
 
-  const handlePreviewFileSelected = memoCallback(
-    (fileId: unknown) => {
-      const nextFileId = typeof fileId === "string" ? fileId : null;
-      if (!nextFileId || !rawDataById.has(nextFileId)) return;
-      setSelectedPreviewFileId(nextFileId);
-    },
-    [rawDataById, setSelectedPreviewFileId],
-  );
-
   return {
     cancelPendingPreviewRowRequests,
     clearPreviewState,
@@ -1243,7 +1234,6 @@ const createPreviewBindings = ({
     ensurePreviewRows,
     getPreviewRow,
     getPreviewRowsVersion,
-    handlePreviewFileSelected,
     invalidatePreviewRequests,
     rawDataById,
     rawDataByIdRef,

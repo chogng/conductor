@@ -134,9 +134,19 @@ const replacePane = (
   if (!element) {
     return;
   }
-  element.replaceChildren();
+
+  const currentChild = element.firstChild;
   if (content) {
-    element.append(content);
+    if (currentChild === content && element.childNodes.length === 1) {
+      return;
+    }
+
+    element.replaceChildren(content);
+    return;
+  }
+
+  if (currentChild) {
+    element.replaceChildren();
   }
 };
 

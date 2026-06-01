@@ -47,7 +47,6 @@ export type TableBindings = {
   ) => Promise<void>;
   getPreviewRow: (rowIndex: number) => unknown[] | null;
   getPreviewRowsVersion: () => number;
-  handlePreviewFileSelected: (fileId: unknown) => void;
   invalidatePreviewRequests: () => void;
   rawDataById: Map<string, RawDataEntry>;
   rawDataByIdRef: MutableState<Map<string, RawDataEntry>>;

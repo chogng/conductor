@@ -1,7 +1,7 @@
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/previewPart";
 import {
-  createTemplateManager,
+  TemplateManagerView,
   type TemplateManagerProps,
 } from "src/cs/workbench/contrib/template/browser/templateView";
 
@@ -15,6 +15,8 @@ export type TemplateViewPaneProps = TemplateManagerProps & {
 export class TemplateViewPane {
   public readonly element: HTMLElement;
   private readonly contentElement: HTMLElement;
+  private managerView: TemplateManagerView | null = null;
+  private customContent: Node | null = null;
 
   constructor(props: TemplateViewPaneProps) {
     this.contentElement = document.createElement("div");
@@ -29,16 +31,34 @@ export class TemplateViewPane {
   }
 
   public update(props: TemplateViewPaneProps): void {
-    this.contentElement.replaceChildren();
     if (props.content) {
-      this.contentElement.append(props.content);
+      this.managerView?.dispose();
+      this.managerView = null;
+      if (this.customContent !== props.content) {
+        this.contentElement.replaceChildren(props.content);
+      }
+      this.customContent = props.content;
       return;
     }
 
-    this.contentElement.append(createTemplateManager(props));
+    if (this.customContent) {
+      this.contentElement.replaceChildren();
+      this.customContent = null;
+    }
+
+    if (!this.managerView) {
+      this.managerView = new TemplateManagerView(props);
+      this.contentElement.replaceChildren(this.managerView.element);
+      return;
+    }
+
+    this.managerView.update(props);
   }
 
   public dispose(): void {
+    this.managerView?.dispose();
+    this.managerView = null;
+    this.customContent = null;
     this.contentElement.replaceChildren();
     this.element.remove();
   }
