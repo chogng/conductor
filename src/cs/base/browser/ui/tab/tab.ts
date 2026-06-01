@@ -1,6 +1,6 @@
 import { normalizeCtaName, normalizeCtaToken } from "src/utils/cta";
 
-import "src/cs/base/browser/ui/tabs/tab.css";
+import "src/cs/base/browser/ui/tab/tab.css";
 
 export type TabValue = string | number;
 export type TabSize = "sm" | "md";

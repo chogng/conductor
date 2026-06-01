@@ -77,6 +77,7 @@ PowerShell 规则：
 UI 和 CSS：
 - `src/cs/base/browser/ui` 下的组件按上游风格组织为“组件目录 + 同名实现文件”，不要添加 `index.ts` 入口文件。
 - 新 UI 用上游式 TypeScript 创建和组合 DOM。
+- base UI 组件的 TypeScript 只负责 DOM 结构、交互语义、ARIA、状态 class 和必要的尺寸 token；具体 height、padding、font-size、颜色、边框、阴影等默认视觉写在同目录 CSS 中，业务场景需要特殊尺寸或外观时由调用方传局部 class 并在业务 CSS 覆盖，不把业务化变体沉到 base 组件里。
 - 新增或触碰 `src/cs/base/browser/ui` 代码时，不再引入全局 class 拼接工具（例如 `src/utils/cx`）；固定 class 直接写，少量可选 class 用三元拼接，多条件 class 用局部 `classNames` 数组 `push` 后 `join(' ')`。
 - UI 状态 class 优先用 `classList.add/remove/toggle`，或用 `data-*`、ARIA 属性交给 CSS 承接；不要为了条件 class 新增全局 helper。
 - DOM 只表达语义和交互：容器、按钮、列表、输入、状态区域。颜色、间距、边框、显示/隐藏、选中/禁用等视觉表现写进 CSS。
@@ -141,8 +142,10 @@ Contribution、Command、Context Key、Configuration：
 - 底层 service 负责记录技术错误和上下文，controller/view 决定是否展示用户通知；service/model/parser 不直接弹 UI。
 - 用户可见错误要面向用户任务，日志保留技术细节；不要把 stack、IPC channel、文件系统内部路径直接展示给用户。
 - 不吞异常，不空 `catch`。如果确实忽略错误，必须写清楚原因，并限制在最小范围。
-- 用户可见文案按项目现有 localize/nls 机制写；不要在 view/service/model 里散落硬编码文案。
-- service/model/parser 返回错误码、状态和必要参数；最终用户文案由 UI/controller 层组织。
+- 用户可见文案统一使用 `src/cs/nls` 的 `localize(...)`，不要新增第二套 i18n/service 封装。
+- 谁最终生成用户可见字符串，谁负责调用 `localize(...)`：view/widget 负责按钮、标题、空状态、tooltip、ARIA；contribution/action 负责命令、菜单、action label；controller/browser service 负责 notification/dialog 文案。
+- common/model/parser/node/electron-main 不组织最终用户文案，优先返回结构化状态、错误码和必要参数，由 UI/controller 层转换成 `localize(...)` 文案。
+- 本项目 `localize` 使用命名变量格式，例如 `localize('rowsImported', 'Imported {count} rows.', { count })`，不要写 VS Code `{0}` 风格占位。
 
 安全和性能：
 - 路径和 URI 处理使用项目已有 URI/path/file service；不要手写字符串拼接路径，不把 Windows 路径分隔符写死进业务逻辑。

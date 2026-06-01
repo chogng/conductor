@@ -8,7 +8,7 @@ import {
   type NormalizedTabOption,
   type TabOptionBase,
   type TabSize,
-} from "src/cs/base/browser/ui/tabs/tab";
+} from "src/cs/base/browser/ui/tab/tab";
 
 export type TabViewContent = IDisposable & {
   readonly element: HTMLElement;

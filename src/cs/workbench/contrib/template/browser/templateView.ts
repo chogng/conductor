@@ -12,7 +12,7 @@ import {
   getSwitchDataAttributes,
   getSwitchStyle,
 } from "src/cs/base/browser/ui/switch/switch";
-import { TabView, type TabViewContent } from "src/cs/base/browser/ui/tabs/tabView";
+import { TabView, type TabViewContent } from "src/cs/base/browser/ui/tab/tabView";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
 import type {
