@@ -1,4 +1,4 @@
-import "src/cs/workbench/workbench.web.main";
+import "src/cs/workbench/workbench.web.main.ts";
 
 import { mainWindow } from "src/cs/base/browser/window";
 import { InstantiationService } from "src/cs/platform/instantiation/common/instantiationService";

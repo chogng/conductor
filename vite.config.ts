@@ -1,5 +1,12 @@
 import { fileURLToPath } from "node:url";
+
 import { defineConfig } from "vite";
+import type { Plugin } from "vite";
+
+import {
+  getBrowserWorkbenchPath,
+  shouldRouteToBrowserWorkbench,
+} from "./src/cs/server/node/webClientServer.js";
 
 const browserWorkbenchHtmlPath = fileURLToPath(
   new URL("./src/cs/code/browser/workbench/workbench.html", import.meta.url),
@@ -8,8 +15,35 @@ const desktopWorkbenchHtmlPath = fileURLToPath(
   new URL("./src/cs/code/electron-browser/workbench/workbench.html", import.meta.url),
 );
 
+const webClientServerPlugin = (): Plugin => {
+  const workbenchPath = getBrowserWorkbenchPath(false);
+
+  return {
+    name: "conductor-web-client-server",
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (!req.url) {
+          next();
+          return;
+        }
+
+        const url = new URL(req.url, "http://localhost");
+        if (!shouldRouteToBrowserWorkbench(url.pathname) || url.pathname === workbenchPath) {
+          next();
+          return;
+        }
+
+        res.statusCode = 302;
+        res.setHeader("Location", `${workbenchPath}${url.search}`);
+        res.end();
+      });
+    },
+  };
+};
+
 // https://vite.dev/config/
 export default defineConfig({
+  plugins: [webClientServerPlugin()],
   resolve: {
     alias: {
       cs: fileURLToPath(new URL("./src/cs", import.meta.url)),
@@ -18,6 +52,9 @@ export default defineConfig({
   },
   worker: {
     format: "es",
+  },
+  optimizeDeps: {
+    exclude: ["cogicon"],
   },
   build: {
     rollupOptions: {
@@ -44,7 +81,6 @@ export default defineConfig({
       clientFiles: [
         "./src/cs/code/browser/workbench/workbench.ts",
         "./src/cs/code/electron-browser/workbench/workbench.ts",
-        "./src/cs/code/electron-browser/workbench/desktop.main.ts",
         "./src/cs/platform/platform.browser.main.ts",
         "./src/cs/platform/platform.desktop.main.ts",
         "./src/cs/workbench/workbench.common.main.ts",

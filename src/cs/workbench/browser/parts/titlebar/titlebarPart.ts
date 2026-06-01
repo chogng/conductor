@@ -223,11 +223,11 @@ const createFileSelector = ({
   onChange?: (fileId: string) => void;
 }): HTMLElement => {
   const wrapper = createElement("div", {
-    className: "da_top_menu_center_file_select",
+    className: "titlebar-file-select",
   });
   const select = createElement("select", {
     id: "analysis-window-file-select",
-    className: "da_top_menu_file_select_native da-neutral-select",
+    className: "titlebar-file-select-native da-neutral-select",
     "aria-label": "Analysis file",
   });
 
@@ -277,7 +277,7 @@ export const createWorkbenchTitlebarElement = ({
   const windowActions = createWorkbenchTitlebarWindowActions(t);
   const header = createElement("header", {
     id,
-    className: "da_top_menu_bar",
+    className: "titlebar-root",
   });
 
   header.addEventListener("contextmenu", (event) => event.preventDefault());
@@ -286,14 +286,14 @@ export const createWorkbenchTitlebarElement = ({
     src: WORKBENCH_TITLEBAR_APP_ICON_SRC,
     alt: "",
     "aria-hidden": "true",
-    className: "da_top_menu_brand_icon",
+    className: "titlebar-brand-icon",
   });
   const brand = appendChildren(
-    createElement("div", { className: "da_top_menu_brand" }),
+    createElement("div", { className: "titlebar-brand" }),
     [brandIcon],
   );
   const navControls = createElement("div", {
-    className: "da_window_controls da_window_controls--nav",
+    className: "titlebar-controls titlebar-controls--nav",
   });
 
   for (const action of navActions) {
@@ -305,7 +305,7 @@ export const createWorkbenchTitlebarElement = ({
           id: action.id,
           "aria-label": action.title,
           title: action.title,
-          className: "da_window_icon_btn",
+          className: "titlebar-icon-button",
           disabled: action.isDisabled,
         },
         createCogIcon(isBack ? lxArrowLeft : lxArrowRight, 14, "opacity-80"),
@@ -315,7 +315,7 @@ export const createWorkbenchTitlebarElement = ({
   }
 
   const center = createElement("div", {
-    className: "da_top_menu_center",
+    className: "titlebar-center",
   });
 
   if (showAnalysisFileSelector && normalizedAnalysisFileOptions.length > 0) {
@@ -329,7 +329,7 @@ export const createWorkbenchTitlebarElement = ({
   }
 
   const rightControls = createElement("div", {
-    className: "da_window_controls",
+    className: "titlebar-controls",
   });
 
   if (updateAction?.isVisible === true) {
@@ -338,7 +338,7 @@ export const createWorkbenchTitlebarElement = ({
       type: "button",
       "aria-label": getWorkbenchTitlebarUpdateTitle(t, updateAction),
       title: getWorkbenchTitlebarUpdateTitle(t, updateAction),
-      className: "da_window_action_btn",
+      className: "titlebar-action-button",
     });
     updateButton.textContent = getWorkbenchTitlebarUpdateLabel(t);
     updateButton.addEventListener("click", () => updateAction.onClick?.());
@@ -347,8 +347,8 @@ export const createWorkbenchTitlebarElement = ({
 
   for (const action of pageActions) {
     const pageActionIcon = createDefaultPageActionIcon(action);
-    const className = `da_window_icon_btn ${
-      action.isActive ? "da_top_nav_btn--active" : ""
+    const className = `titlebar-icon-button ${
+      action.isActive ? "titlebar-page-button--active" : ""
     }`.trim();
     const button = createIconButton(
       {
@@ -395,8 +395,8 @@ export const createWorkbenchTitlebarElement = ({
         id: `analysis-window-${action.id}-btn`,
         "aria-label": action.title,
         title: action.title,
-        className: `da_window_control_btn ${
-          action.isDanger ? "da_window_control_btn--close" : ""
+        className: `titlebar-window-button ${
+          action.isDanger ? "titlebar-window-button--close" : ""
         }`.trim(),
       },
       icon,

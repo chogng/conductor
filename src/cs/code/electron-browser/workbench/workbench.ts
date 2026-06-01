@@ -1,5 +1,4 @@
-import "src/cs/workbench/services/environment/electron-browser/environmentService";
-import "src/cs/workbench/services/lifecycle/browser/lifecycleService";
+import "src/cs/workbench/workbench.desktop.main.ts";
 
 import { ipcRenderer } from "src/cs/base/parts/sandbox/electron-browser/globals";
 import { mainWindow } from "src/cs/base/browser/window";
@@ -20,6 +19,7 @@ import {
   LifecyclePhase,
   type ILifecycleService as ILifecycleServiceType,
 } from "src/cs/workbench/services/lifecycle/common/lifecycle";
+import { startWorkbenchThemeContribution } from "src/cs/workbench/services/themes/browser/theme.contribution";
 
 declare global {
   interface Window {
@@ -309,3 +309,4 @@ const logBoot = createBootLogger("renderer", startMs);
 
 prepareWorkbench(logBoot);
 startWorkbench();
+startWorkbenchThemeContribution();

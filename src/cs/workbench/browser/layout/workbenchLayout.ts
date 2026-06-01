@@ -1,7 +1,7 @@
-import SplitViewWidget, {
+import SplitView, {
   type SplitViewPane,
-} from "src/cs/base/browser/ui/splitview/splitviewWidget";
-import type { SplitViewResizeEvent } from "src/cs/base/browser/ui/splitview/splitview";
+  type SplitViewResizeEvent,
+} from "src/cs/base/browser/ui/splitview/splitview";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import {
   SIDEBAR_DEFAULT_WIDTH_PX,
@@ -24,7 +24,7 @@ const hasWorkbenchSidebar = (activeView: LayoutView): boolean =>
 export class WorkbenchLayout extends Disposable {
   public readonly element: HTMLElement;
   private readonly sidebarLayout = this._register(new WorkbenchSidebarLayout());
-  private widget: SplitViewWidget | null = null;
+  private widget: SplitView | null = null;
 
   constructor(options: WorkbenchLayoutOptions) {
     super();
@@ -44,7 +44,7 @@ export class WorkbenchLayout extends Disposable {
 
     if (!this.widget) {
       this.widget = this._register(
-        new SplitViewWidget({
+        new SplitView({
           className: "workbench_layout_shell",
           gap: 2,
           onDidResizeEnd: (event) => this.handleResizeEnd(event),

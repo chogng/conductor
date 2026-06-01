@@ -19,6 +19,7 @@ import {
   applyWindowThemeSnapshot,
   getCurrentBootThemeSnapshot,
 } from "../../platform/windows/electron-main/windowImpl.js";
+import { defaultBrowserWindowOptions } from "../../platform/windows/electron-main/windows.js";
 import { createAnalysisStorageMainService } from "../../workbench/services/storage/electron-main/analysisStorageMainService.js";
 import {
   assertOriginExePath,
@@ -84,12 +85,6 @@ const ANALYSIS_DEMO_FILE_NAMES = [
   "demo-06.csv",
 ];
 const ORIGIN_DETECTION_CACHE_TTL_MS = 60 * 1000;
-const MAIN_WINDOW_BOUNDS = {
-  width: 1440,
-  height: 920,
-  minWidth: 1080,
-  minHeight: 700,
-};
 const BOOT_WINDOW_SETTLE_MS = 80;
 const BOOT_UI_READY_FALLBACK_MS = 3500;
 const ANALYSIS_RUST_PROCESSING_POOL_SIZE = Math.max(
@@ -2897,32 +2892,18 @@ function createMainWindow() {
   const windowIcon = resolveDesktopWindowIconPath();
   mainWindowBootShown = false;
   const themeSnapshot = syncBootWindowTheme();
+  const preloadPath = path.join(desktopRuntimeDir, "preload.js");
 
-  const win = new BrowserWindow({
-    width: MAIN_WINDOW_BOUNDS.width,
-    height: MAIN_WINDOW_BOUNDS.height,
-    minWidth: MAIN_WINDOW_BOUNDS.minWidth,
-    minHeight: MAIN_WINDOW_BOUNDS.minHeight,
+  const win = new BrowserWindow(defaultBrowserWindowOptions({
     icon: windowIcon,
-    backgroundColor: themeSnapshot.backgroundColor,
-    autoHideMenuBar: true,
-    center: true,
-    frame: !isWindows,
-    show: false,
-    webPreferences: {
-      preload: path.join(desktopRuntimeDir, "preload.js"),
-      contextIsolation: true,
-      nodeIntegration: false,
-      sandbox: false,
-      ...(isDev
-        ? null
-        : { v8CacheOptions: "bypassHeatCheckAndEagerCompile" }),
-    },
-  });
+    isDev,
+    preload: preloadPath,
+    themeSnapshot,
+  }));
   logDesktopDiagnostic("window:create", {
     isDev,
     isPackaged: app.isPackaged,
-    preload: path.join(desktopRuntimeDir, "preload.js"),
+    preload: preloadPath,
     cwd: process.cwd(),
     dirname: __dirname,
     desktopRuntimeDir,

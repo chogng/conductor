@@ -1,222 +1,317 @@
-.da_top_menu_bar {
-    @apply flex items-center justify-between bg-bg-page pl-3 pr-0;
-    height: 38px;
-    -webkit-app-region: drag;
+/* Root titlebar strip: owns the draggable area and the left/center/right layout row. */
+.titlebar-root {
+  align-items: center;
+  background: rgb(var(--bg-page));
+  display: flex;
+  height: 38px;
+  justify-content: space-between;
+  padding-left: 12px;
+  padding-right: 0;
+  -webkit-app-region: drag;
+}
+
+.workbench_titlebar_part {
+  display: contents;
+}
+
+.dark .titlebar-root {
+  background: rgb(var(--bg-page));
+}
+
+/* Left region: product mark and navigation controls. */
+.titlebar-brand {
+  align-items: center;
+  color: rgb(var(--text-primary));
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 14px;
+  font-weight: 600;
+  gap: 8px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.titlebar-brand-icon {
+  flex: 0 0 auto;
+  height: 16px;
+  object-fit: contain;
+  width: 16px;
+}
+
+/* Center region: active analysis file selector. */
+.titlebar-center {
+  align-items: center;
+  display: flex;
+  flex: 1 1 0%;
+  height: 100%;
+  justify-content: center;
+  min-width: 0;
+}
+
+.titlebar-file-select {
+  display: inline-flex;
+  flex: 0 0 auto;
+  max-width: 100%;
+  padding-left: 8px;
+  padding-right: 8px;
+  width: fit-content;
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-file-select .ui-select_warp {
+  display: inline-flex;
+  flex: 0 0 auto;
+  max-width: 100%;
+  width: fit-content;
+}
+
+.titlebar-file-select .input_field {
+  background: transparent;
+  border-color: transparent;
+  width: fit-content;
+}
+
+.titlebar-file-select .input_native {
+  flex: none;
+  width: max-content;
+}
+
+.titlebar-file-select .input_field[data-state="enable"]:hover,
+.titlebar-file-select .input_field[data-state="enable"]:focus-within {
+  background: rgb(var(--bg-200) / 0.5);
+  color: rgb(var(--text-primary));
+}
+
+.titlebar-file-select-native {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: rgb(var(--text-primary));
+  font-size: 14px;
+  height: 28px;
+  max-width: 36rem;
+  outline: none;
+  padding-left: 8px;
+  padding-right: 8px;
+  transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease;
+  width: fit-content;
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-file-select-native:hover,
+.titlebar-file-select-native:focus {
+  background: rgb(var(--bg-200) / 0.5);
+}
+
+/* Shared titlebar control rows. */
+.titlebar-controls {
+  align-items: center;
+  display: flex;
+  height: 100%;
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-controls--nav {
+  margin-left: 16px;
+}
+
+/* Navigation and page-switch buttons. */
+.titlebar-icon-button {
+  align-items: center;
+  background: transparent;
+  border: none;
+  color: rgb(var(--text-secondary));
+  display: flex;
+  height: 100%;
+  justify-content: center;
+  outline: none;
+  transition: color 150ms ease, background-color 150ms ease;
+  width: 38px;
+}
+
+.titlebar-icon-button:hover {
+  background: rgb(var(--bg-200) / 0.5);
+  color: rgb(var(--text-primary));
+}
+
+.titlebar-icon-button:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.titlebar-icon-button:disabled:hover {
+  background: transparent;
+  color: inherit;
+}
+
+.titlebar-action-button {
+  align-items: center;
+  background: transparent;
+  border: none;
+  color: rgb(var(--text-secondary));
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 500;
+  height: 100%;
+  justify-content: center;
+  outline: none;
+  padding-left: 12px;
+  padding-right: 12px;
+  transition: color 150ms ease, background-color 150ms ease;
+}
+
+.titlebar-action-button:hover {
+  background: rgb(var(--bg-200) / 0.5);
+  color: rgb(var(--text-primary));
+}
+
+.titlebar-page-button--active,
+.dark .titlebar-page-button--active {
+  color: rgb(var(--accent)) !important;
+}
+
+/* Right region: custom window controls backed by Electron main-process commands. */
+.titlebar-window-button {
+  align-items: center;
+  background: transparent;
+  border: none;
+  color: rgb(var(--text-secondary));
+  display: flex;
+  height: 100%;
+  justify-content: center;
+  outline: none;
+  transition: color 150ms ease, background-color 150ms ease;
+  width: 48px;
+}
+
+.titlebar-window-button:hover {
+  background: rgb(var(--bg-200) / 0.5);
+  color: rgb(var(--text-primary));
+}
+
+.titlebar-window-button--close:hover {
+  background-color: #e81123 !important;
+  color: #ffffff;
+}
+
+/* Boot skeleton placeholders shown before the workbench is ready. */
+.workbench_titlebar_skeleton_icon_dot {
+  background-color: currentColor;
+  border-radius: 9999px;
+  height: 14px;
+  opacity: 0.15;
+  width: 14px;
+}
+
+.workbench_titlebar_skeleton_control_dot {
+  background-color: currentColor;
+  border-radius: 9999px;
+  height: 12px;
+  opacity: 0.15;
+  width: 12px;
+}
+
+.workbench_titlebar_skeleton_file_select {
+  background: rgb(var(--bg-surface) / 0.7);
+  border: 1px solid rgb(var(--border));
+  border-radius: 9999px;
+  height: 28px;
+  width: 176px;
+}
+
+/* Compact titlebar menu primitives used by titlebar actions and overflow affordances. */
+.titlebar-menu-trigger {
+  border: 1px solid transparent;
+  color: rgb(var(--text-secondary));
+  justify-content: space-between;
+  min-width: 86px;
+  --btn-ring-inner: rgb(var(--bg-surface) / 0.7);
+  --btn-ring-outer: rgb(var(--border-subtle));
+  --btn-ring-outer-hover: rgb(var(--border-200));
+}
+
+.titlebar-menu-trigger[data-state="open"] {
+  background: rgb(var(--bg-surface-hover));
+  color: rgb(var(--text-primary));
+  --btn-ring-inner: rgb(var(--bg-surface-hover));
+}
+
+.titlebar-menu-popup {
+  width: min(21rem, calc(100vw - 1.5rem));
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.titlebar-menu-item {
+  border-radius: 8px;
+  color: rgb(var(--text-secondary));
+  height: 36px !important;
+  justify-content: flex-start;
+  padding-left: 12px;
+  padding-right: 12px;
+  width: 100%;
+  --btn-ring-inner: rgb(var(--bg-surface));
+  --btn-ring-outer: transparent;
+  --btn-ring-outer-hover: transparent;
+}
+
+.titlebar-menu-item .action-btn__content {
+  gap: 12px;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.titlebar-menu-item-left {
+  align-items: center;
+  display: inline-flex;
+  font-size: 14px;
+  gap: 8px;
+  text-align: left;
+}
+
+.titlebar-menu-hint {
+  color: rgb(var(--text-tertiary));
+  font-size: 12px;
+  letter-spacing: 0.01em;
+}
+
+.titlebar-menu-item--active {
+  background: rgb(var(--bg-surface-hover));
+  color: rgb(var(--text-primary));
+}
+
+.titlebar-menu-separator {
+  border-top: 1px solid rgb(var(--border-subtle) / 0.7);
+  margin-bottom: 4px;
+  margin-top: 4px;
+}
+
+/* Narrow viewport adjustments keep titlebar controls reachable without wrapping. */
+@media (max-width: 640px) {
+  .titlebar-root {
+    padding: 6px 8px;
   }
 
-  .workbench_titlebar_part {
-    display: contents;
+  .titlebar-brand {
+    display: none;
   }
 
-  .dark .da_top_menu_bar {
-    @apply bg-bg-page;
+  .titlebar-controls {
+    gap: 2px;
   }
 
-  .da_top_menu_brand {
-    @apply inline-flex items-center gap-2 text-sm font-semibold text-text-primary whitespace-nowrap;
-    letter-spacing: 0.01em;
+  .titlebar-file-select {
+    padding-left: 4px;
+    padding-right: 4px;
   }
 
-  .da_top_menu_brand_icon {
-    width: 16px;
-    height: 16px;
-    flex: 0 0 auto;
-    object-fit: contain;
+  .titlebar-menu-trigger {
+    min-width: 0;
+    width: 100%;
   }
-
-  .da_top_menu_center {
-    @apply flex-1 min-w-0 h-full flex items-center justify-center;
-  }
-
-  .da_top_menu_center_file_select {
-    @apply inline-flex max-w-full px-2;
-    width: fit-content;
-    flex: 0 0 auto;
-    -webkit-app-region: no-drag;
-  }
-
-  .da_top_menu_center_file_select .ui-select_warp {
-    display: inline-flex;
-    flex: 0 0 auto;
-    max-width: 100%;
-    width: fit-content;
-  }
-
-  .da_top_menu_center_file_select .input_field {
-    @apply bg-transparent border-transparent;
-    width: fit-content;
-  }
-
-  .da_top_menu_center_file_select .input_native {
-    @apply flex-none;
-    width: max-content;
-  }
-
-  .da_top_menu_center_file_select .input_field[data-state="enable"]:hover,
-  .da_top_menu_center_file_select .input_field[data-state="enable"]:focus-within {
-    @apply bg-bg-200/50 text-text-primary;
-  }
-
-  .da_top_menu_file_select_native {
-    @apply h-7 max-w-[36rem] rounded-lg border border-transparent bg-transparent px-2 text-sm text-text-primary outline-none transition-colors;
-    width: fit-content;
-    -webkit-app-region: no-drag;
-  }
-
-  .da_top_menu_file_select_native:hover,
-  .da_top_menu_file_select_native:focus {
-    @apply bg-bg-200/50;
-  }
-
-  .da_window_controls {
-    @apply flex items-center h-full;
-    -webkit-app-region: no-drag;
-  }
-
-  .da_window_controls--nav {
-    @apply ml-4;
-  }
-
-  .da_window_icon_btn {
-    @apply flex items-center justify-center h-full w-[38px] text-text-secondary transition-colors;
-    background: transparent;
-    border: none;
-    outline: none;
-  }
-
-  .da_window_icon_btn:hover {
-    @apply bg-bg-200/50 text-text-primary;
-  }
-
-  .da_window_icon_btn:disabled {
-    opacity: 0.4;
-    cursor: default;
-  }
-
-  .da_window_icon_btn:disabled:hover {
-    background: transparent;
-    color: inherit;
-  }
-
-  .da_window_action_btn {
-    @apply inline-flex items-center justify-center h-full px-3 text-[12px] font-medium text-text-secondary transition-colors;
-    background: transparent;
-    border: none;
-    outline: none;
-  }
-
-  .da_window_action_btn:hover {
-    @apply text-text-primary;
-    background: rgb(var(--bg-200) / 0.5);
-  }
-
-  .da_top_nav_btn--active {
-    @apply text-accent !important;
-  }
-
-  .dark .da_top_nav_btn--active {
-    @apply text-accent !important;
-  }
-
-  .da_window_control_btn {
-    @apply flex items-center justify-center h-full w-12 text-text-secondary transition-colors;
-    background: transparent;
-    border: none;
-    outline: none;
-  }
-
-  .da_window_control_btn:hover {
-    @apply bg-bg-200/50 text-text-primary;
-  }
-
-  .da_window_control_btn--close:hover {
-    @apply text-white;
-    background-color: #e81123 !important;
-  }
-
-  .workbench_titlebar_skeleton_icon_dot {
-    @apply h-[14px] w-[14px] rounded-full;
-    background-color: currentColor;
-    opacity: 0.15;
-  }
-
-  .workbench_titlebar_skeleton_control_dot {
-    @apply h-[12px] w-[12px] rounded-full;
-    background-color: currentColor;
-    opacity: 0.15;
-  }
-
-  .workbench_titlebar_skeleton_file_select {
-    @apply h-7 w-44 rounded-full border border-border bg-bg-surface/70;
-  }
-
-  .da_top_menu_trigger {
-    @apply min-w-[86px] justify-between text-text-secondary border border-transparent;
-    --btn-ring-inner: rgb(var(--bg-surface) / 0.7);
-    --btn-ring-outer: rgb(var(--border-subtle));
-    --btn-ring-outer-hover: rgb(var(--border-200));
-  }
-
-  .da_top_menu_trigger[data-state="open"] {
-    @apply text-text-primary bg-bg-surface-hover;
-    --btn-ring-inner: rgb(var(--bg-surface-hover));
-  }
-
-  .da_top_menu_popup {
-    width: min(21rem, calc(100vw - 1.5rem));
-    -webkit-app-region: no-drag;
-  }
-
-  .da_top_menu_list {
-    @apply flex flex-col gap-1;
-  }
-
-  .da_top_menu_item {
-    @apply w-full justify-start rounded-lg px-3 !h-9 text-text-secondary;
-    --btn-ring-inner: rgb(var(--bg-surface));
-    --btn-ring-outer: transparent;
-    --btn-ring-outer-hover: transparent;
-  }
-
-  .da_top_menu_item .action-btn__content {
-    @apply w-full justify-between gap-3;
-  }
-
-  .da_top_menu_item_left {
-    @apply inline-flex items-center gap-2 text-sm text-left;
-  }
-
-  .da_top_menu_hint {
-    @apply text-xs text-text-tertiary;
-    letter-spacing: 0.01em;
-  }
-
-  .da_top_menu_item--active {
-    @apply text-text-primary bg-bg-surface-hover;
-  }
-
-  .da_top_menu_separator {
-    @apply my-1 border-t border-border-subtle/70;
-  }
-
-  @media (max-width: 640px) {
-    .da_top_menu_bar {
-      @apply px-2 py-1.5;
-    }
-
-    .da_top_menu_brand {
-      @apply hidden;
-    }
-
-    .da_window_controls {
-      @apply gap-0.5;
-    }
-
-    .da_top_menu_center_file_select {
-      @apply px-1;
-    }
-
-  .da_top_menu_trigger {
-      @apply w-full min-w-0;
-    }
-  }
+}

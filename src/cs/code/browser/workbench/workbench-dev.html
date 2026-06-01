@@ -3,6 +3,17 @@
 
 <head>
   <meta charset="UTF-8" />
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="
+      default-src 'self';
+      img-src 'self' data: blob:;
+      script-src 'self' 'unsafe-eval' blob:;
+      style-src 'self' 'unsafe-inline';
+      connect-src 'self' ws: http://localhost:* http://127.0.0.1:*;
+      font-src 'self' data:;
+    "
+  />
   <link rel="icon" type="image/svg+xml" href="/logo.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Conductor Studio</title>
@@ -32,18 +43,12 @@
       background: #f5f4ef;
       color: #222222;
     }
-
   </style>
   <!--
-    Electron renderer bootstrap, mirroring VS Code's code/electron-browser/workbench entry.
-    This script owns early boot state such as splash, initial settings, language/theme,
-    and the desktop "UI is ready" signal back to the main process.
+    Development browser workbench entry, matching VS Code's browser workbench-dev.html split.
+    Keep this entry free of Electron-only assumptions while allowing Vite HMR websocket traffic.
   -->
-  <script
-    type="module"
-    blocking="render"
-    src="./workbench.ts"
-  ></script>
+  <script type="module" src="./workbench.ts"></script>
 </head>
 
 <body>

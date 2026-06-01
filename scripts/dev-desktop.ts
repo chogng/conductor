@@ -11,7 +11,7 @@ const host = process.env.DEV_HOST || "127.0.0.1";
 const port = Number(process.env.DEV_PORT || 5174);
 // Keep the development URL aligned with VS Code's desktop renderer entry:
 // code/electron-browser owns Electron workbench bootstrapping.
-const devWorkbenchPath = "/src/cs/code/electron-browser/workbench/workbench.html";
+const devWorkbenchPath = "/src/cs/code/electron-browser/workbench/workbench-dev.html";
 const devUrl = `http://${host}:${port}${devWorkbenchPath}`;
 const devStartupStartMs = Date.now();
 const devServerWarmupPaths = [
@@ -20,7 +20,6 @@ const devServerWarmupPaths = [
   "/src/cs/workbench/workbench.browser.main.ts",
   "/src/cs/code/browser/workbench/workbench.ts",
   "/src/cs/code/electron-browser/workbench/workbench.ts",
-  "/src/cs/code/electron-browser/workbench/desktop.main.ts",
   "/src/cs/platform/platform.browser.main.ts",
   "/src/cs/platform/platform.desktop.main.ts",
   "/src/cs/workbench/workbench.common.main.ts",
@@ -36,8 +35,8 @@ const isWin = process.platform === "win32";
 const npmCmd = "npm";
 const viteCmd = isWin ? "cmd.exe" : npmCmd;
 const viteArgs = isWin
-  ? ["/d", "/s", "/c", npmCmd, "run", "dev", "--", "--host", host, "--port", String(port)]
-  : ["run", "dev", "--", "--host", host, "--port", String(port)];
+  ? ["/d", "/s", "/c", npmCmd, "run", "dev:vite", "--", "--host", host, "--port", String(port)]
+  : ["run", "dev:vite", "--", "--host", host, "--port", String(port)];
 const electronBuildWatchCmd = isWin ? "cmd.exe" : npmCmd;
 const electronBuildWatchArgs = isWin
   ? ["/d", "/s", "/c", npmCmd, "run", "build:desktop:core", "--", "--watch", "--preserveWatchOutput"]

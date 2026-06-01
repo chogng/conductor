@@ -1,7 +1,7 @@
 import { DisposableResizeObserver, getWindow } from "src/cs/base/browser/dom";
-import SplitViewWidget, {
+import SplitView, {
   type SplitViewPane,
-} from "src/cs/base/browser/ui/splitview/splitviewWidget";
+} from "src/cs/base/browser/ui/splitview/splitview";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 
 export type DataPreviewAreaProps = {
@@ -12,14 +12,14 @@ export type DataPreviewAreaProps = {
 
 export class DataPreviewAreaView {
   public readonly element: HTMLElement;
-  private readonly widget: SplitViewWidget;
+  private readonly widget: SplitView;
   private readonly store = new DisposableStore();
   private isStacked = false;
   private props: DataPreviewAreaProps;
 
   constructor(props: DataPreviewAreaProps) {
     this.props = props;
-    this.widget = new SplitViewWidget({
+    this.widget = new SplitView({
       className: "data_preview_area",
       gap: 12,
       orientation: "horizontal",
@@ -46,6 +46,7 @@ export class DataPreviewAreaView {
   }
 
   private render(): void {
+    const hasImportPanel = Boolean(this.props.importPanel);
     const orientation = this.isStacked ? "vertical" : "horizontal";
     const className = this.isStacked
       ? "data_preview_area data_preview_area--stacked"
@@ -54,7 +55,7 @@ export class DataPreviewAreaView {
       className,
       gap: 12,
       orientation,
-      panes: getPanes(this.isStacked),
+      panes: getPanes(this.isStacked, hasImportPanel),
     });
     replacePane(this.widget, "import-panel", this.props.importPanel);
     replacePane(this.widget, "table-preview", this.props.tablePreview);
@@ -79,47 +80,41 @@ const DataPreviewArea = (props: DataPreviewAreaProps): any =>
 
 const DATA_PREVIEW_STACK_THRESHOLD_PX = 700;
 
-const getPanes = (isStacked: boolean): readonly SplitViewPane[] =>
-  isStacked
-    ? [
+const getPanes = (
+  isStacked: boolean,
+  hasImportPanel = true,
+): readonly SplitViewPane[] => {
+  const panes: SplitViewPane[] = [];
+
+  if (hasImportPanel) {
+    panes.push(
       {
         id: "import-panel",
-        defaultSize: 220,
+        defaultSize: isStacked ? 220 : 260,
         minSize: 200,
-        maxSize: 360,
+        maxSize: isStacked ? 360 : 420,
       },
-      {
-        id: "table-preview",
-        minSize: 240,
-      },
-      {
-        id: "template-panel",
-        defaultSize: 220,
-        minSize: 200,
-        maxSize: 360,
-      },
-    ]
-    : [
-      {
-        id: "import-panel",
-        defaultSize: 260,
-        minSize: 200,
-        maxSize: 420,
-      },
-      {
-        id: "table-preview",
-        minSize: 240,
-      },
-      {
-        id: "template-panel",
-        defaultSize: 260,
-        minSize: 200,
-        maxSize: 360,
-      },
-    ];
+    );
+  }
+
+  panes.push(
+    {
+      id: "table-preview",
+      minSize: 240,
+    },
+    {
+      id: "template-panel",
+      defaultSize: isStacked ? 220 : 260,
+      minSize: 200,
+      maxSize: 360,
+    },
+  );
+
+  return panes;
+};
 
 const replacePane = (
-  widget: SplitViewWidget,
+  widget: SplitView,
   id: string,
   content: Node | null | undefined,
 ): void => {

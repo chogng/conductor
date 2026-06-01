@@ -192,6 +192,7 @@ export class Workbench extends Layout {
     this.analysis.update(this.getAnalysisProps(snapshot, processingBindings));
     this.settings.update(this.getSettingsProps());
     this.setParts({
+      sidebar: this.importer.element,
       data: this.data.element,
       analysis: this.analysis.element,
       settings: this.settings.element,
@@ -222,12 +223,19 @@ export class Workbench extends Layout {
       canNavigateBack: state.layoutState.canNavigateBack,
       canNavigateForward: state.layoutState.canNavigateForward,
       enabled: getWorkbenchWindowState().isDesktopChromePreviewEnabled,
+      onCloseWindow: () => this.sendDesktopCommand("close-window"),
+      onMinimizeWindow: () => this.sendDesktopCommand("minimize-window"),
       onNavigateBack: () => this.navigateBack(),
       onNavigateForward: () => this.navigateForward(),
       onOpenSettings: () => this.navigateToView("settings"),
       onPageChange: (page) => this.navigateToView(page),
+      onToggleMaximizeWindow: () => this.sendDesktopCommand("toggle-maximize-window"),
       t: this.t,
     };
+  }
+
+  private sendDesktopCommand(command: string): void {
+    window.desktopApp?.sendCommand(command);
   }
 
   private getImporterProps(
@@ -279,7 +287,7 @@ export class Workbench extends Layout {
       ensurePreviewRows: previewBindings.ensurePreviewRows,
       getPreviewRow: previewBindings.getPreviewRow,
       getPreviewRowsVersion: previewBindings.getPreviewRowsVersion,
-      importerElement: this.importer.element,
+      importerElement: null,
       onTemplateApplied: processingBindings.handleTemplateApplied,
       onTemplateAppliedIncremental: processingBindings.handleTemplateAppliedIncremental,
       onUpdateSettings: this.coreSettingsState.handleUpdateAnalysisSettings,

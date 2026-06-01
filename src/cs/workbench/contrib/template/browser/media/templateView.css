@@ -202,6 +202,26 @@
   @apply text-text-primary bg-bg-page/40;
 }
 
+.template_tab_container.tab_menu {
+  @apply w-full bg-bg-100/80 border-border/60 p-0.5;
+}
+
+.template_tab_container .tab_btn {
+  @apply min-w-0 flex-1 basis-0 px-3 py-1 text-xs font-medium rounded-md transition-all duration-150 outline-none border-none cursor-pointer;
+}
+
+.template_tab_container .tab_btn--sm {
+  @apply h-auto;
+}
+
+.template_tab_container .tab_btn--active {
+  @apply bg-bg-page text-text-primary shadow-sm font-semibold;
+}
+
+.template_tab_container .tab_btn--inactive {
+  @apply text-text-secondary hover:text-text-primary hover:bg-bg-page/40;
+}
+
 @media (max-width: 980px) {
   .template_config_panel {
     @apply p-2;

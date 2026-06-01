@@ -2,12 +2,12 @@
 
 //#region --- workbench browser
 
-import "src/cs/workbench/workbench.browser.main";
+import "src/cs/workbench/workbench.browser.main.ts";
 
 //#endregion
 
 //#region --- workbench services
 
-import "src/cs/workbench/services/lifecycle/browser/lifecycleService";
+import "src/cs/workbench/services/lifecycle/browser/lifecycleService.ts";
 
 //#endregion

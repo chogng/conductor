@@ -9,6 +9,7 @@ import {
   getSwitchDataAttributes,
   getSwitchStyle,
 } from "src/cs/base/browser/ui/switch/switch";
+import { TabView, type TabViewContent } from "src/cs/base/browser/ui/tabs/tabView";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
 import type {
@@ -248,45 +249,11 @@ export const createTemplateManager = ({
   panel.className = "template_manager";
   containerRef.current = panel;
 
-  // Header switcher tabs
-  const tabContainer = document.createElement("div");
-  tabContainer.className = "template_tab_container";
-  
-  const selectTab = document.createElement("button");
-  selectTab.className = "template_tab_btn";
-  selectTab.textContent = t("da_template_select_mode") || "选择";
-  selectTab.dataset.active = String(templateMode === "select");
-  selectTab.addEventListener("click", () => {
-    if (templateMode !== "select") {
-      session.setTemplateMode("select");
-      defaultSessionModel.emitChange();
-    }
-  });
+  const createModeContent = (mode: "select" | "save"): HTMLElement => {
+    const leftContent = document.createElement("div");
+    leftContent.className = "template_config_panel_content flex flex-col gap-4 flex-1 min-h-0 overflow-auto";
 
-  const saveTab = document.createElement("button");
-  saveTab.className = "template_tab_btn";
-  saveTab.textContent = t("da_template_save_mode") || "保存";
-  saveTab.dataset.active = String(templateMode === "save");
-  saveTab.addEventListener("click", () => {
-    if (templateMode !== "save") {
-      if (!selectedTemplateId || selectedTemplateId === AUTO_TEMPLATE_ID) {
-        session.setSelectedTemplateId(null);
-        session.setTemplateConfig(createEmptyTemplateConfig({
-          stopOnError: config.stopOnError,
-          fileNameMatchCaseSensitive: config.fileNameMatchCaseSensitive,
-        }));
-      }
-      session.setTemplateMode("save");
-      defaultSessionModel.emitChange();
-    }
-  });
-
-  tabContainer.append(selectTab, saveTab);
-
-  const leftContent = document.createElement("div");
-  leftContent.className = "template_config_panel_content flex flex-col gap-4 flex-1 min-h-0 overflow-auto";
-
-  if (templateMode === "select") {
+    if (mode === "select") {
     // Dropdown row
     const dropdownRow = document.createElement("div");
     dropdownRow.className = "flex flex-col gap-1.5";
@@ -519,7 +486,7 @@ export const createTemplateManager = ({
 
     applyActions.append(applyAllBtn, applyNewBtn);
     leftContent.append(applyActions);
-  } else {
+    } else {
     // Save Mode Form UI
     const form = document.createElement("div");
     form.className = "template_form flex flex-col gap-3";
@@ -643,12 +610,52 @@ export const createTemplateManager = ({
     });
 
     saveActions.append(saveBtn, cancelBtn);
-    leftContent.append(saveActions);
+      leftContent.append(saveActions);
+    }
+
+    return leftContent;
+  };
+
+  class TemplateModeTabView extends TabView<"select" | "save"> {
+    protected createView(tabId: "select" | "save"): TabViewContent {
+      return {
+        element: createModeContent(tabId),
+        dispose() {},
+      };
+    }
   }
+
+  const modeTabs = new TemplateModeTabView({
+    activeTabId: templateMode,
+    className: "template_mode_tab_view",
+    idBase: "template-mode",
+    onDidChangeActiveTab: (tabId) => {
+      session.setTemplateMode(tabId);
+      if (tabId === "save" && (!selectedTemplateId || selectedTemplateId === AUTO_TEMPLATE_ID)) {
+        session.setSelectedTemplateId(null);
+        session.setTemplateConfig(createEmptyTemplateConfig({
+          stopOnError: config.stopOnError,
+          fileNameMatchCaseSensitive: config.fileNameMatchCaseSensitive,
+        }));
+      }
+    },
+    size: "sm",
+    tabListClassName: "template_tab_container",
+    tabs: [
+      {
+        id: "select",
+        label: t("da_template_select_mode") || "选择",
+      },
+      {
+        id: "save",
+        label: t("da_template_save_mode") || "保存",
+      },
+    ],
+  });
 
   const left = document.createElement("div");
   left.className = "template_config_panel flex flex-col gap-3 min-h-0 h-full overflow-hidden p-3";
-  left.append(tabContainer, leftContent);
+  left.append(modeTabs.element);
 
   const preview = TemplateManagerPreviewWorkspace({
     containerRef,
