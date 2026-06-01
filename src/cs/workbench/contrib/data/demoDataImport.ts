@@ -3,7 +3,7 @@ import {
   buildFileIdentityKey,
   buildItemKey,
   createFileId,
-} from "src/cs/workbench/contrib/files/browser/identity";
+} from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import { importService } from "src/cs/workbench/services/import/browser/importService";
 
 const DEMO_FILE_PATHS = [

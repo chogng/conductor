@@ -15,20 +15,13 @@ import {
   resolveLayoutView,
   type VisitedLayoutViewsState,
 } from "src/cs/workbench/browser/actions/layoutActions";
-import {
-  SIDEBAR_DEFAULT_WIDTH_PX,
-  SIDEBAR_MAX_WIDTH_PX,
-  SIDEBAR_MIN_WIDTH_PX,
-  WORKBENCH_STACK_LAYOUT_THRESHOLD_PX,
-} from "src/cs/workbench/browser/layoutConstants";
 import { layoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 
-export {
-  SIDEBAR_DEFAULT_WIDTH_PX,
-  SIDEBAR_MAX_WIDTH_PX,
-  SIDEBAR_MIN_WIDTH_PX,
-  TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX,
-} from "src/cs/workbench/browser/layoutConstants";
+export const SIDEBAR_DEFAULT_WIDTH_PX = 300;
+export const SIDEBAR_MIN_WIDTH_PX = 300;
+export const SIDEBAR_MAX_WIDTH_PX = 300;
+export const WORKBENCH_STACK_LAYOUT_THRESHOLD_PX = 860;
+export const TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX = 250;
 
 export type LayoutParts = {
   readonly controller?: Node | null;
@@ -37,6 +30,7 @@ export type LayoutParts = {
   readonly settings?: Node | null;
   readonly overlay?: Node | null;
   readonly sidebar?: Node | null;
+  readonly secondarySidebar?: Node | null;
 };
 
 export type LayoutView = "data" | "analysis" | "settings";
@@ -139,9 +133,11 @@ const hasSidebar = (activeView: LayoutView): boolean =>
 export class Layout extends Disposable {
   private readonly navigation = this._register(new WorkbenchLayoutNavigation());
   private readonly sidebarLayout = this._register(new WorkbenchSidebarLayout());
+  private readonly secondarySidebarLayout = this._register(new WorkbenchSidebarLayout());
   private readonly splitView = this._register(new MutableDisposable<SplitView>());
   private readonly main = document.createElement("div");
   private readonly sidebar = document.createElement("div");
+  private readonly secondarySidebar = document.createElement("div");
   private readonly overlay = document.createElement("div");
   private readonly controller = document.createElement("div");
   private readonly shell = document.createElement("div");
@@ -156,6 +152,7 @@ export class Layout extends Disposable {
     this.element.className = "workbench_layout";
     this.main.className = "workbench_layout_main";
     this.sidebar.className = "workbench_layout_sidebar";
+    this.secondarySidebar.className = "workbench_layout_secondary_sidebar";
     this.overlay.className = "workbench_layout_overlay";
     this.controller.className = "workbench_layout_controller";
     if (parent) {
@@ -164,6 +161,7 @@ export class Layout extends Disposable {
 
     this._register(this.navigation.onDidChangeState(() => this.render()));
     this._register(this.sidebarLayout.onDidChangeWidth(() => this.render()));
+    this._register(this.secondarySidebarLayout.onDidChangeWidth(() => this.render()));
     this._register(
       new DisposableResizeObserver(getWindow(this.element), () => {
         this.syncResponsiveState();
@@ -213,6 +211,7 @@ export class Layout extends Disposable {
     this.controller.replaceChildren();
     this.main.replaceChildren();
     this.sidebar.replaceChildren();
+    this.secondarySidebar.replaceChildren();
     this.overlay.replaceChildren();
 
     appendIfPresent(this.controller, this.parts.controller);
@@ -223,8 +222,12 @@ export class Layout extends Disposable {
       appendIfPresent(this.sidebar, this.activeView === "data"
         ? this.parts.sidebar
         : null);
+      appendIfPresent(
+        this.secondarySidebar,
+        this.activeView === "data" ? this.parts.secondarySidebar : null,
+      );
       this.renderSplit();
-      setWorkbenchSidebarPortal(this.activeView === "analysis" ? this.sidebar : null);
+      setWorkbenchSidebarPortal(null);
     } else {
       this.splitView.clear();
       setWorkbenchSidebarPortal(null);
@@ -303,6 +306,9 @@ export class Layout extends Disposable {
     const splitView = this.splitView.current;
     splitView.getPaneElement("workbench-sidebar")?.replaceChildren(this.sidebar);
     splitView.getPaneElement("workbench-main")?.replaceChildren(this.main);
+    splitView
+      .getPaneElement("workbench-secondary-sidebar")
+      ?.replaceChildren(this.secondarySidebar);
     this.shell.className = shellClassName;
     this.shell.replaceChildren(splitView.element);
     this.element.replaceChildren(
@@ -314,21 +320,32 @@ export class Layout extends Disposable {
 
   private getSplitPanes(): readonly SplitViewPane[] {
     if (this.isStacked) {
-      return [
+      const panes: SplitViewPane[] = [
         {
           id: "workbench-sidebar",
-          defaultSize: 260,
-          minSize: 220,
-          maxSize: 420,
+          defaultSize: SIDEBAR_DEFAULT_WIDTH_PX,
+          minSize: SIDEBAR_MIN_WIDTH_PX,
+          maxSize: SIDEBAR_MAX_WIDTH_PX,
         },
         {
           id: "workbench-main",
           minSize: 320,
         },
       ];
+
+      if (this.activeView === "data" && this.parts.secondarySidebar) {
+        panes.push({
+          id: "workbench-secondary-sidebar",
+          defaultSize: SIDEBAR_DEFAULT_WIDTH_PX,
+          minSize: SIDEBAR_MIN_WIDTH_PX,
+          maxSize: SIDEBAR_MAX_WIDTH_PX,
+        });
+      }
+
+      return panes;
     }
 
-    return [
+    const panes: SplitViewPane[] = [
       {
         id: "workbench-sidebar",
         defaultSize: SIDEBAR_DEFAULT_WIDTH_PX,
@@ -341,16 +358,37 @@ export class Layout extends Disposable {
         minSize: 520,
       },
     ];
+
+    if (this.activeView === "data" && this.parts.secondarySidebar) {
+      panes.push({
+        id: "workbench-secondary-sidebar",
+        defaultSize: SIDEBAR_DEFAULT_WIDTH_PX,
+        minSize: SIDEBAR_MIN_WIDTH_PX,
+        maxSize: SIDEBAR_MAX_WIDTH_PX,
+        size: this.secondarySidebarLayout.sidebarWidth,
+      });
+    }
+
+    return panes;
   }
 
   private handleResizeEnd({ sizes }: SplitViewResizeEvent): void {
-    if (this.isStacked) {
+    if (this.isStacked || sizes.length < 1) {
       return;
     }
 
     const nextWidth = sizes[0];
     if (Number.isFinite(nextWidth)) {
       this.sidebarLayout.resize(nextWidth);
+    }
+
+    const nextSecondaryWidth = sizes[2];
+    if (
+      this.activeView === "data" &&
+      this.parts.secondarySidebar &&
+      Number.isFinite(nextSecondaryWidth)
+    ) {
+      this.secondarySidebarLayout.resize(nextSecondaryWidth);
     }
   }
 

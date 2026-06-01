@@ -5,17 +5,14 @@ import {
   SIDEBAR_MAX_WIDTH_PX,
   SIDEBAR_MIN_WIDTH_PX,
   TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX,
-} from "./layoutConstants.ts";
+} from "./layout.ts";
 
-test("sidebar width constants remain in a valid order", () => {
-  assert.ok(SIDEBAR_MIN_WIDTH_PX < SIDEBAR_DEFAULT_WIDTH_PX);
-  assert.ok(SIDEBAR_DEFAULT_WIDTH_PX < SIDEBAR_MAX_WIDTH_PX);
-  assert.ok(
-    SIDEBAR_MIN_WIDTH_PX <
-      TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX,
-  );
-  assert.ok(
-    TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX <
-      SIDEBAR_DEFAULT_WIDTH_PX,
-  );
+test("sidebar width is fixed at 300px", () => {
+  assert.equal(SIDEBAR_MIN_WIDTH_PX, 300);
+  assert.equal(SIDEBAR_DEFAULT_WIDTH_PX, 300);
+  assert.equal(SIDEBAR_MAX_WIDTH_PX, 300);
+});
+
+test("template icon-only threshold stays below the fixed sidebar width", () => {
+  assert.ok(TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX < SIDEBAR_DEFAULT_WIDTH_PX);
 });

@@ -4,17 +4,16 @@ import {
   isSupportedDataFileName,
   type FileEntry,
 } from "src/cs/workbench/contrib/files/common/files";
-import type { FileSource } from "src/cs/workbench/contrib/files/browser/source";
+import {
+  buildFileIdentityKey,
+  buildItemKey,
+  createFileId,
+  type FileSource,
+} from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import { prepareImportFileInWorker } from "src/cs/workbench/contrib/import/browser/rustClient";
 import type {
   ImportSessionFileInfo,
 } from "src/cs/workbench/contrib/import/common/types";
-import {
-  buildEntrySourceKey,
-  buildFileIdentityKey,
-  buildItemKey,
-  createFileId,
-} from "src/cs/workbench/contrib/files/browser/identity";
 
 export type SessionFileEntry = FileEntry & {
   fileId: string;
@@ -31,7 +30,6 @@ export type PendingImportFile = {
 };
 
 export type PendingImportsResult = {
-  readonly duplicateCount: number;
   readonly hasAnyUnsupportedFiles: boolean;
   readonly pendingImports: PendingImportFile[];
   readonly unsupportedCount: number;
@@ -43,14 +41,8 @@ export type PreparedImportFile = {
 };
 
 export const collectPendingImports = (
-  existingFiles: FileEntry[],
   files: FileSource[],
-  initialDuplicateCount: number,
 ): PendingImportsResult => {
-  const seenSourceKeys = new Set(
-    existingFiles.map((entry) => buildEntrySourceKey(entry)).filter(Boolean),
-  );
-  let duplicateCount = initialDuplicateCount;
   let hasAnyUnsupportedFiles = false;
   let unsupportedCount = 0;
   const pendingImports: PendingImportFile[] = [];
@@ -63,12 +55,10 @@ export const collectPendingImports = (
       sizeBytes: sourceFile.size,
     });
     const sourceKey = buildFileIdentityKey(sourceFile, relativePath);
-    if (!sourceKey || seenSourceKeys.has(sourceKey)) {
-      duplicateCount += 1;
-      finishFilePerf({ skipped: "duplicate" });
+    if (!sourceKey) {
+      finishFilePerf({ skipped: "missing-key" });
       continue;
     }
-    seenSourceKeys.add(sourceKey);
 
     if (!isSupportedDataFileName(sourceFile.name)) {
       hasAnyUnsupportedFiles = true;
@@ -86,7 +76,6 @@ export const collectPendingImports = (
   }
 
   return {
-    duplicateCount,
     hasAnyUnsupportedFiles,
     pendingImports,
     unsupportedCount,

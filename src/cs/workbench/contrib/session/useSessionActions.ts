@@ -99,6 +99,30 @@ export const createSessionActions = ({
     }
   };
 
+  const handleFilesReplaced = (files: RawDataEntry[]) => {
+    resetProcessingWorker();
+    invalidatePreviewRequests();
+    clearPreviewState({ clearSelection: true });
+
+    for (const file of rawData) {
+      if (file?.fileId) {
+        disposePreviewFileCache(file.fileId);
+      }
+    }
+
+    setProcessedData([]);
+    setIonIoffManualTargetsByFileId({});
+    setSsManualRanges({});
+    setRawData(files);
+    resetPreviewWorker();
+
+    const nextSelectedFileId = files[0]?.fileId ?? null;
+    setSelectedPreviewFileId(nextSelectedFileId);
+    if (nextSelectedFileId) {
+      preparePreviewSelection(nextSelectedFileId);
+    }
+  };
+
   const handleFileRemoved = (fileId: string) => {
     let nextSelectedFileId: string | null = null;
     if (selectedPreviewFileId === fileId) {
@@ -158,6 +182,7 @@ export const createSessionActions = ({
   return {
     handleClearSession,
     handleFileImported,
+    handleFilesReplaced,
     handleFileRemoved,
     handleFileSelected,
     hasSessionData,

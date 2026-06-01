@@ -1,11 +1,10 @@
 import { lxDownloadTray } from "@chogng/lxicon";
 import { createButton } from "src/cs/base/browser/ui/button/button";
 import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
-import type { TranslateFn } from "src/cs/platform/language/common/language";
+import { localize } from "src/cs/nls";
 
 export type EmptyViewOptions = {
   readonly onImportFiles: () => void;
-  readonly t: TranslateFn;
 };
 
 const createEmptyIcon = (className: string): HTMLSpanElement => {
@@ -18,7 +17,6 @@ const createEmptyIcon = (className: string): HTMLSpanElement => {
 
 export const createEmptyView = ({
   onImportFiles,
-  t,
 }: EmptyViewOptions): HTMLDivElement => {
   const empty = document.createElement("div");
   empty.dataset.slot = "empty";
@@ -34,23 +32,25 @@ export const createEmptyView = ({
   const subtitle = document.createElement("p");
   subtitle.className = "file-list-empty-subtitle";
 
-  const prefix = document.createTextNode(`${t("da_csv_empty_subtitle_prefix")} `);
+  const prefix = document.createTextNode(
+    `${localize("files.emptySubtitlePrefix", "Drag a folder here or")} `,
+  );
   const browse = document.createElement("span");
   browse.className = "file-list-empty-browse";
-  browse.textContent = t("da_csv_empty_browse");
+  browse.textContent = localize("files.emptyBrowse", "browse folders");
 
   subtitle.append(prefix, browse);
   content.append(avatar, subtitle);
 
   const importButton = createButton({
-    ariaLabel: t("da_import_csv"),
+    ariaLabel: localize("files.importFolderButton", "Import folder"),
     className: "file-list-empty-import-button",
     content: [
       createEmptyIcon("file-list-empty-import-icon"),
-      document.createTextNode(t("da_import_csv")),
+      document.createTextNode(localize("files.importFolderButton", "Import folder")),
     ],
     size: "sm",
-    title: t("da_import_csv"),
+    title: localize("files.importFolderButton", "Import folder"),
     variant: "primary",
   });
   importButton.addEventListener("click", onImportFiles);

@@ -148,7 +148,6 @@ export class ExplorerViewer implements IDisposable {
         container.replaceChildren(
           createEmptyView({
             onImportFiles: this.props.onOpenFileDialog,
-            t: this.props.t,
           }),
         );
       },

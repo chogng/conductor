@@ -1,8 +1,45 @@
 import { isSupportedDataFileName } from "src/cs/workbench/contrib/files/common/files";
-import {
-  createFileSource,
-  type FileSource,
-} from "src/cs/workbench/contrib/files/browser/source";
+import { stableItemKey } from "src/utils/stableKey";
+
+export type FileSource = {
+  readonly file: File;
+  readonly relativePath?: string | null;
+};
+
+export const buildFileIdentityKey = (
+  file: File | null | undefined,
+  relativePath?: string | null,
+): string => {
+  if (!file) {
+    return "";
+  }
+
+  const path = relativePath?.trim();
+  return `${path || file.name}::${file.size}::${file.lastModified}`;
+};
+
+export const buildItemKey = (
+  file: File | null | undefined,
+  relativePath?: string | null,
+): string => {
+  const raw = buildFileIdentityKey(file, relativePath);
+  if (!raw) {
+    return "";
+  }
+
+  return stableItemKey("csv", raw);
+};
+
+export const createFileId = (): string => {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+
+  return `file_${Math.random().toString(36).slice(2)}_${Date.now().toString(36)}`;
+};
 
 type FileSystemEntryLike = {
   isDirectory: boolean;
@@ -25,6 +62,18 @@ type FileSystemDirectoryEntryLike = FileSystemEntryLike & {
 type DataTransferItemWithWebkit = DataTransferItem & {
   webkitGetAsEntry?: () => FileSystemEntryLike | null;
 };
+
+const getFileRelativePath = (file: File): string | null => {
+  // Keep directory imports stable by carrying the browser-provided relative path
+  // through the whole import pipeline.
+  const path = file.webkitRelativePath?.trim();
+  return path || null;
+};
+
+const createFileSource = (file: File): FileSource => ({
+  file,
+  relativePath: getFileRelativePath(file),
+});
 
 const readEntryFile = (entry: FileSystemFileEntryLike): Promise<File> =>
   new Promise<File>((resolve) => entry.file(resolve));
@@ -82,7 +131,11 @@ const traverseDroppedEntry = async (
 };
 
 export const collectInputFiles = (fileList: FileList | null): FileSource[] =>
-  Array.from(fileList ?? []).map(createFileSource);
+  Array.from(fileList ?? [])
+    .map(createFileSource)
+    .filter((source) =>
+      Boolean(source.relativePath && isSupportedDataFileName(source.file.name)),
+    );
 
 export const collectDroppedFiles = async (
   dataTransfer: DataTransfer,
@@ -92,14 +145,8 @@ export const collectDroppedFiles = async (
 
   const pendingTraversals = items.map(async (item) => {
     const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
-    if (entry) {
+    if (entry?.isDirectory) {
       await traverseDroppedEntry(entry, files);
-      return;
-    }
-
-    const file = item.getAsFile();
-    if (file && isSupportedDataFileName(file.name)) {
-      files.push({ file, relativePath: null });
     }
   });
 

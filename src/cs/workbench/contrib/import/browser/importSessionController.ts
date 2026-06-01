@@ -2,7 +2,7 @@ import type { ListHandle } from "src/cs/base/browser/ui/list/list";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import { startPerf } from "src/cs/workbench/common/deviceAnalysis/perf";
-import type { FileSource } from "src/cs/workbench/contrib/files/browser/source";
+import type { FileSource } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import {
   collectPendingImports,
   prepareImportFile,
@@ -17,15 +17,12 @@ import {
   type ImportSessionFileInfo,
   type ImportSessionRef,
 } from "src/cs/workbench/contrib/import/common/types";
-import {
-  buildEntrySourceKey,
-  filterUniqueFiles,
-} from "src/cs/workbench/contrib/files/browser/identity";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 
 export type ImportSessionProps = {
   files?: FileEntry[];
   onFileImported?: (fileInfo: ImportSessionFileInfo) => void;
+  onFilesReplaced?: (files: ImportSessionFileInfo[]) => void;
   onFileRemoved?: (fileId: string) => void;
   onFileSelected?: (fileId: string | null) => void;
   selectedFileId?: string | null;
@@ -225,36 +222,38 @@ export class ImportSessionController implements ImportSessionRef, IDisposable {
 
   private async processFiles(newFiles: FileSource[]): Promise<void> {
     const finishBatchPerf = startPerf("import:add-files", {
-      currentCount: this.files.length,
+      currentCount: 0,
       incomingCount: newFiles.length,
     });
 
     this.error = null;
     this.syncView();
 
-    const uniqueFiles = filterUniqueFiles(this.files, newFiles);
-    if (uniqueFiles.length === 0 && newFiles.length > 0) {
-      finishBatchPerf({
-        acceptedCount: 0,
-        duplicateCount: newFiles.length,
-        failedCount: 0,
-        unsupportedCount: 0,
-      });
-      return;
-    }
-
     const failedNames: string[] = [];
-    let acceptedCount = 0;
     const {
-      duplicateCount,
       hasAnyUnsupportedFiles,
       pendingImports,
       unsupportedCount,
     } = collectPendingImports(
-      this.files,
-      uniqueFiles,
-      newFiles.length - uniqueFiles.length,
+      newFiles,
     );
+    if (pendingImports.length === 0) {
+      finishBatchPerf({
+        acceptedCount: 0,
+        duplicateCount: 0,
+        failedCount: 0,
+        unsupportedCount,
+      });
+      this.error = this.buildImportErrorMessage({
+        failedNames,
+        hasAnyUnsupportedFiles,
+      });
+      this.syncView();
+      return;
+    }
+
+    const preparedEntries: SessionFileEntry[] = [];
+    const importedFiles: ImportSessionFileInfo[] = [];
 
     let nextImportIndex = 0;
     const workerCount = Math.min(
@@ -279,13 +278,16 @@ export class ImportSessionController implements ImportSessionRef, IDisposable {
             continue;
           }
 
-          if (this.appendPreparedImport(preparedImport.fileEntry)) {
-            acceptedCount += 1;
-            this.props.onFileImported?.(preparedImport.fileInfo);
-          }
+          preparedEntries.push(preparedImport.fileEntry);
+          importedFiles.push(preparedImport.fileInfo);
         }
       }),
     );
+
+    const acceptedCount = importedFiles.length;
+    if (acceptedCount > 0) {
+      this.replaceImportedFiles(preparedEntries, importedFiles);
+    }
 
     this.error = this.buildImportErrorMessage({
       failedNames,
@@ -295,7 +297,7 @@ export class ImportSessionController implements ImportSessionRef, IDisposable {
 
     finishBatchPerf({
       acceptedCount,
-      duplicateCount,
+      duplicateCount: 0,
       failedCount: failedNames.length,
       unsupportedCount,
     });
@@ -304,7 +306,7 @@ export class ImportSessionController implements ImportSessionRef, IDisposable {
   private getNoSupportedDroppedFilesError(): string {
     return localize(
       "import.noSupportedDroppedFiles",
-      "No supported files found in dropped items (.csv, .xls, .xlsx).",
+      "No supported files found in the selected folder.",
     );
   }
 
@@ -312,17 +314,29 @@ export class ImportSessionController implements ImportSessionRef, IDisposable {
     return localize("import.unknownFile", "Unknown file");
   }
 
-  private appendPreparedImport(fileEntry: SessionFileEntry): boolean {
+  private replaceImportedFiles(
+    fileEntries: SessionFileEntry[],
+    importedFiles: ImportSessionFileInfo[],
+  ): void {
+    const nextSelectedFileId = importedFiles[0]?.fileId ?? null;
+    this.optimisticSelectedFileId = nextSelectedFileId;
+
     if (!this.isControlled) {
-      if (this.internalFiles.some((entry) => buildEntrySourceKey(entry) === fileEntry.sourceKey)) {
-        return false;
-      }
-      this.internalFiles = [...this.internalFiles, fileEntry];
+      this.internalFiles = [...fileEntries];
       this.handleFileCountEffects();
       this.syncView();
     }
 
-    return true;
+    if (this.props.onFilesReplaced) {
+      this.props.onFilesReplaced(importedFiles);
+    } else {
+      for (const fileInfo of importedFiles) {
+        this.props.onFileImported?.(fileInfo);
+      }
+    }
+    if (this.props.onFileSelected) {
+      this.props.onFileSelected(nextSelectedFileId);
+    }
   }
 
   private buildImportErrorMessage(args: {
@@ -334,7 +348,7 @@ export class ImportSessionController implements ImportSessionRef, IDisposable {
       errors.push(
         localize(
           "import.unsupportedFilesSkipped",
-          "Skipped unsupported files. Supported: .csv, .xls, .xlsx",
+          "Skipped unsupported files in the selected folder. Supported: .csv, .xls, .xlsx",
         ),
       );
     }

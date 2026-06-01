@@ -2,35 +2,26 @@ import { addDisposableListener } from "src/cs/base/browser/dom";
 import type { ListHandle } from "src/cs/base/browser/ui/list/list";
 import Toast from "src/cs/base/browser/ui/toast/toast";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
-import type { TranslateFn } from "src/cs/platform/language/common/language";
+import { localize } from "src/cs/nls";
+import { DATA_FILE_ACCEPT } from "src/cs/workbench/contrib/files/common/files";
 import {
-  DATA_FILE_ACCEPT,
-  type FileEntry,
-} from "src/cs/workbench/contrib/files/common/files";
-import {
+  type FileSource,
   collectDroppedFiles,
   collectInputFiles,
 } from "src/cs/workbench/contrib/files/browser/fileImportExport";
-import type { FileSource } from "src/cs/workbench/contrib/files/browser/source";
 import {
   ExplorerViewer,
   type ExplorerViewerProps,
 } from "src/cs/workbench/contrib/files/browser/views/explorerViewer";
 
-import "src/cs/workbench/contrib/files/browser/views/media/fileList.css";
+import "src/cs/workbench/contrib/files/browser/views/media/explorerView.css";
 
 export type ExplorerViewProps = Omit<ExplorerViewerProps, "onOpenFileDialog"> & {
-  readonly effectiveSelectedFileId?: string | null;
   readonly error?: string | null;
-  readonly files: FileEntry[];
   readonly isDragging: boolean;
   readonly onClearError: () => void;
   readonly onDraggingChange: (isDragging: boolean) => void;
-  readonly onListScroll: (event: Event) => void;
-  readonly onRemoveFile: (fileId: string | null) => void;
-  readonly onSelectFile: (fileId: string | null) => void;
   readonly onSelectFiles: (files: FileSource[]) => void;
-  readonly t: TranslateFn;
 };
 
 export class ExplorerView implements IDisposable {
@@ -127,7 +118,6 @@ export class ExplorerView implements IDisposable {
 
     const fileInput = document.createElement("input");
     fileInput.type = "file";
-    fileInput.multiple = true;
     fileInput.accept = DATA_FILE_ACCEPT;
     fileInput.className = "file-list-input";
     fileInput.setAttribute("webkitdirectory", "");
@@ -212,7 +202,10 @@ export class ExplorerView implements IDisposable {
     this.root.setAttribute("aria-label", t("da_import_section"));
     this.root.classList.toggle("dragging", isDragging);
     this.root.classList.toggle("idle", !isDragging);
-    this.fileInput.setAttribute("aria-label", t("da_import_csv"));
+    this.fileInput.setAttribute(
+      "aria-label",
+      localize("files.importFolderAriaLabel", "Import folder"),
+    );
 
     this.explorerViewer.setProps(this.createViewerProps());
 

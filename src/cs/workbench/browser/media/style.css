@@ -239,7 +239,8 @@ html[data-transparent-chrome="true"] .template_preview_row_header {
 }
 
 .workbench_layout_main,
-.workbench_layout_sidebar {
+.workbench_layout_sidebar,
+.workbench_layout_secondary_sidebar {
   height: 100%;
   min-height: 0;
 }

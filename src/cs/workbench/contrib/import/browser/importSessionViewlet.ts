@@ -14,6 +14,7 @@ export type ImportSessionViewletProps = {
   readonly importSessionRef: { current: ImportSessionRef | null };
   readonly files?: FileEntry[];
   readonly onFileImported?: (fileInfo: ImportSessionFileInfo) => void;
+  readonly onFilesReplaced?: (files: ImportSessionFileInfo[]) => void;
   readonly onFileRemoved?: (fileId: string) => void;
   readonly onFileSelected?: (fileId: string | null) => void;
   readonly selectedFileId?: string | null;
@@ -43,6 +44,7 @@ export class ImportSessionViewlet implements IDisposable {
     this.sessionController = new ImportSessionController(this.sessionHost, {
       files: props.files,
       onFileImported: props.onFileImported,
+      onFilesReplaced: props.onFilesReplaced,
       onFileRemoved: props.onFileRemoved,
       onFileSelected: props.onFileSelected,
       selectedFileId: props.selectedFileId,
@@ -59,6 +61,7 @@ export class ImportSessionViewlet implements IDisposable {
     this.sessionController.setProps({
       files: nextProps.files,
       onFileImported: nextProps.onFileImported,
+      onFilesReplaced: nextProps.onFilesReplaced,
       onFileRemoved: nextProps.onFileRemoved,
       onFileSelected: nextProps.onFileSelected,
       selectedFileId: nextProps.selectedFileId,

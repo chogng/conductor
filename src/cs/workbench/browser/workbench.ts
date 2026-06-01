@@ -199,6 +199,7 @@ export class Workbench extends Layout {
     this.setParts({
       sidebar: this.importSession.element,
       data: this.data.element,
+      secondarySidebar: this.data.sidebarElement,
       analysis: this.analysis.element,
       settings: this.settings.element,
     });
@@ -269,6 +270,7 @@ export class Workbench extends Layout {
       importSessionRef: this.importSessionRef,
       files: snapshot.rawData,
       onFileImported: sessionActions.handleFileImported,
+      onFilesReplaced: sessionActions.handleFilesReplaced,
       onFileRemoved: sessionActions.handleFileRemoved,
       onFileSelected: sessionActions.handleFileSelected,
       selectedFileId: snapshot.selectedPreviewFileId,
