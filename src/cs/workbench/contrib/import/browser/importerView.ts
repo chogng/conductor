@@ -2,57 +2,30 @@ import type { ListHandle } from "src/cs/base/browser/ui/list/list";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import { startPerf } from "src/cs/workbench/common/deviceAnalysis/perf";
-import type { ImportedCurveAssessment } from "src/cs/workbench/common/deviceAnalysis/importFileUtils";
 import { collectDroppedImportFiles } from "src/cs/workbench/contrib/import/browser/csvDropTraversal";
 import type { ImportSourceFile } from "src/cs/workbench/contrib/import/browser/importSourceFile";
-import { prepareImportFileInWorker } from "src/cs/workbench/contrib/import/browser/rustClient";
 import {
-  ImportViewerView,
-  type ImportViewerProps,
-} from "src/cs/workbench/contrib/import/browser/views/importViewer";
-import { isSupportedDataImportFileName } from "src/cs/workbench/contrib/import/common/constants";
+  collectPendingImports,
+  prepareImportFile,
+  type SessionFileEntry,
+} from "src/cs/workbench/contrib/import/browser/importSession";
+import {
+  FileListView,
+  type FileListViewProps,
+} from "src/cs/workbench/contrib/files/browser/fileListView";
+import type { FileEntry } from "src/cs/workbench/contrib/files/common/files";
 import {
   type ImportedFileInfo,
-  type ImporterFileEntry,
   type ImporterRef,
 } from "src/cs/workbench/contrib/import/common/types";
 import {
   buildEntrySourceKey,
-  buildFileIdentityKey,
-  buildItemKey,
-  createCsvImporterFileId,
   filterUniqueCsvFiles,
 } from "src/cs/workbench/contrib/import/common/utils";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 
-type CsvFileEntry = ImporterFileEntry & {
-  fileId: string;
-  file: File;
-  itemKey: string;
-  sourceKey: string;
-};
-
-type PendingImportFile = {
-  finishFilePerf: (meta?: Record<string, unknown>) => void;
-  relativePath: string | null;
-  sourceFile: File;
-  sourceKey: string;
-};
-
-type PendingImportsResult = {
-  readonly duplicateCount: number;
-  readonly hasAnyUnsupportedFiles: boolean;
-  readonly pendingImports: PendingImportFile[];
-  readonly unsupportedCount: number;
-};
-
-type PreparedImportResult = {
-  readonly fileEntry: CsvFileEntry;
-  readonly fileInfo: ImportedFileInfo;
-};
-
 export type ImporterViewProps = {
-  files?: ImporterFileEntry[];
+  files?: FileEntry[];
   onDataImported?: (fileInfo: ImportedFileInfo) => void;
   onDataRemoved?: (fileId: string) => void;
   onFileSelected?: (fileId: string | null) => void;
@@ -63,16 +36,16 @@ export type ImporterViewControllerProps = ImporterViewProps & {
   readonly t: TranslateFn;
 };
 
-export type { ImportedFileInfo, ImporterFileEntry, ImporterRef };
+export type { ImportedFileInfo, ImporterRef };
 
 const IMPORT_PREPARE_CONCURRENCY = 2;
 
 export class ImporterViewController implements ImporterRef, IDisposable {
   private readonly listRef: { current: ListHandle | null } = { current: null };
   private readonly shouldAutoScrollToBottomRef = { current: true };
-  private viewer: ImportViewerView | null = null;
+  private fileListView: FileListView | null = null;
   private props: ImporterViewControllerProps;
-  private internalFiles: CsvFileEntry[] = [];
+  private internalFiles: SessionFileEntry[] = [];
   private error: string | null = null;
   private isDragging = false;
   private optimisticSelectedFileId: string | null = null;
@@ -84,8 +57,8 @@ export class ImporterViewController implements ImporterRef, IDisposable {
     this.prevFileCount = this.files.length;
     this.optimisticSelectedFileId = props.selectedFileId ?? null;
 
-    this.viewer = new ImportViewerView(host, this.createViewerProps());
-    this.listRef.current = this.viewer.getListHandle();
+    this.fileListView = new FileListView(host, this.createFileListProps());
+    this.listRef.current = this.fileListView.getListHandle();
   }
 
   get hasFiles(): boolean {
@@ -95,7 +68,7 @@ export class ImporterViewController implements ImporterRef, IDisposable {
   openFileDialog(): void {
     this.error = null;
     this.syncView();
-    this.viewer?.openFileDialog();
+    this.fileListView?.openFileDialog();
   }
 
   setProps(nextProps: ImporterViewControllerProps): void {
@@ -116,12 +89,12 @@ export class ImporterViewController implements ImporterRef, IDisposable {
     }
 
     this.disposed = true;
-    this.viewer?.dispose();
-    this.viewer = null;
+    this.fileListView?.dispose();
+    this.fileListView = null;
     this.listRef.current = null;
   }
 
-  private get files(): ImporterFileEntry[] {
+  private get files(): FileEntry[] {
     return Array.isArray(this.props.files) ? this.props.files : this.internalFiles;
   }
 
@@ -133,7 +106,7 @@ export class ImporterViewController implements ImporterRef, IDisposable {
     return this.optimisticSelectedFileId ?? this.props.selectedFileId ?? null;
   }
 
-  private createViewerProps(): ImportViewerProps {
+  private createFileListProps(): FileListViewProps {
     return {
       effectiveSelectedFileId: this.effectiveSelectedFileId,
       error: this.error,
@@ -155,7 +128,7 @@ export class ImporterViewController implements ImporterRef, IDisposable {
       return;
     }
 
-    this.viewer?.setProps(this.createViewerProps());
+    this.fileListView?.setProps(this.createFileListProps());
   }
 
   private handleFileCountEffects(): void {
@@ -294,7 +267,11 @@ export class ImporterViewController implements ImporterRef, IDisposable {
       hasAnyUnsupportedFiles,
       pendingImports,
       unsupportedCount,
-    } = this.collectPendingImports(uniqueFiles, newFiles.length - uniqueFiles.length);
+    } = collectPendingImports(
+      this.files,
+      uniqueFiles,
+      newFiles.length - uniqueFiles.length,
+    );
 
     let nextImportIndex = 0;
     const workerCount = Math.min(
@@ -311,7 +288,7 @@ export class ImporterViewController implements ImporterRef, IDisposable {
             return;
           }
 
-          const preparedImport = await this.prepareImportFile(pendingImport);
+          const preparedImport = await prepareImportFile(pendingImport);
           if (!preparedImport) {
             failedNames.push(
               pendingImport.sourceFile.name || this.getUnknownFileLabel(),
@@ -352,136 +329,7 @@ export class ImporterViewController implements ImporterRef, IDisposable {
     return localize("import.unknownFile", "Unknown file");
   }
 
-  private collectPendingImports(
-    files: ImportSourceFile[],
-    initialDuplicateCount: number,
-  ): PendingImportsResult {
-    const seenSourceKeys = new Set(
-      this.files.map((entry) => buildEntrySourceKey(entry)).filter(Boolean),
-    );
-    let duplicateCount = initialDuplicateCount;
-    let hasAnyUnsupportedFiles = false;
-    let unsupportedCount = 0;
-    const pendingImports: PendingImportFile[] = [];
-
-    for (const source of files) {
-      const sourceFile = source.file;
-      const relativePath = source.relativePath?.trim() || null;
-      const finishFilePerf = startPerf("import:prepare-file", {
-        fileName: sourceFile.name,
-        sizeBytes: sourceFile.size,
-      });
-      const sourceKey = buildFileIdentityKey(sourceFile, relativePath);
-      if (!sourceKey || seenSourceKeys.has(sourceKey)) {
-        duplicateCount += 1;
-        finishFilePerf({ skipped: "duplicate" });
-        continue;
-      }
-      seenSourceKeys.add(sourceKey);
-
-      if (!isSupportedDataImportFileName(sourceFile.name)) {
-        hasAnyUnsupportedFiles = true;
-        unsupportedCount += 1;
-        finishFilePerf({ skipped: "unsupported" });
-        continue;
-      }
-
-      pendingImports.push({
-        finishFilePerf,
-        relativePath,
-        sourceFile,
-        sourceKey,
-      });
-    }
-
-    return {
-      duplicateCount,
-      hasAnyUnsupportedFiles,
-      pendingImports,
-      unsupportedCount,
-    };
-  }
-
-  private async prepareImportFile(
-    pendingImport: PendingImportFile,
-  ): Promise<PreparedImportResult | null> {
-    const {
-      finishFilePerf,
-      relativePath,
-      sourceFile,
-      sourceKey,
-    } = pendingImport;
-    let normalizedFile: File;
-    let normalizedCsvPath: string | null = null;
-    let curveAssessment: ImportedCurveAssessment;
-    let sourcePath: string | null = null;
-
-    try {
-      const finishWorkerPerf = startPerf("import:worker-prepare-file", {
-        fileName: sourceFile.name,
-        sizeBytes: sourceFile.size,
-      });
-      const prepared = await prepareImportFileInWorker(sourceFile);
-      normalizedFile = prepared.file;
-      normalizedCsvPath = prepared.normalizedCsvPath ?? null;
-      curveAssessment = prepared.assessment;
-      sourcePath = prepared.sourcePath ?? null;
-      finishWorkerPerf({
-        confidence: curveAssessment.curveTypeConfidence,
-        curveType: curveAssessment.curveType,
-        normalizedName: normalizedFile.name,
-        normalizedSizeBytes: normalizedFile.size,
-        xAxisRole: curveAssessment.xAxisRole,
-      });
-    } catch {
-      finishFilePerf({ failed: "worker-prepare" });
-      return null;
-    }
-
-    const fileId = createCsvImporterFileId();
-    const fileEntry: CsvFileEntry = {
-      fileId,
-      file: normalizedFile,
-      itemKey: buildItemKey(normalizedFile, relativePath),
-      normalizedCsvPath,
-      relativePath,
-      sourceKey,
-      sourcePath,
-      curveType: curveAssessment.curveType,
-      curveTypeConfidence: curveAssessment.curveTypeConfidence,
-      curveTypeNeedsTemplate: curveAssessment.curveTypeNeedsTemplate,
-      curveTypeReasons: curveAssessment.curveTypeReasons,
-    };
-    const fileInfo: ImportedFileInfo = {
-      fileId,
-      fileName: sourceFile.name,
-      file: normalizedFile,
-      size: normalizedFile.size,
-      lastModified: normalizedFile.lastModified,
-      normalizedCsvPath,
-      relativePath,
-      sourceKey,
-      sourcePath,
-      curveType: curveAssessment.curveType,
-      curveTypeConfidence: curveAssessment.curveTypeConfidence,
-      curveTypeNeedsTemplate: curveAssessment.curveTypeNeedsTemplate,
-      curveTypeReasons: curveAssessment.curveTypeReasons,
-      xAxisRole: curveAssessment.xAxisRole,
-      xAxisRoleSource: curveAssessment.xAxisRoleSource,
-    };
-
-    finishFilePerf({
-      accepted: true,
-      curveType: curveAssessment.curveType,
-      confidence: curveAssessment.curveTypeConfidence,
-      fileId,
-      normalizedSizeBytes: normalizedFile.size,
-    });
-
-    return { fileEntry, fileInfo };
-  }
-
-  private appendPreparedImport(fileEntry: CsvFileEntry): boolean {
+  private appendPreparedImport(fileEntry: SessionFileEntry): boolean {
     if (!this.isControlled) {
       if (this.internalFiles.some((entry) => buildEntrySourceKey(entry) === fileEntry.sourceKey)) {
         return false;

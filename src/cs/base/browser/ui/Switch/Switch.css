@@ -1,4 +1,6 @@
 .ui-switch {
+  --switch-width: 40px;
+  --switch-height: 22px;
   --switch-padding: 2px;
   --switch-thumb-size: calc(var(--switch-height) - (var(--switch-padding) * 2));
   --switch-off: rgb(var(--bg-300) / 1);
@@ -23,6 +25,21 @@
     background-color 140ms ease,
     box-shadow 140ms ease,
     opacity 140ms ease;
+}
+
+.ui-switch[data-size="sm"] {
+  --switch-width: 32px;
+  --switch-height: 18px;
+}
+
+.ui-switch[data-size="md"] {
+  --switch-width: 40px;
+  --switch-height: 22px;
+}
+
+.ui-switch[data-size="lg"] {
+  --switch-width: 46px;
+  --switch-height: 26px;
 }
 
 .ui-switch[data-state="checked"] {

@@ -16,9 +16,7 @@ import {
 } from "src/cs/base/browser/ui/input/input";
 import {
   createSwitch as createBaseSwitch,
-  getSwitchClassName,
-  getSwitchDataAttributes,
-  getSwitchStyle,
+  updateSwitch,
 } from "src/cs/base/browser/ui/switch/switch";
 import { localize } from "src/cs/nls";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
@@ -114,17 +112,14 @@ const createToggleSwitch = (
     checked,
     size: "sm",
   });
-  button.className = getSwitchClassName({});
-  button.removeAttribute("style");
-  Object.assign(button.style, getSwitchStyle({ size: "sm" }));
-  for (const [name, value] of Object.entries(getSwitchDataAttributes({ checked, size: "sm" }))) {
-    if (value === undefined) {
-      button.removeAttribute(name);
-    } else {
-      button.setAttribute(name, value);
-    }
-  }
-  button.addEventListener("click", () => onCheckedChange(!checked));
+  button.addEventListener("click", () => {
+    const nextChecked = button.getAttribute("aria-checked") !== "true";
+    updateSwitch(button, {
+      checked: nextChecked,
+      size: "sm",
+    });
+    onCheckedChange(nextChecked);
+  });
   return button;
 };
 
@@ -549,7 +544,6 @@ export const createTemplateManager = ({
         config.stopOnError,
         (checked) => {
           session.setTemplateConfig({ ...config, stopOnError: checked });
-          defaultSessionModel.emitChange();
         }
       ),
       createToggleRowHelper(
@@ -557,7 +551,6 @@ export const createTemplateManager = ({
         config.fileNameMatchCaseSensitive,
         (checked) => {
           session.setTemplateConfig({ ...config, fileNameMatchCaseSensitive: checked });
-          defaultSessionModel.emitChange();
         }
       )
     );

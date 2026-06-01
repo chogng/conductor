@@ -1,3 +1,5 @@
+import type { FileEntry } from "src/cs/workbench/contrib/files/common/files";
+
 export type ImportAxisRole = "vg" | "vd" | null;
 
 export type ImportAxisRoleSource =
@@ -8,20 +10,7 @@ export type ImportAxisRoleSource =
   | "shape"
   | null;
 
-export type ImporterFileEntry = {
-  file?: unknown;
-  fileId?: string;
-  fileName?: string;
-  itemKey?: string;
-  normalizedCsvPath?: string | null;
-  relativePath?: string | null;
-  sourceKey?: string;
-  sourcePath?: string | null;
-  curveType?: string | null;
-  curveTypeConfidence?: "high" | "medium" | "low";
-  curveTypeNeedsTemplate?: boolean;
-  curveTypeReasons?: string[];
-};
+export type ImporterFileEntry = FileEntry;
 
 export type ImportedFileInfo = {
   fileId: string;

@@ -20,9 +20,7 @@ import {
   getInputWrapperClassName,
 } from "cs/base/browser/ui/input/input";
 import {
-  getSwitchClassName,
-  getSwitchDataAttributes,
-  getSwitchStyle,
+  createSwitch as createBaseSwitch,
 } from "cs/base/browser/ui/switch/switch";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import {
@@ -565,24 +563,11 @@ const createSwitch = (
   checked: boolean,
   onCheckedChange: (checked: boolean) => void,
 ): HTMLButtonElement => {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.role = "switch";
-  button.setAttribute("aria-checked", String(checked));
-  for (const [name, value] of Object.entries(
-    getSwitchDataAttributes({ checked, size: "sm" }),
-  )) {
-    if (value !== undefined) {
-      button.setAttribute(name, String(value));
-    }
-  }
-  button.className = getSwitchClassName({});
-  Object.assign(button.style, getSwitchStyle({ size: "sm" }));
+  const button = createBaseSwitch({
+    checked,
+    size: "sm",
+  });
   button.addEventListener("click", () => onCheckedChange(!checked));
-  const thumb = document.createElement("span");
-  thumb.className = "ui-switch__thumb";
-  thumb.setAttribute("aria-hidden", "true");
-  button.append(thumb);
   return button;
 };
 

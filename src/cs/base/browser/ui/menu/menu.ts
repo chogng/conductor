@@ -2,6 +2,7 @@ import { addDisposableListener, append } from "src/cs/base/browser/dom";
 import { ActionBar, ActionsOrientation, type ActionBarContent, type ActionBarOptions, type IActionViewItemProvider } from "src/cs/base/browser/ui/actionbar/actionbar";
 import { BaseActionViewItem, type IActionViewItemOptions } from "src/cs/base/browser/ui/actionbar/actionViewItem";
 import { ContentView } from "src/cs/base/browser/ui/contentView/contentView";
+import "src/cs/base/browser/ui/dropdown/dropdown.css";
 import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollbar";
 import { IAction, Separator } from "src/cs/base/common/actions";
 import { Disposable, DisposableStore } from "src/cs/base/common/lifecycle";
@@ -113,7 +114,7 @@ export class MenuButton extends Disposable {
 
         this.contentView = this._register(new ContentView({
             anchor: this.button,
-            className: options.surfaceClassName,
+            className: classNames("monaco-dropdown-surface", options.surfaceClassName),
             matchAnchorWidth: options.matchAnchorWidth ?? true,
             render: container => this.renderMenu(container),
             variant: "menu",
@@ -143,7 +144,7 @@ export class MenuButton extends Disposable {
         this.options = options;
         this.renderButton();
         this.contentView.update({
-            className: options.surfaceClassName,
+            className: classNames("monaco-dropdown-surface", options.surfaceClassName),
             matchAnchorWidth: options.matchAnchorWidth ?? true,
             render: container => this.renderMenu(container),
         });

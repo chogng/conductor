@@ -1,12 +1,8 @@
-import { cx } from "src/utils/cx";
-
 import "src/cs/base/browser/ui/switch/switch.css";
 
 export type SwitchSize = "sm" | "md" | "lg";
 
 export type SwitchStyleVars = Partial<CSSStyleDeclaration> & {
-  "--switch-width"?: string;
-  "--switch-height"?: string;
   "--switch-on"?: string;
   "--switch-on-hover"?: string;
 };
@@ -21,40 +17,29 @@ export type SwitchOptions = {
   readonly testId?: string;
 };
 
-const SWITCH_SIZE_STYLES = {
-  sm: {
-    "--switch-width": "32px",
-    "--switch-height": "18px",
-  },
-  md: {
-    "--switch-width": "40px",
-    "--switch-height": "22px",
-  },
-  lg: {
-    "--switch-width": "46px",
-    "--switch-height": "26px",
-  },
-} satisfies Record<SwitchSize, SwitchStyleVars>;
-
 const DEFAULT_SWITCH_STYLE = {
   "--switch-on": "#168a63",
   "--switch-on-hover": "#0f7a56",
 } satisfies SwitchStyleVars;
 
-export const getSwitchClassName = ({
+const getSwitchClassName = ({
   className = "",
-}: Pick<SwitchOptions, "className"> = {}): string => cx("ui-switch", className);
+}: Pick<SwitchOptions, "className"> = {}): string => {
+  if (!className) {
+    return "ui-switch";
+  }
 
-export const getSwitchStyle = ({
-  size = "md",
+  return `ui-switch ${className}`;
+};
+
+const getSwitchStyle = ({
   style,
-}: Pick<SwitchOptions, "size" | "style"> = {}): SwitchStyleVars => ({
+}: Pick<SwitchOptions, "style"> = {}): SwitchStyleVars => ({
   ...DEFAULT_SWITCH_STYLE,
-  ...SWITCH_SIZE_STYLES[size],
   ...style,
 });
 
-export const getSwitchDataAttributes = ({
+const getSwitchDataAttributes = ({
   checked = false,
   size = "md",
   testId,
@@ -94,7 +79,7 @@ export const updateSwitch = (
   }
 
   button.removeAttribute("style");
-  Object.assign(button.style, getSwitchStyle(options));
+  applySwitchStyle(button, getSwitchStyle(options));
 
   if (!button.querySelector(".ui-switch__thumb")) {
     button.appendChild(createSwitchThumb());
@@ -106,4 +91,18 @@ export const createSwitchThumb = (): HTMLSpanElement => {
   thumb.className = "ui-switch__thumb";
   thumb.setAttribute("aria-hidden", "true");
   return thumb;
+};
+
+const applySwitchStyle = (
+  button: HTMLButtonElement,
+  style: SwitchStyleVars,
+): void => {
+  for (const [name, value] of Object.entries(style)) {
+    if (value === undefined || value === null || value === "") {
+      button.style.removeProperty(name);
+      continue;
+    }
+
+    button.style.setProperty(name, String(value));
+  }
 };
