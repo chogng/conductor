@@ -13,7 +13,6 @@ import type { IDisposable } from "src/cs/base/common/lifecycle";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import { DATA_IMPORT_ACCEPT } from "src/cs/workbench/contrib/import/common/constants";
 import type { ImporterFileEntry } from "src/cs/workbench/contrib/import/common/types";
-import { toDomIdToken } from "src/cs/workbench/contrib/import/common/utils";
 import {
   createImportSourceFile,
   type ImportSourceFile,
@@ -42,7 +41,7 @@ export type ImportViewerProps = {
 };
 
 const getImportViewerFileName = getImportTreeFileName;
-const IMPORT_VIEWER_ROW_HEIGHT = 26;
+const IMPORT_VIEWER_ROW_HEIGHT = 28;
 
 type FileItemMeta = {
   readonly isWarning: boolean;
@@ -81,101 +80,6 @@ const appendIcon = (
   container.appendChild(iconSpan);
 };
 
-const renderImportViewerFileItem = (
-  fileEntry: ImporterFileEntry,
-  isSelected: boolean,
-  onRemove: (fileId: string | null) => void,
-  container: HTMLElement,
-) => {
-  const fileName = getImportViewerFileName(fileEntry);
-  const meta = getFileItemMeta(fileEntry);
-
-  container.replaceChildren();
-  container.className = "import-viewer-file-item";
-  container.setAttribute("aria-label", "csv-file-item");
-  container.title = fileName;
-  if (isSelected) {
-    container.dataset.selected = "true";
-  } else {
-    delete container.dataset.selected;
-  }
-  if (meta) {
-    container.dataset.autoSummary = meta.summary;
-    container.dataset.autoWarning = meta.isWarning ? "true" : "false";
-  } else {
-    delete container.dataset.autoSummary;
-    delete container.dataset.autoWarning;
-  }
-
-  if (fileEntry?.itemKey) {
-    container.id = `csv-file-item-${toDomIdToken(fileEntry.itemKey)}`;
-    container.dataset.itemKey = fileEntry.itemKey;
-  } else {
-    container.removeAttribute("id");
-    delete container.dataset.itemKey;
-  }
-
-  const content = document.createElement("div");
-  content.className = "import-viewer-file-content";
-
-  const icon = document.createElement("div");
-  icon.className = "import-viewer-file-icon";
-  appendIcon(icon, lxCsvGreen);
-
-  const text = document.createElement("div");
-  text.className = "import-viewer-file-text";
-
-  const name = document.createElement("span");
-  name.className = "import-viewer-file-name";
-  name.textContent = fileName;
-  text.appendChild(name);
-
-  content.append(icon, text);
-
-  const actions = document.createElement("div");
-  actions.className = "import-viewer-file-actions";
-
-  const removeButton = document.createElement("button");
-  removeButton.type = "button";
-  removeButton.className = "import-viewer-file-remove";
-  removeButton.setAttribute("aria-label", "Remove CSV file");
-
-  if (fileEntry?.itemKey) {
-    removeButton.id = `csv-file-remove-${toDomIdToken(fileEntry.itemKey)}`;
-    removeButton.dataset.itemKey = fileEntry.itemKey;
-  }
-
-  removeButton.addEventListener("click", (event) => {
-    event.stopPropagation();
-    onRemove(fileEntry.fileId ?? null);
-  });
-  appendIcon(removeButton, lxClose);
-
-  actions.appendChild(removeButton);
-  container.append(content, actions);
-};
-
-const renderImportViewerFolderItem = (
-  node: ImportTreeNode,
-  isExpanded: boolean,
-  container: HTMLElement,
-) => {
-  container.replaceChildren();
-  container.className = "import-viewer-folder-item";
-  container.title = node.name;
-
-  const name = document.createElement("span");
-  name.className = "import-viewer-folder-name";
-  name.textContent = node.name;
-
-  const count = document.createElement("span");
-  count.className = "import-viewer-folder-count";
-  count.textContent = String(node.children?.length ?? 0);
-
-  container.dataset.expanded = isExpanded ? "true" : "false";
-  container.append(name, count);
-};
-
 export class ImportViewerView implements IDisposable {
   private readonly host: HTMLElement;
   private readonly root: HTMLDivElement;
@@ -196,30 +100,12 @@ export class ImportViewerView implements IDisposable {
   constructor(host: HTMLElement, props: ImportViewerProps) {
     this.host = host;
     this.props = props;
-
-    this.root = document.createElement("div");
-    this.root.id = "analysis-csv-dropzone";
-    this.root.className = "import-viewer-file-browser idle";
-
-    this.fileInput = document.createElement("input");
-    this.fileInput.id = "analysis-csv-file-input";
-    this.fileInput.type = "file";
-    this.fileInput.multiple = true;
-    this.fileInput.accept = DATA_IMPORT_ACCEPT;
-    this.fileInput.className = "import-viewer-file-input";
-    this.fileInput.setAttribute("webkitdirectory", "");
-    this.fileInput.setAttribute("directory", "");
-
-    this.viewport = document.createElement("div");
-    this.viewport.className = "import-viewer-file-browser-viewport";
-
-    this.filledRoot = document.createElement("div");
-    this.filledRoot.id = "analysis-import-scroll";
-    this.filledRoot.className = "import-viewer-tree-root";
-
-    this.listHost = document.createElement("div");
-    this.listHost.className = "import-viewer-list-host";
-    this.filledRoot.appendChild(this.listHost);
+    const dom = this.createDom();
+    this.root = dom.root;
+    this.fileInput = dom.fileInput;
+    this.viewport = dom.viewport;
+    this.filledRoot = dom.filledRoot;
+    this.listHost = dom.listHost;
 
     this.treeView = new ObjectTree<ImportTreeNode>(
       this.listHost,
@@ -227,8 +113,6 @@ export class ImportViewerView implements IDisposable {
     );
     this.toast = new Toast();
 
-    this.viewport.append(this.filledRoot);
-    this.root.append(this.fileInput, this.viewport);
     this.host.appendChild(this.root);
 
     this.registerEvents();
@@ -315,22 +199,7 @@ export class ImportViewerView implements IDisposable {
           _index: number,
           container: HTMLElement,
           details: ITreeElementRenderDetails,
-        ) => {
-          const element = node.element;
-          if (element.kind === "folder") {
-            renderImportViewerFolderItem(element, !details.collapsed, container);
-            return;
-          }
-
-          if (element.entry) {
-            renderImportViewerFileItem(
-              element.entry,
-              this.props.effectiveSelectedFileId === element.entry.fileId,
-              this.props.onRemoveFile,
-              container,
-            );
-          }
-        },
+        ) => this.renderTreeElement(node, container, details),
         disposeElement: (_node, _index, container) => {
           container.replaceChildren();
         },
@@ -378,6 +247,153 @@ export class ImportViewerView implements IDisposable {
     this.listeners.push(() =>
       this.listHost.removeEventListener("focusout", this.handleListFocusOut),
     );
+  }
+
+  private createDom(): {
+    readonly fileInput: HTMLInputElement;
+    readonly filledRoot: HTMLDivElement;
+    readonly listHost: HTMLDivElement;
+    readonly root: HTMLDivElement;
+    readonly viewport: HTMLDivElement;
+  } {
+    const root = document.createElement("div");
+    root.className = "import-viewer-file-browser idle";
+
+    const fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.multiple = true;
+    fileInput.accept = DATA_IMPORT_ACCEPT;
+    fileInput.className = "import-viewer-file-input";
+    fileInput.setAttribute("webkitdirectory", "");
+    fileInput.setAttribute("directory", "");
+
+    const viewport = document.createElement("div");
+    viewport.className = "import-viewer-file-browser-viewport";
+
+    const filledRoot = document.createElement("div");
+    filledRoot.className = "import-viewer-tree-root";
+
+    const listHost = document.createElement("div");
+    listHost.className = "import-viewer-list-host";
+    filledRoot.appendChild(listHost);
+
+    viewport.append(filledRoot);
+    root.append(fileInput, viewport);
+
+    return { fileInput, filledRoot, listHost, root, viewport };
+  }
+
+  private renderTreeElement(
+    node: ITreeNode<ImportTreeNode>,
+    container: HTMLElement,
+    details: ITreeElementRenderDetails,
+  ): void {
+    const element = node.element;
+    if (element.kind === "folder") {
+      this.renderFolderItem(element, !details.collapsed, container);
+      return;
+    }
+
+    if (element.entry) {
+      this.renderFileItem(
+        element.entry,
+        this.props.effectiveSelectedFileId === element.entry.fileId,
+        container,
+      );
+    }
+  }
+
+  private renderFileItem(
+    fileEntry: ImporterFileEntry,
+    isSelected: boolean,
+    container: HTMLElement,
+  ): void {
+    const fileName = getImportViewerFileName(fileEntry);
+    const meta = getFileItemMeta(fileEntry);
+
+    container.replaceChildren();
+    container.className = "import-viewer-file-item";
+    container.setAttribute(
+      "aria-label",
+      this.props.t("import.fileItemAriaLabel", { fileName }),
+    );
+    container.title = fileName;
+    if (isSelected) {
+      container.dataset.selected = "true";
+    } else {
+      delete container.dataset.selected;
+    }
+    if (meta) {
+      container.dataset.autoSummary = meta.summary;
+      container.dataset.autoWarning = meta.isWarning ? "true" : "false";
+    } else {
+      delete container.dataset.autoSummary;
+      delete container.dataset.autoWarning;
+    }
+
+    if (fileEntry?.itemKey) {
+      container.dataset.itemKey = fileEntry.itemKey;
+    } else {
+      delete container.dataset.itemKey;
+    }
+
+    const content = document.createElement("div");
+    content.className = "import-viewer-file-content";
+
+    const icon = document.createElement("div");
+    icon.className = "import-viewer-file-icon";
+    appendIcon(icon, lxCsvGreen);
+
+    const text = document.createElement("div");
+    text.className = "import-viewer-file-text";
+
+    const name = document.createElement("span");
+    name.className = "import-viewer-file-name";
+    name.textContent = fileName;
+    text.appendChild(name);
+
+    content.append(icon, text);
+
+    const actions = document.createElement("div");
+    actions.className = "import-viewer-file-actions";
+
+    const removeButton = document.createElement("button");
+    removeButton.type = "button";
+    removeButton.className = "import-viewer-file-remove";
+    removeButton.setAttribute(
+      "aria-label",
+      this.props.t("import.removeFileButtonLabel", { fileName }),
+    );
+
+    removeButton.addEventListener("click", (event) => {
+      event.stopPropagation();
+      this.props.onRemoveFile(fileEntry.fileId ?? null);
+    });
+    appendIcon(removeButton, lxClose);
+
+    actions.appendChild(removeButton);
+    container.append(content, actions);
+  }
+
+  private renderFolderItem(
+    node: ImportTreeNode,
+    isExpanded: boolean,
+    container: HTMLElement,
+  ): void {
+    container.replaceChildren();
+    container.className = "import-viewer-folder-item";
+    container.title = node.name;
+
+    const name = document.createElement("span");
+    name.className = "import-viewer-folder-name";
+    name.textContent = node.name;
+
+    const count = document.createElement("span");
+    count.className = "import-viewer-folder-count";
+    count.textContent = String(node.children?.length ?? 0);
+
+    container.dataset.expanded = isExpanded ? "true" : "false";
+    container.append(name, count);
   }
 
   private readonly handleFileInputChange = (): void => {

@@ -7,6 +7,7 @@ import { createDecorator } from "src/cs/platform/instantiation/common/instantiat
 
 export const IContextViewService = createDecorator<IContextViewService>("contextViewService");
 export const IContextMenuService = createDecorator<IContextMenuService>("contextMenuService");
+export const INativeContextMenuService = createDecorator<INativeContextMenuService>("nativeContextMenuService");
 
 export interface IContextViewService extends IContextViewProvider {
     readonly _serviceBrand: undefined;
@@ -38,6 +39,14 @@ export interface IOpenContextView {
 }
 
 export interface IContextMenuService {
+    readonly _serviceBrand: undefined;
+    readonly onDidShowContextMenu: Event<void>;
+    readonly onDidHideContextMenu: Event<void>;
+
+    showContextMenu(delegate: IContextMenuDelegate): void;
+}
+
+export interface INativeContextMenuService {
     readonly _serviceBrand: undefined;
     readonly onDidShowContextMenu: Event<void>;
     readonly onDidHideContextMenu: Event<void>;

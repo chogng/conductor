@@ -1,6 +1,5 @@
 import { lxCheck } from "@chogng/lxicon";
 import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
-import { cx } from "src/utils/cx";
 
 import "src/cs/base/browser/ui/checkbox/checkbox.css";
 
@@ -20,8 +19,19 @@ export const getCheckboxClassName = ({
   checked = false,
   className = "",
   size = "sm",
-}: Pick<CheckboxOptions, "checked" | "className" | "size"> = {}): string =>
-  cx("ui-checkbox", `ui-checkbox--${size}`, checked && "checked", className);
+}: Pick<CheckboxOptions, "checked" | "className" | "size"> = {}): string => {
+  const classNames = ["ui-checkbox", `ui-checkbox--${size}`];
+
+  if (checked) {
+    classNames.push("checked");
+  }
+
+  if (className) {
+    classNames.push(className);
+  }
+
+  return classNames.join(" ");
+};
 
 export const getCheckboxAriaAttributes = ({
   checked = false,
@@ -36,17 +46,26 @@ export const getCheckboxAriaAttributes = ({
 
 export const getCheckboxIconMarkup = ({
   checked = false,
+  iconClassName = "",
   iconSize,
   size = "sm",
-}: Pick<CheckboxOptions, "checked" | "iconSize" | "size"> = {}): string => {
-  if (!checked) return "";
+}: Pick<CheckboxOptions, "checked" | "iconClassName" | "iconSize" | "size"> = {}): string => {
+  if (!checked) {
+    return "";
+  }
 
   const resolvedIconSize = iconSize ?? (size === "lg" ? 11 : 10);
-  return normalizeLxIconSvgMarkup(lxCheck).replace(
+  const svgMarkup = normalizeLxIconSvgMarkup(lxCheck).replace(
     /<svg\b([^>]*)>/i,
     (_match, attributes: string) =>
       `<svg${attributes} width="${resolvedIconSize}" height="${resolvedIconSize}">`,
   );
+
+  if (!iconClassName) {
+    return svgMarkup;
+  }
+
+  return `<span class="${iconClassName}" aria-hidden="true">${svgMarkup}</span>`;
 };
 
 export const createCheckbox = (
@@ -63,6 +82,10 @@ export const updateCheckbox = (
   options: CheckboxOptions = {},
 ): void => {
   checkbox.className = getCheckboxClassName(options);
+
+  checkbox.removeAttribute("role");
+  checkbox.removeAttribute("aria-checked");
+  checkbox.removeAttribute("aria-hidden");
 
   for (const [name, value] of Object.entries(getCheckboxAriaAttributes(options))) {
     checkbox.setAttribute(name, String(value));

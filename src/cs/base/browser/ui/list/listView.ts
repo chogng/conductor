@@ -3,7 +3,6 @@ import {
   DisposableResizeObserver,
   getClientArea,
 } from "src/cs/base/browser/dom";
-import { cx } from "src/utils/cx";
 import {
   DisposableStore,
   type IDisposable,
@@ -61,6 +60,12 @@ type RowLayout = {
 const DEFAULT_MIN_VIRTUAL_COUNT = 80;
 const DEFAULT_GAP = 12;
 const DEFAULT_OVERSCAN_ROWS = 6;
+
+const classNames = (...names: Array<string | undefined>): string =>
+  names
+    .flatMap((name) => name?.split(/\s+/g) ?? [])
+    .filter(Boolean)
+    .join(" ");
 
 export class ListView<T> implements IDisposable {
   private readonly disposables = new DisposableStore();
@@ -218,8 +223,8 @@ export class ListView<T> implements IDisposable {
   }
 
   private updateClasses(): void {
-    this.root.className = cx("ui-list", "scrollArea", this.props.className);
-    this.viewport.className = cx(
+    this.root.className = classNames("ui-list", "scrollArea", this.props.className);
+    this.viewport.className = classNames(
       "ui-list__viewport",
       "scrollAreaViewport",
       this.props.viewportClassName,

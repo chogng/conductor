@@ -21,7 +21,6 @@ export const createImportEmptyView = ({
   t,
 }: ImportEmptyViewOptions): HTMLDivElement => {
   const empty = document.createElement("div");
-  empty.id = "analysis-csv-empty";
   empty.dataset.slot = "empty";
   empty.className = "import-viewer-empty";
 
@@ -44,7 +43,6 @@ export const createImportEmptyView = ({
   content.append(avatar, subtitle);
 
   const importButton = createButton({
-    id: "analysis-import-empty-btn",
     ariaLabel: t("da_import_csv"),
     className: "import-viewer-empty-import-button",
     content: [

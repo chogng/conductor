@@ -6,14 +6,14 @@ import { popup } from "src/cs/base/parts/contextmenu/electron-browser/contextmen
 import type { IContextMenuItem } from "src/cs/base/parts/contextmenu/common/contextmenu";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
-    IContextMenuService,
+    INativeContextMenuService,
     type IAnchor,
     type IContextMenuDelegate,
     type IContextMenuEvent,
-    type IContextMenuService as IContextMenuServiceType,
+    type INativeContextMenuService as INativeContextMenuServiceType,
 } from "src/cs/platform/contextview/browser/contextView";
 
-export class ContextMenuService extends Disposable implements IContextMenuServiceType {
+export class NativeContextMenuService extends Disposable implements INativeContextMenuServiceType {
     public declare readonly _serviceBrand: undefined;
 
     private readonly onDidShowContextMenuEmitter = this._register(new Emitter<void>());
@@ -161,4 +161,4 @@ function isAnchor(value: HTMLElement | IAnchor | { readonly posx: number; readon
     return "x" in value && "y" in value;
 }
 
-registerSingleton(IContextMenuService, ContextMenuService, InstantiationType.Delayed);
+registerSingleton(INativeContextMenuService, NativeContextMenuService, InstantiationType.Delayed);

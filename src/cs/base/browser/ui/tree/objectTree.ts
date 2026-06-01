@@ -6,6 +6,7 @@ import type {
   ListRenderState,
 } from "src/cs/base/browser/ui/list/list";
 import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
+import { localize } from "src/cs/nls";
 import {
   ObjectTreeModel,
   type FlattenedObjectTreeNode,
@@ -202,6 +203,7 @@ export class ObjectTree<T> implements ListHandle {
 
     const item = document.createElement("div");
     item.className = "ui-tree__item";
+    item.dataset.expandable = entry.expandable ? "true" : "false";
     item.style.paddingLeft = `${entry.depth * 16}px`;
 
     const disclosure = document.createElement("button");
@@ -210,7 +212,12 @@ export class ObjectTree<T> implements ListHandle {
     disclosure.disabled = !entry.expandable;
     disclosure.replaceChildren();
     if (entry.expandable) {
-      disclosure.setAttribute("aria-label", collapsed ? "Expand" : "Collapse");
+      disclosure.setAttribute(
+        "aria-label",
+        collapsed
+          ? localize("tree.expand", "Expand")
+          : localize("tree.collapse", "Collapse"),
+      );
       disclosure.setAttribute("aria-expanded", String(!collapsed));
       disclosure.appendChild(renderChevron(collapsed));
     }

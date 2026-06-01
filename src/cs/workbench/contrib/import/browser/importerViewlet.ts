@@ -33,26 +33,10 @@ export class ImporterViewletView implements IDisposable {
     this.props = props;
     this.host.classList.add("importer-viewlet-host");
 
-    this.root = document.createElement("div");
-    this.root.className = "importer-viewlet-root workbench_sidebar_part";
-    this.root.setAttribute("aria-label", props.t("da_import_section"));
-
-    const section = document.createElement("section");
-    section.className = "importer-viewlet-section";
-
-    this.cardRoot = document.createElement("div");
-    this.cardRoot.id = "analysis-import-card";
-    this.cardRoot.className = "importer-viewlet-card card card--fill";
-    this.cardRoot.dataset.cta = normalizeCtaName("Device analysis") ?? "";
-    this.cardRoot.dataset.ctaPosition =
-      normalizeCtaToken("data-import") ?? "";
-    this.cardRoot.dataset.ctaCopy = normalizeCtaToken("csv importer") ?? "";
-
-    this.importerHost = document.createElement("div");
-    this.importerHost.className = "importer-viewlet-importer-host";
-    this.cardRoot.appendChild(this.importerHost);
-    section.appendChild(this.cardRoot);
-    this.root.append(section);
+    const { cardRoot, importerHost, root } = this.createDom(props);
+    this.root = root;
+    this.cardRoot = cardRoot;
+    this.importerHost = importerHost;
     this.host.appendChild(this.root);
 
     this.importerView = new ImporterViewController(this.importerHost, {
@@ -102,5 +86,37 @@ export class ImporterViewletView implements IDisposable {
     }
 
     this.root.setAttribute("aria-label", this.props.t("da_import_section"));
+  }
+
+  private createDom(props: ImporterViewletProps): {
+    readonly cardRoot: HTMLDivElement;
+    readonly importerHost: HTMLDivElement;
+    readonly root: HTMLDivElement;
+  } {
+    const root = document.createElement("div");
+    root.className = "importer-viewlet-root workbench_sidebar_part";
+    root.setAttribute("aria-label", props.t("da_import_section"));
+
+    const section = document.createElement("section");
+    section.className = "importer-viewlet-section";
+
+    const cardRoot = document.createElement("div");
+    cardRoot.className = "importer-viewlet-card importer-viewlet-card--body card card--fill";
+    this.applyCardTracking(cardRoot);
+
+    const importerHost = document.createElement("div");
+    importerHost.className = "importer-viewlet-importer-host";
+
+    cardRoot.appendChild(importerHost);
+    section.appendChild(cardRoot);
+    root.append(section);
+
+    return { cardRoot, importerHost, root };
+  }
+
+  private applyCardTracking(cardRoot: HTMLDivElement): void {
+    cardRoot.dataset.cta = normalizeCtaName("Device analysis") ?? "";
+    cardRoot.dataset.ctaPosition = normalizeCtaToken("data-import") ?? "";
+    cardRoot.dataset.ctaCopy = normalizeCtaToken("csv importer") ?? "";
   }
 }

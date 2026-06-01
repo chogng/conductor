@@ -29,7 +29,7 @@
 .content-view__surface--menu {
   overflow: hidden;
   padding: 0;
-  width: max-content;
+  width: 100%;
 }
 
 .content-view__surface--open {

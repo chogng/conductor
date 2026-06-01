@@ -1,6 +1,6 @@
 .ui-menu {
   box-sizing: border-box;
-  width: max-content;
+  width: 100%;
   min-width: 100%;
   max-width: inherit;
   background-color: rgb(var(--bg-surface) / 0.98) !important;

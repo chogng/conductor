@@ -3,6 +3,7 @@
 //#region --- platform services
 
 import "src/cs/platform/contextkey/browser/contextKeyService";
+import "src/cs/platform/contextview/browser/contextMenuService";
 import "src/cs/platform/contextview/browser/contextViewService";
 
 //#endregion
