@@ -4,10 +4,11 @@ import { createButton } from "src/cs/base/browser/ui/button/button";
 import { getCardClassName } from "src/cs/base/browser/ui/card/card";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import {
+  createMenuAction,
   createMenuButton,
   createMenuItemLabel,
-  type MenuEntry,
 } from "src/cs/base/browser/ui/menu/menu";
+import { Separator, type IAction } from "src/cs/base/common/actions";
 import {
   getInputFieldClassName,
   getInputFieldState,
@@ -334,20 +335,22 @@ export const createTemplateManager = ({
       defaultSessionModel.emitChange();
     };
 
-    const createTemplateEntries = (): MenuEntry[] => {
-      const entries: MenuEntry[] = [
-        {
+    const createTemplateActions = () => {
+      const actions: IAction[] = [
+        createMenuAction({
+          id: "template.select.auto",
+          label: localize("da_template_auto_extraction", "Auto extraction"),
           left: createMenuItemLabel(localize("da_template_auto_extraction", "Auto extraction")),
-          onClick: () => selectTemplate(AUTO_TEMPLATE_ID),
+          run: () => selectTemplate(AUTO_TEMPLATE_ID),
           selected: (selectedTemplateId || AUTO_TEMPLATE_ID) === AUTO_TEMPLATE_ID,
           tabIndex: 0,
           value: AUTO_TEMPLATE_ID,
-        },
+        }),
       ];
 
       const templates = cachedTemplates ?? [];
       if (templates.length > 0) {
-        entries.push({ kind: "separator" });
+        actions.push(new Separator());
       }
 
       for (const template of templates) {
@@ -356,9 +359,11 @@ export const createTemplateManager = ({
           continue;
         }
 
-        entries.push({
+        actions.push(createMenuAction({
+          id: `template.select.${templateId}`,
+          label: template.name || templateId,
           left: createMenuItemLabel(template.name || templateId),
-          onClick: () => selectTemplate(templateId),
+          run: () => selectTemplate(templateId),
           rightAction: {
             icon: () => createLxIcon({ icon: lxEdit, size: 14 }),
             label: localize("da_template_edit", "Edit template"),
@@ -367,28 +372,30 @@ export const createTemplateManager = ({
           selected: selectedTemplateId === templateId,
           tabIndex: 0,
           value: templateId,
-        });
+        }));
       }
 
-      entries.push(
-        { kind: "separator" },
-        {
+      actions.push(
+        new Separator(),
+        createMenuAction({
+          id: "template.create",
+          label: localize("da_template_create_new", "Create new template..."),
           className: "template_select_menu_create",
           left: createMenuItemLabel(
             localize("da_template_create_new", "Create new template..."),
             () => createLxIcon({ icon: lxAdd, size: 14 }),
           ),
-          onClick: createTemplate,
+          run: createTemplate,
           tabIndex: 0,
-        },
+        }),
       );
 
-      return entries;
+      return actions;
     };
 
     const templateSelectMenu = createMenuButton({
       label: selectedTemplateLabel,
-      items: createTemplateEntries,
+      items: createTemplateActions,
       menuClassName: "template_select_menu",
       surfaceClassName: "template_select_menu_surface",
       triggerIcon: () => createLxIcon({ icon: lxArrowDown, size: 14 }),

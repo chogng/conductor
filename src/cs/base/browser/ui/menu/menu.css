@@ -61,6 +61,19 @@
     color 150ms ease;
 }
 
+.ui-menu__item > .ui-actionbar__label {
+  min-width: 0;
+  flex: 1 1 0%;
+  justify-content: flex-start;
+  padding: 0;
+  text-align: left;
+  outline: none;
+}
+
+.ui-menu__item > .ui-actionbar__label:focus-visible {
+  outline: none;
+}
+
 .ui-menu__item[data-selected] {
   background-color: rgb(var(--accent) / 0.12);
   color: rgb(var(--accent) / 1);

@@ -2,7 +2,7 @@ import { addDisposableListener, append, clearNode } from "src/cs/base/browser/do
 import { ActionRunner, Separator, type IAction, type IActionRunner, type IRunEvent } from "src/cs/base/common/actions";
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable, DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
-import { ActionViewItem, type ActionViewItemOptions, type IActionViewItem } from "src/cs/base/browser/ui/actionbar/actionViewItem";
+import { ActionViewItem, type IActionViewItemOptions, type IActionViewItem } from "src/cs/base/browser/ui/actionbar/actionViewItem";
 
 import "src/cs/base/browser/ui/actionbar/actionbar.css";
 
@@ -16,8 +16,13 @@ export type ActionBarContent = {
     readonly disposable?: IDisposable;
 };
 
+export interface IActionViewItemProvider {
+    (action: IAction, options: IActionViewItemOptions): IActionViewItem | undefined;
+}
+
 export type ActionBarOptions = {
     readonly ariaLabel?: string;
+    readonly actionViewItemProvider?: IActionViewItemProvider;
     readonly className?: string;
     readonly contentClassName?: string;
     readonly context?: unknown;
@@ -27,7 +32,7 @@ export type ActionBarOptions = {
     readonly actionRunner?: IActionRunner;
 };
 
-export type ActionOptions = ActionViewItemOptions & {
+export type ActionOptions = IActionViewItemOptions & {
     readonly index?: number;
 };
 
@@ -38,6 +43,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
     private readonly viewItems: IActionViewItem[] = [];
     private readonly actionRunnerDisposables = this._register(new DisposableStore());
+    private readonly actionViewItemProvider: IActionViewItemProvider | undefined;
     private context: unknown;
     private runner: IActionRunner;
 
@@ -49,6 +55,7 @@ export class ActionBar extends Disposable implements IActionRunner {
 
     constructor(options: ActionBarOptions = {}) {
         super();
+        this.actionViewItemProvider = options.actionViewItemProvider;
         this.context = options.context;
         this.runner = options.actionRunner ?? this._register(new ActionRunner());
 
@@ -116,7 +123,9 @@ export class ActionBar extends Disposable implements IActionRunner {
             }
 
             const element = document.createElement("div");
-            const item = this.itemDisposables.add(new ActionViewItem(this.context, itemAction, options));
+            const item = this.itemDisposables.add(
+                this.actionViewItemProvider?.(itemAction, options) ?? new ActionViewItem(this.context, itemAction, options),
+            );
             item.actionRunner = this.runner;
             item.render(element);
 

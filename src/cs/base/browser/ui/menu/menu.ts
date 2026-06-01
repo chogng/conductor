@@ -1,8 +1,9 @@
 import { addDisposableListener, append } from "src/cs/base/browser/dom";
-import { ActionBar, ActionsOrientation, type ActionBarContent, type ActionBarOptions } from "src/cs/base/browser/ui/actionbar/actionbar";
+import { ActionBar, ActionsOrientation, type ActionBarContent, type ActionBarOptions, type IActionViewItemProvider } from "src/cs/base/browser/ui/actionbar/actionbar";
+import { BaseActionViewItem, type IActionViewItemOptions } from "src/cs/base/browser/ui/actionbar/actionViewItem";
 import { ContentView } from "src/cs/base/browser/ui/contentView/contentView";
-import { MenuItem, type MenuItemOptions } from "src/cs/base/browser/ui/menuItem/menuItem";
 import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollbar";
+import { IAction, Separator } from "src/cs/base/common/actions";
 import { Disposable, DisposableStore } from "src/cs/base/common/lifecycle";
 
 import "src/cs/base/browser/ui/menu/menu.css";
@@ -20,15 +21,10 @@ export type MenuItemAction = {
     readonly onClick: (event: MouseEvent | KeyboardEvent) => void;
 };
 
-export type MenuEntry =
-    | { readonly kind: "separator" }
-    | { readonly kind: "label"; readonly label: string }
-    | ({ readonly kind?: "item"; readonly autoHide?: boolean; readonly rightAction?: MenuItemAction } & MenuItemOptions);
-
 export type MenuButtonOptions = {
     readonly ariaLabel?: string;
     readonly className?: string;
-    readonly items: readonly MenuEntry[] | (() => readonly MenuEntry[]);
+    readonly items: readonly IAction[] | (() => readonly IAction[]);
     readonly label: string;
     readonly matchAnchorWidth?: boolean;
     readonly menuClassName?: string;
@@ -37,15 +33,46 @@ export type MenuButtonOptions = {
     readonly withScrollArea?: boolean;
 };
 
+type MenuActionOptions = {
+    readonly autoHide?: boolean;
+    readonly checked?: boolean;
+    readonly className?: string;
+    readonly enabled?: boolean;
+    readonly id: string;
+    readonly label: string;
+    readonly left?: Node | string;
+    readonly onMouseEnter?: (event: MouseEvent) => void;
+    readonly right?: Node | string;
+    readonly rightAction?: MenuItemAction;
+    readonly role?: "button" | "menuitem" | "presentation";
+    readonly run: (event?: unknown) => unknown;
+    readonly selected?: boolean;
+    readonly tabIndex?: number;
+    readonly tooltip?: string;
+    readonly value?: string;
+};
+
+type MenuItemData = {
+    readonly autoHide: boolean;
+    readonly left: Node | string | undefined;
+    readonly onMouseEnter: ((event: MouseEvent) => void) | undefined;
+    readonly right: Node | string | undefined;
+    readonly rightAction: MenuItemAction | undefined;
+    readonly role: "button" | "menuitem" | "presentation" | undefined;
+    readonly selected: boolean;
+    readonly tabIndex: number | undefined;
+    readonly value: string | undefined;
+};
+
+const menuItemData = new WeakMap<IAction, MenuItemData>();
+
 export class Menu extends ActionBar {
     constructor(options: MenuOptions = {}) {
         super(createMenuActionBarOptions(options));
     }
 
-    public appendItem(options?: MenuItemOptions): MenuItem {
-        const item = this.registerItem(new MenuItem(options));
-        this.append(item.domNode);
-        return item;
+    public appendItem(action: IAction): void {
+        this.push(action);
     }
 
     public override appendSeparator(): HTMLDivElement {
@@ -204,58 +231,37 @@ export class MenuButton extends Disposable {
             withScrollArea: this.options.withScrollArea,
         });
 
-        for (const entry of resolveEntries(this.options.items)) {
-            if (entry.kind === "separator") {
+        for (const action of resolveItems(this.options.items)) {
+            if (action instanceof Separator) {
                 menu.appendSeparator();
                 continue;
             }
-            if (entry.kind === "label") {
-                menu.appendGroupLabel(entry.label);
-                continue;
-            }
 
-            const { autoHide = true, kind: _kind, rightAction, ...itemOptions } = entry;
-            menu.appendItem({
-                ...itemOptions,
-                onClick: event => {
-                    itemOptions.onClick?.(event);
-                    if (autoHide) {
+            const shouldAutoHide = getMenuItemData(action)?.autoHide ?? true;
+            if (shouldAutoHide) {
+                const hideOnRun = menu.onDidRun(event => {
+                    if (event.action === action && !event.error) {
+                        hideOnRun.dispose();
                         this.hide();
                     }
-                },
-                right: rightAction ? this.createActionButton(rightAction) : itemOptions.right,
-            });
+                });
+                this.renderDisposables.add(hideOnRun);
+            }
+
+            menu.appendItem(action);
         }
 
+        this.renderDisposables.add(addDisposableListener(menu.domNode, "menuitemactionrun", () => {
+            this.hide();
+        }));
         container.append(menu.domNode);
         this.renderDisposables.add(menu);
     }
 
-    private createActionButton(action: MenuItemAction): HTMLButtonElement {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = classNames("ui-menu__item-action", action.className);
-        button.title = action.label;
-        button.setAttribute("aria-label", action.label);
-
-        const icon = createNode(action.icon);
-        if (icon) {
-            button.append(icon);
-        }
-
-        this.renderDisposables.add(addDisposableListener(button, "click", event => {
-            event.preventDefault();
-            event.stopPropagation();
-            action.onClick(event);
-            this.hide();
-        }));
-        return button;
-    }
-
     private focusSelectedItem(): void {
         requestAnimationFrame(() => {
-            const selected = this.contentView.domNode.querySelector<HTMLElement>("[data-selected]");
-            const first = this.contentView.domNode.querySelector<HTMLElement>(".ui-menu__item");
+            const selected = this.contentView.domNode.querySelector<HTMLElement>("[data-selected] > .ui-actionbar__label");
+            const first = this.contentView.domNode.querySelector<HTMLElement>(".ui-menu__item > .ui-actionbar__label");
             (selected ?? first)?.focus();
         });
     }
@@ -263,6 +269,32 @@ export class MenuButton extends Disposable {
 
 export function createMenuButton(options: MenuButtonOptions): MenuButton {
     return new MenuButton(options);
+}
+
+export function createMenuAction(options: MenuActionOptions): IAction {
+    const action: IAction = {
+        id: options.id,
+        label: options.label,
+        tooltip: options.tooltip ?? options.label,
+        class: options.className,
+        enabled: options.enabled ?? true,
+        checked: options.checked,
+        run: event => options.run(event),
+    };
+
+    menuItemData.set(action, {
+        autoHide: options.autoHide ?? true,
+        left: options.left,
+        onMouseEnter: options.onMouseEnter,
+        right: options.right,
+        rightAction: options.rightAction,
+        role: options.role,
+        selected: options.selected ?? false,
+        tabIndex: options.tabIndex,
+        value: options.value,
+    });
+
+    return action;
 }
 
 export function createMenuItemLabel(label: string, icon?: Node | (() => Node)): HTMLSpanElement {
@@ -284,8 +316,8 @@ export function createMenuItemLabel(label: string, icon?: Node | (() => Node)): 
     return wrapper;
 }
 
-function resolveEntries(entries: readonly MenuEntry[] | (() => readonly MenuEntry[])): readonly MenuEntry[] {
-    return typeof entries === "function" ? entries() : entries;
+function resolveItems(items: readonly IAction[] | (() => readonly IAction[])): readonly IAction[] {
+    return typeof items === "function" ? items() : items;
 }
 
 function createNode(node: Node | (() => Node) | undefined): Node | undefined {
@@ -294,6 +326,7 @@ function createNode(node: Node | (() => Node) | undefined): Node | undefined {
 
 function createMenuActionBarOptions(options: MenuOptions): ActionBarOptions {
     return {
+        actionViewItemProvider: createMenuActionViewItem,
         className: classNames("ui-menu", options.className),
         contentClassName: "ui-menu__list",
         createContent: options.withScrollArea === false ? undefined : createMenuScrollContent,
@@ -316,6 +349,107 @@ function createMenuScrollContent(element: HTMLElement): ActionBarContent {
         contentNode: scrollbar.viewport,
         disposable: scrollbar,
     };
+}
+
+const createMenuActionViewItem: IActionViewItemProvider = (action, options) => {
+    if (action instanceof Separator) {
+        return undefined;
+    }
+
+    return new MenuActionViewItem(action, options);
+};
+
+class MenuActionViewItem extends BaseActionViewItem {
+    private readonly data: MenuItemData | undefined;
+
+    constructor(
+        action: IAction,
+        options: IActionViewItemOptions,
+    ) {
+        super(undefined, action, {
+            ...options,
+            className: action.class,
+            role: getMenuItemData(action)?.role ?? "menuitem",
+        });
+        this.data = getMenuItemData(action);
+    }
+
+    public override render(container: HTMLElement): void {
+        container.classList.add("ui-menu__item");
+
+        if (this.data?.selected) {
+            container.dataset.selected = "true";
+        }
+        if (this.data?.value !== undefined) {
+            container.dataset.value = this.data.value;
+        }
+
+        super.render(container);
+
+        if (typeof this.data?.tabIndex === "number" && this.label) {
+            this.label.tabIndex = this.data.tabIndex;
+        }
+
+        if (this.data?.left !== undefined) {
+            this.updateLabel();
+        }
+        if (this.data?.right !== undefined || this.data?.rightAction) {
+            const right = document.createElement("span");
+            right.className = "ui-menu__item-right";
+            if (this.data.right !== undefined) {
+                append(right, this.data.right);
+            }
+            if (this.data.rightAction) {
+                right.append(this.createActionButton(this.data.rightAction));
+            }
+            container.append(right);
+        }
+        if (this.data?.onMouseEnter) {
+            const action = this.action;
+            const onMouseEnter = this.data.onMouseEnter;
+            this._register(addDisposableListener(container, "mouseenter", event => {
+                if (action.enabled) {
+                    onMouseEnter?.(event);
+                }
+            }));
+        }
+    }
+
+    protected override updateLabel(): void {
+        if (!this.label || this.data?.left === undefined) {
+            super.updateLabel();
+            return;
+        }
+
+        this.label.replaceChildren();
+        append(this.label, this.data.left);
+    }
+
+    private createActionButton(action: MenuItemAction): HTMLButtonElement {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = classNames("ui-menu__item-action", action.className);
+        button.title = action.label;
+        button.setAttribute("aria-label", action.label);
+
+        const icon = createNode(action.icon);
+        if (icon) {
+            button.append(icon);
+        }
+
+        this._register(addDisposableListener(button, "click", event => {
+            event.preventDefault();
+            event.stopPropagation();
+            action.onClick(event);
+            this.element?.dispatchEvent(new CustomEvent("menuitemactionrun", { bubbles: true }));
+        }));
+
+        return button;
+    }
+}
+
+function getMenuItemData(action: IAction): MenuItemData | undefined {
+    return menuItemData.get(action);
 }
 
 function classNames(...names: Array<string | undefined>): string {

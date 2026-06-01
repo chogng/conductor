@@ -15,23 +15,23 @@ export interface IActionViewItem {
     dispose(): void;
 }
 
-export type ActionViewItemOptions = {
+export type IActionViewItemOptions = {
     readonly className?: string;
     readonly icon?: boolean;
     readonly label?: boolean;
     readonly role?: "button" | "menuitem" | "presentation";
 };
 
-export class ActionViewItem extends Disposable implements IActionViewItem {
-    private element: HTMLElement | undefined;
-    private label: HTMLButtonElement | undefined;
-    private context: unknown;
+export class BaseActionViewItem extends Disposable implements IActionViewItem {
+    protected element: HTMLElement | undefined;
+    protected label: HTMLButtonElement | undefined;
+    protected context: unknown;
     private runner: IActionRunner | undefined;
 
     constructor(
         context: unknown,
         public readonly action: IAction,
-        private readonly options: ActionViewItemOptions = {},
+        protected readonly options: IActionViewItemOptions = {},
     ) {
         super();
         this.context = context;
@@ -102,7 +102,7 @@ export class ActionViewItem extends Disposable implements IActionViewItem {
         super.dispose();
     }
 
-    private async run(event: MouseEvent): Promise<void> {
+    protected async run(event: MouseEvent): Promise<void> {
         if (!this.action.enabled) {
             return;
         }
@@ -111,7 +111,7 @@ export class ActionViewItem extends Disposable implements IActionViewItem {
         await this.actionRunner.run(this.action, context);
     }
 
-    private handleActionChangeEvent(event: IActionChangeEvent): void {
+    protected handleActionChangeEvent(event: IActionChangeEvent): void {
         if (!this.element) {
             return;
         }
@@ -134,11 +134,11 @@ export class ActionViewItem extends Disposable implements IActionViewItem {
         }
     }
 
-    private getRole(): "button" | "presentation" {
+    protected getRole(): "button" | "presentation" {
         return this.action.id === Separator.ID ? "presentation" : "button";
     }
 
-    private updateClass(): void {
+    protected updateClass(): void {
         if (!this.label) {
             return;
         }
@@ -155,7 +155,7 @@ export class ActionViewItem extends Disposable implements IActionViewItem {
         }
     }
 
-    private updateLabel(): void {
+    protected updateLabel(): void {
         if (!this.label) {
             return;
         }
@@ -163,7 +163,7 @@ export class ActionViewItem extends Disposable implements IActionViewItem {
         this.label.textContent = this.options.label === false ? "" : this.action.label;
     }
 
-    private updateTooltip(): void {
+    protected updateTooltip(): void {
         if (!this.label) {
             return;
         }
@@ -179,7 +179,7 @@ export class ActionViewItem extends Disposable implements IActionViewItem {
         }
     }
 
-    private updateEnabled(): void {
+    protected updateEnabled(): void {
         const disabled = !this.action.enabled;
         this.element?.classList.toggle("disabled", disabled);
         if (!this.label) {
@@ -190,7 +190,7 @@ export class ActionViewItem extends Disposable implements IActionViewItem {
         this.label.setAttribute("aria-disabled", `${disabled}`);
     }
 
-    private updateChecked(): void {
+    protected updateChecked(): void {
         if (!this.label) {
             return;
         }
@@ -205,3 +205,15 @@ export class ActionViewItem extends Disposable implements IActionViewItem {
         this.label.setAttribute("aria-pressed", `${this.action.checked}`);
     }
 }
+
+export class ActionViewItem extends BaseActionViewItem {
+    constructor(
+        context: unknown,
+        action: IAction,
+        options: IActionViewItemOptions = {},
+    ) {
+        super(context, action, options);
+    }
+}
+
+export type ActionViewItemOptions = IActionViewItemOptions;
