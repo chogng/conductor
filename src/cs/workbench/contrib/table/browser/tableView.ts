@@ -68,7 +68,6 @@ export class TableView {
 
     if (!selectedFileId || !previewFile) {
       this.body.append(createEmptyView({
-        title: t("preview_empty_title"),
         description: t("preview_empty_hint"),
       }));
       return;
@@ -97,7 +96,6 @@ export class TableView {
     const columnCount = Math.min(Math.max(Number(previewFile?.columnCount) || 0, 0), 24);
     if (rowCount === 0 || columnCount === 0) {
       root.append(createEmptyView({
-        title: t("preview_empty_title"),
         description: t("preview_empty_hint"),
       }));
       return root;
