@@ -26,8 +26,8 @@ export const assessImportedFile = async (
   const parsed = Papa.parse(previewText, {
     preview: IMPORT_CLASSIFICATION_PREVIEW_ROWS,
     skipEmptyLines: false,
-  }) as unknown as { data?: unknown[] };
-  const rows = Array.isArray(parsed?.data)
+  });
+  const rows = Array.isArray(parsed.data)
     ? (parsed.data as Array<Array<unknown>>)
     : [];
   const metadata = extractCurveMetadata(rows);
