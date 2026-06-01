@@ -4,7 +4,7 @@ import {
   getGridViewClassName,
   getGridViewItemClassName,
   getGridViewStyle,
-} from "src/cs/base/browser/ui/gridview/gridview";
+} from "src/cs/base/browser/ui/grid/gridview";
 import Sash, { type SashDragEvent } from "src/cs/base/browser/ui/sash/sash";
 import {
   areSplitViewSizesEqual,

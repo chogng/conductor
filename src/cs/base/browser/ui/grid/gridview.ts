@@ -1,13 +1,15 @@
 import { cx } from "src/utils/cx";
 
-import "src/cs/base/browser/ui/gridview/gridview.css";
+import "src/cs/base/browser/ui/grid/gridview.css";
 
 export type GridViewOrientation = "horizontal" | "vertical";
 
+export type GridLocation = readonly number[];
+
 export type GridViewItem = {
-  readonly id: string;
   readonly element: HTMLElement;
   readonly className?: string;
+  readonly location: GridLocation;
 };
 
 export type GridViewOptions = {
@@ -65,6 +67,7 @@ export const createGridView = ({
   for (const item of items) {
     const itemElement = document.createElement("div");
     itemElement.className = getGridViewItemClassName(item.className);
+    itemElement.dataset.location = item.location.join(",");
     itemElement.append(item.element);
     element.append(itemElement);
   }
