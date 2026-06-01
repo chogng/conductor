@@ -1,6 +1,7 @@
 import { lxListUnordered, lxSave } from "cogicon";
 
 import { createButton } from "src/cs/base/browser/ui/button/button";
+import { getCardClassName } from "src/cs/base/browser/ui/card/card";
 import { createCogIcon } from "src/cs/base/browser/ui/cogIcon/cogIcon";
 import {
   getInputFieldClassName,
@@ -13,6 +14,7 @@ import {
   getSwitchStyle,
 } from "src/cs/base/browser/ui/switch/switch";
 import { TabView, type TabViewContent } from "src/cs/base/browser/ui/tab/tabView";
+import { localize } from "src/cs/nls";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
 import type {
@@ -131,7 +133,7 @@ const importTemplates = async (payload: any, t: TranslateFn, session: any) => {
   
   const draft = normalizeTemplateConfigRecord(entry);
   if (!draft.name) {
-    showToast(t("da_template_import_invalid_format") || "Import failed: Invalid template name", "warning");
+    showToast(localize("da_template_import_invalid_format", "Invalid template file format."), "warning");
     return;
   }
 
@@ -145,7 +147,11 @@ const importTemplates = async (payload: any, t: TranslateFn, session: any) => {
         suffix++;
         newName = `${draft.name}(${suffix})`;
       }
-      const confirmMessage = `模板“${draft.name}”已存在。\n确定：改名为“${newName}”导入。\n取消：覆盖已有模板。`;
+      const confirmMessage = localize(
+        "da_template_import_conflict",
+        "Template \"{name}\" already exists.\nOK: import as \"{newName}\".\nCancel: overwrite the existing template.",
+        { name: draft.name, newName },
+      );
       const shouldRename = typeof window !== "undefined" && typeof window.confirm === "function" ? window.confirm(confirmMessage) : true;
       if (shouldRename) {
         draft.name = newName;
@@ -164,7 +170,7 @@ const importTemplates = async (payload: any, t: TranslateFn, session: any) => {
 
   const validation = validateTemplateForSave(draft, t as any);
   if (!validation.ok || !validation.normalized) {
-    showToast(validation.message || "Invalid configuration", "warning");
+    showToast(validation.message || localize("da_template_invalid_configuration", "Invalid configuration"), "warning");
     return;
   }
 
@@ -182,16 +188,16 @@ const importTemplates = async (payload: any, t: TranslateFn, session: any) => {
     
     session.setSelectedTemplateId(saved.id);
     session.setTemplateConfig(cloneTemplateConfig(saved));
-    showToast(t("da_template_imported") || "模板导入成功", "success");
+    showToast(localize("da_template_imported", "Template imported"), "success");
     defaultSessionModel.emitChange();
   } catch (err) {
-    showToast(t("da_template_import_failed", { error: String(err) }) || "导入失败", "error");
+    showToast(localize("da_template_import_failed", "Failed to import template: {error}", { error: String(err) }), "error");
   }
 };
 
 const exportTemplate = (config: TemplateConfig) => {
   if (!config.name) {
-    showToast("Please select a template to export", "warning");
+    showToast(localize("da_template_export_requires_selection", "Please select a template to export."), "warning");
     return;
   }
   const payload = {
@@ -238,14 +244,21 @@ export const createTemplateManager = ({
 
   if (cachedTemplates === null && !templatesLoading) {
     templatesLoading = true;
-    apiService.getDeviceAnalysisTemplates().then((remote) => {
-      cachedTemplates = Array.isArray(remote) ? remote : [];
-      templatesLoading = false;
-      defaultSessionModel.emitChange();
-    }).catch((err) => {
-      templatesLoading = false;
-      showToast(t("da_loadTemplatesFailed", { error: err instanceof Error ? err.message : String(err) }), "error");
-    });
+    apiService.getDeviceAnalysisTemplates()
+      .then((remote) => {
+        cachedTemplates = Array.isArray(remote) ? remote : [];
+        templatesLoading = false;
+        defaultSessionModel.emitChange();
+      })
+      .catch((err) => {
+        templatesLoading = false;
+        showToast(
+          localize("da_loadTemplatesFailed", "Failed to load templates: {error}", {
+            error: err instanceof Error ? err.message : String(err),
+          }),
+          "error",
+        );
+      });
   }
 
   const panel = document.createElement("div");
@@ -254,7 +267,7 @@ export const createTemplateManager = ({
 
   const createModeContent = (mode: "select" | "save"): HTMLElement => {
     const leftContent = document.createElement("div");
-    leftContent.className = "template_config_panel_content flex flex-col gap-4 flex-1 min-h-0 overflow-auto";
+    leftContent.className = "template_config_panel_content";
 
     if (mode === "select") {
     // Dropdown row
@@ -263,7 +276,7 @@ export const createTemplateManager = ({
 
     const dropdownLabel = document.createElement("span");
     dropdownLabel.className = "text-xs font-medium text-text-secondary";
-    dropdownLabel.textContent = t("da_template_select_label") || "选择模板";
+    dropdownLabel.textContent = localize("da_template_select_label", "Select template");
     dropdownRow.append(dropdownLabel);
 
     const selectContainer = document.createElement("div");
@@ -274,7 +287,7 @@ export const createTemplateManager = ({
     
     const autoOption = document.createElement("option");
     autoOption.value = AUTO_TEMPLATE_ID;
-    autoOption.textContent = t("da_template_auto_extraction") || "自动提取";
+    autoOption.textContent = localize("da_template_auto_extraction", "Auto extraction");
     select.append(autoOption);
 
     if (cachedTemplates) {
@@ -310,14 +323,14 @@ export const createTemplateManager = ({
     const isCustomTemplate = selectedTemplateId && selectedTemplateId !== AUTO_TEMPLATE_ID;
     if (isCustomTemplate) {
       const deleteBtn = createButton({
-        label: t("da_delete_template") || "删除",
+        label: localize("da_delete_template", "Delete template"),
         size: "sm",
         variant: "secondary",
       });
       deleteBtn.className = `${deleteBtn.className} border border-border px-3 h-[36px] rounded-lg`;
       deleteBtn.addEventListener("click", async () => {
         if (!selectedTemplateId) return;
-        const confirmMsg = `确定要删除模板“${config.name}”吗？`;
+        const confirmMsg = localize("da_template_delete_confirm", "Delete template \"{name}\"?", { name: config.name });
         if (typeof window !== "undefined" && typeof window.confirm === "function" && !window.confirm(confirmMsg)) {
           return;
         }
@@ -331,10 +344,10 @@ export const createTemplateManager = ({
             stopOnError: config.stopOnError,
             fileNameMatchCaseSensitive: config.fileNameMatchCaseSensitive,
           }));
-          showToast(t("da_template_deleted") || "模板已删除", "success");
+          showToast(localize("da_template_deleted", "Template deleted"), "success");
           defaultSessionModel.emitChange();
         } catch (err) {
-          showToast(t("da_template_delete_failed", { error: String(err) }) || "删除失败", "error");
+          showToast(localize("da_template_delete_failed", "Failed to delete template: {error}", { error: String(err) }), "error");
         }
       });
       selectContainer.append(deleteBtn);
@@ -348,7 +361,7 @@ export const createTemplateManager = ({
     importExportRow.className = "flex items-center gap-2";
 
     const importBtn = createButton({
-      label: t("da_template_import") || "导入模板",
+      label: localize("da_template_import_btn", "Import templates"),
       size: "sm",
       variant: "secondary",
     });
@@ -366,13 +379,13 @@ export const createTemplateManager = ({
         const payload = JSON.parse(raw);
         await importTemplates(payload, t, session);
       } catch (err) {
-        showToast(t("da_template_import_failed", { error: String(err) }) || "导入失败", "error");
+        showToast(localize("da_template_import_failed", "Failed to import template: {error}", { error: String(err) }), "error");
       }
     });
     importBtn.addEventListener("click", () => fileInput.click());
 
     const exportBtn = createButton({
-      label: t("da_template_export") || "导出模板",
+      label: localize("da_template_export_btn", "Export templates"),
       size: "sm",
       variant: "secondary",
     });
@@ -406,7 +419,7 @@ export const createTemplateManager = ({
 
     togglesRow.append(
       createToggleRowHelper(
-        t("da_template_stop_on_error") || "首个无效即停止",
+        localize("da_template_stop_on_error", "Stop at first invalid item"),
         config.stopOnError,
         (checked) => {
           session.setTemplateConfig({ ...config, stopOnError: checked });
@@ -414,7 +427,7 @@ export const createTemplateManager = ({
         }
       ),
       createToggleRowHelper(
-        t("da_template_match_case") || "字段区分大小写",
+        localize("da_template_match_case", "Match field case"),
         config.fileNameMatchCaseSensitive,
         (checked) => {
           session.setTemplateConfig({ ...config, fileNameMatchCaseSensitive: checked });
@@ -431,11 +444,11 @@ export const createTemplateManager = ({
       
       const autoTitle = document.createElement("div");
       autoTitle.className = "text-xs font-semibold text-text-primary";
-      autoTitle.textContent = t("da_auto_extract_title") || "智能自动提取";
+      autoTitle.textContent = localize("da_auto_extract_title", "Smart auto extraction");
 
       const autoDesc = document.createElement("div");
       autoDesc.className = "text-[11px] text-text-secondary leading-relaxed";
-      autoDesc.textContent = t("da_auto_extract_desc") || "系统将自动分析导入的文件格式，识别自变量、因变量并提取相关参数。适用于标准的 IV/CV 数据格式。";
+      autoDesc.textContent = localize("da_auto_extract_desc", "The system analyzes imported file formats and extracts variables and related parameters automatically. Suitable for standard IV/CV data formats.");
 
       autoCard.append(autoTitle, autoDesc);
       leftContent.append(autoCard);
@@ -450,7 +463,7 @@ export const createTemplateManager = ({
     applyActions.className = "flex flex-col gap-2 pt-2 shrink-0";
 
     const applyAllBtn = createButton({
-      label: t("da_apply_template") || "应用到所有",
+      label: localize("da_apply_template", "Apply Template"),
       size: "md",
       variant: "primary",
     });
@@ -461,7 +474,7 @@ export const createTemplateManager = ({
       } else {
         const validation = validateTemplateForApply(config, t as any);
         if (!validation.ok || !validation.normalized) {
-          showToast(validation.message || "Invalid configuration", "warning");
+          showToast(validation.message || localize("da_template_invalid_configuration", "Invalid configuration"), "warning");
           return;
         }
         onTemplateApplied?.({ ...validation.normalized });
@@ -469,7 +482,7 @@ export const createTemplateManager = ({
     });
 
     const applyNewBtn = createButton({
-      label: t("da_apply_new_files") || "仅新增文件",
+      label: localize("da_apply_new_files", "Apply New Files"),
       size: "md",
       variant: "secondary",
     });
@@ -480,7 +493,7 @@ export const createTemplateManager = ({
       } else {
         const validation = validateTemplateForApply(config, t as any);
         if (!validation.ok || !validation.normalized) {
-          showToast(validation.message || "Invalid configuration", "warning");
+          showToast(validation.message || localize("da_template_invalid_configuration", "Invalid configuration"), "warning");
           return;
         }
         onTemplateAppliedIncremental?.({ ...validation.normalized });
@@ -500,31 +513,31 @@ export const createTemplateManager = ({
 
     form.append(
       createField({
-        label: t("da_template_name") || "模板名称",
+        label: localize("da_template_name", "Template name"),
         name: "name",
         value: config.name,
         onInput: handleInput,
       }),
       createField({
-        label: t("da_template_x_start") || "X 起始",
+        label: localize("da_template_x_start", "X Start"),
         name: "xDataStart",
         value: config.xDataStart,
         onInput: handleInput,
       }),
       createField({
-        label: t("da_template_x_end") || "X 结束",
+        label: localize("da_template_x_end", "X End"),
         name: "xDataEnd",
         value: config.xDataEnd,
         onInput: handleInput,
       }),
       createField({
-        label: t("da_template_y_legend_start") || "Y 传奇名称起始",
+        label: localize("da_template_y_legend_start", "Legend Start"),
         name: "yLegendStart",
         value: config.yLegendStart,
         onInput: handleInput,
       }),
       createField({
-        label: t("da_template_y_legend_count") || "Y 传奇行数",
+        label: localize("da_template_y_legend_count", "Legend Count"),
         name: "yLegendCount",
         value: config.yLegendCount,
         onInput: handleInput,
@@ -533,7 +546,7 @@ export const createTemplateManager = ({
 
     const meta = document.createElement("p");
     meta.className = "template_meta mt-1";
-    meta.textContent = t("da_template_file_count", { count: rawData.length });
+    meta.textContent = localize("da_template_file_count", "{count} file(s) imported", { count: rawData.length });
     form.append(meta);
     leftContent.append(form);
 
@@ -546,7 +559,7 @@ export const createTemplateManager = ({
     saveActions.className = "flex flex-col gap-2 pt-2 shrink-0";
 
     const saveBtn = createButton({
-      label: t("da_save_template") || "保存",
+      label: localize("da_save_template", "Save template"),
       size: "md",
       variant: "primary",
     });
@@ -554,13 +567,13 @@ export const createTemplateManager = ({
     saveBtn.addEventListener("click", async () => {
       const name = config.name.trim();
       if (!name) {
-        showToast(t("da_template_name_required") || "请输入模板名称", "warning");
+        showToast(localize("da_template_name_required", "Please enter a template name."), "warning");
         return;
       }
       
       const validation = validateTemplateForSave(config, t as any);
       if (!validation.ok || !validation.normalized) {
-        showToast(validation.message || "Invalid configuration", "warning");
+        showToast(validation.message || localize("da_template_invalid_configuration", "Invalid configuration"), "warning");
         return;
       }
 
@@ -583,15 +596,15 @@ export const createTemplateManager = ({
         session.setSelectedTemplateId(saved.id);
         session.setTemplateConfig(cloneTemplateConfig(saved));
         session.setTemplateMode("select");
-        showToast(t("da_template_saved") || "模板保存成功", "success");
+        showToast(localize("da_template_saved", "Template saved"), "success");
         defaultSessionModel.emitChange();
       } catch (err) {
-        showToast(t("da_template_save_failed", { error: String(err) }) || "保存失败", "error");
+        showToast(localize("da_template_save_failed", "Failed to save template: {error}", { error: String(err) }), "error");
       }
     });
 
     const cancelBtn = createButton({
-      label: t("da_cancel") || "取消",
+      label: localize("da_cancel", "Cancel"),
       size: "md",
       variant: "secondary",
     });
@@ -648,18 +661,21 @@ export const createTemplateManager = ({
       {
         icon: () => createCogIcon({ icon: lxListUnordered, size: 14 }),
         id: "select",
-        label: t("da_template_select_mode") || "选择",
+        label: localize("da_template_mode_select", "Select"),
       },
       {
         icon: () => createCogIcon({ icon: lxSave, size: 14 }),
         id: "save",
-        label: t("da_template_save_mode") || "保存",
+        label: localize("da_template_mode_save", "Save"),
       },
     ],
   });
 
   const left = document.createElement("div");
-  left.className = "template_config_panel flex flex-col gap-3 min-h-0 h-full overflow-hidden p-3";
+  left.className = getCardClassName({
+    className: "template_panel_card template_config_panel",
+    variant: "fill",
+  });
   left.append(modeTabs.element);
 
   const preview = TemplateManagerPreviewWorkspace({
@@ -679,6 +695,7 @@ export const createTemplateManager = ({
 
   panel.append(DataPreviewArea({
     importPanel: importerElement ?? null,
+    joinTableAndTemplateCards: true,
     tablePreview: preview,
     templatePanel: left,
   }));
