@@ -1,5 +1,5 @@
-import { isSupportedDataImportFileName } from "src/cs/workbench/contrib/import/common/constants";
-import type { ImportSourceFile } from "src/cs/workbench/contrib/import/browser/importSourceFile";
+import { isSupportedDataFileName } from "src/cs/workbench/contrib/files/common/files";
+import type { FileSource } from "src/cs/workbench/contrib/files/browser/sourceFile";
 
 type FileSystemEntryLike = {
   isFile: boolean;
@@ -43,9 +43,9 @@ const readAllDirectoryEntries = async (
   return collected;
 };
 
-const traverseImportEntry = async (
+const traverseFileEntry = async (
   entry: FileSystemEntryLike | null | undefined,
-  importFiles: ImportSourceFile[],
+  files: FileSource[],
   parentPath = "",
 ): Promise<void> => {
   if (!entry) return;
@@ -53,9 +53,9 @@ const traverseImportEntry = async (
   const relativePath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
 
   if (entry.isFile) {
-    if (!isSupportedDataImportFileName(entry.name)) return;
+    if (!isSupportedDataFileName(entry.name)) return;
     const file = await readEntryFile(entry as FileSystemFileEntryLike);
-    importFiles.push({ file, relativePath });
+    files.push({ file, relativePath });
     return;
   }
 
@@ -65,29 +65,29 @@ const traverseImportEntry = async (
     entry as FileSystemDirectoryEntryLike,
   );
   for (const child of entries) {
-    await traverseImportEntry(child, importFiles, relativePath);
+    await traverseFileEntry(child, files, relativePath);
   }
 };
 
-export const collectDroppedImportFiles = async (
+export const collectDroppedFiles = async (
   dataTransfer: DataTransfer,
-): Promise<ImportSourceFile[]> => {
+): Promise<FileSource[]> => {
   const items = Array.from(dataTransfer.items) as DataTransferItemWithWebkit[];
-  const importFiles: ImportSourceFile[] = [];
+  const files: FileSource[] = [];
 
   const pendingTraversals = items.map(async (item) => {
     const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
     if (entry) {
-      await traverseImportEntry(entry, importFiles);
+      await traverseFileEntry(entry, files);
       return;
     }
 
     const file = item.getAsFile();
-    if (file && isSupportedDataImportFileName(file.name)) {
-      importFiles.push({ file, relativePath: null });
+    if (file && isSupportedDataFileName(file.name)) {
+      files.push({ file, relativePath: null });
     }
   });
 
   await Promise.all(pendingTraversals);
-  return importFiles;
+  return files;
 };

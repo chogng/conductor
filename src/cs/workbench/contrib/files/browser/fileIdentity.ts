@@ -48,13 +48,7 @@ export const buildEntrySourceKey = (entryLike: unknown): string => {
   return buildUnknownFileIdentityKey(entry.file, entry.relativePath);
 };
 
-export const toDomIdToken = (value: unknown): string =>
-  String(value || "")
-    .trim()
-    .replace(/[^a-zA-Z0-9_-]/g, "_")
-    .slice(0, 120);
-
-export const createImportFileId = (): string => {
+export const createFileId = (): string => {
   if (
     typeof crypto !== "undefined" &&
     typeof crypto.randomUUID === "function"
@@ -65,7 +59,7 @@ export const createImportFileId = (): string => {
   return `file_${Math.random().toString(36).slice(2)}_${Date.now().toString(36)}`;
 };
 
-export const filterUniqueCsvFiles = (
+export const filterUniqueFiles = (
   existingEntries: Array<{
     file?: unknown;
     relativePath?: unknown;

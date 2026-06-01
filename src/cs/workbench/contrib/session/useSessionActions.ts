@@ -51,6 +51,20 @@ export const createSessionActions = ({
   setIonIoffManualTargetsByFileId,
   setSsManualRanges,
 }: UseSessionActionsOptions) => {
+  const preparePreviewSelection = (
+    fileId: string | null,
+    options?: { clearCurrentPreview?: boolean },
+  ) => {
+    invalidatePreviewRequests();
+    if (options?.clearCurrentPreview) {
+      clearPreviewState();
+    }
+
+    if (fileId) {
+      setPreviewStatus({ state: "loading", message: previewLoadingMessage });
+    }
+  };
+
   const hasSessionData =
     rawData.length > 0 ||
     processedData.length > 0 ||
@@ -72,22 +86,25 @@ export const createSessionActions = ({
 
   const handleFileImported = (fileInfo: RawDataEntry) => {
     setRawData((prev) => [...prev, fileInfo]);
-    if (fileInfo?.fileId) {
+    const importedFileId = fileInfo?.fileId ?? null;
+    if (importedFileId) {
       setSelectedPreviewFileId((currentFileId) => {
         if (currentFileId) {
           return currentFileId;
         }
 
-        setPreviewStatus({ state: "loading", message: previewLoadingMessage });
-        return fileInfo.fileId ?? null;
+        preparePreviewSelection(importedFileId);
+        return importedFileId;
       });
     }
   };
 
   const handleFileRemoved = (fileId: string) => {
+    let nextSelectedFileId: string | null = null;
     if (selectedPreviewFileId === fileId) {
       const remainingFiles = rawData.filter((entry) => entry.fileId !== fileId);
-      setSelectedPreviewFileId(remainingFiles[0]?.fileId ?? null);
+      nextSelectedFileId = remainingFiles[0]?.fileId ?? null;
+      setSelectedPreviewFileId(nextSelectedFileId);
     }
 
     setRawData((prev) => prev.filter((entry) => entry.fileId !== fileId));
@@ -110,6 +127,10 @@ export const createSessionActions = ({
     }
 
     disposePreviewFileCache(fileId);
+
+    if (selectedPreviewFileId === fileId && nextSelectedFileId) {
+      preparePreviewSelection(nextSelectedFileId);
+    }
   };
 
   const handleFileSelected = (fileId: string | null) => {
@@ -125,11 +146,10 @@ export const createSessionActions = ({
 
     const isSelectionChanging = selectedPreviewFileId !== fileId;
     if (isSelectionChanging) {
-      invalidatePreviewRequests();
-      if (previewFile?.fileId && previewFile.fileId !== fileId) {
-        clearPreviewState();
-      }
-      setPreviewStatus({ state: "loading", message: previewLoadingMessage });
+      const previewFileId = previewFile?.fileId ?? null;
+      preparePreviewSelection(fileId, {
+        clearCurrentPreview: Boolean(previewFileId) && previewFileId !== fileId,
+      });
     }
 
     setSelectedPreviewFileId(fileId);

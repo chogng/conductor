@@ -11,9 +11,15 @@ import {
 import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
-import type { FileEntry } from "src/cs/workbench/contrib/files/common/files";
-import { createImportSourceFile, type ImportSourceFile } from "src/cs/workbench/contrib/import/browser/importSourceFile";
-import { DATA_IMPORT_ACCEPT } from "src/cs/workbench/contrib/import/common/constants";
+import {
+  DATA_FILE_ACCEPT,
+  type FileEntry,
+} from "src/cs/workbench/contrib/files/common/files";
+import {
+  createFileSource,
+  type FileSource,
+} from "src/cs/workbench/contrib/files/browser/sourceFile";
+import { collectDroppedFiles } from "src/cs/workbench/contrib/files/browser/fileDrop";
 import { createEmptyFileListView } from "src/cs/workbench/contrib/files/browser/emptyView";
 import {
   buildFileTree,
@@ -31,11 +37,10 @@ export type FileListViewProps = {
   readonly isDragging: boolean;
   readonly onClearError: () => void;
   readonly onDraggingChange: (isDragging: boolean) => void;
-  readonly onDropFiles: (dataTransfer: DataTransfer | null) => void | Promise<void>;
   readonly onListScroll: (event: Event) => void;
   readonly onRemoveFile: (fileId: string | null) => void;
   readonly onSelectFile: (fileId: string | null) => void;
-  readonly onSelectFiles: (files: ImportSourceFile[]) => void;
+  readonly onSelectFiles: (files: FileSource[]) => void;
   readonly t: TranslateFn;
 };
 
@@ -261,7 +266,7 @@ export class FileListView implements IDisposable {
     const fileInput = document.createElement("input");
     fileInput.type = "file";
     fileInput.multiple = true;
-    fileInput.accept = DATA_IMPORT_ACCEPT;
+    fileInput.accept = DATA_FILE_ACCEPT;
     fileInput.className = "file-list-input";
     fileInput.setAttribute("webkitdirectory", "");
     fileInput.setAttribute("directory", "");
@@ -396,8 +401,10 @@ export class FileListView implements IDisposable {
   }
 
   private readonly handleFileInputChange = (): void => {
-    const files = Array.from(this.fileInput.files ?? []).map(createImportSourceFile);
-    this.props.onSelectFiles(files);
+    const files = Array.from(this.fileInput.files ?? []).map(createFileSource);
+    if (files.length > 0) {
+      this.props.onSelectFiles(files);
+    }
     this.fileInput.value = "";
   };
 
@@ -434,8 +441,17 @@ export class FileListView implements IDisposable {
   private readonly handleDrop = (event: DragEvent): void => {
     event.preventDefault();
     this.props.onDraggingChange(false);
-    void this.props.onDropFiles(event.dataTransfer);
+    void this.selectDroppedFiles(event.dataTransfer);
   };
+
+  private async selectDroppedFiles(dataTransfer: DataTransfer | null): Promise<void> {
+    if (!dataTransfer) {
+      this.props.onSelectFiles([]);
+      return;
+    }
+
+    this.props.onSelectFiles(await collectDroppedFiles(dataTransfer));
+  }
 
   private readonly handleListMouseOver = (event: MouseEvent): void => {
     const item = this.getFileItemFromEvent(event);

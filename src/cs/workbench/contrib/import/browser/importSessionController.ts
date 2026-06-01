@@ -2,8 +2,7 @@ import type { ListHandle } from "src/cs/base/browser/ui/list/list";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import { startPerf } from "src/cs/workbench/common/deviceAnalysis/perf";
-import { collectDroppedImportFiles } from "src/cs/workbench/contrib/import/browser/csvDropTraversal";
-import type { ImportSourceFile } from "src/cs/workbench/contrib/import/browser/importSourceFile";
+import type { FileSource } from "src/cs/workbench/contrib/files/browser/sourceFile";
 import {
   collectPendingImports,
   prepareImportFile,
@@ -20,8 +19,8 @@ import {
 } from "src/cs/workbench/contrib/import/common/types";
 import {
   buildEntrySourceKey,
-  filterUniqueCsvFiles,
-} from "src/cs/workbench/contrib/import/common/utils";
+  filterUniqueFiles,
+} from "src/cs/workbench/contrib/files/browser/fileIdentity";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 
 export type ImportSessionProps = {
@@ -114,7 +113,6 @@ export class ImportSessionController implements ImportSessionRef, IDisposable {
       isDragging: this.isDragging,
       onClearError: this.handleClearError,
       onDraggingChange: this.handleDraggingChange,
-      onDropFiles: this.handleDropFiles,
       onListScroll: this.handleListScroll,
       onRemoveFile: this.handleRemoveFile,
       onSelectFile: this.handleSelectFile,
@@ -180,30 +178,15 @@ export class ImportSessionController implements ImportSessionRef, IDisposable {
     this.shouldAutoScrollToBottomRef.current = distanceToBottom <= 24;
   };
 
-  private readonly handleSelectFiles = (selectedFiles: ImportSourceFile[]): void => {
+  private readonly handleSelectFiles = (selectedFiles: FileSource[]): void => {
     this.isDragging = false;
+    if (selectedFiles.length === 0) {
+      this.error = this.getNoSupportedDroppedFilesError();
+      this.syncView();
+      return;
+    }
+
     void this.processFiles(selectedFiles);
-  };
-
-  private readonly handleDropFiles = async (
-    dataTransfer: DataTransfer | null,
-  ): Promise<void> => {
-    this.isDragging = false;
-
-    if (!dataTransfer) {
-      this.error = this.getNoSupportedDroppedFilesError();
-      this.syncView();
-      return;
-    }
-
-    const droppedFiles = await collectDroppedImportFiles(dataTransfer);
-    if (droppedFiles.length === 0) {
-      this.error = this.getNoSupportedDroppedFilesError();
-      this.syncView();
-      return;
-    }
-
-    await this.processFiles(droppedFiles);
   };
 
   private readonly handleSelectFile = (fileId: string | null): void => {
@@ -240,7 +223,7 @@ export class ImportSessionController implements ImportSessionRef, IDisposable {
     this.syncView();
   };
 
-  private async processFiles(newFiles: ImportSourceFile[]): Promise<void> {
+  private async processFiles(newFiles: FileSource[]): Promise<void> {
     const finishBatchPerf = startPerf("import:add-files", {
       currentCount: this.files.length,
       incomingCount: newFiles.length,
@@ -249,7 +232,7 @@ export class ImportSessionController implements ImportSessionRef, IDisposable {
     this.error = null;
     this.syncView();
 
-    const uniqueFiles = filterUniqueCsvFiles(this.files, newFiles);
+    const uniqueFiles = filterUniqueFiles(this.files, newFiles);
     if (uniqueFiles.length === 0 && newFiles.length > 0) {
       finishBatchPerf({
         acceptedCount: 0,

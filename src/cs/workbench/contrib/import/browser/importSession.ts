@@ -1,9 +1,11 @@
-import type { FileEntry } from "src/cs/workbench/contrib/files/common/files";
 import { startPerf } from "src/cs/workbench/common/deviceAnalysis/perf";
 import type { ImportedCurveAssessment } from "src/cs/workbench/common/deviceAnalysis/importFileUtils";
-import type { ImportSourceFile } from "src/cs/workbench/contrib/import/browser/importSourceFile";
+import {
+  isSupportedDataFileName,
+  type FileEntry,
+} from "src/cs/workbench/contrib/files/common/files";
+import type { FileSource } from "src/cs/workbench/contrib/files/browser/sourceFile";
 import { prepareImportFileInWorker } from "src/cs/workbench/contrib/import/browser/rustClient";
-import { isSupportedDataImportFileName } from "src/cs/workbench/contrib/import/common/constants";
 import type {
   ImportSessionFileInfo,
 } from "src/cs/workbench/contrib/import/common/types";
@@ -11,8 +13,8 @@ import {
   buildEntrySourceKey,
   buildFileIdentityKey,
   buildItemKey,
-  createImportFileId,
-} from "src/cs/workbench/contrib/import/common/utils";
+  createFileId,
+} from "src/cs/workbench/contrib/files/browser/fileIdentity";
 
 export type SessionFileEntry = FileEntry & {
   fileId: string;
@@ -42,7 +44,7 @@ export type PreparedImportFile = {
 
 export const collectPendingImports = (
   existingFiles: FileEntry[],
-  files: ImportSourceFile[],
+  files: FileSource[],
   initialDuplicateCount: number,
 ): PendingImportsResult => {
   const seenSourceKeys = new Set(
@@ -68,7 +70,7 @@ export const collectPendingImports = (
     }
     seenSourceKeys.add(sourceKey);
 
-    if (!isSupportedDataImportFileName(sourceFile.name)) {
+    if (!isSupportedDataFileName(sourceFile.name)) {
       hasAnyUnsupportedFiles = true;
       unsupportedCount += 1;
       finishFilePerf({ skipped: "unsupported" });
@@ -127,7 +129,7 @@ export const prepareImportFile = async (
     return null;
   }
 
-  const fileId = createImportFileId();
+  const fileId = createFileId();
   const fileEntry: SessionFileEntry = {
     fileId,
     file: normalizedFile,
