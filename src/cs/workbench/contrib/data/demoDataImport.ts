@@ -2,7 +2,6 @@ import type { RawDataEntry } from "src/cs/workbench/common/deviceAnalysis/shared
 import {
   buildFileIdentityKey,
   buildItemKey,
-  createFileId,
 } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import { importService } from "src/cs/workbench/services/import/browser/importService";
 
@@ -88,6 +87,17 @@ const readBundledDemoFiles = async (): Promise<DemoFileSource[]> =>
     }),
   );
 
+const createDemoFileId = (): string => {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+
+  return `file_${Math.random().toString(36).slice(2)}_${Date.now().toString(36)}`;
+};
+
 const createDemoRawDataEntry = (
   source: DemoFileSource,
 ): ImportedDemoRawDataEntry | null => {
@@ -100,7 +110,7 @@ const createDemoRawDataEntry = (
 
   return {
     file,
-    fileId: createFileId(),
+    fileId: createDemoFileId(),
     fileName: source.fileName,
     itemKey: buildItemKey(file),
     sourcePath: source.sourcePath,

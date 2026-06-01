@@ -30,17 +30,6 @@ export const buildItemKey = (
   return stableItemKey("csv", raw);
 };
 
-export const createFileId = (): string => {
-  if (
-    typeof crypto !== "undefined" &&
-    typeof crypto.randomUUID === "function"
-  ) {
-    return crypto.randomUUID();
-  }
-
-  return `file_${Math.random().toString(36).slice(2)}_${Date.now().toString(36)}`;
-};
-
 type FileSystemEntryLike = {
   isDirectory: boolean;
   isFile: boolean;

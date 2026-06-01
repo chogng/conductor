@@ -7,7 +7,6 @@ import {
 import {
   buildFileIdentityKey,
   buildItemKey,
-  createFileId,
   type FileSource,
 } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import { prepareImportFileInWorker } from "src/cs/workbench/contrib/import/browser/rustClient";
@@ -38,6 +37,17 @@ export type PendingImportsResult = {
 export type PreparedImportFile = {
   readonly fileEntry: SessionFileEntry;
   readonly fileInfo: ImportSessionFileInfo;
+};
+
+const createFileId = (): string => {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+
+  return `file_${Math.random().toString(36).slice(2)}_${Date.now().toString(36)}`;
 };
 
 export const collectPendingImports = (
