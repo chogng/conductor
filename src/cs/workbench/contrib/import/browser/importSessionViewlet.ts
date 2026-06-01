@@ -23,8 +23,7 @@ export type ImportSessionViewletProps = {
 
 export class ImportSessionViewlet implements IDisposable {
   private readonly host: HTMLElement;
-  private readonly root: HTMLDivElement;
-  private readonly cardRoot: HTMLDivElement;
+  private readonly body: HTMLDivElement;
   private readonly sessionHost: HTMLDivElement;
   private readonly sessionController: ImportSessionController;
   private props: ImportSessionViewletProps;
@@ -35,11 +34,10 @@ export class ImportSessionViewlet implements IDisposable {
     this.props = props;
     this.host.classList.add("import-session-viewlet-host");
 
-    const { cardRoot, root, sessionHost } = this.createDom(props);
-    this.root = root;
-    this.cardRoot = cardRoot;
+    const { body, sessionHost } = this.createDom();
+    this.body = body;
     this.sessionHost = sessionHost;
-    this.host.appendChild(this.root);
+    this.host.appendChild(this.body);
 
     this.sessionController = new ImportSessionController(this.sessionHost, {
       files: props.files,
@@ -81,46 +79,34 @@ export class ImportSessionViewlet implements IDisposable {
     }
     this.sessionController.dispose();
     this.host.classList.remove("import-session-viewlet-host");
-    this.root.remove();
+    this.body.remove();
   }
 
   private render(): void {
     if (this.disposed) {
       return;
     }
-
-    this.root.setAttribute("aria-label", this.props.t("da_import_section"));
   }
 
-  private createDom(props: ImportSessionViewletProps): {
-    readonly cardRoot: HTMLDivElement;
-    readonly root: HTMLDivElement;
+  private createDom(): {
+    readonly body: HTMLDivElement;
     readonly sessionHost: HTMLDivElement;
   } {
-    const root = document.createElement("div");
-    root.className = "import-session-viewlet-root workbench_sidebar_part";
-    root.setAttribute("aria-label", props.t("da_import_section"));
-
-    const section = document.createElement("section");
-    section.className = "import-session-viewlet-section";
-
-    const cardRoot = document.createElement("div");
-    cardRoot.className = "import-session-viewlet-card import-session-viewlet-card--body card card--fill";
-    this.applyCardTracking(cardRoot);
+    const body = document.createElement("div");
+    body.className = "import-session-viewlet-body";
+    this.applyCardTracking(body);
 
     const sessionHost = document.createElement("div");
     sessionHost.className = "import-session-viewlet-session-host";
 
-    cardRoot.appendChild(sessionHost);
-    section.appendChild(cardRoot);
-    root.append(section);
+    body.append(sessionHost);
 
-    return { cardRoot, root, sessionHost };
+    return { body, sessionHost };
   }
 
-  private applyCardTracking(cardRoot: HTMLDivElement): void {
-    cardRoot.dataset.cta = normalizeCtaName("Device analysis") ?? "";
-    cardRoot.dataset.ctaPosition = normalizeCtaToken("data-import") ?? "";
-    cardRoot.dataset.ctaCopy = normalizeCtaToken("import session") ?? "";
+  private applyCardTracking(body: HTMLDivElement): void {
+    body.dataset.cta = normalizeCtaName("Device analysis") ?? "";
+    body.dataset.ctaPosition = normalizeCtaToken("data-import") ?? "";
+    body.dataset.ctaCopy = normalizeCtaToken("import session") ?? "";
   }
 }

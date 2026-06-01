@@ -8,7 +8,6 @@ import "src/cs/workbench/contrib/data/DataPreviewArea.css";
 
 export type DataPreviewAreaProps = {
   readonly importPanel?: Node | null;
-  readonly joinTableAndTemplateCards?: boolean;
   readonly tablePreview?: Node | null;
   readonly templatePanel?: Node | null;
 };
@@ -50,15 +49,10 @@ export class DataPreviewAreaView {
 
   private render(): void {
     const hasImportPanel = Boolean(this.props.importPanel);
-    const joinsTableAndTemplate =
-      Boolean(this.props.joinTableAndTemplateCards) && !hasImportPanel;
     const orientation = this.isStacked ? "vertical" : "horizontal";
     const classNames = ["data_preview_area"];
     if (this.isStacked) {
       classNames.push("data_preview_area--stacked");
-    }
-    if (joinsTableAndTemplate) {
-      classNames.push("data_preview_area--joined_cards");
     }
     this.widget.update({
       className: classNames.join(" "),

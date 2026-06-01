@@ -11,10 +11,9 @@
   box-shadow: none;
 }
 
-.data_preview_area--joined_cards .data_preview_area_table_pane {
-  z-index: 1;
-}
-
-.data_preview_area--joined_cards .data_preview_area_template_pane {
-  z-index: 2;
+.data_preview_area:not(.data_preview_area--stacked) .data_preview_area_import_pane + .data_preview_area_table_pane .template_view_pane {
+  border-left-width: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  box-shadow: none;
 }

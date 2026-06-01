@@ -73,6 +73,20 @@
   padding-top: 0;
 }
 
+.template_sidebar_part > .workbench_sidebar_header {
+  box-sizing: border-box;
+  height: 38px;
+  min-height: 38px;
+  align-items: center;
+  padding: 12px 12px 0;
+}
+
+.template_sidebar_part > .workbench_sidebar_header .workbench_sidebar_title {
+  font-size: 12px;
+  line-height: 1rem;
+  color: rgb(var(--text-secondary) / 1);
+}
+
 .template_preview_workspace {
   height: 100%;
   min-height: 0px;
@@ -85,21 +99,16 @@
   align-self: stretch;
 }
 
-.template_table_card {
+.template_preview_surface {
   display: flex;
   min-height: 0;
   flex: 1 1 0%;
   flex-direction: column;
   overflow: hidden;
-  padding: 1rem;
+  padding: 0;
 }
 
-.template_panel_card {
-  padding: 0.75rem;
-  overflow: hidden;
-}
-
-.workbench_layout_shell:not(.workbench_layout_shell--stacked) .template_view_pane--joined_sidebar .template_table_card {
+.workbench_layout_shell:not(.workbench_layout_shell--stacked) .template_view_pane--joined_sidebar {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
   border-right-width: 0;
@@ -265,38 +274,16 @@
   border: 1px solid rgb(var(--border) / 1);
 }
 
-.data_preview_area--joined_cards .template_table_card {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-  border-right-width: 0;
-}
-
-.data_preview_area--joined_cards .template_panel_card {
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-}
-
-.data_preview_area--joined_cards.data_preview_area--stacked .template_table_card {
-  border-top-right-radius: 0.75rem;
-  border-bottom-right-radius: 0;
-  border-bottom-left-radius: 0;
-  border-right-width: 1px;
-  border-bottom-width: 0;
-}
-
-.data_preview_area--joined_cards.data_preview_area--stacked .template_panel_card {
-  border-top-left-radius: 0;
-  border-top-right-radius: 0;
-  border-bottom-left-radius: 0.75rem;
-}
-
 .template_preview_header {
-  margin-bottom: 0.75rem;
   display: flex;
+  box-sizing: border-box;
+  height: 38px;
+  min-height: 38px;
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
+  padding: 12px 12px 0;
 }
 
 .template_preview_title {
@@ -566,9 +553,5 @@
 @media (max-width: 980px) {
   .template_config_panel {
     padding: 0.5rem;
-  }
-
-  .template_table_card {
-    padding: 0.75rem;
   }
 }

@@ -9,7 +9,6 @@ import {
   getLxIconMarkup,
   getLxIconStyle,
 } from "src/cs/base/browser/ui/lxicon/lxicon";
-import { getCardClassName } from "src/cs/base/browser/ui/card/card";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { PreviewFileLike } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
@@ -18,9 +17,6 @@ type PreviewStatus = Partial<SessionPreviewStatus>;
 
 export const TEMPLATE_MANAGER_PREVIEW_PANEL_ITEM_CLASS =
   "template_preview_item";
-
-export const TEMPLATE_MANAGER_PREVIEW_PANEL_TABLE_CARD_CLASS =
-  "template_table_card";
 
 type TemplateManagerPreviewSurfaceProps = {
   actions?: Node | null;
@@ -40,6 +36,11 @@ export const TemplateManagerPreviewSurface = ({
   const fileName = previewFile
     ? String(previewFile.fileName || "").replace(/\.csv$/i, "")
     : "";
+  const titleText = fileName
+    ? `${t("da_preview_filename_label")}: ${fileName}`
+    : previewStatus?.state === "loading"
+      ? t("da_preview_loading")
+      : t("da_preview_empty_title");
   const statusMessage =
     previewStatus?.state === "loading"
       ? previewStatus.message || t("da_preview_loading")
@@ -54,16 +55,13 @@ export const TemplateManagerPreviewSurface = ({
   const root = document.createElement("div");
   root.className = TEMPLATE_MANAGER_PREVIEW_PANEL_ITEM_CLASS;
   const frame = document.createElement("div");
-  frame.className = getCardClassName({
-    className: TEMPLATE_MANAGER_PREVIEW_PANEL_TABLE_CARD_CLASS,
-    variant: "fill",
-  });
+  frame.className = "template_preview_surface";
 
   const header = document.createElement("div");
   header.className = "template_preview_header";
   const title = document.createElement("span");
   title.className = "template_preview_title";
-  title.textContent = `${t("da_preview_filename_label")}: ${fileName}`;
+  title.textContent = titleText;
   header.append(title);
 
   if (statusMessage || actions) {
