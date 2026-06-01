@@ -9,6 +9,7 @@ import {
   getCogIconMarkup,
   getCogIconStyle,
 } from "src/cs/base/browser/ui/cogIcon/cogIcon";
+import { getCardClassName } from "src/cs/base/browser/ui/card/card";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { PreviewFileLike } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
@@ -53,7 +54,10 @@ export const TemplateManagerPreviewSurface = ({
   const root = document.createElement("div");
   root.className = TEMPLATE_MANAGER_PREVIEW_PANEL_ITEM_CLASS;
   const frame = document.createElement("div");
-  frame.className = TEMPLATE_MANAGER_PREVIEW_PANEL_FRAME_CLASS;
+  frame.className = getCardClassName({
+    className: TEMPLATE_MANAGER_PREVIEW_PANEL_FRAME_CLASS,
+    variant: "default",
+  });
 
   const header = document.createElement("div");
   header.className = "template_preview_header";

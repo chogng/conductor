@@ -20,6 +20,7 @@ import { ImporterViewletHost } from "src/cs/workbench/contrib/import/browser/imp
 import type { ImporterRef } from "src/cs/workbench/contrib/import/common/types";
 import { useProcessing } from "src/cs/workbench/contrib/data/useProcessing";
 import { SessionModel } from "src/cs/workbench/contrib/session/sessionModel";
+import { defaultSessionModel } from "src/cs/workbench/contrib/session/useSession";
 import { createSessionActions } from "src/cs/workbench/contrib/session/useSessionActions";
 import { usePreview } from "src/cs/workbench/contrib/tablePreview/usePreview";
 import {
@@ -120,7 +121,7 @@ export class Workbench extends Layout {
   private readonly window: WorkbenchWindow;
   private t = createTranslator();
   private readonly importerRef: { current: ImporterRef | null } = { current: null };
-  private readonly session = new SessionModel();
+  private readonly session = defaultSessionModel;
   private readonly importer: ImporterViewletHost;
   private readonly data: DataViewPane;
   private readonly analysis: ChartPreviewViewPane;
@@ -191,7 +192,6 @@ export class Workbench extends Layout {
     this.analysis.update(this.getAnalysisProps(snapshot, processingBindings));
     this.settings.update(this.getSettingsProps());
     this.setParts({
-      sidebar: this.importer.element,
       data: this.data.element,
       analysis: this.analysis.element,
       settings: this.settings.element,
@@ -279,6 +279,7 @@ export class Workbench extends Layout {
       ensurePreviewRows: previewBindings.ensurePreviewRows,
       getPreviewRow: previewBindings.getPreviewRow,
       getPreviewRowsVersion: previewBindings.getPreviewRowsVersion,
+      importerElement: this.importer.element,
       onTemplateApplied: processingBindings.handleTemplateApplied,
       onTemplateAppliedIncremental: processingBindings.handleTemplateAppliedIncremental,
       onUpdateSettings: this.coreSettingsState.handleUpdateAnalysisSettings,
@@ -315,7 +316,6 @@ export class Workbench extends Layout {
       previewRowsCacheRef: this.session.previewRowsCacheRef,
       previewRowsRequestIdRef: this.session.previewRowsRequestIdRef,
       previewRowsRequestsRef: this.session.previewRowsRequestsRef,
-      previewStatus: snapshot.previewStatus,
       previewWorkerRef: this.session.previewWorkerRef,
       rawData: snapshot.rawData,
       selectedPreviewFileId: snapshot.selectedPreviewFileId,
@@ -344,7 +344,7 @@ export class Workbench extends Layout {
         }
       },
       setProcessedData: this.session.setProcessedData,
-      t: this.t,
+      t: this.t as any,
     });
   }
 
@@ -368,7 +368,7 @@ export class Workbench extends Layout {
       isWindowsDesktopShell: windowState.isWindowsDesktopShell,
       language: this.language,
       mergeAnalysisSettings: state.mergeAnalysisSettings,
-      t: this.t,
+      t: this.t as any,
       theme: this.theme,
     };
   }

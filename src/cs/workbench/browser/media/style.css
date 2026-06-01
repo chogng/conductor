@@ -176,7 +176,11 @@ body {
 }
 
 .workbench_layout_shell {
-  @apply h-full min-h-0;
+  @apply h-full min-h-0 p-3;
+}
+
+.workbench_layout_shell--stacked {
+  @apply p-2;
 }
 
 .workbench_layout_pane {

@@ -56,7 +56,13 @@ export class SplitViewWidget implements IDisposable {
     this.element = document.createElement("div");
     this.gridElement = document.createElement("div");
     this.element.append(this.gridElement);
-    this.store.add(new DisposableResizeObserver(getWindow(this.element), () => this.updateContainerSize()).observe(this.element));
+    this.store.add(
+      new DisposableResizeObserver(getWindow(this.element), () => {
+        this.updateContainerSize();
+        this.normalizeSizes();
+        this.layout();
+      }).observe(this.element),
+    );
     this.update(options);
   }
 

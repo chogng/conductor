@@ -4,7 +4,7 @@
 }
 
 .importer-viewlet-root {
-  @apply flex-1 min-h-0;
+  @apply flex-1 min-h-0 min-w-0;
   height: 100%;
 }
 
@@ -145,4 +145,14 @@
   @apply min-h-0;
   height: 100%;
   padding-inline: 10px;
+}
+
+@media (max-width: 980px) {
+  #analysis-import-card {
+    @apply p-3;
+  }
+
+  .import-viewer-dropzone {
+    min-height: 220px;
+  }
 }

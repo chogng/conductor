@@ -195,7 +195,7 @@ export class SessionModel {
     this.emitChange();
   }
 
-  private emitChange(): void {
+  public emitChange(): void {
     for (const listener of this.listeners) {
       listener();
     }

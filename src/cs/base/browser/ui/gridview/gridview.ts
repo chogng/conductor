@@ -38,8 +38,16 @@ export const getGridViewStyle = ({
   const template = sizes.map((size) => `${Math.max(0, size)}px`).join(" ");
 
   return orientation === "horizontal"
-    ? { gap: `${Math.max(0, gap)}px`, gridTemplateColumns: template }
-    : { gap: `${Math.max(0, gap)}px`, gridTemplateRows: template };
+    ? {
+      gap: `${Math.max(0, gap)}px`,
+      gridTemplateColumns: template,
+      gridTemplateRows: "none",
+    }
+    : {
+      gap: `${Math.max(0, gap)}px`,
+      gridTemplateColumns: "none",
+      gridTemplateRows: template,
+    };
 };
 
 export const createGridView = ({

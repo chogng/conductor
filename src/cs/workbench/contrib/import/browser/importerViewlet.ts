@@ -61,7 +61,7 @@ export class ImporterViewletView implements IDisposable {
 
     this.cardRoot = document.createElement("div");
     this.cardRoot.id = "analysis-import-card";
-    this.cardRoot.className = "importer-viewlet-card card card--flat";
+    this.cardRoot.className = "importer-viewlet-card card card--fill";
     this.cardRoot.dataset.cta = normalizeCtaName("Device analysis") ?? "";
     this.cardRoot.dataset.ctaPosition =
       normalizeCtaToken("data-import") ?? "";

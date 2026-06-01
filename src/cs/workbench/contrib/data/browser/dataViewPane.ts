@@ -11,6 +11,7 @@ export type DataViewPaneProps = {
   readonly ensurePreviewRows?: TemplateViewPaneProps["ensurePreviewRows"];
   readonly getPreviewRow?: TemplateViewPaneProps["getPreviewRow"];
   readonly getPreviewRowsVersion?: TemplateViewPaneProps["getPreviewRowsVersion"];
+  readonly importerElement?: HTMLElement | null;
   readonly onTemplateApplied?: TemplateViewPaneProps["onTemplateApplied"];
   readonly onTemplateAppliedIncremental?: TemplateViewPaneProps["onTemplateAppliedIncremental"];
   readonly onUpdateSettings?: TemplateViewPaneProps["onUpdateSettings"];
@@ -40,11 +41,13 @@ export class DataViewPane {
 }
 
 const toTemplateProps = ({
+  importerElement: _importerElement,
   rawData = [],
   ...props
 }: DataViewPaneProps): TemplateViewPaneProps => ({
   ...props,
   rawData,
+  importerElement: _importerElement ?? null,
 });
 
 export default DataViewPane;

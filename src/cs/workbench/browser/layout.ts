@@ -1,5 +1,6 @@
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable, MutableDisposable } from "src/cs/base/common/lifecycle";
+import { DisposableResizeObserver, getWindow } from "src/cs/base/browser/dom";
 import SplitViewWidget, {
   type SplitViewPane,
 } from "src/cs/base/browser/ui/splitview/splitviewWidget";
@@ -18,6 +19,7 @@ import {
   SIDEBAR_DEFAULT_WIDTH_PX,
   SIDEBAR_MAX_WIDTH_PX,
   SIDEBAR_MIN_WIDTH_PX,
+  WORKBENCH_STACK_LAYOUT_THRESHOLD_PX,
 } from "src/cs/workbench/browser/layoutConstants";
 import { layoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 
@@ -143,6 +145,7 @@ export class Layout extends Disposable {
   private readonly overlay = document.createElement("div");
   private readonly controller = document.createElement("div");
   private parts: LayoutParts = {};
+  private isStacked = false;
 
   public readonly element = document.createElement("div");
 
@@ -156,6 +159,12 @@ export class Layout extends Disposable {
 
     this._register(this.navigation.onDidChangeState(() => this.render()));
     this._register(this.sidebarLayout.onDidChangeWidth(() => this.render()));
+    this._register(
+      new DisposableResizeObserver(getWindow(this.element), () => {
+        this.syncResponsiveState();
+      }).observe(this.element),
+    );
+    this.syncResponsiveState();
   }
 
   public mount(parent: HTMLElement): void {
@@ -263,21 +272,25 @@ export class Layout extends Disposable {
 
   private renderSplit(): void {
     const panes = this.getSplitPanes();
+    const orientation = this.isStacked ? "vertical" : "horizontal";
+    const className = this.isStacked
+      ? "workbench_layout_shell workbench_layout_shell--stacked"
+      : "workbench_layout_shell";
 
     if (!this.splitView.current) {
       this.splitView.current = new SplitViewWidget({
-        className: "workbench_layout_shell",
-        gap: 2,
+        className,
+        gap: 12,
         onDidResizeEnd: (event) => this.handleResizeEnd(event),
-        orientation: "horizontal",
+        orientation,
         panes,
       });
     } else {
       this.splitView.current.update({
-        className: "workbench_layout_shell",
-        gap: 2,
+        className,
+        gap: 12,
         onDidResizeEnd: (event) => this.handleResizeEnd(event),
-        orientation: "horizontal",
+        orientation,
         panes,
       });
     }
@@ -293,6 +306,21 @@ export class Layout extends Disposable {
   }
 
   private getSplitPanes(): readonly SplitViewPane[] {
+    if (this.isStacked) {
+      return [
+        {
+          id: "workbench-sidebar",
+          defaultSize: 260,
+          minSize: 220,
+          maxSize: 420,
+        },
+        {
+          id: "workbench-main",
+          minSize: 320,
+        },
+      ];
+    }
+
     return [
       {
         id: "workbench-sidebar",
@@ -309,10 +337,26 @@ export class Layout extends Disposable {
   }
 
   private handleResizeEnd({ sizes }: SplitViewResizeEvent): void {
+    if (this.isStacked) {
+      return;
+    }
+
     const nextWidth = sizes[0];
     if (Number.isFinite(nextWidth)) {
       this.sidebarLayout.resize(nextWidth);
     }
+  }
+
+  private syncResponsiveState(): void {
+    const nextIsStacked =
+      this.element.clientWidth > 0 &&
+      this.element.clientWidth < WORKBENCH_STACK_LAYOUT_THRESHOLD_PX;
+    if (nextIsStacked === this.isStacked) {
+      return;
+    }
+
+    this.isStacked = nextIsStacked;
+    this.render();
   }
 
   override dispose(): void {
