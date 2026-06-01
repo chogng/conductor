@@ -183,6 +183,17 @@ body {
   @apply p-2;
 }
 
+.workbench_layout_main,
+.workbench_layout_sidebar {
+  height: 100%;
+  min-height: 0;
+}
+
+.workbench_layout_controller,
+.workbench_layout_overlay {
+  min-height: 0;
+}
+
 .workbench_layout_pane {
   @apply h-full min-h-0;
 }

@@ -1,10 +1,10 @@
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable, MutableDisposable } from "src/cs/base/common/lifecycle";
 import { DisposableResizeObserver, getWindow } from "src/cs/base/browser/dom";
-import SplitViewWidget, {
+import SplitView, {
   type SplitViewPane,
-} from "src/cs/base/browser/ui/splitview/splitviewWidget";
-import type { SplitViewResizeEvent } from "src/cs/base/browser/ui/splitview/splitview";
+  type SplitViewResizeEvent,
+} from "src/cs/base/browser/ui/splitview/splitview";
 import {
   INITIAL_VISITED_VIEWS_STATE,
   markVisitedLayoutView,
@@ -139,7 +139,7 @@ const hasSidebar = (activeView: LayoutView): boolean =>
 export class Layout extends Disposable {
   private readonly navigation = this._register(new WorkbenchLayoutNavigation());
   private readonly sidebarLayout = this._register(new WorkbenchSidebarLayout());
-  private readonly splitView = this._register(new MutableDisposable<SplitViewWidget>());
+  private readonly splitView = this._register(new MutableDisposable<SplitView>());
   private readonly main = document.createElement("div");
   private readonly sidebar = document.createElement("div");
   private readonly overlay = document.createElement("div");
@@ -153,6 +153,10 @@ export class Layout extends Disposable {
     super();
 
     this.element.className = "workbench_layout";
+    this.main.className = "workbench_layout_main";
+    this.sidebar.className = "workbench_layout_sidebar";
+    this.overlay.className = "workbench_layout_overlay";
+    this.controller.className = "workbench_layout_controller";
     if (parent) {
       this.mount(parent);
     }
@@ -278,7 +282,7 @@ export class Layout extends Disposable {
       : "workbench_layout_shell";
 
     if (!this.splitView.current) {
-      this.splitView.current = new SplitViewWidget({
+      this.splitView.current = new SplitView({
         className,
         gap: 12,
         onDidResizeEnd: (event) => this.handleResizeEnd(event),
