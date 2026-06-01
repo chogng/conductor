@@ -3,9 +3,13 @@ import { layoutService } from "src/cs/workbench/services/layout/browser/layoutSe
 import type {
   LanguageCode,
   TranslateFn,
-  TranslationVars,
 } from "src/cs/platform/language/common/language";
 import { isLanguageCode } from "src/cs/platform/language/common/language";
+import {
+  createNLSConfiguration,
+  createTranslateFn,
+  setNLSConfiguration,
+} from "src/cs/nls";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import { Layout, type LayoutView } from "src/cs/workbench/browser/layout";
 import type { WorkbenchTitlebarProps } from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
@@ -29,8 +33,6 @@ import {
   type CoreSettingsState,
 } from "src/cs/workbench/contrib/settings/browser/coreSettingsController";
 import { SettingsViewPane } from "src/cs/workbench/contrib/settings/browser/settingsViewPane";
-import enMessages from "src/i18n/en";
-import zhMessages from "src/i18n/zh";
 
 export type WorkbenchTitlebarState = {
   readonly enabled?: boolean;
@@ -95,26 +97,12 @@ export const createTitlebarState = (
       }
     : undefined;
 
-const messagesByLanguage: Record<LanguageCode, Record<string, string>> = {
-  en: enMessages,
-  zh: zhMessages,
-};
-
 const createTranslator = (): TranslateFn => {
   const language = isLanguageCode(window.__CONDUCTOR_INITIAL_LANGUAGE__)
     ? window.__CONDUCTOR_INITIAL_LANGUAGE__
-    : "zh";
-  const messages = messagesByLanguage[language];
-
-  return (key: string, vars?: TranslationVars) => {
-    let message = messages[key] ?? key;
-    if (vars) {
-      for (const [name, value] of Object.entries(vars)) {
-        message = message.replaceAll(`{${name}}`, String(value ?? ""));
-      }
-    }
-    return message;
-  };
+    : "en";
+  setNLSConfiguration(createNLSConfiguration(language));
+  return createTranslateFn(language);
 };
 
 export class Workbench extends Layout {
@@ -130,7 +118,7 @@ export class Workbench extends Layout {
   private coreSettingsState: CoreSettingsState = createCoreSettingsState();
   private language: LanguageCode = isLanguageCode(window.__CONDUCTOR_INITIAL_LANGUAGE__)
     ? window.__CONDUCTOR_INITIAL_LANGUAGE__
-    : "zh";
+    : "en";
   private theme: ThemeMode = isThemeMode(window.__CONDUCTOR_INITIAL_THEME__)
     ? window.__CONDUCTOR_INITIAL_THEME__
     : "system";
@@ -419,6 +407,11 @@ export class Workbench extends Layout {
 
     this.language = language;
     window.__CONDUCTOR_INITIAL_LANGUAGE__ = language;
+    setNLSConfiguration(createNLSConfiguration(language));
+    document.documentElement.setAttribute(
+      "lang",
+      language === "zh" ? "zh-CN" : "en",
+    );
     this.t = createTranslator();
     this.coreSettingsController?.update(this.getCoreSettingsOptions());
     this.renderWorkbench();

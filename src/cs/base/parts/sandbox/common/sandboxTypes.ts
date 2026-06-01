@@ -6,7 +6,7 @@ export interface ISandboxConfiguration {
     readonly zoomLevel?: number;
     readonly codeCachePath?: string;
     readonly nls: {
-        readonly messages: string[];
+        readonly messages: Record<string, string>;
         readonly language: string | undefined;
     };
     readonly cssModules?: string[];

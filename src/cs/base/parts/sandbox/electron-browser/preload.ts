@@ -44,7 +44,7 @@ const resolveConfiguration = (async (): Promise<ISandboxConfiguration> => {
             userEnv: {},
             product: {},
             nls: {
-                messages: [],
+                messages: {},
                 language: undefined,
             },
         };

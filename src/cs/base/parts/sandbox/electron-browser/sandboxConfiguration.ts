@@ -24,15 +24,17 @@ function readInitialWorkbenchSettings(ipcRenderer: IpcRenderer): JsonRecord | nu
 }
 
 export function createSandboxConfiguration(ipcRenderer: IpcRenderer): ISandboxConfiguration {
+  const initialWorkbenchSettings = readInitialWorkbenchSettings(ipcRenderer);
+
   return {
     windowId: 1,
     appRoot: "",
     userEnv: {},
     product: { ...product },
     nls: {
-      messages: [],
+      messages: {},
       language: undefined,
     },
-    initialWorkbenchSettings: readInitialWorkbenchSettings(ipcRenderer),
+    initialWorkbenchSettings,
   };
 }

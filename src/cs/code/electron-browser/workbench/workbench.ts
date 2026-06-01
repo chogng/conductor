@@ -3,6 +3,7 @@ import "src/cs/workbench/workbench.desktop.main.ts";
 import { ipcRenderer } from "src/cs/base/parts/sandbox/electron-browser/globals";
 import { mainWindow } from "src/cs/base/browser/window";
 import type { LanguageCode } from "src/cs/platform/language/common/language";
+import { createNLSConfiguration, setNLSConfiguration } from "src/cs/nls";
 import { InstantiationService } from "src/cs/platform/instantiation/common/instantiationService";
 import { ServiceCollection } from "src/cs/platform/instantiation/common/serviceCollection";
 import { Registry } from "src/cs/platform/registry/common/platform";
@@ -35,7 +36,7 @@ declare global {
 
 type BootLogger = (stage: string, extra?: string) => void;
 
-const DEFAULT_LANGUAGE: LanguageCode = "zh";
+const DEFAULT_LANGUAGE: LanguageCode = "en";
 const DEFAULT_THEME: ThemeMode = "system";
 const DEFAULT_SIDEBAR_WIDTH = 280;
 const MIN_SIDEBAR_WIDTH = 200;
@@ -265,6 +266,11 @@ const prepareWorkbench = (logBoot: BootLogger) => {
 
   window.__CONDUCTOR_INITIAL_DEVICE_ANALYSIS_SETTINGS__ = initialSettings;
   window.__CONDUCTOR_INITIAL_LANGUAGE__ = initialLanguage;
+  setNLSConfiguration(createNLSConfiguration(initialLanguage));
+  document.documentElement.setAttribute(
+    "lang",
+    initialLanguage === "zh" ? "zh-CN" : "en",
+  );
   window.__CONDUCTOR_INITIAL_THEME__ = initialTheme;
   window.__CONDUCTOR_BOOT_PROFILE_ENABLED__ = resolveBootProfileEnabled(
     getWorkbenchEnvironment()?.isDesktop === true,

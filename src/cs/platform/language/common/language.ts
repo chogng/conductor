@@ -2,7 +2,7 @@
 
 export type LanguageCode = (typeof SUPPORTED_LANGUAGES)[number];
 
-export const DEFAULT_LANGUAGE: LanguageCode = 'zh';
+export const DEFAULT_LANGUAGE: LanguageCode = 'en';
 
 export const isLanguageCode = (value: unknown): value is LanguageCode =>
   value === 'en' || value === 'zh';

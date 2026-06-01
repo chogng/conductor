@@ -5,6 +5,7 @@ import { InstantiationService } from "src/cs/platform/instantiation/common/insta
 import { ServiceCollection } from "src/cs/platform/instantiation/common/serviceCollection";
 import { Registry } from "src/cs/platform/registry/common/platform";
 import type { LanguageCode } from "src/cs/platform/language/common/language";
+import { createNLSConfiguration, setNLSConfiguration } from "src/cs/nls";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import {
   Extensions,
@@ -28,7 +29,7 @@ declare global {
   }
 }
 
-const DEFAULT_LANGUAGE: LanguageCode = "zh";
+const DEFAULT_LANGUAGE: LanguageCode = "en";
 const DEFAULT_THEME: ThemeMode = "system";
 
 type BootLogger = (stage: string, extra?: string) => void;
@@ -108,6 +109,8 @@ function startBrowserWorkbenchBoot(
   isBootProfileEnabled: boolean,
 ): void {
   window.__CONDUCTOR_INITIAL_LANGUAGE__ = DEFAULT_LANGUAGE;
+  setNLSConfiguration(createNLSConfiguration(DEFAULT_LANGUAGE));
+  document.documentElement.setAttribute("lang", "en");
   window.__CONDUCTOR_INITIAL_THEME__ = DEFAULT_THEME;
   window.__CONDUCTOR_BOOT_PROFILE_ENABLED__ = isBootProfileEnabled;
   window.__CONDUCTOR_BOOT_LOG__ = logBoot;
