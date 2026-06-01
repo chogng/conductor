@@ -1,4 +1,9 @@
 import { lxFileText } from "@chogng/lxicon";
+import {
+  createAvatar,
+  getAvatarContentElement,
+  getAvatarIconClassName,
+} from "src/cs/base/browser/ui/avatar/avatar";
 import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
 
 export type EmptyViewOptions = {
@@ -8,7 +13,7 @@ export type EmptyViewOptions = {
 
 const createEmptyIcon = (): HTMLSpanElement => {
   const icon = document.createElement("span");
-  icon.className = "ui-lxicon table_view_empty_icon";
+  icon.className = `ui-lxicon ${getAvatarIconClassName()}`;
   icon.setAttribute("aria-hidden", "true");
   icon.innerHTML = normalizeLxIconSvgMarkup(lxFileText);
   return icon;
@@ -21,9 +26,11 @@ export const createEmptyView = ({
   const root = document.createElement("div");
   root.className = "table_view_empty";
 
-  const avatar = document.createElement("div");
-  avatar.className = "table_view_empty_avatar";
-  avatar.append(createEmptyIcon());
+  const avatar = createAvatar({
+    className: "table_view_empty_avatar",
+    variant: "empty",
+  });
+  getAvatarContentElement(avatar).append(createEmptyIcon());
 
   root.append(avatar);
 

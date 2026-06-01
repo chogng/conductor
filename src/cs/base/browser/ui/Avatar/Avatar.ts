@@ -1,9 +1,7 @@
 import { normalizeCtaName, normalizeCtaToken } from "src/utils/cta";
-import { cx } from "src/utils/cx";
 
 import "src/cs/base/browser/ui/avatar/avatar.css";
 
-export type AvatarSize = "sm" | "md" | "lg" | "xl";
 export type AvatarVariant = "default" | "empty";
 export type AvatarMode = "image" | "icon" | "fallback";
 
@@ -15,24 +13,30 @@ export type AvatarOptions = {
   readonly fallback?: string;
   readonly imageClassName?: string;
   readonly mode?: AvatarMode;
-  readonly size?: AvatarSize;
   readonly src?: string;
   readonly variant?: AvatarVariant;
 };
 
+const AVATAR_CONTENT_CLASS_NAME = "avatar__content";
+const AVATAR_ICON_CLASS_NAME = "avatar__icon";
+
 export const getAvatarClassName = ({
   className = "",
-  size = "md",
   src,
   variant = "default",
-}: Pick<AvatarOptions, "className" | "size" | "src" | "variant"> = {}): string =>
-  cx(
+}: Pick<AvatarOptions, "className" | "src" | "variant"> = {}): string =>
+  [
     "avatar",
-    getAvatarSizeClassName(size),
-    variant === "empty" && "avatar--empty",
-    src && "avatar--image",
+    variant === "empty" ? "avatar--empty" : "",
+    src ? "avatar--image" : "",
     className,
-  );
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+export const getAvatarContentClassName = (): string => AVATAR_CONTENT_CLASS_NAME;
+
+export const getAvatarIconClassName = (): string => AVATAR_ICON_CLASS_NAME;
 
 export const getAvatarMode = ({
   mode,
@@ -70,6 +74,7 @@ export const updateAvatar = (
   options: AvatarOptions = {},
 ): void => {
   avatar.className = getAvatarClassName(options);
+  getAvatarContentElement(avatar);
 
   for (const [name, value] of Object.entries(getAvatarDataAttributes(options))) {
     if (value === undefined) {
@@ -80,9 +85,16 @@ export const updateAvatar = (
   }
 };
 
-const getAvatarSizeClassName = (size: AvatarSize): string => {
-  if (size === "sm") return "avatar--sm";
-  if (size === "lg") return "avatar--lg";
-  if (size === "xl") return "avatar--xl";
-  return "avatar--md";
+export const getAvatarContentElement = (
+  avatar: HTMLDivElement,
+): HTMLSpanElement => {
+  const existingContent = avatar.querySelector(`:scope > .${AVATAR_CONTENT_CLASS_NAME}`);
+  if (existingContent instanceof HTMLSpanElement) {
+    return existingContent;
+  }
+
+  const content = document.createElement("span");
+  content.className = AVATAR_CONTENT_CLASS_NAME;
+  avatar.append(content);
+  return content;
 };

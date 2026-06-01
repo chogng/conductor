@@ -67,21 +67,7 @@
 }
 
 .table_view_empty_avatar {
-  display: flex;
-  height: 40px;
-  width: 40px;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9999px;
-  border: 1px solid rgb(var(--border) / 1);
-  background-color: rgb(var(--bg-page) / 1);
-  color: rgb(var(--text-tertiary) / 1);
-}
-
-.table_view_empty_icon {
-  height: 36px;
-  width: 36px;
-  flex-shrink: 0;
+  margin-bottom: 0.125rem;
 }
 
 .table_view_empty_title {
