@@ -157,7 +157,6 @@ html {
 /* Global Styles */
 
 body {
-  @apply bg-bg-page text-text-primary antialiased;
   font-family: var(--font-family-base);
   background-color: var(--color-bg);
   color: var(--color-text-primary);
@@ -168,19 +167,36 @@ body {
 }
 
 .workbench_root {
-  @apply relative h-full min-h-0 w-full overflow-hidden;
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+  overflow: hidden;
 }
 
 .workbench_layout {
-  @apply relative flex h-full min-h-0 flex-1 flex-col;
+  position: relative;
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex: 1 1 0%;
+  flex-direction: column;
 }
 
 .workbench_layout_shell {
-  @apply h-full min-h-0 p-3;
+  height: 100%;
+  min-height: 0;
+  padding: 0.75rem;
 }
 
 .workbench_layout_shell--stacked {
-  @apply p-2;
+  padding: 0.5rem;
+}
+
+.workbench_layout_split {
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
 }
 
 .workbench_layout_main,
@@ -195,11 +211,12 @@ body {
 }
 
 .workbench_layout_pane {
-  @apply h-full min-h-0;
+  height: 100%;
+  min-height: 0;
 }
 
 .workbench_layout_pane--hidden {
-  @apply hidden;
+  display: none;
 }
 
 * {

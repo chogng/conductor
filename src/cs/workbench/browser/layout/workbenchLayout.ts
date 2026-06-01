@@ -45,7 +45,7 @@ export class WorkbenchLayout extends Disposable {
     if (!this.widget) {
       this.widget = this._register(
         new SplitView({
-          className: "workbench_layout_shell",
+          className: "workbench_layout_split",
           gap: 2,
           onDidResizeEnd: (event) => this.handleResizeEnd(event),
           orientation: "horizontal",
@@ -56,7 +56,7 @@ export class WorkbenchLayout extends Disposable {
     }
 
     this.widget.update({
-      className: "workbench_layout_shell",
+      className: "workbench_layout_split",
       gap: 2,
       onDidResizeEnd: (event) => this.handleResizeEnd(event),
       orientation: "horizontal",

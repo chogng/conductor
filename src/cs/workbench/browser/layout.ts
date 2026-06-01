@@ -144,6 +144,7 @@ export class Layout extends Disposable {
   private readonly sidebar = document.createElement("div");
   private readonly overlay = document.createElement("div");
   private readonly controller = document.createElement("div");
+  private readonly shell = document.createElement("div");
   private parts: LayoutParts = {};
   private isStacked = false;
 
@@ -277,13 +278,13 @@ export class Layout extends Disposable {
   private renderSplit(): void {
     const panes = this.getSplitPanes();
     const orientation = this.isStacked ? "vertical" : "horizontal";
-    const className = this.isStacked
+    const shellClassName = this.isStacked
       ? "workbench_layout_shell workbench_layout_shell--stacked"
       : "workbench_layout_shell";
 
     if (!this.splitView.current) {
       this.splitView.current = new SplitView({
-        className,
+        className: "workbench_layout_split",
         gap: 12,
         onDidResizeEnd: (event) => this.handleResizeEnd(event),
         orientation,
@@ -291,7 +292,7 @@ export class Layout extends Disposable {
       });
     } else {
       this.splitView.current.update({
-        className,
+        className: "workbench_layout_split",
         gap: 12,
         onDidResizeEnd: (event) => this.handleResizeEnd(event),
         orientation,
@@ -302,9 +303,11 @@ export class Layout extends Disposable {
     const splitView = this.splitView.current;
     splitView.getPaneElement("workbench-sidebar")?.replaceChildren(this.sidebar);
     splitView.getPaneElement("workbench-main")?.replaceChildren(this.main);
+    this.shell.className = shellClassName;
+    this.shell.replaceChildren(splitView.element);
     this.element.replaceChildren(
       this.controller,
-      splitView.element,
+      this.shell,
       this.overlay,
     );
   }
