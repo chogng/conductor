@@ -114,13 +114,11 @@ const createToggleSwitch = (
 ): HTMLButtonElement => {
   const button = createBaseSwitch({
     checked: initialChecked,
-    size: "sm",
   });
   button.addEventListener("click", () => {
     const nextChecked = button.getAttribute("aria-checked") !== "true";
     updateSwitch(button, {
       checked: nextChecked,
-      size: "sm",
     });
     onCheckedChange(nextChecked);
   });
@@ -1180,11 +1178,9 @@ export class TemplateManagerView {
 
     updateSwitch(refs.stopSwitch, {
       checked: config.stopOnError,
-      size: "sm",
     });
     updateSwitch(refs.matchCaseSwitch, {
       checked: config.fileNameMatchCaseSensitive,
-      size: "sm",
     });
 
     refs.autoCard.style.display = isCustomTemplate ? "none" : "";

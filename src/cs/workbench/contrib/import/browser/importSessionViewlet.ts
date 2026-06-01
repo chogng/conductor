@@ -12,9 +12,9 @@ import "src/cs/workbench/contrib/import/browser/media/importSessionViewlet.css";
 
 export type ImportSessionViewletProps = {
   readonly importSessionRef: { current: ImportSessionRef | null };
-  readonly importedFiles?: FileEntry[];
-  readonly onDataImported?: (fileInfo: ImportSessionFileInfo) => void;
-  readonly onDataRemoved?: (fileId: string) => void;
+  readonly files?: FileEntry[];
+  readonly onFileImported?: (fileInfo: ImportSessionFileInfo) => void;
+  readonly onFileRemoved?: (fileId: string) => void;
   readonly onFileSelected?: (fileId: string | null) => void;
   readonly selectedFileId?: string | null;
   readonly t: TranslateFn;
@@ -41,9 +41,9 @@ export class ImportSessionViewlet implements IDisposable {
     this.host.appendChild(this.root);
 
     this.sessionController = new ImportSessionController(this.sessionHost, {
-      files: props.importedFiles,
-      onDataImported: props.onDataImported,
-      onDataRemoved: props.onDataRemoved,
+      files: props.files,
+      onFileImported: props.onFileImported,
+      onFileRemoved: props.onFileRemoved,
       onFileSelected: props.onFileSelected,
       selectedFileId: props.selectedFileId,
       t: props.t,
@@ -57,9 +57,9 @@ export class ImportSessionViewlet implements IDisposable {
     this.props = nextProps;
     nextProps.importSessionRef.current = this.sessionController;
     this.sessionController.setProps({
-      files: nextProps.importedFiles,
-      onDataImported: nextProps.onDataImported,
-      onDataRemoved: nextProps.onDataRemoved,
+      files: nextProps.files,
+      onFileImported: nextProps.onFileImported,
+      onFileRemoved: nextProps.onFileRemoved,
       onFileSelected: nextProps.onFileSelected,
       selectedFileId: nextProps.selectedFileId,
       t: nextProps.t,

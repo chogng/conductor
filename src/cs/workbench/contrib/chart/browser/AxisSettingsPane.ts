@@ -21,7 +21,7 @@ import {
 } from "cs/base/browser/ui/input/input";
 import {
   createSwitch as createBaseSwitch,
-} from "cs/base/browser/ui/switch/switch";
+} from "src/cs/base/browser/ui/switch/switch";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
@@ -565,7 +565,6 @@ const createSwitch = (
 ): HTMLButtonElement => {
   const button = createBaseSwitch({
     checked,
-    size: "sm",
   });
   button.addEventListener("click", () => onCheckedChange(!checked));
   return button;

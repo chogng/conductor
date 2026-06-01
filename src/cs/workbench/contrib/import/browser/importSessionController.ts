@@ -26,8 +26,8 @@ import type { TranslateFn } from "src/cs/platform/language/common/language";
 
 export type ImportSessionProps = {
   files?: FileEntry[];
-  onDataImported?: (fileInfo: ImportSessionFileInfo) => void;
-  onDataRemoved?: (fileId: string) => void;
+  onFileImported?: (fileInfo: ImportSessionFileInfo) => void;
+  onFileRemoved?: (fileId: string) => void;
   onFileSelected?: (fileId: string | null) => void;
   selectedFileId?: string | null;
 };
@@ -235,7 +235,7 @@ export class ImportSessionController implements ImportSessionRef, IDisposable {
       this.internalFiles = this.internalFiles.filter((entry) => entry.fileId !== fileId);
     }
 
-    this.props.onDataRemoved?.(fileId);
+    this.props.onFileRemoved?.(fileId);
     this.handleFileCountEffects();
     this.syncView();
   };
@@ -298,7 +298,7 @@ export class ImportSessionController implements ImportSessionRef, IDisposable {
 
           if (this.appendPreparedImport(preparedImport.fileEntry)) {
             acceptedCount += 1;
-            this.props.onDataImported?.(preparedImport.fileInfo);
+            this.props.onFileImported?.(preparedImport.fileInfo);
           }
         }
       }),

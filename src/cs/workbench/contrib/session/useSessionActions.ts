@@ -1,5 +1,6 @@
 import type {
   IonIoffManualTargetsByFileId,
+  PreviewStatus,
   StateSetter,
   SsManualRanges,
 } from "./analysis-session-context";
@@ -14,6 +15,7 @@ type UseSessionActionsOptions = {
   disposePreviewFileCache: (fileId: string) => void;
   invalidatePreviewRequests: () => void;
   previewFile?: { fileId?: string } | null;
+  previewLoadingMessage: string;
   processedData?: ProcessedEntry[];
   processingStatus?: Partial<ProcessingStatus>;
   rawData?: RawDataEntry[];
@@ -22,6 +24,7 @@ type UseSessionActionsOptions = {
   resetProcessingWorker: () => void;
   selectedPreviewFileId?: string | null;
   setProcessedData: StateSetter<ProcessedEntry[]>;
+  setPreviewStatus: StateSetter<PreviewStatus>;
   setRawData: StateSetter<RawDataEntry[]>;
   setSelectedPreviewFileId: StateSetter<string | null>;
   setIonIoffManualTargetsByFileId: StateSetter<IonIoffManualTargetsByFileId>;
@@ -33,6 +36,7 @@ export const createSessionActions = ({
   disposePreviewFileCache,
   invalidatePreviewRequests,
   previewFile = null,
+  previewLoadingMessage,
   processedData = [],
   processingStatus = { state: "idle" },
   rawData = [],
@@ -41,6 +45,7 @@ export const createSessionActions = ({
   resetProcessingWorker,
   selectedPreviewFileId = null,
   setProcessedData,
+  setPreviewStatus,
   setRawData,
   setSelectedPreviewFileId,
   setIonIoffManualTargetsByFileId,
@@ -65,14 +70,21 @@ export const createSessionActions = ({
     resetPreviewWorker();
   };
 
-  const handleDataImported = (fileInfo: RawDataEntry) => {
+  const handleFileImported = (fileInfo: RawDataEntry) => {
     setRawData((prev) => [...prev, fileInfo]);
     if (fileInfo?.fileId) {
-      setSelectedPreviewFileId((currentFileId) => currentFileId ?? fileInfo.fileId ?? null);
+      setSelectedPreviewFileId((currentFileId) => {
+        if (currentFileId) {
+          return currentFileId;
+        }
+
+        setPreviewStatus({ state: "loading", message: previewLoadingMessage });
+        return fileInfo.fileId ?? null;
+      });
     }
   };
 
-  const handleDataRemoved = (fileId: string) => {
+  const handleFileRemoved = (fileId: string) => {
     if (selectedPreviewFileId === fileId) {
       const remainingFiles = rawData.filter((entry) => entry.fileId !== fileId);
       setSelectedPreviewFileId(remainingFiles[0]?.fileId ?? null);
@@ -117,6 +129,7 @@ export const createSessionActions = ({
       if (previewFile?.fileId && previewFile.fileId !== fileId) {
         clearPreviewState();
       }
+      setPreviewStatus({ state: "loading", message: previewLoadingMessage });
     }
 
     setSelectedPreviewFileId(fileId);
@@ -124,8 +137,8 @@ export const createSessionActions = ({
 
   return {
     handleClearSession,
-    handleDataImported,
-    handleDataRemoved,
+    handleFileImported,
+    handleFileRemoved,
     handleFileSelected,
     hasSessionData,
   };

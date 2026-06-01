@@ -249,6 +249,7 @@ export class Workbench extends Layout {
       disposePreviewFileCache: previewBindings.disposePreviewFileCache,
       invalidatePreviewRequests: previewBindings.invalidatePreviewRequests,
       previewFile: snapshot.previewFile,
+      previewLoadingMessage: this.t("da_preview_loading"),
       processedData: snapshot.processedData,
       processingStatus: processingBindings.processingStatus,
       rawData: snapshot.rawData,
@@ -258,6 +259,7 @@ export class Workbench extends Layout {
       selectedPreviewFileId: snapshot.selectedPreviewFileId,
       setIonIoffManualTargetsByFileId: this.session.setIonIoffManualTargetsByFileId,
       setProcessedData: this.session.setProcessedData,
+      setPreviewStatus: this.session.setPreviewStatus,
       setRawData: this.session.setRawData,
       setSelectedPreviewFileId: this.session.setSelectedPreviewFileId,
       setSsManualRanges: this.session.setSsManualRanges,
@@ -265,9 +267,9 @@ export class Workbench extends Layout {
 
     return {
       importSessionRef: this.importSessionRef,
-      importedFiles: snapshot.rawData,
-      onDataImported: sessionActions.handleDataImported,
-      onDataRemoved: sessionActions.handleDataRemoved,
+      files: snapshot.rawData,
+      onFileImported: sessionActions.handleFileImported,
+      onFileRemoved: sessionActions.handleFileRemoved,
       onFileSelected: sessionActions.handleFileSelected,
       selectedFileId: snapshot.selectedPreviewFileId,
       t: this.t,

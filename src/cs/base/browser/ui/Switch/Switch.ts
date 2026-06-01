@@ -1,7 +1,5 @@
 import "src/cs/base/browser/ui/switch/switch.css";
 
-export type SwitchSize = "sm" | "md" | "lg";
-
 export type SwitchStyleVars = Partial<CSSStyleDeclaration> & {
   "--switch-on"?: string;
   "--switch-on-hover"?: string;
@@ -12,7 +10,6 @@ export type SwitchOptions = {
   readonly className?: string;
   readonly disabled?: boolean;
   readonly id?: string;
-  readonly size?: SwitchSize;
   readonly style?: SwitchStyleVars;
   readonly testId?: string;
 };
@@ -33,11 +30,9 @@ const getSwitchStyle = ({
 
 const getSwitchDataAttributes = ({
   checked = false,
-  size = "md",
   testId,
-}: Pick<SwitchOptions, "checked" | "size" | "testId"> = {}): Record<string, string | undefined> => ({
+}: Pick<SwitchOptions, "checked" | "testId"> = {}): Record<string, string | undefined> => ({
   "data-state": checked ? "checked" : "unchecked",
-  "data-size": size,
   "data-testid": import.meta.env.DEV && testId ? testId : undefined,
 });
 
