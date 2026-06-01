@@ -6,8 +6,6 @@ import { TableViewId } from "src/cs/workbench/contrib/table/common/table";
 import { TableView } from "src/cs/workbench/contrib/table/browser/tableView";
 import type { TableBindings } from "src/cs/workbench/services/table/common/table";
 
-import "src/cs/workbench/contrib/table/browser/media/tableView.css";
-
 export type TableViewPaneProps = {
   readonly previewBindings: TableBindings;
   readonly previewFile?: PreviewFile | null;

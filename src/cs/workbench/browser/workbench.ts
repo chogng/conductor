@@ -25,7 +25,9 @@ import {
 } from "src/cs/workbench/browser/window";
 import ChartPreviewViewPane from "src/cs/workbench/contrib/chartPreview/browser/chartPreviewViewPane";
 import TemplateEditorPane from "src/cs/workbench/contrib/template/browser/templateEditorPane";
-import TableViewPane from "src/cs/workbench/contrib/table/browser/tableViewPane";
+import { getWorkbenchContribution } from "src/cs/workbench/common/contributions";
+import type { TableContribution } from "src/cs/workbench/contrib/table/browser/table.contribution";
+import { TableContributionId } from "src/cs/workbench/contrib/table/common/table";
 import { ImportSessionViewletHost } from "src/cs/workbench/contrib/import/browser/importSessionViewletHost";
 import type { ImportSessionRef } from "src/cs/workbench/contrib/import/common/types";
 import {
@@ -127,7 +129,7 @@ export class Workbench extends Layout {
   private readonly importSessionRef: { current: ImportSessionRef | null } = { current: null };
   private readonly session = defaultSessionModel;
   private readonly importSession: ImportSessionViewletHost;
-  private readonly table: TableViewPane;
+  private readonly table: TableContribution;
   private readonly templateEditor: TemplateEditorPane;
   private readonly analysis: ChartPreviewViewPane;
   private readonly settings: SettingsViewPane;
@@ -171,7 +173,7 @@ export class Workbench extends Layout {
     }));
     this.templateApply.update(this.getTemplateApplyInput());
     this.importSession = this._register(new ImportSessionViewletHost(this.getImportSessionProps()));
-    this.table = this._register(new TableViewPane(this.getTableProps()));
+    this.table = getWorkbenchContribution<TableContribution>(TableContributionId);
     this.templateEditor = this._register(new TemplateEditorPane(this.getTemplateEditorProps()));
     this.analysis = this._register(new ChartPreviewViewPane(this.getAnalysisProps()));
     this.settings = this._register(new SettingsViewPane(this.getSettingsProps()));

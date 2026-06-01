@@ -6,8 +6,6 @@ import type {
   TableSelection,
 } from "src/cs/workbench/services/table/common/table";
 
-import "src/cs/workbench/contrib/table/browser/media/tableView.css";
-
 export type TableViewProps = {
   readonly previewBindings: TableBindings;
   readonly previewFile?: PreviewFile | null;
