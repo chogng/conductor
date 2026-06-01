@@ -4,37 +4,31 @@ import SidebarPart from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import type { RawDataEntry } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import {
   TemplateManagerView,
-  type TemplateManagerProps,
+  type TemplateElementOptions,
 } from "src/cs/workbench/contrib/template/browser/templateView";
 
 import "src/cs/workbench/contrib/template/browser/media/templateView.css";
 
-export type DataViewPaneProps = {
-  readonly analysisSettings?: TemplateManagerProps["analysisSettings"];
+export type TemplateEditorPaneProps = {
+  readonly analysisSettings?: TemplateElementOptions["analysisSettings"];
   readonly content?: Node | null;
-  readonly ensurePreviewCells?: TemplateManagerProps["ensurePreviewCells"];
-  readonly ensurePreviewRows?: TemplateManagerProps["ensurePreviewRows"];
-  readonly getPreviewRow?: TemplateManagerProps["getPreviewRow"];
-  readonly getPreviewRowsVersion?: TemplateManagerProps["getPreviewRowsVersion"];
   readonly importSessionElement?: HTMLElement | null;
-  readonly onTemplateApplied?: TemplateManagerProps["onTemplateApplied"];
-  readonly onTemplateAppliedIncremental?: TemplateManagerProps["onTemplateAppliedIncremental"];
-  readonly onUpdateSettings?: TemplateManagerProps["onUpdateSettings"];
-  readonly previewFile?: TemplateManagerProps["previewFile"];
-  readonly previewStatus?: TemplateManagerProps["previewStatus"];
+  readonly onTemplateApplied?: TemplateElementOptions["onTemplateApplied"];
+  readonly onTemplateAppliedIncremental?: TemplateElementOptions["onTemplateAppliedIncremental"];
+  readonly onUpdateSettings?: TemplateElementOptions["onUpdateSettings"];
   readonly rawData?: RawDataEntry[];
-  readonly subscribePreviewRowsVersion?: TemplateManagerProps["subscribePreviewRowsVersion"];
+  readonly tableBindings?: TemplateElementOptions["tableBindings"];
   readonly t: TranslateFn;
 };
 
-export class DataViewPane {
+export class TemplateEditorPane {
   public readonly element: HTMLElement;
   public readonly sidebarElement: HTMLElement;
   private readonly previewContent: HTMLElement;
   private readonly sidebarPart: SidebarPart;
   private readonly templateView: TemplateManagerView;
 
-  constructor(props: DataViewPaneProps) {
+  constructor(props: TemplateEditorPaneProps) {
     this.templateView = new TemplateManagerView(toTemplateProps(props));
     this.previewContent = document.createElement("div");
     this.previewContent.className = "template_view_pane_content";
@@ -56,7 +50,7 @@ export class DataViewPane {
     this.sidebarElement = this.sidebarPart.element;
   }
 
-  public update(props: DataViewPaneProps): void {
+  public update(props: TemplateEditorPaneProps): void {
     this.templateView.update(toTemplateProps(props));
     this.sidebarPart.update({
       ariaLabel: props.t("da_data_extraction_template"),
@@ -78,10 +72,10 @@ const toTemplateProps = ({
   importSessionElement: _importSessionElement,
   rawData = [],
   ...props
-}: DataViewPaneProps): TemplateManagerProps => ({
+}: TemplateEditorPaneProps): TemplateElementOptions => ({
   ...props,
   rawData,
   importSessionElement: _importSessionElement ?? null,
 });
 
-export default DataViewPane;
+export default TemplateEditorPane;

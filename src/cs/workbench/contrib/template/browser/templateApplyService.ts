@@ -5,11 +5,11 @@ import {
   terminateProcessingWorker,
   type ProcessingJobOptions,
   type RuleProcessingJobOptions,
-} from "src/cs/workbench/contrib/data/asyncProcessing";
-import type { IDataProcessingService } from "src/cs/workbench/contrib/data/common/data";
+} from "src/cs/workbench/contrib/template/browser/templateApplyProcessing";
+import type { ITemplateApplyService } from "src/cs/workbench/contrib/template/common/template";
 
-export class BrowserDataProcessingService
-  implements IDataProcessingService<
+export class TemplateApplyService
+  implements ITemplateApplyService<
     ProcessingJobOptions,
     RuleProcessingJobOptions,
     MutableState<Worker | null>,

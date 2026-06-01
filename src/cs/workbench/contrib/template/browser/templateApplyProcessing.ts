@@ -235,7 +235,7 @@ const applyAnalysisCacheBudget = (
 };
 
 const createProcessingWorker = () =>
-  new Worker(new URL("../workers/analysis.worker.ts", import.meta.url), {
+  new Worker(new URL("../../workers/analysis.worker.ts", import.meta.url), {
     type: "module",
   });
 
@@ -284,7 +284,7 @@ const failProcessingJob = ({
 };
 
 // Runs one extraction config across a flat queue of files.
-// useProcessing.ts decides the queue and config; this runner decides when to start,
+// processingController.ts decides the queue and config; this runner decides when to start,
 // how many files to process in parallel, how to commit results, and when to finish.
 export const startProcessingJob = ({
   activeFileId = null,

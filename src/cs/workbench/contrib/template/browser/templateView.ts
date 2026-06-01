@@ -20,12 +20,7 @@ import {
 } from "src/cs/base/browser/ui/switch/switch";
 import { localize } from "src/cs/nls";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
-import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
-import type {
-  PreviewFileLike,
-  RawDataEntry,
-} from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
-import { TemplateManagerPreviewWorkspaceView } from "./templatePreviewWorkspace";
+import type { RawDataEntry } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import {
   createEmptyTemplateConfig,
   cloneTemplateConfig,
@@ -42,23 +37,24 @@ import {
 } from "src/cs/workbench/contrib/template/common/templateValidation";
 import { AUTO_TEMPLATE_ID } from "src/cs/workbench/common/deviceAnalysis/autoExtraction";
 import { downloadTemplateBundle } from "src/cs/workbench/contrib/template/browser/templateController";
+import type {
+  TableBindings,
+  TableSelection,
+} from "src/cs/workbench/services/table/common/table";
 
-export type TemplateManagerProps = {
+export type TemplateElementOptions = {
   readonly t: TranslateFn;
   readonly importSessionElement?: HTMLElement | null;
-  previewFile?: PreviewFileLike | null;
-  previewStatus?: Partial<SessionPreviewStatus> | null;
   rawData?: RawDataEntry[];
-  getPreviewRow?: (rowIndex: number) => unknown;
-  ensurePreviewCells?: (fileId: string, cells: Array<{
-    colIndex: number;
-    rowIndex: number;
-  }>) => Promise<unknown> | unknown;
-  ensurePreviewRows?: (fileId: string, startRow: number, endRow: number) => Promise<unknown> | unknown;
+  tableBindings?: Pick<
+    TableBindings,
+    | "clearHighlight"
+    | "getSelection"
+    | "highlightColumns"
+    | "onDidChangeSelection"
+  >;
   onTemplateApplied?: (config: Record<string, unknown>) => unknown;
   onTemplateAppliedIncremental?: (config: Record<string, unknown>) => unknown;
-  subscribePreviewRowsVersion?: (onStoreChange: () => void) => () => void;
-  getPreviewRowsVersion?: () => number;
   analysisSettings?: Record<string, unknown> | null;
   onUpdateSettings?: (updates: Record<string, unknown>) => Promise<unknown> | unknown;
 };
@@ -66,6 +62,14 @@ export type TemplateManagerProps = {
 let cachedTemplates: any[] | null = null;
 let templatesLoading = false;
 let globalToast: Toast | null = null;
+type PickFieldName = "xDataStart" | "xDataEnd" | "yLegendStart" | "yLegendCount";
+
+const PICKABLE_TEMPLATE_FIELDS = new Set<string>([
+  "xDataStart",
+  "xDataEnd",
+  "yLegendStart",
+  "yLegendCount",
+]);
 
 const showToast = (message: string, type: "success" | "error" | "warning" | "info" = "success") => {
   if (!globalToast) {
@@ -95,6 +99,7 @@ const createField = ({
   const input = document.createElement("input");
   input.className = `${getInputNativeClassName()} ${getInputFieldClassName({ fieldClassName: "template_field_input" })}`;
   input.dataset.state = getInputFieldState();
+  input.name = String(name);
   input.value = value;
   input.autocomplete = "off";
   input.addEventListener("input", () => onInput(name, input.value));
@@ -203,16 +208,51 @@ const exportTemplate = (config: TemplateConfig) => {
   downloadTemplateBundle(payload);
 };
 
-export const createTemplateManager = (props: TemplateManagerProps): HTMLElement =>
-  new TemplateManagerView(props).element;
+const normalizeColumnIndexes = (columns: readonly number[] | undefined): number[] =>
+  Array.from(new Set(
+    (Array.isArray(columns) ? columns : [])
+      .map((column) => Math.floor(Number(column)))
+      .filter((column) => Number.isInteger(column) && column >= 0),
+  )).sort((a, b) => a - b);
+
+const areNumberArraysEqual = (
+  first: readonly number[] | undefined,
+  second: readonly number[] | undefined,
+): boolean => {
+  const normalizedFirst = normalizeColumnIndexes(first);
+  const normalizedSecond = normalizeColumnIndexes(second);
+  if (normalizedFirst.length !== normalizedSecond.length) {
+    return false;
+  }
+
+  return normalizedFirst.every((value, index) => value === normalizedSecond[index]);
+};
+
+const toCellLabel = (rowIndex: number, colIndex: number): string =>
+  `${toColumnLabel(colIndex)}${Math.max(0, Math.floor(Number(rowIndex) || 0)) + 1}`;
+
+const toColumnLabel = (colIndex: number): string => {
+  let value = Math.max(0, Math.floor(Number(colIndex) || 0)) + 1;
+  let label = "";
+  while (value > 0) {
+    const remainder = (value - 1) % 26;
+    label = String.fromCharCode(65 + remainder) + label;
+    value = Math.floor((value - 1) / 26);
+  }
+  return label;
+};
+
+export const createTemplateElement = (options: TemplateElementOptions): HTMLElement =>
+  new TemplateManagerView(options).element;
 
 export class TemplateManagerView {
   public readonly element: HTMLElement;
   public readonly sidebarElement: HTMLElement;
-  private readonly containerRef = { current: null as HTMLElement | null };
   private readonly left = document.createElement("div");
-  private readonly preview: TemplateManagerPreviewWorkspaceView;
-  private props: TemplateManagerProps;
+  private props: TemplateElementOptions;
+  private activePickField: PickFieldName | null = null;
+  private disposeTableSelectionListener: (() => void) | null = null;
+  private tableBindings: TemplateElementOptions["tableBindings"] | null = null;
   private mode: "select" | "save" | null = null;
   private toggleDraft: Pick<TemplateConfig, "stopOnError" | "fileNameMatchCaseSensitive"> | null = null;
   private selectRefs: {
@@ -230,7 +270,7 @@ export class TemplateManagerView {
     meta: HTMLElement;
   } | null = null;
 
-  constructor(props: TemplateManagerProps) {
+  constructor(props: TemplateElementOptions) {
     this.props = props;
     this.element = document.createElement("div");
     this.element.className = "template_manager";
@@ -238,9 +278,6 @@ export class TemplateManagerView {
 
     this.left.className = "template_config_panel";
 
-    this.preview = new TemplateManagerPreviewWorkspaceView(this.getPreviewProps());
-    this.element.append(this.preview.element);
-    this.containerRef.current = this.preview.element;
     this.update(props);
   }
 
@@ -248,17 +285,20 @@ export class TemplateManagerView {
     return getSession();
   }
 
-  public update(props: TemplateManagerProps): void {
+  public update(props: TemplateElementOptions): void {
     this.props = props;
-
-    this.preview.update(this.getPreviewProps());
+    this.bindTableSelection(props.tableBindings);
 
     this.ensureTemplatesLoaded();
     this.syncToggleDraft();
+    this.syncTableHighlight();
 
     const nextMode = this.session.templateMode;
     if (this.mode !== nextMode) {
       this.mode = nextMode;
+      if (nextMode === "select") {
+        this.activePickField = null;
+      }
       this.left.replaceChildren(nextMode === "select" ? this.getSelectRoot() : this.getSaveRoot());
     }
 
@@ -271,48 +311,14 @@ export class TemplateManagerView {
   }
 
   public dispose(): void {
-    this.preview.dispose();
+    this.disposeTableSelectionListener?.();
+    this.disposeTableSelectionListener = null;
+    this.tableBindings?.clearHighlight();
     this.selectRefs?.menuButton.dispose();
     this.selectRefs = null;
     this.saveRefs = null;
     this.element.replaceChildren();
     this.element.remove();
-  }
-
-  private getPreviewProps() {
-    return {
-      containerRef: this.containerRef,
-      config: this.getEffectiveTemplateConfig(),
-      ensurePreviewRows: this.props.ensurePreviewRows,
-      getPreviewRow: this.props.getPreviewRow,
-      getPreviewRowsVersion: this.props.getPreviewRowsVersion,
-      interactive: true,
-      previewFile: this.props.previewFile,
-      previewStatus: this.props.previewStatus,
-      setConfig: (next: TemplateConfig | ((previous: TemplateConfig) => TemplateConfig)) => {
-        const previousConfig = this.getEffectiveTemplateConfig();
-        const nextConfig = typeof next === "function" ? next(previousConfig) : next;
-        this.toggleDraft = {
-          stopOnError: nextConfig.stopOnError,
-          fileNameMatchCaseSensitive: nextConfig.fileNameMatchCaseSensitive,
-        };
-        this.session.setTemplateConfig(nextConfig);
-        defaultSessionModel.emitChange();
-      },
-      subscribePreviewRowsVersion: this.props.subscribePreviewRowsVersion,
-      t: this.props.t as any,
-      writeFieldFromPreview: (field: string, value: string) => {
-        if (!(field in this.session.templateConfig)) {
-          return;
-        }
-
-        this.session.setTemplateConfig({
-          ...this.getEffectiveTemplateConfig(),
-          [field]: value,
-        });
-        defaultSessionModel.emitChange();
-      },
-    };
   }
 
   private getEffectiveTemplateConfig(): TemplateConfig {
@@ -326,6 +332,86 @@ export class TemplateManagerView {
       stopOnError: this.toggleDraft.stopOnError,
       fileNameMatchCaseSensitive: this.toggleDraft.fileNameMatchCaseSensitive,
     };
+  }
+
+  private bindTableSelection(tableBindings: TemplateElementOptions["tableBindings"]): void {
+    if (this.tableBindings === tableBindings) {
+      return;
+    }
+
+    this.disposeTableSelectionListener?.();
+    this.disposeTableSelectionListener = null;
+    this.tableBindings?.clearHighlight();
+    this.tableBindings = tableBindings ?? null;
+
+    if (!tableBindings) {
+      return;
+    }
+
+    this.disposeTableSelectionListener = tableBindings.onDidChangeSelection((selection) => {
+      this.applyTableSelection(selection);
+    });
+    this.applyTableSelection(tableBindings.getSelection());
+  }
+
+  private applyTableSelection(selection: TableSelection): void {
+    const columns = normalizeColumnIndexes(selection.selectedColumns);
+    if (columns.length > 0) {
+      this.updateTemplateConfig({ yColumns: columns });
+    }
+
+    const activeCell = selection.activeCell;
+    if (!activeCell || !this.activePickField) {
+      return;
+    }
+
+    this.updateTemplateConfig({
+      [this.activePickField]: toCellLabel(activeCell.rowIndex, activeCell.colIndex),
+    });
+  }
+
+  private updateTemplateConfig(updates: Partial<TemplateConfig>): void {
+    const current = this.getEffectiveTemplateConfig();
+    let changed = false;
+    const next: TemplateConfig = {
+      ...current,
+      ...updates,
+    };
+
+    if (Array.isArray(updates.yColumns)) {
+      changed = !areNumberArraysEqual(current.yColumns, updates.yColumns);
+      next.yColumns = updates.yColumns;
+    }
+
+    for (const [key, value] of Object.entries(updates)) {
+      if (key === "yColumns") {
+        continue;
+      }
+      if (current[key as keyof TemplateConfig] !== value) {
+        changed = true;
+      }
+    }
+
+    if (!changed) {
+      return;
+    }
+
+    this.toggleDraft = {
+      stopOnError: next.stopOnError,
+      fileNameMatchCaseSensitive: next.fileNameMatchCaseSensitive,
+    };
+    this.session.setTemplateConfig(next);
+    defaultSessionModel.emitChange();
+  }
+
+  private syncTableHighlight(): void {
+    const columns = normalizeColumnIndexes(this.getEffectiveTemplateConfig().yColumns);
+    if (columns.length > 0) {
+      this.tableBindings?.highlightColumns(columns);
+      return;
+    }
+
+    this.tableBindings?.clearHighlight();
   }
 
   private syncToggleDraft(): void {
@@ -704,7 +790,13 @@ export class TemplateManagerView {
       },
     });
     container.append(field);
-    return field.querySelector("input") as HTMLInputElement;
+    const input = field.querySelector("input") as HTMLInputElement;
+    input.addEventListener("focus", () => {
+      this.activePickField = PICKABLE_TEMPLATE_FIELDS.has(name)
+        ? name as PickFieldName
+        : null;
+    });
+    return input;
   }
 
   private updateSaveContent(): void {
@@ -951,7 +1043,7 @@ export class TemplateManagerView {
   }
 }
 
-const TemplateManager = (props: TemplateManagerProps): any =>
-  createTemplateManager(props);
+const TemplateManager = (options: TemplateElementOptions): any =>
+  createTemplateElement(options);
 
 export default TemplateManager;

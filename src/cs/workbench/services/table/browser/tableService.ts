@@ -11,7 +11,11 @@ import {
   ITableService,
   type ITableService as ITableServiceType,
   type TableBindings,
+  type TableCell,
+  type TableHighlight,
   type TableOptions,
+  type TableRange,
+  type TableSelection,
 } from "src/cs/workbench/services/table/common/table";
 import {
   DA_PREVIEW_MAX_CACHED_FILES,
@@ -181,6 +185,62 @@ const runWithPreviewStateScope = <T,>(
   }
 };
 
+const normalizeTableCell = (cell: TableCell | null | undefined): TableCell | null => {
+  if (!cell) return null;
+  const rowIndex = Math.floor(Number(cell.rowIndex));
+  const colIndex = Math.floor(Number(cell.colIndex));
+  if (!Number.isInteger(rowIndex) || rowIndex < 0) return null;
+  if (!Number.isInteger(colIndex) || colIndex < 0) return null;
+
+  return {
+    fileId: typeof cell.fileId === "string" ? cell.fileId : null,
+    sheetId: typeof cell.sheetId === "string" ? cell.sheetId : null,
+    rowIndex,
+    colIndex,
+  };
+};
+
+const normalizeColumnIndexes = (columnIndexes: readonly number[] | undefined): number[] =>
+  Array.from(new Set(
+    (Array.isArray(columnIndexes) ? columnIndexes : [])
+      .map((columnIndex) => Math.floor(Number(columnIndex)))
+      .filter((columnIndex) => Number.isInteger(columnIndex) && columnIndex >= 0),
+  )).sort((a, b) => a - b);
+
+const normalizeTableSelection = (
+  selection: TableSelection | null | undefined,
+): TableSelection => ({
+  activeCell: normalizeTableCell(selection?.activeCell),
+  selectedColumns: normalizeColumnIndexes(selection?.selectedColumns),
+  ranges: Array.isArray(selection?.ranges)
+    ? selection.ranges
+        .map((range) => {
+          const startRow = Math.floor(Number(range.startRow));
+          const endRow = Math.floor(Number(range.endRow));
+          const startCol = Math.floor(Number(range.startCol));
+          const endCol = Math.floor(Number(range.endCol));
+          if (
+            !Number.isInteger(startRow) ||
+            !Number.isInteger(endRow) ||
+            !Number.isInteger(startCol) ||
+            !Number.isInteger(endCol)
+          ) {
+            return null;
+          }
+
+          return {
+            fileId: typeof range.fileId === "string" ? range.fileId : null,
+            sheetId: typeof range.sheetId === "string" ? range.sheetId : null,
+            startRow: Math.max(0, Math.min(startRow, endRow)),
+            endRow: Math.max(0, Math.max(startRow, endRow)),
+            startCol: Math.max(0, Math.min(startCol, endCol)),
+            endCol: Math.max(0, Math.max(startCol, endCol)),
+          };
+        })
+        .filter((range): range is TableRange => Boolean(range))
+    : [],
+});
+
 const runImmediately = (callback: () => void): void => callback();
 const memoCallback = <T extends (...args: any[]) => any>(
   callback: T,
@@ -286,6 +346,10 @@ const createPreviewBindings = ({
     notifyPreviewRowsVersion,
     subscribePreviewRowsVersion,
   } = memoValue(() => usePreviewRowsVersion(), []);
+  const selectionRef = getMutableState<TableSelection>(normalizeTableSelection(null));
+  const highlightRef = getMutableState<TableHighlight>({});
+  const revealCellRef = getMutableState<TableCell | null>(null);
+  const selectionSubscribersRef = getMutableState(new Set<(selection: TableSelection) => void>());
 
   const deferredSelectedPreviewFileId = readImmediateValue(selectedPreviewFileId);
   const previewStatusRef = getMutableState<PreviewStatus>(previewStatus);
@@ -318,6 +382,20 @@ const createPreviewBindings = ({
     previewStatusRef.current = previewStatus;
     previewFileRef.current = previewFile;
   }, [previewStatus, previewFile]);
+
+  runEffect(() => {
+    const clearedSelection = normalizeTableSelection(null);
+    selectionRef.current = clearedSelection;
+    highlightRef.current = {};
+    revealCellRef.current = null;
+    for (const callback of Array.from(selectionSubscribersRef.current)) {
+      try {
+        callback(clearedSelection);
+      } catch {
+        // A broken consumer must not prevent table state from following the file.
+      }
+    }
+  }, [deferredSelectedPreviewFileId]);
 
   const clearPendingPreviewRequest = memoCallback((requestId: number) => {
     if (requestId === previewRequestIdRef.current) {
@@ -1226,18 +1304,87 @@ const createPreviewBindings = ({
     ],
   );
 
+  const getSelection = memoCallback(
+    (): TableSelection => selectionRef.current,
+    [selectionRef],
+  );
+
+  const onDidChangeSelection = memoCallback(
+    (callback: (selection: TableSelection) => void): (() => void) => {
+      selectionSubscribersRef.current.add(callback);
+      return () => selectionSubscribersRef.current.delete(callback);
+    },
+    [selectionSubscribersRef],
+  );
+
+  const setSelection = memoCallback(
+    (selection: TableSelection | null): void => {
+      const normalizedSelection = normalizeTableSelection(selection);
+      selectionRef.current = normalizedSelection;
+      for (const callback of Array.from(selectionSubscribersRef.current)) {
+        try {
+          callback(normalizedSelection);
+        } catch {
+          // A broken consumer must not prevent table selection from updating.
+        }
+      }
+    },
+    [selectionRef, selectionSubscribersRef],
+  );
+
+  const getHighlight = memoCallback(
+    (): TableHighlight => highlightRef.current,
+    [highlightRef],
+  );
+
+  const highlightColumns = memoCallback(
+    (columnIndexes: readonly number[]): void => {
+      highlightRef.current = {
+        columns: normalizeColumnIndexes(columnIndexes),
+      };
+    },
+    [highlightRef],
+  );
+
+  const clearHighlight = memoCallback(
+    (): void => {
+      highlightRef.current = {};
+    },
+    [highlightRef],
+  );
+
+  const revealCell = memoCallback(
+    (cell: TableCell | null): void => {
+      revealCellRef.current = normalizeTableCell(cell);
+    },
+    [revealCellRef],
+  );
+
+  const getRevealCell = memoCallback(
+    (): TableCell | null => revealCellRef.current,
+    [revealCellRef],
+  );
+
   return {
     cancelPendingPreviewRowRequests,
+    clearHighlight,
     clearPreviewState,
     disposePreviewFileCache,
     ensurePreviewCells,
     ensurePreviewRows,
+    getHighlight,
     getPreviewRow,
     getPreviewRowsVersion,
+    getRevealCell,
+    getSelection,
     invalidatePreviewRequests,
+    onDidChangeSelection,
     rawDataById,
     rawDataByIdRef,
+    revealCell,
     resetPreviewWorker,
+    setSelection,
+    highlightColumns,
     subscribePreviewRowsVersion,
   };
 };

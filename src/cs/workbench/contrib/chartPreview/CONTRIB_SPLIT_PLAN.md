@@ -74,8 +74,8 @@ Use these roles:
 Expected service decisions:
 
 - `settings`: has `ISettingsService`; keep persisted settings and global defaults there.
-- `template`: likely needs `ITemplateService` for template load/save/delete/import/export and template persistence.
-- `data`: likely needs `IDataProcessingService` or `IExtractionService` for extraction queues, worker/bridge calls, and applying template requests.
+- `template`: owns `ITemplateService` for template load/save/delete/import/export and `ITemplateApplyService` for template application processing.
+- `table`: uses the existing workbench `ITableService` for preview rows/cells, selection, highlight, and reveal.
 - `export`: likely needs `IExportService` for Origin open/export, zip export, and export bridge orchestration.
 - `chart`: service only if it owns a render/cache resource or cross-view chart capability; pure drawing and units should start as model/resolver functions.
 - `diagnostics`: service only if diagnostics move to worker/progressive/background computation; pure SS/gm/Vth calculations should start as model/resolver functions.
@@ -432,9 +432,7 @@ It should not import:
 
 - `DataPart`
 - `TemplateManager`
-- `TemplateManagerPreviewPanel`
-- `TemplateManagerPreviewSurface`
-- `TemplateManagerPreviewWorkspace`
+- table preview internals
 - `AnalysisPanel`
 - `AnalysisCharts`
 - `OverviewGrid`
@@ -463,9 +461,6 @@ Known 旧视图 retirement areas:
 - `import/browser/importSessionViewlet.ts`
 - `session/SessionProvider.旧视图`
 - `template/TemplateManager.旧视图`
-- `template/TemplateManagerPreviewPanel.旧视图`
-- `template/TemplateManagerPreviewSurface.旧视图`
-- `template/TemplateManagerPreviewWorkspace.旧视图`
 - `parameters/AnalysisDiagnosticsCard.旧视图`
 - `parameters/AnimatedNumberText.旧视图`
 - `parameters/AxisSettingsPane.旧视图`
@@ -515,21 +510,20 @@ Known 旧视图 retirement areas:
 - [x] Create `template/browser/template.contribution.ts`.
 - [x] Retire `template/browser/templateViewPane.ts` and mount the current template view from the workbench owner.
 - [x] Replace `TemplateManager.旧视图` with `templateView.ts` plus controller/model.
-- [x] Replace `TemplateManagerPreviewPanel.旧视图` with a TypeScript view.
-- [x] Replace `TemplateManagerPreviewSurface.旧视图` with a TypeScript view.
-- [x] Replace `TemplateManagerPreviewWorkspace.旧视图` with a TypeScript view.
-- [x] Keep `templateValidation.ts`, preview geometry, and pure preview calculations as pure TypeScript modules.
+- [x] Move visible table preview ownership out of `template` and into `contrib/table`.
+- [x] Remove stale `TemplateManagerPreview*` runtime modules from `template`.
+- [x] Keep `templateValidation.ts` as pure TypeScript template logic.
 - [x] Move template import/export side effects into controller/service code.
 - [x] Ensure template application emits explicit requests to data/processing rather than directly owning processing state.
 
 ### 4. Extract Data
 
-- [x] Create `data/browser/data.contribution.ts` if data needs registration beyond existing workspace mounting.
-- [x] Add `IDataProcessingService` or `IExtractionService` only for extraction queues, worker/bridge calls, and template application side effects.
+- [x] Remove the empty data contribution once no runtime data feature remains.
+- [x] Move template application processing to `template` as `ITemplateApplyService`.
 - [x] Retire `data/browser/dataViewPane.ts` and keep data mounting at the workbench boundary.
 - [x] Move `DataPart.ts` responsibilities into feature view/controller/model files.
 - [x] Keep extraction validation and queue preparation outside the view.
-- [x] Keep template application handling in data/processing, but receive it through a clear request boundary.
+- [x] Keep template application handling in template apply controller/service, with table preview data passed through a clear request boundary.
 
 ### 5. Extract Chart
 

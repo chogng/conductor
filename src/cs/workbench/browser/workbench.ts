@@ -24,10 +24,14 @@ import {
   WorkbenchWindow,
 } from "src/cs/workbench/browser/window";
 import ChartPreviewViewPane from "src/cs/workbench/contrib/chartPreview/browser/chartPreviewViewPane";
-import DataViewPane from "src/cs/workbench/contrib/data/browser/dataViewPane";
+import TemplateEditorPane from "src/cs/workbench/contrib/template/browser/templateEditorPane";
+import TableViewPane from "src/cs/workbench/contrib/table/browser/tableViewPane";
 import { ImportSessionViewletHost } from "src/cs/workbench/contrib/import/browser/importSessionViewletHost";
 import type { ImportSessionRef } from "src/cs/workbench/contrib/import/common/types";
-import { useProcessing } from "src/cs/workbench/contrib/data/useProcessing";
+import {
+  TemplateApplyController,
+  type TemplateApplyControllerInput,
+} from "src/cs/workbench/contrib/template/browser/templateApplyController";
 import { SessionModel } from "src/cs/workbench/contrib/session/sessionModel";
 import { defaultSessionModel } from "src/cs/workbench/contrib/session/useSession";
 import { createSessionActions } from "src/cs/workbench/contrib/session/useSessionActions";
@@ -123,9 +127,11 @@ export class Workbench extends Layout {
   private readonly importSessionRef: { current: ImportSessionRef | null } = { current: null };
   private readonly session = defaultSessionModel;
   private readonly importSession: ImportSessionViewletHost;
-  private readonly data: DataViewPane;
+  private readonly table: TableViewPane;
+  private readonly templateEditor: TemplateEditorPane;
   private readonly analysis: ChartPreviewViewPane;
   private readonly settings: SettingsViewPane;
+  private readonly templateApply: TemplateApplyController;
   private readonly tableService: ITableService;
   private readonly coreSettingsController: CoreSettingsController;
   private coreSettingsState: CoreSettingsState = createCoreSettingsState();
@@ -154,8 +160,19 @@ export class Workbench extends Layout {
       throw new Error("Workbench requires ITableService.");
     }
     this.tableService = options.tableService;
+    this.templateApply = this._register(new TemplateApplyController({
+      onExtractionError: () => undefined,
+      setActivePage: (page) => {
+        if (page === "data" || page === "analysis" || page === "settings") {
+          this.navigateToView(page);
+        }
+      },
+      setProcessedData: this.session.setProcessedData,
+    }));
+    this.templateApply.update(this.getTemplateApplyInput());
     this.importSession = this._register(new ImportSessionViewletHost(this.getImportSessionProps()));
-    this.data = this._register(new DataViewPane(this.getDataProps()));
+    this.table = this._register(new TableViewPane(this.getTableProps()));
+    this.templateEditor = this._register(new TemplateEditorPane(this.getTemplateEditorProps()));
     this.analysis = this._register(new ChartPreviewViewPane(this.getAnalysisProps()));
     this.settings = this._register(new SettingsViewPane(this.getSettingsProps()));
     this.coreSettingsController = this._register(
@@ -182,24 +199,25 @@ export class Workbench extends Layout {
   private renderWorkbench(): void {
     const snapshot = this.session.getSnapshot();
     const previewBindings = this.getPreviewBindings(snapshot);
-    const processingBindings = this.getProcessingBindings(snapshot, previewBindings);
+    this.templateApply.update(this.getTemplateApplyInput(snapshot, previewBindings));
 
     this.importSession.update(this.getImportSessionProps(
       snapshot,
       previewBindings,
-      processingBindings,
+      this.templateApply,
     ));
-    this.data.update(this.getDataProps(
+    this.table.update(this.getTableProps(snapshot, previewBindings));
+    this.templateEditor.update(this.getTemplateEditorProps(
       snapshot,
       previewBindings,
-      processingBindings,
+      this.templateApply,
     ));
-    this.analysis.update(this.getAnalysisProps(snapshot, processingBindings));
+    this.analysis.update(this.getAnalysisProps(snapshot, this.templateApply));
     this.settings.update(this.getSettingsProps());
     this.setParts({
       sidebar: this.importSession.element,
-      data: this.data.element,
-      secondarySidebar: this.data.sidebarElement,
+      data: this.table.element,
+      secondarySidebar: this.templateEditor.sidebarElement,
       analysis: this.analysis.element,
       settings: this.settings.element,
     });
@@ -243,7 +261,7 @@ export class Workbench extends Layout {
   private getImportSessionProps(
     snapshot = this.session.getSnapshot(),
     previewBindings = this.getPreviewBindings(snapshot),
-    processingBindings = this.getProcessingBindings(snapshot, previewBindings),
+    processing = this.templateApply,
   ) {
     const sessionActions = createSessionActions({
       clearPreviewState: previewBindings.clearPreviewState,
@@ -252,11 +270,11 @@ export class Workbench extends Layout {
       previewFile: snapshot.previewFile,
       previewLoadingMessage: this.t("da_preview_loading"),
       processedData: snapshot.processedData,
-      processingStatus: processingBindings.processingStatus,
+      processingStatus: processing.processingStatus,
       rawData: snapshot.rawData,
-      removeQueuedProcessingFile: processingBindings.removeQueuedProcessingFile,
+      removeQueuedProcessingFile: processing.removeQueuedProcessingFile,
       resetPreviewWorker: previewBindings.resetPreviewWorker,
-      resetProcessingWorker: processingBindings.resetProcessingWorker,
+      resetProcessingWorker: processing.resetProcessingWorker,
       selectedPreviewFileId: snapshot.selectedPreviewFileId,
       setIonIoffManualTargetsByFileId: this.session.setIonIoffManualTargetsByFileId,
       setProcessedData: this.session.setProcessedData,
@@ -278,37 +296,44 @@ export class Workbench extends Layout {
     };
   }
 
-  private getDataProps(
+  private getTemplateEditorProps(
     snapshot = this.session.getSnapshot(),
     previewBindings = this.getPreviewBindings(snapshot),
-    processingBindings = this.getProcessingBindings(snapshot, previewBindings),
+    processing = this.templateApply,
   ) {
     return {
       analysisSettings: this.coreSettingsState.analysisSettings,
-      ensurePreviewCells: previewBindings.ensurePreviewCells,
-      ensurePreviewRows: previewBindings.ensurePreviewRows,
-      getPreviewRow: previewBindings.getPreviewRow,
-      getPreviewRowsVersion: previewBindings.getPreviewRowsVersion,
       importSessionElement: null,
-      onTemplateApplied: processingBindings.handleTemplateApplied,
-      onTemplateAppliedIncremental: processingBindings.handleTemplateAppliedIncremental,
+      onTemplateApplied: processing.handleTemplateApplied,
+      onTemplateAppliedIncremental: processing.handleTemplateAppliedIncremental,
       onUpdateSettings: this.coreSettingsState.handleUpdateAnalysisSettings,
+      rawData: snapshot.rawData,
+      tableBindings: previewBindings,
+      t: this.t,
+    };
+  }
+
+  private getTableProps(
+    snapshot = this.session.getSnapshot(),
+    previewBindings = this.getPreviewBindings(snapshot),
+  ) {
+    return {
+      previewBindings,
       previewFile: snapshot.previewFile,
       previewStatus: snapshot.previewStatus,
-      rawData: snapshot.rawData,
-      subscribePreviewRowsVersion: previewBindings.subscribePreviewRowsVersion,
+      selectedFileId: snapshot.selectedPreviewFileId,
       t: this.t,
     };
   }
 
   private getAnalysisProps(
     snapshot = this.session.getSnapshot(),
-    processingBindings = this.getProcessingBindings(snapshot),
+    processing = this.templateApply,
   ) {
     return {
       activeFileId: snapshot.processedData[0]?.fileId ?? null,
       processedData: snapshot.processedData,
-      processingStatus: processingBindings.processingStatus,
+      processingStatus: processing.processingStatus,
       shouldMountCharts: false,
       t: this.t,
     };
@@ -337,26 +362,19 @@ export class Workbench extends Layout {
     });
   }
 
-  private getProcessingBindings(
+  private getTemplateApplyInput(
     snapshot = this.session.getSnapshot(),
     previewBindings = this.getPreviewBindings(snapshot),
-  ) {
-    return useProcessing({
+  ): TemplateApplyControllerInput {
+    return {
       activeFileId: snapshot.processedData[0]?.fileId ?? null,
       getPreviewRow: previewBindings.getPreviewRow,
-      onExtractionError: () => undefined,
       previewFile: snapshot.previewFile,
       processedData: snapshot.processedData,
       rawData: snapshot.rawData,
       rawDataByIdRef: previewBindings.rawDataByIdRef,
-      setActivePage: (page) => {
-        if (page === "data" || page === "analysis" || page === "settings") {
-          this.navigateToView(page);
-        }
-      },
-      setProcessedData: this.session.setProcessedData,
       t: this.t as any,
-    });
+    };
   }
 
   private getSettingsProps() {
