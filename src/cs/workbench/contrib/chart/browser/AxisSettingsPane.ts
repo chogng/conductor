@@ -1,4 +1,4 @@
-import { lxArrowLeft } from "cogicon";
+import { lxArrowLeft } from "@chogng/lxicon";
 import {
   getButtonClassName,
   getButtonContentClassName,
@@ -8,10 +8,10 @@ import {
   getCardDataAttributes,
 } from "cs/base/browser/ui/card/card";
 import {
-  getCogIconClassName,
-  getCogIconMarkup,
-  getCogIconStyle,
-} from "src/cs/base/browser/ui/cogIcon/cogIcon";
+  getLxIconClassName,
+  getLxIconMarkup,
+  getLxIconStyle,
+} from "src/cs/base/browser/ui/lxicon/lxicon";
 import {
   getInputDataAttributes,
   getInputFieldClassName,
@@ -448,9 +448,9 @@ const createIconButton = ({
   const content = document.createElement("span");
   content.className = getButtonContentClassName();
   const icon = document.createElement("span");
-  icon.className = getCogIconClassName();
-  Object.assign(icon.style, getCogIconStyle({ size: 16 }));
-  icon.innerHTML = getCogIconMarkup(lxArrowLeft);
+  icon.className = getLxIconClassName();
+  Object.assign(icon.style, getLxIconStyle({ size: 16 }));
+  icon.innerHTML = getLxIconMarkup(lxArrowLeft);
   content.append(icon);
   button.append(content);
   return button;

@@ -1,8 +1,8 @@
-import { lxAdd, lxArrowDown, lxEdit } from "cogicon";
+import { lxAdd, lxArrowDown, lxEdit } from "@chogng/lxicon";
 
 import { createButton } from "src/cs/base/browser/ui/button/button";
 import { getCardClassName } from "src/cs/base/browser/ui/card/card";
-import { createCogIcon } from "src/cs/base/browser/ui/cogIcon/cogIcon";
+import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import {
   createMenuButton,
   createMenuItemLabel,
@@ -360,7 +360,7 @@ export const createTemplateManager = ({
           left: createMenuItemLabel(template.name || templateId),
           onClick: () => selectTemplate(templateId),
           rightAction: {
-            icon: () => createCogIcon({ icon: lxEdit, size: 14 }),
+            icon: () => createLxIcon({ icon: lxEdit, size: 14 }),
             label: localize("da_template_edit", "Edit template"),
             onClick: () => editTemplate(template),
           },
@@ -376,7 +376,7 @@ export const createTemplateManager = ({
           className: "template_select_menu_create",
           left: createMenuItemLabel(
             localize("da_template_create_new", "Create new template..."),
-            () => createCogIcon({ icon: lxAdd, size: 14 }),
+            () => createLxIcon({ icon: lxAdd, size: 14 }),
           ),
           onClick: createTemplate,
           tabIndex: 0,
@@ -391,7 +391,7 @@ export const createTemplateManager = ({
       items: createTemplateEntries,
       menuClassName: "template_select_menu",
       surfaceClassName: "template_select_menu_surface",
-      triggerIcon: () => createCogIcon({ icon: lxArrowDown, size: 14 }),
+      triggerIcon: () => createLxIcon({ icon: lxArrowDown, size: 14 }),
     });
 
     selectContainer.append(templateSelectMenu.domNode);

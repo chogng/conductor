@@ -1,4 +1,4 @@
-import { lxClose, lxCsvGreen } from "cogicon";
+import { lxClose, lxCsvGreen } from "@chogng/lxicon";
 import ContentView from "src/cs/base/browser/ui/contentView/contentView";
 import Toast from "src/cs/base/browser/ui/toast/toast";
 import type { ListHandle } from "src/cs/base/browser/ui/list/list";
@@ -8,10 +8,9 @@ import {
   type ITreeElementRenderDetails,
   type ITreeNode,
 } from "src/cs/base/browser/ui/tree/objectTree";
-import { normalizeCogIconSvgMarkup } from "src/cs/base/browser/ui/cogIcon/cogIconMarkup";
+import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
-import { cx } from "src/utils/cx";
 import { DATA_IMPORT_ACCEPT } from "src/cs/workbench/contrib/import/common/constants";
 import type { ImporterFileEntry } from "src/cs/workbench/contrib/import/common/types";
 import { toDomIdToken } from "src/cs/workbench/contrib/import/common/utils";
@@ -43,6 +42,7 @@ export type ImportViewerProps = {
 };
 
 const getImportViewerFileName = getImportTreeFileName;
+const IMPORT_VIEWER_ROW_HEIGHT = 26;
 
 type FileItemMeta = {
   readonly isWarning: boolean;
@@ -74,10 +74,10 @@ const appendIcon = (
   size = 16,
 ) => {
   const iconSpan = document.createElement("span");
-  iconSpan.className = "ui-cogicon";
+  iconSpan.className = "ui-lxicon";
   iconSpan.style.width = `${size}px`;
   iconSpan.style.height = `${size}px`;
-  iconSpan.innerHTML = normalizeCogIconSvgMarkup(icon);
+  iconSpan.innerHTML = normalizeLxIconSvgMarkup(icon);
   container.appendChild(iconSpan);
 };
 
@@ -91,7 +91,7 @@ const renderImportViewerFileItem = (
   const meta = getFileItemMeta(fileEntry);
 
   container.replaceChildren();
-  container.className = cx("import-viewer-file-item", "group", isSelected && "selected");
+  container.className = "import-viewer-file-item";
   container.setAttribute("aria-label", "csv-file-item");
   container.title = fileName;
   if (isSelected) {
@@ -295,6 +295,9 @@ export class ImportViewerView implements IDisposable {
       },
       items,
       minVirtualCount: 200,
+      delegate: {
+        getHeight: () => IMPORT_VIEWER_ROW_HEIGHT,
+      },
       onDidChangeCollapseState: (collapsedKeys) => {
         const collapsed = new Set(collapsedKeys);
         this.expandedKeys = folderKeys.filter((key) => !collapsed.has(key));
@@ -332,7 +335,6 @@ export class ImportViewerView implements IDisposable {
           container.replaceChildren();
         },
       },
-      rowHeight: 26,
       selectedKey: this.props.effectiveSelectedFileId ?? null,
       viewportClassName: "import-viewer-file-tree-viewport",
     };

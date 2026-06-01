@@ -4,6 +4,10 @@ export type ListRenderState = {
   selected: boolean;
 };
 
+export type IListVirtualDelegate<T> = {
+  readonly getHeight: (item: T) => number;
+};
+
 export type ListHandle = {
   focus: () => void;
   getViewport: () => HTMLDivElement | null;
@@ -14,6 +18,7 @@ export type ListHandle = {
 
 export type ListProps<T> = {
   readonly className?: string;
+  readonly delegate: IListVirtualDelegate<T>;
   readonly empty?: (container: HTMLElement) => void;
   readonly disposeEmpty?: (container: HTMLElement) => void;
   readonly getKey: (item: T, index: number) => string;
@@ -36,7 +41,6 @@ export type ListProps<T> = {
     index: number,
     container: HTMLElement,
   ) => void;
-  readonly rowHeight?: number;
   readonly rowRole?: string;
   readonly selectedKey?: string | null;
   readonly viewportClassName?: string;

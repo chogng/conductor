@@ -178,7 +178,7 @@
   background-color: rgb(var(--bg-page) / var(--tw-bg-opacity, 1));
 }
 
-.import-viewer-file-item.selected {
+.import-viewer-file-item[data-selected="true"] {
   background-color: rgb(var(--accent) / 0.1);
   --tw-text-opacity: 1;
   color: rgb(var(--accent) / var(--tw-text-opacity, 1));
@@ -250,7 +250,7 @@
   color: rgb(239 68 68 / var(--tw-text-opacity, 1));
 }
 
-.group:hover .import-viewer-file-remove {
+.import-viewer-file-item:hover .import-viewer-file-remove {
   opacity: 1;
 }
 

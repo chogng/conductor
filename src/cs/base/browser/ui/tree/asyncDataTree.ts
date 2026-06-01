@@ -89,6 +89,9 @@ export class AsyncDataTree<TInput, T> implements ListHandle {
 
     return {
       ...options,
+      delegate: {
+        getHeight: (node) => options.delegate.getHeight(node.element),
+      },
       getChildren: (node) => node.children,
       getKey: (node, index, depth) => options.getKey(node.element, index, depth),
       items,

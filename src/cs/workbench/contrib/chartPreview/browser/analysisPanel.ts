@@ -1,16 +1,16 @@
-import { lxAnalysis } from "cogicon";
+import { lxAnalysis } from "@chogng/lxicon";
 import {
   getCardClassName,
   getCardDataAttributes,
   type CardVariant,
 } from "cs/base/browser/ui/card/card";
 import {
-  getCogIconClassName,
-  getCogIconMarkup,
-  getCogIconStyle,
-  type CogIconRenderer,
-  type CogIconStyle,
-} from "src/cs/base/browser/ui/cogIcon/cogIcon";
+  getLxIconClassName,
+  getLxIconMarkup,
+  getLxIconStyle,
+  type LxIconDefinition,
+  type LxIconStyle,
+} from "src/cs/base/browser/ui/lxicon/lxicon";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type {
   ProcessedEntry,
@@ -176,7 +176,7 @@ const createAnalysisStatusCard = ({
     className: "analysis_status_card",
   });
   card.append(
-    createLocalCogIcon({
+    createLocalLxIcon({
       icon: lxAnalysis,
       size: 48,
       className: `analysis_status_icon ${iconClassName}`,
@@ -187,21 +187,21 @@ const createAnalysisStatusCard = ({
   return card;
 };
 
-const createLocalCogIcon = ({
+const createLocalLxIcon = ({
   className,
   icon,
   size = 16,
   style,
 }: {
   readonly className?: string;
-  readonly icon: CogIconRenderer;
+  readonly icon: LxIconDefinition;
   readonly size?: number | string;
-  readonly style?: CogIconStyle;
+  readonly style?: LxIconStyle;
 }): HTMLSpanElement => {
   const element = document.createElement("span");
-  element.className = getCogIconClassName(className);
-  Object.assign(element.style, getCogIconStyle({ size, style }));
-  element.innerHTML = getCogIconMarkup(icon);
+  element.className = getLxIconClassName(className);
+  Object.assign(element.style, getLxIconStyle({ size, style }));
+  element.innerHTML = getLxIconMarkup(icon);
   return element;
 };
 

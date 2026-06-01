@@ -1,7 +1,11 @@
-import { lxChevronRight } from "cogicon";
+import { lxChevronRight } from "@chogng/lxicon";
 import { ListView } from "src/cs/base/browser/ui/list/listView";
-import type { ListHandle, ListRenderState } from "src/cs/base/browser/ui/list/list";
-import { normalizeCogIconSvgMarkup } from "src/cs/base/browser/ui/cogIcon/cogIconMarkup";
+import type {
+  IListVirtualDelegate,
+  ListHandle,
+  ListRenderState,
+} from "src/cs/base/browser/ui/list/list";
+import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
 import {
   ObjectTreeModel,
   type FlattenedObjectTreeNode,
@@ -24,7 +28,7 @@ const renderChevron = (collapsed: boolean): HTMLSpanElement => {
   icon.className = "ui-tree__disclosure-icon";
   icon.setAttribute("aria-hidden", "true");
   icon.dataset.collapsed = collapsed ? "true" : "false";
-  icon.innerHTML = normalizeCogIconSvgMarkup(lxChevronRight);
+  icon.innerHTML = normalizeLxIconSvgMarkup(lxChevronRight);
   return icon;
 };
 
@@ -93,6 +97,7 @@ export class ObjectTree<T> implements ListHandle {
 
     return {
       className: "ui-tree__list",
+      delegate: this.createListDelegate(),
       empty: options.empty,
       disposeEmpty: options.disposeEmpty,
       getKey: (entry: FlattenedObjectTreeNode<T>) => entry.key,
@@ -123,10 +128,20 @@ export class ObjectTree<T> implements ListHandle {
         container.replaceChildren();
       },
       role: "tree",
-      rowHeight: options.rowHeight ?? 32,
       rowRole: "treeitem",
       selectedKey: options.selectedKey,
       viewportClassName: options.viewportClassName,
+    };
+  }
+
+  private createListDelegate(): IListVirtualDelegate<FlattenedObjectTreeNode<T>> {
+    return {
+      getHeight: (entry) => {
+        const resolvedHeight = Number(this.options.delegate.getHeight(entry.item));
+        return Number.isFinite(resolvedHeight) && resolvedHeight > 0
+          ? resolvedHeight
+          : 32;
+      },
     };
   }
 

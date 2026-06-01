@@ -1,4 +1,4 @@
-.ui-cogicon {
+.ui-lxicon {
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
@@ -7,7 +7,7 @@
   line-height: 0;
 }
 
-.ui-cogicon > svg {
+.ui-lxicon > svg {
   display: block;
   width: 100%;
   height: 100%;

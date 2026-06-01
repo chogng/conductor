@@ -8,7 +8,10 @@ import {
   DisposableStore,
   type IDisposable,
 } from "src/cs/base/common/lifecycle";
-import type { ListRenderState } from "src/cs/base/browser/ui/list/list";
+import type {
+  ListProps,
+  ListRenderState,
+} from "src/cs/base/browser/ui/list/list";
 import { RowCache, type RowCacheRow } from "src/cs/base/browser/ui/list/rowCache";
 import { ScrollbarController } from "src/cs/base/browser/ui/scrollbar/scrollbarController";
 
@@ -29,26 +32,7 @@ export type ListViewItemDisposer<T> = (
 
 export type ListViewEmptyRenderer = (container: HTMLElement) => void;
 
-export type ListViewOptions<T> = {
-  className?: string;
-  empty?: ListViewEmptyRenderer;
-  disposeEmpty?: ListViewEmptyRenderer;
-  getKey: (item: T, index: number) => string;
-  gap?: number;
-  items: T[];
-  minVirtualCount?: number;
-  onKeyDown?: (event: KeyboardEvent) => void;
-  onScroll?: (event: Event) => void;
-  onSelect?: (item: T, index: number) => void;
-  overscanRows?: number;
-  role?: string;
-  renderItem: ListViewItemRenderer<T>;
-  disposeItem?: ListViewItemDisposer<T>;
-  rowHeight?: number;
-  rowRole?: string;
-  selectedKey?: string | null;
-  viewportClassName?: string;
-};
+export type ListViewOptions<T> = ListProps<T>;
 
 type RowEntry<T> = {
   appliedFocused?: boolean;
@@ -56,6 +40,7 @@ type RowEntry<T> = {
   appliedKey?: string;
   appliedRole?: string;
   appliedRowHeight?: number;
+  appliedRowTop?: number;
   appliedSelected?: boolean;
   index: number;
   item: T;
@@ -67,8 +52,13 @@ type RowEntry<T> = {
   row: RowCacheRow;
 };
 
+type RowLayout = {
+  readonly heights: number[];
+  readonly totalHeight: number;
+  readonly tops: number[];
+};
+
 const DEFAULT_MIN_VIRTUAL_COUNT = 80;
-const DEFAULT_ROW_HEIGHT = 92;
 const DEFAULT_GAP = 12;
 const DEFAULT_OVERSCAN_ROWS = 6;
 
@@ -90,6 +80,7 @@ export class ListView<T> implements IDisposable {
   private pendingScrollTop = 0;
   private scrollRaf: number | null = null;
   private scrollbarContentHeight = -1;
+  private rowLayout: RowLayout = { heights: [], totalHeight: 0, tops: [] };
   private disposed = false;
 
   constructor(host: HTMLElement, options: ListViewOptions<T>) {
@@ -149,6 +140,7 @@ export class ListView<T> implements IDisposable {
 
   setProps(nextProps: ListViewOptions<T>): void {
     this.props = nextProps;
+    this.rowLayout = this.createRowLayout();
     this.updateClasses();
     this.syncFocusedIndex();
     this.render();
@@ -176,19 +168,23 @@ export class ListView<T> implements IDisposable {
   scrollToIndex(index: number, behavior: ScrollBehavior = "smooth"): void {
     if (index < 0) return;
 
-    const rowHeight = this.rowHeight;
-    const gap = this.gap;
-    const rowStep = rowHeight + gap;
+    const { items } = this.props;
+    const item = items[index];
+    if (!item) {
+      return;
+    }
+
+    const rowTop = this.getRowTop(index);
+    const rowHeight = this.getRowHeightAt(index, item);
     const currentTop = this.scrollTop;
     const currentBottom = currentTop + this.viewportHeight;
-    const rowTop = index * rowStep;
     const rowBottom = rowTop + rowHeight;
 
     if (rowTop >= currentTop && rowBottom <= currentBottom) {
       return;
     }
 
-    this.setScrollTop(Math.max(0, rowTop - rowStep), behavior);
+    this.setScrollTop(Math.max(0, rowTop - rowHeight - this.gap), behavior);
   }
 
   dispose(): void {
@@ -211,10 +207,6 @@ export class ListView<T> implements IDisposable {
 
   private get gap(): number {
     return this.props.gap ?? DEFAULT_GAP;
-  }
-
-  private get rowHeight(): number {
-    return this.props.rowHeight ?? DEFAULT_ROW_HEIGHT;
   }
 
   private get overscanRows(): number {
@@ -303,7 +295,6 @@ export class ListView<T> implements IDisposable {
       return;
     }
 
-    const rowStep = this.rowHeight + this.gap;
     let nextIndex = this.focusedIndex;
 
     if (event.key === "ArrowDown") {
@@ -315,11 +306,9 @@ export class ListView<T> implements IDisposable {
     } else if (event.key === "End") {
       nextIndex = items.length - 1;
     } else if (event.key === "PageDown") {
-      const pageStep = Math.max(1, Math.floor(this.viewportHeight / rowStep));
-      nextIndex = Math.min(items.length - 1, Math.max(0, this.focusedIndex) + pageStep);
+      nextIndex = this.findPageIndex(Math.max(0, this.focusedIndex), 1);
     } else if (event.key === "PageUp") {
-      const pageStep = Math.max(1, Math.floor(this.viewportHeight / rowStep));
-      nextIndex = Math.max(0, Math.max(0, this.focusedIndex) - pageStep);
+      nextIndex = this.findPageIndex(Math.max(0, this.focusedIndex), -1);
     } else if (event.key === "Enter" || event.key === " ") {
       if (this.focusedIndex >= 0) {
         const item = items[this.focusedIndex];
@@ -369,20 +358,15 @@ export class ListView<T> implements IDisposable {
     this.viewport.hidden = false;
     this.viewportHeight = getClientArea(this.viewport).height;
 
-    const rowStep = this.rowHeight + this.gap;
-    const totalHeight = items.length > 0 ? items.length * rowStep - this.gap : 0;
+    const totalHeight = this.rowLayout.totalHeight;
     this.scrollHeight = totalHeight;
     this.scrollTop = this.clampScrollTop(this.scrollTop);
     const virtualized = items.length >= this.minVirtualCount;
     const startIndex = virtualized
-      ? Math.max(0, Math.floor(this.scrollTop / rowStep) - this.overscanRows)
+      ? Math.max(0, this.findIndexAtOffset(this.scrollTop) - this.overscanRows)
       : 0;
     const endIndex = virtualized
-      ? Math.min(
-          items.length,
-          Math.ceil((this.scrollTop + this.viewportHeight) / rowStep) +
-            this.overscanRows,
-        )
+      ? Math.min(items.length, this.findIndexAfterOffset(this.scrollTop + this.viewportHeight) + this.overscanRows)
       : items.length;
 
     this.stage.style.height = `${totalHeight}px`;
@@ -428,9 +412,9 @@ export class ListView<T> implements IDisposable {
           focused,
           index,
           key,
-          rowHeight: this.rowHeight,
+          rowHeight: this.getRowHeightAt(index, item),
           rowRole: rowRole ?? "option",
-          rowStep,
+          rowTop: this.getRowTop(index),
           selected,
         });
 
@@ -495,6 +479,98 @@ export class ListView<T> implements IDisposable {
     return Math.max(0, Math.min(scrollTop, Math.max(0, this.scrollHeight - this.viewportHeight)));
   }
 
+  private getRowHeight(item: T): number {
+    const resolvedHeight = Number(this.props.delegate.getHeight(item));
+    return Number.isFinite(resolvedHeight) && resolvedHeight > 0 ? resolvedHeight : 32;
+  }
+
+  private getRowHeightAt(index: number, item?: T): number {
+    return this.rowLayout.heights[index] ?? (typeof item === "undefined" ? 32 : this.getRowHeight(item));
+  }
+
+  private getRowTop(index: number): number {
+    return this.rowLayout.tops[index] ?? 0;
+  }
+
+  private createRowLayout(): RowLayout {
+    const { items } = this.props;
+    const heights: number[] = [];
+    const tops: number[] = [];
+    let offset = 0;
+
+    for (let index = 0; index < items.length; index += 1) {
+      const item = items[index];
+      const height = this.getRowHeight(item);
+      heights.push(height);
+      tops.push(offset);
+      offset += height + this.gap;
+    }
+
+    return {
+      heights,
+      totalHeight: items.length > 0 ? offset - this.gap : 0,
+      tops,
+    };
+  }
+
+  private findIndexAtOffset(offset: number): number {
+    const { tops } = this.rowLayout;
+    if (!tops.length) {
+      return 0;
+    }
+
+    let low = 0;
+    let high = tops.length - 1;
+    let result = 0;
+
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      const top = tops[mid];
+      if (top <= offset) {
+        result = mid;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+
+    return result;
+  }
+
+  private findIndexAfterOffset(offset: number): number {
+    const { heights, tops } = this.rowLayout;
+    if (!tops.length) {
+      return 0;
+    }
+
+    let low = 0;
+    let high = tops.length - 1;
+    let result = tops.length;
+
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      const rowBottom = tops[mid] + heights[mid];
+      if (rowBottom >= offset) {
+        result = mid;
+        high = mid - 1;
+      } else {
+        low = mid + 1;
+      }
+    }
+
+    return result === tops.length ? tops.length : result + 1;
+  }
+
+  private findPageIndex(startIndex: number, direction: 1 | -1): number {
+    const targetOffset = direction > 0
+      ? this.getRowTop(startIndex) + this.viewportHeight
+      : this.getRowTop(startIndex) - this.viewportHeight;
+    const boundedOffset = Math.max(0, Math.min(targetOffset, this.rowLayout.totalHeight));
+    return direction > 0
+      ? Math.min(this.props.items.length - 1, this.findIndexAtOffset(boundedOffset))
+      : Math.max(0, this.findIndexAtOffset(boundedOffset));
+  }
+
   private renderRowItemIfNeeded(
     entry: RowEntry<T>,
     options: {
@@ -540,16 +616,20 @@ export class ListView<T> implements IDisposable {
       key: string;
       rowHeight: number;
       rowRole: string;
-      rowStep: number;
+      rowTop: number;
       selected: boolean;
     },
   ): void {
     const domNode = entry.row.domNode;
 
     if (entry.appliedIndex !== options.index) {
-      domNode.style.top = `${options.index * options.rowStep}px`;
       domNode.setAttribute("data-index", String(options.index));
       entry.appliedIndex = options.index;
+    }
+
+    if (entry.appliedRowTop !== options.rowTop) {
+      domNode.style.top = `${options.rowTop}px`;
+      entry.appliedRowTop = options.rowTop;
     }
 
     if (entry.appliedRowHeight !== options.rowHeight) {

@@ -1,14 +1,14 @@
-import { lxPreview } from "cogicon";
+import { lxPreview } from "@chogng/lxicon";
 
 import {
   getAvatarClassName,
   getAvatarDataAttributes,
 } from "cs/base/browser/ui/avatar/avatar";
 import {
-  getCogIconClassName,
-  getCogIconMarkup,
-  getCogIconStyle,
-} from "src/cs/base/browser/ui/cogIcon/cogIcon";
+  getLxIconClassName,
+  getLxIconMarkup,
+  getLxIconStyle,
+} from "src/cs/base/browser/ui/lxicon/lxicon";
 import { getCardClassName } from "src/cs/base/browser/ui/card/card";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { PreviewFileLike } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
@@ -114,9 +114,9 @@ export const TemplateManagerPreviewEmptyState = ({
     }
   }
   const icon = document.createElement("span");
-  icon.className = getCogIconClassName("template_preview_empty_icon");
-  Object.assign(icon.style, getCogIconStyle({ size: "100%" }));
-  icon.innerHTML = getCogIconMarkup(lxPreview);
+  icon.className = getLxIconClassName("template_preview_empty_icon");
+  Object.assign(icon.style, getLxIconStyle({ size: "100%" }));
+  icon.innerHTML = getLxIconMarkup(lxPreview);
   avatar.append(icon);
   root.append(avatar);
 

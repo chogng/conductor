@@ -1,6 +1,6 @@
 import { createButton } from "src/cs/base/browser/ui/button/button";
-import { createCogIcon } from "src/cs/base/browser/ui/cogIcon/cogIcon";
-import { lxAlertTriangle } from "src/cs/base/browser/ui/cogIcon/icons";
+import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
+import { lxAlertTriangle } from "src/cs/base/common/lxicon";
 import {
   isOriginExportMode,
   type OriginExportContentKey,
@@ -399,7 +399,7 @@ const createOriginExportToolbar = ({
     box.className = "origin_export_toolbar_hint_box";
     const row = document.createElement("div");
     row.className = "origin_export_toolbar_hint_row";
-    const icon = createCogIcon({
+    const icon = createLxIcon({
       icon: lxAlertTriangle,
       size: 14,
       className: "origin_export_toolbar_hint_icon",

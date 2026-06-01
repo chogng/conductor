@@ -1,8 +1,8 @@
-import { lxAnalysis, lxArrowLeft, lxArrowRight, lxDownloadTray, lxGear } from "cogicon";
+import { lxAnalysis, lxArrowLeft, lxArrowRight, lxDownloadTray, lxGear } from "@chogng/lxicon";
 import {
-  normalizeCogIconSvgMarkup,
-  type CogIconRenderer,
-} from "src/cs/base/browser/ui/cogIcon/cogIconMarkup";
+  normalizeLxIconSvgMarkup,
+  type LxIconRenderer,
+} from "src/cs/base/browser/ui/lxicon/lxicon";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import { layoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import {
@@ -150,13 +150,13 @@ const createSvgIcon = (
   return svg;
 };
 
-const createCogIcon = (
-  icon: CogIconRenderer,
+const createLxIcon = (
+  icon: LxIconRenderer,
   size: number,
   className = "",
 ): SVGSVGElement => {
   const container = document.createElement("div");
-  container.innerHTML = normalizeCogIconSvgMarkup(icon);
+  container.innerHTML = normalizeLxIconSvgMarkup(icon);
   const svg = container.firstElementChild;
 
   if (!(svg instanceof SVGSVGElement)) {
@@ -177,15 +177,15 @@ const createDefaultPageActionIcon = (
   action: WorkbenchTitlebarPageAction,
 ): SVGSVGElement => {
   if (action.id === "data") {
-    return createCogIcon(lxDownloadTray, 14, "opacity-80");
+    return createLxIcon(lxDownloadTray, 14, "opacity-80");
   }
 
   if (action.id === "analysis") {
-    return createCogIcon(lxAnalysis, 14, "opacity-80");
+    return createLxIcon(lxAnalysis, 14, "opacity-80");
   }
 
   if (action.id === "settings") {
-    return createCogIcon(lxGear, 14, "opacity-80");
+    return createLxIcon(lxGear, 14, "opacity-80");
   }
 
   return createSvgIcon(
@@ -308,7 +308,7 @@ export const createWorkbenchTitlebarElement = ({
           className: "titlebar-icon-button",
           disabled: action.isDisabled,
         },
-        createCogIcon(isBack ? lxArrowLeft : lxArrowRight, 14, "opacity-80"),
+        createLxIcon(isBack ? lxArrowLeft : lxArrowRight, 14, "opacity-80"),
         isBack ? onNavigateBack : onNavigateForward,
       ),
     );

@@ -1,16 +1,16 @@
-import { lxClose } from "cogicon";
+import { lxClose } from "@chogng/lxicon";
 import { TimeoutTimer } from "src/cs/base/common/async";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { getDomRect } from "src/cs/base/browser/dom";
 import {
-  normalizeCogIconSvgMarkup,
-  type CogIconRenderer,
-} from "src/cs/base/browser/ui/cogIcon/cogIconMarkup";
+  normalizeLxIconSvgMarkup,
+  type LxIconDefinition,
+} from "src/cs/base/browser/ui/lxicon/lxicon";
 import {
   lxAlertCircle,
   lxCheckCircle,
   lxInfoCircle,
-} from "src/cs/base/browser/ui/cogIcon/icons";
+} from "src/cs/base/common/lxicon";
 import { cx } from "src/utils/cx";
 
 import "src/cs/base/browser/ui/toast/toast.css";
@@ -35,18 +35,18 @@ const TOAST_CLOSE_ANIMATION_MS = 300;
 
 const appendIcon = (
   container: HTMLElement,
-  icon: CogIconRenderer,
+  icon: LxIconDefinition,
   size: number,
 ) => {
   const iconElement = document.createElement("span");
-  iconElement.className = "ui-cogicon";
+  iconElement.className = "ui-lxicon";
   iconElement.style.width = `${size}px`;
   iconElement.style.height = `${size}px`;
-  iconElement.innerHTML = normalizeCogIconSvgMarkup(icon);
+  iconElement.innerHTML = normalizeLxIconSvgMarkup(icon);
   container.appendChild(iconElement);
 };
 
-const getToastIcon = (type: ToastType): CogIconRenderer => {
+const getToastIcon = (type: ToastType): LxIconDefinition => {
   if (type === "success") return lxCheckCircle;
   if (type === "info") return lxInfoCircle;
   return lxAlertCircle;

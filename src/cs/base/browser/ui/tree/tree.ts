@@ -41,6 +41,10 @@ export type ITreeSelectionEvent<T> = {
   readonly index: number;
 };
 
+export type ITreeVirtualDelegate<T> = {
+  readonly getHeight: (element: T) => number;
+};
+
 export type IDataSource<TInput, T> = {
   getChildren: (element: TInput | T) => T[];
   hasChildren?: (element: TInput | T) => boolean;
@@ -54,6 +58,7 @@ export type IAsyncDataSource<TInput, T> = {
 export type IObjectTreeOptions<T> = {
   readonly className?: string;
   readonly collapsedKeys?: string[];
+  readonly delegate: ITreeVirtualDelegate<T>;
   readonly empty?: (container: HTMLElement) => void;
   readonly disposeEmpty?: (container: HTMLElement) => void;
   readonly gap?: number;
@@ -67,7 +72,6 @@ export type IObjectTreeOptions<T> = {
   readonly onSelect?: (event: ITreeSelectionEvent<T>) => void;
   readonly overscanRows?: number;
   readonly renderer: ITreeRenderer<T>;
-  readonly rowHeight?: number;
   readonly selectedKey?: string | null;
   readonly viewportClassName?: string;
 };

@@ -1,6 +1,6 @@
-import { lxDownloadTray } from "cogicon";
+import { lxDownloadTray } from "@chogng/lxicon";
 import { createButton } from "src/cs/base/browser/ui/button/button";
-import { normalizeCogIconSvgMarkup } from "src/cs/base/browser/ui/cogIcon/cogIconMarkup";
+import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 
 export type ImportEmptyViewOptions = {
@@ -10,9 +10,9 @@ export type ImportEmptyViewOptions = {
 
 const createEmptyIcon = (className: string): HTMLSpanElement => {
   const icon = document.createElement("span");
-  icon.className = `ui-cogicon ${className}`;
+  icon.className = `ui-lxicon ${className}`;
   icon.setAttribute("aria-hidden", "true");
-  icon.innerHTML = normalizeCogIconSvgMarkup(lxDownloadTray);
+  icon.innerHTML = normalizeLxIconSvgMarkup(lxDownloadTray);
   return icon;
 };
 
