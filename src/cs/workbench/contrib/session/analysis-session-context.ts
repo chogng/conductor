@@ -10,7 +10,7 @@ export type MutableState<T> = {
 };
 
 export type TemplateMode = "select" | "save";
-export type PreviewStatusState = "idle" | "loading" | "ready" | "error";
+export type PreviewStatusState = "idle" | "loading" | "ready";
 export type SsMethod = "auto" | "manual";
 
 export type TemplateConfig = {

@@ -16,6 +16,7 @@
 }
 
 .table_view_body {
+  display: flex;
   min-width: 0;
   min-height: 0;
   flex: 1 1 0%;
@@ -53,10 +54,6 @@
   color: rgb(var(--text-secondary) / 1);
 }
 
-.table_view_status[data-tone="error"] {
-  color: rgb(var(--danger) / 1);
-}
-
 .table_view_empty {
   display: flex;
   height: 100%;
@@ -68,10 +65,6 @@
   padding: 1rem;
   text-align: center;
   color: rgb(var(--text-secondary) / 1);
-}
-
-.table_view_empty[data-tone="error"] {
-  color: rgb(var(--danger) / 1);
 }
 
 .table_view_empty_title {
@@ -90,6 +83,7 @@
 }
 
 .table_view_preview {
+  display: flex;
   min-width: 0;
   min-height: 0;
   height: 100%;

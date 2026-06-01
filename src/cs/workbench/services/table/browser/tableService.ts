@@ -758,20 +758,17 @@ const createPreviewBindings = ({
         console.error("Preview worker error:", errorMessage);
         clearPendingPreviewRequest(requestId);
         runImmediately(() => {
-          setPreviewStatus({
-            state: "error",
-            message: errorMessage,
-          });
+          clearPreviewState();
         });
       }
     },
     [
       activatePreviewFileCache,
+      clearPreviewState,
       mergePreviewSeedRows,
       previewRowsRequestsRef,
       previewRequestIdRef,
       setPreviewFile,
-      setPreviewStatus,
       clearPendingPreviewRequest,
     ],
   );
@@ -832,7 +829,7 @@ const createPreviewBindings = ({
     pendingPreviewFileIdRef.current = targetFile.fileId;
 
     runImmediately(() => {
-      setPreviewStatus({ state: "loading", message: t("da_preview_loading") });
+      setPreviewStatus({ state: "loading", message: t("preview_loading") });
     });
 
     const postWorkerPreview = async () => {

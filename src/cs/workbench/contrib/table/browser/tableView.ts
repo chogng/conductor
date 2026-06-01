@@ -1,6 +1,7 @@
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { PreviewFile } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import type { PreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
+import { createEmptyView } from "src/cs/workbench/contrib/table/browser/emptyView";
 import type {
   TableBindings,
   TableSelection,
@@ -16,7 +17,6 @@ export type TableViewProps = {
 
 export class TableView {
   public readonly element: HTMLElement;
-  private readonly header = document.createElement("div");
   private readonly body = document.createElement("div");
   private disposeSelectionListener: (() => void) | null = null;
   private disposeRowsVersionListener: (() => void) | null = null;
@@ -26,9 +26,8 @@ export class TableView {
     this.props = props;
     this.element = document.createElement("div");
     this.element.className = "table_view";
-    this.header.className = "table_view_header";
     this.body.className = "table_view_body";
-    this.element.append(this.header, this.body);
+    this.element.append(this.body);
     this.bindTableState(props.previewBindings);
     this.render();
   }
@@ -64,31 +63,21 @@ export class TableView {
 
   private render(): void {
     const { previewFile, previewStatus, selectedFileId, t } = this.props;
-    this.renderHeader();
     this.body.replaceChildren();
     this.element.dataset.state = previewStatus?.state ?? "idle";
 
     if (!selectedFileId || !previewFile) {
-      this.body.append(createEmptyState({
-        title: t("da_preview_empty_title"),
-        description: t("da_preview_empty_hint"),
+      this.body.append(createEmptyView({
+        title: t("preview_empty_title"),
+        description: t("preview_empty_hint"),
       }));
       return;
     }
 
     if (previewStatus?.state === "loading") {
-      this.body.append(createEmptyState({
-        title: t("da_preview_loading"),
-        description: previewStatus.message || t("da_preview_loading_hint"),
-      }));
-      return;
-    }
-
-    if (previewStatus?.state === "error") {
-      this.body.append(createEmptyState({
-        title: t("da_preview_error"),
-        description: previewStatus.message || t("da_preview_error"),
-        tone: "error",
+      this.body.append(createEmptyView({
+        title: t("preview_loading"),
+        description: previewStatus.message || t("preview_loading_hint"),
       }));
       return;
     }
@@ -107,9 +96,9 @@ export class TableView {
     const rowCount = Math.min(Math.max(Number(previewFile?.rowCount) || 0, 0), 80);
     const columnCount = Math.min(Math.max(Number(previewFile?.columnCount) || 0, 0), 24);
     if (rowCount === 0 || columnCount === 0) {
-      root.append(createEmptyState({
-        title: t("da_preview_empty_title"),
-        description: t("da_preview_empty_hint"),
+      root.append(createEmptyView({
+        title: t("preview_empty_title"),
+        description: t("preview_empty_hint"),
       }));
       return root;
     }
@@ -178,42 +167,6 @@ export class TableView {
 
     return root;
   }
-
-  private renderHeader(): void {
-    const { previewFile, previewStatus, t } = this.props;
-    const fileName = previewFile?.fileName
-      ? String(previewFile.fileName).replace(/\.csv$/i, "")
-      : "";
-    const titleText = fileName
-      ? `${t("da_preview_filename_label")}: ${fileName}`
-      : previewStatus?.state === "loading"
-        ? t("da_preview_loading")
-        : t("da_preview_empty_title");
-
-    const title = document.createElement("span");
-    title.className = "table_view_title";
-    title.textContent = titleText;
-
-    const meta = document.createElement("div");
-    meta.className = "table_view_meta";
-    if (previewFile) {
-      const dimensions = document.createElement("span");
-      dimensions.className = "table_view_dimensions";
-      dimensions.textContent = `${Math.max(0, Number(previewFile.rowCount) || 0)} × ${Math.max(0, Number(previewFile.columnCount) || 0)}`;
-      meta.append(dimensions);
-    }
-    if (previewStatus?.state === "loading" || previewStatus?.state === "error") {
-      const status = document.createElement("span");
-      status.className = "table_view_status";
-      status.dataset.tone = previewStatus.state === "error" ? "error" : "muted";
-      status.textContent = previewStatus.message || (
-        previewStatus.state === "error" ? t("da_preview_error") : t("da_preview_loading")
-      );
-      meta.append(status);
-    }
-
-    this.header.replaceChildren(title, meta);
-  }
 }
 
 const toggleSelectedColumn = (
@@ -231,34 +184,6 @@ const toggleSelectedColumn = (
     ...selection,
     selectedColumns: Array.from(columns).sort((a, b) => a - b),
   };
-};
-
-const createEmptyState = ({
-  description,
-  title,
-  tone = "muted",
-}: {
-  readonly description?: string;
-  readonly title: string;
-  readonly tone?: "muted" | "error";
-}): HTMLElement => {
-  const root = document.createElement("div");
-  root.className = "table_view_empty";
-  root.dataset.tone = tone;
-
-  const titleElement = document.createElement("p");
-  titleElement.className = "table_view_empty_title";
-  titleElement.textContent = title;
-  root.append(titleElement);
-
-  if (description) {
-    const descriptionElement = document.createElement("p");
-    descriptionElement.className = "table_view_empty_description";
-    descriptionElement.textContent = description;
-    root.append(descriptionElement);
-  }
-
-  return root;
 };
 
 const getColumnLabel = (index: number): string => {

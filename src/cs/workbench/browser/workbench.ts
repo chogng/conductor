@@ -270,7 +270,7 @@ export class Workbench extends Layout {
       disposePreviewFileCache: previewBindings.disposePreviewFileCache,
       invalidatePreviewRequests: previewBindings.invalidatePreviewRequests,
       previewFile: snapshot.previewFile,
-      previewLoadingMessage: this.t("da_preview_loading"),
+      previewLoadingMessage: this.t("preview_loading"),
       processedData: snapshot.processedData,
       processingStatus: processing.processingStatus,
       rawData: snapshot.rawData,
