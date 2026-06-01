@@ -161,7 +161,6 @@ export class ImportViewerView implements IDisposable {
   private readonly root: HTMLDivElement;
   private readonly fileInput: HTMLInputElement;
   private readonly viewport: HTMLDivElement;
-  private readonly emptyRoot: HTMLDivElement;
   private readonly filledRoot: HTMLDivElement;
   private readonly listHost: HTMLDivElement;
   private readonly treeView: ObjectTree<ImportTreeNode>;
@@ -178,8 +177,7 @@ export class ImportViewerView implements IDisposable {
 
     this.root = document.createElement("div");
     this.root.id = "analysis-csv-dropzone";
-    this.root.className = "import-viewer-dropzone idle";
-    this.root.setAttribute("data-state", "empty");
+    this.root.className = "import-viewer-file-browser idle";
 
     this.fileInput = document.createElement("input");
     this.fileInput.id = "analysis-csv-file-input";
@@ -191,14 +189,11 @@ export class ImportViewerView implements IDisposable {
     this.fileInput.setAttribute("directory", "");
 
     this.viewport = document.createElement("div");
-    this.viewport.className = "import-viewer-dropzone-viewport";
+    this.viewport.className = "import-viewer-file-browser-viewport";
 
-    this.emptyRoot = document.createElement("div");
-    this.emptyRoot.className = "import-viewer-empty-root";
     this.filledRoot = document.createElement("div");
     this.filledRoot.id = "analysis-import-scroll";
-    this.filledRoot.dataset.slot = "filled";
-    this.filledRoot.className = "import-viewer-filled";
+    this.filledRoot.className = "import-viewer-tree-root";
 
     this.listHost = document.createElement("div");
     this.listHost.className = "import-viewer-list-host";
@@ -210,7 +205,7 @@ export class ImportViewerView implements IDisposable {
     );
     this.toast = new Toast();
 
-    this.viewport.append(this.emptyRoot, this.filledRoot);
+    this.viewport.append(this.filledRoot);
     this.root.append(this.fileInput, this.viewport);
     this.host.appendChild(this.root);
 
@@ -264,6 +259,17 @@ export class ImportViewerView implements IDisposable {
       getKey: (node: ImportTreeNode) => node.key,
       gap: 6,
       collapsedKeys: folderKeys.filter((key) => !expandedKeys.has(key)),
+      empty: (container) => {
+        container.replaceChildren(
+          createImportEmptyView({
+            onImportFiles: () => this.openFileDialog(),
+            t: this.props.t,
+          }),
+        );
+      },
+      disposeEmpty: (container) => {
+        container.replaceChildren();
+      },
       items,
       minVirtualCount: 200,
       onDidChangeCollapseState: (collapsedKeys) => {
@@ -303,7 +309,7 @@ export class ImportViewerView implements IDisposable {
           container.replaceChildren();
         },
       },
-      rowHeight: 64,
+      rowHeight: 44,
       selectedKey: this.props.effectiveSelectedFileId ?? null,
       viewportClassName: "import-viewer-file-tree-viewport",
     };
@@ -380,18 +386,12 @@ export class ImportViewerView implements IDisposable {
       return;
     }
 
-    const { error, files, isDragging, t } = this.props;
-    const hasFiles = files.length > 0;
+    const { error, isDragging, t } = this.props;
 
     this.root.setAttribute("aria-label", t("da_import_section"));
-    this.root.dataset.state = hasFiles ? "filled" : "empty";
     this.root.classList.toggle("dragging", isDragging);
     this.root.classList.toggle("idle", !isDragging);
     this.fileInput.setAttribute("aria-label", t("da_import_csv"));
-
-    this.emptyRoot.replaceChildren(createImportEmptyView(t));
-    this.emptyRoot.hidden = hasFiles;
-    this.filledRoot.hidden = !hasFiles;
 
     this.treeView.update(this.createTreeOptions());
 

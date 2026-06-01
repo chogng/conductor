@@ -35,29 +35,25 @@
   @apply hidden;
 }
 
-.import-viewer-dropzone {
-  @apply border-2 border-dashed rounded-xl p-0 transition-all duration-300 relative overflow-visible flex-1;
+.import-viewer-file-browser {
+  @apply rounded-md p-0 transition-colors relative overflow-visible flex-1;
   height: 100%;
-  min-height: 300px;
+  min-height: 0;
 }
 
-.import-viewer-dropzone :global(.scrollAreaTrackY) {
+.import-viewer-file-browser :global(.scrollAreaTrackY) {
   right: -1px !important;
 }
 
-.import-viewer-dropzone-viewport {
+.import-viewer-file-browser-viewport {
   @apply flex flex-col;
   height: 100%;
   min-height: 100%;
   overscroll-behavior: contain;
 }
 
-.import-viewer-filled {
+.import-viewer-tree-root {
   @apply w-full flex flex-col flex-1 min-h-0;
-}
-
-.import-viewer-empty-root {
-  @apply w-full flex-1 min-h-0;
 }
 
 .import-viewer-list-host {
@@ -65,24 +61,31 @@
   height: 100%;
 }
 
-.import-viewer-dropzone.dragging {
-  @apply border-accent bg-accent/5;
+.import-viewer-file-browser.dragging {
+  @apply bg-accent/5;
 }
 
-.import-viewer-dropzone.idle {
-  @apply border-text-secondary/40 hover:border-text-secondary;
+.import-viewer-file-browser.idle {
+  @apply bg-transparent;
 }
 
 .import-viewer-empty {
-  @apply flex flex-col items-center justify-center h-full gap-3 py-6 px-6 text-center cursor-pointer;
+  @apply flex flex-col items-center h-full py-6 px-4 text-center cursor-pointer text-text-secondary;
+  min-height: 180px;
+  padding-top: 84px;
+}
+
+.import-viewer-empty-content {
+  @apply flex flex-col items-center gap-3;
 }
 
 .import-viewer-empty-avatar {
   @apply w-10 h-10 rounded-full bg-bg-page border border-border flex items-center justify-center text-text-secondary;
 }
 
-.import-viewer-empty-title {
-  @apply text-sm font-medium text-text-secondary;
+.import-viewer-empty-icon,
+.import-viewer-empty-import-icon {
+  @apply w-5 h-5 shrink-0;
 }
 
 .import-viewer-empty-subtitle {
@@ -93,19 +96,28 @@
   @apply text-accent hover:underline;
 }
 
+.import-viewer-empty-import-button {
+  margin-top: clamp(48px, 24vh, 260px);
+  min-width: 132px;
+}
+
 .import-viewer-file-item {
-  @apply flex items-center justify-between p-3 bg-bg-surface border border-border rounded-lg transition-colors cursor-pointer relative w-full min-w-0;
-  min-height: 64px;
+  @apply flex items-center justify-between px-2 py-1.5 rounded transition-colors cursor-pointer relative w-full min-w-0;
+  min-height: 36px;
   contain: content;
   box-sizing: border-box;
 }
 
+.import-viewer-file-item:hover {
+  @apply bg-bg-page;
+}
+
 .import-viewer-file-item.selected {
-  @apply border-accent;
+  @apply bg-accent/10 text-accent;
 }
 
 .import-viewer-file-content {
-  @apply flex items-center gap-3 overflow-hidden min-w-0 flex-1;
+  @apply flex items-center gap-2 overflow-hidden min-w-0 flex-1;
 }
 
 .import-viewer-file-text {
@@ -113,7 +125,7 @@
 }
 
 .import-viewer-file-icon {
-  @apply w-8 h-8 rounded bg-green-500/10 flex items-center justify-center text-green-500 shrink-0;
+  @apply w-5 h-5 flex items-center justify-center text-text-secondary shrink-0;
 }
 
 .import-viewer-file-name {
@@ -129,11 +141,11 @@
 }
 
 .import-viewer-file-actions {
-  @apply flex items-center gap-2 shrink-0 pl-2;
+  @apply flex items-center gap-1 shrink-0 pl-1;
 }
 
 .import-viewer-file-remove {
-  @apply text-text-secondary hover:text-red-500 transition-colors opacity-100 hover:bg-bg-page p-1 rounded shrink-0;
+  @apply text-text-secondary hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100 hover:bg-bg-page p-1 rounded shrink-0;
 }
 
 .import-viewer-file-tree {
@@ -144,11 +156,11 @@
 .import-viewer-file-tree-viewport {
   @apply min-h-0;
   height: 100%;
-  padding-inline: 10px;
+  padding-inline: 2px;
 }
 
 .import-viewer-folder-item {
-  @apply flex items-center justify-between text-sm text-text-secondary min-w-0 w-full;
+  @apply flex items-center justify-between text-xs font-medium text-text-secondary min-w-0 w-full uppercase;
   height: 100%;
 }
 
@@ -165,7 +177,7 @@
     @apply p-3;
   }
 
-  .import-viewer-dropzone {
-    min-height: 220px;
+  .import-viewer-file-browser {
+    min-height: 0;
   }
 }

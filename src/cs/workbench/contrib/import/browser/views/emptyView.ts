@@ -1,25 +1,36 @@
 import { lxDownloadTray } from "cogicon";
+import { createButton } from "src/cs/base/browser/ui/button/button";
 import { normalizeCogIconSvgMarkup } from "src/cs/base/browser/ui/cogIcon/cogIconMarkup";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 
-const appendEmptyViewIcon = (container: HTMLElement): void => {
-  const iconSpan = document.createElement("span");
-  iconSpan.className = "ui-cogicon";
-  iconSpan.style.width = "20px";
-  iconSpan.style.height = "20px";
-  iconSpan.innerHTML = normalizeCogIconSvgMarkup(lxDownloadTray);
-  container.appendChild(iconSpan);
+export type ImportEmptyViewOptions = {
+  readonly onImportFiles: () => void;
+  readonly t: TranslateFn;
 };
 
-export const createImportEmptyView = (t: TranslateFn): HTMLDivElement => {
+const createEmptyIcon = (className: string): HTMLSpanElement => {
+  const icon = document.createElement("span");
+  icon.className = `ui-cogicon ${className}`;
+  icon.setAttribute("aria-hidden", "true");
+  icon.innerHTML = normalizeCogIconSvgMarkup(lxDownloadTray);
+  return icon;
+};
+
+export const createImportEmptyView = ({
+  onImportFiles,
+  t,
+}: ImportEmptyViewOptions): HTMLDivElement => {
   const empty = document.createElement("div");
   empty.id = "analysis-csv-empty";
   empty.dataset.slot = "empty";
   empty.className = "import-viewer-empty";
 
+  const content = document.createElement("div");
+  content.className = "import-viewer-empty-content";
+
   const avatar = document.createElement("div");
   avatar.className = "import-viewer-empty-avatar";
-  appendEmptyViewIcon(avatar);
+  avatar.appendChild(createEmptyIcon("import-viewer-empty-icon"));
 
   const subtitle = document.createElement("p");
   subtitle.className = "import-viewer-empty-subtitle";
@@ -30,6 +41,22 @@ export const createImportEmptyView = (t: TranslateFn): HTMLDivElement => {
   browse.textContent = t("da_csv_empty_browse");
 
   subtitle.append(prefix, browse);
-  empty.append(avatar, subtitle);
+  content.append(avatar, subtitle);
+
+  const importButton = createButton({
+    id: "analysis-import-empty-btn",
+    ariaLabel: t("da_import_csv"),
+    className: "import-viewer-empty-import-button",
+    content: [
+      createEmptyIcon("import-viewer-empty-import-icon"),
+      document.createTextNode(t("da_import_csv")),
+    ],
+    size: "sm",
+    title: t("da_import_csv"),
+    variant: "primary",
+  });
+  importButton.addEventListener("click", onImportFiles);
+
+  empty.append(content, importButton);
   return empty;
 };

@@ -24,12 +24,16 @@ export const createImporterHeaderActions = ({
   readonly hasSessionData: boolean;
   readonly t: TranslateFn;
 }): ImporterHeaderAction[] => [
-  {
-    id: importerImportActionId,
-    title: t("da_import_csv"),
-    kind: "primary",
-    icon: lxDownloadTray,
-  },
+  ...(fileCount > 0
+    ? [
+        {
+          id: importerImportActionId,
+          title: t("da_import_csv"),
+          kind: "primary" as const,
+          icon: lxDownloadTray,
+        },
+      ]
+    : []),
   ...(fileCount > 0
     ? [
         {
