@@ -14,7 +14,6 @@ import type {
   AnalysisDefaultSettings,
   AppUpdateSettings,
   FileNameMatchingSettings,
-  OnboardingSettings,
   OriginSettings,
   SettingsSectionId,
   StorageSettings,
@@ -43,7 +42,6 @@ export type SettingsControllerOptions = {
   isWindowsDesktopShell: boolean;
   language: LanguageCode;
   mergeAnalysisSettings: (nextSettings: AnalysisSettings | null) => void;
-  onboardingSettings: OnboardingSettings;
   t: TranslateFn;
   theme: ThemeMode;
 };
@@ -273,7 +271,6 @@ export class SettingsController {
       language: this.options.language,
       legendFontSizeDraft: this.drafts.legendFontSizeDraft,
       onLanguageChange: this.options.handleLanguageChange,
-      onboardingSettings: this.options.onboardingSettings,
       onThemeChange: this.options.handleThemeChange,
       originHealthToast: this.drafts.originHealthToast,
       originSettings: this.originSettings,

@@ -1,0 +1,107 @@
+.chart_preview_view_pane {
+  @apply h-full min-h-0 overflow-hidden p-1 pt-0;
+}
+
+.analysis_panel {
+  @apply flex h-full flex-col;
+}
+
+.analysis_status_card {
+  @apply flex flex-1 flex-col items-center justify-center border-2 border-dashed border-border bg-bg-surface/50 text-text-secondary;
+}
+
+.analysis_status_icon {
+  @apply mb-4;
+}
+
+.analysis_status_icon--muted {
+  @apply opacity-20;
+}
+
+.analysis_status_icon--pulse {
+  @apply animate-pulse;
+}
+
+.analysis_processing_progress {
+  @apply mt-4 w-full max-w-sm;
+}
+
+.analysis_status_message {
+  @apply text-lg font-medium;
+}
+
+.analysis_status_hint {
+  @apply text-sm;
+}
+
+.analysis_processing_progress_label {
+  @apply mb-2 flex items-center justify-between text-xs text-text-secondary;
+}
+
+.analysis_processing_progress_track {
+  @apply h-2 overflow-hidden rounded-full bg-bg-page;
+}
+
+.analysis_processing_progress_bar {
+  @apply h-full rounded-full bg-accent transition-[width] duration-200;
+}
+
+.analysis_file_select {
+  @apply w-fit;
+}
+
+.analysis_empty {
+  @apply flex h-full min-h-0 flex-col items-center justify-center gap-2 text-center;
+}
+
+.analysis_empty_title {
+  @apply text-sm font-medium text-text-primary;
+}
+
+.analysis_empty_hint {
+  @apply text-sm text-text-secondary;
+}
+
+.analysis_charts {
+  @apply flex h-full min-h-0 flex-col gap-3;
+}
+
+.analysis_charts_header {
+  @apply flex shrink-0 items-center justify-between gap-3;
+}
+
+.analysis_charts_title {
+  @apply min-w-0;
+}
+
+.analysis_charts_heading {
+  @apply truncate text-sm font-medium text-text-primary;
+}
+
+.analysis_charts_subtitle {
+  @apply text-xs text-text-secondary;
+}
+
+.analysis_charts_controls {
+  @apply flex shrink-0 flex-wrap items-center gap-2;
+}
+
+.analysis_summary_grid {
+  @apply grid shrink-0 grid-cols-2 gap-2 md:grid-cols-4;
+}
+
+.analysis_stat {
+  @apply rounded-md border border-border bg-bg-page/50 px-3 py-2;
+}
+
+.analysis_stat_label {
+  @apply text-xs text-text-secondary;
+}
+
+.analysis_stat_value {
+  @apply text-sm font-medium text-text-primary;
+}
+
+.analysis_chart_host {
+  @apply min-h-[360px] flex-1 rounded-lg border border-border bg-bg-page/40 p-3;
+}

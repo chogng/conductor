@@ -57,18 +57,18 @@ export class ImporterViewletView implements IDisposable {
     header.appendChild(this.headerActionsRoot);
 
     const section = document.createElement("section");
-    section.className = "flex-1 flex flex-col min-h-0";
+    section.className = "importer-viewlet-section";
 
     this.cardRoot = document.createElement("div");
     this.cardRoot.id = "analysis-import-card";
-    this.cardRoot.className = "card card--flat p-0 flex flex-col flex-1 min-h-0";
+    this.cardRoot.className = "importer-viewlet-card card card--flat";
     this.cardRoot.dataset.cta = normalizeCtaName("Device analysis") ?? "";
     this.cardRoot.dataset.ctaPosition =
       normalizeCtaToken("data-import") ?? "";
     this.cardRoot.dataset.ctaCopy = normalizeCtaToken("csv importer") ?? "";
 
     this.importerHost = document.createElement("div");
-    this.importerHost.className = "flex flex-col flex-1 min-h-0";
+    this.importerHost.className = "importer-viewlet-importer-host";
     this.cardRoot.appendChild(this.importerHost);
     section.appendChild(this.cardRoot);
     this.root.append(header, section);
@@ -165,7 +165,7 @@ export class ImporterViewletView implements IDisposable {
 
     if (action.icon) {
       const icon = document.createElement("span");
-      icon.className = "ui-cogicon shrink-0";
+      icon.className = "ui-cogicon importer-viewlet-action-icon";
       icon.style.width = "16px";
       icon.style.height = "16px";
       icon.setAttribute("aria-hidden", "true");
@@ -175,7 +175,7 @@ export class ImporterViewletView implements IDisposable {
 
     if (action.kind !== "icon") {
       const label = document.createElement("span");
-      label.className = "min-w-0 truncate text-left";
+      label.className = "importer-viewlet-action-label";
       label.textContent = action.title;
       content.push(label);
     }

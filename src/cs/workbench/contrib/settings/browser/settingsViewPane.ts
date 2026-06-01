@@ -9,7 +9,6 @@ import { BrowserSettingsService } from "src/cs/workbench/contrib/settings/browse
 import type { AnalysisSettings } from "src/cs/workbench/contrib/settings/settingsShared";
 import type {
   AppUpdateSettings,
-  OnboardingSettings,
 } from "src/cs/workbench/contrib/settings/settingsViewTypes";
 
 export type SettingsViewPaneProps = {
@@ -24,7 +23,6 @@ export type SettingsViewPaneProps = {
   isWindowsDesktopShell: boolean;
   language: LanguageCode;
   mergeAnalysisSettings: (nextSettings: AnalysisSettings | null) => void;
-  onboardingSettings: OnboardingSettings;
   t: LooseTranslateFn;
   theme: ThemeMode;
 };
@@ -61,7 +59,6 @@ const toControllerOptions = ({
   isWindowsDesktopShell,
   language,
   mergeAnalysisSettings,
-  onboardingSettings,
   t,
   theme,
 }: SettingsViewPaneProps): SettingsControllerOptions => ({
@@ -74,7 +71,6 @@ const toControllerOptions = ({
   isWindowsDesktopShell,
   language,
   mergeAnalysisSettings,
-  onboardingSettings,
   theme,
   t,
 });

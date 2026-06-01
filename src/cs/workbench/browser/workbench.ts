@@ -1,3 +1,4 @@
+import { toDisposable } from "src/cs/base/common/lifecycle";
 import { layoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import type {
   LanguageCode,
@@ -5,6 +6,7 @@ import type {
   TranslationVars,
 } from "src/cs/platform/language/common/language";
 import { isLanguageCode } from "src/cs/platform/language/common/language";
+import type { ThemeMode } from "src/cs/workbench/common/theme";
 import { Layout, type LayoutView } from "src/cs/workbench/browser/layout";
 import type { WorkbenchTitlebarProps } from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
 import type { WorkbenchStyle } from "src/cs/workbench/browser/style";
@@ -12,12 +14,20 @@ import {
   getWorkbenchWindowState,
   WorkbenchWindow,
 } from "src/cs/workbench/browser/window";
+import ChartPreviewViewPane from "src/cs/workbench/contrib/chartPreview/browser/chartPreviewViewPane";
 import DataViewPane from "src/cs/workbench/contrib/data/browser/dataViewPane";
 import { ImporterViewletHost } from "src/cs/workbench/contrib/import/browser/importerViewletHost";
-import type {
-  ImportedFileInfo,
-  ImporterRef,
-} from "src/cs/workbench/contrib/import/common/types";
+import type { ImporterRef } from "src/cs/workbench/contrib/import/common/types";
+import { useProcessing } from "src/cs/workbench/contrib/data/useProcessing";
+import { SessionModel } from "src/cs/workbench/contrib/session/sessionModel";
+import { createSessionActions } from "src/cs/workbench/contrib/session/useSessionActions";
+import { usePreview } from "src/cs/workbench/contrib/tablePreview/usePreview";
+import {
+  CoreSettingsController,
+  createCoreSettingsState,
+  type CoreSettingsState,
+} from "src/cs/workbench/contrib/settings/browser/coreSettingsController";
+import { SettingsViewPane } from "src/cs/workbench/contrib/settings/browser/settingsViewPane";
 import enMessages from "src/i18n/en";
 import zhMessages from "src/i18n/zh";
 
@@ -108,12 +118,21 @@ const createTranslator = (): TranslateFn => {
 
 export class Workbench extends Layout {
   private readonly window: WorkbenchWindow;
-  private readonly t = createTranslator();
+  private t = createTranslator();
   private readonly importerRef: { current: ImporterRef | null } = { current: null };
+  private readonly session = new SessionModel();
   private readonly importer: ImporterViewletHost;
   private readonly data: DataViewPane;
-  private rawData: ImportedFileInfo[] = [];
-  private selectedFileId: string | null = null;
+  private readonly analysis: ChartPreviewViewPane;
+  private readonly settings: SettingsViewPane;
+  private readonly coreSettingsController: CoreSettingsController;
+  private coreSettingsState: CoreSettingsState = createCoreSettingsState();
+  private language: LanguageCode = isLanguageCode(window.__CONDUCTOR_INITIAL_LANGUAGE__)
+    ? window.__CONDUCTOR_INITIAL_LANGUAGE__
+    : "zh";
+  private theme: ThemeMode = isThemeMode(window.__CONDUCTOR_INITIAL_THEME__)
+    ? window.__CONDUCTOR_INITIAL_THEME__
+    : "system";
 
   public get contentElement(): HTMLElement {
     return this.window.contentElement;
@@ -127,9 +146,23 @@ export class Workbench extends Layout {
       titlebarState: createTitlebarState(options.titlebarState),
       showSkeleton: false,
     }));
+    this._register(toDisposableSession(this.session));
     this.mount(this.window.contentElement);
     this.importer = this._register(new ImporterViewletHost(this.getImporterProps()));
     this.data = this._register(new DataViewPane(this.getDataProps()));
+    this.analysis = this._register(new ChartPreviewViewPane(this.getAnalysisProps()));
+    this.settings = this._register(new SettingsViewPane(this.getSettingsProps()));
+    this.coreSettingsController = this._register(
+      new CoreSettingsController(this.getCoreSettingsOptions()),
+    );
+    this._register(this.coreSettingsController.onDidChangeState((state) => {
+      this.coreSettingsState = state;
+      this.settings.update(this.getSettingsProps());
+    }));
+    this._register({
+      dispose: this.session.subscribe(() => this.renderWorkbench()),
+    });
+    this.coreSettingsState = this.coreSettingsController.getState();
     this.renderWorkbench();
   }
 
@@ -141,25 +174,31 @@ export class Workbench extends Layout {
   }
 
   private renderWorkbench(): void {
-    this.importer.update(this.getImporterProps());
-    this.data.update(this.getDataProps());
+    const snapshot = this.session.getSnapshot();
+    const previewBindings = this.getPreviewBindings(snapshot);
+    const processingBindings = this.getProcessingBindings(snapshot, previewBindings);
+
+    this.importer.update(this.getImporterProps(
+      snapshot,
+      previewBindings,
+      processingBindings,
+    ));
+    this.data.update(this.getDataProps(
+      snapshot,
+      previewBindings,
+      processingBindings,
+    ));
+    this.analysis.update(this.getAnalysisProps(snapshot, processingBindings));
+    this.settings.update(this.getSettingsProps());
     this.setParts({
       sidebar: this.importer.element,
       data: this.data.element,
-      analysis: this.createMessagePane(
-        this.t("da_analysis_visualization"),
-        this.rawData.length === 0
-          ? this.t("da_extractImportCsvFirst")
-          : this.t("da_apply_to_new_files_requires_full_apply"),
-      ),
-      settings: this.createMessagePane(
-        this.t("da_settings_title"),
-        this.t("da_settings_section_aria_label"),
-      ),
+      analysis: this.analysis.element,
+      settings: this.settings.element,
     });
     this.window.update({
       id: "analysis-page",
-      className: "relative w-full h-full min-h-0 overflow-hidden",
+      className: "workbench_root",
       showDesktopCommandBar: getWorkbenchWindowState().isDesktopChromePreviewEnabled,
       showSkeleton: false,
       titlebarState: createTitlebarState(this.getTitlebarState()),
@@ -169,7 +208,7 @@ export class Workbench extends Layout {
   protected override onDidRenderLayout(): void {
     this.window.update({
       id: "analysis-page",
-      className: "relative w-full h-full min-h-0 overflow-hidden",
+      className: "workbench_root",
       showDesktopCommandBar: getWorkbenchWindowState().isDesktopChromePreviewEnabled,
       showSkeleton: false,
       titlebarState: createTitlebarState(this.getTitlebarState()),
@@ -191,100 +230,226 @@ export class Workbench extends Layout {
     };
   }
 
-  private getImporterProps() {
+  private getImporterProps(
+    snapshot = this.session.getSnapshot(),
+    previewBindings = this.getPreviewBindings(snapshot),
+    processingBindings = this.getProcessingBindings(snapshot, previewBindings),
+  ) {
+    const sessionActions = createSessionActions({
+      clearPreviewState: previewBindings.clearPreviewState,
+      disposePreviewFileCache: previewBindings.disposePreviewFileCache,
+      invalidatePreviewRequests: previewBindings.invalidatePreviewRequests,
+      previewFile: snapshot.previewFile,
+      processedData: snapshot.processedData,
+      processingStatus: processingBindings.processingStatus,
+      rawData: snapshot.rawData,
+      removeQueuedProcessingFile: processingBindings.removeQueuedProcessingFile,
+      resetPreviewWorker: previewBindings.resetPreviewWorker,
+      resetProcessingWorker: processingBindings.resetProcessingWorker,
+      selectedPreviewFileId: snapshot.selectedPreviewFileId,
+      setIonIoffManualTargetsByFileId: this.session.setIonIoffManualTargetsByFileId,
+      setProcessedData: this.session.setProcessedData,
+      setRawData: this.session.setRawData,
+      setSelectedPreviewFileId: this.session.setSelectedPreviewFileId,
+      setSsManualRanges: this.session.setSsManualRanges,
+    });
+
     return {
-      hasSessionData: this.rawData.length > 0,
+      hasSessionData: sessionActions.hasSessionData,
       importerRef: this.importerRef,
-      onClearSession: this.clearSession,
-      onDataImported: this.addImportedFile,
-      onDataRemoved: this.removeImportedFile,
-      onFileSelected: this.selectFile,
+      onClearSession: sessionActions.handleClearSession,
+      onDataImported: sessionActions.handleDataImported,
+      onDataRemoved: sessionActions.handleDataRemoved,
+      onFileSelected: previewBindings.handlePreviewFileSelected,
       onImportTrigger: () => this.importerRef.current?.openFileDialog(),
-      rawData: this.rawData,
-      selectedPreviewFileId: this.selectedFileId,
+      rawData: snapshot.rawData,
+      selectedPreviewFileId: snapshot.selectedPreviewFileId,
       t: this.t,
     };
   }
 
-  private getDataProps() {
+  private getDataProps(
+    snapshot = this.session.getSnapshot(),
+    previewBindings = this.getPreviewBindings(snapshot),
+    processingBindings = this.getProcessingBindings(snapshot, previewBindings),
+  ) {
     return {
-      content: this.createDataContent(),
-      rawData: this.rawData,
+      analysisSettings: this.coreSettingsState.analysisSettings,
+      ensurePreviewCells: previewBindings.ensurePreviewCells,
+      ensurePreviewRows: previewBindings.ensurePreviewRows,
+      getPreviewRow: previewBindings.getPreviewRow,
+      getPreviewRowsVersion: previewBindings.getPreviewRowsVersion,
+      onTemplateApplied: processingBindings.handleTemplateApplied,
+      onTemplateAppliedIncremental: processingBindings.handleTemplateAppliedIncremental,
+      onUpdateSettings: this.coreSettingsState.handleUpdateAnalysisSettings,
+      previewFile: snapshot.previewFile,
+      previewStatus: snapshot.previewStatus,
+      rawData: snapshot.rawData,
+      subscribePreviewRowsVersion: previewBindings.subscribePreviewRowsVersion,
       t: this.t,
     };
   }
 
-  private createDataContent(): HTMLElement {
-    const selectedFile = this.rawData.find(file => file.fileId === this.selectedFileId);
-    const root = document.createElement("div");
-    root.className = "flex h-full min-h-0 flex-col p-4";
+  private getAnalysisProps(
+    snapshot = this.session.getSnapshot(),
+    processingBindings = this.getProcessingBindings(snapshot),
+  ) {
+    return {
+      activeFileId: snapshot.processedData[0]?.fileId ?? null,
+      processedData: snapshot.processedData,
+      processingStatus: processingBindings.processingStatus,
+      shouldMountCharts: false,
+      t: this.t,
+    };
+  }
 
-    if (!selectedFile) {
-      root.append(
-        this.createMessagePane(
-          this.t("da_data_extraction_template"),
-          this.rawData.length === 0
-            ? this.t("da_extractImportCsvFirst")
-            : this.t("da_extractSelectYColumn"),
-        ),
-      );
-      return root;
-    }
+  private getPreviewBindings(snapshot = this.session.getSnapshot()) {
+    return usePreview({
+      previewCacheFileIdRef: this.session.previewCacheFileIdRef,
+      previewCacheFileLruRef: this.session.previewCacheFileLruRef,
+      previewFile: snapshot.previewFile,
+      previewLoadedChunksByFileIdRef: this.session.previewLoadedChunksByFileIdRef,
+      previewLoadedChunksRef: this.session.previewLoadedChunksRef,
+      previewRequestIdRef: this.session.previewRequestIdRef,
+      previewRowsCacheByFileIdRef: this.session.previewRowsCacheByFileIdRef,
+      previewRowsCacheRef: this.session.previewRowsCacheRef,
+      previewRowsRequestIdRef: this.session.previewRowsRequestIdRef,
+      previewRowsRequestsRef: this.session.previewRowsRequestsRef,
+      previewStatus: snapshot.previewStatus,
+      previewWorkerRef: this.session.previewWorkerRef,
+      rawData: snapshot.rawData,
+      selectedPreviewFileId: snapshot.selectedPreviewFileId,
+      setPreviewFile: this.session.setPreviewFile,
+      setPreviewStatus: this.session.setPreviewStatus,
+      setSelectedPreviewFileId: this.session.setSelectedPreviewFileId,
+      t: this.t,
+    });
+  }
 
-    const title = document.createElement("h2");
-    title.className = "text-sm font-semibold text-text-primary";
-    title.textContent = selectedFile.fileName;
+  private getProcessingBindings(
+    snapshot = this.session.getSnapshot(),
+    previewBindings = this.getPreviewBindings(snapshot),
+  ) {
+    return useProcessing({
+      activeFileId: snapshot.processedData[0]?.fileId ?? null,
+      getPreviewRow: previewBindings.getPreviewRow,
+      onExtractionError: () => undefined,
+      previewFile: snapshot.previewFile,
+      processedData: snapshot.processedData,
+      rawData: snapshot.rawData,
+      rawDataByIdRef: previewBindings.rawDataByIdRef,
+      setActivePage: (page) => {
+        if (page === "data" || page === "analysis" || page === "settings") {
+          this.navigateToView(page);
+        }
+      },
+      setProcessedData: this.session.setProcessedData,
+      t: this.t,
+    });
+  }
 
-    const meta = document.createElement("p");
-    meta.className = "mt-2 text-xs text-text-secondary";
-    meta.textContent = `${Math.round(selectedFile.size / 1024)} KB`;
+  private getSettingsProps() {
+    const state = this.coreSettingsState;
+    const windowState = getWorkbenchWindowState();
+    return {
+      appUpdateSettings: {
+        currentVersion:
+          typeof windowState.environment?.appVersion === "string"
+            ? windowState.environment.appVersion
+            : null,
+        isAvailable: windowState.isAppUpdatePreviewEnabled,
+        onCheckForUpdates: async () => false,
+      },
+      analysisSettings: state.analysisSettings,
+      analysisSettingsLoaded: state.analysisSettingsLoaded,
+      handleLanguageChange: state.handleLanguageChange,
+      handleThemeChange: state.handleThemeChange,
+      handleUpdateAnalysisSettings: state.handleUpdateAnalysisSettings,
+      isWindowsDesktopShell: windowState.isWindowsDesktopShell,
+      language: this.language,
+      mergeAnalysisSettings: state.mergeAnalysisSettings,
+      t: this.t,
+      theme: this.theme,
+    };
+  }
 
-    root.append(title, meta);
-    return root;
+  private getCoreSettingsOptions() {
+    return {
+      language: this.language,
+      setGmDiagnosticsEnabled: () => undefined,
+      setIonIoffMethod: () => undefined,
+      setLanguage: this.setLanguage,
+      setSsDiagnosticsEnabled: () => undefined,
+      setSsMethod: () => undefined,
+      setSsShowFitLine: () => undefined,
+      setTheme: this.setTheme,
+      setVthDiagnosticsEnabled: () => undefined,
+      theme: this.theme,
+    };
   }
 
   private createMessagePane(titleText: string, descriptionText: string): HTMLElement {
     const root = document.createElement("div");
-    root.className =
-      "flex h-full min-h-[180px] flex-col items-center justify-center rounded-lg border border-border/60 bg-bg-surface/60 p-6 text-center";
+    root.className = "workbench_message_pane";
 
     const title = document.createElement("h2");
-    title.className = "text-sm font-semibold text-text-primary";
+    title.className = "workbench_message_title";
     title.textContent = titleText;
 
     const description = document.createElement("p");
-    description.className = "mt-2 max-w-sm text-xs text-text-secondary";
+    description.className = "workbench_message_description";
     description.textContent = descriptionText;
 
     root.append(title, description);
     return root;
   }
 
-  private readonly addImportedFile = (fileInfo: ImportedFileInfo): void => {
-    this.rawData = [
-      ...this.rawData.filter(file => file.fileId !== fileInfo.fileId),
-      fileInfo,
-    ];
-    this.selectedFileId = fileInfo.fileId;
-    this.renderWorkbench();
-  };
-
-  private readonly removeImportedFile = (fileId: string): void => {
-    this.rawData = this.rawData.filter(file => file.fileId !== fileId);
-    if (this.selectedFileId === fileId) {
-      this.selectedFileId = this.rawData[0]?.fileId ?? null;
+  private readonly setLanguage = (language: LanguageCode): void => {
+    if (this.language === language) {
+      return;
     }
+
+    this.language = language;
+    window.__CONDUCTOR_INITIAL_LANGUAGE__ = language;
+    this.t = createTranslator();
+    this.coreSettingsController?.update(this.getCoreSettingsOptions());
     this.renderWorkbench();
   };
 
-  private readonly selectFile = (fileId: string | null): void => {
-    this.selectedFileId = fileId;
-    this.renderWorkbench();
-  };
+  private readonly setTheme = (theme: ThemeMode): void => {
+    if (this.theme === theme) {
+      return;
+    }
 
-  private readonly clearSession = (): void => {
-    this.rawData = [];
-    this.selectedFileId = null;
+    this.theme = theme;
+    window.__CONDUCTOR_INITIAL_THEME__ = theme;
+    applyThemeMode(theme);
+    this.coreSettingsController?.update(this.getCoreSettingsOptions());
     this.renderWorkbench();
   };
 }
+
+const isThemeMode = (value: unknown): value is ThemeMode =>
+  value === "light" || value === "dark" || value === "system";
+
+const resolveThemeMode = (theme: ThemeMode): "light" | "dark" => {
+  if (theme === "light" || theme === "dark") {
+    return theme;
+  }
+
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches
+    ? "dark"
+    : "light";
+};
+
+const applyThemeMode = (theme: ThemeMode): void => {
+  const resolvedTheme = resolveThemeMode(theme);
+  document.documentElement.classList.remove("light", "dark");
+  document.documentElement.classList.add(resolvedTheme);
+  document.documentElement.style.colorScheme = resolvedTheme;
+};
+
+const toDisposableSession = (session: SessionModel) => toDisposable(() => {
+  session.previewWorkerRef.current?.terminate();
+  session.previewWorkerRef.current = null;
+});

@@ -1,7 +1,9 @@
 const messages = {
     common_clear: 'Clear',
     da_analysis_visualization: 'Analysis & Visualization',
+    da_apply_template: 'Apply Template',
     da_apply_to_all_files: 'Apply to All',
+    da_apply_new_files: 'Apply New Files',
     da_apply_to_new_files: 'Apply to New',
     da_apply_to_new_files_busy: 'Extraction is already running.',
     da_apply_to_new_files_no_new: 'No new files to extract.',
@@ -61,6 +63,13 @@ const messages = {
     da_extract_warnings_block: '\n\nWarnings:\n- {warnings}',
     da_extraction_errors: 'Extraction errors',
     da_general_template: 'Template Management',
+    da_preview_empty_hint: 'A table preview will appear here after importing files.',
+    da_preview_empty_title: 'No preview yet',
+    da_template_file_count: '{count} file(s) imported',
+    da_template_x_end: 'X End',
+    da_template_x_start: 'X Start',
+    da_template_y_legend_count: 'Legend Count',
+    da_template_y_legend_start: 'Legend Start',
     da_low_confidence_review_title: 'Auto classification needs review',
     da_low_confidence_review_title_count: 'Auto classification needs review ({count} files)',
     da_low_confidence_unnamed_file: 'Unnamed file',
@@ -244,66 +253,6 @@ const messages = {
     da_no_processed_data: 'No Processed Data',
     da_no_processed_data_hint: 'Apply a template above to generate results.',
     da_no_saved_templates: 'No saved templates',
-    da_onboarding_progress: 'Step {current} / {total}',
-    da_onboarding_skip: 'Skip',
-    da_onboarding_back: 'Back',
-    da_onboarding_next: 'Next',
-    da_onboarding_finish: 'Finish',
-    da_onboarding_welcome_title: 'Take a quick guided tour',
-    da_onboarding_welcome_body:
-      'This guide walks through the main flow once: import CSV files, configure a template, review analysis results, and set up Origin for desktop use.',
-    da_onboarding_import_title: 'Click this Import Files button',
-    da_onboarding_import_body:
-      'Click the highlighted Import Files button in the upper-left corner. During this guide, that click will load the demo files so you can continue with the tutorial flow.',
-    da_onboarding_import_action: 'Load Demo Files',
-    da_onboarding_template_title: 'Templates define how data is extracted',
-    da_onboarding_template_body:
-      'Choose an existing template, use one shared by someone else, or create a new one to tell the app where to read X/Y data, labels, and curve information from each file.',
-    da_onboarding_template_config_title: 'Configure only the essentials first',
-    da_onboarding_template_config_body:
-      'Before moving on, complete these required fields first: template name, X start, X end, X curve segmentation, and the Y-column checkboxes in preview. Together they define the basic device curves.',
-    da_onboarding_template_name_title: 'Start by naming the template',
-    da_onboarding_template_name_body:
-      'Enter a clear template name in this field first. Then the guide will walk through the key X fields one by one.',
-    da_onboarding_template_x_start_title: 'Pick the X start cell',
-    da_onboarding_template_x_start_body:
-      'Click the "Start" field first, then click the starting cell of the X column in the preview table on the right. The app will fill in that address automatically.',
-    da_onboarding_template_x_end_title: 'Pick the X end cell',
-    da_onboarding_template_x_end_body:
-      'By default, the app uses the last cell in the X column as the end position. You can click the "End" field and choose a different end cell from the X column in the preview table.',
-    da_onboarding_template_x_points_title: 'Choose X curve segmentation',
-    da_onboarding_template_x_points_body:
-      'Choose how each X curve is segmented here. In most cases, keeping "Auto" is enough, because the app can infer a suitable point count from the data file.',
-    da_onboarding_template_select_columns_title: 'Check the Y columns in preview',
-    da_onboarding_template_select_columns_body:
-      'Use the checkboxes in the preview header to select the Y columns you want to extract.',
-    da_onboarding_template_save_title: 'Save this template',
-    da_onboarding_template_save_body:
-      'Now the key fields are ready, so you can save the template and apply it to your data files. Saved templates stay on this device and can also be shared with others.',
-    da_onboarding_apply_title: 'Custom templates handle varied data shapes',
-    da_onboarding_apply_body:
-      'When Auto cannot handle a file, create a custom template and apply it to the data files. Custom templates are built from cells in the preview table on the right.',
-    da_onboarding_apply_run_title: 'Apply a template or use Auto',
-    da_onboarding_apply_run_body:
-      'Back on the Select tab, click "Apply to all" to apply the current template or Auto extraction rule to every data file and generate the curve preview.',
-    da_onboarding_analysis_chart_title: 'Curve preview area',
-    da_onboarding_analysis_chart_body:
-      'After extraction finishes, the curve preview area shows the curves extracted from the data files. Check the legend items to choose which curves should be sent to Origin for plotting.',
-    da_onboarding_analysis_overview_title: 'Overview area',
-    da_onboarding_analysis_overview_body:
-      'This area lists the processed files and their quick previews, so you can switch between results and compare them quickly. Use filtering, sorting, or multi-select to batch export the data files you need.',
-    da_onboarding_analysis_calculated_title: 'Parameters area',
-    da_onboarding_analysis_calculated_body:
-      'This area summarizes the calculated results for each curve. Be sure to review these key metrics before sending data to Origin.',
-    da_onboarding_origin_export_title: 'Send to Origin',
-    da_onboarding_origin_export_body:
-      'After the charts are ready, click the Origin icon to send the current analysis results to Origin. If this is your first time, go to Settings first and finish the Origin.exe setup.',
-    da_onboarding_origin_title: 'Configure Origin before sending results',
-    da_onboarding_origin_body:
-      'If you want to continue work in Origin, choose your Origin.exe path here first. After that, the desktop title-bar action can send the current analysis over.',
-    da_onboarding_finish_title: 'You are ready to use the app',
-    da_onboarding_finish_body:
-      'You can replay this guide anytime from Settings. A good first milestone is to complete one full run: import files, apply a template, and confirm the charts look correct.',
     da_preview_error: 'Preview failed to load',
     da_preview_error_hint: 'Please try selecting the file again.',
     da_preview_filename_label: 'Filename',
@@ -371,8 +320,6 @@ const messages = {
     da_settings_app_update_checking: 'Checking...',
     da_settings_about_version_title: 'Current Version',
     da_settings_about_version_unknown: 'Unknown',
-    da_settings_onboarding_title: 'Getting Started Guide',
-    da_settings_onboarding_open_btn: 'Open Guide',
     da_settings_storage_title: 'User Configuration Path',
     da_settings_storage_desc: 'Choose where templates and settings are stored.',
     da_settings_storage_path_label: 'User Config Path',

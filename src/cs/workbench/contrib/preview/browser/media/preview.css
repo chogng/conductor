@@ -1,0 +1,95 @@
+.preview_file_card {
+  @apply flex w-full flex-col overflow-hidden rounded-xl border border-border bg-bg-surface text-left transition-colors;
+}
+
+.preview_file_card:hover {
+  @apply bg-bg-surface-hover;
+}
+
+.preview_file_card--active {
+  @apply border-accent-terracotta bg-accent/5;
+}
+
+.preview_file_card_header {
+  @apply px-2 pb-1 pt-1.5;
+}
+
+.preview_file_card_header_row {
+  @apply flex items-start justify-between gap-2;
+}
+
+.preview_file_card_header_main {
+  @apply min-w-0;
+}
+
+.preview_file_card_title {
+  @apply whitespace-normal break-words text-[11px] font-semibold text-text-primary;
+}
+
+.preview_file_card_meta {
+  @apply mt-0.5 text-[10px] text-text-secondary;
+}
+
+.preview_file_card_meta_text {
+  @apply break-words;
+}
+
+.preview_file_card_chart {
+  @apply relative min-h-[120px] w-full bg-bg-page;
+}
+
+.preview_file_card_chart_canvas {
+  @apply absolute inset-0;
+}
+
+.preview_file_card_selection_badge {
+  @apply absolute bottom-1 left-1 rounded-md bg-accent-terracotta/90 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-white;
+}
+
+.preview_file_card_axis_range {
+  @apply absolute bottom-1 right-1 space-y-0.5 rounded-md bg-black/50 px-1.5 py-0.5 text-[10px] text-white;
+}
+
+.preview_overview_grid_card {
+  @apply flex h-full min-h-0 flex-col !pr-0;
+}
+
+.preview_overview_grid_list {
+  @apply grid auto-rows-max grid-cols-1 content-start gap-2.5;
+}
+
+.preview_overview_grid_toolbar {
+  @apply mb-3 space-y-2 pr-4;
+}
+
+.preview_overview_grid_toolbar_row {
+  @apply flex flex-wrap items-center justify-between gap-3;
+}
+
+.preview_overview_grid_toolbar_controls {
+  @apply flex flex-wrap items-center gap-3;
+}
+
+.preview_overview_grid_filter {
+  @apply relative flex items-center gap-2;
+}
+
+.preview_overview_grid_select {
+  @apply w-fit;
+}
+
+.preview_visually_hidden {
+  @apply sr-only;
+}
+
+.preview_overview_grid_progress {
+  @apply text-xs text-text-secondary;
+}
+
+.preview_overview_grid_scroll {
+  @apply min-h-0 flex-1;
+}
+
+.preview_overview_grid_scroll_viewport {
+  @apply pr-4;
+}

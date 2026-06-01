@@ -8,8 +8,31 @@
   height: 100%;
 }
 
+.importer-viewlet-host-root,
+.importer-viewlet-section,
+.importer-viewlet-card,
+.importer-viewlet-importer-host {
+  @apply flex min-h-0 flex-1 flex-col;
+}
+
+.importer-viewlet-card {
+  @apply p-0;
+}
+
+.importer-viewlet-action-icon {
+  @apply shrink-0;
+}
+
+.importer-viewlet-action-label {
+  @apply min-w-0 truncate text-left;
+}
+
 #analysis-import-card {
   @apply p-4;
+}
+
+.import-viewer-file-input {
+  @apply hidden;
 }
 
 .import-viewer-dropzone {

@@ -16,10 +16,10 @@ import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/con
 type PreviewStatus = Partial<SessionPreviewStatus>;
 
 export const TEMPLATE_MANAGER_PREVIEW_PANEL_ITEM_CLASS =
-  "flex h-full min-h-0 self-stretch";
+  "template_preview_item";
 
 export const TEMPLATE_MANAGER_PREVIEW_PANEL_FRAME_CLASS =
-  "flex flex-1 min-h-0 flex-col overflow-hidden rounded-[inherit] border border-border bg-bg-page/75 p-4";
+  "template_preview_frame";
 
 type TemplateManagerPreviewSurfaceProps = {
   actions?: Node | null;
@@ -47,8 +47,8 @@ export const TemplateManagerPreviewSurface = ({
         : "";
   const statusClassName =
     previewStatus?.state === "error"
-      ? "text-xs text-red-500"
-      : "text-xs text-text-secondary";
+      ? "template_preview_status--error"
+      : "template_preview_status--muted";
 
   const root = document.createElement("div");
   root.className = TEMPLATE_MANAGER_PREVIEW_PANEL_ITEM_CLASS;
@@ -56,18 +56,18 @@ export const TemplateManagerPreviewSurface = ({
   frame.className = TEMPLATE_MANAGER_PREVIEW_PANEL_FRAME_CLASS;
 
   const header = document.createElement("div");
-  header.className = "mb-3 flex shrink-0 items-center justify-between gap-3";
+  header.className = "template_preview_header";
   const title = document.createElement("span");
-  title.className = "min-w-0 truncate text-sm font-medium text-text-secondary";
+  title.className = "template_preview_title";
   title.textContent = `${t("da_preview_filename_label")}: ${fileName}`;
   header.append(title);
 
   if (statusMessage || actions) {
     const meta = document.createElement("div");
-    meta.className = "flex shrink-0 items-center gap-2";
+    meta.className = "template_preview_meta";
     if (statusMessage) {
       const status = document.createElement("span");
-      status.className = statusClassName;
+      status.className = `template_preview_status ${statusClassName}`;
       status.textContent = statusMessage;
       meta.append(status);
     }
@@ -97,8 +97,7 @@ export const TemplateManagerPreviewEmptyState = ({
   title,
 }: TemplateManagerPreviewEmptyStateProps): any => {
   const root = document.createElement("div");
-  root.className =
-    "flex flex-1 min-h-0 flex-col items-center justify-center gap-2 px-6 py-8 text-center";
+  root.className = "template_preview_empty";
   root.id = id;
 
   const avatar = document.createElement("div");
@@ -111,7 +110,7 @@ export const TemplateManagerPreviewEmptyState = ({
     }
   }
   const icon = document.createElement("span");
-  icon.className = getCogIconClassName("w-[60%] h-[60%]");
+  icon.className = getCogIconClassName("template_preview_empty_icon");
   Object.assign(icon.style, getCogIconStyle({ size: "100%" }));
   icon.innerHTML = getCogIconMarkup(lxPreview);
   avatar.append(icon);
@@ -119,13 +118,13 @@ export const TemplateManagerPreviewEmptyState = ({
 
   if (title) {
     const titleElement = document.createElement("p");
-    titleElement.className = "text-sm font-medium text-text-primary";
+    titleElement.className = "template_preview_empty_title";
     titleElement.textContent = title;
     root.append(titleElement);
   }
   if (hint) {
     const hintElement = document.createElement("p");
-    hintElement.className = "max-w-md text-sm text-text-secondary";
+    hintElement.className = "template_preview_empty_hint";
     hintElement.textContent = hint;
     root.append(hintElement);
   }

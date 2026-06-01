@@ -162,7 +162,7 @@ const createZoomActions = ({
   "adjustPreviewZoom" | "previewZoomPercent" | "resetPreviewZoom" | "t"
 >): HTMLElement => {
   const actions = document.createElement("div");
-  actions.className = "flex items-center gap-1";
+  actions.className = "template_preview_zoom_actions";
 
   const zoomOut = createButton({
     ariaLabel: t("da_preview_zoom_out_title"),
@@ -228,19 +228,19 @@ const createColumnHeader = ({
   onResizeStart: (event: PointerEvent, colIndex: number) => void;
 }): HTMLTableCellElement => {
   const cell = document.createElement("th");
-  cell.className = "sticky top-0 z-10 border-b border-r border-border bg-bg-page/95 text-left text-xs font-medium text-text-secondary";
+  cell.className = "template_preview_column_header";
   cell.style.width = `${width}px`;
   cell.style.minWidth = `${width}px`;
   cell.style.maxWidth = `${width}px`;
   cell.dataset.selected = isYColumn ? "true" : "false";
 
   const inner = document.createElement("div");
-  inner.className = "relative flex h-full items-center gap-1 px-2";
+  inner.className = "template_preview_column_header_inner";
   inner.style.minHeight = "28px";
 
   const toggle = document.createElement("button");
   toggle.type = "button";
-  toggle.className = "h-4 w-4 rounded border border-border text-[10px] leading-none";
+  toggle.className = "template_preview_column_toggle";
   toggle.disabled = !toggleColumnEnabled;
   toggle.title = t("da_preview_toggle_y_column_title");
   toggle.setAttribute("aria-pressed", isYColumn ? "true" : "false");
@@ -252,13 +252,13 @@ const createColumnHeader = ({
 
   const label = document.createElement("button");
   label.type = "button";
-  label.className = "min-w-0 flex-1 truncate text-left";
+  label.className = "template_preview_column_label";
   label.title = t("da_preview_reset_column_width_title");
   label.textContent = getExcelColumnLabel(colIndex);
   label.addEventListener("dblclick", () => resetColumnWidth(previewFileId, colIndex));
 
   const resize = document.createElement("div");
-  resize.className = "absolute right-0 top-0 h-full cursor-col-resize";
+  resize.className = "template_preview_column_resize";
   resize.style.width = `${PREVIEW_HEADER_RESIZER_WIDTH_PX}px`;
   resize.title = t("da_preview_resize_column_title");
   resize.addEventListener("pointerdown", (event) => onResizeStart(event, colIndex));
@@ -309,7 +309,7 @@ const createPreviewTable = ({
   | "yColumnsSet"
 >): HTMLTableElement => {
   const table = document.createElement("table");
-  table.className = "relative table-fixed border-separate border-spacing-0 text-xs text-text-primary";
+  table.className = "template_preview_table";
   table.style.width = `${Math.max(1, Number(previewColumnGeometry.tableWidthPx) || 1)}px`;
   table.style.fontSize = `${PREVIEW_FONT_SIZE_PX}px`;
   assignRef(previewTableRef, table);
@@ -329,7 +329,7 @@ const createPreviewTable = ({
   const thead = document.createElement("thead");
   const headerRow = document.createElement("tr");
   const corner = document.createElement("th");
-  corner.className = "sticky left-0 top-0 z-20 border-b border-r border-border bg-bg-page/95";
+  corner.className = "template_preview_corner";
   corner.style.width = `${previewRowIndexWidthPx}px`;
   headerRow.append(corner);
 
@@ -361,7 +361,7 @@ const createPreviewTable = ({
     const row = document.createElement("tr");
     row.style.height = `${previewRowHeightPx}px`;
     const rowHeader = document.createElement("th");
-    rowHeader.className = "sticky left-0 z-10 border-b border-r border-border bg-bg-page/95 px-2 text-right text-text-secondary";
+    rowHeader.className = "template_preview_row_header";
     rowHeader.textContent = String(rowIndex + 1);
     row.append(rowHeader);
 
@@ -370,7 +370,7 @@ const createPreviewTable = ({
     for (const colIndex of previewColumnGeometry.visibleColumnIndices) {
       const cell = document.createElement("td");
       const selected = isCellSelected(selections, rowIndex, colIndex);
-      cell.className = "border-b border-r border-border px-2 text-text-primary";
+      cell.className = "template_preview_cell";
       cell.style.padding = `${PREVIEW_CELL_PADDING_Y_PX}px ${PREVIEW_CELL_PADDING_X_PX}px`;
       cell.style.width = `${Math.max(1, Number(previewColumnGeometry.widthsPx[colIndex]) || previewColumnMinWidthPx)}px`;
       cell.dataset.rowIndex = String(rowIndex);
@@ -378,7 +378,7 @@ const createPreviewTable = ({
       cell.dataset.selected = selected ? "true" : "false";
       cell.dataset.yColumn = yColumnsSet.has(colIndex) ? "true" : "false";
       if (selected) {
-        cell.classList.add("bg-accent/10");
+        cell.classList.add("template_preview_cell--selected");
       }
       cell.textContent = formatPreviewCell(rowCells[colIndex]);
       cell.addEventListener("mousedown", (event) => {
@@ -417,7 +417,7 @@ const createSpacerRow = (height: number, colSpan: number): HTMLTableRowElement =
   row.style.height = `${height}px`;
   const cell = document.createElement("td");
   cell.colSpan = colSpan;
-  cell.className = "p-0";
+  cell.className = "template_preview_spacer_cell";
   row.append(cell);
   return row;
 };
@@ -431,13 +431,13 @@ const createSelectionLayer = ({
   "activeCellRect" | "dragOverlayRef" | "selectionRects"
 >): HTMLDivElement => {
   const layer = document.createElement("div");
-  layer.className = "pointer-events-none absolute inset-0";
+  layer.className = "template_preview_selection_layer";
   assignRef(dragOverlayRef, layer);
 
   for (const selection of selectionRects ?? []) {
     const rect = selection.rect;
     const box = document.createElement("div");
-    box.className = "absolute border border-accent bg-accent/10";
+    box.className = "template_preview_selection_box";
     box.dataset.selectionId = selection.id;
     box.style.left = `${readRectNumber(rect, "left")}px`;
     box.style.top = `${readRectNumber(rect, "top")}px`;
@@ -448,7 +448,7 @@ const createSelectionLayer = ({
 
   if (activeCellRect) {
     const active = document.createElement("div");
-    active.className = "absolute border-2 border-accent";
+    active.className = "template_preview_active_cell";
     active.style.left = `${readRectNumber(activeCellRect, "left")}px`;
     active.style.top = `${readRectNumber(activeCellRect, "top")}px`;
     active.style.width = `${readRectNumber(activeCellRect, "width")}px`;
@@ -512,12 +512,12 @@ export const createTemplateManagerPreviewPanel = ({
   }
 
   const grid = document.createElement("div");
-  grid.className = "relative flex min-h-0 flex-1 overflow-hidden rounded-lg border border-border bg-bg-page/40";
+  grid.className = "template_preview_grid";
   grid.dataset.resizing = isColumnResizing ? "true" : "false";
   assignRef(gridRef, grid);
 
   const viewport = document.createElement("div");
-  viewport.className = "scrollAreaViewport relative min-h-0 flex-1 overflow-auto";
+  viewport.className = "scrollAreaViewport template_preview_viewport";
   viewport.tabIndex = 0;
   viewport.setAttribute("role", "grid");
   viewport.setAttribute("aria-rowcount", String(Math.max(0, Number(previewFile.rowCount) || 0)));

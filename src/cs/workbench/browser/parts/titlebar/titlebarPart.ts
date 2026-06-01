@@ -293,7 +293,7 @@ export const createWorkbenchTitlebarElement = ({
     [brandIcon],
   );
   const navControls = createElement("div", {
-    className: "da_window_controls ml-4",
+    className: "da_window_controls da_window_controls--nav",
   });
 
   for (const action of navActions) {

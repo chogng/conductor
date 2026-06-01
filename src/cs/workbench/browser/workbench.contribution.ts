@@ -40,6 +40,4 @@ registerWorkbenchContribution2(
   WorkbenchPhase.BlockStartup,
 );
 
-import "src/cs/workbench/browser/media/workbenchPart.css";
 import "src/cs/workbench/contrib/import/browser/media/importerViewlet.css";
-import "src/cs/workbench/contrib/onboarding/onboarding.css";

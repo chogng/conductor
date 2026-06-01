@@ -25,8 +25,7 @@ const SsSummaryStrip = ({ summary }: SsSummaryStripProps): any =>
 
 export const createSsSummaryStrip = (summary: SsSummary): HTMLElement => {
   const root = document.createElement("div");
-  root.className =
-    "bg-bg-page border border-border rounded-lg px-3 py-2 flex flex-wrap items-center gap-2 text-xs";
+  root.className = "ss_summary_strip";
 
   root.append(
     createConfidenceBadge(summary),
@@ -65,7 +64,7 @@ export const createSsSummaryStrip = (summary: SsSummary): HTMLElement => {
 
 const createConfidenceBadge = (summary: SsSummary): HTMLElement => {
   const badge = document.createElement("span");
-  badge.className = `inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border ${getConfidenceClassName(summary.confidence)}`;
+  badge.className = `ss_summary_badge ${getConfidenceClassName(summary.confidence)}`;
   badge.title = `method=${summary.method} reason=${summary.reason}`;
   badge.textContent = String(summary.confidence).toUpperCase();
   return badge;
@@ -73,21 +72,21 @@ const createConfidenceBadge = (summary: SsSummary): HTMLElement => {
 
 const getConfidenceClassName = (confidence: string): string => {
   if (confidence === "high") {
-    return "bg-green-500/10 text-green-500 border-green-500/20";
+    return "ss_summary_badge--high";
   }
   if (confidence === "low") {
-    return "bg-yellow-500/10 text-yellow-500 border-yellow-500/20";
+    return "ss_summary_badge--low";
   }
-  return "bg-red-500/10 text-red-500 border-red-500/20";
+  return "ss_summary_badge--fail";
 };
 
 const createMetric = (label: string, value: string): HTMLElement => {
   const root = document.createElement("span");
-  root.className = "text-text-secondary";
+  root.className = "ss_summary_metric";
   root.append(label, " ");
 
   const metric = document.createElement("span");
-  metric.className = "text-text-primary font-mono";
+  metric.className = "ss_summary_metric_value";
   metric.textContent = value;
   root.append(metric);
   return root;
@@ -95,16 +94,15 @@ const createMetric = (label: string, value: string): HTMLElement => {
 
 const createReasonBadge = (summary: SsSummary): HTMLElement => {
   const badge = document.createElement("span");
-  badge.className = `inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border ${
+  badge.className =
     summary.confidence === "fail"
-      ? "bg-red-500/10 text-red-500 border-red-500/20"
-      : "bg-yellow-500/10 text-yellow-500 border-yellow-500/20"
-  }`;
+      ? "ss_summary_badge ss_summary_badge--fail"
+      : "ss_summary_badge ss_summary_badge--low";
   badge.title = summary.reason;
   badge.append("reason:");
 
   const reason = document.createElement("span");
-  reason.className = "font-mono";
+  reason.className = "ss_summary_badge_value";
   reason.textContent = summary.reason;
   badge.append(reason);
   return badge;
@@ -112,12 +110,11 @@ const createReasonBadge = (summary: SsSummary): HTMLElement => {
 
 const createSuggestedRangeBadge = (range: { x1: number; x2: number }): HTMLElement => {
   const badge = document.createElement("span");
-  badge.className =
-    "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-yellow-500/10 text-yellow-500 border border-yellow-500/20";
+  badge.className = "ss_summary_badge ss_summary_badge--low";
   badge.append("suggested: ");
 
   const value = document.createElement("span");
-  value.className = "font-mono";
+  value.className = "ss_summary_badge_value";
   value.textContent = `[${formatNumber(range.x1, { digits: 4 })}, ${formatNumber(range.x2, { digits: 4 })}]`;
   badge.append(value);
   return badge;

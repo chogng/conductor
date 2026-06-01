@@ -44,6 +44,14 @@
   background: transparent;
 }
 
+.workbench_preview_area_action_icon {
+  @apply shrink-0;
+}
+
+.workbench_preview_area_action_label {
+  @apply min-w-0 truncate text-left;
+}
+
 .workbench_preview_area_action:hover {
   @apply bg-bg-200/50 text-text-primary;
 }

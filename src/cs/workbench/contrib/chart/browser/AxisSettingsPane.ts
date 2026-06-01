@@ -63,14 +63,14 @@ export const createAxisSettingsPane = ({
   yScaleWarning,
   t,
 }: AxisSettingsPaneProps): HTMLElement => {
-  const compactInputWidth = "w-[132px]";
-  const compactInputFieldClass = "!h-8 !gap-0 border border-border px-2 py-1";
+  const compactInputWidth = "chart_axis_settings_compact_input";
+  const compactInputFieldClass = "chart_axis_settings_compact_input_field";
   const normalizedOriginPlotOptions = normalizeOriginPlotOptions(
     originOpenPlotOptions,
     DEFAULT_ORIGIN_PLOT_OPTIONS,
   );
 
-  const card = createCard("h-full min-h-0 flex flex-col !pr-0");
+  const card = createCard("chart_axis_settings_card");
   card.append(
     createHeader({ onClose, setAxis, t }),
     createScrollArea(
@@ -104,10 +104,10 @@ const createHeader = ({
   readonly t: TranslateFn;
 }): HTMLElement => {
   const root = document.createElement("div");
-  root.className = "mb-3 pr-4";
+  root.className = "chart_axis_settings_header";
 
   const row = document.createElement("div");
-  row.className = "flex items-center justify-between gap-2";
+  row.className = "chart_axis_settings_header_row";
   row.append(
     createIconButton({
       label: t("da_chart_plot_settings_title"),
@@ -150,7 +150,7 @@ const createSections = ({
   readonly yScaleWarning: string | null;
 }): HTMLElement => {
   const root = document.createElement("div");
-  root.className = "flex flex-col gap-3";
+  root.className = "chart_axis_settings_sections";
   const inputOptions = {
     className: `${analysisCompactInputWrapperClass} ${compactInputWidth}`,
     fieldClassName: compactInputFieldClass,
@@ -250,7 +250,7 @@ const createSections = ({
 
   if (yScaleWarning) {
     const warning = document.createElement("div");
-    warning.className = "border-t border-border/50 px-3 py-2 text-[11px] text-yellow-500";
+    warning.className = "chart_axis_settings_warning";
     warning.textContent = yScaleWarning;
     root.append(warning);
   }
@@ -399,9 +399,9 @@ const createCard = (className: string): HTMLElement => {
 
 const createSection = (title: string, rows: HTMLElement[]): HTMLElement => {
   const section = document.createElement("div");
-  section.className = "overflow-hidden rounded-md border border-border/60 bg-bg-surface";
+  section.className = "chart_axis_settings_section";
   const header = document.createElement("div");
-  header.className = "border-b border-border/50 px-3 py-2 text-xs font-semibold text-text-secondary";
+  header.className = "chart_axis_settings_section_header";
   header.textContent = title;
   section.append(header, ...rows);
   return section;
@@ -409,10 +409,9 @@ const createSection = (title: string, rows: HTMLElement[]): HTMLElement => {
 
 const createRow = (label: string, control: HTMLElement): HTMLElement => {
   const row = document.createElement("div");
-  row.className =
-    "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/40 px-3 py-2 last:border-b-0";
+  row.className = "chart_axis_settings_row";
   const text = document.createElement("div");
-  text.className = "text-xs text-text-secondary";
+  text.className = "chart_axis_settings_row_label";
   text.textContent = label;
   row.append(text, control);
   return row;
@@ -420,9 +419,9 @@ const createRow = (label: string, control: HTMLElement): HTMLElement => {
 
 const createScrollArea = (content: HTMLElement): HTMLElement => {
   const root = document.createElement("div");
-  root.className = "scrollArea flex-1 min-h-0";
+  root.className = "scrollArea chart_axis_settings_scroll";
   const viewport = document.createElement("div");
-  viewport.className = "scrollAreaViewport pr-4";
+  viewport.className = "scrollAreaViewport chart_axis_settings_scroll_viewport";
   viewport.dataset.axis = "y";
   viewport.append(content);
   root.append(viewport);
@@ -439,7 +438,7 @@ const createIconButton = ({
   const button = document.createElement("button");
   button.type = "button";
   button.className = getButtonClassName({
-    className: "h-8 w-8 rounded-full text-text-secondary hover:text-text-primary",
+    className: "chart_axis_settings_icon_button",
     size: "icon",
     variant: "icon",
   });
@@ -464,7 +463,7 @@ const createTextButton = (
   const button = document.createElement("button");
   button.type = "button";
   button.className = getButtonClassName({
-    className: "h-7 px-2 text-xs text-text-secondary hover:text-text-primary",
+    className: "chart_axis_settings_text_button",
     size: "sm",
     variant: "text",
   });
@@ -478,9 +477,9 @@ const createTextButton = (
 
 const createTitle = (label: string): HTMLElement => {
   const root = document.createElement("div");
-  root.className = "min-w-0 flex-1";
+  root.className = "chart_axis_settings_title";
   const title = document.createElement("div");
-  title.className = "truncate text-xs font-semibold text-text-primary";
+  title.className = "chart_axis_settings_title_text";
   title.textContent = label;
   root.append(title);
   return root;

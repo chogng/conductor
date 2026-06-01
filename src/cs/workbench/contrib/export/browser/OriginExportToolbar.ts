@@ -86,7 +86,7 @@ const appendText = (
 };
 
 const createSelect = <T extends string>({
-  className = "w-fit da-neutral-select",
+  className = "origin_export_toolbar_select da-neutral-select",
   id,
   options,
   value,
@@ -136,10 +136,8 @@ const createToggleButton = ({
   const button = document.createElement("button");
   button.type = "button";
   button.className = cx(
-    "rounded-md border px-2 py-1 text-xs",
-    checked
-      ? "border-accent bg-accent/10 text-text-primary"
-      : "border-border bg-bg-page/40 text-text-secondary",
+    "origin_export_toolbar_toggle",
+    checked && "origin_export_toolbar_toggle--checked",
   );
   button.setAttribute("aria-pressed", checked ? "true" : "false");
   button.dataset.selected = checked ? "true" : "false";
@@ -161,7 +159,7 @@ const createContentSelector = ({
 }): HTMLElement => {
   const selectedSet = new Set(normalizeOriginExportContentKeysForOptions(selectedKeys, options));
   const container = document.createElement("div");
-  container.className = "flex items-center gap-1 flex-wrap";
+  container.className = "origin_export_toolbar_chip_group";
 
   for (const option of options) {
     container.appendChild(createToggleButton({
@@ -204,7 +202,7 @@ const createCurveSelector = ({
   t: OriginExportContentTranslateFn;
 }): HTMLElement => {
   const container = document.createElement("div");
-  container.className = "flex items-center gap-1 flex-wrap";
+  container.className = "origin_export_toolbar_chip_group";
 
   const modeSelect = createSelect<OriginCurveExportMode>({
     id: "analysis-origin-curve-export-mode-select",
@@ -222,7 +220,7 @@ const createCurveSelector = ({
   }
 
   const chipGroup = document.createElement("div");
-  chipGroup.className = "flex items-center gap-1 flex-wrap";
+  chipGroup.className = "origin_export_toolbar_chip_group";
 
   for (const option of curveOptions) {
     const key = String(option.key ?? "");
@@ -302,19 +300,19 @@ const createOriginExportToolbar = ({
   t,
 }: OriginExportToolbarProps): HTMLElement => {
   const root = document.createElement("div");
-  root.className = "rounded-xl border border-border bg-bg-page/40 px-4 py-3";
+  root.className = "origin_export_toolbar";
 
   const header = document.createElement("div");
-  header.className = "flex items-center justify-between gap-3 flex-wrap";
+  header.className = "origin_export_toolbar_header";
   root.appendChild(header);
 
   const toolbar = document.createElement("div");
-  toolbar.className = "flex items-center gap-2 flex-wrap";
+  toolbar.className = "origin_export_toolbar_controls";
   toolbar.setAttribute("role", "toolbar");
   toolbar.setAttribute("aria-label", t("da_analysis_results_tab_export"));
   header.appendChild(toolbar);
 
-  appendText(toolbar, "span", "text-xs text-text-secondary whitespace-nowrap", t("da_origin_export_mode_label"));
+  appendText(toolbar, "span", "origin_export_toolbar_label", t("da_origin_export_mode_label"));
   toolbar.appendChild(createSelect<OriginExportMode>({
     id: "analysis-origin-export-mode-select",
     value: mode,
@@ -327,7 +325,7 @@ const createOriginExportToolbar = ({
     onChange: (next) => onModeChange(isOriginExportMode(next) ? next : "merged"),
   }));
 
-  appendText(toolbar, "span", "text-xs text-text-secondary whitespace-nowrap", t("da_origin_canvas_scope_label"));
+  appendText(toolbar, "span", "origin_export_toolbar_label", t("da_origin_canvas_scope_label"));
   toolbar.appendChild(createSelect<OriginCanvasExportScope>({
     id: "analysis-origin-canvas-scope-select",
     value: originCanvasExportScope,
@@ -347,7 +345,7 @@ const createOriginExportToolbar = ({
   }));
 
   if (showFilteredCanvasKindSelect) {
-    appendText(toolbar, "span", "text-xs text-text-secondary whitespace-nowrap", t("da_origin_filtered_canvas_kind_label"));
+    appendText(toolbar, "span", "origin_export_toolbar_label", t("da_origin_filtered_canvas_kind_label"));
     toolbar.appendChild(createSelect<OriginFilteredCanvasKind>({
       id: "analysis-origin-filtered-canvas-kind-select",
       value: originFilteredCanvasKind,
@@ -359,7 +357,7 @@ const createOriginExportToolbar = ({
     }));
   }
 
-  appendText(toolbar, "span", "text-xs text-text-secondary whitespace-nowrap", t("da_origin_curve_export_mode_label"));
+  appendText(toolbar, "span", "origin_export_toolbar_label", t("da_origin_curve_export_mode_label"));
   toolbar.appendChild(createCurveSelector({
     curveOptions,
     selectedCurveOptionKeySet,
@@ -371,7 +369,7 @@ const createOriginExportToolbar = ({
     t,
   }));
 
-  appendText(toolbar, "span", "text-xs text-text-secondary whitespace-nowrap", t("da_origin_export_content_label"));
+  appendText(toolbar, "span", "origin_export_toolbar_label", t("da_origin_export_content_label"));
   toolbar.appendChild(createContentSelector({
     options: originExportContentOptions,
     selectedKeys: selectedContentKeys,
@@ -380,7 +378,7 @@ const createOriginExportToolbar = ({
   }));
 
   const actions = document.createElement("div");
-  actions.className = "flex items-center gap-2 flex-wrap";
+  actions.className = "origin_export_toolbar_actions";
   actions.appendChild(createToolbarButton({
     id: "analysis-origin-open-btn",
     label: t("da_open_in_origin"),
@@ -396,15 +394,15 @@ const createOriginExportToolbar = ({
 
   if (mode === "merged" && hasMixedExportYScales) {
     const hint = document.createElement("div");
-    hint.className = "mt-3 space-y-2";
+    hint.className = "origin_export_toolbar_hint";
     const box = document.createElement("div");
-    box.className = "rounded-lg border border-border bg-bg-page/60 px-3 py-2 text-xs text-text-secondary";
+    box.className = "origin_export_toolbar_hint_box";
     const row = document.createElement("div");
-    row.className = "flex items-start gap-2";
+    row.className = "origin_export_toolbar_hint_row";
     const icon = createCogIcon({
       icon: lxAlertTriangle,
       size: 14,
-      className: "mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500",
+      className: "origin_export_toolbar_hint_icon",
     });
     icon.setAttribute("aria-hidden", "true");
     row.appendChild(icon);

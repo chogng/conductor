@@ -14,12 +14,9 @@ const TRANSFER_COLUMN_WIDTHS_PX = [
 ];
 const DERIVATIVE_ONLY_COLUMN_WIDTHS_PX = [168, 168, 88];
 
-const GROUP_HEADER_CLASS =
-  "p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-center border-l border-border";
-const SUB_HEADER_CLASS =
-  "p-2 text-[14px] font-semibold text-text-secondary text-center whitespace-nowrap border-l border-border";
-const SERIES_HEADER_CLASS =
-  "sticky left-0 z-20 p-2 text-[14px] font-semibold tracking-wide text-text-secondary text-left whitespace-nowrap align-middle bg-bg-surface shadow-[1px_0_0_var(--color-border)]";
+const GROUP_HEADER_CLASS = "parameters_group_header";
+const SUB_HEADER_CLASS = "parameters_sub_header";
+const SERIES_HEADER_CLASS = "parameters_series_header";
 
 const appendHeaderCell = (
   row: HTMLTableRowElement,
@@ -65,10 +62,10 @@ const appendTableHeader = (
   }: Pick<ParametersViewOptions, "gmMetricHeader" | "showTransferMetrics" | "t">,
 ): void => {
   const thead = document.createElement("thead");
-  thead.className = "sticky top-0 bg-bg-surface z-10";
+  thead.className = "parameters_table_head";
 
   const groupRow = document.createElement("tr");
-  groupRow.className = "border-b border-border";
+  groupRow.className = "parameters_header_row";
   appendHeaderCell(groupRow, {
     className: SERIES_HEADER_CLASS,
     rowSpan: 2,
@@ -76,12 +73,12 @@ const appendTableHeader = (
   });
   if (showTransferMetrics) {
     appendHeaderCell(groupRow, {
-      className: `${GROUP_HEADER_CLASS} bg-emerald-500/5`,
+      className: `${GROUP_HEADER_CLASS} parameters_cell--on`,
       colSpan: 2,
       text: t("da_calc_group_on_state"),
     });
     appendHeaderCell(groupRow, {
-      className: `${GROUP_HEADER_CLASS} bg-cyan-500/5`,
+      className: `${GROUP_HEADER_CLASS} parameters_cell--off`,
       colSpan: 2,
       text: t("da_calc_group_off_state"),
     });
@@ -91,18 +88,18 @@ const appendTableHeader = (
     });
   }
   appendHeaderCell(groupRow, {
-    className: `${GROUP_HEADER_CLASS} bg-amber-500/5`,
+    className: `${GROUP_HEADER_CLASS} parameters_cell--derivative`,
     colSpan: 2,
     text: t("da_calc_group_derivative"),
   });
   if (showTransferMetrics) {
     appendHeaderCell(groupRow, {
-      className: `${GROUP_HEADER_CLASS} bg-violet-500/5`,
+      className: `${GROUP_HEADER_CLASS} parameters_cell--threshold`,
       colSpan: 2,
       text: t("da_calc_group_threshold_voltage"),
     });
     appendHeaderCell(groupRow, {
-      className: `${GROUP_HEADER_CLASS} bg-rose-500/5`,
+      className: `${GROUP_HEADER_CLASS} parameters_cell--ss`,
       colSpan: 2,
       text: t("da_calc_group_ss"),
     });
@@ -114,22 +111,22 @@ const appendTableHeader = (
   }
 
   const labelRow = document.createElement("tr");
-  labelRow.className = "border-b border-border";
+  labelRow.className = "parameters_header_row";
   if (showTransferMetrics) {
-    appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} bg-emerald-500/5`, text: "|I|on" });
-    appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} bg-emerald-500/5`, text: "x" });
-    appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} bg-cyan-500/5`, text: "|I|off" });
-    appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} bg-cyan-500/5`, text: "x" });
+    appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} parameters_cell--on`, text: "|I|on" });
+    appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} parameters_cell--on`, text: "x" });
+    appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} parameters_cell--off`, text: "|I|off" });
+    appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} parameters_cell--off`, text: "x" });
     appendHeaderCell(labelRow, { text: "Ion/Ioff" });
   }
-  appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} bg-amber-500/5`, text: gmMetricHeader });
-  appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} bg-amber-500/5`, text: "x" });
+  appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} parameters_cell--derivative`, text: gmMetricHeader });
+  appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} parameters_cell--derivative`, text: "x" });
   if (showTransferMetrics) {
     const vthHint = t("da_calc_group_threshold_voltage_hint");
-    appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} bg-violet-500/5`, text: "Vth,e", title: vthHint });
-    appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} bg-violet-500/5`, text: "Vth,h", title: vthHint });
-    appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} bg-rose-500/5`, text: "SS" });
-    appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} bg-rose-500/5`, text: "x" });
+    appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} parameters_cell--threshold`, text: "Vth,e", title: vthHint });
+    appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} parameters_cell--threshold`, text: "Vth,h", title: vthHint });
+    appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} parameters_cell--ss`, text: "SS" });
+    appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} parameters_cell--ss`, text: "x" });
     appendHeaderCell(labelRow, { text: "Jon", title: t("da_calc_group_jon_hint") });
   }
 
@@ -147,14 +144,14 @@ export const renderParametersView = (
     ? TRANSFER_COLUMN_WIDTHS_PX
     : DERIVATIVE_ONLY_COLUMN_WIDTHS_PX;
   const table = document.createElement("table");
-  table.className = "w-full table-fixed text-sm border-collapse";
+  table.className = "parameters_table";
   table.style.minWidth = `${widths.reduce((total, width) => total + width, 0)}px`;
 
   appendColumns(table, widths);
   appendTableHeader(table, options);
 
   const body = document.createElement("tbody");
-  body.className = "divide-y divide-border";
+  body.className = "parameters_table_body";
   table.appendChild(body);
   container.appendChild(table);
 

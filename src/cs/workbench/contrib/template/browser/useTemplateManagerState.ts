@@ -14,7 +14,6 @@ import {
 import { normalizeYUnit } from "src/cs/workbench/contrib/chart/common/units";
 import { resolveXSegmentationMode } from "src/cs/workbench/common/deviceAnalysis/XSegmentation";
 import { AUTO_TEMPLATE_ID } from "src/cs/workbench/common/deviceAnalysis/autoExtraction";
-import { ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT } from "src/cs/workbench/contrib/template/common/templateEvents";
 import {
   validateTemplateForApply,
   validateTemplateForSave,
@@ -964,26 +963,6 @@ export const useTemplateManagerState = ({
     setSelectedTemplateId,
     setTemplateMode,
   ]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return undefined;
-
-    const handleOnboardingCreateTemplate = () => {
-      handleCreateNewTemplate();
-    };
-
-    window.addEventListener(
-      ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT,
-      handleOnboardingCreateTemplate,
-    );
-
-    return () => {
-      window.removeEventListener(
-        ANALYSIS_ONBOARDING_CREATE_TEMPLATE_EVENT,
-        handleOnboardingCreateTemplate,
-      );
-    };
-  }, [handleCreateNewTemplate]);
 
   return {
     applyConfiguration,

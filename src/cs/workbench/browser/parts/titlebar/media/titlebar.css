@@ -73,6 +73,10 @@
     -webkit-app-region: no-drag;
   }
 
+  .da_window_controls--nav {
+    @apply ml-4;
+  }
+
   .da_window_icon_btn {
     @apply flex items-center justify-center h-full w-[38px] text-text-secondary transition-colors;
     background: transparent;
@@ -128,6 +132,22 @@
   .da_window_control_btn--close:hover {
     @apply text-white;
     background-color: #e81123 !important;
+  }
+
+  .workbench_titlebar_skeleton_icon_dot {
+    @apply h-[14px] w-[14px] rounded-full;
+    background-color: currentColor;
+    opacity: 0.15;
+  }
+
+  .workbench_titlebar_skeleton_control_dot {
+    @apply h-[12px] w-[12px] rounded-full;
+    background-color: currentColor;
+    opacity: 0.15;
+  }
+
+  .workbench_titlebar_skeleton_file_select {
+    @apply h-7 w-44 rounded-full border border-border bg-bg-surface/70;
   }
 
   .da_top_menu_trigger {

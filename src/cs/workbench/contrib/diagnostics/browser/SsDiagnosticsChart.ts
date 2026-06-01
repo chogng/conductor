@@ -93,7 +93,7 @@ export const createSsDiagnosticsChart = ({
   }
 
   const root = document.createElement("div");
-  root.className = "h-full min-h-[180px] rounded-lg border border-border/60 bg-bg-page/40";
+  root.className = "diagnostics_chart_shell";
   root.setAttribute("role", "img");
   root.setAttribute("aria-label", "SS diagnostics chart");
   root.dataset.seriesCount = String(series.length);

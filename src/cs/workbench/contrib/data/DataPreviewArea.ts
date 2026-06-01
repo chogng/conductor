@@ -13,7 +13,7 @@ export class DataPreviewAreaView {
 
   constructor(props: DataPreviewAreaProps) {
     this.widget = new SplitViewWidget({
-      className: "flex-1 min-h-0",
+      className: "data_preview_area",
       gap: 16,
       orientation: "horizontal",
       panes: getPanes(),
@@ -24,7 +24,7 @@ export class DataPreviewAreaView {
 
   public update(props: DataPreviewAreaProps): void {
     this.widget.update({
-      className: "flex-1 min-h-0",
+      className: "data_preview_area",
       gap: 16,
       orientation: "horizontal",
       panes: getPanes(),

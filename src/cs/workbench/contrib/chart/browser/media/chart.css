@@ -1,0 +1,123 @@
+.chart_canvas_multi_line {
+  @apply relative h-full w-full;
+}
+
+.chart_canvas_multi_line_canvas {
+  @apply absolute inset-0;
+}
+
+.chart_main_plot {
+  @apply relative h-full min-h-[320px] w-full;
+}
+
+.chart_main_plot_canvas {
+  @apply absolute inset-0 h-full w-full;
+}
+
+.chart_main_plot_legend {
+  @apply absolute right-3 top-3 max-h-[45%] overflow-hidden rounded-md border border-border bg-bg-page/80 px-2 py-2;
+}
+
+.chart_main_plot_legend_list {
+  @apply space-y-1 text-xs text-text-secondary;
+}
+
+.chart_main_plot_legend_row {
+  @apply flex min-w-0 items-center gap-2;
+}
+
+.chart_main_plot_legend_swatch {
+  @apply h-2 w-2 shrink-0 rounded-full;
+}
+
+.chart_main_plot_legend_label {
+  @apply truncate;
+}
+
+.chart_main_plot_tooltip {
+  @apply pointer-events-none absolute rounded-md border border-border bg-bg-page/95 px-2 py-1 text-xs text-text-primary shadow-lg;
+}
+
+.chart_main_plot_tooltip--hidden {
+  @apply hidden;
+}
+
+.chart_main_plot_tooltip_title {
+  @apply font-medium;
+}
+
+.chart_main_plot_tooltip_row {
+  @apply flex items-center gap-2;
+}
+
+.chart_main_plot_tooltip_swatch {
+  @apply h-2 w-2 rounded-full;
+}
+
+.chart_axis_settings_card {
+  @apply flex h-full min-h-0 flex-col !pr-0;
+}
+
+.chart_axis_settings_compact_input {
+  @apply w-[132px];
+}
+
+.chart_axis_settings_compact_input_field {
+  @apply !h-8 !gap-0 border border-border px-2 py-1;
+}
+
+.chart_axis_settings_header {
+  @apply mb-3 pr-4;
+}
+
+.chart_axis_settings_header_row {
+  @apply flex items-center justify-between gap-2;
+}
+
+.chart_axis_settings_sections {
+  @apply flex flex-col gap-3;
+}
+
+.chart_axis_settings_warning {
+  @apply border-t border-border/50 px-3 py-2 text-[11px] text-yellow-500;
+}
+
+.chart_axis_settings_section {
+  @apply overflow-hidden rounded-md border border-border/60 bg-bg-surface;
+}
+
+.chart_axis_settings_section_header {
+  @apply border-b border-border/50 px-3 py-2 text-xs font-semibold text-text-secondary;
+}
+
+.chart_axis_settings_row {
+  @apply grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/40 px-3 py-2 last:border-b-0;
+}
+
+.chart_axis_settings_row_label {
+  @apply text-xs text-text-secondary;
+}
+
+.chart_axis_settings_scroll {
+  @apply min-h-0 flex-1;
+}
+
+.chart_axis_settings_scroll_viewport {
+  @apply pr-4;
+}
+
+.chart_axis_settings_icon_button {
+  @apply h-8 w-8 rounded-full text-text-secondary hover:text-text-primary;
+}
+
+.chart_axis_settings_text_button {
+  @apply h-7 px-2 text-xs text-text-secondary hover:text-text-primary;
+}
+
+.chart_axis_settings_title {
+  @apply min-w-0 flex-1;
+}
+
+.chart_axis_settings_title_text {
+  @apply truncate text-xs font-semibold text-text-primary;
+}

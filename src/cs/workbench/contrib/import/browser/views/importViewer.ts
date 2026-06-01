@@ -153,7 +153,7 @@ export class ImportViewerView implements IDisposable {
     this.fileInput.type = "file";
     this.fileInput.multiple = true;
     this.fileInput.accept = DATA_IMPORT_ACCEPT;
-    this.fileInput.className = "hidden";
+    this.fileInput.className = "import-viewer-file-input";
 
     this.viewport = document.createElement("div");
     this.viewport.className = "import-viewer-dropzone-viewport";

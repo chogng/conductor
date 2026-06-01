@@ -1,0 +1,75 @@
+.workbench_window {
+  @apply flex h-full min-h-screen flex-col overflow-hidden bg-bg-page;
+}
+
+.workbench_window_body {
+  @apply relative min-h-0 flex-1;
+}
+
+.workbench_window_content {
+  @apply relative z-[1] flex h-full min-h-0 flex-col;
+}
+
+.workbench_window_skeleton {
+  @apply pointer-events-none absolute inset-0 min-h-0 opacity-100;
+}
+
+.workbench_window_skeleton_body {
+  @apply h-full min-h-0 overflow-hidden p-1;
+}
+
+.workbench_window_skeleton_body--desktop-command-bar {
+  @apply pt-0;
+}
+
+.workbench_window_skeleton_grid {
+  @apply grid h-full min-h-0 grid-cols-[var(--sidebar-width,280px)_minmax(0,1fr)] gap-1;
+}
+
+.workbench_window_skeleton_sidebar {
+  @apply flex min-h-0 flex-col rounded-[20px] border border-border bg-bg-surface/70 p-4;
+}
+
+.workbench_window_skeleton_sidebar_header {
+  @apply mb-4 flex items-center justify-between gap-2;
+}
+
+.workbench_window_skeleton_sidebar_action {
+  @apply h-10 w-40 rounded-xl border border-border bg-bg-page/70;
+}
+
+.workbench_window_skeleton_sidebar_icon {
+  @apply h-10 w-10 rounded-xl border border-border bg-bg-page/70;
+}
+
+.workbench_window_skeleton_sidebar_label {
+  @apply mb-4 h-4 w-28 rounded bg-bg-page/70;
+}
+
+.workbench_window_skeleton_sidebar_dropzone {
+  @apply flex-1 rounded-[20px] border border-border bg-bg-page/60;
+}
+
+.workbench_window_skeleton_content {
+  @apply flex min-h-0 rounded-[20px] border border-border bg-bg-surface/60 pb-4 pl-0 pr-4 pt-4;
+}
+
+.workbench_window_skeleton_content_inner {
+  @apply flex min-h-0 flex-1 flex-col pl-4;
+}
+
+.workbench_window_skeleton_content_panel {
+  @apply min-h-0 flex-1 rounded-[16px] border border-border bg-bg-page/75;
+}
+
+.workbench_message_pane {
+  @apply flex h-full min-h-[180px] flex-col items-center justify-center rounded-lg border border-border/60 bg-bg-surface/60 p-6 text-center;
+}
+
+.workbench_message_title {
+  @apply text-sm font-semibold text-text-primary;
+}
+
+.workbench_message_description {
+  @apply mt-2 max-w-sm text-xs text-text-secondary;
+}

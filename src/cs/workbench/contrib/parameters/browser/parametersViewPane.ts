@@ -14,6 +14,8 @@ import {
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { RcCurveChartSeries } from "src/cs/workbench/contrib/parameters/browser/rcAnalysisModel";
 
+import "src/cs/workbench/contrib/parameters/browser/media/parametersView.css";
+
 export class ParametersViewPane extends Disposable {
   constructor(private readonly container: HTMLElement) {
     super();

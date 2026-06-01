@@ -7,7 +7,6 @@ import type {
   AnalysisDefaultSettings,
   AppUpdateSettings,
   FileNameMatchingSettings,
-  OnboardingSettings,
   OriginSettings,
   SettingsViewProps,
   SettingsSectionId,
@@ -192,12 +191,6 @@ export class SettingsView {
         options: this.options.windowCloseBehaviorOptions,
         disabled: this.options.windowCloseSettings.isSaving,
       })),
-      cardRow("analysis-settings-onboarding-card", t("da_settings_onboarding_title"), this.createButton({
-        id: "analysis-settings-onboarding-open-btn",
-        label: t("da_settings_onboarding_open_btn"),
-        onClick: this.options.onboardingSettings.onOpenGuide,
-        variant: "secondary",
-      })),
     );
 
     container.append(
@@ -216,7 +209,7 @@ export class SettingsView {
       this.createPathControls(originSettings),
     );
     if (!originSettings.isConfigurable) {
-      pathCard.appendChild(text("p", "text-sm text-text-secondary", t("da_settings_origin_not_configurable_hint")));
+      pathCard.appendChild(text("p", "settings-description", t("da_settings_origin_not_configurable_hint")));
     }
     container.appendChild(pathCard);
 
@@ -240,7 +233,7 @@ export class SettingsView {
   private renderAbout(container: HTMLElement): void {
     const { appUpdateSettings, t } = this.options;
     container.append(
-      cardRow("analysis-settings-about-version-card", t("da_settings_about_version_title"), text("p", "font-mono text-sm text-text-primary", appUpdateSettings.currentVersion || t("da_settings_about_version_unknown"))),
+      cardRow("analysis-settings-about-version-card", t("da_settings_about_version_title"), text("p", "settings-code-value", appUpdateSettings.currentVersion || t("da_settings_about_version_unknown"))),
       cardRow("analysis-settings-app-update-card", t("da_settings_app_update_title"), this.createButton({
         id: "analysis-settings-app-update-check-btn",
         label: this.options.appUpdateChecking ? t("da_settings_app_update_checking") : t("da_settings_app_update_check_btn"),
@@ -332,7 +325,7 @@ export class SettingsView {
     controls.id = "analysis-settings-origin-path-controls";
     controls.append(
       div("settings-path-value",
-        text("p", "truncate font-mono text-xs text-text-primary", settings.currentPath || (settings.isLoading ? t("da_settings_storage_loading") : settings.isConfigurable ? t("da_settings_storage_unavailable") : t("da_settings_storage_not_configurable_hint"))),
+        text("p", "settings-path-text", settings.currentPath || (settings.isLoading ? t("da_settings_storage_loading") : settings.isConfigurable ? t("da_settings_storage_unavailable") : t("da_settings_storage_not_configurable_hint"))),
       ),
       this.createButton({
         id: "analysis-settings-persistence-path-choose-btn",
@@ -366,7 +359,7 @@ export class SettingsView {
         disabled: settings.isSaving,
         inputClassName: "font-mono",
       }),
-      text("p", "text-xs text-text-secondary", t("da_settings_filename_matching_hint", { value: DEFAULT_FILE_NAME_FIELD_SEPARATORS })),
+      text("p", "settings-hint", t("da_settings_filename_matching_hint", { value: DEFAULT_FILE_NAME_FIELD_SEPARATORS })),
     );
     container.appendChild(body);
     appendFeedback(container, settings.feedback);
@@ -378,7 +371,7 @@ export class SettingsView {
     const controls = div("settings-path-controls");
     controls.append(
       div("settings-path-value",
-        text("p", "truncate font-mono text-xs text-text-primary", settings.currentPath || (settings.isLoading ? t("da_settings_origin_loading") : t("da_settings_origin_not_configurable_hint"))),
+        text("p", "settings-path-text", settings.currentPath || (settings.isLoading ? t("da_settings_origin_loading") : t("da_settings_origin_not_configurable_hint"))),
       ),
       this.createButton({
         id: "analysis-settings-origin-path-choose-btn",
@@ -481,7 +474,7 @@ export class SettingsView {
     container.append(
       label(t("da_settings_origin_plot_post_commands_label")),
       textarea,
-      text("p", "text-xs text-text-secondary", t("da_settings_origin_plot_post_commands_hint")),
+      text("p", "settings-hint", t("da_settings_origin_plot_post_commands_hint")),
     );
     return container;
   }
@@ -489,7 +482,7 @@ export class SettingsView {
   private createSelect(options: FieldOptions): HTMLSelectElement {
     const select = document.createElement("select");
     select.id = options.id;
-    select.className = "input_field ui-select_field--md w-full";
+    select.className = "input_field ui-select_field--md settings-select";
     select.value = options.value;
     select.disabled = options.disabled === true;
     for (const option of options.options) {
@@ -573,14 +566,14 @@ function card(id: string, className: string): HTMLDivElement {
 function cardRow(id: string, titleText: string, control: Node): HTMLElement {
   const element = card(id, "settings-card-row");
   element.appendChild(div("settings-row",
-    div("min-w-0", title(titleText)),
+    div("settings-row-title", title(titleText)),
     div("settings-row-control", control),
   ));
   return element;
 }
 
 function title(value: string): HTMLElement {
-  return text("h3", "text-base font-semibold text-text-primary", value);
+  return text("h3", "settings-title", value);
 }
 
 function headingBlock(titleText: string, description: string): HTMLElement {
@@ -591,13 +584,13 @@ function field(labelText: string, control: Node, hint?: string): HTMLElement {
   const element = div("settings-field");
   element.append(label(labelText), control);
   if (hint) {
-    element.appendChild(text("p", "text-xs text-text-secondary", hint));
+    element.appendChild(text("p", "settings-hint", hint));
   }
   return element;
 }
 
 function label(value: string): HTMLElement {
-  return text("p", "text-xs text-text-secondary", value);
+  return text("p", "settings-label", value);
 }
 
 function text<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, value: string): HTMLElementTagNameMap[K] {
@@ -612,5 +605,5 @@ function appendFeedback(container: HTMLElement, feedback: { type: "idle" | "succ
     return;
   }
 
-  container.appendChild(text("p", `text-sm ${feedback.type === "error" ? "text-red-500" : "text-emerald-600"}`, feedback.message));
+  container.appendChild(text("p", feedback.type === "error" ? "settings-feedback settings-feedback--error" : "settings-feedback settings-feedback--success", feedback.message));
 }

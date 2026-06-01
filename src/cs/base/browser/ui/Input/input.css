@@ -10,7 +10,7 @@
 }
 
 .input_field {
-  @apply relative flex items-center gap-2 px-3 py-2 rounded-lg transition-all bg-bg-page;
+  @apply relative flex items-center gap-2 rounded-lg border border-border bg-bg-page px-3 py-2 transition-all;
 }
 
 .input_field--sm {
@@ -30,7 +30,11 @@
 }
 
 .input_field[data-state="enable"] {
-  @apply border-transparent;
+  @apply border-border;
+}
+
+.input_field[data-state="enable"]:focus-within {
+  @apply border-accent;
 }
 
 /* Keyboard focus ring (component-level outer ring).
@@ -66,6 +70,14 @@ html[data-nav="keyboard"] .input_field[data-state="enable"]:focus-within::after 
 
 .input_native {
   @apply flex-1 min-w-0 bg-transparent border-0 outline-none text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-0;
+}
+
+.input_native.input_field {
+  @apply block w-full flex-none border-border bg-bg-page px-3 py-2;
+}
+
+.input_native.input_field:focus {
+  @apply border-accent;
 }
 
 .input_native:disabled {

@@ -180,13 +180,13 @@ export const createCanvasMultiLineChart = ({
   yScaleType = "linear",
 }: CanvasMultiLineChartProps): HTMLElement => {
   const root = document.createElement("div");
-  root.className = `relative h-full w-full ${className}`.trim();
+  root.className = `chart_canvas_multi_line ${className}`.trim();
   if (title) {
     root.title = title;
   }
 
   const canvas = document.createElement("canvas");
-  canvas.className = "absolute inset-0";
+  canvas.className = "chart_canvas_multi_line_canvas";
   root.append(canvas);
 
   const resolvedDomain = resolvePreviewChartDomain({

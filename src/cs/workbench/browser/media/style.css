@@ -167,6 +167,26 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+.workbench_root {
+  @apply relative h-full min-h-0 w-full overflow-hidden;
+}
+
+.workbench_layout {
+  @apply relative flex h-full min-h-0 flex-1 flex-col;
+}
+
+.workbench_layout_shell {
+  @apply h-full min-h-0;
+}
+
+.workbench_layout_pane {
+  @apply h-full min-h-0;
+}
+
+.workbench_layout_pane--hidden {
+  @apply hidden;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;

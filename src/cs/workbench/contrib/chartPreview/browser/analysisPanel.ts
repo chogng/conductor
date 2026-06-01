@@ -62,7 +62,7 @@ export class AnalysisPanel {
 
   constructor(props: AnalysisPanelProps) {
     this.element = document.createElement("section");
-    this.element.className = "h-full flex flex-col";
+    this.element.className = "analysis_panel";
     this.update(props);
   }
 
@@ -87,7 +87,7 @@ const createAnalysisPanelContent = ({
     if (shouldMountCharts) {
       return createAnalysisStatusCard({
         id: "analysis-analysis-loading-card",
-        iconClassName: "mb-4 opacity-20 animate-pulse",
+        iconClassName: "analysis_status_icon--muted analysis_status_icon--pulse",
         message: t("da_analysis_loading"),
         hint: t("da_analysis_loading_hint"),
         ctaCopy: "loading analysis charts",
@@ -103,7 +103,7 @@ const createAnalysisPanelContent = ({
 
   return createAnalysisStatusCard({
     id: "analysis-empty-processed-data-card",
-    iconClassName: "mb-4 opacity-20",
+    iconClassName: "analysis_status_icon--muted",
     message: t("da_no_processed_data"),
     hint: t("da_no_processed_data_hint"),
     ctaCopy: "empty processed data",
@@ -119,18 +119,18 @@ const createProcessingCard = (
   const percent = Math.min(100, Math.round((processed / total) * 100));
   const card = createAnalysisStatusCard({
     id: "analysis-processing-card",
-    iconClassName: "mb-4 opacity-20 animate-pulse",
+    iconClassName: "analysis_status_icon--muted analysis_status_icon--pulse",
     message: t("da_analysis_processing"),
     hint: t("da_analysis_processing_hint"),
     ctaCopy: "processing analysis data",
   });
 
   const progress = document.createElement("div");
-  progress.className = "mt-4 w-full max-w-sm";
+  progress.className = "analysis_processing_progress";
 
   const labelRow = document.createElement("div");
   labelRow.className =
-    "mb-2 flex items-center justify-between text-xs text-text-secondary";
+    "analysis_processing_progress_label";
 
   const processedLabel = document.createElement("span");
   processedLabel.textContent = t("da_analysis_processing_progress", {
@@ -143,10 +143,10 @@ const createProcessingCard = (
   labelRow.append(processedLabel, percentLabel);
 
   const track = document.createElement("div");
-  track.className = "h-2 overflow-hidden rounded-full bg-bg-page";
+  track.className = "analysis_processing_progress_track";
 
   const bar = document.createElement("div");
-  bar.className = "h-full rounded-full bg-accent transition-[width] duration-200";
+  bar.className = "analysis_processing_progress_bar";
   bar.style.width = `${percent}%`;
   track.append(bar);
   progress.append(labelRow, track);
@@ -173,17 +173,16 @@ const createAnalysisStatusCard = ({
     cta: "Device analysis",
     ctaPosition: "analysis",
     ctaCopy,
-    className:
-      "flex-1 flex flex-col items-center justify-center border-2 border-dashed border-border bg-bg-surface/50 text-text-secondary",
+    className: "analysis_status_card",
   });
   card.append(
     createLocalCogIcon({
       icon: lxAnalysis,
       size: 48,
-      className: iconClassName,
+      className: `analysis_status_icon ${iconClassName}`,
     }),
-    createText("p", "text-lg font-medium", message),
-    createText("p", "text-sm", hint),
+    createText("p", "analysis_status_message", message),
+    createText("p", "analysis_status_hint", hint),
   );
   return card;
 };

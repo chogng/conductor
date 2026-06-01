@@ -1,4 +1,4 @@
-import "src/cs/workbench/services/lifecycle/browser/lifecycleService";
+import "src/cs/workbench/workbench.web.main";
 
 import { mainWindow } from "src/cs/base/browser/window";
 import { InstantiationService } from "src/cs/platform/instantiation/common/instantiationService";
@@ -15,6 +15,7 @@ import {
   LifecyclePhase,
   type ILifecycleService as ILifecycleServiceType,
 } from "src/cs/workbench/services/lifecycle/common/lifecycle";
+import { startWorkbenchThemeContribution } from "src/cs/workbench/services/themes/browser/theme.contribution";
 
 declare global {
   interface Window {
@@ -147,3 +148,4 @@ const logBoot = createBootLogger("browser", startMs, () => isBootProfileEnabled)
 
 startBrowserWorkbenchBoot(logBoot, isBootProfileEnabled);
 startWorkbench();
+startWorkbenchThemeContribution();

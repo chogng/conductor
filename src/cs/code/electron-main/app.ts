@@ -37,7 +37,7 @@ import {
 } from "../electron-utility/sharedProcess/sharedProcessMain.js";
 import { Win32UpdateService } from "../../platform/update/electron-main/updateService.win32.js";
 import { registerContextMenuListener } from "../../base/parts/contextmenu/electron-main/contextmenu.js";
-import { workbenchBootstrapIpcChannels } from "../common/workbenchBootstrapIpc.js";
+import { workbenchBootstrapIpcChannels } from "../../base/parts/sandbox/common/sandboxTypes.js";
 import { nativeHostIpcChannels } from "../../platform/native/common/nativeIpc.js";
 
 const require = createRequire(import.meta.url);

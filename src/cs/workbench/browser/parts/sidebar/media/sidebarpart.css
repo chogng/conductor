@@ -142,6 +142,26 @@
   color: rgb(var(--text-secondary));
 }
 
+.workbench_sidebar_badge_wrapper {
+  @apply shrink-0 self-start;
+}
+
+.workbench_sidebar_section_header {
+  @apply flex items-start justify-between gap-2;
+}
+
+.workbench_sidebar_section_actions {
+  @apply flex flex-col gap-1;
+}
+
+.workbench_sidebar_action_icon {
+  @apply shrink-0;
+}
+
+.workbench_sidebar_action_label {
+  @apply min-w-0 truncate text-left;
+}
+
 .workbench_sidebar_badge[data-tone="accent"] {
   background: rgb(var(--accent) / 0.16);
   color: rgb(var(--accent));

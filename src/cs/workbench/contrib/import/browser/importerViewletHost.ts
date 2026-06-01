@@ -9,7 +9,7 @@ export class ImporterViewletHost {
 
   constructor(props: ImporterViewletProps) {
     this.element = document.createElement("div");
-    this.element.className = "flex flex-col flex-1 min-h-0";
+    this.element.className = "importer-viewlet-host-root";
     this.view = new ImporterViewletView(this.element, props);
   }
 

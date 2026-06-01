@@ -1,3 +1,5 @@
+import "src/cs/workbench/browser/media/part.css";
+
 export type WorkbenchParts = {
   readonly controller?: Node | null;
   readonly main: HTMLElement;
@@ -33,7 +35,7 @@ export const createWorkbenchParts = ({
   sidebar,
 }: WorkbenchPartsOptions): WorkbenchParts => {
   const main = document.createElement("div");
-  main.className = "relative h-full min-h-0";
+  main.className = "workbench_parts_main";
   appendIfPresent(main, data);
   appendIfPresent(main, analysis);
 
@@ -56,7 +58,7 @@ export const createPanePart = ({
   section.role = "region";
   section.setAttribute("aria-labelledby", labelledBy);
   section.setAttribute("aria-hidden", String(!isActive));
-  section.className = isActive ? "h-full min-h-0" : "hidden h-full min-h-0";
+  section.className = isActive ? "workbench_pane_part" : "workbench_pane_part workbench_pane_part--hidden";
   if (!isActive) {
     section.inert = true;
   }
@@ -69,7 +71,7 @@ export const createScrollPanePart = ({
   isActive,
   labelledBy,
   paneId,
-  className = "da_page_scroll h-full min-h-0",
+  className = "da_page_scroll workbench_scroll_pane_part",
   viewportClassName = "",
 }: ScrollPanePartOptions): HTMLElement =>
   createPanePart({

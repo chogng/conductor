@@ -509,15 +509,15 @@ const renderLegend = (
   }
 
   const list = document.createElement("div");
-  list.className = "space-y-1 text-xs text-text-secondary";
+  list.className = "chart_main_plot_legend_list";
   for (const [index, series] of seriesList.entries()) {
     const row = document.createElement("div");
-    row.className = "flex items-center gap-2 min-w-0";
+    row.className = "chart_main_plot_legend_row";
     const swatch = document.createElement("span");
-    swatch.className = "h-2 w-2 rounded-full shrink-0";
+    swatch.className = "chart_main_plot_legend_swatch";
     swatch.style.backgroundColor = series.color || resolveSeriesChartColor(series as any, index) || getChartColor(index);
     const label = document.createElement("span");
-    label.className = "truncate";
+    label.className = "chart_main_plot_legend_label";
     label.textContent = String(series.name ?? `Series ${index + 1}`);
     row.append(swatch, label);
     list.appendChild(row);
@@ -527,20 +527,20 @@ const renderLegend = (
 
 export const createMainPlotChart = (props: MainPlotChartProps): HTMLElement => {
   const root = document.createElement("div");
-  root.className = "relative h-full w-full min-h-[320px]";
+  root.className = "chart_main_plot";
 
   const canvas = document.createElement("canvas");
-  canvas.className = "absolute inset-0 h-full w-full";
+  canvas.className = "chart_main_plot_canvas";
   root.appendChild(canvas);
 
   const legend = document.createElement("div");
-  legend.className = "absolute right-3 top-3 max-h-[45%] overflow-hidden rounded-md border border-border bg-bg-page/80 px-2 py-2";
+  legend.className = "chart_main_plot_legend";
   legend.style.width = `${Math.max(80, Number(props.legendWidth) || 120)}px`;
   root.appendChild(legend);
   renderLegend(legend, props.seriesList ?? [], props.legendContent);
 
   const tooltip = document.createElement("div");
-  tooltip.className = "pointer-events-none absolute hidden rounded-md border border-border bg-bg-page/95 px-2 py-1 text-xs text-text-primary shadow-lg";
+  tooltip.className = "chart_main_plot_tooltip chart_main_plot_tooltip--hidden";
   root.appendChild(tooltip);
 
   let rendered = drawMainPlotChart(canvas, props);
@@ -562,29 +562,29 @@ export const createMainPlotChart = (props: MainPlotChartProps): HTMLElement => {
       localY < plotRect.top ||
       localY > plotRect.bottom
     ) {
-      tooltip.classList.add("hidden");
+      tooltip.classList.add("chart_main_plot_tooltip--hidden");
       return;
     }
 
     const xRaw = scale.pixelToX(localX);
     const entries = findNearestTooltipEntries(props, xRaw, yKey);
     if (!entries.length) {
-      tooltip.classList.add("hidden");
+      tooltip.classList.add("chart_main_plot_tooltip--hidden");
       return;
     }
 
     tooltip.replaceChildren();
     const title = document.createElement("div");
-    title.className = "font-medium";
+    title.className = "chart_main_plot_tooltip_title";
     title.textContent = formatNumber(entries[0]!.x * props.plotXFactor, {
       digits: props.xTooltipDigits ?? props.xTickDigits,
     });
     tooltip.appendChild(title);
     for (const entry of entries) {
       const row = document.createElement("div");
-      row.className = "flex items-center gap-2";
+      row.className = "chart_main_plot_tooltip_row";
       const swatch = document.createElement("span");
-      swatch.className = "h-2 w-2 rounded-full";
+      swatch.className = "chart_main_plot_tooltip_swatch";
       swatch.style.backgroundColor = entry.color;
       const label = document.createElement("span");
       label.textContent = `${entry.label}: ${formatNumber(entry.y * props.plotYFactor, { digits: 4 })}`;
@@ -593,10 +593,10 @@ export const createMainPlotChart = (props: MainPlotChartProps): HTMLElement => {
     }
     tooltip.style.left = `${clamp(localX + 12, 8, rect.width - 220)}px`;
     tooltip.style.top = `${clamp(localY + 12, 8, rect.height - 120)}px`;
-    tooltip.classList.remove("hidden");
+    tooltip.classList.remove("chart_main_plot_tooltip--hidden");
   });
   canvas.addEventListener("mouseleave", () => {
-    tooltip.classList.add("hidden");
+    tooltip.classList.add("chart_main_plot_tooltip--hidden");
   });
 
   return root;

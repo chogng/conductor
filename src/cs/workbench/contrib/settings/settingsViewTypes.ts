@@ -92,17 +92,12 @@ export type AnalysisDefaultSettings = {
   onLegendFontSizeChange: (value: string | number) => Promise<void> | void;
 };
 
-export type OnboardingSettings = {
-  onOpenGuide: () => void;
-};
-
 export type SettingsViewProps = {
   appUpdateSettings: AppUpdateSettings;
   analysisDefaultSettings: AnalysisDefaultSettings;
   fileNameMatchingSettings: FileNameMatchingSettings;
   language: LanguageCode;
   onLanguageChange: (language: LanguageCode) => Promise<void> | void;
-  onboardingSettings: OnboardingSettings;
   theme: ThemeMode;
   onThemeChange: (theme: ThemeMode) => Promise<void> | void;
   originSettings: OriginSettings;

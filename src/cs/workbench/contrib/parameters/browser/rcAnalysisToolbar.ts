@@ -27,25 +27,24 @@ export const renderRcAnalysisToolbar = (
   container.textContent = "";
 
   const toolbar = document.createElement("div");
-  toolbar.className = "rounded-xl border border-border bg-bg-page/40 px-4 py-3";
+  toolbar.className = "parameters_toolbar";
   toolbar.setAttribute("role", "toolbar");
   toolbar.setAttribute("aria-label", t("da_rc_toolbar_aria_label"));
 
   const row = document.createElement("div");
-  row.className = "flex items-center justify-between gap-3 flex-wrap";
+  row.className = "parameters_toolbar_row";
 
   const selectorGroup = document.createElement("div");
-  selectorGroup.className = "flex items-center gap-2 flex-wrap";
+  selectorGroup.className = "parameters_toolbar_selector";
 
   const label = document.createElement("label");
-  label.className = "text-xs text-text-secondary whitespace-nowrap";
+  label.className = "parameters_toolbar_label";
   label.htmlFor = "analysis-rc-bias-select";
   label.textContent = t("da_rc_bias_label");
 
   const select = document.createElement("select");
   select.id = "analysis-rc-bias-select";
-  select.className =
-    "h-8 rounded-lg border border-border bg-bg-page px-2 py-1 text-xs text-text-primary da-neutral-select";
+  select.className = "parameters_toolbar_select da-neutral-select";
   select.value = selectedBiasKey;
   select.disabled = isPending;
 

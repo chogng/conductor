@@ -1,0 +1,51 @@
+.origin_export_toolbar {
+  @apply rounded-xl border border-border bg-bg-page/40 px-4 py-3;
+}
+
+.origin_export_toolbar_header {
+  @apply flex flex-wrap items-center justify-between gap-3;
+}
+
+.origin_export_toolbar_controls {
+  @apply flex flex-wrap items-center gap-2;
+}
+
+.origin_export_toolbar_actions {
+  @apply flex flex-wrap items-center gap-2;
+}
+
+.origin_export_toolbar_label {
+  @apply whitespace-nowrap text-xs text-text-secondary;
+}
+
+.origin_export_toolbar_select {
+  @apply w-fit;
+}
+
+.origin_export_toolbar_chip_group {
+  @apply flex flex-wrap items-center gap-1;
+}
+
+.origin_export_toolbar_toggle {
+  @apply rounded-md border border-border bg-bg-page/40 px-2 py-1 text-xs text-text-secondary;
+}
+
+.origin_export_toolbar_toggle--checked {
+  @apply border-accent bg-accent/10 text-text-primary;
+}
+
+.origin_export_toolbar_hint {
+  @apply mt-3 space-y-2;
+}
+
+.origin_export_toolbar_hint_box {
+  @apply rounded-lg border border-border bg-bg-page/60 px-3 py-2 text-xs text-text-secondary;
+}
+
+.origin_export_toolbar_hint_row {
+  @apply flex items-start gap-2;
+}
+
+.origin_export_toolbar_hint_icon {
+  @apply mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500;
+}

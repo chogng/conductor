@@ -1,7 +1,9 @@
 const messages = {
     common_clear: '清除',
     da_analysis_visualization: '分析与可视化',
+    da_apply_template: '应用模板',
     da_apply_to_all_files: '应用到所有',
+    da_apply_new_files: '应用到新增文件',
     da_apply_to_new_files: '仅新增文件',
     da_apply_to_new_files_busy: '正在提取中，请稍后。',
     da_apply_to_new_files_no_new: '没有需要新增提取的文件。',
@@ -61,6 +63,13 @@ const messages = {
     da_extract_warnings_block: '\n\n警告：\n- {warnings}',
     da_extraction_errors: '提取错误',
     da_general_template: '模板管理',
+    da_preview_empty_hint: '导入文件后会在这里显示表格预览。',
+    da_preview_empty_title: '暂无预览',
+    da_template_file_count: '已导入 {count} 个文件',
+    da_template_x_end: 'X 结束',
+    da_template_x_start: 'X 起始',
+    da_template_y_legend_count: '图例数量',
+    da_template_y_legend_start: '图例起始',
     da_low_confidence_review_title: '自动分类结果待确认',
     da_low_confidence_review_title_count: '自动分类结果待确认（{count} 个文件）',
     da_low_confidence_unnamed_file: '未命名文件',
@@ -244,66 +253,6 @@ const messages = {
     da_no_processed_data: '暂无处理结果',
     da_no_processed_data_hint: '请先在上方应用模板以生成结果。',
     da_no_saved_templates: '暂无已保存模板',
-    da_onboarding_progress: '第 {current} / {total} 步',
-    da_onboarding_skip: '跳过',
-    da_onboarding_back: '上一步',
-    da_onboarding_next: '下一步',
-    da_onboarding_finish: '完成',
-    da_onboarding_welcome_title: '先快速看一遍操作引导',
-    da_onboarding_welcome_body:
-      '这套引导会带你走一遍核心流程：导入 CSV、配置模板、查看分析结果，以及为桌面版配置 Origin。',
-    da_onboarding_import_title: '快速导入数据文件',
-    da_onboarding_import_body:
-      '点击左上角的“导入文件”按钮 或 拖拽文件到虚线框区域以批量化导入数据。点击后自动载入教学 demo 文件以完成后续指引。',
-    da_onboarding_import_action: '载入示例文件',
-    da_onboarding_template_title: '模板决定如何提取数据',
-    da_onboarding_template_body:
-      '选择已有模板、他人分享的模板，或新建一个模板，或使用auto处理曲线信息',
-    da_onboarding_template_config_title: '填写模板的核心字段',
-    da_onboarding_template_config_body:
-      '在进入下一步前，完成以下几个字段是必要的：模板名称、X 的开始/结束/点数，以及 preview 表里 Y 列勾选。它们构成最基础的器件曲线',
-    da_onboarding_template_name_title: '先给模板起个名字',
-    da_onboarding_template_name_body:
-      '输入模板名称。引导会继续带你逐个完成 X 的关键字段。',
-    da_onboarding_template_x_start_title: '选择 X 数据的开始单元格',
-    da_onboarding_template_x_start_body:
-      '点击“开始”输入框，再点击右侧 preview 表里 X 列的数据起始单元格，系统会自动向“开始”中填入起始单元格地址。',
-    da_onboarding_template_x_end_title: '选择 X 数据的结束单元格',
-    da_onboarding_template_x_end_body:
-      '默认把 X 列最后一个单元格填入结束位置。也可以点击“结束”输入框，在右侧 preview 表里改选其他单元格作为“结束”。',
-    da_onboarding_template_x_points_title: '选择 X 数据的曲线切分',
-    da_onboarding_template_x_points_body:
-      '选择每条曲线的切分方式。默认保持“自动”即可，应用会根据数据文件内容推断出合适的点数。',
-    da_onboarding_template_select_columns_title: '在 preview 里勾选要提取的 Y 列',
-    da_onboarding_template_select_columns_body:
-      '点击 preview 表头里的勾选框，勾选需要提取的 Y 列。',
-    da_onboarding_template_save_title: '记得完成后保存模板',
-    da_onboarding_template_save_body:
-      '核心字段填写完成，可保存模板，以应用到数据文件。保存的模板会保存在本地，以直接使用或分享给他人。',
-    da_onboarding_apply_title: '自定义模板处理各种形状数据',
-    da_onboarding_apply_body:
-      '当auto无法处理时，选择新建模板以使用自定义模板来应用到数据文件，模板通过右侧预览区的单元格构建',
-    da_onboarding_apply_run_title: '应用模板或自动处理',
-    da_onboarding_apply_run_body:
-      '回到选择页后，点击“应用到所有”将当前模板或 Auto 应用到全部数据文件，生成后续曲线预览',
-    da_onboarding_analysis_chart_title: '曲线预览区',
-    da_onboarding_analysis_chart_body:
-      '提取完成后，曲线预览区会显示从数据文件中提取出的曲线。勾选图例以选择需要导入到 Origin 绘制的曲线。',
-    da_onboarding_analysis_overview_title: '概览区',
-    da_onboarding_analysis_overview_body:
-      '这里会列出处理后的文件和快速预览，方便你在不同结果之间切换并快速对比。筛选、排序或多选以批量导出需要的数据文件。',
-    da_onboarding_analysis_calculated_title: '参数区',
-    da_onboarding_analysis_calculated_body:
-      '汇总每条曲线的计算结果，在发送到 Origin 前务必查看这些关键指标。',
-    da_onboarding_origin_export_title: '发送到 Origin',
-    da_onboarding_origin_export_body:
-      '点击 Origin 图标，发送当前分析结果发送到 Origin。第一次使用前，请先到设置里完成 Origin.exe 配置',
-    da_onboarding_origin_title: 'Origin 配置',
-    da_onboarding_origin_body:
-      '如果要继续在 Origin 里处理数据，请先测试 Origin.exe 路径。配置完成后，可直接发送当前分析结果到origin',
-    da_onboarding_finish_title: '结束引导',
-    da_onboarding_finish_body:
-      '引导可在设置页重新打开，欢迎使用，有意见请及时反馈',
     da_preview_error: '预览加载失败',
     da_preview_error_hint: '请尝试重新选择该文件',
     da_preview_filename_label: '文件名',
@@ -371,8 +320,6 @@ const messages = {
     da_settings_app_update_checking: '检查中...',
     da_settings_about_version_title: '当前版本',
     da_settings_about_version_unknown: '未知',
-    da_settings_onboarding_title: '新手引导',
-    da_settings_onboarding_open_btn: '打开引导',
     da_settings_storage_title: '用户配置路径',
     da_settings_storage_desc: '设置模板和应用配置的存储位置。',
     da_settings_storage_path_label: '用户配置路径',

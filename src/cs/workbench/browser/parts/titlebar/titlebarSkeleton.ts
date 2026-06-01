@@ -34,7 +34,7 @@ const createSkeletonIcon = (className = ""): HTMLElement =>
       "div",
       `da_window_icon_btn pointer-events-none ${className}`.trim(),
     ),
-    [createElement("div", "h-[14px] w-[14px] rounded-full bg-current/15")],
+    [createElement("div", "workbench_titlebar_skeleton_icon_dot")],
   );
 
 const createSkeletonWindowControl = (className = ""): HTMLElement =>
@@ -43,7 +43,7 @@ const createSkeletonWindowControl = (className = ""): HTMLElement =>
       "div",
       `da_window_control_btn pointer-events-none ${className}`.trim(),
     ),
-    [createElement("div", "h-[12px] w-[12px] rounded-full bg-current/15")],
+    [createElement("div", "workbench_titlebar_skeleton_control_dot")],
   );
 
 export const createWorkbenchTitlebarSkeletonElement = ({
@@ -59,14 +59,14 @@ export const createWorkbenchTitlebarSkeletonElement = ({
 
   return appendChildren(header, [
     appendChildren(createElement("div", "da_top_menu_brand"), [brandIcon]),
-    appendChildren(createElement("div", "da_window_controls ml-4"), [
+    appendChildren(createElement("div", "da_window_controls da_window_controls--nav"), [
       createSkeletonIcon(),
       createSkeletonIcon(),
     ]),
     appendChildren(createElement("div", "da_top_menu_center"), [
       createElement(
         "div",
-        "h-7 w-44 rounded-full border border-border bg-bg-surface/70",
+        "workbench_titlebar_skeleton_file_select",
       ),
     ]),
     appendChildren(createElement("div", "da_window_controls"), [

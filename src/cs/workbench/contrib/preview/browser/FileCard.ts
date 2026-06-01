@@ -62,11 +62,9 @@ export const createFileCard = ({
 }: FileCardProps): HTMLButtonElement => {
   const button = document.createElement("button");
   button.type = "button";
-  button.className = `flex flex-col w-full text-left rounded-xl border transition-colors overflow-hidden ${
-    isActive
-      ? "border-accent-terracotta bg-accent/5"
-      : "border-border bg-bg-surface hover:bg-bg-surface-hover"
-  }`;
+  button.className = isActive
+    ? "preview_file_card preview_file_card--active"
+    : "preview_file_card";
   button.addEventListener("mousedown", (event) => event.preventDefault());
   button.addEventListener("click", () => {
     if (isSelectionMode) {
@@ -93,22 +91,22 @@ export const createFileCard = ({
 
 const createHeader = (file: ProcessedFileLike): HTMLElement => {
   const root = document.createElement("div");
-  root.className = "px-2 pt-1.5 pb-1";
+  root.className = "preview_file_card_header";
 
   const row = document.createElement("div");
-  row.className = "flex items-start justify-between gap-2";
+  row.className = "preview_file_card_header_row";
   const main = document.createElement("div");
-  main.className = "min-w-0";
+  main.className = "preview_file_card_header_main";
 
   const title = document.createElement("div");
-  title.className = "text-[11px] font-semibold text-text-primary whitespace-normal break-words";
+  title.className = "preview_file_card_title";
   title.textContent = file.fileName;
 
   const meta = document.createElement("div");
-  meta.className = "text-[10px] text-text-secondary mt-0.5";
+  meta.className = "preview_file_card_meta";
   const metaText = document.createElement("div");
   metaText.id = `file-card-series-${toSafeIdSuffix(file?.fileId ?? file?.fileName)}`;
-  metaText.className = "break-words";
+  metaText.className = "preview_file_card_meta_text";
   metaText.textContent = createMetaText(file);
   meta.append(metaText);
   main.append(title, meta);
@@ -156,7 +154,7 @@ const createChartPreview = ({
   readonly yUnitLabel: string;
 }): HTMLElement => {
   const root = document.createElement("div");
-  root.className = "relative w-full min-h-[120px] bg-bg-page";
+  root.className = "preview_file_card_chart";
   root.style.aspectRatio = "16 / 9";
   root.append(
     createCanvasMultiLineChart({
@@ -170,14 +168,13 @@ const createChartPreview = ({
       yLogCurrentMode,
       yUnitLabel,
       title: file.fileName,
-      className: "absolute inset-0",
+      className: "preview_file_card_chart_canvas",
     }),
   );
 
   if (showOriginSelectionBadge && isOriginSelected) {
     const badge = document.createElement("div");
-    badge.className =
-      "absolute bottom-1 left-1 text-[10px] px-1.5 py-0.5 rounded-md bg-accent-terracotta/90 text-white font-semibold tracking-wide";
+    badge.className = "preview_file_card_selection_badge";
     badge.textContent = originSelectedBadgeLabel;
     root.append(badge);
   }
@@ -209,8 +206,7 @@ const createYAxisRangeLabels = (
 
   const suffix = unitLabel ? ` ${unitLabel}` : "";
   const root = document.createElement("div");
-  root.className =
-    "absolute bottom-1 right-1 text-[10px] px-1.5 py-0.5 rounded-md bg-black/50 text-white space-y-0.5";
+  root.className = "preview_file_card_axis_range";
   if (hasMin) {
     root.append(createRangeLine(`ymin:${formatNumber(min * factor, { digits: 3 })}${suffix}`));
   }

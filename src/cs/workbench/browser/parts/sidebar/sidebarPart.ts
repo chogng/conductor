@@ -188,7 +188,7 @@ const createSidebarHeader = ({
   const badgeElement = createSidebarBadge(badge);
   if (badgeElement) {
     const badgeWrapper = document.createElement("div");
-    badgeWrapper.className = "shrink-0 self-start";
+    badgeWrapper.className = "workbench_sidebar_badge_wrapper";
     badgeWrapper.append(badgeElement);
     header.append(badgeWrapper);
   }
@@ -234,7 +234,7 @@ const createSidebarSection = (
   root.className = "workbench_sidebar_section";
 
   const header = document.createElement("div");
-  header.className = "flex items-start justify-between gap-2";
+  header.className = "workbench_sidebar_section_header";
   header.append(createSidebarHeaderMain(section.title, section.description));
   const badge = createSidebarBadge(section.badge);
   if (badge) {
@@ -244,7 +244,7 @@ const createSidebarSection = (
 
   if (section.actions?.length) {
     const actions = document.createElement("div");
-    actions.className = "flex flex-col gap-1";
+    actions.className = "workbench_sidebar_section_actions";
     for (const action of section.actions) {
       actions.append(createSidebarAction(action, onAction));
     }
@@ -489,7 +489,7 @@ const appendIcon = (
   }
 
   const wrapper = document.createElement("span");
-  wrapper.className = "shrink-0";
+  wrapper.className = "workbench_sidebar_action_icon";
   wrapper.setAttribute("aria-hidden", "true");
   if (typeof icon === "string") {
     wrapper.innerHTML = icon;
@@ -501,7 +501,7 @@ const appendIcon = (
 
 const createTextSpan = (text: string): HTMLSpanElement => {
   const span = document.createElement("span");
-  span.className = "min-w-0 truncate text-left";
+  span.className = "workbench_sidebar_action_label";
   span.textContent = text;
   return span;
 };

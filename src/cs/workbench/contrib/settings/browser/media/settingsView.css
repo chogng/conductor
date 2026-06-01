@@ -47,6 +47,10 @@
   @apply flex items-center justify-between gap-3;
 }
 
+.settings-row-title {
+  @apply min-w-0;
+}
+
 .settings-row-control {
   @apply w-fit;
 }
@@ -57,6 +61,23 @@
 
 .settings-description {
   @apply text-sm text-text-secondary;
+}
+
+.settings-title {
+  @apply text-base font-semibold text-text-primary;
+}
+
+.settings-label,
+.settings-hint {
+  @apply text-xs text-text-secondary;
+}
+
+.settings-code-value {
+  @apply font-mono text-sm text-text-primary;
+}
+
+.settings-path-text {
+  @apply truncate font-mono text-xs text-text-primary;
 }
 
 .settings-grid {
@@ -85,6 +106,22 @@
 
 .settings-textarea {
   @apply min-h-[96px] w-full resize-y rounded-lg border border-border bg-bg-surface px-3 py-2 font-mono text-sm text-text-primary;
+}
+
+.settings-select {
+  @apply w-full;
+}
+
+.settings-feedback {
+  @apply text-sm;
+}
+
+.settings-feedback--error {
+  @apply text-red-500;
+}
+
+.settings-feedback--success {
+  @apply text-emerald-600;
 }
 
 .settings-button {

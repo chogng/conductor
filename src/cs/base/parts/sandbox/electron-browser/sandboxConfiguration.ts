@@ -1,8 +1,10 @@
 import type { IpcRenderer } from "electron";
 
 import { product } from "../../../../../bootstrap-meta.js";
-import { workbenchBootstrapIpcChannels } from "../../../../code/common/workbenchBootstrapIpc.js";
-import type { ISandboxConfiguration } from "../common/sandboxTypes.js";
+import {
+  workbenchBootstrapIpcChannels,
+  type ISandboxConfiguration,
+} from "../common/sandboxTypes.js";
 
 type JsonRecord = Record<string, unknown>;
 

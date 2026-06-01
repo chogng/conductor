@@ -16,13 +16,12 @@ export type RcCurveRow = RcAnalysisSummary & {
   warnings?: unknown;
 };
 
-const SUMMARY_CLASS = "rounded-xl border border-border bg-bg-page/40 px-4 py-3";
-const SUMMARY_GRID_CLASS = "grid grid-cols-5 gap-3 text-sm";
-const SUMMARY_LABEL_CLASS = "text-xs text-text-secondary";
-const SUMMARY_VALUE_CLASS = "font-mono text-text-primary";
-const TABLE_HEADER_CLASS =
-  "p-2 text-xs font-semibold text-text-secondary text-left border-l border-border first:border-l-0";
-const TABLE_CELL_CLASS = "p-2 font-mono text-text-primary border-l border-border";
+const SUMMARY_CLASS = "rc_summary";
+const SUMMARY_GRID_CLASS = "rc_summary_grid";
+const SUMMARY_LABEL_CLASS = "rc_summary_label";
+const SUMMARY_VALUE_CLASS = "rc_summary_value";
+const TABLE_HEADER_CLASS = "rc_table_header";
+const TABLE_CELL_CLASS = "rc_table_cell";
 
 const appendText = (
   parent: HTMLElement,
@@ -76,7 +75,7 @@ export const renderRcSummaryView = (
     const message = appendText(
       root,
       "div",
-      `text-sm ${error ? "text-red-500" : "text-text-secondary"}`,
+      error ? "rc_summary_message rc_summary_message--error" : "rc_summary_message",
       error || t("da_rc_no_result"),
     );
     message.setAttribute("aria-live", "polite");
@@ -111,21 +110,21 @@ export const renderRcCurveHeaderView = (
   container.textContent = "";
 
   const root = document.createElement("div");
-  root.className = "mb-2 flex min-w-0 flex-wrap items-center justify-between gap-2";
+  root.className = "rc_curve_header";
   container.appendChild(root);
 
-  appendText(root, "div", "text-xs font-semibold text-text-secondary", t("da_rc_curve_title"));
+  appendText(root, "div", "rc_curve_title", t("da_rc_curve_title"));
 
   const legend = document.createElement("div");
-  legend.className = "flex min-w-0 items-center gap-3 text-xs text-text-secondary";
+  legend.className = "rc_curve_legend";
   root.appendChild(legend);
 
   for (const item of series) {
     const entry = document.createElement("span");
-    entry.className = "inline-flex items-center gap-1.5";
+    entry.className = "rc_curve_legend_item";
 
     const swatch = document.createElement("span");
-    swatch.className = "h-2.5 w-2.5 rounded-sm";
+    swatch.className = "rc_curve_legend_swatch";
     swatch.style.backgroundColor = item.color;
     entry.appendChild(swatch);
 
@@ -148,19 +147,19 @@ export const renderRcCurveRowsView = (
   if (!rows.length) return;
 
   const scroll = document.createElement("div");
-  scroll.className = "min-w-0 w-full max-h-[220px] overflow-auto";
+  scroll.className = "rc_table_scroll";
   container.appendChild(scroll);
 
   const table = document.createElement("table");
-  table.className = "w-full min-w-[720px] table-fixed text-sm border-collapse";
+  table.className = "rc_table";
   scroll.appendChild(table);
 
   const thead = document.createElement("thead");
-  thead.className = "sticky top-0 bg-bg-surface z-10";
+  thead.className = "rc_table_head";
   table.appendChild(thead);
 
   const headerRow = document.createElement("tr");
-  headerRow.className = "border-b border-border";
+  headerRow.className = "rc_table_header_row";
   thead.appendChild(headerRow);
 
   for (const label of ["Vg", "Rc", "RcW", "Rsh", "R2", "n", t("da_rc_table_warnings")]) {
@@ -168,16 +167,16 @@ export const renderRcCurveRowsView = (
   }
 
   const tbody = document.createElement("tbody");
-  tbody.className = "divide-y divide-border";
+  tbody.className = "rc_table_body";
   table.appendChild(tbody);
 
   for (const [index, row] of rows.slice(0, 80).entries()) {
     const tr = document.createElement("tr");
-    tr.className = "hover:bg-bg-page/30";
+    tr.className = "rc_table_row";
     tr.dataset.index = String(index);
     tbody.appendChild(tr);
 
-    appendText(tr, "td", "p-2 font-mono text-text-primary", formatNumber(row.vg));
+    appendText(tr, "td", "rc_table_cell rc_table_cell--first", formatNumber(row.vg));
     appendText(tr, "td", TABLE_CELL_CLASS, formatNumber(row.rc));
     appendText(tr, "td", TABLE_CELL_CLASS, formatNumber(row.rcw));
     appendText(tr, "td", TABLE_CELL_CLASS, formatNumber(row.rSheet));
@@ -186,7 +185,7 @@ export const renderRcCurveRowsView = (
     appendText(
       tr,
       "td",
-      "p-2 text-xs text-text-secondary border-l border-border truncate",
+      "rc_table_cell rc_table_cell--warnings",
       getWarningsText(row.warnings),
     );
   }

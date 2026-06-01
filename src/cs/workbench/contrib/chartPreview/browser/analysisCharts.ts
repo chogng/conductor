@@ -1,5 +1,5 @@
 import { createButton } from "src/cs/base/browser/ui/button/button";
-import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
+import type { TranslateFn } from "src/cs/platform/language/common/language";
 import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
   type OriginPlotOptions,
@@ -29,6 +29,7 @@ import type { OriginExportContentKey, OriginExportMode } from "src/cs/workbench/
 type StateSetter<T> = (next: T | ((previous: T) => T)) => void;
 
 type AnalysisChartsProps = {
+  t: TranslateFn;
   processedData: ProcessedEntry[];
   processingStatus?: Partial<ProcessingStatus>;
   activeFileId?: string | null;
@@ -95,7 +96,7 @@ const createFileSelect = ({
   processedData: ProcessedEntry[];
 }): HTMLSelectElement => {
   const select = document.createElement("select");
-  select.className = "dropdown-field dropdown-field--sm w-fit";
+  select.className = "analysis_file_select dropdown-field dropdown-field--sm";
   select.value = activeFileId ?? "";
   for (const file of processedData) {
     const fileId = String(file?.fileId ?? "");
@@ -154,12 +155,12 @@ const createOriginCurveOptions = (file: any): OriginCurveExportSeriesOption[] =>
 
 const appendStat = (parent: HTMLElement, label: string, value: string): void => {
   const item = document.createElement("div");
-  item.className = "rounded-md border border-border bg-bg-page/50 px-3 py-2";
+  item.className = "analysis_stat";
   const labelElement = document.createElement("div");
-  labelElement.className = "text-xs text-text-secondary";
+  labelElement.className = "analysis_stat_label";
   labelElement.textContent = label;
   const valueElement = document.createElement("div");
-  valueElement.className = "text-sm font-medium text-text-primary";
+  valueElement.className = "analysis_stat_value";
   valueElement.textContent = value;
   item.append(labelElement, valueElement);
   parent.append(item);
@@ -167,14 +168,14 @@ const appendStat = (parent: HTMLElement, label: string, value: string): void => 
 
 const createEmptyState = (message: string, hint = ""): HTMLElement => {
   const root = document.createElement("div");
-  root.className = "flex h-full min-h-0 flex-col items-center justify-center gap-2 text-center";
+  root.className = "analysis_empty";
   const title = document.createElement("p");
-  title.className = "text-sm font-medium text-text-primary";
+  title.className = "analysis_empty_title";
   title.textContent = message;
   root.append(title);
   if (hint) {
     const text = document.createElement("p");
-    text.className = "text-sm text-text-secondary";
+    text.className = "analysis_empty_hint";
     text.textContent = hint;
     root.append(text);
   }
@@ -187,6 +188,7 @@ export const createAnalysisCharts = ({
   activeFileId: controlledActiveFileId = undefined,
   onActiveFileIdChange = undefined,
   showFileSelect = true,
+  t,
   ionIoffMethod = "auto",
   setIonIoffMethod = () => {},
   ssMethod = "auto",
@@ -201,9 +203,8 @@ export const createAnalysisCharts = ({
   setSsShowFitLine = () => {},
   originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS,
 }: AnalysisChartsProps): HTMLElement => {
-  const { t } = useLanguage();
   const root = document.createElement("section");
-  root.className = "flex h-full min-h-0 flex-col gap-3";
+  root.className = "analysis_charts";
   root.setAttribute("aria-label", t("da_analysis_visualization"));
 
   if (!processedData.length) {
@@ -226,14 +227,14 @@ export const createAnalysisCharts = ({
   activeFileId = activeFile?.fileId ?? null;
 
   const header = document.createElement("div");
-  header.className = "flex shrink-0 items-center justify-between gap-3";
+  header.className = "analysis_charts_header";
   const title = document.createElement("div");
-  title.className = "min-w-0";
+  title.className = "analysis_charts_title";
   const heading = document.createElement("h2");
-  heading.className = "truncate text-sm font-medium text-text-primary";
+  heading.className = "analysis_charts_heading";
   heading.textContent = String(activeFile?.fileName ?? t("da_analysis_visualization")).replace(/\.csv$/i, "");
   const subtitle = document.createElement("p");
-  subtitle.className = "text-xs text-text-secondary";
+  subtitle.className = "analysis_charts_subtitle";
   subtitle.textContent = t("da_analysis_file_count", { count: processedData.length });
   title.append(heading, subtitle);
   header.append(title);
@@ -254,7 +255,7 @@ export const createAnalysisCharts = ({
   const yDomain = getFiniteDomain(allY, [0, 1]);
 
   const controls = document.createElement("div");
-  controls.className = "flex shrink-0 flex-wrap items-center gap-2";
+  controls.className = "analysis_charts_controls";
   const ionToggle = createButton({
     label: ionIoffMethod === "manual" ? t("da_ion_ioff_manual") : t("da_ion_ioff_auto"),
     size: "sm",
@@ -295,7 +296,7 @@ export const createAnalysisCharts = ({
   root.append(controls);
 
   const summary = document.createElement("div");
-  summary.className = "grid shrink-0 grid-cols-2 gap-2 md:grid-cols-4";
+  summary.className = "analysis_summary_grid";
   appendStat(summary, t("da_analysis_series_count"), String(seriesList.length));
   appendStat(summary, t("da_analysis_points_count"), String(seriesList.reduce((sum, series) => sum + series.data.length, 0)));
   appendStat(summary, t("da_axis_x_domain"), `${xDomain[0].toPrecision(4)} - ${xDomain[1].toPrecision(4)}`);
@@ -303,7 +304,7 @@ export const createAnalysisCharts = ({
   root.append(summary);
 
   const chartHost = document.createElement("div");
-  chartHost.className = "min-h-[360px] flex-1 rounded-lg border border-border bg-bg-page/40 p-3";
+  chartHost.className = "analysis_chart_host";
   chartHost.append(MainPlotChart({
     activeFile,
     curveLineWidth: 2,

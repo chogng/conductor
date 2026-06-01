@@ -1,0 +1,171 @@
+.diagnostics_chart_shell {
+  @apply h-full min-h-[180px] rounded-lg border border-border/60 bg-bg-page/40;
+}
+
+.diagnostics_canvas_root {
+  @apply relative h-full w-full;
+}
+
+.diagnostics_canvas {
+  @apply absolute inset-0;
+}
+
+.ss_summary_strip {
+  @apply flex flex-wrap items-center gap-2 rounded-lg border border-border bg-bg-page px-3 py-2 text-xs;
+}
+
+.ss_summary_badge {
+  @apply inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium;
+}
+
+.ss_summary_badge--high {
+  @apply border-green-500/20 bg-green-500/10 text-green-500;
+}
+
+.ss_summary_badge--low {
+  @apply border-yellow-500/20 bg-yellow-500/10 text-yellow-500;
+}
+
+.ss_summary_badge--fail {
+  @apply border-red-500/20 bg-red-500/10 text-red-500;
+}
+
+.ss_summary_badge_value {
+  @apply font-mono;
+}
+
+.ss_summary_metric {
+  @apply text-text-secondary;
+}
+
+.ss_summary_metric_value {
+  @apply font-mono text-text-primary;
+}
+
+.diagnostics_card {
+  @apply flex min-w-0 flex-col;
+}
+
+.diagnostics_card_body {
+  @apply flex flex-col gap-3;
+}
+
+.diagnostics_card_header {
+  @apply mb-3 flex items-center justify-between gap-2;
+}
+
+.diagnostics_card_title {
+  @apply text-xs font-semibold text-text-primary;
+}
+
+.diagnostics_card_description {
+  @apply text-[11px] text-text-secondary;
+}
+
+.diagnostics_probe_panel {
+  @apply flex flex-col gap-2 text-xs text-text-secondary;
+}
+
+.diagnostics_probe_controls {
+  @apply flex flex-wrap items-center justify-between gap-3;
+}
+
+.diagnostics_probe_left_controls {
+  @apply flex flex-wrap items-center gap-2;
+}
+
+.diagnostics_nowrap_label {
+  @apply whitespace-nowrap;
+}
+
+.diagnostics_probe_mode_select {
+  @apply w-[96px];
+}
+
+.diagnostics_probe_x_field {
+  @apply !w-[110px];
+}
+
+.diagnostics_area_field {
+  @apply !w-[100px];
+}
+
+.diagnostics_probe_table_wrapper {
+  @apply overflow-x-auto rounded-lg border border-border/60 bg-bg-page/60;
+}
+
+.diagnostics_probe_table {
+  @apply w-full min-w-[520px] table-fixed border-collapse text-xs;
+}
+
+.diagnostics_probe_table_header_row {
+  @apply border-b border-border text-text-secondary;
+}
+
+.diagnostics_probe_table_header_cell {
+  @apply p-2 text-left font-semibold;
+}
+
+.diagnostics_probe_table_row {
+  @apply border-b border-border/50 last:border-b-0;
+}
+
+.diagnostics_probe_table_cell {
+  @apply p-2;
+}
+
+.diagnostics_probe_table_cell--primary {
+  @apply text-text-primary;
+}
+
+.diagnostics_curve_label {
+  @apply inline-flex items-center gap-2;
+}
+
+.diagnostics_curve_swatch {
+  @apply inline-block h-2.5 w-2.5 rounded-sm;
+}
+
+.diagnostics_area_controls {
+  @apply rounded-lg border border-border/60 bg-bg-surface px-3 py-2;
+}
+
+.diagnostics_area_title {
+  @apply mb-2 text-[11px] font-semibold text-text-primary;
+}
+
+.diagnostics_area_input_row {
+  @apply flex flex-wrap items-center gap-2 text-xs text-text-secondary;
+}
+
+.diagnostics_area_summary {
+  @apply mt-2 flex flex-col gap-2 text-xs text-text-secondary;
+}
+
+.diagnostics_area_summary_card {
+  @apply rounded-lg border border-border/60 bg-bg-page/60 px-3 py-2 text-text-primary;
+}
+
+.diagnostics_area_summary_card--warning {
+  @apply border-dashed border-amber-400/60 bg-amber-500/5 text-amber-600;
+}
+
+.diagnostics_context_badges {
+  @apply flex max-w-full flex-wrap items-center justify-end gap-3 text-xs text-text-secondary;
+}
+
+.diagnostics_context_badge {
+  @apply max-w-full;
+}
+
+.diagnostics_context_badge_content {
+  @apply flex items-center gap-2.5;
+}
+
+.diagnostics_context_badge_swatch {
+  @apply inline-block h-3 w-3 shrink-0 rounded-sm;
+}
+
+.diagnostics_context_badge_text {
+  @apply block truncate;
+}

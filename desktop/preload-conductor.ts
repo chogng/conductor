@@ -1,7 +1,9 @@
 import type { ContextBridge, IpcRenderer, WebUtils } from "electron";
 
-import type { ISandboxConfiguration } from "../src/cs/base/parts/sandbox/common/sandboxTypes.js";
-import { workbenchBootstrapIpcChannels } from "../src/cs/code/common/workbenchBootstrapIpc.js";
+import {
+  workbenchBootstrapIpcChannels,
+  type ISandboxConfiguration,
+} from "../src/cs/base/parts/sandbox/common/sandboxTypes.js";
 import { nativeHostIpcChannels } from "../src/cs/platform/native/common/nativeIpc.js";
 import { desktopIpcChannels } from "../src/cs/workbench/services/desktop/common/desktopIpcChannels.js";
 

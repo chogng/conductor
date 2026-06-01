@@ -54,10 +54,10 @@ export const createCanvasDiagnosticsChart = ({
   yDomain,
 }: CanvasDiagnosticsChartProps): HTMLElement => {
   const root = document.createElement("div");
-  root.className = "relative h-full w-full";
+  root.className = "diagnostics_canvas_root";
 
   const canvas = document.createElement("canvas");
-  canvas.className = "absolute inset-0";
+  canvas.className = "diagnostics_canvas";
   canvas.setAttribute("aria-label", ariaLabel);
   root.append(canvas);
 

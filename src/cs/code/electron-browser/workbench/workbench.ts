@@ -7,7 +7,7 @@ import type { LanguageCode } from "src/cs/platform/language/common/language";
 import { InstantiationService } from "src/cs/platform/instantiation/common/instantiationService";
 import { ServiceCollection } from "src/cs/platform/instantiation/common/serviceCollection";
 import { Registry } from "src/cs/platform/registry/common/platform";
-import { workbenchBootstrapIpcChannels } from "src/cs/code/common/workbenchBootstrapIpc";
+import { workbenchBootstrapIpcChannels } from "src/cs/base/parts/sandbox/common/sandboxTypes";
 import {
   Extensions,
   type IWorkbenchContributionsRegistry,

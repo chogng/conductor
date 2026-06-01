@@ -8,6 +8,8 @@ import { applyWorkbenchStyle, type WorkbenchStyle } from "src/cs/workbench/brows
 import { getWorkbenchEnvironment } from "src/cs/workbench/services/environment/browser/environmentService";
 import type { IWorkbenchEnvironmentService } from "src/cs/workbench/services/environment/common/environmentService";
 
+import "src/cs/workbench/browser/media/window.css";
+
 export type WorkbenchWindowState = {
   readonly environment: IWorkbenchEnvironmentService["environment"];
   readonly isAppUpdatePreviewEnabled: boolean;
@@ -89,64 +91,64 @@ const createSkeleton = (showDesktopCommandBar: boolean): HTMLElement =>
   appendChildren(
     createElement(
       "section",
-      "absolute inset-0 min-h-0 opacity-100 pointer-events-none",
+      "workbench_window_skeleton",
     ),
     [
       appendChildren(
         createElement(
           "div",
-          `h-full min-h-0 overflow-hidden ${
-            showDesktopCommandBar ? "p-1 pt-0" : "p-1"
-          }`,
+          showDesktopCommandBar
+            ? "workbench_window_skeleton_body workbench_window_skeleton_body--desktop-command-bar"
+            : "workbench_window_skeleton_body",
         ),
         [
           appendChildren(
             createElement(
               "div",
-              "grid h-full min-h-0 grid-cols-[var(--sidebar-width,280px)_minmax(0,1fr)] gap-1",
+              "workbench_window_skeleton_grid",
             ),
             [
               appendChildren(
                 createElement(
                   "div",
-                  "rounded-[20px] border border-border bg-bg-surface/70 p-4 flex min-h-0 flex-col",
+                  "workbench_window_skeleton_sidebar",
                 ),
                 [
                   appendChildren(
                     createElement(
                       "div",
-                      "mb-4 flex items-center justify-between gap-2",
+                      "workbench_window_skeleton_sidebar_header",
                     ),
                     [
                       createElement(
                         "div",
-                        "h-10 w-40 rounded-xl border border-border bg-bg-page/70",
+                        "workbench_window_skeleton_sidebar_action",
                       ),
                       createElement(
                         "div",
-                        "h-10 w-10 rounded-xl border border-border bg-bg-page/70",
+                        "workbench_window_skeleton_sidebar_icon",
                       ),
                     ],
                   ),
-                  createElement("div", "mb-4 h-4 w-28 rounded bg-bg-page/70"),
+                  createElement("div", "workbench_window_skeleton_sidebar_label"),
                   createElement(
                     "div",
-                    "flex-1 rounded-[20px] border border-border bg-bg-page/60",
+                    "workbench_window_skeleton_sidebar_dropzone",
                   ),
                 ],
               ),
               appendChildren(
                 createElement(
                   "div",
-                  "rounded-[20px] border border-border bg-bg-surface/60 pt-4 pr-4 pb-4 pl-0 flex min-h-0",
+                  "workbench_window_skeleton_content",
                 ),
                 [
                   appendChildren(
-                    createElement("div", "flex min-h-0 flex-1 flex-col pl-4"),
+                    createElement("div", "workbench_window_skeleton_content_inner"),
                     [
                       createElement(
                         "div",
-                        "flex-1 min-h-0 rounded-[16px] border border-border bg-bg-page/75",
+                        "workbench_window_skeleton_content_panel",
                       ),
                     ],
                   ),
@@ -162,11 +164,11 @@ const createSkeleton = (showDesktopCommandBar: boolean): HTMLElement =>
 export class WorkbenchWindow extends Disposable {
   private readonly element: HTMLElement;
   private readonly titlebarHost = createElement("div");
-  private readonly body = createElement("div", "relative flex-1 min-h-0");
+  private readonly body = createElement("div", "workbench_window_body");
   private readonly skeletonHost = createElement("div");
   private readonly contentHost = createElement(
     "div",
-    "relative z-[1] flex h-full min-h-0 flex-col",
+    "workbench_window_content",
   );
   private titlebarPart: WorkbenchTitlebarPart | undefined;
   private clearTitlebarSkeleton: (() => void) | undefined;
@@ -200,7 +202,7 @@ export class WorkbenchWindow extends Disposable {
 
     this.element.id = id ?? "";
     this.element.className =
-      `flex h-full min-h-screen flex-col overflow-hidden bg-bg-page ${className}`.trim();
+      `workbench_window ${className}`.trim();
     applyWorkbenchStyle(this.element, style);
 
     this.renderTitlebar(showDesktopCommandBar, titlebarState);

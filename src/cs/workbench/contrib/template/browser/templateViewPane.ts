@@ -1,6 +1,11 @@
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/previewPart";
-import type { TemplateManagerProps } from "src/cs/workbench/contrib/template/browser/templateView";
+import {
+  createTemplateManager,
+  type TemplateManagerProps,
+} from "src/cs/workbench/contrib/template/browser/templateView";
+
+import "src/cs/workbench/contrib/template/browser/media/templateView.css";
 
 export type TemplateViewPaneProps = TemplateManagerProps & {
   readonly content?: Node | null;
@@ -13,11 +18,11 @@ export class TemplateViewPane {
 
   constructor(props: TemplateViewPaneProps) {
     this.contentElement = document.createElement("div");
-    this.contentElement.className = "h-full min-h-0";
+    this.contentElement.className = "template_view_pane_content";
     this.element = createPreviewPart({
       id: "analysis-template-workspace",
       ariaLabel: props.t("da_data_extraction_template"),
-      className: "flex h-full min-h-0 flex-col",
+      className: "template_view_pane",
       children: this.contentElement,
     });
     this.update(props);
@@ -27,7 +32,10 @@ export class TemplateViewPane {
     this.contentElement.replaceChildren();
     if (props.content) {
       this.contentElement.append(props.content);
+      return;
     }
+
+    this.contentElement.append(createTemplateManager(props));
   }
 
   public dispose(): void {

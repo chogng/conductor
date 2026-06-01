@@ -63,7 +63,7 @@ export const createAnalysisDiagnosticsCard = (
 ): HTMLElement => {
   const card = createCard({
     variant: "panel",
-    className: "flex min-w-0 flex-col",
+    className: "diagnostics_card",
   });
 
   if (!props.showCurveProbePanel || props.showAreaDiagnosticsControls) {
@@ -71,7 +71,7 @@ export const createAnalysisDiagnosticsCard = (
   }
 
   const body = document.createElement("div");
-  body.className = "flex flex-col gap-3";
+  body.className = "diagnostics_card_body";
   if (props.showCurveProbePanel) {
     body.append(createCurveProbePanel(props));
   }
@@ -88,14 +88,14 @@ const createHeader = ({
   diagnosticsHeading,
 }: AnalysisDiagnosticsCardProps): HTMLElement => {
   const header = document.createElement("div");
-  header.className = "mb-3 flex items-center justify-between gap-2";
+  header.className = "diagnostics_card_header";
 
   const titleGroup = document.createElement("div");
   const title = document.createElement("div");
-  title.className = "text-xs font-semibold text-text-primary";
+  title.className = "diagnostics_card_title";
   title.textContent = diagnosticsHeading;
   const description = document.createElement("div");
-  description.className = "text-[11px] text-text-secondary";
+  description.className = "diagnostics_card_description";
   description.textContent = diagnosticsDescription;
   titleGroup.append(title, description);
   header.append(titleGroup);
@@ -109,25 +109,25 @@ const createHeader = ({
 
 const createCurveProbePanel = (props: AnalysisDiagnosticsCardProps): HTMLElement => {
   const root = document.createElement("div");
-  root.className = "flex flex-col gap-2 text-xs text-text-secondary";
+  root.className = "diagnostics_probe_panel";
 
   const controls = document.createElement("div");
-  controls.className = "flex items-center justify-between gap-3 flex-wrap";
+  controls.className = "diagnostics_probe_controls";
 
   const leftControls = document.createElement("div");
-  leftControls.className = "flex items-center gap-2 flex-wrap";
+  leftControls.className = "diagnostics_probe_left_controls";
   leftControls.append(
-    createPlainText("span", "whitespace-nowrap", "x:"),
+    createPlainText("span", "diagnostics_nowrap_label", "x:"),
     createInput({
       id: "analysis-curve-probe-x-input",
       value: props.curveProbeXInput,
       onChange: props.setCurveProbeXInput,
       placeholder: props.curveProbeXPlaceholder,
       className: props.analysisCompactInputWrapperClass,
-      fieldClassName: `${props.analysisCompactPageFieldClass} !w-[110px]`,
+      fieldClassName: `${props.analysisCompactPageFieldClass} diagnostics_probe_x_field`,
       inputClassName: props.analysisCompactInputClass,
     }),
-    createPlainText("span", "whitespace-nowrap", "插值:"),
+    createPlainText("span", "diagnostics_nowrap_label", "插值:"),
     createDropdown({
       id: "analysis-curve-probe-mode-select",
       size: "sm",
@@ -137,7 +137,7 @@ const createCurveProbePanel = (props: AnalysisDiagnosticsCardProps): HTMLElement
         { value: "linear", label: "线性" },
         { value: "log", label: "对数" },
       ],
-      className: "w-[96px]",
+      className: "diagnostics_probe_mode_select",
     }),
   );
   controls.append(leftControls);
@@ -162,10 +162,10 @@ const createProbeTable = ({
   xTooltipDigits,
 }: AnalysisDiagnosticsCardProps): HTMLElement => {
   const wrapper = document.createElement("div");
-  wrapper.className = "overflow-x-auto rounded-lg border border-border/60 bg-bg-page/60";
+  wrapper.className = "diagnostics_probe_table_wrapper";
 
   const table = document.createElement("table");
-  table.className = "w-full min-w-[520px] table-fixed border-collapse text-xs";
+  table.className = "diagnostics_probe_table";
   table.append(createProbeTableHead());
 
   const tbody = document.createElement("tbody");
@@ -188,10 +188,10 @@ const createProbeTable = ({
 const createProbeTableHead = (): HTMLElement => {
   const thead = document.createElement("thead");
   const row = document.createElement("tr");
-  row.className = "border-b border-border text-text-secondary";
+  row.className = "diagnostics_probe_table_header_row";
   for (const label of ["曲线", "对应 y", "备注", "参考点"]) {
     const th = document.createElement("th");
-    th.className = "p-2 text-left font-semibold";
+    th.className = "diagnostics_probe_table_header_cell";
     th.textContent = label;
     row.append(th);
   }
@@ -213,7 +213,7 @@ const createProbeRow = ({
   readonly xTooltipDigits: number;
 }): HTMLElement => {
   const tr = document.createElement("tr");
-  tr.className = "border-b border-border/50 last:border-b-0";
+  tr.className = "diagnostics_probe_table_row";
   const sample = row?.sample ?? null;
   const yValue = Number(sample?.y);
   const left = sample?.left ?? null;
@@ -224,11 +224,11 @@ const createProbeRow = ({
       : "n/a";
 
   const curveCell = document.createElement("td");
-  curveCell.className = "p-2 text-text-primary";
+  curveCell.className = "diagnostics_probe_table_cell diagnostics_probe_table_cell--primary";
   const curve = document.createElement("span");
-  curve.className = "inline-flex items-center gap-2";
+  curve.className = "diagnostics_curve_label";
   const color = document.createElement("span");
-  color.className = "inline-block h-2.5 w-2.5 rounded-sm";
+  color.className = "diagnostics_curve_swatch";
   color.style.backgroundColor = String(row.color ?? "");
   curve.append(color, createPlainText("span", "", String(row.name ?? "")));
   curveCell.append(curve);
@@ -239,30 +239,30 @@ const createProbeRow = ({
       Number.isFinite(yValue)
         ? `${formatNumber(yValue, { digits: 6 })} ${plotYUnitLabel}`
         : "n/a",
-      "p-2 text-text-primary",
+      "diagnostics_probe_table_cell diagnostics_probe_table_cell--primary",
     ),
-    createCell(formatProbeModeLabel(sample?.kind), "p-2"),
-    createCell(bracketText, "p-2"),
+    createCell(formatProbeModeLabel(sample?.kind), "diagnostics_probe_table_cell"),
+    createCell(bracketText, "diagnostics_probe_table_cell"),
   );
   return tr;
 };
 
 const createAreaControls = (props: AnalysisDiagnosticsCardProps): HTMLElement => {
   const root = document.createElement("div");
-  root.className = "rounded-lg border border-border/60 bg-bg-surface px-3 py-2";
-  root.append(createPlainText("div", "mb-2 text-[11px] font-semibold text-text-primary", "J Controls"));
+  root.className = "diagnostics_area_controls";
+  root.append(createPlainText("div", "diagnostics_area_title", "J Controls"));
 
   const inputRow = document.createElement("div");
-  inputRow.className = "flex items-center gap-2 text-xs text-text-secondary flex-wrap";
+  inputRow.className = "diagnostics_area_input_row";
   inputRow.append(
-    createPlainText("span", "whitespace-nowrap", "Area (for J = |I|/Area):"),
+    createPlainText("span", "diagnostics_nowrap_label", "Area (for J = |I|/Area):"),
     createInput({
       id: "analysis-area-input",
       value: props.areaInput,
       onChange: props.setAreaInput,
       placeholder: "e.g. 1e-4",
       className: props.analysisCompactInputWrapperClass,
-      fieldClassName: `${props.analysisCompactPageFieldClass} !w-[100px]`,
+      fieldClassName: `${props.analysisCompactPageFieldClass} diagnostics_area_field`,
       inputClassName: props.analysisCompactInputClass,
     }),
   );
@@ -276,12 +276,12 @@ const createAreaSummary = ({
   transferMetricsApplicable,
 }: AnalysisDiagnosticsCardProps): HTMLElement => {
   const root = document.createElement("div");
-  root.className = "mt-2 flex flex-col gap-2 text-xs text-text-secondary";
+  root.className = "diagnostics_area_summary";
   if (areaDiagnosticsSummary.areaValue !== null) {
     root.append(
       createPlainText(
         "div",
-        "rounded-lg border border-border/60 bg-bg-page/60 px-3 py-2 text-text-primary",
+        "diagnostics_area_summary_card",
         `Using area: ${formatNumber(areaDiagnosticsSummary.areaValue, { digits: 4 })} cm^2`,
       ),
     );
@@ -289,7 +289,7 @@ const createAreaSummary = ({
     root.append(
       createPlainText(
         "div",
-        "rounded-lg border border-dashed border-amber-400/60 bg-amber-500/5 px-3 py-2 text-amber-600",
+        "diagnostics_area_summary_card diagnostics_area_summary_card--warning",
         "Enter a positive area to enable current-density conversion.",
       ),
     );
@@ -299,7 +299,7 @@ const createAreaSummary = ({
     root.append(
       createPlainText(
         "div",
-        "rounded-lg border border-border/60 bg-bg-page/60 px-3 py-2 text-text-primary",
+        "diagnostics_area_summary_card",
         `Jon: ${areaDiagnosticsSummary.jon !== null ? formatNumber(areaDiagnosticsSummary.jon, { digits: 3 }) : "n/a"} ${plotYUnitLabel}/cm^2 | Joff: ${areaDiagnosticsSummary.joff !== null ? formatNumber(areaDiagnosticsSummary.joff, { digits: 3 }) : "n/a"} ${plotYUnitLabel}/cm^2`,
       ),
     );
@@ -315,21 +315,20 @@ const createContextBadges = (
   }
 
   const root = document.createElement("div");
-  root.className =
-    "flex max-w-full items-center justify-end gap-3 flex-wrap text-xs text-text-secondary";
+  root.className = "diagnostics_context_badges";
   diagnosticsContextBadges.forEach((badge) => {
     const item = document.createElement("div");
-    item.className = "max-w-full";
+    item.className = "diagnostics_context_badge";
     item.title = badge.text;
     const content = document.createElement("span");
-    content.className = "flex items-center gap-2.5";
+    content.className = "diagnostics_context_badge_content";
     if (badge.color) {
       const swatch = document.createElement("span");
-      swatch.className = "inline-block h-3 w-3 shrink-0 rounded-sm";
+      swatch.className = "diagnostics_context_badge_swatch";
       swatch.style.backgroundColor = badge.color;
       content.append(swatch);
     }
-    content.append(createPlainText("span", "block truncate", badge.color ? badge.text : `${badge.text}：`));
+    content.append(createPlainText("span", "diagnostics_context_badge_text", badge.color ? badge.text : `${badge.text}：`));
     item.append(content);
     root.append(item);
   });

@@ -149,7 +149,7 @@ export class Layout extends Disposable {
   constructor(parent?: HTMLElement) {
     super();
 
-    this.element.className = "relative flex h-full min-h-0 flex-1 flex-col";
+    this.element.className = "workbench_layout";
     if (parent) {
       this.mount(parent);
     }
@@ -266,7 +266,7 @@ export class Layout extends Disposable {
 
     if (!this.splitView.current) {
       this.splitView.current = new SplitViewWidget({
-        className: "h-full min-h-0",
+        className: "workbench_layout_shell",
         gap: 2,
         onDidResizeEnd: (event) => this.handleResizeEnd(event),
         orientation: "horizontal",
@@ -274,7 +274,7 @@ export class Layout extends Disposable {
       });
     } else {
       this.splitView.current.update({
-        className: "h-full min-h-0",
+        className: "workbench_layout_shell",
         gap: 2,
         onDidResizeEnd: (event) => this.handleResizeEnd(event),
         orientation: "horizontal",
@@ -468,7 +468,9 @@ const createPane = ({
   section.role = "region";
   section.setAttribute("aria-labelledby", labelledBy);
   section.setAttribute("aria-hidden", String(!isActive));
-  section.className = isActive ? "h-full min-h-0" : "hidden h-full min-h-0";
+  section.className = isActive
+    ? "workbench_layout_pane"
+    : "workbench_layout_pane workbench_layout_pane--hidden";
   if (!isActive) {
     section.inert = true;
   }

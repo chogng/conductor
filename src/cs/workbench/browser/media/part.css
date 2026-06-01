@@ -1,0 +1,30 @@
+@media (max-width: 640px) {
+  .da_page_scroll {
+    padding-bottom: env(safe-area-inset-bottom);
+    scroll-padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+.workbench_parts_main {
+  @apply relative h-full min-h-0;
+}
+
+.workbench_pane_part {
+  @apply h-full min-h-0;
+}
+
+.workbench_pane_part--hidden {
+  @apply hidden;
+}
+
+.workbench_scroll_pane_part {
+  @apply h-full min-h-0;
+}
+
+.da-neutral-select {
+  color-scheme: light;
+}
+
+.dark .da-neutral-select {
+  color-scheme: dark;
+}

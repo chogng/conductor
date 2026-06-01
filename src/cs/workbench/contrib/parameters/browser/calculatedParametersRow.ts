@@ -17,28 +17,17 @@ export type RenderCalculatedParametersRowsOptions = {
   showTransferMetrics: boolean;
 };
 
-const LABEL_CELL_CLASS =
-  "sticky left-0 z-[1] max-w-0 overflow-hidden text-ellipsis p-2 text-[14px] text-text-primary font-medium whitespace-nowrap text-left bg-bg-surface shadow-[1px_0_0_var(--color-border)] group-hover:bg-bg-page";
-const ION_CELL_CLASS =
-  "p-2 font-mono text-[14px] text-text-primary whitespace-nowrap text-center border-l border-border bg-emerald-500/5";
-const ION_X_CELL_CLASS =
-  "p-2 font-mono text-[14px] text-text-secondary whitespace-nowrap text-center border-l border-border bg-emerald-500/5";
-const IOFF_CELL_CLASS =
-  "p-2 font-mono text-[14px] text-text-primary whitespace-nowrap text-center border-l border-border bg-cyan-500/5";
-const IOFF_X_CELL_CLASS =
-  "p-2 font-mono text-[14px] text-text-secondary whitespace-nowrap text-center border-l border-border bg-cyan-500/5";
-const METRIC_CELL_CLASS =
-  "p-2 font-mono text-[14px] text-text-primary whitespace-nowrap text-center border-l border-border";
-const GM_CELL_CLASS =
-  "p-2 font-mono text-[14px] text-text-primary whitespace-nowrap text-center border-l border-border bg-amber-500/5";
-const GM_X_CELL_CLASS =
-  "p-2 font-mono text-[14px] text-text-secondary whitespace-nowrap text-center border-l border-border bg-amber-500/5";
-const VTH_CELL_CLASS =
-  "p-2 font-mono text-[14px] text-text-primary whitespace-nowrap text-center border-l border-border bg-violet-500/5";
-const SS_CELL_CLASS =
-  "p-2 font-mono text-[14px] text-text-primary whitespace-nowrap text-center border-l border-border bg-rose-500/5";
-const SS_X_CELL_CLASS =
-  "p-2 font-mono text-[14px] text-text-secondary whitespace-nowrap text-center border-l border-border bg-rose-500/5";
+const LABEL_CELL_CLASS = "parameters_label_cell";
+const ION_CELL_CLASS = "parameters_metric_cell parameters_cell--on";
+const ION_X_CELL_CLASS = "parameters_metric_cell parameters_metric_cell--secondary parameters_cell--on";
+const IOFF_CELL_CLASS = "parameters_metric_cell parameters_cell--off";
+const IOFF_X_CELL_CLASS = "parameters_metric_cell parameters_metric_cell--secondary parameters_cell--off";
+const METRIC_CELL_CLASS = "parameters_metric_cell";
+const GM_CELL_CLASS = "parameters_metric_cell parameters_cell--derivative";
+const GM_X_CELL_CLASS = "parameters_metric_cell parameters_metric_cell--secondary parameters_cell--derivative";
+const VTH_CELL_CLASS = "parameters_metric_cell parameters_cell--threshold";
+const SS_CELL_CLASS = "parameters_metric_cell parameters_cell--ss";
+const SS_X_CELL_CLASS = "parameters_metric_cell parameters_metric_cell--secondary parameters_cell--ss";
 
 const appendTextCell = (
   rowNode: HTMLTableRowElement,
@@ -68,13 +57,11 @@ const resolveSsBadgeClass = (
   confidence: SsConfidence,
   isPending: boolean,
 ): string => {
-  const base =
-    "inline-flex h-6 min-w-[4.75rem] items-center justify-center px-2 rounded-md text-[14px] font-medium leading-none border";
-  if (isPending) return `${base} bg-bg-page text-text-secondary border-border`;
-  if (confidence === "high") return `${base} bg-green-500/10 text-green-500 border-green-500/20`;
-  if (confidence === "low") return `${base} bg-yellow-500/10 text-yellow-500 border-yellow-500/20`;
-  if (confidence === "fail") return `${base} bg-red-500/10 text-red-500 border-red-500/20`;
-  return `${base} bg-bg-page text-text-primary border-border`;
+  if (isPending) return "parameters_ss_badge parameters_ss_badge--pending";
+  if (confidence === "high") return "parameters_ss_badge parameters_ss_badge--high";
+  if (confidence === "low") return "parameters_ss_badge parameters_ss_badge--low";
+  if (confidence === "fail") return "parameters_ss_badge parameters_ss_badge--fail";
+  return "parameters_ss_badge";
 };
 
 const appendSsCell = (
@@ -107,7 +94,7 @@ const appendCalculatedParametersRow = (
   isPending: boolean,
 ): void => {
   const rowNode = document.createElement("tr");
-  rowNode.className = "group hover:bg-bg-page/30";
+  rowNode.className = "parameters_table_row";
 
   appendTextCell(rowNode, LABEL_CELL_CLASS, row.name, row.name);
 

@@ -42,7 +42,7 @@ export default defineConfig({
     host: true,
     warmup: {
       clientFiles: [
-        "./src/cs/code/browser/workbench/web.main.ts",
+        "./src/cs/code/browser/workbench/workbench.ts",
         "./src/cs/code/electron-browser/workbench/workbench.ts",
         "./src/cs/code/electron-browser/workbench/desktop.main.ts",
         "./src/cs/platform/platform.browser.main.ts",

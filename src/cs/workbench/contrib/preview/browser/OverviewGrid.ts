@@ -3,7 +3,8 @@ import {
   getCardDataAttributes,
   type CardVariant,
 } from "cs/base/browser/ui/card/card";
-import { getLanguageState } from "src/cs/workbench/browser/hooks/useLanguage";
+import type { TranslateFn } from "src/cs/platform/language/common/language";
+import { languageService } from "src/cs/platform/language/browser/languageService";
 import { getYUnitMeta } from "src/cs/workbench/contrib/chart/common/units";
 import type { OriginCanvasExportScope } from "src/cs/workbench/contrib/export/browser/originCanvasExport";
 import type { ProcessingStatus } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
@@ -62,7 +63,7 @@ export const createOverviewGrid = ({
     return null;
   }
 
-  const { t } = getLanguageState();
+  const { t } = languageService.getSnapshot();
   let curveFilter: CurveFilter = "all";
   const fieldFilterOptions = createPreviewFieldFilterOptions(processedData, t);
   const curveFilterOptions = [
@@ -74,10 +75,10 @@ export const createOverviewGrid = ({
 
   const card = createCard({
     variant: "panel",
-    className: "h-full min-h-0 flex flex-col !pr-0",
+    className: "preview_overview_grid_card",
   });
   const list = document.createElement("div");
-  list.className = "grid grid-cols-1 auto-rows-max gap-2.5 content-start";
+  list.className = "preview_overview_grid_list";
 
   const renderList = (): void => {
     const filteredData = filterPreviewFiles(processedData, curveFilter);
@@ -148,21 +149,21 @@ const createToolbar = ({
   readonly fieldFilterOptions: Array<{ label: string; value: string }>;
   readonly onChange: (nextFilter: CurveFilter) => void;
   readonly processingStatus?: Partial<ProcessingStatus>;
-  readonly t: ReturnType<typeof getLanguageState>["t"];
+  readonly t: TranslateFn;
 }): HTMLElement => {
   const root = document.createElement("div");
-  root.className = "mb-3 pr-4 space-y-2";
+  root.className = "preview_overview_grid_toolbar";
 
   const row = document.createElement("div");
-  row.className = "flex items-center justify-between gap-3 flex-wrap";
+  row.className = "preview_overview_grid_toolbar_row";
   const controls = document.createElement("div");
-  controls.className = "flex items-center gap-3 flex-wrap";
+  controls.className = "preview_overview_grid_toolbar_controls";
   const filterWrap = document.createElement("div");
-  filterWrap.className = "relative flex items-center gap-2";
+  filterWrap.className = "preview_overview_grid_filter";
 
   const label = document.createElement("label");
   label.htmlFor = "analysis-overview-curve-filter-btn";
-  label.className = "sr-only";
+  label.className = "preview_visually_hidden";
   label.textContent = t("da_overview_curve_filter_label");
   filterWrap.append(
     label,
@@ -185,14 +186,14 @@ const createToolbar = ({
         );
         onChange(matchedFieldOption?.value ?? "all");
       },
-      className: "w-fit da-neutral-select",
+      className: "preview_overview_grid_select da-neutral-select",
     }),
   );
   controls.append(filterWrap);
 
   if (processingStatus?.state === "processing") {
     const progress = document.createElement("div");
-    progress.className = "text-xs text-text-secondary";
+    progress.className = "preview_overview_grid_progress";
     progress.textContent = t("da_overview_processing", {
       processed: processingStatus.processed,
       total: processingStatus.total,
@@ -207,9 +208,9 @@ const createToolbar = ({
 
 const createScrollArea = (content: HTMLElement): HTMLElement => {
   const root = document.createElement("div");
-  root.className = "scrollArea flex-1 min-h-0";
+  root.className = "scrollArea preview_overview_grid_scroll";
   const viewport = document.createElement("div");
-  viewport.className = "scrollAreaViewport pr-4";
+  viewport.className = "scrollAreaViewport preview_overview_grid_scroll_viewport";
   viewport.dataset.axis = "y";
   viewport.append(content);
   root.append(viewport);

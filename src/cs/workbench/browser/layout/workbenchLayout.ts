@@ -29,7 +29,7 @@ export class WorkbenchLayout extends Disposable {
   constructor(options: WorkbenchLayoutOptions) {
     super();
     this.element = document.createElement("div");
-    this.element.className = "h-full min-h-0";
+    this.element.className = "workbench_layout_shell";
     this.update(options);
   }
 
@@ -45,7 +45,7 @@ export class WorkbenchLayout extends Disposable {
     if (!this.widget) {
       this.widget = this._register(
         new SplitViewWidget({
-          className: "h-full min-h-0",
+          className: "workbench_layout_shell",
           gap: 2,
           onDidResizeEnd: (event) => this.handleResizeEnd(event),
           orientation: "horizontal",
@@ -56,7 +56,7 @@ export class WorkbenchLayout extends Disposable {
     }
 
     this.widget.update({
-      className: "h-full min-h-0",
+      className: "workbench_layout_shell",
       gap: 2,
       onDidResizeEnd: (event) => this.handleResizeEnd(event),
       orientation: "horizontal",
@@ -113,7 +113,7 @@ export class WorkbenchLayout extends Disposable {
 
 const createMainPane = (content: Node | null | undefined): HTMLElement => {
   const element = document.createElement("div");
-  element.className = "h-full min-h-0";
+  element.className = "workbench_layout_pane";
   if (content) {
     element.append(content);
   }

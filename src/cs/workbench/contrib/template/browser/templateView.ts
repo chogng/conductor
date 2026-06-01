@@ -1,6 +1,10 @@
 import { createButton } from "src/cs/base/browser/ui/button/button";
+import {
+  getInputFieldClassName,
+  getInputFieldState,
+  getInputNativeClassName,
+} from "src/cs/base/browser/ui/input/input";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
-import { useLanguage } from "src/cs/workbench/browser/hooks/useLanguage";
 import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
 import type {
   PreviewFileLike,
@@ -14,6 +18,7 @@ import {
 } from "src/cs/workbench/contrib/template/common/templateManagerUtils";
 
 export type TemplateManagerProps = {
+  readonly t: TranslateFn;
   previewFile?: PreviewFileLike | null;
   previewStatus?: Partial<SessionPreviewStatus> | null;
   rawData?: RawDataEntry[];
@@ -43,14 +48,16 @@ const createField = ({
   onInput: (name: keyof TemplateConfig, value: string) => void;
 }): HTMLElement => {
   const wrapper = document.createElement("label");
-  wrapper.className = "flex flex-col gap-1 text-xs text-text-secondary";
+  wrapper.className = "template_field";
 
   const labelElement = document.createElement("span");
   labelElement.textContent = label;
 
   const input = document.createElement("input");
-  input.className = "input_native rounded-md border border-border bg-bg-page px-2 py-1 text-sm text-text-primary";
+  input.className = `${getInputNativeClassName()} ${getInputFieldClassName({ fieldClassName: "template_field_input" })}`;
+  input.dataset.state = getInputFieldState();
   input.value = value;
+  input.autocomplete = "off";
   input.addEventListener("input", () => onInput(name, input.value));
 
   wrapper.append(labelElement, input);
@@ -59,7 +66,7 @@ const createField = ({
 
 const createSectionTitle = (text: string): HTMLElement => {
   const title = document.createElement("h3");
-  title.className = "text-sm font-medium text-text-primary";
+  title.className = "template_section_title";
   title.textContent = text;
   return title;
 };
@@ -74,8 +81,8 @@ export const createTemplateManager = ({
   onTemplateAppliedIncremental,
   subscribePreviewRowsVersion,
   getPreviewRowsVersion,
+  t,
 }: TemplateManagerProps): HTMLElement => {
-  const { t } = useLanguage();
   let config = createEmptyTemplateConfig();
   const containerRef = { current: null as HTMLElement | null };
 
@@ -92,15 +99,15 @@ export const createTemplateManager = ({
   };
 
   const panel = document.createElement("div");
-  panel.className = "flex h-full min-h-0 flex-col gap-3";
+  panel.className = "template_manager";
   containerRef.current = panel;
 
   const header = document.createElement("div");
-  header.className = "flex shrink-0 items-center justify-between gap-3";
+  header.className = "template_manager_header";
   header.append(createSectionTitle(t("da_data_extraction_template")));
 
   const actionBar = document.createElement("div");
-  actionBar.className = "flex items-center gap-2";
+  actionBar.className = "template_manager_actions";
   const applyButton = createButton({
     label: t("da_apply_template"),
     size: "sm",
@@ -122,7 +129,7 @@ export const createTemplateManager = ({
   panel.append(header);
 
   const form = document.createElement("div");
-  form.className = "grid gap-3";
+  form.className = "template_form";
   form.append(
     createField({
       label: t("da_template_name"),
@@ -157,12 +164,12 @@ export const createTemplateManager = ({
   );
 
   const meta = document.createElement("p");
-  meta.className = "text-xs text-text-secondary";
+  meta.className = "template_meta";
   meta.textContent = t("da_template_file_count", { count: rawData.length });
   form.append(meta);
 
   const left = document.createElement("div");
-  left.className = "flex h-full min-h-0 flex-col gap-3 overflow-auto rounded-lg border border-border bg-bg-page/50 p-3";
+  left.className = "template_config_panel";
   left.append(form);
 
   const preview = TemplateManagerPreviewWorkspace({

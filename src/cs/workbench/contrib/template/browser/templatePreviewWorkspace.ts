@@ -44,7 +44,7 @@ export class TemplateManagerPreviewWorkspaceView {
   constructor(props: TemplateManagerPreviewWorkspaceProps) {
     this.props = props;
     this.element = document.createElement("div");
-    this.element.className = "h-full min-h-0";
+    this.element.className = "template_preview_workspace";
     this.render();
   }
 
@@ -109,7 +109,7 @@ const createZoomActions = ({
   readonly zoom: number;
 }): HTMLElement => {
   const root = document.createElement("div");
-  root.className = "flex items-center gap-1 text-xs text-text-secondary";
+  root.className = "template_preview_zoom";
   root.append(
     createZoomButton("-", () => adjust(-1)),
     createZoomLabel(`${zoom}%`),
@@ -125,7 +125,7 @@ const createZoomButton = (
 ): HTMLButtonElement => {
   const button = document.createElement("button");
   button.type = "button";
-  button.className = "rounded-md border border-border px-2 py-1 hover:bg-bg-page";
+  button.className = "template_preview_zoom_button";
   button.textContent = label;
   button.addEventListener("click", onClick);
   return button;
@@ -133,7 +133,7 @@ const createZoomButton = (
 
 const createZoomLabel = (label: string): HTMLElement => {
   const span = document.createElement("span");
-  span.className = "min-w-[44px] text-center font-mono";
+  span.className = "template_preview_zoom_label";
   span.textContent = label;
   return span;
 };

@@ -234,7 +234,7 @@ const appendIcon = (
   }
 
   const wrapper = document.createElement("span");
-  wrapper.className = "shrink-0";
+  wrapper.className = "workbench_preview_area_action_icon";
   wrapper.setAttribute("aria-hidden", "true");
   if (typeof icon === "string") {
     wrapper.innerHTML = icon;
@@ -246,7 +246,7 @@ const appendIcon = (
 
 const createTextSpan = (text: string): HTMLSpanElement => {
   const span = document.createElement("span");
-  span.className = "min-w-0 truncate text-left";
+  span.className = "workbench_preview_area_action_label";
   span.textContent = text;
   return span;
 };
