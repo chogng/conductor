@@ -3,7 +3,7 @@ import { createButton } from "src/cs/base/browser/ui/button/button";
 import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 
-export type EmptyFileListViewOptions = {
+export type EmptyViewOptions = {
   readonly onImportFiles: () => void;
   readonly t: TranslateFn;
 };
@@ -16,10 +16,10 @@ const createEmptyIcon = (className: string): HTMLSpanElement => {
   return icon;
 };
 
-export const createEmptyFileListView = ({
+export const createEmptyView = ({
   onImportFiles,
   t,
-}: EmptyFileListViewOptions): HTMLDivElement => {
+}: EmptyViewOptions): HTMLDivElement => {
   const empty = document.createElement("div");
   empty.dataset.slot = "empty";
   empty.className = "file-list-empty";

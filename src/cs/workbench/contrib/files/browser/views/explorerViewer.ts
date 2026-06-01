@@ -1,7 +1,7 @@
 import { lxClose, lxCsvGreen } from "@chogng/lxicon";
+import { addDisposableListener } from "src/cs/base/browser/dom";
 import ContentView from "src/cs/base/browser/ui/contentView/contentView";
 import type { ListHandle } from "src/cs/base/browser/ui/list/list";
-import Toast from "src/cs/base/browser/ui/toast/toast";
 import {
   ObjectTree,
   type IObjectTreeOptions,
@@ -9,38 +9,24 @@ import {
   type ITreeNode,
 } from "src/cs/base/browser/ui/tree/objectTree";
 import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
-import type { IDisposable } from "src/cs/base/common/lifecycle";
+import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
-import {
-  DATA_FILE_ACCEPT,
-  type FileEntry,
-} from "src/cs/workbench/contrib/files/common/files";
-import {
-  createFileSource,
-  type FileSource,
-} from "src/cs/workbench/contrib/files/browser/sourceFile";
-import { collectDroppedFiles } from "src/cs/workbench/contrib/files/browser/fileDrop";
-import { createEmptyFileListView } from "src/cs/workbench/contrib/files/browser/emptyView";
+import type { FileEntry } from "src/cs/workbench/contrib/files/common/files";
 import {
   buildFileTree,
   collectFileTreeFolderKeys,
   getTreeFileName,
   type FileTreeNode,
-} from "src/cs/workbench/contrib/files/browser/fileTreeModel";
+} from "src/cs/workbench/contrib/files/common/explorerModel";
+import { createEmptyView } from "src/cs/workbench/contrib/files/browser/views/emptyView";
 
-import "src/cs/workbench/contrib/files/browser/media/fileList.css";
-
-export type FileListViewProps = {
+export type ExplorerViewerProps = {
   readonly effectiveSelectedFileId?: string | null;
-  readonly error?: string | null;
   readonly files: FileEntry[];
-  readonly isDragging: boolean;
-  readonly onClearError: () => void;
-  readonly onDraggingChange: (isDragging: boolean) => void;
   readonly onListScroll: (event: Event) => void;
+  readonly onOpenFileDialog: () => void;
   readonly onRemoveFile: (fileId: string | null) => void;
   readonly onSelectFile: (fileId: string | null) => void;
-  readonly onSelectFiles: (files: FileSource[]) => void;
   readonly t: TranslateFn;
 };
 
@@ -84,72 +70,60 @@ const appendIcon = (
   container.appendChild(iconSpan);
 };
 
-export class FileListView implements IDisposable {
-  private readonly host: HTMLElement;
-  private readonly root: HTMLDivElement;
-  private readonly fileInput: HTMLInputElement;
-  private readonly viewport: HTMLDivElement;
-  private readonly filledRoot: HTMLDivElement;
-  private readonly listHost: HTMLDivElement;
+export class ExplorerViewer implements IDisposable {
+  private readonly disposables = new DisposableStore();
   private readonly treeView: ObjectTree<FileTreeNode>;
-  private readonly toast: Toast;
   private hoverView: ContentView | null = null;
   private hoverAnchor: HTMLElement | null = null;
-  private readonly listeners: Array<() => void> = [];
   private expandedKeys: string[] = [];
   private knownFolderKeys = new Set<string>();
-  private props: FileListViewProps;
-  private disposed = false;
+  private props: ExplorerViewerProps;
 
-  constructor(host: HTMLElement, props: FileListViewProps) {
-    this.host = host;
+  constructor(
+    host: HTMLElement,
+    private readonly hoverHost: HTMLElement,
+    props: ExplorerViewerProps,
+  ) {
     this.props = props;
-    const dom = this.createDom();
-    this.root = dom.root;
-    this.fileInput = dom.fileInput;
-    this.viewport = dom.viewport;
-    this.filledRoot = dom.filledRoot;
-    this.listHost = dom.listHost;
-
-    this.treeView = new ObjectTree<FileTreeNode>(
-      this.listHost,
-      this.createTreeOptions(),
+    this.treeView = this.disposables.add(
+      new ObjectTree<FileTreeNode>(
+        host,
+        this.createTreeOptions(),
+      ),
     );
-    this.toast = new Toast();
 
-    this.host.appendChild(this.root);
-
-    this.registerEvents();
-    this.render();
+    this.disposables.add(
+      addDisposableListener(host, "mouseover", this.handleListMouseOver),
+    );
+    this.disposables.add(
+      addDisposableListener(host, "mouseout", this.handleListMouseOut),
+    );
+    this.disposables.add(
+      addDisposableListener(host, "focusin", this.handleListFocusIn),
+    );
+    this.disposables.add(
+      addDisposableListener(host, "focusout", this.handleListFocusOut),
+    );
   }
 
   getListHandle(): ListHandle {
     return this.treeView;
   }
 
-  openFileDialog(): void {
-    this.fileInput.click();
-  }
-
-  setProps(nextProps: FileListViewProps): void {
+  setProps(nextProps: ExplorerViewerProps): void {
     this.props = nextProps;
-    this.render();
+    this.treeView.update(this.createTreeOptions());
+    if (
+      this.hoverAnchor &&
+      (!this.hoverHost.contains(this.hoverAnchor) || !this.hoverAnchor.dataset.autoSummary)
+    ) {
+      this.hideFileItemHover();
+    }
   }
 
   dispose(): void {
-    if (this.disposed) {
-      return;
-    }
-
-    this.disposed = true;
     this.hideFileItemHover();
-    this.toast.dispose();
-    this.treeView.dispose();
-    for (const dispose of this.listeners) {
-      dispose();
-    }
-    this.listeners.length = 0;
-    this.root.remove();
+    this.disposables.dispose();
   }
 
   private createTreeOptions(): IObjectTreeOptions<FileTreeNode> {
@@ -172,8 +146,8 @@ export class FileListView implements IDisposable {
       collapsedKeys: folderKeys.filter((key) => !expandedKeys.has(key)),
       empty: (container) => {
         container.replaceChildren(
-          createEmptyFileListView({
-            onImportFiles: () => this.openFileDialog(),
+          createEmptyView({
+            onImportFiles: this.props.onOpenFileDialog,
             t: this.props.t,
           }),
         );
@@ -211,80 +185,6 @@ export class FileListView implements IDisposable {
       selectedKey: this.props.effectiveSelectedFileId ?? null,
       viewportClassName: "file-list-tree-viewport",
     };
-  }
-
-  private registerEvents(): void {
-    this.fileInput.addEventListener("change", this.handleFileInputChange);
-    this.root.addEventListener("click", this.handleRootClick);
-    this.viewport.addEventListener("dragover", this.handleDragOver);
-    this.viewport.addEventListener("dragleave", this.handleDragLeave);
-    this.viewport.addEventListener("drop", this.handleDrop);
-    this.listHost.addEventListener("mouseover", this.handleListMouseOver);
-    this.listHost.addEventListener("mouseout", this.handleListMouseOut);
-    this.listHost.addEventListener("focusin", this.handleListFocusIn);
-    this.listHost.addEventListener("focusout", this.handleListFocusOut);
-
-    this.listeners.push(() =>
-      this.fileInput.removeEventListener("change", this.handleFileInputChange),
-    );
-    this.listeners.push(() =>
-      this.root.removeEventListener("click", this.handleRootClick),
-    );
-    this.listeners.push(() =>
-      this.viewport.removeEventListener("dragover", this.handleDragOver),
-    );
-    this.listeners.push(() =>
-      this.viewport.removeEventListener("dragleave", this.handleDragLeave),
-    );
-    this.listeners.push(() =>
-      this.viewport.removeEventListener("drop", this.handleDrop),
-    );
-    this.listeners.push(() =>
-      this.listHost.removeEventListener("mouseover", this.handleListMouseOver),
-    );
-    this.listeners.push(() =>
-      this.listHost.removeEventListener("mouseout", this.handleListMouseOut),
-    );
-    this.listeners.push(() =>
-      this.listHost.removeEventListener("focusin", this.handleListFocusIn),
-    );
-    this.listeners.push(() =>
-      this.listHost.removeEventListener("focusout", this.handleListFocusOut),
-    );
-  }
-
-  private createDom(): {
-    readonly fileInput: HTMLInputElement;
-    readonly filledRoot: HTMLDivElement;
-    readonly listHost: HTMLDivElement;
-    readonly root: HTMLDivElement;
-    readonly viewport: HTMLDivElement;
-  } {
-    const root = document.createElement("div");
-    root.className = "file-list idle";
-
-    const fileInput = document.createElement("input");
-    fileInput.type = "file";
-    fileInput.multiple = true;
-    fileInput.accept = DATA_FILE_ACCEPT;
-    fileInput.className = "file-list-input";
-    fileInput.setAttribute("webkitdirectory", "");
-    fileInput.setAttribute("directory", "");
-
-    const viewport = document.createElement("div");
-    viewport.className = "file-list-viewport";
-
-    const filledRoot = document.createElement("div");
-    filledRoot.className = "file-list-tree-root";
-
-    const listHost = document.createElement("div");
-    listHost.className = "file-list-host";
-    filledRoot.appendChild(listHost);
-
-    viewport.append(filledRoot);
-    root.append(fileInput, viewport);
-
-    return { fileInput, filledRoot, listHost, root, viewport };
   }
 
   private renderTreeElement(
@@ -400,59 +300,6 @@ export class FileListView implements IDisposable {
     container.append(name, count);
   }
 
-  private readonly handleFileInputChange = (): void => {
-    const files = Array.from(this.fileInput.files ?? []).map(createFileSource);
-    if (files.length > 0) {
-      this.props.onSelectFiles(files);
-    }
-    this.fileInput.value = "";
-  };
-
-  private readonly handleRootClick = (event: MouseEvent): void => {
-    if (this.props.files.length > 0) {
-      return;
-    }
-
-    const target = event.target;
-    if (
-      target instanceof HTMLElement &&
-      target.closest("button, input, a, [role='button']")
-    ) {
-      return;
-    }
-
-    this.openFileDialog();
-  };
-
-  private readonly handleDragOver = (event: DragEvent): void => {
-    event.preventDefault();
-    this.props.onDraggingChange(true);
-  };
-
-  private readonly handleDragLeave = (event: DragEvent): void => {
-    const relatedTarget = event.relatedTarget;
-    if (relatedTarget instanceof Node && this.viewport.contains(relatedTarget)) {
-      return;
-    }
-
-    this.props.onDraggingChange(false);
-  };
-
-  private readonly handleDrop = (event: DragEvent): void => {
-    event.preventDefault();
-    this.props.onDraggingChange(false);
-    void this.selectDroppedFiles(event.dataTransfer);
-  };
-
-  private async selectDroppedFiles(dataTransfer: DataTransfer | null): Promise<void> {
-    if (!dataTransfer) {
-      this.props.onSelectFiles([]);
-      return;
-    }
-
-    this.props.onSelectFiles(await collectDroppedFiles(dataTransfer));
-  }
-
   private readonly handleListMouseOver = (event: MouseEvent): void => {
     const item = this.getFileItemFromEvent(event);
     if (item) {
@@ -516,7 +363,7 @@ export class FileListView implements IDisposable {
       align: "left",
       anchor: item,
       className: "file-list-hover",
-      host: this.root,
+      host: this.hoverHost,
       render: (container) => {
         const summaryElement = document.createElement("div");
         summaryElement.className = "file-list-hover-summary";
@@ -540,39 +387,5 @@ export class FileListView implements IDisposable {
     this.hoverAnchor = null;
     this.hoverView?.dispose();
     this.hoverView = null;
-  }
-
-  private render(): void {
-    if (this.disposed) {
-      return;
-    }
-
-    const { error, isDragging, t } = this.props;
-
-    this.root.setAttribute("aria-label", t("da_import_section"));
-    this.root.classList.toggle("dragging", isDragging);
-    this.root.classList.toggle("idle", !isDragging);
-    this.fileInput.setAttribute("aria-label", t("da_import_csv"));
-
-    this.treeView.update(this.createTreeOptions());
-    if (
-      this.hoverAnchor &&
-      (!this.listHost.contains(this.hoverAnchor) || !this.hoverAnchor.dataset.autoSummary)
-    ) {
-      this.hideFileItemHover();
-    }
-
-    if (!error) {
-      this.toast.hide();
-      return;
-    }
-
-    this.toast.show({
-      dataUi: "analysis-import-error-toast",
-      message: error,
-      onClose: this.props.onClearError,
-      position: "fixed",
-      type: "error",
-    });
   }
 }

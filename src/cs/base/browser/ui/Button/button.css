@@ -8,8 +8,8 @@
   border-radius: 0.5rem;
   padding-left: 1rem;
   padding-right: 1rem;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: 12px;
+  line-height: 1rem;
   font-weight: 500;
   transition-property: all;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
@@ -78,8 +78,8 @@ html[data-nav="keyboard"] .action-btn:focus-visible::after {
   height: 42px;
   padding-left: 1.25rem;
   padding-right: 1.25rem;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: 12px;
+  line-height: 1rem;
 }
 
 .action-btn--control {

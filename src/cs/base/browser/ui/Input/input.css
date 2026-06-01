@@ -8,8 +8,8 @@
 }
 
 .input_label {
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: 12px;
+  line-height: 1rem;
   font-weight: 500;
   --tw-text-opacity: 1;
   color: rgb(var(--text-secondary) / var(--tw-text-opacity, 1));
@@ -43,20 +43,20 @@
 
 .input_field--md {
   height: 38px;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: 12px;
+  line-height: 1rem;
 }
 
 .input_field--lg {
   height: 42px;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: 12px;
+  line-height: 1rem;
 }
 
 .input_field--xl {
   height: 47.6px;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: 12px;
+  line-height: 1rem;
 }
 
 .input_field[data-state="enable"] {
@@ -180,8 +180,8 @@ html[data-nav="keyboard"] .input_field[data-state="enable"]:focus-within::after 
   flex: 1 1 0%;
   resize: vertical;
   background-color: transparent;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: 12px;
+  line-height: 1rem;
   --tw-text-opacity: 1;
   color: rgb(var(--text-primary) / var(--tw-text-opacity, 1));
 }

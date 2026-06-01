@@ -2,16 +2,16 @@ import type { ListHandle } from "src/cs/base/browser/ui/list/list";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import { startPerf } from "src/cs/workbench/common/deviceAnalysis/perf";
-import type { FileSource } from "src/cs/workbench/contrib/files/browser/sourceFile";
+import type { FileSource } from "src/cs/workbench/contrib/files/browser/source";
 import {
   collectPendingImports,
   prepareImportFile,
   type SessionFileEntry,
 } from "src/cs/workbench/contrib/import/browser/importSession";
 import {
-  FileListView,
-  type FileListViewProps,
-} from "src/cs/workbench/contrib/files/browser/fileListView";
+  ExplorerView,
+  type ExplorerViewProps,
+} from "src/cs/workbench/contrib/files/browser/views/explorerView";
 import type { FileEntry } from "src/cs/workbench/contrib/files/common/files";
 import {
   type ImportSessionFileInfo,
@@ -20,7 +20,7 @@ import {
 import {
   buildEntrySourceKey,
   filterUniqueFiles,
-} from "src/cs/workbench/contrib/files/browser/fileIdentity";
+} from "src/cs/workbench/contrib/files/browser/identity";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 
 export type ImportSessionProps = {
@@ -42,7 +42,7 @@ const IMPORT_PREPARE_CONCURRENCY = 2;
 export class ImportSessionController implements ImportSessionRef, IDisposable {
   private readonly listRef: { current: ListHandle | null } = { current: null };
   private readonly shouldAutoScrollToBottomRef = { current: true };
-  private fileListView: FileListView | null = null;
+  private explorerView: ExplorerView | null = null;
   private props: ImportSessionControllerProps;
   private internalFiles: SessionFileEntry[] = [];
   private error: string | null = null;
@@ -56,8 +56,8 @@ export class ImportSessionController implements ImportSessionRef, IDisposable {
     this.prevFileCount = this.files.length;
     this.optimisticSelectedFileId = props.selectedFileId ?? null;
 
-    this.fileListView = new FileListView(host, this.createFileListProps());
-    this.listRef.current = this.fileListView.getListHandle();
+    this.explorerView = new ExplorerView(host, this.createExplorerViewProps());
+    this.listRef.current = this.explorerView.getListHandle();
   }
 
   get hasFiles(): boolean {
@@ -67,7 +67,7 @@ export class ImportSessionController implements ImportSessionRef, IDisposable {
   openFileDialog(): void {
     this.error = null;
     this.syncView();
-    this.fileListView?.openFileDialog();
+    this.explorerView?.openFileDialog();
   }
 
   setProps(nextProps: ImportSessionControllerProps): void {
@@ -88,8 +88,8 @@ export class ImportSessionController implements ImportSessionRef, IDisposable {
     }
 
     this.disposed = true;
-    this.fileListView?.dispose();
-    this.fileListView = null;
+    this.explorerView?.dispose();
+    this.explorerView = null;
     this.listRef.current = null;
   }
 
@@ -105,7 +105,7 @@ export class ImportSessionController implements ImportSessionRef, IDisposable {
     return this.optimisticSelectedFileId ?? this.props.selectedFileId ?? null;
   }
 
-  private createFileListProps(): FileListViewProps {
+  private createExplorerViewProps(): ExplorerViewProps {
     return {
       effectiveSelectedFileId: this.effectiveSelectedFileId,
       error: this.error,
@@ -126,7 +126,7 @@ export class ImportSessionController implements ImportSessionRef, IDisposable {
       return;
     }
 
-    this.fileListView?.setProps(this.createFileListProps());
+    this.explorerView?.setProps(this.createExplorerViewProps());
   }
 
   private handleFileCountEffects(): void {

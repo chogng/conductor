@@ -54,8 +54,8 @@
   padding: 0 0.6875rem;
   color: rgb(var(--text-secondary) / 1);
   text-align: left;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: 12px;
+  line-height: 1rem;
   transition:
     background-color 150ms ease,
     color 150ms ease;
@@ -125,8 +125,8 @@
   background-color: rgb(var(--bg-page) / 1);
   padding: 0 0.625rem;
   color: rgb(var(--text-primary) / 1);
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: 12px;
+  line-height: 1rem;
   outline: none;
 }
 
@@ -183,8 +183,8 @@
 .ui-menu__empty {
   padding: 0.625rem 0.75rem;
   color: rgb(var(--text-secondary) / 1);
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: 12px;
+  line-height: 1rem;
 }
 
 .dark .ui-menu {

@@ -1,9 +1,12 @@
 import { isSupportedDataFileName } from "src/cs/workbench/contrib/files/common/files";
-import type { FileSource } from "src/cs/workbench/contrib/files/browser/sourceFile";
+import {
+  createFileSource,
+  type FileSource,
+} from "src/cs/workbench/contrib/files/browser/source";
 
 type FileSystemEntryLike = {
-  isFile: boolean;
   isDirectory: boolean;
+  isFile: boolean;
   name: string;
 };
 
@@ -36,38 +39,50 @@ const readAllDirectoryEntries = async (
     const batch = await new Promise<FileSystemEntryLike[]>((resolve) => {
       reader.readEntries(resolve);
     });
-    if (!batch.length) break;
+    if (!batch.length) {
+      break;
+    }
     collected.push(...batch);
   }
 
   return collected;
 };
 
-const traverseFileEntry = async (
+const traverseDroppedEntry = async (
   entry: FileSystemEntryLike | null | undefined,
   files: FileSource[],
   parentPath = "",
 ): Promise<void> => {
-  if (!entry) return;
+  if (!entry) {
+    return;
+  }
 
   const relativePath = parentPath ? `${parentPath}/${entry.name}` : entry.name;
 
   if (entry.isFile) {
-    if (!isSupportedDataFileName(entry.name)) return;
+    if (!isSupportedDataFileName(entry.name)) {
+      return;
+    }
+
     const file = await readEntryFile(entry as FileSystemFileEntryLike);
     files.push({ file, relativePath });
     return;
   }
 
-  if (!entry.isDirectory) return;
+  if (!entry.isDirectory) {
+    return;
+  }
 
   const entries = await readAllDirectoryEntries(
     entry as FileSystemDirectoryEntryLike,
   );
   for (const child of entries) {
-    await traverseFileEntry(child, files, relativePath);
+    await traverseDroppedEntry(child, files, relativePath);
   }
 };
+
+export const collectInputFiles = (fileList: FileList | null): FileSource[] =>
+  Array.from(fileList ?? []).map(createFileSource);
 
 export const collectDroppedFiles = async (
   dataTransfer: DataTransfer,
@@ -78,7 +93,7 @@ export const collectDroppedFiles = async (
   const pendingTraversals = items.map(async (item) => {
     const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
     if (entry) {
-      await traverseFileEntry(entry, files);
+      await traverseDroppedEntry(entry, files);
       return;
     }
 

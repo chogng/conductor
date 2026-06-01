@@ -4,7 +4,7 @@ import {
   isSupportedDataFileName,
   type FileEntry,
 } from "src/cs/workbench/contrib/files/common/files";
-import type { FileSource } from "src/cs/workbench/contrib/files/browser/sourceFile";
+import type { FileSource } from "src/cs/workbench/contrib/files/browser/source";
 import { prepareImportFileInWorker } from "src/cs/workbench/contrib/import/browser/rustClient";
 import type {
   ImportSessionFileInfo,
@@ -14,7 +14,7 @@ import {
   buildFileIdentityKey,
   buildItemKey,
   createFileId,
-} from "src/cs/workbench/contrib/files/browser/fileIdentity";
+} from "src/cs/workbench/contrib/files/browser/identity";
 
 export type SessionFileEntry = FileEntry & {
   fileId: string;
