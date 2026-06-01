@@ -1,16 +1,24 @@
 ﻿import type { MutableRef } from "src/cs/base/common/ref";
+import { Disposable } from "src/cs/base/common/lifecycle";
+import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { PreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
-import {
-  DA_PREVIEW_MAX_CACHED_FILES,
-  DA_PREVIEW_MAX_CACHED_UI_ROWS_PER_FILE,
-  DA_PREVIEW_UI_CHUNK_SIZE_ROWS,
-} from "./preview/previewLimits";
 import type {
   PreviewFile,
   PreviewRowsRequest,
   RawDataEntry,
 } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
+import {
+  ITableService,
+  type ITableService as ITableServiceType,
+  type TableBindings,
+  type TableOptions,
+} from "src/cs/workbench/services/table/common/table";
+import {
+  DA_PREVIEW_MAX_CACHED_FILES,
+  DA_PREVIEW_MAX_CACHED_UI_ROWS_PER_FILE,
+  DA_PREVIEW_UI_CHUNK_SIZE_ROWS,
+} from "src/cs/workbench/services/table/browser/preview/previewLimits";
 import {
   collectMissingChunkRanges,
   clearChunkRows,
@@ -18,27 +26,176 @@ import {
   isPreviewRowsResultForRequest,
   mergeChunkRangeRows,
   sanitizePreviewRows,
-} from "./preview/previewRowChunk";
+} from "src/cs/workbench/services/table/browser/preview/previewRowChunk";
 import {
   buildRustPreviewCellRequests,
   rowsFromRustPreviewCells,
   type RustPreviewCellRequest,
-} from "./preview/rustPreviewCells";
-import { usePreviewRowsVersion } from "./usePreviewRowsVersion";
+} from "src/cs/workbench/services/table/browser/preview/rustPreviewCells";
+import { usePreviewRowsVersion } from "src/cs/workbench/services/table/browser/previewRowsVersion";
 import { loadConvertedCsvFile } from "src/cs/workbench/contrib/import/browser/rustClient";
 import { importService } from "src/cs/workbench/services/import/browser/importService";
 
 type SetStateAction<T> = T | ((previous: T) => T);
 type Dispatch<T> = (value: T) => void;
 
-const startTransition = (callback: () => void): void => callback();
-const useCallback = <T extends (...args: any[]) => any>(callback: T, _deps?: unknown[]): T => callback;
-const useDeferredValue = <T,>(value: T): T => value;
-const useEffect = (effect: () => void | (() => void), _deps?: unknown[]): void => {
-  effect();
+type EffectState = {
+  cleanup?: () => void;
+  deps?: unknown[];
 };
-const useMemo = <T,>(factory: () => T, _deps?: unknown[]): T => factory();
-const useRef = <T,>(current: T): MutableRef<T> => ({ current });
+
+type PendingEffect = {
+  effect: () => void | (() => void);
+  index: number;
+  deps?: unknown[];
+};
+
+type MemoState<T> = {
+  deps?: unknown[];
+  value: T;
+};
+
+const areDepsEqual = (
+  previous: readonly unknown[] | undefined,
+  next: readonly unknown[] | undefined,
+): boolean => {
+  if (!previous || !next || previous.length !== next.length) return false;
+
+  for (let index = 0; index < previous.length; index += 1) {
+    if (!Object.is(previous[index], next[index])) return false;
+  }
+
+  return true;
+};
+
+class PreviewHookScope extends Disposable {
+  private hookIndex = 0;
+  private readonly effects: EffectState[] = [];
+  private readonly memos: Array<MemoState<unknown> | undefined> = [];
+  private readonly pendingEffects: PendingEffect[] = [];
+  private readonly refs: Array<MutableRef<unknown> | undefined> = [];
+
+  public begin(): void {
+    this.hookIndex = 0;
+    this.pendingEffects.length = 0;
+  }
+
+  public flushEffects(): void {
+    const pendingEffects = this.pendingEffects.splice(0);
+
+    for (const pending of pendingEffects) {
+      const previous = this.effects[pending.index];
+      previous?.cleanup?.();
+      const cleanup = pending.effect();
+      this.effects[pending.index] = {
+        cleanup: typeof cleanup === "function" ? cleanup : undefined,
+        deps: pending.deps,
+      };
+    }
+  }
+
+  public useEffect(
+    effect: () => void | (() => void),
+    deps?: unknown[],
+  ): void {
+    const index = this.hookIndex;
+    this.hookIndex += 1;
+
+    const previous = this.effects[index];
+    if (previous && areDepsEqual(previous.deps, deps)) return;
+
+    this.pendingEffects.push({ deps, effect, index });
+  }
+
+  public useMemo<T>(factory: () => T, deps?: unknown[]): T {
+    const index = this.hookIndex;
+    this.hookIndex += 1;
+
+    const previous = this.memos[index] as MemoState<T> | undefined;
+    if (previous && areDepsEqual(previous.deps, deps)) {
+      return previous.value;
+    }
+
+    const value = factory();
+    this.memos[index] = { deps, value };
+    return value;
+  }
+
+  public useRef<T>(current: T): MutableRef<T> {
+    const index = this.hookIndex;
+    this.hookIndex += 1;
+
+    const previous = this.refs[index] as MutableRef<T> | undefined;
+    if (previous) return previous;
+
+    const ref = { current };
+    this.refs[index] = ref;
+    return ref;
+  }
+
+  public override dispose(): void {
+    for (const effect of this.effects) {
+      effect?.cleanup?.();
+    }
+    this.effects.length = 0;
+    this.memos.length = 0;
+    this.pendingEffects.length = 0;
+    this.refs.length = 0;
+    super.dispose();
+  }
+}
+
+let activePreviewHookScope: PreviewHookScope | null = null;
+const previewHookScopes = new WeakMap<object, PreviewHookScope>();
+const defaultPreviewHookScopeKey = {};
+
+const getPreviewHookScope = (key: object): PreviewHookScope => {
+  let scope = previewHookScopes.get(key);
+  if (!scope) {
+    scope = new PreviewHookScope();
+    previewHookScopes.set(key, scope);
+  }
+  return scope;
+};
+
+const getActivePreviewHookScope = (): PreviewHookScope => {
+  if (!activePreviewHookScope) {
+    throw new Error("Preview hook scope is not active");
+  }
+  return activePreviewHookScope;
+};
+
+const runWithPreviewHookScope = <T,>(
+  scope: PreviewHookScope,
+  callback: () => T,
+): T => {
+  const previousScope = activePreviewHookScope;
+  activePreviewHookScope = scope;
+  scope.begin();
+
+  try {
+    const result = callback();
+    scope.flushEffects();
+    return result;
+  } finally {
+    activePreviewHookScope = previousScope;
+  }
+};
+
+const startTransition = (callback: () => void): void => callback();
+const useCallback = <T extends (...args: any[]) => any>(
+  callback: T,
+  deps?: unknown[],
+): T => getActivePreviewHookScope().useMemo(() => callback, deps);
+const useDeferredValue = <T,>(value: T): T => value;
+const useEffect = (
+  effect: () => void | (() => void),
+  deps?: unknown[],
+): void => getActivePreviewHookScope().useEffect(effect, deps);
+const useMemo = <T,>(factory: () => T, deps?: unknown[]): T =>
+  getActivePreviewHookScope().useMemo(factory, deps);
+const useRef = <T,>(current: T): MutableRef<T> =>
+  getActivePreviewHookScope().useRef(current);
 
 type PreviewResultPayload = {
   requestId: number;
@@ -69,11 +226,13 @@ type WorkerMessage =
   | { type: "workerError"; payload: WorkerErrorPayload }
   | { type?: string; payload?: Record<string, unknown> | null };
 
-type UsePreviewOptions = {
+type UsePreviewOptions = TableOptions;
+type CreatePreviewOptions = {
   rawData?: RawDataEntry[];
   selectedPreviewFileId?: string | null;
   setSelectedPreviewFileId?: Dispatch<SetStateAction<string | null>>;
   previewFile?: PreviewFile | null;
+  previewStatus?: PreviewStatus;
   setPreviewFile?: Dispatch<SetStateAction<PreviewFile | null>>;
   setPreviewStatus?: Dispatch<SetStateAction<PreviewStatus>>;
   previewWorkerRef?: MutableRef<Worker | null>;
@@ -102,7 +261,7 @@ const PREVIEW_ROWS_MAX_MERGED_REQUEST_ROWS = Math.max(
   400,
 );
 
-export const usePreview = ({
+const createPreviewBindings = ({
   rawData = [],
   selectedPreviewFileId = null,
   setSelectedPreviewFileId = () => {},
@@ -111,6 +270,7 @@ export const usePreview = ({
   setPreviewStatus = () => {},
   previewWorkerRef = { current: null },
   previewRequestIdRef = { current: 0 },
+  previewStatus = PREVIEW_STATUS_IDLE,
   previewRowsRequestIdRef = { current: 0 },
   previewRowsRequestsRef = { current: new Map() },
   previewRowsCacheByFileIdRef = { current: new Map() },
@@ -120,19 +280,22 @@ export const usePreview = ({
   previewCacheFileIdRef = { current: null },
   previewCacheFileLruRef = { current: new Set() },
   t,
-}: UsePreviewOptions) => {
+}: CreatePreviewOptions) => {
   const {
     cancelPreviewRowsVersionNotification,
     getPreviewRowsVersion,
     notifyPreviewRowsVersion,
     subscribePreviewRowsVersion,
-  } = usePreviewRowsVersion();
+  } = useMemo(() => usePreviewRowsVersion(), []);
 
   const deferredSelectedPreviewFileId = useDeferredValue(selectedPreviewFileId);
+  const previewStatusRef = useRef<PreviewStatus>(previewStatus);
+  const previewFileRef = useRef<PreviewFile | null>(previewFile);
   const previewPendingChunksByFileIdRef = useRef<Map<string, Set<number>>>(
     new Map(),
   );
   const rustPreviewFileIdsRef = useRef<Set<string>>(new Set());
+  const pendingPreviewFileIdRef = useRef<string | null>(null);
 
   const rawDataById = useMemo(() => {
     const map = new Map<string, RawDataEntry>();
@@ -151,6 +314,17 @@ export const usePreview = ({
   useEffect(() => {
     rawDataByIdRef.current = rawDataById;
   }, [rawDataById]);
+
+  useEffect(() => {
+    previewStatusRef.current = previewStatus;
+    previewFileRef.current = previewFile;
+  }, [previewStatus, previewFile]);
+
+  const clearPendingPreviewRequest = useCallback((requestId: number) => {
+    if (requestId === previewRequestIdRef.current) {
+      pendingPreviewFileIdRef.current = null;
+    }
+  }, [previewRequestIdRef]);
 
   const getOrCreatePreviewFileCaches = useCallback(
     (fileId: string) => {
@@ -285,6 +459,7 @@ export const usePreview = ({
   const invalidatePreviewRequests = useCallback(() => {
     previewRequestIdRef.current += 1;
     cancelPendingPreviewRowRequests();
+    pendingPreviewFileIdRef.current = null;
     previewPendingChunksByFileIdRef.current = new Map();
   }, [cancelPendingPreviewRowRequests, previewRequestIdRef]);
 
@@ -292,6 +467,7 @@ export const usePreview = ({
     ({ clearSelection = false }: { clearSelection?: boolean } = {}) => {
       setPreviewFile(null);
       setPreviewStatus(PREVIEW_STATUS_IDLE);
+      pendingPreviewFileIdRef.current = null;
 
       if (clearSelection) {
         setSelectedPreviewFileId(null);
@@ -387,9 +563,38 @@ export const usePreview = ({
       if (type === "previewResult" && payload) {
         const previewPayload = payload as PreviewResultPayload;
         if (previewPayload.requestId !== previewRequestIdRef.current) return;
+        clearPendingPreviewRequest(previewPayload.requestId);
 
         const fileId =
           typeof previewPayload.fileId === "string" ? previewPayload.fileId : null;
+        const maxCellLengths = Array.isArray(previewPayload.maxCellLengths)
+          ? previewPayload.maxCellLengths.map((n) => Number(n) || 0)
+          : [];
+        const nextPreviewFile: PreviewFile = {
+          fileId: String(fileId || ""),
+          fileName: String(previewPayload.fileName || ""),
+          rowCount: Number(previewPayload.rowCount) || 0,
+          columnCount: Number(previewPayload.columnCount) || 0,
+          maxCellLengths,
+        };
+        const currentPreviewFile = previewFileRef.current;
+        const hasSamePreviewFile =
+          currentPreviewFile?.fileId === nextPreviewFile.fileId &&
+          currentPreviewFile?.fileName === nextPreviewFile.fileName &&
+          currentPreviewFile?.rowCount === nextPreviewFile.rowCount &&
+          currentPreviewFile?.columnCount === nextPreviewFile.columnCount &&
+          currentPreviewFile?.maxCellLengths.length ===
+            nextPreviewFile.maxCellLengths.length &&
+          (currentPreviewFile?.maxCellLengths.every(
+            (cellLength, index) => cellLength === nextPreviewFile.maxCellLengths[index],
+          ) ??
+            false);
+        const shouldUpdatePreviewStatus =
+          previewStatusRef.current.state !== "ready" ||
+          previewStatusRef.current.message !== "";
+
+        if (hasSamePreviewFile && !shouldUpdatePreviewStatus) return;
+
         activatePreviewFileCache(fileId);
         if (fileId) {
           mergePreviewSeedRows(
@@ -400,16 +605,12 @@ export const usePreview = ({
         }
 
         startTransition(() => {
-          setPreviewFile({
-            fileId: String(fileId || ""),
-            fileName: String(previewPayload.fileName || ""),
-            rowCount: Number(previewPayload.rowCount) || 0,
-            columnCount: Number(previewPayload.columnCount) || 0,
-            maxCellLengths: Array.isArray(previewPayload.maxCellLengths)
-              ? previewPayload.maxCellLengths.map((n) => Number(n) || 0)
-              : [],
-          });
-          setPreviewStatus({ state: "ready", message: "" });
+          if (!hasSamePreviewFile) {
+            setPreviewFile(nextPreviewFile);
+          }
+          if (shouldUpdatePreviewStatus) {
+            setPreviewStatus({ state: "ready", message: "" });
+          }
         });
         return;
       }
@@ -478,6 +679,7 @@ export const usePreview = ({
         }
 
         console.error("Preview worker error:", errorMessage);
+        clearPendingPreviewRequest(requestId);
         startTransition(() => {
           setPreviewStatus({
             state: "error",
@@ -493,12 +695,13 @@ export const usePreview = ({
       previewRequestIdRef,
       setPreviewFile,
       setPreviewStatus,
+      clearPendingPreviewRequest,
     ],
   );
 
   const createPreviewWorker = useCallback(() => {
     const worker = new Worker(
-      new URL("../workers/analysis.worker.ts", import.meta.url),
+      new URL("../../../contrib/workers/analysis.worker.ts", import.meta.url),
       { type: "module" },
     );
 
@@ -545,9 +748,11 @@ export const usePreview = ({
     const targetFile = rawDataById.get(String(effectiveFileId ?? "")) ?? null;
     if (!targetFile?.file || !targetFile?.fileId) return;
     if (previewFile?.fileId === targetFile.fileId) return;
+    if (pendingPreviewFileIdRef.current === targetFile.fileId) return;
 
     const requestId = previewRequestIdRef.current + 1;
     previewRequestIdRef.current = requestId;
+    pendingPreviewFileIdRef.current = targetFile.fileId;
 
     startTransition(() => {
       setPreviewStatus({ state: "loading", message: t("da_preview_loading") });
@@ -586,13 +791,16 @@ export const usePreview = ({
           : null;
     if (rustInputPath && importService.canOpenFile()) {
       void importService
-        .openFile({
+      .openFile({
           fileId: targetFile.fileId,
           fileName: targetFile.fileName ?? "",
           path: rustInputPath,
           seedRows: DA_PREVIEW_MAX_CACHED_UI_ROWS_PER_FILE,
         })
         .then((response: any) => {
+          if (requestId === previewRequestIdRef.current) {
+            clearPendingPreviewRequest(requestId);
+          }
           if (!response?.ok || !response?.result) {
             if (requestId === previewRequestIdRef.current) {
               void postWorkerPreview();
@@ -601,8 +809,39 @@ export const usePreview = ({
           }
 
           const previewPayload = response.result as PreviewResultPayload;
+          const maxCellLengths = Array.isArray(previewPayload.maxCellLengths)
+            ? previewPayload.maxCellLengths.map((n) => Number(n) || 0)
+            : [];
           const fileId =
             typeof previewPayload.fileId === "string" ? previewPayload.fileId : null;
+          const nextPreviewFile: PreviewFile = {
+            fileId: String(fileId || ""),
+            fileName: String(previewPayload.fileName || ""),
+            rowCount: Number(previewPayload.rowCount) || 0,
+            columnCount: Number(previewPayload.columnCount) || 0,
+            maxCellLengths,
+          };
+
+          if (fileId) {
+            const currentPreviewFile = previewFileRef.current;
+            const hasSamePreviewFile =
+              currentPreviewFile?.fileId === nextPreviewFile.fileId &&
+              currentPreviewFile?.fileName === nextPreviewFile.fileName &&
+              currentPreviewFile?.rowCount === nextPreviewFile.rowCount &&
+              currentPreviewFile?.columnCount === nextPreviewFile.columnCount &&
+              currentPreviewFile?.maxCellLengths.length ===
+                nextPreviewFile.maxCellLengths.length &&
+              (currentPreviewFile?.maxCellLengths.every(
+                (cellLength, index) => cellLength === nextPreviewFile.maxCellLengths[index],
+              ) ??
+                false);
+            const shouldUpdatePreviewStatus =
+              previewStatusRef.current.state !== "ready" ||
+              previewStatusRef.current.message !== "";
+
+            if (hasSamePreviewFile && !shouldUpdatePreviewStatus) return;
+          }
+
           if (fileId) {
             rustPreviewFileIdsRef.current.add(fileId);
             touchPreviewFileCache({ fileId });
@@ -621,19 +860,35 @@ export const usePreview = ({
           activatePreviewFileCache(fileId);
 
           startTransition(() => {
-            setPreviewFile({
-              fileId: String(fileId || ""),
-              fileName: String(previewPayload.fileName || ""),
-              rowCount: Number(previewPayload.rowCount) || 0,
-              columnCount: Number(previewPayload.columnCount) || 0,
-              maxCellLengths: Array.isArray(previewPayload.maxCellLengths)
-                ? previewPayload.maxCellLengths.map((n) => Number(n) || 0)
-                : [],
-            });
-            setPreviewStatus({ state: "ready", message: "" });
+            if (
+              !(
+                previewFileRef.current?.fileId === nextPreviewFile.fileId &&
+                previewFileRef.current?.fileName === nextPreviewFile.fileName &&
+                previewFileRef.current?.rowCount === nextPreviewFile.rowCount &&
+                previewFileRef.current?.columnCount === nextPreviewFile.columnCount &&
+                previewFileRef.current?.maxCellLengths.length ===
+                  nextPreviewFile.maxCellLengths.length &&
+                (previewFileRef.current?.maxCellLengths.every(
+                  (cellLength, index) =>
+                    cellLength === nextPreviewFile.maxCellLengths[index],
+                ) ??
+                  false)
+              )
+            ) {
+              setPreviewFile(nextPreviewFile);
+            }
+            if (
+              previewStatusRef.current.state !== "ready" ||
+              previewStatusRef.current.message !== ""
+            ) {
+              setPreviewStatus({ state: "ready", message: "" });
+            }
           });
         })
         .catch(() => {
+          if (requestId === previewRequestIdRef.current) {
+            clearPendingPreviewRequest(requestId);
+          }
           if (requestId === previewRequestIdRef.current) {
             void postWorkerPreview();
           }
@@ -997,4 +1252,29 @@ export const usePreview = ({
     subscribePreviewRowsVersion,
   };
 };
+
+export const createTableBindings = (
+  options: TableOptions,
+): TableBindings => {
+  const scope = getPreviewHookScope(
+    options.previewWorkerRef ?? defaultPreviewHookScopeKey,
+  );
+  return runWithPreviewHookScope(scope, () => createPreviewBindings(options));
+};
+
+export class TableService extends Disposable implements ITableServiceType {
+  public declare readonly _serviceBrand: undefined;
+
+  private readonly scope = this._register(new PreviewHookScope());
+
+  public update(options: TableOptions): TableBindings {
+    return runWithPreviewHookScope(this.scope, () => createPreviewBindings(options));
+  }
+}
+
+export const usePreview = (options: UsePreviewOptions): TableBindings => {
+  return createTableBindings(options);
+};
+
+registerSingleton(ITableService, TableService, InstantiationType.Delayed);
 

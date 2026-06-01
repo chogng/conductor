@@ -1,7 +1,6 @@
 import { normalizeCtaName, normalizeCtaToken } from "src/utils/cta";
-import { cx } from "src/utils/cx";
 
-import "src/cs/base/browser/ui/tabs/tabs.css";
+import "src/cs/base/browser/ui/tabs/tab.css";
 
 export type TabValue = string | number;
 export type TabSize = "sm" | "md";
@@ -58,8 +57,11 @@ export const getTabsUiMarker = (dataUi: string | undefined): string | undefined 
 export const getTabsDevTestId = (testId: string | undefined): string | undefined =>
   import.meta.env.DEV && testId ? testId : undefined;
 
+const joinClassNames = (...classNames: string[]): string =>
+  classNames.filter(Boolean).join(" ");
+
 export const getTabsMenuClassName = (className = ""): string =>
-  cx("tab_menu", className);
+  joinClassNames("tab_menu", className);
 
 export const getTabsButtonSizeClassName = (size: TabSize = "md"): string =>
   size === "sm" ? "tab_btn--sm" : "tab_btn--md";
@@ -73,7 +75,7 @@ export const getTabsButtonClassName = ({
   isActive: boolean;
   size?: TabSize;
 }): string =>
-  cx(
+  joinClassNames(
     "tab_btn",
     getTabsButtonSizeClassName(size),
     isActive ? "tab_btn--active" : "tab_btn--inactive",

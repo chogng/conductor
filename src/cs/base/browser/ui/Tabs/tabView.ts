@@ -8,7 +8,7 @@ import {
   type NormalizedTabOption,
   type TabOptionBase,
   type TabSize,
-} from "src/cs/base/browser/ui/tabs/tabs";
+} from "src/cs/base/browser/ui/tabs/tab";
 
 export type TabViewContent = IDisposable & {
   readonly element: HTMLElement;
@@ -53,7 +53,7 @@ export abstract class TabView<TTabId extends string> extends Disposable {
     this.panel = document.createElement("div");
     this.panel.className = "tab_view_panel";
     this.element.append(this.tabList, this.panel);
-    this._register(registerTabListListeners(this.tabList, {
+    this._register(registerTabListListeners<TTabId>(this.tabList, {
       onClick: (tabId) => this.setActiveTab(tabId),
       onKeydown: (event, tabId) => this.handleTabKeydown(event, tabId),
     }));

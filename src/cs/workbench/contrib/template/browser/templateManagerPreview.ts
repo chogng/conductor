@@ -2,7 +2,7 @@
   getSelectionFocusCell,
   getSelectionModeFromPointerEvent,
   resolveSelectionDragStart,
-} from "src/cs/workbench/contrib/tablePreview/preview/previewSelectionNavigation";
+} from "src/cs/workbench/services/table/browser/preview/previewSelectionNavigation";
 import { getExcelColumnLabel } from "src/cs/workbench/contrib/template/common/templateColumnLabel";type MutableRef<T> = { current: T };
 type StateSetter<T> = (next: T | ((previous: T) => T)) => void;
 const useCallback = <T extends (...args: any[]) => any>(callback: T, _deps?: unknown[]): T => callback;

@@ -26,7 +26,7 @@ import { useProcessing } from "src/cs/workbench/contrib/data/useProcessing";
 import { SessionModel } from "src/cs/workbench/contrib/session/sessionModel";
 import { defaultSessionModel } from "src/cs/workbench/contrib/session/useSession";
 import { createSessionActions } from "src/cs/workbench/contrib/session/useSessionActions";
-import { usePreview } from "src/cs/workbench/contrib/tablePreview/usePreview";
+import type { ITableService } from "src/cs/workbench/services/table/common/table";
 import {
   CoreSettingsController,
   createCoreSettingsState,
@@ -63,6 +63,7 @@ export type WorkbenchOptions = {
   readonly showDesktopCommandBar?: boolean;
   readonly showSkeleton?: boolean;
   readonly style?: WorkbenchStyle;
+  readonly tableService?: ITableService;
   readonly titlebarState?: WorkbenchTitlebarState;
 };
 
@@ -114,6 +115,7 @@ export class Workbench extends Layout {
   private readonly data: DataViewPane;
   private readonly analysis: ChartPreviewViewPane;
   private readonly settings: SettingsViewPane;
+  private readonly tableService: ITableService;
   private readonly coreSettingsController: CoreSettingsController;
   private coreSettingsState: CoreSettingsState = createCoreSettingsState();
   private language: LanguageCode = isLanguageCode(window.__CONDUCTOR_INITIAL_LANGUAGE__)
@@ -137,6 +139,10 @@ export class Workbench extends Layout {
     }));
     this._register(toDisposableSession(this.session));
     this.mount(this.window.contentElement);
+    if (!options.tableService) {
+      throw new Error("Workbench requires ITableService.");
+    }
+    this.tableService = options.tableService;
     this.importer = this._register(new ImporterViewletHost(this.getImporterProps()));
     this.data = this._register(new DataViewPane(this.getDataProps()));
     this.analysis = this._register(new ChartPreviewViewPane(this.getAnalysisProps()));
@@ -301,10 +307,11 @@ export class Workbench extends Layout {
   }
 
   private getPreviewBindings(snapshot = this.session.getSnapshot()) {
-    return usePreview({
+    return this.tableService.update({
       previewCacheFileIdRef: this.session.previewCacheFileIdRef,
       previewCacheFileLruRef: this.session.previewCacheFileLruRef,
       previewFile: snapshot.previewFile,
+      previewStatus: snapshot.previewStatus,
       previewLoadedChunksByFileIdRef: this.session.previewLoadedChunksByFileIdRef,
       previewLoadedChunksRef: this.session.previewLoadedChunksRef,
       previewRequestIdRef: this.session.previewRequestIdRef,

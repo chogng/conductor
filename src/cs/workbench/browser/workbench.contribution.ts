@@ -7,13 +7,19 @@ import {
   WorkbenchPhase,
   type IWorkbenchContribution,
 } from "src/cs/workbench/common/contributions";
+import {
+  ITableService,
+  type ITableService as ITableServiceType,
+} from "src/cs/workbench/services/table/common/table";
 
 export const WorkbenchContributionId = "workbench.browser.workbench";
 
 export class WorkbenchContribution extends Disposable implements IWorkbenchContribution {
   private readonly workbench: Workbench;
 
-  constructor() {
+  constructor(
+    @ITableService tableService: ITableServiceType,
+  ) {
     super();
 
     const root = document.getElementById("root");
@@ -21,7 +27,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
       throw new Error('Root element with id "root" was not found.');
     }
 
-    this.workbench = this._register(new Workbench(root));
+    this.workbench = this._register(new Workbench(root, { tableService }));
     this._register(
       scheduleAtNextAnimationFrame(window, () => {
         markBootUiReady("workbench");

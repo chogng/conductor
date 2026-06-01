@@ -23,16 +23,19 @@ export interface ILazyWorkbenchContributionInstantiation {
 
 export type WorkbenchContributionInstantiation = WorkbenchPhase | ILazyWorkbenchContributionInstantiation;
 
+type WorkbenchContributionCtor<T extends IWorkbenchContribution = IWorkbenchContribution> =
+  new (...args: never[]) => T;
+
 interface IWorkbenchContributionRegistration {
   readonly id: string | undefined;
-  readonly ctor: new (...args: unknown[]) => IWorkbenchContribution;
+  readonly ctor: WorkbenchContributionCtor;
 }
 
 export interface IWorkbenchContributionsRegistry {
   readonly whenRestored: Promise<void>;
   readonly timings: Map<LifecyclePhase, Array<[string, number]>>;
-  registerWorkbenchContribution(ctor: new (...args: unknown[]) => IWorkbenchContribution, phase: LifecyclePhase.Restored | LifecyclePhase.Eventually): void;
-  registerWorkbenchContribution2(id: string | undefined, ctor: new (...args: unknown[]) => IWorkbenchContribution, instantiation: WorkbenchContributionInstantiation): void;
+  registerWorkbenchContribution(ctor: WorkbenchContributionCtor, phase: LifecyclePhase.Restored | LifecyclePhase.Eventually): void;
+  registerWorkbenchContribution2(id: string | undefined, ctor: WorkbenchContributionCtor, instantiation: WorkbenchContributionInstantiation): void;
   getWorkbenchContribution<T extends IWorkbenchContribution>(id: string): T;
   start(accessor: ServicesAccessor): void;
 }
@@ -61,11 +64,11 @@ class WorkbenchContributionsRegistry extends Disposable implements IWorkbenchCon
     return this.timingsByPhase;
   }
 
-  public registerWorkbenchContribution(ctor: new (...args: unknown[]) => IWorkbenchContribution, phase: LifecyclePhase.Restored | LifecyclePhase.Eventually): void {
+  public registerWorkbenchContribution(ctor: WorkbenchContributionCtor, phase: LifecyclePhase.Restored | LifecyclePhase.Eventually): void {
     this.registerWorkbenchContribution2(undefined, ctor, phase as unknown as WorkbenchPhase);
   }
 
-  public registerWorkbenchContribution2(id: string | undefined, ctor: new (...args: unknown[]) => IWorkbenchContribution, instantiation: WorkbenchContributionInstantiation): void {
+  public registerWorkbenchContribution2(id: string | undefined, ctor: WorkbenchContributionCtor, instantiation: WorkbenchContributionInstantiation): void {
     const contribution: IWorkbenchContributionRegistration = { id, ctor };
 
     if (typeof id === "string") {
@@ -171,7 +174,9 @@ class WorkbenchContributionsRegistry extends Disposable implements IWorkbenchCon
     const startTime = Date.now();
 
     try {
-      const instance = this.instantiationService.createInstance(contribution.ctor);
+      const instance = this.instantiationService.createInstance(
+        contribution.ctor as new (...args: unknown[]) => IWorkbenchContribution,
+      );
       if (typeof contribution.id === "string") {
         this.instancesById.set(contribution.id, instance);
         this.contributionsById.delete(contribution.id);
@@ -195,7 +200,7 @@ class WorkbenchContributionsRegistry extends Disposable implements IWorkbenchCon
 }
 
 export const registerWorkbenchContribution2 = WorkbenchContributionsRegistry.INSTANCE.registerWorkbenchContribution2.bind(WorkbenchContributionsRegistry.INSTANCE) as {
-  (id: string, ctor: new (...args: unknown[]) => IWorkbenchContribution, instantiation: WorkbenchContributionInstantiation): void;
+  (id: string, ctor: WorkbenchContributionCtor, instantiation: WorkbenchContributionInstantiation): void;
 };
 
 export const getWorkbenchContribution = WorkbenchContributionsRegistry.INSTANCE.getWorkbenchContribution.bind(WorkbenchContributionsRegistry.INSTANCE);
