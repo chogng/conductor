@@ -160,6 +160,7 @@ export class SplitView implements IDisposable {
   private options: SplitViewOptions;
   private resizingPaneIndex: number | null = null;
   private sizes: readonly number[] = [];
+  private sashOrientation: SashDragOrientation | null = null;
 
   public constructor(options: SplitViewOptions) {
     this.options = options;
@@ -250,27 +251,7 @@ export class SplitView implements IDisposable {
     const { gap = 0, orientation = "horizontal", panes } = this.options;
     Object.assign(this.gridElement.style, getGridViewStyle({ gap, orientation, sizes: this.sizes }));
     this.layoutViewport();
-    this.clearSashes();
-
-    let offset = 0;
-    for (let index = 0; index < this.sizes.length - 1; index++) {
-      offset += this.sizes[index] ?? 0;
-      const sashOffset = offset + gap * index + gap / 2;
-      const style = orientation === "horizontal"
-        ? { left: `${sashOffset - SPLIT_VIEW_SASH_SIZE / 2}px` }
-        : { top: `${sashOffset - SPLIT_VIEW_SASH_SIZE / 2}px` };
-      const sash = new Sash({
-        active: this.resizingPaneIndex === index,
-        className: "ui-split-view__sash",
-        orientation: orientation === "horizontal" ? "vertical" : "horizontal",
-        style,
-        onDidStart: () => this.startResize(index),
-        onDidChange: (event) => this.changeResize(event),
-        onDidEnd: () => this.endResize(),
-      });
-      this.sashItems.push(sash);
-      this.element.append(sash.element);
-    }
+    this.layoutSashes();
 
     this.element.dataset.resizing = this.resizingPaneIndex === null ? "false" : "true";
     if (panes.length === 0) {
@@ -300,6 +281,51 @@ export class SplitView implements IDisposable {
       sash.dispose();
     }
     this.sashItems.length = 0;
+    this.sashOrientation = null;
+  }
+
+  private layoutSashes(): void {
+    const { gap = 0, orientation = "horizontal" } = this.options;
+    const sashOrientation = getSashOrientation(orientation);
+    const sashCount = Math.max(0, this.sizes.length - 1);
+
+    if (
+      this.sashItems.length !== sashCount ||
+      this.sashOrientation !== sashOrientation
+    ) {
+      this.clearSashes();
+      this.sashOrientation = sashOrientation;
+      for (let index = 0; index < sashCount; index += 1) {
+        const sash = new Sash({
+          className: "ui-split-view__sash",
+          orientation: sashOrientation,
+          onDidStart: () => this.startResize(index),
+          onDidChange: (event) => this.changeResize(event),
+          onDidEnd: () => this.endResize(),
+        });
+        this.sashItems.push(sash);
+        this.element.append(sash.element);
+      }
+    }
+
+    let offset = 0;
+    for (let index = 0; index < this.sashItems.length; index += 1) {
+      offset += this.sizes[index] ?? 0;
+      const sashOffset = offset + gap * index + gap / 2;
+      const style = orientation === "horizontal"
+        ? { left: `${sashOffset - SPLIT_VIEW_SASH_SIZE / 2}px` }
+        : { top: `${sashOffset - SPLIT_VIEW_SASH_SIZE / 2}px` };
+
+      this.sashItems[index]?.update({
+        active: this.resizingPaneIndex === index,
+        className: "ui-split-view__sash",
+        orientation: sashOrientation,
+        style,
+        onDidStart: () => this.startResize(index),
+        onDidChange: (event) => this.changeResize(event),
+        onDidEnd: () => this.endResize(),
+      });
+    }
   }
 
   private startResize(paneIndex: number): void {
@@ -344,3 +370,10 @@ export class SplitView implements IDisposable {
 }
 
 export default SplitView;
+
+type SashDragOrientation = "vertical" | "horizontal";
+
+const getSashOrientation = (
+  orientation: SplitViewOrientation,
+): SashDragOrientation =>
+  orientation === "horizontal" ? "vertical" : "horizontal";

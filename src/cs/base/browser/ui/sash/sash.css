@@ -1,17 +1,27 @@
 .ui-sash {
-  @apply absolute z-50 touch-none select-none;
+  position: absolute;
+  z-index: 50;
+  touch-action: none;
+  user-select: none;
 }
 
 .ui-sash[data-disabled="true"] {
-  @apply pointer-events-none cursor-default;
+  pointer-events: none;
+  cursor: default;
 }
 
 .ui-sash[data-orientation="vertical"] {
-  @apply top-0 bottom-0 w-[10px] cursor-col-resize;
+  top: 0;
+  bottom: 0;
+  width: 10px;
+  cursor: col-resize;
 }
 
 .ui-sash[data-orientation="horizontal"] {
-  @apply left-0 right-0 h-[10px] cursor-row-resize;
+  left: 0;
+  right: 0;
+  height: 10px;
+  cursor: row-resize;
 }
 
 .ui-sash[data-edge="right"] {
@@ -31,30 +41,50 @@
 }
 
 .ui-sash__track {
-  @apply absolute rounded-full transition-all duration-300;
+  position: absolute;
+  border-radius: 9999px;
   background: rgb(var(--accent) / 0);
+  transition: all 300ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .ui-sash[data-orientation="vertical"] .ui-sash__track {
-  @apply left-1/2 top-4 bottom-4 w-[2px] -translate-x-1/2;
+  left: 50%;
+  top: 1rem;
+  bottom: 1rem;
+  width: 2px;
+  transform: translateX(-50%);
 }
 
 .ui-sash[data-orientation="horizontal"] .ui-sash__track {
-  @apply left-4 right-4 top-1/2 h-[2px] -translate-y-1/2;
+  left: 1rem;
+  right: 1rem;
+  top: 50%;
+  height: 2px;
+  transform: translateY(-50%);
 }
 
 .ui-sash__handle {
-  @apply absolute left-1/2 top-1/2 rounded-full bg-accent opacity-0 transition-all duration-300;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-radius: 9999px;
+  background: rgb(var(--accent) / 1);
+  opacity: 0;
   transform-origin: center;
+  transition: all 300ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .ui-sash[data-orientation="vertical"] .ui-sash__handle {
-  @apply h-[24px] w-[4px] -translate-x-1/2 -translate-y-1/2;
+  width: 4px;
+  height: 24px;
+  transform: translate(-50%, -50%);
   scale: 1 0.5;
 }
 
 .ui-sash[data-orientation="horizontal"] .ui-sash__handle {
-  @apply h-[4px] w-[24px] -translate-x-1/2 -translate-y-1/2;
+  width: 24px;
+  height: 4px;
+  transform: translate(-50%, -50%);
   scale: 0.5 1;
 }
 

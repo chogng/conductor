@@ -1,6 +1,5 @@
 import { addDisposableListener, getWindow } from "src/cs/base/browser/dom";
 import { combinedDisposable, DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
-import { cx } from "src/utils/cx";
 
 import "src/cs/base/browser/ui/sash/sash.css";
 
@@ -39,7 +38,7 @@ export type SashOptions = {
 };
 
 export const getSashClassName = (className = ""): string =>
-  cx("ui-sash", className);
+  className ? `ui-sash ${className}` : "ui-sash";
 
 const toSashDragEvent = (
   state: SashDragState,
@@ -117,7 +116,11 @@ export class Sash implements IDisposable {
 
     this.dragState = dragState;
     this.isDragging = true;
-    this.element.setPointerCapture?.(event.pointerId);
+    try {
+      this.element.setPointerCapture?.(event.pointerId);
+    } catch {
+      // Pointer capture can fail if the browser has already ended the pointer.
+    }
     this.update(this.options);
     options.onDidStart?.(toSashDragEvent(dragState, event));
 
@@ -131,7 +134,11 @@ export class Sash implements IDisposable {
       this.dragCleanup = null;
       this.dragState = null;
       this.isDragging = false;
-      this.element.releasePointerCapture?.(currentDragState.pointerId);
+      try {
+        this.element.releasePointerCapture?.(currentDragState.pointerId);
+      } catch {
+        // Pointer capture can already be gone by the time cleanup runs.
+      }
       this.update(this.options);
 
       if (browserEvent) {
