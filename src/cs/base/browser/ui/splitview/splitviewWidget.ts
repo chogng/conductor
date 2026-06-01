@@ -9,6 +9,7 @@ import Sash, { type SashDragEvent } from "src/cs/base/browser/ui/sash/sash";
 import {
   areSplitViewSizesEqual,
   getSplitViewClassName,
+  getSplitViewPaneClassName,
   normalizeSplitViewSizes,
   resizeAdjacentSplitViewPanes,
   SPLIT_VIEW_SASH_SIZE,
@@ -16,7 +17,6 @@ import {
   type SplitViewPaneLayout,
   type SplitViewResizeEvent,
 } from "src/cs/base/browser/ui/splitview/splitview";
-import { cx } from "src/utils/cx";
 
 export type SplitViewPane = SplitViewPaneLayout & {
   readonly className?: string;
@@ -115,7 +115,7 @@ export class SplitViewWidget implements IDisposable {
         paneElement = document.createElement("div");
         this.paneElements.set(pane.id, paneElement);
       }
-      paneElement.className = getGridViewItemClassName(cx("ui-split-view__pane", pane.className));
+      paneElement.className = getGridViewItemClassName(getSplitViewPaneClassName(pane.className));
       this.gridElement.append(paneElement);
     }
   }

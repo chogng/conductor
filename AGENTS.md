@@ -3,7 +3,7 @@
 测试数据：C:\Users\lanxi\Desktop\293K
 
 总原则：
-- 新功能不要再写 TSX/React，直接写上游式 TypeScript；React 逐步退场。
+- 不写 TSX/React；UI 使用上游式 TypeScript 创建和组合 DOM。
 - 写代码前先找上游同类实现：优先 `C:\Users\lanxi\Desktop\vscode`，再看 `C:\Users\lanxi\Desktop\codex`，最后看本项目相邻模块。
 - 对照上游时至少看四件事：文件放在哪里，类/函数怎么命名，状态怎么流动，CSS 怎么承接 UI 状态。
 - 如果上游已有同类模式，本项目按上游写；不要发明第二套命名、目录、生命周期或服务模式。
@@ -42,7 +42,7 @@ PowerShell 规则：
 - 处在业务目录内时，名字不要重复业务前缀。例如 `deviceAnalysis` 目录里不要再写 `DeviceAnalysisDataView`、`deviceAnalysisState`，优先写 `DataView`、`dataState`、`selectionModel`。
 - 类名写架构角色：`DataView`、`DataModel`、`ImportController`、`SelectionService`、`PreviewPane`。不要写含糊的 `Manager`、`Helper`、`Util`、`Common`，除非上游对应模块就是这么命名。
 - workbench UI 命名优先使用 `View`、`Views`、`Viewlet`、`ViewPane`、`Pane`、`Widget` 这组角色：`View` 表示具体 UI，`Views` 表示一组 view 的组织或注册，`Viewlet` 表示一个较完整的 workbench 区域入口，`ViewPane`/`Pane` 表示接入 workbench pane/view 体系的承载类，`Widget` 表示局部可复用控件。
-- 不把长期架构角色命名为 `Container`，除非现有上游同类 API 明确要求或只是迁移期 React 包装层；迁移期 `*Container` 后续要收敛为 `*View`、`*ViewPane`、`*Viewlet` 或删除。
+- 不把长期架构角色命名为 `Container`，除非现有上游同类 API 明确要求；优先收敛为 `*View`、`*ViewPane`、`*Viewlet` 或删除。
 - 函数名写动作和结果：`parseCsvRows`、`createPreviewModel`、`resolveColumnMapping`、`renderEmptyState`。不要写 `handleData`、`doImport`、`processResult`。
 - 布尔值必须能直接读成判断句：`hasHeaderRow`、`isPreviewVisible`、`canImport`、`shouldReuseSession`。不要写 `flag`、`status`、`isData`、`check`。
 - 类型名不要加无意义后缀：优先 `ColumnMapping`、`ImportSession`，避免 `ColumnMappingType`、`ImportSessionInfoData`。
@@ -76,7 +76,9 @@ PowerShell 规则：
 
 UI 和 CSS：
 - `src/cs/base/browser/ui` 下的组件按上游风格组织为“组件目录 + 同名实现文件”，不要添加 `index.ts` 入口文件。
-- 新 UI 不写 TSX；用上游式 TypeScript 创建和组合 DOM。
+- 新 UI 用上游式 TypeScript 创建和组合 DOM。
+- 新增或触碰 `src/cs/base/browser/ui` 代码时，不再引入全局 class 拼接工具（例如 `src/utils/cx`）；固定 class 直接写，少量可选 class 用三元拼接，多条件 class 用局部 `classNames` 数组 `push` 后 `join(' ')`。
+- UI 状态 class 优先用 `classList.add/remove/toggle`，或用 `data-*`、ARIA 属性交给 CSS 承接；不要为了条件 class 新增全局 helper。
 - DOM 只表达语义和交互：容器、按钮、列表、输入、状态区域。颜色、间距、边框、显示/隐藏、选中/禁用等视觉表现写进 CSS。
 - 状态通过 class、`data-*` 属性、ARIA 属性传给 CSS，例如 `data-state="empty"`、`data-selected="true"`、`aria-disabled="true"`；不要为了状态样式复制两套 DOM。
 - 不为了画线、背景、角标、间距额外加空元素；优先用 CSS 伪元素、属性选择器和已有基础组件。
@@ -115,7 +117,7 @@ Service、IPC 和依赖注入：
 
 Contribution、Command、Context Key、Configuration：
 - 新功能入口优先找上游同层 contribution、registry、command、action、menu、keybinding 接入方式；不要在应用启动主流程或已有 view 构造函数里硬编码初始化。
-- workbench contrib 新功能必须有明确入口层：注册 command、action、menu、keybinding、view、context key、workbench contribution 的代码放在对应运行环境的 `<feature>.contribution.ts`，例如 `browser/settings.contribution.ts`；不要把注册入口散落到 view、container、service 或 `Page.tsx`。
+- workbench contrib 新功能必须有明确入口层：注册 command、action、menu、keybinding、view、context key、workbench contribution 的代码放在对应运行环境的 `<feature>.contribution.ts`，例如 `browser/settings.contribution.ts`；不要把注册入口散落到 view、container、service 或页面入口文件。
 - 需要随 workbench 启动注册的能力，优先写成 contribution；contribution 只负责注册、监听生命周期和协调 service，不承载大量业务逻辑。
 - view、model、service、controller 只承担各自角色；需要被 workbench 发现、启动或挂载时，通过同 feature 的 `.contribution.ts` 接入。
 - contribution 是 workbench 级入口，不是 UI 容器实现：它负责把 feature 登记到 workbench；具体 DOM、pane 结构、事件绑定、焦点、ARIA 和 CSS 状态由 `*View`、`*ViewPane`、`*Viewlet` 或 `*Widget` 承担。
@@ -160,11 +162,11 @@ Contribution、Command、Context Key、Configuration：
 - 如果暂时没写测试，最终说明必须明确未测原因和人工验证方式。
 - 新增代码必须通过项目现有 formatter/lint 风格；不要用局部格式化把整文件无关代码刷一遍。
 - 改到旧文件时，至少顺手清掉触碰范围内的死代码、重复类型、无用 import、临时注释和明显多余的业务前缀。
-- 不借小功能做大搬家；重命名、拆文件、迁移 React 这类改动必须限制在当前需求直接触碰的范围内。
+- 不借小功能做大搬家；重命名、拆文件、迁移旧 UI 结构这类改动必须限制在当前需求直接触碰的范围内。
 - 如果发现现有代码明显偏离上游，先让新增代码按正确方式落地，再把相邻旧代码小步迁过去。
 
 禁止清单：
-- 不新增 TSX/React 组件承载新功能。
+- 不新增 TSX/React。
 - 不新增 `utils.ts`、`helper.ts`、`common.ts` 作为垃圾桶文件。
 - 不新增空泛命名：`Manager`、`Helper`、`Common`、`DataInfo`、`DataItem`、`handleData`、`processData`，除非上游同类代码已有明确先例。
 - 不在 view 文件里写 CSV/JSON/表格解析器、缓存策略、worker 协议和持久化逻辑。

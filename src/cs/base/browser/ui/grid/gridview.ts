@@ -1,5 +1,3 @@
-import { cx } from "src/utils/cx";
-
 import "src/cs/base/browser/ui/grid/gridview.css";
 
 export type GridViewOrientation = "horizontal" | "vertical";
@@ -27,10 +25,10 @@ export type GridViewStyle = {
 };
 
 export const getGridViewClassName = (className = ""): string =>
-  cx("ui-grid-view", className);
+  className ? `ui-grid-view ${className}` : "ui-grid-view";
 
 export const getGridViewItemClassName = (className = ""): string =>
-  cx("ui-grid-view__item", className);
+  className ? `ui-grid-view__item ${className}` : "ui-grid-view__item";
 
 export const getGridViewStyle = ({
   gap = 0,
