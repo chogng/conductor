@@ -7,48 +7,30 @@ const isDesktopStoreUnavailableError = (error: unknown): boolean =>
   error instanceof Error &&
   error.message === DESKTOP_STORE_UNAVAILABLE;
 
-class ApiService {
+class AnalysisStoreClient {
   async getDeviceAnalysisTemplates(): Promise<unknown> {
-    return this._requestAnalysisStore("/analysis/templates");
+    return this.requestStore("/analysis/templates");
   }
 
   async createDeviceAnalysisTemplate(template: unknown): Promise<unknown> {
-    return this._requestAnalysisStore("/analysis/templates", {
+    return this.requestStore("/analysis/templates", {
       method: "POST",
       body: JSON.stringify(template),
     });
   }
 
   async deleteDeviceAnalysisTemplate(id: string): Promise<unknown> {
-    return this._requestAnalysisStore(`/analysis/templates/${id}`, {
+    return this.requestStore(`/analysis/templates/${id}`, {
       method: "DELETE",
     });
   }
 
-  async getSettings(): Promise<unknown> {
-    return this._requestAnalysisStore("/analysis/settings");
-  }
-
-  async updateSettings(updates: unknown): Promise<unknown> {
-    return this._requestAnalysisStore("/analysis/settings", {
-      method: "PATCH",
-      body: JSON.stringify(updates),
-    });
-  }
-
   async getDeviceAnalysisPersistencePath(): Promise<unknown> {
-    return this._requestAnalysisStore("/analysis/persistence-path");
-  }
-
-  async updateDeviceAnalysisPersistencePath(pathValue: unknown): Promise<unknown> {
-    return this._requestAnalysisStore("/analysis/persistence-path", {
-      method: "PATCH",
-      body: JSON.stringify({ path: pathValue ?? "" }),
-    });
+    return this.requestStore("/analysis/persistence-path");
   }
 
   async chooseDeviceAnalysisPersistencePath(): Promise<unknown> {
-    return this._requestAnalysisStore(
+    return this.requestStore(
       "/analysis/persistence-path/choose",
       {
         method: "POST",
@@ -56,7 +38,7 @@ class ApiService {
     );
   }
 
-  async _requestAnalysisStore<T = unknown>(
+  async requestStore<T = unknown>(
     endpoint: string,
     options: RequestInit = {},
   ): Promise<T> {
@@ -74,4 +56,4 @@ class ApiService {
   }
 }
 
-export const apiService = new ApiService();
+export const analysisStoreClient = new AnalysisStoreClient();

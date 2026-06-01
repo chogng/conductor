@@ -34,7 +34,6 @@ declare global {
     __CONDUCTOR_INITIAL_DEVICE_ANALYSIS_SETTINGS__?: Record<string, unknown> | null;
     __CONDUCTOR_INITIAL_LANGUAGE__?: LanguageCode;
     __CONDUCTOR_INITIAL_THEME__?: ThemeMode;
-    __CONDUCTOR_DEVTOOLS_KEYBINDINGS_INIT__?: boolean;
     __CONDUCTOR_NAV_MODE_INIT__?: boolean;
   }
 }
@@ -120,27 +119,6 @@ const installNavigationModeListeners = () => {
     },
     true,
   );
-};
-
-const installDeveloperKeybindings = () => {
-  if (window.__CONDUCTOR_DEVTOOLS_KEYBINDINGS_INIT__) {
-    return;
-  }
-
-  window.__CONDUCTOR_DEVTOOLS_KEYBINDINGS_INIT__ = true;
-
-  window.addEventListener("keydown", (event) => {
-    if (event.defaultPrevented || event.altKey || event.metaKey) return;
-
-    const key = String(event.key || "").toLowerCase();
-    const shouldToggleDevTools =
-      key === "f12" || (event.ctrlKey && event.shiftKey && key === "i");
-
-    if (!shouldToggleDevTools) return;
-
-    event.preventDefault();
-    ipcRenderer.send("desktop-command", { command: "toggle-devtools" });
-  });
 };
 
 const resolveInitialSettings = () => {
@@ -281,7 +259,6 @@ const logInitialRenderDiagnostics = (logBoot: BootLogger) => {
 
 const prepareWorkbench = (logBoot: BootLogger) => {
   installNavigationModeListeners();
-  installDeveloperKeybindings();
 
   const initialSettings = resolveInitialSettings();
   const initialLanguage = isLanguageCode(initialSettings?.language)

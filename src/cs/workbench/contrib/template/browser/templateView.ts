@@ -35,7 +35,7 @@ import {
   type TemplateConfig,
 } from "src/cs/workbench/contrib/template/common/templateManagerUtils";
 import { getSession, defaultSessionModel } from "src/cs/workbench/contrib/session/useSession";
-import { apiService } from "src/cs/workbench/contrib/desktop/browser/apiService";
+import { analysisStoreClient } from "src/cs/workbench/services/storage/electron-sandbox/analysisStoreClient";
 import { Toast } from "src/cs/base/browser/ui/toast/toast";
 import {
   validateTemplateForSave,
@@ -163,7 +163,7 @@ const importTemplates = async (payload: any, t: TranslateFn, session: any) => {
         const confTemplate = cachedTemplates.find((t: any) => toTemplateNameKey(t.name) === nameKey);
         if (confTemplate && confTemplate.id) {
           try {
-            await apiService.deleteDeviceAnalysisTemplate(confTemplate.id);
+            await analysisStoreClient.deleteDeviceAnalysisTemplate(confTemplate.id);
           } catch (err) {
             // Ignore delete conflict errors or proceed
           }
@@ -179,7 +179,7 @@ const importTemplates = async (payload: any, t: TranslateFn, session: any) => {
   }
 
   try {
-    const savedRaw = await apiService.createDeviceAnalysisTemplate({
+    const savedRaw = await analysisStoreClient.createDeviceAnalysisTemplate({
       ...validation.normalized,
       name: draft.name,
     });
@@ -248,7 +248,7 @@ export const createTemplateManager = ({
 
   if (cachedTemplates === null && !templatesLoading) {
     templatesLoading = true;
-    apiService.getDeviceAnalysisTemplates()
+    analysisStoreClient.getDeviceAnalysisTemplates()
       .then((remote) => {
         cachedTemplates = Array.isArray(remote) ? remote : [];
         templatesLoading = false;
@@ -411,7 +411,7 @@ export const createTemplateManager = ({
           return;
         }
         try {
-          await apiService.deleteDeviceAnalysisTemplate(selectedTemplateId);
+          await analysisStoreClient.deleteDeviceAnalysisTemplate(selectedTemplateId);
           if (cachedTemplates) {
             cachedTemplates = cachedTemplates.filter((t: any) => t.id !== selectedTemplateId);
           }
@@ -658,7 +658,7 @@ export const createTemplateManager = ({
           ...validation.normalized,
           name,
         };
-        const savedRaw = await apiService.createDeviceAnalysisTemplate({
+        const savedRaw = await analysisStoreClient.createDeviceAnalysisTemplate({
           ...persistedTemplate,
         });
         const saved = savedRaw as any;

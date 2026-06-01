@@ -1,7 +1,7 @@
 ﻿import type { PreviewStatus as SessionPreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
 import type { PreviewFileLike } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/deviceAnalysis/translateTypes";
-import { apiService } from "src/cs/workbench/contrib/desktop/browser/apiService";
+import { analysisStoreClient } from "src/cs/workbench/services/storage/electron-sandbox/analysisStoreClient";
 import { useSession } from "src/cs/workbench/contrib/session/useSession";
 import {
   cloneTemplateConfig,
@@ -244,7 +244,7 @@ export const useTemplateManagerState = ({
       setTemplatesLoading(true);
 
       try {
-        const remote = await apiService.getDeviceAnalysisTemplates();
+        const remote = await analysisStoreClient.getDeviceAnalysisTemplates();
         const remoteTemplates = Array.isArray(remote)
           ? remote.filter(isTemplateRecord)
           : [];
@@ -361,7 +361,7 @@ export const useTemplateManagerState = ({
         ...validation.normalized,
         name,
       };
-      const savedRaw = await apiService.createDeviceAnalysisTemplate({
+      const savedRaw = await analysisStoreClient.createDeviceAnalysisTemplate({
         ...persistedTemplate,
       });
       const saved: TemplateRecord =
@@ -403,7 +403,7 @@ export const useTemplateManagerState = ({
   const handleDeleteTemplate = memoCallback(
     async (id: string) => {
       try {
-        await apiService.deleteDeviceAnalysisTemplate(id);
+        await analysisStoreClient.deleteDeviceAnalysisTemplate(id);
         setTemplates((prev) => prev.filter((template) => template?.id !== id));
         setTemplatesLoaded(true);
 
@@ -563,7 +563,7 @@ export const useTemplateManagerState = ({
             name: resolvedName,
           };
           try {
-            const savedRaw = await apiService.createDeviceAnalysisTemplate({
+            const savedRaw = await analysisStoreClient.createDeviceAnalysisTemplate({
               ...persistedTemplate,
             });
             const saved: TemplateRecord = isTemplateRecord(savedRaw)

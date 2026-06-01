@@ -22,5 +22,6 @@ import "src/cs/workbench/services/environment/electron-browser/environmentServic
 //#region --- workbench contributions
 
 import "src/cs/workbench/contrib/splash/electron-sandbox/splash.contribution.ts";
+import "src/cs/workbench/electron-browser/actions/windowActions.ts";
 
 //#endregion

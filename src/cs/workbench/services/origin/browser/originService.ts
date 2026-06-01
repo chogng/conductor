@@ -1,6 +1,6 @@
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
-import { desktopIpcChannels } from "src/cs/workbench/services/desktop/common/desktopIpcChannels";
+import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 import {
   IOriginService,
   type IOriginService as IOriginServiceType,
@@ -116,7 +116,7 @@ export class OriginService extends Disposable implements IOriginServiceType {
     }
 
     return getIpcRenderer().invoke(
-      desktopIpcChannels.originHealthCheck,
+      workbenchIpcChannels.originHealthCheck,
       options,
     ) as Promise<OriginHealthResult>;
   }
@@ -128,7 +128,7 @@ export class OriginService extends Disposable implements IOriginServiceType {
     }
 
     return getIpcRenderer().invoke(
-      desktopIpcChannels.analysisRustEngineExportOriginCsv,
+      workbenchIpcChannels.analysisRustEngineExportOriginCsv,
       payload,
     ) as Promise<OriginCsvExportResult>;
   }
@@ -139,7 +139,7 @@ export class OriginService extends Disposable implements IOriginServiceType {
       return getBridgeMethod(bridge, "getOriginExePath")();
     }
 
-    return getIpcRenderer().invoke(desktopIpcChannels.originExeGet) as Promise<string>;
+    return getIpcRenderer().invoke(workbenchIpcChannels.originExeGet) as Promise<string>;
   }
 
   public pickExePath(): Promise<string> {
@@ -148,7 +148,7 @@ export class OriginService extends Disposable implements IOriginServiceType {
       return getBridgeMethod(bridge, "pickOriginExePath")();
     }
 
-    return getIpcRenderer().invoke(desktopIpcChannels.originExePick) as Promise<string>;
+    return getIpcRenderer().invoke(workbenchIpcChannels.originExePick) as Promise<string>;
   }
 
   public runCsv(payload: unknown): Promise<unknown> {
@@ -157,7 +157,7 @@ export class OriginService extends Disposable implements IOriginServiceType {
       return getBridgeMethod(bridge, "runOriginCsv")(payload);
     }
 
-    return getIpcRenderer().invoke(desktopIpcChannels.originRunCsv, payload);
+    return getIpcRenderer().invoke(workbenchIpcChannels.originRunCsv, payload);
   }
 
   public runRuntimeCleanup(payload?: unknown): Promise<OriginCleanupResult> {
@@ -167,7 +167,7 @@ export class OriginService extends Disposable implements IOriginServiceType {
     }
 
     return getIpcRenderer().invoke(
-      desktopIpcChannels.originRuntimeCleanupRun,
+      workbenchIpcChannels.originRuntimeCleanupRun,
       payload,
     ) as Promise<OriginCleanupResult>;
   }
@@ -179,7 +179,7 @@ export class OriginService extends Disposable implements IOriginServiceType {
     }
 
     return getIpcRenderer().invoke(
-      desktopIpcChannels.analysisOriginZipSave,
+      workbenchIpcChannels.analysisOriginZipSave,
       payload,
     ) as Promise<OriginZipSaveResult>;
   }
@@ -190,7 +190,7 @@ export class OriginService extends Disposable implements IOriginServiceType {
       return getBridgeMethod(bridge, "setOriginExePath")(path);
     }
 
-    return getIpcRenderer().invoke(desktopIpcChannels.originExeSet, { path });
+    return getIpcRenderer().invoke(workbenchIpcChannels.originExeSet, { path });
   }
 }
 

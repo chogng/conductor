@@ -11,6 +11,10 @@ import {
   ITableService,
   type ITableService as ITableServiceType,
 } from "src/cs/workbench/services/table/common/table";
+import {
+  ICommandService,
+  type ICommandService as ICommandServiceType,
+} from "src/cs/workbench/services/commands/common/commands";
 
 export const WorkbenchContributionId = "workbench.browser.workbench";
 
@@ -19,6 +23,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
 
   constructor(
     @ITableService tableService: ITableServiceType,
+    @ICommandService commandService: ICommandServiceType,
   ) {
     super();
 
@@ -27,7 +32,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
       throw new Error('Root element with id "root" was not found.');
     }
 
-    this.workbench = this._register(new Workbench(root, { tableService }));
+    this.workbench = this._register(new Workbench(root, { commandService, tableService }));
     this._register(
       scheduleAtNextAnimationFrame(window, () => {
         markBootUiReady("workbench");

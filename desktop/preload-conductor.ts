@@ -5,14 +5,14 @@ import {
   type ISandboxConfiguration,
 } from "../src/cs/base/parts/sandbox/common/sandboxTypes.js";
 import { nativeHostIpcChannels } from "../src/cs/platform/native/common/nativeIpc.js";
-import { desktopIpcChannels } from "../src/cs/workbench/services/desktop/common/desktopIpcChannels.js";
+import { workbenchIpcChannels } from "../src/cs/workbench/common/ipcChannels.js";
 
 type IpcListener = (event: Electron.IpcRendererEvent, ...args: unknown[]) => void;
 
 const allowedChannels = new Set<string>([
   ...Object.values(workbenchBootstrapIpcChannels),
   ...Object.values(nativeHostIpcChannels),
-  ...Object.values(desktopIpcChannels),
+  ...Object.values(workbenchIpcChannels),
   "desktop-command",
 ]);
 

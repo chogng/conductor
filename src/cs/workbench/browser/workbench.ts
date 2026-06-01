@@ -38,7 +38,9 @@ import {
   type CoreSettingsState,
 } from "src/cs/workbench/contrib/settings/browser/coreSettingsController";
 import { SettingsViewPane } from "src/cs/workbench/contrib/settings/browser/settingsViewPane";
-import { desktopIpcChannels } from "src/cs/workbench/services/desktop/common/desktopIpcChannels";
+import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
+import type { ICommandService } from "src/cs/workbench/services/commands/common/commands";
+import { WindowCommandIds } from "src/cs/workbench/common/windowCommands";
 
 export type WorkbenchTitlebarState = {
   readonly enabled?: boolean;
@@ -65,6 +67,7 @@ export type WorkbenchTitlebarState = {
 
 export type WorkbenchOptions = {
   readonly className?: string;
+  readonly commandService?: ICommandService;
   readonly id?: string;
   readonly showDesktopCommandBar?: boolean;
   readonly showSkeleton?: boolean;
@@ -121,6 +124,7 @@ export class Workbench extends Layout {
   private readonly data: DataViewPane;
   private readonly analysis: ChartPreviewViewPane;
   private readonly settings: SettingsViewPane;
+  private readonly commandService?: ICommandService;
   private readonly tableService: ITableService;
   private readonly coreSettingsController: CoreSettingsController;
   private coreSettingsState: CoreSettingsState = createCoreSettingsState();
@@ -148,6 +152,7 @@ export class Workbench extends Layout {
     if (!options.tableService) {
       throw new Error("Workbench requires ITableService.");
     }
+    this.commandService = options.commandService;
     this.tableService = options.tableService;
     this.importer = this._register(new ImporterViewletHost(this.getImporterProps()));
     this.data = this._register(new DataViewPane(this.getDataProps()));
@@ -223,19 +228,19 @@ export class Workbench extends Layout {
       canNavigateBack: state.layoutState.canNavigateBack,
       canNavigateForward: state.layoutState.canNavigateForward,
       enabled: getWorkbenchWindowState().isDesktopChromePreviewEnabled,
-      onCloseWindow: () => this.sendDesktopCommand("close-window"),
-      onMinimizeWindow: () => this.sendDesktopCommand("minimize-window"),
+      onCloseWindow: () => this.executeCommand(WindowCommandIds.closeWindow),
+      onMinimizeWindow: () => this.executeCommand(WindowCommandIds.minimizeWindow),
       onNavigateBack: () => this.navigateBack(),
       onNavigateForward: () => this.navigateForward(),
       onOpenSettings: () => this.navigateToView("settings"),
       onPageChange: (page) => this.navigateToView(page),
-      onToggleMaximizeWindow: () => this.sendDesktopCommand("toggle-maximize-window"),
+      onToggleMaximizeWindow: () => this.executeCommand(WindowCommandIds.toggleWindowMaximized),
       t: this.t,
     };
   }
 
-  private sendDesktopCommand(command: string): void {
-    window.desktopApp?.sendCommand(command);
+  private executeCommand(command: string): void {
+    this.commandService?.executeCommand(command);
   }
 
   private getImporterProps(
@@ -448,7 +453,7 @@ export class Workbench extends Layout {
       | undefined;
     if (typeof ipcRenderer?.invoke === "function") {
       try {
-        void ipcRenderer.invoke(desktopIpcChannels.desktopAppearanceSet, normalizedAppearance).catch(() => {
+        void ipcRenderer.invoke(workbenchIpcChannels.desktopAppearanceSet, normalizedAppearance).catch(() => {
           // Web and older desktop shells fall back to CSS-only appearance.
         });
       } catch {

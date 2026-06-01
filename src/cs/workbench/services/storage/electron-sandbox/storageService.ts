@@ -1,4 +1,4 @@
-import { desktopIpcChannels } from "src/cs/workbench/services/desktop/common/desktopIpcChannels";
+import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 
 const REQUIRED_ANALYSIS_STORE_METHODS = [
   "getAnalysisTemplates",
@@ -87,21 +87,21 @@ function resolveStoreChannel(
 ): { name: string; wrapPath?: boolean } {
   switch (method) {
     case "getAnalysisTemplates":
-      return { name: desktopIpcChannels.templatesGet };
+      return { name: workbenchIpcChannels.templatesGet };
     case "createAnalysisTemplate":
-      return { name: desktopIpcChannels.templatesCreate };
+      return { name: workbenchIpcChannels.templatesCreate };
     case "deleteAnalysisTemplate":
-      return { name: desktopIpcChannels.templatesDelete };
+      return { name: workbenchIpcChannels.templatesDelete };
     case "getAnalysisSettings":
-      return { name: desktopIpcChannels.settingsGet };
+      return { name: workbenchIpcChannels.settingsGet };
     case "updateAnalysisSettings":
-      return { name: desktopIpcChannels.settingsPatch };
+      return { name: workbenchIpcChannels.settingsPatch };
     case "getAnalysisPersistencePath":
-      return { name: desktopIpcChannels.persistencePathGet };
+      return { name: workbenchIpcChannels.persistencePathGet };
     case "updateAnalysisPersistencePath":
-      return { name: desktopIpcChannels.persistencePathSet, wrapPath: true };
+      return { name: workbenchIpcChannels.persistencePathSet, wrapPath: true };
     case "chooseAnalysisPersistencePath":
-      return { name: desktopIpcChannels.persistencePathChoose };
+      return { name: workbenchIpcChannels.persistencePathChoose };
   }
 
   throw new Error(

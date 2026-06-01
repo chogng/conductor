@@ -1,5 +1,5 @@
 import { formatOriginBridgeError } from "src/cs/workbench/contrib/origin/common/originBridgeError";
-import { apiService } from "src/cs/workbench/contrib/desktop/browser/apiService";
+import { analysisStoreClient } from "src/cs/workbench/services/storage/electron-sandbox/analysisStoreClient";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
   getDesktopOriginBridge,
@@ -49,11 +49,11 @@ export class BrowserSettingsService implements ISettingsServiceType {
   }
 
   public async getPersistencePath(): Promise<PersistencePathInfo | null> {
-    return toPersistencePathInfo(await apiService.getDeviceAnalysisPersistencePath());
+    return toPersistencePathInfo(await analysisStoreClient.getDeviceAnalysisPersistencePath());
   }
 
   public async choosePersistencePath(): Promise<PersistencePathInfo | null> {
-    return toPersistencePathInfo(await apiService.chooseDeviceAnalysisPersistencePath());
+    return toPersistencePathInfo(await analysisStoreClient.chooseDeviceAnalysisPersistencePath());
   }
 
   public async getOriginExePath(): Promise<string> {

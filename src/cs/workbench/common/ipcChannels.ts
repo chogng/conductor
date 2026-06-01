@@ -1,4 +1,4 @@
-export const desktopIpcChannels = {
+export const workbenchIpcChannels = {
   desktopAutoUpdateStatusGet: "desktop:auto-update-status:get",
   desktopAutoUpdateStatusChanged: "desktop:auto-update-status:changed",
   desktopAutoUpdateCheck: "desktop:auto-update:check",
@@ -36,4 +36,4 @@ export const desktopIpcChannels = {
   analysisRustEngineDispose: "rust:dispose",
 } as const;
 
-export type DesktopIpcChannel = (typeof desktopIpcChannels)[keyof typeof desktopIpcChannels];
+export type WorkbenchIpcChannel = (typeof workbenchIpcChannels)[keyof typeof workbenchIpcChannels];

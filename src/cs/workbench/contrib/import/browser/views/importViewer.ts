@@ -1,4 +1,5 @@
 import { lxClose, lxCsvGreen } from "cogicon";
+import ContentView from "src/cs/base/browser/ui/contentView/contentView";
 import Toast from "src/cs/base/browser/ui/toast/toast";
 import type { ListHandle } from "src/cs/base/browser/ui/list/list";
 import {
@@ -43,6 +44,30 @@ export type ImportViewerProps = {
 
 const getImportViewerFileName = getImportTreeFileName;
 
+type FileItemMeta = {
+  readonly isWarning: boolean;
+  readonly summary: string;
+};
+
+const getFileItemMeta = (fileEntry: ImporterFileEntry): FileItemMeta | null => {
+  if (!fileEntry?.curveType) {
+    return null;
+  }
+
+  const summary = `Auto: ${String(fileEntry.curveType).trim()}${
+    fileEntry?.curveTypeConfidence
+      ? ` (${String(fileEntry.curveTypeConfidence).trim()})`
+      : ""
+  }`;
+
+  return {
+    isWarning:
+      fileEntry?.curveTypeNeedsTemplate === true ||
+      fileEntry?.curveTypeConfidence === "low",
+    summary,
+  };
+};
+
 const appendIcon = (
   container: HTMLElement,
   icon: () => string,
@@ -63,22 +88,24 @@ const renderImportViewerFileItem = (
   container: HTMLElement,
 ) => {
   const fileName = getImportViewerFileName(fileEntry);
-  const needsReview =
-    fileEntry?.curveTypeNeedsTemplate === true ||
-    fileEntry?.curveTypeConfidence === "low";
-  const autoSummary = fileEntry?.curveType
-    ? `Auto: ${String(fileEntry.curveType).trim()}${
-        fileEntry?.curveTypeConfidence
-          ? ` (${String(fileEntry.curveTypeConfidence).trim()})`
-          : ""
-      }`
-    : "";
+  const meta = getFileItemMeta(fileEntry);
 
   container.replaceChildren();
   container.className = cx("import-viewer-file-item", "group", isSelected && "selected");
   container.setAttribute("aria-label", "csv-file-item");
   container.title = fileName;
-  container.dataset.selected = isSelected ? "true" : undefined;
+  if (isSelected) {
+    container.dataset.selected = "true";
+  } else {
+    delete container.dataset.selected;
+  }
+  if (meta) {
+    container.dataset.autoSummary = meta.summary;
+    container.dataset.autoWarning = meta.isWarning ? "true" : "false";
+  } else {
+    delete container.dataset.autoSummary;
+    delete container.dataset.autoWarning;
+  }
 
   if (fileEntry?.itemKey) {
     container.id = `csv-file-item-${toDomIdToken(fileEntry.itemKey)}`;
@@ -102,13 +129,6 @@ const renderImportViewerFileItem = (
   name.className = "import-viewer-file-name";
   name.textContent = fileName;
   text.appendChild(name);
-
-  if (autoSummary) {
-    const meta = document.createElement("span");
-    meta.className = cx("import-viewer-file-meta", needsReview && "warning");
-    meta.textContent = autoSummary;
-    text.appendChild(meta);
-  }
 
   content.append(icon, text);
 
@@ -165,6 +185,8 @@ export class ImportViewerView implements IDisposable {
   private readonly listHost: HTMLDivElement;
   private readonly treeView: ObjectTree<ImportTreeNode>;
   private readonly toast: Toast;
+  private hoverView: ContentView | null = null;
+  private hoverAnchor: HTMLElement | null = null;
   private readonly listeners: Array<() => void> = [];
   private expandedKeys: string[] = [];
   private knownFolderKeys = new Set<string>();
@@ -232,6 +254,7 @@ export class ImportViewerView implements IDisposable {
     }
 
     this.disposed = true;
+    this.hideFileItemHover();
     this.toast.dispose();
     this.treeView.dispose();
     for (const dispose of this.listeners) {
@@ -257,7 +280,7 @@ export class ImportViewerView implements IDisposable {
       className: "import-viewer-file-tree",
       getChildren: (node: ImportTreeNode) => node.children,
       getKey: (node: ImportTreeNode) => node.key,
-      gap: 6,
+      gap: 0,
       collapsedKeys: folderKeys.filter((key) => !expandedKeys.has(key)),
       empty: (container) => {
         container.replaceChildren(
@@ -309,7 +332,7 @@ export class ImportViewerView implements IDisposable {
           container.replaceChildren();
         },
       },
-      rowHeight: 44,
+      rowHeight: 28,
       selectedKey: this.props.effectiveSelectedFileId ?? null,
       viewportClassName: "import-viewer-file-tree-viewport",
     };
@@ -321,6 +344,10 @@ export class ImportViewerView implements IDisposable {
     this.viewport.addEventListener("dragover", this.handleDragOver);
     this.viewport.addEventListener("dragleave", this.handleDragLeave);
     this.viewport.addEventListener("drop", this.handleDrop);
+    this.listHost.addEventListener("mouseover", this.handleListMouseOver);
+    this.listHost.addEventListener("mouseout", this.handleListMouseOut);
+    this.listHost.addEventListener("focusin", this.handleListFocusIn);
+    this.listHost.addEventListener("focusout", this.handleListFocusOut);
 
     this.listeners.push(() =>
       this.fileInput.removeEventListener("change", this.handleFileInputChange),
@@ -336,6 +363,18 @@ export class ImportViewerView implements IDisposable {
     );
     this.listeners.push(() =>
       this.viewport.removeEventListener("drop", this.handleDrop),
+    );
+    this.listeners.push(() =>
+      this.listHost.removeEventListener("mouseover", this.handleListMouseOver),
+    );
+    this.listeners.push(() =>
+      this.listHost.removeEventListener("mouseout", this.handleListMouseOut),
+    );
+    this.listeners.push(() =>
+      this.listHost.removeEventListener("focusin", this.handleListFocusIn),
+    );
+    this.listeners.push(() =>
+      this.listHost.removeEventListener("focusout", this.handleListFocusOut),
     );
   }
 
@@ -381,6 +420,95 @@ export class ImportViewerView implements IDisposable {
     void this.props.onDropFiles(event.dataTransfer);
   };
 
+  private readonly handleListMouseOver = (event: MouseEvent): void => {
+    const item = this.getFileItemFromEvent(event);
+    if (item) {
+      this.showFileItemHover(item);
+    }
+  };
+
+  private readonly handleListMouseOut = (event: MouseEvent): void => {
+    const item = this.getFileItemFromEvent(event);
+    const relatedTarget = event.relatedTarget;
+    if (
+      item &&
+      !(relatedTarget instanceof Node && item.contains(relatedTarget))
+    ) {
+      this.hideFileItemHover(item);
+    }
+  };
+
+  private readonly handleListFocusIn = (event: FocusEvent): void => {
+    const item = this.getFileItemFromEvent(event);
+    if (item) {
+      this.showFileItemHover(item);
+    }
+  };
+
+  private readonly handleListFocusOut = (event: FocusEvent): void => {
+    const item = this.getFileItemFromEvent(event);
+    const relatedTarget = event.relatedTarget;
+    if (
+      item &&
+      !(relatedTarget instanceof Node && item.contains(relatedTarget))
+    ) {
+      this.hideFileItemHover(item);
+    }
+  };
+
+  private getFileItemFromEvent(event: Event): HTMLElement | null {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return null;
+    }
+
+    const item = target.closest(".import-viewer-file-item");
+    return item instanceof HTMLElement ? item : null;
+  }
+
+  private showFileItemHover(item: HTMLElement): void {
+    const summary = item.dataset.autoSummary;
+    if (!summary) {
+      this.hideFileItemHover();
+      return;
+    }
+
+    if (this.hoverAnchor === item && this.hoverView) {
+      return;
+    }
+
+    this.hideFileItemHover();
+    this.hoverAnchor = item;
+    this.hoverView = new ContentView({
+      align: "left",
+      anchor: item,
+      className: "import-viewer-file-hover",
+      host: this.root,
+      render: (container) => {
+        const summaryElement = document.createElement("div");
+        summaryElement.className = "import-viewer-file-hover-summary";
+        summaryElement.dataset.warning =
+          item.dataset.autoWarning === "true" ? "true" : "false";
+        summaryElement.textContent = summary;
+        container.appendChild(summaryElement);
+      },
+      role: "tooltip",
+      side: "right",
+      zIndex: 40,
+    });
+    this.hoverView.show();
+  }
+
+  private hideFileItemHover(item?: HTMLElement): void {
+    if (item && this.hoverAnchor !== item) {
+      return;
+    }
+
+    this.hoverAnchor = null;
+    this.hoverView?.dispose();
+    this.hoverView = null;
+  }
+
   private render(): void {
     if (this.disposed) {
       return;
@@ -394,6 +522,12 @@ export class ImportViewerView implements IDisposable {
     this.fileInput.setAttribute("aria-label", t("da_import_csv"));
 
     this.treeView.update(this.createTreeOptions());
+    if (
+      this.hoverAnchor &&
+      (!this.listHost.contains(this.hoverAnchor) || !this.hoverAnchor.dataset.autoSummary)
+    ) {
+      this.hideFileItemHover();
+    }
 
     if (!error) {
       this.toast.hide();

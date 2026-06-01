@@ -1,4 +1,4 @@
-﻿import fs from "node:fs";
+import fs from "node:fs";
 import path from "node:path";
 import { execFile, execFileSync, spawn } from "node:child_process";
 import { createRequire } from "node:module";
@@ -25,7 +25,7 @@ import {
   assertOriginExePath,
   normalizeOriginExePath,
 } from "../../../../desktop/origin-runner/core.js";
-import { desktopIpcChannels as ipcChannels } from "../../workbench/services/desktop/common/desktopIpcChannels.js";
+import { workbenchIpcChannels as ipcChannels } from "../../workbench/common/ipcChannels.js";
 import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
   normalizeNonEmptyString,
@@ -39,7 +39,10 @@ import {
 import { Win32UpdateService } from "../../platform/update/electron-main/updateService.win32.js";
 import { registerContextMenuListener } from "../../base/parts/contextmenu/electron-main/contextmenu.js";
 import { workbenchBootstrapIpcChannels } from "../../base/parts/sandbox/common/sandboxTypes.js";
-import { nativeHostIpcChannels } from "../../platform/native/common/nativeIpc.js";
+import {
+  nativeHostIpcChannels,
+  nativeWindowCommands,
+} from "../../platform/native/common/nativeIpc.js";
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
@@ -3220,15 +3223,10 @@ function handleWorkbenchBootstrapUiReady(event, payload) {
   return mainWindowBootExpansionPromise;
 }
 
-function handleDesktopCommand(event, payload) {
-  const command =
-    payload && typeof payload.command === "string" ? payload.command : "";
-  if (!command) return;
-
-  const win = BrowserWindow.fromWebContents(event.sender);
+function runWindowCommand(win, command) {
   if (!win || win.isDestroyed()) return;
 
-  if (command === "toggle-devtools") {
+  if (command === nativeWindowCommands.toggleDevTools) {
     if (win.webContents.isDevToolsOpened()) {
       win.webContents.closeDevTools();
       return;
@@ -3237,23 +3235,64 @@ function handleDesktopCommand(event, payload) {
     return;
   }
 
-  if (command === "reload-window") {
+  if (command === nativeWindowCommands.reloadWindow) {
     win.webContents.reload();
     return;
   }
 
-  if (command === "minimize-window") {
+  if (command === nativeWindowCommands.minimizeWindow) {
     win.minimize();
     updateTrayMenu();
     return;
   }
 
-  if (command === "toggle-maximize-window") {
+  if (command === nativeWindowCommands.toggleWindowMaximized) {
     if (win.isMaximized()) {
       win.unmaximize();
       return;
     }
     win.maximize();
+    return;
+  }
+
+  if (command === nativeWindowCommands.closeWindow) {
+    if (shouldMinimizeToTrayOnWindowClose()) {
+      hideMainWindowToTray(win, { showTrayHint: true });
+      updateTrayMenu();
+      return;
+    }
+
+    isAppQuitting = true;
+    stopAllRustAnalysisEngines();
+    app.quit();
+  }
+}
+
+function normalizeLegacyWindowCommand(command) {
+  if (command === "toggle-devtools") return nativeWindowCommands.toggleDevTools;
+  if (command === "reload-window") return nativeWindowCommands.reloadWindow;
+  if (command === "minimize-window") return nativeWindowCommands.minimizeWindow;
+  if (command === "toggle-maximize-window") return nativeWindowCommands.toggleWindowMaximized;
+  if (command === "close-window") return nativeWindowCommands.closeWindow;
+  return command;
+}
+
+function handleNativeWindowCommand(event, payload) {
+  const command =
+    payload && typeof payload.command === "string" ? payload.command : "";
+  if (!command) return;
+
+  runWindowCommand(BrowserWindow.fromWebContents(event.sender), command);
+}
+
+function handleDesktopCommand(event, payload) {
+  const command =
+    payload && typeof payload.command === "string" ? payload.command : "";
+  if (!command) return;
+
+  const normalizedWindowCommand = normalizeLegacyWindowCommand(command);
+  if (normalizedWindowCommand !== command) {
+    runWindowCommand(BrowserWindow.fromWebContents(event.sender), normalizedWindowCommand);
     return;
   }
 
@@ -3270,18 +3309,6 @@ function handleDesktopCommand(event, payload) {
   if (command === "install-downloaded-update") {
     void updateService?.installDownloadedUpdate();
     return;
-  }
-
-  if (command === "close-window") {
-    if (shouldMinimizeToTrayOnWindowClose()) {
-      hideMainWindowToTray(win, { showTrayHint: true });
-      updateTrayMenu();
-      return;
-    }
-
-    isAppQuitting = true;
-    stopAllRustAnalysisEngines();
-    app.quit();
   }
 }
 
@@ -3320,6 +3347,7 @@ if (hasSingleInstanceLock) {
   updateService = createUpdateService();
 
   ipcMain.on("desktop-command", handleDesktopCommand);
+  ipcMain.on(nativeHostIpcChannels.windowCommand, handleNativeWindowCommand);
   registerContextMenuListener();
   ipcMain.handle(nativeHostIpcChannels.environmentGet, event =>
     resolveNativeHostEnvironment(event.sender),
@@ -3439,6 +3467,7 @@ app.on("will-quit", () => {
     appTray = null;
   }
   ipcMain.removeListener("desktop-command", handleDesktopCommand);
+  ipcMain.removeListener(nativeHostIpcChannels.windowCommand, handleNativeWindowCommand);
   ipcMain.removeHandler(nativeHostIpcChannels.environmentGet);
   ipcMain.removeListener(nativeHostIpcChannels.environmentGet, handleNativeHostEnvironmentGet);
   ipcMain.removeListener(

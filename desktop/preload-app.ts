@@ -1,10 +1,10 @@
 import type { IpcRenderer } from "electron";
 
-import { desktopIpcChannels } from "../src/cs/workbench/services/desktop/common/desktopIpcChannels.js";
+import { workbenchIpcChannels } from "../src/cs/workbench/common/ipcChannels.js";
 
 function readAutoUpdateStatus(ipcRenderer: IpcRenderer): unknown {
   try {
-    return ipcRenderer.sendSync(desktopIpcChannels.desktopAutoUpdateStatusGet);
+    return ipcRenderer.sendSync(workbenchIpcChannels.desktopAutoUpdateStatusGet);
   } catch (error) {
     console.warn("[boot][preload] Failed to refresh auto-update status:", error);
     return null;
@@ -26,15 +26,15 @@ export function createDesktopAppBridge(ipcRenderer: IpcRenderer) {
     },
 
     async checkForUpdates() {
-      return ipcRenderer.invoke(desktopIpcChannels.desktopAutoUpdateCheck);
+      return ipcRenderer.invoke(workbenchIpcChannels.desktopAutoUpdateCheck);
     },
 
     async checkForUpdatesAndInstall() {
-      return ipcRenderer.invoke(desktopIpcChannels.desktopAutoUpdateCheckAndInstall);
+      return ipcRenderer.invoke(workbenchIpcChannels.desktopAutoUpdateCheckAndInstall);
     },
 
     async installDownloadedUpdate() {
-      return ipcRenderer.invoke(desktopIpcChannels.desktopAutoUpdateInstallDownloaded);
+      return ipcRenderer.invoke(workbenchIpcChannels.desktopAutoUpdateInstallDownloaded);
     },
 
     onAutoUpdateStatusChange(listener: unknown) {
@@ -46,8 +46,8 @@ export function createDesktopAppBridge(ipcRenderer: IpcRenderer) {
         listener(status);
       };
 
-      ipcRenderer.on(desktopIpcChannels.desktopAutoUpdateStatusChanged, handleStatusChanged);
-      return () => ipcRenderer.removeListener(desktopIpcChannels.desktopAutoUpdateStatusChanged, handleStatusChanged);
+      ipcRenderer.on(workbenchIpcChannels.desktopAutoUpdateStatusChanged, handleStatusChanged);
+      return () => ipcRenderer.removeListener(workbenchIpcChannels.desktopAutoUpdateStatusChanged, handleStatusChanged);
     },
   };
 }

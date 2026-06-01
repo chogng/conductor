@@ -3,7 +3,12 @@ import { mainWindow } from "src/cs/base/browser/window";
 import { ipcRenderer } from "src/cs/base/parts/sandbox/electron-browser/globals";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { INativeHostService, type INativeHostService as INativeHostServiceType } from "src/cs/platform/native/common/native";
-import { nativeHostIpcChannels, type INativeHostEnvironment } from "src/cs/platform/native/common/nativeIpc";
+import {
+    nativeHostIpcChannels,
+    nativeWindowCommands,
+    type INativeHostEnvironment,
+    type NativeWindowCommand,
+} from "src/cs/platform/native/common/nativeIpc";
 
 export class NativeHostService extends Disposable implements INativeHostServiceType {
     public declare readonly _serviceBrand: undefined;
@@ -13,6 +18,30 @@ export class NativeHostService extends Disposable implements INativeHostServiceT
     public async getEnvironment(): Promise<INativeHostEnvironment> {
         const environment = await ipcRenderer.invoke(nativeHostIpcChannels.environmentGet);
         return normalizeNativeHostEnvironment(environment);
+    }
+
+    public toggleDevTools(): void {
+        this.sendWindowCommand(nativeWindowCommands.toggleDevTools);
+    }
+
+    public reloadWindow(): void {
+        this.sendWindowCommand(nativeWindowCommands.reloadWindow);
+    }
+
+    public closeWindow(): void {
+        this.sendWindowCommand(nativeWindowCommands.closeWindow);
+    }
+
+    public minimizeWindow(): void {
+        this.sendWindowCommand(nativeWindowCommands.minimizeWindow);
+    }
+
+    public toggleWindowMaximized(): void {
+        this.sendWindowCommand(nativeWindowCommands.toggleWindowMaximized);
+    }
+
+    private sendWindowCommand(command: NativeWindowCommand): void {
+        ipcRenderer.send(nativeHostIpcChannels.windowCommand, { command });
     }
 }
 

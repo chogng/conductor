@@ -8,4 +8,9 @@ export interface INativeHostService {
     readonly windowId: number;
 
     getEnvironment(): Promise<INativeHostEnvironment>;
+    toggleDevTools(): void;
+    reloadWindow(): void;
+    closeWindow(): void;
+    minimizeWindow(): void;
+    toggleWindowMaximized(): void;
 }
