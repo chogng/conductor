@@ -19,8 +19,8 @@ type PreviewStatus = Partial<SessionPreviewStatus>;
 export const TEMPLATE_MANAGER_PREVIEW_PANEL_ITEM_CLASS =
   "template_preview_item";
 
-export const TEMPLATE_MANAGER_PREVIEW_PANEL_FRAME_CLASS =
-  "template_preview_frame";
+export const TEMPLATE_MANAGER_PREVIEW_PANEL_TABLE_CARD_CLASS =
+  "template_table_card";
 
 type TemplateManagerPreviewSurfaceProps = {
   actions?: Node | null;
@@ -55,8 +55,8 @@ export const TemplateManagerPreviewSurface = ({
   root.className = TEMPLATE_MANAGER_PREVIEW_PANEL_ITEM_CLASS;
   const frame = document.createElement("div");
   frame.className = getCardClassName({
-    className: TEMPLATE_MANAGER_PREVIEW_PANEL_FRAME_CLASS,
-    variant: "default",
+    className: TEMPLATE_MANAGER_PREVIEW_PANEL_TABLE_CARD_CLASS,
+    variant: "fill",
   });
 
   const header = document.createElement("div");

@@ -460,14 +460,14 @@ export const createTemplateManager = ({
 
     // Apply Buttons
     const applyActions = document.createElement("div");
-    applyActions.className = "flex flex-col gap-2 pt-2 shrink-0";
+    applyActions.className = "template_apply_actions";
 
     const applyAllBtn = createButton({
       label: localize("da_apply_template", "Apply Template"),
       size: "md",
       variant: "primary",
     });
-    applyAllBtn.className = `${applyAllBtn.className} h-[38px] rounded-lg`;
+    applyAllBtn.className = `${applyAllBtn.className} template_apply_button`;
     applyAllBtn.addEventListener("click", () => {
       if (selectedTemplateId === AUTO_TEMPLATE_ID || !selectedTemplateId) {
         onTemplateApplied?.({ ...config, autoExtractionMode: true });
@@ -486,7 +486,7 @@ export const createTemplateManager = ({
       size: "md",
       variant: "secondary",
     });
-    applyNewBtn.className = `${applyNewBtn.className} border border-border h-[38px] rounded-lg`;
+    applyNewBtn.className = `${applyNewBtn.className} template_apply_button template_apply_button--secondary`;
     applyNewBtn.addEventListener("click", () => {
       if (selectedTemplateId === AUTO_TEMPLATE_ID || !selectedTemplateId) {
         onTemplateAppliedIncremental?.({ ...config, autoExtractionMode: true });

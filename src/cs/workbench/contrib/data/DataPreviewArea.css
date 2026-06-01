@@ -1,3 +1,11 @@
 .data_preview_area {
   @apply flex-1 min-h-0 min-w-0;
 }
+
+.data_preview_area--joined_cards .data_preview_area_table_pane {
+  z-index: 1;
+}
+
+.data_preview_area--joined_cards .data_preview_area_template_pane {
+  z-index: 2;
+}

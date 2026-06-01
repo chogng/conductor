@@ -8,6 +8,7 @@ import "src/cs/workbench/contrib/data/DataPreviewArea.css";
 
 export type DataPreviewAreaProps = {
   readonly importPanel?: Node | null;
+  readonly joinTableAndTemplateCards?: boolean;
   readonly tablePreview?: Node | null;
   readonly templatePanel?: Node | null;
 };
@@ -49,13 +50,19 @@ export class DataPreviewAreaView {
 
   private render(): void {
     const hasImportPanel = Boolean(this.props.importPanel);
+    const joinsTableAndTemplate =
+      Boolean(this.props.joinTableAndTemplateCards) && !hasImportPanel;
     const orientation = this.isStacked ? "vertical" : "horizontal";
-    const className = this.isStacked
-      ? "data_preview_area data_preview_area--stacked"
-      : "data_preview_area";
+    const classNames = ["data_preview_area"];
+    if (this.isStacked) {
+      classNames.push("data_preview_area--stacked");
+    }
+    if (joinsTableAndTemplate) {
+      classNames.push("data_preview_area--joined_cards");
+    }
     this.widget.update({
-      className,
-      gap: 12,
+      className: classNames.join(" "),
+      gap: joinsTableAndTemplate ? 0 : 12,
       orientation,
       panes: getPanes(this.isStacked, hasImportPanel),
     });
@@ -92,6 +99,7 @@ const getPanes = (
     panes.push(
       {
         id: "import-panel",
+        className: "data_preview_area_import_pane",
         defaultSize: isStacked ? 220 : 260,
         minSize: 200,
         maxSize: isStacked ? 360 : 420,
@@ -102,10 +110,12 @@ const getPanes = (
   panes.push(
     {
       id: "table-preview",
+      className: "data_preview_area_table_pane",
       minSize: 240,
     },
     {
       id: "template-panel",
+      className: "data_preview_area_template_pane",
       defaultSize: isStacked ? 220 : 260,
       minSize: 200,
       maxSize: 360,
