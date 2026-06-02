@@ -2,8 +2,6 @@ import { stableItemKey } from "src/utils/stableKey";
 
 export const DATA_FILE_EXTENSIONS = [".csv", ".xls", ".xlsx"] as const;
 
-export const DATA_FILE_ACCEPT = DATA_FILE_EXTENSIONS.join(",");
-
 const SUPPORTED_DATA_FILE_EXTENSIONS = new Set<string>(DATA_FILE_EXTENSIONS);
 const EXCEL_DATA_FILE_EXTENSIONS = new Set<string>([".xls", ".xlsx"]);
 

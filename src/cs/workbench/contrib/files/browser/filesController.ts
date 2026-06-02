@@ -1,8 +1,13 @@
 import type { ListHandle } from "src/cs/base/browser/ui/list/list";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
+import { URI } from "src/cs/base/common/uri";
+import { IFileDialogService, type IFileDialogService as IFileDialogServiceType } from "src/cs/platform/dialogs/common/dialogs";
+import { FileType, IFileService, type IFileContent } from "src/cs/platform/files/common/files";
+import { fileService } from "src/cs/platform/files/browser/fileService";
 import { localize } from "src/cs/nls";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import { startPerf } from "src/cs/workbench/common/deviceAnalysis/perf";
+import { fileDialogService } from "src/cs/workbench/services/dialogs/electron-browser/fileDialogService";
 import {
   ExplorerView,
   type ExplorerViewProps,
@@ -11,6 +16,10 @@ import type {
   FileEntry,
   FileSource,
   FilesPaneRef,
+} from "src/cs/workbench/contrib/files/common/files";
+import {
+  isExcelDataFileName,
+  isSupportedDataFileName,
 } from "src/cs/workbench/contrib/files/common/files";
 import {
   collectPendingImports,
@@ -35,6 +44,47 @@ export type {
 };
 
 const IMPORT_PREPARE_CONCURRENCY = 2;
+const MAX_FOLDER_WALK_DEPTH = 32;
+const WINDOWS_DRIVE_PREFIX = /^[a-zA-Z]:[\\/]/;
+
+function joinFsPath(parent: string, name: string): string {
+  const separator = parent.includes("\\") || WINDOWS_DRIVE_PREFIX.test(parent) ? "\\" : "/";
+  const trimmedParent = parent.replace(/[\\/]+$/, "");
+  return `${trimmedParent}${separator}${name}`;
+}
+
+function getPathBaseName(path: string): string {
+  const normalized = path.trim().replace(/[\\/]+$/, "");
+  const separatorIndex = Math.max(
+    normalized.lastIndexOf("/"),
+    normalized.lastIndexOf("\\"),
+  );
+
+  return separatorIndex >= 0 ? normalized.slice(separatorIndex + 1) : normalized;
+}
+
+function getFileMimeType(fileName: string): string {
+  if (isExcelDataFileName(fileName)) {
+    return "application/octet-stream";
+  }
+
+  return "text/csv;charset=utf-8";
+}
+
+function decodeBase64(value: string): ArrayBuffer {
+  const binary = atob(value);
+  const buffer = new ArrayBuffer(binary.length);
+  const bytes = new Uint8Array(buffer);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+
+  return buffer;
+}
+
+function toFilePart(content: IFileContent): string | ArrayBuffer {
+  return content.encoding === "base64" ? decodeBase64(content.value) : content.value;
+}
 
 export class FilesController implements FilesPaneRef, IDisposable {
   private readonly listRef: { current: ListHandle | null } = { current: null };
@@ -48,7 +98,12 @@ export class FilesController implements FilesPaneRef, IDisposable {
   private prevFileCount = 0;
   private disposed = false;
 
-  constructor(host: HTMLElement, props: FilesControllerProps) {
+  constructor(
+    host: HTMLElement,
+    props: FilesControllerProps,
+    @IFileService private readonly filesService = fileService,
+    @IFileDialogService private readonly dialogsService = fileDialogService,
+  ) {
     this.props = props;
     this.prevFileCount = this.files.length;
     this.optimisticSelectedFileId = props.selectedFileId ?? null;
@@ -112,6 +167,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
       onDraggingChange: this.handleDraggingChange,
       onListScroll: this.handleListScroll,
       onRemoveFile: this.handleRemoveFile,
+      onOpenFolderDialog: this.handleOpenFolderDialog,
       onSelectFile: this.handleSelectFile,
       onSelectFiles: this.handleSelectFiles,
       t: this.props.t,
@@ -185,6 +241,44 @@ export class FilesController implements FilesPaneRef, IDisposable {
 
     void this.processFiles(selectedFiles);
   };
+
+  private readonly handleOpenFolderDialog = (): void => {
+    void this.openFolderDialog();
+  };
+
+  private async openFolderDialog(): Promise<void> {
+    this.error = null;
+    this.syncView();
+
+    try {
+      const folders = await this.dialogsService.showOpenDialog({
+        canSelectFolders: true,
+        title: localize("import.pickFolderTitle", "选择要导入的文件夹"),
+        openLabel: localize("import.openFolderButton", "打开文件夹"),
+      });
+      const folderPath = folders?.[0]?.fsPath ?? null;
+      if (!folderPath || this.disposed) {
+        return;
+      }
+
+      const files = await this.collectFolderFiles(folderPath);
+      if (this.disposed) {
+        return;
+      }
+
+      this.handleSelectFiles(files);
+    } catch {
+      if (this.disposed) {
+        return;
+      }
+
+      this.error = localize(
+        "import.failedToReadSelectedFolder",
+        "Failed to read files from the selected folder.",
+      );
+      this.syncView();
+    }
+  }
 
   private readonly handleSelectFile = (fileId: string | null): void => {
     const next = typeof fileId === "string" ? fileId : null;
@@ -308,6 +402,58 @@ export class FilesController implements FilesPaneRef, IDisposable {
       "import.noSupportedDroppedFiles",
       "No supported files found in the selected folder.",
     );
+  }
+
+  private async collectFolderFiles(folderPath: string): Promise<FileSource[]> {
+    const rootName = getPathBaseName(folderPath) || localize("import.folder", "Folder");
+    const root = URI.file(folderPath);
+    const files: FileSource[] = [];
+
+    await this.collectFolderFilesAt(root, rootName, files, 0);
+    return files;
+  }
+
+  private async collectFolderFilesAt(
+    folder: URI,
+    relativeFolderPath: string,
+    files: FileSource[],
+    depth: number,
+  ): Promise<void> {
+    if (depth > MAX_FOLDER_WALK_DEPTH) {
+      return;
+    }
+
+    const entries = await this.filesService.readDir(folder);
+    for (const [name, type] of entries) {
+      const child = URI.file(joinFsPath(folder.fsPath, name));
+      const relativePath = `${relativeFolderPath}/${name}`;
+
+      if ((type & FileType.Directory) === FileType.Directory) {
+        await this.collectFolderFilesAt(child, relativePath, files, depth + 1);
+        continue;
+      }
+
+      if ((type & FileType.File) !== FileType.File || !isSupportedDataFileName(name)) {
+        continue;
+      }
+
+      files.push({
+        file: await this.readFileSource(child, name),
+        relativePath,
+      });
+    }
+  }
+
+  private async readFileSource(resource: URI, name: string): Promise<File> {
+    const stat = await this.filesService.stat(resource);
+    const content = await this.filesService.readFile(resource, {
+      encoding: isExcelDataFileName(name) ? "base64" : "utf8",
+    });
+
+    return new File([toFilePart(content)], name, {
+      lastModified: Number.isFinite(stat.mtime) ? stat.mtime : Date.now(),
+      type: getFileMimeType(name),
+    });
   }
 
   private getUnknownFileLabel(): string {

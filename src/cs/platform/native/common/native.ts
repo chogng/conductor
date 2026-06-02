@@ -3,11 +3,39 @@ import type { INativeHostEnvironment } from "src/cs/platform/native/common/nativ
 
 export const INativeHostService = createDecorator<INativeHostService>("nativeHostService");
 
+export type NativeOpenDialogProperty =
+    | "openFile"
+    | "openDirectory"
+    | "multiSelections"
+    | "showHiddenFiles"
+    | "createDirectory"
+    | "promptToCreate"
+    | "noResolveAliases"
+    | "treatPackageAsDirectory"
+    | "dontAddToRecent";
+
+export interface INativeOpenDialogOptions {
+    readonly buttonLabel?: string;
+    readonly defaultPath?: string;
+    readonly filters?: readonly {
+        readonly extensions: readonly string[];
+        readonly name: string;
+    }[];
+    readonly properties?: readonly NativeOpenDialogProperty[];
+    readonly title?: string;
+}
+
+export interface INativeOpenDialogResult {
+    readonly canceled: boolean;
+    readonly filePaths: readonly string[];
+}
+
 export interface INativeHostService {
     readonly _serviceBrand: undefined;
     readonly windowId: number;
 
     getEnvironment(): Promise<INativeHostEnvironment>;
+    showOpenDialog(options: INativeOpenDialogOptions): Promise<INativeOpenDialogResult>;
     toggleDevTools(): void;
     reloadWindow(): void;
     closeWindow(): void;

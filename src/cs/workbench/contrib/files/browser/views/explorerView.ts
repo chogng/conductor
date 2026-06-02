@@ -2,12 +2,9 @@ import { addDisposableListener } from "src/cs/base/browser/dom";
 import type { ListHandle } from "src/cs/base/browser/ui/list/list";
 import Toast from "src/cs/base/browser/ui/toast/toast";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
-import { localize } from "src/cs/nls";
-import { DATA_FILE_ACCEPT } from "src/cs/workbench/contrib/files/common/files";
 import {
   type FileSource,
   collectDroppedFiles,
-  collectInputFiles,
 } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import {
   ExplorerViewer,
@@ -21,13 +18,13 @@ export type ExplorerViewProps = Omit<ExplorerViewerProps, "onOpenFileDialog"> & 
   readonly isDragging: boolean;
   readonly onClearError: () => void;
   readonly onDraggingChange: (isDragging: boolean) => void;
+  readonly onOpenFolderDialog: () => void;
   readonly onSelectFiles: (files: FileSource[]) => void;
 };
 
 export class ExplorerView implements IDisposable {
   private readonly host: HTMLElement;
   private readonly root: HTMLDivElement;
-  private readonly fileInput: HTMLInputElement;
   private readonly viewport: HTMLDivElement;
   private readonly toast: Toast;
   private readonly disposables = new DisposableStore();
@@ -40,7 +37,6 @@ export class ExplorerView implements IDisposable {
     this.props = props;
     const dom = this.createDom();
     this.root = dom.root;
-    this.fileInput = dom.fileInput;
     this.viewport = dom.viewport;
     this.explorerViewer = this.disposables.add(
       new ExplorerViewer(dom.listHost, this.root, this.createViewerProps()),
@@ -58,7 +54,7 @@ export class ExplorerView implements IDisposable {
   }
 
   openFileDialog(): void {
-    this.fileInput.click();
+    this.props.onOpenFolderDialog();
   }
 
   setProps(nextProps: ExplorerViewProps): void {
@@ -77,9 +73,6 @@ export class ExplorerView implements IDisposable {
   }
 
   private registerEvents(): void {
-    this.disposables.add(
-      addDisposableListener(this.fileInput, "change", this.handleFileInputChange),
-    );
     this.disposables.add(
       addDisposableListener(this.root, "click", this.handleRootClick),
     );
@@ -107,7 +100,6 @@ export class ExplorerView implements IDisposable {
   }
 
   private createDom(): {
-    readonly fileInput: HTMLInputElement;
     readonly filledRoot: HTMLDivElement;
     readonly listHost: HTMLDivElement;
     readonly root: HTMLDivElement;
@@ -115,13 +107,6 @@ export class ExplorerView implements IDisposable {
   } {
     const root = document.createElement("div");
     root.className = "file-list idle";
-
-    const fileInput = document.createElement("input");
-    fileInput.type = "file";
-    fileInput.accept = DATA_FILE_ACCEPT;
-    fileInput.className = "file-list-input";
-    fileInput.setAttribute("webkitdirectory", "");
-    fileInput.setAttribute("directory", "");
 
     const viewport = document.createElement("div");
     viewport.className = "file-list-viewport";
@@ -134,18 +119,10 @@ export class ExplorerView implements IDisposable {
     filledRoot.appendChild(listHost);
 
     viewport.append(filledRoot);
-    root.append(fileInput, viewport);
+    root.append(viewport);
 
-    return { fileInput, filledRoot, listHost, root, viewport };
+    return { filledRoot, listHost, root, viewport };
   }
-
-  private readonly handleFileInputChange = (): void => {
-    const files = collectInputFiles(this.fileInput.files);
-    if (files.length > 0) {
-      this.props.onSelectFiles(files);
-    }
-    this.fileInput.value = "";
-  };
 
   private readonly handleRootClick = (event: MouseEvent): void => {
     if (this.props.files.length > 0) {
@@ -202,10 +179,6 @@ export class ExplorerView implements IDisposable {
     this.root.setAttribute("aria-label", t("da_import_section"));
     this.root.classList.toggle("dragging", isDragging);
     this.root.classList.toggle("idle", !isDragging);
-    this.fileInput.setAttribute(
-      "aria-label",
-      localize("files.importFolderAriaLabel", "导入文件夹"),
-    );
 
     this.explorerViewer.setProps(this.createViewerProps());
 

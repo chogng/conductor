@@ -38,6 +38,8 @@ import {
   runSharedProcessStartupContributions,
 } from "../electron-utility/sharedProcess/sharedProcessMain.js";
 import { Win32UpdateService } from "../../platform/update/electron-main/updateService.win32.js";
+import { DialogMainService } from "../../platform/dialogs/electron-main/dialogMainService.js";
+import { NativeHostMainService } from "../../platform/native/electron-main/nativeHostMainService.js";
 import { registerContextMenuListener } from "../../base/parts/contextmenu/electron-main/contextmenu.js";
 import { workbenchBootstrapIpcChannels } from "../../base/parts/sandbox/common/sandboxTypes.js";
 import {
@@ -116,6 +118,8 @@ const rustWorkerRuntime = new RustWorkerRuntime({
 });
 const mainProcessServer = new ElectronIPCServer();
 const localFileSystemProvider = new DiskFileSystemProvider();
+const dialogMainService = new DialogMainService();
+const nativeHostMainService = new NativeHostMainService(dialogMainService);
 let mainWindow = null;
 let appTray = null;
 let analysisRustHandlers = null;
@@ -1578,39 +1582,8 @@ function handleAnalysisPersistencePathSet(_event, payload) {
   return analysisStore.setPersistencePath(rawPath);
 }
 
-const allowedOpenDialogProperties = new Set([
-  "openFile",
-  "openDirectory",
-  "multiSelections",
-  "showHiddenFiles",
-  "createDirectory",
-  "promptToCreate",
-  "noResolveAliases",
-  "treatPackageAsDirectory",
-  "dontAddToRecent",
-]);
-
-function normalizeOpenDialogOptions(options) {
-  const record =
-    options && typeof options === "object" && !Array.isArray(options) ? options : {};
-  const properties = Array.isArray(record.properties)
-    ? record.properties.filter(property => allowedOpenDialogProperties.has(property))
-    : [];
-
-  return {
-    title: typeof record.title === "string" ? record.title : undefined,
-    buttonLabel: typeof record.buttonLabel === "string" ? record.buttonLabel : undefined,
-    properties,
-  };
-}
-
 async function handleNativeHostOpenDialog(event, options) {
-  const win = BrowserWindow.fromWebContents(event.sender) ?? null;
-  const result = await dialog.showOpenDialog(win || undefined, {
-    ...normalizeOpenDialogOptions(options),
-  });
-
-  return result;
+  return nativeHostMainService.showOpenDialog(event.sender, options);
 }
 
 async function handleAnalysisPersistencePathChoose(event) {

@@ -31,18 +31,6 @@ type DataTransferItemWithWebkit = DataTransferItem & {
   webkitGetAsEntry?: () => FileSystemEntryLike | null;
 };
 
-const getFileRelativePath = (file: File): string | null => {
-  // Keep directory imports stable by carrying the browser-provided relative path
-  // through the whole import pipeline.
-  const path = file.webkitRelativePath?.trim();
-  return path || null;
-};
-
-const createFileSource = (file: File): FileSource => ({
-  file,
-  relativePath: getFileRelativePath(file),
-});
-
 const readEntryFile = (entry: FileSystemFileEntryLike): Promise<File> =>
   new Promise<File>((resolve) => entry.file(resolve));
 
@@ -97,13 +85,6 @@ const traverseDroppedEntry = async (
     await traverseDroppedEntry(child, files, relativePath);
   }
 };
-
-export const collectInputFiles = (fileList: FileList | null): FileSource[] =>
-  Array.from(fileList ?? [])
-    .map(createFileSource)
-    .filter((source) =>
-      Boolean(source.relativePath && isSupportedDataFileName(source.file.name)),
-    );
 
 export const collectDroppedFiles = async (
   dataTransfer: DataTransfer,
