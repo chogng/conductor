@@ -1,12 +1,10 @@
 import type { ListHandle } from "src/cs/base/browser/ui/list/list";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
-import { URI } from "src/cs/base/common/uri";
-import { IFileDialogService, type IFileDialogService as IFileDialogServiceType } from "src/cs/platform/dialogs/common/dialogs";
-import { fileDialogService } from "src/cs/platform/dialogs/browser/fileDialogService";
-import { FileType, IFileService, type IFileContent, type IFileService as IFileServiceType } from "src/cs/platform/files/common/files";
-import { fileService } from "src/cs/platform/files/browser/fileService";
+import type { IFileDialogService as IFileDialogServiceType } from "src/cs/platform/dialogs/common/dialogs";
+import type { IFileService as IFileServiceType } from "src/cs/platform/files/common/files";
 import { localize } from "src/cs/nls";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
+import type { IPathService as IPathServiceType } from "src/cs/workbench/services/path/common/pathService";
 import { startPerf } from "src/cs/workbench/common/deviceAnalysis/perf";
 import {
   ExplorerView,
@@ -17,10 +15,7 @@ import type {
   FileSource,
   FilesPaneRef,
 } from "src/cs/workbench/contrib/files/common/files";
-import {
-  isExcelDataFileName,
-  isSupportedDataFileName,
-} from "src/cs/workbench/contrib/files/common/files";
+import { collectFolderFiles } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import {
   collectPendingImports,
   prepareImportFile,
@@ -29,6 +24,9 @@ import {
 } from "src/cs/workbench/services/import/browser/importPipeline";
 
 export type FilesControllerProps = {
+  readonly dialogsService: IFileDialogServiceType;
+  readonly filesService: IFileServiceType;
+  readonly pathService: IPathServiceType;
   files?: FileEntry[];
   onFileImported?: (fileInfo: ImportSessionFileInfo) => void;
   onFilesReplaced?: (files: ImportSessionFileInfo[]) => void;
@@ -44,47 +42,6 @@ export type {
 };
 
 const IMPORT_PREPARE_CONCURRENCY = 2;
-const MAX_FOLDER_WALK_DEPTH = 32;
-const WINDOWS_DRIVE_PREFIX = /^[a-zA-Z]:[\\/]/;
-
-function joinFsPath(parent: string, name: string): string {
-  const separator = parent.includes("\\") || WINDOWS_DRIVE_PREFIX.test(parent) ? "\\" : "/";
-  const trimmedParent = parent.replace(/[\\/]+$/, "");
-  return `${trimmedParent}${separator}${name}`;
-}
-
-function getPathBaseName(path: string): string {
-  const normalized = path.trim().replace(/[\\/]+$/, "");
-  const separatorIndex = Math.max(
-    normalized.lastIndexOf("/"),
-    normalized.lastIndexOf("\\"),
-  );
-
-  return separatorIndex >= 0 ? normalized.slice(separatorIndex + 1) : normalized;
-}
-
-function getFileMimeType(fileName: string): string {
-  if (isExcelDataFileName(fileName)) {
-    return "application/octet-stream";
-  }
-
-  return "text/csv;charset=utf-8";
-}
-
-function decodeBase64(value: string): ArrayBuffer {
-  const binary = atob(value);
-  const buffer = new ArrayBuffer(binary.length);
-  const bytes = new Uint8Array(buffer);
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-
-  return buffer;
-}
-
-function toFilePart(content: IFileContent): string | ArrayBuffer {
-  return content.encoding === "base64" ? decodeBase64(content.value) : content.value;
-}
 
 export class FilesController implements FilesPaneRef, IDisposable {
   private readonly listRef: { current: ListHandle | null } = { current: null };
@@ -97,14 +54,18 @@ export class FilesController implements FilesPaneRef, IDisposable {
   private optimisticSelectedFileId: string | null = null;
   private prevFileCount = 0;
   private disposed = false;
+  private readonly dialogsService: IFileDialogServiceType;
+  private readonly filesService: IFileServiceType;
+  private readonly pathService: IPathServiceType;
 
   constructor(
     host: HTMLElement,
     props: FilesControllerProps,
-    @IFileService private readonly filesService: IFileServiceType = fileService,
-    @IFileDialogService private readonly dialogsService: IFileDialogServiceType = fileDialogService,
   ) {
     this.props = props;
+    this.dialogsService = props.dialogsService;
+    this.filesService = props.filesService;
+    this.pathService = props.pathService;
     this.prevFileCount = this.files.length;
     this.optimisticSelectedFileId = props.selectedFileId ?? null;
 
@@ -253,6 +214,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
     try {
       const folders = await this.dialogsService.showOpenDialog({
         canSelectFolders: true,
+        defaultUri: this.pathService.userHome({ preferLocal: true }),
         title: localize("import.pickFolderTitle", "选择要导入的文件夹"),
         openLabel: localize("import.openFolderButton", "打开文件夹"),
       });
@@ -261,7 +223,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
         return;
       }
 
-      const files = await this.collectFolderFiles(folderPath, this.filesService);
+      const files = await collectFolderFiles(folderPath, this.filesService);
       if (this.disposed) {
         return;
       }
@@ -402,67 +364,6 @@ export class FilesController implements FilesPaneRef, IDisposable {
       "import.noSupportedDroppedFiles",
       "No supported files found in the selected folder.",
     );
-  }
-
-  private async collectFolderFiles(
-    folderPath: string,
-    filesService: IFileServiceType,
-  ): Promise<FileSource[]> {
-    const rootName = getPathBaseName(folderPath) || localize("import.folder", "Folder");
-    const root = URI.file(folderPath);
-    const files: FileSource[] = [];
-
-    await this.collectFolderFilesAt(root, rootName, files, 0, filesService);
-    return files;
-  }
-
-  private async collectFolderFilesAt(
-    folder: URI,
-    relativeFolderPath: string,
-    files: FileSource[],
-    depth: number,
-    filesService: IFileServiceType,
-  ): Promise<void> {
-    if (depth > MAX_FOLDER_WALK_DEPTH) {
-      return;
-    }
-
-    const entries = await filesService.readDir(folder);
-    for (const [name, type] of entries) {
-      const child = URI.file(joinFsPath(folder.fsPath, name));
-      const relativePath = `${relativeFolderPath}/${name}`;
-
-      if ((type & FileType.Directory) === FileType.Directory) {
-        await this.collectFolderFilesAt(child, relativePath, files, depth + 1, filesService);
-        continue;
-      }
-
-      if ((type & FileType.File) !== FileType.File || !isSupportedDataFileName(name)) {
-        continue;
-      }
-
-      files.push({
-        file: await this.readFileSource(child, name, filesService),
-        relativePath,
-        resource: child,
-      });
-    }
-  }
-
-  private async readFileSource(
-    resource: URI,
-    name: string,
-    filesService: IFileServiceType,
-  ): Promise<File> {
-    const stat = await filesService.stat(resource);
-    const content = await filesService.readFile(resource, {
-      encoding: isExcelDataFileName(name) ? "base64" : "utf8",
-    });
-
-    return new File([toFilePart(content)], name, {
-      lastModified: Number.isFinite(stat.mtime) ? stat.mtime : Date.now(),
-      type: getFileMimeType(name),
-    });
   }
 
   private getUnknownFileLabel(): string {

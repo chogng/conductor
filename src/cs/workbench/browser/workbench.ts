@@ -8,6 +8,9 @@ import type {
   LanguageCode,
   TranslateFn,
 } from "src/cs/platform/language/common/language";
+import type { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs";
+import type { IFileService } from "src/cs/platform/files/common/files";
+import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
 import { isLanguageCode } from "src/cs/platform/language/common/language";
 import {
   createNLSConfiguration,
@@ -90,6 +93,9 @@ export type WorkbenchTitlebarState = {
 
 export type WorkbenchOptions = {
   readonly className?: string;
+  readonly dialogsService?: IFileDialogService;
+  readonly filesService?: IFileService;
+  readonly pathService?: IPathService;
   readonly id?: string;
   readonly showDesktopCommandBar?: boolean;
   readonly showSkeleton?: boolean;
@@ -148,6 +154,9 @@ export class Workbench extends Layout {
   private readonly analysis: ChartPreviewViewPane;
   private readonly settings: SettingsViewPane;
   private readonly templateApply: TemplateApplyController;
+  private readonly dialogsService: IFileDialogService;
+  private readonly filesService: IFileService;
+  private readonly pathService: IPathService;
   private readonly tableService: ITableService;
   private readonly coreSettingsController: CoreSettingsController;
   private coreSettingsState: CoreSettingsState = createCoreSettingsState();
@@ -176,6 +185,18 @@ export class Workbench extends Layout {
     if (!options.tableService) {
       throw new Error("Workbench requires ITableService.");
     }
+    if (!options.filesService) {
+      throw new Error("Workbench requires IFileService.");
+    }
+    if (!options.dialogsService) {
+      throw new Error("Workbench requires IFileDialogService.");
+    }
+    if (!options.pathService) {
+      throw new Error("Workbench requires IPathService.");
+    }
+    this.filesService = options.filesService;
+    this.dialogsService = options.dialogsService;
+    this.pathService = options.pathService;
     this.tableService = options.tableService;
     this.templateApply = this._register(new TemplateApplyController({
       onExtractionError: () => undefined,
@@ -330,8 +351,11 @@ export class Workbench extends Layout {
     });
 
     return {
+      dialogsService: this.dialogsService,
       filesPaneRef: this.filesPaneRef,
       files: snapshot.rawData,
+      filesService: this.filesService,
+      pathService: this.pathService,
       onFileImported: sessionActions.handleFileImported,
       onFilesReplaced: sessionActions.handleFilesReplaced,
       onFileRemoved: sessionActions.handleFileRemoved,

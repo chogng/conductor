@@ -1,5 +1,4 @@
-import { Disposable } from "src/cs/base/common/lifecycle";
-import { URI } from "src/cs/base/common/uri";
+import type { URI } from "src/cs/base/common/uri";
 import {
   IFileDialogService,
   type IFileDialogService as IFileDialogServiceType,
@@ -12,22 +11,27 @@ import {
   type INativeOpenDialogOptions,
   type NativeOpenDialogProperty,
 } from "src/cs/platform/native/common/native";
-import { nativeHostService } from "src/cs/platform/native/electron-browser/nativeHostService";
+import { AbstractFileDialogService } from "src/cs/workbench/services/dialogs/browser/abstractFileDialogService";
+import {
+  IPathService,
+  type IPathService as IPathServiceType,
+} from "src/cs/workbench/services/path/common/pathService";
 
-export class FileDialogService extends Disposable implements IFileDialogServiceType {
-  public declare readonly _serviceBrand: undefined;
-
+export class FileDialogService extends AbstractFileDialogService implements IFileDialogServiceType {
   constructor(
     @INativeHostService private readonly nativeHost: INativeHostServiceType,
+    @IPathService private readonly pathService: IPathServiceType,
   ) {
     super();
   }
 
   public async showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
     const result = await this.nativeHost.showOpenDialog(this.toNativeOpenDialogOptions(options));
-    return result.canceled || result.filePaths.length === 0
-      ? undefined
-      : result.filePaths.map(path => URI.file(path));
+    if (result.canceled || result.filePaths.length === 0) {
+      return undefined;
+    }
+
+    return Promise.all(result.filePaths.map(path => this.pathService.fileURI(path)));
   }
 
   private toNativeOpenDialogOptions(options: IOpenDialogOptions): INativeOpenDialogOptions {
@@ -54,7 +58,5 @@ export class FileDialogService extends Disposable implements IFileDialogServiceT
     };
   }
 }
-
-export const fileDialogService = new FileDialogService(nativeHostService);
 
 registerSingleton(IFileDialogService, FileDialogService, InstantiationType.Delayed);

@@ -1,5 +1,8 @@
 import type { IDisposable } from "src/cs/base/common/lifecycle";
+import type { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs";
+import type { IFileService } from "src/cs/platform/files/common/files";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
+import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
 import type { FileEntry, FilesPaneRef } from "src/cs/workbench/contrib/files/common/files";
 import {
   FilesController,
@@ -10,6 +13,9 @@ import { normalizeCtaName, normalizeCtaToken } from "src/utils/cta";
 import "src/cs/workbench/contrib/files/browser/views/media/filesPane.css";
 
 export type FilesPaneProps = {
+  readonly dialogsService: IFileDialogService;
+  readonly filesService: IFileService;
+  readonly pathService: IPathService;
   readonly filesPaneRef: { current: FilesPaneRef | null };
   readonly files?: FileEntry[];
   readonly onFileImported?: (fileInfo: ImportSessionFileInfo) => void;
@@ -39,7 +45,10 @@ export class FilesPane implements IDisposable {
     this.host.appendChild(this.body);
 
     this.controller = new FilesController(this.sessionHost, {
+      dialogsService: props.dialogsService,
       files: props.files,
+      filesService: props.filesService,
+      pathService: props.pathService,
       onFileImported: props.onFileImported,
       onFilesReplaced: props.onFilesReplaced,
       onFileRemoved: props.onFileRemoved,
@@ -55,7 +64,10 @@ export class FilesPane implements IDisposable {
     this.props = nextProps;
     nextProps.filesPaneRef.current = this.controller;
     this.controller.setProps({
+      dialogsService: nextProps.dialogsService,
       files: nextProps.files,
+      filesService: nextProps.filesService,
+      pathService: nextProps.pathService,
       onFileImported: nextProps.onFileImported,
       onFilesReplaced: nextProps.onFilesReplaced,
       onFileRemoved: nextProps.onFileRemoved,

@@ -56,6 +56,19 @@ export interface IFileService {
 
   readonly onDidFilesChange: Event<readonly IFileChange[]>;
 
+  registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable;
+  getProvider(scheme: string): IFileSystemProvider | undefined;
+  exists(resource: URI): Promise<boolean>;
+  readDir(resource: URI): Promise<readonly [string, FileType][]>;
+  readFile(resource: URI, options?: IReadFileOptions): Promise<IFileContent>;
+  realpath(resource: URI): Promise<URI>;
+  stat(resource: URI): Promise<IFileStat>;
+  watch(resource: URI, options?: IWatchOptions): IDisposable;
+}
+
+export interface IFileSystemProvider {
+  readonly onDidFilesChange: Event<readonly IFileChange[]>;
+
   exists(resource: URI): Promise<boolean>;
   readDir(resource: URI): Promise<readonly [string, FileType][]>;
   readFile(resource: URI, options?: IReadFileOptions): Promise<IFileContent>;

@@ -1,3 +1,5 @@
+import { extname } from "./path.ts";
+
 export const Mimes = Object.freeze({
     text: "text/plain",
     binary: "application/octet-stream",
@@ -71,13 +73,6 @@ const mapExtToMediaMimes: Record<string, string | string[]> = {
     ".wmv": "video/x-ms-wmv",
     ".woff": "application/font-woff",
 };
-
-function extname(path: string): string {
-    const lastSlash = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"));
-    const name = path.slice(lastSlash + 1);
-    const lastDot = name.lastIndexOf(".");
-    return lastDot > 0 ? name.slice(lastDot) : "";
-}
 
 export function getMediaOrTextMime(path: string): string | undefined {
     const ext = extname(path).toLowerCase();

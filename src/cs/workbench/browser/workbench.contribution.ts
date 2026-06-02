@@ -3,6 +3,18 @@ import { Disposable } from "src/cs/base/common/lifecycle";
 import { Workbench } from "src/cs/workbench/browser/workbench";
 import { markBootUiReady } from "src/cs/workbench/browser/workbenchBoot";
 import {
+  IFileDialogService,
+  type IFileDialogService as IFileDialogServiceType,
+} from "src/cs/platform/dialogs/common/dialogs";
+import {
+  IFileService,
+  type IFileService as IFileServiceType,
+} from "src/cs/platform/files/common/files";
+import {
+  IPathService,
+  type IPathService as IPathServiceType,
+} from "src/cs/workbench/services/path/common/pathService";
+import {
   registerWorkbenchContribution2,
   WorkbenchPhase,
   type IWorkbenchContribution,
@@ -19,6 +31,9 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
 
   constructor(
     @ITableService tableService: ITableServiceType,
+    @IFileService filesService: IFileServiceType,
+    @IFileDialogService dialogsService: IFileDialogServiceType,
+    @IPathService pathService: IPathServiceType,
   ) {
     super();
 
@@ -27,7 +42,12 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
       throw new Error('Root element with id "root" was not found.');
     }
 
-    this.workbench = this._register(new Workbench(root, { tableService }));
+    this.workbench = this._register(new Workbench(root, {
+      dialogsService,
+      filesService,
+      pathService,
+      tableService,
+    }));
     this._register(
       scheduleAtNextAnimationFrame(window, () => {
         markBootUiReady("workbench");

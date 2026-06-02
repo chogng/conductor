@@ -1,84 +1,90 @@
+import { Emitter } from "src/cs/base/common/event";
 import { Disposable, toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
-import { Emitter, type Event as EventType } from "src/cs/base/common/event";
 import { URI } from "src/cs/base/common/uri";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
-import { ElectronIPCMainProcessService } from "src/cs/platform/ipc/electron-browser/mainProcessService";
 import {
+  FileType,
   IFileService,
-  LOCAL_FILE_SYSTEM_FILE_CHANGE_EVENT,
-  LOCAL_FILE_SYSTEM_CHANNEL_NAME,
   type IFileContent,
   type IFileChange,
   type IFileStat,
+  type IFileSystemProvider,
   type IReadFileOptions,
   type IWatchOptions,
-  type FileType,
 } from "src/cs/platform/files/common/files";
+import { HTMLFileSystemProvider } from "src/cs/platform/files/browser/htmlFileSystemProvider";
+
+const htmlFileSystemProvider = new HTMLFileSystemProvider();
 
 export class FileService extends Disposable implements IFileService {
   public declare readonly _serviceBrand: undefined;
 
-  private readonly sessionId = this.createId("session");
+  private readonly providers = new Map<string, IFileSystemProvider>();
+  private readonly providerListeners = new Map<string, IDisposable>();
   private readonly onDidFilesChangeEmitter = this._register(new Emitter<readonly IFileChange[]>());
-  public readonly onDidFilesChange: EventType<readonly IFileChange[]> = this.onDidFilesChangeEmitter.event;
-
-  private readonly mainProcessService = this._register(new ElectronIPCMainProcessService());
-  private readonly channel = this.mainProcessService.getChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME);
+  public readonly onDidFilesChange = this.onDidFilesChangeEmitter.event;
 
   constructor() {
     super();
 
-    this._register(this.channel.listen<readonly IFileChange[]>(
-      LOCAL_FILE_SYSTEM_FILE_CHANGE_EVENT,
-      [this.sessionId],
-    )((paths) => {
-      if (Array.isArray(paths) && paths.length > 0) {
-        this.onDidFilesChangeEmitter.fire(paths.map(change => ({
-          resource: URI.revive(change.resource),
-          type: change.type,
-        })));
-      }
-    }));
+    this._register(this.registerProvider("file", htmlFileSystemProvider));
   }
 
-  public exists(resource: URI): Promise<boolean> {
-    return this.channel.call("exists", [resource]);
-  }
+  public registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable {
+    const previous = this.providerListeners.get(scheme);
+    previous?.dispose();
 
-  public readDir(resource: URI): Promise<readonly [string, FileType][]> {
-    return this.channel.call("readDir", [resource]);
-  }
-
-  public readFile(resource: URI, options?: IReadFileOptions): Promise<IFileContent> {
-    return this.channel.call("readFile", [resource, options ?? {}]);
-  }
-
-  public realpath(resource: URI): Promise<URI> {
-    return this.channel.call("realpath", [resource]);
-  }
-
-  public stat(resource: URI): Promise<IFileStat> {
-    return this.channel.call("stat", [resource]);
-  }
-
-  public watch(resource: URI, options?: IWatchOptions): IDisposable {
-    const watchId = this.createId("watch");
-    void this.channel.call("watch", [this.sessionId, watchId, resource, options ?? {}]);
+    this.providers.set(scheme, provider);
+    this.providerListeners.set(
+      scheme,
+      provider.onDidFilesChange(changes => this.onDidFilesChangeEmitter.fire(changes)),
+    );
 
     return toDisposable(() => {
-      void this.channel.call("unwatch", [this.sessionId, watchId]);
+      if (this.providers.get(scheme) === provider) {
+        this.providers.delete(scheme);
+        this.providerListeners.get(scheme)?.dispose();
+        this.providerListeners.delete(scheme);
+      }
     });
   }
 
-  private createId(prefix: string): string {
-    if (
-      typeof crypto !== "undefined" &&
-      typeof crypto.randomUUID === "function"
-    ) {
-      return crypto.randomUUID();
+  public getProvider(scheme: string): IFileSystemProvider | undefined {
+    return this.providers.get(scheme);
+  }
+
+  public exists(resource: URI): Promise<boolean> {
+    return this.withProvider(resource).exists(resource);
+  }
+
+  public readDir(resource: URI): Promise<readonly [string, FileType][]> {
+    return this.withProvider(resource).readDir(resource);
+  }
+
+  public readFile(resource: URI, options?: IReadFileOptions): Promise<IFileContent> {
+    return this.withProvider(resource).readFile(resource, options);
+  }
+
+  public realpath(resource: URI): Promise<URI> {
+    return this.withProvider(resource).realpath(resource);
+  }
+
+  public stat(resource: URI): Promise<IFileStat> {
+    return this.withProvider(resource).stat(resource);
+  }
+
+  public watch(resource: URI, options?: IWatchOptions): IDisposable {
+    return this.withProvider(resource).watch(resource, options);
+  }
+
+  private withProvider(resource: URI): IFileSystemProvider {
+    const uri = URI.revive(resource);
+    const provider = this.getProvider(uri.scheme);
+    if (!provider) {
+      throw new Error(`No file system provider registered for '${uri.scheme}'.`);
     }
 
-    return `${prefix}_${Math.random().toString(36).slice(2)}_${Date.now().toString(36)}`;
+    return provider;
   }
 }
 
