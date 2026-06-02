@@ -120,16 +120,28 @@ export const requestAnalysisDesktopStore = async (
   endpoint: string,
   options: RequestInit = {},
 ): Promise<unknown> => {
-  const store = getDesktopStore();
-  if (!store) {
-    throw new Error(DESKTOP_STORE_UNAVAILABLE);
-  }
-
   const method = String(options.method || "GET").toUpperCase();
   const isAnalysisEndpoint = (name: string) =>
     endpoint === `/analysis/${name}`;
   const isAnalysisTemplateItemEndpoint =
     endpoint.startsWith("/analysis/templates/");
+
+  const store = getDesktopStore();
+  if (!store) {
+    if (isAnalysisEndpoint("templates") && method === "GET") {
+      return [];
+    }
+
+    if (isAnalysisEndpoint("settings") && method === "GET") {
+      return {};
+    }
+
+    if (isAnalysisEndpoint("persistence-path") && method === "GET") {
+      return { isConfigurable: false };
+    }
+
+    throw new Error(DESKTOP_STORE_UNAVAILABLE);
+  }
 
   if (isAnalysisEndpoint("templates") && method === "GET") {
     return getDesktopStoreMethod(
