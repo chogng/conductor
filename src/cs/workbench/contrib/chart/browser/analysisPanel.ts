@@ -22,11 +22,13 @@ import type {
   SsManualRanges,
   SsMethod,
 } from "src/cs/workbench/contrib/session/analysis-session-context";
+import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 import { createChartView } from "src/cs/workbench/contrib/chart/browser/chartView";
 
 type StateSetter<T> = (next: T | ((previous: T) => T)) => void;
 
 export type ChartViewLazyProps = {
+  activePlotType?: PlotType;
   processedData: ProcessedEntry[];
   processingStatus?: Partial<ProcessingStatus>;
   activeFileId?: string | null;
@@ -106,11 +108,10 @@ const createAnalysisPanelContent = (props: AnalysisPanelProps): HTMLElement => {
     return createProcessingCard(t, processingStatus);
   }
 
-  return createAnalysisStatusCard({
-    id: "analysis-empty-processed-data-card",
-    iconClassName: "analysis_status_icon--muted",
-    message: t("da_no_processed_data"),
-    hint: t("da_no_processed_data_hint"),
+  return createChartView({
+    ...props,
+    processedData,
+    t,
   });
 };
 

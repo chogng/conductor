@@ -175,7 +175,7 @@ export class Workbench extends Layout {
   private theme: ThemeMode = isThemeMode(window.__CONDUCTOR_INITIAL_THEME__)
     ? window.__CONDUCTOR_INITIAL_THEME__
     : "system";
-  private activeMainPart: WorkbenchMainPart = "table";
+  private activeMainPart: WorkbenchMainPart = import.meta.env.DEV ? "chart" : "table";
 
   public get contentElement(): HTMLElement {
     return this.window.contentElement;
