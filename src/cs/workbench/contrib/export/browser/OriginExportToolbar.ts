@@ -309,7 +309,7 @@ const createOriginExportToolbar = ({
   const toolbar = document.createElement("div");
   toolbar.className = "origin_export_toolbar_controls";
   toolbar.setAttribute("role", "toolbar");
-  toolbar.setAttribute("aria-label", t("da_analysis_results_tab_export"));
+  toolbar.setAttribute("aria-label", t("analysis.results.export"));
   header.appendChild(toolbar);
 
   appendText(toolbar, "span", "origin_export_toolbar_label", t("da_origin_export_mode_label"));

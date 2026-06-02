@@ -48,7 +48,7 @@ export const createWorkbenchTitlebarPageActions = (
   },
   {
     id: "analysis",
-    title: t("da_tab_analysis"),
+    title: t("analysis.visualization"),
     isActive: activePage === "analysis",
   },
   {

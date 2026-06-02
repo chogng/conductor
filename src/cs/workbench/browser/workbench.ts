@@ -30,7 +30,7 @@ import {
   getWorkbenchWindowState,
   WorkbenchWindow,
 } from "src/cs/workbench/browser/window";
-import ChartPreviewViewPane from "src/cs/workbench/contrib/chartPreview/browser/chartPreviewViewPane";
+import ChartViewPane from "src/cs/workbench/contrib/chartPreview/browser/chartViewPane";
 import ResultsPane from "src/cs/workbench/contrib/chartPreview/browser/resultsPane";
 import TemplateEditorPane from "src/cs/workbench/contrib/template/browser/templateEditorPane";
 import { TemplateImportController } from "src/cs/workbench/contrib/template/browser/templateImportController";
@@ -157,7 +157,7 @@ export class Workbench extends Layout {
   private readonly filesPane: FilesPaneHost;
   private readonly table: TableContribution;
   private readonly templateEditor: TemplateEditorPane;
-  private readonly analysis: ChartPreviewViewPane;
+  private readonly analysis: ChartViewPane;
   private readonly results: ResultsPane;
   private readonly settings: SettingsViewPane;
   private readonly templateApply: TemplateApplyController;
@@ -223,7 +223,7 @@ export class Workbench extends Layout {
     this.filesPane = this._register(new FilesPaneHost(this.getFilesPaneProps()));
     this.table = getWorkbenchContribution<TableContribution>(TableContributionId);
     this.templateEditor = this._register(new TemplateEditorPane(this.getTemplateEditorProps()));
-    this.analysis = this._register(new ChartPreviewViewPane(this.getAnalysisProps()));
+    this.analysis = this._register(new ChartViewPane(this.getAnalysisProps()));
     this.results = this._register(new ResultsPane(this.getResultsProps()));
     this.settings = this._register(new SettingsViewPane(this.getSettingsProps()));
     this.coreSettingsController = this._register(

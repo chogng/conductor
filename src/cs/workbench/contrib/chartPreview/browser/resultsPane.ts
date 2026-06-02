@@ -1,0 +1,342 @@
+import { getCardClassName } from "src/cs/base/browser/ui/card/card";
+import SidebarPart from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
+import { buildPoints } from "src/cs/workbench/contrib/chart/browser/chartViewModel";
+import {
+  computeCentralDerivative,
+  computeSubthresholdSwingFitAuto,
+} from "src/cs/workbench/contrib/diagnostics/common/analysisMath";
+import {
+  computeBaseCurrentMetrics,
+  isTransferLikeFile,
+} from "src/cs/workbench/contrib/diagnostics/common/metrics";
+import OriginExportToolbar, {
+  type OriginCurveExportSeriesOption,
+  type OriginExportContentOption,
+} from "src/cs/workbench/contrib/export/browser/OriginExportToolbar";
+import type {
+  OriginCanvasExportScope,
+  OriginCurveExportMode,
+  OriginFilteredCanvasKind,
+} from "src/cs/workbench/contrib/export/browser/originCanvasExport";
+import type {
+  OriginExportContentKey,
+  OriginExportMode,
+} from "src/cs/workbench/contrib/export/common/originSelectionExport";
+import { renderParametersView } from "src/cs/workbench/contrib/parameters/browser/parametersView";
+import type { CalculatedParameterRowData } from "src/cs/workbench/contrib/parameters/browser/parametersModel";
+import type { TranslateFn } from "src/cs/platform/language/common/language";
+import type {
+  ProcessedEntry,
+  ProcessedSeries,
+} from "src/cs/workbench/contrib/session/common/sessionTypes";
+
+import "src/cs/workbench/contrib/export/browser/media/export.css";
+import "src/cs/workbench/contrib/parameters/browser/media/parametersView.css";
+import "src/cs/workbench/contrib/chartPreview/browser/media/resultsPane.css";
+
+export type ResultsPaneProps = {
+  readonly activeFileId?: string | null;
+  readonly processedData: ProcessedEntry[];
+  readonly t: TranslateFn;
+};
+
+type DerivativePoint = {
+  x?: unknown;
+  y?: unknown;
+};
+
+type SsFit = {
+  ok?: unknown;
+  ss?: unknown;
+  x1?: unknown;
+  x2?: unknown;
+};
+
+type SsFitResult = {
+  strict?: SsFit;
+  suggested?: SsFit;
+};
+
+const ORIGIN_EXPORT_CONTENT_OPTIONS: OriginExportContentOption[] = [
+  { group: "basic", key: "iv", labelKey: "da_origin_export_content_iv" },
+  { group: "derived", key: "metrics", labelKey: "da_origin_export_content_metrics" },
+  { group: "derived", key: "gm", labelKey: "da_origin_export_content_gm" },
+  { group: "derived", key: "ss", labelKey: "da_origin_export_content_ss" },
+  { group: "derived", key: "vth", labelKey: "da_origin_export_content_vth" },
+];
+
+export class ResultsPane {
+  public readonly element: HTMLElement;
+  private readonly content = document.createElement("div");
+  private readonly sidebarPart: SidebarPart;
+  private originMode: OriginExportMode = "merged";
+  private canvasScope: OriginCanvasExportScope = "current";
+  private filteredKind: OriginFilteredCanvasKind = "output";
+  private curveMode: OriginCurveExportMode = "all";
+  private selectedContentKeys: OriginExportContentKey[] = ["iv"];
+  private selectedCurveKeys = new Set<string>();
+
+  constructor(props: ResultsPaneProps) {
+    this.content.className = "results_pane";
+    this.sidebarPart = new SidebarPart(this.getSidebarOptions(props));
+    this.element = this.sidebarPart.element;
+  }
+
+  public update(props: ResultsPaneProps): void {
+    this.sidebarPart.update(this.getSidebarOptions(props));
+  }
+
+  public dispose(): void {
+    this.sidebarPart.dispose();
+    this.content.replaceChildren();
+    this.element.remove();
+  }
+
+  private getSidebarOptions(props: ResultsPaneProps) {
+    this.render(props);
+
+    return {
+      ariaLabel: props.t("analysis.visualization"),
+      children: this.content,
+      className: "results_sidebar_part",
+      title: props.t("analysis.visualization"),
+    };
+  }
+
+  private render(props: ResultsPaneProps): void {
+    const activeFile = resolveActiveFile(props);
+    this.content.replaceChildren();
+
+    if (!activeFile) {
+      this.content.append(createEmptyState(props.t("da_no_processed_data")));
+      return;
+    }
+
+    this.syncCurveSelection(activeFile);
+    this.content.append(
+      this.createExportSection(props, activeFile),
+      this.createParametersSection(props, activeFile),
+    );
+  }
+
+  private createExportSection(
+    props: ResultsPaneProps,
+    activeFile: ProcessedEntry,
+  ): HTMLElement {
+    const section = document.createElement("section");
+    section.className = getCardClassName({
+      className: "results_section",
+      variant: "panel",
+    });
+    section.append(createSectionTitle(props.t("analysis.results.export")));
+    section.append(OriginExportToolbar({
+      curveOptions: createOriginCurveOptions(activeFile),
+      hasMixedExportYScales: false,
+      mode: this.originMode,
+      onExportOriginZip: () => undefined,
+      onModeChange: (next) => {
+        this.originMode = next;
+      },
+      onOpenInOrigin: () => undefined,
+      onSelectedCurveOptionKeysChange: (nextKeys) => {
+        this.selectedCurveKeys = new Set(nextKeys);
+      },
+      originCanvasExportScope: this.canvasScope,
+      originExportContentOptions: ORIGIN_EXPORT_CONTENT_OPTIONS,
+      originFilteredCanvasKind: this.filteredKind,
+      replaceMatchingOriginSeriesAcrossFiles: () => ({
+        matchedFileCount: 0,
+        matchedSeriesCount: 0,
+      }),
+      resolvedCurveExportMode: this.curveMode,
+      scopedFileIds: activeFile.fileId ? [activeFile.fileId] : [],
+      selectedContentKeys: this.selectedContentKeys,
+      selectedCurveOptionKeySet: this.selectedCurveKeys,
+      setContentKeys: (next) => {
+        this.selectedContentKeys =
+          typeof next === "function" ? next(this.selectedContentKeys) : next;
+      },
+      setOriginCanvasExportScope: (next) => {
+        this.canvasScope =
+          typeof next === "function" ? next(this.canvasScope) : next;
+      },
+      setOriginFilteredCanvasKind: (next) => {
+        this.filteredKind =
+          typeof next === "function" ? next(this.filteredKind) : next;
+      },
+      setResolvedCurveExportMode: (next) => {
+        this.curveMode = next;
+      },
+      showFilteredCanvasKindSelect: true,
+      t: props.t,
+    }));
+    return section;
+  }
+
+  private createParametersSection(
+    props: ResultsPaneProps,
+    activeFile: ProcessedEntry,
+  ): HTMLElement {
+    const section = document.createElement("section");
+    section.className = getCardClassName({
+      className: "results_section results_section--parameters",
+      variant: "panel",
+    });
+    section.append(createSectionTitle(props.t("analysis.results.parameters")));
+
+    const tableHost = document.createElement("div");
+    tableHost.className = "results_parameters_scroll";
+    renderParametersView(tableHost, {
+      gmMetricHeader: "gm",
+      rows: createParameterRows(activeFile),
+      showTransferMetrics: isTransferLikeFile(activeFile),
+      t: props.t,
+    });
+    section.append(tableHost);
+    return section;
+  }
+
+  private syncCurveSelection(activeFile: ProcessedEntry): void {
+    const curveKeys = new Set(
+      createOriginCurveOptions(activeFile).map((option) => option.key),
+    );
+    this.selectedCurveKeys = new Set(
+      this.selectedCurveKeys.size > 0
+        ? [...this.selectedCurveKeys].filter((key) => curveKeys.has(key))
+        : [...curveKeys],
+    );
+  }
+}
+
+const resolveActiveFile = ({
+  activeFileId,
+  processedData,
+}: ResultsPaneProps): ProcessedEntry | null => {
+  const files = Array.isArray(processedData) ? processedData : [];
+  const normalizedActiveFileId = String(activeFileId ?? "").trim();
+  return (
+    files.find((file) => String(file?.fileId ?? "") === normalizedActiveFileId) ??
+    files[0] ??
+    null
+  );
+};
+
+const createOriginCurveOptions = (
+  file: ProcessedEntry,
+): OriginCurveExportSeriesOption[] =>
+  (Array.isArray(file?.series) ? file.series : [])
+    .map((series, index) => {
+      const seriesId = String(series?.id ?? "");
+      if (!seriesId) return null;
+      return {
+        key: seriesId,
+        label: String(series?.name ?? `Series ${index + 1}`),
+        sourceFileId: String(file?.fileId ?? ""),
+        sourceSeriesId: seriesId,
+      };
+    })
+    .filter((option): option is OriginCurveExportSeriesOption => Boolean(option));
+
+const createParameterRows = (
+  file: ProcessedEntry,
+): Array<CalculatedParameterRowData & { id?: unknown }> => {
+  const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
+  const seriesList = Array.isArray(file?.series) ? file.series : [];
+  const showTransferMetrics = isTransferLikeFile(file);
+
+  return seriesList.map((series, index) => {
+    const points = buildPoints(xGroups[Number(series?.groupIndex)], series?.y);
+    const baseMetrics = computeBaseCurrentMetrics({
+      points,
+      sourceFile: file,
+    });
+    const derivative = computeCentralDerivative(points) as DerivativePoint[];
+    const gm = resolveMaxAbsPoint(derivative);
+    const ssFit = showTransferMetrics
+      ? resolveSsFit(computeSubthresholdSwingFitAuto(points))
+      : { confidence: "fail", value: null, x: null };
+
+    return {
+      currentCandidateWindows: baseMetrics.candidateWindows,
+      currentMethod: baseMetrics.method,
+      gmMaxAbs: gm.y,
+      id: series.id ?? index,
+      ion: baseMetrics.ion,
+      ionIoff: baseMetrics.ionIoff,
+      ionWindow: baseMetrics.ionWindow,
+      ioff: baseMetrics.ioff,
+      ioffWindow: baseMetrics.ioffWindow,
+      jon: null,
+      name: resolveSeriesName(series, index),
+      ss: ssFit.value,
+      ssConfidence: ssFit.confidence,
+      thresholdVoltage: null,
+      thresholdVoltageElectron: null,
+      thresholdVoltageHole: null,
+      xAtGmMaxAbs: gm.x,
+      xAtIon: baseMetrics.xAtIon,
+      xAtIoff: baseMetrics.xAtIoff,
+      xAtSs: ssFit.x,
+    };
+  });
+};
+
+const resolveSeriesName = (series: ProcessedSeries, index: number): string =>
+  String(series?.name ?? `Series ${index + 1}`);
+
+const resolveMaxAbsPoint = (
+  points: DerivativePoint[],
+): { x: number | null; y: number | null } => {
+  let best: { x: number | null; y: number | null } = { x: null, y: null };
+  let bestAbs = -1;
+
+  for (const point of Array.isArray(points) ? points : []) {
+    const y = Number(point?.y);
+    if (!Number.isFinite(y)) continue;
+    const abs = Math.abs(y);
+    if (abs <= bestAbs) continue;
+    const x = Number(point?.x);
+    bestAbs = abs;
+    best = {
+      x: Number.isFinite(x) ? x : null,
+      y: abs,
+    };
+  }
+
+  return best;
+};
+
+const resolveSsFit = (
+  value: unknown,
+): { confidence: string; value: number | null; x: number | null } => {
+  const result = isRecord(value) ? (value as SsFitResult) : null;
+  const fit = result?.strict?.ok ? result.strict : result?.suggested ?? null;
+  const ss = Number(fit?.ss);
+  const x1 = Number(fit?.x1);
+  const x2 = Number(fit?.x2);
+
+  return {
+    confidence: result?.strict?.ok ? "high" : fit?.ok ? "low" : "fail",
+    value: Number.isFinite(ss) ? ss : null,
+    x: Number.isFinite(x1) && Number.isFinite(x2) ? (x1 + x2) / 2 : null,
+  };
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+const createSectionTitle = (text: string): HTMLElement => {
+  const title = document.createElement("h3");
+  title.className = "results_section_title";
+  title.textContent = text;
+  return title;
+};
+
+const createEmptyState = (message: string): HTMLElement => {
+  const root = document.createElement("div");
+  root.className = "results_empty";
+  root.textContent = message;
+  return root;
+};
+
+export default ResultsPane;

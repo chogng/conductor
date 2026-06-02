@@ -7,7 +7,7 @@ import {
 import {
   startPerf,
 } from "src/cs/workbench/common/perf";
-import type { RawDataEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type { SessionFile } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import {
   buildFileIdentityKey,
   buildItemKey,
@@ -34,7 +34,7 @@ export type ImportedSessionFileEntry = FileEntry & {
   sourceKey: string;
 };
 
-export type ImportSessionFileInfo = RawDataEntry & {
+export type ImportSessionFileInfo = SessionFile & {
   fileId: string;
   fileName: string;
   file: File;

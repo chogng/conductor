@@ -22,10 +22,11 @@ import type {
   SsManualRanges,
   SsMethod,
 } from "src/cs/workbench/contrib/session/analysis-session-context";
+import { createChartView } from "src/cs/workbench/contrib/chartPreview/browser/chartView";
 
 type StateSetter<T> = (next: T | ((previous: T) => T)) => void;
 
-export type AnalysisChartsLazyProps = {
+export type ChartViewLazyProps = {
   processedData: ProcessedEntry[];
   processingStatus?: Partial<ProcessingStatus>;
   activeFileId?: string | null;
@@ -51,7 +52,7 @@ export type AnalysisChartsLazyProps = {
   onOriginOpenPlotOptionsChange?: (updates: unknown) => Promise<unknown> | void;
 };
 
-export type AnalysisPanelProps = AnalysisChartsLazyProps & {
+export type AnalysisPanelProps = ChartViewLazyProps & {
   shouldMountCharts?: boolean;
   t: TranslateFn;
 };
@@ -61,7 +62,7 @@ export class AnalysisPanel {
 
   constructor(props: AnalysisPanelProps) {
     this.element = document.createElement("section");
-    this.element.className = "analysis_panel";
+    this.element.className = "chart_panel";
     this.update(props);
   }
 
@@ -76,12 +77,14 @@ export class AnalysisPanel {
   }
 }
 
-const createAnalysisPanelContent = ({
-  processedData = [],
-  processingStatus,
-  shouldMountCharts = false,
-  t,
-}: AnalysisPanelProps): HTMLElement => {
+const createAnalysisPanelContent = (props: AnalysisPanelProps): HTMLElement => {
+  const {
+    processedData = [],
+    processingStatus,
+    shouldMountCharts = false,
+    t,
+  } = props;
+
   if (processedData.length > 0) {
     if (shouldMountCharts) {
       return createAnalysisStatusCard({
@@ -92,7 +95,11 @@ const createAnalysisPanelContent = ({
       });
     }
 
-    return document.createElement("div");
+    return createChartView({
+      ...props,
+      processedData,
+      t,
+    });
   }
 
   if (processingStatus?.state === "processing") {
