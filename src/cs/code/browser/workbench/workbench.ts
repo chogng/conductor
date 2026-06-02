@@ -1,9 +1,12 @@
 import "src/cs/workbench/workbench.web.main.ts";
 
 import { mainWindow } from "src/cs/base/browser/window";
+import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { InstantiationService } from "src/cs/platform/instantiation/common/instantiationService";
 import { ServiceCollection } from "src/cs/platform/instantiation/common/serviceCollection";
 import { Registry } from "src/cs/platform/registry/common/platform";
+import { IFileService } from "src/cs/platform/files/common/files";
+import { HTMLFileSystemProvider } from "src/cs/platform/files/browser/htmlFileSystemProvider";
 import type { LanguageCode } from "src/cs/platform/language/common/language";
 import { createNLSConfiguration, setNLSConfiguration } from "src/cs/nls";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
@@ -133,9 +136,17 @@ function startBrowserWorkbenchBoot(
 function startWorkbench(): void {
   const serviceCollection = new ServiceCollection();
   const instantiationService = new InstantiationService(serviceCollection);
+  const fileSystemProviderStore = new DisposableStore();
   const lifecycleService = instantiationService.invokeFunction<ILifecycleServiceType>(
     accessor => accessor.get(ILifecycleService),
   );
+  fileSystemProviderStore.add(lifecycleService.onDidShutdown(() => fileSystemProviderStore.dispose()));
+  instantiationService.invokeFunction(accessor => {
+    const filesService = accessor.get(IFileService);
+    fileSystemProviderStore.add(
+      filesService.registerProvider("file", fileSystemProviderStore.add(new HTMLFileSystemProvider())),
+    );
+  });
 
   const contributionsRegistry =
     Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench);

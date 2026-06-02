@@ -1,20 +1,17 @@
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable, toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
-import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
-  FileType,
   IFileService,
-  type IFileContent,
+  type FileType,
   type IFileChange,
+  type IFileContent,
   type IFileStat,
   type IFileSystemProvider,
   type IReadFileOptions,
   type IWatchOptions,
 } from "src/cs/platform/files/common/files";
-import { HTMLFileSystemProvider } from "src/cs/platform/files/browser/htmlFileSystemProvider";
-
-const htmlFileSystemProvider = new HTMLFileSystemProvider();
+import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 
 export class FileService extends Disposable implements IFileService {
   public declare readonly _serviceBrand: undefined;
@@ -23,12 +20,6 @@ export class FileService extends Disposable implements IFileService {
   private readonly providerListeners = new Map<string, IDisposable>();
   private readonly onDidFilesChangeEmitter = this._register(new Emitter<readonly IFileChange[]>());
   public readonly onDidFilesChange = this.onDidFilesChangeEmitter.event;
-
-  constructor() {
-    super();
-
-    this._register(this.registerProvider("file", htmlFileSystemProvider));
-  }
 
   public registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable {
     const previous = this.providerListeners.get(scheme);

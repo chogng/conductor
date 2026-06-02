@@ -4,7 +4,10 @@ import {
   type IFileDialogService as IFileDialogServiceType,
   type IOpenDialogOptions,
 } from "src/cs/platform/dialogs/common/dialogs";
-import { fileService } from "src/cs/platform/files/browser/fileService";
+import {
+  IFileService,
+  type IFileService as IFileServiceType,
+} from "src/cs/platform/files/common/files";
 import { HTMLFileSystemProvider } from "src/cs/platform/files/browser/htmlFileSystemProvider";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
@@ -22,6 +25,12 @@ type FilePickerWindow = Window & typeof globalThis & {
 };
 
 export class FileDialogService extends AbstractFileDialogService implements IFileDialogServiceType {
+  constructor(
+    @IFileService private readonly filesService: IFileServiceType,
+  ) {
+    super();
+  }
+
   public async showOpenDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
     const schema = this.getFileSystemSchema(options);
     if (this.shouldUseSimplified(schema)) {
@@ -47,7 +56,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
       return undefined;
     }
 
-    const provider = fileService.getProvider("file");
+    const provider = this.filesService.getProvider("file");
     if (!(provider instanceof HTMLFileSystemProvider)) {
       return undefined;
     }
