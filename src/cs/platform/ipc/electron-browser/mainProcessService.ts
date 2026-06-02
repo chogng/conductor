@@ -1,17 +1,21 @@
 import { Disposable } from "src/cs/base/common/lifecycle";
+import { mainWindow } from "src/cs/base/browser/window";
 import type { IChannel, IServerChannel } from "src/cs/base/parts/ipc/common/ipc";
 import { Client as IPCElectronClient } from "src/cs/base/parts/ipc/electron-browser/ipc.electron";
-import type { IMainProcessService } from "src/cs/platform/ipc/common/mainProcessService";
+import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
+import { IMainProcessService, type IMainProcessService as IMainProcessServiceType } from "src/cs/platform/ipc/common/mainProcessService";
 
-export class ElectronIPCMainProcessService extends Disposable implements IMainProcessService {
+export class ElectronIPCMainProcessService extends Disposable implements IMainProcessServiceType {
   public declare readonly _serviceBrand: undefined;
 
   private readonly mainProcessConnection: IPCElectronClient;
 
-  constructor(windowId: number) {
+  constructor() {
     super();
 
-    this.mainProcessConnection = this._register(new IPCElectronClient(`window:${windowId}`));
+    this.mainProcessConnection = this._register(
+      new IPCElectronClient(`window:${mainWindow.conductorWindowId}`),
+    );
   }
 
   public getChannel(channelName: string): IChannel {
@@ -22,3 +26,5 @@ export class ElectronIPCMainProcessService extends Disposable implements IMainPr
     this.mainProcessConnection.registerChannel(channelName, channel);
   }
 }
+
+registerSingleton(IMainProcessService, ElectronIPCMainProcessService, InstantiationType.Delayed);

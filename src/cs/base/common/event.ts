@@ -1,4 +1,4 @@
-import { Disposable, DisposableStore, type IDisposable, toDisposable } from "src/cs/base/common/lifecycle";
+import { Disposable, DisposableStore, type IDisposable, toDisposable } from "./lifecycle.js";
 
 export interface Event<T> {
     (listener: (event: T) => unknown, thisArgs?: unknown, disposables?: IDisposable[] | DisposableStore): IDisposable;

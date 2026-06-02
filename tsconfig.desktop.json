@@ -4,8 +4,13 @@
     "lib": ["ES2022"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
+    "baseUrl": ".",
     "rootDir": ".",
     "outDir": "desktop-dist",
+    "paths": {
+      "cs/*": ["./src/cs/*"],
+      "src/*": ["./src/*"]
+    },
     "types": ["node"],
     "strict": false,
     "skipLibCheck": true

@@ -1,6 +1,6 @@
-import { CancellationError, CancellationToken, CancellationTokenSource } from "src/cs/base/common/async";
-import { Emitter, Event } from "src/cs/base/common/event";
-import { DisposableStore, type IDisposable, toDisposable } from "src/cs/base/common/lifecycle";
+import { CancellationError, CancellationToken, CancellationTokenSource } from "../../../common/async.js";
+import { Emitter, Event } from "../../../common/event.js";
+import { DisposableStore, type IDisposable, toDisposable } from "../../../common/lifecycle.js";
 
 export interface IChannel {
     call<T>(command: string, arg?: unknown, cancellationToken?: CancellationToken): Promise<T>;
@@ -436,7 +436,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
                 return connection;
             }
 
-            return eventToPromise(Event.filter(this.onDidAddConnection, routerOrClientFilter));
+            return eventToPromise(Event.filter(this.onDidAddConnection, routerOrClientFilter)) as Promise<Connection<TContext>>;
         }
 
         return routerOrClientFilter.routeCall(this, command, arg, cancellationToken) as Promise<Connection<TContext>>;
@@ -454,7 +454,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
                 return connection;
             }
 
-            return eventToPromise(Event.filter(this.onDidAddConnection, routerOrClientFilter));
+            return eventToPromise(Event.filter(this.onDidAddConnection, routerOrClientFilter)) as Promise<Connection<TContext>>;
         }
 
         return routerOrClientFilter.routeEvent(this, event, arg) as Promise<Connection<TContext>>;

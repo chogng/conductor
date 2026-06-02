@@ -1,5 +1,5 @@
-import type { Event } from "src/cs/base/common/event";
-import type { IMessagePassingProtocol } from "src/cs/base/parts/ipc/common/ipc";
+import type { Event } from "../../../common/event.js";
+import type { IMessagePassingProtocol } from "./ipc.js";
 
 export interface Sender {
     send(channel: string, message: unknown): void;

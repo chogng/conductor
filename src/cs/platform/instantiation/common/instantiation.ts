@@ -1,6 +1,6 @@
-import type { DisposableStore } from "src/cs/base/common/lifecycle";
-import type { SyncDescriptor0 } from "src/cs/platform/instantiation/common/descriptors";
-import type { ServiceCollection } from "src/cs/platform/instantiation/common/serviceCollection";
+import type { DisposableStore } from "../../../base/common/lifecycle.js";
+import type { SyncDescriptor0 } from "./descriptors.js";
+import type { ServiceCollection } from "./serviceCollection.js";
 
 export namespace _util {
   export const serviceIds = new Map<string, ServiceIdentifier<unknown>>();

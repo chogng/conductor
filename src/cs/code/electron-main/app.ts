@@ -15,6 +15,7 @@ import {
   Tray,
 } from "electron";
 import { product } from "../../../bootstrap-meta.js";
+import { Server as ElectronIPCServer } from "../../base/parts/ipc/electron-main/ipc.electron.js";
 import {
   applyWindowThemeSnapshot,
   getCurrentBootThemeSnapshot,
@@ -47,6 +48,9 @@ import {
   resolveRustWorkerExecutablePath,
   RustWorkerRuntime,
 } from "../../platform/rust/electron-main/rustWorkerRuntime.js";
+import { DiskFileSystemProviderChannel } from "../../platform/files/electron-main/diskFileSystemProviderServer.js";
+import { LOCAL_FILE_SYSTEM_CHANNEL_NAME } from "../../platform/files/common/files.js";
+import { DiskFileSystemProvider } from "../../platform/files/node/diskFileSystemProvider.js";
 import { registerAnalysisRustHandlers } from "./analysisRustMain.js";
 import { RustAnalysisService } from "./rustAnalysisService.js";
 
@@ -109,6 +113,8 @@ const rustWorkerRuntime = new RustWorkerRuntime({
     resourcesPath: getResourcesPath(),
   }),
 });
+const mainProcessServer = new ElectronIPCServer();
+const localFileSystemProvider = new DiskFileSystemProvider();
 let mainWindow = null;
 let appTray = null;
 let analysisRustHandlers = null;
@@ -2447,6 +2453,10 @@ if (hasSingleInstanceLock) {
   ensureAnalysisDemoFiles();
   createAppTray();
   updateService = createUpdateService();
+  mainProcessServer.registerChannel(
+    LOCAL_FILE_SYSTEM_CHANNEL_NAME,
+    new DiskFileSystemProviderChannel(localFileSystemProvider),
+  );
 
   ipcMain.on("desktop-command", handleDesktopCommand);
   ipcMain.on(nativeHostIpcChannels.windowCommand, handleNativeWindowCommand);

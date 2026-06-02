@@ -1,10 +1,10 @@
 import type { WebContents } from "electron";
 
-import { Emitter, Event } from "src/cs/base/common/event";
-import { toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
-import { type ClientConnectionEvent, IPCServer } from "src/cs/base/parts/ipc/common/ipc";
-import { Protocol as ElectronProtocol } from "src/cs/base/parts/ipc/common/ipc.electron";
-import { validatedIpcMain } from "src/cs/base/parts/ipc/electron-main/ipcMain";
+import { Emitter, Event } from "../../../common/event.js";
+import { toDisposable, type IDisposable } from "../../../common/lifecycle.js";
+import { type ClientConnectionEvent, IPCServer } from "../common/ipc.js";
+import { Protocol as ElectronProtocol } from "../common/ipc.electron.js";
+import { validatedIpcMain } from "./ipcMain.js";
 
 interface IpcMessageEvent {
     readonly sender: WebContents;

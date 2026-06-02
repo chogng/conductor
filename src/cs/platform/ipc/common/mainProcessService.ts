@@ -1,8 +1,9 @@
 import type { IChannel, IServerChannel } from "src/cs/base/parts/ipc/common/ipc";
 import { IPCServer, StaticRouter } from "src/cs/base/parts/ipc/common/ipc";
+import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { IRemoteService } from "src/cs/platform/ipc/common/services";
 
-export const IMainProcessService = "mainProcessService";
+export const IMainProcessService = createDecorator<IMainProcessService>("mainProcessService");
 
 export interface IMainProcessService extends IRemoteService {}
 

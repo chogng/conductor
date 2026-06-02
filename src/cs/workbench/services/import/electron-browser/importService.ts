@@ -1,4 +1,6 @@
 import { Disposable } from "src/cs/base/common/lifecycle";
+import { URI } from "src/cs/base/common/uri";
+import { fileService } from "src/cs/platform/files/browser/fileService";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 import {
@@ -238,7 +240,34 @@ export class ElectronBrowserImportService extends Disposable implements IImportS
       return getBridgeMethod(bridge, "readConvertedCsvFileWithRust")(payload);
     }
 
-    return invoke<ImportConvertedCsv>(workbenchIpcChannels.excelReadConvertedCsv, payload);
+    return this.readConvertedCsvFromFile(payload);
+  }
+
+  private async readConvertedCsvFromFile(
+    payload: { path: string },
+  ): Promise<ImportConvertedCsv> {
+    const filePath = typeof payload?.path === "string" ? payload.path.trim() : "";
+    if (!filePath) {
+      return {
+        ok: false,
+      };
+    }
+
+    const resource = URI.file(filePath);
+    if (!await fileService.exists(resource)) {
+      return {
+        ok: false,
+      };
+    }
+
+    const content = await fileService.readFile(resource, { encoding: "utf8" });
+    const sizeBytes = new TextEncoder().encode(content.value).byteLength;
+
+    return {
+      csvText: content.value,
+      ok: true,
+      sizeBytes,
+    };
   }
 }
 

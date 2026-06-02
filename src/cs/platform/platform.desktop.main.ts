@@ -8,6 +8,8 @@ import "src/cs/platform/platform.browser.main";
 
 //#region --- platform services
 
+import "src/cs/platform/ipc/electron-browser/mainProcessService";
+import "src/cs/platform/files/browser/fileService";
 import "src/cs/platform/native/electron-browser/nativeHostService";
 
 //#endregion

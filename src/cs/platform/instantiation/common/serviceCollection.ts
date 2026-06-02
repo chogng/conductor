@@ -1,5 +1,5 @@
-import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors";
-import type { ServiceIdentifier } from "src/cs/platform/instantiation/common/instantiation";
+import { SyncDescriptor } from "./descriptors.js";
+import type { ServiceIdentifier } from "./instantiation.js";
 
 export class ServiceCollection {
   private readonly entries = new Map<ServiceIdentifier<unknown>, unknown>();

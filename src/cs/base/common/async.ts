@@ -1,4 +1,4 @@
-import { Disposable, DisposableStore, type IDisposable, isDisposable, toDisposable } from "src/cs/base/common/lifecycle";
+import { Disposable, DisposableStore, type IDisposable, isDisposable, toDisposable } from "./lifecycle.js";
 
 export function isThenable<T>(value: unknown): value is PromiseLike<T> {
     return !!value && typeof (value as PromiseLike<T>).then === "function";
