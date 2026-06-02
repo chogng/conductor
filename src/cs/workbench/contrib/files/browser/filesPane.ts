@@ -4,6 +4,7 @@ import type { IFileService } from "src/cs/platform/files/common/files";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
 import type { FileEntry, FilesPaneRef } from "src/cs/workbench/contrib/files/common/files";
+import type { ProcessedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import {
   FilesController,
   type ImportSessionFileInfo,
@@ -17,6 +18,7 @@ export type FilesPaneProps = {
   readonly pathService: IPathService;
   readonly filesPaneRef: { current: FilesPaneRef | null };
   readonly files?: FileEntry[];
+  readonly processedData?: ProcessedEntry[];
   readonly onFileImported?: (fileInfo: ImportSessionFileInfo) => void;
   readonly onFilesReplaced?: (files: ImportSessionFileInfo[]) => void;
   readonly onFileRemoved?: (fileId: string) => void;
@@ -48,6 +50,7 @@ export class FilesPane implements IDisposable {
       files: props.files,
       filesService: props.filesService,
       pathService: props.pathService,
+      processedData: props.processedData,
       onFileImported: props.onFileImported,
       onFilesReplaced: props.onFilesReplaced,
       onFileRemoved: props.onFileRemoved,
@@ -67,6 +70,7 @@ export class FilesPane implements IDisposable {
       files: nextProps.files,
       filesService: nextProps.filesService,
       pathService: nextProps.pathService,
+      processedData: nextProps.processedData,
       onFileImported: nextProps.onFileImported,
       onFilesReplaced: nextProps.onFilesReplaced,
       onFileRemoved: nextProps.onFileRemoved,

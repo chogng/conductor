@@ -1,7 +1,7 @@
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/previewPart";
 import SidebarPart from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
-import type { RawDataEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type { SessionFile } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import type { ITemplateService } from "src/cs/workbench/contrib/template/common/template";
 import type { TemplateImportController } from "src/cs/workbench/contrib/template/browser/templateImportController";
 import {
@@ -18,7 +18,7 @@ export type TemplateEditorPaneProps = {
   readonly onTemplateApplied?: TemplateElementOptions["onTemplateApplied"];
   readonly onTemplateAppliedIncremental?: TemplateElementOptions["onTemplateAppliedIncremental"];
   readonly onUpdateSettings?: TemplateElementOptions["onUpdateSettings"];
-  readonly rawData?: RawDataEntry[];
+  readonly sourceFiles?: SessionFile[];
   readonly tableModel?: TemplateElementOptions["tableModel"];
   readonly templateImportController: TemplateImportController;
   readonly templateService: ITemplateService;
@@ -74,11 +74,11 @@ export class TemplateEditorPane {
 
 const toTemplateProps = ({
   importSessionElement: _importSessionElement,
-  rawData = [],
+  sourceFiles = [],
   ...props
 }: TemplateEditorPaneProps): TemplateElementOptions => ({
   ...props,
-  rawData,
+  sourceFiles,
   importSessionElement: _importSessionElement ?? null,
 });
 

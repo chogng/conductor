@@ -15,7 +15,7 @@ import {
 import type {
   ProcessedEntry,
   ProcessingStatus,
-  RawDataEntry,
+  SessionFile,
 } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/translation";
 import type { ProcessingQueueItem } from "src/cs/workbench/contrib/template/browser/templateApplyProcessing";
@@ -68,14 +68,14 @@ export type TemplateApplyControllerInput = {
   getTableRow: (rowIndex: number) => unknown;
   previewFile: unknown;
   processedData?: ProcessedEntry[];
-  rawData?: RawDataEntry[];
-  hasRawDataFile: (fileId: string | null | undefined) => boolean;
+  sourceFiles?: SessionFile[];
+  hasSourceFile: (fileId: string | null | undefined) => boolean;
   t: TranslateFn;
 };
 
 type TemplateApplyControllerOptions = {
   onExtractionError?: (error: ExtractionErrorEntry) => void;
-  setActivePage: (page: string) => void;
+  showResults: () => void;
   setProcessedData: StateSetter<ProcessedEntry[]>;
 };
 
@@ -135,13 +135,13 @@ const resolveRuleCurveFilterInfo = (rule: {
 };
 
 const buildProcessingQueue = (
-  rawData: RawDataEntry[],
+  sourceFiles: SessionFile[],
   processedIds: Set<string> | null = null,
 ): ProcessingQueueItem[] => {
   const queue: ProcessingQueueItem[] = [];
   const queuedIds = new Set();
 
-  for (const entry of Array.isArray(rawData) ? rawData : []) {
+  for (const entry of Array.isArray(sourceFiles) ? sourceFiles : []) {
     const fileId = entry?.fileId;
     if (!entry?.file || !fileId) continue;
     if (processedIds?.has(fileId) || queuedIds.has(fileId)) continue;
@@ -252,8 +252,8 @@ export class TemplateApplyController {
       getTableRow: () => null,
       previewFile: null,
       processedData: [],
-      rawData: [],
-      hasRawDataFile: () => false,
+      sourceFiles: [],
+      hasSourceFile: () => false,
       t: ((key: string) => key) as TranslateFn,
     };
   }
@@ -306,7 +306,7 @@ export class TemplateApplyController {
   };
 
   public readonly handleTemplateApplied = (config: Record<string, unknown>) => {
-    const { rawData = [], t } = this.input;
+    const { sourceFiles = [], t } = this.input;
 
     if (Array.isArray((config as RuleBasedExtractionConfig)?.fileNameTemplateRules)) {
       return this.handleRuleBasedTemplateApplied(
@@ -316,7 +316,7 @@ export class TemplateApplyController {
     }
 
     if (isAutoTemplateConfig(config)) {
-      const queue = buildProcessingQueue(rawData);
+      const queue = buildProcessingQueue(sourceFiles);
       this.lastAppliedTemplateConfigFingerprintRef.current = stableStringify(config);
       this.startExtractionJob({
         extractionConfig: config,
@@ -340,7 +340,7 @@ export class TemplateApplyController {
       return prepared;
     }
 
-    const queue = buildProcessingQueue(rawData);
+    const queue = buildProcessingQueue(sourceFiles);
     this.lastAppliedTemplateConfigFingerprintRef.current = stableStringify(config);
     this.startExtractionJob({
       extractionConfig: prepared.extractionConfig,
@@ -359,7 +359,7 @@ export class TemplateApplyController {
   };
 
   public readonly handleTemplateAppliedIncremental = (config: Record<string, unknown>) => {
-    const { processedData = [], rawData = [], t } = this.input;
+    const { processedData = [], sourceFiles = [], t } = this.input;
 
     if (Array.isArray((config as RuleBasedExtractionConfig)?.fileNameTemplateRules)) {
       return this.handleRuleBasedTemplateApplied(
@@ -395,7 +395,7 @@ export class TemplateApplyController {
       }
 
       const processedIds = buildProcessedFileIds(processedData);
-      const queue = buildProcessingQueue(rawData, processedIds);
+      const queue = buildProcessingQueue(sourceFiles, processedIds);
       if (!queue.length) {
         return {
           message: t("da_apply_to_new_files_no_new"),
@@ -447,7 +447,7 @@ export class TemplateApplyController {
     }
 
     const processedIds = buildProcessedFileIds(processedData);
-    const queue = buildProcessingQueue(rawData, processedIds);
+    const queue = buildProcessingQueue(sourceFiles, processedIds);
     if (!queue.length) {
       return {
         message: t("da_apply_to_new_files_no_new"),
@@ -487,12 +487,12 @@ export class TemplateApplyController {
   private readonly prepareExtractionRun = (
     config: Record<string, unknown>,
   ): PreparedExtractionResult => {
-    const { getTableRow, previewFile, rawData = [], t } = this.input;
+    const { getTableRow, previewFile, sourceFiles = [], t } = this.input;
     const prepared = prepareExtraction({
       config,
       getPreviewRow: getTableRow,
       previewFile,
-      rawData,
+      rawData: sourceFiles,
       t,
     }) as PreparedExtractionResult & {
       extractionConfig?: unknown;
@@ -578,7 +578,7 @@ export class TemplateApplyController {
     resetProcessedData,
     stopOnError,
   }: StartExtractionJobOptions): void => {
-    const { activeFileId, hasRawDataFile } = this.input;
+    const { activeFileId, hasSourceFile } = this.input;
     this.templateApplyService.startProcessingJob({
       activeFileId,
       extractionConfig,
@@ -591,10 +591,10 @@ export class TemplateApplyController {
       processingStopOnErrorRef: this.processingStopOnErrorRef,
       processingWorkerRef: this.processingWorkerRef,
       queue,
-      hasRawDataFile,
+      hasSourceFile,
       removedQueuedFileIdsRef: this.removedQueuedFileIdsRef,
       resetProcessedData,
-      setActivePage: this.options.setActivePage,
+      showResults: this.options.showResults,
       setProcessedData: this.options.setProcessedData,
       setProcessingStatus: this.setProcessingStatus,
       stopOnError,
@@ -609,8 +609,8 @@ export class TemplateApplyController {
     const {
       activeFileId,
       processedData = [],
-      rawData = [],
-      hasRawDataFile,
+      sourceFiles = [],
+      hasSourceFile,
       t,
     } = this.input;
 
@@ -677,7 +677,7 @@ export class TemplateApplyController {
     }
 
     const processedIds = incremental ? buildProcessedFileIds(processedData) : null;
-    const candidates = buildProcessingQueue(rawData, processedIds);
+    const candidates = buildProcessingQueue(sourceFiles, processedIds);
     const queueByTemplateName = new Map<string, ProcessingQueueItem[]>();
     const configByTemplateName = new Map<string, Record<string, unknown>>();
 
@@ -781,9 +781,9 @@ export class TemplateApplyController {
       processingQueueRef: this.processingQueueRef,
       processingStopOnErrorRef: this.processingStopOnErrorRef,
       processingWorkerRef: this.processingWorkerRef,
-      hasRawDataFile,
+      hasSourceFile,
       removedQueuedFileIdsRef: this.removedQueuedFileIdsRef,
-      setActivePage: this.options.setActivePage,
+      showResults: this.options.showResults,
       setProcessedData: this.options.setProcessedData,
       setProcessingStatus: this.setProcessingStatus,
       stopOnError: Boolean(config?.stopOnError),

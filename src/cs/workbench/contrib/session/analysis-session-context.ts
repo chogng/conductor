@@ -2,7 +2,7 @@ import type {
   PreviewFile,
   PreviewRowsRequest,
   ProcessedEntry,
-  RawDataEntry,
+  SessionFile,
 } from "src/cs/workbench/contrib/session/common/sessionTypes";
 
 export type MutableState<T> = {
@@ -68,8 +68,8 @@ export type SsManualRanges = Record<string, Record<string, SsManualRange>>;
 export type StateSetter<T> = (value: T | ((previous: T) => T)) => void;
 
 export type SessionContextValue = {
-  rawData: RawDataEntry[];
-  setRawData: StateSetter<RawDataEntry[]>;
+  sourceFiles: SessionFile[];
+  setSourceFiles: StateSetter<SessionFile[]>;
   selectedPreviewFileId: string | null;
   selectedPreviewSheetId: string | null;
   setSelectedPreviewFileId: StateSetter<string | null>;

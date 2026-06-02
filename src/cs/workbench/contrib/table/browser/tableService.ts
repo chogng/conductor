@@ -3,7 +3,7 @@ import { InstantiationType, registerSingleton } from "src/cs/platform/instantiat
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { MutableState } from "src/cs/workbench/contrib/session/analysis-session-context";
 import type {
-  RawDataEntry,
+  SessionFile,
 } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import {
   ITableService,
@@ -265,27 +265,27 @@ const formatTableFileName = (fileName: string | null | undefined): string =>
   fileName ? String(fileName).replace(/\.csv$/i, "") : "";
 
 type TableSourceEntry = {
-  readonly entry: RawDataEntry;
+  readonly entry: SessionFile;
   readonly source: TableSource;
   readonly sourceKey: string;
   readonly sheetName: string | null;
 };
 
-const readEntryString = (entry: RawDataEntry | null | undefined, key: string): string | null => {
+const readEntryString = (entry: SessionFile | null | undefined, key: string): string | null => {
   const value = entry?.[key];
   return typeof value === "string" && value.trim() ? value.trim() : null;
 };
 
-const getEntrySheetName = (entry: RawDataEntry | null | undefined): string | null =>
+const getEntrySheetName = (entry: SessionFile | null | undefined): string | null =>
   readEntryString(entry, "sheetName") ??
   readEntryString(entry, "worksheetName");
 
-const getEntrySheetId = (entry: RawDataEntry | null | undefined): string | null =>
+const getEntrySheetId = (entry: SessionFile | null | undefined): string | null =>
   readEntryString(entry, "sheetId") ??
   readEntryString(entry, "worksheetId") ??
   getEntrySheetName(entry);
 
-const createTableSourceEntry = (entry: RawDataEntry): TableSourceEntry | null => {
+const createTableSourceEntry = (entry: SessionFile): TableSourceEntry | null => {
   const fileId = readEntryString(entry, "fileId");
   if (!fileId) {
     return null;
@@ -345,7 +345,7 @@ type WorkerMessage =
 
 type UseTableOptions = TableInput;
 type CreateTableOptions = {
-  rawData?: RawDataEntry[];
+  sourceFiles?: SessionFile[];
   selectedFileId?: string | null;
   selectedSheetId?: string | null;
   setSelectedFileId?: Dispatch<SetStateAction<string | null>>;
@@ -381,7 +381,7 @@ const PREVIEW_ROWS_MAX_MERGED_REQUEST_ROWS = Math.max(
 );
 
 const createTableModel = ({
-  rawData = [],
+  sourceFiles = [],
   selectedFileId = null,
   selectedSheetId = null,
   setSelectedFileId = () => {},
@@ -444,14 +444,14 @@ const createTableModel = ({
   const sourceEntries = memoValue(() => {
     const entries: TableSourceEntry[] = [];
 
-    for (const entry of Array.isArray(rawData) ? rawData : []) {
+    for (const entry of Array.isArray(sourceFiles) ? sourceFiles : []) {
       const sourceEntry = createTableSourceEntry(entry);
       if (!sourceEntry) continue;
       entries.push(sourceEntry);
     }
 
     return entries;
-  }, [rawData]);
+  }, [sourceFiles]);
 
   const sourcesByKey = memoValue(() => {
     const map = new Map<string, TableSourceEntry>();
@@ -974,7 +974,7 @@ const createTableModel = ({
   }, [clearAllPreviewCaches, invalidatePreviewRequests, resetPreviewWorker]);
 
   runEffect(() => {
-    if (!rawData.length) {
+    if (!sourceFiles.length) {
       invalidatePreviewRequests();
       clearPreviewState({ clearSelection: true });
       return;
@@ -1167,7 +1167,7 @@ const createTableModel = ({
     mergePreviewSeedRows,
     previewFile?.sourceKey,
     previewRequestIdRef,
-    rawData,
+    sourceFiles,
     selectedSource,
     setPreviewStatus,
     t,
@@ -1622,7 +1622,7 @@ const createTableModel = ({
     ],
   );
 
-  const hasRawDataFile = memoCallback(
+  const hasSourceFile = memoCallback(
     (fileId: string | null | undefined): boolean =>
       Boolean(fileId && sourcesByFileIdRef.current.has(fileId)),
     [sourcesByFileIdRef],
@@ -1641,7 +1641,7 @@ const createTableModel = ({
     getRevealCell,
     getSelection,
     getState,
-    hasRawDataFile,
+    hasSourceFile,
     invalidateRequests: invalidatePreviewRequests,
     onDidChangeSelection,
     revealCell,
@@ -1676,8 +1676,3 @@ export const createTableModelForInput = (options: UseTableOptions): TableModel =
 };
 
 registerSingleton(ITableService, TableService, InstantiationType.Delayed);
-
-
-
-
-

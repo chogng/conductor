@@ -1,4 +1,4 @@
-﻿import type { MutableState } from "src/cs/workbench/contrib/session/analysis-session-context";
+import type { MutableState } from "src/cs/workbench/contrib/session/analysis-session-context";
 import {
   exportOriginZip,
   type OriginDisplayRange,
@@ -22,7 +22,7 @@ import {
   getXUnitMeta,
   getYUnitMeta,
 } from "src/cs/workbench/contrib/chart/common/units";
-import { createFileSelectionPool } from "src/cs/workbench/contrib/preview/browser/fileSelectionModel";
+import { createFileSelectionPool } from "src/cs/workbench/contrib/thumbnail/browser/fileSelectionModel";
 
 export type OriginCanvasExportScope =
   | "current"

@@ -13,6 +13,7 @@ import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle"
 import { localize } from "src/cs/nls";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { FileEntry } from "src/cs/workbench/contrib/files/common/files";
+import type { ProcessedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import {
   buildFileTree,
   collectFileTreeFolderKeys,
@@ -20,6 +21,7 @@ import {
   type FileTreeNode,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
 import { createEmptyView } from "src/cs/workbench/contrib/files/browser/views/emptyView";
+import { createThumbnailView } from "src/cs/workbench/contrib/thumbnail/browser/ThumbnailView";
 
 export type ExplorerViewerProps = {
   readonly effectiveSelectedFileId?: string | null;
@@ -28,6 +30,7 @@ export type ExplorerViewerProps = {
   readonly onOpenFileDialog: () => void;
   readonly onRemoveFile: (fileId: string | null) => void;
   readonly onSelectFile: (fileId: string | null) => void;
+  readonly processedData?: ProcessedEntry[];
   readonly t: TranslateFn;
 };
 
@@ -119,7 +122,7 @@ export class ExplorerViewer implements IDisposable {
     this.treeView.update(this.createTreeOptions());
     if (
       this.hoverAnchor &&
-      (!this.hoverHost.contains(this.hoverAnchor) || !this.hoverAnchor.dataset.autoSummary)
+      (!this.hoverHost.contains(this.hoverAnchor) || !this.hasFileItemHoverContent(this.hoverAnchor))
     ) {
       this.hideFileItemHover();
     }
@@ -229,6 +232,11 @@ export class ExplorerViewer implements IDisposable {
       container.dataset.selected = "true";
     } else {
       delete container.dataset.selected;
+    }
+    if (fileEntry?.fileId) {
+      container.dataset.fileId = fileEntry.fileId;
+    } else {
+      delete container.dataset.fileId;
     }
     if (meta) {
       container.dataset.autoSummary = meta.summary;
@@ -349,9 +357,27 @@ export class ExplorerViewer implements IDisposable {
     return item instanceof HTMLElement ? item : null;
   }
 
+  private getProcessedFile(fileId: string | null | undefined): ProcessedEntry | null {
+    const normalizedFileId = String(fileId ?? "").trim();
+    if (!normalizedFileId) {
+      return null;
+    }
+
+    return (Array.isArray(this.props.processedData) ? this.props.processedData : [])
+      .find((entry) => String(entry?.fileId ?? "").trim() === normalizedFileId) ?? null;
+  }
+
+  private hasFileItemHoverContent(item: HTMLElement): boolean {
+    return Boolean(
+      this.getProcessedFile(item.dataset.fileId) ||
+      item.dataset.autoSummary,
+    );
+  }
+
   private showFileItemHover(item: HTMLElement): void {
     const summary = item.dataset.autoSummary;
-    if (!summary) {
+    const processedFile = this.getProcessedFile(item.dataset.fileId);
+    if (!processedFile && !summary) {
       this.hideFileItemHover();
       return;
     }
@@ -365,14 +391,24 @@ export class ExplorerViewer implements IDisposable {
     this.hoverView = new ContentView({
       align: "left",
       anchor: item,
-      className: "file-list-hover",
+      className: processedFile
+        ? "file-list-hover file-list-hover--thumbnail"
+        : "file-list-hover",
       host: this.hoverHost,
       render: (container) => {
+        if (processedFile) {
+          container.appendChild(createThumbnailView({
+            file: processedFile,
+            isActive: item.dataset.selected === "true",
+          }));
+          return;
+        }
+
         const summaryElement = document.createElement("div");
         summaryElement.className = "file-list-hover-summary";
         summaryElement.dataset.warning =
           item.dataset.autoWarning === "true" ? "true" : "false";
-        summaryElement.textContent = summary;
+        summaryElement.textContent = summary ?? "";
         container.appendChild(summaryElement);
       },
       role: "tooltip",

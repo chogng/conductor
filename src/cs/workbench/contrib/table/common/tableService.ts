@@ -1,6 +1,6 @@
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-import type { RawDataEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type { SessionFile } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import type { MutableState } from "src/cs/workbench/contrib/session/analysis-session-context";
 import type { RustPreviewCellRequest } from "src/cs/workbench/contrib/table/browser/rows/rustCells";
 
@@ -77,7 +77,7 @@ export type TableState = {
 };
 
 export type TableInput = {
-  rawData?: RawDataEntry[];
+  sourceFiles?: SessionFile[];
   selectedFileId?: string | null;
   selectedSheetId?: string | null;
   setSelectedFileId?: Dispatch<SetStateAction<string | null>>;
@@ -117,7 +117,7 @@ export type TableModel = {
   getState: () => TableState;
   getRevealCell: () => TableCell | null;
   getSelection: () => TableSelection;
-  hasRawDataFile: (fileId: string | null | undefined) => boolean;
+  hasSourceFile: (fileId: string | null | undefined) => boolean;
   invalidateRequests: () => void;
   onDidChangeSelection: (callback: (selection: TableSelection) => void) => () => void;
   revealCell: (cell: TableCell | null) => void;

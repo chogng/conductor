@@ -7,7 +7,7 @@ import type {
 import type {
   ProcessedEntry,
   ProcessingStatus,
-  RawDataEntry,
+  SessionFile,
 } from "src/cs/workbench/contrib/session/common/sessionTypes";
 
 type UseSessionActionsOptions = {
@@ -18,14 +18,14 @@ type UseSessionActionsOptions = {
   previewLoadingMessage: string;
   processedData?: ProcessedEntry[];
   processingStatus?: Partial<ProcessingStatus>;
-  rawData?: RawDataEntry[];
+  sourceFiles?: SessionFile[];
   removeQueuedProcessingFile: (fileId: string) => void;
   resetPreviewWorker: () => void;
   resetProcessingWorker: () => void;
   selectedPreviewFileId?: string | null;
   setProcessedData: StateSetter<ProcessedEntry[]>;
   setPreviewStatus: StateSetter<PreviewStatus>;
-  setRawData: StateSetter<RawDataEntry[]>;
+  setSourceFiles: StateSetter<SessionFile[]>;
   setSelectedPreviewFileId: StateSetter<string | null>;
   setSelectedPreviewSheetId: StateSetter<string | null>;
   setIonIoffManualTargetsByFileId: StateSetter<IonIoffManualTargetsByFileId>;
@@ -40,14 +40,14 @@ export const createSessionActions = ({
   previewLoadingMessage,
   processedData = [],
   processingStatus = { state: "idle" },
-  rawData = [],
+  sourceFiles = [],
   removeQueuedProcessingFile,
   resetPreviewWorker,
   resetProcessingWorker,
   selectedPreviewFileId = null,
   setProcessedData,
   setPreviewStatus,
-  setRawData,
+  setSourceFiles,
   setSelectedPreviewFileId,
   setSelectedPreviewSheetId,
   setIonIoffManualTargetsByFileId,
@@ -68,7 +68,7 @@ export const createSessionActions = ({
   };
 
   const hasSessionData =
-    rawData.length > 0 ||
+    sourceFiles.length > 0 ||
     processedData.length > 0 ||
     previewFile !== null;
 
@@ -80,29 +80,29 @@ export const createSessionActions = ({
     clearPreviewState({ clearSelection: true });
 
     setProcessedData([]);
-    setRawData([]);
+    setSourceFiles([]);
     setSelectedPreviewSheetId(null);
     setIonIoffManualTargetsByFileId({});
     setSsManualRanges({});
     resetPreviewWorker();
   };
 
-  const handleFileImported = (fileInfo: RawDataEntry) => {
+  const handleFileImported = (fileInfo: SessionFile) => {
     const importedFileId = fileInfo?.fileId ?? null;
     if (importedFileId && !selectedPreviewFileId) {
       setSelectedPreviewFileId(importedFileId);
       setSelectedPreviewSheetId(null);
       preparePreviewSelection(importedFileId);
     }
-    setRawData((prev) => [...prev, fileInfo]);
+    setSourceFiles((prev) => [...prev, fileInfo]);
   };
 
-  const handleFilesReplaced = (files: RawDataEntry[]) => {
+  const handleFilesReplaced = (files: SessionFile[]) => {
     resetProcessingWorker();
     invalidatePreviewRequests();
     clearPreviewState({ clearSelection: true });
 
-    for (const file of rawData) {
+    for (const file of sourceFiles) {
       if (file?.fileId) {
         disposePreviewFileCache(file.fileId);
       }
@@ -119,19 +119,19 @@ export const createSessionActions = ({
     if (nextSelectedFileId) {
       preparePreviewSelection(nextSelectedFileId);
     }
-    setRawData(files);
+    setSourceFiles(files);
   };
 
   const handleFileRemoved = (fileId: string) => {
     let nextSelectedFileId: string | null = null;
     if (selectedPreviewFileId === fileId) {
-      const remainingFiles = rawData.filter((entry) => entry.fileId !== fileId);
+      const remainingFiles = sourceFiles.filter((entry) => entry.fileId !== fileId);
       nextSelectedFileId = remainingFiles[0]?.fileId ?? null;
       setSelectedPreviewFileId(nextSelectedFileId);
       setSelectedPreviewSheetId(null);
     }
 
-    setRawData((prev) => prev.filter((entry) => entry.fileId !== fileId));
+    setSourceFiles((prev) => prev.filter((entry) => entry.fileId !== fileId));
     setProcessedData((prev) =>
       (Array.isArray(prev) ? prev : []).filter((entry) => entry?.fileId !== fileId),
     );
@@ -164,7 +164,7 @@ export const createSessionActions = ({
       return;
     }
 
-    const hasMatchingFile = rawData.some((entry) => entry?.fileId === fileId);
+    const hasMatchingFile = sourceFiles.some((entry) => entry?.fileId === fileId);
     if (!hasMatchingFile) {
       return;
     }

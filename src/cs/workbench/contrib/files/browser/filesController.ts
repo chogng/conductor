@@ -16,6 +16,7 @@ import type {
   FileSource,
   FilesPaneRef,
 } from "src/cs/workbench/contrib/files/common/files";
+import type { ProcessedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import { collectFolderFiles } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import {
   collectPendingImports,
@@ -29,6 +30,7 @@ export type FilesControllerProps = {
   readonly filesService: IFileServiceType;
   readonly pathService: IPathServiceType;
   files?: FileEntry[];
+  processedData?: ProcessedEntry[];
   onFileImported?: (fileInfo: ImportSessionFileInfo) => void;
   onFilesReplaced?: (files: ImportSessionFileInfo[]) => void;
   onFileRemoved?: (fileId: string) => void;
@@ -138,6 +140,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
       onOpenFolderDialog: this.handleOpenFolderDialog,
       onSelectFile: this.handleSelectFile,
       onSelectFiles: this.handleSelectFiles,
+      processedData: this.props.processedData,
       t: this.props.t,
     };
   }

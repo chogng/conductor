@@ -1,4 +1,4 @@
-export type RawDataEntry = {
+export type SessionFile = {
   file?: unknown;
   fileId?: string;
   fileName?: string;

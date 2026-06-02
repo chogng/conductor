@@ -2,7 +2,7 @@ import type {
   PreviewFile,
   PreviewRowsRequest,
   ProcessedEntry,
-  RawDataEntry,
+  SessionFile,
 } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import type {
   IonIoffManualTargetsByFileId,
@@ -18,7 +18,7 @@ import type {
 } from "src/cs/workbench/contrib/session/analysis-session-context";
 
 type SessionSnapshot = {
-  readonly rawData: RawDataEntry[];
+  readonly sourceFiles: SessionFile[];
   readonly selectedPreviewFileId: string | null;
   readonly selectedPreviewSheetId: string | null;
   readonly processedData: ProcessedEntry[];
@@ -74,7 +74,7 @@ const resolveNext = <T,>(value: T | ((previous: T) => T), previous: T): T =>
 
 export class SessionModel {
   private snapshot: SessionSnapshot = {
-    rawData: [],
+    sourceFiles: [],
     selectedPreviewFileId: null,
     selectedPreviewSheetId: null,
     processedData: [],
@@ -108,8 +108,8 @@ export class SessionModel {
   readonly previewCacheFileIdRef = createRef<string | null>(null);
   readonly previewCacheFileLruRef = createRef(new Set<string>());
 
-  readonly setRawData: StateSetter<RawDataEntry[]> = (value) =>
-    this.update("rawData", value);
+  readonly setSourceFiles: StateSetter<SessionFile[]> = (value) =>
+    this.update("sourceFiles", value);
   readonly setSelectedPreviewFileId: StateSetter<string | null> = (value) =>
     this.update("selectedPreviewFileId", value);
   readonly setSelectedPreviewSheetId: StateSetter<string | null> = (value) =>
@@ -155,7 +155,7 @@ export class SessionModel {
   createContextValue(snapshot: SessionSnapshot): SessionContextValue {
     return {
       ...snapshot,
-      setRawData: this.setRawData,
+      setSourceFiles: this.setSourceFiles,
       setSelectedPreviewFileId: this.setSelectedPreviewFileId,
       setSelectedPreviewSheetId: this.setSelectedPreviewSheetId,
       setProcessedData: this.setProcessedData,

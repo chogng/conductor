@@ -31,6 +31,7 @@ import {
   WorkbenchWindow,
 } from "src/cs/workbench/browser/window";
 import ChartPreviewViewPane from "src/cs/workbench/contrib/chartPreview/browser/chartPreviewViewPane";
+import ResultsPane from "src/cs/workbench/contrib/chartPreview/browser/resultsPane";
 import TemplateEditorPane from "src/cs/workbench/contrib/template/browser/templateEditorPane";
 import { TemplateImportController } from "src/cs/workbench/contrib/template/browser/templateImportController";
 import { BrowserTemplateService } from "src/cs/workbench/contrib/template/browser/templateService";
@@ -94,6 +95,8 @@ export type WorkbenchTitlebarState = {
   readonly onInstallUpdate?: () => void;
 };
 
+type WorkbenchMainPart = "table" | "chart";
+
 export type WorkbenchOptions = {
   readonly className?: string;
   readonly dialogsService?: IFileDialogService;
@@ -155,6 +158,7 @@ export class Workbench extends Layout {
   private readonly table: TableContribution;
   private readonly templateEditor: TemplateEditorPane;
   private readonly analysis: ChartPreviewViewPane;
+  private readonly results: ResultsPane;
   private readonly settings: SettingsViewPane;
   private readonly templateApply: TemplateApplyController;
   private readonly dialogsService: IFileDialogService;
@@ -171,6 +175,7 @@ export class Workbench extends Layout {
   private theme: ThemeMode = isThemeMode(window.__CONDUCTOR_INITIAL_THEME__)
     ? window.__CONDUCTOR_INITIAL_THEME__
     : "system";
+  private activeMainPart: WorkbenchMainPart = "table";
 
   public get contentElement(): HTMLElement {
     return this.window.contentElement;
@@ -211,11 +216,7 @@ export class Workbench extends Layout {
     );
     this.templateApply = this._register(new TemplateApplyController({
       onExtractionError: () => undefined,
-      setActivePage: (page) => {
-        if (page === "data" || page === "analysis" || page === "settings") {
-          this.navigateToView(page);
-        }
-      },
+      showResults: () => this.showMainPart("chart"),
       setProcessedData: this.session.setProcessedData,
     }));
     this.templateApply.update(this.getTemplateApplyInput());
@@ -223,6 +224,7 @@ export class Workbench extends Layout {
     this.table = getWorkbenchContribution<TableContribution>(TableContributionId);
     this.templateEditor = this._register(new TemplateEditorPane(this.getTemplateEditorProps()));
     this.analysis = this._register(new ChartPreviewViewPane(this.getAnalysisProps()));
+    this.results = this._register(new ResultsPane(this.getResultsProps()));
     this.settings = this._register(new SettingsViewPane(this.getSettingsProps()));
     this.coreSettingsController = this._register(
       new CoreSettingsController(this.getCoreSettingsOptions()),
@@ -262,12 +264,16 @@ export class Workbench extends Layout {
       this.templateApply,
     ));
     this.analysis.update(this.getAnalysisProps(snapshot, this.templateApply));
+    this.results.update(this.getResultsProps(snapshot));
     this.settings.update(this.getSettingsProps());
     this.setParts({
       sidebar: this.filesPane.element,
-      data: this.table.element,
-      secondarySidebar: this.templateEditor.sidebarElement,
-      analysis: this.analysis.element,
+      data: this.activeMainPart === "chart"
+        ? this.analysis.element
+        : this.table.element,
+      secondarySidebar: this.activeMainPart === "chart"
+        ? this.results.element
+        : this.templateEditor.sidebarElement,
       settings: this.settings.element,
     });
     this.window.update({
@@ -319,8 +325,13 @@ export class Workbench extends Layout {
 
   private getTitlebarState(): WorkbenchTitlebarState {
     const state = this.state;
+    const activePage = state.activeView === "settings"
+      ? "settings"
+      : this.activeMainPart === "chart"
+        ? "analysis"
+        : "data";
     return {
-      activePage: state.activeView,
+      activePage,
       canNavigateBack: state.layoutState.canNavigateBack,
       canNavigateForward: state.layoutState.canNavigateForward,
       enabled: getWorkbenchWindowState().isDesktopChromePreviewEnabled,
@@ -329,10 +340,24 @@ export class Workbench extends Layout {
       onNavigateBack: () => this.navigateBack(),
       onNavigateForward: () => this.navigateForward(),
       onOpenSettings: () => this.navigateToView("settings"),
-      onPageChange: (page) => this.navigateToView(page),
+      onPageChange: (page) => this.handleMainPageAction(page),
       onToggleMaximizeWindow: () => toggleWindowMaximized(),
       t: this.t,
     };
+  }
+
+  private handleMainPageAction(page: "data" | "analysis"): void {
+    this.showMainPart(page === "analysis" ? "chart" : "table");
+  }
+
+  private showMainPart(part: WorkbenchMainPart): void {
+    if (this.activeMainPart !== part) {
+      this.activeMainPart = part;
+    }
+    if (this.activeView !== "data") {
+      this.navigateToView("data");
+    }
+    this.renderWorkbench();
   }
 
   private getFilesPaneProps(
@@ -348,7 +373,7 @@ export class Workbench extends Layout {
       previewLoadingMessage: this.t("preview_loading"),
       processedData: snapshot.processedData,
       processingStatus: processing.processingStatus,
-      rawData: snapshot.rawData,
+      sourceFiles: snapshot.sourceFiles,
       removeQueuedProcessingFile: processing.removeQueuedProcessingFile,
       resetPreviewWorker: tableModel.resetWorker,
       resetProcessingWorker: processing.resetProcessingWorker,
@@ -356,7 +381,7 @@ export class Workbench extends Layout {
       setIonIoffManualTargetsByFileId: this.session.setIonIoffManualTargetsByFileId,
       setProcessedData: this.session.setProcessedData,
       setPreviewStatus: this.session.setPreviewStatus,
-      setRawData: this.session.setRawData,
+      setSourceFiles: this.session.setSourceFiles,
       setSelectedPreviewFileId: this.session.setSelectedPreviewFileId,
       setSelectedPreviewSheetId: this.session.setSelectedPreviewSheetId,
       setSsManualRanges: this.session.setSsManualRanges,
@@ -365,9 +390,10 @@ export class Workbench extends Layout {
     return {
       dialogsService: this.dialogsService,
       filesPaneRef: this.filesPaneRef,
-      files: snapshot.rawData,
+      files: snapshot.sourceFiles,
       filesService: this.filesService,
       pathService: this.pathService,
+      processedData: snapshot.processedData,
       onFileImported: sessionActions.handleFileImported,
       onFilesReplaced: sessionActions.handleFilesReplaced,
       onFileRemoved: sessionActions.handleFileRemoved,
@@ -388,7 +414,7 @@ export class Workbench extends Layout {
       onTemplateApplied: processing.handleTemplateApplied,
       onTemplateAppliedIncremental: processing.handleTemplateAppliedIncremental,
       onUpdateSettings: this.coreSettingsState.handleUpdateAnalysisSettings,
-      rawData: snapshot.rawData,
+      sourceFiles: snapshot.sourceFiles,
       tableModel,
       templateImportController: this.templateImportController,
       templateService: this.templateService,
@@ -409,12 +435,38 @@ export class Workbench extends Layout {
     processing = this.templateApply,
   ) {
     return {
-      activeFileId: snapshot.processedData[0]?.fileId ?? null,
+      activeFileId: this.getActiveProcessedFileId(snapshot),
+      onActiveFileIdChange: (nextFileId: string | null) => {
+        this.session.setSelectedPreviewFileId(nextFileId);
+      },
       processedData: snapshot.processedData,
       processingStatus: processing.processingStatus,
+      showFileSelect: false,
       shouldMountCharts: false,
       t: this.t,
     };
+  }
+
+  private getResultsProps(snapshot = this.session.getSnapshot()) {
+    return {
+      activeFileId: this.getActiveProcessedFileId(snapshot),
+      processedData: snapshot.processedData,
+      t: this.t,
+    };
+  }
+
+  private getActiveProcessedFileId(snapshot = this.session.getSnapshot()): string | null {
+    const selectedFileId = snapshot.selectedPreviewFileId;
+    if (
+      selectedFileId &&
+      snapshot.processedData.some(
+        (file) => String(file?.fileId ?? "") === selectedFileId,
+      )
+    ) {
+      return selectedFileId;
+    }
+
+    return snapshot.processedData[0]?.fileId ?? null;
   }
 
   private getTableModel(snapshot = this.session.getSnapshot()) {
@@ -431,7 +483,7 @@ export class Workbench extends Layout {
       rowsRequestIdRef: this.session.previewRowsRequestIdRef,
       rowsRequestsRef: this.session.previewRowsRequestsRef,
       workerRef: this.session.previewWorkerRef,
-      rawData: snapshot.rawData,
+      sourceFiles: snapshot.sourceFiles,
       selectedFileId: snapshot.selectedPreviewFileId,
       selectedSheetId: snapshot.selectedPreviewSheetId,
       setFile: this.session.setPreviewFile,
@@ -449,10 +501,10 @@ export class Workbench extends Layout {
     return {
       activeFileId: snapshot.processedData[0]?.fileId ?? null,
       getTableRow: tableModel.getRow,
-      hasRawDataFile: tableModel.hasRawDataFile,
+      hasSourceFile: tableModel.hasSourceFile,
       previewFile: snapshot.previewFile,
       processedData: snapshot.processedData,
-      rawData: snapshot.rawData,
+      sourceFiles: snapshot.sourceFiles,
       t: this.t as any,
     };
   }

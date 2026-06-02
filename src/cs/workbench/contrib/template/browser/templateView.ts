@@ -11,7 +11,7 @@ import {
 import { localize } from "src/cs/nls";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { LooseTranslateFn } from "src/cs/workbench/common/translation";
-import type { RawDataEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type { SessionFile } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import {
   createEmptyTemplateConfig,
   cloneTemplateConfig,
@@ -50,7 +50,7 @@ export type TemplateElementOptions = {
   readonly importSessionElement?: HTMLElement | null;
   readonly templateImportController: TemplateImportController;
   readonly templateService: ITemplateService;
-  rawData?: RawDataEntry[];
+  sourceFiles?: SessionFile[];
   tableModel?: Pick<
     TableModel,
     | "clearHighlight"

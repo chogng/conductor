@@ -96,6 +96,7 @@ export class ExplorerView implements IDisposable {
       onOpenFileDialog: () => this.openFileDialog(),
       onRemoveFile: this.props.onRemoveFile,
       onSelectFile: this.props.onSelectFile,
+      processedData: this.props.processedData,
       t: this.props.t,
     };
   }

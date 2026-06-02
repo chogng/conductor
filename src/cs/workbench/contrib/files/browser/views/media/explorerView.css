@@ -230,6 +230,12 @@
   color: rgb(var(--text-primary) / 1);
 }
 
+.file-list-hover--thumbnail {
+  width: min(360px, 44vw);
+  max-width: min(360px, 44vw);
+  padding: 0;
+}
+
 .file-list-hover-summary {
   overflow-wrap: anywhere;
   font-size: 12px;

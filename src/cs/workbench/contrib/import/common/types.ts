@@ -1,4 +1,4 @@
-import type { RawDataEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type { SessionFile } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import type { FileEntry } from "src/cs/workbench/contrib/files/common/files";
 
 export type ImportAxisRole = "vg" | "vd" | null;
@@ -13,7 +13,7 @@ export type ImportAxisRoleSource =
 
 export type ImportSessionFileEntry = FileEntry;
 
-export type ImportSessionFileInfo = RawDataEntry & {
+export type ImportSessionFileInfo = SessionFile & {
   fileId: string;
   fileName: string;
   file: File;

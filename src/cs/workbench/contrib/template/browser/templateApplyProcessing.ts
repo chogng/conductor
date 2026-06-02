@@ -50,8 +50,8 @@ type StateSetter<T> = (value: T | ((previous: T) => T)) => void;
 
 type SchedulerCallbacks = {
   onWorkerErrorPayload?: (payload: unknown) => void;
-  hasRawDataFile: (fileId: string | null | undefined) => boolean;
-  setActivePage: (page: string) => void;
+  hasSourceFile: (fileId: string | null | undefined) => boolean;
+  showResults: () => void;
   setProcessedData: StateSetter<ProcessedEntry[]>;
   setProcessingStatus: StateSetter<ProcessingStatus>;
 };
@@ -252,20 +252,20 @@ export const terminateProcessingWorker = (
 
 const finishProcessingJob = ({
   hasAnyProcessedResult,
-  setActivePage,
+  showResults,
   setProcessingStatus,
   worker,
   workerRef,
 }: {
   hasAnyProcessedResult: boolean;
-  setActivePage: (page: string) => void;
+  showResults: () => void;
   setProcessingStatus: StateSetter<ProcessingStatus>;
   worker: Worker;
   workerRef: MutableState<Worker | null>;
 }) => {
   setProcessingStatus((prev) => ({ ...prev, state: "done" }));
   if (hasAnyProcessedResult) {
-    setActivePage("analysis");
+    showResults();
   }
   terminateProcessingWorker(workerRef, worker);
 };
@@ -296,10 +296,10 @@ export const startProcessingJob = ({
   processingStopOnErrorRef,
   processingWorkerRef,
   queue,
-  hasRawDataFile,
+  hasSourceFile,
   removedQueuedFileIdsRef,
   resetProcessedData,
-  setActivePage,
+  showResults,
   setProcessedData,
   setProcessingStatus,
   stopOnError,
@@ -354,7 +354,7 @@ export const startProcessingJob = ({
     });
     finishProcessingJob({
       hasAnyProcessedResult,
-      setActivePage,
+      showResults,
       setProcessingStatus,
       worker,
       workerRef: processingWorkerRef,
@@ -400,7 +400,7 @@ export const startProcessingJob = ({
         if (jobId !== processingJobIdRef.current) return;
         if (rustProcessed) {
           const nextFileId = rustProcessed.fileId;
-          if (nextFileId && !hasRawDataFile(nextFileId)) {
+          if (nextFileId && !hasSourceFile(nextFileId)) {
             filePerfFinishers.get(nextFileId)?.({
               skipped: "removed-before-result",
               ...summarizeProcessedFile(rustProcessed),
@@ -467,7 +467,7 @@ export const startProcessingJob = ({
       const nextProcessed = payload?.processed;
       const nextFileId = nextProcessed?.fileId;
 
-      if (nextFileId && !hasRawDataFile(nextFileId)) {
+      if (nextFileId && !hasSourceFile(nextFileId)) {
         filePerfFinishers.get(nextFileId)?.({
           skipped: "removed-before-result",
           ...summarizeProcessedFile(nextProcessed),
@@ -556,9 +556,9 @@ export const startRuleProcessingJob = ({
   processingQueueRef,
   processingStopOnErrorRef,
   processingWorkerRef,
-  hasRawDataFile,
+  hasSourceFile,
   removedQueuedFileIdsRef,
-  setActivePage,
+  showResults,
   setProcessedData,
   setProcessingStatus,
   stopOnError,
@@ -615,7 +615,7 @@ export const startRuleProcessingJob = ({
     });
     finishProcessingJob({
       hasAnyProcessedResult,
-      setActivePage,
+      showResults,
       setProcessingStatus,
       worker,
       workerRef: processingWorkerRef,
@@ -662,7 +662,7 @@ export const startRuleProcessingJob = ({
         if (jobId !== processingJobIdRef.current) return;
         if (rustProcessed) {
           const nextFileId = rustProcessed.fileId;
-          if (nextFileId && !hasRawDataFile(nextFileId)) {
+          if (nextFileId && !hasSourceFile(nextFileId)) {
             filePerfFinishers.get(nextFileId)?.({
               skipped: "removed-before-result",
               ...summarizeProcessedFile(rustProcessed),
@@ -727,7 +727,7 @@ export const startRuleProcessingJob = ({
     if (type === "processResult") {
       const nextProcessed = payload?.processed;
       const nextFileId = nextProcessed?.fileId;
-      if (nextFileId && !hasRawDataFile(nextFileId)) {
+      if (nextFileId && !hasSourceFile(nextFileId)) {
         filePerfFinishers.get(nextFileId)?.({
           skipped: "removed-before-result",
           ...summarizeProcessedFile(nextProcessed),
