@@ -12,6 +12,7 @@ import {
   type IReadFileOptions,
   type IWatchOptions,
 } from "../common/files.js";
+import { sliceReadFileContent } from "../common/io.js";
 
 const toFileType = (stat: fs.Stats): FileType => {
   let type = FileType.Unknown;
@@ -84,10 +85,13 @@ export class DiskFileSystemProvider {
     const target = this.toFilePath(resource);
     const buffer = await fs.promises.readFile(target);
     const encoding = options.encoding === "base64" ? "base64" : "utf8";
+    const content = sliceReadFileContent(buffer, options);
 
     return {
       encoding,
-      value: encoding === "base64" ? buffer.toString("base64") : buffer.toString("utf8"),
+      value: encoding === "base64"
+        ? Buffer.from(content).toString("base64")
+        : Buffer.from(content).toString("utf8"),
     };
   }
 

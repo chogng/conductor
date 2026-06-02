@@ -2,6 +2,7 @@ import type { Event } from "../../../base/common/event.js";
 import type { IDisposable } from "../../../base/common/lifecycle.js";
 import type { URI } from "../../../base/common/uri.js";
 import { createDecorator } from "../../instantiation/common/instantiation.js";
+import type { IReadFileRangeOptions } from "./io.js";
 
 export const IFileService = createDecorator<IFileService>("fileService");
 
@@ -24,7 +25,7 @@ export type IFileStat = {
 
 export type IReadFileEncoding = "base64" | "utf8";
 
-export type IReadFileOptions = {
+export type IReadFileOptions = IReadFileRangeOptions & {
   readonly encoding?: IReadFileEncoding;
 };
 
