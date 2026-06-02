@@ -74,10 +74,12 @@ export class ChartViewPane {
   private renderHeader(props: AnalysisPanelProps): void {
     this.headerStore.clear();
     const activeFile = resolveActiveFile(props);
+    const isEmpty = !props.processedData.length;
+    this.header.className = "chart_view_header";
     this.headerTabs.replaceChildren();
     this.headerActions.replaceChildren();
 
-    if (!activeFile && props.processingStatus?.state === "processing") {
+    if (isEmpty) {
       return;
     }
 
