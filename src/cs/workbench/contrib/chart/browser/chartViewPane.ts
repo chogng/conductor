@@ -29,7 +29,6 @@ const CHART_PLOT_PANEL_ID_BASE = "chart-view-plot-panel";
 
 export class ChartViewPane {
   public readonly element: HTMLElement;
-  private readonly header = document.createElement("div");
   private readonly headerTabs = document.createElement("div");
   private readonly headerActions = document.createElement("div");
   private readonly headerStore = new DisposableStore();
@@ -42,17 +41,17 @@ export class ChartViewPane {
     this.props = props;
     this.analysisPanel = new AnalysisPanel(toAnalysisPanelProps(props, this.activePlotType));
     this.updateAnalysisPanelTabState();
-    this.header.className = "chart_view_header";
     this.headerTabs.className = "chart_view_header_tabs";
     this.headerActions.className = "chart_view_header_actions";
     this.content.className = "chart_view_pane_content";
-    this.header.append(this.headerTabs, this.headerActions);
-    this.content.append(this.header, this.analysisPanel.element);
+    this.content.append(this.analysisPanel.element);
     this.element = createPreviewPart({
       id: ChartViewId,
       ariaLabel: localize("analysis.visualization", "Analysis & Visualization"),
+      actionbarContent: this.headerActions,
       className: "chart_view_pane",
       children: this.content,
+      titleContent: this.headerTabs,
     });
     this.update(props);
   }
@@ -74,7 +73,7 @@ export class ChartViewPane {
     this.headerStore.clear();
     const activeFile = resolveActiveFile(props);
     const isEmpty = !props.cleanedData.length;
-    this.header.className = isEmpty ? "chart_view_header chart_view_header--hidden" : "chart_view_header";
+    this.element.dataset.headerVisible = isEmpty ? "false" : "true";
     this.headerTabs.replaceChildren();
     this.headerActions.replaceChildren();
 

@@ -50,7 +50,7 @@ export class TableViewPane {
   public readonly element: HTMLElement;
   private readonly store = new DisposableStore();
   private readonly content = document.createElement("div");
-  private readonly header = document.createElement("div");
+  private readonly headerTitle = document.createElement("div");
   private readonly headerLeft = document.createElement("span");
   private readonly headerCenter = document.createElement("span");
   private readonly headerRight = document.createElement("div");
@@ -79,21 +79,23 @@ export class TableViewPane {
         : undefined,
     });
     this.store.add(this.actionBar);
-    this.header.className = "table_view_header";
+    this.headerTitle.className = "table_view_header_title";
     this.headerLeft.className = "table_view_header_left";
     this.headerCenter.className = "table_view_header_center";
     this.headerRight.className = "table_view_header_right";
     this.dimensions.className = "table_view_dimensions";
     this.content.className = "table_view_pane_content";
     this.renderHeaderActions();
+    this.headerTitle.append(this.headerLeft, this.headerCenter);
     this.headerRight.append(this.dimensions, this.actionBar.domNode);
-    this.header.append(this.headerLeft, this.headerCenter, this.headerRight);
-    this.content.append(this.header, this.view.element);
+    this.content.append(this.view.element);
     this.element = createPreviewPart({
       id: TableViewId,
       ariaLabel: localize("table.ariaLabel", "Table"),
+      actionbarContent: this.headerRight,
       className: "table_view_pane",
       children: this.content,
+      titleContent: this.headerTitle,
     });
     this.update(props);
   }

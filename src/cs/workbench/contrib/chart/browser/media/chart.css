@@ -20,21 +20,7 @@
   overflow: hidden;
 }
 
-.chart_view_header {
-  display: grid;
-  flex: 0 0 38px;
-  box-sizing: border-box;
-  grid-template-columns: auto minmax(0, 1fr);
-  min-height: 38px;
-  align-items: center;
-  gap: 12px;
-  padding-top: 6px;
-  padding-right: 12px;
-  padding-bottom: 0;
-  padding-left: 12px;
-}
-
-.chart_view_header--hidden {
+.chart_view_pane[data-header-visible="false"] > .workbench_preview_area_header {
   display: none;
 }
 
@@ -42,10 +28,9 @@
   display: flex;
   min-width: 0;
   justify-content: flex-start;
-}
-
-.chart_view_header_title {
-  min-width: 0;
+  font-size: 12px;
+  line-height: 1rem;
+  font-weight: 500;
 }
 
 .chart_view_header_actions {
@@ -56,6 +41,9 @@
   align-items: center;
   justify-content: flex-end;
   gap: 0.5rem;
+  font-size: 12px;
+  line-height: 1rem;
+  font-weight: 500;
 }
 
 .chart_view_tabs {
@@ -169,7 +157,12 @@
 }
 
 .chart_view_file_select {
+  box-sizing: border-box;
+  height: 24px;
   width: fit-content;
+  font-size: 12px;
+  line-height: 1rem;
+  font-weight: 500;
 }
 
 .chart_view_chart_area {

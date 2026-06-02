@@ -195,7 +195,7 @@ const createSidebarHeader = ({
 
   if (normalizedHeaderActions.length > 0) {
     const actions = document.createElement("div");
-    actions.className = "workbench_sidebar_header_actions";
+    actions.className = "workbench_sidebar_header_actions actionbar";
     for (const action of normalizedHeaderActions) {
       actions.append(createSidebarAction(action, onAction, action.kind));
     }
@@ -210,7 +210,7 @@ const createSidebarHeaderMain = (
   description: string | undefined,
 ): HTMLElement => {
   const main = document.createElement("div");
-  main.className = "workbench_sidebar_header_main";
+  main.className = "workbench_sidebar_header_main title-label";
   if (title) {
     const heading = document.createElement("h2");
     heading.className = "workbench_sidebar_title";

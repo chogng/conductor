@@ -21,16 +21,14 @@
 }
 
 .workbench_sidebar_header {
+  box-sizing: border-box;
   display: flex;
-  align-items: flex-start;
+  height: 44px;
+  min-height: 44px;
+  align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  padding: 1rem;
-  padding-bottom: 0.75rem;
-}
-
-.workbench_sidebar_header--actions-only {
-  padding-bottom: 0.5rem;
+  gap: 8px;
+  padding: 0 10px;
 }
 
 .workbench_sidebar_header_main {
@@ -41,7 +39,7 @@
 .workbench_sidebar_header_actions {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 4px;
 }
 
 .workbench_sidebar_header--actions-only .workbench_sidebar_header_actions {
@@ -163,6 +161,7 @@
 }
 
 .workbench_sidebar_title {
+  margin: 0;
   font-size: 0.875rem;
   line-height: 1.25rem;
   font-weight: 600;

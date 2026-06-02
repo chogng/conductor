@@ -30,10 +30,12 @@ export type WorkbenchPreviewAreaPartState = {
   id?: string;
   className?: string;
   title?: string;
+  titleContent?: Node | null;
   description?: string;
   badge?: WorkbenchPreviewAreaBadge;
   labelledBy?: string;
   headerActions?: WorkbenchPreviewAreaHeaderAction[];
+  actionbarContent?: Node | null;
   isBusy?: boolean;
 };
 
@@ -49,6 +51,7 @@ export type PreviewPartOptions = WorkbenchPreviewAreaPartState & {
 
 export const createPreviewPart = ({
   ariaLabel,
+  actionbarContent,
   badge,
   children,
   className = "",
@@ -59,6 +62,7 @@ export const createPreviewPart = ({
   labelledBy,
   onAction,
   title,
+  titleContent,
 }: PreviewPartOptions): HTMLElement => {
   const root = document.createElement("section");
   if (id) {
@@ -73,17 +77,20 @@ export const createPreviewPart = ({
 
   const normalizedHeaderActions =
     normalizeWorkbenchPreviewAreaHeaderActions(headerActions);
-  const hasHeaderContent = Boolean(title || description || badge);
+  const hasHeaderContent = Boolean(titleContent || title || description || badge);
+  const hasActionbarContent = Boolean(actionbarContent || normalizedHeaderActions.length > 0);
 
-  if (hasHeaderContent || normalizedHeaderActions.length > 0) {
+  if (hasHeaderContent || hasActionbarContent) {
     root.append(
       createPreviewHeader({
+        actionbarContent,
         badge,
         description,
         hasHeaderContent,
         normalizedHeaderActions,
         onAction,
         title,
+        titleContent,
       }),
     );
   }
@@ -99,26 +106,33 @@ export const createPreviewPart = ({
 };
 
 const createPreviewHeader = ({
+  actionbarContent,
   badge,
   description,
   hasHeaderContent,
   normalizedHeaderActions,
   onAction,
   title,
+  titleContent,
 }: {
+  readonly actionbarContent?: Node | null;
   readonly badge?: WorkbenchPreviewAreaBadge;
   readonly description?: string;
   readonly hasHeaderContent: boolean;
   readonly normalizedHeaderActions: WorkbenchPreviewAreaHeaderAction[];
   readonly onAction?: WorkbenchPreviewAreaActionHandler;
   readonly title?: string;
+  readonly titleContent?: Node | null;
 }): HTMLElement => {
   const header = document.createElement("div");
   header.className = `workbench_preview_area_header ${!hasHeaderContent ? "workbench_preview_area_header--actions-only" : ""}`.trim();
 
-  if (title || description || badge) {
+  if (titleContent || title || description || badge) {
     const main = document.createElement("div");
-    main.className = "workbench_preview_area_header_main";
+    main.className = "workbench_preview_area_header_main title-label";
+    if (titleContent) {
+      main.append(titleContent);
+    }
     if (title) {
       const heading = document.createElement("h2");
       heading.className = "workbench_preview_area_title";
@@ -138,9 +152,12 @@ const createPreviewHeader = ({
     header.append(main);
   }
 
-  if (normalizedHeaderActions.length > 0) {
+  if (actionbarContent || normalizedHeaderActions.length > 0) {
     const actions = document.createElement("div");
-    actions.className = "workbench_preview_area_header_actions";
+    actions.className = "workbench_preview_area_header_actions actionbar";
+    if (actionbarContent) {
+      actions.append(actionbarContent);
+    }
     for (const action of normalizedHeaderActions) {
       actions.append(createPreviewAction(action, onAction, action.kind));
     }

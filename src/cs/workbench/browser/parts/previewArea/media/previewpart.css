@@ -16,16 +16,15 @@
 }
 
 .workbench_preview_area_header {
+  box-sizing: border-box;
   display: flex;
+  height: 44px;
+  min-height: 44px;
   flex-shrink: 0;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  padding-bottom: 0.75rem;
-}
-
-.workbench_preview_area_header--actions-only {
-  padding-bottom: 0.5rem;
+  gap: 8px;
+  padding: 0 10px;
 }
 
 .workbench_preview_area_header_main {
@@ -39,7 +38,7 @@
 .workbench_preview_area_header_actions {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 4px;
 }
 
 .workbench_preview_area_header--actions-only .workbench_preview_area_header_actions {
@@ -52,6 +51,7 @@
 }
 
 .workbench_preview_area_title {
+  margin: 0;
   font-size: 0.875rem;
   line-height: 1.25rem;
   font-weight: 600;
@@ -60,6 +60,7 @@
 }
 
 .workbench_preview_area_description {
+  margin: 0;
   font-size: 0.75rem;
   line-height: 1rem;
   --tw-text-opacity: 1;

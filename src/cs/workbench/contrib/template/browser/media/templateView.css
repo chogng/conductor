@@ -110,14 +110,6 @@
   padding-top: 0;
 }
 
-.template_sidebar_part > .workbench_sidebar_header {
-  box-sizing: border-box;
-  height: 38px;
-  min-height: 38px;
-  align-items: center;
-  padding: 12px 12px 0;
-}
-
 .template_sidebar_part > .workbench_sidebar_header .workbench_sidebar_title {
   font-size: 12px;
   line-height: 1rem;
