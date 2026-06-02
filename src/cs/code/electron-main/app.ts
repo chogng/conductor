@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { execFile, execFileSync, spawn } from "node:child_process";
+import { execFile } from "node:child_process";
 import { createRequire } from "node:module";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
@@ -43,6 +43,11 @@ import {
   nativeHostIpcChannels,
   nativeWindowCommands,
 } from "../../platform/native/common/nativeIpc.js";
+import {
+  resolveRustWorkerExecutablePath,
+  RustWorkerRuntime,
+} from "../../platform/rust/electron-main/rustWorkerRuntime.js";
+import { registerAnalysisRustHandlers } from "./analysisRustMain.js";
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
@@ -61,12 +66,6 @@ if (!hasSingleInstanceLock) {
 }
 
 let originRunnerModulePromise = null;
-let rustAnalysisEngine = null;
-let rustAnalysisEngineStdoutBuffer = "";
-let rustAnalysisEngineRequestId = 0;
-const rustAnalysisEnginePending = new Map();
-const rustAnalysisProcessingSlots = [];
-let rustAnalysisProcessingSlotCursor = 0;
 
 const isDev = !app.isPackaged;
 const isWindows = process.platform === "win32";
@@ -99,8 +98,19 @@ const ANALYSIS_RUST_PROCESSING_POOL_SIZE = Math.max(
     Number(process.env.CONDUCTOR_RUST_PROCESSING_POOL_SIZE) || 2,
   ),
 );
+const rustWorkerRuntime = new RustWorkerRuntime({
+  isWindows,
+  processingPoolSize: ANALYSIS_RUST_PROCESSING_POOL_SIZE,
+  resolveExecutablePath: () => resolveRustWorkerExecutablePath({
+    desktopRuntimeDir,
+    env: process.env,
+    isDev,
+    resourcesPath: getResourcesPath(),
+  }),
+});
 let mainWindow = null;
 let appTray = null;
+let analysisRustHandlers = null;
 let mainWindowBootExpansionPromise = null;
 let mainWindowBootShown = false;
 let startupGatePromise = null;
@@ -905,353 +915,12 @@ function isSupportedRustAnalysisInputPath(filePath) {
 }
 
 function resolveRustExcelConverterPath() {
-  const envPath = normalizeAbsoluteFilePath(
-    process.env.CONDUCTOR_WORKER_PATH
-      || process.env.CONDUCTOR_RS_WORKER_PATH
-      || process.env.CONDUCTOR_ENGINE_PATH
-      || process.env.CONDUCTOR_RUST_XLS_CONVERTER_PATH,
-  );
-  const candidates = [
-    envPath,
-    path.join(getResourcesPath(), "workers", "rs", "rs-worker.exe"),
-    isDev
-      ? path.join(
-          desktopRuntimeDir,
-          "..",
-          ".tooling",
-          "conductor-rs-target",
-          "release",
-          "rs-worker.exe",
-        )
-      : "",
-    isDev
-      ? path.join(
-          desktopRuntimeDir,
-          "..",
-          "conductor-rs",
-          "target",
-          "release",
-          "rs-worker.exe",
-        )
-      : "",
-    path.join(
-      getResourcesPath(),
-      "app.asar.unpacked",
-      "workers",
-      "rs",
-      "rs-worker.exe",
-    ),
-  ].filter(Boolean);
-
-  return candidates.find((candidate) => {
-    try {
-      return fs.existsSync(candidate) && fs.statSync(candidate).isFile();
-    } catch {
-      return false;
-    }
-  }) ?? null;
-}
-
-function rejectPendingRustAnalysisEngineRequests(error) {
-  for (const pending of rustAnalysisEnginePending.values()) {
-    clearTimeout(pending.timeoutId);
-    pending.reject(error);
-  }
-  rustAnalysisEnginePending.clear();
-}
-
-function forceStopChildProcess(child) {
-  if (!child) return;
-  const pid = Number(child.pid);
-  try {
-    child.kill();
-  } catch {
-    // Fall through to the stronger Windows cleanup below.
-  }
-  if (!isWindows || !Number.isFinite(pid) || pid <= 0) return;
-  try {
-    execFileSync("taskkill.exe", ["/PID", String(pid), "/T", "/F"], {
-      stdio: "ignore",
-      windowsHide: true,
-    });
-  } catch {
-    // The process may already be gone.
-  }
-}
-
-function stopRustAnalysisEngine() {
-  if (!rustAnalysisEngine) return;
-  const child = rustAnalysisEngine;
-  rustAnalysisEngine = null;
-  rustAnalysisEngineStdoutBuffer = "";
-  rejectPendingRustAnalysisEngineRequests(
-    new Error("rs-worker stopped."),
-  );
-  forceStopChildProcess(child);
-}
-
-function handleRustAnalysisEngineLine(line) {
-  const text = String(line ?? "").trim();
-  if (!text) return;
-
-  let message = null;
-  try {
-    message = JSON.parse(text);
-  } catch (error) {
-    console.warn("[rust] invalid rs-worker JSON:", error?.message || error);
-    return;
-  }
-
-  const id = Number(message?.id);
-  if (!Number.isFinite(id)) return;
-  const pending = rustAnalysisEnginePending.get(id);
-  if (!pending) return;
-
-  rustAnalysisEnginePending.delete(id);
-  clearTimeout(pending.timeoutId);
-
-  if (message?.ok === true) {
-    pending.resolve(message.result ?? {});
-    return;
-  }
-
-  const errorMessage =
-    typeof message?.error?.message === "string" && message.error.message.trim()
-      ? message.error.message
-      : "rs-worker failed.";
-  pending.reject(new Error(errorMessage));
-}
-
-function ensureRustAnalysisEngine() {
-  if (rustAnalysisEngine && !rustAnalysisEngine.killed) {
-    return rustAnalysisEngine;
-  }
-
-  const executablePath = resolveRustExcelConverterPath();
-  if (!executablePath) {
-    throw new Error("rs-worker was not found.");
-  }
-
-  const child = spawn(executablePath, ["--stdio-worker"], {
-    stdio: ["pipe", "pipe", "pipe"],
-    windowsHide: true,
+  return resolveRustWorkerExecutablePath({
+    desktopRuntimeDir,
+    env: process.env,
+    isDev,
+    resourcesPath: getResourcesPath(),
   });
-  rustAnalysisEngine = child;
-  rustAnalysisEngineStdoutBuffer = "";
-
-  child.stdout?.setEncoding("utf8");
-  child.stdout?.on("data", (chunk) => {
-    rustAnalysisEngineStdoutBuffer += String(chunk ?? "");
-    while (true) {
-      const newlineIndex = rustAnalysisEngineStdoutBuffer.indexOf("\n");
-      if (newlineIndex < 0) break;
-      const line = rustAnalysisEngineStdoutBuffer.slice(0, newlineIndex);
-      rustAnalysisEngineStdoutBuffer =
-        rustAnalysisEngineStdoutBuffer.slice(newlineIndex + 1);
-      handleRustAnalysisEngineLine(line);
-    }
-  });
-
-  child.stderr?.setEncoding("utf8");
-  child.stderr?.on("data", (chunk) => {
-    const text = String(chunk ?? "").trim();
-    if (text) console.warn("[rust]", text);
-  });
-
-  child.on("error", (error) => {
-    if (rustAnalysisEngine === child) rustAnalysisEngine = null;
-    rejectPendingRustAnalysisEngineRequests(error);
-  });
-
-  child.on("exit", (code, signal) => {
-    if (rustAnalysisEngine === child) rustAnalysisEngine = null;
-    rejectPendingRustAnalysisEngineRequests(
-      new Error(
-        `rs-worker exited (code=${code ?? "null"} signal=${signal ?? "null"}).`,
-      ),
-    );
-  });
-
-  return child;
-}
-
-function sendRustAnalysisEngineCommand(command, payload = {}, timeoutMs = 120000) {
-  const child = ensureRustAnalysisEngine();
-  const id = (rustAnalysisEngineRequestId += 1);
-  const message = JSON.stringify({ id, command, ...payload });
-
-  return new Promise((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
-      rustAnalysisEnginePending.delete(id);
-      reject(new Error(`rs-worker command timed out: ${command}`));
-    }, timeoutMs);
-
-    rustAnalysisEnginePending.set(id, { reject, resolve, timeoutId });
-
-    try {
-      child.stdin.write(`${message}\n`, "utf8", (error) => {
-        if (!error) return;
-        rustAnalysisEnginePending.delete(id);
-        clearTimeout(timeoutId);
-        reject(error);
-      });
-    } catch (error) {
-      rustAnalysisEnginePending.delete(id);
-      clearTimeout(timeoutId);
-      reject(error);
-    }
-  });
-}
-
-function createRustAnalysisEngineSlot(name) {
-  return {
-    busyCount: 0,
-    child: null,
-    name,
-    pending: new Map(),
-    requestId: 0,
-    stdoutBuffer: "",
-  };
-}
-
-function rejectPendingRustAnalysisEngineSlotRequests(slot, error) {
-  for (const pending of slot.pending.values()) {
-    clearTimeout(pending.timeoutId);
-    pending.reject(error);
-  }
-  slot.pending.clear();
-  slot.busyCount = 0;
-}
-
-function stopRustAnalysisEngineSlot(slot) {
-  if (!slot?.child) return;
-  const child = slot.child;
-  slot.child = null;
-  slot.stdoutBuffer = "";
-  rejectPendingRustAnalysisEngineSlotRequests(
-    slot,
-    new Error(`rs-worker stopped (${slot.name}).`),
-  );
-  forceStopChildProcess(child);
-}
-
-function handleRustAnalysisEngineSlotLine(slot, line) {
-  const text = String(line ?? "").trim();
-  if (!text) return;
-
-  let message = null;
-  try {
-    message = JSON.parse(text);
-  } catch (error) {
-    console.warn(
-      `[rust:${slot.name}] invalid rs-worker JSON:`,
-      error?.message || error,
-    );
-    return;
-  }
-
-  const id = Number(message?.id);
-  if (!Number.isFinite(id)) return;
-  const pending = slot.pending.get(id);
-  if (!pending) return;
-
-  slot.pending.delete(id);
-  slot.busyCount = Math.max(0, slot.busyCount - 1);
-  clearTimeout(pending.timeoutId);
-
-  if (message?.ok === true) {
-    pending.resolve(message.result ?? {});
-    return;
-  }
-
-  const errorMessage =
-    typeof message?.error?.message === "string" && message.error.message.trim()
-      ? message.error.message
-      : "rs-worker failed.";
-  pending.reject(new Error(errorMessage));
-}
-
-function ensureRustAnalysisEngineSlot(slot) {
-  if (slot.child && !slot.child.killed) {
-    return slot.child;
-  }
-
-  const executablePath = resolveRustExcelConverterPath();
-  if (!executablePath) {
-    throw new Error("rs-worker was not found.");
-  }
-
-  const child = spawn(executablePath, ["--stdio-worker"], {
-    stdio: ["pipe", "pipe", "pipe"],
-    windowsHide: true,
-  });
-  slot.child = child;
-  slot.stdoutBuffer = "";
-
-  child.stdout?.setEncoding("utf8");
-  child.stdout?.on("data", (chunk) => {
-    slot.stdoutBuffer += String(chunk ?? "");
-    while (true) {
-      const newlineIndex = slot.stdoutBuffer.indexOf("\n");
-      if (newlineIndex < 0) break;
-      const line = slot.stdoutBuffer.slice(0, newlineIndex);
-      slot.stdoutBuffer = slot.stdoutBuffer.slice(newlineIndex + 1);
-      handleRustAnalysisEngineSlotLine(slot, line);
-    }
-  });
-
-  child.stderr?.setEncoding("utf8");
-  child.stderr?.on("data", (chunk) => {
-    const text = String(chunk ?? "").trim();
-    if (text) console.warn(`[rust:${slot.name}]`, text);
-  });
-
-  child.on("error", (error) => {
-    if (slot.child === child) slot.child = null;
-    rejectPendingRustAnalysisEngineSlotRequests(slot, error);
-  });
-
-  child.on("exit", (code, signal) => {
-    if (slot.child === child) slot.child = null;
-    rejectPendingRustAnalysisEngineSlotRequests(
-      slot,
-      new Error(
-        `rs-worker exited (${slot.name}, code=${code ?? "null"} signal=${signal ?? "null"}).`,
-      ),
-    );
-  });
-
-  return child;
-}
-
-function getRustAnalysisProcessingSlot() {
-  while (rustAnalysisProcessingSlots.length < ANALYSIS_RUST_PROCESSING_POOL_SIZE) {
-    rustAnalysisProcessingSlots.push(
-      createRustAnalysisEngineSlot(
-        `process-${rustAnalysisProcessingSlots.length + 1}`,
-      ),
-    );
-  }
-
-  let selected = rustAnalysisProcessingSlots[0];
-  for (let offset = 0; offset < rustAnalysisProcessingSlots.length; offset += 1) {
-    const index =
-      (rustAnalysisProcessingSlotCursor + offset) %
-      rustAnalysisProcessingSlots.length;
-    const slot = rustAnalysisProcessingSlots[index];
-    if (slot.busyCount < selected.busyCount) {
-      selected = slot;
-    }
-  }
-  rustAnalysisProcessingSlotCursor =
-    (rustAnalysisProcessingSlots.indexOf(selected) + 1) %
-    rustAnalysisProcessingSlots.length;
-  return selected;
-}
-
-function sendRustAnalysisProcessingCommand(command, payload = {}, timeoutMs = 120000) {
-  const slot = getRustAnalysisProcessingSlot();
-  return sendRustAnalysisEngineSlotCommand(slot, command, payload, timeoutMs);
 }
 
 function createRustAnalysisResultTempDir(fileId) {
@@ -1333,64 +1002,22 @@ async function hydrateRustAnalysisResultRefs(result, tempDir = null) {
   return result;
 }
 
-function sendRustAnalysisEngineSlotCommand(
-  slot,
-  command,
-  payload = {},
-  timeoutMs = 120000,
-) {
-  const child = ensureRustAnalysisEngineSlot(slot);
-  const id = (slot.requestId += 1);
-  const message = JSON.stringify({ id, command, ...payload });
-  slot.busyCount += 1;
-
-  return new Promise((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
-      slot.pending.delete(id);
-      slot.busyCount = Math.max(0, slot.busyCount - 1);
-      reject(new Error(`rs-worker command timed out: ${command}`));
-    }, timeoutMs);
-
-    slot.pending.set(id, { reject, resolve, timeoutId });
-
-    try {
-      child.stdin.write(`${message}\n`, "utf8", (error) => {
-        if (!error) return;
-        slot.pending.delete(id);
-        slot.busyCount = Math.max(0, slot.busyCount - 1);
-        clearTimeout(timeoutId);
-        reject(error);
-      });
-    } catch (error) {
-      slot.pending.delete(id);
-      slot.busyCount = Math.max(0, slot.busyCount - 1);
-      clearTimeout(timeoutId);
-      reject(error);
-    }
-  });
-}
-
 async function disposeRustAnalysisProcessingFile(fileId) {
-  if (!fileId) return;
-  const disposals = rustAnalysisProcessingSlots
-    .filter((slot) => slot.child && !slot.child.killed)
-    .map((slot) =>
-      sendRustAnalysisEngineSlotCommand(slot, "dispose", { fileId }, 30000),
-    );
-  await Promise.allSettled(disposals);
-}
-
-function stopRustAnalysisProcessingEngines() {
-  for (const slot of rustAnalysisProcessingSlots) {
-    stopRustAnalysisEngineSlot(slot);
-  }
-  rustAnalysisProcessingSlots.length = 0;
-  rustAnalysisProcessingSlotCursor = 0;
+  await rustWorkerRuntime.disposeProcessingFile(fileId);
 }
 
 function stopAllRustAnalysisEngines() {
-  stopRustAnalysisProcessingEngines();
-  stopRustAnalysisEngine();
+  rustWorkerRuntime.stop();
+}
+
+function isRustProcessFileConfigSupported(config) {
+  if (!config || typeof config !== "object" || Array.isArray(config)) {
+    return false;
+  }
+  const mode = String(config.xSegmentationMode ?? "").trim().toLowerCase();
+  if (mode && mode !== "auto" && mode !== "points" && mode !== "segments") return false;
+  if (!Array.isArray(config.yCols) || !config.yCols.length) return false;
+  return true;
 }
 
 function runRustExcelConverter(executablePath, inputPath, outputPath, manifestPath = null) {
@@ -1810,7 +1437,7 @@ async function handleImportPrepareRust(_event, payload) {
   }
 
   try {
-    const result = await sendRustAnalysisEngineCommand("assessImport", {
+    const result = await rustWorkerRuntime.sendCommand("assessImport", {
       fileName,
       path: inputPath,
     }) as { assessment?: unknown };
@@ -1841,500 +1468,6 @@ async function handleImportPrepareRust(_event, payload) {
       durationMs: Date.now() - startedAt,
       message: error?.message || "Rust import preparation failed.",
     };
-  }
-}
-
-async function handleAnalysisRustEngineOpen(_event, payload) {
-  const rawPath = payload && typeof payload === "object" ? payload.path : "";
-  const inputPath = normalizeAbsoluteFilePath(rawPath);
-  const fileId =
-    payload && typeof payload.fileId === "string" ? payload.fileId.trim() : "";
-  const fileName =
-    payload && typeof payload.fileName === "string" ? payload.fileName.trim() : "";
-  const seedRows = Math.max(
-    0,
-    Math.min(5000, Math.floor(Number(payload?.seedRows) || 0)),
-  );
-
-  if (!fileId || !inputPath || !isSupportedRustAnalysisInputPath(inputPath)) {
-    return {
-      ok: false,
-      code: "INVALID_DEVICE_ANALYSIS_PATH",
-      message: "Invalid analysis file path.",
-    };
-  }
-
-  try {
-    const stat = fs.statSync(inputPath);
-    if (!stat.isFile()) {
-      return {
-        ok: false,
-        code: "INVALID_DEVICE_ANALYSIS_PATH",
-        message: "Analysis path is not a file.",
-      };
-    }
-  } catch (error) {
-    return {
-      ok: false,
-      code: "DEVICE_ANALYSIS_FILE_NOT_FOUND",
-      message: error?.message || "Analysis file not found.",
-    };
-  }
-
-  const startedAt = Date.now();
-  try {
-    const result = await sendRustAnalysisEngineCommand("open", {
-      fileId,
-      fileName: fileName || path.basename(inputPath),
-      path: inputPath,
-      seedRows,
-    });
-    return {
-      ok: true,
-      durationMs: Date.now() - startedAt,
-      result,
-      source: "rust",
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      code: "RUST_ENGINE_OPEN_FAILED",
-      durationMs: Date.now() - startedAt,
-      message: error?.message || "rs-worker failed to open file.",
-    };
-  }
-}
-
-async function handleAnalysisRustEnginePreviewRows(_event, payload) {
-  const fileId =
-    payload && typeof payload.fileId === "string" ? payload.fileId.trim() : "";
-  const startRow = Math.max(0, Math.floor(Number(payload?.startRow) || 0));
-  const endRow = Math.max(startRow, Math.floor(Number(payload?.endRow) || startRow));
-
-  if (!fileId) {
-    return {
-      ok: false,
-      code: "INVALID_DEVICE_ANALYSIS_FILE_ID",
-      message: "Missing file id.",
-    };
-  }
-
-  const startedAt = Date.now();
-  try {
-    const result = await sendRustAnalysisEngineCommand("previewRows", {
-      endRow,
-      fileId,
-      startRow,
-    });
-    return {
-      ok: true,
-      durationMs: Date.now() - startedAt,
-      result,
-      source: "rust",
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      code: "RUST_ENGINE_PREVIEW_ROWS_FAILED",
-      durationMs: Date.now() - startedAt,
-      message:
-        error?.message || "rs-worker failed to read preview rows.",
-    };
-  }
-}
-
-async function handleAnalysisRustEnginePreviewMeta(_event, payload) {
-  const fileId =
-    payload && typeof payload.fileId === "string" ? payload.fileId.trim() : "";
-
-  if (!fileId) {
-    return {
-      ok: false,
-      code: "INVALID_DEVICE_ANALYSIS_FILE_ID",
-      message: "Missing file id.",
-    };
-  }
-
-  const startedAt = Date.now();
-  try {
-    const result = await sendRustAnalysisEngineCommand("previewMeta", {
-      fileId,
-    });
-    return {
-      ok: true,
-      durationMs: Date.now() - startedAt,
-      result,
-      source: "rust",
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      code: "RUST_ENGINE_PREVIEW_META_FAILED",
-      durationMs: Date.now() - startedAt,
-      message:
-        error?.message || "rs-worker failed to read preview metadata.",
-    };
-  }
-}
-
-function normalizeAnalysisCellIndex(value) {
-  const index = Math.floor(Number(value));
-  return Number.isInteger(index) && index >= 0 ? index : null;
-}
-
-async function handleAnalysisRustEngineReadCell(_event, payload) {
-  const fileId =
-    payload && typeof payload.fileId === "string" ? payload.fileId.trim() : "";
-  const rowIndex = normalizeAnalysisCellIndex(payload?.rowIndex);
-  const colIndex = normalizeAnalysisCellIndex(payload?.colIndex);
-
-  if (!fileId || rowIndex === null || colIndex === null) {
-    return {
-      ok: false,
-      code: "INVALID_DEVICE_ANALYSIS_CELL",
-      message: "Invalid analysis cell request.",
-    };
-  }
-
-  const startedAt = Date.now();
-  try {
-    const result = await sendRustAnalysisEngineCommand("readCell", {
-      colIndex,
-      fileId,
-      rowIndex,
-    });
-    return {
-      ok: true,
-      durationMs: Date.now() - startedAt,
-      result,
-      source: "rust",
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      code: "RUST_ENGINE_READ_CELL_FAILED",
-      durationMs: Date.now() - startedAt,
-      message: error?.message || "rs-worker failed to read cell.",
-    };
-  }
-}
-
-async function handleAnalysisRustEngineReadCells(_event, payload) {
-  const fileId =
-    payload && typeof payload.fileId === "string" ? payload.fileId.trim() : "";
-  const rawCells = Array.isArray(payload?.cells) ? payload.cells : [];
-  const cells = rawCells
-    .map((cell) => ({
-      colIndex: normalizeAnalysisCellIndex(cell?.colIndex),
-      rowIndex: normalizeAnalysisCellIndex(cell?.rowIndex),
-    }))
-    .filter((cell) => cell.rowIndex !== null && cell.colIndex !== null)
-    .slice(0, 5000);
-
-  if (!fileId || !cells.length || cells.length !== rawCells.length) {
-    return {
-      ok: false,
-      code: "INVALID_DEVICE_ANALYSIS_CELLS",
-      message: "Invalid analysis cells request.",
-    };
-  }
-
-  const startedAt = Date.now();
-  try {
-    const result = await sendRustAnalysisEngineCommand("readCells", {
-      cells,
-      fileId,
-    });
-    return {
-      ok: true,
-      durationMs: Date.now() - startedAt,
-      result,
-      source: "rust",
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      code: "RUST_ENGINE_READ_CELLS_FAILED",
-      durationMs: Date.now() - startedAt,
-      message: error?.message || "rs-worker failed to read cells.",
-    };
-  }
-}
-
-async function handleAnalysisRustEngineInferAutoExtraction(_event, payload) {
-  const rawPath = payload && typeof payload === "object" ? payload.path : "";
-  const inputPath = normalizeAbsoluteFilePath(rawPath);
-  const fileId =
-    payload && typeof payload.fileId === "string" ? payload.fileId.trim() : "";
-  const fileName =
-    payload && typeof payload.fileName === "string" ? payload.fileName.trim() : "";
-
-  if (!fileId || !inputPath || !isSupportedRustAnalysisInputPath(inputPath)) {
-    return {
-      ok: false,
-      code: "INVALID_DEVICE_ANALYSIS_PATH",
-      message: "Invalid analysis file path.",
-    };
-  }
-
-  const startedAt = Date.now();
-  try {
-    const result = await sendRustAnalysisEngineCommand("inferAutoExtraction", {
-      fileId,
-      fileName: fileName || path.basename(inputPath),
-      path: inputPath,
-    });
-    return {
-      ok: true,
-      durationMs: Date.now() - startedAt,
-      result,
-      source: "rust",
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      code: "RUST_ENGINE_INFER_AUTO_EXTRACTION_FAILED",
-      durationMs: Date.now() - startedAt,
-      message:
-        error?.message ||
-        "rs-worker failed to infer auto extraction.",
-    };
-  }
-}
-
-function isRustProcessFileConfigSupported(config) {
-  if (!config || typeof config !== "object" || Array.isArray(config)) {
-    return false;
-  }
-  const mode = String(config.xSegmentationMode ?? "").trim().toLowerCase();
-  if (mode && mode !== "auto" && mode !== "points" && mode !== "segments") return false;
-  if (!Array.isArray(config.yCols) || !config.yCols.length) return false;
-  return true;
-}
-
-async function handleAnalysisRustEngineProcessFile(_event, payload) {
-  const rawPath = payload && typeof payload === "object" ? payload.path : "";
-  const inputPath = normalizeAbsoluteFilePath(rawPath);
-  const fileId =
-    payload && typeof payload.fileId === "string" ? payload.fileId.trim() : "";
-  const fileName =
-    payload && typeof payload.fileName === "string" ? payload.fileName.trim() : "";
-  const config =
-    payload && typeof payload.config === "object" && !Array.isArray(payload.config)
-      ? payload.config
-      : null;
-  const maxPoints = Math.max(2, Math.floor(Number(payload?.maxPoints) || 600));
-  const auto = payload?.auto === true;
-
-  if (!fileId || !inputPath || !isSupportedRustAnalysisInputPath(inputPath)) {
-    return {
-      ok: false,
-      code: "INVALID_DEVICE_ANALYSIS_PATH",
-      message: "Invalid analysis file path.",
-    };
-  }
-  if (!auto && !isRustProcessFileConfigSupported(config)) {
-    return {
-      ok: false,
-      code: "RUST_ENGINE_PROCESS_UNSUPPORTED_CONFIG",
-      message: "rs-worker does not support this extraction config yet.",
-    };
-  }
-
-  const startedAt = Date.now();
-  const tempDir = createRustAnalysisResultTempDir(fileId);
-  const analysisCachePath = path.join(tempDir, "analysis-cache.json");
-  try {
-    const result = await sendRustAnalysisProcessingCommand(
-      auto ? "processFileAuto" : "processFile",
-      {
-        analysisCachePath,
-        config,
-        curveFilterField:
-          typeof payload?.curveFilterField === "string" ? payload.curveFilterField : null,
-        curveFilterKey:
-          typeof payload?.curveFilterKey === "string" ? payload.curveFilterKey : null,
-        fileId,
-        fileName: fileName || path.basename(inputPath),
-        maxPoints,
-        path: inputPath,
-      },
-    );
-    await hydrateRustAnalysisResultRefs(result, tempDir);
-    if (result && typeof result === "object" && !Array.isArray(result)) {
-      const resultObject = result as any;
-      resultObject.originExportSourcePath = inputPath;
-      resultObject.originExportConfig =
-        auto && resultObject.autoConfig && typeof resultObject.autoConfig === "object"
-          ? resultObject.autoConfig
-          : config;
-    }
-    void disposeRustAnalysisProcessingFile(fileId);
-    return {
-      ok: true,
-      durationMs: Date.now() - startedAt,
-      result,
-      source: "rust-pool",
-    };
-  } catch (error) {
-    void disposeRustAnalysisProcessingFile(fileId);
-    void fs.promises.rm(tempDir, { force: true, recursive: true }).catch(() => {});
-    return {
-      ok: false,
-      code: "RUST_ENGINE_PROCESS_FAILED",
-      durationMs: Date.now() - startedAt,
-      message: error?.message || "rs-worker failed to process file.",
-    };
-  }
-}
-
-async function handleAnalysisRustEngineAnalyzeRc(_event, payload) {
-  const devices = Array.isArray(payload?.devices) ? payload.devices : [];
-  const options =
-    payload && typeof payload.options === "object" && !Array.isArray(payload.options)
-      ? payload.options
-      : {};
-
-  if (!devices.length) {
-    return {
-      ok: false,
-      code: "RUST_ENGINE_RC_MISSING_DEVICES",
-      message: "Rc analysis requires at least one device.",
-    };
-  }
-
-  const startedAt = Date.now();
-  try {
-    const result = await sendRustAnalysisProcessingCommand(
-      "analyzeRc",
-      {
-        rcDevices: devices,
-        rcOptions: options,
-      },
-      120000,
-    );
-    return {
-      ok: true,
-      durationMs: Date.now() - startedAt,
-      result,
-      source: "rust-pool",
-    };
-  } catch (error) {
-    return {
-      ok: false,
-      code: "RUST_ENGINE_RC_FAILED",
-      durationMs: Date.now() - startedAt,
-      message: error?.message || "rs-worker failed to analyze Rc.",
-    };
-  }
-}
-
-async function handleAnalysisRustEngineExportOriginCsv(_event, payload) {
-  const rawPath = payload && typeof payload === "object" ? payload.path : "";
-  const inputPath = normalizeAbsoluteFilePath(rawPath);
-  const fileId =
-    payload && typeof payload.fileId === "string" ? payload.fileId.trim() : "";
-  const fileName =
-    payload && typeof payload.fileName === "string" ? payload.fileName.trim() : "";
-  const config =
-    payload && typeof payload.config === "object" && !Array.isArray(payload.config)
-      ? payload.config
-      : null;
-  const csvName =
-    typeof payload?.csvName === "string" && payload.csvName.trim()
-      ? payload.csvName.trim()
-      : "device_analysis_origin.csv";
-  const columns = Array.isArray(payload?.columns) ? payload.columns : [];
-  const metricKind =
-    typeof payload?.metricKind === "string" ? payload.metricKind.trim() : "";
-  const metricSeries = Array.isArray(payload?.metricSeries) ? payload.metricSeries : [];
-  const sourceFile =
-    payload?.sourceFile && typeof payload.sourceFile === "object" && !Array.isArray(payload.sourceFile)
-      ? payload.sourceFile
-      : undefined;
-  const sources = Array.isArray(payload?.sources) ? payload.sources : undefined;
-  const disposeFileIds = Array.from(
-    new Set(
-      [
-        fileId,
-        ...(Array.isArray(sources)
-          ? sources.map((source) =>
-              source && typeof source === "object"
-                ? typeof source.fileId === "string"
-                  ? source.fileId.trim()
-                  : typeof source.file_id === "string"
-                    ? source.file_id.trim()
-                    : ""
-                : "",
-            )
-          : []),
-      ].filter((value) => typeof value === "string" && value.length > 0),
-    ),
-  );
-
-  if (!fileId || !inputPath || !isSupportedRustAnalysisInputPath(inputPath)) {
-    return {
-      ok: false,
-      code: "INVALID_DEVICE_ANALYSIS_PATH",
-      message: "Invalid analysis file path.",
-    };
-  }
-  if (
-    !isRustProcessFileConfigSupported(config) ||
-    (!columns.length &&
-      !((metricKind === "output" || metricKind === "transfer") && metricSeries.length))
-  ) {
-    return {
-      ok: false,
-      code: "RUST_ENGINE_EXPORT_UNSUPPORTED_CONFIG",
-      message: "rs-worker does not support this Origin export plan yet.",
-    };
-  }
-
-  const startedAt = Date.now();
-  const outputPath = createRustAnalysisOriginExportTempPath(fileId, csvName);
-  try {
-    const result = await sendRustAnalysisProcessingCommand(
-      "exportOriginCsv",
-      {
-        columns,
-        config,
-        fileId,
-        fileName: fileName || path.basename(inputPath),
-        maxPoints: payload?.maxPoints,
-        metricKind,
-        metricSeries,
-        outputPath,
-        path: inputPath,
-        sourceFile,
-        sources,
-        xScaleFactor: payload?.xScaleFactor,
-        yScaleFactor: payload?.yScaleFactor,
-        yTransform: payload?.yTransform,
-      },
-      120000,
-    );
-    return {
-      ok: true,
-      csvPath: outputPath,
-      durationMs: Date.now() - startedAt,
-      result,
-      source: "rust-pool",
-    };
-  } catch (error) {
-    void fs.promises.rm(path.dirname(outputPath), { force: true, recursive: true }).catch(() => {});
-    return {
-      ok: false,
-      code: "RUST_ENGINE_EXPORT_FAILED",
-      durationMs: Date.now() - startedAt,
-      message: error?.message || "rs-worker failed to export Origin CSV.",
-    };
-  } finally {
-    void Promise.allSettled(
-      disposeFileIds.map((cachedFileId) =>
-        disposeRustAnalysisProcessingFile(cachedFileId),
-      ),
-    );
   }
 }
 
@@ -2430,34 +1563,6 @@ async function handleAnalysisOriginZipSave(event, payload) {
       ok: false,
       code: "ORIGIN_ZIP_SAVE_FAILED",
       message: error?.message || "Failed to save Origin CSV ZIP.",
-    };
-  }
-}
-
-async function handleAnalysisRustEngineDispose(_event, payload) {
-  const fileId =
-    payload && typeof payload.fileId === "string" ? payload.fileId.trim() : "";
-
-  try {
-    if (payload?.clear === true) {
-      await sendRustAnalysisEngineCommand("clear", {}, 30000);
-      return { ok: true, source: "rust" };
-    }
-    if (fileId) {
-      const [previewDispose] = await Promise.allSettled([
-        sendRustAnalysisEngineCommand("dispose", { fileId }, 30000),
-        disposeRustAnalysisProcessingFile(fileId),
-      ]);
-      if (previewDispose.status === "rejected") {
-        throw previewDispose.reason;
-      }
-    }
-    return { ok: true, source: "rust" };
-  } catch (error) {
-    return {
-      ok: false,
-      code: "RUST_ENGINE_DISPOSE_FAILED",
-      message: error?.message || "rs-worker dispose failed.",
     };
   }
 }
@@ -3378,49 +2483,20 @@ if (hasSingleInstanceLock) {
   ipcMain.handle(ipcChannels.excelConvertRust, handleExcelConvertRust);
   ipcMain.handle(ipcChannels.excelReadConvertedCsv, handleExcelReadConvertedCsv);
   ipcMain.handle(ipcChannels.analysisDemoFilesGet, handleAnalysisDemoFilesGet);
-  ipcMain.handle(
-    ipcChannels.analysisRustEngineOpen,
-    handleAnalysisRustEngineOpen,
-  );
-  ipcMain.handle(
-    ipcChannels.analysisRustEnginePreviewMeta,
-    handleAnalysisRustEnginePreviewMeta,
-  );
-  ipcMain.handle(
-    ipcChannels.analysisRustEnginePreviewRows,
-    handleAnalysisRustEnginePreviewRows,
-  );
-  ipcMain.handle(
-    ipcChannels.analysisRustEngineReadCell,
-    handleAnalysisRustEngineReadCell,
-  );
-  ipcMain.handle(
-    ipcChannels.analysisRustEngineReadCells,
-    handleAnalysisRustEngineReadCells,
-  );
-  ipcMain.handle(
-    ipcChannels.analysisRustEngineInferAutoExtraction,
-    handleAnalysisRustEngineInferAutoExtraction,
-  );
-  ipcMain.handle(
-    ipcChannels.analysisRustEngineProcessFile,
-    handleAnalysisRustEngineProcessFile,
-  );
-  ipcMain.handle(
-    ipcChannels.analysisRustEngineAnalyzeRc,
-    handleAnalysisRustEngineAnalyzeRc,
-  );
-  ipcMain.handle(
-    ipcChannels.analysisRustEngineExportOriginCsv,
-    handleAnalysisRustEngineExportOriginCsv,
-  );
+  analysisRustHandlers = registerAnalysisRustHandlers({
+    createRustAnalysisOriginExportTempPath,
+    createRustAnalysisResultTempDir,
+    hydrateRustAnalysisResultRefs,
+    ipcChannels,
+    ipcMain,
+    isRustProcessFileConfigSupported,
+    isSupportedRustAnalysisInputPath,
+    normalizeAbsoluteFilePath,
+    rustWorkerRuntime,
+  });
   ipcMain.handle(
     ipcChannels.analysisOriginZipSave,
     handleAnalysisOriginZipSave,
-  );
-  ipcMain.handle(
-    ipcChannels.analysisRustEngineDispose,
-    handleAnalysisRustEngineDispose,
   );
   ipcMain.handle(ipcChannels.originExeGet, handleOriginExeGet);
   ipcMain.handle(ipcChannels.originExeSet, handleOriginExeSet);
@@ -3462,6 +2538,8 @@ app.on("will-quit", () => {
   nativeTheme.removeListener("updated", syncBootWindowTheme);
   runSharedProcessShutdownContributions(createSharedProcessContributionContext());
   stopAllRustAnalysisEngines();
+  analysisRustHandlers?.dispose();
+  analysisRustHandlers = null;
   if (appTray) {
     appTray.destroy();
     appTray = null;
@@ -3492,17 +2570,7 @@ app.on("will-quit", () => {
   ipcMain.removeHandler(ipcChannels.excelConvertRust);
   ipcMain.removeHandler(ipcChannels.excelReadConvertedCsv);
   ipcMain.removeHandler(ipcChannels.analysisDemoFilesGet);
-  ipcMain.removeHandler(ipcChannels.analysisRustEngineOpen);
-  ipcMain.removeHandler(ipcChannels.analysisRustEnginePreviewMeta);
-  ipcMain.removeHandler(ipcChannels.analysisRustEnginePreviewRows);
-  ipcMain.removeHandler(ipcChannels.analysisRustEngineReadCell);
-  ipcMain.removeHandler(ipcChannels.analysisRustEngineReadCells);
-  ipcMain.removeHandler(ipcChannels.analysisRustEngineInferAutoExtraction);
-  ipcMain.removeHandler(ipcChannels.analysisRustEngineProcessFile);
-  ipcMain.removeHandler(ipcChannels.analysisRustEngineAnalyzeRc);
-  ipcMain.removeHandler(ipcChannels.analysisRustEngineExportOriginCsv);
   ipcMain.removeHandler(ipcChannels.analysisOriginZipSave);
-  ipcMain.removeHandler(ipcChannels.analysisRustEngineDispose);
   ipcMain.removeHandler(ipcChannels.originExeGet);
   ipcMain.removeHandler(ipcChannels.originExeSet);
   ipcMain.removeHandler(ipcChannels.originExePick);
