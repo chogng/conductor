@@ -3,9 +3,11 @@ import { ActionBar, ActionsOrientation, type ActionBarContent, type ActionBarOpt
 import { BaseActionViewItem, type IActionViewItemOptions } from "src/cs/base/browser/ui/actionbar/actionViewItem";
 import { ContentView } from "src/cs/base/browser/ui/contentView/contentView";
 import "src/cs/base/browser/ui/dropdown/dropdown.css";
+import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollbar";
 import { IAction, Separator } from "src/cs/base/common/actions";
 import { Disposable, DisposableStore } from "src/cs/base/common/lifecycle";
+import type { LxIconDefinition } from "src/cs/base/common/lxicon";
 
 import "src/cs/base/browser/ui/menu/menu.css";
 
@@ -15,9 +17,11 @@ export type MenuOptions = {
     withScrollArea?: boolean;
 };
 
+export type MenuIcon = Node | (() => Node) | LxIconDefinition;
+
 export type MenuItemAction = {
     readonly className?: string;
-    readonly icon?: Node | (() => Node);
+    readonly icon?: MenuIcon;
     readonly label: string;
     readonly onClick: (event: MouseEvent | KeyboardEvent) => void;
 };
@@ -30,7 +34,7 @@ export type MenuButtonOptions = {
     readonly matchAnchorWidth?: boolean;
     readonly menuClassName?: string;
     readonly surfaceClassName?: string;
-    readonly triggerIcon?: Node | (() => Node);
+    readonly triggerIcon?: MenuIcon;
     readonly withScrollArea?: boolean;
 };
 
@@ -39,6 +43,7 @@ type MenuActionOptions = {
     readonly checked?: boolean;
     readonly className?: string;
     readonly enabled?: boolean;
+    readonly icon?: MenuIcon;
     readonly id: string;
     readonly label: string;
     readonly left?: Node | string;
@@ -214,7 +219,7 @@ export class MenuButton extends Disposable {
         label.textContent = this.options.label;
 
         const children: Node[] = [label];
-        const icon = createNode(this.options.triggerIcon);
+        const icon = createIconNode(this.options.triggerIcon);
         if (icon) {
             const iconWrapper = document.createElement("span");
             iconWrapper.className = "ui-menu-button__icon";
@@ -285,7 +290,7 @@ export function createMenuAction(options: MenuActionOptions): IAction {
 
     menuItemData.set(action, {
         autoHide: options.autoHide ?? true,
-        left: options.left,
+        left: options.left ?? (options.icon ? createMenuItemLabel(options.label, options.icon) : undefined),
         onMouseEnter: options.onMouseEnter,
         right: options.right,
         rightAction: options.rightAction,
@@ -298,11 +303,11 @@ export function createMenuAction(options: MenuActionOptions): IAction {
     return action;
 }
 
-export function createMenuItemLabel(label: string, icon?: Node | (() => Node)): HTMLSpanElement {
+export function createMenuItemLabel(label: string, icon?: MenuIcon): HTMLSpanElement {
     const wrapper = document.createElement("span");
     wrapper.className = "ui-menu__item-left ui-menu__item-label";
 
-    const iconNode = createNode(icon);
+    const iconNode = createIconNode(icon);
     if (iconNode) {
         const iconWrapper = document.createElement("span");
         iconWrapper.className = "ui-menu__item-icon";
@@ -321,8 +326,19 @@ function resolveItems(items: readonly IAction[] | (() => readonly IAction[])): r
     return typeof items === "function" ? items() : items;
 }
 
-function createNode(node: Node | (() => Node) | undefined): Node | undefined {
-    return typeof node === "function" ? node() : node;
+function createIconNode(icon: MenuIcon | undefined): Node | undefined {
+    if (!icon) {
+        return undefined;
+    }
+    if (icon instanceof Node) {
+        return icon;
+    }
+    if (typeof icon === "function") {
+        const rendered = icon();
+        return rendered instanceof Node ? rendered : createLxIcon({ icon: () => rendered, size: 14 });
+    }
+
+    return createLxIcon({ icon, size: 14 });
 }
 
 function createMenuActionBarOptions(options: MenuOptions): ActionBarOptions {
@@ -433,7 +449,7 @@ class MenuActionViewItem extends BaseActionViewItem {
         button.title = action.label;
         button.setAttribute("aria-label", action.label);
 
-        const icon = createNode(action.icon);
+        const icon = createIconNode(action.icon);
         if (icon) {
             button.append(icon);
         }

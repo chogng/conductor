@@ -4,8 +4,6 @@ import {
 } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
 import type { LxIconRenderer } from "src/cs/base/common/lxicon";
 
-import "src/cs/base/browser/ui/lxicon/lxicon.css";
-
 export type LxIconStyle = Record<string, string | number | undefined>;
 
 export type LxIconOptions = {
