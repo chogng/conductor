@@ -3,6 +3,7 @@ import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/pr
 import SidebarPart from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import type { RawDataEntry } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import type { ITemplateService } from "src/cs/workbench/contrib/template/common/template";
+import type { TemplateImportController } from "src/cs/workbench/contrib/template/browser/templateImportController";
 import {
   TemplateManagerView,
   type TemplateElementOptions,
@@ -19,6 +20,7 @@ export type TemplateEditorPaneProps = {
   readonly onUpdateSettings?: TemplateElementOptions["onUpdateSettings"];
   readonly rawData?: RawDataEntry[];
   readonly tableModel?: TemplateElementOptions["tableModel"];
+  readonly templateImportController: TemplateImportController;
   readonly templateService: ITemplateService;
   readonly t: TranslateFn;
 };

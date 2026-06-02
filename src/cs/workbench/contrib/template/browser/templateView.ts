@@ -1,24 +1,16 @@
-import { createButton } from "src/cs/base/browser/ui/button/button";
 import {
   createMenuAction,
-  createMenuButton,
   createMenuItemLabel,
-  MenuButton,
 } from "src/cs/base/browser/ui/menu/menu";
 import { Separator, type IAction } from "src/cs/base/common/actions";
 import {
   lxAdd,
-  lxChevronDown,
   lxDownload,
   lxEdit,
 } from "src/cs/base/common/lxicon";
-import { createInputField } from "src/cs/base/browser/ui/input/input";
-import {
-  createSwitch as createBaseSwitch,
-  updateSwitch,
-} from "src/cs/base/browser/ui/switch/switch";
 import { localize } from "src/cs/nls";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
+import type { LooseTranslateFn } from "src/cs/workbench/common/deviceAnalysis/translateTypes";
 import type { RawDataEntry } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import {
   createEmptyTemplateConfig,
@@ -28,23 +20,31 @@ import {
   type TemplateConfig,
 } from "src/cs/workbench/contrib/template/common/templateManagerUtils";
 import { getSession, defaultSessionModel } from "src/cs/workbench/contrib/session/useSession";
-import { analysisStoreClient } from "src/cs/workbench/services/storage/electron-sandbox/analysisStoreClient";
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import {
   validateTemplateForSave,
   validateTemplateForApply,
 } from "src/cs/workbench/contrib/template/common/templateValidation";
 import { AUTO_TEMPLATE_ID } from "src/cs/workbench/common/deviceAnalysis/autoExtraction";
-import { downloadTemplateBundle } from "src/cs/workbench/contrib/template/browser/templateController";
-import type { ITemplateService } from "src/cs/workbench/contrib/template/common/template";
+import type {
+  ITemplateService,
+  TemplateRecord,
+} from "src/cs/workbench/contrib/template/common/template";
+import type { TemplateImportController } from "src/cs/workbench/contrib/template/browser/templateImportController";
 import type {
   TableModel,
   TableSelection,
 } from "src/cs/workbench/contrib/table/common/tableService";
+import { TemplateApplyView } from "src/cs/workbench/contrib/template/browser/templateApplyView";
+import {
+  TemplateEditorView,
+  type TemplatePickFieldName,
+} from "src/cs/workbench/contrib/template/browser/templateEditorView";
 
 export type TemplateElementOptions = {
   readonly t: TranslateFn;
   readonly importSessionElement?: HTMLElement | null;
+  readonly templateImportController: TemplateImportController;
   readonly templateService: ITemplateService;
   rawData?: RawDataEntry[];
   tableModel?: Pick<
@@ -60,74 +60,51 @@ export type TemplateElementOptions = {
   onUpdateSettings?: (updates: Record<string, unknown>) => Promise<unknown> | unknown;
 };
 
-let cachedTemplates: any[] | null = null;
+let cachedTemplates: TemplateRecord[] | null = null;
 let templatesLoading = false;
-type PickFieldName = "xDataStart" | "xDataEnd" | "yLegendStart" | "yLegendCount";
+type PickFieldName = TemplatePickFieldName;
 const TEMPLATE_TOAST_ID = "template.notification";
-
-const PICKABLE_TEMPLATE_FIELDS = new Set<string>([
-  "xDataStart",
-  "xDataEnd",
-  "yLegendStart",
-  "yLegendCount",
-]);
 
 const showToast = (message: string, type: "success" | "error" | "warning" | "info" = "success") => {
   notificationService.showToast({ id: TEMPLATE_TOAST_ID, message, type });
 };
 
-const createField = ({
-  label,
-  name,
-  value,
-  onInput,
-}: {
-  label: string;
-  name: keyof TemplateConfig;
-  value: string;
-  onInput: (name: keyof TemplateConfig, value: string) => void;
-}): HTMLElement => {
-  const wrapper = document.createElement("label");
-  wrapper.className = "template_field";
+const toTemplateTranslate = (t: TranslateFn): LooseTranslateFn =>
+  (key, vars) => t(key, normalizeTranslateVars(vars));
 
-  const labelElement = document.createElement("span");
-  labelElement.className = "template_field_label";
-  labelElement.textContent = label;
-
-  const inputField = createInputField({
-    fieldClassName: "template_field_input",
-    name: String(name),
-    value,
-  });
-  const input = inputField.input;
-  input.addEventListener("input", () => onInput(name, input.value));
-
-  wrapper.append(labelElement, inputField.element);
-  return wrapper;
-};
-
-const createToggleSwitch = (
-  initialChecked: boolean,
-  onCheckedChange: (checked: boolean) => void,
-): HTMLButtonElement => {
-  const button = createBaseSwitch({
-    checked: initialChecked,
-  });
-  button.addEventListener("click", () => {
-    const nextChecked = button.getAttribute("aria-checked") !== "true";
-    updateSwitch(button, {
-      checked: nextChecked,
-    });
-    onCheckedChange(nextChecked);
-  });
-  return button;
-};
-
-const importTemplates = async (payload: any, t: TranslateFn, session: any) => {
-  let entry = payload;
-  if (payload && payload.source === "conductor") {
-    entry = payload;
+const normalizeTranslateVars = (
+  vars: Record<string, unknown> | undefined,
+): Parameters<TranslateFn>[1] => {
+  if (!vars) {
+    return undefined;
   }
+
+  const normalized: NonNullable<Parameters<TranslateFn>[1]> = {};
+  for (const [key, value] of Object.entries(vars)) {
+    if (
+      value === null ||
+      value === undefined ||
+      typeof value === "string" ||
+      typeof value === "number" ||
+      typeof value === "boolean"
+    ) {
+      normalized[key] = value;
+      continue;
+    }
+    normalized[key] = String(value);
+  }
+  return normalized;
+};
+
+const importTemplates = async (
+  payload: unknown,
+  t: TranslateFn,
+  session: ReturnType<typeof getSession>,
+  templateService: ITemplateService,
+) => {
+  const entry = payload && typeof payload === "object"
+    ? payload as Record<string, unknown>
+    : {};
   
   const draft = normalizeTemplateConfigRecord(entry);
   if (!draft.name) {
@@ -137,11 +114,11 @@ const importTemplates = async (payload: any, t: TranslateFn, session: any) => {
 
   if (cachedTemplates) {
     const nameKey = toTemplateNameKey(draft.name);
-    const conflict = cachedTemplates.some((t: any) => toTemplateNameKey(t.name) === nameKey);
+    const conflict = cachedTemplates.some((template) => toTemplateNameKey(template.name) === nameKey);
     if (conflict) {
       let suffix = 1;
       let newName = `${draft.name}(${suffix})`;
-      while (cachedTemplates.some((t: any) => toTemplateNameKey(t.name) === toTemplateNameKey(newName))) {
+      while (cachedTemplates.some((template) => toTemplateNameKey(template.name) === toTemplateNameKey(newName))) {
         suffix++;
         newName = `${draft.name}(${suffix})`;
       }
@@ -154,37 +131,36 @@ const importTemplates = async (payload: any, t: TranslateFn, session: any) => {
       if (shouldRename) {
         draft.name = newName;
       } else {
-        const confTemplate = cachedTemplates.find((t: any) => toTemplateNameKey(t.name) === nameKey);
+        const confTemplate = cachedTemplates.find((template) => toTemplateNameKey(template.name) === nameKey);
         if (confTemplate && confTemplate.id) {
           try {
-            await analysisStoreClient.deleteDeviceAnalysisTemplate(confTemplate.id);
-          } catch (err) {
-            // Ignore delete conflict errors or proceed
+            await templateService.deleteTemplate(confTemplate.id);
+          } catch {
+            // Best effort: import can still overwrite by name in storage.
           }
         }
       }
     }
   }
 
-  const validation = validateTemplateForSave(draft, t as any);
+  const validation = validateTemplateForSave(draft, toTemplateTranslate(t));
   if (!validation.ok || !validation.normalized) {
     showToast(validation.message || localize("da_template_invalid_configuration", "Invalid configuration"), "warning");
     return;
   }
 
   try {
-    const savedRaw = await analysisStoreClient.createDeviceAnalysisTemplate({
+    const saved = await templateService.saveTemplate({
       ...validation.normalized,
       name: draft.name,
     });
-    const saved = savedRaw as any;
     if (cachedTemplates) {
-      cachedTemplates = [saved, ...cachedTemplates.filter((t: any) => t.id !== saved.id && toTemplateNameKey(t.name) !== toTemplateNameKey(saved.name))];
+      cachedTemplates = [saved, ...cachedTemplates.filter((template) => template.id !== saved.id && toTemplateNameKey(template.name) !== toTemplateNameKey(saved.name))];
     } else {
       cachedTemplates = [saved];
     }
     
-    session.setSelectedTemplateId(saved.id);
+    session.setSelectedTemplateId(typeof saved.id === "string" ? saved.id : null);
     session.setTemplateConfig(cloneTemplateConfig(saved));
     showToast(localize("da_template_imported", "Template imported"), "success");
     defaultSessionModel.emitChange();
@@ -193,7 +169,7 @@ const importTemplates = async (payload: any, t: TranslateFn, session: any) => {
   }
 };
 
-const exportTemplate = (config: TemplateConfig) => {
+const exportTemplate = (config: TemplateConfig, templateService: ITemplateService) => {
   if (!config.name) {
     showToast(localize("da_template_export_requires_selection", "Please select a template to export."), "warning");
     return;
@@ -203,7 +179,7 @@ const exportTemplate = (config: TemplateConfig) => {
     source: "conductor",
     ...config,
   };
-  downloadTemplateBundle(payload);
+  templateService.downloadTemplateBundle(payload);
 };
 
 const normalizeColumnIndexes = (columns: readonly number[] | undefined): number[] =>
@@ -253,19 +229,8 @@ export class TemplateManagerView {
   private tableModel: TemplateElementOptions["tableModel"] | null = null;
   private mode: "select" | "save" | null = null;
   private toggleDraft: Pick<TemplateConfig, "stopOnError" | "fileNameMatchCaseSensitive"> | null = null;
-  private selectRefs: {
-    root: HTMLElement;
-    menuButton: MenuButton;
-    deleteButton: HTMLButtonElement;
-    exportButton: HTMLButtonElement;
-    stopSwitch: HTMLButtonElement;
-    matchCaseSwitch: HTMLButtonElement;
-    autoCard: HTMLElement;
-  } | null = null;
-  private saveRefs: {
-    root: HTMLElement;
-    inputs: Record<"name" | "xDataStart" | "xDataEnd" | "yLegendStart" | "yLegendCount", HTMLInputElement>;
-  } | null = null;
+  private applyView: TemplateApplyView | null = null;
+  private editorView: TemplateEditorView | null = null;
 
   constructor(props: TemplateElementOptions) {
     this.props = props;
@@ -296,24 +261,25 @@ export class TemplateManagerView {
       if (nextMode === "select") {
         this.activePickField = null;
       }
-      this.left.replaceChildren(nextMode === "select" ? this.getSelectRoot() : this.getSaveRoot());
+      this.left.replaceChildren(nextMode === "select" ? this.getApplyView().element : this.getEditorView().element);
     }
 
     if (nextMode === "select") {
-      this.updateSelectContent();
+      this.updateApplyView();
       return;
     }
 
-    this.updateSaveContent();
+    this.updateEditorView();
   }
 
   public dispose(): void {
     this.disposeTableSelectionListener?.();
     this.disposeTableSelectionListener = null;
     this.tableModel?.clearHighlight();
-    this.selectRefs?.menuButton.dispose();
-    this.selectRefs = null;
-    this.saveRefs = null;
+    this.applyView?.dispose();
+    this.editorView?.dispose();
+    this.applyView = null;
+    this.editorView = null;
     this.element.replaceChildren();
     this.element.remove();
   }
@@ -435,9 +401,9 @@ export class TemplateManagerView {
     }
 
     templatesLoading = true;
-    analysisStoreClient.getDeviceAnalysisTemplates()
+    this.props.templateService.getTemplates()
       .then((remote) => {
-        cachedTemplates = Array.isArray(remote) ? remote : [];
+        cachedTemplates = remote;
         templatesLoading = false;
         defaultSessionModel.emitChange();
       })
@@ -452,338 +418,107 @@ export class TemplateManagerView {
       });
   }
 
-  private getSelectRoot(): HTMLElement {
-    if (!this.selectRefs) {
-      this.selectRefs = this.createSelectContent();
+  private getApplyView(): TemplateApplyView {
+    if (!this.applyView) {
+      this.applyView = new TemplateApplyView({
+        createTemplateActions: () => this.createTemplateActions(),
+        onApplyTemplate: (incremental) => this.applyTemplate(incremental),
+        onDeleteTemplate: () => {
+          void this.deleteSelectedTemplate();
+        },
+        onExportTemplate: () => exportTemplate(this.session.templateConfig, this.props.templateService),
+        onMatchCaseChange: (checked) => this.updateApplyOptions({ fileNameMatchCaseSensitive: checked }),
+        onStopOnErrorChange: (checked) => this.updateApplyOptions({ stopOnError: checked }),
+      }, this.getApplyViewState());
     }
 
-    return this.selectRefs.root;
+    return this.applyView;
   }
 
-  private getSaveRoot(): HTMLElement {
-    if (!this.saveRefs) {
-      this.saveRefs = this.createSaveContent();
-    }
-
-    return this.saveRefs.root;
+  private updateApplyView(): void {
+    this.applyView?.update(this.getApplyViewState());
   }
 
-  private createSelectContent() {
-    const root = document.createElement("div");
-    root.className = "template_config_panel_content";
-
-    const dropdownRow = document.createElement("div");
-    dropdownRow.className = "template_select_field";
-
-    const dropdownLabel = document.createElement("span");
-    dropdownLabel.className = "template_field_label";
-    dropdownLabel.textContent = localize("da_template_select_label", "Select template");
-    dropdownRow.append(dropdownLabel);
-
-    const selectContainer = document.createElement("div");
-    selectContainer.className = "template_button_row template_select_actions";
-
-    const menuButton = createMenuButton({
-      label: "",
-      items: () => this.createTemplateActions(),
-      menuClassName: "template_select_menu",
-      surfaceClassName: "template_select_menu_surface",
-      triggerIcon: lxChevronDown,
-    });
-    selectContainer.append(menuButton.domNode);
-
-    const deleteButton = createButton({
-      label: localize("da_delete_template", "Delete template"),
-      size: "sm",
-      variant: "secondary",
-    });
-    deleteButton.className = `${deleteButton.className} template_button`;
-    deleteButton.addEventListener("click", async () => {
-      const { selectedTemplateId, templateConfig } = this.session;
-      if (!selectedTemplateId) {
-        return;
-      }
-
-      const confirmMsg = localize("da_template_delete_confirm", "Delete template \"{name}\"?", { name: templateConfig.name });
-      if (typeof window !== "undefined" && typeof window.confirm === "function" && !window.confirm(confirmMsg)) {
-        return;
-      }
-
-      try {
-        await analysisStoreClient.deleteDeviceAnalysisTemplate(selectedTemplateId);
-        if (cachedTemplates) {
-          cachedTemplates = cachedTemplates.filter((template: any) => template.id !== selectedTemplateId);
-        }
-        const config = this.getEffectiveTemplateConfig();
-        this.session.setSelectedTemplateId(AUTO_TEMPLATE_ID);
-        this.session.setTemplateConfig(createEmptyTemplateConfig({
-          stopOnError: templateConfig.stopOnError,
-          fileNameMatchCaseSensitive: templateConfig.fileNameMatchCaseSensitive,
-        }));
-        this.toggleDraft = {
-          stopOnError: config.stopOnError,
-          fileNameMatchCaseSensitive: config.fileNameMatchCaseSensitive,
-        };
-        showToast(localize("da_template_deleted", "Template deleted"), "success");
-        defaultSessionModel.emitChange();
-      } catch (err) {
-        showToast(localize("da_template_delete_failed", "Failed to delete template: {error}", { error: String(err) }), "error");
-      }
-    });
-    selectContainer.append(deleteButton);
-
-    dropdownRow.append(selectContainer);
-    root.append(dropdownRow);
-
-    const applyActions = document.createElement("div");
-    applyActions.className = "template_apply_actions";
-
-    const applyAllBtn = createButton({
-      label: localize("da_apply_template", "Apply Template"),
-      size: "md",
-      variant: "primary",
-    });
-    applyAllBtn.className = `${applyAllBtn.className} template_button`;
-    applyAllBtn.addEventListener("click", () => this.applyTemplate(false));
-
-    const applyNewBtn = createButton({
-      label: localize("da_apply_new_files", "Apply New Files"),
-      size: "md",
-      variant: "secondary",
-    });
-    applyNewBtn.className = `${applyNewBtn.className} template_button`;
-    applyNewBtn.addEventListener("click", () => this.applyTemplate(true));
-
-    applyActions.append(applyAllBtn, applyNewBtn);
-    root.append(applyActions);
-
-    const importExportRow = document.createElement("div");
-    importExportRow.className = "template_button_row template_button_row--inset";
-
-    const exportButton = createButton({
-      label: localize("da_template_export_btn", "Export templates"),
-      size: "sm",
-      variant: "secondary",
-    });
-    exportButton.className = `${exportButton.className} template_button template_button--full`;
-    exportButton.addEventListener("click", () => {
-      exportTemplate(this.session.templateConfig);
-    });
-
-    importExportRow.append(exportButton);
-    root.append(importExportRow);
-
-    const divider = document.createElement("div");
-    divider.className = "template_divider";
-    root.append(divider);
-
-    const togglesRow = document.createElement("div");
-    togglesRow.className = "template_toggle_rows";
-
-    const stopSwitch = this.createSelectToggleRow(
-      togglesRow,
-      localize("da_template_stop_on_error", "Stop at first invalid item"),
-      (checked) => {
-        const config = this.getEffectiveTemplateConfig();
-        this.toggleDraft = {
-          stopOnError: checked,
-          fileNameMatchCaseSensitive: config.fileNameMatchCaseSensitive,
-        };
-      },
-    );
-
-    const matchCaseSwitch = this.createSelectToggleRow(
-      togglesRow,
-      localize("da_template_match_case", "Match field case"),
-      (checked) => {
-        const config = this.getEffectiveTemplateConfig();
-        this.toggleDraft = {
-          stopOnError: config.stopOnError,
-          fileNameMatchCaseSensitive: checked,
-        };
-      },
-    );
-
-    root.append(togglesRow);
-
-    const autoCard = document.createElement("div");
-    autoCard.className = "template_auto_card";
-
-    const autoTitle = document.createElement("h3");
-    autoTitle.className = "template_auto_card_title";
-    autoTitle.textContent = localize("da_auto_extract_title", "Smart auto extraction");
-
-    const autoDesc = document.createElement("p");
-    autoDesc.className = "template_auto_card_description";
-    autoDesc.textContent = localize("da_auto_extract_desc", "The system analyzes imported file formats and extracts variables and related parameters automatically. Suitable for standard IV/CV data formats.");
-
-    autoCard.append(autoTitle, autoDesc);
-    root.append(autoCard);
-
-    const spacer = document.createElement("div");
-    spacer.className = "template_spacer";
-    root.append(spacer);
-
-    return {
-      root,
-      menuButton,
-      deleteButton,
-      exportButton,
-      stopSwitch,
-      matchCaseSwitch,
-      autoCard,
-    };
-  }
-
-  private createSelectToggleRow(
-    container: HTMLElement,
-    labelText: string,
-    onToggle: (checked: boolean) => void,
-  ): HTMLButtonElement {
-    const row = document.createElement("div");
-    row.className = "template_toggle_row";
-    const title = document.createElement("div");
-    title.className = "template_toggle_title";
-    const label = document.createElement("p");
-    label.className = "template_toggle_label";
-    label.textContent = labelText;
-    title.append(label);
-    const control = document.createElement("div");
-    control.className = "template_toggle_control";
-    const toggle = createToggleSwitch(false, onToggle);
-    control.append(toggle);
-    row.append(title, control);
-    container.append(row);
-    return toggle;
-  }
-
-  private updateSelectContent(): void {
-    const refs = this.selectRefs;
-    if (!refs) {
-      return;
-    }
-
-    refs.menuButton.update({
-      label: this.getSelectedTemplateLabel(),
-      items: () => this.createTemplateActions(),
-      menuClassName: "template_select_menu",
-      surfaceClassName: "template_select_menu_surface",
-      triggerIcon: lxChevronDown,
-    });
-
+  private getApplyViewState() {
+    const config = this.getEffectiveTemplateConfig();
     const isCustomTemplate = Boolean(this.session.selectedTemplateId && this.session.selectedTemplateId !== AUTO_TEMPLATE_ID);
-    refs.deleteButton.style.display = isCustomTemplate ? "" : "none";
-    const config = this.getEffectiveTemplateConfig();
-    refs.exportButton.disabled = !config.name;
-
-    updateSwitch(refs.stopSwitch, {
-      checked: config.stopOnError,
-    });
-    updateSwitch(refs.matchCaseSwitch, {
-      checked: config.fileNameMatchCaseSensitive,
-    });
-
-    refs.autoCard.style.display = isCustomTemplate ? "none" : "";
-  }
-
-  private createSaveContent() {
-    const root = document.createElement("div");
-    root.className = "template_config_panel_content";
-
-    const form = document.createElement("div");
-    form.className = "template_form template_form--save";
-
-    const inputs = {
-      name: this.createSaveField(form, localize("da_template_name", "Template name"), "name"),
-      xDataStart: this.createSaveField(form, localize("da_template_x_start", "X Start"), "xDataStart"),
-      xDataEnd: this.createSaveField(form, localize("da_template_x_end", "X End"), "xDataEnd"),
-      yLegendStart: this.createSaveField(form, localize("da_template_y_legend_start", "Legend Start"), "yLegendStart"),
-      yLegendCount: this.createSaveField(form, localize("da_template_y_legend_count", "Legend Count"), "yLegendCount"),
-    };
-
-    root.append(form);
-
-    const spacer = document.createElement("div");
-    spacer.className = "template_spacer";
-    root.append(spacer);
-
-    const saveActions = document.createElement("div");
-    saveActions.className = "template_save_actions";
-
-    const saveBtn = createButton({
-      label: localize("da_save_template", "Save template"),
-      size: "md",
-      variant: "primary",
-    });
-    saveBtn.className = `${saveBtn.className} template_button`;
-    saveBtn.addEventListener("click", () => {
-      void this.handleSaveTemplate();
-    });
-
-    const cancelBtn = createButton({
-      label: localize("da_cancel", "Cancel"),
-      size: "md",
-      variant: "secondary",
-    });
-    cancelBtn.className = `${cancelBtn.className} template_button`;
-    cancelBtn.addEventListener("click", () => {
-      this.cancelSaveMode();
-    });
-
-    saveActions.append(saveBtn, cancelBtn);
-    root.append(saveActions);
-
     return {
-      root,
-      inputs,
+      canDeleteTemplate: isCustomTemplate,
+      canExportTemplate: Boolean(config.name),
+      fileNameMatchCaseSensitive: config.fileNameMatchCaseSensitive,
+      selectedTemplateLabel: this.getSelectedTemplateLabel(),
+      stopOnError: config.stopOnError,
     };
   }
 
-  private createSaveField(
-    container: HTMLElement,
-    label: string,
-    name: "name" | "xDataStart" | "xDataEnd" | "yLegendStart" | "yLegendCount",
-  ): HTMLInputElement {
-    const field = createField({
-      label,
-      name,
-      value: "",
-      onInput: (_fieldName, value) => {
-        this.session.setTemplateConfig({
-          ...this.session.templateConfig,
-          [name]: value,
-        });
-      },
-    });
-    container.append(field);
-    const input = field.querySelector("input") as HTMLInputElement;
-    input.addEventListener("focus", () => {
-      this.activePickField = PICKABLE_TEMPLATE_FIELDS.has(name)
-        ? name as PickFieldName
-        : null;
-    });
-    return input;
+  private getEditorView(): TemplateEditorView {
+    if (!this.editorView) {
+      this.editorView = new TemplateEditorView({
+        onCancel: () => this.cancelSaveMode(),
+        onPickFieldFocus: (field) => {
+          this.activePickField = field;
+        },
+        onSave: () => {
+          void this.handleSaveTemplate();
+        },
+        onUpdateConfig: (updates) => this.updateTemplateConfig(updates),
+      }, this.getEditorViewState());
+    }
+
+    return this.editorView;
   }
 
-  private updateSaveContent(): void {
-    const refs = this.saveRefs;
-    if (!refs) {
+  private updateEditorView(): void {
+    this.editorView?.update(this.getEditorViewState());
+  }
+
+  private getEditorViewState() {
+    const config = this.getEffectiveTemplateConfig();
+    return {
+      config,
+      selectedYColumnLabels: normalizeColumnIndexes(config.yColumns).map((column) => toColumnLabel(column)),
+    };
+  }
+
+  private updateApplyOptions(updates: Partial<Pick<TemplateConfig, "stopOnError" | "fileNameMatchCaseSensitive">>): void {
+    const config = this.getEffectiveTemplateConfig();
+    this.toggleDraft = {
+      stopOnError: updates.stopOnError ?? config.stopOnError,
+      fileNameMatchCaseSensitive: updates.fileNameMatchCaseSensitive ?? config.fileNameMatchCaseSensitive,
+    };
+    defaultSessionModel.emitChange();
+  }
+
+  private async deleteSelectedTemplate(): Promise<void> {
+    const { selectedTemplateId, templateConfig } = this.session;
+    if (!selectedTemplateId) {
       return;
     }
 
-    const config = this.getEffectiveTemplateConfig();
-    const values: Record<keyof typeof refs.inputs, string> = {
-      name: config.name,
-      xDataStart: config.xDataStart,
-      xDataEnd: config.xDataEnd,
-      yLegendStart: config.yLegendStart,
-      yLegendCount: config.yLegendCount,
-    };
+    const confirmMsg = localize("da_template_delete_confirm", "Delete template \"{name}\"?", { name: templateConfig.name });
+    if (typeof window !== "undefined" && typeof window.confirm === "function" && !window.confirm(confirmMsg)) {
+      return;
+    }
 
-    for (const [key, input] of Object.entries(refs.inputs) as Array<[keyof typeof refs.inputs, HTMLInputElement]>) {
-      if (input.value !== values[key]) {
-        input.value = values[key];
+    try {
+      await this.props.templateService.deleteTemplate(selectedTemplateId);
+      if (cachedTemplates) {
+        cachedTemplates = cachedTemplates.filter((template) => template.id !== selectedTemplateId);
       }
+      const config = this.getEffectiveTemplateConfig();
+      this.session.setSelectedTemplateId(AUTO_TEMPLATE_ID);
+      this.session.setTemplateConfig(createEmptyTemplateConfig({
+        stopOnError: templateConfig.stopOnError,
+        fileNameMatchCaseSensitive: templateConfig.fileNameMatchCaseSensitive,
+      }));
+      this.toggleDraft = {
+        stopOnError: config.stopOnError,
+        fileNameMatchCaseSensitive: config.fileNameMatchCaseSensitive,
+      };
+      showToast(localize("da_template_deleted", "Template deleted"), "success");
+      defaultSessionModel.emitChange();
+    } catch (err) {
+      showToast(localize("da_template_delete_failed", "Failed to delete template: {error}", { error: String(err) }), "error");
     }
   }
 
@@ -792,7 +527,7 @@ export class TemplateManagerView {
       return localize("da_template_auto_extraction", "Auto extraction");
     }
 
-    const found = cachedTemplates?.find((template: any) => template.id === this.session.selectedTemplateId);
+    const found = cachedTemplates?.find((template) => template.id === this.session.selectedTemplateId);
     return found?.name || this.session.selectedTemplateId;
   }
 
@@ -825,7 +560,7 @@ export class TemplateManagerView {
         rightAction: {
           icon: lxEdit,
           label: localize("da_template_edit", "Edit template"),
-          onClick: () => this.editTemplate(template),
+        onClick: () => this.editTemplate(template),
         },
         selected: selectedTemplateId === templateId,
         tabIndex: 0,
@@ -871,8 +606,8 @@ export class TemplateManagerView {
 
   private async importTemplateFromDialog(): Promise<void> {
     try {
-      await this.props.templateService.importTemplateFromDialog(
-        (payload) => importTemplates(payload, this.props.t, this.session),
+      await this.props.templateImportController.importTemplateFromDialog(
+        (payload) => importTemplates(payload, this.props.t, this.session, this.props.templateService),
       );
     } catch (err) {
       showToast(localize("da_template_import_failed", "Failed to import template: {error}", { error: String(err) }), "error");
@@ -894,7 +629,7 @@ export class TemplateManagerView {
     defaultSessionModel.emitChange();
   }
 
-  private editTemplate(template: Partial<TemplateConfig> & { readonly id?: string }): void {
+  private editTemplate(template: TemplateRecord): void {
     const templateId = String(template.id ?? "");
     if (!templateId) {
       return;
@@ -923,9 +658,9 @@ export class TemplateManagerView {
         fileNameMatchCaseSensitive: config.fileNameMatchCaseSensitive,
       };
     } else {
-      const found = cachedTemplates?.find((template: any) => template.id === templateId);
+      const found = cachedTemplates?.find((template) => template.id === templateId);
       if (found) {
-        this.session.setSelectedTemplateId(found.id);
+        this.session.setSelectedTemplateId(typeof found.id === "string" ? found.id : null);
         this.session.setTemplateConfig(cloneTemplateConfig(found));
         this.toggleDraft = {
           stopOnError: Boolean(found.stopOnError),
@@ -948,7 +683,7 @@ export class TemplateManagerView {
       return;
     }
 
-    const validation = validateTemplateForApply(config, this.props.t as any);
+    const validation = validateTemplateForApply(config, toTemplateTranslate(this.props.t));
     if (!validation.ok || !validation.normalized) {
       showToast(validation.message || localize("da_template_invalid_configuration", "Invalid configuration"), "warning");
       return;
@@ -969,7 +704,7 @@ export class TemplateManagerView {
       return;
     }
 
-    const validation = validateTemplateForSave(config, this.props.t as any);
+    const validation = validateTemplateForSave(config, toTemplateTranslate(this.props.t));
     if (!validation.ok || !validation.normalized) {
       showToast(validation.message || localize("da_template_invalid_configuration", "Invalid configuration"), "warning");
       return;
@@ -980,22 +715,21 @@ export class TemplateManagerView {
         ...validation.normalized,
         name,
       };
-      const savedRaw = await analysisStoreClient.createDeviceAnalysisTemplate({
+      const saved = await this.props.templateService.saveTemplate({
         ...persistedTemplate,
       });
-      const saved = savedRaw as any;
 
       if (cachedTemplates) {
-        cachedTemplates = [saved, ...cachedTemplates.filter((template: any) => template.id !== saved.id && toTemplateNameKey(template.name) !== toTemplateNameKey(saved.name))];
+        cachedTemplates = [saved, ...cachedTemplates.filter((template) => template.id !== saved.id && toTemplateNameKey(template.name) !== toTemplateNameKey(saved.name))];
       } else {
         cachedTemplates = [saved];
       }
 
-      this.session.setSelectedTemplateId(saved.id);
+      this.session.setSelectedTemplateId(typeof saved.id === "string" ? saved.id : null);
       this.session.setTemplateConfig(cloneTemplateConfig(saved));
       this.toggleDraft = {
-        stopOnError: saved.stopOnError,
-        fileNameMatchCaseSensitive: saved.fileNameMatchCaseSensitive,
+        stopOnError: Boolean(saved.stopOnError),
+        fileNameMatchCaseSensitive: Boolean(saved.fileNameMatchCaseSensitive),
       };
       this.session.setTemplateMode("select");
       showToast(localize("da_template_saved", "Template saved"), "success");
@@ -1009,7 +743,7 @@ export class TemplateManagerView {
     const config = this.getEffectiveTemplateConfig();
     this.session.setTemplateMode("select");
     if (this.session.selectedTemplateId && this.session.selectedTemplateId !== AUTO_TEMPLATE_ID && cachedTemplates) {
-      const found = cachedTemplates.find((template: any) => template.id === this.session.selectedTemplateId);
+      const found = cachedTemplates.find((template) => template.id === this.session.selectedTemplateId);
       if (found) {
         this.session.setTemplateConfig(cloneTemplateConfig(found));
         this.toggleDraft = {
@@ -1031,7 +765,7 @@ export class TemplateManagerView {
   }
 }
 
-const TemplateManager = (options: TemplateElementOptions): any =>
+const TemplateManager = (options: TemplateElementOptions): HTMLElement =>
   createTemplateElement(options);
 
 export default TemplateManager;

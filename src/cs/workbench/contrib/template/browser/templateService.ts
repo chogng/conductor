@@ -1,64 +1,34 @@
 import {
   downloadTemplateBundle,
-  importTemplateFile,
 } from "src/cs/workbench/contrib/template/browser/templateController";
-import type { URI } from "src/cs/base/common/uri";
-import { localize } from "src/cs/nls";
-import type { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs";
-import type { IFileService } from "src/cs/platform/files/common/files";
-import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
 import type {
   ITemplateService,
-  TemplateImportPayloadHandler,
+  TemplateRecord,
 } from "src/cs/workbench/contrib/template/common/template";
+import type { TemplateConfig } from "src/cs/workbench/contrib/template/common/templateManagerUtils";
+import { analysisStoreClient } from "src/cs/workbench/services/storage/electron-sandbox/analysisStoreClient";
 
 export class BrowserTemplateService implements ITemplateService {
-  constructor(
-    private readonly dialogsService: IFileDialogService,
-    private readonly filesService: IFileService,
-    private readonly pathService: IPathService,
-  ) {}
-
   downloadTemplateBundle(bundle: unknown): string {
     return downloadTemplateBundle(bundle);
   }
 
-  importTemplateFile(
-    file: File,
-    importTemplatesFromPayload: TemplateImportPayloadHandler,
-  ): Promise<void> {
-    return importTemplateFile(file, importTemplatesFromPayload);
+  async getTemplates(): Promise<TemplateRecord[]> {
+    const remote = await analysisStoreClient.getDeviceAnalysisTemplates();
+    return Array.isArray(remote) ? remote.filter(isTemplateRecord) : [];
   }
 
-  async importTemplateFromDialog(
-    importTemplatesFromPayload: TemplateImportPayloadHandler,
-  ): Promise<void> {
-    const resources = await this.dialogsService.showOpenDialog({
-      canSelectFiles: true,
-      canSelectFolders: false,
-      canSelectMany: false,
-      defaultUri: this.pathService.userHome({ preferLocal: true }),
-      filters: [
-        {
-          name: localize("da_template_json_filter", "JSON templates"),
-          extensions: ["json"],
-        },
-      ],
-      openLabel: localize("da_template_import_open_label", "Import template"),
-      title: localize("da_template_import_dialog_title", "Import template"),
-    });
-    const resource = resources?.[0];
-    if (!resource) {
-      return;
-    }
+  async deleteTemplate(id: string): Promise<void> {
+    await analysisStoreClient.deleteDeviceAnalysisTemplate(id);
+  }
 
-    const content = await this.filesService.readFile(resource, { encoding: "utf8" });
-    const payload = JSON.parse(content.value) as unknown;
-    await importTemplatesFromPayload(payload, { fileName: getResourceFileName(resource) });
+  async saveTemplate(template: TemplateConfig): Promise<TemplateRecord> {
+    const saved = await analysisStoreClient.createDeviceAnalysisTemplate({
+      ...template,
+    });
+    return isTemplateRecord(saved) ? saved : template;
   }
 }
 
-const getResourceFileName = (resource: URI): string => {
-  const normalizedPath = resource.path.replace(/\\/g, "/");
-  return normalizedPath.slice(normalizedPath.lastIndexOf("/") + 1) || "template.json";
-};
+const isTemplateRecord = (value: unknown): value is TemplateRecord =>
+  Boolean(value) && typeof value === "object";

@@ -32,6 +32,7 @@ import {
 } from "src/cs/workbench/browser/window";
 import ChartPreviewViewPane from "src/cs/workbench/contrib/chartPreview/browser/chartPreviewViewPane";
 import TemplateEditorPane from "src/cs/workbench/contrib/template/browser/templateEditorPane";
+import { TemplateImportController } from "src/cs/workbench/contrib/template/browser/templateImportController";
 import { BrowserTemplateService } from "src/cs/workbench/contrib/template/browser/templateService";
 import { getWorkbenchContribution } from "src/cs/workbench/common/contributions";
 import type { TableContribution } from "src/cs/workbench/contrib/table/browser/table.contribution";
@@ -161,6 +162,7 @@ export class Workbench extends Layout {
   private readonly pathService: IPathService;
   private readonly tableService: ITableService;
   private readonly templateService: ITemplateService;
+  private readonly templateImportController: TemplateImportController;
   private readonly coreSettingsController: CoreSettingsController;
   private coreSettingsState: CoreSettingsState = createCoreSettingsState();
   private language: LanguageCode = isLanguageCode(window.__CONDUCTOR_INITIAL_LANGUAGE__)
@@ -201,7 +203,8 @@ export class Workbench extends Layout {
     this.dialogsService = options.dialogsService;
     this.pathService = options.pathService;
     this.tableService = options.tableService;
-    this.templateService = new BrowserTemplateService(
+    this.templateService = new BrowserTemplateService();
+    this.templateImportController = new TemplateImportController(
       this.dialogsService,
       this.filesService,
       this.pathService,
@@ -387,6 +390,7 @@ export class Workbench extends Layout {
       onUpdateSettings: this.coreSettingsState.handleUpdateAnalysisSettings,
       rawData: snapshot.rawData,
       tableModel,
+      templateImportController: this.templateImportController,
       templateService: this.templateService,
       t: this.t,
     };
