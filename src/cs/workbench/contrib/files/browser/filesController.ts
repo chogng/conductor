@@ -1,5 +1,6 @@
 import type { ListHandle } from "src/cs/base/browser/ui/list/list";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
+import { URI } from "src/cs/base/common/uri";
 import type { IFileDialogService as IFileDialogServiceType } from "src/cs/platform/dialogs/common/dialogs";
 import type { IFileService as IFileServiceType } from "src/cs/platform/files/common/files";
 import { localize } from "src/cs/nls";
@@ -16,7 +17,7 @@ import type {
   FileSource,
   FilesPaneRef,
 } from "src/cs/workbench/contrib/files/common/files";
-import type { ProcessedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import { collectFolderFiles } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import {
   collectPendingImports,
@@ -30,7 +31,7 @@ export type FilesControllerProps = {
   readonly filesService: IFileServiceType;
   readonly pathService: IPathServiceType;
   files?: FileEntry[];
-  processedData?: ProcessedEntry[];
+  cleanedData?: CleanedEntry[];
   onFileImported?: (fileInfo: ImportSessionFileInfo) => void;
   onFilesReplaced?: (files: ImportSessionFileInfo[]) => void;
   onFileRemoved?: (fileId: string) => void;
@@ -140,7 +141,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
       onOpenFolderDialog: this.handleOpenFolderDialog,
       onSelectFile: this.handleSelectFile,
       onSelectFiles: this.handleSelectFiles,
-      processedData: this.props.processedData,
+      cleanedData: this.props.cleanedData,
       t: this.props.t,
     };
   }
@@ -229,21 +230,25 @@ export class FilesController implements FilesPaneRef, IDisposable {
         title: localize("import.pickFolderTitle", "选择要导入的文件夹"),
         openLabel: localize("import.openFolderButton", "打开文件夹"),
       });
-      const folderPath = folders?.[0]?.fsPath ?? null;
-      if (!folderPath || this.disposed) {
+      const folder = folders?.[0] ? URI.revive(folders[0]) : null;
+      if (!folder || this.disposed) {
         return;
       }
 
-      const files = await collectFolderFiles(folderPath, this.filesService);
+      const files = await collectFolderFiles(folder, this.filesService);
       if (this.disposed) {
         return;
       }
 
-      this.watchImportedFolder(folderPath);
+      this.watchImportedFolder(folder);
       void this.processFiles(files);
-    } catch {
+    } catch (error) {
       if (this.disposed) {
         return;
+      }
+
+      if (import.meta.env.DEV) {
+        console.error("Failed to read files from the selected folder.", error);
       }
 
       this.error = localize(
@@ -433,24 +438,25 @@ export class FilesController implements FilesPaneRef, IDisposable {
     }
   }
 
-  private watchImportedFolder(folderPath: string): void {
-    this.folderWatcher.watch(folderPath);
+  private watchImportedFolder(folder: URI): void {
+    this.folderWatcher.watch(folder);
   }
 
   private clearImportedFolderWatch(): void {
     this.folderWatcher.clear();
   }
 
-  private async refreshImportedFolder(folderPath: string): Promise<void> {
-    if (!folderPath || this.disposed) {
+  private async refreshImportedFolder(folder: URI): Promise<void> {
+    if (this.disposed) {
       return;
     }
 
     const runId = this.folderRefreshRunId + 1;
     this.folderRefreshRunId = runId;
+    const folderKey = folder.toString();
 
     try {
-      const files = await collectFolderFiles(folderPath, this.filesService);
+      const files = await collectFolderFiles(folder, this.filesService);
       if (this.disposed || runId !== this.folderRefreshRunId) {
         return;
       }
@@ -461,7 +467,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
         shouldContinue: () =>
           !this.disposed &&
           runId === this.folderRefreshRunId &&
-          this.folderWatcher.currentFolderPath === folderPath,
+          this.folderWatcher.currentFolderKey === folderKey,
       });
     } catch {
       if (this.disposed || runId !== this.folderRefreshRunId) {

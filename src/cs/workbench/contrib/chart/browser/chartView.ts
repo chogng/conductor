@@ -14,9 +14,9 @@ import type {
   IonIoffMethod,
   SsManualRanges,
   SsMethod,
-} from "src/cs/workbench/contrib/session/analysis-session-context";
+} from "src/cs/workbench/contrib/session/browser/sessionContext";
 import type {
-  ProcessedEntry,
+  CleanedEntry,
   ProcessingStatus,
 } from "src/cs/workbench/contrib/session/common/sessionTypes";
 
@@ -30,7 +30,7 @@ type DiagnosticsState = {
 export type ChartViewProps = {
   t: TranslateFn;
   activePlotType?: PlotType;
-  processedData: ProcessedEntry[];
+  cleanedData: CleanedEntry[];
   processingStatus?: Partial<ProcessingStatus>;
   activeFileId?: string | null;
   ionIoffMethod?: IonIoffMethod;
@@ -71,7 +71,7 @@ const appendStat = (parent: HTMLElement, label: string, value: string): void => 
 export const createChartView = (props: ChartViewProps): HTMLElement => {
   const {
     activePlotType = "iv",
-    processedData = [],
+    cleanedData = [],
     processingStatus,
     activeFileId: controlledActiveFileId = undefined,
     t,
@@ -81,7 +81,7 @@ export const createChartView = (props: ChartViewProps): HTMLElement => {
   root.className = "chart_view";
   root.setAttribute("aria-label", t("analysis.visualization"));
 
-  if (!processedData.length) {
+  if (!cleanedData.length) {
     root.append(createEmptyView({
       hint: processingStatus?.state === "processing"
         ? t("da_analysis_processing_hint")
@@ -96,7 +96,7 @@ export const createChartView = (props: ChartViewProps): HTMLElement => {
   const model = createMainPlotModel({
     activeFileId: controlledActiveFileId,
     plotType: activePlotType,
-    processedData,
+    cleanedData,
   });
 
   const summary = document.createElement("div");
@@ -165,7 +165,7 @@ const createDiagnosticsArea = ({
     ChartViewProps,
     | "activePlotType"
     | "gmDiagnosticsEnabled"
-    | "processedData"
+    | "cleanedData"
     | "processingStatus"
     | "setGmDiagnosticsEnabled"
     | "setSsDiagnosticsEnabled"

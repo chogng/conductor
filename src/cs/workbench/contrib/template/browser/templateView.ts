@@ -19,7 +19,7 @@ import {
   toTemplateNameKey,
   type TemplateConfig,
 } from "src/cs/workbench/contrib/template/common/templateManagerUtils";
-import { getSession, defaultSessionModel } from "src/cs/workbench/contrib/session/useSession";
+import { getSession, defaultSessionModel } from "src/cs/workbench/contrib/session/browser/useSession";
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import {
   validateTemplateForSave,

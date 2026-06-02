@@ -1,5 +1,5 @@
-import { SessionModel } from "src/cs/workbench/contrib/session/sessionModel";
-import type { SessionContextValue } from "./analysis-session-context";
+import { SessionModel } from "src/cs/workbench/contrib/session/browser/sessionModel";
+import type { SessionContextValue } from "./sessionContext";
 
 export const defaultSessionModel = new SessionModel();
 

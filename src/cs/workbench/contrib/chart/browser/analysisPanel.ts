@@ -12,7 +12,7 @@ import {
 } from "src/cs/base/browser/ui/lxicon/lxicon";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type {
-  ProcessedEntry,
+  CleanedEntry,
   ProcessingStatus,
 } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
@@ -21,7 +21,7 @@ import type {
   IonIoffMethod,
   SsManualRanges,
   SsMethod,
-} from "src/cs/workbench/contrib/session/analysis-session-context";
+} from "src/cs/workbench/contrib/session/browser/sessionContext";
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 import { createChartView } from "src/cs/workbench/contrib/chart/browser/chartView";
 
@@ -29,7 +29,7 @@ type StateSetter<T> = (next: T | ((previous: T) => T)) => void;
 
 export type ChartViewLazyProps = {
   activePlotType?: PlotType;
-  processedData: ProcessedEntry[];
+  cleanedData: CleanedEntry[];
   processingStatus?: Partial<ProcessingStatus>;
   activeFileId?: string | null;
   ionIoffMethod?: IonIoffMethod;
@@ -81,13 +81,13 @@ export class AnalysisPanel {
 
 const createAnalysisPanelContent = (props: AnalysisPanelProps): HTMLElement => {
   const {
-    processedData = [],
+    cleanedData = [],
     processingStatus,
     shouldMountCharts = false,
     t,
   } = props;
 
-  if (processedData.length > 0) {
+  if (cleanedData.length > 0) {
     if (shouldMountCharts) {
       return createAnalysisStatusCard({
         id: "analysis-analysis-loading-card",
@@ -99,7 +99,7 @@ const createAnalysisPanelContent = (props: AnalysisPanelProps): HTMLElement => {
 
     return createChartView({
       ...props,
-      processedData,
+      cleanedData,
       t,
     });
   }
@@ -110,7 +110,7 @@ const createAnalysisPanelContent = (props: AnalysisPanelProps): HTMLElement => {
 
   return createChartView({
     ...props,
-    processedData,
+    cleanedData,
     t,
   });
 };

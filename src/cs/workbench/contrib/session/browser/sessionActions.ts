@@ -3,9 +3,10 @@ import type {
   PreviewStatus,
   StateSetter,
   SsManualRanges,
-} from "./analysis-session-context";
+} from "./sessionContext";
 import type {
-  ProcessedEntry,
+  AnalysisResultsByFileId,
+  CleanedEntry,
   ProcessingStatus,
   SessionFile,
 } from "src/cs/workbench/contrib/session/common/sessionTypes";
@@ -16,14 +17,15 @@ type UseSessionActionsOptions = {
   invalidatePreviewRequests: () => void;
   previewFile?: { fileId?: string } | null;
   previewLoadingMessage: string;
-  processedData?: ProcessedEntry[];
+  cleanedData?: CleanedEntry[];
   processingStatus?: Partial<ProcessingStatus>;
   sourceFiles?: SessionFile[];
   removeQueuedProcessingFile: (fileId: string) => void;
   resetPreviewWorker: () => void;
   resetProcessingWorker: () => void;
   selectedPreviewFileId?: string | null;
-  setProcessedData: StateSetter<ProcessedEntry[]>;
+  setAnalysisResults: StateSetter<AnalysisResultsByFileId>;
+  setCleanedData: StateSetter<CleanedEntry[]>;
   setPreviewStatus: StateSetter<PreviewStatus>;
   setSourceFiles: StateSetter<SessionFile[]>;
   setSelectedPreviewFileId: StateSetter<string | null>;
@@ -38,14 +40,15 @@ export const createSessionActions = ({
   invalidatePreviewRequests,
   previewFile = null,
   previewLoadingMessage,
-  processedData = [],
+  cleanedData = [],
   processingStatus = { state: "idle" },
   sourceFiles = [],
   removeQueuedProcessingFile,
   resetPreviewWorker,
   resetProcessingWorker,
   selectedPreviewFileId = null,
-  setProcessedData,
+  setAnalysisResults,
+  setCleanedData,
   setPreviewStatus,
   setSourceFiles,
   setSelectedPreviewFileId,
@@ -69,7 +72,7 @@ export const createSessionActions = ({
 
   const hasSessionData =
     sourceFiles.length > 0 ||
-    processedData.length > 0 ||
+    cleanedData.length > 0 ||
     previewFile !== null;
 
   const handleClearSession = () => {
@@ -79,7 +82,8 @@ export const createSessionActions = ({
     invalidatePreviewRequests();
     clearPreviewState({ clearSelection: true });
 
-    setProcessedData([]);
+    setCleanedData([]);
+    setAnalysisResults({});
     setSourceFiles([]);
     setSelectedPreviewSheetId(null);
     setIonIoffManualTargetsByFileId({});
@@ -108,7 +112,8 @@ export const createSessionActions = ({
       }
     }
 
-    setProcessedData([]);
+    setCleanedData([]);
+    setAnalysisResults({});
     setIonIoffManualTargetsByFileId({});
     setSsManualRanges({});
     resetPreviewWorker();
@@ -132,9 +137,15 @@ export const createSessionActions = ({
     }
 
     setSourceFiles((prev) => prev.filter((entry) => entry.fileId !== fileId));
-    setProcessedData((prev) =>
+    setCleanedData((prev) =>
       (Array.isArray(prev) ? prev : []).filter((entry) => entry?.fileId !== fileId),
     );
+    setAnalysisResults((prev) => {
+      if (!prev?.[fileId]) return prev;
+      const next = { ...prev };
+      delete next[fileId];
+      return next;
+    });
     setIonIoffManualTargetsByFileId((prev) => {
       if (!prev?.[fileId]) return prev;
       const next = { ...prev };
@@ -190,5 +201,3 @@ export const createSessionActions = ({
     hasSessionData,
   };
 };
-
-export const useSessionActions = createSessionActions;

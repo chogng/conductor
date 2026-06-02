@@ -6,7 +6,7 @@ import type {
   IonIoffManualTargetsByFileId,
   IonIoffMethod,
   SsMethod,
-} from "src/cs/workbench/contrib/session/analysis-session-context";
+} from "src/cs/workbench/contrib/session/browser/sessionContext";
 import { originService } from "src/cs/workbench/services/origin/browser/originService";
 
 export type AnalysisSettings = {

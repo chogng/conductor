@@ -1,7 +1,8 @@
 import type {
+  AnalysisResultsByFileId,
   PreviewFile,
   PreviewRowsRequest,
-  ProcessedEntry,
+  CleanedEntry,
   SessionFile,
 } from "src/cs/workbench/contrib/session/common/sessionTypes";
 
@@ -74,8 +75,10 @@ export type SessionContextValue = {
   selectedPreviewSheetId: string | null;
   setSelectedPreviewFileId: StateSetter<string | null>;
   setSelectedPreviewSheetId: StateSetter<string | null>;
-  processedData: ProcessedEntry[];
-  setProcessedData: StateSetter<ProcessedEntry[]>;
+  cleanedData: CleanedEntry[];
+  setCleanedData: StateSetter<CleanedEntry[]>;
+  analysisResults: AnalysisResultsByFileId;
+  setAnalysisResults: StateSetter<AnalysisResultsByFileId>;
   templateMode: TemplateMode;
   setTemplateMode: StateSetter<TemplateMode>;
   selectedTemplateId: string | null;

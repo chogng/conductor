@@ -8,7 +8,7 @@ import {
 import { getCachedSsFitAuto } from "../../diagnostics/common/analysisCacheAccess.ts";
 import { isTransferLikeFile } from "../../diagnostics/common/metrics.ts";
 import { getExcelColumnLabel } from "../common/columnLabels.ts";
-import type { ProcessedEntry, ProcessedSeries } from "../../session/common/sessionTypes.ts";
+import type { CleanedEntry, CleanedSeries } from "../../session/common/sessionTypes.ts";
 export type {
   OriginExportMode,
   OriginSelectionExport,
@@ -88,7 +88,7 @@ export const createUniqueFileNameResolver = (): ((
 };
 
 export const buildCsvExports = (
-  processedData: ProcessedEntry[] = [],
+  cleanedData: CleanedEntry[] = [],
 ): Array<{
   csvText: string;
   filename: string;
@@ -98,12 +98,12 @@ export const buildCsvExports = (
   const exports: Array<{ csvText: string; filename: string; xyPairCount: number }> =
     [];
 
-  for (const file of processedData) {
+  for (const file of cleanedData) {
     const originalFileName = file?.fileName ?? "device_analysis";
     const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
     const seriesList = Array.isArray(file?.series) ? file.series : [];
 
-    const seriesByYCol = new Map<number, ProcessedSeries[]>();
+    const seriesByYCol = new Map<number, CleanedSeries[]>();
     for (const series of seriesList) {
       const yCol = Number(series?.yCol);
       if (!Number.isInteger(yCol)) continue;
@@ -189,8 +189,8 @@ const buildPoints = (xArr?: number[], yArr?: number[]): Array<{ x: number; y: nu
 };
 
 const getOrComputeSsFitAuto = (
-  file: ProcessedEntry,
-  series: ProcessedSeries,
+  file: CleanedEntry,
+  series: CleanedSeries,
   points: Array<{ x: number; y: number }>,
 ): Partial<{ strict: SsFit; suggested: SsFit }> | null | undefined => {
   const cached = getCachedSsFitAuto(file as any, series) as
@@ -204,11 +204,11 @@ const getOrComputeSsFitAuto = (
 };
 
 export const buildSsMetricsCsv = ({
-  processedData = [],
+  cleanedData = [],
   ssManualRanges,
   ssMethod,
 }: {
-  processedData?: ProcessedEntry[];
+  cleanedData?: CleanedEntry[];
   ssManualRanges?: unknown;
   ssMethod?: unknown;
 }): string => {
@@ -241,7 +241,7 @@ export const buildSsMetricsCsv = ({
       : {};
   const methodDefault = String(ssMethod || "auto");
 
-  for (const file of processedData) {
+  for (const file of cleanedData) {
     const fileId = file?.fileId ?? "";
     const fileName = file?.fileName ?? "";
     const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];

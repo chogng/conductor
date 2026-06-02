@@ -2,13 +2,13 @@ import type JSZip from "jszip";
 import type {
   SsManualRanges,
   SsMethod,
-} from "src/cs/workbench/contrib/session/analysis-session-context";
-import type { ProcessedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
+} from "src/cs/workbench/contrib/session/browser/sessionContext";
+import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 
 type ExportModule = typeof import("./export");
 
 type UseExportsOptions = {
-  processedData?: ProcessedEntry[];
+  cleanedData?: CleanedEntry[];
   ssManualRanges?: SsManualRanges;
   ssMethod?: SsMethod;
 };
@@ -43,12 +43,12 @@ const loadExportDependencies = async () => {
 };
 
 export const createExports = ({
-  processedData = [],
+  cleanedData = [],
   ssManualRanges,
   ssMethod,
 }: UseExportsOptions) => {
   const handleExport = async () => {
-    if (processedData.length === 0) return;
+    if (cleanedData.length === 0) return;
 
     const {
       JSZip,
@@ -57,7 +57,7 @@ export const createExports = ({
       triggerBlobDownload,
     } = await loadExportDependencies();
 
-    const exports = buildCsvExports(processedData);
+    const exports = buildCsvExports(cleanedData);
     if (exports.length === 0) return;
 
     const zip = new JSZip();
@@ -69,7 +69,7 @@ export const createExports = ({
       "device_analysis_metrics.csv",
       "\uFEFF" +
         buildSsMetricsCsv({
-          processedData,
+          cleanedData,
           ssManualRanges,
           ssMethod,
         }),
@@ -85,7 +85,7 @@ export const createExports = ({
   };
 
   const handleExportOrigin = async () => {
-    if (processedData.length === 0) return;
+    if (cleanedData.length === 0) return;
 
     const {
       JSZip,
@@ -93,7 +93,7 @@ export const createExports = ({
       triggerBlobDownload,
     } = await loadExportDependencies();
 
-    const exports = buildCsvExports(processedData);
+    const exports = buildCsvExports(cleanedData);
     if (exports.length === 0) return;
 
     const zip = new JSZip();

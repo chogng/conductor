@@ -117,10 +117,10 @@ const createFileCacheEntry = (sourceFile: any = null) => ({
 
 export const createAnalysisFileCache = ({
   effectiveActiveFileId,
-  processedData,
+  cleanedData,
 }: {
   effectiveActiveFileId: unknown;
-  processedData: any[];
+  cleanedData: any[];
 }) => {
   const diagnosticsService = new BrowserDiagnosticsService();
   const fileAnalysisCache = new Map();
@@ -129,7 +129,7 @@ export const createAnalysisFileCache = ({
   let cachePrefetchHandle: CachePrefetchHandle | null = null;
 
   const keep = new Set(
-    (Array.isArray(processedData) ? processedData : [])
+    (Array.isArray(cleanedData) ? cleanedData : [])
       .map((file: any) => file?.fileId)
       .filter(Boolean),
   );
@@ -156,8 +156,8 @@ export const createAnalysisFileCache = ({
     return entry;
   };
 
-  if (effectiveActiveFileId && Array.isArray(processedData)) {
-    const activeFile = processedData.find(
+  if (effectiveActiveFileId && Array.isArray(cleanedData)) {
+    const activeFile = cleanedData.find(
       (file: any) => file?.fileId === effectiveActiveFileId,
     );
     diagnosticsService.touchAnalysisCacheSourceFile(activeFile);
@@ -286,7 +286,7 @@ export const createAnalysisFileCache = ({
     const jobId = cachePrefetchJobId;
     cancelScheduled();
 
-    const candidates = (Array.isArray(processedData) ? processedData : []).filter(
+    const candidates = (Array.isArray(cleanedData) ? cleanedData : []).filter(
       (file: any) =>
         typeof file?.fileId === "string" &&
         Array.isArray(file?.series) &&

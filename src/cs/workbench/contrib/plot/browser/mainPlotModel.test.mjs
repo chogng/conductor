@@ -1,4 +1,4 @@
-import test from "node:test";
+﻿import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
@@ -28,7 +28,7 @@ test("createMainPlotModel builds drawable IV series for the active file", () => 
   const model = createMainPlotModel({
     activeFileId: "file-b",
     plotType: "iv",
-    processedData: [
+    cleanedData: [
       createFile(),
       createFile({
         fileId: "file-b",
@@ -126,7 +126,7 @@ test("createMainPlotModel falls back to an empty drawable domain", () => {
   const model = createMainPlotModel({
     activeFileId: "missing",
     plotType: "iv",
-    processedData: [
+    cleanedData: [
       createFile({
         xGroups: [[]],
         series: [{ id: "series-a", groupIndex: 0, y: [] }],

@@ -1,4 +1,4 @@
-﻿import type { MutableState } from "src/cs/workbench/contrib/session/analysis-session-context";
+import type { MutableState } from "src/cs/workbench/contrib/session/browser/sessionContext";
 import {
   ORIGIN_CSV_AUTO_ZIP_FALLBACK_CODES,
   attachOriginCsvPaths,

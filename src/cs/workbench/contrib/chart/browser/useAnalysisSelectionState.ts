@@ -1,6 +1,6 @@
-import type { IonIoffManualTargetsByFileId } from "src/cs/workbench/contrib/session/analysis-session-context";
+import type { IonIoffManualTargetsByFileId } from "src/cs/workbench/contrib/session/browser/sessionContext";
 import type { AnalysisSettings } from "src/cs/workbench/contrib/settings/settingsShared";
-import type { ProcessedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 
 export type AnalysisFileOption = {
   label: string;
@@ -20,9 +20,9 @@ const stripCsvExtension = (fileName: string): string => {
 };
 
 const getAnalysisFileOptions = (
-  processedData: ProcessedEntry[] | null | undefined,
+  cleanedData: CleanedEntry[] | null | undefined,
 ): AnalysisFileOption[] =>
-  (Array.isArray(processedData) ? processedData : [])
+  (Array.isArray(cleanedData) ? cleanedData : [])
     .map((entry) => {
       const fileId =
         typeof entry?.fileId === "string"
@@ -49,7 +49,7 @@ type UseAnalysisSelectionStateParams = {
     updates: unknown,
   ) => Promise<AnalysisSettings | null>;
   ionIoffManualTargetsByFileId: IonIoffManualTargetsByFileId;
-  processedData: ProcessedEntry[];
+  cleanedData: CleanedEntry[];
   setIonIoffManualTargetsByFileId: StateSetter<IonIoffManualTargetsByFileId>;
 };
 
@@ -58,10 +58,10 @@ export const createAnalysisSelectionState = ({
   analysisSettingsLoaded,
   handleUpdateAnalysisSettings,
   ionIoffManualTargetsByFileId,
-  processedData,
+  cleanedData,
   setIonIoffManualTargetsByFileId,
 }: UseAnalysisSelectionStateParams) => {
-  const analysisFileOptions = getAnalysisFileOptions(processedData);
+  const analysisFileOptions = getAnalysisFileOptions(cleanedData);
   let analysisActiveFileId: string | null = analysisFileOptions[0]?.value ?? null;
 
   const setAnalysisActiveFileId: StateSetter<string | null> = (value) => {
@@ -78,7 +78,7 @@ export const createAnalysisSelectionState = ({
   const fileId = String(analysisActiveFileId ?? "").trim();
   if (fileId) {
     const activeFile =
-      processedData.find((entry) => entry?.fileId === fileId) ?? null;
+      cleanedData.find((entry) => entry?.fileId === fileId) ?? null;
     const defaultSeriesId = String(activeFile?.series?.[0]?.id ?? "").trim();
     const fallbackIonX = analysisSettings?.ionIoffManualIonX;
     const fallbackIoffX = analysisSettings?.ionIoffManualIoffX;

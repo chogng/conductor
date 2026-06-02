@@ -1,7 +1,8 @@
 import type {
+  AnalysisResultsByFileId,
   PreviewFile,
   PreviewRowsRequest,
-  ProcessedEntry,
+  CleanedEntry,
   SessionFile,
 } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import type {
@@ -15,13 +16,14 @@ import type {
   StateSetter,
   TemplateConfig,
   TemplateMode,
-} from "src/cs/workbench/contrib/session/analysis-session-context";
+} from "src/cs/workbench/contrib/session/browser/sessionContext";
 
 type SessionSnapshot = {
   readonly sourceFiles: SessionFile[];
   readonly selectedPreviewFileId: string | null;
   readonly selectedPreviewSheetId: string | null;
-  readonly processedData: ProcessedEntry[];
+  readonly cleanedData: CleanedEntry[];
+  readonly analysisResults: AnalysisResultsByFileId;
   readonly templateMode: TemplateMode;
   readonly selectedTemplateId: string | null;
   readonly templateConfig: TemplateConfig;
@@ -77,7 +79,8 @@ export class SessionModel {
     sourceFiles: [],
     selectedPreviewFileId: null,
     selectedPreviewSheetId: null,
-    processedData: [],
+    cleanedData: [],
+    analysisResults: {},
     templateMode: "select",
     selectedTemplateId: null,
     templateConfig: createTemplateConfig(),
@@ -114,8 +117,10 @@ export class SessionModel {
     this.update("selectedPreviewFileId", value);
   readonly setSelectedPreviewSheetId: StateSetter<string | null> = (value) =>
     this.update("selectedPreviewSheetId", value);
-  readonly setProcessedData: StateSetter<ProcessedEntry[]> = (value) =>
-    this.update("processedData", value);
+  readonly setCleanedData: StateSetter<CleanedEntry[]> = (value) =>
+    this.update("cleanedData", value);
+  readonly setAnalysisResults: StateSetter<AnalysisResultsByFileId> = (value) =>
+    this.update("analysisResults", value);
   readonly setTemplateMode: StateSetter<TemplateMode> = (value) =>
     this.update("templateMode", value);
   readonly setSelectedTemplateId: StateSetter<string | null> = (value) =>
@@ -158,7 +163,8 @@ export class SessionModel {
       setSourceFiles: this.setSourceFiles,
       setSelectedPreviewFileId: this.setSelectedPreviewFileId,
       setSelectedPreviewSheetId: this.setSelectedPreviewSheetId,
-      setProcessedData: this.setProcessedData,
+      setCleanedData: this.setCleanedData,
+      setAnalysisResults: this.setAnalysisResults,
       setTemplateMode: this.setTemplateMode,
       setSelectedTemplateId: this.setSelectedTemplateId,
       setTemplateConfig: this.setTemplateConfig,

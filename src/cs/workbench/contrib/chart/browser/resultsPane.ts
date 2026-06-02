@@ -26,8 +26,8 @@ import { renderParametersView } from "src/cs/workbench/contrib/parameters/browse
 import type { CalculatedParameterRowData } from "src/cs/workbench/contrib/parameters/browser/parametersModel";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type {
-  ProcessedEntry,
-  ProcessedSeries,
+  CleanedEntry,
+  CleanedSeries,
 } from "src/cs/workbench/contrib/session/common/sessionTypes";
 
 import "src/cs/workbench/contrib/export/browser/media/export.css";
@@ -36,7 +36,7 @@ import "src/cs/workbench/contrib/chart/browser/media/resultsPane.css";
 
 export type ResultsPaneProps = {
   readonly activeFileId?: string | null;
-  readonly processedData: ProcessedEntry[];
+  readonly cleanedData: CleanedEntry[];
   readonly t: TranslateFn;
 };
 
@@ -121,7 +121,7 @@ export class ResultsPane {
 
   private createExportSection(
     props: ResultsPaneProps,
-    activeFile: ProcessedEntry,
+    activeFile: CleanedEntry,
   ): HTMLElement {
     const section = document.createElement("section");
     section.className = getCardClassName({
@@ -175,7 +175,7 @@ export class ResultsPane {
 
   private createParametersSection(
     props: ResultsPaneProps,
-    activeFile: ProcessedEntry,
+    activeFile: CleanedEntry,
   ): HTMLElement {
     const section = document.createElement("section");
     section.className = getCardClassName({
@@ -196,7 +196,7 @@ export class ResultsPane {
     return section;
   }
 
-  private syncCurveSelection(activeFile: ProcessedEntry): void {
+  private syncCurveSelection(activeFile: CleanedEntry): void {
     const curveKeys = new Set(
       createOriginCurveOptions(activeFile).map((option) => option.key),
     );
@@ -210,9 +210,9 @@ export class ResultsPane {
 
 const resolveActiveFile = ({
   activeFileId,
-  processedData,
-}: ResultsPaneProps): ProcessedEntry | null => {
-  const files = Array.isArray(processedData) ? processedData : [];
+  cleanedData,
+}: ResultsPaneProps): CleanedEntry | null => {
+  const files = Array.isArray(cleanedData) ? cleanedData : [];
   const normalizedActiveFileId = String(activeFileId ?? "").trim();
   return (
     files.find((file) => String(file?.fileId ?? "") === normalizedActiveFileId) ??
@@ -222,7 +222,7 @@ const resolveActiveFile = ({
 };
 
 const createOriginCurveOptions = (
-  file: ProcessedEntry,
+  file: CleanedEntry,
 ): OriginCurveExportSeriesOption[] =>
   (Array.isArray(file?.series) ? file.series : [])
     .map((series, index) => {
@@ -238,7 +238,7 @@ const createOriginCurveOptions = (
     .filter((option): option is OriginCurveExportSeriesOption => Boolean(option));
 
 const createParameterRows = (
-  file: ProcessedEntry,
+  file: CleanedEntry,
 ): Array<CalculatedParameterRowData & { id?: unknown }> => {
   const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
   const seriesList = Array.isArray(file?.series) ? file.series : [];
@@ -281,7 +281,7 @@ const createParameterRows = (
   });
 };
 
-const resolveSeriesName = (series: ProcessedSeries, index: number): string =>
+const resolveSeriesName = (series: CleanedSeries, index: number): string =>
   String(series?.name ?? `Series ${index + 1}`);
 
 const resolveMaxAbsPoint = (

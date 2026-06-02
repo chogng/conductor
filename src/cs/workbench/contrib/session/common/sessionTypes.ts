@@ -20,7 +20,7 @@ export type SessionFile = {
   [key: string]: unknown;
 };
 
-export type ProcessedSeries = {
+export type CleanedSeries = {
   id?: string;
   name?: string;
   groupIndex?: number;
@@ -29,12 +29,12 @@ export type ProcessedSeries = {
   [key: string]: unknown;
 };
 
-export type ProcessedDomain = {
+export type CleanedDomain = {
   x?: [number, number];
   y?: [number, number];
 };
 
-export type ProcessedEntry = {
+export type CleanedEntry = {
   fileId?: string;
   fileName?: string;
   curveFilterKey?: string | null;
@@ -58,10 +58,18 @@ export type ProcessedEntry = {
     [key: string]: unknown;
   };
   xGroups?: number[][];
-  series?: ProcessedSeries[];
-  domain?: ProcessedDomain;
+  series?: CleanedSeries[];
+  domain?: CleanedDomain;
   [key: string]: unknown;
 };
+
+export type AnalysisFileResults = {
+  fileId: string;
+  analysisCache?: unknown;
+  touchedAt?: number;
+};
+
+export type AnalysisResultsByFileId = Record<string, AnalysisFileResults>;
 
 export type PreviewFile = {
   fileId: string;

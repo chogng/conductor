@@ -9,7 +9,7 @@ import type { OriginCanvasExportScope } from "src/cs/workbench/contrib/export/br
 import type { ProcessingStatus } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import {
   createThumbnailView,
-  type ProcessedFileLike,
+  type CleanedFileLike,
 } from "src/cs/workbench/contrib/thumbnail/browser/ThumbnailView";
 import {
   createThumbnailFieldFilterOptions,
@@ -23,7 +23,7 @@ import {
 } from "src/cs/workbench/contrib/thumbnail/browser/thumbnailViewPane";
 
 type OverviewGridProps = {
-  processedData?: ProcessedFileLike[];
+  cleanedData?: CleanedFileLike[];
   processingStatus?: Partial<ProcessingStatus>;
   activeFileId?: string | null;
   onSelectFile?: (fileId: string | undefined) => void;
@@ -34,10 +34,10 @@ type OverviewGridProps = {
   isSelectionMode?: boolean;
   xUnitFactor?: number;
   xUnitLabel?: string;
-  resolveYUnitForFile?: (file: ProcessedFileLike | null | undefined) => string;
-  resolveYScaleForFile?: (file: ProcessedFileLike | null | undefined) => string;
+  resolveYUnitForFile?: (file: CleanedFileLike | null | undefined) => string;
+  resolveYScaleForFile?: (file: CleanedFileLike | null | undefined) => string;
   resolveYLogCurrentModeForFile?: (
-    file: ProcessedFileLike | null | undefined,
+    file: CleanedFileLike | null | undefined,
   ) => "all" | "positive";
 };
 
@@ -53,7 +53,7 @@ export const createOverviewGrid = ({
   onToggleOriginCanvasSelection,
   onVisibleFileIdsChange,
   originCanvasExportScope = "selected",
-  processedData = [],
+  cleanedData = [],
   processingStatus,
   resolveYLogCurrentModeForFile,
   resolveYScaleForFile,
@@ -62,13 +62,13 @@ export const createOverviewGrid = ({
   xUnitFactor,
   xUnitLabel,
 }: OverviewGridProps): HTMLElement | null => {
-  if (!processedData.length) {
+  if (!cleanedData.length) {
     return null;
   }
 
   const { t } = languageService.getSnapshot();
   let curveFilter: CurveFilter = "all";
-  const fieldFilterOptions = createThumbnailFieldFilterOptions(processedData, t);
+  const fieldFilterOptions = createThumbnailFieldFilterOptions(cleanedData, t);
   const curveFilterOptions = [
     ...fieldFilterOptions,
     { label: t("da_overview_curve_filter_all"), value: "all" as const },
@@ -84,7 +84,7 @@ export const createOverviewGrid = ({
   list.className = "thumbnail_overview_grid_list";
 
   const renderList = (): void => {
-    const filteredData = filterThumbnailFiles(processedData, curveFilter);
+    const filteredData = filterThumbnailFiles(cleanedData, curveFilter);
     const visibleFileIds = getVisibleThumbnailFileIds(filteredData);
     onVisibleFileIdsChange?.(
       createThumbnailVisibleFilesEvent(visibleFileIds).fileIds,

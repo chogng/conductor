@@ -15,7 +15,7 @@ import { localize } from "src/cs/nls";
 import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/previewPart";
 import { ChartViewId } from "src/cs/workbench/contrib/chart/common/chart";
 import { isPlotType, PlotTypes, type PlotType } from "src/cs/workbench/contrib/plot/common/plot";
-import type { ProcessedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 
 import "src/cs/workbench/contrib/chart/browser/media/chart.css";
 
@@ -73,7 +73,7 @@ export class ChartViewPane {
   private renderHeader(props: AnalysisPanelProps): void {
     this.headerStore.clear();
     const activeFile = resolveActiveFile(props);
-    const isEmpty = !props.processedData.length;
+    const isEmpty = !props.cleanedData.length;
     this.header.className = "chart_view_header";
     this.headerTabs.replaceChildren();
     this.headerActions.replaceChildren();
@@ -118,25 +118,25 @@ export class ChartViewPane {
 
 const resolveActiveFile = ({
   activeFileId,
-  processedData = [],
-}: AnalysisPanelProps): ProcessedEntry | null => {
+  cleanedData = [],
+}: AnalysisPanelProps): CleanedEntry | null => {
   const normalizedActiveFileId = String(activeFileId ?? "").trim();
   return (
-    processedData.find((file) => String(file?.fileId ?? "") === normalizedActiveFileId) ??
-    processedData[0] ??
+    cleanedData.find((file) => String(file?.fileId ?? "") === normalizedActiveFileId) ??
+    cleanedData[0] ??
     null
   );
 };
 
 const createFileSelect = (
   props: AnalysisPanelProps,
-  activeFile: ProcessedEntry,
+  activeFile: CleanedEntry,
   store: DisposableStore,
 ): HTMLSelectElement => {
   const select = document.createElement("select");
   select.className = "chart_view_file_select dropdown-field dropdown-field--sm";
   select.value = String(activeFile.fileId ?? "");
-  for (const file of props.processedData) {
+  for (const file of props.cleanedData) {
     const fileId = String(file?.fileId ?? "");
     if (!fileId) {
       continue;

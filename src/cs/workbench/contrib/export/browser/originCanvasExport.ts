@@ -1,4 +1,4 @@
-import type { MutableState } from "src/cs/workbench/contrib/session/analysis-session-context";
+import type { MutableState } from "src/cs/workbench/contrib/session/browser/sessionContext";
 import {
   exportOriginZip,
   type OriginDisplayRange,
@@ -51,7 +51,7 @@ type UseOriginCanvasExportOptions = {
   originExportContentKeys?: OriginExportContentKey[];
   originAxisSettings?: unknown;
   originOpenPlotOptions: unknown;
-  processedData: any[];
+  cleanedData: any[];
   resolveYScaleForFile?: (
     file: any,
   ) => OriginYAxisScaleMode;
@@ -132,7 +132,7 @@ export const createOriginCanvasExport = ({
   originExportContentKeys = ["iv"],
   originAxisSettings,
   originOpenPlotOptions,
-  processedData,
+  cleanedData,
   resolveCurveLabelForSeries = (_file, series, index) =>
     resolveSeriesLabel(series, index),
   resolveAxisTitleForFile = () => "",
@@ -149,7 +149,7 @@ export const createOriginCanvasExport = ({
   const resolvedOriginExportMode: OriginExportMode =
     isOriginExportMode(originExportMode) ? originExportMode : "merged";
 
-  const originCanvasOptions = (Array.isArray(processedData) ? processedData : [])
+  const originCanvasOptions = (Array.isArray(cleanedData) ? cleanedData : [])
     .map((file: any) => {
       const key = String(file?.fileId ?? "");
       if (!key) return null;
@@ -177,7 +177,7 @@ export const createOriginCanvasExport = ({
     const targetKey = String(fileId ?? "").trim();
     if (!targetKey) return [];
 
-    const file = (Array.isArray(processedData) ? processedData : []).find(
+    const file = (Array.isArray(cleanedData) ? cleanedData : []).find(
       (item: any) => String(item?.fileId ?? "") === targetKey,
     );
     const allSeries = Array.isArray(file?.series) ? file.series : [];
@@ -243,7 +243,7 @@ export const createOriginCanvasExport = ({
     }
 
     const visibleIdSet = new Set(filteredOriginCanvasIds);
-    return (Array.isArray(processedData) ? processedData : [])
+    return (Array.isArray(cleanedData) ? cleanedData : [])
       .filter((file: any) => {
         const fileId = String(file?.fileId ?? "").trim();
         return visibleIdSet.has(fileId);
@@ -405,7 +405,7 @@ export const createOriginCanvasExport = ({
       };
     }
 
-    const fallbackFileIds = (Array.isArray(processedData) ? processedData : []).map((file: any) =>
+    const fallbackFileIds = (Array.isArray(cleanedData) ? cleanedData : []).map((file: any) =>
       String(file?.fileId ?? ""),
     );
     const targetFileIds = normalizeIds((Array.isArray(fileIds) && fileIds.length ? fileIds : fallbackFileIds));
@@ -418,7 +418,7 @@ export const createOriginCanvasExport = ({
       const next: Record<string, string[]> = { ...(prev || {}) };
 
       for (const fileKey of targetFileIds) {
-        const file = (Array.isArray(processedData) ? processedData : []).find(
+        const file = (Array.isArray(cleanedData) ? cleanedData : []).find(
           (item: any) => String(item?.fileId ?? "") === fileKey,
         );
         if (
@@ -492,7 +492,7 @@ export const createOriginCanvasExport = ({
       );
     const sourceSeriesList = normalizedRefs
       .map((ref) => {
-        const file = (Array.isArray(processedData) ? processedData : []).find(
+        const file = (Array.isArray(cleanedData) ? cleanedData : []).find(
           (item: any) => String(item?.fileId ?? "").trim() === ref.fileId,
         );
         return (Array.isArray(file?.series) ? file.series : []).find(
@@ -504,7 +504,7 @@ export const createOriginCanvasExport = ({
       .map((series: any) => resolveOriginSeriesMatchTokens(series))
       .filter((tokens: string[]) => tokens.length > 0);
     const sourceCurveFamily = resolveOriginFileCurveFamily(activeFile);
-    const fallbackFileIds = (Array.isArray(processedData) ? processedData : []).map((file: any) =>
+    const fallbackFileIds = (Array.isArray(cleanedData) ? cleanedData : []).map((file: any) =>
       String(file?.fileId ?? ""),
     );
     const targetFileIds = normalizeIds((Array.isArray(fileIds) && fileIds.length ? fileIds : fallbackFileIds));
@@ -514,7 +514,7 @@ export const createOriginCanvasExport = ({
     setOriginSelectedSeriesIdsByFile((prev) => {
       const next: Record<string, string[]> = { ...(prev || {}) };
       for (const fileKey of targetFileIds) {
-        const file = (Array.isArray(processedData) ? processedData : []).find(
+        const file = (Array.isArray(cleanedData) ? cleanedData : []).find(
           (item: any) => String(item?.fileId ?? "") === fileKey,
         );
         if (
@@ -592,7 +592,7 @@ export const createOriginCanvasExport = ({
     if (!fileKey || !targetKey) return;
 
     setOriginSelectedSeriesIdsByFile((prev) => {
-      const file = (Array.isArray(processedData) ? processedData : []).find(
+      const file = (Array.isArray(cleanedData) ? cleanedData : []).find(
         (item: any) => String(item?.fileId ?? "") === fileKey,
       );
       const allKeys = normalizeIds((Array.isArray(file?.series) ? file.series : [])
@@ -663,7 +663,7 @@ export const createOriginCanvasExport = ({
       .map((item: any) => String(item ?? ""))
       .filter(Boolean);
     const fileIdSet = new Set(payloadFileIds);
-    const files = (Array.isArray(processedData) ? processedData : []).filter((file: any) =>
+    const files = (Array.isArray(cleanedData) ? cleanedData : []).filter((file: any) =>
       fileIdSet.has(String(file?.fileId ?? "")),
     );
     if (!files.length || files.length !== fileIdSet.size) return null;

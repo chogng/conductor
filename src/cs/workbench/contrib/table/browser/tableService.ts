@@ -1,7 +1,7 @@
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
-import type { MutableState } from "src/cs/workbench/contrib/session/analysis-session-context";
+import type { MutableState } from "src/cs/workbench/contrib/session/browser/sessionContext";
 import type {
   SessionFile,
 } from "src/cs/workbench/contrib/session/common/sessionTypes";

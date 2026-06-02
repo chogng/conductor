@@ -3,8 +3,8 @@ import {
   computeSubthresholdSwing,
 } from "../../diagnostics/common/analysisMath.ts";
 import type {
-  ProcessedEntry,
-  ProcessedSeries,
+  CleanedEntry,
+  CleanedSeries,
 } from "../../session/common/sessionTypes.ts";
 import type { PlotType } from "../common/plot.ts";
 import type { MainPlotPoint, MainPlotSeries } from "./MainPlotChart.ts";
@@ -15,7 +15,7 @@ type SourcePoint = {
 };
 
 export type MainPlotModel = {
-  readonly activeFile: ProcessedEntry | null;
+  readonly activeFile: CleanedEntry | null;
   readonly pointsCount: number;
   readonly seriesList: MainPlotSeries[];
   readonly xDomain: [number, number];
@@ -27,13 +27,13 @@ export type MainPlotModel = {
 export const createMainPlotModel = ({
   activeFileId,
   plotType,
-  processedData,
+  cleanedData,
 }: {
   readonly activeFileId?: string | null;
   readonly plotType: PlotType;
-  readonly processedData: readonly ProcessedEntry[];
+  readonly cleanedData: readonly CleanedEntry[];
 }): MainPlotModel => {
-  const activeFile = resolveMainPlotFile(processedData, activeFileId);
+  const activeFile = resolveMainPlotFile(cleanedData, activeFileId);
   const seriesList = createMainPlotSeries(activeFile, plotType);
   const points = seriesList.flatMap((series) => series.data);
   return {
@@ -48,24 +48,24 @@ export const createMainPlotModel = ({
 };
 
 export const resolveMainPlotFile = (
-  processedData: readonly ProcessedEntry[],
+  cleanedData: readonly CleanedEntry[],
   activeFileId?: string | null,
-): ProcessedEntry | null => {
+): CleanedEntry | null => {
   const normalizedActiveFileId = String(activeFileId ?? "").trim();
   return (
-    processedData.find((file) => String(file?.fileId ?? "") === normalizedActiveFileId) ??
-    processedData[0] ??
+    cleanedData.find((file) => String(file?.fileId ?? "") === normalizedActiveFileId) ??
+    cleanedData[0] ??
     null
   );
 };
 
 export const createMainPlotSeries = (
-  file: ProcessedEntry | null,
+  file: CleanedEntry | null,
   plotType: PlotType,
 ): MainPlotSeries[] => {
   const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
   return (Array.isArray(file?.series) ? file.series : [])
-    .map((series: ProcessedSeries, index: number) => {
+    .map((series: CleanedSeries, index: number) => {
       if (!isArrayLike(xGroups[Number(series?.groupIndex)])) {
         return null;
       }
@@ -85,8 +85,8 @@ export const createMainPlotSeries = (
 };
 
 const resolveSeriesId = (
-  file: ProcessedEntry | null,
-  series: ProcessedSeries,
+  file: CleanedEntry | null,
+  series: CleanedSeries,
   index: number,
 ): string => {
   const explicitId = String(series?.id ?? "").trim();
@@ -106,7 +106,7 @@ const resolveSeriesId = (
 
 export const getMainPlotYUnitLabel = (
   plotType: PlotType,
-  activeFile: ProcessedEntry | null,
+  activeFile: CleanedEntry | null,
 ): string => {
   switch (plotType) {
     case "gm":
@@ -122,8 +122,8 @@ export const getMainPlotYUnitLabel = (
 };
 
 const createSourcePoints = (
-  file: ProcessedEntry | null,
-  series: ProcessedSeries,
+  file: CleanedEntry | null,
+  series: CleanedSeries,
 ): SourcePoint[] => {
   const xValues = Array.isArray(file?.xGroups)
     ? file.xGroups[Number(series?.groupIndex)] ?? []

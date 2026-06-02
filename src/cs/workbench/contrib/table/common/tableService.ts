@@ -1,7 +1,7 @@
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { SessionFile } from "src/cs/workbench/contrib/session/common/sessionTypes";
-import type { MutableState } from "src/cs/workbench/contrib/session/analysis-session-context";
+import type { MutableState } from "src/cs/workbench/contrib/session/browser/sessionContext";
 import type { RustPreviewCellRequest } from "src/cs/workbench/contrib/table/browser/rows/rustCells";
 
 type SetStateAction<T> = T | ((previous: T) => T);

@@ -44,9 +44,9 @@ import {
   TemplateApplyController,
   type TemplateApplyControllerInput,
 } from "src/cs/workbench/contrib/template/browser/templateApplyController";
-import { SessionModel } from "src/cs/workbench/contrib/session/sessionModel";
-import { defaultSessionModel } from "src/cs/workbench/contrib/session/useSession";
-import { createSessionActions } from "src/cs/workbench/contrib/session/useSessionActions";
+import { SessionModel } from "src/cs/workbench/contrib/session/browser/sessionModel";
+import { defaultSessionModel } from "src/cs/workbench/contrib/session/browser/useSession";
+import { createSessionActions } from "src/cs/workbench/contrib/session/browser/sessionActions";
 import type {
   ITableService,
   TableModel,
@@ -217,7 +217,8 @@ export class Workbench extends Layout {
     this.templateApply = this._register(new TemplateApplyController({
       onExtractionError: () => undefined,
       showResults: () => this.showMainPart("chart"),
-      setProcessedData: this.session.setProcessedData,
+      setAnalysisResults: this.session.setAnalysisResults,
+      setCleanedData: this.session.setCleanedData,
     }));
     this.templateApply.update(this.getTemplateApplyInput());
     this.filesPane = this._register(new FilesPaneHost(this.getFilesPaneProps()));
@@ -371,7 +372,7 @@ export class Workbench extends Layout {
       invalidatePreviewRequests: tableModel.invalidateRequests,
       previewFile: snapshot.previewFile,
       previewLoadingMessage: this.t("preview_loading"),
-      processedData: snapshot.processedData,
+      cleanedData: snapshot.cleanedData,
       processingStatus: processing.processingStatus,
       sourceFiles: snapshot.sourceFiles,
       removeQueuedProcessingFile: processing.removeQueuedProcessingFile,
@@ -379,7 +380,8 @@ export class Workbench extends Layout {
       resetProcessingWorker: processing.resetProcessingWorker,
       selectedPreviewFileId: snapshot.selectedPreviewFileId,
       setIonIoffManualTargetsByFileId: this.session.setIonIoffManualTargetsByFileId,
-      setProcessedData: this.session.setProcessedData,
+      setAnalysisResults: this.session.setAnalysisResults,
+      setCleanedData: this.session.setCleanedData,
       setPreviewStatus: this.session.setPreviewStatus,
       setSourceFiles: this.session.setSourceFiles,
       setSelectedPreviewFileId: this.session.setSelectedPreviewFileId,
@@ -393,7 +395,7 @@ export class Workbench extends Layout {
       files: snapshot.sourceFiles,
       filesService: this.filesService,
       pathService: this.pathService,
-      processedData: snapshot.processedData,
+      cleanedData: snapshot.cleanedData,
       onFileImported: sessionActions.handleFileImported,
       onFilesReplaced: sessionActions.handleFilesReplaced,
       onFileRemoved: sessionActions.handleFileRemoved,
@@ -435,11 +437,11 @@ export class Workbench extends Layout {
     processing = this.templateApply,
   ) {
     return {
-      activeFileId: this.getActiveProcessedFileId(snapshot),
+      activeFileId: this.getActiveCleanedFileId(snapshot),
       onActiveFileIdChange: (nextFileId: string | null) => {
         this.session.setSelectedPreviewFileId(nextFileId);
       },
-      processedData: snapshot.processedData,
+      cleanedData: snapshot.cleanedData,
       processingStatus: processing.processingStatus,
       showFileSelect: false,
       shouldMountCharts: false,
@@ -449,24 +451,24 @@ export class Workbench extends Layout {
 
   private getResultsProps(snapshot = this.session.getSnapshot()) {
     return {
-      activeFileId: this.getActiveProcessedFileId(snapshot),
-      processedData: snapshot.processedData,
+      activeFileId: this.getActiveCleanedFileId(snapshot),
+      cleanedData: snapshot.cleanedData,
       t: this.t,
     };
   }
 
-  private getActiveProcessedFileId(snapshot = this.session.getSnapshot()): string | null {
+  private getActiveCleanedFileId(snapshot = this.session.getSnapshot()): string | null {
     const selectedFileId = snapshot.selectedPreviewFileId;
     if (
       selectedFileId &&
-      snapshot.processedData.some(
+      snapshot.cleanedData.some(
         (file) => String(file?.fileId ?? "") === selectedFileId,
       )
     ) {
       return selectedFileId;
     }
 
-    return snapshot.processedData[0]?.fileId ?? null;
+    return snapshot.cleanedData[0]?.fileId ?? null;
   }
 
   private getTableModel(snapshot = this.session.getSnapshot()) {
@@ -499,11 +501,11 @@ export class Workbench extends Layout {
     tableModel: TableModel = this.getTableModel(snapshot),
   ): TemplateApplyControllerInput {
     return {
-      activeFileId: snapshot.processedData[0]?.fileId ?? null,
+      activeFileId: snapshot.cleanedData[0]?.fileId ?? null,
       getTableRow: tableModel.getRow,
       hasSourceFile: tableModel.hasSourceFile,
       previewFile: snapshot.previewFile,
-      processedData: snapshot.processedData,
+      cleanedData: snapshot.cleanedData,
       sourceFiles: snapshot.sourceFiles,
       t: this.t as any,
     };

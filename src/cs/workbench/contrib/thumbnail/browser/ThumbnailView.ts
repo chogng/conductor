@@ -5,7 +5,7 @@ import {
 } from "src/cs/workbench/contrib/plot/browser/CanvasMultiLineChart";
 import { formatNumber } from "src/cs/workbench/contrib/diagnostics/common/numberFormat";
 
-export type ProcessedFileLike = {
+export type CleanedFileLike = {
   fileId?: string;
   fileName?: string;
   yUnit?: string;
@@ -26,7 +26,7 @@ export type ProcessedFileLike = {
 };
 
 export type ThumbnailViewProps = {
-  file: ProcessedFileLike;
+  file: CleanedFileLike;
   isActive?: boolean;
   isOriginSelected?: boolean;
   showOriginSelectionBadge?: boolean;
@@ -74,7 +74,7 @@ export const createThumbnailView = ({
   return root;
 };
 
-const createHeader = (file: ProcessedFileLike): HTMLElement => {
+const createHeader = (file: CleanedFileLike): HTMLElement => {
   const root = document.createElement("div");
   root.className = "thumbnail_view_header";
 
@@ -100,7 +100,7 @@ const createHeader = (file: ProcessedFileLike): HTMLElement => {
   return root;
 };
 
-const createMetaText = (file: ProcessedFileLike): string => {
+const createMetaText = (file: CleanedFileLike): string => {
   const seriesCount = Array.isArray(file?.series) ? file.series.length : 0;
   const sampledPoints = file?.x?.sampledPoints ?? null;
   const parts = [`series:${seriesCount}`];
@@ -127,7 +127,7 @@ const createChartThumbnail = ({
   yUnitFactor,
   yUnitLabel,
 }: {
-  readonly file: ProcessedFileLike;
+  readonly file: CleanedFileLike;
   readonly isOriginSelected: boolean;
   readonly originSelectedBadgeLabel: string;
   readonly showOriginSelectionBadge: boolean;

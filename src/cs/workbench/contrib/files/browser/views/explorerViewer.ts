@@ -13,7 +13,7 @@ import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle"
 import { localize } from "src/cs/nls";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { FileEntry } from "src/cs/workbench/contrib/files/common/files";
-import type { ProcessedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import {
   buildFileTree,
   collectFileTreeFolderKeys,
@@ -30,7 +30,7 @@ export type ExplorerViewerProps = {
   readonly onOpenFileDialog: () => void;
   readonly onRemoveFile: (fileId: string | null) => void;
   readonly onSelectFile: (fileId: string | null) => void;
-  readonly processedData?: ProcessedEntry[];
+  readonly cleanedData?: CleanedEntry[];
   readonly t: TranslateFn;
 };
 
@@ -357,13 +357,13 @@ export class ExplorerViewer implements IDisposable {
     return item instanceof HTMLElement ? item : null;
   }
 
-  private getProcessedFile(fileId: string | null | undefined): ProcessedEntry | null {
+  private getProcessedFile(fileId: string | null | undefined): CleanedEntry | null {
     const normalizedFileId = String(fileId ?? "").trim();
     if (!normalizedFileId) {
       return null;
     }
 
-    return (Array.isArray(this.props.processedData) ? this.props.processedData : [])
+    return (Array.isArray(this.props.cleanedData) ? this.props.cleanedData : [])
       .find((entry) => String(entry?.fileId ?? "").trim() === normalizedFileId) ?? null;
   }
 

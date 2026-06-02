@@ -1,4 +1,4 @@
-import test from "node:test";
+﻿import test from "node:test";
 import assert from "node:assert/strict";
 import { buildSsMetricsCsv } from "./export.ts";
 import {
@@ -18,7 +18,7 @@ import {
 
 test("buildSsMetricsCsv does not compute SS for output curves", () => {
   const csv = buildSsMetricsCsv({
-    processedData: [
+    cleanedData: [
       {
         fileId: "output-file",
         fileName: "output.csv",
@@ -51,7 +51,7 @@ test("buildSsMetricsCsv does not compute SS for output curves", () => {
 
 test("buildSsMetricsCsv reuses cached Rust SS auto fits", () => {
   const csv = buildSsMetricsCsv({
-    processedData: [
+    cleanedData: [
       {
         fileId: "transfer-file",
         fileName: "transfer.csv",
