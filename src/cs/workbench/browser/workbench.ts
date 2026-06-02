@@ -30,8 +30,8 @@ import {
   getWorkbenchWindowState,
   WorkbenchWindow,
 } from "src/cs/workbench/browser/window";
-import ChartViewPane from "src/cs/workbench/contrib/chartPreview/browser/chartViewPane";
-import ResultsPane from "src/cs/workbench/contrib/chartPreview/browser/resultsPane";
+import ChartViewPane from "src/cs/workbench/contrib/chart/browser/chartViewPane";
+import ResultsPane from "src/cs/workbench/contrib/chart/browser/resultsPane";
 import TemplateEditorPane from "src/cs/workbench/contrib/template/browser/templateEditorPane";
 import { TemplateImportController } from "src/cs/workbench/contrib/template/browser/templateImportController";
 import { BrowserTemplateService } from "src/cs/workbench/contrib/template/browser/templateService";

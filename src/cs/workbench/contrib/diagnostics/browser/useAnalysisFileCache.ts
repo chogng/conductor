@@ -3,7 +3,7 @@ import {
   computeSubthresholdSwing,
   computeSubthresholdSwingFitAuto,
 } from "../common/analysisMath";
-import { buildPoints } from "src/cs/workbench/contrib/chart/browser/chartViewModel";
+import { buildPoints } from "src/cs/workbench/contrib/plot/browser/chartViewModel";
 import {
   computeBaseCurrentMetrics,
   isTransferLikeFile,

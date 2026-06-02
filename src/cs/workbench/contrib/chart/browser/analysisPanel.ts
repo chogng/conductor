@@ -22,7 +22,7 @@ import type {
   SsManualRanges,
   SsMethod,
 } from "src/cs/workbench/contrib/session/analysis-session-context";
-import { createChartView } from "src/cs/workbench/contrib/chartPreview/browser/chartView";
+import { createChartView } from "src/cs/workbench/contrib/chart/browser/chartView";
 
 type StateSetter<T> = (next: T | ((previous: T) => T)) => void;
 

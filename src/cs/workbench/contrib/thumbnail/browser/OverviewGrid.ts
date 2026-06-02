@@ -4,7 +4,7 @@ import {
 } from "cs/base/browser/ui/card/card";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import { languageService } from "src/cs/platform/language/browser/languageService";
-import { getYUnitMeta } from "src/cs/workbench/contrib/chart/common/units";
+import { getYUnitMeta } from "src/cs/workbench/contrib/plot/common/units";
 import type { OriginCanvasExportScope } from "src/cs/workbench/contrib/export/browser/originCanvasExport";
 import type { ProcessingStatus } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import {

@@ -2,7 +2,7 @@ import {
   createCanvasMultiLineChart,
   resolvePreviewChartYDataRange,
   type CanvasMultiLineChartProps,
-} from "src/cs/workbench/contrib/chart/browser/CanvasMultiLineChart";
+} from "src/cs/workbench/contrib/plot/browser/CanvasMultiLineChart";
 import { formatNumber } from "src/cs/workbench/contrib/diagnostics/common/numberFormat";
 
 export type ProcessedFileLike = {
@@ -59,7 +59,7 @@ export const createThumbnailView = ({
     ? "thumbnail_view thumbnail_view--active"
     : "thumbnail_view";
 
-  root.append(createHeader(file), createChartPreview({
+  root.append(createHeader(file), createChartThumbnail({
     file,
     isOriginSelected,
     originSelectedBadgeLabel,
@@ -115,7 +115,7 @@ const createMetaText = (file: ProcessedFileLike): string => {
   return parts.join(" | ");
 };
 
-const createChartPreview = ({
+const createChartThumbnail = ({
   file,
   isOriginSelected,
   originSelectedBadgeLabel,

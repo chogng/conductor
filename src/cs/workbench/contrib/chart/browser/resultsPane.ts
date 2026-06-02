@@ -1,6 +1,6 @@
 import { getCardClassName } from "src/cs/base/browser/ui/card/card";
 import SidebarPart from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
-import { buildPoints } from "src/cs/workbench/contrib/chart/browser/chartViewModel";
+import { buildPoints } from "src/cs/workbench/contrib/plot/browser/chartViewModel";
 import {
   computeCentralDerivative,
   computeSubthresholdSwingFitAuto,
@@ -32,7 +32,7 @@ import type {
 
 import "src/cs/workbench/contrib/export/browser/media/export.css";
 import "src/cs/workbench/contrib/parameters/browser/media/parametersView.css";
-import "src/cs/workbench/contrib/chartPreview/browser/media/resultsPane.css";
+import "src/cs/workbench/contrib/chart/browser/media/resultsPane.css";
 
 export type ResultsPaneProps = {
   readonly activeFileId?: string | null;

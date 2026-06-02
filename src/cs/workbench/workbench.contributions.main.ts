@@ -1,7 +1,7 @@
 // Workbench contribution side-effect imports.
 
+import "src/cs/workbench/contrib/plot/browser/plot.contribution";
 import "src/cs/workbench/contrib/chart/browser/chart.contribution";
-import "src/cs/workbench/contrib/chartPreview/browser/chartView.contribution";
 import "src/cs/workbench/contrib/diagnostics/browser/diagnostics.contribution";
 import "src/cs/workbench/contrib/export/browser/export.contribution";
 import "src/cs/workbench/contrib/parameters/browser/parameters.contribution";

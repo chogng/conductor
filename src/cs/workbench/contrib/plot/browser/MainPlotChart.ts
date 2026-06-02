@@ -1,5 +1,5 @@
 import { formatNumber } from "src/cs/workbench/contrib/diagnostics/common/numberFormat";
-import { getChartColor, resolveSeriesChartColor } from "src/cs/workbench/contrib/chart/browser/chartColors";
+import { getChartColor, resolveSeriesChartColor } from "src/cs/workbench/contrib/plot/browser/chartColors";
 
 type PlotPoint = {
   x?: number;

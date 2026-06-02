@@ -1,4 +1,4 @@
-import { getChartColor } from "src/cs/workbench/contrib/chart/browser/chartColors";
+import { getChartColor } from "src/cs/workbench/contrib/plot/browser/chartColors";
 
 type DiagnosticsPoint = {
   x?: number | null;

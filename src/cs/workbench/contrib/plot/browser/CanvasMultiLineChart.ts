@@ -1,7 +1,7 @@
 import {
   padLinearDomain,
   padLogDomain,
-} from "src/cs/workbench/contrib/chart/browser/chartViewModel";
+} from "src/cs/workbench/contrib/plot/browser/chartViewModel";
 
 type Padding = {
   top: number;

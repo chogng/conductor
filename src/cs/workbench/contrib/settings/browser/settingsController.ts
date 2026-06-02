@@ -4,7 +4,7 @@ import {
   normalizeOriginPostCommands,
   originPostCommandsToMultiline,
 } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
-import { normalizePlotAxisSettings } from "src/cs/workbench/contrib/chart/common/plotAxisSettings";
+import { normalizePlotAxisSettings } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
 import { normalizeFileNameFieldSeparators } from "src/cs/workbench/contrib/template/common/fileNameMatching";
 import type { Feedback, NotificationToastState } from "src/cs/workbench/contrib/settings/common/feedback";
 import type { LanguageCode } from "src/cs/platform/language/common/language";

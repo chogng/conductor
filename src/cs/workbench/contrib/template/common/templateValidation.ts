@@ -1,6 +1,6 @@
 import type { TemplateConfig } from "./templateManagerUtils";
 import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/translation";
-import { normalizeYUnit } from "src/cs/workbench/contrib/chart/common/units";
+import { normalizeYUnit } from "src/cs/workbench/contrib/plot/common/units";
 import {
   joinFileNameMatchInput,
   splitFileNameMatchInput,

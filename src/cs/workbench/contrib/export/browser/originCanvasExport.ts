@@ -21,7 +21,7 @@ import {
 import {
   getXUnitMeta,
   getYUnitMeta,
-} from "src/cs/workbench/contrib/chart/common/units";
+} from "src/cs/workbench/contrib/plot/common/units";
 import { createFileSelectionPool } from "src/cs/workbench/contrib/thumbnail/browser/fileSelectionModel";
 
 export type OriginCanvasExportScope =

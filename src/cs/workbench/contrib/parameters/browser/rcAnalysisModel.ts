@@ -1,5 +1,5 @@
-import { getChartColor } from "../../chart/browser/chartColors.ts";
-import { buildNiceTicks, padLinearDomain } from "../../chart/browser/chartViewModel.ts";
+import { getChartColor } from "../../plot/browser/chartColors.ts";
+import { buildNiceTicks, padLinearDomain } from "../../plot/browser/chartViewModel.ts";
 import { formatNumber } from "../../diagnostics/common/numberFormat.ts";
 
 export type RcCurveChartPoint = {
