@@ -59,10 +59,19 @@
   display: flex;
   flex-shrink: 0;
   align-items: center;
+  justify-self: end;
   gap: 0.5rem;
   font-size: 12px;
   line-height: 1rem;
   color: rgb(var(--text-secondary) / 1);
+}
+
+.table_view_dimensions {
+  text-align: right;
+}
+
+.table_view_actions {
+  margin-left: auto;
 }
 
 .table_view_actions .ui-actionbar__items {
