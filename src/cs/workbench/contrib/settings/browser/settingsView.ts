@@ -1,8 +1,8 @@
 import { append, reset } from "src/cs/base/browser/dom";
 import { createButton as createActionButton } from "src/cs/base/browser/ui/button/button";
-import Toast from "src/cs/base/browser/ui/toast/toast";
 import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "src/cs/workbench/common/deviceAnalysis/fileNameFieldMatching";
-import type { ToastState } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
+import type { NotificationToastState } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
+import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import type {
   AnalysisDefaultSettings,
   AppUpdateSettings,
@@ -28,13 +28,13 @@ export type SettingsViewOptions = SettingsViewProps & {
   cleanupEnabledOptions: SelectOption[];
   cleanupFailedDaysOptions: SelectOption[];
   cleanupKeepSuccessOptions: SelectOption[];
-  cleanupToast: ToastState;
+  cleanupToast: NotificationToastState;
   closeCleanupToast: () => void;
   closeOriginHealthToast: () => void;
   fileNameFieldSeparatorsDraft: string;
   handleCheckForUpdates: () => void;
   legendFontSizeDraft: string;
-  originHealthToast: ToastState;
+  originHealthToast: NotificationToastState;
   plotCommandDraft: string;
   postCommandsDraft: string;
   setActiveSettingsSection: (section: SettingsSectionId) => void;
@@ -76,10 +76,11 @@ type TextInputOptions = {
   value: string;
 };
 
+const ORIGIN_HEALTH_TOAST_ID = "settings.originHealth";
+const CLEANUP_TOAST_ID = "settings.cleanup";
+
 export class SettingsView {
   private readonly root: HTMLElement;
-  private readonly originHealthToast = new Toast();
-  private readonly cleanupToast = new Toast();
   private options: SettingsViewOptions;
 
   constructor(container: HTMLElement, options: SettingsViewOptions) {
@@ -98,8 +99,8 @@ export class SettingsView {
   }
 
   dispose(): void {
-    this.originHealthToast.dispose();
-    this.cleanupToast.dispose();
+    notificationService.disposeToast(ORIGIN_HEALTH_TOAST_ID);
+    notificationService.disposeToast(CLEANUP_TOAST_ID);
     this.root.remove();
   }
 
@@ -619,22 +620,22 @@ export class SettingsView {
   }
 
   private updateToasts(): void {
-    this.updateToast(this.originHealthToast, this.options.originHealthToast, "analysis-settings-origin-health-toast", this.options.closeOriginHealthToast);
-    this.updateToast(this.cleanupToast, this.options.cleanupToast, "analysis-settings-origin-cleanup-toast", this.options.closeCleanupToast);
+    this.updateToast(ORIGIN_HEALTH_TOAST_ID, this.options.originHealthToast, "analysis-settings-origin-health-toast", this.options.closeOriginHealthToast);
+    this.updateToast(CLEANUP_TOAST_ID, this.options.cleanupToast, "analysis-settings-origin-cleanup-toast", this.options.closeCleanupToast);
   }
 
-  private updateToast(toast: Toast, state: ToastState, dataUi: string, onClose: () => void): void {
+  private updateToast(id: string, state: NotificationToastState, dataUi: string, onClose: () => void): void {
     if (!state.isVisible) {
-      toast.hide();
+      notificationService.hideToast(id);
       return;
     }
 
-    toast.show({
-      container: this.root,
+    notificationService.showToast({
       dataUi,
+      id,
       message: state.message,
       onClose,
-      position: "absolute",
+      position: "fixed",
       type: state.type,
     });
   }

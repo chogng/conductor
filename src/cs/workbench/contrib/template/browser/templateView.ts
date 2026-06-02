@@ -30,7 +30,7 @@ import {
 } from "src/cs/workbench/contrib/template/common/templateManagerUtils";
 import { getSession, defaultSessionModel } from "src/cs/workbench/contrib/session/useSession";
 import { analysisStoreClient } from "src/cs/workbench/services/storage/electron-sandbox/analysisStoreClient";
-import { Toast } from "src/cs/base/browser/ui/toast/toast";
+import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import {
   validateTemplateForSave,
   validateTemplateForApply,
@@ -61,8 +61,8 @@ export type TemplateElementOptions = {
 
 let cachedTemplates: any[] | null = null;
 let templatesLoading = false;
-let globalToast: Toast | null = null;
 type PickFieldName = "xDataStart" | "xDataEnd" | "yLegendStart" | "yLegendCount";
+const TEMPLATE_TOAST_ID = "template.notification";
 
 const PICKABLE_TEMPLATE_FIELDS = new Set<string>([
   "xDataStart",
@@ -72,10 +72,7 @@ const PICKABLE_TEMPLATE_FIELDS = new Set<string>([
 ]);
 
 const showToast = (message: string, type: "success" | "error" | "warning" | "info" = "success") => {
-  if (!globalToast) {
-    globalToast = new Toast();
-  }
-  globalToast.show({ message, type });
+  notificationService.showToast({ id: TEMPLATE_TOAST_ID, message, type });
 };
 
 const createField = ({

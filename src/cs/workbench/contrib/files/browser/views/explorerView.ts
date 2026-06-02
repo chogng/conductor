@@ -1,6 +1,5 @@
 import { addDisposableListener } from "src/cs/base/browser/dom";
 import type { ListHandle } from "src/cs/base/browser/ui/list/list";
-import Toast from "src/cs/base/browser/ui/toast/toast";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import {
   type FileSource,
@@ -10,8 +9,11 @@ import {
   ExplorerViewer,
   type ExplorerViewerProps,
 } from "src/cs/workbench/contrib/files/browser/views/explorerViewer";
+import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 
 import "src/cs/workbench/contrib/files/browser/views/media/explorerView.css";
+
+const IMPORT_ERROR_TOAST_ID = "files.importError";
 
 export type ExplorerViewProps = Omit<ExplorerViewerProps, "onOpenFileDialog"> & {
   readonly error?: string | null;
@@ -26,7 +28,6 @@ export class ExplorerView implements IDisposable {
   private readonly host: HTMLElement;
   private readonly root: HTMLDivElement;
   private readonly viewport: HTMLDivElement;
-  private readonly toast: Toast;
   private readonly disposables = new DisposableStore();
   private readonly explorerViewer: ExplorerViewer;
   private props: ExplorerViewProps;
@@ -41,7 +42,6 @@ export class ExplorerView implements IDisposable {
     this.explorerViewer = this.disposables.add(
       new ExplorerViewer(dom.listHost, this.root, this.createViewerProps()),
     );
-    this.toast = this.disposables.add(new Toast());
 
     this.host.appendChild(this.root);
 
@@ -68,6 +68,7 @@ export class ExplorerView implements IDisposable {
     }
 
     this.disposed = true;
+    notificationService.disposeToast(IMPORT_ERROR_TOAST_ID);
     this.disposables.dispose();
     this.root.remove();
   }
@@ -183,12 +184,13 @@ export class ExplorerView implements IDisposable {
     this.explorerViewer.setProps(this.createViewerProps());
 
     if (!error) {
-      this.toast.hide();
+      notificationService.hideToast(IMPORT_ERROR_TOAST_ID);
       return;
     }
 
-    this.toast.show({
+    notificationService.showToast({
       dataUi: "analysis-import-error-toast",
+      id: IMPORT_ERROR_TOAST_ID,
       message: error,
       onClose: this.props.onClearError,
       position: "fixed",

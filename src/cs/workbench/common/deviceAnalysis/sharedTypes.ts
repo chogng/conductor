@@ -1,3 +1,5 @@
+import type { NotificationToastType } from "src/cs/workbench/services/notification/common/notificationService";
+
 export type RawDataEntry = {
   file?: unknown;
   fileId?: string;
@@ -92,10 +94,8 @@ export type Feedback = {
   type: "idle" | "success" | "error";
 };
 
-export type ToastType = "success" | "error" | "warning" | "info";
-
-export type ToastState = {
+export type NotificationToastState = {
   isVisible: boolean;
   message: string;
-  type: ToastType;
+  type: NotificationToastType;
 };

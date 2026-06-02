@@ -6,7 +6,7 @@ import {
 } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
 import { normalizePlotAxisSettings } from "src/cs/workbench/contrib/chart/common/plotAxisSettings";
 import { normalizeFileNameFieldSeparators } from "src/cs/workbench/common/deviceAnalysis/fileNameFieldMatching";
-import type { Feedback, ToastState } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
+import type { Feedback, NotificationToastState } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
 import type { LanguageCode } from "src/cs/platform/language/common/language";
 import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/deviceAnalysis/translateTypes";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
@@ -61,10 +61,10 @@ type SettingsDraftState = {
   activeSettingsSection: SettingsSectionId;
   appUpdateChecking: boolean;
   axisTitleFontSizeDraft: string;
-  cleanupToast: ToastState;
+  cleanupToast: NotificationToastState;
   fileNameFieldSeparatorsDraft: string;
   legendFontSizeDraft: string;
-  originHealthToast: ToastState;
+  originHealthToast: NotificationToastState;
   plotCommandDraft: string;
   postCommandsDraft: string;
   tickLabelFontSizeDraft: string;

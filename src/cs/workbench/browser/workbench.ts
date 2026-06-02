@@ -1,4 +1,8 @@
-import { toDisposable } from "src/cs/base/common/lifecycle";
+import {
+  DisposableStore,
+  toDisposable,
+  type IDisposable,
+} from "src/cs/base/common/lifecycle";
 import { layoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import type {
   LanguageCode,
@@ -53,6 +57,13 @@ import {
   minimizeWindow,
   toggleWindowMaximized,
 } from "src/cs/workbench/browser/actions/windowActions";
+import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
+import {
+  disposeNotificationToast,
+  disposeNotificationToasts,
+  hideNotificationToast,
+  showNotificationToast,
+} from "src/cs/workbench/browser/parts/notifications/notificationsCommands";
 
 export type WorkbenchTitlebarState = {
   readonly enabled?: boolean;
@@ -159,6 +170,7 @@ export class Workbench extends Layout {
       titlebarState: createTitlebarState(options.titlebarState),
       showSkeleton: false,
     }));
+    this._register(this.createNotificationsHandlers());
     this._register(toDisposableSession(this.session));
     this.mount(this.window.contentElement);
     if (!options.tableService) {
@@ -243,6 +255,34 @@ export class Workbench extends Layout {
       showSkeleton: false,
       titlebarState: createTitlebarState(this.getTitlebarState()),
     });
+  }
+
+  private createNotificationsHandlers(): IDisposable {
+    const disposables = new DisposableStore();
+
+    for (const toast of notificationService.toasts) {
+      showNotificationToast(toast);
+    }
+
+    disposables.add(notificationService.onDidChangeToast(event => {
+      switch (event.kind) {
+        case "show":
+          showNotificationToast(event.options);
+          break;
+        case "hide":
+          hideNotificationToast(event.id);
+          break;
+        case "dispose":
+          disposeNotificationToast(event.id);
+          break;
+        case "disposeAll":
+          disposeNotificationToasts();
+          break;
+      }
+    }));
+
+    disposables.add(toDisposable(() => disposeNotificationToasts()));
+    return disposables;
   }
 
   private getTitlebarState(): WorkbenchTitlebarState {

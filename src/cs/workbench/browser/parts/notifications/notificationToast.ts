@@ -1,7 +1,6 @@
 import { lxClose } from "@chogng/lxicon";
 import { TimeoutTimer } from "src/cs/base/common/async";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
-import { getDomRect } from "src/cs/base/browser/dom";
 import {
   normalizeLxIconSvgMarkup,
   type LxIconDefinition,
@@ -11,24 +10,17 @@ import {
   lxCheckCircle,
   lxInfoCircle,
 } from "src/cs/base/common/lxicon";
-import { cx } from "src/utils/cx";
+import type {
+  NotificationToastOptions,
+  NotificationToastPosition,
+  NotificationToastType,
+} from "src/cs/workbench/services/notification/common/notificationService";
+import {
+  getPrimaryNotificationAction,
+  runNotificationAction,
+} from "src/cs/workbench/browser/parts/notifications/notificationsActions";
 
-import "src/cs/base/browser/ui/toast/toast.css";
-
-export type ToastType = "success" | "error" | "warning" | "info";
-export type ToastPosition = "absolute" | "fixed";
-
-export type ToastOptions = {
-  readonly actionText?: string;
-  readonly container?: HTMLElement | null;
-  readonly dataUi?: string;
-  readonly duration?: number;
-  readonly message: string;
-  readonly onAction?: () => void;
-  readonly onClose?: () => void;
-  readonly position?: ToastPosition;
-  readonly type?: ToastType;
-};
+import "src/cs/workbench/browser/parts/notifications/media/notificationToast.css";
 
 const DEFAULT_TOAST_DURATION = 5000;
 const TOAST_CLOSE_ANIMATION_MS = 300;
@@ -46,13 +38,13 @@ const appendIcon = (
   container.appendChild(iconElement);
 };
 
-const getToastIcon = (type: ToastType): LxIconDefinition => {
+const getToastIcon = (type: NotificationToastType): LxIconDefinition => {
   if (type === "success") return lxCheckCircle;
   if (type === "info") return lxInfoCircle;
   return lxAlertCircle;
 };
 
-export class Toast implements IDisposable {
+export class NotificationToast implements IDisposable {
   private readonly disposables = new DisposableStore();
   private readonly root: HTMLDivElement;
   private readonly iconContainer: HTMLDivElement;
@@ -68,7 +60,7 @@ export class Toast implements IDisposable {
   private isAutoClosePaused = false;
   private isDisposed = false;
   private isVisible = false;
-  private options: ToastOptions | null = null;
+  private options: NotificationToastOptions | null = null;
 
   public constructor(private readonly host: HTMLElement = document.body) {
     this.root = document.createElement("div");
@@ -104,7 +96,7 @@ export class Toast implements IDisposable {
     this.disposables.add(this.hideTimer);
   }
 
-  public show(options: ToastOptions): void {
+  public show(options: NotificationToastOptions): void {
     if (this.isDisposed) return;
 
     this.options = options;
@@ -155,7 +147,7 @@ export class Toast implements IDisposable {
     this.disposables.dispose();
   }
 
-  private updateContent(options: ToastOptions): void {
+  private updateContent(options: NotificationToastOptions): void {
     const type = options.type ?? "success";
     const uiMarker =
       typeof options.dataUi === "string" && options.dataUi.trim()
@@ -181,9 +173,10 @@ export class Toast implements IDisposable {
     appendIcon(this.iconContainer, getToastIcon(type), 20);
     this.messageElement.textContent = options.message;
 
-    if (options.actionText && options.onAction) {
+    const action = getPrimaryNotificationAction(options.actions);
+    if (action) {
       this.actionButton.hidden = false;
-      this.actionButton.textContent = options.actionText;
+      this.actionButton.textContent = action.label;
       if (uiMarker) {
         this.actionButton.setAttribute("data-ui", `${uiMarker}-action`);
       } else {
@@ -196,38 +189,28 @@ export class Toast implements IDisposable {
     }
   }
 
-  private getClassName(options: ToastOptions, isClosing: boolean): string {
+  private getClassName(options: NotificationToastOptions, isClosing: boolean): string {
     const position = options.position ?? "absolute";
-    const positionClass = position === "fixed" || options.container
+    const positionClass = position === "fixed"
       ? "conductor-toast-fixed"
       : "conductor-toast-absolute";
 
-    return cx(
+    return [
       "conductor-toast",
       isClosing ? "conductor-toast-closing" : "conductor-toast-opening",
       positionClass,
-    );
+    ].join(" ");
   }
 
   private readonly updatePosition = (): void => {
     if (!this.options) return;
 
     const position = this.options.position ?? "absolute";
-    const container = this.options.container;
 
     this.root.style.position = "";
     this.root.style.bottom = "";
     this.root.style.left = "";
     this.root.style.transform = "";
-
-    if (container && position === "absolute") {
-      const rect = getDomRect(container);
-      const center = rect.left + rect.width / 2;
-      this.root.style.position = "fixed";
-      this.root.style.bottom = "32px";
-      this.root.style.left = `${center}px`;
-      return;
-    }
 
     if (position === "fixed") {
       this.root.style.position = "fixed";
@@ -298,7 +281,12 @@ export class Toast implements IDisposable {
   };
 
   private readonly handleAction = (): void => {
-    this.options?.onAction?.();
+    const action = getPrimaryNotificationAction(this.options?.actions);
+    if (!action) {
+      return;
+    }
+
+    void runNotificationAction(action, this.options);
   };
 
   private readonly handleClose = (): void => {
@@ -307,4 +295,4 @@ export class Toast implements IDisposable {
   };
 }
 
-export default Toast;
+export default NotificationToast;

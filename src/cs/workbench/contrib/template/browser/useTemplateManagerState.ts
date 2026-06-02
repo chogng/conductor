@@ -38,7 +38,7 @@ const createLocalState = <T,>(initial: T | (() => T)): [T, LocalStateSetter<T>] 
 
 type TemplateMode = "select" | "save";
 type InputSource = "manual" | "picked";
-type ToastType = "warning" | "success" | "error" | "idle" | string;
+type TemplateNotificationType = "warning" | "success" | "error" | "idle" | string;
 
 type TemplateRecord = Partial<TemplateConfig> &
   Partial<{
@@ -164,7 +164,7 @@ type UseTemplateManagerStateOptions = {
   ) => Promise<unknown> | unknown;
   previewFile?: PreviewFileLike | null;
   previewStatus?: PreviewStatus;
-  showToast: (message: string, type?: ToastType) => void;
+  showToast: (message: string, type?: TemplateNotificationType) => void;
   t: TranslateFn;
 };
 
