@@ -22,6 +22,11 @@ type RegisteredBrowserFileRoot = {
   readonly path: string;
 };
 
+type RegisteredBrowserFile = {
+  readonly file: File;
+  readonly path: string;
+};
+
 function normalizePath(path: string): string {
   const normalized = String(path ?? "").replace(/\\/g, "/").replace(/\/+/g, "/");
   if (!normalized || normalized === ".") {
@@ -77,6 +82,7 @@ async function fileToContent(
 
 export class HTMLFileSystemProvider extends Disposable implements IFileSystemProvider {
   private readonly roots = new Map<string, RegisteredBrowserFileRoot>();
+  private readonly files = new Map<string, RegisteredBrowserFile>();
   private readonly onDidFilesChangeEmitter = this._register(new Emitter<readonly IFileChange[]>());
   public readonly onDidFilesChange = this.onDidFilesChangeEmitter.event;
 
@@ -87,7 +93,18 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
     return URI.file(path);
   }
 
+  public registerFile(file: File): URI {
+    const id = createId("browserfile");
+    const path = `/${id}/${encodeURIComponent(file.name || "file")}`;
+    this.files.set(path, { file, path });
+    return URI.file(path);
+  }
+
   public async exists(resource: URI): Promise<boolean> {
+    if (this.getFile(resource)) {
+      return true;
+    }
+
     try {
       await this.resolve(resource);
       return true;
@@ -114,6 +131,11 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
     resource: URI,
     options?: IReadFileOptions,
   ): Promise<IFileContent> {
+    const registeredFile = this.getFile(resource);
+    if (registeredFile) {
+      return fileToContent(registeredFile.file, options);
+    }
+
     const resolved = await this.resolve(resource);
     if (resolved.handle.kind !== "file") {
       throw new Error(`Expected file resource '${resource.toString()}'.`);
@@ -123,11 +145,26 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
   }
 
   public async realpath(resource: URI): Promise<URI> {
+    if (this.getFile(resource)) {
+      return resource;
+    }
+
     await this.resolve(resource);
     return resource;
   }
 
   public async stat(resource: URI): Promise<IFileStat> {
+    const registeredFile = this.getFile(resource);
+    if (registeredFile) {
+      return {
+        ctime: registeredFile.file.lastModified,
+        mtime: registeredFile.file.lastModified,
+        path: resource.fsPath,
+        size: registeredFile.file.size,
+        type: FileType.File,
+      };
+    }
+
     const resolved = await this.resolve(resource);
     if (resolved.handle.kind === "directory") {
       return {
@@ -151,6 +188,11 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 
   public watch(_resource: URI, _options?: IWatchOptions): IDisposable {
     return toDisposable(() => undefined);
+  }
+
+  private getFile(resource: URI): RegisteredBrowserFile | null {
+    const uri = URI.revive(resource);
+    return this.files.get(normalizePath(uri.path)) ?? null;
   }
 
   private async resolve(resource: URI): Promise<{ handle: FileSystemHandle }> {

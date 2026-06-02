@@ -68,6 +68,9 @@ export type ProcessedEntry = {
 export type PreviewFile = {
   fileId: string;
   fileName: string;
+  sheetId?: string | null;
+  sheetName?: string | null;
+  sourceKey?: string;
   rowCount: number;
   columnCount: number;
   maxCellLengths: number[];
@@ -77,6 +80,8 @@ export type PreviewFileLike = Partial<PreviewFile> & Record<string, unknown>;
 
 export type PreviewRowsRequest = {
   fileId: string;
+  sheetId?: string | null;
+  sourceKey?: string;
   startRow: number;
   endRow: number;
   reject: (error: unknown) => void;

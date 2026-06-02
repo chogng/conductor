@@ -2,6 +2,7 @@ import type { TranslateFn } from "src/cs/platform/language/common/language";
 import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/previewPart";
 import SidebarPart from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import type { RawDataEntry } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
+import type { ITemplateService } from "src/cs/workbench/contrib/template/common/template";
 import {
   TemplateManagerView,
   type TemplateElementOptions,
@@ -18,6 +19,7 @@ export type TemplateEditorPaneProps = {
   readonly onUpdateSettings?: TemplateElementOptions["onUpdateSettings"];
   readonly rawData?: RawDataEntry[];
   readonly tableModel?: TemplateElementOptions["tableModel"];
+  readonly templateService: ITemplateService;
   readonly t: TranslateFn;
 };
 

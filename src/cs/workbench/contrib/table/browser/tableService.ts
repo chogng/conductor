@@ -17,7 +17,9 @@ import {
   type TableRange,
   type TableRowsRequest,
   type TableSelection,
+  type TableSource,
   type TableState,
+  toTableSourceKey,
 } from "src/cs/workbench/contrib/table/common/tableService";
 import {
   DA_PREVIEW_MAX_CACHED_FILES,
@@ -262,10 +264,59 @@ const getMutableState = <T,>(current: T): MutableState<T> =>
 const formatTableFileName = (fileName: string | null | undefined): string =>
   fileName ? String(fileName).replace(/\.csv$/i, "") : "";
 
+type TableSourceEntry = {
+  readonly entry: RawDataEntry;
+  readonly source: TableSource;
+  readonly sourceKey: string;
+  readonly sheetName: string | null;
+};
+
+const readEntryString = (entry: RawDataEntry | null | undefined, key: string): string | null => {
+  const value = entry?.[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+};
+
+const getEntrySheetName = (entry: RawDataEntry | null | undefined): string | null =>
+  readEntryString(entry, "sheetName") ??
+  readEntryString(entry, "worksheetName");
+
+const getEntrySheetId = (entry: RawDataEntry | null | undefined): string | null =>
+  readEntryString(entry, "sheetId") ??
+  readEntryString(entry, "worksheetId") ??
+  getEntrySheetName(entry);
+
+const createTableSourceEntry = (entry: RawDataEntry): TableSourceEntry | null => {
+  const fileId = readEntryString(entry, "fileId");
+  if (!fileId) {
+    return null;
+  }
+
+  const sheetId = getEntrySheetId(entry);
+  const source: TableSource = {
+    fileId,
+    sheetId,
+  };
+
+  return {
+    entry,
+    sheetName: getEntrySheetName(entry),
+    source,
+    sourceKey: toTableSourceKey(source),
+  };
+};
+
+const isTableFileForSource = (
+  file: TableFile | null | undefined,
+  sourceKey: string | null | undefined,
+): boolean => Boolean(file?.sourceKey && sourceKey && file.sourceKey === sourceKey);
+
 type PreviewResultPayload = {
   requestId: number;
   fileId: string;
   fileName: string;
+  sheetId?: string | null;
+  sheetName?: string | null;
+  sourceKey?: string;
   rowCount: number;
   columnCount: number;
   maxCellLengths: number[];
@@ -276,6 +327,7 @@ type PreviewResultPayload = {
 type PreviewRowsResultPayload = {
   requestId: number;
   fileId: string;
+  sourceKey?: string;
   startRow: number;
   rows: unknown[][];
 };
@@ -295,7 +347,9 @@ type UseTableOptions = TableInput;
 type CreateTableOptions = {
   rawData?: RawDataEntry[];
   selectedFileId?: string | null;
+  selectedSheetId?: string | null;
   setSelectedFileId?: Dispatch<SetStateAction<string | null>>;
+  setSelectedSheetId?: Dispatch<SetStateAction<string | null>>;
   file?: TableFile | null;
   loadState?: TableLoadState;
   setFile?: Dispatch<SetStateAction<TableFile | null>>;
@@ -329,7 +383,9 @@ const PREVIEW_ROWS_MAX_MERGED_REQUEST_ROWS = Math.max(
 const createTableModel = ({
   rawData = [],
   selectedFileId = null,
+  selectedSheetId = null,
   setSelectedFileId = () => {},
+  setSelectedSheetId = () => {},
   file = null,
   setFile = () => {},
   setLoadState = () => {},
@@ -347,7 +403,9 @@ const createTableModel = ({
   t,
 }: CreateTableOptions) => {
   const selectedPreviewFileId = selectedFileId;
+  const selectedPreviewSheetId = selectedSheetId;
   const setSelectedPreviewFileId = setSelectedFileId;
+  const setSelectedPreviewSheetId = setSelectedSheetId;
   const previewFile = file;
   const setPreviewFile = setFile;
   const setPreviewStatus = setLoadState;
@@ -374,6 +432,7 @@ const createTableModel = ({
   const selectionSubscribersRef = getMutableState(new Set<(selection: TableSelection) => void>());
 
   const deferredSelectedPreviewFileId = readImmediateValue(selectedPreviewFileId);
+  const deferredSelectedPreviewSheetId = readImmediateValue(selectedPreviewSheetId);
   const previewStatusRef = getMutableState<TableLoadState>(previewStatus);
   const previewFileRef = getMutableState<TableFile | null>(previewFile);
   const previewPendingChunksByFileIdRef = getMutableState<Map<string, Set<number>>>(
@@ -382,23 +441,73 @@ const createTableModel = ({
   const rustPreviewFileIdsRef = getMutableState<Set<string>>(new Set());
   const pendingPreviewFileIdRef = getMutableState<string | null>(null);
 
-  const filesById = memoValue(() => {
-    const map = new Map<string, RawDataEntry>();
+  const sourceEntries = memoValue(() => {
+    const entries: TableSourceEntry[] = [];
 
     for (const entry of Array.isArray(rawData) ? rawData : []) {
-      const fileId = entry?.fileId;
-      if (typeof fileId !== "string") continue;
-      map.set(fileId, entry);
+      const sourceEntry = createTableSourceEntry(entry);
+      if (!sourceEntry) continue;
+      entries.push(sourceEntry);
     }
 
-    return map;
+    return entries;
   }, [rawData]);
 
-  const filesByIdRef = getMutableState(new Map<string, RawDataEntry>());
+  const sourcesByKey = memoValue(() => {
+    const map = new Map<string, TableSourceEntry>();
+    for (const sourceEntry of sourceEntries) {
+      map.set(sourceEntry.sourceKey, sourceEntry);
+    }
+    return map;
+  }, [sourceEntries]);
+
+  const sourcesByFileId = memoValue(() => {
+    const map = new Map<string, TableSourceEntry[]>();
+    for (const sourceEntry of sourceEntries) {
+      const fileSources = map.get(sourceEntry.source.fileId) ?? [];
+      fileSources.push(sourceEntry);
+      map.set(sourceEntry.source.fileId, fileSources);
+    }
+    return map;
+  }, [sourceEntries]);
+
+  const selectedSource = memoValue((): TableSourceEntry | null => {
+    if (!deferredSelectedPreviewFileId) {
+      return null;
+    }
+
+    const fileSources = sourcesByFileId.get(deferredSelectedPreviewFileId);
+    if (!fileSources?.length) {
+      return null;
+    }
+
+    if (deferredSelectedPreviewSheetId) {
+      const selectedSheetSource = fileSources.find(
+        (sourceEntry) => sourceEntry.source.sheetId === deferredSelectedPreviewSheetId,
+      );
+      if (selectedSheetSource) {
+        return selectedSheetSource;
+      }
+    }
+
+    return fileSources[0] ?? null;
+  }, [
+    deferredSelectedPreviewFileId,
+    deferredSelectedPreviewSheetId,
+    sourcesByFileId,
+  ]);
+
+  const selectedPreviewSourceKey = selectedSource?.sourceKey ?? null;
+  const sourcesByKeyRef = getMutableState(new Map<string, TableSourceEntry>());
+  const sourcesByFileIdRef = getMutableState(new Map<string, TableSourceEntry[]>());
 
   runEffect(() => {
-    filesByIdRef.current = filesById;
-  }, [filesById]);
+    sourcesByKeyRef.current = sourcesByKey;
+  }, [sourcesByKey]);
+
+  runEffect(() => {
+    sourcesByFileIdRef.current = sourcesByFileId;
+  }, [sourcesByFileId]);
 
   runEffect(() => {
     previewStatusRef.current = previewStatus;
@@ -417,7 +526,7 @@ const createTableModel = ({
         // A broken consumer must not prevent table state from following the file.
       }
     }
-  }, [deferredSelectedPreviewFileId]);
+  }, [selectedPreviewSourceKey]);
 
   const clearPendingPreviewRequest = memoCallback((requestId: number) => {
     if (requestId === previewRequestIdRef.current) {
@@ -570,6 +679,7 @@ const createTableModel = ({
 
       if (clearSelection) {
         setSelectedPreviewFileId(null);
+        setSelectedPreviewSheetId(null);
       }
 
       clearAllPreviewCaches();
@@ -579,6 +689,33 @@ const createTableModel = ({
       setPreviewFile,
       setPreviewStatus,
       setSelectedPreviewFileId,
+      setSelectedPreviewSheetId,
+    ],
+  );
+
+  const disposePreviewSourceCache = memoCallback(
+    (sourceKey: string) => {
+      if (typeof sourceKey !== "string" || !sourceKey) return;
+
+      previewRowsCacheByFileIdRef.current.delete(sourceKey);
+      previewLoadedChunksByFileIdRef.current.delete(sourceKey);
+      previewCacheFileLruRef.current.delete(sourceKey);
+      previewPendingChunksByFileIdRef.current.delete(sourceKey);
+
+      if (previewCacheFileIdRef.current === sourceKey) {
+        resetCurrentPreviewCache();
+      }
+
+      postPreviewDispose(sourceKey);
+    },
+    [
+      postPreviewDispose,
+      previewCacheFileIdRef,
+      previewCacheFileLruRef,
+      previewLoadedChunksByFileIdRef,
+      previewPendingChunksByFileIdRef,
+      previewRowsCacheByFileIdRef,
+      resetCurrentPreviewCache,
     ],
   );
 
@@ -586,24 +723,19 @@ const createTableModel = ({
     (fileId: string) => {
       if (typeof fileId !== "string" || !fileId) return;
 
-      previewRowsCacheByFileIdRef.current.delete(fileId);
-      previewLoadedChunksByFileIdRef.current.delete(fileId);
-      previewCacheFileLruRef.current.delete(fileId);
-      previewPendingChunksByFileIdRef.current.delete(fileId);
-
-      if (previewCacheFileIdRef.current === fileId) {
-        resetCurrentPreviewCache();
+      const sourceKeys = new Set<string>([toTableSourceKey({ fileId })]);
+      const fileSources = sourcesByFileIdRef.current.get(fileId) ?? [];
+      for (const sourceEntry of fileSources) {
+        sourceKeys.add(sourceEntry.sourceKey);
       }
 
-      postPreviewDispose(fileId);
+      for (const sourceKey of sourceKeys) {
+        disposePreviewSourceCache(sourceKey);
+      }
     },
     [
-      previewCacheFileIdRef,
-      previewCacheFileLruRef,
-      previewLoadedChunksByFileIdRef,
-      postPreviewDispose,
-      previewRowsCacheByFileIdRef,
-      resetCurrentPreviewCache,
+      disposePreviewSourceCache,
+      sourcesByFileIdRef,
     ],
   );
 
@@ -637,12 +769,12 @@ const createTableModel = ({
         const oldestFileId = fileLru.values().next().value as string | undefined;
         if (!oldestFileId || (activateCurrent && oldestFileId === fileId)) break;
 
-        disposePreviewFileCache(oldestFileId);
+        disposePreviewSourceCache(oldestFileId);
       }
     },
     [
       assignCurrentPreviewCache,
-      disposePreviewFileCache,
+      disposePreviewSourceCache,
       getOrCreatePreviewFileCaches,
       previewCacheFileLruRef,
     ],
@@ -664,22 +796,33 @@ const createTableModel = ({
         if (previewPayload.requestId !== previewRequestIdRef.current) return;
         clearPendingPreviewRequest(previewPayload.requestId);
 
-        const fileId =
-          typeof previewPayload.fileId === "string" ? previewPayload.fileId : null;
+        const sourceKey =
+          typeof previewPayload.sourceKey === "string" && previewPayload.sourceKey
+            ? previewPayload.sourceKey
+            : typeof previewPayload.fileId === "string"
+              ? previewPayload.fileId
+              : null;
+        const sourceEntry = sourceKey ? sourcesByKeyRef.current.get(sourceKey) : null;
         const maxCellLengths = Array.isArray(previewPayload.maxCellLengths)
           ? previewPayload.maxCellLengths.map((n) => Number(n) || 0)
           : [];
         const nextPreviewFile: TableFile = {
-          fileId: String(fileId || ""),
+          fileId: sourceEntry?.source.fileId ?? String(previewPayload.fileId || ""),
           fileName: String(previewPayload.fileName || ""),
+          sheetId: sourceEntry?.source.sheetId ?? previewPayload.sheetId ?? null,
+          sheetName: sourceEntry?.sheetName ?? previewPayload.sheetName ?? null,
+          sourceKey: sourceKey ?? undefined,
           rowCount: Number(previewPayload.rowCount) || 0,
           columnCount: Number(previewPayload.columnCount) || 0,
           maxCellLengths,
         };
         const currentPreviewFile = previewFileRef.current;
         const hasSamePreviewFile =
+          isTableFileForSource(currentPreviewFile, sourceKey) &&
           currentPreviewFile?.fileId === nextPreviewFile.fileId &&
           currentPreviewFile?.fileName === nextPreviewFile.fileName &&
+          currentPreviewFile?.sheetId === nextPreviewFile.sheetId &&
+          currentPreviewFile?.sheetName === nextPreviewFile.sheetName &&
           currentPreviewFile?.rowCount === nextPreviewFile.rowCount &&
           currentPreviewFile?.columnCount === nextPreviewFile.columnCount &&
           currentPreviewFile?.maxCellLengths.length ===
@@ -694,10 +837,10 @@ const createTableModel = ({
 
         if (hasSamePreviewFile && !shouldUpdatePreviewStatus) return;
 
-        activatePreviewFileCache(fileId);
-        if (fileId) {
+        activatePreviewFileCache(sourceKey);
+        if (sourceKey) {
           mergePreviewSeedRows(
-            fileId,
+            sourceKey,
             Number(previewPayload.seedStartRow) || 0,
             Array.isArray(previewPayload.seedRows) ? previewPayload.seedRows : [],
           );
@@ -792,6 +935,7 @@ const createTableModel = ({
       previewRequestIdRef,
       setPreviewFile,
       clearPendingPreviewRequest,
+      sourcesByKeyRef,
     ],
   );
 
@@ -836,19 +980,16 @@ const createTableModel = ({
       return;
     }
 
-    const effectiveFileId =
-      deferredSelectedPreviewFileId && filesById.has(deferredSelectedPreviewFileId)
-        ? deferredSelectedPreviewFileId
-        : rawData[0]?.fileId ?? null;
-
-    const targetFile = filesById.get(String(effectiveFileId ?? "")) ?? null;
-    if (!targetFile?.file || !targetFile?.fileId) return;
-    if (previewFile?.fileId === targetFile.fileId) return;
-    if (pendingPreviewFileIdRef.current === targetFile.fileId) return;
+    const targetSource = selectedSource ?? sourceEntries[0] ?? null;
+    const targetFile = targetSource?.entry ?? null;
+    const targetSourceKey = targetSource?.sourceKey ?? null;
+    if (!targetFile?.file || !targetFile?.fileId || !targetSourceKey) return;
+    if (isTableFileForSource(previewFile, targetSourceKey)) return;
+    if (pendingPreviewFileIdRef.current === targetSourceKey) return;
 
     const requestId = previewRequestIdRef.current + 1;
     previewRequestIdRef.current = requestId;
-    pendingPreviewFileIdRef.current = targetFile.fileId;
+    pendingPreviewFileIdRef.current = targetSourceKey;
 
     runImmediately(() => {
       setPreviewStatus({ state: "loading", message: t("preview_loading") });
@@ -870,7 +1011,11 @@ const createTableModel = ({
         type: "preview",
         payload: {
           requestId,
-          fileId: targetFile.fileId,
+          fileId: targetSourceKey,
+          sourceKey: targetSourceKey,
+          physicalFileId: targetSource.source.fileId,
+          sheetId: targetSource.source.sheetId ?? null,
+          sheetName: targetSource.sheetName,
           file: fallbackFile,
           maxPreviewRows: DA_PREVIEW_MAX_CACHED_UI_ROWS_PER_FILE,
         },
@@ -888,10 +1033,13 @@ const createTableModel = ({
     if (rustInputPath && importService.canOpenFile()) {
       void importService
       .openFile({
-          fileId: targetFile.fileId,
+          fileId: targetSourceKey,
           fileName: targetFile.fileName ?? "",
           path: rustInputPath,
           seedRows: DA_PREVIEW_MAX_CACHED_UI_ROWS_PER_FILE,
+          sheetId: targetSource.source.sheetId ?? null,
+          sheetName: targetSource.sheetName,
+          sourceKey: targetSourceKey,
         })
         .then((response: any) => {
           if (requestId === previewRequestIdRef.current) {
@@ -908,21 +1056,31 @@ const createTableModel = ({
           const maxCellLengths = Array.isArray(previewPayload.maxCellLengths)
             ? previewPayload.maxCellLengths.map((n) => Number(n) || 0)
             : [];
-          const fileId =
-            typeof previewPayload.fileId === "string" ? previewPayload.fileId : null;
+          const sourceKey =
+            typeof previewPayload.sourceKey === "string" && previewPayload.sourceKey
+              ? previewPayload.sourceKey
+              : typeof previewPayload.fileId === "string"
+                ? previewPayload.fileId
+                : targetSourceKey;
           const nextPreviewFile: TableFile = {
-            fileId: String(fileId || ""),
+            fileId: targetSource.source.fileId,
             fileName: String(previewPayload.fileName || ""),
+            sheetId: targetSource.source.sheetId ?? previewPayload.sheetId ?? null,
+            sheetName: targetSource.sheetName ?? previewPayload.sheetName ?? null,
+            sourceKey,
             rowCount: Number(previewPayload.rowCount) || 0,
             columnCount: Number(previewPayload.columnCount) || 0,
             maxCellLengths,
           };
 
-          if (fileId) {
+          if (sourceKey) {
             const currentPreviewFile = previewFileRef.current;
             const hasSamePreviewFile =
+              isTableFileForSource(currentPreviewFile, sourceKey) &&
               currentPreviewFile?.fileId === nextPreviewFile.fileId &&
               currentPreviewFile?.fileName === nextPreviewFile.fileName &&
+              currentPreviewFile?.sheetId === nextPreviewFile.sheetId &&
+              currentPreviewFile?.sheetName === nextPreviewFile.sheetName &&
               currentPreviewFile?.rowCount === nextPreviewFile.rowCount &&
               currentPreviewFile?.columnCount === nextPreviewFile.columnCount &&
               currentPreviewFile?.maxCellLengths.length ===
@@ -938,11 +1096,11 @@ const createTableModel = ({
             if (hasSamePreviewFile && !shouldUpdatePreviewStatus) return;
           }
 
-          if (fileId) {
-            rustPreviewFileIdsRef.current.add(fileId);
-            touchPreviewFileCache({ fileId });
+          if (sourceKey) {
+            rustPreviewFileIdsRef.current.add(sourceKey);
+            touchPreviewFileCache({ fileId: sourceKey });
             mergePreviewSeedRows(
-              fileId,
+              sourceKey,
               Number(previewPayload.seedStartRow) || 0,
               Array.isArray(previewPayload.seedRows)
                 ? previewPayload.seedRows
@@ -953,13 +1111,16 @@ const createTableModel = ({
             return;
           }
 
-          activatePreviewFileCache(fileId);
+          activatePreviewFileCache(sourceKey);
 
           runImmediately(() => {
             if (
               !(
+                isTableFileForSource(previewFileRef.current, sourceKey) &&
                 previewFileRef.current?.fileId === nextPreviewFile.fileId &&
                 previewFileRef.current?.fileName === nextPreviewFile.fileName &&
+                previewFileRef.current?.sheetId === nextPreviewFile.sheetId &&
+                previewFileRef.current?.sheetName === nextPreviewFile.sheetName &&
                 previewFileRef.current?.rowCount === nextPreviewFile.rowCount &&
                 previewFileRef.current?.columnCount === nextPreviewFile.columnCount &&
                 previewFileRef.current?.maxCellLengths.length ===
@@ -997,14 +1158,16 @@ const createTableModel = ({
     activatePreviewFileCache,
     clearPreviewState,
     deferredSelectedPreviewFileId,
+    deferredSelectedPreviewSheetId,
     getOrCreatePreviewWorker,
     invalidatePreviewRequests,
     mergePreviewSeedRows,
-    previewFile?.fileId,
+    previewFile?.sourceKey,
     previewRequestIdRef,
     rawData,
-    filesById,
+    selectedSource,
     setPreviewStatus,
+    sourceEntries,
     t,
     touchPreviewFileCache,
   ]);
@@ -1018,9 +1181,25 @@ const createTableModel = ({
     [previewRowsCacheRef],
   );
 
+  const resolveRequestSourceKey = memoCallback(
+    (fileId: string): string | null => {
+      const currentFile = previewFileRef.current;
+      if (
+        currentFile?.sourceKey &&
+        (fileId === currentFile.fileId || fileId === currentFile.sourceKey)
+      ) {
+        return currentFile.sourceKey;
+      }
+
+      return fileId || null;
+    },
+    [previewFileRef],
+  );
+
   const requestPreviewRowsRange = memoCallback(
     (fileId: string, startRow: number, endRow: number): Promise<unknown[][]> => {
-      if (!fileId) return Promise.resolve([]);
+      const sourceKey = resolveRequestSourceKey(fileId);
+      if (!sourceKey) return Promise.resolve([]);
 
       const requestId = previewRowsRequestIdRef.current + 1;
       previewRowsRequestIdRef.current = requestId;
@@ -1035,16 +1214,18 @@ const createTableModel = ({
         return new Promise<unknown[][]>((resolve, reject) => {
           previewRowsRequestsRef.current.set(requestId, {
             endRow: end,
-            fileId,
+            fileId: sourceKey,
             reject,
             resolve,
+            sourceKey,
             startRow: start,
           });
           worker.postMessage({
             type: "previewRows",
             payload: {
               requestId,
-              fileId,
+              fileId: sourceKey,
+              sourceKey,
               startRow: start,
               endRow: end,
             },
@@ -1053,13 +1234,14 @@ const createTableModel = ({
       };
 
       if (
-        rustPreviewFileIdsRef.current.has(fileId) &&
+        rustPreviewFileIdsRef.current.has(sourceKey) &&
         importService.canGetPreviewRows()
       ) {
         return importService
           .getPreviewRows({
             endRow: end,
-            fileId,
+            fileId: sourceKey,
+            sourceKey,
             startRow: start,
           })
           .then((response: any) => {
@@ -1073,7 +1255,7 @@ const createTableModel = ({
               Math.floor(Number(rowsPayload.startRow) || 0),
             );
             const isMatched = isPreviewRowsResultForRequest({
-              requestFileId: fileId,
+              requestFileId: sourceKey,
               requestStartRow: start,
               payloadFileId,
               payloadStartRow,
@@ -1089,12 +1271,14 @@ const createTableModel = ({
       getOrCreatePreviewWorker,
       previewRowsRequestIdRef,
       previewRowsRequestsRef,
+      resolveRequestSourceKey,
     ],
   );
 
   const ensureTableCells = memoCallback(
     async (fileId: string, cells: RustPreviewCellRequest[]) => {
-      if (!fileId || !Array.isArray(cells) || !cells.length) return;
+      const sourceKey = resolveRequestSourceKey(fileId);
+      if (!sourceKey || !Array.isArray(cells) || !cells.length) return;
       if (!previewFile?.rowCount || !Number.isFinite(previewFile.rowCount)) return;
 
       const totalRows = Math.max(0, Math.floor(previewFile.rowCount));
@@ -1104,7 +1288,7 @@ const createTableModel = ({
       );
       if (totalRows <= 0 || columnCount <= 0) return;
 
-      const { rowCache } = getOrCreatePreviewFileCaches(fileId);
+      const { rowCache } = getOrCreatePreviewFileCaches(sourceKey);
       const requestedRows = new Set<number>();
       for (const cell of cells) {
         const rowIndex = Math.floor(Number(cell?.rowIndex));
@@ -1126,7 +1310,7 @@ const createTableModel = ({
       if (!requestedRows.size) return;
 
       if (
-        rustPreviewFileIdsRef.current.has(fileId) &&
+        rustPreviewFileIdsRef.current.has(sourceKey) &&
         importService.canReadCells()
       ) {
         const requestCells = buildRustPreviewCellRequests({
@@ -1137,7 +1321,8 @@ const createTableModel = ({
           try {
             const response = await importService.readCells({
               cells: requestCells,
-              fileId,
+              fileId: sourceKey,
+              sourceKey,
             });
             if (response?.ok && response?.result) {
               const result = response.result as { cells?: unknown };
@@ -1149,7 +1334,7 @@ const createTableModel = ({
                 for (const [rowIndex, row] of rowsByIndex.entries()) {
                   rowCache.set(rowIndex, row);
                 }
-                if (previewCacheFileIdRef.current === fileId) {
+                if (previewCacheFileIdRef.current === sourceKey) {
                   notifyRowsVersion();
                 }
                 return;
@@ -1174,14 +1359,14 @@ const createTableModel = ({
 
       let changed = false;
       for (const [rangeStart, rangeEnd] of ranges) {
-        const rows = await requestPreviewRowsRange(fileId, rangeStart, rangeEnd);
+        const rows = await requestPreviewRowsRange(sourceKey, rangeStart, rangeEnd);
         for (let index = 0; index < rows.length; index += 1) {
           rowCache.set(rangeStart + index, rows[index]);
           changed = true;
         }
       }
 
-      if (changed && previewCacheFileIdRef.current === fileId) {
+      if (changed && previewCacheFileIdRef.current === sourceKey) {
         notifyRowsVersion();
       }
     },
@@ -1192,16 +1377,18 @@ const createTableModel = ({
       previewFile?.columnCount,
       previewFile?.rowCount,
       requestPreviewRowsRange,
+      resolveRequestSourceKey,
     ],
   );
 
   const ensureTableRows = memoCallback(
     async (fileId: string, startRow: number, endRow: number) => {
       if (!previewFile?.rowCount || !Number.isFinite(previewFile.rowCount)) return;
-      if (!fileId) return;
+      const sourceKey = resolveRequestSourceKey(fileId);
+      if (!sourceKey) return;
 
-      const { loadedChunks, rowCache } = getOrCreatePreviewFileCaches(fileId);
-      const pendingChunks = getOrCreatePendingChunks(fileId);
+      const { loadedChunks, rowCache } = getOrCreatePreviewFileCaches(sourceKey);
+      const pendingChunks = getOrCreatePendingChunks(sourceKey);
       const totalRows = Math.max(0, Math.floor(previewFile.rowCount));
       const start = Math.max(0, Math.min(totalRows, Math.floor(startRow || 0)));
       const end = Math.max(start, Math.min(totalRows, Math.floor(endRow || 0)));
@@ -1265,7 +1452,7 @@ const createTableModel = ({
             attempt <= PREVIEW_ROWS_FETCH_MAX_ATTEMPTS;
             attempt += 1
           ) {
-            rows = await requestPreviewRowsRange(fileId, rangeStart, rangeEnd);
+            rows = await requestPreviewRowsRange(sourceKey, rangeStart, rangeEnd);
             if (rows.length === expectedRows) break;
           }
 
@@ -1281,7 +1468,7 @@ const createTableModel = ({
           if (!merged.complete) return;
 
           if (
-            previewCacheFileIdRef.current === fileId &&
+            previewCacheFileIdRef.current === sourceKey &&
             merged.mergedChunkStarts.length > 0
           ) {
             shouldNotifyPreviewRows = true;
@@ -1320,6 +1507,7 @@ const createTableModel = ({
       previewCacheFileIdRef,
       previewFile,
       requestPreviewRowsRange,
+      resolveRequestSourceKey,
     ],
   );
 
@@ -1387,33 +1575,55 @@ const createTableModel = ({
   const getState = memoCallback(
     (): TableState => {
       const currentFile = previewFileRef.current;
-      const selectedFileName =
-        filesByIdRef.current.get(String(selectedPreviewFileId ?? ""))?.fileName ?? "";
+      const selectedFileSources =
+        sourcesByFileIdRef.current.get(String(selectedPreviewFileId ?? "")) ?? [];
+      const selectedSourceForName = selectedPreviewSheetId
+        ? selectedFileSources.find(
+            (sourceEntry) => sourceEntry.source.sheetId === selectedPreviewSheetId,
+          ) ?? selectedFileSources[0] ?? null
+        : selectedFileSources[0] ?? null;
+      const selectedFileName = selectedSourceForName?.entry.fileName ?? "";
+      const selectedSheetName = selectedSourceForName?.sheetName ?? null;
+      const currentFileName = currentFile?.sheetName
+        ? `${currentFile.fileName} / ${currentFile.sheetName}`
+        : currentFile?.fileName;
+      const selectedDisplayName = selectedSheetName
+        ? `${selectedFileName} / ${selectedSheetName}`
+        : selectedFileName;
+      const hasCurrentSource = isTableFileForSource(currentFile, selectedPreviewSourceKey);
       const fileName = formatTableFileName(
-        currentFile?.fileId === selectedPreviewFileId
-          ? currentFile.fileName
-          : selectedFileName,
+        hasCurrentSource ? currentFileName : selectedDisplayName,
       );
-      const dimensions =
-        currentFile?.fileId === selectedPreviewFileId
-          ? `${Math.max(0, Number(currentFile.rowCount) || 0)} × ${Math.max(0, Number(currentFile.columnCount) || 0)}`
-          : undefined;
+      const dimensions = hasCurrentSource && currentFile
+        ? `${Math.max(0, Number(currentFile.rowCount) || 0)} × ${Math.max(0, Number(currentFile.columnCount) || 0)}`
+        : undefined;
 
       return {
         dimensions,
-        file: currentFile?.fileId === selectedPreviewFileId ? currentFile : null,
+        file: hasCurrentSource ? currentFile : null,
         fileName,
         loadState: previewStatusRef.current,
         selectedFileId: selectedPreviewFileId ?? null,
+        selectedSheetId: selectedPreviewSheetId ?? null,
+        source: selectedSource?.source ?? null,
+        sourceKey: selectedPreviewSourceKey,
       };
     },
-    [previewFileRef, previewStatusRef, filesByIdRef, selectedPreviewFileId],
+    [
+      previewFileRef,
+      previewStatusRef,
+      selectedPreviewFileId,
+      selectedPreviewSheetId,
+      selectedPreviewSourceKey,
+      selectedSource,
+      sourcesByFileIdRef,
+    ],
   );
 
   const hasRawDataFile = memoCallback(
     (fileId: string | null | undefined): boolean =>
-      Boolean(fileId && filesByIdRef.current.has(fileId)),
-    [filesByIdRef],
+      Boolean(fileId && sourcesByFileIdRef.current.has(fileId)),
+    [sourcesByFileIdRef],
   );
 
   return {

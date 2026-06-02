@@ -37,6 +37,10 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
       return this.showOpenDialogSimplified(schema, options);
     }
 
+    if (options.canSelectFiles && !options.canSelectFolders) {
+      return this.showOpenFileDialog(options);
+    }
+
     if (!options.canSelectFolders || options.canSelectFiles) {
       return undefined;
     }
@@ -63,6 +67,46 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 
     return [provider.registerDirectoryHandle(handle)];
   }
+
+  private async showOpenFileDialog(options: IOpenDialogOptions): Promise<URI[] | undefined> {
+    const provider = this.filesService.getProvider("file");
+    if (!(provider instanceof HTMLFileSystemProvider)) {
+      return undefined;
+    }
+
+    const files = await this.pickFiles(options);
+    if (!files.length) {
+      return undefined;
+    }
+
+    return files.map(file => provider.registerFile(file));
+  }
+
+  private pickFiles(options: IOpenDialogOptions): Promise<File[]> {
+    return new Promise(resolve => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = getAcceptAttribute(options);
+      input.multiple = Boolean(options.canSelectMany);
+      input.style.display = "none";
+      input.addEventListener("change", () => {
+        const files = Array.from(input.files ?? []);
+        input.remove();
+        resolve(files);
+      }, { once: true });
+      document.body.append(input);
+      input.click();
+    });
+  }
 }
 
 registerSingleton(IFileDialogService, FileDialogService, InstantiationType.Delayed);
+
+const getAcceptAttribute = (options: IOpenDialogOptions): string => {
+  const extensions = options.filters
+    ?.flatMap(filter => filter.extensions)
+    .map(extension => extension.startsWith(".") ? extension : `.${extension}`)
+    .join(",");
+
+  return extensions || "";
+};

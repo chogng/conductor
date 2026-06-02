@@ -1,7 +1,4 @@
-import { lxAdd, lxChevronDown, lxEdit } from "@chogng/lxicon";
-
 import { createButton } from "src/cs/base/browser/ui/button/button";
-import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import {
   createMenuAction,
   createMenuButton,
@@ -9,6 +6,12 @@ import {
   MenuButton,
 } from "src/cs/base/browser/ui/menu/menu";
 import { Separator, type IAction } from "src/cs/base/common/actions";
+import {
+  lxAdd,
+  lxChevronDown,
+  lxDownload,
+  lxEdit,
+} from "src/cs/base/common/lxicon";
 import {
   getInputFieldClassName,
   getInputFieldState,
@@ -37,6 +40,7 @@ import {
 } from "src/cs/workbench/contrib/template/common/templateValidation";
 import { AUTO_TEMPLATE_ID } from "src/cs/workbench/common/deviceAnalysis/autoExtraction";
 import { downloadTemplateBundle } from "src/cs/workbench/contrib/template/browser/templateController";
+import type { ITemplateService } from "src/cs/workbench/contrib/template/common/template";
 import type {
   TableModel,
   TableSelection,
@@ -45,6 +49,7 @@ import type {
 export type TemplateElementOptions = {
   readonly t: TranslateFn;
   readonly importSessionElement?: HTMLElement | null;
+  readonly templateService: ITemplateService;
   rawData?: RawDataEntry[];
   tableModel?: Pick<
     TableModel,
@@ -264,7 +269,6 @@ export class TemplateManagerView {
   private saveRefs: {
     root: HTMLElement;
     inputs: Record<"name" | "xDataStart" | "xDataEnd" | "yLegendStart" | "yLegendCount", HTMLInputElement>;
-    meta: HTMLElement;
   } | null = null;
 
   constructor(props: TemplateElementOptions) {
@@ -488,7 +492,7 @@ export class TemplateManagerView {
       items: () => this.createTemplateActions(),
       menuClassName: "template_select_menu",
       surfaceClassName: "template_select_menu_surface",
-      triggerIcon: () => createLxIcon({ icon: lxChevronDown, size: 14 }),
+      triggerIcon: lxChevronDown,
     });
     selectContainer.append(menuButton.domNode);
 
@@ -560,44 +564,17 @@ export class TemplateManagerView {
     const importExportRow = document.createElement("div");
     importExportRow.className = "template_button_row template_button_row--inset";
 
-    const importBtn = createButton({
-      label: localize("da_template_import_btn", "Import templates"),
-      size: "sm",
-      variant: "secondary",
-    });
-    importBtn.className = `${importBtn.className} template_button`;
-
-    const fileInput = document.createElement("input");
-    fileInput.type = "file";
-    fileInput.accept = ".json";
-    fileInput.style.display = "none";
-    fileInput.addEventListener("change", async () => {
-      const file = fileInput.files?.[0];
-      if (!file) {
-        return;
-      }
-
-      try {
-        const raw = await file.text();
-        const payload = JSON.parse(raw);
-        await importTemplates(payload, this.props.t, this.session);
-      } catch (err) {
-        showToast(localize("da_template_import_failed", "Failed to import template: {error}", { error: String(err) }), "error");
-      }
-    });
-    importBtn.addEventListener("click", () => fileInput.click());
-
     const exportButton = createButton({
       label: localize("da_template_export_btn", "Export templates"),
       size: "sm",
       variant: "secondary",
     });
-    exportButton.className = `${exportButton.className} template_button`;
+    exportButton.className = `${exportButton.className} template_button template_button--full`;
     exportButton.addEventListener("click", () => {
       exportTemplate(this.session.templateConfig);
     });
 
-    importExportRow.append(importBtn, exportButton, fileInput);
+    importExportRow.append(exportButton);
     root.append(importExportRow);
 
     const divider = document.createElement("div");
@@ -695,7 +672,7 @@ export class TemplateManagerView {
       items: () => this.createTemplateActions(),
       menuClassName: "template_select_menu",
       surfaceClassName: "template_select_menu_surface",
-      triggerIcon: () => createLxIcon({ icon: lxChevronDown, size: 14 }),
+      triggerIcon: lxChevronDown,
     });
 
     const isCustomTemplate = Boolean(this.session.selectedTemplateId && this.session.selectedTemplateId !== AUTO_TEMPLATE_ID);
@@ -728,9 +705,6 @@ export class TemplateManagerView {
       yLegendCount: this.createSaveField(form, localize("da_template_y_legend_count", "Legend Count"), "yLegendCount"),
     };
 
-    const meta = document.createElement("p");
-    meta.className = "template_meta";
-    form.append(meta);
     root.append(form);
 
     const spacer = document.createElement("div");
@@ -766,7 +740,6 @@ export class TemplateManagerView {
     return {
       root,
       inputs,
-      meta,
     };
   }
 
@@ -816,8 +789,6 @@ export class TemplateManagerView {
         input.value = values[key];
       }
     }
-
-    refs.meta.textContent = localize("da_template_file_count", "{count} file(s) imported", { count: this.props.rawData?.length ?? 0 });
   }
 
   private getSelectedTemplateLabel(): string {
@@ -844,10 +815,6 @@ export class TemplateManagerView {
     ];
 
     const templates = cachedTemplates ?? [];
-    if (templates.length > 0) {
-      actions.push(new Separator());
-    }
-
     for (const template of templates) {
       const templateId = String(template.id ?? "");
       if (!templateId) {
@@ -860,7 +827,7 @@ export class TemplateManagerView {
         left: createMenuItemLabel(template.name || templateId),
         run: () => this.selectTemplate(templateId),
         rightAction: {
-          icon: () => createLxIcon({ icon: lxEdit, size: 14 }),
+          icon: lxEdit,
           label: localize("da_template_edit", "Edit template"),
           onClick: () => this.editTemplate(template),
         },
@@ -874,18 +841,46 @@ export class TemplateManagerView {
       new Separator(),
       createMenuAction({
         id: "template.create",
-        label: localize("da_template_create_new", "Create new template..."),
+        label: localize("da_template_create_new", "新建模板..."),
         className: "template_select_menu_create",
-        left: createMenuItemLabel(
-          localize("da_template_create_new", "Create new template..."),
-          () => createLxIcon({ icon: lxAdd, size: 14 }),
-        ),
+        left: createMenuItemLabel(localize("da_template_create_new", "新建模板...")),
         run: () => this.createTemplateDraft(),
+        rightAction: {
+          icon: lxAdd,
+          label: localize("da_template_create_new", "新建模板..."),
+          onClick: () => this.createTemplateDraft(),
+        },
+        tabIndex: 0,
+      }),
+      createMenuAction({
+        id: "template.import",
+        label: localize("da_template_import_btn", "Import templates"),
+        left: createMenuItemLabel(localize("da_template_import_btn", "Import templates")),
+        run: () => this.promptTemplateImport(),
+        rightAction: {
+          icon: lxDownload,
+          label: localize("da_template_import_btn", "Import templates"),
+          onClick: () => this.promptTemplateImport(),
+        },
         tabIndex: 0,
       }),
     );
 
     return actions;
+  }
+
+  private promptTemplateImport(): void {
+    void this.importTemplateFromDialog();
+  }
+
+  private async importTemplateFromDialog(): Promise<void> {
+    try {
+      await this.props.templateService.importTemplateFromDialog(
+        (payload) => importTemplates(payload, this.props.t, this.session),
+      );
+    } catch (err) {
+      showToast(localize("da_template_import_failed", "Failed to import template: {error}", { error: String(err) }), "error");
+    }
   }
 
   private createTemplateDraft(): void {

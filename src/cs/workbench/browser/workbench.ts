@@ -32,6 +32,7 @@ import {
 } from "src/cs/workbench/browser/window";
 import ChartPreviewViewPane from "src/cs/workbench/contrib/chartPreview/browser/chartPreviewViewPane";
 import TemplateEditorPane from "src/cs/workbench/contrib/template/browser/templateEditorPane";
+import { BrowserTemplateService } from "src/cs/workbench/contrib/template/browser/templateService";
 import { getWorkbenchContribution } from "src/cs/workbench/common/contributions";
 import type { TableContribution } from "src/cs/workbench/contrib/table/browser/table.contribution";
 import { TableContributionId } from "src/cs/workbench/contrib/table/common/table";
@@ -48,6 +49,7 @@ import type {
   ITableService,
   TableModel,
 } from "src/cs/workbench/contrib/table/common/tableService";
+import type { ITemplateService } from "src/cs/workbench/contrib/template/common/template";
 import {
   CoreSettingsController,
   createCoreSettingsState,
@@ -158,6 +160,7 @@ export class Workbench extends Layout {
   private readonly filesService: IFileService;
   private readonly pathService: IPathService;
   private readonly tableService: ITableService;
+  private readonly templateService: ITemplateService;
   private readonly coreSettingsController: CoreSettingsController;
   private coreSettingsState: CoreSettingsState = createCoreSettingsState();
   private language: LanguageCode = isLanguageCode(window.__CONDUCTOR_INITIAL_LANGUAGE__)
@@ -198,6 +201,11 @@ export class Workbench extends Layout {
     this.dialogsService = options.dialogsService;
     this.pathService = options.pathService;
     this.tableService = options.tableService;
+    this.templateService = new BrowserTemplateService(
+      this.dialogsService,
+      this.filesService,
+      this.pathService,
+    );
     this.templateApply = this._register(new TemplateApplyController({
       onExtractionError: () => undefined,
       setActivePage: (page) => {
@@ -347,6 +355,7 @@ export class Workbench extends Layout {
       setPreviewStatus: this.session.setPreviewStatus,
       setRawData: this.session.setRawData,
       setSelectedPreviewFileId: this.session.setSelectedPreviewFileId,
+      setSelectedPreviewSheetId: this.session.setSelectedPreviewSheetId,
       setSsManualRanges: this.session.setSsManualRanges,
     });
 
@@ -378,6 +387,7 @@ export class Workbench extends Layout {
       onUpdateSettings: this.coreSettingsState.handleUpdateAnalysisSettings,
       rawData: snapshot.rawData,
       tableModel,
+      templateService: this.templateService,
       t: this.t,
     };
   }
@@ -419,9 +429,11 @@ export class Workbench extends Layout {
       workerRef: this.session.previewWorkerRef,
       rawData: snapshot.rawData,
       selectedFileId: snapshot.selectedPreviewFileId,
+      selectedSheetId: snapshot.selectedPreviewSheetId,
       setFile: this.session.setPreviewFile,
       setLoadState: this.session.setPreviewStatus,
       setSelectedFileId: this.session.setSelectedPreviewFileId,
+      setSelectedSheetId: this.session.setSelectedPreviewSheetId,
       t: this.t,
     });
   }

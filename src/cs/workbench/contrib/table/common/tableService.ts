@@ -34,9 +34,17 @@ export type TableHighlight = {
   readonly ranges?: readonly TableRange[];
 };
 
+export type TableSource = {
+  readonly fileId: string;
+  readonly sheetId?: string | null;
+};
+
 export type TableFile = {
   fileId: string;
   fileName: string;
+  sheetId?: string | null;
+  sheetName?: string | null;
+  sourceKey?: string;
   rowCount: number;
   columnCount: number;
   maxCellLengths: number[];
@@ -49,6 +57,8 @@ export type TableLoadState = {
 
 export type TableRowsRequest = {
   fileId: string;
+  sheetId?: string | null;
+  sourceKey?: string;
   startRow: number;
   endRow: number;
   reject: (error: unknown) => void;
@@ -57,6 +67,9 @@ export type TableRowsRequest = {
 
 export type TableState = {
   readonly selectedFileId: string | null;
+  readonly selectedSheetId?: string | null;
+  readonly source?: TableSource | null;
+  readonly sourceKey?: string | null;
   readonly fileName: string;
   readonly file: TableFile | null;
   readonly loadState: TableLoadState;
@@ -66,7 +79,9 @@ export type TableState = {
 export type TableInput = {
   rawData?: RawDataEntry[];
   selectedFileId?: string | null;
+  selectedSheetId?: string | null;
   setSelectedFileId?: Dispatch<SetStateAction<string | null>>;
+  setSelectedSheetId?: Dispatch<SetStateAction<string | null>>;
   file?: TableFile | null;
   loadState?: TableLoadState;
   setFile?: Dispatch<SetStateAction<TableFile | null>>;
@@ -120,3 +135,11 @@ export interface ITableService {
   readonly _serviceBrand: undefined;
   update(input: TableInput): TableModel;
 }
+
+export const toTableSourceKey = (source: TableSource): string => {
+  const fileId = encodeURIComponent(source.fileId);
+  const sheetId = typeof source.sheetId === "string" && source.sheetId
+    ? encodeURIComponent(source.sheetId)
+    : "";
+  return sheetId ? `${fileId}::${sheetId}` : fileId;
+};

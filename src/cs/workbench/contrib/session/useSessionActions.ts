@@ -27,6 +27,7 @@ type UseSessionActionsOptions = {
   setPreviewStatus: StateSetter<PreviewStatus>;
   setRawData: StateSetter<RawDataEntry[]>;
   setSelectedPreviewFileId: StateSetter<string | null>;
+  setSelectedPreviewSheetId: StateSetter<string | null>;
   setIonIoffManualTargetsByFileId: StateSetter<IonIoffManualTargetsByFileId>;
   setSsManualRanges: StateSetter<SsManualRanges>;
 };
@@ -48,6 +49,7 @@ export const createSessionActions = ({
   setPreviewStatus,
   setRawData,
   setSelectedPreviewFileId,
+  setSelectedPreviewSheetId,
   setIonIoffManualTargetsByFileId,
   setSsManualRanges,
 }: UseSessionActionsOptions) => {
@@ -79,6 +81,7 @@ export const createSessionActions = ({
 
     setProcessedData([]);
     setRawData([]);
+    setSelectedPreviewSheetId(null);
     setIonIoffManualTargetsByFileId({});
     setSsManualRanges({});
     resetPreviewWorker();
@@ -94,6 +97,7 @@ export const createSessionActions = ({
         }
 
         preparePreviewSelection(importedFileId);
+        setSelectedPreviewSheetId(null);
         return importedFileId;
       });
     }
@@ -118,6 +122,7 @@ export const createSessionActions = ({
 
     const nextSelectedFileId = files[0]?.fileId ?? null;
     setSelectedPreviewFileId(nextSelectedFileId);
+    setSelectedPreviewSheetId(null);
     if (nextSelectedFileId) {
       preparePreviewSelection(nextSelectedFileId);
     }
@@ -129,6 +134,7 @@ export const createSessionActions = ({
       const remainingFiles = rawData.filter((entry) => entry.fileId !== fileId);
       nextSelectedFileId = remainingFiles[0]?.fileId ?? null;
       setSelectedPreviewFileId(nextSelectedFileId);
+      setSelectedPreviewSheetId(null);
     }
 
     setRawData((prev) => prev.filter((entry) => entry.fileId !== fileId));
@@ -160,6 +166,7 @@ export const createSessionActions = ({
   const handleFileSelected = (fileId: string | null) => {
     if (!fileId) {
       setSelectedPreviewFileId(null);
+      setSelectedPreviewSheetId(null);
       return;
     }
 
@@ -174,6 +181,7 @@ export const createSessionActions = ({
       preparePreviewSelection(fileId, {
         clearCurrentPreview: Boolean(previewFileId) && previewFileId !== fileId,
       });
+      setSelectedPreviewSheetId(null);
     }
 
     setSelectedPreviewFileId(fileId);

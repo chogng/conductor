@@ -9,8 +9,7 @@ export type TemplateImportPayloadHandler = (
 
 export interface ITemplateService {
   downloadTemplateBundle(bundle: unknown): string;
-  importTemplateFile(
-    file: File,
+  importTemplateFromDialog(
     importTemplatesFromPayload: TemplateImportPayloadHandler,
   ): Promise<void>;
 }

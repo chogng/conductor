@@ -20,6 +20,7 @@ import type {
 type SessionSnapshot = {
   readonly rawData: RawDataEntry[];
   readonly selectedPreviewFileId: string | null;
+  readonly selectedPreviewSheetId: string | null;
   readonly processedData: ProcessedEntry[];
   readonly templateMode: TemplateMode;
   readonly selectedTemplateId: string | null;
@@ -75,6 +76,7 @@ export class SessionModel {
   private snapshot: SessionSnapshot = {
     rawData: [],
     selectedPreviewFileId: null,
+    selectedPreviewSheetId: null,
     processedData: [],
     templateMode: "select",
     selectedTemplateId: null,
@@ -110,6 +112,8 @@ export class SessionModel {
     this.update("rawData", value);
   readonly setSelectedPreviewFileId: StateSetter<string | null> = (value) =>
     this.update("selectedPreviewFileId", value);
+  readonly setSelectedPreviewSheetId: StateSetter<string | null> = (value) =>
+    this.update("selectedPreviewSheetId", value);
   readonly setProcessedData: StateSetter<ProcessedEntry[]> = (value) =>
     this.update("processedData", value);
   readonly setTemplateMode: StateSetter<TemplateMode> = (value) =>
@@ -153,6 +157,7 @@ export class SessionModel {
       ...snapshot,
       setRawData: this.setRawData,
       setSelectedPreviewFileId: this.setSelectedPreviewFileId,
+      setSelectedPreviewSheetId: this.setSelectedPreviewSheetId,
       setProcessedData: this.setProcessedData,
       setTemplateMode: this.setTemplateMode,
       setSelectedTemplateId: this.setSelectedTemplateId,

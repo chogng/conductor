@@ -71,7 +71,9 @@ export type SessionContextValue = {
   rawData: RawDataEntry[];
   setRawData: StateSetter<RawDataEntry[]>;
   selectedPreviewFileId: string | null;
+  selectedPreviewSheetId: string | null;
   setSelectedPreviewFileId: StateSetter<string | null>;
+  setSelectedPreviewSheetId: StateSetter<string | null>;
   processedData: ProcessedEntry[];
   setProcessedData: StateSetter<ProcessedEntry[]>;
   templateMode: TemplateMode;

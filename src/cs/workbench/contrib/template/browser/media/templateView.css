@@ -50,14 +50,6 @@
   line-height: 1.25rem;
 }
 
-.template_meta {
-  margin-top: 0.25rem;
-  font-size: 0.75rem;
-  line-height: 1rem;
-  --tw-text-opacity: 1;
-  color: rgb(var(--text-secondary) / var(--tw-text-opacity, 1));
-}
-
 .template_config_panel {
   display: flex;
   height: 100%;
@@ -135,6 +127,7 @@
 }
 
 .template_select_actions .ui-menu-button {
+  grid-column: 1 / -1;
   height: 32px;
   font-size: 12px;
   line-height: 1rem;
@@ -165,6 +158,10 @@
   font-size: 12px;
   line-height: 1rem;
   font-weight: 500;
+}
+
+.template_button--full {
+  grid-column: 1 / -1;
 }
 
 .template_apply_actions {

@@ -1,3 +1,10 @@
+import {
+  lxAdd as renderAdd,
+  lxChevronDown as renderChevronDown,
+  lxDownload as renderDownload,
+  lxEdit as renderEdit,
+} from "@chogng/lxicon";
+
 export type LxIconRenderer = () => string;
 
 export type LxIconDefinition = LxIcon | LxIconRenderer;
@@ -56,3 +63,11 @@ export const lxSlidersHorizontal = registerLxIcon(
   () =>
     `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16"><path stroke="#000" stroke-linecap="round" d="M2.5 4h2m3 0h6M2.5 8h6m3 0h1.5M2.5 12h3m3 0h4.5"/><circle cx="6" cy="4" r="1.5" stroke="#000"/><circle cx="10" cy="8" r="1.5" stroke="#000"/><circle cx="7" cy="12" r="1.5" stroke="#000"/></svg>`,
 );
+
+export const lxAdd = registerLxIcon("add", renderAdd);
+
+export const lxChevronDown = registerLxIcon("chevron-down", renderChevronDown);
+
+export const lxDownload = registerLxIcon("download", renderDownload);
+
+export const lxEdit = registerLxIcon("edit", renderEdit);
