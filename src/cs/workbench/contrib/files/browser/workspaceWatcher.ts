@@ -11,26 +11,25 @@ const FOLDER_CHANGE_REACT_DELAY = 500;
 export class WorkspaceWatcher implements IDisposable {
   private readonly store = new DisposableStore();
   private readonly scheduler = new RunOnceScheduler(() => {
-    const folderPath = this.folder?.fsPath ?? null;
-    if (folderPath) {
-      this.onDidChangeFolder(folderPath);
+    const folder = this.folder;
+    if (folder) {
+      this.onDidChangeFolder(folder);
     }
   }, FOLDER_CHANGE_REACT_DELAY);
   private folder: URI | null = null;
 
   constructor(
     private readonly filesService: IFileService,
-    private readonly onDidChangeFolder: (folderPath: string) => void,
+    private readonly onDidChangeFolder: (folder: URI) => void,
   ) {}
 
-  public get currentFolderPath(): string | null {
-    return this.folder?.fsPath ?? null;
+  public get currentFolderKey(): string | null {
+    return this.folder?.toString() ?? null;
   }
 
-  public watch(folderPath: string): void {
+  public watch(folder: URI): void {
     this.clear();
 
-    const folder = URI.file(folderPath);
     this.folder = folder;
     this.store.add(this.filesService.watch(folder, { recursive: true }));
     this.store.add(this.filesService.onDidFilesChange(changes => {

@@ -26,6 +26,16 @@ function joinFsPath(parent: string, name: string): string {
   return `${trimmedParent}${separator}${name}`;
 }
 
+function joinResourcePath(parent: URI, name: string): URI {
+  if (WINDOWS_DRIVE_PREFIX.test(parent.fsPath)) {
+    return URI.file(joinFsPath(parent.fsPath, name));
+  }
+
+  const trimmedPath = parent.path.replace(/\/+$/, "");
+  const encodedName = encodeURIComponent(name);
+  return URI.file(`${trimmedPath}/${encodedName}`);
+}
+
 function getPathBaseName(path: string): string {
   const normalized = path.trim().replace(/[\\/]+$/, "");
   const separatorIndex = Math.max(
@@ -33,7 +43,17 @@ function getPathBaseName(path: string): string {
     normalized.lastIndexOf("\\"),
   );
 
-  return separatorIndex >= 0 ? normalized.slice(separatorIndex + 1) : normalized;
+  return decodePathSegment(
+    separatorIndex >= 0 ? normalized.slice(separatorIndex + 1) : normalized,
+  );
+}
+
+function decodePathSegment(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 function getFileMimeType(fileName: string): string {
@@ -64,11 +84,11 @@ export const collectDroppedFiles = async (
 ): Promise<FileSource[]> => collectDataTransferFiles(dataTransfer);
 
 export async function collectFolderFiles(
-  folderPath: string,
+  folder: URI,
   filesService: IFileService,
 ): Promise<FileSource[]> {
-  const rootName = getPathBaseName(folderPath) || "Folder";
-  const root = URI.file(folderPath);
+  const root = URI.revive(folder);
+  const rootName = getPathBaseName(root.path) || "Folder";
   const files: FileSource[] = [];
 
   await collectFolderFilesAt(root, rootName, files, 0, filesService);
@@ -88,7 +108,7 @@ async function collectFolderFilesAt(
 
   const entries = await filesService.readDir(folder);
   for (const [name, type] of entries) {
-    const child = URI.file(joinFsPath(folder.fsPath, name));
+    const child = joinResourcePath(folder, name);
     const relativePath = `${relativeFolderPath}/${name}`;
 
     if ((type & FileType.Directory) === FileType.Directory) {
@@ -100,11 +120,26 @@ async function collectFolderFilesAt(
       continue;
     }
 
-    files.push({
-      file: await readFileSource(child, name, filesService),
-      relativePath,
-      resource: child,
-    });
+    const file = await tryReadFileSource(child, name, filesService);
+    if (file) {
+      files.push({
+        file,
+        relativePath,
+        resource: child,
+      });
+    }
+  }
+}
+
+async function tryReadFileSource(
+  resource: URI,
+  name: string,
+  filesService: IFileService,
+): Promise<File | null> {
+  try {
+    return await readFileSource(resource, name, filesService);
+  } catch {
+    return null;
   }
 }
 

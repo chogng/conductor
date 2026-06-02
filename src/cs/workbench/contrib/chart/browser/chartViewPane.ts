@@ -74,7 +74,7 @@ export class ChartViewPane {
     this.headerStore.clear();
     const activeFile = resolveActiveFile(props);
     const isEmpty = !props.cleanedData.length;
-    this.header.className = "chart_view_header";
+    this.header.className = isEmpty ? "chart_view_header chart_view_header--hidden" : "chart_view_header";
     this.headerTabs.replaceChildren();
     this.headerActions.replaceChildren();
 

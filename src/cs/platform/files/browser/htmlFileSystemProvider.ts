@@ -120,7 +120,7 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
     }
 
     const entries: [string, FileType][] = [];
-    for await (const [name, handle] of resolved.handle.entries()) {
+    for await (const [name, handle] of resolved.handle) {
       entries.push([name, toFileType(handle)]);
     }
 

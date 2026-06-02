@@ -55,19 +55,6 @@ export type ChartViewProps = {
   onOriginOpenPlotOptionsChange?: (updates: unknown) => Promise<unknown> | void;
 };
 
-const appendStat = (parent: HTMLElement, label: string, value: string): void => {
-  const item = document.createElement("div");
-  item.className = "chart_view_stat";
-  const labelElement = document.createElement("div");
-  labelElement.className = "chart_view_stat_label";
-  labelElement.textContent = label;
-  const valueElement = document.createElement("div");
-  valueElement.className = "chart_view_stat_value";
-  valueElement.textContent = value;
-  item.append(labelElement, valueElement);
-  parent.append(item);
-};
-
 export const createChartView = (props: ChartViewProps): HTMLElement => {
   const {
     activePlotType = "iv",
@@ -98,14 +85,6 @@ export const createChartView = (props: ChartViewProps): HTMLElement => {
     plotType: activePlotType,
     cleanedData,
   });
-
-  const summary = document.createElement("div");
-  summary.className = "chart_view_summary";
-  appendStat(summary, t("analysis.seriesCount"), String(model.seriesList.length));
-  appendStat(summary, t("analysis.pointsCount"), String(model.pointsCount));
-  appendStat(summary, t("analysis.xDomain"), `${model.xDomain[0].toPrecision(4)} - ${model.xDomain[1].toPrecision(4)}`);
-  appendStat(summary, t("analysis.yDomain"), `${model.yDomain[0].toPrecision(4)} - ${model.yDomain[1].toPrecision(4)}`);
-  root.append(summary);
 
   const chartHost = document.createElement("div");
   chartHost.className = "chart_view_host";
