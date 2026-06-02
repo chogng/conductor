@@ -5,7 +5,8 @@ import type { IFileService as IFileServiceType } from "src/cs/platform/files/com
 import { localize } from "src/cs/nls";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { IPathService as IPathServiceType } from "src/cs/workbench/services/path/common/pathService";
-import { startPerf } from "src/cs/workbench/common/deviceAnalysis/perf";
+import { startPerf } from "src/cs/workbench/common/perf";
+import { WorkspaceWatcher } from "src/cs/workbench/contrib/files/browser/workspaceWatcher";
 import {
   ExplorerView,
   type ExplorerViewProps,
@@ -46,12 +47,14 @@ const IMPORT_PREPARE_CONCURRENCY = 2;
 export class FilesController implements FilesPaneRef, IDisposable {
   private readonly listRef: { current: ListHandle | null } = { current: null };
   private readonly shouldAutoScrollToBottomRef = { current: true };
+  private readonly folderWatcher: WorkspaceWatcher;
   private explorerView: ExplorerView | null = null;
   private props: FilesControllerProps;
   private internalFiles: ImportedSessionFileEntry[] = [];
   private error: string | null = null;
   private isDragging = false;
   private optimisticSelectedFileId: string | null = null;
+  private folderRefreshRunId = 0;
   private prevFileCount = 0;
   private disposed = false;
   private readonly dialogsService: IFileDialogServiceType;
@@ -66,6 +69,9 @@ export class FilesController implements FilesPaneRef, IDisposable {
     this.dialogsService = props.dialogsService;
     this.filesService = props.filesService;
     this.pathService = props.pathService;
+    this.folderWatcher = new WorkspaceWatcher(this.filesService, folderPath => {
+      void this.refreshImportedFolder(folderPath);
+    });
     this.prevFileCount = this.files.length;
     this.optimisticSelectedFileId = props.selectedFileId ?? null;
 
@@ -101,6 +107,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
     }
 
     this.disposed = true;
+    this.folderWatcher.dispose();
     this.explorerView?.dispose();
     this.explorerView = null;
     this.listRef.current = null;
@@ -193,6 +200,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
   };
 
   private readonly handleSelectFiles = (selectedFiles: FileSource[]): void => {
+    this.clearImportedFolderWatch();
     this.isDragging = false;
     if (selectedFiles.length === 0) {
       this.error = this.getNoSupportedDroppedFilesError();
@@ -228,7 +236,8 @@ export class FilesController implements FilesPaneRef, IDisposable {
         return;
       }
 
-      this.handleSelectFiles(files);
+      this.watchImportedFolder(folderPath);
+      void this.processFiles(files);
     } catch {
       if (this.disposed) {
         return;
@@ -276,7 +285,14 @@ export class FilesController implements FilesPaneRef, IDisposable {
     this.syncView();
   };
 
-  private async processFiles(newFiles: FileSource[]): Promise<void> {
+  private async processFiles(
+    newFiles: FileSource[],
+    options: {
+      readonly preserveSelection?: boolean;
+      readonly replaceWhenEmpty?: boolean;
+      readonly shouldContinue?: () => boolean;
+    } = {},
+  ): Promise<void> {
     const finishBatchPerf = startPerf("import:add-files", {
       currentCount: 0,
       incomingCount: newFiles.length,
@@ -286,6 +302,8 @@ export class FilesController implements FilesPaneRef, IDisposable {
     this.syncView();
 
     const failedNames: string[] = [];
+    const canApplyResult = (): boolean =>
+      !options.shouldContinue || options.shouldContinue();
     const {
       hasAnyUnsupportedFiles,
       pendingImports,
@@ -300,16 +318,26 @@ export class FilesController implements FilesPaneRef, IDisposable {
         failedCount: 0,
         unsupportedCount,
       });
-      this.error = this.buildImportErrorMessage({
-        failedNames,
-        hasAnyUnsupportedFiles,
-      });
-      this.syncView();
+      if (options.replaceWhenEmpty) {
+        if (canApplyResult()) {
+          this.replaceImportedFiles([], [], null);
+        }
+      }
+      if (canApplyResult()) {
+        this.error = this.buildImportErrorMessage({
+          failedNames,
+          hasAnyUnsupportedFiles,
+        });
+        this.syncView();
+      }
       return;
     }
 
     const preparedEntries: ImportedSessionFileEntry[] = [];
     const importedFiles: ImportSessionFileInfo[] = [];
+    const selectedRelativePath = options.preserveSelection
+      ? this.getSelectedRelativePath()
+      : null;
 
     let nextImportIndex = 0;
     const workerCount = Math.min(
@@ -341,15 +369,21 @@ export class FilesController implements FilesPaneRef, IDisposable {
     );
 
     const acceptedCount = importedFiles.length;
-    if (acceptedCount > 0) {
-      this.replaceImportedFiles(preparedEntries, importedFiles);
+    if (acceptedCount > 0 && canApplyResult()) {
+      this.replaceImportedFiles(
+        preparedEntries,
+        importedFiles,
+        this.resolveSelectedFileId(importedFiles, selectedRelativePath),
+      );
     }
 
-    this.error = this.buildImportErrorMessage({
-      failedNames,
-      hasAnyUnsupportedFiles,
-    });
-    this.syncView();
+    if (canApplyResult()) {
+      this.error = this.buildImportErrorMessage({
+        failedNames,
+        hasAnyUnsupportedFiles,
+      });
+      this.syncView();
+    }
 
     finishBatchPerf({
       acceptedCount,
@@ -373,8 +407,9 @@ export class FilesController implements FilesPaneRef, IDisposable {
   private replaceImportedFiles(
     fileEntries: ImportedSessionFileEntry[],
     importedFiles: ImportSessionFileInfo[],
+    selectedFileId: string | null = importedFiles[0]?.fileId ?? null,
   ): void {
-    const nextSelectedFileId = importedFiles[0]?.fileId ?? null;
+    const nextSelectedFileId = selectedFileId;
     this.optimisticSelectedFileId = nextSelectedFileId;
 
     if (!this.isControlled) {
@@ -393,6 +428,75 @@ export class FilesController implements FilesPaneRef, IDisposable {
     if (this.props.onFileSelected) {
       this.props.onFileSelected(nextSelectedFileId);
     }
+  }
+
+  private watchImportedFolder(folderPath: string): void {
+    this.folderWatcher.watch(folderPath);
+  }
+
+  private clearImportedFolderWatch(): void {
+    this.folderWatcher.clear();
+  }
+
+  private async refreshImportedFolder(folderPath: string): Promise<void> {
+    if (!folderPath || this.disposed) {
+      return;
+    }
+
+    const runId = this.folderRefreshRunId + 1;
+    this.folderRefreshRunId = runId;
+
+    try {
+      const files = await collectFolderFiles(folderPath, this.filesService);
+      if (this.disposed || runId !== this.folderRefreshRunId) {
+        return;
+      }
+
+      await this.processFiles(files, {
+        preserveSelection: true,
+        replaceWhenEmpty: true,
+        shouldContinue: () =>
+          !this.disposed &&
+          runId === this.folderRefreshRunId &&
+          this.folderWatcher.currentFolderPath === folderPath,
+      });
+    } catch {
+      if (this.disposed || runId !== this.folderRefreshRunId) {
+        return;
+      }
+
+      this.error = localize(
+        "import.failedToRefreshFolder",
+        "Failed to refresh files from the selected folder.",
+      );
+      this.syncView();
+    }
+  }
+
+  private getSelectedRelativePath(): string | null {
+    const selectedFileId = this.effectiveSelectedFileId;
+    if (!selectedFileId) {
+      return null;
+    }
+
+    const selectedFile = this.files.find(file => file.fileId === selectedFileId);
+    return normalizeRelativePath(selectedFile?.relativePath);
+  }
+
+  private resolveSelectedFileId(
+    files: ImportSessionFileInfo[],
+    selectedRelativePath: string | null,
+  ): string | null {
+    if (selectedRelativePath) {
+      const matchingFile = files.find(file =>
+        normalizeRelativePath(file.relativePath) === selectedRelativePath
+      );
+      if (matchingFile?.fileId) {
+        return matchingFile.fileId;
+      }
+    }
+
+    return files[0]?.fileId ?? null;
   }
 
   private buildImportErrorMessage(args: {
@@ -420,4 +524,9 @@ export class FilesController implements FilesPaneRef, IDisposable {
 
     return errors.length > 0 ? errors.join("\n") : null;
   }
+}
+
+function normalizeRelativePath(value: unknown): string | null {
+  const relativePath = String(value ?? "").trim();
+  return relativePath || null;
 }

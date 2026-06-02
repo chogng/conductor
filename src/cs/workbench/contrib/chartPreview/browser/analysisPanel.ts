@@ -14,7 +14,7 @@ import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type {
   ProcessedEntry,
   ProcessingStatus,
-} from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
+} from "src/cs/workbench/contrib/session/common/sessionTypes";
 import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
 import type {
   IonIoffManualTargetsByFileId,

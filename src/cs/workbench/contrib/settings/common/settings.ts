@@ -1,5 +1,5 @@
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/deviceAnalysis/translateTypes";
+import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/translation";
 import type {
   AnalysisSettings,
   OriginCleanupResult,

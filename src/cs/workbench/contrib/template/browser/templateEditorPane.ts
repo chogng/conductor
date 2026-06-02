@@ -1,7 +1,7 @@
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/previewPart";
 import SidebarPart from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
-import type { RawDataEntry } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
+import type { RawDataEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import type { ITemplateService } from "src/cs/workbench/contrib/template/common/template";
 import type { TemplateImportController } from "src/cs/workbench/contrib/template/browser/templateImportController";
 import {

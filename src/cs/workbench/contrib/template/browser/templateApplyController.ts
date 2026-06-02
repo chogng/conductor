@@ -3,22 +3,23 @@ import type {
   StateSetter,
 } from "src/cs/workbench/contrib/session/analysis-session-context";
 import { prepareExtraction } from "src/cs/workbench/contrib/template/common/extractionValidation";
+import { isAutoTemplateConfig } from "src/cs/workbench/contrib/template/common/autoTemplate";
 import {
   parseOlderExtractionError,
   stableStringify,
-} from "src/cs/workbench/common/deviceAnalysis/utils";
+} from "src/cs/workbench/contrib/template/common/extractionErrors";
 import {
   matchFileNameAgainstPhrase,
   matchFileNameAgainstPatternTokens,
   normalizeFileNameFieldSeparators,
   splitFileNameMatchInput,
-} from "src/cs/workbench/common/deviceAnalysis/fileNameFieldMatching";
+} from "src/cs/workbench/contrib/template/common/fileNameMatching";
 import type {
   ProcessedEntry,
   ProcessingStatus,
   RawDataEntry,
-} from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
-import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/deviceAnalysis/translateTypes";
+} from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/translation";
 import type { ProcessingQueueItem } from "src/cs/workbench/contrib/template/browser/templateApplyProcessing";
 import { TemplateApplyService } from "src/cs/workbench/contrib/template/browser/templateApplyService";
 import { importService } from "src/cs/workbench/services/import/browser/importService";
@@ -334,7 +335,7 @@ export class TemplateApplyController {
       );
     }
 
-    if (Boolean(config?.autoExtractionMode)) {
+    if (isAutoTemplateConfig(config)) {
       const queue = buildProcessingQueue(rawData);
       this.lastAppliedTemplateConfigFingerprintRef.current = stableStringify(config);
       this.startExtractionJob({
@@ -387,7 +388,7 @@ export class TemplateApplyController {
       );
     }
 
-    if (Boolean(config?.autoExtractionMode)) {
+    if (isAutoTemplateConfig(config)) {
       if (this._processingStatus.state === "processing") {
         return {
           message: t("da_apply_to_new_files_busy"),

@@ -17,7 +17,7 @@ import {
   logPerf,
   startPerf,
   summarizeProcessedFile,
-} from "src/cs/workbench/common/deviceAnalysis/perf";
+} from "src/cs/workbench/common/perf";
 import { BrowserDiagnosticsService } from "src/cs/workbench/contrib/diagnostics/browser/diagnosticsService";
 
 type CachePrefetchHandle =

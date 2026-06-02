@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import {
   isExcelDataImportFileName,
   isSupportedDataImportFileName,
-} from "./types.ts";
+} from "../common/importFiles.ts";
 import {
   assessImportedFile,
-} from "./importFileUtils.ts";
+} from "../common/importFileUtils.ts";
 
 test("isSupportedDataImportFileName accepts csv/xls/xlsx with case-insensitive suffixes", () => {
   assert.equal(isSupportedDataImportFileName("sample.csv"), true);

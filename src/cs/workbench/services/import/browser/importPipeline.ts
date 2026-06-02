@@ -3,11 +3,11 @@ import { getPathForFile } from "src/cs/platform/dnd/browser/dnd";
 import {
   assessImportedFile,
   type ImportedCurveAssessment,
-} from "src/cs/workbench/common/deviceAnalysis/importFileUtils";
+} from "src/cs/workbench/contrib/import/common/importFileUtils";
 import {
   startPerf,
-} from "src/cs/workbench/common/deviceAnalysis/perf";
-import type { RawDataEntry } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
+} from "src/cs/workbench/common/perf";
+import type { RawDataEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import {
   buildFileIdentityKey,
   buildItemKey,

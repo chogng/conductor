@@ -2,8 +2,8 @@ import { validateTemplateForApply } from "src/cs/workbench/contrib/template/comm
 import {
   inferXSegmentationSuggestionFromPreview,
   resolveXSegmentationMode,
-} from "src/cs/workbench/common/deviceAnalysis/XSegmentation";
-import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/deviceAnalysis/translateTypes";
+} from "src/cs/workbench/contrib/template/common/xSegmentation";
+import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/translation";
 
 const CELL_REF_RE = /^([A-Z]+)(\d+)$/;
 

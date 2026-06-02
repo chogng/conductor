@@ -1,7 +1,7 @@
 import { append, reset } from "src/cs/base/browser/dom";
 import { createButton as createActionButton } from "src/cs/base/browser/ui/button/button";
-import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "src/cs/workbench/common/deviceAnalysis/fileNameFieldMatching";
-import type { NotificationToastState } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
+import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "src/cs/workbench/contrib/template/common/fileNameMatching";
+import type { NotificationToastState } from "src/cs/workbench/contrib/settings/common/feedback";
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import type {
   AnalysisDefaultSettings,

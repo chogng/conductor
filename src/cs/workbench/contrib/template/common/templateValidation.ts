@@ -1,10 +1,10 @@
 import type { TemplateConfig } from "./templateManagerUtils";
-import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/deviceAnalysis/translateTypes";
+import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/translation";
 import { normalizeYUnit } from "src/cs/workbench/contrib/chart/common/units";
 import {
   joinFileNameMatchInput,
   splitFileNameMatchInput,
-} from "src/cs/workbench/common/deviceAnalysis/fileNameFieldMatching";
+} from "src/cs/workbench/contrib/template/common/fileNameMatching";
 
 const CELL_REF_RE = /^([A-Z]+)([1-9][0-9]*)$/;
 

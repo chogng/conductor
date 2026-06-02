@@ -1,7 +1,7 @@
-﻿import type { LanguageCode } from "src/cs/platform/language/common/language";
+import type { LanguageCode } from "src/cs/platform/language/common/language";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
-import type { Feedback } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
-import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/deviceAnalysis/translateTypes";
+import type { Feedback } from "src/cs/workbench/contrib/settings/common/feedback";
+import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/translation";
 import type {
   IonIoffManualTargetsByFileId,
   IonIoffMethod,

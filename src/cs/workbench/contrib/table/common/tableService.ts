@@ -1,6 +1,6 @@
-﻿import type { TranslateFn } from "src/cs/platform/language/common/language";
+import type { TranslateFn } from "src/cs/platform/language/common/language";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-import type { RawDataEntry } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
+import type { RawDataEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import type { MutableState } from "src/cs/workbench/contrib/session/analysis-session-context";
 import type { RustPreviewCellRequest } from "src/cs/workbench/contrib/table/browser/rows/rustCells";
 

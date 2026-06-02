@@ -7,8 +7,8 @@ import {
 } from "../../diagnostics/common/analysisMath.ts";
 import { getCachedSsFitAuto } from "../../diagnostics/common/analysisCacheAccess.ts";
 import { isTransferLikeFile } from "../../diagnostics/common/metrics.ts";
-import { getExcelColumnLabel } from "../../../common/deviceAnalysis/utils.ts";
-import type { ProcessedEntry, ProcessedSeries } from "../../../common/deviceAnalysis/sharedTypes";
+import { getExcelColumnLabel } from "../common/columnLabels.ts";
+import type { ProcessedEntry, ProcessedSeries } from "../../session/common/sessionTypes.ts";
 export type {
   OriginExportMode,
   OriginSelectionExport,

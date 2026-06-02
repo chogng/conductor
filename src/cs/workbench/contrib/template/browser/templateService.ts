@@ -5,6 +5,7 @@ import type {
   ITemplateService,
   TemplateRecord,
 } from "src/cs/workbench/contrib/template/common/template";
+import { filterUserTemplateRecords } from "src/cs/workbench/contrib/template/common/templateRecords";
 import type { TemplateConfig } from "src/cs/workbench/contrib/template/common/templateManagerUtils";
 import { analysisStoreClient } from "src/cs/workbench/services/storage/electron-sandbox/analysisStoreClient";
 
@@ -15,7 +16,7 @@ export class BrowserTemplateService implements ITemplateService {
 
   async getTemplates(): Promise<TemplateRecord[]> {
     const remote = await analysisStoreClient.getDeviceAnalysisTemplates();
-    return Array.isArray(remote) ? remote.filter(isTemplateRecord) : [];
+    return filterUserTemplateRecords(remote) as TemplateRecord[];
   }
 
   async deleteTemplate(id: string): Promise<void> {

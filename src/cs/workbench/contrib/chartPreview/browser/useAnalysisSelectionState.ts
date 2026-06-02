@@ -1,6 +1,6 @@
 import type { IonIoffManualTargetsByFileId } from "src/cs/workbench/contrib/session/analysis-session-context";
 import type { AnalysisSettings } from "src/cs/workbench/contrib/settings/settingsShared";
-import type { ProcessedEntry } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
+import type { ProcessedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 
 export type AnalysisFileOption = {
   label: string;

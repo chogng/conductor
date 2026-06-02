@@ -1,4 +1,4 @@
-import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/deviceAnalysis/translateTypes";
+import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/translation";
 
 const ORIGIN_BRIDGE_ERROR_PREFIX = "__ORIGIN_ERROR__:";
 

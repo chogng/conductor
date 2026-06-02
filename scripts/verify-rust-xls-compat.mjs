@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import Papa from "papaparse";
 import * as xlsx from "xlsx";
-import { assessImportedFile } from "../src/cs/workbench/common/deviceAnalysis/importFileUtils.ts";
+import { assessImportedFile } from "../src/cs/workbench/contrib/import/common/importFileUtils.ts";
 
 const ROOT = process.cwd();
 const WORKER_FILE_NAME = process.platform === "win32" ? "rs-worker.exe" : "rs-worker";

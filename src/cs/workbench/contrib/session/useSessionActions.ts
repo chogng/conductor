@@ -8,7 +8,7 @@ import type {
   ProcessedEntry,
   ProcessingStatus,
   RawDataEntry,
-} from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
+} from "src/cs/workbench/contrib/session/common/sessionTypes";
 
 type UseSessionActionsOptions = {
   clearPreviewState: (options?: { clearSelection?: boolean }) => void;

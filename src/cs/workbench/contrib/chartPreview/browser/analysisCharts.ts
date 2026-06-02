@@ -13,7 +13,7 @@ import type {
 import type {
   ProcessedEntry,
   ProcessingStatus,
-} from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
+} from "src/cs/workbench/contrib/session/common/sessionTypes";
 import MainPlotChart from "src/cs/workbench/contrib/chart/browser/MainPlotChart";
 import OriginExportToolbar, {
   type OriginCurveExportSeriesOption,

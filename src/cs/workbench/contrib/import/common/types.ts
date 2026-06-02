@@ -1,4 +1,4 @@
-import type { RawDataEntry } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
+import type { RawDataEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import type { FileEntry } from "src/cs/workbench/contrib/files/common/files";
 
 export type ImportAxisRole = "vg" | "vd" | null;

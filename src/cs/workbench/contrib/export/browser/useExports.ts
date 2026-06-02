@@ -3,7 +3,7 @@ import type {
   SsManualRanges,
   SsMethod,
 } from "src/cs/workbench/contrib/session/analysis-session-context";
-import type { ProcessedEntry } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
+import type { ProcessedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 
 type ExportModule = typeof import("./export");
 

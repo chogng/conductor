@@ -9,7 +9,7 @@ import {
   normalizeFileNameFieldSeparators,
   stripFileExtension,
   tokenizeFileNameFields,
-} from "./fileNameFieldMatching.ts";
+} from "../common/fileNameMatching.ts";
 
 test("normalizeFileNameFieldSeparators falls back to defaults", () => {
   assert.equal(

@@ -5,10 +5,10 @@ import {
   originPostCommandsToMultiline,
 } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
 import { normalizePlotAxisSettings } from "src/cs/workbench/contrib/chart/common/plotAxisSettings";
-import { normalizeFileNameFieldSeparators } from "src/cs/workbench/common/deviceAnalysis/fileNameFieldMatching";
-import type { Feedback, NotificationToastState } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
+import { normalizeFileNameFieldSeparators } from "src/cs/workbench/contrib/template/common/fileNameMatching";
+import type { Feedback, NotificationToastState } from "src/cs/workbench/contrib/settings/common/feedback";
 import type { LanguageCode } from "src/cs/platform/language/common/language";
-import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/deviceAnalysis/translateTypes";
+import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/translation";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import type {
   AppearanceSettings,

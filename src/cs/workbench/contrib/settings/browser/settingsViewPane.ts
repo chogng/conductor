@@ -1,5 +1,5 @@
 import type { LanguageCode } from "src/cs/platform/language/common/language";
-import type { LooseTranslateFn } from "src/cs/workbench/common/deviceAnalysis/translateTypes";
+import type { LooseTranslateFn } from "src/cs/workbench/common/translation";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import {
   SettingsController,

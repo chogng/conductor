@@ -1,4 +1,4 @@
-import type { ImportedCurveAssessment } from "src/cs/workbench/common/deviceAnalysis/importFileUtils";
+import type { ImportedCurveAssessment } from "src/cs/workbench/contrib/import/common/importFileUtils";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 
 export const IImportService = createDecorator<IImportService>("importService");

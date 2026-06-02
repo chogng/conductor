@@ -4,7 +4,7 @@ import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { MutableState } from "src/cs/workbench/contrib/session/analysis-session-context";
 import type {
   RawDataEntry,
-} from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
+} from "src/cs/workbench/contrib/session/common/sessionTypes";
 import {
   ITableService,
   type ITableService as ITableServiceType,

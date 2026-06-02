@@ -4,11 +4,11 @@ import {
   logPerf,
   startPerf,
   summarizeProcessedFile,
-} from "src/cs/workbench/common/deviceAnalysis/perf";
+} from "src/cs/workbench/common/perf";
 import type {
   ProcessedEntry,
   ProcessingStatus,
-} from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
+} from "src/cs/workbench/contrib/session/common/sessionTypes";
 import { loadConvertedCsvFile } from "src/cs/workbench/services/import/browser/importPipeline";
 
 // Owns asynchronous execution for device-analysis processing jobs.

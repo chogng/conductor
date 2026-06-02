@@ -1,9 +1,9 @@
-﻿import type {
+import type {
   PreviewFile,
   PreviewRowsRequest,
   ProcessedEntry,
   RawDataEntry,
-} from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
+} from "src/cs/workbench/contrib/session/common/sessionTypes";
 
 export type MutableState<T> = {
   current: T;

@@ -10,8 +10,8 @@ import {
 } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
-import type { LooseTranslateFn } from "src/cs/workbench/common/deviceAnalysis/translateTypes";
-import type { RawDataEntry } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
+import type { LooseTranslateFn } from "src/cs/workbench/common/translation";
+import type { RawDataEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import {
   createEmptyTemplateConfig,
   cloneTemplateConfig,
@@ -25,7 +25,11 @@ import {
   validateTemplateForSave,
   validateTemplateForApply,
 } from "src/cs/workbench/contrib/template/common/templateValidation";
-import { AUTO_TEMPLATE_ID } from "src/cs/workbench/common/deviceAnalysis/autoExtraction";
+import {
+  AUTO_TEMPLATE_CONFIG_FIELD,
+  AUTO_TEMPLATE_ID,
+  isAutoTemplateId,
+} from "src/cs/workbench/contrib/template/common/autoTemplate";
 import type {
   ITemplateService,
   TemplateRecord,
@@ -441,7 +445,9 @@ export class TemplateManagerView {
 
   private getApplyViewState() {
     const config = this.getEffectiveTemplateConfig();
-    const isCustomTemplate = Boolean(this.session.selectedTemplateId && this.session.selectedTemplateId !== AUTO_TEMPLATE_ID);
+    const isCustomTemplate = Boolean(
+      this.session.selectedTemplateId && !isAutoTemplateId(this.session.selectedTemplateId),
+    );
     return {
       canDeleteTemplate: isCustomTemplate,
       canExportTemplate: Boolean(config.name),
@@ -523,7 +529,7 @@ export class TemplateManagerView {
   }
 
   private getSelectedTemplateLabel(): string {
-    if (!this.session.selectedTemplateId || this.session.selectedTemplateId === AUTO_TEMPLATE_ID) {
+    if (!this.session.selectedTemplateId || isAutoTemplateId(this.session.selectedTemplateId)) {
       return localize("da_template_auto_extraction", "Auto extraction");
     }
 
@@ -539,7 +545,7 @@ export class TemplateManagerView {
         label: localize("da_template_auto_extraction", "Auto extraction"),
         left: createMenuItemLabel(localize("da_template_auto_extraction", "Auto extraction")),
         run: () => this.selectTemplate(AUTO_TEMPLATE_ID),
-        selected: (selectedTemplateId || AUTO_TEMPLATE_ID) === AUTO_TEMPLATE_ID,
+        selected: isAutoTemplateId(selectedTemplateId || AUTO_TEMPLATE_ID),
         tabIndex: 0,
         value: AUTO_TEMPLATE_ID,
       }),
@@ -647,7 +653,7 @@ export class TemplateManagerView {
 
   private selectTemplate(templateId: string): void {
     const config = this.getEffectiveTemplateConfig();
-    if (templateId === AUTO_TEMPLATE_ID) {
+    if (isAutoTemplateId(templateId)) {
       this.session.setSelectedTemplateId(AUTO_TEMPLATE_ID);
       this.session.setTemplateConfig(createEmptyTemplateConfig({
         stopOnError: config.stopOnError,
@@ -674,11 +680,11 @@ export class TemplateManagerView {
   private applyTemplate(incremental: boolean): void {
     const config = this.getEffectiveTemplateConfig();
     const selectedTemplateId = this.session.selectedTemplateId;
-    if (selectedTemplateId === AUTO_TEMPLATE_ID || !selectedTemplateId) {
+    if (!selectedTemplateId || isAutoTemplateId(selectedTemplateId)) {
       if (incremental) {
-        this.props.onTemplateAppliedIncremental?.({ ...config, autoExtractionMode: true });
+        this.props.onTemplateAppliedIncremental?.({ ...config, [AUTO_TEMPLATE_CONFIG_FIELD]: true });
       } else {
-        this.props.onTemplateApplied?.({ ...config, autoExtractionMode: true });
+        this.props.onTemplateApplied?.({ ...config, [AUTO_TEMPLATE_CONFIG_FIELD]: true });
       }
       return;
     }
@@ -742,7 +748,11 @@ export class TemplateManagerView {
   private cancelSaveMode(): void {
     const config = this.getEffectiveTemplateConfig();
     this.session.setTemplateMode("select");
-    if (this.session.selectedTemplateId && this.session.selectedTemplateId !== AUTO_TEMPLATE_ID && cachedTemplates) {
+    if (
+      this.session.selectedTemplateId &&
+      !isAutoTemplateId(this.session.selectedTemplateId) &&
+      cachedTemplates
+    ) {
       const found = cachedTemplates.find((template) => template.id === this.session.selectedTemplateId);
       if (found) {
         this.session.setTemplateConfig(cloneTemplateConfig(found));
