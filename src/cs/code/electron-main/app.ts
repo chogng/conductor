@@ -48,6 +48,7 @@ import {
   RustWorkerRuntime,
 } from "../../platform/rust/electron-main/rustWorkerRuntime.js";
 import { registerAnalysisRustHandlers } from "./analysisRustMain.js";
+import { RustAnalysisService } from "./rustAnalysisService.js";
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
@@ -1000,10 +1001,6 @@ async function hydrateRustAnalysisResultRefs(result, tempDir = null) {
     void fs.promises.rm(tempDir, { force: true, recursive: true }).catch(() => {});
   }
   return result;
-}
-
-async function disposeRustAnalysisProcessingFile(fileId) {
-  await rustWorkerRuntime.disposeProcessingFile(fileId);
 }
 
 function stopAllRustAnalysisEngines() {
@@ -2484,15 +2481,16 @@ if (hasSingleInstanceLock) {
   ipcMain.handle(ipcChannels.excelReadConvertedCsv, handleExcelReadConvertedCsv);
   ipcMain.handle(ipcChannels.analysisDemoFilesGet, handleAnalysisDemoFilesGet);
   analysisRustHandlers = registerAnalysisRustHandlers({
-    createRustAnalysisOriginExportTempPath,
-    createRustAnalysisResultTempDir,
-    hydrateRustAnalysisResultRefs,
     ipcChannels,
     ipcMain,
-    isRustProcessFileConfigSupported,
-    isSupportedRustAnalysisInputPath,
-    normalizeAbsoluteFilePath,
-    rustWorkerRuntime,
+    rustAnalysisService: new RustAnalysisService({
+      createRustAnalysisOriginExportTempPath,
+      createRustAnalysisResultTempDir,
+      hydrateRustAnalysisResultRefs,
+      isRustProcessFileConfigSupported,
+      isSupportedRustAnalysisInputPath,
+      rustWorkerRuntime,
+    }),
   });
   ipcMain.handle(
     ipcChannels.analysisOriginZipSave,
