@@ -1,3 +1,4 @@
+import type { URI } from "src/cs/base/common/uri";
 import { stableItemKey } from "src/utils/stableKey";
 
 export const DATA_FILE_EXTENSIONS = [".csv", ".xls", ".xlsx"] as const;
@@ -39,6 +40,7 @@ export type FileEntry = {
 export type FileSource = {
   readonly file: File;
   readonly relativePath?: string | null;
+  readonly resource?: URI | null;
 };
 
 export type FilesPaneRef = {

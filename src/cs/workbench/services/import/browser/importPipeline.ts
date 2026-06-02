@@ -1,4 +1,7 @@
+import type { URI } from "src/cs/base/common/uri";
+import { getPathForFile } from "src/cs/platform/dnd/browser/dnd";
 import {
+  assessImportedFile,
   type ImportedCurveAssessment,
 } from "src/cs/workbench/common/deviceAnalysis/importFileUtils";
 import {
@@ -62,6 +65,7 @@ export type ImportWorkerPreparedFile = {
 export type PendingImportFile = {
   finishFilePerf: (meta?: Record<string, unknown>) => void;
   relativePath: string | null;
+  resource: URI | null;
   sourceFile: File;
   sourceKey: string;
 };
@@ -135,12 +139,22 @@ export const loadConvertedCsvFile = async ({
 
 export const prepareImportFileInWorker = async (
   file: File,
+  resource: URI | null = null,
 ): Promise<ImportWorkerPreparedFile> => {
   if (!importService.canPrepareFile()) {
-    throw new Error("Rust import preparation is not available.");
+    const assessment = await assessImportedFile(file);
+    return {
+      assessment,
+      file,
+      normalizedCsvPath: null,
+      normalizedSizeBytes: file.size,
+      sourcePath: resource?.fsPath || getPathForFile(file) || null,
+      sourceName: file.name,
+      sourceSizeBytes: file.size,
+    };
   }
 
-  const filePath = importService.getFilePath(file);
+  const filePath = resource?.fsPath || getPathForFile(file) || "";
   if (!filePath) {
     throw new Error(`Unable to resolve file path for ${file.name}.`);
   }
@@ -245,6 +259,7 @@ export const collectPendingImports = (
     pendingImports.push({
       finishFilePerf,
       relativePath,
+      resource: source.resource ?? null,
       sourceFile,
       sourceKey,
     });
@@ -263,6 +278,7 @@ export const prepareImportFile = async (
   const {
     finishFilePerf,
     relativePath,
+    resource,
     sourceFile,
     sourceKey,
   } = pendingImport;
@@ -276,7 +292,7 @@ export const prepareImportFile = async (
       fileName: sourceFile.name,
       sizeBytes: sourceFile.size,
     });
-    const prepared = await prepareImportFileInWorker(sourceFile);
+    const prepared = await prepareImportFileInWorker(sourceFile, resource);
     normalizedFile = prepared.file;
     normalizedCsvPath = prepared.normalizedCsvPath ?? null;
     curveAssessment = prepared.assessment;

@@ -66,7 +66,6 @@ export interface IImportService {
   canReadCells(): boolean;
   disposeFile(payload: unknown): Promise<unknown>;
   getDemoFiles(): Promise<ImportDemoFiles>;
-  getFilePath(file: File): string;
   getPreviewMeta(payload: unknown): Promise<ImportResultPayload>;
   getPreviewRows(payload: unknown): Promise<ImportResultPayload>;
   inferAutoExtraction(payload: unknown): Promise<unknown>;

@@ -2,12 +2,12 @@ import type { ListHandle } from "src/cs/base/browser/ui/list/list";
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
 import { IFileDialogService, type IFileDialogService as IFileDialogServiceType } from "src/cs/platform/dialogs/common/dialogs";
-import { FileType, IFileService, type IFileContent } from "src/cs/platform/files/common/files";
+import { fileDialogService } from "src/cs/platform/dialogs/browser/fileDialogService";
+import { FileType, IFileService, type IFileContent, type IFileService as IFileServiceType } from "src/cs/platform/files/common/files";
 import { fileService } from "src/cs/platform/files/browser/fileService";
 import { localize } from "src/cs/nls";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import { startPerf } from "src/cs/workbench/common/deviceAnalysis/perf";
-import { fileDialogService } from "src/cs/workbench/services/dialogs/electron-browser/fileDialogService";
 import {
   ExplorerView,
   type ExplorerViewProps,
@@ -101,8 +101,8 @@ export class FilesController implements FilesPaneRef, IDisposable {
   constructor(
     host: HTMLElement,
     props: FilesControllerProps,
-    @IFileService private readonly filesService = fileService,
-    @IFileDialogService private readonly dialogsService = fileDialogService,
+    @IFileService private readonly filesService: IFileServiceType = fileService,
+    @IFileDialogService private readonly dialogsService: IFileDialogServiceType = fileDialogService,
   ) {
     this.props = props;
     this.prevFileCount = this.files.length;
@@ -261,7 +261,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
         return;
       }
 
-      const files = await this.collectFolderFiles(folderPath);
+      const files = await this.collectFolderFiles(folderPath, this.filesService);
       if (this.disposed) {
         return;
       }
@@ -404,12 +404,15 @@ export class FilesController implements FilesPaneRef, IDisposable {
     );
   }
 
-  private async collectFolderFiles(folderPath: string): Promise<FileSource[]> {
+  private async collectFolderFiles(
+    folderPath: string,
+    filesService: IFileServiceType,
+  ): Promise<FileSource[]> {
     const rootName = getPathBaseName(folderPath) || localize("import.folder", "Folder");
     const root = URI.file(folderPath);
     const files: FileSource[] = [];
 
-    await this.collectFolderFilesAt(root, rootName, files, 0);
+    await this.collectFolderFilesAt(root, rootName, files, 0, filesService);
     return files;
   }
 
@@ -418,18 +421,19 @@ export class FilesController implements FilesPaneRef, IDisposable {
     relativeFolderPath: string,
     files: FileSource[],
     depth: number,
+    filesService: IFileServiceType,
   ): Promise<void> {
     if (depth > MAX_FOLDER_WALK_DEPTH) {
       return;
     }
 
-    const entries = await this.filesService.readDir(folder);
+    const entries = await filesService.readDir(folder);
     for (const [name, type] of entries) {
       const child = URI.file(joinFsPath(folder.fsPath, name));
       const relativePath = `${relativeFolderPath}/${name}`;
 
       if ((type & FileType.Directory) === FileType.Directory) {
-        await this.collectFolderFilesAt(child, relativePath, files, depth + 1);
+        await this.collectFolderFilesAt(child, relativePath, files, depth + 1, filesService);
         continue;
       }
 
@@ -438,15 +442,20 @@ export class FilesController implements FilesPaneRef, IDisposable {
       }
 
       files.push({
-        file: await this.readFileSource(child, name),
+        file: await this.readFileSource(child, name, filesService),
         relativePath,
+        resource: child,
       });
     }
   }
 
-  private async readFileSource(resource: URI, name: string): Promise<File> {
-    const stat = await this.filesService.stat(resource);
-    const content = await this.filesService.readFile(resource, {
+  private async readFileSource(
+    resource: URI,
+    name: string,
+    filesService: IFileServiceType,
+  ): Promise<File> {
+    const stat = await filesService.stat(resource);
+    const content = await filesService.readFile(resource, {
       encoding: isExcelDataFileName(name) ? "base64" : "utf8",
     });
 

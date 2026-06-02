@@ -1,6 +1,6 @@
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
-import { fileService } from "src/cs/platform/files/browser/fileService";
+import { fileService } from "src/cs/platform/files/electron-browser/fileService";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 import {
@@ -30,10 +30,6 @@ type ImportBridge = {
   readConvertedCsvFileWithRust?: (payload: { path: string }) => Promise<ImportConvertedCsv>;
   readDeviceAnalysisCellWithRust?: (payload: unknown) => Promise<unknown>;
   readDeviceAnalysisCellsWithRust?: (payload: unknown) => Promise<ImportResultPayload>;
-};
-
-type WebUtilsBridge = {
-  getPathForFile?: (file: File) => string;
 };
 
 declare global {
@@ -155,11 +151,6 @@ export class ElectronBrowserImportService extends Disposable implements IImportS
     }
 
     return invoke<ImportDemoFiles>(workbenchIpcChannels.analysisDemoFilesGet);
-  }
-
-  public getFilePath(file: File): string {
-    const webUtils = globalThis.window?.conductor?.webUtils as WebUtilsBridge | undefined;
-    return webUtils?.getPathForFile?.(file) ?? "";
   }
 
   public getPreviewMeta(payload: unknown): Promise<ImportResultPayload> {
