@@ -1,11 +1,8 @@
-import { Disposable, toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
+import { Disposable, type IDisposable } from "src/cs/base/common/lifecycle";
 import { Emitter, type Event as EventType } from "src/cs/base/common/event";
 import { URI } from "src/cs/base/common/uri";
-import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
-import { ElectronIPCMainProcessService } from "src/cs/platform/ipc/electron-browser/mainProcessService";
 import {
   IFileService,
-  LOCAL_FILE_SYSTEM_FILE_CHANGE_EVENT,
   LOCAL_FILE_SYSTEM_CHANNEL_NAME,
   type IFileContent,
   type IFileChange,
@@ -15,31 +12,24 @@ import {
   type IWatchOptions,
   type FileType,
 } from "src/cs/platform/files/common/files";
+import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
+import { ElectronIPCMainProcessService } from "src/cs/platform/ipc/electron-browser/mainProcessService";
+import { WatcherClient } from "src/cs/workbench/services/files/electron-browser/watcherClient";
 
 export class ElectronBrowserFileService extends Disposable implements IFileService {
   public declare readonly _serviceBrand: undefined;
 
-  private readonly sessionId = this.createId("session");
   private readonly onDidFilesChangeEmitter = this._register(new Emitter<readonly IFileChange[]>());
   public readonly onDidFilesChange: EventType<readonly IFileChange[]> = this.onDidFilesChangeEmitter.event;
 
   private readonly mainProcessService = this._register(new ElectronIPCMainProcessService());
   private readonly channel = this.mainProcessService.getChannel(LOCAL_FILE_SYSTEM_CHANNEL_NAME);
+  private readonly watcherClient = this._register(new WatcherClient(this.channel));
 
   constructor() {
     super();
 
-    this._register(this.channel.listen<readonly IFileChange[]>(
-      LOCAL_FILE_SYSTEM_FILE_CHANGE_EVENT,
-      [this.sessionId],
-    )((paths) => {
-      if (Array.isArray(paths) && paths.length > 0) {
-        this.onDidFilesChangeEmitter.fire(paths.map(change => ({
-          resource: URI.revive(change.resource),
-          type: change.type,
-        })));
-      }
-    }));
+    this._register(this.watcherClient.onDidFilesChange(changes => this.onDidFilesChangeEmitter.fire(changes)));
   }
 
   public exists(resource: URI): Promise<boolean> {
@@ -71,23 +61,7 @@ export class ElectronBrowserFileService extends Disposable implements IFileServi
   }
 
   public watch(resource: URI, options?: IWatchOptions): IDisposable {
-    const watchId = this.createId("watch");
-    void this.channel.call("watch", [this.sessionId, watchId, resource, options ?? {}]);
-
-    return toDisposable(() => {
-      void this.channel.call("unwatch", [this.sessionId, watchId]);
-    });
-  }
-
-  private createId(prefix: string): string {
-    if (
-      typeof crypto !== "undefined" &&
-      typeof crypto.randomUUID === "function"
-    ) {
-      return crypto.randomUUID();
-    }
-
-    return `${prefix}_${Math.random().toString(36).slice(2)}_${Date.now().toString(36)}`;
+    return this.watcherClient.watch(resource, options);
   }
 }
 

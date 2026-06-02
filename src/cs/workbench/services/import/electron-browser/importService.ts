@@ -1,8 +1,8 @@
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { URI } from "src/cs/base/common/uri";
-import { fileService } from "src/cs/platform/files/electron-browser/fileService";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
+import { fileService } from "src/cs/workbench/services/files/electron-browser/fileService";
 import {
   IImportService,
   type IImportService as IImportServiceType,
