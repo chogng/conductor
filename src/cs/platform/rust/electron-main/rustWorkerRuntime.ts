@@ -26,6 +26,7 @@ export type RustWorkerExecutableResolverOptions = {
   desktopRuntimeDir: string;
   env: NodeJS.ProcessEnv;
   isDev: boolean;
+  platform: NodeJS.Platform;
   resourcesPath: string;
 };
 
@@ -44,12 +45,26 @@ const normalizeAbsoluteFilePath = (rawPath: unknown): string => {
   return path.normalize(normalized);
 };
 
+const getRustWorkerFileName = (platform: NodeJS.Platform): string =>
+  platform === "win32" ? "rs-worker.exe" : "rs-worker";
+
+const formatMissingWorkerMessage = (platform: NodeJS.Platform): string => {
+  const workerFileName = getRustWorkerFileName(platform);
+  return [
+    `Built rs-worker was not found for platform '${platform}'.`,
+    `Expected a packaged worker such as workers/rs/${workerFileName}.`,
+    "Build it with `npm run build:rs-worker` before starting the desktop app.",
+  ].join(" ");
+};
+
 export const resolveRustWorkerExecutablePath = ({
   desktopRuntimeDir,
   env,
   isDev,
+  platform,
   resourcesPath,
 }: RustWorkerExecutableResolverOptions): string | null => {
+  const workerFileName = getRustWorkerFileName(platform);
   const envPath = normalizeAbsoluteFilePath(
     env.CONDUCTOR_WORKER_PATH
       || env.CONDUCTOR_RS_WORKER_PATH
@@ -58,7 +73,7 @@ export const resolveRustWorkerExecutablePath = ({
   );
   const candidates = [
     envPath,
-    path.join(resourcesPath, "workers", "rs", "rs-worker.exe"),
+    path.join(resourcesPath, "workers", "rs", workerFileName),
     isDev
       ? path.join(
           desktopRuntimeDir,
@@ -66,7 +81,7 @@ export const resolveRustWorkerExecutablePath = ({
           ".tooling",
           "conductor-rs-target",
           "release",
-          "rs-worker.exe",
+          workerFileName,
         )
       : "",
     isDev
@@ -76,7 +91,7 @@ export const resolveRustWorkerExecutablePath = ({
           "conductor-rs",
           "target",
           "release",
-          "rs-worker.exe",
+          workerFileName,
         )
       : "",
     path.join(
@@ -84,7 +99,7 @@ export const resolveRustWorkerExecutablePath = ({
       "app.asar.unpacked",
       "workers",
       "rs",
-      "rs-worker.exe",
+      workerFileName,
     ),
   ].filter(Boolean);
 
@@ -164,7 +179,7 @@ export class RustWorkerRuntime implements IRustWorkerService {
   private getExecutablePath(): string {
     const executablePath = this.options.resolveExecutablePath();
     if (!executablePath) {
-      throw new Error("rs-worker was not found.");
+      throw new Error(formatMissingWorkerMessage(process.platform));
     }
 
     return executablePath;

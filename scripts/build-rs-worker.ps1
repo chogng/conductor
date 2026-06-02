@@ -6,6 +6,13 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$isWindows = $IsWindows
+if ($null -eq $isWindows) {
+  $isWindows = [System.Environment]::OSVersion.Platform -eq [System.PlatformID]::Win32NT
+}
+
+$workerFileName = if ($isWindows) { 'rs-worker.exe' } else { 'rs-worker' }
+
 if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
   $ProjectRoot = Split-Path -Parent $PSScriptRoot
 }
@@ -46,7 +53,6 @@ $vsDevCmd = $vsDevCandidates | Where-Object { Test-Path -LiteralPath $_ } | Sele
 
 Push-Location $CrateDir
 try {
-  $isWindows = [System.Environment]::OSVersion.Platform -eq [System.PlatformID]::Win32NT
   if ($isWindows -and $vsDevCmd) {
     Write-Host "[build-rs-worker] Running cargo build through VsDevCmd."
     & cmd.exe /d /s /c "call `"$vsDevCmd`" -arch=x64 && cargo build --release -p worker --target-dir `"$TargetDir`""
@@ -61,12 +67,12 @@ try {
   Pop-Location
 }
 
-$sourceExe = Join-Path $TargetDir "release\rs-worker.exe"
+$sourceExe = Join-Path (Join-Path $TargetDir 'release') $workerFileName
 if (-not (Test-Path -LiteralPath $sourceExe)) {
   throw "Built rs-worker executable not found: $sourceExe"
 }
 
 New-Item -ItemType Directory -Path $DistDir -Force | Out-Null
-$primaryTargetExe = Join-Path $DistDir "rs-worker.exe"
+$primaryTargetExe = Join-Path $DistDir $workerFileName
 Copy-Item -LiteralPath $sourceExe -Destination $primaryTargetExe -Force
 Write-Host "[build-rs-worker] Copied rs-worker to $primaryTargetExe"

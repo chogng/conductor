@@ -6,18 +6,19 @@ import * as xlsx from "xlsx";
 import { assessImportedFile } from "../src/cs/workbench/common/deviceAnalysis/importFileUtils.ts";
 
 const ROOT = process.cwd();
+const WORKER_FILE_NAME = process.platform === "win32" ? "rs-worker.exe" : "rs-worker";
 const DEFAULT_RUST_EXE = path.join(
   ROOT,
   "workers",
   "rs",
-  "rs-worker.exe",
+  WORKER_FILE_NAME,
 );
 const LEGACY_RUST_EXE = path.join(
   ROOT,
   "conductor-rs",
   "target",
   "release",
-  "rs-worker.exe",
+  WORKER_FILE_NAME,
 );
 const OUTPUT_DIR = path.join(ROOT, ".tooling", "rust-xls-compat");
 const RUST_CSV_DIR = path.join(OUTPUT_DIR, "rust-csv");
@@ -158,22 +159,17 @@ const main = async () => {
   const rustExe = process.env.RUST_XLS_BENCH_EXE || DEFAULT_RUST_EXE;
   const rsWorkerExe = fs.existsSync(LEGACY_RUST_EXE) ? LEGACY_RUST_EXE : rustExe;
   if (!fs.existsSync(rsWorkerExe)) {
-    throw new Error(`rs-worker executable not found: ${rustExe} or ${LEGACY_RUST_EXE}`);
+    throw new Error(`Built rs-worker was not found: ${rustExe} or ${LEGACY_RUST_EXE}`);
   }
 
   fs.rmSync(OUTPUT_DIR, { force: true, recursive: true });
   fs.mkdirSync(RUST_CSV_DIR, { recursive: true });
 
-  const commandLine = [rsWorkerExe, "--threads", "2", "--write-dir", RUST_CSV_DIR]
-    .map((value) => {
-      const text = String(value ?? "");
-      return /[\s"]/u.test(text) ? `"${text.replace(/"/g, '\\"')}"` : text;
-    })
-    .join(" ");
-  const rustRun = spawnSync("cmd.exe", ["/d", "/s", "/c", commandLine], {
+  const rustRun = spawnSync(rsWorkerExe, ["--threads", "2", "--write-dir", RUST_CSV_DIR], {
     cwd: path.dirname(rsWorkerExe),
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true,
   });
   process.stdout.write(rustRun.stdout ?? "");
   process.stderr.write(rustRun.stderr ?? "");

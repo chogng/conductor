@@ -25,7 +25,7 @@ if (trackedArtifacts.length) {
   console.error(
     [
       "rs-worker build artifacts must stay out of git.",
-      "Run `git rm --cached -- workers/rs/rs-worker.exe` and rebuild with `npm run build:rs-worker` before packaging.",
+      "Run `git rm --cached -- workers/rs/rs-worker workers/rs/rs-worker.exe` and rebuild with `npm run build:rs-worker` before packaging.",
       "",
       "Tracked artifacts:",
       ...trackedArtifacts.map((artifact) => `- ${artifact}`),

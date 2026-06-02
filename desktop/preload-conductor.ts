@@ -1,27 +1,26 @@
 import type { ContextBridge, IpcRenderer, WebUtils } from "electron";
 
 import {
-  workbenchBootstrapIpcChannels,
   type ISandboxConfiguration,
 } from "../src/cs/base/parts/sandbox/common/sandboxTypes.js";
-import { nativeHostIpcChannels } from "../src/cs/platform/native/common/nativeIpc.js";
-import { workbenchIpcChannels } from "../src/cs/workbench/common/ipcChannels.js";
 
 type IpcListener = (event: Electron.IpcRendererEvent, ...args: unknown[]) => void;
 
-const allowedChannels = new Set<string>([
-  ...Object.values(workbenchBootstrapIpcChannels),
-  ...Object.values(nativeHostIpcChannels),
-  ...Object.values(workbenchIpcChannels),
-  "desktop-command",
-]);
-
 function validateIpcChannel(channel: string): true {
-  if (!allowedChannels.has(channel)) {
+  if (!channel?.startsWith("conductor:")) {
     throw new Error(`Unsupported IPC channel '${channel}'.`);
   }
 
   return true;
+}
+
+interface PreloadIpcRenderer {
+  send(channel: string, ...args: unknown[]): void;
+  sendSync(channel: string, ...args: unknown[]): unknown;
+  invoke(channel: string, ...args: unknown[]): Promise<unknown>;
+  on(channel: string, listener: IpcListener): PreloadIpcRenderer;
+  once(channel: string, listener: IpcListener): PreloadIpcRenderer;
+  removeListener(channel: string, listener: IpcListener): PreloadIpcRenderer;
 }
 
 export function exposeConductorGlobals(
@@ -30,33 +29,43 @@ export function exposeConductorGlobals(
   webUtils: WebUtils,
   configuration: ISandboxConfiguration,
 ): void {
-  contextBridge.exposeInMainWorld("conductor", {
-    ipcRenderer: {
-      send(channel: string, ...args: unknown[]): void {
-        validateIpcChannel(channel);
-        ipcRenderer.send(channel, ...args);
-      },
-
-      sendSync(channel: string, ...args: unknown[]): unknown {
-        validateIpcChannel(channel);
-        return ipcRenderer.sendSync(channel, ...args);
-      },
-
-      invoke(channel: string, ...args: unknown[]): Promise<unknown> {
-        validateIpcChannel(channel);
-        return ipcRenderer.invoke(channel, ...args);
-      },
-
-      on(channel: string, listener: IpcListener): void {
-        validateIpcChannel(channel);
-        ipcRenderer.on(channel, listener);
-      },
-
-      removeListener(channel: string, listener: IpcListener): void {
-        validateIpcChannel(channel);
-        ipcRenderer.removeListener(channel, listener);
-      },
+  const conductorIpcRenderer: PreloadIpcRenderer = {
+    send(channel: string, ...args: unknown[]): void {
+      validateIpcChannel(channel);
+      ipcRenderer.send(channel, ...args);
     },
+
+    sendSync(channel: string, ...args: unknown[]): unknown {
+      validateIpcChannel(channel);
+      return ipcRenderer.sendSync(channel, ...args);
+    },
+
+    invoke(channel: string, ...args: unknown[]): Promise<unknown> {
+      validateIpcChannel(channel);
+      return ipcRenderer.invoke(channel, ...args);
+    },
+
+    on(channel: string, listener: IpcListener): PreloadIpcRenderer {
+      validateIpcChannel(channel);
+      ipcRenderer.on(channel, listener);
+      return conductorIpcRenderer;
+    },
+
+    once(channel: string, listener: IpcListener): PreloadIpcRenderer {
+      validateIpcChannel(channel);
+      ipcRenderer.once(channel, listener);
+      return conductorIpcRenderer;
+    },
+
+    removeListener(channel: string, listener: IpcListener): PreloadIpcRenderer {
+      validateIpcChannel(channel);
+      ipcRenderer.removeListener(channel, listener);
+      return conductorIpcRenderer;
+    },
+  };
+
+  contextBridge.exposeInMainWorld("conductor", {
+    ipcRenderer: conductorIpcRenderer,
     webUtils: {
       getPathForFile(file: File) {
         try {
@@ -76,4 +85,6 @@ export function exposeConductorGlobals(
       },
     },
   });
+
+  contextBridge.exposeInMainWorld("conductorIpcRenderer", conductorIpcRenderer);
 }

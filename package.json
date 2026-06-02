@@ -87,6 +87,7 @@
         "from": "workers/rs",
         "to": "workers/rs",
         "filter": [
+          "rs-worker",
           "rs-worker.exe"
         ]
       },

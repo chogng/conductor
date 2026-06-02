@@ -5,14 +5,15 @@ import { performance } from "node:perf_hooks";
 
 const EXCEL_EXTENSIONS = new Set([".xls", ".xlsx"]);
 const ROOT = process.cwd();
+const WORKER_FILE_NAME = process.platform === "win32" ? "rs-worker.exe" : "rs-worker";
 const DEFAULT_EXE_CANDIDATES = [
-  path.join(ROOT, "workers", "rs", "rs-worker.exe"),
+  path.join(ROOT, "workers", "rs", WORKER_FILE_NAME),
   path.join(
     ROOT,
     "conductor-rs",
     "target",
     "release",
-    "rs-worker.exe",
+    WORKER_FILE_NAME,
   ),
 ];
 
@@ -79,7 +80,7 @@ const findRsWorkerExe = async () => {
       // try next candidate
     }
   }
-  throw new Error(`rs-worker executable was not found: ${candidates.join(", ")}`);
+  throw new Error(`Built rs-worker was not found: ${candidates.join(", ")}`);
 };
 
 const convertOne = async (exePath, filePath, outputPath) => {

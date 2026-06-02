@@ -110,6 +110,7 @@ const rustWorkerRuntime = new RustWorkerRuntime({
     desktopRuntimeDir,
     env: process.env,
     isDev,
+    platform: process.platform,
     resourcesPath: getResourcesPath(),
   }),
 });
@@ -926,6 +927,7 @@ function resolveRustExcelConverterPath() {
     desktopRuntimeDir,
     env: process.env,
     isDev,
+    platform: process.platform,
     resourcesPath: getResourcesPath(),
   });
 }
@@ -1574,6 +1576,41 @@ function handleAnalysisPersistencePathSet(_event, payload) {
   const rawPath =
     payload && typeof payload === "object" ? payload.path : payload;
   return analysisStore.setPersistencePath(rawPath);
+}
+
+const allowedOpenDialogProperties = new Set([
+  "openFile",
+  "openDirectory",
+  "multiSelections",
+  "showHiddenFiles",
+  "createDirectory",
+  "promptToCreate",
+  "noResolveAliases",
+  "treatPackageAsDirectory",
+  "dontAddToRecent",
+]);
+
+function normalizeOpenDialogOptions(options) {
+  const record =
+    options && typeof options === "object" && !Array.isArray(options) ? options : {};
+  const properties = Array.isArray(record.properties)
+    ? record.properties.filter(property => allowedOpenDialogProperties.has(property))
+    : [];
+
+  return {
+    title: typeof record.title === "string" ? record.title : undefined,
+    buttonLabel: typeof record.buttonLabel === "string" ? record.buttonLabel : undefined,
+    properties,
+  };
+}
+
+async function handleNativeHostOpenDialog(event, options) {
+  const win = BrowserWindow.fromWebContents(event.sender) ?? null;
+  const result = await dialog.showOpenDialog(win || undefined, {
+    ...normalizeOpenDialogOptions(options),
+  });
+
+  return result;
 }
 
 async function handleAnalysisPersistencePathChoose(event) {
@@ -2464,6 +2501,7 @@ if (hasSingleInstanceLock) {
   ipcMain.handle(nativeHostIpcChannels.environmentGet, event =>
     resolveNativeHostEnvironment(event.sender),
   );
+  ipcMain.handle(nativeHostIpcChannels.openDialog, handleNativeHostOpenDialog);
   ipcMain.on(nativeHostIpcChannels.environmentGet, handleNativeHostEnvironmentGet);
   ipcMain.on(ipcChannels.desktopAutoUpdateStatusGet, handleDesktopAutoUpdateStatusGet);
   ipcMain.on(workbenchBootstrapIpcChannels.settingsGet, handleWorkbenchBootstrapSettingsGet);
@@ -2555,6 +2593,7 @@ app.on("will-quit", () => {
   ipcMain.removeListener("desktop-command", handleDesktopCommand);
   ipcMain.removeListener(nativeHostIpcChannels.windowCommand, handleNativeWindowCommand);
   ipcMain.removeHandler(nativeHostIpcChannels.environmentGet);
+  ipcMain.removeHandler(nativeHostIpcChannels.openDialog);
   ipcMain.removeListener(nativeHostIpcChannels.environmentGet, handleNativeHostEnvironmentGet);
   ipcMain.removeListener(
     ipcChannels.desktopAutoUpdateStatusGet,

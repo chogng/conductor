@@ -5,7 +5,8 @@ import { performance } from "node:perf_hooks";
 
 const SUPPORTED_EXTENSIONS = new Set([".csv", ".xls", ".xlsx"]);
 const ROOT = process.cwd();
-const EXE_PATH = path.join(ROOT, "workers", "rs", "rs-worker.exe");
+const WORKER_FILE_NAME = process.platform === "win32" ? "rs-worker.exe" : "rs-worker";
+const EXE_PATH = path.join(ROOT, "workers", "rs", WORKER_FILE_NAME);
 
 const rootsFromEnv = () =>
   String(process.env.CONDUCTOR_BENCH_ROOTS ?? "")
