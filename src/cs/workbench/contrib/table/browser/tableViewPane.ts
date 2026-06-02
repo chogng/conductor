@@ -2,31 +2,35 @@ import { lxAdd, lxRemove } from "@chogng/lxicon";
 
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
+import type { IActionViewItem } from "src/cs/base/browser/ui/actionbar/actionViewItem";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
-import { DisposableStore } from "src/cs/base/common/lifecycle";
+import {
+  ActionRunner,
+  toAction,
+  type IAction,
+  type IActionRunner,
+} from "src/cs/base/common/actions";
+import { Disposable, DisposableStore } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/previewPart";
-import type { PreviewFile } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
-import type { PreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
+import { TableView, type TableViewProps } from "src/cs/workbench/contrib/table/browser/tableView";
 import { TableViewId } from "src/cs/workbench/contrib/table/common/table";
-import { TableView } from "src/cs/workbench/contrib/table/browser/tableView";
-import type { TableBindings } from "src/cs/workbench/services/table/common/table";
+import type { TableModel, TableState } from "src/cs/workbench/contrib/table/common/tableService";
 
 export type TableViewPaneProps = {
-  readonly previewBindings: TableBindings;
-  readonly previewFile?: PreviewFile | null;
-  readonly previewStatus?: PreviewStatus;
-  readonly selectedFileId?: string | null;
+  readonly tableModel: TableModel;
+  readonly tableState: TableState;
   readonly t: TranslateFn;
 };
 
-type HeaderMode = "empty" | "file" | "loading";
+type HeaderMode = "empty" | "file";
 
 type HeaderState = {
   readonly dimensions?: string;
   readonly fileName: string;
   readonly mode: HeaderMode;
+  readonly shouldUpdateDimensions: boolean;
 };
 
 type ZoomControl = {
@@ -40,6 +44,7 @@ const DEFAULT_ZOOM_PERCENT = 100;
 const MIN_ZOOM_PERCENT = 50;
 const MAX_ZOOM_PERCENT = 200;
 const ZOOM_STEP_PERCENT = 10;
+const ZOOM_CONTROL_ACTION_ID = "table.header.zoom";
 
 export class TableViewPane {
   public readonly element: HTMLElement;
@@ -50,9 +55,11 @@ export class TableViewPane {
   private readonly headerCenter = document.createElement("span");
   private readonly headerRight = document.createElement("div");
   private readonly dimensions = document.createElement("span");
-  private readonly actionBar = new ActionBar({
-    ariaLabel: localize("table.header.actions", "Table preview actions"),
-    className: "table_view_actions",
+  private readonly actionBar: ActionBar;
+  private readonly zoomAction = toAction({
+    id: ZOOM_CONTROL_ACTION_ID,
+    label: localize("table.zoomControl", "Table zoom"),
+    run: () => undefined,
   });
   private readonly zoomControl: ZoomControl;
   private readonly view: TableView;
@@ -64,6 +71,13 @@ export class TableViewPane {
     this.props = props;
     this.view = new TableView(toViewProps(props, this.zoomPercent));
     this.zoomControl = this.createZoomControl();
+    this.actionBar = new ActionBar({
+      ariaLabel: localize("table.header.actions", "Table actions"),
+      className: "table_view_actions",
+      actionViewItemProvider: action => action.id === ZOOM_CONTROL_ACTION_ID
+        ? new ZoomControlViewItem(action, this.zoomControl.element)
+        : undefined,
+    });
     this.store.add(this.actionBar);
     this.header.className = "table_view_header";
     this.headerLeft.className = "table_view_header_left";
@@ -71,13 +85,13 @@ export class TableViewPane {
     this.headerRight.className = "table_view_header_right";
     this.dimensions.className = "table_view_dimensions";
     this.content.className = "table_view_pane_content";
-    this.actionBar.append(this.zoomControl.element);
+    this.renderHeaderActions();
     this.headerRight.append(this.dimensions, this.actionBar.domNode);
     this.header.append(this.headerLeft, this.headerCenter, this.headerRight);
     this.content.append(this.header, this.view.element);
     this.element = createPreviewPart({
       id: TableViewId,
-      ariaLabel: localize("table.preview.ariaLabel", "Table preview"),
+      ariaLabel: localize("table.ariaLabel", "Table"),
       className: "table_view_pane",
       children: this.content,
     });
@@ -87,13 +101,10 @@ export class TableViewPane {
   public update(props: TableViewPaneProps): void {
     this.props = props;
     this.view.update(toViewProps(props, this.zoomPercent));
-    const { dimensions, fileName, mode } = getHeaderState(props);
+    const { dimensions, fileName, mode, shouldUpdateDimensions } = getHeaderState(props);
     this.updateHeaderMode(mode);
-    setText(this.headerCenter, fileName);
-    setHidden(this.headerCenter, mode !== "file");
-    setText(this.dimensions, dimensions ?? "");
-    setHidden(this.dimensions, !dimensions);
-    this.updateZoomControl();
+    this.updateHeaderCenter(fileName, mode === "file");
+    this.updateHeaderRight(dimensions, shouldUpdateDimensions);
   }
 
   public dispose(): void {
@@ -159,10 +170,86 @@ export class TableViewPane {
     setText(this.headerLeft, getHeaderLabel(mode));
   }
 
+  private updateHeaderCenter(fileName: string, isVisible: boolean): void {
+    setText(this.headerCenter, fileName);
+    setHidden(this.headerCenter, !isVisible);
+  }
+
+  private updateHeaderRight(dimensions: string | undefined, shouldUpdateDimensions: boolean): void {
+    if (shouldUpdateDimensions) {
+      setText(this.dimensions, dimensions ?? "");
+      setHidden(this.dimensions, !dimensions);
+    }
+    this.updateZoomControl();
+  }
+
+  private renderHeaderActions(): void {
+    this.actionBar.clear();
+    this.actionBar.push(this.zoomAction, {
+      label: false,
+      role: "presentation",
+    });
+  }
+
   private updateZoomControl(): void {
     setText(this.zoomControl.value, `${this.zoomPercent}%`);
     setDisabled(this.zoomControl.decreaseButton, this.zoomPercent <= MIN_ZOOM_PERCENT);
     setDisabled(this.zoomControl.increaseButton, this.zoomPercent >= MAX_ZOOM_PERCENT);
+  }
+}
+
+class ZoomControlViewItem extends Disposable implements IActionViewItem {
+  private container: HTMLElement | null = null;
+  private runner: IActionRunner | null = null;
+
+  constructor(
+    public readonly action: IAction,
+    private readonly control: HTMLElement,
+  ) {
+    super();
+  }
+
+  public get actionRunner(): IActionRunner {
+    if (!this.runner) {
+      this.runner = this._register(new ActionRunner());
+    }
+
+    return this.runner;
+  }
+
+  public set actionRunner(actionRunner: IActionRunner) {
+    this.runner = actionRunner;
+  }
+
+  public setActionContext(_context: unknown): void {}
+
+  public render(container: HTMLElement): void {
+    this.container = container;
+    container.classList.add("ui-actionbar__item", "table_view_zoom_action");
+    container.setAttribute("role", "presentation");
+    container.append(this.control);
+  }
+
+  public isEnabled(): boolean {
+    return this.action.enabled;
+  }
+
+  public focus(): void {
+    this.control.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
+  }
+
+  public blur(): void {
+    const activeElement = document.activeElement;
+    if (activeElement instanceof HTMLElement && this.control.contains(activeElement)) {
+      activeElement.blur();
+    }
+  }
+
+  public override dispose(): void {
+    this.control.remove();
+    this.container?.remove();
+    this.container = null;
+    super.dispose();
   }
 }
 
@@ -216,40 +303,27 @@ const getHeaderLabel = (mode: HeaderMode): string => {
   switch (mode) {
     case "file":
       return localize("table.header.filename", "文件名");
-    case "loading":
-      return localize("table.header.loading", "预览加载中");
     case "empty":
     default:
       return localize("table.header.empty", "暂无预览");
   }
 };
 
-const getHeaderState = ({
-  previewFile,
-  previewStatus,
-}: TableViewPaneProps): HeaderState => {
-  const isLoading = previewStatus?.state === "loading";
-  const fileName = previewFile?.fileName
-    ? String(previewFile.fileName).replace(/\.csv$/i, "")
-    : "";
-
-  const dimensions = previewFile && !isLoading
-    ? {
-        value: `${Math.max(0, Number(previewFile.rowCount) || 0)} × ${Math.max(0, Number(previewFile.columnCount) || 0)}`,
-      }
-    : null;
+const getHeaderState = ({ tableState }: TableViewPaneProps): HeaderState => {
+  const hasSelectedFile = Boolean(tableState.selectedFileId && tableState.fileName);
 
   return {
-    dimensions: dimensions?.value,
-    fileName: isLoading ? "" : fileName,
-    mode: isLoading ? "loading" : fileName ? "file" : "empty",
+    dimensions: tableState.dimensions,
+    fileName: tableState.fileName,
+    mode: hasSelectedFile ? "file" : "empty",
+    shouldUpdateDimensions: tableState.loadState.state !== "loading" || !hasSelectedFile,
   };
 };
 
 const toViewProps = (
   props: TableViewPaneProps,
   zoomPercent: number,
-): TableViewPaneProps & { readonly zoomPercent: number } => ({
+): TableViewProps => ({
   ...props,
   zoomPercent,
 });

@@ -203,6 +203,10 @@ export class Layout extends Disposable {
   }
 
   public setParts(parts: LayoutParts): void {
+    if (areLayoutPartsEqual(this.parts, parts)) {
+      return;
+    }
+
     this.parts = parts;
     this.render();
   }
@@ -575,3 +579,15 @@ const appendIfPresent = (
     parent.append(child);
   }
 };
+
+const areLayoutPartsEqual = (
+  left: LayoutParts,
+  right: LayoutParts,
+): boolean =>
+  (left.controller ?? null) === (right.controller ?? null) &&
+  (left.data ?? null) === (right.data ?? null) &&
+  (left.analysis ?? null) === (right.analysis ?? null) &&
+  (left.settings ?? null) === (right.settings ?? null) &&
+  (left.overlay ?? null) === (right.overlay ?? null) &&
+  (left.sidebar ?? null) === (right.sidebar ?? null) &&
+  (left.secondarySidebar ?? null) === (right.secondarySidebar ?? null);

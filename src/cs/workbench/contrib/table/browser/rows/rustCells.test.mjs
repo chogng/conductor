@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildRustPreviewCellRequests,
   rowsFromRustPreviewCells,
-} from "./rustPreviewCells.ts";
+} from "./rustCells.ts";
 
 test("buildRustPreviewCellRequests expands unique rows into full-row cell reads", () => {
   const cells = buildRustPreviewCellRequests({

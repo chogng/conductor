@@ -1,18 +1,15 @@
 import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollbar";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
-import type { PreviewFile } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
-import type { PreviewStatus } from "src/cs/workbench/contrib/session/analysis-session-context";
 import { createEmptyView } from "src/cs/workbench/contrib/table/browser/emptyView";
 import type {
-  TableBindings,
+  TableModel,
   TableSelection,
-} from "src/cs/workbench/services/table/common/table";
+  TableState,
+} from "src/cs/workbench/contrib/table/common/tableService";
 
 export type TableViewProps = {
-  readonly previewBindings: TableBindings;
-  readonly previewFile?: PreviewFile | null;
-  readonly previewStatus?: PreviewStatus;
-  readonly selectedFileId?: string | null;
+  readonly tableModel: TableModel;
+  readonly tableState: TableState;
   readonly t: TranslateFn;
   readonly zoomPercent: number;
 };
@@ -20,7 +17,7 @@ export type TableViewProps = {
 export class TableView {
   public readonly element: HTMLElement;
   private readonly body = document.createElement("div");
-  private readonly preview = new Scrollbar({
+  private readonly scrollArea = new Scrollbar({
     axis: "both",
     className: "table_view_scroll_area",
     viewportClassName: "table_view_preview",
@@ -34,17 +31,17 @@ export class TableView {
     this.element = document.createElement("div");
     this.element.className = "table_view";
     this.body.className = "table_view_body";
-    this.body.append(this.preview.element);
+    this.body.append(this.scrollArea.element);
     this.element.append(this.body);
-    this.bindTableState(props.previewBindings);
+    this.bindTableState(props.tableModel);
     this.render();
   }
 
   public update(props: TableViewProps): void {
-    const previousBindings = this.props.previewBindings;
+    const previousModel = this.props.tableModel;
     this.props = props;
-    if (previousBindings !== props.previewBindings) {
-      this.bindTableState(props.previewBindings);
+    if (previousModel !== props.tableModel) {
+      this.bindTableState(props.tableModel);
     }
     this.render();
   }
@@ -54,50 +51,52 @@ export class TableView {
     this.disposeSelectionListener = null;
     this.disposeRowsVersionListener?.();
     this.disposeRowsVersionListener = null;
-    this.preview.dispose();
+    this.scrollArea.dispose();
     this.element.replaceChildren();
     this.element.remove();
   }
 
-  private bindTableState(previewBindings: TableBindings): void {
+  private bindTableState(tableModel: TableModel): void {
     this.disposeSelectionListener?.();
     this.disposeRowsVersionListener?.();
-    this.disposeSelectionListener = previewBindings.onDidChangeSelection(() => {
+    this.disposeSelectionListener = tableModel.onDidChangeSelection(() => {
       this.render();
     });
-    this.disposeRowsVersionListener = previewBindings.subscribePreviewRowsVersion(() => {
+    this.disposeRowsVersionListener = tableModel.subscribeRowsVersion(() => {
       this.render();
     });
   }
 
   private render(): void {
-    const { previewFile, previewStatus, selectedFileId, t } = this.props;
-    this.preview.viewport.replaceChildren();
-    this.element.dataset.state = previewStatus?.state ?? "idle";
+    const { tableState, t } = this.props;
+    const tableFile = tableState.file;
+    this.scrollArea.viewport.replaceChildren();
+    this.element.dataset.state = tableState.loadState.state;
 
-    if (!selectedFileId || !previewFile) {
-      this.preview.viewport.append(createEmptyView({
+    if (!tableState.selectedFileId || !tableFile) {
+      this.scrollArea.viewport.append(createEmptyView({
         description: t("preview_empty_hint"),
       }));
-      this.preview.layout();
+      this.scrollArea.layout();
       return;
     }
 
-    if (previewStatus?.state === "loading") {
-      this.preview.viewport.append(createEmptyView({
+    if (tableState.loadState.state === "loading") {
+      this.scrollArea.viewport.append(createEmptyView({
         title: t("preview_loading"),
-        description: previewStatus.message || t("preview_loading_hint"),
+        description: tableState.loadState.message || t("preview_loading_hint"),
       }));
-      this.preview.layout();
+      this.scrollArea.layout();
       return;
     }
 
-    this.preview.viewport.append(this.createTablePreview());
-    this.preview.layout();
+    this.scrollArea.viewport.append(this.createTable());
+    this.scrollArea.layout();
   }
 
-  private createTablePreview(): HTMLElement {
-    const { previewBindings, previewFile, t, zoomPercent } = this.props;
+  private createTable(): HTMLElement {
+    const { tableModel, tableState, t, zoomPercent } = this.props;
+    const tableFile = tableState.file;
     const root = document.createElement("div");
     root.className = "table_view_content";
     root.style.setProperty("--table-view-zoom", String(zoomPercent / 100));
@@ -105,8 +104,8 @@ export class TableView {
     const table = document.createElement("table");
     table.className = "table_view_grid";
 
-    const rowCount = Math.min(Math.max(Number(previewFile?.rowCount) || 0, 0), 80);
-    const columnCount = Math.min(Math.max(Number(previewFile?.columnCount) || 0, 0), 24);
+    const rowCount = Math.min(Math.max(Number(tableFile?.rowCount) || 0, 0), 80);
+    const columnCount = Math.min(Math.max(Number(tableFile?.columnCount) || 0, 0), 24);
     if (rowCount === 0 || columnCount === 0) {
       root.append(createEmptyView({
         description: t("preview_empty_hint"),
@@ -114,8 +113,8 @@ export class TableView {
       return root;
     }
 
-    const selection = previewBindings.getSelection();
-    const highlightedColumns = new Set(previewBindings.getHighlight().columns ?? []);
+    const selection = tableModel.getSelection();
+    const highlightedColumns = new Set(tableModel.getHighlight().columns ?? []);
     const selectedColumns = new Set(selection.selectedColumns ?? []);
 
     const head = document.createElement("thead");
@@ -128,7 +127,7 @@ export class TableView {
       button.className = "table_view_column_button";
       button.textContent = getColumnLabel(colIndex);
       button.addEventListener("click", () => {
-        previewBindings.setSelection(toggleSelectedColumn(selection, colIndex));
+        tableModel.setSelection(toggleSelectedColumn(selection, colIndex));
       });
       cell.dataset.selected = selectedColumns.has(colIndex) ? "true" : "false";
       cell.dataset.highlighted = highlightedColumns.has(colIndex) ? "true" : "false";
@@ -145,7 +144,7 @@ export class TableView {
       rowHeader.textContent = String(rowIndex + 1);
       row.append(rowHeader);
 
-      const cells = previewBindings.getPreviewRow(rowIndex) ?? [];
+      const cells = tableModel.getRow(rowIndex) ?? [];
       for (let colIndex = 0; colIndex < columnCount; colIndex += 1) {
         const cell = document.createElement("td");
         const isActiveCell =
@@ -156,11 +155,11 @@ export class TableView {
         cell.dataset.selected = selectedColumns.has(colIndex) ? "true" : "false";
         cell.dataset.highlighted = highlightedColumns.has(colIndex) ? "true" : "false";
         cell.addEventListener("click", () => {
-          previewBindings.setSelection({
+          tableModel.setSelection({
             selectedColumns: selection.selectedColumns ?? [],
             activeCell: {
               colIndex,
-              fileId: previewFile?.fileId ?? null,
+              fileId: tableFile?.fileId ?? null,
               rowIndex,
             },
           });
@@ -172,8 +171,8 @@ export class TableView {
     table.append(body);
     root.append(table);
 
-    if (previewFile?.fileId) {
-      void previewBindings.ensurePreviewRows(previewFile.fileId, 0, rowCount);
+    if (tableFile?.fileId) {
+      void tableModel.ensureRows(tableFile.fileId, 0, rowCount);
     }
 
     return root;

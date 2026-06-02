@@ -14,10 +14,9 @@ import "src/cs/workbench/workbench.common.main";
 
 //#region --- workbench services
 
-import "src/cs/workbench/services/import/browser/importService";
 import "src/cs/workbench/services/lifecycle/browser/lifecycleService";
 import "src/cs/workbench/services/origin/browser/originService";
-import "src/cs/workbench/services/table/browser/tableService";
+import "src/cs/workbench/contrib/table/browser/tableService";
 
 //#endregion
 

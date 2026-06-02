@@ -8,7 +8,7 @@ import {
   mergeChunkRangeRows,
   mergeChunkRows,
   sanitizePreviewRows,
-} from "./previewRowChunk.js";
+} from "./rowChunk.js";
 
 test("sanitizePreviewRows normalizes non-array rows", () => {
   const rows = sanitizePreviewRows([["a"], null, 1, ["b", "c"]]);

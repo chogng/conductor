@@ -28,8 +28,8 @@ import TemplateEditorPane from "src/cs/workbench/contrib/template/browser/templa
 import { getWorkbenchContribution } from "src/cs/workbench/common/contributions";
 import type { TableContribution } from "src/cs/workbench/contrib/table/browser/table.contribution";
 import { TableContributionId } from "src/cs/workbench/contrib/table/common/table";
-import { ImportSessionViewletHost } from "src/cs/workbench/contrib/import/browser/importSessionViewletHost";
-import type { ImportSessionRef } from "src/cs/workbench/contrib/import/common/types";
+import { FilesPaneHost } from "src/cs/workbench/contrib/files/browser/filesPaneHost";
+import type { FilesPaneRef } from "src/cs/workbench/contrib/files/common/files";
 import {
   TemplateApplyController,
   type TemplateApplyControllerInput,
@@ -37,7 +37,10 @@ import {
 import { SessionModel } from "src/cs/workbench/contrib/session/sessionModel";
 import { defaultSessionModel } from "src/cs/workbench/contrib/session/useSession";
 import { createSessionActions } from "src/cs/workbench/contrib/session/useSessionActions";
-import type { ITableService } from "src/cs/workbench/services/table/common/table";
+import type {
+  ITableService,
+  TableModel,
+} from "src/cs/workbench/contrib/table/common/tableService";
 import {
   CoreSettingsController,
   createCoreSettingsState,
@@ -126,9 +129,9 @@ const createTranslator = (): TranslateFn => {
 export class Workbench extends Layout {
   private readonly window: WorkbenchWindow;
   private t = createTranslator();
-  private readonly importSessionRef: { current: ImportSessionRef | null } = { current: null };
+  private readonly filesPaneRef: { current: FilesPaneRef | null } = { current: null };
   private readonly session = defaultSessionModel;
-  private readonly importSession: ImportSessionViewletHost;
+  private readonly filesPane: FilesPaneHost;
   private readonly table: TableContribution;
   private readonly templateEditor: TemplateEditorPane;
   private readonly analysis: ChartPreviewViewPane;
@@ -172,7 +175,7 @@ export class Workbench extends Layout {
       setProcessedData: this.session.setProcessedData,
     }));
     this.templateApply.update(this.getTemplateApplyInput());
-    this.importSession = this._register(new ImportSessionViewletHost(this.getImportSessionProps()));
+    this.filesPane = this._register(new FilesPaneHost(this.getFilesPaneProps()));
     this.table = getWorkbenchContribution<TableContribution>(TableContributionId);
     this.templateEditor = this._register(new TemplateEditorPane(this.getTemplateEditorProps()));
     this.analysis = this._register(new ChartPreviewViewPane(this.getAnalysisProps()));
@@ -200,24 +203,24 @@ export class Workbench extends Layout {
 
   private renderWorkbench(): void {
     const snapshot = this.session.getSnapshot();
-    const previewBindings = this.getPreviewBindings(snapshot);
-    this.templateApply.update(this.getTemplateApplyInput(snapshot, previewBindings));
+    const tableModel = this.getTableModel(snapshot);
+    this.templateApply.update(this.getTemplateApplyInput(snapshot, tableModel));
 
-    this.importSession.update(this.getImportSessionProps(
+    this.filesPane.update(this.getFilesPaneProps(
       snapshot,
-      previewBindings,
+      tableModel,
       this.templateApply,
     ));
-    this.table.update(this.getTableProps(snapshot, previewBindings));
+    this.table.update(this.getTableProps(tableModel));
     this.templateEditor.update(this.getTemplateEditorProps(
       snapshot,
-      previewBindings,
+      tableModel,
       this.templateApply,
     ));
     this.analysis.update(this.getAnalysisProps(snapshot, this.templateApply));
     this.settings.update(this.getSettingsProps());
     this.setParts({
-      sidebar: this.importSession.element,
+      sidebar: this.filesPane.element,
       data: this.table.element,
       secondarySidebar: this.templateEditor.sidebarElement,
       analysis: this.analysis.element,
@@ -260,22 +263,22 @@ export class Workbench extends Layout {
     };
   }
 
-  private getImportSessionProps(
+  private getFilesPaneProps(
     snapshot = this.session.getSnapshot(),
-    previewBindings = this.getPreviewBindings(snapshot),
+    tableModel = this.getTableModel(snapshot),
     processing = this.templateApply,
   ) {
     const sessionActions = createSessionActions({
-      clearPreviewState: previewBindings.clearPreviewState,
-      disposePreviewFileCache: previewBindings.disposePreviewFileCache,
-      invalidatePreviewRequests: previewBindings.invalidatePreviewRequests,
+      clearPreviewState: tableModel.clearState,
+      disposePreviewFileCache: tableModel.disposeFileCache,
+      invalidatePreviewRequests: tableModel.invalidateRequests,
       previewFile: snapshot.previewFile,
       previewLoadingMessage: this.t("preview_loading"),
       processedData: snapshot.processedData,
       processingStatus: processing.processingStatus,
       rawData: snapshot.rawData,
       removeQueuedProcessingFile: processing.removeQueuedProcessingFile,
-      resetPreviewWorker: previewBindings.resetPreviewWorker,
+      resetPreviewWorker: tableModel.resetWorker,
       resetProcessingWorker: processing.resetProcessingWorker,
       selectedPreviewFileId: snapshot.selectedPreviewFileId,
       setIonIoffManualTargetsByFileId: this.session.setIonIoffManualTargetsByFileId,
@@ -287,7 +290,7 @@ export class Workbench extends Layout {
     });
 
     return {
-      importSessionRef: this.importSessionRef,
+      filesPaneRef: this.filesPaneRef,
       files: snapshot.rawData,
       onFileImported: sessionActions.handleFileImported,
       onFilesReplaced: sessionActions.handleFilesReplaced,
@@ -300,7 +303,7 @@ export class Workbench extends Layout {
 
   private getTemplateEditorProps(
     snapshot = this.session.getSnapshot(),
-    previewBindings = this.getPreviewBindings(snapshot),
+    tableModel = this.getTableModel(snapshot),
     processing = this.templateApply,
   ) {
     return {
@@ -310,20 +313,15 @@ export class Workbench extends Layout {
       onTemplateAppliedIncremental: processing.handleTemplateAppliedIncremental,
       onUpdateSettings: this.coreSettingsState.handleUpdateAnalysisSettings,
       rawData: snapshot.rawData,
-      tableBindings: previewBindings,
+      tableModel,
       t: this.t,
     };
   }
 
-  private getTableProps(
-    snapshot = this.session.getSnapshot(),
-    previewBindings = this.getPreviewBindings(snapshot),
-  ) {
+  private getTableProps(tableModel = this.getTableModel()) {
     return {
-      previewBindings,
-      previewFile: snapshot.previewFile,
-      previewStatus: snapshot.previewStatus,
-      selectedFileId: snapshot.selectedPreviewFileId,
+      tableModel,
+      tableState: tableModel.getState(),
       t: this.t,
     };
   }
@@ -341,40 +339,40 @@ export class Workbench extends Layout {
     };
   }
 
-  private getPreviewBindings(snapshot = this.session.getSnapshot()) {
+  private getTableModel(snapshot = this.session.getSnapshot()) {
     return this.tableService.update({
-      previewCacheFileIdRef: this.session.previewCacheFileIdRef,
-      previewCacheFileLruRef: this.session.previewCacheFileLruRef,
-      previewFile: snapshot.previewFile,
-      previewStatus: snapshot.previewStatus,
-      previewLoadedChunksByFileIdRef: this.session.previewLoadedChunksByFileIdRef,
-      previewLoadedChunksRef: this.session.previewLoadedChunksRef,
-      previewRequestIdRef: this.session.previewRequestIdRef,
-      previewRowsCacheByFileIdRef: this.session.previewRowsCacheByFileIdRef,
-      previewRowsCacheRef: this.session.previewRowsCacheRef,
-      previewRowsRequestIdRef: this.session.previewRowsRequestIdRef,
-      previewRowsRequestsRef: this.session.previewRowsRequestsRef,
-      previewWorkerRef: this.session.previewWorkerRef,
+      cacheFileIdRef: this.session.previewCacheFileIdRef,
+      cacheFileLruRef: this.session.previewCacheFileLruRef,
+      file: snapshot.previewFile,
+      loadState: snapshot.previewStatus,
+      loadedChunksByFileIdRef: this.session.previewLoadedChunksByFileIdRef,
+      loadedChunksRef: this.session.previewLoadedChunksRef,
+      requestIdRef: this.session.previewRequestIdRef,
+      rowsCacheByFileIdRef: this.session.previewRowsCacheByFileIdRef,
+      rowsCacheRef: this.session.previewRowsCacheRef,
+      rowsRequestIdRef: this.session.previewRowsRequestIdRef,
+      rowsRequestsRef: this.session.previewRowsRequestsRef,
+      workerRef: this.session.previewWorkerRef,
       rawData: snapshot.rawData,
-      selectedPreviewFileId: snapshot.selectedPreviewFileId,
-      setPreviewFile: this.session.setPreviewFile,
-      setPreviewStatus: this.session.setPreviewStatus,
-      setSelectedPreviewFileId: this.session.setSelectedPreviewFileId,
+      selectedFileId: snapshot.selectedPreviewFileId,
+      setFile: this.session.setPreviewFile,
+      setLoadState: this.session.setPreviewStatus,
+      setSelectedFileId: this.session.setSelectedPreviewFileId,
       t: this.t,
     });
   }
 
   private getTemplateApplyInput(
     snapshot = this.session.getSnapshot(),
-    previewBindings = this.getPreviewBindings(snapshot),
+    tableModel: TableModel = this.getTableModel(snapshot),
   ): TemplateApplyControllerInput {
     return {
       activeFileId: snapshot.processedData[0]?.fileId ?? null,
-      getPreviewRow: previewBindings.getPreviewRow,
+      getTableRow: tableModel.getRow,
+      hasRawDataFile: tableModel.hasRawDataFile,
       previewFile: snapshot.previewFile,
       processedData: snapshot.processedData,
       rawData: snapshot.rawData,
-      rawDataByIdRef: previewBindings.rawDataByIdRef,
       t: this.t as any,
     };
   }

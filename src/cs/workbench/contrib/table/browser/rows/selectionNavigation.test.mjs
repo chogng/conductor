@@ -7,7 +7,7 @@ import {
   getSelectionModeFromPointerEvent,
   isPreviewNavigationKey,
   resolveSelectionDragStart,
-} from "./previewSelectionNavigation.js";
+} from "./selectionNavigation.js";
 
 test("getSelectionModeFromPointerEvent maps ctrl/meta to append", () => {
   assert.equal(getSelectionModeFromPointerEvent({ ctrlKey: true }), "append");

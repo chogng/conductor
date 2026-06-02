@@ -1,4 +1,4 @@
-﻿import type { MutableState } from "src/cs/workbench/contrib/session/analysis-session-context";
+import type { MutableState } from "src/cs/workbench/contrib/session/analysis-session-context";
 import {
   isPerfEnabled,
   logPerf,
@@ -9,7 +9,7 @@ import type {
   ProcessedEntry,
   ProcessingStatus,
 } from "src/cs/workbench/common/deviceAnalysis/sharedTypes";
-import { loadConvertedCsvFile } from "src/cs/workbench/contrib/import/browser/rustClient";
+import { loadConvertedCsvFile } from "src/cs/workbench/services/import/browser/importPipeline";
 
 // Owns asynchronous execution for device-analysis processing jobs.
 // This module handles worker lifetime, queue draining, progress updates, cancellation,
@@ -50,7 +50,7 @@ type StateSetter<T> = (value: T | ((previous: T) => T)) => void;
 
 type SchedulerCallbacks = {
   onWorkerErrorPayload?: (payload: unknown) => void;
-  rawDataByIdRef: MutableState<Map<string, unknown>>;
+  hasRawDataFile: (fileId: string | null | undefined) => boolean;
   setActivePage: (page: string) => void;
   setProcessedData: StateSetter<ProcessedEntry[]>;
   setProcessingStatus: StateSetter<ProcessingStatus>;
@@ -296,7 +296,7 @@ export const startProcessingJob = ({
   processingStopOnErrorRef,
   processingWorkerRef,
   queue,
-  rawDataByIdRef,
+  hasRawDataFile,
   removedQueuedFileIdsRef,
   resetProcessedData,
   setActivePage,
@@ -400,7 +400,7 @@ export const startProcessingJob = ({
         if (jobId !== processingJobIdRef.current) return;
         if (rustProcessed) {
           const nextFileId = rustProcessed.fileId;
-          if (nextFileId && !rawDataByIdRef.current.has(nextFileId)) {
+          if (nextFileId && !hasRawDataFile(nextFileId)) {
             filePerfFinishers.get(nextFileId)?.({
               skipped: "removed-before-result",
               ...summarizeProcessedFile(rustProcessed),
@@ -467,7 +467,7 @@ export const startProcessingJob = ({
       const nextProcessed = payload?.processed;
       const nextFileId = nextProcessed?.fileId;
 
-      if (nextFileId && !rawDataByIdRef.current.has(nextFileId)) {
+      if (nextFileId && !hasRawDataFile(nextFileId)) {
         filePerfFinishers.get(nextFileId)?.({
           skipped: "removed-before-result",
           ...summarizeProcessedFile(nextProcessed),
@@ -556,7 +556,7 @@ export const startRuleProcessingJob = ({
   processingQueueRef,
   processingStopOnErrorRef,
   processingWorkerRef,
-  rawDataByIdRef,
+  hasRawDataFile,
   removedQueuedFileIdsRef,
   setActivePage,
   setProcessedData,
@@ -662,7 +662,7 @@ export const startRuleProcessingJob = ({
         if (jobId !== processingJobIdRef.current) return;
         if (rustProcessed) {
           const nextFileId = rustProcessed.fileId;
-          if (nextFileId && !rawDataByIdRef.current.has(nextFileId)) {
+          if (nextFileId && !hasRawDataFile(nextFileId)) {
             filePerfFinishers.get(nextFileId)?.({
               skipped: "removed-before-result",
               ...summarizeProcessedFile(rustProcessed),
@@ -727,7 +727,7 @@ export const startRuleProcessingJob = ({
     if (type === "processResult") {
       const nextProcessed = payload?.processed;
       const nextFileId = nextProcessed?.fileId;
-      if (nextFileId && !rawDataByIdRef.current.has(nextFileId)) {
+      if (nextFileId && !hasRawDataFile(nextFileId)) {
         filePerfFinishers.get(nextFileId)?.({
           skipped: "removed-before-result",
           ...summarizeProcessedFile(nextProcessed),

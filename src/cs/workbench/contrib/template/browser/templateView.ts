@@ -38,16 +38,16 @@ import {
 import { AUTO_TEMPLATE_ID } from "src/cs/workbench/common/deviceAnalysis/autoExtraction";
 import { downloadTemplateBundle } from "src/cs/workbench/contrib/template/browser/templateController";
 import type {
-  TableBindings,
+  TableModel,
   TableSelection,
-} from "src/cs/workbench/services/table/common/table";
+} from "src/cs/workbench/contrib/table/common/tableService";
 
 export type TemplateElementOptions = {
   readonly t: TranslateFn;
   readonly importSessionElement?: HTMLElement | null;
   rawData?: RawDataEntry[];
-  tableBindings?: Pick<
-    TableBindings,
+  tableModel?: Pick<
+    TableModel,
     | "clearHighlight"
     | "getSelection"
     | "highlightColumns"
@@ -252,7 +252,7 @@ export class TemplateManagerView {
   private props: TemplateElementOptions;
   private activePickField: PickFieldName | null = null;
   private disposeTableSelectionListener: (() => void) | null = null;
-  private tableBindings: TemplateElementOptions["tableBindings"] | null = null;
+  private tableModel: TemplateElementOptions["tableModel"] | null = null;
   private mode: "select" | "save" | null = null;
   private toggleDraft: Pick<TemplateConfig, "stopOnError" | "fileNameMatchCaseSensitive"> | null = null;
   private selectRefs: {
@@ -287,7 +287,7 @@ export class TemplateManagerView {
 
   public update(props: TemplateElementOptions): void {
     this.props = props;
-    this.bindTableSelection(props.tableBindings);
+    this.bindTableSelection(props.tableModel);
 
     this.ensureTemplatesLoaded();
     this.syncToggleDraft();
@@ -313,7 +313,7 @@ export class TemplateManagerView {
   public dispose(): void {
     this.disposeTableSelectionListener?.();
     this.disposeTableSelectionListener = null;
-    this.tableBindings?.clearHighlight();
+    this.tableModel?.clearHighlight();
     this.selectRefs?.menuButton.dispose();
     this.selectRefs = null;
     this.saveRefs = null;
@@ -334,24 +334,24 @@ export class TemplateManagerView {
     };
   }
 
-  private bindTableSelection(tableBindings: TemplateElementOptions["tableBindings"]): void {
-    if (this.tableBindings === tableBindings) {
+  private bindTableSelection(tableModel: TemplateElementOptions["tableModel"]): void {
+    if (this.tableModel === tableModel) {
       return;
     }
 
     this.disposeTableSelectionListener?.();
     this.disposeTableSelectionListener = null;
-    this.tableBindings?.clearHighlight();
-    this.tableBindings = tableBindings ?? null;
+    this.tableModel?.clearHighlight();
+    this.tableModel = tableModel ?? null;
 
-    if (!tableBindings) {
+    if (!tableModel) {
       return;
     }
 
-    this.disposeTableSelectionListener = tableBindings.onDidChangeSelection((selection) => {
+    this.disposeTableSelectionListener = tableModel.onDidChangeSelection((selection) => {
       this.applyTableSelection(selection);
     });
-    this.applyTableSelection(tableBindings.getSelection());
+    this.applyTableSelection(tableModel.getSelection());
   }
 
   private applyTableSelection(selection: TableSelection): void {
@@ -407,11 +407,11 @@ export class TemplateManagerView {
   private syncTableHighlight(): void {
     const columns = normalizeColumnIndexes(this.getEffectiveTemplateConfig().yColumns);
     if (columns.length > 0) {
-      this.tableBindings?.highlightColumns(columns);
+      this.tableModel?.highlightColumns(columns);
       return;
     }
 
-    this.tableBindings?.clearHighlight();
+    this.tableModel?.clearHighlight();
   }
 
   private syncToggleDraft(): void {

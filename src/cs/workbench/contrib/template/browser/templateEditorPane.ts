@@ -17,7 +17,7 @@ export type TemplateEditorPaneProps = {
   readonly onTemplateAppliedIncremental?: TemplateElementOptions["onTemplateAppliedIncremental"];
   readonly onUpdateSettings?: TemplateElementOptions["onUpdateSettings"];
   readonly rawData?: RawDataEntry[];
-  readonly tableBindings?: TemplateElementOptions["tableBindings"];
+  readonly tableModel?: TemplateElementOptions["tableModel"];
   readonly t: TranslateFn;
 };
 

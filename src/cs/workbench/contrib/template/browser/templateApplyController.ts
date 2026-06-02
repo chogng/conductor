@@ -1,4 +1,7 @@
-import type { MutableState, StateSetter } from "src/cs/workbench/contrib/session/analysis-session-context";
+import type {
+  MutableState,
+  StateSetter,
+} from "src/cs/workbench/contrib/session/analysis-session-context";
 import { prepareExtraction } from "src/cs/workbench/contrib/template/common/extractionValidation";
 import {
   parseOlderExtractionError,
@@ -63,11 +66,11 @@ type StartExtractionJobOptions = {
 
 export type TemplateApplyControllerInput = {
   activeFileId?: unknown;
-  getPreviewRow: (rowIndex: number) => unknown;
+  getTableRow: (rowIndex: number) => unknown;
   previewFile: unknown;
   processedData?: ProcessedEntry[];
   rawData?: RawDataEntry[];
-  rawDataByIdRef: MutableState<Map<string, unknown>>;
+  hasRawDataFile: (fileId: string | null | undefined) => boolean;
   t: TranslateFn;
 };
 
@@ -240,9 +243,7 @@ const buildWorkerExtractionError = (payload: unknown): ExtractionErrorEntry => {
       fallbackParsed?.messageKey ||
       null,
     messageParams:
-      (rawPayload?.messageParams &&
-        typeof rawPayload.messageParams === "object" &&
-        (rawPayload.messageParams as Record<string, unknown>)) ||
+      (isObjectRecord(rawPayload?.messageParams) && rawPayload.messageParams) ||
       fallbackParsed?.messageParams ||
       null,
   };
@@ -267,11 +268,11 @@ export class TemplateApplyController {
     private readonly options: TemplateApplyControllerOptions,
   ) {
     this.input = {
-      getPreviewRow: () => null,
+      getTableRow: () => null,
       previewFile: null,
       processedData: [],
       rawData: [],
-      rawDataByIdRef: createMutableState(new Map<string, unknown>()),
+      hasRawDataFile: () => false,
       t: ((key: string) => key) as TranslateFn,
     };
   }
@@ -308,7 +309,7 @@ export class TemplateApplyController {
 
     const before = this.processingQueueRef.current.length;
     this.processingQueueRef.current = this.processingQueueRef.current.filter(
-      (entry) => entry?.fileId !== fileId,
+      (entry: ProcessingQueueItem) => entry.fileId !== fileId,
     );
 
     const removedCount = before - this.processingQueueRef.current.length;
@@ -505,10 +506,10 @@ export class TemplateApplyController {
   private readonly prepareExtractionRun = (
     config: Record<string, unknown>,
   ): PreparedExtractionResult => {
-    const { getPreviewRow, previewFile, rawData = [], t } = this.input;
+    const { getTableRow, previewFile, rawData = [], t } = this.input;
     const prepared = prepareExtraction({
       config,
-      getPreviewRow,
+      getPreviewRow: getTableRow,
       previewFile,
       rawData,
       t,
@@ -596,7 +597,7 @@ export class TemplateApplyController {
     resetProcessedData,
     stopOnError,
   }: StartExtractionJobOptions): void => {
-    const { activeFileId, rawDataByIdRef } = this.input;
+    const { activeFileId, hasRawDataFile } = this.input;
     this.templateApplyService.startProcessingJob({
       activeFileId,
       extractionConfig,
@@ -609,7 +610,7 @@ export class TemplateApplyController {
       processingStopOnErrorRef: this.processingStopOnErrorRef,
       processingWorkerRef: this.processingWorkerRef,
       queue,
-      rawDataByIdRef,
+      hasRawDataFile,
       removedQueuedFileIdsRef: this.removedQueuedFileIdsRef,
       resetProcessedData,
       setActivePage: this.options.setActivePage,
@@ -628,7 +629,7 @@ export class TemplateApplyController {
       activeFileId,
       processedData = [],
       rawData = [],
-      rawDataByIdRef,
+      hasRawDataFile,
       t,
     } = this.input;
 
@@ -799,7 +800,7 @@ export class TemplateApplyController {
       processingQueueRef: this.processingQueueRef,
       processingStopOnErrorRef: this.processingStopOnErrorRef,
       processingWorkerRef: this.processingWorkerRef,
-      rawDataByIdRef,
+      hasRawDataFile,
       removedQueuedFileIdsRef: this.removedQueuedFileIdsRef,
       setActivePage: this.options.setActivePage,
       setProcessedData: this.options.setProcessedData,

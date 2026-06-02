@@ -10,7 +10,7 @@ import {
 import {
   ITableService,
   type ITableService as ITableServiceType,
-} from "src/cs/workbench/services/table/common/table";
+} from "src/cs/workbench/contrib/table/common/tableService";
 
 export const WorkbenchContributionId = "workbench.browser.workbench";
 
@@ -45,5 +45,3 @@ registerWorkbenchContribution2(
   WorkbenchContribution,
   WorkbenchPhase.BlockStartup,
 );
-
-import "src/cs/workbench/contrib/import/browser/media/importSessionViewlet.css";
