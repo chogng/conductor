@@ -66,7 +66,7 @@ export const createMainPlotSeries = (
   const xGroups = Array.isArray(file?.xGroups) ? file.xGroups : [];
   return (Array.isArray(file?.series) ? file.series : [])
     .map((series: ProcessedSeries, index: number) => {
-      if (!String(series?.id ?? "") || !xGroups[Number(series?.groupIndex)]) {
+      if (!isArrayLike(xGroups[Number(series?.groupIndex)])) {
         return null;
       }
 
@@ -76,12 +76,32 @@ export const createMainPlotSeries = (
       }
 
       return {
-        id: String(series.id),
+        id: resolveSeriesId(file, series, index),
         name: String(series?.name ?? series?.legendValue ?? `Series ${index + 1}`),
         data,
       };
     })
     .filter((series): series is MainPlotSeries => Boolean(series));
+};
+
+const resolveSeriesId = (
+  file: ProcessedEntry | null,
+  series: ProcessedSeries,
+  index: number,
+): string => {
+  const explicitId = String(series?.id ?? "").trim();
+  if (explicitId) {
+    return explicitId;
+  }
+
+  const fileId = String(file?.fileId ?? "file").trim() || "file";
+  const groupIndex = Number(series?.groupIndex);
+  const yCol = Number(series?.yCol);
+  return [
+    fileId,
+    Number.isInteger(groupIndex) ? `x${groupIndex}` : "x",
+    Number.isInteger(yCol) ? `y${yCol}` : `series${index}`,
+  ].join(":");
 };
 
 export const getMainPlotYUnitLabel = (
@@ -108,7 +128,7 @@ const createSourcePoints = (
   const xValues = Array.isArray(file?.xGroups)
     ? file.xGroups[Number(series?.groupIndex)] ?? []
     : [];
-  const yValues = Array.isArray(series?.y) ? series.y : [];
+  const yValues = isArrayLike(series?.y) ? series.y : [];
   const count = Math.min(xValues.length, yValues.length);
   const points: SourcePoint[] = [];
   for (let pointIndex = 0; pointIndex < count; pointIndex += 1) {
@@ -120,6 +140,11 @@ const createSourcePoints = (
   }
   return points;
 };
+
+const isArrayLike = (value: unknown): value is ArrayLike<unknown> =>
+  Boolean(value) &&
+  typeof value === "object" &&
+  Number.isFinite(Number((value as ArrayLike<unknown>).length));
 
 const resolveMainPlotPoints = (
   plotType: PlotType,

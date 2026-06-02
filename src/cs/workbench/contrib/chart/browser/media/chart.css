@@ -157,15 +157,6 @@
   color: rgb(var(--text-secondary) / 1);
 }
 
-.chart_view_toolbar {
-  display: flex;
-  flex-shrink: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.5rem;
-}
-
 .chart_view_file_select {
   width: fit-content;
 }
@@ -204,6 +195,25 @@
   color: rgb(var(--text-primary) / 1);
 }
 
+.chart_view_chart_area {
+  display: grid;
+  min-height: 0;
+  flex: 1 1 0%;
+  grid-template-rows: minmax(260px, 1fr) minmax(156px, 0.34fr);
+  gap: 0.75rem;
+}
+
+.chart_view_main_area,
+.chart_view_diagnostics_area,
+.chart_view_diagnostics_content {
+  min-width: 0;
+  min-height: 0;
+}
+
+.chart_view_main_area {
+  display: flex;
+}
+
 .chart_view_host {
   position: relative;
   min-height: 360px;
@@ -213,6 +223,70 @@
   border-color: rgb(var(--border) / 1);
   background-color: rgb(var(--bg-page) / 0.4);
   padding: 0.75rem;
+}
+
+.chart_view_diagnostics_area {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-radius: 0.5rem;
+  border-width: 1px;
+  border-color: rgb(var(--border) / 0.65);
+  background-color: rgb(var(--bg-page) / 0.35);
+  padding: 0.625rem 0.75rem 0.75rem;
+}
+
+.chart_view_diagnostics_header {
+  display: flex;
+  min-height: 1.75rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.chart_view_diagnostics_title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 600;
+  color: rgb(var(--text-primary) / 1);
+}
+
+.chart_view_diagnostics_switch {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.chart_view_diagnostics_switch_label {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: rgb(var(--text-secondary) / 1);
+}
+
+.chart_view_diagnostics_content {
+  position: relative;
+  flex: 1 1 0%;
+}
+
+.chart_view_diagnostics_empty {
+  display: flex;
+  height: 100%;
+  min-height: 96px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: rgb(var(--text-secondary) / 1);
+}
+
+.chart_view_diagnostics_area[data-state="off"] .chart_view_diagnostics_content {
+  min-height: 96px;
 }
 
 .chart_view_empty {

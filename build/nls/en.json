@@ -487,6 +487,8 @@
   "da_chart_curve_probe_heading": "Curve Probe",
   "da_chart_curve_probe_desc": "Query any x between measured points and get y by linear interpolation.",
   "da_chart_diagnostics_heading": "Diagnostics",
+  "da_chart_diagnostics_disabled": "Turn on diagnostics to show the diagnostic curve here.",
+  "da_chart_diagnostics_unavailable": "Switch to GM, SS, or VTH to inspect diagnostic curves.",
   "da_chart_ss_diagnostics": "SS Diagnostics",
   "da_chart_ss_diagnostics_desc": "Subthreshold controls and fit configuration for the active curve.",
   "da_chart_ss_diagnostics_toggle_title": "Show or hide the SS diagnostics chart.",

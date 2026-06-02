@@ -2,7 +2,6 @@ import AnalysisPanel, {
   type AnalysisPanelProps,
 } from "src/cs/workbench/contrib/chart/browser/analysisPanel";
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
-import { createButton } from "src/cs/base/browser/ui/button/button";
 import {
   getTabsButtonClassName,
   getTabsInstanceId,
@@ -93,8 +92,6 @@ export class ChartViewPane {
     if (activeFile && props.showFileSelect !== false) {
       this.headerActions.append(createFileSelect(props, activeFile, this.headerStore));
     }
-
-    this.headerActions.append(createToolbarControls(props, this.headerStore));
   }
 
   private setActivePlotType(plotType: PlotType): void {
@@ -154,78 +151,6 @@ const createFileSelect = (
     props.onActiveFileIdChange?.(select.value || null);
   }));
   return select;
-};
-
-const createToolbarControls = (
-  props: AnalysisPanelProps,
-  store: DisposableStore,
-): HTMLElement => {
-  const controls = document.createElement("div");
-  controls.className = "chart_view_toolbar";
-
-  const ionIoffMethod = props.ionIoffMethod ?? "auto";
-  const ssMethod = props.ssMethod ?? "auto";
-  const gmDiagnosticsEnabled = Boolean(props.gmDiagnosticsEnabled);
-  const ssDiagnosticsEnabled = props.ssDiagnosticsEnabled ?? true;
-  const vthDiagnosticsEnabled = Boolean(props.vthDiagnosticsEnabled);
-  const ssShowFitLine = props.ssShowFitLine ?? true;
-
-  const ionToggle = createButton({
-    label: ionIoffMethod === "manual" ? props.t("analysis.ionIoffManual") : props.t("analysis.ionIoffAuto"),
-    size: "sm",
-    variant: "secondary",
-  });
-  store.add(addDisposableListener(ionToggle, EventType.CLICK, () => {
-    props.setIonIoffMethod?.(ionIoffMethod === "manual" ? "auto" : "manual");
-  }));
-
-  const ssToggle = createButton({
-    label: ssMethod === "manual" ? props.t("analysis.ssManual") : props.t("analysis.ssAuto"),
-    size: "sm",
-    variant: "secondary",
-  });
-  store.add(addDisposableListener(ssToggle, EventType.CLICK, () => {
-    props.setSsMethod?.(ssMethod === "manual" ? "auto" : "manual");
-  }));
-
-  const gmToggle = createButton({
-    label: props.t("analysis.gmDiagnostics"),
-    size: "sm",
-    variant: gmDiagnosticsEnabled ? "primary" : "secondary",
-  });
-  store.add(addDisposableListener(gmToggle, EventType.CLICK, () => {
-    props.setGmDiagnosticsEnabled?.(!gmDiagnosticsEnabled);
-  }));
-
-  const ssDiagnosticsToggle = createButton({
-    label: props.t("analysis.ssDiagnostics"),
-    size: "sm",
-    variant: ssDiagnosticsEnabled ? "primary" : "secondary",
-  });
-  store.add(addDisposableListener(ssDiagnosticsToggle, EventType.CLICK, () => {
-    props.setSsDiagnosticsEnabled?.(!ssDiagnosticsEnabled);
-  }));
-
-  const vthToggle = createButton({
-    label: props.t("analysis.vthDiagnostics"),
-    size: "sm",
-    variant: vthDiagnosticsEnabled ? "primary" : "secondary",
-  });
-  store.add(addDisposableListener(vthToggle, EventType.CLICK, () => {
-    props.setVthDiagnosticsEnabled?.(!vthDiagnosticsEnabled);
-  }));
-
-  const ssFitToggle = createButton({
-    label: props.t("analysis.ssShowFitLine"),
-    size: "sm",
-    variant: ssShowFitLine ? "primary" : "secondary",
-  });
-  store.add(addDisposableListener(ssFitToggle, EventType.CLICK, () => {
-    props.setSsShowFitLine?.(!ssShowFitLine);
-  }));
-
-  controls.append(ionToggle, ssToggle, gmToggle, ssDiagnosticsToggle, vthToggle, ssFitToggle);
-  return controls;
 };
 
 const createPlotTabs = ({

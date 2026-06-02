@@ -59,6 +59,54 @@ test("createMainPlotSeries derives GM points from IV source points", () => {
   );
 });
 
+test("createMainPlotSeries keeps curves without explicit ids", () => {
+  const series = createMainPlotSeries(
+    createFile({
+      fileId: "file-c",
+      series: [
+        {
+          groupIndex: 0,
+          legendValue: "Vg=-60",
+          y: [1, 2, 3],
+          yCol: 3,
+        },
+      ],
+    }),
+    "iv",
+  );
+
+  assert.equal(series.length, 1);
+  assert.equal(series[0].id, "file-c:x0:y3");
+  assert.equal(series[0].name, "Vg=-60");
+  assert.deepEqual(
+    series[0].data.map((point) => point.y),
+    [1, 2, 3],
+  );
+});
+
+test("createMainPlotSeries reads array-like y values like thumbnails", () => {
+  const series = createMainPlotSeries(
+    createFile({
+      xGroups: [Float64Array.from([0, 1, 2])],
+      series: [
+        {
+          groupIndex: 0,
+          legendValue: "Vg=-40",
+          y: Float64Array.from([1e-5, 2e-5, 3e-5]),
+          yCol: 4,
+        },
+      ],
+    }),
+    "iv",
+  );
+
+  assert.equal(series.length, 1);
+  assert.deepEqual(
+    series[0].data.map((point) => point.y),
+    [1e-5, 2e-5, 3e-5],
+  );
+});
+
 test("createMainPlotSeries derives VTH sqrt current points", () => {
   const series = createMainPlotSeries(
     createFile({
