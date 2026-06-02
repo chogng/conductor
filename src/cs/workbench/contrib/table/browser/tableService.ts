@@ -980,16 +980,19 @@ const createTableModel = ({
       return;
     }
 
-    const targetSource = selectedSource ?? sourceEntries[0] ?? null;
+    const targetSource = selectedSource;
     const targetFile = targetSource?.entry ?? null;
     const targetSourceKey = targetSource?.sourceKey ?? null;
-    if (!targetFile?.file || !targetFile?.fileId || !targetSourceKey) return;
+    if (!targetSource || !targetFile?.file || !targetFile?.fileId || !targetSourceKey) return;
     if (isTableFileForSource(previewFile, targetSourceKey)) return;
     if (pendingPreviewFileIdRef.current === targetSourceKey) return;
 
+    const previewTargetSource = targetSource;
+    const previewTargetFile = targetFile;
+    const previewTargetSourceKey = targetSourceKey;
     const requestId = previewRequestIdRef.current + 1;
     previewRequestIdRef.current = requestId;
-    pendingPreviewFileIdRef.current = targetSourceKey;
+    pendingPreviewFileIdRef.current = previewTargetSourceKey;
 
     runImmediately(() => {
       setPreviewStatus({ state: "loading", message: t("preview_loading") });
@@ -1000,22 +1003,22 @@ const createTableModel = ({
       if (!worker) return;
       const fallbackFile =
         (await loadConvertedCsvFile({
-          fallbackFile: targetFile.file,
-          fileName: targetFile.fileName,
+          fallbackFile: previewTargetFile.file,
+          fileName: previewTargetFile.fileName,
           lastModified:
-            targetFile.file instanceof File ? targetFile.file.lastModified : null,
-          normalizedCsvPath: targetFile.normalizedCsvPath,
-        })) ?? targetFile.file;
+            previewTargetFile.file instanceof File ? previewTargetFile.file.lastModified : null,
+          normalizedCsvPath: previewTargetFile.normalizedCsvPath,
+        })) ?? previewTargetFile.file;
 
       worker.postMessage({
         type: "preview",
         payload: {
           requestId,
-          fileId: targetSourceKey,
-          sourceKey: targetSourceKey,
-          physicalFileId: targetSource.source.fileId,
-          sheetId: targetSource.source.sheetId ?? null,
-          sheetName: targetSource.sheetName,
+          fileId: previewTargetSourceKey,
+          sourceKey: previewTargetSourceKey,
+          physicalFileId: previewTargetSource.source.fileId,
+          sheetId: previewTargetSource.source.sheetId ?? null,
+          sheetName: previewTargetSource.sheetName,
           file: fallbackFile,
           maxPreviewRows: DA_PREVIEW_MAX_CACHED_UI_ROWS_PER_FILE,
         },
@@ -1023,23 +1026,23 @@ const createTableModel = ({
     };
 
     const rustInputPath =
-      typeof targetFile.normalizedCsvPath === "string" &&
-      targetFile.normalizedCsvPath.trim()
-        ? targetFile.normalizedCsvPath.trim()
-        : typeof targetFile.sourcePath === "string" &&
-            targetFile.sourcePath.trim().toLowerCase().endsWith(".csv")
-          ? targetFile.sourcePath.trim()
+      typeof previewTargetFile.normalizedCsvPath === "string" &&
+      previewTargetFile.normalizedCsvPath.trim()
+        ? previewTargetFile.normalizedCsvPath.trim()
+        : typeof previewTargetFile.sourcePath === "string" &&
+            previewTargetFile.sourcePath.trim().toLowerCase().endsWith(".csv")
+          ? previewTargetFile.sourcePath.trim()
           : null;
     if (rustInputPath && importService.canOpenFile()) {
       void importService
       .openFile({
-          fileId: targetSourceKey,
-          fileName: targetFile.fileName ?? "",
+          fileId: previewTargetSourceKey,
+          fileName: previewTargetFile.fileName ?? "",
           path: rustInputPath,
           seedRows: DA_PREVIEW_MAX_CACHED_UI_ROWS_PER_FILE,
-          sheetId: targetSource.source.sheetId ?? null,
-          sheetName: targetSource.sheetName,
-          sourceKey: targetSourceKey,
+          sheetId: previewTargetSource.source.sheetId ?? null,
+          sheetName: previewTargetSource.sheetName,
+          sourceKey: previewTargetSourceKey,
         })
         .then((response: any) => {
           if (requestId === previewRequestIdRef.current) {
@@ -1061,12 +1064,12 @@ const createTableModel = ({
               ? previewPayload.sourceKey
               : typeof previewPayload.fileId === "string"
                 ? previewPayload.fileId
-                : targetSourceKey;
+                : previewTargetSourceKey;
           const nextPreviewFile: TableFile = {
-            fileId: targetSource.source.fileId,
+            fileId: previewTargetSource.source.fileId,
             fileName: String(previewPayload.fileName || ""),
-            sheetId: targetSource.source.sheetId ?? previewPayload.sheetId ?? null,
-            sheetName: targetSource.sheetName ?? previewPayload.sheetName ?? null,
+            sheetId: previewTargetSource.source.sheetId ?? previewPayload.sheetId ?? null,
+            sheetName: previewTargetSource.sheetName ?? previewPayload.sheetName ?? null,
             sourceKey,
             rowCount: Number(previewPayload.rowCount) || 0,
             columnCount: Number(previewPayload.columnCount) || 0,
@@ -1167,7 +1170,6 @@ const createTableModel = ({
     rawData,
     selectedSource,
     setPreviewStatus,
-    sourceEntries,
     t,
     touchPreviewFileCache,
   ]);

@@ -1,55 +1,30 @@
-import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/translation";
-
-type JsonLike =
-  | string
-  | number
-  | boolean
-  | null
-  | JsonLike[]
-  | { [key: string]: JsonLike };
-
-type OlderExtractionError = {
+export type LegacyExtractionErrorDetails = {
   fileName: string | null;
   messageKey: string;
   messageParams: Record<string, number | string>;
 };
 
-type ExtractionErrorLike = Partial<{
-  messageKey: string;
-  messageParams: Record<string, unknown>;
+export type ExtractionErrorDetails = {
+  fileName: string | null;
   message: string;
-}>;
-
-export const stableStringify = (value: unknown): string => {
-  const seen = new WeakSet<object>();
-
-  const normalize = (input: unknown): JsonLike => {
-    if (!input || typeof input !== "object") return input as JsonLike;
-    if (seen.has(input)) return null;
-    seen.add(input);
-
-    if (Array.isArray(input)) return input.map((item) => normalize(item));
-
-    const out: Record<string, JsonLike> = {};
-    for (const key of Object.keys(input).sort()) {
-      const record = input as Record<string, unknown>;
-      out[key] = normalize(record[key]);
-    }
-    return out;
-  };
-
-  return JSON.stringify(normalize(value));
+  messageKey: string | null;
+  messageParams: Record<string, unknown> | null;
 };
 
+const isObjectRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === "object" && !Array.isArray(value);
+
+// Compatibility fallback for older workers that returned English messages
+// without structured messageKey/messageParams fields.
 export const parseOlderExtractionError = (
   rawMessage: unknown,
-): OlderExtractionError | null => {
+): LegacyExtractionErrorDetails | null => {
   const message = String(rawMessage ?? "").trim();
   if (!message) return null;
 
   const patterns: Array<{
     regex: RegExp;
-    map: (matched: RegExpMatchArray) => OlderExtractionError;
+    map: (matched: RegExpMatchArray) => LegacyExtractionErrorDetails;
   }> = [
     {
       regex:
@@ -118,31 +93,31 @@ export const parseOlderExtractionError = (
   return null;
 };
 
-export const getExtractionErrorMessage = (
-  t: TranslateFn,
-  err: ExtractionErrorLike | null | undefined,
-): string => {
+export const normalizeExtractionErrorDetails = (
+  payload: unknown,
+): ExtractionErrorDetails => {
+  const rawPayload = isObjectRecord(payload) ? payload : null;
+  const message =
+    typeof rawPayload?.message === "string" && rawPayload.message.trim()
+      ? rawPayload.message
+      : "Unknown error";
   const messageKey =
-    err && typeof err === "object" && typeof err.messageKey === "string"
-      ? err.messageKey
-      : "";
-  const messageParams =
-    err &&
-    typeof err === "object" &&
-    err.messageParams &&
-    typeof err.messageParams === "object"
-      ? err.messageParams
-      : {};
+    typeof rawPayload?.messageKey === "string" && rawPayload.messageKey.trim()
+      ? rawPayload.messageKey
+      : null;
+  const messageParams = isObjectRecord(rawPayload?.messageParams)
+    ? rawPayload.messageParams
+    : null;
+  const legacyDetails =
+    messageKey && messageParams ? null : parseOlderExtractionError(message);
 
-  if (messageKey) {
-    const translated = t(messageKey, messageParams);
-    if (typeof translated === "string" && translated !== messageKey) {
-      return translated;
-    }
-  }
-
-  const fallback = err?.message;
-  return typeof fallback === "string" && fallback.trim()
-    ? fallback
-    : t("unknownError");
+  return {
+    fileName:
+      (typeof rawPayload?.fileName === "string" && rawPayload.fileName) ||
+      legacyDetails?.fileName ||
+      null,
+    message,
+    messageKey: messageKey || legacyDetails?.messageKey || null,
+    messageParams: messageParams || legacyDetails?.messageParams || null,
+  };
 };

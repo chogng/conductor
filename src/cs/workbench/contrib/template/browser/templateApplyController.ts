@@ -4,10 +4,8 @@ import type {
 } from "src/cs/workbench/contrib/session/analysis-session-context";
 import { prepareExtraction } from "src/cs/workbench/contrib/template/common/extractionValidation";
 import { isAutoTemplateConfig } from "src/cs/workbench/contrib/template/common/autoTemplate";
-import {
-  parseOlderExtractionError,
-  stableStringify,
-} from "src/cs/workbench/contrib/template/common/extractionErrors";
+import { normalizeExtractionErrorDetails } from "src/cs/workbench/contrib/template/common/extractionErrors";
+import { stableStringify } from "src/cs/workbench/contrib/template/common/templateStableKey";
 import {
   matchFileNameAgainstPhrase,
   matchFileNameAgainstPatternTokens,
@@ -222,31 +220,13 @@ const buildExtractionStartFeedback = ({
 };
 
 const buildWorkerExtractionError = (payload: unknown): ExtractionErrorEntry => {
-  const rawPayload = payload as Record<string, unknown> | null;
-  const rawMessage =
-    typeof rawPayload?.message === "string" && rawPayload.message.trim()
-      ? rawPayload.message
-      : "Unknown error";
-  const fallbackParsed = parseOlderExtractionError(rawMessage) as {
-    fileName?: string;
-    messageKey?: string | null;
-    messageParams?: Record<string, unknown> | null;
-  } | null;
+  const details = normalizeExtractionErrorDetails(payload);
 
   return {
-    fileName:
-      (typeof rawPayload?.fileName === "string" && rawPayload.fileName) ||
-      fallbackParsed?.fileName ||
-      "Unknown file",
-    message: rawMessage,
-    messageKey:
-      (typeof rawPayload?.messageKey === "string" && rawPayload.messageKey) ||
-      fallbackParsed?.messageKey ||
-      null,
-    messageParams:
-      (isObjectRecord(rawPayload?.messageParams) && rawPayload.messageParams) ||
-      fallbackParsed?.messageParams ||
-      null,
+    fileName: details.fileName || "Unknown file",
+    message: details.message,
+    messageKey: details.messageKey,
+    messageParams: details.messageParams,
   };
 };
 
