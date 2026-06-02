@@ -1,21 +1,22 @@
 import { formatNumber } from "src/cs/workbench/contrib/diagnostics/common/numberFormat";
 import { getChartColor, resolveSeriesChartColor } from "src/cs/workbench/contrib/plot/browser/chartColors";
 
-type PlotPoint = {
-  x?: number;
-  y?: number;
-  yPositive?: number;
-  yAbsPositive?: number;
-  ySignedLogPositive?: number;
+export type MainPlotPoint = {
+  x?: number | null;
+  y?: number | null;
+  yPositive?: number | null;
+  yAbsPositive?: number | null;
+  ySignedLogPositive?: number | null;
   [key: string]: number | string | null | undefined;
 };
 
-type PlotSeries = {
+export type MainPlotSeries = {
   id: string;
   name: string;
   tooltipName?: string;
   color?: string;
-  data: PlotPoint[];
+  data: MainPlotPoint[];
+  [key: string]: unknown;
 };
 
 type PlotYKey = "y" | "yPositive" | "yAbsPositive" | "ySignedLogPositive";
@@ -82,7 +83,7 @@ type VthFitOverlay = {
   y2: number;
 };
 
-type MainPlotChartProps = {
+export type MainPlotChartProps = {
   plotType?: string;
   curveLineWidth?: number;
   curvePlotType?: number;
@@ -92,7 +93,7 @@ type MainPlotChartProps = {
     xLabel: string;
     yLabel: string;
   }> | null;
-  seriesList: PlotSeries[];
+  seriesList: MainPlotSeries[];
   xDomain: [number, number];
   xTicks?: number[] | null;
   plotXFactor: number;
@@ -109,7 +110,7 @@ type MainPlotChartProps = {
   plotYFactor: number;
   plotYUnitLabel: string;
   focusedSeriesId?: string | null;
-  focusedFitLine?: PlotPoint[] | null;
+  focusedFitLine?: MainPlotPoint[] | null;
   vthFitOverlays?: VthFitOverlay[];
   focusedSeriesColor?: string;
   highlightOverlays?: HighlightOverlay[];
@@ -187,7 +188,7 @@ const resolvePlotYKey = (
   return "y";
 };
 
-const resolvePointY = (point: PlotPoint, key: PlotYKey): number | null => {
+const resolvePointY = (point: MainPlotPoint, key: PlotYKey): number | null => {
   const value = Number(point[key]);
   if (Number.isFinite(value)) return value;
   if (key === "yAbsPositive") {
@@ -406,7 +407,7 @@ const drawMainPlotChart = (
 
   const lineWidth = Math.max(1, Number(props.curveLineWidth) || 2);
   for (const [seriesIndex, series] of (props.seriesList ?? []).entries()) {
-    const color = series.color || resolveSeriesChartColor(series as any, seriesIndex) || getChartColor(seriesIndex);
+    const color = series.color || resolveSeriesChartColor(series, seriesIndex) || getChartColor(seriesIndex);
     const points = (Array.isArray(series.data) ? series.data : [])
       .map((point) => {
         const x = Number(point?.x);
@@ -472,7 +473,7 @@ const findNearestTooltipEntries = (
 ): TooltipEntry[] => {
   const entries: TooltipEntry[] = [];
   for (const [seriesIndex, series] of (props.seriesList ?? []).entries()) {
-    let nearest: PlotPoint | null = null;
+    let nearest: MainPlotPoint | null = null;
     let nearestDistance = Number.POSITIVE_INFINITY;
     for (const point of series.data ?? []) {
       const x = Number(point?.x);
@@ -488,7 +489,7 @@ const findNearestTooltipEntries = (
     const x = Number(nearest.x);
     if (y === null || !Number.isFinite(x)) continue;
     entries.push({
-      color: series.color || resolveSeriesChartColor(series as any, seriesIndex) || getChartColor(seriesIndex),
+      color: series.color || resolveSeriesChartColor(series, seriesIndex) || getChartColor(seriesIndex),
       label: String(series.tooltipName ?? series.name ?? `Series ${seriesIndex + 1}`),
       x,
       y,
@@ -499,7 +500,7 @@ const findNearestTooltipEntries = (
 
 const renderLegend = (
   container: HTMLElement,
-  seriesList: PlotSeries[],
+  seriesList: MainPlotSeries[],
   legendContent: unknown,
 ): void => {
   container.replaceChildren();
@@ -515,7 +516,7 @@ const renderLegend = (
     row.className = "chart_main_plot_legend_row";
     const swatch = document.createElement("span");
     swatch.className = "chart_main_plot_legend_swatch";
-    swatch.style.backgroundColor = series.color || resolveSeriesChartColor(series as any, index) || getChartColor(index);
+    swatch.style.backgroundColor = series.color || resolveSeriesChartColor(series, index) || getChartColor(index);
     const label = document.createElement("span");
     label.className = "chart_main_plot_legend_label";
     label.textContent = String(series.name ?? `Series ${index + 1}`);
@@ -602,6 +603,6 @@ export const createMainPlotChart = (props: MainPlotChartProps): HTMLElement => {
   return root;
 };
 
-const MainPlotChart = (props: MainPlotChartProps): any => createMainPlotChart(props);
+const MainPlotChart = (props: MainPlotChartProps): HTMLElement => createMainPlotChart(props);
 
 export default MainPlotChart;
