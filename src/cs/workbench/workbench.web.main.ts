@@ -8,6 +8,7 @@ import "src/cs/workbench/workbench.browser.main.ts";
 
 //#region --- workbench services
 
+import "src/cs/workbench/services/import/browser/importService.ts";
 import "src/cs/workbench/services/lifecycle/browser/lifecycleService.ts";
 
 //#endregion

@@ -1,0 +1,33 @@
+.files-pane {
+  display: flex;
+  min-height: 0px;
+  flex-direction: column;
+  height: 100%;
+}
+
+.files-pane-root,
+.files-pane-body,
+.files-pane-session-host {
+  display: flex;
+  min-height: 0px;
+  flex: 1 1 0%;
+  flex-direction: column;
+}
+
+.files-pane-body {
+  padding: 0.75rem;
+}
+
+.files-sidebar_part > .workbench_sidebar_header {
+  box-sizing: border-box;
+  height: 38px;
+  min-height: 38px;
+  align-items: center;
+  padding: 8px 12px 0;
+}
+
+.files-sidebar_part > .workbench_sidebar_header .workbench_sidebar_title {
+  font-size: 12px;
+  line-height: 1rem;
+  color: rgb(var(--text-secondary) / 1);
+}

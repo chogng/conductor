@@ -1,3 +1,5 @@
+import { stableItemKey } from "src/utils/stableKey";
+
 export const DATA_FILE_EXTENSIONS = [".csv", ".xls", ".xlsx"] as const;
 
 export const DATA_FILE_ACCEPT = DATA_FILE_EXTENSIONS.join(",");
@@ -34,4 +36,38 @@ export type FileEntry = {
   curveTypeConfidence?: "high" | "medium" | "low";
   curveTypeNeedsTemplate?: boolean;
   curveTypeReasons?: string[];
+};
+
+export type FileSource = {
+  readonly file: File;
+  readonly relativePath?: string | null;
+};
+
+export type FilesPaneRef = {
+  openFileDialog: () => void;
+  hasFiles: boolean;
+};
+
+export const buildFileIdentityKey = (
+  file: File | null | undefined,
+  relativePath?: string | null,
+): string => {
+  if (!file) {
+    return "";
+  }
+
+  const path = relativePath?.trim();
+  return `${path || file.name}::${file.size}::${file.lastModified}`;
+};
+
+export const buildItemKey = (
+  file: File | null | undefined,
+  relativePath?: string | null,
+): string => {
+  const raw = buildFileIdentityKey(file, relativePath);
+  if (!raw) {
+    return "";
+  }
+
+  return stableItemKey("csv", raw);
 };

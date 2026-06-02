@@ -1,34 +1,13 @@
-import { isSupportedDataFileName } from "src/cs/workbench/contrib/files/common/files";
-import { stableItemKey } from "src/utils/stableKey";
+import {
+  isSupportedDataFileName,
+  type FileSource,
+} from "src/cs/workbench/contrib/files/common/files";
 
-export type FileSource = {
-  readonly file: File;
-  readonly relativePath?: string | null;
-};
-
-export const buildFileIdentityKey = (
-  file: File | null | undefined,
-  relativePath?: string | null,
-): string => {
-  if (!file) {
-    return "";
-  }
-
-  const path = relativePath?.trim();
-  return `${path || file.name}::${file.size}::${file.lastModified}`;
-};
-
-export const buildItemKey = (
-  file: File | null | undefined,
-  relativePath?: string | null,
-): string => {
-  const raw = buildFileIdentityKey(file, relativePath);
-  if (!raw) {
-    return "";
-  }
-
-  return stableItemKey("csv", raw);
-};
+export {
+  buildFileIdentityKey,
+  buildItemKey,
+  type FileSource,
+} from "src/cs/workbench/contrib/files/common/files";
 
 type FileSystemEntryLike = {
   isDirectory: boolean;
