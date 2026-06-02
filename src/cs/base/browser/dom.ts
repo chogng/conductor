@@ -1,4 +1,4 @@
-import { Emitter, type Event as BaseEvent } from "src/cs/base/common/event";
+import { Emitter } from "src/cs/base/common/event";
 import { DisposableStore, type IDisposable, toDisposable } from "src/cs/base/common/lifecycle";
 import { StandardMouseEvent, type IMouseEvent } from "src/cs/base/browser/mouseEvent";
 import { type CodeWindow, ensureCodeWindow, mainWindow, nextWindowId } from "src/cs/base/browser/window";
@@ -418,37 +418,6 @@ export function $(description: string, attrs?: Record<string, unknown>, ...child
 
     append(element, ...children);
     return element;
-}
-
-export interface DOMEventMap extends HTMLElementEventMap, DocumentEventMap, WindowEventMap {
-    compositionstart: CompositionEvent;
-    compositionupdate: CompositionEvent;
-    compositionend: CompositionEvent;
-}
-
-export class DomEmitter<K extends keyof DOMEventMap> implements IDisposable {
-    private readonly emitter: Emitter<DOMEventMap[K]>;
-
-    public get event(): BaseEvent<DOMEventMap[K]> {
-        return this.emitter.event;
-    }
-
-    constructor(
-        private readonly element: Window | Document | HTMLElement,
-        private readonly type: K,
-        private readonly options?: AddEventListenerOptions | boolean,
-    ) {
-        const listener = (event: Event) => this.emitter.fire(event as DOMEventMap[K]);
-
-        this.emitter = new Emitter({
-            onWillAddFirstListener: () => this.element.addEventListener(this.type, listener, this.options),
-            onDidRemoveLastListener: () => this.element.removeEventListener(this.type, listener, this.options),
-        });
-    }
-
-    public dispose(): void {
-        this.emitter.dispose();
-    }
 }
 
 export function observeMutations(
