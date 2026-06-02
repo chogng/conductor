@@ -3,6 +3,7 @@
   "analysis.empty.hint": "Apply a template to generate chart data.",
   "analysis.empty.title": "No analysis data",
   "analysis.fileCount": "{count} file(s)",
+  "files.importSection": "Import Files",
   "analysis.gmDiagnostics": "gm diagnostics",
   "analysis.ionIoffAuto": "Ion/Ioff auto",
   "analysis.ionIoffManual": "Ion/Ioff manual",

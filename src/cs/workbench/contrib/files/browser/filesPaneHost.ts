@@ -30,13 +30,10 @@ export class FilesPaneHost {
 
   private getSidebarOptions(props: FilesPaneProps) {
     return {
-      ariaLabel: props.t("da_import_section"),
-      badge: {
-        text: String(props.files?.length ?? 0),
-      },
+      ariaLabel: props.t("files.importSection"),
       children: this.host,
       className: "files-sidebar_part",
-      title: props.t("da_import_section"),
+      title: props.t("files.importSection"),
     };
   }
 }

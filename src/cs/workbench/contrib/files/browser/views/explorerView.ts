@@ -178,7 +178,7 @@ export class ExplorerView implements IDisposable {
 
     const { error, isDragging, t } = this.props;
 
-    this.root.setAttribute("aria-label", t("da_import_section"));
+    this.root.setAttribute("aria-label", t("files.importSection"));
     this.root.classList.toggle("dragging", isDragging);
     this.root.classList.toggle("idle", !isDragging);
 

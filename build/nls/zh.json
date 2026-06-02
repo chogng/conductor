@@ -3,6 +3,7 @@
   "analysis.empty.hint": "应用模板后会在这里显示图表数据。",
   "analysis.empty.title": "暂无分析数据",
   "analysis.fileCount": "{count} 个文件",
+  "files.importSection": "导入文件",
   "analysis.gmDiagnostics": "gm 诊断",
   "analysis.ionIoffAuto": "Ion/Ioff 自动",
   "analysis.ionIoffManual": "Ion/Ioff 手动",
