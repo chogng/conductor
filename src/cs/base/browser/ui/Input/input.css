@@ -1,18 +1,12 @@
-/* ====================================================================== */
-/* Form Controls: Input / Textarea                                         */
-/* ====================================================================== */
-.input_warp > :not([hidden]) ~ :not([hidden]) {
-  --tw-space-y-reverse: 0;
-  margin-top: calc(0.5rem * calc(1 - var(--tw-space-y-reverse)));
-  margin-bottom: calc(0.5rem * var(--tw-space-y-reverse));
+.input_wrap > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 0.5rem;
 }
 
 .input_label {
+  color: rgb(var(--text-secondary) / 1);
   font-size: 12px;
-  line-height: 1rem;
   font-weight: 500;
-  --tw-text-opacity: 1;
-  color: rgb(var(--text-secondary) / var(--tw-text-opacity, 1));
+  line-height: 1rem;
 }
 
 .input_field {
@@ -20,19 +14,14 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  border: 1px solid rgb(var(--border) / 1);
   border-radius: 0.5rem;
-  border-width: 1px;
-  --tw-border-opacity: 1;
-  border-color: rgb(var(--border) / var(--tw-border-opacity, 1));
-  --tw-bg-opacity: 1;
-  background-color: rgb(var(--bg-page) / var(--tw-bg-opacity, 1));
-  padding-left: 0.75rem;
-  padding-right: 0.75rem;
-  padding-top: 0.5rem;
-  padding-bottom: 0.5rem;
-  transition-property: all;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 150ms;
+  background-color: rgb(var(--bg-page) / 1);
+  padding: 0.5rem 0.75rem;
+  transition:
+    border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 150ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .input_field--sm {
@@ -59,44 +48,13 @@
   line-height: 1rem;
 }
 
-.input_field[data-state="enable"] {
-  --tw-border-opacity: 1;
-  border-color: rgb(var(--border) / var(--tw-border-opacity, 1));
-}
-
 .input_field[data-state="enable"]:focus-within {
-  --tw-border-opacity: 1;
-  border-color: rgb(var(--accent) / var(--tw-border-opacity, 1));
-}
-
-/* Keyboard focus ring (component-level outer ring).
-   Note: native outlines are disabled globally; keep a visible keyboard focus indicator here. */
-html[data-nav="keyboard"] .input_field[data-state="enable"]::after {
-  content: "";
-  position: absolute;
-  inset: -6px;
-  border-radius: calc(0.5rem + 6px);
-  /* rounded-lg + offset */
-  border-width: 2px;
-  border-color: transparent;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms ease, border-color 120ms ease;
-}
-
-html[data-nav="keyboard"] .input_field[data-state="enable"]:focus-within::after {
-  --tw-border-opacity: 1;
-  border-color: rgb(var(--accent-terracotta) / var(--tw-border-opacity, 1));
-  opacity: 0.5;
+  border-color: rgb(var(--accent) / 1);
 }
 
 .input_field[data-state="error"] {
-  --tw-border-opacity: 1;
-  border-color: rgb(239 68 68 / var(--tw-border-opacity, 1));
-  --tw-ring-offset-shadow: var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);
-  --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(1px + var(--tw-ring-offset-width)) var(--tw-ring-color);
-  box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000);
-  --tw-ring-color: rgb(239 68 68 / 0.1);
+  border-color: rgb(239 68 68 / 1);
+  box-shadow: 0 0 0 1px rgb(239 68 68 / 0.1);
 }
 
 .input_field[data-state="disabled"] {
@@ -104,57 +62,62 @@ html[data-nav="keyboard"] .input_field[data-state="enable"]:focus-within::after 
   opacity: 0.6;
 }
 
-.input_icon {
+html[data-nav="keyboard"] .input_field[data-state="enable"]::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border: 2px solid transparent;
+  border-radius: calc(0.5rem + 6px);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    border-color 120ms ease,
+    opacity 120ms ease;
+}
+
+html[data-nav="keyboard"] .input_field[data-state="enable"]:focus-within::after {
+  border-color: rgb(var(--accent-terracotta) / 1);
+  opacity: 0.5;
+}
+
+.input_icon,
+.input_right {
   display: inline-flex;
-  --tw-text-opacity: 1;
-  color: rgb(var(--text-tertiary) / var(--tw-text-opacity, 1));
+  align-items: center;
+}
+
+.input_icon {
+  color: rgb(var(--text-tertiary) / 1);
 }
 
 .input_native {
-  min-width: 0px;
+  min-width: 0;
   flex: 1 1 0%;
-  border-width: 0px;
+  border: 0;
+  outline: none;
   background-color: transparent;
-  --tw-text-opacity: 1;
-  color: rgb(var(--text-primary) / var(--tw-text-opacity, 1));
-  outline: 2px solid transparent;
-  outline-offset: 2px;
+  color: rgb(var(--text-primary) / 1);
 }
 
 .input_native::placeholder {
-  --tw-text-opacity: 1;
-  color: rgb(var(--text-tertiary) / var(--tw-text-opacity, 1));
+  color: rgb(var(--text-tertiary) / 1);
 }
 
-.input_native:focus {
-  outline: 2px solid transparent;
-  outline-offset: 2px;
-  --tw-ring-offset-shadow: var(--tw-ring-inset) 0 0 0 var(--tw-ring-offset-width) var(--tw-ring-offset-color);
-  --tw-ring-shadow: var(--tw-ring-inset) 0 0 0 calc(0px + var(--tw-ring-offset-width)) var(--tw-ring-color);
-  box-shadow: var(--tw-ring-offset-shadow), var(--tw-ring-shadow), var(--tw-shadow, 0 0 #0000);
+.input_native:disabled {
+  cursor: not-allowed;
 }
 
 .input_native.input_field {
   display: block;
   width: 100%;
   flex: none;
-  --tw-border-opacity: 1;
-  border-color: rgb(var(--border) / var(--tw-border-opacity, 1));
-  --tw-bg-opacity: 1;
-  background-color: rgb(var(--bg-page) / var(--tw-bg-opacity, 1));
-  padding-left: 0.75rem;
-  padding-right: 0.75rem;
-  padding-top: 0.5rem;
-  padding-bottom: 0.5rem;
+  border-color: rgb(var(--border) / 1);
+  background-color: rgb(var(--bg-page) / 1);
+  padding: 0.5rem 0.75rem;
 }
 
 .input_native.input_field:focus {
-  --tw-border-opacity: 1;
-  border-color: rgb(var(--accent) / var(--tw-border-opacity, 1));
-}
-
-.input_native:disabled {
-  cursor: not-allowed;
+  border-color: rgb(var(--accent) / 1);
 }
 
 .input_native--no-spinner::-webkit-outer-spin-button,
@@ -170,47 +133,36 @@ html[data-nav="keyboard"] .input_field[data-state="enable"]:focus-within::after 
 
 .input_native.no-focus-outline:focus,
 .input_native.no-focus-outline:focus-visible {
-  outline: none !important;
+  outline: none;
 }
 
 .ui-textarea_native,
 .textarea_native {
   width: 100%;
-  min-width: 0px;
+  min-width: 0;
   flex: 1 1 0%;
   resize: vertical;
   background-color: transparent;
+  color: rgb(var(--text-primary) / 1);
   font-size: 12px;
   line-height: 1rem;
-  --tw-text-opacity: 1;
-  color: rgb(var(--text-primary) / var(--tw-text-opacity, 1));
 }
 
 .ui-textarea_native::placeholder,
 .textarea_native::placeholder {
-  --tw-text-opacity: 1;
-  color: rgb(var(--text-tertiary) / var(--tw-text-opacity, 1));
+  color: rgb(var(--text-tertiary) / 1);
 }
 
-.input_right {
-  display: inline-flex;
-  align-items: center;
-}
-
-.input_error {
-  font-size: 0.75rem;
-  line-height: 1rem;
-  --tw-text-opacity: 1;
-  color: rgb(220 38 38 / var(--tw-text-opacity, 1));
-}
-
+.input_error,
 .input_hint {
   font-size: 0.75rem;
   line-height: 1rem;
-  --tw-text-opacity: 1;
-  color: rgb(var(--text-tertiary) / var(--tw-text-opacity, 1));
 }
 
-/* ====================================================================== */
-/* End Form Controls: Input / Textarea                                     */
-/* ====================================================================== */
+.input_error {
+  color: rgb(220 38 38 / 1);
+}
+
+.input_hint {
+  color: rgb(var(--text-tertiary) / 1);
+}

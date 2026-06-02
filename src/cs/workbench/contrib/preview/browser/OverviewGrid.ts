@@ -1,6 +1,5 @@
 import {
   getCardClassName,
-  getCardDataAttributes,
   type CardVariant,
 } from "cs/base/browser/ui/card/card";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
@@ -254,25 +253,12 @@ const createDropdown = ({
 
 const createCard = ({
   className = "",
-  cta,
-  ctaCopy,
-  ctaPosition,
   variant = "default",
 }: {
   readonly className?: string;
-  readonly cta?: string;
-  readonly ctaCopy?: string;
-  readonly ctaPosition?: string;
   readonly variant?: CardVariant;
 }): HTMLElement => {
   const card = document.createElement("div");
-  for (const [name, value] of Object.entries(
-    getCardDataAttributes({ cta, ctaCopy, ctaPosition }),
-  )) {
-    if (value !== undefined) {
-      card.setAttribute(name, String(value));
-    }
-  }
   card.className = getCardClassName({ className, variant });
   return card;
 };

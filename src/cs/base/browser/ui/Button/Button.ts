@@ -1,4 +1,3 @@
-import { normalizeCtaName, normalizeCtaToken } from "src/utils/cta";
 import { cx } from "src/utils/cx";
 
 import "src/cs/base/browser/ui/button/button.css";
@@ -20,9 +19,6 @@ export type ButtonOptions = {
   readonly className?: string;
   readonly content?: ButtonContent;
   readonly contentClassName?: string;
-  readonly cta?: string;
-  readonly ctaCopy?: string;
-  readonly ctaPosition?: string;
   readonly dataIcon?: string;
   readonly disabled?: boolean;
   readonly fullWidth?: boolean;
@@ -56,22 +52,16 @@ export const getButtonContentClassName = (className = ""): string =>
   cx("action-btn__content", className);
 
 export const getButtonDataAttributes = ({
-  cta,
-  ctaCopy,
-  ctaPosition,
   dataIcon,
   fx = false,
   testId,
 }: Pick<
   ButtonOptions,
-  "cta" | "ctaCopy" | "ctaPosition" | "dataIcon" | "fx" | "testId"
+  "dataIcon" | "fx" | "testId"
 >): Record<string, string | undefined> => ({
   "data-icon": dataIcon,
   "data-fx": fx ? "on" : undefined,
   "data-testid": import.meta.env.DEV && testId ? testId : undefined,
-  "data-cta": normalizeCtaName(cta),
-  "data-cta-position": normalizeCtaToken(ctaPosition),
-  "data-cta-copy": normalizeCtaToken(ctaCopy),
 });
 
 export const createButton = (options: ButtonOptions): HTMLButtonElement => {

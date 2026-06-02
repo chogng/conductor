@@ -1,4 +1,3 @@
-import { normalizeCtaName, normalizeCtaToken } from "src/utils/cta";
 import { cx } from "src/utils/cx";
 
 import "src/cs/base/browser/ui/modal/modal.css";
@@ -26,12 +25,6 @@ const MODAL_DIALOG_SIZES: Record<ModalSize, string> = {
   xl: "modal--xl",
 };
 
-export type ModalDataOptions = {
-  readonly cta?: string;
-  readonly ctaCopy?: string;
-  readonly ctaPosition?: string;
-};
-
 export const getModalDialogClassName = ({
   className = "",
   size = "md",
@@ -48,25 +41,22 @@ export const getModalDialogClassName = ({
     className,
   );
 
-export const getModalDataAttributes = ({
-  cta,
-  ctaCopy,
-  ctaPosition,
-}: ModalDataOptions): Record<string, string | undefined> => ({
-  "data-cta": normalizeCtaName(cta),
-  "data-cta-position": normalizeCtaToken(ctaPosition),
-  "data-cta-copy": normalizeCtaToken(ctaCopy),
-});
-
 export const getModalTitleId = (idBase: string | undefined, fallbackId: string): string => {
-  const stableIdBase = normalizeCtaToken(idBase);
+  const stableIdBase = slugifyModalToken(idBase);
   return stableIdBase ? `${stableIdBase}-title` : `modal-title-${fallbackId}`;
 };
 
 export const getModalDialogId = (idBase: string | undefined): string | undefined => {
-  const stableIdBase = normalizeCtaToken(idBase);
+  const stableIdBase = slugifyModalToken(idBase);
   return stableIdBase ? `${stableIdBase}-dialog` : undefined;
 };
 
 export const getModalUiMarker = (dataUi: string | undefined): string | undefined =>
   typeof dataUi === "string" && dataUi.trim() ? dataUi.trim() : undefined;
+
+const slugifyModalToken = (input: unknown): string =>
+  String(input ?? "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "");

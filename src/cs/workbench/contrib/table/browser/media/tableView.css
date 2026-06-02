@@ -179,6 +179,10 @@
   line-height: calc(1.25rem * var(--table-view-zoom));
 }
 
+.table_view_grid_header[hidden] {
+  display: none;
+}
+
 .table_view_grid_header_scroll {
   min-width: 0;
   flex: 1 1 0%;

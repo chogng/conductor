@@ -1,5 +1,3 @@
-import { normalizeCtaName, normalizeCtaToken } from "src/utils/cta";
-
 import "src/cs/base/browser/ui/tab/tab.css";
 
 export type TabValue = string | number;
@@ -14,9 +12,6 @@ export type TabOptionBase = {
   testId?: string;
   id?: string;
   panelId?: string;
-  cta?: string;
-  ctaPosition?: string;
-  ctaCopy?: string;
 };
 
 type TabOptionWithValue<T extends TabOptionBase = TabOptionBase> = T & {
@@ -84,16 +79,6 @@ export const getTabsButtonClassName = ({
     isActive ? "tab_btn--active" : "tab_btn--inactive",
     className,
   );
-
-export const getTabDataAttributes = ({
-  cta,
-  ctaCopy,
-  ctaPosition,
-}: Pick<TabOptionBase, "cta" | "ctaCopy" | "ctaPosition">): Record<string, string | undefined> => ({
-  "data-cta": normalizeCtaName(cta),
-  "data-cta-position": normalizeCtaToken(ctaPosition),
-  "data-cta-copy": normalizeCtaToken(ctaCopy),
-});
 
 export const normalizeTabsOptions = <T extends TabOptionBase>({
   idBase,

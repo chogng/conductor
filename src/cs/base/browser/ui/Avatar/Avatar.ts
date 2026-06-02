@@ -1,5 +1,3 @@
-import { normalizeCtaName, normalizeCtaToken } from "src/utils/cta";
-
 import "src/cs/base/browser/ui/avatar/avatar.css";
 
 export type AvatarVariant = "default" | "empty";
@@ -7,9 +5,6 @@ export type AvatarMode = "image" | "icon" | "fallback";
 
 export type AvatarOptions = {
   readonly className?: string;
-  readonly cta?: string;
-  readonly ctaCopy?: string;
-  readonly ctaPosition?: string;
   readonly fallback?: string;
   readonly imageClassName?: string;
   readonly mode?: AvatarMode;
@@ -50,17 +45,11 @@ export const getAvatarMode = ({
 };
 
 export const getAvatarDataAttributes = ({
-  cta,
-  ctaCopy,
-  ctaPosition,
   fallback,
   mode,
   src,
-}: Pick<AvatarOptions, "cta" | "ctaCopy" | "ctaPosition" | "fallback" | "mode" | "src">): Record<string, string | undefined> => ({
+}: Pick<AvatarOptions, "fallback" | "mode" | "src">): Record<string, string | undefined> => ({
   "data-mode": getAvatarMode({ fallback, mode, src }),
-  "data-cta": normalizeCtaName(cta),
-  "data-cta-position": normalizeCtaToken(ctaPosition),
-  "data-cta-copy": normalizeCtaToken(ctaCopy),
 });
 
 export const createAvatar = (options: AvatarOptions = {}): HTMLDivElement => {

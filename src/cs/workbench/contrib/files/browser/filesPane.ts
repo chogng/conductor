@@ -8,7 +8,6 @@ import {
   FilesController,
   type ImportSessionFileInfo,
 } from "src/cs/workbench/contrib/files/browser/filesController";
-import { normalizeCtaName, normalizeCtaToken } from "src/utils/cta";
 
 import "src/cs/workbench/contrib/files/browser/views/media/filesPane.css";
 
@@ -97,7 +96,6 @@ export class FilesPane implements IDisposable {
   } {
     const body = document.createElement("div");
     body.className = "files-pane-body";
-    this.applyCardTracking(body);
 
     const sessionHost = document.createElement("div");
     sessionHost.className = "files-pane-session-host";
@@ -105,11 +103,5 @@ export class FilesPane implements IDisposable {
     body.append(sessionHost);
 
     return { body, sessionHost };
-  }
-
-  private applyCardTracking(body: HTMLDivElement): void {
-    body.dataset.cta = normalizeCtaName("Device analysis") ?? "";
-    body.dataset.ctaPosition = normalizeCtaToken("data-import") ?? "";
-    body.dataset.ctaCopy = normalizeCtaToken("files pane") ?? "";
   }
 }

@@ -5,7 +5,6 @@ import {
 } from "cs/base/browser/ui/button/button";
 import {
   getCardClassName,
-  getCardDataAttributes,
 } from "cs/base/browser/ui/card/card";
 import {
   getLxIconClassName,
@@ -13,7 +12,6 @@ import {
   getLxIconStyle,
 } from "src/cs/base/browser/ui/lxicon/lxicon";
 import {
-  getInputDataAttributes,
   getInputFieldClassName,
   getInputFieldState,
   getInputNativeClassName,
@@ -380,17 +378,6 @@ type InputOptions = {
 
 const createCard = (className: string): HTMLElement => {
   const card = document.createElement("div");
-  for (const [name, value] of Object.entries(
-    getCardDataAttributes({
-      cta: "Device analysis",
-      ctaCopy: "axis settings",
-      ctaPosition: "chart",
-    }),
-  )) {
-    if (value !== undefined) {
-      card.setAttribute(name, String(value));
-    }
-  }
   card.className = getCardClassName({ className, variant: "panel" });
   return card;
 };
@@ -506,11 +493,6 @@ const createInput = ({
   field.className = getInputFieldClassName({ fieldClassName, size: "md" });
   field.dataset.icon = "without";
   field.dataset.state = getInputFieldState({ disabled });
-  for (const [name, dataValue] of Object.entries(getInputDataAttributes({}))) {
-    if (dataValue !== undefined) {
-      field.setAttribute(name, String(dataValue));
-    }
-  }
   const input = document.createElement("input");
   input.id = id;
   input.value = String(value ?? "");

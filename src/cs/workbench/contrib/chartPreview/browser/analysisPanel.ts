@@ -1,7 +1,6 @@
 import { lxAnalysis } from "@chogng/lxicon";
 import {
   getCardClassName,
-  getCardDataAttributes,
   type CardVariant,
 } from "cs/base/browser/ui/card/card";
 import {
@@ -90,7 +89,6 @@ const createAnalysisPanelContent = ({
         iconClassName: "analysis_status_icon--muted analysis_status_icon--pulse",
         message: t("da_analysis_loading"),
         hint: t("da_analysis_loading_hint"),
-        ctaCopy: "loading analysis charts",
       });
     }
 
@@ -106,7 +104,6 @@ const createAnalysisPanelContent = ({
     iconClassName: "analysis_status_icon--muted",
     message: t("da_no_processed_data"),
     hint: t("da_no_processed_data_hint"),
-    ctaCopy: "empty processed data",
   });
 };
 
@@ -122,7 +119,6 @@ const createProcessingCard = (
     iconClassName: "analysis_status_icon--muted analysis_status_icon--pulse",
     message: t("da_analysis_processing"),
     hint: t("da_analysis_processing_hint"),
-    ctaCopy: "processing analysis data",
   });
 
   const progress = document.createElement("div");
@@ -155,13 +151,11 @@ const createProcessingCard = (
 };
 
 const createAnalysisStatusCard = ({
-  ctaCopy,
   hint,
   iconClassName,
   id,
   message,
 }: {
-  readonly ctaCopy: string;
   readonly hint: string;
   readonly iconClassName: string;
   readonly id: string;
@@ -170,9 +164,6 @@ const createAnalysisStatusCard = ({
   const card = createLocalCard({
     id,
     variant: "fill",
-    cta: "Device analysis",
-    ctaPosition: "analysis",
-    ctaCopy,
     className: "analysis_status_card",
   });
   card.append(
@@ -207,16 +198,10 @@ const createLocalLxIcon = ({
 
 const createLocalCard = ({
   className = "",
-  cta,
-  ctaCopy,
-  ctaPosition,
   id,
   variant = "default",
 }: {
   readonly className?: string;
-  readonly cta?: string;
-  readonly ctaCopy?: string;
-  readonly ctaPosition?: string;
   readonly id?: string;
   readonly variant?: CardVariant;
 }): HTMLDivElement => {
@@ -224,13 +209,6 @@ const createLocalCard = ({
   if (id) {
     card.id = id;
   }
-  Object.entries(getCardDataAttributes({ cta, ctaCopy, ctaPosition })).forEach(
-    ([name, value]) => {
-      if (value !== undefined) {
-        card.setAttribute(name, String(value));
-      }
-    },
-  );
   card.className = getCardClassName({ className, variant });
   return card;
 };

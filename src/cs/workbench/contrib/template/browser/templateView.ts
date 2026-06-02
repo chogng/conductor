@@ -12,11 +12,7 @@ import {
   lxDownload,
   lxEdit,
 } from "src/cs/base/common/lxicon";
-import {
-  getInputFieldClassName,
-  getInputFieldState,
-  getInputNativeClassName,
-} from "src/cs/base/browser/ui/input/input";
+import { createInputField } from "src/cs/base/browser/ui/input/input";
 import {
   createSwitch as createBaseSwitch,
   updateSwitch,
@@ -98,15 +94,15 @@ const createField = ({
   labelElement.className = "template_field_label";
   labelElement.textContent = label;
 
-  const input = document.createElement("input");
-  input.className = `${getInputNativeClassName()} ${getInputFieldClassName({ fieldClassName: "template_field_input" })}`;
-  input.dataset.state = getInputFieldState();
-  input.name = String(name);
-  input.value = value;
-  input.autocomplete = "off";
+  const inputField = createInputField({
+    fieldClassName: "template_field_input",
+    name: String(name),
+    value,
+  });
+  const input = inputField.input;
   input.addEventListener("input", () => onInput(name, input.value));
 
-  wrapper.append(labelElement, input);
+  wrapper.append(labelElement, inputField.element);
   return wrapper;
 };
 
@@ -719,7 +715,7 @@ export class TemplateManagerView {
       size: "md",
       variant: "primary",
     });
-    saveBtn.className = `${saveBtn.className} template_save_button`;
+    saveBtn.className = `${saveBtn.className} template_button`;
     saveBtn.addEventListener("click", () => {
       void this.handleSaveTemplate();
     });
@@ -729,7 +725,7 @@ export class TemplateManagerView {
       size: "md",
       variant: "secondary",
     });
-    cancelBtn.className = `${cancelBtn.className} template_save_button template_save_button--secondary`;
+    cancelBtn.className = `${cancelBtn.className} template_button`;
     cancelBtn.addEventListener("click", () => {
       this.cancelSaveMode();
     });
