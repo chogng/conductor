@@ -1,8 +1,9 @@
+import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
+import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollbar";
 import { createEmptyView } from "src/cs/workbench/contrib/table/browser/emptyView";
 import type {
-  TableFile,
   TableModel,
   TableSelection,
   TableState,
@@ -14,8 +15,35 @@ export type TableViewProps = {
   readonly zoomPercent: number;
 };
 
+type BodyCell = {
+  readonly element: HTMLTableCellElement;
+  appliedActive?: boolean;
+  appliedHighlighted?: boolean;
+  appliedSelected?: boolean;
+  appliedText?: string;
+};
+
+type BodyRow = {
+  readonly cells: BodyCell[];
+};
+
+type ActiveCell = {
+  readonly colIndex: number;
+  readonly rowIndex: number;
+};
+
+type AppliedCellState = {
+  readonly activeCell: ActiveCell | null;
+  readonly highlightedColumns: Set<number>;
+  readonly selectedColumns: Set<number>;
+};
+
+const MAX_RENDERED_ROWS = 80;
+const MAX_RENDERED_COLUMNS = 24;
+
 export class TableView {
   public readonly element: HTMLElement;
+  private readonly store = new DisposableStore();
   private readonly body = document.createElement("div");
   private readonly header = document.createElement("div");
   private readonly headerCorner = document.createElement("div");
@@ -32,7 +60,12 @@ export class TableView {
   });
   private disposeSelectionListener: (() => void) | null = null;
   private disposeRowsVersionListener: (() => void) | null = null;
+  private readonly bodyGrid: BodyRow[] = [];
   private headerColumnCount = 0;
+  private bodyRowCount = 0;
+  private bodyColumnCount = 0;
+  private renderedZoomPercent: number | null = null;
+  private appliedCellState: AppliedCellState | null = null;
   private props: TableViewProps;
 
   constructor(props: TableViewProps) {
@@ -53,6 +86,12 @@ export class TableView {
     this.content.append(this.table);
     this.body.append(this.header, this.scrollArea.element);
     this.element.append(this.body);
+    this.store.add(addDisposableListener(this.headerContent, EventType.CLICK, event => {
+      this.onHeaderClick(event as MouseEvent);
+    }));
+    this.store.add(addDisposableListener(this.bodyRows, EventType.CLICK, event => {
+      this.onBodyClick(event as MouseEvent);
+    }));
     this.bindTableState(props.tableModel);
     this.render();
   }
@@ -71,6 +110,7 @@ export class TableView {
     this.disposeSelectionListener = null;
     this.disposeRowsVersionListener?.();
     this.disposeRowsVersionListener = null;
+    this.store.dispose();
     this.scrollArea.dispose();
     this.element.replaceChildren();
     this.element.remove();
@@ -80,10 +120,10 @@ export class TableView {
     this.disposeSelectionListener?.();
     this.disposeRowsVersionListener?.();
     this.disposeSelectionListener = tableModel.onDidChangeSelection(() => {
-      this.render();
+      this.syncSelectionState();
     });
     this.disposeRowsVersionListener = tableModel.subscribeRowsVersion(() => {
-      this.render();
+      this.syncRows();
     });
   }
 
@@ -113,40 +153,49 @@ export class TableView {
       return;
     }
 
-    if (this.scrollArea.viewport.firstChild !== this.content) {
+    const didAttachContent = this.scrollArea.viewport.firstChild !== this.content;
+    if (didAttachContent) {
       this.scrollArea.viewport.replaceChildren(this.content);
     }
 
-    this.renderTable();
-    this.scrollArea.layout();
+    const needsLayout = this.renderTable();
+    if (didAttachContent || needsLayout) {
+      this.scrollArea.layout();
+    }
     this.syncHeaderScroll();
   }
 
-  private renderTable(): void {
+  private renderTable(): boolean {
     const { tableModel, tableState, zoomPercent } = this.props;
     const tableFile = tableState.file;
-    this.body.style.setProperty("--table-view-zoom", String(zoomPercent / 100));
+    const zoomChanged = this.renderedZoomPercent !== zoomPercent;
+    if (zoomChanged) {
+      this.renderedZoomPercent = zoomPercent;
+      this.body.style.setProperty("--table-view-zoom", String(zoomPercent / 100));
+    }
 
-    const rowCount = Math.min(Math.max(Number(tableFile?.rowCount) || 0, 0), 80);
-    const columnCount = Math.min(Math.max(Number(tableFile?.columnCount) || 0, 0), 24);
+    const rowCount = Math.min(Math.max(Number(tableFile?.rowCount) || 0, 0), MAX_RENDERED_ROWS);
+    const columnCount = Math.min(Math.max(Number(tableFile?.columnCount) || 0, 0), MAX_RENDERED_COLUMNS);
     if (rowCount === 0 || columnCount === 0) {
       this.header.hidden = true;
       this.scrollArea.viewport.replaceChildren(createEmptyView({
         description: localize("preview_empty_hint", "Select a file to preview"),
       }));
-      return;
+      return true;
     }
 
     this.header.hidden = false;
-    this.renderHeader(tableModel, columnCount);
-    this.renderBody(tableModel, tableFile, rowCount, columnCount);
+    this.ensureHeaderGrid(columnCount);
+    const gridChanged = this.renderBody(tableModel, rowCount, columnCount);
 
     if (tableFile?.fileId) {
       void tableModel.ensureRows(tableFile.sourceKey ?? tableFile.fileId, 0, rowCount);
     }
+
+    return gridChanged || zoomChanged;
   }
 
-  private renderHeader(tableModel: TableModel, columnCount: number): void {
+  private ensureHeaderGrid(columnCount: number): void {
     if (this.headerColumnCount !== columnCount) {
       this.headerColumnCount = columnCount;
       this.headerContent.replaceChildren();
@@ -158,82 +207,275 @@ export class TableView {
         cell.setAttribute("role", "columnheader");
         button.type = "button";
         button.className = "table_view_column_button";
+        button.dataset.colIndex = String(colIndex);
         button.textContent = getColumnLabel(colIndex);
         button.setAttribute("aria-label", localize("preview_toggle_column", "Toggle column {column}", {
           column: getColumnLabel(colIndex),
         }));
-        button.addEventListener("click", () => {
-          const currentModel = this.props.tableModel;
-          currentModel.setSelection(toggleSelectedColumn(currentModel.getSelection(), colIndex));
-        });
         cell.append(button);
         this.headerContent.append(cell);
       }
-    }
-
-    const selection = tableModel.getSelection();
-    const highlightedColumns = new Set(tableModel.getHighlight().columns ?? []);
-    const selectedColumns = new Set(selection.selectedColumns ?? []);
-
-    for (let colIndex = 0; colIndex < columnCount; colIndex += 1) {
-      const cell = this.headerContent.children.item(colIndex) as HTMLElement | null;
-      if (!cell) {
-        continue;
-      }
-
-      cell.dataset.selected = selectedColumns.has(colIndex) ? "true" : "false";
-      cell.dataset.highlighted = highlightedColumns.has(colIndex) ? "true" : "false";
-      const button = cell.firstElementChild as HTMLButtonElement | null;
-      button?.setAttribute("aria-pressed", selectedColumns.has(colIndex) ? "true" : "false");
     }
   }
 
   private renderBody(
     tableModel: TableModel,
-    tableFile: TableFile | null,
+    rowCount: number,
+    columnCount: number,
+  ): boolean {
+    const gridChanged = this.ensureBodyGrid(rowCount, columnCount);
+    this.table.setAttribute("aria-rowcount", String(rowCount));
+    this.table.setAttribute("aria-colcount", String(columnCount));
+    this.syncRowsText(tableModel, rowCount, columnCount);
+    this.syncSelectionState();
+
+    return gridChanged;
+  }
+
+  private syncRows(): void {
+    if (!this.isTableVisible()) {
+      this.render();
+      return;
+    }
+
+    this.syncRowsText(this.props.tableModel, this.bodyRowCount, this.bodyColumnCount);
+  }
+
+  private syncRowsText(
+    tableModel: TableModel,
     rowCount: number,
     columnCount: number,
   ): void {
-    this.bodyRows.replaceChildren();
+    for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
+      const row = this.bodyGrid[rowIndex];
+      const cells = tableModel.getRow(rowIndex) ?? [];
+      for (let colIndex = 0; colIndex < columnCount; colIndex += 1) {
+        const cell = row.cells[colIndex];
+        this.updateCellText(cell, formatCell(cells[colIndex]));
+      }
+    }
+  }
 
-    const selection = tableModel.getSelection();
-    const highlightedColumns = new Set(tableModel.getHighlight().columns ?? []);
-    const selectedColumns = new Set(selection.selectedColumns ?? []);
+  private ensureBodyGrid(rowCount: number, columnCount: number): boolean {
+    if (this.bodyRowCount === rowCount && this.bodyColumnCount === columnCount) {
+      return false;
+    }
+
+    this.bodyRowCount = rowCount;
+    this.bodyColumnCount = columnCount;
+    this.appliedCellState = null;
+    this.bodyGrid.length = 0;
+    this.bodyRows.replaceChildren();
 
     for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
       const row = document.createElement("tr");
       const rowHeader = document.createElement("th");
       const rowHeaderLabel = document.createElement("span");
+      const cells: BodyCell[] = [];
+
+      rowHeader.scope = "row";
       rowHeaderLabel.className = "table_view_row_header_label";
       rowHeaderLabel.textContent = String(rowIndex + 1);
       rowHeader.append(rowHeaderLabel);
       row.append(rowHeader);
 
-      const cells = tableModel.getRow(rowIndex) ?? [];
       for (let colIndex = 0; colIndex < columnCount; colIndex += 1) {
         const cell = document.createElement("td");
-        const isActiveCell =
-          selection.activeCell?.rowIndex === rowIndex &&
-          selection.activeCell?.colIndex === colIndex;
-        cell.textContent = formatCell(cells[colIndex]);
-        cell.dataset.active = isActiveCell ? "true" : "false";
-        cell.dataset.selected = selectedColumns.has(colIndex) ? "true" : "false";
-        cell.dataset.highlighted = highlightedColumns.has(colIndex) ? "true" : "false";
-        cell.addEventListener("click", () => {
-          tableModel.setSelection({
-            selectedColumns: selection.selectedColumns ?? [],
-            activeCell: {
-              colIndex,
-              fileId: tableFile?.fileId ?? null,
-              rowIndex,
-              sheetId: tableFile?.sheetId ?? null,
-            },
-          });
-        });
+        cell.className = "table_view_cell";
+        cell.dataset.rowIndex = String(rowIndex);
+        cell.dataset.colIndex = String(colIndex);
         row.append(cell);
+        cells.push({ element: cell });
       }
+
+      this.bodyGrid.push({
+        cells,
+      });
       this.bodyRows.append(row);
     }
+
+    return true;
+  }
+
+  private syncSelectionState(): void {
+    if (!this.isTableVisible()) {
+      return;
+    }
+
+    const { tableModel } = this.props;
+    const rowCount = this.bodyRowCount;
+    const columnCount = this.bodyColumnCount;
+    const selection = tableModel.getSelection();
+    const activeCell = normalizeActiveCell(selection.activeCell, rowCount, columnCount);
+    const selectedColumns = toColumnSet(selection.selectedColumns, columnCount);
+    const highlightedColumns = toColumnSet(tableModel.getHighlight().columns, columnCount);
+    const previous = this.appliedCellState;
+    const next: AppliedCellState = {
+      activeCell,
+      highlightedColumns,
+      selectedColumns,
+    };
+
+    if (!previous) {
+      this.syncHeaderColumns(range(columnCount), next);
+      for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
+        const row = this.bodyGrid[rowIndex];
+        for (let colIndex = 0; colIndex < columnCount; colIndex += 1) {
+          this.updateCellState(row.cells[colIndex], {
+            active: isSameCell(activeCell, { colIndex, rowIndex }),
+            highlighted: highlightedColumns.has(colIndex),
+            selected: selectedColumns.has(colIndex),
+          });
+        }
+      }
+      this.appliedCellState = next;
+      return;
+    }
+
+    const changedColumns = getChangedColumns(previous, next, columnCount);
+    this.syncHeaderColumns(changedColumns, next);
+
+    for (const colIndex of changedColumns) {
+      for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
+        this.updateCellState(this.bodyGrid[rowIndex].cells[colIndex], {
+          active: isSameCell(activeCell, { colIndex, rowIndex }),
+          highlighted: highlightedColumns.has(colIndex),
+          selected: selectedColumns.has(colIndex),
+        });
+      }
+    }
+
+    for (const cell of [previous.activeCell, activeCell]) {
+      if (!cell || changedColumns.includes(cell.colIndex)) {
+        continue;
+      }
+
+      const bodyCell = this.bodyGrid[cell.rowIndex]?.cells[cell.colIndex];
+      if (!bodyCell) {
+        continue;
+      }
+
+      this.updateCellState(bodyCell, {
+        active: isSameCell(activeCell, cell),
+        highlighted: highlightedColumns.has(cell.colIndex),
+        selected: selectedColumns.has(cell.colIndex),
+      });
+    }
+
+    this.appliedCellState = next;
+  }
+
+  private syncHeaderColumns(
+    columns: readonly number[],
+    state: Pick<AppliedCellState, "highlightedColumns" | "selectedColumns">,
+  ): void {
+    for (const colIndex of columns) {
+      const cell = this.headerContent.children.item(colIndex) as HTMLElement | null;
+      if (!cell) {
+        continue;
+      }
+
+      const selected = state.selectedColumns.has(colIndex);
+      cell.dataset.selected = selected ? "true" : "false";
+      cell.dataset.highlighted = state.highlightedColumns.has(colIndex) ? "true" : "false";
+      const button = cell.firstElementChild as HTMLButtonElement | null;
+      button?.setAttribute("aria-pressed", selected ? "true" : "false");
+    }
+  }
+
+  private isTableVisible(): boolean {
+    return this.scrollArea.viewport.firstChild === this.content &&
+      this.bodyRowCount > 0 &&
+      this.bodyColumnCount > 0;
+  }
+
+  private updateCellText(cell: BodyCell, text: string): void {
+    if (cell.appliedText !== text) {
+      cell.element.textContent = text;
+      cell.appliedText = text;
+    }
+  }
+
+  private updateCellState(
+    cell: BodyCell,
+    state: {
+      readonly active: boolean;
+      readonly highlighted: boolean;
+      readonly selected: boolean;
+    },
+  ): void {
+    const element = cell.element;
+
+    if (cell.appliedActive !== state.active) {
+      element.dataset.active = state.active ? "true" : "false";
+      cell.appliedActive = state.active;
+    }
+
+    if (cell.appliedSelected !== state.selected) {
+      element.dataset.selected = state.selected ? "true" : "false";
+      cell.appliedSelected = state.selected;
+    }
+
+    if (cell.appliedHighlighted !== state.highlighted) {
+      element.dataset.highlighted = state.highlighted ? "true" : "false";
+      cell.appliedHighlighted = state.highlighted;
+    }
+  }
+
+  private onHeaderClick(event: MouseEvent): void {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const button = target.closest<HTMLButtonElement>(".table_view_column_button");
+    if (!button || !this.headerContent.contains(button)) {
+      return;
+    }
+
+    const colIndex = Number(button.dataset.colIndex);
+    if (!Number.isInteger(colIndex) || colIndex < 0) {
+      return;
+    }
+
+    const tableModel = this.props.tableModel;
+    tableModel.setSelection(toggleSelectedColumn(tableModel.getSelection(), colIndex));
+  }
+
+  private onBodyClick(event: MouseEvent): void {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) {
+      return;
+    }
+
+    const cell = target.closest<HTMLTableCellElement>(".table_view_cell");
+    if (!cell || !this.bodyRows.contains(cell)) {
+      return;
+    }
+
+    const rowIndex = Number(cell.dataset.rowIndex);
+    const colIndex = Number(cell.dataset.colIndex);
+    if (
+      !Number.isInteger(rowIndex) ||
+      rowIndex < 0 ||
+      !Number.isInteger(colIndex) ||
+      colIndex < 0
+    ) {
+      return;
+    }
+
+    const { tableModel, tableState } = this.props;
+    const selection = tableModel.getSelection();
+    const tableFile = tableState.file;
+    tableModel.setSelection({
+      selectedColumns: selection.selectedColumns ?? [],
+      activeCell: {
+        colIndex,
+        fileId: tableFile?.fileId ?? null,
+        rowIndex,
+        sheetId: tableFile?.sheetId ?? null,
+      },
+    });
   }
 
   private syncHeaderScroll(): void {
@@ -277,4 +519,96 @@ const formatCell = (value: unknown): string => {
     return "";
   }
   return String(value);
+};
+
+const range = (count: number): number[] => {
+  const result: number[] = [];
+  for (let index = 0; index < count; index += 1) {
+    result.push(index);
+  }
+  return result;
+};
+
+const toColumnSet = (
+  columnIndexes: readonly number[] | undefined,
+  columnCount: number,
+): Set<number> => {
+  const columns = new Set<number>();
+  for (const value of columnIndexes ?? []) {
+    const columnIndex = Math.floor(Number(value));
+    if (
+      Number.isInteger(columnIndex) &&
+      columnIndex >= 0 &&
+      columnIndex < columnCount
+    ) {
+      columns.add(columnIndex);
+    }
+  }
+  return columns;
+};
+
+const normalizeActiveCell = (
+  cell: TableSelection["activeCell"],
+  rowCount: number,
+  columnCount: number,
+): ActiveCell | null => {
+  const rowIndex = Math.floor(Number(cell?.rowIndex));
+  const colIndex = Math.floor(Number(cell?.colIndex));
+  if (
+    !Number.isInteger(rowIndex) ||
+    rowIndex < 0 ||
+    rowIndex >= rowCount ||
+    !Number.isInteger(colIndex) ||
+    colIndex < 0 ||
+    colIndex >= columnCount
+  ) {
+    return null;
+  }
+
+  return {
+    colIndex,
+    rowIndex,
+  };
+};
+
+const isSameCell = (
+  left: ActiveCell | null,
+  right: ActiveCell | null,
+): boolean =>
+  Boolean(left && right && left.rowIndex === right.rowIndex && left.colIndex === right.colIndex);
+
+const getChangedColumns = (
+  previous: Pick<AppliedCellState, "highlightedColumns" | "selectedColumns">,
+  next: Pick<AppliedCellState, "highlightedColumns" | "selectedColumns">,
+  columnCount: number,
+): number[] => {
+  const columns = new Set<number>();
+
+  for (const colIndex of previous.selectedColumns) {
+    if (!next.selectedColumns.has(colIndex)) {
+      columns.add(colIndex);
+    }
+  }
+
+  for (const colIndex of next.selectedColumns) {
+    if (!previous.selectedColumns.has(colIndex)) {
+      columns.add(colIndex);
+    }
+  }
+
+  for (const colIndex of previous.highlightedColumns) {
+    if (!next.highlightedColumns.has(colIndex)) {
+      columns.add(colIndex);
+    }
+  }
+
+  for (const colIndex of next.highlightedColumns) {
+    if (!previous.highlightedColumns.has(colIndex)) {
+      columns.add(colIndex);
+    }
+  }
+
+  return Array.from(columns)
+    .filter((colIndex) => colIndex >= 0 && colIndex < columnCount)
+    .sort((a, b) => a - b);
 };
