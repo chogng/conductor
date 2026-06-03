@@ -240,6 +240,7 @@ export class DropdownButton extends Disposable {
     private readonly button: HTMLButtonElement;
     private readonly contentView: ContentView;
     private readonly dropdown: Dropdown;
+    private readonly closeEventDisposables = this._register(new DisposableStore());
     private readonly renderDisposables = this._register(new DisposableStore());
     private options: DropdownButtonOptions;
 
@@ -296,6 +297,7 @@ export class DropdownButton extends Disposable {
     public update(options: DropdownButtonOptions): void {
         this.options = options;
         this.renderButton();
+        this.updateCloseEventListener();
         this.contentView.update({
             anchor: this.button,
             className: classNames("conductor-dropdown-surface", options.surfaceClassName),
@@ -352,11 +354,17 @@ export class DropdownButton extends Disposable {
         if (contentDisposable) {
             this.renderDisposables.add(contentDisposable);
         }
-        if (this.options.closeOnContentEvent) {
-            this.renderDisposables.add(addDisposableListener(container, this.options.closeOnContentEvent, () => {
-                this.dropdown.hide();
-            }));
+    }
+
+    private updateCloseEventListener(): void {
+        this.closeEventDisposables.clear();
+        if (!this.options.closeOnContentEvent) {
+            return;
         }
+
+        this.closeEventDisposables.add(addDisposableListener(this.contentView.domNode, this.options.closeOnContentEvent, () => {
+            this.dropdown.hide();
+        }));
     }
 
     private focusSelectedItem(): void {

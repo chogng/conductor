@@ -432,6 +432,7 @@ export class TemplateManagerView {
   private getEditorView(): TemplateEditorView {
     if (!this.editorView) {
       this.editorView = new TemplateEditorView({
+        contextMenuService: this.props.contextMenuService,
         onCancel: () => this.cancelSaveMode(),
         onPickFieldFocus: (field) => {
           this.activePickField = field;

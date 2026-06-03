@@ -101,6 +101,8 @@ export type WorkbenchTitlebarState = {
 
 type WorkbenchMainPart = "table" | "chart";
 
+type WorkbenchSessionSnapshot = ReturnType<SessionModel["getSnapshot"]>;
+
 export type WorkbenchOptions = {
   readonly className?: string;
   readonly contextMenuService?: IContextMenuService;
@@ -166,6 +168,20 @@ const getInitialLanguagePreference = (): LanguagePreference => {
     : "system";
 };
 
+const resolveInitialMainPart = (
+  snapshot: WorkbenchSessionSnapshot,
+): WorkbenchMainPart => {
+  if (snapshot.cleanedData.length > 0) {
+    return "chart";
+  }
+
+  if (snapshot.sourceFiles.length > 0 || snapshot.previewFile !== null) {
+    return "table";
+  }
+
+  return "chart";
+};
+
 export class Workbench extends Layout {
   private readonly window: WorkbenchWindow;
   private language: LanguageCode = getInitialLanguage();
@@ -191,7 +207,9 @@ export class Workbench extends Layout {
   private theme: ThemeMode = isThemeMode(window.__CONDUCTOR_INITIAL_THEME__)
     ? window.__CONDUCTOR_INITIAL_THEME__
     : "system";
-  private activeMainPart: WorkbenchMainPart = import.meta.env.DEV ? "chart" : "table";
+  private activeMainPart: WorkbenchMainPart = resolveInitialMainPart(
+    this.session.getSnapshot(),
+  );
 
   public get contentElement(): HTMLElement {
     return this.window.contentElement;

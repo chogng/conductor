@@ -29,7 +29,6 @@ export type MenuItems = readonly IAction[] | (() => readonly IAction[]);
 export type RenderMenuOptions = {
     readonly className?: string;
     readonly items: MenuItems;
-    readonly onDidRun?: () => void;
     readonly withScrollArea?: boolean;
 };
 
@@ -108,18 +107,6 @@ export function renderMenuItems(container: HTMLElement, options: RenderMenuOptio
         if (action instanceof Separator) {
             menu.appendSeparator();
             continue;
-        }
-
-        const shouldNotifyOnRun = getMenuItemData(action)?.autoHide ?? true;
-        if (shouldNotifyOnRun) {
-            const notifyOnRun = menu.onDidRun(event => {
-                if (event.action === action && !event.error) {
-                    notifyOnRun.dispose();
-                    menu.domNode.dispatchEvent(new CustomEvent("menuitemactionrun", { bubbles: true }));
-                    options.onDidRun?.();
-                }
-            });
-            disposables.add(notifyOnRun);
         }
 
         menu.appendItem(action);
@@ -328,6 +315,13 @@ class MenuActionViewItem extends BaseActionViewItem {
 
         this.label.replaceChildren();
         append(this.label, this.data.left);
+    }
+
+    protected override async run(event: MouseEvent): Promise<void> {
+        await super.run(event);
+        if (this.data?.autoHide !== false) {
+            this.element?.dispatchEvent(new CustomEvent("menuitemactionrun", { bubbles: true }));
+        }
     }
 
     private createActionButton(action: MenuItemAction): HTMLButtonElement {

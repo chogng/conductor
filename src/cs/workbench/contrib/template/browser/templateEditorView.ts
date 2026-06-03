@@ -1,13 +1,14 @@
 import { createButton } from "src/cs/base/browser/ui/button/button";
-import { createDropdownButton, type DropdownButton } from "src/cs/base/browser/ui/dropdown/dropdown";
+import { DropdownMenu } from "src/cs/base/browser/ui/dropdown/dropdown";
 import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBox";
 import {
   createMenuAction,
   createMenuItemLabel,
-  renderMenuItems,
 } from "src/cs/base/browser/ui/menu/menu";
+import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { lxChevronDown } from "src/cs/base/common/lxicon";
+import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import { localize } from "src/cs/nls";
 import type { TemplateConfig } from "src/cs/workbench/contrib/template/common/templateManagerUtils";
 
@@ -38,6 +39,7 @@ type TemplateEditorInputName =
   | "fileNameVdKeywords";
 
 export type TemplateEditorViewOptions = {
+  readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
   readonly onCancel: () => void;
   readonly onPickFieldFocus: (field: TemplatePickFieldName | null) => void;
   readonly onSave: () => void;
@@ -61,8 +63,8 @@ const X_SEGMENTATION_OPTIONS: Array<{
   value: TemplateConfig["xSegmentationMode"];
 }> = [
   { label: localize("template_x_mode_auto", "Auto"), value: "auto" },
-  { label: localize("template_x_mode_points", "By point count"), value: "points" },
-  { label: localize("template_x_mode_segments", "By segment count"), value: "segments" },
+  { label: localize("template_x_mode_points", "Point count"), value: "points" },
+  { label: localize("template_x_mode_segments", "Segment count"), value: "segments" },
 ];
 
 const Y_LEGEND_TARGET_OPTIONS: Array<{
@@ -318,36 +320,46 @@ export class TemplateEditorView {
     const labelElement = document.createElement("span");
     labelElement.className = "template_field_label";
     labelElement.textContent = label;
+    wrapper.append(labelElement);
 
     const field: SelectField<T> = {
       currentOptions: options,
       currentValue: value,
-      dropdown: null as unknown as DropdownButton,
+      dropdown: null as unknown as DropdownMenu,
+      label: document.createElement("span"),
       onSelect,
     };
 
-    const dropdown = createDropdownButton({
-      ariaLabel: label,
-      className: "template_form_dropdown_button",
-      closeOnContentEvent: "menuitemactionrun",
-      label: "",
-      matchAnchorWidth: true,
-      render: container => renderMenuItems(container, {
-        className: "template_form_dropdown_menu",
-        items: () => createDropdownActions({
+    field.label.className = "template_form_dropdown_label";
+
+    const dropdown = new DropdownMenu(wrapper, {
+      actionProvider: {
+        getActions: () => createDropdownActions({
           onSelect: field.onSelect,
           options: field.currentOptions,
           value: field.currentValue,
         }),
-      }),
-      surfaceClassName: "template_form_dropdown_surface",
-      triggerIcon: lxChevronDown,
-    });
+      },
+      contextMenuProvider: this.options.contextMenuService,
+      labelRenderer: container => {
+        const content = document.createElement("span");
+        content.className = "template_form_dropdown_button";
 
-    dropdown.domNode.setAttribute("data-style", "inputbox");
+        const icon = document.createElement("span");
+        icon.className = "template_form_dropdown_icon";
+        icon.append(createLxIcon({ icon: lxChevronDown, size: 14 }));
+
+        content.append(field.label, icon);
+        container.replaceChildren(content);
+        container.setAttribute("aria-label", label);
+        return null;
+      },
+      matchAnchorWidth: true,
+      menuClassName: "template_form_dropdown_menu",
+    });
+    dropdown.element.classList.add("template_form_dropdown");
     field.dropdown = dropdown;
     this.disposables.add(dropdown);
-    wrapper.append(labelElement, dropdown.domNode);
     container.append(wrapper);
     this.updateDropdownField(field, { options, value });
     return field;
@@ -366,24 +378,8 @@ export class TemplateEditorView {
     field.currentOptions = options;
     field.currentValue = value;
     const selected = options.find((option) => option.value === value) ?? options[0];
-    field.dropdown.update({
-      ariaLabel: selected?.label ?? "",
-      className: "template_form_dropdown_button",
-      closeOnContentEvent: "menuitemactionrun",
-      label: selected?.label ?? "",
-      matchAnchorWidth: true,
-      render: container => renderMenuItems(container, {
-        className: "template_form_dropdown_menu",
-        items: () => createDropdownActions({
-          onSelect: field.onSelect,
-          options: field.currentOptions,
-          value: field.currentValue,
-        }),
-      }),
-      surfaceClassName: "template_form_dropdown_surface",
-      triggerIcon: lxChevronDown,
-    });
-    field.dropdown.domNode.setAttribute("data-style", "inputbox");
+    field.label.textContent = selected?.label ?? "";
+    field.dropdown.tooltip = selected?.label ?? "";
   }
 
   private updateXSegmentationFields(mode: TemplateConfig["xSegmentationMode"]): void {
@@ -425,7 +421,8 @@ const createDropdownActions = <T extends string>({
 type SelectField<T extends string> = {
   currentOptions: Array<{ label: string; value: T }>;
   currentValue: T;
-  dropdown: DropdownButton;
+  dropdown: DropdownMenu;
+  label: HTMLElement;
   onSelect: (value: T) => void;
 };
 
