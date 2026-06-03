@@ -1,9 +1,12 @@
 import { $, addDisposableListener, append, EventType } from "src/cs/base/browser/dom";
+import { ContentView } from "src/cs/base/browser/ui/contentView/contentView";
+import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import type { IAction, IActionRunner } from "src/cs/base/common/actions";
 import { ActionRunner } from "src/cs/base/common/actions";
 import { Emitter } from "src/cs/base/common/event";
 import { AnchorAlignment } from "src/cs/base/common/layout";
-import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
+import { Disposable, DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
+import type { LxIconDefinition } from "src/cs/base/common/lxicon";
 import type { IContextMenuDelegate, IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 
 import "src/cs/base/browser/ui/dropdown/dropdown.css";
@@ -200,6 +203,155 @@ export type DropdownOptions = {
     onDidChangeVisibility?: (visible: boolean) => void;
 };
 
+export type DropdownButtonIcon = Node | (() => Node) | LxIconDefinition;
+
+export type DropdownButtonOptions = {
+    readonly ariaLabel?: string;
+    readonly className?: string;
+    readonly closeOnContentEvent?: string;
+    readonly label: string;
+    readonly matchAnchorWidth?: boolean;
+    readonly surfaceClassName?: string;
+    readonly triggerIcon?: DropdownButtonIcon;
+    readonly render: (container: HTMLElement) => IDisposable | void;
+};
+
+export class DropdownButton extends Disposable {
+    private readonly button: HTMLButtonElement;
+    private readonly contentView: ContentView;
+    private readonly dropdown: Dropdown;
+    private readonly renderDisposables = this._register(new DisposableStore());
+    private options: DropdownButtonOptions;
+
+    constructor(options: DropdownButtonOptions) {
+        super();
+        this.options = options;
+        this.button = document.createElement("button");
+        this.button.type = "button";
+        this.button.setAttribute("aria-haspopup", "menu");
+
+        this.contentView = this._register(new ContentView({
+            anchor: this.button,
+            className: classNames("monaco-dropdown-surface", options.surfaceClassName),
+            matchAnchorWidth: options.matchAnchorWidth ?? true,
+            render: container => this.renderContent(container),
+            variant: "menu",
+        }));
+
+        this.dropdown = this._register(new Dropdown({
+            anchor: this.button,
+            content: this.contentView.domNode,
+            onDidChangeVisibility: visible => {
+                if (visible) {
+                    this.contentView.show();
+                    this.focusSelectedItem();
+                    return;
+                }
+
+                this.renderDisposables.clear();
+                this.contentView.hide();
+            },
+        }));
+
+        this._register(addDisposableListener(this.button, EventType.CLICK, event => {
+            event.preventDefault();
+            this.dropdown.toggle();
+        }));
+        this._register(addDisposableListener(this.button, EventType.KEY_DOWN, event => {
+            if (event.key !== "ArrowDown" && event.key !== "Enter" && event.key !== " ") {
+                return;
+            }
+
+            event.preventDefault();
+            this.dropdown.show();
+        }));
+
+        this.update(options);
+    }
+
+    public get domNode(): HTMLButtonElement {
+        return this.button;
+    }
+
+    public update(options: DropdownButtonOptions): void {
+        this.options = options;
+        this.renderButton();
+        this.contentView.update({
+            anchor: this.button,
+            className: classNames("monaco-dropdown-surface", options.surfaceClassName),
+            matchAnchorWidth: options.matchAnchorWidth ?? true,
+            render: container => this.renderContent(container),
+        });
+    }
+
+    public show(): void {
+        this.dropdown.show();
+    }
+
+    public hide(): void {
+        this.dropdown.hide();
+    }
+
+    public toggle(): void {
+        this.dropdown.toggle();
+    }
+
+    public override dispose(): void {
+        this.renderDisposables.dispose();
+        super.dispose();
+    }
+
+    private renderButton(): void {
+        this.button.className = classNames("ui-dropdown-button", this.options.className);
+        if (this.options.ariaLabel) {
+            this.button.setAttribute("aria-label", this.options.ariaLabel);
+        }
+        else {
+            this.button.removeAttribute("aria-label");
+        }
+
+        const label = document.createElement("span");
+        label.className = "ui-dropdown-button__label";
+        label.textContent = this.options.label;
+
+        const children: Node[] = [label];
+        const icon = createIconNode(this.options.triggerIcon);
+        if (icon) {
+            const iconWrapper = document.createElement("span");
+            iconWrapper.className = "ui-dropdown-button__icon";
+            iconWrapper.append(icon);
+            children.push(iconWrapper);
+        }
+
+        this.button.replaceChildren(...children);
+    }
+
+    private renderContent(container: HTMLElement): void {
+        this.renderDisposables.clear();
+        const contentDisposable = this.options.render(container);
+        if (contentDisposable) {
+            this.renderDisposables.add(contentDisposable);
+        }
+        if (this.options.closeOnContentEvent) {
+            this.renderDisposables.add(addDisposableListener(container, this.options.closeOnContentEvent, () => {
+                this.dropdown.hide();
+            }));
+        }
+    }
+
+    private focusSelectedItem(): void {
+        requestAnimationFrame(() => {
+            const selected = this.contentView.domNode.querySelector<HTMLElement>("[data-selected] > .ui-actionbar__label");
+            const first = this.contentView.domNode.querySelector<HTMLElement>(".ui-menu__item > .ui-actionbar__label");
+            (selected ?? first)?.focus();
+        });
+    }
+}
+
+export function createDropdownButton(options: DropdownButtonOptions): DropdownButton {
+    return new DropdownButton(options);
+}
+
 export class Dropdown implements IDisposable {
     private readonly disposables = new DisposableStore();
     private readonly closeDisposables = new DisposableStore();
@@ -348,3 +500,25 @@ export class Dropdown implements IDisposable {
 }
 
 export default Dropdown;
+
+function createIconNode(icon: DropdownButtonIcon | undefined): Node | undefined {
+    if (!icon) {
+        return undefined;
+    }
+    if (icon instanceof Node) {
+        return icon;
+    }
+    if (typeof icon === "function") {
+        const rendered = icon();
+        return rendered instanceof Node ? rendered : createLxIcon({ icon: () => rendered, size: 14 });
+    }
+
+    return createLxIcon({ icon, size: 14 });
+}
+
+function classNames(...names: Array<string | undefined>): string {
+    return names
+        .flatMap(name => name?.split(/\s+/g) ?? [])
+        .filter(Boolean)
+        .join(" ");
+}

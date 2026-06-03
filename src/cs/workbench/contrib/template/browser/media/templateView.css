@@ -163,7 +163,7 @@
   overflow: visible;
 }
 
-.template_select_actions .ui-menu-button {
+.template_select_actions .ui-dropdown-button {
   grid-column: 1 / -1;
   height: 32px;
   font-size: 12px;

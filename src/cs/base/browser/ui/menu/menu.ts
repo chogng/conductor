@@ -1,12 +1,10 @@
 import { addDisposableListener, append } from "src/cs/base/browser/dom";
 import { ActionBar, ActionsOrientation, type ActionBarContent, type ActionBarOptions, type IActionViewItemProvider } from "src/cs/base/browser/ui/actionbar/actionbar";
 import { BaseActionViewItem, type IActionViewItemOptions } from "src/cs/base/browser/ui/actionbar/actionViewItem";
-import { ContentView } from "src/cs/base/browser/ui/contentView/contentView";
-import "src/cs/base/browser/ui/dropdown/dropdown.css";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollbar";
 import { IAction, Separator } from "src/cs/base/common/actions";
-import { Disposable, DisposableStore } from "src/cs/base/common/lifecycle";
+import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import type { LxIconDefinition } from "src/cs/base/common/lxicon";
 
 import "src/cs/base/browser/ui/menu/menu.css";
@@ -26,15 +24,12 @@ export type MenuItemAction = {
     readonly onClick: (event: MouseEvent | KeyboardEvent) => void;
 };
 
-export type MenuButtonOptions = {
-    readonly ariaLabel?: string;
+export type MenuItems = readonly IAction[] | (() => readonly IAction[]);
+
+export type RenderMenuOptions = {
     readonly className?: string;
-    readonly items: readonly IAction[] | (() => readonly IAction[]);
-    readonly label: string;
-    readonly matchAnchorWidth?: boolean;
-    readonly menuClassName?: string;
-    readonly surfaceClassName?: string;
-    readonly triggerIcon?: MenuIcon;
+    readonly items: MenuItems;
+    readonly onDidRun?: () => void;
     readonly withScrollArea?: boolean;
 };
 
@@ -102,179 +97,37 @@ export function createMenu(options?: MenuOptions): Menu {
     return new Menu(options);
 }
 
-export class MenuButton extends Disposable {
-    private readonly button: HTMLButtonElement;
-    private readonly closeDisposables = this._register(new DisposableStore());
-    private readonly renderDisposables = this._register(new DisposableStore());
-    private readonly contentView: ContentView;
-    private options: MenuButtonOptions;
+export function renderMenuItems(container: HTMLElement, options: RenderMenuOptions): IDisposable {
+    const disposables = new DisposableStore();
+    const menu = createMenu({
+        className: options.className,
+        withScrollArea: options.withScrollArea,
+    });
 
-    constructor(options: MenuButtonOptions) {
-        super();
-        this.options = options;
-        this.button = document.createElement("button");
-        this.button.type = "button";
-        this.button.setAttribute("aria-haspopup", "menu");
-        this.button.setAttribute("aria-expanded", "false");
-
-        this.contentView = this._register(new ContentView({
-            anchor: this.button,
-            className: classNames("monaco-dropdown-surface", options.surfaceClassName),
-            matchAnchorWidth: options.matchAnchorWidth ?? true,
-            render: container => this.renderMenu(container),
-            variant: "menu",
-        }));
-
-        this._register(addDisposableListener(this.button, "click", event => {
-            event.preventDefault();
-            this.toggle();
-        }));
-        this._register(addDisposableListener(this.button, "keydown", event => {
-            if (event.key !== "ArrowDown" && event.key !== "Enter" && event.key !== " ") {
-                return;
-            }
-
-            event.preventDefault();
-            this.show();
-        }));
-
-        this.update(options);
-    }
-
-    public get domNode(): HTMLButtonElement {
-        return this.button;
-    }
-
-    public update(options: MenuButtonOptions): void {
-        this.options = options;
-        this.renderButton();
-        this.contentView.update({
-            className: classNames("monaco-dropdown-surface", options.surfaceClassName),
-            matchAnchorWidth: options.matchAnchorWidth ?? true,
-            render: container => this.renderMenu(container),
-        });
-    }
-
-    public override dispose(): void {
-        this.closeDisposables.dispose();
-        this.renderDisposables.dispose();
-        super.dispose();
-    }
-
-    private toggle(): void {
-        if (this.button.getAttribute("aria-expanded") === "true") {
-            this.hide();
-            return;
+    for (const action of resolveItems(options.items)) {
+        if (action instanceof Separator) {
+            menu.appendSeparator();
+            continue;
         }
 
-        this.show();
-    }
-
-    private show(): void {
-        this.button.setAttribute("aria-expanded", "true");
-        this.contentView.show();
-        this.installCloseListeners();
-        this.focusSelectedItem();
-    }
-
-    private hide(): void {
-        this.button.setAttribute("aria-expanded", "false");
-        this.closeDisposables.clear();
-        this.renderDisposables.clear();
-        this.contentView.hide();
-    }
-
-    private installCloseListeners(): void {
-        this.closeDisposables.clear();
-        this.closeDisposables.add(addDisposableListener(document, "mousedown", event => {
-            const target = event.target;
-            if (!(target instanceof Node)) {
-                return;
-            }
-            if (this.button.contains(target) || this.contentView.domNode.contains(target)) {
-                return;
-            }
-
-            this.hide();
-        }));
-        this.closeDisposables.add(addDisposableListener(document, "keydown", event => {
-            if (event.key === "Escape") {
-                this.hide();
-                this.button.focus();
-            }
-        }));
-    }
-
-    private renderButton(): void {
-        this.button.className = classNames("ui-menu-button", this.options.className);
-        if (this.options.ariaLabel) {
-            this.button.setAttribute("aria-label", this.options.ariaLabel);
-        }
-        else {
-            this.button.removeAttribute("aria-label");
+        const shouldNotifyOnRun = getMenuItemData(action)?.autoHide ?? true;
+        if (shouldNotifyOnRun) {
+            const notifyOnRun = menu.onDidRun(event => {
+                if (event.action === action && !event.error) {
+                    notifyOnRun.dispose();
+                    menu.domNode.dispatchEvent(new CustomEvent("menuitemactionrun", { bubbles: true }));
+                    options.onDidRun?.();
+                }
+            });
+            disposables.add(notifyOnRun);
         }
 
-        const label = document.createElement("span");
-        label.className = "ui-menu-button__label";
-        label.textContent = this.options.label;
-
-        const children: Node[] = [label];
-        const icon = createIconNode(this.options.triggerIcon);
-        if (icon) {
-            const iconWrapper = document.createElement("span");
-            iconWrapper.className = "ui-menu-button__icon";
-            iconWrapper.append(icon);
-            children.push(iconWrapper);
-        }
-
-        this.button.replaceChildren(...children);
+        menu.appendItem(action);
     }
 
-    private renderMenu(container: HTMLElement): void {
-        this.renderDisposables.clear();
-        const menu = createMenu({
-            className: this.options.menuClassName,
-            withScrollArea: this.options.withScrollArea,
-        });
-
-        for (const action of resolveItems(this.options.items)) {
-            if (action instanceof Separator) {
-                menu.appendSeparator();
-                continue;
-            }
-
-            const shouldAutoHide = getMenuItemData(action)?.autoHide ?? true;
-            if (shouldAutoHide) {
-                const hideOnRun = menu.onDidRun(event => {
-                    if (event.action === action && !event.error) {
-                        hideOnRun.dispose();
-                        this.hide();
-                    }
-                });
-                this.renderDisposables.add(hideOnRun);
-            }
-
-            menu.appendItem(action);
-        }
-
-        this.renderDisposables.add(addDisposableListener(menu.domNode, "menuitemactionrun", () => {
-            this.hide();
-        }));
-        container.append(menu.domNode);
-        this.renderDisposables.add(menu);
-    }
-
-    private focusSelectedItem(): void {
-        requestAnimationFrame(() => {
-            const selected = this.contentView.domNode.querySelector<HTMLElement>("[data-selected] > .ui-actionbar__label");
-            const first = this.contentView.domNode.querySelector<HTMLElement>(".ui-menu__item > .ui-actionbar__label");
-            (selected ?? first)?.focus();
-        });
-    }
-}
-
-export function createMenuButton(options: MenuButtonOptions): MenuButton {
-    return new MenuButton(options);
+    container.append(menu.domNode);
+    disposables.add(menu);
+    return disposables;
 }
 
 export function createMenuAction(options: MenuActionOptions): IAction {

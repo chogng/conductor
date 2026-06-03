@@ -1,8 +1,11 @@
 import { createButton } from "src/cs/base/browser/ui/button/button";
 import {
-  createMenuButton,
-  MenuButton,
+  renderMenuItems,
 } from "src/cs/base/browser/ui/menu/menu";
+import {
+  createDropdownButton,
+  DropdownButton,
+} from "src/cs/base/browser/ui/dropdown/dropdown";
 import type { IAction } from "src/cs/base/common/actions";
 import { lxChevronDown } from "src/cs/base/common/lxicon";
 import {
@@ -30,7 +33,7 @@ export type TemplateApplyViewState = {
 
 export class TemplateApplyView {
   public readonly element: HTMLElement;
-  private readonly menuButton: MenuButton;
+  private readonly dropdownButton: DropdownButton;
   private readonly deleteButton: HTMLButtonElement;
   private readonly exportButton: HTMLButtonElement;
   private readonly stopSwitch: HTMLButtonElement;
@@ -55,14 +58,17 @@ export class TemplateApplyView {
     const selectContainer = document.createElement("div");
     selectContainer.className = "template_button_row template_select_actions";
 
-    this.menuButton = createMenuButton({
+    this.dropdownButton = createDropdownButton({
+      closeOnContentEvent: "menuitemactionrun",
       label: state.selectedTemplateLabel,
-      items: this.options.createTemplateActions,
-      menuClassName: "template_select_menu",
+      render: container => renderMenuItems(container, {
+        className: "template_select_menu",
+        items: this.options.createTemplateActions,
+      }),
       surfaceClassName: "template_select_menu_surface",
       triggerIcon: lxChevronDown,
     });
-    selectContainer.append(this.menuButton.domNode);
+    selectContainer.append(this.dropdownButton.domNode);
 
     this.deleteButton = createButton({
       label: localize("da_delete_template", "Delete template"),
@@ -155,10 +161,13 @@ export class TemplateApplyView {
   }
 
   public update(state: TemplateApplyViewState): void {
-    this.menuButton.update({
+    this.dropdownButton.update({
+      closeOnContentEvent: "menuitemactionrun",
       label: state.selectedTemplateLabel,
-      items: this.options.createTemplateActions,
-      menuClassName: "template_select_menu",
+      render: container => renderMenuItems(container, {
+        className: "template_select_menu",
+        items: this.options.createTemplateActions,
+      }),
       surfaceClassName: "template_select_menu_surface",
       triggerIcon: lxChevronDown,
     });
@@ -171,7 +180,7 @@ export class TemplateApplyView {
   }
 
   public dispose(): void {
-    this.menuButton.dispose();
+    this.dropdownButton.dispose();
     this.element.replaceChildren();
     this.element.remove();
   }

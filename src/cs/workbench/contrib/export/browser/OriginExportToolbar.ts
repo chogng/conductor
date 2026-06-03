@@ -1,6 +1,15 @@
+import { localize } from "src/cs/nls";
 import { createButton } from "src/cs/base/browser/ui/button/button";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
-import { lxAlertTriangle } from "src/cs/base/common/lxicon";
+import {
+  createMenuAction,
+  createMenuItemLabel,
+  renderMenuItems,
+} from "src/cs/base/browser/ui/menu/menu";
+import { createDropdownButton } from "src/cs/base/browser/ui/dropdown/dropdown";
+import type { IAction } from "src/cs/base/common/actions";
+import type { DisposableStore } from "src/cs/base/common/lifecycle";
+import { lxAlertTriangle, lxChevronDown } from "src/cs/base/common/lxicon";
 import {
   isOriginExportMode,
   type OriginExportContentKey,
@@ -25,10 +34,6 @@ export type OriginCurveExportSeriesOption = {
   sourceSeriesId: string;
 };
 
-export type OriginExportContentTranslateFn = (
-  key: string,
-  params?: Record<string, string | number | boolean | null | undefined>,
-) => string;
 
 export type ReplaceMatchingOriginSeriesAcrossFilesFn = (options: {
   fileIds?: unknown[];
@@ -64,7 +69,7 @@ type OriginExportToolbarProps = {
   setOriginFilteredCanvasKind: StateSetter<OriginFilteredCanvasKind>;
   setResolvedCurveExportMode: (next: OriginCurveExportMode) => void;
   showFilteredCanvasKindSelect: boolean;
-  t: OriginExportContentTranslateFn;
+  store?: DisposableStore;
 };
 
 const DEFAULT_ORIGIN_EXPORT_CONTENT_KEYS: OriginExportContentKey[] = ["iv"];
@@ -85,34 +90,70 @@ const appendText = (
   return element;
 };
 
-const createSelect = <T extends string>({
-  className = "origin_export_toolbar_select da-neutral-select",
+const createField = (label: string, control: HTMLElement): HTMLElement => {
+  const field = document.createElement("div");
+  field.className = "origin_export_toolbar_field";
+  appendText(field, "span", "origin_export_toolbar_label", label);
+  field.appendChild(control);
+  return field;
+};
+
+const createDropdown = <T extends string>({
+  className = "origin_export_toolbar_select_button",
   id,
   options,
+  store,
   value,
   onChange,
 }: {
   className?: string;
   id: string;
   options: Array<{ label: string; value: T }>;
+  store?: DisposableStore;
   value: T;
   onChange: (next: string) => void;
-}): HTMLSelectElement => {
-  const select = document.createElement("select");
-  select.id = id;
-  select.className = cx("dropdown-field dropdown-field--sm", className);
-  select.value = value;
-  select.addEventListener("change", () => onChange(select.value));
-
-  for (const option of options) {
-    const optionElement = document.createElement("option");
-    optionElement.value = option.value;
-    optionElement.textContent = option.label;
-    select.appendChild(optionElement);
-  }
-
-  return select;
+}): HTMLButtonElement => {
+  const selected = options.find((option) => option.value === value) ?? options[0];
+  const button = createDropdownButton({
+    closeOnContentEvent: "menuitemactionrun",
+    label: selected?.label ?? "",
+    render: container => renderMenuItems(container, {
+      className: "origin_export_toolbar_select_menu",
+      items: () => createDropdownActions({
+        options,
+        value,
+        onChange,
+      }),
+    }),
+    surfaceClassName: "origin_export_toolbar_select_menu_surface",
+    triggerIcon: lxChevronDown,
+  });
+  button.domNode.id = id;
+  button.domNode.className = `${button.domNode.className} ${className}`.trim();
+  store?.add(button);
+  return button.domNode;
 };
+
+const createDropdownActions = <T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  readonly options: Array<{ label: string; value: T }>;
+  readonly value: T;
+  readonly onChange: (next: string) => void;
+}): IAction[] =>
+  options.map((option) =>
+    createMenuAction({
+      id: `origin.export.select.${option.value}`,
+      label: option.label,
+      left: createMenuItemLabel(option.label),
+      run: () => onChange(option.value),
+      selected: option.value === value,
+      tabIndex: 0,
+      value: option.value,
+    }),
+  );
 
 const normalizeOriginExportContentKeysForOptions = (
   keys: readonly OriginExportContentKey[] | null | undefined,
@@ -150,12 +191,10 @@ const createContentSelector = ({
   options,
   selectedKeys,
   setSelectedKeys,
-  t,
 }: {
   options: OriginExportContentOption[];
   selectedKeys: OriginExportContentKey[];
   setSelectedKeys: StateSetter<OriginExportContentKey[]>;
-  t: OriginExportContentTranslateFn;
 }): HTMLElement => {
   const selectedSet = new Set(normalizeOriginExportContentKeysForOptions(selectedKeys, options));
   const container = document.createElement("div");
@@ -164,7 +203,7 @@ const createContentSelector = ({
   for (const option of options) {
     container.appendChild(createToggleButton({
       checked: selectedSet.has(option.key),
-      label: t(option.labelKey),
+      label: localize(option.labelKey, option.labelKey),
       onClick: () => {
         setSelectedKeys((previous) => {
           const current = normalizeOriginExportContentKeysForOptions(previous, options);
@@ -190,7 +229,7 @@ const createCurveSelector = ({
   replaceMatchingOriginSeriesAcrossFiles,
   scopedFileIds,
   setMode,
-  t,
+  store,
 }: {
   curveOptions: OriginCurveExportSeriesOption[];
   selectedCurveOptionKeySet: Set<string>;
@@ -199,17 +238,18 @@ const createCurveSelector = ({
   replaceMatchingOriginSeriesAcrossFiles: ReplaceMatchingOriginSeriesAcrossFilesFn;
   scopedFileIds: string[];
   setMode: (next: OriginCurveExportMode) => void;
-  t: OriginExportContentTranslateFn;
+  store?: DisposableStore;
 }): HTMLElement => {
   const container = document.createElement("div");
-  container.className = "origin_export_toolbar_chip_group";
+  container.className = "origin_export_toolbar_button_row origin_export_toolbar_select_actions";
 
-  const modeSelect = createSelect<OriginCurveExportMode>({
+  const modeSelect = createDropdown<OriginCurveExportMode>({
     id: "analysis-origin-curve-export-mode-select",
+    store,
     value: mode,
     options: [
-      { value: "all", label: t("da_origin_curve_export_mode_all") },
-      { value: "select", label: t("da_origin_curve_export_mode_select") },
+      { value: "all", label: localize("da_origin_curve_export_mode_all", "All") },
+      { value: "select", label: localize("da_origin_curve_export_mode_select", "Select") },
     ],
     onChange: (next) => setMode(next === "select" ? "select" : "all"),
   });
@@ -297,7 +337,7 @@ const createOriginExportToolbar = ({
   setOriginFilteredCanvasKind,
   setResolvedCurveExportMode,
   showFilteredCanvasKindSelect,
-  t,
+  store,
 }: OriginExportToolbarProps): HTMLElement => {
   const root = document.createElement("div");
   root.className = "origin_export_toolbar";
@@ -309,84 +349,96 @@ const createOriginExportToolbar = ({
   const toolbar = document.createElement("div");
   toolbar.className = "origin_export_toolbar_controls";
   toolbar.setAttribute("role", "toolbar");
-  toolbar.setAttribute("aria-label", t("analysis.results.export"));
+  toolbar.setAttribute("aria-label", localize("analysis.results.export", "Export"));
   header.appendChild(toolbar);
 
-  appendText(toolbar, "span", "origin_export_toolbar_label", t("da_origin_export_mode_label"));
-  toolbar.appendChild(createSelect<OriginExportMode>({
-    id: "analysis-origin-export-mode-select",
-    value: mode,
-    options: [
-      { value: "merged", label: t("da_origin_export_mode_merged") },
-      { value: "workbookSheets", label: t("da_origin_export_mode_workbook_sheets") },
-      { value: "workbookBooks", label: t("da_origin_export_mode_workbook_books") },
-      { value: "separate", label: t("da_origin_export_mode_separate") },
-    ],
-    onChange: (next) => onModeChange(isOriginExportMode(next) ? next : "merged"),
-  }));
+  toolbar.appendChild(createField(
+    localize("da_origin_export_mode_label", "Export mode"),
+    createDropdown<OriginExportMode>({
+      id: "analysis-origin-export-mode-select",
+      store,
+      value: mode,
+      options: [
+        { value: "merged", label: localize("da_origin_export_mode_merged", "New columns") },
+        { value: "workbookSheets", label: localize("da_origin_export_mode_workbook_sheets", "New worksheet") },
+        { value: "workbookBooks", label: localize("da_origin_export_mode_workbook_books", "New workbook") },
+        { value: "separate", label: localize("da_origin_export_mode_separate", "New window") },
+      ],
+      onChange: (next) => onModeChange(isOriginExportMode(next) ? next : "merged"),
+    }),
+  ));
 
-  appendText(toolbar, "span", "origin_export_toolbar_label", t("da_origin_canvas_scope_label"));
-  toolbar.appendChild(createSelect<OriginCanvasExportScope>({
-    id: "analysis-origin-canvas-scope-select",
-    value: originCanvasExportScope,
-    options: [
-      { value: "all", label: t("da_origin_canvas_scope_all") },
-      { value: "current", label: t("da_origin_canvas_scope_current") },
-      { value: "filtered", label: t("da_origin_canvas_scope_filtered") },
-      { value: "selected", label: t("da_origin_canvas_scope_selected") },
-    ],
-    onChange: (next) => {
-      setOriginCanvasExportScope(
-        next === "current" || next === "filtered" || next === "selected" || next === "all"
-          ? next
-          : "selected",
-      );
-    },
-  }));
+  toolbar.appendChild(createField(
+    localize("da_origin_canvas_scope_label", "Scope"),
+    createDropdown<OriginCanvasExportScope>({
+      id: "analysis-origin-canvas-scope-select",
+      store,
+      value: originCanvasExportScope,
+      options: [
+        { value: "all", label: localize("da_origin_canvas_scope_all", "All") },
+        { value: "current", label: localize("da_origin_canvas_scope_current", "Current") },
+        { value: "filtered", label: localize("da_origin_canvas_scope_filtered", "Filtered") },
+        { value: "selected", label: localize("da_origin_canvas_scope_selected", "Choose") },
+      ],
+      onChange: (next) => {
+        setOriginCanvasExportScope(
+          next === "current" || next === "filtered" || next === "selected" || next === "all"
+            ? next
+            : "selected",
+        );
+      },
+    }),
+  ));
 
   if (showFilteredCanvasKindSelect) {
-    appendText(toolbar, "span", "origin_export_toolbar_label", t("da_origin_filtered_canvas_kind_label"));
-    toolbar.appendChild(createSelect<OriginFilteredCanvasKind>({
-      id: "analysis-origin-filtered-canvas-kind-select",
-      value: originFilteredCanvasKind,
-      options: [
-        { value: "transfer", label: t("da_origin_filtered_canvas_kind_transfer") },
-        { value: "output", label: t("da_origin_filtered_canvas_kind_output") },
-      ],
-      onChange: (next) => setOriginFilteredCanvasKind(next === "transfer" ? "transfer" : "output"),
-    }));
+    toolbar.appendChild(createField(
+      localize("da_origin_filtered_canvas_kind_label", "Type"),
+      createDropdown<OriginFilteredCanvasKind>({
+        id: "analysis-origin-filtered-canvas-kind-select",
+        store,
+        value: originFilteredCanvasKind,
+        options: [
+          { value: "transfer", label: localize("da_origin_filtered_canvas_kind_transfer", "Transfer") },
+          { value: "output", label: localize("da_origin_filtered_canvas_kind_output", "Output") },
+        ],
+        onChange: (next) => setOriginFilteredCanvasKind(next === "transfer" ? "transfer" : "output"),
+      }),
+    ));
   }
 
-  appendText(toolbar, "span", "origin_export_toolbar_label", t("da_origin_curve_export_mode_label"));
-  toolbar.appendChild(createCurveSelector({
-    curveOptions,
-    selectedCurveOptionKeySet,
-    mode: resolvedCurveExportMode,
-    onSelectedCurveOptionKeysChange,
-    replaceMatchingOriginSeriesAcrossFiles,
-    scopedFileIds,
-    setMode: setResolvedCurveExportMode,
-    t,
-  }));
+  toolbar.appendChild(createField(
+    localize("da_origin_curve_export_mode_label", "Export curves"),
+    createCurveSelector({
+      curveOptions,
+      selectedCurveOptionKeySet,
+      mode: resolvedCurveExportMode,
+      onSelectedCurveOptionKeysChange,
+      replaceMatchingOriginSeriesAcrossFiles,
+      scopedFileIds,
+      setMode: setResolvedCurveExportMode,
+      store,
+    }),
+  ));
 
-  appendText(toolbar, "span", "origin_export_toolbar_label", t("da_origin_export_content_label"));
-  toolbar.appendChild(createContentSelector({
-    options: originExportContentOptions,
-    selectedKeys: selectedContentKeys,
-    setSelectedKeys: setContentKeys,
-    t,
-  }));
+  toolbar.appendChild(createField(
+    localize("da_origin_export_content_label", "Export content"),
+    createContentSelector({
+      options: originExportContentOptions,
+      selectedKeys: selectedContentKeys,
+      setSelectedKeys: setContentKeys,
+    }),
+  ));
 
   const actions = document.createElement("div");
   actions.className = "origin_export_toolbar_actions";
   actions.appendChild(createToolbarButton({
     id: "analysis-origin-open-btn",
-    label: t("da_open_in_origin"),
+    label: localize("da_open_in_origin", "Open in Origin"),
     onClick: () => void onOpenInOrigin(),
     variant: "primary",
   }));
   actions.appendChild(createToolbarButton({
-    label: t("da_export_origin_zip"),
+    label: localize("da_export_origin_zip", "Export ZIP package"),
     onClick: () => void onExportOriginZip(),
     variant: "secondary",
   }));
@@ -406,7 +458,7 @@ const createOriginExportToolbar = ({
     });
     icon.setAttribute("aria-hidden", "true");
     row.appendChild(icon);
-    appendText(row, "span", "", t("da_origin_export_mode_mixed_y_scale_split_hint"));
+    appendText(row, "span", "", localize("da_origin_export_mode_mixed_y_scale_split_hint", "The current export list mixes Linear and Log Y scales. Origin cannot use both axis types in the same graph layer, so this New columns export will be split into multiple worksheets before plotting."));
     box.appendChild(row);
     hint.appendChild(box);
     root.appendChild(hint);
