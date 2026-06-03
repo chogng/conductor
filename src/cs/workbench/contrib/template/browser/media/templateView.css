@@ -1,16 +1,16 @@
-.template_view_pane_content {
+.template_viewlet_content {
   height: 100%;
   min-height: 0px;
 }
 
-.template_view_pane {
+.template_viewlet {
   display: flex;
   height: 100%;
   min-height: 0px;
   flex-direction: column;
 }
 
-.template_manager {
+.template_view {
   display: flex;
   height: 100%;
   min-height: 0px;
@@ -156,7 +156,7 @@
   color: rgb(var(--text-secondary) / 1);
 }
 
-.workbench_layout_shell:not(.workbench_layout_shell--stacked) .template_view_pane--joined_sidebar {
+.workbench_layout_shell:not(.workbench_layout_shell--stacked) .template_viewlet--joined_sidebar {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
   border-right-width: 0;

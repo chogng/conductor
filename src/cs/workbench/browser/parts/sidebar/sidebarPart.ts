@@ -91,7 +91,13 @@ export class SidebarPart {
     this.sash?.dispose();
     this.sash = null;
 
-    this.element.replaceChildren();
+    const child = options.children ?? null;
+    const preservedChild = child?.parentNode === this.element ? child : null;
+    for (const node of Array.from(this.element.childNodes)) {
+      if (node !== preservedChild) {
+        node.remove();
+      }
+    }
     applySidebarAttributes(this.element, options);
 
     const normalizedHeaderActions = normalizeWorkbenchSidebarHeaderActions(
@@ -101,9 +107,10 @@ export class SidebarPart {
     const hasHeaderContent = Boolean(
       options.title || options.description || options.badge,
     );
+    const content = document.createDocumentFragment();
 
     if (hasHeaderContent || normalizedHeaderActions.length > 0) {
-      this.element.append(
+      content.append(
         createSidebarHeader({
           badge: options.badge,
           description: options.description,
@@ -116,11 +123,16 @@ export class SidebarPart {
     }
 
     for (const section of normalizedSections) {
-      this.element.append(createSidebarSection(section, options.onAction));
+      content.append(createSidebarSection(section, options.onAction));
     }
 
-    if (options.children) {
-      this.element.append(options.children);
+    if (preservedChild) {
+      this.element.insertBefore(content, preservedChild);
+    } else {
+      this.element.append(content);
+      if (child) {
+        this.element.append(child);
+      }
     }
 
     if (options.onStartResizing) {

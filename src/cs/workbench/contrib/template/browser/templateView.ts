@@ -47,7 +47,7 @@ import {
   toColumnLabel,
 } from "src/cs/workbench/contrib/template/browser/templateSelection";
 
-export type TemplateElementOptions = {
+export type TemplateViewOptions = {
   readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
   readonly importSessionElement?: HTMLElement | null;
   readonly templateImportController: TemplateImportController;
@@ -160,26 +160,23 @@ const exportTemplate = (config: TemplateConfig, templateService: ITemplateServic
   templateService.downloadTemplateBundle(payload);
 };
 
-export const createTemplateElement = (options: TemplateElementOptions): HTMLElement =>
-  new TemplateManagerView(options).element;
-
-export class TemplateManagerView {
+export class TemplateView {
   public readonly element: HTMLElement;
   public readonly sidebarElement: HTMLElement;
   private readonly left = document.createElement("div");
-  private props: TemplateElementOptions;
+  private props: TemplateViewOptions;
   private activePickField: PickFieldName | null = null;
   private disposeTableSelectionListener: (() => void) | null = null;
-  private tableModel: TemplateElementOptions["tableModel"] | null = null;
+  private tableModel: TemplateViewOptions["tableModel"] | null = null;
   private mode: "select" | "save" | null = null;
   private toggleDraft: Pick<TemplateConfig, "stopOnError" | "fileNameMatchCaseSensitive"> | null = null;
   private applyView: TemplateApplyView | null = null;
   private editorView: TemplateEditorView | null = null;
 
-  constructor(props: TemplateElementOptions) {
+  constructor(props: TemplateViewOptions) {
     this.props = props;
     this.element = document.createElement("div");
-    this.element.className = "template_manager";
+    this.element.className = "template_view";
     this.sidebarElement = this.left;
 
     this.left.className = "template_config_panel";
@@ -191,7 +188,7 @@ export class TemplateManagerView {
     return getSession();
   }
 
-  public update(props: TemplateElementOptions): void {
+  public update(props: TemplateViewOptions): void {
     this.props = props;
     this.bindTableSelection(props.tableModel);
 
@@ -241,7 +238,7 @@ export class TemplateManagerView {
     };
   }
 
-  private bindTableSelection(tableModel: TemplateElementOptions["tableModel"]): void {
+  private bindTableSelection(tableModel: TemplateViewOptions["tableModel"]): void {
     if (this.tableModel === tableModel) {
       return;
     }
@@ -269,6 +266,16 @@ export class TemplateManagerView {
       ...updates,
     };
 
+    if (
+      updates.xDataStart !== undefined &&
+      String(next.xDataStart ?? "").trim() &&
+      !String(current.xDataEnd ?? "").trim() &&
+      updates.xDataEnd === undefined
+    ) {
+      next.xDataEnd = "End";
+      changed = true;
+    }
+
     if (Array.isArray(updates.yColumns)) {
       changed = !areColumnIndexesEqual(current.yColumns, updates.yColumns);
       next.yColumns = updates.yColumns;
@@ -292,7 +299,6 @@ export class TemplateManagerView {
       fileNameMatchCaseSensitive: next.fileNameMatchCaseSensitive,
     };
     this.session.setTemplateConfig(next);
-    defaultSessionModel.emitChange();
   }
 
   private syncTableHighlight(): void {
@@ -692,8 +698,3 @@ export class TemplateManagerView {
     defaultSessionModel.emitChange();
   }
 }
-
-const TemplateManager = (options: TemplateElementOptions): HTMLElement =>
-  createTemplateElement(options);
-
-export default TemplateManager;

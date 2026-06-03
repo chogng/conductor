@@ -37,7 +37,7 @@ import {
 } from "src/cs/workbench/browser/window";
 import ChartViewPane from "src/cs/workbench/contrib/chart/browser/chartViewPane";
 import ResultsPane from "src/cs/workbench/contrib/chart/browser/resultsPane";
-import TemplateEditorPane from "src/cs/workbench/contrib/template/browser/templateEditorPane";
+import TemplateViewlet from "src/cs/workbench/contrib/template/browser/templateViewlet";
 import { TemplateImportController } from "src/cs/workbench/contrib/template/browser/templateImportController";
 import { BrowserTemplateService } from "src/cs/workbench/contrib/template/browser/templateService";
 import { getWorkbenchContribution } from "src/cs/workbench/common/contributions";
@@ -190,7 +190,7 @@ export class Workbench extends Layout {
   private readonly session = defaultSessionModel;
   private readonly filesPane: FilesPaneHost;
   private readonly table: TableContribution;
-  private readonly templateEditor: TemplateEditorPane;
+  private readonly templateViewlet: TemplateViewlet;
   private readonly analysis: ChartViewPane;
   private readonly results: ResultsPane;
   private readonly settings: SettingsViewPane;
@@ -261,7 +261,7 @@ export class Workbench extends Layout {
     this.templateApply.update(this.getTemplateApplyInput());
     this.filesPane = this._register(new FilesPaneHost(this.getFilesPaneProps()));
     this.table = getWorkbenchContribution<TableContribution>(TableContributionId);
-    this.templateEditor = this._register(new TemplateEditorPane(this.getTemplateEditorProps()));
+    this.templateViewlet = this._register(new TemplateViewlet(this.getTemplateViewletProps()));
     this.analysis = this._register(new ChartViewPane(this.getAnalysisProps()));
     this.results = this._register(new ResultsPane(this.getResultsProps()));
     this.settings = this._register(new SettingsViewPane(this.getSettingsProps()));
@@ -297,7 +297,7 @@ export class Workbench extends Layout {
       this.templateApply,
     ));
     this.table.update(this.getTableProps(tableModel));
-    this.templateEditor.update(this.getTemplateEditorProps(
+    this.templateViewlet.update(this.getTemplateViewletProps(
       snapshot,
       tableModel,
       this.templateApply,
@@ -312,7 +312,7 @@ export class Workbench extends Layout {
         : this.table.element,
       secondarySidebar: this.activeMainPart === "chart"
         ? this.results.element
-        : this.templateEditor.sidebarElement,
+        : this.templateViewlet.sidebarElement,
       settings: this.settings.element,
     });
     this.window.update({
@@ -441,7 +441,7 @@ export class Workbench extends Layout {
     };
   }
 
-  private getTemplateEditorProps(
+  private getTemplateViewletProps(
     snapshot = this.session.getSnapshot(),
     tableModel = this.getTableModel(snapshot),
     processing = this.templateApply,

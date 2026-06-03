@@ -6,45 +6,45 @@ import type { ITemplateService } from "src/cs/workbench/contrib/template/common/
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import type { TemplateImportController } from "src/cs/workbench/contrib/template/browser/templateImportController";
 import {
-  TemplateManagerView,
-  type TemplateElementOptions,
+  TemplateView,
+  type TemplateViewOptions,
 } from "src/cs/workbench/contrib/template/browser/templateView";
 
 import "src/cs/workbench/contrib/template/browser/media/templateView.css";
 
 const TEMPLATE_TITLE = localize("template_editor_title", "Template");
 
-export type TemplateEditorPaneProps = {
-  readonly analysisSettings?: TemplateElementOptions["analysisSettings"];
+export type TemplateViewletProps = {
+  readonly analysisSettings?: TemplateViewOptions["analysisSettings"];
   readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
   readonly content?: Node | null;
   readonly importSessionElement?: HTMLElement | null;
-  readonly onTemplateApplied?: TemplateElementOptions["onTemplateApplied"];
-  readonly onTemplateAppliedIncremental?: TemplateElementOptions["onTemplateAppliedIncremental"];
-  readonly onUpdateSettings?: TemplateElementOptions["onUpdateSettings"];
+  readonly onTemplateApplied?: TemplateViewOptions["onTemplateApplied"];
+  readonly onTemplateAppliedIncremental?: TemplateViewOptions["onTemplateAppliedIncremental"];
+  readonly onUpdateSettings?: TemplateViewOptions["onUpdateSettings"];
   readonly sourceFiles?: SessionFile[];
-  readonly tableModel?: TemplateElementOptions["tableModel"];
+  readonly tableModel?: TemplateViewOptions["tableModel"];
   readonly templateImportController: TemplateImportController;
   readonly templateService: ITemplateService;
 };
 
-export class TemplateEditorPane {
+export class TemplateViewlet {
   public readonly element: HTMLElement;
   public readonly sidebarElement: HTMLElement;
   private readonly previewContent: HTMLElement;
   private readonly sidebarPart: SidebarPart;
-  private readonly templateView: TemplateManagerView;
+  private readonly templateView: TemplateView;
 
-  constructor(props: TemplateEditorPaneProps) {
-    this.templateView = new TemplateManagerView(toTemplateProps(props));
+  constructor(props: TemplateViewletProps) {
+    this.templateView = new TemplateView(toTemplateProps(props));
     this.previewContent = document.createElement("div");
-    this.previewContent.className = "template_view_pane_content";
+    this.previewContent.className = "template_viewlet_content";
     this.previewContent.append(this.templateView.element);
 
     this.element = createPreviewPart({
       id: "analysis-template-workspace",
       ariaLabel: TEMPLATE_TITLE,
-      className: "template_view_pane template_view_pane--joined_sidebar",
+      className: "template_viewlet template_viewlet--joined_sidebar",
       children: this.previewContent,
     });
 
@@ -57,7 +57,7 @@ export class TemplateEditorPane {
     this.sidebarElement = this.sidebarPart.element;
   }
 
-  public update(props: TemplateEditorPaneProps): void {
+  public update(props: TemplateViewletProps): void {
     this.templateView.update(toTemplateProps(props));
     this.sidebarPart.update({
       ariaLabel: TEMPLATE_TITLE,
@@ -79,10 +79,10 @@ const toTemplateProps = ({
   importSessionElement: _importSessionElement,
   sourceFiles = [],
   ...props
-}: TemplateEditorPaneProps): TemplateElementOptions => ({
+}: TemplateViewletProps): TemplateViewOptions => ({
   ...props,
   sourceFiles,
   importSessionElement: _importSessionElement ?? null,
 });
 
-export default TemplateEditorPane;
+export default TemplateViewlet;

@@ -1,6 +1,7 @@
 import { createButton } from "src/cs/base/browser/ui/button/button";
 import { DropdownMenu } from "src/cs/base/browser/ui/dropdown/dropdown";
 import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBox";
+import { addDisposableListener } from "src/cs/base/browser/dom";
 import {
   createMenuAction,
   createMenuItemLabel,
@@ -194,7 +195,7 @@ export class TemplateEditorView {
       variant: "primary",
     });
     saveButton.className = `${saveButton.className} template_button`;
-    saveButton.addEventListener("click", () => this.options.onSave());
+    this.disposables.add(addDisposableListener(saveButton, "click", () => this.options.onSave()));
 
     const cancelButton = createButton({
       label: localize("cancel", "Cancel"),
@@ -202,7 +203,7 @@ export class TemplateEditorView {
       variant: "secondary",
     });
     cancelButton.className = `${cancelButton.className} template_button`;
-    cancelButton.addEventListener("click", () => this.options.onCancel());
+    this.disposables.add(addDisposableListener(cancelButton, "click", () => this.options.onCancel()));
 
     saveActions.append(saveButton, cancelButton);
     this.element.append(saveActions);
@@ -290,20 +291,31 @@ export class TemplateEditorView {
       name,
       placeholder: options.placeholder,
       value: "",
-      onInput: (_fieldName, value) => {
-        this.options.onUpdateConfig({ [name]: value });
-      },
     });
+    const isPickableField = PICKABLE_TEMPLATE_FIELDS.has(name);
+    const input = field.querySelector("input") as HTMLInputElement;
+    this.disposables.add(addDisposableListener(input, "input", () => {
+      if (isPickableField) {
+        this.options.onPickFieldFocus(null);
+      }
+      this.options.onUpdateConfig({ [name]: input.value });
+    }));
+    this.disposables.add(addDisposableListener(input, "focus", () => {
+      this.options.onPickFieldFocus(
+        isPickableField ? name as TemplatePickFieldName : null,
+      );
+    }));
+    if (name === "xDataEnd") {
+      this.disposables.add(addDisposableListener(input, "blur", () => {
+        if (!input.value.trim()) {
+          this.options.onUpdateConfig({ xDataEnd: "End" });
+        }
+      }));
+    }
     if (options.fullWidth) {
       field.className = `${field.className} template_field--full`;
     }
     container.append(field);
-    const input = field.querySelector("input") as HTMLInputElement;
-    input.addEventListener("focus", () => {
-      this.options.onPickFieldFocus(
-        PICKABLE_TEMPLATE_FIELDS.has(name) ? name as TemplatePickFieldName : null,
-      );
-    });
     return input;
   }
 
@@ -431,13 +443,11 @@ const createField = ({
   name,
   placeholder,
   value,
-  onInput,
 }: {
   label: string;
   name: TemplateStringFieldName;
   placeholder?: string;
   value: string;
-  onInput: (name: TemplateStringFieldName, value: string) => void;
 }): HTMLElement => {
   const wrapper = document.createElement("label");
   wrapper.className = "template_field";
@@ -451,8 +461,6 @@ const createField = ({
     placeholder,
     value,
   });
-  const input = inputField.input;
-  input.addEventListener("input", () => onInput(name, input.value));
 
   wrapper.append(labelElement, inputField.element);
   return wrapper;

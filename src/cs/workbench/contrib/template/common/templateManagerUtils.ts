@@ -47,12 +47,25 @@ export const createEmptyTemplateConfig = (
   ...overrides,
 });
 
+export const normalizeXDataEndValue = (value: unknown): string => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  if (raw.toLowerCase() === "end") return "End";
+  return raw;
+};
+
 export const cloneTemplateConfig = (
   config: Partial<TemplateConfig>,
-): TemplateConfig => ({
-  ...createEmptyTemplateConfig(config),
-  yColumns: Array.isArray(config?.yColumns) ? [...config.yColumns] : [],
-});
+): TemplateConfig => {
+  const cloned = createEmptyTemplateConfig(config);
+  const xDataEnd = normalizeXDataEndValue(cloned.xDataEnd);
+
+  return {
+    ...cloned,
+    xDataEnd: xDataEnd || (cloned.xDataStart.trim() ? "End" : ""),
+    yColumns: Array.isArray(config?.yColumns) ? [...config.yColumns] : [],
+  };
+};
 
 export const normalizeTemplateConfigRecord = (
   source: Partial<TemplateConfig> & Record<string, unknown>,
@@ -97,13 +110,6 @@ export const normalizeTemplateConfigRecord = (
           .filter((entry) => Number.isInteger(entry) && entry >= 0)
       : [],
   });
-};
-
-export const normalizeXDataEndValue = (value: unknown): string => {
-  const raw = String(value ?? "").trim();
-  if (!raw) return "";
-  if (raw.toLowerCase() === "end") return "End";
-  return raw;
 };
 
 export const toTemplateNameKey = (name: unknown): string =>
