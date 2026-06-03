@@ -359,6 +359,12 @@ export const startProcessingJob = ({
     string,
     (meta?: Record<string, unknown>) => void
   >();
+  let hasShownResults = false;
+  const showResultsOnce = () => {
+    if (hasShownResults) return;
+    hasShownResults = true;
+    showResults();
+  };
 
   if (resetCleanedData) {
     setCleanedData([]);
@@ -397,7 +403,7 @@ export const startProcessingJob = ({
     });
     finishProcessingJob({
       hasAnyProcessedResult,
-      showResults,
+      showResults: showResultsOnce,
       setProcessingStatus,
       worker,
       workerRef: processingWorkerRef,
@@ -476,6 +482,7 @@ export const startProcessingJob = ({
             ...prev,
             processed: prev.processed + 1,
           }));
+          showResultsOnce();
           completedCount += 1;
           activeCount = Math.max(0, activeCount - 1);
           launchNext();
@@ -548,6 +555,7 @@ export const startProcessingJob = ({
         ...prev,
         processed: prev.processed + 1,
       }));
+      showResultsOnce();
       completedCount += 1;
       activeCount = Math.max(0, activeCount - 1);
       launchNext();
@@ -658,6 +666,12 @@ export const startRuleProcessingJob = ({
     string,
     (meta?: Record<string, unknown>) => void
   >();
+  let hasShownResults = false;
+  const showResultsOnce = () => {
+    if (hasShownResults) return;
+    hasShownResults = true;
+    showResults();
+  };
 
   const finishIfIdle = () => {
     if (finishing || activeCount > 0 || ruleQueue.length > 0) return;
@@ -668,7 +682,7 @@ export const startRuleProcessingJob = ({
     });
     finishProcessingJob({
       hasAnyProcessedResult,
-      showResults,
+      showResults: showResultsOnce,
       setProcessingStatus,
       worker,
       workerRef: processingWorkerRef,
@@ -749,6 +763,7 @@ export const startRuleProcessingJob = ({
             ...prev,
             processed: processedCount,
           }));
+          showResultsOnce();
           launchNext();
           return;
         }
@@ -813,6 +828,7 @@ export const startRuleProcessingJob = ({
       processedCount += 1;
       activeCount = Math.max(0, activeCount - 1);
       setProcessingStatus((prev) => ({ ...prev, processed: processedCount }));
+      showResultsOnce();
       launchNext();
       return;
     }

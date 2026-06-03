@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "allowJs": true,
+    "checkJs": false,
+    "strict": false,
+    "noCheck": true,
+    "experimentalDecorators": true,
+    "skipLibCheck": true,
+    "rootDir": ".",
+    "outDir": "out-test",
+    "baseUrl": ".",
+    "paths": {
+      "cs/*": ["./src/cs/*"],
+      "src/*": ["./src/*"]
+    },
+    "types": ["node"],
+    "rewriteRelativeImportExtensions": true
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.mjs"
+  ],
+  "exclude": [
+    "src/cs/code/electron-main",
+    "src/cs/code/electron-utility"
+  ]
+}

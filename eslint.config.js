@@ -9,6 +9,7 @@ export default defineConfig([
   globalIgnores([
     'dist',
     'desktop-dist',
+    'out-test',
     'release',
     'originbridge',
     'origin/bin',

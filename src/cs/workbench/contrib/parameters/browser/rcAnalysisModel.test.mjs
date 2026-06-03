@@ -56,7 +56,7 @@ test("getRcStatusText formats pending, error, summary, and selection states", ()
 
   assert.equal(
     getRcStatusText({ error: "", isPending: true, rowCount: 2, summary: null, t }),
-    "da_rc_status_running:",
+    "da_rc_status_running",
   );
   assert.equal(
     getRcStatusText({ error: "bad", isPending: false, rowCount: 2, summary: null, t }),
@@ -73,6 +73,6 @@ test("getRcStatusText formats pending, error, summary, and selection states", ()
   );
   assert.equal(
     getRcStatusText({ error: "", isPending: false, rowCount: 3, summary: null, t }),
-    "da_rc_status_selected_curves:3",
+    'da_rc_status_selected_curves:{"count":3}',
   );
 });
