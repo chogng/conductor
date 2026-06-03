@@ -1,43 +1,24 @@
 import { TimeoutTimer } from "src/cs/base/common/async";
+import type { IAction } from "src/cs/base/common/actions";
+import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
-import {
-  normalizeLxIconSvgMarkup,
-  type LxIconDefinition,
-} from "src/cs/base/browser/ui/lxicon/lxicon";
-import { LxIcon } from "src/cs/base/common/lxicon";
 import type {
   NotificationToastOptions,
   NotificationToastPosition,
   NotificationToastType,
 } from "src/cs/workbench/services/notification/common/notificationService";
 import {
-  getPrimaryNotificationAction,
-  runNotificationAction,
-} from "src/cs/workbench/browser/parts/notifications/notificationsActions";
+  DEFAULT_NOTIFICATION_TOAST_ID,
+} from "src/cs/workbench/services/notification/common/notificationService";
+import { runNotificationAction } from "src/cs/workbench/browser/parts/notifications/notificationsActions";
+import { NotificationRenderer } from "src/cs/workbench/browser/parts/notifications/notificationsViewer";
 
-import "src/cs/workbench/browser/parts/notifications/media/notificationToast.css";
+import "src/cs/workbench/browser/parts/notifications/media/notificationsToasts.css";
 
 const DEFAULT_TOAST_DURATION = 5000;
 const TOAST_CLOSE_ANIMATION_MS = 300;
 
-const appendIcon = (
-  container: HTMLElement,
-  icon: LxIconDefinition,
-  size: number,
-) => {
-  const iconElement = document.createElement("span");
-  iconElement.className = "ui-lxicon";
-  iconElement.style.width = `${size}px`;
-  iconElement.style.height = `${size}px`;
-  iconElement.innerHTML = normalizeLxIconSvgMarkup(icon);
-  container.appendChild(iconElement);
-};
-
-const getToastIcon = (type: NotificationToastType): LxIconDefinition => {
-  if (type === "success") return LxIcon.checkCircle;
-  if (type === "info") return LxIcon.infoCircle;
-  return LxIcon.alertCircle;
-};
+const notificationToasts = new Map<string, NotificationToast>();
 
 const getExtraClassNames = (value: unknown): string[] =>
   typeof value === "string"
@@ -50,14 +31,44 @@ const getExtraClassNames = (value: unknown): string[] =>
 const getTypeClassName = (type: NotificationToastType): string =>
   `conductor-toast--${type}`;
 
+export const showNotificationToast = (options: NotificationToastOptions): void => {
+  getNotificationToast(options.id ?? DEFAULT_NOTIFICATION_TOAST_ID).show(options);
+};
+
+export const hideNotificationToast = (id = DEFAULT_NOTIFICATION_TOAST_ID): void => {
+  notificationToasts.get(id)?.hide();
+};
+
+export const disposeNotificationToast = (id = DEFAULT_NOTIFICATION_TOAST_ID): void => {
+  const toast = notificationToasts.get(id);
+  if (!toast) {
+    return;
+  }
+
+  toast.dispose();
+  notificationToasts.delete(id);
+};
+
+export const disposeNotificationToasts = (): void => {
+  for (const toast of notificationToasts.values()) {
+    toast.dispose();
+  }
+  notificationToasts.clear();
+};
+
+const getNotificationToast = (id: string): NotificationToast => {
+  let toast = notificationToasts.get(id);
+  if (!toast) {
+    toast = new NotificationToast();
+    notificationToasts.set(id, toast);
+  }
+  return toast;
+};
+
 export class NotificationToast implements IDisposable {
   private readonly disposables = new DisposableStore();
+  private readonly renderer: NotificationRenderer;
   private readonly root: HTMLDivElement;
-  private readonly iconContainer: HTMLDivElement;
-  private readonly messageElement: HTMLSpanElement;
-  private readonly controls: HTMLDivElement;
-  private readonly actionButton: HTMLButtonElement;
-  private readonly closeButton: HTMLButtonElement;
   private readonly autoCloseTimer = new TimeoutTimer();
   private readonly closeTimer = new TimeoutTimer();
   private readonly hideTimer = new TimeoutTimer();
@@ -69,34 +80,37 @@ export class NotificationToast implements IDisposable {
   private options: NotificationToastOptions | null = null;
 
   public constructor(private readonly host: HTMLElement = document.body) {
-    this.root = document.createElement("div");
-    this.iconContainer = document.createElement("div");
-    this.messageElement = document.createElement("span");
-    this.controls = document.createElement("div");
-    this.actionButton = document.createElement("button");
-    this.closeButton = document.createElement("button");
+    this.renderer = this.disposables.add(new NotificationRenderer({
+      onAction: this.handleAction,
+      onClose: this.handleClose,
+    }));
+    this.root = this.renderer.element;
 
-    this.iconContainer.className = "conductor-toast-icon";
-    this.messageElement.className = "conductor-toast-message";
-    this.controls.className = "conductor-toast-controls";
-    this.actionButton.type = "button";
-    this.actionButton.className = "conductor-toast-action";
-    this.closeButton.type = "button";
-    this.closeButton.className = "conductor-toast-close";
-    this.closeButton.setAttribute("aria-label", "Close toast");
-    appendIcon(this.closeButton, LxIcon.close, 16);
-
-    this.controls.append(this.actionButton, this.closeButton);
-    this.root.append(this.iconContainer, this.messageElement, this.controls);
-
-    this.root.addEventListener("mouseenter", this.pauseAutoClose);
-    this.root.addEventListener("mouseleave", this.resumeAutoClose);
-    this.root.addEventListener("focusin", this.pauseAutoClose);
-    this.root.addEventListener("focusout", this.handleFocusOut);
-    this.actionButton.addEventListener("click", this.handleAction);
-    this.closeButton.addEventListener("click", this.handleClose);
-    window.addEventListener("resize", this.updatePosition);
-
+    this.disposables.add(addDisposableListener(
+      this.root,
+      EventType.MOUSE_ENTER,
+      this.pauseAutoClose,
+    ));
+    this.disposables.add(addDisposableListener(
+      this.root,
+      EventType.MOUSE_LEAVE,
+      this.resumeAutoClose,
+    ));
+    this.disposables.add(addDisposableListener(
+      this.root,
+      EventType.FOCUS_IN,
+      this.pauseAutoClose,
+    ));
+    this.disposables.add(addDisposableListener(
+      this.root,
+      EventType.FOCUS_OUT,
+      this.handleFocusOut,
+    ));
+    this.disposables.add(addDisposableListener(
+      window,
+      EventType.RESIZE,
+      this.updatePosition,
+    ));
     this.disposables.add(this.autoCloseTimer);
     this.disposables.add(this.closeTimer);
     this.disposables.add(this.hideTimer);
@@ -118,6 +132,7 @@ export class NotificationToast implements IDisposable {
 
     this.root.className = this.getClassName(options, false);
     this.root.dataset.state = "open";
+    this.renderer.layout();
     this.startAutoClose(options.duration ?? DEFAULT_TOAST_DURATION);
   }
 
@@ -142,13 +157,6 @@ export class NotificationToast implements IDisposable {
 
   public dispose(): void {
     this.isDisposed = true;
-    this.root.removeEventListener("mouseenter", this.pauseAutoClose);
-    this.root.removeEventListener("mouseleave", this.resumeAutoClose);
-    this.root.removeEventListener("focusin", this.pauseAutoClose);
-    this.root.removeEventListener("focusout", this.handleFocusOut);
-    this.actionButton.removeEventListener("click", this.handleAction);
-    this.closeButton.removeEventListener("click", this.handleClose);
-    window.removeEventListener("resize", this.updatePosition);
     this.root.remove();
     this.disposables.dispose();
   }
@@ -169,35 +177,11 @@ export class NotificationToast implements IDisposable {
 
     if (uiMarker) {
       this.root.setAttribute("data-ui", uiMarker);
-      this.closeButton.setAttribute("data-ui", `${uiMarker}-close`);
     } else {
       this.root.removeAttribute("data-ui");
-      this.closeButton.removeAttribute("data-ui");
     }
 
-    this.iconContainer.replaceChildren();
-    appendIcon(this.iconContainer, getToastIcon(type), 20);
-    this.messageElement.textContent = options.message;
-    if (options.message.includes("\n")) {
-      this.messageElement.tabIndex = 0;
-    } else {
-      this.messageElement.removeAttribute("tabindex");
-    }
-
-    const action = getPrimaryNotificationAction(options.actions);
-    if (action) {
-      this.actionButton.hidden = false;
-      this.actionButton.textContent = action.label;
-      if (uiMarker) {
-        this.actionButton.setAttribute("data-ui", `${uiMarker}-action`);
-      } else {
-        this.actionButton.removeAttribute("data-ui");
-      }
-    } else {
-      this.actionButton.hidden = true;
-      this.actionButton.textContent = "";
-      this.actionButton.removeAttribute("data-ui");
-    }
+    this.renderer.render(options);
   }
 
   private getClassName(options: NotificationToastOptions, isClosing: boolean): string {
@@ -224,13 +208,13 @@ export class NotificationToast implements IDisposable {
     this.root.style.position = "";
     this.root.style.bottom = "";
     this.root.style.left = "";
+    this.root.style.right = "";
     this.root.style.transform = "";
 
     if (position === "fixed") {
       this.root.style.position = "fixed";
       this.root.style.bottom = "32px";
-      this.root.style.left = "50%";
-      this.root.style.transform = "translateX(-50%)";
+      this.root.style.right = "32px";
     }
   };
 
@@ -294,12 +278,7 @@ export class NotificationToast implements IDisposable {
     this.resumeAutoClose();
   };
 
-  private readonly handleAction = (): void => {
-    const action = getPrimaryNotificationAction(this.options?.actions);
-    if (!action) {
-      return;
-    }
-
+  private readonly handleAction = (action: IAction): void => {
     void runNotificationAction(action, this.options);
   };
 
@@ -308,5 +287,3 @@ export class NotificationToast implements IDisposable {
     this.hide();
   };
 }
-
-export default NotificationToast;

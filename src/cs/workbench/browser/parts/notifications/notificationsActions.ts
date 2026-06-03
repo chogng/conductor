@@ -3,11 +3,11 @@ import {
   type IAction,
 } from "src/cs/base/common/actions";
 
-export class NotificationActionRunner extends ActionRunner {}
-
 export const getPrimaryNotificationAction = (
   actions: readonly IAction[] | undefined,
 ): IAction | undefined => actions?.find(action => action.enabled);
+
+export class NotificationActionRunner extends ActionRunner {}
 
 export const runNotificationAction = async (
   action: IAction,

@@ -1,4 +1,4 @@
-import { NotificationToast } from "src/cs/workbench/browser/parts/notifications/notificationToast";
+import { NotificationToast } from "src/cs/workbench/browser/parts/notifications/notificationsToasts";
 import {
   DEFAULT_NOTIFICATION_TOAST_ID,
   type NotificationToastOptions,

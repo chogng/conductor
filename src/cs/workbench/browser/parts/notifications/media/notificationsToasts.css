@@ -3,7 +3,7 @@
   display: flex;
   align-items: center;
   min-width: 280px;
-  max-width: min(640px, calc(100vw - 64px));
+  max-width: min(450px, calc(100vw - 64px));
   padding: 12px 14px;
   gap: 10px;
   border: 1px solid rgb(var(--border));
@@ -52,9 +52,17 @@
   color: var(--color-success);
 }
 
-.conductor-toast-message {
+.conductor-toast-message-scroll {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+.conductor-toast-message-viewport {
+  height: auto;
+}
+
+.conductor-toast-message {
+  display: block;
   color: rgb(var(--text-primary));
   font-size: 14px;
   line-height: 20px;
@@ -97,21 +105,25 @@
 
 .conductor-toast-close:focus-visible,
 .conductor-toast-action:focus-visible,
-.conductor-toast-message:focus-visible {
+.conductor-toast-message-viewport:focus-visible {
   outline: 1px solid rgb(var(--accent));
   outline-offset: 2px;
 }
 
 .conductor-toast--import-error {
   align-items: flex-start;
-  width: min(860px, calc(100vw - 96px));
-  max-width: calc(100vw - 96px);
+}
+
+.conductor-toast--import-error .conductor-toast-message-scroll {
+  max-height: min(420px, calc(100vh - 220px));
+  padding-right: 8px;
+}
+
+.conductor-toast--import-error .conductor-toast-message-viewport {
+  max-height: min(420px, calc(100vh - 220px));
 }
 
 .conductor-toast--import-error .conductor-toast-message {
-  max-height: min(420px, calc(100vh - 220px));
-  padding-right: 8px;
-  overflow-y: auto;
   line-height: 20px;
   white-space: pre-wrap;
 }
