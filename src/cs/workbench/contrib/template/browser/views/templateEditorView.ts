@@ -12,6 +12,7 @@ import { LxIcon } from "src/cs/base/common/lxicon";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import { localize } from "src/cs/nls";
 import { ViewPaneContainer } from "src/cs/workbench/browser/parts/views/viewPaneContainer";
+import { X_UNIT_VALUES, Y_UNIT_VALUES } from "src/cs/workbench/contrib/plot/common/units";
 import type { TemplateConfig } from "src/cs/workbench/contrib/template/common/templateManagerUtils";
 
 export type TemplatePickFieldName = "xDataStart" | "xDataEnd" | "yLegendStart" | "yLegendCount";
@@ -20,7 +21,7 @@ type TemplateStringFieldName = Exclude<
   {
     [K in keyof TemplateConfig]: TemplateConfig[K] extends string ? K : never;
   }[keyof TemplateConfig],
-  "xSegmentationMode" | "yLegendTarget"
+  "xSegmentationMode" | "xUnit" | "yLegendTarget" | "yUnit"
 >;
 
 type TemplateEditorInputName =
@@ -29,13 +30,11 @@ type TemplateEditorInputName =
   | "xDataEnd"
   | "xSegmentCount"
   | "xPointsPerGroup"
-  | "xUnit"
   | "bottomTitle"
   | "leftTitle"
   | "yLegendStart"
   | "yLegendCount"
   | "yLegendStep"
-  | "yUnit"
   | "legendPrefix";
 
 type TemplatePaneId = "x" | "y" | "optional";
@@ -79,12 +78,24 @@ const Y_LEGEND_TARGET_OPTIONS: Array<{
   { label: localize("template_y_target_group", "Group"), value: "group" },
 ];
 
+const X_UNIT_OPTIONS: Array<{ label: string; value: TemplateConfig["xUnit"] }> = X_UNIT_VALUES.map((value) => ({
+  label: value,
+  value,
+}));
+
+const Y_UNIT_OPTIONS: Array<{ label: string; value: TemplateConfig["yUnit"] }> = Y_UNIT_VALUES.map((value) => ({
+  label: value,
+  value,
+}));
+
 export class TemplateEditorView {
   public readonly element: HTMLElement;
   private readonly disposables = new DisposableStore();
   private readonly inputs: Record<TemplateEditorInputName, HTMLInputElement>;
   private readonly xSegmentationMode: SelectField<TemplateConfig["xSegmentationMode"]>;
+  private readonly xUnit: SelectField<TemplateConfig["xUnit"]>;
   private readonly yLegendTarget: SelectField<TemplateConfig["yLegendTarget"]>;
+  private readonly yUnit: SelectField<TemplateConfig["yUnit"]>;
   private readonly yColumnsSummary: HTMLElement;
   private readonly yColumnsClearButton: HTMLButtonElement;
 
@@ -151,9 +162,6 @@ export class TemplateEditorView {
       xDataEnd: xDataEndInput,
       xSegmentCount: xSegmentCountInput,
       xPointsPerGroup: xPointsPerGroupInput,
-      xUnit: this.createField(optionalFields, localize("template_x_unit", "X unit"), "xUnit", {
-        placeholder: "V",
-      }),
       bottomTitle: this.createField(optionalFields, localize("template_bottom_title", "X title"), "bottomTitle", {
         placeholder: "Vg",
       }),
@@ -162,9 +170,6 @@ export class TemplateEditorView {
       }),
       yLegendCount: this.createField(yFields, localize("template_y_legend_count", "Legend Count"), "yLegendCount"),
       yLegendStep: this.createField(yFields, localize("template_y_legend_step", "Legend Step"), "yLegendStep"),
-      yUnit: this.createField(optionalFields, localize("template_y_unit", "Y unit"), "yUnit", {
-        placeholder: "A",
-      }),
       leftTitle: this.createField(optionalFields, localize("template_left_title", "Y title"), "leftTitle", {
         placeholder: "Id",
       }),
@@ -172,6 +177,26 @@ export class TemplateEditorView {
         placeholder: "Vd",
       }),
     };
+
+    this.xUnit = this.createSelectField(
+      optionalFields,
+      localize("template_x_unit", "X unit"),
+      X_UNIT_OPTIONS,
+      state.config.xUnit,
+      value => {
+        this.options.onUpdateConfig({ xUnit: value });
+      },
+    );
+
+    this.yUnit = this.createSelectField(
+      optionalFields,
+      localize("template_y_unit", "Y unit"),
+      Y_UNIT_OPTIONS,
+      state.config.yUnit,
+      value => {
+        this.options.onUpdateConfig({ yUnit: value });
+      },
+    );
 
     this.yLegendTarget = this.createSelectField(
       yFields,
@@ -248,13 +273,11 @@ export class TemplateEditorView {
       xDataEnd: config.xDataEnd,
       xSegmentCount: config.xSegmentCount,
       xPointsPerGroup: config.xPointsPerGroup,
-      xUnit: config.xUnit,
       bottomTitle: config.bottomTitle,
       leftTitle: config.leftTitle,
       yLegendStart: config.yLegendStart,
       yLegendCount: config.yLegendCount,
       yLegendStep: config.yLegendStep,
-      yUnit: config.yUnit,
       legendPrefix: config.legendPrefix,
     };
 
@@ -268,10 +291,18 @@ export class TemplateEditorView {
       value: config.xSegmentationMode,
       options: X_SEGMENTATION_OPTIONS,
     });
+    this.updateDropdownField(this.xUnit, {
+      value: config.xUnit,
+      options: X_UNIT_OPTIONS,
+    });
     this.updateXSegmentationFields(config.xSegmentationMode);
     this.updateDropdownField(this.yLegendTarget, {
       value: config.yLegendTarget,
       options: Y_LEGEND_TARGET_OPTIONS,
+    });
+    this.updateDropdownField(this.yUnit, {
+      value: config.yUnit,
+      options: Y_UNIT_OPTIONS,
     });
     const hasYColumns = state.selectedYColumnLabels.length > 0;
     this.yColumnsClearButton.hidden = !hasYColumns;
@@ -361,7 +392,7 @@ export class TemplateEditorView {
     return input;
   }
 
-  private createSelectField<T extends TemplateConfig["xSegmentationMode"] | TemplateConfig["yLegendTarget"]>(
+  private createSelectField<T extends string>(
     container: HTMLElement,
     label: string,
     options: Array<{ label: string; value: T }>,
@@ -419,7 +450,7 @@ export class TemplateEditorView {
     return field;
   }
 
-  private updateDropdownField<T extends TemplateConfig["xSegmentationMode"] | TemplateConfig["yLegendTarget"]>(
+  private updateDropdownField<T extends string>(
     field: SelectField<T>,
     {
       options,
