@@ -125,21 +125,29 @@ export const preparePendingImportFile = async (
   let normalizedCsvPath: string | null = null;
   let fileAssessment: AnalysisFileAssessment;
   let sourcePath: string | null = null;
+  let normalizedSizeBytes = 0;
 
   try {
     const prepared = await prepareImportFile(
       analysisFileService,
-      sourceFile,
+      sourceFile ?? null,
       resolvePreparedFileSource(pendingImportFile),
+      {
+        fileName: pendingImportFile.sourceName,
+        lastModified: pendingImportFile.lastModified,
+        loadFile: pendingImportFile.loadFile,
+        size: pendingImportFile.sourceSize,
+      },
     );
     normalizedFile = prepared.file;
     normalizedCsvPath = prepared.normalizedCsvPath ?? null;
     fileAssessment = prepared.assessment;
     sourcePath = prepared.sourcePath ?? null;
+    normalizedSizeBytes = prepared.normalizedSizeBytes;
   } catch (error) {
     const failure = toPrepareFailure(
       error,
-      sourceFile.name || "Unknown file",
+      pendingImportFile.sourceName || "Unknown file",
     );
     finishFilePerf({
       code: failure.code,
@@ -168,9 +176,9 @@ export const preparePendingImportFile = async (
   };
   const fileInfo: ImportSessionFileInfo = {
     fileId,
-    fileName: sourceFile.name,
+    fileName: pendingImportFile.sourceName,
     file: normalizedFile,
-    size: normalizedFile.size,
+    size: normalizedSizeBytes,
     lastModified: normalizedFile.lastModified,
     normalizedCsvPath,
     relativePath,
@@ -189,7 +197,7 @@ export const preparePendingImportFile = async (
     confidence: fileAssessment.curveTypeConfidence,
     curveType: fileAssessment.curveType,
     fileId,
-    normalizedSizeBytes: normalizedFile.size,
+    normalizedSizeBytes,
   });
 
   return {

@@ -51,12 +51,25 @@ export type FileEntry = {
   curveTypeReasons?: string[];
 };
 
-export type FileSource = {
+export type DataFileSource = {
   readonly file: File;
-  readonly kind: "path" | "data";
+  readonly kind: "data";
   readonly relativePath?: string | null;
   readonly resource?: URI | null;
 };
+
+export type PathFileSource = {
+  readonly file?: File;
+  readonly fileName: string;
+  readonly kind: "path";
+  readonly lastModified: number;
+  readonly loadFile?: () => Promise<File>;
+  readonly relativePath?: string | null;
+  readonly resource: URI;
+  readonly size: number;
+};
+
+export type FileSource = DataFileSource | PathFileSource;
 
 export type FilesPaneRef = {
   openFileDialog: () => void;
@@ -73,6 +86,21 @@ export const buildFileIdentityKey = (
 
   const path = relativePath?.trim();
   return `${path || file.name}::${file.size}::${file.lastModified}`;
+};
+
+export const buildFileSourceIdentityKey = (
+  fileName: unknown,
+  size: unknown,
+  lastModified: unknown,
+  relativePath?: string | null,
+): string => {
+  const name = String(fileName ?? "").trim();
+  if (!name) {
+    return "";
+  }
+
+  const path = relativePath?.trim();
+  return `${path || name}::${Number(size) || 0}::${Number(lastModified) || 0}`;
 };
 
 export const buildItemKey = (

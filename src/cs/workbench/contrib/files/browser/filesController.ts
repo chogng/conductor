@@ -55,6 +55,7 @@ export type FilesControllerProps = {
   onFileImported?: (fileInfo: ImportSessionFileInfo) => void;
   onFilesReplaced?: (files: ImportSessionFileInfo[]) => void;
   onFileRemoved?: (fileId: string) => void;
+  onFilesRemoved?: (fileIds: string[]) => void;
   onFileSelected?: (fileId: string | null) => void;
   selectedFileId?: string | null;
 };
@@ -320,11 +321,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
       }
     }
 
-    if (!this.isControlled) {
-      this.internalFiles = this.internalFiles.filter((entry) => entry.fileId !== fileId);
-    }
-
-    this.props.onFileRemoved?.(fileId);
+    this.removeFiles([fileId]);
     this.handleFileCountEffects();
     this.syncView();
   };
@@ -350,13 +347,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
       this.props.onFileSelected?.(null);
     }
 
-    if (!this.isControlled) {
-      this.internalFiles = this.internalFiles.filter((entry) => !removedFileIds.has(entry.fileId ?? ""));
-    }
-
-    for (const fileId of removedFileIds) {
-      this.props.onFileRemoved?.(fileId);
-    }
+    this.removeFiles([...removedFileIds]);
 
     this.handleFileCountEffects();
     this.syncView();
@@ -365,6 +356,22 @@ export class FilesController implements FilesPaneRef, IDisposable {
   private readonly handleCreateFolder = (_folderKey: string): void => {
     showCreateFolderUnsupported();
   };
+
+  private removeFiles(fileIds: readonly string[]): void {
+    if (!this.isControlled) {
+      const removedFileIds = new Set(fileIds);
+      this.internalFiles = this.internalFiles.filter((entry) => !removedFileIds.has(entry.fileId ?? ""));
+    }
+
+    if (this.props.onFilesRemoved) {
+      this.props.onFilesRemoved([...fileIds]);
+      return;
+    }
+
+    for (const fileId of fileIds) {
+      this.props.onFileRemoved?.(fileId);
+    }
+  }
 
   private async processFiles(
     newFiles: FileSource[],

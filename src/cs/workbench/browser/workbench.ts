@@ -518,6 +518,7 @@ export class Workbench extends Layout {
       onFileImported: sessionActions.handleFileImported,
       onFilesReplaced: sessionActions.handleFilesReplaced,
       onFileRemoved: sessionActions.handleFileRemoved,
+      onFilesRemoved: sessionActions.handleFilesRemoved,
       onFileSelected: sessionActions.handleFileSelected,
       selectedFileId: snapshot.selectedPreviewFileId,
     };

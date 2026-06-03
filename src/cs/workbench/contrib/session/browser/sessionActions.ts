@@ -168,6 +168,83 @@ export const createSessionActions = ({
     }
   };
 
+  const handleFilesRemoved = (fileIds: readonly string[]) => {
+    const removedFileIds = new Set(
+      fileIds.filter((fileId): fileId is string => typeof fileId === "string" && fileId.length > 0),
+    );
+    if (removedFileIds.size === 0) {
+      return;
+    }
+
+    let nextSelectedFileId: string | null = selectedPreviewFileId;
+    if (selectedPreviewFileId && removedFileIds.has(selectedPreviewFileId)) {
+      const remainingFiles = sourceFiles.filter((entry) => !removedFileIds.has(entry.fileId ?? ""));
+      nextSelectedFileId = remainingFiles[0]?.fileId ?? null;
+      setSelectedPreviewFileId(nextSelectedFileId);
+      setSelectedPreviewSheetId(null);
+    }
+
+    setSourceFiles((prev) => prev.filter((entry) => !removedFileIds.has(entry.fileId ?? "")));
+    setCleanedData((prev) =>
+      (Array.isArray(prev) ? prev : []).filter((entry) => !removedFileIds.has(entry?.fileId ?? "")),
+    );
+    setAnalysisResults((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const fileId of removedFileIds) {
+        if (next[fileId]) {
+          delete next[fileId];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+    setIonIoffManualTargetsByFileId((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const fileId of removedFileIds) {
+        if (next[fileId]) {
+          delete next[fileId];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+    setSsManualRanges((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const fileId of removedFileIds) {
+        if (next[fileId]) {
+          delete next[fileId];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+
+    if (processingStatus.state === "processing") {
+      for (const fileId of removedFileIds) {
+        removeQueuedProcessingFile(fileId);
+      }
+    }
+
+    if (previewFile?.fileId && removedFileIds.has(previewFile.fileId)) {
+      clearPreviewState();
+    }
+
+    for (const fileId of removedFileIds) {
+      disposePreviewFileCache(fileId);
+    }
+
+    if (
+      selectedPreviewFileId &&
+      removedFileIds.has(selectedPreviewFileId) &&
+      nextSelectedFileId
+    ) {
+      preparePreviewSelection(nextSelectedFileId);
+    }
+  };
+
   const handleFileSelected = (fileId: string | null) => {
     if (!fileId) {
       setSelectedPreviewFileId(null);
@@ -197,6 +274,7 @@ export const createSessionActions = ({
     handleFileImported,
     handleFilesReplaced,
     handleFileRemoved,
+    handleFilesRemoved,
     handleFileSelected,
     hasSessionData,
   };

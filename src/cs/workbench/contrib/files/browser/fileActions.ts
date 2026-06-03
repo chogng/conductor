@@ -20,9 +20,12 @@ export const createFileSource = (
   if (resource && resourcePath && isAbsoluteFilePath(resourcePath)) {
     return {
       file,
+      fileName: file.name,
       kind: "path",
+      lastModified: file.lastModified,
       relativePath,
       resource,
+      size: file.size,
     };
   }
 
@@ -30,9 +33,12 @@ export const createFileSource = (
   if (filePath && isAbsoluteFilePath(filePath)) {
     return {
       file,
+      fileName: file.name,
       kind: "path",
+      lastModified: file.lastModified,
       relativePath,
       resource: URI.file(filePath),
+      size: file.size,
     };
   }
 

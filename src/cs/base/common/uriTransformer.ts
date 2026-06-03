@@ -3,7 +3,7 @@ import {
   type IURITransformer,
   URITransformer,
   type UriParts,
-} from "./uriIpc.ts";
+} from "./uriIpc.js";
 
 function createRawURITransformer(remoteAuthority: string): IRawURITransformer {
   return {

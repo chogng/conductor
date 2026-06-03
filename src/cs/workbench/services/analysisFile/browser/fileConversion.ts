@@ -31,6 +31,13 @@ export type ImportFileSource =
   | { kind: "path"; path: string }
   | { kind: "data" };
 
+export type ImportFileMetadata = {
+  readonly fileName: string;
+  readonly lastModified: number;
+  readonly loadFile?: () => Promise<File>;
+  readonly size: number;
+};
+
 export class ImportPrepareError extends Error {
   public readonly code: string | null;
 
@@ -217,27 +224,40 @@ export const loadConvertedCsvFile = async ({
 
 export const prepareImportFile = async (
   analysisFileService: IAnalysisFileService,
-  file: File,
+  file: File | null,
   source: ImportFileSource,
+  metadata: ImportFileMetadata,
 ): Promise<PreparedBrowserFile> => {
   const sourcePath = source.kind === "path" ? source.path.trim() : null;
+  const loadBrowserFile = async (): Promise<File> => {
+    if (file) {
+      return file;
+    }
+    if (metadata.loadFile) {
+      return metadata.loadFile();
+    }
+    throw new ImportPrepareError(
+      `File content is unavailable for ${metadata.fileName}.`,
+      "IMPORT_FILE_CONTENT_UNAVAILABLE",
+    );
+  };
 
   if (!analysisFileService.canPrepareFile()) {
-    return prepareBrowserFile(file, sourcePath);
+    return prepareBrowserFile(await loadBrowserFile(), sourcePath);
   }
 
   if (source.kind !== "path" || !sourcePath) {
-    return prepareBrowserFile(file, null);
+    return prepareBrowserFile(await loadBrowserFile(), null);
   }
 
   const finishPerf = startPerf("import:rust-prepare-file", {
-    fileName: file.name,
-    sizeBytes: file.size,
+    fileName: metadata.fileName,
+    sizeBytes: metadata.size,
   });
 
   try {
     const result = await analysisFileService.prepareFile({
-      fileName: file.name,
+      fileName: metadata.fileName,
       path: sourcePath,
     });
     if (!result?.ok || !result.assessment) {
@@ -248,12 +268,12 @@ export const prepareImportFile = async (
         source: "rust-failed",
       });
       if (shouldFallbackToBrowserFile(result?.code)) {
-        return prepareBrowserFile(file, null);
+        return prepareBrowserFile(await loadBrowserFile(), null);
       }
       throw new ImportPrepareError(
         typeof result?.message === "string" && result.message.trim()
           ? result.message
-          : `Rust import preparation failed for ${file.name}.`,
+          : `Rust import preparation failed for ${metadata.fileName}.`,
         typeof result?.code === "string" && result.code.trim()
           ? result.code
           : "RUST_IMPORT_PREPARE_FAILED",
@@ -263,13 +283,18 @@ export const prepareImportFile = async (
     const normalizedCsvPath = result.normalizedCsvPath ?? null;
     const normalizedFile =
       typeof result.csvText === "string"
-        ? new File([result.csvText], file.name, {
-            lastModified: Number.isFinite(file.lastModified)
-              ? file.lastModified
+        ? new File([result.csvText], metadata.fileName, {
+            lastModified: Number.isFinite(metadata.lastModified)
+              ? metadata.lastModified
               : Date.now(),
             type: "text/csv;charset=utf-8",
           })
-        : file;
+        : file ?? new File([], metadata.fileName, {
+            lastModified: Number.isFinite(metadata.lastModified)
+              ? metadata.lastModified
+              : Date.now(),
+            type: "text/csv;charset=utf-8",
+          });
     const normalizedSizeBytes =
       getRustConvertCsvBytes(result.manifest) ??
       (Number(result.normalizedSizeBytes) || normalizedFile.size);
@@ -290,8 +315,8 @@ export const prepareImportFile = async (
       normalizedCsvPath,
       normalizedSizeBytes,
       sourcePath: result.sourcePath ?? sourcePath,
-      sourceName: result.sourceName ?? file.name,
-      sourceSizeBytes: Number(result.sourceSizeBytes) || file.size,
+      sourceName: result.sourceName ?? metadata.fileName,
+      sourceSizeBytes: Number(result.sourceSizeBytes) || metadata.size,
     };
   } catch (error) {
     finishPerf({

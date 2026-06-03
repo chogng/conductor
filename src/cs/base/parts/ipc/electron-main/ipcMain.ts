@@ -1,19 +1,26 @@
 import electron from "electron";
 
+import {
+    DefaultURITransformer,
+    transformAndReviveIncomingURIs,
+    transformOutgoingURIs,
+} from "../../../common/uriIpc.js";
+
 type IpcMainListener = (event: electron.IpcMainEvent, ...args: unknown[]) => void;
 
 class ValidatedIpcMain {
-    private readonly listenerWrappers = new WeakMap<IpcMainListener, IpcMainListener>();
+    private readonly listenerWrappers = new WeakMap<IpcMainListener, Map<string, IpcMainListener>>();
+
+    private transformOutgoingValue<T>(value: T): T {
+        return transformOutgoingURIs(value, DefaultURITransformer);
+    }
+
+    private transformIncomingArgs(args: unknown[]): unknown[] {
+        return transformAndReviveIncomingURIs(args, DefaultURITransformer);
+    }
 
     public on(channel: string, listener: IpcMainListener): this {
-        const wrappedListener: IpcMainListener = (event, ...args) => {
-            if (this.validateEvent(channel, event)) {
-                listener(event, ...args);
-            }
-        };
-
-        this.listenerWrappers.set(listener, wrappedListener);
-        electron.ipcMain.on(channel, wrappedListener);
+        electron.ipcMain.on(channel, this.wrapListener(channel, listener));
 
         return this;
     }
@@ -21,7 +28,7 @@ class ValidatedIpcMain {
     public once(channel: string, listener: IpcMainListener): this {
         electron.ipcMain.once(channel, (event, ...args) => {
             if (this.validateEvent(channel, event)) {
-                listener(event, ...args);
+                listener(event, ...this.transformIncomingArgs(args));
             }
         });
 
@@ -31,7 +38,8 @@ class ValidatedIpcMain {
     public handle(channel: string, listener: (event: electron.IpcMainInvokeEvent, ...args: unknown[]) => Promise<unknown>): this {
         electron.ipcMain.handle(channel, (event, ...args) => {
             if (this.validateEvent(channel, event)) {
-                return listener(event, ...args);
+                return Promise.resolve(listener(event, ...this.transformIncomingArgs(args)))
+                    .then(result => this.transformOutgoingValue(result));
             }
 
             return Promise.reject(new Error(`Invalid IPC channel or sender: ${channel}`));
@@ -46,12 +54,7 @@ class ValidatedIpcMain {
     }
 
     public removeListener(channel: string, listener: IpcMainListener): this {
-        const wrappedListener = this.listenerWrappers.get(listener);
-
-        if (wrappedListener) {
-            electron.ipcMain.removeListener(channel, wrappedListener);
-            this.listenerWrappers.delete(listener);
-        }
+        electron.ipcMain.removeListener(channel, this.removeWrappedListener(channel, listener));
 
         return this;
     }
@@ -77,6 +80,41 @@ class ValidatedIpcMain {
             console.error(`Refused to handle IPC event for malformed sender URL '${url}'.`, error);
             return false;
         }
+    }
+
+    private wrapListener(channel: string, listener: IpcMainListener): IpcMainListener {
+        let wrappedListeners = this.listenerWrappers.get(listener);
+        if (!wrappedListeners) {
+            wrappedListeners = new Map<string, IpcMainListener>();
+            this.listenerWrappers.set(listener, wrappedListeners);
+        }
+
+        const wrappedListener = wrappedListeners.get(channel);
+        if (wrappedListener) {
+            return wrappedListener;
+        }
+
+        const wrapped: IpcMainListener = (event, ...args) => {
+            if (this.validateEvent(channel, event)) {
+                listener(event, ...this.transformIncomingArgs(args));
+            }
+        };
+        wrappedListeners.set(channel, wrapped);
+        return wrapped;
+    }
+
+    private removeWrappedListener(channel: string, listener: IpcMainListener): IpcMainListener {
+        const wrappedListeners = this.listenerWrappers.get(listener);
+        const wrappedListener = wrappedListeners?.get(channel);
+        if (!wrappedListeners || !wrappedListener) {
+            return listener;
+        }
+
+        wrappedListeners.delete(channel);
+        if (wrappedListeners.size === 0) {
+            this.listenerWrappers.delete(listener);
+        }
+        return wrappedListener;
     }
 }
 

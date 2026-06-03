@@ -2,6 +2,7 @@ import { URI } from "src/cs/base/common/uri";
 import {
   FileType,
   type IFileContent,
+  type IFileStat,
   type IFileService,
 } from "src/cs/platform/files/common/files";
 import {
@@ -9,6 +10,9 @@ import {
   isSupportedImportFileName,
   type FileSource,
 } from "src/cs/workbench/contrib/files/common/files";
+import {
+  FOLDER_IMPORT_STAT_CONCURRENCY,
+} from "src/cs/workbench/contrib/files/browser/fileConstants";
 
 export {
   buildFileIdentityKey,
@@ -26,6 +30,12 @@ export type FolderFileReadFailure = {
 export type FolderFileCollection = {
   readonly files: FileSource[];
   readonly readFailures: FolderFileReadFailure[];
+};
+
+type FolderFileStatTask = {
+  readonly name: string;
+  readonly relativePath: string;
+  readonly resource: URI;
 };
 
 function joinResourcePath(parent: URI, name: string): URI {
@@ -114,6 +124,8 @@ async function collectFolderFilesAt(
   }
 
   const entries = await filesService.readDir(folder);
+  const fileTasks: FolderFileStatTask[] = [];
+
   for (const [name, type] of entries) {
     const child = joinResourcePath(folder, name);
     const relativePath = `${relativeFolderPath}/${name}`;
@@ -127,36 +139,108 @@ async function collectFolderFilesAt(
       continue;
     }
 
-    const result = await tryReadFileSource(child, name, filesService);
+    fileTasks.push({
+      name,
+      relativePath,
+      resource: child,
+    });
+  }
+
+  if (fileTasks.length > 0) {
+    await statFolderFileTasks(fileTasks, files, readFailures, filesService);
+  }
+}
+
+async function statFolderFileTasks(
+  tasks: readonly FolderFileStatTask[],
+  files: FileSource[],
+  readFailures: FolderFileReadFailure[],
+  filesService: IFileService,
+): Promise<void> {
+  const results: Array<
+    | {
+      readonly ok: true;
+      readonly lastModified: number;
+      readonly name: string;
+      readonly relativePath: string;
+      readonly resource: URI;
+      readonly size: number;
+    }
+    | {
+      readonly ok: false;
+      readonly fileName: string;
+      readonly message: string;
+      readonly relativePath: string;
+    }
+    | undefined
+  > = new Array(tasks.length);
+  let nextTaskIndex = 0;
+  const workerCount = Math.min(FOLDER_IMPORT_STAT_CONCURRENCY, tasks.length);
+
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (true) {
+      const index = nextTaskIndex;
+      nextTaskIndex += 1;
+      const task = tasks[index];
+      if (!task) {
+        return;
+      }
+
+      const result = await tryStatFileSource(task.resource, filesService);
+      results[index] = result.ok
+        ? {
+          lastModified: getFileLastModified(result.stat),
+          name: task.name,
+          ok: true,
+          relativePath: task.relativePath,
+          resource: task.resource,
+          size: Number(result.stat.size) || 0,
+        }
+        : {
+          fileName: task.name,
+          message: result.message,
+          ok: false,
+          relativePath: task.relativePath,
+        };
+    }
+  }));
+
+  for (const result of results) {
+    if (!result) {
+      continue;
+    }
+
     if (result.ok) {
       files.push({
-        file: result.file,
+        fileName: result.name,
         kind: "path",
-        relativePath,
-        resource: child,
+        lastModified: result.lastModified,
+        loadFile: () => readFileSource(result.resource, result.name, filesService),
+        relativePath: result.relativePath,
+        resource: result.resource,
+        size: result.size,
       });
     } else {
       readFailures.push({
-        fileName: name,
+        fileName: result.fileName,
         message: result.message,
-        relativePath,
+        relativePath: result.relativePath,
       });
     }
   }
 }
 
-async function tryReadFileSource(
+async function tryStatFileSource(
   resource: URI,
-  name: string,
   filesService: IFileService,
 ): Promise<
-  | { readonly ok: true; readonly file: File }
+  | { readonly ok: true; readonly stat: IFileStat }
   | { readonly ok: false; readonly message: string }
 > {
   try {
     return {
-      file: await readFileSource(resource, name, filesService),
       ok: true,
+      stat: await filesService.stat(resource),
     };
   } catch (error) {
     return {
@@ -164,6 +248,10 @@ async function tryReadFileSource(
       ok: false,
     };
   }
+}
+
+function getFileLastModified(stat: IFileStat): number {
+  return Number.isFinite(stat.mtime) ? stat.mtime : Date.now();
 }
 
 async function readFileSource(
