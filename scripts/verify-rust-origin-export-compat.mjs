@@ -7,7 +7,7 @@ import {
   buildOriginExportPlan,
   isRustOriginCsvEligiblePayload,
   resolveRustOriginCsvYTransformForPayload,
-} from "../src/cs/workbench/contrib/chartPreview/lib/origin/originSelectionExport.ts";
+} from "../src/cs/workbench/contrib/export/common/originSelectionExport.ts";
 
 const ROOT = process.cwd();
 const OUTPUT_DIR = path.join(ROOT, ".tooling", "rust-origin-export-compat");
