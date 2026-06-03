@@ -31,7 +31,7 @@ export class BaseDropdown extends ActionRunner {
     constructor(container: HTMLElement, options: IBaseDropdownOptions = {}) {
         super();
 
-        this.dropdownElement = append(container, $(".monaco-dropdown"));
+        this.dropdownElement = append(container, $(".conductor-dropdown"));
         this.labelElement = append(this.dropdownElement, $(".dropdown-label"));
 
         const labelRenderer = options.labelRenderer ?? ((target: HTMLElement): IDisposable | null => {
@@ -252,7 +252,7 @@ export class DropdownButton extends Disposable {
 
         this.contentView = this._register(new ContentView({
             anchor: this.button,
-            className: classNames("monaco-dropdown-surface", options.surfaceClassName),
+            className: classNames("conductor-dropdown-surface", options.surfaceClassName),
             matchAnchorWidth: options.matchAnchorWidth ?? true,
             render: container => this.renderContent(container),
             variant: "menu",
@@ -298,7 +298,7 @@ export class DropdownButton extends Disposable {
         this.renderButton();
         this.contentView.update({
             anchor: this.button,
-            className: classNames("monaco-dropdown-surface", options.surfaceClassName),
+            className: classNames("conductor-dropdown-surface", options.surfaceClassName),
             matchAnchorWidth: options.matchAnchorWidth ?? true,
             render: container => this.renderContent(container),
         });
