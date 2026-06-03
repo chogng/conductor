@@ -17,7 +17,6 @@ export type TableViewProps = {
 
 type BodyCell = {
   readonly element: HTMLTableCellElement;
-  appliedActive?: boolean;
   appliedHighlighted?: boolean;
   appliedSelected?: boolean;
   appliedText?: string;
@@ -52,6 +51,7 @@ export class TableView {
   private readonly content = document.createElement("div");
   private readonly table = document.createElement("table");
   private readonly bodyRows = document.createElement("tbody");
+  private readonly activeCell = document.createElement("div");
   private readonly scrollArea = new Scrollbar({
     axis: "both",
     className: "table_view_scroll_area",
@@ -79,11 +79,14 @@ export class TableView {
     this.headerContent.className = "table_view_grid_header_content";
     this.content.className = "table_view_content";
     this.table.className = "table_view_grid";
+    this.activeCell.className = "table_view_active_cell";
+    this.activeCell.hidden = true;
+    this.activeCell.setAttribute("aria-hidden", "true");
     this.headerCorner.setAttribute("aria-hidden", "true");
     this.headerScroll.append(this.headerContent);
     this.header.append(this.headerCorner, this.headerScroll);
     this.table.append(this.bodyRows);
-    this.content.append(this.table);
+    this.content.append(this.table, this.activeCell);
     this.body.append(this.header, this.scrollArea.element);
     this.element.append(this.body);
     this.store.add(addDisposableListener(this.headerContent, EventType.CLICK, event => {
@@ -322,12 +325,12 @@ export class TableView {
         const row = this.bodyGrid[rowIndex];
         for (let colIndex = 0; colIndex < columnCount; colIndex += 1) {
           this.updateCellState(row.cells[colIndex], {
-            active: isSameCell(activeCell, { colIndex, rowIndex }),
             highlighted: highlightedColumns.has(colIndex),
             selected: selectedColumns.has(colIndex),
           });
         }
       }
+      this.syncActiveCell(activeCell);
       this.appliedCellState = next;
       return;
     }
@@ -338,31 +341,36 @@ export class TableView {
     for (const colIndex of changedColumns) {
       for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
         this.updateCellState(this.bodyGrid[rowIndex].cells[colIndex], {
-          active: isSameCell(activeCell, { colIndex, rowIndex }),
           highlighted: highlightedColumns.has(colIndex),
           selected: selectedColumns.has(colIndex),
         });
       }
     }
 
-    for (const cell of [previous.activeCell, activeCell]) {
-      if (!cell || changedColumns.includes(cell.colIndex)) {
-        continue;
-      }
+    this.syncActiveCell(activeCell);
+    this.appliedCellState = next;
+  }
 
-      const bodyCell = this.bodyGrid[cell.rowIndex]?.cells[cell.colIndex];
-      if (!bodyCell) {
-        continue;
-      }
-
-      this.updateCellState(bodyCell, {
-        active: isSameCell(activeCell, cell),
-        highlighted: highlightedColumns.has(cell.colIndex),
-        selected: selectedColumns.has(cell.colIndex),
-      });
+  private syncActiveCell(activeCell: ActiveCell | null): void {
+    if (!activeCell) {
+      this.activeCell.hidden = true;
+      this.activeCell.style.transform = "";
+      return;
     }
 
-    this.appliedCellState = next;
+    const cell = this.bodyGrid[activeCell.rowIndex]?.cells[activeCell.colIndex]?.element;
+    if (!cell) {
+      this.activeCell.hidden = true;
+      this.activeCell.style.transform = "";
+      return;
+    }
+
+    const cellRect = cell.getBoundingClientRect();
+    const contentRect = this.content.getBoundingClientRect();
+    this.activeCell.style.width = `${cellRect.width}px`;
+    this.activeCell.style.height = `${cellRect.height}px`;
+    this.activeCell.hidden = false;
+    this.activeCell.style.transform = `translate3d(${cellRect.left - contentRect.left}px, ${cellRect.top - contentRect.top}px, 0)`;
   }
 
   private syncHeaderColumns(
@@ -399,17 +407,11 @@ export class TableView {
   private updateCellState(
     cell: BodyCell,
     state: {
-      readonly active: boolean;
       readonly highlighted: boolean;
       readonly selected: boolean;
     },
   ): void {
     const element = cell.element;
-
-    if (cell.appliedActive !== state.active) {
-      element.dataset.active = state.active ? "true" : "false";
-      cell.appliedActive = state.active;
-    }
 
     if (cell.appliedSelected !== state.selected) {
       element.dataset.selected = state.selected ? "true" : "false";
@@ -570,12 +572,6 @@ const normalizeActiveCell = (
     rowIndex,
   };
 };
-
-const isSameCell = (
-  left: ActiveCell | null,
-  right: ActiveCell | null,
-): boolean =>
-  Boolean(left && right && left.rowIndex === right.rowIndex && left.colIndex === right.colIndex);
 
 const getChangedColumns = (
   previous: Pick<AppliedCellState, "highlightedColumns" | "selectedColumns">,

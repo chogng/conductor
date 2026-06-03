@@ -14,13 +14,18 @@ import {
   type TableInput,
   type TableLoadState,
   type TableModel,
-  type TableRange,
   type TableRowsRequest,
   type TableSelection,
   type TableSource,
   type TableState,
   toTableSourceKey,
 } from "src/cs/workbench/contrib/table/common/tableService";
+import {
+  areTableSelectionsEqual,
+  normalizeColumnIndexes,
+  normalizeTableCell,
+  normalizeTableSelection,
+} from "src/cs/workbench/contrib/table/common/selection";
 import {
   DA_PREVIEW_MAX_CACHED_FILES,
   DA_PREVIEW_MAX_CACHED_UI_ROWS_PER_FILE,
@@ -191,63 +196,6 @@ const runWithTableStateScope = <T,>(
     activeTableStateScope = previousScope;
   }
 };
-
-const normalizeTableCell = (cell: TableCell | null | undefined): TableCell | null => {
-  if (!cell) return null;
-  const rowIndex = Math.floor(Number(cell.rowIndex));
-  const colIndex = Math.floor(Number(cell.colIndex));
-  if (!Number.isInteger(rowIndex) || rowIndex < 0) return null;
-  if (!Number.isInteger(colIndex) || colIndex < 0) return null;
-
-  return {
-    fileId: typeof cell.fileId === "string" ? cell.fileId : null,
-    sheetId: typeof cell.sheetId === "string" ? cell.sheetId : null,
-    rowIndex,
-    colIndex,
-  };
-};
-
-const normalizeColumnIndexes = (columnIndexes: readonly number[] | undefined): number[] =>
-  Array.from(new Set(
-    (Array.isArray(columnIndexes) ? columnIndexes : [])
-      .map((columnIndex) => Math.floor(Number(columnIndex)))
-      .filter((columnIndex) => Number.isInteger(columnIndex) && columnIndex >= 0),
-  )).sort((a, b) => a - b);
-
-const normalizeTableSelection = (
-  selection: TableSelection | null | undefined,
-): TableSelection => ({
-  activeCell: normalizeTableCell(selection?.activeCell),
-  selectedColumns: normalizeColumnIndexes(selection?.selectedColumns),
-  ranges: Array.isArray(selection?.ranges)
-    ? selection.ranges
-        .map((range): TableRange | null => {
-          const startRow = Math.floor(Number(range.startRow));
-          const endRow = Math.floor(Number(range.endRow));
-          const startCol = Math.floor(Number(range.startCol));
-          const endCol = Math.floor(Number(range.endCol));
-          if (
-            !Number.isInteger(startRow) ||
-            !Number.isInteger(endRow) ||
-            !Number.isInteger(startCol) ||
-            !Number.isInteger(endCol)
-          ) {
-            return null;
-          }
-
-          const normalizedRange: TableRange = {
-            fileId: typeof range.fileId === "string" ? range.fileId : null,
-            sheetId: typeof range.sheetId === "string" ? range.sheetId : null,
-            startRow: Math.max(0, Math.min(startRow, endRow)),
-            endRow: Math.max(0, Math.max(startRow, endRow)),
-            startCol: Math.max(0, Math.min(startCol, endCol)),
-            endCol: Math.max(0, Math.max(startCol, endCol)),
-          };
-          return normalizedRange;
-        })
-        .filter((range): range is TableRange => Boolean(range))
-    : [],
-});
 
 const runImmediately = (callback: () => void): void => callback();
 const memoCallback = <T extends (...args: any[]) => any>(
@@ -1536,6 +1484,10 @@ const createTableModel = ({
   const setSelection = memoCallback(
     (selection: TableSelection | null): void => {
       const normalizedSelection = normalizeTableSelection(selection);
+      if (areTableSelectionsEqual(selectionRef.current, normalizedSelection)) {
+        return;
+      }
+
       selectionRef.current = normalizedSelection;
       for (const callback of Array.from(selectionSubscribersRef.current)) {
         try {
