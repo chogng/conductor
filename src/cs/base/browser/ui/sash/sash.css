@@ -1,3 +1,8 @@
+:root {
+  --vscode-sash-size: 10px;
+  --vscode-sash-hover-delay: 180ms;
+}
+
 .ui-sash {
   position: absolute;
   z-index: 50;
@@ -13,31 +18,31 @@
 .ui-sash[data-orientation="vertical"] {
   top: 0;
   bottom: 0;
-  width: 10px;
+  width: var(--vscode-sash-size);
   cursor: col-resize;
 }
 
 .ui-sash[data-orientation="horizontal"] {
   left: 0;
   right: 0;
-  height: 10px;
+  height: var(--vscode-sash-size);
   cursor: row-resize;
 }
 
 .ui-sash[data-edge="right"] {
-  right: -7px;
+  right: calc(var(--vscode-sash-size) * -0.7);
 }
 
 .ui-sash[data-edge="left"] {
-  left: -7px;
+  left: calc(var(--vscode-sash-size) * -0.7);
 }
 
 .ui-sash[data-edge="bottom"] {
-  bottom: -7px;
+  bottom: calc(var(--vscode-sash-size) * -0.7);
 }
 
 .ui-sash[data-edge="top"] {
-  top: -7px;
+  top: calc(var(--vscode-sash-size) * -0.7);
 }
 
 .ui-sash__track {
@@ -45,8 +50,8 @@
   border-radius: 9999px;
   opacity: 0;
   transition:
-    opacity 180ms cubic-bezier(0.4, 0, 0.2, 1),
-    background 180ms cubic-bezier(0.4, 0, 0.2, 1);
+    opacity var(--vscode-sash-hover-delay) cubic-bezier(0.4, 0, 0.2, 1),
+    background var(--vscode-sash-hover-delay) cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .ui-sash[data-orientation="vertical"] .ui-sash__track {

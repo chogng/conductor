@@ -6,6 +6,7 @@ import "src/cs/workbench/contrib/diagnostics/browser/diagnostics.contribution";
 import "src/cs/workbench/contrib/export/browser/export.contribution";
 import "src/cs/workbench/contrib/parameters/browser/parameters.contribution";
 import "src/cs/workbench/contrib/thumbnail/browser/thumbnail.contribution";
+import "src/cs/workbench/contrib/sash/browser/sash.contribution";
 import "src/cs/workbench/contrib/settings/browser/settings.contribution";
 import "src/cs/workbench/contrib/table/browser/table.contribution";
 import "src/cs/workbench/contrib/template/browser/template.contribution";

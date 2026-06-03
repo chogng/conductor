@@ -40,6 +40,33 @@ export type SashOptions = {
 export const getSashClassName = (className = ""): string =>
   className ? `ui-sash ${className}` : "ui-sash";
 
+let globalSashSize = 10;
+let globalHoverDelay = 180;
+
+export const getGlobalSashSize = (): number => globalSashSize;
+
+export const setGlobalSashSize = (size: number): void => {
+  if (!Number.isFinite(size)) {
+    return;
+  }
+
+  globalSashSize = Math.max(1, Math.round(size));
+  if (typeof document !== "undefined") {
+    document.documentElement.style.setProperty("--vscode-sash-size", `${globalSashSize}px`);
+  }
+};
+
+export const setGlobalHoverDelay = (delay: number): void => {
+  if (!Number.isFinite(delay)) {
+    return;
+  }
+
+  globalHoverDelay = Math.max(0, Math.round(delay));
+  if (typeof document !== "undefined") {
+    document.documentElement.style.setProperty("--vscode-sash-hover-delay", `${globalHoverDelay}ms`);
+  }
+};
+
 const toSashDragEvent = (
   state: SashDragState,
   browserEvent: PointerEvent,

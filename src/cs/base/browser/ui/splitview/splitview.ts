@@ -5,7 +5,10 @@ import {
   getGridViewItemClassName,
   getGridViewStyle,
 } from "src/cs/base/browser/ui/grid/gridview";
-import Sash, { type SashDragEvent } from "src/cs/base/browser/ui/sash/sash";
+import Sash, {
+  getGlobalSashSize,
+  type SashDragEvent,
+} from "src/cs/base/browser/ui/sash/sash";
 
 import "src/cs/base/browser/ui/splitview/splitview.css";
 
@@ -39,7 +42,6 @@ export type SplitViewResizeEvent = {
 };
 
 export const DEFAULT_PANE_MIN_SIZE = 0;
-export const SPLIT_VIEW_SASH_SIZE = 10;
 
 export const getSplitViewClassName = (className = ""): string =>
   className ? `ui-split-view ${className}` : "ui-split-view";
@@ -335,9 +337,10 @@ export class SplitView implements IDisposable {
     for (let index = 0; index < this.sashItems.length; index += 1) {
       offset += this.sizes[index] ?? 0;
       const sashOffset = offset + gap * index + gap / 2;
+      const sashSize = getGlobalSashSize();
       const style = orientation === "horizontal"
-        ? { left: `${sashOffset - SPLIT_VIEW_SASH_SIZE / 2}px` }
-        : { top: `${sashOffset - SPLIT_VIEW_SASH_SIZE / 2}px` };
+        ? { left: `${sashOffset - sashSize / 2}px` }
+        : { top: `${sashOffset - sashSize / 2}px` };
 
       this.sashItems[index]?.update({
         active: this.resizingPaneIndex === index,

@@ -22,8 +22,8 @@ import {
 } from "src/cs/workbench/services/layout/browser/layoutService";
 
 export const SIDEBAR_DEFAULT_WIDTH_PX = 300;
-export const SIDEBAR_MIN_WIDTH_PX = 300;
-export const SIDEBAR_MAX_WIDTH_PX = 300;
+export const SIDEBAR_MIN_WIDTH_PX = 220;
+export const SIDEBAR_MAX_WIDTH_PX = 520;
 export const WORKBENCH_STACK_LAYOUT_THRESHOLD_PX = 860;
 export const TEMPLATE_MODE_ICON_ONLY_THRESHOLD_PX = 250;
 
