@@ -74,7 +74,7 @@
   align-items: center;
   justify-content: space-between;
   border-radius: 4px;
-  padding: 1px 0 1px 6px;
+  padding: 1px 0;
   transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 150ms;
@@ -158,6 +158,11 @@
   transition-duration: 150ms;
 }
 
+.file-list-item-remove svg {
+  width: 16px;
+  height: 16px;
+}
+
 .file-list-item-remove:hover {
   background-color: rgb(var(--bg-page) / 1);
   color: rgb(239 68 68 / 1);
@@ -198,6 +203,11 @@
 .file-list-tree .ui-tree__item,
 .file-list-tree .ui-tree__label {
   height: 28px;
+}
+
+.file-list-tree .ui-tree__item {
+  gap: 2px;
+  padding-right: 10px;
 }
 
 .file-list-tree .ui-tree__item[data-expandable="false"] {
@@ -293,6 +303,11 @@
 
 .file-list-folder-more .ui-dropdown-button__icon {
   color: currentColor;
+}
+
+.file-list-folder-more .ui-dropdown-button__icon svg {
+  width: 16px;
+  height: 16px;
 }
 
 .file-list-folder-menu-surface {

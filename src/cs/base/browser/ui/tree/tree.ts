@@ -60,6 +60,7 @@ export type IObjectTreeOptions<T> = {
   readonly collapsedKeys?: string[];
   readonly delegate: ITreeVirtualDelegate<T>;
   readonly empty?: (container: HTMLElement) => void;
+  readonly expandOnlyOnTwistieClick?: boolean | ((element: T) => boolean);
   readonly disposeEmpty?: (container: HTMLElement) => void;
   readonly gap?: number;
   readonly getChildren?: (element: T) => T[] | undefined;

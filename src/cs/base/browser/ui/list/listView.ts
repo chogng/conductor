@@ -324,7 +324,7 @@ export class ListView<T> implements IDisposable {
         const item = items[this.focusedIndex];
         if (item) {
           event.preventDefault();
-          onSelect?.(item, this.focusedIndex);
+          onSelect?.(item, this.focusedIndex, event);
           return;
         }
       }
@@ -693,13 +693,13 @@ export class ListView<T> implements IDisposable {
 
     domNode.appendChild(mount);
 
-    domNode.addEventListener("click", () => {
+    domNode.addEventListener("click", (event) => {
       const nextIndex = Number(domNode.dataset.index);
       const nextItem = this.props.items[nextIndex];
       if (Number.isNaN(nextIndex) || typeof nextItem === "undefined") return;
 
       this.focusedIndex = nextIndex;
-      this.props.onSelect?.(nextItem, nextIndex);
+      this.props.onSelect?.(nextItem, nextIndex, event);
       this.render();
     });
 

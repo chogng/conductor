@@ -159,6 +159,7 @@ export class ExplorerViewer implements IDisposable {
 
     return {
       className: "file-list-tree",
+      expandOnlyOnTwistieClick: false,
       getChildren: (node: FileTreeNode) => node.children,
       getKey: (node: FileTreeNode) => node.key,
       gap: 0,

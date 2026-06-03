@@ -27,7 +27,11 @@ export type ListProps<T> = {
   readonly minVirtualCount?: number;
   readonly onKeyDown?: (event: KeyboardEvent) => void;
   readonly onScroll?: (event: Event) => void;
-  readonly onSelect?: (item: T, index: number) => void;
+  readonly onSelect?: (
+    item: T,
+    index: number,
+    event?: KeyboardEvent | MouseEvent,
+  ) => void;
   readonly overscanRows?: number;
   readonly role?: string;
   readonly renderItem: (

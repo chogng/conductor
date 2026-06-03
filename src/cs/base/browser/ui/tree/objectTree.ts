@@ -33,6 +33,17 @@ const renderChevron = (collapsed: boolean): HTMLSpanElement => {
   return icon;
 };
 
+const isInteractiveEventTarget = (event: MouseEvent): boolean => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  return Boolean(
+    target.closest("button, input, textarea, select, a, [role='button'], [role='menuitem']"),
+  );
+};
+
 export class ObjectTree<T> implements ListHandle {
   private readonly root: HTMLDivElement;
   private readonly listHost: HTMLDivElement;
@@ -107,12 +118,11 @@ export class ObjectTree<T> implements ListHandle {
       minVirtualCount: options.minVirtualCount,
       onKeyDown: (event: KeyboardEvent) => this.handleKeyDown(event),
       onScroll: options.onScroll,
-      onSelect: (entry: FlattenedObjectTreeNode<T>, index: number) =>
-        options.onSelect?.({
-          depth: entry.depth,
-          element: entry.item,
-          index,
-        }),
+      onSelect: (
+        entry: FlattenedObjectTreeNode<T>,
+        index: number,
+        event?: KeyboardEvent | MouseEvent,
+      ) => this.handleSelect(entry, index, event),
       overscanRows: options.overscanRows,
       renderItem: (
         entry: FlattenedObjectTreeNode<T>,
@@ -173,10 +183,50 @@ export class ObjectTree<T> implements ListHandle {
     }
   }
 
+  private handleSelect(
+    entry: FlattenedObjectTreeNode<T>,
+    index: number,
+    event?: KeyboardEvent | MouseEvent,
+  ): void {
+    if (this.shouldToggleCollapsedOnSelect(entry, event)) {
+      this.toggleCollapsed(entry.key);
+    }
+
+    this.options.onSelect?.({
+      depth: entry.depth,
+      element: entry.item,
+      index,
+    });
+  }
+
+  private shouldToggleCollapsedOnSelect(
+    entry: FlattenedObjectTreeNode<T>,
+    event?: KeyboardEvent | MouseEvent,
+  ): boolean {
+    if (
+      !entry.expandable ||
+      !(event instanceof MouseEvent) ||
+      isInteractiveEventTarget(event)
+    ) {
+      return false;
+    }
+
+    const { expandOnlyOnTwistieClick } = this.options;
+    if (typeof expandOnlyOnTwistieClick === "function") {
+      return !expandOnlyOnTwistieClick(entry.item);
+    }
+
+    return expandOnlyOnTwistieClick === false;
+  }
+
   private setCollapsed(key: string, collapsed: boolean): void {
     const collapsedKeys = this.model.setCollapsed(key, collapsed);
     this.options.onDidChangeCollapseState?.(collapsedKeys);
     this.list.setProps(this.createListOptions());
+  }
+
+  private toggleCollapsed(key: string): void {
+    this.setCollapsed(key, !this.model.isCollapsed(key));
   }
 
   private renderTreeItem(

@@ -92,6 +92,7 @@ export class AsyncDataTree<TInput, T> implements ListHandle {
       delegate: {
         getHeight: (node) => options.delegate.getHeight(node.element),
       },
+      expandOnlyOnTwistieClick: this.mapExpandOnlyOnTwistieClick(),
       getChildren: (node) => node.children,
       getKey: (node, index, depth) => options.getKey(node.element, index, depth),
       items,
@@ -134,6 +135,18 @@ export class AsyncDataTree<TInput, T> implements ListHandle {
       },
       selectedKey: options.selectedKey,
     };
+  }
+
+  private mapExpandOnlyOnTwistieClick():
+    | boolean
+    | ((node: AsyncDataTreeNode<T>) => boolean)
+    | undefined {
+    const { expandOnlyOnTwistieClick } = this.options;
+    if (typeof expandOnlyOnTwistieClick !== "function") {
+      return expandOnlyOnTwistieClick;
+    }
+
+    return (node) => expandOnlyOnTwistieClick(node.element);
   }
 
   private async readChildren(
