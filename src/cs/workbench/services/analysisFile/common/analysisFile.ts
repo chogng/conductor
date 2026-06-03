@@ -1,10 +1,10 @@
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { FileAssessment } from "../../../common/fileAssessment.ts";
 
-export const IDataFileService = createDecorator<IDataFileService>("dataFileService");
-export const DataFileLifecycleContributionId = "workbench.contrib.dataFileLifecycle";
+export const IAnalysisFileService = createDecorator<IAnalysisFileService>("analysisFileService");
+export const AnalysisFileLifecycleContributionId = "workbench.contrib.analysisFileLifecycle";
 
-export type DataFileAssessment = {
+export type AnalysisFileAssessment = {
   curveType: string | null;
   curveTypeConfidence: FileAssessment["confidence"];
   curveTypeNeedsTemplate: boolean;
@@ -13,9 +13,9 @@ export type DataFileAssessment = {
   xAxisRoleSource: FileAssessment["xAxisRoleSource"];
 };
 
-export const toDataFileAssessment = (
+export const toAnalysisFileAssessment = (
   assessment: FileAssessment,
-): DataFileAssessment => ({
+): AnalysisFileAssessment => ({
   curveType: assessment.curveTypeLabel ?? null,
   curveTypeConfidence: assessment.confidence,
   curveTypeNeedsTemplate: assessment.needsTemplate,
@@ -24,8 +24,8 @@ export const toDataFileAssessment = (
   xAxisRoleSource: assessment.xAxisRoleSource,
 });
 
-export type DataFilePreparedFile = {
-  assessment: DataFileAssessment;
+export type AnalysisFilePreparedFile = {
+  assessment: AnalysisFileAssessment;
   csvText?: string;
   durationMs?: number;
   manifest?: unknown;
@@ -40,13 +40,13 @@ export type DataFilePreparedFile = {
   message?: string;
 };
 
-export type DataFileConvertedCsv = {
+export type AnalysisFileConvertedCsv = {
   csvText?: string;
   ok?: boolean;
   sizeBytes?: number;
 };
 
-export type DataFileDemoFiles = {
+export type AnalysisFileDemoFiles = {
   demoDir?: string;
   files?: Array<{
     fileName?: string;
@@ -57,24 +57,24 @@ export type DataFileDemoFiles = {
   }>;
 };
 
-export type DataFileRcAnalysisResult = {
+export type AnalysisFileRcAnalysisResult = {
   message?: string;
   ok?: boolean;
   result?: unknown;
   [key: string]: unknown;
 };
 
-export type DataFileResultPayload = {
+export type AnalysisFileResultPayload = {
   message?: string;
   ok?: boolean;
   result?: unknown;
   [key: string]: unknown;
 };
 
-export interface IDataFileService {
+export interface IAnalysisFileService {
   readonly _serviceBrand: undefined;
 
-  analyzeRc(payload: unknown): Promise<DataFileRcAnalysisResult>;
+  analyzeRc(payload: unknown): Promise<AnalysisFileRcAnalysisResult>;
   canAnalyzeRc(): boolean;
   canDisposeFile(): boolean;
   canGetDemoFiles(): boolean;
@@ -85,14 +85,14 @@ export interface IDataFileService {
   canReadConvertedCsv(): boolean;
   canReadCells(): boolean;
   disposeFile(payload: unknown): Promise<unknown>;
-  getDemoFiles(): Promise<DataFileDemoFiles>;
-  getPreviewMeta(payload: unknown): Promise<DataFileResultPayload>;
-  getPreviewRows(payload: unknown): Promise<DataFileResultPayload>;
+  getDemoFiles(): Promise<AnalysisFileDemoFiles>;
+  getPreviewMeta(payload: unknown): Promise<AnalysisFileResultPayload>;
+  getPreviewRows(payload: unknown): Promise<AnalysisFileResultPayload>;
   inferAutoExtraction(payload: unknown): Promise<unknown>;
-  openFile(payload: unknown): Promise<DataFileResultPayload>;
-  prepareFile(payload: { fileName: string; path: string }): Promise<DataFilePreparedFile>;
-  processFile(payload: unknown): Promise<DataFileResultPayload>;
+  openFile(payload: unknown): Promise<AnalysisFileResultPayload>;
+  prepareFile(payload: { fileName: string; path: string }): Promise<AnalysisFilePreparedFile>;
+  processFile(payload: unknown): Promise<AnalysisFileResultPayload>;
   readCell(payload: unknown): Promise<unknown>;
-  readCells(payload: unknown): Promise<DataFileResultPayload>;
-  readConvertedCsv(payload: { path: string }): Promise<DataFileConvertedCsv>;
+  readCells(payload: unknown): Promise<AnalysisFileResultPayload>;
+  readConvertedCsv(payload: { path: string }): Promise<AnalysisFileConvertedCsv>;
 }

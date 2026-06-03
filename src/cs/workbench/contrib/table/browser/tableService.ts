@@ -40,8 +40,8 @@ import {
   type RustPreviewCellRequest,
 } from "src/cs/workbench/contrib/table/browser/rows/rustCells";
 import { useRowsVersion } from "src/cs/workbench/contrib/table/browser/rows/rowsVersion";
-import { loadConvertedCsvFile } from "src/cs/workbench/services/dataFile/browser/dataFilePipeline";
-import { dataFileService } from "src/cs/workbench/services/dataFile/browser/dataFileService";
+import { loadConvertedCsvFile } from "src/cs/workbench/services/analysisFile/browser/fileConversion";
+import { analysisFileService } from "src/cs/workbench/services/analysisFile/browser/analysisFileService";
 
 type SetStateAction<T> = T | ((previous: T) => T);
 type Dispatch<T> = (value: T) => void;
@@ -631,8 +631,8 @@ const createTableModel = ({
         payload: { fileId },
       });
       rustPreviewFileIdsRef.current.delete(fileId);
-      if (dataFileService.canDisposeFile()) {
-        void dataFileService.disposeFile({ fileId });
+      if (analysisFileService.canDisposeFile()) {
+        void analysisFileService.disposeFile({ fileId });
       }
     },
     [previewWorkerRef],
@@ -649,8 +649,8 @@ const createTableModel = ({
     previewCacheFileLruRef.current = new Set();
     previewPendingChunksByFileIdRef.current = new Map();
     rustPreviewFileIdsRef.current = new Set();
-    if (dataFileService.canDisposeFile()) {
-      void dataFileService.disposeFile({ clear: true });
+    if (analysisFileService.canDisposeFile()) {
+      void analysisFileService.disposeFile({ clear: true });
     }
     assignCurrentPreviewCache();
     notifyPreviewRowsCacheChanged();
@@ -1031,8 +1031,8 @@ const createTableModel = ({
             previewTargetFile.sourcePath.trim().toLowerCase().endsWith(".csv")
           ? previewTargetFile.sourcePath.trim()
           : null;
-    if (rustInputPath && dataFileService.canOpenFile()) {
-      void dataFileService
+    if (rustInputPath && analysisFileService.canOpenFile()) {
+      void analysisFileService
       .openFile({
           fileId: previewTargetSourceKey,
           fileName: previewTargetFile.fileName ?? "",
@@ -1234,9 +1234,9 @@ const createTableModel = ({
 
       if (
         rustPreviewFileIdsRef.current.has(sourceKey) &&
-        dataFileService.canGetPreviewRows()
+        analysisFileService.canGetPreviewRows()
       ) {
-        return dataFileService
+        return analysisFileService
           .getPreviewRows({
             endRow: end,
             fileId: sourceKey,
@@ -1310,7 +1310,7 @@ const createTableModel = ({
 
       if (
         rustPreviewFileIdsRef.current.has(sourceKey) &&
-        dataFileService.canReadCells()
+        analysisFileService.canReadCells()
       ) {
         const requestCells = buildRustPreviewCellRequests({
           columnCount,
@@ -1318,7 +1318,7 @@ const createTableModel = ({
         });
         if (requestCells.length > 0) {
           try {
-            const response = await dataFileService.readCells({
+            const response = await analysisFileService.readCells({
               cells: requestCells,
               fileId: sourceKey,
               sourceKey,

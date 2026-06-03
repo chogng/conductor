@@ -1,4 +1,4 @@
-﻿import { isThemeMode, type ThemeMode } from 'src/cs/workbench/common/theme';
+import { isThemeMode, type ThemeMode } from 'src/cs/workbench/common/theme';
 
 export type ThemeServiceSnapshot = {
   theme: ThemeMode;

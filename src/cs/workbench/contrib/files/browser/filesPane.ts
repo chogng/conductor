@@ -6,7 +6,7 @@ import type { FileEntry, FilesPaneRef } from "src/cs/workbench/contrib/files/com
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import {
   FilesController,
-  type DataFileSessionFileInfo,
+  type ImportSessionFileInfo,
 } from "src/cs/workbench/contrib/files/browser/filesController";
 
 import "src/cs/workbench/contrib/files/browser/views/media/filesPane.css";
@@ -18,8 +18,8 @@ export type FilesPaneProps = {
   readonly filesPaneRef: { current: FilesPaneRef | null };
   readonly files?: FileEntry[];
   readonly cleanedData?: CleanedEntry[];
-  readonly onFileImported?: (fileInfo: DataFileSessionFileInfo) => void;
-  readonly onFilesReplaced?: (files: DataFileSessionFileInfo[]) => void;
+  readonly onFileImported?: (fileInfo: ImportSessionFileInfo) => void;
+  readonly onFilesReplaced?: (files: ImportSessionFileInfo[]) => void;
   readonly onFileRemoved?: (fileId: string) => void;
   readonly onFileSelected?: (fileId: string | null) => void;
   readonly selectedFileId?: string | null;

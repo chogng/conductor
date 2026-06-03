@@ -1,4 +1,4 @@
-﻿import {
+import {
   DisposableStore,
   toDisposable,
   type IDisposable,

@@ -21,7 +21,7 @@ const createRow = (overrides = {}) => ({
 test("runRcAnalysis rejects unavailable bridge before building payload", async () => {
   const result = await runRcAnalysis({
     curveProbeX: null,
-    dataFileService: {
+    analysisFileService: {
       canAnalyzeRc: () => false,
       analyzeRc: async () => {
         throw new Error("unexpected");
@@ -39,7 +39,7 @@ test("runRcAnalysis rejects unavailable bridge before building payload", async (
 test("runRcAnalysis validates rows before bridge call", async () => {
   const result = await runRcAnalysis({
     curveProbeX: null,
-    dataFileService: {
+    analysisFileService: {
       canAnalyzeRc: () => true,
       analyzeRc: async () => {
         throw new Error("unexpected");
@@ -58,7 +58,7 @@ test("runRcAnalysis passes normalized devices to import service", async () => {
   let payload;
   const result = await runRcAnalysis({
     curveProbeX: 1.5,
-    dataFileService: {
+    analysisFileService: {
       canAnalyzeRc: () => true,
       analyzeRc: async (nextPayload) => {
         payload = nextPayload;
@@ -84,7 +84,7 @@ test("runRcAnalysis returns response or thrown error messages", async () => {
   assert.deepEqual(
     await runRcAnalysis({
       curveProbeX: null,
-      dataFileService: {
+      analysisFileService: {
         canAnalyzeRc: () => true,
         analyzeRc: async () => ({ ok: false, message: "fit failed" }),
       },
@@ -99,7 +99,7 @@ test("runRcAnalysis returns response or thrown error messages", async () => {
   assert.deepEqual(
     await runRcAnalysis({
       curveProbeX: null,
-      dataFileService: {
+      analysisFileService: {
         canAnalyzeRc: () => true,
         analyzeRc: async () => {
           throw new Error("bridge failed");

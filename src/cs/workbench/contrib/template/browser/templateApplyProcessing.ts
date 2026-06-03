@@ -11,7 +11,7 @@ import type {
   CleanedEntry,
   ProcessingStatus,
 } from "src/cs/workbench/contrib/session/common/sessionTypes";
-import { loadConvertedCsvFile } from "src/cs/workbench/services/dataFile/browser/dataFilePipeline";
+import { loadConvertedCsvFile } from "src/cs/workbench/services/analysisFile/browser/fileConversion";
 
 // Owns asynchronous execution for device-analysis processing jobs.
 // This module handles worker lifetime, queue draining, progress updates, cancellation,

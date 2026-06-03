@@ -5,7 +5,7 @@ import {
   type RcAnalyzeRow,
 } from "./rcAnalysisModel.ts";
 
-type RcAnalyzeDataFileService = {
+type RcAnalysisFileService = {
   analyzeRc(payload: {
     devices: RcAnalyzeDevice[];
     options: {
@@ -35,16 +35,16 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 export type RunRcAnalysisOptions = {
   curveProbeX: number | null;
-  dataFileService: RcAnalyzeDataFileService;
+  analysisFileService: RcAnalysisFileService;
   rows: RcAnalyzeRow[];
 };
 
 export const runRcAnalysis = async ({
   curveProbeX,
-  dataFileService,
+  analysisFileService,
   rows,
 }: RunRcAnalysisOptions): Promise<RunRcAnalysisResult> => {
-  if (!dataFileService.canAnalyzeRc()) {
+  if (!analysisFileService.canAnalyzeRc()) {
     return {
       error: localize("da_rc_error_bridge_unavailable", "Rust Rc bridge is unavailable."),
       ok: false,
@@ -67,7 +67,7 @@ export const runRcAnalysis = async ({
   }
 
   try {
-    const response = await dataFileService.analyzeRc({
+    const response = await analysisFileService.analyzeRc({
       devices,
       options: {
         maxGridPoints: 240,

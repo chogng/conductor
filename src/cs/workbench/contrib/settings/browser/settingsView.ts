@@ -1,4 +1,4 @@
-﻿import { localize } from "src/cs/nls";
+import { localize } from "src/cs/nls";
 import { append, reset } from "src/cs/base/browser/dom";
 import { createButton as createActionButton } from "src/cs/base/browser/ui/button/button";
 import { DEFAULT_FILE_NAME_FIELD_SEPARATORS } from "src/cs/workbench/contrib/template/common/fileNameMatching";

@@ -1,30 +1,193 @@
-use crate::dataset::EngineDataset;
-use crate::infer::find_metadata_positive_integer;
-use crate::infer::infer_auto_segmentation_from_x_values;
-use crate::infer::infer_metadata_group_shape_with_total;
-use crate::rules::detect_axis_role_text;
-use crate::rules::parse_voltage_like_value;
-use crate::utils::approx_equal;
-use crate::utils::column_has_numeric_rows;
-use crate::utils::clean_cell_text;
-use crate::utils::normalize_cell_text;
-use crate::utils::normalize_header_compact;
-use crate::utils::parse_number_strict;
+use serde::Deserialize;
+use serde_json::json;
+use serde_json::Value;
+use std::cell::Ref;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::mem;
+use std::slice;
 
-#[derive(Default)]
-pub(crate) struct AutoMetadata {
-    pub(crate) data_name_columns: Vec<String>,
-    pub(crate) is_stripped_channel_sweep: bool,
-    pub(crate) notes_text: String,
-    pub(crate) setup_title: String,
-    pub(crate) stripped_fixed_voltage_magnitude: Option<f64>,
-    pub(crate) stripped_sweep_voltage_axis: Option<&'static str>,
-    pub(crate) var1_name: String,
-    pub(crate) var2_name: String,
-    pub(crate) x_axis_data: String,
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AssessmentRequest {
+    file_name: String,
+    rows: Vec<Vec<String>>,
 }
 
-pub(crate) fn row_trimmed(dataset: &EngineDataset, row_index: usize) -> Vec<String> {
+#[derive(Clone)]
+struct AssessmentDataset {
+    rows: Vec<Vec<String>>,
+    numeric_column_cache: RefCell<HashMap<usize, Vec<Option<f64>>>>,
+}
+
+impl AssessmentDataset {
+    fn from_rows(rows: Vec<Vec<String>>) -> Self {
+        Self {
+            rows,
+            numeric_column_cache: RefCell::new(HashMap::new()),
+        }
+    }
+
+    fn cell_number(&self, row_index: usize, col_index: usize) -> Option<f64> {
+        self.ensure_numeric_column(col_index);
+        self.numeric_column_cache
+            .borrow()
+            .get(&col_index)
+            .and_then(|column| column.get(row_index))
+            .copied()
+            .flatten()
+    }
+
+    fn column_number_values_ref(&self, col_index: usize) -> Ref<'_, Vec<Option<f64>>> {
+        self.ensure_numeric_column(col_index);
+        Ref::map(self.numeric_column_cache.borrow(), |cache| {
+            cache
+                .get(&col_index)
+                .expect("numeric column cache should exist after ensure_numeric_column")
+        })
+    }
+
+    fn ensure_numeric_column(&self, col_index: usize) {
+        if self.numeric_column_cache.borrow().contains_key(&col_index) {
+            return;
+        }
+
+        let values = self
+            .rows
+            .iter()
+            .map(|row| {
+                row.get(col_index)
+                    .and_then(|value| parse_number_strict(value))
+            })
+            .collect::<Vec<_>>();
+
+        self.numeric_column_cache
+            .borrow_mut()
+            .entry(col_index)
+            .or_insert(values);
+    }
+}
+
+#[derive(Default)]
+struct AutoMetadata {
+    data_name_columns: Vec<String>,
+    is_stripped_channel_sweep: bool,
+    notes_text: String,
+    setup_title: String,
+    stripped_fixed_voltage_magnitude: Option<f64>,
+    stripped_sweep_voltage_axis: Option<&'static str>,
+    var1_name: String,
+    var2_name: String,
+    x_axis_data: String,
+}
+
+pub fn assess_import_rows(file_name: &str, rows: Vec<Vec<String>>) -> Value {
+    let dataset = AssessmentDataset::from_rows(rows);
+    let header_row_index = find_header_row_index(&dataset);
+    let headers = row_trimmed(&dataset, header_row_index);
+    let metadata = extract_auto_metadata(&dataset);
+    let (curve_type, x_axis_role, source, confidence, needs_template) =
+        classify_auto_curve(file_name, &metadata, &headers);
+    let curve_type_label = match (curve_type.as_str(), x_axis_role) {
+        ("transfer", Some("vg")) => Value::String("transfer (vg)".to_string()),
+        ("output", Some("vd")) => Value::String("output (vd)".to_string()),
+        ("unknown", _) => Value::String("unknown".to_string()),
+        ("transfer" | "output" | "pv" | "cv" | "cf", _) => Value::String(curve_type),
+        _ => Value::Null,
+    };
+    let x_axis_role_source = if curve_type_label == Value::String("unknown".to_string()) {
+        Value::Null
+    } else {
+        json!(source)
+    };
+    let curve_type_reasons =
+        if source == "shape" && curve_type_label == Value::String("output (vd)".to_string()) {
+            vec!["Shape evidence matches output-style Id-Vd behavior.".to_string()]
+        } else {
+            Vec::<String>::new()
+        };
+
+    json!({
+        "curveType": curve_type_label,
+        "curveTypeConfidence": confidence,
+        "curveTypeNeedsTemplate": needs_template,
+        "curveTypeReasons": curve_type_reasons,
+        "xAxisRole": x_axis_role,
+        "xAxisRoleSource": x_axis_role_source,
+    })
+}
+
+pub fn detect_axis_role_text(value: &str) -> Option<&'static str> {
+    let compact = normalize_header_compact(value);
+    if compact.contains("vd") || compact.contains("drain") {
+        return Some("vd");
+    }
+    if compact.contains("vg") || compact.contains("gate") || compact == "var1" {
+        return Some("vg");
+    }
+    None
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn assessment_alloc(len: usize) -> *mut u8 {
+    let mut buffer = Vec::<u8>::with_capacity(len);
+    let ptr = buffer.as_mut_ptr();
+    mem::forget(buffer);
+    ptr
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn assessment_dealloc(ptr: *mut u8, len: usize) {
+    if ptr.is_null() || len == 0 {
+        return;
+    }
+    unsafe {
+        drop(Vec::from_raw_parts(ptr, len, len));
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn assessment_assess_import_json(ptr: *const u8, len: usize) -> *mut u8 {
+    let input = if ptr.is_null() || len == 0 {
+        &[]
+    } else {
+        unsafe { slice::from_raw_parts(ptr, len) }
+    };
+    let response = match serde_json::from_slice::<AssessmentRequest>(input) {
+        Ok(request) => assess_import_rows(&request.file_name, request.rows),
+        Err(error) => json!({
+            "error": error.to_string(),
+        }),
+    };
+    write_result(response.to_string())
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn assessment_free_result(ptr: *mut u8) {
+    if ptr.is_null() {
+        return;
+    }
+    let len = unsafe {
+        let header = slice::from_raw_parts(ptr, 4);
+        u32::from_le_bytes([header[0], header[1], header[2], header[3]]) as usize
+    };
+    unsafe {
+        drop(Vec::from_raw_parts(ptr, len + 4, len + 4));
+    }
+}
+
+fn write_result(text: String) -> *mut u8 {
+    let bytes = text.into_bytes();
+    let len = bytes.len();
+    let mut buffer = Vec::<u8>::with_capacity(len + 4);
+    buffer.extend_from_slice(&(len as u32).to_le_bytes());
+    buffer.extend_from_slice(&bytes);
+    let ptr = buffer.as_mut_ptr();
+    mem::forget(buffer);
+    ptr
+}
+
+fn row_trimmed(dataset: &AssessmentDataset, row_index: usize) -> Vec<String> {
     dataset
         .rows
         .get(row_index)
@@ -32,9 +195,7 @@ pub(crate) fn row_trimmed(dataset: &EngineDataset, row_index: usize) -> Vec<Stri
         .unwrap_or_default()
 }
 
-pub(crate) fn find_header_row_index(dataset: &EngineDataset) -> usize {
-    // Prefer explicit instrument headers, then fall back to generic header-looking
-    // rows that are followed by numeric data.
+fn find_header_row_index(dataset: &AssessmentDataset) -> usize {
     for row_index in 0..dataset.rows.len() {
         let row = row_trimmed(dataset, row_index);
         if row.iter().any(|entry| entry == "CH1 Voltage")
@@ -64,7 +225,7 @@ pub(crate) fn find_header_row_index(dataset: &EngineDataset) -> usize {
             .get(row_index + 1)
             .map(|row| {
                 row.iter()
-                    .filter(|cell| parse_number_strict(Some(cell)).is_some())
+                    .filter(|cell| parse_number_strict(cell).is_some())
                     .count()
             })
             .unwrap_or(0);
@@ -134,7 +295,7 @@ fn derive_var_name_from_channel_meta(
     String::new()
 }
 
-pub(crate) fn numeric_span(values: &[f64]) -> Option<f64> {
+fn numeric_span(values: &[f64]) -> Option<f64> {
     if values.is_empty() {
         return None;
     }
@@ -143,8 +304,8 @@ pub(crate) fn numeric_span(values: &[f64]) -> Option<f64> {
     Some(max - min)
 }
 
-pub(crate) fn collect_column_numbers(
-    dataset: &EngineDataset,
+fn collect_column_numbers(
+    dataset: &AssessmentDataset,
     data_start_row_index: usize,
     col_index: usize,
     limit: usize,
@@ -163,8 +324,8 @@ pub(crate) fn collect_column_numbers(
     values
 }
 
-pub(crate) fn detect_first_group_length(
-    dataset: &EngineDataset,
+fn detect_first_group_length(
+    dataset: &AssessmentDataset,
     data_start_row_index: usize,
     point_col_index: Option<usize>,
     var2_col_index: Option<usize>,
@@ -177,7 +338,8 @@ pub(crate) fn detect_first_group_length(
         .and_then(|index| first_row.get(index))
         .map(|value| clean_cell_text(value))
         .unwrap_or_default();
-    let first_point = point_col_index.and_then(|index| dataset.cell_number(data_start_row_index, index));
+    let first_point =
+        point_col_index.and_then(|index| dataset.cell_number(data_start_row_index, index));
     let mut count = 0usize;
     let mut previous_point: Option<f64> = None;
     for row_index in data_start_row_index..dataset.rows.len() {
@@ -206,11 +368,15 @@ pub(crate) fn detect_first_group_length(
             previous_point = current_point;
         }
     }
-    if count >= 2 { Some(count) } else { None }
+    if count >= 2 {
+        Some(count)
+    } else {
+        None
+    }
 }
 
 fn collect_stripped_sweep_metadata(
-    dataset: &EngineDataset,
+    dataset: &AssessmentDataset,
     header_row_index: usize,
 ) -> (Option<&'static str>, Option<f64>) {
     let headers = row_trimmed(dataset, header_row_index);
@@ -248,14 +414,12 @@ fn collect_stripped_sweep_metadata(
     (axis, fixed)
 }
 
-pub(crate) fn extract_auto_metadata(dataset: &EngineDataset) -> AutoMetadata {
+fn extract_auto_metadata(dataset: &AssessmentDataset) -> AutoMetadata {
     let mut metadata = AutoMetadata::default();
     let mut channel_funcs = Vec::<String>::new();
     let mut channel_vnames = Vec::<String>::new();
     let mut stripped_header_row_index: Option<usize> = None;
 
-    // Source sheets mix metadata tables and data blocks, so collect the fields
-    // needed by classification in one pass over the whole sheet.
     for (row_index, row_raw) in dataset.rows.iter().enumerate() {
         let row: Vec<String> = row_raw.iter().map(|value| clean_cell_text(value)).collect();
         if row.is_empty() {
@@ -274,13 +438,28 @@ pub(crate) fn extract_auto_metadata(dataset: &EngineDataset) -> AutoMetadata {
             metadata.x_axis_data = first_non_empty(row.get(2..).unwrap_or(&[]));
         }
         if channel_funcs.is_empty() && second == "Channel.Func" {
-            channel_funcs = row.iter().skip(2).filter(|v| !v.is_empty()).cloned().collect();
+            channel_funcs = row
+                .iter()
+                .skip(2)
+                .filter(|v| !v.is_empty())
+                .cloned()
+                .collect();
         }
         if channel_vnames.is_empty() && second == "Channel.VName" {
-            channel_vnames = row.iter().skip(2).filter(|v| !v.is_empty()).cloned().collect();
+            channel_vnames = row
+                .iter()
+                .skip(2)
+                .filter(|v| !v.is_empty())
+                .cloned()
+                .collect();
         }
         if metadata.data_name_columns.is_empty() && first == "DataName" {
-            metadata.data_name_columns = row.iter().skip(1).filter(|v| !v.is_empty()).cloned().collect();
+            metadata.data_name_columns = row
+                .iter()
+                .skip(1)
+                .filter(|v| !v.is_empty())
+                .cloned()
+                .collect();
         }
         if metadata.notes_text.is_empty() && second == "Analysis.Setup.Vector.Graph.Notes" {
             metadata.notes_text = row
@@ -336,7 +515,7 @@ pub(crate) fn extract_auto_metadata(dataset: &EngineDataset) -> AutoMetadata {
                 .get(row_index + 1)
                 .map(|row| {
                     row.iter()
-                        .filter(|cell| parse_number_strict(Some(cell)).is_some())
+                        .filter(|cell| parse_number_strict(cell).is_some())
                         .count()
                 })
                 .unwrap_or(0);
@@ -367,7 +546,7 @@ pub(crate) fn extract_auto_metadata(dataset: &EngineDataset) -> AutoMetadata {
     metadata
 }
 
-pub(crate) fn classify_auto_curve(
+fn classify_auto_curve(
     file_name: &str,
     metadata: &AutoMetadata,
     headers: &[String],
@@ -392,8 +571,6 @@ pub(crate) fn classify_auto_curve(
                 .any(|token| token == "ivt")
     };
 
-    // Non-IV families are detected first because they may still contain voltage
-    // or current tokens that would otherwise look like regular IV data.
     let metadata_has_fast_iv_or_ivt = all_text
         .iter()
         .skip(1)
@@ -449,7 +626,6 @@ pub(crate) fn classify_auto_curve(
     let mut vg_score = 0i32;
     let mut vd_score = 0i32;
     let mut shape_vd_score = 0i32;
-    // Direct metadata outweighs filenames, which often include loose batch labels.
     for (value, weight) in [
         (metadata.x_axis_data.as_str(), 18),
         (metadata.var1_name.as_str(), 16),
@@ -517,159 +693,23 @@ pub(crate) fn classify_auto_curve(
     )
 }
 
-pub(crate) fn columns_share_equivalent_x(
-    dataset: &EngineDataset,
-    data_start_row_index: usize,
-    left_col: usize,
-    right_col: usize,
-) -> bool {
-    let left = collect_column_numbers(dataset, data_start_row_index, left_col, 512);
-    let right = collect_column_numbers(dataset, data_start_row_index, right_col, 512);
-    let compare_count = left.len().min(right.len());
-    if compare_count < 2 {
-        return false;
+fn parse_number_strict(raw: &str) -> Option<f64> {
+    let text = raw.trim();
+    if text.is_empty() {
+        return None;
     }
-    let left_span = numeric_span(&left).unwrap_or(0.0).abs();
-    let right_span = numeric_span(&right).unwrap_or(0.0).abs();
-    let tolerance = (left_span.max(right_span).max(1.0) * 1e-4).max(1e-9);
-    (0..compare_count).all(|index| approx_equal(left[index], right[index], tolerance))
+    let number = text.parse::<f64>().ok()?;
+    number.is_finite().then_some(number)
 }
 
-pub(crate) fn find_numeric_semantic_columns(
-    dataset: &EngineDataset,
-    headers: &[String],
-    data_start_row_index: usize,
-    predicate: fn(&str) -> bool,
-) -> Vec<usize> {
-    headers
-        .iter()
-        .enumerate()
-        .filter(|(index, header)| {
-            predicate(header) && column_has_numeric_rows(dataset, data_start_row_index, *index, 2)
-        })
-        .map(|(index, _)| index)
+fn clean_cell_text(raw: &str) -> String {
+    raw.trim().trim_matches('\u{feff}').trim().to_string()
+}
+
+fn normalize_header_compact(raw: &str) -> String {
+    clean_cell_text(raw)
+        .to_ascii_lowercase()
+        .chars()
+        .filter(|ch| ch.is_ascii_alphanumeric())
         .collect()
-}
-
-pub(crate) fn choose_best_semantic_pair(
-    x_candidates: &[usize],
-    y_candidates: &[usize],
-) -> (Option<usize>, Option<usize>) {
-    let mut best: Option<(usize, usize, usize)> = None;
-    for &x_col in x_candidates {
-        for &y_col in y_candidates {
-            if y_col <= x_col {
-                continue;
-            }
-            let gap = y_col - x_col;
-            if best
-                .map(|(best_gap, best_x, _)| gap < best_gap || (gap == best_gap && x_col > best_x))
-                .unwrap_or(true)
-            {
-                best = Some((gap, x_col, y_col));
-            }
-        }
-    }
-    if let Some((_, x_col, y_col)) = best {
-        (Some(x_col), Some(y_col))
-    } else {
-        (
-            x_candidates
-                .last()
-                .copied()
-                .or_else(|| x_candidates.first().copied()),
-            y_candidates
-                .last()
-                .copied()
-                .or_else(|| y_candidates.first().copied()),
-        )
-    }
-}
-
-fn find_metadata_finite_number(
-    dataset: &EngineDataset,
-    first_cell: &str,
-    second_cell: &str,
-) -> Option<f64> {
-    let expected_first = first_cell.to_ascii_lowercase();
-    let expected_second = second_cell.to_ascii_lowercase();
-    for row in &dataset.rows {
-        if normalize_cell_text(row.first().map(String::as_str).unwrap_or("")) != expected_first {
-            continue;
-        }
-        if normalize_cell_text(row.get(1).map(String::as_str).unwrap_or("")) != expected_second {
-            continue;
-        }
-        for cell in row.iter().skip(2) {
-            if let Some(value) =
-                parse_number_strict(Some(cell)).or_else(|| parse_voltage_like_value(cell))
-            {
-                return Some(value);
-            }
-        }
-    }
-    None
-}
-
-pub(crate) fn parse_secondary_sweep_from_rows(
-    dataset: &EngineDataset,
-) -> Option<(Option<usize>, Option<f64>, Option<f64>)> {
-    let count = find_metadata_positive_integer(
-        dataset,
-        "TestParameter",
-        Some("Measurement.Secondary.Count"),
-    );
-    let start =
-        find_metadata_finite_number(dataset, "TestParameter", "Measurement.Secondary.Start");
-    let step = find_metadata_finite_number(dataset, "TestParameter", "Measurement.Secondary.Step");
-    if count.is_none() && start.is_none() && step.is_none() {
-        None
-    } else {
-        Some((count, start, step))
-    }
-}
-
-pub(crate) fn resolve_auto_group_shape_full(
-    dataset: &EngineDataset,
-    data_start_row_index: usize,
-    x_col: usize,
-    point_col_index: Option<usize>,
-    var2_col_index: Option<usize>,
-    total_row_count: usize,
-) -> (Option<usize>, Option<usize>) {
-    if let Some(shape) =
-        infer_metadata_group_shape_with_total(dataset, data_start_row_index, total_row_count)
-    {
-        return (Some(shape.0), Some(shape.1));
-    }
-    let explicit = detect_first_group_length(
-        dataset,
-        data_start_row_index,
-        point_col_index,
-        var2_col_index,
-    );
-    let repeated = if explicit.is_none() {
-        let values =
-            collect_column_numbers(dataset, data_start_row_index, x_col, dataset.rows.len());
-        infer_auto_segmentation_from_x_values(
-            &values,
-            total_row_count.saturating_sub(data_start_row_index),
-        )
-        .map(|shape| shape.0)
-    } else {
-        None
-    };
-    let group_size = explicit.or(repeated);
-    let groups = group_size.and_then(|size| {
-        let data_rows = dataset.rows.len().saturating_sub(data_start_row_index);
-        let data_rows = total_row_count
-            .saturating_sub(data_start_row_index)
-            .max(data_rows);
-        if size > 0 && data_rows % size == 0 {
-            Some(data_rows / size)
-        } else {
-            None
-        }
-    });
-    (group_size, groups)
 }

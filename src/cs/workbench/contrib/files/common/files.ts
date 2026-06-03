@@ -1,10 +1,10 @@
 import type { URI } from "src/cs/base/common/uri";
 import { stableItemKey } from "../../../../../utils/stableKey.ts";
 
-export const DATA_FILE_EXTENSIONS = [".csv", ".xls", ".xlsx"] as const;
+export const IMPORT_FILE_EXTENSIONS = [".csv", ".xls", ".xlsx"] as const;
 
-const SUPPORTED_DATA_FILE_EXTENSIONS = new Set<string>(DATA_FILE_EXTENSIONS);
-const EXCEL_DATA_FILE_EXTENSIONS = new Set<string>([".xls", ".xlsx"]);
+const SUPPORTED_IMPORT_FILE_EXTENSIONS = new Set<string>(IMPORT_FILE_EXTENSIONS);
+const EXCEL_IMPORT_FILE_EXTENSIONS = new Set<string>([".xls", ".xlsx"]);
 
 const toLowerTrimmed = (value: unknown): string =>
   String(value ?? "").trim().toLowerCase();
@@ -16,11 +16,11 @@ const getFileExtension = (fileName: unknown): string => {
   return normalized.slice(dotIndex);
 };
 
-export const isSupportedDataFileName = (fileName: unknown): boolean =>
-  SUPPORTED_DATA_FILE_EXTENSIONS.has(getFileExtension(fileName));
+export const isSupportedImportFileName = (fileName: unknown): boolean =>
+  SUPPORTED_IMPORT_FILE_EXTENSIONS.has(getFileExtension(fileName));
 
-export const isExcelDataFileName = (fileName: unknown): boolean =>
-  EXCEL_DATA_FILE_EXTENSIONS.has(getFileExtension(fileName));
+export const isExcelImportFileName = (fileName: unknown): boolean =>
+  EXCEL_IMPORT_FILE_EXTENSIONS.has(getFileExtension(fileName));
 
 export type FileEntry = {
   file?: unknown;

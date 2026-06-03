@@ -1,5 +1,6 @@
-use serde_json::json;
+use encoding_rs::GB18030;
 use serde_json::Value;
+use serde_json::json;
 use std::cell::Ref;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -156,11 +157,11 @@ fn update_dataset_meta(
 }
 
 fn load_csv_rows(path: &Path) -> Result<Vec<Vec<String>>, String> {
+    let csv_text = read_csv_text(path)?;
     let mut reader = csv::ReaderBuilder::new()
         .has_headers(false)
         .flexible(true)
-        .from_path(path)
-        .map_err(|error| error.to_string())?;
+        .from_reader(csv_text.as_bytes());
     let mut rows = Vec::<Vec<String>>::new();
     for record in reader.records() {
         let record = record.map_err(|error| error.to_string())?;
@@ -171,6 +172,18 @@ fn load_csv_rows(path: &Path) -> Result<Vec<Vec<String>>, String> {
         rows.push(row);
     }
     Ok(rows)
+}
+
+fn read_csv_text(path: &Path) -> Result<String, String> {
+    let bytes = std::fs::read(path).map_err(|error| error.to_string())?;
+    match String::from_utf8(bytes) {
+        Ok(text) => Ok(text),
+        Err(error) => {
+            let bytes = error.into_bytes();
+            let (decoded, _encoding_used, _had_errors) = GB18030.decode(&bytes);
+            Ok(decoded.into_owned())
+        }
+    }
 }
 
 pub fn load_dataset(path: &Path, file_name: &str) -> Result<EngineDataset, String> {

@@ -1,17 +1,22 @@
-﻿# conductor-rs 职责地图
+# conductor-rs 职责地图
 
-这份文档只记录当前 Rust 侧已经负责的范围，方便判断下一步迁移哪些模块更合适。
+这份文档记录当前 Rust 侧负责的范围，以及它和 Electron / workbench TypeScript 的边界。
 
 ## 当前定位
 
-`conductor-rs` 目前只有一个 workspace member：`worker`。它产出 `rs-worker.exe`，由 Electron 主进程启动和管理。
+`conductor-rs` 目前有两个 workspace member：
+
+- `assessment`：纯导入评估规则，native worker 和 browser WASM 共用。
+- `worker`：产出 `rs-worker.exe`，由 Electron 主进程启动和管理。
 
 Rust worker 有两种运行方式：
 
 - 一次性 Excel 转换：`rs-worker.exe --convert-one <xls/xlsx> --out <csv> --manifest <json>`
 - 常驻 stdio 引擎：`rs-worker.exe --stdio-worker`
 
-桌面端主要通过 `desktop/main.ts` 的 IPC handler 调用它，再由 `desktop/preload.ts` 暴露给前端。打包时 `scripts/build-rs-worker.ps1` 会把产物复制到 `desktop-dist/workers/rs/rs-worker.exe`，正式包里放在 `resources/workers/rs/rs-worker.exe`。
+桌面端通过 `src/cs/code/electron-main/app.ts` 和 `src/cs/code/electron-main/analysisRustMain.ts` 注册 IPC handler，再由 `desktop/preload-import.ts` 暴露给 renderer。renderer 侧统一从 `src/cs/workbench/services/analysisFile/...` 调用。
+
+构建时 `scripts/build-rs-worker.ps1` 会把 release 产物复制到 `workers/rs/rs-worker.exe`。打包时 `package.json` 会把 `workers/rs` 放进应用资源。browser 侧的导入评估 WASM 由 `scripts/build-rs-assessment-wasm.ps1` 生成到 `src/cs/workbench/services/analysisFile/browser/assessment.wasm`。
 
 ## 已经由 Rust 负责的部分
 
@@ -20,6 +25,7 @@ Rust worker 有两种运行方式：
 入口：
 
 - Electron IPC：`excel:convert-rust`
+- 导入准备 IPC：`import:prepare-rust`
 - Rust CLI：`--convert-one`
 
 职责：
@@ -32,11 +38,12 @@ Rust worker 有两种运行方式：
 
 前端/桌面边界：
 
-- `src/cs/workbench/contrib/import/browser/rustClient.ts` 优先走 Rust Excel 转换。
-- 如果 Rust 不可用或失败，仍会回退到 TypeScript/worker 路径。
-- 如果请求 `returnCsvText=false`，桌面端会保留转换后的 CSV 临时路径，后续可再读取。
+- renderer 侧入口在 `src/cs/workbench/services/analysisFile/browser/fileConversion.ts`。
+- Electron renderer 实现是 `src/cs/workbench/services/analysisFile/electron-browser/analysisFileService.ts`。
+- Electron main handler 在 `src/cs/code/electron-main/app.ts`。
+- 如果请求 `returnCsvText=false`，桌面端会保留转换后的 CSV 临时路径，后续可通过 `readConvertedCsv` 读取。
 
-### 2. CSV / Excel 数据集打开与缓存
+### 2. CSV 数据集打开与缓存
 
 入口：
 
@@ -45,23 +52,48 @@ Rust worker 有两种运行方式：
 
 职责：
 
-- 支持 `.csv` / `.xls` / `.xlsx`。
+- 支持 `.csv` 输入。
 - 读取为 `EngineDataset`。
 - 维护每个 `fileId` 对应的数据集缓存。
 - 计算 `rowCount`、`columnCount`、每列最大文本长度、首批 seed rows。
 - 按列懒加载数值缓存，供后续提取和分析复用。
 
+编码：
+
+- CSV 默认按 UTF-8 读取。
+- 如果 UTF-8 解码失败，会使用 GB18030 兜底解码，再进入同一套 CSV parser。
+- 这个兜底在 `worker/src/dataset.rs`，因此 `open`、`previewRows`、`assessImport` 共用。
+
 边界：
 
 - 缓存在 Rust worker 进程内，`dispose` / `clear` 会释放。
-- Electron 主进程维护一个常驻预览引擎，以及一个处理/分析 worker pool。
+- Excel 文件不会直接进入 `open`；导入准备阶段会先转换成 CSV。
 
-### 3. 大表预览和按需读单元格
+### 3. 导入评估
+
+入口：
+
+- stdio command：`assessImport`
+- Electron IPC：`import:prepare-rust`
+
+职责：
+
+- 对 CSV 读取预览数据并生成导入评估。
+- 对 Excel 先走 Rust Excel 转 CSV，再从 manifest 中取得评估。
+- 返回 `curveType`、`curveTypeConfidence`、`curveTypeNeedsTemplate`、`xAxisRole`、`xAxisRoleSource`。
+
+renderer 使用：
+
+- `src/cs/workbench/services/analysisFile/browser/fileFilter.ts`：导入门禁。
+- `src/cs/workbench/services/analysisFile/browser/fileConversion.ts`：调用 Rust prepare。
+- `src/cs/workbench/services/analysisFile/browser/importPipeline.ts`：组装 files/session 消费的数据。
+
+### 4. 大表预览和按需读单元格
 
 入口：
 
 - stdio commands：`previewRows`、`previewMeta`、`readCell`、`readCells`
-- Electron IPC：`preview-meta`、`preview-rows`、`read-cell`、`read-cells`
+- Electron IPC：`rust:preview-meta`、`rust:preview-rows`、`rust:read-cell`、`rust:read-cells`
 
 职责：
 
@@ -71,10 +103,10 @@ Rust worker 有两种运行方式：
 
 前端使用：
 
-- `src/cs/workbench/contrib/tablePreview/usePreview.ts`
-- `src/cs/workbench/contrib/tablePreview/preview/rustPreviewCells.ts`
+- `src/cs/workbench/contrib/table/browser/tableService.ts`
+- `src/cs/workbench/contrib/table/browser/rows/rustCells.ts`
 
-### 4. 自动提取推断
+### 5. 自动提取推断
 
 入口：
 
@@ -95,7 +127,7 @@ Rust worker 有两种运行方式：
 
 - `npm run verify:rust-auto-extraction`
 
-### 5. 文件处理和曲线数据抽取
+### 6. 文件处理和曲线数据抽取
 
 入口：
 
@@ -121,7 +153,7 @@ Rust worker 有两种运行方式：
 - `npm run verify:rust-ss-auto`
 - `npm run bench:phase3`
 
-### 6. 派生分析缓存
+### 7. 派生分析缓存
 
 入口：
 
@@ -141,7 +173,7 @@ Rust worker 有两种运行方式：
 
 - `analysis.rs` 里的 `ANALYSIS_CACHE_VERSION` 当前为 `2`。
 
-### 7. Rc 分析
+### 8. Rc 分析
 
 入口：
 
@@ -162,7 +194,7 @@ Rust worker 有两种运行方式：
 
 - `rc.rs` 里的 `RC_ANALYSIS_VERSION` 当前为 `1`。
 
-### 8. Origin CSV 导出加速
+### 9. Origin CSV 导出加速
 
 入口：
 
@@ -189,8 +221,12 @@ Rust worker 有两种运行方式：
 
 ## Rust 模块分工
 
+- `assessment/src/lib.rs`：导入评估 source of truth，包含 metadata 提取、曲线类型判断、X 轴角色判断和 WASM JSON adapter。
 - `worker/src/main.rs`：命令解析、stdio 协议、Excel 转换、自动提取主逻辑、文件处理、Origin CSV 导出。
-- `worker/src/dataset.rs`：CSV/Excel 读取、`EngineDataset`、预览元信息、按列数值缓存。
+- `worker/src/dataset.rs`：CSV 读取、编码兜底、`EngineDataset`、预览元信息、按列数值缓存。
+- `worker/src/converter.rs`：Excel 读取和 CSV 写出。
+- `worker/src/import.rs`：转调 `assessment` crate 构造导入 assessment。
+- `worker/src/detect.rs`：曲线类型、metadata、表头和形态识别。
 - `worker/src/analysis.rs`：gm、SS、自动 SS fit、基础电流指标、分析批处理。
 - `worker/src/rc.rs`：Rc/TLM 分析。
 - `worker/src/infer.rs`：metadata 分组推断、X 值重复分段推断、正整数 metadata 解析。
@@ -209,60 +245,71 @@ Rust worker 有两种运行方式：
 
 - 自动提取、曲线分类、处理、分析、导出仍有 TS 版本作为兼容基准和 fallback。
 - 相关 TS 测试仍是迁移时的行为锚点，例如：
-  - `shared/lib/autoExtraction.test.mjs`
-  - `analysis/lib/analysisMath.test.mjs`
-  - `analysis/lib/export.test.mjs`
-  - `data/preview/rustPreviewCells.test.mjs`
+  - `src/cs/workbench/services/analysisFile/test/importFileAssessment.test.mjs`
+  - `src/cs/workbench/services/analysisFile/test/fileAssessment.test.mjs`
+  - `src/cs/workbench/contrib/table/browser/rows/rustCells.test.mjs`
+  - `src/cs/workbench/contrib/diagnostics/common/analysisMath.test.mjs`
+  - `src/cs/workbench/contrib/export/browser/export.test.mjs`
 
 ### Origin COM 操作
 
-- Origin 软件自动化仍在 Python worker：`conductor-py/origin_ops/*`。
+- Origin 软件自动化仍在 Python worker / Origin runner。
 - Rust 目前只负责给 Origin 准备 CSV 文件或 metrics CSV，不负责打开 Origin、建图、调轴、设样式、导出图片。
 
 ### Electron 壳和进程管理
 
-- worker 路径查找、进程池、超时、临时目录、IPC 参数校验都在 `desktop/main.ts`。
+- worker 路径查找、进程池、超时、临时目录、IPC 参数校验都在 Electron main。
 - Rust worker 不直接接触 Electron API。
 
 ## 迁移候选建议
 
 ### 优先级高
 
-1. 补齐更多 extraction config 支持
+1. 继续扩大 Rust assessment 覆盖面
 
-当前 Rust 处理入口已经稳定，继续迁移最顺。可以优先看 TS 里仍被 `isRustProcessFileConfigSupported` 拦住的模板能力，例如更复杂的分段、列选择、legend、筛选或特殊表格布局。
+导入评估规则已经收敛到 Rust `assessment` crate：
 
-2. 把 TS 分析缓存生成路径进一步收敛到 Rust
+- native `worker` 直接依赖 `assessment` crate。
+- browser 侧使用同一个 crate 编译出的 `assessment.wasm`。
+- `fileAssessment.ts` 只保留 File/CSV preview adapter，不再持有评估规则。
+
+之前用于迁移确认的 TS/Rust A/B verifier 已经删除；后续不要再维护两套导入评估规则。需要扩大识别能力时，直接改 Rust `assessment` crate，并用 browser import assessment 测试覆盖。
+
+2. 补齐更多 extraction config 支持
+
+当前 Rust 处理入口已经稳定，继续迁移最顺。可以优先看 TS 里仍被 Rust 支持判断拦住的模板能力，例如更复杂的分段、列选择、legend、筛选或特殊表格布局。
+
+3. 把 TS 分析缓存生成路径进一步收敛到 Rust
 
 `analysis.rs` 已经覆盖 gm/SS/SS fit/base current。接下来适合迁移仍留在 TS 的派生指标、指标 CSV 组装前的数值计算，减少前端处理大 series 的 CPU 压力。
 
-3. 扩大 Origin CSV 导出覆盖面
+4. 扩大 Origin CSV 导出覆盖面
 
 Rust 已经能流式写普通曲线和 output/transfer metrics。下一步可以迁移更多导出 plan 形态，让前端少传 CSV 文本，尤其是多文件合并、派生曲线、特殊 metrics。
 
 ### 优先级中
 
-4. 曲线分类/自动模板推断完全对齐 TS
+5. 曲线分类/自动模板推断完全对齐 TS
 
 Rust 已经有 metadata/file-name/shape 推断，但 TS 侧仍是兼容基准。适合逐步把差异收敛，并把测试数据扩到更多仪器格式。
 
-5. 预览层更多计算下沉
+6. 预览层更多计算下沉
 
 当前 Rust 负责读取行/单元格。若后续预览需要搜索、筛选、统计、列类型推断，可直接在 `EngineDataset` 上做，避免把整表拉回 JS。
 
-6. 文件名字段匹配能力下沉
+7. 文件名字段匹配能力下沉
 
 Rust 已经有 file-name pattern matching 工具。可以继续迁移 TS 里的批量字段解析、器件标签解析、筛选规则，让处理和导出共用同一套逻辑。
 
 ### 暂不建议优先迁移
 
-7. TypeScript UI 状态和图表绘制
+8. TypeScript UI 状态和图表绘制
 
 这部分收益不如数据处理高，而且会引入 UI/wasm/原生桥接复杂度。保持 TypeScript 更自然。
 
-8. Origin COM 自动化
+9. Origin COM 自动化
 
-当前 Python 负责 Origin COM 很合适。除非要替换整个 Origin 自动化栈，否则 Rust 只负责生成输入文件更稳。
+当前 Python/Origin runner 负责 Origin 自动化更合适。除非要替换整个 Origin 自动化栈，否则 Rust 只负责生成输入文件更稳。
 
 ## 判断下一块是否适合迁到 Rust
 
@@ -294,13 +341,34 @@ npm run bench:phase3
 直接构建 Rust crate：
 
 ```powershell
-Set-Location -LiteralPath 'C:\Users\lanxi\Desktop\conductor\conductor-rs\worker'
-cargo build --release
+Set-Location -LiteralPath 'C:\Users\lanxi\Desktop\conductor\conductor-rs'
+cargo build --release -p worker
+```
+
+构建并复制到桌面应用资源目录：
+
+```powershell
+Set-Location -LiteralPath 'C:\Users\lanxi\Desktop\conductor'
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-rs-worker.ps1
 ```
 
 直接启动 stdio worker 调试：
 
 ```powershell
-Set-Location -LiteralPath 'C:\Users\lanxi\Desktop\conductor\conductor-rs\worker'
-cargo run --release -- --stdio-worker
+Set-Location -LiteralPath 'C:\Users\lanxi\Desktop\conductor\conductor-rs'
+cargo run --release -p worker -- --stdio-worker
+```
+
+压测 CSV open / preview：
+
+```powershell
+Set-Location -LiteralPath 'C:\Users\lanxi\Desktop\conductor'
+node scripts\bench-rs-worker-preview.mjs 'C:\Users\lanxi\Desktop\293K'
+```
+
+压测 Excel sidecar 转换：
+
+```powershell
+Set-Location -LiteralPath 'C:\Users\lanxi\Desktop\conductor'
+node scripts\bench-rs-worker-xls-sidecar.mjs 'C:\Users\lanxi\Desktop\293K'
 ```

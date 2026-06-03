@@ -6,8 +6,8 @@ import {
   type IFileService,
 } from "src/cs/platform/files/common/files";
 import {
-  isExcelDataFileName,
-  isSupportedDataFileName,
+  isExcelImportFileName,
+  isSupportedImportFileName,
   type FileSource,
 } from "src/cs/workbench/contrib/files/common/files";
 
@@ -57,7 +57,7 @@ function decodePathSegment(value: string): string {
 }
 
 function getFileMimeType(fileName: string): string {
-  if (isExcelDataFileName(fileName)) {
+  if (isExcelImportFileName(fileName)) {
     return "application/octet-stream";
   }
 
@@ -116,7 +116,7 @@ async function collectFolderFilesAt(
       continue;
     }
 
-    if ((type & FileType.File) !== FileType.File || !isSupportedDataFileName(name)) {
+    if ((type & FileType.File) !== FileType.File || !isSupportedImportFileName(name)) {
       continue;
     }
 
@@ -150,7 +150,7 @@ async function readFileSource(
 ): Promise<File> {
   const stat = await filesService.stat(resource);
   const content = await filesService.readFile(resource, {
-    encoding: isExcelDataFileName(name) ? "base64" : "utf8",
+    encoding: isExcelImportFileName(name) ? "base64" : "utf8",
   });
 
   return new File([toFilePart(content)], name, {

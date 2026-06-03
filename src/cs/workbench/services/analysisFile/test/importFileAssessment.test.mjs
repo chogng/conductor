@@ -1,29 +1,29 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  isExcelDataFileName,
-  isSupportedDataFileName,
+  isExcelImportFileName,
+  isSupportedImportFileName,
 } from "../../../contrib/files/common/files.ts";
 import {
-  assessDataFile,
-} from "../browser/dataFileAssessment.ts";
+  assessImportFile,
+} from "../browser/fileAssessment.ts";
 
-test("isSupportedDataFileName accepts csv/xls/xlsx with case-insensitive suffixes", () => {
-  assert.equal(isSupportedDataFileName("sample.csv"), true);
-  assert.equal(isSupportedDataFileName("sample.CSV"), true);
-  assert.equal(isSupportedDataFileName("sample.xls"), true);
-  assert.equal(isSupportedDataFileName("sample.XLSX"), true);
-  assert.equal(isSupportedDataFileName("sample.txt"), false);
-  assert.equal(isSupportedDataFileName("sample"), false);
+test("isSupportedImportFileName accepts csv/xls/xlsx with case-insensitive suffixes", () => {
+  assert.equal(isSupportedImportFileName("sample.csv"), true);
+  assert.equal(isSupportedImportFileName("sample.CSV"), true);
+  assert.equal(isSupportedImportFileName("sample.xls"), true);
+  assert.equal(isSupportedImportFileName("sample.XLSX"), true);
+  assert.equal(isSupportedImportFileName("sample.txt"), false);
+  assert.equal(isSupportedImportFileName("sample"), false);
 });
 
-test("isExcelDataFileName only accepts xls/xlsx", () => {
-  assert.equal(isExcelDataFileName("sample.xls"), true);
-  assert.equal(isExcelDataFileName("sample.xlsx"), true);
-  assert.equal(isExcelDataFileName("sample.csv"), false);
+test("isExcelImportFileName only accepts xls/xlsx", () => {
+  assert.equal(isExcelImportFileName("sample.xls"), true);
+  assert.equal(isExcelImportFileName("sample.xlsx"), true);
+  assert.equal(isExcelImportFileName("sample.csv"), false);
 });
 
-test("assessDataFile detects transfer metadata on import", async () => {
+test("assessImportFile detects transfer metadata on import", async () => {
   const file = new File(
     [
       [
@@ -40,7 +40,7 @@ test("assessDataFile detects transfer metadata on import", async () => {
     { type: "text/csv" },
   );
 
-  const result = await assessDataFile(file);
+  const result = await assessImportFile(file);
 
   assert.equal(result.curveType, "transfer (vg)");
   assert.equal(result.curveTypeConfidence, "high");
@@ -48,7 +48,7 @@ test("assessDataFile detects transfer metadata on import", async () => {
   assert.equal(result.xAxisRole, "vg");
 });
 
-test("assessDataFile infers output from stripped CH1/CH2 data when shape evidence is strong", async () => {
+test("assessImportFile infers output from stripped CH1/CH2 data when shape evidence is strong", async () => {
   const file = new File(
     [
       [
@@ -63,7 +63,7 @@ test("assessDataFile infers output from stripped CH1/CH2 data when shape evidenc
     { type: "text/csv" },
   );
 
-  const result = await assessDataFile(file);
+  const result = await assessImportFile(file);
 
   assert.equal(result.curveType, "output (vd)");
   assert.equal(result.curveTypeConfidence, "medium");
@@ -72,7 +72,7 @@ test("assessDataFile infers output from stripped CH1/CH2 data when shape evidenc
   assert.match(result.curveTypeReasons.join(" "), /output-style Id-Vd behavior/i);
 });
 
-test("assessDataFile treats transient transfer CSV headers as transfer metadata", async () => {
+test("assessImportFile treats transient transfer CSV headers as transfer metadata", async () => {
   const rows = [
     ["2026-04-21-19-10-07_(MOS_IV_Transient_DC_Sweep)Id", "Ig_vg@ vs=0.0"],
     ["vg(V)", "id(-0.1)", "vg(V)", "ig(-0.1)", "vg(V)", "id(-1.0)", "vg(V)", "ig(-1.0)"],
@@ -83,7 +83,7 @@ test("assessDataFile treats transient transfer CSV headers as transfer metadata"
     type: "text/csv;charset=utf-8",
   });
 
-  const result = await assessDataFile(file);
+  const result = await assessImportFile(file);
 
   assert.equal(result.curveType, "transfer (vg)");
   assert.equal(result.curveTypeConfidence, "high");
