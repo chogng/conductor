@@ -487,6 +487,8 @@
   "da_curve_probe_x_placeholder": "输入x",
   "da_chart_curve_probe_heading": "曲线探针",
   "da_chart_curve_probe_desc": "输入任意位于测量点范围内的 x 值，通过线性插值获得对应 y 值。",
+  "da_chart_detail_actions": "图表详情视图",
+  "da_chart_locator_heading": "定位",
   "da_chart_diagnostics_heading": "诊断",
   "da_chart_diagnostics_disabled": "打开诊断开关后，这里会显示诊断曲线。",
   "da_chart_diagnostics_unavailable": "切换到 GM、SS 或 VTH 后可查看诊断曲线。",

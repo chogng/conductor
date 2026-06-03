@@ -27,8 +27,11 @@ type DiagnosticsState = {
   readonly setEnabled?: (next: boolean) => void;
 };
 
+export type ChartDetailView = "locator" | "diagnostics";
+
 export type ChartViewProps = {
   t: TranslateFn;
+  activeDetailView?: ChartDetailView;
   activePlotType?: PlotType;
   cleanedData: CleanedEntry[];
   processingStatus?: Partial<ProcessingStatus>;
@@ -57,6 +60,7 @@ export type ChartViewProps = {
 
 export const createChartView = (props: ChartViewProps): HTMLElement => {
   const {
+    activeDetailView = "locator",
     activePlotType = "iv",
     cleanedData = [],
     processingStatus,
@@ -127,11 +131,68 @@ export const createChartView = (props: ChartViewProps): HTMLElement => {
     props,
   });
 
-  chartArea.append(mainArea, diagnosticsArea);
+  chartArea.append(
+    mainArea,
+    activeDetailView === "diagnostics"
+      ? diagnosticsArea
+      : createLocatorArea({ model, props }),
+  );
   root.append(chartArea);
 
   return root;
 };
+
+const createLocatorArea = ({
+  model,
+  props,
+}: {
+  readonly model: ReturnType<typeof createMainPlotModel>;
+  readonly props: Pick<ChartViewProps, "t">;
+}): HTMLElement => {
+  const section = document.createElement("section");
+  section.className = "chart_view_locator_area";
+  section.setAttribute("aria-label", props.t("da_chart_locator_heading"));
+
+  const header = document.createElement("div");
+  header.className = "chart_view_detail_header";
+  header.textContent = props.t("da_chart_locator_heading");
+
+  const body = document.createElement("div");
+  body.className = "chart_view_locator_grid";
+  body.append(
+    createLocatorMetric(props.t("analysis.seriesCount"), String(model.seriesList.length)),
+    createLocatorMetric(props.t("analysis.pointsCount"), String(model.pointsCount)),
+    createLocatorMetric(props.t("analysis.xDomain"), formatDomain(model.xDomain)),
+    createLocatorMetric(props.t("analysis.yDomain"), formatDomain(model.yDomain)),
+  );
+
+  section.append(header, body);
+  return section;
+};
+
+const createLocatorMetric = (labelText: string, valueText: string): HTMLElement => {
+  const item = document.createElement("div");
+  item.className = "chart_view_locator_metric";
+
+  const label = document.createElement("div");
+  label.className = "chart_view_locator_metric_label";
+  label.textContent = labelText;
+
+  const value = document.createElement("div");
+  value.className = "chart_view_locator_metric_value";
+  value.textContent = valueText;
+
+  item.append(label, value);
+  return item;
+};
+
+const formatDomain = (domain: readonly [number, number] | undefined): string =>
+  domain && domain.length >= 2
+    ? `${formatDomainNumber(domain[0])} - ${formatDomainNumber(domain[1])}`
+    : "";
+
+const formatDomainNumber = (value: number): string =>
+  Number.isFinite(value) ? Number(value).toPrecision(4) : "";
 
 const createDiagnosticsArea = ({
   activePlotType,

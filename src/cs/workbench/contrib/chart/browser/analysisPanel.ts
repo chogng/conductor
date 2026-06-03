@@ -23,11 +23,12 @@ import type {
   SsMethod,
 } from "src/cs/workbench/contrib/session/browser/sessionContext";
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
-import { createChartView } from "src/cs/workbench/contrib/chart/browser/chartView";
+import { createChartView, type ChartDetailView } from "src/cs/workbench/contrib/chart/browser/chartView";
 
 type StateSetter<T> = (next: T | ((previous: T) => T)) => void;
 
 export type ChartViewLazyProps = {
+  activeDetailView?: ChartDetailView;
   activePlotType?: PlotType;
   cleanedData: CleanedEntry[];
   processingStatus?: Partial<ProcessingStatus>;

@@ -46,6 +46,18 @@
   font-weight: 500;
 }
 
+.chart_view_detail_actions {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+}
+
+.chart_view_header_icon_btn--active {
+  background-color: rgb(var(--bg-200) / 0.7);
+  color: rgb(var(--text-primary) / 1);
+}
+
 .chart_view_tabs {
   max-width: 100%;
 }
@@ -172,6 +184,7 @@
 }
 
 .chart_view_main_area,
+.chart_view_locator_area,
 .chart_view_diagnostics_area,
 .chart_view_diagnostics_content {
   min-width: 0;
@@ -191,6 +204,59 @@
   border-color: rgb(var(--border) / 1);
   background-color: rgb(var(--bg-page) / 0.4);
   padding: 0.75rem;
+}
+
+.chart_view_locator_area {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border-radius: 0.5rem;
+  border-width: 1px;
+  border-color: rgb(var(--border) / 0.65);
+  background-color: rgb(var(--bg-page) / 0.35);
+  padding: 0.625rem 0.75rem 0.75rem;
+}
+
+.chart_view_detail_header {
+  min-height: 1.75rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 600;
+  color: rgb(var(--text-primary) / 1);
+}
+
+.chart_view_locator_grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.chart_view_locator_metric {
+  min-width: 0;
+  border-radius: 0.375rem;
+  border: 1px solid rgb(var(--border) / 0.65);
+  background-color: rgb(var(--bg-surface) / 0.58);
+  padding: 0.5rem 0.625rem;
+}
+
+.chart_view_locator_metric_label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: rgb(var(--text-secondary) / 1);
+}
+
+.chart_view_locator_metric_value {
+  margin-top: 0.25rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: rgb(var(--text-primary) / 1);
 }
 
 .chart_view_diagnostics_area {

@@ -1,7 +1,11 @@
+import { lxDiagnostics, lxSearch } from "@chogng/lxicon";
+
 import AnalysisPanel, {
   type AnalysisPanelProps,
 } from "src/cs/workbench/contrib/chart/browser/analysisPanel";
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
+import { createButton } from "src/cs/base/browser/ui/button/button";
+import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import {
   getTabsButtonClassName,
   getTabsInstanceId,
@@ -13,7 +17,9 @@ import {
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
 import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/previewPart";
+import type { LxIconDefinition } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { ChartViewId } from "src/cs/workbench/contrib/chart/common/chart";
+import type { ChartDetailView } from "src/cs/workbench/contrib/chart/browser/chartView";
 import { isPlotType, PlotTypes, type PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 
@@ -35,11 +41,16 @@ export class ChartViewPane {
   private readonly content = document.createElement("div");
   private readonly analysisPanel: AnalysisPanel;
   private activePlotType: PlotType = "iv";
+  private activeDetailView: ChartDetailView = "locator";
   private props: AnalysisPanelProps;
 
   constructor(props: AnalysisPanelProps) {
     this.props = props;
-    this.analysisPanel = new AnalysisPanel(toAnalysisPanelProps(props, this.activePlotType));
+    this.analysisPanel = new AnalysisPanel(toAnalysisPanelProps(
+      props,
+      this.activePlotType,
+      this.activeDetailView,
+    ));
     this.updateAnalysisPanelTabState();
     this.headerTabs.className = "chart_view_header_tabs";
     this.headerActions.className = "chart_view_header_actions";
@@ -88,6 +99,8 @@ export class ChartViewPane {
       store: this.headerStore,
     }));
 
+    this.headerActions.append(this.createDetailActions(props));
+
     if (activeFile && props.showFileSelect !== false) {
       this.headerActions.append(createFileSelect(props, activeFile, this.headerStore));
     }
@@ -105,13 +118,74 @@ export class ChartViewPane {
 
   private updateAnalysisPanel(props: AnalysisPanelProps): void {
     this.updateAnalysisPanelTabState();
-    this.analysisPanel.update(toAnalysisPanelProps(props, this.activePlotType));
+    this.analysisPanel.update(toAnalysisPanelProps(
+      props,
+      this.activePlotType,
+      this.activeDetailView,
+    ));
   }
 
   private updateAnalysisPanelTabState(): void {
     this.analysisPanel.element.id = getPlotPanelId(this.activePlotType);
     this.analysisPanel.element.setAttribute("role", "tabpanel");
     this.analysisPanel.element.setAttribute("aria-labelledby", getPlotTabId(this.activePlotType));
+  }
+
+  private createDetailActions(props: AnalysisPanelProps): HTMLElement {
+    const root = document.createElement("div");
+    root.className = "chart_view_detail_actions";
+    root.setAttribute("role", "toolbar");
+    root.setAttribute("aria-label", props.t("da_chart_detail_actions"));
+    root.append(
+      this.createDetailAction({
+        icon: lxSearch,
+        label: props.t("da_chart_locator_heading"),
+        view: "locator",
+      }),
+      this.createDetailAction({
+        icon: lxDiagnostics,
+        label: props.t("da_chart_diagnostics_heading"),
+        view: "diagnostics",
+      }),
+    );
+    return root;
+  }
+
+  private createDetailAction({
+    icon,
+    label,
+    view,
+  }: {
+    readonly icon: LxIconDefinition;
+    readonly label: string;
+    readonly view: ChartDetailView;
+  }): HTMLButtonElement {
+    const isActive = this.activeDetailView === view;
+    const button = createButton({
+      ariaLabel: label,
+      className: isActive
+        ? "chart_view_header_icon_btn chart_view_header_icon_btn--active"
+        : "chart_view_header_icon_btn",
+      content: createLxIcon({ icon, size: 16 }),
+      size: "iconSm",
+      title: label,
+      variant: "ghost",
+    });
+    button.setAttribute("aria-pressed", isActive ? "true" : "false");
+    this.headerStore.add(addDisposableListener(button, EventType.CLICK, () => {
+      this.setActiveDetailView(view);
+    }));
+    return button;
+  }
+
+  private setActiveDetailView(view: ChartDetailView): void {
+    if (view === this.activeDetailView) {
+      return;
+    }
+
+    this.activeDetailView = view;
+    this.renderHeader(this.props);
+    this.updateAnalysisPanel(this.props);
   }
 }
 
@@ -284,8 +358,10 @@ const getPlotPanelId = (plotType: PlotType): string =>
 const toAnalysisPanelProps = (
   props: AnalysisPanelProps,
   activePlotType: PlotType,
+  activeDetailView: ChartDetailView,
 ): AnalysisPanelProps => ({
   ...props,
+  activeDetailView,
   activePlotType,
 });
 

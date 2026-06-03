@@ -276,12 +276,15 @@ const createSidebarAction = (
 
   if (kind === "icon") {
     button.className = getButtonClassName({
-      className: "workbench_sidebar_header_icon_btn",
+      className: action.isActive
+        ? "workbench_sidebar_header_icon_btn workbench_sidebar_header_icon_btn--active"
+        : "workbench_sidebar_header_icon_btn",
       disabled: action.isDisabled,
       size: "iconSm",
       variant: "ghost",
     });
     button.setAttribute("aria-label", action.title);
+    button.setAttribute("aria-pressed", action.isActive ? "true" : "false");
     button.append(createButtonContent(action.icon));
     return button;
   }

@@ -1,5 +1,10 @@
-import { getCardClassName } from "src/cs/base/browser/ui/card/card";
+import { lxListUnordered, lxOrigin, lxSettings } from "@chogng/lxicon";
+
 import SidebarPart from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
+import type {
+  WorkbenchSidebarAction,
+  WorkbenchSidebarHeaderAction,
+} from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import { buildPoints } from "src/cs/workbench/contrib/plot/browser/chartViewModel";
 import {
   computeCentralDerivative,
@@ -9,10 +14,12 @@ import {
   computeBaseCurrentMetrics,
   isTransferLikeFile,
 } from "src/cs/workbench/contrib/diagnostics/common/metrics";
-import OriginExportToolbar, {
-  type OriginCurveExportSeriesOption,
-  type OriginExportContentOption,
+import type {
+  OriginCurveExportSeriesOption,
+  OriginExportContentOption,
 } from "src/cs/workbench/contrib/export/browser/OriginExportToolbar";
+import { getWorkbenchContribution } from "src/cs/workbench/common/contributions";
+import type { ExportContribution } from "src/cs/workbench/contrib/export/browser/export.contribution";
 import type {
   OriginCanvasExportScope,
   OriginCurveExportMode,
@@ -22,7 +29,14 @@ import type {
   OriginExportContentKey,
   OriginExportMode,
 } from "src/cs/workbench/contrib/export/common/originSelectionExport";
-import { renderParametersView } from "src/cs/workbench/contrib/parameters/browser/parametersView";
+import { ExportContributionId } from "src/cs/workbench/contrib/export/common/export";
+import {
+  DEFAULT_ORIGIN_PLOT_OPTIONS,
+  normalizeOriginPlotOptions,
+  type OriginPlotOptions,
+} from "src/cs/workbench/contrib/origin/common/originPlotOptions";
+import type { ParametersContribution } from "src/cs/workbench/contrib/parameters/browser/parameters.contribution";
+import { ParametersContributionId } from "src/cs/workbench/contrib/parameters/common/parameters";
 import type { CalculatedParameterRowData } from "src/cs/workbench/contrib/parameters/browser/parametersModel";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type {
@@ -37,6 +51,8 @@ import "src/cs/workbench/contrib/chart/browser/media/resultsPane.css";
 export type ResultsPaneProps = {
   readonly activeFileId?: string | null;
   readonly cleanedData: CleanedEntry[];
+  readonly onOriginOpenPlotOptionsChange?: (updates: Partial<OriginPlotOptions>) => void | Promise<void>;
+  readonly originOpenPlotOptions?: OriginPlotOptions;
   readonly t: TranslateFn;
 };
 
@@ -57,6 +73,8 @@ type SsFitResult = {
   suggested?: SsFit;
 };
 
+type ResultsPaneView = "export" | "settings" | "parameters";
+
 const ORIGIN_EXPORT_CONTENT_OPTIONS: OriginExportContentOption[] = [
   { group: "basic", key: "iv", labelKey: "da_origin_export_content_iv" },
   { group: "derived", key: "metrics", labelKey: "da_origin_export_content_metrics" },
@@ -68,7 +86,12 @@ const ORIGIN_EXPORT_CONTENT_OPTIONS: OriginExportContentOption[] = [
 export class ResultsPane {
   public readonly element: HTMLElement;
   private readonly content = document.createElement("div");
+  private readonly settingsPane = document.createElement("div");
+  private readonly exportContribution: ExportContribution;
+  private readonly parametersContribution: ParametersContribution;
   private readonly sidebarPart: SidebarPart;
+  private props: ResultsPaneProps;
+  private activeView: ResultsPaneView = "export";
   private originMode: OriginExportMode = "merged";
   private canvasScope: OriginCanvasExportScope = "current";
   private filteredKind: OriginFilteredCanvasKind = "output";
@@ -77,12 +100,19 @@ export class ResultsPane {
   private selectedCurveKeys = new Set<string>();
 
   constructor(props: ResultsPaneProps) {
+    this.props = props;
     this.content.className = "results_pane";
+    this.settingsPane.className = "results_pane_body";
+    this.exportContribution = getWorkbenchContribution<ExportContribution>(ExportContributionId);
+    this.parametersContribution = getWorkbenchContribution<ParametersContribution>(ParametersContributionId);
+    this.exportContribution.element.className = "results_pane_body";
+    this.parametersContribution.element.className = "results_pane_body results_pane_body--scroll";
     this.sidebarPart = new SidebarPart(this.getSidebarOptions(props));
     this.element = this.sidebarPart.element;
   }
 
   public update(props: ResultsPaneProps): void {
+    this.props = props;
     this.sidebarPart.update(this.getSidebarOptions(props));
   }
 
@@ -99,6 +129,8 @@ export class ResultsPane {
       ariaLabel: props.t("analysis.visualization"),
       children: this.content,
       className: "results_sidebar_part",
+      headerActions: this.createHeaderActions(props),
+      onAction: (action: WorkbenchSidebarAction) => this.handleHeaderAction(action),
       title: props.t("analysis.visualization"),
     };
   }
@@ -113,23 +145,84 @@ export class ResultsPane {
     }
 
     this.syncCurveSelection(activeFile);
-    this.content.append(
-      this.createExportSection(props, activeFile),
-      this.createParametersSection(props, activeFile),
-    );
+    this.renderExportPane(props, activeFile);
+    this.renderSettingsPane(props);
+    this.renderParametersPane(props, activeFile);
+    this.content.append(this.createActivePane(props));
   }
 
-  private createExportSection(
+  private createHeaderActions(props: ResultsPaneProps): WorkbenchSidebarHeaderAction[] {
+    return [
+      this.createHeaderAction(
+        "export",
+        props.t("analysis.results.export"),
+        lxOrigin(),
+      ),
+      this.createHeaderAction(
+        "parameters",
+        props.t("analysis.results.parameters"),
+        lxListUnordered(),
+      ),
+      this.createHeaderAction(
+        "settings",
+        props.t("da_chart_curve_settings_title"),
+        lxSettings(),
+      ),
+    ];
+  }
+
+  private createHeaderAction(
+    view: ResultsPaneView,
+    title: string,
+    icon: string,
+  ): WorkbenchSidebarHeaderAction {
+    return {
+      id: `results-pane.${view}`,
+      title,
+      icon,
+      isActive: this.activeView === view,
+      kind: "icon",
+    };
+  }
+
+  private handleHeaderAction(action: WorkbenchSidebarAction): void {
+    const view = getActionView(action.id);
+    if (!view || view === this.activeView) {
+      return;
+    }
+
+    this.activeView = view;
+    this.update(this.props);
+  }
+
+  private createActivePane(props: ResultsPaneProps): HTMLElement {
+    switch (this.activeView) {
+      case "parameters":
+        return this.createPane(
+          props.t("analysis.results.parameters"),
+          this.parametersContribution.element,
+          "results_pane_section--fill",
+        );
+      case "settings":
+        return this.createPane(
+          props.t("da_chart_curve_settings_title"),
+          this.settingsPane,
+          "results_pane_section--fill",
+        );
+      case "export":
+      default:
+        return this.createPane(
+          props.t("analysis.results.export"),
+          this.exportContribution.element,
+        );
+    }
+  }
+
+  private renderExportPane(
     props: ResultsPaneProps,
     activeFile: CleanedEntry,
-  ): HTMLElement {
-    const section = document.createElement("section");
-    section.className = getCardClassName({
-      className: "results_section",
-      variant: "panel",
-    });
-    section.append(createSectionTitle(props.t("analysis.results.export")));
-    section.append(OriginExportToolbar({
+  ): void {
+    this.exportContribution.render({
       curveOptions: createOriginCurveOptions(activeFile),
       hasMixedExportYScales: false,
       mode: this.originMode,
@@ -169,30 +262,43 @@ export class ResultsPane {
       },
       showFilteredCanvasKindSelect: true,
       t: props.t,
-    }));
-    return section;
+    });
   }
 
-  private createParametersSection(
+  private renderParametersPane(
     props: ResultsPaneProps,
     activeFile: CleanedEntry,
-  ): HTMLElement {
-    const section = document.createElement("section");
-    section.className = getCardClassName({
-      className: "results_section results_section--parameters",
-      variant: "panel",
-    });
-    section.append(createSectionTitle(props.t("analysis.results.parameters")));
-
-    const tableHost = document.createElement("div");
-    tableHost.className = "results_parameters_scroll";
-    renderParametersView(tableHost, {
+  ): void {
+    this.parametersContribution.renderParameters({
       gmMetricHeader: "gm",
       rows: createParameterRows(activeFile),
       showTransferMetrics: isTransferLikeFile(activeFile),
       t: props.t,
     });
-    section.append(tableHost);
+  }
+
+  private renderSettingsPane(props: ResultsPaneProps): void {
+    const options = normalizeOriginPlotOptions(
+      props.originOpenPlotOptions,
+      DEFAULT_ORIGIN_PLOT_OPTIONS,
+    );
+    this.settingsPane.replaceChildren(createCurveSettingsView({
+      onChange: props.onOriginOpenPlotOptionsChange,
+      options,
+      t: props.t,
+    }));
+  }
+
+  private createPane(
+    titleText: string,
+    body: HTMLElement,
+    className?: string,
+  ): HTMLElement {
+    const section = document.createElement("section");
+    section.className = className
+      ? `results_pane_section ${className}`
+      : "results_pane_section";
+    section.append(createSectionTitle(titleText), body);
     return section;
   }
 
@@ -207,6 +313,19 @@ export class ResultsPane {
     );
   }
 }
+
+const getActionView = (actionId: string): ResultsPaneView | null => {
+  switch (actionId) {
+    case "results-pane.export":
+      return "export";
+    case "results-pane.settings":
+      return "settings";
+    case "results-pane.parameters":
+      return "parameters";
+    default:
+      return null;
+  }
+};
 
 const resolveActiveFile = ({
   activeFileId,
@@ -337,6 +456,98 @@ const createEmptyState = (message: string): HTMLElement => {
   root.className = "results_empty";
   root.textContent = message;
   return root;
+};
+
+const createCurveSettingsView = ({
+  onChange,
+  options,
+  t,
+}: {
+  readonly onChange?: (updates: Partial<OriginPlotOptions>) => void | Promise<void>;
+  readonly options: OriginPlotOptions;
+  readonly t: TranslateFn;
+}): HTMLElement => {
+  const root = document.createElement("div");
+  root.className = "results_settings";
+
+  root.append(
+    createSettingsRow(
+      t("da_chart_curve_type_label"),
+      createPlotTypeSelect(options, onChange, t),
+    ),
+    createSettingsRow(
+      t("da_settings_origin_plot_line_width_label"),
+      createLineWidthInput(options, onChange),
+    ),
+  );
+  return root;
+};
+
+const createSettingsRow = (labelText: string, control: HTMLElement): HTMLElement => {
+  const row = document.createElement("div");
+  row.className = "results_settings_row";
+
+  const label = document.createElement("label");
+  label.className = "results_settings_label";
+  label.textContent = labelText;
+  if (control.id) {
+    label.htmlFor = control.id;
+  }
+
+  row.append(label, control);
+  return row;
+};
+
+const createPlotTypeSelect = (
+  options: OriginPlotOptions,
+  onChange: ResultsPaneProps["onOriginOpenPlotOptionsChange"],
+  t: TranslateFn,
+): HTMLSelectElement => {
+  const select = document.createElement("select");
+  select.id = "results-curve-plot-type";
+  select.className = "dropdown-field dropdown-field--sm results_settings_control";
+  select.value = String(options.type);
+  for (const option of [
+    { value: "200", label: t("da_settings_origin_plot_type_200") },
+    { value: "201", label: t("da_settings_origin_plot_type_201") },
+    { value: "202", label: t("da_settings_origin_plot_type_202") },
+  ]) {
+    const item = document.createElement("option");
+    item.value = option.value;
+    item.textContent = option.label;
+    select.append(item);
+  }
+  select.addEventListener("change", () => {
+    const normalized = normalizeOriginPlotOptions(
+      { type: select.value },
+      options,
+    );
+    void onChange?.({ type: normalized.type });
+  });
+  return select;
+};
+
+const createLineWidthInput = (
+  options: OriginPlotOptions,
+  onChange: ResultsPaneProps["onOriginOpenPlotOptionsChange"],
+): HTMLInputElement => {
+  const input = document.createElement("input");
+  input.id = "results-curve-line-width";
+  input.className = "input_native results_settings_control";
+  input.type = "number";
+  input.min = "0.5";
+  input.max = "20";
+  input.step = "0.5";
+  input.value = String(options.lineWidth);
+  input.addEventListener("change", () => {
+    const normalized = normalizeOriginPlotOptions(
+      { lineWidth: input.value },
+      options,
+    );
+    input.value = String(normalized.lineWidth);
+    void onChange?.({ lineWidth: normalized.lineWidth });
+  });
+  return input;
 };
 
 export default ResultsPane;

@@ -487,6 +487,8 @@
   "da_curve_probe_x_placeholder": "Enter x",
   "da_chart_curve_probe_heading": "Curve Probe",
   "da_chart_curve_probe_desc": "Query any x between measured points and get y by linear interpolation.",
+  "da_chart_detail_actions": "Chart detail views",
+  "da_chart_locator_heading": "Locator",
   "da_chart_diagnostics_heading": "Diagnostics",
   "da_chart_diagnostics_disabled": "Turn on diagnostics to show the diagnostic curve here.",
   "da_chart_diagnostics_unavailable": "Switch to GM, SS, or VTH to inspect diagnostic curves.",

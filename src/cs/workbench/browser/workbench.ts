@@ -442,6 +442,8 @@ export class Workbench extends Layout {
         this.session.setSelectedPreviewFileId(nextFileId);
       },
       cleanedData: snapshot.cleanedData,
+      onOriginOpenPlotOptionsChange: this.updateOriginPlotOptions,
+      originOpenPlotOptions: this.coreSettingsState.originOpenPlotOptions,
       processingStatus: processing.processingStatus,
       showFileSelect: false,
       shouldMountCharts: false,
@@ -453,9 +455,37 @@ export class Workbench extends Layout {
     return {
       activeFileId: this.getActiveCleanedFileId(snapshot),
       cleanedData: snapshot.cleanedData,
+      onOriginOpenPlotOptionsChange: this.updateOriginPlotOptions,
+      originOpenPlotOptions: this.coreSettingsState.originOpenPlotOptions,
       t: this.t,
     };
   }
+
+  private readonly updateOriginPlotOptions = async (updates: unknown): Promise<void> => {
+    if (!updates || typeof updates !== "object") {
+      return;
+    }
+
+    const plotUpdates = updates as Partial<CoreSettingsState["originOpenPlotOptions"]>;
+    const settingsUpdates: Record<string, unknown> = {};
+    if (plotUpdates.type !== undefined) {
+      settingsUpdates.originPlotTypeDefault = plotUpdates.type;
+    }
+    if (plotUpdates.lineWidth !== undefined) {
+      settingsUpdates.originPlotLineWidthDefault = plotUpdates.lineWidth;
+    }
+    if (plotUpdates.command !== undefined) {
+      settingsUpdates.originPlotCommandDefault = plotUpdates.command;
+    }
+    if (plotUpdates.postCommands !== undefined) {
+      settingsUpdates.originPlotPostCommandsDefault = plotUpdates.postCommands;
+    }
+    if (plotUpdates.xyPairs !== undefined) {
+      settingsUpdates.originPlotXyPairsDefault = plotUpdates.xyPairs;
+    }
+
+    await this.coreSettingsState.handleUpdateAnalysisSettings(settingsUpdates);
+  };
 
   private getActiveCleanedFileId(snapshot = this.session.getSnapshot()): string | null {
     const selectedFileId = snapshot.selectedPreviewFileId;
