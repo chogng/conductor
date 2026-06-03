@@ -12,6 +12,8 @@ import {
 
 import "src/cs/workbench/contrib/template/browser/media/templateView.css";
 
+const TEMPLATE_TITLE = localize("template_editor_title", "Template");
+
 export type TemplateEditorPaneProps = {
   readonly analysisSettings?: TemplateElementOptions["analysisSettings"];
   readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
@@ -41,16 +43,16 @@ export class TemplateEditorPane {
 
     this.element = createPreviewPart({
       id: "analysis-template-workspace",
-      ariaLabel: localize("data_extraction_template", "Data Extraction Template"),
+      ariaLabel: TEMPLATE_TITLE,
       className: "template_view_pane template_view_pane--joined_sidebar",
       children: this.previewContent,
     });
 
     this.sidebarPart = new SidebarPart({
-      ariaLabel: localize("data_extraction_template", "Data Extraction Template"),
+      ariaLabel: TEMPLATE_TITLE,
       children: this.templateView.sidebarElement,
       className: "template_sidebar_part template_sidebar_part--joined_preview",
-      title: localize("data_extraction_template", "Data Extraction Template"),
+      title: TEMPLATE_TITLE,
     });
     this.sidebarElement = this.sidebarPart.element;
   }
@@ -58,10 +60,10 @@ export class TemplateEditorPane {
   public update(props: TemplateEditorPaneProps): void {
     this.templateView.update(toTemplateProps(props));
     this.sidebarPart.update({
-      ariaLabel: localize("data_extraction_template", "Data Extraction Template"),
+      ariaLabel: TEMPLATE_TITLE,
       children: this.templateView.sidebarElement,
       className: "template_sidebar_part template_sidebar_part--joined_preview",
-      title: localize("data_extraction_template", "Data Extraction Template"),
+      title: TEMPLATE_TITLE,
     });
   }
 

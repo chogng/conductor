@@ -65,51 +65,65 @@ export class TemplateEditorView {
     const form = document.createElement("div");
     form.className = "template_form";
 
-    const fields = this.createSection(
+    const templateFields = this.createSection(
       form,
-      localize("template_identity_section", "Template"),
+      null,
+    );
+    const xFields = this.createSection(
+      form,
+      localize("template_x_section", "X"),
+    );
+    const yFields = this.createSection(
+      form,
+      localize("template_y_section", "Y"),
+    );
+    const optionalFields = this.createSection(
+      form,
+      localize("template_optional_section", "Optional"),
     );
 
     this.inputs = {
-      name: this.createField(fields, localize("template_name", "Template name"), "name"),
-      xDataStart: this.createField(fields, localize("template_x_start", "X Start"), "xDataStart", {
+      name: this.createField(templateFields, localize("template_name", "Template name"), "name", {
+        fullWidth: true,
+      }),
+      xDataStart: this.createField(xFields, localize("template_x_start", "Start"), "xDataStart", {
         placeholder: "A2",
       }),
-      xDataEnd: this.createField(fields, localize("template_x_end", "X End"), "xDataEnd", {
+      xDataEnd: this.createField(xFields, localize("template_x_end", "End"), "xDataEnd", {
         placeholder: "End",
       }),
-      xSegmentCount: this.createField(fields, localize("template_x_segment_count", "X segment count"), "xSegmentCount"),
-      xPointsPerGroup: this.createField(fields, localize("template_x_points_per_group", "Points per group"), "xPointsPerGroup"),
-      xUnit: this.createField(fields, localize("template_x_unit", "X unit"), "xUnit", {
+      xSegmentCount: this.createField(xFields, localize("template_x_segment_count", "Segment count"), "xSegmentCount"),
+      xPointsPerGroup: this.createField(xFields, localize("template_x_points_per_group", "Points per group"), "xPointsPerGroup"),
+      xUnit: this.createField(optionalFields, localize("template_x_unit", "X unit"), "xUnit", {
         placeholder: "V",
       }),
-      bottomTitle: this.createField(fields, localize("template_bottom_title", "X title / Vg"), "bottomTitle", {
+      bottomTitle: this.createField(optionalFields, localize("template_bottom_title", "X title"), "bottomTitle", {
         placeholder: "Vg",
       }),
-      leftTitle: this.createField(fields, localize("template_left_title", "Y title"), "leftTitle", {
-        placeholder: "Id",
-      }),
-      yLegendStart: this.createField(fields, localize("template_y_legend_start", "Legend Start"), "yLegendStart", {
+      yLegendStart: this.createField(yFields, localize("template_y_legend_start", "Legend Start"), "yLegendStart", {
         placeholder: "B1",
       }),
-      yLegendCount: this.createField(fields, localize("template_y_legend_count", "Legend Count"), "yLegendCount"),
-      yLegendStep: this.createField(fields, localize("template_y_legend_step", "Legend Step"), "yLegendStep"),
-      yUnit: this.createField(fields, localize("template_y_unit", "Y unit"), "yUnit", {
+      yLegendCount: this.createField(yFields, localize("template_y_legend_count", "Legend Count"), "yLegendCount"),
+      yLegendStep: this.createField(yFields, localize("template_y_legend_step", "Legend Step"), "yLegendStep"),
+      yUnit: this.createField(optionalFields, localize("template_y_unit", "Y unit"), "yUnit", {
         placeholder: "A",
       }),
-      legendPrefix: this.createField(fields, localize("template_legend_prefix", "Legend prefix / Vd"), "legendPrefix", {
+      leftTitle: this.createField(optionalFields, localize("template_left_title", "Y title"), "leftTitle", {
+        placeholder: "Id",
+      }),
+      legendPrefix: this.createField(yFields, localize("template_legend_prefix", "Legend prefix / Vd"), "legendPrefix", {
         placeholder: "Vd",
       }),
-      fileNameVgKeywords: this.createField(fields, localize("template_filename_vg", "File-name Vg keywords"), "fileNameVgKeywords"),
-      fileNameVdKeywords: this.createField(fields, localize("template_filename_vd", "File-name Vd keywords"), "fileNameVdKeywords"),
+      fileNameVgKeywords: this.createField(yFields, localize("template_filename_vg", "File-name Vg keywords"), "fileNameVgKeywords"),
+      fileNameVdKeywords: this.createField(yFields, localize("template_filename_vd", "File-name Vd keywords"), "fileNameVdKeywords"),
     };
 
-    this.xSegmentationMode = this.createSelectField(fields, localize("template_x_segmentation_mode", "X grouping"), "xSegmentationMode", [
+    this.xSegmentationMode = this.createSelectField(xFields, localize("template_x_segmentation_mode", "Grouping"), "xSegmentationMode", [
       { label: localize("template_x_mode_auto", "Auto"), value: "auto" },
       { label: localize("template_x_mode_points", "By point count"), value: "points" },
       { label: localize("template_x_mode_segments", "By segment count"), value: "segments" },
     ]);
-    this.yLegendTarget = this.createSelectField(fields, localize("template_y_legend_target", "Legend target"), "yLegendTarget", [
+    this.yLegendTarget = this.createSelectField(yFields, localize("template_y_legend_target", "Legend target"), "yLegendTarget", [
       { label: localize("template_y_target_auto", "Auto"), value: "auto" },
       { label: localize("template_y_target_column", "Y column"), value: "yColumn" },
       { label: localize("template_y_target_group", "Group"), value: "group" },
@@ -118,7 +132,7 @@ export class TemplateEditorView {
     this.yColumnsSummary = document.createElement("p");
     this.yColumnsSummary.className = "template_selection_summary";
     this.yColumnsSummary.setAttribute("aria-live", "polite");
-    fields.append(this.yColumnsSummary);
+    yFields.append(this.yColumnsSummary);
 
     this.element.append(form);
 
@@ -191,18 +205,20 @@ export class TemplateEditorView {
     this.element.remove();
   }
 
-  private createSection(container: HTMLElement, title: string): HTMLElement {
+  private createSection(container: HTMLElement, title: string | null): HTMLElement {
     const section = document.createElement("section");
     section.className = "template_form_section";
-
-    const heading = document.createElement("h3");
-    heading.className = "template_form_section_title";
-    heading.textContent = title;
 
     const fields = document.createElement("div");
     fields.className = "template_form_grid";
 
-    section.append(heading, fields);
+    if (title) {
+      const heading = document.createElement("h3");
+      heading.className = "template_form_section_title";
+      heading.textContent = title;
+      section.append(heading);
+    }
+    section.append(fields);
     container.append(section);
     return fields;
   }
@@ -212,6 +228,7 @@ export class TemplateEditorView {
     label: string,
     name: TemplateEditorInputName,
     options: {
+      fullWidth?: boolean;
       placeholder?: string;
     } = {},
   ): HTMLInputElement {
@@ -224,6 +241,9 @@ export class TemplateEditorView {
         this.options.onUpdateConfig({ [name]: value });
       },
     });
+    if (options.fullWidth) {
+      field.className = `${field.className} template_field--full`;
+    }
     container.append(field);
     const input = field.querySelector("input") as HTMLInputElement;
     input.addEventListener("focus", () => {
