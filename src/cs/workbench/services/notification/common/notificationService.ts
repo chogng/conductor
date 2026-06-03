@@ -55,6 +55,7 @@ export type NotificationToastPosition = "absolute" | "fixed";
 
 export type NotificationToastOptions = {
   readonly actions?: readonly IAction[];
+  readonly className?: string;
   readonly dataUi?: string;
   readonly duration?: number;
   readonly id?: string;

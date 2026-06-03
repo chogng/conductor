@@ -39,6 +39,17 @@ const getToastIcon = (type: NotificationToastType): LxIconDefinition => {
   return LxIcon.alertCircle;
 };
 
+const getExtraClassNames = (value: unknown): string[] =>
+  typeof value === "string"
+    ? value
+        .split(/\s+/)
+        .map(part => part.trim())
+        .filter(Boolean)
+    : [];
+
+const getTypeClassName = (type: NotificationToastType): string =>
+  `conductor-toast--${type}`;
+
 export class NotificationToast implements IDisposable {
   private readonly disposables = new DisposableStore();
   private readonly root: HTMLDivElement;
@@ -167,6 +178,11 @@ export class NotificationToast implements IDisposable {
     this.iconContainer.replaceChildren();
     appendIcon(this.iconContainer, getToastIcon(type), 20);
     this.messageElement.textContent = options.message;
+    if (options.message.includes("\n")) {
+      this.messageElement.tabIndex = 0;
+    } else {
+      this.messageElement.removeAttribute("tabindex");
+    }
 
     const action = getPrimaryNotificationAction(options.actions);
     if (action) {
@@ -189,11 +205,14 @@ export class NotificationToast implements IDisposable {
     const positionClass = position === "fixed"
       ? "conductor-toast-fixed"
       : "conductor-toast-absolute";
+    const type = options.type ?? "success";
 
     return [
       "conductor-toast",
       isClosing ? "conductor-toast-closing" : "conductor-toast-opening",
       positionClass,
+      getTypeClassName(type),
+      ...getExtraClassNames(options.className),
     ].join(" ");
   }
 

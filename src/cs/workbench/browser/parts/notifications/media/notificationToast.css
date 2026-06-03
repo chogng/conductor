@@ -1,30 +1,15 @@
-/* Notification toast */
 .conductor-toast {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  border-radius: 0.75rem;
-  border-width: 1px;
-  --tw-border-opacity: 1;
-  border-color: rgb(var(--border) / var(--tw-border-opacity, 1));
-  --tw-bg-opacity: 1;
-  background-color: rgb(var(--bg-surface) / var(--tw-bg-opacity, 1));
-  padding-left: 1rem;
-  padding-right: 1rem;
-  padding-top: 0.75rem;
-  padding-bottom: 0.75rem;
-  --tw-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
-  --tw-shadow-colored: 0 10px 15px -3px var(--tw-shadow-color), 0 4px 6px -4px var(--tw-shadow-color);
-  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
-}
-
-.conductor-toast-opening {
-  animation: conductor-toast-fade-in 0.8s ease-out forwards;
-}
-
-.conductor-toast-closing {
-  animation: conductor-toast-fade-out 0.85s ease-in forwards;
+  min-width: 280px;
+  max-width: min(640px, calc(100vw - 64px));
+  padding: 12px 14px;
+  gap: 10px;
+  border: 1px solid rgb(var(--border));
+  border-radius: 8px;
+  background-color: rgb(var(--bg-surface));
+  box-shadow: 0 12px 28px rgb(0 0 0 / 14%);
 }
 
 .conductor-toast-fixed {
@@ -37,59 +22,102 @@
   z-index: 50;
 }
 
+.conductor-toast-opening {
+  animation: conductor-toast-fade-in 160ms ease-out forwards;
+}
+
+.conductor-toast-closing {
+  animation: conductor-toast-fade-out 120ms ease-in forwards;
+}
+
 .conductor-toast-icon {
-  flex-shrink: 0;
-  --tw-text-opacity: 1;
-  color: rgb(var(--text-secondary) / var(--tw-text-opacity, 1));
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: rgb(var(--text-secondary));
+}
+
+.conductor-toast--error .conductor-toast-icon {
+  color: rgb(var(--text-danger));
+}
+
+.conductor-toast--warning .conductor-toast-icon {
+  color: var(--color-warning);
+}
+
+.conductor-toast--success .conductor-toast-icon {
+  color: var(--color-success);
 }
 
 .conductor-toast-message {
-  min-width: 0px;
-  flex: 1 1 0%;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-  --tw-text-opacity: 1;
-  color: rgb(var(--text-primary) / var(--tw-text-opacity, 1));
+  flex: 1 1 auto;
+  min-width: 0;
+  color: rgb(var(--text-primary));
+  font-size: 14px;
+  line-height: 20px;
+  overflow-wrap: anywhere;
 }
 
 .conductor-toast-controls {
   display: flex;
-  flex-shrink: 0;
+  flex: 0 0 auto;
   align-items: center;
-  gap: 0.5rem;
+  gap: 8px;
 }
 
 .conductor-toast-action {
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  color: rgb(var(--accent));
+  font-size: 14px;
   font-weight: 500;
-  --tw-text-opacity: 1;
-  color: rgb(var(--accent) / var(--tw-text-opacity, 1));
+  line-height: 20px;
 }
 
 .conductor-toast-action:hover {
-  text-decoration-line: underline;
+  text-decoration: underline;
 }
 
 .conductor-toast-close {
   display: inline-flex;
-  height: 1.75rem;
-  width: 1.75rem;
   align-items: center;
   justify-content: center;
-  border-radius: 0.375rem;
-  --tw-text-opacity: 1;
-  color: rgb(var(--text-secondary) / var(--tw-text-opacity, 1));
-  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 150ms;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: rgb(var(--text-secondary));
+  transition: background-color 120ms ease, color 120ms ease;
 }
 
 .conductor-toast-close:hover {
-  --tw-bg-opacity: 1;
-  background-color: rgb(var(--bg-page) / var(--tw-bg-opacity, 1));
-  --tw-text-opacity: 1;
-  color: rgb(var(--text-primary) / var(--tw-text-opacity, 1));
+  background-color: rgb(var(--bg-page));
+  color: rgb(var(--text-primary));
+}
+
+.conductor-toast-close:focus-visible,
+.conductor-toast-action:focus-visible,
+.conductor-toast-message:focus-visible {
+  outline: 1px solid rgb(var(--accent));
+  outline-offset: 2px;
+}
+
+.conductor-toast--import-error {
+  align-items: flex-start;
+  width: min(860px, calc(100vw - 96px));
+  max-width: calc(100vw - 96px);
+}
+
+.conductor-toast--import-error .conductor-toast-message {
+  max-height: min(420px, calc(100vh - 220px));
+  padding-right: 8px;
+  overflow-y: auto;
+  line-height: 20px;
+  white-space: pre-wrap;
+}
+
+.conductor-toast--import-error .conductor-toast-controls {
+  align-self: flex-start;
 }
 
 @keyframes conductor-toast-fade-in {

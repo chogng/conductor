@@ -7,9 +7,11 @@ import {
 } from "src/cs/platform/dnd/browser/dnd";
 import type { IFileService } from "src/cs/platform/files/common/files";
 import { createFileSource } from "src/cs/workbench/contrib/files/browser/fileActions";
-import { collectFolderFiles } from "src/cs/workbench/contrib/files/browser/fileImportExport";
+import {
+  collectFolderImportFiles,
+  type FolderFileReadFailure,
+} from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import type { FileSource } from "src/cs/workbench/contrib/files/common/files";
-import { MAX_IMPORT_ERROR_FILE_NAMES } from "src/cs/workbench/contrib/files/browser/fileConstants";
 import type { ImportFilePrepareFailure } from "src/cs/workbench/services/analysisFile/browser/importPipeline";
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
@@ -17,6 +19,7 @@ import type { IPathService } from "src/cs/workbench/services/path/common/pathSer
 export type FolderImportFiles = {
   readonly files: FileSource[];
   readonly folder: URI;
+  readonly readFailures: FolderFileReadFailure[];
 };
 
 const createDroppedFileSource = ({
@@ -49,9 +52,11 @@ export const pickFolderImportFiles = async ({
     return null;
   }
 
+  const result = await collectFolderImportFiles(folder, filesService);
   return {
-    files: await collectFolderFiles(folder, filesService),
+    files: result.files,
     folder,
+    readFailures: result.readFailures,
   };
 };
 
@@ -69,9 +74,11 @@ export const showCreateFolderUnsupported = (): void => {
 export const buildImportErrorMessage = ({
   failedFiles,
   hasAnyUnsupportedFiles,
+  readFailures = [],
 }: {
   readonly failedFiles: readonly ImportFilePrepareFailure[];
   readonly hasAnyUnsupportedFiles: boolean;
+  readonly readFailures?: readonly FolderFileReadFailure[];
 }): string | null => {
   const errors: string[] = [];
   if (hasAnyUnsupportedFiles) {
@@ -82,38 +89,90 @@ export const buildImportErrorMessage = ({
       ),
     );
   }
+  if (readFailures.length > 0) {
+    errors.push(formatReadFailureMessage(readFailures));
+  }
   if (failedFiles.length > 0) {
-    errors.push(
+    errors.push(formatParseFailureMessage(failedFiles));
+  }
+
+  return errors.length > 0 ? errors.join("\n\n") : null;
+};
+
+const formatReadFailureMessage = (
+  readFailures: readonly FolderFileReadFailure[],
+): string => [
+  localize(
+    "import.failedToReadFiles",
+    "Failed to read {count} file(s).",
+    { count: readFailures.length },
+  ),
+  getReadFailureReason(readFailures),
+  localize("import.failedFileList", "Files:"),
+  ...readFailures.map(file => file.relativePath || file.fileName),
+].join("\n");
+
+const getReadFailureReason = (
+  readFailures: readonly FolderFileReadFailure[],
+): string => {
+  const reasonCounts = new Map<string, number>();
+  for (const file of readFailures) {
+    const reason = file.message.trim() || localize(
+      "import.failureReasonReadUnknown",
+      "The file could not be read.",
+    );
+    reasonCounts.set(reason, (reasonCounts.get(reason) ?? 0) + 1);
+  }
+
+  const reasons = Array.from(reasonCounts.entries())
+    .map(([reason, count]) => ({ count, reason }))
+    .sort((a, b) => b.count - a.count);
+
+  if (reasons.length === 1) {
+    return localize(
+      "import.failedToReadReason",
+      "Reason: {reason}",
+      { reason: reasons[0].reason },
+    );
+  }
+
+  const shownReasons = reasons.slice(0, 2).map(({ count, reason }) =>
+    localize(
+      "import.failedToReadReasonEntry",
+      "{count} file(s): {reason}",
+      { count, reason },
+    )
+  );
+  const remainingCount = reasons.length - shownReasons.length;
+  if (remainingCount > 0) {
+    shownReasons.push(
       localize(
-        "import.failedToParseFiles",
-        "Failed to parse: {fileNames}",
-        { fileNames: getImportErrorFileNames(failedFiles.map(file => file.fileName)) },
+        "import.moreReadFailureReasons",
+        "{count} more reason(s)",
+        { count: remainingCount },
       ),
     );
-    errors.push(getImportErrorReason(failedFiles));
   }
 
-  return errors.length > 0 ? errors.join("\n") : null;
-};
-
-const getImportErrorFileNames = (fileNames: readonly string[]): string => {
-  const names = fileNames.slice(0, MAX_IMPORT_ERROR_FILE_NAMES);
-  const remainingCount = fileNames.length - MAX_IMPORT_ERROR_FILE_NAMES;
-  if (remainingCount <= 0) {
-    return names.join(", ");
-  }
-
-  names.push(
-    remainingCount === 1
-      ? localize("import.oneMoreParseFailure", "...1 additional file not shown")
-      : localize(
-          "import.moreParseFailures",
-          "...{count} additional files not shown",
-          { count: remainingCount },
-        ),
+  return localize(
+    "import.failedToReadReasons",
+    "Reasons: {reasons}",
+    { reasons: shownReasons.join("; ") },
   );
-  return names.join(", ");
 };
+
+const formatParseFailureMessage = (
+  failedFiles: readonly ImportFilePrepareFailure[],
+): string => [
+  localize(
+    "import.failedToParseFiles",
+    "Failed to parse {count} file(s).",
+    { count: failedFiles.length },
+  ),
+  getImportErrorReason(failedFiles),
+  localize("import.failedFileList", "Files:"),
+  ...failedFiles.map(file => file.fileName),
+].join("\n");
 
 const getImportErrorReason = (
   failedFiles: readonly ImportFilePrepareFailure[],

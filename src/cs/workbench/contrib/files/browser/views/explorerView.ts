@@ -179,7 +179,9 @@ export class ExplorerView implements IDisposable {
     }
 
     notificationService.showToast({
+      className: "conductor-toast--import-error",
       dataUi: "analysis-import-error-toast",
+      duration: Number.POSITIVE_INFINITY,
       id: IMPORT_ERROR_TOAST_ID,
       message: error,
       onClose: this.props.onClearError,

@@ -31,7 +31,10 @@ import {
   pickFolderImportFiles,
   showCreateFolderUnsupported,
 } from "src/cs/workbench/contrib/files/browser/fileCommands";
-import { collectFolderFiles } from "src/cs/workbench/contrib/files/browser/fileImportExport";
+import {
+  collectFolderImportFiles,
+  type FolderFileReadFailure,
+} from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import {
   type ImportSessionFileEntry,
   type ImportSessionFileInfo,
@@ -264,7 +267,9 @@ export class FilesController implements FilesPaneRef, IDisposable {
       }
 
       this.watchImportedFolder(result.folder);
-      void this.processFiles(result.files);
+      void this.processFiles(result.files, {
+        readFailures: result.readFailures,
+      });
     } catch (error) {
       if (this.disposed) {
         return;
@@ -357,6 +362,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
     newFiles: FileSource[],
     options: {
       readonly preserveSelection?: boolean;
+      readonly readFailures?: readonly FolderFileReadFailure[];
       readonly replaceWhenEmpty?: boolean;
       readonly shouldContinue?: () => boolean;
     } = {},
@@ -395,6 +401,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
         this.error = buildImportErrorMessage({
           failedFiles,
           hasAnyUnsupportedFiles,
+          readFailures: options.readFailures,
         });
         this.syncView();
       }
@@ -450,6 +457,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
       this.error = buildImportErrorMessage({
         failedFiles,
         hasAnyUnsupportedFiles,
+        readFailures: options.readFailures,
       });
       this.syncView();
     }
@@ -517,13 +525,14 @@ export class FilesController implements FilesPaneRef, IDisposable {
     const folderKey = folder.toString();
 
     try {
-      const files = await collectFolderFiles(folder, this.filesService);
+      const result = await collectFolderImportFiles(folder, this.filesService);
       if (this.disposed || runId !== this.folderRefreshRunId) {
         return;
       }
 
-      await this.processFiles(files, {
+      await this.processFiles(result.files, {
         preserveSelection: true,
+        readFailures: result.readFailures,
         replaceWhenEmpty: true,
         shouldContinue: () =>
           !this.disposed &&
