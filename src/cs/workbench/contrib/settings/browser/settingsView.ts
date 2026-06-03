@@ -15,6 +15,7 @@ import type {
   WindowCloseSettings,
 } from "src/cs/workbench/contrib/settings/settingsViewTypes";
 import { cx } from "src/utils/cx";
+import "src/cs/base/browser/ui/inputbox/inputBox.css";
 import "src/cs/workbench/contrib/settings/browser/media/settingsView.css";
 
 type SelectOption = {
@@ -544,7 +545,7 @@ export class SettingsView {
   private createSelect(options: FieldOptions): HTMLSelectElement {
     const select = document.createElement("select");
     select.id = options.id;
-    select.className = "input_field ui-select_field--md settings-select";
+    select.className = "inputbox_field settings-select";
     select.value = options.value;
     select.disabled = options.disabled === true;
     for (const option of options.options) {
@@ -560,7 +561,7 @@ export class SettingsView {
   private createInput(options: TextInputOptions): HTMLInputElement {
     const input = document.createElement("input");
     input.id = options.id;
-    input.className = cx("input_native input_field input_field--md", options.inputClassName);
+    input.className = cx("inputbox_native inputbox_field", options.inputClassName);
     input.value = options.value;
     input.disabled = options.disabled === true;
     input.placeholder = options.placeholder ?? "";

@@ -1,5 +1,5 @@
 import { createButton } from "src/cs/base/browser/ui/button/button";
-import { createInputField } from "src/cs/base/browser/ui/input/input";
+import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBox";
 import { localize } from "src/cs/nls";
 import type { TemplateConfig } from "src/cs/workbench/contrib/template/common/templateManagerUtils";
 
@@ -78,12 +78,8 @@ export class TemplateEditorView {
       xDataEnd: this.createField(fields, localize("template_x_end", "X End"), "xDataEnd", {
         placeholder: "End",
       }),
-      xSegmentCount: this.createField(fields, localize("template_x_segment_count", "X segment count"), "xSegmentCount", {
-        type: "number",
-      }),
-      xPointsPerGroup: this.createField(fields, localize("template_x_points_per_group", "Points per group"), "xPointsPerGroup", {
-        type: "number",
-      }),
+      xSegmentCount: this.createField(fields, localize("template_x_segment_count", "X segment count"), "xSegmentCount"),
+      xPointsPerGroup: this.createField(fields, localize("template_x_points_per_group", "Points per group"), "xPointsPerGroup"),
       xUnit: this.createField(fields, localize("template_x_unit", "X unit"), "xUnit", {
         placeholder: "V",
       }),
@@ -96,12 +92,8 @@ export class TemplateEditorView {
       yLegendStart: this.createField(fields, localize("template_y_legend_start", "Legend Start"), "yLegendStart", {
         placeholder: "B1",
       }),
-      yLegendCount: this.createField(fields, localize("template_y_legend_count", "Legend Count"), "yLegendCount", {
-        type: "number",
-      }),
-      yLegendStep: this.createField(fields, localize("template_y_legend_step", "Legend Step"), "yLegendStep", {
-        type: "number",
-      }),
+      yLegendCount: this.createField(fields, localize("template_y_legend_count", "Legend Count"), "yLegendCount"),
+      yLegendStep: this.createField(fields, localize("template_y_legend_step", "Legend Step"), "yLegendStep"),
       yUnit: this.createField(fields, localize("template_y_unit", "Y unit"), "yUnit", {
         placeholder: "A",
       }),
@@ -221,14 +213,12 @@ export class TemplateEditorView {
     name: TemplateEditorInputName,
     options: {
       placeholder?: string;
-      type?: string;
     } = {},
   ): HTMLInputElement {
     const field = createField({
       label,
       name,
       placeholder: options.placeholder,
-      type: options.type,
       value: "",
       onInput: (_fieldName, value) => {
         this.options.onUpdateConfig({ [name]: value });
@@ -236,10 +226,6 @@ export class TemplateEditorView {
     });
     container.append(field);
     const input = field.querySelector("input") as HTMLInputElement;
-    if (options.type === "number") {
-      input.step = "1";
-      input.min = "0";
-    }
     input.addEventListener("focus", () => {
       this.options.onPickFieldFocus(
         PICKABLE_TEMPLATE_FIELDS.has(name) ? name as TemplatePickFieldName : null,
@@ -296,14 +282,12 @@ const createField = ({
   label,
   name,
   placeholder,
-  type,
   value,
   onInput,
 }: {
   label: string;
   name: TemplateStringFieldName;
   placeholder?: string;
-  type?: string;
   value: string;
   onInput: (name: TemplateStringFieldName, value: string) => void;
 }): HTMLElement => {
@@ -314,11 +298,9 @@ const createField = ({
   labelElement.className = "template_field_label";
   labelElement.textContent = label;
 
-  const inputField = createInputField({
-    fieldClassName: "template_field_input",
+  const inputField = createInputBoxField({
     name: String(name),
     placeholder,
-    type,
     value,
   });
   const input = inputField.input;

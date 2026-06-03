@@ -65,19 +65,19 @@
   width: fit-content;
 }
 
-.titlebar-file-select .input_field {
+.titlebar-file-select .inputbox_field {
   background: transparent;
   border-color: transparent;
   width: fit-content;
 }
 
-.titlebar-file-select .input_native {
+.titlebar-file-select .inputbox_native {
   flex: none;
   width: max-content;
 }
 
-.titlebar-file-select .input_field[data-state="enable"]:hover,
-.titlebar-file-select .input_field[data-state="enable"]:focus-within {
+.titlebar-file-select .inputbox_field[data-state="enable"]:hover,
+.titlebar-file-select .inputbox_field[data-state="enable"]:focus-within {
   background: rgb(var(--bg-200) / 0.5);
   color: rgb(var(--text-primary));
 }

@@ -13,11 +13,11 @@ import {
   getLxIconStyle,
 } from "src/cs/base/browser/ui/lxicon/lxicon";
 import {
-  getInputFieldClassName,
-  getInputFieldState,
-  getInputNativeClassName,
-  getInputWrapperClassName,
-} from "cs/base/browser/ui/input/input";
+  getInputBoxFieldClassName,
+  getInputBoxFieldState,
+  getInputBoxNativeClassName,
+  getInputBoxWrapperClassName,
+} from "src/cs/base/browser/ui/inputbox/inputBox";
 import {
   createSwitch as createBaseSwitch,
 } from "src/cs/base/browser/ui/switch/switch";
@@ -476,19 +476,19 @@ const createInput = ({
   readonly value?: string | number;
 }): HTMLElement => {
   const wrapper = document.createElement("div");
-  wrapper.className = getInputWrapperClassName(className);
-  wrapper.dataset.style = "input";
+  wrapper.className = getInputBoxWrapperClassName(className);
+  wrapper.dataset.style = "inputbox";
   const field = document.createElement("div");
-  field.className = getInputFieldClassName({ fieldClassName, size: "md" });
+  field.className = getInputBoxFieldClassName({ fieldClassName });
   field.dataset.icon = "without";
-  field.dataset.state = getInputFieldState({ disabled });
+  field.dataset.state = getInputBoxFieldState({ disabled });
   const input = document.createElement("input");
   input.id = id;
   input.value = String(value ?? "");
   input.disabled = disabled;
   input.placeholder = placeholder ?? "";
   input.autocomplete = "off";
-  input.className = getInputNativeClassName({ inputClassName });
+  input.className = getInputBoxNativeClassName({ inputClassName });
   input.addEventListener("input", () => onChange(input.value));
   input.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {

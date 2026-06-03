@@ -1,6 +1,10 @@
 import { localize } from "src/cs/nls";
 import { lxListUnordered, lxOrigin, lxSettings } from "@chogng/lxicon";
 
+import {
+  getInputBoxFieldClassName,
+  getInputBoxNativeClassName,
+} from "src/cs/base/browser/ui/inputbox/inputBox";
 import SidebarPart from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import type {
   WorkbenchSidebarAction,
@@ -526,7 +530,11 @@ const createLineWidthInput = (
 ): HTMLInputElement => {
   const input = document.createElement("input");
   input.id = "results-curve-line-width";
-  input.className = "input_native results_settings_control";
+  input.className = getInputBoxNativeClassName({
+    inputClassName: getInputBoxFieldClassName({
+      fieldClassName: "results_settings_control",
+    }),
+  });
   input.type = "number";
   input.min = "0.5";
   input.max = "20";

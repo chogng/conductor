@@ -3,11 +3,11 @@ import {
   type CardVariant,
 } from "cs/base/browser/ui/card/card";
 import {
-  getInputFieldClassName,
-  getInputFieldState,
-  getInputNativeClassName,
-  getInputWrapperClassName,
-} from "cs/base/browser/ui/input/input";
+  getInputBoxFieldClassName,
+  getInputBoxFieldState,
+  getInputBoxNativeClassName,
+  getInputBoxWrapperClassName,
+} from "src/cs/base/browser/ui/inputbox/inputBox";
 import { formatNumber } from "src/cs/workbench/contrib/diagnostics/common/numberFormat";
 
 type DropdownOption = {
@@ -363,13 +363,13 @@ const createInput = ({
   readonly value?: string | number;
 }): HTMLElement => {
   const wrapper = document.createElement("div");
-  wrapper.className = getInputWrapperClassName(className);
-  wrapper.dataset.style = "input";
+  wrapper.className = getInputBoxWrapperClassName(className);
+  wrapper.dataset.style = "inputbox";
 
   const field = document.createElement("div");
-  field.className = getInputFieldClassName({ fieldClassName, size: "md" });
+  field.className = getInputBoxFieldClassName({ fieldClassName });
   field.dataset.icon = "without";
-  field.dataset.state = getInputFieldState();
+  field.dataset.state = getInputBoxFieldState();
 
   const input = document.createElement("input");
   input.id = id;
@@ -377,7 +377,7 @@ const createInput = ({
   input.value = String(value ?? "");
   input.placeholder = placeholder ?? "";
   input.autocomplete = "off";
-  input.className = getInputNativeClassName({ inputClassName });
+  input.className = getInputBoxNativeClassName({ inputClassName });
   input.addEventListener("input", () => onChange(input.value));
   field.append(input);
   wrapper.append(field);

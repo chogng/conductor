@@ -1,0 +1,93 @@
+.inputbox_wrap > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 8px;
+}
+
+.inputbox_field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  border: 1px solid rgb(var(--border) / 1);
+  border-radius: 8px;
+  background-color: rgb(var(--bg-page) / 1);
+  padding: 0 12px;
+  font-size: 12px;
+  line-height: 16px;
+  transition:
+    border-color 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 150ms cubic-bezier(0.4, 0, 0.2, 1),
+    opacity 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.inputbox_field[data-state="enable"]:focus-within {
+  border-color: rgb(var(--accent) / 1);
+}
+
+.inputbox_field[data-state="error"] {
+  border-color: rgb(239 68 68 / 1);
+  box-shadow: 0 0 0 1px rgb(239 68 68 / 0.1);
+}
+
+.inputbox_field[data-state="disabled"] {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+html[data-nav="keyboard"] .inputbox_field[data-state="enable"]::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border: 2px solid transparent;
+  border-radius: 14px;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    border-color 120ms ease,
+    opacity 120ms ease;
+}
+
+html[data-nav="keyboard"] .inputbox_field[data-state="enable"]:focus-within::after {
+  border-color: rgb(var(--accent-terracotta) / 1);
+  opacity: 0.5;
+}
+
+.inputbox_right {
+  display: inline-flex;
+  align-items: center;
+}
+
+.inputbox_native {
+  min-width: 0;
+  flex: 1 1 0%;
+  border: 0;
+  outline: none;
+  background-color: transparent;
+  color: rgb(var(--text-primary) / 1);
+}
+
+.inputbox_native::placeholder {
+  color: rgb(var(--text-tertiary) / 1);
+}
+
+.inputbox_native:disabled {
+  cursor: not-allowed;
+}
+
+.inputbox_native.inputbox_field {
+  display: block;
+  width: 100%;
+  flex: none;
+  border-color: rgb(var(--border) / 1);
+  background-color: rgb(var(--bg-page) / 1);
+  padding: 0 12px;
+}
+
+.inputbox_native.inputbox_field:focus {
+  border-color: rgb(var(--accent) / 1);
+}
+
+.inputbox_native.no-focus-outline:focus,
+.inputbox_native.no-focus-outline:focus-visible {
+  outline: none;
+}
