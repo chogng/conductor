@@ -84,6 +84,23 @@ export class ViewPane implements IView {
     focusTarget.focus();
   }
 
+  public layout(height: number, width: number): void {
+    const nextHeight = Math.max(0, height);
+    const nextWidth = Math.max(0, width);
+    this.element.style.height = `${nextHeight}px`;
+    this.element.style.width = `${nextWidth}px`;
+
+    const headerHeight = this.element.contains(this.header)
+      ? this.header.getBoundingClientRect().height
+      : 0;
+    const bodyHeight = this.collapsed ? 0 : Math.max(0, nextHeight - headerHeight);
+    this.body.style.height = `${bodyHeight}px`;
+    this.body.style.width = `${nextWidth}px`;
+    if (!this.collapsed) {
+      this.layoutBody(bodyHeight, nextWidth);
+    }
+  }
+
   public isVisible(): boolean {
     return !this.element.hidden;
   }
@@ -118,9 +135,12 @@ export class ViewPane implements IView {
     this.body.hidden = collapsed;
     this.element.dataset.collapsed = collapsed ? "true" : "false";
     this.header.setAttribute("aria-expanded", String(!collapsed));
+    this.layout(this.element.clientHeight, this.element.clientWidth);
     this.onDidChangeCollapsedEmitter.fire(collapsed);
     return true;
   }
+
+  protected layoutBody(_height: number, _width: number): void {}
 
   public dispose(): void {
     this.disposables.dispose();

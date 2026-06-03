@@ -1,5 +1,6 @@
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
+import { DisposableResizeObserver, getClientArea, getWindow } from "src/cs/base/browser/dom";
 import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
 import type { IAction } from "src/cs/base/common/actions";
 import { ViewPane, type ViewPaneOptions } from "src/cs/workbench/browser/parts/views/viewPane";
@@ -78,6 +79,12 @@ export class ViewPaneContainer implements IViewPaneContainer {
     }
     this.element.append(this.body);
     this.renderTitleArea();
+    const resizeObserver = this.disposables.add(
+      new DisposableResizeObserver(getWindow(this.element), () => {
+        this.layout();
+      }),
+    );
+    this.disposables.add(resizeObserver.observe(this.element));
     this.disposables.add(this.onDidChangeCollapsedPaneIdsEmitter);
     this.disposables.add(this.onDidAddViewsEmitter);
     this.disposables.add(this.onDidRemoveViewsEmitter);
@@ -134,6 +141,7 @@ export class ViewPaneContainer implements IViewPaneContainer {
     this.body.append(pane.element);
     this.fireCollapsedPaneIds();
     this.onDidAddViewsEmitter.fire([pane]);
+    this.layout();
     return pane;
   }
 
@@ -156,6 +164,7 @@ export class ViewPaneContainer implements IViewPaneContainer {
     }
     this.onDidAddViewsEmitter.fire([view]);
     this.fireCollapsedPaneIds();
+    this.layout();
     return view;
   }
 
@@ -170,6 +179,7 @@ export class ViewPaneContainer implements IViewPaneContainer {
     this.onDidRemoveViewsEmitter.fire([pane]);
     pane.dispose();
     this.fireCollapsedPaneIds();
+    this.layout();
   }
 
   public removePane(id: string): void {
@@ -196,6 +206,7 @@ export class ViewPaneContainer implements IViewPaneContainer {
     if (focus) {
       view.focus();
     }
+    this.layout();
     return view;
   }
 
@@ -211,6 +222,7 @@ export class ViewPaneContainer implements IViewPaneContainer {
         this.onDidChangeViewVisibilityEmitter.fire(pane);
       }
     }
+    this.layout();
   }
 
   public isVisible(): boolean {
@@ -225,6 +237,36 @@ export class ViewPaneContainer implements IViewPaneContainer {
     return undefined;
   }
 
+  public layout(height?: number, width?: number): void {
+    const measured = getClientArea(this.element);
+    const nextHeight = typeof height === "number" && Number.isFinite(height)
+      ? Math.max(0, height)
+      : measured.height;
+    const nextWidth = typeof width === "number" && Number.isFinite(width)
+      ? Math.max(0, width)
+      : measured.width;
+
+    if (typeof height === "number" && Number.isFinite(height)) {
+      this.element.style.height = `${nextHeight}px`;
+    }
+    if (typeof width === "number" && Number.isFinite(width)) {
+      this.element.style.width = `${nextWidth}px`;
+    }
+
+    const headerHeight = this.header.hidden
+      ? 0
+      : this.header.getBoundingClientRect().height;
+    const bodyHeight = Math.max(0, nextHeight - headerHeight);
+    this.body.style.height = `${bodyHeight}px`;
+    this.body.style.width = `${nextWidth}px`;
+
+    for (const view of this.panes.values()) {
+      if (view.isVisible()) {
+        view.layout?.(bodyHeight, nextWidth);
+      }
+    }
+  }
+
   public setTitle(title: string): void {
     if (this.containerTitle === title) {
       return;
@@ -233,12 +275,14 @@ export class ViewPaneContainer implements IViewPaneContainer {
     this.containerTitle = title;
     this.element.setAttribute("aria-label", title || this.id);
     this.renderTitleArea();
+    this.layout();
   }
 
   public setActions(actions: readonly IAction[], contextActions: readonly IAction[] = []): void {
     this.primaryActions = actions;
     this.secondaryActions = contextActions;
     this.renderTitleArea();
+    this.layout();
   }
 
   public toggleViewVisibility(viewId: string): void {
@@ -249,6 +293,7 @@ export class ViewPaneContainer implements IViewPaneContainer {
 
     if (pane.setVisible(!pane.isVisible())) {
       this.onDidChangeViewVisibilityEmitter.fire(pane);
+      this.layout();
     }
   }
 
@@ -314,6 +359,7 @@ export class ViewPaneContainer implements IViewPaneContainer {
     if (hadId !== collapsed && !this.updatingCollapsedPaneIds) {
       this.fireCollapsedPaneIds();
     }
+    this.layout();
   }
 
   private fireCollapsedPaneIds(): void {

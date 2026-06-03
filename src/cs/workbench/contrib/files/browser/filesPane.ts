@@ -80,6 +80,16 @@ export class FilesPane implements IDisposable {
     });
   }
 
+  layout(height: number, width: number): void {
+    const nextHeight = Math.max(0, height);
+    const nextWidth = Math.max(0, width);
+    this.body.style.height = `${nextHeight}px`;
+    this.body.style.width = `${nextWidth}px`;
+    this.sessionHost.style.height = `${nextHeight}px`;
+    this.sessionHost.style.width = `${nextWidth}px`;
+    this.controller.layout(nextHeight, nextWidth);
+  }
+
   dispose(): void {
     if (this.disposed) {
       return;

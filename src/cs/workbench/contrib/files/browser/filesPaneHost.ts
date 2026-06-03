@@ -30,12 +30,27 @@ export class FilesPaneHost extends ViewPane {
   public update(props: FilesPaneProps): void {
     this.view.setProps(props);
     this.sidebarPart.update(this.getSidebarOptions(props));
+    if (
+      this.element.isConnected &&
+      this.element.clientHeight > 0 &&
+      this.element.clientWidth > 0
+    ) {
+      this.layout(this.element.clientHeight, this.element.clientWidth);
+    }
   }
 
   public dispose(): void {
     this.view.dispose();
     this.sidebarPart.dispose();
     super.dispose();
+  }
+
+  protected override layoutBody(height: number, width: number): void {
+    this.body.style.height = `${height}px`;
+    this.body.style.width = `${width}px`;
+    this.sidebarPart.element.style.height = `${height}px`;
+    this.sidebarPart.element.style.width = `${width}px`;
+    this.view.layout(height, width);
   }
 
   private getSidebarOptions(props: FilesPaneProps) {

@@ -123,6 +123,10 @@ export class FilesController implements FilesPaneRef, IDisposable {
     this.syncView();
   }
 
+  layout(height?: number, width?: number): void {
+    this.listRef.current?.layout(height, width);
+  }
+
   dispose(): void {
     if (this.disposed) {
       return;

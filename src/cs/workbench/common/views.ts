@@ -437,6 +437,7 @@ export interface IView extends IDisposable {
   readonly element: HTMLElement;
 
   focus(): void;
+  layout?(height: number, width: number): void;
   isVisible(): boolean;
   isBodyVisible(): boolean;
   setVisible(visible: boolean): boolean;
@@ -497,6 +498,7 @@ export interface IViewPaneContainer extends IDisposable {
   setVisible(visible: boolean): void;
   isVisible(): boolean;
   focus(): void;
+  layout?(height?: number, width?: number): void;
   getActionsContext(): unknown;
   getView(viewId: string): IView | undefined;
   addView(view: IView, options?: { readonly dispose?: boolean }): IView;

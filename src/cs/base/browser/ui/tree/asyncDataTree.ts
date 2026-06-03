@@ -70,6 +70,10 @@ export class AsyncDataTree<TInput, T> implements ListHandle {
     return this.tree.getViewport();
   }
 
+  layout(height?: number, width?: number): void {
+    this.tree.layout(height, width);
+  }
+
   scrollToEnd(behavior?: ScrollBehavior): void {
     this.tree.scrollToEnd(behavior);
   }

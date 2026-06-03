@@ -164,6 +164,17 @@ export class ListView<T> implements IDisposable {
     return this.viewport;
   }
 
+  layout(height?: number, width?: number): void {
+    if (typeof height === "number" && Number.isFinite(height)) {
+      this.root.style.height = `${Math.max(0, height)}px`;
+    }
+    if (typeof width === "number" && Number.isFinite(width)) {
+      this.root.style.width = `${Math.max(0, width)}px`;
+    }
+
+    this.measureViewport();
+  }
+
   scrollToStart(behavior: ScrollBehavior = "auto"): void {
     this.setScrollTop(0, behavior);
   }

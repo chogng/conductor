@@ -35,7 +35,7 @@ const renderChevron = (collapsed: boolean): HTMLSpanElement => {
 
 const isInteractiveEventTarget = (event: MouseEvent): boolean => {
   const target = event.target;
-  if (!(target instanceof HTMLElement)) {
+  if (!(target instanceof Element)) {
     return false;
   }
 
@@ -89,6 +89,10 @@ export class ObjectTree<T> implements ListHandle {
 
   getViewport(): HTMLDivElement | null {
     return this.list.getViewport();
+  }
+
+  layout(height?: number, width?: number): void {
+    this.list.layout(height, width);
   }
 
   scrollToEnd(behavior?: ScrollBehavior): void {

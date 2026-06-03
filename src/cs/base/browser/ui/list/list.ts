@@ -11,6 +11,7 @@ export type IListVirtualDelegate<T> = {
 export type ListHandle = {
   focus: () => void;
   getViewport: () => HTMLDivElement | null;
+  layout: (height?: number, width?: number) => void;
   scrollToEnd: (behavior?: ScrollBehavior) => void;
   scrollToIndex: (index: number, behavior?: ScrollBehavior) => void;
   scrollToStart: (behavior?: ScrollBehavior) => void;
