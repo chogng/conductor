@@ -43,6 +43,7 @@ export type ExplorerViewerProps = {
 
 const getFileName = getTreeFileName;
 const FILE_ROW_HEIGHT = 28;
+const FILE_HOVER_HIDE_DELAY_MS = 120;
 
 type FileItemMeta = {
   readonly isWarning: boolean;
@@ -86,9 +87,11 @@ const appendIcon = (
 
 export class ExplorerViewer implements IDisposable {
   private readonly disposables = new DisposableStore();
+  private readonly hoverDisposables = new DisposableStore();
   private readonly treeView: ObjectTree<FileTreeNode>;
   private hoverView: ContentView | null = null;
   private hoverAnchor: HTMLElement | null = null;
+  private hoverHideTimeout: ReturnType<typeof setTimeout> | null = null;
   private readonly folderActionDisposables = new WeakMap<HTMLElement, IDisposable>();
   private expandedKeys: string[] = [];
   private knownFolderKeys = new Set<string>();
@@ -138,6 +141,7 @@ export class ExplorerViewer implements IDisposable {
 
   dispose(): void {
     this.hideFileItemHover();
+    this.hoverDisposables.dispose();
     this.disposables.dispose();
   }
 
@@ -376,6 +380,7 @@ export class ExplorerViewer implements IDisposable {
   private readonly handleListMouseOver = (event: MouseEvent): void => {
     const item = this.getFileItemFromEvent(event);
     if (item) {
+      this.cancelFileItemHoverHide();
       this.showFileItemHover(item);
     }
   };
@@ -385,15 +390,16 @@ export class ExplorerViewer implements IDisposable {
     const relatedTarget = event.relatedTarget;
     if (
       item &&
-      !(relatedTarget instanceof Node && item.contains(relatedTarget))
+      !this.isInsideFileHover(relatedTarget, item)
     ) {
-      this.hideFileItemHover(item);
+      this.scheduleFileItemHoverHide(item);
     }
   };
 
   private readonly handleListFocusIn = (event: FocusEvent): void => {
     const item = this.getFileItemFromEvent(event);
     if (item) {
+      this.cancelFileItemHoverHide();
       this.showFileItemHover(item);
     }
   };
@@ -403,9 +409,19 @@ export class ExplorerViewer implements IDisposable {
     const relatedTarget = event.relatedTarget;
     if (
       item &&
-      !(relatedTarget instanceof Node && item.contains(relatedTarget))
+      !this.isInsideFileHover(relatedTarget, item)
     ) {
       this.hideFileItemHover(item);
+    }
+  };
+
+  private readonly handleHoverMouseOver = (): void => {
+    this.cancelFileItemHoverHide();
+  };
+
+  private readonly handleHoverMouseOut = (event: MouseEvent): void => {
+    if (!this.isInsideFileHover(event.relatedTarget, this.hoverAnchor)) {
+      this.scheduleFileItemHoverHide(this.hoverAnchor);
     }
   };
 
@@ -436,6 +452,37 @@ export class ExplorerViewer implements IDisposable {
     );
   }
 
+  private isInsideFileHover(
+    target: EventTarget | null,
+    item: HTMLElement | null | undefined,
+  ): boolean {
+    if (!(target instanceof Node)) {
+      return false;
+    }
+
+    return Boolean(
+      item?.contains(target) ||
+      this.hoverView?.domNode.contains(target),
+    );
+  }
+
+  private scheduleFileItemHoverHide(item: HTMLElement | null | undefined): void {
+    this.cancelFileItemHoverHide();
+    this.hoverHideTimeout = setTimeout(() => {
+      this.hoverHideTimeout = null;
+      this.hideFileItemHover(item ?? undefined);
+    }, FILE_HOVER_HIDE_DELAY_MS);
+  }
+
+  private cancelFileItemHoverHide(): void {
+    if (this.hoverHideTimeout === null) {
+      return;
+    }
+
+    clearTimeout(this.hoverHideTimeout);
+    this.hoverHideTimeout = null;
+  }
+
   private showFileItemHover(item: HTMLElement): void {
     const summary = item.dataset.autoSummary;
     const processedFile = this.getProcessedFile(item.dataset.fileId);
@@ -445,6 +492,7 @@ export class ExplorerViewer implements IDisposable {
     }
 
     if (this.hoverAnchor === item && this.hoverView) {
+      this.cancelFileItemHoverHide();
       return;
     }
 
@@ -477,6 +525,12 @@ export class ExplorerViewer implements IDisposable {
       side: "right",
       zIndex: 40,
     });
+    this.hoverDisposables.add(
+      addDisposableListener(this.hoverView.domNode, "mouseover", this.handleHoverMouseOver),
+    );
+    this.hoverDisposables.add(
+      addDisposableListener(this.hoverView.domNode, "mouseout", this.handleHoverMouseOut),
+    );
     this.hoverView.show();
   }
 
@@ -485,6 +539,8 @@ export class ExplorerViewer implements IDisposable {
       return;
     }
 
+    this.cancelFileItemHoverHide();
+    this.hoverDisposables.clear();
     this.hoverAnchor = null;
     this.hoverView?.dispose();
     this.hoverView = null;

@@ -300,7 +300,6 @@
 }
 
 .file-list-hover {
-  max-width: min(280px, 42vw);
   border: 1px solid rgb(var(--border) / 1);
   border-radius: 6px;
   background-color: rgb(var(--bg-surface) / 1);
@@ -316,7 +315,7 @@
 }
 
 .file-list-hover-summary {
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
   font-size: 12px;
   line-height: 1.35;
 }
