@@ -5,6 +5,7 @@ export const IMPORT_FILE_EXTENSIONS = [".csv", ".xls", ".xlsx"] as const;
 
 const SUPPORTED_IMPORT_FILE_EXTENSIONS = new Set<string>(IMPORT_FILE_EXTENSIONS);
 const EXCEL_IMPORT_FILE_EXTENSIONS = new Set<string>([".xls", ".xlsx"]);
+const XLSX_IMPORT_FILE_EXTENSIONS = new Set<string>([".xlsx"]);
 
 const toLowerTrimmed = (value: unknown): string =>
   String(value ?? "").trim().toLowerCase();
@@ -21,6 +22,9 @@ export const isSupportedImportFileName = (fileName: unknown): boolean =>
 
 export const isExcelImportFileName = (fileName: unknown): boolean =>
   EXCEL_IMPORT_FILE_EXTENSIONS.has(getFileExtension(fileName));
+
+export const isXlsxImportFileName = (fileName: unknown): boolean =>
+  XLSX_IMPORT_FILE_EXTENSIONS.has(getFileExtension(fileName));
 
 export type FileEntry = {
   file?: unknown;

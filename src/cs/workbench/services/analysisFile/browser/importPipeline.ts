@@ -1,10 +1,14 @@
-import type { AnalysisFileAssessment } from "src/cs/workbench/services/analysisFile/common/analysisFile";
+import type {
+  AnalysisFileAssessment,
+  IAnalysisFileService,
+} from "src/cs/workbench/services/analysisFile/common/analysisFile";
 import type { SessionFile } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import {
   buildItemKey,
   type FileEntry,
 } from "src/cs/workbench/contrib/files/common/files";
 import {
+  ImportPrepareError,
   prepareImportFile,
 } from "src/cs/workbench/services/analysisFile/browser/fileConversion";
 import type {
@@ -51,6 +55,16 @@ export type PreparedImportFile = {
   readonly fileInfo: ImportSessionFileInfo;
 };
 
+export type ImportFilePrepareFailure = {
+  readonly code: string | null;
+  readonly fileName: string;
+  readonly message: string;
+};
+
+export type PendingImportFileResult =
+  | { readonly ok: true; readonly prepared: PreparedImportFile }
+  | { readonly ok: false; readonly error: ImportFilePrepareFailure };
+
 const createFileId = (): string => {
   if (
     typeof crypto !== "undefined" &&
@@ -62,9 +76,33 @@ const createFileId = (): string => {
   return `file_${Math.random().toString(36).slice(2)}_${Date.now().toString(36)}`;
 };
 
+const toPrepareFailure = (
+  error: unknown,
+  fileName: string,
+): ImportFilePrepareFailure => {
+  const code =
+    error instanceof ImportPrepareError
+      ? error.code
+      : error && typeof error === "object" && "code" in error &&
+          typeof (error as { code?: unknown }).code === "string"
+        ? (error as { code: string }).code
+        : null;
+  const message =
+    error instanceof Error && error.message.trim()
+      ? error.message
+      : "Import file preparation failed.";
+
+  return {
+    code,
+    fileName,
+    message,
+  };
+};
+
 export const preparePendingImportFile = async (
+  analysisFileService: IAnalysisFileService,
   pendingImportFile: PendingImportFile,
-): Promise<PreparedImportFile | null> => {
+): Promise<PendingImportFileResult> => {
   const {
     finishFilePerf,
     relativePath,
@@ -78,14 +116,28 @@ export const preparePendingImportFile = async (
   let sourcePath: string | null = null;
 
   try {
-    const prepared = await prepareImportFile(sourceFile, resource);
+    const prepared = await prepareImportFile(analysisFileService, sourceFile, resource);
     normalizedFile = prepared.file;
     normalizedCsvPath = prepared.normalizedCsvPath ?? null;
     fileAssessment = prepared.assessment;
     sourcePath = prepared.sourcePath ?? null;
-  } catch {
-    finishFilePerf({ failed: "prepare" });
-    return null;
+  } catch (error) {
+    const failure = toPrepareFailure(
+      error,
+      sourceFile.name || "Unknown file",
+    );
+    finishFilePerf({
+      code: failure.code,
+      failed: "prepare",
+      message: failure.message,
+    });
+    if (import.meta.env.DEV) {
+      console.warn("Failed to prepare import file.", failure);
+    }
+    return {
+      error: failure,
+      ok: false,
+    };
   }
 
   const fileId = createFileId();
@@ -128,5 +180,8 @@ export const preparePendingImportFile = async (
     normalizedSizeBytes: normalizedFile.size,
   });
 
-  return { fileEntry, fileInfo };
+  return {
+    ok: true,
+    prepared: { fileEntry, fileInfo },
+  };
 };

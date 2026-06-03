@@ -104,6 +104,4 @@ export class BrowserAnalysisFileService extends Disposable implements IAnalysisF
   }
 }
 
-export const analysisFileService = new BrowserAnalysisFileService();
-
 registerSingleton(IAnalysisFileService, BrowserAnalysisFileService, InstantiationType.Delayed);

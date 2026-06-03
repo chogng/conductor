@@ -1,3 +1,3 @@
 [workspace]
-members = ["assessment", "worker"]
+members = ["assessment", "worker", "xlsx"]
 resolver = "2"

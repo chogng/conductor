@@ -21,7 +21,7 @@ import type {
 } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import type { ProcessingQueueItem } from "src/cs/workbench/contrib/template/browser/templateApplyProcessing";
 import { TemplateApplyService } from "src/cs/workbench/contrib/template/browser/templateApplyService";
-import { analysisFileService } from "src/cs/workbench/services/analysisFile/browser/analysisFileService";
+import type { IAnalysisFileService } from "src/cs/workbench/services/analysisFile/common/analysisFile";
 
 type ExtractionErrorEntry = {
   fileName?: string;
@@ -74,6 +74,7 @@ export type TemplateApplyControllerInput = {
 };
 
 type TemplateApplyControllerOptions = {
+  analysisFileService: IAnalysisFileService;
   onExtractionError?: (error: ExtractionErrorEntry) => void;
   showResults: () => void;
   setAnalysisResults: StateSetter<AnalysisResultsByFileId>;
@@ -523,13 +524,13 @@ export class TemplateApplyController {
             entry.sourcePath.trim().toLowerCase().endsWith(".csv")
           ? entry.sourcePath.trim()
           : null;
-    if (!inputPath || !analysisFileService.canProcessFile()) {
+    if (!inputPath || !this.options.analysisFileService.canProcessFile()) {
       return null;
     }
 
     try {
       if (messageType === "processFileAuto") {
-        const response = await analysisFileService.processFile({
+        const response = await this.options.analysisFileService.processFile({
           auto: true,
           curveFilterField: entry.curveFilterField ?? null,
           curveFilterKey: entry.curveFilterKey ?? null,
@@ -547,7 +548,7 @@ export class TemplateApplyController {
         return null;
       }
 
-      const response = await analysisFileService.processFile({
+      const response = await this.options.analysisFileService.processFile({
         config: extractionConfig,
         curveFilterField: entry.curveFilterField ?? null,
         curveFilterKey: entry.curveFilterKey ?? null,
@@ -573,6 +574,7 @@ export class TemplateApplyController {
   }: StartExtractionJobOptions): void => {
     const { activeFileId, hasSourceFile } = this.input;
     this.templateApplyService.startProcessingJob({
+      analysisFileService: this.options.analysisFileService,
       activeFileId,
       extractionConfig,
       messageType,
@@ -763,6 +765,7 @@ export class TemplateApplyController {
 
     this.lastAppliedTemplateConfigFingerprintRef.current = stableStringify(config);
     this.templateApplyService.startRuleProcessingJob({
+      analysisFileService: this.options.analysisFileService,
       activeFileId,
       finalQueue,
       groupedPrepared,

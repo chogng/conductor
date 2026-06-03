@@ -262,6 +262,4 @@ export class ElectronBrowserAnalysisFileService extends Disposable implements IA
   }
 }
 
-export const analysisFileService = new ElectronBrowserAnalysisFileService();
-
 registerSingleton(IAnalysisFileService, ElectronBrowserAnalysisFileService, InstantiationType.Delayed);

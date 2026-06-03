@@ -15,6 +15,10 @@ import {
   type IPathService as IPathServiceType,
 } from "src/cs/workbench/services/path/common/pathService";
 import {
+  IAnalysisFileService,
+  type IAnalysisFileService as IAnalysisFileServiceType,
+} from "src/cs/workbench/services/analysisFile/common/analysisFile";
+import {
   IContextMenuService,
   type IContextMenuService as IContextMenuServiceType,
 } from "src/cs/platform/contextview/browser/contextView";
@@ -35,6 +39,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
 
   constructor(
     @ITableService tableService: ITableServiceType,
+    @IAnalysisFileService analysisFileService: IAnalysisFileServiceType,
     @IFileService filesService: IFileServiceType,
     @IFileDialogService dialogsService: IFileDialogServiceType,
     @IContextMenuService contextMenuService: IContextMenuServiceType,
@@ -48,6 +53,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
     }
 
     this.workbench = this._register(new Workbench(root, {
+      analysisFileService,
       dialogsService,
       contextMenuService,
       filesService,

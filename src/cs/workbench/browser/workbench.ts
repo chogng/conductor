@@ -12,6 +12,7 @@ import type { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs"
 import type { IFileService } from "src/cs/platform/files/common/files";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
+import type { IAnalysisFileService } from "src/cs/workbench/services/analysisFile/common/analysisFile";
 import {
   isLanguageCode,
   isLanguagePreference,
@@ -105,6 +106,7 @@ type WorkbenchSessionSnapshot = ReturnType<SessionModel["getSnapshot"]>;
 
 export type WorkbenchOptions = {
   readonly className?: string;
+  readonly analysisFileService?: IAnalysisFileService;
   readonly contextMenuService?: IContextMenuService;
   readonly dialogsService?: IFileDialogService;
   readonly filesService?: IFileService;
@@ -196,6 +198,7 @@ export class Workbench extends Layout {
   private readonly settings: SettingsViewPane;
   private readonly templateApply: TemplateApplyController;
   private readonly dialogsService: IFileDialogService;
+  private readonly analysisFileService: IAnalysisFileService;
   private readonly filesService: IFileService;
   private readonly contextMenuService: IContextMenuService;
   private readonly pathService: IPathService;
@@ -229,6 +232,9 @@ export class Workbench extends Layout {
     if (!options.tableService) {
       throw new Error("Workbench requires ITableService.");
     }
+    if (!options.analysisFileService) {
+      throw new Error("Workbench requires IAnalysisFileService.");
+    }
     if (!options.filesService) {
       throw new Error("Workbench requires IFileService.");
     }
@@ -242,6 +248,7 @@ export class Workbench extends Layout {
       throw new Error("Workbench requires IPathService.");
     }
     this.filesService = options.filesService;
+    this.analysisFileService = options.analysisFileService;
     this.dialogsService = options.dialogsService;
     this.contextMenuService = options.contextMenuService;
     this.pathService = options.pathService;
@@ -253,6 +260,7 @@ export class Workbench extends Layout {
       this.pathService,
     );
     this.templateApply = this._register(new TemplateApplyController({
+      analysisFileService: this.analysisFileService,
       onExtractionError: () => undefined,
       showResults: () => this.showMainPart("chart"),
       setAnalysisResults: this.session.setAnalysisResults,
@@ -427,6 +435,7 @@ export class Workbench extends Layout {
     });
 
     return {
+      analysisFileService: this.analysisFileService,
       dialogsService: this.dialogsService,
       filesPaneRef: this.filesPaneRef,
       files: snapshot.sourceFiles,
@@ -537,6 +546,7 @@ export class Workbench extends Layout {
   private getTableModel(snapshot = this.session.getSnapshot()) {
     return this.tableService.update({
       cacheFileIdRef: this.session.previewCacheFileIdRef,
+      analysisFileService: this.analysisFileService,
       cacheFileLruRef: this.session.previewCacheFileLruRef,
       file: snapshot.previewFile,
       loadState: snapshot.previewStatus,

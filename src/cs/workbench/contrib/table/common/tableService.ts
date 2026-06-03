@@ -2,6 +2,7 @@ import { createDecorator } from "src/cs/platform/instantiation/common/instantiat
 import type { SessionFile } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import type { MutableState } from "src/cs/workbench/contrib/session/browser/sessionContext";
 import type { RustPreviewCellRequest } from "src/cs/workbench/contrib/table/browser/rows/rustCells";
+import type { IAnalysisFileService } from "src/cs/workbench/services/analysisFile/common/analysisFile";
 
 type SetStateAction<T> = T | ((previous: T) => T);
 type Dispatch<T> = (value: T) => void;
@@ -76,6 +77,7 @@ export type TableState = {
 };
 
 export type TableInput = {
+  analysisFileService?: IAnalysisFileService;
   sourceFiles?: SessionFile[];
   selectedFileId?: string | null;
   selectedSheetId?: string | null;

@@ -2,6 +2,7 @@ import type { IDisposable } from "src/cs/base/common/lifecycle";
 import type { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import type { IFileService } from "src/cs/platform/files/common/files";
 import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
+import type { IAnalysisFileService } from "src/cs/workbench/services/analysisFile/common/analysisFile";
 import type { FileEntry, FilesPaneRef } from "src/cs/workbench/contrib/files/common/files";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import {
@@ -12,6 +13,7 @@ import {
 import "src/cs/workbench/contrib/files/browser/views/media/filesPane.css";
 
 export type FilesPaneProps = {
+  readonly analysisFileService: IAnalysisFileService;
   readonly dialogsService: IFileDialogService;
   readonly filesService: IFileService;
   readonly pathService: IPathService;
@@ -44,6 +46,7 @@ export class FilesPane implements IDisposable {
     this.host.appendChild(this.body);
 
     this.controller = new FilesController(this.sessionHost, {
+      analysisFileService: props.analysisFileService,
       dialogsService: props.dialogsService,
       files: props.files,
       filesService: props.filesService,
@@ -63,6 +66,7 @@ export class FilesPane implements IDisposable {
     this.props = nextProps;
     nextProps.filesPaneRef.current = this.controller;
     this.controller.setProps({
+      analysisFileService: nextProps.analysisFileService,
       dialogsService: nextProps.dialogsService,
       files: nextProps.files,
       filesService: nextProps.filesService,

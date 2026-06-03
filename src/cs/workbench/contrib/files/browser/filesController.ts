@@ -5,6 +5,7 @@ import type { IFileDialogService as IFileDialogServiceType } from "src/cs/platfo
 import type { IFileService as IFileServiceType } from "src/cs/platform/files/common/files";
 import { localize } from "src/cs/nls";
 import type { IPathService as IPathServiceType } from "src/cs/workbench/services/path/common/pathService";
+import type { IAnalysisFileService as IAnalysisFileServiceType } from "src/cs/workbench/services/analysisFile/common/analysisFile";
 import { startPerf } from "src/cs/workbench/common/perf";
 import { WorkspaceWatcher } from "src/cs/workbench/contrib/files/browser/workspaceWatcher";
 import {
@@ -21,6 +22,7 @@ import { collectFolderFiles } from "src/cs/workbench/contrib/files/browser/fileI
 import {
   type ImportSessionFileEntry,
   type ImportSessionFileInfo,
+  type ImportFilePrepareFailure,
   preparePendingImportFile,
 } from "src/cs/workbench/services/analysisFile/browser/importPipeline";
 import {
@@ -28,6 +30,7 @@ import {
 } from "src/cs/workbench/services/analysisFile/browser/fileFilter";
 
 export type FilesControllerProps = {
+  readonly analysisFileService: IAnalysisFileServiceType;
   readonly dialogsService: IFileDialogServiceType;
   readonly filesService: IFileServiceType;
   readonly pathService: IPathServiceType;
@@ -46,6 +49,7 @@ export type {
 };
 
 const IMPORT_PREPARE_CONCURRENCY = 2;
+const MAX_IMPORT_ERROR_FILE_NAMES = 10;
 
 export class FilesController implements FilesPaneRef, IDisposable {
   private readonly listRef: { current: ListHandle | null } = { current: null };
@@ -61,6 +65,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
   private prevFileCount = 0;
   private disposed = false;
   private readonly dialogsService: IFileDialogServiceType;
+  private readonly analysisFileService: IAnalysisFileServiceType;
   private readonly filesService: IFileServiceType;
   private readonly pathService: IPathServiceType;
 
@@ -69,6 +74,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
     props: FilesControllerProps,
   ) {
     this.props = props;
+    this.analysisFileService = props.analysisFileService;
     this.dialogsService = props.dialogsService;
     this.filesService = props.filesService;
     this.pathService = props.pathService;
@@ -308,7 +314,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
     this.error = null;
     this.syncView();
 
-    const failedNames: string[] = [];
+    const failedFiles: ImportFilePrepareFailure[] = [];
     const canApplyResult = (): boolean =>
       !options.shouldContinue || options.shouldContinue();
     const {
@@ -332,7 +338,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
       }
       if (canApplyResult()) {
         this.error = this.buildImportErrorMessage({
-          failedNames,
+          failedFiles,
           hasAnyUnsupportedFiles,
         });
         this.syncView();
@@ -361,16 +367,17 @@ export class FilesController implements FilesPaneRef, IDisposable {
             return;
           }
 
-          const preparedImportFile = await preparePendingImportFile(pendingImportFile);
-          if (!preparedImportFile) {
-            failedNames.push(
-              pendingImportFile.sourceFile.name || this.getUnknownFileLabel(),
-            );
+          const preparedImportFile = await preparePendingImportFile(
+            this.analysisFileService,
+            pendingImportFile,
+          );
+          if (!preparedImportFile.ok) {
+            failedFiles.push(preparedImportFile.error);
             continue;
           }
 
-          preparedEntries.push(preparedImportFile.fileEntry);
-          importedFiles.push(preparedImportFile.fileInfo);
+          preparedEntries.push(preparedImportFile.prepared.fileEntry);
+          importedFiles.push(preparedImportFile.prepared.fileInfo);
         }
       }),
     );
@@ -386,7 +393,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
 
     if (canApplyResult()) {
       this.error = this.buildImportErrorMessage({
-        failedNames,
+        failedFiles,
         hasAnyUnsupportedFiles,
       });
       this.syncView();
@@ -395,7 +402,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
     finishBatchPerf({
       acceptedCount,
       duplicateCount: 0,
-      failedCount: failedNames.length,
+      failedCount: failedFiles.length,
       unsupportedCount,
     });
   }
@@ -508,7 +515,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
   }
 
   private buildImportErrorMessage(args: {
-    readonly failedNames: string[];
+    readonly failedFiles: ImportFilePrepareFailure[];
     readonly hasAnyUnsupportedFiles: boolean;
   }): string | null {
     const errors: string[] = [];
@@ -520,14 +527,15 @@ export class FilesController implements FilesPaneRef, IDisposable {
         ),
       );
     }
-    if (args.failedNames.length > 0) {
+    if (args.failedFiles.length > 0) {
       errors.push(
         localize(
           "import.failedToParseFiles",
           "Failed to parse: {fileNames}",
-          { fileNames: args.failedNames.join(", ") },
+          { fileNames: getImportErrorFileNames(args.failedFiles.map(file => file.fileName)) },
         ),
       );
+      errors.push(getImportErrorReason(args.failedFiles));
     }
 
     return errors.length > 0 ? errors.join("\n") : null;
@@ -537,4 +545,123 @@ export class FilesController implements FilesPaneRef, IDisposable {
 function normalizeRelativePath(value: unknown): string | null {
   const relativePath = String(value ?? "").trim();
   return relativePath || null;
+}
+
+function getImportErrorFileNames(fileNames: readonly string[]): string {
+  const names = fileNames.slice(0, MAX_IMPORT_ERROR_FILE_NAMES);
+  const remainingCount = fileNames.length - MAX_IMPORT_ERROR_FILE_NAMES;
+  if (remainingCount <= 0) {
+    return names.join(", ");
+  }
+
+  names.push(
+    remainingCount === 1
+      ? localize("import.oneMoreParseFailure", "...1 additional file not shown")
+      : localize(
+          "import.moreParseFailures",
+          "...{count} additional files not shown",
+          { count: remainingCount },
+        ),
+  );
+  return names.join(", ");
+}
+
+function getImportErrorReason(
+  failedFiles: readonly ImportFilePrepareFailure[],
+): string {
+  const reasonCounts = new Map<string, number>();
+  for (const file of failedFiles) {
+    const reason = getPrepareFailureReason(file);
+    reasonCounts.set(reason, (reasonCounts.get(reason) ?? 0) + 1);
+  }
+
+  const reasons = Array.from(reasonCounts.entries())
+    .map(([reason, count]) => ({ count, reason }))
+    .sort((a, b) => b.count - a.count);
+
+  if (reasons.length === 1) {
+    return localize(
+      "import.failedToParseReason",
+      "Reason: {reason}",
+      { reason: reasons[0].reason },
+    );
+  }
+
+  const shownReasons = reasons.slice(0, 2).map(({ count, reason }) =>
+    localize(
+      "import.failedToParseReasonEntry",
+      "{count} file(s): {reason}",
+      { count, reason },
+    )
+  );
+  const remainingCount = reasons.length - shownReasons.length;
+  if (remainingCount > 0) {
+    shownReasons.push(
+      localize(
+        "import.moreParseFailureReasons",
+        "{count} more reason(s)",
+        { count: remainingCount },
+      ),
+    );
+  }
+
+  return localize(
+    "import.failedToParseReasons",
+    "Reasons: {reasons}",
+    { reasons: shownReasons.join("; ") },
+  );
+}
+
+function getPrepareFailureReason(failure: ImportFilePrepareFailure): string {
+  switch (failure.code) {
+    case "UNRESOLVED_IMPORT_PATH":
+      return localize(
+        "import.failureReasonUnresolvedPath",
+        "The local file path could not be resolved.",
+      );
+    case "IMPORT_FILE_NOT_FOUND":
+    case "EXCEL_FILE_NOT_FOUND":
+      return localize(
+        "import.failureReasonFileNotFound",
+        "The file no longer exists or cannot be read.",
+      );
+    case "RUST_CONVERTER_NOT_FOUND":
+      return localize(
+        "import.failureReasonConverterMissing",
+        "The Excel conversion component was not found.",
+      );
+    case "RUST_CONVERTER_FAILED":
+    case "BROWSER_XLSX_CONVERSION_FAILED":
+    case "BROWSER_XLSX_CONVERSION_TIMEOUT":
+    case "BROWSER_XLSX_FILE_TOO_LARGE":
+      return localize(
+        "import.failureReasonExcelConversion",
+        "Excel conversion failed.",
+      );
+    case "RUST_IMPORT_ASSESSMENT_FAILED":
+      return localize(
+        "import.failureReasonAssessment",
+        "The file could not be assessed for import.",
+      );
+    case "UNSUPPORTED_IMPORT_FORMAT":
+      return localize(
+        "import.failureReasonUnsupportedFormat",
+        "The file format is not supported.",
+      );
+    case "EXCEL_CONVERSION_UNAVAILABLE":
+      return localize(
+        "import.failureReasonExcelUnavailable",
+        "Excel import requires a conversion component.",
+      );
+    case "RUST_IMPORT_PREPARE_FAILED":
+      return localize(
+        "import.failureReasonPrepare",
+        "Import preparation failed.",
+      );
+    default:
+      return failure.message.trim() || localize(
+        "import.failureReasonUnknown",
+        "Import preparation failed.",
+      );
+  }
 }

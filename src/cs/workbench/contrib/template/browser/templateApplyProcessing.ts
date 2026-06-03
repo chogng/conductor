@@ -11,6 +11,7 @@ import type {
   CleanedEntry,
   ProcessingStatus,
 } from "src/cs/workbench/contrib/session/common/sessionTypes";
+import type { IAnalysisFileService } from "src/cs/workbench/services/analysisFile/common/analysisFile";
 import { loadConvertedCsvFile } from "src/cs/workbench/services/analysisFile/browser/fileConversion";
 
 // Owns asynchronous execution for device-analysis processing jobs.
@@ -61,6 +62,7 @@ type SchedulerCallbacks = {
 
 export type ProcessingJobOptions = SchedulerRefs &
   SchedulerCallbacks & {
+    analysisFileService: IAnalysisFileService;
     activeFileId?: unknown;
     extractionConfig: unknown;
     messageType?: ProcessingMessageType;
@@ -72,6 +74,7 @@ export type ProcessingJobOptions = SchedulerRefs &
 
 export type RuleProcessingJobOptions = SchedulerRefs &
   SchedulerCallbacks & {
+    analysisFileService: IAnalysisFileService;
     activeFileId?: unknown;
     finalQueue: ProcessingQueueItem[];
     groupedPrepared: PreparedRuleProcessingGroup[];
@@ -93,9 +96,11 @@ const isRustCapableProcessingEntry = (entry: ProcessingQueueItem): boolean =>
   );
 
 const resolveProcessingFallbackFile = async (
+  analysisFileService: IAnalysisFileService,
   entry: ProcessingQueueItem,
 ): Promise<File | unknown> => {
   const loaded = await loadConvertedCsvFile({
+    analysisFileService,
     fallbackFile: entry.file,
     fileName: entry.fileName,
     lastModified: entry.file instanceof File ? entry.file.lastModified : null,
@@ -320,6 +325,7 @@ const failProcessingJob = ({
 // processingController.ts decides the queue and config; this runner decides when to start,
 // how many files to process in parallel, how to commit results, and when to finish.
 export const startProcessingJob = ({
+  analysisFileService,
   activeFileId = null,
   extractionConfig,
   messageType = "processFile",
@@ -476,7 +482,10 @@ export const startProcessingJob = ({
           return;
         }
 
-        const fallbackFile = await resolveProcessingFallbackFile(nextEntry);
+        const fallbackFile = await resolveProcessingFallbackFile(
+          analysisFileService,
+          nextEntry,
+        );
         worker.postMessage({
           type: messageType,
           payload: {
@@ -586,6 +595,7 @@ export const startProcessingJob = ({
 // The caller supplies already validated groups; this runner keeps progress,
 // cancellation, fallback worker processing, and finalization consistent.
 export const startRuleProcessingJob = ({
+  analysisFileService,
   activeFileId = null,
   finalQueue,
   groupedPrepared,
@@ -743,7 +753,10 @@ export const startRuleProcessingJob = ({
           return;
         }
 
-        const fallbackFile = await resolveProcessingFallbackFile(nextEntry);
+        const fallbackFile = await resolveProcessingFallbackFile(
+          analysisFileService,
+          nextEntry,
+        );
         worker.postMessage({
           type: "processFile",
           payload: {

@@ -41,7 +41,10 @@ import {
 } from "src/cs/workbench/contrib/table/browser/rows/rustCells";
 import { useRowsVersion } from "src/cs/workbench/contrib/table/browser/rows/rowsVersion";
 import { loadConvertedCsvFile } from "src/cs/workbench/services/analysisFile/browser/fileConversion";
-import { analysisFileService } from "src/cs/workbench/services/analysisFile/browser/analysisFileService";
+import {
+  IAnalysisFileService,
+  type IAnalysisFileService as IAnalysisFileServiceType,
+} from "src/cs/workbench/services/analysisFile/common/analysisFile";
 
 type SetStateAction<T> = T | ((previous: T) => T);
 type Dispatch<T> = (value: T) => void;
@@ -345,6 +348,7 @@ type WorkerMessage =
 
 type UseTableOptions = TableInput;
 type CreateTableOptions = {
+  analysisFileService?: IAnalysisFileServiceType;
   sourceFiles?: SessionFile[];
   selectedFileId?: string | null;
   selectedSheetId?: string | null;
@@ -380,6 +384,7 @@ const PREVIEW_ROWS_MAX_MERGED_REQUEST_ROWS = Math.max(
 );
 
 const createTableModel = ({
+  analysisFileService,
   sourceFiles = [],
   selectedFileId = null,
   selectedSheetId = null,
@@ -400,6 +405,10 @@ const createTableModel = ({
   cacheFileIdRef = { current: null },
   cacheFileLruRef = { current: new Set() },
 }: CreateTableOptions) => {
+  if (!analysisFileService) {
+    throw new Error("Table model requires IAnalysisFileService.");
+  }
+
   const selectedPreviewFileId = selectedFileId;
   const selectedPreviewSheetId = selectedSheetId;
   const setSelectedPreviewFileId = setSelectedFileId;
@@ -1001,6 +1010,7 @@ const createTableModel = ({
       if (!worker) return;
       const fallbackFile =
         (await loadConvertedCsvFile({
+          analysisFileService,
           fallbackFile: previewTargetFile.file,
           fileName: previewTargetFile.fileName,
           lastModified:
@@ -1663,8 +1673,17 @@ export class TableService extends Disposable implements ITableServiceType {
 
   private readonly scope = this._register(new TableStateScope());
 
+  public constructor(
+    @IAnalysisFileService private readonly analysisFileService: IAnalysisFileServiceType,
+  ) {
+    super();
+  }
+
   public update(options: TableInput): TableModel {
-    return runWithTableStateScope(this.scope, () => createTableModel(options));
+    return runWithTableStateScope(this.scope, () => createTableModel({
+      ...options,
+      analysisFileService: options.analysisFileService ?? this.analysisFileService,
+    }));
   }
 }
 
