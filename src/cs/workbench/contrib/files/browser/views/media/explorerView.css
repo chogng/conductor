@@ -255,11 +255,10 @@
   gap: 2px;
 }
 
-.file-list-folder-count {
+.file-list-folder-controls .monaco-count-badge {
   flex-shrink: 0;
-  padding-left: 8px;
-  font-size: 12px;
   color: rgb(var(--text-tertiary) / 1);
+  background-color: transparent;
 }
 
 .file-list-folder-actionbar {

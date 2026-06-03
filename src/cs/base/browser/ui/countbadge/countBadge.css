@@ -1,0 +1,19 @@
+.monaco-count-badge {
+  display: inline-block;
+  box-sizing: border-box;
+  min-width: 18px;
+  min-height: 18px;
+  border-radius: 11px;
+  padding: 3px 5px;
+  font-size: 11px;
+  font-weight: normal;
+  line-height: 11px;
+  text-align: center;
+}
+
+.monaco-count-badge.long {
+  min-height: auto;
+  border-radius: 2px;
+  padding: 2px 3px;
+  line-height: normal;
+}

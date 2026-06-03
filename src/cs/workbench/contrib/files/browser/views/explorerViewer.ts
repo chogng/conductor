@@ -1,5 +1,6 @@
 import { addDisposableListener } from "src/cs/base/browser/dom";
 import ContentView from "src/cs/base/browser/ui/contentView/contentView";
+import { CountBadge } from "src/cs/base/browser/ui/countbadge/countBadge";
 import { createDropdownButton } from "src/cs/base/browser/ui/dropdown/dropdown";
 import {
   createMenuAction,
@@ -92,7 +93,7 @@ export class ExplorerViewer implements IDisposable {
   private hoverView: ContentView | null = null;
   private hoverAnchor: HTMLElement | null = null;
   private hoverHideTimeout: ReturnType<typeof setTimeout> | null = null;
-  private readonly folderActionDisposables = new WeakMap<HTMLElement, IDisposable>();
+  private readonly folderItemDisposables = new WeakMap<HTMLElement, DisposableStore>();
   private expandedKeys: string[] = [];
   private knownFolderKeys = new Set<string>();
   private props: ExplorerViewerProps;
@@ -326,10 +327,11 @@ export class ExplorerViewer implements IDisposable {
     const controls = document.createElement("div");
     controls.className = "file-list-folder-controls";
 
-    const count = document.createElement("span");
-    count.className = "file-list-folder-count";
-    count.textContent = String(node.children?.length ?? 0);
-    controls.appendChild(count);
+    const itemDisposables = new DisposableStore();
+    itemDisposables.add(new CountBadge(controls, {
+      count: node.children?.length ?? 0,
+      titleFormat: localize("files.folderCount", "{0} 个文件"),
+    }));
 
     const actionsHost = document.createElement("div");
     actionsHost.className = "file-list-folder-actionbar";
@@ -348,15 +350,16 @@ export class ExplorerViewer implements IDisposable {
     });
     actionsHost.appendChild(actionButton.domNode);
     controls.appendChild(actionsHost);
-    this.folderActionDisposables.set(container, actionButton);
+    itemDisposables.add(actionButton);
+    this.folderItemDisposables.set(container, itemDisposables);
 
     container.dataset.expanded = isExpanded ? "true" : "false";
     container.append(content, controls);
   }
 
   private clearFolderAction(container: HTMLElement): void {
-    this.folderActionDisposables.get(container)?.dispose();
-    this.folderActionDisposables.delete(container);
+    this.folderItemDisposables.get(container)?.dispose();
+    this.folderItemDisposables.delete(container);
   }
 
   private createFolderActions(node: FileTreeNode): IAction[] {
