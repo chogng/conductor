@@ -36,9 +36,7 @@ type TemplateEditorInputName =
   | "yLegendCount"
   | "yLegendStep"
   | "yUnit"
-  | "legendPrefix"
-  | "fileNameVgKeywords"
-  | "fileNameVdKeywords";
+  | "legendPrefix";
 
 type TemplatePaneId = "x" | "y" | "optional";
 
@@ -173,8 +171,6 @@ export class TemplateEditorView {
       legendPrefix: this.createField(yFields, localize("template_legend_prefix", "Legend prefix / Vd"), "legendPrefix", {
         placeholder: "Vd",
       }),
-      fileNameVgKeywords: this.createField(yFields, localize("template_filename_vg", "File-name Vg keywords"), "fileNameVgKeywords"),
-      fileNameVdKeywords: this.createField(yFields, localize("template_filename_vd", "File-name Vd keywords"), "fileNameVdKeywords"),
     };
 
     this.yLegendTarget = this.createSelectField(
@@ -260,8 +256,6 @@ export class TemplateEditorView {
       yLegendStep: config.yLegendStep,
       yUnit: config.yUnit,
       legendPrefix: config.legendPrefix,
-      fileNameVgKeywords: config.fileNameVgKeywords,
-      fileNameVdKeywords: config.fileNameVdKeywords,
     };
 
     for (const [key, input] of Object.entries(this.inputs) as Array<[keyof typeof this.inputs, HTMLInputElement]>) {

@@ -1,10 +1,6 @@
 import { localize } from "src/cs/nls";
 import type { TemplateConfig } from "./templateManagerUtils";
 import { normalizeYUnit } from "src/cs/workbench/contrib/plot/common/units";
-import {
-  joinFileNameMatchInput,
-  splitFileNameMatchInput,
-} from "src/cs/workbench/contrib/template/common/fileNameMatching";
 
 const CELL_REF_RE = /^([A-Z]+)([1-9][0-9]*)$/;
 
@@ -15,8 +11,6 @@ type ValidationConfig = Partial<TemplateConfig>;
 
 type NormalizedTemplateForSave<T extends ValidationConfig> = T & {
   bottomTitle: string;
-  fileNameVdKeywords: string;
-  fileNameVgKeywords: string;
   legendPrefix: string;
   yColumns: number[];
   xUnit: string;
@@ -25,8 +19,6 @@ type NormalizedTemplateForSave<T extends ValidationConfig> = T & {
 
 type NormalizedTemplateForApply<T extends ValidationConfig> = T & {
   bottomTitle: string;
-  fileNameVdKeywords: string;
-  fileNameVgKeywords: string;
   leftTitle: string;
   legendPrefix: string;
   xUnit: string;
@@ -43,19 +35,6 @@ type VarPairValidation = {
   message: string;
 };
 
-type CurveTaggingValidation =
-  | {
-      ok: false;
-      message: string;
-    }
-  | {
-      ok: true;
-      varPair: VarPairValidation;
-      fileNameVgKeywords: string;
-      fileNameVdKeywords: string;
-      mode: "filename" | "var" | "auto";
-    };
-
 export function isA1CellRef(value: unknown): boolean {
   return CELL_REF_RE.test(String(value || "").trim().toUpperCase());
 }
@@ -67,14 +46,6 @@ export function normalizeVarKeyword(raw: unknown): string {
   const upper = trimmed.toUpperCase();
   if (CELL_REF_RE.test(upper)) return upper;
   return trimmed;
-}
-
-export function splitKeywordList(raw: unknown): string[] {
-  return splitFileNameMatchInput(raw, true);
-}
-
-export function normalizeKeywordList(raw: unknown): string {
-  return joinFileNameMatchInput(splitKeywordList(raw));
 }
 
 export function normalizeAxisUnit(raw: unknown): string {
@@ -109,31 +80,6 @@ export function validateVarPair(
   return { ok: true, mode, vg, vd, message: "" };
 }
 
-export function validateCurveTaggingMode(
-  config: ValidationConfig,
-): CurveTaggingValidation {
-  const varPair = validateVarPair(config?.bottomTitle, config?.legendPrefix);
-  if (!varPair.ok) return { ok: false, message: varPair.message };
-
-  const fileNameVgKeywords = normalizeKeywordList(config?.fileNameVgKeywords ?? "");
-  const fileNameVdKeywords = normalizeKeywordList(config?.fileNameVdKeywords ?? "");
-  const hasFileNameRules = Boolean(fileNameVgKeywords) || Boolean(fileNameVdKeywords);
-  if (hasFileNameRules && (!fileNameVgKeywords || !fileNameVdKeywords)) {
-    return {
-      ok: false,
-      message: localize("curveTaggingFileNameBothRequired", "When using file-name tagging, please provide keywords for both Vg and Vd."),
-    };
-  }
-
-  return {
-    ok: true,
-    varPair,
-    fileNameVgKeywords,
-    fileNameVdKeywords,
-    mode: hasFileNameRules ? "filename" : varPair.mode !== "empty" ? "var" : "auto",
-  };
-}
-
 export function validateTemplateForSave<T extends ValidationConfig>(
   config: T,
 ): {
@@ -152,10 +98,8 @@ export function validateTemplateForSave<T extends ValidationConfig>(
     };
   }
 
-  const curveTagging = validateCurveTaggingMode(config);
-  if (!curveTagging.ok) return { ok: false, message: curveTagging.message };
-
-  const varPair = curveTagging.varPair;
+  const varPair = validateVarPair(config?.bottomTitle, config?.legendPrefix);
+  if (!varPair.ok) return { ok: false, message: varPair.message };
 
   return {
     ok: true,
@@ -166,8 +110,6 @@ export function validateTemplateForSave<T extends ValidationConfig>(
       legendPrefix: varPair.vd,
       xUnit: normalizeAxisUnit(config?.xUnit),
       yUnit: normalizeYUnit(config?.yUnit, "A"),
-      fileNameVgKeywords: curveTagging.fileNameVgKeywords,
-      fileNameVdKeywords: curveTagging.fileNameVdKeywords,
     },
   };
 }
@@ -179,10 +121,8 @@ export function validateTemplateForApply<T extends ValidationConfig>(
   message?: string;
   normalized?: NormalizedTemplateForApply<T>;
 } {
-  const curveTagging = validateCurveTaggingMode(config);
-  if (!curveTagging.ok) return { ok: false, message: curveTagging.message };
-
-  const varPair = curveTagging.varPair;
+  const varPair = validateVarPair(config?.bottomTitle, config?.legendPrefix);
+  if (!varPair.ok) return { ok: false, message: varPair.message };
 
   return {
     ok: true,
@@ -193,8 +133,6 @@ export function validateTemplateForApply<T extends ValidationConfig>(
       legendPrefix: varPair.vd,
       xUnit: normalizeAxisUnit(config?.xUnit),
       yUnit: normalizeYUnit(config?.yUnit, "A"),
-      fileNameVgKeywords: curveTagging.fileNameVgKeywords,
-      fileNameVdKeywords: curveTagging.fileNameVdKeywords,
     },
   };
 }

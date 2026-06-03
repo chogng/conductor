@@ -18,14 +18,12 @@ export type TemplateApplyViewOptions = {
   readonly onApplyTemplate: (incremental: boolean) => void;
   readonly onDeleteTemplate: () => void;
   readonly onExportTemplate: () => void;
-  readonly onMatchCaseChange: (checked: boolean) => void;
   readonly onStopOnErrorChange: (checked: boolean) => void;
 };
 
 export type TemplateApplyViewState = {
   readonly canDeleteTemplate: boolean;
   readonly canExportTemplate: boolean;
-  readonly fileNameMatchCaseSensitive: boolean;
   readonly selectedTemplateLabel: string;
   readonly stopOnError: boolean;
 };
@@ -37,7 +35,6 @@ export class TemplateApplyView {
   private readonly deleteButton: HTMLButtonElement;
   private readonly exportButton: HTMLButtonElement;
   private readonly stopSwitch: HTMLButtonElement;
-  private readonly matchCaseSwitch: HTMLButtonElement;
   private readonly autoCard: HTMLElement;
 
   constructor(
@@ -164,12 +161,6 @@ export class TemplateApplyView {
       this.options.onStopOnErrorChange,
     );
 
-    this.matchCaseSwitch = this.createToggleRow(
-      togglesRow,
-      localize("template_match_case", "Match field case"),
-      this.options.onMatchCaseChange,
-    );
-
     this.element.append(togglesRow);
 
     this.autoCard = document.createElement("div");
@@ -200,7 +191,6 @@ export class TemplateApplyView {
     this.deleteButton.style.display = state.canDeleteTemplate ? "" : "none";
     this.exportButton.disabled = !state.canExportTemplate;
     updateSwitch(this.stopSwitch, { checked: state.stopOnError });
-    updateSwitch(this.matchCaseSwitch, { checked: state.fileNameMatchCaseSensitive });
     this.autoCard.style.display = state.canDeleteTemplate ? "none" : "";
   }
 

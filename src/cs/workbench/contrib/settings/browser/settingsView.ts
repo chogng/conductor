@@ -410,7 +410,7 @@ export class SettingsView {
 
   private createFileNameMatching(settings: FileNameMatchingSettings): HTMLElement {
     const container = card("analysis-settings-filename-matching-card", "settings-card-block");
-    container.appendChild(headingBlock(localize("da_settings_filename_matching_title", "Filename Field Matching"), localize("da_settings_filename_matching_desc", "Choose which separator characters split filename fields for template rules and filename keyword matching.")));
+    container.appendChild(headingBlock(localize("da_settings_filename_matching_title", "Filename Field Matching"), localize("da_settings_filename_matching_desc", "Choose which separator characters split filename fields for template rules.")));
     const body = div("settings-field");
     body.append(
       label(localize("da_settings_filename_matching_label", "Field separators")),

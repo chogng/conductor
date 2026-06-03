@@ -28,12 +28,9 @@ export type TemplateConfig = {
   yLegendTarget: "auto" | "yColumn" | "group";
   yUnit: string;
   stopOnError: boolean;
-  fileNameMatchCaseSensitive: boolean;
   bottomTitle: string;
   leftTitle: string;
   legendPrefix: string;
-  fileNameVgKeywords: string;
-  fileNameVdKeywords: string;
   yColumns: number[];
 };
 

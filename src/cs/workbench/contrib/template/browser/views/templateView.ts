@@ -171,7 +171,7 @@ export class TemplateView {
   private lastTableSelection: TableSelection | null = null;
   private tableModel: TemplateViewOptions["tableModel"] | null = null;
   private mode: "select" | "save" | null = null;
-  private toggleDraft: Pick<TemplateConfig, "stopOnError" | "fileNameMatchCaseSensitive"> | null = null;
+  private stopOnErrorDraft: boolean | null = null;
   private applyView: TemplateApplyView | null = null;
   private editorView: TemplateEditorView | null = null;
 
@@ -195,7 +195,7 @@ export class TemplateView {
     this.bindTableSelection(props.tableModel);
 
     this.ensureTemplatesLoaded();
-    this.syncToggleDraft();
+    this.syncStopOnErrorDraft();
     this.syncTableHighlight();
 
     const nextMode = this.session.templateMode;
@@ -229,14 +229,13 @@ export class TemplateView {
 
   private getEffectiveTemplateConfig(): TemplateConfig {
     const config = this.session.templateConfig;
-    if (!this.toggleDraft) {
+    if (this.stopOnErrorDraft === null) {
       return config;
     }
 
     return {
       ...config,
-      stopOnError: this.toggleDraft.stopOnError,
-      fileNameMatchCaseSensitive: this.toggleDraft.fileNameMatchCaseSensitive,
+      stopOnError: this.stopOnErrorDraft,
     };
   }
 
@@ -306,10 +305,7 @@ export class TemplateView {
       return;
     }
 
-    this.toggleDraft = {
-      stopOnError: next.stopOnError,
-      fileNameMatchCaseSensitive: next.fileNameMatchCaseSensitive,
-    };
+    this.stopOnErrorDraft = next.stopOnError;
     this.session.setTemplateConfig(next);
   }
 
@@ -323,21 +319,15 @@ export class TemplateView {
     this.tableModel?.clearHighlight();
   }
 
-  private syncToggleDraft(): void {
+  private syncStopOnErrorDraft(): void {
     const config = this.session.templateConfig;
-    if (!this.toggleDraft) {
-      this.toggleDraft = {
-        stopOnError: config.stopOnError,
-        fileNameMatchCaseSensitive: config.fileNameMatchCaseSensitive,
-      };
+    if (this.stopOnErrorDraft === null) {
+      this.stopOnErrorDraft = config.stopOnError;
       return;
     }
 
     if (this.mode !== "select") {
-      this.toggleDraft = {
-        stopOnError: config.stopOnError,
-        fileNameMatchCaseSensitive: config.fileNameMatchCaseSensitive,
-      };
+      this.stopOnErrorDraft = config.stopOnError;
     }
   }
 
@@ -374,7 +364,6 @@ export class TemplateView {
           void this.deleteSelectedTemplate();
         },
         onExportTemplate: () => exportTemplate(this.session.templateConfig, this.props.templateService),
-        onMatchCaseChange: (checked) => this.updateApplyOptions({ fileNameMatchCaseSensitive: checked }),
         onStopOnErrorChange: (checked) => this.updateApplyOptions({ stopOnError: checked }),
       }, this.getApplyViewState());
     }
@@ -394,7 +383,6 @@ export class TemplateView {
     return {
       canDeleteTemplate: isCustomTemplate,
       canExportTemplate: Boolean(config.name),
-      fileNameMatchCaseSensitive: config.fileNameMatchCaseSensitive,
       selectedTemplateLabel: this.getSelectedTemplateLabel(),
       stopOnError: config.stopOnError,
     };
@@ -444,12 +432,9 @@ export class TemplateView {
     };
   }
 
-  private updateApplyOptions(updates: Partial<Pick<TemplateConfig, "stopOnError" | "fileNameMatchCaseSensitive">>): void {
+  private updateApplyOptions(updates: Partial<Pick<TemplateConfig, "stopOnError">>): void {
     const config = this.getEffectiveTemplateConfig();
-    this.toggleDraft = {
-      stopOnError: updates.stopOnError ?? config.stopOnError,
-      fileNameMatchCaseSensitive: updates.fileNameMatchCaseSensitive ?? config.fileNameMatchCaseSensitive,
-    };
+    this.stopOnErrorDraft = updates.stopOnError ?? config.stopOnError;
     defaultSessionModel.emitChange();
   }
 
@@ -473,12 +458,8 @@ export class TemplateView {
       this.session.setSelectedTemplateId(AUTO_TEMPLATE_ID);
       this.session.setTemplateConfig(createEmptyTemplateConfig({
         stopOnError: templateConfig.stopOnError,
-        fileNameMatchCaseSensitive: templateConfig.fileNameMatchCaseSensitive,
       }));
-      this.toggleDraft = {
-        stopOnError: config.stopOnError,
-        fileNameMatchCaseSensitive: config.fileNameMatchCaseSensitive,
-      };
+      this.stopOnErrorDraft = config.stopOnError;
       showToast(localize("template_deleted", "Template deleted"), "success");
       defaultSessionModel.emitChange();
     } catch (err) {
@@ -575,12 +556,8 @@ export class TemplateView {
     this.session.setSelectedTemplateId(null);
     this.session.setTemplateConfig(createEmptyTemplateConfig({
       stopOnError: config.stopOnError,
-      fileNameMatchCaseSensitive: config.fileNameMatchCaseSensitive,
     }));
-    this.toggleDraft = {
-      stopOnError: config.stopOnError,
-      fileNameMatchCaseSensitive: config.fileNameMatchCaseSensitive,
-    };
+    this.stopOnErrorDraft = config.stopOnError;
     this.session.setTemplateMode("save");
     defaultSessionModel.emitChange();
   }
@@ -593,10 +570,7 @@ export class TemplateView {
 
     this.session.setSelectedTemplateId(templateId);
     this.session.setTemplateConfig(cloneTemplateConfig(template));
-    this.toggleDraft = {
-      stopOnError: Boolean(template.stopOnError),
-      fileNameMatchCaseSensitive: Boolean(template.fileNameMatchCaseSensitive),
-    };
+    this.stopOnErrorDraft = Boolean(template.stopOnError);
     this.session.setTemplateMode("save");
     defaultSessionModel.emitChange();
   }
@@ -607,21 +581,14 @@ export class TemplateView {
       this.session.setSelectedTemplateId(AUTO_TEMPLATE_ID);
       this.session.setTemplateConfig(createEmptyTemplateConfig({
         stopOnError: config.stopOnError,
-        fileNameMatchCaseSensitive: config.fileNameMatchCaseSensitive,
       }));
-      this.toggleDraft = {
-        stopOnError: config.stopOnError,
-        fileNameMatchCaseSensitive: config.fileNameMatchCaseSensitive,
-      };
+      this.stopOnErrorDraft = config.stopOnError;
     } else {
       const found = cachedTemplates?.find((template) => template.id === templateId);
       if (found) {
         this.session.setSelectedTemplateId(typeof found.id === "string" ? found.id : null);
         this.session.setTemplateConfig(cloneTemplateConfig(found));
-        this.toggleDraft = {
-          stopOnError: Boolean(found.stopOnError),
-          fileNameMatchCaseSensitive: Boolean(found.fileNameMatchCaseSensitive),
-        };
+        this.stopOnErrorDraft = Boolean(found.stopOnError);
       }
     }
     defaultSessionModel.emitChange();
@@ -683,10 +650,7 @@ export class TemplateView {
 
       this.session.setSelectedTemplateId(typeof saved.id === "string" ? saved.id : null);
       this.session.setTemplateConfig(cloneTemplateConfig(saved));
-      this.toggleDraft = {
-        stopOnError: Boolean(saved.stopOnError),
-        fileNameMatchCaseSensitive: Boolean(saved.fileNameMatchCaseSensitive),
-      };
+      this.stopOnErrorDraft = Boolean(saved.stopOnError);
       this.session.setTemplateMode("select");
       showToast(localize("template_saved", "Template saved"), "success");
       defaultSessionModel.emitChange();
@@ -706,20 +670,13 @@ export class TemplateView {
       const found = cachedTemplates.find((template) => template.id === this.session.selectedTemplateId);
       if (found) {
         this.session.setTemplateConfig(cloneTemplateConfig(found));
-        this.toggleDraft = {
-          stopOnError: Boolean(found.stopOnError),
-          fileNameMatchCaseSensitive: Boolean(found.fileNameMatchCaseSensitive),
-        };
+        this.stopOnErrorDraft = Boolean(found.stopOnError);
       }
     } else {
       this.session.setTemplateConfig(createEmptyTemplateConfig({
         stopOnError: config.stopOnError,
-        fileNameMatchCaseSensitive: config.fileNameMatchCaseSensitive,
       }));
-      this.toggleDraft = {
-        stopOnError: config.stopOnError,
-        fileNameMatchCaseSensitive: config.fileNameMatchCaseSensitive,
-      };
+      this.stopOnErrorDraft = config.stopOnError;
     }
     defaultSessionModel.emitChange();
   }

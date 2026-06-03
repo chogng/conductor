@@ -55,12 +55,9 @@ const createTemplateConfig = (): TemplateConfig => ({
   yLegendTarget: "auto",
   yUnit: "A",
   stopOnError: false,
-  fileNameMatchCaseSensitive: false,
   bottomTitle: "",
   leftTitle: "",
   legendPrefix: "",
-  fileNameVgKeywords: "",
-  fileNameVdKeywords: "",
   yColumns: [],
 });
 

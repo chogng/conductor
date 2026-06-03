@@ -29,8 +29,6 @@ type TemplateConfigLike = Partial<{
   bottomTitle: string;
   legendPrefix: string;
   leftTitle: string;
-  fileNameVgKeywords: string;
-  fileNameVdKeywords: string;
   fileNameFieldSeparators: string;
 }>;
 
@@ -46,8 +44,6 @@ type ExtractionConfig = {
   leftTitle: string;
   xUnit: string;
   yUnit: string;
-  fileNameVgKeywords: string;
-  fileNameVdKeywords: string;
   fileNameFieldSeparators?: string;
   yLegendStartCell?: CellRef;
   yLegendStartValue?: string;
@@ -456,8 +452,6 @@ export function prepareExtraction({
     leftTitle: normalizedConfig?.leftTitle ?? "",
     xUnit: String(normalizedConfig?.xUnit ?? "").trim(),
     yUnit: String(normalizedConfig?.yUnit ?? "").trim(),
-    fileNameVgKeywords: normalizedConfig?.fileNameVgKeywords ?? "",
-    fileNameVdKeywords: normalizedConfig?.fileNameVdKeywords ?? "",
     fileNameFieldSeparators:
       typeof normalizedConfig?.fileNameFieldSeparators === "string"
         ? normalizedConfig.fileNameFieldSeparators

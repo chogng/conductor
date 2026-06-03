@@ -86,8 +86,6 @@ export const buildAutoWorkerConfig = (
       : undefined,
     bottomTitle: plan.bottomTitle,
     endRow: "end",
-    fileNameVdKeywords: "",
-    fileNameVgKeywords: "",
     groupSize: normalizedGroupSize,
     groups: normalizedGroups,
     leftTitle: plan.leftTitle,

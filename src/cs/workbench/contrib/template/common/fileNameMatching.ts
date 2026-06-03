@@ -95,20 +95,6 @@ const shouldKeepRawChunkCandidate = (value: string): boolean => {
   return true;
 };
 
-const shouldSuggestFieldCandidate = (value: string): boolean => {
-  const trimmed = String(value ?? "").trim();
-  if (!trimmed) return false;
-  if (trimmed.length <= 1) return false;
-  if (
-    !containsLetterLikeCharacters(trimmed) &&
-    !isStructuredNumericCompoundCandidate(trimmed)
-  ) {
-    return false;
-  }
-  if (looksDateOrTimeLikeCandidate(trimmed)) return false;
-  return true;
-};
-
 const deriveEmbeddedSemanticCandidates = (value: string): string[] => {
   const trimmed = trimRawChunkCandidate(value);
   if (!trimmed) return [];
@@ -215,48 +201,6 @@ const deriveRawChunkCandidates = (baseName: string): string[] => {
   return Array.from(candidates);
 };
 
-const scoreFieldToken = (
-  value: string,
-  count: number,
-  totalFiles: number,
-): number => {
-  const trimmed = String(value ?? "").trim();
-  const digitCount = (trimmed.match(/\d/g) ?? []).length;
-  const letterCount = (
-    trimmed.match(/[A-Za-z\u00C0-\u024F\u4E00-\u9FFF]/gu) ?? []
-  ).length;
-  const isNumeric = /^\d+(?:[._-]\d+)*$/.test(trimmed);
-  const looksDate = /^(?:19|20)\d{2}[._-]?\d{2}(?:[._-]?\d{2})?$/.test(trimmed);
-
-  let score = count * 100;
-
-  if (trimmed.length <= 1) score -= 240;
-  if (letterCount > 0) score += 40;
-  if (digitCount === 0) score += 20;
-  if (letterCount > 0 && digitCount > 0 && letterCount >= digitCount) {
-    score += 10;
-  }
-  if (/^[A-Za-z\u4E00-\u9FFF][A-Za-z0-9\u4E00-\u9FFF]*$/u.test(trimmed)) {
-    score += 20;
-  }
-  if (/[A-Za-z\u00C0-\u024F\u4E00-\u9FFF]/gu.test(trimmed) && /[-./]/.test(trimmed)) {
-    score += 24;
-  }
-  if (/[A-Za-z\u00C0-\u024F\u4E00-\u9FFF]/gu.test(trimmed) && /\(\d+\)\s*$/u.test(trimmed)) {
-    score += 12;
-  }
-  if (isStructuredNumericCompoundCandidate(trimmed)) score += 18;
-  if (/\s/.test(trimmed)) score -= 10;
-  if (/#/.test(trimmed)) score -= 16;
-  if (count === totalFiles && totalFiles > 1) score -= 120;
-  if (isNumeric) score -= 160;
-  if (looksDate) score -= 100;
-  if (/^\d{1,2}(_\d{1,2}){2,}$/.test(trimmed)) score -= 80;
-  if (/^(am|pm)$/i.test(trimmed)) score -= 160;
-
-  return score;
-};
-
 const splitAlphaNumericBoundary = (value: string): string[] => {
   const trailingDigitsMatch = value.match(
     /^([A-Za-z\u00C0-\u024F\u4E00-\u9FFF]{3,})(\d+)$/u,
@@ -284,14 +228,6 @@ const splitFieldByBoundaries = (value: string): string[] =>
     .filter(Boolean)
     .flatMap((token) => splitAlphaNumericBoundary(token));
 
-export type FileNameFieldSuggestion = {
-  count: number;
-  normalizedValue: string;
-  sampleFileNames: string[];
-  score: number;
-  value: string;
-};
-
 export function normalizeFileNameFieldSeparators(value: unknown): string {
   const raw = String(value ?? "")
     .replace(/\r/g, "")
@@ -302,17 +238,15 @@ export function normalizeFileNameFieldSeparators(value: unknown): string {
   return deduped.length ? deduped : DEFAULT_FILE_NAME_FIELD_SEPARATORS;
 }
 
-export function stripFileExtension(fileName: unknown): string {
+const stripFileExtension = (fileName: unknown): string => {
   const baseName = String(fileName ?? "").split(/[\\/]/).pop() ?? "";
   return baseName.replace(FILE_EXTENSION_RE, "");
-}
+};
 
-export function normalizeFileNamePhrase(
+const normalizeFileNamePhrase = (
   value: unknown,
   caseSensitive = false,
-): string {
-  return normalizeByCase(String(value ?? "").trim(), caseSensitive);
-}
+): string => normalizeByCase(String(value ?? "").trim(), caseSensitive);
 
 export function splitFileNameMatchInput(
   value: unknown,
@@ -325,22 +259,13 @@ export function splitFileNameMatchInput(
     .map((token) => normalizeByCase(token, caseSensitive));
 }
 
-export function joinFileNameMatchInput(
-  tokens: Array<string | null | undefined>,
-): string {
-  return tokens
-    .map((token) => String(token ?? "").trim())
-    .filter(Boolean)
-    .join(", ");
-}
-
-export function tokenizeFileNameFields(
+const tokenizeFileNameFields = (
   fileName: unknown,
   options: {
     caseSensitive?: boolean;
     separators?: unknown;
   } = {},
-): string[] {
+): string[] => {
   const caseSensitive = Boolean(options.caseSensitive);
   const baseName = stripFileExtension(fileName);
 
@@ -348,15 +273,15 @@ export function tokenizeFileNameFields(
     .split(buildFileNameFieldSplitRegExp(options.separators))
     .flatMap((token) => splitFieldByBoundaries(token.trim()))
     .map((token) => normalizeByCase(token, caseSensitive));
-}
+};
 
-export function collectFileNameFieldCandidates(
+const collectFileNameFieldCandidates = (
   fileName: unknown,
   options: {
     caseSensitive?: boolean;
     separators?: unknown;
   } = {},
-): string[] {
+): string[] => {
   const caseSensitive = Boolean(options.caseSensitive);
   const baseName = stripFileExtension(fileName);
   const candidates = new Map<string, string>();
@@ -382,7 +307,7 @@ export function collectFileNameFieldCandidates(
   return Array.from(candidates.entries())
     .sort((left, right) => left[1].localeCompare(right[1]))
     .map((entry) => entry[0]);
-}
+};
 
 export function matchFileNameAgainstPatternTokens(
   fileName: unknown,
@@ -449,75 +374,4 @@ export function matchFileNameAgainstPhrase(
   );
 
   return normalizedBaseName.includes(normalizedPhrase);
-}
-
-export function deriveFileNameFieldSuggestions(
-  fileNames: Array<unknown>,
-  options: {
-    caseSensitive?: boolean;
-    maxSamples?: number;
-    separators?: unknown;
-  } = {},
-): FileNameFieldSuggestion[] {
-  const caseSensitive = Boolean(options.caseSensitive);
-  const maxSamples = Number.isInteger(options.maxSamples)
-    ? Math.max(1, Number(options.maxSamples))
-    : 2;
-  const totalFiles = (Array.isArray(fileNames) ? fileNames : []).filter((fileName) =>
-    Boolean(String(fileName ?? "").trim()),
-  ).length;
-  const suggestions = new Map<
-    string,
-    Omit<FileNameFieldSuggestion, "score">
-  >();
-
-  for (const fileName of Array.isArray(fileNames) ? fileNames : []) {
-    const rawName = String(fileName ?? "").trim();
-    if (!rawName) continue;
-
-    const rawFields = collectFileNameFieldCandidates(rawName, {
-      caseSensitive: true,
-      separators: options.separators,
-    });
-    const seenInFile = new Set<string>();
-
-    for (const rawField of rawFields) {
-      if (!shouldSuggestFieldCandidate(rawField)) continue;
-
-      const normalizedValue = normalizeByCase(rawField, caseSensitive);
-      if (!normalizedValue || seenInFile.has(normalizedValue)) continue;
-
-      seenInFile.add(normalizedValue);
-
-      const existing = suggestions.get(normalizedValue);
-      if (existing) {
-        existing.count += 1;
-        if (
-          existing.sampleFileNames.length < maxSamples &&
-          !existing.sampleFileNames.includes(rawName)
-        ) {
-          existing.sampleFileNames.push(rawName);
-        }
-        continue;
-      }
-
-      suggestions.set(normalizedValue, {
-        count: 1,
-        normalizedValue,
-        sampleFileNames: [rawName],
-        value: rawField,
-      });
-    }
-  }
-
-  return Array.from(suggestions.values())
-    .map((entry) => ({
-      ...entry,
-      score: scoreFieldToken(entry.value, entry.count, totalFiles),
-    }))
-    .sort((left, right) => {
-      if (right.score !== left.score) return right.score - left.score;
-      if (right.count !== left.count) return right.count - left.count;
-      return left.value.localeCompare(right.value);
-    });
 }

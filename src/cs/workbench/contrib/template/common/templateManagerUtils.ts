@@ -1,8 +1,5 @@
 export type TemplateConfig = {
   bottomTitle: string;
-  fileNameMatchCaseSensitive: boolean;
-  fileNameVdKeywords: string;
-  fileNameVgKeywords: string;
   leftTitle: string;
   legendPrefix: string;
   name: string;
@@ -37,12 +34,9 @@ export const createEmptyTemplateConfig = (
   yLegendTarget: "auto",
   yUnit: "A",
   stopOnError: false,
-  fileNameMatchCaseSensitive: false,
   bottomTitle: "",
   leftTitle: "",
   legendPrefix: "",
-  fileNameVgKeywords: "",
-  fileNameVdKeywords: "",
   yColumns: [],
   ...overrides,
 });
@@ -98,12 +92,9 @@ export const normalizeTemplateConfigRecord = (
         : "auto",
     yUnit: String(source?.yUnit ?? "A") || "A",
     stopOnError: Boolean(source?.stopOnError),
-    fileNameMatchCaseSensitive: Boolean(source?.fileNameMatchCaseSensitive),
     bottomTitle: String(source?.bottomTitle ?? ""),
     leftTitle: String(source?.leftTitle ?? ""),
     legendPrefix: String(source?.legendPrefix ?? ""),
-    fileNameVgKeywords: String(source?.fileNameVgKeywords ?? ""),
-    fileNameVdKeywords: String(source?.fileNameVdKeywords ?? ""),
     yColumns: Array.isArray(source?.yColumns)
       ? source.yColumns
           .map((entry) => Number(entry))
