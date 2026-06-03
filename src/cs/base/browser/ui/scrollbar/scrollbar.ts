@@ -1,4 +1,3 @@
-import { cx } from "src/utils/cx";
 import { ScrollbarController } from "src/cs/base/browser/ui/scrollbar/scrollbarController";
 import type { ScrollbarAxis } from "src/cs/base/browser/ui/scrollbar/scrollbarOptions";
 import type { ScrollEvent } from "src/cs/base/common/scrollable";
@@ -55,8 +54,10 @@ export class Scrollbar {
     className = "",
     viewportClassName = "",
   }: ScrollbarOptions): void {
-    this.element.className = cx("scrollArea", className);
-    this.viewport.className = cx("scrollAreaViewport", viewportClassName);
+    this.element.className = className ? `scrollArea ${className}` : "scrollArea";
+    this.viewport.className = viewportClassName
+      ? `scrollAreaViewport ${viewportClassName}`
+      : "scrollAreaViewport";
     this.viewport.dataset.axis = axis;
   }
 }

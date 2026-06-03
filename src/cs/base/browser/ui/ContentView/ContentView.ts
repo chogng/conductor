@@ -1,7 +1,6 @@
 import { addDisposableListener, getClientArea, getContentWidth, getDomRect, getElementSize, reset } from "src/cs/base/browser/dom";
 import { anchoredLayout, rectFromDomRect } from "src/cs/base/common/layout";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
-import { cx } from "src/utils/cx";
 
 import "src/cs/base/browser/ui/contentView/contentView.css";
 
@@ -232,11 +231,14 @@ export class ContentView implements IDisposable {
             this.element.removeAttribute("aria-labelledby");
         }
 
-        this.surface.className = cx(
-            "content-view__surface",
-            this.options.variant === "menu" ? "content-view__surface--menu" : "",
-            this.options.className,
-        );
+        const classNames = ["content-view__surface"];
+        if (this.options.variant === "menu") {
+            classNames.push("content-view__surface--menu");
+        }
+        if (this.options.className) {
+            classNames.push(this.options.className);
+        }
+        this.surface.className = classNames.join(" ");
         this.applyState();
     }
 

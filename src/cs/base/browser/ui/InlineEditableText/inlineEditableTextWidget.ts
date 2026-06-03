@@ -1,5 +1,4 @@
 import { DisposableStore, toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
-import { cx } from "src/utils/cx";
 
 export type InlineEditableTextWidgetStyle = Partial<CSSStyleDeclaration>;
 
@@ -61,24 +60,34 @@ export class InlineEditableTextWidget implements IDisposable {
     const wasEditing = this.options.editing;
     this.options = options;
 
-    this.root.className = cx(
+    const rootClassNames = [
       "flex h-6 min-w-0 max-w-full flex-1 items-center overflow-hidden rounded-md px-1.5 transition-colors",
       options.editing ? "bg-bg-page" : "bg-transparent",
-      options.className,
-      options.inputFieldClassName,
-    );
+    ];
+    if (options.className) {
+      rootClassNames.push(options.className);
+    }
+    if (options.inputFieldClassName) {
+      rootClassNames.push(options.inputFieldClassName);
+    }
+    this.root.className = rootClassNames.join(" ");
     this.root.title = options.title ?? "";
 
     this.input.value = options.editing ? options.draftValue : options.value;
     this.input.readOnly = !options.editing;
-    this.input.className = cx(
+    const inputClassNames = [
       "h-full min-w-0 w-full flex-1 bg-transparent border-0 p-0 outline-none focus:outline-none focus:ring-0 text-[11px] leading-4",
       options.editing
         ? "cursor-text text-text-primary"
         : "cursor-text text-text-secondary select-text",
-      options.displayClassName,
-      options.inputClassName,
-    );
+    ];
+    if (options.displayClassName) {
+      inputClassNames.push(options.displayClassName);
+    }
+    if (options.inputClassName) {
+      inputClassNames.push(options.inputClassName);
+    }
+    this.input.className = inputClassNames.join(" ");
     this.applyStyle(options.style);
 
     if (options.editing && !wasEditing) {

@@ -1,5 +1,4 @@
 import type { URI } from "src/cs/base/common/uri";
-import { stableItemKey } from "../../../../../utils/stableKey.ts";
 
 export const IMPORT_FILE_EXTENSIONS = [".csv", ".xls", ".xlsx"] as const;
 export const FilesViewId = "workbench.files";
@@ -16,6 +15,16 @@ const getFileExtension = (fileName: unknown): string => {
   const dotIndex = normalized.lastIndexOf(".");
   if (dotIndex <= 0) return "";
   return normalized.slice(dotIndex);
+};
+
+const fnv1a32 = (input: unknown): string => {
+  const str = String(input ?? "");
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
 };
 
 export const isSupportedImportFileName = (fileName: unknown): boolean =>
@@ -75,5 +84,5 @@ export const buildItemKey = (
     return "";
   }
 
-  return stableItemKey("csv", raw);
+  return `csv-${fnv1a32(raw)}`;
 };

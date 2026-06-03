@@ -3,12 +3,12 @@ import { Emitter } from "src/cs/base/common/event";
 import { Disposable, DisposableStore, toDisposable } from "src/cs/base/common/lifecycle";
 import {
   IContextKeyService,
-  RawContextKey,
   type IContextKey,
   type IContextKeyService as IContextKeyServiceType,
 } from "src/cs/platform/contextkey/common/contextkey";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import { IInstantiationService, type IInstantiationService as IInstantiationServiceType } from "src/cs/platform/instantiation/common/instantiation";
+import { FocusedViewContext, getVisibleViewContextKey } from "src/cs/workbench/common/contextkeys";
 import {
   IViewDescriptorService,
   type IView,
@@ -23,10 +23,6 @@ import {
   type IWorkbenchLayoutService as IWorkbenchLayoutServiceType,
 } from "src/cs/workbench/services/layout/browser/layoutService";
 import { IViewsService, type IViewsService as IViewsServiceType } from "src/cs/workbench/services/views/common/viewsService";
-
-const FocusedViewContext = new RawContextKey<string>("focusedView", "");
-
-const getVisibleViewContextKey = (viewId: string): string => `view.${viewId}.visible`;
 
 export class ViewsService extends Disposable implements IViewsServiceType {
   public declare readonly _serviceBrand: undefined;
@@ -407,7 +403,7 @@ export class ViewsService extends Disposable implements IViewsServiceType {
   private getOrCreateVisibleViewContextKey(viewId: string): IContextKey<boolean> {
     let contextKey = this.visibleViewContextKeys.get(viewId);
     if (!contextKey) {
-      contextKey = new RawContextKey<boolean>(getVisibleViewContextKey(viewId), false).bindTo(this.contextKeyService);
+      contextKey = this.contextKeyService.createKey(getVisibleViewContextKey(viewId), false);
       this.visibleViewContextKeys.set(viewId, contextKey);
     }
     return contextKey;

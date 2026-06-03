@@ -1,5 +1,3 @@
-import { cx } from "src/utils/cx";
-
 import "src/cs/base/browser/ui/button/button.css";
 
 export type ButtonVariant =
@@ -44,12 +42,19 @@ export const getButtonClassName = ({
 >): string => {
   const variantClass = getButtonVariantClassName(variant, disabled);
   const sizeClass = getButtonSizeClassName(size);
+  const classNames = ["action-btn", sizeClass, variantClass];
+  if (fullWidth) {
+    classNames.push("w-full");
+  }
+  if (className) {
+    classNames.push(className);
+  }
 
-  return cx("action-btn", sizeClass, variantClass, fullWidth && "w-full", className);
+  return classNames.join(" ");
 };
 
 export const getButtonContentClassName = (className = ""): string =>
-  cx("action-btn__content", className);
+  className ? `action-btn__content ${className}` : "action-btn__content";
 
 export const getButtonDataAttributes = ({
   dataIcon,

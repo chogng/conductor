@@ -14,7 +14,7 @@ import type {
   StorageSettings,
   WindowCloseSettings,
 } from "src/cs/workbench/contrib/settings/settingsViewTypes";
-import { cx } from "src/utils/cx";
+import type { HelpWindowKind } from "src/cs/workbench/contrib/help/common/helpWindow";
 import "src/cs/base/browser/ui/inputbox/inputBox.css";
 import "src/cs/workbench/contrib/settings/browser/media/settingsView.css";
 
@@ -27,6 +27,7 @@ export type SettingsViewOptions = SettingsViewProps & {
   activeSettingsSection: SettingsSectionId;
   appUpdateChecking: boolean;
   axisTitleFontSizeDraft: string;
+  canOpenHelpWindow: boolean;
   cleanupEnabledOptions: SelectOption[];
   cleanupFailedDaysOptions: SelectOption[];
   cleanupKeepSuccessOptions: SelectOption[];
@@ -35,6 +36,7 @@ export type SettingsViewOptions = SettingsViewProps & {
   closeOriginHealthToast: () => void;
   fileNameFieldSeparatorsDraft: string;
   handleCheckForUpdates: () => void;
+  handleOpenHelpWindow: (kind: HelpWindowKind) => void;
   legendFontSizeDraft: string;
   originHealthToast: NotificationToastState;
   plotCommandDraft: string;
@@ -312,6 +314,22 @@ export class SettingsView {
         disabled: !appUpdateSettings.isAvailable || this.options.appUpdateChecking,
         variant: "secondary",
       })),
+      cardRow("analysis-settings-help-card", localize("da_settings_help_title", "Help"), div("settings-button-row",
+        this.createButton({
+          id: "analysis-settings-update-log-btn",
+          label: localize("da_settings_help_update_log", "Update Log"),
+          onClick: () => this.options.handleOpenHelpWindow("changelog"),
+          disabled: !this.options.canOpenHelpWindow,
+          variant: "secondary",
+        }),
+        this.createButton({
+          id: "analysis-settings-user-guide-btn",
+          label: localize("da_settings_help_user_guide", "User Guide"),
+          onClick: () => this.options.handleOpenHelpWindow("guide"),
+          disabled: !this.options.canOpenHelpWindow,
+          variant: "secondary",
+        }),
+      )),
     );
   }
 
@@ -561,7 +579,9 @@ export class SettingsView {
   private createInput(options: TextInputOptions): HTMLInputElement {
     const input = document.createElement("input");
     input.id = options.id;
-    input.className = cx("inputbox_native inputbox_field", options.inputClassName);
+    input.className = options.inputClassName
+      ? `inputbox_native inputbox_field ${options.inputClassName}`
+      : "inputbox_native inputbox_field";
     input.value = options.value;
     input.disabled = options.disabled === true;
     input.placeholder = options.placeholder ?? "";
@@ -643,7 +663,7 @@ function div(className: string, ...children: Array<Node | string>): HTMLDivEleme
 }
 
 function card(id: string, className: string): HTMLDivElement {
-  const element = div(cx("settings-card", className));
+  const element = div(className ? `settings-card ${className}` : "settings-card");
   element.id = id;
   return element;
 }

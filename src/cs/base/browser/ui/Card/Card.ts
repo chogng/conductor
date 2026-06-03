@@ -1,5 +1,3 @@
-import { cx } from "src/utils/cx";
-
 import "src/cs/base/browser/ui/card/card.css";
 
 export type CardVariant = "default" | "panel" | "glass" | "flat" | "fill";
@@ -13,7 +11,9 @@ export const getCardClassName = ({
   className = "",
   variant = "default",
 }: Pick<CardOptions, "className" | "variant"> = {}): string =>
-  cx(getCardVariantClassName(variant), className);
+  className
+    ? `${getCardVariantClassName(variant)} ${className}`
+    : getCardVariantClassName(variant);
 
 export const createCard = <K extends keyof HTMLElementTagNameMap = "div">(
   tagName: K,

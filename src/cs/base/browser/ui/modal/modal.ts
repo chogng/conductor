@@ -1,5 +1,3 @@
-import { cx } from "src/utils/cx";
-
 import "src/cs/base/browser/ui/modal/modal.css";
 
 export const MODAL_OVERLAY_CLASS = "modal-overlay";
@@ -33,13 +31,17 @@ export const getModalDialogClassName = ({
   readonly className?: string;
   readonly size?: ModalSize;
   readonly variant?: ModalVariant;
-}): string =>
-  cx(
+}): string => {
+  const classNames = [
     MODAL_DIALOG_BASE_CLASS,
     MODAL_DIALOG_VARIANTS[variant] || MODAL_DIALOG_VARIANTS.default,
     MODAL_DIALOG_SIZES[size] || MODAL_DIALOG_SIZES.md,
-    className,
-  );
+  ];
+  if (className) {
+    classNames.push(className);
+  }
+  return classNames.join(" ");
+};
 
 export const getModalTitleId = (idBase: string | undefined, fallbackId: string): string => {
   const stableIdBase = slugifyModalToken(idBase);
