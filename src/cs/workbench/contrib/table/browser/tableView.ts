@@ -18,12 +18,15 @@ export type TableViewProps = {
 type BodyCell = {
   readonly element: HTMLTableCellElement;
   appliedHighlighted?: boolean;
+  appliedHidden?: boolean;
   appliedSelected?: boolean;
   appliedText?: string;
 };
 
 type BodyRow = {
+  readonly element: HTMLTableRowElement;
   readonly cells: BodyCell[];
+  appliedHidden?: boolean;
 };
 
 type ActiveCell = {
@@ -65,6 +68,7 @@ export class TableView {
   private bodyRowCount = 0;
   private bodyColumnCount = 0;
   private renderedZoomPercent: number | null = null;
+  private renderedSourceKey: string | null = null;
   private appliedCellState: AppliedCellState | null = null;
   private props: TableViewProps;
 
@@ -133,13 +137,32 @@ export class TableView {
   private render(): void {
     const { tableState } = this.props;
     const tableFile = tableState.file;
+    const sourceKey = tableState.sourceKey ?? tableState.selectedFileId ?? null;
     this.element.dataset.state = tableState.loadState.state;
 
+    if (this.renderedSourceKey !== sourceKey) {
+      this.renderedSourceKey = sourceKey;
+      this.appliedCellState = null;
+      this.clearRowsText();
+    }
+
     if (!tableState.selectedFileId || !tableFile) {
+      if (tableState.loadState.state === "loading" && this.bodyGrid.length > 0) {
+        if (this.scrollArea.viewport.firstChild !== this.content) {
+          this.scrollArea.viewport.replaceChildren(this.content);
+        }
+        this.header.hidden = false;
+        this.scrollArea.layout();
+        this.syncHeaderScroll();
+        return;
+      }
+
       this.header.hidden = true;
       this.scrollArea.viewport.replaceChildren();
       this.scrollArea.viewport.append(createEmptyView({
-        description: localize("preview_empty_hint", "Select a file to preview"),
+        description: tableState.loadState.state === "loading"
+          ? tableState.loadState.message || localize("preview_loading_hint", "Parsing CSV preview, please wait.")
+          : localize("preview_empty_hint", "Select a file to preview"),
       }));
       this.scrollArea.layout();
       return;
@@ -188,22 +211,23 @@ export class TableView {
     }
 
     this.header.hidden = false;
-    this.ensureHeaderGrid(columnCount);
+    const headerChanged = this.ensureHeaderGrid(columnCount);
     const gridChanged = this.renderBody(tableModel, rowCount, columnCount);
 
     if (tableFile?.fileId) {
       void tableModel.ensureRows(tableFile.sourceKey ?? tableFile.fileId, 0, rowCount);
     }
 
-    return gridChanged || zoomChanged;
+    return headerChanged || gridChanged || zoomChanged;
   }
 
-  private ensureHeaderGrid(columnCount: number): void {
-    if (this.headerColumnCount !== columnCount) {
-      this.headerColumnCount = columnCount;
-      this.headerContent.replaceChildren();
+  private ensureHeaderGrid(columnCount: number): boolean {
+    let changed = false;
+    if (this.headerColumnCount < MAX_RENDERED_COLUMNS) {
+      const startIndex = this.headerColumnCount;
+      this.headerColumnCount = MAX_RENDERED_COLUMNS;
 
-      for (let colIndex = 0; colIndex < columnCount; colIndex += 1) {
+      for (let colIndex = startIndex; colIndex < MAX_RENDERED_COLUMNS; colIndex += 1) {
         const cell = document.createElement("div");
         const button = document.createElement("button");
         cell.className = "table_view_grid_header_cell";
@@ -218,7 +242,18 @@ export class TableView {
         cell.append(button);
         this.headerContent.append(cell);
       }
+
+      changed = true;
     }
+
+    for (let colIndex = 0; colIndex < this.headerColumnCount; colIndex += 1) {
+      const cell = this.headerContent.children.item(colIndex) as HTMLElement | null;
+      if (cell && setHidden(cell, colIndex >= columnCount)) {
+        changed = true;
+      }
+    }
+
+    return changed;
   }
 
   private renderBody(
@@ -260,17 +295,22 @@ export class TableView {
   }
 
   private ensureBodyGrid(rowCount: number, columnCount: number): boolean {
-    if (this.bodyRowCount === rowCount && this.bodyColumnCount === columnCount) {
+    const gridChanged = this.ensureBodyCells();
+    const visibleRangeChanged = this.syncBodyGridVisibility(rowCount, columnCount);
+
+    if (visibleRangeChanged) {
+      this.appliedCellState = null;
+    }
+
+    return gridChanged || visibleRangeChanged;
+  }
+
+  private ensureBodyCells(): boolean {
+    if (this.bodyGrid.length > 0) {
       return false;
     }
 
-    this.bodyRowCount = rowCount;
-    this.bodyColumnCount = columnCount;
-    this.appliedCellState = null;
-    this.bodyGrid.length = 0;
-    this.bodyRows.replaceChildren();
-
-    for (let rowIndex = 0; rowIndex < rowCount; rowIndex += 1) {
+    for (let rowIndex = 0; rowIndex < MAX_RENDERED_ROWS; rowIndex += 1) {
       const row = document.createElement("tr");
       const rowHeader = document.createElement("th");
       const rowHeaderLabel = document.createElement("span");
@@ -282,7 +322,7 @@ export class TableView {
       rowHeader.append(rowHeaderLabel);
       row.append(rowHeader);
 
-      for (let colIndex = 0; colIndex < columnCount; colIndex += 1) {
+      for (let colIndex = 0; colIndex < MAX_RENDERED_COLUMNS; colIndex += 1) {
         const cell = document.createElement("td");
         cell.className = "table_view_cell";
         cell.dataset.rowIndex = String(rowIndex);
@@ -292,12 +332,39 @@ export class TableView {
       }
 
       this.bodyGrid.push({
+        element: row,
         cells,
       });
       this.bodyRows.append(row);
     }
 
     return true;
+  }
+
+  private syncBodyGridVisibility(rowCount: number, columnCount: number): boolean {
+    const changed = this.bodyRowCount !== rowCount || this.bodyColumnCount !== columnCount;
+    this.bodyRowCount = rowCount;
+    this.bodyColumnCount = columnCount;
+
+    for (let rowIndex = 0; rowIndex < this.bodyGrid.length; rowIndex += 1) {
+      const row = this.bodyGrid[rowIndex];
+      const rowHidden = rowIndex >= rowCount;
+      if (row.appliedHidden !== rowHidden) {
+        row.element.hidden = rowHidden;
+        row.appliedHidden = rowHidden;
+      }
+
+      for (let colIndex = 0; colIndex < row.cells.length; colIndex += 1) {
+        const cell = row.cells[colIndex];
+        const cellHidden = colIndex >= columnCount;
+        if (cell.appliedHidden !== cellHidden) {
+          cell.element.hidden = cellHidden;
+          cell.appliedHidden = cellHidden;
+        }
+      }
+    }
+
+    return changed;
   }
 
   private syncSelectionState(): void {
@@ -401,6 +468,14 @@ export class TableView {
     if (cell.appliedText !== text) {
       cell.element.textContent = text;
       cell.appliedText = text;
+    }
+  }
+
+  private clearRowsText(): void {
+    for (const row of this.bodyGrid) {
+      for (const cell of row.cells) {
+        this.updateCellText(cell, "");
+      }
     }
   }
 
@@ -529,6 +604,15 @@ const range = (count: number): number[] => {
     result.push(index);
   }
   return result;
+};
+
+const setHidden = (element: HTMLElement, hidden: boolean): boolean => {
+  if (element.hidden === hidden) {
+    return false;
+  }
+
+  element.hidden = hidden;
+  return true;
 };
 
 const toColumnSet = (

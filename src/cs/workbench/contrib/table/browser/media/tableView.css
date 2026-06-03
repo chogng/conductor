@@ -249,6 +249,12 @@
   flex: 0 0 var(--table-view-column-width);
 }
 
+.table_view_grid_header_cell[hidden],
+.table_view_grid tr[hidden],
+.table_view_grid td[hidden] {
+  display: none;
+}
+
 .table_view_grid_header_cell[data-selected="true"],
 .table_view_grid_header_cell[data-highlighted="true"] {
   color: rgb(var(--accent) / 1);

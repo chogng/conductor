@@ -11,6 +11,7 @@ import type {
   ListProps,
   ListRenderState,
 } from "src/cs/base/browser/ui/list/list";
+import { RangeMap } from "src/cs/base/browser/ui/list/rangeMap";
 import { RowCache, type RowCacheRow } from "src/cs/base/browser/ui/list/rowCache";
 import { ScrollbarController } from "src/cs/base/browser/ui/scrollbar/scrollbarController";
 
@@ -51,10 +52,9 @@ type RowEntry<T> = {
   row: RowCacheRow;
 };
 
-type RowLayout = {
-  readonly heights: number[];
-  readonly totalHeight: number;
-  readonly tops: number[];
+type RenderRange = {
+  readonly end: number;
+  readonly start: number;
 };
 
 const DEFAULT_MIN_VIRTUAL_COUNT = 80;
@@ -76,6 +76,7 @@ export class ListView<T> implements IDisposable {
   private readonly emptyContainer: HTMLDivElement;
   private readonly scrollbar: ScrollbarController;
   private readonly rows = new Map<string, RowEntry<T>>();
+  private readonly rowsByIndex = new Map<number, RowEntry<T>>();
   private readonly rowCache = new RowCache(() => this.createRow());
   private props: ListViewOptions<T>;
   private viewportHeight = 0;
@@ -85,7 +86,9 @@ export class ListView<T> implements IDisposable {
   private pendingScrollTop = 0;
   private scrollRaf: number | null = null;
   private scrollbarContentHeight = -1;
-  private rowLayout: RowLayout = { heights: [], totalHeight: 0, tops: [] };
+  private rangeMap = new RangeMap();
+  private lastRenderRange: RenderRange = { start: 0, end: 0 };
+  private shouldReconcileRows = true;
   private disposed = false;
 
   constructor(host: HTMLElement, options: ListViewOptions<T>) {
@@ -149,8 +152,12 @@ export class ListView<T> implements IDisposable {
   }
 
   setProps(nextProps: ListViewOptions<T>): void {
+    if (this.props.items !== nextProps.items || this.props.getKey !== nextProps.getKey) {
+      this.shouldReconcileRows = true;
+    }
+
     this.props = nextProps;
-    this.rowLayout = this.createRowLayout();
+    this.rangeMap = this.createRangeMap();
     this.updateClasses();
     this.syncFocusedIndex();
     this.render();
@@ -365,7 +372,7 @@ export class ListView<T> implements IDisposable {
   private render(): void {
     if (this.disposed) return;
 
-    const { items, renderItem, disposeItem, empty, disposeEmpty, rowRole, selectedKey, getKey } =
+    const { items, renderItem, empty, disposeEmpty, rowRole, selectedKey, getKey } =
       this.props;
 
     if (!items.length) {
@@ -376,6 +383,7 @@ export class ListView<T> implements IDisposable {
       this.scrollHeight = 0;
       this.scrollTop = 0;
       this.disposeAllRows();
+      this.lastRenderRange = { start: 0, end: 0 };
       empty?.(this.emptyContainer);
       this.updateScrollbarMetrics(0);
       return;
@@ -389,7 +397,7 @@ export class ListView<T> implements IDisposable {
     this.viewport.hidden = false;
     this.viewportHeight = getClientArea(this.viewport).height;
 
-    const totalHeight = this.rowLayout.totalHeight;
+    const totalHeight = this.getContentHeight();
     this.scrollHeight = totalHeight;
     this.scrollTop = this.clampScrollTop(this.scrollTop);
     const virtualized = items.length >= this.minVirtualCount;
@@ -405,34 +413,21 @@ export class ListView<T> implements IDisposable {
     this.updateScrollbarMetrics(totalHeight);
 
     this.rowCache.transact(() => {
-      const visibleKeys = new Set<string>();
+      const nextRenderRange = { start: startIndex, end: endIndex };
+      if (this.shouldReconcileRows) {
+        this.releaseInvisibleRows(nextRenderRange);
+      } else {
+        for (const range of this.getRangesToRemove(this.lastRenderRange, nextRenderRange)) {
+          this.releaseRange(range);
+        }
+      }
 
-      for (
-        let visibleIndex = 0;
-        visibleIndex < endIndex - startIndex;
-        visibleIndex += 1
-      ) {
-        const index = startIndex + visibleIndex;
+      for (let index = startIndex; index < endIndex; index += 1) {
         const item = items[index];
         if (!item) continue;
 
         const key = getKey(item, index);
-        visibleKeys.add(key);
-
-        let entry = this.rows.get(key);
-        if (!entry) {
-          const { row } = this.rowCache.alloc("default");
-          entry = {
-            index,
-            item,
-            key,
-            row,
-          };
-          this.rows.set(key, entry);
-          if (row.domNode.parentElement !== this.stage) {
-            this.stage.appendChild(row.domNode);
-          }
-        }
+        const entry = this.ensureEntry(index, item, key);
 
         entry.index = index;
         entry.item = item;
@@ -458,15 +453,8 @@ export class ListView<T> implements IDisposable {
         });
       }
 
-      for (const [key, entry] of this.rows) {
-        if (visibleKeys.has(key)) {
-          continue;
-        }
-
-        disposeItem?.(entry.item, entry.index, entry.row.mount);
-        this.rowCache.release(entry.row);
-        this.rows.delete(key);
-      }
+      this.lastRenderRange = nextRenderRange;
+      this.shouldReconcileRows = false;
     });
 
   }
@@ -516,87 +504,60 @@ export class ListView<T> implements IDisposable {
   }
 
   private getRowHeightAt(index: number, item?: T): number {
-    return this.rowLayout.heights[index] ?? (typeof item === "undefined" ? 32 : this.getRowHeight(item));
+    const nextTop = this.rangeMap.positionAt(index + 1);
+    const top = this.rangeMap.positionAt(index);
+    if (top >= 0 && nextTop >= 0) {
+      return Math.max(0, nextTop - top - this.gap);
+    }
+
+    return typeof item === "undefined" ? 32 : this.getRowHeight(item);
   }
 
   private getRowTop(index: number): number {
-    return this.rowLayout.tops[index] ?? 0;
+    return Math.max(0, this.rangeMap.positionAt(index));
   }
 
-  private createRowLayout(): RowLayout {
-    const { items } = this.props;
-    const heights: number[] = [];
-    const tops: number[] = [];
-    let offset = 0;
-
-    for (let index = 0; index < items.length; index += 1) {
-      const item = items[index];
-      const height = this.getRowHeight(item);
-      heights.push(height);
-      tops.push(offset);
-      offset += height + this.gap;
+  private getContentHeight(): number {
+    if (!this.props.items.length) {
+      return 0;
     }
 
-    return {
-      heights,
-      totalHeight: items.length > 0 ? offset - this.gap : 0,
-      tops,
-    };
+    return Math.max(0, this.rangeMap.size - this.gap);
+  }
+
+  private createRangeMap(): RangeMap {
+    const rangeMap = new RangeMap();
+    rangeMap.splice(
+      0,
+      0,
+      this.props.items.map(item => ({
+        size: this.getRowHeight(item) + this.gap,
+      })),
+    );
+    return rangeMap;
   }
 
   private findIndexAtOffset(offset: number): number {
-    const { tops } = this.rowLayout;
-    if (!tops.length) {
+    if (!this.rangeMap.count) {
       return 0;
     }
 
-    let low = 0;
-    let high = tops.length - 1;
-    let result = 0;
-
-    while (low <= high) {
-      const mid = Math.floor((low + high) / 2);
-      const top = tops[mid];
-      if (top <= offset) {
-        result = mid;
-        low = mid + 1;
-      } else {
-        high = mid - 1;
-      }
-    }
-
-    return result;
+    return Math.max(0, Math.min(this.rangeMap.indexAt(offset), this.props.items.length - 1));
   }
 
   private findIndexAfterOffset(offset: number): number {
-    const { heights, tops } = this.rowLayout;
-    if (!tops.length) {
+    if (!this.rangeMap.count) {
       return 0;
     }
 
-    let low = 0;
-    let high = tops.length - 1;
-    let result = tops.length;
-
-    while (low <= high) {
-      const mid = Math.floor((low + high) / 2);
-      const rowBottom = tops[mid] + heights[mid];
-      if (rowBottom >= offset) {
-        result = mid;
-        high = mid - 1;
-      } else {
-        low = mid + 1;
-      }
-    }
-
-    return result === tops.length ? tops.length : result + 1;
+    return this.rangeMap.indexAfter(offset);
   }
 
   private findPageIndex(startIndex: number, direction: 1 | -1): number {
     const targetOffset = direction > 0
       ? this.getRowTop(startIndex) + this.viewportHeight
       : this.getRowTop(startIndex) - this.viewportHeight;
-    const boundedOffset = Math.max(0, Math.min(targetOffset, this.rowLayout.totalHeight));
+    const boundedOffset = Math.max(0, Math.min(targetOffset, this.getContentHeight()));
     return direction > 0
       ? Math.min(this.props.items.length - 1, this.findIndexAtOffset(boundedOffset))
       : Math.max(0, this.findIndexAtOffset(boundedOffset));
@@ -721,11 +682,99 @@ export class ListView<T> implements IDisposable {
     };
   }
 
+  private ensureEntry(index: number, item: T, key: string): RowEntry<T> {
+    let entry = this.rowsByIndex.get(index);
+    if (entry?.key === key) {
+      return entry;
+    }
+
+    if (entry) {
+      this.releaseEntry(entry);
+    }
+
+    entry = this.rows.get(key);
+    if (entry) {
+      this.rowsByIndex.delete(entry.index);
+      entry.index = index;
+      entry.item = item;
+      this.rowsByIndex.set(index, entry);
+      return entry;
+    }
+
+    const { row } = this.rowCache.alloc("default");
+    entry = {
+      index,
+      item,
+      key,
+      row,
+    };
+    this.rows.set(key, entry);
+    this.rowsByIndex.set(index, entry);
+    if (row.domNode.parentElement !== this.stage) {
+      this.stage.appendChild(row.domNode);
+    }
+
+    return entry;
+  }
+
+  private getRangesToRemove(
+    previous: RenderRange,
+    next: RenderRange,
+  ): RenderRange[] {
+    if (previous.end <= next.start || previous.start >= next.end) {
+      return previous.start === previous.end ? [] : [previous];
+    }
+
+    const result: RenderRange[] = [];
+    if (previous.start < next.start) {
+      result.push({ start: previous.start, end: next.start });
+    }
+    if (previous.end > next.end) {
+      result.push({ start: next.end, end: previous.end });
+    }
+    return result;
+  }
+
+  private releaseInvisibleRows(renderRange: RenderRange): void {
+    const visibleKeys = new Set<string>();
+    const { getKey, items } = this.props;
+
+    for (let index = renderRange.start; index < renderRange.end; index += 1) {
+      const item = items[index];
+      if (item) {
+        visibleKeys.add(getKey(item, index));
+      }
+    }
+
+    for (const entry of Array.from(this.rows.values())) {
+      if (!visibleKeys.has(entry.key)) {
+        this.releaseEntry(entry);
+      }
+    }
+  }
+
+  private releaseRange(range: RenderRange): void {
+    for (let index = range.start; index < range.end; index += 1) {
+      const entry = this.rowsByIndex.get(index);
+      if (entry) {
+        this.releaseEntry(entry);
+      }
+    }
+  }
+
+  private releaseEntry(entry: RowEntry<T>): void {
+    this.props.disposeItem?.(entry.item, entry.index, entry.row.mount);
+    entry.row.mount.replaceChildren();
+    this.rows.delete(entry.key);
+    this.rowsByIndex.delete(entry.index);
+    this.rowCache.release(entry.row);
+  }
+
   private disposeAllRows(): void {
-    for (const entry of this.rows.values()) {
-      this.props.disposeItem?.(entry.item, entry.index, entry.row.mount);
-      this.rowCache.release(entry.row);
+    for (const entry of Array.from(this.rows.values())) {
+      this.releaseEntry(entry);
     }
     this.rows.clear();
+    this.rowsByIndex.clear();
   }
 }
