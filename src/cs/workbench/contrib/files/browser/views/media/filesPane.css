@@ -15,7 +15,7 @@
 }
 
 .files-pane-body {
-  padding: 12px;
+  padding: 0 12px 12px;
 }
 
 .files-sidebar_part > .workbench_sidebar_header .workbench_sidebar_title {

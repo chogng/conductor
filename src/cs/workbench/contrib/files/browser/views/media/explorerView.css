@@ -192,7 +192,6 @@
 .file-list-tree-viewport {
   min-height: 0;
   height: 100%;
-  padding-inline: 2px;
 }
 
 .file-list-tree .ui-tree__item,
