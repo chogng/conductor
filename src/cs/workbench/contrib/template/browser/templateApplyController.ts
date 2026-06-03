@@ -19,8 +19,12 @@ import type {
   ProcessingStatus,
   SessionFile,
 } from "src/cs/workbench/contrib/session/common/sessionTypes";
-import type { ProcessingQueueItem } from "src/cs/workbench/contrib/template/browser/templateApplyProcessing";
-import { TemplateApplyService } from "src/cs/workbench/contrib/template/browser/templateApplyService";
+import type {
+  ProcessingJobOptions,
+  ProcessingQueueItem,
+  RuleProcessingJobOptions,
+} from "src/cs/workbench/contrib/template/browser/templateApplyProcessing";
+import type { ITemplateApplyService } from "src/cs/workbench/contrib/template/common/template";
 import type { IAnalysisFileService } from "src/cs/workbench/services/analysisFile/common/analysisFile";
 
 type ExtractionErrorEntry = {
@@ -75,6 +79,12 @@ export type TemplateApplyControllerInput = {
 
 type TemplateApplyControllerOptions = {
   analysisFileService: IAnalysisFileService;
+  templateApplyService: ITemplateApplyService<
+    ProcessingJobOptions,
+    RuleProcessingJobOptions,
+    MutableState<Worker | null>,
+    Worker | null
+  >;
   onExtractionError?: (error: ExtractionErrorEntry) => void;
   showResults: () => void;
   setAnalysisResults: StateSetter<AnalysisResultsByFileId>;
@@ -231,7 +241,6 @@ const buildWorkerExtractionError = (payload: unknown): ExtractionErrorEntry => {
 };
 
 export class TemplateApplyController {
-  private readonly templateApplyService = new TemplateApplyService();
   private readonly processingWorkerRef = createMutableState<Worker | null>(null);
   private readonly processingJobIdRef = createMutableState(0);
   private readonly processingQueueRef = createMutableState<ProcessingQueueItem[]>([]);
@@ -266,7 +275,7 @@ export class TemplateApplyController {
   }
 
   public dispose(): void {
-    this.templateApplyService.terminateProcessingWorker(this.processingWorkerRef);
+    this.options.templateApplyService.terminateProcessingWorker(this.processingWorkerRef);
   }
 
   public readonly resetProcessingWorker = (): void => {
@@ -274,7 +283,7 @@ export class TemplateApplyController {
     this.processingQueueRef.current = [];
     this.processingStopOnErrorRef.current = false;
     this.removedQueuedFileIdsRef.current = new Set();
-    this.templateApplyService.terminateProcessingWorker(this.processingWorkerRef);
+    this.options.templateApplyService.terminateProcessingWorker(this.processingWorkerRef);
     this.setProcessingStatus({
       state: "idle",
       processed: 0,
@@ -573,7 +582,7 @@ export class TemplateApplyController {
     stopOnError,
   }: StartExtractionJobOptions): void => {
     const { activeFileId, hasSourceFile } = this.input;
-    this.templateApplyService.startProcessingJob({
+    this.options.templateApplyService.startProcessingJob({
       analysisFileService: this.options.analysisFileService,
       activeFileId,
       extractionConfig,
@@ -764,7 +773,7 @@ export class TemplateApplyController {
     }
 
     this.lastAppliedTemplateConfigFingerprintRef.current = stableStringify(config);
-    this.templateApplyService.startRuleProcessingJob({
+    this.options.templateApplyService.startRuleProcessingJob({
       analysisFileService: this.options.analysisFileService,
       activeFileId,
       finalQueue,

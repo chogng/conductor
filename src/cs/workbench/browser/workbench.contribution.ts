@@ -52,6 +52,12 @@ import {
   ITableService,
   type ITableService as ITableServiceType,
 } from "src/cs/workbench/contrib/table/common/tableService";
+import {
+  ITemplateApplyService,
+  ITemplateService,
+  type ITemplateApplyService as ITemplateApplyServiceType,
+  type ITemplateService as ITemplateServiceType,
+} from "src/cs/workbench/contrib/template/common/template";
 
 export const WorkbenchContributionId = "workbench.browser.workbench";
 
@@ -95,6 +101,8 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
     @IPathService pathService: IPathServiceType,
     @IWorkbenchLayoutService layoutService: IWorkbenchLayoutServiceType,
     @IViewsService viewsService: IViewsServiceType,
+    @ITemplateApplyService templateApplyService: ITemplateApplyServiceType,
+    @ITemplateService templateService: ITemplateServiceType,
   ) {
     super();
 
@@ -112,6 +120,8 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
       layoutService,
       viewsService,
       tableService,
+      templateApplyService,
+      templateService,
     }));
     this._register(
       scheduleAtNextAnimationFrame(window, () => {

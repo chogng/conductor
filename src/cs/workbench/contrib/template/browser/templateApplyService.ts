@@ -1,3 +1,4 @@
+import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import type { MutableState } from "src/cs/workbench/contrib/session/browser/sessionContext";
 import {
   startProcessingJob,
@@ -6,7 +7,10 @@ import {
   type ProcessingJobOptions,
   type RuleProcessingJobOptions,
 } from "src/cs/workbench/contrib/template/browser/templateApplyProcessing";
-import type { ITemplateApplyService } from "src/cs/workbench/contrib/template/common/template";
+import {
+  ITemplateApplyService as ITemplateApplyServiceId,
+  type ITemplateApplyService,
+} from "src/cs/workbench/contrib/template/common/template";
 
 export class TemplateApplyService
   implements ITemplateApplyService<
@@ -16,6 +20,8 @@ export class TemplateApplyService
     Worker | null
   >
 {
+  public declare readonly _serviceBrand: undefined;
+
   startProcessingJob(options: ProcessingJobOptions): void {
     startProcessingJob(options);
   }
@@ -31,3 +37,5 @@ export class TemplateApplyService
     terminateProcessingWorker(workerRef, worker);
   }
 }
+
+registerSingleton(ITemplateApplyServiceId, TemplateApplyService, InstantiationType.Delayed);

@@ -52,6 +52,7 @@ export class ViewsService extends Disposable implements IViewsServiceType {
   private readonly visibleViewContextKeys = new Map<string, IContextKey<boolean>>();
   private readonly focusedViewContextKey: IContextKey<string>;
   private readonly visibleViewContainers = new Map<ViewContainerLocation, string>();
+  private readonly visibleAddedViews = new Map<string, boolean>();
   private readonly viewsById = new Map<string, IView>();
   private readonly viewPaneContainers = new Map<string, IViewPaneContainer>();
 
@@ -82,6 +83,7 @@ export class ViewsService extends Disposable implements IViewsServiceType {
       this.containerDisposables.clear();
       this.viewContainerIdsByViewId.clear();
       this.visibleViewContextKeys.clear();
+      this.visibleAddedViews.clear();
       this.viewsById.clear();
       this.viewPaneContainers.clear();
     }));
@@ -121,6 +123,7 @@ export class ViewsService extends Disposable implements IViewsServiceType {
 
     this.visibleViewContainers.set(location, id);
     this.viewPaneContainers.get(id)?.setVisible(true);
+    this.applyAddedViewVisibility(id);
     if (previousId !== id) {
       this.onDidChangeViewContainerVisibilityEmitter.fire({ id, visible: true, location });
     }
@@ -183,6 +186,7 @@ export class ViewsService extends Disposable implements IViewsServiceType {
     const addedView = viewPaneContainer.addView(view, { dispose: false });
     this.viewsById.set(addedView.id, addedView);
     this.viewContainerIdsByViewId.set(addedView.id, containerId);
+    this.applyAddedViewVisibility(containerId);
     return addedView;
   }
 
@@ -192,6 +196,7 @@ export class ViewsService extends Disposable implements IViewsServiceType {
       return false;
     }
 
+    this.visibleAddedViews.set(id, visible);
     const changed = view.setVisible(visible);
     if (changed) {
       this.onViewVisibilityChanged(view, view.isBodyVisible());
@@ -214,6 +219,7 @@ export class ViewsService extends Disposable implements IViewsServiceType {
     if (addedViewContainerId) {
       await this.openViewContainer(addedViewContainerId, focus);
       const viewPaneContainer = this.viewPaneContainers.get(addedViewContainerId);
+      this.visibleAddedViews.set(id, true);
       const view = viewPaneContainer?.openView(id, focus) as T | undefined ?? this.getViewWithId<T>(id);
       if (view) {
         this.onViewVisibilityChanged(view, view.isBodyVisible());
@@ -250,6 +256,29 @@ export class ViewsService extends Disposable implements IViewsServiceType {
     }
 
     this.viewDescriptorService.getViewContainerModel(viewContainer).setVisible(id, false);
+  }
+
+  private applyAddedViewVisibility(containerId: string): void {
+    for (const [viewId, addedContainerId] of this.viewContainerIdsByViewId) {
+      if (addedContainerId !== containerId) {
+        continue;
+      }
+
+      const visible = this.visibleAddedViews.get(viewId);
+      if (visible === undefined) {
+        continue;
+      }
+
+      const view = this.viewsById.get(viewId);
+      if (!view) {
+        continue;
+      }
+
+      const changed = view.setVisible(visible);
+      if (changed) {
+        this.onViewVisibilityChanged(view, view.isBodyVisible());
+      }
+    }
   }
 
   public getActiveViewWithId<T extends IView>(id: string): T | null {

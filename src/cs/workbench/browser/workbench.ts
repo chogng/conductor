@@ -44,7 +44,6 @@ import ChartViewPane from "src/cs/workbench/contrib/chart/browser/chartViewPane"
 import ResultsPane from "src/cs/workbench/contrib/chart/browser/resultsPane";
 import TemplateViewlet from "src/cs/workbench/contrib/template/browser/templateViewlet";
 import { TemplateImportController } from "src/cs/workbench/contrib/template/browser/templateImportController";
-import { BrowserTemplateService } from "src/cs/workbench/contrib/template/browser/templateService";
 import { getWorkbenchContribution } from "src/cs/workbench/common/contributions";
 import type { TableContribution } from "src/cs/workbench/contrib/table/browser/table.contribution";
 import { TableContributionId } from "src/cs/workbench/contrib/table/common/table";
@@ -61,7 +60,10 @@ import type {
   ITableService,
   TableModel,
 } from "src/cs/workbench/contrib/table/common/tableService";
-import type { ITemplateService } from "src/cs/workbench/contrib/template/common/template";
+import type {
+  ITemplateApplyService,
+  ITemplateService,
+} from "src/cs/workbench/contrib/template/common/template";
 import {
   CoreSettingsController,
   createCoreSettingsState,
@@ -128,6 +130,8 @@ export type WorkbenchOptions = {
   readonly showDesktopCommandBar?: boolean;
   readonly showSkeleton?: boolean;
   readonly style?: WorkbenchStyle;
+  readonly templateApplyService?: ITemplateApplyService;
+  readonly templateService?: ITemplateService;
   readonly tableService?: ITableService;
   readonly titlebarState?: WorkbenchTitlebarState;
 };
@@ -208,6 +212,7 @@ export class Workbench extends Layout {
   private readonly pathService: IPathService;
   private readonly viewsService: IViewsService;
   private readonly tableService: ITableService;
+  private readonly templateApplyService: ITemplateApplyService;
   private readonly templateService: ITemplateService;
   private readonly templateImportController: TemplateImportController;
   private readonly coreSettingsController: CoreSettingsController;
@@ -255,6 +260,12 @@ export class Workbench extends Layout {
     if (!options.viewsService) {
       throw new Error("Workbench requires IViewsService.");
     }
+    if (!options.templateApplyService) {
+      throw new Error("Workbench requires ITemplateApplyService.");
+    }
+    if (!options.templateService) {
+      throw new Error("Workbench requires ITemplateService.");
+    }
     this.filesService = options.filesService;
     this.analysisFileService = options.analysisFileService;
     this.dialogsService = options.dialogsService;
@@ -262,7 +273,8 @@ export class Workbench extends Layout {
     this.pathService = options.pathService;
     this.viewsService = options.viewsService;
     this.tableService = options.tableService;
-    this.templateService = new BrowserTemplateService();
+    this.templateApplyService = options.templateApplyService;
+    this.templateService = options.templateService;
     this.templateImportController = new TemplateImportController(
       this.dialogsService,
       this.filesService,
@@ -270,6 +282,7 @@ export class Workbench extends Layout {
     );
     this.templateApply = this._register(new TemplateApplyController({
       analysisFileService: this.analysisFileService,
+      templateApplyService: this.templateApplyService,
       onExtractionError: () => undefined,
       showResults: () => this.showMainPart("chart"),
       setAnalysisResults: this.session.setAnalysisResults,
