@@ -34,15 +34,18 @@ import type {
 } from "src/cs/workbench/contrib/template/common/template";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import type { TemplateImportController } from "src/cs/workbench/contrib/template/browser/templateImportController";
-import type {
-  TableModel,
-  TableSelection,
-} from "src/cs/workbench/contrib/table/common/tableService";
+import type { TableModel } from "src/cs/workbench/contrib/table/common/tableService";
 import { TemplateApplyView } from "src/cs/workbench/contrib/template/browser/templateApplyView";
 import {
   TemplateEditorView,
   type TemplatePickFieldName,
 } from "src/cs/workbench/contrib/template/browser/templateEditorView";
+import {
+  areColumnIndexesEqual,
+  normalizeColumnIndexes,
+  resolveTemplateSelectionUpdate,
+  toColumnLabel,
+} from "src/cs/workbench/contrib/template/browser/templateSelection";
 
 export type TemplateElementOptions = {
   readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
@@ -157,40 +160,6 @@ const exportTemplate = (config: TemplateConfig, templateService: ITemplateServic
   templateService.downloadTemplateBundle(payload);
 };
 
-const normalizeColumnIndexes = (columns: readonly number[] | undefined): number[] =>
-  Array.from(new Set(
-    (Array.isArray(columns) ? columns : [])
-      .map((column) => Math.floor(Number(column)))
-      .filter((column) => Number.isInteger(column) && column >= 0),
-  )).sort((a, b) => a - b);
-
-const areNumberArraysEqual = (
-  first: readonly number[] | undefined,
-  second: readonly number[] | undefined,
-): boolean => {
-  const normalizedFirst = normalizeColumnIndexes(first);
-  const normalizedSecond = normalizeColumnIndexes(second);
-  if (normalizedFirst.length !== normalizedSecond.length) {
-    return false;
-  }
-
-  return normalizedFirst.every((value, index) => value === normalizedSecond[index]);
-};
-
-const toCellLabel = (rowIndex: number, colIndex: number): string =>
-  `${toColumnLabel(colIndex)}${Math.max(0, Math.floor(Number(rowIndex) || 0)) + 1}`;
-
-const toColumnLabel = (colIndex: number): string => {
-  let value = Math.max(0, Math.floor(Number(colIndex) || 0)) + 1;
-  let label = "";
-  while (value > 0) {
-    const remainder = (value - 1) % 26;
-    label = String.fromCharCode(65 + remainder) + label;
-    value = Math.floor((value - 1) / 26);
-  }
-  return label;
-};
-
 export const createTemplateElement = (options: TemplateElementOptions): HTMLElement =>
   new TemplateManagerView(options).element;
 
@@ -287,25 +256,9 @@ export class TemplateManagerView {
     }
 
     this.disposeTableSelectionListener = tableModel.onDidChangeSelection((selection) => {
-      this.applyTableSelection(selection);
+      this.updateTemplateConfig(resolveTemplateSelectionUpdate(selection, this.activePickField));
     });
-    this.applyTableSelection(tableModel.getSelection());
-  }
-
-  private applyTableSelection(selection: TableSelection): void {
-    const columns = normalizeColumnIndexes(selection.selectedColumns);
-    if (columns.length > 0) {
-      this.updateTemplateConfig({ yColumns: columns });
-    }
-
-    const activeCell = selection.activeCell;
-    if (!activeCell || !this.activePickField) {
-      return;
-    }
-
-    this.updateTemplateConfig({
-      [this.activePickField]: toCellLabel(activeCell.rowIndex, activeCell.colIndex),
-    });
+    this.updateTemplateConfig(resolveTemplateSelectionUpdate(tableModel.getSelection(), this.activePickField));
   }
 
   private updateTemplateConfig(updates: Partial<TemplateConfig>): void {
@@ -317,7 +270,7 @@ export class TemplateManagerView {
     };
 
     if (Array.isArray(updates.yColumns)) {
-      changed = !areNumberArraysEqual(current.yColumns, updates.yColumns);
+      changed = !areColumnIndexesEqual(current.yColumns, updates.yColumns);
       next.yColumns = updates.yColumns;
     }
 
