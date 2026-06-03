@@ -1,6 +1,7 @@
 import { SIDEBAR_DEFAULT_WIDTH_PX } from "src/cs/workbench/browser/layout";
 
 import "src/cs/workbench/browser/media/style.css";
+import "src/cs/workbench/browser/media/part.css";
 import "src/cs/workbench/browser/parts/previewArea/media/previewpart.css";
 import "src/cs/workbench/browser/parts/sidebar/media/sidebarpart.css";
 import "src/cs/workbench/browser/parts/titlebar/media/titlebar.css";

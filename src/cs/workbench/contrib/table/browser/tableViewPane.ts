@@ -11,6 +11,7 @@ import {
 import { Disposable, DisposableStore } from "src/cs/base/common/lifecycle";
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
+import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/previewPart";
 import { TableView, type TableViewProps } from "src/cs/workbench/contrib/table/browser/tableView";
 import { TableViewId } from "src/cs/workbench/contrib/table/common/table";
@@ -43,8 +44,8 @@ const MAX_ZOOM_PERCENT = 200;
 const ZOOM_STEP_PERCENT = 10;
 const ZOOM_CONTROL_ACTION_ID = "table.header.zoom";
 
-export class TableViewPane {
-  public readonly element: HTMLElement;
+export class TableViewPane extends ViewPane {
+  private readonly previewPart: HTMLElement;
   private readonly store = new DisposableStore();
   private readonly content = document.createElement("div");
   private readonly headerTitle = document.createElement("div");
@@ -65,6 +66,13 @@ export class TableViewPane {
   private zoomPercent = DEFAULT_ZOOM_PERCENT;
 
   constructor(props: TableViewPaneProps) {
+    super({
+      id: TableViewId,
+      title: localize("table.ariaLabel", "Table"),
+      className: "table-view-pane-root",
+      bodyClassName: "workbench-part-view-pane__body",
+      headerVisible: false,
+    });
     this.props = props;
     this.view = new TableView(toViewProps(props, this.zoomPercent));
     this.zoomControl = this.createZoomControl();
@@ -86,7 +94,7 @@ export class TableViewPane {
     this.headerTitle.append(this.headerLeft, this.headerCenter);
     this.headerRight.append(this.dimensions, this.actionBar.domNode);
     this.content.append(this.view.element);
-    this.element = createPreviewPart({
+    this.previewPart = createPreviewPart({
       id: TableViewId,
       ariaLabel: localize("table.ariaLabel", "Table"),
       actionbarContent: this.headerRight,
@@ -94,6 +102,7 @@ export class TableViewPane {
       children: this.content,
       titleContent: this.headerTitle,
     });
+    this.body.append(this.previewPart);
     this.update(props);
   }
 
@@ -110,7 +119,8 @@ export class TableViewPane {
     this.view.dispose();
     this.store.dispose();
     this.content.replaceChildren();
-    this.element.remove();
+    this.previewPart.remove();
+    super.dispose();
   }
 
   private createZoomControl(): ZoomControl {

@@ -18,6 +18,10 @@ export class TableContribution extends Disposable implements IWorkbenchContribut
     return this.pane.current?.element ?? null;
   }
 
+  public get view(): TableViewPane | null {
+    return this.pane.current ?? null;
+  }
+
   public update(props: TableViewPaneProps): void {
     if (!this.pane.current) {
       this.pane.current = new TableViewPane(props);

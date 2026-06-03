@@ -3,6 +3,7 @@ import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
+import type { IView } from "src/cs/workbench/common/views";
 
 import "src/cs/workbench/browser/parts/views/media/viewPane.css";
 
@@ -13,12 +14,14 @@ export type ViewPaneOptions = {
   readonly className?: string;
   readonly collapsed?: boolean;
   readonly headerClassName?: string;
+  readonly headerVisible?: boolean;
   readonly id?: string;
   readonly title: string;
   readonly titleClassName?: string;
 };
 
-export class ViewPane {
+export class ViewPane implements IView {
+  public readonly id: string;
   public readonly body: HTMLElement;
   public readonly element: HTMLElement;
   public readonly onDidChangeCollapsed: Event<boolean>;
@@ -31,16 +34,16 @@ export class ViewPane {
     this.collapsed = Boolean(options.collapsed);
     this.onDidChangeCollapsed = this.onDidChangeCollapsedEmitter.event;
 
-    const id = options.id ?? `workbench_view_pane_${viewPaneIdPool++}`;
+    this.id = options.id ?? `workbench_view_pane_${viewPaneIdPool++}`;
     this.element = document.createElement("section");
-    this.element.className = this.getElementClassName(options.className);
+    this.element.className = this.getElementClassName(options.className, options.headerVisible !== false);
     this.element.dataset.collapsed = this.collapsed ? "true" : "false";
 
     this.header = document.createElement("button");
     this.header.type = "button";
     this.header.className = this.getHeaderClassName(options.headerClassName);
     this.header.setAttribute("aria-expanded", String(!this.collapsed));
-    this.header.setAttribute("aria-controls", `${id}_body`);
+    this.header.setAttribute("aria-controls", `${this.id}_body`);
 
     const icon = document.createElement("span");
     icon.className = "workbench-view-pane__twisty";
@@ -52,7 +55,7 @@ export class ViewPane {
     title.textContent = options.title;
 
     this.body = document.createElement("div");
-    this.body.id = `${id}_body`;
+    this.body.id = `${this.id}_body`;
     this.body.className = this.getBodyClassName(options.bodyClassName);
     this.body.hidden = this.collapsed;
 
@@ -62,15 +65,48 @@ export class ViewPane {
     this.disposables.add(this.onDidChangeCollapsedEmitter);
 
     this.header.append(icon, title);
-    this.element.append(this.header, this.body);
+    if (options.headerVisible === false) {
+      this.body.tabIndex = -1;
+      this.element.append(this.body);
+    } else {
+      this.element.append(this.header, this.body);
+    }
   }
 
   public isCollapsed(): boolean {
     return this.collapsed;
   }
 
+  public focus(): void {
+    const focusTarget = this.element.contains(this.header)
+      ? this.header
+      : this.body.querySelector<HTMLElement>("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])") ?? this.body;
+    focusTarget.focus();
+  }
+
+  public isVisible(): boolean {
+    return !this.element.hidden;
+  }
+
+  public isBodyVisible(): boolean {
+    return this.isVisible() && !this.body.hidden;
+  }
+
   public setExpanded(expanded: boolean): boolean {
     return this.setCollapsed(!expanded);
+  }
+
+  public setVisible(visible: boolean): boolean {
+    if (this.isVisible() === visible) {
+      return false;
+    }
+
+    this.element.hidden = !visible;
+    return true;
+  }
+
+  public getProgressIndicator(): unknown | undefined {
+    return undefined;
   }
 
   public setCollapsed(collapsed: boolean): boolean {
@@ -92,8 +128,11 @@ export class ViewPane {
     this.element.remove();
   }
 
-  private getElementClassName(className = ""): string {
+  private getElementClassName(className = "", hasHeader = true): string {
     const classNames = ["workbench-view-pane"];
+    if (!hasHeader) {
+      classNames.push("workbench-view-pane--headerless");
+    }
     if (className) {
       classNames.push(className);
     }

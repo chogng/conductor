@@ -1,5 +1,8 @@
 import type { LanguagePreference } from "src/cs/platform/language/common/language";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
+import { localize } from "src/cs/nls";
+import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
+import { SettingsViewId } from "src/cs/workbench/contrib/settings/common/settings";
 import {
   SettingsController,
   type SettingsControllerOptions,
@@ -25,14 +28,19 @@ export type SettingsViewPaneProps = {
   theme: ThemeMode;
 };
 
-export class SettingsViewPane {
-  public readonly element: HTMLDivElement;
+export class SettingsViewPane extends ViewPane {
   private readonly controller: SettingsController;
 
   constructor(options: SettingsViewPaneProps) {
-    this.element = document.createElement("div");
+    super({
+      id: SettingsViewId,
+      title: localize("settings.title", "Settings"),
+      className: "settings-view-pane",
+      bodyClassName: "workbench-part-view-pane__body",
+      headerVisible: false,
+    });
     this.controller = new SettingsController(
-      this.element,
+      this.body,
       toControllerOptions(options),
       new BrowserSettingsService(),
     );
@@ -44,6 +52,7 @@ export class SettingsViewPane {
 
   public dispose(): void {
     this.controller.dispose();
+    super.dispose();
   }
 }
 

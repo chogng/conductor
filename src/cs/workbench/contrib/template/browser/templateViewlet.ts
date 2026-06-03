@@ -1,4 +1,5 @@
 import { localize } from "src/cs/nls";
+import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/previewPart";
 import SidebarPart from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import type { SessionFile } from "src/cs/workbench/contrib/session/common/sessionTypes";
@@ -9,6 +10,7 @@ import {
   TemplateView,
   type TemplateViewOptions,
 } from "src/cs/workbench/contrib/template/browser/views/templateView";
+import { TemplateSidebarViewId, TemplateViewId } from "src/cs/workbench/contrib/template/common/template";
 
 import "src/cs/workbench/contrib/template/browser/media/templateViewlet.css";
 
@@ -28,40 +30,78 @@ export type TemplateViewletProps = {
   readonly templateService: ITemplateService;
 };
 
-export class TemplateViewlet {
-  public readonly element: HTMLElement;
-  public readonly sidebarElement: HTMLElement;
+export class TemplateViewlet extends ViewPane {
+  public readonly sidebarView: TemplateSidebarViewPane;
+  private readonly previewPart: HTMLElement;
   private readonly previewContent: HTMLElement;
-  private readonly sidebarPart: SidebarPart;
   private readonly templateView: TemplateView;
 
   constructor(props: TemplateViewletProps) {
+    super({
+      id: TemplateViewId,
+      title: TEMPLATE_TITLE,
+      className: "template-view-pane",
+      bodyClassName: "workbench-part-view-pane__body",
+      headerVisible: false,
+    });
     this.templateView = new TemplateView(toTemplateProps(props));
     this.previewContent = document.createElement("div");
     this.previewContent.className = "template_viewlet_content";
     this.previewContent.append(this.templateView.element);
 
-    this.element = createPreviewPart({
+    this.previewPart = createPreviewPart({
       id: "analysis-template-workspace",
       ariaLabel: TEMPLATE_TITLE,
       className: "template_viewlet template_viewlet--joined_sidebar",
       children: this.previewContent,
     });
+    this.body.append(this.previewPart);
 
-    this.sidebarPart = new SidebarPart({
-      ariaLabel: TEMPLATE_TITLE,
-      children: this.templateView.sidebarElement,
-      className: "template_sidebar_part template_sidebar_part--joined_preview",
-      title: TEMPLATE_TITLE,
-    });
-    this.sidebarElement = this.sidebarPart.element;
+    this.sidebarView = new TemplateSidebarViewPane(this.templateView.sidebarElement);
+  }
+
+  public get sidebarElement(): HTMLElement {
+    return this.sidebarView.element;
   }
 
   public update(props: TemplateViewletProps): void {
     this.templateView.update(toTemplateProps(props));
+    this.sidebarView.update(this.templateView.sidebarElement);
+  }
+
+  public dispose(): void {
+    this.sidebarView.dispose();
+    this.templateView.dispose();
+    this.previewContent.replaceChildren();
+    this.previewPart.remove();
+    super.dispose();
+  }
+}
+
+export class TemplateSidebarViewPane extends ViewPane {
+  private readonly sidebarPart: SidebarPart;
+
+  constructor(content: HTMLElement) {
+    super({
+      id: TemplateSidebarViewId,
+      title: TEMPLATE_TITLE,
+      className: "template-sidebar-view-pane",
+      bodyClassName: "workbench-part-view-pane__body",
+      headerVisible: false,
+    });
+    this.sidebarPart = new SidebarPart({
+      ariaLabel: TEMPLATE_TITLE,
+      children: content,
+      className: "template_sidebar_part template_sidebar_part--joined_preview",
+      title: TEMPLATE_TITLE,
+    });
+    this.body.append(this.sidebarPart.element);
+  }
+
+  public update(content: HTMLElement): void {
     this.sidebarPart.update({
       ariaLabel: TEMPLATE_TITLE,
-      children: this.templateView.sidebarElement,
+      children: content,
       className: "template_sidebar_part template_sidebar_part--joined_preview",
       title: TEMPLATE_TITLE,
     });
@@ -69,9 +109,7 @@ export class TemplateViewlet {
 
   public dispose(): void {
     this.sidebarPart.dispose();
-    this.templateView.dispose();
-    this.previewContent.replaceChildren();
-    this.element.remove();
+    super.dispose();
   }
 }
 

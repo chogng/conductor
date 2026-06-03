@@ -123,6 +123,11 @@ export class ListView<T> implements IDisposable {
     this.disposables.add(
       addDisposableListener(this.viewport, "keydown", this.onKeyDown),
     );
+    this.disposables.add(
+      addDisposableListener(this.viewport, "scroll", this.onNativeScroll, {
+        passive: true,
+      }),
+    );
 
     this.updateClasses();
     this.measureViewport();
@@ -334,6 +339,16 @@ export class ListView<T> implements IDisposable {
       this.scrollToIndex(nextIndex);
       this.render();
     }
+  };
+
+  private readonly onNativeScroll = (): void => {
+    const scrollTop = this.viewport.scrollTop;
+    if (scrollTop === 0) {
+      return;
+    }
+
+    this.viewport.scrollTop = 0;
+    this.setScrollTop(this.scrollTop + scrollTop, "auto");
   };
 
   private render(): void {

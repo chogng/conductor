@@ -1,6 +1,13 @@
 import { scheduleAtNextAnimationFrame } from "src/cs/base/browser/dom";
 import { Disposable } from "src/cs/base/common/lifecycle";
-import { Workbench } from "src/cs/workbench/browser/workbench";
+import { localize } from "src/cs/nls";
+import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors";
+import { Registry } from "src/cs/platform/registry/common/platform";
+import { ViewPaneContainer } from "src/cs/workbench/browser/parts/views/viewPaneContainer";
+import {
+  Workbench,
+  WorkbenchViewContainers,
+} from "src/cs/workbench/browser/workbench";
 import { hideWorkbenchSplash } from "src/cs/workbench/contrib/splash/browser/partsSplash";
 import {
   IFileDialogService,
@@ -19,6 +26,10 @@ import {
   type IWorkbenchLayoutService as IWorkbenchLayoutServiceType,
 } from "src/cs/workbench/services/layout/browser/layoutService";
 import {
+  IViewsService,
+  type IViewsService as IViewsServiceType,
+} from "src/cs/workbench/services/views/common/viewsService";
+import {
   IAnalysisFileService,
   type IAnalysisFileService as IAnalysisFileServiceType,
 } from "src/cs/workbench/services/analysisFile/common/analysisFile";
@@ -32,6 +43,12 @@ import {
   type IWorkbenchContribution,
 } from "src/cs/workbench/common/contributions";
 import {
+  Extensions as ViewExtensions,
+  type IViewContainersRegistry,
+  ViewContainerLocation,
+  type ViewContainer,
+} from "src/cs/workbench/common/views";
+import {
   ITableService,
   type ITableService as ITableServiceType,
 } from "src/cs/workbench/contrib/table/common/tableService";
@@ -42,6 +59,29 @@ const markBootUiReady = (source: string) => {
   hideWorkbenchSplash();
   window.__CONDUCTOR_BOOT_MARK_UI_READY__?.(source);
 };
+
+const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
+
+registerContainer(
+  WorkbenchViewContainers.files,
+  localize("workbench.views.files", "Files"),
+  ViewContainerLocation.Sidebar,
+);
+registerContainer(
+  WorkbenchViewContainers.main,
+  localize("workbench.views.main", "Workbench"),
+  ViewContainerLocation.Panel,
+);
+registerContainer(
+  WorkbenchViewContainers.secondary,
+  localize("workbench.views.secondary", "Details"),
+  ViewContainerLocation.AuxiliaryBar,
+);
+registerContainer(
+  WorkbenchViewContainers.settings,
+  localize("workbench.views.settings", "Settings"),
+  ViewContainerLocation.Panel,
+);
 
 export class WorkbenchContribution extends Disposable implements IWorkbenchContribution {
   private readonly workbench: Workbench;
@@ -54,6 +94,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
     @IContextMenuService contextMenuService: IContextMenuServiceType,
     @IPathService pathService: IPathServiceType,
     @IWorkbenchLayoutService layoutService: IWorkbenchLayoutServiceType,
+    @IViewsService viewsService: IViewsServiceType,
   ) {
     super();
 
@@ -69,6 +110,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
       filesService,
       pathService,
       layoutService,
+      viewsService,
       tableService,
     }));
     this._register(
@@ -81,6 +123,18 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
   public get contentElement(): HTMLElement {
     return this.workbench.contentElement;
   }
+}
+
+function registerContainer(id: string, title: string, location: ViewContainerLocation): ViewContainer {
+  return viewContainersRegistry.registerViewContainer({
+    id,
+    title,
+    ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [{
+      className: "workbench-part-view-pane-container",
+      id,
+      title,
+    }]),
+  }, location, { isDefault: true, doNotRegisterOpenCommand: true });
 }
 
 registerWorkbenchContribution2(

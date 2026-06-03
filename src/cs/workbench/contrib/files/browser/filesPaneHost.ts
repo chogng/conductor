@@ -1,22 +1,30 @@
 import { localize } from "src/cs/nls";
+import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import SidebarPart from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import {
   FilesPane,
   type FilesPaneProps,
 } from "src/cs/workbench/contrib/files/browser/filesPane";
+import { FilesViewId } from "src/cs/workbench/contrib/files/common/files";
 
-export class FilesPaneHost {
-  public readonly element: HTMLElement;
+export class FilesPaneHost extends ViewPane {
   private readonly host: HTMLDivElement;
   private readonly sidebarPart: SidebarPart;
   private readonly view: FilesPane;
 
   constructor(props: FilesPaneProps) {
+    super({
+      id: FilesViewId,
+      title: localize("files.explorerSection", "资源管理器"),
+      className: "files-view-pane",
+      bodyClassName: "workbench-part-view-pane__body",
+      headerVisible: false,
+    });
     this.host = document.createElement("div");
     this.host.className = "files-pane-root";
     this.view = new FilesPane(this.host, props);
     this.sidebarPart = new SidebarPart(this.getSidebarOptions(props));
-    this.element = this.sidebarPart.element;
+    this.body.append(this.sidebarPart.element);
   }
 
   public update(props: FilesPaneProps): void {
@@ -27,6 +35,7 @@ export class FilesPaneHost {
   public dispose(): void {
     this.view.dispose();
     this.sidebarPart.dispose();
+    super.dispose();
   }
 
   private getSidebarOptions(props: FilesPaneProps) {

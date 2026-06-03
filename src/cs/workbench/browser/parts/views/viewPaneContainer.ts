@@ -1,13 +1,20 @@
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
+import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
+import type { IAction } from "src/cs/base/common/actions";
 import { ViewPane, type ViewPaneOptions } from "src/cs/workbench/browser/parts/views/viewPane";
+import type { IView, IViewPaneContainer } from "src/cs/workbench/common/views";
 
 let viewPaneContainerIdPool = 0;
 
 export type ViewPaneContainerOptions = {
+  readonly actions?: readonly IAction[];
   readonly className?: string;
   readonly collapsedPaneIds?: readonly string[];
+  readonly contextActions?: readonly IAction[];
   readonly id?: string;
+  readonly renderHeader?: boolean;
+  readonly title?: string;
 };
 
 export type ViewPaneContainerAddOptions = Omit<ViewPaneOptions, "collapsed"> & {
@@ -15,30 +22,95 @@ export type ViewPaneContainerAddOptions = Omit<ViewPaneOptions, "collapsed"> & {
   readonly id: string;
 };
 
-export class ViewPaneContainer {
+export class ViewPaneContainer implements IViewPaneContainer {
   public readonly element: HTMLElement;
   public readonly onDidChangeCollapsedPaneIds: Event<readonly string[]>;
+  public readonly onDidAddViews: Event<readonly IView[]>;
+  public readonly onDidRemoveViews: Event<readonly IView[]>;
+  public readonly onDidChangeViewVisibility: Event<IView>;
+  private readonly actionBar: ActionBar;
+  private readonly body: HTMLElement;
   private readonly collapsedPaneIds: Set<string>;
+  private readonly header: HTMLElement;
   private readonly id: string;
+  private readonly renderHeader: boolean;
+  private readonly titleElement: HTMLElement;
   private readonly disposables = new DisposableStore();
   private readonly onDidChangeCollapsedPaneIdsEmitter = new Emitter<readonly string[]>();
-  private readonly panes = new Map<string, ViewPane>();
+  private readonly onDidAddViewsEmitter = new Emitter<readonly IView[]>();
+  private readonly onDidRemoveViewsEmitter = new Emitter<readonly IView[]>();
+  private readonly onDidChangeViewVisibilityEmitter = new Emitter<IView>();
+  private readonly panes = new Map<string, IView>();
+  private containerTitle: string;
+  private primaryActions: readonly IAction[];
+  private secondaryActions: readonly IAction[];
+  private visible = true;
   private updatingCollapsedPaneIds = false;
 
   constructor(options: ViewPaneContainerOptions = {}) {
     this.id = options.id ?? `workbench_view_pane_container_${viewPaneContainerIdPool++}`;
+    this.containerTitle = options.title ?? "";
+    this.primaryActions = options.actions ?? [];
+    this.secondaryActions = options.contextActions ?? [];
+    this.renderHeader = options.renderHeader === true;
     this.collapsedPaneIds = new Set(options.collapsedPaneIds ?? []);
     this.onDidChangeCollapsedPaneIds = this.onDidChangeCollapsedPaneIdsEmitter.event;
+    this.onDidAddViews = this.onDidAddViewsEmitter.event;
+    this.onDidRemoveViews = this.onDidRemoveViewsEmitter.event;
+    this.onDidChangeViewVisibility = this.onDidChangeViewVisibilityEmitter.event;
 
     this.element = document.createElement("div");
     this.element.className = this.getElementClassName(options.className);
+    this.element.setAttribute("aria-label", this.containerTitle || this.id);
+    this.header = document.createElement("div");
+    this.header.className = "workbench-view-pane-container__header";
+    this.titleElement = document.createElement("div");
+    this.titleElement.className = "workbench-view-pane-container__title";
+    this.actionBar = this.disposables.add(new ActionBar({
+      ariaLabel: this.containerTitle ? `${this.containerTitle} actions` : "View actions",
+      className: "workbench-view-pane-container__actions",
+    }));
+    this.body = document.createElement("div");
+    this.body.className = "workbench-view-pane-container__body";
+    this.header.append(this.titleElement, this.actionBar.domNode);
+    if (this.renderHeader) {
+      this.element.append(this.header);
+    }
+    this.element.append(this.body);
+    this.renderTitleArea();
     this.disposables.add(this.onDidChangeCollapsedPaneIdsEmitter);
+    this.disposables.add(this.onDidAddViewsEmitter);
+    this.disposables.add(this.onDidRemoveViewsEmitter);
+    this.disposables.add(this.onDidChangeViewVisibilityEmitter);
+  }
+
+  public get views(): readonly IView[] {
+    return Array.from(this.panes.values());
+  }
+
+  public get title(): string {
+    return this.containerTitle;
+  }
+
+  public get actions(): readonly IAction[] {
+    return this.primaryActions;
+  }
+
+  public get contextActions(): readonly IAction[] {
+    return this.secondaryActions;
+  }
+
+  public getId(): string {
+    return this.id;
   }
 
   public addPane(options: ViewPaneContainerAddOptions): ViewPane {
     const existing = this.panes.get(options.id);
-    if (existing) {
+    if (existing instanceof ViewPane) {
       return existing;
+    }
+    if (existing) {
+      throw new Error(`View '${options.id}' is not a collapsible view pane.`);
     }
 
     const collapsed = options.collapsed ?? this.collapsedPaneIds.has(options.id);
@@ -59,13 +131,125 @@ export class ViewPaneContainer {
     }));
     this.disposables.add(pane);
     this.panes.set(options.id, pane);
-    this.element.append(pane.element);
+    this.body.append(pane.element);
     this.fireCollapsedPaneIds();
+    this.onDidAddViewsEmitter.fire([pane]);
     return pane;
   }
 
+  public addView(view: IView, options: { readonly dispose?: boolean } = {}): IView {
+    const existing = this.panes.get(view.id);
+    if (existing) {
+      return existing;
+    }
+
+    this.panes.set(view.id, view);
+    view.setVisible(this.visible);
+    this.body.append(view.element);
+    if (view instanceof ViewPane) {
+      this.disposables.add(view.onDidChangeCollapsed(() => {
+        this.onDidChangeViewVisibilityEmitter.fire(view);
+      }));
+    }
+    if (options.dispose !== false) {
+      this.disposables.add(view);
+    }
+    this.onDidAddViewsEmitter.fire([view]);
+    this.fireCollapsedPaneIds();
+    return view;
+  }
+
+  public removeView(id: string): void {
+    const pane = this.panes.get(id);
+    if (!pane) {
+      return;
+    }
+
+    this.panes.delete(id);
+    this.collapsedPaneIds.delete(id);
+    this.onDidRemoveViewsEmitter.fire([pane]);
+    pane.dispose();
+    this.fireCollapsedPaneIds();
+  }
+
+  public removePane(id: string): void {
+    this.removeView(id);
+  }
+
   public getPane(id: string): ViewPane | undefined {
-    return this.panes.get(id);
+    const pane = this.panes.get(id);
+    return pane instanceof ViewPane ? pane : undefined;
+  }
+
+  public getView(viewId: string): IView | undefined {
+    return this.panes.get(viewId);
+  }
+
+  public openView(viewId: string, focus?: boolean): IView | undefined {
+    const view = this.getView(viewId);
+    if (!view) {
+      return undefined;
+    }
+
+    view.setVisible(true);
+    view.setExpanded(true);
+    if (focus) {
+      view.focus();
+    }
+    return view;
+  }
+
+  public setVisible(visible: boolean): void {
+    if (this.visible === visible) {
+      return;
+    }
+
+    this.visible = visible;
+    this.element.hidden = !visible;
+    for (const pane of this.panes.values()) {
+      if (pane.setVisible(visible)) {
+        this.onDidChangeViewVisibilityEmitter.fire(pane);
+      }
+    }
+  }
+
+  public isVisible(): boolean {
+    return this.visible;
+  }
+
+  public focus(): void {
+    this.panes.values().next().value?.focus();
+  }
+
+  public getActionsContext(): unknown {
+    return undefined;
+  }
+
+  public setTitle(title: string): void {
+    if (this.containerTitle === title) {
+      return;
+    }
+
+    this.containerTitle = title;
+    this.element.setAttribute("aria-label", title || this.id);
+    this.renderTitleArea();
+  }
+
+  public setActions(actions: readonly IAction[], contextActions: readonly IAction[] = []): void {
+    this.primaryActions = actions;
+    this.secondaryActions = contextActions;
+    this.renderTitleArea();
+  }
+
+  public toggleViewVisibility(viewId: string): void {
+    const pane = this.panes.get(viewId);
+    if (!pane) {
+      return;
+    }
+
+    if (pane.setVisible(!pane.isVisible())) {
+      this.onDidChangeViewVisibilityEmitter.fire(pane);
+    }
   }
 
   public getCollapsedPaneIds(): readonly string[] {
@@ -79,7 +263,9 @@ export class ViewPaneContainer {
     this.updatingCollapsedPaneIds = true;
     for (const [id, pane] of this.panes) {
       const collapsed = nextCollapsedPaneIds.has(id);
-      changed = pane.setCollapsed(collapsed) || changed;
+      if (pane instanceof ViewPane) {
+        changed = pane.setCollapsed(collapsed) || changed;
+      }
     }
     this.updatingCollapsedPaneIds = false;
 
@@ -108,6 +294,13 @@ export class ViewPaneContainer {
     this.collapsedPaneIds.clear();
     this.element.replaceChildren();
     this.element.remove();
+  }
+
+  private renderTitleArea(): void {
+    this.titleElement.textContent = this.containerTitle;
+    this.actionBar.clear();
+    this.actionBar.push([...this.primaryActions, ...this.secondaryActions]);
+    this.header.hidden = !this.renderHeader || (!this.containerTitle && this.primaryActions.length === 0 && this.secondaryActions.length === 0);
   }
 
   private setPaneCollapsed(id: string, collapsed: boolean): void {

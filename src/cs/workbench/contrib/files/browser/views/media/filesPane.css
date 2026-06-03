@@ -10,12 +10,10 @@
 .files-pane-session-host {
   display: flex;
   min-height: 0px;
+  height: 100%;
   flex: 1 1 0%;
   flex-direction: column;
-}
-
-.files-pane-body {
-  padding: 0 12px 12px;
+  overflow: hidden;
 }
 
 .files-sidebar_part > .workbench_sidebar_header .workbench_sidebar_title {

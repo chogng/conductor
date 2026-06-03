@@ -2,6 +2,7 @@ import type { URI } from "src/cs/base/common/uri";
 import { stableItemKey } from "../../../../../utils/stableKey.ts";
 
 export const IMPORT_FILE_EXTENSIONS = [".csv", ".xls", ".xlsx"] as const;
+export const FilesViewId = "workbench.files";
 
 const SUPPORTED_IMPORT_FILE_EXTENSIONS = new Set<string>(IMPORT_FILE_EXTENSIONS);
 const EXCEL_IMPORT_FILE_EXTENSIONS = new Set<string>([".xls", ".xlsx"]);

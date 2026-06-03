@@ -15,6 +15,7 @@ import {
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
+import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/previewPart";
 import type { LxIconDefinition } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { ChartViewId } from "src/cs/workbench/contrib/chart/common/chart";
@@ -33,8 +34,8 @@ const CHART_PLOT_ID_BASE = "chart-view-plot";
 const CHART_PLOT_PANEL_ID_BASE = "chart-view-plot-panel";
 type PaneVisibilityMode = "single" | "multiple";
 
-export class ChartViewPane {
-  public readonly element: HTMLElement;
+export class ChartViewPane extends ViewPane {
+  private readonly previewPart: HTMLElement;
   private readonly headerTabs = document.createElement("div");
   private readonly headerActions = document.createElement("div");
   private readonly headerStore = new DisposableStore();
@@ -46,6 +47,13 @@ export class ChartViewPane {
   private props: AnalysisPanelProps;
 
   constructor(props: AnalysisPanelProps) {
+    super({
+      id: ChartViewId,
+      title: localize("analysis.visualization", "Analysis & Visualization"),
+      className: "chart-view-pane-root",
+      bodyClassName: "workbench-part-view-pane__body",
+      headerVisible: false,
+    });
     this.props = props;
     this.analysisPanel = new AnalysisPanel(toAnalysisPanelProps(
       props,
@@ -57,7 +65,7 @@ export class ChartViewPane {
     this.headerActions.className = "chart_view_header_actions";
     this.content.className = "chart_view_pane_content";
     this.content.append(this.analysisPanel.element);
-    this.element = createPreviewPart({
+    this.previewPart = createPreviewPart({
       id: ChartViewId,
       ariaLabel: localize("analysis.visualization", "Analysis & Visualization"),
       actionbarContent: this.headerActions,
@@ -65,6 +73,7 @@ export class ChartViewPane {
       children: this.content,
       titleContent: this.headerTabs,
     });
+    this.body.append(this.previewPart);
     this.update(props);
   }
 
@@ -78,14 +87,15 @@ export class ChartViewPane {
     this.headerStore.dispose();
     this.analysisPanel.dispose();
     this.content.replaceChildren();
-    this.element.remove();
+    this.previewPart.remove();
+    super.dispose();
   }
 
   private renderHeader(props: AnalysisPanelProps): void {
     this.headerStore.clear();
     const activeFile = resolveActiveFile(props);
     const isEmpty = !props.cleanedData.length;
-    this.element.dataset.headerVisible = isEmpty ? "false" : "true";
+    this.previewPart.dataset.headerVisible = isEmpty ? "false" : "true";
     this.headerTabs.replaceChildren();
     this.headerActions.replaceChildren();
 

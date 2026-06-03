@@ -17,8 +17,6 @@ export {
 } from "src/cs/workbench/contrib/files/common/files";
 
 const MAX_FOLDER_WALK_DEPTH = 32;
-const WINDOWS_DRIVE_PREFIX = /^[a-zA-Z]:[\\/]/;
-
 export type FolderFileReadFailure = {
   readonly fileName: string;
   readonly message: string;
@@ -30,20 +28,8 @@ export type FolderFileCollection = {
   readonly readFailures: FolderFileReadFailure[];
 };
 
-function joinFsPath(parent: string, name: string): string {
-  const separator = parent.includes("\\") || WINDOWS_DRIVE_PREFIX.test(parent) ? "\\" : "/";
-  const trimmedParent = parent.replace(/[\\/]+$/, "");
-  return `${trimmedParent}${separator}${name}`;
-}
-
 function joinResourcePath(parent: URI, name: string): URI {
-  if (WINDOWS_DRIVE_PREFIX.test(parent.fsPath)) {
-    return URI.file(joinFsPath(parent.fsPath, name));
-  }
-
-  const trimmedPath = parent.path.replace(/\/+$/, "");
-  const encodedName = encodeURIComponent(name);
-  return URI.file(`${trimmedPath}/${encodedName}`);
+  return URI.joinPath(parent, name);
 }
 
 function getPathBaseName(path: string): string {

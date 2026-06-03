@@ -1,7 +1,9 @@
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { Disposable, type IDisposable, toDisposable } from "src/cs/base/common/lifecycle";
+import type { IAction } from "src/cs/base/common/actions";
 import type { URI } from "src/cs/base/common/uri";
 import type { ContextKeyExpression } from "src/cs/platform/contextkey/common/contextkey";
+import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors";
 import { Registry } from "src/cs/platform/registry/common/platform";
 
@@ -430,12 +432,14 @@ function compareViewContentDescriptors(a: IViewContentDescriptor, b: IViewConten
 
 Registry.add(Extensions.ViewsRegistry, new ViewsRegistry());
 
-export interface IView {
+export interface IView extends IDisposable {
   readonly id: string;
+  readonly element: HTMLElement;
 
   focus(): void;
   isVisible(): boolean;
   isBodyVisible(): boolean;
+  setVisible(visible: boolean): boolean;
   setExpanded(expanded: boolean): boolean;
   getProgressIndicator(): unknown | undefined;
 }
@@ -476,9 +480,15 @@ export interface IViewContainerModel {
   getSize(id: string): number | undefined;
   setSizes(newSizes: readonly { readonly id: string; readonly size: number }[]): void;
   move(from: string, to: string): void;
+  add(addedViewDescriptorStates: readonly IAddedViewDescriptorState[]): void;
+  remove(viewDescriptors: readonly IViewDescriptor[]): void;
 }
 
-export interface IViewPaneContainer {
+export interface IViewPaneContainer extends IDisposable {
+  readonly element: HTMLElement;
+  readonly title: string;
+  readonly actions: readonly IAction[];
+  readonly contextActions: readonly IAction[];
   readonly onDidAddViews: Event<readonly IView[]>;
   readonly onDidRemoveViews: Event<readonly IView[]>;
   readonly onDidChangeViewVisibility: Event<IView>;
@@ -489,10 +499,53 @@ export interface IViewPaneContainer {
   focus(): void;
   getActionsContext(): unknown;
   getView(viewId: string): IView | undefined;
+  addView(view: IView, options?: { readonly dispose?: boolean }): IView;
+  setTitle(title: string): void;
+  setActions(actions: readonly IAction[], contextActions?: readonly IAction[]): void;
+  openView(viewId: string, focus?: boolean): IView | undefined;
+  removeView(viewId: string): void;
   toggleViewVisibility(viewId: string): void;
 }
 
 export interface IViewBadge {
   readonly tooltip: string;
   readonly value: number;
+}
+
+export const IViewDescriptorService = createDecorator<IViewDescriptorService>("viewDescriptorService");
+
+export const enum ViewVisibilityState {
+  Default = 0,
+  Expand = 1,
+}
+
+export interface IViewDescriptorService {
+  readonly _serviceBrand: undefined;
+  readonly onDidChangeViewContainers: Event<{
+    readonly added: readonly { readonly container: ViewContainer; readonly location: ViewContainerLocation }[];
+    readonly removed: readonly { readonly container: ViewContainer; readonly location: ViewContainerLocation }[];
+  }>;
+  readonly onDidChangeContainer: Event<{
+    readonly views: readonly IViewDescriptor[];
+    readonly from: ViewContainer;
+    readonly to: ViewContainer;
+  }>;
+
+  readonly viewContainers: readonly ViewContainer[];
+
+  getViewDescriptorById(viewId: string): IViewDescriptor | null;
+  getViewLocationById(viewId: string): ViewContainerLocation | null;
+  getViewContainerByViewId(viewId: string): ViewContainer | null;
+  getViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation | null;
+  getDefaultViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation | null;
+  getDefaultContainerById(viewId: string): ViewContainer | null;
+  getViewContainerModel(container: ViewContainer): IViewContainerModel;
+  getViewContainerById(id: string): ViewContainer | null;
+  getViewContainersByLocation(location: ViewContainerLocation): readonly ViewContainer[];
+  getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined;
+  moveViewsToContainer(
+    views: readonly IViewDescriptor[],
+    viewContainer: ViewContainer,
+    visibilityState?: ViewVisibilityState,
+  ): void;
 }

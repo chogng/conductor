@@ -13,6 +13,7 @@ import type { IContextMenuService } from "src/cs/platform/contextview/browser/co
 import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
 import type { IAnalysisFileService } from "src/cs/workbench/services/analysisFile/common/analysisFile";
 import type { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
+import type { IViewsService } from "src/cs/workbench/services/views/common/viewsService";
 import {
   isLanguageCode,
   isLanguagePreference,
@@ -79,7 +80,7 @@ import {
   disposeNotificationToasts,
   hideNotificationToast,
   showNotificationToast,
-} from "src/cs/workbench/browser/parts/notifications/notificationsCommands";
+} from "src/cs/workbench/browser/parts/notifications/notificationsToasts";
 
 export type WorkbenchTitlebarState = {
   readonly enabled?: boolean;
@@ -107,6 +108,13 @@ type WorkbenchMainPart = "table" | "chart";
 
 type WorkbenchSessionSnapshot = ReturnType<SessionModel["getSnapshot"]>;
 
+export const WorkbenchViewContainers = {
+  files: "workbench.viewContainer.files",
+  main: "workbench.viewContainer.main",
+  secondary: "workbench.viewContainer.secondary",
+  settings: "workbench.viewContainer.settings",
+} as const;
+
 export type WorkbenchOptions = {
   readonly className?: string;
   readonly analysisFileService?: IAnalysisFileService;
@@ -115,6 +123,7 @@ export type WorkbenchOptions = {
   readonly filesService?: IFileService;
   readonly pathService?: IPathService;
   readonly layoutService?: IWorkbenchLayoutService;
+  readonly viewsService?: IViewsService;
   readonly id?: string;
   readonly showDesktopCommandBar?: boolean;
   readonly showSkeleton?: boolean;
@@ -197,6 +206,7 @@ export class Workbench extends Layout {
   private readonly filesService: IFileService;
   private readonly contextMenuService: IContextMenuService;
   private readonly pathService: IPathService;
+  private readonly viewsService: IViewsService;
   private readonly tableService: ITableService;
   private readonly templateService: ITemplateService;
   private readonly templateImportController: TemplateImportController;
@@ -242,11 +252,15 @@ export class Workbench extends Layout {
     if (!options.pathService) {
       throw new Error("Workbench requires IPathService.");
     }
+    if (!options.viewsService) {
+      throw new Error("Workbench requires IViewsService.");
+    }
     this.filesService = options.filesService;
     this.analysisFileService = options.analysisFileService;
     this.dialogsService = options.dialogsService;
     this.contextMenuService = options.contextMenuService;
     this.pathService = options.pathService;
+    this.viewsService = options.viewsService;
     this.tableService = options.tableService;
     this.templateService = new BrowserTemplateService();
     this.templateImportController = new TemplateImportController(
@@ -308,15 +322,18 @@ export class Workbench extends Layout {
     this.analysis.update(this.getAnalysisProps(snapshot, this.templateApply));
     this.results.update(this.getResultsProps(snapshot));
     this.settings.update(this.getSettingsProps());
+    this.updateViewContainers();
     this.setParts({
-      sidebar: this.filesPane.element,
-      data: this.activeMainPart === "chart"
-        ? this.analysis.element
-        : this.table.element,
-      secondarySidebar: this.activeMainPart === "chart"
-        ? this.results.element
-        : this.templateViewlet.sidebarElement,
-      settings: this.settings.element,
+      sidebar: this.getViewContainerElement(WorkbenchViewContainers.files, this.filesPane.element),
+      data: this.getViewContainerElement(
+        WorkbenchViewContainers.main,
+        this.activeMainPart === "chart" ? this.analysis.element : this.table.element,
+      ),
+      secondarySidebar: this.getViewContainerElement(
+        WorkbenchViewContainers.secondary,
+        this.activeMainPart === "chart" ? this.results.element : this.templateViewlet.sidebarElement,
+      ),
+      settings: this.getViewContainerElement(WorkbenchViewContainers.settings, this.settings.element),
     });
     this.window.update({
       id: "analysis-page",
@@ -385,6 +402,46 @@ export class Workbench extends Layout {
       onPageChange: (page) => this.handleMainPageAction(page),
       onToggleMaximizeWindow: () => toggleWindowMaximized(),
     };
+  }
+
+  private updateViewContainers(): void {
+    this.viewsService.addViewToContainer(WorkbenchViewContainers.files, this.filesPane);
+    if (this.table.view) {
+      this.viewsService.addViewToContainer(WorkbenchViewContainers.main, this.table.view);
+    }
+    this.viewsService.addViewToContainer(WorkbenchViewContainers.main, this.analysis);
+    this.viewsService.addViewToContainer(WorkbenchViewContainers.secondary, this.results);
+    this.viewsService.addViewToContainer(WorkbenchViewContainers.secondary, this.templateViewlet.sidebarView);
+    this.viewsService.addViewToContainer(WorkbenchViewContainers.settings, this.settings);
+
+    const isSettingsActive = this.activeView === "settings";
+    const isWorkbenchActive = !isSettingsActive;
+    const isAnalysisActive = this.activeMainPart === "chart";
+
+    if (isWorkbenchActive) {
+      void this.viewsService.openViewContainer(WorkbenchViewContainers.files);
+      void this.viewsService.openViewContainer(WorkbenchViewContainers.main);
+      void this.viewsService.openViewContainer(WorkbenchViewContainers.secondary);
+      this.viewsService.closeViewContainer(WorkbenchViewContainers.settings);
+    } else {
+      this.viewsService.closeViewContainer(WorkbenchViewContainers.files);
+      this.viewsService.closeViewContainer(WorkbenchViewContainers.main);
+      this.viewsService.closeViewContainer(WorkbenchViewContainers.secondary);
+      void this.viewsService.openViewContainer(WorkbenchViewContainers.settings);
+    }
+
+    this.viewsService.setViewVisible(this.filesPane.id, isWorkbenchActive);
+    if (this.table.view) {
+      this.viewsService.setViewVisible(this.table.view.id, isWorkbenchActive && !isAnalysisActive);
+    }
+    this.viewsService.setViewVisible(this.analysis.id, isWorkbenchActive && isAnalysisActive);
+    this.viewsService.setViewVisible(this.results.id, isWorkbenchActive && isAnalysisActive);
+    this.viewsService.setViewVisible(this.templateViewlet.sidebarView.id, isWorkbenchActive && !isAnalysisActive);
+    this.viewsService.setViewVisible(this.settings.id, isSettingsActive);
+  }
+
+  private getViewContainerElement(containerId: string, fallback: HTMLElement | null): HTMLElement | null {
+    return this.viewsService.getViewContainerElement(containerId) ?? fallback;
   }
 
   private handleMainPageAction(page: "data" | "analysis"): void {

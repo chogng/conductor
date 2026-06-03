@@ -1,6 +1,11 @@
 import { CancellationError, CancellationToken, CancellationTokenSource } from "../../../common/async.js";
 import { Emitter, Event } from "../../../common/event.js";
 import { DisposableStore, type IDisposable, toDisposable } from "../../../common/lifecycle.js";
+import {
+    DefaultURITransformer,
+    transformAndReviveIncomingURIs,
+    transformOutgoingURIs,
+} from "../../../common/uriIpc.js";
 
 export interface IChannel {
     call<T>(command: string, arg?: unknown, cancellationToken?: CancellationToken): Promise<T>;
@@ -101,11 +106,14 @@ const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
 function encodeMessage(message: RequestMessage | ResponseMessage | unknown): Uint8Array {
-    return encoder.encode(JSON.stringify(message));
+    return encoder.encode(JSON.stringify(transformOutgoingURIs(message, DefaultURITransformer)));
 }
 
 function decodeMessage<T>(message: Uint8Array): T {
-    return JSON.parse(decoder.decode(message)) as T;
+    return transformAndReviveIncomingURIs(
+        JSON.parse(decoder.decode(message)) as T,
+        DefaultURITransformer,
+    );
 }
 
 function serializeError(error: unknown): SerializedError {

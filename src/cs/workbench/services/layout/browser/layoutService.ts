@@ -22,6 +22,8 @@ export const enum Parts {
   TITLEBAR_PART = "workbench.parts.titlebar",
   SIDEBAR_PART = "workbench.parts.sidebar",
   EDITOR_PART = "workbench.parts.editor",
+  PANEL_PART = "workbench.parts.panel",
+  AUXILIARYBAR_PART = "workbench.parts.auxiliarybar",
 }
 
 export interface IPartVisibilityChangeEvent {
@@ -58,6 +60,8 @@ export class BrowserWorkbenchLayoutService
     Parts.TITLEBAR_PART,
     Parts.SIDEBAR_PART,
     Parts.EDITOR_PART,
+    Parts.PANEL_PART,
+    Parts.AUXILIARYBAR_PART,
   ]);
   private dimension: IDimension = Dimension.None;
 

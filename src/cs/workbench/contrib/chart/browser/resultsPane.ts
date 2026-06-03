@@ -1,5 +1,6 @@
 import { localize } from "src/cs/nls";
 
+import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import {
   getInputBoxFieldClassName,
   getInputBoxNativeClassName,
@@ -35,6 +36,7 @@ import type {
   OriginExportMode,
 } from "src/cs/workbench/contrib/export/common/originSelectionExport";
 import { ExportContributionId } from "src/cs/workbench/contrib/export/common/export";
+import { ResultsViewId } from "src/cs/workbench/contrib/chart/common/chart";
 import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
   normalizeOriginPlotOptions,
@@ -86,8 +88,7 @@ const ORIGIN_EXPORT_CONTENT_OPTIONS: OriginExportContentOption[] = [
   { group: "derived", key: "vth", labelKey: "da_origin_export_content_vth" },
 ];
 
-export class ResultsPane {
-  public readonly element: HTMLElement;
+export class ResultsPane extends ViewPane {
   private readonly content = document.createElement("div");
   private readonly settingsPane = document.createElement("div");
   private readonly exportContribution: ExportContribution;
@@ -103,6 +104,13 @@ export class ResultsPane {
   private selectedCurveKeys = new Set<string>();
 
   constructor(props: ResultsPaneProps) {
+    super({
+      id: ResultsViewId,
+      title: localize("analysis.visualization", "Analysis & Visualization"),
+      className: "results-view-pane",
+      bodyClassName: "workbench-part-view-pane__body",
+      headerVisible: false,
+    });
     this.props = props;
     this.content.className = "results_pane";
     this.settingsPane.className = "results_pane_body";
@@ -111,7 +119,7 @@ export class ResultsPane {
     this.exportContribution.element.className = "results_pane_body";
     this.parametersContribution.element.className = "results_pane_body results_pane_body--scroll";
     this.sidebarPart = new SidebarPart(this.getSidebarOptions(props));
-    this.element = this.sidebarPart.element;
+    this.body.append(this.sidebarPart.element);
   }
 
   public update(props: ResultsPaneProps): void {
@@ -122,7 +130,7 @@ export class ResultsPane {
   public dispose(): void {
     this.sidebarPart.dispose();
     this.content.replaceChildren();
-    this.element.remove();
+    super.dispose();
   }
 
   private getSidebarOptions(props: ResultsPaneProps) {

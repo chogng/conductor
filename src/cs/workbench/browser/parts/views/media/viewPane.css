@@ -4,6 +4,38 @@
   flex-direction: column;
 }
 
+.workbench-view-pane-container__header {
+  box-sizing: border-box;
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.workbench-view-pane-container__header[hidden] {
+  display: none;
+}
+
+.workbench-view-pane-container__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workbench-view-pane-container__actions {
+  flex-shrink: 0;
+}
+
+.workbench-view-pane-container__body {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
 .workbench-view-pane {
   display: flex;
   min-width: 0;
