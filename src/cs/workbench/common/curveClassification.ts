@@ -2,7 +2,7 @@ import {
   computeSpan,
   normalizeCellText,
   parseFiniteNumber,
-} from "./sharedUtils.ts";
+} from "./cellText.ts";
 
 export type AxisRole = "vg" | "vd";
 

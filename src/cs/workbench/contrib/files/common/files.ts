@@ -1,5 +1,5 @@
 import type { URI } from "src/cs/base/common/uri";
-import { stableItemKey } from "src/utils/stableKey";
+import { stableItemKey } from "../../../../../utils/stableKey.ts";
 
 export const DATA_FILE_EXTENSIONS = [".csv", ".xls", ".xlsx"] as const;
 

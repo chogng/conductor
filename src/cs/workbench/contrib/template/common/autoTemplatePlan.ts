@@ -1,7 +1,7 @@
 import {
   classifyCurve,
   extractCurveMetadata,
-} from "../../import/common/curveClassification.ts";
+} from "../../../common/curveClassification.ts";
 import {
   inferGenericPlan,
   inferStrippedChannelPlan,

@@ -1,7 +1,7 @@
 import {
   normalizeCellText,
   parseFiniteNumber,
-} from "../../import/common/sharedUtils.ts";
+} from "../../../common/cellText.ts";
 import type { TemplateRows } from "./autoTemplateTypes.ts";
 
 export const findGenericNumericColumns = ({

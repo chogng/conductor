@@ -3,13 +3,13 @@ import {
   type AxisRole,
   type CurveClassification,
   type CurveKind,
-} from "../../import/common/curveClassification.ts";
+} from "../../../common/curveClassification.ts";
 import {
   approxEqual,
   computeSpan,
   normalizeCellText,
   parseFiniteNumber,
-} from "../../import/common/sharedUtils.ts";
+} from "../../../common/cellText.ts";
 import { columnHasNumericRows } from "./autoTemplateRows.ts";
 import {
   AUTO_SEGMENTATION_MIN_GROUP_SIZE,

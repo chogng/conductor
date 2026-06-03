@@ -3,8 +3,8 @@ import {
   extractCurveMetadata,
   type AxisRole,
   type CurveClassification,
-} from "../../import/common/curveClassification.ts";
-import { normalizeCellText } from "../../import/common/sharedUtils.ts";
+} from "../../../common/curveClassification.ts";
+import { normalizeCellText } from "../../../common/cellText.ts";
 import { resolveAutoGroupShape } from "./autoTemplateGrouping.ts";
 import {
   parseSecondarySweepFromRows,

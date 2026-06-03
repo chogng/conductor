@@ -3,7 +3,7 @@ import type {
   CurveConfidence,
   CurveKind,
   CurveSource,
-} from "../../import/common/curveClassification.ts";
+} from "../../../common/curveClassification.ts";
 
 export type TemplateRows = Array<Array<unknown> | null | undefined>;
 

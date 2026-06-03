@@ -1,4 +1,4 @@
-import { approxEqual, parseFiniteNumber } from "../../import/common/sharedUtils.ts";
+import { approxEqual, parseFiniteNumber } from "../../../common/cellText.ts";
 
 export type XSegmentationMode = "auto" | "points" | "segments";
 

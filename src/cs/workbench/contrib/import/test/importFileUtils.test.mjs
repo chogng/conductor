@@ -1,26 +1,26 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  isExcelDataImportFileName,
-  isSupportedDataImportFileName,
-} from "../common/importFiles.ts";
+  isExcelDataFileName,
+  isSupportedDataFileName,
+} from "../../files/common/files.ts";
 import {
   assessImportedFile,
 } from "../common/importFileUtils.ts";
 
-test("isSupportedDataImportFileName accepts csv/xls/xlsx with case-insensitive suffixes", () => {
-  assert.equal(isSupportedDataImportFileName("sample.csv"), true);
-  assert.equal(isSupportedDataImportFileName("sample.CSV"), true);
-  assert.equal(isSupportedDataImportFileName("sample.xls"), true);
-  assert.equal(isSupportedDataImportFileName("sample.XLSX"), true);
-  assert.equal(isSupportedDataImportFileName("sample.txt"), false);
-  assert.equal(isSupportedDataImportFileName("sample"), false);
+test("isSupportedDataFileName accepts csv/xls/xlsx with case-insensitive suffixes", () => {
+  assert.equal(isSupportedDataFileName("sample.csv"), true);
+  assert.equal(isSupportedDataFileName("sample.CSV"), true);
+  assert.equal(isSupportedDataFileName("sample.xls"), true);
+  assert.equal(isSupportedDataFileName("sample.XLSX"), true);
+  assert.equal(isSupportedDataFileName("sample.txt"), false);
+  assert.equal(isSupportedDataFileName("sample"), false);
 });
 
-test("isExcelDataImportFileName only accepts xls/xlsx", () => {
-  assert.equal(isExcelDataImportFileName("sample.xls"), true);
-  assert.equal(isExcelDataImportFileName("sample.xlsx"), true);
-  assert.equal(isExcelDataImportFileName("sample.csv"), false);
+test("isExcelDataFileName only accepts xls/xlsx", () => {
+  assert.equal(isExcelDataFileName("sample.xls"), true);
+  assert.equal(isExcelDataFileName("sample.xlsx"), true);
+  assert.equal(isExcelDataFileName("sample.csv"), false);
 });
 
 test("assessImportedFile detects transfer metadata on import", async () => {

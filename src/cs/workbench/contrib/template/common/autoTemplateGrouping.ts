@@ -10,7 +10,7 @@ import {
   computeSpan,
   normalizeCellText,
   parseFiniteNumber,
-} from "../../import/common/sharedUtils.ts";
+} from "../../../common/cellText.ts";
 
 const detectFirstGroupLength = ({
   rows,

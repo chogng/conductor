@@ -1,7 +1,7 @@
 import {
   normalizeCellText,
   parseFiniteNumber,
-} from "../../import/common/sharedUtils.ts";
+} from "../../../common/cellText.ts";
 import {
   AUTO_SEGMENTATION_MIN_GROUP_SIZE,
   type ResolvedGroupShape,

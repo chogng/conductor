@@ -3,7 +3,7 @@ import {
   classifyCurve,
   extractCurveMetadata,
   type CurveClassification,
-} from "./curveClassification.ts";
+} from "../../../common/curveClassification.ts";
 const IMPORT_CLASSIFICATION_PREVIEW_BYTES = 128 * 1024;
 const IMPORT_CLASSIFICATION_PREVIEW_ROWS = 256;
 

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   classifyCurve,
   extractCurveMetadata,
-} from "../common/curveClassification.ts";
+} from "../../../common/curveClassification.ts";
 
 test("classifies standard transfer metadata with high confidence", () => {
   const metadata = extractCurveMetadata([
