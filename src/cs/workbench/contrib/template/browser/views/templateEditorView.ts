@@ -11,6 +11,7 @@ import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import { localize } from "src/cs/nls";
+import { ViewPaneContainer } from "src/cs/workbench/browser/parts/views/viewPaneContainer";
 import type { TemplateConfig } from "src/cs/workbench/contrib/template/common/templateManagerUtils";
 
 export type TemplatePickFieldName = "xDataStart" | "xDataEnd" | "yLegendStart" | "yLegendCount";
@@ -38,6 +39,8 @@ type TemplateEditorInputName =
   | "legendPrefix"
   | "fileNameVgKeywords"
   | "fileNameVdKeywords";
+
+type TemplatePaneId = "x" | "y" | "optional";
 
 export type TemplateEditorViewOptions = {
   readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
@@ -94,24 +97,31 @@ export class TemplateEditorView {
     this.element = document.createElement("div");
     this.element.className = "template_config_panel_content";
 
-    const form = document.createElement("div");
-    form.className = "template_form";
+    const panes = this.disposables.add(new ViewPaneContainer({
+      className: "template_form",
+      collapsedPaneIds: ["optional"],
+      id: "template_form",
+    }));
+    const form = panes.element;
 
     const templateFields = this.createSection(
-      form,
+      panes,
       null,
     );
     const xFields = this.createSection(
-      form,
+      panes,
       localize("template_x_section", "X"),
+      "x",
     );
     const yFields = this.createSection(
-      form,
+      panes,
       localize("template_y_section", "Y"),
+      "y",
     );
     const optionalFields = this.createSection(
-      form,
+      panes,
       localize("template_optional_section", "Optional"),
+      "optional",
     );
 
     const nameInput = this.createField(templateFields, localize("template_name", "Template name"), "name", {
@@ -284,21 +294,34 @@ export class TemplateEditorView {
     this.element.remove();
   }
 
-  private createSection(container: HTMLElement, title: string | null): HTMLElement {
+  private createSection(
+    container: ViewPaneContainer,
+    title: string | null,
+    paneId?: TemplatePaneId,
+  ): HTMLElement {
     const section = document.createElement("section");
     section.className = "template_form_section";
 
     const fields = document.createElement("div");
     fields.className = "template_form_grid";
 
-    if (title) {
+    if (title && paneId) {
+      const pane = container.addPane({
+        bodyClassName: "template_form_grid",
+        className: "template_form_section",
+        id: paneId,
+        title,
+        titleClassName: "template_form_section_title",
+      });
+      return pane.body;
+    } else if (title) {
       const heading = document.createElement("h3");
       heading.className = "template_form_section_title";
       heading.textContent = title;
       section.append(heading);
     }
     section.append(fields);
-    container.append(section);
+    container.element.append(section);
     return fields;
   }
 
