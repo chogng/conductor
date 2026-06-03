@@ -348,6 +348,7 @@ export class Workbench extends Layout {
       ),
       settings: this.getViewContainerElement(WorkbenchViewContainers.settings, this.settings.element),
     });
+    this.layoutVisibleViewContainers();
     this.window.update({
       id: "analysis-page",
       className: "workbench_root",
@@ -358,6 +359,7 @@ export class Workbench extends Layout {
   }
 
   protected override onDidRenderLayout(): void {
+    this.layoutVisibleViewContainers();
     this.window.update({
       id: "analysis-page",
       className: "workbench_root",
@@ -451,6 +453,12 @@ export class Workbench extends Layout {
     this.viewsService.setViewVisible(this.results.id, isWorkbenchActive && isAnalysisActive);
     this.viewsService.setViewVisible(this.templateViewlet.sidebarView.id, isWorkbenchActive && !isAnalysisActive);
     this.viewsService.setViewVisible(this.settings.id, isSettingsActive);
+  }
+
+  private layoutVisibleViewContainers(): void {
+    for (const id of Object.values(WorkbenchViewContainers)) {
+      this.viewsService.getActiveViewPaneContainerWithId(id)?.layout?.();
+    }
   }
 
   private getViewContainerElement(containerId: string, fallback: HTMLElement | null): HTMLElement | null {

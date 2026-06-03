@@ -6,6 +6,7 @@ type IpcListener = (event: Electron.IpcRendererEvent, ...args: unknown[]) => voi
 
 interface PreloadIpcRenderer {
     send(channel: string, ...args: unknown[]): void;
+    sendSync(channel: string, ...args: unknown[]): unknown;
     invoke(channel: string, ...args: unknown[]): Promise<unknown>;
     on(channel: string, listener: IpcListener): PreloadIpcRenderer;
     once(channel: string, listener: IpcListener): PreloadIpcRenderer;
@@ -79,6 +80,11 @@ const conductorIpcRenderer: PreloadIpcRenderer = {
     send(channel: string, ...args: unknown[]): void {
         validateIpc(channel);
         ipcRenderer.send(channel, ...args);
+    },
+
+    sendSync(channel: string, ...args: unknown[]): unknown {
+        validateIpc(channel);
+        return ipcRenderer.sendSync(channel, ...args);
     },
 
     invoke(channel: string, ...args: unknown[]): Promise<unknown> {

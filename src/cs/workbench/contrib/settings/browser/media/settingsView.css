@@ -246,6 +246,13 @@
   white-space: nowrap;
 }
 
+.settings-button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
 .settings-color-controls {
   display: flex;
   flex-wrap: wrap;

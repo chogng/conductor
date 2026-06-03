@@ -1,5 +1,6 @@
 export interface IpcRendererLike {
     send(channel: string, ...args: unknown[]): void;
+    sendSync?(channel: string, ...args: unknown[]): unknown;
     invoke(channel: string, ...args: unknown[]): Promise<unknown>;
     on(channel: string, listener: (event: unknown, ...args: unknown[]) => void): void;
     once(channel: string, listener: (event: unknown, ...args: unknown[]) => void): void;

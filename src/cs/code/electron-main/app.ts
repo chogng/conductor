@@ -55,6 +55,10 @@ import { LOCAL_FILE_SYSTEM_CHANNEL_NAME } from "../../platform/files/common/file
 import { DiskFileSystemProvider } from "../../platform/files/node/diskFileSystemProvider.js";
 import { registerAnalysisRustHandlers } from "./analysisRustMain.js";
 import { RustAnalysisService } from "./rustAnalysisService.js";
+import { HelpWindowMainService } from "../../workbench/contrib/help/electron-main/helpWindowMainService.js";
+import {
+  normalizeHelpWindowKind,
+} from "../../workbench/contrib/help/common/helpWindow.js";
 
 const require = createRequire(import.meta.url);
 const __filename = fileURLToPath(import.meta.url);
@@ -127,6 +131,7 @@ let mainWindowBootExpansionPromise = null;
 let mainWindowBootShown = false;
 let startupGatePromise = null;
 let updateService: Win32UpdateService | null = null;
+let helpWindowMainService: HelpWindowMainService | null = null;
 let isAppQuitting = false;
 let originDetectionCache = null;
 let originDetectionPromise = null;
@@ -201,6 +206,7 @@ function syncBootWindowTheme() {
   const snapshot = getThemeSnapshotFromStore();
   applyWindowThemeSnapshot(mainWindow, snapshot);
   applyDesktopAppearanceToWindow(mainWindow, getAppearanceFromStore());
+  helpWindowMainService?.applyTheme(snapshot);
   return snapshot;
 }
 
@@ -1284,10 +1290,12 @@ function handleAnalysisSettingsPatch(_event, updates) {
     typeof updates === "object" &&
     ("backgroundColor" in updates || "transparentChrome" in updates)
   ) {
-    applyDesktopAppearanceToWindow(mainWindow, {
+    const appearance = {
       backgroundColor: updated?.backgroundColor,
       transparentChrome: updated?.transparentChrome,
-    });
+    };
+    applyDesktopAppearanceToWindow(mainWindow, appearance);
+    helpWindowMainService?.applyTheme(getThemeSnapshotFromStore());
   }
   return updated;
 }
@@ -1307,6 +1315,14 @@ function handleDesktopAppearanceSet(event, payload) {
       payload && typeof payload === "object" && payload.transparentChrome === true,
   });
 
+  return { ok: true };
+}
+
+function handleHelpWindowOpen(_event, payload) {
+  const kind = normalizeHelpWindowKind(
+    payload && typeof payload === "object" ? payload.kind : payload,
+  );
+  helpWindowMainService?.open(kind);
   return { ok: true };
 }
 
@@ -2503,6 +2519,17 @@ if (hasSingleInstanceLock) {
   ensureAnalysisDemoFiles();
   createAppTray();
   updateService = createUpdateService();
+  helpWindowMainService = new HelpWindowMainService({
+    applyAppearance: applyDesktopAppearanceToWindow,
+    applyTheme: applyWindowThemeSnapshot,
+    desktopRuntimeDir,
+    getAppearance: getAppearanceFromStore,
+    getAppRootPath,
+    getThemeSnapshot: getThemeSnapshotFromStore,
+    iconPath: resolveDesktopWindowIconPath(),
+    isDev,
+    loadBaseUrl: devUrl,
+  });
   mainProcessServer.registerChannel(
     LOCAL_FILE_SYSTEM_CHANNEL_NAME,
     new DiskFileSystemProviderChannel(localFileSystemProvider),
@@ -2530,6 +2557,7 @@ if (hasSingleInstanceLock) {
     updateService?.installDownloadedUpdate(),
   );
   ipcMain.handle(ipcChannels.desktopAppearanceSet, handleDesktopAppearanceSet);
+  ipcMain.handle(ipcChannels.helpWindowOpen, handleHelpWindowOpen);
   ipcMain.handle(ipcChannels.templatesGet, handleAnalysisTemplatesGet);
   ipcMain.handle(ipcChannels.templatesCreate, handleAnalysisTemplatesCreate);
   ipcMain.handle(ipcChannels.templatesDelete, handleAnalysisTemplatesDelete);
@@ -2620,6 +2648,7 @@ app.on("will-quit", () => {
   ipcMain.removeHandler(ipcChannels.desktopAutoUpdateCheckAndInstall);
   ipcMain.removeHandler(ipcChannels.desktopAutoUpdateInstallDownloaded);
   ipcMain.removeHandler(ipcChannels.desktopAppearanceSet);
+  ipcMain.removeHandler(ipcChannels.helpWindowOpen);
   ipcMain.removeHandler(ipcChannels.templatesGet);
   ipcMain.removeHandler(ipcChannels.templatesCreate);
   ipcMain.removeHandler(ipcChannels.templatesDelete);
@@ -2639,5 +2668,7 @@ app.on("will-quit", () => {
   ipcMain.removeHandler(ipcChannels.originHealthCheck);
   ipcMain.removeHandler(ipcChannels.originRunCsv);
   ipcMain.removeHandler(ipcChannels.originRuntimeCleanupRun);
+  helpWindowMainService?.dispose();
+  helpWindowMainService = null;
 });
 }

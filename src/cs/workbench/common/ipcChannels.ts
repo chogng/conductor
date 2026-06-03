@@ -5,6 +5,7 @@ export const workbenchIpcChannels = {
   desktopAutoUpdateCheckAndInstall: "desktop:auto-update:check-and-install",
   desktopAutoUpdateInstallDownloaded: "desktop:auto-update:install-downloaded",
   desktopAppearanceSet: "conductor:desktop:appearance:set",
+  helpWindowOpen: "conductor:help-window:open",
   templatesGet: "store:templates:get",
   templatesCreate: "store:templates:create",
   templatesDelete: "store:templates:delete",

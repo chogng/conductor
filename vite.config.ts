@@ -14,6 +14,9 @@ const browserWorkbenchHtmlPath = fileURLToPath(
 const desktopWorkbenchHtmlPath = fileURLToPath(
   new URL("./src/cs/code/electron-browser/workbench/workbench.html", import.meta.url),
 );
+const helpWindowHtmlPath = fileURLToPath(
+  new URL("./src/cs/workbench/contrib/help/browser/helpWindow.html", import.meta.url),
+);
 
 const webClientServerPlugin = (): Plugin => {
   const workbenchPath = getBrowserWorkbenchPath(false);
@@ -60,6 +63,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         app: browserWorkbenchHtmlPath,
+        helpWindow: helpWindowHtmlPath,
         workbench: desktopWorkbenchHtmlPath,
       },
       output: {
