@@ -21,7 +21,10 @@ import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle"
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import type { IAction } from "src/cs/base/common/actions";
 import { localize } from "src/cs/nls";
-import type { FileEntry } from "src/cs/workbench/contrib/files/common/files";
+import {
+  isExcelImportFileName,
+  type FileEntry,
+} from "src/cs/workbench/contrib/files/common/files";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import {
   buildFileTree,
@@ -59,6 +62,7 @@ type FileItemTemplate = {
   readonly content: HTMLDivElement;
   fileId: string | null;
   readonly host: HTMLElement;
+  readonly icon: HTMLDivElement;
   readonly name: HTMLSpanElement;
   readonly removeButton: HTMLButtonElement;
 };
@@ -141,6 +145,7 @@ export class ExplorerViewer implements IDisposable {
   private hoverAnchor: HTMLElement | null = null;
   private hoverContent: HoverContent | null = null;
   private hoverHideTimeout: ReturnType<typeof setTimeout> | null = null;
+  private hoverLayoutFrame: number | null = null;
   private hoverCacheUse = 0;
   private expandedKeys: string[] = [];
   private knownFolderKeys = new Set<string>();
@@ -222,6 +227,7 @@ export class ExplorerViewer implements IDisposable {
 
   dispose(): void {
     this.cancelFileItemHoverHide();
+    this.cancelFileItemHoverLayout();
     this.hoverView?.dispose();
     this.hoverView = null;
     this.hoverThumbnailCache.clear();
@@ -305,6 +311,7 @@ export class ExplorerViewer implements IDisposable {
 
   private readonly handleTreeScroll = (event: Event): void => {
     this.props.onListScroll(event);
+    this.scheduleFileItemHoverLayout();
   };
 
   private readonly handleTreeSelect = ({ element }: ITreeSelectionEvent<FileTreeNode>): void => {
@@ -409,6 +416,8 @@ export class ExplorerViewer implements IDisposable {
     }
 
     template.fileId = fileEntry.fileId ?? null;
+    template.icon.replaceChildren();
+    appendIcon(template.icon, getFileIcon(fileName));
     template.name.textContent = fileName;
     template.removeButton.setAttribute(
       "aria-label",
@@ -450,6 +459,7 @@ export class ExplorerViewer implements IDisposable {
       content,
       fileId: null,
       host,
+      icon,
       name,
       removeButton,
     };
@@ -670,6 +680,26 @@ export class ExplorerViewer implements IDisposable {
     this.hoverHideTimeout = null;
   }
 
+  private scheduleFileItemHoverLayout(): void {
+    if (!this.hoverAnchor || !this.hoverView || this.hoverLayoutFrame !== null) {
+      return;
+    }
+
+    this.hoverLayoutFrame = requestAnimationFrame(() => {
+      this.hoverLayoutFrame = null;
+      this.layoutVisibleHover();
+    });
+  }
+
+  private cancelFileItemHoverLayout(): void {
+    if (this.hoverLayoutFrame === null) {
+      return;
+    }
+
+    cancelAnimationFrame(this.hoverLayoutFrame);
+    this.hoverLayoutFrame = null;
+  }
+
   private showFileItemHover(item: HTMLElement): void {
     const content = this.resolveHoverContent(item);
     if (!content) {
@@ -810,12 +840,27 @@ export class ExplorerViewer implements IDisposable {
     this.showFileItemHover(anchor);
   }
 
+  private layoutVisibleHover(): void {
+    const anchor = this.hoverAnchor;
+    if (!anchor || !this.hoverView) {
+      return;
+    }
+
+    if (!this.hoverHost.contains(anchor) || !this.hasFileItemHoverContent(anchor)) {
+      this.hideFileItemHover();
+      return;
+    }
+
+    this.hoverView.layout();
+  }
+
   private hideFileItemHover(item?: HTMLElement): void {
     if (item && this.hoverAnchor !== item) {
       return;
     }
 
     this.cancelFileItemHoverHide();
+    this.cancelFileItemHoverLayout();
     this.hoverAnchor = null;
     this.hoverContent = null;
     this.hoverView?.hide();

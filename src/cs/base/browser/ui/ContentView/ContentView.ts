@@ -144,10 +144,14 @@ export class ContentView implements IDisposable {
         reset(this.surface);
     }
 
-    private readonly layout = (): void => {
+    public readonly layout = (): void => {
         if (!this.isOpen) {
             return;
         }
+
+        this.element.style.removeProperty("width");
+        this.element.style.removeProperty("max-width");
+        this.element.style.removeProperty("min-width");
 
         const anchorRect = rectFromDomRect(getDomRect(this.options.anchor));
         const anchorWidth = Math.max(0, anchorRect.width);
@@ -186,15 +190,8 @@ export class ContentView implements IDisposable {
             this.element.style.position = "static";
             this.element.style.removeProperty("top");
             this.element.style.removeProperty("left");
-            this.element.style.width = `${layout.width}px`;
-            this.element.style.maxWidth = `${layout.maxWidth}px`;
+            this.applySize(layout.width, layout.maxWidth, anchorWidth);
             this.element.style.zIndex = String(this.options.zIndex ?? 20);
-            if (this.options.matchAnchorWidth) {
-                this.element.style.minWidth = `${Math.min(anchorWidth, maxWidth)}px`;
-            }
-            else {
-                this.element.style.removeProperty("min-width");
-            }
             this.element.dataset.side = this.side;
             return;
         }
@@ -202,9 +199,17 @@ export class ContentView implements IDisposable {
         this.element.style.position = "fixed";
         this.element.style.top = `${layout.top}px`;
         this.element.style.left = `${layout.left}px`;
-        this.element.style.width = `${layout.width}px`;
-        this.element.style.maxWidth = `${layout.maxWidth}px`;
+        this.applySize(layout.width, layout.maxWidth, anchorWidth);
         this.element.style.zIndex = String(this.options.zIndex ?? 20);
+
+        this.element.dataset.side = this.side;
+    };
+
+    private applySize(width: number, maxWidth: number, anchorWidth: number): void {
+        this.element.style.width = this.options.matchAnchorWidth || width >= maxWidth
+            ? `${width}px`
+            : "initial";
+        this.element.style.maxWidth = `${maxWidth}px`;
 
         if (this.options.matchAnchorWidth) {
             this.element.style.minWidth = `${Math.min(anchorWidth, maxWidth)}px`;
@@ -212,9 +217,7 @@ export class ContentView implements IDisposable {
         else {
             this.element.style.removeProperty("min-width");
         }
-
-        this.element.dataset.side = this.side;
-    };
+    }
 
     private applyOptions(): void {
         const { align = "left", ariaOrientation = "vertical", menuId, role = "menu", triggerId } = this.options;

@@ -254,6 +254,16 @@
   overflow-y: auto;
 }
 
+.file-list-tree .ui-list.ui-tree__list > .scrollAreaTrackY {
+  right: 2px;
+  width: 10px;
+}
+
+.file-list-tree .ui-list.ui-tree__list > .scrollAreaTrackY > .scrollAreaThumbY {
+  left: 2px;
+  right: 2px;
+}
+
 .file-list-tree .ui-tree__item,
 .file-list-tree .ui-tree__label {
   height: 28px;
