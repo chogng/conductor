@@ -46,6 +46,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
             anchorAxisAlignment: delegate.anchorAxisAlignment,
             canRelayout: true,
             getAnchor: () => anchor,
+            getWidth: () => delegate.getMenuWidth?.(),
             render: container => {
                 const menu = this.renderMenu(delegate, actions);
                 container.append(menu.domNode);
@@ -58,6 +59,10 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 
         this.installCloseListeners();
         this.onDidShowContextMenuEmitter.fire();
+    }
+
+    public hideContextMenu(didCancel = true): void {
+        this.hide(didCancel);
     }
 
     private renderMenu(delegate: IContextMenuDelegate, actions: readonly IAction[]): Menu {

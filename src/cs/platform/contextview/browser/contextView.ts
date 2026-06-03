@@ -29,6 +29,7 @@ export interface IContextViewDelegate {
     readonly canRelayout?: boolean;
     readonly layer?: number;
     getAnchor(): HTMLElement | IAnchor;
+    getWidth?(): number | undefined;
     render(container: HTMLElement): IDisposable | null;
     focus?(): void;
     onHide?(data?: unknown): void;
@@ -44,6 +45,7 @@ export interface IContextMenuService {
     readonly onDidHideContextMenu: Event<void>;
 
     showContextMenu(delegate: IContextMenuDelegate): void;
+    hideContextMenu?(didCancel?: boolean): void;
 }
 
 export interface INativeContextMenuService {
@@ -74,6 +76,7 @@ export interface IContextMenuDelegate {
     getCheckedActionsRepresentation?(action: IAction): "checkbox" | "radio";
     getKeyBinding?(action: IAction): IContextMenuKeybinding | undefined;
     getMenuClassName?(): string;
+    getMenuWidth?(): number | undefined;
     onHide?(didCancel: boolean): void;
 }
 

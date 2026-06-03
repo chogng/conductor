@@ -92,6 +92,7 @@ export class TemplateApplyView {
 
         return disposables;
       },
+      matchAnchorWidth: true,
       menuClassName: "template_picker_menu",
       skipTelemetry: true,
     });

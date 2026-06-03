@@ -141,9 +141,10 @@ export interface IMenuOptions {
 }
 
 export interface IDropdownMenuOptions extends IBaseDropdownOptions {
-    readonly contextMenuProvider: Pick<IContextMenuService, "showContextMenu">;
+    readonly contextMenuProvider: Pick<IContextMenuService, "showContextMenu" | "hideContextMenu">;
     readonly actions?: readonly IAction[];
     readonly actionProvider?: IActionProvider;
+    readonly matchAnchorWidth?: boolean;
     readonly menuClassName?: string;
     readonly skipTelemetry?: boolean;
 }
@@ -151,6 +152,7 @@ export interface IDropdownMenuOptions extends IBaseDropdownOptions {
 export class DropdownMenu extends BaseDropdown {
     private currentMenuOptions: IMenuOptions | undefined;
     private currentActions: readonly IAction[] = [];
+    private closingFromContextMenu = false;
 
     constructor(container: HTMLElement, private readonly options: IDropdownMenuOptions) {
         super(container, options);
@@ -179,6 +181,7 @@ export class DropdownMenu extends BaseDropdown {
             getActionsContext: () => this.currentMenuOptions?.context,
             getKeyBinding: action => this.currentMenuOptions?.getKeyBinding?.(action),
             getMenuClassName: () => this.options.menuClassName ?? "",
+            getMenuWidth: () => this.options.matchAnchorWidth ? this.element.offsetWidth : undefined,
             onHide: () => this.onHide(),
             actionRunner: this.currentMenuOptions?.actionRunner,
             anchorAlignment: this.currentMenuOptions?.anchorAlignment ?? AnchorAlignment.LEFT,
@@ -187,12 +190,27 @@ export class DropdownMenu extends BaseDropdown {
     }
 
     public override hide(): void {
+        const wasVisible = this.isVisible();
         super.hide();
-        this.element.classList.remove("active");
+        if (wasVisible && !this.closingFromContextMenu) {
+            if (this.options.contextMenuProvider.hideContextMenu) {
+                this.options.contextMenuProvider.hideContextMenu(true);
+            }
+            else {
+                this.element.classList.remove("active");
+            }
+        }
     }
 
     private onHide(): void {
-        this.hide();
+        this.closingFromContextMenu = true;
+        try {
+            this.hide();
+        }
+        finally {
+            this.closingFromContextMenu = false;
+        }
+        this.element.classList.remove("active");
     }
 }
 

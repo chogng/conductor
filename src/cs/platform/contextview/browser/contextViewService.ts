@@ -89,6 +89,8 @@ export class ContextViewService extends Disposable implements IContextViewServic
 
         const anchor = this.getAnchorRect(this.delegate.getAnchor());
         const viewportSize = getClientArea(window);
+        const width = this.delegate.getWidth?.();
+        this.element.style.width = typeof width === "number" ? `${width}px` : "initial";
         const viewSize = getElementSize(this.element);
         const layout = layout2d({
             top: 0,
