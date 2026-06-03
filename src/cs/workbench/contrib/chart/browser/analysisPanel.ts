@@ -1,3 +1,4 @@
+import { localize } from "src/cs/nls";
 import { lxAnalysis } from "@chogng/lxicon";
 import {
   getCardClassName,
@@ -23,12 +24,12 @@ import type {
   SsMethod,
 } from "src/cs/workbench/contrib/session/browser/sessionContext";
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
-import { createChartView, type ChartDetailView } from "src/cs/workbench/contrib/chart/browser/chartView";
+import { createChartView, type ChartPane } from "src/cs/workbench/contrib/chart/browser/chartView";
 
 type StateSetter<T> = (next: T | ((previous: T) => T)) => void;
 
 export type ChartViewLazyProps = {
-  activeDetailView?: ChartDetailView;
+  visiblePanes?: readonly ChartPane[];
   activePlotType?: PlotType;
   cleanedData: CleanedEntry[];
   processingStatus?: Partial<ProcessingStatus>;
@@ -70,7 +71,7 @@ export class AnalysisPanel {
   }
 
   public update(props: AnalysisPanelProps): void {
-    this.element.setAttribute("aria-label", props.t("da_analysis_visualization"));
+    this.element.setAttribute("aria-label", localize("da_analysis_visualization", "Analysis & Visualization"));
     this.element.replaceChildren(createAnalysisPanelContent(props));
   }
 
@@ -93,8 +94,8 @@ const createAnalysisPanelContent = (props: AnalysisPanelProps): HTMLElement => {
       return createAnalysisStatusCard({
         id: "analysis-analysis-loading-card",
         iconClassName: "analysis_status_icon--muted analysis_status_icon--pulse",
-        message: t("da_analysis_loading"),
-        hint: t("da_analysis_loading_hint"),
+        message: localize("da_analysis_loading", "Loading analysis charts..."),
+        hint: localize("da_analysis_loading_hint", "Preparing visualization modules, please wait."),
       });
     }
 
@@ -126,8 +127,8 @@ const createProcessingCard = (
   const card = createAnalysisStatusCard({
     id: "analysis-processing-card",
     iconClassName: "analysis_status_icon--muted analysis_status_icon--pulse",
-    message: t("da_analysis_processing"),
-    hint: t("da_analysis_processing_hint"),
+    message: localize("da_analysis_processing", "Processing analysis data..."),
+    hint: localize("da_analysis_processing_hint", "Extracting and preparing chart data, please wait."),
   });
 
   const progress = document.createElement("div");
@@ -138,7 +139,7 @@ const createProcessingCard = (
     "analysis_processing_progress_label";
 
   const processedLabel = document.createElement("span");
-  processedLabel.textContent = t("da_analysis_processing_progress", {
+  processedLabel.textContent = localize("da_analysis_processing_progress", "{processed}/{total} files processed", {
     processed,
     total: processingStatus.total ?? 0,
   });

@@ -1,3 +1,4 @@
+import { localize } from "src/cs/nls";
 import type { TranslateFn } from "src/cs/platform/language/common/language";
 import { createSwitch } from "src/cs/base/browser/ui/switch/switch";
 import CanvasDiagnosticsChart from "src/cs/workbench/contrib/diagnostics/browser/CanvasDiagnosticsChart";
@@ -27,11 +28,12 @@ type DiagnosticsState = {
   readonly setEnabled?: (next: boolean) => void;
 };
 
-export type ChartDetailView = "locator" | "diagnostics";
+export type ChartAuxiliaryPane = "locator" | "inspector";
+export type ChartPane = "chart" | ChartAuxiliaryPane;
 
 export type ChartViewProps = {
   t: TranslateFn;
-  activeDetailView?: ChartDetailView;
+  visiblePanes?: readonly ChartPane[];
   activePlotType?: PlotType;
   cleanedData: CleanedEntry[];
   processingStatus?: Partial<ProcessingStatus>;
@@ -60,7 +62,6 @@ export type ChartViewProps = {
 
 export const createChartView = (props: ChartViewProps): HTMLElement => {
   const {
-    activeDetailView = "locator",
     activePlotType = "iv",
     cleanedData = [],
     processingStatus,
@@ -68,18 +69,19 @@ export const createChartView = (props: ChartViewProps): HTMLElement => {
     t,
     originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS,
   } = props;
+  const visiblePanes = normalizeVisiblePanes(props.visiblePanes);
   const root = document.createElement("section");
   root.className = "chart_view";
-  root.setAttribute("aria-label", t("analysis.visualization"));
+  root.setAttribute("aria-label", localize("analysis.visualization", "Analysis & Visualization"));
 
   if (!cleanedData.length) {
     root.append(createEmptyView({
       hint: processingStatus?.state === "processing"
-        ? t("da_analysis_processing_hint")
-        : t("analysis.empty.hint"),
+        ? localize("da_analysis_processing_hint", "Extracting and preparing chart data, please wait.")
+        : localize("analysis.empty.hint", "Apply a template to generate chart data."),
       title: processingStatus?.state === "processing"
-        ? t("da_analysis_processing")
-        : t("analysis.empty.title"),
+        ? localize("da_analysis_processing", "Processing analysis data...")
+        : localize("analysis.empty.title", "No analysis data"),
     }));
     return root;
   }
@@ -118,31 +120,51 @@ export const createChartView = (props: ChartViewProps): HTMLElement => {
     yScaleMode: "linear",
   }));
 
-  const chartArea = document.createElement("div");
-  chartArea.className = "chart_view_chart_area";
+  const main = document.createElement("div");
+  main.className = "chart_view_main";
+  main.dataset.paneCount = String(visiblePanes.length);
 
-  const mainArea = document.createElement("div");
-  mainArea.className = "chart_view_main_area";
-  mainArea.append(chartHost);
+  const mainPane = document.createElement("div");
+  mainPane.className = "chart_view_main_pane";
+  mainPane.append(chartHost);
 
-  const diagnosticsArea = createDiagnosticsArea({
+  const inspectorPane = createInspectorPane({
     activePlotType,
     model,
     props,
   });
 
-  chartArea.append(
-    mainArea,
-    activeDetailView === "diagnostics"
-      ? diagnosticsArea
-      : createLocatorArea({ model, props }),
-  );
-  root.append(chartArea);
+  if (visiblePanes.includes("chart")) {
+    main.append(mainPane);
+  }
+  if (visiblePanes.includes("locator")) {
+    main.append(createLocatorPane({ model, props }));
+  }
+  if (visiblePanes.includes("inspector")) {
+    main.append(inspectorPane);
+  }
+  root.append(main);
 
   return root;
 };
 
-const createLocatorArea = ({
+const normalizeVisiblePanes = (
+  visiblePanes: readonly ChartPane[] | undefined,
+): readonly ChartPane[] => {
+  if (!visiblePanes?.length) {
+    return ["chart", "locator"];
+  }
+
+  const next: ChartPane[] = [];
+  for (const pane of visiblePanes) {
+    if (!next.includes(pane)) {
+      next.push(pane);
+    }
+  }
+  return next.length ? next : ["chart"];
+};
+
+const createLocatorPane = ({
   model,
   props,
 }: {
@@ -150,20 +172,20 @@ const createLocatorArea = ({
   readonly props: Pick<ChartViewProps, "t">;
 }): HTMLElement => {
   const section = document.createElement("section");
-  section.className = "chart_view_locator_area";
-  section.setAttribute("aria-label", props.t("da_chart_locator_heading"));
+  section.className = "chart_view_locator_pane";
+  section.setAttribute("aria-label", localize("da_chart_locator_heading", "Locator"));
 
   const header = document.createElement("div");
-  header.className = "chart_view_detail_header";
-  header.textContent = props.t("da_chart_locator_heading");
+  header.className = "chart_view_auxiliary_header";
+  header.textContent = localize("da_chart_locator_heading", "Locator");
 
   const body = document.createElement("div");
   body.className = "chart_view_locator_grid";
   body.append(
-    createLocatorMetric(props.t("analysis.seriesCount"), String(model.seriesList.length)),
-    createLocatorMetric(props.t("analysis.pointsCount"), String(model.pointsCount)),
-    createLocatorMetric(props.t("analysis.xDomain"), formatDomain(model.xDomain)),
-    createLocatorMetric(props.t("analysis.yDomain"), formatDomain(model.yDomain)),
+    createLocatorMetric(localize("analysis.seriesCount", "Series"), String(model.seriesList.length)),
+    createLocatorMetric(localize("analysis.pointsCount", "Points"), String(model.pointsCount)),
+    createLocatorMetric(localize("analysis.xDomain", "X domain"), formatDomain(model.xDomain)),
+    createLocatorMetric(localize("analysis.yDomain", "Y domain"), formatDomain(model.yDomain)),
   );
 
   section.append(header, body);
@@ -194,7 +216,7 @@ const formatDomain = (domain: readonly [number, number] | undefined): string =>
 const formatDomainNumber = (value: number): string =>
   Number.isFinite(value) ? Number(value).toPrecision(4) : "";
 
-const createDiagnosticsArea = ({
+const createInspectorPane = ({
   activePlotType,
   model,
   props,
@@ -217,16 +239,16 @@ const createDiagnosticsArea = ({
 }): HTMLElement => {
   const diagnostics = getDiagnosticsState(activePlotType, props);
   const section = document.createElement("section");
-  section.className = "chart_view_diagnostics_area";
+  section.className = "chart_view_inspector_pane";
   section.dataset.state = diagnostics?.enabled ? "on" : "off";
-  section.setAttribute("aria-label", props.t("da_chart_diagnostics_heading"));
+  section.setAttribute("aria-label", localize("da_chart_diagnostics_heading", "Diagnostics"));
 
   const header = document.createElement("div");
   header.className = "chart_view_diagnostics_header";
 
   const title = document.createElement("div");
   title.className = "chart_view_diagnostics_title";
-  title.textContent = diagnostics?.label ?? props.t("da_chart_diagnostics_heading");
+  title.textContent = diagnostics?.label ?? localize("da_chart_diagnostics_heading", "Diagnostics");
   header.append(title);
 
   if (diagnostics) {
@@ -259,8 +281,8 @@ const createDiagnosticsArea = ({
     const empty = document.createElement("div");
     empty.className = "chart_view_diagnostics_empty";
     empty.textContent = diagnostics
-      ? props.t("da_chart_diagnostics_disabled")
-      : props.t("da_chart_diagnostics_unavailable");
+      ? localize("da_chart_diagnostics_disabled", "Turn on diagnostics to show the diagnostic curve here.")
+      : localize("da_chart_diagnostics_unavailable", "Switch to GM, SS, or VTH to inspect diagnostic curves.");
     content.append(empty);
   }
   section.append(content);
@@ -309,19 +331,19 @@ const getDiagnosticsState = (
     case "gm":
       return {
         enabled: Boolean(props.gmDiagnosticsEnabled),
-        label: props.t("analysis.gmDiagnostics"),
+        label: localize("analysis.gmDiagnostics", "gm diagnostics"),
         setEnabled: props.setGmDiagnosticsEnabled,
       };
     case "ss":
       return {
         enabled: Boolean(props.ssDiagnosticsEnabled),
-        label: props.t("analysis.ssDiagnostics"),
+        label: localize("analysis.ssDiagnostics", "SS diagnostics"),
         setEnabled: props.setSsDiagnosticsEnabled,
       };
     case "vth":
       return {
         enabled: Boolean(props.vthDiagnosticsEnabled),
-        label: props.t("analysis.vthDiagnostics"),
+        label: localize("analysis.vthDiagnostics", "Vth diagnostics"),
         setEnabled: props.setVthDiagnosticsEnabled,
       };
     case "iv":

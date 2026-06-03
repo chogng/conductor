@@ -19,7 +19,7 @@ import { localize } from "src/cs/nls";
 import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/previewPart";
 import type { LxIconDefinition } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { ChartViewId } from "src/cs/workbench/contrib/chart/common/chart";
-import type { ChartDetailView } from "src/cs/workbench/contrib/chart/browser/chartView";
+import type { ChartAuxiliaryPane, ChartPane } from "src/cs/workbench/contrib/chart/browser/chartView";
 import { isPlotType, PlotTypes, type PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 
@@ -32,6 +32,7 @@ type ChartPlotTabOption = TabOptionBase & {
 
 const CHART_PLOT_ID_BASE = "chart-view-plot";
 const CHART_PLOT_PANEL_ID_BASE = "chart-view-plot-panel";
+type PaneVisibilityMode = "single" | "multiple";
 
 export class ChartViewPane {
   public readonly element: HTMLElement;
@@ -41,7 +42,8 @@ export class ChartViewPane {
   private readonly content = document.createElement("div");
   private readonly analysisPanel: AnalysisPanel;
   private activePlotType: PlotType = "iv";
-  private activeDetailView: ChartDetailView = "locator";
+  private visibleAuxiliaryPanes: readonly ChartAuxiliaryPane[] = ["locator"];
+  private readonly paneVisibilityMode: PaneVisibilityMode = "multiple";
   private props: AnalysisPanelProps;
 
   constructor(props: AnalysisPanelProps) {
@@ -49,7 +51,7 @@ export class ChartViewPane {
     this.analysisPanel = new AnalysisPanel(toAnalysisPanelProps(
       props,
       this.activePlotType,
-      this.activeDetailView,
+      this.visibleAuxiliaryPanes,
     ));
     this.updateAnalysisPanelTabState();
     this.headerTabs.className = "chart_view_header_tabs";
@@ -99,7 +101,7 @@ export class ChartViewPane {
       store: this.headerStore,
     }));
 
-    this.headerActions.append(this.createDetailActions(props));
+    this.headerActions.append(this.createAuxiliaryPaneActions(props));
 
     if (activeFile && props.showFileSelect !== false) {
       this.headerActions.append(createFileSelect(props, activeFile, this.headerStore));
@@ -121,7 +123,7 @@ export class ChartViewPane {
     this.analysisPanel.update(toAnalysisPanelProps(
       props,
       this.activePlotType,
-      this.activeDetailView,
+      this.visibleAuxiliaryPanes,
     ));
   }
 
@@ -131,36 +133,36 @@ export class ChartViewPane {
     this.analysisPanel.element.setAttribute("aria-labelledby", getPlotTabId(this.activePlotType));
   }
 
-  private createDetailActions(props: AnalysisPanelProps): HTMLElement {
+  private createAuxiliaryPaneActions(props: AnalysisPanelProps): HTMLElement {
     const root = document.createElement("div");
-    root.className = "chart_view_detail_actions";
+    root.className = "chart_view_auxiliary_actions";
     root.setAttribute("role", "toolbar");
-    root.setAttribute("aria-label", props.t("da_chart_detail_actions"));
+    root.setAttribute("aria-label", localize("da_chart_detail_actions", "Chart detail views"));
     root.append(
-      this.createDetailAction({
+      this.createAuxiliaryPaneAction({
         icon: lxSearch,
-        label: props.t("da_chart_locator_heading"),
-        view: "locator",
+        label: localize("da_chart_locator_heading", "Locator"),
+        pane: "locator",
       }),
-      this.createDetailAction({
+      this.createAuxiliaryPaneAction({
         icon: lxDiagnostics,
-        label: props.t("da_chart_diagnostics_heading"),
-        view: "diagnostics",
+        label: localize("da_chart_diagnostics_heading", "Diagnostics"),
+        pane: "inspector",
       }),
     );
     return root;
   }
 
-  private createDetailAction({
+  private createAuxiliaryPaneAction({
     icon,
     label,
-    view,
+    pane,
   }: {
     readonly icon: LxIconDefinition;
     readonly label: string;
-    readonly view: ChartDetailView;
+    readonly pane: ChartAuxiliaryPane;
   }): HTMLButtonElement {
-    const isActive = this.activeDetailView === view;
+    const isActive = this.visibleAuxiliaryPanes.includes(pane);
     const button = createButton({
       ariaLabel: label,
       className: isActive
@@ -173,17 +175,22 @@ export class ChartViewPane {
     });
     button.setAttribute("aria-pressed", isActive ? "true" : "false");
     this.headerStore.add(addDisposableListener(button, EventType.CLICK, () => {
-      this.setActiveDetailView(view);
+      this.toggleAuxiliaryPane(pane);
     }));
     return button;
   }
 
-  private setActiveDetailView(view: ChartDetailView): void {
-    if (view === this.activeDetailView) {
+  private toggleAuxiliaryPane(pane: ChartAuxiliaryPane): void {
+    const isVisible = this.visibleAuxiliaryPanes.includes(pane);
+    const next = this.paneVisibilityMode === "single"
+      ? (isVisible ? [] : [pane])
+      : togglePane(this.visibleAuxiliaryPanes, pane);
+
+    if (samePanes(next, this.visibleAuxiliaryPanes)) {
       return;
     }
 
-    this.activeDetailView = view;
+    this.visibleAuxiliaryPanes = next;
     this.renderHeader(this.props);
     this.updateAnalysisPanel(this.props);
   }
@@ -240,7 +247,7 @@ const createPlotTabs = ({
   const tabs = document.createElement("div");
   tabs.className = getTabsMenuClassName("chart_view_tabs");
   tabs.setAttribute("role", "tablist");
-  tabs.setAttribute("aria-label", props.t("analysis.visualization"));
+  tabs.setAttribute("aria-label", localize("analysis.visualization", "Analysis & Visualization"));
 
   const normalizedTabs = normalizeTabsOptions<ChartPlotTabOption>({
     idBase: CHART_PLOT_ID_BASE,
@@ -355,14 +362,35 @@ const getPlotTabId = (plotType: PlotType): string =>
 const getPlotPanelId = (plotType: PlotType): string =>
   `${CHART_PLOT_PANEL_ID_BASE}-${plotType}`;
 
+const togglePane = (
+  panes: readonly ChartAuxiliaryPane[],
+  pane: ChartAuxiliaryPane,
+): readonly ChartAuxiliaryPane[] =>
+  panes.includes(pane)
+    ? panes.filter((item) => item !== pane)
+    : [...panes, pane];
+
+const samePanes = (
+  left: readonly ChartAuxiliaryPane[],
+  right: readonly ChartAuxiliaryPane[],
+): boolean =>
+  left.length === right.length && left.every((pane) => right.includes(pane));
+
+const toVisiblePanes = (
+  visibleAuxiliaryPanes: readonly ChartAuxiliaryPane[],
+): readonly ChartPane[] => [
+  "chart",
+  ...visibleAuxiliaryPanes,
+];
+
 const toAnalysisPanelProps = (
   props: AnalysisPanelProps,
   activePlotType: PlotType,
-  activeDetailView: ChartDetailView,
+  visibleAuxiliaryPanes: readonly ChartAuxiliaryPane[],
 ): AnalysisPanelProps => ({
   ...props,
-  activeDetailView,
   activePlotType,
+  visiblePanes: toVisiblePanes(visibleAuxiliaryPanes),
 });
 
 export default ChartViewPane;
