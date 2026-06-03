@@ -175,3 +175,4 @@ Contribution、Command、Context Key、Configuration：
 - 不用 `any`、空 `catch`、无释放 listener、重复业务前缀、为样式添加无语义 DOM。
 - 不为了通过编译把类型断言一路写到底；先修类型边界。
 - 不为了“更通用”覆盖上游朴素写法；简化和抽象冲突时，优先上游同类模块的直接写法。
+- 不写rem这种tailwind样式，仅使用px

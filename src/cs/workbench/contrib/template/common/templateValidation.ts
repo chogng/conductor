@@ -101,7 +101,7 @@ export function validateVarPair(
       mode: "invalid",
       vg,
       vd,
-      message: localize("da_varPairCellOrText", "Var1 and Var2 must both be cell refs (e.g. A1) or both be text (e.g. Vg). Do not mix."),
+      message: localize("varPairCellOrText", "Var1 and Var2 must both be cell refs (e.g. A1) or both be text (e.g. Vg). Do not mix."),
     };
   }
 
@@ -121,7 +121,7 @@ export function validateCurveTaggingMode(
   if (hasFileNameRules && (!fileNameVgKeywords || !fileNameVdKeywords)) {
     return {
       ok: false,
-      message: localize("da_curveTaggingFileNameBothRequired", "When using file-name tagging, please provide keywords for both Vg and Vd."),
+      message: localize("curveTaggingFileNameBothRequired", "When using file-name tagging, please provide keywords for both Vg and Vd."),
     };
   }
 
@@ -148,7 +148,7 @@ export function validateTemplateForSave<T extends ValidationConfig>(
   if (yColumns.length === 0) {
     return {
       ok: false,
-      message: localize("da_yColumnsRequired", "Please select Y data from the preview header columns."),
+      message: localize("yColumnsRequired", "Please select Y data from the preview header columns."),
     };
   }
 

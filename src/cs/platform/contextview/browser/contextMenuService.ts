@@ -1,7 +1,7 @@
 import { Separator, SubmenuAction, type IAction } from "src/cs/base/common/actions";
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable, DisposableStore } from "src/cs/base/common/lifecycle";
-import { createMenu, createMenuAction, createMenuItemLabel, type Menu } from "src/cs/base/browser/ui/menu/menu";
+import { createCheckedMenuItemLabel, createMenu, createMenuActionFromAction, type Menu } from "src/cs/base/browser/ui/menu/menu";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
 import {
     IContextMenuService,
@@ -63,15 +63,21 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
     private renderMenu(delegate: IContextMenuDelegate, actions: readonly IAction[]): Menu {
         this.menuDisposables.clear();
 
-        const menu = createMenu();
+        const menu = createMenu({
+            className: delegate.getMenuClassName?.(),
+        });
         menu.actionRunner = delegate.actionRunner ?? menu.actionRunner;
         this.appendActions(menu, delegate, actions);
 
         this.menuDisposables.add(menu.onDidRun(event => {
             if (event.error) {
                 console.error("Failed to run context menu action.", event.error);
+                return;
             }
+
+            this.hide(false);
         }));
+        this.menuDisposables.add(addElementListener(menu.domNode, "menuitemactionrun", () => this.hide(false)));
 
         return menu;
     }
@@ -92,18 +98,13 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
             const checkedRepresentation = action.checked
                 ? delegate.getCheckedActionsRepresentation?.(action) ?? "checkbox"
                 : undefined;
-            menu.appendItem(createMenuAction({
+            menu.appendItem(createMenuActionFromAction(action, {
                 checked: action.checked,
-                enabled: action.enabled,
-                id: action.id,
-                label: action.label,
-                left: createMenuItemLabel(action.label, createCheckIndicator(checkedRepresentation)),
+                left: checkedRepresentation ? createCheckedMenuItemLabel(action.label, checkedRepresentation) : undefined,
                 right: delegate.getKeyBinding?.(action)?.getLabel(),
                 run: event => {
-                    this.hide(false);
                     return this.runAction(action, delegate, event as IContextMenuEvent | undefined);
                 },
-                tooltip: action.tooltip || action.label,
             }));
         }
     }
@@ -201,14 +202,11 @@ function addDocumentListener<K extends keyof DocumentEventMap>(type: K, listener
     };
 }
 
-function createCheckIndicator(checkedRepresentation: "checkbox" | "radio" | undefined): Node | undefined {
-    if (!checkedRepresentation) {
-        return undefined;
-    }
-
-    const indicator = document.createElement("span");
-    indicator.textContent = checkedRepresentation === "radio" ? "●" : "✓";
-    return indicator;
+function addElementListener(element: HTMLElement, type: string, listener: (event: Event) => void) {
+    element.addEventListener(type, listener);
+    return {
+        dispose: () => element.removeEventListener(type, listener),
+    };
 }
 
 registerSingleton(IContextMenuService, ContextMenuService, InstantiationType.Delayed);

@@ -1,13 +1,11 @@
 import { createButton } from "src/cs/base/browser/ui/button/button";
-import {
-  renderMenuItems,
-} from "src/cs/base/browser/ui/menu/menu";
-import {
-  createDropdownButton,
-  DropdownButton,
-} from "src/cs/base/browser/ui/dropdown/dropdown";
+import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
+import { DropdownMenu } from "src/cs/base/browser/ui/dropdown/dropdown";
+import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import type { IAction } from "src/cs/base/common/actions";
+import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { lxChevronDown } from "src/cs/base/common/lxicon";
+import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import {
   createSwitch as createBaseSwitch,
   updateSwitch,
@@ -15,6 +13,7 @@ import {
 import { localize } from "src/cs/nls";
 
 export type TemplateApplyViewOptions = {
+  readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
   readonly createTemplateActions: () => IAction[];
   readonly onApplyTemplate: (incremental: boolean) => void;
   readonly onDeleteTemplate: () => void;
@@ -33,7 +32,8 @@ export type TemplateApplyViewState = {
 
 export class TemplateApplyView {
   public readonly element: HTMLElement;
-  private readonly dropdownButton: DropdownButton;
+  private readonly dropdownMenu: DropdownMenu;
+  private readonly dropdownLabel: HTMLElement;
   private readonly deleteButton: HTMLButtonElement;
   private readonly exportButton: HTMLButtonElement;
   private readonly stopSwitch: HTMLButtonElement;
@@ -48,30 +48,62 @@ export class TemplateApplyView {
     this.element.className = "template_config_panel_content";
 
     const dropdownRow = document.createElement("div");
-    dropdownRow.className = "template_select_field";
+    dropdownRow.className = "template_picker_field";
 
     const dropdownLabel = document.createElement("span");
     dropdownLabel.className = "template_field_label";
-    dropdownLabel.textContent = localize("da_template_select_label", "Select template");
+    dropdownLabel.textContent = localize("template_picker_label", "Template");
     dropdownRow.append(dropdownLabel);
 
     const selectContainer = document.createElement("div");
-    selectContainer.className = "template_button_row template_select_actions";
+    selectContainer.className = "template_button_row template_picker_actions";
 
-    this.dropdownButton = createDropdownButton({
-      closeOnContentEvent: "menuitemactionrun",
-      label: state.selectedTemplateLabel,
-      render: container => renderMenuItems(container, {
-        className: "template_select_menu",
-        items: this.options.createTemplateActions,
-      }),
-      surfaceClassName: "template_select_menu_surface",
-      triggerIcon: lxChevronDown,
+    this.dropdownLabel = document.createElement("span");
+    this.dropdownLabel.className = "template_picker_button_label";
+    this.dropdownMenu = new DropdownMenu(selectContainer, {
+      actionProvider: {
+        getActions: () => this.options.createTemplateActions(),
+      },
+      contextMenuProvider: this.options.contextMenuService,
+      labelRenderer: container => {
+        const disposables = new DisposableStore();
+        const button = document.createElement("a");
+        button.className = "template_picker_button action-label";
+        button.setAttribute("role", "button");
+        button.tabIndex = 0;
+        button.setAttribute("aria-haspopup", "menu");
+        button.setAttribute("aria-expanded", "false");
+
+        const icon = document.createElement("span");
+        icon.className = "template_picker_button_icon";
+        icon.append(createLxIcon({ icon: lxChevronDown, size: 14 }));
+
+        button.append(this.dropdownLabel, icon);
+        container.append(button);
+
+        disposables.add(addDisposableListener(button, EventType.KEY_DOWN, event => {
+          if (event.key !== "ArrowDown") {
+            return;
+          }
+
+          event.preventDefault();
+          this.dropdownMenu.show();
+        }));
+
+        return disposables;
+      },
+      menuClassName: "template_picker_menu",
+      skipTelemetry: true,
     });
-    selectContainer.append(this.dropdownButton.domNode);
+    this.dropdownMenu.menuOptions = {
+      context: this,
+    };
+    this.dropdownMenu.onDidChangeVisibility(visible => {
+      this.dropdownLabel.parentElement?.setAttribute("aria-expanded", `${visible}`);
+    });
 
     this.deleteButton = createButton({
-      label: localize("da_delete_template", "Delete template"),
+      label: localize("delete_template", "Delete template"),
       size: "sm",
       variant: "secondary",
     });
@@ -86,7 +118,7 @@ export class TemplateApplyView {
     applyActions.className = "template_apply_actions";
 
     const applyAllButton = createButton({
-      label: localize("da_apply_template", "Apply Template"),
+      label: localize("apply_template", "Apply Template"),
       size: "md",
       variant: "primary",
     });
@@ -94,7 +126,7 @@ export class TemplateApplyView {
     applyAllButton.addEventListener("click", () => this.options.onApplyTemplate(false));
 
     const applyNewButton = createButton({
-      label: localize("da_apply_new_files", "Apply New Files"),
+      label: localize("apply_new_files", "Apply New Files"),
       size: "md",
       variant: "secondary",
     });
@@ -108,7 +140,7 @@ export class TemplateApplyView {
     importExportRow.className = "template_button_row template_button_row--inset";
 
     this.exportButton = createButton({
-      label: localize("da_template_export_btn", "Export templates"),
+      label: localize("template_export_btn", "Export templates"),
       size: "sm",
       variant: "secondary",
     });
@@ -127,13 +159,13 @@ export class TemplateApplyView {
 
     this.stopSwitch = this.createToggleRow(
       togglesRow,
-      localize("da_template_stop_on_error", "Stop at first invalid item"),
+      localize("template_stop_on_error", "Stop at first invalid item"),
       this.options.onStopOnErrorChange,
     );
 
     this.matchCaseSwitch = this.createToggleRow(
       togglesRow,
-      localize("da_template_match_case", "Match field case"),
+      localize("template_match_case", "Match field case"),
       this.options.onMatchCaseChange,
     );
 
@@ -144,11 +176,11 @@ export class TemplateApplyView {
 
     const autoTitle = document.createElement("h3");
     autoTitle.className = "template_auto_card_title";
-    autoTitle.textContent = localize("da_auto_extract_title", "Smart auto extraction");
+    autoTitle.textContent = localize("auto_extract_title", "Smart auto extraction");
 
     const autoDescription = document.createElement("p");
     autoDescription.className = "template_auto_card_description";
-    autoDescription.textContent = localize("da_auto_extract_desc", "The system analyzes imported file formats and extracts variables and related parameters automatically. Suitable for standard IV/CV data formats.");
+    autoDescription.textContent = localize("auto_extract_desc", "The system analyzes imported file formats and extracts variables and related parameters automatically. Suitable for standard IV/CV data formats.");
 
     this.autoCard.append(autoTitle, autoDescription);
     this.element.append(this.autoCard);
@@ -161,16 +193,8 @@ export class TemplateApplyView {
   }
 
   public update(state: TemplateApplyViewState): void {
-    this.dropdownButton.update({
-      closeOnContentEvent: "menuitemactionrun",
-      label: state.selectedTemplateLabel,
-      render: container => renderMenuItems(container, {
-        className: "template_select_menu",
-        items: this.options.createTemplateActions,
-      }),
-      surfaceClassName: "template_select_menu_surface",
-      triggerIcon: lxChevronDown,
-    });
+    this.dropdownLabel.textContent = state.selectedTemplateLabel;
+    this.dropdownLabel.parentElement?.setAttribute("aria-label", state.selectedTemplateLabel);
 
     this.deleteButton.style.display = state.canDeleteTemplate ? "" : "none";
     this.exportButton.disabled = !state.canExportTemplate;
@@ -180,7 +204,7 @@ export class TemplateApplyView {
   }
 
   public dispose(): void {
-    this.dropdownButton.dispose();
+    this.dropdownMenu.dispose();
     this.element.replaceChildren();
     this.element.remove();
   }

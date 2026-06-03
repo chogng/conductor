@@ -5,7 +5,7 @@ import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollbar";
 import { IAction, Separator } from "src/cs/base/common/actions";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
-import type { LxIconDefinition } from "src/cs/base/common/lxicon";
+import { lxCheck, type LxIconDefinition } from "src/cs/base/common/lxicon";
 
 import "src/cs/base/browser/ui/menu/menu.css";
 
@@ -156,6 +156,31 @@ export function createMenuAction(options: MenuActionOptions): IAction {
     return action;
 }
 
+export function createMenuActionFromAction(
+    action: IAction,
+    overrides: Pick<MenuActionOptions, "checked" | "left" | "right" | "run">,
+): IAction {
+    const data = getMenuItemData(action);
+    return createMenuAction({
+        autoHide: data?.autoHide,
+        checked: overrides.checked ?? action.checked,
+        className: action.class,
+        enabled: action.enabled,
+        id: action.id,
+        label: action.label,
+        left: overrides.left ?? data?.left,
+        onMouseEnter: data?.onMouseEnter,
+        right: overrides.right ?? data?.right,
+        rightAction: data?.rightAction,
+        role: data?.role,
+        run: overrides.run,
+        selected: data?.selected,
+        tabIndex: data?.tabIndex,
+        tooltip: action.tooltip || action.label,
+        value: data?.value,
+    });
+}
+
 export function createMenuItemLabel(label: string, icon?: MenuIcon): HTMLSpanElement {
     const wrapper = document.createElement("span");
     wrapper.className = "ui-menu__item-left ui-menu__item-label";
@@ -173,6 +198,16 @@ export function createMenuItemLabel(label: string, icon?: MenuIcon): HTMLSpanEle
     text.textContent = label;
     wrapper.append(text);
     return wrapper;
+}
+
+export function createCheckedMenuItemLabel(
+    label: string,
+    checkedRepresentation: "checkbox" | "radio",
+): HTMLSpanElement {
+    const indicator = document.createElement("span");
+    indicator.className = "ui-menu__check-indicator";
+    indicator.append(createLxIcon({ icon: lxCheck, size: 14 }));
+    return createMenuItemLabel(label, indicator);
 }
 
 function resolveItems(items: readonly IAction[] | (() => readonly IAction[])): readonly IAction[] {

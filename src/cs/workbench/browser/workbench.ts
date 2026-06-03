@@ -10,6 +10,7 @@ import type {
 } from "src/cs/platform/language/common/language";
 import type { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import type { IFileService } from "src/cs/platform/files/common/files";
+import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
 import {
   isLanguageCode,
@@ -102,6 +103,7 @@ type WorkbenchMainPart = "table" | "chart";
 
 export type WorkbenchOptions = {
   readonly className?: string;
+  readonly contextMenuService?: IContextMenuService;
   readonly dialogsService?: IFileDialogService;
   readonly filesService?: IFileService;
   readonly pathService?: IPathService;
@@ -179,6 +181,7 @@ export class Workbench extends Layout {
   private readonly templateApply: TemplateApplyController;
   private readonly dialogsService: IFileDialogService;
   private readonly filesService: IFileService;
+  private readonly contextMenuService: IContextMenuService;
   private readonly pathService: IPathService;
   private readonly tableService: ITableService;
   private readonly templateService: ITemplateService;
@@ -214,11 +217,15 @@ export class Workbench extends Layout {
     if (!options.dialogsService) {
       throw new Error("Workbench requires IFileDialogService.");
     }
+    if (!options.contextMenuService) {
+      throw new Error("Workbench requires IContextMenuService.");
+    }
     if (!options.pathService) {
       throw new Error("Workbench requires IPathService.");
     }
     this.filesService = options.filesService;
     this.dialogsService = options.dialogsService;
+    this.contextMenuService = options.contextMenuService;
     this.pathService = options.pathService;
     this.tableService = options.tableService;
     this.templateService = new BrowserTemplateService();
@@ -423,6 +430,7 @@ export class Workbench extends Layout {
   ) {
     return {
       analysisSettings: this.coreSettingsState.analysisSettings,
+      contextMenuService: this.contextMenuService,
       importSessionElement: null,
       onTemplateApplied: processing.handleTemplateApplied,
       onTemplateAppliedIncremental: processing.handleTemplateAppliedIncremental,

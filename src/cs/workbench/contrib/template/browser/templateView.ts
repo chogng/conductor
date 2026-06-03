@@ -32,6 +32,7 @@ import type {
   ITemplateService,
   TemplateRecord,
 } from "src/cs/workbench/contrib/template/common/template";
+import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import type { TemplateImportController } from "src/cs/workbench/contrib/template/browser/templateImportController";
 import type {
   TableModel,
@@ -44,6 +45,7 @@ import {
 } from "src/cs/workbench/contrib/template/browser/templateEditorView";
 
 export type TemplateElementOptions = {
+  readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
   readonly importSessionElement?: HTMLElement | null;
   readonly templateImportController: TemplateImportController;
   readonly templateService: ITemplateService;
@@ -81,7 +83,7 @@ const importTemplates = async (
   
   const draft = normalizeTemplateConfigRecord(entry);
   if (!draft.name) {
-    showToast(localize("da_template_import_invalid_format", "Invalid template file format."), "warning");
+    showToast(localize("template_import_invalid_format", "Invalid template file format."), "warning");
     return;
   }
 
@@ -118,7 +120,7 @@ const importTemplates = async (
 
   const validation = validateTemplateForSave(draft);
   if (!validation.ok || !validation.normalized) {
-    showToast(validation.message || localize("da_template_invalid_configuration", "Invalid configuration"), "warning");
+    showToast(validation.message || localize("template_invalid_configuration", "Invalid configuration"), "warning");
     return;
   }
 
@@ -135,16 +137,16 @@ const importTemplates = async (
     
     session.setSelectedTemplateId(typeof saved.id === "string" ? saved.id : null);
     session.setTemplateConfig(cloneTemplateConfig(saved));
-    showToast(localize("da_template_imported", "Template imported"), "success");
+    showToast(localize("template_imported", "Template imported"), "success");
     defaultSessionModel.emitChange();
   } catch (err) {
-    showToast(localize("da_template_import_failed", "Failed to import template: {error}", { error: String(err) }), "error");
+    showToast(localize("template_import_failed", "Failed to import template: {error}", { error: String(err) }), "error");
   }
 };
 
 const exportTemplate = (config: TemplateConfig, templateService: ITemplateService) => {
   if (!config.name) {
-    showToast(localize("da_template_export_requires_selection", "Please select a template to export."), "warning");
+    showToast(localize("template_export_requires_selection", "Please select a template to export."), "warning");
     return;
   }
   const payload = {
@@ -383,7 +385,7 @@ export class TemplateManagerView {
       .catch((err) => {
         templatesLoading = false;
         showToast(
-          localize("da_loadTemplatesFailed", "Failed to load templates: {error}", {
+          localize("loadTemplatesFailed", "Failed to load templates: {error}", {
             error: err instanceof Error ? err.message : String(err),
           }),
           "error",
@@ -394,6 +396,7 @@ export class TemplateManagerView {
   private getApplyView(): TemplateApplyView {
     if (!this.applyView) {
       this.applyView = new TemplateApplyView({
+        contextMenuService: this.props.contextMenuService,
         createTemplateActions: () => this.createTemplateActions(),
         onApplyTemplate: (incremental) => this.applyTemplate(incremental),
         onDeleteTemplate: () => {
@@ -470,7 +473,7 @@ export class TemplateManagerView {
       return;
     }
 
-    const confirmMsg = localize("da_template_delete_confirm", "Delete template \"{name}\"?", { name: templateConfig.name });
+    const confirmMsg = localize("template_delete_confirm", "Delete template \"{name}\"?", { name: templateConfig.name });
     if (typeof window !== "undefined" && typeof window.confirm === "function" && !window.confirm(confirmMsg)) {
       return;
     }
@@ -490,16 +493,16 @@ export class TemplateManagerView {
         stopOnError: config.stopOnError,
         fileNameMatchCaseSensitive: config.fileNameMatchCaseSensitive,
       };
-      showToast(localize("da_template_deleted", "Template deleted"), "success");
+      showToast(localize("template_deleted", "Template deleted"), "success");
       defaultSessionModel.emitChange();
     } catch (err) {
-      showToast(localize("da_template_delete_failed", "Failed to delete template: {error}", { error: String(err) }), "error");
+      showToast(localize("template_delete_failed", "Failed to delete template: {error}", { error: String(err) }), "error");
     }
   }
 
   private getSelectedTemplateLabel(): string {
     if (!this.session.selectedTemplateId || isAutoTemplateId(this.session.selectedTemplateId)) {
-      return localize("da_template_auto_extraction", "Auto extraction");
+      return localize("template_auto_extraction", "Auto extraction");
     }
 
     const found = cachedTemplates?.find((template) => template.id === this.session.selectedTemplateId);
@@ -510,9 +513,10 @@ export class TemplateManagerView {
     const selectedTemplateId = this.session.selectedTemplateId;
     const actions: IAction[] = [
       createMenuAction({
+        checked: isAutoTemplateId(selectedTemplateId || AUTO_TEMPLATE_ID),
         id: "template.select.auto",
-        label: localize("da_template_auto_extraction", "Auto extraction"),
-        left: createMenuItemLabel(localize("da_template_auto_extraction", "Auto extraction")),
+        label: localize("template_auto_extraction", "Auto extraction"),
+        left: createMenuItemLabel(localize("template_auto_extraction", "Auto extraction")),
         run: () => this.selectTemplate(AUTO_TEMPLATE_ID),
         selected: isAutoTemplateId(selectedTemplateId || AUTO_TEMPLATE_ID),
         tabIndex: 0,
@@ -528,14 +532,15 @@ export class TemplateManagerView {
       }
 
       actions.push(createMenuAction({
+        checked: selectedTemplateId === templateId,
         id: `template.select.${templateId}`,
         label: template.name || templateId,
         left: createMenuItemLabel(template.name || templateId),
         run: () => this.selectTemplate(templateId),
         rightAction: {
           icon: lxEdit,
-          label: localize("da_template_edit", "Edit template"),
-        onClick: () => this.editTemplate(template),
+          label: localize("template_edit", "Edit template"),
+          onClick: () => this.editTemplate(template),
         },
         selected: selectedTemplateId === templateId,
         tabIndex: 0,
@@ -547,27 +552,17 @@ export class TemplateManagerView {
       new Separator(),
       createMenuAction({
         id: "template.create",
-        label: localize("da_template_create_new", "新建模板..."),
-        className: "template_select_menu_create",
-        left: createMenuItemLabel(localize("da_template_create_new", "新建模板...")),
+        label: localize("template_create_new", "新建模板..."),
+        className: "template_picker_menu_create",
+        left: createMenuItemLabel(localize("template_create_new", "新建模板..."), lxAdd),
         run: () => this.createTemplateDraft(),
-        rightAction: {
-          icon: lxAdd,
-          label: localize("da_template_create_new", "新建模板..."),
-          onClick: () => this.createTemplateDraft(),
-        },
         tabIndex: 0,
       }),
       createMenuAction({
         id: "template.import",
-        label: localize("da_template_import_btn", "Import templates"),
-        left: createMenuItemLabel(localize("da_template_import_btn", "Import templates")),
+        label: localize("template_import_btn", "Import templates"),
+        left: createMenuItemLabel(localize("template_import_btn", "Import templates"), lxDownload),
         run: () => this.promptTemplateImport(),
-        rightAction: {
-          icon: lxDownload,
-          label: localize("da_template_import_btn", "Import templates"),
-          onClick: () => this.promptTemplateImport(),
-        },
         tabIndex: 0,
       }),
     );
@@ -585,7 +580,7 @@ export class TemplateManagerView {
         (payload) => importTemplates(payload, this.session, this.props.templateService),
       );
     } catch (err) {
-      showToast(localize("da_template_import_failed", "Failed to import template: {error}", { error: String(err) }), "error");
+      showToast(localize("template_import_failed", "Failed to import template: {error}", { error: String(err) }), "error");
     }
   }
 
@@ -660,7 +655,7 @@ export class TemplateManagerView {
 
     const validation = validateTemplateForApply(config);
     if (!validation.ok || !validation.normalized) {
-      showToast(validation.message || localize("da_template_invalid_configuration", "Invalid configuration"), "warning");
+      showToast(validation.message || localize("template_invalid_configuration", "Invalid configuration"), "warning");
       return;
     }
 
@@ -675,13 +670,13 @@ export class TemplateManagerView {
     const config = this.getEffectiveTemplateConfig();
     const name = config.name.trim();
     if (!name) {
-      showToast(localize("da_template_name_required", "Please enter a template name."), "warning");
+      showToast(localize("template_name_required", "Please enter a template name."), "warning");
       return;
     }
 
     const validation = validateTemplateForSave(config);
     if (!validation.ok || !validation.normalized) {
-      showToast(validation.message || localize("da_template_invalid_configuration", "Invalid configuration"), "warning");
+      showToast(validation.message || localize("template_invalid_configuration", "Invalid configuration"), "warning");
       return;
     }
 
@@ -707,10 +702,10 @@ export class TemplateManagerView {
         fileNameMatchCaseSensitive: Boolean(saved.fileNameMatchCaseSensitive),
       };
       this.session.setTemplateMode("select");
-      showToast(localize("da_template_saved", "Template saved"), "success");
+      showToast(localize("template_saved", "Template saved"), "success");
       defaultSessionModel.emitChange();
     } catch (err) {
-      showToast(localize("da_template_save_failed", "Failed to save template: {error}", { error: String(err) }), "error");
+      showToast(localize("template_save_failed", "Failed to save template: {error}", { error: String(err) }), "error");
     }
   }
 

@@ -1,5 +1,6 @@
 import {
   lxAdd as renderAdd,
+  lxCheck as renderCheck,
   lxChevronDown as renderChevronDown,
   lxDownload as renderDownload,
   lxEdit as renderEdit,
@@ -65,6 +66,8 @@ export const lxSlidersHorizontal = registerLxIcon(
 );
 
 export const lxAdd = registerLxIcon("add", renderAdd);
+
+export const lxCheck = registerLxIcon("check", renderCheck);
 
 export const lxChevronDown = registerLxIcon("chevron-down", renderChevronDown);
 

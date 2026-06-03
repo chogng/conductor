@@ -186,24 +186,24 @@ const buildExtractionStartFeedback = ({
   const fixedGroupSize = Number(meta.groupSize);
   const fixedGroupCount = Number(meta.groups);
   const groupSizeText = meta.groupSizeCell
-    ? localize("da_extract_points_from_cell", "points from {cell}", { cell: meta.pointsRawUpper || "" })
+    ? localize("extract_points_from_cell", "points from {cell}", { cell: meta.pointsRawUpper || "" })
     : Number.isInteger(fixedGroupSize) && fixedGroupSize > 0
-      ? localize("da_extract_points_fixed", "points={points}", { points: fixedGroupSize })
-      : localize("da_extract_points_fixed", "points={points}", { points: "-" });
+      ? localize("extract_points_fixed", "points={points}", { points: fixedGroupSize })
+      : localize("extract_points_fixed", "points={points}", { points: "-" });
   const groupsText =
     meta.groupSizeCell &&
     Number.isInteger(groupSizePreview) &&
     groupSizePreview > 0
-      ? localize("da_extract_groups_suffix", ", {groups} group(s)", {
+      ? localize("extract_groups_suffix", ", {groups} group(s)", {
           groups: Math.max(0, Number(meta.total || 0) / groupSizePreview),
         })
       : !meta.groupSizeCell &&
           Number.isInteger(fixedGroupCount) &&
           fixedGroupCount > 0
-        ? localize("da_extract_groups_suffix", ", {groups} group(s)", { groups: fixedGroupCount })
+        ? localize("extract_groups_suffix", ", {groups} group(s)", { groups: fixedGroupCount })
         : "";
   const warningText = warnings.length
-    ? localize("da_extract_warnings_block", "\n\nWarnings:\n- {warnings}", { warnings: warnings.join("\n- ") })
+    ? localize("extract_warnings_block", "\n\nWarnings:\n- {warnings}", { warnings: warnings.join("\n- ") })
     : "";
 
   return {
@@ -367,7 +367,7 @@ export class TemplateApplyController {
     if (isAutoTemplateConfig(config)) {
       if (this._processingStatus.state === "processing") {
         return {
-          message: localize("da_apply_to_new_files_busy", "Extraction is already running."),
+          message: localize("apply_to_new_files_busy", "Extraction is already running."),
           ok: false,
           type: "warning" as const,
         };
@@ -376,7 +376,7 @@ export class TemplateApplyController {
       const lastFingerprint = this.lastAppliedTemplateConfigFingerprintRef.current;
       if (!lastFingerprint) {
         return {
-          message: localize("da_apply_to_new_files_requires_full_apply", "Apply to All first."),
+          message: localize("apply_to_new_files_requires_full_apply", "Apply to All first."),
           ok: false,
           type: "warning" as const,
         };
@@ -384,7 +384,7 @@ export class TemplateApplyController {
 
       if (stableStringify(config) !== lastFingerprint) {
         return {
-          message: localize("da_apply_to_new_files_requires_same_config", "Template changed. Please Apply to All again."),
+          message: localize("apply_to_new_files_requires_same_config", "Template changed. Please Apply to All again."),
           ok: false,
           type: "warning" as const,
         };
@@ -394,7 +394,7 @@ export class TemplateApplyController {
       const queue = buildProcessingQueue(sourceFiles, processedIds);
       if (!queue.length) {
         return {
-          message: localize("da_apply_to_new_files_no_new", "No new files to extract."),
+          message: localize("apply_to_new_files_no_new", "No new files to extract."),
           ok: false,
           type: "warning" as const,
         };
@@ -418,7 +418,7 @@ export class TemplateApplyController {
 
     if (this._processingStatus.state === "processing") {
       return {
-        message: localize("da_apply_to_new_files_busy", "Extraction is already running."),
+        message: localize("apply_to_new_files_busy", "Extraction is already running."),
         ok: false,
         type: "warning" as const,
       };
@@ -427,7 +427,7 @@ export class TemplateApplyController {
     const lastFingerprint = this.lastAppliedTemplateConfigFingerprintRef.current;
     if (!lastFingerprint) {
       return {
-        message: localize("da_apply_to_new_files_requires_full_apply", "Apply to All first."),
+        message: localize("apply_to_new_files_requires_full_apply", "Apply to All first."),
         ok: false,
         type: "warning" as const,
       };
@@ -435,7 +435,7 @@ export class TemplateApplyController {
 
     if (stableStringify(config) !== lastFingerprint) {
       return {
-        message: localize("da_apply_to_new_files_requires_same_config", "Template changed. Please Apply to All again."),
+        message: localize("apply_to_new_files_requires_same_config", "Template changed. Please Apply to All again."),
         ok: false,
         type: "warning" as const,
       };
@@ -445,7 +445,7 @@ export class TemplateApplyController {
     const queue = buildProcessingQueue(sourceFiles, processedIds);
     if (!queue.length) {
       return {
-        message: localize("da_apply_to_new_files_no_new", "No new files to extract."),
+        message: localize("apply_to_new_files_no_new", "No new files to extract."),
         ok: false,
         type: "warning" as const,
       };
@@ -609,7 +609,7 @@ export class TemplateApplyController {
 
     if (incremental && this._processingStatus.state === "processing") {
       return {
-        message: localize("da_apply_to_new_files_busy", "Extraction is already running."),
+        message: localize("apply_to_new_files_busy", "Extraction is already running."),
         ok: false,
         type: "warning",
       };
@@ -663,7 +663,7 @@ export class TemplateApplyController {
 
     if (!normalizedRules.length) {
       return {
-        message: localize("da_template_name", "Template name"),
+        message: localize("template_name", "Template name"),
         ok: false,
         type: "warning",
       };
@@ -716,7 +716,7 @@ export class TemplateApplyController {
     const groupedEntries = Array.from(queueByTemplateName.entries());
     if (!groupedEntries.length) {
       return {
-        message: localize("da_apply_to_new_files_no_new", "No new files to extract."),
+        message: localize("apply_to_new_files_no_new", "No new files to extract."),
         ok: false,
         type: "warning",
       };
@@ -755,7 +755,7 @@ export class TemplateApplyController {
 
     if (!groupedPrepared.length || !finalQueue.length) {
       return {
-        message: localize("da_apply_to_new_files_no_new", "No new files to extract."),
+        message: localize("apply_to_new_files_no_new", "No new files to extract."),
         ok: false,
         type: "warning",
       };

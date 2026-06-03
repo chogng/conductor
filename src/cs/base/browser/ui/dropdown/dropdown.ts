@@ -144,6 +144,7 @@ export interface IDropdownMenuOptions extends IBaseDropdownOptions {
     readonly contextMenuProvider: Pick<IContextMenuService, "showContextMenu">;
     readonly actions?: readonly IAction[];
     readonly actionProvider?: IActionProvider;
+    readonly menuClassName?: string;
     readonly skipTelemetry?: boolean;
 }
 
@@ -177,6 +178,7 @@ export class DropdownMenu extends BaseDropdown {
             getActions: () => this.actions,
             getActionsContext: () => this.currentMenuOptions?.context,
             getKeyBinding: action => this.currentMenuOptions?.getKeyBinding?.(action),
+            getMenuClassName: () => this.options.menuClassName ?? "",
             onHide: () => this.onHide(),
             actionRunner: this.currentMenuOptions?.actionRunner,
             anchorAlignment: this.currentMenuOptions?.anchorAlignment ?? AnchorAlignment.LEFT,

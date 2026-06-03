@@ -3,6 +3,7 @@ import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/pr
 import SidebarPart from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import type { SessionFile } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import type { ITemplateService } from "src/cs/workbench/contrib/template/common/template";
+import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import type { TemplateImportController } from "src/cs/workbench/contrib/template/browser/templateImportController";
 import {
   TemplateManagerView,
@@ -13,6 +14,7 @@ import "src/cs/workbench/contrib/template/browser/media/templateView.css";
 
 export type TemplateEditorPaneProps = {
   readonly analysisSettings?: TemplateElementOptions["analysisSettings"];
+  readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
   readonly content?: Node | null;
   readonly importSessionElement?: HTMLElement | null;
   readonly onTemplateApplied?: TemplateElementOptions["onTemplateApplied"];
@@ -39,16 +41,16 @@ export class TemplateEditorPane {
 
     this.element = createPreviewPart({
       id: "analysis-template-workspace",
-      ariaLabel: localize("da_data_extraction_template", "Data Extraction Template"),
+      ariaLabel: localize("data_extraction_template", "Data Extraction Template"),
       className: "template_view_pane template_view_pane--joined_sidebar",
       children: this.previewContent,
     });
 
     this.sidebarPart = new SidebarPart({
-      ariaLabel: localize("da_data_extraction_template", "Data Extraction Template"),
+      ariaLabel: localize("data_extraction_template", "Data Extraction Template"),
       children: this.templateView.sidebarElement,
       className: "template_sidebar_part template_sidebar_part--joined_preview",
-      title: localize("da_data_extraction_template", "Data Extraction Template"),
+      title: localize("data_extraction_template", "Data Extraction Template"),
     });
     this.sidebarElement = this.sidebarPart.element;
   }
@@ -56,10 +58,10 @@ export class TemplateEditorPane {
   public update(props: TemplateEditorPaneProps): void {
     this.templateView.update(toTemplateProps(props));
     this.sidebarPart.update({
-      ariaLabel: localize("da_data_extraction_template", "Data Extraction Template"),
+      ariaLabel: localize("data_extraction_template", "Data Extraction Template"),
       children: this.templateView.sidebarElement,
       className: "template_sidebar_part template_sidebar_part--joined_preview",
-      title: localize("da_data_extraction_template", "Data Extraction Template"),
+      title: localize("data_extraction_template", "Data Extraction Template"),
     });
   }
 
