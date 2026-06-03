@@ -13,6 +13,8 @@ export const resolveNLSConfiguration = ({
   language,
   osLocale,
 }: ResolveNLSConfigurationOptions): NLSConfiguration => {
-  const resolvedLanguage = resolveNLSLanguage(language ?? osLocale);
+  const resolvedLanguage = resolveNLSLanguage(
+    language === "system" ? osLocale : language ?? osLocale,
+  );
   return createNLSConfiguration(resolvedLanguage);
 };

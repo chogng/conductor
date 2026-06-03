@@ -1,3 +1,4 @@
+import { localize } from "src/cs/nls";
 import type { MutableState } from "src/cs/workbench/contrib/session/browser/sessionContext";
 import {
   ORIGIN_CSV_AUTO_ZIP_FALLBACK_CODES,
@@ -12,7 +13,6 @@ import {
 import type { OriginExportPlan } from "src/cs/workbench/contrib/export/common/originSelectionExport";
 import { formatOriginBridgeError } from "src/cs/workbench/contrib/origin/common/originBridgeError";
 
-type TranslateFn = (key: string, params?: Record<string, unknown>) => string;
 type ToastFn = (message: string, type?: unknown) => void;
 
 export type OriginControllerOptions = {
@@ -30,23 +30,20 @@ export type OriginControllerOptions = {
   } | null>;
   originOpenPlotOptions: unknown;
   showToast: ToastFn;
-  t: TranslateFn;
-  tLoose: TranslateFn;
 };
 
 export type OpenInOriginOptions = Omit<OriginControllerOptions, "originBusyRef">;
 export type ExportOriginZipOptions = Pick<
   OriginControllerOptions,
-  "exportOriginZipFallback" | "showToast" | "t"
+  "exportOriginZipFallback" | "showToast" 
 >;
 
 const getOriginOpenSuccessMessage = (
   result: OriginExportPlan,
-  t: TranslateFn,
 ): { message: string; type: "success" } => {
   if (result.mode === "merged" && result.totalCanvasCount > 1) {
     return {
-      message: t("da_open_in_origin_combined_success", {
+      message: localize("da_open_in_origin_combined_success", "Origin launched, and {curves} curve(s) from {files} file(s) were summarized into one worksheet.", {
         curves: result.totalCurveCount,
         files: result.totalCanvasCount,
       }),
@@ -56,7 +53,7 @@ const getOriginOpenSuccessMessage = (
 
   if (result.mode === "workbookBooks" && result.totalCanvasCount > 1) {
     return {
-      message: t("da_open_in_origin_workbook_books_success", {
+      message: localize("da_open_in_origin_workbook_books_success", "Origin export tasks submitted for {count} thumbnail(s) into different workbooks of the same Origin window.", {
         count: result.totalCanvasCount,
       }),
       type: "success",
@@ -67,7 +64,7 @@ const getOriginOpenSuccessMessage = (
     return {
       message: result.mixedYScales
         ? "Mixed linear/log export was split into separate Origin worksheets."
-        : t("da_open_in_origin_workbook_sheets_success", {
+        : localize("da_open_in_origin_workbook_sheets_success", "Origin export tasks submitted for {count} thumbnail(s) into different worksheets of the same workbook.", {
             count: result.totalCanvasCount,
           }),
       type: "success",
@@ -76,7 +73,7 @@ const getOriginOpenSuccessMessage = (
 
   if (result.mode === "separate" && result.totalCanvasCount > 1) {
     return {
-      message: t("da_open_in_origin_batch_success", {
+      message: localize("da_open_in_origin_batch_success", "Origin export tasks submitted for {count} thumbnail(s), one standalone Origin window each.", {
         count: result.totalCanvasCount,
       }),
       type: "success",
@@ -84,18 +81,17 @@ const getOriginOpenSuccessMessage = (
   }
 
   return {
-    message: t("da_open_in_origin_success"),
+    message: localize("da_open_in_origin_success", "Origin launched and import task submitted."),
     type: "success",
   };
 };
 
 const getOriginZipSuccessMessage = (
   exported: OriginZipExportResult,
-  t: TranslateFn,
 ): { message: string; type: "success" } => {
   if (exported.mode === "merged") {
     return {
-      message: t("da_origin_zip_export_success", {
+      message: localize("da_origin_zip_export_success", "Exported a ZIP package with CSV data for {curves} curve(s) from {files} file(s).", {
         curves: exported.curveCount,
         files: exported.canvasCount,
       }),
@@ -107,7 +103,7 @@ const getOriginZipSuccessMessage = (
     return {
       message: exported.mixedYScales
         ? "Mixed linear/log export was packaged as separate worksheets."
-        : t("da_origin_zip_export_workbook_sheets_success", {
+        : localize("da_origin_zip_export_workbook_sheets_success", "Exported a ZIP package with CSV files for {count} thumbnails.", {
             count: exported.canvasCount,
           }),
       type: "success",
@@ -115,7 +111,7 @@ const getOriginZipSuccessMessage = (
   }
 
   return {
-    message: t("da_origin_zip_export_batch_success", {
+    message: localize("da_origin_zip_export_batch_success", "Exported a ZIP package with standalone CSV files for {count} thumbnail(s).", {
       count: exported.canvasCount,
     }),
     type: "success",
@@ -129,7 +125,6 @@ const getFallbackReason = (
     originExe?: unknown;
     stage?: unknown;
   },
-  t: TranslateFn,
 ): string => {
   const fallbackReasonParts = [
     String(detail.code || "").trim().toUpperCase(),
@@ -141,21 +136,19 @@ const getFallbackReason = (
 
   return fallbackReasonParts.length > 0
     ? fallbackReasonParts.join(" @ ")
-    : detail.message || t("unknownError");
+    : detail.message || localize("unknownError", "Unknown error");
 };
 
 const getFallbackZipSuccessMessage = ({
   fallback,
   fallbackReason,
-  t,
 }: {
   fallback: OriginZipExportResult;
   fallbackReason: string;
-  t: TranslateFn;
 }): { message: string; type: "warning" } => {
   if (fallback.mode === "merged") {
     return {
-      message: t("da_open_in_origin_fallback_zip_success_with_reason_and_stats", {
+      message: localize("da_open_in_origin_fallback_zip_success_with_reason_and_stats", "Auto open failed ({reason}). Exported a ZIP package with CSV data for {curves} curve(s) from {files} file(s).", {
         curves: fallback.curveCount,
         files: fallback.canvasCount,
         reason: fallbackReason,
@@ -168,7 +161,7 @@ const getFallbackZipSuccessMessage = ({
     return {
       message: fallback.mixedYScales
         ? `Mixed linear/log export was split into separate worksheets. ${fallbackReason}`
-        : t("da_open_in_origin_fallback_zip_workbook_sheets_success_with_reason", {
+        : localize("da_open_in_origin_fallback_zip_workbook_sheets_success_with_reason", "Auto open failed ({reason}). Exported a ZIP package with CSV files for {count} thumbnails.", {
             count: fallback.canvasCount,
             reason: fallbackReason,
           }),
@@ -177,7 +170,7 @@ const getFallbackZipSuccessMessage = ({
   }
 
   return {
-    message: t("da_open_in_origin_fallback_zip_batch_success_with_reason", {
+    message: localize("da_open_in_origin_fallback_zip_batch_success_with_reason", "Auto open failed ({reason}). Exported a ZIP package with CSV files for {count} thumbnails.", {
       count: fallback.canvasCount,
       reason: fallbackReason,
     }),
@@ -195,15 +188,13 @@ export const runOpenInOrigin = async ({
   originChartYRangeRef,
   originOpenPlotOptions,
   showToast,
-  t,
-  tLoose,
 }: OriginControllerOptions): Promise<void> => {
   if (originBusyRef.current) return;
 
   try {
     originBusyRef.current = true;
     if (!canRunOriginCsv()) {
-      throw new Error(t("da_origin_pick_exe_required"));
+      throw new Error(localize("da_origin_pick_exe_required", "Please select Origin executable path first."));
     }
 
     const result = buildPayloads({
@@ -233,16 +224,16 @@ export const runOpenInOrigin = async ({
       shouldBatch: shouldBatchOriginCsvJobs,
     });
 
-    const success = getOriginOpenSuccessMessage(result, t);
+    const success = getOriginOpenSuccessMessage(result);
     showToast(success.message, success.type);
   } catch (err) {
-    const detail = formatOriginBridgeError(tLoose, err);
+    const detail = formatOriginBridgeError(err);
     const code = String(detail.code || "").trim().toUpperCase();
 
     if (detail.code === "ORIGIN_EXE_REQUIRED") {
-      showToast(t("da_origin_pick_exe_required"), "error");
+      showToast(localize("da_origin_pick_exe_required", "Please select Origin executable path first."), "error");
     } else if (ORIGIN_CSV_AUTO_ZIP_FALLBACK_CODES.has(code)) {
-      const fallbackReason = getFallbackReason(detail, t);
+      const fallbackReason = getFallbackReason(detail);
       try {
         const fallback = await exportOriginZipFallback();
         if (!fallback) return;
@@ -250,16 +241,15 @@ export const runOpenInOrigin = async ({
         const success = getFallbackZipSuccessMessage({
           fallback,
           fallbackReason,
-          t,
         });
         showToast(success.message, success.type);
       } catch (fallbackErr) {
         const fallbackMessage =
           fallbackErr instanceof Error
             ? fallbackErr.message
-            : String(fallbackErr ?? t("unknownError"));
+            : String(fallbackErr ?? localize("unknownError", "Unknown error"));
         showToast(
-          t("da_open_in_origin_fallback_zip_failed", {
+          localize("da_open_in_origin_fallback_zip_failed", "Auto open failed, and ZIP fallback export failed: {error}", {
             error: fallbackMessage,
           }),
           "error",
@@ -267,7 +257,7 @@ export const runOpenInOrigin = async ({
       }
     } else {
       showToast(
-        t("da_open_in_origin_failed", { error: detail.messageText }),
+        localize("da_open_in_origin_failed", "Failed to open in Origin: {error}", { error: detail.messageText }),
         "error",
       );
     }
@@ -279,17 +269,16 @@ export const runOpenInOrigin = async ({
 export const runExportOriginZip = async ({
   exportOriginZipFallback,
   showToast,
-  t,
 }: ExportOriginZipOptions): Promise<void> => {
   try {
     const exported = await exportOriginZipFallback();
     if (!exported) return;
 
-    const success = getOriginZipSuccessMessage(exported, t);
+    const success = getOriginZipSuccessMessage(exported);
     showToast(success.message, success.type);
   } catch (err) {
     const message =
-      err instanceof Error ? err.message : String(err ?? t("unknownError"));
-    showToast(t("da_open_in_origin_fallback_zip_failed", { error: message }), "error");
+      err instanceof Error ? err.message : String(err ?? localize("unknownError", "Unknown error"));
+    showToast(localize("da_open_in_origin_fallback_zip_failed", "Auto open failed, and ZIP fallback export failed: {error}", { error: message }), "error");
   }
 };

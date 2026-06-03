@@ -1,4 +1,4 @@
-import type { TranslateFn } from "src/cs/platform/language/common/language";
+import { localize } from "src/cs/nls";
 import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/previewPart";
 import SidebarPart from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import type { SessionFile } from "src/cs/workbench/contrib/session/common/sessionTypes";
@@ -22,7 +22,6 @@ export type TemplateEditorPaneProps = {
   readonly tableModel?: TemplateElementOptions["tableModel"];
   readonly templateImportController: TemplateImportController;
   readonly templateService: ITemplateService;
-  readonly t: TranslateFn;
 };
 
 export class TemplateEditorPane {
@@ -40,16 +39,16 @@ export class TemplateEditorPane {
 
     this.element = createPreviewPart({
       id: "analysis-template-workspace",
-      ariaLabel: props.t("da_data_extraction_template"),
+      ariaLabel: localize("da_data_extraction_template", "Data Extraction Template"),
       className: "template_view_pane template_view_pane--joined_sidebar",
       children: this.previewContent,
     });
 
     this.sidebarPart = new SidebarPart({
-      ariaLabel: props.t("da_data_extraction_template"),
+      ariaLabel: localize("da_data_extraction_template", "Data Extraction Template"),
       children: this.templateView.sidebarElement,
       className: "template_sidebar_part template_sidebar_part--joined_preview",
-      title: props.t("da_data_extraction_template"),
+      title: localize("da_data_extraction_template", "Data Extraction Template"),
     });
     this.sidebarElement = this.sidebarPart.element;
   }
@@ -57,10 +56,10 @@ export class TemplateEditorPane {
   public update(props: TemplateEditorPaneProps): void {
     this.templateView.update(toTemplateProps(props));
     this.sidebarPart.update({
-      ariaLabel: props.t("da_data_extraction_template"),
+      ariaLabel: localize("da_data_extraction_template", "Data Extraction Template"),
       children: this.templateView.sidebarElement,
       className: "template_sidebar_part template_sidebar_part--joined_preview",
-      title: props.t("da_data_extraction_template"),
+      title: localize("da_data_extraction_template", "Data Extraction Template"),
     });
   }
 

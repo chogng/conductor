@@ -1,4 +1,4 @@
-import type { TranslateFn } from "src/cs/platform/language/common/language";
+import { localize } from "src/cs/nls";
 
 export type DiagnosticsContextBadge = {
   color?: string;
@@ -11,14 +11,12 @@ export const createDiagnosticsContextBadges = ({
   focusedSeriesLabel,
   gmDiagnosticsEnabled,
   ssDiagnosticsEnabled,
-  t,
 }: {
   effectivePlotType: string;
   focusedSeriesColor?: string;
   focusedSeriesLabel?: unknown;
   gmDiagnosticsEnabled: boolean;
   ssDiagnosticsEnabled: boolean;
-  t: TranslateFn;
 }): DiagnosticsContextBadge[] => {
   const focusedLabel = String(focusedSeriesLabel ?? "").trim();
   const labelKey =
@@ -28,10 +26,10 @@ export const createDiagnosticsContextBadges = ({
       : "da_chart_selected_curve_label";
 
   return [
-    { text: t(labelKey) },
+    { text: localize(labelKey, labelKey) },
     {
       color: focusedSeriesColor,
-      text: focusedLabel || t("da_chart_current_curve_label"),
+      text: focusedLabel || localize("da_chart_current_curve_label", "current"),
     },
   ];
 };

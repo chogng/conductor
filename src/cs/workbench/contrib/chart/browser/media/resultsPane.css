@@ -64,7 +64,10 @@
 }
 
 .results_pane .origin_export_toolbar_header,
-.results_pane .origin_export_toolbar_controls,
+.results_pane .origin_export_toolbar_controls {
+  align-items: stretch;
+}
+
 .results_pane .origin_export_toolbar_actions {
   align-items: flex-start;
 }

@@ -7,7 +7,10 @@ import { ServiceCollection } from "src/cs/platform/instantiation/common/serviceC
 import { Registry } from "src/cs/platform/registry/common/platform";
 import { IFileService } from "src/cs/platform/files/common/files";
 import { HTMLFileSystemProvider } from "src/cs/platform/files/browser/htmlFileSystemProvider";
-import type { LanguageCode } from "src/cs/platform/language/common/language";
+import {
+  resolveLanguageCode,
+  type LanguageCode,
+} from "src/cs/platform/language/common/language";
 import { createNLSConfiguration, setNLSConfiguration } from "src/cs/nls";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import {
@@ -36,7 +39,6 @@ declare global {
   }
 }
 
-const DEFAULT_LANGUAGE: LanguageCode = "en";
 const DEFAULT_THEME: ThemeMode = "system";
 
 type BootLogger = (stage: string, extra?: string) => void;
@@ -115,10 +117,14 @@ function startBrowserWorkbenchBoot(
   logBoot: BootLogger,
   isBootProfileEnabled: boolean,
 ): void {
-  window.__CONDUCTOR_INITIAL_LANGUAGE__ = DEFAULT_LANGUAGE;
+  const initialLanguage = resolveLanguageCode("system", navigator.language);
+  window.__CONDUCTOR_INITIAL_LANGUAGE__ = initialLanguage;
   applyWorkbenchAppearance(normalizeWorkbenchAppearance(null));
-  setNLSConfiguration(createNLSConfiguration(DEFAULT_LANGUAGE));
-  document.documentElement.setAttribute("lang", "en");
+  setNLSConfiguration(createNLSConfiguration(initialLanguage));
+  document.documentElement.setAttribute(
+    "lang",
+    initialLanguage === "zh" ? "zh-CN" : "en",
+  );
   window.__CONDUCTOR_INITIAL_THEME__ = DEFAULT_THEME;
   window.__CONDUCTOR_BOOT_PROFILE_ENABLED__ = isBootProfileEnabled;
   window.__CONDUCTOR_BOOT_LOG__ = logBoot;
@@ -129,7 +135,7 @@ function startBrowserWorkbenchBoot(
   installNavigationModeListeners();
 
   logBoot("bootstrap:script-evaluated");
-  logBoot("language:resolved", `(language=${DEFAULT_LANGUAGE})`);
+  logBoot("language:resolved", `(language=${initialLanguage} preference=system)`);
   logBoot("theme:applied", `(theme=${DEFAULT_THEME})`);
 }
 

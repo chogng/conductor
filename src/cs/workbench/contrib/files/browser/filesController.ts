@@ -4,7 +4,6 @@ import { URI } from "src/cs/base/common/uri";
 import type { IFileDialogService as IFileDialogServiceType } from "src/cs/platform/dialogs/common/dialogs";
 import type { IFileService as IFileServiceType } from "src/cs/platform/files/common/files";
 import { localize } from "src/cs/nls";
-import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { IPathService as IPathServiceType } from "src/cs/workbench/services/path/common/pathService";
 import { startPerf } from "src/cs/workbench/common/perf";
 import { WorkspaceWatcher } from "src/cs/workbench/contrib/files/browser/workspaceWatcher";
@@ -37,7 +36,6 @@ export type FilesControllerProps = {
   onFileRemoved?: (fileId: string) => void;
   onFileSelected?: (fileId: string | null) => void;
   selectedFileId?: string | null;
-  readonly t: TranslateFn;
 };
 
 export type {
@@ -142,7 +140,6 @@ export class FilesController implements FilesPaneRef, IDisposable {
       onSelectFile: this.handleSelectFile,
       onSelectFiles: this.handleSelectFiles,
       cleanedData: this.props.cleanedData,
-      t: this.props.t,
     };
   }
 

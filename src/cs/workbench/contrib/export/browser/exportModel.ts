@@ -1,4 +1,4 @@
-import type { TranslateFn } from "src/cs/platform/language/common/language";
+import { localize } from "src/cs/nls";
 
 import type { OriginFilteredCanvasKind, OriginCanvasExportScope } from "./originCanvasExport.ts";
 import type { OriginExportMode } from "../common/originSelectionExport.ts";
@@ -33,34 +33,32 @@ export const getCanvasScopeSummary = ({
   originCanvasExportScope,
   originFilteredCanvasKind,
   selectedCanvasCount,
-  t,
 }: {
   originCanvasExportScope: OriginCanvasExportScope;
   originFilteredCanvasKind: OriginFilteredCanvasKind;
   selectedCanvasCount: number;
-  t: TranslateFn;
 }): string => {
   if (originCanvasExportScope === "current") {
-    return t("da_origin_canvas_scope_summary_current");
+    return localize("da_origin_canvas_scope_summary_current", "The current thumbnail will export as a single result unit.");
   }
 
   if (originCanvasExportScope === "filtered") {
-    return t("da_origin_canvas_scope_summary_filtered", {
+    return localize("da_origin_canvas_scope_summary_filtered", "{count} {kind} thumbnails match the current filter.", {
       count: selectedCanvasCount,
       kind:
         originFilteredCanvasKind === "transfer"
-          ? t("da_origin_filtered_canvas_kind_transfer")
-          : t("da_origin_filtered_canvas_kind_output"),
+          ? localize("da_origin_filtered_canvas_kind_transfer", "Transfer")
+          : localize("da_origin_filtered_canvas_kind_output", "Output"),
     });
   }
 
   if (originCanvasExportScope === "all") {
-    return t("da_origin_canvas_scope_summary_all", {
+    return localize("da_origin_canvas_scope_summary_all", "All {count} thumbnails will export.", {
       count: selectedCanvasCount,
     });
   }
 
-  return t("da_origin_canvas_scope_summary_selected", {
+  return localize("da_origin_canvas_scope_summary_selected", "{count} thumbnails are selected.", {
     count: selectedCanvasCount,
   });
 };
@@ -70,16 +68,14 @@ export const getExportSelectionSummary = ({
   selectedCanvasCount,
   selectedOriginSeriesTotalCount,
   separateCanvasScopeSummary,
-  t,
 }: {
   resolvedOriginExportMode: OriginExportMode;
   selectedCanvasCount: number;
   selectedOriginSeriesTotalCount: number;
   separateCanvasScopeSummary: string;
-  t: TranslateFn;
 }): string =>
   resolvedOriginExportMode === "merged"
-    ? t("da_origin_collection_summary", {
+    ? localize("da_origin_collection_summary", "{curves} collected curve(s) from {files} file(s)", {
         curves: selectedOriginSeriesTotalCount,
         files: selectedCanvasCount,
       })

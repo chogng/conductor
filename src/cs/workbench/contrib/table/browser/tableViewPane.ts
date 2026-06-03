@@ -12,7 +12,6 @@ import {
 } from "src/cs/base/common/actions";
 import { Disposable, DisposableStore } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
-import type { TranslateFn } from "src/cs/platform/language/common/language";
 import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/previewPart";
 import { TableView, type TableViewProps } from "src/cs/workbench/contrib/table/browser/tableView";
 import { TableViewId } from "src/cs/workbench/contrib/table/common/table";
@@ -21,7 +20,6 @@ import type { TableModel, TableState } from "src/cs/workbench/contrib/table/comm
 export type TableViewPaneProps = {
   readonly tableModel: TableModel;
   readonly tableState: TableState;
-  readonly t: TranslateFn;
 };
 
 type HeaderMode = "empty" | "file";

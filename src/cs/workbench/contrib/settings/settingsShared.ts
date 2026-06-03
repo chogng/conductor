@@ -1,7 +1,7 @@
-import type { LanguageCode } from "src/cs/platform/language/common/language";
+import { localize } from "src/cs/nls";
+import type { LanguagePreference } from "src/cs/platform/language/common/language";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import type { Feedback } from "src/cs/workbench/contrib/settings/common/feedback";
-import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/translation";
 import type {
   IonIoffManualTargetsByFileId,
   IonIoffMethod,
@@ -12,7 +12,7 @@ import { originService } from "src/cs/workbench/services/origin/browser/originSe
 export type AnalysisSettings = {
   backgroundColor?: string;
   fileNameFieldSeparators?: string;
-  language?: LanguageCode;
+  language?: LanguagePreference;
   theme?: ThemeMode;
   transparentChrome?: boolean;
   windowCloseBehavior?: "minimizeToTray" | "quit";
@@ -146,11 +146,10 @@ export const normalizeBoundedInt = (
 export const buildOriginLogMessage = (
   baseMessage: string,
   logPath: unknown,
-  t: TranslateFn,
 ): string => {
   const normalizedLogPath = normalizeTrimmedString(logPath);
   return normalizedLogPath
-    ? `${baseMessage} ${t("da_origin_error_log_path", {
+    ? `${baseMessage} ${localize("da_origin_error_log_path", "Log: {path}", {
         path: normalizedLogPath,
       })}`
     : baseMessage;

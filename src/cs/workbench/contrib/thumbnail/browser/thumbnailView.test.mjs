@@ -44,7 +44,6 @@ test("createThumbnailFieldFilterOptions deduplicates field filters", () => {
         { curveFilterField: "Batch A", curveFilterKey: "batch:a" },
         { curveFilterField: "Batch B", curveFilterKey: "batch:b" },
       ],
-      t,
     ),
     [
       { label: "da_match_mode_field: Batch A", value: "batch:a" },

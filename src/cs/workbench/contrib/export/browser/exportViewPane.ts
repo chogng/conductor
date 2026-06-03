@@ -1,4 +1,4 @@
-import { Disposable, toDisposable } from "src/cs/base/common/lifecycle";
+import { Disposable, DisposableStore, toDisposable } from "src/cs/base/common/lifecycle";
 import OriginExportToolbar, {
   type OriginCurveExportSeriesOption,
   type OriginExportContentOption,
@@ -18,10 +18,6 @@ import "src/cs/workbench/contrib/export/browser/media/export.css";
 
 type StateSetter<T> = (value: T | ((previous: T) => T)) => void;
 
-type TranslateFn = (
-  key: string,
-  params?: Record<string, string | number | boolean | null | undefined>,
-) => string;
 
 export type ExportViewPaneOptions = {
   curveOptions: OriginCurveExportSeriesOption[];
@@ -44,10 +40,11 @@ export type ExportViewPaneOptions = {
   setOriginFilteredCanvasKind: StateSetter<OriginFilteredCanvasKind>;
   setResolvedCurveExportMode: (next: OriginCurveExportMode) => void;
   showFilteredCanvasKindSelect: boolean;
-  t: TranslateFn;
 };
 
 export class ExportViewPane extends Disposable {
+  private readonly toolbarStore = this._register(new DisposableStore());
+
   constructor(private readonly container: HTMLElement) {
     super();
     this._register(toDisposable(() => {
@@ -56,6 +53,10 @@ export class ExportViewPane extends Disposable {
   }
 
   render(options: ExportViewPaneOptions): void {
-    this.container.replaceChildren(OriginExportToolbar(options));
+    this.toolbarStore.clear();
+    this.container.replaceChildren(OriginExportToolbar({
+      ...options,
+      store: this.toolbarStore,
+    }));
   }
 }

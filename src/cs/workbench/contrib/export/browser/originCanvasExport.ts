@@ -1,3 +1,4 @@
+import { localize } from "src/cs/nls";
 import type { MutableState } from "src/cs/workbench/contrib/session/browser/sessionContext";
 import {
   exportOriginZip,
@@ -69,8 +70,6 @@ type UseOriginCanvasExportOptions = {
   ) => string | null | undefined;
   resolveYUnitForFile?: (file: any) => string;
   showToast: (message: string, type?: any) => void;
-  t: (key: string, params?: any) => string;
-  tLoose: (key: string, params?: any) => string;
   visibleOriginCanvasIds?: string[];
 };
 
@@ -140,8 +139,6 @@ export const createOriginCanvasExport = ({
   resolveYLogCurrentModeForFile = () => "all",
   resolveYUnitForFile = () => "A",
   showToast,
-  t,
-  tLoose,
   visibleOriginCanvasIds = [],
 }: UseOriginCanvasExportOptions) => {
   const exportService = new BrowserExportService();
@@ -618,7 +615,7 @@ export const createOriginCanvasExport = ({
     omitRustEligibleCsvText = false,
   }: { omitRustEligibleCsvText?: boolean } = {}): OriginExportPlan => {
     if (!selectedOriginCanvases.length) {
-      throw new Error(t("da_origin_select_canvas"));
+      throw new Error(localize("da_origin_select_canvas", "Please select at least one thumbnail first."));
     }
     const exportCanvases = omitRustEligibleCsvText
       ? selectedOriginCanvases.map((canvas: any) => {
@@ -652,7 +649,7 @@ export const createOriginCanvasExport = ({
       originExportContentKeys,
     );
     if (!plan.payloads.length) {
-      throw new Error(t("da_origin_select_curve"));
+      throw new Error(localize("da_origin_select_curve", "Please select a curve first."));
     }
     return plan;
   };
@@ -848,8 +845,6 @@ export const createOriginCanvasExport = ({
       originChartYRangeRef,
       originOpenPlotOptions,
       showToast,
-      t,
-      tLoose,
     });
   };
 
@@ -857,7 +852,6 @@ export const createOriginCanvasExport = ({
     await exportService.exportOriginZip({
       exportOriginZipFallback: exportOriginZipFallbackForSelectedCanvases,
       showToast,
-      t,
     });
   };
 

@@ -1,5 +1,4 @@
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
-import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/translation";
 import type {
   AnalysisSettings,
   OriginCleanupResult,
@@ -19,7 +18,6 @@ export type SettingsServiceOptions = {
   ) => Promise<AnalysisSettings | null>;
   isWindowsDesktopShell: boolean;
   mergeAnalysisSettings: (nextSettings: AnalysisSettings | null) => void;
-  t: TranslateFn;
 };
 
 export interface ISettingsService {

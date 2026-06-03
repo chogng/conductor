@@ -1,5 +1,5 @@
+import { localize } from "src/cs/nls";
 import { createButton } from "src/cs/base/browser/ui/button/button";
-import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { OriginCurveExportSeriesOption } from "src/cs/workbench/contrib/export/browser/OriginExportToolbar";
 
 export type RcAnalysisToolbarOptions = {
@@ -9,7 +9,6 @@ export type RcAnalysisToolbarOptions = {
   onBiasChange: (nextKey: string) => void;
   rowCount: number;
   selectedBiasKey: string;
-  t: TranslateFn;
 };
 
 export const renderRcAnalysisToolbar = (
@@ -21,7 +20,6 @@ export const renderRcAnalysisToolbar = (
     onBiasChange,
     rowCount,
     selectedBiasKey,
-    t,
   }: RcAnalysisToolbarOptions,
 ): (() => void) => {
   container.textContent = "";
@@ -29,7 +27,7 @@ export const renderRcAnalysisToolbar = (
   const toolbar = document.createElement("div");
   toolbar.className = "parameters_toolbar";
   toolbar.setAttribute("role", "toolbar");
-  toolbar.setAttribute("aria-label", t("da_rc_toolbar_aria_label"));
+  toolbar.setAttribute("aria-label", localize("da_rc_toolbar_aria_label", "Contact resistance toolbar"));
 
   const row = document.createElement("div");
   row.className = "parameters_toolbar_row";
@@ -40,7 +38,7 @@ export const renderRcAnalysisToolbar = (
   const label = document.createElement("label");
   label.className = "parameters_toolbar_label";
   label.htmlFor = "analysis-rc-bias-select";
-  label.textContent = t("da_rc_bias_label");
+  label.textContent = localize("da_rc_bias_label", "Bias voltage");
 
   const select = document.createElement("select");
   select.id = "analysis-rc-bias-select";
@@ -58,7 +56,7 @@ export const renderRcAnalysisToolbar = (
 
   const button = createButton({
     disabled: isPending || !rowCount,
-    label: isPending ? t("da_rc_run_pending") : t("da_rc_run_button"),
+    label: isPending ? localize("da_rc_run_pending", "Running...") : localize("da_rc_run_button", "Run Rc"),
     size: "sm",
     variant: "primary",
   });

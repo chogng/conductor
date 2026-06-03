@@ -1,4 +1,4 @@
-import type { TranslateFn } from "src/cs/platform/language/common/language";
+import { localize } from "src/cs/nls";
 import {
   renderCalculatedParametersRows,
   type RenderCalculatedParametersRowsOptions,
@@ -6,7 +6,6 @@ import {
 
 export type ParametersViewOptions = RenderCalculatedParametersRowsOptions & {
   gmMetricHeader: string;
-  t: TranslateFn;
 };
 
 const TRANSFER_COLUMN_WIDTHS_PX = [
@@ -58,8 +57,7 @@ const appendTableHeader = (
   {
     gmMetricHeader,
     showTransferMetrics,
-    t,
-  }: Pick<ParametersViewOptions, "gmMetricHeader" | "showTransferMetrics" | "t">,
+  }: Pick<ParametersViewOptions, "gmMetricHeader" | "showTransferMetrics" >,
 ): void => {
   const thead = document.createElement("thead");
   thead.className = "parameters_table_head";
@@ -69,44 +67,44 @@ const appendTableHeader = (
   appendHeaderCell(groupRow, {
     className: SERIES_HEADER_CLASS,
     rowSpan: 2,
-    text: t("da_calc_group_series"),
+    text: localize("da_calc_group_series", "Series"),
   });
   if (showTransferMetrics) {
     appendHeaderCell(groupRow, {
       className: `${GROUP_HEADER_CLASS} parameters_cell--on`,
       colSpan: 2,
-      text: t("da_calc_group_on_state"),
+      text: localize("da_calc_group_on_state", "On-state"),
     });
     appendHeaderCell(groupRow, {
       className: `${GROUP_HEADER_CLASS} parameters_cell--off`,
       colSpan: 2,
-      text: t("da_calc_group_off_state"),
+      text: localize("da_calc_group_off_state", "Off-state"),
     });
     appendHeaderCell(groupRow, {
       className: GROUP_HEADER_CLASS,
-      text: t("da_calc_group_ratio"),
+      text: localize("da_calc_group_ratio", "On/Off Ratio"),
     });
   }
   appendHeaderCell(groupRow, {
     className: `${GROUP_HEADER_CLASS} parameters_cell--derivative`,
     colSpan: 2,
-    text: t("da_calc_group_derivative"),
+    text: localize("da_calc_group_derivative", "Derivative"),
   });
   if (showTransferMetrics) {
     appendHeaderCell(groupRow, {
       className: `${GROUP_HEADER_CLASS} parameters_cell--threshold`,
       colSpan: 2,
-      text: t("da_calc_group_threshold_voltage"),
+      text: localize("da_calc_group_threshold_voltage", "Threshold Voltage"),
     });
     appendHeaderCell(groupRow, {
       className: `${GROUP_HEADER_CLASS} parameters_cell--ss`,
       colSpan: 2,
-      text: t("da_calc_group_ss"),
+      text: localize("da_calc_group_ss", "Subthreshold"),
     });
     appendHeaderCell(groupRow, {
       className: GROUP_HEADER_CLASS,
-      text: t("da_calc_group_jon"),
-      title: t("da_calc_group_jon_hint"),
+      text: localize("da_calc_group_jon", "Current Density"),
+      title: localize("da_calc_group_jon_hint", "J = |I|/Area (if area is available)."),
     });
   }
 
@@ -122,12 +120,12 @@ const appendTableHeader = (
   appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} parameters_cell--derivative`, text: gmMetricHeader });
   appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} parameters_cell--derivative`, text: "x" });
   if (showTransferMetrics) {
-    const vthHint = t("da_calc_group_threshold_voltage_hint");
+    const vthHint = localize("da_calc_group_threshold_voltage_hint", "sqrt(|Id|)-Vg linear extrapolation; V-shaped transfer curves are fitted by electron / hole branch.");
     appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} parameters_cell--threshold`, text: "Vth,e", title: vthHint });
     appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} parameters_cell--threshold`, text: "Vth,h", title: vthHint });
     appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} parameters_cell--ss`, text: "SS" });
     appendHeaderCell(labelRow, { className: `${SUB_HEADER_CLASS} parameters_cell--ss`, text: "x" });
-    appendHeaderCell(labelRow, { text: "Jon", title: t("da_calc_group_jon_hint") });
+    appendHeaderCell(labelRow, { text: "Jon", title: localize("da_calc_group_jon_hint", "J = |I|/Area (if area is available).") });
   }
 
   thead.append(groupRow, labelRow);

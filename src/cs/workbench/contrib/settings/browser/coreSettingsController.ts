@@ -1,6 +1,9 @@
 import { Emitter, type Event } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
-import type { LanguageCode } from "src/cs/platform/language/common/language";
+import {
+  isLanguagePreference,
+  type LanguagePreference,
+} from "src/cs/platform/language/common/language";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
@@ -23,10 +26,10 @@ import {
 } from "src/cs/workbench/browser/appearance";
 
 export type CoreSettingsControllerOptions = {
-  language: LanguageCode;
+  language: LanguagePreference;
   setAppearance: (appearance: WorkbenchAppearance) => void;
   setIonIoffMethod: (method: IonIoffMethod) => void;
-  setLanguage: (language: LanguageCode) => void;
+  setLanguage: (language: LanguagePreference) => void;
   theme: ThemeMode;
   setTheme: (theme: ThemeMode) => void;
   setGmDiagnosticsEnabled: (enabled: boolean) => void;
@@ -39,7 +42,7 @@ export type CoreSettingsControllerOptions = {
 export type CoreSettingsState = {
   analysisSettings: AnalysisSettings | null;
   analysisSettingsLoaded: boolean;
-  handleLanguageChange: (language: LanguageCode) => Promise<void>;
+  handleLanguageChange: (language: LanguagePreference) => Promise<void>;
   handleThemeChange: (theme: ThemeMode) => Promise<void>;
   handleUpdateAnalysisSettings: (
     updates: unknown,
@@ -152,9 +155,9 @@ export class CoreSettingsController extends Disposable {
   };
 
   public readonly handleLanguageChange = async (
-    nextLanguage: LanguageCode,
+    nextLanguage: LanguagePreference,
   ): Promise<void> => {
-    if (nextLanguage !== "zh" && nextLanguage !== "en") return;
+    if (!isLanguagePreference(nextLanguage)) return;
     if (this.options.language === nextLanguage) return;
 
     this.options.setLanguage(nextLanguage);
@@ -205,7 +208,7 @@ export class CoreSettingsController extends Disposable {
 
   private applySettings(settings: AnalysisSettings | null): void {
     const nextLanguage = settings?.language;
-    if (nextLanguage === "zh" || nextLanguage === "en") {
+    if (isLanguagePreference(nextLanguage)) {
       this.options.setLanguage(nextLanguage);
     }
 

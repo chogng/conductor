@@ -2,11 +2,27 @@
 
 export type LanguageCode = (typeof SUPPORTED_LANGUAGES)[number];
 
+export type LanguagePreference = 'system' | LanguageCode;
+
 export const DEFAULT_LANGUAGE: LanguageCode = 'en';
 
 export const isLanguageCode = (value: unknown): value is LanguageCode =>
   value === 'en' || value === 'zh';
 
-export type TranslationVars = Record<string, string | number | boolean | null | undefined>;
+export const isLanguagePreference = (
+  value: unknown,
+): value is LanguagePreference =>
+  value === 'system' || isLanguageCode(value);
 
-export type TranslateFn = (key: string, vars?: TranslationVars) => string;
+export const resolveLanguageCode = (
+  preference: unknown,
+  systemLanguage: unknown,
+): LanguageCode => {
+  if (isLanguageCode(preference)) return preference;
+
+  const source = typeof systemLanguage === 'string' ? systemLanguage.toLowerCase() : '';
+  if (source.startsWith('zh')) return 'zh';
+  if (source.startsWith('en')) return 'en';
+
+  return DEFAULT_LANGUAGE;
+};

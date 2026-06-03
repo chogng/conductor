@@ -1,5 +1,4 @@
 import { localize } from "src/cs/nls";
-import type { TranslateFn } from "src/cs/platform/language/common/language";
 import { createSwitch } from "src/cs/base/browser/ui/switch/switch";
 import CanvasDiagnosticsChart from "src/cs/workbench/contrib/diagnostics/browser/CanvasDiagnosticsChart";
 import {
@@ -32,7 +31,6 @@ export type ChartAuxiliaryPane = "locator" | "inspector";
 export type ChartPane = "chart" | ChartAuxiliaryPane;
 
 export type ChartViewProps = {
-  t: TranslateFn;
   visiblePanes?: readonly ChartPane[];
   activePlotType?: PlotType;
   cleanedData: CleanedEntry[];
@@ -66,7 +64,6 @@ export const createChartView = (props: ChartViewProps): HTMLElement => {
     cleanedData = [],
     processingStatus,
     activeFileId: controlledActiveFileId = undefined,
-    t,
     originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS,
   } = props;
   const visiblePanes = normalizeVisiblePanes(props.visiblePanes);
@@ -138,7 +135,7 @@ export const createChartView = (props: ChartViewProps): HTMLElement => {
     main.append(mainPane);
   }
   if (visiblePanes.includes("locator")) {
-    main.append(createLocatorPane({ model, props }));
+    main.append(createLocatorPane(model));
   }
   if (visiblePanes.includes("inspector")) {
     main.append(inspectorPane);
@@ -164,13 +161,9 @@ const normalizeVisiblePanes = (
   return next.length ? next : ["chart"];
 };
 
-const createLocatorPane = ({
-  model,
-  props,
-}: {
-  readonly model: ReturnType<typeof createMainPlotModel>;
-  readonly props: Pick<ChartViewProps, "t">;
-}): HTMLElement => {
+const createLocatorPane = (
+  model: ReturnType<typeof createMainPlotModel>,
+): HTMLElement => {
   const section = document.createElement("section");
   section.className = "chart_view_locator_pane";
   section.setAttribute("aria-label", localize("da_chart_locator_heading", "Locator"));
@@ -233,7 +226,6 @@ const createInspectorPane = ({
     | "setSsDiagnosticsEnabled"
     | "setVthDiagnosticsEnabled"
     | "ssDiagnosticsEnabled"
-    | "t"
     | "vthDiagnosticsEnabled"
   >;
 }): HTMLElement => {
@@ -323,7 +315,6 @@ const getDiagnosticsState = (
     | "setSsDiagnosticsEnabled"
     | "setVthDiagnosticsEnabled"
     | "ssDiagnosticsEnabled"
-    | "t"
     | "vthDiagnosticsEnabled"
   >,
 ): DiagnosticsState | null => {

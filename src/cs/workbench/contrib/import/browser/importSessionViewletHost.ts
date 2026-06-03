@@ -1,3 +1,4 @@
+import { localize } from "src/cs/nls";
 import SidebarPart from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import {
   ImportSessionViewlet,
@@ -30,10 +31,10 @@ export class ImportSessionViewletHost {
 
   private getSidebarOptions(props: ImportSessionViewletProps) {
     return {
-      ariaLabel: props.t("files.importSection"),
+      ariaLabel: localize("files.importSection", "Import Files"),
       children: this.host,
       className: "import-session-sidebar_part",
-      title: props.t("files.importSection"),
+      title: localize("files.importSection", "Import Files"),
     };
   }
 }

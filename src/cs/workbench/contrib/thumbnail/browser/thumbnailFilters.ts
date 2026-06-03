@@ -1,3 +1,4 @@
+import { localize } from "src/cs/nls";
 export type ThumbnailCurveFilter = string;
 
 export type ThumbnailFileForView = {
@@ -44,7 +45,6 @@ export const resolveThumbnailCurveFieldFilterMeta = (
 
 export const createThumbnailFieldFilterOptions = <T extends ThumbnailFileForView>(
   files: readonly T[],
-  t: (key: string) => string,
 ): Array<{ label: string; value: string }> => {
   const options: Array<{ label: string; value: string }> = [];
   const seen = new Set<string>();
@@ -55,7 +55,7 @@ export const createThumbnailFieldFilterOptions = <T extends ThumbnailFileForView
 
     seen.add(meta.key);
     options.push({
-      label: `${t("da_match_mode_field")}: ${meta.label}`,
+      label: `${localize("da_match_mode_field", "Field match")}: ${meta.label}`,
       value: meta.key,
     });
   }

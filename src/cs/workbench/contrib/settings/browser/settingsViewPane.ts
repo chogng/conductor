@@ -1,5 +1,4 @@
-import type { LanguageCode } from "src/cs/platform/language/common/language";
-import type { LooseTranslateFn } from "src/cs/workbench/common/translation";
+import type { LanguagePreference } from "src/cs/platform/language/common/language";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import {
   SettingsController,
@@ -15,15 +14,14 @@ export type SettingsViewPaneProps = {
   appUpdateSettings: AppUpdateSettings;
   analysisSettings: AnalysisSettings | null;
   analysisSettingsLoaded: boolean;
-  handleLanguageChange: (language: LanguageCode) => Promise<void> | void;
+  handleLanguageChange: (language: LanguagePreference) => Promise<void> | void;
   handleThemeChange: (theme: ThemeMode) => Promise<void> | void;
   handleUpdateAnalysisSettings: (
     updates: unknown,
   ) => Promise<AnalysisSettings | null>;
   isWindowsDesktopShell: boolean;
-  language: LanguageCode;
+  language: LanguagePreference;
   mergeAnalysisSettings: (nextSettings: AnalysisSettings | null) => void;
-  t: LooseTranslateFn;
   theme: ThemeMode;
 };
 
@@ -59,7 +57,6 @@ const toControllerOptions = ({
   isWindowsDesktopShell,
   language,
   mergeAnalysisSettings,
-  t,
   theme,
 }: SettingsViewPaneProps): SettingsControllerOptions => ({
   appUpdateSettings,
@@ -72,5 +69,4 @@ const toControllerOptions = ({
   language,
   mergeAnalysisSettings,
   theme,
-  t,
 });

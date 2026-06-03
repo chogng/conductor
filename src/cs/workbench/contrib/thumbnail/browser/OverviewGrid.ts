@@ -1,9 +1,8 @@
+import { localize } from "src/cs/nls";
 import {
   getCardClassName,
   type CardVariant,
 } from "cs/base/browser/ui/card/card";
-import type { TranslateFn } from "src/cs/platform/language/common/language";
-import { languageService } from "src/cs/platform/language/browser/languageService";
 import { getYUnitMeta } from "src/cs/workbench/contrib/plot/common/units";
 import type { OriginCanvasExportScope } from "src/cs/workbench/contrib/export/browser/originCanvasExport";
 import type { ProcessingStatus } from "src/cs/workbench/contrib/session/common/sessionTypes";
@@ -65,15 +64,13 @@ export const createOverviewGrid = ({
   if (!cleanedData.length) {
     return null;
   }
-
-  const { t } = languageService.getSnapshot();
   let curveFilter: CurveFilter = "all";
-  const fieldFilterOptions = createThumbnailFieldFilterOptions(cleanedData, t);
+  const fieldFilterOptions = createThumbnailFieldFilterOptions(cleanedData);
   const curveFilterOptions = [
     ...fieldFilterOptions,
-    { label: t("da_overview_curve_filter_all"), value: "all" as const },
-    { label: t("da_overview_curve_filter_transfer"), value: "transfer" as const },
-    { label: t("da_overview_curve_filter_output"), value: "output" as const },
+    { label: localize("da_overview_curve_filter_all", "All"), value: "all" as const },
+    { label: localize("da_overview_curve_filter_transfer", "Transfer"), value: "transfer" as const },
+    { label: localize("da_overview_curve_filter_output", "Output"), value: "output" as const },
   ];
 
   const card = createCard({
@@ -114,7 +111,7 @@ export const createOverviewGrid = ({
           ),
           showOriginSelectionBadge:
             isSelectionMode && originCanvasExportScope === "selected",
-          originSelectedBadgeLabel: t("da_overview_select_badge"),
+          originSelectedBadgeLabel: localize("da_overview_select_badge", "SELECT"),
           xUnitFactor,
           xUnitLabel,
           yUnitFactor: yUnitMeta.factor,
@@ -137,7 +134,6 @@ export const createOverviewGrid = ({
         renderList();
       },
       processingStatus,
-      t,
     }),
     createScrollArea(list),
   );
@@ -151,14 +147,12 @@ const createToolbar = ({
   fieldFilterOptions,
   onChange,
   processingStatus,
-  t,
 }: {
   readonly curveFilter: CurveFilter;
   readonly curveFilterOptions: Array<{ label: string; value: string }>;
   readonly fieldFilterOptions: Array<{ label: string; value: string }>;
   readonly onChange: (nextFilter: CurveFilter) => void;
   readonly processingStatus?: Partial<ProcessingStatus>;
-  readonly t: TranslateFn;
 }): HTMLElement => {
   const root = document.createElement("div");
   root.className = "thumbnail_overview_grid_toolbar";
@@ -173,7 +167,7 @@ const createToolbar = ({
   const label = document.createElement("label");
   label.htmlFor = "analysis-overview-curve-filter-btn";
   label.className = "thumbnail_visually_hidden";
-  label.textContent = t("da_overview_curve_filter_label");
+  label.textContent = localize("da_overview_curve_filter_label", "Curve filter");
   filterWrap.append(
     label,
     createDropdown({
@@ -203,7 +197,7 @@ const createToolbar = ({
   if (processingStatus?.state === "processing") {
     const progress = document.createElement("div");
     progress.className = "thumbnail_overview_grid_progress";
-    progress.textContent = t("da_overview_processing", {
+    progress.textContent = localize("da_overview_processing", "Processing {processed}/{total}", {
       processed: processingStatus.processed,
       total: processingStatus.total,
     });

@@ -1,3 +1,4 @@
+import { localize } from "src/cs/nls";
 import type {
   MutableState,
   StateSetter,
@@ -18,7 +19,6 @@ import type {
   ProcessingStatus,
   SessionFile,
 } from "src/cs/workbench/contrib/session/common/sessionTypes";
-import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/translation";
 import type { ProcessingQueueItem } from "src/cs/workbench/contrib/template/browser/templateApplyProcessing";
 import { TemplateApplyService } from "src/cs/workbench/contrib/template/browser/templateApplyService";
 import { importService } from "src/cs/workbench/services/import/browser/importService";
@@ -71,7 +71,6 @@ export type TemplateApplyControllerInput = {
   cleanedData?: CleanedEntry[];
   sourceFiles?: SessionFile[];
   hasSourceFile: (fileId: string | null | undefined) => boolean;
-  t: TranslateFn;
 };
 
 type TemplateApplyControllerOptions = {
@@ -176,41 +175,39 @@ const buildExtractionStartFeedback = ({
   count,
   messageKey,
   meta = {},
-  t,
   warnings = [],
 }: {
   count: number;
   messageKey: string;
   meta?: ExtractionMeta;
-  t: TranslateFn;
   warnings?: string[];
 }): ExtractionFeedback => {
   const groupSizePreview = Number(meta.groupSizePreview);
   const fixedGroupSize = Number(meta.groupSize);
   const fixedGroupCount = Number(meta.groups);
   const groupSizeText = meta.groupSizeCell
-    ? t("da_extract_points_from_cell", { cell: meta.pointsRawUpper || "" })
+    ? localize("da_extract_points_from_cell", "points from {cell}", { cell: meta.pointsRawUpper || "" })
     : Number.isInteger(fixedGroupSize) && fixedGroupSize > 0
-      ? t("da_extract_points_fixed", { points: fixedGroupSize })
-      : t("da_extract_points_fixed", { points: "-" });
+      ? localize("da_extract_points_fixed", "points={points}", { points: fixedGroupSize })
+      : localize("da_extract_points_fixed", "points={points}", { points: "-" });
   const groupsText =
     meta.groupSizeCell &&
     Number.isInteger(groupSizePreview) &&
     groupSizePreview > 0
-      ? t("da_extract_groups_suffix", {
+      ? localize("da_extract_groups_suffix", ", {groups} group(s)", {
           groups: Math.max(0, Number(meta.total || 0) / groupSizePreview),
         })
       : !meta.groupSizeCell &&
           Number.isInteger(fixedGroupCount) &&
           fixedGroupCount > 0
-        ? t("da_extract_groups_suffix", { groups: fixedGroupCount })
+        ? localize("da_extract_groups_suffix", ", {groups} group(s)", { groups: fixedGroupCount })
         : "";
   const warningText = warnings.length
-    ? t("da_extract_warnings_block", { warnings: warnings.join("\n- ") })
+    ? localize("da_extract_warnings_block", "\n\nWarnings:\n- {warnings}", { warnings: warnings.join("\n- ") })
     : "";
 
   return {
-    message: t(messageKey, {
+    message: localize(messageKey, messageKey, {
       count,
       detail: groupSizeText,
       groups: groupsText,
@@ -256,7 +253,6 @@ export class TemplateApplyController {
       cleanedData: [],
       sourceFiles: [],
       hasSourceFile: () => false,
-      t: ((key: string) => key) as TranslateFn,
     };
   }
 
@@ -308,7 +304,7 @@ export class TemplateApplyController {
   };
 
   public readonly handleTemplateApplied = (config: Record<string, unknown>) => {
-    const { sourceFiles = [], t } = this.input;
+    const { sourceFiles = [] } = this.input;
 
     if (Array.isArray((config as RuleBasedExtractionConfig)?.fileNameTemplateRules)) {
       return this.handleRuleBasedTemplateApplied(
@@ -332,7 +328,6 @@ export class TemplateApplyController {
         count: queue.length,
         messageKey: "da_extract_started",
         meta: {},
-        t,
         warnings: [],
       });
     }
@@ -355,13 +350,12 @@ export class TemplateApplyController {
       count: queue.length,
       messageKey: "da_extract_started",
       meta: prepared.meta,
-      t,
       warnings: prepared.warnings,
     });
   };
 
   public readonly handleTemplateAppliedIncremental = (config: Record<string, unknown>) => {
-    const { cleanedData = [], sourceFiles = [], t } = this.input;
+    const { cleanedData = [], sourceFiles = [] } = this.input;
 
     if (Array.isArray((config as RuleBasedExtractionConfig)?.fileNameTemplateRules)) {
       return this.handleRuleBasedTemplateApplied(
@@ -373,7 +367,7 @@ export class TemplateApplyController {
     if (isAutoTemplateConfig(config)) {
       if (this._processingStatus.state === "processing") {
         return {
-          message: t("da_apply_to_new_files_busy"),
+          message: localize("da_apply_to_new_files_busy", "Extraction is already running."),
           ok: false,
           type: "warning" as const,
         };
@@ -382,7 +376,7 @@ export class TemplateApplyController {
       const lastFingerprint = this.lastAppliedTemplateConfigFingerprintRef.current;
       if (!lastFingerprint) {
         return {
-          message: t("da_apply_to_new_files_requires_full_apply"),
+          message: localize("da_apply_to_new_files_requires_full_apply", "Apply to All first."),
           ok: false,
           type: "warning" as const,
         };
@@ -390,7 +384,7 @@ export class TemplateApplyController {
 
       if (stableStringify(config) !== lastFingerprint) {
         return {
-          message: t("da_apply_to_new_files_requires_same_config"),
+          message: localize("da_apply_to_new_files_requires_same_config", "Template changed. Please Apply to All again."),
           ok: false,
           type: "warning" as const,
         };
@@ -400,7 +394,7 @@ export class TemplateApplyController {
       const queue = buildProcessingQueue(sourceFiles, processedIds);
       if (!queue.length) {
         return {
-          message: t("da_apply_to_new_files_no_new"),
+          message: localize("da_apply_to_new_files_no_new", "No new files to extract."),
           ok: false,
           type: "warning" as const,
         };
@@ -418,14 +412,13 @@ export class TemplateApplyController {
         count: queue.length,
         messageKey: "da_apply_to_new_files_started",
         meta: {},
-        t,
         warnings: [],
       });
     }
 
     if (this._processingStatus.state === "processing") {
       return {
-        message: t("da_apply_to_new_files_busy"),
+        message: localize("da_apply_to_new_files_busy", "Extraction is already running."),
         ok: false,
         type: "warning" as const,
       };
@@ -434,7 +427,7 @@ export class TemplateApplyController {
     const lastFingerprint = this.lastAppliedTemplateConfigFingerprintRef.current;
     if (!lastFingerprint) {
       return {
-        message: t("da_apply_to_new_files_requires_full_apply"),
+        message: localize("da_apply_to_new_files_requires_full_apply", "Apply to All first."),
         ok: false,
         type: "warning" as const,
       };
@@ -442,7 +435,7 @@ export class TemplateApplyController {
 
     if (stableStringify(config) !== lastFingerprint) {
       return {
-        message: t("da_apply_to_new_files_requires_same_config"),
+        message: localize("da_apply_to_new_files_requires_same_config", "Template changed. Please Apply to All again."),
         ok: false,
         type: "warning" as const,
       };
@@ -452,7 +445,7 @@ export class TemplateApplyController {
     const queue = buildProcessingQueue(sourceFiles, processedIds);
     if (!queue.length) {
       return {
-        message: t("da_apply_to_new_files_no_new"),
+        message: localize("da_apply_to_new_files_no_new", "No new files to extract."),
         ok: false,
         type: "warning" as const,
       };
@@ -474,7 +467,6 @@ export class TemplateApplyController {
       count: queue.length,
       messageKey: "da_apply_to_new_files_started",
       meta: prepared.meta,
-      t,
       warnings: prepared.warnings,
     });
   };
@@ -489,13 +481,12 @@ export class TemplateApplyController {
   private readonly prepareExtractionRun = (
     config: Record<string, unknown>,
   ): PreparedExtractionResult => {
-    const { getTableRow, previewFile, sourceFiles = [], t } = this.input;
+    const { getTableRow, previewFile, sourceFiles = [] } = this.input;
     const prepared = prepareExtraction({
       config,
       getPreviewRow: getTableRow,
       previewFile,
       rawData: sourceFiles,
-      t,
     }) as PreparedExtractionResult & {
       extractionConfig?: unknown;
       meta?: ExtractionMeta;
@@ -614,12 +605,11 @@ export class TemplateApplyController {
       cleanedData = [],
       sourceFiles = [],
       hasSourceFile,
-      t,
     } = this.input;
 
     if (incremental && this._processingStatus.state === "processing") {
       return {
-        message: t("da_apply_to_new_files_busy"),
+        message: localize("da_apply_to_new_files_busy", "Extraction is already running."),
         ok: false,
         type: "warning",
       };
@@ -673,7 +663,7 @@ export class TemplateApplyController {
 
     if (!normalizedRules.length) {
       return {
-        message: t("da_template_name"),
+        message: localize("da_template_name", "Template name"),
         ok: false,
         type: "warning",
       };
@@ -726,7 +716,7 @@ export class TemplateApplyController {
     const groupedEntries = Array.from(queueByTemplateName.entries());
     if (!groupedEntries.length) {
       return {
-        message: t("da_apply_to_new_files_no_new"),
+        message: localize("da_apply_to_new_files_no_new", "No new files to extract."),
         ok: false,
         type: "warning",
       };
@@ -765,7 +755,7 @@ export class TemplateApplyController {
 
     if (!groupedPrepared.length || !finalQueue.length) {
       return {
-        message: t("da_apply_to_new_files_no_new"),
+        message: localize("da_apply_to_new_files_no_new", "No new files to extract."),
         ok: false,
         type: "warning",
       };
@@ -800,7 +790,6 @@ export class TemplateApplyController {
         ? "da_extract_started_incremental"
         : "da_extract_started",
       meta: {},
-      t,
       warnings,
     });
   };

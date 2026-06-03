@@ -1,5 +1,5 @@
+import { localize } from "src/cs/nls";
 import type { TemplateConfig } from "./templateManagerUtils";
-import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/translation";
 import { normalizeYUnit } from "src/cs/workbench/contrib/plot/common/units";
 import {
   joinFileNameMatchInput,
@@ -84,7 +84,6 @@ export function normalizeAxisUnit(raw: unknown): string {
 export function validateVarPair(
   bottomTitleRaw: unknown,
   legendPrefixRaw: unknown,
-  t?: TranslateFn,
 ): VarPairValidation {
   const vg = normalizeVarKeyword(bottomTitleRaw);
   const vd = normalizeVarKeyword(legendPrefixRaw);
@@ -102,10 +101,7 @@ export function validateVarPair(
       mode: "invalid",
       vg,
       vd,
-      message:
-        typeof t === "function"
-          ? t("da_varPairCellOrText")
-          : "Var1 and Var2 must both be cell refs (e.g. A1) or both be text (e.g. Vg). Do not mix.",
+      message: localize("da_varPairCellOrText", "Var1 and Var2 must both be cell refs (e.g. A1) or both be text (e.g. Vg). Do not mix."),
     };
   }
 
@@ -115,9 +111,8 @@ export function validateVarPair(
 
 export function validateCurveTaggingMode(
   config: ValidationConfig,
-  t?: TranslateFn,
 ): CurveTaggingValidation {
-  const varPair = validateVarPair(config?.bottomTitle, config?.legendPrefix, t);
+  const varPair = validateVarPair(config?.bottomTitle, config?.legendPrefix);
   if (!varPair.ok) return { ok: false, message: varPair.message };
 
   const fileNameVgKeywords = normalizeKeywordList(config?.fileNameVgKeywords ?? "");
@@ -126,10 +121,7 @@ export function validateCurveTaggingMode(
   if (hasFileNameRules && (!fileNameVgKeywords || !fileNameVdKeywords)) {
     return {
       ok: false,
-      message:
-        typeof t === "function"
-          ? t("da_curveTaggingFileNameBothRequired")
-          : "When using file-name tagging, please provide keywords for both Vg and Vd.",
+      message: localize("da_curveTaggingFileNameBothRequired", "When using file-name tagging, please provide keywords for both Vg and Vd."),
     };
   }
 
@@ -144,7 +136,6 @@ export function validateCurveTaggingMode(
 
 export function validateTemplateForSave<T extends ValidationConfig>(
   config: T,
-  t?: TranslateFn,
 ): {
   ok: boolean;
   message?: string;
@@ -157,12 +148,11 @@ export function validateTemplateForSave<T extends ValidationConfig>(
   if (yColumns.length === 0) {
     return {
       ok: false,
-      message:
-        typeof t === "function" ? t("da_yColumnsRequired") : Y_COLUMNS_REQUIRED_MESSAGE,
+      message: localize("da_yColumnsRequired", "Please select Y data from the preview header columns."),
     };
   }
 
-  const curveTagging = validateCurveTaggingMode(config, t);
+  const curveTagging = validateCurveTaggingMode(config);
   if (!curveTagging.ok) return { ok: false, message: curveTagging.message };
 
   const varPair = curveTagging.varPair;
@@ -184,13 +174,12 @@ export function validateTemplateForSave<T extends ValidationConfig>(
 
 export function validateTemplateForApply<T extends ValidationConfig>(
   config: T,
-  t?: TranslateFn,
 ): {
   ok: boolean;
   message?: string;
   normalized?: NormalizedTemplateForApply<T>;
 } {
-  const curveTagging = validateCurveTaggingMode(config, t);
+  const curveTagging = validateCurveTaggingMode(config);
   if (!curveTagging.ok) return { ok: false, message: curveTagging.message };
 
   const varPair = curveTagging.varPair;

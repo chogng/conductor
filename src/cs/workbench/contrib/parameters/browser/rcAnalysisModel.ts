@@ -1,3 +1,4 @@
+import { localize } from "src/cs/nls";
 import { getChartColor } from "../../plot/browser/chartColors.ts";
 import { buildNiceTicks, padLinearDomain } from "../../plot/browser/chartViewModel.ts";
 import { formatNumber } from "../../diagnostics/common/numberFormat.ts";
@@ -165,18 +166,16 @@ export const getRcStatusText = ({
   isPending,
   rowCount,
   summary,
-  t,
 }: {
   error: string;
   isPending: boolean;
   rowCount: number;
   summary: RcSummaryLike | null;
-  t: TranslateCount;
 }): string => {
-  if (isPending) return t("da_rc_status_running");
+  if (isPending) return localize("da_rc_status_running", "Rc running...");
   if (error) return error;
   if (summary) {
     return `Rc=${formatNumber(toFiniteNumber(summary.rc))} | RcW=${formatNumber(toFiniteNumber(summary.rcw))} | R2=${formatNumber(toFiniteNumber(summary.r2), { digits: 4 })}`;
   }
-  return t("da_rc_status_selected_curves", { count: rowCount });
+  return localize("da_rc_status_selected_curves", "Rc uses {count} selected statistic curves", { count: rowCount });
 };

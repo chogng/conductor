@@ -1,6 +1,6 @@
+import { localize } from "src/cs/nls";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
-import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { MutableState } from "src/cs/workbench/contrib/session/browser/sessionContext";
 import type {
   SessionFile,
@@ -364,7 +364,6 @@ type CreateTableOptions = {
   loadedChunksRef?: MutableState<Set<number>>;
   cacheFileIdRef?: MutableState<string | null>;
   cacheFileLruRef?: MutableState<Set<string>>;
-  t: TranslateFn;
 };
 
 const TABLE_LOAD_STATE_IDLE: TableLoadState = { state: "idle", message: "" };
@@ -400,7 +399,6 @@ const createTableModel = ({
   loadedChunksRef = { current: new Set() },
   cacheFileIdRef = { current: null },
   cacheFileLruRef = { current: new Set() },
-  t,
 }: CreateTableOptions) => {
   const selectedPreviewFileId = selectedFileId;
   const selectedPreviewSheetId = selectedSheetId;
@@ -995,7 +993,7 @@ const createTableModel = ({
     pendingPreviewFileIdRef.current = previewTargetSourceKey;
 
     runImmediately(() => {
-      setPreviewStatus({ state: "loading", message: t("preview_loading") });
+      setPreviewStatus({ state: "loading", message: localize("preview_loading", "Loading preview...") });
     });
 
     const postWorkerPreview = async () => {
@@ -1170,7 +1168,6 @@ const createTableModel = ({
     sourceFiles,
     selectedSource,
     setPreviewStatus,
-    t,
     touchPreviewFileCache,
   ]);
 

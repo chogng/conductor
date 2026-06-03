@@ -1,4 +1,4 @@
-import type { TranslateFn } from "src/cs/platform/language/common/language";
+import { localize } from "src/cs/nls";
 
 import { formatNumber } from "../../diagnostics/common/numberFormat.ts";
 import type { RcCurveChartSeries } from "./rcAnalysisModel.ts";
@@ -57,11 +57,9 @@ export const renderRcSummaryView = (
   {
     error,
     summary,
-    t,
   }: {
     error: string;
     summary: RcAnalysisSummary | null;
-    t: TranslateFn;
   },
 ): void => {
   container.textContent = "";
@@ -76,7 +74,7 @@ export const renderRcSummaryView = (
       root,
       "div",
       error ? "rc_summary_message rc_summary_message--error" : "rc_summary_message",
-      error || t("da_rc_no_result"),
+      error || localize("da_rc_no_result", "No Rc result yet."),
     );
     message.setAttribute("aria-live", "polite");
     return;
@@ -101,10 +99,8 @@ export const renderRcCurveHeaderView = (
   container: HTMLElement,
   {
     series,
-    t,
   }: {
     series: RcCurveChartSeries[];
-    t: TranslateFn;
   },
 ): void => {
   container.textContent = "";
@@ -113,7 +109,7 @@ export const renderRcCurveHeaderView = (
   root.className = "rc_curve_header";
   container.appendChild(root);
 
-  appendText(root, "div", "rc_curve_title", t("da_rc_curve_title"));
+  appendText(root, "div", "rc_curve_title", localize("da_rc_curve_title", "Rc Curve"));
 
   const legend = document.createElement("div");
   legend.className = "rc_curve_legend";
@@ -137,10 +133,8 @@ export const renderRcCurveRowsView = (
   container: HTMLElement,
   {
     rows,
-    t,
   }: {
     rows: RcCurveRow[];
-    t: TranslateFn;
   },
 ): void => {
   container.textContent = "";
@@ -162,7 +156,7 @@ export const renderRcCurveRowsView = (
   headerRow.className = "rc_table_header_row";
   thead.appendChild(headerRow);
 
-  for (const label of ["Vg", "Rc", "RcW", "Rsh", "R2", "n", t("da_rc_table_warnings")]) {
+  for (const label of ["Vg", "Rc", "RcW", "Rsh", "R2", "n", localize("da_rc_table_warnings", "warnings")]) {
     appendText(headerRow, "th", TABLE_HEADER_CLASS, label);
   }
 

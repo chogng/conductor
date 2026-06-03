@@ -1,4 +1,3 @@
-import type { TranslateFn } from "src/cs/platform/language/common/language";
 import { createDecorator } from "src/cs/platform/instantiation/common/instantiation";
 import type { SessionFile } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import type { MutableState } from "src/cs/workbench/contrib/session/browser/sessionContext";
@@ -96,7 +95,6 @@ export type TableInput = {
   loadedChunksRef?: MutableState<Set<number>>;
   cacheFileIdRef?: MutableState<string | null>;
   cacheFileLruRef?: MutableState<Set<string>>;
-  t: TranslateFn;
 };
 
 export type TableModel = {

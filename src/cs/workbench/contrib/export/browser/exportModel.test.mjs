@@ -44,7 +44,6 @@ test("getCanvasScopeSummary formats each canvas scope", () => {
       originCanvasExportScope: "current",
       originFilteredCanvasKind: "transfer",
       selectedCanvasCount: 1,
-      t,
     }),
     "da_origin_canvas_scope_summary_current",
   );
@@ -53,7 +52,6 @@ test("getCanvasScopeSummary formats each canvas scope", () => {
       originCanvasExportScope: "filtered",
       originFilteredCanvasKind: "output",
       selectedCanvasCount: 3,
-      t,
     }),
     'da_origin_canvas_scope_summary_filtered:{"count":3,"kind":"da_origin_filtered_canvas_kind_output"}',
   );
@@ -62,7 +60,6 @@ test("getCanvasScopeSummary formats each canvas scope", () => {
       originCanvasExportScope: "all",
       originFilteredCanvasKind: "transfer",
       selectedCanvasCount: 5,
-      t,
     }),
     'da_origin_canvas_scope_summary_all:{"count":5}',
   );
@@ -71,7 +68,6 @@ test("getCanvasScopeSummary formats each canvas scope", () => {
       originCanvasExportScope: "selected",
       originFilteredCanvasKind: "transfer",
       selectedCanvasCount: 2,
-      t,
     }),
     'da_origin_canvas_scope_summary_selected:{"count":2}',
   );
@@ -84,7 +80,6 @@ test("getExportSelectionSummary uses collection summary for merged export", () =
       selectedCanvasCount: 2,
       selectedOriginSeriesTotalCount: 7,
       separateCanvasScopeSummary: "separate",
-      t,
     }),
     'da_origin_collection_summary:{"curves":7,"files":2}',
   );
@@ -95,7 +90,6 @@ test("getExportSelectionSummary uses collection summary for merged export", () =
       selectedCanvasCount: 2,
       selectedOriginSeriesTotalCount: 7,
       separateCanvasScopeSummary: "separate",
-      t,
     }),
     "separate",
   );

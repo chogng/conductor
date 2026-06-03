@@ -9,8 +9,6 @@ import {
   lxEdit,
 } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
-import type { TranslateFn } from "src/cs/platform/language/common/language";
-import type { LooseTranslateFn } from "src/cs/workbench/common/translation";
 import type { SessionFile } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import {
   createEmptyTemplateConfig,
@@ -46,7 +44,6 @@ import {
 } from "src/cs/workbench/contrib/template/browser/templateEditorView";
 
 export type TemplateElementOptions = {
-  readonly t: TranslateFn;
   readonly importSessionElement?: HTMLElement | null;
   readonly templateImportController: TemplateImportController;
   readonly templateService: ITemplateService;
@@ -73,36 +70,8 @@ const showToast = (message: string, type: "success" | "error" | "warning" | "inf
   notificationService.showToast({ id: TEMPLATE_TOAST_ID, message, type });
 };
 
-const toTemplateTranslate = (t: TranslateFn): LooseTranslateFn =>
-  (key, vars) => t(key, normalizeTranslateVars(vars));
-
-const normalizeTranslateVars = (
-  vars: Record<string, unknown> | undefined,
-): Parameters<TranslateFn>[1] => {
-  if (!vars) {
-    return undefined;
-  }
-
-  const normalized: NonNullable<Parameters<TranslateFn>[1]> = {};
-  for (const [key, value] of Object.entries(vars)) {
-    if (
-      value === null ||
-      value === undefined ||
-      typeof value === "string" ||
-      typeof value === "number" ||
-      typeof value === "boolean"
-    ) {
-      normalized[key] = value;
-      continue;
-    }
-    normalized[key] = String(value);
-  }
-  return normalized;
-};
-
 const importTemplates = async (
   payload: unknown,
-  t: TranslateFn,
   session: ReturnType<typeof getSession>,
   templateService: ITemplateService,
 ) => {
@@ -147,7 +116,7 @@ const importTemplates = async (
     }
   }
 
-  const validation = validateTemplateForSave(draft, toTemplateTranslate(t));
+  const validation = validateTemplateForSave(draft);
   if (!validation.ok || !validation.normalized) {
     showToast(validation.message || localize("da_template_invalid_configuration", "Invalid configuration"), "warning");
     return;
@@ -613,7 +582,7 @@ export class TemplateManagerView {
   private async importTemplateFromDialog(): Promise<void> {
     try {
       await this.props.templateImportController.importTemplateFromDialog(
-        (payload) => importTemplates(payload, this.props.t, this.session, this.props.templateService),
+        (payload) => importTemplates(payload, this.session, this.props.templateService),
       );
     } catch (err) {
       showToast(localize("da_template_import_failed", "Failed to import template: {error}", { error: String(err) }), "error");
@@ -689,7 +658,7 @@ export class TemplateManagerView {
       return;
     }
 
-    const validation = validateTemplateForApply(config, toTemplateTranslate(this.props.t));
+    const validation = validateTemplateForApply(config);
     if (!validation.ok || !validation.normalized) {
       showToast(validation.message || localize("da_template_invalid_configuration", "Invalid configuration"), "warning");
       return;
@@ -710,7 +679,7 @@ export class TemplateManagerView {
       return;
     }
 
-    const validation = validateTemplateForSave(config, toTemplateTranslate(this.props.t));
+    const validation = validateTemplateForSave(config);
     if (!validation.ok || !validation.normalized) {
       showToast(validation.message || localize("da_template_invalid_configuration", "Invalid configuration"), "warning");
       return;

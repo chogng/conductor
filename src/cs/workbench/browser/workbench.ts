@@ -1,4 +1,4 @@
-import {
+﻿import {
   DisposableStore,
   toDisposable,
   type IDisposable,
@@ -6,15 +6,19 @@ import {
 import { layoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import type {
   LanguageCode,
-  TranslateFn,
+  LanguagePreference,
 } from "src/cs/platform/language/common/language";
 import type { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import type { IFileService } from "src/cs/platform/files/common/files";
 import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
-import { isLanguageCode } from "src/cs/platform/language/common/language";
+import {
+  isLanguageCode,
+  isLanguagePreference,
+  resolveLanguageCode,
+} from "src/cs/platform/language/common/language";
 import {
   createNLSConfiguration,
-  createTranslateFn,
+  localize,
   setNLSConfiguration,
 } from "src/cs/nls";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
@@ -89,7 +93,6 @@ export type WorkbenchTitlebarState = {
   readonly onPageChange?: (page: "data" | "analysis") => void;
   readonly onToggleMaximizeWindow?: () => void;
   readonly showAnalysisFileSelector?: boolean;
-  readonly t: TranslateFn;
   readonly updateVersion?: string | null;
   readonly isUpdateReadyToInstall?: boolean;
   readonly onInstallUpdate?: () => void;
@@ -131,7 +134,6 @@ export const createTitlebarState = (
         onPageChange: state.onPageChange,
         onToggleMaximizeWindow: state.onToggleMaximizeWindow,
         showAnalysisFileSelector: state.showAnalysisFileSelector,
-        t: state.t,
         updateAction: {
           isVisible: Boolean(state.isUpdateReadyToInstall),
           isReadyToInstall: state.isUpdateReadyToInstall,
@@ -141,17 +143,31 @@ export const createTitlebarState = (
       }
     : undefined;
 
-const createTranslator = (): TranslateFn => {
-  const language = isLanguageCode(window.__CONDUCTOR_INITIAL_LANGUAGE__)
-    ? window.__CONDUCTOR_INITIAL_LANGUAGE__
-    : "en";
+const applyLanguage = (language: LanguageCode): void => {
   setNLSConfiguration(createNLSConfiguration(language));
-  return createTranslateFn(language);
+};
+
+const getSystemLanguage = (): string | undefined =>
+  typeof navigator === "undefined" ? undefined : navigator.language;
+
+const getInitialLanguage = (): LanguageCode =>
+  isLanguageCode(window.__CONDUCTOR_INITIAL_LANGUAGE__)
+    ? window.__CONDUCTOR_INITIAL_LANGUAGE__
+    : resolveLanguageCode("system", getSystemLanguage());
+
+const getInitialLanguagePreference = (): LanguagePreference => {
+  const settings = window.__CONDUCTOR_INITIAL_DEVICE_ANALYSIS_SETTINGS__;
+  return settings &&
+    typeof settings === "object" &&
+    isLanguagePreference(settings.language)
+    ? settings.language
+    : "system";
 };
 
 export class Workbench extends Layout {
   private readonly window: WorkbenchWindow;
-  private t = createTranslator();
+  private language: LanguageCode = getInitialLanguage();
+  private languagePreference: LanguagePreference = getInitialLanguagePreference();
   private readonly filesPaneRef: { current: FilesPaneRef | null } = { current: null };
   private readonly session = defaultSessionModel;
   private readonly filesPane: FilesPaneHost;
@@ -169,9 +185,6 @@ export class Workbench extends Layout {
   private readonly templateImportController: TemplateImportController;
   private readonly coreSettingsController: CoreSettingsController;
   private coreSettingsState: CoreSettingsState = createCoreSettingsState();
-  private language: LanguageCode = isLanguageCode(window.__CONDUCTOR_INITIAL_LANGUAGE__)
-    ? window.__CONDUCTOR_INITIAL_LANGUAGE__
-    : "en";
   private theme: ThemeMode = isThemeMode(window.__CONDUCTOR_INITIAL_THEME__)
     ? window.__CONDUCTOR_INITIAL_THEME__
     : "system";
@@ -343,7 +356,6 @@ export class Workbench extends Layout {
       onOpenSettings: () => this.navigateToView("settings"),
       onPageChange: (page) => this.handleMainPageAction(page),
       onToggleMaximizeWindow: () => toggleWindowMaximized(),
-      t: this.t,
     };
   }
 
@@ -371,7 +383,7 @@ export class Workbench extends Layout {
       disposePreviewFileCache: tableModel.disposeFileCache,
       invalidatePreviewRequests: tableModel.invalidateRequests,
       previewFile: snapshot.previewFile,
-      previewLoadingMessage: this.t("preview_loading"),
+      previewLoadingMessage: localize("preview_loading", "Loading preview..."),
       cleanedData: snapshot.cleanedData,
       processingStatus: processing.processingStatus,
       sourceFiles: snapshot.sourceFiles,
@@ -401,7 +413,6 @@ export class Workbench extends Layout {
       onFileRemoved: sessionActions.handleFileRemoved,
       onFileSelected: sessionActions.handleFileSelected,
       selectedFileId: snapshot.selectedPreviewFileId,
-      t: this.t,
     };
   }
 
@@ -420,7 +431,6 @@ export class Workbench extends Layout {
       tableModel,
       templateImportController: this.templateImportController,
       templateService: this.templateService,
-      t: this.t,
     };
   }
 
@@ -428,7 +438,6 @@ export class Workbench extends Layout {
     return {
       tableModel,
       tableState: tableModel.getState(),
-      t: this.t,
     };
   }
 
@@ -447,7 +456,6 @@ export class Workbench extends Layout {
       processingStatus: processing.processingStatus,
       showFileSelect: false,
       shouldMountCharts: false,
-      t: this.t,
     };
   }
 
@@ -457,7 +465,6 @@ export class Workbench extends Layout {
       cleanedData: snapshot.cleanedData,
       onOriginOpenPlotOptionsChange: this.updateOriginPlotOptions,
       originOpenPlotOptions: this.coreSettingsState.originOpenPlotOptions,
-      t: this.t,
     };
   }
 
@@ -522,7 +529,6 @@ export class Workbench extends Layout {
       setLoadState: this.session.setPreviewStatus,
       setSelectedFileId: this.session.setSelectedPreviewFileId,
       setSelectedSheetId: this.session.setSelectedPreviewSheetId,
-      t: this.t,
     });
   }
 
@@ -537,7 +543,6 @@ export class Workbench extends Layout {
       previewFile: snapshot.previewFile,
       cleanedData: snapshot.cleanedData,
       sourceFiles: snapshot.sourceFiles,
-      t: this.t as any,
     };
   }
 
@@ -559,16 +564,15 @@ export class Workbench extends Layout {
       handleThemeChange: state.handleThemeChange,
       handleUpdateAnalysisSettings: state.handleUpdateAnalysisSettings,
       isWindowsDesktopShell: windowState.isWindowsDesktopShell,
-      language: this.language,
+      language: this.languagePreference,
       mergeAnalysisSettings: state.mergeAnalysisSettings,
-      t: this.t as any,
       theme: this.theme,
     };
   }
 
   private getCoreSettingsOptions() {
     return {
-      language: this.language,
+      language: this.languagePreference,
       setGmDiagnosticsEnabled: () => undefined,
       setAppearance: this.setAppearance,
       setIonIoffMethod: () => undefined,
@@ -598,19 +602,20 @@ export class Workbench extends Layout {
     return root;
   }
 
-  private readonly setLanguage = (language: LanguageCode): void => {
-    if (this.language === language) {
+  private readonly setLanguage = (preference: LanguagePreference): void => {
+    const language = resolveLanguageCode(preference, getSystemLanguage());
+    if (this.languagePreference === preference && this.language === language) {
       return;
     }
 
+    this.languagePreference = preference;
     this.language = language;
     window.__CONDUCTOR_INITIAL_LANGUAGE__ = language;
-    setNLSConfiguration(createNLSConfiguration(language));
     document.documentElement.setAttribute(
       "lang",
       language === "zh" ? "zh-CN" : "en",
     );
-    this.t = createTranslator();
+    applyLanguage(language);
     this.coreSettingsController?.update(this.getCoreSettingsOptions());
     this.renderWorkbench();
   };

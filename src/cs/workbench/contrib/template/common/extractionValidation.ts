@@ -1,9 +1,9 @@
+import { localize, type NLSVars } from "src/cs/nls";
 import { validateTemplateForApply } from "src/cs/workbench/contrib/template/common/templateValidation";
 import {
   inferXSegmentationSuggestionFromPreview,
   resolveXSegmentationMode,
 } from "src/cs/workbench/contrib/template/common/xSegmentation";
-import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/translation";
 
 const CELL_REF_RE = /^([A-Z]+)(\d+)$/;
 
@@ -125,17 +125,14 @@ export function prepareExtraction({
   config,
   previewFile,
   getPreviewRow,
-  t,
 }: {
   rawData: unknown[];
   config: TemplateConfigLike;
   previewFile: unknown;
   getPreviewRow: ((rowIndex: number) => unknown) | undefined;
-  t?: TranslateFn;
 }): PrepareExtractionResult {
-  const msg = (key: string, vars: Record<string, unknown> | null, fallback: string) => {
-    if (typeof t !== "function") return fallback;
-    return t(key, vars ?? undefined);
+  const msg = (key: string, vars: NLSVars | null, fallback: string) => {
+    return localize(key, fallback, vars ?? undefined);
   };
 
   if (!rawData || rawData.length === 0) {
@@ -150,7 +147,7 @@ export function prepareExtraction({
     };
   }
 
-  const templateValidation = validateTemplateForApply(config, t);
+  const templateValidation = validateTemplateForApply(config);
   if (!templateValidation.ok || !templateValidation.normalized) {
     return {
       ok: false,

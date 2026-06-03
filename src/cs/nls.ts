@@ -9,8 +9,6 @@ export type NLSMessages = Record<string, string>;
 
 export type NLSVars = Record<string, string | number | boolean | null | undefined>;
 
-export type TranslateFn = (key: string, vars?: NLSVars) => string;
-
 export type NLSConfiguration = {
   readonly language: NLSLanguage;
   readonly messages: NLSMessages;
@@ -83,15 +81,4 @@ export const localize = (
   const messages = getNLSMessages();
   const template = messages[key] ?? builtInMessages.en[key] ?? defaultMessage;
   return format(template, vars);
-};
-
-export const createTranslateFn = (
-  language: NLSLanguage = getNLSLanguage(),
-): TranslateFn => {
-  const messages = getBuiltInNLSMessages(language);
-
-  return (key, vars) => {
-    const template = messages[key] ?? builtInMessages.en[key] ?? key;
-    return format(template, vars);
-  };
 };

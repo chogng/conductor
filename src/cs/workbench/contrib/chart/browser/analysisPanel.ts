@@ -11,7 +11,6 @@ import {
   type LxIconDefinition,
   type LxIconStyle,
 } from "src/cs/base/browser/ui/lxicon/lxicon";
-import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type {
   CleanedEntry,
   ProcessingStatus,
@@ -58,7 +57,6 @@ export type ChartViewLazyProps = {
 
 export type AnalysisPanelProps = ChartViewLazyProps & {
   shouldMountCharts?: boolean;
-  t: TranslateFn;
 };
 
 export class AnalysisPanel {
@@ -86,7 +84,6 @@ const createAnalysisPanelContent = (props: AnalysisPanelProps): HTMLElement => {
     cleanedData = [],
     processingStatus,
     shouldMountCharts = false,
-    t,
   } = props;
 
   if (cleanedData.length > 0) {
@@ -102,23 +99,20 @@ const createAnalysisPanelContent = (props: AnalysisPanelProps): HTMLElement => {
     return createChartView({
       ...props,
       cleanedData,
-      t,
     });
   }
 
   if (processingStatus?.state === "processing") {
-    return createProcessingCard(t, processingStatus);
+    return createProcessingCard(processingStatus);
   }
 
   return createChartView({
     ...props,
     cleanedData,
-    t,
   });
 };
 
 const createProcessingCard = (
-  t: TranslateFn,
   processingStatus: Partial<ProcessingStatus>,
 ): HTMLElement => {
   const processed = processingStatus.processed ?? 0;

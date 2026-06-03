@@ -68,7 +68,6 @@ test("getRcStatusText formats pending, error, summary, and selection states", ()
       isPending: false,
       rowCount: 2,
       summary: { r2: 0.98765, rc: 10, rcw: 20 },
-      t,
     }),
     "Rc=10 | RcW=20 | R2=0.98765",
   );

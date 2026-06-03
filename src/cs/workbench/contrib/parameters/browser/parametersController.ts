@@ -1,3 +1,4 @@
+import { localize } from "src/cs/nls";
 import {
   createRcAnalyzeDevices,
   type RcAnalyzeDevice,
@@ -18,7 +19,6 @@ type RcAnalyzeImportService = {
   canAnalyzeRc(): boolean;
 };
 
-type TranslateFn = (key: string) => string;
 
 export type RunRcAnalysisResult =
   | {
@@ -37,25 +37,23 @@ export type RunRcAnalysisOptions = {
   curveProbeX: number | null;
   importService: RcAnalyzeImportService;
   rows: RcAnalyzeRow[];
-  t: TranslateFn;
 };
 
 export const runRcAnalysis = async ({
   curveProbeX,
   importService,
   rows,
-  t,
 }: RunRcAnalysisOptions): Promise<RunRcAnalysisResult> => {
   if (!importService.canAnalyzeRc()) {
     return {
-      error: t("da_rc_error_bridge_unavailable"),
+      error: localize("da_rc_error_bridge_unavailable", "Rust Rc bridge is unavailable."),
       ok: false,
     };
   }
 
   if (!rows.length) {
     return {
-      error: t("da_rc_error_no_transfer_curves"),
+      error: localize("da_rc_error_no_transfer_curves", "No transfer curves are available."),
       ok: false,
     };
   }
@@ -63,7 +61,7 @@ export const runRcAnalysis = async ({
   const devices = createRcAnalyzeDevices(rows);
   if (devices.length < 2) {
     return {
-      error: t("da_rc_error_insufficient_devices"),
+      error: localize("da_rc_error_insufficient_devices", "Rc needs at least two valid devices; three or more is recommended."),
       ok: false,
     };
   }
@@ -82,7 +80,7 @@ export const runRcAnalysis = async ({
     const responseRecord = isRecord(response) ? response : {};
     if (responseRecord.ok !== true) {
       const message = String(responseRecord.message || "").trim();
-      throw new Error(message || t("da_rc_error_analysis_failed"));
+      throw new Error(message || localize("da_rc_error_analysis_failed", "Rc analysis failed."));
     }
 
     return {
@@ -93,7 +91,7 @@ export const runRcAnalysis = async ({
     return {
       error: error instanceof Error && error.message
         ? error.message
-        : t("da_rc_error_analysis_failed"),
+        : localize("da_rc_error_analysis_failed", "Rc analysis failed."),
       ok: false,
     };
   }

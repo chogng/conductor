@@ -2,7 +2,11 @@ import "src/cs/workbench/workbench.desktop.main.ts";
 
 import { ipcRenderer } from "src/cs/base/parts/sandbox/electron-browser/globals";
 import { mainWindow } from "src/cs/base/browser/window";
-import type { LanguageCode } from "src/cs/platform/language/common/language";
+import {
+  isLanguagePreference,
+  resolveLanguageCode,
+  type LanguageCode,
+} from "src/cs/platform/language/common/language";
 import { createNLSConfiguration, setNLSConfiguration } from "src/cs/nls";
 import { InstantiationService } from "src/cs/platform/instantiation/common/instantiationService";
 import { ServiceCollection } from "src/cs/platform/instantiation/common/serviceCollection";
@@ -41,7 +45,6 @@ declare global {
 
 type BootLogger = (stage: string, extra?: string) => void;
 
-const DEFAULT_LANGUAGE: LanguageCode = "en";
 const DEFAULT_THEME: ThemeMode = "system";
 const DEFAULT_SIDEBAR_WIDTH = 280;
 const MIN_SIDEBAR_WIDTH = 200;
@@ -59,9 +62,6 @@ const createBootLogger = (label: string, startMs: number): BootLogger =>
     const suffix = extra ? ` ${extra}` : "";
     console.info(`[boot][${label}] +${elapsedMs}ms ${stage}${suffix}`);
   };
-
-const isLanguageCode = (value: unknown): value is LanguageCode =>
-  value === "en" || value === "zh";
 
 const isThemeMode = (value: unknown): value is ThemeMode =>
   value === "light" || value === "dark" || value === "system";
@@ -263,9 +263,13 @@ const prepareWorkbench = (logBoot: BootLogger) => {
   installWindowDeveloperKeybindings();
 
   const initialSettings = resolveInitialSettings();
-  const initialLanguage = isLanguageCode(initialSettings?.language)
+  const languagePreference = isLanguagePreference(initialSettings?.language)
     ? initialSettings.language
-    : DEFAULT_LANGUAGE;
+    : "system";
+  const initialLanguage = resolveLanguageCode(
+    languagePreference,
+    navigator.language,
+  );
   const initialTheme = isThemeMode(initialSettings?.theme)
     ? initialSettings.theme
     : DEFAULT_THEME;
@@ -290,7 +294,10 @@ const prepareWorkbench = (logBoot: BootLogger) => {
 
   logBoot("bootstrap:script-evaluated", `(settings=${initialSettings ? "yes" : "no"})`);
   logBoot("theme:applied", `(theme=${initialTheme})`);
-  logBoot("language:resolved", `(language=${initialLanguage})`);
+  logBoot(
+    "language:resolved",
+    `(language=${initialLanguage} preference=${languagePreference})`,
+  );
   logInitialRenderDiagnostics(logBoot);
 };
 

@@ -1,3 +1,4 @@
+import { localize } from "src/cs/nls";
 import { lxListUnordered, lxOrigin, lxSettings } from "@chogng/lxicon";
 
 import SidebarPart from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
@@ -38,7 +39,6 @@ import {
 import type { ParametersContribution } from "src/cs/workbench/contrib/parameters/browser/parameters.contribution";
 import { ParametersContributionId } from "src/cs/workbench/contrib/parameters/common/parameters";
 import type { CalculatedParameterRowData } from "src/cs/workbench/contrib/parameters/browser/parametersModel";
-import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type {
   CleanedEntry,
   CleanedSeries,
@@ -53,7 +53,6 @@ export type ResultsPaneProps = {
   readonly cleanedData: CleanedEntry[];
   readonly onOriginOpenPlotOptionsChange?: (updates: Partial<OriginPlotOptions>) => void | Promise<void>;
   readonly originOpenPlotOptions?: OriginPlotOptions;
-  readonly t: TranslateFn;
 };
 
 type DerivativePoint = {
@@ -126,12 +125,12 @@ export class ResultsPane {
     this.render(props);
 
     return {
-      ariaLabel: props.t("analysis.visualization"),
+      ariaLabel: localize("analysis.visualization", "Analysis & Visualization"),
       children: this.content,
       className: "results_sidebar_part",
       headerActions: this.createHeaderActions(props),
       onAction: (action: WorkbenchSidebarAction) => this.handleHeaderAction(action),
-      title: props.t("analysis.visualization"),
+      title: localize("analysis.visualization", "Analysis & Visualization"),
     };
   }
 
@@ -140,7 +139,7 @@ export class ResultsPane {
     this.content.replaceChildren();
 
     if (!activeFile) {
-      this.content.append(createEmptyState(props.t("da_no_processed_data")));
+      this.content.append(createEmptyState(localize("da_no_processed_data", "No Processed Data")));
       return;
     }
 
@@ -155,17 +154,17 @@ export class ResultsPane {
     return [
       this.createHeaderAction(
         "export",
-        props.t("analysis.results.export"),
+        localize("analysis.results.export", "Export"),
         lxOrigin(),
       ),
       this.createHeaderAction(
         "parameters",
-        props.t("analysis.results.parameters"),
+        localize("analysis.results.parameters", "Parameters"),
         lxListUnordered(),
       ),
       this.createHeaderAction(
         "settings",
-        props.t("da_chart_curve_settings_title"),
+        localize("da_chart_curve_settings_title", "Curve Settings"),
         lxSettings(),
       ),
     ];
@@ -199,20 +198,20 @@ export class ResultsPane {
     switch (this.activeView) {
       case "parameters":
         return this.createPane(
-          props.t("analysis.results.parameters"),
+          localize("analysis.results.parameters", "Parameters"),
           this.parametersContribution.element,
           "results_pane_section--fill",
         );
       case "settings":
         return this.createPane(
-          props.t("da_chart_curve_settings_title"),
+          localize("da_chart_curve_settings_title", "Curve Settings"),
           this.settingsPane,
           "results_pane_section--fill",
         );
       case "export":
       default:
         return this.createPane(
-          props.t("analysis.results.export"),
+          localize("analysis.results.export", "Export"),
           this.exportContribution.element,
         );
     }
@@ -261,7 +260,6 @@ export class ResultsPane {
         this.curveMode = next;
       },
       showFilteredCanvasKindSelect: true,
-      t: props.t,
     });
   }
 
@@ -273,7 +271,6 @@ export class ResultsPane {
       gmMetricHeader: "gm",
       rows: createParameterRows(activeFile),
       showTransferMetrics: isTransferLikeFile(activeFile),
-      t: props.t,
     });
   }
 
@@ -285,7 +282,6 @@ export class ResultsPane {
     this.settingsPane.replaceChildren(createCurveSettingsView({
       onChange: props.onOriginOpenPlotOptionsChange,
       options,
-      t: props.t,
     }));
   }
 
@@ -461,22 +457,20 @@ const createEmptyState = (message: string): HTMLElement => {
 const createCurveSettingsView = ({
   onChange,
   options,
-  t,
 }: {
   readonly onChange?: (updates: Partial<OriginPlotOptions>) => void | Promise<void>;
   readonly options: OriginPlotOptions;
-  readonly t: TranslateFn;
 }): HTMLElement => {
   const root = document.createElement("div");
   root.className = "results_settings";
 
   root.append(
     createSettingsRow(
-      t("da_chart_curve_type_label"),
-      createPlotTypeSelect(options, onChange, t),
+      localize("da_chart_curve_type_label", "Curve type"),
+      createPlotTypeSelect(options, onChange),
     ),
     createSettingsRow(
-      t("da_settings_origin_plot_line_width_label"),
+      localize("da_settings_origin_plot_line_width_label", "Line width"),
       createLineWidthInput(options, onChange),
     ),
   );
@@ -501,16 +495,15 @@ const createSettingsRow = (labelText: string, control: HTMLElement): HTMLElement
 const createPlotTypeSelect = (
   options: OriginPlotOptions,
   onChange: ResultsPaneProps["onOriginOpenPlotOptionsChange"],
-  t: TranslateFn,
 ): HTMLSelectElement => {
   const select = document.createElement("select");
   select.id = "results-curve-plot-type";
   select.className = "dropdown-field dropdown-field--sm results_settings_control";
   select.value = String(options.type);
   for (const option of [
-    { value: "200", label: t("da_settings_origin_plot_type_200") },
-    { value: "201", label: t("da_settings_origin_plot_type_201") },
-    { value: "202", label: t("da_settings_origin_plot_type_202") },
+    { value: "200", label: localize("da_settings_origin_plot_type_200", "Line") },
+    { value: "201", label: localize("da_settings_origin_plot_type_201", "Scatter") },
+    { value: "202", label: localize("da_settings_origin_plot_type_202", "Line + Symbol") },
   ]) {
     const item = document.createElement("option");
     item.value = option.value;

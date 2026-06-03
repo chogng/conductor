@@ -1,3 +1,4 @@
+import { localize } from "src/cs/nls";
 import SidebarPart from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import {
   FilesPane,
@@ -30,10 +31,10 @@ export class FilesPaneHost {
 
   private getSidebarOptions(props: FilesPaneProps) {
     return {
-      ariaLabel: props.t("files.importSection"),
+      ariaLabel: localize("files.importSection", "Import Files"),
       children: this.host,
       className: "files-sidebar_part",
-      title: props.t("files.importSection"),
+      title: localize("files.importSection", "Import Files"),
     };
   }
 }

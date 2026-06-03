@@ -1,7 +1,6 @@
 import type { IDisposable } from "src/cs/base/common/lifecycle";
 import type { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import type { IFileService } from "src/cs/platform/files/common/files";
-import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
 import {
   ImportSessionController,
@@ -23,7 +22,6 @@ export type ImportSessionViewletProps = {
   readonly onFileRemoved?: (fileId: string) => void;
   readonly onFileSelected?: (fileId: string | null) => void;
   readonly selectedFileId?: string | null;
-  readonly t: TranslateFn;
 };
 
 export class ImportSessionViewlet implements IDisposable {
@@ -54,7 +52,6 @@ export class ImportSessionViewlet implements IDisposable {
       onFileRemoved: props.onFileRemoved,
       onFileSelected: props.onFileSelected,
       selectedFileId: props.selectedFileId,
-      t: props.t,
     });
 
     props.importSessionRef.current = this.sessionController;
@@ -74,7 +71,6 @@ export class ImportSessionViewlet implements IDisposable {
       onFileRemoved: nextProps.onFileRemoved,
       onFileSelected: nextProps.onFileSelected,
       selectedFileId: nextProps.selectedFileId,
-      t: nextProps.t,
     });
     this.render();
   }

@@ -1,4 +1,4 @@
-import type { TranslateFn } from "src/cs/platform/language/common/language";
+import { localize } from "src/cs/nls";
 import type {
   WorkbenchTitlebarActivePage,
   WorkbenchTitlebarAnalysisFileOption,
@@ -21,69 +21,65 @@ export const normalizeWorkbenchTitlebarAnalysisFileOptions = (
     : [];
 
 export const createWorkbenchTitlebarNavActions = (
-  t: TranslateFn,
   canNavigateBack: boolean,
   canNavigateForward: boolean,
 ): WorkbenchTitlebarNavAction[] => [
   {
     id: "analysis-window-nav-back-btn",
-    title: t("da_menu_page_back"),
+    title: localize("da_menu_page_back", "Back"),
     isDisabled: !canNavigateBack,
   },
   {
     id: "analysis-window-nav-forward-btn",
-    title: t("da_menu_page_forward"),
+    title: localize("da_menu_page_forward", "Forward"),
     isDisabled: !canNavigateForward,
   },
 ];
 
 export const createWorkbenchTitlebarPageActions = (
-  t: TranslateFn,
   activePage: WorkbenchTitlebarActivePage,
 ): WorkbenchTitlebarPageAction[] => [
   {
     id: "data",
-    title: t("da_tab_data"),
+    title: localize("da_tab_data", "Import & Extraction"),
     isActive: activePage === "data",
   },
   {
     id: "analysis",
-    title: t("analysis.visualization"),
+    title: localize("analysis.visualization", "Analysis & Visualization"),
     isActive: activePage === "analysis",
   },
   {
     id: "settings",
-    title: t("da_settings_title"),
+    title: localize("da_settings_title", "Settings"),
     isActive: activePage === "settings",
   },
 ];
 
-export const createWorkbenchTitlebarWindowActions = (
-  t: TranslateFn,
-): WorkbenchTitlebarWindowAction[] => [
+export const createWorkbenchTitlebarWindowActions =
+(): WorkbenchTitlebarWindowAction[] => [
   {
     id: "minimize",
-    title: t("da_menu_window_minimize"),
+    title: localize("da_menu_window_minimize", "Minimize Window"),
   },
   {
     id: "maximize",
-    title: t("da_menu_window_maximize"),
+    title: localize("da_menu_window_maximize", "Maximize / Restore"),
   },
   {
     id: "close",
-    title: t("da_menu_window_close"),
+    title: localize("da_menu_window_close", "Close Window"),
     isDanger: true,
   },
 ];
 
-export const getWorkbenchTitlebarUpdateLabel = (t: TranslateFn): string =>
-  t("da_menu_update_available");
+export const getWorkbenchTitlebarUpdateLabel = (): string =>
+  localize("da_menu_update_available", "Update");
 
 export const getWorkbenchTitlebarUpdateTitle = (
-  t: TranslateFn,
   updateAction?: WorkbenchTitlebarUpdateAction,
 ): string => {
-  const label = getWorkbenchTitlebarUpdateLabel(t);
+  const label = getWorkbenchTitlebarUpdateLabel();
   const version =
     typeof updateAction?.version === "string" && updateAction.version.trim()
       ? updateAction.version.trim()

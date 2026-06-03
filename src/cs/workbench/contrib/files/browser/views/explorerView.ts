@@ -1,3 +1,4 @@
+import { localize } from "src/cs/nls";
 import { addDisposableListener } from "src/cs/base/browser/dom";
 import type { ListHandle } from "src/cs/base/browser/ui/list/list";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
@@ -97,7 +98,6 @@ export class ExplorerView implements IDisposable {
       onRemoveFile: this.props.onRemoveFile,
       onSelectFile: this.props.onSelectFile,
       cleanedData: this.props.cleanedData,
-      t: this.props.t,
     };
   }
 
@@ -176,9 +176,9 @@ export class ExplorerView implements IDisposable {
       return;
     }
 
-    const { error, isDragging, t } = this.props;
+    const { error, isDragging } = this.props;
 
-    this.root.setAttribute("aria-label", t("files.importSection"));
+    this.root.setAttribute("aria-label", localize("files.importSection", "Import Files"));
     this.root.classList.toggle("dragging", isDragging);
     this.root.classList.toggle("idle", !isDragging);
 

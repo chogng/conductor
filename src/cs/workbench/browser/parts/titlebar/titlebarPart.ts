@@ -3,7 +3,6 @@ import {
   normalizeLxIconSvgMarkup,
   type LxIconRenderer,
 } from "src/cs/base/browser/ui/lxicon/lxicon";
-import type { TranslateFn } from "src/cs/platform/language/common/language";
 import { layoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import {
   createWorkbenchTitlebarNavActions,
@@ -75,7 +74,6 @@ export type WorkbenchTitlebarProps = {
   onPageChange?: (page: "data" | "analysis") => void;
   onToggleMaximizeWindow?: () => void;
   showAnalysisFileSelector?: boolean;
-  t: TranslateFn;
   updateAction?: WorkbenchTitlebarUpdateAction;
 };
 
@@ -263,18 +261,16 @@ export const createWorkbenchTitlebarElement = ({
   onPageChange,
   onToggleMaximizeWindow,
   showAnalysisFileSelector = false,
-  t,
   updateAction,
 }: WorkbenchTitlebarProps): HTMLElement => {
   const normalizedAnalysisFileOptions =
     normalizeWorkbenchTitlebarAnalysisFileOptions(analysisFileOptions);
   const navActions = createWorkbenchTitlebarNavActions(
-    t,
     canNavigateBack,
     canNavigateForward,
   );
-  const pageActions = createWorkbenchTitlebarPageActions(t, activePage);
-  const windowActions = createWorkbenchTitlebarWindowActions(t);
+  const pageActions = createWorkbenchTitlebarPageActions(activePage);
+  const windowActions = createWorkbenchTitlebarWindowActions();
   const header = createElement("header", {
     id,
     className: "titlebar-root",
@@ -336,11 +332,11 @@ export const createWorkbenchTitlebarElement = ({
     const updateButton = createElement("button", {
       id: layoutService.elements.titlebarUpdateButton,
       type: "button",
-      "aria-label": getWorkbenchTitlebarUpdateTitle(t, updateAction),
-      title: getWorkbenchTitlebarUpdateTitle(t, updateAction),
+      "aria-label": getWorkbenchTitlebarUpdateTitle(updateAction),
+      title: getWorkbenchTitlebarUpdateTitle(updateAction),
       className: "titlebar-action-button",
     });
-    updateButton.textContent = getWorkbenchTitlebarUpdateLabel(t);
+    updateButton.textContent = getWorkbenchTitlebarUpdateLabel();
     updateButton.addEventListener("click", () => updateAction.onClick?.());
     rightControls.appendChild(updateButton);
   }

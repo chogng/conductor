@@ -1,4 +1,4 @@
-import type { LooseTranslateFn as TranslateFn } from "src/cs/workbench/common/translation";
+import { localize } from "src/cs/nls";
 
 const ORIGIN_BRIDGE_ERROR_PREFIX = "__ORIGIN_ERROR__:";
 
@@ -236,33 +236,32 @@ const inferOriginSuggestionKey = (
 };
 
 export const formatOriginBridgeError = (
-  t: TranslateFn,
   errorLike: unknown,
 ): ParsedOriginBridgeErrorWithMessage => {
   const detail = parseOriginBridgeError(errorLike);
   const suggestionKey = inferOriginSuggestionKey(detail);
-  const suggestionText = suggestionKey ? t(suggestionKey) : "";
+  const suggestionText = suggestionKey ? localize(suggestionKey, suggestionKey) : "";
 
   const message =
     detail.code === "ORIGIN_EXE_REQUIRED"
-      ? t("da_origin_pick_exe_required")
-      : detail.message || t("unknownError");
+      ? localize("da_origin_pick_exe_required", "Please select Origin executable path first.")
+      : detail.message || localize("unknownError", "Unknown error");
 
   const chunks = [message];
   if (detail.stage) {
-    chunks.push(t("da_origin_error_stage", { stage: detail.stage }));
+    chunks.push(localize("da_origin_error_stage", "Stage: {stage}", { stage: detail.stage }));
   }
   if (detail.hresult) {
-    chunks.push(t("da_origin_error_hresult", { hresult: detail.hresult }));
+    chunks.push(localize("da_origin_error_hresult", "HRESULT: {hresult}", { hresult: detail.hresult }));
   }
   if (detail.logPath) {
-    chunks.push(t("da_origin_error_log_path", { path: detail.logPath }));
+    chunks.push(localize("da_origin_error_log_path", "Log: {path}", { path: detail.logPath }));
   }
   if (detail.originExe) {
-    chunks.push(t("da_origin_error_origin_exe", { path: detail.originExe }));
+    chunks.push(localize("da_origin_error_origin_exe", "Origin EXE: {path}", { path: detail.originExe }));
   }
   if (detail.workerExe) {
-    chunks.push(t("da_origin_error_worker_exe", { path: detail.workerExe }));
+    chunks.push(localize("da_origin_error_worker_exe", "Origin CSV worker: {path}", { path: detail.workerExe }));
   }
   if (suggestionText && suggestionText !== suggestionKey) {
     chunks.push(suggestionText);

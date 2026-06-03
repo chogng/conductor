@@ -11,7 +11,6 @@ import {
 import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { localize } from "src/cs/nls";
-import type { TranslateFn } from "src/cs/platform/language/common/language";
 import type { FileEntry } from "src/cs/workbench/contrib/files/common/files";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import {
@@ -31,7 +30,6 @@ export type ExplorerViewerProps = {
   readonly onRemoveFile: (fileId: string | null) => void;
   readonly onSelectFile: (fileId: string | null) => void;
   readonly cleanedData?: CleanedEntry[];
-  readonly t: TranslateFn;
 };
 
 const getFileName = getTreeFileName;
@@ -225,7 +223,7 @@ export class ExplorerViewer implements IDisposable {
     container.className = "file-list-item";
     container.setAttribute(
       "aria-label",
-      this.props.t("import.fileItemAriaLabel", { fileName }),
+      localize("import.fileItemAriaLabel", "import.fileItemAriaLabel", { fileName }),
     );
     container.title = fileName;
     if (isSelected) {
@@ -277,7 +275,7 @@ export class ExplorerViewer implements IDisposable {
     removeButton.className = "file-list-item-remove";
     removeButton.setAttribute(
       "aria-label",
-      this.props.t("import.removeFileButtonLabel", { fileName }),
+      localize("import.removeFileButtonLabel", "import.removeFileButtonLabel", { fileName }),
     );
 
     removeButton.addEventListener("click", (event) => {

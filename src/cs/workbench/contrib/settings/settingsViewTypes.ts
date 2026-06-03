@@ -1,4 +1,6 @@
-import type { LanguageCode, TranslateFn } from "src/cs/platform/language/common/language";
+import type {
+  LanguagePreference,
+} from "src/cs/platform/language/common/language";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import type { Feedback } from "src/cs/workbench/contrib/settings/common/feedback";
 
@@ -108,14 +110,13 @@ export type SettingsViewProps = {
   appUpdateSettings: AppUpdateSettings;
   analysisDefaultSettings: AnalysisDefaultSettings;
   fileNameMatchingSettings: FileNameMatchingSettings;
-  language: LanguageCode;
-  onLanguageChange: (language: LanguageCode) => Promise<void> | void;
+  language: LanguagePreference;
+  onLanguageChange: (language: LanguagePreference) => Promise<void> | void;
   theme: ThemeMode;
   onThemeChange: (theme: ThemeMode) => Promise<void> | void;
   originSettings: OriginSettings;
   storageSettings: StorageSettings;
   windowCloseSettings: WindowCloseSettings;
-  t: TranslateFn;
 };
 
 export type SettingsSectionId = "general" | "appearance" | "origin" | "about";

@@ -1,3 +1,4 @@
+import { localize } from "src/cs/nls";
 import { formatOriginBridgeError } from "src/cs/workbench/contrib/origin/common/originBridgeError";
 import { analysisStoreClient } from "src/cs/workbench/services/storage/electron-sandbox/analysisStoreClient";
 import { InstantiationType, registerSingleton } from "src/cs/platform/instantiation/common/extensions";
@@ -22,7 +23,6 @@ const defaultOptions: SettingsServiceOptions = {
   handleUpdateAnalysisSettings: async () => null,
   isWindowsDesktopShell: false,
   mergeAnalysisSettings: () => {},
-  t: key => key,
 };
 
 export class BrowserSettingsService implements ISettingsServiceType {
@@ -106,16 +106,16 @@ export class BrowserSettingsService implements ISettingsServiceType {
   }
 
   public formatOriginError(error: unknown): string {
-    const detail = formatOriginBridgeError(this.options.t, error);
+    const detail = formatOriginBridgeError(error);
     if (detail.code === "ORIGIN_EXE_REQUIRED") {
-      return this.options.t("da_origin_pick_exe_required");
+      return localize("da_origin_pick_exe_required", "Please select Origin executable path first.");
     }
 
     return detail.messageText;
   }
 
   public errorMessage(error: unknown): string {
-    return getErrorMessage(error) || this.options.t("unknownError");
+    return getErrorMessage(error) || localize("unknownError", "Unknown error");
   }
 }
 

@@ -28,7 +28,6 @@ test("runRcAnalysis rejects unavailable bridge before building payload", async (
       },
     },
     rows: [createRow(), createRow({ seriesId: "series-2" })],
-    t,
   });
 
   assert.deepEqual(result, {
@@ -47,7 +46,6 @@ test("runRcAnalysis validates rows before bridge call", async () => {
       },
     },
     rows: [createRow({ length: "" })],
-    t,
   });
 
   assert.deepEqual(result, {
@@ -71,7 +69,6 @@ test("runRcAnalysis passes normalized devices to import service", async () => {
       },
     },
     rows: [createRow(), createRow({ fileId: "file-2", seriesId: "series-2" })],
-    t,
   });
 
   assert.deepEqual(result, {
@@ -92,7 +89,6 @@ test("runRcAnalysis returns response or thrown error messages", async () => {
         analyzeRc: async () => ({ ok: false, message: "fit failed" }),
       },
       rows: [createRow(), createRow({ seriesId: "series-2" })],
-      t,
     }),
     {
       error: "fit failed",
@@ -110,7 +106,6 @@ test("runRcAnalysis returns response or thrown error messages", async () => {
         },
       },
       rows: [createRow(), createRow({ seriesId: "series-2" })],
-      t,
     }),
     {
       error: "bridge failed",

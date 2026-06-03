@@ -1,5 +1,5 @@
+import { localize } from "src/cs/nls";
 import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollbar";
-import type { TranslateFn } from "src/cs/platform/language/common/language";
 import { createEmptyView } from "src/cs/workbench/contrib/table/browser/emptyView";
 import type {
   TableFile,
@@ -11,7 +11,6 @@ import type {
 export type TableViewProps = {
   readonly tableModel: TableModel;
   readonly tableState: TableState;
-  readonly t: TranslateFn;
   readonly zoomPercent: number;
 };
 
@@ -89,7 +88,7 @@ export class TableView {
   }
 
   private render(): void {
-    const { tableState, t } = this.props;
+    const { tableState } = this.props;
     const tableFile = tableState.file;
     this.element.dataset.state = tableState.loadState.state;
 
@@ -97,7 +96,7 @@ export class TableView {
       this.header.hidden = true;
       this.scrollArea.viewport.replaceChildren();
       this.scrollArea.viewport.append(createEmptyView({
-        description: t("preview_empty_hint"),
+        description: localize("preview_empty_hint", "Select a file to preview"),
       }));
       this.scrollArea.layout();
       return;
@@ -107,8 +106,8 @@ export class TableView {
       this.header.hidden = true;
       this.scrollArea.viewport.replaceChildren();
       this.scrollArea.viewport.append(createEmptyView({
-        title: t("preview_loading"),
-        description: tableState.loadState.message || t("preview_loading_hint"),
+        title: localize("preview_loading", "Loading preview..."),
+        description: tableState.loadState.message || localize("preview_loading_hint", "Parsing CSV preview, please wait."),
       }));
       this.scrollArea.layout();
       return;
@@ -124,7 +123,7 @@ export class TableView {
   }
 
   private renderTable(): void {
-    const { tableModel, tableState, t, zoomPercent } = this.props;
+    const { tableModel, tableState, zoomPercent } = this.props;
     const tableFile = tableState.file;
     this.body.style.setProperty("--table-view-zoom", String(zoomPercent / 100));
 
@@ -133,7 +132,7 @@ export class TableView {
     if (rowCount === 0 || columnCount === 0) {
       this.header.hidden = true;
       this.scrollArea.viewport.replaceChildren(createEmptyView({
-        description: t("preview_empty_hint"),
+        description: localize("preview_empty_hint", "Select a file to preview"),
       }));
       return;
     }
