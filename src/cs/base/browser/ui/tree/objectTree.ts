@@ -13,6 +13,7 @@ import {
 } from "src/cs/base/browser/ui/tree/objectTreeModel";
 import type {
   IObjectTreeOptions,
+  IObjectTreeOptionsUpdate,
   ITreeElementRenderDetails,
   ITreeNode,
   ITreeRenderer,
@@ -33,6 +34,17 @@ const renderChevron = (collapsed: boolean): HTMLSpanElement => {
   return icon;
 };
 
+type TreeRowTemplate<T, TTemplateData> = {
+  collapsed: boolean;
+  disclosure: HTMLButtonElement;
+  disclosureIcon: HTMLSpanElement;
+  entry: FlattenedObjectTreeNode<T> | null;
+  item: HTMLDivElement;
+  label: HTMLDivElement;
+  renderer: ITreeRenderer<T, TTemplateData> | null;
+  templateData: TTemplateData | null;
+};
+
 const isInteractiveEventTarget = (event: MouseEvent): boolean => {
   const target = event.target;
   if (!(target instanceof Element)) {
@@ -44,15 +56,23 @@ const isInteractiveEventTarget = (event: MouseEvent): boolean => {
   );
 };
 
-export class ObjectTree<T> implements ListHandle {
+export class ObjectTree<T, TTemplateData = HTMLElement> implements ListHandle {
   private readonly root: HTMLDivElement;
   private readonly listHost: HTMLDivElement;
   private readonly list: ListView<FlattenedObjectTreeNode<T>>;
+  private readonly rowTemplates = new WeakMap<HTMLElement, TreeRowTemplate<T, TTemplateData>>();
+  private readonly rowTemplateSet = new Set<TreeRowTemplate<T, TTemplateData>>();
   private focusedKey: string | null = null;
+  private flattenedItems: FlattenedObjectTreeNode<T>[] = [];
+  private flattenedItemsSource: T[] | null = null;
+  private flattenedCollapsedKey = "";
+  private flattenedGetChildren: IObjectTreeOptions<T, TTemplateData>["getChildren"] | null = null;
+  private flattenedGetKey: IObjectTreeOptions<T, TTemplateData>["getKey"] | null = null;
   private readonly model: ObjectTreeModel<T>;
-  private options: IObjectTreeOptions<T>;
+  private options: IObjectTreeOptions<T, TTemplateData>;
+  private readonly listGetKey = (entry: FlattenedObjectTreeNode<T>) => entry.key;
 
-  constructor(host: HTMLElement, options: IObjectTreeOptions<T>) {
+  constructor(host: HTMLElement, options: IObjectTreeOptions<T, TTemplateData>) {
     this.options = options;
     this.model = new ObjectTreeModel(options);
 
@@ -68,18 +88,31 @@ export class ObjectTree<T> implements ListHandle {
   }
 
   setChildren(items: T[]): void {
-    this.update({ ...this.options, items });
+    this.options = { ...this.options, items };
+    this.model.update(this.options);
+    this.list.setProps(this.createListOptions());
   }
 
-  update(options: IObjectTreeOptions<T>): void {
+  update(options: IObjectTreeOptions<T, TTemplateData>): void {
     this.options = options;
     this.model.update(options);
     this.root.className = classNames("ui-tree", options.className);
     this.list.setProps(this.createListOptions());
   }
 
+  updateOptions(options: IObjectTreeOptionsUpdate<T, TTemplateData>): void {
+    this.options = { ...this.options, ...options };
+    this.model.update(this.options);
+    this.root.className = classNames("ui-tree", this.options.className);
+    this.list.setProps(this.createListOptions());
+  }
+
   dispose(): void {
     this.list.dispose();
+    for (const template of this.rowTemplateSet) {
+      this.disposeRendererTemplate(template);
+    }
+    this.rowTemplateSet.clear();
     this.root.remove();
   }
 
@@ -108,7 +141,7 @@ export class ObjectTree<T> implements ListHandle {
   }
 
   private createListOptions() {
-    const flattenedItems = this.model.flatten();
+    const flattenedItems = this.getFlattenedItems();
     const options = this.options;
 
     return {
@@ -116,7 +149,7 @@ export class ObjectTree<T> implements ListHandle {
       delegate: this.createListDelegate(),
       empty: options.empty,
       disposeEmpty: options.disposeEmpty,
-      getKey: (entry: FlattenedObjectTreeNode<T>) => entry.key,
+      getKey: this.listGetKey,
       gap: options.gap,
       items: flattenedItems,
       minVirtualCount: options.minVirtualCount,
@@ -139,8 +172,19 @@ export class ObjectTree<T> implements ListHandle {
         index: number,
         container: HTMLElement,
       ) => {
-        options.renderer.disposeElement?.(this.toTreeNode(entry), index, container);
-        container.replaceChildren();
+        const template = this.rowTemplates.get(container);
+        if (template?.templateData) {
+          options.renderer.disposeElement?.(
+            this.toTreeNode(entry),
+            index,
+            template.templateData,
+          );
+          if (!options.renderer.renderTemplate) {
+            template.label.replaceChildren();
+          }
+          template.entry = null;
+          template.label.className = "ui-tree__label";
+        }
       },
       role: "tree",
       rowRole: "treeitem",
@@ -161,7 +205,7 @@ export class ObjectTree<T> implements ListHandle {
   }
 
   private handleKeyDown(event: KeyboardEvent): void {
-    const focusedEntry = this.model.flatten().find(
+    const focusedEntry = this.getFlattenedItems().find(
       (entry) => entry.key === this.focusedKey,
     );
 
@@ -239,8 +283,6 @@ export class ObjectTree<T> implements ListHandle {
     state: ListRenderState,
     container: HTMLElement,
   ): void {
-    container.replaceChildren();
-
     const collapsed = entry.expandable && this.model.isCollapsed(entry.key);
     const row = container.parentElement;
     if (row) {
@@ -255,45 +297,131 @@ export class ObjectTree<T> implements ListHandle {
       this.focusedKey = entry.key;
     }
 
-    const item = document.createElement("div");
-    item.className = "ui-tree__item";
-    item.dataset.expandable = entry.expandable ? "true" : "false";
-    item.style.paddingLeft = `${entry.depth * 16}px`;
-
-    const disclosure = document.createElement("button");
-    disclosure.type = "button";
-    disclosure.className = "ui-tree__disclosure";
-    disclosure.disabled = !entry.expandable;
-    disclosure.replaceChildren();
+    const template = this.getRowTemplate(container);
+    template.entry = entry;
+    template.collapsed = collapsed;
+    template.item.dataset.expandable = entry.expandable ? "true" : "false";
+    template.item.style.paddingLeft = `${entry.depth * 16}px`;
+    template.label.className = "ui-tree__label";
+    template.disclosure.disabled = !entry.expandable;
     if (entry.expandable) {
-      disclosure.setAttribute(
+      template.disclosure.setAttribute(
         "aria-label",
         collapsed
           ? localize("tree.expand", "Expand")
           : localize("tree.collapse", "Collapse"),
       );
-      disclosure.setAttribute("aria-expanded", String(!collapsed));
-      disclosure.appendChild(renderChevron(collapsed));
+      template.disclosure.setAttribute("aria-expanded", String(!collapsed));
+      template.disclosureIcon.dataset.collapsed = collapsed ? "true" : "false";
+      if (template.disclosureIcon.parentElement !== template.disclosure) {
+        template.disclosure.replaceChildren(template.disclosureIcon);
+      }
+    } else {
+      template.disclosure.removeAttribute("aria-label");
+      template.disclosure.removeAttribute("aria-expanded");
+      template.disclosure.replaceChildren();
     }
 
-    disclosure.addEventListener("click", (event) => {
-      event.stopPropagation();
-      if (!entry.expandable) return;
-      this.setCollapsed(entry.key, !collapsed);
-    });
-
-    const label = document.createElement("div");
-    label.className = "ui-tree__label";
-    this.options.renderer.renderElement(this.toTreeNode(entry), index, label, {
+    const templateData = this.getRendererTemplateData(template);
+    this.options.renderer.renderElement(this.toTreeNode(entry), index, templateData, {
       collapsed,
       depth: entry.depth,
       expandable: entry.expandable,
       focused: state.focused,
       selected: state.selected,
     });
+  }
+
+  private getRowTemplate(container: HTMLElement): TreeRowTemplate<T, TTemplateData> {
+    const existing = this.rowTemplates.get(container);
+    if (existing) {
+      if (existing.item.parentElement !== container) {
+        container.appendChild(existing.item);
+      }
+      return existing;
+    }
+
+    const item = document.createElement("div");
+    item.className = "ui-tree__item";
+
+    const disclosure = document.createElement("button");
+    disclosure.type = "button";
+    disclosure.className = "ui-tree__disclosure";
+
+    const label = document.createElement("div");
+    label.className = "ui-tree__label";
+
+    const template: TreeRowTemplate<T, TTemplateData> = {
+      collapsed: false,
+      disclosure,
+      disclosureIcon: renderChevron(true),
+      entry: null,
+      item,
+      label,
+      renderer: null,
+      templateData: null,
+    };
+    disclosure.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const entry = template.entry;
+      if (!entry?.expandable) return;
+      this.setCollapsed(entry.key, !template.collapsed);
+    });
 
     item.append(disclosure, label);
     container.appendChild(item);
+    this.rowTemplates.set(container, template);
+    this.rowTemplateSet.add(template);
+    return template;
+  }
+
+  private getRendererTemplateData(
+    template: TreeRowTemplate<T, TTemplateData>,
+  ): TTemplateData {
+    const renderer = this.options.renderer;
+    if (template.templateData && template.renderer === renderer) {
+      return template.templateData;
+    }
+
+    this.disposeRendererTemplate(template);
+    template.renderer = renderer;
+    template.templateData = renderer.renderTemplate
+      ? renderer.renderTemplate(template.label)
+      : template.label as TTemplateData;
+    return template.templateData;
+  }
+
+  private disposeRendererTemplate(
+    template: TreeRowTemplate<T, TTemplateData>,
+  ): void {
+    if (!template.templateData || !template.renderer) {
+      return;
+    }
+
+    template.renderer.disposeTemplate?.(template.templateData);
+    if (template.renderer.renderTemplate) {
+      template.label.replaceChildren();
+    }
+    template.renderer = null;
+    template.templateData = null;
+  }
+
+  private getFlattenedItems(): FlattenedObjectTreeNode<T>[] {
+    const collapsedKey = this.model.getCollapsedKeys().join("\n");
+    if (
+      this.flattenedItemsSource !== this.options.items ||
+      this.flattenedCollapsedKey !== collapsedKey ||
+      this.flattenedGetChildren !== this.options.getChildren ||
+      this.flattenedGetKey !== this.options.getKey
+    ) {
+      this.flattenedItems = this.model.flatten();
+      this.flattenedItemsSource = this.options.items;
+      this.flattenedCollapsedKey = collapsedKey;
+      this.flattenedGetChildren = this.options.getChildren;
+      this.flattenedGetKey = this.options.getKey;
+    }
+
+    return this.flattenedItems;
   }
 
   private toTreeNode(entry: FlattenedObjectTreeNode<T>): ITreeNode<T> {
@@ -309,6 +437,7 @@ export class ObjectTree<T> implements ListHandle {
 
 export type {
   IObjectTreeOptions,
+  IObjectTreeOptionsUpdate,
   ITreeElementRenderDetails,
   ITreeNode,
   ITreeRenderer,

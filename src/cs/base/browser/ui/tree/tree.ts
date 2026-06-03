@@ -21,18 +21,20 @@ export type ITreeElementRenderDetails = {
   readonly selected: boolean;
 };
 
-export type ITreeRenderer<T> = {
+export type ITreeRenderer<T, TTemplateData = HTMLElement> = {
+  renderTemplate?: (container: HTMLElement) => TTemplateData;
   renderElement: (
     node: ITreeNode<T>,
     index: number,
-    container: HTMLElement,
+    templateData: TTemplateData,
     details: ITreeElementRenderDetails,
   ) => void;
   disposeElement?: (
     node: ITreeNode<T>,
     index: number,
-    container: HTMLElement,
+    templateData: TTemplateData,
   ) => void;
+  disposeTemplate?: (templateData: TTemplateData) => void;
 };
 
 export type ITreeSelectionEvent<T> = {
@@ -55,7 +57,7 @@ export type IAsyncDataSource<TInput, T> = {
   hasChildren: (element: TInput | T) => boolean;
 };
 
-export type IObjectTreeOptions<T> = {
+export type IObjectTreeOptions<T, TTemplateData = HTMLElement> = {
   readonly className?: string;
   readonly collapsedKeys?: string[];
   readonly delegate: ITreeVirtualDelegate<T>;
@@ -72,7 +74,10 @@ export type IObjectTreeOptions<T> = {
   readonly onScroll?: (event: Event) => void;
   readonly onSelect?: (event: ITreeSelectionEvent<T>) => void;
   readonly overscanRows?: number;
-  readonly renderer: ITreeRenderer<T>;
+  readonly renderer: ITreeRenderer<T, TTemplateData>;
   readonly selectedKey?: string | null;
   readonly viewportClassName?: string;
 };
+
+export type IObjectTreeOptionsUpdate<T, TTemplateData = HTMLElement> =
+  Partial<Omit<IObjectTreeOptions<T, TTemplateData>, "items">>;
