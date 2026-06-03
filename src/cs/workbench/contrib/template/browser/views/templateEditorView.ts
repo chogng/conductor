@@ -11,7 +11,6 @@ import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import { localize } from "src/cs/nls";
-import { ViewPaneContainer } from "src/cs/workbench/browser/parts/views/viewPaneContainer";
 import { X_UNIT_VALUES, Y_UNIT_VALUES } from "src/cs/workbench/contrib/plot/common/units";
 import type { TemplateConfig } from "src/cs/workbench/contrib/template/common/templateManagerUtils";
 
@@ -106,29 +105,25 @@ export class TemplateEditorView {
     this.element = document.createElement("div");
     this.element.className = "template_config_panel_content";
 
-    const panes = this.disposables.add(new ViewPaneContainer({
-      className: "template_form",
-      collapsedPaneIds: ["optional"],
-      id: "template_form",
-    }));
-    const form = panes.element;
+    const form = document.createElement("div");
+    form.className = "template_form";
 
     const templateFields = this.createSection(
-      panes,
+      form,
       null,
     );
     const xFields = this.createSection(
-      panes,
+      form,
       localize("template_x_section", "X"),
       "x",
     );
     const yFields = this.createSection(
-      panes,
+      form,
       localize("template_y_section", "Y"),
       "y",
     );
     const optionalFields = this.createSection(
-      panes,
+      form,
       localize("template_optional_section", "Optional"),
       "optional",
     );
@@ -320,7 +315,7 @@ export class TemplateEditorView {
   }
 
   private createSection(
-    container: ViewPaneContainer,
+    container: HTMLElement,
     title: string | null,
     paneId?: TemplatePaneId,
   ): HTMLElement {
@@ -331,14 +326,13 @@ export class TemplateEditorView {
     fields.className = "template_form_grid";
 
     if (title && paneId) {
-      const pane = container.addPane({
-        bodyClassName: "template_form_grid",
-        className: "template_form_section",
-        id: paneId,
+      const sectionPane = this.disposables.add(new TemplateFormSection({
+        collapsed: paneId === "optional",
+        id: `template_form_${paneId}`,
         title,
-        titleClassName: "template_form_section_title",
-      });
-      return pane.body;
+      }));
+      container.append(sectionPane.element);
+      return sectionPane.body;
     } else if (title) {
       const heading = document.createElement("h3");
       heading.className = "template_form_section_title";
@@ -346,7 +340,7 @@ export class TemplateEditorView {
       section.append(heading);
     }
     section.append(fields);
-    container.element.append(section);
+    container.append(section);
     return fields;
   }
 
@@ -510,6 +504,69 @@ type SelectField<T extends string> = {
   label: HTMLElement;
   onSelect: (value: T) => void;
 };
+
+class TemplateFormSection {
+  public readonly body: HTMLElement;
+  public readonly element: HTMLElement;
+  private readonly button: HTMLButtonElement;
+  private readonly disposables = new DisposableStore();
+  private collapsed: boolean;
+
+  constructor({
+    collapsed,
+    id,
+    title,
+  }: {
+    readonly collapsed: boolean;
+    readonly id: string;
+    readonly title: string;
+  }) {
+    this.collapsed = collapsed;
+    this.element = document.createElement("section");
+    this.element.className = "template_form_section template_form_collapsible";
+    this.element.dataset.collapsed = String(collapsed);
+
+    this.button = document.createElement("button");
+    this.button.type = "button";
+    this.button.className = "template_form_section_header";
+    this.button.setAttribute("aria-controls", `${id}_body`);
+    this.button.setAttribute("aria-expanded", String(!collapsed));
+
+    const icon = document.createElement("span");
+    icon.className = "template_form_section_twisty";
+    icon.setAttribute("aria-hidden", "true");
+    icon.append(createLxIcon({ icon: LxIcon.chevronRight, size: 14 }));
+
+    const label = document.createElement("span");
+    label.className = "template_form_section_title";
+    label.textContent = title;
+
+    this.body = document.createElement("div");
+    this.body.id = `${id}_body`;
+    this.body.className = "template_form_grid";
+    this.body.hidden = collapsed;
+
+    this.disposables.add(addDisposableListener(this.button, "click", () => {
+      this.setCollapsed(!this.collapsed);
+    }));
+
+    this.button.append(icon, label);
+    this.element.append(this.button, this.body);
+  }
+
+  private setCollapsed(collapsed: boolean): void {
+    this.collapsed = collapsed;
+    this.element.dataset.collapsed = String(collapsed);
+    this.button.setAttribute("aria-expanded", String(!collapsed));
+    this.body.hidden = collapsed;
+  }
+
+  public dispose(): void {
+    this.disposables.dispose();
+    this.element.replaceChildren();
+    this.element.remove();
+  }
+}
 
 const createField = ({
   label,

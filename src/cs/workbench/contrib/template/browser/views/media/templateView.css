@@ -41,8 +41,43 @@
   padding-top: 12px;
 }
 
+.template_form_section_header {
+  display: flex;
+  min-width: 0;
+  height: 20px;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.template_form_section_header:focus-visible {
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px rgb(var(--accent) / 0.16);
+  outline: none;
+}
+
+.template_form_section_twisty {
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  color: rgb(var(--text-secondary) / 1);
+}
+
+.template_form_collapsible[data-collapsed="false"] .template_form_section_twisty {
+  transform: rotate(90deg);
+}
+
 .template_form_section_title {
   margin: 0;
+  min-width: 0;
   font-size: 12px;
   line-height: 16px;
   font-weight: 600;
