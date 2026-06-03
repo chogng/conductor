@@ -1,5 +1,5 @@
 import type { TableSelection } from "src/cs/workbench/contrib/table/common/tableService";
-import type { TemplatePickFieldName } from "src/cs/workbench/contrib/template/browser/templateEditorView";
+import type { TemplatePickFieldName } from "src/cs/workbench/contrib/template/browser/views/templateEditorView";
 import type { TemplateConfig } from "src/cs/workbench/contrib/template/common/templateManagerUtils";
 
 export const normalizeColumnIndexes = (columns: readonly number[] | undefined): number[] =>

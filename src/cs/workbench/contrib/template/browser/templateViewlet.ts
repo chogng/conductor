@@ -8,9 +8,9 @@ import type { TemplateImportController } from "src/cs/workbench/contrib/template
 import {
   TemplateView,
   type TemplateViewOptions,
-} from "src/cs/workbench/contrib/template/browser/templateView";
+} from "src/cs/workbench/contrib/template/browser/views/templateView";
 
-import "src/cs/workbench/contrib/template/browser/media/templateView.css";
+import "src/cs/workbench/contrib/template/browser/media/templateViewlet.css";
 
 const TEMPLATE_TITLE = localize("template_editor_title", "Template");
 

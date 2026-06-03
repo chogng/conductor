@@ -35,17 +35,19 @@ import type {
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import type { TemplateImportController } from "src/cs/workbench/contrib/template/browser/templateImportController";
 import type { TableModel } from "src/cs/workbench/contrib/table/common/tableService";
-import { TemplateApplyView } from "src/cs/workbench/contrib/template/browser/templateApplyView";
+import { TemplateApplyView } from "src/cs/workbench/contrib/template/browser/views/templateApplyView";
 import {
   TemplateEditorView,
   type TemplatePickFieldName,
-} from "src/cs/workbench/contrib/template/browser/templateEditorView";
+} from "src/cs/workbench/contrib/template/browser/views/templateEditorView";
 import {
   areColumnIndexesEqual,
   normalizeColumnIndexes,
   resolveTemplateSelectionUpdate,
   toColumnLabel,
 } from "src/cs/workbench/contrib/template/browser/templateSelection";
+
+import "src/cs/workbench/contrib/template/browser/views/media/templateView.css";
 
 export type TemplateViewOptions = {
   readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
