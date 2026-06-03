@@ -1,5 +1,5 @@
 import { localize } from "src/cs/nls";
-import { addDisposableListener } from "src/cs/base/browser/dom";
+import { DragAndDropObserver } from "src/cs/base/browser/dom";
 import type { ListHandle } from "src/cs/base/browser/ui/list/list";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { IMPORT_ERROR_TOAST_ID } from "src/cs/workbench/contrib/files/browser/fileConstants";
@@ -72,16 +72,13 @@ export class ExplorerView implements IDisposable {
 
   private registerEvents(): void {
     this.disposables.add(
-      addDisposableListener(this.root, "click", this.handleRootClick),
-    );
-    this.disposables.add(
-      addDisposableListener(this.viewport, "dragover", this.handleDragOver),
-    );
-    this.disposables.add(
-      addDisposableListener(this.viewport, "dragleave", this.handleDragLeave),
-    );
-    this.disposables.add(
-      addDisposableListener(this.viewport, "drop", this.handleDrop),
+      new DragAndDropObserver(this.viewport, {
+        onDragEnter: this.handleDragEnter,
+        onDragLeave: this.handleDragLeave,
+        onDragOver: this.handleDragOver,
+        onDrop: this.handleDrop,
+        onDragEnd: this.handleDragEnd,
+      }),
     );
   }
 
@@ -124,33 +121,19 @@ export class ExplorerView implements IDisposable {
     return { filledRoot, listHost, root, viewport };
   }
 
-  private readonly handleRootClick = (event: MouseEvent): void => {
-    if (this.props.files.length > 0) {
-      return;
-    }
-
-    const target = event.target;
-    if (
-      target instanceof HTMLElement &&
-      target.closest("button, input, a, [role='button']")
-    ) {
-      return;
-    }
-
-    this.openFileDialog();
+  private readonly handleDragEnter = (event: DragEvent): void => {
+    event.preventDefault();
+    this.setDropEffect(event);
+    this.props.onDraggingChange(true);
   };
 
   private readonly handleDragOver = (event: DragEvent): void => {
     event.preventDefault();
+    this.setDropEffect(event);
     this.props.onDraggingChange(true);
   };
 
-  private readonly handleDragLeave = (event: DragEvent): void => {
-    const relatedTarget = event.relatedTarget;
-    if (relatedTarget instanceof Node && this.viewport.contains(relatedTarget)) {
-      return;
-    }
-
+  private readonly handleDragLeave = (): void => {
     this.props.onDraggingChange(false);
   };
 
@@ -159,6 +142,16 @@ export class ExplorerView implements IDisposable {
     this.props.onDraggingChange(false);
     this.props.onDropFiles(event.dataTransfer);
   };
+
+  private readonly handleDragEnd = (): void => {
+    this.props.onDraggingChange(false);
+  };
+
+  private setDropEffect(event: DragEvent): void {
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = "copy";
+    }
+  }
 
   private render(): void {
     if (this.disposed) {

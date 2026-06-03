@@ -1,5 +1,5 @@
 import { Emitter } from "src/cs/base/common/event";
-import { DisposableStore, type IDisposable, toDisposable } from "src/cs/base/common/lifecycle";
+import { Disposable, DisposableStore, type IDisposable, toDisposable } from "src/cs/base/common/lifecycle";
 import { StandardMouseEvent, type IMouseEvent } from "src/cs/base/browser/mouseEvent";
 import { type CodeWindow, ensureCodeWindow, mainWindow, nextWindowId } from "src/cs/base/browser/window";
 
@@ -15,6 +15,13 @@ export const EventType = {
     CLICK: "click",
     CONTEXT_MENU: "contextmenu",
     DBLCLICK: "dblclick",
+    DRAG: "drag",
+    DRAG_END: "dragend",
+    DRAG_ENTER: "dragenter",
+    DRAG_LEAVE: "dragleave",
+    DRAG_OVER: "dragover",
+    DRAG_START: "dragstart",
+    DROP: "drop",
     FOCUS: "focus",
     FOCUS_IN: "focusin",
     FOCUS_OUT: "focusout",
@@ -222,6 +229,74 @@ export function addStandardDisposableListener(
         : handler as EventListener;
 
     return addDisposableListener(node, type, wrappedHandler as EventListener, options);
+}
+
+export interface IDragAndDropObserverCallbacks {
+    readonly onDragEnter?: (event: DragEvent) => void;
+    readonly onDragLeave?: (event: DragEvent) => void;
+    readonly onDrop?: (event: DragEvent) => void;
+    readonly onDragEnd?: (event: DragEvent) => void;
+    readonly onDragStart?: (event: DragEvent) => void;
+    readonly onDrag?: (event: DragEvent) => void;
+    readonly onDragOver?: (event: DragEvent, dragDuration: number) => void;
+}
+
+export class DragAndDropObserver extends Disposable {
+    private counter = 0;
+    private dragStartTime = 0;
+
+    constructor(
+        private readonly element: HTMLElement,
+        private readonly callbacks: IDragAndDropObserverCallbacks,
+    ) {
+        super();
+        this.registerListeners();
+    }
+
+    private registerListeners(): void {
+        if (this.callbacks.onDragStart) {
+            this._register(addDisposableListener(this.element, EventType.DRAG_START, event => {
+                this.callbacks.onDragStart?.(event);
+            }));
+        }
+
+        if (this.callbacks.onDrag) {
+            this._register(addDisposableListener(this.element, EventType.DRAG, event => {
+                this.callbacks.onDrag?.(event);
+            }));
+        }
+
+        this._register(addDisposableListener(this.element, EventType.DRAG_ENTER, event => {
+            this.counter++;
+            this.dragStartTime = event.timeStamp;
+            this.callbacks.onDragEnter?.(event);
+        }));
+
+        this._register(addDisposableListener(this.element, EventType.DRAG_OVER, event => {
+            event.preventDefault();
+            this.callbacks.onDragOver?.(event, event.timeStamp - this.dragStartTime);
+        }));
+
+        this._register(addDisposableListener(this.element, EventType.DRAG_LEAVE, event => {
+            this.counter--;
+            if (this.counter === 0) {
+                this.dragStartTime = 0;
+                this.callbacks.onDragLeave?.(event);
+            }
+        }));
+
+        this._register(addDisposableListener(this.element, EventType.DRAG_END, event => {
+            this.counter = 0;
+            this.dragStartTime = 0;
+            this.callbacks.onDragEnd?.(event);
+        }));
+
+        this._register(addDisposableListener(this.element, EventType.DROP, event => {
+            this.counter = 0;
+            this.dragStartTime = 0;
+            this.callbacks.onDrop?.(event);
+        }));
+    }
 }
 
 export interface IDimension {

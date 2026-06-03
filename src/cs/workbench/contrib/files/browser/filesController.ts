@@ -199,6 +199,10 @@ export class FilesController implements FilesPaneRef, IDisposable {
   };
 
   private readonly handleDraggingChange = (isDragging: boolean): void => {
+    if (this.isDragging === isDragging) {
+      return;
+    }
+
     this.isDragging = isDragging;
     this.syncView();
   };

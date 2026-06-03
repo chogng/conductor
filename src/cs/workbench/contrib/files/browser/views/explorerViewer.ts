@@ -13,6 +13,8 @@ import {
   type IObjectTreeOptions,
   type ITreeElementRenderDetails,
   type ITreeNode,
+  type ITreeRenderer,
+  type ITreeSelectionEvent,
 } from "src/cs/base/browser/ui/tree/objectTree";
 import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
@@ -45,10 +47,54 @@ export type ExplorerViewerProps = {
 const getFileName = getTreeFileName;
 const FILE_ROW_HEIGHT = 28;
 const FILE_HOVER_HIDE_DELAY_MS = 120;
+const HOVER_THUMBNAIL_CACHE_LIMIT = 12;
 
 type FileItemMeta = {
   readonly isWarning: boolean;
   readonly summary: string;
+};
+
+type FileItemTemplate = {
+  readonly actions: HTMLDivElement;
+  readonly content: HTMLDivElement;
+  fileId: string | null;
+  readonly host: HTMLElement;
+  readonly name: HTMLSpanElement;
+  readonly removeButton: HTMLButtonElement;
+};
+
+type FolderItemTemplate = {
+  actionButton: IDisposable;
+  readonly content: HTMLDivElement;
+  currentNode: FileTreeNode | null;
+  readonly controls: HTMLDivElement;
+  readonly countBadge: CountBadge;
+  readonly host: HTMLElement;
+  readonly name: HTMLSpanElement;
+};
+
+type TreeItemTemplate = {
+  readonly file: FileItemTemplate;
+  readonly folder: FolderItemTemplate;
+};
+
+type TreeModelCache = {
+  readonly folderKeys: string[];
+  readonly items: FileTreeNode[];
+  readonly signature: string;
+};
+
+type HoverContent = {
+  readonly isSelected: boolean;
+  readonly isWarning: boolean;
+  readonly processedFile: CleanedEntry | null;
+  readonly summary: string;
+};
+
+type HoverThumbnailCacheEntry = {
+  readonly file: CleanedEntry;
+  readonly node: HTMLElement;
+  lastUsed: number;
 };
 
 const getFileItemMeta = (fileEntry: FileEntry): FileItemMeta | null => {
@@ -89,14 +135,27 @@ const appendIcon = (
 export class ExplorerViewer implements IDisposable {
   private readonly disposables = new DisposableStore();
   private readonly hoverDisposables = new DisposableStore();
-  private readonly treeView: ObjectTree<FileTreeNode>;
+  private readonly treeView: ObjectTree<FileTreeNode, TreeItemTemplate>;
+  private readonly hoverThumbnailCache = new Map<string, HoverThumbnailCacheEntry>();
   private hoverView: ContentView | null = null;
   private hoverAnchor: HTMLElement | null = null;
+  private hoverContent: HoverContent | null = null;
   private hoverHideTimeout: ReturnType<typeof setTimeout> | null = null;
-  private readonly folderItemDisposables = new WeakMap<HTMLElement, DisposableStore>();
+  private hoverCacheUse = 0;
   private expandedKeys: string[] = [];
   private knownFolderKeys = new Set<string>();
+  private treeModel: TreeModelCache = {
+    folderKeys: [],
+    items: [],
+    signature: "",
+  };
   private props: ExplorerViewerProps;
+  private readonly treeDelegate = {
+    getHeight: () => FILE_ROW_HEIGHT,
+  };
+  private readonly getTreeNodeChildren = (node: FileTreeNode) => node.children;
+  private readonly getTreeNodeKey = (node: FileTreeNode) => node.key;
+  private readonly treeRenderer: ITreeRenderer<FileTreeNode, TreeItemTemplate>;
 
   constructor(
     host: HTMLElement,
@@ -104,8 +163,14 @@ export class ExplorerViewer implements IDisposable {
     props: ExplorerViewerProps,
   ) {
     this.props = props;
+    this.treeRenderer = {
+      renderTemplate: (container) => this.createTreeItemTemplate(container),
+      renderElement: this.renderTreeElement,
+      disposeElement: this.disposeTreeElement,
+      disposeTemplate: this.disposeTreeItemTemplate,
+    };
     this.treeView = this.disposables.add(
-      new ObjectTree<FileTreeNode>(
+      new ObjectTree<FileTreeNode, TreeItemTemplate>(
         host,
         this.createTreeOptions(),
       ),
@@ -130,93 +195,147 @@ export class ExplorerViewer implements IDisposable {
   }
 
   setProps(nextProps: ExplorerViewerProps): void {
+    const previousSelectedFileId = this.props.effectiveSelectedFileId ?? null;
+    const nextSelectedFileId = nextProps.effectiveSelectedFileId ?? null;
+    const nextTreeSignature = this.createTreeSignature(nextProps.files);
+    const shouldUpdateTree = nextTreeSignature !== this.treeModel.signature;
+    const shouldUpdateOptions = previousSelectedFileId !== nextSelectedFileId;
+
     this.props = nextProps;
-    this.treeView.update(this.createTreeOptions());
-    if (
-      this.hoverAnchor &&
-      (!this.hoverHost.contains(this.hoverAnchor) || !this.hasFileItemHoverContent(this.hoverAnchor))
-    ) {
-      this.hideFileItemHover();
+
+    if (shouldUpdateTree) {
+      this.updateTreeModel(nextTreeSignature);
+      this.updateExpandedFolders(this.treeModel.folderKeys);
+      this.treeView.updateOptions({
+        collapsedKeys: this.getCollapsedFolderKeys(),
+        selectedKey: nextSelectedFileId,
+      });
+      this.treeView.setChildren(this.treeModel.items);
+    } else if (shouldUpdateOptions) {
+      this.treeView.updateOptions({
+        selectedKey: nextSelectedFileId,
+      });
     }
+
+    this.refreshVisibleHover();
   }
 
   dispose(): void {
-    this.hideFileItemHover();
+    this.cancelFileItemHoverHide();
+    this.hoverView?.dispose();
+    this.hoverView = null;
+    this.hoverThumbnailCache.clear();
     this.hoverDisposables.dispose();
     this.disposables.dispose();
   }
 
-  private createTreeOptions(): IObjectTreeOptions<FileTreeNode> {
-    const items = buildFileTree(this.props.files);
-    const folderKeys = collectFileTreeFolderKeys(items);
+  private createTreeOptions(
+    signature = this.createTreeSignature(this.props.files),
+  ): IObjectTreeOptions<FileTreeNode, TreeItemTemplate> {
+    this.updateTreeModel(signature);
+    const { folderKeys, items } = this.treeModel;
+    this.updateExpandedFolders(folderKeys);
+
+    return {
+      className: "file-list-tree",
+      expandOnlyOnTwistieClick: false,
+      getChildren: this.getTreeNodeChildren,
+      getKey: this.getTreeNodeKey,
+      gap: 0,
+      collapsedKeys: this.getCollapsedFolderKeys(),
+      empty: this.renderEmpty,
+      disposeEmpty: this.disposeEmpty,
+      items,
+      delegate: this.treeDelegate,
+      onDidChangeCollapseState: this.handleTreeCollapseState,
+      onScroll: this.handleTreeScroll,
+      onSelect: this.handleTreeSelect,
+      renderer: this.treeRenderer,
+      selectedKey: this.props.effectiveSelectedFileId ?? null,
+      viewportClassName: "file-list-tree-viewport",
+    };
+  }
+
+  private updateExpandedFolders(folderKeys: readonly string[]): void {
     const expandedKeys = new Set(this.expandedKeys);
     for (const key of folderKeys) {
       if (!this.knownFolderKeys.has(key)) {
         expandedKeys.add(key);
       }
     }
+
     this.knownFolderKeys = new Set(folderKeys);
     this.expandedKeys = [...expandedKeys];
+  }
 
-    return {
-      className: "file-list-tree",
-      expandOnlyOnTwistieClick: false,
-      getChildren: (node: FileTreeNode) => node.children,
-      getKey: (node: FileTreeNode) => node.key,
-      gap: 0,
-      collapsedKeys: folderKeys.filter((key) => !expandedKeys.has(key)),
-      empty: (container) => {
-        container.replaceChildren(
-          createEmptyView({
-            onImportFiles: this.props.onOpenFileDialog,
-          }),
-        );
-      },
-      disposeEmpty: (container) => {
-        container.replaceChildren();
-      },
+  private getCollapsedFolderKeys(): string[] {
+    const expanded = new Set(this.expandedKeys);
+    return this.treeModel.folderKeys.filter((key) => !expanded.has(key));
+  }
+
+  private createTreeSignature(files: readonly FileEntry[]): string {
+    return files.map((entry) => [
+      entry.fileId ?? "",
+      entry.itemKey ?? "",
+      entry.relativePath ?? "",
+      getFileName(entry),
+      entry.curveType ?? "",
+      entry.curveTypeConfidence ?? "",
+      entry.curveTypeNeedsTemplate === true ? "1" : "0",
+    ].join("\u001f")).join("\u001e");
+  }
+
+  private updateTreeModel(signature: string): void {
+    if (signature === this.treeModel.signature) {
+      return;
+    }
+
+    const items = buildFileTree(this.props.files);
+    this.treeModel = {
+      folderKeys: collectFileTreeFolderKeys(items),
       items,
-      minVirtualCount: 200,
-      delegate: {
-        getHeight: () => FILE_ROW_HEIGHT,
-      },
-      onDidChangeCollapseState: (collapsedKeys) => {
-        const collapsed = new Set(collapsedKeys);
-        this.expandedKeys = folderKeys.filter((key) => !collapsed.has(key));
-      },
-      onScroll: (event) => this.props.onListScroll(event),
-      onSelect: ({ element }) => {
-        if (element.kind === "folder") {
-          return;
-        }
-        this.props.onSelectFile(element.entry?.fileId ?? null);
-      },
-      renderer: {
-        renderElement: (
-          node: ITreeNode<FileTreeNode>,
-          _index: number,
-          container: HTMLElement,
-          details: ITreeElementRenderDetails,
-        ) => this.renderTreeElement(node, container, details),
-        disposeElement: (_node, _index, container) => {
-          this.clearFolderAction(container);
-          container.replaceChildren();
-        },
-      },
-      selectedKey: this.props.effectiveSelectedFileId ?? null,
-      viewportClassName: "file-list-tree-viewport",
+      signature,
     };
   }
 
-  private renderTreeElement(
+  private readonly handleTreeCollapseState = (collapsedKeys: string[]): void => {
+    const collapsed = new Set(collapsedKeys);
+    this.expandedKeys = this.treeModel.folderKeys.filter((key) => !collapsed.has(key));
+  };
+
+  private readonly handleTreeScroll = (event: Event): void => {
+    this.props.onListScroll(event);
+  };
+
+  private readonly handleTreeSelect = ({ element }: ITreeSelectionEvent<FileTreeNode>): void => {
+    if (element.kind === "folder") {
+      return;
+    }
+
+    this.props.onSelectFile(element.entry?.fileId ?? null);
+  };
+
+  private readonly renderEmpty = (container: HTMLElement): void => {
+    container.replaceChildren(
+      createEmptyView({
+        onImportFiles: this.props.onOpenFileDialog,
+      }),
+    );
+  };
+
+  private readonly disposeEmpty = (container: HTMLElement): void => {
+    container.replaceChildren();
+  };
+
+  private readonly renderTreeElement = (
     node: ITreeNode<FileTreeNode>,
-    container: HTMLElement,
+    _index: number,
+    template: TreeItemTemplate,
     details: ITreeElementRenderDetails,
-  ): void {
-    this.clearFolderAction(container);
+  ): void => {
     const element = node.element;
     if (element.kind === "folder") {
-      this.renderFolderItem(element, !details.collapsed, container);
+      this.renderFolderItem(element, !details.collapsed, template.folder);
       return;
     }
 
@@ -224,50 +343,86 @@ export class ExplorerViewer implements IDisposable {
       this.renderFileItem(
         element.entry,
         this.props.effectiveSelectedFileId === element.entry.fileId,
-        container,
+        template.file,
       );
     }
+  };
+
+  private readonly disposeTreeElement = (
+    _node: ITreeNode<FileTreeNode>,
+    _index: number,
+    template: TreeItemTemplate,
+  ): void => {
+    template.file.fileId = null;
+    template.folder.currentNode = null;
+  };
+
+  private createTreeItemTemplate(host: HTMLElement): TreeItemTemplate {
+    return {
+      file: this.createFileItemTemplate(host),
+      folder: this.createFolderItemTemplate(host),
+    };
   }
+
+  private readonly disposeTreeItemTemplate = (template: TreeItemTemplate): void => {
+    template.folder.actionButton.dispose();
+  };
 
   private renderFileItem(
     fileEntry: FileEntry,
     isSelected: boolean,
-    container: HTMLElement,
+    template: FileItemTemplate,
   ): void {
     const fileName = getFileName(fileEntry);
     const meta = getFileItemMeta(fileEntry);
+    const { host } = template;
 
-    container.replaceChildren();
-    container.className = "file-list-item";
-    container.setAttribute(
+    host.className = "file-list-item";
+    delete host.dataset.expanded;
+    host.setAttribute(
       "aria-label",
       localize("import.fileItemAriaLabel", "import.fileItemAriaLabel", { fileName }),
     );
-    container.title = fileName;
+    host.title = fileName;
     if (isSelected) {
-      container.dataset.selected = "true";
+      host.dataset.selected = "true";
     } else {
-      delete container.dataset.selected;
+      delete host.dataset.selected;
     }
     if (fileEntry?.fileId) {
-      container.dataset.fileId = fileEntry.fileId;
+      host.dataset.fileId = fileEntry.fileId;
     } else {
-      delete container.dataset.fileId;
+      delete host.dataset.fileId;
     }
     if (meta) {
-      container.dataset.autoSummary = meta.summary;
-      container.dataset.autoWarning = meta.isWarning ? "true" : "false";
+      host.dataset.autoSummary = meta.summary;
+      host.dataset.autoWarning = meta.isWarning ? "true" : "false";
     } else {
-      delete container.dataset.autoSummary;
-      delete container.dataset.autoWarning;
+      delete host.dataset.autoSummary;
+      delete host.dataset.autoWarning;
     }
 
     if (fileEntry?.itemKey) {
-      container.dataset.itemKey = fileEntry.itemKey;
+      host.dataset.itemKey = fileEntry.itemKey;
     } else {
-      delete container.dataset.itemKey;
+      delete host.dataset.itemKey;
     }
 
+    template.fileId = fileEntry.fileId ?? null;
+    template.name.textContent = fileName;
+    template.removeButton.setAttribute(
+      "aria-label",
+      localize("import.removeFileButtonLabel", "import.removeFileButtonLabel", { fileName }),
+    );
+    if (
+      template.content.parentElement !== host ||
+      template.actions.parentElement !== host
+    ) {
+      host.replaceChildren(template.content, template.actions);
+    }
+  }
+
+  private createFileItemTemplate(host: HTMLElement): FileItemTemplate {
     const content = document.createElement("div");
     content.className = "file-list-item-content";
 
@@ -280,7 +435,6 @@ export class ExplorerViewer implements IDisposable {
 
     const name = document.createElement("span");
     name.className = "file-list-item-name";
-    name.textContent = fileName;
     text.appendChild(name);
 
     content.append(icon, text);
@@ -291,50 +445,52 @@ export class ExplorerViewer implements IDisposable {
     const removeButton = document.createElement("button");
     removeButton.type = "button";
     removeButton.className = "file-list-item-remove";
-    removeButton.setAttribute(
-      "aria-label",
-      localize("import.removeFileButtonLabel", "import.removeFileButtonLabel", { fileName }),
-    );
-
+    const template: FileItemTemplate = {
+      actions,
+      content,
+      fileId: null,
+      host,
+      name,
+      removeButton,
+    };
     removeButton.addEventListener("click", (event) => {
       event.stopPropagation();
-      this.props.onRemoveFile(fileEntry.fileId ?? null);
+      this.props.onRemoveFile(template.fileId);
     });
     appendIcon(removeButton, LxIcon.close);
 
     actions.appendChild(removeButton);
-    container.append(content, actions);
+    return template;
   }
 
-  private renderFolderItem(
-    node: FileTreeNode,
-    isExpanded: boolean,
-    container: HTMLElement,
-  ): void {
-    container.replaceChildren();
-    container.className = "file-list-folder-item";
-    container.title = node.name;
-
+  private createFolderItemTemplate(host: HTMLElement): FolderItemTemplate {
     const content = document.createElement("div");
     content.className = "file-list-folder-content";
 
     const name = document.createElement("span");
     name.className = "file-list-folder-name";
-    name.textContent = node.name;
-
     content.appendChild(name);
 
     const controls = document.createElement("div");
     controls.className = "file-list-folder-controls";
 
-    const itemDisposables = new DisposableStore();
-    itemDisposables.add(new CountBadge(controls, {
-      count: node.children?.length ?? 0,
+    const countBadge = new CountBadge(controls, {
+      count: 0,
       titleFormat: localize("files.folderCount", "{0} 个文件"),
-    }));
+    });
 
     const actionsHost = document.createElement("div");
     actionsHost.className = "file-list-folder-actionbar";
+    const template: FolderItemTemplate = {
+      actionButton: { dispose: () => undefined },
+      content,
+      controls,
+      countBadge,
+      currentNode: null,
+      host,
+      name,
+    };
+
     const actionButton = createDropdownButton({
       ariaLabel: localize("files.folderMoreActions", "更多操作"),
       className: "file-list-folder-more",
@@ -343,26 +499,53 @@ export class ExplorerViewer implements IDisposable {
       matchAnchorWidth: false,
       render: (menuHost) => renderMenuItems(menuHost, {
         className: "file-list-folder-menu",
-        items: () => this.createFolderActions(node),
+        items: () => this.createFolderActions(template.currentNode),
       }),
       surfaceClassName: "file-list-folder-menu-surface",
       triggerIcon: LxIcon.moreHorizontal,
     });
     actionsHost.appendChild(actionButton.domNode);
     controls.appendChild(actionsHost);
-    itemDisposables.add(actionButton);
-    this.folderItemDisposables.set(container, itemDisposables);
-
-    container.dataset.expanded = isExpanded ? "true" : "false";
-    container.append(content, controls);
+    template.actionButton = {
+      dispose: () => {
+        actionButton.dispose();
+        countBadge.dispose();
+      },
+    };
+    return template;
   }
 
-  private clearFolderAction(container: HTMLElement): void {
-    this.folderItemDisposables.get(container)?.dispose();
-    this.folderItemDisposables.delete(container);
+  private renderFolderItem(
+    node: FileTreeNode,
+    isExpanded: boolean,
+    template: FolderItemTemplate,
+  ): void {
+    const { host } = template;
+    template.currentNode = node;
+    host.className = "file-list-folder-item";
+    host.title = node.name;
+    host.removeAttribute("aria-label");
+    delete host.dataset.autoSummary;
+    delete host.dataset.autoWarning;
+    delete host.dataset.fileId;
+    delete host.dataset.itemKey;
+    delete host.dataset.selected;
+    host.dataset.expanded = isExpanded ? "true" : "false";
+    template.name.textContent = node.name;
+    template.countBadge.setCount(node.children?.length ?? 0);
+    if (
+      template.content.parentElement !== host ||
+      template.controls.parentElement !== host
+    ) {
+      host.replaceChildren(template.content, template.controls);
+    }
   }
 
-  private createFolderActions(node: FileTreeNode): IAction[] {
+  private createFolderActions(node: FileTreeNode | null): IAction[] {
+    if (!node) {
+      return [];
+    }
+
     return [
       createMenuAction({
         id: "files.folder.remove",
@@ -488,43 +671,38 @@ export class ExplorerViewer implements IDisposable {
   }
 
   private showFileItemHover(item: HTMLElement): void {
-    const summary = item.dataset.autoSummary;
-    const processedFile = this.getProcessedFile(item.dataset.fileId);
-    if (!processedFile && !summary) {
+    const content = this.resolveHoverContent(item);
+    if (!content) {
       this.hideFileItemHover();
       return;
     }
 
-    if (this.hoverAnchor === item && this.hoverView) {
-      this.cancelFileItemHoverHide();
-      return;
-    }
-
-    this.hideFileItemHover();
+    this.cancelFileItemHoverHide();
     this.hoverAnchor = item;
-    this.hoverView = new ContentView({
+    this.hoverContent = content;
+    const hoverView = this.ensureHoverView(item);
+    hoverView.update({
       align: "left",
       anchor: item,
-      className: processedFile
+      className: content.processedFile
         ? "file-list-hover file-list-hover--thumbnail"
         : "file-list-hover",
-      host: this.hoverHost,
-      render: (container) => {
-        if (processedFile) {
-          container.appendChild(createThumbnailView({
-            file: processedFile,
-            isActive: item.dataset.selected === "true",
-          }));
-          return;
-        }
+      render: (container) => this.renderHoverContent(container),
+    });
+    hoverView.show();
+  }
 
-        const summaryElement = document.createElement("div");
-        summaryElement.className = "file-list-hover-summary";
-        summaryElement.dataset.warning =
-          item.dataset.autoWarning === "true" ? "true" : "false";
-        summaryElement.textContent = summary ?? "";
-        container.appendChild(summaryElement);
-      },
+  private ensureHoverView(anchor: HTMLElement): ContentView {
+    if (this.hoverView) {
+      return this.hoverView;
+    }
+
+    this.hoverView = new ContentView({
+      align: "left",
+      anchor,
+      className: "file-list-hover",
+      host: this.hoverHost,
+      render: (container) => this.renderHoverContent(container),
       role: "tooltip",
       side: "right",
       zIndex: 40,
@@ -535,7 +713,101 @@ export class ExplorerViewer implements IDisposable {
     this.hoverDisposables.add(
       addDisposableListener(this.hoverView.domNode, "mouseout", this.handleHoverMouseOut),
     );
-    this.hoverView.show();
+    return this.hoverView;
+  }
+
+  private resolveHoverContent(item: HTMLElement): HoverContent | null {
+    const summary = item.dataset.autoSummary ?? "";
+    const processedFile = this.getProcessedFile(item.dataset.fileId);
+    if (!processedFile && !summary) {
+      return null;
+    }
+
+    return {
+      isSelected: item.dataset.selected === "true",
+      isWarning: item.dataset.autoWarning === "true",
+      processedFile,
+      summary,
+    };
+  }
+
+  private renderHoverContent(container: HTMLElement): void {
+    const content = this.hoverContent;
+    if (!content) {
+      return;
+    }
+
+    if (content.processedFile) {
+      container.appendChild(this.getHoverThumbnail(
+        content.processedFile,
+        content.isSelected,
+      ));
+      return;
+    }
+
+    const summaryElement = document.createElement("div");
+    summaryElement.className = "file-list-hover-summary";
+    summaryElement.dataset.warning = content.isWarning ? "true" : "false";
+    summaryElement.textContent = content.summary;
+    container.appendChild(summaryElement);
+  }
+
+  private getHoverThumbnail(file: CleanedEntry, isActive: boolean): HTMLElement {
+    const fileId = String(file.fileId ?? file.fileName ?? "").trim();
+    const cacheKey = fileId || "__unknown__";
+    const cached = this.hoverThumbnailCache.get(cacheKey);
+    this.hoverCacheUse += 1;
+    if (cached?.file === file) {
+      cached.lastUsed = this.hoverCacheUse;
+      cached.node.classList.toggle("thumbnail_view--active", isActive);
+      return cached.node;
+    }
+
+    const node = createThumbnailView({
+      file,
+      isActive,
+    });
+    this.hoverThumbnailCache.set(cacheKey, {
+      file,
+      lastUsed: this.hoverCacheUse,
+      node,
+    });
+    this.trimHoverThumbnailCache();
+    return node;
+  }
+
+  private trimHoverThumbnailCache(): void {
+    if (this.hoverThumbnailCache.size <= HOVER_THUMBNAIL_CACHE_LIMIT) {
+      return;
+    }
+
+    let oldestKey: string | null = null;
+    let oldestUse = Number.POSITIVE_INFINITY;
+    for (const [key, entry] of this.hoverThumbnailCache) {
+      if (entry.lastUsed < oldestUse) {
+        oldestKey = key;
+        oldestUse = entry.lastUsed;
+      }
+    }
+
+    if (oldestKey) {
+      this.hoverThumbnailCache.get(oldestKey)?.node.remove();
+      this.hoverThumbnailCache.delete(oldestKey);
+    }
+  }
+
+  private refreshVisibleHover(): void {
+    const anchor = this.hoverAnchor;
+    if (!anchor) {
+      return;
+    }
+
+    if (!this.hoverHost.contains(anchor) || !this.hasFileItemHoverContent(anchor)) {
+      this.hideFileItemHover();
+      return;
+    }
+
+    this.showFileItemHover(anchor);
   }
 
   private hideFileItemHover(item?: HTMLElement): void {
@@ -544,9 +816,8 @@ export class ExplorerViewer implements IDisposable {
     }
 
     this.cancelFileItemHoverHide();
-    this.hoverDisposables.clear();
     this.hoverAnchor = null;
-    this.hoverView?.dispose();
-    this.hoverView = null;
+    this.hoverContent = null;
+    this.hoverView?.hide();
   }
 }

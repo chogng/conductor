@@ -38,6 +38,15 @@
   background-color: rgb(var(--accent) / 0.05);
 }
 
+.file-list.dragging::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  pointer-events: none;
+  border: 1px solid rgb(var(--accent) / 0.55);
+  border-radius: 4px;
+}
+
 .file-list.idle {
   background-color: transparent;
 }
@@ -47,7 +56,6 @@
   flex: 1 1 0%;
   height: 100%;
   width: 100%;
-  cursor: pointer;
   flex-direction: column;
   align-items: center;
   justify-content: center;
@@ -56,8 +64,58 @@
   color: rgb(var(--text-secondary) / 1);
 }
 
+.file-list-empty-default {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.file-list-drag-empty {
+  display: none;
+}
+
 .file-list-empty-import-button {
   min-width: 132px;
+}
+
+.file-list.dragging .file-list-empty {
+  padding: 0;
+}
+
+.file-list.dragging .file-list-empty-default {
+  display: none;
+}
+
+.file-list.dragging .file-list-drag-empty {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 24px 16px;
+  color: rgb(var(--text-primary) / 1);
+  text-align: center;
+}
+
+.file-list-drag-empty-icon {
+  margin-bottom: 10px;
+  color: rgb(var(--accent) / 1);
+}
+
+.file-list-drag-empty-title {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+.file-list-drag-empty-description {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 16px;
+  color: rgb(var(--text-secondary) / 1);
 }
 
 .file-list-item {
