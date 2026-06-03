@@ -1,4 +1,4 @@
-import { BrowserWindow, type WebContents } from "electron";
+import { BrowserWindow, shell, type WebContents } from "electron";
 import { DialogMainService } from "../../dialogs/electron-main/dialogMainService.js";
 
 type NativeOpenDialogResult = {
@@ -19,5 +19,14 @@ export class NativeHostMainService {
       options,
       BrowserWindow.fromWebContents(sender) ?? undefined,
     );
+  }
+
+  public showItemInFolder(filePath: unknown): void {
+    const normalizedPath = typeof filePath === "string" ? filePath.trim() : "";
+    if (!normalizedPath) {
+      return;
+    }
+
+    shell.showItemInFolder(normalizedPath);
   }
 }

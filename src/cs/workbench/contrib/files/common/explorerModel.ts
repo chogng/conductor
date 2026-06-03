@@ -137,3 +137,26 @@ export const getFileTreeFolderPath = (folderKey: unknown): string | null => {
   const path = key.slice("folder:".length).trim();
   return path || null;
 };
+
+const normalizeFolderPath = (value: unknown): string =>
+  String(value ?? "")
+    .replace(/\\/g, "/")
+    .split("/")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join("/");
+
+export const isFileTreePathInFolder = (
+  relativePath: unknown,
+  folderPath: string,
+): boolean => {
+  const normalizedRelativePath = normalizeFolderPath(relativePath);
+  const normalizedFolderPath = normalizeFolderPath(folderPath);
+  return Boolean(
+    normalizedFolderPath &&
+      (
+        normalizedRelativePath === normalizedFolderPath ||
+        normalizedRelativePath.startsWith(`${normalizedFolderPath}/`)
+      ),
+  );
+};

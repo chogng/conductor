@@ -5,10 +5,6 @@ import {
   type IFileService,
 } from "src/cs/platform/files/common/files";
 import {
-  collectDroppedFiles,
-  createFileSource,
-} from "src/cs/workbench/contrib/files/browser/fileActions";
-import {
   isExcelImportFileName,
   isSupportedImportFileName,
   type FileSource,
@@ -19,8 +15,6 @@ export {
   buildItemKey,
   type FileSource,
 } from "src/cs/workbench/contrib/files/common/files";
-
-export { collectDroppedFiles };
 
 const MAX_FOLDER_WALK_DEPTH = 32;
 const WINDOWS_DRIVE_PREFIX = /^[a-zA-Z]:[\\/]/;
@@ -123,7 +117,12 @@ async function collectFolderFilesAt(
 
     const file = await tryReadFileSource(child, name, filesService);
     if (file) {
-      files.push(createFileSource(file, relativePath, child));
+      files.push({
+        file,
+        kind: "path",
+        relativePath,
+        resource: child,
+      });
     }
   }
 }

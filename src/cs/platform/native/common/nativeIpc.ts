@@ -1,6 +1,7 @@
 export const nativeHostIpcChannels = {
     environmentGet: "conductor:nativeHost:environment:get",
     openDialog: "conductor:nativeHost:openDialog",
+    showItemInFolder: "conductor:nativeHost:showItemInFolder",
     windowCommand: "conductor:nativeHost:windowCommand",
 } as const;
 

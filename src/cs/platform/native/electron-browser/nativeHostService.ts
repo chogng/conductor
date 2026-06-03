@@ -30,6 +30,15 @@ export class NativeHostService extends Disposable implements INativeHostServiceT
         return normalizeOpenDialogResult(result);
     }
 
+    public showItemInFolder(path: string): void {
+        const filePath = String(path ?? "").trim();
+        if (!filePath) {
+            return;
+        }
+
+        ipcRenderer.send(nativeHostIpcChannels.showItemInFolder, { path: filePath });
+    }
+
     public toggleDevTools(): void {
         this.sendWindowCommand(nativeWindowCommands.toggleDevTools);
     }

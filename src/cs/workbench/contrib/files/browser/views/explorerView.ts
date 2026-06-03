@@ -2,10 +2,7 @@ import { localize } from "src/cs/nls";
 import { addDisposableListener } from "src/cs/base/browser/dom";
 import type { ListHandle } from "src/cs/base/browser/ui/list/list";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
-import {
-  type FileSource,
-  collectDroppedFiles,
-} from "src/cs/workbench/contrib/files/browser/fileImportExport";
+import { IMPORT_ERROR_TOAST_ID } from "src/cs/workbench/contrib/files/browser/fileConstants";
 import {
   ExplorerViewer,
   type ExplorerViewerProps,
@@ -14,16 +11,14 @@ import { notificationService } from "src/cs/workbench/services/notification/comm
 
 import "src/cs/workbench/contrib/files/browser/views/media/explorerView.css";
 
-const IMPORT_ERROR_TOAST_ID = "files.importError";
-
 export type ExplorerViewProps = Omit<ExplorerViewerProps, "onOpenFileDialog"> & {
   readonly error?: string | null;
   readonly isDragging: boolean;
   readonly onClearError: () => void;
   readonly onCreateFolder: (folderKey: string) => void;
   readonly onDraggingChange: (isDragging: boolean) => void;
+  readonly onDropFiles: (dataTransfer: DataTransfer | null) => void;
   readonly onOpenFolderDialog: () => void;
-  readonly onSelectFiles: (files: FileSource[]) => void;
 };
 
 export class ExplorerView implements IDisposable {
@@ -162,17 +157,8 @@ export class ExplorerView implements IDisposable {
   private readonly handleDrop = (event: DragEvent): void => {
     event.preventDefault();
     this.props.onDraggingChange(false);
-    void this.selectDroppedFiles(event.dataTransfer);
+    this.props.onDropFiles(event.dataTransfer);
   };
-
-  private async selectDroppedFiles(dataTransfer: DataTransfer | null): Promise<void> {
-    if (!dataTransfer) {
-      this.props.onSelectFiles([]);
-      return;
-    }
-
-    this.props.onSelectFiles(await collectDroppedFiles(dataTransfer));
-  }
 
   private render(): void {
     if (this.disposed) {

@@ -2470,6 +2470,16 @@ function handleDesktopAutoUpdateStatusGet(event) {
   };
 }
 
+function handleNativeHostShowItemInFolder(_event, payload) {
+  const filePath =
+    payload && typeof payload === "object" && typeof payload.path === "string"
+      ? payload.path
+      : typeof payload === "string"
+        ? payload
+        : "";
+  nativeHostMainService.showItemInFolder(filePath);
+}
+
 if (hasSingleInstanceLock) {
   app.on("second-instance", () => {
     if (app.isReady()) {
@@ -2505,6 +2515,7 @@ if (hasSingleInstanceLock) {
     resolveNativeHostEnvironment(event.sender),
   );
   ipcMain.handle(nativeHostIpcChannels.openDialog, handleNativeHostOpenDialog);
+  ipcMain.on(nativeHostIpcChannels.showItemInFolder, handleNativeHostShowItemInFolder);
   ipcMain.on(nativeHostIpcChannels.environmentGet, handleNativeHostEnvironmentGet);
   ipcMain.on(ipcChannels.desktopAutoUpdateStatusGet, handleDesktopAutoUpdateStatusGet);
   ipcMain.on(workbenchBootstrapIpcChannels.settingsGet, handleWorkbenchBootstrapSettingsGet);
@@ -2597,6 +2608,7 @@ app.on("will-quit", () => {
   ipcMain.removeListener(nativeHostIpcChannels.windowCommand, handleNativeWindowCommand);
   ipcMain.removeHandler(nativeHostIpcChannels.environmentGet);
   ipcMain.removeHandler(nativeHostIpcChannels.openDialog);
+  ipcMain.removeListener(nativeHostIpcChannels.showItemInFolder, handleNativeHostShowItemInFolder);
   ipcMain.removeListener(nativeHostIpcChannels.environmentGet, handleNativeHostEnvironmentGet);
   ipcMain.removeListener(
     ipcChannels.desktopAutoUpdateStatusGet,

@@ -36,6 +36,7 @@ export interface INativeHostService {
 
     getEnvironment(): Promise<INativeHostEnvironment>;
     showOpenDialog(options: INativeOpenDialogOptions): Promise<INativeOpenDialogResult>;
+    showItemInFolder(path: string): void;
     toggleDevTools(): void;
     reloadWindow(): void;
     closeWindow(): void;

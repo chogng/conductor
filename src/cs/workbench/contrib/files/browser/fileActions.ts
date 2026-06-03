@@ -1,10 +1,6 @@
 import { isWindows } from "src/cs/base/common/platform";
 import { URI } from "src/cs/base/common/uri";
-import {
-  collectDataTransferFiles,
-  getPathForFile,
-  type DataTransferFile,
-} from "src/cs/platform/dnd/browser/dnd";
+import { getPathForFile } from "src/cs/platform/dnd/browser/dnd";
 import type { FileSource } from "src/cs/workbench/contrib/files/common/files";
 
 const isAbsoluteFilePath = (filePath: string): boolean => {
@@ -47,13 +43,3 @@ export const createFileSource = (
     resource: null,
   };
 };
-
-const createDroppedFileSource = ({
-  file,
-  relativePath,
-}: DataTransferFile): FileSource => createFileSource(file, relativePath);
-
-export const collectDroppedFiles = async (
-  dataTransfer: DataTransfer,
-): Promise<FileSource[]> =>
-  (await collectDataTransferFiles(dataTransfer)).map(createDroppedFileSource);

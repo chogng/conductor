@@ -25,6 +25,7 @@ import "src/cs/workbench/services/path/electron-browser/pathService.ts";
 
 //#region --- workbench contributions
 
+import "src/cs/workbench/contrib/files/electron-browser/fileActions.contribution.ts";
 import "src/cs/workbench/contrib/splash/electron-sandbox/splash.contribution.ts";
 
 //#endregion
