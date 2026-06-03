@@ -1,5 +1,13 @@
 import { createButton } from "src/cs/base/browser/ui/button/button";
+import { createDropdownButton, type DropdownButton } from "src/cs/base/browser/ui/dropdown/dropdown";
 import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBox";
+import {
+  createMenuAction,
+  createMenuItemLabel,
+  renderMenuItems,
+} from "src/cs/base/browser/ui/menu/menu";
+import { DisposableStore } from "src/cs/base/common/lifecycle";
+import { lxChevronDown } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
 import type { TemplateConfig } from "src/cs/workbench/contrib/template/common/templateManagerUtils";
 
@@ -48,11 +56,30 @@ const PICKABLE_TEMPLATE_FIELDS = new Set<string>([
   "yLegendCount",
 ]);
 
+const X_SEGMENTATION_OPTIONS: Array<{
+  label: string;
+  value: TemplateConfig["xSegmentationMode"];
+}> = [
+  { label: localize("template_x_mode_auto", "Auto"), value: "auto" },
+  { label: localize("template_x_mode_points", "By point count"), value: "points" },
+  { label: localize("template_x_mode_segments", "By segment count"), value: "segments" },
+];
+
+const Y_LEGEND_TARGET_OPTIONS: Array<{
+  label: string;
+  value: TemplateConfig["yLegendTarget"];
+}> = [
+  { label: localize("template_y_target_auto", "Auto"), value: "auto" },
+  { label: localize("template_y_target_column", "Y column"), value: "yColumn" },
+  { label: localize("template_y_target_group", "Group"), value: "group" },
+];
+
 export class TemplateEditorView {
   public readonly element: HTMLElement;
+  private readonly disposables = new DisposableStore();
   private readonly inputs: Record<TemplateEditorInputName, HTMLInputElement>;
-  private readonly xSegmentationMode: HTMLSelectElement;
-  private readonly yLegendTarget: HTMLSelectElement;
+  private readonly xSegmentationMode: SelectField<TemplateConfig["xSegmentationMode"]>;
+  private readonly yLegendTarget: SelectField<TemplateConfig["yLegendTarget"]>;
   private readonly yColumnsSummary: HTMLElement;
 
   constructor(
@@ -82,18 +109,35 @@ export class TemplateEditorView {
       localize("template_optional_section", "Optional"),
     );
 
+    const nameInput = this.createField(templateFields, localize("template_name", "Template name"), "name", {
+      fullWidth: true,
+    });
+    const xDataStartInput = this.createField(xFields, localize("template_x_start", "Start"), "xDataStart", {
+      placeholder: "A2",
+    });
+    const xDataEndInput = this.createField(xFields, localize("template_x_end", "End"), "xDataEnd", {
+      placeholder: "End",
+    });
+
+    this.xSegmentationMode = this.createSelectField(
+      xFields,
+      localize("template_x_segmentation_mode", "Grouping"),
+      X_SEGMENTATION_OPTIONS,
+      state.config.xSegmentationMode,
+      value => {
+        this.options.onUpdateConfig({ xSegmentationMode: value });
+        this.updateXSegmentationFields(value);
+      },
+    );
+    const xSegmentCountInput = this.createField(xFields, localize("template_x_segment_count", "Segment count"), "xSegmentCount");
+    const xPointsPerGroupInput = this.createField(xFields, localize("template_x_points_per_group", "Point count"), "xPointsPerGroup");
+
     this.inputs = {
-      name: this.createField(templateFields, localize("template_name", "Template name"), "name", {
-        fullWidth: true,
-      }),
-      xDataStart: this.createField(xFields, localize("template_x_start", "Start"), "xDataStart", {
-        placeholder: "A2",
-      }),
-      xDataEnd: this.createField(xFields, localize("template_x_end", "End"), "xDataEnd", {
-        placeholder: "End",
-      }),
-      xSegmentCount: this.createField(xFields, localize("template_x_segment_count", "Segment count"), "xSegmentCount"),
-      xPointsPerGroup: this.createField(xFields, localize("template_x_points_per_group", "Points per group"), "xPointsPerGroup"),
+      name: nameInput,
+      xDataStart: xDataStartInput,
+      xDataEnd: xDataEndInput,
+      xSegmentCount: xSegmentCountInput,
+      xPointsPerGroup: xPointsPerGroupInput,
       xUnit: this.createField(optionalFields, localize("template_x_unit", "X unit"), "xUnit", {
         placeholder: "V",
       }),
@@ -118,16 +162,15 @@ export class TemplateEditorView {
       fileNameVdKeywords: this.createField(yFields, localize("template_filename_vd", "File-name Vd keywords"), "fileNameVdKeywords"),
     };
 
-    this.xSegmentationMode = this.createSelectField(xFields, localize("template_x_segmentation_mode", "Grouping"), "xSegmentationMode", [
-      { label: localize("template_x_mode_auto", "Auto"), value: "auto" },
-      { label: localize("template_x_mode_points", "By point count"), value: "points" },
-      { label: localize("template_x_mode_segments", "By segment count"), value: "segments" },
-    ]);
-    this.yLegendTarget = this.createSelectField(yFields, localize("template_y_legend_target", "Legend target"), "yLegendTarget", [
-      { label: localize("template_y_target_auto", "Auto"), value: "auto" },
-      { label: localize("template_y_target_column", "Y column"), value: "yColumn" },
-      { label: localize("template_y_target_group", "Group"), value: "group" },
-    ]);
+    this.yLegendTarget = this.createSelectField(
+      yFields,
+      localize("template_y_legend_target", "Legend target"),
+      Y_LEGEND_TARGET_OPTIONS,
+      state.config.yLegendTarget,
+      value => {
+        this.options.onUpdateConfig({ yLegendTarget: value });
+      },
+    );
 
     this.yColumnsSummary = document.createElement("p");
     this.yColumnsSummary.className = "template_selection_summary";
@@ -191,8 +234,15 @@ export class TemplateEditorView {
       }
     }
 
-    this.xSegmentationMode.value = config.xSegmentationMode;
-    this.yLegendTarget.value = config.yLegendTarget;
+    this.updateDropdownField(this.xSegmentationMode, {
+      value: config.xSegmentationMode,
+      options: X_SEGMENTATION_OPTIONS,
+    });
+    this.updateXSegmentationFields(config.xSegmentationMode);
+    this.updateDropdownField(this.yLegendTarget, {
+      value: config.yLegendTarget,
+      options: Y_LEGEND_TARGET_OPTIONS,
+    });
     this.yColumnsSummary.textContent = state.selectedYColumnLabels.length > 0
       ? localize("template_selected_y_columns", "Y Data columns: {columns}", {
           columns: state.selectedYColumnLabels.join(", "),
@@ -201,6 +251,7 @@ export class TemplateEditorView {
   }
 
   public dispose(): void {
+    this.disposables.dispose();
     this.element.replaceChildren();
     this.element.remove();
   }
@@ -257,9 +308,10 @@ export class TemplateEditorView {
   private createSelectField<T extends TemplateConfig["xSegmentationMode"] | TemplateConfig["yLegendTarget"]>(
     container: HTMLElement,
     label: string,
-    name: "xSegmentationMode" | "yLegendTarget",
     options: Array<{ label: string; value: T }>,
-  ): HTMLSelectElement {
+    value: T,
+    onSelect: (value: T) => void,
+  ): SelectField<T> {
     const wrapper = document.createElement("label");
     wrapper.className = "template_field";
 
@@ -267,36 +319,115 @@ export class TemplateEditorView {
     labelElement.className = "template_field_label";
     labelElement.textContent = label;
 
-    const select = document.createElement("select");
-    select.className = "template_select_native";
-    select.name = name;
-    select.setAttribute("aria-label", label);
+    const field: SelectField<T> = {
+      currentOptions: options,
+      currentValue: value,
+      dropdown: null as unknown as DropdownButton,
+      onSelect,
+    };
 
-    for (const option of options) {
-      const optionElement = document.createElement("option");
-      optionElement.value = option.value;
-      optionElement.textContent = option.label;
-      select.append(optionElement);
-    }
-
-    select.addEventListener("change", () => {
-      if (name === "xSegmentationMode") {
-        this.options.onUpdateConfig({
-          xSegmentationMode: select.value as TemplateConfig["xSegmentationMode"],
-        });
-        return;
-      }
-
-      this.options.onUpdateConfig({
-        yLegendTarget: select.value as TemplateConfig["yLegendTarget"],
-      });
+    const dropdown = createDropdownButton({
+      ariaLabel: label,
+      className: "template_form_dropdown_button",
+      closeOnContentEvent: "menuitemactionrun",
+      label: "",
+      matchAnchorWidth: true,
+      render: container => renderMenuItems(container, {
+        className: "template_form_dropdown_menu",
+        items: () => createDropdownActions({
+          onSelect: field.onSelect,
+          options: field.currentOptions,
+          value: field.currentValue,
+        }),
+      }),
+      surfaceClassName: "template_form_dropdown_surface",
+      triggerIcon: lxChevronDown,
     });
 
-    wrapper.append(labelElement, select);
+    dropdown.domNode.setAttribute("data-style", "inputbox");
+    field.dropdown = dropdown;
+    this.disposables.add(dropdown);
+    wrapper.append(labelElement, dropdown.domNode);
     container.append(wrapper);
-    return select;
+    this.updateDropdownField(field, { options, value });
+    return field;
+  }
+
+  private updateDropdownField<T extends TemplateConfig["xSegmentationMode"] | TemplateConfig["yLegendTarget"]>(
+    field: SelectField<T>,
+    {
+      options,
+      value,
+    }: {
+      value: T;
+      options: Array<{ label: string; value: T }>;
+    },
+  ): void {
+    field.currentOptions = options;
+    field.currentValue = value;
+    const selected = options.find((option) => option.value === value) ?? options[0];
+    field.dropdown.update({
+      ariaLabel: selected?.label ?? "",
+      className: "template_form_dropdown_button",
+      closeOnContentEvent: "menuitemactionrun",
+      label: selected?.label ?? "",
+      matchAnchorWidth: true,
+      render: container => renderMenuItems(container, {
+        className: "template_form_dropdown_menu",
+        items: () => createDropdownActions({
+          onSelect: field.onSelect,
+          options: field.currentOptions,
+          value: field.currentValue,
+        }),
+      }),
+      surfaceClassName: "template_form_dropdown_surface",
+      triggerIcon: lxChevronDown,
+    });
+    field.dropdown.domNode.setAttribute("data-style", "inputbox");
+  }
+
+  private updateXSegmentationFields(mode: TemplateConfig["xSegmentationMode"]): void {
+    this.setFieldHidden(this.inputs.xSegmentCount, mode !== "segments");
+    this.setFieldHidden(this.inputs.xPointsPerGroup, mode !== "points");
+  }
+
+  private setFieldHidden(input: HTMLInputElement, hidden: boolean): void {
+    const field = input.closest(".template_field") as HTMLElement | null;
+    if (!field) return;
+
+    field.classList.toggle("template_field--hidden", hidden);
+    field.setAttribute("aria-hidden", hidden ? "true" : "false");
+    input.disabled = hidden;
   }
 }
+
+const createDropdownActions = <T extends string>({
+  onSelect,
+  options,
+  value,
+}: {
+  readonly onSelect: (value: T) => void;
+  readonly options: Array<{ label: string; value: T }>;
+  readonly value: T;
+}) =>
+  options.map((option) =>
+    createMenuAction({
+      id: `template.select.${option.value}`,
+      label: option.label,
+      left: createMenuItemLabel(option.label),
+      run: () => onSelect(option.value),
+      selected: option.value === value,
+      tabIndex: 0,
+      value: option.value,
+    }),
+  );
+
+type SelectField<T extends string> = {
+  currentOptions: Array<{ label: string; value: T }>;
+  currentValue: T;
+  dropdown: DropdownButton;
+  onSelect: (value: T) => void;
+};
 
 const createField = ({
   label,
