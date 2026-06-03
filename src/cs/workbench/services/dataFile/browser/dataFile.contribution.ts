@@ -5,32 +5,32 @@ import {
   type IWorkbenchContribution,
 } from "src/cs/workbench/common/contributions";
 import {
-  IImportService,
-  ImportLifecycleContributionId,
-  type IImportService as IImportServiceType,
-} from "src/cs/workbench/services/import/common/import";
+  IDataFileService,
+  DataFileLifecycleContributionId,
+  type IDataFileService as IDataFileServiceType,
+} from "src/cs/workbench/services/dataFile/common/dataFile";
 import {
   ILifecycleService,
   WillShutdownJoinerOrder,
   type ILifecycleService as ILifecycleServiceType,
 } from "src/cs/workbench/services/lifecycle/common/lifecycle";
 
-export class ImportLifecycleContribution extends Disposable implements IWorkbenchContribution {
+export class DataFileLifecycleContribution extends Disposable implements IWorkbenchContribution {
   public constructor(
-    @IImportService private readonly importService: IImportServiceType,
+    @IDataFileService private readonly dataFileService: IDataFileServiceType,
     @ILifecycleService lifecycleService: ILifecycleServiceType,
   ) {
     super();
 
     this._register(lifecycleService.onWillShutdown(event => {
-      if (!this.importService.canDisposeFile()) {
+      if (!this.dataFileService.canDisposeFile()) {
         return;
       }
 
       event.join(
-        () => this.importService.disposeFile({ clear: true }).then(() => undefined),
+        () => this.dataFileService.disposeFile({ clear: true }).then(() => undefined),
         {
-          id: "import.clearRustPreviewFiles",
+          id: "dataFile.clearRustPreviewFiles",
           label: "Clear Rust preview files",
           order: WillShutdownJoinerOrder.Last,
         },
@@ -39,11 +39,11 @@ export class ImportLifecycleContribution extends Disposable implements IWorkbenc
   }
 }
 
-const ImportLifecycleContributionCtor =
-  ImportLifecycleContribution as new (...args: unknown[]) => IWorkbenchContribution;
+const DataFileLifecycleContributionCtor =
+  DataFileLifecycleContribution as new (...args: unknown[]) => IWorkbenchContribution;
 
 registerWorkbenchContribution2(
-  ImportLifecycleContributionId,
-  ImportLifecycleContributionCtor,
+  DataFileLifecycleContributionId,
+  DataFileLifecycleContributionCtor,
   WorkbenchPhase.BlockStartup,
 );

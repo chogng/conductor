@@ -1,16 +1,16 @@
 import type {
   AxisRole,
-  CurveConfidence,
+  FileAssessmentConfidence,
   CurveKind,
-  CurveSource,
-} from "../../../common/curveClassification.ts";
+  FileAssessmentSource,
+} from "../../../common/fileAssessment.ts";
 
 export type TemplateRows = Array<Array<unknown> | null | undefined>;
 
 export type AutoExtractionPlan = {
   bottomTitle: string;
   blocks?: AutoExtractionBlock[];
-  confidence: CurveConfidence;
+  confidence: FileAssessmentConfidence;
   curveType: CurveKind;
   curveTypeLabel: string | null;
   dataStartRowIndex: number;
@@ -26,7 +26,7 @@ export type AutoExtractionPlan = {
   needsTemplate: boolean;
   reasons: string[];
   xAxisRole: AxisRole | null;
-  xAxisRoleSource: CurveSource;
+  xAxisRoleSource: FileAssessmentSource;
   xCol: number;
   xPointsPerGroup: number | null;
   xSegmentationMode: "auto" | "points";
@@ -84,7 +84,7 @@ export type StructuredSeriesLayout = {
   legendTarget: "auto" | "group" | "yColumn";
   reasons: string[];
   xAxisRole: AxisRole | null;
-  xAxisRoleSource: CurveSource;
+  xAxisRoleSource: FileAssessmentSource;
   xCol: number;
   yCols: number[];
 };

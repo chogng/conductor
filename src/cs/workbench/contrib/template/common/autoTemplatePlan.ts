@@ -1,7 +1,7 @@
 import {
-  classifyCurve,
-  extractCurveMetadata,
-} from "../../../common/curveClassification.ts";
+  assessFile,
+  extractFileMetadata,
+} from "../../../common/fileAssessment.ts";
 import {
   inferGenericPlan,
   inferStrippedChannelPlan,
@@ -45,15 +45,15 @@ export const inferAutoExtraction = ({
   const headerRowIndex = findHeaderRowIndex(safeRows);
   const headers = getNormalizedRow(safeRows, headerRowIndex);
   const dataStartRowIndex = Math.min(headerRowIndex + 1, safeRows.length);
-  const metadata = extractCurveMetadata(safeRows);
-  const classification = classifyCurve({
+  const metadata = extractFileMetadata(safeRows);
+  const assessment = assessFile({
     fileName,
     metadata,
   });
 
   if (metadata.isStrippedChannelSweep) {
     return inferStrippedChannelPlan({
-      classification,
+      assessment,
       dataStartRowIndex,
       fileName,
       headers,
@@ -64,7 +64,7 @@ export const inferAutoExtraction = ({
   }
 
   return inferGenericPlan({
-    classification,
+    assessment,
     dataStartRowIndex,
     fileName,
     headers,

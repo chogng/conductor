@@ -19,11 +19,11 @@ import type {
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import { collectFolderFiles } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import {
-  collectPendingImports,
-  prepareImportFile,
-  type ImportedSessionFileEntry,
-  type ImportSessionFileInfo,
-} from "src/cs/workbench/services/import/browser/importPipeline";
+  collectPendingDataFiles,
+  prepareDataFile,
+  type DataFileSessionFileEntry,
+  type DataFileSessionFileInfo,
+} from "src/cs/workbench/services/dataFile/browser/dataFilePipeline";
 
 export type FilesControllerProps = {
   readonly dialogsService: IFileDialogServiceType;
@@ -31,15 +31,15 @@ export type FilesControllerProps = {
   readonly pathService: IPathServiceType;
   files?: FileEntry[];
   cleanedData?: CleanedEntry[];
-  onFileImported?: (fileInfo: ImportSessionFileInfo) => void;
-  onFilesReplaced?: (files: ImportSessionFileInfo[]) => void;
+  onFileImported?: (fileInfo: DataFileSessionFileInfo) => void;
+  onFilesReplaced?: (files: DataFileSessionFileInfo[]) => void;
   onFileRemoved?: (fileId: string) => void;
   onFileSelected?: (fileId: string | null) => void;
   selectedFileId?: string | null;
 };
 
 export type {
-  ImportSessionFileInfo,
+  DataFileSessionFileInfo,
   FilesPaneRef,
 };
 
@@ -51,7 +51,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
   private readonly folderWatcher: WorkspaceWatcher;
   private explorerView: ExplorerView | null = null;
   private props: FilesControllerProps;
-  private internalFiles: ImportedSessionFileEntry[] = [];
+  private internalFiles: DataFileSessionFileEntry[] = [];
   private error: string | null = null;
   private isDragging = false;
   private optimisticSelectedFileId: string | null = null;
@@ -311,12 +311,12 @@ export class FilesController implements FilesPaneRef, IDisposable {
       !options.shouldContinue || options.shouldContinue();
     const {
       hasAnyUnsupportedFiles,
-      pendingImports,
+      pendingDataFiles,
       unsupportedCount,
-    } = collectPendingImports(
+    } = collectPendingDataFiles(
       newFiles,
     );
-    if (pendingImports.length === 0) {
+    if (pendingDataFiles.length === 0) {
       finishBatchPerf({
         acceptedCount: 0,
         duplicateCount: 0,
@@ -338,8 +338,8 @@ export class FilesController implements FilesPaneRef, IDisposable {
       return;
     }
 
-    const preparedEntries: ImportedSessionFileEntry[] = [];
-    const importedFiles: ImportSessionFileInfo[] = [];
+    const preparedEntries: DataFileSessionFileEntry[] = [];
+    const importedFiles: DataFileSessionFileInfo[] = [];
     const selectedRelativePath = options.preserveSelection
       ? this.getSelectedRelativePath()
       : null;
@@ -347,28 +347,28 @@ export class FilesController implements FilesPaneRef, IDisposable {
     let nextImportIndex = 0;
     const workerCount = Math.min(
       IMPORT_PREPARE_CONCURRENCY,
-      pendingImports.length,
+      pendingDataFiles.length,
     );
     await Promise.all(
       Array.from({ length: workerCount }, async () => {
         while (true) {
           const index = nextImportIndex;
           nextImportIndex += 1;
-          const pendingImport = pendingImports[index];
-          if (!pendingImport) {
+          const pendingDataFile = pendingDataFiles[index];
+          if (!pendingDataFile) {
             return;
           }
 
-          const preparedImport = await prepareImportFile(pendingImport);
-          if (!preparedImport) {
+          const preparedDataFile = await prepareDataFile(pendingDataFile);
+          if (!preparedDataFile) {
             failedNames.push(
-              pendingImport.sourceFile.name || this.getUnknownFileLabel(),
+              pendingDataFile.sourceFile.name || this.getUnknownFileLabel(),
             );
             continue;
           }
 
-          preparedEntries.push(preparedImport.fileEntry);
-          importedFiles.push(preparedImport.fileInfo);
+          preparedEntries.push(preparedDataFile.fileEntry);
+          importedFiles.push(preparedDataFile.fileInfo);
         }
       }),
     );
@@ -410,8 +410,8 @@ export class FilesController implements FilesPaneRef, IDisposable {
   }
 
   private replaceImportedFiles(
-    fileEntries: ImportedSessionFileEntry[],
-    importedFiles: ImportSessionFileInfo[],
+    fileEntries: DataFileSessionFileEntry[],
+    importedFiles: DataFileSessionFileInfo[],
     selectedFileId: string | null = importedFiles[0]?.fileId ?? null,
   ): void {
     const nextSelectedFileId = selectedFileId;
@@ -490,7 +490,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
   }
 
   private resolveSelectedFileId(
-    files: ImportSessionFileInfo[],
+    files: DataFileSessionFileInfo[],
     selectedRelativePath: string | null,
   ): string | null {
     if (selectedRelativePath) {

@@ -1,9 +1,9 @@
 import {
   detectAxisRole,
   type AxisRole,
-  type CurveClassification,
+  type FileAssessment,
   type CurveKind,
-} from "../../../common/curveClassification.ts";
+} from "../../../common/fileAssessment.ts";
 import {
   approxEqual,
   computeSpan,
@@ -275,12 +275,12 @@ type StructuredHeaderEntry = {
 
 const entryLooksLikeBlockX = (
   entry: StructuredHeaderEntry,
-  classification: CurveClassification,
+  assessment: FileAssessment,
 ): boolean =>
   entry.numeric &&
   !entry.isDrainCurrent &&
   (entry.suffixAxis === "x" ||
-    entry.role === classification.xAxisRole ||
+    entry.role === assessment.xAxisRole ||
     entry.role !== null ||
     entry.normalized.includes("voltage"));
 
@@ -321,14 +321,14 @@ const createSharedXBlock = ({
 
 const buildStructuredLayoutFromBlocks = ({
   blocks,
-  classification,
+  assessment,
   curveType,
   leftTitle,
   reasons,
   xAxisRole,
 }: {
   blocks: AutoExtractionBlock[];
-  classification: CurveClassification;
+  assessment: FileAssessment;
   curveType: CurveKind;
   leftTitle: string;
   reasons: string[];
@@ -349,18 +349,18 @@ const buildStructuredLayoutFromBlocks = ({
     legendTarget: firstBlock.legendTarget,
     reasons,
     xAxisRole,
-    xAxisRoleSource: classification.xAxisRole ? classification.xAxisRoleSource : "label",
+    xAxisRoleSource: assessment.xAxisRole ? assessment.xAxisRoleSource : "label",
     xCol: firstBlock.xCol,
     yCols,
   };
 };
 
 const inferSeparatedSharedXBlocks = ({
-  classification,
+  assessment,
   dataStartRowIndex,
   entries,
 }: {
-  classification: CurveClassification;
+  assessment: FileAssessment;
   dataStartRowIndex: number;
   entries: StructuredHeaderEntry[];
 }): AutoExtractionBlock[] => {
@@ -368,7 +368,7 @@ const inferSeparatedSharedXBlocks = ({
 
   for (let index = 0; index < entries.length; index += 1) {
     const xEntry = entries[index];
-    if (!xEntry || !entryLooksLikeBlockX(xEntry, classification)) continue;
+    if (!xEntry || !entryLooksLikeBlockX(xEntry, assessment)) continue;
 
     const yCols: number[] = [];
     let scanIndex = index + 1;
@@ -376,7 +376,7 @@ const inferSeparatedSharedXBlocks = ({
     while (scanIndex < entries.length) {
       const candidate = entries[scanIndex];
       if (!candidate) break;
-      if (entryLooksLikeBlockX(candidate, classification)) break;
+      if (entryLooksLikeBlockX(candidate, assessment)) break;
       if (candidate.numeric && candidate.isDrainCurrent) {
         yCols.push(candidate.index);
         endCol = candidate.index;
@@ -386,7 +386,7 @@ const inferSeparatedSharedXBlocks = ({
 
     if (yCols.length > 0) {
       const xAxisRole =
-        classification.xAxisRole ??
+        assessment.xAxisRole ??
         xEntry.role ??
         (xEntry.normalized.includes("drain") ? "vd" : null) ??
         (xEntry.normalized.includes("gate") ? "vg" : null);
@@ -529,12 +529,12 @@ export const inferSpecializedGenericLayout = ({
 };
 
 export const inferStructuredSeriesLayout = ({
-  classification,
+  assessment,
   dataStartRowIndex,
   headers,
   rows,
 }: {
-  classification: CurveClassification;
+  assessment: FileAssessment;
   dataStartRowIndex: number;
   headers: string[];
   rows: TemplateRows;
@@ -567,7 +567,7 @@ export const inferStructuredSeriesLayout = ({
   });
 
   const separatedBlocks = inferSeparatedSharedXBlocks({
-    classification,
+    assessment,
     dataStartRowIndex,
     entries: headerEntries,
   });
@@ -576,16 +576,16 @@ export const inferStructuredSeriesLayout = ({
   if (separatedBlocks.length >= 2 && hasSeparatedBlockSignal) {
     const firstBlock = separatedBlocks[0]!;
     const xAxisRole =
-      classification.xAxisRole ??
+      assessment.xAxisRole ??
       firstBlock.xAxisRole ??
       (headers[firstBlock.xCol]?.toLowerCase().includes("drain") ? "vd" : null) ??
       (headers[firstBlock.xCol]?.toLowerCase().includes("gate") ? "vg" : null);
     return buildStructuredLayoutFromBlocks({
       blocks: separatedBlocks,
-      classification,
+      assessment,
       curveType:
-        classification.curveType !== "unknown"
-          ? classification.curveType
+        assessment.curveType !== "unknown"
+          ? assessment.curveType
           : xAxisRole === "vg"
             ? "transfer"
             : xAxisRole === "vd"
@@ -630,7 +630,7 @@ export const inferStructuredSeriesLayout = ({
     );
     const firstX = headerEntries[adjacentVoltageCurrentPairs[0]?.xCol ?? 0] ?? null;
     const xAxisRole =
-      classification.xAxisRole ??
+      assessment.xAxisRole ??
       firstX?.role ??
       (firstX?.normalized.includes("drain") ? "vd" : null) ??
       (firstX?.normalized.includes("gate") ? "vg" : null);
@@ -647,10 +647,10 @@ export const inferStructuredSeriesLayout = ({
             yCols,
           }),
         ],
-        classification,
+        assessment,
         curveType:
-          classification.curveType !== "unknown"
-            ? classification.curveType
+          assessment.curveType !== "unknown"
+            ? assessment.curveType
             : xAxisRole === "vg"
               ? "transfer"
               : "output",
@@ -678,7 +678,7 @@ export const inferStructuredSeriesLayout = ({
     if (sharedX) {
       const firstXHeader = headers[pairCandidates[0]?.xCol ?? 0] || "X";
       const xAxisRole =
-        classification.xAxisRole ??
+        assessment.xAxisRole ??
         detectAxisRole(firstXHeader) ??
         (normalizeCellText(firstXHeader).toLowerCase().includes("drain") ? "vd" : null) ??
         (normalizeCellText(firstXHeader).toLowerCase().includes("gate") ? "vg" : null);
@@ -694,10 +694,10 @@ export const inferStructuredSeriesLayout = ({
             yCols,
           }),
         ],
-        classification,
+        assessment,
         curveType:
-          classification.curveType !== "unknown"
-            ? classification.curveType
+          assessment.curveType !== "unknown"
+            ? assessment.curveType
             : xAxisRole === "vg"
               ? "transfer"
               : xAxisRole === "vd"
@@ -719,7 +719,7 @@ export const inferStructuredSeriesLayout = ({
     (entry) =>
       entry.numeric &&
       (entry.suffixAxis === "x" ||
-        entry.role === classification.xAxisRole ||
+        entry.role === assessment.xAxisRole ||
         entry.role !== null),
   );
   const primaryX = xCandidates[0] ?? null;
@@ -739,7 +739,7 @@ export const inferStructuredSeriesLayout = ({
     (entry, index) => index === 0 || entry.index - yCandidates[index - 1]!.index === yStep,
   );
   const xAxisRole =
-    classification.xAxisRole ??
+    assessment.xAxisRole ??
     primaryX.role ??
     (primaryX.normalized.includes("drain") ? "vd" : null) ??
     (primaryX.normalized.includes("gate") ? "vg" : null);
@@ -758,10 +758,10 @@ export const inferStructuredSeriesLayout = ({
         legendStep: uniformYStep ? yStep : 1,
       },
     ],
-    classification,
+    assessment,
     curveType:
-      classification.curveType !== "unknown"
-        ? classification.curveType
+      assessment.curveType !== "unknown"
+        ? assessment.curveType
         : xAxisRole === "vg"
           ? "transfer"
           : xAxisRole === "vd"

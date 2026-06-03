@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import {
   isExcelDataFileName,
   isSupportedDataFileName,
-} from "../../files/common/files.ts";
+} from "../../../contrib/files/common/files.ts";
 import {
-  assessImportedFile,
-} from "../common/importFileUtils.ts";
+  assessDataFile,
+} from "../browser/dataFileAssessment.ts";
 
 test("isSupportedDataFileName accepts csv/xls/xlsx with case-insensitive suffixes", () => {
   assert.equal(isSupportedDataFileName("sample.csv"), true);
@@ -23,7 +23,7 @@ test("isExcelDataFileName only accepts xls/xlsx", () => {
   assert.equal(isExcelDataFileName("sample.csv"), false);
 });
 
-test("assessImportedFile detects transfer metadata on import", async () => {
+test("assessDataFile detects transfer metadata on import", async () => {
   const file = new File(
     [
       [
@@ -40,7 +40,7 @@ test("assessImportedFile detects transfer metadata on import", async () => {
     { type: "text/csv" },
   );
 
-  const result = await assessImportedFile(file);
+  const result = await assessDataFile(file);
 
   assert.equal(result.curveType, "transfer (vg)");
   assert.equal(result.curveTypeConfidence, "high");
@@ -48,7 +48,7 @@ test("assessImportedFile detects transfer metadata on import", async () => {
   assert.equal(result.xAxisRole, "vg");
 });
 
-test("assessImportedFile infers output from stripped CH1/CH2 data when shape evidence is strong", async () => {
+test("assessDataFile infers output from stripped CH1/CH2 data when shape evidence is strong", async () => {
   const file = new File(
     [
       [
@@ -63,7 +63,7 @@ test("assessImportedFile infers output from stripped CH1/CH2 data when shape evi
     { type: "text/csv" },
   );
 
-  const result = await assessImportedFile(file);
+  const result = await assessDataFile(file);
 
   assert.equal(result.curveType, "output (vd)");
   assert.equal(result.curveTypeConfidence, "medium");
@@ -72,7 +72,7 @@ test("assessImportedFile infers output from stripped CH1/CH2 data when shape evi
   assert.match(result.curveTypeReasons.join(" "), /output-style Id-Vd behavior/i);
 });
 
-test("assessImportedFile treats transient transfer CSV headers as transfer metadata", async () => {
+test("assessDataFile treats transient transfer CSV headers as transfer metadata", async () => {
   const rows = [
     ["2026-04-21-19-10-07_(MOS_IV_Transient_DC_Sweep)Id", "Ig_vg@ vs=0.0"],
     ["vg(V)", "id(-0.1)", "vg(V)", "ig(-0.1)", "vg(V)", "id(-1.0)", "vg(V)", "ig(-1.0)"],
@@ -83,7 +83,7 @@ test("assessImportedFile treats transient transfer CSV headers as transfer metad
     type: "text/csv;charset=utf-8",
   });
 
-  const result = await assessImportedFile(file);
+  const result = await assessDataFile(file);
 
   assert.equal(result.curveType, "transfer (vg)");
   assert.equal(result.curveTypeConfidence, "high");

@@ -4,61 +4,61 @@ import { InstantiationType, registerSingleton } from "src/cs/platform/instantiat
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 import { fileService } from "src/cs/workbench/services/files/electron-browser/fileService";
 import {
-  IImportService,
-  type IImportService as IImportServiceType,
-  type ImportConvertedCsv,
-  type ImportDemoFiles,
-  type ImportPreparedFile,
-  type ImportRcAnalysisResult,
-  type ImportResultPayload,
-} from "src/cs/workbench/services/import/common/import";
+  IDataFileService,
+  type IDataFileService as IDataFileServiceType,
+  type DataFileConvertedCsv,
+  type DataFileDemoFiles,
+  type DataFilePreparedFile,
+  type DataFileRcAnalysisResult,
+  type DataFileResultPayload,
+} from "src/cs/workbench/services/dataFile/common/dataFile";
 
 type DesktopIpcRenderer = {
   invoke(channel: string, ...args: unknown[]): Promise<unknown>;
 };
 
-type ImportBridge = {
-  analyzeDeviceAnalysisRcWithRust?: (payload: unknown) => Promise<ImportRcAnalysisResult>;
+type DataFileBridge = {
+  analyzeDeviceAnalysisRcWithRust?: (payload: unknown) => Promise<DataFileRcAnalysisResult>;
   disposeDeviceAnalysisFileWithRust?: (payload: unknown) => Promise<unknown>;
-  getDeviceAnalysisDemoFiles?: () => Promise<ImportDemoFiles>;
-  getDeviceAnalysisPreviewMetaWithRust?: (payload: unknown) => Promise<ImportResultPayload>;
-  getDeviceAnalysisPreviewRowsWithRust?: (payload: unknown) => Promise<ImportResultPayload>;
+  getDeviceAnalysisDemoFiles?: () => Promise<DataFileDemoFiles>;
+  getDeviceAnalysisPreviewMetaWithRust?: (payload: unknown) => Promise<DataFileResultPayload>;
+  getDeviceAnalysisPreviewRowsWithRust?: (payload: unknown) => Promise<DataFileResultPayload>;
   inferDeviceAnalysisAutoExtractionWithRust?: (payload: unknown) => Promise<unknown>;
-  openDeviceAnalysisFileWithRust?: (payload: unknown) => Promise<ImportResultPayload>;
-  prepareImportFileWithRust?: (payload: { fileName: string; path: string }) => Promise<ImportPreparedFile>;
-  processDeviceAnalysisFileWithRust?: (payload: unknown) => Promise<ImportResultPayload>;
-  readConvertedCsvFileWithRust?: (payload: { path: string }) => Promise<ImportConvertedCsv>;
+  openDeviceAnalysisFileWithRust?: (payload: unknown) => Promise<DataFileResultPayload>;
+  prepareImportFileWithRust?: (payload: { fileName: string; path: string }) => Promise<DataFilePreparedFile>;
+  processDeviceAnalysisFileWithRust?: (payload: unknown) => Promise<DataFileResultPayload>;
+  readConvertedCsvFileWithRust?: (payload: { path: string }) => Promise<DataFileConvertedCsv>;
   readDeviceAnalysisCellWithRust?: (payload: unknown) => Promise<unknown>;
-  readDeviceAnalysisCellsWithRust?: (payload: unknown) => Promise<ImportResultPayload>;
+  readDeviceAnalysisCellsWithRust?: (payload: unknown) => Promise<DataFileResultPayload>;
 };
 
 declare global {
   interface Window {
-    desktopImport?: ImportBridge;
+    desktopImport?: DataFileBridge;
   }
 }
 
-const IMPORT_SERVICE_UNAVAILABLE = "Import desktop bridge unavailable.";
+const DATA_FILE_SERVICE_UNAVAILABLE = "Data file desktop bridge unavailable.";
 
-function getBridge(): ImportBridge | null {
+function getBridge(): DataFileBridge | null {
   const bridge = globalThis.window?.desktopImport;
   return bridge && typeof bridge === "object" ? bridge : null;
 }
 
-function hasBridgeMethod<K extends keyof ImportBridge>(key: K): boolean {
+function hasBridgeMethod<K extends keyof DataFileBridge>(key: K): boolean {
   return typeof getBridge()?.[key] === "function";
 }
 
-function getBridgeMethod<K extends keyof ImportBridge>(
-  bridge: ImportBridge,
+function getBridgeMethod<K extends keyof DataFileBridge>(
+  bridge: DataFileBridge,
   key: K,
-): NonNullable<ImportBridge[K]> {
+): NonNullable<DataFileBridge[K]> {
   const method = bridge[key];
   if (typeof method !== "function") {
-    throw new Error(`${IMPORT_SERVICE_UNAVAILABLE} (${String(key)})`);
+    throw new Error(`${DATA_FILE_SERVICE_UNAVAILABLE} (${String(key)})`);
   }
 
-  return method as NonNullable<ImportBridge[K]>;
+  return method as NonNullable<DataFileBridge[K]>;
 }
 
 function getIpcRenderer(): DesktopIpcRenderer {
@@ -68,7 +68,7 @@ function getIpcRenderer(): DesktopIpcRenderer {
     } | undefined
   )?.conductor?.ipcRenderer;
   if (!ipcRenderer || typeof ipcRenderer.invoke !== "function") {
-    throw new Error(IMPORT_SERVICE_UNAVAILABLE);
+    throw new Error(DATA_FILE_SERVICE_UNAVAILABLE);
   }
 
   return ipcRenderer;
@@ -87,16 +87,16 @@ function invoke<T>(channel: string, payload?: unknown): Promise<T> {
   return getIpcRenderer().invoke(channel, payload) as Promise<T>;
 }
 
-export class ElectronBrowserImportService extends Disposable implements IImportServiceType {
+export class ElectronBrowserDataFileService extends Disposable implements IDataFileServiceType {
   public declare readonly _serviceBrand: undefined;
 
-  public analyzeRc(payload: unknown): Promise<ImportRcAnalysisResult> {
+  public analyzeRc(payload: unknown): Promise<DataFileRcAnalysisResult> {
     const bridge = getBridge();
     if (bridge && hasBridgeMethod("analyzeDeviceAnalysisRcWithRust")) {
       return getBridgeMethod(bridge, "analyzeDeviceAnalysisRcWithRust")(payload);
     }
 
-    return invoke<ImportRcAnalysisResult>(workbenchIpcChannels.analysisRustEngineAnalyzeRc, payload);
+    return invoke<DataFileRcAnalysisResult>(workbenchIpcChannels.analysisRustEngineAnalyzeRc, payload);
   }
 
   public canAnalyzeRc(): boolean {
@@ -144,31 +144,31 @@ export class ElectronBrowserImportService extends Disposable implements IImportS
     return invoke(workbenchIpcChannels.analysisRustEngineDispose, payload);
   }
 
-  public getDemoFiles(): Promise<ImportDemoFiles> {
+  public getDemoFiles(): Promise<DataFileDemoFiles> {
     const bridge = getBridge();
     if (bridge && hasBridgeMethod("getDeviceAnalysisDemoFiles")) {
       return getBridgeMethod(bridge, "getDeviceAnalysisDemoFiles")();
     }
 
-    return invoke<ImportDemoFiles>(workbenchIpcChannels.analysisDemoFilesGet);
+    return invoke<DataFileDemoFiles>(workbenchIpcChannels.analysisDemoFilesGet);
   }
 
-  public getPreviewMeta(payload: unknown): Promise<ImportResultPayload> {
+  public getPreviewMeta(payload: unknown): Promise<DataFileResultPayload> {
     const bridge = getBridge();
     if (bridge && hasBridgeMethod("getDeviceAnalysisPreviewMetaWithRust")) {
       return getBridgeMethod(bridge, "getDeviceAnalysisPreviewMetaWithRust")(payload);
     }
 
-    return invoke<ImportResultPayload>(workbenchIpcChannels.analysisRustEnginePreviewMeta, payload);
+    return invoke<DataFileResultPayload>(workbenchIpcChannels.analysisRustEnginePreviewMeta, payload);
   }
 
-  public getPreviewRows(payload: unknown): Promise<ImportResultPayload> {
+  public getPreviewRows(payload: unknown): Promise<DataFileResultPayload> {
     const bridge = getBridge();
     if (bridge && hasBridgeMethod("getDeviceAnalysisPreviewRowsWithRust")) {
       return getBridgeMethod(bridge, "getDeviceAnalysisPreviewRowsWithRust")(payload);
     }
 
-    return invoke<ImportResultPayload>(workbenchIpcChannels.analysisRustEnginePreviewRows, payload);
+    return invoke<DataFileResultPayload>(workbenchIpcChannels.analysisRustEnginePreviewRows, payload);
   }
 
   public inferAutoExtraction(payload: unknown): Promise<unknown> {
@@ -180,31 +180,31 @@ export class ElectronBrowserImportService extends Disposable implements IImportS
     return invoke(workbenchIpcChannels.analysisRustEngineInferAutoExtraction, payload);
   }
 
-  public openFile(payload: unknown): Promise<ImportResultPayload> {
+  public openFile(payload: unknown): Promise<DataFileResultPayload> {
     const bridge = getBridge();
     if (bridge && hasBridgeMethod("openDeviceAnalysisFileWithRust")) {
       return getBridgeMethod(bridge, "openDeviceAnalysisFileWithRust")(payload);
     }
 
-    return invoke<ImportResultPayload>(workbenchIpcChannels.analysisRustEngineOpen, payload);
+    return invoke<DataFileResultPayload>(workbenchIpcChannels.analysisRustEngineOpen, payload);
   }
 
-  public prepareFile(payload: { fileName: string; path: string }): Promise<ImportPreparedFile> {
+  public prepareFile(payload: { fileName: string; path: string }): Promise<DataFilePreparedFile> {
     const bridge = getBridge();
     if (bridge && hasBridgeMethod("prepareImportFileWithRust")) {
       return getBridgeMethod(bridge, "prepareImportFileWithRust")(payload);
     }
 
-    return invoke<ImportPreparedFile>(workbenchIpcChannels.importPrepareRust, payload);
+    return invoke<DataFilePreparedFile>(workbenchIpcChannels.importPrepareRust, payload);
   }
 
-  public processFile(payload: unknown): Promise<ImportResultPayload> {
+  public processFile(payload: unknown): Promise<DataFileResultPayload> {
     const bridge = getBridge();
     if (bridge && hasBridgeMethod("processDeviceAnalysisFileWithRust")) {
       return getBridgeMethod(bridge, "processDeviceAnalysisFileWithRust")(payload);
     }
 
-    return invoke<ImportResultPayload>(workbenchIpcChannels.analysisRustEngineProcessFile, payload);
+    return invoke<DataFileResultPayload>(workbenchIpcChannels.analysisRustEngineProcessFile, payload);
   }
 
   public readCell(payload: unknown): Promise<unknown> {
@@ -216,16 +216,16 @@ export class ElectronBrowserImportService extends Disposable implements IImportS
     return invoke(workbenchIpcChannels.analysisRustEngineReadCell, payload);
   }
 
-  public readCells(payload: unknown): Promise<ImportResultPayload> {
+  public readCells(payload: unknown): Promise<DataFileResultPayload> {
     const bridge = getBridge();
     if (bridge && hasBridgeMethod("readDeviceAnalysisCellsWithRust")) {
       return getBridgeMethod(bridge, "readDeviceAnalysisCellsWithRust")(payload);
     }
 
-    return invoke<ImportResultPayload>(workbenchIpcChannels.analysisRustEngineReadCells, payload);
+    return invoke<DataFileResultPayload>(workbenchIpcChannels.analysisRustEngineReadCells, payload);
   }
 
-  public readConvertedCsv(payload: { path: string }): Promise<ImportConvertedCsv> {
+  public readConvertedCsv(payload: { path: string }): Promise<DataFileConvertedCsv> {
     const bridge = getBridge();
     if (bridge && hasBridgeMethod("readConvertedCsvFileWithRust")) {
       return getBridgeMethod(bridge, "readConvertedCsvFileWithRust")(payload);
@@ -236,7 +236,7 @@ export class ElectronBrowserImportService extends Disposable implements IImportS
 
   private async readConvertedCsvFromFile(
     payload: { path: string },
-  ): Promise<ImportConvertedCsv> {
+  ): Promise<DataFileConvertedCsv> {
     const filePath = typeof payload?.path === "string" ? payload.path.trim() : "";
     if (!filePath) {
       return {
@@ -262,6 +262,6 @@ export class ElectronBrowserImportService extends Disposable implements IImportS
   }
 }
 
-export const importService = new ElectronBrowserImportService();
+export const dataFileService = new ElectronBrowserDataFileService();
 
-registerSingleton(IImportService, ElectronBrowserImportService, InstantiationType.Delayed);
+registerSingleton(IDataFileService, ElectronBrowserDataFileService, InstantiationType.Delayed);

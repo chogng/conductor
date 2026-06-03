@@ -1,9 +1,9 @@
 import {
   detectAxisRole,
-  extractCurveMetadata,
+  extractFileMetadata,
   type AxisRole,
-  type CurveClassification,
-} from "../../../common/curveClassification.ts";
+  type FileAssessment,
+} from "../../../common/fileAssessment.ts";
 import { normalizeCellText } from "../../../common/cellText.ts";
 import { resolveAutoGroupShape } from "./autoTemplateGrouping.ts";
 import {
@@ -85,7 +85,7 @@ const resolveLabelForRole = (
 };
 
 export const inferStrippedChannelPlan = ({
-  classification,
+  assessment,
   dataStartRowIndex,
   fileName,
   headers,
@@ -93,11 +93,11 @@ export const inferStrippedChannelPlan = ({
   rows,
   totalRowCount,
 }: {
-  classification: CurveClassification;
+  assessment: FileAssessment;
   dataStartRowIndex: number;
   fileName: unknown;
   headers: string[];
-  metadata: ReturnType<typeof extractCurveMetadata>;
+  metadata: ReturnType<typeof extractFileMetadata>;
   rows: TemplateRows;
   totalRowCount?: number | null;
 }): AutoExtractionResult => {
@@ -122,18 +122,18 @@ export const inferStrippedChannelPlan = ({
   }
 
   const sweptAxis = metadata.strippedSweepVoltageAxis;
-  if (!sweptAxis || !classification.xAxisRole || classification.curveType === "unknown") {
+  if (!sweptAxis || !assessment.xAxisRole || assessment.curveType === "unknown") {
     return {
       message: `${String(fileName ?? "file")}: unable to infer stripped sweep roles automatically.`,
       ok: false,
-      reasons: classification.reasons,
+      reasons: assessment.reasons,
     };
   }
 
   const xCol = sweptAxis === "ch1" ? ch1VoltageCol : ch2VoltageCol;
   const fixedVoltageCol = sweptAxis === "ch1" ? ch2VoltageCol : ch1VoltageCol;
   const yCol =
-    classification.curveType === "output"
+    assessment.curveType === "output"
       ? sweptAxis === "ch1"
         ? ch1CurrentCol
         : ch2CurrentCol
@@ -156,15 +156,15 @@ export const inferStrippedChannelPlan = ({
     !hasGroupedLegend && Number.isFinite(metadata.strippedFixedVoltageMagnitude)
       ? formatCompactNumber(metadata.strippedFixedVoltageMagnitude)
       : null;
-  const biasRole = classification.xAxisRole === "vg" ? "vd" : "vg";
+  const biasRole = assessment.xAxisRole === "vg" ? "vd" : "vg";
 
   return {
     ok: true,
     plan: {
-      bottomTitle: resolveLabelForRole(classification.xAxisRole, headers[xCol] || "X"),
-      confidence: classification.confidence,
-      curveType: classification.curveType,
-      curveTypeLabel: classification.curveTypeLabel,
+      bottomTitle: resolveLabelForRole(assessment.xAxisRole, headers[xCol] || "X"),
+      confidence: assessment.confidence,
+      curveType: assessment.curveType,
+      curveTypeLabel: assessment.curveTypeLabel,
       dataStartRowIndex,
       groups,
       leftTitle: "Id",
@@ -175,10 +175,10 @@ export const inferStrippedChannelPlan = ({
       legendCount: hasGroupedLegend ? null : fixedLegendValue ? 1 : null,
       legendStep: null,
       legendTarget: hasGroupedLegend ? "group" : fixedLegendValue ? "yColumn" : "auto",
-      needsTemplate: classification.needsTemplate,
-      reasons: classification.reasons,
-      xAxisRole: classification.xAxisRole,
-      xAxisRoleSource: classification.xAxisRoleSource,
+      needsTemplate: assessment.needsTemplate,
+      reasons: assessment.reasons,
+      xAxisRole: assessment.xAxisRole,
+      xAxisRoleSource: assessment.xAxisRoleSource,
       xCol,
       xPointsPerGroup: normalizedGroupSize,
       xSegmentationMode: normalizedGroupSize !== null ? "points" : "auto",
@@ -190,7 +190,7 @@ export const inferStrippedChannelPlan = ({
 };
 
 export const inferGenericPlan = ({
-  classification,
+  assessment,
   dataStartRowIndex,
   fileName,
   headers,
@@ -198,33 +198,33 @@ export const inferGenericPlan = ({
   rows,
   totalRowCount,
 }: {
-  classification: CurveClassification;
+  assessment: FileAssessment;
   dataStartRowIndex: number;
   fileName: unknown;
   headers: string[];
-  metadata: ReturnType<typeof extractCurveMetadata>;
+  metadata: ReturnType<typeof extractFileMetadata>;
   rows: TemplateRows;
   totalRowCount?: number | null;
 }): AutoExtractionResult => {
   const structuredLayout = inferStructuredSeriesLayout({
-    classification,
+    assessment,
     dataStartRowIndex,
     headers,
     rows,
   });
 
-  const effectiveXAxisRole = structuredLayout?.xAxisRole ?? classification.xAxisRole;
-  const effectiveCurveType = structuredLayout?.curveType ?? classification.curveType;
+  const effectiveXAxisRole = structuredLayout?.xAxisRole ?? assessment.xAxisRole;
+  const effectiveCurveType = structuredLayout?.curveType ?? assessment.curveType;
   const effectiveConfidence =
-    classification.curveType !== "unknown" && classification.xAxisRole
-      ? classification.confidence
+    assessment.curveType !== "unknown" && assessment.xAxisRole
+      ? assessment.confidence
       : structuredLayout
         ? "medium"
-        : classification.confidence;
+        : assessment.confidence;
   const effectiveReasons = structuredLayout
-    ? [...structuredLayout.reasons, ...classification.reasons]
-    : classification.reasons;
-  const effectiveRoleSource = structuredLayout?.xAxisRoleSource ?? classification.xAxisRoleSource;
+    ? [...structuredLayout.reasons, ...assessment.reasons]
+    : assessment.reasons;
+  const effectiveRoleSource = structuredLayout?.xAxisRoleSource ?? assessment.xAxisRoleSource;
 
   if (!effectiveXAxisRole || effectiveCurveType === "unknown") {
     if (
@@ -390,8 +390,8 @@ export const inferGenericPlan = ({
       confidence: effectiveConfidence,
       curveType: effectiveCurveType,
       curveTypeLabel:
-        effectiveCurveType === classification.curveType
-          ? classification.curveTypeLabel
+        effectiveCurveType === assessment.curveType
+          ? assessment.curveTypeLabel
           : effectiveCurveType === "transfer"
             ? effectiveXAxisRole === "vg"
               ? "transfer (vg)"
@@ -462,7 +462,7 @@ export const inferGenericPlan = ({
             : hasSingleGeneratedLegend
               ? "yColumn"
               : "auto",
-      needsTemplate: classification.needsTemplate && !structuredLayout,
+      needsTemplate: assessment.needsTemplate && !structuredLayout,
       reasons: effectiveReasons,
       xAxisRole: effectiveXAxisRole,
       xAxisRoleSource: effectiveRoleSource,

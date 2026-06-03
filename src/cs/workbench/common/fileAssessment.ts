@@ -14,9 +14,9 @@ export type CurveKind =
   | "cf"
   | "unknown";
 
-export type CurveConfidence = "high" | "medium" | "low";
+export type FileAssessmentConfidence = "high" | "medium" | "low";
 
-export type CurveSource =
+export type FileAssessmentSource =
   | "metadata"
   | "filename"
   | "title"
@@ -24,7 +24,7 @@ export type CurveSource =
   | "shape"
   | null;
 
-export type CurveMetadata = {
+export type FileMetadata = {
   channelFuncs: string[];
   channelVNames: string[];
   dataNameColumns: string[];
@@ -43,28 +43,28 @@ export type CurveMetadata = {
   xAxisData: string;
 };
 
-export type CurveClassification = {
-  confidence: CurveConfidence;
+export type FileAssessment = {
+  confidence: FileAssessmentConfidence;
   curveType: CurveKind;
   curveTypeLabel: string | null;
   needsTemplate: boolean;
   reasons: string[];
   xAxisRole: AxisRole | null;
-  xAxisRoleSource: CurveSource;
+  xAxisRoleSource: FileAssessmentSource;
 };
 
-type CurveClassificationInput = {
+type FileAssessmentInput = {
   fileName?: unknown;
   fileNameRole?: AxisRole | null;
-  metadata?: Partial<CurveMetadata> | null;
+  metadata?: Partial<FileMetadata> | null;
   templateXAxisLabel?: unknown;
   xAxisLabel?: unknown;
 };
 
-type CurveEvidence = {
+type FileEvidence = {
   reason: string;
   role: AxisRole;
-  source: NonNullable<CurveSource>;
+  source: NonNullable<FileAssessmentSource>;
   weight: number;
 };
 
@@ -309,9 +309,9 @@ const collectStrippedSweepShapeStats = (
   };
 };
 
-export const extractCurveMetadata = (
+export const extractFileMetadata = (
   rows: Array<Array<unknown> | null | undefined>,
-): CurveMetadata => {
+): FileMetadata => {
   let setupTitle = "";
   let xAxisData = "";
   let notesText = "";
@@ -508,13 +508,13 @@ const detectCapacitanceCurveKind = ({
   templateXAxisLabel,
   xAxisLabel,
 }: Pick<
-  CurveClassificationInput,
+  FileAssessmentInput,
   "fileName" | "metadata" | "templateXAxisLabel" | "xAxisLabel"
 >): {
-  confidence: CurveConfidence;
+  confidence: FileAssessmentConfidence;
   curveType: Exclude<CurveKind, "transfer" | "output" | "unknown">;
   reason: string;
-  source: NonNullable<CurveSource>;
+  source: NonNullable<FileAssessmentSource>;
 } | null => {
   const metadataLikeTexts = [
     metadata?.setupTitle,
@@ -588,11 +588,11 @@ const detectCapacitanceCurveKind = ({
 const detectPulseVoltageCurveKind = ({
   fileName,
   metadata,
-}: Pick<CurveClassificationInput, "fileName" | "metadata">): {
-  confidence: CurveConfidence;
+}: Pick<FileAssessmentInput, "fileName" | "metadata">): {
+  confidence: FileAssessmentConfidence;
   curveType: "pv";
   reason: string;
-  source: NonNullable<CurveSource>;
+  source: NonNullable<FileAssessmentSource>;
 } | null => {
   const hasFastIvOrIvtHint = (value: unknown): boolean => {
     const text = normalizeCellText(value).toLowerCase();
@@ -620,7 +620,7 @@ const detectPulseVoltageCurveKind = ({
   };
 };
 
-const reasonPrefixBySource: Record<NonNullable<CurveSource>, string> = {
+const reasonPrefixBySource: Record<NonNullable<FileAssessmentSource>, string> = {
   filename: "Filename",
   label: "Axis label",
   metadata: "Metadata",
@@ -631,10 +631,10 @@ const reasonPrefixBySource: Record<NonNullable<CurveSource>, string> = {
 const toRoleLabel = (role: AxisRole): string => (role === "vg" ? "Vg" : "Vd");
 
 const pushEvidence = (
-  evidence: CurveEvidence[],
+  evidence: FileEvidence[],
   role: AxisRole | null,
   weight: number,
-  source: NonNullable<CurveSource>,
+  source: NonNullable<FileAssessmentSource>,
   message: string,
 ) => {
   if (!role) return;
@@ -652,8 +652,8 @@ const collectRoleEvidence = ({
   metadata,
   templateXAxisLabel,
   xAxisLabel,
-}: CurveClassificationInput): CurveEvidence[] => {
-  const evidence: CurveEvidence[] = [];
+}: FileAssessmentInput): FileEvidence[] => {
+  const evidence: FileEvidence[] = [];
   const normalizedMetadata = metadata ?? {};
   const fileNameRoleFromText = detectAxisRole(fileName);
   const shapeRoleHint = fileNameRole ?? fileNameRoleFromText;
@@ -806,7 +806,7 @@ const collectRoleEvidence = ({
   return evidence;
 };
 
-const hasStrongMetadataConflict = (evidence: CurveEvidence[]): boolean => {
+const hasStrongMetadataConflict = (evidence: FileEvidence[]): boolean => {
   const vgMetadata = evidence.some(
     (entry) => entry.source === "metadata" && entry.role === "vg" && entry.weight >= 14,
   );
@@ -817,8 +817,8 @@ const hasStrongMetadataConflict = (evidence: CurveEvidence[]): boolean => {
 };
 
 const resolveRoleSource = (
-  winningEvidence: CurveEvidence[],
-): NonNullable<CurveSource> | null => {
+  winningEvidence: FileEvidence[],
+): NonNullable<FileAssessmentSource> | null => {
   if (!winningEvidence.length) return null;
   if (winningEvidence.some((entry) => entry.source === "metadata")) return "metadata";
   if (winningEvidence.some((entry) => entry.source === "title")) return "title";
@@ -828,13 +828,13 @@ const resolveRoleSource = (
   return null;
 };
 
-export const classifyCurve = ({
+export const assessFile = ({
   fileName,
   fileNameRole = null,
   metadata,
   templateXAxisLabel,
   xAxisLabel,
-}: CurveClassificationInput): CurveClassification => {
+}: FileAssessmentInput): FileAssessment => {
   const normalizedMetadata = metadata ?? {};
   const evidence = collectRoleEvidence({
     fileName,
@@ -935,7 +935,7 @@ export const classifyCurve = ({
   const hasMetadataSupport = winningEvidence.some((entry) => entry.source === "metadata");
   const curveType = winningRole === "vg" ? "transfer" : "output";
 
-  let confidence: CurveConfidence = "low";
+  let confidence: FileAssessmentConfidence = "low";
   if (hasMetadataSupport && strongestWinningWeight >= 14 && scoreGap >= 10) {
     confidence = "high";
   } else if ((hasMetadataSupport && scoreGap >= 6) || scoreGap >= 8) {

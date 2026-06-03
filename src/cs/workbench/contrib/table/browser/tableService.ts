@@ -40,8 +40,8 @@ import {
   type RustPreviewCellRequest,
 } from "src/cs/workbench/contrib/table/browser/rows/rustCells";
 import { useRowsVersion } from "src/cs/workbench/contrib/table/browser/rows/rowsVersion";
-import { loadConvertedCsvFile } from "src/cs/workbench/services/import/browser/importPipeline";
-import { importService } from "src/cs/workbench/services/import/browser/importService";
+import { loadConvertedCsvFile } from "src/cs/workbench/services/dataFile/browser/dataFilePipeline";
+import { dataFileService } from "src/cs/workbench/services/dataFile/browser/dataFileService";
 
 type SetStateAction<T> = T | ((previous: T) => T);
 type Dispatch<T> = (value: T) => void;
@@ -631,8 +631,8 @@ const createTableModel = ({
         payload: { fileId },
       });
       rustPreviewFileIdsRef.current.delete(fileId);
-      if (importService.canDisposeFile()) {
-        void importService.disposeFile({ fileId });
+      if (dataFileService.canDisposeFile()) {
+        void dataFileService.disposeFile({ fileId });
       }
     },
     [previewWorkerRef],
@@ -649,8 +649,8 @@ const createTableModel = ({
     previewCacheFileLruRef.current = new Set();
     previewPendingChunksByFileIdRef.current = new Map();
     rustPreviewFileIdsRef.current = new Set();
-    if (importService.canDisposeFile()) {
-      void importService.disposeFile({ clear: true });
+    if (dataFileService.canDisposeFile()) {
+      void dataFileService.disposeFile({ clear: true });
     }
     assignCurrentPreviewCache();
     notifyPreviewRowsCacheChanged();
@@ -1031,8 +1031,8 @@ const createTableModel = ({
             previewTargetFile.sourcePath.trim().toLowerCase().endsWith(".csv")
           ? previewTargetFile.sourcePath.trim()
           : null;
-    if (rustInputPath && importService.canOpenFile()) {
-      void importService
+    if (rustInputPath && dataFileService.canOpenFile()) {
+      void dataFileService
       .openFile({
           fileId: previewTargetSourceKey,
           fileName: previewTargetFile.fileName ?? "",
@@ -1234,9 +1234,9 @@ const createTableModel = ({
 
       if (
         rustPreviewFileIdsRef.current.has(sourceKey) &&
-        importService.canGetPreviewRows()
+        dataFileService.canGetPreviewRows()
       ) {
-        return importService
+        return dataFileService
           .getPreviewRows({
             endRow: end,
             fileId: sourceKey,
@@ -1310,7 +1310,7 @@ const createTableModel = ({
 
       if (
         rustPreviewFileIdsRef.current.has(sourceKey) &&
-        importService.canReadCells()
+        dataFileService.canReadCells()
       ) {
         const requestCells = buildRustPreviewCellRequests({
           columnCount,
@@ -1318,7 +1318,7 @@ const createTableModel = ({
         });
         if (requestCells.length > 0) {
           try {
-            const response = await importService.readCells({
+            const response = await dataFileService.readCells({
               cells: requestCells,
               fileId: sourceKey,
               sourceKey,

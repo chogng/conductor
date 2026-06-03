@@ -1,12 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  classifyCurve,
-  extractCurveMetadata,
-} from "../../../common/curveClassification.ts";
+  assessFile,
+  extractFileMetadata,
+} from "../../../common/fileAssessment.ts";
 
 test("classifies standard transfer metadata with high confidence", () => {
-  const metadata = extractCurveMetadata([
+  const metadata = extractFileMetadata([
     ["SetupTitle", "Transfer_DB"],
     ["TestParameter", "Channel.VName", "Vg", "Vd", "Vs"],
     ["TestParameter", "Channel.Func", "VAR1", "VAR2", "CONST"],
@@ -19,7 +19,7 @@ test("classifies standard transfer metadata with high confidence", () => {
     ["DataName", "Vg", "Id", "Ig"],
   ]);
 
-  const result = classifyCurve({
+  const result = assessFile({
     fileName: "Transfer_DB [sample].csv",
     metadata,
   });
@@ -31,7 +31,7 @@ test("classifies standard transfer metadata with high confidence", () => {
 });
 
 test("classifies standard output metadata with high confidence", () => {
-  const metadata = extractCurveMetadata([
+  const metadata = extractFileMetadata([
     ["SetupTitle", "Output"],
     ["TestParameter", "Channel.VName", "Vg", "Vd", "Vs"],
     ["TestParameter", "Channel.Func", "VAR2", "VAR1", "CONST"],
@@ -44,7 +44,7 @@ test("classifies standard output metadata with high confidence", () => {
     ["DataName", "Vd", "Ig", "Id"],
   ]);
 
-  const result = classifyCurve({
+  const result = assessFile({
     fileName: "Output [sample].csv",
     metadata,
   });
@@ -55,7 +55,7 @@ test("classifies standard output metadata with high confidence", () => {
 });
 
 test("treats Trans_Br files as transfer when metadata says Vg", () => {
-  const metadata = extractCurveMetadata([
+  const metadata = extractFileMetadata([
     ["SetupTitle", "Trans_Br"],
     ["TestParameter", "Output.Graph.XAxis.Data", "Vg"],
     [
@@ -66,7 +66,7 @@ test("treats Trans_Br files as transfer when metadata says Vg", () => {
     ["DataName", "Vg", "Id", "Ig"],
   ]);
 
-  const result = classifyCurve({
+  const result = assessFile({
     fileName: "Trans_Br [sample].csv",
     metadata,
   });
@@ -77,7 +77,7 @@ test("treats Trans_Br files as transfer when metadata says Vg", () => {
 });
 
 test("accepts single-swept transfer files that only declare VAR1", () => {
-  const metadata = extractCurveMetadata([
+  const metadata = extractFileMetadata([
     ["SetupTitle", "Transfer1-3"],
     ["TestParameter", "Channel.VName", "Vg", "Vs", "Vd"],
     ["TestParameter", "Channel.Func", "VAR1", "CONST", "CONST"],
@@ -90,7 +90,7 @@ test("accepts single-swept transfer files that only declare VAR1", () => {
     ["DataName", "Vg", "Id", "gm"],
   ]);
 
-  const result = classifyCurve({
+  const result = assessFile({
     fileName: "Transfer1-3.csv",
     metadata,
   });
@@ -101,7 +101,7 @@ test("accepts single-swept transfer files that only declare VAR1", () => {
 });
 
 test("keeps stripped CH1/CH2 sweeps unknown without extra hints", () => {
-  const metadata = extractCurveMetadata([
+  const metadata = extractFileMetadata([
     [
       "Repeat",
       "VAR2",
@@ -114,7 +114,7 @@ test("keeps stripped CH1/CH2 sweeps unknown without extra hints", () => {
     ["1", "1", "1", "-3.00000E+000", "-3.7E-9", "-60.00000E+000", "1.3E-9"],
   ]);
 
-  const result = classifyCurve({
+  const result = assessFile({
     fileName: "sample.csv",
     metadata,
   });
@@ -127,7 +127,7 @@ test("keeps stripped CH1/CH2 sweeps unknown without extra hints", () => {
 });
 
 test("infers output from stripped sweeps when current dynamics contradict transfer filename hints", () => {
-  const metadata = extractCurveMetadata([
+  const metadata = extractFileMetadata([
     [
       "Repeat",
       "VAR2",
@@ -143,7 +143,7 @@ test("infers output from stripped sweeps when current dynamics contradict transf
     ["1", "1", "4", "0.00000E+000", "-1.0E-7", "-60.00000E+000", "1.1E-9"],
   ]);
 
-  const result = classifyCurve({
+  const result = assessFile({
     fileName: "tran.csv",
     metadata,
   });
@@ -156,7 +156,7 @@ test("infers output from stripped sweeps when current dynamics contradict transf
 });
 
 test("infers transfer from stripped sweeps when the fixed channel carries the drain-current response", () => {
-  const metadata = extractCurveMetadata([
+  const metadata = extractFileMetadata([
     [
       "Repeat",
       "VAR2",
@@ -173,7 +173,7 @@ test("infers transfer from stripped sweeps when the fixed channel carries the dr
     ["1", "1", "5", "6.00000E+001", "1.0E-10", "2.00000E+000", "1.0E-4"],
   ]);
 
-  const result = classifyCurve({
+  const result = assessFile({
     fileName: "sample.csv",
     metadata,
   });
@@ -186,7 +186,7 @@ test("infers transfer from stripped sweeps when the fixed channel carries the dr
 });
 
 test("uses filename plus stripped sweep shape as a low-confidence output hint", () => {
-  const metadata = extractCurveMetadata([
+  const metadata = extractFileMetadata([
     [
       "Repeat",
       "VAR2",
@@ -201,7 +201,7 @@ test("uses filename plus stripped sweep shape as a low-confidence output hint", 
     ["1", "1", "3", "5.00000E-001", "1.2E-9", "2.00000E+000", "1.3E-9"],
   ]);
 
-  const result = classifyCurve({
+  const result = assessFile({
     fileName: "out.csv",
     metadata,
   });
@@ -214,7 +214,7 @@ test("uses filename plus stripped sweep shape as a low-confidence output hint", 
 });
 
 test("keeps stripped CH1/CH2 sweeps unknown when both channels vary", () => {
-  const metadata = extractCurveMetadata([
+  const metadata = extractFileMetadata([
     [
       "Repeat",
       "VAR2",
@@ -229,7 +229,7 @@ test("keeps stripped CH1/CH2 sweeps unknown when both channels vary", () => {
     ["1", "1", "3", "2.00000E+000", "1.4E-9", "2.00000E+000", "1.5E-9"],
   ]);
 
-  const result = classifyCurve({
+  const result = assessFile({
     fileName: "tran.csv",
     metadata,
   });
@@ -242,13 +242,13 @@ test("keeps stripped CH1/CH2 sweeps unknown when both channels vary", () => {
 });
 
 test("returns unknown when strong metadata conflicts", () => {
-  const metadata = extractCurveMetadata([
+  const metadata = extractFileMetadata([
     ["SetupTitle", "Transfer_DB"],
     ["TestParameter", "Output.Graph.XAxis.Data", "Vg"],
     ["DataName", "Vd", "Id", "Ig"],
   ]);
 
-  const result = classifyCurve({
+  const result = assessFile({
     fileName: "conflict.csv",
     metadata,
   });
@@ -260,9 +260,9 @@ test("returns unknown when strong metadata conflicts", () => {
 });
 
 test("classifies Cp-V files as cv without needing a template", () => {
-  const result = classifyCurve({
+  const result = assessFile({
     fileName: "#CV-60um-5,10kHz_2026-01-09-10-09-59.xls",
-    metadata: extractCurveMetadata([
+    metadata: extractFileMetadata([
       ["{c_v_ext}", "2026-01-08-21-55-45"],
       ["{(C_V_C_V_EXT)Cp_vp@ vn=0.0}", "vn=0.00000"],
       ["vp", "Cp"],
@@ -278,9 +278,9 @@ test("classifies Cp-V files as cv without needing a template", () => {
 });
 
 test("classifies Cp-freq files as cf without needing a template", () => {
-  const result = classifyCurve({
+  const result = assessFile({
     fileName: "#CF-10um-10_2026-01-09-11-09-36.xls",
-    metadata: extractCurveMetadata([
+    metadata: extractFileMetadata([
       ["{c_freq_ext}", "2026-01-09-11-07-05"],
       ["{(C_freq_ext_C_Freq_EXT)Cp_freq@ vn=1.0}", "vn=1.00000"],
       ["freq", "Cp(vp=0.00000)"],
@@ -296,9 +296,9 @@ test("classifies Cp-freq files as cf without needing a template", () => {
 });
 
 test("classifies FastIV pulse-voltage files as pv without needing a template", () => {
-  const result = classifyCurve({
+  const result = assessFile({
     fileName: "W-AOHZOAO-W-380C-PV-D100-WAKE UP_2026-01-15-16-25-29.xls",
-    metadata: extractCurveMetadata([
+    metadata: extractFileMetadata([
       ["{i_v_fastiv_ivt-D150}", "2026-01-15-16-20-41"],
       ["vp", "`vp", "ipt", "Time", "vp", "in"],
     ]),

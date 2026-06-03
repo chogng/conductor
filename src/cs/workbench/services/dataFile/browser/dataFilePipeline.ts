@@ -1,9 +1,9 @@
 import type { URI } from "src/cs/base/common/uri";
 import { getPathForFile } from "src/cs/platform/dnd/browser/dnd";
 import {
-  assessImportedFile,
-  type ImportedCurveAssessment,
-} from "src/cs/workbench/contrib/import/common/importFileUtils";
+  assessDataFile,
+} from "src/cs/workbench/services/dataFile/browser/dataFileAssessment";
+import type { DataFileAssessment } from "src/cs/workbench/services/dataFile/common/dataFile";
 import {
   startPerf,
 } from "src/cs/workbench/common/perf";
@@ -15,11 +15,11 @@ import {
   type FileSource,
   type FileEntry,
 } from "src/cs/workbench/contrib/files/common/files";
-import { importService } from "src/cs/workbench/services/import/browser/importService";
+import { dataFileService } from "src/cs/workbench/services/dataFile/browser/dataFileService";
 
-export type ImportAxisRole = "vg" | "vd" | null;
+export type DataFileAxisRole = "vg" | "vd" | null;
 
-export type ImportAxisRoleSource =
+export type DataFileAxisRoleSource =
   | "filename"
   | "title"
   | "label"
@@ -27,14 +27,14 @@ export type ImportAxisRoleSource =
   | "shape"
   | null;
 
-export type ImportedSessionFileEntry = FileEntry & {
+export type DataFileSessionFileEntry = FileEntry & {
   fileId: string;
   file: File;
   itemKey: string;
   sourceKey: string;
 };
 
-export type ImportSessionFileInfo = SessionFile & {
+export type DataFileSessionFileInfo = SessionFile & {
   fileId: string;
   fileName: string;
   file: File;
@@ -48,12 +48,12 @@ export type ImportSessionFileInfo = SessionFile & {
   curveTypeConfidence?: "high" | "medium" | "low";
   curveTypeNeedsTemplate?: boolean;
   curveTypeReasons?: string[];
-  xAxisRole?: ImportAxisRole;
-  xAxisRoleSource?: ImportAxisRoleSource;
+  xAxisRole?: DataFileAxisRole;
+  xAxisRoleSource?: DataFileAxisRoleSource;
 };
 
-export type ImportWorkerPreparedFile = {
-  assessment: ImportedCurveAssessment;
+export type DataFilePreparedBrowserFile = {
+  assessment: DataFileAssessment;
   file: File;
   normalizedCsvPath?: string | null;
   normalizedSizeBytes: number;
@@ -62,7 +62,7 @@ export type ImportWorkerPreparedFile = {
   sourceSizeBytes: number;
 };
 
-export type PendingImportFile = {
+export type PendingDataFile = {
   finishFilePerf: (meta?: Record<string, unknown>) => void;
   relativePath: string | null;
   resource: URI | null;
@@ -70,15 +70,15 @@ export type PendingImportFile = {
   sourceKey: string;
 };
 
-export type PendingImportsResult = {
+export type PendingDataFilesResult = {
   readonly hasAnyUnsupportedFiles: boolean;
-  readonly pendingImports: PendingImportFile[];
+  readonly pendingDataFiles: PendingDataFile[];
   readonly unsupportedCount: number;
 };
 
-export type PreparedImportFile = {
-  readonly fileEntry: ImportedSessionFileEntry;
-  readonly fileInfo: ImportSessionFileInfo;
+export type PreparedDataFile = {
+  readonly fileEntry: DataFileSessionFileEntry;
+  readonly fileInfo: DataFileSessionFileInfo;
 };
 
 const createFileId = (): string => {
@@ -117,12 +117,12 @@ export const loadConvertedCsvFile = async ({
     return fallbackFile instanceof File ? fallbackFile : null;
   }
 
-  if (!importService.canReadConvertedCsv()) {
+  if (!dataFileService.canReadConvertedCsv()) {
     return fallbackFile instanceof File ? fallbackFile : null;
   }
 
   try {
-    const response = await importService.readConvertedCsv({ path: csvPath });
+    const response = await dataFileService.readConvertedCsv({ path: csvPath });
     if (!response?.ok || typeof response.csvText !== "string") {
       return fallbackFile instanceof File ? fallbackFile : null;
     }
@@ -137,12 +137,12 @@ export const loadConvertedCsvFile = async ({
   }
 };
 
-export const prepareImportFileInWorker = async (
+export const prepareDataFileInWorker = async (
   file: File,
   resource: URI | null = null,
-): Promise<ImportWorkerPreparedFile> => {
-  if (!importService.canPrepareFile()) {
-    const assessment = await assessImportedFile(file);
+): Promise<DataFilePreparedBrowserFile> => {
+  if (!dataFileService.canPrepareFile()) {
+    const assessment = await assessDataFile(file);
     return {
       assessment,
       file,
@@ -165,7 +165,7 @@ export const prepareImportFileInWorker = async (
   });
 
   try {
-    const result = await importService.prepareFile({
+    const result = await dataFileService.prepareFile({
       fileName: file.name,
       path: filePath,
     });
@@ -225,16 +225,16 @@ export const prepareImportFileInWorker = async (
   }
 };
 
-export const resetImportWorker = () => {
+export const resetDataFileWorker = () => {
   // Import preparation now runs through the desktop Rust bridge.
 };
 
-export const collectPendingImports = (
+export const collectPendingDataFiles = (
   files: FileSource[],
-): PendingImportsResult => {
+): PendingDataFilesResult => {
   let hasAnyUnsupportedFiles = false;
   let unsupportedCount = 0;
-  const pendingImports: PendingImportFile[] = [];
+  const pendingDataFiles: PendingDataFile[] = [];
 
   for (const source of files) {
     const sourceFile = source.file;
@@ -256,7 +256,7 @@ export const collectPendingImports = (
       continue;
     }
 
-    pendingImports.push({
+    pendingDataFiles.push({
       finishFilePerf,
       relativePath,
       resource: source.resource ?? null,
@@ -267,24 +267,24 @@ export const collectPendingImports = (
 
   return {
     hasAnyUnsupportedFiles,
-    pendingImports,
+    pendingDataFiles,
     unsupportedCount,
   };
 };
 
-export const prepareImportFile = async (
-  pendingImport: PendingImportFile,
-): Promise<PreparedImportFile | null> => {
+export const prepareDataFile = async (
+  pendingDataFile: PendingDataFile,
+): Promise<PreparedDataFile | null> => {
   const {
     finishFilePerf,
     relativePath,
     resource,
     sourceFile,
     sourceKey,
-  } = pendingImport;
+  } = pendingDataFile;
   let normalizedFile: File;
   let normalizedCsvPath: string | null = null;
-  let curveAssessment: ImportedCurveAssessment;
+  let fileAssessment: DataFileAssessment;
   let sourcePath: string | null = null;
 
   try {
@@ -292,17 +292,17 @@ export const prepareImportFile = async (
       fileName: sourceFile.name,
       sizeBytes: sourceFile.size,
     });
-    const prepared = await prepareImportFileInWorker(sourceFile, resource);
+    const prepared = await prepareDataFileInWorker(sourceFile, resource);
     normalizedFile = prepared.file;
     normalizedCsvPath = prepared.normalizedCsvPath ?? null;
-    curveAssessment = prepared.assessment;
+    fileAssessment = prepared.assessment;
     sourcePath = prepared.sourcePath ?? null;
     finishWorkerPerf({
-      confidence: curveAssessment.curveTypeConfidence,
-      curveType: curveAssessment.curveType,
+      confidence: fileAssessment.curveTypeConfidence,
+      curveType: fileAssessment.curveType,
       normalizedName: normalizedFile.name,
       normalizedSizeBytes: normalizedFile.size,
-      xAxisRole: curveAssessment.xAxisRole,
+      xAxisRole: fileAssessment.xAxisRole,
     });
   } catch {
     finishFilePerf({ failed: "worker-prepare" });
@@ -310,7 +310,7 @@ export const prepareImportFile = async (
   }
 
   const fileId = createFileId();
-  const fileEntry: ImportedSessionFileEntry = {
+  const fileEntry: DataFileSessionFileEntry = {
     fileId,
     file: normalizedFile,
     itemKey: buildItemKey(normalizedFile, relativePath),
@@ -318,12 +318,12 @@ export const prepareImportFile = async (
     relativePath,
     sourceKey,
     sourcePath,
-    curveType: curveAssessment.curveType,
-    curveTypeConfidence: curveAssessment.curveTypeConfidence,
-    curveTypeNeedsTemplate: curveAssessment.curveTypeNeedsTemplate,
-    curveTypeReasons: curveAssessment.curveTypeReasons,
+    curveType: fileAssessment.curveType,
+    curveTypeConfidence: fileAssessment.curveTypeConfidence,
+    curveTypeNeedsTemplate: fileAssessment.curveTypeNeedsTemplate,
+    curveTypeReasons: fileAssessment.curveTypeReasons,
   };
-  const fileInfo: ImportSessionFileInfo = {
+  const fileInfo: DataFileSessionFileInfo = {
     fileId,
     fileName: sourceFile.name,
     file: normalizedFile,
@@ -333,18 +333,18 @@ export const prepareImportFile = async (
     relativePath,
     sourceKey,
     sourcePath,
-    curveType: curveAssessment.curveType,
-    curveTypeConfidence: curveAssessment.curveTypeConfidence,
-    curveTypeNeedsTemplate: curveAssessment.curveTypeNeedsTemplate,
-    curveTypeReasons: curveAssessment.curveTypeReasons,
-    xAxisRole: curveAssessment.xAxisRole,
-    xAxisRoleSource: curveAssessment.xAxisRoleSource,
+    curveType: fileAssessment.curveType,
+    curveTypeConfidence: fileAssessment.curveTypeConfidence,
+    curveTypeNeedsTemplate: fileAssessment.curveTypeNeedsTemplate,
+    curveTypeReasons: fileAssessment.curveTypeReasons,
+    xAxisRole: fileAssessment.xAxisRole,
+    xAxisRoleSource: fileAssessment.xAxisRoleSource,
   };
 
   finishFilePerf({
     accepted: true,
-    confidence: curveAssessment.curveTypeConfidence,
-    curveType: curveAssessment.curveType,
+    confidence: fileAssessment.curveTypeConfidence,
+    curveType: fileAssessment.curveType,
     fileId,
     normalizedSizeBytes: normalizedFile.size,
   });

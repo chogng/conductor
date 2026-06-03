@@ -18,7 +18,7 @@ import "src/cs/workbench/services/contextmenu/electron-browser/contextmenuServic
 import "src/cs/workbench/services/dialogs/electron-browser/fileDialogService.ts";
 import "src/cs/workbench/services/environment/electron-browser/environmentService.ts";
 import "src/cs/workbench/services/files/electron-browser/fileService.ts";
-import "src/cs/workbench/services/import/electron-browser/importService.ts";
+import "src/cs/workbench/services/dataFile/electron-browser/dataFileService.ts";
 import "src/cs/workbench/services/path/electron-browser/pathService.ts";
 
 //#endregion

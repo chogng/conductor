@@ -21,7 +21,7 @@ import type {
 } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import type { ProcessingQueueItem } from "src/cs/workbench/contrib/template/browser/templateApplyProcessing";
 import { TemplateApplyService } from "src/cs/workbench/contrib/template/browser/templateApplyService";
-import { importService } from "src/cs/workbench/services/import/browser/importService";
+import { dataFileService } from "src/cs/workbench/services/dataFile/browser/dataFileService";
 
 type ExtractionErrorEntry = {
   fileName?: string;
@@ -523,13 +523,13 @@ export class TemplateApplyController {
             entry.sourcePath.trim().toLowerCase().endsWith(".csv")
           ? entry.sourcePath.trim()
           : null;
-    if (!inputPath || !importService.canProcessFile()) {
+    if (!inputPath || !dataFileService.canProcessFile()) {
       return null;
     }
 
     try {
       if (messageType === "processFileAuto") {
-        const response = await importService.processFile({
+        const response = await dataFileService.processFile({
           auto: true,
           curveFilterField: entry.curveFilterField ?? null,
           curveFilterKey: entry.curveFilterKey ?? null,
@@ -547,7 +547,7 @@ export class TemplateApplyController {
         return null;
       }
 
-      const response = await importService.processFile({
+      const response = await dataFileService.processFile({
         config: extractionConfig,
         curveFilterField: entry.curveFilterField ?? null,
         curveFilterKey: entry.curveFilterKey ?? null,
