@@ -82,7 +82,11 @@
 
 .origin_export_toolbar_select_button {
 
-    width: 100%
+    width: 100%;
+
+    height: 30px;
+
+    padding: 0 10px
 }
 
 .origin_export_toolbar_select_menu_surface {
@@ -115,7 +119,7 @@
 
     grid-column: 1 / -1;
 
-    height: 32px;
+    height: 30px;
 
     font-size: 12px;
 

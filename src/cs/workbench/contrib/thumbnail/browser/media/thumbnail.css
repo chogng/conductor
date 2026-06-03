@@ -290,7 +290,11 @@
 
 .thumbnail_overview_grid_select {
 
-    width: fit-content
+    width: fit-content;
+
+    height: 30px;
+
+    padding: 4px 8px
 }
 
 .thumbnail_visually_hidden {

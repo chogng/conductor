@@ -168,8 +168,9 @@
 
 .chart_view_file_select {
   box-sizing: border-box;
-  height: 24px;
+  height: 30px;
   width: fit-content;
+  padding: 4px 8px;
   font-size: 12px;
   line-height: 1rem;
   font-weight: 500;

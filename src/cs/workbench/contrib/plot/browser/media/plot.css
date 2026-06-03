@@ -203,9 +203,16 @@
     width: 132px
 }
 
+.chart_axis_settings_compact_input.dropdown-field {
+
+    height: 30px;
+
+    padding: 4px 8px
+}
+
 .chart_axis_settings_compact_input_field {
 
-    height: 2rem !important;
+    height: 30px !important;
 
     gap: 0px !important;
 
@@ -215,13 +222,13 @@
 
     border-color: rgb(var(--border) / var(--tw-border-opacity, 1));
 
-    padding-left: 0.5rem;
+    padding-left: 8px;
 
-    padding-right: 0.5rem;
+    padding-right: 8px;
 
-    padding-top: 0.25rem;
+    padding-top: 4px;
 
-    padding-bottom: 0.25rem
+    padding-bottom: 4px
 }
 
 .chart_axis_settings_header {

@@ -41,14 +41,12 @@
     box-sizing: border-box;
     width: 100%;
     min-width: 0;
-    height: 36px;
     align-items: center;
     justify-content: space-between;
     gap: 0.5rem;
     border: 1px solid rgb(var(--border) / 1);
     border-radius: 0.5rem;
     background-color: rgb(var(--bg-page) / 1);
-    padding: 0 0.625rem;
     color: rgb(var(--text-primary) / 1);
     font-size: 12px;
     line-height: 1rem;
