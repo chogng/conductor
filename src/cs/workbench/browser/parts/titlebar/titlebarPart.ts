@@ -2,7 +2,7 @@ import {
   normalizeLxIconSvgMarkup,
 } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
-import { layoutService } from "src/cs/workbench/services/layout/browser/layoutService";
+import { LayoutViewSwitchIds } from "src/cs/workbench/browser/actions/layoutActions";
 import {
   createWorkbenchTitlebarNavActions,
   createWorkbenchTitlebarPageActions,
@@ -19,6 +19,10 @@ export const WORKBENCH_TITLEBAR_APP_ICON_SRC =
 export const WORKBENCH_TITLEBAR_DRAG_REGION_STYLE = {
   WebkitAppRegion: "drag",
 };
+
+export const WORKBENCH_TITLEBAR_COMMAND_BAR_ID = "analysis-desktop-command-bar";
+
+const WORKBENCH_TITLEBAR_UPDATE_BUTTON_ID = "analysis-window-update-btn";
 
 export type WorkbenchTitlebarActivePage =
   | "data"
@@ -329,7 +333,7 @@ export const createWorkbenchTitlebarElement = ({
 
   if (updateAction?.isVisible === true) {
     const updateButton = createElement("button", {
-      id: layoutService.elements.titlebarUpdateButton,
+      id: WORKBENCH_TITLEBAR_UPDATE_BUTTON_ID,
       type: "button",
       "aria-label": getWorkbenchTitlebarUpdateTitle(updateAction),
       title: getWorkbenchTitlebarUpdateTitle(updateAction),
@@ -349,11 +353,11 @@ export const createWorkbenchTitlebarElement = ({
       {
         id:
           action.id === "data"
-            ? layoutService.elements.dataViewSwitch
+            ? LayoutViewSwitchIds.data
             : action.id === "analysis"
-              ? layoutService.elements.analysisViewSwitch
+              ? LayoutViewSwitchIds.analysis
               : action.id === "settings"
-                ? layoutService.elements.settingsViewSwitch
+                ? LayoutViewSwitchIds.settings
                 : undefined,
         "aria-label": action.title,
         title: action.title,

@@ -1,7 +1,7 @@
 import { scheduleAtNextAnimationFrame } from "src/cs/base/browser/dom";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import { Workbench } from "src/cs/workbench/browser/workbench";
-import { markBootUiReady } from "src/cs/workbench/browser/workbenchBoot";
+import { hideWorkbenchSplash } from "src/cs/workbench/contrib/splash/browser/partsSplash";
 import {
   IFileDialogService,
   type IFileDialogService as IFileDialogServiceType,
@@ -14,6 +14,10 @@ import {
   IPathService,
   type IPathService as IPathServiceType,
 } from "src/cs/workbench/services/path/common/pathService";
+import {
+  IWorkbenchLayoutService,
+  type IWorkbenchLayoutService as IWorkbenchLayoutServiceType,
+} from "src/cs/workbench/services/layout/browser/layoutService";
 import {
   IAnalysisFileService,
   type IAnalysisFileService as IAnalysisFileServiceType,
@@ -34,6 +38,11 @@ import {
 
 export const WorkbenchContributionId = "workbench.browser.workbench";
 
+const markBootUiReady = (source: string) => {
+  hideWorkbenchSplash();
+  window.__CONDUCTOR_BOOT_MARK_UI_READY__?.(source);
+};
+
 export class WorkbenchContribution extends Disposable implements IWorkbenchContribution {
   private readonly workbench: Workbench;
 
@@ -44,6 +53,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
     @IFileDialogService dialogsService: IFileDialogServiceType,
     @IContextMenuService contextMenuService: IContextMenuServiceType,
     @IPathService pathService: IPathServiceType,
+    @IWorkbenchLayoutService layoutService: IWorkbenchLayoutServiceType,
   ) {
     super();
 
@@ -58,6 +68,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
       contextMenuService,
       filesService,
       pathService,
+      layoutService,
       tableService,
     }));
     this._register(

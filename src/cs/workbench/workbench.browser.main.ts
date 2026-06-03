@@ -15,7 +15,10 @@ import "src/cs/workbench/workbench.common.main";
 //#region --- workbench services
 
 import "src/cs/workbench/services/lifecycle/browser/lifecycleService";
+import "src/cs/workbench/services/layout/browser/layoutService";
 import "src/cs/workbench/services/origin/browser/originService";
+import "src/cs/workbench/services/views/browser/viewDescriptorService";
+import "src/cs/workbench/services/views/browser/viewsService";
 import "src/cs/workbench/contrib/table/browser/tableService";
 
 //#endregion

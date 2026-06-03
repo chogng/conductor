@@ -8,6 +8,12 @@ export type VisitedLayoutViewsState = {
   hasVisitedSettingsView: boolean;
 };
 
+export const LayoutViewSwitchIds: Record<LayoutView, string> = {
+  data: "analysis-window-data-btn",
+  analysis: "analysis-window-analysis-btn",
+  settings: "analysis-window-settings-btn",
+};
+
 export const INITIAL_VISITED_VIEWS_STATE: VisitedLayoutViewsState = {
   hasVisitedAnalysisView: false,
   hasVisitedSettingsView: false,

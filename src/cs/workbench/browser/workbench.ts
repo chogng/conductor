@@ -3,7 +3,6 @@ import {
   toDisposable,
   type IDisposable,
 } from "src/cs/base/common/lifecycle";
-import { layoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import type {
   LanguageCode,
   LanguagePreference,
@@ -13,6 +12,7 @@ import type { IFileService } from "src/cs/platform/files/common/files";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
 import type { IAnalysisFileService } from "src/cs/workbench/services/analysisFile/common/analysisFile";
+import type { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import {
   isLanguageCode,
   isLanguagePreference,
@@ -25,7 +25,10 @@ import {
 } from "src/cs/nls";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import { Layout, type LayoutView } from "src/cs/workbench/browser/layout";
-import type { WorkbenchTitlebarProps } from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
+import {
+  WORKBENCH_TITLEBAR_COMMAND_BAR_ID,
+  type WorkbenchTitlebarProps,
+} from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
 import type { WorkbenchStyle } from "src/cs/workbench/browser/style";
 import {
   applyWorkbenchAppearance,
@@ -111,6 +114,7 @@ export type WorkbenchOptions = {
   readonly dialogsService?: IFileDialogService;
   readonly filesService?: IFileService;
   readonly pathService?: IPathService;
+  readonly layoutService?: IWorkbenchLayoutService;
   readonly id?: string;
   readonly showDesktopCommandBar?: boolean;
   readonly showSkeleton?: boolean;
@@ -124,7 +128,7 @@ export const createTitlebarState = (
 ): WorkbenchTitlebarProps | undefined =>
   state && state.enabled !== false
     ? {
-        id: layoutService.elements.titlebarCommandBar,
+        id: WORKBENCH_TITLEBAR_COMMAND_BAR_ID,
         activePage: state.activePage,
         analysisActiveFileId: state.analysisActiveFileId,
         analysisFileOptions: state.analysisFileOptions,
@@ -172,17 +176,8 @@ const getInitialLanguagePreference = (): LanguagePreference => {
 
 const resolveInitialMainPart = (
   snapshot: WorkbenchSessionSnapshot,
-): WorkbenchMainPart => {
-  if (snapshot.cleanedData.length > 0) {
-    return "chart";
-  }
-
-  if (snapshot.sourceFiles.length > 0 || snapshot.previewFile !== null) {
-    return "table";
-  }
-
-  return "chart";
-};
+): WorkbenchMainPart =>
+  snapshot.cleanedData.length > 0 ? "chart" : "table";
 
 export class Workbench extends Layout {
   private readonly window: WorkbenchWindow;
@@ -219,7 +214,7 @@ export class Workbench extends Layout {
   }
 
   constructor(parent: HTMLElement, options: WorkbenchOptions = {}) {
-    super();
+    super(undefined, options.layoutService);
 
     this.window = this._register(new WorkbenchWindow(parent, {
       ...options,

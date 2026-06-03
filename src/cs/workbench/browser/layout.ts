@@ -7,6 +7,7 @@ import SplitView, {
 } from "src/cs/base/browser/ui/splitview/splitview";
 import {
   INITIAL_VISITED_VIEWS_STATE,
+  LayoutViewSwitchIds,
   markVisitedLayoutView,
   navigateLayoutBack,
   navigateLayoutForward,
@@ -15,7 +16,10 @@ import {
   resolveLayoutView,
   type VisitedLayoutViewsState,
 } from "src/cs/workbench/browser/actions/layoutActions";
-import { layoutService } from "src/cs/workbench/services/layout/browser/layoutService";
+import {
+  Parts,
+  type IWorkbenchLayoutService,
+} from "src/cs/workbench/services/layout/browser/layoutService";
 
 export const SIDEBAR_DEFAULT_WIDTH_PX = 300;
 export const SIDEBAR_MIN_WIDTH_PX = 300;
@@ -68,20 +72,26 @@ export const INITIAL_LAYOUT_NAVIGATION_STATE: LayoutNavigationState = {
   historyIndex: 0,
 };
 
+const LayoutPaneIds: Record<LayoutView, string> = {
+  data: "analysis-viewpane-data",
+  analysis: "analysis-viewpane-analysis",
+  settings: "analysis-viewpane-settings",
+};
+
 export const VIEW_PANES: Record<LayoutView, ViewPaneDefinition> = {
   data: {
-    labelledBy: layoutService.elements.dataTab,
-    paneId: layoutService.elements.dataPane,
+    labelledBy: LayoutViewSwitchIds.data,
+    paneId: LayoutPaneIds.data,
     view: "data",
   },
   analysis: {
-    labelledBy: layoutService.elements.analysisTab,
-    paneId: layoutService.elements.analysisPane,
+    labelledBy: LayoutViewSwitchIds.analysis,
+    paneId: LayoutPaneIds.analysis,
     view: "analysis",
   },
   settings: {
-    labelledBy: layoutService.elements.settingsViewSwitch,
-    paneId: layoutService.elements.settingsPane,
+    labelledBy: LayoutViewSwitchIds.settings,
+    paneId: LayoutPaneIds.settings,
     view: "settings",
   },
 };
@@ -146,7 +156,10 @@ export class Layout extends Disposable {
 
   public readonly element = document.createElement("div");
 
-  constructor(parent?: HTMLElement) {
+  constructor(
+    parent?: HTMLElement,
+    private readonly workbenchLayoutService?: IWorkbenchLayoutService,
+  ) {
     super();
 
     this.element.className = "workbench_layout";
@@ -238,6 +251,7 @@ export class Layout extends Disposable {
       this.element.replaceChildren(this.controller, this.main, this.overlay);
     }
 
+    this.updateLayoutService();
     this.onDidRenderLayout();
   }
 
@@ -411,6 +425,15 @@ export class Layout extends Disposable {
   override dispose(): void {
     setWorkbenchSidebarPortal(null);
     super.dispose();
+  }
+
+  private updateLayoutService(): void {
+    this.workbenchLayoutService?.setPartHidden(
+      !hasSidebar(this.activeView),
+      Parts.SIDEBAR_PART,
+    );
+    this.workbenchLayoutService?.setPartHidden(false, Parts.EDITOR_PART);
+    this.workbenchLayoutService?.layout();
   }
 }
 
