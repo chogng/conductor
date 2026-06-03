@@ -3,11 +3,7 @@ import {
   createMenuItemLabel,
 } from "src/cs/base/browser/ui/menu/menu";
 import { Separator, type IAction } from "src/cs/base/common/actions";
-import {
-  lxAdd,
-  lxDownload,
-  lxEdit,
-} from "src/cs/base/common/lxicon";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
 import type { SessionFile } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import {
@@ -34,16 +30,18 @@ import type {
 } from "src/cs/workbench/contrib/template/common/template";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import type { TemplateImportController } from "src/cs/workbench/contrib/template/browser/templateImportController";
-import type { TableModel } from "src/cs/workbench/contrib/table/common/tableService";
+import type { TableModel, TableSelection } from "src/cs/workbench/contrib/table/common/tableService";
 import { TemplateApplyView } from "src/cs/workbench/contrib/template/browser/views/templateApplyView";
 import {
   TemplateEditorView,
   type TemplatePickFieldName,
 } from "src/cs/workbench/contrib/template/browser/views/templateEditorView";
 import {
+  areTableCellsEqual,
   areColumnIndexesEqual,
   normalizeColumnIndexes,
-  resolveTemplateSelectionUpdate,
+  resolveTemplateCellSelectionUpdate,
+  resolveTemplateColumnSelectionUpdate,
   toColumnLabel,
 } from "src/cs/workbench/contrib/template/browser/templateSelection";
 
@@ -61,6 +59,7 @@ export type TemplateViewOptions = {
     | "getSelection"
     | "highlightColumns"
     | "onDidChangeSelection"
+    | "setSelection"
   >;
   onTemplateApplied?: (config: Record<string, unknown>) => unknown;
   onTemplateAppliedIncremental?: (config: Record<string, unknown>) => unknown;
@@ -169,6 +168,7 @@ export class TemplateView {
   private props: TemplateViewOptions;
   private activePickField: PickFieldName | null = null;
   private disposeTableSelectionListener: (() => void) | null = null;
+  private lastTableSelection: TableSelection | null = null;
   private tableModel: TemplateViewOptions["tableModel"] | null = null;
   private mode: "select" | "save" | null = null;
   private toggleDraft: Pick<TemplateConfig, "stopOnError" | "fileNameMatchCaseSensitive"> | null = null;
@@ -248,16 +248,26 @@ export class TemplateView {
     this.disposeTableSelectionListener?.();
     this.disposeTableSelectionListener = null;
     this.tableModel?.clearHighlight();
+    this.lastTableSelection = null;
     this.tableModel = tableModel ?? null;
 
     if (!tableModel) {
       return;
     }
 
+    this.lastTableSelection = tableModel.getSelection();
     this.disposeTableSelectionListener = tableModel.onDidChangeSelection((selection) => {
-      this.updateTemplateConfig(resolveTemplateSelectionUpdate(selection, this.activePickField));
+      const previous = this.lastTableSelection;
+      this.lastTableSelection = selection;
+
+      if (!areColumnIndexesEqual(previous?.selectedColumns, selection.selectedColumns)) {
+        this.updateTemplateConfig(resolveTemplateColumnSelectionUpdate(selection));
+      }
+
+      if (!areTableCellsEqual(previous?.activeCell, selection.activeCell)) {
+        this.updateTemplateConfig(resolveTemplateCellSelectionUpdate(selection.activeCell, this.activePickField));
+      }
     });
-    this.updateTemplateConfig(resolveTemplateSelectionUpdate(tableModel.getSelection(), this.activePickField));
   }
 
   private updateTemplateConfig(updates: Partial<TemplateConfig>): void {
@@ -395,6 +405,7 @@ export class TemplateView {
       this.editorView = new TemplateEditorView({
         contextMenuService: this.props.contextMenuService,
         onCancel: () => this.cancelSaveMode(),
+        onClearYColumns: () => this.clearYColumns(),
         onPickFieldFocus: (field) => {
           this.activePickField = field;
         },
@@ -410,6 +421,19 @@ export class TemplateView {
 
   private updateEditorView(): void {
     this.editorView?.update(this.getEditorViewState());
+  }
+
+  private clearYColumns(): void {
+    this.updateTemplateConfig({ yColumns: [] });
+    const selection = this.tableModel?.getSelection();
+    if (!selection || !selection.selectedColumns?.length) {
+      return;
+    }
+
+    this.tableModel?.setSelection({
+      ...selection,
+      selectedColumns: [],
+    });
   }
 
   private getEditorViewState() {
@@ -500,7 +524,7 @@ export class TemplateView {
         left: createMenuItemLabel(template.name || templateId),
         run: () => this.selectTemplate(templateId),
         rightAction: {
-          icon: lxEdit,
+          icon: LxIcon.edit,
           label: localize("template_edit", "Edit template"),
           onClick: () => this.editTemplate(template),
         },
@@ -516,14 +540,14 @@ export class TemplateView {
         id: "template.create",
         label: localize("template_create_new", "新建模板..."),
         className: "template_picker_menu_create",
-        left: createMenuItemLabel(localize("template_create_new", "新建模板..."), lxAdd),
+        left: createMenuItemLabel(localize("template_create_new", "新建模板..."), LxIcon.add),
         run: () => this.createTemplateDraft(),
         tabIndex: 0,
       }),
       createMenuAction({
         id: "template.import",
         label: localize("template_import_btn", "Import templates"),
-        left: createMenuItemLabel(localize("template_import_btn", "Import templates"), lxDownload),
+        left: createMenuItemLabel(localize("template_import_btn", "Import templates"), LxIcon.download),
         run: () => this.promptTemplateImport(),
         tabIndex: 0,
       }),

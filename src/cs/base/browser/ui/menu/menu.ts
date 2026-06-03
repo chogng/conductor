@@ -5,7 +5,7 @@ import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { Scrollbar } from "src/cs/base/browser/ui/scrollbar/scrollbar";
 import { IAction, Separator } from "src/cs/base/common/actions";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
-import { lxCheck, type LxIconDefinition } from "src/cs/base/common/lxicon";
+import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 
 import "src/cs/base/browser/ui/menu/menu.css";
 
@@ -193,7 +193,7 @@ export function createCheckedMenuItemLabel(
 ): HTMLSpanElement {
     const indicator = document.createElement("span");
     indicator.className = "ui-menu__check-indicator";
-    indicator.append(createLxIcon({ icon: lxCheck, size: 14 }));
+    indicator.append(createLxIcon({ icon: LxIcon.check, size: 14 }));
     return createMenuItemLabel(label, indicator);
 }
 

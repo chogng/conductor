@@ -1,10 +1,10 @@
 import { localize } from "src/cs/nls";
-import { lxListUnordered, lxOrigin, lxSettings } from "@chogng/lxicon";
 
 import {
   getInputBoxFieldClassName,
   getInputBoxNativeClassName,
 } from "src/cs/base/browser/ui/inputbox/inputBox";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import SidebarPart from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import type {
   WorkbenchSidebarAction,
@@ -159,17 +159,17 @@ export class ResultsPane {
       this.createHeaderAction(
         "export",
         localize("analysis.results.export", "Export"),
-        lxOrigin(),
+        LxIcon.origin.render(),
       ),
       this.createHeaderAction(
         "parameters",
         localize("analysis.results.parameters", "Parameters"),
-        lxListUnordered(),
+        LxIcon.listUnordered.render(),
       ),
       this.createHeaderAction(
         "settings",
         localize("da_chart_curve_settings_title", "Curve Settings"),
-        lxSettings(),
+        LxIcon.settings.render(),
       ),
     ];
   }

@@ -1,9 +1,24 @@
 import {
   lxAdd as renderAdd,
+  lxAnalysis as renderAnalysis,
+  lxArrowLeft as renderArrowLeft,
+  lxArrowRight as renderArrowRight,
   lxCheck as renderCheck,
   lxChevronDown as renderChevronDown,
+  lxChevronRight as renderChevronRight,
+  lxClose as renderClose,
+  lxCsvGreen as renderCsvGreen,
+  lxDiagnostics as renderDiagnostics,
   lxDownload as renderDownload,
+  lxDownloadTray as renderDownloadTray,
   lxEdit as renderEdit,
+  lxFileText as renderFileText,
+  lxGear as renderGear,
+  lxListUnordered as renderListUnordered,
+  lxOrigin as renderOrigin,
+  lxRemove as renderRemove,
+  lxSearch as renderSearch,
+  lxSettings as renderSettings,
 } from "@chogng/lxicon";
 
 export type LxIconRenderer = () => string;
@@ -67,10 +82,68 @@ export const lxSlidersHorizontal = registerLxIcon(
 
 export const lxAdd = registerLxIcon("add", renderAdd);
 
+export const lxAnalysis = registerLxIcon("analysis", renderAnalysis);
+
+export const lxArrowLeft = registerLxIcon("arrow-left", renderArrowLeft);
+
+export const lxArrowRight = registerLxIcon("arrow-right", renderArrowRight);
+
 export const lxCheck = registerLxIcon("check", renderCheck);
 
 export const lxChevronDown = registerLxIcon("chevron-down", renderChevronDown);
 
+export const lxChevronRight = registerLxIcon("chevron-right", renderChevronRight);
+
+export const lxClose = registerLxIcon("close", renderClose);
+
+export const lxCsvGreen = registerLxIcon("csv-green", renderCsvGreen);
+
+export const lxDiagnostics = registerLxIcon("diagnostics", renderDiagnostics);
+
 export const lxDownload = registerLxIcon("download", renderDownload);
 
+export const lxDownloadTray = registerLxIcon("download-tray", renderDownloadTray);
+
 export const lxEdit = registerLxIcon("edit", renderEdit);
+
+export const lxFileText = registerLxIcon("file-text", renderFileText);
+
+export const lxGear = registerLxIcon("gear", renderGear);
+
+export const lxListUnordered = registerLxIcon("list-unordered", renderListUnordered);
+
+export const lxOrigin = registerLxIcon("origin", renderOrigin);
+
+export const lxRemove = registerLxIcon("remove", renderRemove);
+
+export const lxSearch = registerLxIcon("search", renderSearch);
+
+export const lxSettings = registerLxIcon("settings", renderSettings);
+
+export const LxIcon = {
+  add: lxAdd,
+  alertCircle: lxAlertCircle,
+  alertTriangle: lxAlertTriangle,
+  analysis: lxAnalysis,
+  arrowLeft: lxArrowLeft,
+  arrowRight: lxArrowRight,
+  check: lxCheck,
+  checkCircle: lxCheckCircle,
+  chevronDown: lxChevronDown,
+  chevronRight: lxChevronRight,
+  close: lxClose,
+  csvGreen: lxCsvGreen,
+  diagnostics: lxDiagnostics,
+  download: lxDownload,
+  downloadTray: lxDownloadTray,
+  edit: lxEdit,
+  fileText: lxFileText,
+  gear: lxGear,
+  infoCircle: lxInfoCircle,
+  listUnordered: lxListUnordered,
+  origin: lxOrigin,
+  remove: lxRemove,
+  search: lxSearch,
+  settings: lxSettings,
+  slidersHorizontal: lxSlidersHorizontal,
+} as const;

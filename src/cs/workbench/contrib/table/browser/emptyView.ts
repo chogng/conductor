@@ -1,10 +1,10 @@
-import { lxFileText } from "@chogng/lxicon";
 import {
   createAvatar,
   getAvatarContentElement,
   getAvatarIconClassName,
 } from "src/cs/base/browser/ui/avatar/avatar";
 import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
+import { LxIcon } from "src/cs/base/common/lxicon";
 
 export type EmptyViewOptions = {
   readonly description?: string;
@@ -15,7 +15,7 @@ const createEmptyIcon = (): HTMLSpanElement => {
   const icon = document.createElement("span");
   icon.className = `ui-lxicon ${getAvatarIconClassName()}`;
   icon.setAttribute("aria-hidden", "true");
-  icon.innerHTML = normalizeLxIconSvgMarkup(lxFileText);
+  icon.innerHTML = normalizeLxIconSvgMarkup(LxIcon.fileText);
   return icon;
 };
 

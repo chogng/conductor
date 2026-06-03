@@ -2,9 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  areTableCellsEqual,
   areColumnIndexesEqual,
   normalizeColumnIndexes,
-  resolveTemplateSelectionUpdate,
+  resolveTemplateCellSelectionUpdate,
+  resolveTemplateColumnSelectionUpdate,
   toColumnLabel,
 } from "../browser/templateSelection.ts";
 
@@ -16,22 +18,59 @@ test("template selection normalizes and labels columns", () => {
   assert.equal(toColumnLabel(26), "AA");
 });
 
-test("template selection resolves table selection updates", () => {
+test("template selection compares active cells", () => {
+  assert.equal(areTableCellsEqual(null, undefined), true);
+  assert.equal(
+    areTableCellsEqual(
+      { fileId: "file", sheetId: "sheet", rowIndex: 1, colIndex: 2 },
+      { fileId: "file", sheetId: "sheet", rowIndex: 1, colIndex: 2 },
+    ),
+    true,
+  );
+  assert.equal(
+    areTableCellsEqual(
+      { fileId: "file", sheetId: "sheet", rowIndex: 1, colIndex: 2 },
+      { fileId: "file", sheetId: "sheet", rowIndex: 1, colIndex: 3 },
+    ),
+    false,
+  );
+});
+
+test("template selection resolves column updates", () => {
   assert.deepEqual(
-    resolveTemplateSelectionUpdate({
+    resolveTemplateColumnSelectionUpdate({
       selectedColumns: [4, 3, 4],
       activeCell: { rowIndex: 3, colIndex: 3 },
-    }, "yLegendStart"),
+    }),
     {
       yColumns: [3, 4],
+    },
+  );
+
+  assert.deepEqual(
+    resolveTemplateColumnSelectionUpdate({}),
+    {
+      yColumns: [],
+    },
+  );
+});
+
+test("template selection resolves active cell updates", () => {
+  assert.deepEqual(
+    resolveTemplateCellSelectionUpdate(
+      { rowIndex: 3, colIndex: 3 },
+      "yLegendStart",
+    ),
+    {
       yLegendStart: "D4",
     },
   );
 
   assert.deepEqual(
-    resolveTemplateSelectionUpdate({
-      activeCell: { rowIndex: 5, colIndex: 4 },
-    }, null),
+    resolveTemplateCellSelectionUpdate(
+      { rowIndex: 5, colIndex: 4 },
+      null,
+    ),
     {},
   );
 });

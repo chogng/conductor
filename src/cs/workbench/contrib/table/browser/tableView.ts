@@ -159,6 +159,9 @@ export class TableView {
         button.type = "button";
         button.className = "table_view_column_button";
         button.textContent = getColumnLabel(colIndex);
+        button.setAttribute("aria-label", localize("preview_toggle_column", "Toggle column {column}", {
+          column: getColumnLabel(colIndex),
+        }));
         button.addEventListener("click", () => {
           const currentModel = this.props.tableModel;
           currentModel.setSelection(toggleSelectedColumn(currentModel.getSelection(), colIndex));
@@ -180,6 +183,8 @@ export class TableView {
 
       cell.dataset.selected = selectedColumns.has(colIndex) ? "true" : "false";
       cell.dataset.highlighted = highlightedColumns.has(colIndex) ? "true" : "false";
+      const button = cell.firstElementChild as HTMLButtonElement | null;
+      button?.setAttribute("aria-pressed", selectedColumns.has(colIndex) ? "true" : "false");
     }
   }
 

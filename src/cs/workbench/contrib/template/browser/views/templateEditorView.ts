@@ -8,7 +8,7 @@ import {
 } from "src/cs/base/browser/ui/menu/menu";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
-import { lxChevronDown } from "src/cs/base/common/lxicon";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import { localize } from "src/cs/nls";
 import type { TemplateConfig } from "src/cs/workbench/contrib/template/common/templateManagerUtils";
@@ -42,6 +42,7 @@ type TemplateEditorInputName =
 export type TemplateEditorViewOptions = {
   readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
   readonly onCancel: () => void;
+  readonly onClearYColumns: () => void;
   readonly onPickFieldFocus: (field: TemplatePickFieldName | null) => void;
   readonly onSave: () => void;
   readonly onUpdateConfig: (updates: Partial<TemplateConfig>) => void;
@@ -84,6 +85,7 @@ export class TemplateEditorView {
   private readonly xSegmentationMode: SelectField<TemplateConfig["xSegmentationMode"]>;
   private readonly yLegendTarget: SelectField<TemplateConfig["yLegendTarget"]>;
   private readonly yColumnsSummary: HTMLElement;
+  private readonly yColumnsClearButton: HTMLButtonElement;
 
   constructor(
     private readonly options: TemplateEditorViewOptions,
@@ -175,10 +177,31 @@ export class TemplateEditorView {
       },
     );
 
+    const yColumnsField = document.createElement("div");
+    yColumnsField.className = "template_selection_field";
+
+    const yColumnsHeader = document.createElement("div");
+    yColumnsHeader.className = "template_selection_header";
+
+    const yColumnsLabel = document.createElement("span");
+    yColumnsLabel.className = "template_selection_label";
+    yColumnsLabel.textContent = localize("template_y_columns", "Y columns");
+
+    this.yColumnsClearButton = document.createElement("button");
+    this.yColumnsClearButton.type = "button";
+    this.yColumnsClearButton.className = "template_selection_clear";
+    this.yColumnsClearButton.textContent = localize("template_clear_y_columns", "Clear");
+    this.disposables.add(addDisposableListener(this.yColumnsClearButton, "click", () => {
+      this.options.onClearYColumns();
+    }));
+
+    yColumnsHeader.append(yColumnsLabel, this.yColumnsClearButton);
+
     this.yColumnsSummary = document.createElement("p");
     this.yColumnsSummary.className = "template_selection_summary";
     this.yColumnsSummary.setAttribute("aria-live", "polite");
-    yFields.append(this.yColumnsSummary);
+    yColumnsField.append(yColumnsHeader, this.yColumnsSummary);
+    yFields.append(yColumnsField);
 
     this.element.append(form);
 
@@ -246,11 +269,13 @@ export class TemplateEditorView {
       value: config.yLegendTarget,
       options: Y_LEGEND_TARGET_OPTIONS,
     });
-    this.yColumnsSummary.textContent = state.selectedYColumnLabels.length > 0
-      ? localize("template_selected_y_columns", "Y Data columns: {columns}", {
+    const hasYColumns = state.selectedYColumnLabels.length > 0;
+    this.yColumnsClearButton.hidden = !hasYColumns;
+    this.yColumnsSummary.textContent = hasYColumns
+      ? localize("template_selected_y_columns", "Columns following X range: {columns}", {
           columns: state.selectedYColumnLabels.join(", "),
         })
-      : localize("template_no_y_columns", "Y Data columns: select columns in the preview table.");
+      : localize("template_no_y_columns", "Select preview columns that follow the X range.");
   }
 
   public dispose(): void {
@@ -359,7 +384,7 @@ export class TemplateEditorView {
 
         const icon = document.createElement("span");
         icon.className = "template_form_dropdown_icon";
-        icon.append(createLxIcon({ icon: lxChevronDown, size: 14 }));
+        icon.append(createLxIcon({ icon: LxIcon.chevronDown, size: 14 }));
 
         content.append(field.label, icon);
         container.replaceChildren(content);

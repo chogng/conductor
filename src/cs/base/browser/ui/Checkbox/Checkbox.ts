@@ -1,5 +1,5 @@
-import { lxCheck } from "@chogng/lxicon";
 import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
+import { LxIcon } from "src/cs/base/common/lxicon";
 
 import "src/cs/base/browser/ui/checkbox/checkbox.css";
 
@@ -55,7 +55,7 @@ export const getCheckboxIconMarkup = ({
   }
 
   const resolvedIconSize = iconSize ?? (size === "lg" ? 11 : 10);
-  const svgMarkup = normalizeLxIconSvgMarkup(lxCheck).replace(
+  const svgMarkup = normalizeLxIconSvgMarkup(LxIcon.check).replace(
     /<svg\b([^>]*)>/i,
     (_match, attributes: string) =>
       `<svg${attributes} width="${resolvedIconSize}" height="${resolvedIconSize}">`,

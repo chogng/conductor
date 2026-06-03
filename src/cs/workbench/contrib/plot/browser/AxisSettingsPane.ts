@@ -1,5 +1,4 @@
 import { localize } from "src/cs/nls";
-import { lxArrowLeft } from "@chogng/lxicon";
 import {
   getButtonClassName,
   getButtonContentClassName,
@@ -12,6 +11,7 @@ import {
   getLxIconMarkup,
   getLxIconStyle,
 } from "src/cs/base/browser/ui/lxicon/lxicon";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import {
   getInputBoxFieldClassName,
   getInputBoxFieldState,
@@ -424,7 +424,7 @@ const createIconButton = ({
   const icon = document.createElement("span");
   icon.className = getLxIconClassName();
   Object.assign(icon.style, getLxIconStyle({ size: 16 }));
-  icon.innerHTML = getLxIconMarkup(lxArrowLeft);
+  icon.innerHTML = getLxIconMarkup(LxIcon.arrowLeft);
   content.append(icon);
   button.append(content);
   return button;

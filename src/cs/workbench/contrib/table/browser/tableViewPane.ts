@@ -1,5 +1,3 @@
-import { lxAdd, lxRemove } from "@chogng/lxicon";
-
 import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { ActionBar } from "src/cs/base/browser/ui/actionbar/actionbar";
 import type { IActionViewItem } from "src/cs/base/browser/ui/actionbar/actionViewItem";
@@ -11,6 +9,7 @@ import {
   type IActionRunner,
 } from "src/cs/base/common/actions";
 import { Disposable, DisposableStore } from "src/cs/base/common/lifecycle";
+import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
 import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/previewPart";
 import { TableView, type TableViewProps } from "src/cs/workbench/contrib/table/browser/tableView";
@@ -122,7 +121,7 @@ export class TableViewPane {
 
     const decreaseButton = createZoomButton({
       className: "table_view_zoom_button table_view_zoom_button_minus",
-      icon: lxRemove,
+      icon: LxIcon.remove,
       label: localize("table.zoomOut", "Zoom out"),
     });
     const value = document.createElement("span");
@@ -130,7 +129,7 @@ export class TableViewPane {
     value.setAttribute("aria-live", "polite");
     const increaseButton = createZoomButton({
       className: "table_view_zoom_button table_view_zoom_button_plus",
-      icon: lxAdd,
+      icon: LxIcon.add,
       label: localize("table.zoomIn", "Zoom in"),
     });
 
@@ -281,7 +280,7 @@ const createZoomButton = ({
   label,
 }: {
   readonly className: string;
-  readonly icon: () => string;
+  readonly icon: LxIconDefinition;
   readonly label: string;
 }): HTMLButtonElement => {
   const button = document.createElement("button");

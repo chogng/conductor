@@ -1,4 +1,3 @@
-import { lxChevronRight } from "@chogng/lxicon";
 import { ListView } from "src/cs/base/browser/ui/list/listView";
 import type {
   IListVirtualDelegate,
@@ -6,6 +5,7 @@ import type {
   ListRenderState,
 } from "src/cs/base/browser/ui/list/list";
 import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
 import {
   ObjectTreeModel,
@@ -29,7 +29,7 @@ const renderChevron = (collapsed: boolean): HTMLSpanElement => {
   icon.className = "ui-tree__disclosure-icon";
   icon.setAttribute("aria-hidden", "true");
   icon.dataset.collapsed = collapsed ? "true" : "false";
-  icon.innerHTML = normalizeLxIconSvgMarkup(lxChevronRight);
+  icon.innerHTML = normalizeLxIconSvgMarkup(LxIcon.chevronRight);
   return icon;
 };
 

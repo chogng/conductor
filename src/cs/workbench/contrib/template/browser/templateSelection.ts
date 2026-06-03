@@ -1,4 +1,4 @@
-import type { TableSelection } from "src/cs/workbench/contrib/table/common/tableService";
+import type { TableCell, TableSelection } from "src/cs/workbench/contrib/table/common/tableService";
 import type { TemplatePickFieldName } from "src/cs/workbench/contrib/template/browser/views/templateEditorView";
 import type { TemplateConfig } from "src/cs/workbench/contrib/template/common/templateManagerUtils";
 
@@ -36,17 +36,32 @@ export const toColumnLabel = (colIndex: number): string => {
 const toCellLabel = (rowIndex: number, colIndex: number): string =>
   `${toColumnLabel(colIndex)}${Math.max(0, Math.floor(Number(rowIndex) || 0)) + 1}`;
 
-export const resolveTemplateSelectionUpdate = (
+export const areTableCellsEqual = (
+  first: TableCell | null | undefined,
+  second: TableCell | null | undefined,
+): boolean => {
+  if (!first || !second) {
+    return !first && !second;
+  }
+
+  return first.fileId === second.fileId &&
+    first.sheetId === second.sheetId &&
+    first.rowIndex === second.rowIndex &&
+    first.colIndex === second.colIndex;
+};
+
+export const resolveTemplateColumnSelectionUpdate = (
   selection: TableSelection,
+): Partial<TemplateConfig> => {
+  const columns = normalizeColumnIndexes(selection.selectedColumns);
+  return { yColumns: columns };
+};
+
+export const resolveTemplateCellSelectionUpdate = (
+  activeCell: TableCell | null | undefined,
   activePickField: TemplatePickFieldName | null,
 ): Partial<TemplateConfig> => {
   const updates: Partial<TemplateConfig> = {};
-  const columns = normalizeColumnIndexes(selection.selectedColumns);
-  if (columns.length > 0) {
-    updates.yColumns = columns;
-  }
-
-  const activeCell = selection.activeCell;
   if (!activeCell || !activePickField) {
     return updates;
   }

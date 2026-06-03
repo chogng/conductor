@@ -1,15 +1,10 @@
-import { lxClose } from "@chogng/lxicon";
 import { TimeoutTimer } from "src/cs/base/common/async";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import {
   normalizeLxIconSvgMarkup,
   type LxIconDefinition,
 } from "src/cs/base/browser/ui/lxicon/lxicon";
-import {
-  lxAlertCircle,
-  lxCheckCircle,
-  lxInfoCircle,
-} from "src/cs/base/common/lxicon";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import type {
   NotificationToastOptions,
   NotificationToastPosition,
@@ -39,9 +34,9 @@ const appendIcon = (
 };
 
 const getToastIcon = (type: NotificationToastType): LxIconDefinition => {
-  if (type === "success") return lxCheckCircle;
-  if (type === "info") return lxInfoCircle;
-  return lxAlertCircle;
+  if (type === "success") return LxIcon.checkCircle;
+  if (type === "info") return LxIcon.infoCircle;
+  return LxIcon.alertCircle;
 };
 
 export class NotificationToast implements IDisposable {
@@ -78,7 +73,7 @@ export class NotificationToast implements IDisposable {
     this.closeButton.type = "button";
     this.closeButton.className = "conductor-toast-close";
     this.closeButton.setAttribute("aria-label", "Close toast");
-    appendIcon(this.closeButton, lxClose, 16);
+    appendIcon(this.closeButton, LxIcon.close, 16);
 
     this.controls.append(this.actionButton, this.closeButton);
     this.root.append(this.iconContainer, this.messageElement, this.controls);

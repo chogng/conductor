@@ -1,8 +1,7 @@
-import { lxAnalysis, lxArrowLeft, lxArrowRight, lxDownloadTray, lxGear } from "@chogng/lxicon";
 import {
   normalizeLxIconSvgMarkup,
-  type LxIconRenderer,
 } from "src/cs/base/browser/ui/lxicon/lxicon";
+import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import { layoutService } from "src/cs/workbench/services/layout/browser/layoutService";
 import {
   createWorkbenchTitlebarNavActions,
@@ -149,7 +148,7 @@ const createSvgIcon = (
 };
 
 const createLxIcon = (
-  icon: LxIconRenderer,
+  icon: LxIconDefinition,
   size: number,
   className = "",
 ): SVGSVGElement => {
@@ -175,15 +174,15 @@ const createDefaultPageActionIcon = (
   action: WorkbenchTitlebarPageAction,
 ): SVGSVGElement => {
   if (action.id === "data") {
-    return createLxIcon(lxDownloadTray, 14, "opacity-80");
+    return createLxIcon(LxIcon.downloadTray, 14, "opacity-80");
   }
 
   if (action.id === "analysis") {
-    return createLxIcon(lxAnalysis, 14, "opacity-80");
+    return createLxIcon(LxIcon.analysis, 14, "opacity-80");
   }
 
   if (action.id === "settings") {
-    return createLxIcon(lxGear, 14, "opacity-80");
+    return createLxIcon(LxIcon.gear, 14, "opacity-80");
   }
 
   return createSvgIcon(
@@ -304,7 +303,7 @@ export const createWorkbenchTitlebarElement = ({
           className: "titlebar-icon-button",
           disabled: action.isDisabled,
         },
-        createLxIcon(isBack ? lxArrowLeft : lxArrowRight, 14, "opacity-80"),
+        createLxIcon(isBack ? LxIcon.arrowLeft : LxIcon.arrowRight, 14, "opacity-80"),
         isBack ? onNavigateBack : onNavigateForward,
       ),
     );

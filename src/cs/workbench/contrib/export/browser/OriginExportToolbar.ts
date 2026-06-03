@@ -9,7 +9,7 @@ import {
 import { createDropdownButton } from "src/cs/base/browser/ui/dropdown/dropdown";
 import type { IAction } from "src/cs/base/common/actions";
 import type { DisposableStore } from "src/cs/base/common/lifecycle";
-import { lxAlertTriangle, lxChevronDown } from "src/cs/base/common/lxicon";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import {
   isOriginExportMode,
   type OriginExportContentKey,
@@ -126,7 +126,7 @@ const createDropdown = <T extends string>({
       }),
     }),
     surfaceClassName: "origin_export_toolbar_select_menu_surface",
-    triggerIcon: lxChevronDown,
+    triggerIcon: LxIcon.chevronDown,
   });
   button.domNode.id = id;
   button.domNode.className = `${button.domNode.className} ${className}`.trim();
@@ -452,7 +452,7 @@ const createOriginExportToolbar = ({
     const row = document.createElement("div");
     row.className = "origin_export_toolbar_hint_row";
     const icon = createLxIcon({
-      icon: lxAlertTriangle,
+      icon: LxIcon.alertTriangle,
       size: 14,
       className: "origin_export_toolbar_hint_icon",
     });

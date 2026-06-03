@@ -1,5 +1,4 @@
 import { localize } from "src/cs/nls";
-import { lxAnalysis } from "@chogng/lxicon";
 import {
   getCardClassName,
   type CardVariant,
@@ -11,6 +10,7 @@ import {
   type LxIconDefinition,
   type LxIconStyle,
 } from "src/cs/base/browser/ui/lxicon/lxicon";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import type {
   CleanedEntry,
   ProcessingStatus,
@@ -172,7 +172,7 @@ const createAnalysisStatusCard = ({
   });
   card.append(
     createLocalLxIcon({
-      icon: lxAnalysis,
+      icon: LxIcon.analysis,
       size: 48,
       className: `analysis_status_icon ${iconClassName}`,
     }),

@@ -1,4 +1,3 @@
-import { lxClose, lxCsvGreen } from "@chogng/lxicon";
 import { addDisposableListener } from "src/cs/base/browser/dom";
 import ContentView from "src/cs/base/browser/ui/contentView/contentView";
 import type { ListHandle } from "src/cs/base/browser/ui/list/list";
@@ -10,6 +9,7 @@ import {
 } from "src/cs/base/browser/ui/tree/objectTree";
 import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
+import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
 import type { FileEntry } from "src/cs/workbench/contrib/files/common/files";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
@@ -64,7 +64,7 @@ const getFileItemMeta = (fileEntry: FileEntry): FileItemMeta | null => {
 
 const appendIcon = (
   container: HTMLElement,
-  icon: () => string,
+  icon: LxIconDefinition,
   size = 16,
 ) => {
   const iconSpan = document.createElement("span");
@@ -255,7 +255,7 @@ export class ExplorerViewer implements IDisposable {
 
     const icon = document.createElement("div");
     icon.className = "file-list-item-icon";
-    appendIcon(icon, lxCsvGreen);
+    appendIcon(icon, LxIcon.csvGreen);
 
     const text = document.createElement("div");
     text.className = "file-list-item-text";
@@ -282,7 +282,7 @@ export class ExplorerViewer implements IDisposable {
       event.stopPropagation();
       this.props.onRemoveFile(fileEntry.fileId ?? null);
     });
-    appendIcon(removeButton, lxClose);
+    appendIcon(removeButton, LxIcon.close);
 
     actions.appendChild(removeButton);
     container.append(content, actions);

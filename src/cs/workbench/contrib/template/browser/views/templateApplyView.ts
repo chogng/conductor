@@ -4,7 +4,7 @@ import { DropdownMenu } from "src/cs/base/browser/ui/dropdown/dropdown";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import type { IAction } from "src/cs/base/common/actions";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
-import { lxChevronDown } from "src/cs/base/common/lxicon";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import {
   createSwitch as createBaseSwitch,
@@ -76,7 +76,7 @@ export class TemplateApplyView {
 
         const icon = document.createElement("span");
         icon.className = "template_picker_button_icon";
-        icon.append(createLxIcon({ icon: lxChevronDown, size: 14 }));
+        icon.append(createLxIcon({ icon: LxIcon.chevronDown, size: 14 }));
 
         button.append(this.dropdownLabel, icon);
         container.append(button);

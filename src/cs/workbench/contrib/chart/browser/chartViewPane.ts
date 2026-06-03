@@ -1,5 +1,3 @@
-import { lxDiagnostics, lxSearch } from "@chogng/lxicon";
-
 import AnalysisPanel, {
   type AnalysisPanelProps,
 } from "src/cs/workbench/contrib/chart/browser/analysisPanel";
@@ -15,6 +13,7 @@ import {
   type TabOptionBase,
 } from "src/cs/base/browser/ui/tab/tab";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
+import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
 import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/previewPart";
 import type { LxIconDefinition } from "src/cs/base/browser/ui/lxicon/lxicon";
@@ -140,12 +139,12 @@ export class ChartViewPane {
     root.setAttribute("aria-label", localize("da_chart_detail_actions", "Chart detail views"));
     root.append(
       this.createAuxiliaryPaneAction({
-        icon: lxSearch,
+        icon: LxIcon.search,
         label: localize("da_chart_locator_heading", "Locator"),
         pane: "locator",
       }),
       this.createAuxiliaryPaneAction({
-        icon: lxDiagnostics,
+        icon: LxIcon.diagnostics,
         label: localize("da_chart_diagnostics_heading", "Diagnostics"),
         pane: "inspector",
       }),
