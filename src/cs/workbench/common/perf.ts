@@ -17,7 +17,6 @@ const isTruthyFlag = (value: unknown): boolean => {
 };
 
 export const isPerfEnabled = (): boolean => {
-  if (import.meta.env.DEV) return true;
   if (isTruthyFlag(import.meta.env.VITE_DEVICE_ANALYSIS_PERF)) return true;
 
   try {

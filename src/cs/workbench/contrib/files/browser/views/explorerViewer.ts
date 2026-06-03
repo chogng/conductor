@@ -1,5 +1,11 @@
 import { addDisposableListener } from "src/cs/base/browser/dom";
 import ContentView from "src/cs/base/browser/ui/contentView/contentView";
+import { createDropdownButton } from "src/cs/base/browser/ui/dropdown/dropdown";
+import {
+  createMenuAction,
+  createMenuItemLabel,
+  renderMenuItems,
+} from "src/cs/base/browser/ui/menu/menu";
 import type { ListHandle } from "src/cs/base/browser/ui/list/list";
 import {
   ObjectTree,
@@ -10,6 +16,7 @@ import {
 import { normalizeLxIconSvgMarkup } from "src/cs/base/browser/ui/lxicon/lxiconMarkup";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
+import type { IAction } from "src/cs/base/common/actions";
 import { localize } from "src/cs/nls";
 import type { FileEntry } from "src/cs/workbench/contrib/files/common/files";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
@@ -26,8 +33,10 @@ export type ExplorerViewerProps = {
   readonly effectiveSelectedFileId?: string | null;
   readonly files: FileEntry[];
   readonly onListScroll: (event: Event) => void;
+  readonly onCreateFolder: (folderKey: string) => void;
   readonly onOpenFileDialog: () => void;
   readonly onRemoveFile: (fileId: string | null) => void;
+  readonly onRemoveFolder: (folderKey: string) => void;
   readonly onSelectFile: (fileId: string | null) => void;
   readonly cleanedData?: CleanedEntry[];
 };
@@ -80,6 +89,7 @@ export class ExplorerViewer implements IDisposable {
   private readonly treeView: ObjectTree<FileTreeNode>;
   private hoverView: ContentView | null = null;
   private hoverAnchor: HTMLElement | null = null;
+  private readonly folderActionDisposables = new WeakMap<HTMLElement, IDisposable>();
   private expandedKeys: string[] = [];
   private knownFolderKeys = new Set<string>();
   private props: ExplorerViewerProps;
@@ -183,6 +193,7 @@ export class ExplorerViewer implements IDisposable {
           details: ITreeElementRenderDetails,
         ) => this.renderTreeElement(node, container, details),
         disposeElement: (_node, _index, container) => {
+          this.clearFolderAction(container);
           container.replaceChildren();
         },
       },
@@ -196,6 +207,7 @@ export class ExplorerViewer implements IDisposable {
     container: HTMLElement,
     details: ITreeElementRenderDetails,
   ): void {
+    this.clearFolderAction(container);
     const element = node.element;
     if (element.kind === "folder") {
       this.renderFolderItem(element, !details.collapsed, container);
@@ -297,16 +309,68 @@ export class ExplorerViewer implements IDisposable {
     container.className = "file-list-folder-item";
     container.title = node.name;
 
+    const content = document.createElement("div");
+    content.className = "file-list-folder-content";
+
     const name = document.createElement("span");
     name.className = "file-list-folder-name";
     name.textContent = node.name;
 
+    content.appendChild(name);
+
+    const controls = document.createElement("div");
+    controls.className = "file-list-folder-controls";
+
     const count = document.createElement("span");
     count.className = "file-list-folder-count";
     count.textContent = String(node.children?.length ?? 0);
+    controls.appendChild(count);
+
+    const actionsHost = document.createElement("div");
+    actionsHost.className = "file-list-folder-actionbar";
+    const actionButton = createDropdownButton({
+      ariaLabel: localize("files.folderMoreActions", "更多操作"),
+      className: "file-list-folder-more",
+      closeOnContentEvent: "menuitemactionrun",
+      label: "",
+      matchAnchorWidth: false,
+      render: (menuHost) => renderMenuItems(menuHost, {
+        className: "file-list-folder-menu",
+        items: () => this.createFolderActions(node),
+      }),
+      surfaceClassName: "file-list-folder-menu-surface",
+      triggerIcon: LxIcon.moreHorizontal,
+    });
+    actionsHost.appendChild(actionButton.domNode);
+    controls.appendChild(actionsHost);
+    this.folderActionDisposables.set(container, actionButton);
 
     container.dataset.expanded = isExpanded ? "true" : "false";
-    container.append(name, count);
+    container.append(content, controls);
+  }
+
+  private clearFolderAction(container: HTMLElement): void {
+    this.folderActionDisposables.get(container)?.dispose();
+    this.folderActionDisposables.delete(container);
+  }
+
+  private createFolderActions(node: FileTreeNode): IAction[] {
+    return [
+      createMenuAction({
+        id: "files.folder.remove",
+        label: localize("files.removeFolder", "移除"),
+        left: createMenuItemLabel(localize("files.removeFolder", "移除"), LxIcon.remove),
+        run: () => this.props.onRemoveFolder(node.key),
+        tabIndex: 0,
+      }),
+      createMenuAction({
+        id: "files.folder.create",
+        label: localize("files.createFolder", "新建文件夹"),
+        left: createMenuItemLabel(localize("files.createFolder", "新建文件夹"), LxIcon.add),
+        run: () => this.props.onCreateFolder(node.key),
+        tabIndex: 0,
+      }),
+    ];
   }
 
   private readonly handleListMouseOver = (event: MouseEvent): void => {

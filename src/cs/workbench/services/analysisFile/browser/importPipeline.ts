@@ -9,6 +9,7 @@ import {
 } from "src/cs/workbench/contrib/files/common/files";
 import {
   ImportPrepareError,
+  type ImportFileSource,
   prepareImportFile,
 } from "src/cs/workbench/services/analysisFile/browser/fileConversion";
 import type {
@@ -99,6 +100,17 @@ const toPrepareFailure = (
   };
 };
 
+const resolvePreparedFileSource = (
+  pendingImportFile: PendingImportFile,
+): ImportFileSource => {
+  const path =
+    pendingImportFile.kind === "path"
+      ? String(pendingImportFile.resource?.fsPath ?? "").trim()
+      : "";
+
+  return path ? { kind: "path", path } : { kind: "data" };
+};
+
 export const preparePendingImportFile = async (
   analysisFileService: IAnalysisFileService,
   pendingImportFile: PendingImportFile,
@@ -106,7 +118,6 @@ export const preparePendingImportFile = async (
   const {
     finishFilePerf,
     relativePath,
-    resource,
     sourceFile,
     sourceKey,
   } = pendingImportFile;
@@ -116,7 +127,11 @@ export const preparePendingImportFile = async (
   let sourcePath: string | null = null;
 
   try {
-    const prepared = await prepareImportFile(analysisFileService, sourceFile, resource);
+    const prepared = await prepareImportFile(
+      analysisFileService,
+      sourceFile,
+      resolvePreparedFileSource(pendingImportFile),
+    );
     normalizedFile = prepared.file;
     normalizedCsvPath = prepared.normalizedCsvPath ?? null;
     fileAssessment = prepared.assessment;
@@ -131,9 +146,6 @@ export const preparePendingImportFile = async (
       failed: "prepare",
       message: failure.message,
     });
-    if (import.meta.env.DEV) {
-      console.warn("Failed to prepare import file.", failure);
-    }
     return {
       error: failure,
       ok: false,

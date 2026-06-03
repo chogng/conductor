@@ -132,11 +132,27 @@ let originDetectionCache = null;
 let originDetectionPromise = null;
 const desktopProcessStartMs = Date.now();
 
+function isTruthyEnvFlag(value) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return (
+    normalized === "1" ||
+    normalized === "true" ||
+    normalized === "yes" ||
+    normalized === "on"
+  );
+}
+
+function isDesktopBootProfileEnabled() {
+  return isTruthyEnvFlag(process.env.CONDUCTOR_BOOT_PROFILE);
+}
+
 function logDesktopBoot(stage, extra = "") {
   const elapsedMs = Date.now() - desktopProcessStartMs;
   const suffix = extra ? ` ${extra}` : "";
   const message = `[boot][main] +${elapsedMs}ms ${stage}${suffix}`;
-  console.info(message);
+  if (isDesktopBootProfileEnabled()) {
+    console.info(message);
+  }
   appendDesktopDiagnosticLog(message);
 }
 
@@ -233,7 +249,9 @@ function logDesktopDiagnostic(stage: string, payload: unknown = "") {
   const message = `[desktop-diagnostic] ${stage}${
     normalizedPayload ? ` ${normalizedPayload}` : ""
   }`;
-  console.info(message);
+  if (isDesktopBootProfileEnabled()) {
+    console.info(message);
+  }
   appendDesktopDiagnosticLog(message);
 }
 
@@ -1232,7 +1250,9 @@ function createSharedProcessContributionContext() {
     originRuntimeStorageDir: getOriginRuntimeStorageDir(),
     rustExcelJobRootDir: getRustExcelJobRootDir(),
     log: (message: string) => {
-      console.info(message);
+      if (isDesktopBootProfileEnabled()) {
+        console.info(message);
+      }
       appendDesktopDiagnosticLog(message);
     },
     warn: (message: string, error?: unknown) => {
@@ -1661,18 +1681,24 @@ function logOriginDetectionResult(context, result) {
     .join(" | ");
 
   if (result?.path) {
-    console.info(
+    const message =
       `[origin-detect] ${context}: detected '${result.path}'` +
-        `${result.source ? ` via ${result.source}` : ""}` +
-        `${probeSummary ? ` (${probeSummary})` : ""}`,
-    );
+      `${result.source ? ` via ${result.source}` : ""}` +
+      `${probeSummary ? ` (${probeSummary})` : ""}`;
+    if (isDesktopBootProfileEnabled()) {
+      console.info(message);
+    }
+    appendDesktopDiagnosticLog(message);
     return;
   }
 
-  console.warn(
+  const message =
     `[origin-detect] ${context}: no Origin executable detected` +
-      `${probeSummary ? ` (${probeSummary})` : ""}`,
-  );
+    `${probeSummary ? ` (${probeSummary})` : ""}`;
+  if (isDesktopBootProfileEnabled()) {
+    console.warn(message);
+  }
+  appendDesktopDiagnosticLog(message);
 }
 
 async function detectOriginExecutablePathCached() {
@@ -1944,7 +1970,9 @@ function createUpdateService() {
     packageJsonPath: path.join(getAppRootPath(), "package.json"),
     onStatusChange: broadcastAutoUpdateStatus,
     log: (message: string) => {
-      console.info(message);
+      if (isDesktopBootProfileEnabled()) {
+        console.info(message);
+      }
       appendDesktopDiagnosticLog(message);
     },
     warn: (message: string, error?: unknown) => {
@@ -2260,12 +2288,14 @@ function createMainWindow() {
         : event.level === "error"
           ? "error"
           : "info";
-    logDesktopDiagnostic("renderer-console", {
-      level: levelLabel,
-      line: event.lineNumber,
-      sourceId: event.sourceId,
-      message,
-    });
+    if (levelLabel !== "info" || isDesktopBootProfileEnabled()) {
+      logDesktopDiagnostic("renderer-console", {
+        level: levelLabel,
+        line: event.lineNumber,
+        sourceId: event.sourceId,
+        message,
+      });
+    }
     if (typeof message !== "string" || !message.startsWith("[boot]")) return;
     const logger =
       levelLabel === "warn"

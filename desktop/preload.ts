@@ -11,7 +11,41 @@ const preloadStartMs =
     ? performance.now()
     : Date.now();
 
+function isTruthyFlag(value: unknown): boolean {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return (
+    normalized === "1" ||
+    normalized === "true" ||
+    normalized === "yes" ||
+    normalized === "on"
+  );
+}
+
+function isPreloadBootProfileEnabled(): boolean {
+  const host = globalThis as {
+    location?: { search?: unknown };
+    localStorage?: { getItem?: (key: string) => string | null };
+  };
+
+  try {
+    const params = new URLSearchParams(String(host.location?.search ?? ""));
+    if (isTruthyFlag(params.get("bootProfile"))) {
+      return true;
+    }
+  } catch {
+    // Boot profiling is optional; query failures should not block preload.
+  }
+
+  try {
+    return isTruthyFlag(host.localStorage?.getItem?.("conductor.bootProfile"));
+  } catch {
+    return false;
+  }
+}
+
 function logPreloadBoot(stage: string, extra = ""): void {
+  if (!isPreloadBootProfileEnabled()) return;
+
   const nowMs =
     typeof performance !== "undefined" && typeof performance.now === "function"
       ? performance.now()

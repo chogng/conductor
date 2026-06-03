@@ -31,10 +31,10 @@ export class FilesPaneHost {
 
   private getSidebarOptions(props: FilesPaneProps) {
     return {
-      ariaLabel: localize("files.importSection", "Import Files"),
+      ariaLabel: localize("files.explorerSection", "资源管理器"),
       children: this.host,
       className: "files-sidebar_part",
-      title: localize("files.importSection", "Import Files"),
+      title: localize("files.explorerSection", "资源管理器"),
     };
   }
 }

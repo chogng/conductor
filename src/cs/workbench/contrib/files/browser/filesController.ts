@@ -12,6 +12,7 @@ import {
   ExplorerView,
   type ExplorerViewProps,
 } from "src/cs/workbench/contrib/files/browser/views/explorerView";
+import { getFileTreeFolderPath } from "src/cs/workbench/contrib/files/common/explorerModel";
 import type {
   FileEntry,
   FileSource,
@@ -28,6 +29,7 @@ import {
 import {
   collectPendingImportFiles,
 } from "src/cs/workbench/services/analysisFile/browser/fileFilter";
+import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
 
 export type FilesControllerProps = {
   readonly analysisFileService: IAnalysisFileServiceType;
@@ -143,7 +145,9 @@ export class FilesController implements FilesPaneRef, IDisposable {
       onClearError: this.handleClearError,
       onDraggingChange: this.handleDraggingChange,
       onListScroll: this.handleListScroll,
+      onCreateFolder: this.handleCreateFolder,
       onRemoveFile: this.handleRemoveFile,
+      onRemoveFolder: this.handleRemoveFolder,
       onOpenFolderDialog: this.handleOpenFolderDialog,
       onSelectFile: this.handleSelectFile,
       onSelectFiles: this.handleSelectFiles,
@@ -296,6 +300,50 @@ export class FilesController implements FilesPaneRef, IDisposable {
     this.props.onFileRemoved?.(fileId);
     this.handleFileCountEffects();
     this.syncView();
+  };
+
+  private readonly handleRemoveFolder = (folderKey: string): void => {
+    const folderPath = getFileTreeFolderPath(folderKey);
+    if (!folderPath) {
+      return;
+    }
+
+    const removedFileIds = new Set(
+      this.files
+        .filter((entry) => isInFolder(entry.relativePath, folderPath))
+        .map((entry) => entry.fileId)
+        .filter((fileId): fileId is string => typeof fileId === "string"),
+    );
+    if (removedFileIds.size === 0) {
+      return;
+    }
+
+    if (this.optimisticSelectedFileId && removedFileIds.has(this.optimisticSelectedFileId)) {
+      this.optimisticSelectedFileId = null;
+      this.props.onFileSelected?.(null);
+    }
+
+    if (!this.isControlled) {
+      this.internalFiles = this.internalFiles.filter((entry) => !removedFileIds.has(entry.fileId ?? ""));
+    }
+
+    for (const fileId of removedFileIds) {
+      this.props.onFileRemoved?.(fileId);
+    }
+
+    this.handleFileCountEffects();
+    this.syncView();
+  };
+
+  private readonly handleCreateFolder = (_folderKey: string): void => {
+    notificationService.showToast({
+      id: "files.createFolderUnsupported",
+      message: localize(
+        "files.createFolderUnsupported",
+        "当前导入列表暂不支持创建空文件夹。",
+      ),
+      type: "info",
+    });
   };
 
   private async processFiles(
@@ -545,6 +593,27 @@ export class FilesController implements FilesPaneRef, IDisposable {
 function normalizeRelativePath(value: unknown): string | null {
   const relativePath = String(value ?? "").trim();
   return relativePath || null;
+}
+
+function normalizeFolderPath(value: unknown): string {
+  return String(value ?? "")
+    .replace(/\\/g, "/")
+    .split("/")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join("/");
+}
+
+function isInFolder(relativePath: unknown, folderPath: string): boolean {
+  const normalizedRelativePath = normalizeFolderPath(relativePath);
+  const normalizedFolderPath = normalizeFolderPath(folderPath);
+  return Boolean(
+    normalizedFolderPath &&
+      (
+        normalizedRelativePath === normalizedFolderPath ||
+        normalizedRelativePath.startsWith(`${normalizedFolderPath}/`)
+      ),
+  );
 }
 
 function getImportErrorFileNames(fileNames: readonly string[]): string {

@@ -43,6 +43,7 @@ export type FileEntry = {
 
 export type FileSource = {
   readonly file: File;
+  readonly kind: "path" | "data";
   readonly relativePath?: string | null;
   readonly resource?: URI | null;
 };

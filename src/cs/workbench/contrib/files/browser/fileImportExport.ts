@@ -1,10 +1,13 @@
 import { URI } from "src/cs/base/common/uri";
-import { collectDataTransferFiles } from "src/cs/platform/dnd/browser/dnd";
 import {
   FileType,
   type IFileContent,
   type IFileService,
 } from "src/cs/platform/files/common/files";
+import {
+  collectDroppedFiles,
+  createFileSource,
+} from "src/cs/workbench/contrib/files/browser/fileActions";
 import {
   isExcelImportFileName,
   isSupportedImportFileName,
@@ -16,6 +19,8 @@ export {
   buildItemKey,
   type FileSource,
 } from "src/cs/workbench/contrib/files/common/files";
+
+export { collectDroppedFiles };
 
 const MAX_FOLDER_WALK_DEPTH = 32;
 const WINDOWS_DRIVE_PREFIX = /^[a-zA-Z]:[\\/]/;
@@ -79,10 +84,6 @@ function toFilePart(content: IFileContent): string | ArrayBuffer {
   return content.encoding === "base64" ? decodeBase64(content.value) : content.value;
 }
 
-export const collectDroppedFiles = async (
-  dataTransfer: DataTransfer,
-): Promise<FileSource[]> => collectDataTransferFiles(dataTransfer);
-
 export async function collectFolderFiles(
   folder: URI,
   filesService: IFileService,
@@ -122,11 +123,7 @@ async function collectFolderFilesAt(
 
     const file = await tryReadFileSource(child, name, filesService);
     if (file) {
-      files.push({
-        file,
-        relativePath,
-        resource: child,
-      });
+      files.push(createFileSource(file, relativePath, child));
     }
   }
 }

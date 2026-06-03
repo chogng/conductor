@@ -8,6 +8,7 @@ import {
 
 export type PendingImportFile = {
   finishFilePerf: (meta?: Record<string, unknown>) => void;
+  kind: FileSource["kind"];
   relativePath: string | null;
   resource: URI | null;
   sourceFile: File;
@@ -49,6 +50,7 @@ export const collectPendingImportFiles = (
 
     pendingImportFiles.push({
       finishFilePerf,
+      kind: source.kind,
       relativePath,
       resource: source.resource ?? null,
       sourceFile,

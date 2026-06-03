@@ -1,5 +1,3 @@
-import type { URI } from "src/cs/base/common/uri";
-import { getPathForFile } from "src/cs/platform/dnd/browser/dnd";
 import { startPerf } from "src/cs/workbench/common/perf";
 import type {
   AnalysisFileAssessment,
@@ -29,12 +27,19 @@ export type PreparedBrowserFile = {
   sourceSizeBytes: number;
 };
 
+export type ImportFileSource =
+  | { kind: "path"; path: string }
+  | { kind: "data" };
+
 export class ImportPrepareError extends Error {
+  public readonly code: string | null;
+
   constructor(
     message: string,
-    public readonly code: string | null = null,
+    code: string | null = null,
   ) {
     super(message);
+    this.code = code;
     this.name = "ImportPrepareError";
   }
 }
@@ -58,6 +63,12 @@ const resolveBrowserAssessmentInput = (file: File): BrowserAssessmentInput => {
 
   return { mode: "unsupportedExcel" };
 };
+
+const shouldFallbackToBrowserFile = (code: unknown): boolean =>
+  code === "IMPORT_FILE_NOT_FOUND" ||
+  code === "EXCEL_FILE_NOT_FOUND" ||
+  code === "INVALID_IMPORT_PATH" ||
+  code === "UNRESOLVED_IMPORT_PATH";
 
 const convertXlsxFile = (file: File): Promise<File> => {
   if (file.size > BROWSER_XLSX_MAX_BYTES) {
@@ -127,6 +138,44 @@ const convertXlsxFile = (file: File): Promise<File> => {
   });
 };
 
+const prepareBrowserFile = async (
+  file: File,
+  sourcePath: string | null,
+): Promise<PreparedBrowserFile> => {
+  const input = resolveBrowserAssessmentInput(file);
+  if (input.mode !== "csv") {
+    if (input.mode === "unsupportedExcel") {
+      throw new ImportPrepareError(
+        `Excel import requires a conversion service for ${file.name}.`,
+        "EXCEL_CONVERSION_UNAVAILABLE",
+      );
+    }
+
+    const convertedFile = await convertXlsxFile(file);
+    const assessment = await assessImportFile(convertedFile);
+    return {
+      assessment,
+      file: convertedFile,
+      normalizedCsvPath: null,
+      normalizedSizeBytes: convertedFile.size,
+      sourcePath,
+      sourceName: file.name,
+      sourceSizeBytes: file.size,
+    };
+  }
+
+  const assessment = await assessImportFile(file);
+  return {
+    assessment,
+    file,
+    normalizedCsvPath: null,
+    normalizedSizeBytes: file.size,
+    sourcePath,
+    sourceName: file.name,
+    sourceSizeBytes: file.size,
+  };
+};
+
 export const loadConvertedCsvFile = async ({
   analysisFileService,
   fallbackFile,
@@ -169,49 +218,16 @@ export const loadConvertedCsvFile = async ({
 export const prepareImportFile = async (
   analysisFileService: IAnalysisFileService,
   file: File,
-  resource: URI | null = null,
+  source: ImportFileSource,
 ): Promise<PreparedBrowserFile> => {
+  const sourcePath = source.kind === "path" ? source.path.trim() : null;
+
   if (!analysisFileService.canPrepareFile()) {
-    const input = resolveBrowserAssessmentInput(file);
-    if (input.mode !== "csv") {
-      if (input.mode === "unsupportedExcel") {
-        throw new ImportPrepareError(
-          `Excel import requires a conversion service for ${file.name}.`,
-          "EXCEL_CONVERSION_UNAVAILABLE",
-        );
-      }
-
-      const convertedFile = await convertXlsxFile(file);
-      const assessment = await assessImportFile(convertedFile);
-      return {
-        assessment,
-        file: convertedFile,
-        normalizedCsvPath: null,
-        normalizedSizeBytes: convertedFile.size,
-        sourcePath: resource?.fsPath || getPathForFile(file) || null,
-        sourceName: file.name,
-        sourceSizeBytes: file.size,
-      };
-    }
-
-    const assessment = await assessImportFile(file);
-    return {
-      assessment,
-      file,
-      normalizedCsvPath: null,
-      normalizedSizeBytes: file.size,
-      sourcePath: resource?.fsPath || getPathForFile(file) || null,
-      sourceName: file.name,
-      sourceSizeBytes: file.size,
-    };
+    return prepareBrowserFile(file, sourcePath);
   }
 
-  const filePath = resource?.fsPath || getPathForFile(file) || "";
-  if (!filePath) {
-    throw new ImportPrepareError(
-      `Unable to resolve file path for ${file.name}.`,
-      "UNRESOLVED_IMPORT_PATH",
-    );
+  if (source.kind !== "path" || !sourcePath) {
+    return prepareBrowserFile(file, null);
   }
 
   const finishPerf = startPerf("import:rust-prepare-file", {
@@ -222,7 +238,7 @@ export const prepareImportFile = async (
   try {
     const result = await analysisFileService.prepareFile({
       fileName: file.name,
-      path: filePath,
+      path: sourcePath,
     });
     if (!result?.ok || !result.assessment) {
       finishPerf({
@@ -231,6 +247,9 @@ export const prepareImportFile = async (
         rustDurationMs: result?.durationMs ?? null,
         source: "rust-failed",
       });
+      if (shouldFallbackToBrowserFile(result?.code)) {
+        return prepareBrowserFile(file, null);
+      }
       throw new ImportPrepareError(
         typeof result?.message === "string" && result.message.trim()
           ? result.message
@@ -270,7 +289,7 @@ export const prepareImportFile = async (
       file: normalizedFile,
       normalizedCsvPath,
       normalizedSizeBytes,
-      sourcePath: result.sourcePath ?? filePath,
+      sourcePath: result.sourcePath ?? sourcePath,
       sourceName: result.sourceName ?? file.name,
       sourceSizeBytes: Number(result.sourceSizeBytes) || file.size,
     };

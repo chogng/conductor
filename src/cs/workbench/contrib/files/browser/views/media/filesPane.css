@@ -15,11 +15,11 @@
 }
 
 .files-pane-body {
-  padding: 0.75rem;
+  padding: 12px;
 }
 
 .files-sidebar_part > .workbench_sidebar_header .workbench_sidebar_title {
   font-size: 12px;
-  line-height: 1rem;
+  line-height: 16px;
   color: rgb(var(--text-secondary) / 1);
 }

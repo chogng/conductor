@@ -17,7 +17,6 @@ import {
   type IWorkbenchContributionsRegistry,
 } from "src/cs/workbench/common/contributions";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
-import { getWorkbenchEnvironment } from "src/cs/workbench/services/environment/browser/environmentService";
 import { IWorkbenchEnvironmentService } from "src/cs/workbench/services/environment/common/environmentService";
 import {
   ILifecycleService,
@@ -56,8 +55,14 @@ const getBootNowMs = () =>
     ? performance.now()
     : Date.now();
 
-const createBootLogger = (label: string, startMs: number): BootLogger =>
+const createBootLogger = (
+  label: string,
+  startMs: number,
+  shouldLog: () => boolean = () => true,
+): BootLogger =>
   (stage: string, extra = "") => {
+    if (!shouldLog()) return;
+
     const elapsedMs = Math.round(getBootNowMs() - startMs);
     const suffix = extra ? ` ${extra}` : "";
     console.info(`[boot][${label}] +${elapsedMs}ms ${stage}${suffix}`);
@@ -66,11 +71,7 @@ const createBootLogger = (label: string, startMs: number): BootLogger =>
 const isThemeMode = (value: unknown): value is ThemeMode =>
   value === "light" || value === "dark" || value === "system";
 
-const resolveBootProfileEnabled = (forceEnabled = false) => {
-  if (forceEnabled) {
-    return true;
-  }
-
+const resolveBootProfileEnabled = () => {
   try {
     const params = new URLSearchParams(window.location.search);
     const searchValue = params.get("bootProfile");
@@ -201,8 +202,10 @@ const logTopResources = () => {
 const createBootUiReadyMarker = (logBoot: BootLogger) =>
   (source = "unknown") => {
     logBoot("boot-ui:ready", `(source=${source})`);
-    logNavigationTiming();
-    logTopResources();
+    if (window.__CONDUCTOR_BOOT_PROFILE_ENABLED__) {
+      logNavigationTiming();
+      logTopResources();
+    }
     Promise.resolve(ipcRenderer.invoke(workbenchBootstrapIpcChannels.uiReady, {
       source,
     })).catch((error: unknown) => {
@@ -258,7 +261,7 @@ const logInitialRenderDiagnostics = (logBoot: BootLogger) => {
   }, 1000);
 };
 
-const prepareWorkbench = (logBoot: BootLogger) => {
+const prepareWorkbench = (logBoot: BootLogger, isBootProfileEnabled: boolean) => {
   installNavigationModeListeners();
   installWindowDeveloperKeybindings();
 
@@ -283,9 +286,7 @@ const prepareWorkbench = (logBoot: BootLogger) => {
     initialLanguage === "zh" ? "zh-CN" : "en",
   );
   window.__CONDUCTOR_INITIAL_THEME__ = initialTheme;
-  window.__CONDUCTOR_BOOT_PROFILE_ENABLED__ = resolveBootProfileEnabled(
-    getWorkbenchEnvironment()?.isDesktop === true,
-  );
+  window.__CONDUCTOR_BOOT_PROFILE_ENABLED__ = isBootProfileEnabled;
   window.__CONDUCTOR_BOOT_LOG__ = logBoot;
   window.__CONDUCTOR_BOOT_MARK_UI_READY__ = createBootUiReadyMarker(logBoot);
 
@@ -325,8 +326,9 @@ function startWorkbench(): void {
 }
 
 const startMs = getBootNowMs();
-const logBoot = createBootLogger("renderer", startMs);
+const isBootProfileEnabled = resolveBootProfileEnabled();
+const logBoot = createBootLogger("renderer", startMs, () => isBootProfileEnabled);
 
-prepareWorkbench(logBoot);
+prepareWorkbench(logBoot, isBootProfileEnabled);
 startWorkbench();
 startWorkbenchThemeContribution();

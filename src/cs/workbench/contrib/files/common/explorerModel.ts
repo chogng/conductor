@@ -127,3 +127,13 @@ export const collectFileTreeFolderKeys = (
 
   return keys;
 };
+
+export const getFileTreeFolderPath = (folderKey: unknown): string | null => {
+  const key = String(folderKey ?? "");
+  if (!key.startsWith("folder:")) {
+    return null;
+  }
+
+  const path = key.slice("folder:".length).trim();
+  return path || null;
+};

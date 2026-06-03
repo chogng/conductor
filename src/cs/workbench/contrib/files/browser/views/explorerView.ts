@@ -20,6 +20,7 @@ export type ExplorerViewProps = Omit<ExplorerViewerProps, "onOpenFileDialog"> & 
   readonly error?: string | null;
   readonly isDragging: boolean;
   readonly onClearError: () => void;
+  readonly onCreateFolder: (folderKey: string) => void;
   readonly onDraggingChange: (isDragging: boolean) => void;
   readonly onOpenFolderDialog: () => void;
   readonly onSelectFiles: (files: FileSource[]) => void;
@@ -94,8 +95,10 @@ export class ExplorerView implements IDisposable {
       effectiveSelectedFileId: this.props.effectiveSelectedFileId,
       files: this.props.files,
       onListScroll: this.props.onListScroll,
+      onCreateFolder: this.props.onCreateFolder,
       onOpenFileDialog: () => this.openFileDialog(),
       onRemoveFile: this.props.onRemoveFile,
+      onRemoveFolder: this.props.onRemoveFolder,
       onSelectFile: this.props.onSelectFile,
       cleanedData: this.props.cleanedData,
     };
@@ -178,7 +181,7 @@ export class ExplorerView implements IDisposable {
 
     const { error, isDragging } = this.props;
 
-    this.root.setAttribute("aria-label", localize("files.importSection", "Import Files"));
+    this.root.setAttribute("aria-label", localize("files.explorerSection", "资源管理器"));
     this.root.classList.toggle("dragging", isDragging);
     this.root.classList.toggle("idle", !isDragging);
 

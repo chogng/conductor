@@ -74,6 +74,12 @@ export const lxInfoCircle = registerLxIcon(
     `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" stroke="#000"/><path stroke="#000" stroke-linecap="round" d="M8 7v4"/><circle cx="8" cy="4.75" r=".75" fill="#000"/></svg>`,
 );
 
+export const lxMoreHorizontal = registerLxIcon(
+  "more-horizontal",
+  () =>
+    `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16"><circle cx="4" cy="8" r="1" fill="#000"/><circle cx="8" cy="8" r="1" fill="#000"/><circle cx="12" cy="8" r="1" fill="#000"/></svg>`,
+);
+
 export const lxSlidersHorizontal = registerLxIcon(
   "sliders-horizontal",
   () =>
@@ -141,6 +147,7 @@ export const LxIcon = {
   gear: lxGear,
   infoCircle: lxInfoCircle,
   listUnordered: lxListUnordered,
+  moreHorizontal: lxMoreHorizontal,
   origin: lxOrigin,
   remove: lxRemove,
   search: lxSearch,
