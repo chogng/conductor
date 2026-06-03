@@ -276,6 +276,7 @@ export class DropdownButton extends Disposable {
 
         this._register(addDisposableListener(this.button, EventType.CLICK, event => {
             event.preventDefault();
+            event.stopPropagation();
             this.dropdown.toggle();
         }));
         this._register(addDisposableListener(this.button, EventType.KEY_DOWN, event => {
@@ -284,6 +285,7 @@ export class DropdownButton extends Disposable {
             }
 
             event.preventDefault();
+            event.stopPropagation();
             this.dropdown.show();
         }));
 

@@ -11,10 +11,6 @@
   min-height: 0;
 }
 
-.file-list .scrollAreaTrackY {
-  right: -1px !important;
-}
-
 .file-list-viewport {
   display: flex;
   flex-direction: column;
