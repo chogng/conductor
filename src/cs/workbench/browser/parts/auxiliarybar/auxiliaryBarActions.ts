@@ -42,7 +42,7 @@ export const AuxiliaryBarViews: readonly AuxiliaryBarViewDescriptor[] = [
   },
   {
     id: "parameters",
-    icon: LxIcon.slidersHorizontal,
+    icon: LxIcon.parameters,
     mode: "chart",
     viewId: ParametersViewId,
     labelKey: "analysis_views_parameters",

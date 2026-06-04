@@ -16,6 +16,7 @@ import {
   lxGear as renderGear,
   lxListUnordered as renderListUnordered,
   lxOrigin as renderOrigin,
+  lxParameters as renderParameters,
   lxRemove as renderRemove,
   lxSearch as renderSearch,
   lxSettings as renderSettings,
@@ -81,12 +82,6 @@ export const lxMoreHorizontal = registerLxIcon(
     `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16"><circle cx="4" cy="8" r="1" fill="#000"/><circle cx="8" cy="8" r="1" fill="#000"/><circle cx="12" cy="8" r="1" fill="#000"/></svg>`,
 );
 
-export const lxSlidersHorizontal = registerLxIcon(
-  "sliders-horizontal",
-  () =>
-    `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 16 16"><path stroke="#000" stroke-linecap="round" d="M2.5 4h2m3 0h6M2.5 8h6m3 0h1.5M2.5 12h3m3 0h4.5"/><circle cx="6" cy="4" r="1.5" stroke="#000"/><circle cx="10" cy="8" r="1.5" stroke="#000"/><circle cx="7" cy="12" r="1.5" stroke="#000"/></svg>`,
-);
-
 export const lxAdd = registerLxIcon("add", renderAdd);
 
 export const lxAnalysis = registerLxIcon("analysis", renderAnalysis);
@@ -123,6 +118,8 @@ export const lxListUnordered = registerLxIcon("list-unordered", renderListUnorde
 
 export const lxOrigin = registerLxIcon("origin", renderOrigin);
 
+export const lxParameters = registerLxIcon("parameters", renderParameters);
+
 export const lxRemove = registerLxIcon("remove", renderRemove);
 
 export const lxSearch = registerLxIcon("search", renderSearch);
@@ -152,9 +149,9 @@ export const LxIcon = {
   listUnordered: lxListUnordered,
   moreHorizontal: lxMoreHorizontal,
   origin: lxOrigin,
+  parameters: lxParameters,
   remove: lxRemove,
   search: lxSearch,
   settings: lxSettings,
-  slidersHorizontal: lxSlidersHorizontal,
   xlsGreen: lxXlsGreen,
 } as const;
