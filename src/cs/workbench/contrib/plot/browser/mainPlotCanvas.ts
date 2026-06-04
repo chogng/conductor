@@ -588,6 +588,19 @@ const renderLegend = (
   container.appendChild(list);
 };
 
+export const createMainPlotLegend = (props: Pick<MainPlotCanvasProps,
+  "legendContent" | "legendFontSize" | "legendWidth" | "seriesList"
+>): HTMLElement => {
+  const legend = document.createElement("div");
+  legend.className = "main_plot_canvas_legend";
+  legend.style.width = `${Math.max(80, Number(props.legendWidth) || 120)}px`;
+  if (props.legendFontSize) {
+    legend.style.fontSize = `${props.legendFontSize}px`;
+  }
+  renderLegend(legend, props.seriesList ?? [], props.legendContent);
+  return legend;
+};
+
 export const createMainPlotCanvas = (props: MainPlotCanvasProps): HTMLElement => {
   const root = document.createElement("div");
   root.className = "main_plot_canvas";
@@ -595,15 +608,6 @@ export const createMainPlotCanvas = (props: MainPlotCanvasProps): HTMLElement =>
   const canvas = document.createElement("canvas");
   canvas.className = "main_plot_canvas_canvas";
   root.appendChild(canvas);
-
-  const legend = document.createElement("div");
-  legend.className = "main_plot_canvas_legend";
-  legend.style.width = `${Math.max(80, Number(props.legendWidth) || 120)}px`;
-  if (props.legendFontSize) {
-    legend.style.fontSize = `${props.legendFontSize}px`;
-  }
-  root.appendChild(legend);
-  renderLegend(legend, props.seriesList ?? [], props.legendContent);
 
   const tooltip = document.createElement("div");
   tooltip.className = "main_plot_canvas_tooltip main_plot_canvas_tooltip--hidden";

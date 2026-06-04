@@ -10,6 +10,7 @@
 }
 
 .chart_view_pane {
+  position: relative;
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
   overflow: hidden;

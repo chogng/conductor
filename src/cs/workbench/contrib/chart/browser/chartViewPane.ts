@@ -13,7 +13,7 @@ import {
   type NormalizedTabOption,
   type TabOptionBase,
 } from "src/cs/base/browser/ui/tab/tab";
-import { toAction, type IAction } from "src/cs/base/common/actions";
+import { Action, toAction, type IAction } from "src/cs/base/common/actions";
 import { DisposableStore } from "src/cs/base/common/lifecycle";
 import { LxIcon } from "src/cs/base/common/lxicon";
 import { localize } from "src/cs/nls";
@@ -22,6 +22,12 @@ import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/pr
 import type { LxIconDefinition } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { ChartViewId } from "src/cs/workbench/contrib/chart/common/chart";
 import type { ChartPane } from "src/cs/workbench/contrib/chart/browser/views/chartView";
+import { getCalculatedData } from "src/cs/workbench/contrib/calculation/common/calculatedData";
+import { createMainPlotLegend } from "src/cs/workbench/contrib/plot/browser/mainPlotCanvas";
+import {
+  DEFAULT_PLOT_AXIS_SETTINGS,
+  normalizePlotAxisSettings,
+} from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
 import { isPlotType, PlotTypes, type PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 
@@ -34,6 +40,7 @@ type ChartPlotTabOption = TabOptionBase & {
 
 const CHART_PLOT_ID_BASE = "chart-view-plot";
 const CHART_PLOT_PANEL_ID_BASE = "chart-view-plot-panel";
+const CHART_LEGEND_ACTION_ID = "chart.header.legend";
 const CHART_INSPECTOR_ACTION_ID = "chart.header.inspector";
 type ChartDetailPane = "inspector";
 type PaneVisibilityMode = "single" | "multiple";
@@ -42,9 +49,12 @@ export class ChartViewPane extends ViewPane {
   private readonly previewPart: HTMLElement;
   private readonly headerTabs = document.createElement("div");
   private readonly headerActions = document.createElement("div");
+  private readonly paneStore = new DisposableStore();
   private readonly headerStore = new DisposableStore();
   private readonly content = document.createElement("div");
   private readonly analysisPanel: AnalysisPanel;
+  private legendAction: Action | null = null;
+  private legendPopover: HTMLElement | null = null;
   private fallbackActivePlotType: PlotType = "iv";
   private visibleDetailPanes: readonly ChartDetailPane[] = ["inspector"];
   private readonly paneVisibilityMode: PaneVisibilityMode = "multiple";
@@ -77,6 +87,19 @@ export class ChartViewPane extends ViewPane {
       children: this.content,
       titleContent: this.headerTabs,
     });
+    this.paneStore.add(addDisposableListener(document, EventType.POINTER_DOWN, (event) => {
+      if (!this.legendPopover || this.previewPart.contains(event.target as Node | null)) {
+        return;
+      }
+      this.closeLegendPopover();
+    }));
+    this.paneStore.add(addDisposableListener(document, EventType.KEY_DOWN, (event) => {
+      if (event.key !== "Escape" || !this.legendPopover) {
+        return;
+      }
+      this.closeLegendPopover();
+      this.headerActions.querySelector<HTMLButtonElement>(`[data-action-id="${CHART_LEGEND_ACTION_ID}"]`)?.focus();
+    }));
     this.body.append(this.previewPart);
     this.update(props);
   }
@@ -88,6 +111,7 @@ export class ChartViewPane extends ViewPane {
   }
 
   public dispose(): void {
+    this.paneStore.dispose();
     this.headerStore.dispose();
     this.analysisPanel.dispose();
     this.content.replaceChildren();
@@ -96,7 +120,9 @@ export class ChartViewPane extends ViewPane {
   }
 
   private renderHeader(props: AnalysisPanelProps): void {
+    this.closeLegendPopover();
     this.headerStore.clear();
+    this.legendAction = null;
     const activeFile = resolveActiveFile(props);
     const isEmpty = !props.cleanedData.length;
     this.previewPart.dataset.headerVisible = isEmpty ? "false" : "true";
@@ -114,7 +140,7 @@ export class ChartViewPane extends ViewPane {
       store: this.headerStore,
     }));
 
-    this.headerActions.append(this.createAuxiliaryPaneActions());
+    this.headerActions.append(this.createHeaderActions(props));
 
     if (activeFile && props.showFileSelect !== false) {
       this.headerActions.append(createFileSelect(props, activeFile, this.headerStore));
@@ -147,25 +173,27 @@ export class ChartViewPane extends ViewPane {
     this.analysisPanel.element.setAttribute("aria-labelledby", getPlotTabId(this.getActivePlotType()));
   }
 
-  private createAuxiliaryPaneActions(): HTMLElement {
+  private createHeaderActions(props: AnalysisPanelProps): HTMLElement {
     const actionBar = new ActionBar({
-      ariaLabel: localize("chart_detail_actions", "Chart detail views"),
-      actionViewItemProvider: (action, options) => new AuxiliaryPaneActionViewItem(
+      ariaLabel: localize("chart_header_actions", "Chart actions"),
+      actionViewItemProvider: (action, options) => new ChartHeaderActionViewItem(
         action,
-        getAuxiliaryPaneActionIcon(action.id),
+        getHeaderActionIcon(action.id),
         options,
       ),
       className: "chart_view_auxiliary_actions",
       contentClassName: "chart_view_auxiliary_action_items",
     });
     this.headerStore.add(actionBar);
-    actionBar.push([
+    const actions = [
+      this.createLegendAction(props),
       this.createAuxiliaryPaneAction({
         id: CHART_INSPECTOR_ACTION_ID,
         label: localize("chart_inspector_heading", "Inspector"),
         pane: "inspector",
       }),
-    ], {
+    ].filter((action): action is IAction => Boolean(action));
+    actionBar.push(actions, {
       className: "chart_view_header_icon_btn",
       label: false,
     });
@@ -193,6 +221,55 @@ export class ChartViewPane extends ViewPane {
     });
   }
 
+  private createLegendAction(props: AnalysisPanelProps): IAction | null {
+    const calculatedData = getCalculatedData(
+      props.calculatedDataByKey,
+      this.getActivePlotType(),
+      props.activeFileId,
+    );
+    if (!calculatedData?.seriesList.length) {
+      return null;
+    }
+
+    const axisSettings = normalizePlotAxisSettings(
+      props.plotAxisSettings,
+      DEFAULT_PLOT_AXIS_SETTINGS,
+    );
+    const legendAction = new Action(
+      CHART_LEGEND_ACTION_ID,
+      localize("chart_legend_heading", "Legend"),
+      "",
+      true,
+      (): void => {
+        if (this.legendPopover) {
+          this.closeLegendPopover();
+          return;
+        }
+        const legend = createMainPlotLegend({
+          legendFontSize: axisSettings.legendFontSize === "" ? undefined : axisSettings.legendFontSize,
+          seriesList: calculatedData.seriesList,
+        });
+        legend.setAttribute("role", "dialog");
+        legend.setAttribute("aria-label", localize("chart_legend_heading", "Legend"));
+        this.legendPopover = legend;
+        this.previewPart.append(legend);
+        legendAction.checked = true;
+      },
+    );
+    legendAction.tooltip = localize("chart_legend_tooltip", "Show chart legend");
+    this.headerStore.add(legendAction);
+    this.legendAction = legendAction;
+    return legendAction;
+  }
+
+  private closeLegendPopover(): void {
+    this.legendPopover?.remove();
+    this.legendPopover = null;
+    if (this.legendAction) {
+      this.legendAction.checked = false;
+    }
+  }
+
   private toggleAuxiliaryPane(pane: ChartDetailPane): void {
     const isVisible = this.visibleDetailPanes.includes(pane);
     const next = this.paneVisibilityMode === "single"
@@ -213,7 +290,7 @@ export class ChartViewPane extends ViewPane {
   }
 }
 
-class AuxiliaryPaneActionViewItem extends ActionViewItem {
+class ChartHeaderActionViewItem extends ActionViewItem {
   constructor(
     action: IAction,
     private readonly icon: LxIconDefinition,
@@ -229,10 +306,27 @@ class AuxiliaryPaneActionViewItem extends ActionViewItem {
 
     this.label.replaceChildren(createLxIcon({ icon: this.icon, size: 16 }));
   }
+
+  protected override updateChecked(): void {
+    super.updateChecked();
+    if (!this.label || this.action.id !== CHART_LEGEND_ACTION_ID) {
+      return;
+    }
+    this.label.dataset.actionId = CHART_LEGEND_ACTION_ID;
+    this.label.setAttribute("aria-haspopup", "dialog");
+    this.label.setAttribute("aria-expanded", String(Boolean(this.action.checked)));
+  }
 }
 
-const getAuxiliaryPaneActionIcon = (actionId: string): LxIconDefinition =>
-  actionId === CHART_INSPECTOR_ACTION_ID ? LxIcon.analysis : LxIcon.search;
+const getHeaderActionIcon = (actionId: string): LxIconDefinition => {
+  if (actionId === CHART_LEGEND_ACTION_ID) {
+    return LxIcon.summary;
+  }
+  if (actionId === CHART_INSPECTOR_ACTION_ID) {
+    return LxIcon.analysis;
+  }
+  return LxIcon.search;
+};
 
 const resolveActiveFile = ({
   activeFileId,
