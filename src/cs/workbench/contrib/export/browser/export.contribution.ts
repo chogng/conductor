@@ -7,7 +7,7 @@ import {
   type IViewContainersRegistry,
   type IViewsRegistry,
 } from "src/cs/workbench/common/views";
-import { ExportView } from "src/cs/workbench/contrib/export/browser/exportView";
+import { ExportViewPane } from "src/cs/workbench/contrib/export/browser/exportViewPane";
 import { ExportViewId } from "src/cs/workbench/contrib/export/common/export";
 
 const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
@@ -18,7 +18,7 @@ if (container) {
   viewsRegistry.registerViews([{
     id: ExportViewId,
     name: localize("analysis_views_export", "Export"),
-    ctorDescriptor: new SyncDescriptor(ExportView),
+    ctorDescriptor: new SyncDescriptor(ExportViewPane),
     hideByDefault: true,
     order: 10,
   }], container);

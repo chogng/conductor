@@ -9,7 +9,7 @@ import {
   type IViewContainersRegistry,
   type IViewsRegistry,
 } from "src/cs/workbench/common/views";
-import { TemplateAuxiliaryBarViewPane } from "src/cs/workbench/contrib/template/browser/templateViewlet";
+import { TemplateAuxiliaryBarViewPane } from "src/cs/workbench/contrib/template/browser/templateAuxiliaryBarViewPane";
 import { TemplateAuxiliaryBarViewId, TemplateContributionId } from "src/cs/workbench/contrib/template/common/template";
 
 import "src/cs/workbench/contrib/template/browser/templateApplyService";

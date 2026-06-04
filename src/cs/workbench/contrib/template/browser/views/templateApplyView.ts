@@ -42,7 +42,7 @@ export class TemplateApplyView {
     state: TemplateApplyViewState,
   ) {
     this.element = document.createElement("div");
-    this.element.className = "template_config_panel_content";
+    this.element.className = "template_view_content";
 
     const dropdownRow = document.createElement("div");
     dropdownRow.className = "template_picker_field";

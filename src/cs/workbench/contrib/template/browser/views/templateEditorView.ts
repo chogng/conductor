@@ -103,7 +103,7 @@ export class TemplateEditorView {
     state: TemplateEditorViewState,
   ) {
     this.element = document.createElement("div");
-    this.element.className = "template_config_panel_content";
+    this.element.className = "template_view_content";
 
     const form = document.createElement("div");
     form.className = "template_form";

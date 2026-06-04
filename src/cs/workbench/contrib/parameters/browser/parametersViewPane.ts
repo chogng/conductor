@@ -18,49 +18,60 @@ import { ParametersViewId } from "src/cs/workbench/contrib/parameters/common/par
 import "src/cs/workbench/contrib/parameters/browser/media/parametersView.css";
 import "src/cs/workbench/browser/parts/views/media/views.css";
 
-export class ParametersView extends ViewPane {
+export class ParametersViewPane extends ViewPane {
+  private readonly pane = document.createElement("div");
+  private readonly view = document.createElement("div");
+  private readonly content = document.createElement("div");
+
   constructor() {
     super({
       id: ParametersViewId,
       title: localize("analysis_views_parameters", "Parameters"),
-      className: "auxiliarybar_view_pane",
-      bodyClassName: "workbench-part-view-pane__body workbench-view-pane__body--scroll",
+      className: "auxiliarybar_view_pane parameters_view_pane",
+      bodyClassName: "workbench-part-view-pane__body",
       headerVisible: false,
     });
+    this.pane.className = "parameters_pane";
+    this.view.className = "parameters_view";
+    this.content.className = "parameters_view_content";
+    this.view.append(this.content);
+    this.pane.append(this.view);
+    this.body.append(this.pane);
   }
 
   renderParameters(options: ParametersViewOptions): void {
-    renderParametersView(this.body, options);
+    renderParametersView(this.content, options);
   }
 
   renderEmpty(message: string): void {
     const root = document.createElement("div");
     root.className = "workbench-view-pane__empty";
     root.textContent = message;
-    this.body.replaceChildren(root);
+    this.content.replaceChildren(root);
   }
 
   renderRcSummary(options: {
     error: string;
     summary: RcAnalysisSummary | null;
   }): void {
-    renderRcSummaryView(this.body, options);
+    renderRcSummaryView(this.content, options);
   }
 
   renderRcCurveHeader(options: {
     series: RcCurveChartSeries[];
   }): void {
-    renderRcCurveHeaderView(this.body, options);
+    renderRcCurveHeaderView(this.content, options);
   }
 
   renderRcCurveRows(options: {
     rows: RcCurveRow[];
   }): void {
-    renderRcCurveRowsView(this.body, options);
+    renderRcCurveRowsView(this.content, options);
   }
 
   public override dispose(): void {
-    this.body.replaceChildren();
+    this.content.replaceChildren();
+    this.pane.remove();
     super.dispose();
   }
 }

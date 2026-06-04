@@ -46,22 +46,31 @@ export type ExportViewOptions = {
   showFilteredCanvasKindSelect: boolean;
 };
 
-export class ExportView extends ViewPane {
+export class ExportViewPane extends ViewPane {
   private readonly toolbarStore = new DisposableStore();
+  private readonly pane = document.createElement("div");
+  private readonly view = document.createElement("div");
+  private readonly content = document.createElement("div");
 
   constructor() {
     super({
       id: ExportViewId,
       title: localize("analysis_views_export", "Export"),
-      className: "auxiliarybar_view_pane",
+      className: "auxiliarybar_view_pane export_view_pane",
       bodyClassName: "workbench-part-view-pane__body",
       headerVisible: false,
     });
+    this.pane.className = "export_pane";
+    this.view.className = "export_view";
+    this.content.className = "export_view_content";
+    this.view.append(this.content);
+    this.pane.append(this.view);
+    this.body.append(this.pane);
   }
 
   render(options: ExportViewOptions): void {
     this.toolbarStore.clear();
-    this.body.replaceChildren(OriginExportToolbar({
+    this.content.replaceChildren(OriginExportToolbar({
       ...options,
       store: this.toolbarStore,
     }));
@@ -72,12 +81,13 @@ export class ExportView extends ViewPane {
     const root = document.createElement("div");
     root.className = "workbench-view-pane__empty";
     root.textContent = message;
-    this.body.replaceChildren(root);
+    this.content.replaceChildren(root);
   }
 
   public override dispose(): void {
     this.toolbarStore.dispose();
-    this.body.replaceChildren();
+    this.content.replaceChildren();
+    this.pane.remove();
     super.dispose();
   }
 }

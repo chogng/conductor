@@ -19,32 +19,35 @@ import {
   type PlotAxisSettings,
 } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
 
-import "src/cs/workbench/contrib/origin/browser/media/exportSettingsView.css";
+import "src/cs/workbench/contrib/origin/browser/media/originSettingsViewPane.css";
 import "src/cs/workbench/browser/parts/views/media/views.css";
 
-export type ExportSettingsViewOptions = {
+export type OriginSettingsViewPaneOptions = {
   readonly axisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly onAxisChange?: (updates: Record<string, unknown>) => void | Promise<void>;
   readonly onChange?: (updates: Partial<OriginPlotOptions>) => void | Promise<void>;
   readonly options?: OriginPlotOptions;
 };
 
-export class ExportSettingsView extends ViewPane {
+export class OriginSettingsViewPane extends ViewPane {
   private readonly renderStore = new DisposableStore();
+  private readonly pane = document.createElement("div");
   private readonly scrollArea = new Scrollbar({
-    className: "export_settings_view_scroll",
-    viewportClassName: "export_settings_view_scroll_viewport",
+    className: "origin_settings_scroll",
+    viewportClassName: "origin_settings_scroll_viewport",
   });
 
   constructor() {
     super({
       id: OriginExportSettingsViewId,
       title: localize("chart_curve_settings_title", "Origin Settings"),
-      className: "auxiliarybar_view_pane export_settings_view",
+      className: "auxiliarybar_view_pane origin_settings_view_pane",
       bodyClassName: "workbench-part-view-pane__body",
       headerVisible: false,
     });
-    this.body.append(this.scrollArea.element);
+    this.pane.className = "origin_settings_pane";
+    this.pane.append(this.scrollArea.element);
+    this.body.append(this.pane);
   }
 
   public update({
@@ -52,14 +55,14 @@ export class ExportSettingsView extends ViewPane {
     onAxisChange,
     onChange,
     options,
-  }: ExportSettingsViewOptions): void {
+  }: OriginSettingsViewPaneOptions): void {
     this.renderStore.clear();
     const normalizedOptions = normalizeOriginPlotOptions(
       options,
       DEFAULT_ORIGIN_PLOT_OPTIONS,
     );
 
-    this.scrollArea.viewport.replaceChildren(createExportSettingsView({
+    this.scrollArea.viewport.replaceChildren(createOriginSettingsView({
       axisSettings: normalizePlotAxisSettings(axisSettings, DEFAULT_PLOT_AXIS_SETTINGS),
       onAxisChange,
       onChange,
@@ -73,11 +76,12 @@ export class ExportSettingsView extends ViewPane {
     this.scrollArea.viewport.replaceChildren();
     this.renderStore.dispose();
     this.scrollArea.dispose();
+    this.pane.remove();
     super.dispose();
   }
 }
 
-const createExportSettingsView = ({
+const createOriginSettingsView = ({
   axisSettings,
   onAxisChange,
   onChange,
@@ -91,7 +95,7 @@ const createExportSettingsView = ({
   readonly store: DisposableStore;
 }): HTMLElement => {
   const root = document.createElement("div");
-  root.className = "export_settings_view_content";
+  root.className = "origin_settings_view origin_settings_view_content";
 
   root.append(
     createSettingsGroup(localize("chart_curve_settings_title", "Origin Settings"), [
@@ -400,7 +404,7 @@ const createAxisSettingsGroup = ({
 
 const createPlotTypeSelect = (
   options: OriginPlotOptions,
-  onChange: ExportSettingsViewOptions["onChange"],
+  onChange: OriginSettingsViewPaneOptions["onChange"],
   store: DisposableStore,
 ): HTMLSelectElement => {
   const select = document.createElement("select");
@@ -472,7 +476,7 @@ const createAxisTickSelect = ({
 
 const createLineWidthInput = (
   options: OriginPlotOptions,
-  onChange: ExportSettingsViewOptions["onChange"],
+  onChange: OriginSettingsViewPaneOptions["onChange"],
   store: DisposableStore,
 ): HTMLElement => {
   const input = document.createElement("input");
@@ -615,7 +619,7 @@ const createTextInput = ({
 
 const createPostCommandsInput = (
   options: OriginPlotOptions,
-  onChange: ExportSettingsViewOptions["onChange"],
+  onChange: OriginSettingsViewPaneOptions["onChange"],
   store: DisposableStore,
 ): HTMLTextAreaElement => {
   const textarea = document.createElement("textarea");
@@ -670,4 +674,4 @@ const getNativeControl = (
   return null;
 };
 
-export default ExportSettingsView;
+export default OriginSettingsViewPane;

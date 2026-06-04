@@ -162,8 +162,7 @@ const exportTemplate = (config: TemplateConfig, templateService: ITemplateServic
 
 export class TemplateView {
   public readonly element: HTMLElement;
-  public readonly auxiliaryBarElement: HTMLElement;
-  private readonly left = document.createElement("div");
+  public readonly configElement: HTMLElement;
   private props: TemplateViewOptions;
   private activePickField: PickFieldName | null = null;
   private disposeTableSelectionListener: (() => void) | null = null;
@@ -177,10 +176,10 @@ export class TemplateView {
   constructor(props: TemplateViewOptions) {
     this.props = props;
     this.element = document.createElement("div");
-    this.element.className = "template_view";
-    this.auxiliaryBarElement = this.left;
+    this.element.className = "template_view template_view--main";
 
-    this.left.className = "template_config_panel";
+    this.configElement = document.createElement("div");
+    this.configElement.className = "template_view template_view--config";
 
     this.update(props);
   }
@@ -203,7 +202,7 @@ export class TemplateView {
       if (nextMode === "select") {
         this.activePickField = null;
       }
-      this.left.replaceChildren(nextMode === "select" ? this.getApplyView().element : this.getEditorView().element);
+      this.configElement.replaceChildren(nextMode === "select" ? this.getApplyView().element : this.getEditorView().element);
     }
 
     if (nextMode === "select") {
@@ -222,6 +221,8 @@ export class TemplateView {
     this.editorView?.dispose();
     this.applyView = null;
     this.editorView = null;
+    this.configElement.replaceChildren();
+    this.configElement.remove();
     this.element.replaceChildren();
     this.element.remove();
   }

@@ -7,7 +7,7 @@ import {
   type IViewContainersRegistry,
   type IViewsRegistry,
 } from "src/cs/workbench/common/views";
-import { ParametersView } from "src/cs/workbench/contrib/parameters/browser/parametersViewPane";
+import { ParametersViewPane } from "src/cs/workbench/contrib/parameters/browser/parametersViewPane";
 import { ParametersViewId } from "src/cs/workbench/contrib/parameters/common/parameters";
 
 const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
@@ -18,7 +18,7 @@ if (container) {
   viewsRegistry.registerViews([{
     id: ParametersViewId,
     name: localize("analysis_views_parameters", "Parameters"),
-    ctorDescriptor: new SyncDescriptor(ParametersView),
+    ctorDescriptor: new SyncDescriptor(ParametersViewPane),
     hideByDefault: true,
     order: 20,
   }], container);

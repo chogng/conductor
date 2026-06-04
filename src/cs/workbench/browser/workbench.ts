@@ -51,7 +51,8 @@ import {
   createOriginCurveOptions,
   ORIGIN_EXPORT_CONTENT_OPTIONS,
 } from "src/cs/workbench/contrib/export/browser/exportModel";
-import TemplateViewlet from "src/cs/workbench/contrib/template/browser/templateViewlet";
+import { TemplateAuxiliaryBarViewPane } from "src/cs/workbench/contrib/template/browser/templateAuxiliaryBarViewPane";
+import TemplateViewPane from "src/cs/workbench/contrib/template/browser/templateViewPane";
 import { TemplateImportController } from "src/cs/workbench/contrib/template/browser/templateImportController";
 import { getWorkbenchContribution } from "src/cs/workbench/common/contributions";
 import type { TableContribution } from "src/cs/workbench/contrib/table/browser/table.contribution";
@@ -80,7 +81,7 @@ import {
   type CoreSettingsState,
 } from "src/cs/workbench/contrib/settings/browser/coreSettingsController";
 import { SettingsViewPane } from "src/cs/workbench/contrib/settings/browser/settingsViewPane";
-import { ExportView } from "src/cs/workbench/contrib/export/browser/exportView";
+import { ExportViewPane } from "src/cs/workbench/contrib/export/browser/exportViewPane";
 import type {
   OriginCanvasExportScope,
   OriginCurveExportMode,
@@ -91,10 +92,10 @@ import type {
   OriginExportMode,
 } from "src/cs/workbench/contrib/export/common/originSelectionExport";
 import { ExportViewId } from "src/cs/workbench/contrib/export/common/export";
-import { ParametersView } from "src/cs/workbench/contrib/parameters/browser/parametersViewPane";
+import { ParametersViewPane } from "src/cs/workbench/contrib/parameters/browser/parametersViewPane";
 import { createParameterRows } from "src/cs/workbench/contrib/parameters/browser/parametersModel";
 import { ParametersViewId } from "src/cs/workbench/contrib/parameters/common/parameters";
-import { ExportSettingsView } from "src/cs/workbench/contrib/origin/browser/exportSettingsView";
+import { OriginSettingsViewPane } from "src/cs/workbench/contrib/origin/browser/originSettingsViewPane";
 import { OriginExportSettingsViewId } from "src/cs/workbench/contrib/origin/common/origin";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
@@ -220,7 +221,8 @@ export class Workbench extends Layout {
   private readonly session = defaultSessionModel;
   private readonly filesPane: FilesPaneHost;
   private readonly table: TableContribution;
-  private readonly templateViewlet: TemplateViewlet;
+  private readonly templateViewPane: TemplateViewPane;
+  private readonly templateAuxiliaryBarViewPane: TemplateAuxiliaryBarViewPane;
   private readonly analysis: ChartViewPane;
   private readonly settings: SettingsViewPane;
   private readonly templateApply: TemplateApplyController;
@@ -318,7 +320,10 @@ export class Workbench extends Layout {
     this.templateApply.update(this.getTemplateApplyInput());
     this.filesPane = this._register(new FilesPaneHost(this.getFilesPaneProps()));
     this.table = getWorkbenchContribution<TableContribution>(TableContributionId);
-    this.templateViewlet = this._register(new TemplateViewlet(this.getTemplateViewletProps()));
+    this.templateViewPane = this._register(new TemplateViewPane(this.getTemplateViewPaneProps()));
+    this.templateAuxiliaryBarViewPane = this._register(new TemplateAuxiliaryBarViewPane(
+      this.templateViewPane.configElement,
+    ));
     this.analysis = this._register(new ChartViewPane(this.getAnalysisProps()));
     this.settings = this._register(new SettingsViewPane(this.getSettingsProps()));
     this.coreSettingsController = this._register(
@@ -354,11 +359,12 @@ export class Workbench extends Layout {
       this.templateApply,
     ));
     this.table.update(this.getTableProps(tableModel));
-    this.templateViewlet.update(this.getTemplateViewletProps(
+    this.templateViewPane.update(this.getTemplateViewPaneProps(
       snapshot,
       tableModel,
       this.templateApply,
     ));
+    this.templateAuxiliaryBarViewPane.update(this.templateViewPane.configElement);
     this.analysis.update(this.getAnalysisProps(snapshot, this.templateApply));
     this.settings.update(this.getSettingsProps());
     this.updateViewContainers();
@@ -452,7 +458,7 @@ export class Workbench extends Layout {
       this.viewsService.addViewToContainer(WorkbenchViewContainers.main, this.table.view);
     }
     this.viewsService.addViewToContainer(WorkbenchViewContainers.main, this.analysis);
-    this.viewsService.addViewToContainer(WorkbenchViewContainers.auxiliarybar, this.templateViewlet.auxiliaryBarView);
+    this.viewsService.addViewToContainer(WorkbenchViewContainers.auxiliarybar, this.templateAuxiliaryBarViewPane);
     this.viewsService.addViewToContainer(WorkbenchViewContainers.settings, this.settings);
 
     const isSettingsActive = this.activeView === "settings";
@@ -534,7 +540,7 @@ export class Workbench extends Layout {
         this.renderParametersView(activeFile);
         break;
       case "settings":
-        this.viewsService.getViewWithId<ExportSettingsView>(OriginExportSettingsViewId)?.update({
+        this.viewsService.getViewWithId<OriginSettingsViewPane>(OriginExportSettingsViewId)?.update({
           axisSettings: props.plotAxisSettings,
           onAxisChange: props.onPlotAxisSettingsChange,
           onChange: props.onOriginOpenPlotOptionsChange,
@@ -549,7 +555,7 @@ export class Workbench extends Layout {
   }
 
   private renderExportView(activeFile: CleanedEntry | null): void {
-    const view = this.viewsService.getViewWithId<ExportView>(ExportViewId);
+    const view = this.viewsService.getViewWithId<ExportViewPane>(ExportViewId);
     if (!view) {
       return;
     }
@@ -609,7 +615,7 @@ export class Workbench extends Layout {
   }
 
   private renderParametersView(activeFile: CleanedEntry | null): void {
-    const view = this.viewsService.getViewWithId<ParametersView>(ParametersViewId);
+    const view = this.viewsService.getViewWithId<ParametersViewPane>(ParametersViewId);
     if (!view) {
       return;
     }
@@ -741,7 +747,7 @@ export class Workbench extends Layout {
     };
   }
 
-  private getTemplateViewletProps(
+  private getTemplateViewPaneProps(
     snapshot = this.session.getSnapshot(),
     tableModel = this.getTableModel(snapshot),
     processing = this.templateApply,

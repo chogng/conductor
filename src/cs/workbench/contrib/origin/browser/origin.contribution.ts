@@ -7,7 +7,7 @@ import {
   type IViewContainersRegistry,
   type IViewsRegistry,
 } from "src/cs/workbench/common/views";
-import { ExportSettingsView } from "src/cs/workbench/contrib/origin/browser/exportSettingsView";
+import { OriginSettingsViewPane } from "src/cs/workbench/contrib/origin/browser/originSettingsViewPane";
 import { OriginExportSettingsViewId } from "src/cs/workbench/contrib/origin/common/origin";
 
 const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
@@ -18,7 +18,7 @@ if (container) {
   viewsRegistry.registerViews([{
     id: OriginExportSettingsViewId,
     name: localize("chart_curve_settings_title", "Origin Settings"),
-    ctorDescriptor: new SyncDescriptor(ExportSettingsView),
+    ctorDescriptor: new SyncDescriptor(OriginSettingsViewPane),
     hideByDefault: true,
     order: 30,
   }], container);
