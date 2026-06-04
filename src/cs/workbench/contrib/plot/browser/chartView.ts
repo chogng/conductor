@@ -1,6 +1,11 @@
 import { withSignedLogPositivePoints } from "./chartViewModel.ts";
 import type { ChartYScale, LogCurrentMode } from "./chartModel.ts";
 
+export type ChartAxisTitleChangeEvent = {
+  axis: "x" | "y";
+  title: string;
+};
+
 export type ChartPlotSeries = {
   data?: Array<{ y?: unknown; [key: string]: unknown }>;
   id?: unknown;
@@ -80,3 +85,11 @@ export const getRenderMaxPointsPerSeries = ({
   const adaptive = Math.floor(renderPointBudget / Math.max(1, seriesCount));
   return Math.max(minPoints, Math.min(maxPoints, adaptive));
 };
+
+export const createChartAxisTitleChangeEvent = (
+  axis: "x" | "y",
+  title: unknown,
+): ChartAxisTitleChangeEvent => ({
+  axis,
+  title: String(title ?? "").trim(),
+});

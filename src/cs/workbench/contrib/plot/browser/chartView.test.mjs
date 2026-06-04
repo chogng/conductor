@@ -2,13 +2,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  createChartAxisTitleChangeEvent,
   getDisplayPlotSeries,
   getPlotLegendSeries,
   getRenderMaxPointsPerSeries,
   getRenderPointBudget,
 } from "./chartView.ts";
 import { SIGNED_LOG_Y_DATA_KEY } from "./chartViewModel.ts";
-import { createChartAxisTitleChangeEvent } from "./chartViewPane.ts";
 
 test("getPlotLegendSeries selects the active plot family", () => {
   const byType = {
