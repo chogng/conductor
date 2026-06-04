@@ -112,7 +112,9 @@
 
     height: 30px;
 
-    padding: 0 10px
+    padding: 0 10px;
+
+    font-weight: 500
 }
 
 .origin_export_toolbar_select_menu_surface {
