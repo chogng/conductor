@@ -53,7 +53,6 @@ import "src/cs/workbench/contrib/template/browser/views/media/templateView.css";
 
 export type TemplateViewOptions = {
   readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
-  readonly importSessionElement?: HTMLElement | null;
   readonly templateImportController: TemplateImportController;
   readonly templateService: ITemplateService;
   sourceFiles?: SessionFile[];

@@ -18,7 +18,6 @@ const TEMPLATE_TITLE = localize("template_workspace_title", "Template");
 export type TemplateViewPaneProps = {
   readonly analysisSettings?: TemplateViewOptions["analysisSettings"];
   readonly contextMenuService: Pick<IContextMenuService, "showContextMenu">;
-  readonly importSessionElement?: HTMLElement | null;
   readonly onTemplateApplied?: TemplateViewOptions["onTemplateApplied"];
   readonly onTemplateAppliedIncremental?: TemplateViewOptions["onTemplateAppliedIncremental"];
   readonly onUpdateSettings?: TemplateViewOptions["onUpdateSettings"];
@@ -44,7 +43,10 @@ export class TemplateViewPane extends ViewPane {
       bodyClassName: "workbench-part-view-pane__body",
       headerVisible: false,
     });
-    this.templateView = new TemplateView(toTemplateProps(props));
+    this.templateView = new TemplateView({
+      ...props,
+      sourceFiles: props.sourceFiles ?? [],
+    });
 
     this.previewPart = createPreviewPart({
       id: "analysis-template-workspace",
@@ -56,7 +58,10 @@ export class TemplateViewPane extends ViewPane {
   }
 
   public update(props: TemplateViewPaneProps): void {
-    this.templateView.update(toTemplateProps(props));
+    this.templateView.update({
+      ...props,
+      sourceFiles: props.sourceFiles ?? [],
+    });
   }
 
   public dispose(): void {
@@ -65,15 +70,5 @@ export class TemplateViewPane extends ViewPane {
     super.dispose();
   }
 }
-
-const toTemplateProps = ({
-  importSessionElement: _importSessionElement,
-  sourceFiles = [],
-  ...props
-}: TemplateViewPaneProps): TemplateViewOptions => ({
-  ...props,
-  sourceFiles,
-  importSessionElement: _importSessionElement ?? null,
-});
 
 export default TemplateViewPane;

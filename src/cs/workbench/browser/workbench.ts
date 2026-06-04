@@ -761,7 +761,6 @@ export class Workbench extends Layout {
     return {
       analysisSettings: this.coreSettingsState.analysisSettings,
       contextMenuService: this.contextMenuService,
-      importSessionElement: null,
       onTemplateApplied: processing.handleTemplateApplied,
       onTemplateAppliedIncremental: processing.handleTemplateAppliedIncremental,
       onUpdateSettings: this.coreSettingsState.handleUpdateAnalysisSettings,
