@@ -4,7 +4,7 @@ import { TemplateAuxiliaryBarViewId } from "src/cs/workbench/contrib/template/co
 
 import "src/cs/workbench/contrib/template/browser/media/templateViewPane.css";
 
-const TEMPLATE_TITLE = localize("template_editor_title", "Template");
+const TEMPLATE_TITLE = localize("template_management_title", "Template Management");
 
 export class TemplateAuxiliaryBarViewPane extends ViewPane {
   private readonly content = document.createElement("div");
@@ -23,7 +23,8 @@ export class TemplateAuxiliaryBarViewPane extends ViewPane {
     this.body.append(this.content);
   }
 
-  public update(content: HTMLElement): void {
+  public update(content: HTMLElement, title = TEMPLATE_TITLE): void {
+    this.body.setAttribute("aria-label", title);
     if (content.parentElement !== this.content) {
       this.content.replaceChildren(content);
     }

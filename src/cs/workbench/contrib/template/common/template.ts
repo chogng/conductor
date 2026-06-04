@@ -2,9 +2,15 @@ import { createDecorator } from "src/cs/platform/instantiation/common/instantiat
 import type { TemplateConfig } from "src/cs/workbench/contrib/template/common/templateManagerUtils";
 
 export const TemplateContributionId = "workbench.contrib.template";
+export const TemplateCommandsContributionId = "workbench.contrib.template.commands";
 
 export const TemplateViewId = "workbench.template";
 export const TemplateAuxiliaryBarViewId = "workbench.template.auxiliarybar";
+
+export const TemplateCommandIds = {
+  showEditor: "workbench.template.showEditor",
+  showManagement: "workbench.template.showManagement",
+} as const;
 
 export type TemplateImportPayloadHandler = (
   payload: unknown,

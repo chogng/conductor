@@ -12,6 +12,7 @@ import {
 import { TemplateAuxiliaryBarViewPane } from "src/cs/workbench/contrib/template/browser/templateAuxiliaryBarViewPane";
 import { TemplateAuxiliaryBarViewId, TemplateContributionId } from "src/cs/workbench/contrib/template/common/template";
 
+import "src/cs/workbench/contrib/template/browser/templateCommands";
 import "src/cs/workbench/contrib/template/browser/templateApplyService";
 import "src/cs/workbench/contrib/template/browser/templateService";
 
@@ -22,7 +23,7 @@ const container = viewContainersRegistry.get(WorkbenchViewContainers.auxiliaryba
 if (container) {
   viewsRegistry.registerViews([{
     id: TemplateAuxiliaryBarViewId,
-    name: localize("template_editor_title", "Template"),
+    name: localize("template_management_title", "Template Management"),
     ctorDescriptor: new SyncDescriptor(TemplateAuxiliaryBarViewPane, [document.createElement("div")]),
     hideByDefault: true,
     order: 0,

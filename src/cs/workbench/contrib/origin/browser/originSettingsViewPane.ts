@@ -2,10 +2,18 @@
 
 import { localize } from "src/cs/nls";
 
+import { DropdownMenu } from "src/cs/base/browser/ui/dropdown/dropdown";
 import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBox";
+import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
+import {
+  createMenuAction,
+  createMenuItemLabel,
+} from "src/cs/base/browser/ui/menu/menu";
 import Scrollbar from "src/cs/base/browser/ui/scrollbar/scrollbar";
 import { createSwitch } from "src/cs/base/browser/ui/switch/switch";
 import { DisposableStore, toDisposable } from "src/cs/base/common/lifecycle";
+import { LxIcon } from "src/cs/base/common/lxicon";
+import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
@@ -24,6 +32,7 @@ import "src/cs/workbench/browser/parts/views/media/views.css";
 
 export type OriginSettingsViewPaneOptions = {
   readonly axisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
+  readonly contextMenuService: Pick<IContextMenuService, "showContextMenu" | "hideContextMenu">;
   readonly onAxisChange?: (updates: Record<string, unknown>) => void | Promise<void>;
   readonly onChange?: (updates: Partial<OriginPlotOptions>) => void | Promise<void>;
   readonly options?: OriginPlotOptions;
@@ -52,6 +61,7 @@ export class OriginSettingsViewPane extends ViewPane {
 
   public update({
     axisSettings,
+    contextMenuService,
     onAxisChange,
     onChange,
     options,
@@ -64,6 +74,7 @@ export class OriginSettingsViewPane extends ViewPane {
 
     this.scrollArea.viewport.replaceChildren(createOriginSettingsView({
       axisSettings: normalizePlotAxisSettings(axisSettings, DEFAULT_PLOT_AXIS_SETTINGS),
+      contextMenuService,
       onAxisChange,
       onChange,
       options: normalizedOptions,
@@ -83,12 +94,14 @@ export class OriginSettingsViewPane extends ViewPane {
 
 const createOriginSettingsView = ({
   axisSettings,
+  contextMenuService,
   onAxisChange,
   onChange,
   options,
   store,
 }: {
   readonly axisSettings: PlotAxisSettings;
+  readonly contextMenuService: Pick<IContextMenuService, "showContextMenu" | "hideContextMenu">;
   readonly onAxisChange?: (updates: Record<string, unknown>) => void | Promise<void>;
   readonly onChange?: (updates: Partial<OriginPlotOptions>) => void | Promise<void>;
   readonly options: OriginPlotOptions;
@@ -100,7 +113,7 @@ const createOriginSettingsView = ({
   root.append(
     createSettingsGroup(localize("chart_curve_settings_title", "Origin Settings"), [
       createSettingsField({
-        control: createPlotTypeSelect(options, onChange, store),
+        control: createPlotTypeSelect(options, contextMenuService, onChange, store),
         label: localize("chart_curve_type_label", "Curve type"),
       }),
       createSettingsField({
@@ -196,6 +209,7 @@ const createOriginSettingsView = ({
     ]),
     createAxisSettingsGroup({
       axisSettings,
+      contextMenuService,
       label: localize("chart_axis_x_title", "X Axis"),
       maxKey: "xMax",
       minKey: "xMin",
@@ -207,6 +221,7 @@ const createOriginSettingsView = ({
     }),
     createAxisSettingsGroup({
       axisSettings,
+      contextMenuService,
       label: localize("chart_axis_y_title", "Y Axis"),
       maxKey: "yMax",
       minKey: "yMin",
@@ -319,6 +334,7 @@ const createSettingsRow = ({
 
 const createAxisSettingsGroup = ({
   axisSettings,
+  contextMenuService,
   label,
   maxKey,
   minKey,
@@ -329,6 +345,7 @@ const createAxisSettingsGroup = ({
   store,
 }: {
   readonly axisSettings: PlotAxisSettings;
+  readonly contextMenuService: Pick<IContextMenuService, "showContextMenu" | "hideContextMenu">;
   readonly label: string;
   readonly maxKey: "xMax" | "yMax";
   readonly minKey: "xMin" | "yMin";
@@ -362,6 +379,7 @@ const createAxisSettingsGroup = ({
     }),
     createSettingsField({
       control: createAxisTickSelect({
+        contextMenuService,
         id: `export-settings-${ticksKey}`,
         isY,
         onChange: (value) => {
@@ -404,52 +422,41 @@ const createAxisSettingsGroup = ({
 
 const createPlotTypeSelect = (
   options: OriginPlotOptions,
+  contextMenuService: Pick<IContextMenuService, "showContextMenu" | "hideContextMenu">,
   onChange: OriginSettingsViewPaneOptions["onChange"],
   store: DisposableStore,
-): HTMLSelectElement => {
-  const select = document.createElement("select");
-  select.id = "export-settings-type";
-  select.className = "dropdown-field dropdown-field--sm export_settings_view_control";
-  select.value = String(options.type);
-  for (const option of [
-    { value: "200", label: localize("settings_origin_plot_type_200", "Line") },
-    { value: "201", label: localize("settings_origin_plot_type_201", "Scatter") },
-    { value: "202", label: localize("settings_origin_plot_type_202", "Line + Symbol") },
-  ]) {
-    const item = document.createElement("option");
-    item.value = option.value;
-    item.textContent = option.label;
-    select.append(item);
-  }
-  const listener = () => {
-    const normalized = normalizeOriginPlotOptions(
-      { type: select.value },
-      options,
-    );
-    void onChange?.({ type: normalized.type });
-  };
-  select.addEventListener("change", listener);
-  store.add(toDisposable(() => select.removeEventListener("change", listener)));
-  return select;
-};
+): HTMLElement =>
+  createSettingsDropdown({
+    contextMenuService,
+    id: "export-settings-type",
+    options: [
+      { value: "200", label: localize("settings_origin_plot_type_200", "Line") },
+      { value: "201", label: localize("settings_origin_plot_type_201", "Scatter") },
+      { value: "202", label: localize("settings_origin_plot_type_202", "Line + Symbol") },
+    ],
+    onSelect: value => {
+      const normalized = normalizeOriginPlotOptions({ type: value }, options);
+      void onChange?.({ type: normalized.type });
+    },
+    store,
+    value: String(options.type),
+  });
 
 const createAxisTickSelect = ({
+  contextMenuService,
   id,
   isY,
   onChange,
   store,
   value,
 }: {
+  readonly contextMenuService: Pick<IContextMenuService, "showContextMenu" | "hideContextMenu">;
   readonly id: string;
   readonly isY: boolean;
   readonly onChange: (value: PlotAxisSettings["xTicks"] | PlotAxisSettings["yTicks"]) => void;
   readonly store: DisposableStore;
   readonly value: PlotAxisSettings["xTicks"] | PlotAxisSettings["yTicks"];
-}): HTMLSelectElement => {
-  const select = document.createElement("select");
-  select.id = id;
-  select.className = "dropdown-field dropdown-field--sm export_settings_view_control";
-  select.value = String(value);
+}): HTMLElement => {
   const options = isY
     ? [
         { value: "auto", label: localize("chart_axis_auto", "auto") },
@@ -462,16 +469,74 @@ const createAxisTickSelect = ({
         { value: "nice", label: localize("chart_axis_nice", "nice") },
         { value: "step", label: localize("chart_axis_step", "step") },
       ];
-  for (const option of options) {
-    const item = document.createElement("option");
-    item.value = option.value;
-    item.textContent = option.label;
-    select.append(item);
-  }
-  const listener = () => onChange(select.value as PlotAxisSettings["xTicks"]);
-  select.addEventListener("change", listener);
-  store.add(toDisposable(() => select.removeEventListener("change", listener)));
-  return select;
+  return createSettingsDropdown({
+    contextMenuService,
+    id,
+    options,
+    onSelect: next => onChange(next as PlotAxisSettings["xTicks"]),
+    store,
+    value,
+  });
+};
+
+const createSettingsDropdown = <T extends string>({
+  contextMenuService,
+  id,
+  onSelect,
+  options,
+  store,
+  value,
+}: {
+  readonly contextMenuService: Pick<IContextMenuService, "showContextMenu" | "hideContextMenu">;
+  readonly id: string;
+  readonly onSelect: (value: T) => void;
+  readonly options: Array<{ label: string; value: T }>;
+  readonly store: DisposableStore;
+  readonly value: T;
+}): HTMLElement => {
+  const wrapper = document.createElement("div");
+  wrapper.id = id;
+  wrapper.className = "export_settings_view_control origin_settings_dropdown";
+
+  const label = document.createElement("span");
+  label.className = "ui-dropdown-button__label";
+  const selected = options.find(option => option.value === value) ?? options[0];
+  label.textContent = selected?.label ?? "";
+
+  const dropdown = new DropdownMenu(wrapper, {
+    actionProvider: {
+      getActions: () => options.map(option =>
+        createMenuAction({
+          id: `${id}.${option.value}`,
+          label: option.label,
+          left: createMenuItemLabel(option.label),
+          run: () => onSelect(option.value),
+          selected: option.value === value,
+          tabIndex: 0,
+          value: option.value,
+        }),
+      ),
+    },
+    contextMenuProvider: contextMenuService,
+    labelRenderer: container => {
+      const content = document.createElement("span");
+      content.className = "ui-dropdown-button origin_settings_dropdown_button";
+
+      const icon = document.createElement("span");
+      icon.className = "ui-dropdown-button__icon";
+      icon.append(createLxIcon({ icon: LxIcon.chevronDown, size: 14 }));
+
+      content.append(label, icon);
+      container.replaceChildren(content);
+      container.setAttribute("aria-label", selected?.label ?? "");
+      return null;
+    },
+    matchAnchorWidth: true,
+    menuClassName: "origin_settings_dropdown_menu",
+  });
+  dropdown.tooltip = selected?.label ?? "";
+  store.add(dropdown);
+  return wrapper;
 };
 
 const createLineWidthInput = (

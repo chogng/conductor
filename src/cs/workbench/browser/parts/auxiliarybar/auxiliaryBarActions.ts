@@ -8,6 +8,7 @@ import { TemplateAuxiliaryBarViewId } from "src/cs/workbench/contrib/template/co
 
 export type AuxiliaryBarView = "template" | "export" | "parameters" | "settings";
 export type AuxiliaryBarMode = "table" | "chart";
+export type TemplateAuxiliaryBarMode = "select" | "save";
 
 export type AuxiliaryBarViewDescriptor = {
   readonly id: AuxiliaryBarView;
@@ -29,8 +30,8 @@ export const AuxiliaryBarViews: readonly AuxiliaryBarViewDescriptor[] = [
     id: "template",
     mode: "table",
     viewId: TemplateAuxiliaryBarViewId,
-    labelKey: "template_editor_title",
-    label: "Template",
+    labelKey: "template_management_title",
+    label: "Template Management",
   },
   {
     id: "export",
@@ -68,10 +69,21 @@ export const getDefaultAuxiliaryBarView = (
 ): AuxiliaryBarView =>
   mode === "chart" ? "export" : "template";
 
+export const getAuxiliaryBarTitleForMode = (
+  mode: AuxiliaryBarMode,
+  templateMode: TemplateAuxiliaryBarMode,
+): string => {
+  if (mode === "chart") {
+    return localize("auxiliarybar_chart_title", "Analysis & Visualization");
+  }
+
+  return templateMode === "save"
+    ? localize("template_editor_title", "Template Editor")
+    : localize("template_management_title", "Template Management");
+};
+
 export const getAuxiliaryBarTitle = (mode: AuxiliaryBarMode): string =>
-  mode === "chart"
-    ? localize("auxiliarybar_chart_title", "分析与可视化")
-    : localize("auxiliarybar_table_title", "模板管理");
+  getAuxiliaryBarTitleForMode(mode, "select");
 
 export const resolveAuxiliaryBarView = (
   view: AuxiliaryBarView,

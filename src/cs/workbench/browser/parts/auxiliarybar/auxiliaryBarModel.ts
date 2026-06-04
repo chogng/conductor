@@ -2,9 +2,10 @@ import type { IAction } from "src/cs/base/common/actions";
 import {
   AuxiliaryBarViews,
   createAuxiliaryBarActions,
-  getAuxiliaryBarTitle,
+  getAuxiliaryBarTitleForMode,
   resolveAuxiliaryBarView,
   type AuxiliaryBarMode,
+  type TemplateAuxiliaryBarMode,
   type AuxiliaryBarView,
 } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions";
 
@@ -22,6 +23,7 @@ export type AuxiliaryBarState = {
 export type AuxiliaryBarInput = {
   readonly mode: AuxiliaryBarMode;
   readonly onDidChangeActiveView: () => void;
+  readonly templateMode: TemplateAuxiliaryBarMode;
   readonly visible: boolean;
 };
 
@@ -51,7 +53,7 @@ export class AuxiliaryBarModel {
             },
           })
         : [],
-      title: input.visible ? getAuxiliaryBarTitle(input.mode) : "",
+      title: input.visible ? getAuxiliaryBarTitleForMode(input.mode, input.templateMode) : "",
       views: this.getViewStates(input.mode, input.visible),
     };
   }

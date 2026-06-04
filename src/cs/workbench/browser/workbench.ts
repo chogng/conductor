@@ -34,6 +34,7 @@ import {
 } from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
 import {
   AuxiliaryBarViews,
+  getAuxiliaryBarTitleForMode,
 } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions";
 import { AuxiliaryBarModel } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarModel";
 import type { WorkbenchStyle } from "src/cs/workbench/browser/style";
@@ -364,7 +365,10 @@ export class Workbench extends Layout {
       tableModel,
       this.templateApply,
     ));
-    this.templateAuxiliaryBarViewPane.update(this.templateViewPane.configElement);
+    this.templateAuxiliaryBarViewPane.update(
+      this.templateViewPane.configElement,
+      getAuxiliaryBarTitleForMode(this.activeMainPart, snapshot.templateMode),
+    );
     this.analysis.update(this.getAnalysisProps(snapshot, this.templateApply));
     this.settings.update(this.getSettingsProps());
     this.updateViewContainers();
@@ -502,6 +506,7 @@ export class Workbench extends Layout {
     const state = this.auxiliaryBarModel.update({
       mode: this.activeMainPart,
       onDidChangeActiveView: () => this.handleAuxiliaryBarActiveViewChange(),
+      templateMode: this.session.getSnapshot().templateMode,
       visible,
     });
     this.updateAuxiliaryBarPaneContainer({
@@ -542,6 +547,7 @@ export class Workbench extends Layout {
       case "settings":
         this.viewsService.getViewWithId<OriginSettingsViewPane>(OriginExportSettingsViewId)?.update({
           axisSettings: props.plotAxisSettings,
+          contextMenuService: this.contextMenuService,
           onAxisChange: props.onPlotAxisSettingsChange,
           onChange: props.onOriginOpenPlotOptionsChange,
           options: props.originOpenPlotOptions,

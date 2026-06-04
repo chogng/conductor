@@ -13,7 +13,7 @@ import { TemplateViewId } from "src/cs/workbench/contrib/template/common/templat
 
 import "src/cs/workbench/contrib/template/browser/media/templateViewPane.css";
 
-const TEMPLATE_TITLE = localize("template_editor_title", "Template");
+const TEMPLATE_TITLE = localize("template_workspace_title", "Template");
 
 export type TemplateViewPaneProps = {
   readonly analysisSettings?: TemplateViewOptions["analysisSettings"];

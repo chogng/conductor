@@ -1,0 +1,27 @@
+.template_pane {
+  display: flex;
+  height: 100%;
+  min-height: 0px;
+  flex-direction: column;
+}
+
+.workbench_layout_shell:not(.workbench_layout_shell--stacked) .template_pane--joined_auxiliarybar {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  border-right-width: 0;
+  box-shadow: none;
+}
+
+.template_auxiliarybar_view_pane {
+  min-height: 0;
+}
+
+.template_auxiliarybar_view_pane > .workbench-part-view-pane__body {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.template_pane--auxiliary {
+  height: 100%;
+  min-height: 0;
+}

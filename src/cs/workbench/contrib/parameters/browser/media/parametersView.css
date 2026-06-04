@@ -8,7 +8,13 @@
   flex-direction: column;
 }
 
+.parameters_view_pane > .workbench-part-view-pane__body {
+  min-height: 0px;
+  overflow: hidden;
+}
+
 .parameters_view_content {
+  box-sizing: border-box;
   min-height: 0px;
   min-width: 0px;
   flex: 1 1 0;

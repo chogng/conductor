@@ -30,6 +30,10 @@ import type {
 } from "src/cs/workbench/contrib/template/common/template";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
 import type { TemplateImportController } from "src/cs/workbench/contrib/template/browser/templateImportController";
+import {
+  showTemplateEditor,
+  showTemplateManagement,
+} from "src/cs/workbench/contrib/template/browser/templateCommands";
 import type { TableModel, TableSelection } from "src/cs/workbench/contrib/table/common/tableService";
 import { TemplateApplyView } from "src/cs/workbench/contrib/template/browser/views/templateApplyView";
 import {
@@ -568,7 +572,7 @@ export class TemplateView {
       stopOnError: config.stopOnError,
     }));
     this.stopOnErrorDraft = config.stopOnError;
-    this.session.setTemplateMode("save");
+    showTemplateEditor();
     defaultSessionModel.emitChange();
   }
 
@@ -581,7 +585,7 @@ export class TemplateView {
     this.session.setSelectedTemplateId(templateId);
     this.session.setTemplateConfig(cloneTemplateConfig(template));
     this.stopOnErrorDraft = Boolean(template.stopOnError);
-    this.session.setTemplateMode("save");
+    showTemplateEditor();
     defaultSessionModel.emitChange();
   }
 
@@ -661,7 +665,7 @@ export class TemplateView {
       this.session.setSelectedTemplateId(typeof saved.id === "string" ? saved.id : null);
       this.session.setTemplateConfig(cloneTemplateConfig(saved));
       this.stopOnErrorDraft = Boolean(saved.stopOnError);
-      this.session.setTemplateMode("select");
+      showTemplateManagement();
       showToast(localize("template_saved", "Template saved"), "success");
       defaultSessionModel.emitChange();
     } catch (err) {
@@ -671,7 +675,7 @@ export class TemplateView {
 
   private cancelSaveMode(): void {
     const config = this.getEffectiveTemplateConfig();
-    this.session.setTemplateMode("select");
+    showTemplateManagement();
     if (
       this.session.selectedTemplateId &&
       !isAutoTemplateId(this.session.selectedTemplateId) &&

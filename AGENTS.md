@@ -80,6 +80,8 @@ UI 和 CSS：
 - UI 状态 class 优先用 `classList.add/remove/toggle`，或用 `data-*`、ARIA 属性交给 CSS 承接；不要为了条件 class 新增全局 helper。
 - DOM 只表达语义和交互：容器、按钮、列表、输入、状态区域。颜色、间距、边框、显示/隐藏、选中/禁用等视觉表现写进 CSS。
 - 状态通过 class、`data-*` 属性、ARIA 属性传给 CSS，例如 `data-state="empty"`、`data-selected="true"`、`aria-disabled="true"`；不要为了状态样式复制两套 DOM。
+- 接入 workbench 的 UI 层级要区分上游 `ViewPane` 和业务内部折叠：`ViewPane` 是 workbench pane，拥有 header/collapse/body；业务 DOM 只从 `ViewPane.body` 下面开始。默认结构是 `ViewPane -> body -> <feature>_pane -> <feature>_view -> <feature>_view_content`。
+- 需要滚动、分栏或内部折叠时，只在业务 view 内插行为层，不改变外层语义：滚动用 `<feature>_scroll`，分栏用 `<feature>_split` / `<feature>_split_pane`，内部折叠分组用 `<feature>_section` / `<feature>_section_header` / `<feature>_section_body` 和 `data-collapsed`。不要把业务内部折叠命名为 `pane`，避免和上游 `ViewPane` 混淆。
 - 不为了画线、背景、角标、间距额外加空元素；优先用 CSS 伪元素、属性选择器和已有基础组件。
 - 按钮、输入、列表、树、菜单等基础交互优先找 `src/cs/base/browser/ui` 或上游已有组件；不要在业务模块里手写一套相似控件。
 - CSS class 命名按组件局部语义写，例如 `.preview-row`、`.column-header`、`.empty-state`；不要把全局业务前缀重复塞进每个 class。
