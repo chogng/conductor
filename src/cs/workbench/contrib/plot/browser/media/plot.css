@@ -78,9 +78,9 @@
 
 .chart_main_plot_legend_list {
 
-    font-size: 0.75rem;
+    font-size: inherit;
 
-    line-height: 1rem;
+    line-height: 16px;
 
     --tw-text-opacity: 1;
 

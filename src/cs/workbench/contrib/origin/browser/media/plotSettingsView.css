@@ -43,6 +43,14 @@
   gap: 6px;
 }
 
+.plot_settings_row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
 .plot_settings_label {
   font-size: 12px;
   line-height: 16px;

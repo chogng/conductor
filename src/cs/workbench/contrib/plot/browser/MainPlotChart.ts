@@ -126,6 +126,7 @@ export type MainPlotChartProps = {
   minorTickCount?: number;
   tickLabelFontSize?: number;
   axisTitleFontSize?: number;
+  legendFontSize?: number;
   originTickLabelOffset?: unknown;
   originAxisTitleGap?: unknown;
   legendWidth?: number;
@@ -218,6 +219,31 @@ const createTicks = (domain: [number, number], requested?: number[] | null): num
   const step = (max - min) / 4;
   if (!Number.isFinite(step) || step <= 0) return [min, max];
   return [0, 1, 2, 3, 4].map((index) => min + step * index);
+};
+
+const createMinorTicks = (
+  majorTicks: number[],
+  domain: [number, number],
+  countRaw: unknown,
+): number[] => {
+  const count = Math.max(1, Math.min(20, Math.round(Number(countRaw) || 1)));
+  if (majorTicks.length < 2) return [];
+
+  const ticks: number[] = [];
+  const [min, max] = normalizeDomain(domain);
+  for (let index = 0; index < majorTicks.length - 1; index++) {
+    const left = majorTicks[index]!;
+    const right = majorTicks[index + 1]!;
+    const step = (right - left) / (count + 1);
+    if (!Number.isFinite(step) || step <= 0) continue;
+    for (let minorIndex = 1; minorIndex <= count; minorIndex++) {
+      const tick = left + step * minorIndex;
+      if (tick > min && tick < max) {
+        ticks.push(tick);
+      }
+    }
+  }
+  return ticks;
 };
 
 const createScale = (
@@ -336,6 +362,12 @@ const drawMainPlotChart = (
   const scale = createScale(plotRect, props.xDomain, props.yDomain);
   const xTicks = createTicks(props.xDomain, props.xTicks);
   const yTicks = createTicks(props.yDomain, props.yTicks);
+  const xMinorTicks = props.showMinorTicks === false
+    ? []
+    : createMinorTicks(xTicks, props.xDomain, props.minorTickCount);
+  const yMinorTicks = props.showMinorTicks === false
+    ? []
+    : createMinorTicks(yTicks, props.yDomain, props.minorTickCount);
   const yKey = resolvePlotYKey(props.effectiveYScale, props.yScaleMode, props.yLogCurrentMode);
   const tickFontSize = props.tickLabelFontSize ?? DEFAULT_TICK_LABEL_FONT_SIZE;
   const axisFontSize = props.axisTitleFontSize ?? DEFAULT_AXIS_TITLE_FONT_SIZE;
@@ -380,6 +412,34 @@ const drawMainPlotChart = (
   context.strokeStyle = "rgba(100, 116, 139, 0.8)";
   context.lineWidth = 1;
   context.strokeRect(plotRect.left, plotRect.top, plotRect.width, plotRect.height);
+  if (props.showMinorTicks !== false) {
+    context.beginPath();
+    for (const tick of xMinorTicks) {
+      const x = scale.xToPixel(tick);
+      context.moveTo(x, plotRect.bottom);
+      context.lineTo(x, plotRect.bottom + 4);
+    }
+    for (const tick of yMinorTicks) {
+      const y = scale.yToPixel(tick);
+      context.moveTo(plotRect.left - 4, y);
+      context.lineTo(plotRect.left, y);
+    }
+    context.stroke();
+  }
+  if (props.showMajorTicks !== false) {
+    context.beginPath();
+    for (const tick of xTicks) {
+      const x = scale.xToPixel(tick);
+      context.moveTo(x, plotRect.bottom);
+      context.lineTo(x, plotRect.bottom + 6);
+    }
+    for (const tick of yTicks) {
+      const y = scale.yToPixel(tick);
+      context.moveTo(plotRect.left - 6, y);
+      context.lineTo(plotRect.left, y);
+    }
+    context.stroke();
+  }
   context.fillStyle = "rgba(71, 85, 105, 0.95)";
   context.font = `${tickFontSize}px sans-serif`;
   context.textAlign = "center";
@@ -537,6 +597,9 @@ export const createMainPlotChart = (props: MainPlotChartProps): HTMLElement => {
   const legend = document.createElement("div");
   legend.className = "chart_main_plot_legend";
   legend.style.width = `${Math.max(80, Number(props.legendWidth) || 120)}px`;
+  if (props.legendFontSize) {
+    legend.style.fontSize = `${props.legendFontSize}px`;
+  }
   root.appendChild(legend);
   renderLegend(legend, props.seriesList ?? [], props.legendContent);
 

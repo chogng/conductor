@@ -25,6 +25,8 @@ type AnalysisPlotAxisSettings = {
   yDecadeStep: number;
   showGrid: boolean;
   showMajorTicks: boolean;
+  showMinorTicks: boolean;
+  minorTickCount: string | number;
   tickLabelFontSize: string | number;
   axisTitleFontSize: string | number;
   legendFontSize: string | number;
@@ -283,6 +285,8 @@ export const ANALYSIS_DEFAULT_SETTINGS: AnalysisSettings = {
     yDecadeStep: 1,
     showGrid: true,
     showMajorTicks: true,
+    showMinorTicks: true,
+    minorTickCount: "",
     tickLabelFontSize: "",
     axisTitleFontSize: "",
     legendFontSize: "",
@@ -412,6 +416,14 @@ function normalizePlotAxisSettings(
     showGrid: typeof raw.showGrid === "boolean" ? raw.showGrid : fallback.showGrid,
     showMajorTicks:
       typeof raw.showMajorTicks === "boolean" ? raw.showMajorTicks : fallback.showMajorTicks,
+    showMinorTicks:
+      typeof raw.showMinorTicks === "boolean" ? raw.showMinorTicks : fallback.showMinorTicks,
+    minorTickCount: normalizeOptionalRoundedBoundedInt(
+      raw.minorTickCount,
+      fallback.minorTickCount,
+      1,
+      20,
+    ),
     tickLabelFontSize: normalizeOptionalRoundedBoundedInt(
       legacyAutoFontDefaults ? "" : raw.tickLabelFontSize,
       fallback.tickLabelFontSize,

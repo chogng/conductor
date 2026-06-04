@@ -8,6 +8,11 @@ import {
 import MainPlotChart from "src/cs/workbench/contrib/plot/browser/MainPlotChart";
 import { createMainPlotModel } from "src/cs/workbench/contrib/plot/browser/mainPlotModel";
 import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
+import {
+  DEFAULT_PLOT_AXIS_SETTINGS,
+  normalizePlotAxisSettings,
+  type PlotAxisSettings,
+} from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
 import { createEmptyView } from "src/cs/workbench/contrib/chart/browser/emptyView";
 import type {
   IonIoffManualTargetsByFileId,
@@ -56,6 +61,8 @@ export type ChartViewProps = {
   setSsManualRanges?: (next: SsManualRanges) => void;
   originOpenPlotOptions?: OriginPlotOptions;
   onOriginOpenPlotOptionsChange?: (updates: unknown) => Promise<unknown> | void;
+  plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
+  onPlotAxisSettingsChange?: (updates: unknown) => Promise<unknown> | void;
 };
 
 export const createChartView = (props: ChartViewProps): HTMLElement => {
@@ -66,6 +73,10 @@ export const createChartView = (props: ChartViewProps): HTMLElement => {
     activeFileId: controlledActiveFileId = undefined,
     originOpenPlotOptions = DEFAULT_ORIGIN_PLOT_OPTIONS,
   } = props;
+  const axisSettings = normalizePlotAxisSettings(
+    props.plotAxisSettings,
+    DEFAULT_PLOT_AXIS_SETTINGS,
+  );
   const visiblePanes = normalizeVisiblePanes(props.visiblePanes);
   const root = document.createElement("section");
   root.className = "chart_view";
@@ -93,7 +104,7 @@ export const createChartView = (props: ChartViewProps): HTMLElement => {
   chartHost.className = "chart_view_host";
   chartHost.append(MainPlotChart({
     activeFile: model.activeFile,
-    curveLineWidth: 2,
+    curveLineWidth: Number(originOpenPlotOptions.lineWidth) || DEFAULT_ORIGIN_PLOT_OPTIONS.lineWidth,
     curvePlotType: Number(originOpenPlotOptions?.type ?? DEFAULT_ORIGIN_PLOT_OPTIONS.type),
     effectiveYScale: "linear",
     focusedSeriesColor: "#2563eb",
@@ -103,6 +114,13 @@ export const createChartView = (props: ChartViewProps): HTMLElement => {
     plotXUnitLabel: model.xUnitLabel,
     plotYFactor: 1,
     plotYUnitLabel: model.yUnitLabel,
+    showGrid: axisSettings.showGrid,
+    showMajorTicks: axisSettings.showMajorTicks,
+    showMinorTicks: axisSettings.showMinorTicks,
+    minorTickCount: axisSettings.minorTickCount === "" ? undefined : axisSettings.minorTickCount,
+    tickLabelFontSize: axisSettings.tickLabelFontSize === "" ? undefined : axisSettings.tickLabelFontSize,
+    axisTitleFontSize: axisSettings.axisTitleFontSize === "" ? undefined : axisSettings.axisTitleFontSize,
+    legendFontSize: axisSettings.legendFontSize === "" ? undefined : axisSettings.legendFontSize,
     seriesList: model.seriesList,
     ssOverlayStyle: {
       fill: "#2563eb",

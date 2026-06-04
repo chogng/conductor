@@ -560,8 +560,10 @@ export class Workbench extends Layout {
         this.session.setSelectedPreviewFileId(nextFileId);
       },
       cleanedData: snapshot.cleanedData,
+      onPlotAxisSettingsChange: this.updatePlotAxisSettings,
       onOriginOpenPlotOptionsChange: this.updateOriginPlotOptions,
       originOpenPlotOptions: this.coreSettingsState.originOpenPlotOptions,
+      plotAxisSettings: this.coreSettingsState.analysisSettings?.analysisPlotAxisSettings,
       processingStatus: processing.processingStatus,
       showFileSelect: false,
       shouldMountCharts: false,
@@ -572,8 +574,10 @@ export class Workbench extends Layout {
     return {
       activeFileId: this.getActiveCleanedFileId(snapshot),
       cleanedData: snapshot.cleanedData,
+      onPlotAxisSettingsChange: this.updatePlotAxisSettings,
       onOriginOpenPlotOptionsChange: this.updateOriginPlotOptions,
       originOpenPlotOptions: this.coreSettingsState.originOpenPlotOptions,
+      plotAxisSettings: this.coreSettingsState.analysisSettings?.analysisPlotAxisSettings,
     };
   }
 
@@ -601,6 +605,19 @@ export class Workbench extends Layout {
     }
 
     await this.coreSettingsState.handleUpdateAnalysisSettings(settingsUpdates);
+  };
+
+  private readonly updatePlotAxisSettings = async (updates: unknown): Promise<void> => {
+    if (!updates || typeof updates !== "object") {
+      return;
+    }
+
+    await this.coreSettingsState.handleUpdateAnalysisSettings({
+      analysisPlotAxisSettings: {
+        ...(this.coreSettingsState.analysisSettings?.analysisPlotAxisSettings ?? {}),
+        ...(updates as Record<string, unknown>),
+      },
+    });
   };
 
   private getActiveCleanedFileId(snapshot = this.session.getSnapshot()): string | null {

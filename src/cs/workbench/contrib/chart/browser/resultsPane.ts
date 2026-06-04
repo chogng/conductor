@@ -35,6 +35,7 @@ import { ExportContributionId } from "src/cs/workbench/contrib/export/common/exp
 import { ResultsViewId } from "src/cs/workbench/contrib/chart/common/chart";
 import PlotSettingsView from "src/cs/workbench/contrib/origin/browser/PlotSettingsView";
 import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
+import type { PlotAxisSettings } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
 import type { ParametersContribution } from "src/cs/workbench/contrib/parameters/browser/parameters.contribution";
 import { ParametersContributionId } from "src/cs/workbench/contrib/parameters/common/parameters";
 import type { CalculatedParameterRowData } from "src/cs/workbench/contrib/parameters/browser/parametersModel";
@@ -50,8 +51,10 @@ import "src/cs/workbench/contrib/chart/browser/media/resultsPane.css";
 export type ResultsPaneProps = {
   readonly activeFileId?: string | null;
   readonly cleanedData: CleanedEntry[];
+  readonly onPlotAxisSettingsChange?: (updates: Record<string, unknown>) => void | Promise<void>;
   readonly onOriginOpenPlotOptionsChange?: (updates: Partial<OriginPlotOptions>) => void | Promise<void>;
   readonly originOpenPlotOptions?: OriginPlotOptions;
+  readonly plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
 };
 
 type DerivativePoint = {
@@ -144,7 +147,8 @@ export class ResultsPane extends ViewPane {
     this.content.replaceChildren();
 
     if (!activeFile) {
-      this.content.append(createEmptyState(localize("da_no_processed_data", "No Processed Data")));
+      this.renderSettingsPane(props);
+      this.content.append(this.createEmptyActivePane());
       return;
     }
 
@@ -222,6 +226,30 @@ export class ResultsPane extends ViewPane {
     }
   }
 
+  private createEmptyActivePane(): HTMLElement {
+    switch (this.activeView) {
+      case "parameters":
+        return this.createPane(
+          localize("analysis.results.parameters", "Parameters"),
+          createEmptyState(localize("da_no_processed_data", "No Processed Data")),
+          "results_pane_section--fill",
+        );
+      case "settings":
+        return this.createPane(
+          localize("da_chart_curve_settings_title", "Curve Settings"),
+          this.plotSettingsView.element,
+          "results_pane_section--fill",
+        );
+      case "export":
+      default:
+        return this.createPane(
+          localize("analysis.results.export", "Export"),
+          createEmptyState(localize("da_no_processed_data", "No Processed Data")),
+          "results_pane_section--fill",
+        );
+    }
+  }
+
   private renderExportPane(
     props: ResultsPaneProps,
     activeFile: CleanedEntry,
@@ -281,6 +309,8 @@ export class ResultsPane extends ViewPane {
 
   private renderSettingsPane(props: ResultsPaneProps): void {
     this.plotSettingsView.update({
+      axisSettings: props.plotAxisSettings,
+      onAxisChange: props.onPlotAxisSettingsChange,
       onChange: props.onOriginOpenPlotOptionsChange,
       options: props.originOpenPlotOptions,
     });

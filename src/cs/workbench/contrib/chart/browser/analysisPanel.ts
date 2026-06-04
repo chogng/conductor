@@ -16,6 +16,7 @@ import type {
   ProcessingStatus,
 } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
+import type { PlotAxisSettings } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
 import type {
   IonIoffManualTargetsByFileId,
   IonIoffMethod,
@@ -53,6 +54,8 @@ export type ChartViewLazyProps = {
   setSsManualRanges?: (next: SsManualRanges) => void;
   originOpenPlotOptions?: OriginPlotOptions;
   onOriginOpenPlotOptionsChange?: (updates: unknown) => Promise<unknown> | void;
+  plotAxisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
+  onPlotAxisSettingsChange?: (updates: unknown) => Promise<unknown> | void;
 };
 
 export type AnalysisPanelProps = ChartViewLazyProps & {
