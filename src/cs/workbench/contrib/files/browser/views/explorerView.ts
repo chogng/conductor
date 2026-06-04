@@ -1,7 +1,8 @@
 import { localize } from "src/cs/nls";
 import { DragAndDropObserver } from "src/cs/base/browser/dom";
 import type { ListHandle } from "src/cs/base/browser/ui/list/list";
-import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
+import { DisposableStore, toDisposable, type IDisposable } from "src/cs/base/common/lifecycle";
+import { ResourceLabels } from "src/cs/workbench/browser/labels";
 import { IMPORT_ERROR_TOAST_ID } from "src/cs/workbench/contrib/files/browser/fileConstants";
 import {
   ExplorerViewer,
@@ -36,9 +37,12 @@ export class ExplorerView implements IDisposable {
     const dom = this.createDom();
     this.root = dom.root;
     this.viewport = dom.viewport;
+    const labels = new ResourceLabels();
     this.explorerViewer = this.disposables.add(
-      new ExplorerViewer(dom.listHost, this.root, this.createViewerProps()),
+      new ExplorerViewer(dom.listHost, this.root, this.createViewerProps(), labels),
     );
+    this.disposables.add(labels);
+    this.disposables.add(createFileIconThemableTreeContainerScope(this.root));
 
     this.host.appendChild(this.root);
 
@@ -182,4 +186,11 @@ export class ExplorerView implements IDisposable {
       type: "error",
     });
   }
+}
+
+export function createFileIconThemableTreeContainerScope(container: HTMLElement): IDisposable {
+  container.classList.add("file-icon-themable-tree", "show-file-icons");
+  return toDisposable(() => {
+    container.classList.remove("file-icon-themable-tree", "show-file-icons");
+  });
 }

@@ -151,33 +151,21 @@
   min-width: 0;
   flex: 1 1 0%;
   align-items: center;
-  gap: 6px;
   overflow: hidden;
 }
 
-.file-list-item-text {
-  display: flex;
+.file-list-item-label {
   min-width: 0;
   flex: 1 1 0%;
-  align-items: center;
+  gap: 6px;
 }
 
-.file-list-item-icon {
-  display: flex;
-  height: 16px;
-  width: 16px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
+.file-list-item-label .monaco-icon-label-icon {
   color: rgb(var(--text-secondary) / 1);
 }
 
-.file-list-item-name {
-  min-width: 0;
+.file-list-item-label .monaco-icon-label-name {
   flex: 1 1 0%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   font-size: 12px;
   line-height: 16px;
   color: rgb(var(--text-primary) / 1);

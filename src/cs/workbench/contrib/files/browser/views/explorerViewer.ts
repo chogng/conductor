@@ -21,10 +21,8 @@ import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle"
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import type { IAction } from "src/cs/base/common/actions";
 import { localize } from "src/cs/nls";
-import {
-  isExcelImportFileName,
-  type FileEntry,
-} from "src/cs/workbench/contrib/files/common/files";
+import type { FileEntry } from "src/cs/workbench/contrib/files/common/files";
+import { ResourceLabels, type IResourceLabel } from "src/cs/workbench/browser/labels";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import {
   buildFileTree,
@@ -32,6 +30,7 @@ import {
   getTreeFileName,
   type FileTreeNode,
 } from "src/cs/workbench/contrib/files/common/explorerModel";
+import { FileKind } from "src/cs/workbench/contrib/files/common/getIconClasses";
 import { createEmptyView } from "src/cs/workbench/contrib/files/browser/views/emptyView";
 import { createThumbnailView } from "src/cs/workbench/contrib/thumbnail/browser/ThumbnailView";
 
@@ -62,8 +61,7 @@ type FileItemTemplate = {
   readonly content: HTMLDivElement;
   fileId: string | null;
   readonly host: HTMLElement;
-  readonly icon: HTMLDivElement;
-  readonly name: HTMLSpanElement;
+  readonly label: IResourceLabel;
   readonly removeButton: HTMLButtonElement;
 };
 
@@ -127,9 +125,10 @@ const appendIcon = (
   container: HTMLElement,
   icon: LxIconDefinition,
   size = 16,
+  className?: string,
 ) => {
   const iconSpan = document.createElement("span");
-  iconSpan.className = "ui-lxicon";
+  iconSpan.className = className ? `ui-lxicon ${className}` : "ui-lxicon";
   iconSpan.style.width = `${size}px`;
   iconSpan.style.height = `${size}px`;
   iconSpan.innerHTML = normalizeLxIconSvgMarkup(icon);
@@ -166,6 +165,7 @@ export class ExplorerViewer implements IDisposable {
     host: HTMLElement,
     private readonly hoverHost: HTMLElement,
     props: ExplorerViewerProps,
+    private readonly labels: ResourceLabels,
   ) {
     this.props = props;
     this.treeRenderer = {
@@ -372,6 +372,7 @@ export class ExplorerViewer implements IDisposable {
   }
 
   private readonly disposeTreeItemTemplate = (template: TreeItemTemplate): void => {
+    template.file.label.dispose();
     template.folder.actionButton.dispose();
   };
 
@@ -416,9 +417,17 @@ export class ExplorerViewer implements IDisposable {
     }
 
     template.fileId = fileEntry.fileId ?? null;
-    template.icon.replaceChildren();
-    appendIcon(template.icon, getFileIcon(fileName));
-    template.name.textContent = fileName;
+    template.label.setResource(
+      {
+        name: fileName,
+        resource: fileEntry.relativePath ?? fileName,
+      },
+      {
+        extraClasses: ["explorer-item"],
+        fileKind: FileKind.FILE,
+        title: fileName,
+      },
+    );
     template.removeButton.setAttribute(
       "aria-label",
       localize("import.removeFileButtonLabel", "import.removeFileButtonLabel", { fileName }),
@@ -434,19 +443,9 @@ export class ExplorerViewer implements IDisposable {
   private createFileItemTemplate(host: HTMLElement): FileItemTemplate {
     const content = document.createElement("div");
     content.className = "file-list-item-content";
-
-    const icon = document.createElement("div");
-    icon.className = "file-list-item-icon";
-    appendIcon(icon, LxIcon.csvGreen);
-
-    const text = document.createElement("div");
-    text.className = "file-list-item-text";
-
-    const name = document.createElement("span");
-    name.className = "file-list-item-name";
-    text.appendChild(name);
-
-    content.append(icon, text);
+    const label = this.labels.create(content, {
+      className: "file-list-item-label",
+    });
 
     const actions = document.createElement("div");
     actions.className = "file-list-item-actions";
@@ -459,8 +458,7 @@ export class ExplorerViewer implements IDisposable {
       content,
       fileId: null,
       host,
-      icon,
-      name,
+      label,
       removeButton,
     };
     removeButton.addEventListener("click", (event) => {

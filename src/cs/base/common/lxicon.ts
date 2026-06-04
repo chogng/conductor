@@ -19,6 +19,7 @@ import {
   lxRemove as renderRemove,
   lxSearch as renderSearch,
   lxSettings as renderSettings,
+  lxXlsGreen as renderXlsGreen,
 } from "@chogng/lxicon";
 
 export type LxIconRenderer = () => string;
@@ -104,6 +105,8 @@ export const lxClose = registerLxIcon("close", renderClose);
 
 export const lxCsvGreen = registerLxIcon("csv-green", renderCsvGreen);
 
+export const lxXlsGreen = registerLxIcon("xls-green", renderXlsGreen);
+
 export const lxDiagnostics = registerLxIcon("diagnostics", renderDiagnostics);
 
 export const lxDownload = registerLxIcon("download", renderDownload);
@@ -153,4 +156,5 @@ export const LxIcon = {
   search: lxSearch,
   settings: lxSettings,
   slidersHorizontal: lxSlidersHorizontal,
+  xlsGreen: lxXlsGreen,
 } as const;
