@@ -3,6 +3,7 @@ import {
 } from "src/cs/base/browser/ui/lxicon/lxicon";
 import { LxIcon, type LxIconDefinition } from "src/cs/base/common/lxicon";
 import { LayoutViewSwitchIds } from "src/cs/workbench/browser/actions/layoutActions";
+import type { LayoutView } from "src/cs/workbench/browser/layout";
 import {
   createWorkbenchTitlebarNavActions,
   createWorkbenchTitlebarPageActions,
@@ -25,9 +26,7 @@ export const WORKBENCH_TITLEBAR_COMMAND_BAR_ID = "analysis-desktop-command-bar";
 const WORKBENCH_TITLEBAR_UPDATE_BUTTON_ID = "analysis-window-update-btn";
 
 export type WorkbenchTitlebarActivePage =
-  | "data"
-  | "analysis"
-  | "settings"
+  | LayoutView
   | string;
 
 export type WorkbenchTitlebarAnalysisFileOption = {
@@ -49,7 +48,7 @@ export type WorkbenchTitlebarNavAction = {
 };
 
 export type WorkbenchTitlebarPageAction = {
-  id: "data" | "analysis" | "settings";
+  id: LayoutView;
   title: string;
   isActive: boolean;
 };
@@ -73,8 +72,7 @@ export type WorkbenchTitlebarProps = {
   onMinimizeWindow?: () => void;
   onNavigateBack?: () => void;
   onNavigateForward?: () => void;
-  onOpenSettings?: () => void;
-  onPageChange?: (page: "data" | "analysis") => void;
+  onPageChange?: (page: LayoutView) => void;
   onToggleMaximizeWindow?: () => void;
   showAnalysisFileSelector?: boolean;
   updateAction?: WorkbenchTitlebarUpdateAction;
@@ -260,7 +258,6 @@ export const createWorkbenchTitlebarElement = ({
   onMinimizeWindow,
   onNavigateBack,
   onNavigateForward,
-  onOpenSettings,
   onPageChange,
   onToggleMaximizeWindow,
   showAnalysisFileSelector = false,
@@ -364,14 +361,7 @@ export const createWorkbenchTitlebarElement = ({
         className,
       },
       pageActionIcon,
-      () => {
-        if (action.id === "data" || action.id === "analysis") {
-          onPageChange?.(action.id);
-          return;
-        }
-
-        onOpenSettings?.();
-      },
+      () => onPageChange?.(action.id),
     );
 
     if (action.id === "analysis") {

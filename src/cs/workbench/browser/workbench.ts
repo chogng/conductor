@@ -126,8 +126,7 @@ export type WorkbenchTitlebarState = {
   readonly onMinimizeWindow?: () => void;
   readonly onNavigateBack?: () => void;
   readonly onNavigateForward?: () => void;
-  readonly onOpenSettings?: () => void;
-  readonly onPageChange?: (page: "data" | "analysis") => void;
+  readonly onPageChange?: (page: LayoutView) => void;
   readonly onToggleMaximizeWindow?: () => void;
   readonly showAnalysisFileSelector?: boolean;
   readonly updateVersion?: string | null;
@@ -175,7 +174,6 @@ export const createTitlebarState = (
         onMinimizeWindow: state.onMinimizeWindow,
         onNavigateBack: state.onNavigateBack,
         onNavigateForward: state.onNavigateForward,
-        onOpenSettings: state.onOpenSettings,
         onPageChange: state.onPageChange,
         onToggleMaximizeWindow: state.onToggleMaximizeWindow,
         showAnalysisFileSelector: state.showAnalysisFileSelector,
@@ -448,10 +446,9 @@ export class Workbench extends Layout {
       enabled: getWorkbenchWindowState().isDesktopChromePreviewEnabled,
       onCloseWindow: () => closeWindow(),
       onMinimizeWindow: () => minimizeWindow(),
-      onNavigateBack: () => this.navigateBack(),
-      onNavigateForward: () => this.navigateForward(),
-      onOpenSettings: () => this.navigateToView("settings"),
-      onPageChange: (page) => this.handleMainPageAction(page),
+      onNavigateBack: () => this.handleNavigateBack(),
+      onNavigateForward: () => this.handleNavigateForward(),
+      onPageChange: (page) => this.handlePageAction(page),
       onToggleMaximizeWindow: () => toggleWindowMaximized(),
     };
   }
@@ -664,7 +661,23 @@ export class Workbench extends Layout {
     return this.viewsService.getViewContainerElement(containerId) ?? fallback;
   }
 
-  private handleMainPageAction(page: "data" | "analysis"): void {
+  private handleNavigateBack(): void {
+    this.navigateBack();
+    this.renderWorkbench();
+  }
+
+  private handleNavigateForward(): void {
+    this.navigateForward();
+    this.renderWorkbench();
+  }
+
+  private handlePageAction(page: LayoutView): void {
+    if (page === "settings") {
+      this.navigateToView(page);
+      this.renderWorkbench();
+      return;
+    }
+
     this.showMainPart(page === "analysis" ? "chart" : "table");
   }
 
