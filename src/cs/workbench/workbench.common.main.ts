@@ -2,4 +2,5 @@
 
 import "src/cs/workbench/common/configuration";
 import "src/cs/workbench/common/views";
+import "src/cs/workbench/services/commands/common/commandService";
 import "src/cs/workbench/services/notification/common/notificationService";

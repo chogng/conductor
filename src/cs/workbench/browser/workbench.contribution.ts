@@ -37,6 +37,10 @@ import {
   type IContextMenuService as IContextMenuServiceType,
 } from "src/cs/platform/contextview/browser/contextView";
 import {
+  ICommandService,
+  type ICommandService as ICommandServiceType,
+} from "src/cs/platform/commands/common/commands";
+import {
   registerWorkbenchContribution2,
   WorkbenchPhase,
   type IWorkbenchContribution,
@@ -97,6 +101,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
     @IFileService filesService: IFileServiceType,
     @IFileDialogService dialogsService: IFileDialogServiceType,
     @IContextMenuService contextMenuService: IContextMenuServiceType,
+    @ICommandService commandService: ICommandServiceType,
     @IPathService pathService: IPathServiceType,
     @IWorkbenchLayoutService layoutService: IWorkbenchLayoutServiceType,
     @IViewsService viewsService: IViewsServiceType,
@@ -113,6 +118,7 @@ export class WorkbenchContribution extends Disposable implements IWorkbenchContr
     this.workbench = this._register(new Workbench(root, {
       analysisFileService,
       dialogsService,
+      commandService,
       contextMenuService,
       filesService,
       pathService,

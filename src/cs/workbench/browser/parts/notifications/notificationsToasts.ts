@@ -4,7 +4,6 @@ import { addDisposableListener, EventType } from "src/cs/base/browser/dom";
 import { DisposableStore, type IDisposable } from "src/cs/base/common/lifecycle";
 import type {
   NotificationToastOptions,
-  NotificationToastPosition,
   NotificationToastType,
 } from "src/cs/workbench/services/notification/common/notificationService";
 import {
@@ -18,8 +17,6 @@ import "src/cs/workbench/browser/parts/notifications/media/notificationsToasts.c
 const DEFAULT_TOAST_DURATION = 5000;
 const TOAST_CLOSE_ANIMATION_MS = 300;
 
-const notificationToasts = new Map<string, NotificationToast>();
-
 const getExtraClassNames = (value: unknown): string[] =>
   typeof value === "string"
     ? value
@@ -31,39 +28,111 @@ const getExtraClassNames = (value: unknown): string[] =>
 const getTypeClassName = (type: NotificationToastType): string =>
   `conductor-toast--${type}`;
 
-export const showNotificationToast = (options: NotificationToastOptions): void => {
-  getNotificationToast(options.id ?? DEFAULT_NOTIFICATION_TOAST_ID).show(options);
-};
+export class NotificationToasts implements IDisposable {
+  private readonly toasts = new Map<string, NotificationToast>();
+  public readonly element = document.createElement("div");
 
-export const hideNotificationToast = (id = DEFAULT_NOTIFICATION_TOAST_ID): void => {
-  notificationToasts.get(id)?.hide();
-};
-
-export const disposeNotificationToast = (id = DEFAULT_NOTIFICATION_TOAST_ID): void => {
-  const toast = notificationToasts.get(id);
-  if (!toast) {
-    return;
+  public constructor() {
+    this.element.className = "workbench_notifications_toasts";
+    this.element.setAttribute("aria-live", "polite");
   }
 
-  toast.dispose();
-  notificationToasts.delete(id);
-};
+  public show(options: NotificationToastOptions): void {
+    this.getToast(options.id ?? DEFAULT_NOTIFICATION_TOAST_ID).show(options);
+  }
 
-export const disposeNotificationToasts = (): void => {
-  for (const toast of notificationToasts.values()) {
+  public get isVisible(): boolean {
+    return this.getVisibleToasts().length > 0;
+  }
+
+  public get isFocused(): boolean {
+    return this.getVisibleToasts().some(toast => toast.contains(document.activeElement));
+  }
+
+  public hide(id?: string): void {
+    if (id) {
+      this.toasts.get(id)?.hide();
+      return;
+    }
+
+    for (const toast of this.toasts.values()) {
+      toast.hide();
+    }
+  }
+
+  public hideToast(id = DEFAULT_NOTIFICATION_TOAST_ID): void {
+    this.toasts.get(id)?.hide();
+  }
+
+  public focus(): void {
+    this.focusFirst();
+  }
+
+  public focusNext(): void {
+    this.focusByOffset(1);
+  }
+
+  public focusPrevious(): void {
+    this.focusByOffset(-1);
+  }
+
+  public focusFirst(): void {
+    this.getVisibleToasts()[0]?.focus();
+  }
+
+  public focusLast(): void {
+    const visibleToasts = this.getVisibleToasts();
+    visibleToasts[visibleToasts.length - 1]?.focus();
+  }
+
+  public disposeToast(id = DEFAULT_NOTIFICATION_TOAST_ID): void {
+    const toast = this.toasts.get(id);
+    if (!toast) {
+      return;
+    }
+
     toast.dispose();
+    this.toasts.delete(id);
   }
-  notificationToasts.clear();
-};
 
-const getNotificationToast = (id: string): NotificationToast => {
-  let toast = notificationToasts.get(id);
-  if (!toast) {
-    toast = new NotificationToast();
-    notificationToasts.set(id, toast);
+  public disposeToasts(): void {
+    for (const toast of this.toasts.values()) {
+      toast.dispose();
+    }
+    this.toasts.clear();
   }
-  return toast;
-};
+
+  public dispose(): void {
+    this.disposeToasts();
+    this.element.remove();
+  }
+
+  private getToast(id: string): NotificationToast {
+    let toast = this.toasts.get(id);
+    if (!toast) {
+      toast = new NotificationToast(this.element);
+      this.toasts.set(id, toast);
+    }
+    return toast;
+  }
+
+  private getVisibleToasts(): NotificationToast[] {
+    return [...this.toasts.values()].filter(toast => toast.visible);
+  }
+
+  private focusByOffset(offset: number): void {
+    const visibleToasts = this.getVisibleToasts();
+    if (visibleToasts.length === 0) {
+      return;
+    }
+
+    const activeElement = document.activeElement;
+    const currentIndex = visibleToasts.findIndex(toast => toast.contains(activeElement));
+    const baseIndex = currentIndex >= 0 ? currentIndex : offset > 0 ? -1 : 0;
+    const nextIndex = (baseIndex + offset + visibleToasts.length) % visibleToasts.length;
+    visibleToasts[nextIndex].focus();
+  }
+}
 
 export class NotificationToast implements IDisposable {
   private readonly disposables = new DisposableStore();
@@ -79,12 +148,13 @@ export class NotificationToast implements IDisposable {
   private isVisible = false;
   private options: NotificationToastOptions | null = null;
 
-  public constructor(private readonly host: HTMLElement = document.body) {
+  public constructor(private readonly host: HTMLElement) {
     this.renderer = this.disposables.add(new NotificationRenderer({
       onAction: this.handleAction,
       onClose: this.handleClose,
     }));
     this.root = this.renderer.element;
+    this.root.tabIndex = -1;
 
     this.disposables.add(addDisposableListener(
       this.root,
@@ -106,11 +176,6 @@ export class NotificationToast implements IDisposable {
       EventType.FOCUS_OUT,
       this.handleFocusOut,
     ));
-    this.disposables.add(addDisposableListener(
-      window,
-      EventType.RESIZE,
-      this.updatePosition,
-    ));
     this.disposables.add(this.autoCloseTimer);
     this.disposables.add(this.closeTimer);
     this.disposables.add(this.hideTimer);
@@ -124,7 +189,6 @@ export class NotificationToast implements IDisposable {
     this.closeTimer.cancel();
     this.hideTimer.cancel();
     this.updateContent(options);
-    this.updatePosition();
 
     if (!this.root.parentElement) {
       this.host.appendChild(this.root);
@@ -161,6 +225,20 @@ export class NotificationToast implements IDisposable {
     this.disposables.dispose();
   }
 
+  public get visible(): boolean {
+    return this.isVisible;
+  }
+
+  public focus(): void {
+    if (this.isVisible && this.root.parentElement) {
+      this.root.focus();
+    }
+  }
+
+  public contains(node: EventTarget | null): boolean {
+    return node instanceof Node && this.root.contains(node);
+  }
+
   private updateContent(options: NotificationToastOptions): void {
     const type = options.type ?? "success";
     const uiMarker =
@@ -185,38 +263,15 @@ export class NotificationToast implements IDisposable {
   }
 
   private getClassName(options: NotificationToastOptions, isClosing: boolean): string {
-    const position = options.position ?? "absolute";
-    const positionClass = position === "fixed"
-      ? "conductor-toast-fixed"
-      : "conductor-toast-absolute";
     const type = options.type ?? "success";
 
     return [
       "conductor-toast",
       isClosing ? "conductor-toast-closing" : "conductor-toast-opening",
-      positionClass,
       getTypeClassName(type),
       ...getExtraClassNames(options.className),
     ].join(" ");
   }
-
-  private readonly updatePosition = (): void => {
-    if (!this.options) return;
-
-    const position = this.options.position ?? "absolute";
-
-    this.root.style.position = "";
-    this.root.style.bottom = "";
-    this.root.style.left = "";
-    this.root.style.right = "";
-    this.root.style.transform = "";
-
-    if (position === "fixed") {
-      this.root.style.position = "fixed";
-      this.root.style.bottom = "32px";
-      this.root.style.right = "32px";
-    }
-  };
 
   private startAutoClose(duration: number): void {
     this.autoCloseTimer.cancel();

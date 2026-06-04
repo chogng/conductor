@@ -10,6 +10,7 @@ import type {
 import type { IFileDialogService } from "src/cs/platform/dialogs/common/dialogs";
 import type { IFileService } from "src/cs/platform/files/common/files";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
+import type { ICommandService } from "src/cs/platform/commands/common/commands";
 import type { IPathService } from "src/cs/workbench/services/path/common/pathService";
 import type { IAnalysisFileService } from "src/cs/workbench/services/analysisFile/common/analysisFile";
 import type { IWorkbenchLayoutService } from "src/cs/workbench/services/layout/browser/layoutService";
@@ -106,12 +107,8 @@ import {
   toggleWindowMaximized,
 } from "src/cs/workbench/browser/actions/windowActions";
 import { notificationService } from "src/cs/workbench/services/notification/common/notificationService";
-import {
-  disposeNotificationToast,
-  disposeNotificationToasts,
-  hideNotificationToast,
-  showNotificationToast,
-} from "src/cs/workbench/browser/parts/notifications/notificationsToasts";
+import { NotificationToasts } from "src/cs/workbench/browser/parts/notifications/notificationsToasts";
+import { registerNotificationCommands } from "src/cs/workbench/browser/parts/notifications/notificationsCommands";
 
 export type WorkbenchTitlebarState = {
   readonly enabled?: boolean;
@@ -141,6 +138,7 @@ type WorkbenchSessionSnapshot = ReturnType<SessionModel["getSnapshot"]>;
 export type WorkbenchOptions = {
   readonly className?: string;
   readonly analysisFileService?: IAnalysisFileService;
+  readonly commandService?: ICommandService;
   readonly contextMenuService?: IContextMenuService;
   readonly dialogsService?: IFileDialogService;
   readonly filesService?: IFileService;
@@ -214,11 +212,13 @@ const resolveInitialMainPart = (
 
 export class Workbench extends Layout {
   private readonly window: WorkbenchWindow;
+  private readonly notifications: NotificationToasts;
   private language: LanguageCode = getInitialLanguage();
   private languagePreference: LanguagePreference = getInitialLanguagePreference();
   private readonly filesPaneRef: { current: FilesPaneRef | null } = { current: null };
   private readonly session = defaultSessionModel;
   private readonly filesPane: FilesPaneHost;
+  private readonly commandService: ICommandService;
   private readonly table: TableContribution;
   private readonly templateViewPane: TemplateViewPane;
   private readonly templateAuxiliaryBarViewPane: TemplateAuxiliaryBarViewPane;
@@ -267,7 +267,7 @@ export class Workbench extends Layout {
       titlebarState: createTitlebarState(options.titlebarState),
       showSkeleton: false,
     }));
-    this._register(this.createNotificationsHandlers());
+    this.notifications = this._register(new NotificationToasts());
     this._register(toDisposableSession(this.session));
     this.mount(this.window.contentElement);
     if (!options.tableService) {
@@ -285,6 +285,9 @@ export class Workbench extends Layout {
     if (!options.contextMenuService) {
       throw new Error("Workbench requires IContextMenuService.");
     }
+    if (!options.commandService) {
+      throw new Error("Workbench requires ICommandService.");
+    }
     if (!options.pathService) {
       throw new Error("Workbench requires IPathService.");
     }
@@ -301,11 +304,13 @@ export class Workbench extends Layout {
     this.analysisFileService = options.analysisFileService;
     this.dialogsService = options.dialogsService;
     this.contextMenuService = options.contextMenuService;
+    this.commandService = options.commandService;
     this.pathService = options.pathService;
     this.viewsService = options.viewsService;
     this.tableService = options.tableService;
     this.templateApplyService = options.templateApplyService;
     this.templateService = options.templateService;
+    this._register(this.createNotificationsHandlers());
     this.templateImportController = new TemplateImportController(
       this.dialogsService,
       this.filesService,
@@ -387,6 +392,7 @@ export class Workbench extends Layout {
         WorkbenchViewContainers.auxiliarybar,
         this.getActiveAuxiliaryBarElement(),
       ),
+      overlay: this.notifications.element,
       settings: this.getViewContainerElement(WorkbenchViewContainers.settings, this.settings.element),
     });
     this.layoutVisibleViewContainers();
@@ -413,28 +419,29 @@ export class Workbench extends Layout {
   private createNotificationsHandlers(): IDisposable {
     const disposables = new DisposableStore();
 
+    disposables.add(registerNotificationCommands(this.notifications, this.commandService));
+
     for (const toast of notificationService.toasts) {
-      showNotificationToast(toast);
+      this.notifications.show(toast);
     }
 
     disposables.add(notificationService.onDidChangeToast(event => {
       switch (event.kind) {
         case "show":
-          showNotificationToast(event.options);
+          this.notifications.show(event.options);
           break;
         case "hide":
-          hideNotificationToast(event.id);
+          this.notifications.hideToast(event.id);
           break;
         case "dispose":
-          disposeNotificationToast(event.id);
+          this.notifications.disposeToast(event.id);
           break;
         case "disposeAll":
-          disposeNotificationToasts();
+          this.notifications.disposeToasts();
           break;
       }
     }));
 
-    disposables.add(toDisposable(() => disposeNotificationToasts()));
     return disposables;
   }
 
