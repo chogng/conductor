@@ -133,6 +133,7 @@ export class TableViewPane extends ViewPane {
       className: "table_view_zoom_button table_view_zoom_button_minus",
       icon: LxIcon.remove,
       label: localize("table.zoomOut", "Zoom out"),
+      shortcut: "Control+-",
     });
     const value = document.createElement("span");
     value.className = "table_view_zoom_value";
@@ -141,13 +142,14 @@ export class TableViewPane extends ViewPane {
       className: "table_view_zoom_button table_view_zoom_button_plus",
       icon: LxIcon.add,
       label: localize("table.zoomIn", "Zoom in"),
+      shortcut: "Control+=",
     });
 
     this.store.add(addDisposableListener(decreaseButton, EventType.CLICK, () => {
-      this.setZoomPercent(this.zoomPercent - ZOOM_STEP_PERCENT);
+      this.zoomOut();
     }));
     this.store.add(addDisposableListener(increaseButton, EventType.CLICK, () => {
-      this.setZoomPercent(this.zoomPercent + ZOOM_STEP_PERCENT);
+      this.zoomIn();
     }));
 
     element.append(decreaseButton, value, increaseButton);
@@ -168,6 +170,46 @@ export class TableViewPane extends ViewPane {
     this.zoomPercent = nextZoomPercent;
     this.view.update(toViewProps(this.props, this.zoomPercent));
     this.updateZoomControl();
+  }
+
+  public zoomIn(): void {
+    this.setZoomPercent(this.zoomPercent + ZOOM_STEP_PERCENT);
+  }
+
+  public zoomOut(): void {
+    this.setZoomPercent(this.zoomPercent - ZOOM_STEP_PERCENT);
+  }
+
+  public resetZoom(): void {
+    this.setZoomPercent(DEFAULT_ZOOM_PERCENT);
+  }
+
+  public selectAllColumns(): void {
+    const tableFile = this.props.tableState.file;
+    const columnCount = Math.max(0, Math.floor(Number(tableFile?.columnCount) || 0));
+    if (columnCount === 0) {
+      return;
+    }
+
+    const selectedColumns: number[] = [];
+    for (let colIndex = 0; colIndex < columnCount; colIndex += 1) {
+      selectedColumns.push(colIndex);
+    }
+    const selection = this.props.tableModel.getSelection();
+    this.props.tableModel.setSelection({
+      ...selection,
+      selectedColumns,
+    });
+    this.view.focus();
+  }
+
+  public clearSelection(): void {
+    this.props.tableModel.setSelection(null);
+    this.view.focus();
+  }
+
+  public scrollHorizontally(delta: number): boolean {
+    return this.view.scrollHorizontally(delta);
   }
 
   private updateHeaderMode(mode: HeaderMode): void {
@@ -288,16 +330,19 @@ const createZoomButton = ({
   className,
   icon,
   label,
+  shortcut,
 }: {
   readonly className: string;
   readonly icon: LxIconDefinition;
   readonly label: string;
+  readonly shortcut: string;
 }): HTMLButtonElement => {
   const button = document.createElement("button");
   button.type = "button";
   button.className = className;
   button.title = label;
   button.setAttribute("aria-label", label);
+  button.setAttribute("aria-keyshortcuts", shortcut);
   button.append(createLxIcon({
     icon,
     size: 14,

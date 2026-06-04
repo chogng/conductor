@@ -8,11 +8,19 @@ import { TableContributionId } from "src/cs/workbench/contrib/table/common/table
 import TableViewPane, {
   type TableViewPaneProps,
 } from "src/cs/workbench/contrib/table/browser/tableViewPane";
+import { registerTableActions } from "src/cs/workbench/contrib/table/browser/tableActions";
+import { registerTableGestures } from "src/cs/workbench/contrib/table/browser/tableGestures";
 
 import "src/cs/workbench/contrib/table/browser/media/tableView.css";
 
 export class TableContribution extends Disposable implements IWorkbenchContribution {
   private readonly pane = this._register(new MutableDisposable<TableViewPane>());
+
+  public constructor() {
+    super();
+    this._register(registerTableActions(this));
+    this._register(registerTableGestures(this));
+  }
 
   public get element(): HTMLElement | null {
     return this.pane.current?.element ?? null;

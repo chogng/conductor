@@ -76,6 +76,9 @@ export class TableView {
     this.props = props;
     this.element = document.createElement("div");
     this.element.className = "table_view";
+    this.element.tabIndex = 0;
+    this.element.setAttribute("role", "region");
+    this.element.setAttribute("aria-label", localize("table.view.ariaLabel", "Table"));
     this.body.className = "table_view_body";
     this.header.className = "table_view_grid_header";
     this.headerCorner.className = "table_view_grid_header_corner";
@@ -121,6 +124,31 @@ export class TableView {
     this.scrollArea.dispose();
     this.element.replaceChildren();
     this.element.remove();
+  }
+
+  public focus(): void {
+    this.element.focus();
+  }
+
+  public scrollHorizontally(delta: number): boolean {
+    if (!this.isTableVisible()) {
+      return false;
+    }
+
+    const viewport = this.scrollArea.viewport;
+    const previousScrollLeft = viewport.scrollLeft;
+    const maxScrollLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
+    const nextScrollLeft = Math.min(
+      maxScrollLeft,
+      Math.max(0, previousScrollLeft + delta),
+    );
+    if (nextScrollLeft === previousScrollLeft) {
+      return false;
+    }
+
+    viewport.scrollLeft = nextScrollLeft;
+    this.syncHeaderScroll();
+    return true;
   }
 
   private bindTableState(tableModel: TableModel): void {
@@ -517,6 +545,7 @@ export class TableView {
 
     const tableModel = this.props.tableModel;
     tableModel.setSelection(toggleSelectedColumn(tableModel.getSelection(), colIndex));
+    this.focus();
   }
 
   private onBodyClick(event: MouseEvent): void {
@@ -553,6 +582,7 @@ export class TableView {
         sheetId: tableFile?.sheetId ?? null,
       },
     });
+    this.focus();
   }
 
   private syncHeaderScroll(): void {
