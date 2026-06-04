@@ -1,41 +1,50 @@
-﻿import { localize } from "src/cs/nls";
+﻿/* Origin 导出时的绘图/轴/命令设置 */
+
+import { localize } from "src/cs/nls";
 
 import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBox";
 import Scrollbar from "src/cs/base/browser/ui/scrollbar/scrollbar";
 import { createSwitch } from "src/cs/base/browser/ui/switch/switch";
-import { Disposable, DisposableStore, toDisposable } from "src/cs/base/common/lifecycle";
+import { DisposableStore, toDisposable } from "src/cs/base/common/lifecycle";
+import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import {
   DEFAULT_ORIGIN_PLOT_OPTIONS,
   normalizeOriginPlotOptions,
   type OriginPlotOptions,
 } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
+import { OriginExportSettingsViewId } from "src/cs/workbench/contrib/origin/common/origin";
 import {
   DEFAULT_PLOT_AXIS_SETTINGS,
   normalizePlotAxisSettings,
   type PlotAxisSettings,
 } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
 
-import "src/cs/workbench/contrib/origin/browser/media/originView.css";
+import "src/cs/workbench/contrib/origin/browser/media/exportSettingsView.css";
+import "src/cs/workbench/browser/parts/views/media/secondaryViews.css";
 
-export type OriginViewOptions = {
+export type ExportSettingsViewOptions = {
   readonly axisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly onAxisChange?: (updates: Record<string, unknown>) => void | Promise<void>;
   readonly onChange?: (updates: Partial<OriginPlotOptions>) => void | Promise<void>;
   readonly options?: OriginPlotOptions;
 };
 
-export class OriginView extends Disposable {
-  public readonly element = document.createElement("div");
-  private readonly renderStore = this._register(new DisposableStore());
-  private readonly scrollArea = this._register(new Scrollbar({
-    className: "origin_view_scroll",
-    viewportClassName: "origin_view_scroll_viewport",
-  }));
+export class ExportSettingsView extends ViewPane {
+  private readonly renderStore = new DisposableStore();
+  private readonly scrollArea = new Scrollbar({
+    className: "export_settings_view_scroll",
+    viewportClassName: "export_settings_view_scroll_viewport",
+  });
 
   constructor() {
-    super();
-    this.element.className = "origin_view";
-    this.element.append(this.scrollArea.element);
+    super({
+      id: OriginExportSettingsViewId,
+      title: localize("da_chart_curve_settings_title", "Curve Settings"),
+      className: "secondary_view_pane export_settings_view",
+      bodyClassName: "workbench-part-view-pane__body",
+      headerVisible: false,
+    });
+    this.body.append(this.scrollArea.element);
   }
 
   public update({
@@ -43,14 +52,14 @@ export class OriginView extends Disposable {
     onAxisChange,
     onChange,
     options,
-  }: OriginViewOptions): void {
+  }: ExportSettingsViewOptions): void {
     this.renderStore.clear();
     const normalizedOptions = normalizeOriginPlotOptions(
       options,
       DEFAULT_ORIGIN_PLOT_OPTIONS,
     );
 
-    this.scrollArea.viewport.replaceChildren(createOriginView({
+    this.scrollArea.viewport.replaceChildren(createExportSettingsView({
       axisSettings: normalizePlotAxisSettings(axisSettings, DEFAULT_PLOT_AXIS_SETTINGS),
       onAxisChange,
       onChange,
@@ -62,11 +71,13 @@ export class OriginView extends Disposable {
 
   public override dispose(): void {
     this.scrollArea.viewport.replaceChildren();
+    this.renderStore.dispose();
+    this.scrollArea.dispose();
     super.dispose();
   }
 }
 
-const createOriginView = ({
+const createExportSettingsView = ({
   axisSettings,
   onAxisChange,
   onChange,
@@ -80,7 +91,7 @@ const createOriginView = ({
   readonly store: DisposableStore;
 }): HTMLElement => {
   const root = document.createElement("div");
-  root.className = "origin_view_content";
+  root.className = "export_settings_view_content";
 
   root.append(
     createSettingsGroup(localize("da_chart_curve_settings_title", "Curve Settings"), [
@@ -93,7 +104,7 @@ const createOriginView = ({
         label: localize("da_settings_origin_plot_line_width_label", "Line width"),
       }),
     ]),
-    createSettingsGroup(localize("da_origin_view_plot_settings_title", "Plot Settings"), [
+    createSettingsGroup(localize("da_origin_export_settings_plot_title", "Plot Settings"), [
       createSettingsRow({
         control: createBooleanSwitch({
           checked: axisSettings.showGrid,
@@ -120,7 +131,7 @@ const createOriginView = ({
       }),
       createSettingsField({
         control: createAxisTextInput({
-          id: "origin-view-minor-tick-count",
+          id: "export-settings-minor-tick-count",
           onChange: (value) => void onAxisChange?.({ minorTickCount: value }),
           placeholder: "1",
           store,
@@ -130,7 +141,7 @@ const createOriginView = ({
       }),
       createSettingsField({
         control: createAxisTextInput({
-          id: "origin-view-tick-label-font-size",
+          id: "export-settings-tick-label-font-size",
           onChange: (value) => void onAxisChange?.({ tickLabelFontSize: value }),
           placeholder: localize("da_chart_axis_auto", "auto"),
           store,
@@ -140,7 +151,7 @@ const createOriginView = ({
       }),
       createSettingsField({
         control: createAxisTextInput({
-          id: "origin-view-axis-title-font-size",
+          id: "export-settings-axis-title-font-size",
           onChange: (value) => void onAxisChange?.({ axisTitleFontSize: value }),
           placeholder: localize("da_chart_axis_auto", "auto"),
           store,
@@ -150,7 +161,7 @@ const createOriginView = ({
       }),
       createSettingsField({
         control: createAxisTextInput({
-          id: "origin-view-legend-font-size",
+          id: "export-settings-legend-font-size",
           onChange: (value) => void onAxisChange?.({ legendFontSize: value }),
           placeholder: localize("da_chart_axis_auto", "auto"),
           store,
@@ -160,7 +171,7 @@ const createOriginView = ({
       }),
       createSettingsField({
         control: createAxisTextInput({
-          id: "origin-view-tick-label-offset",
+          id: "export-settings-tick-label-offset",
           onChange: (value) => void onAxisChange?.({ originTickLabelOffset: value }),
           placeholder: localize("da_chart_axis_auto", "auto"),
           store,
@@ -170,7 +181,7 @@ const createOriginView = ({
       }),
       createSettingsField({
         control: createAxisTextInput({
-          id: "origin-view-axis-title-gap",
+          id: "export-settings-axis-title-gap",
           onChange: (value) => void onAxisChange?.({ originAxisTitleGap: value }),
           placeholder: localize("da_chart_axis_auto", "auto"),
           store,
@@ -204,7 +215,7 @@ const createOriginView = ({
     createSettingsGroup(localize("da_settings_origin_plot_title", "Default Plot Settings"), [
       createSettingsField({
         control: createTextInput({
-          id: "origin-view-xy-pairs",
+          id: "export-settings-xy-pairs",
           onChange: (value) => {
             const normalized = normalizeOriginPlotOptions({ xyPairs: value }, options);
             void onChange?.({ xyPairs: normalized.xyPairs });
@@ -217,7 +228,7 @@ const createOriginView = ({
       }),
       createSettingsField({
         control: createTextInput({
-          id: "origin-view-command",
+          id: "export-settings-command",
           onChange: (value) => {
             const normalized = normalizeOriginPlotOptions({ command: value }, options);
             void onChange?.({ command: normalized.command });
@@ -240,9 +251,9 @@ const createOriginView = ({
 
 const createSettingsGroup = (titleText: string, fields: HTMLElement[]): HTMLElement => {
   const group = document.createElement("section");
-  group.className = "origin_view_group";
+  group.className = "export_settings_view_group";
   const title = document.createElement("div");
-  title.className = "origin_view_group_title";
+  title.className = "export_settings_view_group_title";
   title.textContent = titleText;
   group.append(title, ...fields);
   return group;
@@ -258,10 +269,10 @@ const createSettingsField = ({
   readonly label: string;
 }): HTMLElement => {
   const field = document.createElement("div");
-  field.className = "origin_view_field";
+  field.className = "export_settings_view_field";
 
   const label = document.createElement("label");
-  label.className = "origin_view_label";
+  label.className = "export_settings_view_label";
   label.textContent = labelText;
   const controlId = getSettingsControlId(control);
   if (controlId) {
@@ -276,7 +287,7 @@ const createSettingsField = ({
 
     const hintElement = document.createElement("p");
     hintElement.id = hintId;
-    hintElement.className = "origin_view_hint";
+    hintElement.className = "export_settings_view_hint";
     hintElement.textContent = hint;
     field.append(label, control, hintElement);
     return field;
@@ -294,9 +305,9 @@ const createSettingsRow = ({
   readonly label: string;
 }): HTMLElement => {
   const field = document.createElement("div");
-  field.className = "origin_view_row";
+  field.className = "export_settings_view_row";
   const label = document.createElement("div");
-  label.className = "origin_view_label";
+  label.className = "export_settings_view_label";
   label.textContent = labelText;
   field.append(label, control);
   return field;
@@ -327,7 +338,7 @@ const createAxisSettingsGroup = ({
   return createSettingsGroup(label, [
     createSettingsField({
       control: createAxisTextInput({
-        id: `origin-view-${minKey}`,
+        id: `export-settings-${minKey}`,
         onChange: (value) => void onAxisChange?.({ [minKey]: value }),
         placeholder: localize("da_chart_axis_auto", "auto"),
         store,
@@ -337,7 +348,7 @@ const createAxisSettingsGroup = ({
     }),
     createSettingsField({
       control: createAxisTextInput({
-        id: `origin-view-${maxKey}`,
+        id: `export-settings-${maxKey}`,
         onChange: (value) => void onAxisChange?.({ [maxKey]: value }),
         placeholder: localize("da_chart_axis_auto", "auto"),
         store,
@@ -347,7 +358,7 @@ const createAxisSettingsGroup = ({
     }),
     createSettingsField({
       control: createAxisTickSelect({
-        id: `origin-view-${ticksKey}`,
+        id: `export-settings-${ticksKey}`,
         isY,
         onChange: (value) => {
           const updates = {
@@ -365,7 +376,7 @@ const createAxisSettingsGroup = ({
     createSettingsField({
       control: createAxisTextInput({
         disabled: axisSettings[ticksKey] !== "nice",
-        id: `origin-view-${tickCountKey}`,
+        id: `export-settings-${tickCountKey}`,
         onChange: (value) => void onAxisChange?.({ [tickCountKey]: value }),
         placeholder: "6",
         store,
@@ -376,7 +387,7 @@ const createAxisSettingsGroup = ({
     createSettingsField({
       control: createAxisTextInput({
         disabled: axisSettings[ticksKey] !== "step",
-        id: `origin-view-${stepKey}`,
+        id: `export-settings-${stepKey}`,
         onChange: (value) => void onAxisChange?.({ [stepKey]: value }),
         placeholder: localize("da_chart_axis_auto", "auto"),
         store,
@@ -389,12 +400,12 @@ const createAxisSettingsGroup = ({
 
 const createPlotTypeSelect = (
   options: OriginPlotOptions,
-  onChange: OriginViewOptions["onChange"],
+  onChange: ExportSettingsViewOptions["onChange"],
   store: DisposableStore,
 ): HTMLSelectElement => {
   const select = document.createElement("select");
-  select.id = "origin-view-type";
-  select.className = "dropdown-field dropdown-field--sm origin_view_control";
+  select.id = "export-settings-type";
+  select.className = "dropdown-field dropdown-field--sm export_settings_view_control";
   select.value = String(options.type);
   for (const option of [
     { value: "200", label: localize("da_settings_origin_plot_type_200", "Line") },
@@ -433,7 +444,7 @@ const createAxisTickSelect = ({
 }): HTMLSelectElement => {
   const select = document.createElement("select");
   select.id = id;
-  select.className = "dropdown-field dropdown-field--sm origin_view_control";
+  select.className = "dropdown-field dropdown-field--sm export_settings_view_control";
   select.value = String(value);
   const options = isY
     ? [
@@ -461,21 +472,21 @@ const createAxisTickSelect = ({
 
 const createLineWidthInput = (
   options: OriginPlotOptions,
-  onChange: OriginViewOptions["onChange"],
+  onChange: ExportSettingsViewOptions["onChange"],
   store: DisposableStore,
 ): HTMLElement => {
   const input = document.createElement("input");
-  input.id = "origin-view-line-width";
+  input.id = "export-settings-line-width";
   input.type = "number";
   input.min = "0.5";
   input.max = "20";
   input.step = "0.5";
   input.value = String(options.lineWidth);
   const wrapper = createInputBoxField({
-    className: "origin_view_control",
-    fieldClassName: "origin_view_input_field",
+    className: "export_settings_view_control",
+    fieldClassName: "export_settings_view_input_field",
     input,
-    inputClassName: "origin_view_input",
+    inputClassName: "export_settings_view_input",
   }).element;
   const listener = () => {
     const normalized = normalizeOriginPlotOptions(
@@ -512,10 +523,10 @@ const createAxisTextInput = ({
   input.type = "text";
   input.value = String(value ?? "");
   const wrapper = createInputBoxField({
-    className: "origin_view_control",
-    fieldClassName: "origin_view_input_field",
+    className: "export_settings_view_control",
+    fieldClassName: "export_settings_view_input_field",
     input,
-    inputClassName: "origin_view_input",
+    inputClassName: "export_settings_view_input",
   }).element;
   let lastValue = input.value.trim();
   const commit = () => {
@@ -573,10 +584,10 @@ const createTextInput = ({
   input.value = value;
   input.type = "text";
   const wrapper = createInputBoxField({
-    className: "origin_view_control",
-    fieldClassName: "origin_view_input_field",
+    className: "export_settings_view_control",
+    fieldClassName: "export_settings_view_input_field",
     input,
-    inputClassName: "origin_view_input",
+    inputClassName: "export_settings_view_input",
   }).element;
   let lastValue = value;
   const commit = () => {
@@ -604,12 +615,12 @@ const createTextInput = ({
 
 const createPostCommandsInput = (
   options: OriginPlotOptions,
-  onChange: OriginViewOptions["onChange"],
+  onChange: ExportSettingsViewOptions["onChange"],
   store: DisposableStore,
 ): HTMLTextAreaElement => {
   const textarea = document.createElement("textarea");
-  textarea.id = "origin-view-post-commands";
-  textarea.className = "origin_view_textarea";
+  textarea.id = "export-settings-post-commands";
+  textarea.className = "export_settings_view_textarea";
   textarea.value = options.postCommands.join("\n");
   let lastValue = textarea.value.trim();
   const listener = () => {
@@ -659,4 +670,4 @@ const getNativeControl = (
   return null;
 };
 
-export default OriginView;
+export default ExportSettingsView;

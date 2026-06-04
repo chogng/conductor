@@ -1,5 +1,3 @@
-export const ExportContributionId = "workbench.contrib.export";
-
 export const ExportViewId = "workbench.export";
 
 export interface IExportService {

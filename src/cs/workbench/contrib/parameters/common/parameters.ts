@@ -1,5 +1,3 @@
-export const ParametersContributionId = "workbench.contrib.parameters";
-
 export const ParametersViewId = "workbench.parameters";
 
 export interface IParametersService<

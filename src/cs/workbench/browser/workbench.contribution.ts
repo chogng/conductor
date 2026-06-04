@@ -4,10 +4,8 @@ import { localize } from "src/cs/nls";
 import { SyncDescriptor } from "src/cs/platform/instantiation/common/descriptors";
 import { Registry } from "src/cs/platform/registry/common/platform";
 import { ViewPaneContainer } from "src/cs/workbench/browser/parts/views/viewPaneContainer";
-import {
-  Workbench,
-  WorkbenchViewContainers,
-} from "src/cs/workbench/browser/workbench";
+import { Workbench } from "src/cs/workbench/browser/workbench";
+import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
 import { hideWorkbenchSplash } from "src/cs/workbench/contrib/splash/browser/partsSplash";
 import {
   IFileDialogService,
@@ -142,6 +140,7 @@ function registerContainer(id: string, title: string, location: ViewContainerLoc
     ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [{
       className: "workbench-part-view-pane-container",
       id,
+      renderHeader: id === WorkbenchViewContainers.secondary,
       title,
     }]),
   }, location, { isDefault: true, doNotRegisterOpenCommand: true });

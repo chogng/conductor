@@ -7,8 +7,8 @@ import {
   type IViewContainersRegistry,
   type IViewsRegistry,
 } from "src/cs/workbench/common/views";
-import { ExportView } from "src/cs/workbench/contrib/export/browser/exportView";
-import { ExportViewId } from "src/cs/workbench/contrib/export/common/export";
+import { ExportSettingsView } from "src/cs/workbench/contrib/origin/browser/exportSettingsView";
+import { OriginExportSettingsViewId } from "src/cs/workbench/contrib/origin/common/origin";
 
 const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry);
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
@@ -16,10 +16,10 @@ const container = viewContainersRegistry.get(WorkbenchViewContainers.secondary);
 
 if (container) {
   viewsRegistry.registerViews([{
-    id: ExportViewId,
-    name: localize("da_analysis_views_export", "Export"),
-    ctorDescriptor: new SyncDescriptor(ExportView),
+    id: OriginExportSettingsViewId,
+    name: localize("da_chart_curve_settings_title", "Curve Settings"),
+    ctorDescriptor: new SyncDescriptor(ExportSettingsView),
     hideByDefault: true,
-    order: 10,
+    order: 30,
   }], container);
 }

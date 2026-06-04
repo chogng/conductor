@@ -1,4 +1,6 @@
-import { Disposable, DisposableStore, toDisposable } from "src/cs/base/common/lifecycle";
+import { DisposableStore } from "src/cs/base/common/lifecycle";
+import { localize } from "src/cs/nls";
+import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import OriginExportToolbar, {
   type OriginCurveExportSeriesOption,
   type OriginExportContentOption,
@@ -13,13 +15,15 @@ import type {
   OriginExportContentKey,
   OriginExportMode,
 } from "src/cs/workbench/contrib/export/common/originSelectionExport";
+import { ExportViewId } from "src/cs/workbench/contrib/export/common/export";
 
 import "src/cs/workbench/contrib/export/browser/media/export.css";
+import "src/cs/workbench/browser/parts/views/media/secondaryViews.css";
 
 type StateSetter<T> = (value: T | ((previous: T) => T)) => void;
 
 
-export type ExportViewPaneOptions = {
+export type ExportViewOptions = {
   curveOptions: OriginCurveExportSeriesOption[];
   hasMixedExportYScales: boolean;
   mode: OriginExportMode;
@@ -42,21 +46,38 @@ export type ExportViewPaneOptions = {
   showFilteredCanvasKindSelect: boolean;
 };
 
-export class ExportViewPane extends Disposable {
-  private readonly toolbarStore = this._register(new DisposableStore());
+export class ExportView extends ViewPane {
+  private readonly toolbarStore = new DisposableStore();
 
-  constructor(private readonly container: HTMLElement) {
-    super();
-    this._register(toDisposable(() => {
-      this.container.textContent = "";
-    }));
+  constructor() {
+    super({
+      id: ExportViewId,
+      title: localize("da_analysis_views_export", "Export"),
+      className: "secondary_view_pane",
+      bodyClassName: "workbench-part-view-pane__body secondary_views_body",
+      headerVisible: false,
+    });
   }
 
-  render(options: ExportViewPaneOptions): void {
+  render(options: ExportViewOptions): void {
     this.toolbarStore.clear();
-    this.container.replaceChildren(OriginExportToolbar({
+    this.body.replaceChildren(OriginExportToolbar({
       ...options,
       store: this.toolbarStore,
     }));
+  }
+
+  renderEmpty(message: string): void {
+    this.toolbarStore.clear();
+    const root = document.createElement("div");
+    root.className = "secondary_views_empty";
+    root.textContent = message;
+    this.body.replaceChildren(root);
+  }
+
+  public override dispose(): void {
+    this.toolbarStore.dispose();
+    this.body.replaceChildren();
+    super.dispose();
   }
 }
