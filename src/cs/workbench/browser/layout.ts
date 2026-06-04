@@ -23,7 +23,13 @@ import {
 import {
   WorkbenchAuxiliaryBarPart,
   WorkbenchAuxiliaryBarPaneId,
+  type AuxiliaryBarPaneContainerInput,
+  type AuxiliaryBarPaneContainerState,
 } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart";
+import type {
+  AuxiliaryBarMode,
+  AuxiliaryBarView,
+} from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions";
 
 export const SIDEBAR_DEFAULT_WIDTH_PX = 300;
 export const SIDEBAR_MIN_WIDTH_PX = 220;
@@ -259,6 +265,20 @@ export class Layout extends Disposable {
   }
 
   protected onDidRenderLayout(): void {}
+
+  protected updateAuxiliaryBarPaneContainer(
+    input: AuxiliaryBarPaneContainerInput,
+  ): AuxiliaryBarPaneContainerState {
+    return this.auxiliaryBarPart.updatePaneContainer(input);
+  }
+
+  protected getAuxiliaryBarActiveView(mode: AuxiliaryBarMode): AuxiliaryBarView {
+    return this.auxiliaryBarPart.getActiveView(mode);
+  }
+
+  protected getAuxiliaryBarActiveViewId(mode: AuxiliaryBarMode): string | null {
+    return this.auxiliaryBarPart.getActiveViewId(mode);
+  }
 
   private renderMain(): void {
     const state = this.navigation.getState().layoutState;

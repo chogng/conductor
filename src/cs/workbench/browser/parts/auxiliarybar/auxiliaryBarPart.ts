@@ -1,6 +1,15 @@
 import { Emitter } from "src/cs/base/common/event";
 import { Disposable } from "src/cs/base/common/lifecycle";
 import type { SplitViewPane } from "src/cs/base/browser/ui/splitview/splitview";
+import type { IViewPaneContainer } from "src/cs/workbench/common/views";
+import {
+  AuxiliaryBarViews,
+  createAuxiliaryBarActions,
+  getAuxiliaryBarTitle,
+  resolveAuxiliaryBarView,
+  type AuxiliaryBarMode,
+  type AuxiliaryBarView,
+} from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions";
 
 export const WorkbenchAuxiliaryBarClassName = "workbench_layout_auxiliarybar";
 export const WorkbenchAuxiliaryBarPaneId = "workbench-auxiliarybar";
@@ -20,6 +29,23 @@ export const clampAuxiliaryBarWidth = (width: number): number =>
     AUXILIARY_BAR_MIN_WIDTH_PX,
     Math.min(AUXILIARY_BAR_MAX_WIDTH_PX, Math.round(width)),
   );
+
+export type AuxiliaryBarPaneContainerInput = {
+  readonly container: IViewPaneContainer;
+  readonly mode: AuxiliaryBarMode;
+  readonly onDidChangeActiveView: () => void;
+  readonly visible: boolean;
+};
+
+export type AuxiliaryBarViewState = {
+  readonly viewId: string;
+  readonly visible: boolean;
+};
+
+export type AuxiliaryBarPaneContainerState = {
+  readonly activeView: AuxiliaryBarView;
+  readonly views: readonly AuxiliaryBarViewState[];
+};
 
 export class WorkbenchAuxiliaryBarLayout {
   private _width = AUXILIARY_BAR_DEFAULT_WIDTH_PX;
@@ -57,6 +83,7 @@ export const createAuxiliaryBarSplitPane = (
 
 export class WorkbenchAuxiliaryBarPart extends Disposable {
   private readonly layout = this._register(new WorkbenchAuxiliaryBarLayout());
+  private activeView: AuxiliaryBarView = "template";
 
   public readonly element = createAuxiliaryBarPart();
   public readonly onDidChangeWidth = this.layout.onDidChangeWidth;
@@ -75,5 +102,65 @@ export class WorkbenchAuxiliaryBarPart extends Disposable {
 
   public createDefaultSplitPane(): SplitViewPane {
     return createAuxiliaryBarSplitPane();
+  }
+
+  public getActiveView(mode: AuxiliaryBarMode): AuxiliaryBarView {
+    return this.resolveActiveView(mode);
+  }
+
+  public getActiveViewId(mode: AuxiliaryBarMode): string | null {
+    const activeView = this.resolveActiveView(mode);
+    return AuxiliaryBarViews.find(view => view.id === activeView)?.viewId ?? null;
+  }
+
+  public updatePaneContainer(
+    input: AuxiliaryBarPaneContainerInput,
+  ): AuxiliaryBarPaneContainerState {
+    const activeView = this.resolveActiveView(input.mode);
+    input.container.setTitle(
+      input.visible ? getAuxiliaryBarTitle(input.mode) : "",
+    );
+    input.container.setActions(
+      input.visible && input.mode === "chart"
+        ? createAuxiliaryBarActions({
+            activeView,
+            mode: input.mode,
+            onSelect: (view) => {
+              if (this.setActiveView(view, input.mode)) {
+                input.onDidChangeActiveView();
+              }
+            },
+          })
+        : [],
+    );
+    return {
+      activeView,
+      views: this.getViewStates(input.mode, input.visible),
+    };
+  }
+
+  private resolveActiveView(mode: AuxiliaryBarMode): AuxiliaryBarView {
+    this.activeView = resolveAuxiliaryBarView(this.activeView, mode);
+    return this.activeView;
+  }
+
+  private setActiveView(view: AuxiliaryBarView, mode: AuxiliaryBarMode): boolean {
+    const nextView = resolveAuxiliaryBarView(view, mode);
+    if (this.activeView === nextView) {
+      return false;
+    }
+    this.activeView = nextView;
+    return true;
+  }
+
+  private getViewStates(
+    mode: AuxiliaryBarMode,
+    visible: boolean,
+  ): readonly AuxiliaryBarViewState[] {
+    const activeView = this.resolveActiveView(mode);
+    return AuxiliaryBarViews.map(view => ({
+      viewId: view.viewId,
+      visible: visible && view.mode === mode && view.id === activeView,
+    }));
   }
 }

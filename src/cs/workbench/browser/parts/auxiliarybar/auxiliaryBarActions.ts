@@ -59,6 +59,11 @@ export const getDefaultAuxiliaryBarView = (
 ): AuxiliaryBarView =>
   mode === "chart" ? "export" : "template";
 
+export const getAuxiliaryBarTitle = (mode: AuxiliaryBarMode): string =>
+  mode === "chart"
+    ? localize("auxiliarybar_chart_title", "分析与可视化")
+    : localize("auxiliarybar_table_title", "模板管理");
+
 export const resolveAuxiliaryBarView = (
   view: AuxiliaryBarView,
   mode: AuxiliaryBarMode,

@@ -34,10 +34,6 @@ import {
 } from "src/cs/workbench/browser/parts/titlebar/titlebarPart";
 import {
   AuxiliaryBarViews,
-  createAuxiliaryBarActions,
-  getAuxiliaryBarViews,
-  resolveAuxiliaryBarView,
-  type AuxiliaryBarView,
 } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions";
 import type { WorkbenchStyle } from "src/cs/workbench/browser/style";
 import {
@@ -245,8 +241,6 @@ export class Workbench extends Layout {
   private activeMainPart: WorkbenchMainPart = resolveInitialMainPart(
     this.session.getSnapshot(),
   );
-  private activeAuxiliaryBarView: AuxiliaryBarView =
-    this.activeMainPart === "chart" ? "export" : "template";
   private selectedAnalysisFileId: string | null = null;
   private originMode: OriginExportMode = "merged";
   private canvasScope: OriginCanvasExportScope = "current";
@@ -348,10 +342,6 @@ export class Workbench extends Layout {
 
   private renderWorkbench(): void {
     const snapshot = this.session.getSnapshot();
-    this.activeAuxiliaryBarView = resolveAuxiliaryBarView(
-      this.activeAuxiliaryBarView,
-      this.activeMainPart,
-    );
     this.clearStaleAnalysisFileSelection(snapshot);
     const tableModel = this.getTableModel(snapshot);
     this.templateApply.update(this.getTemplateApplyInput(snapshot, tableModel));
@@ -484,28 +474,8 @@ export class Workbench extends Layout {
       this.viewsService.setViewVisible(this.table.view.id, isWorkbenchActive && !isAnalysisActive);
     }
     this.viewsService.setViewVisible(this.analysis.id, isWorkbenchActive && isAnalysisActive);
-    this.updateAuxiliaryBarViewVisibility(isWorkbenchActive);
     this.viewsService.setViewVisible(this.settings.id, isSettingsActive);
-    this.updateAuxiliaryBarActions(isWorkbenchActive);
-  }
-
-  private updateAuxiliaryBarViewVisibility(visible: boolean): void {
-    if (!visible) {
-      this.closeAuxiliaryBarViews();
-      return;
-    }
-
-    const activeViews = getAuxiliaryBarViews(this.activeMainPart);
-    for (const view of AuxiliaryBarViews) {
-      if (
-        view.id === this.activeAuxiliaryBarView &&
-        activeViews.some((activeView) => activeView.id === view.id)
-      ) {
-        void this.viewsService.openView(view.viewId);
-      } else {
-        this.viewsService.closeView(view.viewId);
-      }
-    }
+    this.updateAuxiliaryBar(isWorkbenchActive);
   }
 
   private closeAuxiliaryBarViews(): void {
@@ -514,29 +484,30 @@ export class Workbench extends Layout {
     }
   }
 
-  private updateAuxiliaryBarActions(visible: boolean): void {
+  private updateAuxiliaryBar(visible: boolean): void {
     const container = this.viewsService.getActiveViewPaneContainerWithId(WorkbenchViewContainers.auxiliarybar);
     if (!container) {
+      this.closeAuxiliaryBarViews();
       return;
     }
 
-    container.setTitle("");
-    container.setActions(visible
-      ? createAuxiliaryBarActions({
-          activeView: this.activeAuxiliaryBarView,
-          mode: this.activeMainPart,
-          onSelect: (view) => this.setActiveAuxiliaryBarView(view),
-        })
-      : []);
+    const state = this.updateAuxiliaryBarPaneContainer({
+      container,
+      mode: this.activeMainPart,
+      onDidChangeActiveView: () => this.handleAuxiliaryBarActiveViewChange(),
+      visible,
+    });
+
+    for (const view of state.views) {
+      if (view.visible) {
+        void this.viewsService.openView(view.viewId);
+      } else {
+        this.viewsService.closeView(view.viewId);
+      }
+    }
   }
 
-  private setActiveAuxiliaryBarView(view: AuxiliaryBarView): void {
-    const nextView = resolveAuxiliaryBarView(view, this.activeMainPart);
-    if (this.activeAuxiliaryBarView === nextView) {
-      return;
-    }
-
-    this.activeAuxiliaryBarView = nextView;
+  private handleAuxiliaryBarActiveViewChange(): void {
     this.updateViewContainers();
     this.renderAuxiliaryBarView();
     this.layoutVisibleViewContainers();
@@ -550,7 +521,7 @@ export class Workbench extends Layout {
     const props = this.getAuxiliaryBarViewInput(snapshot);
     const activeFile = this.resolveActiveFile(snapshot);
 
-    switch (this.activeAuxiliaryBarView) {
+    switch (this.getAuxiliaryBarActiveView(this.activeMainPart)) {
       case "template":
         break;
       case "parameters":
@@ -650,10 +621,8 @@ export class Workbench extends Layout {
   }
 
   private getActiveAuxiliaryBarElement(): HTMLElement | null {
-    const descriptor = AuxiliaryBarViews.find(view => view.id === this.activeAuxiliaryBarView);
-    return descriptor
-      ? this.viewsService.getViewWithId(descriptor.viewId)?.element ?? null
-      : null;
+    const viewId = this.getAuxiliaryBarActiveViewId(this.activeMainPart);
+    return viewId ? this.viewsService.getViewWithId(viewId)?.element ?? null : null;
   }
 
   private syncCurveSelection(activeFile: CleanedEntry): void {
@@ -707,10 +676,6 @@ export class Workbench extends Layout {
   private showMainPart(part: WorkbenchMainPart): void {
     if (this.activeMainPart !== part) {
       this.activeMainPart = part;
-      this.activeAuxiliaryBarView = resolveAuxiliaryBarView(
-        this.activeAuxiliaryBarView,
-        part,
-      );
     }
     if (this.activeView !== "data") {
       this.navigateToView("data");
