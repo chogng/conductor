@@ -1,7 +1,12 @@
 import { localize } from "src/cs/nls";
 
-import type { OriginFilteredCanvasKind, OriginCanvasExportScope } from "./originCanvasExport.ts";
-import type { OriginExportMode } from "../common/originSelectionExport.ts";
+import type { OriginCurveExportSeriesOption, OriginExportContentOption } from "src/cs/workbench/contrib/export/browser/OriginExportToolbar";
+import type { OriginFilteredCanvasKind, OriginCanvasExportScope } from "src/cs/workbench/contrib/export/browser/originCanvasExport";
+import type {
+  OriginExportContentKey,
+  OriginExportMode,
+} from "src/cs/workbench/contrib/export/common/originSelectionExport";
+import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 
 export type ExportPaneState = {
   isExportListCanvasSelectionMode: boolean;
@@ -9,6 +14,34 @@ export type ExportPaneState = {
   isManualCanvasScope: boolean;
   showFilteredCanvasKindSelect: boolean;
 };
+
+export const ORIGIN_EXPORT_CONTENT_OPTIONS: OriginExportContentOption[] = [
+  { group: "basic", key: "iv", labelKey: "da_origin_export_content_iv" },
+  { group: "derived", key: "metrics", labelKey: "da_origin_export_content_metrics" },
+  { group: "derived", key: "gm", labelKey: "da_origin_export_content_gm" },
+  { group: "derived", key: "ss", labelKey: "da_origin_export_content_ss" },
+  { group: "derived", key: "vth", labelKey: "da_origin_export_content_vth" },
+];
+
+export const createOriginCurveOptions = (
+  file: CleanedEntry,
+): OriginCurveExportSeriesOption[] =>
+  (Array.isArray(file?.series) ? file.series : [])
+    .map((series, index) => {
+      const seriesId = String(series?.id ?? "");
+      if (!seriesId) return null;
+      return {
+        key: seriesId,
+        label: String(series?.name ?? `Series ${index + 1}`),
+        sourceFileId: String(file?.fileId ?? ""),
+        sourceSeriesId: seriesId,
+      };
+    })
+    .filter((option): option is OriginCurveExportSeriesOption => Boolean(option));
+
+export const normalizeOriginExportContentKeys = (
+  keys: readonly OriginExportContentKey[],
+): OriginExportContentKey[] => Array.from(new Set(keys));
 
 export const createExportPaneState = ({
   originCanvasExportScope,

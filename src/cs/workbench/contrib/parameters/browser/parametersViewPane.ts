@@ -16,15 +16,15 @@ import type { RcCurveChartSeries } from "src/cs/workbench/contrib/parameters/bro
 import { ParametersViewId } from "src/cs/workbench/contrib/parameters/common/parameters";
 
 import "src/cs/workbench/contrib/parameters/browser/media/parametersView.css";
-import "src/cs/workbench/browser/parts/views/media/secondaryViews.css";
+import "src/cs/workbench/browser/parts/views/media/secondarySidebarViews.css";
 
 export class ParametersView extends ViewPane {
   constructor() {
     super({
       id: ParametersViewId,
       title: localize("da_analysis_views_parameters", "Parameters"),
-      className: "secondary_view_pane",
-      bodyClassName: "workbench-part-view-pane__body secondary_views_body secondary_views_body--scroll",
+      className: "secondary_sidebar_view_pane",
+      bodyClassName: "workbench-part-view-pane__body secondary_sidebar_view_body secondary_sidebar_view_body--scroll",
       headerVisible: false,
     });
   }
@@ -35,7 +35,7 @@ export class ParametersView extends ViewPane {
 
   renderEmpty(message: string): void {
     const root = document.createElement("div");
-    root.className = "secondary_views_empty";
+    root.className = "secondary_sidebar_view_empty";
     root.textContent = message;
     this.body.replaceChildren(root);
   }

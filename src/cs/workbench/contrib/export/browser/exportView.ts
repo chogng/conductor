@@ -18,7 +18,7 @@ import type {
 import { ExportViewId } from "src/cs/workbench/contrib/export/common/export";
 
 import "src/cs/workbench/contrib/export/browser/media/export.css";
-import "src/cs/workbench/browser/parts/views/media/secondaryViews.css";
+import "src/cs/workbench/browser/parts/views/media/secondarySidebarViews.css";
 
 type StateSetter<T> = (value: T | ((previous: T) => T)) => void;
 
@@ -53,8 +53,8 @@ export class ExportView extends ViewPane {
     super({
       id: ExportViewId,
       title: localize("da_analysis_views_export", "Export"),
-      className: "secondary_view_pane",
-      bodyClassName: "workbench-part-view-pane__body secondary_views_body",
+      className: "secondary_sidebar_view_pane",
+      bodyClassName: "workbench-part-view-pane__body secondary_sidebar_view_body",
       headerVisible: false,
     });
   }
@@ -70,7 +70,7 @@ export class ExportView extends ViewPane {
   renderEmpty(message: string): void {
     this.toolbarStore.clear();
     const root = document.createElement("div");
-    root.className = "secondary_views_empty";
+    root.className = "secondary_sidebar_view_empty";
     root.textContent = message;
     this.body.replaceChildren(root);
   }

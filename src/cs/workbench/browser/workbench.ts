@@ -46,10 +46,8 @@ import {
 import ChartViewPane from "src/cs/workbench/contrib/chart/browser/chartViewPane";
 import {
   createOriginCurveOptions,
-  createParameterRows,
   ORIGIN_EXPORT_CONTENT_OPTIONS,
-  resolveActiveFile,
-} from "src/cs/workbench/browser/secondaryViewModel";
+} from "src/cs/workbench/contrib/export/browser/exportModel";
 import TemplateViewlet from "src/cs/workbench/contrib/template/browser/templateViewlet";
 import { TemplateImportController } from "src/cs/workbench/contrib/template/browser/templateImportController";
 import { getWorkbenchContribution } from "src/cs/workbench/common/contributions";
@@ -90,9 +88,11 @@ import type {
 } from "src/cs/workbench/contrib/export/common/originSelectionExport";
 import { ExportViewId } from "src/cs/workbench/contrib/export/common/export";
 import { ParametersView } from "src/cs/workbench/contrib/parameters/browser/parametersViewPane";
+import { createParameterRows } from "src/cs/workbench/contrib/parameters/browser/parametersModel";
 import { ParametersViewId } from "src/cs/workbench/contrib/parameters/common/parameters";
 import { ExportSettingsView } from "src/cs/workbench/contrib/origin/browser/exportSettingsView";
 import { OriginExportSettingsViewId } from "src/cs/workbench/contrib/origin/common/origin";
+import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 import {
   closeWindow,
@@ -130,18 +130,18 @@ export type WorkbenchTitlebarState = {
 };
 
 type WorkbenchMainPart = "table" | "chart";
-type SecondaryView = "export" | "parameters" | "settings";
+type SecondarySidebarView = "export" | "parameters" | "settings";
 
 type WorkbenchSessionSnapshot = ReturnType<SessionModel["getSnapshot"]>;
 
-type SecondaryViewDescriptor = {
-  readonly id: SecondaryView;
+type SecondarySidebarViewDescriptor = {
+  readonly id: SecondarySidebarView;
   readonly viewId: string;
   readonly labelKey: string;
   readonly label: string;
 };
 
-const secondaryViews: readonly SecondaryViewDescriptor[] = [
+const secondarySidebarViews: readonly SecondarySidebarViewDescriptor[] = [
   {
     id: "export",
     viewId: ExportViewId,
@@ -267,7 +267,7 @@ export class Workbench extends Layout {
   private activeMainPart: WorkbenchMainPart = resolveInitialMainPart(
     this.session.getSnapshot(),
   );
-  private activeSecondaryView: SecondaryView = "export";
+  private activeSecondarySidebarView: SecondarySidebarView = "export";
   private originMode: OriginExportMode = "merged";
   private canvasScope: OriginCanvasExportScope = "current";
   private filteredKind: OriginFilteredCanvasKind = "output";
@@ -385,7 +385,7 @@ export class Workbench extends Layout {
     this.analysis.update(this.getAnalysisProps(snapshot, this.templateApply));
     this.settings.update(this.getSettingsProps());
     this.updateViewContainers();
-    this.renderSecondaryView(snapshot);
+    this.renderSecondarySidebarView(snapshot);
     this.setParts({
       sidebar: this.getViewContainerElement(WorkbenchViewContainers.files, this.filesPane.element),
       data: this.getViewContainerElement(
@@ -394,7 +394,7 @@ export class Workbench extends Layout {
       ),
       secondarySidebar: this.getViewContainerElement(
         WorkbenchViewContainers.secondary,
-        this.activeMainPart === "chart" ? this.getActiveSecondaryElement() : this.templateViewlet.sidebarElement,
+        this.activeMainPart === "chart" ? this.getActiveSecondarySidebarElement() : this.templateViewlet.sidebarElement,
       ),
       settings: this.getViewContainerElement(WorkbenchViewContainers.settings, this.settings.element),
     });
@@ -499,20 +499,20 @@ export class Workbench extends Layout {
       this.viewsService.setViewVisible(this.table.view.id, isWorkbenchActive && !isAnalysisActive);
     }
     this.viewsService.setViewVisible(this.analysis.id, isWorkbenchActive && isAnalysisActive);
-    this.updateSecondaryViewVisibility(isWorkbenchActive && isAnalysisActive);
+    this.updateSecondarySidebarViewVisibility(isWorkbenchActive && isAnalysisActive);
     this.viewsService.setViewVisible(this.templateViewlet.sidebarView.id, isWorkbenchActive && !isAnalysisActive);
     this.viewsService.setViewVisible(this.settings.id, isSettingsActive);
-    this.updateSecondaryViewActions(isWorkbenchActive && isAnalysisActive);
+    this.updateSecondarySidebarActions(isWorkbenchActive && isAnalysisActive);
   }
 
-  private updateSecondaryViewVisibility(visible: boolean): void {
+  private updateSecondarySidebarViewVisibility(visible: boolean): void {
     if (!visible) {
-      this.closeSecondaryViews();
+      this.closeSecondarySidebarViews();
       return;
     }
 
-    for (const view of secondaryViews) {
-      if (view.id === this.activeSecondaryView) {
+    for (const view of secondarySidebarViews) {
+      if (view.id === this.activeSecondarySidebarView) {
         void this.viewsService.openView(view.viewId);
       } else {
         this.viewsService.closeView(view.viewId);
@@ -520,58 +520,58 @@ export class Workbench extends Layout {
     }
   }
 
-  private closeSecondaryViews(): void {
-    for (const view of secondaryViews) {
+  private closeSecondarySidebarViews(): void {
+    for (const view of secondarySidebarViews) {
       this.viewsService.closeView(view.viewId);
     }
   }
 
-  private updateSecondaryViewActions(visible: boolean): void {
+  private updateSecondarySidebarActions(visible: boolean): void {
     const container = this.viewsService.getActiveViewPaneContainerWithId(WorkbenchViewContainers.secondary);
     if (!container) {
       return;
     }
 
     container.setTitle("");
-    container.setActions(visible ? this.createSecondaryViewActions() : []);
+    container.setActions(visible ? this.createSecondarySidebarActions() : []);
   }
 
-  private createSecondaryViewActions(): IAction[] {
-    return secondaryViews.map(view => this.createSecondaryViewAction(view));
+  private createSecondarySidebarActions(): IAction[] {
+    return secondarySidebarViews.map(view => this.createSecondarySidebarAction(view));
   }
 
-  private createSecondaryViewAction(view: SecondaryViewDescriptor): IAction {
+  private createSecondarySidebarAction(view: SecondarySidebarViewDescriptor): IAction {
     const label = localize(view.labelKey, view.label);
     return toAction({
       id: `workbench.secondary.${view.id}`,
       label,
       tooltip: label,
-      class: "secondary_view_switch_action",
-      checked: this.activeSecondaryView === view.id,
-      run: () => this.setActiveSecondaryView(view.id),
+      class: "secondary_sidebar_view_switch_action",
+      checked: this.activeSecondarySidebarView === view.id,
+      run: () => this.setActiveSecondarySidebarView(view.id),
     });
   }
 
-  private setActiveSecondaryView(view: SecondaryView): void {
-    if (this.activeSecondaryView === view) {
+  private setActiveSecondarySidebarView(view: SecondarySidebarView): void {
+    if (this.activeSecondarySidebarView === view) {
       return;
     }
 
-    this.activeSecondaryView = view;
+    this.activeSecondarySidebarView = view;
     this.updateViewContainers();
-    this.renderSecondaryView();
+    this.renderSecondarySidebarView();
     this.layoutVisibleViewContainers();
   }
 
-  private renderSecondaryView(snapshot = this.session.getSnapshot()): void {
+  private renderSecondarySidebarView(snapshot = this.session.getSnapshot()): void {
     if (this.activeMainPart !== "chart" || this.activeView === "settings") {
       return;
     }
 
-    const props = this.getSecondaryViewInput(snapshot);
-    const activeFile = resolveActiveFile(props);
+    const props = this.getSecondarySidebarViewInput(snapshot);
+    const activeFile = this.resolveActiveFile(snapshot);
 
-    switch (this.activeSecondaryView) {
+    switch (this.activeSecondarySidebarView) {
       case "parameters":
         this.renderParametersView(activeFile);
         break;
@@ -590,7 +590,7 @@ export class Workbench extends Layout {
     }
   }
 
-  private renderExportView(activeFile: ReturnType<typeof resolveActiveFile>): void {
+  private renderExportView(activeFile: CleanedEntry | null): void {
     const view = this.viewsService.getViewWithId<ExportView>(ExportViewId);
     if (!view) {
       return;
@@ -650,7 +650,7 @@ export class Workbench extends Layout {
     });
   }
 
-  private renderParametersView(activeFile: ReturnType<typeof resolveActiveFile>): void {
+  private renderParametersView(activeFile: CleanedEntry | null): void {
     const view = this.viewsService.getViewWithId<ParametersView>(ParametersViewId);
     if (!view) {
       return;
@@ -668,14 +668,14 @@ export class Workbench extends Layout {
     });
   }
 
-  private getActiveSecondaryElement(): HTMLElement | null {
-    const descriptor = secondaryViews.find(view => view.id === this.activeSecondaryView);
+  private getActiveSecondarySidebarElement(): HTMLElement | null {
+    const descriptor = secondarySidebarViews.find(view => view.id === this.activeSecondarySidebarView);
     return descriptor
       ? this.viewsService.getViewWithId(descriptor.viewId)?.element ?? null
       : null;
   }
 
-  private syncCurveSelection(activeFile: NonNullable<ReturnType<typeof resolveActiveFile>>): void {
+  private syncCurveSelection(activeFile: CleanedEntry): void {
     const curveKeys = new Set(
       createOriginCurveOptions(activeFile).map((option) => option.key),
     );
@@ -801,7 +801,7 @@ export class Workbench extends Layout {
     };
   }
 
-  private getSecondaryViewInput(snapshot = this.session.getSnapshot()) {
+  private getSecondarySidebarViewInput(snapshot = this.session.getSnapshot()) {
     return {
       activeFileId: this.getActiveCleanedFileId(snapshot),
       cleanedData: snapshot.cleanedData,
@@ -810,6 +810,16 @@ export class Workbench extends Layout {
       originOpenPlotOptions: this.coreSettingsState.originOpenPlotOptions,
       plotAxisSettings: this.coreSettingsState.analysisSettings?.analysisPlotAxisSettings,
     };
+  }
+
+  private resolveActiveFile(snapshot = this.session.getSnapshot()): CleanedEntry | null {
+    const activeFileId = this.getActiveCleanedFileId(snapshot);
+    const normalizedActiveFileId = String(activeFileId ?? "").trim();
+    return (
+      snapshot.cleanedData.find((file) => String(file?.fileId ?? "") === normalizedActiveFileId) ??
+      snapshot.cleanedData[0] ??
+      null
+    );
   }
 
   private readonly updateOriginPlotOptions = async (updates: unknown): Promise<void> => {
