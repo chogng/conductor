@@ -147,7 +147,7 @@ const createSections = ({
   };
 
   root.append(
-    createSection(localize("chart_curve_settings_title", "Curve Settings"), [
+    createSection(localize("chart_curve_settings_title", "Origin Settings"), [
       createRow(
         localize("chart_curve_type_label", "Curve type"),
         createDropdown({

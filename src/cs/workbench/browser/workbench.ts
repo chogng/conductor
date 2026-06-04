@@ -35,6 +35,8 @@ import {
 import {
   AuxiliaryBarViews,
   createAuxiliaryBarActions,
+  getAuxiliaryBarViews,
+  resolveAuxiliaryBarView,
   type AuxiliaryBarView,
 } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions";
 import type { WorkbenchStyle } from "src/cs/workbench/browser/style";
@@ -59,6 +61,7 @@ import type { TableContribution } from "src/cs/workbench/contrib/table/browser/t
 import { TableContributionId } from "src/cs/workbench/contrib/table/common/table";
 import { FilesPaneHost } from "src/cs/workbench/contrib/files/browser/filesPaneHost";
 import type { FilesPaneRef } from "src/cs/workbench/contrib/files/common/files";
+import { createChartExplorerFiles } from "src/cs/workbench/contrib/files/common/explorerInput";
 import {
   TemplateApplyController,
   type TemplateApplyControllerInput,
@@ -244,6 +247,7 @@ export class Workbench extends Layout {
   );
   private activeAuxiliaryBarView: AuxiliaryBarView =
     this.activeMainPart === "chart" ? "export" : "template";
+  private selectedAnalysisFileId: string | null = null;
   private originMode: OriginExportMode = "merged";
   private canvasScope: OriginCanvasExportScope = "current";
   private filteredKind: OriginFilteredCanvasKind = "output";
@@ -344,6 +348,11 @@ export class Workbench extends Layout {
 
   private renderWorkbench(): void {
     const snapshot = this.session.getSnapshot();
+    this.activeAuxiliaryBarView = resolveAuxiliaryBarView(
+      this.activeAuxiliaryBarView,
+      this.activeMainPart,
+    );
+    this.clearStaleAnalysisFileSelection(snapshot);
     const tableModel = this.getTableModel(snapshot);
     this.templateApply.update(this.getTemplateApplyInput(snapshot, tableModel));
 
@@ -486,8 +495,12 @@ export class Workbench extends Layout {
       return;
     }
 
+    const activeViews = getAuxiliaryBarViews(this.activeMainPart);
     for (const view of AuxiliaryBarViews) {
-      if (view.id === this.activeAuxiliaryBarView) {
+      if (
+        view.id === this.activeAuxiliaryBarView &&
+        activeViews.some((activeView) => activeView.id === view.id)
+      ) {
         void this.viewsService.openView(view.viewId);
       } else {
         this.viewsService.closeView(view.viewId);
@@ -511,17 +524,19 @@ export class Workbench extends Layout {
     container.setActions(visible
       ? createAuxiliaryBarActions({
           activeView: this.activeAuxiliaryBarView,
+          mode: this.activeMainPart,
           onSelect: (view) => this.setActiveAuxiliaryBarView(view),
         })
       : []);
   }
 
   private setActiveAuxiliaryBarView(view: AuxiliaryBarView): void {
-    if (this.activeAuxiliaryBarView === view) {
+    const nextView = resolveAuxiliaryBarView(view, this.activeMainPart);
+    if (this.activeAuxiliaryBarView === nextView) {
       return;
     }
 
-    this.activeAuxiliaryBarView = view;
+    this.activeAuxiliaryBarView = nextView;
     this.updateViewContainers();
     this.renderAuxiliaryBarView();
     this.layoutVisibleViewContainers();
@@ -666,9 +681,36 @@ export class Workbench extends Layout {
     this.showMainPart(page === "analysis" ? "chart" : "table");
   }
 
+  private readonly handleAnalysisFileSelected = (fileId: string | null): void => {
+    const nextFileId = String(fileId ?? "").trim() || null;
+    if (!nextFileId) {
+      if (this.selectedAnalysisFileId !== null) {
+        this.selectedAnalysisFileId = null;
+        this.renderWorkbench();
+      }
+      return;
+    }
+
+    const snapshot = this.session.getSnapshot();
+    if (!this.hasAnalysisFile(snapshot, nextFileId)) {
+      return;
+    }
+
+    if (this.selectedAnalysisFileId === nextFileId) {
+      return;
+    }
+
+    this.selectedAnalysisFileId = nextFileId;
+    this.renderWorkbench();
+  };
+
   private showMainPart(part: WorkbenchMainPart): void {
     if (this.activeMainPart !== part) {
       this.activeMainPart = part;
+      this.activeAuxiliaryBarView = resolveAuxiliaryBarView(
+        this.activeAuxiliaryBarView,
+        part,
+      );
     }
     if (this.activeView !== "data") {
       this.navigateToView("data");
@@ -703,12 +745,15 @@ export class Workbench extends Layout {
       setSelectedPreviewSheetId: this.session.setSelectedPreviewSheetId,
       setSsManualRanges: this.session.setSsManualRanges,
     });
+    const isChartMode = this.activeMainPart === "chart";
 
     return {
       analysisFileService: this.analysisFileService,
       dialogsService: this.dialogsService,
       filesPaneRef: this.filesPaneRef,
-      files: snapshot.sourceFiles,
+      files: isChartMode
+        ? createChartExplorerFiles(snapshot.sourceFiles, snapshot.cleanedData)
+        : snapshot.sourceFiles,
       filesService: this.filesService,
       pathService: this.pathService,
       cleanedData: snapshot.cleanedData,
@@ -716,8 +761,12 @@ export class Workbench extends Layout {
       onFilesReplaced: sessionActions.handleFilesReplaced,
       onFileRemoved: sessionActions.handleFileRemoved,
       onFilesRemoved: sessionActions.handleFilesRemoved,
-      onFileSelected: sessionActions.handleFileSelected,
-      selectedFileId: snapshot.selectedPreviewFileId,
+      onFileSelected: isChartMode
+        ? this.handleAnalysisFileSelected
+        : sessionActions.handleFileSelected,
+      selectedFileId: isChartMode
+        ? this.getActiveAnalysisFileId(snapshot)
+        : snapshot.selectedPreviewFileId,
     };
   }
 
@@ -752,10 +801,8 @@ export class Workbench extends Layout {
     processing = this.templateApply,
   ) {
     return {
-      activeFileId: this.getActiveCleanedFileId(snapshot),
-      onActiveFileIdChange: (nextFileId: string | null) => {
-        this.session.setSelectedPreviewFileId(nextFileId);
-      },
+      activeFileId: this.getActiveAnalysisFileId(snapshot),
+      onActiveFileIdChange: this.handleAnalysisFileSelected,
       cleanedData: snapshot.cleanedData,
       onPlotAxisSettingsChange: this.updatePlotAxisSettings,
       onOriginOpenPlotOptionsChange: this.updateOriginPlotOptions,
@@ -769,7 +816,7 @@ export class Workbench extends Layout {
 
   private getAuxiliaryBarViewInput(snapshot = this.session.getSnapshot()) {
     return {
-      activeFileId: this.getActiveCleanedFileId(snapshot),
+      activeFileId: this.getActiveAnalysisFileId(snapshot),
       cleanedData: snapshot.cleanedData,
       onPlotAxisSettingsChange: this.updatePlotAxisSettings,
       onOriginOpenPlotOptionsChange: this.updateOriginPlotOptions,
@@ -779,7 +826,7 @@ export class Workbench extends Layout {
   }
 
   private resolveActiveFile(snapshot = this.session.getSnapshot()): CleanedEntry | null {
-    const activeFileId = this.getActiveCleanedFileId(snapshot);
+    const activeFileId = this.getActiveAnalysisFileId(snapshot);
     const normalizedActiveFileId = String(activeFileId ?? "").trim();
     return (
       snapshot.cleanedData.find((file) => String(file?.fileId ?? "") === normalizedActiveFileId) ??
@@ -827,18 +874,34 @@ export class Workbench extends Layout {
     });
   };
 
-  private getActiveCleanedFileId(snapshot = this.session.getSnapshot()): string | null {
-    const selectedFileId = snapshot.selectedPreviewFileId;
-    if (
-      selectedFileId &&
-      snapshot.cleanedData.some(
-        (file) => String(file?.fileId ?? "") === selectedFileId,
-      )
-    ) {
-      return selectedFileId;
+  private getActiveAnalysisFileId(snapshot = this.session.getSnapshot()): string | null {
+    const candidateIds = [
+      this.selectedAnalysisFileId,
+      snapshot.selectedPreviewFileId,
+    ];
+    for (const selectedFileId of candidateIds) {
+      if (selectedFileId && this.hasAnalysisFile(snapshot, selectedFileId)) {
+        return selectedFileId;
+      }
     }
 
     return snapshot.cleanedData[0]?.fileId ?? null;
+  }
+
+  private hasAnalysisFile(
+    snapshot: WorkbenchSessionSnapshot,
+    fileId: string,
+  ): boolean {
+    return snapshot.cleanedData.some(
+      (file) => String(file?.fileId ?? "") === fileId,
+    );
+  }
+
+  private clearStaleAnalysisFileSelection(snapshot = this.session.getSnapshot()): void {
+    const selectedFileId = this.selectedAnalysisFileId;
+    if (selectedFileId && !this.hasAnalysisFile(snapshot, selectedFileId)) {
+      this.selectedAnalysisFileId = null;
+    }
   }
 
   private getTableModel(snapshot = this.session.getSnapshot()) {

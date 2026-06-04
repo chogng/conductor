@@ -39,7 +39,7 @@ export class ExportSettingsView extends ViewPane {
   constructor() {
     super({
       id: OriginExportSettingsViewId,
-      title: localize("chart_curve_settings_title", "Curve Settings"),
+      title: localize("chart_curve_settings_title", "Origin Settings"),
       className: "auxiliarybar_view_pane export_settings_view",
       bodyClassName: "workbench-part-view-pane__body",
       headerVisible: false,
@@ -94,7 +94,7 @@ const createExportSettingsView = ({
   root.className = "export_settings_view_content";
 
   root.append(
-    createSettingsGroup(localize("chart_curve_settings_title", "Curve Settings"), [
+    createSettingsGroup(localize("chart_curve_settings_title", "Origin Settings"), [
       createSettingsField({
         control: createPlotTypeSelect(options, onChange, store),
         label: localize("chart_curve_type_label", "Curve type"),
