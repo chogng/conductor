@@ -21,6 +21,7 @@ export type FilesPaneProps = {
   readonly files?: FileEntry[];
   readonly cleanedData?: CleanedEntry[];
   readonly onFileImported?: (fileInfo: ImportSessionFileInfo) => void;
+  readonly onFilesAdded?: (files: ImportSessionFileInfo[]) => void;
   readonly onFilesReplaced?: (files: ImportSessionFileInfo[]) => void;
   readonly onFileRemoved?: (fileId: string) => void;
   readonly onFilesRemoved?: (fileIds: string[]) => void;
@@ -54,6 +55,7 @@ export class FilesPane implements IDisposable {
       pathService: props.pathService,
       cleanedData: props.cleanedData,
       onFileImported: props.onFileImported,
+      onFilesAdded: props.onFilesAdded,
       onFilesReplaced: props.onFilesReplaced,
       onFileRemoved: props.onFileRemoved,
       onFilesRemoved: props.onFilesRemoved,
@@ -75,6 +77,7 @@ export class FilesPane implements IDisposable {
       pathService: nextProps.pathService,
       cleanedData: nextProps.cleanedData,
       onFileImported: nextProps.onFileImported,
+      onFilesAdded: nextProps.onFilesAdded,
       onFilesReplaced: nextProps.onFilesReplaced,
       onFileRemoved: nextProps.onFileRemoved,
       onFilesRemoved: nextProps.onFilesRemoved,

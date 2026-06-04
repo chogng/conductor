@@ -28,22 +28,34 @@ import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessi
 import {
   buildImportErrorMessage,
   collectDroppedFiles,
-  pickFolderImportFiles,
+  pickImportFolder,
   showCreateFolderUnsupported,
 } from "src/cs/workbench/contrib/files/browser/fileCommands";
 import {
   collectFolderImportFiles,
+  collectFolderImportFilesIncrementally,
   type FolderFileReadFailure,
 } from "src/cs/workbench/contrib/files/browser/fileImportExport";
 import {
   type ImportSessionFileEntry,
   type ImportSessionFileInfo,
   type ImportFilePrepareFailure,
+  type PreparedImportFile,
   preparePendingImportFile,
 } from "src/cs/workbench/services/analysisFile/browser/importPipeline";
 import {
   collectPendingImportFiles,
+  type PendingImportFile,
 } from "src/cs/workbench/services/analysisFile/browser/fileFilter";
+
+const IMPORT_APPEND_BATCH_SIZE = 32;
+
+type FirstPreparedImport = {
+  readonly attemptedIndexes: Set<number>;
+  readonly result: {
+    readonly prepared: PreparedImportFile;
+  } | null;
+};
 
 export type FilesControllerProps = {
   readonly analysisFileService: IAnalysisFileServiceType;
@@ -53,6 +65,7 @@ export type FilesControllerProps = {
   files?: FileEntry[];
   cleanedData?: CleanedEntry[];
   onFileImported?: (fileInfo: ImportSessionFileInfo) => void;
+  onFilesAdded?: (files: ImportSessionFileInfo[]) => void;
   onFilesReplaced?: (files: ImportSessionFileInfo[]) => void;
   onFileRemoved?: (fileId: string) => void;
   onFilesRemoved?: (fileIds: string[]) => void;
@@ -75,6 +88,7 @@ export class FilesController implements FilesPaneRef, IDisposable {
   private error: string | null = null;
   private isDragging = false;
   private optimisticSelectedFileId: string | null = null;
+  private importRunId = 0;
   private folderRefreshRunId = 0;
   private prevFileCount = 0;
   private disposed = false;
@@ -266,19 +280,15 @@ export class FilesController implements FilesPaneRef, IDisposable {
     this.syncView();
 
     try {
-      const result = await pickFolderImportFiles({
+      const folder = await pickImportFolder({
         dialogsService: this.dialogsService,
-        filesService: this.filesService,
         pathService: this.pathService,
       });
-      if (!result || this.disposed) {
+      if (!folder || this.disposed) {
         return;
       }
 
-      this.watchImportedFolder(result.folder);
-      void this.processFiles(result.files, {
-        readFailures: result.readFailures,
-      });
+      await this.importFolderIncrementally(folder);
     } catch (error) {
       if (this.disposed) {
         return;
@@ -382,6 +392,8 @@ export class FilesController implements FilesPaneRef, IDisposable {
       readonly shouldContinue?: () => boolean;
     } = {},
   ): Promise<void> {
+    const runId = this.importRunId + 1;
+    this.importRunId = runId;
     const finishBatchPerf = startPerf("import:add-files", {
       currentCount: 0,
       incomingCount: newFiles.length,
@@ -392,7 +404,9 @@ export class FilesController implements FilesPaneRef, IDisposable {
 
     const failedFiles: ImportFilePrepareFailure[] = [];
     const canApplyResult = (): boolean =>
-      !options.shouldContinue || options.shouldContinue();
+      !this.disposed &&
+      runId === this.importRunId &&
+      (!options.shouldContinue || options.shouldContinue());
     const {
       hasAnyUnsupportedFiles,
       pendingImportFiles,
@@ -423,49 +437,33 @@ export class FilesController implements FilesPaneRef, IDisposable {
       return;
     }
 
-    const preparedEntries: ImportSessionFileEntry[] = [];
-    const importedFiles: ImportSessionFileInfo[] = [];
     const selectedRelativePath = options.preserveSelection
       ? this.getSelectedRelativePath()
       : null;
-
-    let nextImportIndex = 0;
-    const workerCount = Math.min(
-      IMPORT_PREPARE_CONCURRENCY,
-      pendingImportFiles.length,
+    const firstImport = await this.prepareFirstImportedFile(
+      pendingImportFiles,
+      selectedRelativePath,
+      failedFiles,
+      canApplyResult,
     );
-    await Promise.all(
-      Array.from({ length: workerCount }, async () => {
-        while (true) {
-          const index = nextImportIndex;
-          nextImportIndex += 1;
-          const pendingImportFile = pendingImportFiles[index];
-          if (!pendingImportFile) {
-            return;
-          }
+    let acceptedCount = firstImport.result ? 1 : 0;
 
-          const preparedImportFile = await preparePendingImportFile(
-            this.analysisFileService,
-            pendingImportFile,
-          );
-          if (!preparedImportFile.ok) {
-            failedFiles.push(preparedImportFile.error);
-            continue;
-          }
-
-          preparedEntries.push(preparedImportFile.prepared.fileEntry);
-          importedFiles.push(preparedImportFile.prepared.fileInfo);
-        }
-      }),
-    );
-
-    const acceptedCount = importedFiles.length;
-    if (acceptedCount > 0 && canApplyResult()) {
+    if (firstImport.result && canApplyResult()) {
+      const { prepared } = firstImport.result;
       this.replaceImportedFiles(
-        preparedEntries,
-        importedFiles,
-        this.resolveSelectedFileId(importedFiles, selectedRelativePath),
+        [prepared.fileEntry],
+        [prepared.fileInfo],
+        prepared.fileInfo.fileId,
       );
+    }
+
+    if (canApplyResult()) {
+      acceptedCount += await this.prepareRemainingImportFiles({
+        canApplyResult,
+        failedFiles,
+        pendingImportFiles,
+        skippedIndexes: firstImport.attemptedIndexes,
+      });
     }
 
     if (canApplyResult()) {
@@ -483,6 +481,286 @@ export class FilesController implements FilesPaneRef, IDisposable {
       failedCount: failedFiles.length,
       unsupportedCount,
     });
+  }
+
+  private async importFolderIncrementally(folder: URI): Promise<void> {
+    const runId = this.importRunId + 1;
+    this.importRunId = runId;
+    const finishBatchPerf = startPerf("import:add-files", {
+      currentCount: 0,
+      source: "folder",
+    });
+    const failedFiles: ImportFilePrepareFailure[] = [];
+    const canApplyResult = (): boolean =>
+      !this.disposed && runId === this.importRunId;
+    let acceptedCount = 0;
+    let hasStartedPreview = false;
+    let prepareQueue: Promise<void> = Promise.resolve();
+    let prepareQueueError: unknown = null;
+
+    const queueRemainingFiles = (
+      pendingImportFiles: readonly PendingImportFile[],
+      skippedIndexes: ReadonlySet<number>,
+    ): void => {
+      prepareQueue = prepareQueue
+        .then(async () => {
+          if (!canApplyResult()) {
+            return;
+          }
+
+          acceptedCount += await this.prepareRemainingImportFiles({
+            canApplyResult,
+            failedFiles,
+            pendingImportFiles,
+            skippedIndexes,
+          });
+        })
+        .catch((error) => {
+          prepareQueueError = error;
+        });
+    };
+
+    const result = await collectFolderImportFilesIncrementally(
+      folder,
+      this.filesService,
+      {
+        shouldContinue: canApplyResult,
+        onBatch: async ({ files }) => {
+          if (!canApplyResult()) {
+            return;
+          }
+
+          const {
+            pendingImportFiles,
+          } = collectPendingImportFiles([...files]);
+          if (pendingImportFiles.length === 0) {
+            return;
+          }
+
+          if (hasStartedPreview) {
+            queueRemainingFiles(pendingImportFiles, new Set<number>());
+            return;
+          }
+
+          const firstImport = await this.prepareFirstImportedFile(
+            pendingImportFiles,
+            null,
+            failedFiles,
+            canApplyResult,
+          );
+          if (firstImport.result && canApplyResult()) {
+            const { prepared } = firstImport.result;
+            this.replaceImportedFiles(
+              [prepared.fileEntry],
+              [prepared.fileInfo],
+              prepared.fileInfo.fileId,
+            );
+            acceptedCount += 1;
+            hasStartedPreview = true;
+          }
+
+          queueRemainingFiles(
+            pendingImportFiles,
+            firstImport.attemptedIndexes,
+          );
+        },
+      },
+    );
+
+    await prepareQueue;
+
+    if (!canApplyResult()) {
+      return;
+    }
+
+    if (prepareQueueError && import.meta.env.DEV) {
+      console.error(
+        "Failed to prepare files from the selected folder.",
+        prepareQueueError,
+      );
+    }
+
+    this.watchImportedFolder(folder);
+    this.error = buildImportErrorMessage({
+      failedFiles,
+      hasAnyUnsupportedFiles: false,
+      readFailures: result.readFailures,
+    });
+    this.syncView();
+    finishBatchPerf({
+      acceptedCount,
+      failedCount: failedFiles.length,
+      scannedCount: result.files.length,
+      unsupportedCount: 0,
+    });
+  }
+
+  private async prepareFirstImportedFile(
+    pendingImportFiles: readonly PendingImportFile[],
+    selectedRelativePath: string | null,
+    failedFiles: ImportFilePrepareFailure[],
+    canApplyResult: () => boolean,
+  ): Promise<FirstPreparedImport> {
+    const attemptedIndexes = new Set<number>();
+    for (const index of this.getPriorityImportIndexes(
+      pendingImportFiles,
+      selectedRelativePath,
+    )) {
+      if (!canApplyResult()) {
+        break;
+      }
+
+      const pendingImportFile = pendingImportFiles[index];
+      if (!pendingImportFile) {
+        continue;
+      }
+
+      attemptedIndexes.add(index);
+      const preparedImportFile = await preparePendingImportFile(
+        this.analysisFileService,
+        pendingImportFile,
+      );
+      if (!preparedImportFile.ok) {
+        failedFiles.push(preparedImportFile.error);
+        continue;
+      }
+
+      return {
+        attemptedIndexes,
+        result: {
+          prepared: preparedImportFile.prepared,
+        },
+      };
+    }
+
+    return {
+      attemptedIndexes,
+      result: null,
+    };
+  }
+
+  private getPriorityImportIndexes(
+    pendingImportFiles: readonly PendingImportFile[],
+    selectedRelativePath: string | null,
+  ): number[] {
+    const selectedIndex = selectedRelativePath
+      ? pendingImportFiles.findIndex(file =>
+        normalizeRelativePath(file.relativePath) === selectedRelativePath
+      )
+      : -1;
+    const indexes: number[] = [];
+    if (selectedIndex >= 0) {
+      indexes.push(selectedIndex);
+    }
+
+    for (let index = 0; index < pendingImportFiles.length; index += 1) {
+      if (index !== selectedIndex) {
+        indexes.push(index);
+      }
+    }
+
+    return indexes;
+  }
+
+  private async prepareRemainingImportFiles({
+    canApplyResult,
+    failedFiles,
+    pendingImportFiles,
+    skippedIndexes,
+  }: {
+    readonly canApplyResult: () => boolean;
+    readonly failedFiles: ImportFilePrepareFailure[];
+    readonly pendingImportFiles: readonly PendingImportFile[];
+    readonly skippedIndexes: ReadonlySet<number>;
+  }): Promise<number> {
+    const remainingIndexes = pendingImportFiles
+      .map((_file, index) => index)
+      .filter(index => !skippedIndexes.has(index));
+    if (remainingIndexes.length === 0) {
+      return 0;
+    }
+
+    const readyByIndex = new Map<number, PreparedImportFile>();
+    const completedIndexes = new Set<number>();
+    let nextAppendOffset = 0;
+    let nextImportIndex = 0;
+    let acceptedCount = 0;
+
+    const flushReadyImports = (): number => {
+      if (!canApplyResult()) {
+        return 0;
+      }
+
+      const preparedEntries: ImportSessionFileEntry[] = [];
+      const importedFiles: ImportSessionFileInfo[] = [];
+      while (
+        nextAppendOffset < remainingIndexes.length &&
+        importedFiles.length < IMPORT_APPEND_BATCH_SIZE
+      ) {
+        const index = remainingIndexes[nextAppendOffset];
+        if (!completedIndexes.has(index)) {
+          break;
+        }
+
+        const prepared = readyByIndex.get(index);
+        if (prepared) {
+          preparedEntries.push(prepared.fileEntry);
+          importedFiles.push(prepared.fileInfo);
+        }
+        nextAppendOffset += 1;
+      }
+
+      if (importedFiles.length === 0) {
+        return 0;
+      }
+
+      this.appendImportedFiles(preparedEntries, importedFiles);
+      return importedFiles.length;
+    };
+
+    const workerCount = Math.min(
+      IMPORT_PREPARE_CONCURRENCY,
+      remainingIndexes.length,
+    );
+    await Promise.all(
+      Array.from({ length: workerCount }, async () => {
+        while (canApplyResult()) {
+          const remainingIndex = nextImportIndex;
+          nextImportIndex += 1;
+          const index = remainingIndexes[remainingIndex];
+          if (typeof index !== "number") {
+            return;
+          }
+
+          const pendingImportFile = pendingImportFiles[index];
+          if (!pendingImportFile) {
+            return;
+          }
+
+          const preparedImportFile = await preparePendingImportFile(
+            this.analysisFileService,
+            pendingImportFile,
+          );
+          if (!canApplyResult()) {
+            return;
+          }
+
+          if (preparedImportFile.ok) {
+            readyByIndex.set(index, preparedImportFile.prepared);
+          } else {
+            failedFiles.push(preparedImportFile.error);
+          }
+          completedIndexes.add(index);
+          acceptedCount += flushReadyImports();
+        }
+      }),
+    );
+
+    while (flushReadyImports() > 0) {
+      // Drain completed batches larger than IMPORT_APPEND_BATCH_SIZE.
+    }
+
+    return acceptedCount;
   }
 
   private getNoSupportedDroppedFilesError(): string {
@@ -519,6 +797,30 @@ export class FilesController implements FilesPaneRef, IDisposable {
     }
     if (this.props.onFileSelected) {
       this.props.onFileSelected(nextSelectedFileId);
+    }
+  }
+
+  private appendImportedFiles(
+    fileEntries: ImportSessionFileEntry[],
+    importedFiles: ImportSessionFileInfo[],
+  ): void {
+    if (importedFiles.length === 0) {
+      return;
+    }
+
+    if (!this.isControlled) {
+      this.internalFiles = [...this.internalFiles, ...fileEntries];
+      this.handleFileCountEffects();
+      this.syncView();
+    }
+
+    if (this.props.onFilesAdded) {
+      this.props.onFilesAdded(importedFiles);
+      return;
+    }
+
+    for (const fileInfo of importedFiles) {
+      this.props.onFileImported?.(fileInfo);
     }
   }
 
@@ -575,22 +877,6 @@ export class FilesController implements FilesPaneRef, IDisposable {
 
     const selectedFile = this.files.find(file => file.fileId === selectedFileId);
     return normalizeRelativePath(selectedFile?.relativePath);
-  }
-
-  private resolveSelectedFileId(
-    files: ImportSessionFileInfo[],
-    selectedRelativePath: string | null,
-  ): string | null {
-    if (selectedRelativePath) {
-      const matchingFile = files.find(file =>
-        normalizeRelativePath(file.relativePath) === selectedRelativePath
-      );
-      if (matchingFile?.fileId) {
-        return matchingFile.fileId;
-      }
-    }
-
-    return files[0]?.fileId ?? null;
   }
 
 }

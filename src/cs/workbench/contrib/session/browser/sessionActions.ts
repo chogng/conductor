@@ -21,6 +21,7 @@ type UseSessionActionsOptions = {
   processingStatus?: Partial<ProcessingStatus>;
   sourceFiles?: SessionFile[];
   removeQueuedProcessingFile: (fileId: string) => void;
+  runInBatch?: (callback: () => void) => void;
   resetPreviewWorker: () => void;
   resetProcessingWorker: () => void;
   selectedPreviewFileId?: string | null;
@@ -44,6 +45,7 @@ export const createSessionActions = ({
   processingStatus = { state: "idle" },
   sourceFiles = [],
   removeQueuedProcessingFile,
+  runInBatch = (callback) => callback(),
   resetPreviewWorker,
   resetProcessingWorker,
   selectedPreviewFileId = null,
@@ -78,53 +80,67 @@ export const createSessionActions = ({
   const handleClearSession = () => {
     if (!hasSessionData) return;
 
-    resetProcessingWorker();
-    invalidatePreviewRequests();
-    clearPreviewState({ clearSelection: true });
+    runInBatch(() => {
+      resetProcessingWorker();
+      invalidatePreviewRequests();
+      clearPreviewState({ clearSelection: true });
 
-    setCleanedData([]);
-    setAnalysisResults({});
-    setSourceFiles([]);
-    setSelectedPreviewSheetId(null);
-    setIonIoffManualTargetsByFileId({});
-    setSsManualRanges({});
-    resetPreviewWorker();
+      setCleanedData([]);
+      setAnalysisResults({});
+      setSourceFiles([]);
+      setSelectedPreviewSheetId(null);
+      setIonIoffManualTargetsByFileId({});
+      setSsManualRanges({});
+      resetPreviewWorker();
+    });
   };
 
   const handleFileImported = (fileInfo: SessionFile) => {
     const importedFileId = fileInfo?.fileId ?? null;
-    if (importedFileId && !selectedPreviewFileId) {
-      setSelectedPreviewFileId(importedFileId);
-      setSelectedPreviewSheetId(null);
-      preparePreviewSelection(importedFileId);
+    runInBatch(() => {
+      setSourceFiles((prev) => [...prev, fileInfo]);
+      if (importedFileId && !selectedPreviewFileId) {
+        setSelectedPreviewSheetId(null);
+        preparePreviewSelection(importedFileId);
+        setSelectedPreviewFileId(importedFileId);
+      }
+    });
+  };
+
+  const handleFilesAdded = (files: SessionFile[]) => {
+    if (!files.length) {
+      return;
     }
-    setSourceFiles((prev) => [...prev, fileInfo]);
+
+    setSourceFiles((prev) => [...prev, ...files]);
   };
 
   const handleFilesReplaced = (files: SessionFile[]) => {
-    resetProcessingWorker();
-    invalidatePreviewRequests();
-    clearPreviewState({ clearSelection: true });
+    runInBatch(() => {
+      resetProcessingWorker();
+      invalidatePreviewRequests();
+      clearPreviewState({ clearSelection: true });
 
-    for (const file of sourceFiles) {
-      if (file?.fileId) {
-        disposePreviewFileCache(file.fileId);
+      for (const file of sourceFiles) {
+        if (file?.fileId) {
+          disposePreviewFileCache(file.fileId);
+        }
       }
-    }
 
-    setCleanedData([]);
-    setAnalysisResults({});
-    setIonIoffManualTargetsByFileId({});
-    setSsManualRanges({});
-    resetPreviewWorker();
+      setCleanedData([]);
+      setAnalysisResults({});
+      setIonIoffManualTargetsByFileId({});
+      setSsManualRanges({});
+      resetPreviewWorker();
 
-    const nextSelectedFileId = files[0]?.fileId ?? null;
-    setSelectedPreviewFileId(nextSelectedFileId);
-    setSelectedPreviewSheetId(null);
-    if (nextSelectedFileId) {
-      preparePreviewSelection(nextSelectedFileId);
-    }
-    setSourceFiles(files);
+      const nextSelectedFileId = files[0]?.fileId ?? null;
+      setSourceFiles(files);
+      setSelectedPreviewSheetId(null);
+      if (nextSelectedFileId) {
+        preparePreviewSelection(nextSelectedFileId);
+      }
+      setSelectedPreviewFileId(nextSelectedFileId);
+    });
   };
 
   const handleFileRemoved = (fileId: string) => {
@@ -272,6 +288,7 @@ export const createSessionActions = ({
   return {
     handleClearSession,
     handleFileImported,
+    handleFilesAdded,
     handleFilesReplaced,
     handleFileRemoved,
     handleFilesRemoved,

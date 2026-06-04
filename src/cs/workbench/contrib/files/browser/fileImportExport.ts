@@ -32,6 +32,15 @@ export type FolderFileCollection = {
   readonly readFailures: FolderFileReadFailure[];
 };
 
+export type FolderFileCollectionBatch = {
+  readonly files: FileSource[];
+};
+
+type CollectFolderImportFilesOptions = {
+  readonly onBatch?: (batch: FolderFileCollectionBatch) => Promise<void> | void;
+  readonly shouldContinue?: () => boolean;
+};
+
 type FolderFileStatTask = {
   readonly name: string;
   readonly relativePath: string;
@@ -102,13 +111,25 @@ export async function collectFolderImportFiles(
   folder: URI,
   filesService: IFileService,
 ): Promise<FolderFileCollection> {
+  return collectFolderImportFilesIncrementally(folder, filesService);
+}
+
+export async function collectFolderImportFilesIncrementally(
+  folder: URI,
+  filesService: IFileService,
+  options: CollectFolderImportFilesOptions = {},
+): Promise<FolderFileCollection> {
   const root = URI.revive(folder);
   const rootName = getPathBaseName(root.path) || "Folder";
   const files: FileSource[] = [];
   const readFailures: FolderFileReadFailure[] = [];
 
-  await collectFolderFilesAt(root, rootName, files, readFailures, 0, filesService);
+  await collectFolderFilesAt(root, rootName, files, readFailures, 0, filesService, options);
   return { files, readFailures };
+}
+
+function shouldContinueCollecting(options: CollectFolderImportFilesOptions): boolean {
+  return !options.shouldContinue || options.shouldContinue();
 }
 
 async function collectFolderFilesAt(
@@ -118,20 +139,28 @@ async function collectFolderFilesAt(
   readFailures: FolderFileReadFailure[],
   depth: number,
   filesService: IFileService,
+  options: CollectFolderImportFilesOptions,
 ): Promise<void> {
-  if (depth > MAX_FOLDER_WALK_DEPTH) {
+  if (depth > MAX_FOLDER_WALK_DEPTH || !shouldContinueCollecting(options)) {
     return;
   }
 
   const entries = await filesService.readDir(folder);
   const fileTasks: FolderFileStatTask[] = [];
+  const folderTasks: Array<{
+    readonly relativePath: string;
+    readonly resource: URI;
+  }> = [];
 
   for (const [name, type] of entries) {
     const child = joinResourcePath(folder, name);
     const relativePath = `${relativeFolderPath}/${name}`;
 
     if ((type & FileType.Directory) === FileType.Directory) {
-      await collectFolderFilesAt(child, relativePath, files, readFailures, depth + 1, filesService);
+      folderTasks.push({
+        relativePath,
+        resource: child,
+      });
       continue;
     }
 
@@ -147,16 +176,65 @@ async function collectFolderFilesAt(
   }
 
   if (fileTasks.length > 0) {
-    await statFolderFileTasks(fileTasks, files, readFailures, filesService);
+    const sortedFileTasks = [...fileTasks].sort(compareFolderFileStatTasks);
+    for (
+      let startIndex = 0;
+      startIndex < sortedFileTasks.length;
+      startIndex += FOLDER_IMPORT_STAT_CONCURRENCY
+    ) {
+      if (!shouldContinueCollecting(options)) {
+        return;
+      }
+
+      const batch = await statFolderFileTasks(
+        sortedFileTasks.slice(startIndex, startIndex + FOLDER_IMPORT_STAT_CONCURRENCY),
+        filesService,
+      );
+      files.push(...batch.files);
+      readFailures.push(...batch.readFailures);
+      if (batch.files.length > 0 && shouldContinueCollecting(options)) {
+        await options.onBatch?.({ files: batch.files });
+      }
+    }
   }
+
+  for (const task of folderTasks) {
+    if (!shouldContinueCollecting(options)) {
+      return;
+    }
+
+    await collectFolderFilesAt(
+      task.resource,
+      task.relativePath,
+      files,
+      readFailures,
+      depth + 1,
+      filesService,
+      options,
+    );
+  }
+}
+
+function compareFolderFileStatTasks(
+  first: FolderFileStatTask,
+  second: FolderFileStatTask,
+): number {
+  const firstIsExcel = isExcelImportFileName(first.name);
+  const secondIsExcel = isExcelImportFileName(second.name);
+  if (firstIsExcel !== secondIsExcel) {
+    return firstIsExcel ? 1 : -1;
+  }
+
+  return first.relativePath.localeCompare(second.relativePath, undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
 }
 
 async function statFolderFileTasks(
   tasks: readonly FolderFileStatTask[],
-  files: FileSource[],
-  readFailures: FolderFileReadFailure[],
   filesService: IFileService,
-): Promise<void> {
+): Promise<FolderFileCollection> {
   const results: Array<
     | {
       readonly ok: true;
@@ -176,6 +254,8 @@ async function statFolderFileTasks(
   > = new Array(tasks.length);
   let nextTaskIndex = 0;
   const workerCount = Math.min(FOLDER_IMPORT_STAT_CONCURRENCY, tasks.length);
+  const files: FileSource[] = [];
+  const readFailures: FolderFileReadFailure[] = [];
 
   await Promise.all(Array.from({ length: workerCount }, async () => {
     while (true) {
@@ -228,6 +308,8 @@ async function statFolderFileTasks(
       });
     }
   }
+
+  return { files, readFailures };
 }
 
 async function tryStatFileSource(

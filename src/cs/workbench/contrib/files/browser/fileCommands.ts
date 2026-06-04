@@ -32,6 +32,27 @@ export const collectDroppedFiles = async (
 ): Promise<FileSource[]> =>
   (await collectDataTransferFiles(dataTransfer)).map(createDroppedFileSource);
 
+export const pickImportFolder = async ({
+  dialogsService,
+  pathService,
+}: {
+  readonly dialogsService: IFileDialogService;
+  readonly pathService: IPathService;
+}): Promise<URI | null> => {
+  const folders = await dialogsService.showOpenDialog({
+    canSelectFolders: true,
+    defaultUri: pathService.userHome({ preferLocal: true }),
+    title: localize("import.pickFolderTitle", "选择要导入的文件夹"),
+    openLabel: localize("import.openFolderButton", "打开文件夹"),
+  });
+  const folder = folders?.[0] ? URI.revive(folders[0]) : null;
+  if (!folder) {
+    return null;
+  }
+
+  return folder;
+};
+
 export const pickFolderImportFiles = async ({
   dialogsService,
   filesService,
@@ -41,13 +62,7 @@ export const pickFolderImportFiles = async ({
   readonly filesService: IFileService;
   readonly pathService: IPathService;
 }): Promise<FolderImportFiles | null> => {
-  const folders = await dialogsService.showOpenDialog({
-    canSelectFolders: true,
-    defaultUri: pathService.userHome({ preferLocal: true }),
-    title: localize("import.pickFolderTitle", "选择要导入的文件夹"),
-    openLabel: localize("import.openFolderButton", "打开文件夹"),
-  });
-  const folder = folders?.[0] ? URI.revive(folders[0]) : null;
+  const folder = await pickImportFolder({ dialogsService, pathService });
   if (!folder) {
     return null;
   }

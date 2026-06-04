@@ -1482,7 +1482,7 @@ async function handleImportPrepareRust(_event, payload) {
   }
 
   try {
-    const result = await rustWorkerRuntime.sendCommand("assessImport", {
+    const result = await rustWorkerRuntime.sendProcessingCommand("assessImport", {
       fileName,
       path: inputPath,
     }) as { assessment?: unknown };

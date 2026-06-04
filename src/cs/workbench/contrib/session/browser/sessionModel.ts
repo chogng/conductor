@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   AnalysisResultsByFileId,
   PreviewFile,
   PreviewRowsRequest,
@@ -34,9 +34,9 @@ type SessionSnapshot = {
   readonly ionIoffMethod: IonIoffMethod;
   readonly ionIoffManualTargetsByFileId: IonIoffManualTargetsByFileId;
   readonly ssMethod: SsMethod;
-  readonly ssDiagnosticsEnabled: boolean;
-  readonly vthDiagnosticsEnabled: boolean;
-  readonly gmDiagnosticsEnabled: boolean;
+  readonly ssInspectorEnabled: boolean;
+  readonly vthInspectorEnabled: boolean;
+  readonly gmInspectorEnabled: boolean;
   readonly ssShowFitLine: boolean;
   readonly ssManualRanges: SsManualRanges;
 };
@@ -89,14 +89,16 @@ export class SessionModel {
     ionIoffMethod: "auto",
     ionIoffManualTargetsByFileId: {},
     ssMethod: "auto",
-    ssDiagnosticsEnabled: false,
-    vthDiagnosticsEnabled: false,
-    gmDiagnosticsEnabled: false,
+    ssInspectorEnabled: false,
+    vthInspectorEnabled: false,
+    gmInspectorEnabled: false,
     ssShowFitLine: true,
     ssManualRanges: {},
   };
 
   private readonly listeners = new Set<() => void>();
+  private batchDepth = 0;
+  private hasPendingChange = false;
 
   readonly previewWorkerRef = createRef<Worker | null>(null);
   readonly previewRequestIdRef = createRef(0);
@@ -139,12 +141,12 @@ export class SessionModel {
     (value) => this.update("ionIoffManualTargetsByFileId", value);
   readonly setSsMethod: StateSetter<SsMethod> = (value) =>
     this.update("ssMethod", value);
-  readonly setSsDiagnosticsEnabled: StateSetter<boolean> = (value) =>
-    this.update("ssDiagnosticsEnabled", value);
-  readonly setVthDiagnosticsEnabled: StateSetter<boolean> = (value) =>
-    this.update("vthDiagnosticsEnabled", value);
-  readonly setGmDiagnosticsEnabled: StateSetter<boolean> = (value) =>
-    this.update("gmDiagnosticsEnabled", value);
+  readonly setSsInspectorEnabled: StateSetter<boolean> = (value) =>
+    this.update("ssInspectorEnabled", value);
+  readonly setVthInspectorEnabled: StateSetter<boolean> = (value) =>
+    this.update("vthInspectorEnabled", value);
+  readonly setGmInspectorEnabled: StateSetter<boolean> = (value) =>
+    this.update("gmInspectorEnabled", value);
   readonly setSsShowFitLine: StateSetter<boolean> = (value) =>
     this.update("ssShowFitLine", value);
   readonly setSsManualRanges: StateSetter<SsManualRanges> = (value) =>
@@ -158,6 +160,19 @@ export class SessionModel {
   };
 
   getSnapshot = (): SessionSnapshot => this.snapshot;
+
+  batch = (callback: () => void): void => {
+    this.batchDepth += 1;
+    try {
+      callback();
+    } finally {
+      this.batchDepth -= 1;
+      if (this.batchDepth === 0 && this.hasPendingChange) {
+        this.hasPendingChange = false;
+        this.emitChange();
+      }
+    }
+  };
 
   createContextValue(snapshot: SessionSnapshot): SessionContextValue {
     return {
@@ -186,9 +201,9 @@ export class SessionModel {
       setIonIoffMethod: this.setIonIoffMethod,
       setIonIoffManualTargetsByFileId: this.setIonIoffManualTargetsByFileId,
       setSsMethod: this.setSsMethod,
-      setSsDiagnosticsEnabled: this.setSsDiagnosticsEnabled,
-      setVthDiagnosticsEnabled: this.setVthDiagnosticsEnabled,
-      setGmDiagnosticsEnabled: this.setGmDiagnosticsEnabled,
+      setSsInspectorEnabled: this.setSsInspectorEnabled,
+      setVthInspectorEnabled: this.setVthInspectorEnabled,
+      setGmInspectorEnabled: this.setGmInspectorEnabled,
       setSsShowFitLine: this.setSsShowFitLine,
       setSsManualRanges: this.setSsManualRanges,
     };
@@ -206,6 +221,11 @@ export class SessionModel {
       ...this.snapshot,
       [key]: next,
     };
+    if (this.batchDepth > 0) {
+      this.hasPendingChange = true;
+      return;
+    }
+
     this.emitChange();
   }
 

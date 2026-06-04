@@ -1,4 +1,4 @@
-import {
+﻿import {
   DisposableStore,
   toDisposable,
   type IDisposable,
@@ -25,7 +25,8 @@ import {
   localize,
   setNLSConfiguration,
 } from "src/cs/nls";
-import { isTransferLikeFile } from "src/cs/workbench/contrib/diagnostics/common/metrics";
+import { isTransferLikeFile } from "src/cs/workbench/contrib/calculation/common/firstCalculation";
+import { getCalculatedData } from "src/cs/workbench/contrib/calculation/common/calculatedData";
 import type { ThemeMode } from "src/cs/workbench/common/theme";
 import { WorkbenchViewContainers } from "src/cs/workbench/common/workbenchViewContainers";
 import { Layout, type LayoutView } from "src/cs/workbench/browser/layout";
@@ -99,6 +100,9 @@ import { createParameterRows } from "src/cs/workbench/contrib/parameters/browser
 import { ParametersViewId } from "src/cs/workbench/contrib/parameters/common/parameters";
 import { OriginSettingsViewPane } from "src/cs/workbench/contrib/origin/browser/originSettingsViewPane";
 import { OriginExportSettingsViewId } from "src/cs/workbench/contrib/origin/common/origin";
+import { SearchViewPane } from "src/cs/workbench/contrib/search/browser/searchViewPane";
+import { SearchViewId } from "src/cs/workbench/contrib/search/common/search";
+import type { PlotType } from "src/cs/workbench/contrib/plot/common/plot";
 import type { CleanedEntry } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import { workbenchIpcChannels } from "src/cs/workbench/common/ipcChannels";
 import {
@@ -223,6 +227,7 @@ export class Workbench extends Layout {
   private readonly templateViewPane: TemplateViewPane;
   private readonly templateAuxiliaryBarViewPane: TemplateAuxiliaryBarViewPane;
   private readonly exportViewPane: ExportViewPane;
+  private readonly searchViewPane: SearchViewPane;
   private readonly parametersViewPane: ParametersViewPane;
   private readonly originSettingsViewPane: OriginSettingsViewPane;
   private readonly analysis: ChartViewPane;
@@ -247,6 +252,7 @@ export class Workbench extends Layout {
   private activeMainPart: WorkbenchMainPart = resolveInitialMainPart(
     this.session.getSnapshot(),
   );
+  private activePlotType: PlotType = "iv";
   private selectedAnalysisFileId: string | null = null;
   private originMode: OriginExportMode = "merged";
   private canvasScope: OriginCanvasExportScope = "current";
@@ -332,6 +338,7 @@ export class Workbench extends Layout {
       this.templateViewPane.configElement,
     ));
     this.exportViewPane = this._register(new ExportViewPane());
+    this.searchViewPane = this._register(new SearchViewPane());
     this.parametersViewPane = this._register(new ParametersViewPane());
     this.originSettingsViewPane = this._register(new OriginSettingsViewPane());
     this.analysis = this._register(new ChartViewPane(this.getAnalysisProps()));
@@ -474,6 +481,7 @@ export class Workbench extends Layout {
     this.viewsService.addViewToContainer(WorkbenchViewContainers.main, this.analysis);
     this.viewsService.addViewToContainer(WorkbenchViewContainers.auxiliarybar, this.templateAuxiliaryBarViewPane);
     this.viewsService.addViewToContainer(WorkbenchViewContainers.auxiliarybar, this.exportViewPane);
+    this.viewsService.addViewToContainer(WorkbenchViewContainers.auxiliarybar, this.searchViewPane);
     this.viewsService.addViewToContainer(WorkbenchViewContainers.auxiliarybar, this.parametersViewPane);
     this.viewsService.addViewToContainer(WorkbenchViewContainers.auxiliarybar, this.originSettingsViewPane);
     this.viewsService.addViewToContainer(WorkbenchViewContainers.settings, this.settings);
@@ -553,6 +561,9 @@ export class Workbench extends Layout {
       case "parameters":
         this.renderParametersView(activeFile);
         break;
+      case "search":
+        this.renderSearchView(snapshot);
+        break;
       case "settings":
         this.viewsService.getViewWithId<OriginSettingsViewPane>(OriginExportSettingsViewId)?.update({
           axisSettings: props.plotAxisSettings,
@@ -567,6 +578,19 @@ export class Workbench extends Layout {
         this.renderExportView(activeFile);
         break;
     }
+  }
+
+  private renderSearchView(snapshot = this.session.getSnapshot()): void {
+    const view = this.viewsService.getViewWithId<SearchViewPane>(SearchViewId);
+    if (!view) {
+      return;
+    }
+
+    view.renderSearch(getCalculatedData(
+      snapshot.calculatedDataByKey,
+      this.activePlotType,
+      this.getActiveAnalysisFileId(snapshot),
+    ));
   }
 
   private renderExportView(activeFile: CleanedEntry | null): void {
@@ -737,6 +761,7 @@ export class Workbench extends Layout {
       processingStatus: processing.processingStatus,
       sourceFiles: snapshot.sourceFiles,
       removeQueuedProcessingFile: processing.removeQueuedProcessingFile,
+      runInBatch: this.session.batch,
       resetPreviewWorker: tableModel.resetWorker,
       resetProcessingWorker: processing.resetProcessingWorker,
       selectedPreviewFileId: snapshot.selectedPreviewFileId,
@@ -762,6 +787,7 @@ export class Workbench extends Layout {
       pathService: this.pathService,
       cleanedData: snapshot.cleanedData,
       onFileImported: sessionActions.handleFileImported,
+      onFilesAdded: sessionActions.handleFilesAdded,
       onFilesReplaced: sessionActions.handleFilesReplaced,
       onFileRemoved: sessionActions.handleFileRemoved,
       onFilesRemoved: sessionActions.handleFilesRemoved,
@@ -975,15 +1001,15 @@ export class Workbench extends Layout {
   private getCoreSettingsOptions() {
     return {
       language: this.languagePreference,
-      setGmDiagnosticsEnabled: () => undefined,
+      setGmInspectorEnabled: () => undefined,
       setAppearance: this.setAppearance,
       setIonIoffMethod: () => undefined,
       setLanguage: this.setLanguage,
-      setSsDiagnosticsEnabled: () => undefined,
+      setSsInspectorEnabled: () => undefined,
       setSsMethod: () => undefined,
       setSsShowFitLine: () => undefined,
       setTheme: this.setTheme,
-      setVthDiagnosticsEnabled: () => undefined,
+      setVthInspectorEnabled: () => undefined,
       theme: this.theme,
     };
   }
