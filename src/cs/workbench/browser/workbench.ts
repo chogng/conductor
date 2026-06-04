@@ -452,7 +452,7 @@ export class Workbench extends Layout {
       this.viewsService.addViewToContainer(WorkbenchViewContainers.main, this.table.view);
     }
     this.viewsService.addViewToContainer(WorkbenchViewContainers.main, this.analysis);
-    this.viewsService.addViewToContainer(WorkbenchViewContainers.auxiliarybar, this.templateViewlet.sidebarView);
+    this.viewsService.addViewToContainer(WorkbenchViewContainers.auxiliarybar, this.templateViewlet.auxiliaryBarView);
     this.viewsService.addViewToContainer(WorkbenchViewContainers.settings, this.settings);
 
     const isSettingsActive = this.activeView === "settings";

@@ -1,7 +1,6 @@
 import { localize } from "src/cs/nls";
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import { createPreviewPart } from "src/cs/workbench/browser/parts/previewArea/previewPart";
-import SidebarPart from "src/cs/workbench/browser/parts/sidebar/sidebarPart";
 import type { SessionFile } from "src/cs/workbench/contrib/session/common/sessionTypes";
 import type { ITemplateService } from "src/cs/workbench/contrib/template/common/template";
 import type { IContextMenuService } from "src/cs/platform/contextview/browser/contextView";
@@ -10,7 +9,7 @@ import {
   TemplateView,
   type TemplateViewOptions,
 } from "src/cs/workbench/contrib/template/browser/views/templateView";
-import { TemplateSidebarViewId, TemplateViewId } from "src/cs/workbench/contrib/template/common/template";
+import { TemplateAuxiliaryBarViewId, TemplateViewId } from "src/cs/workbench/contrib/template/common/template";
 
 import "src/cs/workbench/contrib/template/browser/media/templateViewlet.css";
 
@@ -31,7 +30,7 @@ export type TemplateViewletProps = {
 };
 
 export class TemplateViewlet extends ViewPane {
-  public readonly sidebarView: TemplateSidebarViewPane;
+  public readonly auxiliaryBarView: TemplateAuxiliaryBarViewPane;
   private readonly previewPart: HTMLElement;
   private readonly previewContent: HTMLElement;
   private readonly templateView: TemplateView;
@@ -52,25 +51,21 @@ export class TemplateViewlet extends ViewPane {
     this.previewPart = createPreviewPart({
       id: "analysis-template-workspace",
       ariaLabel: TEMPLATE_TITLE,
-      className: "template_viewlet template_viewlet--joined_sidebar",
+      className: "template_viewlet template_viewlet--joined_auxiliarybar",
       children: this.previewContent,
     });
     this.body.append(this.previewPart);
 
-    this.sidebarView = new TemplateSidebarViewPane(this.templateView.sidebarElement);
-  }
-
-  public get sidebarElement(): HTMLElement {
-    return this.sidebarView.element;
+    this.auxiliaryBarView = new TemplateAuxiliaryBarViewPane(this.templateView.auxiliaryBarElement);
   }
 
   public update(props: TemplateViewletProps): void {
     this.templateView.update(toTemplateProps(props));
-    this.sidebarView.update(this.templateView.sidebarElement);
+    this.auxiliaryBarView.update(this.templateView.auxiliaryBarElement);
   }
 
   public dispose(): void {
-    this.sidebarView.dispose();
+    this.auxiliaryBarView.dispose();
     this.templateView.dispose();
     this.previewContent.replaceChildren();
     this.previewPart.remove();
@@ -78,37 +73,27 @@ export class TemplateViewlet extends ViewPane {
   }
 }
 
-export class TemplateSidebarViewPane extends ViewPane {
-  private readonly sidebarPart: SidebarPart;
-
+export class TemplateAuxiliaryBarViewPane extends ViewPane {
   constructor(content: HTMLElement) {
     super({
-      id: TemplateSidebarViewId,
+      id: TemplateAuxiliaryBarViewId,
       title: TEMPLATE_TITLE,
-      className: "template-sidebar-view-pane",
+      className: "auxiliarybar_view_pane template_auxiliarybar_view_pane",
       bodyClassName: "workbench-part-view-pane__body",
       headerVisible: false,
     });
-    this.sidebarPart = new SidebarPart({
-      ariaLabel: TEMPLATE_TITLE,
-      children: content,
-      className: "template_sidebar_part template_sidebar_part--joined_preview",
-      title: TEMPLATE_TITLE,
-    });
-    this.body.append(this.sidebarPart.element);
+    this.body.setAttribute("aria-label", TEMPLATE_TITLE);
+    this.body.append(content);
   }
 
   public update(content: HTMLElement): void {
-    this.sidebarPart.update({
-      ariaLabel: TEMPLATE_TITLE,
-      children: content,
-      className: "template_sidebar_part template_sidebar_part--joined_preview",
-      title: TEMPLATE_TITLE,
-    });
+    if (content.parentElement !== this.body) {
+      this.body.replaceChildren(content);
+    }
   }
 
   public dispose(): void {
-    this.sidebarPart.dispose();
+    this.body.replaceChildren();
     super.dispose();
   }
 }

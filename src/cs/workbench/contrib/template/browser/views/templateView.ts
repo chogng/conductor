@@ -162,7 +162,7 @@ const exportTemplate = (config: TemplateConfig, templateService: ITemplateServic
 
 export class TemplateView {
   public readonly element: HTMLElement;
-  public readonly sidebarElement: HTMLElement;
+  public readonly auxiliaryBarElement: HTMLElement;
   private readonly left = document.createElement("div");
   private props: TemplateViewOptions;
   private activePickField: PickFieldName | null = null;
@@ -178,7 +178,7 @@ export class TemplateView {
     this.props = props;
     this.element = document.createElement("div");
     this.element.className = "template_view";
-    this.sidebarElement = this.left;
+    this.auxiliaryBarElement = this.left;
 
     this.left.className = "template_config_panel";
 

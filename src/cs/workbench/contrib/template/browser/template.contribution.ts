@@ -9,8 +9,8 @@ import {
   type IViewContainersRegistry,
   type IViewsRegistry,
 } from "src/cs/workbench/common/views";
-import { TemplateSidebarViewPane } from "src/cs/workbench/contrib/template/browser/templateViewlet";
-import { TemplateContributionId, TemplateSidebarViewId } from "src/cs/workbench/contrib/template/common/template";
+import { TemplateAuxiliaryBarViewPane } from "src/cs/workbench/contrib/template/browser/templateViewlet";
+import { TemplateAuxiliaryBarViewId, TemplateContributionId } from "src/cs/workbench/contrib/template/common/template";
 
 import "src/cs/workbench/contrib/template/browser/templateApplyService";
 import "src/cs/workbench/contrib/template/browser/templateService";
@@ -21,9 +21,9 @@ const container = viewContainersRegistry.get(WorkbenchViewContainers.auxiliaryba
 
 if (container) {
   viewsRegistry.registerViews([{
-    id: TemplateSidebarViewId,
+    id: TemplateAuxiliaryBarViewId,
     name: localize("template_editor_title", "Template"),
-    ctorDescriptor: new SyncDescriptor(TemplateSidebarViewPane, [document.createElement("div")]),
+    ctorDescriptor: new SyncDescriptor(TemplateAuxiliaryBarViewPane, [document.createElement("div")]),
     hideByDefault: true,
     order: 0,
   }], container);

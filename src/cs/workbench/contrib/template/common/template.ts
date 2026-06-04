@@ -4,7 +4,7 @@ import type { TemplateConfig } from "src/cs/workbench/contrib/template/common/te
 export const TemplateContributionId = "workbench.contrib.template";
 
 export const TemplateViewId = "workbench.template";
-export const TemplateSidebarViewId = "workbench.template.sidebar";
+export const TemplateAuxiliaryBarViewId = "workbench.template.auxiliarybar";
 
 export type TemplateImportPayloadHandler = (
   payload: unknown,

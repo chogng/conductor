@@ -3,7 +3,7 @@ import { localize } from "src/cs/nls";
 import { ExportViewId } from "src/cs/workbench/contrib/export/common/export";
 import { OriginExportSettingsViewId } from "src/cs/workbench/contrib/origin/common/origin";
 import { ParametersViewId } from "src/cs/workbench/contrib/parameters/common/parameters";
-import { TemplateSidebarViewId } from "src/cs/workbench/contrib/template/common/template";
+import { TemplateAuxiliaryBarViewId } from "src/cs/workbench/contrib/template/common/template";
 
 export type AuxiliaryBarView = "template" | "export" | "parameters" | "settings";
 export type AuxiliaryBarMode = "table" | "chart";
@@ -22,7 +22,7 @@ export const AuxiliaryBarViews: readonly AuxiliaryBarViewDescriptor[] = [
   {
     id: "template",
     mode: "table",
-    viewId: TemplateSidebarViewId,
+    viewId: TemplateAuxiliaryBarViewId,
     labelKey: "template_editor_title",
     label: "Template",
   },

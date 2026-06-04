@@ -175,4 +175,4 @@ Contribution、Command、Context Key、Configuration：
 - 不为了通过编译把类型断言一路写到底；先修类型边界。
 - 不为了“更通用”覆盖上游朴素写法；简化和抽象冲突时，优先上游同类模块的直接写法。
 - 不写rem这种tailwind样式，仅使用px
-- localize默认英文起手，不要中文
+- localize 默认英文起手，不要中文
