@@ -35,6 +35,7 @@ import {
 import {
   AuxiliaryBarViews,
 } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarActions";
+import { AuxiliaryBarModel } from "src/cs/workbench/browser/parts/auxiliarybar/auxiliaryBarModel";
 import type { WorkbenchStyle } from "src/cs/workbench/browser/style";
 import {
   applyWorkbenchAppearance,
@@ -233,6 +234,7 @@ export class Workbench extends Layout {
   private readonly templateApplyService: ITemplateApplyService;
   private readonly templateService: ITemplateService;
   private readonly templateImportController: TemplateImportController;
+  private readonly auxiliaryBarModel = new AuxiliaryBarModel();
   private readonly coreSettingsController: CoreSettingsController;
   private coreSettingsState: CoreSettingsState = createCoreSettingsState();
   private theme: ThemeMode = isThemeMode(window.__CONDUCTOR_INITIAL_THEME__)
@@ -491,11 +493,15 @@ export class Workbench extends Layout {
       return;
     }
 
-    const state = this.updateAuxiliaryBarPaneContainer({
-      container,
+    const state = this.auxiliaryBarModel.update({
       mode: this.activeMainPart,
       onDidChangeActiveView: () => this.handleAuxiliaryBarActiveViewChange(),
       visible,
+    });
+    this.updateAuxiliaryBarPaneContainer({
+      actions: state.actions,
+      container,
+      title: state.title,
     });
 
     for (const view of state.views) {
@@ -521,7 +527,7 @@ export class Workbench extends Layout {
     const props = this.getAuxiliaryBarViewInput(snapshot);
     const activeFile = this.resolveActiveFile(snapshot);
 
-    switch (this.getAuxiliaryBarActiveView(this.activeMainPart)) {
+    switch (this.auxiliaryBarModel.getActiveView(this.activeMainPart)) {
       case "template":
         break;
       case "parameters":
@@ -621,7 +627,7 @@ export class Workbench extends Layout {
   }
 
   private getActiveAuxiliaryBarElement(): HTMLElement | null {
-    const viewId = this.getAuxiliaryBarActiveViewId(this.activeMainPart);
+    const viewId = this.auxiliaryBarModel.getActiveViewId(this.activeMainPart);
     return viewId ? this.viewsService.getViewWithId(viewId)?.element ?? null : null;
   }
 

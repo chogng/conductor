@@ -3,11 +3,10 @@
 
 总原则：
 - 不写 TSX/React；UI 使用上游式 TypeScript 创建和组合 DOM。
-- 写代码前先找上游同类实现：优先 `C:\Users\lanxi\Desktop\vscode`，再看 `C:\Users\lanxi\Desktop\codex`，最后看本项目相邻模块。
+- 写代码前先找上游同类实现：优先 `C:\Users\lanxi\Desktop\vscode`，最后看本项目相邻模块。
 - 对照上游时至少看四件事：文件放在哪里，类/函数怎么命名，状态怎么流动，CSS 怎么承接 UI 状态。
 - 如果上游已有同类模式，本项目按上游写；不要发明第二套命名、目录、生命周期或服务模式。
 - 代码优先短、直、朴素。只有真实跨边界、真实复用、真实复杂度出现时才加抽象。
-- 不继续塞入 `deviceanalysis` 这类重复业务前缀；目录已经表达的上下文不要再塞进文件名、类名、变量名。
 
 PowerShell 规则：
 - 读写中文文本文件时显式指定 `-Encoding UTF8`。
@@ -176,3 +175,4 @@ Contribution、Command、Context Key、Configuration：
 - 不为了通过编译把类型断言一路写到底；先修类型边界。
 - 不为了“更通用”覆盖上游朴素写法；简化和抽象冲突时，优先上游同类模块的直接写法。
 - 不写rem这种tailwind样式，仅使用px
+- localize默认英文起手，不要中文
