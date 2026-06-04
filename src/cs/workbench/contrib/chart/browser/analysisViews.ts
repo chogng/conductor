@@ -1,4 +1,4 @@
-import { localize } from "src/cs/nls";
+﻿import { localize } from "src/cs/nls";
 
 import { ViewPane } from "src/cs/workbench/browser/parts/views/viewPane";
 import { LxIcon } from "src/cs/base/common/lxicon";
@@ -32,8 +32,8 @@ import type {
   OriginExportMode,
 } from "src/cs/workbench/contrib/export/common/originSelectionExport";
 import { ExportContributionId } from "src/cs/workbench/contrib/export/common/export";
-import { ResultsViewId } from "src/cs/workbench/contrib/chart/common/chart";
-import PlotSettingsView from "src/cs/workbench/contrib/origin/browser/PlotSettingsView";
+import { AnalysisViewsId } from "src/cs/workbench/contrib/chart/common/chart";
+import OriginView from "src/cs/workbench/contrib/origin/browser/OriginView";
 import type { OriginPlotOptions } from "src/cs/workbench/contrib/origin/common/originPlotOptions";
 import type { PlotAxisSettings } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
 import type { ParametersContribution } from "src/cs/workbench/contrib/parameters/browser/parameters.contribution";
@@ -46,9 +46,9 @@ import type {
 
 import "src/cs/workbench/contrib/export/browser/media/export.css";
 import "src/cs/workbench/contrib/parameters/browser/media/parametersView.css";
-import "src/cs/workbench/contrib/chart/browser/media/resultsPane.css";
+import "src/cs/workbench/contrib/chart/browser/media/analysisViews.css";
 
-export type ResultsPaneProps = {
+export type AnalysisViewsProps = {
   readonly activeFileId?: string | null;
   readonly cleanedData: CleanedEntry[];
   readonly onPlotAxisSettingsChange?: (updates: Record<string, unknown>) => void | Promise<void>;
@@ -74,7 +74,7 @@ type SsFitResult = {
   suggested?: SsFit;
 };
 
-type ResultsPaneView = "export" | "settings" | "parameters";
+type AnalysisViewId = "export" | "settings" | "parameters";
 
 const ORIGIN_EXPORT_CONTENT_OPTIONS: OriginExportContentOption[] = [
   { group: "basic", key: "iv", labelKey: "da_origin_export_content_iv" },
@@ -84,14 +84,14 @@ const ORIGIN_EXPORT_CONTENT_OPTIONS: OriginExportContentOption[] = [
   { group: "derived", key: "vth", labelKey: "da_origin_export_content_vth" },
 ];
 
-export class ResultsPane extends ViewPane {
+export class AnalysisViews extends ViewPane {
   private readonly content = document.createElement("div");
   private readonly exportContribution: ExportContribution;
   private readonly parametersContribution: ParametersContribution;
-  private readonly plotSettingsView = new PlotSettingsView();
+  private readonly originView = new OriginView();
   private readonly sidebarPart: SidebarPart;
-  private props: ResultsPaneProps;
-  private activeView: ResultsPaneView = "export";
+  private props: AnalysisViewsProps;
+  private activeView: AnalysisViewId = "export";
   private originMode: OriginExportMode = "merged";
   private canvasScope: OriginCanvasExportScope = "current";
   private filteredKind: OriginFilteredCanvasKind = "output";
@@ -99,50 +99,50 @@ export class ResultsPane extends ViewPane {
   private selectedContentKeys: OriginExportContentKey[] = ["iv"];
   private selectedCurveKeys = new Set<string>();
 
-  constructor(props: ResultsPaneProps) {
+  constructor(props: AnalysisViewsProps) {
     super({
-      id: ResultsViewId,
+      id: AnalysisViewsId,
       title: localize("analysis.visualization", "Analysis & Visualization"),
-      className: "results-view-pane",
+      className: "analysis-views-pane",
       bodyClassName: "workbench-part-view-pane__body",
       headerVisible: false,
     });
     this.props = props;
-    this.content.className = "results_pane";
+    this.content.className = "analysis_views";
     this.exportContribution = getWorkbenchContribution<ExportContribution>(ExportContributionId);
     this.parametersContribution = getWorkbenchContribution<ParametersContribution>(ParametersContributionId);
-    this.exportContribution.element.className = "results_pane_body";
-    this.parametersContribution.element.className = "results_pane_body results_pane_body--scroll";
+    this.exportContribution.element.className = "analysis_views_body";
+    this.parametersContribution.element.className = "analysis_views_body analysis_views_body--scroll";
     this.sidebarPart = new SidebarPart(this.getSidebarOptions(props));
     this.body.append(this.sidebarPart.element);
   }
 
-  public update(props: ResultsPaneProps): void {
+  public update(props: AnalysisViewsProps): void {
     this.props = props;
     this.sidebarPart.update(this.getSidebarOptions(props));
   }
 
   public dispose(): void {
-    this.plotSettingsView.dispose();
+    this.originView.dispose();
     this.sidebarPart.dispose();
     this.content.replaceChildren();
     super.dispose();
   }
 
-  private getSidebarOptions(props: ResultsPaneProps) {
+  private getSidebarOptions(props: AnalysisViewsProps) {
     this.render(props);
 
     return {
       ariaLabel: localize("analysis.visualization", "Analysis & Visualization"),
       children: this.content,
-      className: "results_sidebar_part",
+      className: "analysis_views_sidebar_part",
       headerActions: this.createHeaderActions(props),
       onAction: (action: WorkbenchSidebarAction) => this.handleHeaderAction(action),
       title: localize("analysis.visualization", "Analysis & Visualization"),
     };
   }
 
-  private render(props: ResultsPaneProps): void {
+  private render(props: AnalysisViewsProps): void {
     const activeFile = resolveActiveFile(props);
     this.content.replaceChildren();
 
@@ -159,16 +159,16 @@ export class ResultsPane extends ViewPane {
     this.content.append(this.createActivePane(props));
   }
 
-  private createHeaderActions(props: ResultsPaneProps): WorkbenchSidebarHeaderAction[] {
+  private createHeaderActions(props: AnalysisViewsProps): WorkbenchSidebarHeaderAction[] {
     return [
       this.createHeaderAction(
         "export",
-        localize("analysis.results.export", "Export"),
+        localize("da_analysis_views_export", "Export"),
         LxIcon.origin.render(),
       ),
       this.createHeaderAction(
         "parameters",
-        localize("analysis.results.parameters", "Parameters"),
+        localize("da_analysis_views_parameters", "Parameters"),
         LxIcon.listUnordered.render(),
       ),
       this.createHeaderAction(
@@ -180,12 +180,12 @@ export class ResultsPane extends ViewPane {
   }
 
   private createHeaderAction(
-    view: ResultsPaneView,
+    view: AnalysisViewId,
     title: string,
     icon: string,
   ): WorkbenchSidebarHeaderAction {
     return {
-      id: `results-pane.${view}`,
+      id: `analysis-views.${view}`,
       title,
       icon,
       isActive: this.activeView === view,
@@ -203,24 +203,24 @@ export class ResultsPane extends ViewPane {
     this.update(this.props);
   }
 
-  private createActivePane(props: ResultsPaneProps): HTMLElement {
+  private createActivePane(props: AnalysisViewsProps): HTMLElement {
     switch (this.activeView) {
       case "parameters":
         return this.createPane(
-          localize("analysis.results.parameters", "Parameters"),
+          localize("da_analysis_views_parameters", "Parameters"),
           this.parametersContribution.element,
-          "results_pane_section--fill",
+          "analysis_views_section--fill",
         );
       case "settings":
         return this.createPane(
           localize("da_chart_curve_settings_title", "Curve Settings"),
-          this.plotSettingsView.element,
-          "results_pane_section--fill",
+          this.originView.element,
+          "analysis_views_section--fill",
         );
       case "export":
       default:
         return this.createPane(
-          localize("analysis.results.export", "Export"),
+          localize("da_analysis_views_export", "Export"),
           this.exportContribution.element,
         );
     }
@@ -230,28 +230,28 @@ export class ResultsPane extends ViewPane {
     switch (this.activeView) {
       case "parameters":
         return this.createPane(
-          localize("analysis.results.parameters", "Parameters"),
+          localize("da_analysis_views_parameters", "Parameters"),
           createEmptyState(localize("da_no_processed_data", "No Processed Data")),
-          "results_pane_section--fill",
+          "analysis_views_section--fill",
         );
       case "settings":
         return this.createPane(
           localize("da_chart_curve_settings_title", "Curve Settings"),
-          this.plotSettingsView.element,
-          "results_pane_section--fill",
+          this.originView.element,
+          "analysis_views_section--fill",
         );
       case "export":
       default:
         return this.createPane(
-          localize("analysis.results.export", "Export"),
+          localize("da_analysis_views_export", "Export"),
           createEmptyState(localize("da_no_processed_data", "No Processed Data")),
-          "results_pane_section--fill",
+          "analysis_views_section--fill",
         );
     }
   }
 
   private renderExportPane(
-    props: ResultsPaneProps,
+    props: AnalysisViewsProps,
     activeFile: CleanedEntry,
   ): void {
     this.exportContribution.render({
@@ -297,7 +297,7 @@ export class ResultsPane extends ViewPane {
   }
 
   private renderParametersPane(
-    props: ResultsPaneProps,
+    props: AnalysisViewsProps,
     activeFile: CleanedEntry,
   ): void {
     this.parametersContribution.renderParameters({
@@ -307,8 +307,8 @@ export class ResultsPane extends ViewPane {
     });
   }
 
-  private renderSettingsPane(props: ResultsPaneProps): void {
-    this.plotSettingsView.update({
+  private renderSettingsPane(props: AnalysisViewsProps): void {
+    this.originView.update({
       axisSettings: props.plotAxisSettings,
       onAxisChange: props.onPlotAxisSettingsChange,
       onChange: props.onOriginOpenPlotOptionsChange,
@@ -323,8 +323,8 @@ export class ResultsPane extends ViewPane {
   ): HTMLElement {
     const section = document.createElement("section");
     section.className = className
-      ? `results_pane_section ${className}`
-      : "results_pane_section";
+      ? `analysis_views_section ${className}`
+      : "analysis_views_section";
     section.append(createSectionTitle(titleText), body);
     return section;
   }
@@ -341,13 +341,13 @@ export class ResultsPane extends ViewPane {
   }
 }
 
-const getActionView = (actionId: string): ResultsPaneView | null => {
+const getActionView = (actionId: string): AnalysisViewId | null => {
   switch (actionId) {
-    case "results-pane.export":
+    case "analysis-views.export":
       return "export";
-    case "results-pane.settings":
+    case "analysis-views.settings":
       return "settings";
-    case "results-pane.parameters":
+    case "analysis-views.parameters":
       return "parameters";
     default:
       return null;
@@ -357,7 +357,7 @@ const getActionView = (actionId: string): ResultsPaneView | null => {
 const resolveActiveFile = ({
   activeFileId,
   cleanedData,
-}: ResultsPaneProps): CleanedEntry | null => {
+}: AnalysisViewsProps): CleanedEntry | null => {
   const files = Array.isArray(cleanedData) ? cleanedData : [];
   const normalizedActiveFileId = String(activeFileId ?? "").trim();
   return (
@@ -473,16 +473,16 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const createSectionTitle = (text: string): HTMLElement => {
   const title = document.createElement("h3");
-  title.className = "results_section_title";
+  title.className = "analysis_views_section_title";
   title.textContent = text;
   return title;
 };
 
 const createEmptyState = (message: string): HTMLElement => {
   const root = document.createElement("div");
-  root.className = "results_empty";
+  root.className = "analysis_views_empty";
   root.textContent = message;
   return root;
 };
 
-export default ResultsPane;
+export default AnalysisViews;

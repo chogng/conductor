@@ -1,6 +1,7 @@
-import { localize } from "src/cs/nls";
+﻿import { localize } from "src/cs/nls";
 
 import { createInputBoxField } from "src/cs/base/browser/ui/inputbox/inputBox";
+import Scrollbar from "src/cs/base/browser/ui/scrollbar/scrollbar";
 import { createSwitch } from "src/cs/base/browser/ui/switch/switch";
 import { Disposable, DisposableStore, toDisposable } from "src/cs/base/common/lifecycle";
 import {
@@ -14,22 +15,27 @@ import {
   type PlotAxisSettings,
 } from "src/cs/workbench/contrib/plot/common/plotAxisSettings";
 
-import "src/cs/workbench/contrib/origin/browser/media/plotSettingsView.css";
+import "src/cs/workbench/contrib/origin/browser/media/originView.css";
 
-export type PlotSettingsViewOptions = {
+export type OriginViewOptions = {
   readonly axisSettings?: Partial<PlotAxisSettings> | Record<string, unknown>;
   readonly onAxisChange?: (updates: Record<string, unknown>) => void | Promise<void>;
   readonly onChange?: (updates: Partial<OriginPlotOptions>) => void | Promise<void>;
   readonly options?: OriginPlotOptions;
 };
 
-export class PlotSettingsView extends Disposable {
+export class OriginView extends Disposable {
   public readonly element = document.createElement("div");
   private readonly renderStore = this._register(new DisposableStore());
+  private readonly scrollArea = this._register(new Scrollbar({
+    className: "origin_view_scroll",
+    viewportClassName: "origin_view_scroll_viewport",
+  }));
 
   constructor() {
     super();
-    this.element.className = "plot_settings";
+    this.element.className = "origin_view";
+    this.element.append(this.scrollArea.element);
   }
 
   public update({
@@ -37,29 +43,30 @@ export class PlotSettingsView extends Disposable {
     onAxisChange,
     onChange,
     options,
-  }: PlotSettingsViewOptions): void {
+  }: OriginViewOptions): void {
     this.renderStore.clear();
     const normalizedOptions = normalizeOriginPlotOptions(
       options,
       DEFAULT_ORIGIN_PLOT_OPTIONS,
     );
 
-    this.element.replaceChildren(createPlotSettingsView({
+    this.scrollArea.viewport.replaceChildren(createOriginView({
       axisSettings: normalizePlotAxisSettings(axisSettings, DEFAULT_PLOT_AXIS_SETTINGS),
       onAxisChange,
       onChange,
       options: normalizedOptions,
       store: this.renderStore,
     }));
+    queueMicrotask(() => this.scrollArea.layout());
   }
 
   public override dispose(): void {
-    this.element.replaceChildren();
+    this.scrollArea.viewport.replaceChildren();
     super.dispose();
   }
 }
 
-const createPlotSettingsView = ({
+const createOriginView = ({
   axisSettings,
   onAxisChange,
   onChange,
@@ -73,7 +80,7 @@ const createPlotSettingsView = ({
   readonly store: DisposableStore;
 }): HTMLElement => {
   const root = document.createElement("div");
-  root.className = "plot_settings_content";
+  root.className = "origin_view_content";
 
   root.append(
     createSettingsGroup(localize("da_chart_curve_settings_title", "Curve Settings"), [
@@ -86,7 +93,7 @@ const createPlotSettingsView = ({
         label: localize("da_settings_origin_plot_line_width_label", "Line width"),
       }),
     ]),
-    createSettingsGroup(localize("da_chart_plot_settings_title", "Plot Settings"), [
+    createSettingsGroup(localize("da_origin_view_plot_settings_title", "Plot Settings"), [
       createSettingsRow({
         control: createBooleanSwitch({
           checked: axisSettings.showGrid,
@@ -113,7 +120,7 @@ const createPlotSettingsView = ({
       }),
       createSettingsField({
         control: createAxisTextInput({
-          id: "plot-settings-minor-tick-count",
+          id: "origin-view-minor-tick-count",
           onChange: (value) => void onAxisChange?.({ minorTickCount: value }),
           placeholder: "1",
           store,
@@ -123,7 +130,7 @@ const createPlotSettingsView = ({
       }),
       createSettingsField({
         control: createAxisTextInput({
-          id: "plot-settings-tick-label-font-size",
+          id: "origin-view-tick-label-font-size",
           onChange: (value) => void onAxisChange?.({ tickLabelFontSize: value }),
           placeholder: localize("da_chart_axis_auto", "auto"),
           store,
@@ -133,7 +140,7 @@ const createPlotSettingsView = ({
       }),
       createSettingsField({
         control: createAxisTextInput({
-          id: "plot-settings-axis-title-font-size",
+          id: "origin-view-axis-title-font-size",
           onChange: (value) => void onAxisChange?.({ axisTitleFontSize: value }),
           placeholder: localize("da_chart_axis_auto", "auto"),
           store,
@@ -143,7 +150,7 @@ const createPlotSettingsView = ({
       }),
       createSettingsField({
         control: createAxisTextInput({
-          id: "plot-settings-legend-font-size",
+          id: "origin-view-legend-font-size",
           onChange: (value) => void onAxisChange?.({ legendFontSize: value }),
           placeholder: localize("da_chart_axis_auto", "auto"),
           store,
@@ -153,7 +160,7 @@ const createPlotSettingsView = ({
       }),
       createSettingsField({
         control: createAxisTextInput({
-          id: "plot-settings-tick-label-offset",
+          id: "origin-view-tick-label-offset",
           onChange: (value) => void onAxisChange?.({ originTickLabelOffset: value }),
           placeholder: localize("da_chart_axis_auto", "auto"),
           store,
@@ -163,7 +170,7 @@ const createPlotSettingsView = ({
       }),
       createSettingsField({
         control: createAxisTextInput({
-          id: "plot-settings-axis-title-gap",
+          id: "origin-view-axis-title-gap",
           onChange: (value) => void onAxisChange?.({ originAxisTitleGap: value }),
           placeholder: localize("da_chart_axis_auto", "auto"),
           store,
@@ -197,7 +204,7 @@ const createPlotSettingsView = ({
     createSettingsGroup(localize("da_settings_origin_plot_title", "Default Plot Settings"), [
       createSettingsField({
         control: createTextInput({
-          id: "plot-settings-xy-pairs",
+          id: "origin-view-xy-pairs",
           onChange: (value) => {
             const normalized = normalizeOriginPlotOptions({ xyPairs: value }, options);
             void onChange?.({ xyPairs: normalized.xyPairs });
@@ -210,7 +217,7 @@ const createPlotSettingsView = ({
       }),
       createSettingsField({
         control: createTextInput({
-          id: "plot-settings-command",
+          id: "origin-view-command",
           onChange: (value) => {
             const normalized = normalizeOriginPlotOptions({ command: value }, options);
             void onChange?.({ command: normalized.command });
@@ -233,9 +240,9 @@ const createPlotSettingsView = ({
 
 const createSettingsGroup = (titleText: string, fields: HTMLElement[]): HTMLElement => {
   const group = document.createElement("section");
-  group.className = "plot_settings_group";
+  group.className = "origin_view_group";
   const title = document.createElement("div");
-  title.className = "plot_settings_group_title";
+  title.className = "origin_view_group_title";
   title.textContent = titleText;
   group.append(title, ...fields);
   return group;
@@ -251,10 +258,10 @@ const createSettingsField = ({
   readonly label: string;
 }): HTMLElement => {
   const field = document.createElement("div");
-  field.className = "plot_settings_field";
+  field.className = "origin_view_field";
 
   const label = document.createElement("label");
-  label.className = "plot_settings_label";
+  label.className = "origin_view_label";
   label.textContent = labelText;
   const controlId = getSettingsControlId(control);
   if (controlId) {
@@ -269,7 +276,7 @@ const createSettingsField = ({
 
     const hintElement = document.createElement("p");
     hintElement.id = hintId;
-    hintElement.className = "plot_settings_hint";
+    hintElement.className = "origin_view_hint";
     hintElement.textContent = hint;
     field.append(label, control, hintElement);
     return field;
@@ -287,9 +294,9 @@ const createSettingsRow = ({
   readonly label: string;
 }): HTMLElement => {
   const field = document.createElement("div");
-  field.className = "plot_settings_row";
+  field.className = "origin_view_row";
   const label = document.createElement("div");
-  label.className = "plot_settings_label";
+  label.className = "origin_view_label";
   label.textContent = labelText;
   field.append(label, control);
   return field;
@@ -320,7 +327,7 @@ const createAxisSettingsGroup = ({
   return createSettingsGroup(label, [
     createSettingsField({
       control: createAxisTextInput({
-        id: `plot-settings-${minKey}`,
+        id: `origin-view-${minKey}`,
         onChange: (value) => void onAxisChange?.({ [minKey]: value }),
         placeholder: localize("da_chart_axis_auto", "auto"),
         store,
@@ -330,7 +337,7 @@ const createAxisSettingsGroup = ({
     }),
     createSettingsField({
       control: createAxisTextInput({
-        id: `plot-settings-${maxKey}`,
+        id: `origin-view-${maxKey}`,
         onChange: (value) => void onAxisChange?.({ [maxKey]: value }),
         placeholder: localize("da_chart_axis_auto", "auto"),
         store,
@@ -340,7 +347,7 @@ const createAxisSettingsGroup = ({
     }),
     createSettingsField({
       control: createAxisTickSelect({
-        id: `plot-settings-${ticksKey}`,
+        id: `origin-view-${ticksKey}`,
         isY,
         onChange: (value) => {
           const updates = {
@@ -358,7 +365,7 @@ const createAxisSettingsGroup = ({
     createSettingsField({
       control: createAxisTextInput({
         disabled: axisSettings[ticksKey] !== "nice",
-        id: `plot-settings-${tickCountKey}`,
+        id: `origin-view-${tickCountKey}`,
         onChange: (value) => void onAxisChange?.({ [tickCountKey]: value }),
         placeholder: "6",
         store,
@@ -369,7 +376,7 @@ const createAxisSettingsGroup = ({
     createSettingsField({
       control: createAxisTextInput({
         disabled: axisSettings[ticksKey] !== "step",
-        id: `plot-settings-${stepKey}`,
+        id: `origin-view-${stepKey}`,
         onChange: (value) => void onAxisChange?.({ [stepKey]: value }),
         placeholder: localize("da_chart_axis_auto", "auto"),
         store,
@@ -382,12 +389,12 @@ const createAxisSettingsGroup = ({
 
 const createPlotTypeSelect = (
   options: OriginPlotOptions,
-  onChange: PlotSettingsViewOptions["onChange"],
+  onChange: OriginViewOptions["onChange"],
   store: DisposableStore,
 ): HTMLSelectElement => {
   const select = document.createElement("select");
-  select.id = "plot-settings-type";
-  select.className = "dropdown-field dropdown-field--sm plot_settings_control";
+  select.id = "origin-view-type";
+  select.className = "dropdown-field dropdown-field--sm origin_view_control";
   select.value = String(options.type);
   for (const option of [
     { value: "200", label: localize("da_settings_origin_plot_type_200", "Line") },
@@ -426,7 +433,7 @@ const createAxisTickSelect = ({
 }): HTMLSelectElement => {
   const select = document.createElement("select");
   select.id = id;
-  select.className = "dropdown-field dropdown-field--sm plot_settings_control";
+  select.className = "dropdown-field dropdown-field--sm origin_view_control";
   select.value = String(value);
   const options = isY
     ? [
@@ -454,21 +461,21 @@ const createAxisTickSelect = ({
 
 const createLineWidthInput = (
   options: OriginPlotOptions,
-  onChange: PlotSettingsViewOptions["onChange"],
+  onChange: OriginViewOptions["onChange"],
   store: DisposableStore,
 ): HTMLElement => {
   const input = document.createElement("input");
-  input.id = "plot-settings-line-width";
+  input.id = "origin-view-line-width";
   input.type = "number";
   input.min = "0.5";
   input.max = "20";
   input.step = "0.5";
   input.value = String(options.lineWidth);
   const wrapper = createInputBoxField({
-    className: "plot_settings_control",
-    fieldClassName: "plot_settings_input_field",
+    className: "origin_view_control",
+    fieldClassName: "origin_view_input_field",
     input,
-    inputClassName: "plot_settings_input",
+    inputClassName: "origin_view_input",
   }).element;
   const listener = () => {
     const normalized = normalizeOriginPlotOptions(
@@ -505,10 +512,10 @@ const createAxisTextInput = ({
   input.type = "text";
   input.value = String(value ?? "");
   const wrapper = createInputBoxField({
-    className: "plot_settings_control",
-    fieldClassName: "plot_settings_input_field",
+    className: "origin_view_control",
+    fieldClassName: "origin_view_input_field",
     input,
-    inputClassName: "plot_settings_input",
+    inputClassName: "origin_view_input",
   }).element;
   let lastValue = input.value.trim();
   const commit = () => {
@@ -566,10 +573,10 @@ const createTextInput = ({
   input.value = value;
   input.type = "text";
   const wrapper = createInputBoxField({
-    className: "plot_settings_control",
-    fieldClassName: "plot_settings_input_field",
+    className: "origin_view_control",
+    fieldClassName: "origin_view_input_field",
     input,
-    inputClassName: "plot_settings_input",
+    inputClassName: "origin_view_input",
   }).element;
   let lastValue = value;
   const commit = () => {
@@ -597,12 +604,12 @@ const createTextInput = ({
 
 const createPostCommandsInput = (
   options: OriginPlotOptions,
-  onChange: PlotSettingsViewOptions["onChange"],
+  onChange: OriginViewOptions["onChange"],
   store: DisposableStore,
 ): HTMLTextAreaElement => {
   const textarea = document.createElement("textarea");
-  textarea.id = "plot-settings-post-commands";
-  textarea.className = "plot_settings_textarea";
+  textarea.id = "origin-view-post-commands";
+  textarea.className = "origin_view_textarea";
   textarea.value = options.postCommands.join("\n");
   let lastValue = textarea.value.trim();
   const listener = () => {
@@ -652,4 +659,4 @@ const getNativeControl = (
   return null;
 };
 
-export default PlotSettingsView;
+export default OriginView;

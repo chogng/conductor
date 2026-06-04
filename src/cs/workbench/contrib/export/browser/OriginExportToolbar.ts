@@ -1,4 +1,4 @@
-import { localize } from "src/cs/nls";
+﻿import { localize } from "src/cs/nls";
 import { createButton } from "src/cs/base/browser/ui/button/button";
 import { createLxIcon } from "src/cs/base/browser/ui/lxicon/lxicon";
 import {
@@ -349,7 +349,7 @@ const createOriginExportToolbar = ({
   const toolbar = document.createElement("div");
   toolbar.className = "origin_export_toolbar_controls";
   toolbar.setAttribute("role", "toolbar");
-  toolbar.setAttribute("aria-label", localize("analysis.results.export", "Export"));
+  toolbar.setAttribute("aria-label", localize("da_origin_export_toolbar_aria_label", "Export"));
   header.appendChild(toolbar);
 
   toolbar.appendChild(createField(

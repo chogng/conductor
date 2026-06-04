@@ -1,4 +1,4 @@
-import {
+﻿import {
   DisposableStore,
   toDisposable,
   type IDisposable,
@@ -41,7 +41,7 @@ import {
   WorkbenchWindow,
 } from "src/cs/workbench/browser/window";
 import ChartViewPane from "src/cs/workbench/contrib/chart/browser/chartViewPane";
-import ResultsPane from "src/cs/workbench/contrib/chart/browser/resultsPane";
+import AnalysisViews from "src/cs/workbench/contrib/chart/browser/analysisViews";
 import TemplateViewlet from "src/cs/workbench/contrib/template/browser/templateViewlet";
 import { TemplateImportController } from "src/cs/workbench/contrib/template/browser/templateImportController";
 import { getWorkbenchContribution } from "src/cs/workbench/common/contributions";
@@ -202,7 +202,7 @@ export class Workbench extends Layout {
   private readonly table: TableContribution;
   private readonly templateViewlet: TemplateViewlet;
   private readonly analysis: ChartViewPane;
-  private readonly results: ResultsPane;
+  private readonly analysisViews: AnalysisViews;
   private readonly settings: SettingsViewPane;
   private readonly templateApply: TemplateApplyController;
   private readonly dialogsService: IFileDialogService;
@@ -293,7 +293,7 @@ export class Workbench extends Layout {
     this.table = getWorkbenchContribution<TableContribution>(TableContributionId);
     this.templateViewlet = this._register(new TemplateViewlet(this.getTemplateViewletProps()));
     this.analysis = this._register(new ChartViewPane(this.getAnalysisProps()));
-    this.results = this._register(new ResultsPane(this.getResultsProps()));
+    this.analysisViews = this._register(new AnalysisViews(this.getAnalysisViewsProps()));
     this.settings = this._register(new SettingsViewPane(this.getSettingsProps()));
     this.coreSettingsController = this._register(
       new CoreSettingsController(this.getCoreSettingsOptions()),
@@ -333,7 +333,7 @@ export class Workbench extends Layout {
       this.templateApply,
     ));
     this.analysis.update(this.getAnalysisProps(snapshot, this.templateApply));
-    this.results.update(this.getResultsProps(snapshot));
+    this.analysisViews.update(this.getAnalysisViewsProps(snapshot));
     this.settings.update(this.getSettingsProps());
     this.updateViewContainers();
     this.setParts({
@@ -344,7 +344,7 @@ export class Workbench extends Layout {
       ),
       secondarySidebar: this.getViewContainerElement(
         WorkbenchViewContainers.secondary,
-        this.activeMainPart === "chart" ? this.results.element : this.templateViewlet.sidebarElement,
+        this.activeMainPart === "chart" ? this.analysisViews.element : this.templateViewlet.sidebarElement,
       ),
       settings: this.getViewContainerElement(WorkbenchViewContainers.settings, this.settings.element),
     });
@@ -425,7 +425,7 @@ export class Workbench extends Layout {
       this.viewsService.addViewToContainer(WorkbenchViewContainers.main, this.table.view);
     }
     this.viewsService.addViewToContainer(WorkbenchViewContainers.main, this.analysis);
-    this.viewsService.addViewToContainer(WorkbenchViewContainers.secondary, this.results);
+    this.viewsService.addViewToContainer(WorkbenchViewContainers.secondary, this.analysisViews);
     this.viewsService.addViewToContainer(WorkbenchViewContainers.secondary, this.templateViewlet.sidebarView);
     this.viewsService.addViewToContainer(WorkbenchViewContainers.settings, this.settings);
 
@@ -450,7 +450,7 @@ export class Workbench extends Layout {
       this.viewsService.setViewVisible(this.table.view.id, isWorkbenchActive && !isAnalysisActive);
     }
     this.viewsService.setViewVisible(this.analysis.id, isWorkbenchActive && isAnalysisActive);
-    this.viewsService.setViewVisible(this.results.id, isWorkbenchActive && isAnalysisActive);
+    this.viewsService.setViewVisible(this.analysisViews.id, isWorkbenchActive && isAnalysisActive);
     this.viewsService.setViewVisible(this.templateViewlet.sidebarView.id, isWorkbenchActive && !isAnalysisActive);
     this.viewsService.setViewVisible(this.settings.id, isSettingsActive);
   }
@@ -570,7 +570,7 @@ export class Workbench extends Layout {
     };
   }
 
-  private getResultsProps(snapshot = this.session.getSnapshot()) {
+  private getAnalysisViewsProps(snapshot = this.session.getSnapshot()) {
     return {
       activeFileId: this.getActiveCleanedFileId(snapshot),
       cleanedData: snapshot.cleanedData,
